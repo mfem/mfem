@@ -40,12 +40,12 @@ for i in range(len(filenames)):
 	if int(hb) == 1:
 		hb_com = " -hb "
 	'''
-	problem = filenames[i][1]
-	order = filenames[i][4]
 	dg = False
 	hb = False
 	upwind = False
 	nonlin = False
+
+	filename = path + filenames[i]
 
 	if filenames[i].find('dg') != -1:
 		dg = True
@@ -56,20 +56,24 @@ for i in range(len(filenames)):
 	if filenames[i].find('nl') != -1:
 		nonlin = True
 
-	ref_out = subprocess.getoutput("grep ' --ncells-x' "+path+filenames[i]+"| cut -d ' ' -f 5")
-	nx = ref_out.split()[0]
-	ref_out = subprocess.getoutput("grep ' --ncells-y' "+path+filenames[i]+"| cut -d ' ' -f 5")
-	ny = ref_out.split()[0]
-	kappa = subprocess.getoutput("grep ' --kappa' "+path+filenames[i]+"| cut -d ' ' -f 5")
+	def get_ref_param(file, param):
+		ref_out = subprocess.getoutput("grep ' "+param+"' "+file+"| cut -d ' ' -f 5")
+		return ref_out.split()[0]
 
-	ref_out = subprocess.getoutput("grep '|| t_h - t_ex || / || t_ex || = ' "+path+filenames[i]+"  | cut -d '=' -f 2-")
+	problem = get_ref_param(filename, '--problem')
+	order = get_ref_param(filename, '--order')
+	nx = get_ref_param(filename, '--ncells-x')
+	ny = get_ref_param(filename, '--ncells-y')
+	kappa = get_ref_param(filename, '--kappa')
+
+	ref_out = subprocess.getoutput("grep '|| t_h - t_ex || / || t_ex || = ' "+filename+"  | cut -d '=' -f 2-")
 	ref_L2_t = float(ref_out.split()[0])
-	ref_out = subprocess.getoutput("grep '|| q_h - q_ex || / || q_ex || = ' "+path+filenames[i]+"  | cut -d '=' -f 2-")
+	ref_out = subprocess.getoutput("grep '|| q_h - q_ex || / || q_ex || = ' "+filename+"  | cut -d '=' -f 2-")
 	ref_L2_q = float(ref_out.split()[0])
 	if nonlin:
-		ref_out = subprocess.getoutput("grep 'LBFGS+' "+path+filenames[i]+"  | cut -d '+' -f 2-")
+		ref_out = subprocess.getoutput("grep 'LBFGS+' "+filename+"  | cut -d '+' -f 2-")
 	else:
-		ref_out = subprocess.getoutput("grep 'GMRES+' "+path+filenames[i]+"  | cut -d '+' -f 2-")
+		ref_out = subprocess.getoutput("grep 'GMRES+' "+filename+"  | cut -d '+' -f 2-")
 	precond_ref = ref_out.split()[0]
 
 	# Run test case
