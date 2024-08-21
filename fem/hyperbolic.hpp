@@ -380,6 +380,30 @@ public:
     */
    real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override;
+
+   /**
+    * @brief Compute J(u)
+    *
+    * @param state state (u) at current integration point
+    * @param Tr current element transformation with integration point
+    * @param J J(u) = diag(b)
+    */
+   void ComputeFluxJacobian(const Vector &state,
+                            ElementTransformation &Tr,
+                            DenseTensor &J) const override;
+
+   /**
+    * @brief Compute J(u) n
+    *
+    * @param state state (u) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with integration point
+    * @param JDotN J(u) = bᵀn
+    */
+   void ComputeFluxJacobianDotN(const Vector &state,
+                                const Vector &normal,
+                                ElementTransformation &Tr,
+                                DenseMatrix &JDotN) const override;
 };
 
 class BurgersFlux : public FluxFunction
@@ -410,7 +434,7 @@ public:
     *
     * @param state state (u) at current integration point
     * @param Tr current element transformation with integration point
-    * @param J J(u) = diag(u*1ᵀ) where 1 is (dim) vector
+    * @param J J(u) = diag(u*1) where 1 is (dim) vector
     */
    void ComputeFluxJacobian(const Vector &state,
                             ElementTransformation &Tr,
@@ -422,7 +446,7 @@ public:
     * @param state state (u) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param JDotN J(u) = diag(u*(1ᵀn)) where 1 is (dim) vector
+    * @param JDotN J(u) = u*(1ᵀn) where 1 is (dim) vector
     */
    void ComputeFluxJacobianDotN(const Vector &state,
                                 const Vector &normal,
