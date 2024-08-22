@@ -470,6 +470,25 @@ public:
                                Vector &b);
 };
 
+/** Class for boundary integration of (f.n, v.n) for vector coefficient f and
+    RT vector test function v. This integrator works with RT spaces defined
+    using the RT_FECollection class. */
+class VectorFEBoundaryNormalLFIntegrator : public LinearFormIntegrator
+{
+private:
+   VectorCoefficient &F;
+   Vector shape;
+
+public:
+   VectorFEBoundaryNormalLFIntegrator(VectorCoefficient &f) : F(f) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
 /// Class for boundary integration $ L(v) = (n \times f, v) $
 class VectorFEBoundaryTangentLFIntegrator : public LinearFormIntegrator
 {
