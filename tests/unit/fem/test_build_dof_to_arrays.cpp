@@ -247,7 +247,7 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
                fec = new L2_FECollection(order-1, dim);
             }
             ParFiniteElementSpace fespace(&pmesh, fec);
-            HYPRE_Int size = fespace.GetTrueVSize();
+            int size = fespace.GetNDofs();
 
             // Check elements
             for (int i = 0; i<size; i++)
