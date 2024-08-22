@@ -3118,6 +3118,8 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    // Setup for level set function
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
+   *surf_fit_gf = 0.0;
+   surf_fit_gf->HostRead();
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
@@ -3138,6 +3140,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    delete surf_fit_grad;
    surf_fit_grad = new GridFunction(s0_grad);
    *surf_fit_grad = 0.0;
+   surf_fit_grad->HostRead();
    surf_fit_eval_grad = &age;
    surf_fit_eval_hess = &ahe;
    surf_fit_eval_grad->SetParMetaInfo(*s_bg_grad.ParFESpace()->GetParMesh(),
@@ -3153,6 +3156,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    delete surf_fit_hess;
    surf_fit_hess = new GridFunction(s0_hess);
    *surf_fit_hess = 0.0;
+   surf_fit_hess->HostRead();
    surf_fit_eval_hess->SetParMetaInfo(*s_bg_hess.ParFESpace()->GetParMesh(),
                                       *s_bg_hess.ParFESpace());
    surf_fit_eval_hess->SetInitialField
@@ -4592,7 +4596,6 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
             }
          }
       }
-
    }
    else
    {

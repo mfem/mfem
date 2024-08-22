@@ -386,9 +386,11 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
 
       const Operator *n4_R_int = fes_grad->GetElementRestriction(ordering);
       n4_R_int->Mult(*surf_fit_grad, PA.SFG);
+      // std::cout << surf_fit_grad->Norml2() << " " << PA.SFG.Norml2() << " k101\n";
 
       const Operator *n5_R_int = fes_hess->GetElementRestriction(ordering);
       n5_R_int->Mult(*surf_fit_hess, PA.SFH);
+      // std::cout << surf_fit_hess->Norml2() << " " << PA.SFH.Norml2() << " k102\n";
    }
    else
    {

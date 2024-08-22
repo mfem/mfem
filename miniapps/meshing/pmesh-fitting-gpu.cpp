@@ -117,7 +117,7 @@ int main (int argc, char *argv[])
    bool mod_bndr_attr     = false;
    bool material          = false;
    int mesh_node_ordering = 0;
-   int bg_amr_iters       = 0;
+   int bg_amr_iters       = 5;
    bool conv_residual     = true;
    real_t jitter          = 0.0;
    bool pa                = false;
@@ -537,15 +537,18 @@ int main (int argc, char *argv[])
 
          //Setup gradient of the background mesh
          const int size_bg = surf_fit_bg_gf0->Size();
+         surf_fit_bg_grad->HostReadWrite();
          for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
          {
             ParGridFunction surf_fit_bg_grad_comp(
                surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
+            surf_fit_bg_grad_comp.UseDevice(false);
             surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
          }
 
          //Setup Hessian on background mesh
          int id = 0;
+         surf_fit_bg_hess->HostReadWrite();
          for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
          {
             for (int idir = 0; idir < pmesh_surf_fit_bg->Dimension(); idir++)
@@ -554,6 +557,8 @@ int main (int argc, char *argv[])
                   surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
                ParGridFunction surf_fit_bg_hess_comp(
                   surf_fit_bg_fes, surf_fit_bg_hess->GetData()+ id * size_bg);
+               surf_fit_bg_grad_comp.UseDevice(false);
+               surf_fit_bg_hess_comp.UseDevice(false);
                surf_fit_bg_grad_comp.GetDerivative(1, idir,
                                                    surf_fit_bg_hess_comp);
                id++;
@@ -694,7 +699,7 @@ int main (int argc, char *argv[])
             pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY;
          adapt_surface = new AdvectorCG(al);
          MFEM_VERIFY(!surf_bg_mesh, "Background meshes require GSLIB.");
-      }
+      } 
       else if (adapt_eval == 1)
       {
 #ifdef MFEM_USE_GSLIB
@@ -987,7 +992,7 @@ int main (int argc, char *argv[])
                    << "Max fitting error: " << err_max << std::endl;
          std::cout << setprecision(7);
          std::cout << "k10fitinfo " <<
-                      "mesh,metric,rs,rp,order,grad-int,nel,sfc,sfa,initenergy,"
+                      "mesh,metric,rs,rp,order,grad-int,bgmesh,nel,sfc,sfa,initenergy,"
                       "finenergy,finmetricenergy,avgfiterr,finalfiterr " <<
                       mesh_file << "," <<
                       metric_id << "," <<
@@ -995,6 +1000,7 @@ int main (int argc, char *argv[])
                       rp_levels << "," <<
                       mesh_poly_deg << "," <<
                       grad_int << "," <<
+                      surf_bg_mesh << "," <<
                       nel_glob << "," <<
                       surface_fit_const << "," <<
                       surface_fit_adapt << "," <<

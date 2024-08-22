@@ -370,10 +370,10 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
    x.ExchangeFaceNbrData();
 
    IntegrationRules irRules = IntegrationRules(0, Quadrature1D::GaussLobatto);
-   el_to_refine.HostReadWrite();
    for (int iter = 0; iter < amr_iter; iter++)
    {
       el_to_refine = 0.0;
+      el_to_refine.HostReadWrite();
       for (int e = 0; e < pmesh.GetNE(); e++)
       {
          Array<int> dofs;
@@ -396,6 +396,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
       for (int inner_iter = 0; inner_iter < 2; inner_iter++)
       {
          el_to_refine.ExchangeFaceNbrData();
+         el_to_refine.HostReadWrite();
          GridFunctionCoefficient field_in_dg(&el_to_refine);
          lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
          for (int e = 0; e < pmesh.GetNE(); e++)
