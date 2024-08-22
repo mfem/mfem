@@ -21,8 +21,8 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
                            const int NE,
-                           const real_t &pw_,
-                           const real_t &n0_,
+                           const real_t coeff,
+                           const real_t normal,
                            const Vector &s0_,
                            const Vector &dc_,
                            const Vector &m0_,
@@ -36,8 +36,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
     constexpr int DIM = 2;
     const int D1D = T_D1D ? T_D1D : d1d;
 
-    const auto PW = pw_;
-    const auto N0 = n0_;
     const auto S0 = Reshape(s0_.Read(), D1D, D1D, NE);
     const auto DC = Reshape(dc_.Read(), D1D, D1D, NE);
     const auto M0 = Reshape(m0_.Read(), D1D, D1D, NE);
@@ -59,10 +57,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
                 const real_t sigma = S0(qx,qy,e);
                 const real_t dof_count = DC(qx,qy,e);
                 const real_t marker = M0(qx,qy,e);
-                const real_t coeff = PW;
-                const real_t normal = N0;
-                
-                double w = marker * normal * coeff * 1.0/dof_count;
+
+                double w = marker * coeff * normal * 1.0/dof_count;
                 for (int i = 0; i < DIM; i++)
                 {
                     for (int j = 0; j <= i; j++)
@@ -73,7 +69,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
 
                         const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
                         H0(i,j,qx,qy,e) = entry;
-                        if (i != j) { H0(j,i,qx,qy,e) = entry;}                    
+                        if (i != j) { H0(j,i,qx,qy,e) = entry;}
                     }
                 }
             }
@@ -88,17 +84,17 @@ void TMOP_Integrator::AssembleGradPA_Fit_2D(const Vector &X) const
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
 
-   const real_t &PW = PA.PW;
-   const real_t &N0 = PA.N0;
-   const Vector &S0 = PA.S0;
-   const Vector &DC = PA.DC;
-   const Vector &M0 = PA.M0;
-   const Vector &D1 = PA.D1;
-   const Vector &D2 = PA.D2;
+   const real_t &PW = PA.SFC;
+   const real_t &N0 = surf_fit_normal;
+   const Vector &S0 = PA.SFV;
+   const Vector &DC = PA.SFDC;
+   const Vector &M0 = PA.SFM;
+   const Vector &D1 = PA.SFG;
+   const Vector &D2 = PA.SFH;
 
-   const Array<int> &FE = PA.FE;
+   const Array<int> &FE = PA.SFList;
 
-   Vector &H0 = PA.H0Fit;
+   Vector &H0 = PA.SFH0;
 
    MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Fit_2D,id,N,PW,N0,S0,DC,M0,D1,D2,FE,H0);
 }

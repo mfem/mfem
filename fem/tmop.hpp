@@ -1839,19 +1839,16 @@ protected:
    // MC: Q-Vector for the metric Coefficient.
    //     Updated when the mesh nodes change.
    //
-   //
-   // EFit: Q-vector for TMOP-energy while surface fitting
-   //       Used as temporary storage when the total energy is computed.
-   // OFit: Q-Vector of 1.0, used to compute sums using the dot product kernel.
-   // H0Fit: Q-Vector for Hessian associated with the limiting term.
-   // S0: E-Vector for storing the surface fit grid function.
-   // DC: E-Vector for storing the surface fit dof count.
-   // M0: E-Vector for storing the surface fit marker boolean.
-   // D1: E-Vector for storing the surface fit gradients.
-   // D2: E-Vector for storing the surface fit hessians.
-   // PW: Constant coefficient that stores surf_fit_coeff.
-   // N0: Real scalar that stores surf_fit_normal.
-   //
+   // Fitting
+   // SFE:  E-vector for TMOP-energy while surface fitting.
+   // SFO:  E-Vector of 1.0, used to compute sums using the dot product kernel.
+   // SFH0: E-Vector for Hessian associated with the limiting term.
+   // SFV:  E-Vector for storing the surface fit grid function.
+   // SFDC: E-Vector for storing the surface fit dof count.
+   // SFM:  E-Vector for storing the surface fit marker boolean.
+   // SFG:  E-Vector for storing the surface fit gradients.
+   // SFH:  E-Vector for storing the surface fit hessians.
+   // SFC:  Scalar for surf_fit_coeff->constant.
    //
    //
    // maps:     Dof2Quad map for fes associated with the nodal coordinates.
@@ -1869,22 +1866,21 @@ protected:
    //   * Merge LD, C0, H0 into one scalar Q-vector
    struct
    {
-      bool enabled;
+      bool enabled = false;
       int dim, ne, nq, nefit;
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0, MC;
-      mutable Vector OFit, EFit, H0Fit;
-      mutable Vector S0, DC, M0, D1, D2;
-      mutable real_t PW, N0;
+      mutable Vector SFO, SFE, SFH0;
+      mutable Vector SFV, SFDC, SFM, SFG, SFH;
+      mutable real_t SFC;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
-      Array<int> FE;
-
+      Array<int> SFList;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,

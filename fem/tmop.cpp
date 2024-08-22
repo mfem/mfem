@@ -2857,7 +2857,7 @@ void TMOP_Integrator::ReleasePADeviceMemory(bool copy_to_host)
    {
       PA.H.GetMemory().DeleteDevice(copy_to_host);
       PA.H0.GetMemory().DeleteDevice(copy_to_host);
-      PA.H0Fit.GetMemory().DeleteDevice(copy_to_host);
+      PA.SFH0.GetMemory().DeleteDevice(copy_to_host);
       if (!copy_to_host && !PA.Jtr.GetMemory().HostIsValid())
       {
          PA.Jtr_needs_update = true;
@@ -4336,7 +4336,7 @@ void TMOP_Integrator::UpdateSurfaceFittingWeight(real_t factor)
       auto cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
       MFEM_VERIFY(cf, "Dynamic weight works only with a ConstantCoefficient.");
       cf->constant *= factor;
-      if (PA.enabled) { PA.PW = cf->constant; }
+      if (PA.enabled) { PA.SFC = cf->constant; }
    }
 }
 

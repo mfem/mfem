@@ -17,14 +17,13 @@
 #include "../../linalg/dinvariants.hpp"
 #include "../qinterp/dispatch.hpp"
 
-
 namespace mfem
 {
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_2D,
                            const int NE,
-                           const real_t &pw_,
-                           const real_t &n0_,
+                           const real_t coeff,
+                           const real_t normal,
                            const Vector &s0_,
                            const Vector &dc_,
                            const Vector &m0_,
@@ -37,8 +36,6 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_2D,
    constexpr int DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
 
-   const auto PW = pw_;
-   const auto N0 = n0_;
    const auto S0 = Reshape(s0_.Read(), D1D, D1D, NE);
    const auto DC = Reshape(dc_.Read(), D1D, D1D, NE);
    const auto M0 = Reshape(m0_.Read(), D1D, D1D, NE);
@@ -61,12 +58,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_2D,
             const real_t sigma = S0(qx,qy,e);
             const real_t dof_count = DC(qx,qy,e);
             const real_t marker = M0(qx,qy,e);
-            const real_t coeff = PW;
-            const real_t normal = N0;
 
             const real_t dx = D1(qx,qy,0,e);
             const real_t dy = D1(qx,qy,1,e);
-            // std::cout << e << " " << " " << sigma << " " << dx << " " << dy << " k10-e-dx-dy\n";
 
             double w = marker * normal * coeff * 1.0/dof_count;
             Y(qx,qy,0,e) += 2 * w * sigma * dx;
@@ -85,14 +79,14 @@ void TMOP_Integrator::AddMultPA_Fit_2D(const Vector &X, Vector &Y) const
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
 
-   const real_t &PW = PA.PW;
-   const real_t &N0 = PA.N0;
-   const Vector &S0 = PA.S0;
-   const Vector &DC = PA.DC;
-   const Vector &M0 = PA.M0;
-   const Vector &D1 = PA.D1;
+   const real_t &PW = PA.SFC;
+   const real_t &N0 = surf_fit_normal;
+   const Vector &S0 = PA.SFV;
+   const Vector &DC = PA.SFDC;
+   const Vector &M0 = PA.SFM;
+   const Vector &D1 = PA.SFG;
 
-   const Array<int> &FE = PA.FE;
+   const Array<int> &FE = PA.SFList;
    // D1.Print();
 
    MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_Fit_2D,id,N,PW,N0,S0,DC,M0,D1,FE,Y);

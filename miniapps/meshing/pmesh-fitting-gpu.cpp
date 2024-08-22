@@ -93,7 +93,7 @@ int main (int argc, char *argv[])
    real_t surface_fit_const = 100;
    int quad_order        = 8;
    int solver_type       = 0;
-   int solver_iter       = 100;
+   int solver_iter       = 20;
 #ifdef MFEM_USE_SINGLE
    real_t solver_rtol    = 1e-4;
 #else
@@ -119,9 +119,9 @@ int main (int argc, char *argv[])
    int mesh_node_ordering = 0;
    int bg_amr_iters       = 0;
    bool conv_residual     = true;
-   real_t jitter         = 0.0;
-   bool pa = false;
-   bool grad_int = true;
+   real_t jitter          = 0.0;
+   bool pa                = false;
+   bool grad_int          = true;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -996,8 +996,8 @@ int main (int argc, char *argv[])
                       mesh_poly_deg << "," <<
                       grad_int << "," <<
                       nel_glob << "," <<
-                      surf_fit_const << "," <<
-                      surf_fit_adapt << "," <<
+                      surface_fit_const << "," <<
+                      surface_fit_adapt << "," <<
                       init_energy << "," <<
                       fin_energy << "," <<
                       fin_metric_energy << "," <<

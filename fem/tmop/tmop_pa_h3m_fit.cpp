@@ -59,7 +59,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
                      H(i,j) = H0(i,j,qx,qy,qz,e);
                   }
                }
-               
+
                real_t p2[3];
                kernels::Mult(3,3,H_data,Xh,p2);
 
@@ -80,9 +80,9 @@ void TMOP_Integrator::AddMultGradPA_Fit_3D(const Vector &R, Vector &C) const
    const int D1D = meshOrder + 1;
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
-   const Vector &H0 = PA.H0Fit;
+   const Vector &H0 = PA.SFH0;
 
-   const Array<int> &FE = PA.FE;
+   const Array<int> &FE = PA.SFList;
 
    MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_Fit_3D,id,N,FE,H0,R,C);
 }

@@ -48,7 +48,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_3D,
             {
                 for (int v = 0; v < DIM; v++)
                 {
-                    D(qx,qy,qz,v,e) += H0(v,v,qx,qy,qz,e);;                 
+                    D(qx,qy,qz,v,e) += H0(v,v,qx,qy,qz,e);;
                 }
             }
         }
@@ -64,10 +64,10 @@ void TMOP_Integrator::AssembleDiagonalPA_Fit_3D(Vector &D) const
    const int D1D = meshOrder + 1;
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
-   const Array<int> &FE = PA.FE;
+   const Array<int> &FE = PA.SFList;
 
 
-   Vector &H0 = PA.H0Fit;
+   Vector &H0 = PA.SFH0;
 
    MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_Fit_3D,id,N,FE,H0,D);
 }

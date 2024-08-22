@@ -21,8 +21,8 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
                            const int NE,
-                           const real_t &pw_,
-                           const real_t &n0_,
+                           const real_t coeff,
+                           const real_t normal,
                            const Vector &s0_,
                            const Vector &dc_,
                            const Vector &m0_,
@@ -34,8 +34,6 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
 
-   const auto PW = pw_;
-   const auto N0 = n0_;
    const auto S0 = Reshape(s0_.Read(), D1D, D1D, D1D, NE);
    const auto DC = Reshape(dc_.Read(), D1D, D1D, D1D, NE);
    const auto M0 = Reshape(m0_.Read(), D1D, D1D, D1D, NE);
@@ -57,11 +55,9 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
                const real_t sigma = S0(qx,qy,qz,e);
                const real_t dof_count = DC(qx,qy,qz,e);
                const real_t marker = M0(qx,qy,qz,e);
-               const real_t coeff = PW;
-               const real_t normal = N0;
 
                double w = marker * coeff * normal * 1.0/dof_count;
-               E(qx,qy,qz,e) = w * sigma * sigma;
+               E(qx,qy,qz,i) = w * sigma * sigma;
             }
          }
       }
@@ -76,16 +72,16 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_3D(const Vector &X) const
    const int D1D = meshOrder + 1;
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
-   const Vector &O = PA.OFit;
-   Vector &E = PA.EFit;
+   const Vector &O = PA.SFO;
+   Vector &E = PA.SFE;
 
-   const real_t &PW = PA.PW;
-   const real_t &N0 = PA.N0;
-   const Vector &S0 = PA.S0;
-   const Vector &DC = PA.DC;
-   const Vector &M0 = PA.M0;
+   const real_t &PW = PA.SFC;
+   const real_t &N0 = surf_fit_normal;
+   const Vector &S0 = PA.SFV;
+   const Vector &DC = PA.SFDC;
+   const Vector &M0 = PA.SFM;
 
-   const Array<int> &FE = PA.FE;
+   const Array<int> &FE = PA.SFList;
 
    MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_3D,id,N,PW,N0,S0,DC,M0,O,FE,E);
 }

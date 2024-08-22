@@ -31,7 +31,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
     const int D1D = T_D1D ? T_D1D : d1d;
     const auto FE = fe_.Read();
     const auto nel_fit = fe_.Size();
-    
+
     const auto H0 = Reshape(h0.Read(), DIM, DIM, D1D, D1D, NE);
     auto D = Reshape(diagonal.ReadWrite(), D1D, D1D, DIM, NE);
 
@@ -45,7 +45,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
             {
                 for (int v = 0; v < DIM; v++)
                 {
-                    D(qx,qy,v,e) += H0(v,v,qx,qy,e);;                 
+                    D(qx,qy,v,e) += H0(v,v,qx,qy,e);;
                 }
             }
         }
@@ -61,9 +61,9 @@ void TMOP_Integrator::AssembleDiagonalPA_Fit_2D(Vector &D) const
    const int Q1D = D1D;
    const int id = (D1D << 4 ) | Q1D;
 
-   const Vector &H0 = PA.H0Fit;
+   const Vector &H0 = PA.SFH0;
 
-   const Array<int> &FE = PA.FE;
+   const Array<int> &FE = PA.SFList;
 
    MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_Fit_2D,id,N,H0,FE,D);
 }
