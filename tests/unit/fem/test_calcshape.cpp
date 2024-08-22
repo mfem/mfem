@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -154,7 +154,8 @@ TEST_CASE("CalcShape H1",
           "[H1_QuadrilateralElement]"
           "[H1_TetrahedronElement]"
           "[H1_HexahedronElement]"
-          "[H1_WedgeElement]")
+          "[H1_WedgeElement]"
+          "[H1_PyramidElement]")
 {
    const int maxOrder = 5;
    const int resolution = 10;
@@ -196,6 +197,28 @@ TEST_CASE("CalcShape H1",
    {
       H1_WedgeElement fe(order);
       TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
+   }
+
+   SECTION("H1_FuentesPyramidElement")
+   {
+      for (int order =1; order <= maxOrder; ++order)
+      {
+         std::cout << "Testing H1_PyramidElement::CalcShape() "
+                   << "for order " << order << std::endl;
+         H1_FuentesPyramidElement fe(order);
+         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
+      }
+   }
+
+   SECTION("H1_BergotPyramidElement")
+   {
+      for (int order =1; order <= maxOrder; ++order)
+      {
+         std::cout << "Testing H1_PyramidElement::CalcShape() "
+                   << "for order " << order << std::endl;
+         H1_BergotPyramidElement fe(order);
+         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
+      }
    }
 
 }

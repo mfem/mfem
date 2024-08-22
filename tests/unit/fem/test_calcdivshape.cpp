@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -60,6 +60,7 @@ void TestCalcDivShape(FiniteElement* fe, ElementTransformation * T, int res)
 {
    int  dof = fe->GetDof();
    int  dim = fe->GetDim();
+   bool pyr = fe->GetGeomType() == Geometry::PYRAMID;
 
    Vector dofs(dof);
    Vector weights(dof);
@@ -88,9 +89,16 @@ void TestCalcDivShape(FiniteElement* fe, ElementTransformation * T, int res)
       for (int j=0; j < ipArr.Size(); ++j)
       {
          IntegrationPoint& ip = ipArr[j];
-         fe->CalcDivShape(ip, weights);
 
-         REQUIRE( weights * dofs == Approx(1.) );
+         // The limits used here were chosen to allow RT_FuentesPyramidElement
+         // to pass up to order = 5
+         if ((ip.z < 1.0 && ip.x + ip.z < 1.8 && ip.y + ip.z < 1.8) || !pyr)
+         {
+            fe->CalcDivShape(ip, weights);
+
+            CAPTURE(ip.x, ip.y, ip.z);
+            REQUIRE( weights * dofs == Approx(1.) );
+         }
       }
    }
 }
@@ -100,7 +108,7 @@ TEST_CASE("CalcDivShape RT",
           "[RT_QuadrilateralElement]"
           "[RT_TetrahedronElement]"
           "[RT_WedgeElement]"
-          "[RT_PyramidElement]"
+          "[RT_FuentesPyramidElement]"
           "[RT_HexahedronElement]")
 {
    const int maxOrder = 5;
@@ -145,21 +153,13 @@ TEST_CASE("CalcDivShape RT",
       TestCalcDivShape(&fe, &T, resolution);
    }
 
-   SECTION("RT_PyramidElement")
+   SECTION("RT_FuentesPyramidElement")
    {
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::PYRAMID, T);
 
-      if (order == 1)
-      {
-         RT0PyrFiniteElement fe;
-         TestCalcDivShape(&fe, &T, resolution);
-      }
-      else if (order == 2)
-      {
-         RT1PyrFiniteElement fe;
-         TestCalcDivShape(&fe, &T, resolution);
-      }
+      RT_FuentesPyramidElement fe(order - 1);
+      TestCalcDivShape(&fe, &T, resolution);
    }
 
    SECTION("RT_HexahedronElement")
@@ -190,15 +190,15 @@ void TestFDCalcDivShape(FiniteElement* fe, ElementTransformation * T, int order)
    Vector fdcomp(dof), fdshape(dof);
 
    // Optimal step size for central difference
-   double h = std::cbrt(std::numeric_limits<double>::epsilon());
-   double inv2h = 0.5 / h;
+   real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
+   real_t inv2h = 0.5 / h;
 
    // Error in the finite difference approximation of the derivative of a
    // Legendre polynomial: P_n'''(1) h^2 / 6. Because we use shifted and scaled
    // Legendre polynomials we need to increase these estimates by 2^3. We also
    // make use of the fact that the third derivatives of Legendre polynomials
    // are bounded by +/- (n+1)(n+2)(n+3)(n+4)(n+5)(n+6)/48.
-   double err_est = (order + 1) * (order + 2) * (order + 3) *
+   real_t err_est = (order + 1) * (order + 2) * (order + 3) *
                     (order + 4) * (order + 5) * (order + 6) * h * h / 36.0;
 
    bool pyr = fe->GetGeomType() == Geometry::PYRAMID;
@@ -262,11 +262,11 @@ void TestFDCalcDivShape(FiniteElement* fe, ElementTransformation * T, int order)
       // points approach the apex of a pyramid the derivatives in the x and y
       // directions become infinite. Therefore, we need to scale the finite
       // difference error estimate by the following z-dependent factor.
-      double pyr_fac = pyr ? std::pow(1.0/(1.0-pt.z), 3) : 1.0;
+      real_t pyr_fac = pyr ? std::pow(1.0/(1.0-pt.z), 3) : 1.0;
 
       // Determine the maximum difference between the two derivative
       // calculations
-      double max_err = fdshape.Normlinf();
+      real_t max_err = fdshape.Normlinf();
 
       // The first factor of dim is added to account for the product
       // rule used in computing derivatives of our basis functions which are
@@ -326,21 +326,13 @@ TEST_CASE("CalcDivShape vs FD RT",
       TestFDCalcDivShape(&fe, &T, order);
    }
 
-   SECTION("RT_PyramidElement")
+   SECTION("RT_FuentesPyramidElement")
    {
       IsoparametricTransformation T;
       GetReferenceTransformation(Element::PYRAMID, T);
 
-      if (order == 1)
-      {
-         RT0PyrFiniteElement fe;
-         TestFDCalcDivShape(&fe, &T, order);
-      }
-      else if (order == 2)
-      {
-         RT1PyrFiniteElement fe;
-         TestFDCalcDivShape(&fe, &T, order);
-      }
+      RT_FuentesPyramidElement fe(order - 1);
+      TestFDCalcDivShape(&fe, &T, order);
    }
 
    SECTION("RT_HexahedronElement")

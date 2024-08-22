@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,10 @@ const int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
 
 
 // derefinement tables
+// The first n numbers in each line are the refined elements that contain
+// the vertices of the parent element.  The next m numbers in each line
+// are the refined elements that contain the faces attributes of the parent
+// element.
 
 const int quad_deref_table[3][4 + 4] =
 {

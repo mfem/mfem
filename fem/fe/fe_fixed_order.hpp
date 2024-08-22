@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -114,7 +114,7 @@ public:
 class GaussBiLinear2DFiniteElement : public NodalFiniteElement
 {
 private:
-   static const double p[2];
+   static const real_t p[2];
 
 public:
    /// Construct the FiniteElement
@@ -188,7 +188,7 @@ public:
 class GaussQuad2DFiniteElement : public NodalFiniteElement
 {
 private:
-   static const double p[2];
+   static const real_t p[2];
    DenseMatrix A;
    mutable DenseMatrix D;
    mutable Vector pol;
@@ -491,7 +491,7 @@ public:
 class RT0TriangleFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double nk[3][2];
+   static const real_t nk[3][2];
 
 public:
    /// Construct the RT0TriangleFiniteElement
@@ -520,7 +520,7 @@ public:
 class RT0QuadFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double nk[4][2];
+   static const real_t nk[4][2];
 
 public:
    /// Construct the RT0QuadFiniteElement
@@ -549,7 +549,7 @@ public:
 class RT1TriangleFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double nk[8][2];
+   static const real_t nk[8][2];
 
 public:
    /// Construct the RT1TriangleFiniteElement
@@ -578,7 +578,7 @@ public:
 class RT1QuadFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double nk[12][2];
+   static const real_t nk[12][2];
 
 public:
    /// Construct the RT1QuadFiniteElement
@@ -607,7 +607,7 @@ public:
 class RT2TriangleFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double M[15][15];
+   static const real_t M[15][15];
 public:
    /// Construct the RT2TriangleFiniteElement
    RT2TriangleFiniteElement();
@@ -627,9 +627,9 @@ public:
 class RT2QuadFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double nk[24][2];
-   static const double pt[4];
-   static const double dpt[3];
+   static const real_t nk[24][2];
+   static const real_t pt[4];
+   static const real_t dpt[3];
 
 public:
    /// Construct the RT2QuadFiniteElement
@@ -910,7 +910,7 @@ public:
 class Nedelec1HexFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double tk[12][3];
+   static const real_t tk[12][3];
 
 public:
    /// Construct the Nedelec1HexFiniteElement
@@ -938,7 +938,7 @@ public:
 class Nedelec1TetFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double tk[6][3];
+   static const real_t tk[6][3];
 
 public:
    /// Construct the Nedelec1TetFiniteElement
@@ -966,7 +966,7 @@ public:
 class Nedelec1WdgFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double tk[9][3];
+   static const real_t tk[9][3];
 
 public:
    /// Construct the Nedelec1WdgFiniteElement
@@ -994,7 +994,7 @@ public:
 class Nedelec1PyrFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double tk[8][3];
+   static const real_t tk[8][3];
 
 public:
    /// Construct the Nedelec1PyrFiniteElement
@@ -1018,11 +1018,39 @@ public:
 };
 
 
+/// A 3D 2nd order Nedelec element on a pyramid
+class Nedelec2PyrFiniteElement : public VectorFiniteElement
+{
+private:
+   static const double tk[28][3];
+
+public:
+   /// Construct the Nedelec2PyrFiniteElement
+   Nedelec2PyrFiniteElement();
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_ND(Trans, shape); }
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+   virtual void GetLocalInterpolation (ElementTransformation &Trans,
+                                       DenseMatrix &I) const;
+   using FiniteElement::Project;
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
+   virtual void ProjectGrad(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &grad) const;
+};
+
+
 /// A 3D 0th order Raviert-Thomas element on a cube
 class RT0HexFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double nk[6][3];
+   static const real_t nk[6][3];
 
 public:
    /// Construct the RT0HexFiniteElement
@@ -1052,7 +1080,7 @@ public:
 class RT1HexFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double nk[36][3];
+   static const real_t nk[36][3];
 
 public:
    /// Construct the RT1HexFiniteElement
@@ -1082,7 +1110,7 @@ public:
 class RT0TetFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double nk[4][3];
+   static const real_t nk[4][3];
 
 public:
    /// Construct the RT0TetFiniteElement
@@ -1112,7 +1140,7 @@ public:
 class RT0WdgFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double nk[5][3];
+   static const real_t nk[5][3];
 
 public:
    /// Construct the RT0WdgFiniteElement
@@ -1146,7 +1174,7 @@ public:
 class RT0PyrFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double nk[5][3];
+   static const real_t nk[5][3];
 
    // If true match RT0TetFiniteElement rather than RT_TetrahedronElement(0)
    bool rt0;

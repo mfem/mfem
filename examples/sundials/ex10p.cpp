@@ -1,7 +1,9 @@
 //                       MFEM Example 10 - Parallel Version
 //                             SUNDIALS Modification
 //
-// Compile with: make ex10p
+// Compile with:
+//    make ex10p            (GNU make)
+//    make sundials_ex10p   (CMake)
 //
 // Sample runs:
 //    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s 12 -dt 0.15 -vs 10
@@ -215,10 +217,11 @@ void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI and HYPRE.
+   // 1. Initialize MPI, HYPRE, and SUNDIALS.
    Mpi::Init(argc, argv);
    int myid = Mpi::WorldRank();
    Hypre::Init();
+   Sundials::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-quad.mesh";
@@ -855,10 +858,7 @@ double HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 
 double HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
-   double loc_energy = 0.5*M.InnerProduct(v, v);
-   double energy;
-   MPI_Allreduce(&loc_energy, &energy, 1, MPI_DOUBLE, MPI_SUM,
-                 fespace.GetComm());
+   double energy = 0.5*M.ParInnerProduct(v, v);
    return energy;
 }
 

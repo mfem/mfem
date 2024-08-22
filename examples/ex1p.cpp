@@ -30,7 +30,7 @@
 //
 // Device sample runs:
 //               mpirun -np 4 ex1p -pa -d cuda
-//             * mpirun -np 4 ex1p -fa -d cuda
+//               mpirun -np 4 ex1p -fa -d cuda
 //               mpirun -np 4 ex1p -pa -d occa-cuda
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
@@ -219,7 +219,14 @@ int main(int argc, char *argv[])
    //     Diffusion domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   if (fa) { a.SetAssemblyLevel(AssemblyLevel::FULL); }
+   if (fa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::FULL);
+      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+      // when Device::IsEnabled() returns true). This makes the results
+      // bit-for-bit deterministic at the cost of somewhat longer run time.
+      a.EnableSparseMatrixSorting(Device::IsEnabled());
+   }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear

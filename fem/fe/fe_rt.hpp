@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,7 @@
 #include "fe_base.hpp"
 #include "fe_h1.hpp"
 #include "fe_l2.hpp"
+#include "fe_pyramid.hpp"
 
 namespace mfem
 {
@@ -23,14 +24,14 @@ namespace mfem
 class RT_QuadrilateralElement : public VectorTensorFiniteElement
 {
 private:
-   static const double nk[8];
+   static const real_t nk[8];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;
    mutable Vector dshape_cx, dshape_cy;
 #endif
    Array<int> dof2nk;
-   const double *cp;
+   const real_t *cp;
 
 public:
    /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
@@ -82,6 +83,8 @@ public:
                             DenseMatrix &curl) const
    { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
 
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+
 protected:
    void ProjectIntegrated(VectorCoefficient &vc, ElementTransformation &Trans,
                           Vector &dofs) const;
@@ -91,14 +94,14 @@ protected:
 /// Arbitrary order Raviart-Thomas elements in 3D on a cube
 class RT_HexahedronElement : public VectorTensorFiniteElement
 {
-   static const double nk[18];
+   static const real_t nk[18];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy, shape_cz, shape_oz;
    mutable Vector dshape_cx, dshape_cy, dshape_cz;
 #endif
    Array<int> dof2nk;
-   const double *cp;
+   const real_t *cp;
 
 public:
    /** @brief Construct the RT_HexahedronElement of order @a p and closed and
@@ -145,6 +148,11 @@ public:
                             DenseMatrix &curl) const
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
 
+   /// @brief Return the mapping from lexicographically ordered face DOFs to
+   /// lexicographically ordered element DOFs corresponding to local face
+   /// @a face_id.
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+
 protected:
    void ProjectIntegrated(VectorCoefficient &vc,
                           ElementTransformation &Trans,
@@ -155,7 +163,7 @@ protected:
 /// Arbitrary order Raviart-Thomas elements in 2D on a triangle
 class RT_TriangleElement : public VectorFiniteElement
 {
-   static const double nk[6], c;
+   static const real_t nk[6], c;
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l;
@@ -215,7 +223,7 @@ public:
 /// Arbitrary order Raviart-Thomas elements in 3D on a tetrahedron
 class RT_TetrahedronElement : public VectorFiniteElement
 {
-   static const double nk[12], c;
+   static const real_t nk[12], c;
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
@@ -267,7 +275,7 @@ public:
 
 class RT_WedgeElement : public VectorFiniteElement
 {
-   static const double nk[15];
+   static const real_t nk[15];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector      tl2_shape;
@@ -322,6 +330,101 @@ public:
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
+class RT_FuentesPyramidElement
+   : public VectorFiniteElement, public FuentesPyramid
+{
+private:
+   static const real_t nk[24];
+
+   mutable real_t zmax;
+
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector      tmp1_i;
+   mutable DenseMatrix tmp1_ij;
+   mutable DenseMatrix tmp2_ij;
+   mutable DenseMatrix tmp3_ij;
+   mutable DenseMatrix tmp4_ij;
+   mutable DenseTensor tmp1_ijk;
+   mutable DenseTensor tmp2_ijk;
+   mutable DenseTensor tmp3_ijk;
+   mutable DenseTensor tmp4_ijk;
+   mutable DenseTensor tmp5_ijk;
+   mutable DenseTensor tmp6_ijk;
+   mutable DenseTensor tmp7_ijk;
+   mutable DenseMatrix u;
+   mutable Vector      divu;
+#endif
+   Array<int> dof2nk;
+   DenseMatrixInverse Ti;
+
+   void calcBasis(const int p, const IntegrationPoint &ip,
+                  Vector &phi_k,
+                  DenseMatrix &phi_ij,
+                  DenseMatrix &dphi_k,
+                  DenseTensor &VQ_ijk,
+                  DenseTensor &VT_ijk,
+                  DenseTensor &VTT_ijk,
+                  DenseTensor &E_ijk, DenseTensor &dE_ijk,
+                  DenseTensor &dphi_ijk,
+                  DenseTensor &VL_ijk,
+                  DenseMatrix &VR_ij,
+                  DenseMatrix &F) const;
+
+   void calcDivBasis(const int p, const IntegrationPoint &ip,
+                     Vector &phi_k,
+                     DenseMatrix &phi_ij,
+                     DenseMatrix &dphi_k,
+                     DenseTensor &VQ_ijk,
+                     DenseTensor &VT_ijk,
+                     DenseTensor &VTT_ijk, DenseMatrix &dVTT_ij,
+                     DenseTensor &E_ijk, DenseTensor &dE_ijk,
+                     DenseTensor &dphi_ijk,
+                     DenseTensor &VL_ijk,
+                     DenseMatrix &VR_ij,
+                     Vector &dF) const;
+
+public:
+   RT_FuentesPyramidElement(const int p);
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const
+   { CalcVShape_RT(Trans, shape); }
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             Vector &divshape) const;
+   virtual void GetLocalInterpolation(ElementTransformation &Trans,
+                                      DenseMatrix &I) const
+   { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }
+   virtual void GetLocalRestriction(ElementTransformation &Trans,
+                                    DenseMatrix &R) const
+   { LocalRestriction_RT(nk, dof2nk, Trans, R); }
+   virtual void GetTransferMatrix(const FiniteElement &fe,
+                                  ElementTransformation &Trans,
+                                  DenseMatrix &I) const
+   { LocalInterpolation_RT(CheckVectorFE(fe), nk, dof2nk, Trans, I); }
+   using FiniteElement::Project;
+   virtual void Project(VectorCoefficient &vc,
+                        ElementTransformation &Trans, Vector &dofs) const
+   { Project_RT(nk, dof2nk, vc, Trans, dofs); }
+   virtual void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
+   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                        DenseMatrix &I) const
+   { Project_RT(nk, dof2nk, fe, Trans, I); }
+   virtual void ProjectCurl(const FiniteElement &fe,
+                            ElementTransformation &Trans,
+                            DenseMatrix &curl) const
+   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+
+   void CalcRawVShape(const IntegrationPoint &ip,
+                      DenseMatrix &shape) const;
+
+   void CalcRawDivShape(const IntegrationPoint &ip,
+                        Vector &dshape) const;
+
+   real_t GetZetaMax() const { return zmax; }
+};
 
 /// Arbitrary order, three component, Raviart-Thomas elements in 1D on a segment
 /** RT_R1D_SegmentElement provides a representation of a three component
@@ -330,7 +433,7 @@ public:
 */
 class RT_R1D_SegmentElement : public VectorFiniteElement
 {
-   static const double nk[9];
+   static const real_t nk[9];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox;
    mutable Vector dshape_cx;
@@ -375,7 +478,7 @@ public:
 */
 class RT_R2D_SegmentElement : public VectorFiniteElement
 {
-   static const double nk[2];
+   static const real_t nk[2];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_ox;
 #endif
@@ -420,10 +523,10 @@ public:
 class RT_R2D_FiniteElement : public VectorFiniteElement
 {
 protected:
-   const double *nk;
+   const real_t *nk;
    Array<int> dof_map, dof2nk;
 
-   RT_R2D_FiniteElement(int p, Geometry::Type G, int Do, const double *nk_fe);
+   RT_R2D_FiniteElement(int p, Geometry::Type G, int Do, const real_t *nk_fe);
 
 private:
    void LocalInterpolation(const VectorFiniteElement &cfe,
@@ -465,7 +568,7 @@ public:
 class RT_R2D_TriangleElement : public RT_R2D_FiniteElement
 {
 private:
-   static const double nk_t[12];
+   static const real_t nk_t[12];
 
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix rt_shape;
@@ -493,7 +596,7 @@ public:
 class RT_R2D_QuadrilateralElement : public RT_R2D_FiniteElement
 {
 private:
-   static const double nk_q[15];
+   static const real_t nk_q[15];
 
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_cx, shape_ox, shape_cy, shape_oy;

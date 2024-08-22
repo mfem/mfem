@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,11 +17,9 @@ using namespace mfem;
 namespace assemblediagonalpa
 {
 
-int dimension;
-
 double coeffFunction(const Vector& x)
 {
-   if (dimension == 2)
+   if (x.Size() == 2)
    {
       return sin(8.0 * M_PI * x[0]) * cos(6.0 * M_PI * x[1]) + 2.0;
    }
@@ -36,12 +34,12 @@ double coeffFunction(const Vector& x)
 void vectorCoeffFunction(const Vector & x, Vector & f)
 {
    f = 0.0;
-   if (dimension > 1)
+   if (x.Size() > 1)
    {
       f[0] = sin(M_PI * x[1]);
       f[1] = sin(2.5 * M_PI * x[0]);
    }
-   if (dimension == 3)
+   if (x.Size() == 3)
    {
       f[2] = sin(6.1 * M_PI * x[2]);
    }
@@ -50,14 +48,14 @@ void vectorCoeffFunction(const Vector & x, Vector & f)
 void asymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
 {
    f = 0.0;
-   if (dimension == 2)
+   if (x.Size() == 2)
    {
       f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
       f(1,0) = cos(1.3 * M_PI * x[1]);  // 2,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
       f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
    }
-   else if (dimension == 3)
+   else if (x.Size() == 3)
    {
       f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
@@ -74,13 +72,13 @@ void asymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
 void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
 {
    f = 0.0;
-   if (dimension == 2)
+   if (x.Size() == 2)
    {
       f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
       f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
    }
-   else if (dimension == 3)
+   else if (x.Size() == 3)
    {
       f(0,0) = sin(M_PI * x[1]);  // 1,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
@@ -93,56 +91,97 @@ void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
 
 TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 {
-   for (dimension = 2; dimension < 4; ++dimension)
+   const int dimension = GENERATE(2, 3);
+   const int order = GENERATE(1, 2, 3, 4);
+   const int ne = 3;
+
+   CAPTURE(dimension, order);
+
+   Mesh mesh;
+   if (dimension == 2)
    {
-      for (int ne = 1; ne < 3; ++ne)
-      {
-         const int n_elements = pow(ne, dimension);
-         CAPTURE(dimension, n_elements);
-         for (int order = 1; order < 5; ++order)
-         {
-            Mesh mesh;
-            if (dimension == 2)
-            {
-               mesh = Mesh::MakeCartesian2D(
-                         ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-            }
-            else
-            {
-               mesh = Mesh::MakeCartesian3D(
-                         ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-            }
-            FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
-            FiniteElementSpace h1_fespace(&mesh, h1_fec);
-            BilinearForm paform(&h1_fespace);
-            ConstantCoefficient one(1.0);
-            paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-            paform.AddDomainIntegrator(new MassIntegrator(one));
-            paform.Assemble();
-            Vector pa_diag(h1_fespace.GetVSize());
-            paform.AssembleDiagonal(pa_diag);
-
-            BilinearForm faform(&h1_fespace);
-            faform.AddDomainIntegrator(new MassIntegrator(one));
-            faform.Assemble();
-            faform.Finalize();
-            Vector assembly_diag(h1_fespace.GetVSize());
-            faform.SpMat().GetDiag(assembly_diag);
-
-            assembly_diag -= pa_diag;
-            double error = assembly_diag.Norml2();
-            CAPTURE(order, error);
-            REQUIRE(assembly_diag.Norml2() < 1.e-12);
-
-            delete h1_fec;
-         }
-      }
+      mesh = Mesh::MakeCartesian2D(
+                ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
    }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(
+                ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   }
+
+   for (int i = 0; i < mesh.GetNE(); ++i)
+   {
+      mesh.SetAttribute(i, i%2 + 1);
+   }
+   mesh.SetAttributes();
+
+   Array<int> bdr(mesh.attributes.Size());
+   bdr[0] = 0;
+   bdr[1] = 1;
+
+   H1_FECollection h1_fec(order, dimension);
+   FiniteElementSpace h1_fespace(&mesh, &h1_fec);
+   BilinearForm paform(&h1_fespace);
+   ConstantCoefficient one(1.0);
+   paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   paform.AddDomainIntegrator(new MassIntegrator(one), bdr);
+   paform.Assemble();
+   Vector pa_diag(h1_fespace.GetVSize());
+   paform.AssembleDiagonal(pa_diag);
+
+   BilinearForm faform(&h1_fespace);
+   faform.AddDomainIntegrator(new MassIntegrator(one), bdr);
+   faform.Assemble();
+   faform.Finalize();
+   Vector assembly_diag(h1_fespace.GetVSize());
+   faform.SpMat().GetDiag(assembly_diag);
+
+   assembly_diag -= pa_diag;
+   REQUIRE(assembly_diag.Normlinf() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("Mass Boundary Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
+
+   auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
+                         "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+
+   CAPTURE(fname, order);
+
+   Mesh mesh(fname);
+   int dim = mesh.Dimension();
+   RT_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   FunctionCoefficient coeff(coeffFunction);
+
+   Array<int> bdr(mesh.bdr_attributes.Size());
+   for (int i = 0; i < bdr.Size(); ++i) { bdr[i] = i%2; }
+
+   Vector diag_fa(fes.GetTrueVSize()), diag_pa(fes.GetTrueVSize());
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.AddBoundaryIntegrator(new MassIntegrator(coeff), bdr);
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.SpMat().GetDiag(diag_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddBoundaryIntegrator(new MassIntegrator(coeff), bdr);
+   blf_pa.Assemble();
+   blf_pa.AssembleDiagonal(diag_pa);
+
+   diag_pa -= diag_fa;
+
+   REQUIRE(diag_pa.Normlinf() == MFEM_Approx(0.0));
 }
 
 TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 {
-   for (dimension = 2; dimension < 4; ++dimension)
+   for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int ne = 1; ne < 3; ++ne)
       {
@@ -322,7 +361,7 @@ TEST_CASE("Vector Diffusion Diagonal PA",
 TEST_CASE("Hcurl/Hdiv diagonal PA",
           "[CUDA][PartialAssembly][AssembleDiagonal]")
 {
-   for (dimension = 2; dimension < 4; ++dimension)
+   for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int coeffType = 0; coeffType < 5; ++coeffType)
       {

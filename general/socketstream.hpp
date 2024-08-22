@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -108,7 +108,7 @@ public:
    void print_on_error(const char *msg) const
    {
       if (good()) { return; }
-      mfem::out << "Error in " << msg << ": " << gnutls_strerror(res)
+      mfem::err << "Error in " << msg << ": " << gnutls_strerror(res)
                 << std::endl;
    }
 };

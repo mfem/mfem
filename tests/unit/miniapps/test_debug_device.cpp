@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,8 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
-#include "unit_tests.hpp"
+#include "run_unit_tests.hpp"
 
 using namespace mfem;
 
@@ -22,7 +23,7 @@ struct NullBuf: public std::streambuf { int overflow(int c) { return c; }};
 
 static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 {
-   Memory<double> mem(N, mt);
+   Memory<real_t> mem(N, mt);
    REQUIRE(mem.Capacity() == N);
    Vector y;
    y.NewMemoryAndSize(mem, N, true);
@@ -68,9 +69,9 @@ void Aliases(const int N = 0x1234)
    const int Xsz = 3*N;
    const int Vsz = 3*N;
    const int Esz = N;
-   X.NewMemoryAndSize(Memory<double>(S.GetMemory(), 0, Xsz), Xsz, true);
-   V.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz, Vsz), Vsz, true);
-   E.NewMemoryAndSize(Memory<double>(S.GetMemory(), Xsz + Vsz, Esz), Esz, true);
+   X.NewMemoryAndSize(Memory<real_t>(S.GetMemory(), 0, Xsz), Xsz, true);
+   V.NewMemoryAndSize(Memory<real_t>(S.GetMemory(), Xsz, Vsz), Vsz, true);
+   E.NewMemoryAndSize(Memory<real_t>(S.GetMemory(), Xsz + Vsz, Esz), Esz, true);
    X = 1.0;
    X.SyncAliasMemory(S);
    S.HostWrite();
@@ -87,6 +88,15 @@ void Aliases(const int N = 0x1234)
    REQUIRE(S*S == MFEM_Approx(24.0*N));
 }
 
+TEST_CASE("Array::MakeRef", "[DebugDevice]")
+{
+   Array<int> x(1);
+   Array<int> y;
+   y.MakeRef(x);
+   x.Read();
+   REQUIRE_NOTHROW(y.Read());
+}
+
 TEST_CASE("MemoryManager/DebugDevice", "[MemoryManager][DebugDevice]")
 {
    NullBuf null_buffer;
@@ -96,7 +106,7 @@ TEST_CASE("MemoryManager/DebugDevice", "[MemoryManager][DebugDevice]")
    const int n_alias = mm.PrintAliases(dev_null);
    const long pagesize = sysconf(_SC_PAGE_SIZE);
    REQUIRE(pagesize > 0);
-   Device device("debug");
+
    for (int n = 1; n < 2*pagesize; n+=7)
    {
       Aliases(n);
@@ -110,3 +120,9 @@ TEST_CASE("MemoryManager/DebugDevice", "[MemoryManager][DebugDevice]")
 }
 
 #endif // _WIN32
+
+int main(int argc, char *argv[])
+{
+   Device device("debug");
+   return RunCatchSession(argc, argv, {"[DebugDevice]"});
+}
