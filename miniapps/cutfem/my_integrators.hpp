@@ -633,20 +633,6 @@ public:
 };
 
 
-class MyGridFunction : public GridFunction
-{
-
-    public:
-
-    MyGridFunction(FiniteElementSpace *f) : GridFunction(f)
-   { }
-   virtual real_t myComputeL2Error(Coefficient &exsol,
-                                 const Array<int> *elems = NULL
-                                 ,const IntegrationRule *irs[] = NULL
-                                 ) const
-   { return GridFunction::ComputeLpError(2.0, exsol, NULL, irs, elems); }
-
-};
 
 }
 #endif
