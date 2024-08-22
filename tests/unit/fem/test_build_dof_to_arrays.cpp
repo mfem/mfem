@@ -270,7 +270,7 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
 
             // Get all boundary ldofs
             Array<int> bdr(1); bdr = 1;
-            static_cast<FiniteElementSpace>(fespace).GetEssentialVDofs(bdr,
+            static_cast<FiniteElementSpace&>(fespace).GetEssentialVDofs(bdr,
                                                                        all_bdr_ldofs_marked);
             FiniteElementSpace::MarkerToList(all_bdr_ldofs_marked, all_bdr_ldofs);
 
