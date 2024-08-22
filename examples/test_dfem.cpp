@@ -752,6 +752,85 @@ int test_diffusion_integrator(std::string mesh_file,
    return 0;
 }
 
+// int test_cuda(std::string mesh_file,
+//               int refinements,
+//               int polynomial_order)
+// {
+//    Mesh mesh_serial = Mesh(mesh_file);
+//    for (int i = 0; i < refinements; i++)
+//    {
+//       mesh_serial.UniformRefinement();
+//    }
+//    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+
+//    mesh.SetCurvature(1);
+//    const int dim = mesh.Dimension();
+//    mesh_serial.Clear();
+
+//    out << "#el: " << mesh.GetNE() << "\n";
+
+//    ParGridFunction *mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+//    ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+
+//    H1_FECollection h1fec(polynomial_order, dim);
+//    ParFiniteElementSpace h1fes(&mesh, &h1fec);
+
+//    out << "#dofs " << h1fes.GetTrueVSize() << "\n";
+
+//    const IntegrationRule &ir =
+//        IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder());
+
+//    out << "#qp: " << ir.GetNPoints() << "\n";
+
+//    ParGridFunction f1_g(&h1fes);
+//    ParGridFunction rho_g(&h1fes);
+
+//    auto rho_f = [](const Vector &coords)
+//    {
+//       const double x = coords(0);
+//       const double y = coords(1);
+//       return x + y;
+//    };
+
+//    FunctionCoefficient rho_c(rho_f);
+//    rho_g.ProjectCoefficient(rho_c);
+
+//    auto kernel = [] MFEM_HOST_DEVICE(
+//       const double &u,
+//       const tensor<double, 2, 2> &J,
+//       const double &w)
+//    {
+//       return serac::tuple{u * det(J) * w};
+//    };
+//    serac::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
+//    serac::tuple output_operator = {Value{"potential"}};
+
+//    ElementOperator eop = {kernel, argument_operators, output_operator};
+//    auto ops = serac::tuple{eop};
+
+//    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
+//    // std::array<FieldDescriptor, 0> parameters;
+//    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
+
+//    DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+
+//    auto f1 = [](const Vector &coords)
+//    {
+//       const double x = coords(0);
+//       const double y = coords(1);
+//       return 2.345 + 0.25 * x * x * y + y * y * x;
+//    };
+
+//    FunctionCoefficient f1_c(f1);
+//    f1_g.ProjectCoefficient(f1_c);
+
+//    Vector x(f1_g), y(h1fes.TrueVSize());
+//    dop.SetParameters({mesh_nodes});
+//    dop.Mult(x, y);
+
+//    return 0;
+// }
+
 // int test_qoi(std::string mesh_file,
 //              int refinements,
 //              int polynomial_order)
@@ -1676,10 +1755,16 @@ int main(int argc, char *argv[])
    // ret ? out << " FAILURE\n" : out << " OK\n";
 
    ret = test_diffusion_integrator(mesh_file,
-                                   refinements,
-                                   polynomial_order);
+                   refinements,
+                   polynomial_order);
    out << "test_diffusion_integrator";
    ret ? out << " FAILURE\n" : out << " OK\n";
+
+   // ret = test_cuda(mesh_file,
+   //                 refinements,
+   //                 polynomial_order);
+   // out << "test_cuda";
+   // ret ? out << " FAILURE\n" : out << " OK\n";
 
    // ret = test_elasticity_integrator(mesh_file, refinements,
    //                                  polynomial_order, ir_order);

@@ -189,9 +189,12 @@ void DifferentiableOperator<kernels_tuple,
             shmem,
             shmem_info.offsets[SharedMemory::Index::FIELD],
             shmem_info.field_sizes,
+            kinput_to_field,
             wrapped_fields_e,
             e);
 
+         // These methods don't copy, they simply create a `DeviceTensor` object
+         // that points to correct chunks of the shared memory pool.
          auto input_shmem = load_input_mem(
             shmem,
             shmem_info.offsets[SharedMemory::Index::INPUT],
