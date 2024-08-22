@@ -221,7 +221,7 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
 
          int num_elem_fails = 0;
          int num_rang_fails = 0;
-         int num_ldof_fails = 0;
+         int num_elemdof_fails = 0;
          int num_bdr_elem_fails = 0;
          int num_bdr_rang_fails = 0;
          int num_bdr_elemdof_fails = 0;
@@ -263,13 +263,14 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
 
                int elemdof = (dofs[l] >= 0) ? dofs[l] : (-1 - dofs[l]);
 
-               if (i != elemdof) { num_ldof_fails++; }
+               if (i != elemdof) { num_elemdof_fails++; }
             }
 
             // Check bdr elements
+
             // Get all boundary ldofs
             Array<int> bdr(1); bdr = 1;
-            fespace.GetEssentialVDofs(bdr, all_bdr_ldofs_marked);
+            static_cast<FiniteElementSpace>(fespace).GetEssentialVDofs(bdr, all_bdr_ldofs_marked);
             FiniteElementSpace::MarkerToList(all_bdr_ldofs_marked, all_bdr_ldofs);
 
             for (int i = 0; i < size; i++)
@@ -294,7 +295,7 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
          }
          REQUIRE(num_elem_fails == 0);
          REQUIRE(num_rang_fails == 0);
-         REQUIRE(num_ldof_fails == 0);
+         REQUIRE(num_elemdof_fails == 0);
          REQUIRE(num_bdr_elem_fails == 0);
          REQUIRE(num_bdr_rang_fails == 0);
          REQUIRE(num_bdr_elemdof_fails == 0);
