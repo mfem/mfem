@@ -67,8 +67,7 @@ int main(int argc, char *argv[])
    double eps_y = 0.0;
    double eps_z = 0.0;
    // Other options
-   // TODO(Gabriel): To add device support
-   // const char *device_config = "cpu";
+   string device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -104,6 +103,8 @@ int main(int argc, char *argv[])
                   "Kershaw transform factor, eps_z in (0,1]");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -128,9 +129,8 @@ int main(int argc, char *argv[])
                 (int) (p_order*1000) << "-q" << (int) (q_order*1000) << ".csv";
    }
 
-   // TODO(Gabriel): To be added later...
-   // Device device(device_config);
-   // if (Mpi::Root()) { device.Print(); }
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
 
    /// 3. Read the serial mesh from the given mesh file.
    ///    For convinience, the meshes are available in
@@ -198,8 +198,11 @@ int main(int argc, char *argv[])
    ///    attibutes as essential. Then we get the list of essential DoFs.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    Array<int> ess_tdof_list;
-   ess_bdr = 1;
-   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   if (mesh->bdr_attributes.Size())
+   {
+      ess_bdr = 1;
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
 
    /// 7. Define the linear system. Set up the bilinear form a(.,.) and the
    ///    linear form b(.). The current implemented systems are the following:
@@ -207,7 +210,7 @@ int main(int argc, char *argv[])
    ///    - (grad(u), grad(v)), i.e., diffusion operator.
    ///    - (div(u), div(v)) + (e(u),e(v)), i.e., elasticity operator.
    ///    - (curl(u), curl(v)) + (u,v), i.e., definite Maxwell operator.
-   ///    The linear form has the standar form (f,v).
+   ///    The linear form has the standard form (f,v).
    ///    Define the matrices and vectors associated to the forms, and project
    ///    the required boundary data into the GridFunction solution.
    ParBilinearForm *a = new ParBilinearForm(fespace);
@@ -239,14 +242,14 @@ int main(int argc, char *argv[])
       case mass:
          scalar_u = new FunctionCoefficient(diffusion_solution);
          lfi = new DomainLFIntegrator(*scalar_u);
-         bfi = new MassIntegrator();
+         bfi = new MassIntegrator(one);
          x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
          break;
       case diffusion:
          scalar_u = new FunctionCoefficient(diffusion_solution);
          scalar_f = new FunctionCoefficient(diffusion_source);
          lfi = new DomainLFIntegrator(*scalar_f);
-         bfi = new DiffusionIntegrator();
+         bfi = new DiffusionIntegrator(one);
          x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
          break;
       case elasticity:
