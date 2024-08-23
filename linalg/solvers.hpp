@@ -408,6 +408,8 @@ public:
 
    void SetOperator(const Operator &op) { oper = &op; Setup(); };
 
+   real_t CheckSpectralBoundConstant();
+
    void Setup();
 private:
    Vector dinv;

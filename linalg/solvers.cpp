@@ -439,6 +439,16 @@ void OperatorLpqJacobiSmoother::Setup()
    }
 }
 
+real_t OperatorLpqJacobiSmoother::CheckSpectralBoundConstant()
+{
+   Vector ones(oper->Height());
+   Vector diag_comp(oper->Height());
+   ones = 1.0;
+   oper->AbsMult(ones, diag_comp);
+   diag_comp *= dinv;
+   return diag_comp.Max();
+}
+
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,

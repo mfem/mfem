@@ -290,6 +290,8 @@ int main(int argc, char *argv[])
    auto lpq_jacobi = new OperatorLpqJacobiSmoother(A, ess_tdof_list, p_order,
                                                    q_order);
 
+   real_t bound = lpq_jacobi->CheckSpectralBoundConstant();
+
    /// 9. Construct the solver. The implemented solvers are the following:
    ///    - Stationary Linear Iteration
    ///    - Preconditioned Conjugate Gradient
@@ -353,6 +355,7 @@ int main(int argc, char *argv[])
          mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << endl;
          if (use_pc) { mfem::out << "\tL(p,q)-Jacobi enabled...\n" << endl; }
          else { mfem::out << "\tNo preconditioner enabled...\n" << endl; }
+         mfem::out << "Spectral bound is: " << bound << endl;
       }
    }
 
