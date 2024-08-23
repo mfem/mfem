@@ -193,6 +193,161 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
     const int ndof2 = fe2.GetDof();
     const int ndofs = ndof1+ndof2;
 
+    elmat.SetSize(ndofs);
+    elmat=0.0;
+
+    int order=std::max(fe1.GetOrder(), fe2.GetOrder());
+
+    int ndofg;
+    if(ndim==1){ndofg=order+1;}
+    else if(ndim==2){ ndofg=(order+1)*(order+2)/2;}
+    else if(ndim==3){ ndofg=(order+1)*(order+2)*(order+3)/6;}
+
+    Vector sh1(ndof1);
+    Vector sh2(ndof2);
+    Vector shg(ndofg);
+
+    Vector xx(ndim);
+
+    DenseMatrix Mge(ndofg,ndofs); Mge=0.0;
+    DenseMatrix Mgg(ndofg,ndofg); Mgg=0.0;
+    DenseMatrix Mee(ndofs,ndofs); Mee=0.0;
+
+    ElementTransformation &Tr1 = Tr.GetElement1Transformation();
+    ElementTransformation &Tr2 = Tr.GetElement2Transformation();
+
+    const IntegrationRule* ir;
+
+
+    //element 1
+    double w;
+    ir=&IntRules.Get(Tr1.GetGeometryType(), 2*order+2);
+
+    for(int ii=0;ii<ir->GetNPoints();ii++){
+        const IntegrationPoint &ip = ir->IntPoint(ii);
+        Tr1.SetIntPoint(&ip);
+        Tr1.Transform(ip,xx);
+        fe1.CalcPhysShape(Tr1,sh1);
+        Shape(xx,order,shg);
+
+        w = Tr1.Weight();
+        w = ip.weight * w;
+        for(int i=0;i<ndofg;i++){
+            for(int j=0;j<i;j++){
+                Mgg(i,j)=Mgg(i,j)+shg(i)*shg(j)*w;
+                Mgg(j,i)=Mgg(j,i)+shg(i)*shg(j)*w;
+            }
+            Mgg(i,i)=Mgg(i,i)+shg(i)*shg(i)*w;
+        }
+
+        for(int i=0;i<ndof1;i++){
+            for(int j=0;j<i;j++){
+                Mee(i,j)=Mee(i,j)+sh1(i)*sh1(j)*w;
+                Mee(j,i)=Mee(j,i)+sh1(i)*sh1(j)*w;
+            }
+            Mee(i,i)=Mee(i,i)+sh1(i)*sh1(i)*w;
+        }
+
+        for(int i=0;i<ndof1;i++){
+            for(int j=0;j<ndofg;j++){
+                Mge(j,i)=Mge(j,i)+shg(j)*sh1(i)*w;
+            }}
+    }
+
+
+    //element 2
+    ir=&IntRules.Get(Tr2.GetGeometryType(), 2*order+2);
+    for(int ii=0;ii<ir->GetNPoints();ii++){
+        const IntegrationPoint &ip = ir->IntPoint(ii);
+        Tr2.SetIntPoint(&ip);
+        Tr2.Transform(ip,xx);
+
+        fe2.CalcPhysShape(Tr2,sh2);
+        Shape(xx,order,shg);
+
+        w = Tr2.Weight();
+        w = ip.weight * w;
+
+        for(int i=0;i<ndofg;i++){
+            for(int j=0;j<i;j++){
+                Mgg(i,j)=Mgg(i,j)+shg(i)*shg(j)*w;
+                Mgg(j,i)=Mgg(j,i)+shg(i)*shg(j)*w;
+            }
+            Mgg(i,i)=Mgg(i,i)+shg(i)*shg(i)*w;
+        }
+
+        for(int i=0;i<ndof2;i++){
+            for(int j=0;j<i;j++){
+                Mee(ndof1+i,ndof1+j)=Mee(ndof1+i,ndof1+j)+sh2(i)*sh2(j)*w;
+                Mee(ndof1+j,ndof1+i)=Mee(ndof1+j,ndof1+i)+sh2(i)*sh2(j)*w;
+            }
+            Mee(ndof1+i,ndof1+i)=Mee(ndof1+i,ndof1+i)+sh2(i)*sh2(i)*w;
+        }
+
+        for(int i=0;i<ndof2;i++){
+            for(int j=0;j<ndofg;j++){
+                Mge(j,ndof1+i)=Mge(j,ndof1+i)+shg(j)*sh2(i)*w;
+            }}
+    }
+
+    DenseMatrixInverse Mii(Mgg);
+    DenseMatrix Mre(ndofg,ndofs);
+    DenseMatrix Mff(ndofs,ndofs);
+    Mii.Mult(Mge,Mre);
+    MultAtB(Mge,Mre,Mff);
+
+    double tv;
+    for(int i=0;i<ndofs;i++){
+        for(int j=0;j<ndofs;j++){
+            tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
+            elmat(i,j)=tv;
+        }
+    }
+
+}
+
+void UnfittedBoundaryLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+
+   shape.SetSize(dof);        // vector of size dof
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint (&ip);
+      real_t val = Tr.Weight() * Q.Eval(Tr, ip);
+
+      el.CalcShape(ip, shape);
+
+      add(elvect, ip.weight * val*sweights(i), shape, elvect);
+   }
+}
+
+
+void GhostPenaltyVectorIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
+                                                const FiniteElement &fe2,
+                                                FaceElementTransformations &Tr,
+                                                DenseMatrix &elmat)
+{
+    const int ndim=Tr.GetSpaceDim();
+    int elem2 = Tr.Elem2No;
+    if(elem2<0){
+        elmat.SetSize(fe1.GetDof()*ndim);
+        elmat=0.0;
+        return;
+    }
+
+    const int ndof1 = fe1.GetDof();
+    const int ndof2 = fe2.GetDof();
+    const int ndofs = ndof1+ndof2;
+
     elmat.SetSize(ndofs*ndim);
     elmat=0.0;
 
@@ -308,27 +463,40 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
 
 }
 
-void UnfittedBoundaryLFIntegrator::AssembleRHSElementVect(
+
+
+void UnfittedVectorBoundaryLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   int dof = el.GetDof();
+   int vdim = Q.GetVDim();
+   int dof  = el.GetDof();
 
-   shape.SetSize(dof);        // vector of size dof
-   elvect.SetSize(dof);
+   shape.SetSize(dof);
+   vec.SetSize(vdim);
+
+   elvect.SetSize(dof * vdim);
    elvect = 0.0;
 
    const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = 2*el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      real_t val = Tr.Weight() * Q.Eval(Tr, ip);
-
+      Q.Eval(vec, Tr, ip);
+      vec *= Tr.Weight() * ip.weight;
       el.CalcShape(ip, shape);
-
-      add(elvect, ip.weight * val*sweights(i), shape, elvect);
+      for (int k = 0; k < vdim; k++)
+         for (int s = 0; s < dof; s++)
+         {
+            elvect(dof*k+s) += vec(k) * shape(s)*sweights(i);
+         }
    }
 }
 

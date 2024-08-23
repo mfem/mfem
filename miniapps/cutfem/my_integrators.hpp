@@ -476,7 +476,7 @@ public:
     {
         el_marks=marks;
         irules=cut_int;
-        dint=new MassIntegrator();
+        dint=new MassIntegrator(q);
     }
 
     ~CutMassIntegrator()
@@ -491,7 +491,8 @@ public:
 
         if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
         {
-            
+            elmat.SetSize(el.GetDof());
+            elmat=0.0;
         }
         else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
         {
@@ -632,7 +633,365 @@ public:
     }
 };
 
+class GhostPenaltyVectorIntegrator:public BilinearFormIntegrator
+{
+public:
+    GhostPenaltyVectorIntegrator(double penal_=1.0):penal(penal_)
+    {
 
+    }
+
+    virtual
+        ~GhostPenaltyVectorIntegrator()
+    {
+
+    }
+
+    virtual void AssembleFaceMatrix(const FiniteElement &fe1,
+                                    const FiniteElement &fe2,
+                                    FaceElementTransformations &Tr,
+                                    DenseMatrix &elmat);
+private:
+
+    void Shape(Vector& xx, int order, Vector& sh)
+    {
+        if(xx.Size()==1){
+            Shape1D(xx[0],order,sh);
+        }else
+        if(xx.Size()==2){
+            Shape2D(xx[0],xx[1],order,sh);
+        }else
+        if(xx.Size()==3){
+            Shape3D(xx[0],xx[1],xx[2],order,sh);
+        }
+    }
+
+    void Shape1D(double x, int order, Vector& sh){
+        sh.SetSize(order+1);
+        sh[0]=1.0;
+        for(int i=0;i<order;i++){sh[i+1]=sh[i]*x;}
+    }
+
+    void Shape2D(double x, double y, int order, Vector& sh)
+    {
+        Vector shx(order+1); Shape1D(x,order,shx);
+        Vector shy(order+1); Shape1D(y,order,shy);
+        sh.SetSize((order+1)*(order+2)/2);
+        int k=0;
+        for(int i=0;i<order+1;i++){
+            for(int j=0;j<order+1;j++){
+                if((i+j)<(order+1)){
+                    sh[k]=shx[i]*shy[j];
+                    k=k+1;
+                }
+            }
+        }
+    }
+
+    void Shape3D(double x, double y, double z, int order, Vector& sh)
+    {
+        Vector shx(order+1); Shape1D(x,order,shx);
+        Vector shy(order+1); Shape1D(y,order,shy);
+        Vector shz(order+1); Shape1D(z,order,shz);
+        sh.SetSize((order+1)*(order+2)*(order+3)/6);
+        int p=0;
+        for(int i=0;i<order+1;i++){
+            for(int j=0;j<order+1;j++){
+                for(int k=0;k<order+1;k++){
+                    if((i+j+k)<(order+1)){
+                        sh[p]=shx[i]*shy[j]*shz[k];
+                        p=p+1;
+                    }
+                }
+            }
+        }
+    }
+
+    double penal;
+};
+
+
+class CutGhostPenaltyVectorIntegrator:public BilinearFormIntegrator
+{
+private:    
+    GhostPenaltyIntegrator* dint;
+    Array<int>* el_marks;
+
+public:
+    CutGhostPenaltyVectorIntegrator(double penal_, Array<int>* marks)
+    {
+        el_marks=marks;
+        dint=new GhostPenaltyIntegrator(penal_);
+    }
+    virtual
+        ~CutGhostPenaltyVectorIntegrator()
+    {
+        delete dint;
+    }
+
+
+    virtual void AssembleFaceMatrix(const FiniteElement &fe1,
+                                    const FiniteElement &fe2,
+                                    FaceElementTransformations &Trans,
+                                    DenseMatrix &elmat) override
+    {
+
+        if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
+        {
+            //use standard integration rule
+            dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
+
+        }
+        else if(((*el_marks)[Trans.Elem1No]==ElementMarker::INSIDE) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
+        {
+            //use standard integration rule
+            dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
+        }
+        else if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::INSIDE))
+        {
+            //use standard integration rule
+            dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
+        }
+        else{
+            const int ndim=Trans.GetSpaceDim();
+            const int ndofs1=fe1.GetDof();
+            const int ndofs2=fe2.GetDof();
+            int ndofs=ndofs1+ndofs2;
+            elmat.SetSize(ndofs*ndim); elmat=0.0;
+        }
+    }
+
+};
+
+
+class CutVectorDiffusionIntegrator: public BilinearFormIntegrator
+{
+private:
+    VectorDiffusionIntegrator* dint;
+
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
+public:
+    CutVectorDiffusionIntegrator(Coefficient& q,
+                           Array<int>* marks,
+                           CutIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        dint=new VectorDiffusionIntegrator(q);
+    }
+
+    ~CutVectorDiffusionIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleElementMatrix(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            int sdim = Trans.GetSpaceDim();
+            elmat.SetSize(sdim*el.GetDof());
+            elmat=0.0;
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            //use standard integration rule
+            dint->SetIntRule(nullptr);
+            dint->AssembleElementMatrix(el,Trans,elmat);
+        }
+        else
+        {
+            //use cut integration
+            IntegrationRule ir;
+            irules->GetVolumeIntegrationRule(Trans,ir);
+            dint->SetIntRule(&ir);
+            dint->AssembleElementMatrix(el,Trans,elmat);
+        }
+    }
+};
+
+class CutVectorDivergenceIntegrator: public BilinearFormIntegrator
+{
+private:
+    VectorDivergenceIntegrator* dint;
+
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
+public:
+     CutVectorDivergenceIntegrator(Coefficient& q,
+                           Array<int>* marks,
+                           CutIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        dint=new VectorDivergenceIntegrator(q);
+    }
+
+    ~CutVectorDivergenceIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            int sdim = Trans.GetSpaceDim();
+            int trial_dof = trial_fe.GetDof();
+            int test_dof = test_fe.GetDof();
+            elmat.SetSize (test_dof, sdim*trial_dof);
+            elmat=0.0;
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            //use standard integration rule
+            dint->SetIntRule(nullptr);
+            dint->AssembleElementMatrix2(trial_fe,test_fe,Trans,elmat);
+        }
+        else
+        {
+            //use cut integration
+            IntegrationRule ir;
+            irules->GetVolumeIntegrationRule(Trans,ir);
+            dint->SetIntRule(&ir);
+            dint->AssembleElementMatrix2(trial_fe,test_fe,Trans,elmat);
+        }
+    }
+};
+
+class CutVectorDomainLFIntegrator : public LinearFormIntegrator
+{
+    private:
+    VectorDomainLFIntegrator* dint;
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
+public:
+   /// Constructs a domain integrator with a given Coefficient
+    CutVectorDomainLFIntegrator(VectorCoefficient& q,
+                           Array<int>* marks,
+                           CutIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        dint=new VectorDomainLFIntegrator(q);
+    }
+    ~CutVectorDomainLFIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       Vector &elvect) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            int sdim = Trans.GetSpaceDim();
+            elvect.SetSize(sdim*el.GetDof());
+            elvect=0.0;
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            //use standard integration rule
+            dint->SetIntRule(nullptr);
+            dint->AssembleRHSElementVect(el,Trans,elvect);
+
+        }
+        else
+        {
+            //use cut integration
+            IntegrationRule ir;
+            irules->GetVolumeIntegrationRule(Trans,ir);
+            dint->SetIntRule(&ir);
+            dint->AssembleRHSElementVect(el,Trans,elvect);
+        }
+    }
+};
+
+
+
+class UnfittedVectorBoundaryLFIntegrator : public LinearFormIntegrator
+{
+private:
+   Vector shape, vec;
+   VectorCoefficient &Q;
+   Vector sweights;
+public:
+   /// Constructs a boundary integrator with a given VectorCoefficient QG
+   UnfittedVectorBoundaryLFIntegrator(VectorCoefficient &QG) : Q(QG) { }
+
+   /** Given a particular boundary Finite Element and a transformation (Tr)
+       computes the element boundary vector, elvect. */
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+    virtual void SetSurfaceWeights(Vector surface_weights) { sweights = surface_weights; }
+};
+
+
+
+class CutUnfittedVectorBoundaryLFIntegrator : public LinearFormIntegrator
+{
+    private:
+    UnfittedVectorBoundaryLFIntegrator* dint;
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
+public:
+   /// Constructs a domain integrator with a given Coefficient
+    CutUnfittedVectorBoundaryLFIntegrator(VectorCoefficient& q,
+                           Array<int>* marks,
+                           CutIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        dint=new UnfittedVectorBoundaryLFIntegrator(q);
+    }
+    ~CutUnfittedVectorBoundaryLFIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       Vector &elvect) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            int sdim = Trans.GetSpaceDim();
+            elvect.SetSize(sdim*el.GetDof());
+            elvect=0.0;
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            //use standard integration rule
+            dint->SetIntRule(nullptr);
+            dint->AssembleRHSElementVect(el,Trans,elvect);
+
+        }
+        else
+        {
+            //use cut integration
+            Vector sweights;
+            IntegrationRule ir;
+            irules->GetVolumeIntegrationRule(Trans,ir);
+            irules->GetSurfaceWeights(Trans,ir,sweights);
+            dint->SetIntRule(&ir);
+            dint->SetSurfaceWeights(sweights);
+            dint->AssembleRHSElementVect(el,Trans,elvect);
+        }
+    }
+};
 
 }
 #endif
