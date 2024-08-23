@@ -662,8 +662,26 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[ParSubMesh]")
       partitioning[i] = (2 * num_procs - 1 - (i % num_procs) -
                          i / num_procs) % num_procs;
    }
+   // whether to NC refine the attribute 1 elements
+   auto make_nc = GENERATE(false, true);
+   if (make_nc)
+   {
+      serial_mesh.EnsureNCMesh(true);
+   }
 
    ParMesh parent_mesh(MPI_COMM_WORLD, serial_mesh, partitioning);
+
+   if (make_nc)
+   {
+      // Refine after partitioning so that the checkerboard pattern persists.
+      Array<int> el_to_refine;
+      for (int i = 0; i < parent_mesh.GetNE(); i++)
+         if (parent_mesh.GetAttribute(i) == 1)
+         {
+            el_to_refine.Append(i);
+         }
+      parent_mesh.GeneralRefinement(el_to_refine);
+   }
 
    // Create a pair of domain-based sub meshes
    Array<int> domain1(1);
@@ -685,13 +703,22 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[ParSubMesh]")
    // Only the root process has valid histograms
    if (Mpi::Root())
    {
-      // Verify that all exterior boundary elements were accounted for
-      REQUIRE(be1[1] + be2[1] == num_procs * num_procs);
-      REQUIRE(be1[2] + be2[2] == num_procs);
-      REQUIRE(be1[3] + be2[3] == num_procs);
-      REQUIRE(be1[4] + be2[4] == num_procs);
-      REQUIRE(be1[5] + be2[5] == num_procs);
-      REQUIRE(be1[6] + be2[6] == num_procs * num_procs);
+      // Verify that all exterior boundary elements were accounted for.
+      // If an NC refine has occurred, there will be extra faces on half the checkerboard
+      const int num_top_refined = make_nc ? (num_procs/2)*(num_procs/2) + ((num_procs+1)/2)*((num_procs+1)/2) : 0;
+      const int num_side_refined = make_nc ? (num_procs+1)/2 : 0;
+      CAPTURE(be1[1], be2[1]);
+      CAPTURE(be1[2], be2[2]);
+      CAPTURE(be1[3], be2[3]);
+      CAPTURE(be1[4], be2[4]);
+      CAPTURE(be1[5], be2[5]);
+      CAPTURE(be1[6], be2[6]);
+      CHECK(be1[1] + be2[1] == num_procs * num_procs + 3 * num_top_refined);
+      CHECK(be1[2] + be2[2] == num_procs + 3 * num_side_refined);
+      CHECK(be1[3] + be2[3] == num_procs + 3 * num_side_refined);
+      CHECK(be1[4] + be2[4] == num_procs + 3 * num_side_refined);
+      CHECK(be1[5] + be2[5] == num_procs + 3 * num_side_refined);
+      CHECK(be1[6] + be2[6] == num_procs * num_procs + 3 * num_top_refined);
 
       // Verify that all interior boundary elements appear once in each submesh
       for (int i=0; i < serial_mesh.GetNumFaces(); i++)
@@ -700,12 +727,13 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[ParSubMesh]")
          {
             const int attr = bdr_max + i + 1;
             CAPTURE(i, attr, bdr_max, be1[attr], be2[attr]);
-            CHECK(be1[attr] == 1);
+            CHECK(be1[attr] == (make_nc ? 4 : 1));
             CHECK(be2[attr] == 1);
          }
       }
    }
 }
+
 
 struct ParNCSubMeshExposed : public ParNCSubMesh
 {

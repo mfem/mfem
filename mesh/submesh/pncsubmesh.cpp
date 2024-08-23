@@ -235,21 +235,15 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
 
             auto face_type = face_list.GetMeshIdType(face.index);
             auto fn = FaceNodes{parent.FindFaceNodes(face)};
-            if (pnodes_new_elem.find(fn) != pnodes_new_elem.end())
-            {
-               std::cout << "Found before\n"; continue;
-            }
+            if (pnodes_new_elem.find(fn) != pnodes_new_elem.end()){ continue; }
 
             auto mesh_id_type = face_list.GetMeshIdType(face.index);
 
-            std::cout << "face.elem " << face.elem[0] << ' ' << face.elem[1];
-            if (face.elem[0] >= 0)
-            { std::cout << " elem 0 IsLeaf " << parent.elements[face.elem[0]].IsLeaf(); }
-
-            if (face.elem[1] >= 0)
-            { std::cout << " elem 1 IsLeaf " << parent.elements[face.elem[1]].IsLeaf() ; }
-            std::cout << '\n';
-            // MFEM_ASSERT(face.elem[0] < 0 || face.elem[1] < 0, "Internal nonconforming boundaries are not supported yet.");
+            // TODO: Internal nc submesh can be constructed and solved on, but the transfer
+            // to the parent mesh can be erroneous, this is likely due to not treating the
+            // changing orientation of internal faces for ncmesh within the ptransfermap.
+            MFEM_ASSERT(face.elem[0] < 0 || face.elem[1] < 0,
+               "Internal nonconforming boundaries are not supported yet.");
 
             auto face_geom = face_geom_from_nodes(fn.nodes);
             int new_elem_id = AddElement(NCMesh::Element(face_geom, face.attribute));
@@ -268,33 +262,10 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                return rank0 < rank1 ? rank0 : rank1;
             }();
 
-            // auto orientation = 0;
-            // [&]()
-            // {
-            //    int f, o;
-            //    std::cout << "i " << i << " ipe " << ipe << " face.index " << face.index << std::endl;
-            //    if (face.index >= face_to_be.Size() || face_to_be[face.index] < 0)
-            //    {
-            //       o = 0; std::cout << " face.index >= face_to_be.Size() " << (face.index >= face_to_be.Size());
-            //    }
-            //    else
-            //    {
-            //       submesh.GetParent()->GetBdrElementFace(face_to_be[face.index], &f, &o);
-            //    }
-            //    // Compose orientation with that from elem to face ?
-            //    int inf1, inf2;
-            //    submesh.GetParent()->GetFaceInfos(face.index, &inf1, &inf2);
-            //    int o2 = submesh.GetParent()->DecodeFaceInfoOrientation(inf1);
-            //    std::cout << " o " << o << " o2 " << o2 << '\n';
-            //    return o;
-            // }();
-            // ReorientFaceNodesByOrientation(fn.nodes, face_geom, orientation);
-
             pnodes_new_elem[fn] = new_elem_id;
             parent_element_ids_.Append(i);
             parent_to_submesh_element_ids_[i] = new_elem_id;
 
-            std::cout << "\nNew_elem_id " << new_elem_id << " fn ";
 
             // Copy in the parent nodes. These will be relabeled once the tree is built.
             std::copy(fn.nodes.begin(), fn.nodes.end(), elements[new_elem_id].node);
@@ -302,9 +273,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                if (x != -1)
                {
                   new_nodes.insert(x);
-                  std::cout << x << ' ';
                }
-            std::cout << '\n';
             auto &gi = GI[face_geom];
             gi.InitGeom(face_geom);
             for (int e = 0; e < gi.ne; e++)
@@ -317,10 +286,12 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                - Check not top level face
                - Check for parent of the newly entered element
                   - if not present, add in
+                  - if present but different order, reorder so consistent with child
+                    elements.
                - Set .child in the parent of the newly entered element
                - Set .parent in the newly entered element
 
-               Break if top level face or joined existing branch.
+               Break if top level face or joined existing branch (without reordering).
             */
             while (true)
             {
@@ -341,21 +312,9 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                   pelem = pnodes_new_elem.emplace(fn, pelem_id).first;
                   auto parent_face_id = parent.faces.FindId(fn.nodes[0], fn.nodes[1], fn.nodes[2], fn.nodes[3]);
                   parent_element_ids_.Append(parent_face_id);
-                  std::cout << "Adding new parent: pelem_id " << pelem_id << " fn.nodes " << fn.nodes[0] << ' ' << fn.nodes[1] << ' ' << fn.nodes[2] << ' ' << fn.nodes[3] << '\n';
                }
                else
                {
-                  std::cout << "Found parent " << pelem->second << " with ";
-                  for (auto x : pelem->first.nodes)
-                  {
-                     std::cout << x << ' ';
-                  }
-                  std::cout << " new ";
-                  for (auto x : fn.nodes)
-                  {
-                     std::cout << x << ' ';
-                  }
-                  std::cout << '\n';
                   // There are two scenarios where the parent nodes should be rearranged:
                   // 1. The found face is a slave, then the master might have been added in
                   //    reverse orientation
@@ -369,7 +328,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                   {
                      fix_parent = true;
                      auto pelem_id = pelem->second;
-                     std::cout << "Fixing " << pelem_id;
                      auto &parent_elem = elements[pelem->second];
                      if (parent_elem.IsLeaf())
                      {
@@ -394,22 +352,10 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                                  child[i2] = parent_elem.child[i1]; break;
                               }
                         std::copy(child, child+MaxFaceNodes, parent_elem.child);
-                        std::cout << " w/child ";
-                        for (auto x : parent_elem.child)
-                           if (x != -1)
-                           {
-                              std::cout << x << ' ';
-                           }
-                        std::cout << '\n';
                      }
                      // Re-key the map
                      pnodes_new_elem.erase(pelem->first);
                      pelem = pnodes_new_elem.emplace(fn, pelem_id).first;
-                     std::cout << " to " << pelem->first.nodes[0] << ' '
-                               << pelem->first.nodes[1] << ' '
-                               << pelem->first.nodes[2] << ' '
-                               << pelem->first.nodes[3] << " -> " << pelem->second << '\n';
-
                   }
                }
                // Ensure parent element is marked as non-leaf.
@@ -417,14 +363,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                // Know that the parent element exists, connect parent and child
                elements[pelem->second].child[child] = new_elem_id;
                elements[new_elem_id].parent = pelem->second;
-
-               std::cout << " modified child ";
-               for (auto x : elements[pelem->second].child)
-                  if (x != -1)
-                     {
-                        std::cout << x << ' ';
-                     }
-               std::cout << '\n';
 
                // If this was neither new nor a fixed parent, the higher levels of the tree have been built,
                // otherwise we recurse up the tree to add/fix more parents.
@@ -435,19 +373,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          parent_element_ids_.ShrinkToFit();
 
          MFEM_ASSERT(parent_element_ids_.Size() == elements.Size(), parent_element_ids_.Size() << ' ' << elements.Size());
-
-         std::cout << "R" << submesh.GetMyRank() << " pnodes_new_elem.size() " << pnodes_new_elem.size() << std::endl;
          std::vector<FaceNodes> new_elem_to_parent_face_nodes(pnodes_new_elem.size());
-         for (const auto &kv : pnodes_new_elem)
-         {
-            const auto &n = kv.first.nodes;
-            std::cout << kv.second << ":\t" << n[0] << ' ' << n[1] << ' ' << n[2] << ' ' << n[3] << '\n';
-         }
-         for (const auto &kv : pnodes_new_elem)
-         {
-            new_elem_to_parent_face_nodes.at(kv.second) = kv.first;
-         }
-
          /*
             All elements have been added into the tree but
             a) The nodes are all from the parent ncmesh
@@ -462,8 +388,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          // Add new nodes preserving parent mesh ordering
          parent_node_ids_.Reserve(static_cast<int>(new_nodes.size()));
          parent_to_submesh_node_ids_.reserve(new_nodes.size());
-         std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-         std::cout << "new_nodes ";
          for (auto n : new_nodes)
          {
             bool new_node;
@@ -472,19 +396,9 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             nodes.Alloc(new_node_id, new_node_id, new_node_id);
             parent_node_ids_.Append(n);
             parent_to_submesh_node_ids_[n] = new_node_id;
-            std::cout << n << ' ';
          }
          parent_node_ids_.ShrinkToFit();
-         std::cout << '\n';
          new_nodes.clear(); // not needed any more.
-
-
-         std::cout << "parent_node_ids_.Size() " << parent_node_ids_.Size() << std::endl;
-         for (const auto x : parent_node_ids_)
-         {
-            std::cout << x << ' ';
-         }
-         std::cout << std::endl;
 
          // Comparator for deciding order of elements. Building the ordering from the parent
          // ncmesh ensures the root ordering is common across ranks.
@@ -552,7 +466,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          int sorts = 0;
          while (!parental_sorted(elements))
          {
-            std::cout << "\n\nsort : " << sorts++ << "\n\n";
             // Stably reorder elements in order of refinement, and by parental nodes within
             // a nuclear family.
             new_to_old.SetSize(elements.Size()), old_to_new.SetSize(elements.Size());
@@ -565,56 +478,8 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                old_to_new[new_to_old[i]] = i;
             }
 
-            std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-            print_elements();
-
-            std::cout << "new_to_old ";
-            for (auto x : new_to_old)
-            {
-               std::cout << x << ' ';
-            }
-            std::cout << '\n';
-
-
-            // // Destructively use the new_to_old map to reorder elements without
-            // // needing a temporary copy of elements.
-            // for (int i = 0; i < new_to_old.size(); ++i)
-            // {
-            //    while (i != new_to_old[i])
-            //    {
-            //       std::cout << i << " -> " << new_to_old[i] << '\n';
-            //       int target_index = new_to_old[i];
-            //       std::swap(elements[i], elements[target_index]);
-            //       std::swap(new_to_old[i], new_to_old[target_index]);
-            //    }
-            // }
-
-            // TODO: Write Permute for BlockArray
-            // std::vector<Element> new_elements;
-            // new_elements.reserve(elements.Size());
-            // for (auto i : new_to_old)
-            // {
-            //    new_elements.emplace_back(elements[i]);
-            // }
-            // for (int i = 0; i < elements.Size(); i++)
-            // {
-            //    elements[i] = std::move(new_elements[i]);
-            // }
-            std::cout << __FILE__ << ':' << __LINE__ << '\n';
-            for (auto x : parent_element_ids_)
-               std::cout << x << ' ';
-            std::cout << '\n';
-
-            // parent_element_ids_.Permute(std::move(new_to_old)); // Destroys new_to_old
-
             // Permute whilst reordering new_to_old. Avoids unnecessary copies.
             Permute(std::move(new_to_old), elements, parent_element_ids_, new_elem_to_parent_face_nodes);
-
-
-            std::cout << __FILE__ << ':' << __LINE__ << '\n';
-            for (auto x : parent_element_ids_)
-               std::cout << x << ' ';
-            std::cout << '\n';
 
             parent_to_submesh_element_ids_.clear();
             for (int i = 0; i < parent_element_ids_.Size(); i++)
@@ -630,21 +495,15 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                {
                   // Parent rank is minimum of child ranks.
                   elem.rank = std::numeric_limits<int>::max();
-                  std::cout << " child ";
                   for (int c = 0; c < MaxElemChildren && elem.child[c] >= 0; c++)
                   {
                      elem.child[c] = old_to_new[elem.child[c]];
                      elem.rank = std::min(elem.rank, elements[elem.child[c]].rank);
-                     std::cout << elem.child[c] << ' ';
                   }
-                  std::cout << '\n';
                }
                elem.parent = elem.parent == -1 ? -1 : old_to_new[elem.parent];
             }
          }
-
-         std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-         print_elements();
 
          // Apply new node ordering to relations, and sign in on edges/vertices
          for (auto &elem : elements)
@@ -682,9 +541,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                }
             }
          }
-
-         std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-         print_elements(false);
       }
       else
       {
@@ -700,21 +556,11 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          for (int i = 0, ipe = 0; ipe < parent.faces.Size(); /* nothing */)
          {
             const auto &f = parent.faces[i++];
-            std::cout << "i " << i << " ipe " << ipe << " f.index " << f.index << " f.attribute " << f.attribute << " f.elem " << f.elem[0] << ' ' << f.elem[1] << std::endl;
             if (f.Unused()) { continue; }
             if (!HasAttribute(f, attributes)){ ipe++; continue; }
 
             auto mesh_id_type = face_list.GetMeshIdType(f.index);
             if (face_list.GetMeshIdType(f.index) == NCList::MeshIdType::MASTER) { ipe++; continue; }
-
-            if (mesh_id_type == NCList::MeshIdType::CONFORMING)
-               std::cout << "CONFORMING\n";
-            if (mesh_id_type == NCList::MeshIdType::MASTER)
-               std::cout << "MASTER\n";
-            if (mesh_id_type == NCList::MeshIdType::SLAVE)
-               std::cout << "SLAVE\n";
-            if (mesh_id_type == NCList::MeshIdType::UNRECOGNIZED)
-               std::cout << "UNRECOGNIZED\n";
 
             // If don't find a boundary element, this face is either a ghost master OR be is on
             // a different rank.
@@ -772,7 +618,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             // elem.rank; // Inherit rank from the controlling element
             new_elem.attribute = f.attribute;
             new_elem.ref_type = elem.ref_type;
-            std::cout << "parent_be " << parent_be << " new_elem.index " << new_elem.index << " elem.ref_type " << int(elem.ref_type) << std::endl;
             parent_element_ids_.Append(ipe); // submesh nc element -> parent nc face
             parent_to_submesh_element_ids_[ipe] = new_elem_id; // parent nc face -> submesh nc element
 
@@ -810,8 +655,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             ipe++;
          }
 
-         std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-         std::cout << "new_nodes ";
          // Add nodes respecting the ordering of the parent ncmesh.
          for (const auto &n : new_nodes)
          {
@@ -821,12 +664,8 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             nodes.Alloc(new_node_id, new_node_id, new_node_id);
             parent_node_ids_.Append(n);
             parent_to_submesh_node_ids_[n] = new_node_id;
-            std::cout << n << ' ';
          }
          parent_node_ids_.ShrinkToFit();
-         std::cout << '\n';
-
-         std::cout << "elements.Size() " << elements.Size() << std::endl;
 
          // Loop over elements relabeling nodes
          for (auto &el : elements)
@@ -834,8 +673,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             MFEM_ASSERT(el.IsLeaf(), "Non-leaf elements not currently supported.");
             const auto gi = GI[el.geom];
             bool new_id = false;
-
-            std::cout << "el.index " << el.index << " el.attribute " << el.attribute << std::endl;
 
             for (int n = 0; n < gi.nv; n++)
             {
@@ -849,8 +686,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                const int pid = parent.nodes.FindId(
                   parent_node_ids_[el.node[gi.edges[e][0]]],
                   parent_node_ids_[el.node[gi.edges[e][1]]]);
-               std::cout << "parent_node_ids_[el.node[gi.edges[e][0]]] " << parent_node_ids_[el.node[gi.edges[e][0]]]
-               << " parent_node_ids_[el.node[gi.edges[e][1]]] " << parent_node_ids_[el.node[gi.edges[e][1]]] << std::endl;
                MFEM_ASSERT(pid >= 0, "Edge not found");
                auto submesh_node_id = node_ids.Get(pid, new_id); // Convert parent id to a new submesh id.
                MFEM_ASSERT(!new_id, "Should not be new.");
@@ -860,7 +695,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
             for (int f = 0; f < gi.nf; f++)
             {
                auto face_id = faces.GetId(el.node[gi.faces[f][0]], el.node[gi.faces[f][1]], el.node[gi.faces[f][2]], el.node[gi.faces[f][3]]);
-               // TODO: Add in face, but do not give any data.
                faces[face_id].attribute = -1;
                faces[face_id].index = -1;
             }
@@ -868,46 +702,12 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       }
    }
 
-   // for (const auto &e : elements)
-   // for (int i = 0; i < elements.Size(); i++)
-   // {
-   //    const auto &e = elements[i];
-   //    std::cout << std::boolalpha;
-   //    std::cout << "elem " << i << " e.attribute " << e.attribute
-   //    << " e.IsLeaf() " << e.IsLeaf()
-   //    << " e.parent " << e.parent
-   //    << " e.ref_type " << int(e.ref_type)
-   //    << " e.rank " << e.rank;
-   //    if (e.IsLeaf())
-   //    {
-   //       std::cout << " node ";
-   //       for (int n = 0; n < 8; n++)
-   //       {
-   //          std::cout << e.node[n] << ' ';
-   //       }
-   //    }
-   //    else
-   //    {
-   //       std::cout << " child ";
-   //       for (int n = 0; n < 10; n++)
-   //       {
-   //          std::cout << e.child[n] << ' ';
-   //       }
-   //    }
-   //    std::cout << std::endl;
-   // }
-
-
-   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
    // Loop over all nodes, and reparent based on the node relations of the parent
    for (int i = 0; i < parent_node_ids_.Size(); i++)
    {
       const auto &parent_node = parent.nodes[parent_node_ids_[i]];
       const int submesh_p1 = parent_to_submesh_node_ids_[parent_node.p1];
       const int submesh_p2 = parent_to_submesh_node_ids_[parent_node.p2];
-
-      // std::cout << "Reparenting " << i << " with " << submesh_p1 << ' ' << submesh_p2;
-      // std::cout << " vert_index " << nodes[i].vert_index << std::endl;
       nodes.Reparent(i, submesh_p1, submesh_p2);
    }
 
@@ -940,18 +740,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    // If parent has coordinates defined, copy the relevant portion
    if (parent.coordinates.Size() > 0)
    {
-      // // Map parent coordinates to submesh coordinates
-      // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      // std::cout << "vertex_nodeId.Size() " << vertex_nodeId.Size() << std::endl;
-      // coordinates.SetSize(3*vertex_nodeId.Size());
-      // parent.tmp_vertex = new TmpVertex[parent.nodes.NumIds()];
-      // for (int i = 0; i < vertex_nodeId.Size(); i++)
-      // {
-      //    // const auto& parent_node = &parent.nodes[parent_node_ids_[vertex_nodeId[i]]];
-      //    std::memcpy(&coordinates[3*i], parent.CalcVertexPos(parent_node_ids_[vertex_nodeId[i]]), 3*sizeof(real_t));
-      //    std::cout << "coord " << i << ' ' << coordinates[3*i] << ' ' << coordinates[3*i+1] << ' ' << coordinates[3*i+2] << std::endl;
-      // }
-
       // Loop over new_nodes -> coordinates is indexed by node.
       coordinates.SetSize(3*parent_node_ids_.Size());
       parent.tmp_vertex = new TmpVertex[parent.nodes.NumIds()];
@@ -962,15 +750,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          MFEM_ASSERT(!new_node, "Should not be new");
          std::memcpy(&coordinates[3*n], parent.CalcVertexPos(pn), 3*sizeof(real_t));
       }
-      // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      // for (int i = 0; i < coordinates.Size() / 3; i++)
-      // {
-      //    std::cout << "node " << i
-      //    << '\t' << coordinates[3*i + 0]
-      //    << '\t' << coordinates[3*i + 1]
-      //    << '\t' << coordinates[3*i + 2] << '\n';
-      // }
-
    }
 
    // The element indexing was changed as part of generation of leaf elements. We need to
@@ -979,7 +758,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    {
       // The element indexing was changed as part of generation of leaf elements. We need to
       // update the map.
-      // std::cout << "leaf_elements.Size() " << leaf_elements.Size() << std::endl;
       submesh.parent_to_submesh_element_ids_ = -1;
       for (int i = 0; i < submesh.parent_element_ids_.Size(); i++)
       {
@@ -990,22 +768,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    }
    else
    {
-      // std::cout << __FILE__<< ':' << __LINE__ << std::endl;
-      // std::cout << "parent_element_ids_ ";
-      // for (auto x : parent_element_ids_)
-      // {
-      //    std::cout << x << ' ';
-      // }
-      // std::cout << '\n';
-      // std::cout << __FILE__<< ':' << __LINE__ << std::endl;
-      // std::cout << "submesh.parent_element_ids_ ";
-      // for (auto x : submesh.parent_element_ids_)
-      // {
-      //    std::cout << x << ' ';
-      // }
-      // std::cout << '\n';
-
-      // std::cout << "leaf_elements.Size() " << leaf_elements.Size() << std::endl;
       submesh.parent_to_submesh_element_ids_ = -1;
       // parent elements are BOUNDARY elements, need to map face index to be.
       const auto &parent_face_to_be = submesh.GetParent()->GetFaceToBdrElMap();
@@ -1021,7 +783,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          auto pe = parent_element_ids_[leaf];
          auto pfi = parent.faces[pe].index;
          auto pbe = parent_face_to_be[pfi];
-         std::cout << i << ' ' << leaf << ' ' << pe << ' ' << pfi << ' ' << pbe << '\n';
          new_parent_element_ids.Append(
             parent_face_to_be[parent.faces[parent_element_ids_[leaf_elements[i]]].index]);
          new_parent_to_submesh_element_ids[new_parent_element_ids[i]] = i;

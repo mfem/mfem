@@ -2692,56 +2692,14 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       }
    }
 
-   // for (auto& kv : n_to_n)
-   // {
-   //    std::cout << kv.first << " -> (";
-   //    std::sort(kv.second.begin(), kv.second.end());
-   //    for (auto v : kv.second)
-   //    {
-   //       std::cout << v << " ";
-   //    }
-   //    std::cout << ")" << std::endl;
-   // }
-
-   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-   // for (int iv = 0; iv < vertex_nodeId.Size(); iv++)
-   // {
-   //    std::cout << "iv " << iv << " vertex_nodeId[" << iv << "] " << vertex_nodeId[iv] << std::endl;
-   // }
-
-
-   // std::cout << "edge_vertex->Size() " << edge_vertex->Size() << std::endl;
-   // for (int i = 0; i < edge_vertex->Size(); i++)
-   // {
-   //    const int *ev = edge_vertex->GetRow(i);
-   //    Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
-   //    int node_id = nodes.FindId(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
-   //    std::cout << "edge " << i << " w/ node " << node_id;
-   //    std::cout << " vertex_nodeId[" << ev[0] << "] " << vertex_nodeId[ev[0]];
-   //    std::cout << " vertex_nodeId[" << ev[1] << "] " << vertex_nodeId[ev[1]];
-   //    std::cout << " node==nullptr " << std::boolalpha << (node == nullptr);
-   //    if (!node) { std::cout << std::endl; continue; }
-   //    std::cout << " edge_index " << node->edge_index << " vert_index " << node->vert_index;
-   //    std::cout << " edge_refc " << int(node->edge_refc) << " vert_refc " << int(node->vert_refc) << '\n';
-   // }
-
    for (int i = 0; i < edge_vertex->Size(); i++)
    {
       const int *ev = edge_vertex->GetRow(i);
       Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
       int node_id = nodes.FindId(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
-      // std::cout << "edge " << i << " w/ node " << node_id;
-      // std::cout << " vertex_nodeId[" << ev[0] << "] " << vertex_nodeId[ev[0]];
-      // std::cout << " vertex_nodeId[" << ev[1] << "] " << vertex_nodeId[ev[1]];
-      // std::cout << " edge_index " << node->edge_index << " vert_index " << node->vert_index;
-      // std::cout << " edge_refc " << int(node->edge_refc) << " vert_refc " << int(node->vert_refc);
-      // std::cout << " vertex_nodeId[" << ev[1] << "] " << vertex_nodeId[ev[1]];
-      // std::cout << " node==nullptr " << std::boolalpha << (node == nullptr) << '\n';
-
       MFEM_ASSERT(node && node->HasEdge(),
                   "edge (" << ev[0] << "," << ev[1] << ") not found, "
                   "node = " << node << " node->HasEdge() " << node->HasEdge());
-
       node->edge_index = i;
    }
 
@@ -2836,8 +2794,6 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
          if (face.index < 0)
          {
             face.index = NFaces + (nghosts++);
-            // std::cout << "face.index " << face.index << " face.attribute " << face.attribute << std::endl;
-
             // store the face geometry
             static const Geometry::Type types[5] =
             {
