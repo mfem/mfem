@@ -66,6 +66,7 @@ int main(int argc, char *argv[])
    double eps_z = 0.0;
    // Other options
    string device_config = "cpu";
+   bool use_pc = true;
    bool visualization = true;
 
    // Construct argument parser
@@ -108,6 +109,9 @@ int main(int argc, char *argv[])
                   " solution.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_pc, "-pc", "--preconditioner", "-no-pc",
+                  "--no-preconditioner",
+                  "Enable or disable Absolute L1 Jacobi preconditioner.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -262,11 +266,10 @@ int main(int argc, char *argv[])
 
    // These variables will define the linear system
    ParGridFunction x(fespace), y(fespace);
-   OperatorPtr A1, A2;
-   Vector B, X, Y;
+   OperatorPtr A;
+   Vector B, X;
 
    x = 0.0;
-   y = 0.0;
 
    switch (integrator_type)
    {
@@ -275,7 +278,6 @@ int main(int argc, char *argv[])
          lfi = new DomainLFIntegrator(*scalar_u);
          bfi = new MassIntegrator(one);
          x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
-         y.ProjectBdrCoefficient(*scalar_u, ess_bdr);
          break;
       case diffusion:
          scalar_u = new FunctionCoefficient(diffusion_solution);
@@ -283,7 +285,6 @@ int main(int argc, char *argv[])
          lfi = new DomainLFIntegrator(*scalar_f);
          bfi = new DiffusionIntegrator(one);
          x.ProjectBdrCoefficient(*scalar_u, ess_bdr);
-         y.ProjectBdrCoefficient(*scalar_u, ess_bdr);
          break;
       case elasticity:
          vector_u = new VectorFunctionCoefficient(space_dim, elasticity_solution);
@@ -291,7 +292,6 @@ int main(int argc, char *argv[])
          lfi = new VectorDomainLFIntegrator(*vector_f);
          bfi = new ElasticityIntegrator(one, one);
          x.ProjectBdrCoefficient(*vector_u, ess_bdr);
-         y.ProjectBdrCoefficient(*vector_u, ess_bdr);
          break;
       case maxwell:
          vector_u = new VectorFunctionCoefficient(space_dim, maxwell_solution);
@@ -302,7 +302,6 @@ int main(int argc, char *argv[])
          sum_bfi->AddIntegrator(new CurlCurlIntegrator(one));
          sum_bfi->AddIntegrator(new VectorFEMassIntegrator(one));
          x.ProjectBdrCoefficientTangent(*vector_u, ess_bdr);
-         y.ProjectBdrCoefficientTangent(*vector_u, ess_bdr);
          break;
       default:
          mfem_error("Invalid integrator type! Check ParLinearForm");
@@ -315,31 +314,34 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(lfi);
    b->Assemble();
 
-   a->FormLinearSystem(ess_tdof_list, x, *b, A1, X, B);
-   a->FormLinearSystem(ess_tdof_list, y, *b, A2, Y, B);
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    /// 8. Construct the preconditioner. Uses AbsMult to construct an appoximation
    ///    of the diagonal of the matrix.
 
-   Vector ones(fespace->GetTrueVSize());
    Vector result(fespace->GetTrueVSize());
-
+   Vector ones(fespace->GetTrueVSize());
    ones = 1.0;
-   A2->AbsMult(ones, result);
+   A->AbsMult(ones, result);
+   // A.As<HypreParMatrix>()->PowAbsMult(1.0, 1.0, ones, 0.0, result);
    auto abs_jacobi = new OperatorJacobiSmoother(result, ess_tdof_list);
 
    // TODO(Gabriel): Debug...
    if (false)
    {
+      if (A.Is<HypreParMatrix>())
+      {
+         A.As<HypreParMatrix>()->Print("Test");
+      }
       Vector diag_a(fespace->GetTrueVSize());
       a->AssembleDiagonal(diag_a);
       if (Mpi::Root())
       {
          mfem::out << "Printing results: " << endl;
-         mfem::out << "Diag:\n" << endl;
-         diag_a.Print(mfem::out,1);
+         // mfem::out << "Diag:\n" << endl;
+         // diag_a.Print(mfem::out,1);
          mfem::out << "|A|1:\n" << endl;
-         result.Print(mfem::out,1);
+         result.Print(mfem::out,10);
          mfem::out << "\nThank you\n" << endl;
       }
    }
@@ -370,72 +372,52 @@ int main(int argc, char *argv[])
       it_solver->SetPrintLevel(1);
    }
 
+   // Set up operator and preconditioner
+   if (it_solver && use_pc) { it_solver->SetPreconditioner(*abs_jacobi); }
+   solver->SetOperator(*A);
 
    StopWatch tictoc;
-   real_t time_nopc, time_pc;
+   real_t time;
 
-   /// No preconditioner
-   solver->SetOperator(*A1);
    tictoc.Restart();
    solver->Mult(B, X);
-   time_nopc = tictoc.RealTime();
-
-   /// Abs-L1-Jacobi
-   solver->SetOperator(*A2);
-   if (it_solver) { it_solver->SetPreconditioner(*abs_jacobi); }
-
-   tictoc.Restart();
-   solver->Mult(B, Y);
-   time_nopc = tictoc.RealTime();
+   time = tictoc.RealTime();
 
    /// 10. Recover the solution x as a grid function. Send the data by socket
    ///     to a GLVis server.
    a->RecoverFEMSolution(X, *b, x);
-   a->RecoverFEMSolution(Y, *b, y);
 
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream sol_sock_1(vishost, visport), sol_sock_2(vishost, visport);
+      socketstream sol_sock(vishost, visport);
 
-      sol_sock_1 << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
-                 "\n";
-      sol_sock_1.precision(8);
-      sol_sock_1 << "solution\n" << *mesh << x << flush;
-
-      sol_sock_2 << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
-                 "\n";
-      sol_sock_2.precision(8);
-      sol_sock_2 << "solution\n" << *mesh << y << flush;
+      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *mesh << x << flush;
    }
 
    /// 11. Compute and print the L^2 norm of the error, print elapsed times
    {
-      real_t error_x = 0.0, error_y = 0.0;
+      real_t error = 0.0;
       switch (integrator_type)
       {
          case mass: case diffusion:
-            error_x = x.ComputeL2Error(*scalar_u);
-            error_y = y.ComputeL2Error(*scalar_u);
+            error = x.ComputeL2Error(*scalar_u);
             break;
          case elasticity: case maxwell:
-            error_x = x.ComputeL2Error(*vector_u);
-            error_y = y.ComputeL2Error(*vector_u);
+            error = x.ComputeL2Error(*vector_u);
             break;
          default:
             mfem_error("Invalid integrator type! Check ComputeL2Error");
       }
       if (Mpi::Root())
       {
-         mfem::out << "\nNo Abs-L1-Jacobi: || u_h - u ||_{L^2} = " << error_x << "\n" <<
-                   endl;
-         mfem::out << "\nTime elapsed w/o PC:                  = " << time_nopc << "\n"
-                   << endl;
-         mfem::out << "\nAbs-L1-Jacobi:    || u_h - u ||_{L^2} = " << error_y << "\n" <<
-                   endl;
-         mfem::out << "\nTime elapsed with PC:                 = " << time_pc << "\n" <<
-                   endl;
+         mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << endl;
+         mfem::out << "\nTime elapsed:       = " << time << "\n" << endl;
+         if (use_pc) { mfem::out << "\tAbsolute value L1-Jacobi enabled...\n" << endl; }
+         else { mfem::out << "\tNo preconditioner enabled...\n" << endl; }
       }
    }
 

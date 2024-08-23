@@ -55,8 +55,8 @@ int main(int argc, char *argv[])
    SolverType solver_type = sli;
    IntegratorType integrator_type = mass;
    // Number of refinements
-   int refine_serial = 1;
-   int refine_parallel = 1;
+   int refine_serial = 0;
+   int refine_parallel = 0;
    // Preconditioner parameters
    double p_order = 1.0;
    double q_order = 0.0;
@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
    double eps_z = 0.0;
    // Other options
    string device_config = "cpu";
+   bool use_pc = true;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -105,6 +106,9 @@ int main(int argc, char *argv[])
                   " solution.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_pc, "-pc", "--preconditioner", "-no-pc",
+                  "--no-preconditioner",
+                  "Enable or disable Absolute L1 Jacobi preconditioner.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -310,12 +314,9 @@ int main(int argc, char *argv[])
       it_solver->SetRelTol(rel_tol);
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
-      it_solver->SetPreconditioner(*lpq_jacobi);
    }
-   if (it_solver && visualization)
-   {
-      it_solver->SetMonitor(monitor);
-   }
+   if (it_solver && visualization) { it_solver->SetMonitor(monitor); }
+   if (it_solver && use_pc) { it_solver->SetPreconditioner(*lpq_jacobi); }
    solver->SetOperator(A);
    solver->Mult(B, X);
 
@@ -350,6 +351,8 @@ int main(int argc, char *argv[])
       if (Mpi::Root())
       {
          mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << endl;
+         if (use_pc) { mfem::out << "\tL(p,q)-Jacobi enabled...\n" << endl; }
+         else { mfem::out << "\tNo preconditioner enabled...\n" << endl; }
       }
    }
 
