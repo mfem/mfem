@@ -27,7 +27,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 ifeq ($(MFEM_USE_GSLIB),YES)
    SEQ_MINIAPPS = findpts field-diff field-interp schwarz_ex1
-   PAR_MINIAPPS = pfindpts schwarz_ex1p
+   PAR_MINIAPPS = pfindpts schwarz_ex1p psurffindpts_adi
 else
    SEQ_MINIAPPS =
    PAR_MINIAPPS =

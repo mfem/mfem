@@ -184,7 +184,7 @@ int main (int argc, char *argv[])
    if (strcmp(mesh_file,"NULL")!=0)
    {
       mesh = new Mesh(mesh_file, 1, 1, false);
-      for (int lev=0; lev<rs_levels; lev++)
+      for (int lev=0; lev<rs_levels+rp_levels; lev++)
       {
          mesh->UniformRefinement();
       }
@@ -327,6 +327,7 @@ int main (int argc, char *argv[])
    // -----------FindPointsSetup----------------
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.SetupSurf(psubmesh);
+   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
 
    Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
    if (visit)
@@ -388,6 +389,7 @@ int main (int argc, char *argv[])
 
    // const int vdim   = sm_fes->GetVDim();
    int nel_sm = submesh->GetNE();
+   // int nel_sm = 1000;
    Vector point_pos(npt*vdim*nel_sm);
    Vector field_exact(nel_sm*npt*ncomp);
    int npt_per_proc = point_pos.Size()/vdim;
@@ -428,11 +430,18 @@ int main (int argc, char *argv[])
             }
          }
          Vector pos_i(vdim);
+         transf->SetIntPoint(&ip);
          transf->Transform(ip, pos_i);
          for (int d=0; d<vdim; d++)
          {
             point_pos(nel_sm*npt*d + i*npt + j) = pos_i(d);
          }
+         // MFEM_VERIFY(std::fabs(pos_i(2)-std::sin(pos_i(0)))<=1e-10,
+         // "Error in random pt generation");
+         //5.52176102 0.468501298 -0.689967809
+         // point_pos(0) = 5.52176102;// 0.289066938 -0.934150366
+         // point_pos(1) = 0.468501298;
+         // point_pos(2) = -0.689967809;
       }
    }
 
