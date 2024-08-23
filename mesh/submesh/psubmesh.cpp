@@ -134,7 +134,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          std::cout << std::endl;
       }
    };
-   // std::cout << __FILE__ << ':' << __LINE__ << std::endl;
    // print_elem();
 
    if (parent.Nonconforming())
@@ -260,8 +259,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
    }
 
-
-
    ListOfIntegerSets groups;
    IntegerSet group;
    // the first group is the local one
@@ -319,12 +316,19 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    ExchangeFaceNbrData();
 
-   if (from == SubMesh::From::Domain)
+
+
+   if (Conforming())
    {
-      SubMeshUtils::AddBoundaryElements(*this, FindGhostBoundaryElementAttributes());
-   } else
-   {
-      SubMeshUtils::AddBoundaryElements(*this);
+      // Conforming submesh must now discover and add boundary elements, taking care with
+      // "ghost boundary elements" if a volume submesh. Nonconforming
+      if (from == SubMesh::From::Domain)
+      {
+         SubMeshUtils::AddBoundaryElements(*this, FindGhostBoundaryElementAttributes());
+      } else
+      {
+         SubMeshUtils::AddBoundaryElements(*this);
+      }
    }
 
 
@@ -367,6 +371,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    SetAttributes();
    Finalize();
+
 }
 
 void ParSubMesh::FindSharedVerticesRanks(Array<int> &rhvtx)
