@@ -114,17 +114,13 @@ TEST_CASE("Build Dof To Arrays",
             FiniteElementSpace fespace(mesh, fec);
             int size = fespace.GetTrueVSize();
 
-            // Get all boundary ldofs
-            Array<int> bdr(1); bdr = 1;
-            fespace.GetEssentialVDofs(bdr, all_bdr_ldofs_marked);
-            FiniteElementSpace::MarkerToList(all_bdr_ldofs_marked, all_bdr_ldofs);
-
+            // Check elements
             for (int i = 0; i<size; i++)
             {
                int e = fespace.GetElementForDof(i);
                int l = fespace.GetLocalDofForDof(i);
 
-               if (e < 0 || e >= mesh->GetNE()) { num_elem_fails++; }
+               if (e < 0 || e >= mesh->GetNE()) { num_elem_fails++; continue; }
 
                fespace.GetElementDofs(e, dofs);
 
@@ -133,13 +129,22 @@ TEST_CASE("Build Dof To Arrays",
                int elemdof = (dofs[l] >= 0) ? dofs[l] : (-1 - dofs[l]);
 
                if (i != elemdof) { num_elemdof_fails++; }
+            }
 
+            // Check bdr elements
+            // Get all boundary ldofs
+            Array<int> bdr(1); bdr = 1;
+            fespace.GetEssentialVDofs(bdr, all_bdr_ldofs_marked);
+            FiniteElementSpace::MarkerToList(all_bdr_ldofs_marked, all_bdr_ldofs);
+
+            for (int i = 0; i < size; i++)
+            {
                int bdr_e = fespace.GetBdrElementForDof(i);
                int bdr_l = fespace.GetBdrLocalDofForDof(i);
 
                if (all_bdr_ldofs.Find(i) >= 0) // if this is a bdr ldof
                {
-                  if (bdr_e < 0 || bdr_e >= mesh->GetNBE()) { num_bdr_elem_fails++; }
+                  if (bdr_e < 0 || bdr_e >= mesh->GetNBE()) { num_bdr_elem_fails++; continue; }
 
                   fespace.GetBdrElementDofs(bdr_e, dofs);
 
@@ -216,7 +221,7 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
 
          int num_elem_fails = 0;
          int num_rang_fails = 0;
-         int num_ldof_fails = 0;
+         int num_elemdof_fails = 0;
          int num_bdr_elem_fails = 0;
          int num_bdr_rang_fails = 0;
          int num_bdr_elemdof_fails = 0;
@@ -242,19 +247,15 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
                fec = new L2_FECollection(order-1, dim);
             }
             ParFiniteElementSpace fespace(&pmesh, fec);
-            HYPRE_Int size = fespace.GetTrueVSize();
+            int size = fespace.GetNDofs();
 
-            // Get all boundary ldofs
-            Array<int> bdr(1); bdr = 1;
-            fespace.GetEssentialVDofs(bdr, all_bdr_ldofs_marked);
-            FiniteElementSpace::MarkerToList(all_bdr_ldofs_marked, all_bdr_ldofs);
-
+            // Check elements
             for (int i = 0; i<size; i++)
             {
                int e = fespace.GetElementForDof(i);
                int l = fespace.GetLocalDofForDof(i);
 
-               if (e < 0 || e >= pmesh.GetNE()) { num_elem_fails++; }
+               if (e < 0 || e >= pmesh.GetNE()) { num_elem_fails++; continue; }
 
                fespace.GetElementDofs(e, dofs);
 
@@ -262,15 +263,25 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
 
                int elemdof = (dofs[l] >= 0) ? dofs[l] : (-1 - dofs[l]);
 
-               if (i != elemdof) { num_ldof_fails++; }
+               if (i != elemdof) { num_elemdof_fails++; }
+            }
 
+            // Check bdr elements
+
+            // Get all boundary ldofs
+            Array<int> bdr(1); bdr = 1;
+            static_cast<FiniteElementSpace&>(fespace).GetEssentialVDofs(bdr,
+                                                                        all_bdr_ldofs_marked);
+            FiniteElementSpace::MarkerToList(all_bdr_ldofs_marked, all_bdr_ldofs);
+
+            for (int i = 0; i < size; i++)
+            {
                int bdr_e = fespace.GetBdrElementForDof(i);
                int bdr_l = fespace.GetBdrLocalDofForDof(i);
 
                if (all_bdr_ldofs.Find(i) >= 0) // if this is a bdr ldof
                {
-                  if (bdr_e < 0 || bdr_e >= pmesh.GetNBE()) { num_bdr_elem_fails++; }
-
+                  if (bdr_e < 0 || bdr_e >= pmesh.GetNBE()) { num_bdr_elem_fails++; continue; }
                   fespace.GetBdrElementDofs(bdr_e, dofs);
 
                   if (bdr_l < 0 || bdr_l >= dofs.Size()) { num_bdr_rang_fails++; }
@@ -285,7 +296,7 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
          }
          REQUIRE(num_elem_fails == 0);
          REQUIRE(num_rang_fails == 0);
-         REQUIRE(num_ldof_fails == 0);
+         REQUIRE(num_elemdof_fails == 0);
          REQUIRE(num_bdr_elem_fails == 0);
          REQUIRE(num_bdr_rang_fails == 0);
          REQUIRE(num_bdr_elemdof_fails == 0);
@@ -522,8 +533,7 @@ Mesh * GetMesh(MeshType type)
          mesh->AddTet(8, 2, 7, 5);
          break;
    }
-   mesh->GenerateBoundaryElements();
-   mesh->FinalizeTopology();
+   mesh->FinalizeTopology(true);
    for (int i = 0; i < mesh->GetNBE(); i++) { mesh->SetBdrAttribute(i, 1); }
 
    return mesh;
