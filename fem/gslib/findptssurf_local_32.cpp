@@ -225,7 +225,7 @@ static MFEM_HOST_DEVICE inline findptsElementGEdge_t get_edge(
 
    const int jj = jidx%pN;
    const int dd = jidx/pN;
-   const int mask = 8u<<(ei/2);  // adi: why this specific mask?
+   const int mask = 1u<<ei;  // adi: why this specific mask?
    if ((side_init&mask) == 0)
    {
       /* As j runs from 0 to 3*pN - 1
@@ -351,7 +351,6 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
       {
          out->tr = p->tr;
       }
-      out->tr = out->tr < 0.5 ? out->tr : 0.5;
       return false;
    }
    else   // if the iteration in not good
@@ -808,7 +807,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      {
                         fpt->dist2 = DBL_MAX;
                         fpt->dist2p = 0;
-                        fpt->tr = 0.25;
+                        fpt->tr = 1.0;
                      }
                      if (j<sDIM)
                      {

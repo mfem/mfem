@@ -240,7 +240,7 @@ get_face(const double *elx[3], const double *wtend, int fi,
       face.dxdn[d] = workspace + (3 + d) * p_Nfr;
    }
 
-   const int mask = 1u << (fi / 2);
+   const int mask = 1u << fi;
    if ((side_init & mask) == 0)
    {
       const int elx_stride[3] = {1, pN, pN * pN};
@@ -290,7 +290,7 @@ get_edge(const double *elx[3], const double *wtend, int ei,
       edge.d2xdn2[d] = workspace + (12 + d) * pN;
    }
 
-   const int mask = 8u << (ei / 2);
+   const int mask = 64u << ei;
    if ((side_init & mask) == 0)
    {
       if (jidx < 3*pN)
