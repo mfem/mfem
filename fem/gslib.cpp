@@ -264,6 +264,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    setupSW.Start();
    if (dev_mode)
    {
+      MFEM_VERIFY(NE_split_total == mesh->GetNE(),
+                  "Meshes with only quad/hex elements are supported on GPUs.");
       FindPointsOnDevice(point_pos, point_pos_ordering);
       return;
       setupSW.Stop();
@@ -1944,8 +1946,8 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
                                           const int dof1Dsol,
                                           const int ordering)
 {
-   field_out.SetSize(points_cnt*ncomp);
    field_out.UseDevice(true);
+   field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
 
    DEV.dof1d_sol =  dof1Dsol;
@@ -2176,30 +2178,28 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
    const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
 
+   bool tensor_product_only = mesh->GetNumGeometries(dim) == 1 &&
+                              (mesh->GetElementType(0) == Element::QUADRILATERAL ||
+                               mesh->GetElementType(0) == Element::HEXAHEDRON);
+
    setupSW.Clear();
    setupSW.Start();
-   if (Device::IsEnabled() && field_in.UseDevice() &&
-       !field_in.FESpace()->IsVariableOrder() &&
-       mesh->GetNumGeometries(dim) == 1 && mesh->GetNE() > 0 &&
-       (mesh->GetElementType(0) == Element::QUADRILATERAL ||
-        mesh->GetElementType(0) == Element::HEXAHEDRON))
+   if (Device::IsEnabled() && field_in.UseDevice() && fec_h1 &&
+       !field_in.FESpace()->IsVariableOrder() && tensor_product_only)
    {
-      MFEM_VERIFY(fec_h1,"Only h1 functions supported on device right now.");
       MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,
                   "basis not supported");
       Vector node_vals;
-      node_vals.UseDevice(true);
       const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
       const Operator *R = field_in.FESpace()->GetElementRestriction(ordering);
-      node_vals.SetSize(R->Height(), Device::GetMemoryType());
       node_vals.UseDevice(true);
+      node_vals.SetSize(R->Height(), Device::GetMemoryType());
       R->Mult(field_in, node_vals);
+      // GetNodalValues(&field_in, node_vals);
 
       const int ncomp  = field_in.FESpace()->GetVDim();
       const int maxOrder = field_in.FESpace()->GetMaxElementOrder();
 
-      // At this point make sure FindPoints was called with device mode?
-      // Otherwise copy necessary data?
       InterpolateOnDevice(node_vals, field_out, NE_split_total, ncomp,
                           maxOrder+1, field_in.FESpace()->GetOrdering());
 
@@ -2207,7 +2207,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       interpolate_h1_time = setupSW.RealTime();
       return;
    }
-
+   field_in.HostRead();
 
    if (fec_h1 && gf_order == mesh_order &&
        fec_h1->GetBasisType() == BasisType::GaussLobatto &&
@@ -2221,6 +2221,10 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    }
    else
    {
+      if (gsl_mfem_elem.Size() == 0)
+      {
+         gsl_mfem_elem = gsl_elem;
+      }
       InterpolateGeneral(field_in, field_out);
       setupSW.Stop();
       interpolate_general_time = setupSW.RealTime();
@@ -2303,6 +2307,7 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
       ind_fes.Update(false);
    }
    GridFunction field_in_scalar(&ind_fes);
+   field_in_scalar.UseDevice(false);
    Vector node_vals;
 
    const int ncomp      = field_in.FESpace()->GetVDim(),
@@ -2312,6 +2317,7 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
 
    field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
+   field_out.HostReadWrite();
 
    for (int i = 0; i < ncomp; i++)
    {
@@ -2373,6 +2379,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 
    field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
+   field_out.HostReadWrite();
 
    if (gsl_comm->np == 1) // serial
    {

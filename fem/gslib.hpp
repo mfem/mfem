@@ -22,7 +22,6 @@
 namespace gslib
 {
 struct comm;
-struct findpts_data_2;
 struct crystal;
 struct hash_data_3;
 struct hash_data_2;
@@ -172,9 +171,26 @@ protected:
    // Prepare data for device functions.
    void SetupDevice();
 
-   // FindPoints on device.
+   /** Searches positions given in physical space by @a point_pos.
+       These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
+       byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. */
    void FindPointsOnDevice(const Vector &point_pos,
                            int point_pos_ordering = Ordering::byNODES);
+
+   /** Interpolation of field values at prescribed reference space positions.
+       @param[in] field_in_evec E-vector of gridfunction to be interpolated.
+                                Assumed ordering is NDOFSxVDIMxNEL
+       @param[in] nel           Number of elements in the mesh.
+       @param[in] ncomp         Number of components in the field.
+       @param[in] dof1dsol      Number of degrees of freedom in each reference
+                                space direction.
+       @param[in] ordering      Ordering of the out field values: byNodes/byVDIM
+
+       @param[out] field_out  Interpolated values. For points that are not found
+                              the value is set to #default_interp_value. */
+   void InterpolateOnDevice(const Vector &field_in_evec, Vector &field_out,
+                            const int nel, const int ncomp,
+                            const int dof1dsol, const int ordering);
 public:
    FindPointsGSLIB();
 
@@ -295,21 +311,6 @@ public:
    /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
-
-   /** Interpolation of field values at prescribed reference space positions.
-       @param[in] field_in_evec E-vector of gridfunction to be interpolated.
-                                Assumed ordering is NDOFSxVDIMxNEL
-       @param[in] nel           Number of elements in the mesh.
-       @param[in] ncomp         Number of components in the field.
-       @param[in] dof1dsol      Number of degrees of freedom in each reference
-                                space direction.
-       @param[in] ordering      Ordering of the out field values: byNodes/byVDIM
-
-       @param[out] field_out  Interpolated values. For points that are not found
-                              the value is set to #default_interp_value. */
-   void InterpolateOnDevice(const Vector &field_in_evec, Vector &field_out,
-                            const int nel, const int ncomp,
-                            const int dof1dsol, const int ordering);
 
    // Bounding box meshes used internally by GSLIB.
    // 0 - element-wise axis-aligned bounding box. NE_split_total elem per proc
