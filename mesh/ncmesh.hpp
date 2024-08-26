@@ -593,6 +593,14 @@ protected: // implementation
 
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
+public:
+   int GetNumNodes() const { return nodes.Size(); }
+   const Node& GetNode(int i) const {return nodes[i]; }
+   int GetNumFaces() const { return faces.Size(); }
+   const Face& GetFace(int i) const {return faces[i]; }
+   const Element& GetElement(int i) const { return elements[i]; }
+protected:
+
 
    /** Initial traversal state (~ element orientation) for each root element
        NOTE: M = root_state.Size() is the number of root elements.
@@ -714,6 +722,7 @@ protected: // implementation
       }
       return elements.Append(el);
    }
+   int AddElement(Geometry::Type geom, int attr) { return AddElement(Element(geom,attr)); }
 
    // Free the element with index @a id.
    void FreeElement(int id)

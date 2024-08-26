@@ -163,7 +163,7 @@ NCMesh::NCMesh(const Mesh *mesh, const Array<int> &attributes)
       }
 
       // create NCMesh::Element for this mfem::Element
-      int root_id = AddElement(Element(geom, elem->GetAttribute()));
+      int root_id = AddElement(geom, elem->GetAttribute());
       MFEM_ASSERT(root_id == i, "");
       Element &root_elem = elements[root_id];
 
@@ -533,7 +533,7 @@ int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
                           int fattr3, int fattr4, int fattr5)
 {
    // create new element, initialize nodes
-   int new_id = AddElement(Element(Geometry::CUBE, attr));
+   int new_id = AddElement(Geometry::CUBE, attr);
    Element &el = elements[new_id];
 
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
@@ -563,7 +563,7 @@ int NCMesh::NewWedge(int n0, int n1, int n2,
                      int fattr2, int fattr3, int fattr4)
 {
    // create new element, initialize nodes
-   int new_id = AddElement(Element(Geometry::PRISM, attr));
+   int new_id = AddElement(Geometry::PRISM, attr);
    Element &el = elements[new_id];
 
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2;
@@ -592,7 +592,7 @@ int NCMesh::NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
                            int fattr0, int fattr1, int fattr2, int fattr3)
 {
    // create new element, initialize nodes
-   int new_id = AddElement(Element(Geometry::TETRAHEDRON, attr));
+   int new_id = AddElement(Geometry::TETRAHEDRON, attr);
    Element &el = elements[new_id];
 
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
@@ -618,7 +618,7 @@ int NCMesh::NewPyramid(int n0, int n1, int n2, int n3, int n4, int attr,
                        int fattr4)
 {
    // create new element, initialize nodes
-   int new_id = AddElement(Element(Geometry::PYRAMID, attr));
+   int new_id = AddElement(Geometry::PYRAMID, attr);
    Element &el = elements[new_id];
 
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
@@ -648,7 +648,7 @@ int NCMesh::NewQuadrilateral(int n0, int n1, int n2, int n3,
                              int eattr0, int eattr1, int eattr2, int eattr3)
 {
    // create new element, initialize nodes
-   int new_id = AddElement(Element(Geometry::SQUARE, attr));
+   int new_id = AddElement(Geometry::SQUARE, attr);
    Element &el = elements[new_id];
 
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2, el.node[3] = n3;
@@ -673,7 +673,7 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
                         int attr, int eattr0, int eattr1, int eattr2)
 {
    // create new element, initialize nodes
-   int new_id = AddElement(Element(Geometry::TRIANGLE, attr));
+   int new_id = AddElement(Geometry::TRIANGLE, attr);
    Element &el = elements[new_id];
 
    el.node[0] = n0, el.node[1] = n1, el.node[2] = n2;
@@ -698,7 +698,7 @@ int NCMesh::NewTriangle(int n0, int n1, int n2,
 int NCMesh::NewSegment(int n0, int n1, int attr, int vattr1, int vattr2)
 {
    // create new element, initialize nodes
-   int new_id = AddElement(Element(Geometry::SEGMENT, attr));
+   int new_id = AddElement(Geometry::SEGMENT, attr);
    Element &el = elements[new_id];
    el.node[0] = n0, el.node[1] = n1;
 
@@ -6382,7 +6382,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
       int ref_type;
       input >> ref_type;
 
-      int elem = AddElement(Element(Geometry::INVALID, 0));
+      int elem = AddElement(Geometry::INVALID, 0);
       Element &el = elements[elem];
       el.ref_type = ref_type;
 
@@ -6469,7 +6469,7 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved, int &is_nc)
       CheckSupportedGeom(type);
       GI[geom].InitGeom(type);
 
-      int eid = AddElement(Element(type, attr));
+      int eid = AddElement(type, attr);
       MFEM_ASSERT(eid == i, "");
 
       Element &el = elements[eid];

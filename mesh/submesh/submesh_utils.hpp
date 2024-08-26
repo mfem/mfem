@@ -134,6 +134,10 @@ auto GetRootParent(const T &m) -> decltype(std::declval<T>().GetParent())
 template <typename SubMeshT>
 void AddBoundaryElements(SubMeshT &mesh, const std::unordered_map<int,int> &lface_to_boundary_attribute = {});
 
+
+template<typename MeshT, typename SubMeshT>
+void ConstructFaceTree(const MeshT &parent, SubMeshT &submesh);
+
 /**
  * @brief Helper for checking if an object's attributes match a list
  *
