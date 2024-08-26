@@ -14,6 +14,7 @@
 
 #include "../ncmesh.hpp"
 #include "submesh.hpp"
+#include "submesh_utils.hpp"
 #include <unordered_map>
 
 namespace mfem
@@ -77,14 +78,6 @@ private:
    /// element ids. If from a boundary, these map to faces in the parent.
    Array<int> parent_element_ids_;
 
-   /// Mapping from SubMesh edge nc index (index of the array), to the parent Mesh
-   /// edge nc index.
-   Array<int> parent_edge_ids_;
-
-   /// Mapping from SubMesh face nc index (index of the array), to the parent Mesh
-   /// nc index.
-   Array<int> parent_face_ids_;
-
    /// Mapping from NCSubMesh node ids (index of the array), to the parent NCMesh
    /// node ids.
    Array<int> parent_node_ids_;
@@ -95,17 +88,9 @@ private:
 
    /// Mapping from parent NCMesh element ids to submesh NCMesh element ids.
    // Inverse map of parent_element_ids_.
-   Array<int> parent_to_submesh_element_ids_;
+   std::unordered_map<int, int> parent_to_submesh_element_ids_;
 
-   /// Mapping from parent NCMesh edge ids to submesh NCMesh edge ids.
-   // Inverse map of parent_edge_ids_.
-   Array<int> parent_to_submesh_edge_ids_;
-
-   /// Mapping from parent NCMesh face ids to submesh NCMesh face ids.
-   // Inverse map of parent_face_ids_.
-   std::unordered_map<int, int> parent_to_submesh_face_ids_;
-
-   friend void ConstructFaceTree(const NCMesh &parent, NCSubMesh &submesh, const Array<int> &attributes);
+   friend void SubMeshUtils::ConstructFaceTree<NCMesh, NCSubMesh>(const NCMesh &parent, NCSubMesh &submesh, const Array<int> &attributes);
 };
 
 } // namespace mfem

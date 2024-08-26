@@ -187,7 +187,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    InitRootElements();
    InitRootState(root_state.Size());
    InitGeomFlags();
-
 #ifdef MFEM_DEBUG
    // Check all processors have the same number of roots
    {
@@ -197,7 +196,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          << p[0] << " max " << -p[1] << " local " << root_state.Size() << " MyRank " << submesh.GetMyRank());
    }
 #endif
-
    Update(); // Fills in secondary information based off of elements, nodes and faces.
 
    // If parent has coordinates defined, copy the relevant portion
@@ -206,13 +204,8 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       // Loop over new_nodes -> coordinates is indexed by node.
       coordinates.SetSize(3*parent_node_ids_.Size());
       parent.tmp_vertex = new TmpVertex[parent.nodes.NumIds()];
-      // for (auto pn : parent_node_ids_)
       for (int n = 0; n < parent_node_ids_.Size(); n++)
       {
-
-         // bool new_node = false;
-         // auto n = node_ids.Get(pn, new_node);
-         // MFEM_ASSERT(!new_node, "Should not be new");
          std::memcpy(&coordinates[3*n], parent.CalcVertexPos(parent_node_ids_[n]), 3*sizeof(real_t));
       }
    }
@@ -236,9 +229,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       submesh.parent_to_submesh_element_ids_ = -1;
       // parent elements are BOUNDARY elements, need to map face index to be.
       const auto &parent_face_to_be = submesh.GetParent()->GetFaceToBdrElMap();
-
       MFEM_ASSERT(NElements == submesh.GetNE(), "!");
-
       auto new_parent_to_submesh_element_ids = submesh.parent_to_submesh_element_ids_;
       Array<int> new_parent_element_ids;
       new_parent_element_ids.Reserve(submesh.parent_element_ids_.Size());
