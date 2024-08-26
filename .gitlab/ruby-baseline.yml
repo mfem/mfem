@@ -19,8 +19,8 @@ stages:
   - cleanup
   - baseline_publish
 
-baselinecheck_mfem_intel_quartz:
-  extends: [.on_quartz]
+baselinecheck_mfem_intel_ruby:
+  extends: [.on_ruby]
   stage: baseline_check
   variables:
     # TPLS_DIR is used in .gitlab/scripts/baseline to provide the tpls location
@@ -32,7 +32,7 @@ baselinecheck_mfem_intel_quartz:
     - echo ${BUILD_ROOT}
     - echo ${TPLS_DIR}
     # Used by the tests in MFEM/tests:
-    - export MFEM_TEST_NP=32
+    - export MFEM_TEST_NP=48
     # The next script uses the following environment variables:
     # * BASELINE_TEST, SYS_TYPE, CI_PROJECT_DIR, ARTIFACTS_DIR,
     # * BUILD_ROOT, TPLS_DIR, MACHINE_NAME
@@ -44,18 +44,16 @@ baselinecheck_mfem_intel_quartz:
   allow_failure: true
 
 cleanup:
-  extends: .on_quartz
+  extends: .on_ruby
   stage: cleanup
   variables:
     GIT_STRATEGY: none
   script:
     - echo "BUILD_ROOT=${BUILD_ROOT}"
     - rm -rf "${BUILD_ROOT}" || true
-    - echo "CI_PROJECT_DIR=${CI_PROJECT_DIR}"
-    - make -C "${CI_PROJECT_DIR}" distclean
 
 report_baseline:
-  extends: [.on_quartz]
+  extends: [.on_ruby]
   stage: baseline_report
   script:
     - echo ${MACHINE_NAME}
@@ -115,8 +113,8 @@ report_baseline:
         exit $err
       ) 9> autotest.lock
 
-baselinepublish_mfem_quartz:
-  extends: [.on_quartz]
+baselinepublish_mfem_ruby:
+  extends: [.on_ruby]
   stage: baseline_publish
   rules:
     # - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
@@ -131,5 +129,5 @@ baselinepublish_mfem_quartz:
 
 include:
   - local: .gitlab/configs/common.yml
-  - local: .gitlab/configs/quartz-config.yml
+  - local: .gitlab/configs/ruby-config.yml
   - local: .gitlab/configs/setup-baseline.yml

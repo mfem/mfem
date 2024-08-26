@@ -251,9 +251,6 @@ Mesh * GetMesh(MeshType type)
          mesh->AddVertex(a_);
 
          mesh->AddSegment(0, 1);
-
-         mesh->AddBdrPoint(0);
-         mesh->AddBdrPoint(1);
          break;
       case QUADRILATERAL:
          mesh = new Mesh(2, 4, 1);
