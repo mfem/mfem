@@ -174,13 +174,14 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
       Array<int> sub_vdofs;
       subfes.GetElementVDofs(i, sub_vdofs);
 
-      MFEM_ASSERT(parent_vdofs.Size() == sub_vdofs.Size(), "internal error");
+      MFEM_ASSERT(parent_vdofs.Size() == sub_vdofs.Size(),
+                  "elem " << i << ' ' << parent_vdofs.Size() << ' ' << sub_vdofs.Size());
       for (int j = 0; j < parent_vdofs.Size(); j++)
       {
-         double sub_sign = 1.0;
+         real_t sub_sign = 1.0;
          int sub_vdof = subfes.DecodeDof(sub_vdofs[j], sub_sign);
 
-         double parent_sign = 1.0;
+         real_t parent_sign = 1.0;
          int parent_vdof = parentfes.DecodeDof(parent_vdofs[j], parent_sign);
 
          vdof_to_vdof_map[sub_vdof] =

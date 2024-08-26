@@ -58,7 +58,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.6.1)
+set(${PROJECT_NAME}_VERSION 4.7.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -87,10 +87,11 @@ if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-# SUNDIALS, STRUMPACK, Ginkgo, RAJA and Umpire require C++14:
+# SUNDIALS, STRUMPACK, Ginkgo, Tribol, RAJA and Umpire require C++14:
 if ((MFEM_USE_SUNDIALS OR
      MFEM_USE_STRUMPACK OR
      MFEM_USE_GINKGO OR
+     MFEM_USE_TRIBOL OR
      MFEM_USE_RAJA OR
      MFEM_USE_UMPIRE) AND
     ("${CMAKE_CXX_STANDARD}" LESS "14"))
@@ -145,7 +146,9 @@ if (MFEM_USE_CUDA)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
    find_package(CUDAToolkit REQUIRED)
    set(CUSPARSE_FOUND TRUE)
+   set(CUBLAS_FOUND TRUE)
    get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
+   get_target_property(CUBLAS_LIBRARIES CUDA::cublas LOCATION)
 endif()
 
 if (XSDK_ENABLE_C)
@@ -183,6 +186,19 @@ endif()
 # Process configuration options
 #-------------------------------------------------------------------------------
 
+# MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
+if (MFEM_PRECISION MATCHES "^(double|Double|DOUBLE)$")
+  set(MFEM_USE_SINGLE OFF)
+  set(MFEM_USE_DOUBLE ON)
+elseif (MFEM_PRECISION MATCHES "^(single|Single|SINGLE)$")
+  set(MFEM_USE_SINGLE ON)
+  set(MFEM_USE_DOUBLE OFF)
+else()
+  message(FATAL_ERROR " *** Invalid floating-point precision: "
+    "MFEM_PRECISION = ${MFEM_PRECISION}")
+endif()
+message(STATUS "Floating-point precision: MFEM_PRECISION = ${MFEM_PRECISION}")
+
 # MFEM_DEBUG
 if (CMAKE_BUILD_TYPE MATCHES "Debug|debug|DEBUG")
   set(MFEM_DEBUG ON)
@@ -217,6 +233,7 @@ if (MFEM_USE_HIP)
     list(INSERT CMAKE_PREFIX_PATH 0 ${ROCM_PATH})
   endif()
   find_package(HIP REQUIRED)
+  find_package(HIPBLAS REQUIRED)
   find_package(HIPSPARSE REQUIRED)
 endif()
 
@@ -382,6 +399,10 @@ if (MFEM_USE_AMGX)
   find_package(AMGX REQUIRED)
 endif()
 
+if (MFEM_USE_MAGMA)
+  find_package(MAGMA REQUIRED)
+endif()
+
 if (MFEM_USE_CONDUIT)
     find_package(Conduit REQUIRED conduit relay blueprint)
 endif()
@@ -490,6 +511,20 @@ if (MFEM_USE_PARELAG)
    find_package(PARELAG REQUIRED)
 endif()
 
+# Tribol
+if (MFEM_USE_TRIBOL)
+  if (MFEM_USE_MPI)
+    find_package(Tribol REQUIRED tribol redecomp)
+  else()
+    message(FATAL_ERROR " *** Tribol requires that MPI be enabled.")
+  endif()
+endif()
+
+# Enzyme
+if (MFEM_USE_ENZYME)
+   find_package(ENZYME REQUIRED)
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -529,8 +564,9 @@ find_package(Threads REQUIRED)
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
-    ADIOS2 CUSPARSE MKL_CPARDISO MKL_PARDISO AMGX CALIPER CODIPACK
-    BENCHMARK PARELAG MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM)
+    ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CALIPER CODIPACK
+    BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
+    ALGOIM ENZYME)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")

@@ -508,14 +508,14 @@ public:
    /// Add a sequence of doubles for hashing, given as a c-array.
    /** Before hashing the sequence is encoded so that the result is independent
        of endianness. */
-   HashFunction &AppendDoubles(const double *doubles, size_t num_doubles)
+   HashFunction &AppendDoubles(const real_t *doubles, size_t num_doubles)
    { return EncodeAndHashDoubles(doubles, doubles + num_doubles); }
 
    /// Add a sequence of doubles for hashing, given as a fixed-size c-array.
    /** Before hashing the sequence is encoded so that the result is independent
        of endianness. */
    template <size_t num_doubles>
-   HashFunction &AppendDoubles(const double (&doubles)[num_doubles])
+   HashFunction &AppendDoubles(const real_t (&doubles)[num_doubles])
    { return EncodeAndHashDoubles(doubles, doubles + num_doubles); }
 
    /// Add a sequence of doubles for hashing, given as a container.
@@ -990,7 +990,7 @@ HashFunction &HashFunction::EncodeAndHashDoubles(double_const_iter begin,
    // For hashing, a double is encoded in little endian byte-order.
 
    static_assert(
-      std::is_same<decltype(*begin), const double &>::value,
+      std::is_same<decltype(*begin), const real_t &>::value,
       "invalid iterator type");
 
    // Skip encoding if hashing is not available:

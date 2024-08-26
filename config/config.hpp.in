@@ -46,6 +46,12 @@
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 // #define MFEM_USE_MPI
 
+// Use double-precision floating point type
+// #define MFEM_USE_DOUBLE
+
+// Use single-precision floating point type
+// #define MFEM_USE_SINGLE
+
 // Enable debug checks in MFEM.
 // #define MFEM_DEBUG
 
@@ -107,6 +113,9 @@
 
 // Enable MFEM functionality based on the AmgX library.
 // #define MFEM_USE_AMGX
+
+// Enable MFEM functionality based on the MAGMA library.
+// #define MFEM_USE_MAGMA
 
 // Enable secure socket streams based on the GNUTLS library.
 // #define MFEM_USE_GNUTLS

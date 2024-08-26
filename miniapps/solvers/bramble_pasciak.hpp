@@ -58,7 +58,7 @@ namespace blocksolvers
 struct BPSParameters : IterSolveParameters
 {
    bool use_bpcg = true;   // whether to use BPCG
-   double q_scaling = 0.5; // scaling (> 0 and < 1) of the Q preconditioner
+   real_t q_scaling = 0.5; // scaling (> 0 and < 1) of the Q preconditioner
 };
 
 /// Bramble-Pasciak Conjugate Gradient
@@ -101,7 +101,7 @@ public:
     us to implement modified versions of CG iterations, that rely on efficient
     applications of the required transformations.
 
-    We offer a mass preconditioner based on a rescalling of the diagonal of the
+    We offer a mass preconditioner based on a rescaling of the diagonal of the
     element mass matrices M_T.
 
     We consider Q_T := alpha * lambda_min * D_T, where D_T := diag(M_T), and
@@ -118,7 +118,7 @@ public:
 
     2. J. Bramble and J. Pasciak.  A Preconditioning Technique for Indefinite
        Systems Resulting From Mixed Approximations of Elliptic Problems,
-       Mathematics of Computation, 50:1–17, 1988. */
+       Mathematics of Computation, 50:1-17, 1988. */
 class BramblePasciakSolver : public DarcySolver
 {
    mutable bool use_bpcg;
@@ -159,7 +159,7 @@ public:
                                 M_T x_T = lambda_T diag(M_T) x_T.
        We set Q_T = alpha * min(lambda_T) * diag(M_T), 0 < alpha < 1. */
    static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf,
-                                                      double alpha = 0.5);
+                                                      real_t alpha = 0.5);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }

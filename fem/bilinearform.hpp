@@ -119,8 +119,8 @@ protected:
    Array<BilinearFormIntegrator*> boundary_face_integs;
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
-   DenseMatrix elemmat;
-   Array<int>  vdofs;
+   mutable DenseMatrix elemmat;
+   mutable Array<int>  vdofs;
 
    DenseTensor *element_matrices; ///< Owned.
 
@@ -291,13 +291,13 @@ public:
    { return &boundary_face_integs_marker; }
 
    /// Returns a reference to: $ M_{ij} $
-   const double &operator()(int i, int j) { return (*mat)(i,j); }
+   const real_t &operator()(int i, int j) { return (*mat)(i,j); }
 
    /// Returns a reference to: $ M_{ij} $
-   virtual double &Elem(int i, int j);
+   virtual real_t &Elem(int i, int j);
 
    /// Returns constant reference to: $ M_{ij} $
-   virtual const double &Elem(int i, int j) const;
+   virtual const real_t &Elem(int i, int j) const;
 
    /// Matrix vector multiplication:  $ y = M x $
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -309,7 +309,7 @@ public:
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
    /// Add the matrix vector multiple to a vector:  $ y += a M x $
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
+   virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const
    { mat -> AddMult (x, y, a); }
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
@@ -320,7 +320,7 @@ public:
 
    /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
    virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double a = 1.0) const
+                                 const real_t a = 1.0) const
    { mat->AddMultTranspose(x, y, a); }
 
    /** @brief Add the original uneliminated matrix transpose vector
@@ -333,16 +333,16 @@ public:
    virtual void MultTranspose(const Vector & x, Vector & y) const;
 
    /// Compute $ y^T M x $
-   double InnerProduct(const Vector &x, const Vector &y) const
+   real_t InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
        $ M^{-1} $ (currently returns NULL) */
    virtual MatrixInverse *Inverse() const;
 
-   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
+   /** @brief Finalizes the matrix initialization if the ::AssemblyLevel is
        AssemblyLevel::LEGACY.
-       THe matrix that gets finalized is different if you are using static
+       The matrix that gets finalized is different if you are using static
        condensation or hybridization.*/
    virtual void Finalize(int skip_zeros = 1);
 
@@ -440,7 +440,7 @@ public:
                              Array<int> &bdr_marker);
 
    /// Sets all sparse values of $ M $ and $ M_e $ to 'a'.
-   void operator=(const double a)
+   void operator=(const real_t a)
    {
       if (mat != NULL) { *mat = a; }
       if (mat_e != NULL) { *mat_e = a; }
@@ -580,10 +580,18 @@ public:
        or the one stored internally by a prior call of ComputeElementMatrices()
        is returned when available.
    */
-   void ComputeElementMatrix(int i, DenseMatrix &elmat);
+   void ComputeElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary element matrix of the given boundary element
-   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the face matrix of the given face element
+   void ComputeFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the boundary face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
@@ -635,7 +643,7 @@ public:
                              DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCDiag(const Array<int> &bdr_attr_is_ess,
-                                 double value);
+                                 real_t value);
 
    /// Eliminate the given @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
    /** In this case the eliminations are applied to the internal $ M $
@@ -643,7 +651,7 @@ public:
    void EliminateVDofs(const Array<int> &vdofs, const Vector &sol, Vector &rhs,
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /** @brief  Eliminate the given @a vdofs, storing the eliminated part
+   /** @brief Eliminate the given @a vdofs, storing the eliminated part
        internally in $ M_e $.
 
        This method works in conjunction with EliminateVDofsInRHS() and allows
@@ -669,7 +677,7 @@ public:
                                      DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCFromDofsDiag(const Array<int> &ess_dofs,
-                                         double value);
+                                         real_t value);
 
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
@@ -679,7 +687,7 @@ public:
 
    /** @brief Compute inner product for full uneliminated matrix:
         $ y^T M x + y^T M_e x $ */
-   double FullInnerProduct(const Vector &x, const Vector &y) const
+   real_t FullInnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
    /** @brief Update the @a FiniteElementSpace and delete all data associated
@@ -771,8 +779,8 @@ protected:
    /// Entries are not owned.
    Array<Array<int>*> boundary_trace_face_integs_marker;
 
-   DenseMatrix elemmat;
-   Array<int>  trial_vdofs, test_vdofs;
+   mutable DenseMatrix elemmat;
+   mutable Array<int>  trial_vdofs, test_vdofs;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -803,30 +811,30 @@ public:
                      MixedBilinearForm *mbf);
 
    /// Returns a reference to: $ M_{ij} $
-   virtual double &Elem(int i, int j);
+   virtual real_t &Elem(int i, int j);
 
    /// Returns a reference to: $ M_{ij} $
-   virtual const double &Elem(int i, int j) const;
+   virtual const real_t &Elem(int i, int j) const;
 
    /// Matrix multiplication: $ y = M x $
    virtual void Mult(const Vector & x, Vector & y) const;
 
    /// Add the matrix vector multiple to a vector:  $ y += a M x $
    virtual void AddMult(const Vector & x, Vector & y,
-                        const double a = 1.0) const;
+                        const real_t a = 1.0) const;
 
    /// Matrix transpose vector multiplication:  $ y = M^T x $
    virtual void MultTranspose(const Vector & x, Vector & y) const;
 
    /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
    virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double a = 1.0) const;
+                                 const real_t a = 1.0) const;
 
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
        $ M^{-1} $ (currently unimplemented and returns NULL)*/
    virtual MatrixInverse *Inverse() const;
 
-   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
+   /** @brief Finalizes the matrix initialization if the ::AssemblyLevel is
        AssemblyLevel::LEGACY.*/
    virtual void Finalize(int skip_zeros = 1);
 
@@ -907,7 +915,7 @@ public:
    { return &boundary_trace_face_integs_marker; }
 
    /// Sets all sparse values of $ M $ to @a a.
-   void operator=(const double a) { *mat = a; }
+   void operator=(const real_t a) { *mat = a; }
 
    /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** This method must be called before assembly. See ::AssemblyLevel*/
@@ -944,10 +952,18 @@ public:
    void ConformingAssemble();
 
    /// Compute the element matrix of the given element
-   void ComputeElementMatrix(int i, DenseMatrix &elmat);
+   void ComputeElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary element matrix of the given boundary element
-   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the trace face matrix of the given face element
+   void ComputeTraceFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the boundary trace face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrTraceFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
