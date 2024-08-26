@@ -147,7 +147,8 @@ int main(int argc, char *argv[])
    }
 
    /// 4. Define a parallel mesh by a partitioning of the serial mesh.
-   ///    Number of parallel refinements given by the user.
+   ///    Number of parallel refinements given by the user. If defined,
+   ///    apply Kershaw transformation.
    ParMesh *mesh = new ParMesh(MPI_COMM_WORLD, *serial_mesh);
    delete serial_mesh;
    for (int lp = 0; lp < refine_parallel; lp++)
@@ -158,7 +159,7 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
    space_dim = mesh->SpaceDimension();
 
-   bool cond_z = (dim < 3)?true:(eps_z != 0); // lazy check
+   bool cond_z = (dim < 3)?true:(eps_z != 0.0); // lazy check
    if (eps_y != 0.0 && cond_z)
    {
       if (dim < 3) { eps_z = 0.0; }
@@ -309,6 +310,7 @@ int main(int argc, char *argv[])
       default:
          mfem_error("Invalid solver type!");
    }
+   solver->SetOperator(A);
 
    IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(solver);
    if (it_solver)
@@ -319,7 +321,7 @@ int main(int argc, char *argv[])
    }
    if (it_solver && visualization) { it_solver->SetMonitor(monitor); }
    if (it_solver && use_pc) { it_solver->SetPreconditioner(*lpq_jacobi); }
-   solver->SetOperator(A);
+
    solver->Mult(B, X);
 
    /// 10. Recover the solution x as a grid function. Send the data by socket

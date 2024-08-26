@@ -84,16 +84,14 @@ private:
    SolverType solver_type;
    real_t p_order;
    real_t q_order;
-   Solver* coarse_solver;
-   OperatorLpqJacobiSmoother* coarse_pc;
    ConstantCoefficient one;
+   OperatorLpqJacobiSmoother* coarse_pc;
 
    void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace);
 
    void ConstructOperatorAndSmoother(ParFiniteElementSpace& fespace, int level);
 
-   void ConstructBilinearForm(ParFiniteElementSpace& fespace,
-                              bool partial_assembly = true);
+   void ConstructBilinearForm(ParFiniteElementSpace& fespace);
 
 };
 

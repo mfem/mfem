@@ -363,6 +363,7 @@ int main(int argc, char *argv[])
       default:
          mfem_error("Invalid solver type!");
    }
+   solver->SetOperator(*A);
 
    IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(solver);
    if (it_solver)
@@ -371,10 +372,7 @@ int main(int argc, char *argv[])
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
    }
-
-   // Set up operator and preconditioner
    if (it_solver && use_pc) { it_solver->SetPreconditioner(*abs_jacobi); }
-   solver->SetOperator(*A);
 
    StopWatch tictoc;
    real_t time;

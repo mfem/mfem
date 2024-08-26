@@ -64,7 +64,6 @@ LpqGeometricMultigrid::LpqGeometricMultigrid(
      solver_type(st),
      p_order(p_order),
      q_order(q_order),
-     coarse_solver(nullptr),
      coarse_pc(nullptr),
      one(1.0)
 {
@@ -78,11 +77,12 @@ LpqGeometricMultigrid::LpqGeometricMultigrid(
 void LpqGeometricMultigrid::ConstructCoarseOperatorAndSolver(
    ParFiniteElementSpace& coarse_fespace)
 {
-   ConstructBilinearForm(coarse_fespace, false);
+   ConstructBilinearForm(coarse_fespace);
 
    HypreParMatrix* coarse_mat = new HypreParMatrix();
    bfs[0]->FormSystemMatrix(*essentialTrueDofs[0], *coarse_mat);
 
+   Solver* coarse_solver = nullptr;
    switch (solver_type)
    {
       case sli:
@@ -95,12 +95,10 @@ void LpqGeometricMultigrid::ConstructCoarseOperatorAndSolver(
          mfem_error("Invalid solver type!");
    }
 
-   coarse_pc = new OperatorLpqJacobiSmoother(*coarse_mat,
-                                             *essentialTrueDofs[0],
-                                             p_order,
-                                             q_order);
+   coarse_pc = new OperatorLpqJacobiSmoother(*coarse_mat, *essentialTrueDofs[0],
+                                             p_order, q_order);
 
-   IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(coarse_solver);
+   IterativeSolver *it_solver = dynamic_cast<IterativeSolver*>(coarse_solver);
    if (it_solver)
    {
       it_solver->SetRelTol(MG_REL_TOL);
@@ -109,8 +107,6 @@ void LpqGeometricMultigrid::ConstructCoarseOperatorAndSolver(
       it_solver->SetPreconditioner(*coarse_pc);
    }
    coarse_solver->SetOperator(*coarse_mat);
-
-   // Last two variables transfer ownership of the pointers operator and solver
    AddLevel(coarse_mat, coarse_solver, true, true);
 }
 
@@ -118,9 +114,9 @@ void LpqGeometricMultigrid::ConstructOperatorAndSmoother(
    ParFiniteElementSpace& fespace, int level)
 {
    const Array<int> &ess_tdof_list = *essentialTrueDofs[level];
-   ConstructBilinearForm(fespace, false);
+   ConstructBilinearForm(fespace);
 
-   auto level_mat = new HypreParMatrix;
+   auto level_mat = new HypreParMatrix();
    bfs.Last()->FormSystemMatrix(ess_tdof_list, *level_mat);
 
    Solver* smoother = new OperatorLpqJacobiSmoother(*level_mat,
@@ -132,17 +128,10 @@ void LpqGeometricMultigrid::ConstructOperatorAndSmoother(
 }
 
 
-void LpqGeometricMultigrid::ConstructBilinearForm(
-   ParFiniteElementSpace& fespace,
-   bool partial_assembly)
+void LpqGeometricMultigrid::ConstructBilinearForm(ParFiniteElementSpace&
+                                                  fespace)
 {
    ParBilinearForm* form = new ParBilinearForm(&fespace);
-
-   if (partial_assembly)
-   {
-      form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   }
-
    switch (integrator_type)
    {
       case mass:

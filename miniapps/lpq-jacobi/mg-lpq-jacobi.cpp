@@ -46,7 +46,7 @@ using namespace lpq_common;
 int main(int argc, char *argv[])
 {
    /// 1. Initialize MPI and HYPRE.
-   Mpi::Init();
+   Mpi::Init(argc, argv);
    Hypre::Init();
 
    /// 2. Parse command line options.
@@ -55,8 +55,8 @@ int main(int argc, char *argv[])
    SolverType solver_type = sli;
    IntegratorType integrator_type = mass;
    // Number of refinements
-   int refine_serial = 1;
-   int refine_parallel = 1;
+   int refine_serial = 0;
+   int refine_parallel = 0;
    // Number of geometric and order levels
    int geometric_levels = 1;
    int order_levels = 1;
@@ -70,8 +70,7 @@ int main(int argc, char *argv[])
    double eps_y = 0.0;
    double eps_z = 0.0;
    // Other options
-   // TODO(Gabriel): To add device support
-   // const char *device_config = "cpu";
+   string device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -110,15 +109,18 @@ int main(int argc, char *argv[])
                   "Kershaw transform factor, eps_z in (0,1]");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    MFEM_ASSERT(p_order > 0.0, "p needs to be positive");
+   MFEM_ASSERT((0 <= solver_type) && (solver_type < num_solvers), "");
+   MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
    MFEM_ASSERT(geometric_levels >= 0, "geometric_level needs to be non-negative");
    MFEM_ASSERT(order_levels >= 0, "order_level needs to be non-negative");
-   MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
    MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
    MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
 
@@ -135,9 +137,8 @@ int main(int argc, char *argv[])
                 (int) (p_order*1000) << "-q" << (int) (q_order*1000) << ".csv";
    }
 
-   // TODO(Gabriel): To be added later...
-   // Device device(device_config);
-   // if (myid == 0) { device.Print(); }
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
 
    /// 3. Read the serial mesh from the given mesh file.
    ///    For convinience, the meshes are available in
@@ -162,7 +163,7 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
    space_dim = mesh->SpaceDimension();
 
-   bool cond_z = (dim < 3)?true:(eps_z != 0); // lazy check
+   bool cond_z = (dim < 3)?true:(eps_z != 0.0); // lazy check
    if (eps_y != 0.0 && cond_z)
    {
       if (dim < 3) { eps_z = 0.0; }
@@ -255,7 +256,7 @@ int main(int argc, char *argv[])
 
    // These variables will define the linear system
    ParGridFunction x(&fes_hierarchy->GetFinestFESpace());
-   OperatorPtr A(Operator::Type::Hypre_ParCSR);
+   OperatorPtr A;
    Vector B, X;
 
    x = 0.0;
@@ -318,7 +319,7 @@ int main(int argc, char *argv[])
    }
    solver->SetOperator(*A.Ptr());
 
-   IterativeSolver *it_solver = dynamic_cast<IterativeSolver *>(solver);
+   IterativeSolver *it_solver = dynamic_cast<IterativeSolver*>(solver);
    if (it_solver)
    {
       it_solver->SetRelTol(rel_tol);
@@ -326,10 +327,8 @@ int main(int argc, char *argv[])
       it_solver->SetPrintLevel(1);
       it_solver->SetPreconditioner(*mg);
    }
-   if (it_solver && visualization)
-   {
-      it_solver->SetMonitor(monitor);
-   }
+   if (it_solver && visualization) { it_solver->SetMonitor(monitor); }
+
    solver->Mult(B, X);
 
    /// 10. Recover the solution x as a grid function. Send the data by socket
@@ -376,5 +375,6 @@ int main(int argc, char *argv[])
    if (vector_u) { delete vector_u; }
    if (vector_f) { delete vector_f; }
    delete fes_hierarchy;
+
    return 0;
 }
