@@ -85,57 +85,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    // wrong for the distributed SubMesh.
    FinalizeTopology(false);
 
-   // Vertex Values are bad
-   auto print_elem = [&]()
-   {
-      std::cout << "parent_element_ids_ ";
-      for (auto x : parent_element_ids_)
-      {
-         std::cout << x << ' ';
-      }
-      std::cout << "\nparent_vertex_ids_ ";
-      for (const auto & v: parent_vertex_ids_)
-      {
-         std::cout << v << ' ';
-      }
-
-      std::cout << "\nparent_to_submesh_element_ids_ ";
-      for (auto x : parent_to_submesh_element_ids_)
-      {
-         std::cout << x << ' ';
-      }
-      std::cout << "\nparent_to_submesh_vertex_ids_ ";
-      for (const auto & v: parent_to_submesh_vertex_ids_)
-      {
-         std::cout << v << ' ';
-      }
-      std::cout << std::endl;
-      Array<int> verts;
-      for (int e = 0; e < GetNE(); e++)
-      {
-         auto * elem = GetElement(e);
-         elem->GetVertices(verts);
-
-         std::cout << "Element " << e << " : ";
-         for (auto x : verts)
-         {
-            std::cout << x << ' ';
-         }
-         std::cout << std::endl;
-      }
-      for (int v = 0; v < GetNV(); v++)
-      {
-         auto *vv = GetVertex(v);
-         std::cout << "Vertex " << v << " : ";
-         for (int i = 0; i < 3; i++)
-         {
-            std::cout << vv[i] << ' ';
-         }
-         std::cout << std::endl;
-      }
-   };
-   // print_elem();
-
    if (parent.Nonconforming())
    {
       pncmesh = new ParNCSubMesh(*this, *parent.pncmesh, from, attributes);
@@ -191,8 +140,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       {
          parent_to_submesh_face_ids_[parent_face_ids_[i]] = i;
       }
-      parent_face_ori_.SetSize(NumOfFaces);
 
+      parent_face_ori_.SetSize(NumOfFaces);
       for (int i = 0; i < NumOfFaces; i++)
       {
          Array<int> sub_vert;

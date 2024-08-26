@@ -92,7 +92,7 @@ protected:
    // Inverse map of parent_element_ids_.
    std::unordered_map<int, int> parent_to_submesh_element_ids_;
 
-   //
+   // Helper friend methods for construction.
    friend void SubMeshUtils::ConstructFaceTree<ParNCMesh, ParNCSubMesh>(const ParNCMesh &parent, ParNCSubMesh &submesh, const Array<int> &attributes);
 };
 

@@ -817,7 +817,7 @@ void ConstructFaceTree(const NCMeshT &parent, NCSubMeshT &submesh, const Array<i
 
 
 // Explicit instantiations
-// template void ConstructFaceTree(const NCMesh& parent, NCSubMesh &submesh, const Array<int> &attributes);
+template void ConstructFaceTree(const NCMesh& parent, NCSubMesh &submesh, const Array<int> &attributes);
 
 #ifdef MFEM_USE_MPI
 template void ConstructFaceTree(const ParNCMesh& parent, ParNCSubMesh &submesh, const Array<int> &attributes);
