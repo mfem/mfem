@@ -206,7 +206,7 @@ void DarcyProblem::ShowError(const Vector& sol, bool verbose)
 }
 
 void DarcyProblem::VisualizeSolution(const Vector& sol, string tag,
-                                     int visport = 19916)
+                                     int visport)
 {
    int num_procs, myid;
    MPI_Comm_size(mesh_.GetComm(), &num_procs);
