@@ -22,6 +22,8 @@ namespace mfem
 #define CODE_INTERNAL 0
 #define CODE_BORDER 1
 #define CODE_NOT_FOUND 2
+#define DIM 2
+#define DIM2 4
 
 static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(double *p0,
                                                                    double x, int i,
@@ -195,7 +197,7 @@ get_edge(const double *elx[2], const double *wtend, int ei,
       edge.dxdn[d] = workspace + (2 + d) * pN; //dxdn and dydn at DOFs along edge
    }
 
-   const int mask = 1u << (ei / 2);
+   const int mask = 1u << ei;
    if ((side_init & mask) == 0)
    {
       if (j < pN)
@@ -668,8 +670,6 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                      const int pN = 0)
 {
 #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
-   const int dim = 2;
-   const int dim2 = dim*dim;
    const int MD1 = T_D1D ? T_D1D : 14;
    const int D1D = T_D1D ? T_D1D : pN;
    const int p_NE = D1D*D1D;
@@ -680,12 +680,10 @@ static void FindPointsLocal2D_Kernel(const int npt,
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
+      // 3D1D for seed, 10D1D+6 for area, 3D1D+9 for edge
       constexpr int size1 = 10*MD1 + 6;
-      // seed = 3D1D
-      // area = 4D1D + 2 + 4 + 2D1D + 4D1D = 10D1D + 6
-      // edge = 3D1D + 2 + 4 + 3 = = 3D1D + 9
-      constexpr int size2 = MD1*4;
-      constexpr int size3 = MD1*MD1*MD1*dim;  // local element coordinates
+      constexpr int size2 = MD1*4;            // edge constraints
+      constexpr int size3 = MD1*MD1*MD1*DIM;  // local element coordinates
 
       MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
@@ -705,18 +703,18 @@ static void FindPointsLocal2D_Kernel(const int npt,
       }
       MFEM_SYNC_THREAD;
 
-      int id_x = point_pos_ordering == 0 ? i : i*dim;
-      int id_y = point_pos_ordering == 0 ? i+npt : i*dim+1;
+      int id_x = point_pos_ordering == 0 ? i : i*DIM;
+      int id_y = point_pos_ordering == 0 ? i+npt : i*DIM+1;
       double x_i[2] = {x[id_x], x[id_y]};
 
       unsigned int *code_i = code_base + i;
       unsigned int *el_i = el_base + i;
-      double *r_i = r_base + dim * i;
+      double *r_i = r_base + DIM * i;
       double *dist2_i = dist2_base + i;
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
-      for (int d = 0; d < dim; ++d)
+      for (int d = 0; d < DIM; ++d)
       {
          hash.bnd[d].min = hashMin[d];
          hash.fac[d] = hashFac[d];
@@ -732,23 +730,22 @@ static void FindPointsLocal2D_Kernel(const int npt,
       for (; elp != ele; ++elp)
       {
          //elp
-
          const unsigned int el = *elp;
 
          // construct obbox_t on the fly from data
          obbox_t box;
-         int n_box_ents = 3*dim + dim2;
+         int n_box_ents = 3*DIM + DIM2;
 
-         for (int idx = 0; idx < dim; ++idx)
+         for (int idx = 0; idx < DIM; ++idx)
          {
             box.c0[idx] = boxinfo[n_box_ents*el + idx];
-            box.x[idx].min = boxinfo[n_box_ents*el + dim + idx];
-            box.x[idx].max = boxinfo[n_box_ents*el + 2*dim + idx];
+            box.x[idx].min = boxinfo[n_box_ents*el + DIM + idx];
+            box.x[idx].max = boxinfo[n_box_ents*el + 2*DIM + idx];
          }
 
-         for (int idx = 0; idx < dim2; ++idx)
+         for (int idx = 0; idx < DIM2; ++idx)
          {
-            box.A[idx] = boxinfo[n_box_ents*el + 3*dim + idx];
+            box.A[idx] = boxinfo[n_box_ents*el + 3*DIM + idx];
          }
 
          if (obbox_test(&box, x_i) >= 0)
@@ -775,8 +772,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   MFEM_SYNC_THREAD;
                }
 
-               const double *elx[dim];
-               for (int d = 0; d < dim; d++)
+               const double *elx[DIM];
+               for (int d = 0; d < DIM; d++)
                {
                   elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
                            xElemCoord + d*p_NEL + el * p_NE;
@@ -793,15 +790,15 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         fpt->dist2p = 0;
                         fpt->tr = 1;
                      }
-                     if (j < dim) { fpt->x[j] = x_i[j]; }
+                     if (j < DIM) { fpt->x[j] = x_i[j]; }
                      constraint_init_t[j] = 0;
                   }
                   MFEM_SYNC_THREAD;
                   //// seed ////
                   {
                      double *dist2_temp = r_workspace_ptr;
-                     double *r_temp[dim];
-                     for (int d = 0; d < dim; ++d)
+                     double *r_temp[DIM];
+                     for (int d = 0; d < DIM; ++d)
                      {
                         r_temp[d] = dist2_temp + (1 + d) * D1D;
                      }
@@ -822,7 +819,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                               if (dist2_temp[jj] < fpt->dist2)
                               {
                                  fpt->dist2 = dist2_temp[jj];
-                                 for (int d = 0; d < dim; ++d)
+                                 for (int d = 0; d < DIM; ++d)
                                  {
                                     fpt->r[d] = r_temp[d][jj];
                                  }
@@ -842,7 +839,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         tmp->tr = 1;
                         tmp->flags = 0;
                      }
-                     if (j < dim)
+                     if (j < DIM)
                      {
                         tmp->x[j] = fpt->x[j];
                         tmp->r[j] = fpt->r[j];
@@ -962,7 +959,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
 
                            MFEM_FOREACH_THREAD(d,x,nThreads)
                            {
-                              if (d < dim)
+                              if (d < DIM)
                               {
                                  resid[d] = tmp->x[d];
                                  jac[2*d] = 0.0;
@@ -1045,8 +1042,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                  const double *const jac = gpt.jac;
                                  const double *const hes = gpt.hes;
 
-                                 double resid[dim], steep[dim], sr[dim];
-                                 for (int d = 0; d < dim; ++d)
+                                 double resid[DIM], steep[DIM], sr[DIM];
+                                 for (int d = 0; d < DIM; ++d)
                                  {
                                     resid[d] = fpt->x[d] - pt_x[d];
                                  }
@@ -1121,7 +1118,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   } //for int step < 50
                } //findpts_el
 
-               bool converged_internal = (fpt->flags & FLAG_MASK) == CONVERGED_FLAG;
+               bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
                if (*code_i == CODE_NOT_FOUND || converged_internal ||
                    fpt->dist2 < *dist2_i)
                {
@@ -1134,7 +1131,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                   CODE_BORDER;
                         *dist2_i = fpt->dist2;
                      }
-                     if (j < dim)
+                     if (j < DIM)
                      {
                         r_i[j] = fpt->r[j];
                      }
@@ -1160,7 +1157,6 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                        int npt)
 {
    if (npt == 0) { return; }
-   MFEM_VERIFY(dim == 2,"Function for 2D only");
    auto pp = point_pos.Read();
    auto pgslm = gsl_mesh.Read();
    auto pwt = DEV.wtend.Read();
