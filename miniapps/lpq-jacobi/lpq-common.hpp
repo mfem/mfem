@@ -62,11 +62,11 @@ public:
    void MonitorSolution(int it, real_t norm, const Vector &x, bool final);
 };
 
-/// @brief Custom general geometric multigrid method.
+/// @brief L(p,q)-Jacobi custom general geometric multigrid method.
 ///
-/// Intermediate levels use L(p,q)-Jacobi preconditioner.
-/// Coarsest level uses a used-selected solver with an
-/// L(p,q)-Jacobi preconditioner.
+/// Intermediate levels use L(p,q)-Jacobi preconditioner. Coarsest level uses a
+/// used-selected solver with an L(p,q)-Jacobi preconditioner. Assumes that
+/// the forms will be fully assembled.
 class LpqGeometricMultigrid : public GeometricMultigrid
 {
 public:
@@ -86,6 +86,42 @@ private:
    real_t q_order;
    ConstantCoefficient one;
    OperatorLpqJacobiSmoother* coarse_pc;
+
+   void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace);
+
+   void ConstructOperatorAndSmoother(ParFiniteElementSpace& fespace, int level);
+
+   void ConstructBilinearForm(ParFiniteElementSpace& fespace);
+
+};
+
+/// @brief Abs-L(1)-Jacobi custom general geometric multigrid method.
+///
+/// Intermediate levels use Abs-L(1)-Jacobi preconditioner by applying the
+/// level matrix to the constant vector one. These are wrapped by an
+/// OperatorJacobiSmoother. Coarsest level uses a used-selected solver
+/// with an Abs-L(1)-Jacobi smoother. The assembly level is user-defined.
+///
+/// @warning The construction of the smoother is based on the application of
+/// AbsMult, which usually unfolds component-wise. E.g., if `A = B C`, then
+/// `|A|x = |B|(|C| x)`.
+class AbsL1GeometricMultigrid : public GeometricMultigrid
+{
+public:
+   AbsL1GeometricMultigrid(ParFiniteElementSpaceHierarchy& fes_hierarchy,
+                           Array<int>& ess_bdr,
+                           IntegratorType it,
+                           SolverType st,
+                           AssemblyLevel al);
+
+   ~AbsL1GeometricMultigrid() { delete coarse_pc; }
+
+private:
+   IntegratorType integrator_type;
+   SolverType solver_type;
+   AssemblyLevel assembly_level;
+   ConstantCoefficient one;
+   OperatorJacobiSmoother* coarse_pc;
 
    void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace);
 

@@ -51,7 +51,7 @@ void DataMonitor::MonitorSolution(int it, real_t norm, const Vector &x,
    os << norm << endl;
 }
 
-// Custom general geometric multigrid method, derived from GeometricMultigrid
+// L(p,q) general geometric multigrid method, derived from GeometricMultigrid
 LpqGeometricMultigrid::LpqGeometricMultigrid(
    ParFiniteElementSpaceHierarchy& fes_hierarchy,
    Array<int>& ess_bdr,
@@ -132,6 +132,118 @@ void LpqGeometricMultigrid::ConstructBilinearForm(ParFiniteElementSpace&
                                                   fespace)
 {
    ParBilinearForm* form = new ParBilinearForm(&fespace);
+   switch (integrator_type)
+   {
+      case mass:
+         form->AddDomainIntegrator(new MassIntegrator);
+         break;
+      case diffusion:
+         form->AddDomainIntegrator(new DiffusionIntegrator);
+         break;
+      case elasticity:
+         form->AddDomainIntegrator(new ElasticityIntegrator(one, one));
+         break;
+      case maxwell:
+         form->AddDomainIntegrator(new CurlCurlIntegrator(one));
+         form->AddDomainIntegrator(new VectorFEMassIntegrator(one));
+         break;
+      default:
+         mfem_error("Invalid integrator type! Check ParBilinearForm");
+   }
+   form->Assemble();
+   bfs.Append(form);
+}
+
+// Abs-L(1) general geometric multigrid method, derived from GeometricMultigrid
+AbsL1GeometricMultigrid::AbsL1GeometricMultigrid(
+   ParFiniteElementSpaceHierarchy& fes_hierarchy,
+   Array<int>& ess_bdr,
+   IntegratorType it,
+   SolverType st,
+   AssemblyLevel al)
+   : GeometricMultigrid(fes_hierarchy, ess_bdr),
+     integrator_type(it),
+     solver_type(st),
+     assembly_level(al),
+     coarse_pc(nullptr),
+     one(1.0)
+{
+   ConstructCoarseOperatorAndSolver(fes_hierarchy.GetFESpaceAtLevel(0));
+   for (int l = 1; l < fes_hierarchy.GetNumLevels(); ++l)
+   {
+      ConstructOperatorAndSmoother(fes_hierarchy.GetFESpaceAtLevel(l), l);
+   }
+}
+
+void AbsL1GeometricMultigrid::ConstructCoarseOperatorAndSolver(
+   ParFiniteElementSpace& coarse_fespace)
+{
+   ConstructBilinearForm(coarse_fespace);
+
+   OperatorPtr coarse_mat;
+   bfs[0]->FormSystemMatrix(*essentialTrueDofs[0], coarse_mat);
+
+   Solver* coarse_solver = nullptr;
+   switch (solver_type)
+   {
+      case sli:
+         coarse_solver = new SLISolver(MPI_COMM_WORLD);
+         break;
+      case cg:
+         coarse_solver = new CGSolver(MPI_COMM_WORLD);
+         break;
+      default:
+         mfem_error("Invalid solver type!");
+   }
+
+   {
+      Vector local_ones(coarse_mat->Height());
+      Vector result(coarse_mat->Height());
+
+      local_ones = 1.0;
+      coarse_mat->AbsMult(local_ones, result);
+
+      coarse_pc = new OperatorJacobiSmoother(result, *essentialTrueDofs[0]);
+   }
+
+   IterativeSolver *it_solver = dynamic_cast<IterativeSolver*>(coarse_solver);
+   if (it_solver)
+   {
+      it_solver->SetRelTol(MG_REL_TOL);
+      it_solver->SetMaxIter(MG_MAX_ITER);
+      it_solver->SetPrintLevel(-1);
+      it_solver->SetPreconditioner(*coarse_pc);
+   }
+   coarse_solver->SetOperator(*coarse_mat);
+   AddLevel(coarse_mat.Ptr(), coarse_solver, true, true);
+}
+
+void AbsL1GeometricMultigrid::ConstructOperatorAndSmoother(
+   ParFiniteElementSpace& fespace, int level)
+{
+   const Array<int> &ess_tdof_list = *essentialTrueDofs[level];
+   ConstructBilinearForm(fespace);
+
+   OperatorPtr level_mat;
+   bfs.Last()->FormSystemMatrix(ess_tdof_list, level_mat);
+
+   Vector local_ones(level_mat->Height());
+   Vector result(level_mat->Height());
+
+   local_ones = 1.0;
+   level_mat->AbsMult(local_ones, result);
+
+   Solver* smoother = new OperatorJacobiSmoother(result, *essentialTrueDofs[0]);
+
+   AddLevel(level_mat.Ptr(), smoother, true, true);
+}
+
+
+void AbsL1GeometricMultigrid::ConstructBilinearForm(ParFiniteElementSpace&
+                                                    fespace)
+{
+   ParBilinearForm* form = new ParBilinearForm(&fespace);
+   form->SetAssemblyLevel(assembly_level);
    switch (integrator_type)
    {
       case mass:
