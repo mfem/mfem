@@ -316,8 +316,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    ExchangeFaceNbrData();
 
-
-
    if (Conforming())
    {
       // Conforming submesh must now discover and add boundary elements, taking care with
