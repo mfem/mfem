@@ -104,6 +104,8 @@ private:
    /// Mapping from parent NCMesh face ids to submesh NCMesh face ids.
    // Inverse map of parent_face_ids_.
    std::unordered_map<int, int> parent_to_submesh_face_ids_;
+
+   friend void ConstructFaceTree(const NCMesh &parent, NCSubMesh &submesh, const Array<int> &attributes);
 };
 
 } // namespace mfem
