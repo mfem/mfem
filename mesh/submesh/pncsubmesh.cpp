@@ -166,25 +166,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    }
    else if (from == From::Boundary)
    {
-
-      /*
-         1) Loop over elements,
-            2) Loop over the faces
-               i - if match attributes set nodes equal to the face nodes and start while
-               loop
-                  a) while not in map, add element
-                  Use method
-                     int AddElementFromFace(elem, face)
-               which return the index of the element that's added.
-               ii - Get nodes of parent face using NCMesh::ParentFaceNodes, maps from face
-                  nodes in the parent ncmesh to parent face nodes in the parent face mesh.
-                  Returned child index will be used to connect the previously added element
-                  index.
-               iii - while loop
-                  - If the nodes aren't
-
-      */
-
       auto face_geom_from_nodes = [](const std::array<int, MaxFaceNodes> &nodes)
       {
          if (nodes[3] == -1){ return Geometry::Type::TRIANGLE; }
@@ -193,6 +174,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       };
 
       // Helper struct for storing FaceNodes and allowing comparisons based on the sorted
+      // set of nodes.
       struct FaceNodes
       {
          std::array<int, MaxFaceNodes> nodes;
@@ -206,19 +188,14 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          };
       };
 
-
       // Map from parent nodes to the new element in the ncsubmesh.
       std::map<FaceNodes, int> pnodes_new_elem;
       // Collect parent vertex nodes to add in sequence.
       std::set<int> new_nodes;
-      // parent_to_submesh_element_ids_.SetSize(parent.faces.Size());
-      // parent_to_submesh_element_ids_ = -1;
       parent_to_submesh_element_ids_.reserve(parent.faces.Size());
       parent_element_ids_.Reserve(parent.faces.Size());
-      const auto &face_list = const_cast<ParNCMesh&>(parent).GetFaceList();
-
+      const auto &face_list = const_cast<std::decay<decltype(parent)>::type&>(parent).GetFaceList();
       const auto &face_to_be = submesh.GetParent()->GetFaceToBdrElMap();
-
       // Double indexing loop because parent.faces begin() and end() do not align with
       // index 0 and size-1.
       for (int i = 0, ipe = 0; ipe < parent.faces.Size(); i++)
@@ -235,16 +212,14 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          auto fn = FaceNodes{parent.FindFaceNodes(face)};
          if (pnodes_new_elem.find(fn) != pnodes_new_elem.end()){ continue; }
 
-         auto mesh_id_type = face_list.GetMeshIdType(face.index);
-
          // TODO: Internal nc submesh can be constructed and solved on, but the transfer
          // to the parent mesh can be erroneous, this is likely due to not treating the
          // changing orientation of internal faces for ncmesh within the ptransfermap.
          MFEM_ASSERT(face.elem[0] < 0 || face.elem[1] < 0,
-            "Internal nonconforming boundaries are not supported yet.");
+            "Internal nonconforming boundaries are not reliably supported yet.");
 
          auto face_geom = face_geom_from_nodes(fn.nodes);
-         int new_elem_id = AddElement(NCMesh::Element(face_geom, face.attribute));
+         int new_elem_id = AddElement(face_geom, face.attribute);
 
          // Rank needs to be established by presence (or lack of) in the submesh.
          elements[new_elem_id].rank = [&parent, &face, &submesh, &face_to_be]()
