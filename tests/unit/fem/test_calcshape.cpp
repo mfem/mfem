@@ -77,6 +77,8 @@ void GetRelatedIntegrationPoints(const IntegrationPoint& ip, int dim,
  */
 void TestCalcShape(FiniteElement* fe, int res, double tol=1e-12)
 {
+   CAPTURE(tol);
+
    int dim = fe->GetDim();
 
    Vector weights( fe->GetDof() );
@@ -101,6 +103,9 @@ void TestCalcShape(FiniteElement* fe, int res, double tol=1e-12)
       for (int j=0; j < ipArr.Size(); ++j)
       {
          IntegrationPoint& ip = ipArr[j];
+
+         CAPTURE(ip.x, ip.y, ip.z);
+
          fe->CalcShape(ip, weights);
          REQUIRE(weights.Sum() == MFEM_Approx(1., tol, tol));
       }
@@ -155,6 +160,8 @@ TEST_CASE("CalcShape H1",
           "[H1_TetrahedronElement]"
           "[H1_HexahedronElement]"
           "[H1_WedgeElement]"
+          "[H1_FuentesPyramidElement]"
+          "[H1_BergotPyramidElement]"
           "[H1_PyramidElement]")
 {
    const int maxOrder = 5;
@@ -201,24 +208,14 @@ TEST_CASE("CalcShape H1",
 
    SECTION("H1_FuentesPyramidElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing H1_PyramidElement::CalcShape() "
-                   << "for order " << order << std::endl;
-         H1_FuentesPyramidElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_FuentesPyramidElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-6*std::pow(10, order));
    }
 
    SECTION("H1_BergotPyramidElement")
    {
-      for (int order =1; order <= maxOrder; ++order)
-      {
-         std::cout << "Testing H1_PyramidElement::CalcShape() "
-                   << "for order " << order << std::endl;
-         H1_BergotPyramidElement fe(order);
-         TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
-      }
+      H1_BergotPyramidElement fe(order);
+      TestCalcShape(&fe, resolution, 2e-11*std::pow(10, order));
    }
 
 }

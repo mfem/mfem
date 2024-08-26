@@ -60,7 +60,6 @@ void TestCalcDivShape(FiniteElement* fe, ElementTransformation * T, int res)
 {
    int  dof = fe->GetDof();
    int  dim = fe->GetDim();
-   bool pyr = fe->GetGeomType() == Geometry::PYRAMID;
 
    Vector dofs(dof);
    Vector weights(dof);
@@ -90,15 +89,16 @@ void TestCalcDivShape(FiniteElement* fe, ElementTransformation * T, int res)
       {
          IntegrationPoint& ip = ipArr[j];
 
-         // The limits used here were chosen to allow RT_FuentesPyramidElement
-         // to pass up to order = 5
-         if ((ip.z < 1.0 && ip.x + ip.z < 1.8 && ip.y + ip.z < 1.8) || !pyr)
-         {
-            fe->CalcDivShape(ip, weights);
+         // Pyramid basis functions are poorly behaved outside the
+         // reference pyramid
+         if (fe->GetGeomType() == Geometry::PYRAMID &&
+             (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z)) { continue; }
 
-            CAPTURE(ip.x, ip.y, ip.z);
-            REQUIRE( weights * dofs == Approx(1.) );
-         }
+         CAPTURE(ip.x, ip.y, ip.z);
+
+         fe->CalcDivShape(ip, weights);
+
+         REQUIRE( weights * dofs == Approx(1.) );
       }
    }
 }
