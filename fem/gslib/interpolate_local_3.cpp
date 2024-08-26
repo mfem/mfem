@@ -69,11 +69,11 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
          {
             if (k <= 2)
             {
-               lagrange_eval(wtr + k*D1D, r[3 * i + k], j, D1D, gll1D, lagcoeff);
+               lagrange_eval(wtr + k*D1D, r[3*i+k], j, D1D, gll1D, lagcoeff);
             }
             if (D1D == 2 && k == 1)
             {
-               lagrange_eval(wtr + 2*D1D, r[3 * i + 2], j, D1D, gll1D, lagcoeff);
+               lagrange_eval(wtr + 2*D1D, r[3*i+2], j, D1D, gll1D, lagcoeff);
             }
          }
       }

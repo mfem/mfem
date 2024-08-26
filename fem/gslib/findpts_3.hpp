@@ -24,23 +24,23 @@ namespace mfem
 
 #define pDIM 3
 
-struct findptsElementPoint_t
+struct findptsPt
 {
    double x[pDIM], r[pDIM], oldr[pDIM], dist2, dist2p, tr;
    int flags;
 };
 
-struct findptsElementGFace_t
+struct findptsElemFace
 {
    double *x[pDIM], *dxdn[pDIM];
 };
 
-struct findptsElementGEdge_t
+struct findptsElemEdge
 {
    double *x[pDIM], *dxdn1[pDIM], *dxdn2[pDIM], *d2xdn1[pDIM], *d2xdn2[pDIM];
 };
 
-struct findptsElementGPT_t
+struct findptsElemPt
 {
    double x[pDIM], jac[pDIM * pDIM], hes[18];
 };

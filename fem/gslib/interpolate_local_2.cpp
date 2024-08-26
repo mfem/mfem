@@ -69,7 +69,7 @@ static void InterpolateLocal2DKernel(const double *const gf_in,
          {
             if (k <= 1)
             {
-               lagrange_eval(wtr + k*D1D, r[2 * i + k], j, D1D, gll1D, lagcoeff);
+               lagrange_eval(wtr + k*D1D, r[2*i+k], j, D1D, gll1D, lagcoeff);
             }
          }
       }

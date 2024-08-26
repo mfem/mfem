@@ -12,13 +12,6 @@
 #ifndef MFEM_GSLIB_PA_HPP
 #define MFEM_GSLIB_PA_HPP
 
-#include "../../config/config.hpp"
-#include "../../linalg/dtensor.hpp"
-
-#include "../kernels.hpp"
-
-#include <unordered_map>
-
 namespace mfem
 {
 

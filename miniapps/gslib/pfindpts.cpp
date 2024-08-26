@@ -430,7 +430,6 @@ int main (int argc, char *argv[])
       for (int i=0; i<mesh->GetNE(); i++)
       {
          const FiniteElementSpace *s_fespace = mesh->GetNodalFESpace();
-         const FiniteElement *fe = s_fespace->GetFE(i);
          ElementTransformation *transf = s_fespace->GetElementTransformation(i);
 
          Vector pos_ref1(npt*dim);
@@ -679,17 +678,20 @@ int main (int argc, char *argv[])
       ParFiniteElementSpace pl2fes(&pmesh, &pl2c);
       ParGridFunction pl2g(&pl2fes);
       ParGridFunction prankg(&pl2fes);
+      ParGridFunction mat(&pl2fes);
       pmesh.ExchangeFaceNbrData();
       for (int e = 0; e < pmesh.GetNE(); e++)
       {
          pl2g(e) = pmesh.GetGlobalElementNum(e);
          prankg(e) = myid;
+         mat(e) = pmesh.GetAttribute(e);
       }
 
       VisItDataCollection dc("finder", &pmesh);
       dc.RegisterField("solution", &field_vals);
       dc.RegisterField("elemnum", &pl2g);
       dc.RegisterField("proc", &prankg);
+      dc.RegisterField("mat", &mat);
       dc.SetFormat(DataCollection::PARALLEL_FORMAT);
       dc.Save();
    }
