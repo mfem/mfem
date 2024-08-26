@@ -51,7 +51,6 @@ static void InterpolateLocal2DKernel(const double *const gf_in,
                                      const int pN = 0)
 {
    const int Nfields = ncomp;
-   // const int fieldOffset = gf_offset;
    const int MD1 = T_D1D ? T_D1D : 10;
    const int D1D = T_D1D ? T_D1D : pN;
    const int p_Np = D1D*D1D;
@@ -77,6 +76,8 @@ static void InterpolateLocal2DKernel(const double *const gf_in,
 
       for (int fld = 0; fld < Nfields; ++fld)
       {
+         // If using GetNodalValues, ordering is NDOFSxNELxVDIM
+         // const int elemOffset = el[i] * p_Np + fld * gf_offset;
          //if using R->Mult for L -> E-Vec use below: NDOFSxVDIMxNEL
          const int elemOffset = el[i] * p_Np * Nfields + fld * p_Np;
          MFEM_FOREACH_THREAD(j,x,D1D)
