@@ -93,6 +93,14 @@ void TestCalcDShape(FiniteElement* fe, ElementTransformation * T, int res)
       for (int j=0; j < ipArr.Size(); ++j)
       {
          IntegrationPoint& ip = ipArr[j];
+
+         // Pyramid basis functions are poorly behaved outside the
+         // reference pyramid
+         if (fe->GetGeomType() == Geometry::PYRAMID &&
+             (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z)) { continue; }
+
+         CAPTURE(ip.x, ip.y, ip.z);
+
          fe->CalcDShape(ip, weights);
 
          weights.MultTranspose(dofs, v);
@@ -115,6 +123,8 @@ TEST_CASE("CalcDShape H1",
           "[H1_QuadrilateralElement]"
           "[H1_TetrahedronElement]"
           "[H1_WedgeElement]"
+          "[H1_FuentesPyramidElement]"
+          "[H1_BergotPyramidElement]"
           "[H1_HexahedronElement]")
 {
    const int maxOrder = 5;
@@ -165,6 +175,24 @@ TEST_CASE("CalcDShape H1",
       GetReferenceTransformation(Element::WEDGE, T);
 
       H1_WedgeElement fe(order);
+      TestCalcDShape(&fe, &T, resolution);
+   }
+
+   SECTION("H1_FuentesPyramidElement")
+   {
+      IsoparametricTransformation T;
+      GetReferenceTransformation(Element::PYRAMID, T);
+
+      H1_FuentesPyramidElement fe(order);
+      TestCalcDShape(&fe, &T, resolution);
+   }
+
+   SECTION("H1_BergotPyramidElement")
+   {
+      IsoparametricTransformation T;
+      GetReferenceTransformation(Element::PYRAMID, T);
+
+      H1_BergotPyramidElement fe(order);
       TestCalcDShape(&fe, &T, resolution);
    }
 
