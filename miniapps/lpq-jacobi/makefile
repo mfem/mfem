@@ -87,8 +87,8 @@ lpq-jacobi: lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
 mg-lpq-jacobi: mg-lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
 	$(MFEM_CXX) $(MFEM_FLAGS) mg-lpq-jacobi.cpp lpq-common.cpp -o mg-lpq-jacobi $(COMMON_LIB) $(MFEM_LIBS)
 
-l1-partial: l1-partial.cpp lpq-common.cpp lpq-common.hpp
-	$(MFEM_CXX) $(MFEM_FLAGS) l1-partial.cpp lpq-common.cpp -o l1-partial $(COMMON_LIB) $(MFEM_LIBS)
+abs-l1-partial: abs-l1-partial.cpp lpq-common.cpp lpq-common.hpp
+	$(MFEM_CXX) $(MFEM_FLAGS) abs-l1-partial.cpp lpq-common.cpp -o abs-l1-partial $(COMMON_LIB) $(MFEM_LIBS)
 
 # Create the destination directory if it doesn't exist
 $(MESHES_DEST_DIR):
@@ -130,6 +130,6 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@echo "Cleaning execution files..."
+	@echo "Cleaning meshes and CSV files..."
 	rm -rf $(MESHES_DEST_DIR)
 	rm -f *.csv

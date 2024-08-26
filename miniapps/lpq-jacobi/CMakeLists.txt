@@ -73,11 +73,11 @@ if(MFEM_USE_MPI)
     LIBRARIES mfem-common mfem)
   add_dependencies(mg-lpq-jacobi copy_meshes)
 
-  add_mfem_miniapp(l1-partial
-    MAIN l1-partial.cpp
+  add_mfem_miniapp(abs-l1-partial
+    MAIN abs-l1-partial.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     EXTRA_SOURCES lpq-common.cpp
     EXTRA_HEADERS lpq-common.hpp
     LIBRARIES mfem-common mfem)
-  add_dependencies(l1-partial copy_meshes)
+  add_dependencies(abs-l1-partial copy_meshes)
 endif()
