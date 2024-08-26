@@ -18,6 +18,7 @@
 
 #include "../pncmesh.hpp"
 #include "psubmesh.hpp"
+#include "submesh_utils.hpp"
 #include <unordered_map>
 
 namespace mfem
@@ -59,8 +60,8 @@ public:
    {
       return from_;
    }
-private:
-   /// Private constructor
+protected:
+   /// protected constructor
    ParNCSubMesh(ParSubMesh& submesh, const ParNCMesh &parent, From from,
                 const Array<int> &attributes);
 
@@ -90,6 +91,9 @@ private:
    /// Mapping from parent NCMesh element ids to submesh NCMesh element ids.
    // Inverse map of parent_element_ids_.
    std::unordered_map<int, int> parent_to_submesh_element_ids_;
+
+   //
+   friend void SubMeshUtils::ConstructFaceTree<ParNCMesh, ParNCSubMesh>(const ParNCMesh &parent, ParNCSubMesh &submesh, const Array<int> &attributes);
 };
 
 } // namespace mfem

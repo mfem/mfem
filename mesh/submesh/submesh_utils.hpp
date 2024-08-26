@@ -136,7 +136,7 @@ void AddBoundaryElements(SubMeshT &mesh, const std::unordered_map<int,int> &lfac
 
 
 template<typename MeshT, typename SubMeshT>
-void ConstructFaceTree(const MeshT &parent, SubMeshT &submesh);
+void ConstructFaceTree(const MeshT &parent, SubMeshT &submesh, const Array<int> &attributes);
 
 /**
  * @brief Helper for checking if an object's attributes match a list
