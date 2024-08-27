@@ -19,7 +19,7 @@ namespace lpq_common
 
 int NDIGITS = 20;
 int MG_MAX_ITER = 10;
-real_t MG_REL_TOL = 1e-10;
+real_t MG_REL_TOL = std::sqrt(1e-10);
 
 int dim = 0;
 int space_dim = 0;
@@ -181,8 +181,18 @@ void AbsL1GeometricMultigrid::ConstructCoarseOperatorAndSolver(
    ConstructBilinearForm(coarse_fespace);
 
    OperatorPtr coarse_mat;
+   coarse_mat.SetType(Operator::ANY_TYPE);
    bfs[0]->FormSystemMatrix(*essentialTrueDofs[0], coarse_mat);
    coarse_mat.SetOperatorOwner(false);
+
+   // Create smoother
+   Vector local_ones(coarse_mat->Height());
+   Vector result(coarse_mat->Height());
+
+   local_ones = 1.0;
+   coarse_mat->AbsMult(local_ones, result);
+
+   coarse_pc = new OperatorJacobiSmoother(result, *essentialTrueDofs[0]);
 
    Solver* coarse_solver = nullptr;
    switch (solver_type)
@@ -196,16 +206,7 @@ void AbsL1GeometricMultigrid::ConstructCoarseOperatorAndSolver(
       default:
          mfem_error("Invalid solver type!");
    }
-
-   {
-      Vector local_ones(coarse_mat->Height());
-      Vector result(coarse_mat->Height());
-
-      local_ones = 1.0;
-      coarse_mat->AbsMult(local_ones, result);
-
-      coarse_pc = new OperatorJacobiSmoother(result, *essentialTrueDofs[0]);
-   }
+   coarse_solver->SetOperator(*coarse_mat);
 
    IterativeSolver *it_solver = dynamic_cast<IterativeSolver*>(coarse_solver);
    if (it_solver)
@@ -215,8 +216,8 @@ void AbsL1GeometricMultigrid::ConstructCoarseOperatorAndSolver(
       it_solver->SetPrintLevel(-1);
       it_solver->SetPreconditioner(*coarse_pc);
    }
-   coarse_solver->SetOperator(*coarse_mat);
-   AddLevel(coarse_mat.Ptr(), coarse_solver, false, true);
+
+   AddLevel(coarse_mat.Ptr(), coarse_solver, true, true);
 }
 
 void AbsL1GeometricMultigrid::ConstructOperatorAndSmoother(
@@ -226,18 +227,20 @@ void AbsL1GeometricMultigrid::ConstructOperatorAndSmoother(
    ConstructBilinearForm(fespace);
 
    OperatorPtr level_mat;
+   level_mat.SetType(Operator::ANY_TYPE);
    bfs.Last()->FormSystemMatrix(ess_tdof_list, level_mat);
    level_mat.SetOperatorOwner(false);
 
+   // Create smoother
    Vector local_ones(level_mat->Height());
    Vector result(level_mat->Height());
 
    local_ones = 1.0;
    level_mat->AbsMult(local_ones, result);
 
-   Solver* smoother = new OperatorJacobiSmoother(result, *essentialTrueDofs[0]);
+   Solver* smoother = new OperatorJacobiSmoother(result, ess_tdof_list);
 
-   AddLevel(level_mat.Ptr(), smoother, false, true);
+   AddLevel(level_mat.Ptr(), smoother, true, true);
 }
 
 
@@ -249,10 +252,10 @@ void AbsL1GeometricMultigrid::ConstructBilinearForm(ParFiniteElementSpace&
    switch (integrator_type)
    {
       case mass:
-         form->AddDomainIntegrator(new MassIntegrator);
+         form->AddDomainIntegrator(new MassIntegrator(one));
          break;
       case diffusion:
-         form->AddDomainIntegrator(new DiffusionIntegrator);
+         form->AddDomainIntegrator(new DiffusionIntegrator(one));
          break;
       case elasticity:
          form->AddDomainIntegrator(new ElasticityIntegrator(one, one));

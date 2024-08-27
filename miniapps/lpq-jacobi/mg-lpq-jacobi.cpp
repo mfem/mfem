@@ -177,8 +177,8 @@ int main(int argc, char *argv[])
    ///      diffusion problem.
    ///    - Vector H1-conforming Lagrange elements for the elasticity problem.
    ///    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
-   FiniteElementCollection *fec;
-   ParFiniteElementSpace *coarse_fes;
+   FiniteElementCollection *fec = nullptr;
+   ParFiniteElementSpace *coarse_fes = nullptr;
    switch (integrator_type)
    {
       case mass: case diffusion:
@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
    ///    attibutes as essential. LpqGeometricMultigrid will determine
    ///    the DoFs per level.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 1;
+   if (mesh->bdr_attributes.Size()) { ess_bdr = 1; }
 
    /// 8. Define the linear system. Set up the linear form b(.).
    ///    The linear form has the standar form (f,v).
@@ -374,6 +374,10 @@ int main(int argc, char *argv[])
    if (scalar_f) { delete scalar_f; }
    if (vector_u) { delete vector_u; }
    if (vector_f) { delete vector_f; }
+   for (int level = 0; level < fec_array.Size(); ++level)
+   {
+      delete fec_array[level];
+   }
    delete fes_hierarchy;
 
    return 0;

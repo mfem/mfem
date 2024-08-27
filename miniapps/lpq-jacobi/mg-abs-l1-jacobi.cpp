@@ -395,6 +395,10 @@ int main(int argc, char *argv[])
    if (scalar_f) { delete scalar_f; }
    if (vector_u) { delete vector_u; }
    if (vector_f) { delete vector_f; }
+   for (int level = 0; level < fec_array.Size(); ++level)
+   {
+      delete fec_array[level];
+   }
    delete fes_hierarchy;
 
    return 0;
