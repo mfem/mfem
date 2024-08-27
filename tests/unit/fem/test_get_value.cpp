@@ -2389,7 +2389,7 @@ TEST_CASE("3D GetVectorValue",
 
    double tol = 1e-6;
 
-   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3052,7 +3052,7 @@ TEST_CASE("3D GetVectorValue in Parallel",
 
    double tol = 1e-6;
 
-   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4234,7 +4234,7 @@ TEST_CASE("3D GetCurl",
 
    double tol = 1e-6;
 
-   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4725,7 +4725,7 @@ TEST_CASE("3D GetDivergence",
 
    double tol = 1e-6;
 
-   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
