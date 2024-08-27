@@ -189,9 +189,6 @@ int main(int argc, char *argv[])
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
-
-   // mesh.RandomRefinement(0.5);
-
    int dim = mesh.Dimension();
 
    if (!mixed || pa_)
@@ -372,7 +369,7 @@ int main(int argc, char *argv[])
       // 13a. Define a simple symmetric Gauss-Seidel preconditioner and use
       //     it to solve the system Ax=b with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 5000, 1e-12, 0.0);
+      PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
 #else
       cout << "\nSolving for magnetic vector potential "
            << "using UMFPack" << endl;
