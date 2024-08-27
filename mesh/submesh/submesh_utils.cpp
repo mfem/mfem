@@ -422,19 +422,32 @@ template void AddBoundaryElements(ParSubMesh &mesh, const std::unordered_map<int
 
 namespace
 {
-   struct FaceNodes
+/**
+ * @brief Helper class for storing and comparing arrays of face nodes.
+ * @details The comparison operator uses the sorted nodes and a lexicographic compare so
+ * that two different orientations of the same set of nodes will be identical. The actual
+ * nodes are stored unsorted as the ordering is important for constructing the leaf-root
+ * relations.
+ */
+struct FaceNodes
+{
+   std::array<int, NCMesh::MaxFaceNodes> nodes;
+   bool operator<(FaceNodes t2) const
    {
-      std::array<int, NCMesh::MaxFaceNodes> nodes;
-      bool operator<(FaceNodes t2) const
-      {
-         std::array<int, NCMesh::MaxFaceNodes> t1 = nodes;
-         std::sort(t1.begin(), t1.end());
-         std::sort(t2.nodes.begin(), t2.nodes.end());
-         return std::lexicographical_compare(t1.begin(), t1.end(),
-            t2.nodes.begin(), t2.nodes.end());
-      };
+      std::array<int, NCMesh::MaxFaceNodes> t1 = nodes;
+      std::sort(t1.begin(), t1.end());
+      std::sort(t2.nodes.begin(), t2.nodes.end());
+      return std::lexicographical_compare(t1.begin(), t1.end(),
+         t2.nodes.begin(), t2.nodes.end());
    };
+};
 
+/**
+ * @brief Establish the Geometry::Type from an array of nodes
+ *
+ * @param nodes
+ * @return Geometry::Type
+ */
 Geometry::Type FaceGeomFromNodes(const std::array<int, NCMesh::MaxFaceNodes> &nodes)
 {
    if (nodes[3] == -1){ return Geometry::Type::TRIANGLE; }
@@ -442,47 +455,12 @@ Geometry::Type FaceGeomFromNodes(const std::array<int, NCMesh::MaxFaceNodes> &no
    return Geometry::Type::SQUARE;
 };
 
-/**
- * @brief Helper wrapper for exposing member variables and methods of an NCMesh for
- * mutation.
- * @details This is type piracy. The static casting to this type is only safe provided the
- * derived class does not define any member variables.
- *
- * @tparam BaseT The type to be exposed.
- */
-// template <typename BaseT>
-// struct ExposedNCMesh : public BaseT
-// {
-//    // Enforce that no additional memory is associated. This is a prerequisite for the safety
-//    // of this type piracy. Additionally check that Base is derived from NCMesh originally.
-//    static_assert(std::is_base_of<NCMesh, BaseT>::value, "Should only be used on NCMesh derived classes");
-//    static_assert(sizeof(ExposedNCMesh<BaseT>) == sizeof(BaseT), "No additional member variables should be defined");
-//    using BaseT::faces;
-//    using BaseT::elements;
-//    using BaseT::nodes;
-//    using BaseT::AddElement;
-// };
-
-// template <typename BaseT>
-// struct ExposedNCSubMesh : public ExposedNCMesh<BaseT>
-// {
-//    static_assert(std::is_same<NCSubMesh, BaseT>::value
-//       || std::is_same<ParNCSubMesh, BaseT>::value, "Should only be used on NCSubMesh classes");
-//    using BaseT::parent_node_ids_;
-//    using BaseT::parent_element_ids_;
-//    using BaseT::parent_to_submesh_node_ids_;
-//    using BaseT::parent_to_submesh_element_ids_;
-// };
-
 } // namespace
 
 template<typename NCMeshT, typename NCSubMeshT>
 void ConstructFaceTree(const NCMeshT &parent, NCSubMeshT &submesh, const Array<int> &attributes)
 {
-   // Casting to an exposure class allows for modifying protected member variables.
-   // Emulates inheritance hierarchy, allowing a method to work on NCMesh and ParNCMesh
-   // auto &parent = static_cast<ExposedNCMesh<NCMeshT>&>(parent_);
-   // auto &submesh = static_cast<ExposedNCSubMesh<NCSubMeshT>&>(submesh_);
+   // Convenience references to avoid `submesh.` repeatedly.
    auto &parent_node_ids = submesh.parent_node_ids_;
    auto &parent_element_ids = submesh.parent_element_ids_;
    auto &parent_to_submesh_node_ids = submesh.parent_to_submesh_node_ids_;

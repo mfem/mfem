@@ -19,13 +19,6 @@ using namespace mfem;
 
 namespace ParSubMeshTests
 {
-enum class FECType
-{
-   H1,
-   ND,
-   RT,
-   L2
-};
 
 void CHECK_GLOBAL_NORM(Vector &v, bool small = true)
 {
@@ -42,22 +35,6 @@ void CHECK_GLOBAL_NORM(Vector &v, bool small = true)
    }
 };
 
-FiniteElementCollection *create_fec(FECType fectype, int p, int dim)
-{
-   switch (fectype)
-   {
-      case FECType::H1:
-         return new H1_FECollection(p, dim);
-      case FECType::ND:
-         return new ND_FECollection(p, dim);
-      case FECType::RT:
-         return new RT_FECollection(p - 1, dim);
-      case FECType::L2:
-         return new L2_FECollection(p, dim, BasisType::GaussLobatto);
-   }
-
-   return nullptr;
-}
 
 FiniteElementCollection *create_surf_fec(FECType fectype, int p, int dim)
 {
@@ -76,7 +53,6 @@ FiniteElementCollection *create_surf_fec(FECType fectype, int p, int dim)
 
    return nullptr;
 }
-
 class SurfaceNormalCoef : public VectorCoefficient
 {
 public:
@@ -733,8 +709,6 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[ParSubMesh]")
       }
    }
 }
-
-
 struct ParNCSubMeshExposed : public ParNCSubMesh
 {
    ParNCSubMeshExposed(const ParNCSubMesh &ncsubmesh) : ParNCSubMesh(ncsubmesh) {}
@@ -757,7 +731,6 @@ struct ParNCSubMeshExposed : public ParNCSubMesh
       return global;
    }
 };
-
 
 void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type, bool check_pr = true)
 {
@@ -827,15 +800,15 @@ void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type, boo
       if (mesh.Nonconforming())
       {
          Vector tmp;
+         if (const auto *P = fes.GetProlongationMatrix())
          {
-            const auto *P = fes.GetProlongationMatrix();
             const auto *R = fes.GetRestrictionMatrix();
             tmp.SetSize(R->Height());
             R->Mult(gf, tmp);
             P->Mult(tmp, gf);
          }
+         if (const auto *P = sub_fes.GetProlongationMatrix())
          {
-            const auto *P = sub_fes.GetProlongationMatrix();
             const auto *R = sub_fes.GetRestrictionMatrix();
             tmp.SetSize(R->Height());
             R->Mult(sub_gf_ext, tmp);
@@ -849,7 +822,7 @@ void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type, boo
    }
 }
 
-TEST_CASE("VolumeParNCSubMesh", "[Parallel], [ParSubMesh]")
+TEST_CASE("VolumeParNCSubMesh", "[Parallel],[ParSubMesh]")
 {
    bool use_tet = GENERATE(false,true);
 
@@ -972,7 +945,7 @@ TEST_CASE("VolumeParNCSubMesh", "[Parallel], [ParSubMesh]")
    }
 }
 
-TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel], [ParSubMesh]")
+TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[ParSubMesh]")
 {
    SECTION("Hex")
    {

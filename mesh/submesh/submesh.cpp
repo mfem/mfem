@@ -182,7 +182,6 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
       parent_face_ori_.SetSize(NumOfElements);
 
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
       for (int i = 0; i < NumOfElements; i++)
       {
          Array<int> sub_vert;
@@ -215,51 +214,10 @@ SubMesh::SubMesh(const Mesh &parent, From from,
          }
          else
          {
-            std::cout << "i " << i << " par_vert ";
-            for (auto x : par_vert) { std::cout << x << ' '; }
-            std::cout << " sub_par_vert ";
-            for (auto x : sub_par_vert) { std::cout << x << ' '; }
-            std::cout << std::endl;
             parent_face_ori_[i] = GetQuadOrientation(par_vert, sub_par_vert);
          }
       }
    }
-
-   {
-      Array<int> verts;
-      for (int e = 0; e < GetNE(); e++)
-      {
-         auto * elem = GetElement(e);
-         elem->GetVertices(verts);
-
-         std::cout << "Element " << e << " : ";
-         for (auto x : verts)
-         {
-            std::cout << x << ' ';
-         }
-         std::cout << std::endl;
-      }
-      for (int v = 0; v < GetNV(); v++)
-      {
-         auto *vv = GetVertex(v);
-         std::cout << "Vertex " << v << " : ";
-         for (int i = 0; i < 3; i++)
-         {
-            std::cout << vv[i] << ' ';
-         }
-         std::cout << std::endl;
-      }
-
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-      if (Nonconforming())
-      {
-         for (int f : ncsubmesh_->boundary_faces)
-         {
-            std::cout << "f " << f << " attribute " << faces[f]->GetAttribute() << std::endl;
-         }
-      }
-   }
-
 
    SubMeshUtils::AddBoundaryElements(*this);
 

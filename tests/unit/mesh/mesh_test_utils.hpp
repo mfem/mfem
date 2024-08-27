@@ -23,6 +23,27 @@ namespace mfem
 {
 
 /**
+ * @brief Which type of FiniteElementCollection to use
+ */
+enum class FECType
+{
+   H1,
+   ND,
+   RT,
+   L2
+};
+
+/**
+ * @brief Create a FiniteElementCollection
+ *
+ * @param fectype the type of FEC to create
+ * @param p The polynomial order
+ * @param dim The dimension
+ * @return FiniteElementCollection*
+ */
+FiniteElementCollection *create_fec(FECType fectype, int p, int dim);
+
+/**
  * @brief Testing class for making members of NCMesh visible for testing purposes only.
  * @details DO NOT ADD ANY NEW MEMBER VARIABLES TO THIS CLASS. To do will make static
  * casting pointers or references from an NCMesh to this class invalid. If an additional

@@ -229,27 +229,6 @@ void TransferMap::Transfer(const GridFunction &src,
    {
       MFEM_ABORT("unknown TransferCategory: " << category_);
    }
-
-   if (dst.FESpace()->Nonconforming())
-   {
-      const auto *P = dst.FESpace()->GetProlongationMatrix();
-      if (P != nullptr)
-      {
-         // If nonconforming, restrict the result to the true dofs before prolongating back to
-         // vdofs. This ensures that the field is continuous in the destination space which may
-         // have more nonconforming restraints than the source space. Consequently, it can
-         // result in a loss of fidelity in the solution transfer.
-         const auto *R = dst.FESpace()->GetRestrictionMatrix();
-         Vector tmp(R->Height());
-         R->Mult(dst, tmp);
-         P->Mult(tmp, dst);
-
-         // P->MultTranspose(dst, tmp);
-         // P->Mult(tmp, dst);
-         // R->Mult(dst, tmp);
-         // R->MultTranspose(tmp, dst);
-      }
-   }
 }
 
 void TransferMap::CorrectFaceOrientations(const FiniteElementSpace &fes,

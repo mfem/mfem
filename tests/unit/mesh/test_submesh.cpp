@@ -17,12 +17,6 @@
 
 using namespace mfem;
 
-enum class FECType
-{
-   H1,
-   ND,
-   L2
-};
 enum class FieldType
 {
    SCALAR,
@@ -33,20 +27,6 @@ enum class TransferType
    ParentToSub,
    SubToParent
 };
-
-FiniteElementCollection *create_fec(FECType fec_type, int p, int dim)
-{
-   switch (fec_type)
-   {
-      case FECType::H1:
-         return new H1_FECollection(p, dim);
-      case FECType::ND:
-         return new ND_FECollection(p, dim);
-      case FECType::L2:
-         return new L2_FECollection(p, dim, BasisType::GaussLobatto);
-   }
-   return nullptr;
-}
 
 void test_2d(Element::Type element_type,
              FECType fec_type,
@@ -503,9 +483,7 @@ TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
          ess_bdr.Last() = 0;
       }
 
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
 
       LinearForm b(&fespace);
       b.AddDomainIntegrator(new DomainLFIntegrator(f));
@@ -532,9 +510,7 @@ TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
       Array<int> ess_tdof_list, ess_bdr;
       ess_bdr.SetSize(fespace.GetMesh()->bdr_attributes.Max());
       ess_bdr = 1;
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      std::cout << __FILE__ << ':' << __LINE__ << std::endl;
       LinearForm b(&fespace);
       b.AddDomainIntegrator(new DomainLFIntegrator(f));
       b.Assemble();
@@ -565,110 +541,381 @@ TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
    CHECK((x_sub.Norml2() / x_sub.Size()) == MFEM_Approx(0.0, 1e-7, 1e-7));
 }
 
-/**
- * @brief Helper function to generate DividingPlaneMesh with combinations of refinement
- *
- * @param test_case
- * @param battr
- * @param use_tet
- * @param three_dimensional
- * @return Mesh
- */
-Mesh GenerateTestMesh(int test_case, int battr, bool use_tet, bool three_dimensional)
-{
-   auto mesh = DividingPlaneMesh(use_tet, true, three_dimensional);
-
-   auto refine_half = [](Mesh &mesh, int vattr, int battr, bool backwards = true)
-   {
-      Array<Refinement> refs(1);
-      std::vector<int> ind(mesh.GetNBE());
-      if (backwards)
-      {
-         std::iota(ind.rbegin(), ind.rend(), 0);
-      }
-      else
-      {
-         std::iota(ind.begin(), ind.end(), 0);
-      }
-      // for (int e = mesh.GetNBE() - 1; e >= 0; e--)
-      for (int e : ind)
-      {
-         std::cout << e << ' ';
-         if (mesh.GetBdrAttribute(e) == battr)
-         {
-            int el, info;
-            mesh.GetBdrElementAdjacentElement(e, el, info);
-            if (mesh.GetAttribute(el) == vattr)
-            {
-               refs[0].index = el;
-               refs[0].ref_type = Refinement::XYZ;
-               break;
-            }
-         }
-      }
-      mesh.GeneralRefinement(refs);
-   };
-
-   Array<Refinement> refs(1);
-   refs[0].ref_type = three_dimensional ? Refinement::XYZ : Refinement::XY;
-
-   switch (test_case)
-   {
-      case 0:
-         break;
-      case 1:
-         mesh.UniformRefinement();
-         break;
-      case 2:
-            refs[0].index = 0;
-            mesh.GeneralRefinement(refs);
-         break;
-      case 3 :
-            refs[0].index = 1;
-            mesh.GeneralRefinement(refs);
-         break;
-      case 4 :
-            mesh.UniformRefinement();
-            refine_half(mesh,1,battr, false);
-            refine_half(mesh,1,battr, true);
-            refine_half(mesh,1,battr, false);
-            break;
-   }
-   return mesh;
-}
-
 struct NCSubMeshExposed : public NCSubMesh
 {
-   NCSubMeshExposed(NCSubMesh &&ncsubmesh) : NCSubMesh(std::move(ncsubmesh)) {}
+   NCSubMeshExposed(const NCSubMesh &ncsubmesh) : NCSubMesh(ncsubmesh) {}
 
    using NCSubMesh::elements;
    using NCSubMesh::leaf_elements;
+
+   int CountUniqueLeafElements() const
+   {
+      int local = 0;
+      for (auto i : leaf_elements)
+      {
+         if (elements[i].rank == MyRank)
+         {
+            ++local;
+         }
+      }
+      return local;
+   }
 };
 
-TEST_CASE("ExteriorSurfaceSubMesh", "[SubMesh]")
+void CHECK_NORM(Vector &v, bool small = true)
+{
+   if (small)
+   {
+      REQUIRE(v.Norml2() < 1e-8);
+   }
+   else
+   {
+      REQUIRE(v.Norml2() > 1e-8);
+   }
+};
+
+void CheckProjectMatch(Mesh &mesh, SubMesh &submesh, FECType fec_type, bool check_pr = true)
+{
+   int p = 3;
+   auto fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p, mesh.Dimension()));
+   auto sub_fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p, submesh.Dimension()));
+
+   FiniteElementSpace fes(&mesh, fec.get());
+   FiniteElementSpace sub_fes(&submesh, sub_fec.get());
+
+   GridFunction gf(&fes), gf_ext(&fes);
+   GridFunction sub_gf(&sub_fes), sub_gf_ext(&sub_fes);
+
+   auto coeff = FunctionCoefficient([](const Vector &coords)
+   {
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
+      return 0.02 * sin(y * 5.0 * M_PI)
+           + 0.03 * sin(x * 5.0 * M_PI)
+           + 0.05 * sin(z * 5.0 * M_PI);
+   });
+
+   auto vcoeff = VectorFunctionCoefficient(mesh.SpaceDimension(),
+      [](const Vector &coords, Vector &V)
+   {
+      V.SetSize(3);
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
+
+      V(0) = 0.02 * sin(y * 3.0 * M_PI)
+           + 0.03 * sin(x * 2.0 * M_PI)
+           + 0.05 * sin(z * 4.0 * M_PI);
+      V(1) = 0.02 * sin(z * 3.0 * M_PI)
+           + 0.03 * sin(y * 2.0 * M_PI)
+           + 0.05 * sin(x * 4.0 * M_PI);
+      V(2) = 0.02 * sin(x * 3.0 * M_PI)
+           + 0.03 * sin(y * 2.0 * M_PI)
+           + 0.05 * sin(z * 4.0 * M_PI);
+   });
+
+   if (fec_type == FECType::H1 || fec_type == FECType::L2)
+   {
+      gf.ProjectCoefficient(coeff);
+      sub_gf.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      gf.ProjectCoefficient(vcoeff);
+      sub_gf.ProjectCoefficient(vcoeff);
+   }
+   gf_ext = gf;
+   sub_gf_ext = sub_gf;
+
+   SECTION("ParentToSubMesh")
+   {
+      // Direct transfer should be identical
+      SubMesh::Transfer(gf, sub_gf);
+      auto tmp = sub_gf_ext;
+      tmp -= sub_gf;
+      CHECK_NORM(tmp);
+   }
+   SECTION("PRConstraint")
+   {
+      // Application of PR should be identical in mesh and submesh for an external boundary.
+      if (mesh.Nonconforming())
+      {
+         Vector tmp;
+         if (const auto *P = fes.GetProlongationMatrix())
+         {
+            const auto *R = fes.GetRestrictionMatrix();
+
+            tmp.SetSize(R->Height());
+            R->Mult(gf, tmp);
+            P->Mult(tmp, gf);
+         }
+         if (const auto *P = sub_fes.GetProlongationMatrix())
+         {
+            const auto *R = sub_fes.GetRestrictionMatrix();
+            tmp.SetSize(R->Height());
+            R->Mult(sub_gf_ext, tmp);
+            P->Mult(tmp, sub_gf_ext);
+         }
+         SubMesh::Transfer(gf, sub_gf);
+         tmp = sub_gf_ext;
+         tmp -= sub_gf;
+         CHECK_NORM(tmp, check_pr);
+      }
+   }
+}
+
+TEST_CASE("VolumeNCSubMesh", "[SubMesh]")
+{
+   bool use_tet = GENERATE(false,true);
+
+   auto mesh = use_tet ? OrientedTriFaceMesh(1, true) : DividingPlaneMesh(false, true);
+   mesh.EnsureNCMesh(true);
+   SECTION("UniformRefinement2")
+   {
+      mesh.UniformRefinement();
+      mesh.UniformRefinement();
+      SECTION("SingleAttribute")
+      {
+         Array<int> subdomain_attributes(1);
+         subdomain_attributes[0] = GENERATE(range(1,2));
+         auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+
+         // Cast to an exposed variant to explore the internals.
+         auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+         CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+         CHECK(ncmesh_exposed.CountUniqueLeafElements() == 8*8);
+         for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+         {
+            CAPTURE(fec_type);
+            CheckProjectMatch(mesh, submesh, fec_type);
+         }
+      }
+
+      SECTION("UniformRefineTwoAttribute")
+      {
+         Array<int> subdomain_attributes(2);
+         subdomain_attributes[0] = 1;
+         subdomain_attributes[1] = 2;
+         auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+
+         // Cast to an exposed variant to explore the internals.
+         auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+         CHECK(ncmesh_exposed.GetNumRootElements() == mesh.ncmesh->GetNumRootElements());
+         CHECK(ncmesh_exposed.CountUniqueLeafElements() == 2*8*8);
+         for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+         {
+            CAPTURE(fec_type);
+            CheckProjectMatch(mesh, submesh, fec_type);
+         }
+      }
+   }
+
+   SECTION("Nonconformal")
+   {
+      mesh.UniformRefinement();
+      Array<int> subdomain_attributes{GENERATE(1,2)};
+      auto backwards = GENERATE(false, true);
+      SECTION("ConsistentWithParent")
+      {
+         RefineSingleUnattachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
+         {            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8);
+            CAPTURE(subdomain_attributes[0], backwards);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type, true);
+            }
+         }
+         RefineSingleUnattachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
+         {            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8 - 1 + 8);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type, true);
+            }
+         }
+      }
+
+      SECTION("InconsistentWithParent")
+      {
+         RefineSingleAttachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
+         {            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type, false);
+            }
+         }
+         RefineSingleAttachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
+         {            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8 - 1 + 8);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type, false);
+            }
+         }
+      }
+   }
+}
+
+TEST_CASE("ExteriorSurfaceNCSubMesh", "[SubMesh]")
 {
    SECTION("Hex")
    {
       auto mesh = Mesh("../../data/ref-cube.mesh", 1, 1);
-
       mesh.EnsureNCMesh(true);
-      mesh.UniformRefinement();
-
-      SECTION("UniformRefineSingleAttribute")
+      SECTION("UniformRefinement2")
       {
-         auto bdr_attr = GENERATE(1,2,3,4,5,6);
-         Array<int> subdomain_attributes(1);
-         subdomain_attributes[0] = GENERATE(1,2,3,4,5,6);
-         auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+         mesh.UniformRefinement();
+         mesh.UniformRefinement();
+         SECTION("SingleAttribute")
+         {
+            Array<int> subdomain_attributes{GENERATE(range(1,6))};
+            auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 4*4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type);
+            }
+         }
 
-         // Replace with an exposed variant to explore the internals.
-         auto ncmesh_exposed = new NCSubMeshExposed(std::move(*dynamic_cast<NCSubMesh*>(submesh.ncmesh)));
-         delete submesh.ncmesh;
-         submesh.ncmesh = ncmesh_exposed;
+         SECTION("UniformRefineTwoAttribute")
+         {
+            Array<int> subdomain_attributes(2);
+            subdomain_attributes[0] = GENERATE(range(1,6));
+            subdomain_attributes[1] = 1 + (subdomain_attributes[0] % 6);
+            auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 2);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 2*4*4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type);
+            }
+         }
+      }
 
-         CHECK(ncmesh_exposed->GetNumRootElements() == 1);
-         CHECK(ncmesh_exposed->leaf_elements.Size() == 4);
+      SECTION("NonconformalRefine")
+      {
+         Array<int> subdomain_attributes{GENERATE(range(1,6))};
+         mesh.UniformRefinement();
+         RefineSingleAttachedElement(mesh, 1, subdomain_attributes[0], true);
+         SECTION("Single")
+         {
+            auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 4 - 1 + 4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type, subdomain_attributes[0]);
+               CheckProjectMatch(mesh, submesh, fec_type);
+            }
+
+         }
+         SECTION("Double")
+         {
+            RefineSingleAttachedElement(mesh, 1, subdomain_attributes[0], false);
+            auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 4 - 1 + 4 - 1 + 4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type);
+            }
+         }
       }
    }
 
+   SECTION("Tet")
+   {
+      auto mesh = Mesh("../../data/ref-tetrahedron.mesh");
+      mesh.EnsureNCMesh(true);
+      SECTION("UniformRefinement2")
+      {
+         mesh.UniformRefinement();
+         mesh.UniformRefinement();
+         SECTION("SingleAttribute")
+         {
+            Array<int> subdomain_attributes{GENERATE(range(1,4))};
+            auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 4*4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type);
+            }
+         }
+
+         SECTION("UniformRefineTwoAttribute")
+         {
+            Array<int> subdomain_attributes(2);
+            subdomain_attributes[0] = GENERATE(range(1,4));
+            subdomain_attributes[1] = 1 + (subdomain_attributes[0] % 4);
+            auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 2);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 2*4*4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type);
+            }
+         }
+      }
+
+      SECTION("NonconformalRefine")
+      {
+         Array<int> subdomain_attributes{GENERATE(range(1,4))};
+         mesh.UniformRefinement();
+         RefineSingleAttachedElement(mesh, 1, subdomain_attributes[0], true);
+         SECTION("Single")
+         {
+            auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 4 - 1 + 4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type);
+            }
+         }
+         SECTION("Double")
+         {
+            RefineSingleAttachedElement(mesh, 1, subdomain_attributes[0], false);
+            auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
+            auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
+            CHECK(ncmesh_exposed.GetNumRootElements() == 1);
+            CHECK(ncmesh_exposed.CountUniqueLeafElements() == 4 - 1 + 4 - 1 + 4);
+            for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
+            {
+               CAPTURE(fec_type);
+               CheckProjectMatch(mesh, submesh, fec_type);
+            }
+         }
+      }
+   }
 }
+
