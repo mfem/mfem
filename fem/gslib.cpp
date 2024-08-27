@@ -259,7 +259,6 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    gsl_elem.SetSize(points_cnt);
    gsl_ref.SetSize(points_cnt * dim);
    gsl_dist.SetSize(points_cnt);
-
    setupSW.Clear();
    setupSW.Start();
    if (dev_mode)
@@ -416,8 +415,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
    if (np == 1)
    {
+      gsl_mfem_elem.SetSize(points_cnt);
       for (int index = 0; index < points_cnt; index++)
       {
+         gsl_mfem_elem[index] = gsl_elem[index];
          if (gsl_code[index] == CODE_NOT_FOUND)
          {
             continue;
@@ -670,9 +671,12 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       array_free(&out_pt);
    }
 
-   // Set code for local points
+   // Set code for local points base on reference-space coordinate
+   // and for all points based on gsl_dist.
+   gsl_mfem_elem.SetSize(points_cnt);
    for (int index = 0; index < points_cnt; index++)
    {
+      gsl_mfem_elem[index] = gsl_elem[index];
       if (gsl_code[index] == CODE_NOT_FOUND)
       {
          continue;
@@ -2223,14 +2227,6 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    }
    else
    {
-
-      if (gsl_mfem_elem.Size() == 0)
-      {
-         gsl_mfem_elem.SetSize(gsl_elem.Size());
-         gsl_elem.HostRead();
-         gsl_mfem_elem = gsl_elem;
-      }
-
       InterpolateGeneral(field_in, field_out);
       setupSW.Stop();
       interpolate_general_time = setupSW.RealTime();

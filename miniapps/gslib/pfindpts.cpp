@@ -401,6 +401,7 @@ int main (int argc, char *argv[])
    int pts_cnt = npt;
    Vector vxyz;
    vxyz.UseDevice(!cpu_mode);
+   int npt_face_per_elem = 4;
    if (randomization == 0)
    {
       vxyz.SetSize(pts_cnt * dim);
@@ -442,6 +443,10 @@ int main (int argc, char *argv[])
             if (dim == 3)
             {
                ip.z = pos_ref1(j*dim + 2);
+            }
+            if (j < npt_face_per_elem)
+            {
+               ip.x = 0.0; // force point to be on the face
             }
             Vector pos_i(dim);
             transf->Transform(ip, pos_i);
