@@ -37,7 +37,8 @@ ParSubMesh ParSubMesh::CreateFromBoundary(const ParMesh &parent,
 }
 
 ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
-                       const Array<int> &attributes) : parent_(parent), from_(from), attributes_(attributes)
+                       const Array<int> &attributes) : parent_(parent), from_(from),
+   attributes_(attributes)
 {
    MyComm = parent.GetComm();
    NRanks = parent.GetNRanks();
@@ -73,7 +74,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       parent_to_submesh_vertex_ids_[parent_vertex_ids_[i]] = i;
    }
 
-   parent_to_submesh_element_ids_.SetSize(from == From::Boundary ? parent.GetNBE() : parent.GetNE());
+   parent_to_submesh_element_ids_.SetSize(from == From::Boundary ? parent.GetNBE()
+                                          : parent.GetNE());
    parent_to_submesh_element_ids_ = -1;
    for (int i = 0; i < parent_element_ids_.Size(); i++)
    {
@@ -272,7 +274,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       if (from == SubMesh::From::Domain)
       {
          SubMeshUtils::AddBoundaryElements(*this, FindGhostBoundaryElementAttributes());
-      } else
+      }
+      else
       {
          SubMeshUtils::AddBoundaryElements(*this);
       }
@@ -418,8 +421,8 @@ void ParSubMesh::FindSharedFacesRanks(Array<int>& rht, Array<int> &rhq)
    for (int g = 1, st = 0; g < parent_.GetNGroups(); g++)
    {
       MFEM_ASSERT(parent_.gtopo.GetGroupSize(g) == 2
-         || parent_.GroupNTriangles(g) == 0,
-            parent_.gtopo.GetGroupSize(g) << ' ' << parent_.GroupNTriangles(g));
+                  || parent_.GroupNTriangles(g) == 0,
+                  parent_.gtopo.GetGroupSize(g) << ' ' << parent_.GroupNTriangles(g));
       for (int gt = 0; gt < parent_.GroupNTriangles(g); gt++, st++)
       {
          // Group size of a shared face is always 2
@@ -445,8 +448,8 @@ void ParSubMesh::FindSharedFacesRanks(Array<int>& rht, Array<int> &rhq)
    for (int g = 1, sq = 0; g < parent_.GetNGroups(); g++)
    {
       MFEM_ASSERT(parent_.gtopo.GetGroupSize(g) == 2
-         || parent_.GroupNQuadrilaterals(g) == 0,
-            parent_.gtopo.GetGroupSize(g) << ' ' << parent_.GroupNQuadrilaterals(g));
+                  || parent_.GroupNQuadrilaterals(g) == 0,
+                  parent_.gtopo.GetGroupSize(g) << ' ' << parent_.GroupNQuadrilaterals(g));
       for (int gq = 0; gq < parent_.GroupNQuadrilaterals(g); gq++, sq++)
       {
          // Group size of a shared face is always 2
@@ -762,7 +765,8 @@ void ParSubMesh::BuildSharedEdgesMapping(const int sedges_ct,
    }
 }
 
-void ParSubMesh::BuildSharedFacesMapping(const int nstrias, const Array<int>& rht,
+void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
+                                         const Array<int>& rht,
                                          const int nsquads, const Array<int>& rhq)
 {
    shared_trias.Reserve(nstrias);
@@ -935,7 +939,8 @@ ParSubMesh::FindGhostBoundaryElementAttributes() const
             {
                fail_indices.Append(i);
             }
-         MFEM_ASSERT(fail_indices.Size() == 0, [&](){
+         MFEM_ASSERT(fail_indices.Size() == 0, [&]()
+         {
             std::stringstream msg;
             msg << "More than one rank found attribute on shared tri face: ";
             for (auto x : fail_indices)
@@ -954,7 +959,8 @@ ParSubMesh::FindGhostBoundaryElementAttributes() const
             {
                fail_indices.Append(i);
             }
-         MFEM_ASSERT(fail_indices.Size() == 0, [&](){
+         MFEM_ASSERT(fail_indices.Size() == 0, [&]()
+         {
             std::stringstream msg;
             msg << "More than one rank found attribute on shared quad face: ";
             for (auto x : fail_indices)
@@ -1023,7 +1029,8 @@ ParSubMesh::FindGhostBoundaryElementAttributes() const
             {
                fail_indices.Append(i);
             }
-         MFEM_ASSERT(fail_indices.Size() == 0, [&](){
+         MFEM_ASSERT(fail_indices.Size() == 0, [&]()
+         {
             std::stringstream msg;
             msg << "More than one rank found attribute on shared edge: ";
             for (auto x : fail_indices)
@@ -1083,7 +1090,8 @@ ParSubMesh::FindGhostBoundaryElementAttributes() const
             {
                fail_indices.Append(i);
             }
-         MFEM_ASSERT(fail_indices.Size() == 0, [&](){
+         MFEM_ASSERT(fail_indices.Size() == 0, [&]()
+         {
             std::stringstream msg;
             msg << "More than one rank found attribute on shared vertex: ";
             for (auto x : fail_indices)

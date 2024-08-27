@@ -1000,7 +1000,8 @@ public:
     * will be transferred to the Mesh object
     * @param[in] be_to_face The map from the boundary element index to the face index
     */
-   void AddBdrElements(Array<Element *> &bdr_elems, const Array<int> &new_be_to_face);
+   void AddBdrElements(Array<Element *> &bdr_elems,
+                       const Array<int> &new_be_to_face);
 
    int AddBdrSegment(int v1, int v2, int attr = 1);
    int AddBdrSegment(const int *vi, int attr = 1);
@@ -1111,14 +1112,14 @@ public:
        have two adjacent faces in 3D, or edges in 2D. */
    void RemoveInternalBoundaries();
 
-    /**
-     * @brief Clear the boundary element to edge map.
-     */
-    void RemoveBoundaryElementToEdge()
-    {
-        delete bel_to_edge;
-        bel_to_edge = nullptr;
-    }
+   /**
+    * @brief Clear the boundary element to edge map.
+    */
+   void RemoveBoundaryElementToEdge()
+   {
+      delete bel_to_edge;
+      bel_to_edge = nullptr;
+   }
 
    /// @}
 

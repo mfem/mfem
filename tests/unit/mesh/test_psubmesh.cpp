@@ -24,7 +24,7 @@ void CHECK_GLOBAL_NORM(Vector &v, bool small = true)
 {
    real_t norm_local = v.Norml2(), norm_global = 0.0;
    MPI_Allreduce(&norm_local, &norm_global, 1, MPITypeMap<real_t>::mpi_type,
-                  MPI_SUM, MPI_COMM_WORLD);
+                 MPI_SUM, MPI_COMM_WORLD);
    if (small)
    {
       REQUIRE(norm_global < 1e-8);
@@ -318,7 +318,8 @@ void multidomain_test_3d(FECType fec_type)
    MPI_Allreduce(&num_local_be, &num_global_be, 1, MPI_INT, MPI_SUM,
                  MPI_COMM_WORLD);
    REQUIRE(num_global_be == 16);
-   REQUIRE(cylinder_surface_submesh.bdr_attributes[0] == parent_mesh.bdr_attributes.Max() + 1);
+   REQUIRE(cylinder_surface_submesh.bdr_attributes[0] ==
+           parent_mesh.bdr_attributes.Max() + 1);
 
    FiniteElementCollection *fec = create_fec(fec_type, p,
                                              parent_mesh.Dimension());
@@ -681,7 +682,8 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[ParSubMesh]")
    {
       // Verify that all exterior boundary elements were accounted for.
       // If an NC refine has occurred, there will be extra faces on half the checkerboard
-      const int num_top_refined = make_nc ? (num_procs/2)*(num_procs/2) + ((num_procs+1)/2)*((num_procs+1)/2) : 0;
+      const int num_top_refined = make_nc ? (num_procs/2)*(num_procs/2) + ((
+                                                                              num_procs+1)/2)*((num_procs+1)/2) : 0;
       const int num_side_refined = make_nc ? (num_procs+1)/2 : 0;
       CAPTURE(be1[1], be2[1]);
       CAPTURE(be1[2], be2[2]);
@@ -732,11 +734,14 @@ struct ParNCSubMeshExposed : public ParNCSubMesh
    }
 };
 
-void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type, bool check_pr = true)
+void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type,
+                       bool check_pr = true)
 {
    int p = 3;
-   auto fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p, mesh.Dimension()));
-   auto sub_fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p, submesh.Dimension()));
+   auto fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p,
+                                                                  mesh.Dimension()));
+   auto sub_fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p,
+                                                                      submesh.Dimension()));
 
    ParFiniteElementSpace fes(&mesh, fec.get());
    ParFiniteElementSpace sub_fes(&submesh, sub_fec.get());
@@ -750,12 +755,12 @@ void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type, boo
       real_t y = coords(1);
       real_t z = coords(2);
       return 0.02 * sin(y * 5.0 * M_PI)
-           + 0.03 * sin(x * 5.0 * M_PI)
-           + 0.05 * sin(z * 5.0 * M_PI);
+             + 0.03 * sin(x * 5.0 * M_PI)
+             + 0.05 * sin(z * 5.0 * M_PI);
    });
 
    auto vcoeff = VectorFunctionCoefficient(mesh.SpaceDimension(),
-      [](const Vector &coords, Vector &V)
+                                           [](const Vector &coords, Vector &V)
    {
       V.SetSize(3);
       real_t x = coords(0);
@@ -763,14 +768,14 @@ void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type, boo
       real_t z = coords(2);
 
       V(0) = 0.02 * sin(y * 3.0 * M_PI)
-           + 0.03 * sin(x * 2.0 * M_PI)
-           + 0.05 * sin(z * 4.0 * M_PI);
+             + 0.03 * sin(x * 2.0 * M_PI)
+             + 0.05 * sin(z * 4.0 * M_PI);
       V(1) = 0.02 * sin(z * 3.0 * M_PI)
-           + 0.03 * sin(y * 2.0 * M_PI)
-           + 0.05 * sin(x * 4.0 * M_PI);
+             + 0.03 * sin(y * 2.0 * M_PI)
+             + 0.05 * sin(x * 4.0 * M_PI);
       V(2) = 0.02 * sin(x * 3.0 * M_PI)
-           + 0.03 * sin(y * 2.0 * M_PI)
-           + 0.05 * sin(z * 4.0 * M_PI);
+             + 0.03 * sin(y * 2.0 * M_PI)
+             + 0.05 * sin(z * 4.0 * M_PI);
    });
 
    if (fec_type == FECType::H1 || fec_type == FECType::L2)
@@ -826,7 +831,8 @@ TEST_CASE("VolumeParNCSubMesh", "[Parallel],[ParSubMesh]")
 {
    bool use_tet = GENERATE(false,true);
 
-   auto mesh = use_tet ? OrientedTriFaceMesh(1, true) : DividingPlaneMesh(false, true);
+   auto mesh = use_tet ? OrientedTriFaceMesh(1, true) : DividingPlaneMesh(false,
+                                                                          true);
    mesh.EnsureNCMesh(true);
    SECTION("UniformRefinement2")
    {
@@ -859,7 +865,8 @@ TEST_CASE("VolumeParNCSubMesh", "[Parallel],[ParSubMesh]")
 
          // Cast to an exposed variant to explore the internals.
          auto &pncmesh_exposed = static_cast<ParNCSubMeshExposed&>(*submesh.pncmesh);
-         CHECK(pncmesh_exposed.GetNumRootElements() == pmesh.ncmesh->GetNumRootElements());
+         CHECK(pncmesh_exposed.GetNumRootElements() ==
+               pmesh.ncmesh->GetNumRootElements());
          CHECK(pncmesh_exposed.CountUniqueLeafElements() == 2*8*8);
          for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
          {
@@ -876,7 +883,8 @@ TEST_CASE("VolumeParNCSubMesh", "[Parallel],[ParSubMesh]")
       auto backwards = GENERATE(false, true);
       SECTION("ConsistentWithParent")
       {
-         RefineSingleUnattachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
+         RefineSingleUnattachedElement(mesh, subdomain_attributes[0],
+                                       mesh.bdr_attributes.Max(), backwards);
          {
             ParMesh pmesh(MPI_COMM_WORLD, mesh);
             auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
@@ -892,7 +900,8 @@ TEST_CASE("VolumeParNCSubMesh", "[Parallel],[ParSubMesh]")
                CheckProjectMatch(pmesh, submesh, fec_type, true);
             }
          }
-         RefineSingleUnattachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
+         RefineSingleUnattachedElement(mesh, subdomain_attributes[0],
+                                       mesh.bdr_attributes.Max(), backwards);
          {
             ParMesh pmesh(MPI_COMM_WORLD, mesh);
             auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
@@ -911,7 +920,8 @@ TEST_CASE("VolumeParNCSubMesh", "[Parallel],[ParSubMesh]")
 
       SECTION("InconsistentWithParent")
       {
-         RefineSingleAttachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
+         RefineSingleAttachedElement(mesh, subdomain_attributes[0],
+                                     mesh.bdr_attributes.Max(), backwards);
          {
             ParMesh pmesh(MPI_COMM_WORLD, mesh);
             auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);
@@ -926,7 +936,8 @@ TEST_CASE("VolumeParNCSubMesh", "[Parallel],[ParSubMesh]")
                CheckProjectMatch(pmesh, submesh, fec_type, false);
             }
          }
-         RefineSingleAttachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
+         RefineSingleAttachedElement(mesh, subdomain_attributes[0],
+                                     mesh.bdr_attributes.Max(), backwards);
          {
             ParMesh pmesh(MPI_COMM_WORLD, mesh);
             auto submesh = ParSubMesh::CreateFromDomain(pmesh, subdomain_attributes);

@@ -23,7 +23,7 @@ using namespace SubMeshUtils;
 
 NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
                      const Array<int> &attributes)
-: NCMesh(), parent_(&parent), from_(from), attributes_(attributes)
+   : NCMesh(), parent_(&parent), from_(from), attributes_(attributes)
 {
    Dim = submesh.Dimension();
    spaceDim = submesh.SpaceDimension();
@@ -50,7 +50,8 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
          int parent_vertex_id = submesh.GetParentVertexIDMap()[iv];
          int parent_node_id = parent.vertex_nodeId[parent_vertex_id];
          auto new_node_id = node_ids.Get(parent_node_id, new_node);
-         MFEM_ASSERT(new_node && (new_node_id == iv), "Adding vertices in order, should match exactly");
+         MFEM_ASSERT(new_node &&
+                     (new_node_id == iv), "Adding vertices in order, should match exactly");
          nodes.Alloc(new_node_id, new_node_id, new_node_id);
          nodes[new_node_id].vert_index = new_node_id;
          // vertex_nodeId is now implicitly the identity.
@@ -80,7 +81,8 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
          bool new_id = false;
          for (int n = 0; n < gi.nv; n++)
          {
-            el.node[n] = node_ids.Get(el.node[n], new_id); // Relabel nodes from parent to submesh.
+            el.node[n] = node_ids.Get(el.node[n],
+                                      new_id); // Relabel nodes from parent to submesh.
             MFEM_ASSERT(new_id == false, "Should not be new.");
             nodes[el.node[n]].vert_refc++;
          }
@@ -97,13 +99,13 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
             for (int e = 0; e < gi.ne; e++)
             {
                const int pid = parent.nodes.FindId(
-                  parent_node_ids_[el.node[gi.edges[e][0]]],
-                  parent_node_ids_[el.node[gi.edges[e][1]]]);
+                                  parent_node_ids_[el.node[gi.edges[e][0]]],
+                                  parent_node_ids_[el.node[gi.edges[e][1]]]);
                MFEM_ASSERT(pid >= 0, "Edge not found");
-               auto submesh_node_id = node_ids.Get(pid, new_id); // Convert parent id to a new submesh id.
+               auto submesh_node_id = node_ids.Get(pid,
+                                                   new_id); // Convert parent id to a new submesh id.
                if (new_id)
                {
-                  // std::cout << "Adding edge node " << pid << " parents " << parent.nodes[pid].p1 << " " << parent.nodes[pid].p2 << std::endl;
                   nodes.Alloc(submesh_node_id, submesh_node_id, submesh_node_id);
                   parent_node_ids_.Append(pid);
                   parent_to_submesh_node_ids_[pid] = submesh_node_id;
@@ -114,12 +116,13 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
             {
                const int *fv = gi.faces[f];
                const int pid = parent.faces.FindId(
-                  parent_node_ids_[el.node[fv[0]]],
-                  parent_node_ids_[el.node[fv[1]]],
-                  parent_node_ids_[el.node[fv[2]]],
-                  el.node[fv[3]] >= 0 ? parent_node_ids_[el.node[fv[3]]]: - 1);
+                                  parent_node_ids_[el.node[fv[0]]],
+                                  parent_node_ids_[el.node[fv[1]]],
+                                  parent_node_ids_[el.node[fv[2]]],
+                                  el.node[fv[3]] >= 0 ? parent_node_ids_[el.node[fv[3]]]: - 1);
                MFEM_ASSERT(pid >= 0, "Face not found");
-               const int id = faces.GetId(el.node[fv[0]], el.node[fv[1]], el.node[fv[2]], el.node[fv[3]]);
+               const int id = faces.GetId(el.node[fv[0]], el.node[fv[1]], el.node[fv[2]],
+                                          el.node[fv[3]]);
                faces[id].attribute = parent.faces[pid].attribute;
             }
          }
@@ -131,7 +134,8 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
                el.child[i] = parent_to_submesh_element_ids_[el.child[i]];
             }
          }
-         el.parent = el.parent < 0 ? el.parent : parent_to_submesh_element_ids_[el.parent];
+         el.parent = el.parent < 0 ? el.parent :
+                     parent_to_submesh_element_ids_[el.parent];
       }
    }
    else if (from == From::Boundary)
@@ -170,13 +174,14 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
       parent.tmp_vertex = new TmpVertex[parent.nodes.NumIds()];
       for (int n = 0; n < parent_node_ids_.Size(); n++)
       {
-         std::memcpy(&coordinates[3*n], parent.CalcVertexPos(parent_node_ids_[n]), 3*sizeof(real_t));
+         std::memcpy(&coordinates[3*n], parent.CalcVertexPos(parent_node_ids_[n]),
+                     3*sizeof(real_t));
       }
    }
 
    // The element indexing was changed as part of generation of leaf elements. We need to
    // update the map.
-      if (from == From::Domain)
+   if (from == From::Domain)
    {
       // The element indexing was changed as part of generation of leaf elements. We need to
       // update the map.
@@ -208,13 +213,15 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
          new_parent_to_submesh_element_ids[new_parent_element_ids[i]] = i;
       }
 
-      MFEM_ASSERT(new_parent_element_ids.Size() == submesh.parent_element_ids_.Size(), "!");
+      MFEM_ASSERT(new_parent_element_ids.Size() == submesh.parent_element_ids_.Size(),
+                  "!");
 #ifdef MFEM_DEBUG
       for (auto x : new_parent_element_ids)
       {
          MFEM_ASSERT(std::find(submesh.parent_element_ids_.begin(),
                                submesh.parent_element_ids_.end(), x)
-                     != submesh.parent_element_ids_.end(), x << " not found in submesh.parent_element_ids_");
+                     != submesh.parent_element_ids_.end(),
+                     x << " not found in submesh.parent_element_ids_");
       }
       for (auto x : submesh.parent_element_ids_)
       {
@@ -224,7 +231,8 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
       }
 #endif
       submesh.parent_element_ids_ = std::move(new_parent_element_ids);
-      submesh.parent_to_submesh_element_ids_ = std::move(new_parent_to_submesh_element_ids);
+      submesh.parent_to_submesh_element_ids_ = std::move(
+                                                  new_parent_to_submesh_element_ids);
    }
 }
 

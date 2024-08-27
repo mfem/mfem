@@ -463,21 +463,21 @@ public:
    void GroupQuadrilateral(int group, int i, int &face, int &o) const;
    int GroupEdge(int group, int i) const
    {
-     int e, o;
-     GroupEdge(group, i, e, o);
-     return e;
+      int e, o;
+      GroupEdge(group, i, e, o);
+      return e;
    }
    int GroupTriangle(int group, int i) const
    {
-     int f, o;
-     GroupTriangle(group, i, f, o);
-     return f;
+      int f, o;
+      GroupTriangle(group, i, f, o);
+      return f;
    }
    int GroupQuadrilateral(int group, int i) const
    {
-     int f, o;
-     GroupQuadrilateral(group, i, f, o);
-     return f;
+      int f, o;
+      GroupQuadrilateral(group, i, f, o);
+      return f;
    }
 
 
@@ -523,19 +523,19 @@ public:
       GetSharedTriCommunicator(1, stria_comm);
    }
 
-    /**
-     * @brief Build a map from local face index to a ghost boundary attribute
-     * @details Ghost boundary attributes are attributes that are stored on the face
-     * neighbour processor when a processor boundary intersects with an internal boundary.
-     * The local faces used as keys are NOT actual boundary elements on this rank,
-     * integration over them would result in double counting of the boundaries. This map is
-     * used solely for the purposes of furnishing meta data about these faces. This is
-     * particularly useful in the case of a ParSubMesh, where a volume subdomain's boundary
-     * must be labelled with the appropriate boundary attribute once the boundary element
-     * owning element has been removed. This is possible by interrogating this map for any
-     * additional missing attributes.
-     */
-    std::unordered_map<int,int> BuildGhostBoundaryElementMap();
+   /**
+    * @brief Build a map from local face index to a ghost boundary attribute
+    * @details Ghost boundary attributes are attributes that are stored on the face
+    * neighbour processor when a processor boundary intersects with an internal boundary.
+    * The local faces used as keys are NOT actual boundary elements on this rank,
+    * integration over them would result in double counting of the boundaries. This map is
+    * used solely for the purposes of furnishing meta data about these faces. This is
+    * particularly useful in the case of a ParSubMesh, where a volume subdomain's boundary
+    * must be labelled with the appropriate boundary attribute once the boundary element
+    * owning element has been removed. This is possible by interrogating this map for any
+    * additional missing attributes.
+    */
+   std::unordered_map<int,int> BuildGhostBoundaryElementMap();
 
 
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],

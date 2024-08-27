@@ -424,7 +424,8 @@ Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant)
    return mesh;
 }
 
-void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr, bool backwards)
+void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr,
+                                 bool backwards)
 {
    Array<Refinement> refs(1);
    std::vector<int> ind(mesh.GetNBE());
@@ -444,14 +445,15 @@ void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr, bool backward
          mesh.GetBdrElementFace(e, &f, &o);
          mesh.GetFaceElements(f, &el1, &el2);
          if (mesh.GetAttribute(el1) == vattr)
-         { mesh.GeneralRefinement(Array<int>{el1}); return; }
+         { mesh.GeneralRefinement(Array<int> {el1}); return; }
          if (mesh.GetAttribute(el2) == vattr)
-         { mesh.GeneralRefinement(Array<int>{el2}); return; }
+         { mesh.GeneralRefinement(Array<int> {el2}); return; }
       }
    }
 }
 
-void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr, bool backwards)
+void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr,
+                                   bool backwards)
 {
    std::set<int> attached_elements;
    for (int e = 0; e < mesh.GetNBE(); e++)
@@ -470,7 +472,7 @@ void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr, bool backwa
       for (int i = mesh.GetNE() - 1; i >= 0; i--)
          if (mesh.GetAttribute(i) == vattr && attached_elements.count(i) == 0)
          {
-            mesh.GeneralRefinement(Array<int>{i});
+            mesh.GeneralRefinement(Array<int> {i});
             return;
          }
    }
@@ -479,7 +481,7 @@ void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr, bool backwa
       for (int i = 0; i < mesh.GetNE(); i++)
          if (mesh.GetAttribute(i) == vattr && attached_elements.count(i) == 0)
          {
-            mesh.GeneralRefinement(Array<int>{i});
+            mesh.GeneralRefinement(Array<int> {i});
             return;
          }
    }
