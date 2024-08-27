@@ -52,10 +52,7 @@ protected:
 
    inline void GrowSize(int minsize);
 
-   static inline void TypeAssert()
-   {
-      static_assert(std::is_trivial<T>::value, "type T must be trivial");
-   }
+   static_assert(std::is_trivial<T>::value, "type T must be trivial");
 
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
@@ -96,11 +93,11 @@ public:
    explicit inline Array(const CT (&values)[N]);
 
    // Initializer list constructor
-   Array(std::initializer_list<T> init_list)
+   Array(const std::initializer_list<T> &init_list)
       : Array(static_cast<int>(init_list.size()))
    {
       auto * it = GetData();
-      for (int value : init_list)
+      for (auto value : init_list)
       {
          *it++ = value;
       }
@@ -110,7 +107,7 @@ public:
    inline Array(Array<T> &&src) { Swap(src, *this); }
 
    /// Destructor
-   inline ~Array() { TypeAssert(); data.Delete(); }
+   inline ~Array() { data.Delete(); }
 
    /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }

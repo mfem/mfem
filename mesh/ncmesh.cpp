@@ -124,19 +124,7 @@ void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
    initialized = true;
 }
 
-bool ElementHasAttribute(const Element &el, const Array<int> &attributes)
-{
-   for (int a = 0; a < attributes.Size(); a++)
-   {
-      if (el.GetAttribute() == attributes[a])
-      {
-         return true;
-      }
-   }
-   return false;
-}
-
-NCMesh::NCMesh(const Mesh *mesh, const Array<int> &attributes)
+NCMesh::NCMesh(const Mesh *mesh)
    : shadow(1024, 2048)
 {
    Dim = mesh->Dimension();
@@ -149,10 +137,6 @@ NCMesh::NCMesh(const Mesh *mesh, const Array<int> &attributes)
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       const mfem::Element *elem = mesh->GetElement(i);
-      if (attributes.Size() > 0 && !ElementHasAttribute(*elem, attributes))
-      {
-         continue;
-      }
 
       Geometry::Type geom = elem->GetGeometryType();
       CheckSupportedGeom(geom);
@@ -260,18 +244,14 @@ NCMesh::NCMesh(const NCMesh &other)
    , root_state(other.root_state)
    , coordinates(other.coordinates)
    , NEdges(other.NEdges)
-   , NGhostEdges(other.NGhostEdges)
    , NFaces(other.NFaces)
+   , NGhostEdges(other.NGhostEdges)
    , NGhostFaces(other.NGhostFaces)
    , boundary_faces(other.boundary_faces)
    , face_geom(other.face_geom)
    , element_vertex(other.element_vertex)
    , shadow(1024, 2048)
 {
-   // other.free_element_ids.Copy(free_element_ids);
-   // other.root_state.Copy(root_state);
-   // other.coordinates.Copy(coordinates);
-
    Update();
 }
 
@@ -2376,6 +2356,8 @@ void NCMesh::InitRootState(int root_count)
    root_state.SetSize(root_count);
    root_state = 0;
 
+   if (elements.Size() == 0) { return; }
+
    char* node_order;
    int nch;
 
@@ -2478,7 +2460,6 @@ const real_t* NCMesh::CalcVertexPos(int node) const
 void NCMesh::GetMeshComponents(Mesh &mesh) const
 {
    mesh.vertices.SetSize(vertex_nodeId.Size());
-
    if (coordinates.Size())
    {
       // calculate vertex positions from stored top-level vertex coordinates
@@ -2489,7 +2470,6 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
       }
       delete [] tmp_vertex;
    }
-
    // NOTE: if the mesh is curved ('coordinates' is empty), mesh.vertices are
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
@@ -2623,27 +2603,14 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
    // get edge enumeration from the Mesh
    Table *edge_vertex = mesh->GetEdgeVertexTable();
-
-   std::map<int, std::vector<int>> n_to_n;
-
-   for (const auto &n : nodes)
-   {
-      const int id = nodes.FindId(n.p1, n.p2);
-      if (n.p1 != n.p2)
-      {
-         n_to_n[n.p1].push_back(n.p2);
-         n_to_n[n.p2].push_back(n.p1);
-      }
-   }
-
    for (int i = 0; i < edge_vertex->Size(); i++)
    {
       const int *ev = edge_vertex->GetRow(i);
       Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
-      int node_id = nodes.FindId(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
       MFEM_ASSERT(node && node->HasEdge(),
                   "edge (" << ev[0] << "," << ev[1] << ") not found, "
-                  "node = " << node << " node->HasEdge() " << node->HasEdge());
+                  "node = " << node << " node->HasEdge() " << (node != nullptr ? node->HasEdge() :
+                                                               false));
       node->edge_index = i;
    }
 
@@ -2831,7 +2798,6 @@ bool contains_node(const std::array<int, 4> &nodes, int n)
    return std::find(nodes.begin(), nodes.end(), n) != nodes.end();
 };
 
-
 int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
 {
    const bool is_tri = face_nodes[3] == -1;
@@ -2849,11 +2815,8 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
    {
       all_nodes_root = all_nodes_root && (x < 0 || (nodes[x].p1 == nodes[x].p2));
    }
-   if (all_nodes_root)
-   {
-      // This face is a root face -> nothing to do.
-      return -1;
-   }
+   // This face is a root face -> nothing to do.
+   if (all_nodes_root) { return -1; }
 
    int child = -1; // The index into parent.child that this face corresponds to.
    auto parent_nodes = face_nodes;
@@ -2907,10 +2870,7 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
                         !contains_node(parent_nodes, nodes[x].p1), "!");
             x = nodes[x].p1;
          }
-         else
-         {
-            // do nothing
-         }
+         else { /* do nothing */ }
       }
    }
    else if (is_tri)
@@ -2931,10 +2891,7 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
                         !contains_node(face_nodes, nodes[x].p1), "!");
             parent_nodes[i] = nodes[x].p1;
          }
-         else
-         {
-            // do nothing
-         }
+         else { /* do nothing */ }
       }
 
       if (std::equal(face_nodes.begin(), face_nodes.end(), parent_nodes.begin()))
@@ -2946,20 +2903,17 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
          {
             parent_pairs[i][0] = nodes[face_nodes[i]].p1;
             parent_pairs[i][1] = nodes[face_nodes[i]].p2;
-
          }
-
          // Each node gets mapped to the common node from its parents and the predecessor
          // node's parents.
-
          for (int i = 0; i < 3; i++)
          {
             // Parenting convention here assumes parent face has the SAME orientation as the
             // original. This is true on exterior boundaries, but for an interior boundary
-            // the master face will have an opposing orientation.
+            // the master face will have an opposing orientation. TODO: Possibly fix for
+            // interior boundaries.
             const auto &prev = parent_pairs[(i - 1 + 3) % 3]; // (0 -> 2, 1 -> 0, 2 -> 1)
             const auto &next = parent_pairs[(i + 1 + 3) % 3]; // (0 -> 1, 1 -> 2, 2 -> 0)
-
             for (auto x : next)
             {
                if (std::find(prev.begin(), prev.end(), x) != prev.end()) { parent_nodes[i] = x; }
@@ -2996,7 +2950,6 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
    {
       MFEM_ABORT("Unrecognized face geometry!");
    }
-
    for (int i = 0; i < 4 && face_nodes[i] >= 0; i++)
    {
       if (face_nodes[i] == parent_nodes[i])
@@ -3006,7 +2959,6 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
          child = i;
       }
    }
-
    MFEM_ASSERT(child != -1, "Root elements must have exited early!");
    std::swap(face_nodes, parent_nodes);
    return child;
@@ -3771,7 +3723,8 @@ NCMesh::NCList::BuildIndex() const
       int max_master_index = max_master != nullptr ? max_master->index : -1;
       int max_slave_index = max_slave != nullptr ? max_slave->index : -1;
 
-      inv_index.reserve(std::max({max_conforming_index, max_master_index, max_slave_index, 0}));
+      inv_index.reserve(max(max_conforming_index, max_master_index, max_slave_index,
+                            0));
       for (int i = 0; i < conforming.Size(); i++)
       {
          inv_index.emplace(conforming[i].index, std::make_pair(MeshIdType::CONFORMING,
@@ -6063,12 +6016,14 @@ void NCMesh::InitRootElements()
 
    // count the root elements
    int nroots = 0;
-   while (nroots < elements.Size() &&
-          elements[nroots].parent == -1)
-   {
-      nroots++;
-   }
-   MFEM_VERIFY(nroots, "invalid mesh file: no root elements found.");
+   for (const auto &e : elements)
+      if (e.parent == -1)
+      {
+         ++nroots;
+      }
+   MFEM_VERIFY(nroots > 0 ||
+               elements.Size() == 0,
+               "invalid mesh file: no root elements in non-empty mesh found.");
 
 
    // check that only the first 'nroot' elements are roots (have no parent)
@@ -6089,7 +6044,7 @@ int NCMesh::CountTopLevelNodes() const
    int ntop = 0;
    for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
-      if (node->p1 == node->p2) { ntop++; }
+      if (node->p1 == node->p2) { ntop = node.index() + 1; }
    }
    return ntop;
 }

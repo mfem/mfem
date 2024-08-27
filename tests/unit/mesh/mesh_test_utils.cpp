@@ -11,6 +11,8 @@
 
 #include "mesh_test_utils.hpp"
 
+#include <numeric>
+
 namespace mfem
 {
 

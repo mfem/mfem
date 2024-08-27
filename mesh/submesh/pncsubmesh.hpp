@@ -93,10 +93,26 @@ protected:
    std::unordered_map<int, int> parent_to_submesh_element_ids_;
 
    // Helper friend methods for construction.
-   friend void SubMeshUtils::ConstructFaceTree<ParNCMesh, ParNCSubMesh>
-   (const ParNCMesh &parent, ParNCSubMesh &submesh, const Array<int> &attributes);
-   friend void SubMeshUtils::ConstructVolumeTree<ParNCMesh, ParNCSubMesh>
-   (const ParNCMesh &parent, ParNCSubMesh &submesh, const Array<int> &attributes);
+   friend void SubMeshUtils::ConstructFaceTree<ParNCSubMesh>(ParNCSubMesh &submesh,
+                                                             const Array<int> &attributes);
+   friend void SubMeshUtils::ConstructVolumeTree<ParNCSubMesh>
+   (ParNCSubMesh &submesh, const Array<int> &attributes);
+
+   /**
+    * @brief Accessor for parent nodes
+    * @details Required to bypass access protection in parent class.
+    *
+    * @return const HashTable<Node>&
+    */
+   const HashTable<Node> &ParentNodes() const { return parent_->nodes; }
+
+   /**
+    * @brief Accessor for parent faces
+    * @details Required to bypass access protection in parent class.
+    *
+    * @return const HashTable<Face>&
+    */
+   const HashTable<Face> &ParentFaces() const { return parent_->faces; }
 };
 
 } // namespace mfem

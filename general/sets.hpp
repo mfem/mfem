@@ -24,6 +24,12 @@ class IntegerSet : public Array<int>
 {
 public:
    using Array<int>::Array;
+   // MSVC fails to recognize that rule of zero applies after using base class constructors.
+   IntegerSet() = default;
+   IntegerSet(const IntegerSet &) = default;
+   IntegerSet(IntegerSet &&) = default;
+   IntegerSet& operator=(const IntegerSet &) = default;
+   IntegerSet& operator=(IntegerSet &&) = default;
 
    /// Create an integer set from C-array 'p' of 'n' integers.
    IntegerSet(const int n, const int *p) { Recreate(n, p); }

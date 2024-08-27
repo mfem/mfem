@@ -270,7 +270,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    if (Conforming())
    {
       // Conforming submesh must now discover and add boundary elements, taking care with
-      // "ghost boundary elements" if a volume submesh. Nonconforming
+      // "ghost boundary elements" if a volume submesh. A nonconforming mesh already has
+      // constructed this information during initialization.
       if (from == SubMesh::From::Domain)
       {
          SubMeshUtils::AddBoundaryElements(*this, FindGhostBoundaryElementAttributes());
@@ -318,10 +319,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
       Transfer(*pn, *n);
    }
-
    SetAttributes();
    Finalize();
-
 }
 
 void ParSubMesh::FindSharedVerticesRanks(Array<int> &rhvtx)
@@ -874,10 +873,8 @@ ParSubMesh::FindGhostBoundaryElementAttributes() const
 {
    // Loop over shared faces in the parent mesh, find their attributes if they exist, and
    // map to local faces in the submesh.
-
    std::unordered_map<int,int> lface_boundary_attribute;
    const auto &face_to_be = parent_.GetFaceToBdrElMap();
-
    if (Dim == 3)
    {
       GroupCommunicator squad_comm(parent_.gtopo);
@@ -920,8 +917,6 @@ ParSubMesh::FindGhostBoundaryElementAttributes() const
             parent_lqface[sq] = plq;
          }
       }
-
-
 #ifdef MFEM_DEBUG
       auto pre_stba = stba;
       auto pre_sqba = sqba;
