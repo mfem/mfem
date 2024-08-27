@@ -157,7 +157,7 @@ public:
    int Solve()
    {
       // Initialize GLVis server if 'visualization' is set
-      if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
+      if (opt.vis) { opt.vis = glvis.open(vishost, opt.visport) == 0; }
       // Send to GLVis the first mesh
       if (opt.vis) { Visualize(glvis, opt, mesh, GLVIZ_W, GLVIZ_H); }
       // Create and launch the surface solver
@@ -1260,7 +1260,7 @@ static int Problem1(Opt &opt)
    FunctionCoefficient u0_fc(u0);
    u.ProjectCoefficient(u0_fc);
    socketstream glvis;
-   if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
+   if (opt.vis) { opt.vis = glvis.open(vishost, opt.visport) == 0; }
    if (opt.vis) { Surface::Visualize(glvis, opt, &mesh, GLVIZ_W, GLVIZ_H, &u); }
    Vector B, X;
    OperatorPtr A;
@@ -1343,7 +1343,7 @@ int main(int argc, char *argv[])
                   "Enable or disable result output (files in mfem format).");
    args.AddOption(&opt.snapshot, "-ss", "--snapshot", "-no-ss", "--no-snapshot",
                   "Enable or disable GLVis snapshot.");
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
+   args.AddOption(&opt.visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(mfem::out); return 1; }
    MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <= 1.0,"");

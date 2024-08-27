@@ -490,7 +490,7 @@ TeslaSolver::InitializeGLVis()
 }
 
 void
-TeslaSolver::DisplayToGLVis(int visport = 19916)
+TeslaSolver::DisplayToGLVis(int visport)
 {
    if (myid_ == 0) { cout << "Sending data to GLVis ..." << flush; }
 
