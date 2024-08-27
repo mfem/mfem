@@ -471,7 +471,6 @@ int main (int argc, char *argv[])
 
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(pmesh);
-   finder.SetL2AvgType(FindPointsGSLIB::AvgType::ARITHMETIC);
    finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    finder.FindPoints(vxyz, point_ordering);
    MPI_Barrier(MPI_COMM_WORLD);

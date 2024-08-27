@@ -267,10 +267,10 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       MFEM_VERIFY(NE_split_total == mesh->GetNE(),
                   "Meshes with only quad/hex elements are supported on GPUs.");
       FindPointsOnDevice(point_pos, point_pos_ordering);
-      return;
       setupSW.Stop();
       findpts_findpts_time = setupSW.RealTime();
       findpts_mapelemrst_time = 0.0;
+      return;
    }
 
    auto xvFill = [&](const double *xv_base[], unsigned xv_stride[])
@@ -434,13 +434,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          const int elem = gsl_elem[index];
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
          const Geometry::Type gt = fe->GetGeomType();
-         if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
-         {
-            int setcode = Geometry::CheckPoint(gt, ip, -btol) ?
-                          CODE_INTERNAL : CODE_BORDER;
-            gsl_code[index] = setcode==CODE_BORDER && gsl_dist(index)>bdr_tol ?
-                              CODE_NOT_FOUND : setcode;
-         }
+         int setcode = Geometry::CheckPoint(gt, ip, -btol) ?
+                       CODE_INTERNAL : CODE_BORDER;
+         gsl_code[index] = setcode==CODE_BORDER && gsl_dist(index)>bdr_tol ?
+                           CODE_NOT_FOUND : setcode;
       }
       return;
    }
@@ -615,13 +612,18 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
             opt[point].r[d] = AsConst(gsl_ref_l)[dim * point + d];
          }
          IntegrationPoint ip;
-         ip.Set3(&opt[point].r[0]);
+         if (dim == 2)
+         {
+            ip.Set2(0.5*opt[point].r[0]+0.5, 0.5*opt[point].r[1]+0.5);
+         }
+         else
+         {
+            ip.Set3(0.5*opt[point].r[0]+0.5, 0.5*opt[point].r[1]+0.5,
+                    0.5*opt[point].r[2]+0.5);
+         }
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(opt[point].el);
          const Geometry::Type gt = fe->GetGeomType();
-         if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
-         {
-            opt[point].code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
-         }
+         opt[point].code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
       }
 
       array_free(&src_pt);
@@ -2221,10 +2223,14 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    }
    else
    {
+
       if (gsl_mfem_elem.Size() == 0)
       {
+         gsl_mfem_elem.SetSize(gsl_elem.Size());
+         gsl_elem.HostRead();
          gsl_mfem_elem = gsl_elem;
       }
+
       InterpolateGeneral(field_in, field_out);
       setupSW.Stop();
       interpolate_general_time = setupSW.RealTime();
@@ -2253,8 +2259,9 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       int gf_order_h1 = std::max(gf_order, 1); // H1 should be at least order 1
       H1_FECollection fec(gf_order_h1, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
-      FiniteElementSpace fes(mesh, &fec, ncomp);
+      FiniteElementSpace fes(mesh, &fec, ncomp, field_in.FESpace()->GetOrdering());
       GridFunction field_in_h1(&fes);
+      field_in_h1.HostRead();
 
       if (avgtype == AvgType::ARITHMETIC)
       {
