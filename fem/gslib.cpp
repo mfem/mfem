@@ -898,7 +898,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       int gf_order_h1 = std::max(gf_order, 1); // H1 should be at least order 1
       H1_FECollection fec(gf_order_h1, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
-      FiniteElementSpace fes(mesh, &fec, ncomp);
+      FiniteElementSpace fes(mesh, &fec, ncomp,
+                             field_in.FESpace()->GetOrdering());
       GridFunction field_in_h1(&fes);
 
       if (avgtype == AvgType::ARITHMETIC)
@@ -928,7 +929,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       {
          for (int i = 0; i < indl2.Size(); i++)
          {
-            int idx = field_in.FESpace()->GetOrdering() == Ordering::byNODES ?
+            int idx = field_in_h1.FESpace()->GetOrdering() == Ordering::byNODES?
                       indl2[i] + j*points_cnt:
                       indl2[i]*ncomp + j;
             field_out(idx) = field_out_l2(idx);
