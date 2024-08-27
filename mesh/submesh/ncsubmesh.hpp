@@ -25,9 +25,9 @@ namespace mfem
  */
 class NCSubMesh : public NCMesh
 {
-  friend class SubMesh; ///< Only SubMesh can use methods in this class
+   friend class SubMesh; ///< Only SubMesh can use methods in this class
 public:
-  using From = SubMesh::From;
+   using From = SubMesh::From;
    /**
     * @brief Get the parent Mesh object
     *
@@ -61,7 +61,7 @@ private:
 
    /// Private constructor
    NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
-                     const Array<int> &attributes);
+             const Array<int> &attributes);
 
    /// The parent Mesh. Not owned.
    const NCMesh *parent_;
@@ -90,7 +90,8 @@ private:
    // Inverse map of parent_element_ids_.
    std::unordered_map<int, int> parent_to_submesh_element_ids_;
 
-   friend void SubMeshUtils::ConstructFaceTree<NCMesh, NCSubMesh>(const NCMesh &parent, NCSubMesh &submesh, const Array<int> &attributes);
+   friend void SubMeshUtils::ConstructFaceTree<NCMesh, NCSubMesh>
+   (const NCMesh &parent, NCSubMesh &submesh, const Array<int> &attributes);
 };
 
 } // namespace mfem

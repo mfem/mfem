@@ -132,11 +132,13 @@ auto GetRootParent(const T &m) -> decltype(std::declval<T>().GetParent())
  * @tparam MeshT The SubMesh type, options SubMesh and ParSubMesh.
  */
 template <typename SubMeshT>
-void AddBoundaryElements(SubMeshT &mesh, const std::unordered_map<int,int> &lface_to_boundary_attribute = {});
+void AddBoundaryElements(SubMeshT &mesh,
+                         const std::unordered_map<int,int> &lface_to_boundary_attribute = {});
 
 
 template<typename MeshT, typename SubMeshT>
-void ConstructFaceTree(const MeshT &parent, SubMeshT &submesh, const Array<int> &attributes);
+void ConstructFaceTree(const MeshT &parent, SubMeshT &submesh,
+                       const Array<int> &attributes);
 
 /**
  * @brief Helper for checking if an object's attributes match a list
@@ -255,7 +257,8 @@ void Permute(Array<int>&& indices, T1& t1, T2& t2, T3& t3)
  * @param orientation Orientation of the face
  */
 template <typename FaceNodes>
-void ReorientFaceNodesByOrientation(FaceNodes &nodes, Geometry::Type geom, int orientation)
+void ReorientFaceNodesByOrientation(FaceNodes &nodes, Geometry::Type geom,
+                                    int orientation)
 {
    auto permute = [&]() -> std::array<int, NCMesh::MaxFaceNodes>
    {

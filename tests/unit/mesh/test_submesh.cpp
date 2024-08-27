@@ -574,11 +574,14 @@ void CHECK_NORM(Vector &v, bool small = true)
    }
 };
 
-void CheckProjectMatch(Mesh &mesh, SubMesh &submesh, FECType fec_type, bool check_pr = true)
+void CheckProjectMatch(Mesh &mesh, SubMesh &submesh, FECType fec_type,
+                       bool check_pr = true)
 {
    int p = 3;
-   auto fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p, mesh.Dimension()));
-   auto sub_fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p, submesh.Dimension()));
+   auto fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p,
+                                                                  mesh.Dimension()));
+   auto sub_fec = std::unique_ptr<FiniteElementCollection>(create_fec(fec_type, p,
+                                                                      submesh.Dimension()));
 
    FiniteElementSpace fes(&mesh, fec.get());
    FiniteElementSpace sub_fes(&submesh, sub_fec.get());
@@ -592,12 +595,12 @@ void CheckProjectMatch(Mesh &mesh, SubMesh &submesh, FECType fec_type, bool chec
       real_t y = coords(1);
       real_t z = coords(2);
       return 0.02 * sin(y * 5.0 * M_PI)
-           + 0.03 * sin(x * 5.0 * M_PI)
-           + 0.05 * sin(z * 5.0 * M_PI);
+             + 0.03 * sin(x * 5.0 * M_PI)
+             + 0.05 * sin(z * 5.0 * M_PI);
    });
 
    auto vcoeff = VectorFunctionCoefficient(mesh.SpaceDimension(),
-      [](const Vector &coords, Vector &V)
+                                           [](const Vector &coords, Vector &V)
    {
       V.SetSize(3);
       real_t x = coords(0);
@@ -605,14 +608,14 @@ void CheckProjectMatch(Mesh &mesh, SubMesh &submesh, FECType fec_type, bool chec
       real_t z = coords(2);
 
       V(0) = 0.02 * sin(y * 3.0 * M_PI)
-           + 0.03 * sin(x * 2.0 * M_PI)
-           + 0.05 * sin(z * 4.0 * M_PI);
+             + 0.03 * sin(x * 2.0 * M_PI)
+             + 0.05 * sin(z * 4.0 * M_PI);
       V(1) = 0.02 * sin(z * 3.0 * M_PI)
-           + 0.03 * sin(y * 2.0 * M_PI)
-           + 0.05 * sin(x * 4.0 * M_PI);
+             + 0.03 * sin(y * 2.0 * M_PI)
+             + 0.05 * sin(x * 4.0 * M_PI);
       V(2) = 0.02 * sin(x * 3.0 * M_PI)
-           + 0.03 * sin(y * 2.0 * M_PI)
-           + 0.05 * sin(z * 4.0 * M_PI);
+             + 0.03 * sin(y * 2.0 * M_PI)
+             + 0.05 * sin(z * 4.0 * M_PI);
    });
 
    if (fec_type == FECType::H1 || fec_type == FECType::L2)
@@ -669,7 +672,8 @@ TEST_CASE("VolumeNCSubMesh", "[SubMesh]")
 {
    bool use_tet = GENERATE(false,true);
 
-   auto mesh = use_tet ? OrientedTriFaceMesh(1, true) : DividingPlaneMesh(false, true);
+   auto mesh = use_tet ? OrientedTriFaceMesh(1, true) : DividingPlaneMesh(false,
+                                                                          true);
    mesh.EnsureNCMesh(true);
    SECTION("UniformRefinement2")
    {
@@ -718,8 +722,10 @@ TEST_CASE("VolumeNCSubMesh", "[SubMesh]")
       auto backwards = GENERATE(false, true);
       SECTION("ConsistentWithParent")
       {
-         RefineSingleUnattachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
-         {            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+         RefineSingleUnattachedElement(mesh, subdomain_attributes[0],
+                                       mesh.bdr_attributes.Max(), backwards);
+         {
+            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
             auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
             CHECK(ncmesh_exposed.GetNumRootElements() == 1);
             CHECK(ncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8);
@@ -730,8 +736,10 @@ TEST_CASE("VolumeNCSubMesh", "[SubMesh]")
                CheckProjectMatch(mesh, submesh, fec_type, true);
             }
          }
-         RefineSingleUnattachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
-         {            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+         RefineSingleUnattachedElement(mesh, subdomain_attributes[0],
+                                       mesh.bdr_attributes.Max(), backwards);
+         {
+            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
             auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
             CHECK(ncmesh_exposed.GetNumRootElements() == 1);
             CHECK(ncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8 - 1 + 8);
@@ -745,8 +753,10 @@ TEST_CASE("VolumeNCSubMesh", "[SubMesh]")
 
       SECTION("InconsistentWithParent")
       {
-         RefineSingleAttachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
-         {            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+         RefineSingleAttachedElement(mesh, subdomain_attributes[0],
+                                     mesh.bdr_attributes.Max(), backwards);
+         {
+            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
             auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
             CHECK(ncmesh_exposed.GetNumRootElements() == 1);
             CHECK(ncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8);
@@ -756,8 +766,10 @@ TEST_CASE("VolumeNCSubMesh", "[SubMesh]")
                CheckProjectMatch(mesh, submesh, fec_type, false);
             }
          }
-         RefineSingleAttachedElement(mesh, subdomain_attributes[0], mesh.bdr_attributes.Max(), backwards);
-         {            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
+         RefineSingleAttachedElement(mesh, subdomain_attributes[0],
+                                     mesh.bdr_attributes.Max(), backwards);
+         {
+            auto submesh = SubMesh::CreateFromDomain(mesh, subdomain_attributes);
             auto &ncmesh_exposed = static_cast<NCSubMeshExposed&>(*submesh.ncmesh);
             CHECK(ncmesh_exposed.GetNumRootElements() == 1);
             CHECK(ncmesh_exposed.CountUniqueLeafElements() == 8 - 1 + 8 - 1 + 8);

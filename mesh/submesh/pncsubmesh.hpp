@@ -29,9 +29,9 @@ namespace mfem
  */
 class ParNCSubMesh : public ParNCMesh
 {
-  friend class ParSubMesh; ///< Only ParSubMesh can use methods in this class
+   friend class ParSubMesh; ///< Only ParSubMesh can use methods in this class
 public:
-  using From = SubMesh::From;
+   using From = SubMesh::From;
    /**
    * @brief Check if Mesh @a m is a SubMesh.
    *
@@ -93,7 +93,8 @@ protected:
    std::unordered_map<int, int> parent_to_submesh_element_ids_;
 
    // Helper friend methods for construction.
-   friend void SubMeshUtils::ConstructFaceTree<ParNCMesh, ParNCSubMesh>(const ParNCMesh &parent, ParNCSubMesh &submesh, const Array<int> &attributes);
+   friend void SubMeshUtils::ConstructFaceTree<ParNCMesh, ParNCSubMesh>
+   (const ParNCMesh &parent, ParNCSubMesh &submesh, const Array<int> &attributes);
 };
 
 } // namespace mfem

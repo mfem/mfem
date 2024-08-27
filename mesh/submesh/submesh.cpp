@@ -31,7 +31,8 @@ SubMesh SubMesh::CreateFromBoundary(const Mesh &parent,
 }
 
 SubMesh::SubMesh(const Mesh &parent, From from,
-                 const Array<int> &attributes) : parent_(&parent), from_(from), attributes_(attributes)
+                 const Array<int> &attributes) : parent_(&parent), from_(from),
+   attributes_(attributes)
 {
    if (from == From::Domain)
    {
@@ -57,7 +58,8 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       parent_to_submesh_vertex_ids_[parent_vertex_ids_[i]] = i;
    }
 
-   parent_to_submesh_element_ids_.SetSize(from == From::Boundary ? parent.GetNBE() : parent.GetNE());
+   parent_to_submesh_element_ids_.SetSize(from == From::Boundary ? parent.GetNBE()
+                                          : parent.GetNE());
    parent_to_submesh_element_ids_ = -1;
    for (int i = 0; i < parent_element_ids_.Size(); i++)
    {

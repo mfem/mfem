@@ -52,9 +52,9 @@ FiniteElementCollection *create_fec(FECType fectype, int p, int dim);
  */
 struct NCMeshExposed : public NCMesh
 {
-  using NCMesh::NCMesh;
-  using NCMesh::GetFace;
-  using NCMesh::faces;
+   using NCMesh::NCMesh;
+   using NCMesh::GetFace;
+   using NCMesh::faces;
 };
 
 
@@ -144,7 +144,8 @@ Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0);
  * @param battr Boundary attribute refined element should be attached to
  * @param backwards Whether to iterate over the faces in reverse order
  */
-void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr, bool backwards = true);
+void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr,
+                                 bool backwards = true);
 
 /**
  * @brief Helper to refine a single element not attached to a boundary
@@ -154,7 +155,8 @@ void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr, bool backward
  * @param battr Boundary attribute refined element should not be attached to
  * @param backwards Whether to iterate over the elements in reverse order
  */
-void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr, bool backwards = true);
+void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr,
+                                   bool backwards = true);
 
 
 #ifdef MFEM_USE_MPI
