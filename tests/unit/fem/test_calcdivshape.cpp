@@ -261,8 +261,10 @@ void TestFDCalcDivShape(FiniteElement* fe, ElementTransformation * T, int order)
       // Due to the scaling of the Legendre polynomials, as the integration
       // points approach the apex of a pyramid the derivatives in the x and y
       // directions become infinite. Therefore, we need to scale the finite
-      // difference error estimate by the following z-dependent factor.
-      real_t pyr_fac = pyr ? std::pow(1.0/(1.0-pt.z), 3) : 1.0;
+      // difference error estimate by the following z-dependent factor. The
+      // added factor of 2 is due to the fact that most H(div) basis functions
+      // on a pyramid are build from 2 or 3 pieces added together.
+      real_t pyr_fac = pyr ? (2.0 * std::pow(1.0/(1.0-pt.z), 3)) : 1.0;
 
       // Determine the maximum difference between the two derivative
       // calculations
