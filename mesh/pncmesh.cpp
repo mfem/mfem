@@ -237,7 +237,6 @@ void ParNCMesh::BuildEdgeList()
    entity_elem_local[1].SetSize(nedges);
    entity_elem_local[1] = -1;
 
-
    NCMesh::BuildEdgeList();
 
    InitOwners(nedges, entity_owner[1]);

@@ -89,7 +89,6 @@ ParNURBSExtension *ParFiniteElementSpace::MakeLocalNURBSext(
 
 void ParFiniteElementSpace::ParInit(ParMesh *pm)
 {
-
    pmesh = pm;
    pncmesh = nullptr;
 
@@ -1754,7 +1753,6 @@ void ParFiniteElementSpace::GetGhostDofs(int entity, const MeshId &id,
 void ParFiniteElementSpace::GetBareDofs(int entity, int index,
                                         Array<int> &dofs) const
 {
-
    int ned, ghost, first;
    switch (entity)
    {

@@ -67,82 +67,9 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "mesh/submesh/ncsubmesh.hpp"
-
 
 using namespace std;
 using namespace mfem;
-
-Mesh DividingPlaneMesh(bool tet_mesh, bool split, bool three_dim)
-{
-
-   auto mesh = three_dim ? Mesh("../../data/ref-cube.mesh") :
-               Mesh("../../data/ref-square.mesh");
-   {
-      Array<Refinement> refs;
-      refs.Append(Refinement(0, Refinement::X));
-      mesh.GeneralRefinement(refs);
-   }
-   delete mesh.ncmesh;
-   mesh.ncmesh = nullptr;
-   mesh.FinalizeTopology();
-   mesh.Finalize(true, true);
-
-   mesh.SetAttribute(0, 1);
-   mesh.SetAttribute(1, split ? 2 : 1);
-
-   // Introduce internal boundary elements
-   const int new_attribute = mesh.bdr_attributes.Max() + 1;
-   for (int f = 0; f < mesh.GetNumFaces(); ++f)
-   {
-      int e1, e2;
-      mesh.GetFaceElements(f, &e1, &e2);
-      if (e1 >= 0 && e2 >= 0 && mesh.GetAttribute(e1) != mesh.GetAttribute(e2))
-      {
-         // This is the internal face between attributes.
-         auto *new_elem = mesh.GetFace(f)->Duplicate(&mesh);
-         new_elem->SetAttribute(new_attribute);
-         mesh.AddBdrElement(new_elem);
-      }
-   }
-   if (tet_mesh)
-   {
-      mesh = Mesh::MakeSimplicial(mesh);
-   }
-   mesh.FinalizeTopology();
-   mesh.Finalize(true, true);
-   return mesh;
-}
-
-
-void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr,
-                                 bool backwards)
-{
-   Array<Refinement> refs(1);
-   std::vector<int> ind(mesh.GetNBE());
-   if (backwards)
-   {
-      std::iota(ind.rbegin(), ind.rend(), 0);
-   }
-   else
-   {
-      std::iota(ind.begin(), ind.end(), 0);
-   }
-   for (int e : ind)
-   {
-      if (mesh.GetBdrAttribute(e) == battr)
-      {
-         int f, o, el1, el2;
-         mesh.GetBdrElementFace(e, &f, &o);
-         mesh.GetFaceElements(f, &el1, &el2);
-         if (mesh.GetAttribute(el1) == vattr)
-         { mesh.GeneralRefinement(Array<int> {el1}); return; }
-         if (mesh.GetAttribute(el2) == vattr)
-         { mesh.GeneralRefinement(Array<int> {el2}); return; }
-      }
-   }
-}
-
 
 int main(int argc, char *argv[])
 {
@@ -193,131 +120,21 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   // Mesh mesh(mesh_file, 1, 1);
-   // Mesh mesh("../../data/ref-segment.mesh", 1, 1);
-
-   // Solve Poisson on a pair of cubes fully coupled, then compare to solving the interface
-   // then coupling the two domains using the 2D solution as the boundary condition.
-
-   // auto mesh = DividingPlaneMesh(false, true, true);
-   auto mesh = Mesh("../../data/ref-cube.mesh");
-   mesh.EnsureNCMesh();
-
-   // mesh.Finalize(true);
-   // mesh.UniformRefinement();
-   // mesh.EnsureNCMesh(true);
-   Array<int> subdomain_attributes{1};
-
-   auto refine_half = [](Mesh &mesh, int vattr, int battr, bool backwards = true)
-   {
-      Array<Refinement> refs;
-      std::vector<int> ind(mesh.GetNBE());
-      if (backwards)
-      {
-         std::iota(ind.rbegin(), ind.rend(), 0);
-      }
-      else
-      {
-         std::iota(ind.begin(), ind.end(), 0);
-      }
-      for (int e : ind)
-      {
-         if (mesh.GetBdrAttribute(e) == battr)
-         {
-            int el1, el2;
-            mesh.GetBdrElementFaceIndex(e);
-            mesh.GetFaceElements(mesh.GetBdrElementFaceIndex(e), &el1, &el2);
-            // if (mesh.GetAttribute(el1) == vattr)
-            // {
-            Refinement ref(el1, Refinement::XYZ);
-            refs.Append(ref);
-            // }
-            // if (mesh.GetAttribute(el2) == vattr)
-            // {
-            // refs.Append(Refinement(el2, Refinement::XYZ));
-            // }
-            break;
-         }
-      }
-      mesh.GeneralRefinement(refs,1,1);
-   };
-
-   int test = 7;
-   switch (test)
-   {
-      case 0:
-         break;
-      case 1:
-         mesh.UniformRefinement();
-         break;
-      case 2:
-      {
-         Array<Refinement> refs(1);
-         refs[0].index = 0;
-         refs[0].ref_type = Refinement::XYZ;
-         mesh.GeneralRefinement(refs);
-      }
-      break;
-      case 3 :
-      {
-         Array<Refinement> refs(1);
-         refs[0].index = 1;
-         refs[0].ref_type = Refinement::XYZ;
-         mesh.GeneralRefinement(refs);
-      }
-      break;
-      case 4 :
-      {
-         mesh.UniformRefinement();
-         refine_half(mesh,1,subdomain_attributes[0], false);
-         // refine_half(mesh,1,subdomain_attributes[0], true);
-         // refine_half(mesh,1,subdomain_attributes[0], false);
-      }
-      break;
-      case 5 :
-         mesh.RandomRefinement(0.5, false, 1, 1);
-         mesh.RandomRefinement(0.5, false, 1, 1);
-         mesh.RandomRefinement(0.5, false, 1, 1);
-         // mesh.RandomRefinement(0.5, false, 1, 1);
-         break;
-      case 6 :
-      {
-         // Array<int> refs = {1,2,3};
-         //    refs.Append(0);
-         mesh.GeneralRefinement(Array<int> {0});
-         mesh.GeneralRefinement(Array<int> {4});
-         mesh.GeneralRefinement(Array<int> {15});
-         mesh.GeneralRefinement(Array<int> {2,3,6,8,15});
-         // mesh.GeneralRefinement(Array<int>{0,40,41,42,54});
-         mesh.GeneralRefinement(Array<int> {42});
-         // mesh.GeneralRefinement(Array<int>{2,3,6,8,15,22,0,40,41,42,54}, 1, 1);
-      }
-      break;
-      case 7 :
-      {
-         mesh.UniformRefinement();
-         RefineSingleAttachedElement(mesh, 1, subdomain_attributes[0], true);
-      }
-   }
-
-   std::cout << "\n\n\nInEx1\n\n\n";
-
-   auto submesh = SubMesh::CreateFromBoundary(mesh, subdomain_attributes);
-
-   int dim = submesh.Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   // {
-   //    int ref_levels =
-   //       (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
-   //    for (int l = 0; l < ref_levels; l++)
-   //    {
-   //       mesh.RandomRefinement(0.5);
-   //    }
-   // }
+   {
+      int ref_levels =
+         (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
+      for (int l = 0; l < ref_levels; l++)
+      {
+         mesh.UniformRefinement();
+      }
+   }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -329,9 +146,9 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order, dim);
       delete_fec = true;
    }
-   else if (submesh.GetNodes())
+   else if (mesh.GetNodes())
    {
-      fec = submesh.GetNodes()->OwnFEC();
+      fec = mesh.GetNodes()->OwnFEC();
       delete_fec = false;
       cout << "Using isoparametric FEs: " << fec->Name() << endl;
    }
@@ -340,7 +157,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
       delete_fec = true;
    }
-   FiniteElementSpace fespace(&submesh, fec);
+   FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
@@ -349,37 +166,19 @@ int main(int argc, char *argv[])
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (submesh.bdr_attributes.Size())
+   if (mesh.bdr_attributes.Size())
    {
-      Array<int> ess_bdr(submesh.bdr_attributes.Max());
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
       ess_bdr = 1;
-      for (auto x : submesh.bdr_attributes)
-      {
-         std::cout << "bdr " << x << std::endl;
-      }
-      std::cout << "submesh.bdr_attributes.Max() " << submesh.bdr_attributes.Max() <<
-                std::endl;
-      std::cout << "ess_bdr.Size() " << ess_bdr.Size() << std::endl;
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   std::cout << "ess_tdof_list.Size() " << ess_tdof_list.Size() << std::endl;
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
-
-   auto coeff = FunctionCoefficient([](const Vector &coords)
-   {
-      real_t x = coords(0);
-      real_t y = coords(1);
-      real_t z = coords(2);
-      return 0.02 * sin(y * 5.0 * M_PI)
-             + 0.03 * sin(x * 5.0 * M_PI)
-             + 0.05 * sin(z * 5.0 * M_PI);
-   });
-   b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+   b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
    // 8. Define the solution vector x as a finite element grid function
@@ -455,31 +254,6 @@ int main(int argc, char *argv[])
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
-   // Transfer the solution back to mesh
-
-   auto bk_fec = std::unique_ptr<H1_FECollection>(new H1_FECollection(order,
-                                                                      mesh.Dimension()));
-   FiniteElementSpace bk_fespace(&mesh, bk_fec.get());
-   GridFunction bk_x(&bk_fespace);
-   bk_x = 0.0;
-
-   // x.ProjectCoefficient(coeff);
-   submesh.Transfer(x, bk_x);
-
-   auto smooth_x = bk_x;
-   const auto * P = bk_fespace.GetProlongationMatrix();
-   const auto * R = bk_fespace.GetRestrictionMatrix();
-   Vector tmp(R->Height());
-   R->Mult(smooth_x, tmp);
-   P->Mult(tmp, smooth_x);
-
-   auto transfer_x = x;
-   transfer_x = 0;
-   SubMesh::Transfer(smooth_x, transfer_x);
-
-   transfer_x -= x;
-   std::cout << "norm " << transfer_x.Norml2() << '\n';
-
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
@@ -494,14 +268,9 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-
-      socketstream sol_sock2(vishost, visport);
-      sol_sock2.precision(8);
-      sol_sock2 << "solution\n" << submesh << x << flush;
-
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << bk_x << flush;
+      sol_sock << "solution\n" << mesh << x << flush;
    }
 
    // 15. Free the used memory.
