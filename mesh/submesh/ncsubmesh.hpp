@@ -21,7 +21,7 @@ namespace mfem
 {
 
 /**
- * @brief TODO: a nice blurb
+ * @brief Class representing a Nonconformal SubMesh. This is only used by SubMesh.
  */
 class NCSubMesh : public NCMesh
 {
@@ -90,7 +90,10 @@ private:
    // Inverse map of parent_element_ids_.
    std::unordered_map<int, int> parent_to_submesh_element_ids_;
 
+   // Helper friend methods for construction.
    friend void SubMeshUtils::ConstructFaceTree<NCMesh, NCSubMesh>
+   (const NCMesh &parent, NCSubMesh &submesh, const Array<int> &attributes);
+   friend void SubMeshUtils::ConstructVolumeTree<NCMesh, NCSubMesh>
    (const NCMesh &parent, NCSubMesh &submesh, const Array<int> &attributes);
 };
 

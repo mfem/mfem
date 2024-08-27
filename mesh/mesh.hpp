@@ -1001,7 +1001,7 @@ public:
     * @param[in] be_to_face The map from the boundary element index to the face index
     */
    void AddBdrElements(Array<Element *> &bdr_elems,
-                       const Array<int> &new_be_to_face);
+                       const Array<int> &be_to_face);
 
    int AddBdrSegment(int v1, int v2, int attr = 1);
    int AddBdrSegment(const int *vi, int attr = 1);

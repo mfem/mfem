@@ -25,7 +25,7 @@ namespace mfem
 {
 
 /**
- * @brief TODO: a nice blurb
+ * @brief Class representing a Parallel Nonconformal SubMesh. This is only used by ParSubMesh.
  */
 class ParNCSubMesh : public ParNCMesh
 {
@@ -94,6 +94,8 @@ protected:
 
    // Helper friend methods for construction.
    friend void SubMeshUtils::ConstructFaceTree<ParNCMesh, ParNCSubMesh>
+   (const ParNCMesh &parent, ParNCSubMesh &submesh, const Array<int> &attributes);
+   friend void SubMeshUtils::ConstructVolumeTree<ParNCMesh, ParNCSubMesh>
    (const ParNCMesh &parent, ParNCSubMesh &submesh, const Array<int> &attributes);
 };
 

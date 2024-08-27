@@ -31,112 +31,9 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
    Iso = true;
    Legacy = false;
 
-
    if (from == From::Domain)
    {
-      UniqueIndexGenerator node_ids;
-      // Loop over parent leaf elements and add nodes for all vertices. Register as top level
-      // nodes, will reparent when looping over edges. Cannot add edge nodes at same time
-      // because top level vertex nodes must be contiguous and first in node list (see
-      // coordinates).
-
-      // Loop over submesh vertices, and add each node. Given submesh vertices respect
-      // ordering of vertices in the parent mesh, this ensures all top level vertices are
-      // added first as top level nodes. Some of these nodes will not be top level nodes,
-      // and will require reparenting based on edge data.
-      for (int iv = 0; iv < submesh.GetNV(); iv++)
-      {
-         bool new_node;
-         int parent_vertex_id = submesh.GetParentVertexIDMap()[iv];
-         int parent_node_id = parent.vertex_nodeId[parent_vertex_id];
-         auto new_node_id = node_ids.Get(parent_node_id, new_node);
-         MFEM_ASSERT(new_node &&
-                     (new_node_id == iv), "Adding vertices in order, should match exactly");
-         nodes.Alloc(new_node_id, new_node_id, new_node_id);
-         nodes[new_node_id].vert_index = new_node_id;
-         // vertex_nodeId is now implicitly the identity.
-
-         parent_node_ids_.Append(parent_node_id);
-         parent_to_submesh_node_ids_[parent_node_id] = new_node_id;
-      }
-      // Loop over elements of the parent NCMesh. If the element has the attribute, copy it.
-      parent_to_submesh_element_ids_.reserve(parent.elements.Size());
-
-      // Loop over parent elements and copy those with the attribute.
-      for (int ipe = 0; ipe < parent.elements.Size(); ipe++)
-      {
-         const auto& pe = parent.elements[ipe];
-         if (!HasAttribute(pe, attributes)) { continue; }
-
-         const int elem_id = AddElement(pe);
-         NCMesh::Element &el = elements[elem_id];
-         parent_element_ids_.Append(ipe); // submesh -> parent
-         parent_to_submesh_element_ids_[ipe] = elem_id; // parent -> submesh
-
-         el.rank = MyRank; // Only serial.
-         el.index = submesh.GetSubMeshElementFromParent(el.index);
-         if (!pe.IsLeaf()) { continue; }
-
-         const auto gi = GI[pe.geom];
-         bool new_id = false;
-         for (int n = 0; n < gi.nv; n++)
-         {
-            el.node[n] = node_ids.Get(el.node[n],
-                                      new_id); // Relabel nodes from parent to submesh.
-            MFEM_ASSERT(new_id == false, "Should not be new.");
-            nodes[el.node[n]].vert_refc++;
-         }
-      }
-
-      nodes.UpdateUnused();
-      // Loop over elements and reference edges and faces (creating any nodes on first encounter).
-      for (auto &el : elements)
-      {
-         if (el.IsLeaf())
-         {
-            const auto gi = GI[el.geom];
-            bool new_id = false;
-            for (int e = 0; e < gi.ne; e++)
-            {
-               const int pid = parent.nodes.FindId(
-                                  parent_node_ids_[el.node[gi.edges[e][0]]],
-                                  parent_node_ids_[el.node[gi.edges[e][1]]]);
-               MFEM_ASSERT(pid >= 0, "Edge not found");
-               auto submesh_node_id = node_ids.Get(pid,
-                                                   new_id); // Convert parent id to a new submesh id.
-               if (new_id)
-               {
-                  nodes.Alloc(submesh_node_id, submesh_node_id, submesh_node_id);
-                  parent_node_ids_.Append(pid);
-                  parent_to_submesh_node_ids_[pid] = submesh_node_id;
-               }
-               nodes[submesh_node_id].edge_refc++; // Register the edge
-            }
-            for (int f = 0; f < gi.nf; f++)
-            {
-               const int *fv = gi.faces[f];
-               const int pid = parent.faces.FindId(
-                                  parent_node_ids_[el.node[fv[0]]],
-                                  parent_node_ids_[el.node[fv[1]]],
-                                  parent_node_ids_[el.node[fv[2]]],
-                                  el.node[fv[3]] >= 0 ? parent_node_ids_[el.node[fv[3]]]: - 1);
-               MFEM_ASSERT(pid >= 0, "Face not found");
-               const int id = faces.GetId(el.node[fv[0]], el.node[fv[1]], el.node[fv[2]],
-                                          el.node[fv[3]]);
-               faces[id].attribute = parent.faces[pid].attribute;
-            }
-         }
-         else
-         {
-            // All elements have been collected, remap the child ids.
-            for (int i = 0; i < ref_type_num_children[el.ref_type]; i++)
-            {
-               el.child[i] = parent_to_submesh_element_ids_[el.child[i]];
-            }
-         }
-         el.parent = el.parent < 0 ? el.parent :
-                     parent_to_submesh_element_ids_[el.parent];
-      }
+      SubMeshUtils::ConstructVolumeTree(parent, *this, attributes);
    }
    else if (from == From::Boundary)
    {
@@ -231,8 +128,8 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
       }
 #endif
       submesh.parent_element_ids_ = std::move(new_parent_element_ids);
-      submesh.parent_to_submesh_element_ids_ = std::move(
-                                                  new_parent_to_submesh_element_ids);
+      submesh.parent_to_submesh_element_ids_ =
+         std::move(new_parent_to_submesh_element_ids);
    }
 }
 

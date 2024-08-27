@@ -46,123 +46,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    // coordinates).
    if (from == From::Domain)
    {
-      UniqueIndexGenerator node_ids;
-      // Loop over elements of the parent NCMesh. If the element has the attribute, copy it.
-      // parent_to_submesh_element_ids_.SetSize(parent.elements.Size());
-      // parent_to_submesh_element_ids_ = -1;
-      parent_to_submesh_element_ids_.reserve(parent.elements.Size());
-
-      std::set<int> new_nodes;
-      for (int ipe = 0; ipe < parent.elements.Size(); ipe++)
-      {
-         const auto& pe = parent.elements[ipe];
-         if (!HasAttribute(pe, attributes)) { continue; }
-
-         const int elem_id = AddElement(pe);
-         NCMesh::Element &el = elements[elem_id];
-         parent_element_ids_.Append(ipe); // submesh -> parent
-         parent_to_submesh_element_ids_[ipe] = elem_id; // parent -> submesh
-         el.index = submesh.GetSubMeshElementFromParent(el.index);
-         if (!pe.IsLeaf()) { continue; }
-         const auto gi = GI[pe.geom];
-         bool new_id = false;
-         for (int n = 0; n < gi.nv; n++)
-         {
-            new_nodes.insert(
-               el.node[n]); // el.node are still from parent mesh at this stage.
-         }
-         for (int e = 0; e < gi.ne; e++)
-         {
-            new_nodes.insert(parent.nodes.FindId(el.node[gi.edges[e][0]],
-                                                 el.node[gi.edges[e][1]]));
-         }
-      }
-
-      parent_node_ids_.Reserve(static_cast<int>(new_nodes.size()));
-      parent_to_submesh_node_ids_.reserve(new_nodes.size());
-      for (const auto &n : new_nodes)
-      {
-         bool new_node;
-         auto new_node_id = node_ids.Get(n, new_node);
-         MFEM_ASSERT(new_node, "!");
-         nodes.Alloc(new_node_id, new_node_id, new_node_id);
-
-         parent_node_ids_.Append(n);
-         parent_to_submesh_node_ids_[n] = new_node_id;
-      }
-
-      // Loop over submesh vertices, and add each node. Given submesh vertices respect
-      // ordering of vertices in the parent mesh, this ensures all top level vertices are
-      // added first as top level nodes. Some of these nodes will not be top level nodes,
-      // and will require reparenting based on edge data.
-      for (int iv = 0; iv < submesh.GetNV(); iv++)
-      {
-         bool new_node;
-         int parent_vertex_id = submesh.GetParentVertexIDMap()[iv];
-         int parent_node_id = parent.vertex_nodeId[parent_vertex_id];
-         auto new_node_id = node_ids.Get(parent_node_id, new_node);
-         MFEM_ASSERT(!new_node, "Each vertex's node should have already been added");
-         nodes[new_node_id].vert_index = iv;
-      }
-
-      // Loop over elements and reference edges and faces (creating any nodes on first encounter).
-      for (auto &el : elements)
-      {
-         if (el.IsLeaf())
-         {
-            const auto gi = GI[el.geom];
-            bool new_id = false;
-
-            for (int n = 0; n < gi.nv; n++)
-            {
-               // Relabel nodes from parent to submesh.
-               el.node[n] = node_ids.Get(el.node[n], new_id);
-               MFEM_ASSERT(new_id == false, "Should not be new.");
-               nodes[el.node[n]].vert_refc++;
-            }
-            for (int e = 0; e < gi.ne; e++)
-            {
-               const int pid = parent.nodes.FindId(
-                                  parent_node_ids_[el.node[gi.edges[e][0]]],
-                                  parent_node_ids_[el.node[gi.edges[e][1]]]);
-               MFEM_ASSERT(pid >= 0, "Edge not found");
-               auto submesh_node_id = node_ids.Get(pid,
-                                                   new_id); // Convert parent id to a new submesh id.
-               if (new_id)
-               {
-                  nodes.Alloc(submesh_node_id, submesh_node_id, submesh_node_id);
-                  parent_node_ids_.Append(pid);
-                  parent_to_submesh_node_ids_[pid] = submesh_node_id;
-               }
-               nodes[submesh_node_id].edge_refc++; // Register the edge
-            }
-            for (int f = 0; f < gi.nf; f++)
-            {
-               const int *fv = gi.faces[f];
-               const int pid = parent.faces.FindId(
-                                  parent_node_ids_[el.node[fv[0]]],
-                                  parent_node_ids_[el.node[fv[1]]],
-                                  parent_node_ids_[el.node[fv[2]]],
-                                  el.node[fv[3]] >= 0 ? parent_node_ids_[el.node[fv[3]]]: - 1);
-               MFEM_ASSERT(pid >= 0, "Face not found");
-               const int id = faces.GetId(el.node[fv[0]], el.node[fv[1]], el.node[fv[2]],
-                                          el.node[fv[3]]);
-               // parent_face_ids_.Append(pid);
-               // parent_to_submesh_face_ids_[pid] = id;
-               faces[id].attribute = parent.faces[pid].attribute;
-            }
-         }
-         else
-         {
-            // All elements have been collected, remap the child ids.
-            for (int i = 0; i < ref_type_num_children[el.ref_type]; i++)
-            {
-               el.child[i] = parent_to_submesh_element_ids_[el.child[i]];
-            }
-         }
-         el.parent = el.parent < 0 ? el.parent : parent_to_submesh_element_ids_.at(
-                        el.parent);
-      }
+      SubMeshUtils::ConstructVolumeTree(parent, *this, attributes);
    }
    else if (from == From::Boundary)
    {
@@ -191,6 +75,7 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    InitRootElements();
    InitRootState(root_state.Size());
    InitGeomFlags();
+   Update(); // Fills in secondary information based off of elements, nodes and faces.
 #ifdef MFEM_DEBUG
    // Check all processors have the same number of roots
    {
@@ -201,7 +86,6 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
                   submesh.GetMyRank());
    }
 #endif
-   Update(); // Fills in secondary information based off of elements, nodes and faces.
 
    // If parent has coordinates defined, copy the relevant portion
    if (parent.coordinates.Size() > 0)
