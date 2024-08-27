@@ -63,8 +63,11 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob_,
                                                          const std::set<int> & mortar_attrs_, 
                                                          const std::set<int> & nonmortar_attrs_,
                                                          ParGridFunction * coords_,
-                                                         bool doublepass_)
-: prob(prob_), mortar_attrs(mortar_attrs_), nonmortar_attrs(nonmortar_attrs_), doublepass(doublepass_), coords(coords_)
+                                                         bool doublepass_,
+                                                         bool compute_dof_restrictions_)
+: prob(prob_), mortar_attrs(mortar_attrs_), 
+   nonmortar_attrs(nonmortar_attrs_), coords(coords_),
+   doublepass(doublepass_), compute_dof_restrictions(compute_dof_restrictions_) 
 {
    ParMesh* pmesh = prob->GetMesh();
    comm = pmesh->GetComm();
@@ -199,93 +202,97 @@ void ParContactProblem::SetupTribol()
    constraints_starts[0] = M->RowPart()[0];
    constraints_starts[1] = M->RowPart()[1];
 
-   // find elast dofs in contact;
-   HypreParMatrix * Jt = (HypreParMatrix *)(&A_blk->GetBlock(0,1));
-   Jt->EliminateRows(prob->GetEssentialDofs());
 
-   int hJt = Jt->Height();
-   SparseMatrix mergedJt;
-   Jt->MergeDiagAndOffd(mergedJt);
-
-   Array<int> nonzerorows;
-   Array<int> zerorows;
-   for (int i = 0; i<hJt; i++)
+   if (compute_dof_restrictions)
    {
-      if (!mergedJt.RowIsEmpty(i))
+      // find elast dofs in contact;
+      HypreParMatrix * Jt = (HypreParMatrix *)(&A_blk->GetBlock(0,1));
+      Jt->EliminateRows(prob->GetEssentialDofs());
+
+      int hJt = Jt->Height();
+      SparseMatrix mergedJt;
+      Jt->MergeDiagAndOffd(mergedJt);
+
+      Array<int> nonzerorows;
+      Array<int> zerorows;
+      for (int i = 0; i<hJt; i++)
       {
-         nonzerorows.Append(i);
+         if (!mergedJt.RowIsEmpty(i))
+         {
+            nonzerorows.Append(i);
+         }
+         else
+         {
+            zerorows.Append(i);
+         }
       }
-      else
+
+      int hb = nonzerorows.Size();
+      SparseMatrix Pbt(hb,K->GetGlobalNumCols());
+
+      for (int i = 0; i<hb; i++)
       {
-         zerorows.Append(i);
+         int col = nonzerorows[i]+prob->GetFESpace()->GetMyTDofOffset();
+         Pbt.Set(i,col,1.0);
       }
+      Pbt.Finalize();
+
+      int rows_b[2];
+      int cols_b[2];
+      int nrows_b = Pbt.Height();
+
+      int row_offset_b;
+      MPI_Scan(&nrows_b,&row_offset_b,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+
+      row_offset_b-=nrows_b;
+      rows_b[0] = row_offset_b;
+      rows_b[1] = row_offset_b+nrows_b;
+      cols_b[0] = K->ColPart()[0];
+      cols_b[1] = K->ColPart()[1];
+      int glob_nrows_b;
+      int glob_ncols_b = K->GetGlobalNumCols();
+      MPI_Allreduce(&nrows_b, &glob_nrows_b,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+
+      HypreParMatrix * P_bt = new HypreParMatrix(MPI_COMM_WORLD, nrows_b, glob_nrows_b,
+                              glob_ncols_b, Pbt.GetI(), Pbt.GetJ(),
+                              Pbt.GetData(), rows_b,cols_b); 
+
+      Pb = P_bt->Transpose();
+      delete P_bt;                         
+
+      int hi = zerorows.Size();
+      SparseMatrix Pit(hi,K->GetGlobalNumCols());
+
+      for (int i = 0; i<hi; i++)
+      {
+         int col = zerorows[i]+prob->GetFESpace()->GetMyTDofOffset();
+         Pit.Set(i,col,1.0);
+      }
+      Pit.Finalize();
+
+      int rows_i[2];
+      int cols_i[2];
+      int nrows_i = Pit.Height();
+
+      int row_offset_i;
+      MPI_Scan(&nrows_i,&row_offset_i,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+
+      row_offset_i-=nrows_i;
+      rows_i[0] = row_offset_i;
+      rows_i[1] = row_offset_i+nrows_i;
+      cols_i[0] = K->ColPart()[0];
+      cols_i[1] = K->ColPart()[1];
+      int glob_nrows_i;
+      int glob_ncols_i = K->GetGlobalNumCols();
+      MPI_Allreduce(&nrows_i, &glob_nrows_i,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+
+      HypreParMatrix * P_it = new HypreParMatrix(MPI_COMM_WORLD, nrows_i, glob_nrows_i,
+                              glob_ncols_i, Pit.GetI(), Pit.GetJ(),
+                              Pit.GetData(), rows_i,cols_i); 
+      
+      Pi = P_it->Transpose();
+      delete P_it;
    }
-
-   int hb = nonzerorows.Size();
-   SparseMatrix Pbt(hb,K->GetGlobalNumCols());
-
-   for (int i = 0; i<hb; i++)
-   {
-      int col = nonzerorows[i]+prob->GetFESpace()->GetMyTDofOffset();
-      Pbt.Set(i,col,1.0);
-   }
-   Pbt.Finalize();
-
-   int rows_b[2];
-   int cols_b[2];
-   int nrows_b = Pbt.Height();
-
-   int row_offset_b;
-   MPI_Scan(&nrows_b,&row_offset_b,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
-
-   row_offset_b-=nrows_b;
-   rows_b[0] = row_offset_b;
-   rows_b[1] = row_offset_b+nrows_b;
-   cols_b[0] = K->ColPart()[0];
-   cols_b[1] = K->ColPart()[1];
-   int glob_nrows_b;
-   int glob_ncols_b = K->GetGlobalNumCols();
-   MPI_Allreduce(&nrows_b, &glob_nrows_b,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
-
-   HypreParMatrix * P_bt = new HypreParMatrix(MPI_COMM_WORLD, nrows_b, glob_nrows_b,
-                            glob_ncols_b, Pbt.GetI(), Pbt.GetJ(),
-                            Pbt.GetData(), rows_b,cols_b); 
-
-   Pb = P_bt->Transpose();
-   delete P_bt;                         
-
-   int hi = zerorows.Size();
-   SparseMatrix Pit(hi,K->GetGlobalNumCols());
-
-   for (int i = 0; i<hi; i++)
-   {
-      int col = zerorows[i]+prob->GetFESpace()->GetMyTDofOffset();
-      Pit.Set(i,col,1.0);
-   }
-   Pit.Finalize();
-
-   int rows_i[2];
-   int cols_i[2];
-   int nrows_i = Pit.Height();
-
-   int row_offset_i;
-   MPI_Scan(&nrows_i,&row_offset_i,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
-
-   row_offset_i-=nrows_i;
-   rows_i[0] = row_offset_i;
-   rows_i[1] = row_offset_i+nrows_i;
-   cols_i[0] = K->ColPart()[0];
-   cols_i[1] = K->ColPart()[1];
-   int glob_nrows_i;
-   int glob_ncols_i = K->GetGlobalNumCols();
-   MPI_Allreduce(&nrows_i, &glob_nrows_i,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
-
-   HypreParMatrix * P_it = new HypreParMatrix(MPI_COMM_WORLD, nrows_i, glob_nrows_i,
-                            glob_ncols_i, Pit.GetI(), Pit.GetJ(),
-                            Pit.GetData(), rows_i,cols_i); 
-   
-   Pi = P_it->Transpose();
-   delete P_it;
 }
 
 void ParContactProblem::SetupTribolDoublePass()

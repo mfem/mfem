@@ -249,12 +249,14 @@ protected:
    // plane of top block
    std::set<int> nonmortar_attrs;
    bool doublepass = false;
+   bool compute_dof_restrictions = false;
 
 public:
    ParContactProblem(ParElasticityProblem * prob_, 
                      const std::set<int> & mortar_attrs_, const std::set<int> & nonmortar_attrs_,
                      ParGridFunction * coords_,
-                      bool doublepass = false);
+                      bool doublepass = false,
+                      bool compute_dof_restrictions = false);
 
    ParElasticityProblem * GetElasticityProblem() {return prob;}
    MPI_Comm GetComm() {return comm;}
@@ -287,6 +289,8 @@ public:
       delete B;
       delete K;
       delete M;
+      delete Pi;
+      delete Pb;
    }
 };
 

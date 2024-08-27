@@ -513,9 +513,20 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          AreducedSolver->SetOperator(*Areduced);
          AreducedSolver->SetPreconditioner(amg);
          AreducedSolver->Mult(breduced, Xhat.GetBlock(0));
-
-
          n = AreducedSolver->GetNumIterations();
+
+         if (!AreducedSolver->GetConverged())
+         {
+            delete AreducedSolver;
+            AreducedSolver = new GMRESSolver(MPI_COMM_WORLD);
+            AreducedSolver->SetRelTol(linSolveRelTol);
+            AreducedSolver->SetMaxIter(50000);
+            AreducedSolver->SetPrintLevel(3);
+            AreducedSolver->SetOperator(*Areduced);
+            AreducedSolver->SetPreconditioner(amg);
+            AreducedSolver->Mult(breduced, Xhat.GetBlock(0));
+            n = -AreducedSolver->GetNumIterations();
+         }
 
          if (iAmRoot)
          {

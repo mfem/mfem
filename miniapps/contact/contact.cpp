@@ -423,7 +423,7 @@ int main(int argc, char *argv[])
    
    Vector xref(x_gf.GetTrueVector().Size());
 
-   double p = 200;
+   double p = 20.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
    for (int i = 0; i<nsteps; i++)
@@ -464,7 +464,8 @@ int main(int argc, char *argv[])
 
       x_gf.SetTrueVector();
       xref.Set(1.0, x_gf.GetTrueVector());
-      ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
+      bool compute_dof_projections = (linsolver == 3) ? true : false;
+      ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, compute_dof_projections);
       QPOptParContactProblem qpopt(&contact,xref);
    
       int numconstr = contact.GetGlobalNumConstraints();

@@ -22,7 +22,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-CONTACT_SRC = contact.cpp ipsolver/ParIPsolver.cpp problems/parproblems.cpp problems/parproblems_util.cpp
+CONTACT_SRC = ipsolver/ParIPsolver.cpp problems/parproblems.cpp problems/parproblems_util.cpp
 CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 
 
@@ -50,6 +50,10 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 %: %.cpp
 %.o: %.cpp
 
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(CONTACT_OBJ) $(COMMON_LIB) $(MFEM_LIBS) \
+		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
+
 %.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
  $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
@@ -62,8 +66,8 @@ problems/%.o: $(SRC)problems/%.cpp $(wildcard $(SRC)problems/%.hpp) $(MFEM_LIB_F
 
 all: $(MINIAPPS)
 
-contact: $(CONTACT_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(CONTACT_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+# contact: $(CONTACT_OBJ)
+# 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(CONTACT_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rule for building lib-common
 lib-common:
