@@ -104,6 +104,11 @@ void TestCalcShape(FiniteElement* fe, int res, double tol=1e-12)
       {
          IntegrationPoint& ip = ipArr[j];
 
+         // Pyramid basis functions are poorly behaved outside the
+         // reference pyramid
+         if (fe->GetGeomType() == Geometry::PYRAMID &&
+             (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z)) { continue; }
+
          CAPTURE(ip.x, ip.y, ip.z);
 
          fe->CalcShape(ip, weights);
