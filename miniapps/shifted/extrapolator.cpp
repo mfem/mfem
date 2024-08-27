@@ -165,7 +165,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
                                const ParGridFunction &input,
                                const real_t time_period,
                                ParGridFunction &xtrap,
-                               int visport = 19916)
+                               int visport)
 {
    ParMesh &pmesh = *input.ParFESpace()->GetParMesh();
    const int order = input.ParFESpace()->GetOrder(0),
@@ -445,7 +445,7 @@ void Extrapolator::ComputeLocalErrors(Coefficient &level_set,
 
 void Extrapolator::TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
                             real_t t_final, real_t dt,
-                            int vis_x_pos, std::string vis_name)
+                            int vis_x_pos, std::string vis_name, int visport)
 {
    socketstream sock;
 

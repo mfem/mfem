@@ -36,7 +36,7 @@ void Visualizer::ExportToParaView()
    paraview_dc.Save();
 }
 
-void Visualizer::SendToGLVis(int visport = 19916) const
+void Visualizer::SendToGLVis(int visport) const
 {
    std::string vishost{"localhost"};
    int num_procs = Mpi::WorldSize();

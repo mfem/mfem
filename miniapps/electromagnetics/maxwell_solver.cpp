@@ -603,7 +603,7 @@ MaxwellSolver::InitializeGLVis()
 }
 
 void
-MaxwellSolver::DisplayToGLVis(int visport = 19916)
+MaxwellSolver::DisplayToGLVis(int visport)
 {
    if ( myid_ == 0 && logging_ > 1 )
    { cout << "Sending data to GLVis ..." << flush; }

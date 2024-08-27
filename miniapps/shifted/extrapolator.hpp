@@ -69,7 +69,7 @@ public:
    // The known values taken from elements where level_set > 0, and extrapolated
    // to all other elements. The known values are not changed.
    void Extrapolate(Coefficient &level_set, const ParGridFunction &input,
-                    const real_t time_period, ParGridFunction &xtrap);
+                    const real_t time_period, ParGridFunction &xtrap, int visport = 19916);
 
    // Errors in cut elements, given an exact solution.
    void ComputeLocalErrors(Coefficient &level_set, const ParGridFunction &exact,
@@ -78,7 +78,7 @@ public:
 
 private:
    void TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver, real_t t_final,
-                 real_t dt, int vis_x_pos, std::string vis_name);
+                 real_t dt, int vis_x_pos, std::string vis_name, int visport = 19916);
 };
 
 class LevelSetNormalGradCoeff : public VectorCoefficient

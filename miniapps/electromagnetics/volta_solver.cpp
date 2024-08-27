@@ -589,7 +589,7 @@ VoltaSolver::InitializeGLVis()
 }
 
 void
-VoltaSolver::DisplayToGLVis(int visport = 19916)
+VoltaSolver::DisplayToGLVis(int visport)
 {
    if (myid_ == 0) { cout << "Sending data to GLVis ..." << flush; }
 
