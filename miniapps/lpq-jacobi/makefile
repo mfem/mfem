@@ -31,7 +31,7 @@ LPQ_COMMON_SRC = lpq-common.cpp
 LPQ_COMMON_OBJ = $(LPQ_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = # No serial version
-PAR_MINIAPPS = lpq-jacobi mg-lpq-jacobi
+PAR_MINIAPPS = lpq-jacobi mg-lpq-jacobi abs-l1-jacobi mg-abs-l1-jacobi
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -87,8 +87,11 @@ lpq-jacobi: lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
 mg-lpq-jacobi: mg-lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
 	$(MFEM_CXX) $(MFEM_FLAGS) mg-lpq-jacobi.cpp lpq-common.cpp -o mg-lpq-jacobi $(COMMON_LIB) $(MFEM_LIBS)
 
-abs-l1-partial: abs-l1-partial.cpp lpq-common.cpp lpq-common.hpp
-	$(MFEM_CXX) $(MFEM_FLAGS) abs-l1-partial.cpp lpq-common.cpp -o abs-l1-partial $(COMMON_LIB) $(MFEM_LIBS)
+abs-l1-partial: abs-l1-jacobi.cpp lpq-common.cpp lpq-common.hpp
+	$(MFEM_CXX) $(MFEM_FLAGS) abs-l1-jacobi.cpp lpq-common.cpp -o abs-l1-partial $(COMMON_LIB) $(MFEM_LIBS)
+
+mg-abs-l1-partial: mg-abs-l1-jacobi.cpp lpq-common.cpp lpq-common.hpp
+	$(MFEM_CXX) $(MFEM_FLAGS) mg-abs-l1-jacobi.cpp lpq-common.cpp -o mg-abs-l1-partial $(COMMON_LIB) $(MFEM_LIBS)
 
 # Create the destination directory if it doesn't exist
 $(MESHES_DEST_DIR):

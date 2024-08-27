@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
                   "\n\t2: FULL"
                   "\n\t3: ELEMENT"
                   "\n\t4: PARTIAL"
-                  "\n\t3: NONE");
+                  "\n\t5: NONE");
    args.AddOption(&refine_serial, "-rs", "--refine-serial",
                   "Number of serial refinements");
    args.AddOption(&refine_parallel, "-rp", "--refine-parallel",
@@ -119,6 +119,7 @@ int main(int argc, char *argv[])
 
    MFEM_ASSERT((0 <= solver_type) && (solver_type < num_solvers), "");
    MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
+   MFEM_ASSERT((0 <= assembly_type_int) && (assembly_type_int < 6), "");
    MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
    MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
 

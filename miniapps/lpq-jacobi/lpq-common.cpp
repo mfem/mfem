@@ -182,6 +182,7 @@ void AbsL1GeometricMultigrid::ConstructCoarseOperatorAndSolver(
 
    OperatorPtr coarse_mat;
    bfs[0]->FormSystemMatrix(*essentialTrueDofs[0], coarse_mat);
+   coarse_mat.SetOperatorOwner(false);
 
    Solver* coarse_solver = nullptr;
    switch (solver_type)
@@ -215,7 +216,7 @@ void AbsL1GeometricMultigrid::ConstructCoarseOperatorAndSolver(
       it_solver->SetPreconditioner(*coarse_pc);
    }
    coarse_solver->SetOperator(*coarse_mat);
-   AddLevel(coarse_mat.Ptr(), coarse_solver, true, true);
+   AddLevel(coarse_mat.Ptr(), coarse_solver, false, true);
 }
 
 void AbsL1GeometricMultigrid::ConstructOperatorAndSmoother(
@@ -226,6 +227,7 @@ void AbsL1GeometricMultigrid::ConstructOperatorAndSmoother(
 
    OperatorPtr level_mat;
    bfs.Last()->FormSystemMatrix(ess_tdof_list, level_mat);
+   level_mat.SetOperatorOwner(false);
 
    Vector local_ones(level_mat->Height());
    Vector result(level_mat->Height());
@@ -235,7 +237,7 @@ void AbsL1GeometricMultigrid::ConstructOperatorAndSmoother(
 
    Solver* smoother = new OperatorJacobiSmoother(result, *essentialTrueDofs[0]);
 
-   AddLevel(level_mat.Ptr(), smoother, true, true);
+   AddLevel(level_mat.Ptr(), smoother, false, true);
 }
 
 
