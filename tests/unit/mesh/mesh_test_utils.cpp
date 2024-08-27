@@ -14,6 +14,24 @@
 namespace mfem
 {
 
+
+FiniteElementCollection *create_fec(FECType fectype, int p, int dim)
+{
+   switch (fectype)
+   {
+      case FECType::H1:
+         return new H1_FECollection(p, dim);
+      case FECType::ND:
+         return new ND_FECollection(p, dim);
+      case FECType::RT:
+         return new RT_FECollection(p - 1, dim);
+      case FECType::L2:
+         return new L2_FECollection(p, dim, BasisType::GaussLobatto);
+   }
+
+   return nullptr;
+}
+
 int CheckPoisson(Mesh &mesh, int order, int disabled_boundary_attribute)
 {
    constexpr int dim = 3;
