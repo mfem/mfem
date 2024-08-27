@@ -14,6 +14,7 @@
 #include "psubmesh.hpp"
 #include "pncsubmesh.hpp"
 #include "ncsubmesh.hpp"
+#include "../ncmesh_tables.hpp"
 
 #include <numeric>
 
@@ -772,16 +773,143 @@ void ConstructFaceTree(const NCMeshT &parent, NCSubMeshT &submesh,
    }
 }
 
-
 // Explicit instantiations
 template void ConstructFaceTree(const NCMesh& parent, NCSubMesh &submesh,
                                 const Array<int> &attributes);
-
 #ifdef MFEM_USE_MPI
 template void ConstructFaceTree(const ParNCMesh& parent, ParNCSubMesh &submesh,
                                 const Array<int> &attributes);
 #endif
 
+template <typename NCMeshT, typename NCSubMeshT>
+void ConstructVolumeTree(const NCMeshT &parent, NCSubMeshT &submesh,
+                         const Array<int> &attributes)
+{
+   // Convenience references to avoid `submesh.` repeatedly.
+   auto &parent_node_ids = submesh.parent_node_ids_;
+   auto &parent_element_ids = submesh.parent_element_ids_;
+   auto &parent_to_submesh_node_ids = submesh.parent_to_submesh_node_ids_;
+   auto &parent_to_submesh_element_ids = submesh.parent_to_submesh_element_ids_;
+
+   UniqueIndexGenerator node_ids;
+   // Loop over elements of the parent NCMesh. If the element has the attribute, copy it.
+   parent_to_submesh_element_ids.reserve(parent.elements.Size());
+   std::set<int> new_nodes;
+   for (int ipe = 0; ipe < parent.elements.Size(); ipe++)
+   {
+      const auto& pe = parent.elements[ipe];
+      if (!HasAttribute(pe, attributes)) { continue; }
+
+      const int elem_id = submesh.AddElement(pe);
+      auto &el = submesh.elements[elem_id];
+      parent_element_ids.Append(ipe); // submesh -> parent
+      parent_to_submesh_element_ids[ipe] = elem_id; // parent -> submesh
+      if (!pe.IsLeaf()) { continue; }
+      const auto gi = submesh.GI[pe.geom];
+      bool new_id = false;
+      for (int n = 0; n < gi.nv; n++)
+      {
+         new_nodes.insert(el.node[n]);
+      }
+      for (int e = 0; e < gi.ne; e++)
+      {
+         new_nodes.insert(parent.nodes.FindId(el.node[gi.edges[e][0]],
+                                              el.node[gi.edges[e][1]]));
+      }
+   }
+
+   parent_node_ids.Reserve(static_cast<int>(new_nodes.size()));
+   parent_to_submesh_node_ids.reserve(new_nodes.size());
+   for (const auto &n : new_nodes)
+   {
+      bool new_node;
+      auto new_node_id = node_ids.Get(n, new_node);
+      MFEM_ASSERT(new_node, "!");
+      submesh.nodes.Alloc(new_node_id, new_node_id, new_node_id);
+      parent_node_ids.Append(n);
+      parent_to_submesh_node_ids[n] = new_node_id;
+   }
+
+   // // Loop over submesh vertices, and add each node. Given submesh vertices respect
+   // // ordering of vertices in the parent mesh, this ensures all top level vertices are
+   // // added first as top level nodes. Some of these nodes will not be top level nodes,
+   // // and will require reparenting based on edge data.
+   // for (int iv = 0; iv < submesh.GetNV(); iv++)
+   // {
+   //    bool new_node;
+   //    int parent_vertex_id = submesh.GetParentVertexIDMap()[iv];
+   //    int parent_node_id = parent.vertex_nodeId[parent_vertex_id];
+   //    auto new_node_id = node_ids.Get(parent_node_id, new_node);
+   //    MFEM_ASSERT(!new_node, "Each vertex's node should have already been added");
+   //    nodes[new_node_id].vert_index = iv;
+   // }
+
+   // Loop over elements and reference edges and faces (creating any nodes on first encounter).
+   for (auto &el : submesh.elements)
+   {
+      if (el.IsLeaf())
+      {
+         const auto gi = submesh.GI[el.geom];
+         bool new_id = false;
+
+         for (int n = 0; n < gi.nv; n++)
+         {
+            // Relabel nodes from parent to submesh.
+            el.node[n] = node_ids.Get(el.node[n], new_id);
+            MFEM_ASSERT(new_id == false, "Should not be new.");
+            submesh.nodes[el.node[n]].vert_refc++;
+         }
+         for (int e = 0; e < gi.ne; e++)
+         {
+            const int pid = parent.nodes.FindId(
+                               parent_node_ids[el.node[gi.edges[e][0]]],
+                               parent_node_ids[el.node[gi.edges[e][1]]]);
+            MFEM_ASSERT(pid >= 0, "Edge not found");
+            // Convert parent id to a new submesh id.
+            auto submesh_node_id = node_ids.Get(pid, new_id);
+            if (new_id)
+            {
+               submesh.nodes.Alloc(submesh_node_id, submesh_node_id, submesh_node_id);
+               parent_node_ids.Append(pid);
+               parent_to_submesh_node_ids[pid] = submesh_node_id;
+            }
+            submesh.nodes[submesh_node_id].edge_refc++; // Register the edge
+         }
+         for (int f = 0; f < gi.nf; f++)
+         {
+            const int *fv = gi.faces[f];
+            const int pid = parent.faces.FindId(
+                               parent_node_ids[el.node[fv[0]]],
+                               parent_node_ids[el.node[fv[1]]],
+                               parent_node_ids[el.node[fv[2]]],
+                               el.node[fv[3]] >= 0 ? parent_node_ids[el.node[fv[3]]]: - 1);
+            MFEM_ASSERT(pid >= 0, "Face not found");
+            const int id = submesh.faces.GetId(
+                              el.node[fv[0]], el.node[fv[1]], el.node[fv[2]], el.node[fv[3]]);
+            submesh.faces[id].attribute = parent.faces[pid].attribute;
+         }
+      }
+      else
+      {
+         // All elements have been collected, remap the child ids.
+         for (int i = 0; i < ref_type_num_children[el.ref_type]; i++)
+         {
+            el.child[i] = parent_to_submesh_element_ids[el.child[i]];
+         }
+      }
+      el.parent = el.parent < 0 ? el.parent
+                  : parent_to_submesh_element_ids.at(el.parent);
+   }
+}
+
+// Explicit instantiations
+template void ConstructVolumeTree(const NCMesh& parent, NCSubMesh &submesh,
+                                  const Array<int> &attributes);
+#ifdef MFEM_USE_MPI
+template void ConstructVolumeTree(const ParNCMesh& parent,
+                                  ParNCSubMesh &submesh,
+                                  const Array<int> &attributes);
+#endif
 
 
 } // namespace SubMeshUtils

@@ -129,16 +129,46 @@ auto GetRootParent(const T &m) -> decltype(std::declval<T>().GetParent())
  * will result in a linker error as the template is only explicitly instantiated for those
  * types.
  * @param mesh The Mesh to add boundary elements to.
+ * @param lface_to_boundary_attribute Map from local faces in the submesh to boundary
+ * attributes. Only necessary for interior boundary attributes of volume submeshes, where
+ * the face owning the attribute might be on a neighboring rank.
  * @tparam MeshT The SubMesh type, options SubMesh and ParSubMesh.
  */
 template <typename SubMeshT>
 void AddBoundaryElements(SubMeshT &mesh,
                          const std::unordered_map<int,int> &lface_to_boundary_attribute = {});
 
-
+/**
+ * @brief Construct a nonconformal mesh (serial or parallel) for a surface submesh, from an
+ * existing nonconformal volume mesh (serial or parallel).
+ * @details This function is only instantiated for type pairs:
+ *     <NCMesh, NCSubMesh> and <ParNCMesh, ParNCSubMesh>
+ *    Attempting to use it with cross combinations will result in a linker error.
+ * @tparam MeshT The parent NCMesh type
+ * @tparam SubMeshT The child NCSubMesh type
+ * @param[in] parent The volume NCMesh from which the surface NCSubMesh will be built
+ * @param[out] submesh The surface NCSubMesh to be filled from parent.
+ * @param attributes The set of attributes defining the submesh.
+ */
 template<typename MeshT, typename SubMeshT>
 void ConstructFaceTree(const MeshT &parent, SubMeshT &submesh,
                        const Array<int> &attributes);
+
+/**
+ * @brief Construct a nonconformal mesh (serial or parallel) for a volume submesh, from an
+ * existing nonconformal volume mesh (serial or parallel).
+ * @details This function is only instantiated for type pairs:
+ *     <NCMesh, NCSubMesh> and <ParNCMesh, ParNCSubMesh>
+ *    Attempting to use it with cross combinations will result in a linker error.
+ * @tparam MeshT The parent NCMesh type
+ * @tparam SubMeshT The child NCSubMesh type
+ * @param[in] parent The volume NCMesh from which the surface NCSubMesh will be built
+ * @param[out] submesh The surface NCSubMesh to be filled from parent.
+ * @param attributes The set of attributes defining the submesh.
+ */
+template <typename NCMeshT, typename NCSubMeshT>
+void ConstructVolumeTree(const NCMeshT &parent, NCSubMeshT &submesh,
+                         const Array<int> &attributes);
 
 /**
  * @brief Helper for checking if an object's attributes match a list
