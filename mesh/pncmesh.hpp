@@ -110,7 +110,7 @@ public:
        space-filling sequence of leaf elements (custom_partition == NULL).
        Alternatively, a used-defined element-rank assignment array can be
        passed. */
-   virtual void Rebalance(const Array<int> *custom_partition = NULL);
+   void Rebalance(const Array<int> *custom_partition = NULL);
 
    // interface for ParFiniteElementSpace
    int GetNElements() const { return NElements; }
@@ -254,6 +254,7 @@ public:
 protected: // interface for ParMesh
 
    friend class ParMesh;
+   friend class ParSubMesh;
 
    /** For compatibility with conforming code in ParMesh and ParFESpace.
        Initializes shared structures in ParMesh: gtopo, shared_*, group_s*,

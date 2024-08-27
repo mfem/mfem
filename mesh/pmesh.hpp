@@ -447,7 +447,7 @@ public:
    int GroupNQuadrilaterals(int group) const { return group_squad.RowSize(group-1); }
 
    /**
-    * @brief Accessors group entities within a shared group structure.
+    * @brief Accessors for entities within a shared group structure.
     * @details For all vertex/edge/face the two argument version returns the local index,
     * for those entities with an orientation, the two out parameter version additionally
     * returns an orientation to use in manipulating the entity.

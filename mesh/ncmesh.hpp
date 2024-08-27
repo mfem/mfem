@@ -120,12 +120,9 @@ class NCMesh
 {
 protected:
    NCMesh() = default;
-   NCMesh(const Mesh *mesh, const Array<int> &attributes);
 public:
-   //// Initialize with elements from an existing 'mesh'.
-   explicit NCMesh(const Mesh *mesh) : NCMesh(mesh, Array<int>()) {}
-
-   /// Initialize with elements from an existing 'mesh' and 'attributes'.
+   //// Initialize with elements from an existing Mesh.
+   explicit NCMesh(const Mesh *mesh);
 
    /** Load from a stream. The id header is assumed to have been read already
        from \param[in] input . \param[in] version is 10 for the v1.0 NC format,
@@ -461,11 +458,7 @@ public:
 
    int PrintMemoryDetail() const;
 
-   typedef std::int64_t RefCoord;
-
-   /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
-       Face::index) after a new mesh was created from us. */
-   void OnMeshUpdated(Mesh *mesh);
+   using RefCoord = std::int64_t;
 
    static constexpr int MaxElemNodes =
       8;       ///< Number of nodes an element can have
@@ -493,6 +486,9 @@ protected: // non-public interface for the Mesh class
    /// Fill Mesh::{vertices,elements,boundary} for the current finest level.
    void GetMeshComponents(Mesh &mesh) const;
 
+   /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
+       Face::index) after a new mesh was created from us. */
+   void OnMeshUpdated(Mesh *mesh);
 
    /** Delete top-level vertex coordinates if the Mesh became curved, e.g.,
        by calling Mesh::SetCurvature or otherwise setting the Nodes. */
@@ -573,12 +569,7 @@ protected: // implementation
          int child[MaxElemChildren]; ///< 2-10 children (if ref_type != 0)
       };
       int parent; ///< parent element, -1 if this is a root element, -2 if free'd
-
       Element(Geometry::Type geom, int attr);
-      Element(const Element &) = default;
-      Element(Element &&) = default;
-      Element& operator=(const Element &) = default;
-      Element& operator=(Element &&) = default;
 
       Geometry::Type Geom() const { return Geometry::Type(geom); }
       bool IsLeaf() const { return !ref_type && (parent != -2); }
@@ -592,11 +583,68 @@ protected: // implementation
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 public:
+   /**
+    * @brief The number of nodes
+    *
+    * @return int
+    */
    int GetNumNodes() const { return nodes.Size(); }
+   /**
+    * @brief Access a Node
+    *
+    * @param i Index of the node
+    * @return const Node&
+    */
    const Node& GetNode(int i) const {return nodes[i]; }
+   /**
+    * @brief The number of faces
+    *
+    * @return int
+    */
    int GetNumFaces() const { return faces.Size(); }
+   /**
+    * @brief Access a Face
+    *
+    * @param i Index of the face
+    * @return const Face&
+    */
    const Face& GetFace(int i) const {return faces[i]; }
+   /**
+    * @brief The number of elements
+    *
+    * @return int
+    */
+   int GetNumElements() const { return elements.Size(); }
+   /**
+    * @brief Access an Element
+    *
+    * @param i Index of the element
+    * @return const Element&
+    */
    const Element& GetElement(int i) const { return elements[i]; }
+
+   /**
+    * @brief Given a set of nodes defining a face, traverse the nodes structure to find the
+    * nodes that make up the parent face and replace them.
+    * Additionally return the child index that the child face would be, relative to the
+    * discovered parent face.
+    * @details This method is concerned with the construction of an NCMesh structure for a
+    * d-1 manifold of an existing NCMesh. It forms a key element in a leaf -> root traversal
+    * of the parent ncmesh elements structure.
+    *
+    * @param[out] nodes The collection of nodes whose parent we are searching for
+    * @return int The child index corresponding to placing the face for the original nodes
+    * within the face defined by the returned parent nodes. If child index is -1, then the
+    * face is made up of root nodes, and nodes is unchanged.
+    */
+   int ParentFaceNodes(std::array<int, 4> &nodes) const;
+
+   /**
+    * @brief Find the nodes that make up faces[face].
+    * @return Nodes making up the face
+    */
+   std::array<int, 4> FindFaceNodes(int face) const;
+   std::array<int, 4> FindFaceNodes(const Face &fa) const;
 protected:
 
 
@@ -830,22 +878,6 @@ protected:
    {
       return QuadFaceSplitType(n1, n2, n3, n4) != 0;
    }
-
-   /**
-    * @brief Given a set of nodes defining a face, traverse the nodes structure to find the
-    * nodes that make up the parent face and replace them.
-    * Additionally return the child index that the child face would be, relative to the
-    * discovered parent face.
-    * @details This method is concerned with the construction of an NCMesh structure for a
-    * d-1 manifold of an existing NCMesh. It forms a key element in a leaf -> root traversal
-    * of the parent ncmesh elements structure.
-    *
-    * @param[out] nodes The collection of nodes whose parent we are searching for
-    * @return int The child index corresponding to placing the face for the original nodes
-    * within the face defined by the returned parent nodes. If child index is -1, then the
-    * face is made up of root nodes, and nodes is unchanged.
-    */
-   int ParentFaceNodes(std::array<int, 4> &nodes) const;
 
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
 
@@ -1101,7 +1133,7 @@ protected:
    void GetPointMatrix(Geometry::Type geom, const char* ref_path,
                        DenseMatrix& matrix) const;
 
-   typedef std::map<std::string, int> RefPathMap;
+   using RefPathMap = std::map<std::string, int>;
 
    void TraverseRefinements(int elem, int coarse_index,
                             std::string &ref_path, RefPathMap &map) const;
@@ -1131,13 +1163,6 @@ protected:
    // utility
 
    int GetEdgeMaster(int node) const;
-
-   /**
-    * @brief Find the nodes that make up faces[face].
-    * @return Nodes making up the face
-    */
-   std::array<int, 4> FindFaceNodes(int face) const;
-   std::array<int, 4> FindFaceNodes(const Face &fa) const;
 
    /**
     * @brief Return the number of splits of this edge that have occurred in the
@@ -1263,8 +1288,8 @@ public:
    friend class ParNCMesh; // for ParNCMesh::ElementSet
    friend struct MatrixMap;
    friend struct PointMatrixHash;
-   friend class NCSubMesh;
-   friend class ParNCSubMesh;
+   friend class NCSubMesh; // for faces, nodes
+   friend class ParNCSubMesh; // for faces, nodes
 };
 
 }

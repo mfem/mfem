@@ -14,7 +14,6 @@
 #include <unordered_map>
 #include "submesh_utils.hpp"
 #include "submesh.hpp"
-#include "../ncmesh_tables.hpp"
 
 namespace mfem
 {
@@ -33,11 +32,11 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
 
    if (from == From::Domain)
    {
-      SubMeshUtils::ConstructVolumeTree(parent, *this, attributes);
+      SubMeshUtils::ConstructVolumeTree(*this, attributes);
    }
    else if (from == From::Boundary)
    {
-      SubMeshUtils::ConstructFaceTree(parent, *this, attributes);
+      SubMeshUtils::ConstructFaceTree(*this, attributes);
    }
 
    // Loop over all nodes, and reparent based on the node relations of the parent
@@ -74,6 +73,7 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
          std::memcpy(&coordinates[3*n], parent.CalcVertexPos(parent_node_ids_[n]),
                      3*sizeof(real_t));
       }
+      delete [] parent.tmp_vertex;
    }
 
    // The element indexing was changed as part of generation of leaf elements. We need to
@@ -101,10 +101,6 @@ NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
       new_parent_element_ids.Reserve(submesh.parent_element_ids_.Size());
       for (int i = 0; i < submesh.parent_element_ids_.Size(); i++)
       {
-         auto leaf = leaf_elements[i];
-         auto pe = parent_element_ids_[leaf];
-         auto pfi = parent.faces[pe].index;
-         auto pbe = parent_face_to_be[pfi];
          new_parent_element_ids.Append(
             parent_face_to_be[parent.faces[parent_element_ids_[leaf_elements[i]]].index]);
          new_parent_to_submesh_element_ids[new_parent_element_ids[i]] = i;
