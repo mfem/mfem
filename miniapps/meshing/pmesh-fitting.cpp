@@ -565,6 +565,9 @@ int main (int argc, char *argv[])
       // Strategy 2: Mark all boundaries with attribute marking_type
       else if (marking_type > 0)
       {
+         surf_fit_marker = false;
+         surf_fit_mat_gf = 0.;
+
          for (int i = 0; i < pmesh->GetNBE(); i++)
          {
             const int attr = pmesh->GetBdrElement(i)->GetAttribute();
