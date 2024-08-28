@@ -1186,6 +1186,8 @@ public:
    static void CalcLegendre(const int p, const real_t x, real_t *u);
    static void CalcLegendre(const int p, const real_t x, real_t *u, real_t *d);
 
+   static void CalcIntegratedLegendre(const int p, const real_t x, real_t *u);
+
    ~Poly_1D();
 };
 

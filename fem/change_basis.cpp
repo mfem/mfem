@@ -39,7 +39,6 @@ ChangeOfBasis::ChangeOfBasis(FiniteElementSpace &fes_, int dest_btype)
             V.GetColumnReference(i, col);
             basis.Eval(ir[i].x, col);
          }
-         V.Transpose();
       }
       else if (btype == LEGENDRE)
       {
@@ -49,16 +48,21 @@ ChangeOfBasis::ChangeOfBasis(FiniteElementSpace &fes_, int dest_btype)
             V.GetColumnReference(i, col);
             Poly_1D::CalcLegendre(order, ir[i].x, col.HostWrite());
          }
-         V.Transpose();
       }
       else if (btype == INTEGRATED_LEGENDRE)
       {
-         MFEM_ABORT("Not yet implemented.");
+         for (int i = 0; i < ir.Size(); ++i)
+         {
+            Vector col;
+            V.GetColumnReference(i, col);
+            Poly_1D::CalcIntegratedLegendre(order, ir[i].x, col.HostWrite());
+         }
       }
       else
       {
          MFEM_ABORT("");
       }
+      V.Transpose();
    };
 
    DenseMatrix V1(order + 1, order + 1);

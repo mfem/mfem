@@ -2201,6 +2201,21 @@ void Poly_1D::CalcLegendre(const int p, const real_t x, real_t *u, real_t *d)
    }
 }
 
+void Poly_1D::CalcIntegratedLegendre(const int p, const real_t x, real_t *u)
+{
+   Poly_1D::CalcLegendre(p, x, u);
+   for (int n = p; n > 1; n--)
+   {
+      u[n] = (u[n] - u[n - 2]) / 2;
+   }
+   for (int n = 1; n < p; ++n)
+   {
+      u[n] = u[n+1];
+   }
+   u[p] = x;
+   u[0] = 1 - x;
+}
+
 void Poly_1D::CalcChebyshev(const int p, const real_t x, real_t *u)
 {
    // recursive definition, z in [-1,1]

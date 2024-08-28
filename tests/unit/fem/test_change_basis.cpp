@@ -70,17 +70,26 @@ TEST_CASE("Change of Basis Legendre", "[ChangeOfBasis][CUDA]")
                            );
    const int order = GENERATE(1, 2, 3);
    const int btype = GENERATE(BasisType::GaussLobatto,
-                              BasisType::GaussLegendre,
                               BasisType::ClosedUniform,
                               BasisType::Positive);
+   const int dest_btype = GENERATE(ChangeOfBasis::LEGENDRE,
+                                   ChangeOfBasis::INTEGRATED_LEGENDRE);
 
    CAPTURE(mesh_fname, order, btype);
 
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
-   L2_FECollection fec(order, mesh.Dimension(), btype);
-   FiniteElementSpace fes(&mesh, &fec);
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (dest_btype == ChangeOfBasis::LEGENDRE)
+   {
+      fec.reset(new L2_FECollection(order, mesh.Dimension(), btype));
+   }
+   else
+   {
+      fec.reset(new H1_FECollection(order, mesh.Dimension(), btype));
+   }
+   FiniteElementSpace fes(&mesh, fec.get());
 
-   ChangeOfBasis op(fes, ChangeOfBasis::LEGENDRE);
+   ChangeOfBasis op(fes, dest_btype);
 
    GridFunction x1(&fes), x2(&fes), y(&fes);
    x1.Randomize(1);
