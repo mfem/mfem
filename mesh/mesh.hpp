@@ -284,6 +284,9 @@ public:
 
    enum Operation { NONE, REFINE, DEREFINE, REBALANCE };
 
+   CoarseFineTransformations CoarseFineTrr() const
+   { return CoarseFineTr; }
+
    /// A list of all unique element attributes used by the Mesh.
    Array<int> attributes;
    /// A list of all unique boundary attributes used by the Mesh.
@@ -403,6 +406,9 @@ protected:
                       int *edge1, int *edge2, int *middle)
    { UniformRefinement(i, v_to_v, edge1, edge2, middle); }
 
+   void ConformingTriangleRefinement(int i, Array<int> &vertices);
+   void ConformingQuadrilateralRefinement(int i, Array<int> &vertices);
+
    /** Green refinement. Element with index i is refined. The default
        refinement for now is Bisection. */
    void GreenRefinement(int i, const DSTable &v_to_v,
@@ -442,6 +448,9 @@ protected:
    void SetVerticesFromNodes(const GridFunction *nodes);
 
    void UniformRefinement2D_base(bool update_nodes = true);
+
+   void ConformingRefinement_base(const Array<int> &el_to_refine,
+                                  bool update_nodes = true);
 
    /// Refine a mixed 2D mesh uniformly.
    virtual void UniformRefinement2D() { UniformRefinement2D_base(); }
@@ -2225,6 +2234,13 @@ public:
        to refine, without refinement types. */
    void GeneralRefinement(const Array<int> &el_to_refine,
                           int nonconforming = -1, int nc_limit = 0);
+
+   virtual void ConformingRefinement(const Array<int> &el_to_refine)
+   {
+      ConformingRefinement_base(el_to_refine);
+      last_operation = Mesh::REFINE;
+      sequence++;
+   }
 
    /// Refine each element with given probability. Uses GeneralRefinement.
    void RandomRefinement(real_t prob, bool aniso = false,

@@ -6344,6 +6344,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
             wo++;
          }
       }
+
    }
 
    if (Dim == 3)
@@ -10030,6 +10031,8 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       // 2. Get edge to element connections in arrays edge1 and edge2
       nedges = v_to_v.NumberOfEntries();
+      // edge1 list first element that edge belongs to
+      // edge2 list second element. will be -1 when this is a boundary edge.
       int *edge1  = new int[nedges];
       int *edge2  = new int[nedges];
       int *middle = new int[nedges];
@@ -10648,6 +10651,89 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
    }
 }
 
+void Mesh::ConformingRefinement_base(const Array<int> &el_to_refine,
+                                     bool update_nodes)
+{
+   DSTable v_to_v(NumOfVertices);
+   GetVertexToVertexTable(v_to_v);
+   InitRefinementTransforms();
+   if (Dim == 2)
+   {
+      const real_t A = 0.0, B = 1.0/3.0, C = 1.0;
+      static real_t tri_conf_children[2*3*4] =
+      {
+         A,A, C,A, A,C, //original element
+         A,A, C,A, B,B,
+         B,B, C,A, A,C,
+         B,B, A,C, A,A
+      };
+      const real_t D = 0.25, E = 0.75;
+      static real_t quad_conf_children[2*4*6] =
+      {
+         A,A, C,A, C,C, A,C, // original element
+         A,A, C,A, E,D, D,D, // bottom element
+         C,A, C,C, E,E, E,D, // right element
+         C,C, A,C, D,E, E,E, // bottom element
+         A,C, A,A, D,D, D,E, // right element
+         D,D, E,D, E,E, D,E // center element
+      };
+
+      CoarseFineTr.point_matrices[Geometry::TRIANGLE]
+      .UseExternalData(tri_conf_children, 2, 3, 4);
+      CoarseFineTr.point_matrices[Geometry::SQUARE]
+      .UseExternalData(quad_conf_children, 2, 4, 6);
+   }
+   if (el_to_refine.Size() == 0) { return; }
+   if (ncmesh)
+   {
+      MFEM_ABORT("Nonconforming meshes not currently supported.");
+   }
+   if (Dim == 3)
+   {
+      MFEM_ABORT("Only 2D meshes supported.");
+   }
+   ResetLazyData();
+   int i;
+
+   if (Dim == 2)
+   {
+      Array<int> v;
+
+      for (i = 0; i < el_to_refine.Size(); i++)
+      {
+         int el = el_to_refine[i];
+         int eltype = elements[el]->GetType();
+         elements[el]->GetVertices(v);
+         if (eltype == Element::TRIANGLE)
+         {
+            ConformingTriangleRefinement(el, v);
+         }
+         else if (eltype == Element::QUADRILATERAL)
+         {
+            ConformingQuadrilateralRefinement(el, v);
+         }
+         else
+         {
+            MFEM_ABORT("Unsupported element type.");
+         }
+      }
+
+      // Boundary elements stay the same because those vertices are untouched
+      // CheckElementOrientation(true);
+
+      if (el_to_edge != NULL)
+      {
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+         GenerateFaces();
+      }
+   }
+
+   // last_operation = Mesh::REFINE;
+   // sequence++;
+   if (update_nodes) { UpdateNodes(); }
+   // UpdateNodes();
+}
+
 void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
                              int nc_limit)
 {
@@ -11093,6 +11179,161 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
    }
 }
 
+void Mesh::ConformingTriangleRefinement(int i, Array<int> &v)
+{
+   int v_new, v1[3], v2[3], v3[3];
+   Vertex V;
+
+   if (elements[i]->GetType() == Element::TRIANGLE)
+   {
+      Triangle *tri0 = (Triangle*) elements[i];
+
+      v_new = NumOfVertices++;
+      for (int d = 0; d < spaceDim; d++)
+      {
+         V(d) = (vertices[v[0]](d) + vertices[v[1]](d) + vertices[v[2]](d))/3.0;
+      }
+      vertices.Append(V);
+
+      // 2. Set the node indices for the new elements in v1, v2, v3 & v4 so that
+      //    the edges marked for refinement be between the first two nodes.
+      v1[0] =  v[0]; v1[1] =     v[1]; v1[2] = v_new;
+      v2[0] = v_new; v2[1] =     v[1]; v2[2] = v[2];
+      v3[0] = v_new; v3[1] =     v[2]; v3[2] = v[0];
+
+      Triangle* tri1 = new Triangle(v1, tri0->GetAttribute());
+      Triangle* tri2 = new Triangle(v2, tri0->GetAttribute());
+
+      elements.Append(tri1);
+      elements.Append(tri2);
+
+      tri0->SetVertices(v3);
+
+      // record the sequence of refinements
+      unsigned code = tri0->GetTransform();
+      tri1->ResetTransform(code);
+      tri2->ResetTransform(code);
+
+      tri0->PushTransform(3);
+      tri1->PushTransform(1);
+      tri2->PushTransform(2);
+
+      // set parent indices
+      int coarse = FindCoarseElement(i);
+      CoarseFineTr.embeddings[i] = Embedding(coarse, Geometry::TRIANGLE, 3);
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TRIANGLE, 1));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::TRIANGLE, 2));
+
+      NumOfElements += 2;
+   }
+   else
+   {
+      MFEM_ABORT("Uniform refinement for now works only for triangles.");
+   }
+}
+
+void Mesh::ConformingQuadrilateralRefinement(int i, Array<int> &v)
+{
+   int v1[4], v2[4], v3[4], v4[4];
+   Vertex V;
+
+   if (elements[i]->GetType() == Element::QUADRILATERAL)
+   {
+      Quadrilateral *quad0 = (Quadrilateral*) elements[i];
+
+      DenseMatrix xyz(4, spaceDim);
+      for (int i = 0; i < 4; i++)
+      {
+         real_t *vp = vertices[v[i]]();
+         for (int d = 0; d < spaceDim; d++)
+         {
+            xyz(i, d) = vp[d];
+         }
+      }
+
+      int vnew_index[4];
+      real_t r = 0.25, s = 0.25;
+      for (int d = 0; d < spaceDim; d++)
+      {
+         V(d) = xyz(0,d)*(1-r)*(1-s) + xyz(1,d)*(r)*(1-s) +
+                xyz(2, d)*r*s + xyz(3,d)*(1-r)*s;
+      }
+      vertices.Append(V);
+      vnew_index[0] = NumOfVertices++;
+
+      r = 0.75, s = 0.25;
+      for (int d = 0; d < spaceDim; d++)
+      {
+         V(d) = xyz(0,d)*(1-r)*(1-s) + xyz(1,d)*(r)*(1-s) +
+                xyz(2, d)*r*s + xyz(3,d)*(1-r)*s;
+      }
+      vertices.Append(V);
+      vnew_index[1] = NumOfVertices++;
+
+      r = 0.75, s = 0.75;
+      for (int d = 0; d < spaceDim; d++)
+      {
+         V(d) = xyz(0,d)*(1-r)*(1-s) + xyz(1,d)*(r)*(1-s) +
+                xyz(2, d)*r*s + xyz(3,d)*(1-r)*s;
+      }
+      vertices.Append(V);
+      vnew_index[2] = NumOfVertices++;
+
+      r = 0.25, s = 0.75;
+      for (int d = 0; d < spaceDim; d++)
+      {
+         V(d) = xyz(0,d)*(1-r)*(1-s) + xyz(1,d)*(r)*(1-s) +
+                xyz(2, d)*r*s + xyz(3,d)*(1-r)*s;
+      }
+      vertices.Append(V);
+      vnew_index[3] = NumOfVertices++;
+
+      v1[0] = v[0]; v1[1] = v[1]; v1[2] = vnew_index[1]; v1[3] = vnew_index[0];
+      v2[0] = v[1]; v2[1] = v[2]; v2[2] = vnew_index[2]; v2[3] = vnew_index[1];
+      v3[0] = v[2]; v3[1] = v[3]; v3[2] = vnew_index[3]; v3[3] = vnew_index[2];
+      v4[0] = v[3]; v4[1] = v[0]; v4[2] = vnew_index[0]; v4[3] = vnew_index[3];
+
+      Quadrilateral* quad1 = new Quadrilateral(v1, quad0->GetAttribute());
+      Quadrilateral* quad2 = new Quadrilateral(v2, quad0->GetAttribute());
+      Quadrilateral* quad3 = new Quadrilateral(v3, quad0->GetAttribute());
+      Quadrilateral* quad4 = new Quadrilateral(v4, quad0->GetAttribute());
+
+      elements.Append(quad1);
+      elements.Append(quad2);
+      elements.Append(quad3);
+      elements.Append(quad4);
+
+      quad0->SetVertices(vnew_index);
+
+      // record the sequence of refinements
+      unsigned code = quad0->GetTransform();
+      quad1->ResetTransform(code);
+      quad2->ResetTransform(code);
+      quad3->ResetTransform(code);
+      quad4->ResetTransform(code);
+
+      quad0->PushTransform(5);
+      quad1->PushTransform(1);
+      quad2->PushTransform(2);
+      quad3->PushTransform(3);
+      quad4->PushTransform(4);
+
+      // set parent indices
+      int coarse = FindCoarseElement(i);
+      CoarseFineTr.embeddings[i] = Embedding(coarse, Geometry::SQUARE, 5);
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::SQUARE, 1));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::SQUARE, 2));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::SQUARE, 3));
+      CoarseFineTr.embeddings.Append(Embedding(coarse, Geometry::SQUARE, 4));
+
+      NumOfElements += 4;
+   }
+   else
+   {
+      MFEM_ABORT("Uniform refinement for now works only for triangles.");
+   }
+}
+
 void Mesh::InitRefinementTransforms()
 {
    // initialize CoarseFineTr
@@ -11135,6 +11376,7 @@ const CoarseFineTransformations &Mesh::GetRefinementTransforms() const
       {
          std::map<unsigned, int> mat_no;
          mat_no[0] = 1; // identity
+
 
          // assign matrix indices to element transformations
          for (int j = 0; j < elements.Size(); j++)

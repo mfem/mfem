@@ -662,6 +662,8 @@ public:
        for 0 <= i < GetNE(). */
    void Rebalance(const Array<int> &partition);
 
+   void ConformingRefinement(const Array<int> &el_to_refine) override;
+
    /** Save the mesh in a parallel mesh format. If @a comments is non-empty, it
        will be printed after the first line of the file, and each line should
        begin with '#'. */

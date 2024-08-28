@@ -4582,6 +4582,58 @@ void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
    }
 }
 
+void ParMesh::ConformingRefinement(const Array<int> &el_to_refine)
+{
+   DeleteFaceNbrData();
+
+   if (Dim == 2)
+   {
+      Array<int> sverts;
+      {
+         DSTable v_to_v(NumOfVertices);
+         GetVertexToVertexTable(v_to_v);
+         for (int i = 0; i < sedge_ledge.Size(); i++)
+         {
+            const int *v = shared_edges[i]->GetVertices();
+            sverts.Append(v[0]);
+            sverts.Append(v[1]);
+         }
+      }
+
+      // call Mesh::UniformRefinement2D so that it won't update the nodes
+      {
+         const bool update_nodes = false;
+         Mesh::ConformingRefinement_base(el_to_refine, update_nodes);
+      }
+
+      {
+         // Update sedge_ledge mapping
+         DSTable v_to_v(NumOfVertices);
+         GetVertexToVertexTable(v_to_v);
+         for (int i = 0; i < sedge_ledge.Size(); i++)
+         {
+            int v1 = sverts[2*i];
+            int v2 = sverts[2*i+1];
+            sedge_ledge[i] = v_to_v(v1, v2);
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("ConformingRefinement is only supported for 2D meshes.");
+   }
+
+   last_operation = Mesh::REFINE;
+   sequence++;
+   UpdateNodes();
+
+#ifdef MFEM_DEBUG
+   // If there are no Nodes, the orientation is checked in the call to
+   // UniformRefinement2D_base() above.
+   // if (Nodes) { CheckElementOrientation(false); }
+#endif
+}
+
 void ParMesh::PrintXG(std::ostream &os) const
 {
    MFEM_ASSERT(Dim == spaceDim, "2D manifolds not supported");

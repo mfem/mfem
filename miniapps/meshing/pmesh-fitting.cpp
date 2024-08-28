@@ -36,17 +36,20 @@
 //  Surface fitting:
 //    mpirun -np 4 pmesh-fitting -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5
 //    mpirun -np 4 pmesh-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -vl 1 -sfc 1e4 -rtol 1e-5
+//    mpirun -np 4 pmesh-fitting -o 3 -mid 58 -tid 1 -vl 1 -sfc 100 -rtol 1e-5 -sfa 5 -sft 1e-10 -ni 50
 //  Surface fitting with weight adaptation and termination based on fitting error:
 //    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -vl 2 -sfc 10 -rtol 1e-20 -sfa 10.0 -sft 1e-5 -no-resid
 //  Surface fitting with weight adaptation, limit on max weight, and convergence based on residual.
 //  * mpirun -np 4 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -mid 2 -tid 4 -vl 2 -sfc 10 -rtol 1e-10 -sfa 10.0 -sft 1e-5 -bgamriter 3 -sbgmesh -ae 1 -marking -slstype 3 -resid -sfcmax 10000 -mod-bndr-attr
 //  Surface fitting to Fischer-Tropsch reactor like domain (requires GSLIB):
 //  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -no-resid -bgamriter 5 -dist -mod-bndr-attr
+//  * mpirun -np 6 pmesh-fitting -m ../../data/inline-quad.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 50 -rtol 1e-12 -li 20 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 5.0 -sft 1e-4 -no-resid -bgamriter 5 -dist -mod-bndr-attr -ni 100 -vis
 
 #include "mesh-fitting.hpp"
 
 using namespace mfem;
 using namespace std;
+
 
 int main (int argc, char *argv[])
 {
@@ -371,6 +374,7 @@ int main (int argc, char *argv[])
    ParGridFunction mat(&mat_fes);
    ParGridFunction surf_fit_mat_gf(&surf_fit_fes);
    ParGridFunction surf_fit_gf0(&surf_fit_fes);
+   ParGridFunction numfaces(&mat_fes);
    Array<bool> surf_fit_marker(surf_fit_gf0.Size());
    ConstantCoefficient surf_fit_coeff(surface_fit_const);
    AdaptivityEvaluator *adapt_surface = NULL;
@@ -507,11 +511,47 @@ int main (int argc, char *argv[])
       }
       pmesh->SetAttributes();
 
+      bool conforming_ref = true;
+      if (conforming_ref && dim == 2)
+      {
+         numfaces = 0.0;
+         MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, numfaces);
+         Array<int> refs;
+         for (int i = 0; i < pmesh->GetNE(); i++)
+         {
+            if (numfaces(i) > 1)
+            {
+               refs.Append(i);
+            }
+         }
+         {
+            pmesh->ConformingRefinement(refs);
+            surf_fit_fes.Update();
+            mat_fes.Update();
+            surf_fit_gf0.Update();
+            mat.Update();
+            surf_fit_mat_gf.Update();
+            numfaces.Update();
+            surf_fit_marker.SetSize(surf_fit_gf0.Size());
+            x0.Update();
+            if (surf_fit_grad_fes)
+            {
+               surf_fit_grad_fes->Update();
+               surf_fit_grad->Update();
+               surf_fit_hess_fes->Update();
+               surf_fit_hess->Update();
+            }
+         }
+      }
+
       GridFunctionCoefficient coeff_mat(&mat);
       surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat,
                                              GridFunction::ARITHMETIC);
       surf_fit_mat_gf.SetTrueVector();
       surf_fit_mat_gf.SetFromTrueVector();
+
+      surf_fit_marker = false;
+      surf_fit_mat_gf = 0.0;
 
       // Set DOFs for fitting
       // Strategy 1: Choose face between elements of different attributes.
@@ -519,11 +559,6 @@ int main (int argc, char *argv[])
       {
          mat.ExchangeFaceNbrData();
          const Vector &FaceNbrData = mat.FaceNbrData();
-         for (int j = 0; j < surf_fit_marker.Size(); j++)
-         {
-            surf_fit_marker[j] = false;
-         }
-         surf_fit_mat_gf = 0.0;
 
          Array<int> dof_list;
          Array<int> dofs;

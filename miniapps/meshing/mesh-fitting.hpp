@@ -200,6 +200,104 @@ real_t csg_cubecylsph(const Vector &x)
 }
 
 #ifdef MFEM_USE_MPI
+void MakeGridFunctionWithNumberOfInterfaceFaces(
+   mfem::ParMesh *pmesh,
+   mfem::ParGridFunction &mat,
+   mfem::ParGridFunction &NumFaces)
+{
+   mat.ExchangeFaceNbrData();
+   NumFaces = 0.0;
+   NumFaces.ExchangeFaceNbrData();
+
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      mfem::Array<int> faces, ori;
+      mfem::Array<int> faces_ele2, ori_ele2;
+      mfem::Array<int> faces_ele1, ori_ele1;
+      if (pmesh->Dimension() == 2)
+      {
+         pmesh->GetElementEdges(e, faces, ori);
+      }
+      else
+      {
+         pmesh->GetElementFaces(e, faces, ori);
+      }
+      int inf1, inf2;
+      int elem1, elem2;
+      int diff_attr_count = 0;
+      int attr1;
+      int attr2;
+      attr1 = mat(e);
+      bool bdr_element = false;
+
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         pmesh->GetFaceElements(faces[f], &elem1, &elem2);
+
+         diff_attr_count = 0;
+
+         if (elem2 >= 0)
+         {
+            attr1 = (elem1 == e) ? static_cast<int>(mat(elem1)) : static_cast<int>(mat(
+                                                                                      elem2));
+            attr2 = (elem1 == e) ? static_cast<int>(mat(elem2)) : static_cast<int>(mat(
+                                                                                      elem1));
+
+            if (attr1 != attr2 )
+            {
+               NumFaces[e] += 1;
+            }
+         }
+         else
+         {
+            pmesh->GetFaceInfos(faces[f], &inf1, &inf2);
+            if (inf2 >= 0)
+            {
+               mfem::Vector dof_vals;
+               mfem::Array<int> dofs;
+               mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
+
+               attr1 = mat(e);
+               attr2 = static_cast<int>(dof_vals(0));
+
+               if (attr1 != attr2 )
+               {
+                  NumFaces[e] += 1;
+               }
+            }
+            else
+            {
+               bdr_element = true;
+            }
+         }
+      }
+   }
+
+   NumFaces.ExchangeFaceNbrData();
+
+   int counter = 0;
+   int tot_counter = 0;
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      counter += (NumFaces(e) > 1);
+      tot_counter += (NumFaces(e) > 0);
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &counter, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &tot_counter, 1, MPI_INT, MPI_SUM,
+                 pmesh->GetComm());
+   if (tot_counter == 0)
+   {
+      std::cout << pmesh->GetMyRank() << " No interface faces\n";
+
+   }
+   MPI_Barrier(pmesh->GetComm());
+   if (pmesh->GetMyRank() == 0)
+   {
+      std::cout<<"number of element with more than 1 face for fitting: "<<counter<<
+               " " << tot_counter << std::endl;
+   }
+}
+
 void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
 {
    const int dim = pmesh->Dimension();
