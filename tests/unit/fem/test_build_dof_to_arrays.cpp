@@ -280,7 +280,9 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
             for (int i = 0; i < size; i++)
             {
                if (fespace.GetBdrElementForDof(i) >= 0)
+               {
                   test_ldofs.Append(i);
+               }
             }
 
 
@@ -356,7 +358,8 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
                         transf = fespace.GetBdrElementTransformation(be_index);
                         const IntegrationPoint &ip = be->GetNodes().IntPoint(elemdof_index);
                         transf->Transform(ip, coords);
-                        file << "BE " << be_index << " | ElemDof " << elemdof_index << " | Coordinate (";
+                        file << "BE " << be_index << " | ElemDof " << elemdof_index <<
+                             " | Coordinate (";
                         for (int l = 0; l < coords.Size(); l++)
                         {
                            file << coords[l] << ((l+1 == coords.Size()) ? ")" : ",");
@@ -364,7 +367,7 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
                         file << " | LDof " << test_ldofs[j] << "\n";
                      }
                      file << "\n";
-                     
+
                      file << "Boundary LDof information from GetEssentialVDofs:\n";
                      int fe_index;
                      const FiniteElement* fe;
