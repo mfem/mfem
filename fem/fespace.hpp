@@ -602,7 +602,8 @@ public:
    /// Returns true if the space contains elements of varying polynomial orders.
    bool IsVariableOrder() const { return elem_order.Size(); }
 
-   /// The returned SparseMatrix is owned by the FiniteElementSpace.
+   /// The returned SparseMatrix is owned by the FiniteElementSpace. The method
+   /// returns nullptr if the matrix is identity.
    const SparseMatrix *GetConformingProlongation() const;
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
@@ -615,7 +616,8 @@ public:
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetHpConformingRestriction() const;
 
-   /// The returned Operator is owned by the FiniteElementSpace.
+   /// The returned Operator is owned by the FiniteElementSpace. The method
+   /// returns nullptr if the prolongation matrix is identity.
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
 
