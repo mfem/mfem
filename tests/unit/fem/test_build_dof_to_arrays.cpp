@@ -268,11 +268,36 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
 
             // Check bdr elements
 
-            // Get all boundary ldofs
+            // Get all boundary ldofs with an associated BE on this rank from GetEssentialVDoffs
             Array<int> bdr(1); bdr = 1;
             static_cast<FiniteElementSpace&>(fespace).GetEssentialVDofs(bdr,
                                                                         all_bdr_ldofs_marked);
             FiniteElementSpace::MarkerToList(all_bdr_ldofs_marked, all_bdr_ldofs);
+
+
+            // Get all boundary ldofs with an associated BE on this rank as per GetBdrElementForDof
+            Array<int> test_ldofs;
+            for (int i = 0; i < size; i++)
+            {
+               if (fespace.GetBdrElementForDof(i) >= 0)
+                  test_ldofs.Append(i);
+            }
+
+
+            test_ldofs.Sort();
+            all_bdr_ldofs.Sort();
+
+
+
+            /*
+            bool one_to_one = true;
+            for (int i = 0; i < test_ldofs.Size(); i++)
+            {
+               if (test_ldofs[i] != all_bdr_ldofs[i])
+                  one_to_one = false;
+            }
+            REQUIRE(one_to_one);
+            */
 
             for (int i = 0; i < size; i++)
             {
@@ -281,7 +306,87 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
 
                if (all_bdr_ldofs.Find(i) >= 0) // if this is a bdr ldof
                {
-                  if (bdr_e < 0 || bdr_e >= pmesh.GetNBE()) { num_bdr_elem_fails++; continue; }
+                  if (bdr_e < 0 || bdr_e >= pmesh.GetNBE())
+                  {
+                     num_bdr_elem_fails++;
+                     // output file
+                     std::stringstream sstm;
+                     sstm << "Rank" << Mpi::WorldRank() << "_Mesh" << mt << "_Basis" << bt << ".txt";
+                     std::ofstream file(sstm.str());
+
+                     file << "Boundary LDofs from FiniteElementSpace::GetEssentialVDofs:\n";
+                     all_bdr_ldofs.Print(file,10);
+                     file << "\n";
+
+                     file << "Boundary LDofs indicated by FiniteElementSpace::GetBdrElementForDof:\n";
+                     test_ldofs.Print(file,10);
+                     file << "\n";
+
+                     file << "All boundary LDofs for every boundary element:\n";
+                     const FiniteElement* be;
+                     ElementTransformation *transf;
+                     Vector coords;
+
+                     for (int j = 0; j < fespace.GetNBE(); j++)
+                     {
+                        be = fespace.GetBE(j);
+                        transf = fespace.GetBdrElementTransformation(j);
+
+                        for (int k = 0; k < be->GetDof(); k++)
+                        {
+                           const IntegrationPoint &ip = be->GetNodes().IntPoint(k);
+                           transf->Transform(ip, coords);
+                           file << "BE " << j << " | ElemDof " << k << " | Coordinate (";
+                           for (int l = 0; l < coords.Size(); l++)
+                           {
+                              file << coords[l] << ((l+1 == coords.Size()) ? ")" : ",");
+                           }
+                           file << "\n";
+                        }
+                     }
+                     file << "\n";
+
+                     file << "Boundary LDof information using new functions:\n";
+                     int be_index, elemdof_index;
+                     for (int j = 0; j < test_ldofs.Size(); j++)
+                     {
+                        be_index = fespace.GetBdrElementForDof(test_ldofs[j]);
+                        elemdof_index = fespace.GetBdrLocalDofForDof(test_ldofs[j]);
+                        be = fespace.GetBE(be_index);
+                        transf = fespace.GetBdrElementTransformation(be_index);
+                        const IntegrationPoint &ip = be->GetNodes().IntPoint(elemdof_index);
+                        transf->Transform(ip, coords);
+                        file << "BE " << be_index << " | ElemDof " << elemdof_index << " | Coordinate (";
+                        for (int l = 0; l < coords.Size(); l++)
+                        {
+                           file << coords[l] << ((l+1 == coords.Size()) ? ")" : ",");
+                        }
+                        file << " | LDof " << test_ldofs[j] << "\n";
+                     }
+                     file << "\n";
+                     
+                     file << "Boundary LDof information from GetEssentialVDofs:\n";
+                     int fe_index;
+                     const FiniteElement* fe;
+                     for (int j = 0; j < all_bdr_ldofs.Size(); j++)
+                     {
+                        fe_index = fespace.GetElementForDof(all_bdr_ldofs[j]);
+                        elemdof_index = fespace.GetLocalDofForDof(all_bdr_ldofs[j]);
+                        fe = fespace.GetFE(fe_index);
+                        transf = fespace.GetElementTransformation(fe_index);
+                        const IntegrationPoint &ip = fe->GetNodes().IntPoint(elemdof_index);
+                        transf->Transform(ip, coords);
+                        file << "Coordinate (";
+                        for (int l = 0; l < coords.Size(); l++)
+                        {
+                           file << coords[l] << ((l+1 == coords.Size()) ? ")" : ",");
+                        }
+                        file << " | LDof " << all_bdr_ldofs[j] << "\n";
+                     }
+
+                     file.close();
+                     continue;
+                  }
                   fespace.GetBdrElementDofs(bdr_e, dofs);
 
                   if (bdr_l < 0 || bdr_l >= dofs.Size()) { num_bdr_rang_fails++; }
