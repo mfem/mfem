@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
    // Other options
    string device_config = "cpu";
    bool use_pc = true;
+   bool use_monitor = false;
    bool visualization = true;
 
    // Construct argument parser
@@ -112,6 +113,9 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pc, "-pc", "--preconditioner", "-no-pc",
                   "--no-preconditioner",
                   "Enable or disable Absolute L1 Jacobi preconditioner.");
+   args.AddOption(&use_monitor, "-mon", "--monitor", "-no-mon",
+                  "--no-monitor",
+                  "Enable or disable Data Monitor.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -125,33 +129,36 @@ int main(int argc, char *argv[])
 
    kappa = freq * M_PI;
 
-   string assembly_description;
+   ostringstream file_name;
+   if (use_monitor)
+   {
+      file_name << "ABS-"
+                << "O" << order
+                << "I" << (int) integrator_type
+                << "S" << (int) solver_type
+                << "A" << assembly_type_int
+                << ".csv";
+   }
+
    switch (assembly_type_int)
    {
       case 0:
          assembly_type = AssemblyLevel::LEGACY;
-         assembly_description = "Using Legacy type of assembly level...";
          break;
       case 1:
          assembly_type = AssemblyLevel::LEGACYFULL;
-         assembly_description =
-            "Using Legacy Full type of assembly level... (Deprecated)";
          break;
       case 2:
          assembly_type = AssemblyLevel::FULL;
-         assembly_description = "Using Full type of assembly level...";
          break;
       case 3:
          assembly_type = AssemblyLevel::ELEMENT;
-         assembly_description = "Using Element type of assembly level...";
          break;
       case 4:
          assembly_type = AssemblyLevel::PARTIAL;
-         assembly_description = "Using Partial type of assembly level...";
          break;
       case 5:
          assembly_type = AssemblyLevel::NONE;
-         assembly_description = "Using matrix-free type of assembly level...";
          break;
       default:
          MFEM_ABORT("Unsupported option!");
@@ -199,24 +206,20 @@ int main(int argc, char *argv[])
    ///    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
-   string integrator_description;
+
    switch (integrator_type)
    {
       case mass: case diffusion:
          fec = new H1_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec);
-         integrator_description = "Using scalar H1-elements...";
          break;
       case elasticity:
          fec = new H1_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec, dim);
-         integrator_description = "Using vector H1-elements...";
          break;
       case maxwell:
          fec = new ND_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec);
-         integrator_description = "Using H(curl)-elements...";
-         break;
       default:
          mfem_error("Invalid integrator type! Check FiniteElementCollection");
    }
@@ -225,8 +228,6 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       mfem::out << "Number of unknowns: " << sys_size << endl;
-      mfem::out << assembly_description << endl;
-      mfem::out << integrator_description << endl;
    }
 
    /// 6. Extract the list of the essential boundary DoFs. We mark all boundary
@@ -353,6 +354,8 @@ int main(int argc, char *argv[])
    ///    - Preconditioned Conjugate Gradient
    ///    Then, solve the system with the used-selected solver.
    Solver *solver = nullptr;
+   DataMonitor *monitor = nullptr;
+
    switch (solver_type)
    {
       case sli:
@@ -372,8 +375,16 @@ int main(int argc, char *argv[])
       it_solver->SetRelTol(rel_tol);
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
+      if (use_monitor)
+      {
+         monitor = new DataMonitor(file_name.str(), MONITOR_DIGITS);
+         it_solver->SetMonitor(*monitor);
+      }
+      if (use_pc)
+      {
+         it_solver->SetPreconditioner(*abs_jacobi);
+      }
    }
-   if (it_solver && use_pc) { it_solver->SetPreconditioner(*abs_jacobi); }
 
    StopWatch tictoc;
    real_t time;
@@ -425,13 +436,14 @@ int main(int argc, char *argv[])
    delete abs_jacobi;
    delete a;
    delete b;
+   delete fespace;
+   delete fec;
+   delete mesh;
+   if (monitor) { delete monitor; }
    if (scalar_u) { delete scalar_u; }
    if (scalar_f) { delete scalar_f; }
    if (vector_u) { delete vector_u; }
    if (vector_f) { delete vector_f; }
-   delete fespace;
-   delete fec;
-   delete mesh;
 
    return 0;
 }

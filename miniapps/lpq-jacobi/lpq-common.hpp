@@ -23,7 +23,7 @@ using namespace mfem;
 namespace lpq_common
 {
 
-extern int NDIGITS;
+extern int MONITOR_DIGITS;
 extern int MG_MAX_ITER;
 extern real_t MG_REL_TOL;
 

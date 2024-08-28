@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
    double eps_z = 0.0;
    // Other options
    string device_config = "cpu";
+   bool use_monitor = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -112,6 +113,9 @@ int main(int argc, char *argv[])
                   " solution.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_monitor, "-mon", "--monitor", "-no-mon",
+                  "--no-monitor",
+                  "Enable or disable Data Monitor.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -126,6 +130,18 @@ int main(int argc, char *argv[])
    MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
 
    kappa = freq * M_PI;
+
+   ostringstream file_name;
+   if (use_monitor)
+   {
+      file_name << "MGABS-"
+                << "G" << geometric_levels
+                << "O" << order_levels
+                << "I" << (int) integrator_type
+                << "S" << (int) solver_type
+                << "A" << assembly_type_int
+                << ".csv";
+   }
 
    string assembly_description;
    switch (assembly_type_int)
@@ -330,6 +346,8 @@ int main(int argc, char *argv[])
    A.SetOperatorOwner(mg->GetOwnershipLevelOperators());
 
    Solver *solver = nullptr;
+   DataMonitor *monitor = nullptr;
+
    switch (solver_type)
    {
       case sli:
@@ -350,6 +368,11 @@ int main(int argc, char *argv[])
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
       it_solver->SetPreconditioner(*mg);
+      if (use_monitor)
+      {
+         monitor = new DataMonitor(file_name.str(), MONITOR_DIGITS);
+         it_solver->SetMonitor(*monitor);
+      }
    }
 
    solver->Mult(B, X);
@@ -393,6 +416,7 @@ int main(int argc, char *argv[])
    delete mg;
    delete solver;
    delete b;
+   if (monitor) { delete monitor; }
    if (scalar_u) { delete scalar_u; }
    if (scalar_f) { delete scalar_f; }
    if (vector_u) { delete vector_u; }

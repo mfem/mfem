@@ -17,7 +17,7 @@ using namespace mfem;
 namespace lpq_common
 {
 
-int NDIGITS = 20;
+int MONITOR_DIGITS = 20;
 int MG_MAX_ITER = 10;
 real_t MG_REL_TOL = std::sqrt(1e-10);
 

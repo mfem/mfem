@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
    // Other options
    string device_config = "cpu";
    bool use_pc = true;
+   bool use_monitor = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -108,7 +109,10 @@ int main(int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&use_pc, "-pc", "--preconditioner", "-no-pc",
                   "--no-preconditioner",
-                  "Enable or disable Absolute L1 Jacobi preconditioner.");
+                  "Enable or disable L(p,q)-Jacobi preconditioner.");
+   args.AddOption(&use_monitor, "-mon", "--monitor", "-no-mon",
+                  "--no-monitor",
+                  "Enable or disable Data Monitor.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -122,15 +126,17 @@ int main(int argc, char *argv[])
 
    kappa = freq * M_PI;
 
-   // TODO(Gabriel): To be restructured
    ostringstream file_name;
+   if (use_monitor)
    {
-      string base_name = mesh_file.substr(mesh_file.find_last_of("/\\") + 1);
-      base_name = base_name.substr(0, base_name.find_last_of('.'));
-
-      file_name << base_name << "-o" << order << "-i" << integrator_type <<
-                "-s" << solver_type << fixed << setprecision(4) << "-p" <<
-                (int) (p_order*1000) << "-q" << (int) (q_order*1000) << ".csv";
+      file_name << "LPQ-"
+                << "O" << order
+                << "I" << (int) integrator_type
+                << "S" << (int) solver_type
+                << fixed << setprecision(4)
+                << "P" << (int) (p_order * 1000)
+                << "Q" << (int) (q_order * 1000)
+                << ".csv";
    }
 
    Device device(device_config);
@@ -290,7 +296,6 @@ int main(int argc, char *argv[])
    // D_{p,q} = diag( D^{1+q-p} |A|^p D^{-q} 1) , where D = diag(A)
    auto lpq_jacobi = new OperatorLpqJacobiSmoother(A, ess_tdof_list, p_order,
                                                    q_order);
-
    real_t bound = lpq_jacobi->CheckSpectralBoundConstant();
 
    /// 9. Construct the solver. The implemented solvers are the following:
@@ -298,7 +303,8 @@ int main(int argc, char *argv[])
    ///    - Preconditioned Conjugate Gradient
    ///    Then, solve the system with the used-selected solver.
    Solver *solver = nullptr;
-   DataMonitor monitor(file_name.str(), NDIGITS);
+   DataMonitor *monitor = nullptr;
+
    switch (solver_type)
    {
       case sli:
@@ -318,9 +324,16 @@ int main(int argc, char *argv[])
       it_solver->SetRelTol(rel_tol);
       it_solver->SetMaxIter(max_iter);
       it_solver->SetPrintLevel(1);
+      if (use_monitor)
+      {
+         monitor = new DataMonitor(file_name.str(), MONITOR_DIGITS);
+         it_solver->SetMonitor(*monitor);
+      }
+      if (use_pc)
+      {
+         it_solver->SetPreconditioner(*lpq_jacobi);
+      }
    }
-   if (it_solver && visualization) { it_solver->SetMonitor(monitor); }
-   if (it_solver && use_pc) { it_solver->SetPreconditioner(*lpq_jacobi); }
 
    solver->Mult(B, X);
 
@@ -366,13 +379,14 @@ int main(int argc, char *argv[])
    delete lpq_jacobi;
    delete a;
    delete b;
+   delete fespace;
+   delete fec;
+   delete mesh;
+   if (monitor) { delete monitor; }
    if (scalar_u) { delete scalar_u; }
    if (scalar_f) { delete scalar_f; }
    if (vector_u) { delete vector_u; }
    if (vector_f) { delete vector_f; }
-   delete fespace;
-   delete fec;
-   delete mesh;
 
    return 0;
 }
