@@ -32,6 +32,10 @@ public:
    /// of freedom @a y.
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override = 0;
+
+   /// @brief Compute MultTranspose by setting (rather than adding) element
+   /// contributions; this is a left inverse of the Mult() operation
+   virtual void MultLeftInverse(const Vector &x, Vector &y) const = 0;
 };
 
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
@@ -62,15 +66,13 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const override;
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override;
+   void MultLeftInverse(const Vector &x, Vector &y) const override;
 
    /// Compute Mult without applying signs based on DOF orientations.
    void MultUnsigned(const Vector &x, Vector &y) const;
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void MultTransposeUnsigned(const Vector &x, Vector &y) const;
 
-   /// Compute MultTranspose by setting (rather than adding) element
-   /// contributions; this is a left inverse of the Mult() operation
-   void MultLeftInverse(const Vector &x, Vector &y) const;
 
    /// @brief Fills the E-vector y with `boolean` values 0.0 and 1.0 such that each
    /// each entry of the L-vector is uniquely represented in `y`.
@@ -121,6 +123,7 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const override;
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override;
+   void MultLeftInverse(const Vector &x, Vector &y) const override;
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
    void FillI(SparseMatrix &mat) const;

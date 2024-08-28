@@ -560,6 +560,13 @@ void L2ElementRestriction::AddMultTranspose(const Vector &x, Vector &y,
    TAddMultTranspose<ADD>(x, y);
 }
 
+void L2ElementRestriction::MultLeftInverse(const Vector &x, Vector &y) const
+{
+   // For L2 spaces, the restriction is a permutation, and so its inverse is
+   // equal to its transpose.
+   MultTranspose(x, y);
+}
+
 void L2ElementRestriction::FillI(SparseMatrix &mat) const
 {
    const int elem_dofs = ndof;
