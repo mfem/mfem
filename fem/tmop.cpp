@@ -50,6 +50,72 @@ real_t mu85(real_t *data)
           (data[3] - fnorm/sqrt(2))*(data[3] - fnorm/sqrt(2));
 }
 
+template <typename type> 
+auto fnorm2_2D(std::vector<type>& u) -> type
+{
+    return u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3];
+}
+
+template <typename type> 
+auto det_2D(std::vector<type>& u) -> type
+{
+    return u[0]*u[3] - u[1]*u[2];
+}
+
+template <typename type> 
+void mult(const std::vector<type>& u, const DenseMatrix * M, std::vector<type>& mat )
+{
+   mat.resize(u.size());
+
+   mat[0] = u[0]*M->Elem(0,0) + u[2]*M->Elem(1,0);
+   mat[1] = u[1]*M->Elem(0,0) + u[3]*M->Elem(1,0);
+   mat[2] = u[0]*M->Elem(0,1) + u[2]*M->Elem(1,1);
+   mat[3] = u[1]*M->Elem(0,1) + u[3]*M->Elem(1,1);
+}
+
+template <typename type> 
+void minus(const std::vector<type>& u, const DenseMatrix * M, std::vector<type>& mat )
+{
+   mat.resize(u.size());
+
+   mat[0] = u[0] - M->Elem(0,0);
+   mat[1] = u[1] - M->Elem(1,0);
+   mat[2] = u[2] - M->Elem(0,1);
+   mat[3] = u[3] - M->Elem(1,1);
+}
+
+template <typename type> 
+auto mu2_ad( const DenseMatrix * Jtr,  std::vector<type>& u ) -> type
+{
+   return (fnorm2_2D(u))/(2.0*det_2D(u)) - 1.0;
+};
+
+template <typename type> 
+auto mu85_ad( const DenseMatrix * Jtr,  std::vector<type>& u ) -> type
+{
+   auto fnorm = sqrt(fnorm2_2D(u));
+   return u[1]*u[1] + u[2]*u[2] +
+            (u[0] - fnorm/sqrt(2))*(u[0] - fnorm/sqrt(2)) +
+            (u[3] - fnorm/sqrt(2))*(u[3] - fnorm/sqrt(2));
+};
+
+template <typename type> 
+auto mu36_ad( const DenseMatrix * Jtr,  std::vector<type>& u ) -> type
+{
+   MFEM_VERIFY(Jtr != NULL,
+      "Requires a target Jacobian, use SetTargetJacobian().");
+
+   std::vector<type> A;   // T*W = A
+   std::vector<type> AminusW;  // A-W
+
+   mult(u,Jtr,A);
+   minus(A,Jtr,AminusW);
+   auto fnorm =  fnorm2_2D(AminusW);
+         
+   return 1.0 / ( det_2D(A)) * fnorm;
+};
+
+
 void ADGrad(const DenseMatrix &Jpt, std::function<ADFType(const DenseMatrix *, std::vector<ADFType>&)> mu_ad, DenseMatrix &P, const DenseMatrix * Wmat = nullptr)
 {
       int dim = Jpt.Height();
@@ -756,12 +822,7 @@ void TMOP_Metric_002::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    }
    else if(mode == 3)
    {
-      auto mu2_ad = []( const DenseMatrix * Jtr, std::vector<ADFType>& u ) 
-      {
-         return (u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3])/(2.0*(u[0]*u[3] - u[1]*u[2])) - 1.0;
-      };
-
-      ADGrad(Jpt, mu2_ad, P);
+      ADGrad(Jpt, mu2_ad<ADFType>, P);
       return;
    }
    ie.SetJacobian(Jpt.GetData());
@@ -852,12 +913,7 @@ void TMOP_Metric_002::ComputeH(const DenseMatrix &Jpt,
    }
    else if(mode == 3)
    {
-      auto mu2_ad = []( const DenseMatrix * Jtr,  std::vector<ADSType>& u ) 
-      {
-         return (u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3])/(2.0*(u[0]*u[3] - u[1]*u[2])) - 1.0;
-      };
-
-      ADHessian( Jpt, mu2_ad, H);
+      ADHessian( Jpt, mu2_ad<ADSType>, H);
       return;
    }
 }
@@ -1314,16 +1370,8 @@ void TMOP_Metric_085::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 #endif
    }
    if (mode == 3)
-   {
-      auto mu85_ad = []( const DenseMatrix * Jtr, std::vector<ADFType>& u ) 
-      {
-         auto fnorm = sqrt(u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3]);
-         return u[1]*u[1] + u[2]*u[2] +
-            (u[0] - fnorm/sqrt(2))*(u[0] - fnorm/sqrt(2)) +
-            (u[3] - fnorm/sqrt(2))*(u[3] - fnorm/sqrt(2));
-      };
-   
-      ADGrad(Jpt, mu85_ad, P);
+   {   
+      ADGrad(Jpt, mu85_ad<ADFType>, P);
       return;
    }
    MFEM_ABORT("EvalP only supported with Enzyme+AD for metric 85.");
@@ -1388,15 +1436,7 @@ void TMOP_Metric_085::ComputeH(const DenseMatrix &Jpt,
    }
    else if (mode == 3)
    {
-      auto mu85_ad = []( const DenseMatrix * Jtr,  std::vector<ADSType>& u ) 
-      {
-         auto fnorm = sqrt(u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3]);
-         return u[1]*u[1] + u[2]*u[2] +
-            (u[0] - fnorm/sqrt(2))*(u[0] - fnorm/sqrt(2)) +
-            (u[3] - fnorm/sqrt(2))*(u[3] - fnorm/sqrt(2));
-      };
-   
-      ADHessian(Jpt, mu85_ad, H);
+      ADHessian(Jpt, mu85_ad<ADSType>, H);
       return;
    }
 
@@ -2133,31 +2173,8 @@ void TMOP_AMetric_036::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
    if (mode == 3)
    {
-      auto mu36_ad = []( const DenseMatrix * Jtr,  std::vector<ADFType>& u ) 
-      {
-         MFEM_VERIFY(Jtr != NULL,
-            "Requires a target Jacobian, use SetTargetJacobian().");
 
-         // auto fnorm = sqrt(  pow(u[0]*Jtr->Elem(0,0) + u[2]*Jtr->Elem(1,0) - Jtr->Elem(0,0), 2.0)
-         //                   + pow(u[0]*Jtr->Elem(0,1) + u[2]*Jtr->Elem(1,1) - Jtr->Elem(0,1), 2.0)
-         //                   + pow(u[1]*Jtr->Elem(0,0) + u[3]*Jtr->Elem(1,0) - Jtr->Elem(1,0), 2.0)
-         //                   + pow(u[1]*Jtr->Elem(0,1) + u[3]*Jtr->Elem(1,1) - Jtr->Elem(1,1), 2.0));
-
-
-
-
-         auto fnorm =        (u[0]*Jtr->Elem(0,0) + u[2]*Jtr->Elem(1,0) - Jtr->Elem(0,0)) *(u[0]*Jtr->Elem(0,0) + u[2]*Jtr->Elem(1,0) - Jtr->Elem(0,0))
-                           + (u[0]*Jtr->Elem(0,1) + u[2]*Jtr->Elem(1,1) - Jtr->Elem(0,1)) *(u[0]*Jtr->Elem(0,1) + u[2]*Jtr->Elem(1,1) - Jtr->Elem(0,1))
-                           + (u[1]*Jtr->Elem(0,0) + u[3]*Jtr->Elem(1,0) - Jtr->Elem(1,0)) *(u[1]*Jtr->Elem(0,0) + u[3]*Jtr->Elem(1,0) - Jtr->Elem(1,0))
-                           + (u[1]*Jtr->Elem(0,1) + u[3]*Jtr->Elem(1,1) - Jtr->Elem(1,1)) *(u[1]*Jtr->Elem(0,1) + u[3]*Jtr->Elem(1,1) - Jtr->Elem(1,1)); 
-
-         return 1.0 / (   (u[0]*Jtr->Elem(0,0) + u[2]*Jtr->Elem(1,0)) 
-                        * (u[1]*Jtr->Elem(0,1) + u[3]*Jtr->Elem(1,1))
-                        - (u[1]*Jtr->Elem(0,0) + u[3]*Jtr->Elem(1,0))
-                        * (u[0]*Jtr->Elem(0,1) + u[2]*Jtr->Elem(1,1))) * fnorm;
-      };
-
-      ADGrad(Jpt, mu36_ad, P, Jtr);
+      ADGrad(Jpt, mu36_ad<ADFType>, P, Jtr);
       return;
    }
    else
@@ -2217,28 +2234,7 @@ void TMOP_AMetric_036::ComputeH(const DenseMatrix &Jpt,
    H = 0.0;
    if (mode == 3)
    {
-      auto mu36_ad = []( const DenseMatrix * Jtr,  std::vector<ADSType>& u ) 
-      {
-         MFEM_VERIFY(Jtr != NULL,
-            "Requires a target Jacobian, use SetTargetJacobian().");
-
-         // auto fnorm = sqrt(  pow(u[0]*Jtr->Elem(0,0) + u[2]*Jtr->Elem(1,0) - Jtr->Elem(0,0), 2.0)
-         //                   + pow(u[0]*Jtr->Elem(0,1) + u[2]*Jtr->Elem(1,1) - Jtr->Elem(0,1), 2.0)
-         //                   + pow(u[1]*Jtr->Elem(0,0) + u[3]*Jtr->Elem(1,0) - Jtr->Elem(1,0), 2.0)
-         //                   + pow(u[1]*Jtr->Elem(0,1) + u[3]*Jtr->Elem(1,1) - Jtr->Elem(1,1), 2.0));
-
- auto fnorm =        (u[0]*Jtr->Elem(0,0) + u[2]*Jtr->Elem(1,0) - Jtr->Elem(0,0)) *(u[0]*Jtr->Elem(0,0) + u[2]*Jtr->Elem(1,0) - Jtr->Elem(0,0))
-                           + (u[0]*Jtr->Elem(0,1) + u[2]*Jtr->Elem(1,1) - Jtr->Elem(0,1)) *(u[0]*Jtr->Elem(0,1) + u[2]*Jtr->Elem(1,1) - Jtr->Elem(0,1))
-                           + (u[1]*Jtr->Elem(0,0) + u[3]*Jtr->Elem(1,0) - Jtr->Elem(1,0)) *(u[1]*Jtr->Elem(0,0) + u[3]*Jtr->Elem(1,0) - Jtr->Elem(1,0))
-                           + (u[1]*Jtr->Elem(0,1) + u[3]*Jtr->Elem(1,1) - Jtr->Elem(1,1)) *(u[1]*Jtr->Elem(0,1) + u[3]*Jtr->Elem(1,1) - Jtr->Elem(1,1)); 
-
-         return 1.0 / (   (u[0]*Jtr->Elem(0,0) + u[2]*Jtr->Elem(1,0)) 
-                        * (u[1]*Jtr->Elem(0,1) + u[3]*Jtr->Elem(1,1))
-                        - (u[1]*Jtr->Elem(0,0) + u[3]*Jtr->Elem(1,0))
-                        * (u[0]*Jtr->Elem(0,1) + u[2]*Jtr->Elem(1,1))) * fnorm;
-      };
-
-      ADHessian( Jpt, mu36_ad, H, Jtr);
+      ADHessian( Jpt, mu36_ad<ADSType>, H, Jtr);
       return;
    }
    else
