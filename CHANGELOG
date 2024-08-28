@@ -30,9 +30,8 @@ New and updated examples and miniapps
 - Added an MFEM example for the eikonal equation. This new solver is based on
   the proximal Galerkin method introduced by Keith and Surowiec.
 
-- Added command line argument to all miniapps to set GLVis server socket
-  manually. The argument is -p <SOCKET NUMBER> or --send-port
-  <SOCKET NUMBER>.
+- Added a command line option to all miniapps (`-p` or `--send-port`) for
+  specifying the GLVis server socket port (19916 by default).
 
 GPU computing
 -------------
