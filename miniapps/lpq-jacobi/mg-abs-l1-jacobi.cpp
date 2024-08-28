@@ -327,6 +327,8 @@ int main(int argc, char *argv[])
    mg->SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
    mg->FormFineLinearSystem(x, *b, A, X, B);
 
+   A.SetOperatorOwner(mg->GetOwnershipLevelOperators());
+
    Solver *solver = nullptr;
    switch (solver_type)
    {

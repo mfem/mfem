@@ -116,10 +116,13 @@ public:
 
    ~AbsL1GeometricMultigrid() { delete coarse_pc; }
 
+   bool GetOwnershipLevelOperators() const { return mg_owned; }
+
 private:
    IntegratorType integrator_type;
    SolverType solver_type;
    AssemblyLevel assembly_level;
+   bool mg_owned;
    ConstantCoefficient one;
    OperatorJacobiSmoother* coarse_pc;
 

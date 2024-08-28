@@ -168,6 +168,10 @@ AbsL1GeometricMultigrid::AbsL1GeometricMultigrid(
      coarse_pc(nullptr),
      one(1.0)
 {
+   // BilinearForm::FormSystemMatrix does not handle the ownership of A_l.
+   // GeometricMultigrid owns the forms, and deletes them.
+   mg_owned = !(AssemblyLevel::LEGACY == assembly_level);
+
    ConstructCoarseOperatorAndSolver(fes_hierarchy.GetFESpaceAtLevel(0));
    for (int l = 1; l < fes_hierarchy.GetNumLevels(); ++l)
    {
@@ -217,7 +221,7 @@ void AbsL1GeometricMultigrid::ConstructCoarseOperatorAndSolver(
       it_solver->SetPreconditioner(*coarse_pc);
    }
 
-   AddLevel(coarse_mat.Ptr(), coarse_solver, true, true);
+   AddLevel(coarse_mat.Ptr(), coarse_solver, mg_owned, true);
 }
 
 void AbsL1GeometricMultigrid::ConstructOperatorAndSmoother(
@@ -240,7 +244,7 @@ void AbsL1GeometricMultigrid::ConstructOperatorAndSmoother(
 
    Solver* smoother = new OperatorJacobiSmoother(result, ess_tdof_list);
 
-   AddLevel(level_mat.Ptr(), smoother, true, true);
+   AddLevel(level_mat.Ptr(), smoother, mg_owned, true);
 }
 
 
