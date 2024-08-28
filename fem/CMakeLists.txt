@@ -56,6 +56,7 @@ set(SRCS
   integ/lininteg_domain_vectorfe.cpp
   integ/nonlininteg_vecconvection_pa.cpp
   integ/nonlininteg_vecconvection_mf.cpp
+  change_basis.cpp
   coefficient.cpp
   complex_fem.cpp
   convergence.cpp
@@ -164,6 +165,7 @@ set(HDRS
   integ/bilininteg_hdiv_kernels.hpp
   integ/bilininteg_hcurlhdiv_kernels.hpp
   integ/bilininteg_mass_kernels.hpp
+  change_basis.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp
