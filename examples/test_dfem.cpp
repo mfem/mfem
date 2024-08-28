@@ -661,6 +661,8 @@ int test_diffusion_integrator(std::string mesh_file,
    Vector x(f1_g), y(h1fes.TrueVSize());
    dop.SetParameters({mesh_nodes});
    dop.Mult(x, y);
+   y.HostRead();
+   print_vector(y);
 
    ParBilinearForm a(&h1fes);
    a.AddDomainIntegrator(new DiffusionIntegrator);
@@ -670,6 +672,8 @@ int test_diffusion_integrator(std::string mesh_file,
 
    Vector y2(h1fes.TrueVSize());
    a.Mult(x, y2);
+   y2.HostRead();
+   print_vector(y2);
    y2 -= y;
    if (y2.Norml2() > 1e-10)
    {
@@ -1755,8 +1759,8 @@ int main(int argc, char *argv[])
    // ret ? out << " FAILURE\n" : out << " OK\n";
 
    ret = test_diffusion_integrator(mesh_file,
-                   refinements,
-                   polynomial_order);
+                                   refinements,
+                                   polynomial_order);
    out << "test_diffusion_integrator";
    ret ? out << " FAILURE\n" : out << " OK\n";
 
