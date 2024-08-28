@@ -131,7 +131,6 @@ int main(int argc, char *argv[])
                   "number of meshes");
    args.AddOption(&rel_tol, "-rt", "--relative tolerance",
                   "Tolerance for Schwarz iteration convergence criterion.");
-
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
