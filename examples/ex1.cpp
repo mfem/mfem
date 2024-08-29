@@ -71,128 +71,6 @@
 using namespace std;
 using namespace mfem;
 
-void FindChildren(const Mesh & mesh, int elem, Array<int> & children)
-{
-   const CoarseFineTransformations& cf = mesh.ncmesh->GetRefinementTransforms();
-   MFEM_VERIFY(mesh.GetNE() == cf.embeddings.Size(), "");
-
-   for (int i=0; i<mesh.GetNE(); ++i)
-   {
-      const int p = cf.embeddings[i].parent;
-      if (p == elem)
-      {
-         children.Append(i);
-      }
-   }
-}
-
-void Refine31(Mesh & mesh, int elem, int type, bool full = true)
-{
-   // Refinement is in ncmesh.hpp
-   Array<Refinement> refs;
-   refs.Append(Refinement(elem, type, 2.0/3.0));
-   mesh.GeneralRefinement(refs);
-
-   if (full)
-   {
-      // Find the elements with parent `elem`
-      Array<int> children;
-      FindChildren(mesh, elem, children);
-      MFEM_VERIFY(children.Size() == 2, "");
-
-      const int elem1 = children[0];
-
-      refs.SetSize(0);
-      refs.Append(Refinement(elem1, type, 0.5));
-      mesh.GeneralRefinement(refs);
-   }
-}
-
-void TestAnisoRef2D()
-{
-   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
-
-   Refine31(mesh, 0, Refinement::X);
-   Refine31(mesh, 4, Refinement::Y);
-
-   mesh.EnsureNodes();
-
-   ofstream mesh_ofs("ref.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-}
-
-void TestAnisoRef3D(int id)
-{
-   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
-
-   Refine31(mesh, 0, Refinement::X);
-   Refine31(mesh, 4, Refinement::Y);
-
-   Refine31(mesh, 6, Refinement::X);  // 2 levels of 3:1 refinement
-
-   if (id >= 0)
-   {
-      auto type = Refinement::Z;
-      Refine31(mesh, id, Refinement::Z);
-   }
-
-   Refine31(mesh, 12, Refinement::Z);
-
-   mesh.EnsureNodes();
-
-   ofstream mesh_ofs("ref.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-}
-
-int myrand(int & s)
-{
-   s++;
-   const double a = 1000 * sin(s * 1.1234 * M_PI);
-   return int(std::abs(a));
-}
-
-void TestAnisoRef3D_A(int idx)
-{
-   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
-
-   Refine31(mesh, 0, 1);
-   Refine31(mesh, 1, 4);
-   Refine31(mesh, 0, 2);
-
-   Refine31(mesh, 3, 4);
-
-   mesh.EnsureNodes();
-
-   ofstream mesh_ofs("ref.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-}
-
-void TestAnisoRefRandom(int iter, int dim)
-{
-   Mesh mesh = dim == 3 ? Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON) :
-               Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
-
-   int seed = 0;
-
-   for (int i=0; i<iter; ++i)
-   {
-      const int elem = myrand(seed) % mesh.GetNE();
-      const int t = myrand(seed) % dim;
-      auto type = t == 0 ? Refinement::X : (t == 1 ? Refinement::Y : Refinement::Z);
-      cout << "Ref elem " << elem << ", type " << type << endl;
-      Refine31(mesh, elem, type);
-   }
-
-   mesh.EnsureNodes();
-
-   ofstream mesh_ofs("ref.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-}
-
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -204,10 +82,6 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
-   bool makeMesh = false;
-   int idx = -1;
-   int numIter = 1;
-   int tdim = 2;  // Test dimension
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -230,11 +104,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&makeMesh, "-mm", "--make-mesh", "-no-mm",
-                  "--no-make-mesh", "Generate 3:1 mesh");
-   args.AddOption(&tdim, "-dim", "--dimension", "");
-   args.AddOption(&idx, "-id", "--idx", "");
-   args.AddOption(&numIter, "-iter", "--niter", "");
    args.Parse();
    if (!args.Good())
    {
@@ -242,15 +111,6 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-
-   if (makeMesh)
-   {
-      //TestAnisoRef2D();
-      //TestAnisoRef3D(idx);
-      TestAnisoRefRandom(numIter, tdim);
-      //TestAnisoRef3D_A(numIter);
-      return 0;
-   }
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -267,7 +127,6 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   /*
    {
       int ref_levels =
          (int)floor(log(50000./mesh.GetNE())/log(2.)/dim);
@@ -276,7 +135,6 @@ int main(int argc, char *argv[])
          mesh.UniformRefinement();
       }
    }
-   */
 
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
@@ -363,7 +221,7 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 2000, 1e-12, 0.0);
+      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
 #else
       // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
       UMFPackSolver umf_solver;
