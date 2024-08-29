@@ -110,7 +110,10 @@ public:
 
    HyperelasticOperator(ParFiniteElementSpace &f, Array<int> &ess_bdr,
                         double visc, double mu, double K,
-                        NonlinearSolverType nls_type);
+                        NonlinearSolverType nls_type,
+                        int kinsol_it_type,
+                        double kinsol_fp_damping,
+                        int kinsol_aan);
 
    /// Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
@@ -237,6 +240,9 @@ int main(int argc, char *argv[])
    bool visualization = true;
    const char *nls = "newton";
    int vis_steps = 1;
+   int kinsol_it_type = KIN_LINESEARCH;
+   double kinsol_fp_damping = 1.0;
+   int kinsol_aan = 0;
 
    // Relative and absolute tolerances for CVODE and ARKODE.
    const double reltol = 1e-1, abstol = 1e-1;
@@ -278,6 +284,14 @@ int main(int argc, char *argv[])
    args.AddOption(&nls, "-nls", "--nonlinear-solver",
                   "Nonlinear systems solver: "
                   "\"newton\" (plain Newton) or \"kinsol\" (KINSOL).");
+   args.AddOption(&kinsol_it_type, "-nls-type", "--nonlinear-solver-type",
+                  "Nonlinear systems solver type (only valid with KINSOL): "
+                  "0: KIN_NONE, 1: KIN_LINESEARCH, 2: KIN_PICARD, 3: KIN_FP");
+   args.AddOption(&kinsol_fp_damping, "-fpdamping", "--fixed-point-damping",
+                  "Picard or Fixed-Point damping parameter (only valid with KINSOL): "
+                  "0 < d <= 1.0");
+   args.AddOption(&kinsol_aan, "-aan", "--anderson-subspace",
+                  "Anderson Acceleration subspace size (only valid with KINSOL)");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -404,7 +418,8 @@ int main(int argc, char *argv[])
 
    // 9. Initialize the hyperelastic operator, the GLVis visualization and print
    //    the initial energies.
-   HyperelasticOperator oper(fespace, ess_bdr, visc, mu, K, nls_map[nls]);
+   HyperelasticOperator oper(fespace, ess_bdr, visc, mu, K, nls_map[nls],
+                             kinsol_it_type, kinsol_fp_damping, kinsol_aan);
 
    socketstream vis_v, vis_w;
    if (visualization)
@@ -664,7 +679,10 @@ ReducedSystemOperator::~ReducedSystemOperator()
 HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
                                            double mu, double K,
-                                           NonlinearSolverType nls_type)
+                                           NonlinearSolverType nls_type,
+                                           int kinsol_it_type,
+                                           double kinsol_fp_damping,
+                                           int kinsol_aa_n)
    : TimeDependentOperator(2*f.TrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), M_solver(f.GetComm()), z(height/2),
@@ -718,15 +736,17 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
 
    if (nls_type == KINSOL)
    {
-      KINSolver *kinsolver = new KINSolver(f.GetComm(), KIN_LINESEARCH, true);
+      KINSolver *kinsolver = new KINSolver(f.GetComm(), kinsol_it_type, true);
       kinsolver->SetJFNK(true);
       kinsolver->SetLSMaxIter(100);
+      kinsolver->EnableAndersonAcc(kinsol_aa_n);
       newton_solver = kinsolver;
       newton_solver->SetOperator(*reduced_oper);
       newton_solver->SetMaxIter(200);
       newton_solver->SetRelTol(rel_tol);
       newton_solver->SetPrintLevel(1);
       kinsolver->SetMaxSetupCalls(4);
+      kinsolver->SetDamping(kinsol_fp_damping);
    }
    else
    {
