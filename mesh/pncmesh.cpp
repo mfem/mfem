@@ -53,6 +53,9 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
                      int &curved, int &is_nc)
    : NCMesh(input, version, curved, is_nc)
 {
+   MFEM_VERIFY(version != 11, "Nonconforming mesh format \"MFEM NC mesh v1.1\""
+               " is supported only in serial.");
+
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
 

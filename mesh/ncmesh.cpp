@@ -249,6 +249,7 @@ NCMesh::NCMesh(const NCMesh &other)
    , faces(other.faces)
    , elements(other.elements)
    , shadow(1024, 2048)
+   , usingScaling(other.usingScaling)
 {
    other.free_element_ids.Copy(free_element_ids);
    other.root_state.Copy(root_state);
@@ -5686,8 +5687,9 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
             MFEM_ASSERT(nodes[node->p1].HasVertex(), "");
             MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
 
-            (*os) << node.index() << " " << node->p1 << " " << node->p2
-                  << " " << node->scale << "\n";
+            (*os) << node.index() << " " << node->p1 << " " << node->p2;
+            if (usingScaling) { (*os) << " " << node->scale; }
+            (*os) << "\n";
          }
       }
       return 0;
@@ -5701,8 +5703,9 @@ void NCMesh::LoadVertexParents(std::istream &input)
    while (nv--)
    {
       int id, p1, p2;
-      real_t s;
-      input >> id >> p1 >> p2 >> s;
+      real_t s{0.5};
+      input >> id >> p1 >> p2;
+      if (usingScaling) { input >> s; }
       MFEM_VERIFY(input, "problem reading vertex parents.");
 
       MFEM_VERIFY(nodes.IdExists(id), "vertex " << id << " not found.");
@@ -5982,7 +5985,8 @@ int NCMesh::CountTopLevelNodes() const
 }
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
-   : spaceDim(0), MyRank(0), Iso(true), Legacy(false)
+   : spaceDim(0), MyRank(0), Iso(true), Legacy(false),
+     usingScaling(version == 11)
 {
    is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
@@ -5992,7 +5996,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
       return;
    }
 
-   MFEM_ASSERT(version == 10, "");
+   MFEM_ASSERT(version == 10 || version == 11, "");
    std::string ident;
    int count;
 

@@ -575,6 +575,8 @@ protected: // implementation
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
 
+   bool usingScaling = false; // Whether Node::scale is being used
+
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 
