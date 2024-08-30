@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "../gslib.hpp"
-#include "findpts_3.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"

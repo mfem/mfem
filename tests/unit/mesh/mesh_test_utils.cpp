@@ -164,9 +164,10 @@ Mesh TetStarMesh()
    return mesh;
 }
 
-Mesh DividingPlaneMesh(bool tet_mesh, bool split)
+Mesh DividingPlaneMesh(bool tet_mesh, bool split, bool three_dim)
 {
-   auto mesh = Mesh("../../data/ref-cube.mesh");
+   auto mesh = three_dim ? Mesh("../../data/ref-cube.mesh") :
+               Mesh("../../data/ref-square.mesh");
    {
       Array<Refinement> refs;
       refs.Append(Refinement(0, Refinement::X));
@@ -202,6 +203,7 @@ Mesh DividingPlaneMesh(bool tet_mesh, bool split)
    mesh.Finalize(true, true);
    return mesh;
 }
+
 
 Mesh OrientedTriFaceMesh(int orientation, bool add_extbdr)
 {
