@@ -45,14 +45,11 @@
 //    mpirun -np 2 pfindpts -m ../../data/fichera-mixed.mesh -o 3 -mo 2
 //    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 //    mpirun -np 2 pfindpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
+// Device runs:
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -random 1 -mo 2 -d debug
+//    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -npt 100 -d debug -random 1
+//    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -mo 2 -o 3 -random 1 -d debug
 
-// make pfindpts -j && mpirun -np 5 pfindpts -d debug -rs 2 -mo 3 -o 3 -ji 0.01 -nc 2 -po 1 -gfo 1 -eo 1
-// quads, third-order mesh, second-order gridfunction
-// make pfindpts -j && mpirun -np 5 pfindpts -d debug -rs 0 -mo 3 -o 2 -ji 0.01 -nc 2 -eo 2 -po 1 -gfo 1 -et 0 -vis -dim 2
-// hex
-// make pfindpts -j && mpirun -np 5 pfindpts -d debug -rs 0 -mo 3 -o 2 -ji 0.0 -nc 2 -eo 2 -po 1 -gfo 1 -et 0 -vis -dim 3
-// tets
-// make pfindpts -j && mpirun -np 5 pfindpts -d debug -rs 0 -mo 3 -o 3 -ji 0.0 -nc 2 -eo 2 -po 1 -gfo 1 -et 1 -vis -dim 3
 
 #include "mfem.hpp"
 #include "general/forall.hpp"
@@ -87,7 +84,7 @@ int main (int argc, char *argv[])
    Hypre::Init();
 
    // Set the method's default parameters.
-   const char *mesh_file = "NULL";
+   const char *mesh_file = "../../data/rt-2d-q3.mesh";
    int order             = 3;
    int mesh_poly_deg     = 3;
    int rs_levels         = 0;
@@ -100,16 +97,8 @@ int main (int argc, char *argv[])
    int point_ordering    = 0;
    int gf_ordering       = 0;
    const char *devopt    = "cpu";
-   double jitter         = 0.0;
-   int exact_sol_order   = 1;
-   int smooth            = 0; //kershaw transformation parameter
-   int jobid             = 0;
-   int npt               = 100; //points per proc
-   int nx                = 6; //points per proc
-   int dim               = 3;
-   int etype             = 0;
-   bool visit            = false;
    int randomization     = 0;
+   int npt               = 100; //points per proc
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -144,28 +133,11 @@ int main (int argc, char *argv[])
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&jitter, "-ji", "--jitter",
-                  "Random perturbation scaling factor.");
-   args.AddOption(&exact_sol_order, "-eo", "--exact-sol-order",
-                  "Order for analytic solution.");
-   args.AddOption(&smooth, "-smooth", "--smooth",
-                  "smooth parameter of kershaw");
-   args.AddOption(&jobid, "-jid", "--jid",
-                  "job id used for visit  save files");
-   args.AddOption(&npt, "-npt", "--npt",
-                  "# points per proc or element");
-   args.AddOption(&nx, "-nx", "--nx",
-                  "# of elements in x(is multipled by rs)");
-   args.AddOption(&dim, "-dim", "--dim",
-                  "Dimension");
-   args.AddOption(&etype, "-et", "--et",
-                  "element type: 0 - quad/hex, 1 - triangle/tetrahedron");
-   args.AddOption(&visit, "-visit", "--visit", "-no-visit",
-                  "--no-visit",
-                  "Enable or disable VISIT output");
    args.AddOption(&randomization, "-random", "--random",
                   "0: generate points randomly in the bounding box of domain,"
                   "1: generate points randomly inside each element in mesh.");
+   args.AddOption(&npt, "-npt", "--npt",
+                  "# points per proc or element");
    args.Parse();
    if (!args.Good())
    {
@@ -173,53 +145,17 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
    bool cpu_mode = strcmp(devopt,"cpu")==0;
-
-   if (npt < 0)
-   {
-      npt = -npt/num_procs;
-   }
-
-   if (hrefinement)
-   {
-      MFEM_VERIFY(strcmp(devopt,"cpu")==0, "HR-adaptivity is currently only"
-                  " supported on cpus.");
-   }
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
-   func_order = std::min(exact_sol_order, 2);
+   func_order = std::min(order, 2);
 
    // Initialize and refine the starting mesh.
-   //    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   int nex = nx*std::pow(2, rs_levels);
-   Mesh *mesh = NULL;
-   if (strcmp(mesh_file,"NULL") != 0)
-   {
-      mesh = new Mesh(mesh_file, 1, 1, false);
-      for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-      dim = mesh->Dimension();
-   }
-   else
-   {
-      if (dim == 2)
-      {
-         mesh = new Mesh(Mesh::MakeCartesian2D(nex, nex, etype == 0 ?
-                                               Element::QUADRILATERAL :
-                                               Element::TRIANGLE));
-
-      }
-      else if (dim == 3)
-      {
-         mesh = new Mesh(Mesh::MakeCartesian3D(nex, nex, nex, etype == 0 ?
-                                               Element::HEXAHEDRON :
-                                               Element::TETRAHEDRON));
-      }
-      else
-      {
-         MFEM_ABORT("Only 2D and 3D supported at the moment.");
-      }
-   }
+   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   const int dim = mesh->Dimension();
 
    Vector xmin, xmax;
    mesh->GetBoundingBox(xmin, xmax);
@@ -240,10 +176,10 @@ int main (int argc, char *argv[])
    {
       cout << "--- Generating equidistant point for:\n"
            << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
-           << "y in [" << pos_min(1) << ", " << pos_max(1) << "]\n";
+           << "y in [" << pos_min(1) << ", " << pos_max(1) << "]" << std::endl;
       if (dim == 3)
       {
-         cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]\n";
+         cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]" << std::endl;
       }
    }
 
@@ -251,8 +187,9 @@ int main (int argc, char *argv[])
    if (hrefinement) { mesh->EnsureNCMesh(); }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    if (randomization == 0) { delete mesh; }
-   if (randomization == 1)
+   else
    {
+      // we will need mesh nodal space later
       if (mesh->GetNodes() == NULL) { mesh->SetCurvature(1); }
    }
    for (int lev = 0; lev < rp_levels; lev++) { pmesh.UniformRefinement(); }
@@ -272,70 +209,6 @@ int main (int argc, char *argv[])
    }
 
    int nelemglob = pmesh.GetGlobalNE();
-   if (myid == 0)
-   {
-      cout << "Number of elements: " << nelemglob << endl;
-   }
-
-   // Kershaw transformation
-   if (smooth > 0)
-   {
-      // 1 leads to a linear transformation, 2 cubic, and 3 5th order.
-      common::KershawTransformation kershawT(pmesh.Dimension(), 0.3, 0.3, smooth);
-      pmesh.Transform(kershawT);
-   }
-   if (myid == 0) { cout << "Kershaw transformation done." << endl; }
-
-   Vector h0(pfespace.GetNDofs());
-   h0 = infinity();
-   Array<int> dofs;
-   for (int i = 0; i < pmesh.GetNE(); i++)
-   {
-      // Get the local scalar element degrees of freedom in dofs.
-      pfespace.GetElementDofs(i, dofs);
-      // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = pmesh.GetElementSize(i);
-      for (int j = 0; j < dofs.Size(); j++)
-      {
-         h0(dofs[j]) = min(h0(dofs[j]), hi);
-      }
-   }
-
-   ParGridFunction rdm(&pfespace);
-   rdm.Randomize(myid+1);
-   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-   rdm *= jitter;
-   rdm.HostReadWrite();
-   // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < pfespace.GetNDofs(); i++)
-   {
-      for (int d = 0; d < dim; d++)
-      {
-         rdm(pfespace.DofToVDof(i,d)) *= h0(i);
-      }
-   }
-   Array<int> vdofs;
-   for (int i = 0; i < pfespace.GetNBE(); i++)
-   {
-      // Get the vector degrees of freedom in the boundary element.
-      pfespace.GetBdrElementVDofs(i, vdofs);
-      // Set the boundary values to zero.
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-   }
-   rdm.SetTrueVector();
-   rdm.SetFromTrueVector();
-   x -= rdm;
-   // Set the perturbation of all nodes from the true nodes.
-   x.SetTrueVector();
-   x.SetFromTrueVector();
-
-   pmesh.DeleteGeometricFactors();
-   double vol = 0;
-   for (int e = 0; e < pmesh.GetNE(); e++)
-   {
-      vol += pmesh.GetElementVolume(e);
-   }
-   MPI_Allreduce(MPI_IN_PLACE, &vol, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
    MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
    int vec_dim = ncomp;
@@ -343,26 +216,26 @@ int main (int argc, char *argv[])
    if (fieldtype == 0)
    {
       fec = new H1_FECollection(order, dim);
-      if (myid == 0) { cout << "H1-GridFunction\n"; }
+      if (myid == 0) { cout << "H1-GridFunction" << std::endl; }
    }
    else if (fieldtype == 1)
    {
       fec = new L2_FECollection(order, dim);
-      if (myid == 0) { cout << "L2-GridFunction\n"; }
+      if (myid == 0) { cout << "L2-GridFunction" << std::endl; }
    }
    else if (fieldtype == 2)
    {
       fec = new RT_FECollection(order, dim);
       ncomp = 1;
       vec_dim = dim;
-      if (myid == 0) { cout << "H(div)-GridFunction\n"; }
+      if (myid == 0) { cout << "H(div)-GridFunction" << std::endl; }
    }
    else if (fieldtype == 3)
    {
       fec = new ND_FECollection(order, dim);
       ncomp = 1;
       vec_dim = dim;
-      if (myid == 0) { cout << "H(curl)-GridFunction\n"; }
+      if (myid == 0) { cout << "H(curl)-GridFunction" << std::endl; }
    }
    else
    {
@@ -378,20 +251,26 @@ int main (int argc, char *argv[])
    // Display the mesh and the field through glvis.
    if (visualization)
    {
-      socketstream sock;
-      if (myid == 0)
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sout;
+      sout.open(vishost, visport);
+      if (!sout)
       {
-         sock.open("localhost", 19916);
-         sock << "solution\n";
+         if (myid == 0)
+         {
+            cout << "Unable to connect to GLVis server at "
+                 << vishost << ':' << visport << endl;
+         }
       }
-      pmesh.PrintAsOne(sock);
-      field_vals.SaveAsOne(sock);
-      if (myid == 0)
+      else
       {
-         sock << "window_title 'Solution'\n"
-              << "window_geometry "
-              << 400 << " " << 0 << " " << 400 << " " << 400 << "\n"
-              << "keys RmjApp" << endl;
+         sout << "parallel " << num_procs << " " << myid << "\n";
+         sout.precision(8);
+         sout << "solution\n" << pmesh << field_vals;
+         if (dim == 2) { sout << "keys RmjA*****\n"; }
+         if (dim == 3) { sout << "keys mA\n"; }
+         sout << flush;
       }
    }
 
@@ -401,7 +280,7 @@ int main (int argc, char *argv[])
    int pts_cnt = npt;
    Vector vxyz;
    vxyz.UseDevice(!cpu_mode);
-   int npt_face_per_elem = 4;
+   int npt_face_per_elem = 4; // number of pts on el faces for randomization != 0
    if (randomization == 0)
    {
       vxyz.SetSize(pts_cnt * dim);
@@ -424,7 +303,7 @@ int main (int argc, char *argv[])
          }
       }
    }
-   else if (randomization == 1)
+   else // randomization == 1
    {
       pts_cnt = npt*nelemglob;
       vxyz.SetSize(pts_cnt * dim);
@@ -473,12 +352,10 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(pmesh);
    finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    finder.FindPoints(vxyz, point_ordering);
-   MPI_Barrier(MPI_COMM_WORLD);
 
    Array<unsigned int> code_out1    = finder.GetCode();
    Array<unsigned int> el_out1    = finder.GetGSLIBElem();
@@ -563,150 +440,11 @@ int main (int argc, char *argv[])
            << endl;
    }
 
-   if (myid == 0)
-   {
-      cout << "FindPointsGSLIB-Timing-info " <<
-           "jobid,devid,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
-           <<
-           "foundloc,foundaway,notfound,foundface,maxerr,maxdist,"<<
-           "setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_device_setup,findpts_mapelemrst,"
-           <<
-           "interpolate_h1,interpolate_general,interpolate_l2_pass2 " <<
-           jobid << "," <<
-           device.GetId() << "," <<
-           nelemglob << "," <<
-           num_procs << "," <<
-           dim << "," <<
-           mesh_poly_deg << "," << order << "," <<
-           func_order << "," << fieldtype << "," <<
-           smooth << "," <<
-           pts_cnt << "," <<
-           pts_cnt*num_procs << "," <<
-           found_loc << "," <<
-           found_away << "," <<
-           not_found << "," <<
-           face_pts << "," <<
-           max_err << "," <<
-           max_dist << "," <<
-           finder.setup_split_time << "," <<
-           finder.setup_nodalmapping_time << "," <<
-           finder.setup_findpts_setup_time << "," <<
-           finder.findpts_findpts_time << "," <<
-           finder.findpts_setup_device_arrays_time << "," <<
-           finder.findpts_mapelemrst_time << "," <<
-           finder.interpolate_h1_time << "," <<
-           finder.interpolate_general_time << "," <<
-           finder.interpolate_l2_pass2_time << "," <<
-           std::endl;
-   }
-
-   Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
-   if (visit)
-   {
-      mesh_abb = finder.GetBoundingBoxMesh(0);
-      mesh_obb = finder.GetBoundingBoxMesh(1);
-      mesh_lhbb = finder.GetBoundingBoxMesh(2);
-      mesh_ghbb = finder.GetBoundingBoxMesh(3);
-   }
-
-   if (visit && myid == 0)
-   {
-      VisItDataCollection dc("finderabb", mesh_abb);
-      dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      dc.Save();
-
-      Array<int> attrlist(1);
-      for (int i = 0; i < mesh_abb->GetNE(); i++)
-      {
-         attrlist[0] = i+1;
-         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_abb, attrlist);
-         VisItDataCollection dct("finderabbt", &mesh_abbt);
-         dct.SetFormat(DataCollection::SERIAL_FORMAT);
-         dct.SetCycle(i);
-         dct.SetTime(i*1.0);
-         dct.Save();
-      }
-   }
-   MPI_Barrier(MPI_COMM_WORLD);
-
-   if (visit && myid == 0)
-   {
-      VisItDataCollection dc("finderobb", mesh_obb);
-      dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      dc.Save();
-
-      Array<int> attrlist(1);
-      for (int i = 0; i < mesh_obb->GetNE(); i++)
-      {
-         attrlist[0] = i+1;
-         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_obb, attrlist);
-         VisItDataCollection dct("finderobbt", &mesh_abbt);
-         dct.SetFormat(DataCollection::SERIAL_FORMAT);
-         dct.SetCycle(i);
-         dct.SetTime(i*1.0);
-         dct.Save();
-      }
-   }
-   MPI_Barrier(MPI_COMM_WORLD);
-
-   if (visit && myid == 0)
-   {
-      VisItDataCollection dc("finderlhbb", mesh_lhbb);
-      dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      dc.Save();
-
-      Array<int> attrlist(1);
-      for (int i = 0; i < num_procs; i++)
-      {
-         attrlist[0] = i+1;
-         auto mesh_abbt = SubMesh::CreateFromDomain(*mesh_lhbb, attrlist);
-         VisItDataCollection dct("finderlhbbt", &mesh_abbt);
-         dct.SetFormat(DataCollection::SERIAL_FORMAT);
-         dct.SetCycle(i);
-         dct.SetTime(i*1.0);
-         dct.Save();
-      }
-   }
-   MPI_Barrier(MPI_COMM_WORLD);
-
-   if (visit && myid == 0)
-   {
-      VisItDataCollection dc("finderghbb", mesh_ghbb);
-      dc.SetFormat(DataCollection::SERIAL_FORMAT);
-      dc.Save();
-   }
-   MPI_Barrier(MPI_COMM_WORLD);
-
-   if (visit)
-   {
-      L2_FECollection pl2c(0, dim);
-      ParFiniteElementSpace pl2fes(&pmesh, &pl2c);
-      ParGridFunction pl2g(&pl2fes);
-      ParGridFunction prankg(&pl2fes);
-      ParGridFunction mat(&pl2fes);
-      pmesh.ExchangeFaceNbrData();
-      for (int e = 0; e < pmesh.GetNE(); e++)
-      {
-         pl2g(e) = pmesh.GetGlobalElementNum(e);
-         prankg(e) = myid;
-         mat(e) = pmesh.GetAttribute(e);
-      }
-
-      VisItDataCollection dc("finder", &pmesh);
-      dc.RegisterField("solution", &field_vals);
-      dc.RegisterField("elemnum", &pl2g);
-      dc.RegisterField("proc", &prankg);
-      dc.RegisterField("mat", &mat);
-      dc.SetFormat(DataCollection::PARALLEL_FORMAT);
-      dc.Save();
-   }
-   MPI_Barrier(MPI_COMM_WORLD);
-
    // Free the internal gslib data.
    finder.FreeData();
 
    delete fec;
-   if (randomization == 1) { delete mesh; }
+   if (!randomization) { delete mesh; }
 
    return 0;
 }

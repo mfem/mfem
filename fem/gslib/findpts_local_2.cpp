@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "../gslib.hpp"
-#include "findpts_2.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
@@ -25,9 +24,47 @@ namespace mfem
 #define DIM 2
 #define DIM2 4
 
-static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(double *p0,
-                                                                   double x, int i,
-                                                                   const double *z, const double *lagrangeCoeff, int pN)
+struct findptsElementPoint_t
+{
+   double x[DIM], r[DIM], oldr[DIM], dist2, dist2p, tr;
+   int flags;
+};
+
+struct findptsElementGEdge_t
+{
+   double *x[DIM], *dxdn[2];
+};
+
+struct findptsElementGPT_t
+{
+   double x[DIM], jac[DIM * DIM], hes[4];
+};
+
+struct dbl_range_t
+{
+   double min, max;
+};
+struct obbox_t
+{
+   double c0[DIM], A[DIM * DIM];
+   dbl_range_t x[DIM];
+};
+
+struct findptsLocalHashData_t
+{
+   int hash_n;
+   dbl_range_t bnd[DIM];
+   double fac[DIM];
+   unsigned int *offset;
+   int max;
+};
+
+// Eval the ith Lagrange interpolant and its first derivative at x.
+// Note: lCoeff stores pre-computed coefficients for fast evaluation.
+static MFEM_HOST_DEVICE inline void lag_eval_first_der(double *p0, double x,
+                                                       int i, const double *z,
+                                                       const double *lCoeff,
+                                                       int pN)
 {
    double u0 = 1, u1 = 0;
    for (int j = 0; j < pN; ++j)
@@ -39,14 +76,16 @@ static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(double *p0,
          u0 = d_j * u0;
       }
    }
-   double *p1 = p0 + pN;
-   p0[i] = lagrangeCoeff[i] * u0;
-   p1[i] = 2.0 * lagrangeCoeff[i] * u1;
+   p0[i] = lCoeff[i] * u0;
+   p0[pN+i] = 2.0 * lCoeff[i] * u1;
 }
 
-static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(double *p0,
-                                                                    double x, int i,
-                                                                    const double *z, const double *lagrangeCoeff, int pN)
+// Eval the ith Lagrange interpolant and its first and second derivative at x.
+// Note: lCoeff stores pre-computed coefficients for fast evaluation.
+static MFEM_HOST_DEVICE inline void lag_eval_second_der(double *p0, double x,
+                                                        int i, const double *z,
+                                                        const double *lCoeff,
+                                                        int pN)
 {
    double u0 = 1, u1 = 0, u2 = 0;
    for (int j = 0; j < pN; ++j)
@@ -59,15 +98,14 @@ static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(double *p0,
          u0 = d_j * u0;
       }
    }
-   double *p1 = p0 + pN, *p2 = p0 + 2 * pN;
-   p0[i] = lagrangeCoeff[i] * u0;
-   p1[i] = 2.0 * lagrangeCoeff[i] * u1;
-   p2[i] = 8.0 * lagrangeCoeff[i] * u2;
+   p0[i] = lCoeff[i] * u0;
+   p0[pN+i] = 2.0 * lCoeff[i] * u1;
+   p0[2*pN+i] = 8.0 * lCoeff[i] * u2;
 }
 
-/* positive when possibly inside */
-static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
-                                                      const double x[2])
+// Axis-aligned bounding box test.
+static MFEM_HOST_DEVICE inline double AABB_test(const obbox_t *const b,
+                                                const double x[2])
 {
    double test = 1;
    for (int d = 0; d < 2; ++d)
@@ -78,11 +116,11 @@ static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
    return test;
 }
 
-/* positive when possibly inside */
-static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
-                                                 const double x[2])
+// Axis-aligned bounding box test followed by oriented bounding-box test.
+static MFEM_HOST_DEVICE inline double bbox_test(const obbox_t *const b,
+                                                const double x[2])
 {
-   const double bxyz = obbox_axis_test(b, x);
+   const double bxyz = AABB_test(b, x);
    if (bxyz < 0)
    {
       return bxyz;
@@ -109,7 +147,7 @@ static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
    }
 }
 
-////// HASH //////
+// Element index corresponding to hash mesh that the point is located in.
 static MFEM_HOST_DEVICE inline int hash_index(const findptsLocalHashData_t *p,
                                               const double x[2])
 {
@@ -124,7 +162,7 @@ static MFEM_HOST_DEVICE inline int hash_index(const findptsLocalHashData_t *p,
    return sum;
 }
 
-/* A is row-major */
+/*Solve Ax=y. A is row-major */
 static MFEM_HOST_DEVICE inline void lin_solve_2(double x[2], const double A[4],
                                                 const double y[2])
 {
@@ -133,7 +171,11 @@ static MFEM_HOST_DEVICE inline void lin_solve_2(double x[2], const double A[4],
    x[1] = idet*(A[0]*y[1] - A[2]*y[0]);
 }
 
-static MFEM_HOST_DEVICE inline double norm2(const double x[2]) { return x[0] * x[0] + x[1] * x[1]; }
+/* L2 norm squared. */
+static MFEM_HOST_DEVICE inline double l2norm2(const double x[2])
+{
+   return x[0] * x[0] + x[1] * x[1];
+}
 
 /* the bit structure of flags is CSSRR
    the C bit --- 1<<4 --- is set when the point is converged
@@ -143,34 +185,35 @@ static MFEM_HOST_DEVICE inline double norm2(const double x[2]) { return x[0] * x
    SS is similarly for s constraints
    SSRR = smax,smin,rmax,rmin
 */
-
 #define CONVERGED_FLAG (1u<<4)
-#define FLAG_MASK 0x1fu
+#define FLAG_MASK 0x1fu // set all 5 bits to 1
 
+/* Determine number of constraints based on the CTTSSRR bits. */
 static MFEM_HOST_DEVICE inline int num_constrained(const int flags)
 {
    const int y = flags | flags >> 1;
    return (y&1u) + (y>>2 & 1u);
 }
 
-/* assumes x = 0, 1, or 2 */
+// Helper functions. Assumes x = 0, 1, or 2.
 static MFEM_HOST_DEVICE inline int plus_1_mod_2(const int x)
 {
    return x ^ 1u;
 }
-
-/* assumes x = 1 << i, with i < 4, returns i+1 */
+// assumes x = 1 << i, with i < 4, returns i+1.
 static MFEM_HOST_DEVICE inline int which_bit(const int x)
 {
    const int y = x & 7u;
    return (y-(y>>2)) | ((x-1)&4u);
 }
 
+// Get edge index based on the SSRR bits.
 static MFEM_HOST_DEVICE inline int edge_index(const int x)
 {
    return which_bit(x)-1;
 }
 
+// Gets vertex index based SSRR bits.
 static MFEM_HOST_DEVICE inline int point_index(const int x)
 {
    return ((x>>1)&1u) | ((x>>2)&2u);
@@ -291,17 +334,16 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[2],
    return pt;
 }
 
-/* check reduction in objective against prediction, and adjust
-   trust region radius (p->tr) accordingly;
-   may reject the prior step, returning 1; otherwise returns 0
-   sets out->dist2, out->index, out->x, out->oldr in any event,
+/* Check reduction in objective against prediction, and adjust trust region
+   radius (p->tr) accordingly. May reject the prior step, returning 1; otherwise
+   returns 0 sets out->dist2, out->index, out->x, out->oldr in any event,
    leaving out->r, out->dr, out->flags to be set when returning 0 */
 static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
                                                  const double resid[2],
                                                  const findptsElementPoint_t *p,
                                                  const double tol)
 {
-   const double dist2 = norm2(resid);
+   const double dist2 = l2norm2(resid);
    const double decr = p->dist2 - dist2;
    const double pred = p->dist2p;
    for (int d = 0; d < 2; ++d)
@@ -348,8 +390,8 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
    }
 }
 
-/* minimize ||resid - jac * dr||_2, with |dr| <= tr, |r0+dr|<=1
-   (exact solution of trust region problem) */
+/* Minimize 0.5||x* - x(r)||^2_2 using gradient-descent, with
+   |dr| <= tr and |r0+dr|<=1*/
 static MFEM_HOST_DEVICE void newton_area(findptsElementPoint_t *const out,
                                          const double jac[4],
                                          const double resid[2],
@@ -364,11 +406,6 @@ static MFEM_HOST_DEVICE void newton_area(findptsElementPoint_t *const out,
    r0[0] = p->r[0], r0[1] = p->r[1];
 
    mask = 0xfu; // 1111 - MSB to LSB - smax,smin,rmax,rmin
-   // bnd is initialized to be a box [-1, 1]^2, but if the limits change based
-   // on the initial guess (r0) and trust region, the mask is modified.
-   // Example: r0 = [0.2, -0.3].. r0[0]-tr = 0.2-1 = -0.8.
-   // In this case the bounding box will be shortened and the bit corresponding
-   // to rmin will be changed.
    for (d = 0; d < 2; ++d)
    {
       if (r0[d] - tr > -1)
@@ -519,6 +556,7 @@ newton_area_fin:
    out->flags = flags | (p->flags << 5);
 }
 
+// Full Newton solve on the face. One of r/s/t is constrained.
 static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const
                                                 out,
                                                 const double jac[4],
@@ -591,6 +629,7 @@ newton_edge_fin:
    out->flags = flags | new_flags | (p->flags << 5);
 }
 
+// Find closest mesh node to the sought point.
 static MFEM_HOST_DEVICE void seed_j(const double *elx[2],
                                     const double x[2],
                                     const double *z, //GLL point locations [-1, 1]
@@ -616,7 +655,7 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[2],
       {
          dx[d] = x[d] - elx[d][jk];
       }
-      const double dist2_jkl = norm2(dx);
+      const double dist2_jkl = l2norm2(dx);
       if (dist2[j] > dist2_jkl)
       {
          dist2[j] = dist2_jkl;
@@ -626,6 +665,8 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[2],
    }
 }
 
+/* Compute contribution towards function value and its derivatives in each
+   reference direction. */
 static MFEM_HOST_DEVICE double tensor_ig2_j(double *g_partials,
                                             const double *Jr,
                                             const double *Dr,
@@ -748,7 +789,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
             box.A[idx] = boxinfo[n_box_ents*el + 3*DIM + idx];
          }
 
-         if (obbox_test(&box, x_i) >= 0)
+         if (bbox_test(&box, x_i) >= 0)
          {
             //// findpts_local ////
             {
@@ -865,10 +906,10 @@ static void FindPointsLocal2D_Kernel(const int npt,
                               {
                                  const int qp = j % D1D;
                                  const int d = j / D1D;
-                                 lagrange_eval_first_derivative(wtr + 2*d*D1D,
-                                                                tmp->r[d], qp,
-                                                                gll1D, lagcoeff,
-                                                                D1D);
+                                 lag_eval_first_der(wtr + 2*d*D1D,
+                                                    tmp->r[d], qp,
+                                                    gll1D, lagcoeff,
+                                                    D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
@@ -879,14 +920,15 @@ static void FindPointsLocal2D_Kernel(const int npt,
                               {
                                  const int qp = j % D1D;
                                  const int d = j / D1D;
-                                 resid_temp[d + qp * 2] = tensor_ig2_j(jac_temp + 2 * d + 4 * qp,
-                                                                       wtr,
-                                                                       wtr + D1D,
-                                                                       wtr + 2*D1D,
-                                                                       wtr + 3*D1D,
-                                                                       elx[d],
-                                                                       qp,
-                                                                       D1D);
+                                 double *idx = jac_temp+2*d+4*qp;
+                                 resid_temp[d+qp*2] = tensor_ig2_j(idx,
+                                                                   wtr,
+                                                                   wtr+D1D,
+                                                                   wtr+2*D1D,
+                                                                   wtr+3*D1D,
+                                                                   elx[d],
+                                                                   qp,
+                                                                   D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
@@ -945,14 +987,14 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            }
                            MFEM_SYNC_THREAD;
 
-                           // compute basis function info upto 2nd derivative for tangential components
+                           // compute basis function info upto 2nd derivative.
                            MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
                               if (j < D1D)
                               {
-                                 lagrange_eval_second_derivative(wt, tmp->r[de],
-                                                                 j, gll1D,
-                                                                 lagcoeff, D1D);
+                                 lag_eval_second_der(wt, tmp->r[de],
+                                                     j, gll1D,
+                                                     lagcoeff, D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
@@ -1010,7 +1052,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                     double steep = resid[0] * jac[  dn]
                                                    + resid[1] * jac[2+dn];
 
-                                    if (steep * tmp->r[dn] < 0) /* relax constraint */
+                                    if (steep * tmp->r[dn] < 0)
                                     {
                                        newton_area(fpt, jac, resid, tmp, tol);
                                     }
@@ -1143,7 +1185,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   }
                }
             } //findpts_local
-         } //obbox_test
+         } //bbox_test
       } //elp
    });
 }

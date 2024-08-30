@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "../gslib.hpp"
-#include "findpts_3.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
@@ -23,11 +22,54 @@ namespace mfem
 #define CODE_INTERNAL 0
 #define CODE_BORDER 1
 #define CODE_NOT_FOUND 2
-#define dim 3
-#define dim2 dim*dim
+#define DIM 3
+#define DIM2 DIM*DIM
 #define pMax 10
 #define nThreads 32
 
+struct findptsPt
+{
+   double x[DIM], r[DIM], oldr[DIM], dist2, dist2p, tr;
+   int flags;
+};
+
+struct findptsElemFace
+{
+   double *x[DIM], *dxdn[DIM];
+};
+
+struct findptsElemEdge
+{
+   double *x[DIM], *dxdn1[DIM], *dxdn2[DIM], *d2xdn1[DIM], *d2xdn2[DIM];
+};
+
+struct findptsElemPt
+{
+   double x[DIM], jac[DIM * DIM], hes[18];
+};
+
+struct dbl_range_t
+{
+   double min, max;
+};
+
+struct obbox_t
+{
+   double c0[DIM], A[DIM * DIM];
+   dbl_range_t x[DIM];
+};
+
+struct findptsLocalHashData_t
+{
+   int hash_n;
+   dbl_range_t bnd[DIM];
+   double fac[DIM];
+   unsigned int *offset;
+   // int max;
+};
+
+// Eval the ith Lagrange interpolant and its first derivative at x.
+// Note: lCoeff stores pre-computed coefficients for fast evaluation.
 static MFEM_HOST_DEVICE inline void lag_eval_first_der(double *p0, double x,
                                                        int i, const double *z,
                                                        const double *lCoeff,
@@ -43,11 +85,12 @@ static MFEM_HOST_DEVICE inline void lag_eval_first_der(double *p0, double x,
          u0 = d_j*u0;
       }
    }
-   double *p1 = p0+pN;
    p0[i] = lCoeff[i]*u0;
-   p1[i] = 2.0*lCoeff[i]*u1;
+   p0[pN+i] = 2.0*lCoeff[i]*u1;
 }
 
+// Eval the ith Lagrange interpolant and its first and second derivative at x.
+// Note: lCoeff stores pre-computed coefficients for fast evaluation.
 static MFEM_HOST_DEVICE inline void lag_eval_second_der(double *p0, double x,
                                                         int i, const double *z,
                                                         const double *lCoeff,
@@ -64,15 +107,14 @@ static MFEM_HOST_DEVICE inline void lag_eval_second_der(double *p0, double x,
          u0 = d_j*u0;
       }
    }
-   double *p1 = p0+pN, *p2 = p0+2*pN;
    p0[i] = lCoeff[i]*u0;
-   p1[i] = 2.0*lCoeff[i]*u1;
-   p2[i] = 8.0*lCoeff[i]*u2;
+   p0[pN+i] = 2.0*lCoeff[i]*u1;
+   p0[2*pN+i] = 8.0*lCoeff[i]*u2;
 }
 
-/* positive when possibly inside */
-static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
-                                                      const double x[3])
+// Axis-aligned bounding box test.
+static MFEM_HOST_DEVICE inline double AABB_test(const obbox_t *const b,
+                                                const double x[3])
 {
    double b_d;
    for (int d = 0; d < 3; ++d)
@@ -83,11 +125,11 @@ static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
    return b_d;
 }
 
-/* positive when possibly inside */
-static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
-                                                 const double x[3])
+// Axis-aligned bounding box test followed by oriented bounding-box test.
+static MFEM_HOST_DEVICE inline double bbox_test(const obbox_t *const b,
+                                                const double x[3])
 {
-   const double bxyz = obbox_axis_test(b, x);
+   const double bxyz = AABB_test(b, x);
    if (bxyz < 0)
    {
       return bxyz;
@@ -114,7 +156,7 @@ static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
    }
 }
 
-////// HASH //////
+// Element index corresponding to hash mesh that the point is located in.
 static MFEM_HOST_DEVICE inline int hash_index(const findptsLocalHashData_t *p,
                                               const double x[3])
 {
@@ -129,8 +171,7 @@ static MFEM_HOST_DEVICE inline int hash_index(const findptsLocalHashData_t *p,
    return sum;
 }
 
-//// Linear algebra ////
-/* A is row-major */
+// Solve Ax=y. A is row-major.
 static MFEM_HOST_DEVICE inline void lin_solve_3(double x[3], const double A[9],
                                                 const double y[3])
 {
@@ -147,6 +188,7 @@ static MFEM_HOST_DEVICE inline void lin_solve_3(double x[3], const double A[9],
    x[2] = idet*(inv6*y[0]+inv7*y[1]+inv8*y[2]);
 }
 
+// Solve Ax=y. A is a symmetric 2x2 matrix.
 static MFEM_HOST_DEVICE inline void lin_solve_sym_2(double x[2],
                                                     const double A[3],
                                                     const double y[2])
@@ -156,7 +198,8 @@ static MFEM_HOST_DEVICE inline void lin_solve_sym_2(double x[2],
    x[1] = idet*(A[0]*y[1]-A[1]*y[0]);
 }
 
-static MFEM_HOST_DEVICE inline double norm2(const double x[3])
+// L2 norm.
+static MFEM_HOST_DEVICE inline double l2norm2(const double x[3])
 {
    return x[0]*x[0]+x[1]*x[1]+x[2]*x[2];
 }
@@ -169,40 +212,41 @@ static MFEM_HOST_DEVICE inline double norm2(const double x[3])
    SS, TT are similarly for s and t constraints
    TT is ignored, but treated as set when 3==2
 */
-
 #define CONVERGED_FLAG (1u << 6)
-#define FLAG_MASK 0x7fu
+#define FLAG_MASK 0x7fu // set all 7 bits to 1
 
+// Determine number of constraints based on the CTTSSRR bits.
 static MFEM_HOST_DEVICE inline int num_constrained(const int flags)
 {
    const int y = flags | flags >> 1;
    return (y & 1u)+(y >> 2 & 1u)+(((3 == 2) | y >> 4) & 1u);
 }
 
-/* assumes x = 0, 1, or 2 */
+// Helper functions. Assumes x = 0, 1, or 2.
 static MFEM_HOST_DEVICE inline int plus_1_mod_3(const int x)
 {
    return ((x | x >> 1)+1) & 3u;
 }
-
 static MFEM_HOST_DEVICE inline int plus_2_mod_3(const int x)
 {
    const int y = (x-1) & 3u;
    return y ^ (y >> 1);
 }
 
-/* assumes x = 1 << i, with i < 6, returns i+1 */
+// Assumes x = 1 << i, with i < 6, returns i+1.
 static MFEM_HOST_DEVICE inline int which_bit(const int x)
 {
    const int y = x & 7u;
    return (y-(y >> 2)) | ((x-1) & 4u) | (x >> 4);
 }
 
+// Get face index based on the TTSSRR bits.
 static MFEM_HOST_DEVICE inline int face_index(const int x)
 {
    return which_bit(x)-1;
 }
 
+// Get edge index based on the TTSSRR bits.
 static MFEM_HOST_DEVICE inline int edge_index(const int x)
 {
    const int y = ~((x >> 1) | x);
@@ -215,15 +259,14 @@ static MFEM_HOST_DEVICE inline int edge_index(const int x)
           ((0u-((y >> 4) & 1u)) & te);
 }
 
+// Get point index based on the TTSSRR bits.
 static MFEM_HOST_DEVICE inline int point_index(const int x)
 {
    return ((x >> 1) & 1u) | ((x >> 2) & 2u) | ((x >> 3) & 4u);
 }
 
-// gets face info
-// Must be called within an inner loop, with the final argument being the loop index
-// workspace is a shared workspace
-// side_init indicates the mode the workspace is set to
+// Gets mesh nodal coordinates and normal derivative in reference-space at the
+// given face.
 static MFEM_HOST_DEVICE inline findptsElemFace
 get_face(const double *elx[3], const double *wtend, int fi, double *workspace,
          int &side_init, int jidx, int pN)
@@ -267,6 +310,8 @@ get_face(const double *elx[3], const double *wtend, int fi, double *workspace,
    return face;
 }
 
+// Gets mesh nodal coordinates and normal derivatives in reference-space at the
+// given edge.
 static MFEM_HOST_DEVICE inline findptsElemEdge
 get_edge(const double *elx[3], const double *wtend, int ei, double *workspace,
          int &side_init, int jidx, int pN)
@@ -325,6 +370,7 @@ get_edge(const double *elx[3], const double *wtend, int ei, double *workspace,
    return edge;
 }
 
+// Gets nodal coordinate and derivatives at the given vertex of the element.
 static MFEM_HOST_DEVICE inline findptsElemPt get_pt(const double *elx[3],
                                                     const double *wtend,
                                                     int pi, int pN)
@@ -401,17 +447,16 @@ static MFEM_HOST_DEVICE inline findptsElemPt get_pt(const double *elx[3],
    return pt;
 }
 
-/* check reduction in objective against prediction, and adjust
-   trust region radius (p->tr) accordingly;
-   may reject the prior step, returning 1; otherwise returns 0
-   sets out->dist2, out->index, out->x, out->oldr in any event,
+/* Check reduction in objective against prediction, and adjust trust region
+   radius (p->tr) accordingly. May reject the prior step, returning 1; otherwise
+   returns 0 sets out->dist2, out->index, out->x, out->oldr in any event,
    leaving out->r, out->dr, out->flags to be set when returning 0 */
 static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsPt *out,
                                                  const double resid[3],
                                                  const findptsPt *p,
                                                  const double tol)
 {
-   const double dist2 = norm2(resid);
+   const double dist2 = l2norm2(resid);
    const double decr = p->dist2-dist2;
    const double pred = p->dist2p;
    for (int d = 0; d < 3; ++d)
@@ -459,8 +504,8 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsPt *out,
    }
 }
 
-/* minimize ||resid-jac*dr||_2, with |dr| <= tr, |r0+dr|<=1
-   (exact solution of trust region problem) */
+/* minimize 0.5||x* - x(r)||^2_2 using gradient-descent, with
+   |dr| <= tr and |r0+dr|<=1*/
 static MFEM_HOST_DEVICE void newton_vol(findptsPt *const out,
                                         const double jac[9],
                                         const double resid[3],
@@ -660,6 +705,8 @@ newton_vol_fin:
    }
    out->flags = flags | (p->flags << 7);
 }
+
+// Full Newton solve on the face. One of r/s/t is constrained.
 static MFEM_HOST_DEVICE void newton_face(findptsPt *const out,
                                          const double jac[9],
                                          const double rhes[3],
@@ -842,6 +889,7 @@ newton_face_fin:
    out->flags = new_flags | (p->flags << 7);
 }
 
+// Full Newton solve on the edge. Two of r/s/t are constrained.
 static MFEM_HOST_DEVICE inline void newton_edge(findptsPt *const
                                                 out,
                                                 const double jac[9],
@@ -926,6 +974,7 @@ newton_edge_fin:
    out->flags = flags | new_flags | (p->flags << 7);
 }
 
+// Find closest mesh node to the sought point.
 static MFEM_HOST_DEVICE void seed_j(const double *elx[3],
                                     const double x[3],
                                     const double *z,//GLL point locations [-1, 1]
@@ -955,7 +1004,7 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[3],
          {
             dx[d] = x[d]-elx[d][jkl];
          }
-         const double dist2_jkl = norm2(dx);
+         const double dist2_jkl = l2norm2(dx);
          if (dist2[j] > dist2_jkl)
          {
             dist2[j] = dist2_jkl;
@@ -967,6 +1016,8 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[3],
    }
 }
 
+/* Compute contribution towards function value and its derivatives in each
+   reference direction. */
 static MFEM_HOST_DEVICE double tensor_ig3_j(double *g_partials,
                                             const double *Jr,
                                             const double *Dr,
@@ -1037,7 +1088,7 @@ static void FindPointsLocal3DKernel(const int npt,
       // 6D1D^2 for face, 15D1D for edge.
       constexpr int size2 = MAX_CONST(MD1*MD1*6, MD1*3*5);
       //size depends on max of info for faces and edges
-      constexpr int size3 = MD1*MD1*MD1*dim;  // local element coordinates
+      constexpr int size3 = MD1*MD1*MD1*DIM;  // local element coordinates
 
       MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED findptsPt el_pts[2];
@@ -1057,9 +1108,9 @@ static void FindPointsLocal3DKernel(const int npt,
       }
       MFEM_SYNC_THREAD;
 
-      int id_x = point_pos_ordering == 0 ? i : i*dim;
-      int id_y = point_pos_ordering == 0 ? i+npt : i*dim+1;
-      int id_z = point_pos_ordering == 0 ? i+2*npt : i*dim+2;
+      int id_x = point_pos_ordering == 0 ? i : i*DIM;
+      int id_y = point_pos_ordering == 0 ? i+npt : i*DIM+1;
+      int id_z = point_pos_ordering == 0 ? i+2*npt : i*DIM+2;
       double x_i[3] = {x[id_x], x[id_y], x[id_z]};
 
       unsigned int *code_i = code_base+i;
@@ -1067,7 +1118,7 @@ static void FindPointsLocal3DKernel(const int npt,
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
-      for (int d = 0; d < dim; ++d)
+      for (int d = 0; d < DIM; ++d)
       {
          hash.bnd[d].min = hashMin[d];
          hash.fac[d] = hashFac[d];
@@ -1088,21 +1139,20 @@ static void FindPointsLocal3DKernel(const int npt,
 
          // construct obbox_t on the fly from data
          obbox_t box;
-         int n_box_ents = 3*dim+dim2;
-
-         for (int idx = 0; idx < dim; ++idx)
+         int n_box_ents = 3*DIM+DIM2;
+         for (int idx = 0; idx < DIM; ++idx)
          {
             box.c0[idx] = boxinfo[n_box_ents*el+idx];
-            box.x[idx].min = boxinfo[n_box_ents*el+dim+idx];
-            box.x[idx].max = boxinfo[n_box_ents*el+2*dim+idx];
+            box.x[idx].min = boxinfo[n_box_ents*el+DIM+idx];
+            box.x[idx].max = boxinfo[n_box_ents*el+2*DIM+idx];
          }
 
-         for (int idx = 0; idx < dim2; ++idx)
+         for (int idx = 0; idx < DIM2; ++idx)
          {
-            box.A[idx] = boxinfo[n_box_ents*el+3*dim+idx];
+            box.A[idx] = boxinfo[n_box_ents*el+3*DIM+idx];
          }
 
-         if (obbox_test(&box, x_i) >= 0)
+         if (bbox_test(&box, x_i) >= 0)
          {
             //// findpts_local ////
             {
@@ -1129,8 +1179,8 @@ static void FindPointsLocal3DKernel(const int npt,
                   MFEM_SYNC_THREAD;
                }
 
-               const double *elx[dim];
-               for (int d = 0; d < dim; d++)
+               const double *elx[DIM];
+               for (int d = 0; d < DIM; d++)
                {
                   elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
                            xElemCoord+d*nel*p_NE+el*p_NE;
@@ -1147,15 +1197,16 @@ static void FindPointsLocal3DKernel(const int npt,
                         fpt->dist2p = 0;
                         fpt->tr = 1;
                      }
-                     if (j < dim) { fpt->x[j] = x_i[j]; }
+                     if (j < DIM) { fpt->x[j] = x_i[j]; }
                      constraint_init_t[j] = 0;
                   }
                   MFEM_SYNC_THREAD;
+
                   //// seed ////
                   {
                      double *dist2_temp = r_workspace_ptr;
-                     double *r_temp[dim];
-                     for (int d = 0; d < dim; ++d)
+                     double *r_temp[DIM];
+                     for (int d = 0; d < DIM; ++d)
                      {
                         r_temp[d] = dist2_temp+(1+d)*D1D;
                      }
@@ -1176,7 +1227,7 @@ static void FindPointsLocal3DKernel(const int npt,
                               if (dist2_temp[jj] < fpt->dist2)
                               {
                                  fpt->dist2 = dist2_temp[jj];
-                                 for (int d = 0; d < dim; ++d)
+                                 for (int d = 0; d < DIM; ++d)
                                  {
                                     fpt->r[d] = r_temp[d][jj];
                                  }
@@ -1195,9 +1246,9 @@ static void FindPointsLocal3DKernel(const int npt,
                         tmp->dist2 = DBL_MAX;
                         tmp->dist2p = 0;
                         tmp->tr = 1;
-                        tmp->flags = 0;
+                        tmp->flags = 0; // we do newton_vol regardless of seed.
                      }
-                     if (j < dim)
+                     if (j < DIM)
                      {
                         tmp->x[j] = fpt->x[j];
                         tmp->r[j] = fpt->r[j];
@@ -1209,9 +1260,8 @@ static void FindPointsLocal3DKernel(const int npt,
                   {
                      switch (num_constrained(tmp->flags & FLAG_MASK))
                      {
-                        case 0:   // findpt_vol
+                        case 0: // findpt_vol
                         {
-                           // need 3 dimensions to have a volume
                            double *wtr = r_workspace_ptr;
 
                            double *resid = wtr+6*D1D;
@@ -1288,7 +1338,7 @@ static void FindPointsLocal3DKernel(const int npt,
                            MFEM_SYNC_THREAD;
                            break;
                         } //case 0
-                        case 1:   // findpt_face / findpt_area
+                        case 1: // findpt_face
                         {
                            const int fi = face_index(tmp->flags & FLAG_MASK);
                            const int dn = fi >> 1;
@@ -1421,7 +1471,7 @@ static void FindPointsLocal3DKernel(const int npt,
                            MFEM_SYNC_THREAD;
                            break;
                         }
-                        case 2:   // findpt_edge
+                        case 2: // findpt_edge
                         {
                            const int ei = edge_index(tmp->flags & FLAG_MASK);
                            const int de = ei >> 2,
@@ -1431,7 +1481,7 @@ static void FindPointsLocal3DKernel(const int npt,
                            d_j[0] = de;
                            d_j[1] = dn1;
                            d_j[2] = dn2;
-                           const int hes_count = 2*3-1; // 3=3 ? 5 : 1;
+                           const int hes_count = 2*3-1;
 
                            double *wt = r_workspace_ptr;
                            double *resid = wt+3*D1D;
@@ -1442,7 +1492,7 @@ static void FindPointsLocal3DKernel(const int npt,
 
                            MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
-                              // utilized first 3*D1D threads
+                              // utilizes first 3*D1D threads
                               edge = get_edge(elx, wtend, ei,
                                               constraint_workspace,
                                               constraint_init_t[j], j,
@@ -1496,7 +1546,6 @@ static void FindPointsLocal3DKernel(const int npt,
                               if (j < hes_count*3)
                               {
                                  // Hes_T is transposed version (i.e. in col major)
-
                                  // n1*[2, 1, 1, 0, 0]
                                  // j==1 => wt_j = wt+n1
                                  double *wt_j = wt+D1D*(2-(row+1) / 2);
@@ -1775,7 +1824,7 @@ static void FindPointsLocal3DKernel(const int npt,
                      }
                      if (j < 3)
                      {
-                        *(r_base+dim*i+j) = fpt->r[j];
+                        *(r_base+DIM*i+j) = fpt->r[j];
                      }
                   }
                   MFEM_SYNC_THREAD;
@@ -1785,7 +1834,7 @@ static void FindPointsLocal3DKernel(const int npt,
                   }
                }
             } //findpts_local
-         } //obbox_test
+         } //bbox_test
       } //elp
    });
 }
@@ -1801,7 +1850,6 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
    SWkernel.Clear();
    SWkernel.Start();
    if (npt == 0) { return; }
-   MFEM_VERIFY(dim == 3,"Function for 3D only");
    auto pp = point_pos.Read();
    auto pgslm = gsl_mesh.Read();
    auto pwt = DEV.wtend.Read();
@@ -1871,8 +1919,8 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
 
 #undef nThreads
 #undef pMax
-#undef dim2
-#undef dim
+#undef DIM2
+#undef DIM
 #undef CODE_INTERNAL
 #undef CODE_BORDER
 #undef CODE_NOT_FOUND
