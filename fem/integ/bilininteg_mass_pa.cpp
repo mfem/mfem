@@ -220,11 +220,11 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       {
          if (dim == 2)
          {
-            return OccaPAMassApply2D(D1D,Q1D,ne,B,Bt,D,x,y);
+            return internal::OccaPAMassApply2D(D1D,Q1D,ne,B,Bt,D,x,y);
          }
          if (dim == 3)
          {
-            return OccaPAMassApply3D(D1D,Q1D,ne,B,Bt,D,x,y);
+            return internal::OccaPAMassApply3D(D1D,Q1D,ne,B,Bt,D,x,y);
          }
          MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
       }

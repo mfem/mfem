@@ -56,12 +56,12 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       {
          if (dim == 2)
          {
-            OccaPADiffusionApply2D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
+            internal::OccaPADiffusionApply2D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
             return;
          }
          if (dim == 3)
          {
-            OccaPADiffusionApply3D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
+            internal::OccaPADiffusionApply3D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
             return;
          }
          MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
