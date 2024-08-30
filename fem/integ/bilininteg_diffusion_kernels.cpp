@@ -388,9 +388,7 @@ void OccaPADiffusionSetup3D(const int D1D,
    }
    OccaDiffSetup3D_ker.at(id)(NE, o_W, o_J, o_C, o_op, const_c);
 }
-#endif // MFEM_USE_OCCA
 
-#ifdef MFEM_USE_OCCA
 void OccaPADiffusionApply2D(const int D1D,
                             const int Q1D,
                             const int NE,
