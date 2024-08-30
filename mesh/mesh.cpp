@@ -10651,8 +10651,7 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
    }
 }
 
-void Mesh::ConformingRefinement_base(const Array<int> &el_to_refine,
-                                     bool update_nodes)
+void Mesh::ConformingRefinement_base(const Array<int> &el_to_refine)
 {
    DSTable v_to_v(NumOfVertices);
    GetVertexToVertexTable(v_to_v);
@@ -10727,11 +10726,6 @@ void Mesh::ConformingRefinement_base(const Array<int> &el_to_refine,
          GenerateFaces();
       }
    }
-
-   // last_operation = Mesh::REFINE;
-   // sequence++;
-   if (update_nodes) { UpdateNodes(); }
-   // UpdateNodes();
 }
 
 void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,

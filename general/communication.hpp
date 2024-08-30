@@ -132,6 +132,14 @@ public:
     - group 0 is the 'local' group
     - groupmaster_lproc[0] = 0
     - lproc_proc[0] = MyRank */
+// Each pair of MPI ranks that shares an entity (vertex, edge, and/or face)
+// is placed in a group.
+// If an entity is shared by more than 2 ranks, that is placed in a separate group.
+// If a group exists on one rank, the same group will also exist on other ranks
+// in that group.
+// The group number can be different on different ranks.
+// group_svert/sedge etc in pmesh thus give shared entities on a rank.
+// svert_lvert etc give the local entity number of the shared entity.
 class GroupTopology
 {
 private:

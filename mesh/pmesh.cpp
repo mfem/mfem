@@ -4602,8 +4602,7 @@ void ParMesh::ConformingRefinement(const Array<int> &el_to_refine)
 
       // call Mesh::UniformRefinement2D so that it won't update the nodes
       {
-         const bool update_nodes = false;
-         Mesh::ConformingRefinement_base(el_to_refine, update_nodes);
+         Mesh::ConformingRefinement_base(el_to_refine);
       }
 
       {

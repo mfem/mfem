@@ -449,8 +449,7 @@ protected:
 
    void UniformRefinement2D_base(bool update_nodes = true);
 
-   void ConformingRefinement_base(const Array<int> &el_to_refine,
-                                  bool update_nodes = true);
+   void ConformingRefinement_base(const Array<int> &el_to_refine);
 
    /// Refine a mixed 2D mesh uniformly.
    virtual void UniformRefinement2D() { UniformRefinement2D_base(); }
@@ -2240,6 +2239,7 @@ public:
       ConformingRefinement_base(el_to_refine);
       last_operation = Mesh::REFINE;
       sequence++;
+      UpdateNodes();
    }
 
    /// Refine each element with given probability. Uses GeneralRefinement.
