@@ -220,6 +220,7 @@ int main(int argc, char *argv[])
       case maxwell:
          fec = new ND_FECollection(order, dim);
          fespace = new ParFiniteElementSpace(mesh, fec);
+         break;
       default:
          mfem_error("Invalid integrator type! Check FiniteElementCollection");
    }
