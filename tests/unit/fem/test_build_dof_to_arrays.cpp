@@ -270,9 +270,7 @@ TEST_CASE("Build Dof To Arrays (Parallel)",
 
             // Get all boundary ldofs
             Array<int> bdr(1); bdr = 1;
-            static_cast<FiniteElementSpace&>(fespace).FiniteElementSpace::GetEssentialVDofs(
-               bdr,
-               all_bdr_ldofs_marked);
+            fespace.FiniteElementSpace::GetEssentialVDofs(bdr, all_bdr_ldofs_marked);
             FiniteElementSpace::MarkerToList(all_bdr_ldofs_marked, all_bdr_ldofs);
 
             for (int i = 0; i < size; i++)
@@ -531,8 +529,7 @@ Mesh * GetMesh(MeshType type)
          mesh->AddTet(8, 2, 7, 5);
          break;
    }
-   mesh->FinalizeTopology(true);
-   for (int i = 0; i < mesh->GetNBE(); i++) { mesh->SetBdrAttribute(i, 1); }
+   mesh->FinalizeTopology();
 
    return mesh;
 }
