@@ -44,6 +44,13 @@ struct Refinement
 
    Refinement(int index, int type = Refinement::XYZ, real_t s = 0.5)
       : index(index), ref_type(type), scale(s) {}
+
+   void Set(int elem, int type = Refinement::XYZ, real_t s = 0.5)
+   {
+      index = elem;
+      ref_type = type;
+      scale = s;
+   }
 };
 
 
@@ -967,12 +974,10 @@ protected: // implementation
          }
       }
 
-      Point(const Point& p0, const Point& p1, const Point& p2, const Point& p3,
-            real_t s = 0.5)
+      Point(const Point& p0, const Point& p1, const Point& p2, const Point& p3)
       {
          dim = p0.dim;
          MFEM_ASSERT(p1.dim == dim && p2.dim == dim && p3.dim == dim, "");
-         MFEM_ABORT("TODO: s?");
          for (int i = 0; i < dim; i++)
          {
             coord[i] = (p0.coord[i] + p1.coord[i] + p2.coord[i] + p3.coord[i])
