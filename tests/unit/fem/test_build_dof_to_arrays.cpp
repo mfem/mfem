@@ -529,8 +529,7 @@ Mesh * GetMesh(MeshType type)
          mesh->AddTet(8, 2, 7, 5);
          break;
    }
-   mesh->FinalizeTopology(true);
-   for (int i = 0; i < mesh->GetNBE(); i++) { mesh->SetBdrAttribute(i, 1); }
+   mesh->FinalizeTopology();
 
    return mesh;
 }
