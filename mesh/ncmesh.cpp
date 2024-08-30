@@ -247,9 +247,9 @@ NCMesh::NCMesh(const NCMesh &other)
    , Legacy(other.Legacy)
    , nodes(other.nodes)
    , faces(other.faces)
+   , usingScaling(other.usingScaling)
    , elements(other.elements)
    , shadow(1024, 2048)
-   , usingScaling(other.usingScaling)
 {
    other.free_element_ids.Copy(free_element_ids);
    other.root_state.Copy(root_state);
