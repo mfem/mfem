@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int el_type = 0;
    bool dg_mesh = false;
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -227,7 +229,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "mesh\n" << *mesh << flush;
