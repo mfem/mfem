@@ -83,17 +83,16 @@ public:
 protected:
    Mesh *mesh;
    Array<Mesh *> mesh_split;  // Meshes used to split simplices.
-   // IntegrationRules for simplex->Quad/Hex and to project to highest polynomial
-   // order in-case of p-refinement.
+   // IntegrationRules for simplex->Quad/Hex and to project to p_max in-case of
+   // p-refinement.
    Array<IntegrationRule *> ir_split;
-   Array<FiniteElementSpace *>
-   fes_rst_map; //FESpaces to map info Quad/Hex->Simplex
-   Array<GridFunction *> gf_rst_map; // GridFunctions to map info Quad/Hex->Simplex
+   Array<FiniteElementSpace *> fes_rst_map; //FESpaces to map Quad/Hex->Simplex
+   Array<GridFunction *> gf_rst_map; // GridFunctions to map Quad/Hex->Simplex
    FiniteElementCollection *fec_map_lin;
    void *fdataD;
    struct gslib::crystal *cr;             // gslib's internal data
    struct gslib::comm *gsl_comm;          // gslib's internal data
-   int dim, points_cnt;
+   int dim, points_cnt;                   // mesh dimension and number of points
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    Array<unsigned int> recv_proc, recv_index; // data for custom interpolation
@@ -102,11 +101,12 @@ protected:
    AvgType avgtype;             // average type used for L2 functions
    Array<int> split_element_map;
    Array<int> split_element_index;
-   int        NE_split_total;
+   int        NE_split_total;   // total number of elements after mesh splitting
    int        mesh_points_cnt;  // number of mesh nodes
    // Tolerance to ignore points just outside elements at the boundary.
    double     bdr_tol;
 
+   // Device related data
    struct
    {
       bool setup_device = false;
