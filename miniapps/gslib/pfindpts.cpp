@@ -99,6 +99,7 @@ int main (int argc, char *argv[])
    const char *devopt    = "cpu";
    int randomization     = 0;
    int npt               = 100; //points per proc
+   int visport           = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -138,6 +139,8 @@ int main (int argc, char *argv[])
                   "1: generate points randomly inside each element in mesh.");
    args.AddOption(&npt, "-npt", "--npt",
                   "# points per proc or element");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -252,7 +255,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout;
       sout.open(vishost, visport);
       if (!sout)
