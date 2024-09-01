@@ -2794,17 +2794,18 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             continue;
          }
 
-         const int min_order = MinOrder(slave_orders);
-         const VarOrderBits min_mask = VarOrderBits(1) << min_order;
+         const int min_order_slaves = MinOrder(slave_orders);
          if (edge_orders[master.index] == 0 ||
-             min_order < MinOrder(edge_orders[master.index]))
+             min_order_slaves < MinOrder(edge_orders[master.index]))
          {
-            edge_orders[master.index] |= min_mask;
+            edge_orders[master.index] |= VarOrderBits(1) << min_order_slaves;
             changedEdges.insert(master.index);
          }
 
          // Also apply the minimum order to all the slave edges, since they must
          // interpolate the master edge, which has the minimum order.
+         const VarOrderBits min_mask = VarOrderBits(1) << MinOrder(
+                                          edge_orders[master.index]);
          for (int i = master.slaves_begin; i < master.slaves_end; i++)
          {
             if (edge_list.slaves[i].index >= numEdges)
@@ -2863,17 +2864,18 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             continue;
          }
 
-         const int min_order = MinOrder(slave_orders);
-         const VarOrderBits min_mask = VarOrderBits(1) << min_order;
+         const int min_order_slaves = MinOrder(slave_orders);
          if (face_orders[master.index] == 0 ||
-             min_order < MinOrder(face_orders[master.index]))
+             min_order_slaves < MinOrder(face_orders[master.index]))
          {
-            face_orders[master.index] |= min_mask;
+            face_orders[master.index] |= VarOrderBits(1) << min_order_slaves;
             changedFaces.insert(master.index);
          }
 
          // Also apply the minimum order to all the slave faces, since they must
          // interpolate the master face, which has the minimum order.
+         const VarOrderBits min_mask =
+            VarOrderBits(1) << MinOrder(face_orders[master.index]);
          for (int i = master.slaves_begin; i < master.slaves_end; i++)
          {
             const NCMesh::Slave &slave = face_list.slaves[i];
