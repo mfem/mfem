@@ -1847,7 +1847,7 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
    {
       const int face = face_id.index;
       const int* beg = var_face_dofs.GetRow(face);
-      const int variant = 0;  // Face variant
+      constexpr int variant = 0;  // Face variant
 
       base = beg[variant];
       nf = beg[variant+1] - base;
@@ -3389,7 +3389,7 @@ int ParFiniteElementSpace
             {
                int mfOrder = -1;
                if (entity == 1) { mfOrder = GetEdgeOrder(mf.index, 0); }
-               else if (entity == 2) { mfOrder = GetFaceOrder(mf.index); }
+               else if (entity == 2) { mfOrder = GetFaceOrder(mf.index, 0); }
 
                if (entity != 0) { fe = fec->GetFE(mf.Geom(), mfOrder); }
             }

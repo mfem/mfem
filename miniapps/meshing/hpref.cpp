@@ -42,7 +42,6 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
@@ -55,8 +54,6 @@ int main(int argc, char *argv[])
    bool deterministic = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -156,17 +153,22 @@ int main(int argc, char *argv[])
 
    int numH = 0;
    int numP = 0;
-   int seed = 0;
+   int seed = myid;
+
+   const std::vector<char> hp_char = {'h', 'p'};
 
    for (int iter=0; iter<numIter; ++iter)
    {
-      if (myid == 0) { cout << "hp-refinement iteration " << iter << endl; }
       const int r1 = deterministic ? MyRand(seed) : rand();
       const int r2 = deterministic ? MyRand(seed) : rand();
       const int elem = r1 % pmesh.GetNE();
       int hp = r2 % 2;
 
       MPI_Bcast(&hp, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+      if (myid == 0)
+         cout << "hp-refinement iteration " << iter << ": "
+              << hp_char[hp] << "-refinement" << endl;
 
       if (hp == 1)
       {
