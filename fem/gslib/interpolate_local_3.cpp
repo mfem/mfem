@@ -11,8 +11,6 @@
 
 #include "../gslib.hpp"
 #include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
-#include "../../linalg/dinvariants.hpp"
 
 #ifdef MFEM_USE_GSLIB
 

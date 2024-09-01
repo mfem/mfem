@@ -345,12 +345,14 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
 
 static slong lfloor(double x) { return floor(x); }
 
+// Local hash mesh index in 1D for a given point
 static ulong hash_index_aux(double low, double fac, ulong n, double x)
 {
    const slong i = lfloor((x - low) * fac);
    return i < 0 ? 0 : (n - 1 < (ulong)i ? n - 1 : (ulong)i);
 }
 
+// Local hash mesh index in 3D for a given point
 static ulong hash_index_3(const gslib::hash_data_3 *p, const double x[3])
 {
    const ulong n = p->hash_n;
@@ -360,6 +362,7 @@ static ulong hash_index_3(const gslib::hash_data_3 *p, const double x[3])
           hash_index_aux(p->bnd[0].min, p->fac[0], n, x[0]);
 }
 
+// Local hash mesh index in 2D for a given point
 static ulong hash_index_2(const gslib::hash_data_2 *p, const double x[2])
 {
    const ulong n = p->hash_n;
@@ -376,8 +379,20 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    SW2.Stop();
    findpts_setup_device_arrays_time = SW2.RealTime();
 
+   const int id = gsl_comm->id,
+             np = gsl_comm->np;
+
+   gsl_mfem_ref.SetSize(points_cnt*dim);
+   gsl_mfem_elem.SetSize(points_cnt);
+
    gsl_ref.UseDevice(true);
    gsl_dist.UseDevice(true);
+   // Initialize arrays for all points (gsl_code is set to not found on device)
+   gsl_ref       = -1.0;
+   gsl_mfem_ref  = 0.0;
+   gsl_elem      = 0;
+   gsl_mfem_elem = 0;
+   gsl_proc      = id;
 
    if (dim == 2)
    {
@@ -396,32 +411,21 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    gsl_code.HostReadWrite();
    gsl_elem.HostReadWrite();
    point_pos.HostRead();
-   gsl_proc.HostWrite();
-
-   gsl_mfem_ref.SetSize(points_cnt*dim);
-   gsl_mfem_ref = gsl_ref.HostRead();
-   gsl_mfem_ref += 1.;  // map  [-1, 1] to [0, 2] to [0, 1]
-   gsl_mfem_ref *= 0.5;
 
    // tolerance for point to be marked as on element edge/face
    double btol = 1e-12; // must match MapRefPosAndElemIndices for consistency
 
-   const int id = gsl_comm->id,
-             np = gsl_comm->np;
-   for (int i = 0; i < points_cnt; i++)
-   {
-      gsl_proc[i] = id;
-   }
-
    if (np == 1)
    {
-      gsl_mfem_elem.SetSize(points_cnt);
+      // Set gsl_mfem_elem using gsl_elem, gsl_mfem_ref using gsl_ref,
+      // and gsl_code using element type, gsl_mfem_ref, and gsl_dist.
       for (int index = 0; index < points_cnt; index++)
       {
+         if (gsl_code[index] == CODE_NOT_FOUND) { continue; }
          gsl_mfem_elem[index] = gsl_elem[index];
-         if (gsl_code[index] == CODE_NOT_FOUND)
+         for (int d = 0; d < dim; d++)
          {
-            continue;
+            gsl_mfem_ref(index*dim + d) = 0.5*(gsl_ref(index*dim + d)+1.0);
          }
          IntegrationPoint ip;
          if (dim == 2)
@@ -434,7 +438,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          }
          const int elem = gsl_elem[index];
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
-         const Geometry::Type gt = fe->GetGeomType();
+         const Geometry::Type gt = fe->GetGeomType(); // assumes quad/hex
          int setcode = Geometry::CheckPoint(gt, ip, -btol) ?
                        CODE_INTERNAL : CODE_BORDER;
          gsl_code[index] = setcode==CODE_BORDER && gsl_dist(index)>bdr_tol ?
@@ -612,6 +616,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          {
             opt[point].r[d] = AsConst(gsl_ref_l)[dim * point + d];
          }
+         // for found points set gsl_code using reference space coords.
          IntegrationPoint ip;
          if (dim == 2)
          {
@@ -624,7 +629,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          }
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(opt[point].el);
          const Geometry::Type gt = fe->GetGeomType();
-         opt[point].code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+         int setcode = Geometry::CheckPoint(gt, ip, -btol) ?
+                       CODE_INTERNAL : CODE_BORDER;
+         opt[point].code = setcode==CODE_BORDER && opt[point].dist2>bdr_tol ?
+                           CODE_NOT_FOUND : setcode;
       }
 
       array_free(&src_pt);
@@ -644,6 +652,8 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    MPI_Barrier(gsl_comm->c);
 
    /* merge remote results with user data */
+   // For points found on other procs, we set gsl_mfem_elem, gsl_mfem_ref,
+   // and gsl_code now.
    {
       int n = out_pt.n;
       struct outPt_t *opt = (struct outPt_t *)out_pt.ptr;
@@ -664,30 +674,25 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
             }
             gsl_dist[index] = opt->dist2;
             gsl_proc[index] = opt->proc;
-            gsl_elem[index] = opt->el; // skip setting gsl_mfem_elem
+            gsl_elem[index] = opt->el;
+            gsl_mfem_elem   = opt->el;
             gsl_code[index] = opt->code;
          }
       }
       array_free(&out_pt);
    }
 
-   // Set code for local points base on reference-space coordinate
-   // and for all points based on gsl_dist.
-   gsl_mfem_elem.SetSize(points_cnt);
+   // For points found locally, we set gsl_mfem_elem, gsl_mfem_ref, and gsl_code.
    for (int index = 0; index < points_cnt; index++)
    {
-      gsl_mfem_elem[index] = gsl_elem[index];
-      if (gsl_code[index] == CODE_NOT_FOUND)
+      if (gsl_code[index] == CODE_NOT_FOUND || gsl_proc[index] != id)
       {
          continue;
       }
-      if (gsl_proc[index] != id)
+      gsl_mfem_elem[index] = gsl_elem[index];
+      for (int d = 0; d < dim; d++)
       {
-         if (gsl_code[index] == CODE_BORDER && gsl_dist(index) > bdr_tol)
-         {
-            gsl_code[index] = CODE_NOT_FOUND;
-         }
-         continue;
+         gsl_mfem_ref(index*dim + d) = 0.5*(gsl_ref(index*dim + d)+1.0);
       }
       IntegrationPoint ip;
       if (dim == 2)
@@ -700,14 +705,11 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       }
       const int elem = gsl_elem[index];
       const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
-      const Geometry::Type gt = fe->GetGeomType();
-      if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
-      {
-         int setcode = Geometry::CheckPoint(gt, ip, -btol) ?
-                       CODE_INTERNAL : CODE_BORDER;
-         gsl_code[index] = setcode==CODE_BORDER && gsl_dist(index)>bdr_tol ?
-                           CODE_NOT_FOUND : setcode;
-      }
+      const Geometry::Type gt = fe->GetGeomType(); // assumes quad/hex
+      int setcode = Geometry::CheckPoint(gt, ip, -btol) ?
+                    CODE_INTERNAL : CODE_BORDER;
+      gsl_code[index] = setcode==CODE_BORDER && gsl_dist(index)>bdr_tol ?
+                        CODE_NOT_FOUND : setcode;
    }
 
    MPI_Barrier(gsl_comm->c);
@@ -2749,9 +2751,9 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
 {
    MFEM_VERIFY(setupflag, "Use OversetFindPointsGSLIB::Setup before "
                "finding points.");
-   MFEM_VERIFY(overset, " Please setup FindPoints for overlapping grids.");
+   MFEM_VERIFY(overset, "Please setup FindPoints for overlapping grids.");
    points_cnt = point_pos.Size() / dim;
-   unsigned int match = 0; // Don't find points in the mesh if point_id = mesh_id
+   unsigned int match = 0; // Don't find points in the mesh if point_id=mesh_id
 
    gsl_code.SetSize(points_cnt);
    gsl_proc.SetSize(points_cnt);
