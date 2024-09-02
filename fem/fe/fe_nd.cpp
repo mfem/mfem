@@ -1798,6 +1798,31 @@ void ND_R1D_SegmentElement::Project(VectorCoefficient &vc,
 
 }
 
+void
+ND_R1D_SegmentElement::ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                                ElementTransformation &Trans,
+                                                Vector &dofs) const
+{
+   MFEM_ASSERT(mc.GetWidth() == 3, "");
+   MFEM_ASSERT(dofs.Size() == dof*mc.GetHeight(), "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+
+      mc.Eval(MQ, Trans, Nodes.IntPoint(k));
+      // dof_k = vk^t J tk
+      Vector t(const_cast<double*>(&tk[dof2tk[k] * 3]), 3);
+
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         dofs(k + dof*r) = Trans.Jacobian()(0,0) * t(0) * MQ(r, 0) +
+                           t(1) * MQ(r, 1) + t(2) * MQ(r, 2);
+      }
+   }
+}
+
 void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
                                     ElementTransformation &Trans,
                                     DenseMatrix &I) const
@@ -1970,12 +1995,16 @@ void ND_R2D_SegmentElement::CalcVShape(ElementTransformation &Trans,
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
-   MFEM_ASSERT(JI.Width() == 1 && JI.Height() == 1,
+   MFEM_ASSERT(JI.Width() == 2 && JI.Height() == 1,
                "ND_R2D_SegmentElement cannot be embedded in "
-               "2 or 3 dimensional spaces");
+               "1 or 3 dimensional spaces");
    for (int i=0; i<dof; i++)
    {
-      shape(i, 0) *= JI(0,0);
+      double sx = shape(i, 0);
+      double sz = shape(i, 1);
+      shape(i, 0) = sx * JI(0,0);
+      shape(i, 1) = sx * JI(0,1);
+      shape(i, 2) = sz;
    }
 }
 
@@ -2003,8 +2032,25 @@ void ND_R2D_SegmentElement::CalcCurlShape(const IntegrationPoint &ip,
    for (int i = 0; i <= p; i++)
    {
       int idx = dof_map[o++];
-      curl_shape(idx,0) = -dshape_cx(i);
+      curl_shape(idx,1) = -dshape_cx(i);
    }
+}
+
+void ND_R2D_SegmentElement::CalcPhysCurlShape(ElementTransformation &Trans,
+                                              DenseMatrix &curl_shape) const
+{
+   CalcCurlShape(Trans.GetIntPoint(), curl_shape);
+   const DenseMatrix & J = Trans.Jacobian();
+   MFEM_ASSERT(J.Width() == 1 && J.Height() == 2,
+               "ND_R2D_FiniteElement cannot be embedded in "
+               "3 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      double sy = curl_shape(i, 1);
+      curl_shape(i, 0) = -sy * J(1, 0);
+      curl_shape(i, 1) =  sy * J(0, 0);
+   }
+   curl_shape *= (1.0 / (Trans.Weight() * Trans.Weight()));
 }
 
 void ND_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
@@ -2238,6 +2284,38 @@ void ND_R2D_FiniteElement::Project(VectorCoefficient &vc,
       dofs(k) = Trans.Jacobian().InnerProduct(t2, vk2) + t3(2) * vk3(2);
    }
 
+}
+
+void
+ND_R2D_FiniteElement::ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                               ElementTransformation &Trans,
+                                               Vector &dofs) const
+{
+   MFEM_ASSERT(mc.GetWidth() == 3, "");
+   MFEM_ASSERT(dofs.Size() == dof*mc.GetHeight(), "");
+   DenseMatrix MQ(mc.GetHeight(), mc.GetWidth());
+
+   double data[2];
+   Vector vk2(data, 2);
+
+   double * tk_ptr = const_cast<double*>(tk);
+
+   for (int k = 0; k < dof; k++)
+   {
+      Trans.SetIntPoint(&Nodes.IntPoint(k));
+
+      mc.Eval(MQ, Trans, Nodes.IntPoint(k));
+      // dof_k = vk^t J tk
+      Vector t2(&tk_ptr[dof2tk[k] * 3], 2);
+      Vector t3(&tk_ptr[dof2tk[k] * 3], 3);
+
+      for (int r = 0; r < MQ.Height(); r++)
+      {
+         vk2[0] = MQ(r, 0); vk2[1] = MQ(r, 1);
+         dofs(k + dof*r) = Trans.Jacobian().InnerProduct(t2, vk2)
+                           + t3(2) * MQ(r, 2);
+      }
+   }
 }
 
 void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
