@@ -768,6 +768,43 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
    }
 }
 
+void BoundaryMixedForceIntegrator::
+AssembleFaceMatrix(const FiniteElement &trial_fe, const FiniteElement &test_fe,
+                   FaceElementTransformations &Tr, DenseMatrix &elmat)
+{
+   const IntegrationRule *ir = IntRule;
+   if (ir == nullptr)
+   {
+      int order = trial_fe.GetOrder() + test_fe.GetOrder();
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   const int nqp_face  = IntRule->GetNPoints();
+   const int vdim      = Q.GetVDim();
+   const int dof_trial = trial_fe.GetDof();
+   const int dof_test  = test_fe.GetDof();
+
+   elmat.SetSize(dof_test * vdim, dof_trial);
+   elmat = 0.0;
+   DenseMatrix loc_force(dof_test, vdim);
+   Vector shape_trial(dof_trial), shape_test(dof_test),
+          Vloc_force(loc_force.Data(), dof_test * vdim);
+   Vector qcoeff(vdim);
+
+   for (int q = 0; q < nqp_face; q++)
+   {
+      const IntegrationPoint &ip_f = IntRule->IntPoint(q);
+      Tr.SetAllIntPoints(&ip_f);
+      const IntegrationPoint &ip_e = Tr.GetElement1IntPoint();
+
+      test_fe.CalcShape(ip_e, shape_test);
+      trial_fe.CalcShape(ip_e, shape_trial);
+      Q.Eval(qcoeff, Tr, ip_f);
+
+      MultVWt(shape_test, qcoeff, loc_force);
+      AddMultVWt(Vloc_force, shape_trial, elmat);
+   }
+}
 
 void GradientIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
@@ -1421,6 +1458,46 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
       AddMult_a_VVt(w, shape, elmat);
    }
 }
+
+void BoundaryVectorMassIntegrator::
+AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
+                   FaceElementTransformations &Tr, DenseMatrix &elmat)
+{
+   const IntegrationRule *ir = IntRule;
+   if (ir == nullptr)
+   {
+      int order = 2 * el1.GetOrder();
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
+   const int nqp_face = IntRule->GetNPoints();
+   const int dof = el1.GetDof();
+   elmat.SetSize(dof * vdim);
+   elmat = 0.0;
+
+   mcoeff.SetSize(vdim);
+   shape.SetSize(dof);
+   partelmat.SetSize(dof);
+   for (int q = 0; q < nqp_face; q++)
+   {
+      const IntegrationPoint &ip_f = IntRule->IntPoint(q);
+      // Set the integration point in the face and the neighboring elements
+      Tr.SetAllIntPoints(&ip_f);
+
+      MQ->Eval(mcoeff, Tr, ip_f);
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape);
+      MultVVt(shape, partelmat);
+
+      for (int i = 0; i < vdim; i++)
+      {
+         for (int j = 0; j < vdim; j++)
+         {
+            elmat.AddMatrix(mcoeff(i,j), partelmat, dof*i, dof*j);
+         }
+      }
+   }
+}
+
 
 void ConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
