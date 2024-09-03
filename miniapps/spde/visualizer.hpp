@@ -30,7 +30,7 @@ public:
         is_3D_(is_3D) {}
 
    void ExportToParaView();
-   void SendToGLVis() const;
+   void SendToGLVis(int visport = 19916) const;
 
 private:
    ParMesh *mesh_;
