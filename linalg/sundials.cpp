@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "sundials.hpp"
-#include "kinsol/kinsol.h"
 
 #ifdef MFEM_USE_SUNDIALS
 
