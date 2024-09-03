@@ -944,15 +944,6 @@ public:
        @note This method must be called after SetOperator(). */
    void SetMaxSetupCalls(int max_calls);
 
-   // /// (DEPRECATED) Set the number of acceleration vectors to use with KIN_FP or KIN_PICARD.
-   // /** The default is 0.
-   //     @deprecated Use EnableAndersonAcc().
-   //     @ note This method must be called before SetOperator() to set the
-   //     maximum size of the acceleration space. The value of @a maa can be
-   //     altered after SetOperator() is called but it can't be higher than initial
-   //     maximum. */
-   // MFEM_DEPRECATED void SetMAA(int maa);
-
    /// Enable Anderson Acceleration for KIN_FP or KIN_PICARD.
    /** @note Has to be called once before SetOperator() in order to set up the
        maximum subspace size. Subsequent calls need @a n less or equal to the
