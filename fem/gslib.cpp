@@ -261,10 +261,18 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    gsl_dist.SetSize(points_cnt);
    setupSW.Clear();
    setupSW.Start();
-   if (dev_mode)
+
+   bool tensor_product_only = mesh->GetNE() == 0 ||
+                             (mesh->GetNumGeometries(dim) == 1 &&
+                             (mesh->GetElementType(0)==Element::QUADRILATERAL ||
+                              mesh->GetElementType(0) == Element::HEXAHEDRON));
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MPI_C_BOOL,
+                 MPI_LAND, gsl_comm->c);
+#endif
+
+   if (dev_mode && tensor_product_only)
    {
-      MFEM_VERIFY(NE_split_total == mesh->GetNE(),
-                  "Meshes with only quad/hex elements are supported on GPUs.");
       FindPointsOnDevice(point_pos, point_pos_ordering);
       setupSW.Stop();
       findpts_findpts_time = setupSW.RealTime();
@@ -272,18 +280,19 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       return;
    }
 
+   auto pp = point_pos.HostRead();
    auto xvFill = [&](const double *xv_base[], unsigned xv_stride[])
    {
       for (int d = 0; d < dim; d++)
       {
          if (point_pos_ordering == Ordering::byNODES)
          {
-            xv_base[d] = point_pos.GetData() + d*points_cnt;
+            xv_base[d] = pp + d*points_cnt;
             xv_stride[d] = sizeof(double);
          }
          else
          {
-            xv_base[d] = point_pos.GetData() + d;
+            xv_base[d] = pp + d;
             xv_stride[d] = dim*sizeof(double);
          }
       }
@@ -675,7 +684,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
             gsl_dist[index] = opt->dist2;
             gsl_proc[index] = opt->proc;
             gsl_elem[index] = opt->el;
-            gsl_mfem_elem   = opt->el;
+            gsl_mfem_elem[index]   = opt->el;
             gsl_code[index] = opt->code;
          }
       }
@@ -2186,9 +2195,14 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    const H1_FECollection *fec_h1 = dynamic_cast<const H1_FECollection *>(fec_in);
    const L2_FECollection *fec_l2 = dynamic_cast<const L2_FECollection *>(fec_in);
 
-   bool tensor_product_only = mesh->GetNumGeometries(dim) == 1 &&
-                              (mesh->GetElementType(0) == Element::QUADRILATERAL ||
-                               mesh->GetElementType(0) == Element::HEXAHEDRON);
+   bool tensor_product_only = mesh->GetNE() == 0 ||
+                              (mesh->GetNumGeometries(dim) == 1 &&
+                              (mesh->GetElementType(0)==Element::QUADRILATERAL ||
+                               mesh->GetElementType(0) == Element::HEXAHEDRON));
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(MPI_IN_PLACE, &tensor_product_only, 1, MPI_C_BOOL,
+                 MPI_LAND, gsl_comm->c);
+#endif
 
    setupSW.Clear();
    setupSW.Start();
@@ -2216,6 +2230,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       return;
    }
    field_in.HostRead();
+   field_out.HostWrite();
 
    if (fec_h1 && gf_order == mesh_order &&
        fec_h1->GetBasisType() == BasisType::GaussLobatto &&
@@ -2259,7 +2274,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       const int ncomp = field_in.FESpace()->GetVDim();
       FiniteElementSpace fes(mesh, &fec, ncomp, field_in.FESpace()->GetOrdering());
       GridFunction field_in_h1(&fes);
-      field_in_h1.HostRead();
+      field_in_h1.UseDevice(false);
 
       if (avgtype == AvgType::ARITHMETIC)
       {
