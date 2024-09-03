@@ -32,6 +32,7 @@
 #include "invariants.hpp"
 #include "constraints.hpp"
 #include "auxiliary.hpp"
+#include "mma.hpp"
 #include "batched/batched.hpp"
 #include "batched/gpu_blas.hpp"
 #include "batched/solver.hpp"
