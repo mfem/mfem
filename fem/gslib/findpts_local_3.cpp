@@ -282,8 +282,7 @@ get_face(const double *elx[3], const double *wtend, int fi, double *workspace,
       face.dxdn[d] = workspace+(3+d)*p_Nfr;
    }
 
-   const int mask = 1u << fi;
-   if ((side_init & mask) == 0)
+   if (side_init != (1u << fi))
    {
       const int e_stride[3] = {1, pN, pN*pN};
 #define ELX(d, j, k, l) elx[d][j*e_stride[d1]+k*e_stride[d2]+l*e_stride[dn]]
@@ -304,7 +303,6 @@ get_face(const double *elx[3], const double *wtend, int fi, double *workspace,
          }
       }
 #undef ELX
-      side_init = mask;
    }
    return face;
 }
@@ -333,8 +331,7 @@ get_edge(const double *elx[3], const double *wtend, int ei, double *workspace,
       edge.d2xdn2[d] = workspace+(12+d)*pN;
    }
 
-   const int mask = 64u << ei;
-   if ((side_init & mask) == 0)
+   if (side_init != (64u << ei))
    {
       if (jidx < 3*pN)
       {
@@ -364,7 +361,6 @@ get_edge(const double *elx[3], const double *wtend, int ei, double *workspace,
          edge.d2xdn2[dd][jj] = sums_k[1];
 #undef ELX
       }
-      side_init = mask;
    }
    return edge;
 }
@@ -1093,7 +1089,7 @@ static void FindPointsLocal3DKernel(const int npt,
       MFEM_SHARED findptsPt el_pts[2];
 
       MFEM_SHARED double constraint_workspace[size2];
-      MFEM_SHARED int constraint_init_t[nThreads];
+      MFEM_SHARED int face_edge_init;
 
       MFEM_SHARED double elem_coords[MD1 <= 6 ? size3 : 1];
 
@@ -1151,689 +1147,686 @@ static void FindPointsLocal3DKernel(const int npt,
             box.A[idx] = boxinfo[n_box_ents*el+3*DIM+idx];
          }
 
-         if (bbox_test(&box, x_i) >= 0)
+         if (bbox_test(&box, x_i) < 0) { continue; }
+
+         //// findpts_local ////
          {
-            //// findpts_local ////
+            // read element coordinates into shared memory
+            if (MD1 <= 6)
             {
-               // read element coordinates into shared memory
-               if (MD1 <= 6)
+               MFEM_FOREACH_THREAD(j,x,nThreads)
                {
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  const int qp = j % D1D;
+                  const int d = j / D1D;
+                  if (j < 3*D1D)
                   {
-                     const int qp = j % D1D;
-                     const int d = j / D1D;
-                     if (j < 3*D1D)
+                     for (int l = 0; l < D1D; ++l)
                      {
-                        for (int l = 0; l < D1D; ++l)
+                        for (int k = 0; k < D1D; ++k)
                         {
-                           for (int k = 0; k < D1D; ++k)
-                           {
-                              const int jkl = qp+k*D1D+l*D1D*D1D;
-                              elem_coords[jkl+d*p_NE] =
-                                 xElemCoord[jkl+el*p_NE+d*nel*p_NE];
-                           }
+                           const int jkl = qp+k*D1D+l*D1D*D1D;
+                           elem_coords[jkl+d*p_NE] =
+                              xElemCoord[jkl+el*p_NE+d*nel*p_NE];
                         }
                      }
                   }
-                  MFEM_SYNC_THREAD;
                }
+               MFEM_SYNC_THREAD;
+            }
 
-               const double *elx[DIM];
-               for (int d = 0; d < DIM; d++)
+            const double *elx[DIM];
+            for (int d = 0; d < DIM; d++)
+            {
+               elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
+                        xElemCoord+d*nel*p_NE+el*p_NE;
+            }
+
+            //// findpts_el ////
+            {
+               MFEM_SYNC_THREAD;
+               MFEM_FOREACH_THREAD(j,x,nThreads)
                {
-                  elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
-                           xElemCoord+d*nel*p_NE+el*p_NE;
+                  if (j == 0)
+                  {
+                     fpt->dist2 = DBL_MAX;
+                     fpt->dist2p = 0;
+                     fpt->tr = 1;
+                     face_edge_init = 0;
+                  }
+                  if (j < DIM) { fpt->x[j] = x_i[j]; }
                }
+               MFEM_SYNC_THREAD;
 
-               //// findpts_el ////
+               //// seed ////
                {
+                  double *dist2_temp = r_workspace_ptr;
+                  double *r_temp[DIM];
+                  for (int d = 0; d < DIM; ++d)
+                  {
+                     r_temp[d] = dist2_temp+(1+d)*D1D;
+                  }
+
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  {
+                     seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
+                  }
                   MFEM_SYNC_THREAD;
+
                   MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
                      if (j == 0)
                      {
                         fpt->dist2 = DBL_MAX;
-                        fpt->dist2p = 0;
-                        fpt->tr = 1;
-                     }
-                     if (j < DIM) { fpt->x[j] = x_i[j]; }
-                     constraint_init_t[j] = 0;
-                  }
-                  MFEM_SYNC_THREAD;
-
-                  //// seed ////
-                  {
-                     double *dist2_temp = r_workspace_ptr;
-                     double *r_temp[DIM];
-                     for (int d = 0; d < DIM; ++d)
-                     {
-                        r_temp[d] = dist2_temp+(1+d)*D1D;
-                     }
-
-                     MFEM_FOREACH_THREAD(j,x,nThreads)
-                     {
-                        seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
-                     }
-                     MFEM_SYNC_THREAD;
-
-                     MFEM_FOREACH_THREAD(j,x,nThreads)
-                     {
-                        if (j == 0)
+                        for (int jj = 0; jj < D1D; ++jj)
                         {
-                           fpt->dist2 = DBL_MAX;
-                           for (int jj = 0; jj < D1D; ++jj)
+                           if (dist2_temp[jj] < fpt->dist2)
                            {
-                              if (dist2_temp[jj] < fpt->dist2)
+                              fpt->dist2 = dist2_temp[jj];
+                              for (int d = 0; d < DIM; ++d)
                               {
-                                 fpt->dist2 = dist2_temp[jj];
-                                 for (int d = 0; d < DIM; ++d)
-                                 {
-                                    fpt->r[d] = r_temp[d][jj];
-                                 }
+                                 fpt->r[d] = r_temp[d][jj];
                               }
                            }
                         }
                      }
-                     MFEM_SYNC_THREAD;
-                  } //seed done
-
-
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
-                  {
-                     if (j == 0)
-                     {
-                        tmp->dist2 = DBL_MAX;
-                        tmp->dist2p = 0;
-                        tmp->tr = 1;
-                        tmp->flags = 0; // we do newton_vol regardless of seed.
-                     }
-                     if (j < DIM)
-                     {
-                        tmp->x[j] = fpt->x[j];
-                        tmp->r[j] = fpt->r[j];
-                     }
                   }
                   MFEM_SYNC_THREAD;
+               } //seed done
 
-                  for (int step = 0; step < 50; step++)
+
+               MFEM_FOREACH_THREAD(j,x,nThreads)
+               {
+                  if (j == 0)
                   {
-                     switch (num_constrained(tmp->flags & FLAG_MASK))
+                     tmp->dist2 = DBL_MAX;
+                     tmp->dist2p = 0;
+                     tmp->tr = 1;
+                     tmp->flags = 0; // we do newton_vol regardless of seed.
+                  }
+                  if (j < DIM)
+                  {
+                     tmp->x[j] = fpt->x[j];
+                     tmp->r[j] = fpt->r[j];
+                  }
+               }
+               MFEM_SYNC_THREAD;
+
+               for (int step = 0; step < 50; step++)
+               {
+                  switch (num_constrained(tmp->flags & FLAG_MASK))
+                  {
+                     case 0: // findpt_vol
                      {
-                        case 0: // findpt_vol
+                        double *wtr = r_workspace_ptr;
+
+                        double *resid = wtr+6*D1D;
+                        double *jac = resid+3;
+                        double *resid_temp = jac+9;
+                        double *jac_temp = resid_temp+3*D1D;
+
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
                         {
-                           double *wtr = r_workspace_ptr;
-
-                           double *resid = wtr+6*D1D;
-                           double *jac = resid+3;
-                           double *resid_temp = jac+9;
-                           double *jac_temp = resid_temp+3*D1D;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           if (j < D1D*3)
                            {
-                              if (j < D1D*3)
+                              const int qp = j % D1D;
+                              const int d = j / D1D;
+                              lag_eval_first_der(wtr+2*d*D1D, tmp->r[d], qp,
+                                                 gll1D, lagcoeff, D1D);
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           if (j < D1D*3)
+                           {
+                              const int qp = j % D1D;
+                              const int d = j / D1D;
+                              double *idx = jac_temp+3*d+9*qp;
+                              resid_temp[d+qp*3] = tensor_ig3_j(idx,
+                                                                wtr,
+                                                                wtr+D1D,
+                                                                wtr+2*D1D,
+                                                                wtr+3*D1D,
+                                                                wtr+4*D1D,
+                                                                wtr+5*D1D,
+                                                                elx[d],
+                                                                qp, D1D);
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(l,x,nThreads)
+                        {
+                           if (l < 3)
+                           {
+                              resid[l] = tmp->x[l];
+                              for (int j = 0; j < D1D; ++j)
                               {
-                                 const int qp = j % D1D;
-                                 const int d = j / D1D;
-                                 lag_eval_first_der(wtr+2*d*D1D,
-                                                    tmp->r[d], qp,
-                                                    gll1D, lagcoeff,
-                                                    D1D);
+                                 resid[l] -= resid_temp[l+j*3];
                               }
                            }
-                           MFEM_SYNC_THREAD;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           if (l < 9)
                            {
-                              if (j < D1D*3)
+                              jac[l] = 0;
+                              for (int j = 0; j < D1D; ++j)
                               {
-                                 const int qp = j % D1D;
-                                 const int d = j / D1D;
-                                 double *idx = jac_temp+3*d+9*qp;
-                                 resid_temp[d+qp*3] = tensor_ig3_j(idx,
-                                                                   wtr,
-                                                                   wtr+D1D,
-                                                                   wtr+2*D1D,
-                                                                   wtr+3*D1D,
-                                                                   wtr+4*D1D,
-                                                                   wtr+5*D1D,
-                                                                   elx[d],
-                                                                   qp,
-                                                                   D1D);
+                                 jac[l] += jac_temp[l+j*9];
                               }
                            }
-                           MFEM_SYNC_THREAD;
+                        }
+                        MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                        MFEM_FOREACH_THREAD(l,x,nThreads)
+                        {
+                           if (l == 0)
                            {
-                              if (l < 3)
+                              if (!reject_prior_step_q(fpt, resid, tmp, tol))
                               {
-                                 resid[l] = tmp->x[l];
-                                 for (int j = 0; j < D1D; ++j)
-                                 {
-                                    resid[l] -= resid_temp[l+j*3];
-                                 }
-                              }
-                              if (l < 9)
-                              {
-                                 jac[l] = 0;
-                                 for (int j = 0; j < D1D; ++j)
-                                 {
-                                    jac[l] += jac_temp[l+j*9];
-                                 }
+                                 newton_vol(fpt, jac, resid, tmp, tol);
                               }
                            }
-                           MFEM_SYNC_THREAD;
+                        }
+                        MFEM_SYNC_THREAD;
+                        break;
+                     } //case 0
+                     case 1: // findpt_face
+                     {
+                        const int fi = face_index(tmp->flags & FLAG_MASK);
+                        const int dn = fi >> 1;
+                        const int d1 = plus_1_mod_3(dn), d2 = plus_2_mod_3(dn);
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                        double *wt1 = r_workspace_ptr;
+                        double *resid = wt1+6*D1D;
+                        double *jac = resid+3;
+                        double *resid_temp = jac+9;
+                        double *jac_temp = resid_temp+3*D1D;
+                        double *hes = jac_temp+9*D1D;
+                        double *hes_temp = hes+3;
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           int dd[2];
+                           dd[0] = d1;
+                           dd[1] = d2;
+                           if (j < 2*D1D)
                            {
-                              if (l == 0)
+                              const int d = j / D1D;
+                              const int qp = j % D1D;
+                              lag_eval_second_der(wt1+3*d*D1D, tmp->r[dd[d]],
+                                                  qp, gll1D, lagcoeff, D1D);
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        double *J1 = wt1, *D1 = wt1+D1D;
+                        double *J2 = wt1+3*D1D, *D2 = J2+D1D;
+                        double *DD1 = D1+D1D, *DD2 = D2+D1D;
+                        findptsElemFace face;
+
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           // utilizes first 3*D1D threads
+                           face = get_face(elx, wtend, fi, constraint_workspace,
+                                           face_edge_init, j, D1D);
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           if (j == 0) { face_edge_init = (1 << fi); }
+                           if (j < D1D*3)
+                           {
+                              const int qp = j % D1D;
+                              const int d = j / D1D;
+                              const double *u = face.x[d];
+                              const double *du = face.dxdn[d];
+                              double sums_k[4] = {0.0, 0.0, 0.0, 0.0};
+                              for (int k = 0; k < D1D; ++k)
                               {
-                                 if (!reject_prior_step_q(fpt, resid, tmp, tol))
+                                 sums_k[0] += u[qp+k*D1D]*J2[k];
+                                 sums_k[1] += u[qp+k*D1D]*D2[k];
+                                 sums_k[2] += u[qp+k*D1D]*DD2[k];
+                                 sums_k[3] += du[qp+k*D1D]*J2[k];
+                              }
+
+                              resid_temp[3*qp+d] = sums_k[0]*J1[qp];
+                              jac_temp[9*qp+3*d+d1] = sums_k[0]*D1[qp];
+                              jac_temp[9*qp+3*d+d2] = sums_k[1]*J1[qp];
+                              jac_temp[9*qp+3*d+dn] = sums_k[3]*J1[qp];
+                              if (d == 0)
+                              {
+                                 hes_temp[3*qp] = sums_k[0]*DD1[qp];
+                                 hes_temp[3*qp+1] = sums_k[1]*D1[qp];
+                                 hes_temp[3*qp+2] = sums_k[2]*J1[qp];
+                              }
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(l,x,nThreads)
+                        {
+                           if (l < 3)
+                           {
+                              resid[l] = fpt->x[l];
+                              for (int j = 0; j < D1D; ++j)
+                              {
+                                 resid[l] -= resid_temp[l+j*3];
+                              }
+                           }
+
+                           if (l < 9)
+                           {
+                              jac[l] = 0;
+                              for (int j = 0; j < D1D; ++j)
+                              {
+                                 jac[l] += jac_temp[l+j*9];
+                              }
+                           }
+                           if (l < 3)
+                           {
+                              hes[l] = 0;
+                              for (int j = 0; j < D1D; ++j)
+                              {
+                                 hes[l] += hes_temp[l+3*j];
+                              }
+                              hes[l] *= resid[l];
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(l,x,nThreads)
+                        {
+                           if (l == 0)
+                           {
+                              if (!reject_prior_step_q(fpt, resid, tmp, tol))
+                              {
+                                 const double steep = resid[0]*jac[dn]+
+                                                      resid[1]*jac[3+dn]+
+                                                      resid[2]*jac[6+dn];
+                                 if (steep*tmp->r[dn] < 0)
                                  {
+                                    // relax constraint //
                                     newton_vol(fpt, jac, resid, tmp, tol);
                                  }
+                                 else
+                                 {
+                                    newton_face(fpt, jac, hes, resid, d1,
+                                                d2, dn, tmp->flags&FLAG_MASK,
+                                                tmp, tol);
+                                 }
                               }
                            }
-                           MFEM_SYNC_THREAD;
-                           break;
-                        } //case 0
-                        case 1: // findpt_face
+                        }
+                        MFEM_SYNC_THREAD;
+                        break;
+                     }
+                     case 2: // findpt_edge
+                     {
+                        const int ei = edge_index(tmp->flags & FLAG_MASK);
+                        const int de = ei >> 2,
+                                    dn1 = plus_1_mod_3(de),
+                                    dn2 = plus_2_mod_3(de);
+                        int d_j[3];
+                        d_j[0] = de;
+                        d_j[1] = dn1;
+                        d_j[2] = dn2;
+                        const int hes_count = 2*3-1;
+
+                        double *wt = r_workspace_ptr;
+                        double *resid = wt+3*D1D;
+                        double *jac = resid+3;
+                        double *hes_T = jac+9;
+                        double *hes = hes_T+hes_count*3;
+                        findptsElemEdge edge;
+
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
                         {
-                           const int fi = face_index(tmp->flags & FLAG_MASK);
-                           const int dn = fi >> 1;
-                           const int d1 = plus_1_mod_3(dn), d2 = plus_2_mod_3(dn);
+                           // utilizes first 3*D1D threads
+                           edge = get_edge(elx, wtend, ei,
+                                             constraint_workspace,
+                                             face_edge_init, j,
+                                             D1D);
+                        }
+                        MFEM_SYNC_THREAD;
 
-                           double *wt1 = r_workspace_ptr;
-                           double *resid = wt1+6*D1D;
-                           double *jac = resid+3;
-                           double *resid_temp = jac+9;
-                           double *jac_temp = resid_temp+3*D1D;
-                           double *hes = jac_temp+9*D1D;
-                           double *hes_temp = hes+3;
-                           MFEM_SYNC_THREAD;
+                        const double *const *e_x[3+3] = {edge.x, edge.x,
+                                                         edge.dxdn1,
+                                                         edge.dxdn2,
+                                                         edge.d2xdn1,
+                                                         edge.d2xdn2
+                                                         };
 
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           if (j == 0) { face_edge_init = (64 << ei); }
+                           if (j < D1D)
                            {
-                              int dd[2];
-                              dd[0] = d1;
-                              dd[1] = d2;
-                              if (j < 2*D1D)
+                              lag_eval_second_der(wt, tmp->r[de], j, gll1D,
+                                                   lagcoeff, D1D);
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           const int d = j % 3;
+                           const int row = j / 3;
+                           if (j < (3+1)*3)
+                           {
+                              // resid and jac_T
+                              // [0, 1, 0, 0]
+                              double *wt_j = wt+(row == 1 ? D1D : 0);
+                              const double *x = e_x[row][d];
+                              double sum = 0.0;
+                              for (int k = 0; k < D1D; ++k)
                               {
-                                 const int d = j / D1D;
-                                 const int qp = j % D1D;
-                                 lag_eval_second_der(wt1+3*d*D1D,
-                                                     tmp->r[dd[d]], qp, gll1D,
-                                                     lagcoeff, D1D);
+                                 // resid+3 == jac_T
+                                 sum += wt_j[k]*x[k];
+                              }
+                              if (j < 3)
+                              {
+                                 resid[j] = tmp->x[j]-sum;
+                              }
+                              else
+                              {
+                                 jac[d*3+d_j[row-1]] = sum;
                               }
                            }
-                           MFEM_SYNC_THREAD;
 
-                           double *J1 = wt1, *D1 = wt1+D1D;
-                           double *J2 = wt1+3*D1D, *D2 = J2+D1D;
-                           double *DD1 = D1+D1D, *DD2 = D2+D1D;
-                           findptsElemFace face;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           if (j < hes_count*3)
                            {
-                              // utilizes first 3*D1D threads
-                              face = get_face(elx, wtend, fi,
-                                              constraint_workspace,
-                                              constraint_init_t[j], j, D1D);
-                           }
-                           MFEM_SYNC_THREAD;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
-                              if (j < D1D*3)
+                              // Hes_T is transposed version (i.e. in col major)
+                              // n1*[2, 1, 1, 0, 0]
+                              // j==1 => wt_j = wt+n1
+                              double *wt_j = wt+D1D*(2-(row+1) / 2);
+                              const double *x = e_x[row+1][d];
+                              hes_T[j] = 0.0;
+                              for (int k = 0; k < D1D; ++k)
                               {
-                                 const int qp = j % D1D;
-                                 const int d = j / D1D;
-                                 const double *u = face.x[d];
-                                 const double *du = face.dxdn[d];
-                                 double sums_k[4] = {0.0, 0.0, 0.0, 0.0};
-                                 for (int k = 0; k < D1D; ++k)
-                                 {
-                                    sums_k[0] += u[qp+k*D1D]*J2[k];
-                                    sums_k[1] += u[qp+k*D1D]*D2[k];
-                                    sums_k[2] += u[qp+k*D1D]*DD2[k];
-                                    sums_k[3] += du[qp+k*D1D]*J2[k];
-                                 }
-
-                                 resid_temp[3*qp+d] = sums_k[0]*J1[qp];
-                                 jac_temp[9*qp+3*d+d1] = sums_k[0]*D1[qp];
-                                 jac_temp[9*qp+3*d+d2] = sums_k[1]*J1[qp];
-                                 jac_temp[9*qp+3*d+dn] = sums_k[3]*J1[qp];
-                                 if (d == 0)
-                                 {
-                                    hes_temp[3*qp] = sums_k[0]*DD1[qp];
-                                    hes_temp[3*qp+1] = sums_k[1]*D1[qp];
-                                    hes_temp[3*qp+2] = sums_k[2]*J1[qp];
-                                 }
+                                 hes_T[j] += wt_j[k]*x[k];
                               }
                            }
-                           MFEM_SYNC_THREAD;
+                        }
+                        MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           if (j < hes_count)
                            {
-                              if (l < 3)
+                              hes[j] = 0.0;
+                              for (int d = 0; d < 3; ++d)
                               {
-                                 resid[l] = fpt->x[l];
-                                 for (int j = 0; j < D1D; ++j)
-                                 {
-                                    resid[l] -= resid_temp[l+j*3];
-                                 }
-                              }
-
-                              if (l < 9)
-                              {
-                                 jac[l] = 0;
-                                 for (int j = 0; j < D1D; ++j)
-                                 {
-                                    jac[l] += jac_temp[l+j*9];
-                                 }
-                              }
-                              if (l < 3)
-                              {
-                                 hes[l] = 0;
-                                 for (int j = 0; j < D1D; ++j)
-                                 {
-                                    hes[l] += hes_temp[l+3*j];
-                                 }
-                                 hes[l] *= resid[l];
+                                 hes[j] += resid[d]*hes_T[j*3+d];
                               }
                            }
-                           MFEM_SYNC_THREAD;
+                        }
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(l,x,nThreads)
+                        {
+                           if (l == 0)
                            {
-                              if (l == 0)
+                              // check prior step //
+                              if (!reject_prior_step_q(fpt, resid, tmp, tol))
                               {
-                                 if (!reject_prior_step_q(fpt, resid, tmp, tol))
+                                 // check constraint //
+                                 double steep[3-1];
+                                 for (int k = 0; k < 3-1; ++k)
                                  {
-                                    const double steep = resid[0]*jac[dn]+
-                                                         resid[1]*jac[3+dn]+
-                                                         resid[2]*jac[6+dn];
-                                    if (steep*tmp->r[dn] < 0)
+                                    int dn = d_j[k+1];
+                                    steep[k] = 0;
+                                    for (int d = 0; d < 3; ++d)
                                     {
-                                       // relax constraint //
+                                       steep[k] += jac[dn+d*3]*resid[d];
+                                    }
+                                    steep[k] *= tmp->r[dn];
+                                 }
+                                 if (steep[0] < 0)
+                                 {
+                                    if (steep[1] < 0)
+                                    {
                                        newton_vol(fpt, jac, resid, tmp, tol);
                                     }
                                     else
                                     {
-                                       newton_face(fpt, jac, hes, resid, d1,
-                                                   d2, dn, tmp->flags&FLAG_MASK,
+                                       double rh[3];
+                                       rh[0] = hes[0];
+                                       rh[1] = hes[1];
+                                       rh[2] = hes[3];
+                                       newton_face(fpt, jac, rh, resid, de,
+                                                   dn1, dn2,
+                                                   tmp->flags&(3u<<(dn2*2)),
+                                                   tmp, tol);
+                                    }
+                                 }
+                                 else
+                                 {
+                                    if (steep[1] < 0)
+                                    {
+                                       double rh[3];
+                                       rh[0] = hes[4];
+                                       rh[1] = hes[2];
+                                       rh[2] = hes[0];
+                                       newton_face(fpt, jac, rh, resid, dn2,
+                                                   de, dn1,
+                                                   tmp->flags&(3u<<(dn1*2)),
+                                                   tmp, tol);
+                                    }
+                                    else
+                                    {
+                                       newton_edge(fpt, jac, hes[0], resid,
+                                                   de, dn1, dn2,
+                                                   tmp->flags & FLAG_MASK,
                                                    tmp, tol);
                                     }
                                  }
                               }
                            }
-                           MFEM_SYNC_THREAD;
-                           break;
                         }
-                        case 2: // findpt_edge
+                        MFEM_SYNC_THREAD;
+                        break;
+                     }
+                     case 3:   // findpts_pt
+                     {
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
                         {
-                           const int ei = edge_index(tmp->flags & FLAG_MASK);
-                           const int de = ei >> 2,
-                                     dn1 = plus_1_mod_3(de),
-                                     dn2 = plus_2_mod_3(de);
-                           int d_j[3];
-                           d_j[0] = de;
-                           d_j[1] = dn1;
-                           d_j[2] = dn2;
-                           const int hes_count = 2*3-1;
-
-                           double *wt = r_workspace_ptr;
-                           double *resid = wt+3*D1D;
-                           double *jac = resid+3;
-                           double *hes_T = jac+9;
-                           double *hes = hes_T+hes_count*3;
-                           findptsElemEdge edge;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           if (j == 0)
                            {
-                              // utilizes first 3*D1D threads
-                              edge = get_edge(elx, wtend, ei,
-                                              constraint_workspace,
-                                              constraint_init_t[j], j,
-                                              D1D);
-                           }
-                           MFEM_SYNC_THREAD;
+                              const int pi=point_index(tmp->flags & FLAG_MASK);
+                              const findptsElemPt gpt=get_pt(elx,wtend,pi,D1D);
+                              const double *const pt_x = gpt.x,
+                                           *const jac = gpt.jac,
+                                           *const hes = gpt.hes;
 
-                           const double *const *e_x[3+3] = {edge.x, edge.x,
-                                                            edge.dxdn1,
-                                                            edge.dxdn2,
-                                                            edge.d2xdn1,
-                                                            edge.d2xdn2
-                                                           };
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
-                              if (j < D1D)
+                              double resid[3], steep[3];
+                              for (int d = 0; d < 3; ++d)
                               {
-                                 lag_eval_second_der(wt, tmp->r[de], j, gll1D,
-                                                     lagcoeff, D1D);
+                                 resid[d] = fpt->x[d]-pt_x[d];
                               }
-                           }
-                           MFEM_SYNC_THREAD;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
-                              const int d = j % 3;
-                              const int row = j / 3;
-                              if (j < (3+1)*3)
+                              if (!reject_prior_step_q(fpt, resid, tmp, tol))
                               {
-                                 // resid and jac_T
-                                 // [0, 1, 0, 0]
-                                 double *wt_j = wt+(row == 1 ? D1D : 0);
-                                 const double *x = e_x[row][d];
-                                 double sum = 0.0;
-                                 for (int k = 0; k < D1D; ++k)
+                                 for (int d = 0; d < 3; ++d)
                                  {
-                                    // resid+3 == jac_T
-                                    sum += wt_j[k]*x[k];
+                                    steep[d] = 0;
+                                    for (int e = 0; e < 3; ++e)
+                                    {
+                                       steep[d] += jac[d+e*3]*resid[e];
+                                    }
+                                    steep[d] *= tmp->r[d];
                                  }
-                                 if (j < 3)
+                                 int de, dn1, dn2, d1, d2, dn, hi0, hi1, hi2;
+                                 if (steep[0] < 0)
                                  {
-                                    resid[j] = tmp->x[j]-sum;
+                                    if (steep[1] < 0)
+                                    {
+                                       if (steep[2] < 0)
+                                       {
+                                          newton_vol(fpt,jac,resid,tmp,tol);
+                                       }
+                                       else
+                                       {
+                                          d1 = 0; d2 = 1; dn = 2; hi0 = 0;
+                                          hi1 = 1, hi2 = 3;
+                                          double rh[3];
+                                          rh[0] = resid[0]*hes[hi0] +
+                                                   resid[1]*hes[6+hi0] +
+                                                   resid[2]*hes[12+hi0];
+                                          rh[1] = resid[0]*hes[hi1] +
+                                                   resid[1]*hes[6+hi1] +
+                                                   resid[2]*hes[12+hi1];
+                                          rh[2] = resid[0]*hes[hi2] +
+                                                   resid[1]*hes[6+hi2] +
+                                                   resid[2]*hes[12+hi2];
+                                          newton_face(fpt, jac, rh, resid,
+                                                      d1, d2, dn,
+                                                      (tmp->flags)&(3u<<(2*dn)),
+                                                      tmp, tol);
+                                       }
+                                    }
+                                    else
+                                    {
+                                       if (steep[2] < 0)
+                                       {
+                                          d1 = 2; d2 = 0; dn = 1; hi0 = 5;
+                                          hi1 = 2, hi2 = 0;
+                                          double rh[3];
+                                          rh[0] = resid[0]*hes[hi0] +
+                                                   resid[1]*hes[6+hi0] +
+                                                   resid[2]*hes[12+hi0];
+                                          rh[1] = resid[0]*hes[hi1] +
+                                                   resid[1]*hes[6+hi1] +
+                                                   resid[2]*hes[12+hi1];
+                                          rh[2] = resid[0]*hes[hi2] +
+                                                   resid[1]*hes[6+hi2] +
+                                                   resid[2]*hes[12+hi2];
+                                          newton_face(fpt, jac, rh, resid,
+                                                      d1, d2, dn,
+                                                      (tmp->flags)&(3u<<(2*dn)),
+                                                      tmp, tol);
+                                       }
+                                       else
+                                       {
+                                          de = 0, dn1 = 1, dn2 = 2, hi0 = 0;
+                                          const double rh =
+                                             resid[0]*hes[hi0] +
+                                             resid[1]*hes[6+hi0] +
+                                             resid[2]*hes[12+hi0];
+                                          newton_edge(fpt, jac, rh, resid,
+                                                      de, dn1, dn2,
+                                                     tmp->flags&(~(3u<<(2*de))),
+                                                      tmp, tol);
+                                       }
+                                    }
                                  }
                                  else
                                  {
-                                    jac[d*3+d_j[row-1]] = sum;
-                                 }
-                              }
-
-                              if (j < hes_count*3)
-                              {
-                                 // Hes_T is transposed version (i.e. in col major)
-                                 // n1*[2, 1, 1, 0, 0]
-                                 // j==1 => wt_j = wt+n1
-                                 double *wt_j = wt+D1D*(2-(row+1) / 2);
-                                 const double *x = e_x[row+1][d];
-                                 hes_T[j] = 0.0;
-                                 for (int k = 0; k < D1D; ++k)
-                                 {
-                                    hes_T[j] += wt_j[k]*x[k];
-                                 }
-                              }
-                           }
-                           MFEM_SYNC_THREAD;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
-                              if (j < hes_count)
-                              {
-                                 hes[j] = 0.0;
-                                 for (int d = 0; d < 3; ++d)
-                                 {
-                                    hes[j] += resid[d]*hes_T[j*3+d];
-                                 }
-                              }
-                           }
-
-                           MFEM_SYNC_THREAD;
-
-                           MFEM_FOREACH_THREAD(l,x,nThreads)
-                           {
-                              if (l == 0)
-                              {
-                                 // check prior step //
-                                 if (!reject_prior_step_q(fpt, resid, tmp, tol))
-                                 {
-                                    // check constraint //
-                                    double steep[3-1];
-                                    for (int k = 0; k < 3-1; ++k)
+                                    if (steep[1] < 0)
                                     {
-                                       int dn = d_j[k+1];
-                                       steep[k] = 0;
-                                       for (int d = 0; d < 3; ++d)
+                                       if (steep[2] < 0)
                                        {
-                                          steep[k] += jac[dn+d*3]*resid[d];
-                                       }
-                                       steep[k] *= tmp->r[dn];
-                                    }
-                                    if (steep[0] < 0)
-                                    {
-                                       if (steep[1] < 0)
-                                       {
-                                          newton_vol(fpt, jac, resid, tmp, tol);
-                                       }
-                                       else
-                                       {
+                                          d1 = 1, d2 = 2, dn = 0;
+                                          hi0 = 3, hi1 = 4, hi2 = 5;
                                           double rh[3];
-                                          rh[0] = hes[0];
-                                          rh[1] = hes[1];
-                                          rh[2] = hes[3];
-                                          newton_face(fpt, jac, rh, resid, de,
-                                                      dn1, dn2,
-                                                      tmp->flags&(3u<<(dn2*2)),
-                                                      tmp, tol);
-                                       }
-                                    }
-                                    else
-                                    {
-                                       if (steep[1] < 0)
-                                       {
-                                          double rh[3];
-                                          rh[0] = hes[4];
-                                          rh[1] = hes[2];
-                                          rh[2] = hes[0];
-                                          newton_face(fpt, jac, rh, resid, dn2,
-                                                      de, dn1,
-                                                      tmp->flags&(3u<<(dn1*2)),
+                                          rh[0] = resid[0]*hes[hi0] +
+                                                   resid[1]*hes[6+hi0] +
+                                                   resid[2]*hes[12+hi0];
+                                          rh[1] = resid[0]*hes[hi1] +
+                                                   resid[1]*hes[6+hi1] +
+                                                   resid[2]*hes[12+hi1];
+                                          rh[2] = resid[0]*hes[hi2] +
+                                                   resid[1]*hes[6+hi2] +
+                                                   resid[2]*hes[12+hi2];
+                                          newton_face(fpt, jac, rh, resid,
+                                                      d1, d2, dn,
+                                                      (tmp->flags)&(3u<<(2*dn)),
                                                       tmp, tol);
                                        }
                                        else
                                        {
-                                          newton_edge(fpt, jac, hes[0], resid,
+                                          de = 1, dn1 = 2, dn2 = 0, hi0 = 3;
+                                          const double rh =
+                                             resid[0]*hes[hi0] +
+                                             resid[1]*hes[6+hi0] +
+                                             resid[2]*hes[12+hi0];
+                                          newton_edge(fpt, jac, rh, resid,
                                                       de, dn1, dn2,
-                                                      tmp->flags & FLAG_MASK,
+                                                     tmp->flags&(~(3u<<(2*de))),
                                                       tmp, tol);
-                                       }
-                                    }
-                                 }
-                              }
-                           }
-                           MFEM_SYNC_THREAD;
-                           break;
-                        }
-                        case 3:   // findpts_pt
-                        {
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
-                              if (j == 0)
-                              {
-                                 const int pi = point_index(tmp->flags & FLAG_MASK);
-                                 const findptsElemPt gpt = get_pt(elx, wtend, pi, D1D);
-                                 const double *const pt_x = gpt.x,
-                                                     *const jac = gpt.jac,
-                                                            *const hes = gpt.hes;
-
-                                 double resid[3], steep[3];
-                                 for (int d = 0; d < 3; ++d)
-                                 {
-                                    resid[d] = fpt->x[d]-pt_x[d];
-                                 }
-                                 if (!reject_prior_step_q(fpt, resid, tmp, tol))
-                                 {
-                                    for (int d = 0; d < 3; ++d)
-                                    {
-                                       steep[d] = 0;
-                                       for (int e = 0; e < 3; ++e)
-                                       {
-                                          steep[d] += jac[d+e*3]*resid[e];
-                                       }
-                                       steep[d] *= tmp->r[d];
-                                    }
-                                    int de, dn1, dn2, d1, d2, dn, hi0, hi1, hi2;
-                                    if (steep[0] < 0)
-                                    {
-                                       if (steep[1] < 0)
-                                       {
-                                          if (steep[2] < 0)
-                                          {
-                                             newton_vol(fpt,jac,resid,tmp,tol);
-                                          }
-                                          else
-                                          {
-                                             d1 = 0; d2 = 1; dn = 2; hi0 = 0;
-                                             hi1 = 1, hi2 = 3;
-                                             double rh[3];
-                                             rh[0] = resid[0]*hes[hi0] +
-                                                     resid[1]*hes[6+hi0] +
-                                                     resid[2]*hes[12+hi0];
-                                             rh[1] = resid[0]*hes[hi1] +
-                                                     resid[1]*hes[6+hi1] +
-                                                     resid[2]*hes[12+hi1];
-                                             rh[2] = resid[0]*hes[hi2] +
-                                                     resid[1]*hes[6+hi2] +
-                                                     resid[2]*hes[12+hi2];
-                                             newton_face(fpt, jac, rh, resid,
-                                                         d1, d2, dn,
-                                                         (tmp->flags)&(3u<<(2*dn)),
-                                                         tmp, tol);
-                                          }
-                                       }
-                                       else
-                                       {
-                                          if (steep[2] < 0)
-                                          {
-                                             d1 = 2; d2 = 0; dn = 1; hi0 = 5;
-                                             hi1 = 2, hi2 = 0;
-                                             double rh[3];
-                                             rh[0] = resid[0]*hes[hi0] +
-                                                     resid[1]*hes[6+hi0] +
-                                                     resid[2]*hes[12+hi0];
-                                             rh[1] = resid[0]*hes[hi1] +
-                                                     resid[1]*hes[6+hi1] +
-                                                     resid[2]*hes[12+hi1];
-                                             rh[2] = resid[0]*hes[hi2] +
-                                                     resid[1]*hes[6+hi2] +
-                                                     resid[2]*hes[12+hi2];
-                                             newton_face(fpt, jac, rh, resid,
-                                                         d1, d2, dn,
-                                                         (tmp->flags)&(3u<<(2*dn)),
-                                                         tmp, tol);
-                                          }
-                                          else
-                                          {
-                                             de = 0, dn1 = 1, dn2 = 2, hi0 = 0;
-                                             const double rh =
-                                                resid[0]*hes[hi0] +
-                                                resid[1]*hes[6+hi0] +
-                                                resid[2]*hes[12+hi0];
-                                             newton_edge(fpt, jac, rh, resid,
-                                                         de, dn1, dn2,
-                                                         tmp->flags&(~(3u<<(2*de))),
-                                                         tmp, tol);
-                                          }
                                        }
                                     }
                                     else
                                     {
-                                       if (steep[1] < 0)
+                                       if (steep[2] < 0)
                                        {
-                                          if (steep[2] < 0)
-                                          {
-                                             d1 = 1, d2 = 2, dn = 0, hi0 = 3, hi1 = 4, hi2 = 5;
-                                             double rh[3];
-                                             rh[0] = resid[0]*hes[hi0] +
-                                                     resid[1]*hes[6+hi0] +
-                                                     resid[2]*hes[12+hi0];
-                                             rh[1] = resid[0]*hes[hi1] +
-                                                     resid[1]*hes[6+hi1] +
-                                                     resid[2]*hes[12+hi1];
-                                             rh[2] = resid[0]*hes[hi2] +
-                                                     resid[1]*hes[6+hi2] +
-                                                     resid[2]*hes[12+hi2];
-                                             newton_face(fpt, jac, rh, resid,
-                                                         d1, d2, dn,
-                                                         (tmp->flags)&(3u<<(2*dn)),
-                                                         tmp, tol);
-                                          }
-                                          else
-                                          {
-                                             de = 1, dn1 = 2, dn2 = 0, hi0 = 3;
-                                             const double rh =
-                                                resid[0]*hes[hi0] +
-                                                resid[1]*hes[6+hi0] +
-                                                resid[2]*hes[12+hi0];
-                                             newton_edge(fpt, jac, rh, resid,
-                                                         de, dn1, dn2,
-                                                         tmp->flags & (~(3u << (2*de))),
-                                                         tmp, tol);
-                                          }
+                                          de = 2, dn1 = 0, dn2 = 1, hi0 = 5;
+                                          const double rh =
+                                             resid[0]*hes[hi0] +
+                                             resid[1]*hes[6+hi0] +
+                                             resid[2]*hes[12+hi0];
+                                          newton_edge(fpt, jac, rh, resid,
+                                                      de, dn1, dn2,
+                                                     tmp->flags&(~(3u<<(2*de))),
+                                                      tmp, tol);
                                        }
                                        else
                                        {
-                                          if (steep[2] < 0)
-                                          {
-                                             de = 2, dn1 = 0, dn2 = 1, hi0 = 5;
-                                             const double rh =
-                                                resid[0]*hes[hi0] +
-                                                resid[1]*hes[6+hi0] +
-                                                resid[2]*hes[12+hi0];
-                                             newton_edge(fpt, jac, rh, resid,
-                                                         de, dn1, dn2,
-                                                         tmp->flags&(~(3u<<(2*de))),
-                                                         tmp, tol);
-                                          }
-                                          else
-                                          {
-                                             fpt->r[0] = tmp->r[0];
-                                             fpt->r[1] = tmp->r[1];
-                                             fpt->r[2] = tmp->r[2];
-                                             fpt->dist2p = 0;
-                                             fpt->flags = tmp->flags | CONVERGED_FLAG;
-                                          }
+                                          fpt->r[0] = tmp->r[0];
+                                          fpt->r[1] = tmp->r[1];
+                                          fpt->r[2] = tmp->r[2];
+                                          fpt->dist2p = 0;
+                                          fpt->flags =tmp->flags|CONVERGED_FLAG;
                                        }
                                     }
                                  }
                               }
                            }
-                           MFEM_SYNC_THREAD;
-                           break;
-                        } //case 3
-                     } //switch
-                     if (fpt->flags & CONVERGED_FLAG)
-                     {
+                        }
+                        MFEM_SYNC_THREAD;
                         break;
-                     }
-                     MFEM_SYNC_THREAD;
-                     MFEM_FOREACH_THREAD(j,x,nThreads)
-                     if (j == 0)
-                     {
-                        *tmp = *fpt;
-                     }
-                     MFEM_SYNC_THREAD;
-                  } //for int step < 50
-               } //findpts_el
-
-               bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
-               if (*code_i == CODE_NOT_FOUND || converged_internal ||
-                   fpt->dist2 < *dist2_i)
-               {
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
-                  {
-                     if (j == 0)
-                     {
-                        *(el_base+i) = el;
-                        *code_i = converged_internal ?  CODE_INTERNAL :
-                                  CODE_BORDER;
-                        *dist2_i = fpt->dist2;
-                     }
-                     if (j < 3)
-                     {
-                        *(r_base+DIM*i+j) = fpt->r[j];
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-                  if (converged_internal)
+                     } //case 3
+                  } //switch
+                  if (fpt->flags & CONVERGED_FLAG)
                   {
                      break;
                   }
+                  MFEM_SYNC_THREAD;
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  if (j == 0)
+                  {
+                     *tmp = *fpt;
+                  }
+                  MFEM_SYNC_THREAD;
+               } //for int step < 50
+            } //findpts_el
+
+            bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
+            if (*code_i == CODE_NOT_FOUND || converged_internal ||
+                  fpt->dist2 < *dist2_i)
+            {
+               MFEM_FOREACH_THREAD(j,x,nThreads)
+               {
+                  if (j == 0)
+                  {
+                     *(el_base+i) = el;
+                     *code_i = converged_internal ?  CODE_INTERNAL :
+                                 CODE_BORDER;
+                     *dist2_i = fpt->dist2;
+                  }
+                  if (j < 3)
+                  {
+                     *(r_base+DIM*i+j) = fpt->r[j];
+                  }
                }
-            } //findpts_local
-         } //bbox_test
+               MFEM_SYNC_THREAD;
+               if (converged_internal)
+               {
+                  break;
+               }
+            }
+         } //findpts_local
       } //elp
    });
 }

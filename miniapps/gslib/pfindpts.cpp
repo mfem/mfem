@@ -160,6 +160,13 @@ int main (int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
 
+   if (mesh->GetNumGeometries(dim) == 1 &&
+      (mesh->GetElementType(0)==Element::QUADRILATERAL ||
+       mesh->GetElementType(0) == Element::HEXAHEDRON))
+   {
+      randomization = 0;
+   }
+
    Vector xmin, xmax;
    mesh->GetBoundingBox(xmin, xmax);
 
@@ -446,7 +453,7 @@ int main (int argc, char *argv[])
    finder.FreeData();
 
    delete fec;
-   if (!randomization) { delete mesh; }
+   if (randomization != 0) { delete mesh; }
 
    return 0;
 }

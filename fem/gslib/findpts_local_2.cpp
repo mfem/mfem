@@ -239,8 +239,7 @@ get_edge(const double *elx[2], const double *wtend, int ei,
       edge.dxdn[d] = workspace + (2 + d) * pN; //dxdn and dydn at DOFs along edge
    }
 
-   const int mask = 1u << ei;
-   if ((side_init & mask) == 0)
+   if (side_init != (1u << ei))
    {
       if (j < pN)
       {
@@ -267,7 +266,6 @@ get_edge(const double *elx[2], const double *wtend, int ei,
          }
 #undef ELX
       }
-      side_init = mask;
    }
    return edge;
 }
@@ -729,7 +727,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
       MFEM_SHARED findptsElementPoint_t el_pts[2];
 
       MFEM_SHARED double constraint_workspace[size2];
-      MFEM_SHARED int constraint_init_t[nThreads];
+      MFEM_SHARED int edge_init;
 
       MFEM_SHARED double elem_coords[MD1 <= 6 ? size3 : 1];
 
@@ -752,6 +750,10 @@ static void FindPointsLocal2D_Kernel(const int npt,
       double *r_i = r_base + DIM * i;
       double *dist2_i = dist2_base + i;
 
+      // Initialize the code and dist
+      *code_i = CODE_NOT_FOUND;
+      *dist2_i = DBL_MAX;
+
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
       for (int d = 0; d < DIM; ++d)
@@ -762,10 +764,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
       hash.hash_n = hash_n;
       hash.offset = hashOffset;
       const int hi = hash_index(&hash, x_i);
-      const unsigned int        *elp = hash.offset + hash.offset[hi];
-      const unsigned int *const  ele = hash.offset + hash.offset[hi + 1];
-      *code_i = CODE_NOT_FOUND;
-      *dist2_i = DBL_MAX;
+      const unsigned int *elp = hash.offset+hash.offset[hi],
+                          *const ele = hash.offset+hash.offset[hi+1];
 
       for (; elp != ele; ++elp)
       {
@@ -788,403 +788,394 @@ static void FindPointsLocal2D_Kernel(const int npt,
             box.A[idx] = boxinfo[n_box_ents*el + 3*DIM + idx];
          }
 
-         if (bbox_test(&box, x_i) >= 0)
+         if (bbox_test(&box, x_i) < 0) { continue; }
+
+         //// findpts_local ////
          {
-            //// findpts_local ////
+            // read element coordinates into shared memory
+            if (MD1 <= 6)
             {
-               // read element coordinates into shared memory
-               if (MD1 <= 6)
+               MFEM_FOREACH_THREAD(j,x,nThreads)
                {
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  const int qp = j % D1D;
+                  const int d = j / D1D;
+                  if (j < 2*D1D)
                   {
-                     const int qp = j % D1D;
-                     const int d = j / D1D;
-                     if (j < 2*D1D)
+                     for (int k = 0; k < D1D; ++k)
                      {
-                        for (int k = 0; k < D1D; ++k)
-                        {
-                           const int jk = qp + k * D1D;
-                           elem_coords[jk + d*p_NE] =
-                              xElemCoord[jk + el*p_NE + d*p_NEL];
-                        }
+                        const int jk = qp + k * D1D;
+                        elem_coords[jk + d*p_NE] =
+                           xElemCoord[jk + el*p_NE + d*p_NEL];
                      }
                   }
-                  MFEM_SYNC_THREAD;
                }
+               MFEM_SYNC_THREAD;
+            }
 
-               const double *elx[DIM];
-               for (int d = 0; d < DIM; d++)
+            const double *elx[DIM];
+            for (int d = 0; d < DIM; d++)
+            {
+               elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
+                        xElemCoord + d*p_NEL + el * p_NE;
+            }
+
+            //// findpts_el ////
+            {
+               MFEM_SYNC_THREAD;
+               MFEM_FOREACH_THREAD(j,x,nThreads)
                {
-                  elx[d] = MD1<= 6 ? &elem_coords[d*p_NE] :
-                           xElemCoord + d*p_NEL + el * p_NE;
+                  if (j == 0)
+                  {
+                     fpt->dist2 = DBL_MAX;
+                     fpt->dist2p = 0;
+                     fpt->tr = 1;
+                     edge_init = 0;
+                  }
+                  if (j < DIM) { fpt->x[j] = x_i[j]; }
                }
-
-               //// findpts_el ////
+               MFEM_SYNC_THREAD;
+               //// seed ////
                {
+                  double *dist2_temp = r_workspace_ptr;
+                  double *r_temp[DIM];
+                  for (int d = 0; d < DIM; ++d)
+                  {
+                     r_temp[d] = dist2_temp + (1 + d) * D1D;
+                  }
+
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  {
+                     seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
+                  }
                   MFEM_SYNC_THREAD;
+
                   MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
                      if (j == 0)
                      {
                         fpt->dist2 = DBL_MAX;
-                        fpt->dist2p = 0;
-                        fpt->tr = 1;
-                     }
-                     if (j < DIM) { fpt->x[j] = x_i[j]; }
-                     constraint_init_t[j] = 0;
-                  }
-                  MFEM_SYNC_THREAD;
-                  //// seed ////
-                  {
-                     double *dist2_temp = r_workspace_ptr;
-                     double *r_temp[DIM];
-                     for (int d = 0; d < DIM; ++d)
-                     {
-                        r_temp[d] = dist2_temp + (1 + d) * D1D;
-                     }
-
-                     MFEM_FOREACH_THREAD(j,x,nThreads)
-                     {
-                        seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
-                     }
-                     MFEM_SYNC_THREAD;
-
-                     MFEM_FOREACH_THREAD(j,x,nThreads)
-                     {
-                        if (j == 0)
+                        for (int jj = 0; jj < D1D; ++jj)
                         {
-                           fpt->dist2 = DBL_MAX;
-                           for (int jj = 0; jj < D1D; ++jj)
+                           if (dist2_temp[jj] < fpt->dist2)
                            {
-                              if (dist2_temp[jj] < fpt->dist2)
+                              fpt->dist2 = dist2_temp[jj];
+                              for (int d = 0; d < DIM; ++d)
                               {
-                                 fpt->dist2 = dist2_temp[jj];
-                                 for (int d = 0; d < DIM; ++d)
-                                 {
-                                    fpt->r[d] = r_temp[d][jj];
-                                 }
+                                 fpt->r[d] = r_temp[d][jj];
                               }
                            }
                         }
                      }
-                     MFEM_SYNC_THREAD;
-                  } //seed done
-
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
-                  {
-                     if (j == 0)
-                     {
-                        tmp->dist2 = DBL_MAX;
-                        tmp->dist2p = 0;
-                        tmp->tr = 1;
-                        tmp->flags = 0;
-                     }
-                     if (j < DIM)
-                     {
-                        tmp->x[j] = fpt->x[j];
-                        tmp->r[j] = fpt->r[j];
-                     }
                   }
                   MFEM_SYNC_THREAD;
+               } //seed done
 
-                  for (int step = 0; step < 50; step++)
+               MFEM_FOREACH_THREAD(j,x,nThreads)
+               {
+                  if (j == 0)
                   {
-                     switch (num_constrained(tmp->flags & FLAG_MASK))
+                     tmp->dist2 = DBL_MAX;
+                     tmp->dist2p = 0;
+                     tmp->tr = 1;
+                     tmp->flags = 0;
+                  }
+                  if (j < DIM)
+                  {
+                     tmp->x[j] = fpt->x[j];
+                     tmp->r[j] = fpt->r[j];
+                  }
+               }
+               MFEM_SYNC_THREAD;
+
+               for (int step = 0; step < 50; step++)
+               {
+                  switch (num_constrained(tmp->flags & FLAG_MASK))
+                  {
+                     case 0:   // findpt_area
                      {
-                        case 0:   // findpt_area
+                        double *wtr = r_workspace_ptr;
+                        double *resid = wtr + 4 * D1D;
+                        double *jac = resid + 2;
+                        double *resid_temp = jac + 4;
+                        double *jac_temp = resid_temp + 2 * D1D;
+
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
                         {
-                           double *wtr = r_workspace_ptr;
-                           double *resid = wtr + 4 * D1D;
-                           double *jac = resid + 2;
-                           double *resid_temp = jac + 4;
-                           double *jac_temp = resid_temp + 2 * D1D;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           if (j < D1D * 2)
                            {
-                              if (j < D1D * 2)
+                              const int qp = j % D1D;
+                              const int d = j / D1D;
+                              lag_eval_first_der(wtr + 2*d*D1D, tmp->r[d], qp,
+                                                 gll1D, lagcoeff, D1D);
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           if (j < D1D * 2)
+                           {
+                              const int qp = j % D1D;
+                              const int d = j / D1D;
+                              double *idx = jac_temp+2*d+4*qp;
+                              resid_temp[d+qp*2] = tensor_ig2_j(idx, wtr,
+                                                                wtr+D1D,
+                                                                wtr+2*D1D,
+                                                                wtr+3*D1D,
+                                                                elx[d], qp,
+                                                                D1D);
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(l,x,nThreads)
+                        {
+                           if (l < 2)
+                           {
+                              resid[l] = tmp->x[l];
+                              for (int j = 0; j < D1D; ++j)
                               {
-                                 const int qp = j % D1D;
-                                 const int d = j / D1D;
-                                 lag_eval_first_der(wtr + 2*d*D1D,
-                                                    tmp->r[d], qp,
-                                                    gll1D, lagcoeff,
-                                                    D1D);
+                                 resid[l] -= resid_temp[l + j * 2];
                               }
                            }
-                           MFEM_SYNC_THREAD;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           if (l < 4)
                            {
-                              if (j < D1D * 2)
+                              jac[l] = 0;
+                              for (int j = 0; j < D1D; ++j)
                               {
-                                 const int qp = j % D1D;
-                                 const int d = j / D1D;
-                                 double *idx = jac_temp+2*d+4*qp;
-                                 resid_temp[d+qp*2] = tensor_ig2_j(idx,
-                                                                   wtr,
-                                                                   wtr+D1D,
-                                                                   wtr+2*D1D,
-                                                                   wtr+3*D1D,
-                                                                   elx[d],
-                                                                   qp,
-                                                                   D1D);
+                                 jac[l] += jac_temp[l + j * 4];
                               }
                            }
-                           MFEM_SYNC_THREAD;
+                        }
+                        MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                        MFEM_FOREACH_THREAD(l,x,nThreads)
+                        {
+                           if (l == 0)
                            {
-                              if (l < 2)
+                              if (!reject_prior_step_q(fpt, resid, tmp, tol))
                               {
-                                 resid[l] = tmp->x[l];
-                                 for (int j = 0; j < D1D; ++j)
-                                 {
-                                    resid[l] -= resid_temp[l + j * 2];
-                                 }
-                              }
-                              if (l < 4)
-                              {
-                                 jac[l] = 0;
-                                 for (int j = 0; j < D1D; ++j)
-                                 {
-                                    jac[l] += jac_temp[l + j * 4];
-                                 }
+                                 newton_area(fpt, jac, resid, tmp, tol);
                               }
                            }
-                           MFEM_SYNC_THREAD;
+                        }
+                        MFEM_SYNC_THREAD;
+                        break;
+                     } //case 0
+                     case 1:   // findpt_edge
+                     {
+                        const int ei = edge_index(tmp->flags & FLAG_MASK);
+                        const int dn = ei>>1, de = plus_1_mod_2(dn);
 
-                           MFEM_FOREACH_THREAD(l,x,nThreads)
+                        double *wt = r_workspace_ptr;
+                        double *resid = wt + 3 * D1D;
+                        double *jac = resid + 2; //jac will be row-major
+                        double *hess = jac + 2 * 2;
+                        findptsElementGEdge_t edge;
+
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           edge = get_edge(elx, wtend, ei,
+                                             constraint_workspace,
+                                             edge_init, j,
+                                             D1D);
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        // compute basis function info upto 2nd derivative.
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           if (j == 0) { edge_init = 1u << ei; }
+                           if (j < D1D)
                            {
-                              if (l == 0)
+                              lag_eval_second_der(wt, tmp->r[de], j, gll1D,
+                                                  lagcoeff, D1D);
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(d,x,nThreads)
+                        {
+                           if (d < DIM)
+                           {
+                              resid[d] = tmp->x[d];
+                              jac[2*d] = 0.0;
+                              jac[2*d + 1] = 0.0;
+                              hess[d] = 0.0;
+                              for (int k = 0; k < D1D; ++k)
                               {
-                                 if (!reject_prior_step_q(fpt, resid, tmp, tol))
+                                 resid[d] -= wt[k]*edge.x[d][k];
+                                 jac[2*d] += wt[k]*edge.dxdn[d][k];
+                                 jac[2*d+1] += wt[k+D1D]*edge.x[d][k];
+                                 hess[d] += wt[k+2*D1D]*edge.x[d][k];
+                              }
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        // at this point, the Jacobian will be out of
+                        // order for edge index 2 and 3 so we need to swap
+                        // columns
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        {
+                           if (j == 0)
+                           {
+                              if (ei >= 2)
+                              {
+                                 double temp1 = jac[1],
+                                        temp2 = jac[3];
+                                 jac[1] = jac[0];
+                                 jac[3] = jac[2];
+                                 jac[0] = temp1;
+                                 jac[2] = temp2;
+                              }
+                              hess[2] = resid[0]*hess[0] + resid[1]*hess[1];
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(l,x,nThreads)
+                        {
+                           if (l == 0)
+                           {
+                              // check prior step //
+                              if (!reject_prior_step_q(fpt, resid, tmp, tol))
+                              {
+                                 // steep is negative of the gradient of the
+                                 // objective, so it tells direction of
+                                 // decrease.
+                                 double steep = resid[0] * jac[  dn]
+                                                + resid[1] * jac[2+dn];
+
+                                 if (steep * tmp->r[dn] < 0)
                                  {
                                     newton_area(fpt, jac, resid, tmp, tol);
                                  }
+                                 else
+                                 {
+                                    newton_edge(fpt, jac, hess[2], resid, de,
+                                                dn, tmp->flags & FLAG_MASK,
+                                                tmp, tol);
+                                 }
                               }
                            }
-                           MFEM_SYNC_THREAD;
-                           break;
-                        } //case 0
-                        case 1:   // findpt_edge
+                        }
+                        MFEM_SYNC_THREAD;
+                        break;
+                     }
+                     case 2:   // findpts_pt
+                     {
+                        MFEM_FOREACH_THREAD(j,x,nThreads)
                         {
-                           const int ei = edge_index(tmp->flags & FLAG_MASK);
-                           const int dn = ei>>1, de = plus_1_mod_2(dn);
-
-                           double *wt = r_workspace_ptr;
-                           double *resid = wt + 3 * D1D;
-                           double *jac = resid + 2; //jac will be row-major
-                           double *hess = jac + 2 * 2;
-                           findptsElementGEdge_t edge;
-
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
+                           if (j == 0)
                            {
-                              edge = get_edge(elx, wtend, ei,
-                                              constraint_workspace,
-                                              constraint_init_t[j], j,
-                                              D1D);
-                           }
-                           MFEM_SYNC_THREAD;
+                              int de = 0;
+                              int dn = 0;
+                              const int pi = point_index(tmp->flags & FLAG_MASK);
+                              const findptsElementGPT_t gpt =
+                                 get_pt(elx, wtend, pi, D1D);
 
-                           // compute basis function info upto 2nd derivative.
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
-                              if (j < D1D)
+                              const double *const pt_x = gpt.x;
+                              const double *const jac = gpt.jac;
+                              const double *const hes = gpt.hes;
+
+                              double resid[DIM], steep[DIM], sr[DIM];
+                              for (int d = 0; d < DIM; ++d)
                               {
-                                 lag_eval_second_der(wt, tmp->r[de],
-                                                     j, gll1D,
-                                                     lagcoeff, D1D);
+                                 resid[d] = fpt->x[d] - pt_x[d];
                               }
-                           }
-                           MFEM_SYNC_THREAD;
+                              steep[0] = jac[0]*resid[0] + jac[2]*resid[1];
+                              steep[1] = jac[1]*resid[0] + jac[3]*resid[1];
 
-                           MFEM_FOREACH_THREAD(d,x,nThreads)
-                           {
-                              if (d < DIM)
+                              sr[0] = steep[0]*tmp->r[0];
+                              sr[1] = steep[1]*tmp->r[1];
+
+                              if (!reject_prior_step_q(fpt, resid, tmp, tol))
                               {
-                                 resid[d] = tmp->x[d];
-                                 jac[2*d] = 0.0;
-                                 jac[2*d + 1] = 0.0;
-                                 hess[d] = 0.0;
-                                 for (int k = 0; k < D1D; ++k)
+                                 if (sr[0]<0)
                                  {
-                                    resid[d] -= wt[k]*edge.x[d][k];
-                                    jac[2*d] += wt[k]*edge.dxdn[d][k];
-                                    jac[2*d+1] += wt[k+D1D]*edge.x[d][k];
-                                    hess[d] += wt[k+2*D1D]*edge.x[d][k];
-                                 }
-                              }
-                           }
-                           MFEM_SYNC_THREAD;
-
-                           // at this point, the Jacobian will be out of
-                           // order for edge index 2 and 3 so we need to swap
-                           // columns
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
-                              if (j == 0)
-                              {
-                                 if (ei >= 2)
-                                 {
-                                    double temp1 = jac[1],
-                                           temp2 = jac[3];
-                                    jac[1] = jac[0];
-                                    jac[3] = jac[2];
-                                    jac[0] = temp1;
-                                    jac[2] = temp2;
-                                 }
-                                 hess[2] = resid[0]*hess[0] + resid[1]*hess[1];
-                              }
-                           }
-                           MFEM_SYNC_THREAD;
-
-                           MFEM_FOREACH_THREAD(l,x,nThreads)
-                           {
-                              if (l == 0)
-                              {
-                                 // check prior step //
-                                 if (!reject_prior_step_q(fpt, resid, tmp, tol))
-                                 {
-                                    // steep is negative of the gradient of the
-                                    // objective, so it tells direction of
-                                    // decrease.
-                                    double steep = resid[0] * jac[  dn]
-                                                   + resid[1] * jac[2+dn];
-
-                                    if (steep * tmp->r[dn] < 0)
+                                    if (sr[1]<0)
                                     {
                                        newton_area(fpt, jac, resid, tmp, tol);
                                     }
                                     else
                                     {
-                                       newton_edge(fpt, jac, hess[2], resid, de,
-                                                   dn, tmp->flags & FLAG_MASK,
-                                                   tmp, tol);
-                                    }
-                                 }
-                              }
-                           }
-                           MFEM_SYNC_THREAD;
-                           break;
-                        }
-                        case 2:   // findpts_pt
-                        {
-                           MFEM_FOREACH_THREAD(j,x,nThreads)
-                           {
-                              if (j == 0)
-                              {
-                                 int de = 0;
-                                 int dn = 0;
-                                 const int pi = point_index(tmp->flags & FLAG_MASK);
-                                 const findptsElementGPT_t gpt =
-                                    get_pt(elx, wtend, pi, D1D);
-
-                                 const double *const pt_x = gpt.x;
-                                 const double *const jac = gpt.jac;
-                                 const double *const hes = gpt.hes;
-
-                                 double resid[DIM], steep[DIM], sr[DIM];
-                                 for (int d = 0; d < DIM; ++d)
-                                 {
-                                    resid[d] = fpt->x[d] - pt_x[d];
-                                 }
-                                 steep[0] = jac[0]*resid[0] + jac[2]*resid[1];
-                                 steep[1] = jac[1]*resid[0] + jac[3]*resid[1];
-
-                                 sr[0] = steep[0]*tmp->r[0];
-                                 sr[1] = steep[1]*tmp->r[1];
-
-                                 if (!reject_prior_step_q(fpt, resid, tmp, tol))
-                                 {
-                                    if (sr[0]<0)
-                                    {
-                                       if (sr[1]<0)
-                                       {
-                                          newton_area(fpt, jac, resid, tmp, tol);
-                                       }
-                                       else
-                                       {
-                                          de=0;
-                                          dn=1;
-                                          const double rh = resid[0]*hes[de]+
-                                                            resid[1]*hes[2+de];
-                                          newton_edge(fpt, jac, rh,
-                                                      resid, de,
-                                                      dn,
-                                                      tmp->flags &
-                                                      FLAG_MASK &
-                                                      (3u<<(2*dn)),
-                                                      tmp, tol);
-                                       }
-                                    }
-                                    else if (sr[1]<0)
-                                    {
-                                       de=1;
-                                       dn=0;
+                                       de=0;
+                                       dn=1;
                                        const double rh = resid[0]*hes[de]+
                                                          resid[1]*hes[2+de];
-                                       newton_edge(fpt, jac, rh,
-                                                   resid, de,
-                                                   dn,
+                                       newton_edge(fpt, jac, rh, resid, de, dn,
                                                    tmp->flags &
                                                    FLAG_MASK &
                                                    (3u<<(2*dn)),
                                                    tmp, tol);
                                     }
-                                    else
-                                    {
-                                       fpt->r[0] = tmp->r[0];
-                                       fpt->r[1] = tmp->r[1];
-                                       fpt->dist2p = 0;
-                                       fpt->flags = tmp->flags | CONVERGED_FLAG;
-                                    }
+                                 }
+                                 else if (sr[1]<0)
+                                 {
+                                    de=1;
+                                    dn=0;
+                                    const double rh = resid[0]*hes[de]+
+                                                      resid[1]*hes[2+de];
+                                    newton_edge(fpt, jac, rh, resid, de, dn,
+                                                tmp->flags &
+                                                FLAG_MASK &
+                                                (3u<<(2*dn)),
+                                                tmp, tol);
+                                 }
+                                 else
+                                 {
+                                    fpt->r[0] = tmp->r[0];
+                                    fpt->r[1] = tmp->r[1];
+                                    fpt->dist2p = 0;
+                                    fpt->flags = tmp->flags | CONVERGED_FLAG;
                                  }
                               }
                            }
-                           MFEM_SYNC_THREAD;
-                           break;
-                        } //case 3
-                     } //switch
-                     if (fpt->flags & CONVERGED_FLAG)
-                     {
+                        }
+                        MFEM_SYNC_THREAD;
                         break;
-                     }
-                     MFEM_SYNC_THREAD;
-                     MFEM_FOREACH_THREAD(j,x,nThreads)
-                     if (j == 0)
-                     {
-                        *tmp = *fpt;
-                     }
-                     MFEM_SYNC_THREAD;
-                  } //for int step < 50
-               } //findpts_el
-
-               bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
-               if (*code_i == CODE_NOT_FOUND || converged_internal ||
-                   fpt->dist2 < *dist2_i)
-               {
-                  MFEM_FOREACH_THREAD(j,x,nThreads)
-                  {
-                     if (j == 0)
-                     {
-                        *el_i = el;
-                        *code_i = converged_internal ? CODE_INTERNAL :
-                                  CODE_BORDER;
-                        *dist2_i = fpt->dist2;
-                     }
-                     if (j < DIM)
-                     {
-                        r_i[j] = fpt->r[j];
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-                  if (converged_internal)
+                     } //case 3
+                  } //switch
+                  if (fpt->flags & CONVERGED_FLAG)
                   {
                      break;
                   }
+                  MFEM_SYNC_THREAD;
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
+                  if (j == 0)
+                  {
+                     *tmp = *fpt;
+                  }
+                  MFEM_SYNC_THREAD;
+               } //for int step < 50
+            } //findpts_el
+
+            bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
+            if (*code_i == CODE_NOT_FOUND || converged_internal ||
+                  fpt->dist2 < *dist2_i)
+            {
+               MFEM_FOREACH_THREAD(j,x,nThreads)
+               {
+                  if (j == 0)
+                  {
+                     *el_i = el;
+                     *code_i = converged_internal ? CODE_INTERNAL :
+                                 CODE_BORDER;
+                     *dist2_i = fpt->dist2;
+                  }
+                  if (j < DIM)
+                  {
+                     r_i[j] = fpt->r[j];
+                  }
                }
-            } //findpts_local
-         } //bbox_test
+               MFEM_SYNC_THREAD;
+               if (converged_internal)
+               {
+                  break;
+               }
+            }
+         } //findpts_local
       } //elp
    });
 }
