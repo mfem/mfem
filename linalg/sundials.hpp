@@ -949,7 +949,7 @@ public:
        maximum subspace size. Subsequent calls need @a n less or equal to the
        initial subspace size.
        @param[in] n Anderson Acceleration subspace size
-       @param[in] orth Anderson Acceleration orthogonalization routin
+       @param[in] orth Anderson Acceleration orthogonalization routine
        @param[in] delay Anderson Acceleration delay
        @param[in] damping Anderson Acceleration damping parameter valid from 0 <
        d <= 1.0. Default is 1.0 (no damping) */
