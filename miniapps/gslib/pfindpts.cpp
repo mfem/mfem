@@ -445,7 +445,6 @@ int main (int argc, char *argv[])
            << "\nPoints on faces:      " << face_pts
            << "\nMax interp error:     " << max_err
            << "\nMax dist (of found):  " << max_dist
-           //                    << "\nTotal Time:  " << FindPointsSW.RealTime()
            << endl;
    }
 
