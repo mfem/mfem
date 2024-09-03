@@ -49,6 +49,20 @@ add_mfem_miniapp(seq_diffusion_cut
         ${SEQCUT_COMMON_FILES}
         LIBRARIES mfem)
 
+add_mfem_miniapp(seq_stokes_cut
+	MAIN stokes_cut.cpp
+	${SEQCUT_COMMON_FILES}
+	LIBRARIES mfem)
+
+add_mfem_miniapp(seq_vector
+	MAIN vector_diffusion.cpp
+	${SEQCUT_COMMON_FILES}
+	LIBRARIES mfem)
+
+add_mfem_miniapp(seq_vector_cut
+	MAIN vector_diffusion_cut.cpp
+	${SEQCUT_COMMON_FILES}
+	LIBRARIES mfem)
 
 if(MFEM_USE_MPI)
 

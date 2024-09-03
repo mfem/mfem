@@ -556,6 +556,7 @@ public:
             //use cut integration
             IntegrationRule ir;
             irules->GetVolumeIntegrationRule(Trans,ir);
+
             dint->SetIntRule(&ir);
             dint->AssembleRHSElementVect(el,Trans,elvect);
         }
@@ -714,14 +715,14 @@ private:
 class CutGhostPenaltyVectorIntegrator:public BilinearFormIntegrator
 {
 private:    
-    GhostPenaltyIntegrator* dint;
+    GhostPenaltyVectorIntegrator* dint;
     Array<int>* el_marks;
 
 public:
     CutGhostPenaltyVectorIntegrator(double penal_, Array<int>* marks)
     {
         el_marks=marks;
-        dint=new GhostPenaltyIntegrator(penal_);
+        dint=new GhostPenaltyVectorIntegrator(penal_);
     }
     virtual
         ~CutGhostPenaltyVectorIntegrator()
@@ -974,9 +975,9 @@ public:
         }
         else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
         {
-            //use standard integration rule
-            dint->SetIntRule(nullptr);
-            dint->AssembleRHSElementVect(el,Trans,elvect);
+            int sdim = Trans.GetSpaceDim();
+            elvect.SetSize(sdim*el.GetDof());
+            elvect=0.0;
 
         }
         else
@@ -984,7 +985,7 @@ public:
             //use cut integration
             Vector sweights;
             IntegrationRule ir;
-            irules->GetVolumeIntegrationRule(Trans,ir);
+            irules->GetSurfaceIntegrationRule(Trans,ir);
             irules->GetSurfaceWeights(Trans,ir,sweights);
             dint->SetIntRule(&ir);
             dint->SetSurfaceWeights(sweights);

@@ -317,6 +317,7 @@ void UnfittedBoundaryLFIntegrator::AssembleRHSElementVect(
 
    const IntegrationRule *ir = IntRule;
 
+
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -327,6 +328,7 @@ void UnfittedBoundaryLFIntegrator::AssembleRHSElementVect(
       el.CalcShape(ip, shape);
 
       add(elvect, ip.weight * val*sweights(i), shape, elvect);
+      
    }
 }
 
@@ -350,6 +352,9 @@ void GhostPenaltyVectorIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
 
     elmat.SetSize(ndofs*ndim);
     elmat=0.0;
+
+    DenseMatrix dummymat; 
+    dummymat = 0.0;
 
     int order=std::max(fe1.GetOrder(), fe2.GetOrder());
 
@@ -452,14 +457,52 @@ void GhostPenaltyVectorIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
     MultAtB(Mge,Mre,Mff);
 
     double tv;
-    for(int i=0;i<ndofs;i++){
-        for(int j=0;j<ndofs;j++){
+    for(int i=0;i<ndof1;i++){
+        for(int j=0;j<ndof1;j++){
             tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
             for(int d=0;d<ndim;d++){
-                elmat(i+d*ndofs,j+d*ndofs)=tv;
+                elmat(i+d*ndof1,j+d*ndof1)=tv;
             }
         }
     }
+    for(int i=ndof1;i<ndofs;i++){
+        for(int j=0;j<ndof1;j++){
+            tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
+            for(int d=0;d<ndim;d++){
+                elmat(ndof1+i+d*ndof1,j+d*ndof1)=tv;
+            }
+        }
+    }
+
+    for(int i=0;i<ndof1;i++){
+        for(int j=ndof1;j<ndofs;j++){
+            tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
+            for(int d=0;d<ndim;d++){
+                elmat(i+d*ndof1,ndof1 + j+d*ndof1)=tv;
+            }
+        }
+    }
+
+    for(int i=ndof1;i<ndofs;i++){
+        for(int j=ndof1;j<ndofs;j++){
+            tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
+            for(int d=0;d<ndim;d++){
+                elmat(ndof1 + i+d*ndof1,ndof1 + j+d*ndof1)=tv;
+            }
+        }
+    }
+
+    // for(int i=0;i<ndofs;i++){
+    //     for(int j=0;j<ndofs;j++){
+    //         tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
+    //         for(int d=0;d<ndim;d++){
+    //             dummy(i+d*ndofs,j+d*ndofs)=tv;
+    //         }
+    //     }
+    // }
+
+    // elmat.Print();
+
 
 }
 
@@ -478,25 +521,22 @@ void UnfittedVectorBoundaryLFIntegrator::AssembleRHSElementVect(
    elvect = 0.0;
 
    const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      int intorder = 2*el.GetOrder();
-      ir = &IntRules.Get(el.GetGeomType(), intorder);
-   }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
+        
       Q.Eval(vec, Tr, ip);
       vec *= Tr.Weight() * ip.weight;
       el.CalcShape(ip, shape);
-      for (int k = 0; k < vdim; k++)
+      for (int k = 0; k < vdim; k++){
          for (int s = 0; s < dof; s++)
          {
             elvect(dof*k+s) += vec(k) * shape(s)*sweights(i);
          }
+      }
    }
 }
 
