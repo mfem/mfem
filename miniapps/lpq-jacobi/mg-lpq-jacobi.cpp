@@ -52,6 +52,7 @@ int main(int argc, char *argv[])
    /// 2. Parse command line options.
    string mesh_file = "meshes/icf.mesh";
    // System properties
+   int order = 1;
    SolverType solver_type = sli;
    IntegratorType integrator_type = mass;
    // Number of refinements
@@ -77,6 +78,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree)");
    args.AddOption(&geometric_levels, "-gl", "--geometric-levels",
                   "Number of geometric refinements (levels) done prior to order refinements.");
    args.AddOption(&order_levels, "-ol", "--order-levels",
@@ -136,6 +139,7 @@ int main(int argc, char *argv[])
       file_name << "MGLPQ-"
                 << "G" << geometric_levels
                 << "O" << order_levels
+                << "O" << order
                 << "I" << (int) integrator_type
                 << "S" << (int) solver_type
                 << fixed << setprecision(4)
@@ -189,19 +193,29 @@ int main(int argc, char *argv[])
    switch (integrator_type)
    {
       case mass: case diffusion:
-         fec = new H1_FECollection(1, dim);
+         fec = new H1_FECollection(order, dim);
          coarse_fes = new ParFiniteElementSpace(mesh, fec);
          break;
       case elasticity:
-         fec = new H1_FECollection(1, dim);
+         fec = new H1_FECollection(order, dim);
          coarse_fes= new ParFiniteElementSpace(mesh, fec, dim);
          break;
       case maxwell:
-         fec = new ND_FECollection(1, dim);
+         fec = new ND_FECollection(order, dim);
          coarse_fes= new ParFiniteElementSpace(mesh, fec);
          break;
       default:
          mfem_error("Invalid integrator type! Check FiniteElementCollection");
+   }
+
+   if (order > 1)
+   {
+      if (Mpi::Root())
+      {
+         mfem::out << "Warning! Polynomial order provided. "
+                   << "Ignoring order level..." << endl;
+      }
+      order_levels = 0;
    }
 
    /// 6. Define a finite element space hierarchy for the multigrid solver.
