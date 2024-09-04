@@ -6377,6 +6377,90 @@ void ParMesh::ParPrint(ostream &os, const std::string &comments) const
       return;
    }
 
+
+   // Write out parallel mesh information.
+   // for (int i = 0; i < NRanks; i++)
+   // {
+   //    if (i == MyRank)
+   //    {
+   //       std::cout << "Printing from Rank: " << MyRank << std::endl;
+   //       std::cout << "group id, # number of entities in each group, followed by ranks in group\n";
+   //       for (int group_id = 0; group_id < gtopo.NGroups(); ++group_id)
+   //       {
+   //          int group_size = gtopo.GetGroupSize(group_id);
+   //          const int * group_ptr = gtopo.GetGroup(group_id);
+   //          std::cout << group_id << " " << group_size;
+   //          for ( int group_member_index = 0; group_member_index < group_size;
+   //                ++group_member_index)
+   //          {
+   //             std::cout << " " << gtopo.GetNeighborRank( group_ptr[group_member_index] );
+   //          }
+   //          std::cout << "\n";
+   //       }
+
+   //       // Print group entities
+   //       std::cout << "\ntotal_shared_vertices " << svert_lvert.Size() << '\n';
+   //       if (Dim >= 2)
+   //       {
+   //          std::cout << "total_shared_edges " << shared_edges.Size() << '\n';
+   //       }
+   //       if (Dim >= 3)
+   //       {
+   //          std::cout << "total_shared_faces " << sface_lface.Size() << '\n';
+   //       }
+   //       for (int gr = 1; gr < GetNGroups(); gr++)
+   //       {
+   //          std::cout << "\n# group " << gr << std::endl;
+   //          // {
+   //          //    const int  nv = group_svert.RowSize(gr-1);
+   //          //    const int *sv = group_svert.GetRow(gr-1);
+   //          //    std::cout << "\n# group " << gr << "\nshared_vertices " << nv << '\n';
+   //          //    for (int i = 0; i < nv; i++)
+   //          //    {
+   //          //       int vertid = svert_lvert[sv[i]];
+   //          //       std::cout << vertid << " " << vertices[vertid](0) << " " <<
+   //          //                    vertices[vertid](1) << " " << vertices[vertid](2) <<
+   //          //                      '\n';
+   //          //    }
+   //          // }
+   //          // if (Dim >= 2)
+   //          // {
+   //          //    const int  ne = group_sedge.RowSize(gr-1);
+   //          //    const int *se = group_sedge.GetRow(gr-1);
+   //          //    std::cout << "\nshared_edges " << ne << '\n';
+   //          //    for (int i = 0; i < ne; i++)
+   //          //    {
+   //          //       const int *v = shared_edges[se[i]]->GetVertices();
+   //          //       std::cout << v[0] << ' ' << v[1] << '\n';
+   //          //    }
+   //          // }
+   //          if (Dim >= 3)
+   //          {
+   //             const int  nt = group_stria.RowSize(gr-1);
+   //             const int *st = group_stria.GetRow(gr-1);
+   //             const int  nq = group_squad.RowSize(gr-1);
+   //             const int *sq = group_squad.GetRow(gr-1);
+   //             std::cout << "\nshared_faces " << nt+nq << '\n';
+   //             for (int i = 0; i < nt; i++)
+   //             {
+   //                std::cout << Geometry::TRIANGLE;
+   //                const int *v = shared_trias[st[i]].v;
+   //                for (int j = 0; j < 3; j++) { std::cout << ' ' << v[j]; }
+   //                std::cout << '\n';
+   //             }
+   //             for (int i = 0; i < nq; i++)
+   //             {
+   //                std::cout << Geometry::SQUARE;
+   //                const int *v = shared_quads[sq[i]].v;
+   //                for (int j = 0; j < 4; j++) { std::cout << ' ' << v[j]; }
+   //                std::cout << '\n';
+   //             }
+   //          }
+   //       }
+   //    }
+   //    MPI_Barrier(MyComm);
+   // }
+
    // Write out serial mesh.  Tell serial mesh to delineate the end of its
    // output with 'mfem_serial_mesh_end' instead of 'mfem_mesh_end', as we will
    // be adding additional parallel mesh information.

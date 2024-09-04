@@ -421,6 +421,17 @@ protected:
    /// Bisect a tetrahedron: element with index @a i is bisected.
    void Bisection(int i, HashTable<Hashed2> &);
 
+   /// Split a tet by cutting each face (as indicated by the first four bits of mask)
+   /// into three triangles and joining them to tet cetner
+   void TetFaceSplitRefinement(int i,
+                               std::map<std::array<int, 3>, int> &tet_face_verts,
+                               int split_mask = -1);
+
+   void TetFaceSplitRefinement2(int i,
+                               std::map<std::array<int, 3>,
+                                              std::tuple<bool, int>> &face_marker,
+                               int split_mask);
+
    /// Bisect a boundary triangle: boundary element with index @a i is bisected.
    void BdrBisection(int i, const HashTable<Hashed2> &);
 
@@ -450,6 +461,11 @@ protected:
    void UniformRefinement2D_base(bool update_nodes = true);
 
    void ConformingRefinement_base(const Array<int> &el_to_refine);
+
+   void CollectTetFaceConformingRefinementFlags(Array<int> el_to_refine,
+                                      std::map<std::array<int, 3>,
+                                              std::tuple<bool, int>> &face_marker,
+                                      Array<int> &el_mask);
 
    /// Refine a mixed 2D mesh uniformly.
    virtual void UniformRefinement2D() { UniformRefinement2D_base(); }
@@ -2239,6 +2255,7 @@ public:
       ConformingRefinement_base(el_to_refine);
       last_operation = Mesh::REFINE;
       sequence++;
+      std::cout << "ConformingRefinement" << std::endl;
       UpdateNodes();
    }
 
