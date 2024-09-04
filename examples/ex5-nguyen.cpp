@@ -136,6 +136,7 @@ int main(int argc, char *argv[])
    real_t td = 0.5;
    bool hybridization = false;
    bool nonlinear = false;
+   bool nonlinear_conv = false;
    int hdg_scheme = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -180,6 +181,8 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&nonlinear, "-nl", "--nonlinear", "-no-nl",
                   "--no-nonlinear", "Enable non-linear regime.");
+   args.AddOption(&nonlinear_conv, "-nlc", "--nonlinear-convection", "-no-nlc",
+                  "--no-nonlinear-convection", "Enable non-linear convection regime.");
    args.AddOption(&hdg_scheme, "-hdg", "--hdg_scheme",
                   "HDG scheme (1=HDG-I, 2=HDG-II).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -216,21 +219,18 @@ int main(int argc, char *argv[])
    {
       case Problem::SteadyDiffusion:
          break;
-      case Problem::SteadyAdvectionDiffusion:
-      case Problem::SteadyAdvection:
-         bconv = true;
-         break;
       case Problem::NonsteadyAdvectionDiffusion:
       case Problem::KovasznayFlow:
-         bconv = true;
          btime = true;
-         break;
-      case Problem::SteadyBurgers:
-         bnlconv = true;
+      case Problem::SteadyAdvectionDiffusion:
+      case Problem::SteadyAdvection:
+         bconv = !nonlinear_conv;
+         bnlconv = nonlinear_conv;
          break;
       case Problem::NonsteadyBurgers:
-         bnlconv = true;
          btime = true;
+      case Problem::SteadyBurgers:
+         bnlconv = true;
          break;
       default:
          cerr << "Unknown problem" << endl;
@@ -389,6 +389,8 @@ int main(int argc, char *argv[])
    FluxFunction *FluxFun = NULL;
    RiemannSolver *FluxSolver = NULL;
 
+   //(linear) diffusion
+
    if (dg)
    {
       Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
@@ -444,6 +446,8 @@ int main(int argc, char *argv[])
       B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
    }
 
+   //linear convection in the linear regime
+
    if (bconv && Mt)
    {
       Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
@@ -468,6 +472,9 @@ int main(int argc, char *argv[])
          }
       }
    }
+
+   //linear convection in the nonlinear regime
+
    if (bconv && Mtnl)
    {
       Mtnl->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
@@ -492,6 +499,9 @@ int main(int argc, char *argv[])
          }
       }
    }
+
+   //nonlinear convection in the nonlinear regime
+
    if (bnlconv && Mtnl)
    {
       FluxFun = GetFluxFun(problem, ccoeff);
