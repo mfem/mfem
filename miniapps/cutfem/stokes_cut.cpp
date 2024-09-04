@@ -140,10 +140,10 @@ int main(int argc, char *argv[])
    // mVarf->AddDomainIntegrator(new VectorDiffusionIntegrator);
    mVarf->AddDomainIntegrator(new CutVectorDiffusionIntegrator(one,&marks,air));
    mVarf->AddInteriorFaceIntegrator(new CutGhostPenaltyVectorIntegrator(gp1,&marks));
-   mVarf->Assemble();
+   mVarf->Assemble(0);
    mVarf->EliminateEssentialBC(boundary_dofs, v, rhs.GetBlock(0));
    // smVarf->EliminateVDofs(outside_dofs_v);
-   mVarf->Finalize();  
+   mVarf->Finalize(0);
 
 
 
@@ -153,8 +153,8 @@ int main(int argc, char *argv[])
    bVarf->Finalize();
 
    cVarf->AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp2,&marks));
-   cVarf->Assemble();
-   cVarf->Finalize();  
+   cVarf->Assemble(0);
+   cVarf->Finalize(0);
 
 
    BlockOperator StokesOp(block_offsets);
@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
       Bs.EliminateCol(outside_dofs_v[i]);
    }
 
-   Ms.SetDiagIdentity();
+   //Ms.SetDiagIdentity();
 
    Vector after; 
    Ms.GetDiag(after);
