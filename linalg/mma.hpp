@@ -175,15 +175,15 @@ private:
    private:
       int ittt, itto, itera, nVar_global;
 
-      real_t epsi, rez, rezet, delz, dz, dzet, azz, stmxx, stmalfa, stmbeta,
+      real_t epsi, delz, dz, dzet, stmxx, stmalfa, stmbeta,
              sum, stminv, steg, zold, zetold,
              residunorm, residumax, resinew, raa0, albefa, move, xmamieps;
 
       real_t *sum1, *ux1, *xl1, *plam, *qlam, *gvec, *residu, *GG, *delx, *dely,
              *dellam,
-             *dellamyi, *diagx, *diagy, *diaglam, *diaglamyi, *bb, *bb1, *Alam, *AA, *AA1,
+             *dellamyi, *diagx, *diagy, *diaglamyi, *bb, *bb1, *Alam, *AA, *AA1,
              *dlam, *dx, *dy, *dxsi, *deta, *dmu, *Axx, *axz, *ds, *xx, *dxx, *stepxx,
-             *stepalfa, *stepbeta, step, *xold, *yold,
+             *stepalfa, *stepbeta, *xold, *yold,
              *lamold, *xsiold, *etaold, *muold, *sold, *p0, *q0, *P, *Q, *alfa, *beta,
              *xmami, *b;
 
