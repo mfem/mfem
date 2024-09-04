@@ -69,7 +69,7 @@ public:
     * @brief Compute flux F(u, x) for given state u and physical point x
     *
     * @param[in] state value of state at the current integration point
-    * @param[in] Tr element information
+    * @param[in] Tr element transformation
     * @param[out] flux F(u, x)
     * @return real_t maximum characteristic speed
     *
@@ -83,7 +83,7 @@ public:
     *
     * @param[in] state state at the current integration point
     * @param[in] normal normal vector, @see CalcOrtho
-    * @param[in] Tr face information
+    * @param[in] Tr face transformation
     * @param[out] fluxDotN normal flux from the given element at the current
     * integration point
     * @return real_t maximum (normal) characteristic velocity
@@ -97,7 +97,7 @@ public:
     * when Jacobian is necessary (e.g. Newton iteration, flux limiter)
     *
     * @param[in] state state at the current integration point
-    * @param[in] Tr element information
+    * @param[in] Tr element transformation
     * @param[out] J flux Jacobian, J(i,j,d) = dF_{id} / u_j
     */
    virtual void ComputeFluxJacobian(const Vector &state,
@@ -113,7 +113,7 @@ public:
     *
     * @param[in] state state at the current integration point
     * @param[in] normal normal vector, @see CalcOrtho
-    * @param[in] Tr element information
+    * @param[in] Tr element transformation
     * @param[out] JDotN normal flux Jacobian, JDotN(i,j) = dF_{id} n_d / u_j
     */
    virtual void ComputeFluxJacobianDotN(const Vector &state,
@@ -149,7 +149,7 @@ public:
     * @param[in] state2 state value at a point from the second element
     * (num_equations)
     * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
-    * @param[in] Tr face information
+    * @param[in] Tr face transformation
     * @param[out] flux numerical flux (num_equations)
     * @return real_t maximum characteristic speed
     */
