@@ -161,8 +161,8 @@ int main (int argc, char *argv[])
    const int dim = mesh->Dimension();
 
    if (mesh->GetNumGeometries(dim) == 1 &&
-      (mesh->GetElementType(0)==Element::QUADRILATERAL ||
-       mesh->GetElementType(0) == Element::HEXAHEDRON))
+       (mesh->GetElementType(0)==Element::QUADRILATERAL ||
+        mesh->GetElementType(0) == Element::HEXAHEDRON))
    {
       randomization = 0;
    }

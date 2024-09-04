@@ -1466,8 +1466,8 @@ static void FindPointsLocal3DKernel(const int npt,
                      {
                         const int ei = edge_index(tmp->flags & FLAG_MASK);
                         const int de = ei >> 2,
-                                    dn1 = plus_1_mod_3(de),
-                                    dn2 = plus_2_mod_3(de);
+                                  dn1 = plus_1_mod_3(de),
+                                  dn2 = plus_2_mod_3(de);
                         int d_j[3];
                         d_j[0] = de;
                         d_j[1] = dn1;
@@ -1485,9 +1485,9 @@ static void FindPointsLocal3DKernel(const int npt,
                         {
                            // utilizes first 3*D1D threads
                            edge = get_edge(elx, wtend, ei,
-                                             constraint_workspace,
-                                             face_edge_init, j,
-                                             D1D);
+                                           constraint_workspace,
+                                           face_edge_init, j,
+                                           D1D);
                         }
                         MFEM_SYNC_THREAD;
 
@@ -1496,7 +1496,7 @@ static void FindPointsLocal3DKernel(const int npt,
                                                          edge.dxdn2,
                                                          edge.d2xdn1,
                                                          edge.d2xdn2
-                                                         };
+                                                        };
 
                         MFEM_FOREACH_THREAD(j,x,nThreads)
                         {
@@ -1504,7 +1504,7 @@ static void FindPointsLocal3DKernel(const int npt,
                            if (j < D1D)
                            {
                               lag_eval_second_der(wt, tmp->r[de], j, gll1D,
-                                                   lagcoeff, D1D);
+                                                  lagcoeff, D1D);
                            }
                         }
                         MFEM_SYNC_THREAD;
@@ -1637,9 +1637,9 @@ static void FindPointsLocal3DKernel(const int npt,
                            {
                               const int pi=point_index(tmp->flags & FLAG_MASK);
                               const findptsElemPt gpt=get_pt(elx,wtend,pi,D1D);
-                              const double *const pt_x = gpt.x,
-                                           *const jac = gpt.jac,
-                                           *const hes = gpt.hes;
+                              const double *const pt_x = gpt.x;
+                              const double *const jac = gpt.jac;
+                              const double *const hes = gpt.hes;
 
                               double resid[3], steep[3];
                               for (int d = 0; d < 3; ++d)
@@ -1672,14 +1672,14 @@ static void FindPointsLocal3DKernel(const int npt,
                                           hi1 = 1, hi2 = 3;
                                           double rh[3];
                                           rh[0] = resid[0]*hes[hi0] +
-                                                   resid[1]*hes[6+hi0] +
-                                                   resid[2]*hes[12+hi0];
+                                                  resid[1]*hes[6+hi0] +
+                                                  resid[2]*hes[12+hi0];
                                           rh[1] = resid[0]*hes[hi1] +
-                                                   resid[1]*hes[6+hi1] +
-                                                   resid[2]*hes[12+hi1];
+                                                  resid[1]*hes[6+hi1] +
+                                                  resid[2]*hes[12+hi1];
                                           rh[2] = resid[0]*hes[hi2] +
-                                                   resid[1]*hes[6+hi2] +
-                                                   resid[2]*hes[12+hi2];
+                                                  resid[1]*hes[6+hi2] +
+                                                  resid[2]*hes[12+hi2];
                                           newton_face(fpt, jac, rh, resid,
                                                       d1, d2, dn,
                                                       (tmp->flags)&(3u<<(2*dn)),
@@ -1694,14 +1694,14 @@ static void FindPointsLocal3DKernel(const int npt,
                                           hi1 = 2, hi2 = 0;
                                           double rh[3];
                                           rh[0] = resid[0]*hes[hi0] +
-                                                   resid[1]*hes[6+hi0] +
-                                                   resid[2]*hes[12+hi0];
+                                                  resid[1]*hes[6+hi0] +
+                                                  resid[2]*hes[12+hi0];
                                           rh[1] = resid[0]*hes[hi1] +
-                                                   resid[1]*hes[6+hi1] +
-                                                   resid[2]*hes[12+hi1];
+                                                  resid[1]*hes[6+hi1] +
+                                                  resid[2]*hes[12+hi1];
                                           rh[2] = resid[0]*hes[hi2] +
-                                                   resid[1]*hes[6+hi2] +
-                                                   resid[2]*hes[12+hi2];
+                                                  resid[1]*hes[6+hi2] +
+                                                  resid[2]*hes[12+hi2];
                                           newton_face(fpt, jac, rh, resid,
                                                       d1, d2, dn,
                                                       (tmp->flags)&(3u<<(2*dn)),
@@ -1716,7 +1716,7 @@ static void FindPointsLocal3DKernel(const int npt,
                                              resid[2]*hes[12+hi0];
                                           newton_edge(fpt, jac, rh, resid,
                                                       de, dn1, dn2,
-                                                     tmp->flags&(~(3u<<(2*de))),
+                                                      tmp->flags&(~(3u<<(2*de))),
                                                       tmp, tol);
                                        }
                                     }
@@ -1731,14 +1731,14 @@ static void FindPointsLocal3DKernel(const int npt,
                                           hi0 = 3, hi1 = 4, hi2 = 5;
                                           double rh[3];
                                           rh[0] = resid[0]*hes[hi0] +
-                                                   resid[1]*hes[6+hi0] +
-                                                   resid[2]*hes[12+hi0];
+                                                  resid[1]*hes[6+hi0] +
+                                                  resid[2]*hes[12+hi0];
                                           rh[1] = resid[0]*hes[hi1] +
-                                                   resid[1]*hes[6+hi1] +
-                                                   resid[2]*hes[12+hi1];
+                                                  resid[1]*hes[6+hi1] +
+                                                  resid[2]*hes[12+hi1];
                                           rh[2] = resid[0]*hes[hi2] +
-                                                   resid[1]*hes[6+hi2] +
-                                                   resid[2]*hes[12+hi2];
+                                                  resid[1]*hes[6+hi2] +
+                                                  resid[2]*hes[12+hi2];
                                           newton_face(fpt, jac, rh, resid,
                                                       d1, d2, dn,
                                                       (tmp->flags)&(3u<<(2*dn)),
@@ -1753,7 +1753,7 @@ static void FindPointsLocal3DKernel(const int npt,
                                              resid[2]*hes[12+hi0];
                                           newton_edge(fpt, jac, rh, resid,
                                                       de, dn1, dn2,
-                                                     tmp->flags&(~(3u<<(2*de))),
+                                                      tmp->flags&(~(3u<<(2*de))),
                                                       tmp, tol);
                                        }
                                     }
@@ -1768,7 +1768,7 @@ static void FindPointsLocal3DKernel(const int npt,
                                              resid[2]*hes[12+hi0];
                                           newton_edge(fpt, jac, rh, resid,
                                                       de, dn1, dn2,
-                                                     tmp->flags&(~(3u<<(2*de))),
+                                                      tmp->flags&(~(3u<<(2*de))),
                                                       tmp, tol);
                                        }
                                        else
@@ -1804,7 +1804,7 @@ static void FindPointsLocal3DKernel(const int npt,
 
             bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
             if (*code_i == CODE_NOT_FOUND || converged_internal ||
-                  fpt->dist2 < *dist2_i)
+                fpt->dist2 < *dist2_i)
             {
                MFEM_FOREACH_THREAD(j,x,nThreads)
                {
@@ -1812,7 +1812,7 @@ static void FindPointsLocal3DKernel(const int npt,
                   {
                      *(el_base+i) = el;
                      *code_i = converged_internal ?  CODE_INTERNAL :
-                                 CODE_BORDER;
+                               CODE_BORDER;
                      *dist2_i = fpt->dist2;
                   }
                   if (j < 3)
