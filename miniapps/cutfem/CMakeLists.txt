@@ -79,4 +79,9 @@ set(PARCUT_COMMON_FILES
 # message(STATUS "PARCUT_COMMON_FILES: ${PARCUT_COMMON_FILES}")
 # message(STATUS "SEQCUT_COMMON_FILES: ${SEQCUT_COMMON_FILES}")
 
+add_mfem_miniapp(par_diffusion_cut
+        MAIN par_diffusion_cut.cpp
+        ${PARCUT_COMMON_FILES}
+        LIBRARIES mfem)
+
 endif ()

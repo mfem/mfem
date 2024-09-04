@@ -130,7 +130,6 @@ int main(int argc, char *argv[])
     outside_dofs.Sort();
     outside_dofs.Unique();
 
-    /*
     int otherorder = 2;
     int aorder = 2; // Algoim integration points
     AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,circle,otherorder);
@@ -145,16 +144,37 @@ int main(int argc, char *argv[])
     // 7. Set up the bilinear form a(.,.) corresponding to the -Delta operator.
     ParBilinearForm a(&fespace);
     a.AddDomainIntegrator(new CutDiffusionIntegrator(one,&marks,air));
-    a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&marks));
+    // something is wrong with the CutGhostPenaltyIntegrator
+    //a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&marks));
     a.Assemble();
-    */
+
+    OperatorPtr A;
+    Vector B, X;
+    a.FormLinearSystem(outside_dofs, x, b, A, X, B);
+
+    Solver *prec = nullptr;
+    prec = new HypreBoomerAMG;
+    CGSolver cg(MPI_COMM_WORLD);
+    cg.SetRelTol(1e-12);
+    cg.SetMaxIter(2000);
+    cg.SetPrintLevel(1);
+    if (prec) { cg.SetPreconditioner(*prec); }
+    cg.SetOperator(*A);
+    cg.Mult(B, X);
+    delete prec;
+
+    a.RecoverFEMSolution(X, b, x);
+
+
 
     // to visualize level set and markings
     L2_FECollection* l2fec= new L2_FECollection(0,pmesh.Dimension());
     ParFiniteElementSpace* l2fes= new ParFiniteElementSpace(&pmesh,l2fec,1);
     ParGridFunction mgf(l2fes); mgf=0.0;
+    ParGridFunction par(l2fes); par=0.0;
     for(int i=0;i<marks.Size();i++){
         mgf[i]=marks[i];
+        par[i]=myid;
     }
 
 
@@ -165,12 +185,15 @@ int main(int argc, char *argv[])
     paraview_dc.SetDataFormat(VTKFormat::BINARY);
     paraview_dc.SetHighOrderOutput(true);
     paraview_dc.SetTime(0.0); // set the time
+    paraview_dc.RegisterField("sol",&x);
     paraview_dc.RegisterField("marks", &mgf);
+    paraview_dc.RegisterField("parts", &par);
     paraview_dc.Save();
 
 
     delete l2fes;
     delete l2fec;
+    delete air;
     delete fec;
     return 0;
 }

@@ -130,6 +130,9 @@ int main(int argc, char *argv[])
    MixedBilinearForm *bVarf(new MixedBilinearForm(&Vspace, &Qspace));
    BilinearForm *cVarf(new BilinearForm(&Qspace));
 
+   mVarf->SetDiagonalPolicy(Operator::DiagonalPolicy::DIAG_KEEP);
+   cVarf->SetDiagonalPolicy(Operator::DiagonalPolicy::DIAG_KEEP);
+
 
    ConstantCoefficient lambda(0.0);
    ConstantCoefficient mu(1.0);
@@ -167,20 +170,26 @@ int main(int argc, char *argv[])
    Vector before;
    Ms.GetDiag(before);
    cout <<"before"<<endl;
-   before.Print();
+   //before.Print();
 
    for(int i=0;i<outside_dofs_v.Size();i++)
    {
-      cout<<outside_dofs_v[i]<<endl;
-      Ms.EliminateRowCol(outside_dofs_v[i]);
+      // cout<<outside_dofs_v[i]<<endl;
+      Ms.EliminateRowColDiag(outside_dofs_v[i],1.0);
       
       Bs.EliminateCol(outside_dofs_v[i]);
    }
 
+   Ms.SetDiagIdentity();
+
    Vector after; 
    Ms.GetDiag(after);
    cout <<"after"<<endl;
-   before.Print();
+   //after.Print();
+
+   for(int i=0;i<after.Size();i++){
+       cout<<"i="<<i<<" "<<before[i]<<" "<<after[i]<<std::endl;
+   }
 
 
    for(int i=0;i<outside_dofs_p.Size();i++)

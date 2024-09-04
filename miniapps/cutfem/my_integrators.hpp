@@ -354,7 +354,7 @@ private:
 public:
     CutDiffusionIntegrator(Coefficient& q,
                            Array<int>* marks,
-                           CutIntegrationRules* cut_int): epsilon{{1e-6}}
+                           CutIntegrationRules* cut_int): epsilon(1e-6)
     {
         el_marks=marks;
         irules=cut_int;
@@ -392,17 +392,16 @@ public:
             dint->SetIntRule(&ir);
             dint->AssembleElementMatrix(el,Trans,elmat);
 
-            // DenseMatrix elmat2;
-            // dint2->SetIntRule(&ir);
-            // dint2->AssembleElementMatrix(el,Trans,elmat2);
+            DenseMatrix elmat2;
+            dint2->SetIntRule(&ir);
+            dint2->AssembleElementMatrix(el,Trans,elmat2);
 
-            // elmat.Add(-1,elmat2);
+            elmat.Add(-1,elmat2);
 
-            // dint2->SetIntRule(nullptr);
-            // dint2->AssembleElementMatrix(el,Trans,elmat2);
+            dint2->SetIntRule(nullptr);
+            dint2->AssembleElementMatrix(el,Trans,elmat2);
 
-
-            // elmat.Add(1,elmat2);
+            elmat.Add(1,elmat2);
         }
     }
 };
