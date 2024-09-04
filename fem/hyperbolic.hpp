@@ -434,6 +434,19 @@ public:
                       DenseMatrix &flux) const override;
 
    /**
+    * @brief Compute F(u) n
+    *
+    * @param state state (u) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with integration point
+    * @param flux F(u) = u (bᵀn)
+    * @return real_t maximum characteristic speed, |b|
+    */
+   real_t ComputeFluxDotN(const Vector &state,
+                          const Vector &normal, FaceElementTransformations &Tr,
+                          Vector &fluxDotN) const override;
+
+   /**
     * @brief Compute J(u)
     *
     * @param state state (u) at current integration point
@@ -480,6 +493,20 @@ public:
     */
    real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override;
+
+   /**
+    * @brief Compute F(u) n
+    *
+    * @param state state (u) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with integration point
+    * @param flux F(u) n = ½u²*(1ᵀn) where 1 is (dim) vector
+    * @return real_t maximum characteristic speed, |u|
+    */
+   real_t ComputeFluxDotN(const Vector &state,
+                          const Vector &normal,
+                          FaceElementTransformations &Tr,
+                          Vector &fluxDotN) const override;
 
    /**
     * @brief Compute J(u)

@@ -650,6 +650,19 @@ real_t AdvectionFlux::ComputeFlux(const Vector &U,
    return bval.Norml2();
 }
 
+real_t AdvectionFlux::ComputeFluxDotN(const Vector &U,
+                                      const Vector &normal,
+                                      FaceElementTransformations &Tr,
+                                      Vector &FDotN) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector bval(b.GetVDim());
+#endif
+   b.Eval(bval, Tr, Tr.GetIntPoint());
+   FDotN(0) = U(0) * (bval * normal);
+   return bval.Norml2();
+}
+
 void AdvectionFlux::ComputeFluxJacobian(const Vector &state,
                                         ElementTransformation &Tr,
                                         DenseTensor &J) const
@@ -682,6 +695,15 @@ real_t BurgersFlux::ComputeFlux(const Vector &U,
                                 DenseMatrix &FU) const
 {
    FU = U(0) * U(0) * 0.5;
+   return std::fabs(U(0));
+}
+
+real_t BurgersFlux::ComputeFluxDotN(const Vector &U,
+                                    const Vector &normal,
+                                    FaceElementTransformations &Tr,
+                                    Vector &FDotN) const
+{
+   FDotN(0) = U(0) * U(0) * 0.5 * normal.Sum();
    return std::fabs(U(0));
 }
 
