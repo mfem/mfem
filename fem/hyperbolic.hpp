@@ -190,6 +190,25 @@ public:
                        const Vector &nor, FaceElementTransformations &Tr,
                        Vector &flux) const = 0;
 
+   /**
+    * @brief Evaluates average numerical flux over the interval between the
+    * given end states and for the given normal. Optionally overloaded in a
+    * derived class.
+    *
+    * @param[in] state1 state value of the beggining of the interval
+    * (num_equations)
+    * @param[in] state2 state value of the end of the interval
+    * (num_equations)
+    * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
+    * @param[in] Tr face transformation
+    * @param[out] flux numerical flux (num_equations)
+    * @return real_t maximum characteristic speed
+    */
+   virtual real_t Average(const Vector &state1, const Vector &state2,
+                          const Vector &nor, FaceElementTransformations &Tr,
+                          Vector &flux) const
+   { MFEM_ABORT("Not implemented."); }
+
    virtual ~RiemannSolver() = default;
 
    /// @brief Get flux function F
