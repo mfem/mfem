@@ -132,13 +132,10 @@ protected:
 
    const int nDofs;
    const int numVar;
-   Array<bool> is_shared, has_shared_in_stencil;
-   Array<int> global_to_local;
    ParFiniteElementSpace *fes;
    GroupCommunicator &gcomm;
 
    mutable Vector z;
-   //mutable ParGridFunction u_gf, rhs_gf;
    mutable Array<double> rhs_array, udot_array;
 
 public:
@@ -210,48 +207,6 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lum
    const auto JJ = K.ReadJ();
    const auto KK = K.ReadData();
    const auto MM = M.ReadData();
-
-   // check for which ldof the massmatrix entry has changed to determin, which ldofs are shared
-   is_shared.SetSize(nDofs);
-   has_shared_in_stencil.SetSize(nDofs);
-   Vector lmm_diff = lumpedmassmatrix_; 
-   lmm_diff -= lumpedmassmatrix;
-   for(int i = 0; i < nDofs; i++)
-   {
-      is_shared[i] = (abs(lmm_diff(i)) > 1.e-15);
-      has_shared_in_stencil[i] = false;
-      for(int k = II[i]; k < II[i+1]; k++)
-      {
-         int j = JJ[k];
-         if((abs(lmm_diff(j)) > 1.e-15))
-         {
-            has_shared_in_stencil[i] = true;
-            break;
-         }
-      }
-   }
-
-   /*
-   global_to_local.SetSize(fes->GlobalTrueVSize());
-   global_to_local = -1;
-   int counter = 0;
-   for(int g = 0; g < fes->GlobalTrueVSize(); g++)
-   {
-      for(int i = 0; i < nDofs; i++)
-      {
-         if(fes->GetGlobalTDofNumber(i) == g)
-         {
-            global_to_local[g] = i;
-            counter++;
-            break;
-         }
-      }
-      if(counter == nDofs)
-      {
-         break;
-      }
-   }
-   //*/
 }
 
 double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
@@ -270,7 +225,8 @@ double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
          break;
       }
    }
-
+   
+   /*
    double kji;
    for (int k = II[j]; k < II[j+1]; k++)
    {
@@ -280,6 +236,7 @@ double FE_Evolution::CalcGraphViscosity(const int i, const int j) const
          break;
       }
    }
+   //*/
    return max(0.0, max(kij, -kij));
    //*/
    //return max(0.0, max(K_glb(i,j), K_glb(j,i)));
@@ -379,8 +336,8 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
       for(int i = 0; i < nDofs; i++)
       {
          int i_td = fes->GetLocalTDofNumber(i);
-         if(i_td == -1){continue;}
          udot(i_td) = 0.0;
+         if(i_td == -1){continue;}
          int i_gl = fes->GetGlobalTDofNumber(i);
          for(int k = II[i_td]; k < II[i_td+1]; k++)
          {  
@@ -431,12 +388,7 @@ HighOrderTargetScheme::~HighOrderTargetScheme()
 MCL::MCL(ParBilinearForm &M_, ParBilinearForm &K_, Vector &lumpedmassmatrix_, int numVar_) 
    : FE_Evolution(M_, K_, lumpedmassmatrix_, numVar_),
    u_min(M_.ParFESpace()), u_max(M_.ParFESpace())
-{
-   //u_min = u;
-   //u_max = u;
-
-   cout << u_max.Size()<< ", " << u_min.Size() << endl;
- }
+{ }
 
 void MCL::Mult(const Vector &x, Vector &y) const
 {  
@@ -1020,9 +972,12 @@ void velocity_function(const Vector &x, Vector &v)
          const real_t w = M_PI/2;
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
-            case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
+            case 1: v(0) = 0;break;
+            case 2: v(0) = ((x(0) > 0.0) - (x(0) < 0.0))* x(0) * x(0); v(1) = ((x(1) > 0.0) - (x(1) < 0.0))* x(1) * x(1); break;
+            case 3: v = x; break;
+            //case 1: v(0) = 1.0; break;
+            //case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
+            //case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
          }
          break;
       }
@@ -1142,10 +1097,20 @@ void u0_function(const Vector &x, Vector &u)
          break;
       }
 
-
-
-
+      
       case 3:
+      {
+         u = 1.0; 
+         if(x.Norml2() > 0.1)
+         {
+            u = 0.0;
+         }
+         break;
+
+      }
+
+
+      case 6:
       {
          switch (dim)
          {
