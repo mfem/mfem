@@ -141,8 +141,8 @@ public:
       : fluxFunction(fluxFunction) { }
 
    /**
-    * @brief Evaluates numerical flux for given states and fluxes. Must be
-    * overloaded in a derived class
+    * @brief Evaluates numerical flux for the given states and normal. Must be
+    * overloaded in a derived class.
     *
     * @param[in] state1 state value at a point from the first element
     * (num_equations)
