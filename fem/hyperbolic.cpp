@@ -584,6 +584,21 @@ real_t FluxFunction::ComputeFluxDotN(const Vector &U,
    return val;
 }
 
+real_t FluxFunction::ComputeAvgFluxDotN(const Vector &U1, const Vector &U2,
+                                        const Vector &normal,
+                                        FaceElementTransformations &Tr,
+                                        Vector &fluxDotN) const
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix flux(num_equations, dim);
+#else
+   flux.SetSize(num_equations, dim);
+#endif
+   real_t val = ComputeAvgFlux(U1, U2, Tr, flux);
+   flux.Mult(normal, fluxDotN);
+   return val;
+}
+
 void FluxFunction::ComputeFluxJacobianDotN(const Vector &U,
                                            const Vector &normal,
                                            ElementTransformation &Tr,
