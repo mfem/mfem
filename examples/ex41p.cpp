@@ -30,11 +30,11 @@ vector<size_t> sort_indexes(const vector<T> &v)
 
 
 /**
- * @brief Compute the drag and lift forces F = ( f_d, f_l)
+ * @brief Compute the drag and lift forces F = (f_d, f_l)
  *        on marked boundary attributes
  *
- *        F = ∫_Γ σ⃗ ⋅ n̂ dΓ
- *        with σ = -pI + ν∇u⃗
+ *        F = ∫ σ ⋅ n̂ dΓ
+ *        with σ = -pI + ν∇u
  *
  * @param u_gf velocity grid function
  * @param p_gf pressure grid function
@@ -84,7 +84,7 @@ std::tuple<real_t, real_t> DragLift(
          u_gf.GetVectorGradient(Tr, dudx);
          auto p = p_gf.GetValue(Tr, ip);
 
-         // σ = (-pI + ν∇u⃗)
+         // σ = (-pI + ν∇u)
          for (int i = 0; i < dim; i++)
          {
             for (int j = 0; j < dim; j++)
@@ -112,15 +112,15 @@ std::tuple<real_t, real_t> DragLift(
 
 
 /**
- * @brief Integrator for computing dC(u⃗,p)/du⃗ on the right
+ * @brief Integrator for computing dC(u,p)/du on the right
  *        hand side of the dual problem, with
  *
- *        C(u⃗,p) = ∫_Γ (-pI + ν∇u⃗) ⋅ n̂ dΓ, and
+ *        C(u,p) = ∫ (-pI + ν∇u) ⋅ n̂ dΓ, and
  *
- *        dC(u⃗,p)/du⃗ = ∫_Γ d(ν∇u⃗)/du ⋅ n̂ dΓ, since
+ *        dC(u,p)/du = ∫ d(ν∇u)/du ⋅ n̂ dΓ, since
  *
- *        u⃗ = ∑u⃗ᵢψᵢ, where ψᵢ are the FE basis functions,
- *        d(∇u⃗)/du⃗ = ∇ψ
+ *        u = ∑uᵢψᵢ, where ψᵢ are the FE basis functions,
+ *        d(∇u)/du = ∇ψ
  *
  *        Note: we integrate the y-component, since our
  *        goal/cost function is lift.
@@ -198,12 +198,12 @@ public:
 
 
 /**
- * @brief Integrator for computing dC(u⃗,p)/dp on the right
+ * @brief Integrator for computing dC(u,p)/dp on the right
  *        hand side of the dual problem, with
  *
- *        C(u⃗,p) = ∫_Γ (-pI + ν∇u⃗) ⋅ n̂ dΓ, and
+ *        C(u,p) = ∫ (-pI + ν∇u) ⋅ n̂ dΓ, and
  *
- *        dC(u⃗,p)/dp = ∫_Γ -pI ⋅ n̂ dΓ, since
+ *        dC(u,p)/dp = ∫ -pI ⋅ n̂ dΓ, since
  *
  *        p = ∑pᵢψᵢ, where ψᵢ are the FE basis functions,
  *        d(-pI)/dp = -ψ
@@ -273,17 +273,17 @@ public:
 };
 
 /**
- * @brief Compute the dual-weighted residual (DWR). The momentum residual, R₁(u⃗,p), and
- *        continuity residual, R₂(u⃗), are computed using the velocity and pressure (u⃗,p)
- *        from the forward problem. Then, given the dual variables z⃗=(z⃗ᵤ,zₚ), the
+ * @brief Compute the dual-weighted residual (DWR). The momentum residual, R₁(u,p), and
+ *        continuity residual, R₂(u), are computed using the velocity and pressure (u,p)
+ *        from the forward problem. Then, given the dual variables z=(z_u,z_p), the
  *        dual-weighted residual, R_z, is computed as
  *
- *        R_z = (R₁(u⃗,p),z⃗ᵤ) + (R₂(u⃗),zₚ) with
+ *        R_z = (R₁(u,p),z_u) + (R₂(u),z_p) with
  *
- *        R₁ = (u⃗ ⋅ ∇)u⃗ + ∇p  - ν∇²u⃗
- *        R₂ = ∇⋅u⃗
+ *        R₁ = (u ⋅ ∇)u + ∇p  - ν∇²u
+ *        R₂ = ∇⋅u
  *
- *        The primal and dual solutions (u⃗,p) and (z⃗ᵤ,zₚ) (and therefore R_z) live in a
+ *        The primal and dual solutions (u,p) and (z_u,z_p) (and therefore R_z) live in a
  *        higher-order space and are projected to a space of piecewise-constant basis, ψ.
  *
  *        R_{z,0} = (R_z,ψ)
@@ -382,12 +382,12 @@ public:
  * @brief Constructs the operators in steady-state, incompressible
  *        Navier-Stokes equations (NSE)
  *
- *        (u⃗ ⋅ ∇)u⃗ + ∇p - ν∇²u⃗ = 0
- *        ∇⋅u⃗ = 0
+ *        (u ⋅ ∇)u + ∇p - ν∇²u = 0
+ *        ∇⋅u = 0
  *
  *        in block form
  *
- *        [ N(u) + L    G ] [u⃗] = [0]
+ *        [ N(u) + L    G ] [u] = [0]
  *        [ D           0 ] [p] = [0]
  *
  *        with the (L)aplacian, (G)radient, (D)ivergence and
@@ -498,7 +498,7 @@ public:
       mp.FormSystemMatrix(p_ess_tdof, Mpe);
 
       // Construct block lower triangular preconditioner
-      // [N(u⃗)       0  ]
+      // [N(u)       0  ]
       // [Div    ν⁻¹ M]
       // where M is the mass matrix on the pressure space
       mpe_inv = new OperatorJacobiSmoother(mp, p_ess_tdof);
@@ -579,8 +579,8 @@ public:
  * @brief Constructs the linearized dual/adjoint of the steady-state,
  *        incompressible Navier-Stokes equations (NSE) in block form
  *
- *        [ N'(u⃗) + L   G^T ] [z⃗ᵤ] = [ N'(u⃗) + L  D ][z⃗ᵤ]
- *        [ D^T          0  ] [zₚ] = [ G          0 ][zₚ]
+ *        [ N'(u) + L   G^T ] [z_u] = [ N'(u) + L  D ][z_u]
+ *        [ D^T          0  ] [z_p] = [ G          0 ][z_p]
  *
  *        with the (L)aplacian, (G)radient, (D)ivergence and linearized
  *        (N')onliner convection operator. Note that the bilinear form
@@ -674,7 +674,7 @@ public:
       mp.FormSystemMatrix(p_ess_tdof, Mpe);
 
       // Construct block lower triangular preconditioner
-      // [N'(u⃗)      0  ]
+      // [N'(u)      0  ]
       // [Div    ν⁻¹ M]
       // where N' is the linearzed convection term,
       // M is the mass matrix on the dual pressure space
@@ -827,23 +827,23 @@ SolveForwardProblem(
 
 
 /**
- * @brief Solve the linearized dual problem. Given state variables q=(u⃗,p),
+ * @brief Solve the linearized dual problem. Given state variables q=(u,p),
  *        a goal/cost function C(q) (e.g. lift) and equality constraints of
  *        a governing equation F(q) = 0 (e.g. Navier-Stokes) the Lagrangian ℒ is
  *
  *        ℒ = C(q) + z F(q)
  *
- *        where z = (z⃗ᵤ,zₚ) is the dual of the velocity and pressure. The linerized dual
+ *        where z = (z_u,z_p) is the dual of the velocity and pressure. The linerized dual
  *        formulation is obtained from the first order optimality condition dℒ/dq=0
  *
  *        dℒ/dq = (dC(q)/dq)ᵀ + zᵀ dF(q)/dq = 0
  *              → (dF(q)/dq)ᵀ z = -dC(q)/dq
  *
- *              → dC(q)/dq = [ dC(u⃗,p)/du⃗, dC(u⃗,p)/dp ] in block form
+ *              → dC(q)/dq = [ dC(u,p)/du, dC(u,p)/dp ] in block form
  *
  *        which is solved for the dual variables z. Here, (dF(q)/dq)ᵀ is the adjoint of the
  *        linearized Navier-Stokes operator, and dC(q)/dq are the derivatives of the goal (lift)
- *        with-respect-to the state q=(u⃗,p) computed by the forward solve.
+ *        with-respect-to the state q=(u,p) computed by the forward solve.
  *
  * @param h1vfes FESpace for dual of velocity
  * @param h1fes  FESpace for dual of pressure
