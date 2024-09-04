@@ -243,6 +243,12 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   if (bnlconv && !nonlinear)
+   {
+      cerr << "Nonlinear convection can only work in the nonlinear regime" << endl;
+      return 1;
+   }
+
    if (btime && nt <= 0)
    {
       cerr << "You must specify the number of time steps for time evolving problems"
