@@ -221,17 +221,14 @@ public:
       MPI_Comm_rank(comm_, &rank);
 
       // create new communicator
-      char subcommunicator;
       int colour;
 
       if ( 0 != nVar)
       {
-         subcommunicator = 'A';
          colour = 0;
       }
       else
       {
-         subcommunicator = 'B';
          colour = MPI_UNDEFINED;
       }
 
