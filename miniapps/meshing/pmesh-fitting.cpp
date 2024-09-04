@@ -95,6 +95,7 @@ int main (int argc, char *argv[])
    int mesh_node_ordering = 0;
    int bg_amr_iters       = 0;
    bool conv_residual     = true;
+   bool pa                = false;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -179,6 +180,8 @@ int main (int argc, char *argv[])
    args.AddOption(&conv_residual, "-resid", "--resid", "-no-resid",
                   "--no-resid",
                   "Enable residual based convergence.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable Partial Assembly.");
    args.Parse();
    if (!args.Good())
    {
@@ -189,6 +192,7 @@ int main (int argc, char *argv[])
 
    Device device(devopt);
    if (myid == 0) { device.Print();}
+   bool cpu_mode = (strcmp(devopt,"cpu")==0);
 
    MFEM_VERIFY(surface_fit_const > 0.0,
                "This miniapp is for surface fitting only. See (p)mesh-optimizer"
@@ -253,13 +257,7 @@ int main (int argc, char *argv[])
    // elements which are tensor products of quadratic finite elements. The
    // number of components in the vector finite element space is specified by
    // the last parameter of the FiniteElementSpace constructor.
-   FiniteElementCollection *fec;
-   if (mesh_poly_deg <= 0)
-   {
-      fec = new QuadraticPosFECollection;
-      mesh_poly_deg = 2;
-   }
-   else { fec = new H1_FECollection(mesh_poly_deg, dim); }
+   FiniteElementCollection *fec = new H1_FECollection(mesh_poly_deg, dim);
    ParFiniteElementSpace *pfespace =
       new ParFiniteElementSpace(pmesh, fec, dim, mesh_node_ordering);
 
@@ -400,6 +398,7 @@ int main (int argc, char *argv[])
       Vector p_min(dim), p_max(dim);
       pmesh->GetBoundingBox(p_min, p_max);
       GridFunction &x_bg = *pmesh_surf_fit_bg->GetNodes();
+      x_bg.HostReadWrite();
       const int num_nodes = x_bg.Size() / dim;
       for (int i = 0; i < num_nodes; i++)
       {
@@ -453,15 +452,18 @@ int main (int argc, char *argv[])
 
          //Setup gradient of the background mesh
          const int size_bg = surf_fit_bg_gf0->Size();
+         surf_fit_bg_grad->HostReadWrite();
          for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
          {
             ParGridFunction surf_fit_bg_grad_comp(
                surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
+            surf_fit_bg_grad_comp.UseDevice(false);
             surf_fit_bg_gf0->GetDerivative(1, d, surf_fit_bg_grad_comp);
          }
 
          //Setup Hessian on background mesh
          int id = 0;
+         surf_fit_bg_hess->HostReadWrite();
          for (int d = 0; d < pmesh_surf_fit_bg->Dimension(); d++)
          {
             for (int idir = 0; idir < pmesh_surf_fit_bg->Dimension(); idir++)
@@ -470,6 +472,8 @@ int main (int argc, char *argv[])
                   surf_fit_bg_fes, surf_fit_bg_grad->GetData() + d * size_bg);
                ParGridFunction surf_fit_bg_hess_comp(
                   surf_fit_bg_fes, surf_fit_bg_hess->GetData()+ id * size_bg);
+               surf_fit_bg_grad_comp.UseDevice(false);
+               surf_fit_bg_hess_comp.UseDevice(false);
                surf_fit_bg_grad_comp.GetDerivative(1, idir,
                                                    surf_fit_bg_hess_comp);
                id++;
@@ -485,6 +489,7 @@ int main (int argc, char *argv[])
       }
 
       // Set material gridfunction
+      mat.HostReadWrite();
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          if (material)
@@ -512,6 +517,7 @@ int main (int argc, char *argv[])
                                              GridFunction::ARITHMETIC);
       surf_fit_mat_gf.SetTrueVector();
       surf_fit_mat_gf.SetFromTrueVector();
+      surf_fit_mat_gf.HostReadWrite();
 
       // Set DOFs for fitting
       // Strategy 1: Choose face between elements of different attributes.
@@ -519,11 +525,13 @@ int main (int argc, char *argv[])
       {
          mat.ExchangeFaceNbrData();
          const Vector &FaceNbrData = mat.FaceNbrData();
+         mat.HostReadWrite();
          for (int j = 0; j < surf_fit_marker.Size(); j++)
          {
             surf_fit_marker[j] = false;
          }
          surf_fit_mat_gf = 0.0;
+         surf_fit_mat_gf.HostReadWrite();
 
          Array<int> dof_list;
          Array<int> dofs;
@@ -582,6 +590,7 @@ int main (int argc, char *argv[])
 
       // Unify marker across processor boundary
       surf_fit_mat_gf.ExchangeFaceNbrData();
+      surf_fit_mat_gf.HostReadWrite();
       {
          GroupCommunicator &gcomm = surf_fit_mat_gf.ParFESpace()->GroupComm();
          Array<real_t> gf_array(surf_fit_mat_gf.GetData(),
@@ -590,6 +599,7 @@ int main (int argc, char *argv[])
          gcomm.Bcast(gf_array);
       }
       surf_fit_mat_gf.ExchangeFaceNbrData();
+      surf_fit_mat_gf.HostReadWrite();
 
       for (int i = 0; i < surf_fit_mat_gf.Size(); i++)
       {
@@ -600,7 +610,9 @@ int main (int argc, char *argv[])
       // mesh to current mesh as it moves during adaptivity.
       if (adapt_eval == 0)
       {
-         adapt_surface = new AdvectorCG;
+         const AssemblyLevel al =
+            pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY;
+         adapt_surface = new AdvectorCG(al);
          MFEM_VERIFY(!surf_bg_mesh, "Background meshes require GSLIB.");
       }
       else if (adapt_eval == 1)
@@ -651,7 +663,10 @@ int main (int argc, char *argv[])
 
    // Setup the final NonlinearForm.
    ParNonlinearForm a(pfespace);
+   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.AddDomainIntegrator(tmop_integ);
+
+   if (pa) { a.Setup(); }
 
    // Compute the minimum det(J) of the starting mesh.
    real_t min_detJ = infinity();
@@ -679,8 +694,10 @@ int main (int argc, char *argv[])
    if (surface_fit_const > 0.0)
    {
       surf_fit_coeff.constant   = 0.0;
+      if (pa) { tmop_integ->UpdateSurfaceFittingCoefficientsPA(x); }
       init_metric_energy = a.GetParGridFunctionEnergy(x);
       surf_fit_coeff.constant  = surface_fit_const;
+      if (pa) { tmop_integ->UpdateSurfaceFittingCoefficientsPA(x); }
    }
 
    // Fix all boundary nodes, or fix only a given component depending on the
@@ -772,11 +789,21 @@ int main (int argc, char *argv[])
       else { minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1); }
       if (lin_solver == 3 || lin_solver == 4)
       {
-         auto hs = new HypreSmoother;
-         hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
-                     /* */             : HypreSmoother::l1Jacobi, 1);
-         hs->SetPositiveDiagonal(true);
-         S_prec = hs;
+         if (pa)
+         {
+            MFEM_VERIFY(lin_solver != 4, "PA l1-Jacobi is not implemented");
+            auto js = new OperatorJacobiSmoother;
+            js->SetPositiveDiagonal(true);
+            S_prec = js;
+         }
+         else
+         {
+            auto hs = new HypreSmoother;
+            hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
+                        /* */             : HypreSmoother::l1Jacobi, 1);
+            hs->SetPositiveDiagonal(true);
+            S_prec = hs;
+         }
          minres->SetPreconditioner(*S_prec);
       }
       S = minres;
@@ -833,8 +860,10 @@ int main (int argc, char *argv[])
    if (surface_fit_const > 0.0)
    {
       surf_fit_coeff.constant  = 0.0;
+      if (pa) { tmop_integ->UpdateSurfaceFittingCoefficientsPA(x); }
       fin_metric_energy  = a.GetParGridFunctionEnergy(x);
       surf_fit_coeff.constant  = surface_fit_const;
+      if (pa) { tmop_integ->UpdateSurfaceFittingCoefficientsPA(x); }
    }
 
    if (myid == 0)
@@ -849,6 +878,8 @@ int main (int argc, char *argv[])
       cout << "The strain energy decreased by: "
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
+
+   int nel_glob = pmesh->GetGlobalNE();
 
    if (surface_fit_const > 0.0)
    {

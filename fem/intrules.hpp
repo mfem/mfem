@@ -269,6 +269,7 @@ public:
    /// @brief Return an integration rule for KnotVector @a kv, defined by
    /// applying this rule on each knot interval.
    IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
+
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
 };
