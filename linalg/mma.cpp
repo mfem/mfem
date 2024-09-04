@@ -23,12 +23,10 @@ extern "C" void dgesv_(int* nLAP, int* nrhs, mfem::real_t* AA, int* lda,
 namespace mfem
 {
 
-//void solveLU(int nCon, real_t* AA1, real_t* bb1, real_t* dlam, real_t &dz) {
 void solveLU(int nCon, real_t* AA1, real_t* bb1)
 {
    // Solve linear system with LU decomposition ifndef LAPACK
    int nLAP = nCon + 1;
-   int info;
    int* ipiv = new int[nLAP];
 
    // Convert AA1 to matrix A and bb1 to vector B
@@ -95,14 +93,13 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
    {
       if (U[i][i] == 0.0)
       {
-         info = i + 1;
          printf("Error: matrix is singular.");
          delete[] ipiv;
-         for (int i = 0; i < nLAP; ++i)
+         for (int j = 0; j < nLAP; ++j)
          {
-            delete[] A[i];
-            delete[] L[i];
-            delete[] U[i];
+            delete[] A[j];
+            delete[] L[j];
+            delete[] U[j];
          }
          delete[] A;
          delete[] L;
@@ -141,9 +138,8 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
    // Copy results back to bb1
    for (int i = 0; i < (nCon + 1); i++)
    {
-      bb1[i] = X[i]; //dlam[i] = X[i] with i < nCon
+      bb1[i] = X[i];
    }
-   //dz = X[nCon];
 
    // Clean up dynamically allocated memory
    for (int i = 0; i < nLAP; ++i)
@@ -160,7 +156,7 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
    delete[] X;
 }
 
-void MMA::MMASubParallel::AllocSubData(int nVar, int nCon)
+void MMA::MMASubParallel::AllocSubData(int nvar, int ncon)
 {
    epsi = 1.0;
    ittt = itto = itera = 0;
@@ -168,65 +164,65 @@ void MMA::MMASubParallel::AllocSubData(int nVar, int nCon)
    move = 0.5;
    albefa = 0.1;
    xmamieps = 1e-5;
-   ux1 = new real_t[nVar]; //ini
-   xl1 = new real_t[nVar]; //ini
-   plam = new real_t[nVar]; //ini
-   qlam = new real_t[nVar]; //ini
-   gvec = new real_t[nCon]; //ini
-   residu = new real_t[3 * nVar + 4 * nCon + 2]; //ini
-   GG = new real_t[nVar * nCon]; //ini
-   delx = new real_t[nVar]; //init
-   dely = new real_t[nCon]; //ini
-   dellam = new real_t[nCon]; //ini
-   dellamyi = new real_t[nCon];
-   diagx = new real_t[nVar];//ini
-   diagy = new real_t[nCon];//ini
-   diaglamyi = new real_t[nCon]; //ini
-   bb = new real_t[nVar + 1];
-   bb1 = new real_t[nCon + 1];//ini
-   Alam = new real_t[nCon * nCon];//ini
-   AA = new real_t[(nVar + 1) * (nVar + 1)];
-   AA1 = new real_t[(nCon + 1) * (nCon + 1)];//ini
-   dlam = new real_t[nCon]; //ini
-   dx = new real_t[nVar]; //ini
-   dy = new real_t[nCon]; //ini
-   dxsi = new real_t[nVar]; //ini
-   deta = new real_t[nVar]; //ini
-   dmu = new real_t[nCon]; //ini
-   Axx = new real_t[nVar * nCon]; //ini
-   axz = new real_t[nVar]; //ini
-   ds = new real_t[nCon]; //ini
-   xx = new real_t[4 * nCon + 2 * nVar + 2]; //ini
-   dxx = new real_t[4 * nCon + 2 * nVar + 2]; //ini
-   stepxx = new real_t[4 * nCon + 2 * nVar + 2]; //ini
+   ux1 = new real_t[nvar]; //ini
+   xl1 = new real_t[nvar]; //ini
+   plam = new real_t[nvar]; //ini
+   qlam = new real_t[nvar]; //ini
+   gvec = new real_t[ncon]; //ini
+   residu = new real_t[3 * nvar + 4 * ncon + 2]; //ini
+   GG = new real_t[nvar * ncon]; //ini
+   delx = new real_t[nvar]; //init
+   dely = new real_t[ncon]; //ini
+   dellam = new real_t[ncon]; //ini
+   dellamyi = new real_t[ncon];
+   diagx = new real_t[nvar];//ini
+   diagy = new real_t[ncon];//ini
+   diaglamyi = new real_t[ncon]; //ini
+   bb = new real_t[nvar + 1];
+   bb1 = new real_t[ncon + 1];//ini
+   Alam = new real_t[ncon * ncon];//ini
+   AA = new real_t[(nvar + 1) * (nvar + 1)];
+   AA1 = new real_t[(ncon + 1) * (ncon + 1)];//ini
+   dlam = new real_t[ncon]; //ini
+   dx = new real_t[nvar]; //ini
+   dy = new real_t[ncon]; //ini
+   dxsi = new real_t[nvar]; //ini
+   deta = new real_t[nvar]; //ini
+   dmu = new real_t[ncon]; //ini
+   Axx = new real_t[nvar * ncon]; //ini
+   axz = new real_t[nvar]; //ini
+   ds = new real_t[ncon]; //ini
+   xx = new real_t[4 * ncon + 2 * nvar + 2]; //ini
+   dxx = new real_t[4 * ncon + 2 * nvar + 2]; //ini
+   stepxx = new real_t[4 * ncon + 2 * nvar + 2]; //ini
    sum = 0;
-   sum1 = new real_t[nVar];
-   stepalfa = new real_t[nVar]; //ini
-   stepbeta = new real_t[nVar]; //ini
-   xold = new real_t[nVar]; //ini
-   yold = new real_t[nCon]; //ini
-   lamold = new real_t[nCon];//ini
-   xsiold = new real_t[nVar];//ini
-   etaold = new real_t[nVar];//ini
-   muold = new real_t[nCon]; //ini
-   sold = new real_t[nCon]; //ini
-   q0 = new real_t[nVar]; //ini
-   p0 = new real_t[nVar]; //ini
-   P = new real_t[nCon * nVar]; //ini
-   Q = new real_t[nCon * nVar]; //ini
-   alfa = new real_t[nVar]; //ini
-   beta = new real_t[nVar]; //ini
-   xmami = new real_t[nVar];
-   b = new real_t[nCon]; //ini
+   sum1 = new real_t[nvar];
+   stepalfa = new real_t[nvar]; //ini
+   stepbeta = new real_t[nvar]; //ini
+   xold = new real_t[nvar]; //ini
+   yold = new real_t[ncon]; //ini
+   lamold = new real_t[ncon];//ini
+   xsiold = new real_t[nvar];//ini
+   etaold = new real_t[nvar];//ini
+   muold = new real_t[ncon]; //ini
+   sold = new real_t[ncon]; //ini
+   q0 = new real_t[nvar]; //ini
+   p0 = new real_t[nvar]; //ini
+   P = new real_t[ncon * nvar]; //ini
+   Q = new real_t[ncon * nvar]; //ini
+   alfa = new real_t[nvar]; //ini
+   beta = new real_t[nvar]; //ini
+   xmami = new real_t[nvar];
+   b = new real_t[ncon]; //ini
 
-   b_local = new real_t[nCon];
-   gvec_local = new real_t[nCon];
-   Alam_local = new real_t[nCon * nCon];
-   sum_local = new real_t[nCon];
-   sum_global = new real_t[nCon];
+   b_local = new real_t[ncon];
+   gvec_local = new real_t[ncon];
+   Alam_local = new real_t[ncon * ncon];
+   sum_local = new real_t[ncon];
+   sum_global = new real_t[ncon];
 
 
-   for (int i=0; i<(3 * nVar + 4 * nCon + 2); i++)
+   for (int i=0; i<(3 * nvar + 4 * ncon + 2); i++)
    {
       residu[i]=0.0;
    }
@@ -302,14 +298,12 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
    MMA* mma = this->mma_ptr;
 
    int rank = 0;
-   int size = 0;
 #ifdef MFEM_USE_MPI
    MPI_Comm_rank(mma->comm, &rank);
-   MPI_Comm_size(mma->comm, &size);
 #endif
 
-   int nCon = mma->nCon;
-   int nVar = mma->nVar;
+   int ncon = mma->nCon;
+   int nvar = mma->nVar;
 
    ittt = 0;
    itto = 0;
@@ -318,13 +312,13 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
    mma->z = 1.0;
    mma->zet = 1.0;
 
-   for (int i = 0; i < nCon; i++)
+   for (int i = 0; i < ncon; i++)
    {
       b[i] = 0.0;
       b_local[i] = 0.0;
    }
 
-   for (int i = 0; i < nVar; i++)
+   for (int i = 0; i < nvar; i++)
    {
       // Calculation of bounds alfa and beta according to:
       // alfa = max{xmin, low + 0.1(xval-low), xval-0.5(xmax-xmin)}
@@ -357,38 +351,38 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
    // Q = max(-dgdx,0)
    // P = P + 0.001(P+Q) + raa0/xmami
    // Q = Q + 0.001(P+Q) + raa0/xmami
-   for (int i = 0; i < nCon; i++)
+   for (int i = 0; i < ncon; i++)
    {
-      for (int j = 0; j < nVar; j++)
+      for (int j = 0; j < nvar; j++)
       {
          // P = P * spdiags(ux2,0,n,n)
          // Q = Q * spdiags(xl2,0,n,n)
-         P[i * nVar + j] = (std::max(dgdx[i * nVar + j],
-                                     0.0) + 0.001 * (std::max(dgdx[i * nVar + j],
-                                                              0.0) + std::max(-1*dgdx[i * nVar + j],
+         P[i * nvar + j] = (std::max(dgdx[i * nvar + j],
+                                     0.0) + 0.001 * (std::max(dgdx[i * nvar + j],
+                                                              0.0) + std::max(-1*dgdx[i * nvar + j],
                                                                               0.0)) + raa0 / xmami[j]) * ux1[j] * ux1[j];
-         Q[i * nVar + j] = (std::max(-1*dgdx[i * nVar + j],
-                                     0.0) + 0.001 * (std::max(dgdx[i * nVar + j],
-                                                              0.0) + std::max(-1*dgdx[i * nVar + j],
+         Q[i * nvar + j] = (std::max(-1*dgdx[i * nvar + j],
+                                     0.0) + 0.001 * (std::max(dgdx[i * nvar + j],
+                                                              0.0) + std::max(-1*dgdx[i * nvar + j],
                                                                               0.0)) + raa0 / xmami[j]) * xl1[j] * xl1[j];
          // b = P/ux1 + Q/xl1 - gx
-         b_local[i] = b_local[i] + P[i * nVar + j] / ux1[j] + Q[i * nVar + j] / xl1[j];
+         b_local[i] = b_local[i] + P[i * nvar + j] / ux1[j] + Q[i * nvar + j] / xl1[j];
       }
    }
 
-   std::copy(b_local, b_local + nCon, b);
+   std::copy(b_local, b_local + ncon, b);
 
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(b_local, b, nCon, MPI_DOUBLE, MPI_SUM, mma->comm);
+   MPI_Allreduce(b_local, b, ncon, MPI_DOUBLE, MPI_SUM, mma->comm);
 #endif
 
-   for (int i = 0; i < nCon; i++)
+   for (int i = 0; i < ncon; i++)
    {
       b[i] = b[i] - gx[i];
    }
 
 
-   for (int i = 0; i < nVar; i++)
+   for (int i = 0; i < nvar; i++)
    {
       mma->x[i] = 0.5 * (alfa[i] + beta[i]);
       mma->xsi[i] = 1.0/(mma->x[i] - alfa[i]);
@@ -399,7 +393,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
       xl1[i] = 0.0;
    }
 
-   for (int i = 0; i < nCon; i++)
+   for (int i = 0; i < ncon; i++)
    {
       mma->y[i] = 1.0;
       mma->lam[i] = 1.0;
@@ -409,8 +403,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
 
    while (epsi > mma->epsimin)
    {
-      residu[nVar + nCon] = mma->a0 - mma->zet; //rez
-      for (int i = 0; i < nVar; i++)
+      residu[nvar + ncon] = mma->a0 - mma->zet; //rez
+      for (int i = 0; i < nvar; i++)
       {
          ux1[i] = mma->upp[i] - mma->x[i];
          if (std::fabs(ux1[i]) < mma->machineEpsilon)
@@ -427,66 +421,66 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          // plam = P' * lam, qlam = Q' * lam
          plam[i] = p0[i];
          qlam[i] = q0[i];
-         for (int j = 0; j < nCon; j++)
+         for (int j = 0; j < ncon; j++)
          {
-            plam[i] += P[j * nVar + i] * mma->lam[j];
-            qlam[i] += Q[j * nVar + i] * mma->lam[j];
-            residu[nVar + nCon] -= mma->a[j] * mma->lam[j]; //rez
+            plam[i] += P[j * nvar + i] * mma->lam[j];
+            qlam[i] += Q[j * nvar + i] * mma->lam[j];
+            residu[nvar + ncon] -= mma->a[j] * mma->lam[j]; //rez
          }
          residu[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]) -
                      mma->xsi[i] + mma->eta[i]; //rex
-         //residu[nVar + nCon] -= mma->a[i] * mma->lam[i]; //rez
-         residu[nVar + nCon + 1 + nCon + i] = mma->xsi[i] * (mma->x[i] - alfa[i]) -
+         //residu[nvar + ncon] -= mma->a[i] * mma->lam[i]; //rez
+         residu[nvar + ncon + 1 + ncon + i] = mma->xsi[i] * (mma->x[i] - alfa[i]) -
                                               epsi; //rexsi
          if (std::fabs(mma->x[i]-alfa[i]) < mma->machineEpsilon)
          {
-            residu[nVar + nCon + 1 + nCon + i] = mma->xsi[i] * mma->machineEpsilon - epsi;
+            residu[nvar + ncon + 1 + ncon + i] = mma->xsi[i] * mma->machineEpsilon - epsi;
          }
-         residu[nVar + nCon + 1 + nCon + nVar + i] = mma->eta[i] *
+         residu[nvar + ncon + 1 + ncon + nvar + i] = mma->eta[i] *
                                                      (beta[i] - mma->x[i]) - epsi; //reeta
          if (std::fabs(beta[i] - mma->x[i]) < mma->machineEpsilon)
          {
-            residu[nVar + nCon + 1 + nCon + nVar + i] = mma->eta[i] * mma->machineEpsilon -
+            residu[nvar + ncon + 1 + ncon + nvar + i] = mma->eta[i] * mma->machineEpsilon -
                                                         epsi;
          }
       }
-      for (int i = 0; i < nCon; i++)
+      for (int i = 0; i < ncon; i++)
       {
          gvec_local[i] = 0.0;
          // gvec = P/ux + Q/xl
-         for (int j = 0; j < nVar; j++)
+         for (int j = 0; j < nvar; j++)
          {
-            gvec_local[i] = gvec_local[i] + P[i * nVar + j] / ux1[j] + Q[i * nVar + j] /
+            gvec_local[i] = gvec_local[i] + P[i * nvar + j] / ux1[j] + Q[i * nvar + j] /
                             xl1[j];
          }
       }
 
-      std::copy(gvec_local, gvec_local + nCon, gvec);
+      std::copy(gvec_local, gvec_local + ncon, gvec);
 
 #ifdef MFEM_USE_MPI
-      MPI_Allreduce(gvec_local, gvec, nCon, MPI_DOUBLE, MPI_SUM, mma->comm);
+      MPI_Allreduce(gvec_local, gvec, ncon, MPI_DOUBLE, MPI_SUM, mma->comm);
 #endif
 
       if ( rank == 0)
       {
-         for (int i = 0; i < nCon; i++)
+         for (int i = 0; i < ncon; i++)
          {
-            residu[nVar + i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] -
+            residu[nvar + i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] -
                                mma->lam[i]; //rey
-            residu[nVar + nCon + 1 + i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] +
+            residu[nvar + ncon + 1 + i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] +
                                           mma->s[i] - b[i]; //relam
-            residu[nVar + nCon + 1 + nCon + 2 * nVar + i] = mma->mu[i] * mma->y[i] -
+            residu[nvar + ncon + 1 + ncon + 2 * nvar + i] = mma->mu[i] * mma->y[i] -
                                                             epsi; //remu
-            residu[nVar + nCon + 1 + 2 * nVar + 2 * nCon + 1 + i] = mma->lam[i] * mma->s[i]
+            residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon + 1 + i] = mma->lam[i] * mma->s[i]
                                                                     - epsi; //res
          }
-         residu[nVar + nCon + 1 + 2 * nVar + 2 * nCon] = mma->zet * mma->z - epsi;
+         residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon] = mma->zet * mma->z - epsi;
       }
 
       //Get vector product and maximum absolute value
       residunorm = 0.0;
       residumax = 0.0;
-      for (int i = 0; i < (3 * nVar + 4 * nCon + 2); i++)
+      for (int i = 0; i < (3 * nvar + 4 * ncon + 2); i++)
       {
          residunorm += residu[i] * residu[i];
          residumax = std::max(residumax, std::abs(residu[i]));
@@ -508,7 +502,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
       while (residumax > 0.9 * epsi && ittt < 200)
       {
          ittt++;
-         for (int i = 0; i < nVar; i++)
+         for (int i = 0; i < nvar; i++)
          {
             ux1[i] = mma->upp[i] - mma->x[i];
             if (std::fabs(ux1[i]) < mma->machineEpsilon)
@@ -524,10 +518,10 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             // plam = P' * lam, qlam = Q' * lam
             plam[i] = p0[i];
             qlam[i] = q0[i];
-            for (int j = 0; j < nCon; j++)
+            for (int j = 0; j < ncon; j++)
             {
-               plam[i] += P[j * nVar + i] * mma->lam[j];
-               qlam[i] += Q[j * nVar + i] * mma->lam[j];
+               plam[i] += P[j * nvar + i] * mma->lam[j];
+               qlam[i] += Q[j * nvar + i] * mma->lam[j];
             }
             // NaN-Avoidance
             if (std::fabs(mma->x[i] - alfa[i]) < mma->machineEpsilon)
@@ -566,26 +560,26 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             }
          }
 
-         for (int i = 0; i < nCon; i++)
+         for (int i = 0; i < ncon; i++)
          {
             gvec_local[i] = 0.0;
             // gvec = P/ux + Q/xl
-            for (int j = 0; j < nVar; j++)
+            for (int j = 0; j < nvar; j++)
             {
-               gvec_local[i] = gvec_local[i] + P[i * nVar + j] / ux1[j] + Q[i * nVar + j] /
+               gvec_local[i] = gvec_local[i] + P[i * nvar + j] / ux1[j] + Q[i * nvar + j] /
                                xl1[j];
-               GG[i * nVar + j] = P[i * nVar + j] / (ux1[j] * ux1[j]) - Q[i * nVar + j] /
+               GG[i * nvar + j] = P[i * nvar + j] / (ux1[j] * ux1[j]) - Q[i * nvar + j] /
                                   (xl1[j] * xl1[j]);
             }
          }
 
-         std::copy(gvec_local, gvec_local + nCon, gvec);
+         std::copy(gvec_local, gvec_local + ncon, gvec);
 #ifdef MFEM_USE_MPI
-         MPI_Allreduce(gvec_local, gvec, nCon, MPI_DOUBLE, MPI_SUM, mma->comm);
+         MPI_Allreduce(gvec_local, gvec, ncon, MPI_DOUBLE, MPI_SUM, mma->comm);
 #endif
 
          delz = mma->a0 - epsi / mma->z;
-         for (int i = 0; i < nCon; i++)
+         for (int i = 0; i < ncon; i++)
          {
             dely[i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->lam[i] - epsi / mma->y[i];
             delz -= mma->a[i] * mma->lam[i];
@@ -595,90 +589,90 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             diaglamyi[i] = mma->s[i] / mma->lam[i] + 1.0 / diagy[i];
          }
 
-         if (nCon < nVar_global)
+         if (ncon < nVar_global)
          {
             // bb1 = dellam + dely./diagy - GG*(delx./diagx);
             // bb1 = [bb1; delz];
-            for (int j = 0; j < nCon; j++)
+            for (int j = 0; j < ncon; j++)
             {
                sum_local[j] = 0.0;
-               for (int i = 0; i < nVar; i++)
+               for (int i = 0; i < nvar; i++)
                {
-                  sum_local[j] = sum_local[j] + GG[j * nVar + i] * (delx[i] / diagx[i]);
+                  sum_local[j] = sum_local[j] + GG[j * nvar + i] * (delx[i] / diagx[i]);
                }
             }
 
-            std::copy(sum_local, sum_local + nCon, sum_global);
+            std::copy(sum_local, sum_local + ncon, sum_global);
 
 #ifdef MFEM_USE_MPI
-            MPI_Allreduce(sum_local, sum_global, nCon, MPI_DOUBLE, MPI_SUM, mma->comm);
+            MPI_Allreduce(sum_local, sum_global, ncon, MPI_DOUBLE, MPI_SUM, mma->comm);
 #endif
 
-            for (int j = 0; j < nCon; j++)
+            for (int j = 0; j < ncon; j++)
             {
                bb1[j] = - sum_global[j] + dellam[j] + dely[j] / diagy[j];
             }
-            bb1[nCon] = delz;
+            bb1[ncon] = delz;
 
             // Alam = spdiags(diaglamyi,0,m,m) + GG*spdiags(diagxinv,0,n,n)*GG';
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < ncon; i++)
             {
                // Axx = GG*spdiags(diagxinv,0,n,n);
-               for (int k = 0; k < nVar; k++)
+               for (int k = 0; k < nvar; k++)
                {
-                  Axx[i * nVar + k] = GG[k * nCon + i] / diagx[k];
+                  Axx[i * nvar + k] = GG[k * ncon + i] / diagx[k];
                }
             }
             // Alam = spdiags(diaglamyi,0,m,m) + Axx*GG';
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < ncon; i++)
             {
-               for (int j = 0; j < nCon; j++)
+               for (int j = 0; j < ncon; j++)
                {
-                  Alam_local[i * nCon + j] = 0.0;
-                  for (int k = 0; k < nVar; k++)
+                  Alam_local[i * ncon + j] = 0.0;
+                  for (int k = 0; k < nvar; k++)
                   {
-                     Alam_local[i * nCon + j] += Axx[i * nVar + k] * GG[j * nVar + k];
+                     Alam_local[i * ncon + j] += Axx[i * nvar + k] * GG[j * nvar + k];
                   }
                }
             }
 
-            std::copy(Alam_local, Alam_local + nCon * nCon, Alam);
+            std::copy(Alam_local, Alam_local + ncon * ncon, Alam);
 #ifdef MFEM_USE_MPI
-            MPI_Reduce(Alam_local, Alam, nCon * nCon, MPI_DOUBLE, MPI_SUM, 0, mma->comm);
+            MPI_Reduce(Alam_local, Alam, ncon * ncon, MPI_DOUBLE, MPI_SUM, 0, mma->comm);
 #endif
 
             if (0 == rank)
             {
-               for (int i = 0; i < nCon; i++)
+               for (int i = 0; i < ncon; i++)
                {
-                  for (int j = 0; j < nCon; j++)
+                  for (int j = 0; j < ncon; j++)
                   {
                      if (i == j)
                      {
-                        Alam[i * nCon + j] += diaglamyi[i];
+                        Alam[i * ncon + j] += diaglamyi[i];
                      }
                   }
                }
                // AA1 = [Alam     a
                //       a'    -zet/z];
-               for (int i = 0; i < nCon; i++)
+               for (int i = 0; i < ncon; i++)
                {
-                  for (int j = 0; j < nCon; j++)
+                  for (int j = 0; j < ncon; j++)
                   {
-                     AA1[i * (nCon + 1) + j] = Alam[i * nCon + j];
+                     AA1[i * (ncon + 1) + j] = Alam[i * ncon + j];
                   }
-                  AA1[i * (nCon + 1) + nCon] = mma->a[i];
+                  AA1[i * (ncon + 1) + ncon] = mma->a[i];
                }
-               for (int i = 0; i < nCon; i++)
+               for (int i = 0; i < ncon; i++)
                {
-                  AA1[nCon * (nCon + 1) + i] = mma->a[i];
+                  AA1[ncon * (ncon + 1) + i] = mma->a[i];
                }
-               AA1[(nCon + 1) * (nCon + 1) - 1] = -mma->zet / mma->z;
+               AA1[(ncon + 1) * (ncon + 1) - 1] = -mma->zet / mma->z;
 
 #ifdef MFEM_USE_LAPACK
                //bb1 = AA1\bb1 --> solve linear system of equations using LAPACK
                int info;
-               int nLAP = nCon + 1;
+               int nLAP = ncon + 1;
                int nrhs = 1;
                int lda = nLAP;
                int ldb = nLAP;
@@ -697,27 +691,27 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
                   mfem::err << "Error: Argument " << info << " has illegal value." << std::endl;
                }
 #else
-               solveLU(nCon, AA1, bb1);
+               solveLU(ncon, AA1, bb1);
 #endif
             }
 #ifdef MFEM_USE_MPI
-            MPI_Bcast(bb1, nCon + 1, MPI_DOUBLE, 0, mma->comm);
+            MPI_Bcast(bb1, ncon + 1, MPI_DOUBLE, 0, mma->comm);
 #endif
             // Reassign results
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < ncon; i++)
             {
                dlam[i] = bb1[i];
             }
-            dz = bb1[nCon];
+            dz = bb1[ncon];
 
             // ----------------------------------------------------------------------------
             //dx = -(GG'*dlam)./diagx - delx./diagx;
-            for (int i = 0; i < nVar; i++)
+            for (int i = 0; i < nvar; i++)
             {
                sum = 0.0;
-               for (int j = 0; j < nCon; j++)
+               for (int j = 0; j < ncon; j++)
                {
-                  sum = sum + GG[j * nVar + i] * dlam[j];
+                  sum = sum + GG[j * nvar + i] * dlam[j];
                }
                dx[i] = -sum / diagx[i] - delx[i] / diagx[i];
             }
@@ -727,7 +721,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             mfem_error("MMA: Optimization problem case which has more constraints than design variables is not implemented!");
          }
 
-         for (int i = 0; i < nCon; i++)
+         for (int i = 0; i < ncon; i++)
          {
             dy[i] = -dely[i] / diagy[i] + dlam[i] / diagy[i];
             dmu[i] = -mma->mu[i] + epsi / mma->y[i] - (mma->mu[i] * dy[i]) / mma->y[i];
@@ -735,19 +729,19 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             // xx = [y z lam xsi eta mu zet s]
             // dxx = [dy dz dlam dxsi deta dmu dzet ds]
             xx[i] = mma->y[i];
-            xx[nCon + 1 + i] = mma->lam[i];
-            xx[2 * nCon + 1 + 2 * nVar + i] = mma->mu[i];
-            xx[3 * nCon + 2 * nVar + 2 + i] = mma->s[i];
+            xx[ncon + 1 + i] = mma->lam[i];
+            xx[2 * ncon + 1 + 2 * nvar + i] = mma->mu[i];
+            xx[3 * ncon + 2 * nvar + 2 + i] = mma->s[i];
 
             dxx[i] = dy[i];
-            dxx[nCon + 1 + i] = dlam[i];
-            dxx[2 * nCon + 1 + 2 * nVar + i] = dmu[i];
-            dxx[3 * nCon + 2 * nVar + 2 + i] = ds[i];
+            dxx[ncon + 1 + i] = dlam[i];
+            dxx[2 * ncon + 1 + 2 * nvar + i] = dmu[i];
+            dxx[3 * ncon + 2 * nvar + 2 + i] = ds[i];
          }
-         xx[nCon] = mma->z;
-         xx[3 * nCon + 2 * nVar + 1] = mma->zet;
-         dxx[nCon] = dz;
-         for (int i = 0; i < nVar; i++)
+         xx[ncon] = mma->z;
+         xx[3 * ncon + 2 * nvar + 1] = mma->zet;
+         dxx[ncon] = dz;
+         for (int i = 0; i < nvar; i++)
          {
             // NaN-Avoidance
             if (std::fabs(mma->x[i] - alfa[i]) < mma->machineEpsilon)
@@ -781,16 +775,16 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
                deta[i] = -mma->eta[i] + epsi / (beta[i] - mma->x[i]) +
                          (mma->eta[i] * dx[i]) / (beta[i] - mma->x[i]);
             }
-            xx[nCon + 1 + nCon + i] = mma->xsi[i];
-            xx[nCon + 1 + nCon + nVar + i] = mma->eta[i];
-            dxx[nCon + 1 + nCon + i] = dxsi[i];
-            dxx[nCon + 1 + nCon + nVar + i] = deta[i];
+            xx[ncon + 1 + ncon + i] = mma->xsi[i];
+            xx[ncon + 1 + ncon + nvar + i] = mma->eta[i];
+            dxx[ncon + 1 + ncon + i] = dxsi[i];
+            dxx[ncon + 1 + ncon + nvar + i] = deta[i];
          }
          dzet = -mma->zet + epsi / mma->z - mma->zet * dz / mma->z;
-         dxx[3 * nCon + 2 * nVar + 1] = dzet;
+         dxx[3 * ncon + 2 * nvar + 1] = dzet;
 
          stmxx = 0.0;
-         for (int i = 0; i < (4 * nCon + 2 * nVar + 2); i++)
+         for (int i = 0; i < (4 * ncon + 2 * nvar + 2); i++)
          {
             stepxx[i] = -1.01*dxx[i] /  xx[i];
             stmxx = std::max(stepxx[i], stmxx);
@@ -802,7 +796,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
 
          stmalfa = 0.0;
          stmbeta = 0.0;
-         for (int i = 0; i < nVar; i++)
+         for (int i = 0; i < nvar; i++)
          {
             //NaN-Avoidance
             if (std::fabs(mma->x[i] - alfa[i]) < mma->machineEpsilon)
@@ -835,13 +829,13 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
                                     stmxx_global), 1.0);
          steg = 1.0 / stminv;
 
-         for (int i = 0; i < nVar; i++)
+         for (int i = 0; i < nvar; i++)
          {
             xold[i] = mma->x[i];
             xsiold[i] = mma->xsi[i];
             etaold[i] = mma->eta[i];
          }
-         for (int i = 0; i < nCon; i++)
+         for (int i = 0; i < ncon; i++)
          {
             yold[i] = mma->y[i];
             lamold[i] = mma->lam[i];
@@ -857,7 +851,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          {
             itto++;
 
-            for (int i = 0; i < nCon; ++i)
+            for (int i = 0; i < ncon; ++i)
             {
                mma->y[i] = yold[i] + steg * dy[i];
                if (std::fabs(mma->y[i])< mma->machineEpsilon)
@@ -874,8 +868,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
                mma->s[i] = sold[i] + steg * ds[i];
             }
 
-            residu[nVar + nCon] = mma->a0 - mma->zet; //rez
-            for (int i = 0; i < nVar; ++i)
+            residu[nvar + ncon] = mma->a0 - mma->zet; //rez
+            for (int i = 0; i < nvar; ++i)
             {
                mma->x[i] = xold[i] + steg * dx[i];
                mma->xsi[i] = xsiold[i] + steg * dxsi[i];
@@ -894,29 +888,29 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
                // plam & qlam
                plam[i] = p0[i];
                qlam[i] = q0[i];
-               for (int j = 0; j < nCon; j++)
+               for (int j = 0; j < ncon; j++)
                {
-                  plam[i] += P[j * nVar + i] * mma->lam[j];
-                  qlam[i] += Q[j * nVar + i] * mma->lam[j];
-                  residu[nVar + nCon] -= mma->a[j] * mma->lam[j]; //rez
+                  plam[i] += P[j * nvar + i] * mma->lam[j];
+                  qlam[i] += Q[j * nvar + i] * mma->lam[j];
+                  residu[nvar + ncon] -= mma->a[j] * mma->lam[j]; //rez
                }
 
                // Assembly starts here
 
                residu[i] = plam[i] / (ux1[i] * ux1[i]) - qlam[i] / (xl1[i] * xl1[i]) -
                            mma->xsi[i] + mma->eta[i]; //rex
-               //residu[nVar + nCon] -= mma->a[i] * mma->lam[i]; //rez
-               residu[nVar + nCon + 1 + nCon + i] = mma->xsi[i] * (mma->x[i] - alfa[i]) -
+               //residu[nvar + ncon] -= mma->a[i] * mma->lam[i]; //rez
+               residu[nvar + ncon + 1 + ncon + i] = mma->xsi[i] * (mma->x[i] - alfa[i]) -
                                                     epsi; //rexsi
                if (std::fabs(mma->x[i] - alfa[i]) < mma->machineEpsilon)
                {
-                  residu[nVar + nCon + 1 + nCon + i] = mma->xsi[i] * mma->machineEpsilon - epsi;
+                  residu[nvar + ncon + 1 + ncon + i] = mma->xsi[i] * mma->machineEpsilon - epsi;
                }
-               residu[nVar + nCon + 1 + nCon + nVar + i] = mma->eta[i] *
+               residu[nvar + ncon + 1 + ncon + nvar + i] = mma->eta[i] *
                                                            (beta[i] - mma->x[i]) - epsi; //reeta
                if (std::fabs(beta[i] - mma->x[i]) < mma->machineEpsilon)
                {
-                  residu[nVar + nCon + 1 + nCon + nVar + i] = mma->eta[i] * mma->machineEpsilon -
+                  residu[nvar + ncon + 1 + ncon + nvar + i] = mma->eta[i] * mma->machineEpsilon -
                                                               epsi;
                }
             }
@@ -928,40 +922,40 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             mma->zet = zetold + steg * dzet;
 
             // gvec = P/ux + Q/xl
-            for (int i = 0; i < nCon; i++)
+            for (int i = 0; i < ncon; i++)
             {
                gvec_local[i] = 0.0;
-               for (int j = 0; j < nVar; j++)
+               for (int j = 0; j < nvar; j++)
                {
-                  gvec_local[i] = gvec_local[i] + P[i * nVar + j] / ux1[j] + Q[i * nVar + j] /
+                  gvec_local[i] = gvec_local[i] + P[i * nvar + j] / ux1[j] + Q[i * nvar + j] /
                                   xl1[j];
                }
             }
-            std::copy(gvec_local, gvec_local + nCon, gvec);
+            std::copy(gvec_local, gvec_local + ncon, gvec);
 
 #ifdef MFEM_USE_MPI
-            MPI_Allreduce(gvec_local, gvec, nCon, MPI_DOUBLE, MPI_SUM, mma->comm);
+            MPI_Allreduce(gvec_local, gvec, ncon, MPI_DOUBLE, MPI_SUM, mma->comm);
 #endif
             if (rank == 0)
             {
-               for (int i = 0; i < nCon; i++)
+               for (int i = 0; i < ncon; i++)
                {
-                  residu[nVar + i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] -
+                  residu[nvar + i] = mma->c[i] + mma->d[i] * mma->y[i] - mma->mu[i] -
                                      mma->lam[i]; //rey
-                  residu[nVar + nCon + 1 + i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] +
+                  residu[nvar + ncon + 1 + i] = gvec[i] - mma->a[i] * mma->z - mma->y[i] +
                                                 mma->s[i] - b[i]; //relam
-                  residu[nVar + nCon + 1 + nCon + 2 * nVar + i] = mma->mu[i] * mma->y[i] -
+                  residu[nvar + ncon + 1 + ncon + 2 * nvar + i] = mma->mu[i] * mma->y[i] -
                                                                   epsi; //remu
-                  residu[nVar + nCon + 1 + 2 * nVar + 2 * nCon + 1 + i] = mma->lam[i] * mma->s[i]
+                  residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon + 1 + i] = mma->lam[i] * mma->s[i]
                                                                           - epsi; //res
                }
-               residu[nVar + nCon + 1 + 2 * nVar + 2 * nCon] = mma->zet * mma->z -
+               residu[nvar + ncon + 1 + 2 * nvar + 2 * ncon] = mma->zet * mma->z -
                                                                epsi; //rezet
             }
 
             //Get vector product and maximum absolute value
             resinew = 0.0;
-            for (int i = 0; i < (3 * nVar + 4 * nCon + 2); i++)
+            for (int i = 0; i < (3 * nvar + 4 * ncon + 2); i++)
             {
                resinew = resinew + residu[i] * residu[i];
             }
@@ -975,11 +969,11 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             resinew = std::sqrt(global_norm);
 
             steg = steg / 2.0;
-         }                                                         // checkl this
+         }                                              
 
          residunorm = resinew;
          residumax = 0.0;
-         for (int i = 0; i < (3 * nVar + 4 * nCon + 2); i++)
+         for (int i = 0; i < (3 * nvar + 4 * ncon + 2); i++)
          {
             residumax = std::max(residumax, std::abs(residu[i]));
          }
