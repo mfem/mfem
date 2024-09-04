@@ -68,7 +68,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_2D,
             }
          }
       }
-   MFEM_SYNC_THREAD;
+      MFEM_SYNC_THREAD;
    });
 }
 

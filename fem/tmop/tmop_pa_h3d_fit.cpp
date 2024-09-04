@@ -42,16 +42,16 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_3D,
 
       MFEM_FOREACH_THREAD(qz,z,D1D)
       {
-        MFEM_FOREACH_THREAD(qy,y,D1D)
-        {
+         MFEM_FOREACH_THREAD(qy,y,D1D)
+         {
             MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-                for (int v = 0; v < DIM; v++)
-                {
-                    D(qx,qy,qz,v,e) += H0(v,v,qx,qy,qz,e);;
-                }
+               for (int v = 0; v < DIM; v++)
+               {
+                  D(qx,qy,qz,v,e) += H0(v,v,qx,qy,qz,e);;
+               }
             }
-        }
+         }
       }
       MFEM_SYNC_THREAD;
    });

@@ -152,7 +152,8 @@ void TMOP_Integrator::AssemblePA_Fitting()
 
    const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
 
-   const int NE = PA.ne; if (NE == 0) { return; }  // Quick return for empty processors
+   const int NE = PA.ne;
+   if (NE == 0) { return; }  // Quick return for empty processors
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    // surf_fit_coeff -> PA.SFC
@@ -169,7 +170,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
    // surf_fit_dof_count -> PA.SFDC (E-vector)
    Vector temp1;
    temp1.SetSize(surf_fit_dof_count.Size());
-   for(int i=0; i< temp1.Size(); i++)
+   for (int i=0; i< temp1.Size(); i++)
    {
       temp1[i] = surf_fit_dof_count[i];
    }
@@ -197,7 +198,8 @@ void TMOP_Integrator::AssemblePA_Fitting()
 
    // Make list of elements that have atleast one dof marked for fitting
    PA.SFList.SetSize(0);
-   for (int el_id = 0; el_id < NE; el_id++){
+   for (int el_id = 0; el_id < NE; el_id++)
+   {
       Array<int> dofs, vdofs;
       fes_fit->GetElementVDofs(el_id, vdofs);
       int count = 0;
@@ -219,7 +221,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
       fit_el_dof_count = PA.nefit*dofs.Size();
    }
 
-   if(surf_fit_grad)
+   if (surf_fit_grad)
    {
       const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
       const FiniteElementSpace *fes_hess = surf_fit_hess->FESpace();
@@ -243,21 +245,23 @@ void TMOP_Integrator::AssemblePA_Fitting()
       const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>(&fe);
       const Array<int> &irordering = nfe->GetLexicographicOrdering();
       IntegrationRule ir = PermuteIR(&irnodes, irordering);
-      int nqp = ir.GetNPoints();
       const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
-      auto geom = fes_fit->GetMesh()->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+      auto geom = fes_fit->GetMesh()->GetGeometricFactors(ir,
+                                                          GeometricFactors::JACOBIANS);
       int nelem = fes_fit->GetMesh()->GetNE();
 
       constexpr QVectorLayout L = QVectorLayout::byNODES;
 
       //Gradient using Collocated Derivatives
       PA.SFG.SetSize(dim*PA.SFV.Size(), Device::GetMemoryType());
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1, maps, *geom, PA.SFV, PA.SFG);
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1,
+                                                                            maps, *geom, PA.SFV, PA.SFG);
       PA.SFG.UseDevice(true);
 
       //Hessian using Collocated Derivatives
       PA.SFH.SetSize(dim*dim*PA.SFV.Size(), Device::GetMemoryType());
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, dim, maps, *geom, PA.SFG, PA.SFH);
+      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem,
+                                                                            dim, maps, *geom, PA.SFG, PA.SFH);
       PA.SFH.UseDevice(true);
    }
 
@@ -379,18 +383,16 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
    const Operator *n1_R_int = fes_fit->GetElementRestriction(ordering);
    n1_R_int->Mult(*surf_fit_gf, PA.SFV);
 
-   if(surf_fit_grad)
+   if (surf_fit_grad)
    {
       const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
       const FiniteElementSpace *fes_hess = surf_fit_hess->FESpace();
 
       const Operator *n4_R_int = fes_grad->GetElementRestriction(ordering);
       n4_R_int->Mult(*surf_fit_grad, PA.SFG);
-      // std::cout << surf_fit_grad->Norml2() << " " << PA.SFG.Norml2() << " k101\n";
 
       const Operator *n5_R_int = fes_hess->GetElementRestriction(ordering);
       n5_R_int->Mult(*surf_fit_hess, PA.SFH);
-      // std::cout << surf_fit_hess->Norml2() << " " << PA.SFH.Norml2() << " k102\n";
    }
    else
    {
@@ -415,7 +417,8 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
       constexpr QVectorLayout L = QVectorLayout::byNODES;
 
       // Compute Jacobians since mesh might not know about coordinate change
-      internal::quadrature_interpolator::CollocatedTensorDerivatives<L>(nelem, PA.dim, maps, xelem, Jacobians);
+      internal::quadrature_interpolator::CollocatedTensorDerivatives<L>(nelem, PA.dim,
+                                                                        maps, xelem, Jacobians);
       if (PA.dim == 2)
       {
          constexpr bool P = true;
@@ -423,10 +426,12 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
          const int vdim = 1; // level-set field is a scalar function, so vdim = 1
 
          internal::quadrature_interpolator::CollocatedDerivatives2D<L, P>
-         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFV.Read(),PA.SFG.Write(),sdim,vdim,maps.ndof);
+         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFV.Read(),PA.SFG.Write(),sdim,vdim,
+          maps.ndof);
 
          internal::quadrature_interpolator::CollocatedDerivatives2D<L, P>
-         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFG.Read(),PA.SFH.Write(),sdim,vdim*2,maps.ndof);
+         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFG.Read(),PA.SFH.Write(),sdim,vdim*2,
+          maps.ndof);
       }
       if (PA.dim == 3)
       {
@@ -434,10 +439,12 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
          const int vdim = 1; // level-set field is a scalar function, so vdim = 1
 
          internal::quadrature_interpolator::CollocatedDerivatives3D<L, P>
-         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFV.Read(),PA.SFG.Write(),vdim,maps.ndof);
+         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFV.Read(),PA.SFG.Write(),vdim,
+          maps.ndof);
 
          internal::quadrature_interpolator::CollocatedDerivatives3D<L, P>
-         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFG.Read(),PA.SFH.Write(),vdim*3,maps.ndof);
+         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFG.Read(),PA.SFH.Write(),vdim*3,
+          maps.ndof);
       }
    }
 

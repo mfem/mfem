@@ -53,31 +53,31 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_3D,
 
       MFEM_FOREACH_THREAD(qz,z,D1D)
       {
-        MFEM_FOREACH_THREAD(qy,y,D1D)
-        {
+         MFEM_FOREACH_THREAD(qy,y,D1D)
+         {
             MFEM_FOREACH_THREAD(qx,x,D1D)
             {
-                const real_t sigma = S0(qx,qy,qz,e);
-                const real_t dof_count = DC(qx,qy,qz,e);
-                const real_t marker = M0(qx,qy,qz,e);
+               const real_t sigma = S0(qx,qy,qz,e);
+               const real_t dof_count = DC(qx,qy,qz,e);
+               const real_t marker = M0(qx,qy,qz,e);
 
-                double w = marker * normal * coeff * 1.0/dof_count;
-                for (int i = 0; i < DIM; i++)
-                {
-                    for (int j = 0; j <= i; j++)
-                    {
-                        const real_t dxi = D1(qx,qy,qz,i,e);
-                        const real_t dxj = D1(qx,qy,qz,j,e);
-                        const real_t d2x = D2(qx,qy,qz,i,j,e);
+               double w = marker * normal * coeff * 1.0/dof_count;
+               for (int i = 0; i < DIM; i++)
+               {
+                  for (int j = 0; j <= i; j++)
+                  {
+                     const real_t dxi = D1(qx,qy,qz,i,e);
+                     const real_t dxj = D1(qx,qy,qz,j,e);
+                     const real_t d2x = D2(qx,qy,qz,i,j,e);
 
-                        const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
-                        H0(i,j,qx,qy,qz,e) = entry;
-                        if (i != j) { H0(j,i,qx,qy,qz,e) = entry;}
-                    }
-                }
+                     const real_t entry = 2 * w * (dxi*dxj + sigma * d2x);
+                     H0(i,j,qx,qy,qz,e) = entry;
+                     if (i != j) { H0(j,i,qx,qy,qz,e) = entry;}
+                  }
+               }
 
             }
-        }
+         }
       }
       MFEM_SYNC_THREAD;
    });
