@@ -93,6 +93,41 @@ public:
                                   Vector &fluxDotN) const;
 
    /**
+    * @brief Compute average flux for over the given interval of states.
+    * Optionally overloaded in the derived class.
+    *
+    * @param[in] state1 state of the beggining of the interval (num_equations)
+    * @param[in] state2 state of the end of the interval (num_equations)
+    * @param[in] Tr element transformation
+    * @param[out] flux average flux at the current integration point
+    * (num_equations, dim)
+    * @return real_t maximum characteristic speed
+    *
+    * @note One can put assertion in here to detect non-physical solution
+    */
+   virtual real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
+                                 ElementTransformation &Tr,
+                                 DenseMatrix &flux) const
+   { MFEM_ABORT("Not Implemented."); }
+
+   /**
+    * @brief Compute average normal flux over the given interval of states.
+    * Optionally overloaded in the derived class.
+    *
+    * @param[in] state1 state of the beggining of the interval (num_equations)
+    * @param[in] state2 state of the end of the interval (num_equations)
+    * @param[in] normal normal vector, @see CalcOrtho (dim)
+    * @param[in] Tr face transformation
+    * @param[out] fluxDotN average normal flux from the given element at the
+    * current integration point (num_equations)
+    * @return real_t maximum (normal) characteristic velocity
+    */
+   virtual real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
+                                     const Vector &normal,
+                                     FaceElementTransformations &Tr,
+                                     Vector &fluxDotN) const;
+
+   /**
     * @brief Compute flux Jacobian. Optionally overloaded in the derived class
     * when Jacobian is necessary (e.g. Newton iteration, flux limiter)
     *
