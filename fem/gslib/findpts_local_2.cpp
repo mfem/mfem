@@ -976,9 +976,9 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         MFEM_FOREACH_THREAD(j,x,nThreads)
                         {
                            edge = get_edge(elx, wtend, ei,
-                                             constraint_workspace,
-                                             edge_init, j,
-                                             D1D);
+                                           constraint_workspace,
+                                           edge_init, j,
+                                           D1D);
                         }
                         MFEM_SYNC_THREAD;
 
@@ -1153,7 +1153,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
 
             bool converged_internal = (fpt->flags&FLAG_MASK)==CONVERGED_FLAG;
             if (*code_i == CODE_NOT_FOUND || converged_internal ||
-                  fpt->dist2 < *dist2_i)
+                fpt->dist2 < *dist2_i)
             {
                MFEM_FOREACH_THREAD(j,x,nThreads)
                {
@@ -1161,7 +1161,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   {
                      *el_i = el;
                      *code_i = converged_internal ? CODE_INTERNAL :
-                                 CODE_BORDER;
+                               CODE_BORDER;
                      *dist2_i = fpt->dist2;
                   }
                   if (j < DIM)
