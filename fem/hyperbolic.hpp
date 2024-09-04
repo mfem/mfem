@@ -68,9 +68,9 @@ public:
    /**
     * @brief Compute flux F(u, x) for given state u and physical point x
     *
-    * @param[in] state value of state at the current integration point
+    * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
-    * @param[out] flux F(u, x)
+    * @param[out] flux F(u, x) (num_equations, dim)
     * @return real_t maximum characteristic speed
     *
     * @note One can put assertion in here to detect non-physical solution
@@ -81,11 +81,11 @@ public:
     * @brief Compute normal flux. Optionally overloaded in the
     * derived class to avoid creating full dense matrix for flux.
     *
-    * @param[in] state state at the current integration point
-    * @param[in] normal normal vector, @see CalcOrtho
+    * @param[in] state state at the current integration point (num_equations)
+    * @param[in] normal normal vector, @see CalcOrtho (dim)
     * @param[in] Tr face transformation
     * @param[out] fluxDotN normal flux from the given element at the current
-    * integration point
+    * integration point (num_equations)
     * @return real_t maximum (normal) characteristic velocity
     */
    virtual real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
@@ -96,23 +96,21 @@ public:
     * @brief Compute flux Jacobian. Optionally overloaded in the derived class
     * when Jacobian is necessary (e.g. Newton iteration, flux limiter)
     *
-    * @param[in] state state at the current integration point
+    * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
     * @param[out] J flux Jacobian, J(i,j,d) = dF_{id} / u_j
     */
    virtual void ComputeFluxJacobian(const Vector &state,
                                     ElementTransformation &Tr,
                                     DenseTensor &J) const
-   {
-      MFEM_ABORT("Not Implemented.");
-   }
+   { MFEM_ABORT("Not Implemented."); }
 
    /**
     * @brief Compute normal flux Jacobian. Optionally overloaded in the derived
     * class to avoid creating full dense matrix for Jacobian.
     *
-    * @param[in] state state at the current integration point
-    * @param[in] normal normal vector, @see CalcOrtho
+    * @param[in] state state at the current integration point (num_equations)
+    * @param[in] normal normal vector, @see CalcOrtho (dim)
     * @param[in] Tr element transformation
     * @param[out] JDotN normal flux Jacobian, JDotN(i,j) = dF_{id} n_d / u_j
     */
