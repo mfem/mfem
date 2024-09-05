@@ -590,6 +590,11 @@ real_t HDGFlux::Average(const Vector &state1, const Vector &state2,
                         const Vector &nor, FaceElementTransformations &Tr,
                         Vector &flux) const
 {
+   if (scheme == HDGScheme::GENERAL)
+   {
+      return fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr, flux);
+   }
+
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
 #endif
@@ -604,7 +609,8 @@ real_t HDGFlux::Average(const Vector &state1, const Vector &state2,
          flux = fluxN2;
          break;
       case HDGScheme::GENERAL:
-         return fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr, flux);
+         //handled above
+         break;
    }
    for (int d = 0; d < state1.Size(); d++)
    {
