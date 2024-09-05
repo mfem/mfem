@@ -265,6 +265,7 @@ int main (int argc, char *argv[])
 {
    int np = 0;
    const char *mesh_file = "../../data/beam-hex.mesh";
+   int visport = 19916;
    bool refine = true;
 
    OptionsParser args(argc, argv);
@@ -274,6 +275,7 @@ int main (int argc, char *argv[])
                   "Load mesh from multiple processors.");
    args.AddOption(&refine, "-ref", "--refinement", "-no-ref", "--no-refinement",
                   "Prepare the mesh for refinement or not.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -386,6 +388,9 @@ int main (int argc, char *argv[])
            "S) Save in MFEM serial format\n"
            "T) Save in MFEM parallel format using the current partitioning\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
+#ifdef MFEM_USE_NETCDF
+           "X) Save in Exodus II format (only linear and quadratic meshes)\n"
+#endif
            "D) Save as a DataCollection\n"
            "q) Quit\n"
 #ifdef MFEM_USE_ZLIB
@@ -1111,7 +1116,6 @@ int main (int argc, char *argv[])
          }
 
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          if (sol_sock.is_open())
          {
@@ -1228,7 +1232,6 @@ int main (int argc, char *argv[])
          FunctionCoefficient coeff(f);
          level.ProjectCoefficient(coeff);
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          if (sol_sock.is_open())
          {
@@ -1287,6 +1290,15 @@ int main (int argc, char *argv[])
          mesh->PrintVTK(omesh);
          cout << "New VTK mesh file: " << omesh_file << endl;
       }
+
+#ifdef MFEM_USE_NETCDF
+      if (mk == 'X')
+      {
+         const char omesh_file[] = "mesh-explorer.e";
+         mesh->PrintExodusII(omesh_file);
+         cout << "New Exodus II mesh file: " << omesh_file << endl;
+      }
+#endif
 
       if (mk == 'D')
       {

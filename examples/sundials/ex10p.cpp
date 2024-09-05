@@ -1,7 +1,9 @@
 //                       MFEM Example 10 - Parallel Version
 //                             SUNDIALS Modification
 //
-// Compile with: make ex10p
+// Compile with:
+//    make ex10p            (GNU make)
+//    make sundials_ex10p   (CMake)
 //
 // Sample runs:
 //    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s 12 -dt 0.15 -vs 10
