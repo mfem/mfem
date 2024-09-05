@@ -222,8 +222,8 @@ static void Det3D(const int NE,
    if (!SMEM)
    {
       const DeviceDofQuadLimits &limits = DeviceDofQuadLimits::Get();
-      const int max_q1d = T_Q1D ? T_Q1D : limits.MAX_D1D;
-      const int max_d1d = T_D1D ? T_D1D : limits.MAX_Q1D;
+      const int max_q1d = T_Q1D ? T_Q1D : limits.MAX_Q1D;
+      const int max_d1d = T_D1D ? T_D1D : limits.MAX_D1D;
       const int max_qd = std::max(max_q1d, max_d1d);
       const int mem_size = max_qd * max_qd * max_qd * 9;
       d_buff->SetSize(2*mem_size*GRID);
@@ -233,9 +233,9 @@ static void Det3D(const int NE,
    mfem::forall_3D_grid(NE, Q1D, Q1D, Q1D, GRID, [=] MFEM_HOST_DEVICE (int e)
    {
       static constexpr int MQ1 = T_Q1D ? T_Q1D :
-                                 (SMEM ? DofQuadLimits::MAX_DET_1D : DofQuadLimits::MAX_D1D);
-      static constexpr int MD1 = T_D1D ? T_D1D :
                                  (SMEM ? DofQuadLimits::MAX_DET_1D : DofQuadLimits::MAX_Q1D);
+      static constexpr int MD1 = T_D1D ? T_D1D :
+                                 (SMEM ? DofQuadLimits::MAX_DET_1D : DofQuadLimits::MAX_D1D);
       static constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
       static constexpr int MSZ = MDQ * MDQ * MDQ * 9;
 
