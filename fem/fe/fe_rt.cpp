@@ -1317,7 +1317,7 @@ RT_FuentesPyramidElement::RT_FuentesPyramidElement(const int p)
    for (int j = 0; j <= p; j++)
       for (int i = 0; i <= p; i++)  // (3,2,1,0)
       {
-         Nodes.IntPoint(o).Set3(bop[i], bop[j], 0.);
+         Nodes.IntPoint(o).Set3(bop[i], bop[p-j], 0.);
          dof2nk[o++] = 0;
       }
    // triangular faces

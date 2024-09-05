@@ -1684,7 +1684,7 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
    for (int j = 1; j < p; j++)
       for (int i = 0; i < p; i++)
       {
-         Nodes.IntPoint(o).Set3(qop[i], qcp[j], 0.);
+         Nodes.IntPoint(o).Set3(qop[i], qcp[p-j], 0.);
          dof2tk[o++] = 0; // (1 0 0)
       }
 
@@ -1692,7 +1692,7 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
    for (int j = 0; j < p; j++)
       for (int i = 1; i < p; i++)
       {
-         Nodes.IntPoint(o).Set3(qcp[i], qop[j], 0.);
+         Nodes.IntPoint(o).Set3(qcp[i], qop[p-1-j], 0.);
          dof2tk[o++] = 7; // (0 -1 0)
       }
 
