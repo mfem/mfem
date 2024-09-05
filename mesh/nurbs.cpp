@@ -27,6 +27,13 @@ using namespace std;
 
 const int KnotVector::MaxOrder = 10;
 
+
+void GetShiftedGridPoints2D(int m, int n, int i, int j, int signedShift,
+                            int& sm, int& sn, int& si, int& sj);
+
+void GetInverseShiftedDimensions2D(int signedShift, int sm, int sn, int &m,
+                                   int &n);
+
 KnotVector::KnotVector(istream &input)
 {
    input >> Order >> NumOfControlPoints;
@@ -195,7 +202,7 @@ void KnotVector::Refinement(Vector &newknots, int rf) const
          }
       }
 
-      MFEM_VERIFY(j == NumOfElements + 1, "bug");
+      MFEM_VERIFY(j == NumOfElements + 1, "");
 
       real_t s0 = 0.0;
 
@@ -2161,32 +2168,11 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing, bool nc)
        patchTopo->ncmesh->GetVertexToKnot().NumRows() > 0)
    {
       // Set map from patchTopo edges to patchTopo->ncmesh edges
-      std::map<std::pair<int, int>, int> v2e;
-      int vert_index[2];
-      const NCMesh::NCList& EL = patchTopo->ncmesh->GetEdgeList();
-      for (auto edgeID : EL.conforming)
-      {
-         patchTopo->ncmesh->GetEdgeVertices(edgeID, vert_index);
-
-         MFEM_VERIFY(vert_index[0] < vert_index[1], "TODO: remove this");
-         const std::pair<int, int> vpair(vert_index[0], vert_index[1]);
-         v2e[vpair] = edgeID.index;
-      }
-
       Array<int> vert;
       for (int i=0; i<patchTopo->GetNEdges(); ++i)
       {
          patchTopo->GetEdgeVertices(i, vert);
-         MFEM_VERIFY(vert[0] < vert[1], ""); // TODO: remove this?
-
          const std::pair<int, int> vpair(vert[0], vert[1]);
-
-         auto search = v2e.find(vpair);
-         if (search == v2e.end())
-         {
-            MFEM_ABORT("Vertex pair not found");
-         }
-
          const int ncedge = v2e[vpair];
 
          e2nce[i] = ncedge;
@@ -3314,37 +3300,693 @@ void NURBSExtension::SetOrdersFromKnotVectors()
    SetOrderFromOrders();
 }
 
-// TODO: better code design.
-// TODO: can v2e be const?
-void ProcessVertexToKnot2D(Array2D<int> const& v2k,
-                           std::map<std::pair<int, int>, int> & v2e,
-                           std::vector<int> & auxEdges,
-                           std::set<int> & reversedParents,
-                           std::set<int> & masterEdges,
-                           std::vector<int> & edgePairs);
-
-// TODO: better code design.
-void ProcessVertexToKnot3D(Array2D<int> const& v2k,
-                           const std::map<std::pair<int, int>, int> & v2e,
-                           const std::map<std::pair<int, int>, int> & v2f,
-                           std::vector<int> & auxFaces,
-                           std::set<int> & masterEdges,
-                           std::set<int> & masterFaces,
-                           std::set<int> & reversedParentEdges,
-                           std::vector<int> & parentN1,
-                           std::vector<int> & parentN2,
-                           std::vector<int> & edgePairs,
-                           std::vector<int> & facePairs,
-                           std::vector<int> & parentFaces,
-                           std::vector<int> & parentVerts);
-
 int GetFaceOrientation(const Mesh *mesh, const int face,
                        const Array<int> & verts);
 
-int GetInverselyShiftedQuadIndex(int i, int ori);
+bool Reorder2D(int n1, int n2, int ori, std::vector<int> & s0);
 
-bool Reorder2D(int n1, int n2, int ori, const std::vector<int> & a,
-               std::vector<int> & s0);
+int GetNCPperEdge(const KnotVector *kv)
+{
+   const int ne = kv->GetNE();
+
+   // Total number of CP on edge, excluding vertex CP.
+   const int totalEdgeCP = kv->GetNCP() - 2 - ne + 1;
+   const int perEdgeCP = totalEdgeCP / ne;
+
+   MFEM_VERIFY(perEdgeCP * ne == totalEdgeCP, "");
+
+   return perEdgeCP;
+}
+
+void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
+   std::map<std::pair<int, int>, int> & v2f,
+   std::set<int> & addParentFaces,
+   std::vector<FacePairInfo> & facePairs)
+{
+   const int ipair[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+
+   for (int f=0; f<patchTopo->GetNFaces(); ++f)
+   {
+      if (masterFaces.find(f) != masterFaces.end())
+      {
+         continue;   // Already a master face
+      }
+
+      Array<int> edges, ori, verts;
+      patchTopo->GetFaceEdges(f, edges, ori);
+      patchTopo->GetFaceVertices(f, verts);
+
+      MFEM_VERIFY(edges.Size() == 4 && verts.Size() == 4, "");
+
+      const int fn1 = KnotVec(edges[0])->GetNE();
+      const int fn2 = KnotVec(edges[1])->GetNE();
+
+      // Loop over the 2 pairs of opposite sides
+      for (int p=0; p<2; ++p)  // Pair p
+      {
+         Array<int> oppEdges(2);
+         const int sideEdge0 = edges[1 - p];
+         bool eitherMaster = false;
+         bool bothMaster = true;
+         for (int s=0; s<2; ++s)
+         {
+            oppEdges[s] = edges[p + 2*s];
+
+            bool isTrueMasterEdge = false;
+            if (masterEdges.count(oppEdges[s]) > 0)
+            {
+               const int mid = masterEdgeToId.at(oppEdges[s]);
+               if (masterEdgeSlaves[mid].size() > 0)
+               {
+                  isTrueMasterEdge = true;
+               }
+            }
+
+            if (isTrueMasterEdge)
+            {
+               eitherMaster = true;
+            }
+            else
+            {
+               bothMaster = false;
+            }
+         }
+
+         if (bothMaster)
+         {
+            // Possibly define auxiliary and/or slave faces on this face
+
+            // Check for auxiliary and slave edges
+            std::vector<Array<int>> sideAuxEdges(2);
+            std::vector<Array<int>> sideSlaveEdges(2);
+            for (int s=0; s<2; ++s)
+            {
+               const int mid = masterEdgeToId.at(oppEdges[s]);
+               for (auto edge : masterEdgeSlaves[mid])
+               {
+                  if (edge < 0)
+                  {
+                     sideAuxEdges[s].Append(-1 - edge);
+                  }
+                  else
+                  {
+                     sideSlaveEdges[s].Append(edge);
+                  }
+               }
+            }
+
+            const bool hasAux = sideAuxEdges[0].Size() > 0;
+            const bool hasSlave = sideSlaveEdges[0].Size() > 0;
+
+            // Find patchTopo vertices in the interior of each side
+
+            if (hasAux || hasSlave)
+            {
+               std::vector<Array<int>> edgeV(2);
+               std::vector<Array<int>> edgeE(2);
+               std::vector<Array<int>> edgeVki(2);
+
+               Array2D<int> epv(2,2);
+
+               for (int s=0; s<2; ++s)
+               {
+                  const int mid = masterEdgeToId.at(oppEdges[s]);
+                  const int nes = masterEdgeSlaves[mid].size();
+                  MFEM_VERIFY(masterEdgeVerts[mid].size() + 1 == nes, "");
+
+                  // Vertices in masterEdgeVerts[mid] are ordered starting
+                  // from the master edge endpoint with lower vertex index.
+
+                  Array<int> everts;
+                  patchTopo->GetEdgeVertices(oppEdges[s], everts);
+
+                  for (int i=0; i<2; ++i)
+                  {
+                     const int v = everts[i];
+                     // Find the index of vertex v in verts.
+                     const int vid = verts.Find(v);
+                     MFEM_ASSERT(vid >= 0, "");
+                     epv(s,i) = vid;
+                  }
+
+                  edgeV[s].Append(everts[0]);
+                  edgeVki[s].Append(0);
+
+                  MFEM_VERIFY(masterEdgeVerts[mid].size() == masterEdgeKI[mid].size(), "");
+                  for (int i=0; i<masterEdgeVerts[mid].size(); ++i)
+                  {
+                     edgeV[s].Append(masterEdgeVerts[mid][i]);
+                     edgeVki[s].Append(masterEdgeKI[mid][i]);
+                  }
+
+                  const int nelem = KnotVec(oppEdges[s])->GetNE();
+
+                  edgeV[s].Append(everts[1]);
+                  edgeVki[s].Append(nelem);
+
+                  for (int i=0; i<nes; ++i)
+                  {
+                     const int edge = slaveEdges[masterEdgeSlaves[mid][i]];
+                     edgeE[s].Append(edge);
+
+                     Array<int> sverts(2);
+                     if (edge >= 0)  // If a slave edge
+                     {
+                        patchTopo->GetEdgeVertices(edge, sverts);
+                     }
+                     else
+                     {
+                        const int auxEdge = -1 - edge;
+                        GetAuxEdgeVertices(auxEdge, sverts);
+                     }
+
+                     MFEM_VERIFY((sverts[0] == edgeV[s][i] && sverts[1] == edgeV[s][i+1]) ||
+                                 (sverts[1] == edgeV[s][i] && sverts[0] == edgeV[s][i+1]), "");
+                  }
+               }
+
+               // Check whether the number and types of edges on opposite
+               // sides match. If not, skip this pair of sides.
+               if (edgeE[0].Size() != edgeE[1].Size())
+               {
+                  continue;
+               }
+
+               const int nes = edgeE[0].Size();
+
+               {
+                  bool matching = true;
+                  for (int i=0; i<nes; ++i)
+                  {
+                     if ((edgeE[0][i] >= 0) != (edgeE[1][i] >= 0))
+                     {
+                        matching = false;
+                        break;
+                     }
+                  }
+
+                  if (!matching)
+                  {
+                     continue;
+                  }
+               }
+
+               // Check whether edgeV[s] are in the same order or reversed, for s=0,1.
+               bool rev = true;
+               {
+                  Array<int> sideVerts0;
+                  patchTopo->GetEdgeVertices(sideEdge0, sideVerts0);
+                  sideVerts0.Sort();
+
+                  Array<bool> found(2);
+                  found = false;
+
+                  Array<int> ep(2);
+                  for (int e=0; e<2; ++e) // Loop over ends
+                  {
+                     for (int s=0; s<2; ++s) // Loop over sides
+                     {
+                        ep[s] = edgeV[s][e * (edgeV[s].Size() - 1)];
+
+                        for (int i=0; i<2; ++i)
+                        {
+                           if (ep[s] == sideVerts0[i])
+                           {
+                              found[i] = true;
+                           }
+                        }
+                     }
+
+                     ep.Sort();
+                     if (ep == sideVerts0)
+                     {
+                        rev = false;
+                     }
+                  }
+
+                  MFEM_VERIFY(found[0] && found[1], "");
+               }
+
+               // Find auxiliary or slave subfaces of face f.
+               // Note that there may be no master faces in patchTopo->ncmesh.
+
+               for (int i=0; i<2; ++i)
+               {
+                  MFEM_VERIFY(edgeV[i].Size() == nes + 1, "");
+               }
+
+               for (int e=0; e<nes; ++e) // Loop over edges
+               {
+                  const int e1 = rev ? nes - 1 - e : e;
+
+                  Array<int> fverts(4);
+                  fverts[0] = edgeV[0][e];
+                  fverts[1] = edgeV[0][e + 1];
+
+                  fverts[2] = edgeV[1][rev ? nes - e - 1 : e + 1];
+                  fverts[3] = edgeV[1][rev ? nes - e : e];
+
+                  const int eki = edgeVki[0][e];  // Knot index w.r.t. the edge.
+                  const int eki1 = edgeVki[0][e + 1];  // Knot index w.r.t. the edge.
+
+                  const int e1ki = edgeVki[1][rev ? nes - e : e];  // Knot index w.r.t. the edge.
+                  const int e1ki1 = edgeVki[1][rev ? nes - e - 1 : e +
+                                               1];  // Knot index w.r.t. the edge.
+
+                  // ori_f is the signed shift such that fverts[abs1(ori_f)] is
+                  // closest to vertex 0, verts[0], of parent face f, and the
+                  // relative direction of the ordering is encoded in the sign.
+                  // TODO: this is not used, since we put fverts into auxFaces with reordering to match
+                  // the orientation of the master face, effectively making ori_f = 0.
+                  int ori_f = 0;
+
+                  // Set the 2D knot indices of the 4 vertices in fverts, with respect to the face f.
+                  Array2D<int> fki(4,2);
+                  {
+                     // Use epv and eki to get the 2D face knot index.
+                     const int eNE = edgeVki[0][edgeVki[0].Size() -
+                                                1];  // Number of elements on the edge.
+                     if (p == 0)
+                     {
+                        MFEM_ASSERT(edgeV[0][0] == verts[0] ||
+                                    edgeV[0][edgeV[0].Size() - 1] == verts[0], "");
+                        MFEM_ASSERT(edgeV[1][0] == verts[3] ||
+                                    edgeV[1][edgeV[0].Size() - 1] == verts[3], "");
+                        MFEM_ASSERT(eNE == fn1, "");
+                        MFEM_ASSERT(edgeVki[1][edgeVki[1].Size() - 1] == fn1, "");
+
+                        const bool rev0 = edgeV[0][0] != verts[0];
+                        fki(0,0) = rev0 ? eNE - eki : eki;
+                        fki(0,1) = 0;
+
+                        fki(1,0) = rev0 ? eNE - eki1 : eki1;
+                        fki(1,1) = 0;
+
+                        if (rev0)
+                        {
+                           ori_f = -2;
+                        }
+
+                        // Other side
+                        const bool rev1 = edgeV[1][0] != verts[3];
+
+                        fki(2,0) = rev1 ? eNE - e1ki1 : e1ki1;
+                        fki(2,1) = fn2;
+
+                        fki(3,0) = rev1 ? eNE - e1ki : e1ki;
+                        fki(3,1) = fn2;
+
+                        MFEM_ASSERT(fki(0,0) == fki(3,0) && fki(1,0) == fki(2,0), "");
+                     }
+                     else
+                     {
+                        MFEM_ASSERT(edgeV[0][0] == verts[1] ||
+                                    edgeV[0][edgeV[0].Size() - 1] == verts[1], "");
+                        MFEM_ASSERT(edgeV[1][0] == verts[0] ||
+                                    edgeV[1][edgeV[0].Size() - 1] == verts[0], "");
+                        MFEM_ASSERT(eNE == fn2, "");
+                        MFEM_ASSERT(edgeVki[1][edgeVki[1].Size() - 1] == fn2, "");
+
+                        const bool rev0 = edgeV[0][0] != verts[1];
+                        fki(0,0) = fn1;
+                        fki(0,1) = rev0 ? eNE - eki : eki;
+
+                        fki(1,0) = fn1;
+                        fki(1,1) = rev0 ? eNE - eki1 : eki1;
+
+                        if (rev0)
+                        {
+                           ori_f = -3;
+                        }
+                        else
+                        {
+                           ori_f = 3;
+                        }
+
+                        // Other side
+                        const bool rev1 = edgeV[1][0] != verts[0];
+
+                        fki(2,0) = 0;
+                        fki(2,1) = rev1 ? fn2 - e1ki1 : e1ki1;
+
+                        fki(3,0) = 0;
+                        fki(3,1) = rev1 ? fn2 - e1ki : e1ki;
+
+                        MFEM_ASSERT(fki(0,1) == fki(3,1) && fki(1,1) == fki(2,1), "");
+                     }
+                  }
+
+                  const int vmin = fverts.Min();
+                  const int idmin = fverts.Find(vmin);
+
+                  if (edgeE[0][e] >= 0)
+                  {
+                     std::pair<int, int> vpair(fverts[idmin], fverts[(idmin + 2) % 4]);
+                     const bool vPairTopo = v2f.count(vpair) > 0;
+                     MFEM_VERIFY(vPairTopo, "");
+
+                     const int sface = v2f.at(std::pair<int, int> (fverts[idmin],
+                                                                   fverts[(idmin + 2) % 4]));
+                     addParentFaces.insert(f);
+
+                     // Set facePairs
+
+                     // TODO: refactor this repeated code to find vMinID
+
+                     // Find the vertex with minimum knot indices.
+                     int vMinID = -1;
+                     {
+                        Array<int> kiMin(2);
+                        for (int j=0; j<2; ++j)
+                        {
+                           kiMin[j] = fki(0,j);
+                           for (int i=1; i<4; ++i)
+                           {
+                              if (fki(i,j) < kiMin[j]) { kiMin[j] = fki(i,j); }
+                           }
+                        }
+
+                        for (int i=0; i<4; ++i)
+                        {
+                           if (fki(i,0) == kiMin[0] && fki(i,1) == kiMin[1])
+                           {
+                              MFEM_ASSERT(vMinID == -1, "");
+                              vMinID = i;
+                           }
+                        }
+                     }
+
+                     MFEM_ASSERT(vMinID >= 0, "");
+
+                     Array<int> fvertsMasterOrdering(4);
+                     for (int i=0; i<4; ++i)
+                     {
+                        if (ori_f >= 0)
+                        {
+                           fvertsMasterOrdering[i] = fverts[(vMinID + i) % 4];
+                        }
+                        else
+                        {
+                           fvertsMasterOrdering[i] = fverts[(vMinID + 4 - i) % 4];
+                        }
+                     }
+
+                     const int ori_sface = GetFaceOrientation(patchTopo, sface,
+                                                              fvertsMasterOrdering);
+
+                     facePairs.emplace_back(FacePairInfo{fverts[vMinID], sface,
+                                                         f, ori_sface,
+                                                         fki(vMinID,0), fki(vMinID,1),
+                                                         fki((vMinID + 2) % 4,0) - fki(vMinID,0),
+                                                         fki((vMinID + 2) % 4,1) - fki(vMinID,1)});
+                  }
+                  else  // Auxiliary face
+                  {
+                     // TODO: use a fast, efficient look-up, using something like auxv2f.
+                     const int nauxf = auxFaces.size();
+                     Array<int> afverts(4);
+
+                     Array<int> fvertsSorted(fverts);
+                     fvertsSorted.Sort();
+
+                     int afid = -1;
+                     for (int af = 0; af < nauxf; ++af)
+                     {
+                        for (int i=0; i<4; ++i)
+                        {
+                           afverts[i] = auxFaces[af].v[i];
+                        }
+
+                        afverts.Sort();
+
+                        if (afverts == fvertsSorted)
+                        {
+                           MFEM_VERIFY(afid == -1, "");
+                           afid = af;
+                        }
+                     }
+
+                     addParentFaces.insert(f);
+
+                     // Find the vertex with minimum knot indices.
+                     int vMinID = -1;
+                     {
+                        Array<int> kiMin(2);
+                        for (int j=0; j<2; ++j)
+                        {
+                           kiMin[j] = fki(0,j);
+                           for (int i=1; i<4; ++i)
+                           {
+                              if (fki(i,j) < kiMin[j]) { kiMin[j] = fki(i,j); }
+                           }
+                        }
+
+                        for (int i=0; i<4; ++i)
+                        {
+                           if (fki(i,0) == kiMin[0] && fki(i,1) == kiMin[1])
+                           {
+                              MFEM_ASSERT(vMinID == -1, "");
+                              vMinID = i;
+                           }
+                        }
+                     }
+
+                     MFEM_ASSERT(vMinID >= 0, "");
+
+                     if (afid >= 0)
+                     {
+                        const int auxFace = -1 - afid;
+
+                        // Find orientation of ordered vertices for this face, in fvertsSorted, w.r.t. the auxFaces ordering.
+
+                        for (int i=0; i<4; ++i)
+                        {
+                           afverts[i] = auxFaces[afid].v[i];
+                        }
+
+                        int ori_f2 = -1;  // TODO: better name?
+                        for (int i=0; i<4; ++i)
+                        {
+                           if (ori_f >= 0)
+                           {
+                              fvertsSorted[i] = fverts[(vMinID + i) % 4];
+                           }
+                           else
+                           {
+                              fvertsSorted[i] = fverts[(vMinID + 4 - i) % 4];
+                           }
+
+                           if (fvertsSorted[i] == afverts[0])
+                           {
+                              ori_f2 = i;
+                           }
+                        }
+
+                        MFEM_ASSERT(ori_f2 >= 0, "");
+
+                        if (fvertsSorted[(ori_f2 + 1) % 4] != afverts[1])
+                        {
+                           for (int j=0; j<4; ++j)
+                           {
+                              MFEM_ASSERT(fvertsSorted[(ori_f2 + 4 - j) % 4] == afverts[j], "");
+                           }
+
+                           ori_f2 = -1 - ori_f2;
+                        }
+                        else
+                        {
+                           for (int j=0; j<4; ++j)
+                           {
+                              MFEM_ASSERT(fvertsSorted[(ori_f2 + j) % 4] == afverts[j], "");
+                           }
+                        }
+
+                        facePairs.emplace_back(FacePairInfo{fverts[vMinID], -1 - afid,
+                                                            f, ori_f2,
+                                                            fki(vMinID,0), fki(vMinID,1),
+                                                            fki((vMinID + 2) % 4,0) - fki(vMinID,0),
+                                                            fki((vMinID + 2) % 4,1) - fki(vMinID,1)});
+                     }
+                     else
+                     {
+                        // Create a new auxiliary face.
+                        const int auxFaceId = auxFaces.size();
+                        // Find the knot indices of the vertices in fverts,
+                        // with respect to the parent face.
+                        AuxiliaryFace auxFace;
+                        for (int i=0; i<4; ++i)
+                        {
+                           if (ori_f >= 0)
+                           {
+                              auxFace.v[i] = fverts[(vMinID + i) % 4];
+                           }
+                           else
+                           {
+                              auxFace.v[i] = fverts[(vMinID + 4 - i) % 4];
+                           }
+                        }
+
+                        // Orientation is 0 for a new auxiliary face, by construction.
+                        ori_f = 0;
+
+                        auxFace.parent = f;
+                        auxFace.ori = ori_f;
+                        for (int i=0; i<2; ++i)
+                        {
+                           auxFace.ki0[i] = fki(vMinID,i);
+                           auxFace.ki1[i] = fki((vMinID + 2) % 4,i);
+                        }
+
+                        auxFaces.push_back(auxFace);
+
+                        facePairs.emplace_back(FacePairInfo{fverts[vMinID], -1 - auxFaceId,
+                                                            f, ori_f,
+                                                            fki(vMinID,0), fki(vMinID,1),
+                                                            fki((vMinID + 2) % 4,0) - fki(vMinID,0),
+                                                            fki((vMinID + 2) % 4,1) - fki(vMinID,1)});
+                     }
+                  }
+               }
+            }
+         }  // if (bothMaster)
+      }  // Pair (p) loop
+   }  // f
+}
+
+void NURBSExtension::ProcessFacePairs(int start, int midStart,
+                                      const std::vector<int> & parentN1,
+                                      const std::vector<int> & parentN2,
+                                      std::vector<int> & parentVerts,
+                                      const std::vector<FacePairInfo> & facePairs)
+{
+   const int nfpairs = facePairs.size();
+   const bool is3D = Dimension() == 3;
+
+   MFEM_VERIFY(nfpairs > 0 || !is3D, "");
+   int midPrev = -1;
+   int pfcnt = 0;
+   int orientation = 0;
+   bool parentFaceChanged = false;
+   for (int q=start; q<nfpairs; ++q)
+   {
+      // We assume that j is the fast index in (i,j).
+      // Note that facePairs is set by ProcessVertexToKnot3D.
+      const int i = facePairs[q].ki[0];
+      const int j = facePairs[q].ki[1];
+      const int nfe1 = facePairs[q].ne[0];  // Number of elements, direction 1
+      const int nfe2 = facePairs[q].ne[1];  // Number of elements, direction 2
+      const int v0 = facePairs[q].v0;  // Bottom-left corner vertex of child face
+      const int childFace = facePairs[q].child;
+      const int parentFace = facePairs[q].parent;
+      const int cpori =
+         facePairs[q].ori;  // Orientation for childFace w.r.t. parentFace
+      const int mid = masterFaceToId.at(parentFace);
+
+      if (mid < midStart)
+      {
+         // Ignore data about master faces already processed.
+         // TODO: instead of just ignoring, should we verify that the new data matches the old?
+         continue;
+      }
+
+      MFEM_VERIFY(0 <= i && i < parentN1[mid], "");
+      MFEM_VERIFY(0 <= j && j < parentN2[mid], "");
+      if (mid != midPrev)  // Next parent face
+      {
+         Array<int> pv(parentVerts.data() + (4*mid), 4);
+         const int ori = GetFaceOrientation(patchTopo, parentFace, pv);
+         // Ori is the signed shift such that pv[abs1(ori)] is vertex 0 of parentFace,
+         // and the relative direction of the ordering is encoded in the sign.
+
+         if (q > start && midPrev >= 0)
+         {
+            // For the previous parentFace, use previous orientation
+            // to reorder masterFaceSlaves, masterFaceSlaveCorners,
+            // masterFaceSizes, masterFaceVerts.
+            std::vector<int> s0(2);
+            const bool rev = Reorder2D(parentN1[midPrev], parentN2[midPrev],
+                                       orientation, s0);
+            masterFaceS0[midPrev] = s0;
+            masterFaceRev[midPrev] = rev;
+            Reorder2D(parentN1[midPrev], parentN2[midPrev],
+                      orientation, s0);
+         }
+
+         orientation = ori;
+
+         midPrev = mid;
+
+         pfcnt++;
+      }  // next parent face
+
+      slaveFaces.push_back(childFace);
+      slaveFaceI.push_back(i);
+      slaveFaceJ.push_back(j);
+      slaveFaceNE1.push_back(nfe1);
+      slaveFaceNE2.push_back(nfe2);
+      slaveFaceOri.push_back(cpori);
+
+      const int si = slaveFaces.size() - 1;
+      masterFaceSlaves[mid].push_back(si);
+      masterFaceSlaveCorners[mid].push_back(v0);
+
+      masterFaceSizes[mid][0] = parentN1[mid];
+      masterFaceSizes[mid][1] = parentN2[mid];
+
+      if (i < parentN1[mid] - 1 && j < parentN2[mid] - 1)
+      {
+         // Find the interior vertex associated with this child face.
+
+         // For left-most faces, use right side of face, else left side.
+         const int vi0 = (i == 0) ? 1 : 0;
+
+         // For bottom-most faces, use top side of face, else bottom side.
+         const int vi1 = (j == 0) ? 1 : 0;
+
+         // Get the face vertex at position (vi0, vi1) of the quadrilateral child face.
+
+         int qid[2][2] = {{0, 3}, {1, 2}};
+
+         const int vid = qid[vi0][vi1];
+
+         // Find the index of vertex v0, which is at the bottom-left corner.
+         Array<int> vert;
+         if (childFace >= 0)
+         {
+            patchTopo->GetFaceVertices(childFace, vert);
+         }
+         else
+         {
+            // Auxiliary Face
+            GetAuxFaceVertices(-1 - childFace, vert);
+         }
+
+         MFEM_VERIFY(vert.Size() == 4, "TODO: remove this obvious check");
+         const int v0id = vert.Find(v0);
+         MFEM_VERIFY(v0id >= 0, "");
+
+         // Set the interior vertex associated with this child face.
+         const int vint = vert[(vid - v0id + 4) % 4];
+         masterFaceVerts[mid].push_back(vint);  // TODO: not used?
+      }
+   }  // Loop (q) over facePairs
+
+   const int numParentFaces = is3D ? masterFaces.size() : 0;
+   MFEM_VERIFY(numParentFaces == 0 || pfcnt <= numParentFaces, "");
+
+   // TODO: restructure the above loop (q) over nfpairs to avoid this copying of code for Reorder2D.
+   if (midPrev >= 0)
+   {
+      std::vector<int> s0(2);
+      const bool rev = Reorder2D(parentN1[midPrev], parentN2[midPrev],
+                                 orientation, s0);
+
+      masterFaceS0[midPrev] = s0;
+      masterFaceRev[midPrev] = rev;
+      Reorder2D(parentN1[midPrev], parentN2[midPrev],
+                orientation, s0);
+   }
+}
 
 void NURBSExtension::GenerateOffsets()
 {
@@ -3371,6 +4013,8 @@ void NURBSExtension::GenerateOffsets()
       masterFaces.clear();
       slaveEdges.clear();
       slaveFaces.clear();
+      slaveFaceNE1.clear();
+      slaveFaceNE2.clear();
       masterEdgeToId.clear();
       masterFaceToId.clear();
 
@@ -3379,16 +4023,16 @@ void NURBSExtension::GenerateOffsets()
       MFEM_VERIFY(!(nce.masters.Size() > 0 &&
                     patchTopo->ncmesh->GetVertexToKnot().NumRows() > 0), "");
 
-      // TODO: make a struct for edgePairs type? Also facePairs?
-      std::vector<int> edgePairs, facePairs;
+      std::vector<EdgePairInfo> edgePairs;
+      std::vector<FacePairInfo> facePairs;
       std::vector<int> parentN1, parentN2, parentFaces, parentVerts;
 
       const bool is3D = dim == 3;
 
+      std::map<std::pair<int, int>, int> v2f;
+
       if (patchTopo->ncmesh->GetVertexToKnot().NumRows() > 0)
       {
-         std::map<std::pair<int, int>, int> v2e, v2f;
-
          // Intersections of master edges may not be edges in patchTopo->ncmesh,
          // so we represent them in auxEdges, to account for their vertices and
          // DOFs.
@@ -3398,7 +4042,6 @@ void NURBSExtension::GenerateOffsets()
             for (auto edgeID : EL.conforming)
             {
                patchTopo->ncmesh->GetEdgeVertices(edgeID, vert_index);
-               MFEM_VERIFY(vert_index[0] < vert_index[1], "TODO: remove this");
                v2e[std::pair<int, int> (vert_index[0], vert_index[1])] = edgeID.index;
             }
          }
@@ -3408,6 +4051,7 @@ void NURBSExtension::GenerateOffsets()
             Array<int> vert;
             for (int i=0; i<patchTopo->GetNumFaces(); ++i)
             {
+               // TODO: should this be a loop over conforming faces as for v2e?
                patchTopo->GetFaceVertices(i, vert);
                MFEM_VERIFY(vert.Size() == 4, "TODO: remove this obvious check");
                const int vmin = vert.Min();
@@ -3419,13 +4063,12 @@ void NURBSExtension::GenerateOffsets()
          Array2D<int> const& v2k = patchTopo->ncmesh->GetVertexToKnot();
 
          if (is3D)
-            ProcessVertexToKnot3D(v2k, v2e, v2f, auxFaces,
-                                  masterEdges, masterFaces, reversedParents,
-                                  parentN1, parentN2,
-                                  edgePairs, facePairs, parentFaces, parentVerts);
+            ProcessVertexToKnot3D(v2k, v2f, parentN1, parentN2, edgePairs,
+                                  facePairs, parentFaces, parentVerts);
          else
-            ProcessVertexToKnot2D(v2k, v2e, auxEdges, reversedParents,
-                                  masterEdges, edgePairs);
+         {
+            ProcessVertexToKnot2D(v2k, reversedParents, edgePairs);
+         }
       } // if using vertex_to_knot
 
       const int numMasters = is3D ? ncf.masters.Size() : nce.masters.Size();
@@ -3455,12 +4098,17 @@ void NURBSExtension::GenerateOffsets()
       }
       MFEM_VERIFY(cnt == masterEdgeIndex.Size(), "");
 
-      Array<int> masterFaceIndex(masterFaces.size());
+      Array<int> masterFaceIndex(parentFaces.size());
+
+      // Note that masterFaces is a subset of parentFaces.
+      MFEM_VERIFY(masterFaces.size() <= parentFaces.size(), "");
+
       cnt = 0;
       for (auto mface : parentFaces)
       {
          masterFaceIndex[cnt] = mface;
-         masterFaceToId[mface] = cnt;
+         masterFaceToId[mface] =
+            cnt;  // TODO: is this actually parentFaceToId, which includes master faces?
          cnt++;
       }
 
@@ -3468,9 +4116,11 @@ void NURBSExtension::GenerateOffsets()
 
       masterEdgeSlaves.clear();
       masterEdgeVerts.clear();
+      masterEdgeKI.clear();
 
       masterEdgeSlaves.resize(masterEdgeIndex.Size());
       masterEdgeVerts.resize(masterEdgeIndex.Size());
+      masterEdgeKI.resize(masterEdgeIndex.Size());
 
       masterFaceSlaves.clear();
       masterFaceSlaveCorners.clear();
@@ -3494,13 +4144,19 @@ void NURBSExtension::GenerateOffsets()
       if (patchTopo->ncmesh->GetVertexToKnot().NumRows() > 0)
       {
          // Note that this is used in 2D and 3D.
-         const int npairs = edgePairs.size() / 3;
-         MFEM_VERIFY(npairs > 0 && 3 * npairs == (int) edgePairs.size(), "");
+         const int npairs = edgePairs.size();
+
          for (int i=0; i<npairs; ++i)
          {
-            const int v = edgePairs[3*i];
-            const int s = edgePairs[(3*i) + 1];
-            const int m = edgePairs[(3*i) + 2];
+            if (!edgePairs[i].isSet)
+            {
+               continue;
+            }
+
+            const int v = edgePairs[i].v;
+            const int s = edgePairs[i].child;
+            const int m = edgePairs[i].parent;
+            const int ki = edgePairs[i].ki;
 
             slaveEdges.push_back(s);
 
@@ -3510,131 +4166,11 @@ void NURBSExtension::GenerateOffsets()
             if (v >= 0)
             {
                masterEdgeVerts[mid].push_back(v);
+               masterEdgeKI[mid].push_back(ki);
             }
          }
 
-         const int nfpairs = facePairs.size() / 5;
-         MFEM_VERIFY((nfpairs > 0 || !is3D) &&
-                     5 * nfpairs == (int) facePairs.size(), "");
-         int midPrev = -1;
-         int pfcnt = 0;
-         int orientation = 0;
-         for (int q=0; q<nfpairs; ++q)
-         {
-            // We assume that j is the fast index in (i,j).
-            // Note that facePairs is set by ProcessVertexToKnot3D.
-            // TODO: are all these 5 integers necessary?
-            const int i = facePairs[5*q];
-            const int j = facePairs[(5*q) + 1];
-            const int v0 = facePairs[(5*q) + 2];  // Bottom-left corner vertex of child face
-            const int childFace = facePairs[(5*q) + 3];
-            const int parentFace = facePairs[(5*q) + 4];
-
-            const int mid = masterFaceToId.at(parentFace);
-
-            MFEM_VERIFY(0 <= i && i < parentN1[mid], "");
-            MFEM_VERIFY(0 <= j && j < parentN2[mid], "");
-            if (mid != midPrev)  // Next parent face
-            {
-               MFEM_VERIFY(q == 0 || cnt == parentN1[midPrev] * parentN2[midPrev], "");
-               Array<int> pv(parentVerts.data() + (4*mid), 4);
-               const int ori = GetFaceOrientation(patchTopo, parentFace, pv);
-               // Ori is the signed shift such that pv[abs1(ori)] is vertex 0 of parentFace,
-               // and the relative direction of the ordering is encoded in the sign.
-
-               MFEM_VERIFY(i == 0 && j == 0, "Starting a new parent face");
-               {
-                  // Sanity check
-                  const int pfv0 = GetInverselyShiftedQuadIndex(0, ori);
-                  // Since we are at the bottom left corner of a new parent face, v0
-                  // should match vertex pfv0 of parentFace.
-                  Array<int> fverts;
-                  patchTopo->GetFaceVertices(parentFace, fverts);
-                  MFEM_VERIFY(v0 == fverts[pfv0], "");
-               }
-
-               if (q > 0)
-               {
-                  // For the previous parentFace, use previous orientation
-                  // to reorder masterFaceSlaves, masterFaceSlaveCorners,
-                  // masterFaceSizes, masterFaceVerts.
-                  std::vector<int> s0(2);
-                  const bool rev = Reorder2D(parentN1[midPrev], parentN2[midPrev],
-                                             orientation,
-                                             masterFaceSlaves[midPrev], s0);
-                  masterFaceS0[midPrev] = s0;
-                  masterFaceRev[midPrev] = rev;
-                  Reorder2D(parentN1[midPrev], parentN2[midPrev],
-                            orientation,
-                            masterFaceSlaveCorners[midPrev], s0);
-               }
-
-               orientation = ori;
-
-               midPrev = mid;
-
-               pfcnt++;
-               cnt = 0;  // Reset counting of slave faces per parent face.
-            }  // next parent face
-
-            slaveFaces.push_back(childFace);
-
-            const int si = slaveFaces.size() - 1;
-            masterFaceSlaves[mid].push_back(si);
-            masterFaceSlaveCorners[mid].push_back(v0);
-
-            masterFaceSizes[mid][0] = parentN1[mid];
-            masterFaceSizes[mid][1] = parentN2[mid];
-
-            if (i < parentN1[mid] - 1 && j < parentN2[mid] - 1)
-            {
-               // Find the interior vertex associated with this child face.
-
-               // For left-most faces, use right side of face, else left side.
-               const int vi0 = (i == 0) ? 1 : 0;
-
-               // For bottom-most faces, use top side of face, else bottom side.
-               const int vi1 = (j == 0) ? 1 : 0;
-
-               // Get the face vertex at position (vi0, vi1) of the quadrilateral child face.
-
-               int qid[2][2] = {{0, 3}, {1, 2}};
-
-               const int vid = qid[vi0][vi1];
-
-               // Find the index of vertex v0, which is at the bottom-left corner.
-               Array<int> vert;
-               patchTopo->GetFaceVertices(childFace, vert);
-               MFEM_VERIFY(vert.Size() == 4, "TODO: remove this obvious check");
-               const int v0id = vert.Find(v0);
-               MFEM_VERIFY(v0id >= 0, "");
-
-               // Set the interior vertex associated with this child face.
-               const int vint = vert[(vid - v0id + 4) % 4];
-               masterFaceVerts[mid].push_back(vint);  // TODO: not used?
-            }
-
-            cnt++;  // Slave face count
-         }
-
-         MFEM_VERIFY(numParentFaces == 0 ||
-                     cnt == parentN1[midPrev] * parentN2[midPrev], "");
-
-         MFEM_VERIFY(numParentFaces == 0 || pfcnt == numParentFaces, "");
-
-         // TODO: restructure the above loop (q) over nfpairs to avoid this copying of code for Reorder2D.
-         if (midPrev >= 0)
-         {
-            std::vector<int> s0(2);
-            const bool rev = Reorder2D(parentN1[midPrev], parentN2[midPrev],
-                                       orientation,
-                                       masterFaceSlaves[midPrev], s0);
-            masterFaceS0[midPrev] = s0;
-            masterFaceRev[midPrev] = rev;
-            Reorder2D(parentN1[midPrev], parentN2[midPrev],
-                      orientation,
-                      masterFaceSlaveCorners[midPrev], s0);
-         }
+         ProcessFacePairs(0, 0, parentN1, parentN2, parentVerts, facePairs);
       }
 
       for (int i=0; i<nce.slaves.Size(); ++i)
@@ -3667,7 +4203,7 @@ void NURBSExtension::GenerateOffsets()
             {
                // Find the slave edge containing vertex vi
 
-               // TODO: This is quadratic complexity. Can it be improved? Does it
+               // TODO: This has quadratic complexity. Can it be improved? Does it
                // matter, since the number of slave edges should always be small?
                orderedSlaves[s] = -1;
                for (int t=0; t<numSlaves; ++t)
@@ -3689,6 +4225,7 @@ void NURBSExtension::GenerateOffsets()
                if (s < numSlaves - 1)
                {
                   masterEdgeVerts[m].push_back(vi);
+                  masterEdgeKI[m].push_back(-1);  // TODO: this is not set and not used in 2D.
                }
             }
 
@@ -3698,6 +4235,75 @@ void NURBSExtension::GenerateOffsets()
             MFEM_VERIFY(masterEdgeVerts[m].size() > 0, "");
          } // m
       }
+
+      if (is3D)
+      {
+         // Remove edges from masterEdges if they do not have any slave edges.
+         std::vector<int> falseMasterEdges;
+         for (auto me : masterEdges)
+         {
+            const int mid = masterEdgeToId.at(me);
+            if (masterEdgeSlaves[mid].size() == 0)
+            {
+               falseMasterEdges.push_back(me);
+            }
+         }
+
+         for (auto me : falseMasterEdges)
+         {
+            masterEdges.erase(me);
+         }
+
+         // Find slave and auxiliary faces not yet defined.
+         const int nfp0 = facePairs.size();
+         std::set<int> addParentFaces;
+         FindAdditionalSlaveAndAuxiliaryFaces(v2f, addParentFaces, facePairs);
+
+         cnt = parentFaces.size();
+         const int npf0 = cnt;
+
+         for (auto pf : addParentFaces)
+         {
+            if (masterFaces.count(pf) == 0)
+            {
+               masterFaces.insert(pf);
+               masterFaceIndex.Append(pf);
+
+               masterFaceToId[pf] = cnt;
+               cnt++;
+
+               {
+                  Array<int> edges, ori, verts;
+                  patchTopo->GetFaceEdges(pf, edges, ori);
+                  patchTopo->GetFaceVertices(pf, verts);
+
+                  MFEM_VERIFY(edges.Size() == 4 && verts.Size() == 4, "");
+
+                  parentN1.push_back(KnotVec(edges[0])->GetNE());
+                  parentN2.push_back(KnotVec(edges[1])->GetNE());
+
+                  masterFaceSizes.push_back({KnotVec(edges[0])->GetNE(),
+                                             KnotVec(edges[1])->GetNE()});
+
+                  masterFaceS0.push_back({-1, -1});
+                  masterFaceRev.push_back(false);
+
+                  for (int i=0; i<4; ++i)
+                  {
+                     parentVerts.push_back(verts[i]);
+                  }
+               }
+            }
+         }
+
+         MFEM_VERIFY(cnt == masterFaceIndex.Size(), "");
+
+         masterFaceSlaves.resize(masterFaceIndex.Size());
+         masterFaceSlaveCorners.resize(masterFaceIndex.Size());
+         masterFaceVerts.resize(masterFaceIndex.Size());
+
+         ProcessFacePairs(nfp0, npf0, parentN1, parentN2, parentVerts, facePairs);
+      }
    }
 
    for (auto rp : reversedParents)
@@ -3705,6 +4311,7 @@ void NURBSExtension::GenerateOffsets()
       const int mid = masterEdgeToId[rp];
       std::reverse(masterEdgeSlaves[mid].begin(), masterEdgeSlaves[mid].end());
       std::reverse(masterEdgeVerts[mid].begin(), masterEdgeVerts[mid].end());
+      std::reverse(masterEdgeKI[mid].begin(), masterEdgeKI[mid].end());
    }
 
    Array<int> edges;
@@ -3729,22 +4336,23 @@ void NURBSExtension::GenerateOffsets()
    spaceCounter = meshCounter;
 
    // Get edge offsets
+   int nint = 0;
    for (int e = 0; e < ne; e++)
    {
       e_meshOffsets[e]  = meshCounter;
       e_spaceOffsets[e] = spaceCounter;
 
-      auto search = masterEdges.find(e);
-      if (search == masterEdges.end())  // If not a master edge
+      if (masterEdges.count(e) == 0)  // If not a master edge
       {
          meshCounter  += KnotVec(e)->GetNE() - 1;
          spaceCounter += KnotVec(e)->GetNCP() - 2;
+         if (KnotVec(e)->GetNE() - 1 > 0) { nint += KnotVec(e)->GetNE() - 1; }
       }
    }
 
-   const int nauxe = auxEdges.size() / 4;
-   aux_e_meshOffsets.SetSize(nauxe+1);
-   aux_e_spaceOffsets.SetSize(nauxe+1);
+   const int nauxe = auxEdges.size();
+   aux_e_meshOffsets.SetSize(nauxe + 1);
+   aux_e_spaceOffsets.SetSize(nauxe + 1);
    for (int e = 0; e < nauxe; e++)
    {
       aux_e_meshOffsets[e] = meshCounter;
@@ -3753,20 +4361,21 @@ void NURBSExtension::GenerateOffsets()
       // Find the number of elements and CP in this auxiliary edge, which is
       // defined only on part of the master edge knotvector.
 
-      const int signedParentEdge = auxEdges[(4*e) + 2];
-      const int ki = auxEdges[(4*e) + 3];
+      const int signedParentEdge = auxEdges[e].parent;
+      const int ki0 = auxEdges[e].ki[0];
+      const int ki1raw = auxEdges[e].ki[1];
+
       const bool rev = signedParentEdge < 0;
       const int parentEdge = rev ? -1 - signedParentEdge : signedParentEdge;
 
       const int masterNE = KnotVec(parentEdge)->GetNE();
 
-      // Total number of CP on master edge, excluding vertex CP.
-      const int totalEdgeCP = KnotVec(e)->GetNCP() - 2 - masterNE + 1;
-      const int perEdgeCP = totalEdgeCP / masterNE;
+      const int ki1 = ki1raw == -1 ? masterNE : ki1raw;
 
-      MFEM_VERIFY(perEdgeCP * masterNE == totalEdgeCP, "");
+      const int perEdgeCP = GetNCPperEdge(KnotVec(e));
 
-      const int auxne = rev ? ki : masterNE - ki;
+      const int auxne = ki1 - ki0;
+      MFEM_ASSERT(auxne > 0, "");
       meshCounter += auxne - 1;
       spaceCounter += (auxne * perEdgeCP) + auxne - 1;
    }
@@ -3780,8 +4389,17 @@ void NURBSExtension::GenerateOffsets()
       f_meshOffsets[f]  = meshCounter;
       f_spaceOffsets[f] = spaceCounter;
 
-      auto search = masterFaces.find(f);
-      if (search == masterFaces.end())  // If not a master face
+      const bool trueMaster = masterFaces.count(f) > 0;
+      /*
+      if (trueMaster)
+      {
+        const int mid = masterFaceToId.at(f);
+        if (masterFaceSizes[mid][0] == 0 && masterFaceSizes[mid][1] == 0)
+          trueMaster = false;
+      }
+           */
+
+      if (!trueMaster)  // If not a master face
       {
          patchTopo->GetFaceEdges(f, edges, orient);
 
@@ -3794,15 +4412,26 @@ void NURBSExtension::GenerateOffsets()
       }
    }
 
-   const int nauxf = auxFaces.size() / 4;
-   aux_f_meshOffsets.SetSize(nauxf+1);
-   aux_f_spaceOffsets.SetSize(nauxf+1);
+   const int nauxf = auxFaces.size();
+   aux_f_meshOffsets.SetSize(nauxf + 1);
+   aux_f_spaceOffsets.SetSize(nauxf + 1);
    for (int f = 0; f < nauxf; f++)
    {
       aux_f_meshOffsets[f] = meshCounter;
       aux_f_spaceOffsets[f] = spaceCounter;
 
-      MFEM_ABORT("TODO: auxiliary face implementation!");
+      const int parentFace = auxFaces[f].parent;
+      patchTopo->GetFaceEdges(parentFace, edges, orient);
+
+      // Number of control points per edge, in first and second directions.
+      const int perEdgeCP0 = GetNCPperEdge(KnotVec(edges[0]));
+      const int perEdgeCP1 = GetNCPperEdge(KnotVec(edges[1]));
+
+      const int auxne0 = auxFaces[f].ki1[0] - auxFaces[f].ki0[0];
+      const int auxne1 = auxFaces[f].ki1[1] - auxFaces[f].ki0[1];
+      meshCounter += (auxne0 - 1) * (auxne1 - 1);
+      spaceCounter += ((auxne0 * perEdgeCP0) + auxne0 - 1) *
+                      ((auxne1 * perEdgeCP1) + auxne1 - 1);
    }
 
    aux_f_meshOffsets[nauxf] = meshCounter;
@@ -3851,7 +4480,68 @@ void NURBSExtension::GetAuxEdgeVertices(int auxEdge, Array<int> &verts) const
    verts.SetSize(2);
    for (int i=0; i<2; ++i)
    {
-      verts[i] = auxEdges[(4*auxEdge) + i];
+      verts[i] = auxEdges[auxEdge].v[i];
+   }
+}
+
+void NURBSExtension::GetAuxFaceVertices(int auxFace, Array<int> & verts) const
+{
+   verts.SetSize(4);
+   for (int i=0; i<4; ++i)
+   {
+      verts[i] = auxFaces[auxFace].v[i];
+   }
+}
+
+// Note that v2e is a map only for conforming patchTopo->ncmesh edges.
+// Auxiliary edges are not included.
+void NURBSExtension::GetAuxFaceEdges(int auxFace,
+                                     Array<int> & edges) const
+{
+   edges.SetSize(4);
+   Array<int> verts(2);
+   for (int i=0; i<4; ++i)
+   {
+      for (int j=0; j<2; ++j)
+      {
+         verts[j] = auxFaces[auxFace].v[(i + j) % 4];
+      }
+
+      verts.Sort();
+
+      const std::pair<int, int> edge_v(verts[0], verts[1]);
+      if (v2e.count(edge_v) > 0)
+      {
+         edges[i] = v2e.at(edge_v);  // patchTopo edge
+      }
+      else
+      {
+         // Auxiliary edge
+
+         // TODO: use a map like auxv2e in ProcessVertexToKnot3D for
+         // efficient look-up of auxiliary edges.
+         int auxEdge = -1;
+         const int nauxe = auxEdges.size();
+         Array<int> aeverts(2);
+         for (int ae = 0; ae < nauxe; ++ae)
+         {
+            for (int j=0; j<2; ++j)
+            {
+               aeverts[j] = auxEdges[ae].v[j];
+            }
+
+            aeverts.Sort();
+
+            if (aeverts == verts)
+            {
+               MFEM_ASSERT(auxEdge == -1, "");
+               auxEdge = ae;
+            }
+         }
+
+         MFEM_ASSERT(auxEdge >= 0, "");
+         edges[i] = -1 - auxEdge;
+      }
    }
 }
 
@@ -5756,12 +6446,90 @@ void NURBSPatchMap::GetBdrPatchKnotVectors(int p, const KnotVector *kv[],
    }
 }
 
+void NURBSPatchMap::GetMasterEdgeDofs(int edge,
+                                      const Array<int>& v_offsets,
+                                      const Array<int>& e_offsets,
+                                      const Array<int>& aux_e_offsets,
+                                      Array<int> & dofs)
+{
+   {
+      const bool isMaster = Ext->masterEdges.count(edge) > 0;
+      MFEM_VERIFY(isMaster, "");
+   }
+
+   const int mid = Ext->masterEdgeToId.at(edge);
+   MFEM_ASSERT(mid >= 0, "Master edge index not found");
+
+   MFEM_VERIFY(Ext->masterEdgeVerts[mid].size() ==
+               Ext->masterEdgeSlaves[mid].size() - 1, "");
+
+   for (unsigned int s=0; s<Ext->masterEdgeSlaves[mid].size(); ++s)
+   {
+      const int slaveId = Ext->slaveEdges[Ext->masterEdgeSlaves[mid][s]];
+
+      Array<int> svert;
+      if (slaveId >= 0)
+      {
+         Ext->patchTopo->GetEdgeVertices(slaveId, svert);
+      }
+      else
+      {
+         // Auxiliary edge
+         Ext->GetAuxEdgeVertices(-1 - slaveId, svert);
+      }
+
+      const int mev = Ext->masterEdgeVerts[mid][std::max((int) s - 1,0)];
+      MFEM_VERIFY(mev == svert[0] || mev == svert[1], "");
+      bool reverse = false;
+      if (s == 0)
+      {
+         // In this case, mev is the second vertex of the edge.
+         if (svert[0] == mev) { reverse = true; }
+      }
+      else
+      {
+         // In this case, mev is the first vertex of the edge.
+         if (svert[1] == mev) { reverse = true; }
+      }
+
+      const int eos = slaveId >= 0 ? e_offsets[slaveId] : aux_e_offsets[-1 - slaveId];
+
+      // TODO: in 3D, the next offset would be f_offsets[0], not
+      // p_offsets[0]. This needs to be generalized in an elegant way.
+      // How about appending the next offset to the end of e_offsets?
+      // Would increasing the size of e_offsets by 1 break something?
+
+      const int eos1 = slaveId >= 0 ? (slaveId + 1 < e_offsets.Size() ?
+                                       e_offsets[slaveId + 1] : aux_e_offsets[0]) :
+                       aux_e_offsets[-slaveId];
+
+      const int nvs = eos1 - eos;
+
+      MFEM_VERIFY(nvs >= 0, "");
+
+      // Add all slave edge vertices/DOFs
+
+      Array<int> sdofs(nvs);
+      for (int j=0; j<nvs; ++j)
+      {
+         sdofs[j] = reverse ? eos1 - 1 - j : eos + j;
+      }
+
+      dofs.Append(sdofs);
+
+      if (s < Ext->masterEdgeSlaves[mid].size() - 1)
+      {
+         // Add interior vertex DOF
+         dofs.Append(v_offsets[Ext->masterEdgeVerts[mid][s]]);
+      }
+   }
+}
+
 // This sets masterDofs but does not change e_meshOffsets.
-void NURBSPatchMap::SetMasterEdges(bool dof)
+void NURBSPatchMap::SetMasterEdges(bool dof, const KnotVector *kv[])
 {
    const Array<int>& v_offsets = dof ? Ext->v_spaceOffsets : Ext->v_meshOffsets;
    const Array<int>& e_offsets = dof ? Ext->e_spaceOffsets : Ext->e_meshOffsets;
-   //const Array<int>& p_offsets = dof ? Ext->p_spaceOffsets : Ext->p_meshOffsets;
 
    const Array<int>& aux_e_offsets = dof ? Ext->aux_e_spaceOffsets :
                                      Ext->aux_e_meshOffsets;
@@ -5770,79 +6538,32 @@ void NURBSPatchMap::SetMasterEdges(bool dof)
    edgeMasterOffset.SetSize(edges.Size());
    masterDofs.SetSize(0);
 
+   const int hexEdgeDir[12] = {0, 1, 0, 1, 0, 1, 0, 1, 2, 2, 2, 2};
+   const int quadEdgeDir[4] = {0, 1, 0, 1};
+   const int dim = Ext->Dimension();
+
    int mos = 0;
    for (int i=0; i<edges.Size(); ++i)
    {
-      auto search = Ext->masterEdges.find(edges[i]);
-      edgeMaster[i] = (search != Ext->masterEdges.end());
+      edgeMaster[i] = Ext->masterEdges.count(edges[i]) > 0;
       edgeMasterOffset[i] = mos;
 
       if (edgeMaster[i])
       {
          const int mid = Ext->masterEdgeToId.at(edges[i]);
          MFEM_ASSERT(mid >= 0, "Master edge index not found");
+         MFEM_ASSERT(Ext->masterEdgeSlaves[mid].size() > 0,
+                     "False master edges should have been removed");
 
-         for (unsigned int s=0; s<Ext->masterEdgeSlaves[mid].size(); ++s)
+         Array<int> mdof;
+         GetMasterEdgeDofs(edges[i], v_offsets, e_offsets, aux_e_offsets, mdof);
+
+         for (auto dof : mdof)
          {
-            const int slaveId = Ext->slaveEdges[Ext->masterEdgeSlaves[mid][s]];
-
-            Array<int> svert;
-            if (slaveId >= 0)
-            {
-               Ext->patchTopo->GetEdgeVertices(slaveId, svert);
-            }
-            else
-            {
-               // Auxiliary edge
-               Ext->GetAuxEdgeVertices(-1 - slaveId, svert);
-            }
-
-            const int mev = Ext->masterEdgeVerts[mid][std::max((int) s - 1,0)];
-            MFEM_VERIFY(mev == svert[0] || mev == svert[1], "");
-            bool reverse = false;
-            if (s == 0)
-            {
-               // In this case, mev is the second vertex of the edge.
-               if (svert[0] == mev) { reverse = true; }
-            }
-            else
-            {
-               // In this case, mev is the first vertex of the edge.
-               if (svert[1] == mev) { reverse = true; }
-            }
-
-            const int eos = slaveId >= 0 ? e_offsets[slaveId] : aux_e_offsets[-1 - slaveId];
-
-            // TODO: in 3D, the next offset would be f_offsets[0], not
-            // p_offsets[0]. This needs to be generalized in an elegant way.
-            // How about appending the next offset to the end of e_offsets?
-            // Would increasing the size of e_offsets by 1 break something?
-
-            const int eos1 = slaveId >= 0 ? (slaveId + 1 < e_offsets.Size() ?
-                                             e_offsets[slaveId + 1] : aux_e_offsets[0]) :
-                             aux_e_offsets[-slaveId];
-
-            const int nvs = eos1 - eos;
-
-            // Add all slave edge vertices/DOFs
-
-            Array<int> sdofs(nvs);
-            for (int j=0; j<nvs; ++j)
-            {
-               sdofs[j] = reverse ? eos1 - 1 - j : eos + j;
-            }
-
-            masterDofs.Append(sdofs);
-
-            mos += nvs;
-
-            if (s < Ext->masterEdgeSlaves[mid].size() - 1)
-            {
-               // Add interior vertex DOF
-               masterDofs.Append(v_offsets[Ext->masterEdgeVerts[mid][s]]);
-               mos += 1;
-            }
+            masterDofs.Append(dof);
          }
+
+         mos += mdof.Size();
       }
    }
 }
@@ -5920,7 +6641,7 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
    MFEM_VERIFY(v01 >= 0 && v01 == vert.Sum() - v0 - v10 - v11, "");
 
    // Translate indices [v0, v10, v11, v01] to pairs of indices in {0,1}.
-   int ipair[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+   const int ipair[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
    int f00[2];
 
    int allv[4] = {v0, v10, v11, v01};
@@ -5951,17 +6672,81 @@ void NURBSPatchMap::GetFaceOrdering(int face, int n1, int n2, int v0,
       for (int j=0; j<n2; ++j)
       {
          // Entity perm[i] of the face should be entity i in the master face ordering.
-
          // The master face ordering varies faster in the direction from v0 to v10,
          // and slower in the direction from v10 to v11, or equivalently, from v0 to v01.
-
-         const int fi = i0 == 0 ? i : n1 - 1 - i;
-         const int fj = j0 == 0 ? j : n2 - 1 - j;
-
-         const int p = tr ? fj + (fi * n2) : fi + (fj * n1);  // Index in face ordering
-         const int m = i + (j * n1);  // Index in the master face ordering
-         perm[m] = p;
+         if (tr)
+         {
+            const int fi = i0 == 0 ? j : n2 - 1 - j;
+            const int fj = j0 == 0 ? i : n1 - 1 - i;
+            const int p = fi + (fj * n2);  // Index in face ordering
+            const int m = i + (j * n1);  // Index in the master face ordering
+            perm[m] = p;
+         }
+         else
+         {
+            const int fi = i0 == 0 ? i : n1 - 1 - i;
+            const int fj = j0 == 0 ? j : n2 - 1 - j;
+            const int p = fi + (fj * n1);  // Index in face ordering
+            const int m = i + (j * n1);  // Index in the master face ordering
+            perm[m] = p;
+         }
       }
+}
+
+bool ConsistentlySetEntry(int v, int & e)
+{
+   const bool consistent = e == -1 || e == v;
+   e = v;
+   return consistent;
+}
+
+void ReorderArray2D(bool rev, int i0, int j0, const Array2D<int> & a,
+                    Array2D<int> & b)
+{
+   const int ma = a.NumRows();
+   const int na = a.NumCols();
+
+   const int mb = rev ? na : ma;
+   const int nb = rev ? ma : na;
+
+   b.SetSize(mb, nb);
+
+   if (rev)
+   {
+      MFEM_ABORT("TODO");
+   }
+   else
+   {
+      const int s0 = i0 == 0 ? 1 : -1;
+      const int s1 = j0 == 0 ? 1 : -1;
+      for (int i=0; i<mb; ++i)
+      {
+         const int ia = (i0 * (ma - 1)) + (s0 * i);
+         for (int j=0; j<nb; ++j)
+         {
+            const int ja = (j0 * (na - 1)) + (s1 * j);
+            b(i, j) = a(ia, ja);
+         }
+      }
+   }
+}
+
+void GetVertexOrdering(int ori, Array<int> & perm)
+{
+   perm.SetSize(4);
+   const int oriAbs = ori < 0 ? -1 - ori : ori;
+
+   for (int i=0; i<4; ++i)
+   {
+      if (ori < 0)
+      {
+         perm[i] = (oriAbs - i + 4) % 4;
+      }
+      else
+      {
+         perm[i] = (ori + i) % 4;
+      }
+   }
 }
 
 // This sets masterDofs but does not change f_meshOffsets.
@@ -5985,511 +6770,606 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
    int mos = masterDofs.Size();
    for (int i=0; i<faces.Size(); ++i)
    {
-      {
-         auto search = Ext->masterFaces.find(faces[i]);
-         faceMaster[i] = (search != Ext->masterFaces.end());
-      }
+      faceMaster[i] = Ext->masterFaces.count(faces[i]) > 0;
       faceMasterOffset[i] = mos;
 
-      if (faceMaster[i])
+      if (!faceMaster[i]) { continue; }
+
+      const int mid = Ext->masterFaceToId.at(faces[i]);
+      MFEM_ASSERT(mid >= 0, "Master face index not found");
+
+      const bool rev = Ext->masterFaceRev[mid];
+      const int s0i = Ext->masterFaceS0[mid][0];
+      const int s0j = Ext->masterFaceS0[mid][1];
+
+      const int n1orig = Ext->masterFaceSizes[mid][0];
+      const int n2orig = Ext->masterFaceSizes[mid][1];
+
+      // TODO: use a better way to mark master faces without slave faces, instead
+      // of just failing to set Ext->masterFaceSizes[mid].
+      // Skip master faces with no slave faces (only having slave edges).
+      if (n1orig == 0 && n2orig == 0)
       {
-         const int mid = Ext->masterFaceToId.at(faces[i]);
-         MFEM_ASSERT(mid >= 0, "Master face index not found");
+         faceMaster[i] = false;
+         continue;
+      }
 
-         const bool rev = Ext->masterFaceRev[mid];
-         const int s0i = Ext->masterFaceS0[mid][0];
-         const int s0j = Ext->masterFaceS0[mid][1];
+      const int n1 = rev ? n2orig : n1orig;
+      const int n2 = rev ? n1orig : n2orig;
 
-         const int n1orig = Ext->masterFaceSizes[mid][0];
-         const int n2orig = Ext->masterFaceSizes[mid][1];
+      MFEM_VERIFY(n1 > 1 || n2 > 1, "");
+      MFEM_VERIFY(n1 * n2 >= (int) Ext->masterFaceSlaves[mid].size(),
+                  "Inconsistent number of faces");
 
-         const int n1 = rev ? n2orig : n1orig;
-         const int n2 = rev ? n1orig : n2orig;
+      MFEM_VERIFY((n1 - 1) * (n2 - 1) >= (int) Ext->masterFaceVerts[mid].size(),
+                  "Inconsistent number of vertices");
 
-         MFEM_VERIFY(n1 > 1 || n2 > 1, "");
-         MFEM_VERIFY(n1 * n2 == (int) Ext->masterFaceSlaves[mid].size(),
-                     "Inconsistent number of faces");
+      // TODO: define masterFaceSlaveCorners at master face corners omitted from V2K?
 
-         MFEM_VERIFY((n1 - 1) * (n2 - 1) == (int) Ext->masterFaceVerts[mid].size(),
-                     "Inconsistent number of vertices");
-
-         // Set an Array2D of all fine vertices on this master face.
-         Array2D<int> fv(n1 + 1, n2 + 1);
-         fv = -1;
-
-         // This loop sets the fine vertices in fv, except the right and top
-         // edges of the Array2D.
-         for (int s2=0; s2<n2; ++s2)
-            for (int s1=0; s1<n1; ++s1)
-            {
-               const int s = rev ? s1 + (s2 * n1) : s2 + (s1 * n2);
-               const int v0 = Ext->masterFaceSlaveCorners[mid][s];
-               fv(s1,s2) = v0;  // Bottom-left corner
-            }
-
-         if (n1 == 1)
+      int fcnt = 0;
+      for (auto slaveId : Ext->masterFaceSlaves[mid])
+      {
+         if (slaveId < 0)
          {
-            MFEM_VERIFY(n2 > 1, "We assume n1 > 1 or n2 > 1");
-
-            // Next, set the top edge of fv, which has only 2 vertices.
-            const int s1 = 0;
-            {
-               const int s2 = n2 - 1;
-               const int s = rev ? s1 + (s2 * n1) : s2 + (s1 * n2);
-               const int s_nghb = rev ? s1 + ((s2 - 1) * n1) : s2 - 1 + (s1 * n2);
-               const int slaveId = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
-               const int nghb = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s_nghb]];
-
-               // fv(s1, s2) is known. It is the bottom-left corner of face `slave`.
-
-               // Find the 2 vertices shared between faces `slave` and `nghb`.
-               Array<int> vshared(2);
-               vshared[0] = fv(s1, s2);
-               vshared[1] = -1;
-
-               Array<int> svert, nvert;
-               Ext->patchTopo->GetFaceVertices(slaveId, svert);
-               Ext->patchTopo->GetFaceVertices(nghb, nvert);
-               MFEM_VERIFY(svert.Size() == 4 && nvert.Size() == 4,
-                           "Face is not a quad");
-
-               for (int j=0; j<4; ++j)
-                  for (int k=0; k<4; ++k)
-                  {
-                     if (svert[j] == nvert[k] && svert[j] != vshared[0])
-                     {
-                        MFEM_VERIFY(vshared[1] == -1, "");
-                        vshared[1] = svert[j];
-                     }
-                  }
-
-               MFEM_VERIFY(vshared[1] >= 0, "");
-
-               for (int j=0; j<2; ++j)
-               {
-                  // Find the vertex of svert connected to vshared[j]
-                  int idx = -1;
-                  for (int k=0; k<4; ++k)
-                  {
-                     if (svert[k] == vshared[j])
-                     {
-                        idx = k;
-                     }
-                  }
-
-                  MFEM_VERIFY(idx >= 0, "");
-                  fv(j, n2) = -1;
-                  for (int k=0; k<2; ++k)
-                  {
-                     if (svert[(idx + 1 + (k * 2)) % 4] != vshared[(j+1) % 2])
-                     {
-                        fv(j, n2) = svert[(idx + 1 + (k * 2)) % 4];
-                     }
-                  }
-
-                  MFEM_VERIFY(fv(j, n2) >= 0, "");
-               }
-            }
-
-            // Next, set the right edge of fv, except the top right corner of
-            // the Array2D (already set).
-            for (int s2=n2-1; s2>=0; --s2)
-            {
-               const int s = rev ? s1 + (s2 * n1) : s2 + (s1 * n2);
-               const int slaveId = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
-
-               std::set<int> vertsSet;
-               vertsSet.insert(fv(1, s2 + 1));  // already set
-               vertsSet.insert(fv(0, s2 + 1));  // already set
-               vertsSet.insert(fv(0, s2));  // already set
-
-               // Find the unique vertex of face `slave` not already set.
-               Array<int> sfvert;
-               Ext->patchTopo->GetFaceVertices(slaveId, sfvert);
-               MFEM_VERIFY(sfvert.Size() == 4, "TODO: remove this obvious check");
-
-               int v = -1;
-               for (auto sv : sfvert)
-               {
-                  auto search = vertsSet.find(sv);
-                  if (search == vertsSet.end())
-                  {
-                     MFEM_VERIFY(v == -1, "");
-                     v = sv;
-                  }
-               }
-
-               MFEM_VERIFY(v >= 0, "");
-
-               fv(1, s2) = v;
-            }
+            // Auxiliary face
+            MFEM_ABORT("TODO: aux face implementation is not done");
          }
-         else  // n1 > 1
+         else
          {
-            // Next, set the right edge of fv, including the top right corner
-            // of the Array2D.
-            for (int s2=0; s2<n2; ++s2)
+            fcnt += Ext->slaveFaceNE1[slaveId] * Ext->slaveFaceNE2[slaveId];
+         }
+      }
+
+      MFEM_VERIFY(fcnt == n1 * n2, "");
+
+      MFEM_VERIFY(Ext->masterFaceSlaveCorners[mid].size() <= n1*n2, "");
+
+      // Set an array of vertices or DOFs for the interior of this master face, `faces[i]`.
+      // Set master face entity dimensions.
+      int mnf1, mnf2;
+      Array<int> medges;
+      {
+         Array<int> mori;
+         Ext->patchTopo->GetFaceEdges(faces[i], medges, mori);
+      }
+
+      MFEM_ASSERT(medges.Size() == 4, "");
+
+      if (dof)
+      {
+         mnf1 = Ext->KnotVec(medges[0])->GetNCP() - 2;
+         mnf2 = Ext->KnotVec(medges[1])->GetNCP() - 2;
+      }
+      else
+      {
+         mnf1 = Ext->KnotVec(medges[0])->GetNE() - 1;
+         mnf2 = Ext->KnotVec(medges[1])->GetNE() - 1;
+      }
+
+      // Set dimensions for a single mesh edge.
+      int sne1 = (mnf1 - n1 + 1) / n1;
+      int sne2 = (mnf2 - n2 + 1) / n2;
+
+      MFEM_ASSERT(sne1 * n1 == mnf1 - n1 + 1, "");
+      MFEM_ASSERT(sne2 * n2 == mnf2 - n2 + 1, "");
+
+      Array2D<int> mdof(mnf1, mnf2);
+      mdof = -1;
+
+      bool consistent = true;
+
+      for (int s=0; s<Ext->masterFaceSlaves[mid].size(); ++s)
+      {
+         const int sId = Ext->masterFaceSlaves[mid][s];
+         const int slaveId = Ext->slaveFaces[sId];
+         const int v0 = Ext->masterFaceSlaveCorners[mid][s];
+         const int ori = Ext->slaveFaceOri[sId];
+         // ori gives the orientation and index of cv matching the first
+         // vertex of childFace, where cv is the array of slave face
+         // vertices in CCW w.r.t. to the master face.
+
+         const int sI = Ext->slaveFaceI[sId];
+         const int sJ = Ext->slaveFaceJ[sId];
+         const int ne1 = Ext->slaveFaceNE1[sId];
+         const int ne2 = Ext->slaveFaceNE2[sId];
+
+         const int fos = slaveId >= 0 ? f_offsets[slaveId] : aux_f_offsets[-1 - slaveId];
+         const int fos1 = slaveId >= 0 ? (slaveId + 1 < f_offsets.Size() ?
+                                          f_offsets[slaveId + 1] : aux_f_offsets[0]) :
+                          aux_f_offsets[-slaveId];
+
+         const int nvs = fos1 - fos;
+
+         if (slaveId < 0)
+         {
+            // Auxiliary face
+            const int auxFace = -1 - slaveId;
+
+            // If ori >= 0, then vertex ori of the aux face is closest to vertex 0 of
+            // the parent face. If ori < 0, then the orientations of the aux face and parent face
+            // are reversed.
+            const int oriAbs = ori >= 0 ? ori : -1 - ori;
+            const bool revDim = ori % 2 == 1;  // Correct for ori >= 0 and ori < 0.
+
+            // TODO: eliminate auxFaceOri? Isn't it always equal to Ext->slaveFaceOri[sId]?
+            // Actually, I think auxFaces has ori defined as 0 for its original parent face,
+            // and ori here is Ext->slaveFaceOri, which comes from facePairs, which can be
+            // w.r.t. a different parent face. This means auxFaceOri is always 0 and is not
+            // useful, so that only ori should be used.
+            //MFEM_VERIFY(auxFaceOri == ori, "");
+
+            // TODO: refactor the duplicated code in this case and the other case, slaveId >= 0.
+
+            // Set slave face entity dimensions.
+            int nf1, nf2;
+            if (dof)
             {
-               const int s1 = n1 - 1;
-               const int s = rev ? s1 + (s2 * n1) : s2 + (s1 * n2);
-               const int s_nghb = rev ? s1 - 1 + (s2 * n1) : s2 + ((s1 - 1) * n2);
-               const int slaveId = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
-               const int nghb = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s_nghb]];
-
-               // fv(s1, s2) is known. It is the bottom-left corner of face `slave`.
-
-               // TODO: refactor. This code is similar to some above in the n1 == 1 case.
-               // Find the 2 vertices shared between faces `slave` and `nghb`.
-               Array<int> vshared(2);
-               vshared[0] = fv(s1, s2);
-               vshared[1] = -1;
-
-               Array<int> svert, nvert;
-               Ext->patchTopo->GetFaceVertices(slaveId, svert);
-               Ext->patchTopo->GetFaceVertices(nghb, nvert);
-               MFEM_VERIFY(svert.Size() == 4 && nvert.Size() == 4,
-                           "Face is not a quad");
-
-               for (int j=0; j<4; ++j)
-                  for (int k=0; k<4; ++k)
-                  {
-                     if (svert[j] == nvert[k] && svert[j] != vshared[0])
-                     {
-                        MFEM_VERIFY(vshared[1] == -1, "");
-                        vshared[1] = svert[j];
-                     }
-                  }
-
-               MFEM_VERIFY(vshared[1] >= 0, "");
-
-               for (int j=0; j<2; ++j)
-               {
-                  // Find the vertex of svert connected to vshared[j]
-                  int idx = -1;
-                  for (int k=0; k<4; ++k)
-                  {
-                     if (svert[k] == vshared[j])
-                     {
-                        idx = k;
-                     }
-                  }
-
-                  MFEM_VERIFY(idx >= 0, "");
-                  const int oldfv = (s2 > 0 && j == 0) ? fv(n1, s2) : -1;
-                  fv(n1, s2 + j) = -1;
-                  for (int k=0; k<2; ++k)
-                  {
-                     if (svert[(idx + 1 + (k * 2)) % 4] != vshared[(j+1) % 2])
-                     {
-                        fv(n1, s2 + j) = svert[(idx + 1 + (k * 2)) % 4];
-                     }
-                  }
-
-                  MFEM_VERIFY(fv(n1, s2 + j) >= 0, "");
-                  if (s2 > 0 && j == 0)
-                  {
-                     MFEM_VERIFY(fv(n1, s2 + j) == oldfv, "Sanity check");
-                  }
-               }
-            }  // loop s2
-
-            // Next, set the top edge of fv.
-            for (int s1 = n1 - 1; s1 >= 0; --s1)
-            {
-               // TODO: refactor. This is similar to code in a case above.
-               const int s2 = n2 - 1;
-               const int s = rev ? s1 + (s2 * n1) : s2 + (s1 * n2);
-               const int slaveId = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
-
-               std::set<int> vertsSet;
-               vertsSet.insert(fv(s1 + 1, s2));  // already set
-               vertsSet.insert(fv(s1 + 1, s2 + 1));  // already set
-               vertsSet.insert(fv(s1, s2));  // already set
-
-               // Find the unique vertex of face `slave` not already set.
-               Array<int> svert;
-               Ext->patchTopo->GetFaceVertices(slaveId, svert);
-               MFEM_VERIFY(svert.Size() == 4, "TODO: remove this obvious check");
-
-               int v = -1;
-               for (auto sv : svert)
-               {
-                  auto search = vertsSet.find(sv);
-                  if (search == vertsSet.end())
-                  {
-                     MFEM_VERIFY(v == -1, "");
-                     v = sv;
-                  }
-               }
-
-               MFEM_VERIFY(v >= 0, "");
-
-               fv(s1, s2 + 1) = v;
+               nf1 = (sne1 * ne1) + ne1 - 1;
+               nf2 = (sne2 * ne2) + ne2 - 1;
             }
-         }  // case n1 > 1
-
-         // Now fv is fully set.
-
-         int nf1 = -1, nf2 = -1;
-
-         // TODO: struct for these things?
-         std::vector<int> strip;  // TODO: Array2D?
-         std::vector<int> stripTopV(n1);
-         std::vector<int> stripTopE(n1);
-
-         for (int s2=0; s2<n2; ++s2)
-         {
-            int sos1 = 0;  // strip offset, first dimension
-
-            const int srj = rev ? s0i : s0j;
-            const int s2r = (srj == 1) ? n2 - 1 - s2 : s2;
-            const int s2rv = (srj == 1) ? n2 - s2 : s2;
-            const int sgn2 = (srj == 1) ? -1 : 1;
-
-            for (int s1=0; s1<n1; ++s1)
+            else
             {
-               const int sri = rev ? s0j : s0i;
-               const int s1r = (sri == 1) ? n1 - 1 - s1 : s1;
-               const int s1rv = (sri == 1) ? n1 - s1 : s1;
-               const int sgn1 = (sri == 1) ? -1 : 1;
+               nf1 = Ext->auxFaces[auxFace].ki1[0] - Ext->auxFaces[auxFace].ki0[0] - 1;
+               nf2 = Ext->auxFaces[auxFace].ki1[1] - Ext->auxFaces[auxFace].ki0[1] - 1;
+            }
 
-               const int s = rev ? s1r + (s2r * n1) : s2r + (s1r * n2);
-               const int slaveId = Ext->slaveFaces[Ext->masterFaceSlaves[mid][s]];
+            MFEM_ASSERT(sne1 * ne1 == nf1 - ne1 + 1, "");
+            MFEM_ASSERT(sne2 * ne2 == nf2 - ne2 + 1, "");
 
-               // Determine which slave face edges are in the first and second
-               // dimensions of the master face.
-               int e1 = -1, e2 = -1;
-               const int v0 = fv(s1rv,s2rv);
+            MFEM_VERIFY(nvs == nf1 * nf2, "");
 
-               Array<int> sedges;
+            /*
+               NOTE: When an aux face is first defined, it is constructed
+            with orientation 0 w.r.t. its parent face. However, it can be
+            part of another parent face. In this case, the original aux
+            face index is used, but it is paired with a different parent
+            face, with possibly different orientation w.r.t. that parent
+            face. In NURBSPatchMap::SetMasterFaces, the DOFs are set on
+            the parent face in its knot indices, with an aux face of
+            possibly nonzero orientation. When the orientation is nonzero,
+            the aux face DOFs must be reordered for the parent face, based
+            on orientation.
+             */
+
+            // These offsets are for the interior entities of the face. To get the lower edge, subtract 1.
+            const int os1 = (sI * sne1) + sI;
+            const int os2 = (sJ * sne2) + sJ;
+
+            // TODO: is there a function to permute 2D indices based on orientation? GetShiftedGridPoints2D
+            // TODO: the problem with using GetShiftedGridPoints2D is that we have (nf1, nf2) for the shifted (new)
+            // face, not for the original (old) face.
+            int onf1, onf2;
+            GetInverseShiftedDimensions2D(ori, nf1, nf2, onf1, onf2);
+            for (int k=0; k<onf2; ++k)
+               for (int j=0; j<onf1; ++j)
                {
-                  Array<int> sori, evert, fvert;
-                  Ext->patchTopo->GetFaceEdges(slaveId, sedges, sori);
-                  MFEM_VERIFY(sedges.Size() == 4, "TODO: remove this obvious check");
+                  int sm, sn, sj, sk;
+                  GetShiftedGridPoints2D(onf1, onf2, j, k, ori, sm, sn, sj, sk);
+                  MFEM_VERIFY(sm == nf1 && sn == nf2, "TODO: remove this?");
 
-                  Ext->patchTopo->GetFaceVertices(slaveId, fvert);
+                  const int q = j + (k * onf1);
+                  consistent = ConsistentlySetEntry(fos + q, mdof(os1 + sj, os2 + sk));
+               }
 
-                  // In the n1 > 1 case, set v1 to the bottom-left corner of the
-                  // next slave face in s1, which is the bottom-right corner of
-                  // this slave face. Otherwise, set v1 to the bottom-left corner
-                  // of the next slave face in s2, which is the top-left of this
-                  // slave face. It is assumed that n1 > 1 or n2 > 1.
-                  // However, two special cases where this logic fails are
-                  // s1 == n1 - 1 && n1 > 1
-                  // and
-                  // s2 == n2 - 1 && n1 == 1
-                  // In these cases, we take the previous right or top vertices.
+            // Set entries on edges of this face, if they are interior to the master face.
+            std::vector<bool> edgeBdry(4);
 
+            // Horizontal edges
+            edgeBdry[0] = sJ == 0;
+            edgeBdry[2] = sJ + ne2 == n2;
+
+            // Vertical edges
+            edgeBdry[1] = sI + ne1 == n1;
+            edgeBdry[3] = sI == 0;
+
+            Array<int> faceEdges;
+            Ext->GetAuxFaceEdges(auxFace, faceEdges);
+
+            Array<int> orderedVertices(4);
+            Array<int> perm(4);
+            GetVertexOrdering(ori, perm);
+
+            std::set<int> vbdry;
+
+            int vstart = v0;
+            for (int eidx=0; eidx<4; ++eidx)
+            {
+               orderedVertices[eidx] = vstart;
+               // TODO: eliminate orderedVertices if it is redundant.
+               MFEM_VERIFY(orderedVertices[eidx] == Ext->auxFaces[auxFace].v[perm[eidx]], "");
+
+               const int eperm = ori < 0 ? (perm[eidx] - 1 + 4) % 4 : perm[eidx];
+               const int edge = faceEdges[eperm];
+
+               Array<int> evert;
+
+               if (edge >= 0)
+               {
+                  Ext->patchTopo->GetEdgeVertices(edge, evert);
+               }
+               else
+               {
+                  const int auxEdge = -1 - edge;
+                  Ext->GetAuxEdgeVertices(auxEdge, evert);
+               }
+
+               MFEM_VERIFY(evert[0] == vstart || evert[1] == vstart, "");
+
+               const bool reverse = (vstart == evert[1]);
+               const int vend = evert.Sum() - vstart;
+               vstart = vend;
+
+               // Skip edges on the boundary of the master face.
+               if (edgeBdry[eidx])
+               {
+                  for (auto v : evert)
                   {
-                     const int v1 = fv(s1rv + sgn1, s2rv);  // Bottom right vertex
-                     const int v1top = fv(s1rv + sgn1, s2rv + sgn2);  // Top right vertex
-
-                     // Find the edge of this slave face with vertices [v0, v1].
-
-                     for (int j=0; j<4; ++j)
-                     {
-                        Ext->patchTopo->GetEdgeVertices(sedges[j], evert);
-                        if ((evert[0] == v0 && evert[1] == v1) ||
-                            (evert[0] == v1 && evert[1] == v0))
-                        {
-                           e1 = j;
-                        }
-
-                        if ((evert[0] == v1 && evert[1] == v1top) ||
-                            (evert[0] == v1top && evert[1] == v1))
-                        {
-                           e2 = j;
-                        }
-                     }
+                     vbdry.insert(v);
                   }
 
-                  MFEM_VERIFY(e1 >= 0 && e2 >= 0, "");
+                  continue;
+               }
+               const bool horizontal = (eidx % 2 == 0);
+               const int nf_e = horizontal ? nf1 : nf2;
 
-                  if (s2 < n2 - 1)
+               // Edge entities
+               const int eos = edge >= 0 ? e_offsets[edge] : aux_e_offsets[-1 - edge];
+               const int eos1 = edge >= 0 ? ((edge + 1 < e_offsets.Size()) ?
+                                             e_offsets[edge + 1] : aux_e_offsets[0]) : aux_e_offsets[-edge];
+
+               const bool edgeIsMaster = Ext->masterEdges.count(edge) > 0;
+
+               Array<int> edofs;
+               if (edgeIsMaster)
+               {
+                  // This edge is a slave edge and a master edge.
+                  // Instead of getting DOFs from e_offsets, take them
+                  // from the slave edges of this edge.
+                  GetMasterEdgeDofs(edge, v_offsets, e_offsets,
+                                    aux_e_offsets, edofs);
+               }
+               else
+               {
+                  MFEM_VERIFY(eos1 - eos == nf_e, "");
+
+                  edofs.SetSize(nf_e);
+                  for (int j=0; j<nf_e; ++j)
                   {
-                     // Top edge of this slave face, with respect to the strip.
-                     stripTopE[s1] = sedges[(e1 + 2) % 4];
-                     stripTopV[s1] = fv(s1rv, s2rv + sgn2);
-
-                     Ext->patchTopo->GetEdgeVertices(stripTopE[s1], evert);
-                     MFEM_VERIFY(evert[0] == stripTopV[s1] ||
-                                 evert[1] == stripTopV[s1], "");
+                     edofs[j] = eos + j;
                   }
                }
 
-               if (s1 == 0)
+               MFEM_VERIFY(edofs.Size() == nf_e, "");
+
+               for (int j=0; j<nf_e; ++j)
                {
-                  // Initialize slave face entity dimensions.
-                  int nf1_, nf2_;
-                  if (dof)
+                  int m1, m2;
+                  if (eidx == 0)
                   {
-                     nf1_ = Ext->KnotVec(sedges[e1])->GetNCP() - 2;
-                     nf2_ = Ext->KnotVec(sedges[e2])->GetNCP() - 2;
+                     m1 = os1 + j;
+                     m2 = os2 - 1;
+                  }
+                  else if (eidx == 1)
+                  {
+                     m1 = os1 + nf1;
+                     m2 = os2 + j;
+                  }
+                  else if (eidx == 2)
+                  {
+                     m1 = os1 + nf1 - 1 - j;
+                     m2 = os2 + nf2;
                   }
                   else
                   {
-                     nf1_ = Ext->KnotVec(sedges[e1])->GetNE() - 1;
-                     nf2_ = Ext->KnotVec(sedges[e2])->GetNE() - 1;
+                     m1 = os1 - 1;
+                     m2 = os2 + nf2 - 1 - j;
                   }
 
-                  if (s2 == 0)
-                  {
-                     nf1 = nf1_;
-                     nf2 = nf2_;
+                  consistent = ConsistentlySetEntry(reverse ? edofs[nf_e - 1 - j] : edofs[j],
+                                                    mdof(m1, m2));
+               }
+            }  // eidx
 
-                     const int nstrip = nf1 * nf2 * n1  // face interiors
-                                        + nf2 * (n1 - 1);  // edge interiors
-                     strip.resize(nstrip);
+            // Set entries at vertices of this face, if they are interior to the master face.
+            for (int vidx=0; vidx<4; ++vidx)
+            {
+               const int v = orderedVertices[vidx];
+               if (vbdry.count(v) == 0)  // If not on the boundary of the master face.
+               {
+                  int m1, m2;
+                  if (vidx == 0)
+                  {
+                     m1 = os1 - 1;
+                     m2 = os2 - 1;
+                  }
+                  else if (vidx == 1)
+                  {
+                     m1 = os1 + nf1;
+                     m2 = os2 - 1;
+                  }
+                  else if (vidx == 2)
+                  {
+                     m1 = os1 + nf1;
+                     m2 = os2 + nf2;
                   }
                   else
                   {
-                     MFEM_VERIFY(nf1 == nf1_ && nf2 == nf2_, "");
+                     m1 = os1 - 1;
+                     m2 = os2 + nf2;
                   }
-               }  // s1 == 0
 
-               if (slaveId < 0)
+                  consistent = ConsistentlySetEntry(v_offsets[v],
+                                                    mdof(m1, m2));
+               }
+            }  // vidx
+         }
+         else
+         {
+            // Determine which slave face edges are in the first and second
+            // dimensions of the master face, by using ori.
+            int e1 = -1, e2 = -1;
+            {
+               const int aori = ori < 0 ? -1 - ori : ori;
+               if (aori % 2 == 0)
                {
-                  // Auxiliary face
-                  //Ext->GetAuxFaceVertices(-1 - slave, svert);
-                  MFEM_ABORT("TODO: aux face implementation is not done");
+                  e1 = 0;
+                  e2 = 1;
+               }
+               else
+               {
+                  e1 = 1;
+                  e2 = 0;
                }
 
-               const int fos = slaveId >= 0 ? f_offsets[slaveId] : aux_f_offsets[-1 - slaveId];
-               const int fos1 = slaveId >= 0 ? (slaveId + 1 < f_offsets.Size() ?
-                                                f_offsets[slaveId + 1] : aux_f_offsets[0]) :
-                                aux_f_offsets[-slaveId];
-
-               const int nvs = fos1 - fos;
-
-               MFEM_VERIFY(nvs == nf1 * nf2, "");
-
-               // Add all slave face vertices/DOFs to masterDOFs, only in the
-               // interior of the master face, excluding boundary vertices and
-               // edges. In the master face, the interior vertices/DOFs are
-               // ordered with the first dimension varying fastest, assuming
-               // face orientation 0. The number of vertices (!dof case) is
-               // (KnotVec(edges[0])->GetNE() - 1) * (KnotVec(edges[1])->GetNE() - 1)
-               // The number of DOFs (dof case) is
-               // (KnotVec(edges[0])->GetNCP() - 2) * (KnotVec(edges[1])->GetNCP() - 2)
-
-               // We traverse strips of faces (s1,s2) with s1 varying fast,
-               // filling in a grid of vertices/DOFs (entities). Between faces
-               // in each strip, there is an edge whose interior entities must
-               // be included. Between strips, there are edges, between which
-               // are interior vertices from Ext->masterFaceVerts[mid].
-
-               Array<int> perm;
-               if (nf1 * nf2 > 0)
+               if (ori < 0)
                {
-                  if (slaveId >= 0)
-                  {
-                     // Find the DOFs of the slave face ordered for the master
-                     // face. We know that e1 and e2 are the local indices of
-                     // the slave face edges on the bottom and right side, with
-                     // respect to the master face directions.
-                     GetFaceOrdering(slaveId, nf1, nf2, v0, e1, e2, perm);
-                  }
-                  else
-                  {
-                     // Auxiliary face
-                     MFEM_ABORT("TODO: aux face implementation is not done");
-                  }
+                  // Swap e1, e2
+                  const int sw = e1;
+                  e1 = e2;
+                  e2 = sw;
+               }
+            }
+
+            // Now, e1 is one of the two horizontal edges in the master face directions.
+            // If it does not touch v0, then take the other horizontal edge.
+            // Do the same for e2.
+
+            Array<int> sedges;
+            {
+               Array<int> sori;
+               Ext->patchTopo->GetFaceEdges(slaveId, sedges, sori);
+               MFEM_VERIFY(sedges.Size() == 4, "TODO: remove this obvious check");
+            }
+
+            int v1 = -1;
+            {
+               Array<int> evert;
+               Ext->patchTopo->GetEdgeVertices(sedges[e1], evert);
+               if (evert.Find(v0) == -1)
+               {
+                  e1 += 2;
+                  Ext->patchTopo->GetEdgeVertices(sedges[e1], evert);
                }
 
+               const int idv0 = evert.Find(v0);
+               MFEM_ASSERT(idv0 >= 0, "");
+               v1 = evert[1 - idv0];
+
+               Ext->patchTopo->GetEdgeVertices(sedges[e2], evert);
+               if (evert.Find(v1) == -1)
+               {
+                  e2 += 2;
+                  Ext->patchTopo->GetEdgeVertices(sedges[e2], evert);
+               }
+
+               MFEM_ASSERT(evert.Find(v1) >= 0, "");
+            }
+
+            // Set slave face entity dimensions.
+            int nf1, nf2;
+            if (dof)
+            {
+               nf1 = Ext->KnotVec(sedges[e1])->GetNCP() - 2;
+               nf2 = Ext->KnotVec(sedges[e2])->GetNCP() - 2;
+            }
+            else
+            {
+               nf1 = Ext->KnotVec(sedges[e1])->GetNE() - 1;
+               nf2 = Ext->KnotVec(sedges[e2])->GetNE() - 1;
+            }
+
+            MFEM_ASSERT(sne1 * ne1 == nf1 - ne1 + 1, "");
+            MFEM_ASSERT(sne2 * ne2 == nf2 - ne2 + 1, "");
+
+            MFEM_VERIFY(nvs == nf1 * nf2, "");
+
+            // Find the DOFs of the slave face ordered for the master
+            // face. We know that e1 and e2 are the local indices of
+            // the slave face edges on the bottom and right side, with
+            // respect to the master face directions.
+            Array<int> perm;
+            GetFaceOrdering(slaveId, nf1, nf2, v0, e1, e2, perm);
+
+            // These offsets are for the interior entities of the face.
+            // To get the lower edge, subtract 1.
+            const int os1 = (sI * sne1) + sI;
+            const int os2 = (sJ * sne2) + sJ;
+
+            for (int k=0; k<nf2; ++k)
                for (int j=0; j<nf1; ++j)
                {
-                  for (int k=0; k<nf2; ++k)
-                  {
-                     const int q = j + (k * nf1);
-                     strip[(sos1 * nf2) + k] = fos + perm[q];
-                  }
-
-                  sos1++;
+                  const int q = j + (k * nf1);
+                  consistent = ConsistentlySetEntry(fos + perm[q], mdof(os1 + j, os2 + k));
                }
 
-               if (s1 < n1 - 1)
-               {
-                  // Find v10, the vertex at the bottom right of this slave face.
-                  Array<int> evert;
-                  Ext->patchTopo->GetEdgeVertices(sedges[e1], evert);  // Bottom edge
-                  MFEM_VERIFY(v0 == evert[0] || v0 == evert[1], "");
+            // Set entries on edges of this face, if they are interior to the master face.
+            std::vector<int> edgeOrder{e1, e2, (e1 + 2) % 4, (e2 + 2) % 4};
+            std::vector<bool> edgeBdry(4);
 
-                  const int v10 = evert.Sum() - v0;
+            // Horizontal edges
+            edgeBdry[0] = sJ == 0;
+            edgeBdry[2] = sJ + ne2 == n2;
 
-                  const int edge = sedges[e2];  // Right side of this slave face
-                  Ext->patchTopo->GetEdgeVertices(edge, evert);
+            // Vertical edges
+            edgeBdry[1] = sI + ne1 == n1;
+            edgeBdry[3] = sI == 0;
 
-                  MFEM_VERIFY(v10 == evert[0] || v10 == evert[1], "");
+            Array<int> orderedVertices(4);
 
-                  const bool reverse = (v10 == evert[1]);
+            std::set<int> vbdry;
 
-                  // Edge entities
-                  const int eos = e_offsets[edge];
-                  const int eos1 = (edge + 1 < e_offsets.Size()) ?
-                                   e_offsets[edge + 1] : aux_e_offsets[0];
-
-                  MFEM_VERIFY(eos1 - eos == nf2, "");
-
-                  for (int j=0; j<nf2; ++j)
-                  {
-                     strip[(sos1 * nf2) + j] = reverse ? eos1 - 1 - j : eos + j;
-                  }
-
-                  sos1++;
-               }
-            }  // loop s1
-
-            MFEM_VERIFY(sos1 == (nf1 * n1) + n1 - 1, "");
-
-            // Now strip is fully set, and we copy entries from strip to masterDofs.
-
-            for (int j=0; j<nf2; ++j)
-               for (int k=0; k<sos1; ++k)
-               {
-                  masterDofs.Append(strip[(k * nf2) + j]);
-               }
-
-            mos += strip.size();
-
-            if (s2 < n2 - 1)
+            int vstart = v0;
+            for (int eidx=0; eidx<4; ++eidx)
             {
-               // Next, loop over edges and vertices between strips
-               for (int s1=0; s1<n1; ++s1)
+               orderedVertices[eidx] = vstart;
+
+               const int edge = sedges[edgeOrder[eidx]];
+
+               Array<int> evert;
+               Ext->patchTopo->GetEdgeVertices(edge, evert);
+
+               const bool reverse = (vstart == evert[1]);
+
+               const int vend = evert.Sum() - vstart;
+               vstart = vend;
+
+               // Skip edges on the boundary of the master face.
+               if (edgeBdry[eidx])
                {
-                  const int edge = stripTopE[s1];
-                  const int v0 = stripTopV[s1];
-
-                  Array<int> evert;
-                  Ext->patchTopo->GetEdgeVertices(edge, evert);
-
-                  MFEM_VERIFY(v0 == evert[0] || v0 == evert[1], "");
-
-                  const bool reverse = (v0 == evert[1]);
-
-                  // Edge entities
-                  const int eos = e_offsets[edge];
-                  const int eos1 = (edge + 1 < e_offsets.Size()) ?
-                                   e_offsets[edge + 1] : aux_e_offsets[0];
-
-                  MFEM_VERIFY(eos1 - eos == nf1, "");
-
-                  for (int j=0; j<nf1; ++j)
+                  for (auto v : evert)
                   {
-                     masterDofs.Append(reverse ? eos1 - 1 - j : eos + j);
+                     vbdry.insert(v);
                   }
 
-                  mos += nf1;
+                  continue;
+               }
+               const bool horizontal = (eidx % 2 == 0);
+               const int nf_e = horizontal ? nf1 : nf2;
 
-                  if (s1 < n1 - 1)
+               // Edge entities
+               const int eos = e_offsets[edge];
+               const int eos1 = (edge + 1 < e_offsets.Size()) ?
+                                e_offsets[edge + 1] : aux_e_offsets[0];
+
+               const bool edgeIsMaster = Ext->masterEdges.count(edge) > 0;
+
+               Array<int> edofs;
+               if (edgeIsMaster)
+               {
+                  // TODO: shouldn't the DOFs from this master edge be obtainable from SetMasterEdges?
+                  // I guess SetMasterEdges is only for the patch edges, not master edges on the interior
+                  // of a patch face.
+                  // However, can we reuse/refactor code from SetMasterEdges?
+                  GetMasterEdgeDofs(edge, v_offsets, e_offsets, aux_e_offsets, edofs);
+               }
+               else
+               {
+                  MFEM_VERIFY(eos1 - eos == nf_e, "");
+
+                  edofs.SetSize(nf_e);
+                  for (int j=0; j<nf_e; ++j)
                   {
-                     const int v1 = evert.Sum() - v0;  // Right end of edge
-                     masterDofs.Append(v_offsets[v1]);
-                     mos++;
+                     edofs[j] = eos + j;
                   }
-               }  // loop s1
+               }
+
+               MFEM_VERIFY(edofs.Size() == nf_e, "");
+
+               for (int j=0; j<nf_e; ++j)
+               {
+                  int m1, m2;
+                  if (eidx == 0)
+                  {
+                     m1 = os1 + j;
+                     m2 = os2 - 1;
+                  }
+                  else if (eidx == 1)
+                  {
+                     m1 = os1 + nf1;
+                     m2 = os2 + j;
+                  }
+                  else if (eidx == 2)
+                  {
+                     m1 = os1 + nf1 - 1 - j;
+                     m2 = os2 + nf2;
+                  }
+                  else
+                  {
+                     m1 = os1 - 1;
+                     m2 = os2 + nf2 - 1 - j;
+                  }
+
+                  consistent = ConsistentlySetEntry(reverse ? edofs[nf_e - 1 - j] : edofs[j],
+                                                    mdof(m1, m2));
+               }
+            }  // eidx
+
+            // Set entries at vertices of this face, if they are interior to the master face.
+            for (int vidx=0; vidx<4; ++vidx)
+            {
+               const int v = orderedVertices[vidx];
+               if (vbdry.count(v) == 0)  // If not on the boundary of the master face.
+               {
+                  int m1, m2;
+                  if (vidx == 0)
+                  {
+                     m1 = os1 - 1;
+                     m2 = os2 - 1;
+                  }
+                  else if (vidx == 1)
+                  {
+                     m1 = os1 + nf1;
+                     m2 = os2 - 1;
+                  }
+                  else if (vidx == 2)
+                  {
+                     m1 = os1 + nf1;
+                     m2 = os2 + nf2;
+                  }
+                  else
+                  {
+                     m1 = os1 - 1;
+                     m2 = os2 + nf2;
+                  }
+
+                  consistent = ConsistentlySetEntry(v_offsets[v],
+                                                    mdof(m1, m2));
+               }
+            }  // vidx
+         }
+      }  // Loop (s) over slave faces.
+
+      // Let `ori` be the signed shift such that pv[abs1(ori)] is vertex 0 of parentFace,
+      // and the relative direction of the ordering is encoded in the sign.
+      // Here, pv means parent vertices, as ordered in the mesh file.
+      // Then Reorder2D takes `ori` and computes (s0i, s0j) as the
+      // corresponding integer coordinates in {0,1}x{0,1}. Thus reference
+      // vertex (s0i, s0j) of pv (parent vertices in mesh file) is vertex
+      // (0, 0) of parentFace.
+      // Currently, mdof is in the ordering of pv, and the entries are now reordered,
+      // according to parentFace vertex ordering, for appending to masterDofs.
+      // That means the first entry appended to masterDofs should be the entry of
+      // mdof corresponding to (s0i, s0j).
+
+      Array2D<int> mdof_reordered;
+      ReorderArray2D(rev, s0i, s0j, mdof, mdof_reordered);
+
+      bool allset = true;
+      for (int j=0; j<mdof_reordered.NumCols(); ++j)
+         for (int k=0; k<mdof_reordered.NumRows(); ++k)
+         {
+            if (mdof_reordered(k,j) < 0)
+            {
+               allset = false;
             }
-         }  // loop s2
-      }
+
+            masterDofs.Append(mdof_reordered(k,j));
+         }
+
+      MFEM_ASSERT(allset, "");
+      MFEM_ASSERT(consistent, "");
+
+      mos += mnf1 * mnf2;
    }  // loop (i) over faces
 }
 
@@ -6519,7 +7399,7 @@ void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
    if (Ext->Dimension() >= 2)
    {
       J = kv[1]->GetNE() - 1;
-      SetMasterEdges(false);
+      SetMasterEdges(false, kv);
       for (int i = 0; i < edges.Size(); i++)
       {
          edges[i] = Ext->e_meshOffsets[edges[i]];
@@ -6663,12 +7543,9 @@ void NURBSPatchMap::SetBdrPatchDofMap(int p, const KnotVector *kv[],  int *okv)
    }
 }
 
-void ProcessVertexToKnot2D(Array2D<int> const& v2k,
-                           std::map<std::pair<int, int>, int> & v2e,
-                           std::vector<int> & auxEdges,
-                           std::set<int> & reversedParents,
-                           std::set<int> & masterEdges,
-                           std::vector<int> & edgePairs)
+void NURBSExtension::ProcessVertexToKnot2D(const Array2D<int> & v2k,
+                                           std::set<int> & reversedParents,
+                                           std::vector<EdgePairInfo> & edgePairs)
 {
    auxEdges.clear();
 
@@ -6679,6 +7556,7 @@ void ProcessVertexToKnot2D(Array2D<int> const& v2k,
 
    int prevParent = -1;
    int prevV = -1;
+   int prevKI = -1;
    for (int i=0; i<nv2k; ++i)
    {
       const int tv = v2k(i,0);
@@ -6695,11 +7573,7 @@ void ProcessVertexToKnot2D(Array2D<int> const& v2k,
       const std::pair<int, int> parentPair(pv0 < pv1 ? pv0 : pv1,
                                            pv0 < pv1 ? pv1 : pv0);
 
-      auto search = v2e.find(parentPair);
-      if (search == v2e.end())
-      {
-         MFEM_ABORT("Vertex pair not found");
-      }
+      MFEM_VERIFY(v2e.count(parentPair) > 0, "Vertex pair not found");
 
       const int parentEdge = v2e[parentPair];
       masterEdges.insert(parentEdge);
@@ -6724,22 +7598,17 @@ void ProcessVertexToKnot2D(Array2D<int> const& v2k,
       // it as a slave edge.
 
       const std::pair<int, int> childPair(v0 < tv ? v0 : tv, v0 < tv ? tv : v0);
-      search = v2e.find(childPair);
-
-      const bool childPairTopo = (search != v2e.end());
+      const bool childPairTopo = v2e.count(childPair) > 0;
       if (!childPairTopo)
       {
          // Check whether childPair is in auxEdges.
-         search = auxv2e.find(childPair);
-         if (search == auxv2e.end())
+         if (auxv2e.count(childPair) == 0)
          {
-            // Create new auxiliary edge
-            // TODO: make a struct for auxEdges
-            auxv2e[childPair] = auxEdges.size() / 4;
-            auxEdges.push_back(childPair.first);
-            auxEdges.push_back(childPair.second);
-            auxEdges.push_back(pv0 < pv1 ? parentEdge : -1 - parentEdge);
-            auxEdges.push_back(knotIndex);
+            // Create a new auxiliary edge
+            auxv2e[childPair] = auxEdges.size();
+            auxEdges.emplace_back(AuxiliaryEdge{pv0 < pv1 ? parentEdge : -1 - parentEdge,
+                                                childPair.first, childPair.second,
+                                                newParentEdge ? 0 : prevKI, knotIndex});
          }
       }
 
@@ -6754,9 +7623,7 @@ void ProcessVertexToKnot2D(Array2D<int> const& v2k,
       const bool finalVertex = (i == nv2k-1) || (v2k(i+1,2) != pv0) ||
                                (v2k(i+1,3) != pv1);
 
-      edgePairs.push_back(tv);
-      edgePairs.push_back(childEdge);
-      edgePairs.push_back(parentEdge);
+      edgePairs.emplace_back(tv, knotIndex, childEdge, parentEdge);
 
       if (finalVertex)
       {
@@ -6764,55 +7631,47 @@ void ProcessVertexToKnot2D(Array2D<int> const& v2k,
          // edge.
          const std::pair<int, int> finalChildPair(tv < pv1 ? tv : pv1,
                                                   tv < pv1 ? pv1 : tv);
-         search = v2e.find(finalChildPair);
-
-         const bool finalChildPairTopo = (search != v2e.end());
+         const bool finalChildPairTopo = v2e.count(finalChildPair) > 0;
          if (!finalChildPairTopo)
          {
             // Check whether finalChildPair is in auxEdges.
-            search = auxv2e.find(finalChildPair);
-            if (search == auxv2e.end())
+            if (auxv2e.count(finalChildPair) == 0)
             {
-               // Create new auxiliary edge
-               auxv2e[finalChildPair] = auxEdges.size() / 4;
-               auxEdges.push_back(finalChildPair.first);
-               auxEdges.push_back(finalChildPair.second);
-               auxEdges.push_back(pv0 < pv1 ? -1 - parentEdge : parentEdge);
-               auxEdges.push_back(knotIndex);
+               // Create a new auxiliary edge
+               auxv2e[finalChildPair] = auxEdges.size();
+
+               // -1 denotes `ne` at endpoint
+               auxEdges.emplace_back(AuxiliaryEdge{pv0 < pv1 ? -1 - parentEdge : parentEdge,
+                                                   finalChildPair.first, finalChildPair.second,
+                                                   knotIndex, -1});
             }
          }
 
          const int finalChildEdge = finalChildPairTopo ? v2e[finalChildPair]: -1 -
                                     auxv2e[finalChildPair];
-
-         edgePairs.push_back(-1);
-         edgePairs.push_back(finalChildEdge);
-         edgePairs.push_back(parentEdge);
+         edgePairs.emplace_back(-1, -1, finalChildEdge, parentEdge);
       }
 
       prevV = tv;
+      prevKI = knotIndex;
       prevParent = parentEdge;
    }  // loop over vertices in vertex_to_knot
 }
 
 // TODO: better code design.
-void ProcessVertexToKnot3D(Array2D<int> const& v2k,
-                           const std::map<std::pair<int, int>, int> & v2e,
-                           const std::map<std::pair<int, int>, int> & v2f,
-                           std::vector<int> & auxFaces,
-                           std::set<int> & masterEdges,
-                           std::set<int> & masterFaces,
-                           std::set<int> & reversedParentEdges,
-                           std::vector<int> & parentN1,
-                           std::vector<int> & parentN2,
-                           std::vector<int> & edgePairs,
-                           std::vector<int> & facePairs,
-                           std::vector<int> & parentFaces,
-                           std::vector<int> & parentVerts)
+void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
+                                           const std::map<std::pair<int, int>, int> & v2f,
+                                           std::vector<int> & parentN1,
+                                           std::vector<int> & parentN2,
+                                           std::vector<EdgePairInfo> & edgePairs,
+                                           std::vector<FacePairInfo> & facePairs,
+                                           std::vector<int> & parentFaces,
+                                           std::vector<int> & parentVerts)
 {
+   auxEdges.clear();
    auxFaces.clear();
 
-   std::map<std::pair<int, int>, int> auxv2f;
+   std::map<std::pair<int, int>, int> auxv2e, auxv2f;
 
    // Each entry of v2k has the following 7 entries: tv, ki1, ki2, p0, p1, p2, p3
    constexpr int np = 7;  // Number of integers for each entry in v2k.
@@ -6823,12 +7682,16 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
    // Note that the logic here assumes that the "vertex_to_knot" data
    // in the mesh file has vertices in order of ascending (k1,k2), with k2
    // being the fast variable, and with corners skipped.
+   // TODO: is this assumption still required and valid?
 
    // Find parentOffset, which stores the indices in v2k at which parent faces start.
    int prevParent = -1;
    std::vector<int> parentOffset;
+   std::vector<bool> parentV2Kedge;
    int n1 = 0;
    int n2 = 0;
+   int n1min = 0;
+   int n2min = 0;
    for (int i = 0; i < nv2k; ++i)
    {
       const int ki1 = v2k(i,1);
@@ -6837,7 +7700,7 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
       std::vector<int> pv(4);
       for (int j=0; j<4; ++j)
       {
-         pv[j] = v2k(i,3 + j);
+         pv[j] = v2k(i, 3 + j);
       }
 
       // The face with vertices (pv0, pv1, pv2, pv3) is defined as a parent face.
@@ -6846,7 +7709,7 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
       const int c0 = pv[idmin];  // First corner
       const int c1 = pv[(idmin + 2) % 4];  // Opposite corner
 
-      const std::pair<int, int> parentPair(c0 < c1 ? c0 : c1, c0 < c1 ? c1 : c0);
+      const std::pair<int, int> parentPair(c0, c1);
 
       const int parentFace = v2f.at(parentPair);
       const bool newParentFace = (prevParent != parentFace);
@@ -6854,6 +7717,7 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
       {
          parentOffset.push_back(i);
          parentFaces.push_back(parentFace);
+
          if (i > 0)
          {
             // In the case of only 1 element in the 1-direction, it is assumed that
@@ -6863,38 +7727,65 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
             // Similarly for the situation with directions reversed.
             // TODO: fix/test this in the 1-element case.
 
-            if (n1 == 0 || n2 == 0)
+            const int n1range = n1 - n1min;
+            const int n2range = n2 - n2min;
+            parentV2Kedge.push_back(n1range == 0 || n2range == 0);
+         }
+
+         // TODO: refactor!
+         {
+            Array<int> ev(2);
+            for (int j=0; j<2; ++j)
             {
-               MFEM_ABORT("TODO: this should never happen, right?");
-               n1++;
-               n2++;
+               ev[j] = pv[j];
             }
 
+            ev.Sort();
+            const std::pair<int, int> edge_v(ev[0], ev[1]);
+            const int edge = v2e.at(edge_v);
+
+            n1 = KnotVecNE(edge);
             parentN1.push_back(n1);
+         }
+
+         {
+            Array<int> ev(2);
+            for (int j=0; j<2; ++j)
+            {
+               ev[j] = pv[j+1];
+            }
+
+            ev.Sort();
+            const std::pair<int, int> edge_v(ev[0], ev[1]);
+            const int edge = v2e.at(edge_v);
+
+            n2 = KnotVecNE(edge);
             parentN2.push_back(n2);
          }
 
          n1 = ki1;  // Finding max of ki1
          n2 = ki2;  // Finding max of ki2
+
+         n1min = n1;
+         n2min = n2;
       }
       else
       {
          n1 = std::max(n1, ki1);  // Finding max of ki1
          n2 = std::max(n2, ki2);  // Finding max of ki2
+
+         n1min = std::min(n1min, ki1);
+         n2min = std::min(n2min, ki2);
       }
 
       prevParent = parentFace;
    }
 
-   if (n1 == 0 || n2 == 0)
    {
-      MFEM_ABORT("TODO: this should never happen, right?");
-      n1++;
-      n2++;
+      const int n1range = n1 - n1min;
+      const int n2range = n2 - n2min;
+      parentV2Kedge.push_back(n1range == 0 || n2range == 0);
    }
-
-   parentN1.push_back(n1);
-   parentN2.push_back(n2);
 
    const int numParents = parentOffset.size();
    parentOffset.push_back(nv2k);
@@ -6907,8 +7798,6 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
    {
       const int parentFace = parentFaces[parent];
 
-      masterFaces.insert(parentFace);
-
       int parentEdges[4];
       bool parentEdgeRev[4];
 
@@ -6919,7 +7808,7 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
          {
             for (int j=0; j<2; ++j)
             {
-               ev[j] = v2k(parentOffset[parent], 3 + ((i + j) % 4));
+               ev[j] = v2k(parentOffset[parent],3 + ((i + j) % 4));
             }
 
             const bool reverse = (ev[1] < ev[0]);
@@ -6955,6 +7844,11 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
          parentVerts.push_back(v2k(parentOffset[parent],3 + i));
       }
 
+      int r1min = -1;
+      int r1max = -1;
+      int r2min = -1;
+      int r2max = -1;
+
       for (int i = parentOffset[parent]; i < parentOffset[parent + 1]; ++i)
       {
          const int tv = v2k(i,0);
@@ -6965,18 +7859,32 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
          if (i == parentOffset[parent])
          {
-            if (n1 > 1)
-            {
-               MFEM_VERIFY(ki1 == 0 && ki2 == 1, "");
-            }
-            else
-            {
-               MFEM_VERIFY(ki1 == 1 && ki2 == 0, "");
-            }
+            // Initialize min/max
+            r1min = ki1;
+            r1max = ki1;
+
+            r2min = ki2;
+            r2max = ki2;
+         }
+         else
+         {
+            r1min = std::min(r1min, ki1);
+            r1max = std::max(r1max, ki1);
+
+            r2min = std::min(r2min, ki2);
+            r2max = std::max(r2max, ki2);
          }
       } // loop over vertices in v2k
 
+      const int n1set = r1max - r1min + 1;
+      const int n2set = r2max - r2min + 1;
+
+      MFEM_VERIFY(n1set * n2set >= parentOffset[parent + 1] - parentOffset[parent],
+                  "");
+
       bool allset = true;
+      bool hasSlaveFaces = false;
+      bool hasAuxFace = false;
       for (int i=0; i<=n1; ++i)
          for (int j=0; j<=n2; ++j)
          {
@@ -6984,11 +7892,14 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
             {
                allset = false;
             }
+            else if (0 < i && i < n1 && 0 < j && j < n2)
+            {
+               hasSlaveFaces = true;
+            }
          }
 
-      MFEM_VERIFY(allset, "");
-
       // Loop over child faces and set facePairs, as well as auxiliary faces as needed.
+      // TODO: just loop over (r1min, r1max) and (r2min, r2max)?
       for (int i=0; i<n1; ++i)
          for (int j=0; j<n2; ++j)
          {
@@ -7003,33 +7914,50 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
             const int c0 = cv[idmin];  // First corner
             const int c1 = cv[(idmin + 2) % 4];  // Opposite corner
 
-            const std::pair<int, int> childPair(c0 < c1 ? c0 : c1, c0 < c1 ? c1 : c0);
+            if (c0 < 0)  // This may occur, if gridVertex is not set everywhere.
+            {
+               continue;
+            }
 
-            auto search = v2f.find(childPair);
-            const bool childPairTopo = (search != v2f.end());
+            const std::pair<int, int> childPair(c0 < c1 ? c0 : c1, c0 < c1 ? c1 : c0);
+            const bool childPairTopo = v2f.count(childPair) > 0;
             if (childPairTopo)
             {
                const int childFace = v2f.at(childPair);
-               facePairs.push_back(i);
-               facePairs.push_back(j);
-               facePairs.push_back(cv[0]);
-               facePairs.push_back(childFace);
-               facePairs.push_back(parentFace);
+               Array<int> acv(cv.data(), 4);
+               const int ori = GetFaceOrientation(patchTopo, childFace, acv);
+               // ori gives the orientation and index of cv matching the first vertex of childFace.
+
+               facePairs.emplace_back(FacePairInfo{cv[0], childFace, parentFace, ori,
+                                                   i, j, 1, 1});
             }
             else
             {
+               hasAuxFace = true;
                // Check whether childPair is in auxFaces.
-               auto search2 = auxv2f.find(childPair);
-               if (search2 == auxv2f.end())
+               if (auxv2f.count(childPair) == 0)
                {
-                  // Create new auxiliary face
-                  // TODO: make a struct for auxFaces?
-                  auxv2f[childPair] = auxFaces.size() / 5;
-                  auxFaces.push_back(childPair.first);
-                  auxFaces.push_back(childPair.second);
-                  auxFaces.push_back(parentFace);  // TODO: orientation?
-                  auxFaces.push_back(i);  // ki1
-                  auxFaces.push_back(j);  // ki2
+                  MFEM_ABORT("TODO: set facePairs?");
+
+                  // Create a new auxiliary face
+                  auxv2f[childPair] = auxFaces.size();
+
+                  AuxiliaryFace auxFace;
+                  for (int k=0; k<4; ++k)
+                  {
+                     auxFace.v[k] = cv[k];
+                  }
+
+                  auxFace.parent = parentFace;
+                  // Orientation is 0 for a new auxiliary face, by construction.
+                  auxFace.ori = 0;
+
+                  auxFace.ki0[0] = i;
+                  auxFace.ki0[1] = j;
+                  auxFace.ki1[0] = i + 1;
+                  auxFace.ki1[1] = j + 1;
+
+                  auxFaces.push_back(auxFace);
                }
             }
          }
@@ -7041,25 +7969,35 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
          for (int s=0; s<2; ++s)  // Loop over 2 sides for this direction.
          {
             const int parentEdge = parentEdges[dir == 1 ? 2*s : (2*s) + 1];
-            const bool reverse = parentEdgeRev[dir == 1 ? 2*s : (2*s) + 1];
+            const bool reverse_p = parentEdgeRev[dir == 1 ? 2*s : (2*s) + 1];
+            const bool reverse = s == 0 ? reverse_p :
+                                 !reverse_p;  // Sides with s=1 are reversed in defining parentEdgeRev.
 
-            auto search = visitedParentEdges.find(parentEdge);
-            const bool parentVisited = (search != visitedParentEdges.end());
+            const bool parentVisited = visitedParentEdges.count(parentEdge) > 0;
 
             if (!parentVisited)
             {
                edgePairOS[parentEdge] = edgePairs.size();
-               edgePairs.resize(edgePairs.size() + (3 * ne));
+               const int os0 = edgePairs.size();
+               edgePairs.resize(edgePairs.size() + ne);
             }
+
+            int tvprev = -1;  // TODO: change name
+            int kiprev = -1;  // TODO: change name
+            bool lagTV = false;
+
+            int firstEdge = -1;
 
             for (int e_i=0; e_i<ne; ++e_i)  // edges in direction `dir`
             {
                // For both directions, side s=0 has increasing indices and
                // s=1 has decreasing indices.
-               const int i0 = (s == 0) ? e_i : ne - e_i;
-               const int i1 = (s == 0) ? e_i + 1 : ne - e_i - 1;
 
-               const int e_idx = reverse ? ne - e_i - 1 : e_i;
+               const int i0 = e_i;
+               const int i1 = e_i + 1;
+
+               const int e_idx = reverse ? ne - e_i - 1 :
+                                 e_i;  // Edge index with respect to the master edge.
 
                Array<int> cv(2);
                if (dir == 1)
@@ -7073,9 +8011,62 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
                   cv[1] = gridVertex((1-s)*n1, i1);
                }
 
-               const int tv = (e_i == ne - 1) ? -1 : cv[1];
+               const int cv0 = cv[0];
+
+               int tv_int = -1;  // Top-vertex interior to the master edge
+               int ki = -1;  // Knot index of tv_int, with respect to the master edge
+
+               if (lagTV)
+               {
+                  tv_int = tvprev;
+                  ki = kiprev;
+               }
+
+               if (tvprev == -1)
+               {
+                  tvprev = (i0 == 0 ||
+                            i0 == ne) ? cv[1] : cv[0];  // Top-vertex interior to the master edge
+                  kiprev = (i0 == 0 || i0 == ne) ? i1 : i0;
+               }
+               else if (e_i < ne - 1)  // Don't set to the endpoint
+               {
+                  kiprev = (tvprev == cv[0]) ? i1 : i0;
+                  tvprev = (tvprev == cv[0]) ? cv[1] :
+                           cv[0];  // Next interior vertex along the master edge
+               }
+
+               if (!lagTV)
+               {
+                  tv_int = tvprev;
+                  ki = kiprev;
+               }
 
                cv.Sort();
+
+               if (cv[0] < 0)  // This may occur if gridVertex is not set everywhere.
+               {
+                  continue;
+               }
+               else if (firstEdge == -1)
+               {
+                  firstEdge = e_i;
+                  if (e_i > 0)
+                  {
+                     tv_int = cv0;
+                     ki = i0;
+                     tvprev = cv.Sum() - cv0;  // cv1
+                     kiprev = i1;
+                     lagTV = true;
+                  }
+               }
+
+               const int tv = (e_idx == ne - 1) ? -1 : tv_int;
+               const int tvki = (e_idx == ne - 1) ? -1 : (reverse ? ne - ki : ki);
+
+               if (tv == -1)
+               {
+                  lagTV = true;
+               }
 
                const std::pair<int, int> edge_i(cv[0], cv[1]);
 
@@ -7083,18 +8074,15 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
                if (!parentVisited)
                {
-                  //if (e_i == 0) edgePairOS[parentEdge] = edgePairs.size();
                   // edgePairs is ordered starting from the vertex of lower index.
-                  edgePairs[edgePairOS[parentEdge] + (3 * e_idx)] = tv;
-                  edgePairs[edgePairOS[parentEdge] + (3 * e_idx) + 1] = childEdge;
-                  edgePairs[edgePairOS[parentEdge] + (3 * e_idx) + 2] = parentEdge;
+                  edgePairs[edgePairOS[parentEdge] + e_idx].Set(tv, tvki, childEdge, parentEdge);
                }
                else
                {
                   // Consistency check
                   const int os = edgePairOS[parentEdge];
-                  if (edgePairs[os + (3*e_idx) + 1] != childEdge ||
-                      edgePairs[os + (3*e_idx) + 2] != parentEdge)
+                  if (edgePairs[os + e_idx].child != childEdge ||
+                      edgePairs[os + e_idx].parent != parentEdge)
                   {
                      consistent = false;
                   }
@@ -7103,11 +8091,315 @@ void ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
             visitedParentEdges.insert(parentEdge);
          }
+      } // dir
+
+      // Set auxiliary and patch-slave faces outside the set gridVertex.
+      // Here, patch-slave refers to a slave face that is a face of a
+      // neighboring patch and may contain multiple mesh faces.
+      // In general, there can be at most 8 = 3^2 - 1 such faces.
+
+      Array<int> gv1(4);
+      Array<int> gv2(4);
+
+      gv1[0] = 0;
+      gv1[1] = r1min;
+      gv1[2] = r1max;
+      gv1[3] = n1;
+
+      gv2[0] = 0;
+      gv2[1] = r2min;
+      gv2[2] = r2max;
+      gv2[3] = n2;
+
+      if (hasSlaveFaces && !allset)
+      {
+         for (int i=0; i<3; ++i)
+            for (int j=0; j<3; ++j)
+            {
+               if (i == 1 && j == 1)  // Skip the middle, which is covered by gridVertex.
+               {
+                  continue;
+               }
+
+               // Define an auxiliary face (gv1[i], gv1[i+1]) x (gv2[j], gv2[j+1])
+
+               // Skip degenerate faces
+               if (gv1[i] == gv1[i+1] || gv2[j] == gv2[j+1])
+               {
+                  continue;
+               }
+
+               // TODO: the following code is copied and modified from above. Refactor into a function?
+               std::vector<int> cv(4);
+               std::vector<int> cv0(4);  // TODO: remove?
+               std::vector<int> cv1(4);  // TODO: remove?
+
+               cv[0] = gridVertex(gv1[i],gv2[j]);
+               cv[1] = gridVertex(gv1[i+1],gv2[j]);
+               cv[2] = gridVertex(gv1[i+1],gv2[j+1]);
+               cv[3] = gridVertex(gv1[i],gv2[j+1]);
+
+               cv0[0] = gv1[i];
+               cv0[1] = gv1[i+1];
+               cv0[2] = gv1[i+1];
+               cv0[3] = gv1[i];
+
+               cv1[0] = gv2[j];
+               cv1[1] = gv2[j];
+               cv1[2] = gv2[j+1];
+               cv1[3] = gv2[j+1];
+
+               const auto cvmin = std::min_element(cv.begin(), cv.end());
+               const int idmin = std::distance(cv.begin(), cvmin);
+               const int c0 = cv[idmin];  // First corner
+               const int c1 = cv[(idmin + 2) % 4];  // Opposite corner
+
+               MFEM_ASSERT(c0 >= 0, "");
+
+               const std::pair<int, int> childPair(c0, c1);
+               const bool childPairTopo = v2f.count(childPair) > 0;
+               if (childPairTopo)
+               {
+                  const int childFace = v2f.at(childPair);
+                  Array<int> acv(cv.data(), 4);
+
+                  // ori gives the orientation and index of cv matching the
+                  // first vertex of childFace.
+                  const int ori = GetFaceOrientation(patchTopo, childFace, acv);
+                  facePairs.emplace_back(FacePairInfo{cv[0], childFace, parentFace, ori,
+                                                      gv1[i], gv2[j], gv1[i+1] - gv1[i], gv2[j+1] - gv2[j]});
+
+               }
+               else
+               {
+                  hasAuxFace = true;
+
+                  // Check whether childPair is in auxFaces.
+                  if (auxv2f.count(childPair) == 0)
+                  {
+                     // Create a new auxiliary face
+                     auxv2f[childPair] = auxFaces.size();
+                     AuxiliaryFace auxFace;
+                     for (int k=0; k<4; ++k)
+                     {
+                        auxFace.v[k] = cv[k];
+                     }
+
+                     auxFace.parent = parentFace;
+                     // Orientation is 0 for a new auxiliary face, by construction.
+                     auxFace.ori = 0;
+
+                     auxFace.ki0[0] = gv1[i];
+                     auxFace.ki0[1] = gv2[j];
+                     auxFace.ki1[0] = gv1[i+1];
+                     auxFace.ki1[1] = gv2[j+1];
+
+                     auxFaces.push_back(auxFace);
+
+                     // Orientation is 0 for a new auxiliary face, by construction.
+                     facePairs.emplace_back(FacePairInfo{cv[0], -1 - auxv2f[childPair], parentFace, 0,
+                                                         gv1[i], gv2[j], gv1[i+1] - gv1[i], gv2[j+1] - gv2[j]});
+
+                     // TODO: is it redundant to put parentFace in both
+                     // facePairs and auxFaces?
+                     // TODO: is it redundant to put gv1[i+{0,1}], gv2[j+{0,1}] in both
+                     // facePairs and auxFaces?
+                     // TODO: can facePairs and auxFaces be combined into
+                     // one array of a struct?
+                  }
+               }
+            }
       }
-   }  // loop over parents
+
+      // Set auxiliary edges outside the gridVertex, on the boundary of the parent face.
+      // Note that auxiliary edges cannot simply be found as edges of auxiliary faces, because
+      // the faces above are defined only on parent faces listed in V2K data. Other auxiliary
+      // faces will be defined in FindAdditionalSlaveAndAuxiliaryFaces by using auxiliary edges found below.
+
+      // Auxiliary edges in first and second directions
+      for (int d=0; d<2; ++d)
+      {
+         // TODO: interchange i- and s- loops?
+         for (int i=0; i<3; ++i)
+         {
+            if (i == 1)  // Skip the middle, which is covered by gridVertex.
+            {
+               continue;
+            }
+
+            for (int s=0; s<2; ++s)  // Loop over 2 sides in this direction
+            {
+               // Set gv1 (d == 0) or gv2 (d == 1) for this edge.
+               // Set range of set knot indices for this edge.
+               int rmin = -1;
+               int rmax = -1;
+               const int n_d = d == 0 ? n1 : n2;
+               for (int j=1; j<n_d; ++j)
+               {
+                  const int tv = d == 0 ? gridVertex(j,s*n2) : gridVertex((1-s)*n1,j);
+                  if (tv >= 0)
+                  {
+                     if (rmin == -1)
+                     {
+                        // Initialize range
+                        rmin = j;
+                        rmax = j;
+                     }
+                     else
+                     {
+                        rmin = std::min(rmin, j);
+                        rmax = std::max(rmax, j);
+                     }
+                  }
+               }
+
+               if (rmax == -1)  // No vertices set in gridVertex on the interior of this edge.
+               {
+                  continue;
+               }
+
+               if (d == 0)
+               {
+                  gv1[1] = rmin;
+                  gv1[2] = rmax;
+               }
+               else
+               {
+                  gv2[1] = rmin;
+                  gv2[2] = rmax;
+               }
+
+               const int pid = d == 0 ? 2*s : (2*s) + 1; // Parent index
+
+               const bool reverse_p = parentEdgeRev[pid];
+               // Sides with s=1 are reversed in defining parentEdgeRev.
+               const bool reverse = s == 0 ? reverse_p : !reverse_p;
+
+               // Define an auxiliary edge (gv1[i], gv1[i+1])
+               Array<int> cv(2);
+               Array<int> ki(2);
+
+               if (d == 0)
+               {
+                  cv[0] = gridVertex(gv1[i],s*n2);
+                  cv[1] = gridVertex(gv1[i+1],s*n2);
+
+                  ki[0] = gv1[i];
+                  ki[1] = gv1[i+1];
+               }
+               else
+               {
+                  cv[0] = gridVertex((1-s)*n1,gv2[i]);
+                  cv[1] = gridVertex((1-s)*n1,gv2[i+1]);
+
+                  ki[0] = gv2[i];
+                  ki[1] = gv2[i+1];
+               }
+
+               if (cv[0] == cv[1])
+               {
+                  continue;
+               }
+
+               const int tv = i == 0 ? cv[1] :
+                              cv[0];  // Top-vertex interior to the master edge.
+               const int tvki_f = i == 0 ? ki[1] : ki[0];  // Knot index w.r.t. face
+               const int tvki = reverse ? n_d - tvki_f : tvki_f;  // Knot index w.r.t. edge
+
+               cv.Sort();
+
+               MFEM_ASSERT(cv[0] >= 0, "");
+
+               const std::pair<int, int> childPair(cv[0], cv[1]);
+               const bool childPairTopo = v2e.count(childPair) > 0;
+               if (!childPairTopo)
+               {
+                  const int pv0 = d == 0 ? gridVertex(0,s*n2) : gridVertex((1-s)*n1,0);
+                  const int pv1 = d == 0 ? gridVertex(n1,s*n2) : gridVertex((1-s)*n1,n2);
+
+                  const std::pair<int, int> parentPair(pv0 < pv1 ? pv0 : pv1,
+                                                       pv0 < pv1 ? pv1 : pv0);
+
+                  const int parentEdge = v2e.at(parentPair);
+
+                  MFEM_VERIFY(parentEdges[pid] == parentEdge, "");
+
+                  // Check whether childPair is in auxEdges.
+                  if (auxv2e.count(childPair) == 0)
+                  {
+                     const int knotIndex0 = (d == 0) ? gv1[i] : gv2[i];
+                     const int knotIndex1 = (d == 0) ? gv1[i+1] : gv2[i+1];
+
+                     // Create a new auxiliary edge
+                     auxv2e[childPair] = auxEdges.size();
+                     auxEdges.emplace_back(AuxiliaryEdge{pv0 < pv1 ? parentEdge : -1 - parentEdge,
+                                                         childPair.first, childPair.second,
+                                                         knotIndex0, knotIndex1});
+                  }
+
+                  // TODO: ne is identical to n_d.
+                  const int ne = d == 0 ? n1 : n2;
+                  const int e_idx_i = i == 0 ? 0 : ne - 1;
+                  const int e_idx = reverse ? ne - 1 - e_idx_i : e_idx_i;
+
+                  const EdgePairInfo ep_e((e_idx == ne - 1) ? -1 : tv,
+                                          (e_idx == ne - 1) ? -1 : tvki,
+                                          -1 - auxv2e[childPair], parentEdge);
+
+                  const bool unset = !edgePairs[edgePairOS[parentEdge] + e_idx].isSet;
+                  if (unset)
+                  {
+                     edgePairs[edgePairOS[parentEdge] + e_idx] = ep_e;
+                  }
+                  else
+                  {
+                     // Verify matching
+                     MFEM_VERIFY(edgePairs[edgePairOS[parentEdge] + e_idx] == ep_e, "");
+                  }
+               }
+               else  // childPairTopo == true, so this edge is a slave edge.
+               {
+                  const int childEdge = v2e.at(childPair);
+
+                  const int pv0 = d == 0 ? gridVertex(0,s*n2) : gridVertex((1-s)*n1,0);
+                  const int pv1 = d == 0 ? gridVertex(n1,s*n2) : gridVertex((1-s)*n1,n2);
+
+                  const std::pair<int, int> parentPair(pv0 < pv1 ? pv0 : pv1,
+                                                       pv0 < pv1 ? pv1 : pv0);
+
+                  const int parentEdge = v2e.at(parentPair);
+
+                  MFEM_VERIFY(parentEdges[pid] == parentEdge, "");
+
+                  // TODO: ne is identical to n_d.
+                  const int ne = d == 0 ? n1 : n2;
+
+                  const int e_idx_i = i == 0 ? 0 : ne - 1;
+                  const int e_idx = reverse ? ne - 1 - e_idx_i : e_idx_i;
+
+                  const int tv_e = (e_idx == ne - 1) ? -1 : tv;
+                  const int tv_ki = (e_idx == ne - 1) ? -1 : tvki;  // TODO: better naming
+
+                  const EdgePairInfo ep_e(tv_e, tv_ki, childEdge, parentEdge);
+
+                  const bool unset = !edgePairs[edgePairOS[parentEdge] + e_idx].isSet;
+                  const bool matching = edgePairs[edgePairOS[parentEdge] + e_idx] == ep_e;
+
+                  edgePairs[edgePairOS[parentEdge] + e_idx] = ep_e;
+
+                  MFEM_ASSERT(unset || matching, "");
+               }
+            }
+         }
+      }
+
+      if (hasSlaveFaces || hasAuxFace)
+      {
+         masterFaces.insert(parentFace);
+      }
+   } // loop over parents
 
    MFEM_VERIFY(consistent, "");
-   MFEM_VERIFY((int) masterFaces.size() == numParents, "");
 }
 
 int GetFaceOrientation(const Mesh *mesh, const int face,
@@ -7159,19 +8451,6 @@ int GetShiftedQuadIndex(int i, int ori)
    return rev ? (s - i + 4) % 4 : (i + s) % 4;
 }
 
-int GetInverselyShiftedQuadIndex(int i, int ori)
-{
-   // Return the index j that maps to i with ori determined by GetFaceOrientation.
-   // TODO: compute this directly rather than searching.
-   for (int j=0; j<4; ++j)
-   {
-      if (GetShiftedQuadIndex(j, ori) == i) { return j; }
-   }
-
-   MFEM_ABORT("BUG");
-   return -1;
-}
-
 // The 2D array `a` is of size n1*n2, with index
 // j + n2*i corresponding to (i,j) with the fast index j,
 // for 0 <= i < n1 and 0 <= j < n2.
@@ -7181,8 +8460,7 @@ int GetInverselyShiftedQuadIndex(int i, int ori)
 // has vertex with index `shift` matching vertex 0 of the new quad face F2,
 // on which the new ordering of `a` should be based.
 // For more details, see GetFaceOrientation.
-bool Reorder2D(int n1, int n2, int ori, const std::vector<int> & a,
-               std::vector<int> & s0)
+bool Reorder2D(int n1, int n2, int ori, std::vector<int> & s0)
 {
    const bool noReorder = false;
    if (noReorder)
@@ -7212,6 +8490,181 @@ bool Reorder2D(int n1, int n2, int ori, const std::vector<int> & a,
    const bool dimReverse = s0i == s1i;
 
    return dimReverse;
+}
+
+void GetInverseShiftedDimensions2D(int signedShift, int sm, int sn, int &m,
+                                   int &n)
+{
+   const bool rev = (signedShift < 0);
+   const int shift = rev ? -1 - signedShift : signedShift;
+   MFEM_VERIFY(0 <= shift && shift < 4, "");
+   // TODO: condense this somehow?
+
+   // We consider 8 cases for the possible values of rev and shift.
+   if (rev)
+   {
+      if (shift == 0)
+      {
+         // New: 3 2  Old: 1 2
+         //      0 1       0 3
+         n = sm;
+         m = sn;
+      }
+      else if (shift == 1)
+      {
+         // New: 3 2  Old: 2 3
+         //      0 1       1 0
+         m = sm;
+         n = sn;
+      }
+      else if (shift == 2)
+      {
+         // New: 3 2  Old: 3 0
+         //      0 1       2 1
+         n = sm;
+         m = sn;
+      }
+      else // shift == 3
+      {
+         // New: 3 2  Old: 0 1
+         //      0 1       3 2
+         m = sm;
+         n = sn;
+      }
+   }
+   else
+   {
+      if (shift == 0)
+      {
+         // New: 3 2  Old: 3 2
+         //      0 1       0 1
+         m = sm;
+         n = sn;
+      }
+      else if (shift == 1)
+      {
+         // New: 3 2  Old: 0 3
+         //      0 1       1 2
+         n = sm;
+         m = sn;
+      }
+      else if (shift == 2)
+      {
+         // New: 3 2  Old: 1 0
+         //      0 1       2 3
+         m = sm;
+         n = sn;
+      }
+      else // shift == 3
+      {
+         // New: 3 2  Old: 2 1
+         //      0 1       3 0
+         n = sm;
+         m = sn;
+      }
+   }
+}
+
+// TODO: reuse this in other places, to reduce code duplication.
+void GetShiftedGridPoints2D(int m, int n, int i, int j, int signedShift,
+                            int& sm, int& sn, int& si, int& sj)
+{
+   const bool rev = (signedShift < 0);
+   const int shift = rev ? -1 - signedShift : signedShift;
+   MFEM_VERIFY(0 <= shift && shift < 4, "");
+
+   // (0,0) <= (i,j) < (m,n) are old indices, and old vertex [shift] maps
+   // to new vertex 0 in counter-clockwise quad ordering.
+
+   // TODO: condense this somehow?
+
+   // We consider 8 cases for the possible values of rev and shift.
+   if (rev)
+   {
+      if (shift == 0)
+      {
+         // New: 3 2  Old: 1 2
+         //      0 1       0 3
+         sm = n;
+         sn = m;
+
+         si = j;
+         sj = i;
+      }
+      else if (shift == 1)
+      {
+         // New: 3 2  Old: 2 3
+         //      0 1       1 0
+         sm = m;
+         sn = n;
+
+         si = m - 1 - i;
+         sj = j;
+      }
+      else if (shift == 2)
+      {
+         // New: 3 2  Old: 3 0
+         //      0 1       2 1
+         sm = n;
+         sn = m;
+
+         si = n - 1 - j;
+         sj = m - 1 - i;
+      }
+      else // shift == 3
+      {
+         // New: 3 2  Old: 0 1
+         //      0 1       3 2
+         sm = m;
+         sn = n;
+
+         si = i;
+         sj = n - 1 - j;
+      }
+   }
+   else
+   {
+      if (shift == 0)
+      {
+         // New: 3 2  Old: 3 2
+         //      0 1       0 1
+         sm = m;
+         sn = n;
+
+         si = i;
+         sj = j;
+      }
+      else if (shift == 1)
+      {
+         // New: 3 2  Old: 0 3
+         //      0 1       1 2
+         sm = n;
+         sn = m;
+
+         si = j;
+         sj = m - 1 - i;
+      }
+      else if (shift == 2)
+      {
+         // New: 3 2  Old: 1 0
+         //      0 1       2 3
+         sm = m;
+         sn = n;
+
+         si = m - 1 - i;
+         sj = n - 1 - j;
+      }
+      else // shift == 3
+      {
+         // New: 3 2  Old: 2 1
+         //      0 1       3 0
+         sm = n;
+         sn = m;
+
+         si = n - 1 - j;
+         sj = i;
+      }
+   }
 }
 
 }

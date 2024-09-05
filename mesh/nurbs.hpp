@@ -488,7 +488,64 @@ protected:
 
    Array<int> aux_e_spaceOffsets, aux_f_spaceOffsets;
 
-   std::vector<int> auxEdges, auxFaces;
+   struct AuxiliaryEdge
+   {
+      int parent;  /// Signed parent edge index
+      int v[2];    /// Vertex indices
+      int ki[2];   /// Knot indices of vertices in parent edge
+   };
+
+   struct AuxiliaryFace
+   {
+      int parent;  /// Parent face index
+      int ori;  /// Orientation with respect to parent face
+      int v[4];  /// Vertex indices
+      int ki0[2];  /// Lower knot indices in parent face
+      int ki1[2];  /// Upper knot indices in parent face
+   };
+
+   struct EdgePairInfo
+   {
+      int v;  /// Vertex index
+      int ki;  /// Knot index of vertex
+      int child, parent;  /// Child and parent edge indices
+      bool isSet;  /// Indicates whether this instance is set
+
+      EdgePairInfo() : isSet(false) { }
+
+      EdgePairInfo(int vertex, int knotIndex, int childEdge, int parentEdge)
+         : v(vertex), ki(knotIndex), child(childEdge), parent(parentEdge),
+           isSet(true) { }
+
+      void Set(int vertex, int knotIndex, int childEdge, int parentEdge)
+      {
+         v = vertex;
+         ki = knotIndex;
+         child = childEdge;
+         parent = parentEdge;
+         isSet = true;
+      }
+
+      bool operator==(const EdgePairInfo& other) const
+      {
+         return v == other.v && ki == other.ki && child == other.child
+                && parent == other.parent;
+      }
+   };
+
+   struct FacePairInfo
+   {
+      int v0;  /// Lower left corner vertex
+      int child, parent;  /// Child and parent face indices
+      int ori;  /// Orientation
+      int ki[2];  /// Knot indices in parent face of v0
+      int ne[2];  /// Number of elements in each direction on child face
+   };
+
+   std::vector<AuxiliaryEdge> auxEdges;
+   std::vector<AuxiliaryFace> auxFaces;
+
+   std::map<std::pair<int, int>, int> v2e;
 
    /// Table of DOFs for each element (el_dof) or boundary element (bel_dof).
    Table *el_dof, *bel_dof;
@@ -514,11 +571,13 @@ protected:
    inline int KnotInd(int edge) const;
 
    std::set<int> masterEdges, masterFaces;
-   std::vector<int> slaveEdges, slaveFaces;
+   std::vector<int> slaveEdges, slaveFaces, slaveFaceNE1, slaveFaceNE2,
+       slaveFaceI, slaveFaceJ, slaveFaceOri;
    std::map<int,int> masterEdgeToId, masterFaceToId;
    std::vector<std::vector<int>> masterEdgeSlaves, masterFaceSlaves,
        masterFaceSlaveCorners;
    std::vector<std::vector<int>> masterEdgeVerts, masterFaceVerts;
+   std::vector<std::vector<int>> masterEdgeKI;
    std::vector<std::vector<int>> masterFaceSizes, masterFaceS0;
    std::vector<bool> masterFaceRev;
 
@@ -661,6 +720,30 @@ private:
    void GetVertexDofs(int index, Array<int> &dofs) const;
    int GetEdgeDofs(int index, Array<int> &dofs) const;
 
+   // Not const, because it modifies auxFaces.
+   void FindAdditionalSlaveAndAuxiliaryFaces(
+      std::map<std::pair<int, int>, int> & v2f,
+      std::set<int> & addParentFaces,
+      std::vector<FacePairInfo> & facePairs);
+
+   void ProcessFacePairs(int start, int midStart,
+                         const std::vector<int> & parentN1,
+                         const std::vector<int> & parentN2,
+                         std::vector<int> & parentVerts,
+                         const std::vector<FacePairInfo> & facePairs);
+
+   void ProcessVertexToKnot2D(const Array2D<int> & v2k,
+                              std::set<int> & reversedParents,
+                              std::vector<EdgePairInfo> & edgePairs);
+
+   void ProcessVertexToKnot3D(Array2D<int> const& v2k,
+                              const std::map<std::pair<int, int>, int> & v2f,
+                              std::vector<int> & parentN1,
+                              std::vector<int> & parentN2,
+                              std::vector<EdgePairInfo> & edgePairs,
+                              std::vector<FacePairInfo> & facePairs,
+                              std::vector<int> & parentFaces,
+                              std::vector<int> & parentVerts);
 
 public:
    /// Copy constructor: deep copy
@@ -816,6 +899,8 @@ public:
    int GetPatchBdrAttribute(int i) const
    { return patchTopo->GetBdrAttribute(i); }
 
+   inline int KnotVecNE(int edge) const;
+
    // Load functions
 
    /// Load element @a i into @a FE.
@@ -895,6 +980,10 @@ public:
    int GetEntityDofs(int entity, int index, Array<int> &dofs) const;
 
    void GetAuxEdgeVertices(int auxEdge, Array<int> &verts) const;
+
+   void GetAuxFaceVertices(int auxFace, Array<int> &verts) const;
+
+   void GetAuxFaceEdges(int auxFace, Array<int> &edges) const;
 };
 
 
@@ -1004,7 +1093,13 @@ private:
        orientations output in @a okv. */
    void GetBdrPatchKnotVectors(int bp, const KnotVector *kv[], int *okv);
 
-   void SetMasterEdges(bool dof);
+   void GetMasterEdgeDofs(int edge,
+                          const Array<int>& v_offsets,
+                          const Array<int>& e_offsets,
+                          const Array<int>& aux_e_offsets,
+                          Array<int> & dofs);
+
+   void SetMasterEdges(bool dof, const KnotVector *kv[] = nullptr);
    void SetMasterFaces(bool dof);
    int GetMasterEdgeDof(const int e, const int i) const;
    int GetMasterFaceDof(const int f, const int i) const;
@@ -1179,6 +1274,10 @@ const
    }
 }
 
+inline int NURBSExtension::KnotVecNE(int edge) const
+{
+   return knotVectors[KnotInd(edge)]->GetNE();
+}
 
 // static method
 inline int NURBSPatchMap::Or2D(const int n1, const int n2,
