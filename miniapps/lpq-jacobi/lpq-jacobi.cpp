@@ -294,9 +294,16 @@ int main(int argc, char *argv[])
    /// 8. Construct the preconditioner. User-inputs define the p_order and q_order
    ///    of the L(p,q)-Jacobi type smoother.
    // D_{p,q} = diag( D^{1+q-p} |A|^p D^{-q} 1) , where D = diag(A)
-   auto lpq_jacobi = new OperatorLpqJacobiSmoother(A, ess_tdof_list, p_order,
-                                                   q_order);
-   real_t bound = lpq_jacobi->CheckSpectralBoundConstant();
+
+   // temp
+   // auto lpq_jacobi = new OperatorLpqJacobiSmoother(A, ess_tdof_list, p_order,
+   //                                                 q_order);
+   // real_t bound = lpq_jacobi->CheckSpectralBoundConstant();
+
+   Vector diag(sys_size);
+   lpq_common::AssembleElementLpqJacobiDiag(*a, p_order, q_order, diag);
+   auto lpq_jacobi = new OperatorJacobiSmoother(diag, ess_tdof_list);
+   real_t bound = -1.0;
 
    /// 9. Construct the solver. The implemented solvers are the following:
    ///    - Stationary Linear Iteration

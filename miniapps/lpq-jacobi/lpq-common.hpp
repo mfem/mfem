@@ -134,6 +134,9 @@ private:
 
 };
 
+void AssembleElementLpqJacobiDiag(ParBilinearForm& form, real_t p, real_t q,
+                                  Vector& diag);
+
 real_t diffusion_solution(const Vector &x);
 real_t diffusion_source(const Vector &x);
 

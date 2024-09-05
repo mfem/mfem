@@ -275,6 +275,48 @@ void AbsL1GeometricMultigrid::ConstructBilinearForm(ParFiniteElementSpace&
    bfs.Append(form);
 }
 
+
+void AssembleElementLpqJacobiDiag(ParBilinearForm& form, real_t p, real_t q,
+                                  Vector& diag)
+{
+   ParBilinearForm temp_form(form.ParFESpace());
+   temp_form.SetAssemblyLevel(form.GetAssemblyLevel());
+   temp_form.AllocateMatrix();
+   for (int i = 0; i < form.ParFESpace()->GetNE(); ++i)
+   {
+      DenseMatrix emat_i;
+      form.ComputeElementMatrix(i, emat_i);
+      Vector right(emat_i.Height());
+      Vector temp(emat_i.Height());
+      Vector left(emat_i.Height());
+
+      right = 1.0;
+      if (q!=0.0)
+      {
+         emat_i.GetDiag(right);
+         right.PowerAbs(-q);
+      }
+
+      emat_i.PowAbsMult(p, right, temp);
+
+      left = temp;
+      if (1.0 + q - p!= 0.0)
+      {
+         emat_i.GetDiag(left);
+         left.PowerAbs(1.0 + q - p);
+         left *= temp;
+      }
+
+      DenseMatrix temp_emat_i;
+      temp_emat_i.Diag(left.GetData(), left.Size());
+      temp_form.AssembleElementMatrix(i, temp_emat_i, 1);
+   }
+   temp_form.Finalize();
+   auto mat = temp_form.ParallelAssemble();
+   mat->AssembleDiagonal(diag);
+   delete mat;
+}
+
 real_t diffusion_solution(const Vector &x)
 {
    if (dim == 3)
@@ -364,4 +406,4 @@ void maxwell_source(const Vector &x, Vector &f)
    }
 }
 
-} // end namespace lpq_jacobi
+} // end namespace lpq_common
