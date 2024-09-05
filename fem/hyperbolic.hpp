@@ -209,6 +209,26 @@ public:
                           Vector &flux) const
    { MFEM_ABORT("Not implemented."); }
 
+   /**
+    * @brief Evaluates Jacobian of the average numerical flux over the interval
+    * between the given end states and for the given normal. Optionally
+    * overloaded in a derived class.
+    *
+    * @param[in] side indicates gradient w.r.t. the first (side = 1)
+    * or second (side = 2) state
+    * @param[in] state1 state value of the beggining of the interval
+    * (num_equations)
+    * @param[in] state2 state value of the end of the interval
+    * (num_equations)
+    * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
+    * @param[in] Tr face transformation
+    * @param[out] flux gradient of the numerical flux (num_equations, dim)
+    */
+   virtual void AverageGrad(int side, const Vector &state1, const Vector &state2,
+                            const Vector &nor, FaceElementTransformations &Tr,
+                            DenseMatrix &grad) const
+   { MFEM_ABORT("Not implemented."); }
+
    virtual ~RiemannSolver() = default;
 
    /// @brief Get flux function F
