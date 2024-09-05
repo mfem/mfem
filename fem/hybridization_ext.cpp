@@ -116,16 +116,158 @@ void HybridizationExtension::ConstructH()
       });
    }
 
+   // First set AhatInvCt to Ct, then multiply on the left by AhatInv.
    Vector AhatInvCt_mat(Ct_mat);
+   const auto d_AhatInvCt =
+      Reshape(AhatInvCt_mat.ReadWrite(), m, n, n_faces_per_el, ne);
+
+   // Zero out rows corresponding to essential DOFs
+   {
+      const DofType *d_hat_dof_marker = hat_dof_marker.Read();
+      mfem::forall(ne*m, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         if (d_hat_dof_marker[idx] == ESSENTIAL)
+         {
+            const int i = idx % m;
+            const int e = idx / m;
+            for (int j = 0; j < n; ++j)
+            {
+               for (int k = 0; k < n_faces_per_el; ++k)
+               {
+                  d_AhatInvCt(i, j, k, e) = 0.0;
+               }
+            }
+         }
+      });
+   }
+
    {
       DenseTensor Ahat_inv_dt;
       Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), m, m, ne, false);
-      BatchedLinAlg::LUFactor(Ahat_inv_dt, Ahat_piv);
-      BatchedLinAlg::LUSolve(Ahat_inv_dt, Ahat_piv, AhatInvCt_mat);
-   }
 
-   const auto d_AhatInvCt =
-      Reshape(AhatInvCt_mat.Read(), m, n, n_faces_per_el, ne);
+      {
+         std::ofstream f("elmats_ea.txt");
+         f.precision(16);
+         for (int i = 0; i < Ahat_inv_dt.SizeK(); ++i)
+         {
+            f << "mat " << i << ":\n";
+            Ahat_inv_dt(i).Print(f);
+         }
+      }
+
+
+      for (int e = 0; e < ne; ++ e)
+      {
+         Array<int> idofs, bdofs;
+         for (int i = 0; i < m; ++i)
+         {
+            DofType dtype = hat_dof_marker[i + e*m];
+            if (dtype == BOUNDARY)
+            {
+               bdofs.Append(i);
+            }
+            else if (dtype == INTERIOR)
+            {
+               idofs.Append(i);
+            }
+         }
+
+         const int nidofs = idofs.Size();
+         const int nbdofs = bdofs.Size();
+
+         DenseMatrix A_ii(nidofs, nidofs);
+         DenseMatrix A_ib(nidofs, nbdofs);
+         DenseMatrix A_bi(nbdofs, nidofs);
+         DenseMatrix A_bb(nbdofs, nbdofs);
+
+         for (int j = 0; j < nidofs; j++)
+         {
+            for (int i = 0; i < nidofs; i++)
+            {
+               A_ii(i,j) = Ahat_inv_dt(idofs[i], idofs[j], e);
+            }
+            for (int i = 0; i < nbdofs; i++)
+            {
+               A_bi(i,j) = Ahat_inv_dt(bdofs[i], idofs[j], e);
+            }
+         }
+         for (int j = 0; j < nbdofs; j++)
+         {
+            for (int i = 0; i < nidofs; i++)
+            {
+               A_ib(i,j) = Ahat_inv_dt(idofs[i], bdofs[j], e);
+            }
+            for (int i = 0; i < nbdofs; i++)
+            {
+               A_bb(i,j) = Ahat_inv_dt(bdofs[i], bdofs[j], e);
+            }
+         }
+
+         Array<int> ipiv_ii(idofs.Size());
+         Array<int> ipiv_bb(bdofs.Size());
+
+         LUFactors LU_ii(A_ii.GetData(), ipiv_ii.GetData());
+         real_t *A_ib_data = A_ib.GetData();
+         real_t *A_bi_data = A_bi.GetData();
+         LUFactors LU_bb(A_bb.GetData(), ipiv_bb.GetData());
+
+         LU_ii.Factor(nidofs);
+         LU_ii.BlockFactor(nidofs, nbdofs, A_ib_data, A_bi_data, LU_bb.data);
+         LU_bb.Factor(nbdofs);
+
+         // Extract Cb_t from Ct, define c_dofs
+         DenseMatrix Cb_t(nbdofs, n_faces_per_el * n);
+
+         const auto d_Ct_mat = Reshape(Ct_mat.ReadWrite(), m, n, n_faces_per_el, ne);
+
+         for (int f = 0; f < n_faces_per_el; ++f)
+         {
+            for (int j = 0; j < n; ++j)
+            {
+               for (int i = 0; i < nbdofs; ++i)
+               {
+                  Cb_t(i, j + f*n) = d_Ct_mat(bdofs[i], j, f, e);
+               }
+            }
+         }
+
+         DenseMatrix Sb_inv_Cb_t = Cb_t;
+         LU_bb.Solve(Cb_t.Height(), Cb_t.Width(), Sb_inv_Cb_t.Data());
+         DenseMatrix Hb(Cb_t.Width());
+         MultAtB(Cb_t, Sb_inv_Cb_t, Hb);
+
+         // {
+         //    std::string fname = "S_ea_" + std::to_string(e) + ".txt";
+         //    std::ofstream f(fname);
+         //    f.precision(16);
+         //    Sb_inv_Cb_t.Print(f);
+         // }
+         // {
+         //    std::string fname = "H_ea_" + std::to_string(e) + ".txt";
+         //    std::ofstream f(fname);
+         //    f.precision(16);
+         //    Hb.Print(f);
+         // }
+
+         for (int f = 0; f < n_faces_per_el; ++f)
+         {
+            for (int j = 0; j < n; ++j)
+            {
+               for (int i = 0; i < nbdofs; ++i)
+               {
+                  d_AhatInvCt(bdofs[i], j, f, e) = Sb_inv_Cb_t(i, j + f*n);
+               }
+               for (int i = 0; i < nidofs; ++i)
+               {
+                  d_AhatInvCt(idofs[i], j, f, e) = 0.0;
+               }
+            }
+         }
+      }
+
+      // BatchedLinAlg::LUFactor(Ahat_inv_dt, Ahat_piv);
+      // BatchedLinAlg::LUSolve(Ahat_inv_dt, Ahat_piv, AhatInvCt_mat);
+   }
 
    const int nf = h.fes.GetNFbyType(FaceType::Interior);
    const int n_face_connections = 2*n_faces_per_el - 1;
@@ -768,7 +910,93 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
 
    DenseTensor Ahat_inv_dt;
    Ahat_inv_dt.NewMemoryAndSize(Ahat_inv.GetMemory(), n, n, ne, false);
-   BatchedLinAlg::LUSolve(Ahat_inv_dt, Ahat_piv, x);
+   // BatchedLinAlg::LUSolve(Ahat_inv_dt, Ahat_piv, x);
+
+   for (int e = 0; e < ne; ++ e)
+   {
+      Array<int> idofs, bdofs;
+      for (int i = 0; i < n; ++i)
+      {
+         DofType dtype = hat_dof_marker[i + e*n];
+         if (dtype == BOUNDARY)
+         {
+            bdofs.Append(i);
+         }
+         else if (dtype == INTERIOR)
+         {
+            idofs.Append(i);
+         }
+      }
+
+      const int nidofs = idofs.Size();
+      const int nbdofs = bdofs.Size();
+
+      DenseMatrix A_ii(nidofs, nidofs);
+      DenseMatrix A_ib(nidofs, nbdofs);
+      DenseMatrix A_bi(nbdofs, nidofs);
+      DenseMatrix A_bb(nbdofs, nbdofs);
+
+      for (int j = 0; j < nidofs; j++)
+      {
+         for (int i = 0; i < nidofs; i++)
+         {
+            A_ii(i,j) = Ahat_inv_dt(idofs[i], idofs[j], e);
+         }
+         for (int i = 0; i < nbdofs; i++)
+         {
+            A_bi(i,j) = Ahat_inv_dt(bdofs[i], idofs[j], e);
+         }
+      }
+      for (int j = 0; j < nbdofs; j++)
+      {
+         for (int i = 0; i < nidofs; i++)
+         {
+            A_ib(i,j) = Ahat_inv_dt(idofs[i], bdofs[j], e);
+         }
+         for (int i = 0; i < nbdofs; i++)
+         {
+            A_bb(i,j) = Ahat_inv_dt(bdofs[i], bdofs[j], e);
+         }
+      }
+
+      Array<int> ipiv_ii(idofs.Size());
+      Array<int> ipiv_bb(bdofs.Size());
+
+      LUFactors LU_ii(A_ii.GetData(), ipiv_ii.GetData());
+      real_t *U_ib = A_ib.GetData();
+      real_t *L_bi = A_bi.GetData();
+      LUFactors LU_bb(A_bb.GetData(), ipiv_bb.GetData());
+
+      LU_ii.Factor(nidofs);
+      LU_ii.BlockFactor(nidofs, nbdofs, U_ib, L_bi, LU_bb.data);
+      LU_bb.Factor(nbdofs);
+
+      Vector el_vals(n);
+      for (int i = 0; i < n; ++i)
+      {
+         el_vals[i] = x[i + n*e];
+      }
+
+      Vector i_vals, b_vals;
+      el_vals.GetSubVector(idofs, i_vals);
+      el_vals.GetSubVector(bdofs, b_vals);
+
+      LU_ii.BlockForwSolve(idofs.Size(), bdofs.Size(), 1, L_bi,
+                           i_vals.GetData(), b_vals.GetData());
+      LU_bb.Solve(bdofs.Size(), 1, b_vals.GetData());
+
+      el_vals = 0.0;
+
+      LU_ii.BlockBackSolve(idofs.Size(), bdofs.Size(), 1, U_ib,
+                           b_vals.GetData(), i_vals.GetData());
+      el_vals.SetSubVector(idofs, i_vals);
+      el_vals.SetSubVector(bdofs, b_vals);
+
+      for (int i = 0; i < n; ++i)
+      {
+         x[i + n*e] = el_vals[i];
+      }
+   }
 }
 
 void HybridizationExtension::ReduceRHS(const Vector &b, Vector &b_r) const
