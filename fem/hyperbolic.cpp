@@ -590,14 +590,24 @@ real_t HDGFlux::Average(const Vector &state1, const Vector &state2,
                         const Vector &nor, FaceElementTransformations &Tr,
                         Vector &flux) const
 {
-   if (scheme == HDGScheme::GENERAL)
-   {
-      return fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr, flux);
-   }
-
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
 #endif
+   if (scheme == HDGScheme::Rusanov)
+   {
+      const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
+      const real_t speed2 = fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr,
+                                                            fluxN2);
+      // NOTE: nor in general is not a unit normal
+      const real_t maxE = std::max(speed1, speed2);
+      // here, nor.Norml2() is multiplied to match the scale with fluxN
+      const real_t scaledMaxE = maxE * nor.Norml2() * 0.5;
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         flux[i] = 0.5*(scaledMaxE*(state1[i] - state2[i]) + (fluxN1[i] + fluxN2[i]));
+      }
+      return maxE;
+   }
    const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
    const real_t speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
    switch (scheme)
@@ -608,7 +618,7 @@ real_t HDGFlux::Average(const Vector &state1, const Vector &state2,
       case HDGScheme::HDG_2:
          flux = fluxN2;
          break;
-      case HDGScheme::GENERAL:
+      case HDGScheme::Rusanov:
          //handled above
          break;
    }
@@ -625,7 +635,7 @@ void HDGFlux::AverageGrad(int side, const Vector &state1, const Vector &state2,
 {
    MFEM_ASSERT(side == 1 || side == 2, "Unknown side");
 
-   if (scheme == HDGScheme::GENERAL)
+   if (scheme == HDGScheme::Rusanov)
    {
       MFEM_VERIFY(side == 2, "Not implemented");
 #ifdef MFEM_THREAD_SAFE
@@ -668,7 +678,7 @@ void HDGFlux::AverageGrad(int side, const Vector &state1, const Vector &state2,
             fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, grad);
          }
          break;
-      case HDGScheme::GENERAL:
+      case HDGScheme::Rusanov:
          //handled above
          break;
    }

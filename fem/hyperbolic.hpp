@@ -400,7 +400,7 @@ public:
    {
       HDG_1,
       HDG_2,
-      GENERAL
+      Rusanov
    };
 
 private:
