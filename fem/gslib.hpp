@@ -14,8 +14,6 @@
 
 #include "../config/config.hpp"
 #include "gridfunc.hpp"
-#include <limits>
-#include "../general/tic_toc.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
