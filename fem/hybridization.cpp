@@ -1001,6 +1001,7 @@ void Hybridization::Reset()
 #ifdef MFEM_USE_MPI
    pH.Clear();
 #endif
+   if (ext) { ext->Reset(); }
 }
 
 // Set to default in cpp file because of use of incomplete type
