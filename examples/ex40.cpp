@@ -67,6 +67,8 @@ public:
    ZCoefficient(int vdim, GridFunction &psi_, real_t alpha_ = 1.0)
       : VectorCoefficient(vdim), psi(&psi_), alpha(alpha_) { }
 
+   using VectorCoefficient::Eval;
+
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    void SetAlpha(real_t alpha_) { alpha = alpha_; }
