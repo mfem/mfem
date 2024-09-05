@@ -1403,7 +1403,8 @@ void EABilinearFormExtension::GetElementMatrices(
                const int j = reorder ? jj : j_lex;
                const int s_j = (jj_s < 0 && reorder) ? -1 : 1;
 
-               d_element_matrices(i, j, e) += s_i*s_j*d_ea_bdr(i_face, j_face, f);
+               AtomicAdd(d_element_matrices(i, j, e),
+                         s_i*s_j*d_ea_bdr(i_face, j_face, f));
             }
          }
       });
