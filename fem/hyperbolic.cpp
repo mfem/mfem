@@ -35,6 +35,7 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
    state1.SetSize(num_equations);
    state2.SetSize(num_equations);
    fluxN.SetSize(num_equations);
+   JDotN.SetSize(num_equations);
    nor.SetSize(fluxFunction.dim);
 #endif
 }
@@ -259,16 +260,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    }
 }
 
-HDGHyperbolicFormIntegrator::HDGHyperbolicFormIntegrator(
-   const RiemannSolver &rsolver, const int IntOrderOffset, const real_t sign)
-   : HyperbolicFormIntegrator(rsolver, IntOrderOffset, sign)
-{
-#ifndef MFEM_THREAD_SAFE
-   JDotN.SetSize(num_equations);
-#endif
-}
-
-void HDGHyperbolicFormIntegrator::AssembleHDGFaceVector(
+void HyperbolicFormIntegrator::AssembleHDGFaceVector(
    int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
    FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
    Vector &elvect)
@@ -371,7 +363,7 @@ void HDGHyperbolicFormIntegrator::AssembleHDGFaceVector(
    }
 }
 
-void HDGHyperbolicFormIntegrator::AssembleHDGFaceGrad(
+void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
    int type, const FiniteElement &trace_face_fe, const FiniteElement &fe,
    FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
    DenseMatrix &elmat)

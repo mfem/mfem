@@ -266,6 +266,7 @@ protected:
    Vector state2;  // state value at an integration point - second elem
    Vector nor;     // normal vector, @see CalcOrtho
    Vector fluxN;   // hat(F)(u,x)
+   DenseMatrix JDotN;   // hat(J)(u,x) n
 #endif
 
 public:
@@ -335,19 +336,6 @@ public:
                            const FiniteElement &el2,
                            FaceElementTransformations &Tr,
                            const Vector &elfun, Vector &elvect) override;
-};
-
-class HDGHyperbolicFormIntegrator : public HyperbolicFormIntegrator
-{
-#ifndef MFEM_THREAD_SAFE
-   DenseMatrix JDotN;   // hat(J)(u,x) n
-#endif
-
-public:
-   HDGHyperbolicFormIntegrator(
-      const RiemannSolver &rsolver,
-      const int IntOrderOffset=0,
-      const real_t sign=1.);
 
    void AssembleHDGFaceVector(int type,
                               const FiniteElement &trace_face_fe,

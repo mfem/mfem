@@ -516,9 +516,9 @@ int main(int argc, char *argv[])
       }
       FluxSolver = new HDGFlux(*FluxFun, scheme);
       Mtnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*FluxSolver, 0, -1.));
-      Mtnl->AddInteriorFaceIntegrator(new HDGHyperbolicFormIntegrator(
+      Mtnl->AddInteriorFaceIntegrator(new HyperbolicFormIntegrator(
                                          *FluxSolver, 0, -1.));
-      Mtnl->AddBdrFaceIntegrator(new HDGHyperbolicFormIntegrator(
+      Mtnl->AddBdrFaceIntegrator(new HyperbolicFormIntegrator(
                                     *FluxSolver, 0, -1.));
    }
 
