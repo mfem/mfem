@@ -898,6 +898,9 @@ void EABilinearFormExtension::Assemble()
       ea_data.UseDevice(true);
       Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
       Array<Array<int>*> &markers_array = *a->GetDBFI_Marker();
+
+      if (integrators.Size() == 0) { ea_data = 0.0; }
+
       for (int i = 0; i < integrators.Size(); ++i)
       {
          const bool add = (i > 0);
