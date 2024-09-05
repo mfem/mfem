@@ -612,9 +612,9 @@ real_t HDGFlux::Average(const Vector &state1, const Vector &state2,
          //handled above
          break;
    }
-   for (int d = 0; d < state1.Size(); d++)
+   for (int i = 0; i < fluxFunction.num_equations; i++)
    {
-      flux(d) += Ctau * (state2(d) - state1(d)) * nor.Norml2();
+      flux(i) += Ctau * (state2(i) - state1(i)) * nor.Norml2();
    }
    return std::max(speed1, speed2);
 }
@@ -624,6 +624,27 @@ void HDGFlux::AverageGrad(int side, const Vector &state1, const Vector &state2,
                           DenseMatrix &grad) const
 {
    MFEM_ASSERT(side == 1 || side == 2, "Unknown side");
+
+   if (scheme == HDGScheme::GENERAL)
+   {
+      MFEM_VERIFY(side == 2, "Not implemented");
+#ifdef MFEM_THREAD_SAFE
+      Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
+#endif
+      Average(state1, state2, nor, Tr, fluxN1);
+      fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
+
+      grad = 0.;
+
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         if (state1(i) == state2(i)) { continue; }
+         grad(i,i) = (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i));
+
+      }
+
+      return;
+   }
 
    switch (scheme)
    {
@@ -648,18 +669,18 @@ void HDGFlux::AverageGrad(int side, const Vector &state1, const Vector &state2,
          }
          break;
       case HDGScheme::GENERAL:
-         MFEM_ABORT("Not implemented");
-         return;
+         //handled above
+         break;
    }
-   for (int d = 0; d < grad.Width(); d++)
+   for (int i = 0; i < fluxFunction.num_equations; i++)
    {
       if (side == 1)
       {
-         grad(d,d) -= Ctau * nor.Norml2();
+         grad(i,i) -= Ctau * nor.Norml2();
       }
       else
       {
-         grad(d,d) += Ctau * nor.Norml2();
+         grad(i,i) += Ctau * nor.Norml2();
       }
    }
 }
