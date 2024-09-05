@@ -28,9 +28,6 @@ int GetFaceOrientation(const Mesh *mesh, const int face,
 
 bool Reorder2D(int n1, int n2, int ori, std::vector<int> & s0);
 
-// This function assumes a uniform number of control points per element in kv.
-int GetNCPperEdge(const KnotVector *kv);
-
 void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
    std::map<std::pair<int, int>, int> & v2f,
    std::set<int> & addParentFaces,
@@ -2802,19 +2799,6 @@ void GetShiftedGridPoints2D(int m, int n, int i, int j, int signedShift,
          sj = i;
       }
    }
-}
-
-int GetNCPperEdge(const KnotVector *kv)
-{
-   const int ne = kv->GetNE();
-
-   // Total number of CP on edge, excluding vertex CP.
-   const int totalEdgeCP = kv->GetNCP() - 2 - ne + 1;
-   const int perEdgeCP = totalEdgeCP / ne;
-
-   MFEM_VERIFY(perEdgeCP * ne == totalEdgeCP, "");
-
-   return perEdgeCP;
 }
 
 }
