@@ -192,10 +192,10 @@ void ElementMarker::MarkGhostPenaltyFaces(Array<int> &face_marker)
         {
             face_marker[f]=FaceType::GHOSTP;
         }else
-            if((attr1!=ElementType::OUTSIDE)&&(attr2==ElementType::CUT))
-            {
-                face_marker[f]=FaceType::GHOSTP;
-            }
+        if((attr1!=ElementType::OUTSIDE)&&(attr2==ElementType::CUT))
+        {
+            face_marker[f]=FaceType::GHOSTP;
+        }
     }
 }
 
@@ -451,7 +451,7 @@ void ParElementMarker::SetLevelSetFunction(const ParGridFunction &ls_fun)
 
 void ParElementMarker::MarkElements(Array<int> &elem_marker)
 {
-    elem_marker.SetSize(pmesh->GetNE()+pmesh->GetNSharedFaces());
+    elem_marker.SetSize(pmesh->GetNE());
 
     IntegrationPoint ip; ip.Init(0);
 
@@ -460,18 +460,6 @@ void ParElementMarker::MarkElements(Array<int> &elem_marker)
         ElementTransformation* tr=elfes->GetElementTransformation(e);
         elem_marker[e] = elgf.GetValue(*tr, ip);
     }
-
-
-    for (int f = 0; f < pmesh->GetNSharedFaces(); f++)
-    {
-        auto *ftr = pmesh->GetSharedFaceTransformations(f, true);
-        //const int attr1 = elgf.GetValue(*ftr->Elem1, ip);
-        const int attr2 = elgf.GetValue(*ftr->Elem2, ip);
-        //int faceno = pmesh->GetSharedFace(f);
-
-        elem_marker[pmesh->GetNE()+f]=attr2;
-    }
-
 }
 
 void ParElementMarker::MarkGhostPenaltyFaces(Array<int> &face_marker)
@@ -489,10 +477,10 @@ void ParElementMarker::MarkGhostPenaltyFaces(Array<int> &face_marker)
         {
             face_marker[f]=ElementMarker::FaceType::GHOSTP;
         }else
-            if((attr1!=ElementMarker::ElementType::OUTSIDE)&&(attr2==ElementMarker::ElementType::CUT))
-            {
-                face_marker[f]=ElementMarker::FaceType::GHOSTP;
-            }
+        if((attr1!=ElementMarker::ElementType::OUTSIDE)&&(attr2==ElementMarker::ElementType::CUT))
+        {
+            face_marker[f]=ElementMarker::FaceType::GHOSTP;
+        }
     }
 
     if(pmesh->GetNRanks()>0){
@@ -509,10 +497,10 @@ void ParElementMarker::MarkGhostPenaltyFaces(Array<int> &face_marker)
         {
             face_marker[faceno]=ElementMarker::FaceType::GHOSTP;
         }else
-            if((attr1!=ElementMarker::ElementType::OUTSIDE)&&(attr2==ElementMarker::ElementType::CUT))
-            {
-                face_marker[faceno]=ElementMarker::FaceType::GHOSTP;
-            }
+        if((attr1!=ElementMarker::ElementType::OUTSIDE)&&(attr2==ElementMarker::ElementType::CUT))
+        {
+            face_marker[faceno]=ElementMarker::FaceType::GHOSTP;
+        }
     }
 }
 

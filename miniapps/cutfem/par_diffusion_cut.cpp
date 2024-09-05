@@ -88,11 +88,6 @@ int main(int argc, char *argv[])
         }
     }
 
-
-    pmesh.ExchangeFaceNbrData();
-    pmesh.ExchangeFaceNbrNodes();
-
-
     std::cout<<"id="<<myid<<" "<<pmesh.GetNE()<<" "<<pmesh.GetNumFaces()
             <<" "<<pmesh.GetNSharedFaces()<<std::endl; std::cout.flush();
 
@@ -126,10 +121,12 @@ int main(int argc, char *argv[])
     fespace.GetBoundaryTrueDofs(boundary_dofs);
     Array<int> outside_dofs;
     Array<int> marks;
+    Array<int> face_marks;
     {
         ParElementMarker* elmark=new ParElementMarker(pmesh,true,true);
         elmark->SetLevelSetFunction(cgf);
         elmark->MarkElements(marks);
+        elmark->MarkGhostPenaltyFaces(face_marks);
         elmark->ListEssentialTDofs(marks,fespace,outside_dofs);
         delete elmark;
     }
@@ -157,7 +154,7 @@ int main(int argc, char *argv[])
     ParBilinearForm a(&fespace);
     a.AddDomainIntegrator(new CutDiffusionIntegrator(one,&marks,air,false));
     // something is wrong with the CutGhostPenaltyIntegrator
-    a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&marks));
+    a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&face_marks));
     a.Assemble();
 
     OperatorPtr A;
@@ -197,7 +194,7 @@ int main(int argc, char *argv[])
     paraview_dc.SetDataFormat(VTKFormat::BINARY);
     paraview_dc.SetHighOrderOutput(true);
     paraview_dc.SetTime(0.0); // set the time
-    paraview_dc.RegisterField("sol",&x);
+    paraview_dc.RegisterField("solution",&x);
     paraview_dc.RegisterField("marks", &mgf);
     paraview_dc.RegisterField("parts", &par);
     paraview_dc.Save();

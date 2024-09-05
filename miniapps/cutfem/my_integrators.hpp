@@ -423,16 +423,23 @@ class CutGhostPenaltyIntegrator:public BilinearFormIntegrator
 {
 private:    
     GhostPenaltyIntegrator* dint;
-    Array<int>* el_marks;
+    Array<int>* face_marks;
 
 public:
+
+
+    /// Constructor takes as arguments the ghost penalty and face marks.
+    /// The ghost penalty is applied only on faces marked as
+    /// ElementMarker::FaceType::GHOSTP.
     CutGhostPenaltyIntegrator(double penal_, Array<int>* marks)
     {
-        el_marks=marks;
+        face_marks=marks;
         dint=new GhostPenaltyIntegrator(penal_);
     }
+
+    /// Destructor
     virtual
-        ~CutGhostPenaltyIntegrator()
+    ~CutGhostPenaltyIntegrator()
     {
         delete dint;
     }
@@ -443,8 +450,6 @@ public:
                                     FaceElementTransformations &Trans,
                                     DenseMatrix &elmat) override
     {
-        std::cout<<"fs="<<Trans.ElementNo<<" el1="<<Trans.Elem1No<<" el2="<<Trans.Elem2No<<std::endl;
-
         if(Trans.Elem2No<0)
         {
             elmat.SetSize(fe1.GetDof());
@@ -452,24 +457,12 @@ public:
             return;
         }
 
-
-        if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
+        if(((*face_marks)[Trans.ElementNo])==ElementMarker::FaceType::GHOSTP)
         {
-            //use standard integration rule
-            dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
-
-        }
-        else if(((*el_marks)[Trans.Elem1No]==ElementMarker::INSIDE) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
-        {
-            //use standard integration rule
             dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
         }
-        else if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::INSIDE))
+        else
         {
-            //use standard integration rule
-            dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
-        }
-        else{
             const int ndofs1=fe1.GetDof();
             const int ndofs2=fe2.GetDof();
             int ndofs=ndofs1+ndofs2;

@@ -57,11 +57,13 @@ int main(int argc, char *argv[])
    fespace.GetBoundaryTrueDofs(boundary_dofs);
    Array<int> outside_dofs;
    Array<int> marks;
+   Array<int> face_marks;
    {
        Array<int> outside_dofs;
        ElementMarker* elmark=new ElementMarker(mesh,true,true); 
        elmark->SetLevelSetFunction(cgf);
        elmark->MarkElements(marks);
+       elmark->MarkGhostPenaltyFaces(face_marks);
        elmark->ListEssentialTDofs(marks,fespace,outside_dofs);
        delete elmark;
    }
@@ -85,7 +87,7 @@ int main(int argc, char *argv[])
    // 7. Set up the bilinear form a(.,.) corresponding to the -Delta operator.
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new CutDiffusionIntegrator(one,&marks,air));
-   a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&marks));
+   a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&face_marks));
    a.Assemble();
 
 
