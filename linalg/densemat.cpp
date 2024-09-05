@@ -148,6 +148,13 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
    Mult(x.GetData(), y.GetData());
 }
 
+void DenseMatrix::PowAbsMult(const real_t p, const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == y.Size() && width == x.Size(),
+               "incompatible dimensions");
+   kernels::PowAbsMult(height, width, p, Data(), x.GetData(), y.GetData());
+}
+
 real_t DenseMatrix::operator *(const DenseMatrix &m) const
 {
    MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
