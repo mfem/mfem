@@ -3324,8 +3324,6 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
    std::set<int> & addParentFaces,
    std::vector<FacePairInfo> & facePairs)
 {
-   const int ipair[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-
    for (int f=0; f<patchTopo->GetNFaces(); ++f)
    {
       if (masterFaces.find(f) != masterFaces.end())
@@ -3347,7 +3345,6 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
       {
          Array<int> oppEdges(2);
          const int sideEdge0 = edges[1 - p];
-         bool eitherMaster = false;
          bool bothMaster = true;
          for (int s=0; s<2; ++s)
          {
@@ -3357,20 +3354,10 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
             if (masterEdges.count(oppEdges[s]) > 0)
             {
                const int mid = masterEdgeToId.at(oppEdges[s]);
-               if (masterEdgeSlaves[mid].size() > 0)
-               {
-                  isTrueMasterEdge = true;
-               }
+               if (masterEdgeSlaves[mid].size() > 0) { isTrueMasterEdge = true; }
             }
 
-            if (isTrueMasterEdge)
-            {
-               eitherMaster = true;
-            }
-            else
-            {
-               bothMaster = false;
-            }
+            if (!isTrueMasterEdge) { bothMaster = false; }
          }
 
          if (bothMaster)
@@ -3538,8 +3525,6 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
 
                for (int e=0; e<nes; ++e) // Loop over edges
                {
-                  const int e1 = rev ? nes - 1 - e : e;
-
                   Array<int> fverts(4);
                   fverts[0] = edgeV[0][e];
                   fverts[1] = edgeV[0][e + 1];
@@ -3697,9 +3682,11 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
 
                      facePairs.emplace_back(FacePairInfo{fverts[vMinID], sface,
                                                          f, ori_sface,
-                                                         fki(vMinID,0), fki(vMinID,1),
-                                                         fki((vMinID + 2) % 4,0) - fki(vMinID,0),
-                                                         fki((vMinID + 2) % 4,1) - fki(vMinID,1)});
+                     {fki(vMinID,0), fki(vMinID,1)},
+                     {
+                        fki((vMinID + 2) % 4,0) - fki(vMinID,0),
+                        fki((vMinID + 2) % 4,1) - fki(vMinID,1)
+                     }});
                   }
                   else  // Auxiliary face
                   {
@@ -3756,8 +3743,6 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
 
                      if (afid >= 0)
                      {
-                        const int auxFace = -1 - afid;
-
                         // Find orientation of ordered vertices for this face, in fvertsSorted, w.r.t. the auxFaces ordering.
 
                         for (int i=0; i<4; ++i)
@@ -3804,9 +3789,11 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
 
                         facePairs.emplace_back(FacePairInfo{fverts[vMinID], -1 - afid,
                                                             f, ori_f2,
-                                                            fki(vMinID,0), fki(vMinID,1),
-                                                            fki((vMinID + 2) % 4,0) - fki(vMinID,0),
-                                                            fki((vMinID + 2) % 4,1) - fki(vMinID,1)});
+                        {fki(vMinID,0), fki(vMinID,1)},
+                        {
+                           fki((vMinID + 2) % 4,0) - fki(vMinID,0),
+                           fki((vMinID + 2) % 4,1) - fki(vMinID,1)
+                        }});
                      }
                      else
                      {
@@ -3842,9 +3829,11 @@ void NURBSExtension::FindAdditionalSlaveAndAuxiliaryFaces(
 
                         facePairs.emplace_back(FacePairInfo{fverts[vMinID], -1 - auxFaceId,
                                                             f, ori_f,
-                                                            fki(vMinID,0), fki(vMinID,1),
-                                                            fki((vMinID + 2) % 4,0) - fki(vMinID,0),
-                                                            fki((vMinID + 2) % 4,1) - fki(vMinID,1)});
+                        {fki(vMinID,0), fki(vMinID,1)},
+                        {
+                           fki((vMinID + 2) % 4,0) - fki(vMinID,0),
+                           fki((vMinID + 2) % 4,1) - fki(vMinID,1)
+                        }});
                      }
                   }
                }
@@ -3867,7 +3856,6 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
    int midPrev = -1;
    int pfcnt = 0;
    int orientation = 0;
-   bool parentFaceChanged = false;
    for (int q=start; q<nfpairs; ++q)
    {
       // We assume that j is the fast index in (i,j).
@@ -4073,8 +4061,6 @@ void NURBSExtension::GenerateOffsets()
       } // if using vertex_to_knot
 
       const int numMasters = is3D ? ncf.masters.Size() : nce.masters.Size();
-
-      const int numParentFaces = is3D ? masterFaces.size() : 0;
 
       if (is3D)
       {
@@ -4337,7 +4323,6 @@ void NURBSExtension::GenerateOffsets()
    spaceCounter = meshCounter;
 
    // Get edge offsets
-   int nint = 0;
    for (int e = 0; e < ne; e++)
    {
       e_meshOffsets[e]  = meshCounter;
@@ -4347,7 +4332,6 @@ void NURBSExtension::GenerateOffsets()
       {
          meshCounter  += KnotVec(e)->GetNE() - 1;
          spaceCounter += KnotVec(e)->GetNCP() - 2;
-         if (KnotVec(e)->GetNE() - 1 > 0) { nint += KnotVec(e)->GetNE() - 1; }
       }
    }
 
@@ -6168,7 +6152,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
 
    patchTopo = parent->patchTopo;
    own_topo = parent->own_topo;
-   parent->own_topo = 0;
+   parent->own_topo = false;
 
    Swap(edge_to_knot, parent->edge_to_knot);
 
@@ -6190,10 +6174,6 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    Swap(e_spaceOffsets, parent->e_spaceOffsets);
    Swap(f_spaceOffsets, parent->f_spaceOffsets);
    Swap(p_spaceOffsets, parent->p_spaceOffsets);
-
-   Swap(aux_e_meshOffsets, parent->aux_e_meshOffsets);
-   Swap(aux_e_spaceOffsets, parent->aux_e_spaceOffsets);
-   Swap(auxEdges, parent->auxEdges);
 
    Swap(d_to_d, parent->d_to_d);
    Swap(master, parent->master);
@@ -6222,8 +6202,6 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    MFEM_VERIFY(!parent->HavePatches(), "");
 
    delete parent;
-
-   partitioning = NULL;
 
    MFEM_VERIFY(par_parent->partitioning,
                "parent ParNURBSExtension has no partitioning!");
@@ -6618,10 +6596,6 @@ void NURBSPatchMap::SetMasterEdges(bool dof, const KnotVector *kv[])
    edgeMasterOffset.SetSize(edges.Size());
    masterDofs.SetSize(0);
 
-   const int hexEdgeDir[12] = {0, 1, 0, 1, 0, 1, 0, 1, 2, 2, 2, 2};
-   const int quadEdgeDir[4] = {0, 1, 0, 1};
-   const int dim = Ext->Dimension();
-
    int mos = 0;
    for (int i=0; i<edges.Size(); ++i)
    {
@@ -6968,8 +6942,6 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
             // If ori >= 0, then vertex ori of the aux face is closest to vertex 0 of
             // the parent face. If ori < 0, then the orientations of the aux face and parent face
             // are reversed.
-            const int oriAbs = ori >= 0 ? ori : -1 - ori;
-            const bool revDim = ori % 2 == 1;  // Correct for ori >= 0 and ori < 0.
 
             // TODO: eliminate auxFaceOri? Isn't it always equal to Ext->slaveFaceOri[sId]?
             // Actually, I think auxFaces has ori defined as 0 for its original parent face,
@@ -7687,8 +7659,8 @@ void NURBSExtension::ProcessVertexToKnot2D(const Array2D<int> & v2k,
             // Create a new auxiliary edge
             auxv2e[childPair] = auxEdges.size();
             auxEdges.emplace_back(AuxiliaryEdge{pv0 < pv1 ? parentEdge : -1 - parentEdge,
-                                                childPair.first, childPair.second,
-                                                newParentEdge ? 0 : prevKI, knotIndex});
+               {childPair.first, childPair.second},
+               {newParentEdge ? 0 : prevKI, knotIndex}});
          }
       }
 
@@ -7722,13 +7694,13 @@ void NURBSExtension::ProcessVertexToKnot2D(const Array2D<int> & v2k,
 
                // -1 denotes `ne` at endpoint
                auxEdges.emplace_back(AuxiliaryEdge{pv0 < pv1 ? -1 - parentEdge : parentEdge,
-                                                   finalChildPair.first, finalChildPair.second,
-                                                   knotIndex, -1});
+                  {finalChildPair.first, finalChildPair.second},
+                  {knotIndex, -1}});
             }
          }
 
-         const int finalChildEdge = finalChildPairTopo ? v2e[finalChildPair]: -1 -
-                                    auxv2e[finalChildPair];
+         const int finalChildEdge = finalChildPairTopo ? v2e[finalChildPair] :
+                                    -1 - auxv2e[finalChildPair];
          edgePairs.emplace_back(-1, -1, finalChildEdge, parentEdge);
       }
 
@@ -8009,7 +7981,7 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                // ori gives the orientation and index of cv matching the first vertex of childFace.
 
                facePairs.emplace_back(FacePairInfo{cv[0], childFace, parentFace, ori,
-                                                   i, j, 1, 1});
+                  {i, j}, {1, 1}});
             }
             else
             {
@@ -8058,7 +8030,6 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
             if (!parentVisited)
             {
                edgePairOS[parentEdge] = edgePairs.size();
-               const int os0 = edgePairs.size();
                edgePairs.resize(edgePairs.size() + ne);
             }
 
@@ -8247,7 +8218,7 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                   // first vertex of childFace.
                   const int ori = GetFaceOrientation(patchTopo, childFace, acv);
                   facePairs.emplace_back(FacePairInfo{cv[0], childFace, parentFace, ori,
-                                                      gv1[i], gv2[j], gv1[i+1] - gv1[i], gv2[j+1] - gv2[j]});
+                     {gv1[i], gv2[j]}, {gv1[i+1] - gv1[i], gv2[j+1] - gv2[j]}});
                }
                else
                {
@@ -8277,7 +8248,7 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
                      // Orientation is 0 for a new auxiliary face, by construction.
                      facePairs.emplace_back(FacePairInfo{cv[0], -1 - auxv2f[childPair], parentFace, 0,
-                                                         gv1[i], gv2[j], gv1[i+1] - gv1[i], gv2[j+1] - gv2[j]});
+                        {gv1[i], gv2[j]}, {gv1[i+1] - gv1[i], gv2[j+1] - gv2[j]}});
 
                      // TODO: is it redundant to put parentFace in both
                      // facePairs and auxFaces?
@@ -8412,8 +8383,8 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                      // Create a new auxiliary edge
                      auxv2e[childPair] = auxEdges.size();
                      auxEdges.emplace_back(AuxiliaryEdge{pv0 < pv1 ? parentEdge : -1 - parentEdge,
-                                                         childPair.first, childPair.second,
-                                                         knotIndex0, knotIndex1});
+                        {childPair.first, childPair.second},
+                        {knotIndex0, knotIndex1}});
                   }
 
                   // TODO: ne is identical to n_d.
