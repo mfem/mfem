@@ -863,11 +863,7 @@ void NURBSPatchMap::SetMasterEdges(bool dof, const KnotVector *kv[])
 
          Array<int> mdof;
          GetMasterEdgeDofs(edges[i], v_offsets, e_offsets, aux_e_offsets, mdof);
-
-         for (auto dof : mdof)
-         {
-            masterDofs.Append(dof);
-         }
+         masterDofs.Append(mdof);
 
          mos += mdof.Size();
       }
