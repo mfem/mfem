@@ -50,6 +50,15 @@ enum IntegratorType
    num_integrators,  // last
 };
 
+// Enumerator for the different types of preconditioners
+enum LpqType
+{
+   none,
+   global,
+   element,
+   num_lpq_pc,  // last
+};
+
 /// @brief Custom monitor that prints a csv-formatted file
 class DataMonitor : public IterativeSolverMonitor
 {

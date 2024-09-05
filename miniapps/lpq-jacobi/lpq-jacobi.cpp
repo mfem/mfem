@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
    int order = 1;
    SolverType solver_type = sli;
    IntegratorType integrator_type = mass;
+   LpqType pc_type = global;
    // Number of refinements
    int refine_serial = 0;
    int refine_parallel = 0;
@@ -68,7 +69,6 @@ int main(int argc, char *argv[])
    double eps_z = 0.0;
    // Other options
    string device_config = "cpu";
-   bool use_pc = true;
    bool use_monitor = false;
    bool visualization = true;
 
@@ -87,6 +87,11 @@ int main(int argc, char *argv[])
                   "\n\t1: DiffusionIntegrator"
                   "\n\t2: ElasticityIntegrator"
                   "\n\t3: CurlCurlIntegrator + VectorFEMassIntegrator");
+   args.AddOption((int*)&pc_type, "-pc", "--preconditioner",
+                  "Preconditioners to be considered:"
+                  "\n\t0: No preconditioner"
+                  "\n\t1: L(p,q)-Jacobi preconditioner"
+                  "\n\t2: Element L(p,q)-Jacobi preconditioner");
    args.AddOption(&refine_serial, "-rs", "--refine-serial",
                   "Number of serial refinements");
    args.AddOption(&refine_parallel, "-rp", "--refine-parallel",
@@ -107,9 +112,6 @@ int main(int argc, char *argv[])
                   " solution.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&use_pc, "-pc", "--preconditioner", "-no-pc",
-                  "--no-preconditioner",
-                  "Enable or disable L(p,q)-Jacobi preconditioner.");
    args.AddOption(&use_monitor, "-mon", "--monitor", "-no-mon",
                   "--no-monitor",
                   "Enable or disable Data Monitor.");
@@ -121,6 +123,7 @@ int main(int argc, char *argv[])
    MFEM_ASSERT(p_order > 0.0, "p needs to be positive");
    MFEM_ASSERT((0 <= solver_type) && (solver_type < num_solvers), "");
    MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
+   MFEM_ASSERT((0 <= pc_type) && (pc_type < num_lpq_pc), "");
    MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
    MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
 
@@ -295,15 +298,32 @@ int main(int argc, char *argv[])
    ///    of the L(p,q)-Jacobi type smoother.
    // D_{p,q} = diag( D^{1+q-p} |A|^p D^{-q} 1) , where D = diag(A)
 
-   // temp
+   Solver *lpq_jacobi = nullptr;
+   real_t bound = 0.0;
+   Vector diag(sys_size);
+
+   switch (pc_type)
+   {
+      case none:
+         break;
+      case global:
+         lpq_jacobi = new OperatorLpqJacobiSmoother(A, ess_tdof_list, p_order,
+                                                    q_order);
+         bound = static_cast<OperatorLpqJacobiSmoother*>
+                 (lpq_jacobi)->CheckSpectralBoundConstant();
+         break;
+      case element:
+         AssembleElementLpqJacobiDiag(*a, p_order, q_order, diag);
+         lpq_jacobi = new OperatorJacobiSmoother(diag, ess_tdof_list);
+         break;
+      default:
+         mfem_error("Invalid preconditioner type!");
+   }
+
    // auto lpq_jacobi = new OperatorLpqJacobiSmoother(A, ess_tdof_list, p_order,
    //                                                 q_order);
    // real_t bound = lpq_jacobi->CheckSpectralBoundConstant();
 
-   Vector diag(sys_size);
-   lpq_common::AssembleElementLpqJacobiDiag(*a, p_order, q_order, diag);
-   auto lpq_jacobi = new OperatorJacobiSmoother(diag, ess_tdof_list);
-   real_t bound = -1.0;
 
    /// 9. Construct the solver. The implemented solvers are the following:
    ///    - Stationary Linear Iteration
@@ -336,7 +356,7 @@ int main(int argc, char *argv[])
          monitor = new DataMonitor(file_name.str(), MONITOR_DIGITS);
          it_solver->SetMonitor(*monitor);
       }
-      if (use_pc)
+      if (lpq_jacobi)
       {
          it_solver->SetPreconditioner(*lpq_jacobi);
       }
@@ -375,15 +395,13 @@ int main(int argc, char *argv[])
       if (Mpi::Root())
       {
          mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << endl;
-         if (use_pc) { mfem::out << "\tL(p,q)-Jacobi enabled...\n" << endl; }
-         else { mfem::out << "\tNo preconditioner enabled...\n" << endl; }
-         mfem::out << "Spectral bound is: " << bound << endl;
+         if (pc_type==global) { mfem::out << "Spectral bound is: " << bound << endl; }
       }
    }
 
    /// 12. Free the memory used
    delete solver;
-   delete lpq_jacobi;
+   if (lpq_jacobi) { delete lpq_jacobi; }
    delete a;
    delete b;
    delete fespace;

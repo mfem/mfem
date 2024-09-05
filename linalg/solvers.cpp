@@ -425,7 +425,7 @@ void OperatorLpqJacobiSmoother::Setup()
    {
       if (D[i] == 0.0)
       {
-         MFEM_ABORT_KERNEL("Zero diagonal entry in OperatorJacobiSmoother");
+         MFEM_ABORT_KERNEL("Zero diagonal entry in OperatorLpqJacobiSmoother");
       }
       DI[i] = delta / D[i];
    });
