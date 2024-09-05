@@ -30,7 +30,6 @@
 //    lsf_integral -ls 2 -m ../../data/inline-quad.mesh -rs 2 -o 3 -ao 3
 
 #include "mfem.hpp"
-#include "integ_algoim.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -211,7 +210,6 @@ int main(int argc, char *argv[])
          trans->SetIntPoint(&ip);
          area += ip.weight * sweights(j) * trans->Weight();
       }
-
    }
 
    delete air;
