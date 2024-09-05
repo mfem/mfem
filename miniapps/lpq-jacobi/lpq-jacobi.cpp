@@ -320,11 +320,6 @@ int main(int argc, char *argv[])
          mfem_error("Invalid preconditioner type!");
    }
 
-   // auto lpq_jacobi = new OperatorLpqJacobiSmoother(A, ess_tdof_list, p_order,
-   //                                                 q_order);
-   // real_t bound = lpq_jacobi->CheckSpectralBoundConstant();
-
-
    /// 9. Construct the solver. The implemented solvers are the following:
    ///    - Stationary Linear Iteration
    ///    - Preconditioned Conjugate Gradient

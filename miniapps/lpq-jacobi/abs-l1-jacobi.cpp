@@ -35,7 +35,6 @@
 //              mpirun -np 4 ./l1-partial -m meshes/beam-tet.mesh -Ky 0.5 -Kz 0.5
 
 #include "lpq-common.hpp"
-#include <typeinfo>
 
 using namespace std;
 using namespace mfem;
@@ -53,11 +52,15 @@ int main(int argc, char *argv[])
    int order = 1;
    SolverType solver_type = sli;
    IntegratorType integrator_type = mass;
+   LpqType pc_type = global;
    int assembly_type_int = 4;
    AssemblyLevel assembly_type;
    // Number of refinements
    int refine_serial = 0;
    int refine_parallel = 0;
+   // Preconditioner parameters
+   double p_order = 1.0;
+   double q_order = 0.0;
    // Solver parameters
    double rel_tol = 1e-10;
    double max_iter = 3000;
@@ -94,10 +97,19 @@ int main(int argc, char *argv[])
                   "\n\t3: ELEMENT"
                   "\n\t4: PARTIAL"
                   "\n\t5: NONE");
+   args.AddOption((int*)&pc_type, "-pc", "--preconditioner",
+                  "Preconditioners to be considered:"
+                  "\n\t0: No preconditioner"
+                  "\n\t1: L(p,q)-Jacobi preconditioner"
+                  "\n\t2: Element L(p,q)-Jacobi preconditioner");
    args.AddOption(&refine_serial, "-rs", "--refine-serial",
                   "Number of serial refinements");
    args.AddOption(&refine_parallel, "-rp", "--refine-parallel",
                   "Number of parallel refinements");
+   args.AddOption(&p_order, "-p", "--p-order",
+                  "P-order for L(p,q)-Jacobi preconditioner");
+   args.AddOption(&q_order, "-q", "--q-order",
+                  "Q-order for L(p,q)-Jacobi preconditioner");
    args.AddOption(&rel_tol, "-t", "--tolerance",
                   "Relative tolerance for the iterative solver");
    args.AddOption(&max_iter, "-ni", "--iterations",
@@ -121,9 +133,11 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
+   MFEM_ASSERT(p_order > 0.0, "p needs to be positive");
    MFEM_ASSERT((0 <= solver_type) && (solver_type < num_solvers), "");
    MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
    MFEM_ASSERT((0 <= assembly_type_int) && (assembly_type_int < 6), "");
+   MFEM_ASSERT((0 <= pc_type) && (pc_type < num_lpq_pc), "");
    MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
    MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
 
@@ -322,33 +336,26 @@ int main(int argc, char *argv[])
    /// 8. Construct the preconditioner. Uses AbsMult to construct an appoximation
    ///    of the diagonal of the matrix.
 
-   Vector result(fespace->GetTrueVSize());
-   Vector ones(fespace->GetTrueVSize());
-   ones = 1.0;
-   A->AbsMult(ones, result);
-   // A.As<HypreParMatrix>()->PowAbsMult(1.0, 1.0, ones, 0.0, result);
-   auto abs_jacobi = new OperatorJacobiSmoother(result, ess_tdof_list);
+   Solver *jacobi = nullptr;
+   Vector ones(sys_size);
+   Vector diag(sys_size);
 
-   // TODO(Gabriel): Debug...
-   if (false)
+   switch (pc_type)
    {
-      if (A.Is<HypreParMatrix>())
-      {
-         A.As<HypreParMatrix>()->Print("Test");
-      }
-      Vector diag_a(fespace->GetTrueVSize());
-      a->AssembleDiagonal(diag_a);
-      if (Mpi::Root())
-      {
-         mfem::out << "Printing results: " << endl;
-         // mfem::out << "Diag:\n" << endl;
-         // diag_a.Print(mfem::out,1);
-         mfem::out << "|A|1:\n" << endl;
-         result.Print(mfem::out,10);
-         mfem::out << "\nThank you\n" << endl;
-      }
+      case none:
+         break;
+      case global:
+         ones = 1.0;
+         A->AbsMult(ones, diag);
+         jacobi = new OperatorJacobiSmoother(diag, ess_tdof_list);
+         break;
+      case element:
+         AssembleElementLpqJacobiDiag(*a, p_order, q_order, diag);
+         jacobi = new OperatorJacobiSmoother(diag, ess_tdof_list);
+         break;
+      default:
+         mfem_error("Invalid preconditioner type!");
    }
-   // TODO(Gabriel): End debug
 
    /// 9. Construct the solver. The implemented solvers are the following:
    ///    - Stationary Linear Iteration
@@ -381,18 +388,13 @@ int main(int argc, char *argv[])
          monitor = new DataMonitor(file_name.str(), MONITOR_DIGITS);
          it_solver->SetMonitor(*monitor);
       }
-      if (use_pc)
+      if (jacobi)
       {
-         it_solver->SetPreconditioner(*abs_jacobi);
+         it_solver->SetPreconditioner(*jacobi);
       }
    }
 
-   StopWatch tictoc;
-   real_t time;
-
-   tictoc.Restart();
    solver->Mult(B, X);
-   time = tictoc.RealTime();
 
    /// 10. Recover the solution x as a grid function. Send the data by socket
    ///     to a GLVis server.
@@ -426,15 +428,12 @@ int main(int argc, char *argv[])
       if (Mpi::Root())
       {
          mfem::out << "\n|| u_h - u ||_{L^2} = " << error << "\n" << endl;
-         mfem::out << "\nTime elapsed:       = " << time << "\n" << endl;
-         if (use_pc) { mfem::out << "\tAbsolute value L1-Jacobi enabled...\n" << endl; }
-         else { mfem::out << "\tNo preconditioner enabled...\n" << endl; }
       }
    }
 
    /// 12. Free the memory used
    delete solver;
-   delete abs_jacobi;
+   if (jacobi) { delete jacobi; }
    delete a;
    delete b;
    delete fespace;

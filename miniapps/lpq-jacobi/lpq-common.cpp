@@ -280,7 +280,6 @@ void AssembleElementLpqJacobiDiag(ParBilinearForm& form, real_t p, real_t q,
                                   Vector& diag)
 {
    ParBilinearForm temp_form(form.ParFESpace());
-   temp_form.SetAssemblyLevel(form.GetAssemblyLevel());
    temp_form.AllocateMatrix();
    for (int i = 0; i < form.ParFESpace()->GetNE(); ++i)
    {
