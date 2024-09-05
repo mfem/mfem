@@ -1107,7 +1107,7 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
    {
       for (int i = 1; i < p; i++)
       {
-         Nodes.IntPoint(o++).Set3(cp[i], cp[j], cp[0]);
+         Nodes.IntPoint(o++).Set3(cp[i], cp[p-j], cp[0]);
       }
    }
 
