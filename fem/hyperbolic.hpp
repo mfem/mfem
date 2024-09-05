@@ -339,26 +339,13 @@ public:
 
 class HDGHyperbolicFormIntegrator : public HyperbolicFormIntegrator
 {
-public:
-   enum class HDGScheme
-   {
-      HDG_1,
-      HDG_2,
-   };
-
-private:
-   HDGScheme scheme;
-   real_t Ctau;
-
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix JDotN;   // hat(J)(u,x) n
 #endif
 
 public:
    HDGHyperbolicFormIntegrator(
-      HDGScheme scheme,
       const RiemannSolver &rsolver,
-      real_t Ctau=1.,
       const int IntOrderOffset=0,
       const real_t sign=1.);
 
@@ -416,6 +403,34 @@ protected:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector fluxN1, fluxN2;
 #endif
+};
+
+class HDGFlux : public RusanovFlux
+{
+public:
+   enum class HDGScheme
+   {
+      HDG_1,
+      HDG_2,
+      GENERAL
+   };
+
+private:
+   HDGScheme scheme;
+   real_t Ctau;
+
+public:
+   HDGFlux(const FluxFunction &fluxFunction,
+           HDGScheme scheme, real_t Ctau=1.)
+      : RusanovFlux(fluxFunction), scheme(scheme), Ctau(Ctau) { }
+
+   real_t Average(const Vector &state1, const Vector &state2,
+                  const Vector &nor, FaceElementTransformations &Tr,
+                  Vector &flux) const override;
+
+   void AverageGrad(int side, const Vector &state1, const Vector &state2,
+                    const Vector &nor, FaceElementTransformations &Tr,
+                    DenseMatrix &grad) const override;
 };
 
 class AdvectionFlux : public FluxFunction

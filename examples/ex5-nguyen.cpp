@@ -505,21 +505,21 @@ int main(int argc, char *argv[])
    if (bnlconv && Mtnl)
    {
       FluxFun = GetFluxFun(problem, ccoeff);
-      FluxSolver = new RusanovFlux(*FluxFun);
-      HDGHyperbolicFormIntegrator::HDGScheme scheme;
+      HDGFlux::HDGScheme scheme;
       switch (hdg_scheme)
       {
-         case 1: scheme = HDGHyperbolicFormIntegrator::HDGScheme::HDG_1; break;
-         case 2: scheme = HDGHyperbolicFormIntegrator::HDGScheme::HDG_2; break;
+         case 1: scheme = HDGFlux::HDGScheme::HDG_1; break;
+         case 2: scheme = HDGFlux::HDGScheme::HDG_2; break;
          default:
             cerr << "Unknown HDG scheme" << endl;
             exit(1);
       }
+      FluxSolver = new HDGFlux(*FluxFun, scheme);
       Mtnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*FluxSolver, 0, -1.));
       Mtnl->AddInteriorFaceIntegrator(new HDGHyperbolicFormIntegrator(
-                                         scheme, *FluxSolver, 1., 0, -1.));
+                                         *FluxSolver, 0, -1.));
       Mtnl->AddBdrFaceIntegrator(new HDGHyperbolicFormIntegrator(
-                                    scheme, *FluxSolver, 1., 0, -1.));
+                                    *FluxSolver, 0, -1.));
    }
 
    //set hybridization / assembly level

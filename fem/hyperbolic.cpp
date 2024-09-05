@@ -260,10 +260,8 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
 }
 
 HDGHyperbolicFormIntegrator::HDGHyperbolicFormIntegrator(
-   HDGScheme scheme, const RiemannSolver &rsolver, real_t Ctau,
-   const int IntOrderOffset, const real_t sign)
-   : HyperbolicFormIntegrator(rsolver, IntOrderOffset, sign),
-     scheme(scheme), Ctau(Ctau)
+   const RiemannSolver &rsolver, const int IntOrderOffset, const real_t sign)
+   : HyperbolicFormIntegrator(rsolver, IntOrderOffset, sign)
 {
 #ifndef MFEM_THREAD_SAFE
    JDotN.SetSize(num_equations);
@@ -358,23 +356,8 @@ void HDGHyperbolicFormIntegrator::AssembleHDGFaceVector(
       }
       if (type & 1) { nor.Neg(); }
 
-      // Compute F(û, x) and F(u, x) with maximum characteristic speed
-      // Compute hat(F) using evaluated quantities
-      switch (scheme)
-      {
-         case HDGScheme::HDG_1:
-            fluxFunction.ComputeFluxDotN(state_tr, nor, Tr, fluxN);
-            break;
-         case HDGScheme::HDG_2:
-            fluxFunction.ComputeFluxDotN(state_el, nor, Tr, fluxN);
-            break;
-      }
-
-      // Compute stabilization
-      for (int d = 0; d < num_equations; d++)
-      {
-         fluxN(d) += Ctau * (state_el(d) - state_tr(d)) * nor.Norml2();
-      }
+      // Compute average flux hat(F)(û,u) with maximum characteristic speed
+      rsolver.Average(state_tr, state_el, nor, Tr, fluxN);
 
       // pre-multiply integration weight to flux
       if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
@@ -475,24 +458,11 @@ void HDGHyperbolicFormIntegrator::AssembleHDGFaceGrad(
       }
       if (type & 1) { nor.Neg(); }
 
-      // Compute J(û, x) and J(u, x)
+      // Compute average J(û, u)
       int joff = 0;
       if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))
       {
-         switch (scheme)
-         {
-            case HDGScheme::HDG_1:
-               JDotN = 0.;
-               break;
-            case HDGScheme::HDG_2:
-               fluxFunction.ComputeFluxJacobianDotN(state_el, nor, Tr, JDotN);
-               break;
-         }
-         // Compute stabilization
-         for (int d = 0; d < num_equations; d++)
-         {
-            JDotN(d,d) += Ctau * nor.Norml2();
-         }
+         rsolver.AverageGrad(2, state_tr, state_el, nor, Tr, JDotN);
 
          // pre-multiply integration weight to Jacobians
          const real_t w = -ip.weight*sign;
@@ -524,20 +494,7 @@ void HDGHyperbolicFormIntegrator::AssembleHDGFaceGrad(
       }
       if (type & (HDGFaceType::TRACE | HDGFaceType::FACE))
       {
-         switch (scheme)
-         {
-            case HDGScheme::HDG_1:
-               fluxFunction.ComputeFluxJacobianDotN(state_tr, nor, Tr, JDotN);
-               break;
-            case HDGScheme::HDG_2:
-               JDotN = 0.;
-               break;
-         }
-         // Compute stabilization
-         for (int d = 0; d < num_equations; d++)
-         {
-            JDotN(d,d) -= Ctau * nor.Norml2();
-         }
+         rsolver.AverageGrad(1, state_tr, state_el, nor, Tr, JDotN);
 
          // pre-multiply integration weight to Jacobians
          const real_t w = -ip.weight*sign;
@@ -637,6 +594,77 @@ real_t RusanovFlux::Eval(const Vector &state1, const Vector &state2,
    return std::max(speed1, speed2);
 }
 
+real_t HDGFlux::Average(const Vector &state1, const Vector &state2,
+                        const Vector &nor, FaceElementTransformations &Tr,
+                        Vector &flux) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
+#endif
+   const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
+   const real_t speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
+   switch (scheme)
+   {
+      case HDGScheme::HDG_1:
+         flux = fluxN1;
+         break;
+      case HDGScheme::HDG_2:
+         flux = fluxN2;
+         break;
+      case HDGScheme::GENERAL:
+         return fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr, flux);
+   }
+   for (int d = 0; d < state1.Size(); d++)
+   {
+      flux(d) += Ctau * (state2(d) - state1(d)) * nor.Norml2();
+   }
+   return std::max(speed1, speed2);
+}
+
+void HDGFlux::AverageGrad(int side, const Vector &state1, const Vector &state2,
+                          const Vector &nor, FaceElementTransformations &Tr,
+                          DenseMatrix &grad) const
+{
+   MFEM_ASSERT(side == 1 || side == 2, "Unknown side");
+
+   switch (scheme)
+   {
+      case HDGScheme::HDG_1:
+         if (side == 1)
+         {
+            fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, grad);
+         }
+         else
+         {
+            grad = 0.;
+         }
+         break;
+      case HDGScheme::HDG_2:
+         if (side == 1)
+         {
+            grad = 0.;
+         }
+         else
+         {
+            fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, grad);
+         }
+         break;
+      case HDGScheme::GENERAL:
+         MFEM_ABORT("Not implemented");
+         return;
+   }
+   for (int d = 0; d < grad.Width(); d++)
+   {
+      if (side == 1)
+      {
+         grad(d,d) -= Ctau * nor.Norml2();
+      }
+      else
+      {
+         grad(d,d) += Ctau * nor.Norml2();
+      }
+   }
+}
 
 real_t AdvectionFlux::ComputeFlux(const Vector &U,
                                   ElementTransformation &Tr,
