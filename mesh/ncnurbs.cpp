@@ -857,8 +857,8 @@ void NURBSPatchMap::SetMasterEdges(bool dof, const KnotVector *kv[])
       if (edgeMaster[i])
       {
          const int mid = Ext->masterEdgeToId.at(edges[i]);
-         MFEM_ASSERT(mid >= 0, "Master edge index not found");
-         MFEM_ASSERT(Ext->masterEdgeSlaves[mid].size() > 0,
+         MFEM_VERIFY(mid >= 0, "Master edge index not found");
+         MFEM_VERIFY(Ext->masterEdgeSlaves[mid].size() > 0,
                      "False master edges should have been removed");
 
          Array<int> mdof;
@@ -1666,8 +1666,7 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
             masterDofs.Append(mdof_reordered(k,j));
          }
 
-      MFEM_ASSERT(allset, "");
-      MFEM_ASSERT(consistent, "");
+      MFEM_VERIFY(allset && consistent, "");
 
       mos += mnf1 * mnf2;
    }  // loop (i) over faces
@@ -2524,10 +2523,9 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
                   const bool unset = !edgePairs[edgePairOS[parentEdge] + e_idx].isSet;
                   const bool matching = edgePairs[edgePairOS[parentEdge] + e_idx] == ep_e;
+                  MFEM_VERIFY(unset || matching, "");
 
                   edgePairs[edgePairOS[parentEdge] + e_idx] = ep_e;
-
-                  MFEM_ASSERT(unset || matching, "");
                }
             }
          }
