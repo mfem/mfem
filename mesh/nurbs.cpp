@@ -3295,6 +3295,20 @@ void NURBSExtension::SetOrdersFromKnotVectors()
    SetOrderFromOrders();
 }
 
+// This function assumes a uniform number of control points per element in kv.
+int GetNCPperEdge(const KnotVector *kv)
+{
+   const int ne = kv->GetNE();
+
+   // Total number of CP on edge, excluding vertex CP.
+   const int totalEdgeCP = kv->GetNCP() - 2 - ne + 1;
+   const int perEdgeCP = totalEdgeCP / ne;
+
+   MFEM_VERIFY(perEdgeCP * ne == totalEdgeCP, "");
+
+   return perEdgeCP;
+}
+
 void NURBSExtension::GenerateOffsets()
 {
    int nv = patchTopo->GetNV();
@@ -3776,37 +3790,6 @@ void NURBSExtension::GenerateOffsets()
    }
    NumOfVertices = meshCounter;
    NumOfDofs     = spaceCounter;
-}
-
-NURBSExtension* NURBSExtension::GetDivExtension(int component)
-{
-   // Smarter routine
-   if (GetNP() > 1)
-   {
-      mfem_error("NURBSExtension::GetDivExtension currently "
-                 "only works for single patch NURBS meshes ");
-   }
-
-   Array<int> newOrders  = GetOrders();
-   newOrders[component] += 1;
-
-   return new NURBSExtension(this, newOrders, Mode::H_DIV);
-}
-
-NURBSExtension* NURBSExtension::GetCurlExtension(int component)
-{
-   // Smarter routine
-   if (GetNP() > 1)
-   {
-      mfem_error("NURBSExtension::GetCurlExtension currently "
-                 "only works for single patch NURBS meshes ");
-   }
-
-   Array<int> newOrders  = GetOrders();
-   for (int c = 0; c < newOrders.Size(); c++) { newOrders[c]++; }
-   newOrders[component] -= 1;
-
-   return new NURBSExtension(this, newOrders, Mode::H_CURL);
 }
 
 void NURBSExtension::CountElements()
@@ -4757,6 +4740,37 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
          }
       }
    }
+}
+
+NURBSExtension* NURBSExtension::GetDivExtension(int component)
+{
+   // Smarter routine
+   if (GetNP() > 1)
+   {
+      mfem_error("NURBSExtension::GetDivExtension currently "
+                 "only works for single patch NURBS meshes ");
+   }
+
+   Array<int> newOrders  = GetOrders();
+   newOrders[component] += 1;
+
+   return new NURBSExtension(this, newOrders, Mode::H_DIV);
+}
+
+NURBSExtension* NURBSExtension::GetCurlExtension(int component)
+{
+   // Smarter routine
+   if (GetNP() > 1)
+   {
+      mfem_error("NURBSExtension::GetCurlExtension currently "
+                 "only works for single patch NURBS meshes ");
+   }
+
+   Array<int> newOrders  = GetOrders();
+   for (int c = 0; c < newOrders.Size(); c++) { newOrders[c]++; }
+   newOrders[component] -= 1;
+
+   return new NURBSExtension(this, newOrders, Mode::H_CURL);
 }
 
 void NURBSExtension::UniformRefinement(Array<int> const& rf)
