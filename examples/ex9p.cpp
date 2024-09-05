@@ -249,6 +249,7 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
+   int scheme = 0;
    real_t t_final = 10.0;
    real_t dt = 0.01;
    bool visualization = true;
