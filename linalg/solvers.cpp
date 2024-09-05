@@ -397,7 +397,7 @@ void OperatorLpqJacobiSmoother::Setup()
 
    // D^{-q} 1
    right = 1.0;
-   if (q_order !=0)
+   if (q_order !=0.0)
    {
       hypre_mat->GetDiag(right);
       right.PowerAbs(-q_order);
