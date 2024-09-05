@@ -192,6 +192,7 @@ int main(int argc, char *argv[])
    int iprob = 0;
    int sr = 0;
    int pr = 0;
+   int visport = 19916;
    bool exact_known = false;
    bool with_pml = false;
    bool paraview = false;
@@ -223,6 +224,7 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -787,7 +789,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
          VisualizeField(p_out_r,vishost, visport, p_r,
                         "Numerical presure (real part)", 0, 0, 500, 500, keys);
          VisualizeField(p_out_i,vishost, visport, p_i,

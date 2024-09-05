@@ -43,7 +43,8 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    int ns = 16;
-   int  r = 90;
+   int r = 90;
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -103,7 +105,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       sol_sock.open(vishost, visport);
    }
 
