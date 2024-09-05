@@ -451,13 +451,27 @@ void ParElementMarker::SetLevelSetFunction(const ParGridFunction &ls_fun)
 
 void ParElementMarker::MarkElements(Array<int> &elem_marker)
 {
-    elem_marker.SetSize(pmesh->GetNE());
+    elem_marker.SetSize(pmesh->GetNE()+pmesh->GetNSharedFaces());
+
+    IntegrationPoint ip; ip.Init(0);
+
     for(int e=0;e<pmesh->GetNE();e++)
     {
         ElementTransformation* tr=elfes->GetElementTransformation(e);
-        IntegrationPoint ip; ip.Init(0);
         elem_marker[e] = elgf.GetValue(*tr, ip);
     }
+
+
+    for (int f = 0; f < pmesh->GetNSharedFaces(); f++)
+    {
+        auto *ftr = pmesh->GetSharedFaceTransformations(f, true);
+        //const int attr1 = elgf.GetValue(*ftr->Elem1, ip);
+        const int attr2 = elgf.GetValue(*ftr->Elem2, ip);
+        //int faceno = pmesh->GetSharedFace(f);
+
+        elem_marker[pmesh->GetNE()+f]=attr2;
+    }
+
 }
 
 void ParElementMarker::MarkGhostPenaltyFaces(Array<int> &face_marker)

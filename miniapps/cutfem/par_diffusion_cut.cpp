@@ -88,6 +88,14 @@ int main(int argc, char *argv[])
         }
     }
 
+
+    pmesh.ExchangeFaceNbrData();
+    pmesh.ExchangeFaceNbrNodes();
+
+
+    std::cout<<"id="<<myid<<" "<<pmesh.GetNE()<<" "<<pmesh.GetNumFaces()
+            <<" "<<pmesh.GetNSharedFaces()<<std::endl; std::cout.flush();
+
     double h_min, h_max, kappa_min, kappa_max;
     pmesh.GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
 
@@ -130,6 +138,10 @@ int main(int argc, char *argv[])
     outside_dofs.Sort();
     outside_dofs.Unique();
 
+
+    std::cout<<"myid="<<myid<<" marks_size="<<marks.Size()<<std::endl;
+    std::cout.flush();
+
     int otherorder = 2;
     int aorder = 2; // Algoim integration points
     AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,circle,otherorder);
@@ -143,9 +155,9 @@ int main(int argc, char *argv[])
 
     // 7. Set up the bilinear form a(.,.) corresponding to the -Delta operator.
     ParBilinearForm a(&fespace);
-    a.AddDomainIntegrator(new CutDiffusionIntegrator(one,&marks,air));
+    a.AddDomainIntegrator(new CutDiffusionIntegrator(one,&marks,air,false));
     // something is wrong with the CutGhostPenaltyIntegrator
-    //a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&marks));
+    a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&marks));
     a.Assemble();
 
     OperatorPtr A;
@@ -195,6 +207,7 @@ int main(int argc, char *argv[])
     delete l2fec;
     delete air;
     delete fec;
+
     return 0;
 }
 

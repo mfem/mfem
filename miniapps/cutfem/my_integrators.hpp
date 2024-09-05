@@ -350,16 +350,26 @@ private:
 
     Array<int>* el_marks;
     CutIntegrationRules* irules;
-    ConstantCoefficient epsilon; 
+
+    bool use_weak_material;
+    ConstantCoefficient epsilon;
+
 public:
     CutDiffusionIntegrator(Coefficient& q,
                            Array<int>* marks,
-                           CutIntegrationRules* cut_int): epsilon(1e-6)
+                           CutIntegrationRules* cut_int,
+                           bool use_weak_mat=false,
+                           double eps=1e-6):
+                            use_weak_material(use_weak_mat),epsilon(eps)
     {
         el_marks=marks;
         irules=cut_int;
         dint=new DiffusionIntegrator(q);
-        dint2 = new DiffusionIntegrator(epsilon);
+        if(use_weak_material){
+            dint2 = new DiffusionIntegrator(epsilon);
+        }else{
+            dint2 = nullptr;
+        }
     }
 
     ~CutDiffusionIntegrator()
@@ -392,16 +402,16 @@ public:
             dint->SetIntRule(&ir);
             dint->AssembleElementMatrix(el,Trans,elmat);
 
-            DenseMatrix elmat2;
-            dint2->SetIntRule(&ir);
-            dint2->AssembleElementMatrix(el,Trans,elmat2);
+            if(use_weak_material){
+                DenseMatrix elmat2;
+                dint2->SetIntRule(&ir);
+                dint2->AssembleElementMatrix(el,Trans,elmat2);
+                elmat.Add(-1,elmat2);
 
-            elmat.Add(-1,elmat2);
-
-            dint2->SetIntRule(nullptr);
-            dint2->AssembleElementMatrix(el,Trans,elmat2);
-
-            elmat.Add(1,elmat2);
+                dint2->SetIntRule(nullptr);
+                dint2->AssembleElementMatrix(el,Trans,elmat2);
+                elmat.Add(1,elmat2);
+            }
         }
     }
 };
@@ -433,6 +443,15 @@ public:
                                     FaceElementTransformations &Trans,
                                     DenseMatrix &elmat) override
     {
+        std::cout<<"fs="<<Trans.ElementNo<<" el1="<<Trans.Elem1No<<" el2="<<Trans.Elem2No<<std::endl;
+
+        if(Trans.Elem2No<0)
+        {
+            elmat.SetSize(fe1.GetDof());
+            elmat=0.0;
+            return;
+        }
+
 
         if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
         {
