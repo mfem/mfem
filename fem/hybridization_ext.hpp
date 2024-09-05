@@ -32,12 +32,20 @@ class HybridizationExtension
    friend class Hybridization;
 
 protected:
+
+   enum DofType : char
+   {
+      ESSENTIAL,
+      BOUNDARY,
+      INTERIOR
+   };
+
    class Hybridization &h; ///< The associated Hybridization object.=
    int num_hat_dofs; ///< Number of Lagrange multipliers.
    mutable Vector tmp1, tmp2; ///< Temporary vectors.
 
    Array<int> hat_dof_gather_map;
-   Array<bool> ess_hat_dof_marker;
+   Array<DofType> hat_dof_marker;
 
    Array<int> el_to_face;
    Array<int> face_to_el;
@@ -86,6 +94,7 @@ public:
 
    /// Constructor.
    HybridizationExtension(class Hybridization &hybridization_);
+
    /// Prepare for assembly; form the constraint matrix.
    void Init(const Array<int> &ess_tdof_list);
 
@@ -97,6 +106,9 @@ public:
    /// side @a b, recover the solution @a sol on the original finite element
    /// space.
    void ComputeSolution(const Vector &b, const Vector &sol_r, Vector &sol) const;
+
+   /// Destroys the stored element matrices.
+   void Reset() { Ahat_inv = 0.0; }
 };
 
 }

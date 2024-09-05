@@ -62,6 +62,10 @@ void HybridizationExtension::ConstructC()
    const auto d_face_to_el = Reshape(face_to_el.Read(), 2, 2, nf);
    auto d_Ct_mat = Reshape(Ct_mat.Write(), m, n, n_faces_per_el, ne);
 
+   mfem::forall(Ct_mat.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_Ct_mat[i] = 0.0;
+   });
    mfem::forall(m*n*2*nf, [=] MFEM_HOST_DEVICE (int idx)
    {
       const int i_lex = idx % m;
@@ -94,11 +98,11 @@ void HybridizationExtension::ConstructH()
 
    {
       // Eliminate essential boundary conditions in Ahat matrices.
-      const bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Read();
+      const DofType *d_hat_dof_marker = hat_dof_marker.Read();
       auto d_Ahat_inv = Reshape(Ahat_inv.ReadWrite(), m, m, ne);
       mfem::forall(ne*m, [=] MFEM_HOST_DEVICE (int idx)
       {
-         if (d_ess_hat_dof_marker[idx])
+         if (d_hat_dof_marker[idx] == ESSENTIAL)
          {
             const int i = idx % m;
             const int e = idx / m;
@@ -610,14 +614,17 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
       free_vdofs_marker.MakeRef(free_tdof_marker);
 #endif
 
-      ess_hat_dof_marker.SetSize(num_hat_dofs);
+      hat_dof_marker.SetSize(num_hat_dofs);
       {
+         const int ndof_per_face = h.c_fes.GetFaceElement(0)->GetDof();
          // The gather map from the ElementRestriction operator gives us the
          // index of the L-dof corresponding to a given (element, local DOF)
          // index pair.
          const int *gather_map = R->GatherMap().Read();
          const int *d_free_vdofs_marker = free_vdofs_marker.Read();
-         bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Write();
+         const auto d_Ct_mat = Reshape(Ct_mat.Read(), ndof_per_el,
+                                       ndof_per_face, n_faces_per_el, ne);
+         DofType *d_hat_dof_marker = hat_dof_marker.Write();
 
          // Set the hat_dofs_marker to 1 or 0 according to whether the DOF is
          // "free" or "essential". (For now, we mark all free DOFs as free
@@ -627,7 +634,27 @@ void HybridizationExtension::Init(const Array<int> &ess_tdof_list)
          {
             const int j_s = gather_map[i];
             const int j = (j_s >= 0) ? j_s : -1 - j_s;
-            d_ess_hat_dof_marker[i] = !d_free_vdofs_marker[j];
+            if (d_free_vdofs_marker[j])
+            {
+               const int i_loc = i % ndof_per_el;
+               const int e = i / ndof_per_el;
+               d_hat_dof_marker[i] = INTERIOR;
+               for (int f = 0; f < n_faces_per_el; ++f)
+               {
+                  for (int k = 0; k < ndof_per_face; ++k)
+                  {
+                     if (d_Ct_mat(i_loc, k, f, e) != 0.0)
+                     {
+                        d_hat_dof_marker[i] = BOUNDARY;
+                        break;
+                     }
+                  }
+               }
+            }
+            else
+            {
+               d_hat_dof_marker[i] = ESSENTIAL;
+            }
          });
       }
    }
@@ -680,13 +707,13 @@ void HybridizationExtension::MultR(const Vector &x_hat, Vector &x) const
    const auto *restr = static_cast<const ElementRestriction*>(
                           h.fes.GetElementRestriction(ordering));
    const int *gather_map = restr->GatherMap().Read();
-   const bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Read();
+   const DofType *d_hat_dof_marker = hat_dof_marker.Read();
    const real_t *d_evec = x_hat.Read();
    real_t *d_lvec = tmp2.ReadWrite();
    mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
    {
       // Skip essential DOFs
-      if (d_ess_hat_dof_marker[i]) { return; }
+      if (d_hat_dof_marker[i] == ESSENTIAL) { return; }
 
       const int j_s = gather_map[i];
       const int sgn = (j_s >= 0) ? 1 : -1;
@@ -694,7 +721,6 @@ void HybridizationExtension::MultR(const Vector &x_hat, Vector &x) const
 
       d_lvec[j] = sgn*d_evec[i];
    });
-
 
    // Convert from L-vector to T-vector.
    if (R) { R->Mult(tmp2, x); }
@@ -749,6 +775,14 @@ void HybridizationExtension::ReduceRHS(const Vector &b, Vector &b_r) const
 {
    Vector b_hat(num_hat_dofs);
    MultRt(b, b_hat);
+   {
+      const auto *d_hat_dof_marker = hat_dof_marker.Read();
+      auto *d_b_hat = b_hat.ReadWrite();
+      mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
+      {
+         if (d_hat_dof_marker[i] == ESSENTIAL) { d_b_hat[i] = 0.0; }
+      });
+   }
    MultAhatInv(b_hat);
    const Operator *P = h.c_fes.GetProlongationMatrix();
    if (P)
@@ -785,14 +819,11 @@ void HybridizationExtension::ComputeSolution(
    }
    add(b_hat, -1.0, tmp1, tmp1);
    // Eliminate essential DOFs
-   const bool *d_ess_hat_dof_marker = ess_hat_dof_marker.Read();
+   const auto *d_hat_dof_marker = hat_dof_marker.Read();
    real_t *d_tmp1 = tmp1.ReadWrite();
    mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
    {
-      if (d_ess_hat_dof_marker[i])
-      {
-         d_tmp1[i] = 0.0;
-      }
+      if (d_hat_dof_marker[i] == ESSENTIAL) { d_tmp1[i] = 0.0; }
    });
    MultAhatInv(tmp1);
    MultR(tmp1, sol);
