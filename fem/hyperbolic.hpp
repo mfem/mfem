@@ -470,6 +470,32 @@ public:
                           Vector &fluxDotN) const override;
 
    /**
+    * @brief Compute average F(u)
+    *
+    * @param state1 state 1 (u1) at current integration point
+    * @param state2 state 2 (u2) at current integration point
+    * @param Tr current element transformation with integration point
+    * @param flux bar(F)(u) = (u1+u2)/2*bᵀ
+    * @return real_t maximum characteristic speed, |b|
+    */
+   real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
+                         ElementTransformation &Tr, DenseMatrix &flux) const override;
+
+   /**
+    * @brief Compute average F(u) n
+    *
+    * @param state1 state 1 (u1) at current integration point
+    * @param state2 state 2 (u2) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with integration point
+    * @param flux bar(F)(u) = (u1+u2)/2*(bᵀn)
+    * @return real_t maximum characteristic speed, |b|
+    */
+   real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
+                             const Vector &normal, FaceElementTransformations &Tr,
+                             Vector &fluxDotN) const override;
+
+   /**
     * @brief Compute J(u)
     *
     * @param state state (u) at current integration point
@@ -530,6 +556,36 @@ public:
                           const Vector &normal,
                           FaceElementTransformations &Tr,
                           Vector &fluxDotN) const override;
+
+   /**
+    * @brief Compute average F(u)
+    *
+    * @param state1 state 1 (u1) at current integration point
+    * @param state2 state 2 (u2) at current integration point
+    * @param Tr current element transformation with integration point
+    * @param flux bar(F)(u) = (u2²+u2*u1+u1²)/6*1ᵀ where 1 is (dim) vector
+    * @return real_t maximum characteristic speed, |u|
+    */
+   real_t ComputeAvgFlux(const Vector &state1,
+                         const Vector &state2,
+                         ElementTransformation &Tr,
+                         DenseMatrix &flux) const override;
+
+   /**
+    * @brief Compute average F(u) n
+    *
+    * @param state1 state 1 (u1) at current integration point
+    * @param state2 state 2 (u2) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with integration point
+    * @param flux bar(F)(u) = (u2²+u2*u1+u1²)/6*(1ᵀn) where 1 is (dim) vector
+    * @return real_t maximum characteristic speed, |u|
+    */
+   real_t ComputeAvgFluxDotN(const Vector &state1,
+                             const Vector &state2,
+                             const Vector &normal,
+                             FaceElementTransformations &Tr,
+                             Vector &fluxDotN) const override;
 
    /**
     * @brief Compute J(u)

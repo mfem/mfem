@@ -689,6 +689,33 @@ real_t AdvectionFlux::ComputeFluxDotN(const Vector &U,
    return bval.Norml2();
 }
 
+real_t AdvectionFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
+                                     ElementTransformation &Tr,
+                                     DenseMatrix &FU) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector bval(b.GetVDim());
+#endif
+   b.Eval(bval, Tr, Tr.GetIntPoint());
+   Vector Uavg(1);
+   Uavg(0) = (U1(0) + U2(0)) * 0.5;
+   MultVWt(Uavg, bval, FU);
+   return bval.Norml2();
+}
+
+real_t AdvectionFlux::ComputeAvgFluxDotN(const Vector &U1, const Vector &U2,
+                                         const Vector &normal,
+                                         FaceElementTransformations &Tr,
+                                         Vector &FDotN) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector bval(b.GetVDim());
+#endif
+   b.Eval(bval, Tr, Tr.GetIntPoint());
+   FDotN(0) = (U1(0) + U2(0)) * 0.5 * (bval * normal);
+   return bval.Norml2();
+}
+
 void AdvectionFlux::ComputeFluxJacobian(const Vector &state,
                                         ElementTransformation &Tr,
                                         DenseTensor &J) const
@@ -731,6 +758,25 @@ real_t BurgersFlux::ComputeFluxDotN(const Vector &U,
 {
    FDotN(0) = U(0) * U(0) * 0.5 * normal.Sum();
    return std::fabs(U(0));
+}
+
+real_t BurgersFlux::ComputeAvgFlux(const Vector &U1,
+                                   const Vector &U2,
+                                   ElementTransformation &Tr,
+                                   DenseMatrix &FU) const
+{
+   FU = (U1(0)*U1(0) + U1(0)*U2(0) + U2(0)*U2(0)) / 6.;
+   return std::max(std::fabs(U1(0)), std::fabs(U2(0)));
+}
+
+real_t BurgersFlux::ComputeAvgFluxDotN(const Vector &U1,
+                                       const Vector &U2,
+                                       const Vector &normal,
+                                       FaceElementTransformations &Tr,
+                                       Vector &FDotN) const
+{
+   FDotN(0) = (U1(0)*U1(0) + U1(0)*U2(0) + U2(0)*U2(0)) / 6. * normal.Sum();
+   return std::max(std::fabs(U1(0)), std::fabs(U2(0)));
 }
 
 void BurgersFlux::ComputeFluxJacobian(const Vector &U,
