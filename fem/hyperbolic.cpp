@@ -577,13 +577,13 @@ real_t RusanovFlux::Eval(const Vector &state1, const Vector &state2,
    const real_t speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
    // NOTE: nor in general is not a unit normal
    const real_t maxE = std::max(speed1, speed2);
-   // here, std::sqrt(nor*nor) is multiplied to match the scale with fluxN
-   const real_t scaledMaxE = maxE*std::sqrt(nor*nor);
-   for (int i=0; i<state1.Size(); i++)
+   // here, nor.Norml2() is multiplied to match the scale with fluxN
+   const real_t scaledMaxE = maxE * nor.Norml2();
+   for (int i = 0; i < fluxFunction.num_equations; i++)
    {
       flux[i] = 0.5*(scaledMaxE*(state1[i] - state2[i]) + (fluxN1[i] + fluxN2[i]));
    }
-   return std::max(speed1, speed2);
+   return maxE;
 }
 
 real_t HDGFlux::Average(const Vector &state1, const Vector &state2,
