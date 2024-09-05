@@ -20,7 +20,12 @@
 
 
 #ifdef MFEM_USE_ALGOIM
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 #include <algoim_quad.hpp>
+#pragma GCC diagnostic pop
 #endif
 
 namespace mfem
@@ -294,7 +299,7 @@ public:
    @param [in]  Tr     Specifies the IntegrationRule's associated mesh element.
    @param [out] result IntegrationRule for the cut-volume
    @param [in]  sir    Corresponding IntegrationRule for the surface, which can
-                              be used to avoid computations.
+                       be used to avoid computations.
    */
    virtual
    void GetVolumeIntegrationRule(ElementTransformation &Tr,
@@ -324,10 +329,10 @@ private:
    void GenerateLSVector(ElementTransformation &Tr, Coefficient* lvlset);
 
 
-   /// Lagrange finite element used for converting coefficients to possitive basis
+   /// Lagrange finite element used for converting coefficients to positive basis
    FiniteElement* le;
    PositiveTensorFiniteElement *pe;
-   DenseMatrix T; //Projection matrix from nodal basis to possitive basis
+   DenseMatrix T; //Projection matrix from nodal basis to positive basis
    Vector lsvec; // level-set in Bernstein basis
    Vector lsfun; // level-set in nodal basis
    Geometry::Type currentGeometry; // the current element geometry

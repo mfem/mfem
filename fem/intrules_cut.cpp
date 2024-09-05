@@ -180,8 +180,7 @@ void AlgoimIntegrationRules::GenerateLSVector(ElementTransformation &Tr,
 
       T.SetSize(pe->GetDof());
       pe->Project(*le,Tr,T);
-      //The transformation matrix depends only on the geometry
-      // for change of basis
+      //The transformation matrix depends only on the geometry for change of basis
    }
 
    currentLvlSet=lvlset;
