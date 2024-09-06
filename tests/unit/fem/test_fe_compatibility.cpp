@@ -91,6 +91,9 @@ Mesh MakeElementMesh(Geometry::Type type, real_t * vertices)
    return mesh;
 }
 
+// Build a mesh containing two copies of the edges of a single element.
+// This creates a group of disconnected edges with both possible orientations
+// which are aligned with the edges of the parent element.
 Mesh MakeElementEdgeMesh(Geometry::Type type, real_t * vertices)
 {
    Element *elem = GetElement(type);
@@ -139,6 +142,11 @@ Mesh MakeElementEdgeMesh(Geometry::Type type, real_t * vertices)
    return mesh;
 }
 
+// Build a mesh containing multiple copies of the faces of a single element.
+// This creates a group of disconnected faces with all possible orientations
+// which are aligned with the faces of the parent element. Specifically, this
+// produces six copies of triangular faces and eight copies of quadrilateral
+// faces.
 Mesh MakeElementFaceMesh(Geometry::Type type, real_t * vertices)
 {
    Element *elem = GetElement(type);
@@ -212,6 +220,10 @@ Mesh MakeElementFaceMesh(Geometry::Type type, real_t * vertices)
    return mesh;
 }
 
+// For a given element geometry, order, and dof index this function returns
+// the geometry type of the entity associated with that particular H1 index.
+// Additionally finfo returns the numbers of triangular and quadrilateral faces
+// touching this dof index (ntri = finfo % 8, nquad = finfo / 8).
 Geometry::Type GetH1DofType(Geometry::Type geom, int p, int index, int &finfo)
 {
    finfo = 0;
@@ -298,6 +310,11 @@ Geometry::Type GetH1DofType(Geometry::Type geom, int p, int index, int &finfo)
    return Geometry::INVALID;
 }
 
+// For a given element geometry, order, and dof index this function returns
+// the geometry type of the entity associated with that particular Nedelec
+// index.
+// Additionally finfo returns the numbers of triangular and quadrilateral
+// faces touching this dof index (ntri = finfo % 8, nquad = finfo / 8).
 Geometry::Type GetNDDofType(Geometry::Type geom, int p, int index, int &finfo)
 {
    finfo = 0;
@@ -364,6 +381,9 @@ Geometry::Type GetNDDofType(Geometry::Type geom, int p, int index, int &finfo)
    return Geometry::INVALID;
 }
 
+// For a given element geometry, order, and dof index this function returns
+// the geometry type of the entity associated with that particular
+// Raviart-Thomas index.
 Geometry::Type GetRTDofType(Geometry::Type geom, int p, int index)
 {
    if (geom == Geometry::TETRAHEDRON)
