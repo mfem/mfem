@@ -4866,7 +4866,11 @@ void Nedelec1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
    {
       // We must return the limit of the basis functions as z->1.  In order to
       // remain inside the pyramid in this limit the x and y coordinates must
-      // be approaching 0. The resulting limiting basis function values are:
+      // be approaching 0. Unfortunately we obtain different limits if we
+      // approach (0,0,1) from different directions. The values provided below
+      // are the limits as x->(1-z)/2 and y->(1-z)/2 i.e. along the line from
+      // the center of the base of the pyramid towards the apex. The resulting
+      // limiting basis function values are:
       shape(0,0) =   0.;
       shape(0,1) =   0.;
       shape(0,2) =   0.;
@@ -4883,21 +4887,21 @@ void Nedelec1PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
       shape(3,1) =   0.;
       shape(3,2) =   0.;
 
-      shape(4,0) =   1.;
-      shape(4,1) =   1.;
-      shape(4,2) =   1.;
+      shape(4,0) =   0.5;
+      shape(4,1) =   0.5;
+      shape(4,2) =   0.75;
 
-      shape(5,0) = - 1.;
-      shape(5,1) =   0.;
-      shape(5,2) =   0.;
+      shape(5,0) = - 0.5;
+      shape(5,1) =   0.5;
+      shape(5,2) =   0.25;
 
-      shape(6,0) =   0.;
-      shape(6,1) =   0.;
-      shape(6,2) =   0.;
+      shape(6,0) = - 0.5;
+      shape(6,1) = - 0.5;
+      shape(6,2) = - 0.25;
 
-      shape(7,0) =   0.;
-      shape(7,1) = - 1.;
-      shape(7,2) =   0.;
+      shape(7,0) =   0.5;
+      shape(7,1) = - 0.5;
+      shape(7,2) =   0.25;
 
       return;
    }
@@ -4952,36 +4956,36 @@ const
       // In order to remain inside the pyramid in this limit the x and y
       // coordinates must be approaching 0. The resulting limiting basis
       // function values are:
-      curl_shape(0,0) =   0.;
-      curl_shape(0,1) = - 2.;
+      curl_shape(0,0) = - 0.5;
+      curl_shape(0,1) = - 1.5;
       curl_shape(0,2) =   1.;
 
-      curl_shape(1,0) =   0.;
-      curl_shape(1,1) =   0.;
+      curl_shape(1,0) =   0.5;
+      curl_shape(1,1) = - 0.5;
       curl_shape(1,2) =   1.;
 
-      curl_shape(2,0) =   0.;
-      curl_shape(2,1) =   0.;
+      curl_shape(2,0) =   0.5;
+      curl_shape(2,1) = - 0.5;
       curl_shape(2,2) = - 1.;
 
-      curl_shape(3,0) =   2.;
-      curl_shape(3,1) =   0.;
+      curl_shape(3,0) =   1.5;
+      curl_shape(3,1) =   0.5;
       curl_shape(3,2) = - 1.;
 
-      curl_shape(4,0) = - 2.;
-      curl_shape(4,1) =   2.;
+      curl_shape(4,0) = - 1.;
+      curl_shape(4,1) =   1.;
       curl_shape(4,2) =   0.;
 
-      curl_shape(5,0) =   0.;
-      curl_shape(5,1) = - 2.;
+      curl_shape(5,0) = - 1.;
+      curl_shape(5,1) = - 1.;
       curl_shape(5,2) =   0.;
 
-      curl_shape(6,0) =   0.;
-      curl_shape(6,1) =   0.;
+      curl_shape(6,0) =   1.;
+      curl_shape(6,1) = - 1.;
       curl_shape(6,2) =   0.;
 
-      curl_shape(7,0) =   2.;
-      curl_shape(7,1) =   0.;
+      curl_shape(7,0) =   1.;
+      curl_shape(7,1) =   1.;
       curl_shape(7,2) =   0.;
 
       return;
@@ -6605,7 +6609,7 @@ void RT0PyrFiniteElement::CalcDivShape(const IntegrationPoint &ip,
 }
 
 const real_t RT0PyrFiniteElement::nk[5][3] =
-{{0.,0.,-1.}, {0,-.5,0}, {.5,0,.5}, {0,.5,.5}, {-.5,0,0}};
+{{0.,0.,-1}, {0,-1,0}, {1,0,1}, {0,1,1}, {-1,0,0}};
 
 void RT0PyrFiniteElement::GetLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I) const

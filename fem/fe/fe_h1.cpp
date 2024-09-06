@@ -1045,6 +1045,8 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
                         p * (p * p + 3) + 1, // Fuentes et al
                         p, FunctionSpace::Uk)
 {
+   zmax = 0.0;
+
    const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
 #ifndef MFEM_THREAD_SAFE
@@ -1242,11 +1244,26 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
    int o = 0;
 
    // Vertices
-   u[0] = lam1(x, y, z);
-   u[1] = lam2(x, y, z);
-   u[2] = lam3(x, y, z);
-   u[3] = lam4(x, y, z);
-   u[4] = lam5(x, y, z);
+   if (std::fabs(1.0 - z) < 1e-8)
+   {
+      u[0] = u[1] = u[2] = u[3] = 0.25 * (1.0 - z);
+      u[4] = z;
+
+      z = 1.0 - 1e-8;
+      y = 0.5 * (1.0 - z);
+      x = 0.5 * (1.0 - z);
+      xy(0) = x; xy(1) = y;
+   }
+   else
+   {
+      u[0] = lam1(x, y, z);
+      u[1] = lam2(x, y, z);
+      u[2] = lam3(x, y, z);
+      u[3] = lam4(x, y, z);
+      u[4] = lam5(x, y, z);
+   }
+   zmax = std::max(z, zmax);
+
    o += 5;
 
    // Mixed edges (base edges)
@@ -1423,16 +1440,34 @@ void H1_FuentesPyramidElement::calcGradBasis(const int p,
    int o = 0;
 
    // Vertices
-   dlam = grad_lam1(x, y, z);
-   for (int d=0; d<3; d++) { du(0, d) = dlam(d); }
-   dlam = grad_lam2(x, y, z);
-   for (int d=0; d<3; d++) { du(1, d) = dlam(d); }
-   dlam = grad_lam3(x, y, z);
-   for (int d=0; d<3; d++) { du(2, d) = dlam(d); }
-   dlam = grad_lam4(x, y, z);
-   for (int d=0; d<3; d++) { du(3, d) = dlam(d); }
-   dlam = grad_lam5(x, y, z);
-   for (int d=0; d<3; d++) { du(4, d) = dlam(d); }
+   if (std::fabs(1.0 - z) < 1e-8)
+   {
+      du(0,0) = -0.5; du(0,1) = -0.5; du(0,2) = -0.75;
+      du(1,0) =  0.5; du(1,1) = -0.5; du(1,2) = -0.25;
+      du(2,0) =  0.5; du(2,1) =  0.5; du(2,2) =  0.25;
+      du(3,0) = -0.5; du(3,1) =  0.5; du(3,2) = -0.25;
+      du(4,0) =  0.0; du(4,1) =  0.0; du(4,2) =  1.0;
+
+      z = 1.0 - 1e-8;
+      y = 0.5 * (1.0 - z);
+      x = 0.5 * (1.0 - z);
+      xy(0) = x; xy(1) = y;
+   }
+   else
+   {
+      dlam = grad_lam1(x, y, z);
+      for (int d=0; d<3; d++) { du(0, d) = dlam(d); }
+      dlam = grad_lam2(x, y, z);
+      for (int d=0; d<3; d++) { du(1, d) = dlam(d); }
+      dlam = grad_lam3(x, y, z);
+      for (int d=0; d<3; d++) { du(2, d) = dlam(d); }
+      dlam = grad_lam4(x, y, z);
+      for (int d=0; d<3; d++) { du(3, d) = dlam(d); }
+      dlam = grad_lam5(x, y, z);
+      for (int d=0; d<3; d++) { du(4, d) = dlam(d); }
+   }
+   zmax = std::max(z, zmax);
+
    o += 5;
 
    // Mixed edges (base edges)

@@ -1595,6 +1595,8 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
                          H_CURL, FunctionSpace::Pk),
      dof2tk(dof), doftrans(p)
 {
+   zmax = 0.0;
+
    const real_t *eop = poly1d.OpenPoints(p - 1);
    const real_t *top = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
    const real_t *qop = poly1d.OpenPoints(p - 1, ob_type);
@@ -1902,6 +1904,15 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
    Vector xy({x,y}), dmu(3);
    real_t mu, mu2;
 
+   if (std::fabs(1.0 - z) < 1e-8)
+   {
+      z = 1.0 - 1e-8;
+      y = 0.5 * (1.0 - z);
+      x = 0.5 * (1.0 - z);
+      xy(0) = x; xy(1) = y;
+   }
+   zmax = std::max(z, zmax);
+
    W = 0.0;
 
    int o = 0;
@@ -2158,6 +2169,15 @@ void ND_FuentesPyramidElement::calcCurlBasis(const int p,
    Vector dmuxE(3), E(3), dphi(3), muphi(3);
 
    real_t mu, mu2;
+
+   if (std::fabs(1.0 - z) < 1e-8)
+   {
+      z = 1.0 - 1e-8;
+      y = 0.5 * (1.0 - z);
+      x = 0.5 * (1.0 - z);
+      xy(0) = x; xy(1) = y;
+   }
+   zmax = std::max(z, zmax);
 
    dW = 0.0;
 

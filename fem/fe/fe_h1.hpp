@@ -153,6 +153,8 @@ class H1_FuentesPyramidElement
    : public NodalFiniteElement, public FuentesPyramid
 {
 private:
+   mutable real_t zmax;
+
 #ifndef MFEM_THREAD_SAFE
    mutable Vector tmp_i, u;
    mutable DenseMatrix tmp1_ij, tmp2_ij, du;
@@ -188,6 +190,8 @@ public:
    void CalcRawShape(const IntegrationPoint &ip, Vector &shape) const;
    void CalcRawDShape(const IntegrationPoint &ip,
                       DenseMatrix &dshape) const;
+
+   real_t GetZetaMax() const { return zmax; }
 };
 
 class H1_BergotPyramidElement : public NodalFiniteElement
