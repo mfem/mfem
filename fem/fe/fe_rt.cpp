@@ -1521,9 +1521,9 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    Vector xy({x,y}), dmuz(3);
    real_t mu;
 
-   if (std::fabs(1.0 - z) < 1e-4)
+   if (std::fabs(1.0 - z) < 1e-8)
    {
-      z = 1.0 - 1e-4;
+      z = 1.0 - 1e-8;
       y = 0.5 * (1.0 - z);
       x = 0.5 * (1.0 - z);
       xy(0) = x; xy(1) = y;
@@ -1779,9 +1779,11 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
    Vector xy({x,y}), dmuz(3);
    real_t mu;
 
-   if (std::fabs(1.0 - z) < 1e-4)
+   bool limz1 = false;
+   if (std::fabs(1.0 - z) < 1e-8)
    {
-      z = 1.0 - 1e-4;
+      limz1 = true;
+      z = 1.0 - 1e-8;
       y = 0.5 * (1.0 - z);
       x = 0.5 * (1.0 - z);
       xy(0) = x; xy(1) = y;
@@ -1793,7 +1795,6 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
    int o = 0;
 
    // Quadrilateral face
-   if (z < 1.0)
    {
       V_Q(p, mu01(z, xy, 1), mu01_grad_mu01(z, xy, 1),
           mu01(z, xy, 2), mu01_grad_mu01(z, xy, 2),
@@ -1802,16 +1803,23 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
       const real_t muz2 = pow(mu0(z), 2);
       const Vector dmuz = grad_mu0(z);
 
+      const int o0 = o;
       for (int j=0; j<p; j++)
          for (int i=0; i<p; i++, o++)
             for (int k=0; k<3; k++)
             {
                dF(o) += 3.0 * muz2 * dmuz(k) * VQ_ijk(i, j, k);
             }
+
+      // Overwrite lowest order quadrilateral face DoF with known limiting
+      // value
+      if (limz1)
+      {
+         dF(o0) = -3.0;
+      }
    }
 
    // Triangular faces
-   if (z < 1.0)
    {
       // (a,b) = (1,2), c = 0
       V_T(p, nu012(z, xy, 1), nu012_grad_nu012(z, xy, 1), VT_ijk);
@@ -1820,6 +1828,7 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
       VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
            nu012_grad_nu012(z, xy, 1), grad_nu2(z, xy, 1), mu, dmuz,
            VTT_ijk, dVTT_ij);
+      const int o1 = o;
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
          {
@@ -1836,6 +1845,7 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
       VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
            nu012_grad_nu012(z, xy, 1), grad_nu2(z, xy, 1), mu, dmuz,
            VTT_ijk, dVTT_ij);
+      const int o2 = o;
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
          {
@@ -1853,6 +1863,7 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
       VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
            nu012_grad_nu012(z, xy, 2), grad_nu2(z, xy, 2), mu, dmuz,
            VTT_ijk, dVTT_ij);
+      const int o3 = o;
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
          {
@@ -1869,6 +1880,7 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
       VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
            nu012_grad_nu012(z, xy, 2), grad_nu2(z, xy, 2), mu, dmuz,
            VTT_ijk, dVTT_ij);
+      const int o4 = o;
       for (int j=0; j<p; j++)
          for (int i=0; i+j<p; i++, o++)
          {
@@ -1878,6 +1890,15 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
                dF(o) += 0.5 * dmuz(k) * VT_ijk(i, j, k);
             }
          }
+
+      // Overwrite lowest order triangular face DoFs with known limiting values
+      if (limz1)
+      {
+         dF(o1) =  1.5;
+         dF(o2) = -1.5;
+         dF(o3) = -1.5;
+         dF(o4) =  1.5;
+      }
    }
 
    // Interior
@@ -1901,7 +1922,7 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
       o += (p-1) * (p-1);
    }
    // Family IV
-   if (z < 1.0 && p >= 2)
+   if (p >= 2)
    {
       // Re-using V_Q from Quadrilateral Face
       phi_E(p, mu01(z), grad_mu01(z), phi_k, dphi_k);
@@ -1919,7 +1940,7 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
                }
    }
    // Family V
-   if (z < 1.0 && p >= 2)
+   if (p >= 2)
    {
       V_L(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
           mu01(z, xy, 2), grad_mu01(z, xy, 2), mu0(z), grad_mu0(z), VL_ijk);
@@ -1939,7 +1960,7 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
          }
    }
    // Family VI
-   if (z < 1.0 && p >= 2)
+   if (p >= 2)
    {
       V_R(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
           mu1(z, xy, 2), grad_mu1(z, xy, 2), mu0(z), grad_mu0(z), VR_ij);
@@ -1957,7 +1978,7 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
       }
    }
    // Family VII
-   if (z < 1.0 && p >= 2)
+   if (p >= 2)
    {
       V_R(p, mu01(z, xy, 2), grad_mu01(z, xy, 2),
           mu1(z, xy, 1), grad_mu1(z,xy,1), mu0(z), grad_mu0(z), VR_ij);
