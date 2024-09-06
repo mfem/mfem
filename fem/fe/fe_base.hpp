@@ -223,9 +223,10 @@ class FunctionSpace
 public:
    enum
    {
-      Pk, ///< Polynomials of order k
-      Qk, ///< Tensor products of polynomials of order k
-      rQk ///< Refined tensor products of polynomials of order k
+      Pk,  ///< Polynomials of order k
+      Qk,  ///< Tensor products of polynomials of order k
+      rQk, ///< Refined tensor products of polynomials of order k
+      Uk   ///< Rational polynomials of order k
    };
 };
 
