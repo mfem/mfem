@@ -1341,7 +1341,7 @@ const
 
 
 LinearPyramidFiniteElement::LinearPyramidFiniteElement()
-   : NodalFiniteElement(3, Geometry::PYRAMID, 5, 1)
+   : NodalFiniteElement(3, Geometry::PYRAMID, 5, 1, FunctionSpace::Uk)
 {
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
@@ -3015,7 +3015,7 @@ void P0WdgFiniteElement::CalcDShape(const IntegrationPoint &ip,
 
 
 P0PyrFiniteElement::P0PyrFiniteElement()
-   : NodalFiniteElement(3, Geometry::PYRAMID, 1, 0, FunctionSpace::Qk)
+   : NodalFiniteElement(3, Geometry::PYRAMID, 1, 0, FunctionSpace::Uk)
 {
    Nodes.IntPoint(0).x = 0.375;
    Nodes.IntPoint(0).y = 0.375;

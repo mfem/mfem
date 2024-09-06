@@ -925,7 +925,7 @@ void L2_WedgeElement::CalcDShape(const IntegrationPoint &ip,
 
 L2_FuentesPyramidElement::L2_FuentesPyramidElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::PYRAMID, ((p + 1)*(p + 1)*(p + 1)),
-                        p, FunctionSpace::Pk)
+                        p, FunctionSpace::Uk)
 {
    const double *op = poly1d.OpenPoints(p, VerifyNodal(VerifyOpen(btype)));
 

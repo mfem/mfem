@@ -1043,7 +1043,7 @@ void H1_WedgeElement::CalcDShape(const IntegrationPoint &ip,
 H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::PYRAMID,
                         p * (p * p + 3) + 1, // Fuentes et al
-                        p, FunctionSpace::Qk)
+                        p, FunctionSpace::Uk)
 {
    const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
