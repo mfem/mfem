@@ -2,7 +2,7 @@
 //
 // Compile with: make ex9p
 //
-// Sample runs:
+// Sample runs DG:
 //    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -dt 0.005
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -dt 0.01
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.01
@@ -19,6 +19,15 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-square.msh -p 0 -rs 2 -dt 0.005 -tf 2
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rs 1 -o 2 -tf 2
 //    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
+//
+// Sample runs CG:
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 4 -dt 0.0025 -tf 9 -vs 20 -sc 11 -s 2 -o 1
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -rs 4 -dt 0.0025 -tf 2 -vs 20 -sc 11 -s 3 -o 2
+//
+//
+//
+//
+//
 //
 // Device sample runs:
 //    mpirun -np 4 ex9p -pa
@@ -271,7 +280,7 @@ CG_FE_Evolution::CG_FE_Evolution(ParFiniteElementSpace &fes_, const Vector &b_,
 
    b_u.AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(u_coeff, velocity, 1.0));
-   b_u.Assemble();
+   //b_u.Assemble();
 }  
 
 CG_FE_Evolution::~CG_FE_Evolution()
@@ -286,7 +295,7 @@ private:
    mutable Array<real_t> umin, umax;
    mutable Vector udot;
    mutable DenseMatrix Ke, Me;
-   mutable Vector ue, re, udote, fe, fe_star, fe_tilde, gammae;
+   mutable Vector ue, re, udote, fe, fe_star, gammae;
 
 public:
    ClipAndScale(ParFiniteElementSpace &fes_, const Vector &b_,
@@ -297,7 +306,6 @@ public:
    virtual void ComputeLOTimeDerivatives(const Vector &u, Vector &udot) const;
 
    virtual ~ClipAndScale();
-
 };
 
 ClipAndScale::ClipAndScale(ParFiniteElementSpace &fes_, const Vector &b_,
@@ -312,7 +320,6 @@ ClipAndScale::ClipAndScale(ParFiniteElementSpace &fes_, const Vector &b_,
 
 void ClipAndScale::ComputeLOTimeDerivatives(const Vector &u, Vector &udot) const
 {
-   MFEM_VERIFY(u.Size() == udot.Size(), "WRONG");
    udot = 0.0;
    
    const int nE = fes.GetNE();
@@ -373,8 +380,7 @@ void ClipAndScale::ComputeBounds(const Vector &u, Array<real_t> &u_min, Array<re
          umax[i] = max(umax[i], u(j));
       }
    }
-   //umin = 0.0;
-   //umax = 1.0; 
+
    gcomm.Reduce<real_t>(umax, GroupCommunicator::Max);
    gcomm.Bcast(umax);
 
@@ -412,7 +418,6 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       udote.SetSize(dofs.Size());
       fe.SetSize(dofs.Size());
       fe_star.SetSize(dofs.Size());
-      fe_tilde.SetSize(dofs.Size()); 
       gammae.SetSize(dofs.Size());
 
       x.GetSubVector(dofs, ue);
@@ -445,7 +450,6 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 
       real_t P_plus = 0.0;
       real_t P_minus = 0.0;
-      fe_star = 0.0;
 
       //Clip
       for (int i = 0; i < dofs.Size(); i++)
@@ -460,29 +464,26 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       }
       const real_t P = P_minus + P_plus;
 
-      //scale 
+      //and Scale 
       for (int i = 0; i < dofs.Size(); i++)
       {
-         if (fe_star(i) > 1e-15 && P > 1e-15)
+         if (fe_star(i) > 0.0 && P > 0.0)
          {
             fe_star(i) *= - P_minus / P_plus;
          }
-         else if (fe_star(i) < -1e-15 && P < -1e-15)
+         else if (fe_star(i) < 0.0 && P < 0.0)
          {
             fe_star(i) *= - P_plus / P_minus;
          }
       }
 
       re += fe_star;
-
       y.AddElementVector(dofs, re);
    }
 
    Array<real_t> y_array(y.GetData(), y.Size());
    gcomm.Reduce<real_t>(y_array, GroupCommunicator::Sum);
    gcomm.Bcast(y_array);
-
-   //y = udot;
 
    y += b_u;
    y -= b_inflow;
@@ -508,15 +509,15 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
-   int order = 1;
+   int order = 3;
    bool pa = false;
    bool ea = false;
    bool fa = false;
    const char *device_config = "cpu";
-   int ode_solver_type = 3;
-   int scheme = 11;
+   int ode_solver_type = 4;
+   int scheme = 1;
    real_t t_final = 10.0;
-   real_t dt = 0.001;
+   real_t dt = 0.01;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -860,8 +861,6 @@ int main(int argc, char *argv[])
       case 11: adv = new ClipAndScale(*fes, *b, lumpedmassmatrix, u, velocity, *m); break;
    }
 
-   MFEM_VERIFY(adv->Width() == m->Width() && u->Size() == adv->Width(), "hmm");
-
    real_t t = 0.0;
    adv->SetTime(t);
    ode_solver->Init(*adv);
@@ -1009,7 +1008,6 @@ void DG_FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 
 void DG_FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(x.Size() == y.Size(), "DG with hpv not working");
    // y = M^{-1} (K x + b)
    K->Mult(x, z);
    z += b;
