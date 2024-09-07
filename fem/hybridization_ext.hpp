@@ -51,8 +51,10 @@ protected:
    Array<int> face_to_el;
    Vector Ct_mat; ///< Constraint matrix (transposed) stored element-wise.
 
-   Vector Ahat_inv;
-   Array<int> Ahat_piv;
+   Array<int> idofs, bdofs;
+
+   Vector Ahat, Ahat_ii, Ahat_ib, Ahat_bi, Ahat_bb;
+   Array<int> Ahat_ii_piv, Ahat_bb_piv;
 
 public:
    /// Construct the constraint matrix.
@@ -108,7 +110,7 @@ public:
    void ComputeSolution(const Vector &b, const Vector &sol_r, Vector &sol) const;
 
    /// Destroys the stored element matrices.
-   void Reset() { Ahat_inv = 0.0; }
+   void Reset() { Ahat = 0.0; }
 };
 
 }
