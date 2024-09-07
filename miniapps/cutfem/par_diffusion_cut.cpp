@@ -9,6 +9,7 @@ using namespace mfem;
 
 real_t f_rhs(const Vector &x);
 real_t u_ex(const Vector &x);
+real_t bcf(const Vector &x);
 real_t g_neumann(const Vector &x);
 void u_grad_exact(const Vector &x, Vector &u);
 real_t circle_func(const Vector &x);
@@ -32,6 +33,9 @@ int main(int argc, char *argv[])
     const char *device_config = "cpu";
     bool visualization = true;
     bool algebraic_ceed = false;
+    int ser_ref_levels = 1;
+    int aorder = 6; // Algoim integration points
+    real_t g = 0.1;
 
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh",
@@ -50,7 +54,13 @@ int main(int argc, char *argv[])
     args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                    "--no-visualization",
                    "Enable or disable GLVis visualization.");
+    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
 
+    args.AddOption(&aorder, "-aorder", "--aorder",
+                  "fix.");
+    args.AddOption(&g, "-g", "--g",
+                  "fix.");
     args.Parse();
     if (!args.Good())
     {
@@ -66,13 +76,13 @@ int main(int argc, char *argv[])
     }
     //Mesh mesh(mesh_file, 1, 1);
 
-    Mesh mesh = Mesh::MakeCartesian2D( 50*2, 50 , mfem::Element::Type::QUADRILATERAL, true, 1, 0.5);
+    Mesh mesh = Mesh::MakeCartesian2D( 4*2, 4 , mfem::Element::Type::QUADRILATERAL, true, 1, 0.5);
 
     int dim = mesh.Dimension();
     {
-        int ref_levels =
-            (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
-        for (int l = 0; l < ref_levels; l++)
+        // int ref_levels =
+        //     (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+        for (int l = 0; l < ser_ref_levels; l++)
         {
             mesh.UniformRefinement();
         }
@@ -106,7 +116,7 @@ int main(int argc, char *argv[])
     ConstantCoefficient one(1.0);
 
     ParGridFunction x(&fespace);
-    FunctionCoefficient bc (u_ex);
+    FunctionCoefficient bc (bcf);
     FunctionCoefficient f (f_rhs);
     x.ProjectCoefficient(bc);
     FunctionCoefficient neumann(g_neumann);
@@ -140,9 +150,8 @@ int main(int argc, char *argv[])
     std::cout.flush();
 
     int otherorder = 2;
-    int aorder = 2; // Algoim integration points
     AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,circle,otherorder);
-    real_t gp = 0.1/(h_min*h_min);
+    real_t gp = g/(h_min*h_min);
 
     ParLinearForm b(&fespace);
 
@@ -164,8 +173,8 @@ int main(int argc, char *argv[])
     Solver *prec = nullptr;
     prec = new HypreBoomerAMG;
     CGSolver cg(MPI_COMM_WORLD);
-    cg.SetRelTol(1e-12);
-    cg.SetMaxIter(2000);
+    cg.SetRelTol(1e-16);
+    cg.SetMaxIter(6000);
     cg.SetPrintLevel(1);
     if (prec) { cg.SetPreconditioner(*prec); }
     cg.SetOperator(*A);
@@ -174,7 +183,9 @@ int main(int argc, char *argv[])
 
     a.RecoverFEMSolution(X, b, x);
 
-
+    FunctionCoefficient uex (u_ex);
+   ParGridFunction exact_sol(&fespace);
+   exact_sol.ProjectCoefficient(uex);
 
     // to visualize level set and markings
     L2_FECollection* l2fec= new L2_FECollection(0,pmesh.Dimension());
@@ -187,6 +198,22 @@ int main(int argc, char *argv[])
     }
 
 
+   {
+       ParNonlinearForm* nf=new ParNonlinearForm(&fespace);
+       nf->AddDomainIntegrator(new CutScalarErrorIntegrator(uex,&marks,air));
+        real_t error_squared = nf->GetEnergy(x.GetTrueVector());
+       cout << "\n|| u_h - u ||_{L^2} = " << sqrt(error_squared)<< std::endl;
+
+       delete nf;
+   }
+    cout << "h: " << h_min<< std::endl;
+
+
+
+   ParGridFunction error(&fespace);
+   error = x;
+   error -= exact_sol;
+
     ParaViewDataCollection paraview_dc("diffusion_cut", &pmesh);
     paraview_dc.SetPrefixPath("ParaView");
     paraview_dc.SetLevelsOfDetail(order);
@@ -197,6 +224,8 @@ int main(int argc, char *argv[])
     paraview_dc.RegisterField("solution",&x);
     paraview_dc.RegisterField("marks", &mgf);
     paraview_dc.RegisterField("parts", &par);
+           paraview_dc.RegisterField("level_set",&cgf);
+   paraview_dc.RegisterField("error",&error);
     paraview_dc.Save();
 
 
@@ -220,6 +249,13 @@ real_t u_ex(const Vector &x)
     real_t x0 = 0.5;
     real_t y0 = 0.5;
     return sin(M_PI*x(0))*cos((M_PI*x(1)));
+}
+
+real_t bcf(const Vector &x)
+{
+    real_t x0 = 0.5;
+    real_t y0 = 0.5;
+    return 0;//sin(M_PI*x(0))*cos((M_PI*x(1)));
 }
 
 void u_grad_exact(const Vector &x, Vector &u)
@@ -253,7 +289,7 @@ real_t ellipsoide_func(const Vector &x)
 {
     real_t x0 = 0.5;
     real_t y0 = 0.25;
-    real_t r = 0.35;
+    real_t r = 0.351;
     real_t xx = x(0)-x0;
     real_t y = x(1)-y0;
     return -(xx)*(xx)/(1.5*1.5) - (y)*(y)/(0.5*0.5)+ r*r; // + 0.25*cos(atan2(x(1)-y0,x(0)-x0))*cos(atan2(x(1)-y0,x(0)-x0));

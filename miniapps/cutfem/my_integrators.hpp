@@ -56,7 +56,7 @@ public:
 
             r2=coeff->Eval(Tr,ip);
 
-            rez=rez+ip.weight*Tr.Weight()*fabs(r1-r2);
+            rez=rez+ip.weight*Tr.Weight()*(r1-r2)*(r1-r2);
         }
 
         return rez;
