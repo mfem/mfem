@@ -30,16 +30,14 @@ namespace mfem
 class HybridizationExtension
 {
    friend class Hybridization;
-
-protected:
-
+public:
    enum DofType : char
    {
       ESSENTIAL,
       BOUNDARY,
       INTERIOR
    };
-
+protected:
    class Hybridization &h; ///< The associated Hybridization object.=
    int num_hat_dofs; ///< Number of Lagrange multipliers.
    mutable Vector tmp1, tmp2; ///< Temporary vectors.
