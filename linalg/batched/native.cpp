@@ -25,9 +25,9 @@ void NativeBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
    const int n_mat = A.SizeK();
    const int k = x.Size() / n / n_mat;
 
-   auto d_A = mfem::Reshape(A.Read(), m, n, n_mat);
-   auto d_x = mfem::Reshape(x.Read(), n, k, n_mat);
-   auto d_y = mfem::Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
+   auto d_A = Reshape(A.Read(), m, n, n_mat);
+   auto d_x = Reshape(x.Read(), n, k, n_mat);
+   auto d_y = Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
 
    mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -53,65 +53,20 @@ void NativeBatchedLinAlg::Invert(DenseTensor &A) const
 
 void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
 {
-   constexpr real_t tol = 0.0; // Make this user-adjustable?
    const int m = A.SizeI();
    const int NE = A.SizeK();
    P.SetSize(m*NE);
 
-   auto data_all = mfem::Reshape(A.ReadWrite(), m, m, NE);
-   auto ipiv_all = mfem::Reshape(P.Write(), m, NE);
+   auto data_all = Reshape(A.ReadWrite(), m, m, NE);
+   auto ipiv_all = Reshape(P.Write(), m, NE);
    Array<bool> pivot_flag(1);
    pivot_flag[0] = true;
    bool *d_pivot_flag = pivot_flag.ReadWrite();
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      for (int i = 0; i < m; i++)
-      {
-         // pivoting
-         {
-            int piv = i;
-            real_t a = fabs(data_all(piv,i,e));
-            for (int j = i+1; j < m; j++)
-            {
-               const real_t b = fabs(data_all(j,i,e));
-               if (b > a)
-               {
-                  a = b;
-                  piv = j;
-               }
-            }
-            ipiv_all(i,e) = piv;
-            if (piv != i)
-            {
-               // swap rows i and piv in both L and U parts
-               for (int j = 0; j < m; j++)
-               {
-                  mfem::kernels::internal::Swap<real_t>(data_all(i,j,e), data_all(piv,j,e));
-               }
-            }
-         } // pivot end
-
-         if (abs(data_all(i,i,e)) <= tol)
-         {
-            d_pivot_flag[0] = false;
-         }
-
-         const real_t a_ii_inv = 1.0 / data_all(i,i,e);
-         for (int j = i+1; j < m; j++)
-         {
-            data_all(j,i,e) *= a_ii_inv;
-         }
-
-         for (int k = i+1; k < m; k++)
-         {
-            const real_t a_ik = data_all(i,k,e);
-            for (int j = i+1; j < m; j++)
-            {
-               data_all(j,k,e) -= a_ik * data_all(j,i,e);
-            }
-         }
-      }
+      const bool flag = kernels::LUFactor(&data_all(0,0,e), m, &ipiv_all(0,e));
+      if (!flag) { d_pivot_flag[0] = false; }
    });
 
    MFEM_VERIFY(pivot_flag.HostRead()[0], "Batch LU factorization failed");
@@ -124,9 +79,9 @@ void NativeBatchedLinAlg::LUSolve(const DenseTensor &LU, const Array<int> &P,
    const int n_mat = LU.SizeK();
    const int n_rhs = x.Size() / m / n_mat;
 
-   auto d_LU = mfem::Reshape(LU.Read(), m, m, n_mat);
-   auto d_P = mfem::Reshape(P.Read(), m, n_mat);
-   auto d_x = mfem::Reshape(x.Write(), m, n_rhs, n_mat);
+   auto d_LU = Reshape(LU.Read(), m, m, n_mat);
+   auto d_P = Reshape(P.Read(), m, n_mat);
+   auto d_x = Reshape(x.Write(), m, n_rhs, n_mat);
 
    mfem::forall(n_mat * n_rhs, [=] MFEM_HOST_DEVICE (int idx)
    {
