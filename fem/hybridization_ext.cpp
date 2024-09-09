@@ -88,7 +88,8 @@ void HybridizationExtension::ConstructC()
    });
 }
 
-void HybridizationExtension::ConstructH()
+template <int MID, int MBD>
+void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
 {
    const Mesh &mesh = *h.fes.GetMesh();
    const int ne = mesh.GetNE();
@@ -96,13 +97,16 @@ void HybridizationExtension::ConstructH()
    const int m = h.fes.GetFE(0)->GetDof();
    const int n = h.c_fes.GetFaceElement(0)->GetDof();
 
-   Vector AhatInvCt_mat(Ct_mat);
-   const auto d_AhatInvCt =
-      Reshape(AhatInvCt_mat.Write(), m, n, n_faces_per_el, ne);
+   AhatInvCt_mat.SetSize(Ct_mat.Size());
+   auto d_AhatInvCt = Reshape(AhatInvCt_mat.Write(), m, n, n_faces_per_el, ne);
 
    {
       const int nidofs = idofs.Size();
       const int nbdofs = bdofs.Size();
+
+      MFEM_VERIFY(nidofs <= MID, "");
+      MFEM_VERIFY(nbdofs <= MBD, "");
+
       Ahat_ii.SetSize(nidofs*nidofs*ne);
       Ahat_ib.SetSize(nidofs*nbdofs*ne);
       Ahat_bi.SetSize(nbdofs*nidofs*ne);
@@ -114,7 +118,7 @@ void HybridizationExtension::ConstructH()
       const auto *d_idofs = idofs.Read();
       const auto *d_bdofs = bdofs.Read();
 
-      const DofType *d_hat_dof_marker = hat_dof_marker.Read();
+      const auto d_hat_dof_marker = Reshape(hat_dof_marker.Read(), m, ne);
       auto d_Ahat = Reshape(Ahat.Read(), m, m, ne);
 
       auto d_A_ii = Reshape(Ahat_ii.Write(), nidofs, nidofs, ne);
@@ -125,94 +129,132 @@ void HybridizationExtension::ConstructH()
       auto d_ipiv_ii = Reshape(Ahat_ii_piv.Write(), nidofs, ne);
       auto d_ipiv_bb = Reshape(Ahat_bb_piv.Write(), nbdofs, ne);
 
-      const auto d_Ct_mat = Reshape(Ct_mat.ReadWrite(), m, n, n_faces_per_el, ne);
-
-      Vector Sb_inv_Cb_t(nbdofs * n_faces_per_el * n * ne);
-      auto d_Sb_inv_Cb_t =
-         Reshape(Sb_inv_Cb_t.Write(), nbdofs, n, n_faces_per_el, ne);
+      const auto d_Ct_mat = Reshape(Ct_mat.Read(), m, n, n_faces_per_el, ne);
 
       mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
       {
+         int idofs_loc[MID];
+         int bdofs_loc[MBD];
+         for (int i = 0; i < nidofs; i++) { idofs_loc[i] = d_idofs[i]; }
+         for (int i = 0; i < nbdofs; i++) { bdofs_loc[i] = d_bdofs[i]; }
+
+         real_t A_ii[MID][MID];
+         real_t A_ib[MBD][MID];
+         real_t A_bi[MID][MBD];
+         real_t A_bb[MBD][MBD];
          for (int j = 0; j < nidofs; j++)
          {
-            const int jj = d_idofs[j];
+            const int jj = idofs_loc[j];
             for (int i = 0; i < nidofs; i++)
             {
-               d_A_ii(i,j,e) = d_Ahat(d_idofs[i], jj, e);
+               A_ii[j][i] = d_Ahat(idofs_loc[i], jj, e);
             }
             for (int i = 0; i < nbdofs; i++)
             {
-               d_A_bi(i,j,e) = d_Ahat(d_bdofs[i], jj, e);
+               A_bi[j][i] = d_Ahat(bdofs_loc[i], jj, e);
             }
          }
          for (int j = 0; j < nbdofs; j++)
          {
-            const int jj = d_bdofs[j];
+            const int jj = bdofs_loc[j];
             for (int i = 0; i < nidofs; i++)
             {
-               d_A_ib(i,j,e) = d_Ahat(d_idofs[i], jj, e);
+               A_ib[j][i] = d_Ahat(idofs_loc[i], jj, e);
             }
             for (int i = 0; i < nbdofs; i++)
             {
-               d_A_bb(i,j,e) = d_Ahat(d_bdofs[i], jj, e);
+               A_bb[j][i] = d_Ahat(bdofs_loc[i], jj, e);
             }
          }
          for (int j = 0; j < nbdofs; ++j)
          {
-            const int jj = d_bdofs[j];
-            if (d_hat_dof_marker[jj + e*m] == ESSENTIAL)
+            const int jj = bdofs_loc[j];
+            if (d_hat_dof_marker(jj, e) == ESSENTIAL)
             {
                for (int i = 0; i < nidofs; ++i)
                {
-                  d_A_ib(i,j,e) = 0.0;
-                  d_A_bi(j,i,e) = 0.0;
+                  A_ib[j][i] = 0.0;
+                  A_bi[i][j] = 0.0;
                }
                for (int i = 0; i < nbdofs; ++i)
                {
-                  d_A_bb(i,j,e) = 0.0;
-                  d_A_bb(j,i,e) = 0.0;
+                  A_bb[j][i] = 0.0;
+                  A_bb[i][j] = 0.0;
                }
-               d_A_bb(j,j,e) = 1.0;
+               A_bb[j][j] = 1.0;
             }
          }
-         kernels::LUFactor(&d_A_ii(0,0,e), nidofs, &d_ipiv_ii(0,e));
-         kernels::BlockFactor(&d_A_ii(0,0,e), nidofs, &d_ipiv_ii(0,e), nbdofs,
-                              &d_A_ib(0,0,e), &d_A_bi(0,0,e), &d_A_bb(0,0,e));
-         kernels::LUFactor(&d_A_bb(0,0,e), nbdofs, &d_ipiv_bb(0,e));
 
-         // TODO: Is anything different required for essential DOFs in A_bb?
-         // (to test: ex4p with randomly set ess. bc)
-         // TODO: do this in registers rather than global memory
+         int ipiv_ii[MID];
+         int ipiv_bb[MBD];
+
+         kernels::LUFactor((real_t*)A_ii, nidofs, ipiv_ii);
+         kernels::BlockFactor((real_t*)A_ii, nidofs, ipiv_ii, nbdofs,
+                              (real_t*)A_ib, (real_t*)A_bi, (real_t*)A_bb);
+         kernels::LUFactor((real_t*)A_bb, nbdofs, ipiv_bb);
 
          for (int f = 0; f < n_faces_per_el; ++f)
          {
             for (int j = 0; j < n; ++j)
             {
+               real_t Sb_inv_Cb_t[MBD];
                for (int i = 0; i < nbdofs; ++i)
                {
-                  d_Sb_inv_Cb_t(i, j, f, e) = d_Ct_mat(d_bdofs[i], j, f, e);
+                  Sb_inv_Cb_t[i] = d_Ct_mat(bdofs_loc[i], j, f, e);
+               }
+               kernels::LUSolve((real_t*)A_bb, nbdofs, ipiv_bb, Sb_inv_Cb_t);
+               for (int i = 0; i < nbdofs; ++i)
+               {
+                  d_AhatInvCt(bdofs_loc[i], j, f, e) = Sb_inv_Cb_t[i];
+               }
+               for (int i = 0; i < nidofs; ++i)
+               {
+                  d_AhatInvCt(idofs_loc[i], j, f, e) = 0.0;
                }
             }
          }
 
-         for (int f = 0; f < n_faces_per_el; ++f)
+         // Write out to global memory
+         for (int j = 0; j < nidofs; j++)
          {
-            for (int j = 0; j < n; ++j)
+            d_ipiv_ii(j,e) = ipiv_ii[j];
+            for (int i = 0; i < nidofs; i++)
             {
-               kernels::LUSolve(&d_A_bb(0,0,e), nbdofs, &d_ipiv_bb(0,e),
-                                &d_Sb_inv_Cb_t(0,j,f,e));
-               for (int i = 0; i < nbdofs; ++i)
-               {
-                  d_AhatInvCt(d_bdofs[i], j, f, e) = d_Sb_inv_Cb_t(i, j, f, e);
-               }
-               for (int i = 0; i < nidofs; ++i)
-               {
-                  d_AhatInvCt(d_idofs[i], j, f, e) = 0.0;
-               }
+               d_A_ii(i,j,e) = A_ii[j][i];
+            }
+            for (int i = 0; i < nbdofs; i++)
+            {
+               d_A_bi(i,j,e) = A_bi[j][i];
+            }
+         }
+         for (int j = 0; j < nbdofs; j++)
+         {
+            d_ipiv_bb(j,e) = ipiv_bb[j];
+            for (int i = 0; i < nidofs; i++)
+            {
+               d_A_ib(i,j,e) = A_ib[j][i];
+            }
+            for (int i = 0; i < nbdofs; i++)
+            {
+               d_A_bb(i,j,e) = A_bb[j][i];
             }
          }
       });
    }
+}
+
+void HybridizationExtension::ConstructH()
+{
+   const Mesh &mesh = *h.fes.GetMesh();
+   const int ne = mesh.GetNE();
+   const int n_faces_per_el = GetNFacesPerElement(mesh);
+   const int m = h.fes.GetFE(0)->GetDof();
+   const int n = h.c_fes.GetFaceElement(0)->GetDof();
+
+   Vector AhatInvCt_mat;
+   FactorElementMatrices<4,8>(AhatInvCt_mat);
+   const auto d_AhatInvCt =
+      Reshape(AhatInvCt_mat.Read(), m, n, n_faces_per_el, ne);
 
    const int nf = h.fes.GetNFbyType(FaceType::Interior);
    const int n_face_connections = 2*n_faces_per_el - 1;
