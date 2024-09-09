@@ -58,6 +58,9 @@ public:
    /// Construct the constraint matrix.
    void ConstructC();
 
+   template <int MID, int MBD>
+   void FactorElementMatrices(Vector &AhatInvCt_mat);
+
    /// Form the Schur complement matix $H$.
    void ConstructH();
 
