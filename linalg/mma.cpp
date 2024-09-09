@@ -399,7 +399,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
    {
       mma->y[i] = 1.0;
       mma->lam[i] = 1.0;
-      mma->mu[i] = std::max(static_cast<real_t>(1.0), 0.5 * mma->c[i]);
+      mma->mu[i] = std::max(1.0, 0.5 * mma->c[i]);
       mma->s[i] = 1.0;
    }
 
