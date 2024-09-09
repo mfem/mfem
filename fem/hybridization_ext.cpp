@@ -131,6 +131,8 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
 
       const auto d_Ct_mat = Reshape(Ct_mat.Read(), m, n, n_faces_per_el, ne);
 
+      constexpr bool GLOBAL = (MID == 0 && MBD == 0);
+
       mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
       {
          int idofs_loc[MID];
@@ -138,20 +140,30 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
          for (int i = 0; i < nidofs; i++) { idofs_loc[i] = d_idofs[i]; }
          for (int i = 0; i < nbdofs; i++) { bdofs_loc[i] = d_bdofs[i]; }
 
-         real_t A_ii[MID][MID];
-         real_t A_ib[MBD][MID];
-         real_t A_bi[MID][MBD];
-         real_t A_bb[MBD][MBD];
+         real_t A_ii_loc[MID][MID];
+         real_t A_ib_loc[MBD][MID];
+         real_t A_bi_loc[MID][MBD];
+         real_t A_bb_loc[MBD][MBD];
+
+         DeviceMatrix A_ii(GLOBAL ? &d_A_ii(0,0,e) : (real_t*)A_ii_loc,
+                           nidofs, nidofs);
+         DeviceMatrix A_ib(GLOBAL ? &d_A_ib(0,0,e) : (real_t*)A_ib_loc,
+                           nidofs, nbdofs);
+         DeviceMatrix A_bi(GLOBAL ? &d_A_bi(0,0,e) : (real_t*)A_bi_loc,
+                           nbdofs, nidofs);
+         DeviceMatrix A_bb(GLOBAL ? &d_A_bb(0,0,e) : (real_t*)A_bb_loc,
+                           nbdofs, nbdofs);
+
          for (int j = 0; j < nidofs; j++)
          {
             const int jj = idofs_loc[j];
             for (int i = 0; i < nidofs; i++)
             {
-               A_ii[j][i] = d_Ahat(idofs_loc[i], jj, e);
+               A_ii(i,j) = d_Ahat(idofs_loc[i], jj, e);
             }
             for (int i = 0; i < nbdofs; i++)
             {
-               A_bi[j][i] = d_Ahat(bdofs_loc[i], jj, e);
+               A_bi(i,j) = d_Ahat(bdofs_loc[i], jj, e);
             }
          }
          for (int j = 0; j < nbdofs; j++)
@@ -159,34 +171,36 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
             const int jj = bdofs_loc[j];
             for (int i = 0; i < nidofs; i++)
             {
-               A_ib[j][i] = d_Ahat(idofs_loc[i], jj, e);
+               A_ib(i,j) = d_Ahat(idofs_loc[i], jj, e);
             }
             for (int i = 0; i < nbdofs; i++)
             {
-               A_bb[j][i] = d_Ahat(bdofs_loc[i], jj, e);
+               A_bb(i,j) = d_Ahat(bdofs_loc[i], jj, e);
             }
          }
          for (int j = 0; j < nbdofs; ++j)
          {
-            const int jj = bdofs_loc[j];
-            if (d_hat_dof_marker(jj, e) == ESSENTIAL)
+            if (d_hat_dof_marker(bdofs_loc[j], e) == ESSENTIAL)
             {
                for (int i = 0; i < nidofs; ++i)
                {
-                  A_ib[j][i] = 0.0;
-                  A_bi[i][j] = 0.0;
+                  A_ib(i,j) = 0.0;
+                  A_bi(j,i) = 0.0;
                }
                for (int i = 0; i < nbdofs; ++i)
                {
-                  A_bb[j][i] = 0.0;
-                  A_bb[i][j] = 0.0;
+                  A_bb(i,j) = 0.0;
+                  A_bb(i,j) = 0.0;
                }
-               A_bb[j][j] = 1.0;
+               A_bb(j,j) = 1.0;
             }
          }
 
-         int ipiv_ii[MID];
-         int ipiv_bb[MBD];
+         int ipiv_ii_loc[MID];
+         int ipiv_bb_loc[MBD];
+
+         auto ipiv_ii = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_ii_loc;
+         auto ipiv_bb = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_bb_loc;
 
          kernels::LUFactor((real_t*)A_ii, nidofs, ipiv_ii);
          kernels::BlockFactor((real_t*)A_ii, nidofs, ipiv_ii, nbdofs,
@@ -215,28 +229,31 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
          }
 
          // Write out to global memory
-         for (int j = 0; j < nidofs; j++)
+         if (!GLOBAL)
          {
-            d_ipiv_ii(j,e) = ipiv_ii[j];
-            for (int i = 0; i < nidofs; i++)
+            for (int j = 0; j < nidofs; j++)
             {
-               d_A_ii(i,j,e) = A_ii[j][i];
+               d_ipiv_ii(j,e) = ipiv_ii[j];
+               for (int i = 0; i < nidofs; i++)
+               {
+                  d_A_ii(i,j,e) = A_ii(i,j);
+               }
+               for (int i = 0; i < nbdofs; i++)
+               {
+                  d_A_bi(i,j,e) = A_bi(i,j);
+               }
             }
-            for (int i = 0; i < nbdofs; i++)
+            for (int j = 0; j < nbdofs; j++)
             {
-               d_A_bi(i,j,e) = A_bi[j][i];
-            }
-         }
-         for (int j = 0; j < nbdofs; j++)
-         {
-            d_ipiv_bb(j,e) = ipiv_bb[j];
-            for (int i = 0; i < nidofs; i++)
-            {
-               d_A_ib(i,j,e) = A_ib[j][i];
-            }
-            for (int i = 0; i < nbdofs; i++)
-            {
-               d_A_bb(i,j,e) = A_bb[j][i];
+               d_ipiv_bb(j,e) = ipiv_bb[j];
+               for (int i = 0; i < nidofs; i++)
+               {
+                  d_A_ib(i,j,e) = A_ib(i,j);
+               }
+               for (int i = 0; i < nbdofs; i++)
+               {
+                  d_A_bb(i,j,e) = A_bb(i,j);
+               }
             }
          }
       });
@@ -252,7 +269,23 @@ void HybridizationExtension::ConstructH()
    const int n = h.c_fes.GetFaceElement(0)->GetDof();
 
    Vector AhatInvCt_mat;
-   FactorElementMatrices<4,8>(AhatInvCt_mat);
+
+   {
+      const int NI = idofs.Size();
+      const int NB = bdofs.Size();
+      // 2D
+      if (NI == 0 && NB <= 4) { FactorElementMatrices<0,4>(AhatInvCt_mat); }
+      else if (NI <= 4 && NB <= 8) { FactorElementMatrices<4,8>(AhatInvCt_mat); }
+      else if (NI <= 12 && NB <= 12) { FactorElementMatrices<12,12>(AhatInvCt_mat); }
+      else if (NI <= 24 && NB <= 16) { FactorElementMatrices<12,16>(AhatInvCt_mat); }
+      // 3D
+      else if (NI <= 0 && NB <= 6) { FactorElementMatrices<0,6>(AhatInvCt_mat); }
+      else if (NI <= 12 && NB <= 24) { FactorElementMatrices<12,24>(AhatInvCt_mat); }
+      else if (NI <= 54 && NB <= 54) { FactorElementMatrices<54,54>(AhatInvCt_mat); }
+      // Fallback
+      else { FactorElementMatrices<0,0>(AhatInvCt_mat); }
+   }
+
    const auto d_AhatInvCt =
       Reshape(AhatInvCt_mat.Read(), m, n, n_faces_per_el, ne);
 
