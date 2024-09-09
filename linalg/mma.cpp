@@ -344,9 +344,9 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          xl1[i] = mma->machineEpsilon;
       }
       p0[i] = ( std::max(dfdx[i], zero) + 0.001 * (std::max(dfdx[i],
-                                                           zero) + std::max(-dfdx[i], zero)) + raa0 / xmami[i]) * ux1[i] * ux1[i];
+                                                            zero) + std::max(-dfdx[i], zero)) + raa0 / xmami[i]) * ux1[i] * ux1[i];
       q0[i] = ( std::max(-dfdx[i], zero) + 0.001 * (std::max(dfdx[i],
-                                                            zero) + std::max(-dfdx[i], zero)) + raa0 / xmami[i]) * xl1[i] * xl1[i];
+                                                             zero) + std::max(-dfdx[i], zero)) + raa0 / xmami[i]) * xl1[i] * xl1[i];
    }
 
    // P = max(dgdx,0)
@@ -361,12 +361,12 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          // Q = Q * spdiags(xl2,0,n,n)
          P[i * nvar + j] = (std::max(dgdx[i * nvar + j],
                                      zero) + 0.001 * (std::max(dgdx[i * nvar + j],
-                                                              zero) + std::max(-1*dgdx[i * nvar + j],
-                                                                              zero)) + raa0 / xmami[j]) * ux1[j] * ux1[j];
+                                                               zero) + std::max(-1*dgdx[i * nvar + j],
+                                                                                zero)) + raa0 / xmami[j]) * ux1[j] * ux1[j];
          Q[i * nvar + j] = (std::max(-1*dgdx[i * nvar + j],
                                      zero) + 0.001 * (std::max(dgdx[i * nvar + j],
-                                                              zero) + std::max(-1*dgdx[i * nvar + j],
-                                                                              zero)) + raa0 / xmami[j]) * xl1[j] * xl1[j];
+                                                               zero) + std::max(-1*dgdx[i * nvar + j],
+                                                                                zero)) + raa0 / xmami[j]) * xl1[j] * xl1[j];
          // b = P/ux1 + Q/xl1 - gx
          b_local[i] = b_local[i] + P[i * nvar + j] / ux1[j] + Q[i * nvar + j] / xl1[j];
       }
