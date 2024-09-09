@@ -969,7 +969,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             resinew = std::sqrt(global_norm);
 
             steg = steg / 2.0;
-         }                                              
+         }
 
          residunorm = resinew;
          residumax = 0.0;
