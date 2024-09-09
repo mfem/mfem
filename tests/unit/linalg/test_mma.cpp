@@ -125,10 +125,6 @@ TEST_CASE("MMA Test", "[MMA]")
    mma = new mfem::MMAOpt(num_var,1,x);
 #endif
 
-   real_t a[4]= {0.0,0.0,0.0,0.0};
-   real_t c[4]= {1000.0,1000.0,1000.0,1000.0};
-   real_t d[4]= {0.0,0.0,0.0,0.0};
-
    mfem::Vector g(1); g=-1.0;
    mfem::Vector dg(num_var); dg=0.0;
 
