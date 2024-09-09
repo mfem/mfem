@@ -305,6 +305,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
    int ncon = mma->nCon;
    int nvar = mma->nVar;
 
+   real_t zero = 0.0;
+
    ittt = 0;
    itto = 0;
    epsi = 1.0;
@@ -341,10 +343,10 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
       {
          xl1[i] = mma->machineEpsilon;
       }
-      p0[i] = ( std::max(dfdx[i], 0.0) + 0.001 * (std::max(dfdx[i],
-                                                           0.0) + std::max(-dfdx[i], 0.0)) + raa0 / xmami[i]) * ux1[i] * ux1[i];
-      q0[i] = ( std::max(-dfdx[i], 0.0) + 0.001 * (std::max(dfdx[i],
-                                                            0.0) + std::max(-dfdx[i], 0.0)) + raa0 / xmami[i]) * xl1[i] * xl1[i];
+      p0[i] = ( std::max(dfdx[i], zero) + 0.001 * (std::max(dfdx[i],
+                                                           zero) + std::max(-dfdx[i], zero)) + raa0 / xmami[i]) * ux1[i] * ux1[i];
+      q0[i] = ( std::max(-dfdx[i], zero) + 0.001 * (std::max(dfdx[i],
+                                                            zero) + std::max(-dfdx[i], zero)) + raa0 / xmami[i]) * xl1[i] * xl1[i];
    }
 
    // P = max(dgdx,0)
@@ -358,13 +360,13 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          // P = P * spdiags(ux2,0,n,n)
          // Q = Q * spdiags(xl2,0,n,n)
          P[i * nvar + j] = (std::max(dgdx[i * nvar + j],
-                                     0.0) + 0.001 * (std::max(dgdx[i * nvar + j],
-                                                              0.0) + std::max(-1*dgdx[i * nvar + j],
-                                                                              0.0)) + raa0 / xmami[j]) * ux1[j] * ux1[j];
+                                     zero) + 0.001 * (std::max(dgdx[i * nvar + j],
+                                                              zero) + std::max(-1*dgdx[i * nvar + j],
+                                                                              zero)) + raa0 / xmami[j]) * ux1[j] * ux1[j];
          Q[i * nvar + j] = (std::max(-1*dgdx[i * nvar + j],
-                                     0.0) + 0.001 * (std::max(dgdx[i * nvar + j],
-                                                              0.0) + std::max(-1*dgdx[i * nvar + j],
-                                                                              0.0)) + raa0 / xmami[j]) * xl1[j] * xl1[j];
+                                     zero) + 0.001 * (std::max(dgdx[i * nvar + j],
+                                                              zero) + std::max(-1*dgdx[i * nvar + j],
+                                                                              zero)) + raa0 / xmami[j]) * xl1[j] * xl1[j];
          // b = P/ux1 + Q/xl1 - gx
          b_local[i] = b_local[i] + P[i * nvar + j] / ux1[j] + Q[i * nvar + j] / xl1[j];
       }
@@ -386,9 +388,9 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
    {
       mma->x[i] = 0.5 * (alfa[i] + beta[i]);
       mma->xsi[i] = 1.0/(mma->x[i] - alfa[i]);
-      mma->xsi[i] = std::max(mma->xsi[i], 1.0);
+      mma->xsi[i] = std::max(mma->xsi[i], static_cast<real_t>(1.0));
       mma->eta[i] = 1.0/(beta[i] - mma->x[i]);
-      mma->eta[i] = std::max(mma->eta[i], 1.0);
+      mma->eta[i] = std::max(mma->eta[i], static_cast<real_t>(1.0));
       ux1[i] = 0.0;
       xl1[i] = 0.0;
    }
@@ -397,7 +399,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
    {
       mma->y[i] = 1.0;
       mma->lam[i] = 1.0;
-      mma->mu[i] = std::max(1.0, 0.5 * mma->c[i]);
+      mma->mu[i] = std::max(static_cast<real_t>(1.0), 0.5 * mma->c[i]);
       mma->s[i] = 1.0;
    }
 
@@ -826,7 +828,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          MPI_Allreduce(&stmbeta, &stmbeta_global, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
 #endif
          stminv = std::max(std::max(std::max(stmalfa_global, stmbeta_global),
-                                    stmxx_global), 1.0);
+                                    stmxx_global), static_cast<real_t>(1.0));
          steg = 1.0 / stminv;
 
          for (int i = 0; i < nvar; i++)
