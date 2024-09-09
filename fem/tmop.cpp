@@ -74,42 +74,118 @@ void mult(const std::vector<type>& u, const DenseMatrix * M, std::vector<type>& 
 }
 
 template <typename type> 
-void minus(const std::vector<type>& u, const DenseMatrix * M, std::vector<type>& mat )
+void mult(const DenseMatrix * u, const std::vector<type> & M, std::vector<type>& mat )
+{
+   mat.resize(M.size());
+
+   mat[0] = u->Elem(0,0) * M[0] + u->Elem(0,1) * M[1];
+   mat[1] = u->Elem(1,0) * M[0] + u->Elem(1,1) * M[1];
+   mat[2] = u->Elem(0,0) * M[2] + u->Elem(0,1) * M[3];
+   mat[3] = u->Elem(1,0) * M[2] + u->Elem(1,1) * M[4];
+
+}
+
+template <typename scalartype, typename type> 
+void add(const scalartype & scalar, const std::vector<type>& u, const DenseMatrix * M, std::vector<type>& mat )
 {
    mat.resize(u.size());
 
-   mat[0] = u[0] - M->Elem(0,0);
-   mat[1] = u[1] - M->Elem(1,0);
-   mat[2] = u[2] - M->Elem(0,1);
-   mat[3] = u[3] - M->Elem(1,1);
+   mat[0] = u[0] + scalar * M->Elem(0,0);
+   mat[1] = u[1] + scalar * M->Elem(1,0);
+   mat[2] = u[2] + scalar * M->Elem(0,1);
+   mat[3] = u[3] + scalar * M->Elem(1,1);
 }
 
 template <typename type> 
-auto mu2_ad( const DenseMatrix * Jtr,  std::vector<type>& u ) -> type
+void minus(const std::vector<type> & u, const std::vector<type> & M, std::vector<type>& mat )
 {
-   return (fnorm2_2D(u))/(2.0*det_2D(u)) - 1.0;
+   mat.resize(M.size());
+
+   mat[0] = u[0] - M[0];
+   mat[1] = u[1] - M[1];
+   mat[2] = u[2] - M[2];
+   mat[3] = u[3] - M[3];
+}
+
+template <typename type> 
+auto mu2_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   return (fnorm2_2D(T))/(2.0*det_2D(T)) - 1.0;
 };
 
 template <typename type> 
-auto mu85_ad( const DenseMatrix * Jtr,  std::vector<type>& u ) -> type
+auto mu85_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
 {
-   auto fnorm = sqrt(fnorm2_2D(u));
-   return u[1]*u[1] + u[2]*u[2] +
-            (u[0] - fnorm/sqrt(2))*(u[0] - fnorm/sqrt(2)) +
-            (u[3] - fnorm/sqrt(2))*(u[3] - fnorm/sqrt(2));
+   auto fnorm = sqrt(fnorm2_2D(T));
+   return T[1]*T[1] + T[2]*T[2] +
+            (T[0] - fnorm/sqrt(2))*(T[0] - fnorm/sqrt(2)) +
+            (T[3] - fnorm/sqrt(2))*(T[3] - fnorm/sqrt(2));
 };
 
 template <typename type> 
-auto mu36_ad( const DenseMatrix * Jtr,  std::vector<type>& u ) -> type
+auto mu98_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
 {
-   MFEM_VERIFY(Jtr != NULL,
+   DenseMatrix Id(2,2); Id = 0.0;
+   Id(0,0) = 1; Id(1,1) = 1;
+
+   std::vector<type> Mat;  
+   add(-1.0, T,Id,Mat);
+
+   return fnorm2_2D(Mat)/W->Det();
+};
+
+template <typename type> 
+auto mu107a_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   int dim = Jpt.Size();
+
+   std::vector<type> A;   // T*W = A
+   std::vector<type> Mat;  // A-W
+   mult(T,W,A);
+
+   auto alpha = det_2D(A);  
+   auto aw = sqrt(fnorm2_2D(A))/W->FNorm();
+
+   add(-1.0*aw, A, W, Mat);
+   return (0.5/alpha)*fnorm2_2D(Mat);
+};
+
+template <typename type> 
+auto mu014a_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   std::vector<type> A;   // T*W = A
+   mult(T,W,A);
+
+   auto sqalpha = sqrt(det_2D(A));  
+   real_t sqomega = pow(W->Det(), 0.5);
+
+   return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.0);
+};
+
+template <typename type> 
+auto mu36_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   MFEM_VERIFY(W != NULL,
       "Requires a target Jacobian, use SetTargetJacobian().");
 
    std::vector<type> A;   // T*W = A
    std::vector<type> AminusW;  // A-W
 
-   mult(u,Jtr,A);
-   minus(A,Jtr,AminusW);
+   mult(T,W,A);
+   add(-1.0, A,W,AminusW);
+   auto fnorm =  fnorm2_2D(AminusW);
+         
+   return 1.0 / ( det_2D(A)) * fnorm;
+};
+
+template <typename type> 
+auto mu36_ad_w( const DenseMatrix * T, const std::vector<type> & W ) -> type
+{
+   std::vector<type> A;   // T*W = A
+   std::vector<type> AminusW;  // A-W
+
+   mult(T,W,A);
+   minus(A,W,AminusW);
    auto fnorm =  fnorm2_2D(AminusW);
          
    return 1.0 / ( det_2D(A)) * fnorm;
@@ -194,6 +270,11 @@ void EnzymeTMOPHessian(const DenseMatrix &in, DenseTensor &out)
 #endif
 
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
+
+void TMOP_QualityMetric::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
+{
+   PW.SetSize(Jpt.Size());   PW = 0.0;
+}
 
 // I1 = |M|^2 / det(M).
 real_t TMOP_QualityMetric::Dim2Invariant1(const DenseMatrix &M)
@@ -1460,6 +1541,79 @@ real_t TMOP_Metric_098::EvalW(const DenseMatrix &Jpt) const
    return Mat.FNorm2()/Jtr->Det();
 }
 
+void TMOP_Metric_098::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   if (mode == 3)
+   {
+      ADGrad(Jpt, mu36_ad<ADFType>, P, Jtr);
+      return;
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented");
+   }
+}
+
+void TMOP_Metric_098::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const real_t weight,
+                                DenseMatrix &A) const
+{
+   if ( mode == 3) // slow assembly manually or using AD
+   {
+      DenseTensor H;
+      ComputeH(Jpt, H);
+      const int dof = DS.Height(), dim = DS.Width();
+
+      // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+      for (int r = 0; r < dim; r++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            DenseMatrix Hrc = H(r+c*dim);
+
+            // Compute each entry of d(Prc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
+            {
+               for (int cc = 0; cc < dim; cc++)
+               {
+                  const double entry_rr_cc = Hrc(rr, cc);
+
+                  for (int i = 0; i < dof; i++)
+                  {
+                     for (int j = 0; j < dof; j++)
+                     {
+                        A(i+r*dof, j+rr*dof) +=
+                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                     }
+                  }
+               }
+            }
+         }
+      }
+      return;
+   }
+   MFEM_ABORT("AssembleH only supported with AD for metric 36.");
+}
+
+   
+void TMOP_Metric_098::ComputeH(const DenseMatrix &Jpt,
+                               DenseTensor &H) const
+{
+   const int dim = Jpt.Height();
+   H.SetSize(dim, dim, dim*dim);
+   H = 0.0;
+   if (mode == 3)
+   {
+      ADHessian( Jpt, mu36_ad<ADSType>, H, Jtr);
+      return;
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented");
+   }
+}
+
 real_t TMOP_Metric_211::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_211 = (det(J) - 1)^2 - det(J) + (det(J)^2 + eps)^{1/2}
@@ -2153,6 +2307,79 @@ real_t TMOP_AMetric_014a::EvalW(const DenseMatrix &Jpt) const
    return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.);
 }
 
+void TMOP_AMetric_014a::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   if (mode == 3)
+   {
+      ADGrad(Jpt, mu36_ad<ADFType>, P, Jtr);
+      return;
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented");
+   }
+}
+
+void TMOP_AMetric_014a::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const real_t weight,
+                                DenseMatrix &A) const
+{
+   if ( mode == 3) // slow assembly manually or using AD
+   {
+      DenseTensor H;
+      ComputeH(Jpt, H);
+      const int dof = DS.Height(), dim = DS.Width();
+
+      // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+      for (int r = 0; r < dim; r++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            DenseMatrix Hrc = H(r+c*dim);
+
+            // Compute each entry of d(Prc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
+            {
+               for (int cc = 0; cc < dim; cc++)
+               {
+                  const double entry_rr_cc = Hrc(rr, cc);
+
+                  for (int i = 0; i < dof; i++)
+                  {
+                     for (int j = 0; j < dof; j++)
+                     {
+                        A(i+r*dof, j+rr*dof) +=
+                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                     }
+                  }
+               }
+            }
+         }
+      }
+      return;
+   }
+   MFEM_ABORT("AssembleH only supported with AD for metric 14a.");
+}
+
+   
+void TMOP_AMetric_014a::ComputeH(const DenseMatrix &Jpt,
+                               DenseTensor &H) const
+{
+   const int dim = Jpt.Height();
+   H.SetSize(dim, dim, dim*dim);
+   H = 0.0;
+   if (mode == 3)
+   {
+      ADHessian( Jpt, mu36_ad<ADSType>, H, Jtr);
+      return;
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented");
+   }
+}
+
 real_t TMOP_AMetric_036::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
@@ -2173,8 +2400,20 @@ void TMOP_AMetric_036::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
    if (mode == 3)
    {
-
       ADGrad(Jpt, mu36_ad<ADFType>, P, Jtr);
+      return;
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented");
+   }
+}
+
+void TMOP_AMetric_036::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
+{
+   if (mode == 3)
+   {
+      ADGrad(*Jtr, mu36_ad_w<ADFType>, PW, &Jpt);
       return;
    }
    else
@@ -2261,6 +2500,79 @@ real_t TMOP_AMetric_107a::EvalW(const DenseMatrix &Jpt) const
    Jpr -= W;
 
    return (0.5/alpha)*Jpr.FNorm2();
+}
+
+void TMOP_AMetric_107a::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   if (mode == 3)
+   {
+      ADGrad(Jpt, mu36_ad<ADFType>, P, Jtr);
+      return;
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented");
+   }
+}
+
+void TMOP_AMetric_107a::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const real_t weight,
+                                DenseMatrix &A) const
+{
+   if ( mode == 3) // slow assembly manually or using AD
+   {
+      DenseTensor H;
+      ComputeH(Jpt, H);
+      const int dof = DS.Height(), dim = DS.Width();
+
+      // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+      for (int r = 0; r < dim; r++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            DenseMatrix Hrc = H(r+c*dim);
+
+            // Compute each entry of d(Prc)_dJ.
+            for (int rr = 0; rr < dim; rr++)
+            {
+               for (int cc = 0; cc < dim; cc++)
+               {
+                  const double entry_rr_cc = Hrc(rr, cc);
+
+                  for (int i = 0; i < dof; i++)
+                  {
+                     for (int j = 0; j < dof; j++)
+                     {
+                        A(i+r*dof, j+rr*dof) +=
+                            weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                     }
+                  }
+               }
+            }
+         }
+      }
+      return;
+   }
+   MFEM_ABORT("AssembleH only supported with AD for metric 36.");
+}
+
+   
+void TMOP_AMetric_107a::ComputeH(const DenseMatrix &Jpt,
+                               DenseTensor &H) const
+{
+   const int dim = Jpt.Height();
+   H.SetSize(dim, dim, dim*dim);
+   H = 0.0;
+   if (mode == 3)
+   {
+      ADHessian( Jpt, mu36_ad<ADSType>, H, Jtr);
+      return;
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented");
+   }
 }
 
 

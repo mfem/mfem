@@ -88,6 +88,12 @@ public:
       MFEM_ABORT("ComputeH Not implemented");
    }
 
+   /** @brief Evaluate 
+       @param[in] Jpt  Represents the target->physical transformation
+                       Jacobian matrix.
+       @param[out]  PW  The evaluated  */
+   virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const;
+
       /// First invariant of the given 2x2 matrix @a M.
    static double Dim2Invariant1(const DenseMatrix &M);
    /// Second invariant of the given 2x2 matrix @a M.
@@ -677,12 +683,13 @@ public:
    // W = 1/tau |T-I|^2.
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const real_t weight, DenseMatrix &A) const;
+
+   void ComputeH(const DenseMatrix &Jpt,
+                  DenseTensor &H) const;
 };
 
 /// 2D untangling metric.
@@ -1162,12 +1169,13 @@ public:
    // 0.5 * ( sqrt(alpha/omega) - sqrt(omega/alpha) )^2
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const real_t weight, DenseMatrix &A) const;
+
+   void ComputeH(const DenseMatrix &Jpt,
+                  DenseTensor &H) const;
 };
 
 /// 2D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
@@ -1181,6 +1189,8 @@ public:
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const real_t weight, DenseMatrix &A) const;
@@ -1199,12 +1209,13 @@ public:
    // (1/2 alpha) | A - (|A|/|W|) W |^2
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const real_t weight, DenseMatrix &A) const;
+
+   void ComputeH(const DenseMatrix &Jpt,
+                  DenseTensor &H) const;
 };
 
 /// 2D barrier Shape+Size (VS) metric (polyconvex).
