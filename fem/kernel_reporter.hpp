@@ -12,10 +12,6 @@
 #ifndef MFEM_KERNEL_REPORTER_HPP
 #define MFEM_KERNEL_REPORTER_HPP
 
-#include "../config/config.hpp"
-
-#ifdef MFEM_REPORT_KERNELS
-
 #include "../general/globals.hpp"
 #include <set>
 #include <sstream>
@@ -29,7 +25,7 @@
 namespace mfem
 {
 
-namespace
+namespace internal
 {
 
 template <typename Last>
@@ -55,28 +51,53 @@ static std::string Stringify(Args&&... args)
 
 } // namespace
 
-template <typename... Params>
-void ReportFallback(const std::string &kernel_name, Params&&... params)
+/// @brief Singleton class to report fallback kernels.
+///
+/// Writes the first call to a fallback kernel to mfem::err
+///
+/// @note This class is only enabled when the environment variable
+/// MFEM_REPORT_KERNELS is set to a value other than 'NO' or if
+/// KernelReporter::Enable() is called.
+class KernelReporter
 {
-   static std::set<std::string> reported_fallbacks;
-   const std::string requested_kernel =
-      kernel_name + "<" + Stringify(params...) + ">";
-   if (reported_fallbacks.find(requested_kernel) == reported_fallbacks.end())
+   bool enabled = false;
+   std::set<std::string> reported_fallbacks;
+   KernelReporter()
    {
-      reported_fallbacks.insert(requested_kernel);
-      mfem::err << "Fallback kernel. Requested "
-                << requested_kernel << std::endl;
+      const char *env_cstr = getenv("MFEM_REPORT_KERNELS");
+      if (env_cstr)
+      {
+         const std::string env(env_cstr);
+         if (env != "NO") { enabled = true; }
+      }
    }
-}
+   static KernelReporter &Instance()
+   {
+      static KernelReporter instance;
+      return instance;
+   }
+public:
+   /// Enable reporting of fallback kernels.
+   static void Enable() { Instance().enabled = true; }
+   /// Disable reporting of fallback kernels.
+   static void Disable() { Instance().enabled = false; }
+   /// Report the fallback kernel with given parameters.
+   template <typename... Params>
+   static void ReportFallback(const std::string &kernel_name, Params&&... params)
+   {
+      if (!Instance().enabled) { return; }
+      auto &reported_fallbacks = Instance().reported_fallbacks;
+      const std::string requested_kernel =
+         kernel_name + "<" + internal::Stringify(params...) + ">";
+      if (reported_fallbacks.find(requested_kernel) == reported_fallbacks.end())
+      {
+         reported_fallbacks.insert(requested_kernel);
+         mfem::err << "Fallback kernel. Requested "
+                   << requested_kernel << std::endl;
+      }
+   }
+};
 
 } // namespace mfem
-
-#else // #ifdef MFEM_REPORT_KERNELS
-
-// No-op
-#define MFEM_KERNEL_NAME(KernelName) ""
-template <typename... T> void ReportFallback(T&&...) { }
-
-#endif
 
 #endif
