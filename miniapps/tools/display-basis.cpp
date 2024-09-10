@@ -107,7 +107,7 @@ string mapTypeStr(int mType);
 int update_basis(vector<socketstream*> & sock, const VisWinLayout & vwl,
                  Element::Type e, char bType, int bOrder, int mType,
                  Deformation::DefType dType, const DeformationData & defData,
-                 bool visualization, int &onlySome);
+                 bool visualization, int &onlySome, int visport = 19916);
 
 int main(int argc, char *argv[])
 {
@@ -132,6 +132,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    int onlySome = -1;
 
+   int visport = 19916;
    vector<socketstream*> sock;
 
    OptionsParser args(argc, argv);
@@ -156,6 +157,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&onlySome, "-only", "--onlySome",
                   "Only view 10 dofs, starting with the specified one.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -212,7 +214,7 @@ int main(int argc, char *argv[])
          cout << "Map Type:              " << mapTypeStr(mType) << endl;
       }
       if ( update_basis(sock, vwl, eType, bType, bOrder, mType,
-                        dType, defData, visualization, onlySome) )
+                        dType, defData, visualization, onlySome, visport) )
       {
          cerr << "Invalid combination of basis info (try again)" << endl;
       }
@@ -704,7 +706,7 @@ int
 update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
              Element::Type e, char bType, int bOrder, int mType,
              Deformation::DefType dType, const DeformationData & defData,
-             bool visualization, int &onlySome)
+             bool visualization, int &onlySome, int visport)
 {
    bool vec = false;
 
@@ -803,7 +805,6 @@ update_basis(vector<socketstream*> & sock,  const VisWinLayout & vwl,
    FESpace.GetElementVDofs(0,vdofs);
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    int offx = vwl.w+10, offy = vwl.h+45; // window offsets
 
