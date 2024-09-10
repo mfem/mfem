@@ -3087,7 +3087,11 @@ public:
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
+   virtual void AddAbsMultPA(const Vector &x, Vector &y) const;
+
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddAbsMultTransposePA(const Vector &x, Vector &y) const;
 
    /** Compute the stress corresponding to the local displacement @a $u$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric

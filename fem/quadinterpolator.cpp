@@ -691,6 +691,103 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    }
 }
 
+void QuadratureInterpolator::AbsMult(const Vector &e_vec,
+                                     unsigned eval_flags,
+                                     Vector &q_val,
+                                     Vector &q_der,
+                                     Vector &q_det) const
+{
+   using namespace internal::quadrature_interpolator;
+
+   const int ne = fespace->GetNE();
+   if (ne == 0) { return; }
+   const int vdim = fespace->GetVDim();
+   const FiniteElement *fe = fespace->GetFE(0);
+   const bool use_tensor_eval =
+      use_tensor_products &&
+      dynamic_cast<const TensorBasisElement*>(fe) != nullptr;
+   const IntegrationRule *ir =
+      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const DofToQuad::Mode mode =
+      use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
+   const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
+   const int dim = maps.FE->GetDim();
+   const GeometricFactors *geom = nullptr;
+   if (eval_flags & PHYSICAL_DERIVATIVES)
+   {
+      const int jacobians = GeometricFactors::JACOBIANS;
+      geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
+   }
+
+   MFEM_ASSERT(!(eval_flags & DETERMINANTS) || dim == vdim ||
+               (dim == 2 && vdim == 3), "Invalid dimensions for determinants.");
+   MFEM_ASSERT(fespace->GetMesh()->GetNumGeometries(
+                  fespace->GetMesh()->Dimension()) == 1,
+               "mixed meshes are not supported");
+   MFEM_ASSERT(use_tensor_eval, "Only implemented for tensor elements!");
+
+   // Create abs_maps, make B, Bt, G, Gt positive
+   DofToQuad abs_maps;
+
+   abs_maps.FE = maps.FE;
+   abs_maps.IntRule = maps.IntRule;
+   abs_maps.mode = maps.mode;
+   abs_maps.ndof = maps.ndof;
+   abs_maps.nqpt = maps.nqpt;
+
+   abs_maps.B = maps.B;
+   abs_maps.Bt = maps.Bt;
+   abs_maps.G = maps.G;
+   abs_maps.Gt = maps.Gt;
+   auto abs_val = static_cast<real_t(*)(real_t)>(std::abs);
+   abs_maps.B.Apply(abs_val);
+   abs_maps.G.Apply(abs_val);
+   abs_maps.Bt.Apply(abs_val);
+   abs_maps.Gt.Apply(abs_val);
+
+   // TODO: use fused kernels
+   if (q_layout == QVectorLayout::byNODES)
+   {
+      if (eval_flags & VALUES)
+      {
+         TensorValues<QVectorLayout::byNODES>(ne, vdim, abs_maps, e_vec, q_val);
+      }
+      if (eval_flags & DERIVATIVES)
+      {
+         TensorDerivatives<QVectorLayout::byNODES>(
+            ne, vdim, abs_maps, e_vec, q_der);
+      }
+      if (eval_flags & PHYSICAL_DERIVATIVES)
+      {
+         TensorPhysDerivatives<QVectorLayout::byNODES>(
+            ne, vdim, abs_maps, *geom, e_vec, q_der);
+      }
+   }
+
+   if (q_layout == QVectorLayout::byVDIM)
+   {
+      if (eval_flags & VALUES)
+      {
+         TensorValues<QVectorLayout::byVDIM>(ne, vdim, abs_maps, e_vec, q_val);
+      }
+      if (eval_flags & DERIVATIVES)
+      {
+         TensorDerivatives<QVectorLayout::byVDIM>(
+            ne, vdim, abs_maps, e_vec, q_der);
+      }
+      if (eval_flags & PHYSICAL_DERIVATIVES)
+      {
+         TensorPhysDerivatives<QVectorLayout::byVDIM>(
+            ne, vdim, abs_maps, *geom, e_vec, q_der);
+      }
+   }
+
+   if (eval_flags & DETERMINANTS)
+   {
+      TensorDeterminants(ne, vdim, abs_maps, e_vec, q_det, d_buffer);
+   }
+}
+
 void QuadratureInterpolator::MultTranspose(unsigned eval_flags,
                                            const Vector &q_val,
                                            const Vector &q_der,
@@ -722,6 +819,13 @@ void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
 {
    Vector empty;
    Mult(e_vec, PHYSICAL_DERIVATIVES, empty, q_der, empty);
+}
+
+void QuadratureInterpolator::AbsPhysDerivatives(const Vector &e_vec,
+                                                Vector &q_der) const
+{
+   Vector empty;
+   AbsMult(e_vec, PHYSICAL_DERIVATIVES, empty, q_der, empty);
 }
 
 void QuadratureInterpolator::Determinants(const Vector &e_vec,
