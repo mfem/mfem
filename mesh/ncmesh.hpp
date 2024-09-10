@@ -38,18 +38,23 @@ struct Refinement
    enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
-   real_t scale;
+   real_t scale_x, scale_y, scale_z;
 
    Refinement() = default;
 
-   Refinement(int index, int type = Refinement::XYZ, real_t s = 0.5)
-      : index(index), ref_type(type), scale(s) {}
+   Refinement(int index, int type = Refinement::XYZ, real_t s_x = 0.5,
+              real_t s_y = 0.5, real_t s_z = 0.5)
+      : index(index), ref_type(type), scale_x(s_x), scale_y(s_y), scale_z(s_z)
+   {}
 
-   void Set(int elem, int type = Refinement::XYZ, real_t s = 0.5)
+   void Set(int elem, int type = Refinement::XYZ, real_t s_x = 0.5,
+            real_t s_y = 0.5, real_t s_z = 0.5)
    {
       index = elem;
       ref_type = type;
-      scale = s;
+      scale_x = s_x;
+      scale_y = s_y;
+      scale_z = s_z;
    }
 };
 
@@ -692,10 +697,13 @@ protected: // implementation
 
    /** Refine the element @a elem with the refinement @a ref_type
        (c.f. Refinement::enum) */
-   void RefineElement(int elem, char ref_type, real_t scale = 0.5);
+   void RefineElement(int elem, char ref_type, real_t scale_x = 0.5,
+                      real_t scale_y = 0.5, real_t scale_z = 0.5);
 
    /// Derefine the element @a elem, does nothing on leaf elements.
    void DerefineElement(int elem);
+
+   void SetNodeScale(int p0, int p1, real_t scale);
 
    // Add an Element @a el to the NCMesh, optimized to reuse freed elements.
    int AddElement(const Element &el)
@@ -754,6 +762,7 @@ protected: // implementation
     * @param n2 The second node defining the face
     * @param n3 The third node defining the face
     * @param n4 The fourth node defining the face
+    * @param s returns the scaling of the split
     * @param mid optional return of the edge mid points.
     * @return int 0 -- no split, 1 -- "vertical" split, 2 -- "horizontal" split
     */
