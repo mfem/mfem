@@ -361,14 +361,14 @@ void elasticity_source(const Vector &x, Vector &f)
 {
    if (dim == 3)
    {
-      f(0) = - 3.0 * kappa * kappa * sin(kappa * x(0));
-      f(1) = - 3.0 * kappa * kappa * sin(kappa * x(1));
-      f(2) = - 3.0 * kappa * kappa * sin(kappa * x(2));
+      f(0) = 3.0 * kappa * kappa * sin(kappa * x(0));
+      f(1) = 3.0 * kappa * kappa * sin(kappa * x(1));
+      f(2) = 3.0 * kappa * kappa * sin(kappa * x(2));
    }
    else
    {
-      f(0) = - 3.0 * kappa * kappa * sin(kappa * x(0));
-      f(1) = - 3.0 * kappa * kappa * sin(kappa * x(1));
+      f(0) = 3.0 * kappa * kappa * sin(kappa * x(0));
+      f(1) = 3.0 * kappa * kappa * sin(kappa * x(1));
       if (x.Size() == 3) { f(2) = 0.0; }
    }
 }
