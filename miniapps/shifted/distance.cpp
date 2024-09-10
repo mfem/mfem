@@ -382,6 +382,14 @@ int main(int argc, char *argv[])
    dacol.SetCycle(1);
    dacol.Save();
 
+   // Save the mesh and the solution.
+   ofstream mesh_ofs("distance.mesh");
+   mesh_ofs.precision(8);
+   pmesh.PrintAsOne(mesh_ofs);
+   ofstream sol_ofs("distance.gf");
+   sol_ofs.precision(8);
+   distance_s.SaveAsOne(sol_ofs);
+
    ConstantCoefficient zero(0.0);
    const real_t s_norm  = distance_s.ComputeL2Error(zero),
                 v_norm  = distance_v.ComputeL2Error(zero);

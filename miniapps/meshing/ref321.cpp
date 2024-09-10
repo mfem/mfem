@@ -14,14 +14,14 @@
 //   ------------------------------------------------------------------------
 //
 // This miniapp performs random 3:1 refinements of a quadrilateral or hexahedral
-// mesh. An analytic function is projected onto the mesh in an H1 finite element
-// space, and its continuity is verified.
+// mesh. A diffusion equation is solved in an H1 finite element space defined on
+// the refined mesh, and its continuity is verified.
 //
 // Compile with: make ref321
 //
-// Sample runs:  ref321 -mm -dim 2 -iter 100
-//               ref321 -mm -dim 3 -iter 100
-//               ref321 -m ../../data/star.mesh -iter 100
+// Sample runs:  ref321 -mm -dim 2 -o 2 -iter 100
+//               ref321 -mm -dim 3 -o 2 -iter 100
+//               ref321 -m ../../data/star.mesh -o 2 -iter 100
 
 #include "mfem.hpp"
 #include <fstream>
@@ -32,15 +32,7 @@ using namespace mfem;
 
 real_t CheckH1Continuity(GridFunction & x);
 
-Vector boxCenter;  // Domain bounding box center
-
-real_t analyticFunction(const Vector & x)
-{
-   Vector dist(x);
-   dist -= boxCenter;
-   return 1.0 / exp(dist.Norml2());
-}
-
+// TODO: improve efficiency?
 void FindChildren(const Mesh & mesh, int elem, Array<int> & children)
 {
    const CoarseFineTransformations& cf = mesh.ncmesh->GetRefinementTransforms();
@@ -57,25 +49,37 @@ void FindChildren(const Mesh & mesh, int elem, Array<int> & children)
 }
 
 // Refine 3:1 via 2 refinements with scalings 2/3 and 1/2.
-void Refine31(Mesh & mesh, int elem, int type, bool full = true)
+void Refine31(Mesh & mesh, int elem, int type)
 {
    Array<Refinement> refs;  // Refinement is defined in ncmesh.hpp
-   refs.Append(Refinement(elem, type, 2.0/3.0));
+   real_t sx = 0.5;
+   real_t sy = 0.5;
+   real_t sz = 0.5;
+   if (type == Refinement::X)
+   {
+      sx = 2.0/3.0;
+   }
+   else if (type == Refinement::Y)
+   {
+      sy = 2.0/3.0;
+   }
+   else if (type == Refinement::Z)
+   {
+      sz = 2.0/3.0;
+   }
+   refs.Append(Refinement(elem, type, sx, sy, sz));
    mesh.GeneralRefinement(refs);
 
-   if (full)
-   {
-      // Find the elements with parent `elem`
-      Array<int> children;
-      FindChildren(mesh, elem, children);
-      MFEM_VERIFY(children.Size() == 2, "");
+   // Find the elements with parent `elem`
+   Array<int> children;
+   FindChildren(mesh, elem, children);
+   MFEM_VERIFY(children.Size() == 2, "");
 
-      const int elem1 = children[0];
+   const int elem1 = children[0];
 
-      refs.SetSize(0);
-      refs.Append(Refinement(elem1, type, 0.5));
-      mesh.GeneralRefinement(refs);
-   }
+   refs.SetSize(0);
+   refs.Append(Refinement(elem1, type));  // Default scaling of 0.5
+   mesh.GeneralRefinement(refs);
 }
 
 // Deterministic, somewhat random integer generator
@@ -147,12 +151,6 @@ int main(int argc, char *argv[])
 
    const int dim = mesh.Dimension();
 
-   Vector boxMin, boxMax;
-   mesh.GetBoundingBox(boxMin, boxMax, 0);
-   boxCenter = boxMin;
-   boxCenter += boxMax;
-   boxCenter *= 0.5;
-
    // 3. Randomly perform 3:1 refinements in the mesh.
    TestAnisoRefRandom(numIter, tdim, mesh);
 
@@ -164,23 +162,30 @@ int main(int argc, char *argv[])
         << fespace.GetTrueVSize() << endl;
 
    // 5. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Globally L2-project an analytic function.
+   //    corresponding to fespace. Solve the Laplace problem, as in ex1.
    GridFunction x(&fespace);
 
    {
-      FunctionCoefficient sol(analyticFunction);
-
+      x = 0.0;
       LinearForm b(&fespace);
-      b.AddDomainIntegrator(new DomainLFIntegrator(sol));
+      ConstantCoefficient one(1.0);
+      b.AddDomainIntegrator(new DomainLFIntegrator(one));
       b.Assemble();
 
       BilinearForm a(&fespace);
-      a.AddDomainIntegrator(new MassIntegrator());
+      a.AddDomainIntegrator(new DiffusionIntegrator());
       a.Assemble();
 
       OperatorPtr A;
       Vector B, X;
-      Array<int> ess_tdof_list;  // Empty
+      Array<int> ess_tdof_list;
+      if (mesh.bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(mesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
       GSSmoother M((SparseMatrix&)(*A));
