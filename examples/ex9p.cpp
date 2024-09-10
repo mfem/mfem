@@ -21,12 +21,14 @@
 //    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
 //
 // Sample runs CG:
-//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 1 -dt 0.005 -sc 12
+//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 11 -o 1 -s 2 -vs 200
+//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 12 -o 1 -s 2 -vs 200
+//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 13 -o 1 -s 2 -vs 200
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -rp 1 -dt 0.0025 -tf 2 -vs 20 -sc 11 -s 3 -o 2
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -rp 1 -dt 0.0025 -tf 2 -vs 20 -sc 11
-//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 1 -dt 0.002 -tf 9 -sc 11
-//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 3 -dt 0.002 -tf 9 -sc 12 -o 1 -s 2
-//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 3 -dt 0.002 -tf 9 -sc 13 -o 1 -s 2
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 3 -dt 0.002 -tf 9 -sc 11 -o 1 -s 2 -vs 20
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 1 -dt 0.002 -tf 9 -sc 12 -vs 20
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 3 -dt 0.002 -tf 9 -sc 13 -o 1 -s 2 -vs 20
 //    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 2 -dt 0.004 -tf 9 -vs 20 -sc 11 -o 1 -s 2
 //    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 2 -dt 0.004 -tf 9 -vs 20 -sc 11 -o 1 -s 2
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9 -sc 11 -vs 20
@@ -57,7 +59,11 @@
 //               solution. Saving of time-dependent data files for visualization
 //               with VisIt (visit.llnl.gov) and ParaView (paraview.org), as
 //               well as the optional saving with ADIOS2 (adios2.readthedocs.io)
-//               are also illustrated.
+//               are also illustrated. Additionally, the example showcases the 
+//               parallel implementation of an element-based Clip & Scale limiter for
+//               continuous finite elements, which is implemented using only element
+//               assembly and is designed to be bound-preserving.
+
 
 #include "mfem.hpp"
 #include <fstream>
@@ -247,11 +253,37 @@ public:
 /** A time-dependent operator for the right-hand side of the ODE. The CG strong
     form of du/dt = -v.grad(u) is M du/dt = - K u + b - b_in, where M and K are the mass
     and advection matrices, and b - b_in describes the flow on the boundary. Mass lumping
-    and stabilization yields a ODE, du/dt = M_L^{-1} (- (K + D) u + F^*(u) + b - b_in)),
+    and stabilization yields an ODE, du/dt = M_L^{-1}((- K + D) u + F^*(u) + b - b_in)),
     where D is a low order stabilization and F^*(u) are the limited anti-diffusive fluxes.
     The choice of F* = 0 correspods to the low-order scheme and F* = F corresponds to the
     unlimitied stabilized high-order target scheme.
     This class is used to evaluate the right-hand side. */
+
+/** Abstract base class for evaluating the time-dependent operator in the ODE formulation.
+    The continuous Galerkin (CG) strong form of the advection equation du/dt = -v.grad(u) 
+    is given by M du/dt = -K u + b - b_in, where M and K are the mass and advection matrices, 
+    respectively, and (b - b_in) represents the boundary flow contribution. 
+
+    The ODE can be reformulated as:
+    du/dt = M_L^{-1}((-K + D) u + F^*(u) + b - b_in),
+    where M_L is the lumped mass matrix, D is a low-order stabilization term, and F^*(u) 
+    represents the limited anti-diffusive fluxes. Here, F^* is a limited version of F,
+    which recovers the high-order target scheme. The limited anti-diffusive fluxes F^* 
+    are the sum of the limited element contributions of the original flux F to enforce
+    local bounds.
+
+    Additional to the limiter we implement the low-order scheme and high-order target 
+    scheme by chosing:
+    - F^* = 0 for the bound-preserving low-order scheme.
+    - F^* = F for the high-order target scheme which is not bound-preserving.
+
+    This abstract class provides a framework for evaluating the right-hand side of the ODE
+    and is intended to be inherited by classes that implement the three schemes:
+    - The ClipAndScale class, which employes the limiter to enforces local bounds
+    - The HighOrderTargetScheme class, which employs the raw anti-diffusive fluxes F
+    - The LowOrderScheme class, which employs F = 0 and is very diffusive but bound-preserving
+*/
+
 class CG_FE_Evolution : public TimeDependentOperator
 {
 protected:
@@ -281,6 +313,7 @@ public:
    virtual ~CG_FE_Evolution();
 };
 
+// Clip and Scale limiter class
 class ClipAndScale : public CG_FE_Evolution
 {
 private:
@@ -298,6 +331,7 @@ public:
    virtual ~ClipAndScale();
 };
 
+// High-order target scheme class
 class HighOrderTargetScheme : public CG_FE_Evolution
 {
 private:
@@ -312,6 +346,7 @@ public:
    virtual ~HighOrderTargetScheme();
 };
 
+// Low-order scheme class
 class LowOrderScheme : public CG_FE_Evolution
 {
 public:
@@ -982,10 +1017,13 @@ CG_FE_Evolution::CG_FE_Evolution(ParFiniteElementSpace &fes_, const Vector &b_,
    gcomm(fes_.GroupComm()), I(M.SpMat().GetI()), J(M.SpMat().GetJ()),
    u_gf(*u), u_coeff(&u_gf), mass_int(), conv_int(velocity)
 {
+   // distribute the lumped mass matrix entries
    Array<real_t> lumpedmassmatrix_array(lumpedmassmatrix.GetData(), lumpedmassmatrix.Size());
    gcomm.Reduce<real_t>(lumpedmassmatrix_array, GroupCommunicator::Sum);
    gcomm.Bcast(lumpedmassmatrix_array);
 
+   // In the strong form the boundary integral is < (u - u_in) min (v * n, 0 ), w > ,
+   // which can be implemented as b_u - b_inflow
    b_u.AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(u_coeff, velocity, 1.0));
 }
@@ -1001,6 +1039,7 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u, Vector &udot) co
       auto element = fes.GetFE(e);
       auto eltrans = fes.GetElementTransformation(e);
 
+      // assemble element matrix of convection operator
       conv_int.AssembleElementMatrix(*element, *eltrans, Ke);
 
       fes.GetElementDofs(e, dofs);
@@ -1012,7 +1051,8 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u, Vector &udot) co
       for (int i = 0; i < dofs.Size(); i++)
       {
          for (int j = 0; j < i; j++)
-         {
+         {  
+            // add low-order stabilization with discrete upwinding
             real_t dije = max(max(Ke(i,j), Ke(j,i)), 0.0);
             real_t diffusion = dije * (ue(j) - ue(i));
 
@@ -1020,11 +1060,13 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u, Vector &udot) co
             re(j) -= diffusion;
          }
       }
-
+      // Add -K_e u_e to obtain (-K_e + D_e) u_e and add element contribution
+      // to global vector
       Ke.AddMult(ue, re, -1.0);
       udot.AddElementVector(dofs, re);
    }
-
+   
+   // add boundary condition. This is under the assumption that b_u has been updated
    udot += b_u;
    udot -= b_inflow;
 
@@ -1033,6 +1075,7 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u, Vector &udot) co
    gcomm.Reduce<real_t>(udot_array, GroupCommunicator::Sum);
    gcomm.Bcast(udot_array);
 
+   // apply inverse lumped mass matrix
    udot /= lumpedmassmatrix;
 }
 
@@ -1051,9 +1094,8 @@ ClipAndScale::ClipAndScale(ParFiniteElementSpace &fes_, const Vector &b_,
 
 void ClipAndScale::ComputeBounds(const Vector &u, Array<real_t> &u_min, Array<real_t> &u_max) const
 {
-   const int nDofs = fes.GetVSize();
-
-   for (int i = 0; i < nDofs; i++)
+   // iterate over local number of dofs on this processor and compute maximum and minimum over local stencil
+   for (int i = 0; i < fes.GetVSize(); i++)
    {
       umin[i] = u(i);
       umax[i] = u(i);
@@ -1066,6 +1108,7 @@ void ClipAndScale::ComputeBounds(const Vector &u, Array<real_t> &u_min, Array<re
       }
    }
 
+   // Distribute min and max to get max and min of local stencil of shared dofs
    gcomm.Reduce<real_t>(umax, GroupCommunicator::Max);
    gcomm.Bcast(umax);
 
@@ -1082,6 +1125,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 
    y = 0.0;
 
+   // compute low-order time derivative for high-order stabilization and local bounds
    ComputeLOTimeDerivatives(x, udot);
    ComputeBounds(x, umin, umax);
 
@@ -1091,6 +1135,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       auto element = fes.GetFE(e);
       auto eltrans = fes.GetElementTransformation(e);
 
+      // assemble element mass and convection matrices
       conv_int.AssembleElementMatrix(*element, *eltrans, Ke);
       mass_int.AssembleElementMatrix(*element, *eltrans, Me);
 
@@ -1111,23 +1156,28 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < dofs.Size(); i++)
       {
          for (int j = 0; j < i; j++)
-         {
+         {  
+            // add low-order diffusion
             real_t dije = max(max(Ke(i,j), Ke(j,i)), 0.0);
             real_t diffusion = dije * (ue(j) - ue(i));
 
             re(i) += diffusion;
             re(j) -= diffusion;
 
+            // for bounding fluxes
             gammae(i) += dije;
             gammae(j) += dije;
 
+            // assemble raw antidifussive fluxes f_{i,e} = sum_j m_{ij,e} (udot_i - udot_j) - d_{ij,e} (u_i - u_j)
             real_t fije = Me(i,j) * (udote(i) - udote(j)) - diffusion;
             fe(i) += fije;
             fe(j) -= fije;
          }
       }
-
+      
+      // add convective term
       Ke.AddMult(ue, re, -1.0);
+
       gammae *= 2.0;
 
       real_t P_plus = 0.0;
@@ -1136,17 +1186,19 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       //Clip
       for (int i = 0; i < dofs.Size(); i++)
       {
+         // bounding fluxes
          real_t fie_max = gammae(i) * (umax[dofs[i]] - ue(i));
          real_t fie_min = gammae(i) * (umin[dofs[i]] - ue(i));
 
          fe_star(i) = min(max(fie_min, fe(i)), fie_max);
 
+         // track positive and negative contributions s
          P_plus += max(fe_star(i), 0.0);
          P_minus += min(fe_star(i), 0.0);
       }
       const real_t P = P_minus + P_plus;
 
-      //and Scale
+      //and Scale for the sum of fe_star to be 0, i.e., mass conservation
       for (int i = 0; i < dofs.Size(); i++)
       {
          if (fe_star(i) > 0.0 && P > 0.0)
@@ -1158,17 +1210,21 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
             fe_star(i) *= - P_plus / P_minus;
          }
       }
+      // add limited antidiffusive fluxes to element contribution and add to global vector
       re += fe_star;
       y.AddElementVector(dofs, re);
    }
 
+   // add boundary condition
    y += b_u;
    y -= b_inflow;
 
+   // distribute
    Array<real_t> y_array(y.GetData(), y.Size());
    gcomm.Reduce<real_t>(y_array, GroupCommunicator::Sum);
    gcomm.Bcast(y_array);
 
+   // apply inverse lumped mass matrix
    y /= lumpedmassmatrix;
 }
 
@@ -1193,6 +1249,7 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
 
    y = 0.0;
 
+   // compute low-order time derivative for high-order stabilization
    ComputeLOTimeDerivatives(x, udot);
 
    Array<int> dofs;
@@ -1200,7 +1257,8 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
    {
       auto element = fes.GetFE(e);
       auto eltrans = fes.GetElementTransformation(e);
-
+      
+      // assemble element mass and convection matrices
       conv_int.AssembleElementMatrix(*element, *eltrans, Ke);
       mass_int.AssembleElementMatrix(*element, *eltrans, Me);
 
@@ -1216,24 +1274,29 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < dofs.Size(); i++)
       {
          for (int j = 0; j < i; j++)
-         {
+         { 
+            // add high-order stabilization without correction for low-order stabilization
             real_t fije = Me(i,j) * (udote(i) - udote(j));
             re(i) += fije;
             re(j) -= fije;
          }
       }
 
+      // add convective term and add to global vector
       Ke.AddMult(ue, re, -1.0);
       y.AddElementVector(dofs, re);
    }
 
+   // add boundary condition
    y += b_u;
    y -= b_inflow;
 
+   // distribute
    Array<real_t> y_array(y.GetData(), y.Size());
    gcomm.Reduce<real_t>(y_array, GroupCommunicator::Sum);
    gcomm.Bcast(y_array);
 
+   // apply inverse lumped mass matrix
    y /= lumpedmassmatrix;
 }
 
@@ -1247,7 +1310,8 @@ LowOrderScheme::LowOrderScheme(ParFiniteElementSpace &fes_, const Vector &b_,
 { }
 
 void LowOrderScheme::Mult(const Vector &x, Vector &y) const
-{
+{  
+   // update Boundary integral
    u_gf = x;
    b_u.LinearForm::operator=(0.0);
    b_u.Assemble();
