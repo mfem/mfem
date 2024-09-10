@@ -250,15 +250,6 @@ public:
    virtual ~DG_FE_Evolution();
 };
 
-/** A time-dependent operator for the right-hand side of the ODE. The CG strong
-    form of du/dt = -v.grad(u) is M du/dt = - K u + b - b_in, where M and K are the mass
-    and advection matrices, and b - b_in describes the flow on the boundary. Mass lumping
-    and stabilization yields an ODE, du/dt = M_L^{-1}((- K + D) u + F^*(u) + b - b_in)),
-    where D is a low order stabilization and F^*(u) are the limited anti-diffusive fluxes.
-    The choice of F* = 0 correspods to the low-order scheme and F* = F corresponds to the
-    unlimitied stabilized high-order target scheme.
-    This class is used to evaluate the right-hand side. */
-
 /** Abstract base class for evaluating the time-dependent operator in the ODE formulation.
     The continuous Galerkin (CG) strong form of the advection equation du/dt = -v.grad(u) 
     is given by M du/dt = -K u + b - b_in, where M and K are the mass and advection matrices, 
@@ -281,9 +272,7 @@ public:
     and is intended to be inherited by classes that implement the three schemes:
     - The ClipAndScale class, which employes the limiter to enforces local bounds
     - The HighOrderTargetScheme class, which employs the raw anti-diffusive fluxes F
-    - The LowOrderScheme class, which employs F = 0 and is very diffusive but bound-preserving
-*/
-
+    - The LowOrderScheme class, which employs F = 0 and has low accuracy, but is bound-preserving */
 class CG_FE_Evolution : public TimeDependentOperator
 {
 protected:
@@ -421,8 +410,10 @@ int main(int argc, char *argv[])
                   "            22 - Implicit Midpoint Method,\n\t"
                   "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
    args.AddOption(&scheme, "-sc", "--scheme",
-                  "ODE solver: 1 - Standard Discontinuous Galerkin method,\n\t"
-                  "            11 - Clip and Scale Limiter for continuous Galerkin discretization");
+                  "Finite Element scheme: 1 - Standard Discontinuous Galerkin method,\n\t"
+                  "                       11 - Clip and Scale Limiter for continuous Galerkin discretization,\n\t"
+                  "                       12 - High-order target schme for continuous Galerkin discretization,\n\t"
+                  "                       13 - Low-order schme for continuous Galerkin discretization");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -508,7 +499,7 @@ int main(int argc, char *argv[])
    {
       if (Mpi::Root())
       {
-         MFEM_WARNING("Using non-stability preserving Runge-Kutta method. Bound preservation not guaranteed.");
+         MFEM_WARNING("Using non-stability preserving Runge-Kutta method with limiter. Bounds might be violated.");
       }
    }
 
@@ -516,41 +507,19 @@ int main(int argc, char *argv[])
    switch (ode_solver_type)
    {
    // Explicit methods
-   case 1:
-      ode_solver = new ForwardEulerSolver;
-      break;
-   case 2:
-      ode_solver = new RK2Solver(1.0);
-      break;
-   case 3:
-      ode_solver = new RK3SSPSolver;
-      break;
-   case 4:
-      ode_solver = new RK4Solver;
-      break;
-   case 6:
-      ode_solver = new RK6Solver;
-      break;
+   case 1: ode_solver = new ForwardEulerSolver; break;
+   case 2: ode_solver = new RK2Solver(1.0); break;
+   case 3: ode_solver = new RK3SSPSolver; break;
+   case 4: ode_solver = new RK4Solver; break;
+   case 6: ode_solver = new RK6Solver; break;
    // Implicit (L-stable) methods
-   case 11:
-      ode_solver = new BackwardEulerSolver;
-      break;
-   case 12:
-      ode_solver = new SDIRK23Solver(2);
-      break;
-   case 13:
-      ode_solver = new SDIRK33Solver;
-      break;
+   case 11: ode_solver = new BackwardEulerSolver; break;
+   case 12: ode_solver = new SDIRK23Solver(2); break;
+   case 13: ode_solver = new SDIRK33Solver; break;
    // Implicit A-stable methods (not L-stable)
-   case 22:
-      ode_solver = new ImplicitMidpointSolver;
-      break;
-   case 23:
-      ode_solver = new SDIRK23Solver;
-      break;
-   case 24:
-      ode_solver = new SDIRK34Solver;
-      break;
+   case 22: ode_solver = new ImplicitMidpointSolver; break;
+   case 23: ode_solver = new SDIRK23Solver; break;
+   case 24: ode_solver = new SDIRK34Solver; break;
    default:
       if (Mpi::Root())
       {
@@ -655,6 +624,9 @@ int main(int argc, char *argv[])
    }
 
    m->AddDomainIntegrator(new MassIntegrator);
+   m->Assemble();
+   m->Finalize();
+
    constexpr real_t alpha = -1.0;
    int skip_zeros = 0;
    Vector lumpedmassmatrix(mL->Height());
@@ -670,7 +642,6 @@ int main(int argc, char *argv[])
 
       k->Assemble(skip_zeros);
       k->Finalize(skip_zeros);
-
    }
    // lumped mass matrix not needed in the DG case
    else
@@ -685,10 +656,7 @@ int main(int argc, char *argv[])
    ParLinearForm *b = new ParLinearForm(fes);
    b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, alpha));
-
-   m->Assemble();
    b->Assemble();
-   m->Finalize();
 
    HypreParVector *B = b->ParallelAssemble();
 
@@ -821,18 +789,10 @@ int main(int argc, char *argv[])
    TimeDependentOperator *adv = NULL;
    switch (scheme)
    {
-   case 1:
-      adv = new DG_FE_Evolution(*m, *k, *B, prec_type);
-      break;
-   case 11:
-      adv = new ClipAndScale(*fes, *b, lumpedmassmatrix, u, velocity, *m);
-      break;
-   case 12:
-      adv = new HighOrderTargetScheme(*fes, *b, lumpedmassmatrix, u, velocity, *m);
-      break;
-   case 13:
-      adv = new LowOrderScheme(*fes, *b, lumpedmassmatrix, u, velocity, *m);
-      break;
+   case 1: adv = new DG_FE_Evolution(*m, *k, *B, prec_type); break;
+   case 11: adv = new ClipAndScale(*fes, *b, lumpedmassmatrix, u, velocity, *m); break;
+   case 12: adv = new HighOrderTargetScheme(*fes, *b, lumpedmassmatrix, u, velocity, *m); break;
+   case 13: adv = new LowOrderScheme(*fes, *b, lumpedmassmatrix, u, velocity, *m); break;
    }
 
    real_t t = 0.0;
