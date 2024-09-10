@@ -185,8 +185,12 @@ DenseMatrix FuentesPyramid::grad_mu01(real_t z)
 
 Vector FuentesPyramid::grad_mu0(real_t z, const Vector xy, unsigned int ab)
 {
-   Vector dmu({0.0, 0.0, - xy[ab-1] / pow(1.0 - z, 2)});
+   // Vector dmu({0.0, 0.0, - xy[ab-1] / pow(1.0 - z, 2)});
+   Vector dmu(3);
+   dmu[0] = 0.0;
+   dmu[1] = 0.0;
    dmu[ab-1] = -1.0 / (1.0 - z);
+   dmu[2] = - xy[ab-1] / pow(1.0 - z, 2);
    return dmu;
 }
 
