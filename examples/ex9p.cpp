@@ -2,7 +2,7 @@
 //
 // Compile with: make ex9p
 //
-// Sample runs DG:
+// DG sample runs:
 //    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -dt 0.005
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -dt 0.01
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.01
@@ -20,7 +20,7 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rs 1 -o 2 -tf 2
 //    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
 //
-// Sample runs CG:
+// CG sample runs:
 //    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 11 -o 1 -s 2 -vs 200
 //    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 12 -o 1 -s 2 -vs 200
 //    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 13 -o 1 -s 2 -vs 200
@@ -59,7 +59,7 @@
 //               solution. Saving of time-dependent data files for visualization
 //               with VisIt (visit.llnl.gov) and ParaView (paraview.org), as
 //               well as the optional saving with ADIOS2 (adios2.readthedocs.io)
-//               are also illustrated. Additionally, the example showcases the 
+//               are also illustrated. Additionally, the example showcases the
 //               parallel implementation of an element-based Clip & Scale limiter for
 //               continuous finite elements, which is implemented using only element
 //               assembly and is designed to be bound-preserving.
@@ -251,19 +251,19 @@ public:
 };
 
 /** Abstract base class for evaluating the time-dependent operator in the ODE formulation.
-    The continuous Galerkin (CG) strong form of the advection equation du/dt = -v.grad(u) 
-    is given by M du/dt = -K u + b - b_in, where M and K are the mass and advection matrices, 
-    respectively, and (b - b_in) represents the boundary flow contribution. 
+    The continuous Galerkin (CG) strong form of the advection equation du/dt = -v.grad(u)
+    is given by M du/dt = -K u + b - b_in, where M and K are the mass and advection matrices,
+    respectively, and (b - b_in) represents the boundary flow contribution.
 
     The ODE can be reformulated as:
     du/dt = M_L^{-1}((-K + D) u + F^*(u) + b - b_in),
-    where M_L is the lumped mass matrix, D is a low-order stabilization term, and F^*(u) 
+    where M_L is the lumped mass matrix, D is a low-order stabilization term, and F^*(u)
     represents the limited anti-diffusive fluxes. Here, F^* is a limited version of F,
-    which recovers the high-order target scheme. The limited anti-diffusive fluxes F^* 
+    which recovers the high-order target scheme. The limited anti-diffusive fluxes F^*
     are the sum of the limited element contributions of the original flux F to enforce
     local bounds.
 
-    Additional to the limiter we implement the low-order scheme and high-order target 
+    Additional to the limiter we implement the low-order scheme and high-order target
     scheme by chosing:
     - F^* = 0 for the bound-preserving low-order scheme.
     - F^* = F for the high-order target scheme which is not bound-preserving.
@@ -294,7 +294,8 @@ protected:
 
 public:
    CG_FE_Evolution(ParFiniteElementSpace &fes_, const Vector &b_,
-                   const Vector &lumpedmassmatrix_, const GridFunction *u, VectorFunctionCoefficient &velocity,
+                   const Vector &lumpedmassmatrix_, const GridFunction *u,
+                   VectorFunctionCoefficient &velocity,
                    ParBilinearForm &M);
 
    virtual void Mult(const Vector &x, Vector &y) const = 0;
@@ -309,11 +310,13 @@ private:
    mutable Array<real_t> umin, umax;
    mutable Vector udot;
 
-   virtual void ComputeBounds(const Vector &u, Array<real_t> &u_min, Array<real_t> &u_max) const;
+   virtual void ComputeBounds(const Vector &u, Array<real_t> &u_min,
+                              Array<real_t> &u_max) const;
 
 public:
    ClipAndScale(ParFiniteElementSpace &fes_, const Vector &b_,
-                const Vector &lumpedmassmatrix_, const GridFunction *u, VectorFunctionCoefficient &velocity, ParBilinearForm &M);
+                const Vector &lumpedmassmatrix_, const GridFunction *u,
+                VectorFunctionCoefficient &velocity, ParBilinearForm &M);
 
    virtual void Mult(const Vector &x, Vector &y) const override;
 
@@ -328,7 +331,8 @@ private:
 
 public:
    HighOrderTargetScheme(ParFiniteElementSpace &fes_, const Vector &b_,
-                         const Vector &lumpedmassmatrix_, const GridFunction *u, VectorFunctionCoefficient &velocity, ParBilinearForm &M);
+                         const Vector &lumpedmassmatrix_, const GridFunction *u,
+                         VectorFunctionCoefficient &velocity, ParBilinearForm &M);
 
    virtual void Mult(const Vector &x, Vector &y) const override;
 
@@ -340,7 +344,8 @@ class LowOrderScheme : public CG_FE_Evolution
 {
 public:
    LowOrderScheme(ParFiniteElementSpace &fes_, const Vector &b_,
-                  const Vector &lumpedmassmatrix_, const GridFunction *u, VectorFunctionCoefficient &velocity, ParBilinearForm &M);
+                  const Vector &lumpedmassmatrix_, const GridFunction *u,
+                  VectorFunctionCoefficient &velocity, ParBilinearForm &M);
 
    virtual void Mult(const Vector &x, Vector &y) const override;
 
@@ -464,7 +469,8 @@ int main(int argc, char *argv[])
    }
 
    Device device(device_config);
-   if (Mpi::Root()) {
+   if (Mpi::Root())
+   {
       device.Print();
    }
 
@@ -490,7 +496,8 @@ int main(int argc, char *argv[])
    {
       if (Mpi::Root())
       {
-         cout << "The stabilized CG method is only implemented for explicit Runge-Kutta methods." << endl;
+         cout << "The stabilized CG method is only implemented for explicit Runge-Kutta methods."
+              << endl;
       }
       return 4;
    }
@@ -506,27 +513,27 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-   // Explicit methods
-   case 1: ode_solver = new ForwardEulerSolver; break;
-   case 2: ode_solver = new RK2Solver(1.0); break;
-   case 3: ode_solver = new RK3SSPSolver; break;
-   case 4: ode_solver = new RK4Solver; break;
-   case 6: ode_solver = new RK6Solver; break;
-   // Implicit (L-stable) methods
-   case 11: ode_solver = new BackwardEulerSolver; break;
-   case 12: ode_solver = new SDIRK23Solver(2); break;
-   case 13: ode_solver = new SDIRK33Solver; break;
-   // Implicit A-stable methods (not L-stable)
-   case 22: ode_solver = new ImplicitMidpointSolver; break;
-   case 23: ode_solver = new SDIRK23Solver; break;
-   case 24: ode_solver = new SDIRK34Solver; break;
-   default:
-      if (Mpi::Root())
-      {
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      }
-      delete mesh;
-      return 5;
+      // Explicit methods
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
+      // Implicit (L-stable) methods
+      case 11: ode_solver = new BackwardEulerSolver; break;
+      case 12: ode_solver = new SDIRK23Solver(2); break;
+      case 13: ode_solver = new SDIRK33Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver = new ImplicitMidpointSolver; break;
+      case 23: ode_solver = new SDIRK23Solver; break;
+      case 24: ode_solver = new SDIRK34Solver; break;
+      default:
+         if (Mpi::Root())
+         {
+            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         }
+         delete mesh;
+         return 5;
    }
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
@@ -561,21 +568,21 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *fes = NULL;
    switch (scheme)
    {
-   case 1:
-      fes = new ParFiniteElementSpace(pmesh, &fec_DG);
-      break;
-   case 11:
-   case 12:
-   case 13:
-      fes = new ParFiniteElementSpace(pmesh, &fec_CG);
-      break;
-   default:
-      if (Mpi::Root())
-      {
-         cout << "Unknown scheme: " << scheme << '\n';
-      }
-      delete pmesh;
-      return 6;
+      case 1:
+         fes = new ParFiniteElementSpace(pmesh, &fec_DG);
+         break;
+      case 11:
+      case 12:
+      case 13:
+         fes = new ParFiniteElementSpace(pmesh, &fec_CG);
+         break;
+      default:
+         if (Mpi::Root())
+         {
+            cout << "Unknown scheme: " << scheme << '\n';
+         }
+         delete pmesh;
+         return 6;
    }
 
    HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
@@ -616,7 +623,8 @@ int main(int argc, char *argv[])
    {
       if (Mpi::Root())
       {
-         cout << "The CG Limiter needs full assembly of the mass matrix to obtain the local stencil via its sparsity pattern. " << endl;
+         cout << "The CG Limiter needs full assembly of the mass matrix to obtain the local stencil via its sparsity pattern. "
+              << endl;
       }
       delete pmesh;
       delete fes;
@@ -789,10 +797,13 @@ int main(int argc, char *argv[])
    TimeDependentOperator *adv = NULL;
    switch (scheme)
    {
-   case 1: adv = new DG_FE_Evolution(*m, *k, *B, prec_type); break;
-   case 11: adv = new ClipAndScale(*fes, *b, lumpedmassmatrix, u, velocity, *m); break;
-   case 12: adv = new HighOrderTargetScheme(*fes, *b, lumpedmassmatrix, u, velocity, *m); break;
-   case 13: adv = new LowOrderScheme(*fes, *b, lumpedmassmatrix, u, velocity, *m); break;
+      case 1: adv = new DG_FE_Evolution(*m, *k, *B, prec_type); break;
+      case 11: adv = new ClipAndScale(*fes, *b, lumpedmassmatrix, u, velocity, *m);
+         break;
+      case 12: adv = new HighOrderTargetScheme(*fes, *b, lumpedmassmatrix, u,
+                                                  velocity, *m); break;
+      case 13: adv = new LowOrderScheme(*fes, *b, lumpedmassmatrix, u, velocity, *m);
+         break;
    }
 
    real_t t = 0.0;
@@ -978,7 +989,8 @@ CG_FE_Evolution::CG_FE_Evolution(ParFiniteElementSpace &fes_, const Vector &b_,
    u_gf(*u), u_coeff(&u_gf), mass_int(), conv_int(velocity)
 {
    // distribute the lumped mass matrix entries
-   Array<real_t> lumpedmassmatrix_array(lumpedmassmatrix.GetData(), lumpedmassmatrix.Size());
+   Array<real_t> lumpedmassmatrix_array(lumpedmassmatrix.GetData(),
+                                        lumpedmassmatrix.Size());
    gcomm.Reduce<real_t>(lumpedmassmatrix_array, GroupCommunicator::Sum);
    gcomm.Bcast(lumpedmassmatrix_array);
 
@@ -988,7 +1000,8 @@ CG_FE_Evolution::CG_FE_Evolution(ParFiniteElementSpace &fes_, const Vector &b_,
       new BoundaryFlowIntegrator(u_coeff, velocity, 1.0));
 }
 
-void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u, Vector &udot) const
+void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u,
+                                               Vector &udot) const
 {
    udot = 0.0;
    const int nE = fes.GetNE();
@@ -1011,7 +1024,7 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u, Vector &udot) co
       for (int i = 0; i < dofs.Size(); i++)
       {
          for (int j = 0; j < i; j++)
-         {  
+         {
             // add low-order stabilization with discrete upwinding
             real_t dije = max(max(Ke(i,j), Ke(j,i)), 0.0);
             real_t diffusion = dije * (ue(j) - ue(i));
@@ -1025,7 +1038,7 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u, Vector &udot) co
       Ke.AddMult(ue, re, -1.0);
       udot.AddElementVector(dofs, re);
    }
-   
+
    // add boundary condition. This is under the assumption that b_u has been updated
    udot += b_u;
    udot -= b_inflow;
@@ -1044,7 +1057,8 @@ CG_FE_Evolution::~CG_FE_Evolution()
 
 // Implementation of class ClipAndScale
 ClipAndScale::ClipAndScale(ParFiniteElementSpace &fes_, const Vector &b_,
-                           const Vector &lumpedmassmatrix_, const GridFunction *u, VectorFunctionCoefficient &velocity, ParBilinearForm &M):
+                           const Vector &lumpedmassmatrix_, const GridFunction *u,
+                           VectorFunctionCoefficient &velocity, ParBilinearForm &M):
    CG_FE_Evolution(fes_, b_, lumpedmassmatrix_, u, velocity, M)
 {
    umin.SetSize(lumpedmassmatrix.Size());
@@ -1052,7 +1066,8 @@ ClipAndScale::ClipAndScale(ParFiniteElementSpace &fes_, const Vector &b_,
    udot.SetSize(lumpedmassmatrix.Size());
 }
 
-void ClipAndScale::ComputeBounds(const Vector &u, Array<real_t> &u_min, Array<real_t> &u_max) const
+void ClipAndScale::ComputeBounds(const Vector &u, Array<real_t> &u_min,
+                                 Array<real_t> &u_max) const
 {
    // iterate over local number of dofs on this processor and compute maximum and minimum over local stencil
    for (int i = 0; i < fes.GetVSize(); i++)
@@ -1116,7 +1131,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < dofs.Size(); i++)
       {
          for (int j = 0; j < i; j++)
-         {  
+         {
             // add low-order diffusion
             real_t dije = max(max(Ke(i,j), Ke(j,i)), 0.0);
             real_t diffusion = dije * (ue(j) - ue(i));
@@ -1134,7 +1149,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
             fe(j) -= fije;
          }
       }
-      
+
       // add convective term
       Ke.AddMult(ue, re, -1.0);
 
@@ -1193,8 +1208,10 @@ ClipAndScale::~ClipAndScale()
 { }
 
 // Implementation of class HighOrderTargetScheme
-HighOrderTargetScheme::HighOrderTargetScheme(ParFiniteElementSpace &fes_, const Vector &b_,
-      const Vector &lumpedmassmatrix_, const GridFunction *u, VectorFunctionCoefficient &velocity, ParBilinearForm &M):
+HighOrderTargetScheme::HighOrderTargetScheme(ParFiniteElementSpace &fes_,
+                                             const Vector &b_,
+                                             const Vector &lumpedmassmatrix_, const GridFunction *u,
+                                             VectorFunctionCoefficient &velocity, ParBilinearForm &M):
    CG_FE_Evolution(fes_, b_, lumpedmassmatrix_, u, velocity, M)
 {
    udot.SetSize(lumpedmassmatrix.Size());
@@ -1217,7 +1234,7 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
    {
       auto element = fes.GetFE(e);
       auto eltrans = fes.GetElementTransformation(e);
-      
+
       // assemble element mass and convection matrices
       conv_int.AssembleElementMatrix(*element, *eltrans, Ke);
       mass_int.AssembleElementMatrix(*element, *eltrans, Me);
@@ -1234,7 +1251,7 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < dofs.Size(); i++)
       {
          for (int j = 0; j < i; j++)
-         { 
+         {
             // add high-order stabilization without correction for low-order stabilization
             real_t fije = Me(i,j) * (udote(i) - udote(j));
             re(i) += fije;
@@ -1265,12 +1282,13 @@ HighOrderTargetScheme::~HighOrderTargetScheme()
 
 // Implementation of Class LowOrderScheme
 LowOrderScheme::LowOrderScheme(ParFiniteElementSpace &fes_, const Vector &b_,
-                               const Vector &lumpedmassmatrix_, const GridFunction *u, VectorFunctionCoefficient &velocity, ParBilinearForm &M):
+                               const Vector &lumpedmassmatrix_, const GridFunction *u,
+                               VectorFunctionCoefficient &velocity, ParBilinearForm &M):
    CG_FE_Evolution(fes_, b_, lumpedmassmatrix_, u, velocity, M)
 { }
 
 void LowOrderScheme::Mult(const Vector &x, Vector &y) const
-{  
+{
    // update Boundary integral
    u_gf = x;
    b_u.LinearForm::operator=(0.0);
@@ -1297,71 +1315,71 @@ void velocity_function(const Vector &x, Vector &v)
 
    switch (problem)
    {
-   case 0:
-   {
-      // Translations in 1D, 2D, and 3D
-      switch (dim)
+      case 0:
       {
-      case 1:
-         v(0) = 1.0;
-         break;
-      case 2:
-         v(0) = sqrt(2./3.);
-         v(1) = sqrt(1./3.);
-         break;
-      case 3:
-         v(0) = sqrt(3./6.);
-         v(1) = sqrt(2./6.);
-         v(2) = sqrt(1./6.);
+         // Translations in 1D, 2D, and 3D
+         switch (dim)
+         {
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = sqrt(2./3.);
+               v(1) = sqrt(1./3.);
+               break;
+            case 3:
+               v(0) = sqrt(3./6.);
+               v(1) = sqrt(2./6.);
+               v(2) = sqrt(1./6.);
+               break;
+         }
          break;
       }
-      break;
-   }
-   case 1:
-   case 2:
-   {
-      // Clockwise rotation in 2D around the origin
-      const real_t w = M_PI/2;
-      switch (dim)
-      {
       case 1:
-         v(0) = 1.0;
-         break;
       case 2:
-         v(0) = w*X(1);
-         v(1) = -w*X(0);
-         break;
-      case 3:
-         v(0) = w*X(1);
-         v(1) = -w*X(0);
-         v(2) = 0.0;
+      {
+         // Clockwise rotation in 2D around the origin
+         const real_t w = M_PI/2;
+         switch (dim)
+         {
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = w*X(1);
+               v(1) = -w*X(0);
+               break;
+            case 3:
+               v(0) = w*X(1);
+               v(1) = -w*X(0);
+               v(2) = 0.0;
+               break;
+         }
          break;
       }
-      break;
-   }
-   case 3:
-   {
-      // Clockwise twisting rotation in 2D around the origin
-      const real_t w = M_PI/2;
-      real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
-      d = d*d;
-      switch (dim)
-      {
-      case 1:
-         v(0) = 1.0;
-         break;
-      case 2:
-         v(0) = d*w*X(1);
-         v(1) = -d*w*X(0);
-         break;
       case 3:
-         v(0) = d*w*X(1);
-         v(1) = -d*w*X(0);
-         v(2) = 0.0;
+      {
+         // Clockwise twisting rotation in 2D around the origin
+         const real_t w = M_PI/2;
+         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
+         d = d*d;
+         switch (dim)
+         {
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = d*w*X(1);
+               v(1) = -d*w*X(0);
+               break;
+            case 3:
+               v(0) = d*w*X(1);
+               v(1) = -d*w*X(0);
+               v(2) = 0.0;
+               break;
+         }
          break;
       }
-      break;
-   }
    }
 }
 
@@ -1380,40 +1398,40 @@ real_t u0_function(const Vector &x)
 
    switch (problem)
    {
-   case 0:
-   case 1:
-   {
-      switch (dim)
-      {
+      case 0:
       case 1:
-         return exp(-40.*pow(X(0)-0.5,2));
+      {
+         switch (dim)
+         {
+            case 1:
+               return exp(-40.*pow(X(0)-0.5,2));
+            case 2:
+            case 3:
+            {
+               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               if (dim == 3)
+               {
+                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
+                  rx *= s;
+                  ry *= s;
+               }
+               return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
+                        std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
+            }
+         }
+      }
       case 2:
+      {
+         real_t x_ = X(0), y_ = X(1), rho, phi;
+         rho = std::hypot(x_, y_);
+         phi = atan2(y_, x_);
+         return pow(sin(M_PI*rho),2)*sin(3*phi);
+      }
       case 3:
       {
-         real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
-         if (dim == 3)
-         {
-            const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
-            rx *= s;
-            ry *= s;
-         }
-         return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
-                  std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
+         const real_t f = M_PI;
+         return sin(f*X(0))*sin(f*X(1));
       }
-      }
-   }
-   case 2:
-   {
-      real_t x_ = X(0), y_ = X(1), rho, phi;
-      rho = std::hypot(x_, y_);
-      phi = atan2(y_, x_);
-      return pow(sin(M_PI*rho),2)*sin(3*phi);
-   }
-   case 3:
-   {
-      const real_t f = M_PI;
-      return sin(f*X(0))*sin(f*X(1));
-   }
    }
    return 0.0;
 }
@@ -1423,11 +1441,11 @@ real_t inflow_function(const Vector &x)
 {
    switch (problem)
    {
-   case 0:
-   case 1:
-   case 2:
-   case 3:
-      return 0.0;
+      case 0:
+      case 1:
+      case 2:
+      case 3:
+         return 0.0;
    }
    return 0.0;
 }
