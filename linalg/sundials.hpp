@@ -589,7 +589,7 @@ public:
    void Step(Vector &x, double &t, double &dt) override;
 
    /// Solve one adjoint time step
-   void StepB(Vector &w, double &t, double &dt) override;
+   void StepB(Vector &w, double &t, double &dt);
 
    /// Set multiplicative error weights
    void SetWFTolerances(EWTFunction func);
