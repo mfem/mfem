@@ -1557,7 +1557,7 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       // (a,b) = (1,2), c = 0
       V_T(p, nu012(z, xy, 1), nu012_grad_nu012(z, xy, 1), VT_ijk);
       mu = mu0(z, xy, 2);
-      dmuz = grad_mu0(z, xy, 2);
+      dmuz.Destroy(); dmuz = grad_mu0(z, xy, 2);
       VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
            nu012_grad_nu012(z, xy, 1), mu, dmuz, VTT_ijk);
       for (int j=0; j<p; j++)
@@ -1569,7 +1569,7 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
 
       // (a,b) = (1,2), c = 1
       mu = mu1(z, xy, 2);
-      dmuz = grad_mu1(z, xy, 2);
+      dmuz.Destroy(); dmuz = grad_mu1(z, xy, 2);
       VT_T(p, nu012(z, xy, 1), nu01_grad_nu01(z, xy, 1),
            nu012_grad_nu012(z, xy, 1), mu, dmuz, VTT_ijk);
       for (int j=0; j<p; j++)
@@ -1582,7 +1582,7 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
       // (a,b) = (2,1), c = 0
       V_T(p, nu012(z, xy, 2), nu012_grad_nu012(z, xy, 2), VT_ijk);
       mu = mu0(z, xy, 1);
-      dmuz = grad_mu0(z, xy, 1);
+      dmuz.Destroy(); dmuz = grad_mu0(z, xy, 1);
       VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
            nu012_grad_nu012(z, xy, 2), mu, dmuz, VTT_ijk);
       for (int j=0; j<p; j++)
@@ -1594,7 +1594,7 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
 
       // (a,b) = (2,1), c = 1
       mu = mu1(z, xy, 1);
-      dmuz = grad_mu1(z, xy, 1);
+      dmuz.Destroy(); dmuz = grad_mu1(z, xy, 1);
       VT_T(p, nu012(z, xy, 2), nu01_grad_nu01(z, xy, 2),
            nu012_grad_nu012(z, xy, 2), mu, dmuz, VTT_ijk);
       for (int j=0; j<p; j++)
