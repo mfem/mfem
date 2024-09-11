@@ -646,23 +646,28 @@ void HDGFlux::AverageGrad(int side, const Vector &state1, const Vector &state2,
    {
       MFEM_VERIFY(side == 2, "Not implemented");
 #ifdef MFEM_THREAD_SAFE
-      Vector grad_fluxN1(fluxFunction.num_equations);
-      Vector grad_fluxN2(fluxFunction.num_equations);
+      Vector fluxN1(fluxFunction.num_equations);
+      Vector fluxN2(fluxFunction.num_equations);
 #else
-      grad_fluxN1.SetSize(fluxFunction.num_equations);
-      grad_fluxN2.SetSize(fluxFunction.num_equations);
+      fluxN1.SetSize(fluxFunction.num_equations);
+      fluxN2.SetSize(fluxFunction.num_equations);
 #endif
-      const real_t speed1 = Average(state1, state2, nor, Tr, grad_fluxN1);
-      const real_t speed2 = Eval(state1, state2, nor, Tr, grad_fluxN2);
+      const real_t speed1 = fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr,
+                                                            fluxN1);
+      const real_t speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
 
-      MFEM_ASSERT(speed1 == speed2, "Different maximal speeds");
+      // NOTE: nor in general is not a unit normal
+      const real_t maxE = std::max(speed1, speed2);
+      // here, nor.Norml2() is multiplied to match the scale with fluxN
+      const real_t scaledMaxE = maxE * nor.Norml2() * 0.5;
 
       grad = 0.;
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
          if (state1(i) == state2(i)) { continue; }
-         grad(i,i) = (grad_fluxN2(i) - grad_fluxN1(i)) / (state2(i) - state1(i));
+         grad(i,i) = 0.5 * ((fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i))
+                            - scaledMaxE);
       }
 
       return;
