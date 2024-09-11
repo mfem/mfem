@@ -668,12 +668,12 @@ int main(int argc, char *argv[])
 
       {
          // Save the mesh and the solution.
-         ofstream mesh_ofs("distance" + std::to_string(iter) + ".mesh");
-         mesh_ofs.precision(8);
-         pmesh.PrintAsOne(mesh_ofs);
-         ofstream sol_ofs("distance" + std::to_string(iter) + ".gf");
-         sol_ofs.precision(8);
-         distance_v.SaveAsOne(sol_ofs);
+         ofstream mesh_ofs_i("distance" + std::to_string(iter) + ".mesh");
+         mesh_ofs_i.precision(8);
+         pmesh.PrintAsOne(mesh_ofs_i);
+         ofstream sol_ofs_i("distance" + std::to_string(iter) + ".gf");
+         sol_ofs_i.precision(8);
+         distance_v.SaveAsOne(sol_ofs_i);
       }
 
       if (problem == 0) { filt_gf.ProjectCoefficient(*ls_coeff); }
