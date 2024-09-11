@@ -32,6 +32,7 @@ for i in range(len(filenames)):
 	hb = get_ref_option(filename, '--hybridization')
 	upwind = get_ref_option(filename, '--upwinded')
 	nonlin = get_ref_option(filename, '--nonlinear')
+	nonlin_conv = get_ref_option(filename, '--nonlinear-convection')
 
 	def get_ref_param(file, param, default=""):
 		ref_out = subprocess.getoutput("grep ' "+param+"' "+file+"| cut -d ' ' -f 5")
@@ -69,6 +70,8 @@ for i in range(len(filenames)):
 		command_line = command_line+' -up'
 	if nonlin:
 		command_line = command_line+' -nl'
+	if nonlin_conv:
+		command_line = command_line+' -nlc'
 	if kappa != str(1):
 		command_line = command_line+' -k '+kappa
 	if hdg != str(1):
