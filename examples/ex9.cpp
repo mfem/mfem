@@ -188,7 +188,7 @@ protected:
    mutable GridFunctionCoefficient u_coeff;
    mutable GridFunction u_gf;
    mutable DenseMatrix Ke, Me;
-   mutable Vector ue, re, udote, fe, fe_star, gammae;
+   mutable Vector ue, ue_bar, re, udote, fe, fe_star, gammae;
    mutable ConvectionIntegrator conv_int;
    mutable MassIntegrator mass_int;
 
@@ -820,6 +820,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 
       fes.GetElementDofs(e, dofs);
       ue.SetSize(dofs.Size());
+      ue_bar.SetSize(dofs.Size());
       re.SetSize(dofs.Size());
       udote.SetSize(dofs.Size());
       fe.SetSize(dofs.Size());
@@ -831,6 +832,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 
       re = 0.0;
       fe = 0.0;
+      ue_bar = 0.0;
       gammae = 0.0;
       for (int i = 0; i < dofs.Size(); i++)
       {
@@ -846,6 +848,10 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
             // for bounding fluxes
             gammae(i) += dije;
             gammae(j) += dije;
+
+            // add 2dije * uije and 2djie * ujie
+            ue_bar(i) += dije * (ue(i) + ue(j)) - Ke(i,j) * (ue(j) - ue(i));
+            ue_bar(j) += dije * (ue(j) + ue(i)) - Ke(j,i) * (ue(i) - ue(j));
 
             // assemble raw antidifussive fluxes f_{i,e} = sum_j m_{ij,e} (udot_i - udot_j) - d_{ij,e} (u_i - u_j)
             real_t fije = Me(i,j) * (udote(i) - udote(j)) - diffusion;
@@ -866,8 +872,8 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < dofs.Size(); i++)
       {
          // bounding fluxes
-         real_t fie_max = gammae(i) * (umax[dofs[i]] - ue(i));
-         real_t fie_min = gammae(i) * (umin[dofs[i]] - ue(i));
+         real_t fie_max = gammae(i) * umax[dofs[i]] - ue_bar(i);
+         real_t fie_min = gammae(i) * umin[dofs[i]] - ue_bar(i);
 
          fe_star(i) = min(max(fie_min, fe(i)), fie_max);
 

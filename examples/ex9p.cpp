@@ -286,7 +286,7 @@ protected:
    mutable GridFunctionCoefficient u_coeff;
    mutable GridFunction u_gf;
    mutable DenseMatrix Ke, Me;
-   mutable Vector ue, re, udote, fe, fe_star, gammae;
+   mutable Vector ue, ue_bar, re, udote, fe, fe_star, gammae;
    mutable ConvectionIntegrator conv_int;
    mutable MassIntegrator mass_int;
 
@@ -1116,6 +1116,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 
       fes.GetElementDofs(e, dofs);
       ue.SetSize(dofs.Size());
+      ue_bar.SetSize(dofs.Size());
       re.SetSize(dofs.Size());
       udote.SetSize(dofs.Size());
       fe.SetSize(dofs.Size());
@@ -1127,12 +1128,14 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 
       re = 0.0;
       fe = 0.0;
+      ue_bar = 0.0;
       gammae = 0.0;
       for (int i = 0; i < dofs.Size(); i++)
       {
          for (int j = 0; j < i; j++)
          {
             // add low-order diffusion
+            // note that dije = djie
             real_t dije = max(max(Ke(i,j), Ke(j,i)), 0.0);
             real_t diffusion = dije * (ue(j) - ue(i));
 
@@ -1142,8 +1145,13 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
             // for bounding fluxes
             gammae(i) += dije;
             gammae(j) += dije;
-
+            
+            // add 2dije * uije and 2djie * ujie
+            ue_bar(i) += dije * (ue(i) + ue(j)) - Ke(i,j) * (ue(j) - ue(i));
+            ue_bar(j) += dije * (ue(j) + ue(i)) - Ke(j,i) * (ue(i) - ue(j));
+            
             // assemble raw antidifussive fluxes f_{i,e} = sum_j m_{ij,e} (udot_i - udot_j) - d_{ij,e} (u_i - u_j)
+            // note fije = - fjie
             real_t fije = Me(i,j) * (udote(i) - udote(j)) - diffusion;
             fe(i) += fije;
             fe(j) -= fije;
@@ -1154,7 +1162,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       Ke.AddMult(ue, re, -1.0);
 
       gammae *= 2.0;
-
+      
       real_t P_plus = 0.0;
       real_t P_minus = 0.0;
 
@@ -1162,12 +1170,12 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < dofs.Size(); i++)
       {
          // bounding fluxes
-         real_t fie_max = gammae(i) * (umax[dofs[i]] - ue(i));
-         real_t fie_min = gammae(i) * (umin[dofs[i]] - ue(i));
+         real_t fie_max = gammae(i) * umax[dofs[i]] - ue_bar(i);
+         real_t fie_min = gammae(i) * umin[dofs[i]] - ue_bar(i);
 
          fe_star(i) = min(max(fie_min, fe(i)), fie_max);
 
-         // track positive and negative contributions s
+         // track positive and negative contributions
          P_plus += max(fe_star(i), 0.0);
          P_minus += min(fe_star(i), 0.0);
       }
