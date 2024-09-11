@@ -2280,6 +2280,11 @@ public:
    void DegreeElevate(int rel_degree, int degree = 16);
    ///@}
 
+   void SetScaledNCMesh()
+   {
+      ncmesh->usingScaling = true;
+   }
+
    /// @name Print/Save/Export methods
    /// @{
 

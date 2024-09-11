@@ -244,6 +244,7 @@ miniapps/meshing/extruder.mesh
 miniapps/meshing/trimmer.mesh
 miniapps/meshing/reflected.mesh
 miniapps/meshing/ref321.mesh
+miniapps/meshing/sol.gf
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh

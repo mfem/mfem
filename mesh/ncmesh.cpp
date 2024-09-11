@@ -5937,7 +5937,14 @@ bool NCMesh::ZeroRootStates() const
 
 void NCMesh::Print(std::ostream &os, const std::string &comments) const
 {
-   os << "MFEM NC mesh v1.0\n\n";
+   if (usingScaling)
+   {
+      os << "MFEM NC mesh v1.1\n\n";
+   }
+   else
+   {
+      os << "MFEM NC mesh v1.0\n\n";
+   }
 
    if (!comments.empty()) { os << comments << "\n\n"; }
 
