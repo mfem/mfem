@@ -657,18 +657,12 @@ void HDGFlux::AverageGrad(int side, const Vector &state1, const Vector &state2,
 
       MFEM_ASSERT(speed1 == speed2, "Different maximal speeds");
 
-      // NOTE: nor in general is not a unit normal
-      const real_t maxE = std::max(speed1, speed2);
-      // here, nor.Norml2() is multiplied to match the scale with fluxN
-      const real_t scaledMaxE = maxE * nor.Norml2() * 0.5;
-
       grad = 0.;
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
          if (state1(i) == state2(i)) { continue; }
-         grad(i,i) = 0.5 * ((grad_fluxN2(i) - grad_fluxN1(i)) / (state2(i) - state1(i))
-                            - scaledMaxE);
+         grad(i,i) = (grad_fluxN2(i) - grad_fluxN1(i)) / (state2(i) - state1(i));
       }
 
       return;
