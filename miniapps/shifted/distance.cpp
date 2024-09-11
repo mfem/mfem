@@ -258,9 +258,6 @@ void RefineUsingDistance(const ParGridFunction & dist_s,
    Array<Refinement> refs;  // Refinement is defined in ncmesh.hpp
    Array<real_t> refDist;
 
-   int numV = 0;
-   int numE = 0;
-
    for (int el=0; el<pmesh->GetNE(); ++el)
    {
       IntegrationPoint ip;
@@ -341,7 +338,7 @@ void RefineUsingDistance(const ParGridFunction & dist_s,
          const real_t iTol = 1.0e-6 * elMaxDist;
          const bool intersection = v[0] * v[3] < -iTol || v[1] * v[2] < -iTol;
 
-         const real_t minLength = GetMinimumElementEdgeLength(*pmesh, el);
+         //const real_t minLength = GetMinimumElementEdgeLength(*pmesh, el);
          const real_t maxLength = GetMaximumElementEdgeLength(*pmesh, el);
 
          // Do not refine an element more than the element's diameter away from the zero set.
@@ -360,7 +357,6 @@ void RefineUsingDistance(const ParGridFunction & dist_s,
          else
          {
             // Find the vertex or edge closest to the zero set.
-            const real_t distDiff = elMaxDist - elMinDist;
             std::set<int> closeVertices;
             for (int i=0; i<4; ++i)
             {
@@ -378,27 +374,25 @@ void RefineUsingDistance(const ParGridFunction & dist_s,
             if (numCloseVertices == 1)
             {
                // Refine close to the vertex.
-               const int id = *closeVertices.begin();
-               const int ix = id / 2;
-               const int iy = id - (2 * ix);
+               const int idx = *closeVertices.begin();
+               const int ix = idx / 2;
+               const int iy = idx - (2 * ix);
 
                const real_t sx = ix == 0 ? a : 1.0 - a;
                const real_t sy = iy == 0 ? a : 1.0 - a;
 
                refs.Append(Refinement(el, Refinement::XY, sx, sy));
                refDist.Append(elAvgDist);
-
-               numV++;
             }
             else
             {
                // Refine close to the edge.
                int vij[2][2];
                int cnt = 0;
-               for (auto id : closeVertices)
+               for (auto idx : closeVertices)
                {
-                  const int ix = id / 2;
-                  const int iy = id - (2 * ix);
+                  const int ix = idx / 2;
+                  const int iy = idx - (2 * ix);
 
                   vij[cnt][0] = ix;
                   vij[cnt][1] = iy;
@@ -421,8 +415,6 @@ void RefineUsingDistance(const ParGridFunction & dist_s,
                }
 
                refs.Append(Refinement(el, type, sx, sy));
-
-               numE++;
             }
          }
       }
