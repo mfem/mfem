@@ -681,24 +681,24 @@ int test_diffusion_integrator(std::string mesh_file,
       return 1;
    }
 
-   // // Test linearization here as well
-   // auto dFdu = dop.GetDerivativeWrt<0>({&f1_g}, {&rho_g, mesh_nodes});
+   // Test linearization here as well
+   auto dFdu = dop.GetDerivativeWrt<0>({&f1_g}, {mesh_nodes});
 
-   // if (dFdu->Height() != h1fes.GetTrueVSize())
-   // {
-   //    out << "dFdu unexpected height of " << dFdu->Height() << "\n";
-   //    return 1;
-   // }
+   if (dFdu->Height() != h1fes.GetTrueVSize())
+   {
+      out << "dFdu unexpected height of " << dFdu->Height() << "\n";
+      return 1;
+   }
 
-   // dFdu->Mult(x, y);
-   // a.Mult(x, y2);
-   // y2 -= y;
-   // out << "||dFdu x - A x||_l2 = " << y2.Norml2() << "\n";
-   // if (y2.Norml2() > 1e-10)
-   // {
-   //    out << "||dFdu u^* - ex||_l2 = " << y2.Norml2() << "\n";
-   //    return 1;
-   // }
+   dFdu->Mult(x, y);
+   a.Mult(x, y2);
+   y2 -= y;
+   out << "||dFdu x - A x||_l2 = " << y2.Norml2() << "\n";
+   if (y2.Norml2() > 1e-10)
+   {
+      out << "||dFdu u^* - ex||_l2 = " << y2.Norml2() << "\n";
+      return 1;
+   }
 
    // // fd jacobian test
    // {

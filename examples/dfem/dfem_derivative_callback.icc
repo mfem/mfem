@@ -29,166 +29,199 @@ void DifferentiableOperator<kernels_tuple,
    constexpr int hardcoded_output_idx = 0;
    const int test_space_field_idx = koutput_to_field[hardcoded_output_idx];
 
-   auto output_fop = std::get<0>(kernel.outputs);
-
-   const int num_el = op.mesh.GetNE();
-   const int num_qp = op.integration_rule.GetNPoints();
-
-   // assume only a single element type for now
-   std::vector<const DofToQuad*> dtqmaps;
-   for (const auto &field : op.fields)
-   {
-      dtqmaps.emplace_back(GetDofToQuad<entity_t>(field, op.integration_rule,
-                                                  doftoquad_mode));
-   }
-
-   derivative_action_e.SetSize(GetVDim(op.fields[test_space_field_idx]) * num_el *
-                               num_qp);
-
-   const int da_size_on_qp = GetSizeOnQP<entity_t>(std::get<0>(kernel.outputs),
-                                                   op.fields[test_space_field_idx]);
-
-   da_qp_mem.SetSize(da_size_on_qp * num_qp * num_el);
-
-   // Allocate memory for fields on quadrature points
-   auto input_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
-                                              std::make_index_sequence<kernel.num_kinputs> {});
-
-   auto directions_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
-                                                   std::make_index_sequence<kernel.num_kinputs> {});
-
-   auto input_dtq_maps = create_dtq_maps<entity_t>(kernel.inputs, dtqmaps,
-                                                   kinput_to_field);
-   auto output_dtq_maps = create_dtq_maps<entity_t>(kernel.outputs, dtqmaps,
-                                                    koutput_to_field);
-
-   for (auto &d_qp_mem : directions_qp_mem)
-   {
-      d_qp_mem = 0.0;
-   }
-
    const Operator *R = get_restriction<entity_t>(op.fields[test_space_field_idx],
                                                  element_dof_ordering);
 
-   func = [this, kernel, num_el, num_qp, input_dtq_maps, output_dtq_maps,
-                 dtqmaps, da_size_on_qp, input_qp_mem, directions_qp_mem,
-                 kinput_to_field, koutput_to_field, output_fop, R]
-   (Vector &ye_mem) mutable
+   auto output_fop = serac::get<hardcoded_output_idx>(kernel.outputs);
+
+   const int num_elements = GetNumEntities<Entity::Element>(op.mesh);
+   const int num_entities = GetNumEntities<entity_t>(op.mesh);
+   const int num_qp = op.integration_rule.GetNPoints();
+
+   // assume only a single element type for now
+   std::vector<const DofToQuad*> dtq;
+   for (const auto &field : op.fields)
    {
-      restriction<entity_t>(directions, directions_l, directions_e,
-                            op.element_dof_ordering, derivative_idx);
+      dtq.emplace_back(GetDofToQuad<entity_t>(field, op.integration_rule,
+                                              doftoquad_mode));
+   }
+   const int q1d = dtq[0]->nqpt;
 
-      // Check which qf inputs are dependent on the dependent variable
-      std::array<bool, kernel.num_kinputs> kinput_is_dependent;
-      bool no_qfinput_is_dependent = true;
-      for (int i = 0; i < kinput_is_dependent.size(); i++)
+   derivative_action_e.SetSize(R->Height());
+
+   const int da_size_on_qp = GetSizeOnQP<entity_t>(
+                                serac::get<hardcoded_output_idx>(kernel.outputs),
+                                op.fields[test_space_field_idx]);
+
+   auto input_dtq_maps = create_dtq_maps<entity_t>(kernel.inputs, dtq,
+                                                   kinput_to_field);
+   auto output_dtq_maps = create_dtq_maps<entity_t>(kernel.outputs, dtq,
+                                                    koutput_to_field);
+
+   auto input_fops = create_bare_fops(kernel.inputs);
+   auto output_fops = create_bare_fops(kernel.outputs);
+
+   const int test_vdim = serac::get<hardcoded_output_idx>(output_fops).vdim;
+   const int test_op_dim =
+      serac::get<hardcoded_output_idx>(output_fops).size_on_qp /
+      serac::get<hardcoded_output_idx>(output_fops).vdim;
+   const int num_test_dof = R->Height() /
+                            serac::get<hardcoded_output_idx>(output_fops).vdim /
+                            num_entities;
+
+   auto ir_weights = Reshape(this->op.integration_rule.GetWeights().Read(),
+                             num_qp);
+
+   auto input_size_on_qp = get_input_size_on_qp(kernel.inputs,
+                                                std::make_index_sequence<kernel.num_kinputs> {});
+
+   // Check which qf inputs are dependent on the dependent variable
+   std::array<bool, kernel.num_kinputs> kinput_is_dependent;
+   bool no_kinput_is_dependent = true;
+   for (int i = 0; i < kinput_is_dependent.size(); i++)
+   {
+      if (kinput_to_field[i] == derivative_idx)
       {
-         if (kinput_to_field[i] == derivative_idx)
-         {
-            no_qfinput_is_dependent = false;
-            kinput_is_dependent[i] = true;
-            // out << "function input " << i << " is dependent on "
-            //     << op.fields[kinput_to_field[i]].field_label << "\n";
-         }
-         else
-         {
-            kinput_is_dependent[i] = false;
-         }
+         no_kinput_is_dependent = false;
+         kinput_is_dependent[i] = true;
+         out << "function input " << i << " is dependent on "
+             << op.fields[kinput_to_field[i]].field_label << "\n";
       }
+      else
+      {
+         kinput_is_dependent[i] = false;
+      }
+   }
 
-      if (no_qfinput_is_dependent)
+   bool with_derivatives = true;
+   auto shmem_info = get_shmem_info<entity_t>(input_dtq_maps,
+                                              output_dtq_maps,
+                                              op.fields,
+                                              num_entities,
+                                              kernel.inputs,
+                                              num_qp,
+                                              input_size_on_qp,
+                                              da_size_on_qp,
+                                              derivative_idx);
+
+   Vector shmem_cache(shmem_info.total_size);
+
+   // print_shared_memory_info(shmem_info);
+
+   func = [=](Vector &ye_mem) mutable
+   {
+      if (no_kinput_is_dependent)
       {
          return;
       }
 
-      const auto da_qp = Reshape(da_qp_mem.ReadWrite(), da_size_on_qp, num_qp, num_el);
+      restriction<entity_t>(direction, direction_l, direction_e,
+                            op.element_dof_ordering);
 
-      auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
-      auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+      auto ye = Reshape(ye_mem.Write(), num_test_dof, test_vdim, num_entities);
+      auto wrapped_fields_e = wrap_fields(this->fields_e, shmem_info.field_sizes, num_entities);
+      auto wrapped_direction_e = Reshape(direction_e.Read(), shmem_info.direction_size, num_entities);
 
-      DeviceTensor<1, const double> integration_weights(
-         this->op.integration_rule.GetWeights().Read(), num_qp);
-
-      Vector zero;
-      GeometricFactorMaps geometric_factors
+      forall([=] MFEM_HOST_DEVICE (int e, double *shmem)
       {
-         DeviceTensor<3, const double>(zero.Read(), 0, 0, 0)
-      };
+         auto input_dtq_shmem = load_dtq_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
+            shmem_info.input_dtq_sizes,
+            input_dtq_maps);
 
-      // Fields interpolated to the quadrature points in the order of
-      // kernel function arguments
-      auto input_qp = map_inputs_to_memory(input_qp_mem, num_qp,
-                                           kernel.inputs,
-                                           std::make_index_sequence<kernel.num_kinputs> {});
+         auto output_dtq_shmem = load_dtq_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
+            shmem_info.output_dtq_sizes,
+            output_dtq_maps);
 
-      auto directions_qp = map_inputs_to_memory(directions_qp_mem, num_qp,
-                                                kernel.inputs,
-                                                std::make_index_sequence<kernel.num_kinputs> {});
+         auto fields_shmem = load_field_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::FIELD],
+            shmem_info.field_sizes,
+            kinput_to_field,
+            wrapped_fields_e,
+            e);
 
-      constexpr int fixed_output_idx = 0;
-      auto Bv = output_dtq_maps[fixed_output_idx];
-      auto [num_test_qp, test_op_dim, num_test_dof] = Bv.GetShape();
-      const int test_vdim = std::get<0>(kernel.outputs).vdim;
-      DeviceTensor<3> ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_el);
+         auto direction_shmem = load_direction_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::DIRECTION],
+            shmem_info.direction_size,
+            wrapped_direction_e,
+            e);
 
-      for (int e = 0; e < num_el; e++)
-      {
-         map_fields_to_quadrature_data(
-            input_qp, e, this->fields_e,
-            kinput_to_field, input_dtq_maps,
-            integration_weights, geometric_factors, kernel.inputs,
+         // These methods don't copy, they simply create a `DeviceTensor` object
+         // that points to correct chunks of the shared memory pool.
+         auto input_shmem = load_input_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::INPUT],
+            shmem_info.input_sizes,
+            num_qp);
+
+         auto shadow_shmem = load_input_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::SHADOW],
+            shmem_info.input_sizes,
+            num_qp);
+
+         auto residual_shmem = load_residual_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::OUTPUT],
+            shmem_info.residual_size,
+            num_qp);
+
+         auto scratch_mem = load_scratch_mem(
+            shmem,
+            shmem_info.offsets[SharedMemory::Index::TEMP],
+            shmem_info.temp_sizes);
+
+         map_fields_to_quadrature_data<TensorProduct>(
+            input_shmem, fields_shmem, input_dtq_shmem, input_fops, ir_weights, scratch_mem,
+         std::make_index_sequence<kernel.num_kinputs> {});
+
+         zero_all(shadow_shmem);
+         map_direction_to_quadrature_data_conditional<TensorProduct>(
+            shadow_shmem, direction_shmem, input_dtq_shmem, input_fops, ir_weights,
+            scratch_mem, kinput_is_dependent,
             std::make_index_sequence<kernel.num_kinputs> {});
 
-         map_fields_to_quadrature_data_conditional(
-            directions_qp, e,
-            directions_e, kinput_to_field,
-            input_dtq_maps,
-            integration_weights,
-            geometric_factors,
-            kinput_is_dependent,
-            kernel.inputs,
-            std::make_index_sequence<kernel.num_kinputs> {});
-
-         for (int qp = 0; qp < num_qp; qp++)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            auto f_qp = apply_kernel_fwddiff_enzyme(
-                           kernel.func,
-                           kernel_args,
-                           input_qp,
-                           kernel_shadow_args,
-                           directions_qp,
-                           qp);
-
-            // f_qp = apply_kernel_fwddiff_dual(
-            //           kernel.func,
-            //           kernel_args,
-            //           input_qp,
-            //           directions_qp,
-            //           qp);
-
-            auto r_qp = Reshape(&da_qp(0, qp, e), da_size_on_qp);
-            for (int i = 0; i < da_size_on_qp; i++)
+            MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               r_qp(i) = f_qp(i);
+               const int q = qy + qx * q1d;
+
+               auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+               auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+
+               auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
+               apply_kernel_fwddiff_enzyme(
+                  r,
+                  kernel.func,
+                  kernel_args,
+                  input_shmem,
+                  kernel_shadow_args,
+                  shadow_shmem,
+                  q);
+               // printf(">>>>> WARNING: AD DISABLED\n");
             }
          }
+         MFEM_SYNC_THREAD;
 
-         DeviceTensor<3> fhat = Reshape(&da_qp(0, 0, e), test_vdim, test_op_dim, num_qp);
-         DeviceTensor<2> y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-         map_quadrature_data_to_fields(y, fhat,
-                                       output_fop,
-                                       output_dtq_maps[hardcoded_output_idx]);
-         R->MultTranspose(ye_mem, derivative_action_l);
-      }
+         auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
+         auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
+         map_quadrature_data_to_fields<mfem::TensorProduct>(y, fhat,
+                                                            serac::get<0>(output_fops),
+                                                            output_dtq_shmem[hardcoded_output_idx],
+                                                            scratch_mem);
+      }, num_entities, q1d, q1d, 1, shmem_info.total_size, shmem_cache.GetData());
+
+      R->MultTranspose(ye_mem, derivative_action_l);
    };
 
    if constexpr (std::is_same_v<decltype(output_fop), One>)
    {
-      restriction_transpose = [](Vector &r_e, Vector &y)
-      {
-         y = r_e;
-      };
-
       prolongation_transpose = [&](Vector &r_local, Vector &y)
       {
          double local_sum = r_local.Sum();
@@ -199,17 +232,10 @@ void DifferentiableOperator<kernels_tuple,
    }
    else
    {
-      auto R = get_element_restriction(op.fields[test_space_field_idx],
-                                       element_dof_ordering);
-      restriction_transpose = [R](Vector &r_e, Vector &y)
-      {
-         R->MultTranspose(r_e, y);
-      };
-
       auto P = get_prolongation(op.fields[test_space_field_idx]);
-      prolongation_transpose = [P](Vector &r_l, Vector &y)
+      prolongation_transpose = [P](const Vector &r_local, Vector &y)
       {
-         P->MultTranspose(r_l, y);
+         P->MultTranspose(r_local, y);
       };
    }
 }

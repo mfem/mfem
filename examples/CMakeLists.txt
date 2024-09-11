@@ -57,6 +57,13 @@ if (MFEM_USE_MPI)
     test_dfem.cpp
     dfem_laghos.cpp
     dfem_minimal_example.cpp
+    dfem_test_diffusion.cpp
+    dfem_test_ordering.cpp
+    dfem_test_vector_diffusion.cpp
+    dfem_test_elasticity.cpp
+    dfem_test_nonlinear_diffusion.cpp
+    dfem_test_interpolate_linear_scalar.cpp
+    dfem_test_interpolate_linear_vector.cpp
     ex0p.cpp
     ex1p.cpp
     ex2p.cpp

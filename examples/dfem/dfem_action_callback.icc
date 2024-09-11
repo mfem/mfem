@@ -1,3 +1,5 @@
+#include "examples/dfem/dfem.hpp"
+#include "general/backends.hpp"
 template <
    typename kernels_tuple,
    size_t num_solutions,
@@ -30,7 +32,7 @@ void DifferentiableOperator<kernels_tuple,
    const Operator *R = get_restriction<entity_t>(op.fields[test_space_field_idx],
                                                  element_dof_ordering);
 
-   auto output_fop = serac::get<0>(kernel.outputs);
+   auto output_fop = serac::get<hardcoded_output_idx>(kernel.outputs);
 
    const int num_elements = GetNumEntities<Entity::Element>(op.mesh);
    const int num_entities = GetNumEntities<entity_t>(op.mesh);
@@ -68,13 +70,6 @@ void DifferentiableOperator<kernels_tuple,
                                       serac::get<hardcoded_output_idx>(kernel.outputs),
                                       op.fields[test_space_field_idx]);
 
-   residual_qp_mem.SetSize(residual_size_on_qp * num_qp * num_entities);
-
-   // Allocate memory for fields on quadrature points
-   auto input_qp_global_mem = create_input_qp_memory(num_qp, num_entities,
-                                                     kernel.inputs,
-                                                     std::make_index_sequence<kernel.num_kinputs> {});
-
    auto input_dtq_maps = create_dtq_maps<entity_t>(kernel.inputs, dtq,
                                                    kinput_to_field);
    auto output_dtq_maps = create_dtq_maps<entity_t>(kernel.outputs, dtq,
@@ -91,20 +86,8 @@ void DifferentiableOperator<kernels_tuple,
                             serac::get<hardcoded_output_idx>(output_fops).vdim /
                             num_entities;
 
-   GeometricFactorMaps geometric_factors =
-      GetGeometricFactorMaps<entity_t>(op.mesh, op.integration_rule);
-
-   auto r_qp = Reshape(residual_qp_mem.ReadWrite(),
-                       residual_size_on_qp, num_qp);
    auto ir_weights = Reshape(this->op.integration_rule.GetWeights().Read(),
                              num_qp);
-
-   // TODO: replace by shared mem
-   // Fields interpolated to the quadrature points in the order of
-   // kernel function arguments
-   // auto input_qp_global = wrap_input_memory(input_qp_global_mem, num_qp,
-   //                                          num_entities, kernel.inputs,
-   //                                          std::make_index_sequence<kernel.num_kinputs> {});
 
    auto input_size_on_qp = get_input_size_on_qp(kernel.inputs,
                                                 std::make_index_sequence<kernel.num_kinputs> {});
@@ -120,45 +103,7 @@ void DifferentiableOperator<kernels_tuple,
 
    Vector shmem_cache(shmem_info.total_size);
 
-   out << "Shared Memory Info\n"
-       << "total size: " << shmem_info.total_size;
-   out << "\ninput dtq sizes: ";
-   for (auto &i : shmem_info.input_dtq_sizes)
-   {
-      for (auto &j : i)
-      {
-         out << j << " ";
-      }
-   }
-   out << "\noutput dtq sizes: ";
-   for (auto &i : shmem_info.output_dtq_sizes)
-   {
-      for (auto &j : i)
-      {
-         out << j << " ";
-      }
-   }
-   out << "\nfield sizes: ";
-   for (auto &i : shmem_info.field_sizes)
-   {
-      out << i << " ";
-   }
-   out << "\ninput sizes: ";
-   for (auto &i : shmem_info.input_sizes)
-   {
-      out << i << " ";
-   }
-   out << "\ntemp sizes: ";
-   for (auto &i : shmem_info.temp_sizes)
-   {
-      out << i << " ";
-   }
-   out << "\noffsets: ";
-   for (auto &i : shmem_info.offsets)
-   {
-      out << i << " ";
-   }
-   out << "\n";
+   // print_shared_memory_info(shmem_info);
 
    func = [=](Vector &ye_mem) mutable
    {
@@ -168,10 +113,10 @@ void DifferentiableOperator<kernels_tuple,
                             op.element_dof_ordering,
                             op.solutions.size());
 
-      auto ye = Reshape(ye_mem.Write(), num_test_dof, test_vdim, num_entities);
+      auto ye = Reshape(ye_mem.Write(), test_vdim, num_test_dof, num_entities);
       auto wrapped_fields_e = wrap_fields(this->fields_e, shmem_info.field_sizes, num_entities);
 
-      forall([=] MFEM_HOST_DEVICE (int e, double *shmem)
+      forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
          auto input_dtq_shmem = load_dtq_mem(
             shmem,
@@ -203,7 +148,7 @@ void DifferentiableOperator<kernels_tuple,
 
          auto residual_shmem = load_residual_mem(
             shmem,
-            shmem_info.offsets[SharedMemory::Index::RESIDUAL],
+            shmem_info.offsets[SharedMemory::Index::OUTPUT],
             shmem_info.residual_size,
             num_qp);
 
@@ -213,16 +158,14 @@ void DifferentiableOperator<kernels_tuple,
             shmem_info.temp_sizes);
 
          map_fields_to_quadrature_data<mfem::TensorProduct>(
-            input_shmem, fields_shmem,
-            kinput_to_field, input_dtq_shmem,
-            ir_weights, input_fops, scratch_mem,
+            input_shmem, fields_shmem, input_dtq_shmem, input_fops, ir_weights, scratch_mem,
          std::make_index_sequence<kernel.num_kinputs> {});
 
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               const int q = qx + qy * q1d;
+               const int q = qy + qx * q1d;
 
                auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
                auto r = Reshape(&residual_shmem(0, q), residual_size_on_qp);
@@ -233,22 +176,31 @@ void DifferentiableOperator<kernels_tuple,
 
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-         map_quadrature_data_to_fields<mfem::TensorProduct>(y, fhat,
-                                                            serac::get<0>(output_fops),
-                                                            output_dtq_shmem[hardcoded_output_idx],
-                                                            scratch_mem);
+         map_quadrature_data_to_fields<TensorProduct>(y, fhat,
+                                                      serac::get<0>(output_fops),
+                                                      output_dtq_shmem[hardcoded_output_idx],
+                                                      scratch_mem);
       }, num_entities, q1d, q1d, 1, shmem_info.total_size, shmem_cache.GetData());
 
-      R->MultTranspose(ye_mem, residual_l);
+      if constexpr (std::is_same_v<decltype(output_fop), None>)
+      {
+         residual_l = ye_mem;
+      }
+      else
+      {
+         R->MultTranspose(ye_mem, residual_l);
+      }
    };
 
-   if constexpr (std::is_same_v<decltype(output_fop), One>)
+   if constexpr (std::is_same_v<decltype(output_fop), None>)
    {
-      restriction_transpose = [](Vector &r_e, Vector &y)
+      prolongation_transpose = [&](Vector &r_local, Vector &y)
       {
-         y = r_e;
+         y = r_local;
       };
-
+   }
+   else if constexpr (std::is_same_v<decltype(output_fop), One>)
+   {
       prolongation_transpose = [&](Vector &r_local, Vector &y)
       {
          double local_sum = r_local.Sum();
