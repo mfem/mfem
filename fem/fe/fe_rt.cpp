@@ -1518,7 +1518,7 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    real_t x = ip.x;
    real_t y = ip.y;
    real_t z = ip.z;
-   Vector xy({x,y}), dmuz(3);
+   Vector xy({x,y}), dmuz;
    real_t mu;
 
    if (std::fabs(1.0 - z) < 1e-8)
