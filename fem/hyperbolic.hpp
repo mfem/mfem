@@ -419,6 +419,11 @@ public:
    void AverageGrad(int side, const Vector &state1, const Vector &state2,
                     const Vector &nor, FaceElementTransformations &Tr,
                     DenseMatrix &grad) const override;
+
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector grad_fluxN1, grad_fluxN2;
+#endif
 };
 
 class AdvectionFlux : public FluxFunction
