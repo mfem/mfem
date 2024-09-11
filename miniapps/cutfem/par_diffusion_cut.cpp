@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
     }
     //Mesh mesh(mesh_file, 1, 1);
 
-    Mesh mesh = Mesh::MakeCartesian2D( 4*2, 4 , mfem::Element::Type::QUADRILATERAL, true, 1, 0.5);
+    Mesh mesh = Mesh::MakeCartesian2D( 2*2, 2 , mfem::Element::Type::QUADRILATERAL, true, 1, 0.5);
 
     int dim = mesh.Dimension();
     {
