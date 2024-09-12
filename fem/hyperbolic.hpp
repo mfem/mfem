@@ -410,7 +410,7 @@ public:
    /**
     * @brief  Jacobian of average numerical flux over the interval [u⁻, u⁺] in
     * the second argument of the flux F̂(u⁻,u,x) n
-    * @note The average flux normal F̄ n is required to be implemented in
+    * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺),
