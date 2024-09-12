@@ -12,8 +12,6 @@
 // Implementation of Bilinear Form Integrators
 
 #include "fem.hpp"
-#include "../linalg/dtensor.hpp"
-#include "../general/forall.hpp"
 #include <cmath>
 #include <algorithm>
 #include <memory>
