@@ -514,19 +514,17 @@ int main (int argc, char *argv[])
       surf_fit_mat_gf.SetFromTrueVector();
 
       // Set DOFs for fitting
+      surf_fit_marker = false;
+      surf_fit_mat_gf = 0.;
+
       // Strategy 1: Choose face between elements of different attributes.
       if (marking_type == 0)
       {
          mat.ExchangeFaceNbrData();
          const Vector &FaceNbrData = mat.FaceNbrData();
-         for (int j = 0; j < surf_fit_marker.Size(); j++)
-         {
-            surf_fit_marker[j] = false;
-         }
-         surf_fit_mat_gf = 0.0;
-
          Array<int> dof_list;
          Array<int> dofs;
+
          for (int i = 0; i < pmesh->GetNumFaces(); i++)
          {
             auto tr = pmesh->GetInteriorFaceTransformations(i);

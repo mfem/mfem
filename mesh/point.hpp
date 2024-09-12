@@ -30,7 +30,7 @@ public:
    Point() : Element(Geometry::POINT) {}
 
    /// Constructs point by specifying the indices and the attribute.
-   Point( const int *ind, int attr = -1 );
+   Point(const int *ind, int attr = 1);
 
    /// Return element's type.
    Type GetType() const override { return Element::POINT; }
@@ -42,7 +42,7 @@ public:
    void SetVertices(const Array<int> &v) override;
 
    /// @note The returned array should NOT be deleted by the caller.
-   int * GetVertices () override { return indices; }
+   int *GetVertices() override { return indices; }
 
    /// Set the vertices according to the given input.
    void SetVertices(const int *ind) override;
@@ -64,7 +64,7 @@ public:
    const int *GetFaceVertices(int fi) const override { return NULL; }
 
    Element *Duplicate(Mesh *m) const override
-   { return new Point (indices, attribute); }
+   { return new Point(indices, attribute); }
 
    virtual ~Point() = default;
 };

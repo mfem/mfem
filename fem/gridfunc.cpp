@@ -2435,8 +2435,6 @@ void GridFunction::ProjectCoefficient(
    ElementTransformation *T = NULL;
    const FiniteElement *fe = NULL;
 
-   fes->BuildDofToArrays(); // ensures GetElementForDof(), GetLocalDofForDof() initialized.
-
    for (int i = 0; i < dofs.Size(); i++)
    {
       int dof = dofs[i], j = fes->GetElementForDof(dof);
@@ -2512,8 +2510,6 @@ void GridFunction::ProjectCoefficient(
    const FiniteElement *fe = NULL;
 
    Vector val;
-
-   fes->BuildDofToArrays(); // ensures GetElementForDof(), GetLocalDofForDof() initialized.
 
    for (int i = 0; i < dofs.Size(); i++)
    {
@@ -4577,6 +4573,11 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    else if (!strncmp(name, "L2_", 3))
    {
       solfec2d = new L2_FECollection(atoi(name + 7), 2);
+   }
+   else if (!strncmp(name, "L2Int_", 6))
+   {
+      solfec2d = new L2_FECollection(atoi(name + 7), 2, BasisType::GaussLegendre,
+                                     FiniteElement::INTEGRAL);
    }
    else
    {
