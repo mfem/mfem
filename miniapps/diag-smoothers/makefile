@@ -50,6 +50,8 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 .SUFFIXES: .o .cpp .mk
 .PHONY: all lib-common copy_meshes clean clean-build clean-exec
 
+all: copy_meshes $(MINIAPPS)
+
 # Remove built-in rule
 %: %.cpp
 
@@ -79,19 +81,17 @@ copy_meshes: $(MESHES_DEST_DIR) $(addprefix $(MESHES_DEST_DIR)/, $(notdir $(SRC_
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common $(MESHES_DEST_DIR)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
-all: copy_meshes $(MINIAPPS)
-
 lpq-jacobi: lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
 	$(MFEM_CXX) $(MFEM_FLAGS) lpq-jacobi.cpp lpq-common.cpp -o lpq-jacobi $(COMMON_LIB) $(MFEM_LIBS)
 
 mg-lpq-jacobi: mg-lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
 	$(MFEM_CXX) $(MFEM_FLAGS) mg-lpq-jacobi.cpp lpq-common.cpp -o mg-lpq-jacobi $(COMMON_LIB) $(MFEM_LIBS)
 
-abs-l1-partial: abs-l1-jacobi.cpp lpq-common.cpp lpq-common.hpp
-	$(MFEM_CXX) $(MFEM_FLAGS) abs-l1-jacobi.cpp lpq-common.cpp -o abs-l1-partial $(COMMON_LIB) $(MFEM_LIBS)
+abs-l1-jacobi: abs-l1-jacobi.cpp lpq-common.cpp lpq-common.hpp
+	$(MFEM_CXX) $(MFEM_FLAGS) abs-l1-jacobi.cpp lpq-common.cpp -o abs-l1-jacobi $(COMMON_LIB) $(MFEM_LIBS)
 
-mg-abs-l1-partial: mg-abs-l1-jacobi.cpp lpq-common.cpp lpq-common.hpp
-	$(MFEM_CXX) $(MFEM_FLAGS) mg-abs-l1-jacobi.cpp lpq-common.cpp -o mg-abs-l1-partial $(COMMON_LIB) $(MFEM_LIBS)
+mg-abs-l1-jacobi: mg-abs-l1-jacobi.cpp lpq-common.cpp lpq-common.hpp
+	$(MFEM_CXX) $(MFEM_FLAGS) mg-abs-l1-jacobi.cpp lpq-common.cpp -o mg-abs-l1-jacobi $(COMMON_LIB) $(MFEM_LIBS)
 
 # Create the destination directory if it doesn't exist
 $(MESHES_DEST_DIR):
@@ -129,7 +129,9 @@ clean: clean-build clean-exec
 clean-build:
 	@echo "Cleaning build files..."
 	rm -f *.o *~ lpq-jacobi
+	rm -f *.o *~ abs-l1-jacobi
 	rm -f *.o *~ mg-lpq-jacobi
+	rm -f *.o *~ mg-abs-l1-jacobi
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
