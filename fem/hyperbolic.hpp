@@ -433,6 +433,47 @@ protected:
 #endif
 };
 
+/**
+ * @brief Godunov flux,
+ *    F̂ n = min F(u)n    for u⁻ ≤ u⁺, u ∈ [a,b]
+ *    F̂ n = max F(u)n    for u⁻ > u⁺, u ∈ [b,a]
+ * @note The implementation assumes non-decreasing F in u
+ */
+class GodunovFlux : public RiemannSolver
+{
+public:
+   GodunovFlux(const FluxFunction &fluxFunction)
+      : RiemannSolver(fluxFunction)
+   {
+#ifndef MFEM_THREAD_SAFE
+      fluxN1.SetSize(fluxFunction.num_equations);
+      fluxN2.SetSize(fluxFunction.num_equations);
+#endif
+   }
+
+   /**
+    * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n
+    *
+    * @param[in] state1 state value (u⁻) at a point from the first element
+    * (num_equations)
+    * @param[in] state2 state value (u⁺) at a point from the second element
+    * (num_equations)
+    * @param[in] nor normal vector (not a unit vector) (dim)
+    * @param[in] Tr face element transformation
+    * @param[out] flux F̂ n = min(F(u⁻)n, F(u⁺,x)n)    for u⁻ ≤ u⁺
+    *               or F̂ n = max(F(u⁻)n, F(u⁺,x)n)    for u⁻ > u⁺
+    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    */
+   real_t Eval(const Vector &state1, const Vector &state2,
+               const Vector &nor, FaceElementTransformations &Tr,
+               Vector &flux) const override;
+
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector fluxN1, fluxN2;
+#endif
+};
+
 class HDGFlux : public RusanovFlux
 {
 public:
