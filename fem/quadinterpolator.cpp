@@ -719,6 +719,7 @@ void QuadratureInterpolator::AbsMult(const Vector &e_vec,
       geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
    }
 
+   MFEM_CONTRACT_VAR(dim);
    MFEM_ASSERT(!(eval_flags & DETERMINANTS) || dim == vdim ||
                (dim == 2 && vdim == 3), "Invalid dimensions for determinants.");
    MFEM_ASSERT(fespace->GetMesh()->GetNumGeometries(
