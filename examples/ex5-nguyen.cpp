@@ -134,6 +134,7 @@ int main(int argc, char *argv[])
    real_t k = 1.;
    real_t c = 1.;
    real_t td = 0.5;
+   bool bc_neumann = false;
    bool hybridization = false;
    bool nonlinear = false;
    bool nonlinear_conv = false;
@@ -177,6 +178,8 @@ int main(int argc, char *argv[])
                   "Convection velocity");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
+   args.AddOption(&bc_neumann, "-bcn", "--bc-neumann", "-no-bcn",
+                  "--no-bc-neumann", "Enable Neumann outflow boundary condition.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&nonlinear, "-nl", "--nonlinear", "-no-nl",
@@ -294,6 +297,11 @@ int main(int argc, char *argv[])
       case Problem::SteadyAdvectionDiffusion:
       case Problem::SteadyBurgers:
          //free (zero Dirichlet)
+         if(bc_neumann)
+         {
+            bdr_is_neumann[1] = -1;//outflow
+            bdr_is_neumann[2] = -1;//outflow
+         }
          break;
       case Problem::SteadyAdvection:
          bdr_is_dirichlet[3] = -1;//inflow
