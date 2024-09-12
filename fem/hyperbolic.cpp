@@ -581,7 +581,7 @@ real_t RusanovFlux::Eval(const Vector &state1, const Vector &state2,
    const real_t scaledMaxE = maxE * nor.Norml2();
    for (int i = 0; i < fluxFunction.num_equations; i++)
    {
-      flux[i] = 0.5*(scaledMaxE*(state1[i] - state2[i]) + (fluxN1[i] + fluxN2[i]));
+      flux(i) = 0.5*(scaledMaxE*(state1(i) - state2(i)) + (fluxN1(i) + fluxN2(i)));
    }
    return maxE;
 }
@@ -602,7 +602,7 @@ real_t RusanovFlux::Average(const Vector &state1, const Vector &state2,
    const real_t scaledMaxE = maxE * nor.Norml2() * 0.5;
    for (int i = 0; i < fluxFunction.num_equations; i++)
    {
-      flux[i] = 0.5*(scaledMaxE*(state1[i] - state2[i]) + (fluxN1[i] + fluxN2[i]));
+      flux(i) = 0.5*(scaledMaxE*(state1(i) - state2(i)) + (fluxN1(i) + fluxN2(i)));
    }
    return maxE;
 }
@@ -652,13 +652,13 @@ real_t GodunovFlux::Eval(const Vector &state1, const Vector &state2,
 
    for (int i = 0; i < fluxFunction.num_equations; i++)
    {
-      if (state1[i] <= state2[i])
+      if (state1(i) <= state2(i))
       {
-         flux[i] = std::min(fluxN1[i], fluxN2[i]);
+         flux(i) = std::min(fluxN1(i), fluxN2(i));
       }
       else
       {
-         flux[i] = std::max(fluxN1[i], fluxN2[i]);
+         flux(i) = std::max(fluxN1(i), fluxN2(i));
       }
    }
 
@@ -678,13 +678,13 @@ real_t GodunovFlux::Average(const Vector &state1, const Vector &state2,
 
    for (int i = 0; i < fluxFunction.num_equations; i++)
    {
-      if (state1[i] <= state2[i])
+      if (state1(i) <= state2(i))
       {
-         flux[i] = std::min(fluxN1[i], fluxN2[i]);
+         flux(i) = std::min(fluxN1(i), fluxN2(i));
       }
       else
       {
-         flux[i] = std::max(fluxN1[i], fluxN2[i]);
+         flux(i) = std::max(fluxN1(i), fluxN2(i));
       }
    }
 
