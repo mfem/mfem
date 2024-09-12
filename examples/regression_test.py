@@ -29,6 +29,7 @@ for i in range(len(filenames)):
 		return len(ref_out) > 0
 
 	dg = get_ref_option(filename, '--discontinuous')
+	bcn = get_ref_option(filename, '--bc-neumann')
 	hb = get_ref_option(filename, '--hybridization')
 	upwind = get_ref_option(filename, '--upwinded')
 	nonlin = get_ref_option(filename, '--nonlinear')
@@ -64,6 +65,8 @@ for i in range(len(filenames)):
 	command_line = "./ex5-nguyen -no-vis -nx "+str(nx)+" -ny "+str(ny)+" -p "+problem+" -o "+order
 	if dg:
 		command_line = command_line+' -dg'
+	if bcn:
+		command_line = command_line+' -bcn'
 	if hb:
 		command_line = command_line+' -hb'
 	if upwind:
