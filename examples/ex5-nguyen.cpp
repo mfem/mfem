@@ -505,17 +505,15 @@ int main(int argc, char *argv[])
    if (bnlconv && Mtnl)
    {
       FluxFun = GetFluxFun(problem, ccoeff);
-      HDGFlux::HDGScheme scheme;
       switch (hdg_scheme)
       {
-         case 1: scheme = HDGFlux::HDGScheme::HDG_1; break;
-         case 2: scheme = HDGFlux::HDGScheme::HDG_2; break;
-         case 3: scheme = HDGFlux::HDGScheme::Rusanov; break;
+         case 1: FluxSolver = new HDGFlux(*FluxFun, HDGFlux::HDGScheme::HDG_1); break;
+         case 2: FluxSolver = new HDGFlux(*FluxFun, HDGFlux::HDGScheme::HDG_2); break;
+         case 3: FluxSolver = new RusanovFlux(*FluxFun); break;
          default:
             cerr << "Unknown HDG scheme" << endl;
             exit(1);
       }
-      FluxSolver = new HDGFlux(*FluxFun, scheme);
       Mtnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*FluxSolver, 0, -1.));
       Mtnl->AddInteriorFaceIntegrator(new HyperbolicFormIntegrator(
                                          *FluxSolver, 0, -1.));
