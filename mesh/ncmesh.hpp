@@ -32,13 +32,17 @@ namespace mfem
 /** Represents the index of an element to refine, plus a refinement type.
     The refinement type is needed for anisotropic refinement of quads and hexes.
     Bits 0,1 and 2 of 'ref_type' specify whether the element should be split
-    in the X, Y and Z directions, respectively (Z is ignored for quads). */
+    in the X, Y and Z directions, respectively (Z is ignored for quads). The
+    refinement spacing or scale in each direction is a number in (0,1), with the
+    default 0.5 meaning bisection. This linear scale parameter defines the
+    position of the refinement between the beginning (0) and end (1) of the
+    reference element in each direction. */
 struct Refinement
 {
    enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    int index; ///< Mesh element number
    char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
-   real_t scale_x, scale_y, scale_z;
+   real_t scale_x, scale_y, scale_z; ///< Scaling in each direction
 
    Refinement() = default;
 
@@ -47,6 +51,7 @@ struct Refinement
       : index(index), ref_type(type), scale_x(s_x), scale_y(s_y), scale_z(s_z)
    {}
 
+   /// Set all data members
    void Set(int elem, int type = Refinement::XYZ, real_t s_x = 0.5,
             real_t s_y = 0.5, real_t s_z = 0.5)
    {
@@ -519,7 +524,7 @@ protected: // implementation
    {
       char vert_refc, edge_refc;
       int vert_index, edge_index;
-      real_t scale;
+      real_t scale;  ///< Scale from struct Refinement, default 0.5
 
       Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1),
          scale(0.5) {}
@@ -621,7 +626,6 @@ protected: // implementation
    Array<int> leaf_elements; ///< finest elements, in Mesh ordering (+ ghosts)
    Array<int> leaf_sfc_index; ///< natural tree ordering of leaf elements
    Array<int> vertex_nodeId; ///< vertex-index to node-id map, see UpdateVertices
-   Array<real_t> vertex_scale;  // TODO: Is this used?
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
    NCList edge_list; ///< lazy-initialized list of edges, see GetEdgeList
@@ -691,21 +695,22 @@ protected: // implementation
    Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
    HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
-   Array<real_t> reparentScale;
+   Array<real_t> reparentScale;  ///< scale associated with reparents (tmp)
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
    /** Refine the element @a elem with the refinement @a ref_type
-       (c.f. Refinement::enum) */
+       (c.f. Refinement::enum) and scale in each direction. */
    void RefineElement(int elem, char ref_type, real_t scale_x = 0.5,
                       real_t scale_y = 0.5, real_t scale_z = 0.5);
 
    /// Derefine the element @a elem, does nothing on leaf elements.
    void DerefineElement(int elem);
 
+   /// Helper function to set scale for a node with parents @a p0, @a p1.
    void SetNodeScale(int p0, int p1, real_t scale);
 
-   // Add an Element @a el to the NCMesh, optimized to reuse freed elements.
+   /// Add an Element @a el to the NCMesh, optimized to reuse freed elements.
    int AddElement(const Element &el)
    {
       if (free_element_ids.Size())
@@ -762,7 +767,7 @@ protected: // implementation
     * @param n2 The second node defining the face
     * @param n3 The third node defining the face
     * @param n4 The fourth node defining the face
-    * @param s returns the scaling of the split
+    * @param s returns the scale of the split
     * @param mid optional return of the edge mid points.
     * @return int 0 -- no split, 1 -- "vertical" split, 2 -- "horizontal" split
     */
@@ -1111,6 +1116,7 @@ protected: // implementation
 
    void FindFaceNodes(int face, int node[4]) const;
 
+   /// Return directed scale in (0,1).
    inline real_t GetScale(real_t s, bool reverse) const
    { return reverse ? 1.0 - s : s; }
 
