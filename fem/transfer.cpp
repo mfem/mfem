@@ -874,12 +874,27 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    const bool add = false;
    mi.AssembleEA(fes_lor, M_ea_lor, add);
 
-   BatchSolver batchSolver(BatchSolver::SolveMode::INVERSE);
-   batchSolver.AssignMatrices(M_ea_lor, ndof_lor, nel_lor);
+   //AV TODO: FIX
+   //BatchSolver batchSolver(BatchSolver::SolveMode::INVERSE);
+   //batchSolver.AssignMatrices(M_ea_lor, ndof_lor, nel_lor);
+
 
    DenseTensor Minv_ear_lor;
    Minv_ear_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt);
-   batchSolver.GetInverse(Minv_ear_lor);
+
+   const double *d_M_ea_lor = M_ea_lor.Read();
+   double *d_Minv_ear_lor = Minv_ear_lor.Write();
+   mfem::forall(ndof_lor * ndof_lor * nel_lor, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_Minv_ear_lor[i] = d_M_ea_lor[i];
+   });
+
+   //Maybe copy data over?
+   //Minv_ear_lor = M_ea_lor;
+
+   BatchedLinAlg::Invert(Minv_ear_lor);
+
+   //batchSolver.GetInverse(Minv_ear_lor);
 
    {
       //Recall mfem is column major
@@ -985,18 +1000,30 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       });
 
       //recycle batch solver from above
-      batchSolver.AssignMatrices(RtM_LR, ndof_ho, nel_ho);
+      //batchSolver.AssignMatrices(RtM_LR, ndof_ho, nel_ho);
 
-      DenseTensor InvRtM_LR_LU;
-      InvRtM_LR_LU.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt);
-      batchSolver.GetInverse(InvRtM_LR_LU);
+      //Copy
+      DenseTensor InvRtM_LR;
+      InvRtM_LR.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt);
+
+      const double *d_RtM_LR = RtM_LR.Read();
+      double *d_InvRtM_LR = InvRtM_LR.Write();
+      mfem::forall(RtM_LR.Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_InvRtM_LR[i] = d_RtM_LR[i];
+      });
+
+
+      //InvRtM_LR_LU.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt);
+      //batchSolver.GetInverse(InvRtM_LR);
+      BatchedLinAlg::Invert(InvRtM_LR);
 
 
       //Form P_ea
       //P_ea should be of dimension (ndof_ho x ndof_ho) x (ndof_ho x nref*ndof_lor)
       //P_ea ndof_ho x nref*ndof_lor
-      auto v_InvRtM_LR_LU = mfem::Reshape(InvRtM_LR_LU.Read(), ndof_ho, ndof_ho,
-                                          nel_ho);
+      auto v_InvRtM_LR = mfem::Reshape(InvRtM_LR.Read(), ndof_ho, ndof_ho,
+                                       nel_ho);
       auto v_P_ea = mfem::Reshape(P_ea.Write(), ndof_ho, ndof_lor, nref, nel_ho);
 
       mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
@@ -1011,7 +1038,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                   real_t dot = 0.0;
                   for (int t=0; t<ndof_ho; ++t)
                   {
-                     dot += v_InvRtM_LR_LU(iho, t, e) * v_RtM_L(t, ilo, iref, e);
+                     dot += v_InvRtM_LR(iho, t, e) * v_RtM_L(t, ilo, iref, e);
                   }
                   v_P_ea(iho, ilo, iref, e) = dot;
 
