@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
    args.AddOption(&nonlinear_conv, "-nlc", "--nonlinear-convection", "-no-nlc",
                   "--no-nonlinear-convection", "Enable non-linear convection regime.");
    args.AddOption(&hdg_scheme, "-hdg", "--hdg_scheme",
-                  "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov).");
+                  "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov, 4=Godunov).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -510,6 +510,7 @@ int main(int argc, char *argv[])
          case 1: FluxSolver = new HDGFlux(*FluxFun, HDGFlux::HDGScheme::HDG_1); break;
          case 2: FluxSolver = new HDGFlux(*FluxFun, HDGFlux::HDGScheme::HDG_2); break;
          case 3: FluxSolver = new RusanovFlux(*FluxFun); break;
+         case 4: FluxSolver = new GodunovFlux(*FluxFun); break;
          default:
             cerr << "Unknown HDG scheme" << endl;
             exit(1);
