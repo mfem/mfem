@@ -329,6 +329,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    });
 }
 
+#ifdef MFEM_USE_MPI
 OperatorLpqJacobiSmoother::OperatorLpqJacobiSmoother(const real_t p_order,
                                                      const real_t q_order,
                                                      const real_t dmpng)
@@ -448,6 +449,7 @@ real_t OperatorLpqJacobiSmoother::CheckSpectralBoundConstant()
    diag_comp *= dinv;
    return diag_comp.Max();
 }
+#endif // MFEM_USE_MPI
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,

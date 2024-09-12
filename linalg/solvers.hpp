@@ -387,6 +387,7 @@ public:
 };
 
 /// Generalized L(p,q)-Jacobi smoothing for bilinear form or a matrix.
+#ifdef MFEM_USE_MPI
 class OperatorLpqJacobiSmoother : public Solver
 {
 public:
@@ -420,6 +421,7 @@ private:
    mutable Vector residual;
    const Operator *oper; // not owned
 };
+#endif
 
 /// Chebyshev accelerated smoothing with given vector, no matrix necessary
 /** Potentially useful with tensorized operators, for example. This is just a
