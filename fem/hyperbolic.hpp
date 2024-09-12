@@ -222,7 +222,7 @@ public:
     * (num_equations)
     * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
-    * @param[out] flux gradient of the numerical flux (num_equations, dim)
+    * @param[out] grad gradient of the numerical flux (num_equations, dim)
     */
    virtual void AverageGrad(int side, const Vector &state1, const Vector &state2,
                             const Vector &nor, FaceElementTransformations &Tr,
@@ -248,7 +248,7 @@ class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 protected:
    // The maximum characteristic speed, updated during element/face vector assembly
    real_t max_char_speed;
-   const RiemannSolver &rsolver;   // Numerical flux that maps F(u±,x) to hat(F)
+   const RiemannSolver &rsolver;   // Numerical flux that maps F(u±,x) to F̂
    const FluxFunction &fluxFunction;
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
    const real_t sign;
@@ -265,8 +265,8 @@ protected:
    Vector state1;  // state value at an integration point - first elem
    Vector state2;  // state value at an integration point - second elem
    Vector nor;     // normal vector, @see CalcOrtho
-   Vector fluxN;   // hat(F)(u,x)
-   DenseMatrix JDotN;   // hat(J)(u,x) n
+   Vector fluxN;   // F̂(u,x)
+   DenseMatrix JDotN;   // Ĵ(u,x) n
 #endif
 
 public:
@@ -276,6 +276,7 @@ public:
     *
     * @param[in] rsolver numerical flux
     * @param[in] IntOrderOffset integration order offset
+    * @param[in] sign sign of the convection term
     */
    HyperbolicFormIntegrator(
       const RiemannSolver &rsolver,
@@ -323,14 +324,14 @@ public:
                             const Vector &elfun, DenseMatrix &grad) override;
 
    /**
-    * @brief implement <-hat(F)(u,x) n, [[v]]> with abstract hat(F) computed by
+    * @brief implement <-F̂(u,x) n, [[v]]> with abstract F̂ computed by
     * ComputeFluxDotN and numerical flux object
     *
     * @param[in] el1 finite element of the first element
     * @param[in] el2 finite element of the second element
     * @param[in] Tr face element transformations
     * @param[in] elfun local coefficient of basis from both elements
-    * @param[out] elvect evaluated dual vector <-hat(F)(u,x) n, [[v]]>
+    * @param[out] elvect evaluated dual vector <-F̂(u,x) n, [[v]]>
     */
    void AssembleFaceVector(const FiniteElement &el1,
                            const FiniteElement &el2,
@@ -372,11 +373,11 @@ public:
    }
 
    /**
-    * @brief  hat(F)n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
+    * @brief  F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     *
-    * @param[in] state1 state value at a point from the first element
+    * @param[in] state1 state value (u⁻) at a point from the first element
     * (num_equations)
-    * @param[in] state2 state value at a point from the second element
+    * @param[in] state2 state value (u⁺) at a point from the second element
     * (num_equations)
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
@@ -462,7 +463,7 @@ public:
     * @param state state (u) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param flux F(u) = u (bᵀn)
+    * @param fluxDotN F(u) n = u (bᵀn)
     * @return real_t maximum characteristic speed, |b|
     */
    real_t ComputeFluxDotN(const Vector &state,
@@ -470,25 +471,25 @@ public:
                           Vector &fluxDotN) const override;
 
    /**
-    * @brief Compute average F(u)
+    * @brief Compute average flux F̄(u)
     *
     * @param state1 state 1 (u1) at current integration point
     * @param state2 state 2 (u2) at current integration point
     * @param Tr current element transformation with integration point
-    * @param flux bar(F)(u) = (u1+u2)/2*bᵀ
+    * @param flux F̄(u) = (u1+u2)/2*bᵀ
     * @return real_t maximum characteristic speed, |b|
     */
    real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
                          ElementTransformation &Tr, DenseMatrix &flux) const override;
 
    /**
-    * @brief Compute average F(u) n
+    * @brief Compute average flux F̄(u) n
     *
     * @param state1 state 1 (u1) at current integration point
     * @param state2 state 2 (u2) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param flux bar(F)(u) = (u1+u2)/2*(bᵀn)
+    * @param fluxDotN F̄(u) n = (u1+u2)/2*(bᵀn)
     * @return real_t maximum characteristic speed, |b|
     */
    real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
@@ -512,7 +513,7 @@ public:
     * @param state state (u) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param JDotN J(u) = bᵀn
+    * @param JDotN J(u) n = bᵀn
     */
    void ComputeFluxJacobianDotN(const Vector &state,
                                 const Vector &normal,
@@ -549,7 +550,7 @@ public:
     * @param state state (u) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param flux F(u) n = ½u²*(1ᵀn) where 1 is (dim) vector
+    * @param fluxDotN F(u) n = ½u²*(1ᵀn) where 1 is (dim) vector
     * @return real_t maximum characteristic speed, |u|
     */
    real_t ComputeFluxDotN(const Vector &state,
@@ -558,12 +559,12 @@ public:
                           Vector &fluxDotN) const override;
 
    /**
-    * @brief Compute average F(u)
+    * @brief Compute average flux F̄(u)
     *
     * @param state1 state 1 (u1) at current integration point
     * @param state2 state 2 (u2) at current integration point
     * @param Tr current element transformation with integration point
-    * @param flux bar(F)(u) = (u2²+u2*u1+u1²)/6*1ᵀ where 1 is (dim) vector
+    * @param flux F̄(u) = (u2²+u2*u1+u1²)/6*1ᵀ where 1 is (dim) vector
     * @return real_t maximum characteristic speed, |u|
     */
    real_t ComputeAvgFlux(const Vector &state1,
@@ -572,13 +573,13 @@ public:
                          DenseMatrix &flux) const override;
 
    /**
-    * @brief Compute average F(u) n
+    * @brief Compute average flux F̄(u) n
     *
     * @param state1 state 1 (u1) at current integration point
     * @param state2 state 2 (u2) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param flux bar(F)(u) = (u2²+u2*u1+u1²)/6*(1ᵀn) where 1 is (dim) vector
+    * @param fluxDotN F̄(u) n = (u2²+u2*u1+u1²)/6*(1ᵀn) where 1 is (dim) vector
     * @return real_t maximum characteristic speed, |u|
     */
    real_t ComputeAvgFluxDotN(const Vector &state1,
@@ -604,7 +605,7 @@ public:
     * @param state state (u) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param JDotN J(u) = u*(1ᵀn) where 1 is (dim) vector
+    * @param JDotN J(u) n = u*(1ᵀn) where 1 is (dim) vector
     */
    void ComputeFluxJacobianDotN(const Vector &state,
                                 const Vector &normal,
