@@ -133,7 +133,7 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
 
    const real_t scale = GENERATE(0.5, 0.25);  // Only affects hex mesh so far
 
-   if (scale != 0.5 && mesh_fname != "../../data/ref-cube.mesh")
+   if (scale != 0.5 && std::strcmp(mesh_fname, "../../data/ref-cube.mesh") != 0)
    {
       return;
    }
