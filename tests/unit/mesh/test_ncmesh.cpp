@@ -131,11 +131,18 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
                             Refinement::YZ,
                             Refinement::XYZ);
 
+   const real_t scale = GENERATE(0.5, 0.25);  // Only affects hex mesh so far
+
+   if (scale != 0.5 && mesh_fname != "../../data/ref-cube.mesh")
+   {
+      return;
+   }
+
    Mesh mesh(mesh_fname, 1, 1);
    mesh.EnsureNCMesh(true);
    real_t original_volume = mesh.GetElementVolume(0);
    Array<Refinement> ref(1);
-   ref[0].Set(0, ref_type);
+   ref[0].Set(0, ref_type, scale, scale, scale);
 
    mesh.GeneralRefinement(ref, 1);
    real_t summed_volume = 0.0;
@@ -297,7 +304,7 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
    }
 } // test case
 
-TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
+TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
 {
    auto exact_soln = [](const Vector& x)
    {
@@ -2092,11 +2099,15 @@ TEST_CASE("PoissonOnReferenceCubeNC", "[NCMesh]")
                                  Refinement::XY, Refinement::XZ, Refinement::YZ,
                                  Refinement::XYZ));
    CAPTURE(ref_type);
+
+   const real_t scale = GENERATE(0.5, 0.25);
+   CAPTURE(scale);
+
    Array<Refinement> refs(1);
    for (auto refined_elem : {0}) // The left or the right element
    {
       auto ssmesh = Mesh(smesh);
-      refs[0].Set(refined_elem, ref_type);
+      refs[0].Set(refined_elem, ref_type, scale, scale, scale);
 
       ssmesh.GeneralRefinement(refs);
       ssmesh.FinalizeTopology();
