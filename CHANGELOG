@@ -33,6 +33,11 @@ New and updated examples and miniapps
 - Added a command line option to all miniapps (`-p` or `--send-port`) for
   specifying the GLVis server socket port (19916 by default).
 
+- Added miniapps to demonstrate the utilization of L(p,q)-Jacobi preconditioners
+  in full assembly and absolute-value L(1)-Jacobi preconditioners in partially
+  assembled operators. This includes Multigrid wrappers to demonstrate the
+  effectiveness of these Jacobi-type operators as smoothers.
+
 GPU computing
 -------------
 - Added support for GPU-accelerated batched linear algebra (using cuBLAS,
@@ -55,6 +60,9 @@ Miscellaneous
 API changes
 -----------
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
+
+- API addition: in class `Operator`, added virtual functions: `AbsMult`,
+  `AbsMultTranspose`, `AddAbsMult`, and `AddAbsMultTranspose`.
 
 
 Version 4.7, released on May 7, 2024
