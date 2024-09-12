@@ -32,12 +32,16 @@ using namespace mfem;
 
 real_t CheckH1Continuity(GridFunction & x);
 
-// TODO: improve efficiency?
+// Find the two children of parent element `elem` after its refinement in one
+// direction.
 void FindChildren(const Mesh & mesh, int elem, Array<int> & children)
 {
    const CoarseFineTransformations& cf = mesh.ncmesh->GetRefinementTransforms();
-   MFEM_VERIFY(mesh.GetNE() == cf.embeddings.Size(), "");
+   MFEM_ASSERT(mesh.GetNE() == cf.embeddings.Size(), "");
 
+   // Note that row `elem` of the table constructed by cf.MakeCoarseToFineTable
+   // is an alternative to this global loop, but constructing the table is also
+   // a global operation with global storage.
    for (int i=0; i<mesh.GetNE(); ++i)
    {
       const int p = cf.embeddings[i].parent;
@@ -73,7 +77,7 @@ void Refine31(Mesh & mesh, int elem, int type)
    // Find the elements with parent `elem`
    Array<int> children;
    FindChildren(mesh, elem, children);
-   MFEM_VERIFY(children.Size() == 2, "");
+   MFEM_ASSERT(children.Size() == 2, "");
 
    const int elem1 = children[0];
 
@@ -104,6 +108,7 @@ void TestAnisoRefRandom(int iter, int dim, Mesh & mesh)
    }
 
    mesh.EnsureNodes();
+   mesh.SetScaledNCMesh();
 }
 
 int main(int argc, char *argv[])

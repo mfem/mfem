@@ -804,8 +804,8 @@ void NCMesh::FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
 
    // follow face refinement towards 'vn1', get an existing face
    int split, mid[5];
-   real_t scaling;
-   while ((split = QuadFaceSplitType(vn1, vn2, vn3, vn4, scaling, mid)) > 0)
+   real_t scale;
+   while ((split = QuadFaceSplitType(vn1, vn2, vn3, vn4, scale, mid)) > 0)
    {
       if (split == 1) // vertical
       {
@@ -2438,8 +2438,6 @@ void NCMesh::UpdateVertices()
    // STEP 4: create the mapping from Mesh vertex index to NCMesh node index
 
    vertex_nodeId.SetSize(NVertices);
-   vertex_scale.SetSize(NVertices);
-   vertex_scale = 0.5;
    for (auto node = nodes.begin(); node != nodes.end(); ++node)
    {
       if (node->HasVertex() && node->vert_index >= 0)
@@ -3185,13 +3183,13 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
 
    // we need to recurse deeper
    int mid[5];
-   real_t scaling;
-   const int split = QuadFaceSplitType(vn0, vn1, vn2, vn3, scaling, mid);
+   real_t scale;
+   const int split = QuadFaceSplitType(vn0, vn1, vn2, vn3, scale, mid);
 
    Face *ef[2][4];
    if (split == 1) // "X" split face
    {
-      Point pmid0(pm(0), pm(1), scaling), pmid2(pm(2), pm(3), 1.0 - scaling);
+      Point pmid0(pm(0), pm(1), scale), pmid2(pm(2), pm(3), 1.0 - scale);
 
       TraverseQuadFace(vn0, mid[0], mid[2], vn3,
                        PointMatrix(pm(0), pmid0, pmid2, pm(3)),
@@ -3207,7 +3205,7 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
    }
    else if (split == 2) // "Y" split face
    {
-      Point pmid1(pm(1), pm(2), scaling), pmid3(pm(3), pm(0), 1.0 - scaling);
+      Point pmid1(pm(1), pm(2), scale), pmid3(pm(3), pm(0), 1.0 - scale);
 
       TraverseQuadFace(vn0, vn1, mid[1], mid[3],
                        PointMatrix(pm(0), pm(1), pmid1, pmid3),
@@ -3801,8 +3799,8 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
                                      Array<int> &indices)
 {
    int mid[5];
-   real_t scaling;
-   switch (QuadFaceSplitType(v0, v1, v2, v3, scaling, mid))
+   real_t scale;
+   switch (QuadFaceSplitType(v0, v1, v2, v3, scale, mid))
    {
       case 1:
          indices.Append(mid[0]);
@@ -5582,9 +5580,9 @@ void NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
 {
    int hl1, hl2, vl1, vl2;
    int mid[5];
-   real_t scaling;
+   real_t scale;
 
-   switch (QuadFaceSplitType(vn1, vn2, vn3, vn4, scaling, mid))
+   switch (QuadFaceSplitType(vn1, vn2, vn3, vn4, scale, mid))
    {
       case 0: // not split
          h_level = v_level = 0;
@@ -5765,6 +5763,7 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
    else
    {
       // print the relations
+      bool uniformScaling = true;  // Check whether all nodes have scale 0.5
       for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
       {
          if (node->HasVertex() && node->p1 != node->p2)
@@ -5773,10 +5772,13 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
             MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
 
             (*os) << node.index() << " " << node->p1 << " " << node->p2;
+            if (node->scale != 0.5) { uniformScaling = false; }
             if (usingScaling) { (*os) << " " << node->scale; }
             (*os) << "\n";
          }
       }
+      MFEM_VERIFY(usingScaling || uniformScaling, "NCMesh has nonuniform "
+                  "scaling. Call Mesh::SetScaledNCMesh first.");
       return 0;
    }
 }
