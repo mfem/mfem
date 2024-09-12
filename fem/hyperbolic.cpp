@@ -406,6 +406,52 @@ real_t GodunovFlux::Eval(const Vector &state1, const Vector &state2,
    return std::max(speed1, speed2);
 }
 
+real_t GodunovFlux::Average(const Vector &state1, const Vector &state2,
+                            const Vector &nor, FaceElementTransformations &Tr,
+                            Vector &flux) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
+#endif
+   const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
+   const real_t speed2 = fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr,
+                                                         fluxN2);
+
+   for (int i = 0; i < fluxFunction.num_equations; i++)
+   {
+      if (state1[i] <= state2[i])
+      {
+         flux[i] = std::min(fluxN1[i], fluxN2[i]);
+      }
+      else
+      {
+         flux[i] = std::max(fluxN1[i], fluxN2[i]);
+      }
+   }
+
+   return std::max(speed1, speed2);
+}
+
+void GodunovFlux::AverageGrad(int side, const Vector &state1,
+                              const Vector &state2,
+                              const Vector &nor, FaceElementTransformations &Tr,
+                              DenseMatrix &grad) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
+#endif
+   fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr, fluxN1);
+   fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
+
+   grad = 0.;
+
+   for (int i = 0; i < fluxFunction.num_equations; i++)
+   {
+      if (state1(i) == state2(i)) { continue; }
+      grad(i,i) = std::min((fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i)), 0.);
+   }
+}
+
 real_t AdvectionFlux::ComputeFlux(const Vector &U,
                                   ElementTransformation &Tr,
                                   DenseMatrix &FU) const
