@@ -61,9 +61,8 @@
 //               well as the optional saving with ADIOS2 (adios2.readthedocs.io)
 //               are also illustrated. Additionally, the example showcases the
 //               parallel implementation of an element-based Clip & Scale limiter for
-//               continuous finite elements, which is implemented using only element
-//               assembly and is designed to be bound-preserving.
-
+//               continuous finite elements, which is designed to be bound-preserving.
+//               For more detail, see https://doi.org/10.1142/13466 .
 
 #include "mfem.hpp"
 #include <fstream>
@@ -255,11 +254,11 @@ public:
 
 /** Abstract base class for evaluating the time-dependent operator in the ODE formulation.
     The continuous Galerkin (CG) strong form of the advection equation du/dt = -v.grad(u)
-    is given by M du/dt = -K u + b - b_in, where M and K are the mass and advection matrices,
-    respectively, and (b - b_in) represents the boundary flow contribution.
+    is given by M du/dt = -K u + b, where M and K are the mass and advection matrices,
+    respectively, and b represents the boundary flow contribution.
 
     The ODE can be reformulated as:
-    du/dt = M_L^{-1}((-K + D) u + F^*(u) + b - b_in),
+    du/dt = M_L^{-1}((-K + D) u + F^*(u) + b),
     where M_L is the lumped mass matrix, D is a low-order stabilization term, and F^*(u)
     represents the limited anti-diffusive fluxes. Here, F^* is a limited version of F,
     which recovers the high-order target scheme. The limited anti-diffusive fluxes F^*
@@ -1001,7 +1000,7 @@ CG_FE_Evolution::CG_FE_Evolution(ParFiniteElementSpace &fes_,
    // For bound preservation the boundary condition \hat{u} is enforced
    // via a lumped approximation to < (u_h - u_inflow) * min(v * n, 0 ), w >, i.e.,
    // (u_i - (u_inflow)_i) * \int_F \varphi_i * min(v * n, 0).
-   // The integral can be implemented as follows: 
+   // The integral can be implemented as follows:
    FunctionCoefficient one_coeff(one);
    b_lumped.AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(one_coeff, velocity, 1.0));
@@ -1149,7 +1148,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
             // for bounding fluxes
             gammae(i) += dije;
             gammae(j) += dije;
-            
+
             // assemble raw antidifussive fluxes f_{i,e} = sum_j m_{ij,e} (udot_i - udot_j) - d_{ij,e} (u_i - u_j)
             // note fije = - fjie
             real_t fije = Me(i,j) * (udote(i) - udote(j)) - diffusion;
