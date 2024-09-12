@@ -399,6 +399,8 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
         return;
     }
 
+    //std::cout<<"E1="<<Tr.Elem1No<<" E2="<<Tr.Elem2No<<std::endl;
+
     const int ndof1 = fe1.GetDof();
     const int ndof2 = fe2.GetDof();
     const int ndofs = ndof1+ndof2;
@@ -408,6 +410,8 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
 
     int order=fe1.GetOrder();
     if(order>fe2.GetOrder()){order=fe2.GetOrder();} //order=min(fe1.order, fe2.order)
+
+    //order--;
 
     int ndofg;
     if(ndim==1){ndofg=order+1;}
@@ -426,6 +430,55 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
 
     const IntegrationRule* ir;
 
+
+
+    Vector xx0(ndim);xx0=0.0;
+    double h0=1.0;
+    {
+
+        Vector xxm(ndim);
+        double s=0;
+        ir=&fe1.GetNodes();
+        {
+            const IntegrationPoint &ip = ir->IntPoint(0);
+            Tr1.SetIntPoint(&ip);
+            Tr1.Transform(ip,xxm);
+        }
+
+        for(int ii=0;ii<ir->GetNPoints();ii++){
+            const IntegrationPoint &ip = ir->IntPoint(ii);
+            Tr1.SetIntPoint(&ip);
+            Tr1.Transform(ip,xx);
+
+            for(int i=0;i<ndim;i++){
+                if(xxm[i]<xx[i]){xxm[i]=xx[i];}
+            }
+            xx0.Add(1.0,xx); s=s+1.0;
+        }
+
+        ir=&IntRules.Get(Tr2.GetGeometryType(), order);
+        for(int ii=0;ii<ir->GetNPoints();ii++){
+            const IntegrationPoint &ip = ir->IntPoint(ii);
+            Tr2.SetIntPoint(&ip);
+            Tr2.Transform(ip,xx);
+
+            for(int i=0;i<ndim;i++){
+                if(xxm[i]<xx[i]){xxm[i]=xx[i];}
+            }
+            xx0.Add(1.0,xx); s=s+1.0;
+        }
+
+        xx0/=s;
+
+        h0=fabs(xxm[0]-xx0[0]);
+        for(int i=0;i<ndim;i++){
+            if(fabs(xxm[i]-xx0[i])<h0){h0=fabs(xxm[i]-xx0[i]);}
+        }
+
+    }
+
+    //std::cout<<"xx0="; xx0.Print(std::cout);
+
     //element 1
     double w;
 
@@ -434,6 +487,9 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
         const IntegrationPoint &ip = ir->IntPoint(ii);
         Tr1.SetIntPoint(&ip);
         Tr1.Transform(ip,xx);
+        xx.Add(-1.0,xx0);//shift the coordinates with the reference point
+        xx/=h0;
+
         fe1.CalcPhysShape(Tr1,sh1);
         Shape(xx,order,shg);
 
@@ -463,6 +519,8 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
         const IntegrationPoint &ip = ir->IntPoint(ii);
         Tr2.SetIntPoint(&ip);
         Tr2.Transform(ip,xx);
+        xx.Add(-1.0,xx0);//shift the coordinates with the reference point
+        xx/=h0;
 
         fe2.CalcPhysShape(Tr2,sh2);
         Shape(xx,order,shg);
@@ -485,11 +543,36 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
                 Mge(j,ndof1+i)=Mge(j,ndof1+i)+shg(j)*sh2(i)*w;
             }
         }
+
     }
+
+    /*
+    DenseMatrixSVD MggSVD(Mgg.Width(),Mgg.Height(),'A','A'); MggSVD.Eval(Mgg);
+
+    if((Tr.Elem1No==104)||(Tr.Elem1No==105)){
+        std::cout<<"Vector="<<std::endl;
+        MggSVD.Singularvalues().Print(std::cout);
+        std::cout<<"Left="<<std::endl;
+        MggSVD.LeftSingularvectors().PrintMatlab(std::cout);
+        std::cout<<"Right="<<std::endl;
+        MggSVD.RightSingularvectors().PrintMatlab(std::cout);
+        std::cout<<std::endl;
+    }
+    */
 
     DenseMatrixInverse Mii(Mgg,true);
     DenseMatrix Mre(ndofg,ndofs);
     Mii.Mult(Mge,Mre);
+
+    /*
+    if((Tr.Elem1No==1627)||(Tr.Elem1No==1626)){
+        Mgg.PrintMatlab(std::cout);
+    }
+
+    if((Tr.Elem1No==104)||(Tr.Elem1No==105)){
+        Mgg.PrintMatlab(std::cout);
+    }
+    */
 
     //global shape functions
     Vector gs(ndofs);
@@ -499,6 +582,9 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
         const IntegrationPoint &ip = ir->IntPoint(ii);
         Tr1.SetIntPoint(&ip);
         Tr1.Transform(ip,xx);
+        xx.Add(-1.0,xx0);//shift the coordinates with the reference point
+        xx/=h0;
+
         fe1.CalcPhysShape(Tr1,sh1);
         Shape(xx,order,shg);
 
@@ -525,6 +611,8 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
         const IntegrationPoint &ip = ir->IntPoint(ii);
         Tr2.SetIntPoint(&ip);
         Tr2.Transform(ip,xx);
+        xx.Add(-1.0,xx0);//shift the coordinates with the reference point
+        xx/=h0;
 
         fe2.CalcPhysShape(Tr2,sh2);
         Shape(xx,order,shg);
@@ -553,6 +641,7 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
     //cout.setf(ios::fixed);
     //cout.setf(ios::showpoint);
     //cout.setf(ios::showpos);
+
 
     /*
     Vector eval;
