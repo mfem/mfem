@@ -2609,8 +2609,8 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
       MFEM_ASSERT(node && node->HasEdge(),
                   "edge (" << ev[0] << "," << ev[1] << ") not found, "
-                  "node = " << node << " node->HasEdge() " << (node != nullptr ? node->HasEdge() :
-                                                               false));
+                  "node = " << node << " node->HasEdge() "
+                  << (node != nullptr ? node->HasEdge() : false));
       node->edge_index = i;
    }
 
@@ -2822,14 +2822,16 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
    auto parent_nodes = face_nodes;
    if (is_quad)
    {
-      // Logic for coarsening anisotropic faces is more complex, needs identification and
-      // handling of multiple "crux" points. Will require inspection of edge nodes.
+      // Logic for coarsening anisotropic faces is more complex, needs
+      // identification and handling of multiple "crux" points. Will require
+      // inspection of edge nodes.
       MFEM_VERIFY(Iso,
                   "ParentFaceNodes does not support anisotropic refinement yet!");
 
-      // Finds the first node whose parents aren't in the face_nodes. This is also the index
-      // of the child location in the parent face. Treated separately as ultimately
-      // multiple crux will need to be handled for anisotropic faces.
+      // Finds the first node whose parents aren't in the face_nodes. This is
+      // also the index of the child location in the parent face. Treated
+      // separately as ultimately multiple crux will need to be handled for
+      // anisotropic faces.
       const auto crux = [&]()
       {
          for (int i = 0; i < static_cast<int>(face_nodes.size()); i++)
@@ -2845,9 +2847,10 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
       }();
       MFEM_ASSERT(crux != -1, "A root face should have been returned early");
 
-      // Loop over nodes, starting from diagonal to child, wrapping and skipping child. This will visit
-      // the node opposite child twice, thereby coarsening to the diagonally opposite.
-      // NOTE: This assumes that the nodes for a square are numbered (0 -> 1 -> 2 -> 3 -> 0).
+      // Loop over nodes, starting from diagonal to child, wrapping and skipping
+      // child. This will visit the node opposite child twice, thereby
+      // coarsening to the diagonally opposite. NOTE: This assumes that the
+      // nodes for a square are numbered (0 -> 1 -> 2 -> 3 -> 0).
       for (int i = 0; i < static_cast<int>(face_nodes.size()) + 1; i++)
       {
          int ind = (crux + i + 2) %
@@ -2855,9 +2858,10 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
          if (ind == crux) { continue; }
          auto &x = parent_nodes[ind];
 
-         // Check against parent_nodes rather than face_nodes so on second lap the node
-         // opposite crux will coarsen again to the diagonally across in the parent face.
-         // A top level node has p1 == p2, thus these modifications do nothing.
+         // Check against parent_nodes rather than face_nodes so on second lap
+         // the node opposite crux will coarsen again to the diagonally across
+         // in the parent face. A top level node has p1 == p2, thus these
+         // modifications do nothing.
          if (contains_node(parent_nodes, nodes[x].p1))
          {
             MFEM_ASSERT(nodes[x].p2 == nodes[x].p1 ||
@@ -2896,22 +2900,22 @@ int NCMesh::ParentFaceNodes(std::array<int, 4> &face_nodes) const
 
       if (std::equal(face_nodes.begin(), face_nodes.end(), parent_nodes.begin()))
       {
-         // Having excluded root faces, this must be an interior face. We need to handle the
-         // special case of the interior face of the parent face.
+         // Having excluded root faces, this must be an interior face. We need
+         // to handle the special case of the interior face of the parent face.
          std::array<std::array<int, 2>, 6> parent_pairs;
          for (std::size_t i = 0; i < face_nodes.size() - 1; i++)
          {
             parent_pairs[i][0] = nodes[face_nodes[i]].p1;
             parent_pairs[i][1] = nodes[face_nodes[i]].p2;
          }
-         // Each node gets mapped to the common node from its parents and the predecessor
-         // node's parents.
+         // Each node gets mapped to the common node from its parents and the
+         // predecessor node's parents.
          for (int i = 0; i < 3; i++)
          {
-            // Parenting convention here assumes parent face has the SAME orientation as the
-            // original. This is true on exterior boundaries, but for an interior boundary
-            // the master face will have an opposing orientation. TODO: Possibly fix for
-            // interior boundaries.
+            // Parenting convention here assumes parent face has the SAME
+            // orientation as the original. This is true on exterior boundaries,
+            // but for an interior boundary the master face will have an
+            // opposing orientation. TODO: Possibly fix for interior boundaries.
             const auto &prev = parent_pairs[(i - 1 + 3) % 3]; // (0 -> 2, 1 -> 0, 2 -> 1)
             const auto &next = parent_pairs[(i + 1 + 3) % 3]; // (0 -> 1, 1 -> 2, 2 -> 0)
             for (auto x : next)

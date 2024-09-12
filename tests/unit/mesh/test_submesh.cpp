@@ -547,7 +547,7 @@ TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
  */
 struct NCMeshExposed : public NCMesh
 {
-   NCMeshExposed(const NCMesh &ncsubmesh) : NCMesh(ncsubmesh) {}
+   NCMeshExposed(const NCMesh &ncmesh) : NCMesh(ncmesh) {}
    using NCMesh::elements;
    using NCMesh::leaf_elements;
    int CountUniqueLeafElements() const

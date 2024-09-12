@@ -44,10 +44,10 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    NRanks = parent.GetNRanks();
    MyRank = parent.GetMyRank();
 
-   // This violation of const-ness may be justified in this instance because
-   // the exchange of face neighbor information only establishes or updates
-   // derived information without altering the primary mesh information,
-   // i.e., the topology, geometry, or region attributes.
+   // This violation of const-ness may be justified in this instance because the
+   // exchange of face neighbor information only establishes or updates derived
+   // information without altering the primary mesh information, i.e., the
+   // topology, geometry, or region attributes.
    const_cast<ParMesh&>(parent).ExchangeFaceNbrData();
 
    if (from == SubMesh::From::Domain)
@@ -95,8 +95,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       InitFromNCMesh(*pncmesh);
       pncmesh->OnMeshUpdated(this);
 
-      // Update the submesh to parent vertex mapping, NCSubMesh reordered the vertices so
-      // the map to parent is no longer valid.
+      // Update the submesh to parent vertex mapping, NCSubMesh reordered the
+      // vertices so the map to parent is no longer valid.
       parent_to_submesh_vertex_ids_ = -1;
       for (int i = 0; i < parent_vertex_ids_.Size(); i++)
       {
@@ -269,9 +269,10 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    if (Conforming())
    {
-      // Conforming submesh must now discover and add boundary elements, taking care with
-      // "ghost boundary elements" if a volume submesh. A nonconforming mesh already has
-      // constructed this information during initialization.
+      // Conforming submesh must now discover and add boundary elements, taking
+      // care with "ghost boundary elements" if a volume submesh. A
+      // nonconforming mesh already has constructed this information during
+      // initialization.
       if (from == SubMesh::From::Domain)
       {
          SubMeshUtils::AddBoundaryElements(*this, FindGhostBoundaryElementAttributes());
@@ -377,8 +378,8 @@ void ParSubMesh::FindSharedEdgesRanks(Array<int> &rhe)
    rhe.SetSize(nsedges);
    rhe = 0;
 
-   // On each rank of the group, locally determine if the shared edge is in
-   // the SubMesh.
+   // On each rank of the group, locally determine if the shared edge is in the
+   // SubMesh.
    for (int g = 1, se = 0; g < parent_.GetNGroups(); g++)
    {
       const int group_sz = parent_.gtopo.GetGroupSize(g);
@@ -606,8 +607,8 @@ void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
          {
             // shared face is present on this rank and others
 
-            // There can only be two ranks in this group sharing faces. Add
-            // all ranks to a new communication group.
+            // There can only be two ranks in this group sharing faces. Add all
+            // ranks to a new communication group.
             Array<int> &ranks = quad_group;
             ranks.SetSize(0);
             ranks.Append(parent_.gtopo.GetNeighborRank(group_lproc[0]));
@@ -646,8 +647,8 @@ void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
          {
             // shared face is present on this rank and others
 
-            // There can only be two ranks in this group sharing faces. Add
-            // all ranks to a new communication group.
+            // There can only be two ranks in this group sharing faces. Add all
+            // ranks to a new communication group.
             Array<int> &ranks = tria_group;
             ranks.SetSize(0);
             ranks.Append(parent_.gtopo.GetNeighborRank(group_lproc[0]));
@@ -755,8 +756,8 @@ void ParSubMesh::BuildSharedEdgesMapping(const int sedges_ct,
             int v0 = parent_to_submesh_vertex_ids_[vert[(1-o)/2]];
             int v1 = parent_to_submesh_vertex_ids_[vert[(1+o)/2]];
 
-            // The orienation of the shared edge relative to the local edge
-            // will be determined by whether v0 < v1 or v1 < v0
+            // The orienation of the shared edge relative to the local edge will
+            // be determined by whether v0 < v1 or v1 < v0
             shared_edges.Append(new Segment(v0, v1, 1));
             sedge_ledge.Append(submesh_edge_id);
          }
@@ -772,8 +773,8 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
    shared_quads.Reserve(nsquads);
    sface_lface.Reserve(nstrias + nsquads);
 
-   // sface_lface should list the triangular shared faces first
-   // followed by the quadrilateral shared faces.
+   // sface_lface should list the triangular shared faces first followed by the
+   // quadrilateral shared faces.
    for (int g = 1, st = 0; g < parent_.GetNGroups(); g++)
    {
       for (int gt = 0; gt < parent_.GroupNTriangles(g); gt++, st++)
@@ -871,8 +872,8 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
 std::unordered_map<int, int>
 ParSubMesh::FindGhostBoundaryElementAttributes() const
 {
-   // Loop over shared faces in the parent mesh, find their attributes if they exist, and
-   // map to local faces in the submesh.
+   // Loop over shared faces in the parent mesh, find their attributes if they
+   // exist, and map to local faces in the submesh.
    std::unordered_map<int,int> lface_boundary_attribute;
    const auto &face_to_be = parent_.GetFaceToBdrElMap();
    if (Dim == 3)

@@ -175,8 +175,7 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
    }
    else if (category_ == TransferCategory::SubMeshToParent)
    {
-      // dst = G S1 src
-      //     = G z
+      // dst = G S1 src = G z
       //
       // G is identity if the partitioning matches
 

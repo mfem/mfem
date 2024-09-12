@@ -24,7 +24,8 @@ class IntegerSet : public Array<int>
 {
 public:
    using Array<int>::Array;
-   // MSVC fails to recognize that rule of zero applies after using base class constructors.
+   // MSVC fails to recognize that rule of zero applies after using base class
+   // constructors.
    IntegerSet() = default;
    IntegerSet(const IntegerSet &) = default;
    IntegerSet(IntegerSet &&) = default;

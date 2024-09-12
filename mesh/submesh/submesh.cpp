@@ -75,8 +75,8 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       InitFromNCMesh(*ncsubmesh_);
       ncsubmesh_->OnMeshUpdated(this);
 
-      // Update the submesh to parent vertex mapping, ncsubmesh_ reordered the vertices so
-      // the map to parent is no longer valid.
+      // Update the submesh to parent vertex mapping, ncsubmesh_ reordered the
+      // vertices so the map to parent is no longer valid.
       parent_to_submesh_vertex_ids_ = -1;
       for (int i = 0; i < parent_vertex_ids_.Size(); i++)
       {
@@ -174,9 +174,10 @@ SubMesh::SubMesh(const Mesh &parent, From from,
             }
             else
             {
-               // This case happens when a domain is extracted, but the root parent
-               // mesh didn't have a boundary element on the surface that defined
-               // it's boundary. It still creates a valid mesh, so we allow it.
+               // This case happens when a domain is extracted, but the root
+               // parent mesh didn't have a boundary element on the surface that
+               // defined it's boundary. It still creates a valid mesh, so we
+               // allow it.
                GetBdrElement(i)->SetAttribute(max_bdr_attr + 1);
             }
          }

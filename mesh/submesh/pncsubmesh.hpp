@@ -25,15 +25,16 @@ namespace mfem
 {
 
 /**
- * @brief Class representing a Parallel Nonconformal SubMesh. This is only used by ParSubMesh.
+ * @brief Class representing a Parallel Nonconformal SubMesh. This is only used
+ * by ParSubMesh.
  */
 class ParNCSubMesh : public ParNCMesh
 {
    friend class ParSubMesh; ///< Only ParSubMesh can use methods in this class
 public:
-   using From = SubMesh::From;
+   using From = SubMesh::From; ///< Convenience type alias
    /**
-   * @brief Check if Mesh @a m is a SubMesh.
+   * @brief Check if NCMesh @a m is a ParNCSubMesh.
    *
    * @param m The input Mesh
    */
@@ -41,10 +42,7 @@ public:
    {
       return dynamic_cast<const ParNCSubMesh *>(m) != nullptr;
    }
-   /**
-    * @brief Get the parent Mesh object
-    *
-    */
+   /// Get the parent ParNCMesh object
    const ParNCMesh* GetParent() const
    {
       return parent_;
@@ -53,8 +51,7 @@ public:
    /**
     * @brief Get the From indicator.
     *
-    * Indicates whether the SubMesh has been created from a domain or
-    * surface.
+    * Indicates whether the SubMesh has been created from a domain or surface.
     */
    ParSubMesh::From GetFrom() const
    {
@@ -65,7 +62,7 @@ protected:
    ParNCSubMesh(ParSubMesh& submesh, const ParNCMesh &parent, From from,
                 const Array<int> &attributes);
 
-   /// The parent Mesh. Not owned.
+   /// The parent ParNCMesh. Not owned.
    const ParNCMesh *parent_;
 
    /// Indicator from which part of the parent ParMesh the ParSubMesh is going
@@ -80,8 +77,8 @@ protected:
    /// element ids. If from a boundary, these map to faces in the parent.
    Array<int> parent_element_ids_;
 
-   /// Mapping from ParNCSubMesh node ids (index of the array), to the parent NCMesh
-   /// node ids.
+   /// Mapping from ParNCSubMesh node ids (index of the array), to the parent
+   /// NCMesh node ids.
    Array<int> parent_node_ids_;
 
    /// Mapping from parent NCMesh node ids to submesh NCMesh node ids.
