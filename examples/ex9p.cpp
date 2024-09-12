@@ -27,15 +27,15 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -rp 1 -dt 0.0025 -tf 2 -vs 20 -sc 11 -s 3 -o 2
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -rp 1 -dt 0.0025 -tf 2 -vs 20 -sc 11
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 3 -dt 0.002 -tf 9 -sc 11 -o 1 -s 2 -vs 20
-//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 1 -dt 0.002 -tf 9 -sc 12 -vs 20
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 1 -dt 0.002 -tf 9 -sc 11 -vs 20
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 3 -dt 0.002 -tf 9 -sc 13 -o 1 -s 2 -vs 20
 //    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 2 -dt 0.004 -tf 9 -vs 20 -sc 11 -o 1 -s 2
 //    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 2 -dt 0.004 -tf 9 -vs 20 -sc 11 -o 1 -s 2
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9 -sc 11 -vs 20
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 2 -dt 0.005 -tf 9 -sc 12 -s 3 -o 2 -vs 20
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 4 -dt 0.0025 -tf 9 -vs 20 -sc 11 -s 2 -o 1
-//    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -rp 1 -dt 0.01 -tf 8 -sc 12
-//    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rs 1 -o 2 -tf 2 -sc 11
+//    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -s 3 -rp 1 -dt 0.01 -tf 8 -sc 11
+//    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rp 1 -o 2 -s 3 -tf 2 -sc 11
 //
 // Device sample runs (DG only):
 //    mpirun -np 4 ex9p -pa
@@ -84,6 +84,9 @@ real_t u0_function(const Vector &x);
 
 // Inflow boundary condition
 real_t inflow_function(const Vector &x);
+
+// Function f = 1 for lumped boundary operator
+real_t one(const Vector &x) {return 1.0;}
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -277,24 +280,23 @@ class CG_FE_Evolution : public TimeDependentOperator
 {
 protected:
    const Vector &lumpedmassmatrix;
-   const Vector &b_inflow;
    ParFiniteElementSpace &fes;
    GroupCommunicator &gcomm;
    int *I, *J;
+   ParLinearForm b_lumped;
+   ParGridFunction u_inflow;
 
-   mutable ParLinearForm b_u;
-   mutable GridFunctionCoefficient u_coeff;
-   mutable GridFunction u_gf;
    mutable DenseMatrix Ke, Me;
-   mutable Vector ue, ue_bar, re, udote, fe, fe_star, gammae;
+   mutable Vector ue, re, udote, fe, fe_star, gammae;
    mutable ConvectionIntegrator conv_int;
    mutable MassIntegrator mass_int;
+   mutable Vector z;
 
    virtual void ComputeLOTimeDerivatives(const Vector &u, Vector &udot) const;
 
 public:
-   CG_FE_Evolution(ParFiniteElementSpace &fes_, const Vector &b_,
-                   const Vector &lumpedmassmatrix_, const GridFunction *u,
+   CG_FE_Evolution(ParFiniteElementSpace &fes_,
+                   const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                    VectorFunctionCoefficient &velocity,
                    ParBilinearForm &M);
 
@@ -314,8 +316,8 @@ private:
                               Array<real_t> &u_max) const;
 
 public:
-   ClipAndScale(ParFiniteElementSpace &fes_, const Vector &b_,
-                const Vector &lumpedmassmatrix_, const GridFunction *u,
+   ClipAndScale(ParFiniteElementSpace &fes_,
+                const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                 VectorFunctionCoefficient &velocity, ParBilinearForm &M);
 
    virtual void Mult(const Vector &x, Vector &y) const override;
@@ -330,8 +332,8 @@ private:
    mutable Vector udot;
 
 public:
-   HighOrderTargetScheme(ParFiniteElementSpace &fes_, const Vector &b_,
-                         const Vector &lumpedmassmatrix_, const GridFunction *u,
+   HighOrderTargetScheme(ParFiniteElementSpace &fes_,
+                         const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                          VectorFunctionCoefficient &velocity, ParBilinearForm &M);
 
    virtual void Mult(const Vector &x, Vector &y) const override;
@@ -343,8 +345,8 @@ public:
 class LowOrderScheme : public CG_FE_Evolution
 {
 public:
-   LowOrderScheme(ParFiniteElementSpace &fes_, const Vector &b_,
-                  const Vector &lumpedmassmatrix_, const GridFunction *u,
+   LowOrderScheme(ParFiniteElementSpace &fes_,
+                  const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                   VectorFunctionCoefficient &velocity, ParBilinearForm &M);
 
    virtual void Mult(const Vector &x, Vector &y) const override;
@@ -798,11 +800,11 @@ int main(int argc, char *argv[])
    switch (scheme)
    {
       case 1: adv = new DG_FE_Evolution(*m, *k, *B, prec_type); break;
-      case 11: adv = new ClipAndScale(*fes, *b, lumpedmassmatrix, u, velocity, *m);
+      case 11: adv = new ClipAndScale(*fes, lumpedmassmatrix, inflow, velocity, *m);
          break;
-      case 12: adv = new HighOrderTargetScheme(*fes, *b, lumpedmassmatrix, u,
+      case 12: adv = new HighOrderTargetScheme(*fes, lumpedmassmatrix, inflow,
                                                   velocity, *m); break;
-      case 13: adv = new LowOrderScheme(*fes, *b, lumpedmassmatrix, u, velocity, *m);
+      case 13: adv = new LowOrderScheme(*fes, lumpedmassmatrix, inflow, velocity, *m);
          break;
    }
 
@@ -980,24 +982,32 @@ DG_FE_Evolution::~DG_FE_Evolution()
 }
 
 // Implementation of class CG_FE_Evolution
-CG_FE_Evolution::CG_FE_Evolution(ParFiniteElementSpace &fes_, const Vector &b_,
-                                 const Vector &lumpedmassmatrix_, const GridFunction *u,
+CG_FE_Evolution::CG_FE_Evolution(ParFiniteElementSpace &fes_,
+                                 const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                                  VectorFunctionCoefficient &velocity, ParBilinearForm &M) :
    TimeDependentOperator(lumpedmassmatrix_.Size()),
-   lumpedmassmatrix(lumpedmassmatrix_), b_inflow(b_), fes(fes_), b_u(&fes),
+   lumpedmassmatrix(lumpedmassmatrix_), fes(fes_), b_lumped(&fes),
    gcomm(fes_.GroupComm()), I(M.SpMat().GetI()), J(M.SpMat().GetJ()),
-   u_gf(*u), u_coeff(&u_gf), mass_int(), conv_int(velocity)
+   u_inflow(&fes), mass_int(), conv_int(velocity)
 {
+   u_inflow.ProjectCoefficient(inflow);
+
    // distribute the lumped mass matrix entries
    Array<real_t> lumpedmassmatrix_array(lumpedmassmatrix.GetData(),
                                         lumpedmassmatrix.Size());
    gcomm.Reduce<real_t>(lumpedmassmatrix_array, GroupCommunicator::Sum);
    gcomm.Bcast(lumpedmassmatrix_array);
 
-   // In the strong form the boundary integral is < (u - u_in) min (v * n, 0 ), w > ,
-   // which can be implemented as b_u - b_inflow
-   b_u.AddBdrFaceIntegrator(
-      new BoundaryFlowIntegrator(u_coeff, velocity, 1.0));
+   // For bound preservation the boundary condition \hat{u} is enforced
+   // via a lumped approximation to < (u_h - u_inflow) * min(v * n, 0 ), w >, i.e.,
+   // (u_i - (u_inflow)_i) * \int_F \varphi_i * min(v * n, 0).
+   // The integral can be implemented as follows: 
+   FunctionCoefficient one_coeff(one);
+   b_lumped.AddBdrFaceIntegrator(
+      new BoundaryFlowIntegrator(one_coeff, velocity, 1.0));
+   b_lumped.Assemble();
+
+   z.SetSize(lumpedmassmatrix.Size());
 }
 
 void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u,
@@ -1039,9 +1049,10 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u,
       udot.AddElementVector(dofs, re);
    }
 
-   // add boundary condition. This is under the assumption that b_u has been updated
-   udot += b_u;
-   udot -= b_inflow;
+   // add boundary condition (u - u_inflow) * b. This is under the assumption that b_lumped has been updated
+   subtract(u, u_inflow, z);
+   z *= b_lumped;
+   udot += z;
 
    // Distribute
    Array<real_t> udot_array(udot.GetData(), udot.Size());
@@ -1056,10 +1067,10 @@ CG_FE_Evolution::~CG_FE_Evolution()
 { }
 
 // Implementation of class ClipAndScale
-ClipAndScale::ClipAndScale(ParFiniteElementSpace &fes_, const Vector &b_,
-                           const Vector &lumpedmassmatrix_, const GridFunction *u,
+ClipAndScale::ClipAndScale(ParFiniteElementSpace &fes_,
+                           const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                            VectorFunctionCoefficient &velocity, ParBilinearForm &M):
-   CG_FE_Evolution(fes_, b_, lumpedmassmatrix_, u, velocity, M)
+   CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
 {
    umin.SetSize(lumpedmassmatrix.Size());
    umax.SetSize(lumpedmassmatrix.Size());
@@ -1093,11 +1104,6 @@ void ClipAndScale::ComputeBounds(const Vector &u, Array<real_t> &u_min,
 
 void ClipAndScale::Mult(const Vector &x, Vector &y) const
 {
-   // update Boundary integral
-   u_gf = x;
-   b_u.LinearForm::operator=(0.0);
-   b_u.Assemble();
-
    y = 0.0;
 
    // compute low-order time derivative for high-order stabilization and local bounds
@@ -1116,7 +1122,6 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 
       fes.GetElementDofs(e, dofs);
       ue.SetSize(dofs.Size());
-      ue_bar.SetSize(dofs.Size());
       re.SetSize(dofs.Size());
       udote.SetSize(dofs.Size());
       fe.SetSize(dofs.Size());
@@ -1128,7 +1133,6 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 
       re = 0.0;
       fe = 0.0;
-      ue_bar = 0.0;
       gammae = 0.0;
       for (int i = 0; i < dofs.Size(); i++)
       {
@@ -1146,10 +1150,6 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
             gammae(i) += dije;
             gammae(j) += dije;
             
-            // add 2dije * uije and 2djie * ujie
-            ue_bar(i) += dije * (ue(i) + ue(j)) - Ke(i,j) * (ue(j) - ue(i));
-            ue_bar(j) += dije * (ue(j) + ue(i)) - Ke(j,i) * (ue(i) - ue(j));
-            
             // assemble raw antidifussive fluxes f_{i,e} = sum_j m_{ij,e} (udot_i - udot_j) - d_{ij,e} (u_i - u_j)
             // note fije = - fjie
             real_t fije = Me(i,j) * (udote(i) - udote(j)) - diffusion;
@@ -1162,16 +1162,16 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       Ke.AddMult(ue, re, -1.0);
 
       gammae *= 2.0;
-      
+
       real_t P_plus = 0.0;
       real_t P_minus = 0.0;
 
       //Clip
       for (int i = 0; i < dofs.Size(); i++)
       {
-         // bounding fluxes
-         real_t fie_max = gammae(i) * umax[dofs[i]] - ue_bar(i);
-         real_t fie_min = gammae(i) * umin[dofs[i]] - ue_bar(i);
+         // bounding fluxes to enforce u_i = u_i_min => du/dt >= 0 and vise versa for u_i = u_i_max
+         real_t fie_max = gammae(i) * (umax[dofs[i]] - ue(i));
+         real_t fie_min = gammae(i) * (umin[dofs[i]] - ue(i));
 
          fe_star(i) = min(max(fie_min, fe(i)), fie_max);
 
@@ -1198,9 +1198,10 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       y.AddElementVector(dofs, re);
    }
 
-   // add boundary condition
-   y += b_u;
-   y -= b_inflow;
+   // add boundary condition (u - u_inflow) * b
+   subtract(x, u_inflow, z);
+   z *= b_lumped;
+   y += z;
 
    // distribute
    Array<real_t> y_array(y.GetData(), y.Size());
@@ -1217,21 +1218,15 @@ ClipAndScale::~ClipAndScale()
 
 // Implementation of class HighOrderTargetScheme
 HighOrderTargetScheme::HighOrderTargetScheme(ParFiniteElementSpace &fes_,
-                                             const Vector &b_,
-                                             const Vector &lumpedmassmatrix_, const GridFunction *u,
+                                             const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                                              VectorFunctionCoefficient &velocity, ParBilinearForm &M):
-   CG_FE_Evolution(fes_, b_, lumpedmassmatrix_, u, velocity, M)
+   CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
 {
    udot.SetSize(lumpedmassmatrix.Size());
 }
 
 void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
 {
-   // update Boundary integral
-   u_gf = x;
-   b_u.LinearForm::operator=(0.0);
-   b_u.Assemble();
-
    y = 0.0;
 
    // compute low-order time derivative for high-order stabilization
@@ -1272,9 +1267,10 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
       y.AddElementVector(dofs, re);
    }
 
-   // add boundary condition
-   y += b_u;
-   y -= b_inflow;
+   // add boundary condition (u - u_inflow) * b (u - u_inflow) * b
+   subtract(x, u_inflow, z);
+   z *= b_lumped;
+   y += z;
 
    // distribute
    Array<real_t> y_array(y.GetData(), y.Size());
@@ -1289,19 +1285,14 @@ HighOrderTargetScheme::~HighOrderTargetScheme()
 { }
 
 // Implementation of Class LowOrderScheme
-LowOrderScheme::LowOrderScheme(ParFiniteElementSpace &fes_, const Vector &b_,
-                               const Vector &lumpedmassmatrix_, const GridFunction *u,
+LowOrderScheme::LowOrderScheme(ParFiniteElementSpace &fes_,
+                               const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                                VectorFunctionCoefficient &velocity, ParBilinearForm &M):
-   CG_FE_Evolution(fes_, b_, lumpedmassmatrix_, u, velocity, M)
+   CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
 { }
 
 void LowOrderScheme::Mult(const Vector &x, Vector &y) const
 {
-   // update Boundary integral
-   u_gf = x;
-   b_u.LinearForm::operator=(0.0);
-   b_u.Assemble();
-
    ComputeLOTimeDerivatives(x, y);
 }
 
