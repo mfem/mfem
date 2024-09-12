@@ -114,10 +114,11 @@ void ParContactProblem::SetupTribol()
 
    // Access Tribol's pressure grid function (on the contact surface)
    auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
+   int vsize = pressure.ParFESpace()->GlobalTrueVSize();
    if (mfem::Mpi::Root())
    {
       std::cout << "Number of pressure unknowns: " <<
-                pressure.ParFESpace()->GlobalTrueVSize() << std::endl;
+                vsize << std::endl;
    }
 
    // Set Tribol options for Lagrange multiplier enforcement
@@ -323,10 +324,11 @@ void ParContactProblem::SetupTribolDoublePass()
 
    // Access Tribol's pressure grid function (on the contact surface)
    auto& pressure1 = tribol::getMfemPressure(coupling_scheme_id1);
+   int vsize1 = pressure1.ParFESpace()->GlobalTrueVSize();
    if (mfem::Mpi::Root())
    {
       std::cout << "Number of pressure unknowns: " <<
-                pressure1.ParFESpace()->GlobalTrueVSize() << std::endl;
+                vsize1 << std::endl;
    }
 
    // Set Tribol options for Lagrange multiplier enforcement
@@ -428,10 +430,11 @@ void ParContactProblem::SetupTribolDoublePass()
 
    // Access Tribol's pressure grid function (on the contact surface)
    auto& pressure2 = tribol::getMfemPressure(coupling_scheme_id2);
+   int vsize2 = pressure2.ParFESpace()->GlobalTrueVSize();
    if (mfem::Mpi::Root())
    {
       std::cout << "Number of pressure unknowns: " <<
-                pressure2.ParFESpace()->GlobalTrueVSize() << std::endl;
+                vsize2 << std::endl;
    }
 
    // Set Tribol options for Lagrange multiplier enforcement
