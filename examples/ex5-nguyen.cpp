@@ -296,6 +296,7 @@ int main(int argc, char *argv[])
       case Problem::SteadyDiffusion:
       case Problem::SteadyAdvectionDiffusion:
       case Problem::SteadyBurgers:
+      case Problem::NonsteadyBurgers:
          //free (zero Dirichlet)
          if(bc_neumann)
          {
