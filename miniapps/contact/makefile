@@ -22,7 +22,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-CONTACT_SRC = ipsolver/ParIPsolver.cpp problems/parproblems.cpp problems/parproblems_util.cpp
+CONTACT_SRC = ipsolver/ParIPsolver.cpp problems/parproblems.cpp problems/parproblems_util.cpp ipsolver/two-level-solver.cpp
 CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 
 

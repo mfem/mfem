@@ -1,5 +1,6 @@
 #include "mfem.hpp"
 #include "ParIPsolver.hpp"
+#include "two-level-solver.hpp"
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
@@ -434,7 +435,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
       delete Ah;
    }
-   else if(linSolver >= 1 || linSolver == 2 || linSolver == 3 || linSolver == 4 || linSolver == 5)
+   else if(linSolver >= 1 || linSolver == 2 || linSolver == 3 || linSolver == 4 || linSolver == 5 || linSolver == 6)
    {
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
       HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
@@ -545,6 +546,41 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          delete AreducedSolver;
       }
 #ifdef MFEM_USE_MUMPS
+      else if (linSolver == 6) // Two level
+      {
+         if (iAmRoot)
+         {
+            std::cout << "\n" << std::string(50,'-') << endl;
+            mfem::out << std::string(20,' ') << "PCG SOLVER" << endl;
+            std::cout << std::string(50,'-') << endl;
+         } 
+         HypreParMatrix * Pb = problem->GetRestrictionToContactDofs();
+         TwoLevelAMGSolver * prec = new TwoLevelAMGSolver(*Areduced, *Pb);
+         CGSolver * AreducedSolver = new CGSolver(MPI_COMM_WORLD);
+         AreducedSolver->SetRelTol(linSolveRelTol);
+         AreducedSolver->SetMaxIter(50000);
+         AreducedSolver->SetPrintLevel(3);
+         AreducedSolver->SetOperator(*Areduced);
+         AreducedSolver->SetPreconditioner(*prec);
+         AreducedSolver->Mult(breduced, Xhat.GetBlock(0));
+         int n = AreducedSolver->GetNumIterations();
+         if (iAmRoot)
+         {
+            std::cout << std::string(50,'-') << "\n" << endl;
+            if (!AreducedSolver->GetConverged())
+            {
+               if (iAmRoot)
+               {
+                  mfem::out << "CG interagtions = "; 
+                  cgnum_iterations.Print(mfem::out, cgnum_iterations.Size());
+               }
+            }
+         }
+         MFEM_VERIFY(AreducedSolver->GetConverged(), "PCG solver did not converge");
+         cgnum_iterations.Append(n);
+         delete AreducedSolver;
+         
+      }
       // BlockDiagonalPrecoditioner [amg(Aᵢᵢ) 0; 0 A⁻¹ⱼⱼ]
       else // if linsolver == 3
       {

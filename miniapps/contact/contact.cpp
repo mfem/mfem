@@ -127,6 +127,7 @@ int main(int argc, char *argv[])
    bool elast = false;
    int testNo = -1; // 0-6
    int nsteps = 1;
+   int msteps = 0;
    bool outputfiles = false;
    bool doublepass = false;
    // 1. Parse command-line options.
@@ -149,6 +150,8 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements.");                  
    args.AddOption(&nsteps, "-nsteps", "--nsteps",
                   "Number of steps.");
+   args.AddOption(&msteps, "-msteps", "--msteps",
+                  "Number of extra steps.");                  
    args.AddOption(&pref, "-pr", "--parallel-refinements",
                   "Number of uniform refinements.");
    args.AddOption(&linsolverrtol, "-srtol", "--solver-rel-tol",
@@ -229,6 +232,12 @@ int main(int argc, char *argv[])
       case 42:
          mesh_file = "meshes/Test42.mesh";
          break;         
+      case 43:
+         mesh_file = "meshes/Test43.mesh";
+         break;       
+      case 44:
+         mesh_file = "meshes/Test44.mesh";
+         break;                         
       case 5:
          mesh_file = "meshes/Test5.mesh";
          break;
@@ -426,7 +435,8 @@ int main(int argc, char *argv[])
    double p = 20.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
-   for (int i = 0; i<nsteps; i++)
+   int total_steps = nsteps + msteps;
+   for (int i = 0; i<total_steps; i++)
    {
       if (testNo == 6)
       {
@@ -435,19 +445,26 @@ int main(int argc, char *argv[])
          f.constant = -p*(i+1)/nsteps;
          prob->SetNeumanPressureData(f,ess_bdr);
       }
-      else if (testNo == 4 || testNo == 40 || testNo == 5 || testNo == 51)
+      else if (testNo == 4 || testNo == 40 || testNo == 5 || testNo == 51 || testNo == 43 || testNo == 44)
       {
          ess_bdr = 0;
+         // essbdr_attr = (testNo == 40) ? 1 : 6;
          essbdr_attr = (testNo == 40) ? 1 : 2;
          ess_bdr[essbdr_attr-1] = 1;
          ess_values = 0.0;
-         ess_values[2] = 1.0/1.4*(i+1)/nsteps;
+         if (i < nsteps)
+         {
+            // ess_values[2] = -2.0/1.4*(i+1)/nsteps;
+            ess_values[2] = 1.0/1.4*(i+1)/nsteps;
+         }
+         else
+         {
+            // ess_values[0] = 8.0/1.4*(i+1-nsteps)/msteps;
+            // ess_values[2] = -2.0/1.4;
+            ess_values[0] = -8.0/1.4*(i+1-nsteps)/msteps;
+            ess_values[2] = 1.0/1.4;
+         }
          prob->SetDisplacementDirichletData(ess_values, ess_bdr);
-         // ess_bdr = 0;
-         // ess_bdr[10-1] = 1;
-         // ess_values = 0.0;
-         // ess_values[2] = (1.0/1.4+0.01)*(i+1)/nsteps;
-         // prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       }
       else if (testNo == 41)
       {
@@ -464,7 +481,7 @@ int main(int argc, char *argv[])
 
       x_gf.SetTrueVector();
       xref.Set(1.0, x_gf.GetTrueVector());
-      bool compute_dof_projections = (linsolver == 3) ? true : false;
+      bool compute_dof_projections = (linsolver == 3 || linsolver == 6) ? true : false;
       ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, compute_dof_projections);
       QPOptParContactProblem qpopt(&contact,xref);
    
@@ -505,7 +522,7 @@ int main(int argc, char *argv[])
          mfem::out << " Global number of constraints    = " << numconstr << endl;
          mfem::out << " Optimizer number of iterations  = " <<
                 optimizer.GetNumIterations() << endl;
-         if (linsolver == 2 || linsolver == 3 || linsolver == 4)
+         if (linsolver == 2 || linsolver == 3 || linsolver == 4 || linsolver == 6)
          {
             mfem::out << " CG iteration numbers            = " ;
             CGiterations.Print(mfem::out, CGiterations.Size());
@@ -540,7 +557,7 @@ int main(int argc, char *argv[])
          sol_sock << "parallel " << num_procs << " " << myid << "\n"
                   << "solution\n" << pmesh_copy << x_gf << flush;
       
-         if (i == nsteps - 1)
+         if (i == total_steps - 1)
          {
             pmesh->MoveNodes(x_gf);
             char vishost[] = "localhost";
@@ -551,8 +568,7 @@ int main(int argc, char *argv[])
             sol_sock1 << "solution\n" << *pmesh << x_gf << flush;
          }
       }
-      if (i == nsteps-1) break;
-      // cin.get();
+      if (i == total_steps-1) break;
       prob->UpdateStep();
    }
 
