@@ -653,7 +653,6 @@ void PACurlCurlAssembleDiagonal2D(const int D1D,
    }); // end of element loop
 }
 
-template<bool ABS>
 void PACurlCurlApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
@@ -663,7 +662,8 @@ void PACurlCurlApply2D(const int D1D,
                        const Array<real_t> &gct,
                        const Vector &pa_data,
                        const Vector &x,
-                       Vector &y)
+                       Vector &y,
+                       bool ABS)
 {
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
@@ -1047,20 +1047,6 @@ void PAHcurlL2ApplyTranspose2D(const int D1D,
       }  // loop qy
    }); // end of element loop
 }
-
-template void PACurlCurlApply2D<false>(const int, const int, const int,
-                                       const Array<real_t> &,
-                                       const Array<real_t> &,
-                                       const Array<real_t> &,
-                                       const Array<real_t> &,
-                                       const Vector &, const Vector &, Vector &);
-
-template void PACurlCurlApply2D<true>(const int, const int, const int,
-                                      const Array<real_t> &,
-                                      const Array<real_t> &,
-                                      const Array<real_t> &,
-                                      const Array<real_t> &,
-                                      const Vector &, const Vector &, Vector &);
 
 } // namespace internal
 

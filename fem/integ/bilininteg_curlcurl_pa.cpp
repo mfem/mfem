@@ -230,47 +230,47 @@ void CurlCurlIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
          switch (ID)
          {
             case 0x23:
-               return internal::SmemPACurlCurlApply3D<2,3,true>(
+               return internal::SmemPACurlCurlApply3D<2,3>(
                          dofs1D, quad1D,
                          symmetric, ne,
                          absBo, absBc, absBto, absBtc,
-                         absGc, absGtc, abs_pa_data, x, y);
+                         absGc, absGtc, abs_pa_data, x, y, true);
             case 0x34:
-               return internal::SmemPACurlCurlApply3D<3,4,true>(
+               return internal::SmemPACurlCurlApply3D<3,4>(
                          dofs1D, quad1D,
                          symmetric, ne,
                          absBo, absBc, absBto, absBtc,
-                         absGc, absGtc, abs_pa_data, x, y);
+                         absGc, absGtc, abs_pa_data, x, y, true);
             case 0x45:
-               return internal::SmemPACurlCurlApply3D<4,5,true>(
+               return internal::SmemPACurlCurlApply3D<4,5>(
                          dofs1D, quad1D,
                          symmetric, ne,
                          absBo, absBc, absBto, absBtc,
-                         absGc, absGtc, abs_pa_data, x, y);
+                         absGc, absGtc, abs_pa_data, x, y, true);
             case 0x56:
-               return internal::SmemPACurlCurlApply3D<5,6,true>(
+               return internal::SmemPACurlCurlApply3D<5,6>(
                          dofs1D, quad1D,
                          symmetric, ne,
                          absBo, absBc, absBto, absBtc,
-                         absGc, absGtc, abs_pa_data, x, y);
+                         absGc, absGtc, abs_pa_data, x, y, true);
             default:
-               return internal::SmemPACurlCurlApply3D<0,0,true>(
+               return internal::SmemPACurlCurlApply3D<0,0>(
                          dofs1D, quad1D, symmetric, ne,
                          absBo, absBc, absBto, absBtc,
-                         absGc, absGtc, abs_pa_data, x, y);
+                         absGc, absGtc, abs_pa_data, x, y, true);
          }
       }
       else
       {
-         internal::PACurlCurlApply3D<0,0,true>(dofs1D, quad1D, symmetric, ne,
-                                               absBo, absBc, absBto, absBtc, absGc, absGtc,
-                                               abs_pa_data, x, y);
+         internal::PACurlCurlApply3D<0,0>(dofs1D, quad1D, symmetric, ne,
+                                          absBo, absBc, absBto, absBtc, absGc, absGtc,
+                                          abs_pa_data, x, y, true);
       }
    }
    else if (dim == 2)
    {
-      internal::PACurlCurlApply2D<true>(dofs1D, quad1D, ne, absBo, absBto,
-                                        absGc, absGtc, abs_pa_data, x, y);
+      internal::PACurlCurlApply2D(dofs1D, quad1D, ne, absBo, absBto,
+                                  absGc, absGtc, abs_pa_data, x, y, true);
    }
    else
    {

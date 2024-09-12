@@ -829,7 +829,6 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
 }
 
 // PA H(curl) curl-curl Apply 2D kernel (and AbsApply 2D kernel)
-template<bool ABS = false>
 void PACurlCurlApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
@@ -839,10 +838,11 @@ void PACurlCurlApply2D(const int D1D,
                        const Array<real_t> &gct,
                        const Vector &pa_data,
                        const Vector &x,
-                       Vector &y);
+                       Vector &y,
+                       bool ABS = false);
 
 // PA H(curl) curl-curl Apply 3D kernel (and AbsApply 3D kernel)
-template<int T_D1D = 0, int T_Q1D = 0, bool ABS = false>
+template<int T_D1D = 0, int T_Q1D = 0>
 inline void PACurlCurlApply3D(const int d1d,
                               const int q1d,
                               const bool symmetric,
@@ -855,7 +855,8 @@ inline void PACurlCurlApply3D(const int d1d,
                               const Array<real_t> &gct,
                               const Vector &pa_data,
                               const Vector &x,
-                              Vector &y)
+                              Vector &y,
+                              bool ABS = false)
 {
    MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Error: d1d > HCURL_MAX_D1D");
@@ -1392,7 +1393,7 @@ inline void PACurlCurlApply3D(const int d1d,
 }
 
 // Shared memory PA H(curl) curl-curl Apply 3D kernel (and AbsApply 3D kernel)
-template<int T_D1D = 0, int T_Q1D = 0, bool ABS = false>
+template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPACurlCurlApply3D(const int d1d,
                                   const int q1d,
                                   const bool symmetric,
@@ -1405,7 +1406,8 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                                   const Array<real_t> &gct,
                                   const Vector &pa_data,
                                   const Vector &x,
-                                  Vector &y)
+                                  Vector &y,
+                                  bool ABS = false)
 {
    MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Error: d1d > HCURL_MAX_D1D");
