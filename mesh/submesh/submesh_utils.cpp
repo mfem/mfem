@@ -258,7 +258,6 @@ void AddBoundaryElements(SubMeshT &mesh,
                          const std::unordered_map<int,int> &lface_to_boundary_attribute)
 {
    mesh.Dimension();
-   // TODO: Check if the mesh is a SubMesh or ParSubMesh.
    const int num_codim_1 = [&mesh]()
    {
       auto Dim = mesh.Dimension();
@@ -395,10 +394,10 @@ namespace
 {
 /**
  * @brief Helper class for storing and comparing arrays of face nodes.
- * @details The comparison operator uses the sorted nodes and a lexicographic compare so
- * that two different orientations of the same set of nodes will be identical. The actual
- * nodes are stored unsorted as the ordering is important for constructing the leaf-root
- * relations.
+ * @details The comparison operator uses the sorted nodes and a lexicographic
+ * compare so that two different orientations of the same set of nodes will be
+ * identical. The actual nodes are stored unsorted as the ordering is important
+ * for constructing the leaf-root relations.
  */
 struct FaceNodes
 {
@@ -439,17 +438,19 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
    auto &parent_to_submesh_element_ids = submesh.parent_to_submesh_element_ids_;
    const auto &parent = *submesh.GetParent();
 
-   // Collect parent vertex nodes to add in sequence.
-   // Map from parent nodes to the new element in the ncsubmesh.
+   // Collect parent vertex nodes to add in sequence. Map from parent nodes to
+   // the new element in the ncsubmesh.
    UniqueIndexGenerator node_ids;
    std::map<FaceNodes, int> pnodes_new_elem;
    std::set<int> new_nodes;
    parent_to_submesh_element_ids.reserve(parent.GetNumFaces());
    parent_element_ids.Reserve(parent.GetNumFaces());
-   // Base class cast then const cast because GetFaceList uses just in time construction.
+   // Base class cast then const cast because GetFaceList uses just in time
+   // construction.
    const auto &face_list = const_cast<NCMesh&>(static_cast<const NCMesh&>
                                                (parent)).GetFaceList();
-   // Double indexing loop because begin() and end() do not align with index 0 and size-1.
+   // Double indexing loop because begin() and end() do not align with index 0
+   // and size-1.
    for (int i = 0, ipe = 0; ipe < parent.GetNumFaces(); i++)
    {
       const auto &face = parent.GetFace(i);
@@ -465,9 +466,10 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
       auto fn = FaceNodes{submesh.parent_->FindFaceNodes(face)};
       if (pnodes_new_elem.find(fn) != pnodes_new_elem.end()) { continue; }
 
-      // TODO: Internal nc submesh can be constructed and solved on, but the transfer
-      // to the parent mesh can be erroneous, this is likely due to not treating the
-      // changing orientation of internal faces for ncmesh within the ptransfermap.
+      // TODO: Internal nc submesh can be constructed and solved on, but the
+      // transfer to the parent mesh can be erroneous, this is likely due to not
+      // treating the changing orientation of internal faces for ncmesh within
+      // the ptransfermap.
       MFEM_ASSERT(face.elem[0] < 0 || face.elem[1] < 0,
                   "Internal nonconforming boundaries are not reliably supported yet.");
       auto face_geom = FaceGeomFromNodes(fn.nodes);
@@ -486,7 +488,8 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
       parent_element_ids.Append(i);
       parent_to_submesh_element_ids[i] = new_elem_id;
 
-      // Copy in the parent nodes. These will be relabeled once the tree is built.
+      // Copy in the parent nodes. These will be relabeled once the tree is
+      // built.
       std::copy(fn.nodes.begin(), fn.nodes.end(), submesh.elements[new_elem_id].node);
       for (auto x : fn.nodes)
          if (x != -1)
@@ -535,14 +538,15 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
          }
          else
          {
-            // There are two scenarios where the parent nodes should be rearranged:
-            // 1. The found face is a slave, then the master might have been added in
-            //    reverse orientation
-            // 2. The parent face was added from the central face of a triangle, the
-            //    orientation of the parent face is only fixed relative to the outer
-            //    child faces not the interior.
-            //    If either of these scenarios, and there's a mismatch, then reorder
-            //    the parent and all ancestors if necessary.
+            // There are two scenarios where the parent nodes should be
+            // rearranged:
+            // 1. The found face is a slave, then the master might have been
+            //    added in reverse orientation
+            // 2. The parent face was added from the central face of a triangle,
+            //    the orientation of the parent face is only fixed relative to
+            //    the outer child faces not the interior. If either of these
+            //    scenarios, and there's a mismatch, then reorder the parent and
+            //    all ancestors if necessary.
             if (((elem.Geom() == Geometry::Type::TRIANGLE && child != 3)
                  || face_type != NCMesh::NCList::MeshIdType::UNRECOGNIZED)
                 && !std::equal(fn.nodes.begin(), fn.nodes.end(), pelem->first.nodes.begin()))
@@ -557,10 +561,10 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
                else
                {
                   // This face already had children, reorder them to match the
-                  // permutation from the original nodes to the new face nodes. The
-                  // discovered parent order should be the same for all descendent
-                  // faces. If this branch is triggered twice for a given parent face,
-                  // duplicate child elements may be marked.
+                  // permutation from the original nodes to the new face nodes.
+                  // The discovered parent order should be the same for all
+                  // descendent faces. If this branch is triggered twice for a
+                  // given parent face, duplicate child elements may be marked.
                   int child_nodes[NCMesh::MaxFaceNodes];
                   for (int i1 = 0; i1 < NCMesh::MaxFaceNodes; i1++)
                      for (int i2 = 0; i2 < NCMesh::MaxFaceNodes; i2++)
@@ -581,8 +585,9 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
          // Know that the parent element exists, connect parent and child
          submesh.elements[pelem->second].child[child] = new_elem_id;
          submesh.elements[new_elem_id].parent = pelem->second;
-         // If this was neither new nor a fixed parent, the higher levels of the tree have been built,
-         // otherwise we recurse up the tree to add/fix more parents.
+         // If this was neither new nor a fixed parent, the higher levels of the
+         // tree have been built, otherwise we recurse up the tree to add/fix
+         // more parents.
          if (!new_parent && !fix_parent) { break; }
          new_elem_id = pelem->second;
       }
@@ -592,15 +597,14 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
                parent_element_ids.Size() << ' ' << submesh.elements.Size());
 
    /*
-      All elements have been added into the tree but
-      a) The nodes are all from the parent ncmesh
-      b) The nodes do not know their parents
-      c) The element ordering is wrong, root elements are not first
-      d) The parent and child element numbers reflect the incorrect ordering
+      All elements have been added into the tree but a) The nodes are all from
+      the parent ncmesh b) The nodes do not know their parents c) The element
+      ordering is wrong, root elements are not first d) The parent and child
+      element numbers reflect the incorrect ordering
 
       1. Add in nodes in the same order from the parent ncmesh
-      2. Compute reordering of elements with parent elements first, that is stable across
-         processors.
+      2. Compute reordering of elements with parent elements first, that is
+         stable across processors.
    */
    // Build an inverse (and consecutive) map.
    Array<FaceNodes> new_elem_to_parent_face_nodes(pnodes_new_elem.size());
@@ -625,8 +629,8 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
    parent_node_ids.ShrinkToFit();
    new_nodes.clear(); // not needed any more.
 
-   // Comparator for deciding order of elements. Building the ordering from the parent
-   // ncmesh ensures the root ordering is common across ranks.
+   // Comparator for deciding order of elements. Building the ordering from the
+   // parent ncmesh ensures the root ordering is common across ranks.
    auto comp_elements = [&](int l, int r)
    {
       const auto &elem_l = submesh.elements[l];
@@ -654,8 +658,8 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
          old_to_new(submesh.elements.Size());
    while (!parental_sorted())
    {
-      // Stably reorder elements in order of refinement, and by parental nodes within
-      // a nuclear family.
+      // Stably reorder elements in order of refinement, and by parental nodes
+      // within a nuclear family.
       new_to_old.SetSize(submesh.elements.Size()),
                          old_to_new.SetSize(submesh.elements.Size());
       std::iota(new_to_old.begin(), new_to_old.end(), 0);
@@ -787,7 +791,8 @@ void ConstructVolumeTree(NCSubMeshT &submesh, const Array<int> &attributes)
       parent_to_submesh_node_ids[n] = new_node_id;
    }
 
-   // Loop over elements and reference edges and faces (creating any nodes on first encounter).
+   // Loop over elements and reference edges and faces (creating any nodes on
+   // first encounter).
    for (auto &el : submesh.elements)
    {
       if (el.IsLeaf())

@@ -994,11 +994,12 @@ public:
    int AddBdrElement(Element *elem);
 
    /**
-    * @brief Add an array of boundary elements to the mesh, along with map from the elements
-    * to their faces
-    * @param[in] bdr_elems The set of boundary element pointers, ownership of the pointers
-    * will be transferred to the Mesh object
-    * @param[in] be_to_face The map from the boundary element index to the face index
+    * @brief Add an array of boundary elements to the mesh, along with map from
+    * the elements to their faces
+    * @param[in] bdr_elems The set of boundary element pointers, ownership of
+    * the pointers will be transferred to the Mesh object
+    * @param[in] be_to_face The map from the boundary element index to the face
+    * index
     */
    void AddBdrElements(Array<Element *> &bdr_elems,
                        const Array<int> &be_to_face);

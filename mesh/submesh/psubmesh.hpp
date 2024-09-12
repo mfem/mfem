@@ -153,7 +153,8 @@ public:
    }
 
    /**
-    * @brief Get the submesh element corresponding to a parent element. -1 == not present.
+    * @brief Get the submesh element corresponding to a parent element. -1 ==
+    * not present.
     * @param pe The parent element id.
     * @return int
     */
@@ -164,7 +165,8 @@ public:
    }
 
    /**
-    * @brief Get the submesh vertex corresponding to a parent element. -1 == not present.
+    * @brief Get the submesh vertex corresponding to a parent element. -1 == not
+    * present.
     * @param pv The parent vertex id.
     * @return int
     */
@@ -175,7 +177,8 @@ public:
    }
 
    /**
-    * @brief Get the submesh edge corresponding to a parent element. -1 == not present.
+    * @brief Get the submesh edge corresponding to a parent element. -1 == not
+    * present.
     * @param pe The parent edge id.
     * @return int
     */
@@ -186,7 +189,8 @@ public:
    }
 
    /**
-    * @brief Get the submesh face corresponding to a parent element. -1 == not present.
+    * @brief Get the submesh face corresponding to a parent element. -1 == not
+    * present.
     * @param pf The parent face id.
     * @return int
     */
@@ -245,24 +249,22 @@ private:
     *
     * Example with 4 ranks and X shared vertices.
     * * R0-R3 indicate ranks 0 to 3
-    * * v0-v3 indicate vertices 0 to 3
-    * The array is used as follows (only relevant bits shown):
+    * * v0-v3 indicate vertices 0 to 3 The array is used as follows (only
+    *   relevant bits shown):
     *
-    * rhvtx[0] = [0...0 1 0 1] Rank 0 and 2 have shared vertex 0
-    * rhvtx[1] = [0...0 1 1 1] Rank 0, 1 and 2 have shared vertex 1
-    * rhvtx[2] = [0...0 0 1 1] Rank 0 and 1 have shared vertex 2
-    * rhvtx[3] = [0...1 0 1 0] Rank 1 and 3 have shared vertex 3. Corner case
-    * which shows that a rank can contribute the shared vertex, but the adjacent
-    * element or edge might not be included in the relevant SubMesh.
+    * rhvtx[0] = [0...0 1 0 1] Rank 0 and 2 have shared vertex 0 rhvtx[1] =
+    * [0...0 1 1 1] Rank 0, 1 and 2 have shared vertex 1 rhvtx[2] = [0...0 0 1
+    * 1] Rank 0 and 1 have shared vertex 2 rhvtx[3] = [0...1 0 1 0] Rank 1 and 3
+    * have shared vertex 3. Corner case which shows that a rank can contribute
+    * the shared vertex, but the adjacent element or edge might not be included
+    * in the relevant SubMesh.
     *
     *  +--------------+--------------+...
-    *  |              |v0            |
-    *  |      R0      |      R2      |     R3
+    *  |              |v0            | |      R0      |      R2      |     R3
     *  |              |              |
     *  +--------------+--------------+...
-    *  |              |v1            |
-    *  |      R0      |      R1      |     R3
-    *  |              |v2            |v3
+    *  |              |v1            | |      R0      |      R1      |     R3 |
+    *  |v2            |v3
     *  +--------------+--------------+...
     *
     * @param[out] rhvtx Encoding of which rank contains which vertex.
@@ -272,8 +274,8 @@ private:
    /**
     * @brief Find shared edges on the ParSubMesh.
     *
-    * Uses the parent GroupCommunicator to determine shared edges.
-    * Collective. Limited to groups containing less than 32 ranks.
+    * Uses the parent GroupCommunicator to determine shared edges. Collective.
+    * Limited to groups containing less than 32 ranks.
     *
     * See FindSharedVerticesRanks for the encoding for @a rhe.
     *
@@ -289,11 +291,10 @@ private:
     * The encoded output arrays @a rhq and @a rht contain either 0, 1 or 2 for
     * each shared face.
     *
-    * 0: Face might have been a shared face in the parent ParMesh, but is
-    * not contained in the ParSubMesh.
-    * 1: Face is contained in the ParSubMesh but only on one rank.
-    * 2: Face is contained in the ParSubMesh and shared by two ranks. This
-    * is the only feasible entity of a shared face in a ParSubMesh.
+    * 0: Face might have been a shared face in the parent ParMesh, but is not
+    * contained in the ParSubMesh. 1: Face is contained in the ParSubMesh but
+    * only on one rank. 2: Face is contained in the ParSubMesh and shared by two
+    * ranks. This is the only feasible entity of a shared face in a ParSubMesh.
     *
     * @param[out] rht Encoding of which rank contains which face triangle.
     * @param[out] rhq Encoding of which rank contains which face quadrilateral.
@@ -399,15 +400,15 @@ private:
    /// The parent Mesh
    const ParMesh &parent_;
 
-   /// Optional nonconformal submesh. Managed via ncmesh pointer in base class.
+   /// Optional nonconformal submesh. Managed via pncmesh pointer in base class.
    ParNCSubMesh *pncsubmesh_;
 
-   /// Indicator from which part of the parent ParMesh the ParSubMesh is going to
-   /// be created.
+   /// Indicator from which part of the parent ParMesh the ParSubMesh is going
+   /// to be created.
    SubMesh::From from_;
 
-   /// Attributes on the parent ParMesh on which the ParSubMesh is created. Could
-   /// either be domain or boundary attributes (determined by from_).
+   /// Attributes on the parent ParMesh on which the ParSubMesh is created.
+   /// Could either be domain or boundary attributes (determined by from_).
    Array<int> attributes_;
 
    /// Mapping from ParSubMesh element ids (index of the array), to the parent
@@ -426,8 +427,8 @@ private:
    /// ParMesh face ids.
    Array<int> parent_face_ids_;
 
-   /// Mapping from SubMesh face ids (index of the array), to the orientation
-   /// of the face relative to the parent face.
+   /// Mapping from SubMesh face ids (index of the array), to the orientation of
+   /// the face relative to the parent face.
    Array<int> parent_face_ori_;
 
    /// Mapping from parent ParMesh element ids (index of the array), to the

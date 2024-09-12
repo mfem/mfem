@@ -118,23 +118,24 @@ auto GetRootParent(const T &m) -> decltype(std::declval<T>().GetParent())
 }
 
 /**
- * @brief Add boundary elements to the Mesh.
- * @details An attempt to call this function for anything other than SubMesh or ParSubMesh
- * will result in a linker error as the template is only explicitly instantiated for those
- * types.
- * @param mesh The Mesh to add boundary elements to.
- * @param lface_to_boundary_attribute Map from local faces in the submesh to boundary
- * attributes. Only necessary for interior boundary attributes of volume submeshes, where
- * the face owning the attribute might be on a neighboring rank.
- * @tparam MeshT The SubMesh type, options SubMesh and ParSubMesh.
+ * @brief Add boundary elements to the SubMesh.
+ * @details An attempt to call this function for anything other than SubMesh or
+ * ParSubMesh will result in a linker error as the template is only explicitly
+ * instantiated for those types.
+ * @param mesh The SubMesh to add boundary elements to.
+ * @param lface_to_boundary_attribute Map from local faces in the submesh to
+ * boundary attributes. Only necessary for interior boundary attributes of
+ * volume submeshes, where the face owning the attribute might be on a
+ * neighboring rank.
+ * @tparam SubMeshT The SubMesh type, options SubMesh and ParSubMesh.
  */
 template <typename SubMeshT>
 void AddBoundaryElements(SubMeshT &mesh,
                          const std::unordered_map<int,int> &lface_to_boundary_attribute = {});
 
 /**
- * @brief Construct a nonconformal mesh (serial or parallel) for a surface submesh, from an
- * existing nonconformal volume mesh (serial or parallel).
+ * @brief Construct a nonconformal mesh (serial or parallel) for a surface
+ * submesh, from an existing nonconformal volume mesh (serial or parallel).
  * @details This function is only instantiated for NCSubMesh and ParNCSubMesh
  *    Attempting to use it with other classes will result in a linker error.
  * @tparam NCSubMeshT The NCSubMesh type
@@ -145,8 +146,8 @@ template<typename NCSubMeshT>
 void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes);
 
 /**
- * @brief Construct a nonconformal mesh (serial or parallel) for a volume submesh, from an
- * existing nonconformal volume mesh (serial or parallel).
+ * @brief Construct a nonconformal mesh (serial or parallel) for a volume
+ * submesh, from an existing nonconformal volume mesh (serial or parallel).
  * @details This function is only instantiated for NCSubMesh and ParNCSubMesh
  *    Attempting to use it with other classes will result in a linker error.
  * @tparam NCSubMeshT The NCSubMesh type
@@ -177,6 +178,10 @@ bool HasAttribute(const T &el, const Array<int> &attributes)
    }
    return false;
 }
+inline bool ElementHasAttribute(const Element &el, const Array<int> &attributes)
+{
+   return HasAttribute(el,attributes);
+}
 
 /**
  * @brief Apply permutation to a container type
@@ -197,7 +202,8 @@ void Permute(const Array<int>& indices, T1& t1, T2& t2, T3& t3)
 
 /**
  * @brief Apply permutation to a container type
- * @details Sorts the indices variable in the process, thereby destroying the permutation.
+ * @details Sorts the indices variable in the process, thereby destroying the
+ * permutation.
  *
  * @tparam T1 Container type 1
  * @tparam T2 Container type 2
@@ -211,10 +217,10 @@ template <typename T1, typename T2, typename T3>
 void Permute(Array<int>&& indices, T1& t1, T2& t2, T3& t3)
 {
    /*
-   TODO: In c++17 can replace this with a parameter pack expansion technique to operate on
-   arbitrary collections of reference accessible containers of arbitrary type.
-   template <typename ...T>
-   void Permute(std::Array<int>&& indices, T&... t)
+   TODO: In c++17 can replace this with a parameter pack expansion technique to
+   operate on arbitrary collections of reference accessible containers of
+   arbitrary type. template <typename ...T> void Permute(std::Array<int>&&
+   indices, T&... t)
    {
       for (int i = 0; i < indices.Size(); i++)
       {

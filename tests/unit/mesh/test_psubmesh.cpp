@@ -280,8 +280,7 @@ void multidomain_test_3d(FECType fec_type)
 {
    constexpr int dim = 3;
    const int p = 2;
-   // Circle: sideset 1
-   // Domain boundary: sideset 2
+   // Circle: sideset 1 Domain boundary: sideset 2
    Mesh *serial_parent_mesh = new
    Mesh("../../miniapps/multidomain/multidomain-hex.mesh");
    ParMesh parent_mesh(MPI_COMM_WORLD, *serial_parent_mesh);
@@ -607,7 +606,6 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[SubMesh]")
       int attr = (i + (1 + num_procs % 2) * (i / num_procs)) % 2 + 1;
       serial_mesh.SetAttribute(i, attr);
    }
-
    int bdr_max = serial_mesh.bdr_attributes.Max();
 
    // Label all interior faces as boundary elements
@@ -627,20 +625,16 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[SubMesh]")
    Array<int> partitioning(num_procs * num_procs);
    for (int i = 0; i < num_procs * num_procs; i++)
    {
-      // The following creates a shifting pattern where neighboring elements
-      // are never owned by the same processor
+      // The following creates a shifting pattern where neighboring elements are
+      // never owned by the same processor
       partitioning[i] = (2 * num_procs - 1 - (i % num_procs) -
                          i / num_procs) % num_procs;
    }
-
    if (make_nc)
    {
       serial_mesh.EnsureNCMesh(true);
    }
-
-
    ParMesh parent_mesh(MPI_COMM_WORLD, serial_mesh, partitioning);
-
 
    if (make_nc)
    {
@@ -656,22 +650,16 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[SubMesh]")
       parent_mesh.GeneralRefinement(el_to_refine);
    }
 
-
    // Create a pair of domain-based sub meshes
    Array<int> domain1(1);
    domain1[0] = 1;
-
    Array<int> domain2(1);
    domain2[0] = 2;
 
-
    auto domain1_submesh = ParSubMesh::CreateFromDomain(parent_mesh,
                                                        domain1);
-
-
    auto domain2_submesh = ParSubMesh::CreateFromDomain(parent_mesh,
                                                        domain2);
-
 
    // Create histograms of boundary attributes in each sub-domain
    auto be1 = count_be(domain1_submesh);
@@ -681,8 +669,8 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[SubMesh]")
    // Only the root process has valid histograms
    if (Mpi::Root())
    {
-      // Verify that all exterior boundary elements were accounted for.
-      // If an NC refine has occurred, there will be extra faces on half the checkerboard
+      // Verify that all exterior boundary elements were accounted for. If an NC
+      // refine has occurred, there will be extra faces on half the checkerboard
       const int num_top_refined = make_nc ? (num_procs/2)*(num_procs/2)
                                   + ((num_procs+1)/2)*((num_procs+1)/2) : 0;
       const int num_side_refined = make_nc ? (num_procs+1)/2 : 0;
@@ -693,7 +681,8 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[SubMesh]")
       CHECK(be1[5] + be2[5] == num_procs + 3 * num_side_refined);
       CHECK(be1[6] + be2[6] == num_procs * num_procs + 3 * num_top_refined);
 
-      // Verify that all interior boundary elements of serial mesh appear correct number of times in each submesh
+      // Verify that all interior boundary elements of serial mesh appear
+      // correct number of times in each submesh
       for (int i=0; i < serial_mesh.GetNumFaces(); i++)
       {
          if (serial_mesh.FaceIsInterior(i))
@@ -799,7 +788,8 @@ void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type,
    }
    SECTION("PRConstraint")
    {
-      // Application of PR should be identical in mesh and submesh for an external boundary.
+      // Application of PR should be identical in mesh and submesh for an
+      // external boundary.
       if (mesh.Nonconforming())
       {
          Vector tmp;

@@ -38,10 +38,10 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
    Iso = true;
    Legacy = false;
 
-   // Loop over parent leaf elements and add nodes for all vertices. Register as top level
-   // nodes, will reparent when looping over edges. Cannot add edge nodes at same time
-   // because top level vertex nodes must be contiguous and first in node list (see
-   // coordinates).
+   // Loop over parent leaf elements and add nodes for all vertices. Register as
+   // top level nodes, will reparent when looping over edges. Cannot add edge
+   // nodes at same time because top level vertex nodes must be contiguous and
+   // first in node list (see coordinates).
    if (from == From::Domain)
    {
       SubMeshUtils::ConstructVolumeTree(*this, attributes);
@@ -51,7 +51,8 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       SubMeshUtils::ConstructFaceTree(*this, attributes);
    }
 
-   // Loop over all nodes, and reparent based on the node relations of the parent
+   // Loop over all nodes, and reparent based on the node relations of the
+   // parent
    for (int i = 0; i < parent_node_ids_.Size(); i++)
    {
       const auto &parent_node = parent.nodes[parent_node_ids_[i]];
@@ -99,12 +100,12 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
       delete [] parent.tmp_vertex;
    }
 
-   // The element indexing was changed as part of generation of leaf elements. We need to
-   // update the map.
+   // The element indexing was changed as part of generation of leaf elements.
+   // We need to update the map.
    if (from == From::Domain)
    {
-      // The element indexing was changed as part of generation of leaf elements. We need to
-      // update the map.
+      // The element indexing was changed as part of generation of leaf
+      // elements. We need to update the map.
       submesh.parent_to_submesh_element_ids_ = -1;
       for (int i = 0; i < submesh.parent_element_ids_.Size(); i++)
       {

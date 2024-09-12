@@ -92,7 +92,11 @@ public:
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
 
-   // Initializer list constructor
+   /**
+    * @brief Construct a new Array object from an initializer list.
+    *
+    * @param init_list List of entities to construct from.
+    */
    Array(const std::initializer_list<T> &init_list)
       : Array(static_cast<int>(init_list.size()))
    {
@@ -232,9 +236,10 @@ public:
    inline void MakeRef(const Array &master);
 
    /**
-    * @brief Permute the array using the provided indices. Algorithm requires destroying the
-    * provided indices array, (it is sorted). The rvalue reference is to be used when this
-    * destruction is allowed, whilst the const reference preserves at the cost of duplication.
+    * @brief Permute the array using the provided indices. Sorts the indices
+    * variable in the process, thereby destroying the permutation. The rvalue
+    * reference is to be used when this destruction is allowed, whilst the const
+    * reference preserves at the cost of duplication.
     *
     * @param indices The indices of the ordering. data[i] = data[indices[i]].
     */

@@ -82,10 +82,7 @@ public:
    static SubMesh CreateFromBoundary(const Mesh &parent,
                                      const Array<int> &boundary_attributes);
 
-   /**
-    * @brief Get the parent Mesh object
-    *
-    */
+   ///Get the parent Mesh object
    const Mesh* GetParent() const
    {
       return parent_;
@@ -94,8 +91,7 @@ public:
    /**
     * @brief Get the From indicator.
     *
-    * Indicates whether the SubMesh has been created from a domain or
-    * surface.
+    * Indicates whether the SubMesh has been created from a domain or surface.
     */
    From GetFrom() const
    {
@@ -153,40 +149,44 @@ public:
    }
 
    /**
-    * @brief Get the submesh element corresponding to a parent element. -1 == not present.
+    * @brief Get the submesh element corresponding to a parent element. -1 ==
+    * not present.
     * @param pe The parent element id.
     * @return int
     */
    int GetSubMeshElementFromParent(int pe) const
    {
-      return pe < 0 ? pe : parent_to_submesh_element_ids_[pe];
+      return pe == -1 ? pe : parent_to_submesh_element_ids_[pe];
    }
    /**
-    * @brief Get the submesh vertex corresponding to a parent element. -1 == not present.
+    * @brief Get the submesh vertex corresponding to a parent element. -1 == not
+    * present.
     * @param pv The parent vertex id.
     * @return int
     */
    int GetSubMeshVertexFromParent(int pv) const
    {
-      return pv < 0 ? pv : parent_to_submesh_vertex_ids_[pv];
+      return pv == -1 ? pv : parent_to_submesh_vertex_ids_[pv];
    }
    /**
-    * @brief Get the submesh edge corresponding to a parent element. -1 == not present.
+    * @brief Get the submesh edge corresponding to a parent element. -1 == not
+    * present.
     * @param pe The parent edge id.
     * @return int
     */
    int GetSubMeshEdgeFromParent(int pe) const
    {
-      return pe < 0 ? pe : parent_to_submesh_edge_ids_[pe];
+      return pe == -1 ? pe : parent_to_submesh_edge_ids_[pe];
    }
    /**
-    * @brief Get the submesh face corresponding to a parent element. -1 == not present.
+    * @brief Get the submesh face corresponding to a parent element. -1 == not
+    * present.
     * @param pf The parent face id.
     * @return int
     */
    int GetSubMeshFaceFromParent(int pf) const
    {
-      return pf < 0 ? pf : parent_to_submesh_face_ids_[pf];
+      return pf == -1 ? pf : parent_to_submesh_face_ids_[pf];
    }
 
    /**
@@ -205,8 +205,8 @@ public:
    /**
     * @brief Create a Transfer Map object.
     *
-    * The @a src GridFunction can either be defined on a Mesh or a
-    * SubMesh and is transferred appropriately.
+    * The @a src GridFunction can either be defined on a Mesh or a SubMesh and
+    * is transferred appropriately.
     *
     * @note Either @a src or @a dst has to be defined on a SubMesh.
     */
@@ -257,24 +257,24 @@ private:
    /// face ids.
    Array<int> parent_face_ids_;
 
-   /// Mapping from SubMesh face ids (index of the array), to the orientation
-   /// of the face relative to the parent face.
+   /// Mapping from SubMesh face ids (index of the array), to the orientation of
+   /// the face relative to the parent face.
    Array<int> parent_face_ori_;
 
-   /// Mapping from parent Mesh vertex ids (index of the array), to the
-   /// SubMesh vertex ids. Inverse map of parent_element_ids_.
+   /// Mapping from parent Mesh vertex ids (index of the array), to the SubMesh
+   /// vertex ids. Inverse map of parent_element_ids_.
    Array<int> parent_to_submesh_element_ids_;
 
-   /// Mapping from parent Mesh vertex ids (index of the array), to the
-   /// SubMesh vertex ids. Inverse map of parent_vertex_ids_.
+   /// Mapping from parent Mesh vertex ids (index of the array), to the SubMesh
+   /// vertex ids. Inverse map of parent_vertex_ids_.
    Array<int> parent_to_submesh_vertex_ids_;
 
-   /// Mapping from parent Mesh edge ids (index of the array), to the
-   /// SubMesh edge ids. Inverse map of parent_edge_ids_.
+   /// Mapping from parent Mesh edge ids (index of the array), to the SubMesh
+   /// edge ids. Inverse map of parent_edge_ids_.
    Array<int> parent_to_submesh_edge_ids_;
 
-   /// Mapping from parent Mesh face ids (index of the array), to the
-   /// SubMesh face ids. Inverse map of parent_face_ids_.
+   /// Mapping from parent Mesh face ids (index of the array), to the SubMesh
+   /// face ids. Inverse map of parent_face_ids_.
    Array<int> parent_to_submesh_face_ids_;
 };
 

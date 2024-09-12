@@ -123,7 +123,7 @@ Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0);
 
 
 /**
- * @brief Helper to refine a single element attached to a boundary attributes
+ * @brief Helper to refine a single element attached to a boundary attribute
  *
  * @param mesh Mesh to refine
  * @param vattr Volume attribute to check for elements

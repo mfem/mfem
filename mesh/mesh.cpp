@@ -2037,7 +2037,6 @@ void Mesh::AddBdrElements(Array<Element *> &bdr_elems,
                           const Array<int> &new_be_to_face)
 {
    boundary.Reserve(boundary.Size() + bdr_elems.Size());
-   be_to_face.Reserve(be_to_face.Size() + new_be_to_face.Size());
    MFEM_ASSERT(bdr_elems.Size() == new_be_to_face.Size(), "wrong size");
    for (int i = 0; i < bdr_elems.Size(); i++)
    {
