@@ -1794,7 +1794,7 @@ inline void BlockFactor(const real_t *data, int m, const int *ipiv,
 /// @param [in, out] A matrix
 /// @param [in] m size of the square matrix
 /// @param [out] ipiv array of pivots (length m)
-/// @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0.
+/// @param [in] tol optional fuzzy comparison tolerance. Defaults to 0.0.
 ///
 /// @return true if the factorization succeeds, false otherwise (zero pivot).
 MFEM_HOST_DEVICE
