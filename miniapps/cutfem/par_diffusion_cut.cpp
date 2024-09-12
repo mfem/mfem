@@ -14,6 +14,7 @@ real_t g_neumann(const Vector &x);
 void u_grad_exact(const Vector &x, Vector &u);
 real_t circle_func(const Vector &x);
 real_t ellipsoide_func(const Vector &x);
+real_t sphere_func(const Vector &x);
 
 
 int main(int argc, char *argv[])
@@ -32,6 +33,7 @@ int main(int argc, char *argv[])
     bool fa = false;
     const char *device_config = "cpu";
     bool visualization = true;
+    bool visualization_paraview = true;
     bool algebraic_ceed = false;
     int ser_ref_levels = 1;
     int aorder = 6; // Algoim integration points
@@ -43,8 +45,8 @@ int main(int argc, char *argv[])
     args.AddOption(&order, "-o", "--order",
                    "Finite element order (polynomial degree) or -1 for"
                    " isoparametric space.");
-    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                   "--no-static-condensation", "Enable static condensation.");
+    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc", 
+                   "--no-static-condensation", "Enable static condensation.");  //these three not valid options now
     args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                    "--no-partial-assembly", "Enable Partial Assembly.");
     args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
@@ -54,13 +56,15 @@ int main(int argc, char *argv[])
     args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                    "--no-visualization",
                    "Enable or disable GLVis visualization.");
+    args.AddOption(&visualization_paraview, "-vispv", "--visualizationpv", "-no-vispv",
+                   "--no-visualizationpv",
+                   "Enable or disable ParaView visualization.");
     args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
-
-    args.AddOption(&aorder, "-aorder", "--aorder",
-                  "fix.");
-    args.AddOption(&g, "-g", "--g",
-                  "fix.");
+    args.AddOption(&aorder, "-ao", "--aorder",
+                  "Set order for alogim integration");
+    args.AddOption(&g, "-g", "--ghost penalty constant",
+                  "Ghost penalty constant");
     args.Parse();
     if (!args.Good())
     {
@@ -80,8 +84,6 @@ int main(int argc, char *argv[])
 
     int dim = mesh.Dimension();
     {
-        // int ref_levels =
-        //     (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
         for (int l = 0; l < ser_ref_levels; l++)
         {
             mesh.UniformRefinement();
@@ -114,7 +116,6 @@ int main(int argc, char *argv[])
     }
 
     ConstantCoefficient one(1.0);
-
     ParGridFunction x(&fespace);
     FunctionCoefficient bc (bcf);
     FunctionCoefficient f (f_rhs);
@@ -122,9 +123,9 @@ int main(int argc, char *argv[])
     FunctionCoefficient neumann(g_neumann);
 
     // level set function
-    ParGridFunction cgf(&fespace);
-    FunctionCoefficient circle(ellipsoide_func);
-    cgf.ProjectCoefficient(circle);
+    ParGridFunction lsgf(&fespace);
+    FunctionCoefficient level_set(ellipsoide_func);
+    lsgf.ProjectCoefficient(level_set);
 
     // mark elements and outside DOFs
     Array<int> boundary_dofs;
@@ -134,13 +135,12 @@ int main(int argc, char *argv[])
     Array<int> face_marks;
     {
         ParElementMarker* elmark=new ParElementMarker(pmesh,true,true);
-        elmark->SetLevelSetFunction(cgf);
+        elmark->SetLevelSetFunction(lsgf);
         elmark->MarkElements(marks);
         elmark->MarkGhostPenaltyFaces(face_marks);
         elmark->ListEssentialTDofs(marks,fespace,outside_dofs);
         delete elmark;
     }
-
     outside_dofs.Append(boundary_dofs);
     outside_dofs.Sort();
     outside_dofs.Unique();
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
     std::cout.flush();
 
     int otherorder = 2;
-    AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,circle,otherorder);
+    AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,level_set,otherorder);
     real_t gp = g/(h_min*h_min);
 
     ParLinearForm b(&fespace);
@@ -159,10 +159,8 @@ int main(int argc, char *argv[])
     b.AddDomainIntegrator(new CutUnfittedBoundaryLFIntegrator(neumann,&marks,air));
     b.Assemble();
 
-    // 7. Set up the bilinear form a(.,.) corresponding to the -Delta operator.
     ParBilinearForm a(&fespace);
     a.AddDomainIntegrator(new CutDiffusionIntegrator(one,&marks,air,false));
-    // something is wrong with the CutGhostPenaltyIntegrator
     a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&face_marks));
     a.Assemble();
 
@@ -173,8 +171,8 @@ int main(int argc, char *argv[])
     Solver *prec = nullptr;
     prec = new HypreBoomerAMG;
     CGSolver cg(MPI_COMM_WORLD);
-    cg.SetRelTol(1e-16);
-    cg.SetMaxIter(6000);
+    cg.SetRelTol(1e-20);
+    cg.SetMaxIter(1000);
     cg.SetPrintLevel(1);
     if (prec) { cg.SetPreconditioner(*prec); }
     cg.SetOperator(*A);
@@ -203,31 +201,44 @@ int main(int argc, char *argv[])
        nf->AddDomainIntegrator(new CutScalarErrorIntegrator(uex,&marks,air));
         real_t error_squared = nf->GetEnergy(x.GetTrueVector());
        cout << "\n|| u_h - u ||_{L^2} = " << sqrt(error_squared)<< std::endl;
-
+        cout << "h: " << h_min<< std::endl;
        delete nf;
    }
-    cout << "h: " << h_min<< std::endl;
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << pmesh << x << flush;
+   }
 
 
 
-   ParGridFunction error(&fespace);
-   error = x;
-   error -= exact_sol;
+    if (visualization_paraview)
+    {
 
-    ParaViewDataCollection paraview_dc("diffusion_cut", &pmesh);
-    paraview_dc.SetPrefixPath("ParaView");
-    paraview_dc.SetLevelsOfDetail(order);
-    paraview_dc.SetCycle(0);
-    paraview_dc.SetDataFormat(VTKFormat::BINARY);
-    paraview_dc.SetHighOrderOutput(true);
-    paraview_dc.SetTime(0.0); // set the time
-    paraview_dc.RegisterField("solution",&x);
-    paraview_dc.RegisterField("marks", &mgf);
-    paraview_dc.RegisterField("parts", &par);
-           paraview_dc.RegisterField("level_set",&cgf);
-   paraview_dc.RegisterField("error",&error);
-    paraview_dc.Save();
+        ParGridFunction error(&fespace);
+        error = x;
+        error -= exact_sol;
 
+        ParaViewDataCollection paraview_dc("diffusion_cut", &pmesh);
+        paraview_dc.SetPrefixPath("ParaView");
+        paraview_dc.SetLevelsOfDetail(order);
+        paraview_dc.SetCycle(0);
+        paraview_dc.SetDataFormat(VTKFormat::BINARY);
+        paraview_dc.SetHighOrderOutput(true);
+        paraview_dc.SetTime(0.0); // set the time
+        paraview_dc.RegisterField("u",&x);
+        paraview_dc.RegisterField("marks", &mgf);
+        paraview_dc.RegisterField("parts", &par);
+        paraview_dc.RegisterField("level_set",&lsgf);
+        paraview_dc.RegisterField("error",&error);
+        paraview_dc.RegisterField("u_ex",&exact_sol);
+        paraview_dc.Save();
+    }
 
     delete l2fes;
     delete l2fec;
@@ -235,6 +246,7 @@ int main(int argc, char *argv[])
     delete fec;
 
     return 0;
+
 }
 
 real_t f_rhs(const Vector &x)
@@ -255,7 +267,7 @@ real_t bcf(const Vector &x)
 {
     real_t x0 = 0.5;
     real_t y0 = 0.5;
-    return 0;//sin(M_PI*x(0))*cos((M_PI*x(1)));
+    return sin(M_PI*x(0))*cos((M_PI*x(1)));//sin(M_PI*x(0))*cos((M_PI*x(1)));
 }
 
 void u_grad_exact(const Vector &x, Vector &u)
@@ -274,8 +286,11 @@ real_t g_neumann(const Vector &x)
     real_t xx = x(0)-x0;
     real_t y = x(1)-y0;
     real_t normalize = sqrt((xx*xx)/(a*a*a*a) + y*y/(b*b*b*b));
-    return M_PI*cos(M_PI*x(0)) *cos(M_PI* x(1))*xx/(a*a*normalize) -M_PI*sin(M_PI*x(0)) * sin(M_PI* x(1))*y/(b*b*normalize);
+   return M_PI*cos(M_PI*x(0)) *cos(M_PI* x(1))*xx/(a*a*normalize) -M_PI*sin(M_PI*x(0)) * sin(M_PI* x(1))*y/(b*b*normalize);
 }
+
+
+
 
 real_t circle_func(const Vector &x)
 {
@@ -293,4 +308,14 @@ real_t ellipsoide_func(const Vector &x)
     real_t xx = x(0)-x0;
     real_t y = x(1)-y0;
     return -(xx)*(xx)/(1.5*1.5) - (y)*(y)/(0.5*0.5)+ r*r; // + 0.25*cos(atan2(x(1)-y0,x(0)-x0))*cos(atan2(x(1)-y0,x(0)-x0));
+}
+
+
+real_t sphere_func(const Vector &x)
+{
+    real_t x0 = 0.5;
+    real_t y0 = 0;
+    real_t z0 = 0.5;
+    real_t r = 0.4;
+    return -(x(0)-x0)*(x(0)-x0) - (x(1)-y0)*(x(1)-y0)  - (x(2)-z0)*(x(2)-z0) + r*r;
 }
