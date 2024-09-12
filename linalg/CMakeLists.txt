@@ -36,7 +36,6 @@ list(APPEND SRCS
 
 list(APPEND HDRS
   auxiliary.hpp
-  batchlinalg.hpp
   batched/batched.hpp
   batched/gpu_blas.hpp
   batched/magma.hpp
