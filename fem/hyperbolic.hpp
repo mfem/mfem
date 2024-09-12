@@ -373,7 +373,7 @@ public:
    }
 
    /**
-    * @brief  F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
+    * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n
     *
     * @param[in] state1 state value (u⁻) at a point from the first element
     * (num_equations)
@@ -381,7 +381,7 @@ public:
     * (num_equations)
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
-    * @param[out] flux ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
+    * @param[out] flux F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     * @return max(F(u⁺,x)n, F(u⁻,x)n)
     */
    real_t Eval(const Vector &state1, const Vector &state2,
