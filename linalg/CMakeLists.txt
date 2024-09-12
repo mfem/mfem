@@ -11,7 +11,6 @@
 
 list(APPEND SRCS
   auxiliary.cpp
-  batchlinalg.cpp
   batched/batched.cpp
   batched/gpu_blas.cpp
   batched/magma.cpp

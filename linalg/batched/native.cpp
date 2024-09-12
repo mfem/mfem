@@ -48,7 +48,88 @@ void NativeBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
 
 void NativeBatchedLinAlg::Invert(DenseTensor &A) const
 {
-   MFEM_ABORT("");
+
+   const int m = A.SizeI();
+   const int NE = A.SizeK();
+   DenseTensor LU = A;
+   Array<int> P(m*NE);
+
+   LUFactor(LU, P);
+
+   auto data_all = mfem::Reshape(LU.Read(), m, m, NE);
+   auto piv_all  = mfem::Reshape(P.Read(), m, NE);
+   auto inv_all  = mfem::Reshape(A.ReadWrite(), m, m, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      // A^{-1} = U^{-1} L^{-1} P
+      // X <- U^{-1} (set only the upper triangular part of X)
+      real_t *X          = &inv_all(0, 0, e);
+      real_t *x          = X;
+      const real_t *data = &data_all(0, 0, e);
+      const int *ipiv    = &piv_all(0, e);
+
+      for (int k = 0; k < m; k++)
+      {
+         const real_t minus_x_k = -(x[k] = 1.0 / data[k + k * m]);
+         for (int i = 0; i < k; i++)
+         {
+            x[i] = data[i + k * m] * minus_x_k;
+         }
+         for (int j = k - 1; j >= 0; j--)
+         {
+            const real_t x_j = (x[j] /= data[j + j * m]);
+            for (int i = 0; i < j; i++)
+            {
+               x[i] -= data[i + j * m] * x_j;
+            }
+         }
+         x += m;
+      }
+
+      // X <- X L^{-1} (use input only from the upper triangular part of X)
+      {
+         int k = m - 1;
+         for (int j = 0; j < k; j++)
+         {
+            const real_t minus_L_kj = -data[k + j * m];
+            for (int i = 0; i <= j; i++)
+            {
+               X[i + j * m] += X[i + k * m] * minus_L_kj;
+            }
+            for (int i = j + 1; i < m; i++)
+            {
+               X[i + j * m] = X[i + k * m] * minus_L_kj;
+            }
+         }
+      }
+      for (int k = m - 2; k >= 0; k--)
+      {
+         for (int j = 0; j < k; j++)
+         {
+            const real_t L_kj = data[k + j * m];
+            for (int i = 0; i < m; i++)
+            {
+               X[i + j * m] -= X[i + k * m] * L_kj;
+            }
+         }
+      }
+
+      // X <- X P
+      for (int k = m - 1; k >= 0; k--)
+      {
+         const int piv_k = ipiv[k];
+         if (k != piv_k)
+         {
+            for (int i = 0; i < m; i++)
+            {
+               //Swap<real_t>(X[i+k*m], X[i+piv_k*m]);
+               mfem::kernels::internal::Swap<real_t>(X[i + k * m], X[i + piv_k * m]);
+            }
+         }
+      }
+   });
+
 }
 
 void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
