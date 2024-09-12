@@ -5430,6 +5430,11 @@ void NCMesh::GetElementFacesAttributes(int leaf_elem,
       face_attribs[i] = face->attribute;
    }
 }
+void NCMesh::FindFaceNodes(int face, int node[4]) const
+{
+   auto tmp = FindFaceNodes(face);
+   std::copy(tmp.begin(), tmp.end(), node);
+}
 
 std::array<int, 4> NCMesh::FindFaceNodes(int face) const
 {

@@ -219,8 +219,8 @@ void Permute(Array<int>&& indices, T1& t1, T2& t2, T3& t3)
    /*
    TODO: In c++17 can replace this with a parameter pack expansion technique to
    operate on arbitrary collections of reference accessible containers of
-   arbitrary type. template <typename ...T> void Permute(std::Array<int>&&
-   indices, T&... t)
+   arbitrary type.
+   template <typename ...T> void Permute(Array<int>&&indices, T&... t)
    {
       for (int i = 0; i < indices.Size(); i++)
       {
