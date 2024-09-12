@@ -650,11 +650,7 @@ public:
     */
    std::array<int, 4> FindFaceNodes(int face) const;
    std::array<int, 4> FindFaceNodes(const Face &fa) const;
-   void FindFaceNodes(int face, int node[4]) const
-   {
-      auto out = FindFaceNodes(face);
-      std::copy(out.begin(), out.end(), node);
-   }
+   void FindFaceNodes(int face, int node[4]) const;
 protected:
 
 
