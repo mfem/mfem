@@ -751,11 +751,11 @@ void ConformingFaceRestriction::CheckFESpace(const ElementDofOrdering
 #ifdef MFEM_DEBUG
    const FiniteElement *fe0 = fes.GetFE(0);
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe0);
-   MFEM_VERIFY(tfe != NULL &&
-               (tfe->GetBasisType()==BasisType::GaussLobatto ||
-                tfe->GetBasisType()==BasisType::Positive),
-               "Only Gauss-Lobatto and Bernstein basis are supported in "
-               "ConformingFaceRestriction.");
+   MFEM_VERIFY(tfe != NULL,
+               "ConformingFaceRestriction only supports TensorBasisElements");
+   MFEM_VERIFY(tfe->GetBasisType()==BasisType::GaussLobatto ||
+               tfe->GetBasisType()==BasisType::Positive,
+               "ConformingFaceRestriction only supports Gauss-Lobatto and Bernstein bases");
 
    // Assuming all finite elements are using Gauss-Lobatto.
    const bool dof_reorder = (f_ordering == ElementDofOrdering::LEXICOGRAPHIC);

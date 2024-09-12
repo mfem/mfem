@@ -49,7 +49,7 @@ void display_banner(ostream& os)
    os << R"(
          ___ ___ ________   ________   ____  __.___________
         /   |   \\_____  \  \_____  \ |    |/ _|\_   _____/
-       /    ~    \/   |   \  /   |   \|      <   |    __)_ 
+       /    ~    \/   |   \  /   |   \|      <   |    __)_
        \    Y    /    |    \/    |    \    |  \  |        \
         \___|_  /\_______  /\_______  /____|__ \/_______  /
               \/         \/         \/        \/        \/ 
@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
    int serial_refinement_levels = 0;
    bool visualization = true;
    bool paraview = false;
+   int visport = 19916;
 
    if (Mpi::Root())
    {
@@ -194,7 +195,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
