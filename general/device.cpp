@@ -178,6 +178,7 @@ Device::~Device()
    Get().host_mem_class = MemoryClass::HOST;
    Get().device_mem_type = MemoryType::HOST;
    Get().device_mem_class = MemoryClass::HOST;
+   Hypre::Finalize();
 }
 
 void Device::Configure(const std::string &device, const int device_id)
