@@ -1741,7 +1741,7 @@ public:
    { vector_fe.CalcPhysDShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} \cdot  \nabla \cdot u, \nabla \cdot v)$ in 2D
+/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} \cdot \nabla u, \nabla \cdot v)$ in 2D
     or 3D and where $\hat{V}$ is a vector coefficient, $u$ is in $H^1$ and $v$ is in $H(div)$. */
 class MixedGradDivIntegrator : public MixedScalarVectorIntegrator
 {
@@ -1780,7 +1780,7 @@ public:
    { scalar_fe.CalcPhysDivShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} \nabla \cdot u, \nabla \cdot v)$ in 2D
+/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} \nabla \cdot u, \nabla v)$ in 2D
     or 3D and where $\hat{V}$ is a vector coefficient, $u$ is in $H(div)$ and $v$ is in $H^1$. */
 class MixedDivGradIntegrator : public MixedScalarVectorIntegrator
 {
@@ -1820,7 +1820,7 @@ public:
    { scalar_fe.CalcPhysDivShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} u, \nabla \cdot v)$ in 2D or 3D
+/** Class for integrating the bilinear form $a(u,v) := (-\hat{V} u, \nabla v)$ in 2D or 3D
     and where $\hat{V}$ is a vector coefficient, $u$ is in $H^1$ or $L_2$ and $v$ is in $H^1$. */
 class MixedScalarWeakDivergenceIntegrator : public MixedScalarVectorIntegrator
 {
@@ -2610,6 +2610,25 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+};
+
+/// Integrator for (Q u.n, v.n) for RT elements
+class VectorFEBoundaryFluxIntegrator : public BilinearFormIntegrator
+{
+   Coefficient *Q;
+#ifndef MFEM_THREAD_SAFE
+   Vector shape, te_shape;
+#endif
+public:
+   VectorFEBoundaryFluxIntegrator() { Q = NULL; }
+   VectorFEBoundaryFluxIntegrator(Coefficient &q) { Q = &q; }
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
 };
 
 /// Class for integrating $ (Q \partial_i(u), v) $ where $u$ and $v$ are scalars
