@@ -221,6 +221,9 @@ private:
 #elif defined(MFEM_USE_HIP)
 #define MFEM_GPU_FORALL(i, N, ...)                                             \
   HipWrap1D(N, [=] MFEM_DEVICE(int i) { __VA_ARGS__ })
+#elif defined(MFEM_USE_SYCL)
+#define MFEM_GPU_FORALL(i, N, ...)                                             \
+  SyclWrap<1>(N, [=] MFEM_DEVICE(int i) { __VA_ARGS__ })
 #else
 #define MFEM_GPU_FORALL(i, N, ...)                                             \
   do {                                                                         \
@@ -435,18 +438,13 @@ backend_cpu:
    // handled above, e.g. OCCA_CPU with configuration 'occa-cpu,cpu', or
    // OCCA_OMP with configuration 'occa-omp,cpu'.
 
-   Tsmem smem[smem_size];
+   assert(false);
+   assert(smem_size < 1024);
+   Tsmem smem[1024];
    for (int k = 0; k < N; k++)
    {
       h_body(k, smem);
    }
-
-   // alignas(alignof(Tsmem))
-   // Tsmem sm00[smem_size/6], sm01[smem_size/6], sm02[smem_size/6];
-   // Tsmem sm10[smem_size/6], sm11[smem_size/6], sm12[smem_size/6];
-   // double *sm[6] = {sm00, sm01, sm02, sm10, sm11, sm12};
-   // for (int k = 0; k < N; k++) { h_body(k, sm00, sm01, sm02, sm10, sm11,
-   // sm12); }
 }
 
 template <const int DIM, typename lambda>
@@ -537,6 +535,8 @@ template <typename lambda> inline void hypre_forall_gpu(int N, lambda &&body)
    CuWrap1D(N, body);
 #elif defined(HYPRE_USING_HIP)
    HipWrap1D(N, body);
+#elif defined(HYPRE_USING_SYCL)
+   SyclWrap<1>::run(N, body, 0, 0, 0, 0);
 #else
 #error Unknown HYPRE GPU backend!
 #endif

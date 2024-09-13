@@ -188,25 +188,29 @@ template<typename Tsmem> struct SyclWrapSmem<2, Tsmem>
       sycl::queue Q = Sycl::Queue();
       Q.submit([&](sycl::handler &h)
       {
-         constexpr sycl::access_mode RW = sycl::access::mode::read_write;
-         sycl::accessor<Tsmem, 1, RW, sycl::access::target::local>
-         sm(sycl::range<1>(smem_size), h);
+         // constexpr sycl::access_mode RW = sycl::access::mode::read_write;
+         // sycl::accessor<Tsmem, 1, RW, sycl::access::target::local>
+         sycl::local_accessor<Tsmem, 1> sm(sycl::range<1>(smem_size), h);
 #ifdef __SYCL_DEVICE_ONLY__ // SYCL-[C|G]PU:
-         const int L = static_cast<int>(std::ceil(std::sqrt((N+BZ-1)/BZ)));
-         const sycl::range<3> grid(L*BZ, L*Y, L*X), group(BZ, Y, X);
+         const int L = static_cast<int>(std::ceil(std::sqrt((N + BZ - 1) / BZ)));
+         const sycl::range<3> grid(L * BZ, L * Y, L * X), group(BZ, Y, X);
 #else // SYCL-HOST:
          MFEM_CONTRACT_VAR(X);
          MFEM_CONTRACT_VAR(Y);
          MFEM_CONTRACT_VAR(BZ);
          const sycl::range<3> grid(1, 1, N), group(1, 1, 1);
 #endif
-         h.parallel_for(sycl::nd_range<3>(grid,group), [=](sycl::nd_item<3> itm)
+         h.parallel_for(sycl::nd_range<3>(grid, group),
+                        [=](sycl::nd_item<3> itm)
          {
             const int blockDim_z = itm.get_group(2);
             const int blockIdx_x = itm.get_local_range().get(0);
             const int threadIdx_z = itm.get_local_id(0);
-            const int k = blockDim_z*blockIdx_x + threadIdx_z;
-            if (k >= N) { return; }
+            const int k = blockDim_z * blockIdx_x + threadIdx_z;
+            if (k >= N)
+            {
+               return;
+            }
             body(k, sm.get_pointer());
          });
       });
@@ -260,9 +264,9 @@ template<typename Tsmem> struct SyclWrapSmem<3, Tsmem>
              Q.get_device().get_info<sycl::info::device::local_mem_size>());
       Q.submit([&](sycl::handler &h)
       {
-         constexpr sycl::access_mode RW = sycl::access::mode::read_write;
-         sycl::accessor<Tsmem, 1, RW, sycl::access::target::local>
-         sm(sycl::range<1>(smem_size), h);
+         // constexpr sycl::access_mode RW = sycl::access::mode::read_write;
+         // sycl::accessor<Tsmem, 1, RW, sycl::access::target::local>
+         sycl::local_accessor<Tsmem, 1> sm(sycl::range<1>(smem_size), h);
 #ifdef __SYCL_DEVICE_ONLY__ // SYCL-[C|G]PU:
          const int L = static_cast<int>(std::ceil(std::cbrt(G == 0 ? N : G)));
          const sycl::range<3> grid(L*Z, L*Y, L*X), group(Z, Y, X);
