@@ -704,7 +704,7 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[SubMesh]")
  */
 struct ParNCMeshExposed : public ParNCMesh
 {
-   ParNCMeshExposed(const ParNCMesh &ncsubmesh) : ParNCMesh(ncsubmesh) {}
+   ParNCMeshExposed(const ParNCMesh &ncmesh) : ParNCMesh(ncmesh) {}
    using ParNCMesh::elements;
    using ParNCMesh::leaf_elements;
    int CountUniqueLeafElements() const
