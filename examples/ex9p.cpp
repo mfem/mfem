@@ -680,7 +680,7 @@ int main(int argc, char *argv[])
    // DG uses a HypreParVector to communicate between processess.
    // In the implementation of the element-based Clip & Scale limiter we do
    // this by hand.
-   HypreParVector *U;
+   HypreParVector *U = NULL;
    if (DG)
    {
       U = u->GetTrueDofs();
@@ -888,10 +888,7 @@ int main(int argc, char *argv[])
    // 13. Free the used memory.
    if (DG)
    {
-      if (U)
-      {
-         delete U;
-      }
+      delete U;
    }
    delete u;
    delete B;
