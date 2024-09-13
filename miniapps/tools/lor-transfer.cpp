@@ -46,6 +46,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
 using namespace mfem;
@@ -74,6 +75,7 @@ int main(int argc, char *argv[])
    int order = 3;
    int lref = order+1;
    int lorder = 0;
+   int ref_levels = 4;
    bool vis = true;
    bool useH1 = false;
    int visport = 19916;
@@ -88,6 +90,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&lref, "-lref", "--lor-ref-level", "LOR refinement level.");
    args.AddOption(&lorder, "-lo", "--lor-order",
                   "LOR space order (polynomial degree, zero by default).");
@@ -106,6 +110,14 @@ int main(int argc, char *argv[])
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+
+   // Refine the parent mesh
+   for (int l = 0; l < ref_levels; ++l)
+   {
+      mesh.UniformRefinement();
+   }
+
+
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
@@ -164,6 +176,8 @@ int main(int argc, char *argv[])
    real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
    if (vis) { visualize(HO_dc, "HO", Wx, Wy, visport); Wx += offx; }
 
+   std::chrono::time_point<std::chrono::system_clock> start, end;
+
    GridTransfer *gt;
    if (use_pointwise_transfer)
    {
@@ -175,19 +189,38 @@ int main(int argc, char *argv[])
    }
 
    gt->UseDevice(true);
-   gt->VerifySolution(true);
+   //gt->VerifySolution(true);
 
+   start = std::chrono::system_clock::now();
    const Operator &R = gt->ForwardOperator();
+   end = std::chrono::system_clock::now();
+
+   std::chrono::duration<double> fwd_constr_elapsed = end - start;
+   std::cout << "fwd operator construction elapsed time: " <<
+             fwd_constr_elapsed.count() << "s\n";
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
+   start = std::chrono::system_clock::now();
    R.Mult(rho, rho_lor);
+   end = std::chrono::system_clock::now();
+
+   std::chrono::duration<double> fwd_apply_elapsed = end - start;
+   std::cout << "fwd operator apply elapsed time: " << fwd_apply_elapsed.count() <<
+             "s\n";
+
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy, visport); Wx += offx; }
 
    if (gt->SupportsBackwardsOperator())
    {
+      start = std::chrono::system_clock::now();
       const Operator &P = gt->BackwardOperator();
+      end = std::chrono::system_clock::now();
+      std::chrono::duration<double> bwd_contr_elapsed = end - start;
+      std::cout << "bwd operator constr elapsed time: " << bwd_contr_elapsed.count()
+                << "s\n";
+
       // LOR->HO prolongation
       direction = "HO -> LOR @ HO";
       GridFunction rho_prev = rho;
