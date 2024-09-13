@@ -1747,7 +1747,7 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    // vertex 0 - vertex 1 is the longest edge in the element. In the case of
    // ties in the edge length, the global edge index is used for a consistent
    // ordering between elements.
-   Array<double> lengths;
+   Array<real_t> lengths;
    GetEdgeLengths2(v_to_v, lengths);
 
    // Create a GroupCommunicator over shared edges
