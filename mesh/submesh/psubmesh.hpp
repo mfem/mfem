@@ -160,7 +160,7 @@ public:
     */
    int GetSubMeshElementFromParent(int pe) const
    {
-      return (pe < 0 || pe >= parent_to_submesh_element_ids_.Size())
+      return (pe == -1 || pe >= parent_to_submesh_element_ids_.Size())
              ? -1 : parent_to_submesh_element_ids_[pe];
    }
 
@@ -172,7 +172,7 @@ public:
     */
    int GetSubMeshVertexFromParent(int pv) const
    {
-      return (pv < 0 || pv >= parent_to_submesh_vertex_ids_.Size())
+      return (pv == -1 || pv >= parent_to_submesh_vertex_ids_.Size())
              ? -1 : parent_to_submesh_vertex_ids_[pv];
    }
 
@@ -184,7 +184,7 @@ public:
     */
    int GetSubMeshEdgeFromParent(int pe) const
    {
-      return (pe < 0 || pe >= parent_to_submesh_edge_ids_.Size())
+      return (pe == -1 || pe >= parent_to_submesh_edge_ids_.Size())
              ? pe : parent_to_submesh_edge_ids_[pe];
    }
 
@@ -196,7 +196,7 @@ public:
     */
    int GetSubMeshFaceFromParent(int pf) const
    {
-      return (pf < 0 || pf >= parent_to_submesh_face_ids_.Size())
+      return (pf == -1 || pf >= parent_to_submesh_face_ids_.Size())
              ? pf : parent_to_submesh_face_ids_[pf];
    }
 
