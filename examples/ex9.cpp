@@ -715,9 +715,9 @@ CG_FE_Evolution::CG_FE_Evolution(FiniteElementSpace &fes_,
                                  const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
                                  VectorFunctionCoefficient &velocity, BilinearForm &M) :
    TimeDependentOperator(lumpedmassmatrix_.Size()),
-   lumpedmassmatrix(lumpedmassmatrix_), fes(fes_), b_lumped(&fes),
-   I(M.SpMat().GetI()), J(M.SpMat().GetJ()), u_inflow(&fes),
-   mass_int(), conv_int(velocity)
+   lumpedmassmatrix(lumpedmassmatrix_), fes(fes_),
+   I(M.SpMat().GetI()), J(M.SpMat().GetJ()), b_lumped(&fes), u_inflow(&fes),
+   conv_int(velocity), mass_int()
 {
    u_inflow.ProjectCoefficient(inflow);
 
