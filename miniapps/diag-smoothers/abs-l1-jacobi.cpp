@@ -337,8 +337,8 @@ int main(int argc, char *argv[])
    ///    of the diagonal of the matrix.
 
    Solver *jacobi = nullptr;
-   Vector ones(sys_size);
-   Vector diag(sys_size);
+   Vector ones(fespace->GetTrueVSize());
+   Vector diag(fespace->GetTrueVSize());
 
    switch (pc_type)
    {

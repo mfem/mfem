@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
 
    Solver *lpq_jacobi = nullptr;
    real_t bound = 0.0;
-   Vector diag(sys_size);
+   Vector diag(fespace->GlobalTrueVSize());
 
    switch (pc_type)
    {
