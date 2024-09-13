@@ -11,6 +11,35 @@
 Version 4.7.1 (development)
 ===========================
 
+Discretization improvements
+---------------------------
+- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single
+  patch meshes. Only implemented for serial computations.
+
+- Added support for boundary constraints to the hybridization class.
+
+Meshing improvements
+--------------------
+- The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
+  are also supported.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
+
+- Added an MFEM example for the eikonal equation. This new solver is based on
+  the proximal Galerkin method introduced by Keith and Surowiec.
+
+- Added a command line option to all miniapps (`-p` or `--send-port`) for
+  specifying the GLVis server socket port (19916 by default).
+
+GPU computing
+-------------
+- Added support for GPU-accelerated batched linear algebra (using cuBLAS,
+  hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
+
+Miscellaneous
+-------------
 - Refactored the `ARKStepSolver` class (ARKODE interface) to use
   `TimeDependentOperator::Mult` only when the associated ODE operator is
   expressed in explicit form (i.e., `TimeDependentOperator::isExplicit()`),
@@ -23,14 +52,8 @@ Version 4.7.1 (development)
 
 - Added support for custom interpolation procedure in FindPointsGSLIB.
 
-- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single
-  patch meshes. Only implemented for serial computations.
-
-- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
-
-- Added an MFEM example for the eikonal equation. This new solver is based on
-  the proximal Galerkin method introduced by Keith and Surowiec.
-
+API changes
+-----------
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
 
 

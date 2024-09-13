@@ -80,7 +80,6 @@ constexpr real_t NL_DMAX = std::numeric_limits<real_t>::max();
 // Static variables for GLVis
 constexpr int GLVIZ_W = 1024;
 constexpr int GLVIZ_H = 1024;
-constexpr int  visport = 19916;
 constexpr char vishost[] = "localhost";
 
 // Context/Options for the solver
@@ -94,6 +93,8 @@ struct Opt
    int refine = 2;
    int niters = 8;
    int surface = 5;
+   // Socket to send visualization data
+   int visport = 19916;
    bool pa = true;
    bool vis = true;
    bool amr = false;
@@ -157,7 +158,7 @@ public:
    int Solve()
    {
       // Initialize GLVis server if 'visualization' is set
-      if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
+      if (opt.vis) { opt.vis = glvis.open(vishost, opt.visport) == 0; }
       // Send to GLVis the first mesh
       if (opt.vis) { Visualize(glvis, opt, mesh, GLVIZ_W, GLVIZ_H); }
       // Create and launch the surface solver
@@ -1250,7 +1251,7 @@ static int Problem1(Opt &opt)
    FunctionCoefficient u0_fc(u0);
    u.ProjectCoefficient(u0_fc);
    socketstream glvis;
-   if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
+   if (opt.vis) { opt.vis = glvis.open(vishost, opt.visport) == 0; }
    if (opt.vis) { Surface::Visualize(glvis, opt, &mesh, GLVIZ_W, GLVIZ_H, &u); }
    CGSolver cg;
    cg.SetRelTol(EPS);
@@ -1296,6 +1297,7 @@ int main(int argc, char *argv[])
    opt.sz = opt.id = 0;
    // Parse command-line options.
    OptionsParser args(argc, argv);
+   args.AddOption(&opt.visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&opt.pb, "-p", "--problem", "Problem to solve.");
    args.AddOption(&opt.mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&opt.wait, "-w", "--wait", "-no-w", "--no-wait",
