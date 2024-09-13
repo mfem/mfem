@@ -87,6 +87,8 @@ real_t inflow_function(const Vector &x);
 // Function f = 1 for lumped boundary operator
 real_t one(const Vector &x) {return 1.0;}
 
+real_t zero = 0.0;
+
 // Mesh bounding box
 Vector bb_min, bb_max;
 
@@ -1039,7 +1041,7 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u,
          for (int j = 0; j < i; j++)
          {
             // add low-order stabilization with discrete upwinding
-            real_t dije = max(max(Ke(i,j), Ke(j,i)), 0.0);
+            real_t dije = max(max(Ke(i,j), Ke(j,i)), zero);
             real_t diffusion = dije * (ue(j) - ue(i));
 
             re(i) += diffusion;
@@ -1143,7 +1145,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
          {
             // add low-order diffusion
             // note that dije = djie
-            real_t dije = max(max(Ke(i,j), Ke(j,i)), 0.0);
+            real_t dije = max(max(Ke(i,j), Ke(j,i)), zero);
             real_t diffusion = dije * (ue(j) - ue(i));
 
             re(i) += diffusion;
@@ -1179,8 +1181,8 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
          fe_star(i) = min(max(fie_min, fe(i)), fie_max);
 
          // track positive and negative contributions
-         P_plus += max(fe_star(i), 0.0);
-         P_minus += min(fe_star(i), 0.0);
+         P_plus += max(fe_star(i), zero);
+         P_minus += min(fe_star(i), zero);
       }
       const real_t P = P_minus + P_plus;
 
