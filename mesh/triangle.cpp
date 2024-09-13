@@ -169,9 +169,9 @@ void Triangle::SetVertices(const Array<int> &v)
 
 // @cond DOXYGEN_SKIP
 
-template void Triangle::MarkEdge(int *, const DSTable &, const Array<double> &,
+template void Triangle::MarkEdge(int *, const DSTable &, const Array<real_t> &,
                                  const Array<int> &);
-template void Triangle::MarkEdge(int *, const DSTable &, const Array<double> &,
+template void Triangle::MarkEdge(int *, const DSTable &, const Array<real_t> &,
                                  const Array<std::int64_t> &);
 
 // @endcond
