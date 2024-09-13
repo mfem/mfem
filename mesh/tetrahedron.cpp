@@ -368,9 +368,9 @@ Element *Tetrahedron::Duplicate(Mesh *m) const
 
 // @cond DOXYGEN_SKIP
 
-template void Tetrahedron::MarkEdge(const DSTable &, const Array<double> &,
+template void Tetrahedron::MarkEdge(const DSTable &, const Array<real_t> &,
                                     const Array<int> &);
-template void Tetrahedron::MarkEdge(const DSTable &, const Array<double> &,
+template void Tetrahedron::MarkEdge(const DSTable &, const Array<real_t> &,
                                     const Array<std::int64_t> &);
 
 // @endcond
