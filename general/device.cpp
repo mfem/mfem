@@ -518,7 +518,8 @@ static void SyclDeviceSetup(const int dev, int &ngpu,
    if (use_host)
    {
       auto Q = Sycl::Queue();//sycl::cpu_selector {});
-      MFEM_VERIFY(Q.get_device().is_host(), "Sycl queue setup error!")
+      // host device is no longer supported
+      MFEM_VERIFY(Q.get_device().is_cpu(), "Sycl queue setup error!")
       SyclGetDeviceCount();
    }
 #else

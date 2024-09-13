@@ -211,7 +211,8 @@ template<typename Tsmem> struct SyclWrapSmem<2, Tsmem>
             {
                return;
             }
-            body(k, sm.get_pointer());
+            // get_pointer is deprecated
+            body(k, sm.template get_multi_ptr<sycl::access::decorated::yes>()); 
          });
       });
       Q.wait();
@@ -281,7 +282,8 @@ template<typename Tsmem> struct SyclWrapSmem<3, Tsmem>
          {
             const int k = itm.get_group_linear_id();
             if (k >= N) { return; }
-            body(k, sm.get_pointer());
+            // body(k, sm.get_pointer()); // 'get_pointer' is deprecated
+            body(k, sm.template get_multi_ptr<sycl::access::decorated::yes>());
          });
       });
       Q.wait();
