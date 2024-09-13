@@ -84,6 +84,8 @@ public:
     }
 };
 
+
+
 class CutScalarErrorIntegrator: public ScalarErrorIntegrator
 {
 private:
@@ -124,6 +126,118 @@ public:
     }
 };
 
+
+
+class VectorErrorIntegrator: public NonlinearFormIntegrator
+{
+private:
+    VectorCoefficient* coeff;
+public:
+    VectorErrorIntegrator(VectorCoefficient& coef_)
+    {
+        coeff=&coef_;
+    }
+    virtual real_t GetElementEnergy(const FiniteElement &el,
+                                    ElementTransformation &Tr,
+                                    const Vector &elfun) override
+    {
+        real_t rez=0.0;
+        const int dof = el.GetDof();
+        Vector sh(dof);
+
+        const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+
+        const int dim = el.GetDim();
+
+        Vector R1(dim);
+        Vector R2(dim);
+  
+        for (int i = 0; i < ir -> GetNPoints(); i++)
+        {
+
+            const IntegrationPoint &ip = ir->IntPoint(i);
+            Tr.SetIntPoint(&ip);
+            el.CalcPhysShape(Tr,sh);
+
+
+            coeff->Eval(R2,Tr,ip);
+            R1 =0.0;
+            for(int j=0;j<dof;j++){
+                for (int k = 0;k < dim ;k++){
+                    R1[k] = R1[k] + +elfun[j+dof*k]*sh[j];
+                }
+
+            }
+            for (int k = 0;k < dim ;k++){
+                rez=rez+ip.weight*Tr.Weight()*(R1[k]-R2[k])*(R1[k]-R2[k]);
+            }
+
+        }
+        return rez;
+    }
+
+    const IntegrationRule& GetRule(const FiniteElement &trial_fe,
+                                   const FiniteElement &test_fe)
+    {
+        int order;
+        if (trial_fe.Space() == FunctionSpace::Pk)
+        {
+            order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
+        }
+        else
+        {
+            // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+            order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
+        }
+
+        if (trial_fe.Space() == FunctionSpace::rQk)
+        {
+            return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+        }
+        return IntRules.Get(trial_fe.GetGeomType(), order);
+    }
+};
+
+
+class CutVectorErrorIntegrator: public VectorErrorIntegrator
+{
+private:
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
+public:
+    CutVectorErrorIntegrator(VectorCoefficient& coef_,
+                             Array<int>* marks,
+                             CutIntegrationRules* cut_int):VectorErrorIntegrator(coef_)
+    {
+        el_marks=marks;
+        irules=cut_int;
+    }
+
+    virtual real_t GetElementEnergy(const FiniteElement &el,
+                                    ElementTransformation &Tr,
+                                    const Vector &elfun) override
+    {
+        if((*el_marks)[Tr.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            return real_t(0.0);
+        }
+        else if((*el_marks)[Tr.ElementNo]==ElementMarker::INSIDE)
+        {
+
+            //use standard integration rule
+            SetIntRule(nullptr);
+            return VectorErrorIntegrator::GetElementEnergy(el,Tr,elfun);
+        }
+        else
+        {
+            //cut integration
+            IntegrationRule ir;
+            irules->GetVolumeIntegrationRule(Tr,ir);
+            SetIntRule(&ir);
+            return VectorErrorIntegrator::GetElementEnergy(el,Tr,elfun);
+        }
+    }
+};
 
 
 class MySimpleDiffusionIntegrator: public BilinearFormIntegrator
@@ -536,10 +650,9 @@ public:
         {
             elmat.SetSize(fe1.GetDof());
             elmat=0.0;
-            return;
         }
 
-        if(((*face_marks)[Trans.ElementNo])==ElementMarker::FaceType::GHOSTP)
+        else if(((*face_marks)[Trans.ElementNo])==ElementMarker::FaceType::GHOSTP)
         {
             dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
         }
@@ -809,12 +922,12 @@ class CutGhostPenaltyVectorIntegrator:public BilinearFormIntegrator
 {
 private:    
     GhostPenaltyVectorIntegrator* dint;
-    Array<int>* el_marks;
+    Array<int>* face_marks;
 
 public:
     CutGhostPenaltyVectorIntegrator(double penal_, Array<int>* marks)
     {
-        el_marks=marks;
+        face_marks=marks;
         dint=new GhostPenaltyVectorIntegrator(penal_);
     }
     virtual
@@ -830,20 +943,14 @@ public:
                                     DenseMatrix &elmat) override
     {
 
-        if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
+        if(Trans.Elem2No<0)
         {
-            //use standard integration rule
-            dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
+            elmat.SetSize(fe1.GetDof());
+            elmat=0.0;
+        }
 
-        }
-        else if(((*el_marks)[Trans.Elem1No]==ElementMarker::INSIDE) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::CUT))
+        else if(((*face_marks)[Trans.ElementNo])==ElementMarker::FaceType::GHOSTP)
         {
-            //use standard integration rule
-            dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
-        }
-        else if(((*el_marks)[Trans.Elem1No]==ElementMarker::CUT) &&  ((*el_marks)[Trans.Elem2No]==ElementMarker::INSIDE))
-        {
-            //use standard integration rule
             dint->AssembleFaceMatrix(fe1,fe2,Trans,elmat);
         }
         else{

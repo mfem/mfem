@@ -629,8 +629,10 @@ void GhostPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
             for(int j=0;j<i;j++){
                 elmat(i,j)=elmat(i,j)+w*gs(i)*gs(j);
                 elmat(j,i)=elmat(j,i)+w*gs(i)*gs(j);
+                // cout<<w*gs(i)*gs(j)<<endl;
             }
             elmat(i,i)=elmat(i,i)+w*gs(i)*gs(i);
+            // cout<<w*gs(i)*gs(i)<<endl;
         }
     }
 
@@ -856,10 +858,10 @@ void GhostPenaltyVectorIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
     elmat.SetSize(ndofs*ndim);
     elmat=0.0;
 
-    DenseMatrix dummymat; 
-    dummymat = 0.0;
+    int order=fe1.GetOrder();
+    if(order>fe2.GetOrder()){order=fe2.GetOrder();} //order=min(fe1.order, fe2.order)
 
-    int order=std::max(fe1.GetOrder(), fe2.GetOrder());
+    //order--;
 
     int ndofg;
     if(ndim==1){ndofg=order+1;}
@@ -869,32 +871,81 @@ void GhostPenaltyVectorIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
     Vector sh1(ndof1);
     Vector sh2(ndof2);
     Vector shg(ndofg);
-
     Vector xx(ndim);
 
     DenseMatrix Mge(ndofg,ndofs); Mge=0.0;
     DenseMatrix Mgg(ndofg,ndofg); Mgg=0.0;
-    DenseMatrix Mee(ndofs,ndofs); Mee=0.0;
-
     ElementTransformation &Tr1 = Tr.GetElement1Transformation();
     ElementTransformation &Tr2 = Tr.GetElement2Transformation();
 
     const IntegrationRule* ir;
 
 
-    //element 1
-    double w;
-    ir=&IntRules.Get(Tr1.GetGeometryType(), 2*order+2);
 
+    Vector xx0(ndim);xx0=0.0;
+    double h0=1.0;
+
+    {
+
+        Vector xxm(ndim);
+        double s=0;
+        ir=&fe1.GetNodes();
+        {
+            const IntegrationPoint &ip = ir->IntPoint(0);
+            Tr1.SetIntPoint(&ip);
+            Tr1.Transform(ip,xxm);
+        }
+
+        for(int ii=0;ii<ir->GetNPoints();ii++){
+            const IntegrationPoint &ip = ir->IntPoint(ii);
+            Tr1.SetIntPoint(&ip);
+            Tr1.Transform(ip,xx);
+
+            for(int i=0;i<ndim;i++){
+                if(xxm[i]<xx[i]){xxm[i]=xx[i];}
+            }
+            xx0.Add(1.0,xx); s=s+1.0;
+        }
+
+        ir=&IntRules.Get(Tr2.GetGeometryType(), order);
+        for(int ii=0;ii<ir->GetNPoints();ii++){
+            const IntegrationPoint &ip = ir->IntPoint(ii);
+            Tr2.SetIntPoint(&ip);
+            Tr2.Transform(ip,xx);
+
+            for(int i=0;i<ndim;i++){
+                if(xxm[i]<xx[i]){xxm[i]=xx[i];}
+            }
+            xx0.Add(1.0,xx); s=s+1.0;
+        }
+
+        xx0/=s;
+
+        h0=fabs(xxm[0]-xx0[0]);
+        for(int i=0;i<ndim;i++){
+            if(fabs(xxm[i]-xx0[i])<h0){h0=fabs(xxm[i]-xx0[i]);}
+        }
+
+    }
+
+        //element 1
+    double w;
+
+    ir=&IntRules.Get(Tr1.GetGeometryType(), 2*order+2);
     for(int ii=0;ii<ir->GetNPoints();ii++){
         const IntegrationPoint &ip = ir->IntPoint(ii);
         Tr1.SetIntPoint(&ip);
         Tr1.Transform(ip,xx);
+        xx.Add(-1.0,xx0);//shift the coordinates with the reference point
+        xx/=h0;
+
         fe1.CalcPhysShape(Tr1,sh1);
         Shape(xx,order,shg);
 
         w = Tr1.Weight();
         w = ip.weight * w;
+
+        //compute the contribution from element 1 to Mgg
         for(int i=0;i<ndofg;i++){
             for(int j=0;j<i;j++){
                 Mgg(i,j)=Mgg(i,j)+shg(i)*shg(j)*w;
@@ -903,18 +954,12 @@ void GhostPenaltyVectorIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
             Mgg(i,i)=Mgg(i,i)+shg(i)*shg(i)*w;
         }
 
-        for(int i=0;i<ndof1;i++){
-            for(int j=0;j<i;j++){
-                Mee(i,j)=Mee(i,j)+sh1(i)*sh1(j)*w;
-                Mee(j,i)=Mee(j,i)+sh1(i)*sh1(j)*w;
-            }
-            Mee(i,i)=Mee(i,i)+sh1(i)*sh1(i)*w;
-        }
-
+        //compute the contribution from element 1 to Mge
         for(int i=0;i<ndof1;i++){
             for(int j=0;j<ndofg;j++){
                 Mge(j,i)=Mge(j,i)+shg(j)*sh1(i)*w;
-            }}
+            }
+        }
     }
 
 
@@ -924,6 +969,8 @@ void GhostPenaltyVectorIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
         const IntegrationPoint &ip = ir->IntPoint(ii);
         Tr2.SetIntPoint(&ip);
         Tr2.Transform(ip,xx);
+        xx.Add(-1.0,xx0);//shift the coordinates with the reference point
+        xx/=h0;
 
         fe2.CalcPhysShape(Tr2,sh2);
         Shape(xx,order,shg);
@@ -931,6 +978,7 @@ void GhostPenaltyVectorIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
         w = Tr2.Weight();
         w = ip.weight * w;
 
+        //compute the contribution from element 2 to Mgg
         for(int i=0;i<ndofg;i++){
             for(int j=0;j<i;j++){
                 Mgg(i,j)=Mgg(i,j)+shg(i)*shg(j)*w;
@@ -939,72 +987,150 @@ void GhostPenaltyVectorIntegrator::AssembleFaceMatrix(const FiniteElement &fe1,
             Mgg(i,i)=Mgg(i,i)+shg(i)*shg(i)*w;
         }
 
-        for(int i=0;i<ndof2;i++){
-            for(int j=0;j<i;j++){
-                Mee(ndof1+i,ndof1+j)=Mee(ndof1+i,ndof1+j)+sh2(i)*sh2(j)*w;
-                Mee(ndof1+j,ndof1+i)=Mee(ndof1+j,ndof1+i)+sh2(i)*sh2(j)*w;
-            }
-            Mee(ndof1+i,ndof1+i)=Mee(ndof1+i,ndof1+i)+sh2(i)*sh2(i)*w;
-        }
-
+        //compute the contribution from element 2 to Mge
         for(int i=0;i<ndof2;i++){
             for(int j=0;j<ndofg;j++){
                 Mge(j,ndof1+i)=Mge(j,ndof1+i)+shg(j)*sh2(i)*w;
-            }}
+            }
+        }
+
+        
+
     }
 
-    DenseMatrixInverse Mii(Mgg);
+
+
+    DenseMatrixInverse Mii(Mgg,true);
     DenseMatrix Mre(ndofg,ndofs);
-    DenseMatrix Mff(ndofs,ndofs);
     Mii.Mult(Mge,Mre);
-    MultAtB(Mge,Mre,Mff);
+
+    //global shape functions
+    Vector gs(ndofs);
+
 
     double tv;
-    for(int i=0;i<ndof1;i++){
-        for(int j=0;j<ndof1;j++){
-            tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
-            for(int d=0;d<ndim;d++){
-                elmat(i+d*ndof1,j+d*ndof1)=tv;
+    //integrate the global shape functions over element 1
+    ir=&IntRules.Get(Tr1.GetGeometryType(), 2*order+2);
+    for(int ii=0;ii<ir->GetNPoints();ii++){
+        const IntegrationPoint &ip = ir->IntPoint(ii);
+        Tr1.SetIntPoint(&ip);
+        Tr1.Transform(ip,xx);
+        xx.Add(-1.0,xx0);//shift the coordinates with the reference point
+        xx/=h0;
+
+        fe1.CalcPhysShape(Tr1,sh1);
+        Shape(xx,order,shg);
+
+        w = Tr1.Weight();
+        w = ip.weight * w;
+
+        Mre.MultTranspose(shg,gs);
+        for(int i=0;i<ndof1;i++){
+            gs(i)=gs(i)-sh1(i);
+        }
+
+        for(int i=0;i<ndof1;i++){
+            for(int j=0;j<ndof2;j++){
+                tv=w*gs(i)*gs(j);
+                for(int d=0;d<ndim;d++){
+                    elmat(i+d*ndof1,j+d*ndof1)= elmat(i+d*ndof1,j+d*ndof1)+tv;
+                }
             }
         }
-    }
-    for(int i=ndof1;i<ndofs;i++){
-        for(int j=0;j<ndof1;j++){
-            tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
-            for(int d=0;d<ndim;d++){
-                elmat(ndof1+i+d*ndof1,j+d*ndof1)=tv;
+
+        for(int i=ndof1;i<ndofs;i++){
+            for(int j=0;j<ndof2;j++){
+                tv=w*gs(i)*gs(j);
+                for(int d=0;d<ndim;d++){
+                    elmat(ndof1+i+d*ndof1,j+d*ndof1)=elmat(ndof1+i+d*ndof1,j+d*ndof1)+tv;
+                }
             }
         }
-    }
 
-    for(int i=0;i<ndof1;i++){
-        for(int j=ndof1;j<ndofs;j++){
-            tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
-            for(int d=0;d<ndim;d++){
-                elmat(i+d*ndof1,ndof1 + j+d*ndof1)=tv;
+        for(int i=0;i<ndof1;i++){
+            for(int j=ndof1;j<ndofs;j++){
+                tv=w*gs(i)*gs(j);
+                for(int d=0;d<ndim;d++){
+                    elmat(i+d*ndof1,ndof1 + j+d*ndof1)=elmat(i+d*ndof1,ndof1 + j+d*ndof1)+w*gs(i)*gs(j);
+                }
             }
         }
-    }
 
-    for(int i=ndof1;i<ndofs;i++){
-        for(int j=ndof1;j<ndofs;j++){
-            tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
-            for(int d=0;d<ndim;d++){
-                elmat(ndof1 + i+d*ndof1,ndof1 + j+d*ndof1)=tv;
+        for(int i=ndof1;i<ndofs;i++){
+            for(int j=ndof1;j<ndofs;j++){
+                tv=w*gs(i)*gs(j);
+                for(int d=0;d<ndim;d++){
+                    elmat(ndof1 + i+d*ndof1,ndof1 + j+d*ndof1)=elmat(ndof1 + i+d*ndof1,ndof1 + j+d*ndof1)+tv;
+                }
             }
         }
+
     }
 
-    // for(int i=0;i<ndofs;i++){
-    //     for(int j=0;j<ndofs;j++){
-    //         tv=penal*(Mee(i,j)+Mee(j,i)-Mff(i,j)-Mff(j,i))/(2.0);
-    //         for(int d=0;d<ndim;d++){
-    //             dummy(i+d*ndofs,j+d*ndofs)=tv;
-    //         }
-    //     }
-    // }
 
-    // elmat.Print();
+    ir=&IntRules.Get(Tr2.GetGeometryType(), 2*order+2);
+    for(int ii=0;ii<ir->GetNPoints();ii++){
+        const IntegrationPoint &ip = ir->IntPoint(ii);
+        Tr2.SetIntPoint(&ip);
+        Tr2.Transform(ip,xx);
+        xx.Add(-1.0,xx0);//shift the coordinates with the reference point
+        xx/=h0;
+
+        fe2.CalcPhysShape(Tr2,sh2);
+        Shape(xx,order,shg);
+
+        w = Tr2.Weight();
+        w = ip.weight * w;
+
+        Mre.MultTranspose(shg,gs);
+        for(int i=0;i<ndof2;i++){
+            gs(ndof1+i)=gs(ndof1+i)-sh2(i);
+        }
+
+        for(int i=0;i<ndof1;i++){
+            for(int j=0;j<ndof2;j++){
+                tv=w*gs(i)*gs(j);
+                for(int d=0;d<ndim;d++){
+                    elmat(i+d*ndof1,j+d*ndof1)= elmat(i+d*ndof1,j+d*ndof1)+tv;
+                }
+            }
+        }
+
+        for(int i=ndof1;i<ndofs;i++){
+            for(int j=0;j<ndof2;j++){
+                tv=w*gs(i)*gs(j);
+                for(int d=0;d<ndim;d++){
+                    elmat(ndof1+i+d*ndof1,j+d*ndof1)=elmat(ndof1+i+d*ndof1,j+d*ndof1)+tv;
+                }
+            }
+        }
+
+        for(int i=0;i<ndof1;i++){
+            for(int j=ndof1;j<ndofs;j++){
+                tv=w*gs(i)*gs(j);
+                for(int d=0;d<ndim;d++){
+                    elmat(i+d*ndof1,ndof1 + j+d*ndof1)=elmat(i+d*ndof1,ndof1 + j+d*ndof1)+w*gs(i)*gs(j);
+                }
+            }
+        }
+
+        for(int i=ndof1;i<ndofs;i++){
+            for(int j=ndof1;j<ndofs;j++){
+                tv=w*gs(i)*gs(j);
+                for(int d=0;d<ndim;d++){
+                    elmat(ndof1 + i+d*ndof1,ndof1 + j+d*ndof1)=elmat(ndof1 + i+d*ndof1,ndof1 + j+d*ndof1)+tv;
+                }
+            }
+        }
+
+
+
+
+
+    }
+
+    elmat*=penal;
+
 
 
 }
