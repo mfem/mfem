@@ -874,28 +874,12 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    const bool add = false;
    mi.AssembleEA(fes_lor, M_ea_lor, add);
 
-   //AV TODO: FIX
-   //BatchSolver batchSolver(BatchSolver::SolveMode::INVERSE);
-   //batchSolver.AssignMatrices(M_ea_lor, ndof_lor, nel_lor);
-
 
    DenseTensor Minv_ear_lor;
    Minv_ear_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt);
-
-   const double *d_M_ea_lor = M_ea_lor.Read();
-   double *d_Minv_ear_lor = Minv_ear_lor.Write();
-   mfem::forall(ndof_lor * ndof_lor * nel_lor, [=] MFEM_HOST_DEVICE (int i)
-   {
-      d_Minv_ear_lor[i] = d_M_ea_lor[i];
-   });
-
-   //Maybe copy data over?
-   //Minv_ear_lor = M_ea_lor;
+   Minv_ear_lor.CopyFromVector(M_ea_lor);
 
    BatchedLinAlg::Invert(Minv_ear_lor);
-
-   //batchSolver.GetInverse(Minv_ear_lor);
-
    {
       //Recall mfem is column major
       // ndof_lor x ndof_ho
@@ -1006,8 +990,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       DenseTensor InvRtM_LR;
       InvRtM_LR.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt);
 
-      const double *d_RtM_LR = RtM_LR.Read();
-      double *d_InvRtM_LR = InvRtM_LR.Write();
+      const real_t *d_RtM_LR = RtM_LR.Read();
+      real_t *d_InvRtM_LR = InvRtM_LR.Write();
       mfem::forall(RtM_LR.Size(), [=] MFEM_HOST_DEVICE (int i)
       {
          d_InvRtM_LR[i] = d_RtM_LR[i];
