@@ -114,6 +114,9 @@
 // Enable MFEM functionality based on the AmgX library.
 // #define MFEM_USE_AMGX
 
+// Enable MFEM functionality based on the MAGMA library.
+// #define MFEM_USE_MAGMA
+
 // Enable secure socket streams based on the GNUTLS library.
 // #define MFEM_USE_GNUTLS
 
