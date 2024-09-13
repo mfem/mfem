@@ -234,7 +234,7 @@ void CuWrapSmem2D(const int N, DBODY &&d_body, const int smem_size, const int X,
    {
       constexpr int SM = 80;
       const int GRID = SM;
-      std::cout << "\033[33mFolding back to GLOBAL memory!" << std::endl;
+      mfem::out << "\033[33mFolding back to GLOBAL memory!" << std::endl;
       static Memory<Tsmem> smem(smem_size * sizeof(Tsmem) * GRID);
       smem.UseDevice(true);
       CuKernel2DGmem<Tsmem><<<GRID, BLCK>>>(
@@ -282,7 +282,7 @@ void CuWrapSmem3D(const int N, DBODY &&d_body, const int smem_size, const int X,
 
    if (smem_size * sizeof(Tsmem) < 64 * 1024)   // V100, w/o extra config
    {
-      // std::cout << "\033[33mStandard kernel!\033[m" << std::endl;
+      // mfem::out << "\033[33mStandard kernel!\033[m" << std::endl;
       const int NB = X * Y * Z < 16 ? 4 : 1;
       const int GRID_X = (N + NB - 1) / NB;
       const int GRID = G == 0 ? GRID_X : G;
@@ -292,7 +292,7 @@ void CuWrapSmem3D(const int N, DBODY &&d_body, const int smem_size, const int X,
    {
       constexpr int SM = 80;
       const int GRID = G == 0 ? SM : G;
-      // std::cout << "\033[33mFolding back to GLOBAL memory" << std::endl;
+      // mfem::out << "\033[33mFolding back to GLOBAL memory" << std::endl;
       Memory<Tsmem> smem(smem_size * GRID);
       smem.UseDevice(true);
       CuKernel3DGmem<Tsmem><<<GRID, BLCK>>>(
