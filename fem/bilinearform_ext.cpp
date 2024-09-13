@@ -525,7 +525,8 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    A.Reset(oper); // A will own oper
 }
 
-void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
+void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
+                                           bool ABS) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
 
@@ -551,6 +552,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 
    if (DeviceCanUseCeed() || !elem_restrict || allPatchwise)
    {
+      MFEM_ASSERT(!ABS, "AbsMult not implemented with CEED!");
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;
       for (int i = 0; i < iSz; ++i)
@@ -570,14 +572,32 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       if (iSz)
       {
          Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
-         elem_restrict->Mult(x, localX);
+
+         auto H1elem_restrict = dynamic_cast<const ElementRestriction*>(elem_restrict);
+         if (H1elem_restrict && ABS)
+         {
+            H1elem_restrict->AbsMult(x, localX);
+         }
+         else
+         {
+            elem_restrict->Mult(x,localX);
+         }
+
          localY = 0.0;
          for (int i = 0; i < iSz; ++i)
          {
             AddMultWithMarkers(*integrators[i], localX, elem_markers[i],
-                               elem_attributes, false, localY);
+                               elem_attributes, false, localY, ABS);
          }
-         elem_restrict->MultTranspose(localY, y);
+
+         if (H1elem_restrict && ABS)
+         {
+            H1elem_restrict->AbsMultTranspose(localY, y);
+         }
+         else
+         {
+            elem_restrict->MultTranspose(localY,y);
+         }
       }
       else
       {
@@ -589,6 +609,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
+      MFEM_ASSERT(!ABS, "AbsMult not implemented in face integrators!");
       // When assembling interior face integrators for DG spaces, we need to
       // exchange the face-neighbor information. This happens inside member
       // functions of the 'int_face_restrict_lex'. To avoid repeated calls to
@@ -650,6 +671,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const bool has_bdr_integs = (n_bdr_face_integs > 0 || n_bdr_integs > 0);
    if (bdr_face_restrict_lex && has_bdr_integs)
    {
+      MFEM_ASSERT(!ABS, "AbsMult not implemented in bdr integrators!");
       Array<Array<int>*> &bdr_markers = *a->GetBBFI_Marker();
       Array<Array<int>*> &bdr_face_markers = *a->GetBFBFI_Marker();
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
@@ -765,197 +787,6 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 }
 
-void PABilinearFormExtension::AbsMult(const Vector &x, Vector &y) const
-{
-   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-
-   const int iSz = integrators.Size();
-
-   bool allPatchwise = true;
-   bool somePatchwise = false;
-
-   for (int i = 0; i < iSz; ++i)
-   {
-      if (integrators[i]->Patchwise())
-      {
-         somePatchwise = true;
-      }
-      else
-      {
-         allPatchwise = false;
-      }
-   }
-
-   MFEM_VERIFY(!(somePatchwise && !allPatchwise),
-               "All or none of the integrators should be patchwise");
-
-   if (DeviceCanUseCeed() || !elem_restrict || allPatchwise)
-   {
-      MFEM_ABORT("What to do when DeviceCanUseCeed()?");
-      y.UseDevice(true); // typically this is a large vector, so store on device
-      y = 0.0;
-      for (int i = 0; i < iSz; ++i)
-      {
-         if (integrators[i]->Patchwise())
-         {
-            integrators[i]->AddAbsMultNURBSPA(x, y);
-         }
-         else
-         {
-            integrators[i]->AddAbsMultPA(x, y);
-         }
-      }
-   }
-   else
-   {
-      if (iSz)
-      {
-         Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
-
-         auto H1elem_restrict = dynamic_cast<const ElementRestriction*>(elem_restrict);
-         if (H1elem_restrict)
-         {
-            H1elem_restrict->AbsMult(x, localX);
-         }
-         else
-         {
-            elem_restrict->Mult(x,localX);
-         }
-
-         localY = 0.0;
-         for (int i = 0; i < iSz; ++i)
-         {
-            AddAbsMultWithMarkers(*integrators[i], localX, elem_markers[i],
-                                  elem_attributes, false, localY);
-         }
-
-         if (H1elem_restrict)
-         {
-            H1elem_restrict->AbsMultTranspose(localY, y);
-         }
-         else
-         {
-            elem_restrict->MultTranspose(localY,y);
-         }
-      }
-      else
-      {
-         y = 0.0;
-      }
-   }
-
-   Array<BilinearFormIntegrator*> &intFaceIntegrators = *a->GetFBFI();
-   const int iFISz = intFaceIntegrators.Size();
-   if (int_face_restrict_lex && iFISz>0)
-   {
-      MFEM_ABORT("TODO: Implement AbsMult on face integrators...");
-      // When assembling interior face integrators for DG spaces, we need to
-      // exchange the face-neighbor information. This happens inside member
-      // functions of the 'int_face_restrict_lex'. To avoid repeated calls to
-      // ParGridFunction::ExchangeFaceNbrData, if we have a parallel space
-      // with interior face integrators, we create a ParGridFunction that
-      // will be used to cache the face-neighbor data. x_dg should be passed
-      // to any restriction operator that may need to use face-neighbor data.
-      const Vector *x_dg = &x;
-#ifdef MFEM_USE_MPI
-      ParGridFunction x_pgf;
-      if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(a->FESpace()))
-      {
-         x_pgf.MakeRef(pfes, const_cast<Vector&>(x), 0);
-         x_dg = &x_pgf;
-      }
-#endif
-
-      int_face_restrict_lex->Mult(*x_dg, int_face_X);
-      if (int_face_dXdn.Size() > 0)
-      {
-         MFEM_ABORT("NormalDerivativeAbsMult is not implemented...");
-         int_face_restrict_lex->NormalDerivativeMult(*x_dg, int_face_dXdn);
-      }
-      if (int_face_X.Size() > 0)
-      {
-         int_face_Y = 0.0;
-
-         // if normal derivatives are needed by at least one integrator...
-         if (int_face_dYdn.Size() > 0)
-         {
-            int_face_dYdn = 0.0;
-         }
-
-         for (int i = 0; i < iFISz; ++i)
-         {
-            if (intFaceIntegrators[i]->RequiresFaceNormalDerivatives())
-            {
-               intFaceIntegrators[i]->AddMultPAFaceNormalDerivatives(
-                  int_face_X, int_face_dXdn,
-                  int_face_Y, int_face_dYdn);
-            }
-            else
-            {
-               intFaceIntegrators[i]->AddMultPA(int_face_X, int_face_Y);
-            }
-         }
-         int_face_restrict_lex->AddMultTransposeInPlace(int_face_Y, y);
-         if (int_face_dYdn.Size() > 0)
-         {
-            int_face_restrict_lex->NormalDerivativeAddMultTranspose(
-               int_face_dYdn, y);
-         }
-      }
-   }
-
-   Array<BilinearFormIntegrator*> &bdr_integs = *a->GetBBFI();
-   Array<BilinearFormIntegrator*> &bdr_face_integs = *a->GetBFBFI();
-   const int n_bdr_integs = bdr_integs.Size();
-   const int n_bdr_face_integs = bdr_face_integs.Size();
-   const bool has_bdr_integs = (n_bdr_face_integs > 0 || n_bdr_integs > 0);
-   if (bdr_face_restrict_lex && has_bdr_integs)
-   {
-      MFEM_ABORT("TODO: Implement AbsMult on bdr integrators...");
-      Array<Array<int>*> &bdr_markers = *a->GetBBFI_Marker();
-      Array<Array<int>*> &bdr_face_markers = *a->GetBFBFI_Marker();
-      bdr_face_restrict_lex->Mult(x, bdr_face_X);
-      if (bdr_face_dXdn.Size() > 0)
-      {
-         bdr_face_restrict_lex->NormalDerivativeMult(x, bdr_face_dXdn);
-      }
-      if (bdr_face_X.Size() > 0)
-      {
-         bdr_face_Y = 0.0;
-
-         // if normal derivatives are needed by at least one integrator...
-         if (bdr_face_dYdn.Size() > 0)
-         {
-            bdr_face_dYdn = 0.0;
-         }
-         for (int i = 0; i < n_bdr_integs; ++i)
-         {
-            AddMultWithMarkers(*bdr_integs[i], bdr_face_X, bdr_markers[i], bdr_attributes,
-                               false, bdr_face_Y);
-         }
-         for (int i = 0; i < n_bdr_face_integs; ++i)
-         {
-            if (bdr_face_integs[i]->RequiresFaceNormalDerivatives())
-            {
-               AddMultNormalDerivativesWithMarkers(
-                  *bdr_face_integs[i], bdr_face_X, bdr_face_dXdn,
-                  bdr_face_markers[i], bdr_attributes, bdr_face_Y, bdr_face_dYdn);
-            }
-            else
-            {
-               AddMultWithMarkers(*bdr_face_integs[i], bdr_face_X, bdr_face_markers[i],
-                                  bdr_attributes, false, bdr_face_Y);
-            }
-         }
-         bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
-         if (bdr_face_dYdn.Size() > 0)
-         {
-            bdr_face_restrict_lex->NormalDerivativeAddMultTranspose(bdr_face_dYdn, y);
-         }
-      }
-   }
-}
-
 // Compute kernels for PABilinearFormExtension::AddMultWithMarkers.
 // Cannot be in member function with non-public visibility.
 static void AddWithMarkers_(
@@ -1018,47 +849,39 @@ void PABilinearFormExtension::AddMultWithMarkers(
    const Array<int> *markers,
    const Array<int> &attributes,
    const bool transpose,
-   Vector &y) const
+   Vector &y,
+   bool ABS) const
 {
    if (markers)
    {
       tmp_evec.SetSize(y.Size());
       tmp_evec = 0.0;
-      if (transpose) { integ.AddMultTransposePA(x, tmp_evec); }
-      else { integ.AddMultPA(x, tmp_evec); }
+      if (!ABS)
+      {
+         if (transpose) { integ.AddMultTransposePA(x, tmp_evec); }
+         else { integ.AddMultPA(x, tmp_evec); }
+      }
+      else
+      {
+         if (transpose) { integ.AddAbsMultTransposePA(x, tmp_evec); }
+         else { integ.AddAbsMultPA(x, tmp_evec); }
+      }
       const int ne = attributes.Size();
       const int nd = x.Size() / ne;
       AddWithMarkers_(ne, nd, tmp_evec, *markers, attributes, y);
    }
    else
    {
-      if (transpose) { integ.AddMultTransposePA(x, y); }
-      else { integ.AddMultPA(x, y); }
-   }
-}
-
-void PABilinearFormExtension::AddAbsMultWithMarkers(
-   const BilinearFormIntegrator &integ,
-   const Vector &x,
-   const Array<int> *markers,
-   const Array<int> &attributes,
-   const bool transpose,
-   Vector &y) const
-{
-   if (markers)
-   {
-      tmp_evec.SetSize(y.Size());
-      tmp_evec = 0.0;
-      if (transpose) { integ.AddAbsMultTransposePA(x, tmp_evec); }
-      else { integ.AddAbsMultPA(x, tmp_evec); }
-      const int ne = attributes.Size();
-      const int nd = x.Size() / ne;
-      AddWithMarkers_(ne, nd, tmp_evec, *markers, attributes, y);
-   }
-   else
-   {
-      if (transpose) { integ.AddAbsMultTransposePA(x, y); }
-      else { integ.AddAbsMultPA(x, y); }
+      if (!ABS)
+      {
+         if (transpose) { integ.AddMultTransposePA(x, y); }
+         else { integ.AddMultPA(x, y); }
+      }
+      else
+      {
+         if (transpose) { integ.AddAbsMultTransposePA(x, y); }
+         else { integ.AddAbsMultPA(x, y); }
+      }
    }
 }
 
