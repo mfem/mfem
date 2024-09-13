@@ -60,7 +60,7 @@
 //               (paraview.org) is also illustrated. Additionally, the example showcases
 //               the implementation of an element-based Clip & Scale limiter for
 //               continuous finite elements, which is designed to be bound-preserving.
-//               For more detail, see https://doi.org/10.1142/13466 .
+//               For more detail, see https://doi.org/10.1142/13466.
 
 #include "mfem.hpp"
 #include <fstream>
