@@ -886,7 +886,7 @@ int main(int argc, char *argv[])
    // 13. Free the used memory.
    if (DG)
    {
-      if(U)
+      if (U)
       {
          delete U;
       }
