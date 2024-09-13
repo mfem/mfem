@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
    bool compareToElementWise = true;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
    int ref_levels = 0;
+   int visport = 19916;
    int ir_order = -1;
 
    OptionsParser args(argc, argv);
@@ -73,6 +74,7 @@ int main(int argc, char *argv[])
    args.AddOption(&compareToElementWise, "-cew", "--compare-element",
                   "-no-compare", "-no-compare-element",
                   "Compute element-wise solution for comparison");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -153,7 +155,8 @@ int main(int argc, char *argv[])
    if (patchAssembly && reducedIntegration && !pa)
    {
 #ifdef MFEM_USE_SINGLE
-      MFEM_ABORT("Reduced integration is not supported in single precision.");
+      cout << "Reduced integration is not supported in single precision.\n";
+      return MFEM_SKIP_RETURN_VALUE;
 #endif
 
       di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
@@ -212,7 +215,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x << flush;
