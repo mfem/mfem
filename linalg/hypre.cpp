@@ -65,6 +65,12 @@ void Hypre::InitDevice()
 
 void Hypre::Finalize()
 {
+   // In hypre 2.29 and above, we can check if the hypre library has been
+   // initialized. If it has not been initialized, we can return early.
+#if MFEM_HYPRE_VERSION >= 22900
+   if (!HYPRE_Initialized()) { return; }
+#endif
+   
    Hypre &hypre = Instance();
    if (!hypre.finalized)
    {

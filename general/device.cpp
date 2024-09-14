@@ -150,6 +150,9 @@ Device::Device()
 
 Device::~Device()
 {
+#ifdef MFEM_USE_MPI
+   Hypre::Finalize();
+#endif
    if ( device_env && !destroy_mm) { return; }
    if (!device_env &&  destroy_mm && !mem_host_env)
    {
@@ -178,9 +181,6 @@ Device::~Device()
    Get().host_mem_class = MemoryClass::HOST;
    Get().device_mem_type = MemoryType::HOST;
    Get().device_mem_class = MemoryClass::HOST;
-#ifdef MFEM_USE_MPI
-   Hypre::Finalize();
-#endif
 }
 
 void Device::Configure(const std::string &device, const int device_id)
