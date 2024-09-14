@@ -825,6 +825,7 @@ static auto CreateLagrangianHydroOperator(
    using dt_est_t = typename std::remove_pointer<decltype(dt_est)>::type;
 
    auto momentum_mf_kernel =
+      MFEM_HOST_DEVICE
       [](
          const matd &dvdxi,
          const real_t &rho0,
@@ -890,6 +891,7 @@ static auto CreateLagrangianHydroOperator(
                          std::remove_pointer<decltype(momentum_mf)>::type;
 
    auto energy_conservation_mf_kernel =
+      MFEM_HOST_DEVICE
       [](
          const matd &dvdxi,
          const real_t &rho0,
@@ -951,6 +953,7 @@ static auto CreateLagrangianHydroOperator(
                                     std::remove_pointer<decltype(energy_conservation_mf)>::type;
 
    auto total_internal_energy_kernel =
+      MFEM_HOST_DEVICE
       [](
          const real_t &E,
          const real_t &rho0,
@@ -994,6 +997,7 @@ static auto CreateLagrangianHydroOperator(
                                       std::remove_pointer<decltype(total_internal_energy_mf)>::type;
 
    auto total_kinetic_energy_kernel =
+      MFEM_HOST_DEVICE
       [](
          const vecd &v,
          const real_t &rho0,
@@ -1037,6 +1041,7 @@ static auto CreateLagrangianHydroOperator(
                                      std::remove_pointer<decltype(total_kinetic_energy_mf)>::type;
 
    auto density_kernel =
+      MFEM_HOST_DEVICE
       [](
          const real_t &rho0,
          const matd &J0,
