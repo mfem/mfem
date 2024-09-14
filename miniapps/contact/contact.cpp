@@ -580,7 +580,7 @@ int main(int argc, char *argv[])
          mfem::out << " Global number of contact dofs   = " << gncols << endl;
          mfem::out << " Optimizer number of iterations  = " <<
                 optimizer.GetNumIterations() << endl;
-         if (linsolver == 2 || linsolver == 3 || linsolver == 4 || linsolver == 6)
+         if (linsolver == 2 || linsolver == 3 || linsolver == 4 || linsolver == 6 || linsolver == 7)
          {
             mfem::out << " CG iteration numbers            = " ;
             CGiterations.Print(mfem::out, CGiterations.Size());
