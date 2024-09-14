@@ -1100,6 +1100,8 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
+   const char *device_config = "cpu";
+
    const char *mesh_file =
       "/Users/andrej1/repos/Laghos/data/rectangle01_quad.mesh";
 
@@ -1122,6 +1124,8 @@ int main(int argc, char *argv[])
    args.AddOption(&t_final, "-tf", "--tf", "");
    args.AddOption(&problem, "-p", "--p", "");
    args.AddOption(&cfl, "-cfl", "--cfl", "");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&use_viscosity, "-av", "--av", "-no-av", "--no-av", "");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
@@ -1130,6 +1134,9 @@ int main(int argc, char *argv[])
                   "            11 - Backward Euler"
                   "            12 - Implicit Midpoint");
    args.ParseCheck();
+
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
 
    Mesh serial_mesh = Mesh(mesh_file, true, true);
 
