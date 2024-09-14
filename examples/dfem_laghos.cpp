@@ -1,6 +1,7 @@
 #include <limits>
 #include <memory>
 #include <mfem.hpp>
+#include "config/config.hpp"
 #include "dfem/dfem.hpp"
 #include "examples/dfem/dfem_parametricspace.hpp"
 #include "fem/bilininteg.hpp"
@@ -65,6 +66,7 @@ using vecaux = tensor<real_t, 3>;
 using matd = tensor<real_t, 2, 2>;
 
 template <bool compute_dtest = false>
+MFEM_HOST_DEVICE
 serac::tuple<matd, real_t> qdata_setup(
    const matd &dvdxi,
    const real_t &rho0,
@@ -767,7 +769,7 @@ static auto CreateLagrangianHydroOperator(
    qdata->dt_est = std::numeric_limits<real_t>::infinity();
 
    auto dt_est_kernel =
-      MFEM_HOST_DEVICE [](
+      [] MFEM_HOST_DEVICE (
          const matd &dvdxi,
          const real_t &rho0,
          const matd &J0,
@@ -825,8 +827,7 @@ static auto CreateLagrangianHydroOperator(
    using dt_est_t = typename std::remove_pointer<decltype(dt_est)>::type;
 
    auto momentum_mf_kernel =
-      MFEM_HOST_DEVICE
-      [](
+      [] MFEM_HOST_DEVICE (
          const matd &dvdxi,
          const real_t &rho0,
          const matd &J0,
@@ -891,8 +892,7 @@ static auto CreateLagrangianHydroOperator(
                          std::remove_pointer<decltype(momentum_mf)>::type;
 
    auto energy_conservation_mf_kernel =
-      MFEM_HOST_DEVICE
-      [](
+      [] MFEM_HOST_DEVICE (
          const matd &dvdxi,
          const real_t &rho0,
          const matd &J0,
@@ -953,8 +953,7 @@ static auto CreateLagrangianHydroOperator(
                                     std::remove_pointer<decltype(energy_conservation_mf)>::type;
 
    auto total_internal_energy_kernel =
-      MFEM_HOST_DEVICE
-      [](
+      [] MFEM_HOST_DEVICE (
          const real_t &E,
          const real_t &rho0,
          const matd &J0,
@@ -997,8 +996,7 @@ static auto CreateLagrangianHydroOperator(
                                       std::remove_pointer<decltype(total_internal_energy_mf)>::type;
 
    auto total_kinetic_energy_kernel =
-      MFEM_HOST_DEVICE
-      [](
+      [] MFEM_HOST_DEVICE (
          const vecd &v,
          const real_t &rho0,
          const matd &J0,
@@ -1041,8 +1039,7 @@ static auto CreateLagrangianHydroOperator(
                                      std::remove_pointer<decltype(total_kinetic_energy_mf)>::type;
 
    auto density_kernel =
-      MFEM_HOST_DEVICE
-      [](
+      [] MFEM_HOST_DEVICE (
          const real_t &rho0,
          const matd &J0,
          const real_t &w)
