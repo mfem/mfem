@@ -58,7 +58,7 @@ void TwoLevelAMGSolver::InitAMG()
     amg = new HypreBoomerAMG(*A);
     amg->SetPrintLevel(0);
     amg->SetSystemsOptions(3);
-    amg->SetRelaxType(88);
+    amg->SetRelaxType(relax_type);
 }
 
 void TwoLevelAMGSolver::InitMumps()
@@ -66,7 +66,7 @@ void TwoLevelAMGSolver::InitMumps()
     Ac = RAP(A, P);
     M = new MUMPSSolver(comm);
     M->SetPrintLevel(0);
-    M->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+    M->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
     M->SetOperator(*Ac);
 }
 
@@ -74,34 +74,40 @@ void TwoLevelAMGSolver::InitMumps()
 void TwoLevelAMGSolver::Mult(const Vector & b, Vector & x) const
 {
     MFEM_VERIFY(b.Size() == x.Size(), "Inconsistent x and y size");
-    // 1. Step 1: V-cycle on x
+    
+
     x = 0.0;
     Vector z(x);
-    Vector r(b.Size());
     amg->Mult(b, z);
-    // Update Correction
-    double theta = 1.0;
-    z*=theta;
     x+=z;
-    // // 2. Compute Residual r = b - A x
-    A->Mult(x,r);
-    r.Neg(); r+=b;
-    // // 3. Restrict to subspace
     Vector rc(P->Width());
     Vector xc(P->Width());
-    P->MultTranspose(r,rc);
-    // 4. Solve on the subspace
-    M->Mult(rc,xc);
-    // 5. Transfer to fine space
-    P->Mult(xc,z);
-    // 6. Update Correction
-    x+=z;
-    // // 7. Compute Residual r = b - A x
-    A->Mult(x,r);
-    r.Neg(); r+=b;
-    // 8. Post V-Cycle 
-    amg->Mult(r, z);
-    z*=theta;
+    if (additive)
+    {
+        P->MultTranspose(b,rc);
+        M->Mult(rc,xc);
+        P->Mult(xc,z);
+    }
+    else
+    {
+        Vector r(b.Size());
+        // 2. Compute Residual r = b - A x
+        A->Mult(x,r);
+        r.Neg(); r+=b;
+        // 3. Restrict to subspace
+        P->MultTranspose(r,rc);
+        // 4. Solve on the subspace
+        M->Mult(rc,xc);
+        // 5. Transfer to fine space
+        P->Mult(xc,z);
+        // 6. Update Correction
+        x+=z;
+        // 7. Compute Residual r = b - A x
+        A->Mult(x,r);
+        r.Neg(); r+=b;
+        // 8. Post V-Cycle 
+        amg->Mult(r, z);
+    }
     x+= z;
 }
 

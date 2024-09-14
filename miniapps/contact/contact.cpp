@@ -296,9 +296,22 @@ int main(int argc, char *argv[])
       ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
       ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
    }
+
+   StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
+
    ParElasticityProblem * prob = new ParElasticityProblem(pmesh,
                                                           ess_bdr_attr,ess_bdr_attr_comp,
                                                           order);
+   chrono.Stop();
+   if (myid == 0)
+   {
+      mfem::out << "--------------------------------------------" << endl;
+      mfem::out << "Elasticity problem constructor: " << chrono.RealTime() << " sec" << endl;
+      mfem::out << "--------------------------------------------" << endl;
+   }
+   
    Vector lambda(prob->GetMesh()->attributes.Max());
    Vector mu(prob->GetMesh()->attributes.Max());
 
@@ -481,12 +494,44 @@ int main(int argc, char *argv[])
 
       x_gf.SetTrueVector();
       xref.Set(1.0, x_gf.GetTrueVector());
-      bool compute_dof_projections = (linsolver == 3 || linsolver == 6) ? true : false;
+      bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
+      
+      chrono.Clear();
+      chrono.Start();
       ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, compute_dof_projections);
+      
+      int gncols = (compute_dof_projections) ? contact.GetRestrictionToContactDofs()->GetGlobalNumCols() : -1;
+      chrono.Stop();
+      if (myid == 0)
+      {
+         mfem::out << "--------------------------------------------" << endl;
+         mfem::out << "Contact problem constructor: " << chrono.RealTime() << " sec" << endl;
+         mfem::out << "--------------------------------------------" << endl;
+      }
+      
+      chrono.Clear();
+      chrono.Start();
       QPOptParContactProblem qpopt(&contact,xref);
-   
+      chrono.Stop();
+      if (myid == 0)
+      {
+         mfem::out << "--------------------------------------------" << endl;
+         mfem::out << "QPContact problem constructor: " << chrono.RealTime() << " sec" << endl;
+         mfem::out << "--------------------------------------------" << endl;
+      }
+
       int numconstr = contact.GetGlobalNumConstraints();
+      chrono.Clear();
+      chrono.Start();
       ParInteriorPointSolver optimizer(&qpopt);
+      chrono.Stop();
+      if (myid == 0)
+      {
+         mfem::out << "--------------------------------------------" << endl;
+         mfem::out << "Optimizer constructor: " << chrono.RealTime() << " sec" << endl;
+         mfem::out << "--------------------------------------------" << endl;
+      }
+
       optimizer.SetTol(optimizer_tol);
       optimizer.SetMaxIter(optimizer_maxit);
       optimizer.SetLinearSolver(linsolver);
@@ -503,7 +548,19 @@ int main(int argc, char *argv[])
       int ndofs = prob->GetFESpace()->GetTrueVSize();
       Vector x0(ndofs); x0 = 0.0;
       Vector xf(ndofs); xf = 0.0;
+      
+      chrono.Clear();
+      chrono.Start();
+
       optimizer.Mult(x0, xf);
+
+      chrono.Stop();
+      if (myid == 0)
+      {
+         mfem::out << "--------------------------------------------" << endl;
+         mfem::out << "Optimizer mult: " << chrono.RealTime() << " sec" << endl;
+         mfem::out << "--------------------------------------------" << endl;
+      }
 
       // Vector xf_copy(xf);
       // xf_copy+=x0;
@@ -520,6 +577,7 @@ int main(int argc, char *argv[])
          mfem::out << " Final Energy objective          = " << Efinal << endl;
          mfem::out << " Global number of dofs           = " << gndofs << endl;
          mfem::out << " Global number of constraints    = " << numconstr << endl;
+         mfem::out << " Global number of contact dofs   = " << gncols << endl;
          mfem::out << " Optimizer number of iterations  = " <<
                 optimizer.GetNumIterations() << endl;
          if (linsolver == 2 || linsolver == 3 || linsolver == 4 || linsolver == 6)

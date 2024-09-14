@@ -22,7 +22,8 @@ private:
     HypreBoomerAMG * amg = nullptr;
     HypreParMatrix * Ac = nullptr;
     MUMPSSolver * M = nullptr;
-
+    bool additive = false;
+    int relax_type = 88;
     void Init(MPI_Comm comm_);
     void InitAMG();
     void InitMumps();
@@ -31,6 +32,9 @@ public:
     TwoLevelAMGSolver(const Operator & Op, const Operator & P_);
     void SetOperator(const Operator &op);
     void SetTransferMap(const Operator & P_);
+    void EnableAdditiveCoupling() { additive = true; }
+    void EnableMultiplicativeCoupling() { additive = false; }
+    void SetAMGRelaxTypre(int relax_type_) { relax_type = relax_type_;  }
 
     virtual void Mult(const Vector & y, Vector & x) const; 
 

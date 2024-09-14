@@ -435,7 +435,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
       delete Ah;
    }
-   else if(linSolver >= 1 || linSolver == 2 || linSolver == 3 || linSolver == 4 || linSolver == 5 || linSolver == 6)
+   else if(linSolver >= 1)
    {
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
       HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
@@ -546,7 +546,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          delete AreducedSolver;
       }
 #ifdef MFEM_USE_MUMPS
-      else if (linSolver == 6) // Two level
+      else if (linSolver == 6 || linSolver == 7) // Two level
       {
          if (iAmRoot)
          {
@@ -556,6 +556,15 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          } 
          HypreParMatrix * Pb = problem->GetRestrictionToContactDofs();
          TwoLevelAMGSolver * prec = new TwoLevelAMGSolver(*Areduced, *Pb);
+         prec->SetAMGRelaxTypre(relax_type);
+         if (linSolver == 7) 
+         { 
+            prec->EnableAdditiveCoupling(); 
+         }
+         else
+         {
+            prec->EnableMultiplicativeCoupling(); 
+         }
          CGSolver * AreducedSolver = new CGSolver(MPI_COMM_WORLD);
          AreducedSolver->SetRelTol(linSolveRelTol);
          AreducedSolver->SetMaxIter(50000);
@@ -582,7 +591,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          
       }
       // BlockDiagonalPrecoditioner [amg(Aᵢᵢ) 0; 0 A⁻¹ⱼⱼ]
-      else // if linsolver == 3
+      else // if linsolver == 3 or 4
       {
          // Extract interior and contact dofs
          HypreParMatrix * Pi = problem->GetRestrictionToInteriorDofs();
