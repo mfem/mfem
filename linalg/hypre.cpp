@@ -70,7 +70,7 @@ void Hypre::Finalize()
 #if MFEM_HYPRE_VERSION >= 22900
    if (!HYPRE_Initialized()) { return; }
 #endif
-   
+
    Hypre &hypre = Instance();
    if (!hypre.finalized)
    {
