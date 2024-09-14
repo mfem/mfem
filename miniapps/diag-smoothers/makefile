@@ -16,10 +16,6 @@ MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/lpq-jacobi/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
-
 # Include defaults.mk to get XLINKER
 DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
 include $(DEFAULTS_MK)
@@ -30,13 +26,12 @@ MFEM_LIB_FILE = mfem_is_not_built
 LPQ_COMMON_SRC = lpq-common.cpp
 LPQ_COMMON_OBJ = $(LPQ_COMMON_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = # No serial version
 PAR_MINIAPPS = lpq-jacobi mg-lpq-jacobi abs-l1-jacobi mg-abs-l1-jacobi
 
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(SEQ_MINIAPPS)
+   MINIAPPS = 
 else
-   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS)
 endif
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
@@ -51,9 +46,6 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 .PHONY: all lib-common copy_meshes clean clean-build clean-exec
 
 all: copy_meshes $(MINIAPPS)
-
-# Remove built-in rule
-%: %.cpp
 
 # Rule for building lib-common
 lib-common:
@@ -77,22 +69,6 @@ SRC_MESH_FILES = $(addprefix $(SRC_MESHING_DIR)/, $(MESH_FILES_FROM_MESHING)) \
 copy_meshes: $(MESHES_DEST_DIR) $(addprefix $(MESHES_DEST_DIR)/, $(notdir $(SRC_MESH_FILES)))
 	@echo "Copying meshing miniapps data files ..."
 
-# Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common $(MESHES_DEST_DIR)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
-
-lpq-jacobi: lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
-	$(MFEM_CXX) $(MFEM_FLAGS) lpq-jacobi.cpp lpq-common.cpp -o lpq-jacobi $(COMMON_LIB) $(MFEM_LIBS)
-
-mg-lpq-jacobi: mg-lpq-jacobi.cpp lpq-common.cpp lpq-common.hpp
-	$(MFEM_CXX) $(MFEM_FLAGS) mg-lpq-jacobi.cpp lpq-common.cpp -o mg-lpq-jacobi $(COMMON_LIB) $(MFEM_LIBS)
-
-abs-l1-jacobi: abs-l1-jacobi.cpp lpq-common.cpp lpq-common.hpp
-	$(MFEM_CXX) $(MFEM_FLAGS) abs-l1-jacobi.cpp lpq-common.cpp -o abs-l1-jacobi $(COMMON_LIB) $(MFEM_LIBS)
-
-mg-abs-l1-jacobi: mg-abs-l1-jacobi.cpp lpq-common.cpp lpq-common.hpp
-	$(MFEM_CXX) $(MFEM_FLAGS) mg-abs-l1-jacobi.cpp lpq-common.cpp -o mg-abs-l1-jacobi $(COMMON_LIB) $(MFEM_LIBS)
-
 # Create the destination directory if it doesn't exist
 $(MESHES_DEST_DIR):
 	mkdir -p $(MESHES_DEST_DIR)
@@ -107,31 +83,21 @@ $(MESHES_DEST_DIR)/%: $(SRC_GSLIB_DIR)/% | $(MESHES_DEST_DIR)
 $(MESHES_DEST_DIR)/%: $(SRC_DATA_DIR)/% | $(MESHES_DEST_DIR)
 	cp $< $@
 
-MFEM_TESTS = MINIAPPS
-include $(MFEM_TEST_MK)
-
-# Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-%-test-par: %
-	@$(call mfem-test-file,$<, $(RUN_MPI), Meshing miniapp,$(<).mesh)
-%-test-seq: %
-	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
+# Build rules for miniapps
+$(MINIAPPS): %: %.cpp lpq-common.cpp lpq-common.hpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) $< lpq-common.cpp -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
 # Clean targets
-.PHONY: clean clean-build clean-exec
-
 clean: clean-build clean-exec
+	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common clean
 
 clean-build:
 	@echo "Cleaning build files..."
-	rm -f *.o *~ lpq-jacobi
-	rm -f *.o *~ abs-l1-jacobi
-	rm -f *.o *~ mg-lpq-jacobi
-	rm -f *.o *~ mg-abs-l1-jacobi
+	rm -f *.o *~ $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

@@ -56,6 +56,19 @@ if(MFEM_USE_MPI)
     COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
     COMMENT "Copying meshing miniapps data files ...")
   add_custom_target(copy_meshes DEPENDS data_is_copied)
+
+  add_custom_target(clean_meshes
+    COMMAND ${CMAKE_COMMAND} -E remove_directory meshes
+    COMMENT "Cleaning up meshes directory..."
+  )
+
+  add_custom_target(clean_common
+    COMMAND ${CMAKE_COMMAND} -E echo "Cleaning common directory..."
+    COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR}/../common clean
+    COMMENT "Cleaning common directory..."
+  )
+
+  set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES meshes)
   
   add_mfem_miniapp(lpq-jacobi
     MAIN lpq-jacobi.cpp
