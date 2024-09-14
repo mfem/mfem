@@ -62,7 +62,7 @@ void DifferentiableOperator<kernels_tuple,
       dtq.emplace_back(GetDofToQuad<entity_t>(field, op.integration_rule,
                                               doftoquad_mode));
    }
-   const int q1d = dtq[0]->nqpt;
+   const int q1d = (int)floor(pow(num_qp, 1.0/op.mesh.Dimension()) + 0.5);
 
    residual_e.SetSize(R->Height());
 
@@ -103,7 +103,7 @@ void DifferentiableOperator<kernels_tuple,
 
    Vector shmem_cache(shmem_info.total_size);
 
-   // print_shared_memory_info(shmem_info);
+   print_shared_memory_info(shmem_info);
 
    func = [=](Vector &ye_mem) mutable
    {
@@ -157,7 +157,7 @@ void DifferentiableOperator<kernels_tuple,
             shmem_info.offsets[SharedMemory::Index::TEMP],
             shmem_info.temp_sizes);
 
-         map_fields_to_quadrature_data<mfem::TensorProduct>(
+         map_fields_to_quadrature_data<TensorProduct>(
             input_shmem, fields_shmem, input_dtq_shmem, input_fops, ir_weights, scratch_mem,
          std::make_index_sequence<kernel.num_kinputs> {});
 
@@ -166,6 +166,7 @@ void DifferentiableOperator<kernels_tuple,
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
                const int q = qy + qx * q1d;
+               // printf("qp: %d\n", q);
 
                auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
                auto r = Reshape(&residual_shmem(0, q), residual_size_on_qp);

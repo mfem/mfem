@@ -504,7 +504,7 @@ int GetDimension(const FieldDescriptor &f)
       }
       else if constexpr (std::is_same_v<T, const ParametricSpace *>)
       {
-         return 1;
+         return arg->Dimension();
       }
       else
       {
@@ -865,7 +865,8 @@ create_descriptors_to_fields_map(
 
       if constexpr (std::is_same_v<decltype(fop), Weight&>)
       {
-         fop.dim = 1;
+         // TODO: stealing dimension from the first field
+         fop.dim = GetDimension<Entity::Element>(fields[0]);
          fop.vdim = 1;
          fop.size_on_qp = 1;
          map = -1;
@@ -1031,8 +1032,8 @@ void map_field_to_quadrature_data_tensor_product(
    else if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::Weight>)
    {
       const int num_qp = integration_weights.GetShape()[0];
-      // TODO-bug: eeek
-      const int q1d = sqrt(num_qp);
+      // TODO: eeek
+      const int q1d = (int)floor(pow(num_qp, 1.0/input.dim) + 0.5);
       auto w = Reshape(&integration_weights[0], q1d, q1d);
       auto f = Reshape(&field_qp[0], q1d, q1d);
       MFEM_FOREACH_THREAD(qy, y, q1d)
@@ -1043,6 +1044,24 @@ void map_field_to_quadrature_data_tensor_product(
          }
       }
       MFEM_SYNC_THREAD;
+   }
+   else if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::None>)
+   {
+      const int q1d = B.GetShape()[0];
+      auto field = Reshape(&field_e[0], input.size_on_qp, q1d, q1d);
+      auto fqp = Reshape(&field_qp[0], input.size_on_qp, q1d, q1d);
+
+      for (int sq = 0; sq < input.size_on_qp; sq++)
+      {
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         {
+            MFEM_FOREACH_THREAD(qx, x, q1d)
+            {
+               fqp(sq, qx, qy) = field(sq, qx, qy);
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
    }
    else
    {
@@ -1129,19 +1148,17 @@ void map_field_to_quadrature_data(
          f(qp) = integration_weights(qp);
       }
    }
-   // else if constexpr (std::is_same_v<field_operator_t, None>)
-   // {
-   //    auto [num_qp, unused, num_dof] = B.GetShape();
-   //    const int size_on_qp = input.size_on_qp;
-   //    const int entity_offset = entity_idx * size_on_qp * num_qp;
-   //    const auto field = Reshape(&field_e(0) + entity_offset,
-   //                               size_on_qp * num_qp);
-   //    auto f = Reshape(&field_qp[0], size_on_qp * num_qp);
-   //    for (int i = 0; i < size_on_qp * num_qp; i++)
-   //    {
-   //       f(i) = field(i);
-   //    }
-   // }
+   else if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::None>)
+   {
+      auto [num_qp, unused, num_dof] = B.GetShape();
+      const int size_on_qp = input.size_on_qp;
+      const auto field = Reshape(&field_e[0], size_on_qp * num_qp);
+      auto f = Reshape(&field_qp[0], size_on_qp * num_qp);
+      for (int i = 0; i < size_on_qp * num_qp; i++)
+      {
+         f(i) = field(i);
+      }
+   }
    else
    {
       static_assert(always_false<field_operator_t>,
@@ -1424,7 +1441,7 @@ void print_shared_memory_info(
 {
    out << "Shared Memory Info\n"
        << "total size: " << shmem_info.total_size
-       << " " << "(" << shmem_info.total_size * double(sizeof(double))/1024.0 << "MB)";
+       << " " << "(" << shmem_info.total_size * double(sizeof(double))/1024.0 << "kb)";
    out << "\ninput dtq sizes: ";
    for (auto &i : shmem_info.input_dtq_sizes)
    {
@@ -2019,16 +2036,16 @@ void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
    //       y(0, 0) += cc(i);
    //    }
    // }
-   // else if constexpr (std::is_same_v<decltype(output), None>)
-   // {
-   //    const auto [vdim, dim, num_qp] = c.GetShape();
-   //    auto cc = Reshape(&c(0, 0, 0), num_qp * vdim);
-   //    auto yy = Reshape(&y(0, 0), num_qp * vdim);
-   //    for (int i = 0; i < num_qp * vdim; i++)
-   //    {
-   //       yy(i) = cc(i);
-   //    }
-   // }
+   else if constexpr (std::is_same_v<decltype(output), BareFieldOperator::None>)
+   {
+      const auto [vdim, dim, num_qp] = G.GetShape();
+      auto cc = Reshape(&f(0, 0, 0), num_qp * vdim);
+      auto yy = Reshape(&y(0, 0), num_qp * vdim);
+      for (int i = 0; i < num_qp * vdim; i++)
+      {
+         yy(i) = cc(i);
+      }
+   }
    else
    {
       MFEM_ABORT("quadrature data mapping to field is not implemented for"
@@ -2148,19 +2165,16 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
    else if constexpr (std::is_same_v<decltype(output), BareFieldOperator::None>)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
-      const int vdim = output.vdim;
-      const int test_dim = output.size_on_qp / vdim;
+      auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d);
+      auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d);
 
-      auto fqp = Reshape(&f(0, 0, 0), vdim, q1d, q1d);
-      auto yqp = Reshape(&y(0, 0), vdim, q1d, q1d);
-
-      for (int vd = 0; vd < vdim; vd++)
+      for (int sq = 0; sq < output.size_on_qp; sq++)
       {
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               yqp(vd, qx, qy) = fqp(vd, qx, qy);
+               yqp(sq, qx, qy) = fqp(sq, qx, qy);
             }
          }
          MFEM_SYNC_THREAD;
@@ -2207,7 +2221,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          int value_dim = 1;
          int grad_dim = 1;
 
-         if (dtq->mode != DofToQuad::Mode::TENSOR)
+         if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
+             (!std::is_same_v<decltype(fop), None>))
          {
             value_dim = dtq->FE->GetRangeDim() ?
                         dtq->FE->GetRangeDim() :

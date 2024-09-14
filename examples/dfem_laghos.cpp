@@ -21,7 +21,7 @@ using namespace mfem;
 using mfem::internal::tensor;
 
 int problem = 0;
-double cfl = 0.5;
+real_t cfl = 0.5;
 bool use_viscosity = false;
 
 void threshold(Vector &v)
@@ -36,7 +36,7 @@ void threshold(Vector &v)
 }
 
 MFEM_HOST_DEVICE inline
-double taylor_source(const Vector &x)
+real_t taylor_source(const Vector &x)
 {
    return 3.0 / 8.0 * M_PI * ( cos(3.0*M_PI*x(0)) * cos(M_PI*x(1)) -
                                cos(M_PI*x(0))     * cos(3.0*M_PI*x(1)) );
@@ -44,50 +44,49 @@ double taylor_source(const Vector &x)
 
 // Smooth transition between 0 and 1 for x in [-eps, eps].
 MFEM_HOST_DEVICE inline
-double smooth_step_01(double x, double eps)
+real_t smooth_step_01(real_t x, real_t eps)
 {
-   const double y = (x + eps) / (2.0 * eps);
+   const real_t y = (x + eps) / (2.0 * eps);
    if (y < 0.0) { return 0.0; }
    if (y > 1.0) { return 1.0; }
    return (3.0 - 2.0 * y) * y * y;
 }
 
 MFEM_HOST_DEVICE inline
-void ComputeMaterialProperties(const double &gamma, const double &rho,
-                               const double &E, double &p, double &cs)
+void ComputeMaterialProperties(const real_t &gamma, const real_t &rho,
+                               const real_t &E, real_t &p, real_t &cs)
 {
    p = (gamma - 1.0) * rho * E;
    cs = sqrt(gamma * (gamma - 1.0) * E);
 }
 
-using vecd = tensor<double, 2>;
-using vecaux = tensor<double, 3>;
-using matd = tensor<double, 2, 2>;
-using real = double;
+using vecd = tensor<real_t, 2>;
+using vecaux = tensor<real_t, 3>;
+using matd = tensor<real_t, 2, 2>;
 
 template <bool compute_dtest = false>
-std::tuple<matd, double> qdata_setup(
+serac::tuple<matd, real_t> qdata_setup(
    const matd &dvdxi,
-   const real &rho0,
+   const real_t &rho0,
    const matd &J0,
    const matd &J,
-   const real &gamma,
-   const real &E,
-   const real &h0,
-   const real &order_v,
-   const real &w)
+   const real_t &gamma,
+   const real_t &E,
+   const real_t &h0,
+   const real_t &order_v,
+   const real_t &w)
 {
    constexpr int dim = 2;
-   constexpr real eps = 1e-12;
-   constexpr real vorticity_coeff = 1.0;
-   real p, cs;
-   real detJ = det(J);
+   constexpr real_t eps = 1e-12;
+   constexpr real_t vorticity_coeff = 1.0;
+   real_t p, cs;
+   real_t detJ = det(J);
    matd invJ = inv(J);
    matd stress{0.0};
-   const real rho = rho0 * det(J0) / detJ;
-   const real Ez = fmax(0.0, E);
-   real visc_coeff = 0.0;
-   real dt_est = std::numeric_limits<real>::infinity();
+   const real_t rho = rho0 * det(J0) / detJ;
+   const real_t Ez = fmax(0.0, E);
+   real_t visc_coeff = 0.0;
+   real_t dt_est = std::numeric_limits<real_t>::infinity();
 
    ComputeMaterialProperties(gamma, rho, Ez, p, cs);
 
@@ -102,9 +101,9 @@ std::tuple<matd, double> qdata_setup(
       auto [eigvals, eigvecs] = eig(symdvdx);
       vecd compr_dir = get_col(eigvecs, 0);
       auto ph_dir = (J * inv(J0)) * compr_dir;
-      const double h = h0 * norm(ph_dir) / norm(compr_dir);
+      const real_t h = h0 * norm(ph_dir) / norm(compr_dir);
       // Measure of maximal compression.
-      const double mu = eigvals(0);
+      const real_t mu = eigvals(0);
       visc_coeff = 2.0 * rho * h * h * fabs(mu);
       visc_coeff += 0.5 * rho * h * cs * vorticity_coeff *
                     (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
@@ -120,32 +119,34 @@ std::tuple<matd, double> qdata_setup(
       }
       else
       {
-         const real h_min = calcsv(J, dim-1) / static_cast<real>(order_v);
-         const real idt = cs / h_min + 2.5 * visc_coeff / rho / h_min / h_min;
+         const real_t h_min = calcsv(J, dim-1) / static_cast<real_t>(order_v);
+         const real_t idt = cs / h_min + 2.5 * visc_coeff / rho / h_min / h_min;
+
          if (idt > 0.0)
          {
             dt_est = cfl / idt;
          }
          else
          {
-            dt_est = std::numeric_limits<real>::infinity();
+            dt_est = std::numeric_limits<real_t>::infinity();
          }
       }
    }
 
    matd stressJiT = stress * transpose(invJ) * detJ * w;
-   return std::tuple{stressJiT, dt_est};
+   return serac::tuple{stressJiT, dt_est};
 }
 
 struct QuadratureData
 {
    static constexpr int aux_dim = 1;
    QuadratureData(const ParMesh &mesh, const IntegrationRule &ir) :
-      StressSpace(mesh.Dimension()*mesh.Dimension(),
+      StressSpace(mesh.Dimension(), mesh.Dimension()*mesh.Dimension(),
                   ir.GetNPoints(),
                   mesh.Dimension()*mesh.Dimension()*ir.GetNPoints()*mesh.GetNE()),
       stressp(StressSpace),
-      R(aux_dim,
+      R(mesh.Dimension(),
+        aux_dim,
         ir.GetNPoints(),
         aux_dim*ir.GetNPoints()*mesh.GetNE()),
       h0(R),
@@ -182,7 +183,7 @@ public:
       // finite difference matrix-vector products in Newton-Krylov solvers for
       // implicit climate dynamics with spectral elements. Procedia Computer
       // Science, 51, pp.2036-2045.
-      double eps = lambda * (lambda + xnorm / v.Norml2());
+      real_t eps = lambda * (lambda + xnorm / v.Norml2());
 
       for (int i = 0; i < x.Size(); i++)
       {
@@ -203,14 +204,14 @@ private:
    const Operator &op;
    Vector x, f;
    mutable Vector xpev;
-   double lambda = 1.0e-6;
-   double xnorm;
+   real_t lambda = 1.0e-6;
+   real_t xnorm;
 };
 
 class LagrangianHydroJacobianOperator : public Operator
 {
 public:
-   LagrangianHydroJacobianOperator(double h, int H1tsize, int L2tsize) :
+   LagrangianHydroJacobianOperator(real_t h, int H1tsize, int L2tsize) :
       Operator(2*H1tsize + L2tsize), h(h), H1tsize(H1tsize), L2tsize(L2tsize)  {}
 
    void Mult(const Vector &k, Vector &y) const override
@@ -305,7 +306,7 @@ public:
       };
    }
 
-   double h;
+   real_t h;
    std::function<void(const Vector &, Vector &)> jvp;
    const int H1tsize;
    const int L2tsize;
@@ -316,7 +317,7 @@ template <typename hydro_t>
 class LagrangianHydroResidualOperator : public Operator
 {
 public:
-   LagrangianHydroResidualOperator(hydro_t &hydro, const double dt,
+   LagrangianHydroResidualOperator(hydro_t &hydro, const real_t dt,
                                    const Vector &x) :
       Operator(2*hydro.H1.GetTrueVSize()+hydro.L2.GetTrueVSize()),
       hydro(hydro),
@@ -406,7 +407,6 @@ public:
       auto dRedv = hydro.energy_conservation_mf->template GetDerivativeWrt<1>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
       auto dRede = hydro.energy_conservation_mf->template GetDerivativeWrt<0>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
 
-
       jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede);
       return *jacobian;
 
@@ -415,7 +415,7 @@ public:
    }
 
    hydro_t &hydro;
-   const double dt;
+   const real_t dt;
    const Vector &x;
    mutable Vector u;
    const int H1tsize;
@@ -541,6 +541,9 @@ public:
          cg.SetPrintLevel(-1);
          cg.Mult(B, Xv);
          Mv.RecoverFEMSolution(Xv, rhsv, dv);
+
+         // print_vector(Xv);
+         // print_vector(dv);
       }
 
       // solve energy
@@ -551,6 +554,9 @@ public:
          L2.GetRestrictionMatrix()->Mult(e, Xe);
          energy_conservation_mf->Mult(Xe, RHSe);
          L2.GetRestrictionMatrix()->MultTranspose(RHSe, rhse);
+
+         // out << ">>> rhse\n";
+         // print_vector(rhse);
 
          if (problem == 0)
          {
@@ -578,10 +584,14 @@ public:
          cg.SetPrintLevel(-1);
          cg.Mult(rhse, Xe);
          L2.GetProlongationMatrix()->Mult(Xe, de);
+
+         // print_vector(Xe);
+         // out << ">>> de\n";
+         // print_vector(de);
       }
    }
 
-   void ImplicitSolve(const double dt, const Vector &x, Vector &k) override
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override
    {
       auto xptr = const_cast<Vector*>(&x);
 
@@ -643,7 +653,7 @@ public:
       H1.GetParMesh()->NewNodes(mesh_nodes, false);
    }
 
-   double GetTimeStepEstimate(const Vector &S)
+   real_t GetTimeStepEstimate(const Vector &S)
    {
       UpdateMesh(S);
 
@@ -657,7 +667,7 @@ public:
       auto &dt_est = qdata->dt_est;
       dtest_mf->Mult(dt_est, dt_est);
 
-      double dt_est_local = std::numeric_limits<double>::infinity();
+      real_t dt_est_local = std::numeric_limits<real_t>::infinity();
       for (int i = 0; i < dt_est.Size(); i++)
       {
          if (dt_est(i) == 0.0)
@@ -667,7 +677,7 @@ public:
          dt_est_local = fmin(dt_est_local, dt_est(i));
       }
 
-      double dt_est_global;
+      real_t dt_est_global;
       MPI_Allreduce(&dt_est_local, &dt_est_global, 1, MPI_DOUBLE, MPI_MIN,
                     L2.GetComm());
 
@@ -676,27 +686,27 @@ public:
 
    void ResetQuadratureData() { qdata_is_current = false; }
 
-   double InternalEnergy(ParGridFunction &e)
+   real_t InternalEnergy(ParGridFunction &e)
    {
       total_internal_energy_mf->SetParameters({&rho0, &x0});
       Vector E(L2.GetTrueVSize()), Y(L2.GetTrueVSize());
       L2.GetRestrictionMatrix()->Mult(e, E);
       total_internal_energy_mf->Mult(E, Y);
-      const double ie_local = Y.Sum();
-      double ie_global = 0.0;
+      const real_t ie_local = Y.Sum();
+      real_t ie_global = 0.0;
       MPI_Allreduce(&ie_local, &ie_global, 1, MPI_DOUBLE, MPI_SUM,
                     L2.GetParMesh()->GetComm());
       return ie_global;
    }
 
-   double KineticEnergy(ParGridFunction &v)
+   real_t KineticEnergy(ParGridFunction &v)
    {
       total_kinetic_energy_mf->SetParameters({&rho0, &x0});
       Vector V(H1.GetTrueVSize()), Y(L2.GetTrueVSize()), y(L2.GetVSize());
       H1.GetRestrictionMatrix()->Mult(v, V);
       total_kinetic_energy_mf->Mult(V, Y);
-      const double ke_local = Y.Sum();
-      double ke_global = 0.0;
+      const real_t ke_local = Y.Sum();
+      real_t ke_global = 0.0;
       MPI_Allreduce(&ke_local, &ke_global, 1, MPI_DOUBLE, MPI_SUM,
                     H1.GetParMesh()->GetComm());
       return ke_global;
@@ -742,38 +752,38 @@ static auto CreateLagrangianHydroOperator(
    auto qdata = std::make_shared<QuadratureData>(mesh, ir);
 
    int ne_loc = mesh.GetNE(), ne_global = 0;
-   double vol_loc = 0.0, vol_global = 0.0;
+   real_t vol_loc = 0.0, vol_global = 0.0;
    for (int e = 0; e < mesh.GetNE(); e++)
    {
       vol_loc += mesh.GetElementVolume(e);
    }
    MPI_Allreduce(&vol_loc, &vol_global, 1, MPI_DOUBLE, MPI_SUM, mesh.GetComm());
    MPI_Allreduce(&ne_loc, &ne_global, 1, MPI_INT, MPI_SUM, mesh.GetComm());
-   const double h0 = sqrt(vol_global / ne_global) /
-                     static_cast<double>(H1.GetOrder(0));
+   const real_t h0 = sqrt(vol_global / ne_global) /
+                     static_cast<real_t>(H1.GetOrder(0));
 
    qdata->h0 = h0;
    qdata->order_v = order_v;
-   qdata->dt_est = std::numeric_limits<double>::infinity();
+   qdata->dt_est = std::numeric_limits<real_t>::infinity();
 
    auto dt_est_kernel =
       MFEM_HOST_DEVICE [](
          const matd &dvdxi,
-         const real &rho0,
+         const real_t &rho0,
          const matd &J0,
          const matd &J,
-         const real &gamma,
-         const real &E,
-         const real &h0,
-         const real &order_v,
-         const real &w)
+         const real_t &gamma,
+         const real_t &E,
+         const real_t &h0,
+         const real_t &order_v,
+         const real_t &w)
    {
-      real dt_est = std::get<1>(
-                       qdata_setup<true>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
-      return std::tuple{dt_est};
+      real_t dt_est = serac::get<1>(
+                         qdata_setup<true>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+      return serac::tuple{dt_est};
    };
 
-   std::tuple dt_est_kernel_ao =
+   serac::tuple dt_est_kernel_ao =
    {
       Gradient{"velocity"},
       Value{"density0"},
@@ -786,10 +796,10 @@ static auto CreateLagrangianHydroOperator(
       Weight{}
    };
 
-   std::tuple dt_est_kernel_oo = {None{"dt_est"}};
+   serac::tuple dt_est_kernel_oo = {None{"dt_est"}};
 
    ElementOperator dt_est_eop{dt_est_kernel, dt_est_kernel_ao, dt_est_kernel_oo};
-   auto dt_est_ops = std::tuple{dt_est_eop};
+   auto dt_est_ops = serac::tuple{dt_est_eop};
 
    std::array dt_est_solutions =
    {
@@ -817,22 +827,26 @@ static auto CreateLagrangianHydroOperator(
    auto momentum_mf_kernel =
       [](
          const matd &dvdxi,
-         const real &rho0,
+         const real_t &rho0,
          const matd &J0,
          const matd &J,
-         const real &gamma,
-         const real &E,
-         const real &h0,
-         const real &order_v,
-         const real &w)
+         const real_t &gamma,
+         const real_t &E,
+         const real_t &h0,
+         const real_t &order_v,
+         const real_t &w)
    {
-      auto stressJiT = std::get<0>(
+      auto stressJiT = serac::get<0>(
                           qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+
+      // out << gamma << " " << rho << " " << Ez << " " << p << " " << cs << "\n";
+      // out << stressJiT << "\n";
       // TODO-bug: investigate transpose of matrices in return types
-      return std::tuple{transpose(stressJiT)};
+      // return serac::tuple{transpose(stressJiT)};
+      return serac::tuple{stressJiT};
    };
 
-   std::tuple momentum_mf_kernel_ao =
+   serac::tuple momentum_mf_kernel_ao =
    {
       Gradient{"velocity"},
       Value{"density0"},
@@ -845,12 +859,12 @@ static auto CreateLagrangianHydroOperator(
       Weight{}
    };
 
-   std::tuple momentum_mf_kernel_oo = {Gradient{"velocity"}};
+   serac::tuple momentum_mf_kernel_oo = {Gradient{"velocity"}};
 
    // <sigma, grad(w) * J^-T> * det(J) * weights
    // <sigma(J^-T det(J) weights), grad(w)>
    ElementOperator momentum_mf_eop{momentum_mf_kernel, momentum_mf_kernel_ao, momentum_mf_kernel_oo};
-   auto momentum_mf_ops = std::tuple{momentum_mf_eop};
+   auto momentum_mf_ops = serac::tuple{momentum_mf_eop};
 
    std::array momentum_mf_solutions =
    {
@@ -878,22 +892,21 @@ static auto CreateLagrangianHydroOperator(
    auto energy_conservation_mf_kernel =
       [](
          const matd &dvdxi,
-         const real &rho0,
+         const real_t &rho0,
          const matd &J0,
          const matd &J,
-         const real &gamma,
-         const real &E,
-         const real &h0,
-         const real &order_v,
-         const real &w)
+         const real_t &gamma,
+         const real_t &E,
+         const real_t &h0,
+         const real_t &order_v,
+         const real_t &w)
    {
-      auto stressJiT = std::get<0>(
+      auto stressJiT = serac::get<0>(
                           qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
-      // TODO-bug: investigate transpose of matrices in return types
-      return std::tuple{ddot(stressJiT, dvdxi)};
+      return serac::tuple{ddot(stressJiT, dvdxi)};
    };
 
-   std::tuple energy_conservation_mf_kernel_ao =
+   serac::tuple energy_conservation_mf_kernel_ao =
    {
       Gradient{"velocity"},
       Value{"density0"},
@@ -906,12 +919,12 @@ static auto CreateLagrangianHydroOperator(
       Weight{}
    };
 
-   std::tuple energy_conservation_mf_kernel_oo = {Value{"specific_internal_energy"}};
+   serac::tuple energy_conservation_mf_kernel_oo = {Value{"specific_internal_energy"}};
 
    // <sigma, grad(v) * inv(J) * phi> * det(J) * w
    // <sigma(J^-T det(J) w), grad(v) * inv(J)>
    ElementOperator energy_conservation_mf_eop{energy_conservation_mf_kernel, energy_conservation_mf_kernel_ao, energy_conservation_mf_kernel_oo};
-   auto energy_conservation_mf_ops = std::tuple{energy_conservation_mf_eop};
+   auto energy_conservation_mf_ops = serac::tuple{energy_conservation_mf_eop};
 
    std::array energy_conservation_mf_solutions =
    {
@@ -939,15 +952,15 @@ static auto CreateLagrangianHydroOperator(
 
    auto total_internal_energy_kernel =
       [](
-         const real &E,
-         const real &rho0,
+         const real_t &E,
+         const real_t &rho0,
          const matd &J0,
-         const real &w)
+         const real_t &w)
    {
-      return std::tuple{rho0 * E * det(J0) * w};
+      return serac::tuple{rho0 * E * det(J0) * w};
    };
 
-   std::tuple total_internal_energy_kernel_ao =
+   serac::tuple total_internal_energy_kernel_ao =
    {
       Value{"specific_internal_energy"},
       Value{"density0"},
@@ -955,10 +968,10 @@ static auto CreateLagrangianHydroOperator(
       Weight{}
    };
 
-   std::tuple total_internal_energy_kernel_oo = {Value{"specific_internal_energy"}};
+   serac::tuple total_internal_energy_kernel_oo = {Value{"specific_internal_energy"}};
 
    ElementOperator total_internal_energy_eop{total_internal_energy_kernel, total_internal_energy_kernel_ao, total_internal_energy_kernel_oo};
-   auto total_internal_energy_ops = std::tuple{total_internal_energy_eop};
+   auto total_internal_energy_ops = serac::tuple{total_internal_energy_eop};
 
    std::array total_internal_energy_solutions =
    {
@@ -983,14 +996,14 @@ static auto CreateLagrangianHydroOperator(
    auto total_kinetic_energy_kernel =
       [](
          const vecd &v,
-         const real &rho0,
+         const real_t &rho0,
          const matd &J0,
-         const real &w)
+         const real_t &w)
    {
-      return std::tuple{rho0 * 0.5 * v * v * det(J0) * w};
+      return serac::tuple{rho0 * 0.5 * v * v * det(J0) * w};
    };
 
-   std::tuple total_kinetic_energy_kernel_ao =
+   serac::tuple total_kinetic_energy_kernel_ao =
    {
       Value{"velocity"},
       Value{"density0"},
@@ -998,10 +1011,10 @@ static auto CreateLagrangianHydroOperator(
       Weight{}
    };
 
-   std::tuple total_kinetic_energy_kernel_oo = {Value{"density0"}};
+   serac::tuple total_kinetic_energy_kernel_oo = {Value{"density0"}};
 
    ElementOperator total_kinetic_energy_eop{total_kinetic_energy_kernel, total_kinetic_energy_kernel_ao, total_kinetic_energy_kernel_oo};
-   auto total_kinetic_energy_ops = std::tuple{total_kinetic_energy_eop};
+   auto total_kinetic_energy_ops = serac::tuple{total_kinetic_energy_eop};
 
    std::array total_kinetic_energy_solutions =
    {
@@ -1025,24 +1038,24 @@ static auto CreateLagrangianHydroOperator(
 
    auto density_kernel =
       [](
-         const real &rho0,
+         const real_t &rho0,
          const matd &J0,
-         const real &w)
+         const real_t &w)
    {
-      return std::tuple{rho0 * det(J0) * w};
+      return serac::tuple{rho0 * det(J0) * w};
    };
 
-   std::tuple density_kernel_ao =
+   serac::tuple density_kernel_ao =
    {
       Value{"density0"},
       Gradient{"coordinates0"},
       Weight{}
    };
 
-   std::tuple density_kernel_oo = {Value{"density0"}};
+   serac::tuple density_kernel_oo = {Value{"density0"}};
 
    ElementOperator density_eop{density_kernel, density_kernel_ao, density_kernel_oo};
-   auto density_ops = std::tuple{density_eop};
+   auto density_ops = serac::tuple{density_eop};
 
    std::array density_solutions =
    {
@@ -1092,14 +1105,15 @@ int main(int argc, char *argv[])
    int order_v = 2;
    int order_e = 1;
    int order_q = -1;
-   double t_final = 0.0;
-   double blast_energy = 0.25;
-   double blast_position[] = {0.0, 0.0, 0.0};
+   real_t t_final = 0.0;
+   real_t blast_energy = 0.25;
+   real_t blast_position[] = {0.0, 0.0, 0.0};
+   int ode_solver_type = 4;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&refinements, "-r", "--ref", "");
+   args.AddOption(&refinements, "-rs", "--ref", "");
    args.AddOption(&order_v, "-ov", "--ov", "");
    args.AddOption(&order_e, "-oe", "--oe", "");
    args.AddOption(&order_q, "-oq", "--oq", "");
@@ -1107,13 +1121,19 @@ int main(int argc, char *argv[])
    args.AddOption(&problem, "-p", "--p", "");
    args.AddOption(&cfl, "-cfl", "--cfl", "");
    args.AddOption(&use_viscosity, "-av", "--av", "-no-av", "--no-av", "");
+   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
+                  "            7 - RK2Avg."
+                  "            11 - Backward Euler"
+                  "            12 - Implicit Midpoint");
    args.ParseCheck();
 
    Mesh serial_mesh = Mesh(mesh_file, true, true);
 
    if (problem == 0 || problem == 1)
    {
-      serial_mesh = Mesh(Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
+      serial_mesh = Mesh(Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL,
                                                true));
 
       const int NBE = serial_mesh.GetNBE();
@@ -1261,8 +1281,8 @@ int main(int argc, char *argv[])
       {
          case 0:
          {
-            const double denom = 2.0 / 3.0;  // (5/3 - 1) * density.
-            double val;
+            const real_t denom = 2.0 / 3.0;  // (5/3 - 1) * density.
+            real_t val;
             if (x.Size() == 2)
             {
                val = 1.0 + (cos(2*M_PI*x(0)) + cos(2*M_PI*x(1))) / 4.0;
@@ -1318,11 +1338,24 @@ int main(int argc, char *argv[])
                                               material_gf,
                                               ir);
 
-   ImplicitMidpointSolver ode_solver;
-   ode_solver.Init(hydro);
+   ODESolver *ode_solver = NULL;
+   switch (ode_solver_type)
+   {
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(0.5); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
+      case 11: ode_solver = new BackwardEulerSolver; break;
+      case 12: ode_solver = new ImplicitMidpointSolver; break;
+      default:
+         out << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         return -1;
+   }
+   ode_solver->Init(hydro);
 
    hydro.ComputeDensity(rho_gf);
-   const double energy_init = hydro.InternalEnergy(e_gf) +
+   const real_t energy_init = hydro.InternalEnergy(e_gf) +
                               hydro.KineticEnergy(v_gf);
 
    if (Mpi::Root())
@@ -1333,10 +1366,10 @@ int main(int argc, char *argv[])
    out << "IE " << hydro.InternalEnergy(e_gf) << "\n"
        << "KE "<< hydro.KineticEnergy(v_gf) << "\n";
 
-
-   double t = 0.0;
-   double dt = hydro.GetTimeStepEstimate(S);
-   double t_old;
+   real_t t = 0.0;
+   real_t dt = hydro.GetTimeStepEstimate(S);
+   out << "time step estimate: " << dt << "\n";
+   real_t t_old;
    bool last_step = false;
    int steps = 0;
    BlockVector S_old(S);
@@ -1356,7 +1389,7 @@ int main(int argc, char *argv[])
    paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0.0);
    paraview_dc.RegisterField("velocity", &v_gf);
-   paraview_dc.RegisterField("density", &rho_gf);
+   // paraview_dc.RegisterField("density", &rho_gf);
    paraview_dc.RegisterField("specific_internal_energy", &e_gf);
    paraview_dc.RegisterField("material", &material_gf);
    paraview_dc.RegisterField("velocity_error", &verr_gf);
@@ -1377,17 +1410,17 @@ int main(int argc, char *argv[])
 
       // S is the vector of dofs, t is the current time, and dt is the time step
       // to advance.
-      ode_solver.Step(S, t, dt);
+      ode_solver->Step(S, t, dt);
       steps++;
 
       // Adaptive time step control.
-      const double dt_est = hydro.GetTimeStepEstimate(S);
+      const real_t dt_est = hydro.GetTimeStepEstimate(S);
       if (dt_est < dt)
       {
          // Repeat (solve again) with a decreased time step - decrease of the
          // time estimate suggests appearance of oscillations.
          dt *= 0.85;
-         if (dt < std::numeric_limits<double>::epsilon())
+         if (dt < std::numeric_limits<real_t>::epsilon())
          { MFEM_ABORT("The time step crashed!"); }
          t = t_old;
          S = S_old;
@@ -1430,11 +1463,11 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
 
-   const double energy_final = hydro.InternalEnergy(e_gf)
+   const real_t energy_final = hydro.InternalEnergy(e_gf)
                                + hydro.KineticEnergy(v_gf);
-   const real v_err_max = v_gf.ComputeMaxError(v_coeff);
-   const real v_err_l1 = v_gf.ComputeL1Error(v_coeff);
-   const real v_err_l2 = v_gf.ComputeL2Error(v_coeff);
+   const real_t v_err_max = v_gf.ComputeMaxError(v_coeff);
+   const real_t v_err_l1 = v_gf.ComputeL1Error(v_coeff);
+   const real_t v_err_l2 = v_gf.ComputeL2Error(v_coeff);
 
    if (Mpi::Root())
    {

@@ -165,6 +165,20 @@ struct tuple<T0, T1, T2, T3, T4, T5, T6, T7>
    T7 v7;  ///< The eighth member of the tuple
 };
 
+template <typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8>
+struct tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>
+{
+   T0 v0;  ///< The first member of the tuple
+   T1 v1;  ///< The second member of the tuple
+   T2 v2;  ///< The third member of the tuple
+   T3 v3;  ///< The fourth member of the tuple
+   T4 v4;  ///< The fifth member of the tuple
+   T5 v5;  ///< The sixth member of the tuple
+   T6 v6;  ///< The seventh member of the tuple
+   T7 v7;  ///< The eighth member of the tuple
+   T8 v8;
+};
+
 /**
  * @brief Class template argument deduction rule for tuples
  * @tparam T The variadic template parameter for tuple types
@@ -236,6 +250,10 @@ MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
    {
       return values.v7;
    }
+   if constexpr (i == 8)
+   {
+      return values.v8;
+   }
 }
 
 /**
@@ -278,6 +296,10 @@ MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
    if constexpr (i == 7)
    {
       return values.v7;
+   }
+   if constexpr (i == 8)
+   {
+      return values.v8;
    }
 }
 
@@ -326,6 +348,10 @@ MFEM_HOST_DEVICE constexpr auto type(const tuple<T...>& values)
    if constexpr (i == 7)
    {
       return values.v7;
+   }
+   if constexpr (i == 8)
+   {
+      return values.v8;
    }
 }
 
