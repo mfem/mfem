@@ -1716,7 +1716,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor,
    Coefficient* coeff_)
 {
-   mfem::out<<"running MPI version"<<std::endl;
    Mesh* mesh_ho = pfes_ho.GetParMesh();
    Mesh* mesh_lor = pfes_lor.GetParMesh();
    int nel_ho = mesh_ho->GetNE();
