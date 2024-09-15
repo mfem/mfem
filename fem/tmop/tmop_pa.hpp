@@ -186,6 +186,14 @@ else {\
    MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D && q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "Max size error!");\
    return kernel<0,0,T_MAX>(__VA_ARGS__,d1d,q1d); }
 
+#define MFEM_LAUNCH_TMOP_NODAL_KERNEL(kernel, id, ...)\
+if (K##kernel.Find(id)) { return K##kernel.At(id)(__VA_ARGS__,0); }\
+else {\
+   constexpr int T_MAX = 4;\
+   const int d1d = id;\
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "Max size error!");\
+   return kernel<0,T_MAX>(__VA_ARGS__,d1d); }
+
 } // namespace kernels
 
 } // namespace mfem

@@ -13,8 +13,6 @@
 #include "tmop_pa.hpp"
 #include "../linearform.hpp"
 #include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
-#include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
@@ -30,8 +28,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_Fit_2D,
                            const Vector &d2_,
                            const Array<int> &fe_,
                            Vector &h0_,
-                           const int d1d,
-                           const int q1d)
+                           const int d1d)
 {
    constexpr int DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -81,8 +78,6 @@ void TMOP_Integrator::AssembleGradPA_Fit_2D(const Vector &X) const
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
    const int D1D = meshOrder + 1;
-   const int Q1D = D1D;
-   const int id = (D1D << 4 ) | Q1D;
 
    const real_t &PW = PA.SFC;
    const real_t &N0 = surf_fit_normal;
@@ -92,11 +87,11 @@ void TMOP_Integrator::AssembleGradPA_Fit_2D(const Vector &X) const
    const Vector &D1 = PA.SFG;
    const Vector &D2 = PA.SFH;
 
-   const Array<int> &FE = PA.SFList;
+   const Array<int> &FE = PA.SFEList;
 
    Vector &H0 = PA.SFH0;
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_Fit_2D,id,N,PW,N0,S0,DC,M0,D1,D2,FE,H0);
+   MFEM_LAUNCH_TMOP_NODAL_KERNEL(SetupGradPA_Fit_2D,D1D,N,PW,N0,S0,DC,M0,D1,D2,FE,H0);
 }
 
 } // namespace mfem

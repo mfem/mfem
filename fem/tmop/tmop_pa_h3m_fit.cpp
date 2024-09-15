@@ -24,8 +24,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
                            const Vector &h0_,
                            const Vector &r_,
                            Vector &c_,
-                           const int d1d,
-                           const int q1d)
+                           const int d1d)
 {
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -78,13 +77,11 @@ void TMOP_Integrator::AddMultGradPA_Fit_3D(const Vector &R, Vector &C) const
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
    const int D1D = meshOrder + 1;
-   const int Q1D = D1D;
-   const int id = (D1D << 4 ) | Q1D;
    const Vector &H0 = PA.SFH0;
 
-   const Array<int> &FE = PA.SFList;
+   const Array<int> &FE = PA.SFEList;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_Fit_3D,id,N,FE,H0,R,C);
+   MFEM_LAUNCH_TMOP_NODAL_KERNEL(AddMultGradPA_Kernel_Fit_3D,D1D,N,FE,H0,R,C);
 }
 
 } // namespace mfem

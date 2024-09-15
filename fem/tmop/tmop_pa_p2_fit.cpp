@@ -13,9 +13,6 @@
 #include "tmop_pa.hpp"
 #include "../linearform.hpp"
 #include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
-#include "../../linalg/dinvariants.hpp"
-#include "../qinterp/dispatch.hpp"
 
 namespace mfem
 {
@@ -30,8 +27,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_Fit_2D,
                            const Vector &d1_,
                            const Array<int> &fe_,
                            Vector &y_,
-                           const int d1d,
-                           const int q1d)
+                           const int d1d)
 {
    constexpr int DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -76,8 +72,6 @@ void TMOP_Integrator::AddMultPA_Fit_2D(const Vector &X, Vector &Y) const
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
    const int D1D = meshOrder + 1;
-   const int Q1D = D1D;
-   const int id = (D1D << 4 ) | Q1D;
 
    const real_t &PW = PA.SFC;
    const real_t &N0 = surf_fit_normal;
@@ -86,10 +80,9 @@ void TMOP_Integrator::AddMultPA_Fit_2D(const Vector &X, Vector &Y) const
    const Vector &M0 = PA.SFM;
    const Vector &D1 = PA.SFG;
 
-   const Array<int> &FE = PA.SFList;
-   // D1.Print();
+   const Array<int> &FE = PA.SFEList;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_Fit_2D,id,N,PW,N0,S0,DC,M0,D1,FE,Y);
+   MFEM_LAUNCH_TMOP_NODAL_KERNEL(AddMultPA_Kernel_Fit_2D,D1D,N,PW,N0,S0,DC,M0,D1,FE,Y);
 }
 
 } // namespace mfem

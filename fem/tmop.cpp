@@ -3021,6 +3021,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
+
    surf_fit_eval->SetParMetaInfo(*pmesh, *s0.ParFESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
@@ -3184,11 +3185,6 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
    if (surf_fit_gf)
    {
       surf_fit_gf->HostReadWrite();
-   }
-   pos.HostRead();
-   if (surf_fit_pos)
-   {
-      surf_fit_pos->HostRead();
    }
 
    const FiniteElementSpace *fes =

@@ -1895,7 +1895,7 @@ protected:
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
-      Array<int> SFList;
+      Array<int> SFEList;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
@@ -2061,7 +2061,7 @@ public:
 
    ~TMOP_Integrator();
 
-   void UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc);
+   void UpdateSurfaceFittingPA(const Vector &x_loc);
 
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.

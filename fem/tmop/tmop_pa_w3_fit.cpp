@@ -13,8 +13,6 @@
 #include "tmop_pa.hpp"
 #include "../linearform.hpp"
 #include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
-#include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
@@ -29,8 +27,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_Fit_3D,
                            const Vector &ones,
                            const Array<int> &fe_,
                            Vector &energy,
-                           const int d1d,
-                           const int q1d)
+                           const int d1d)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
 
@@ -70,8 +67,6 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_3D(const Vector &X) const
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
    const int D1D = meshOrder + 1;
-   const int Q1D = D1D;
-   const int id = (D1D << 4 ) | Q1D;
    const Vector &O = PA.SFO;
    Vector &E = PA.SFE;
 
@@ -81,9 +76,9 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_Fit_3D(const Vector &X) const
    const Vector &DC = PA.SFDC;
    const Vector &M0 = PA.SFM;
 
-   const Array<int> &FE = PA.SFList;
+   const Array<int> &FE = PA.SFEList;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_Fit_3D,id,N,PW,N0,S0,DC,M0,O,FE,E);
+   MFEM_LAUNCH_TMOP_NODAL_KERNEL(EnergyPA_Fit_3D,D1D,N,PW,N0,S0,DC,M0,O,FE,E);
 }
 
 } // namespace mfem

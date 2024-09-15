@@ -13,8 +13,6 @@
 #include "tmop_pa.hpp"
 #include "../linearform.hpp"
 #include "../../general/forall.hpp"
-#include "../../linalg/kernels.hpp"
-#include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
@@ -24,8 +22,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_Fit_2D,
                            const Vector &h0,
                            const Array<int> &fe_,
                            Vector &diagonal,
-                           const int d1d,
-                           const int q1d)
+                           const int d1d)
 {
    constexpr int DIM = 2;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -58,14 +55,13 @@ void TMOP_Integrator::AssembleDiagonalPA_Fit_2D(Vector &D) const
    const int N = PA.ne;
    const int meshOrder = surf_fit_gf->FESpace()->GetMaxElementOrder();
    const int D1D = meshOrder + 1;
-   const int Q1D = D1D;
-   const int id = (D1D << 4 ) | Q1D;
+   const int id = D1D;
 
    const Vector &H0 = PA.SFH0;
 
-   const Array<int> &FE = PA.SFList;
+   const Array<int> &FE = PA.SFEList;
 
-   MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_Fit_2D,id,N,H0,FE,D);
+   MFEM_LAUNCH_TMOP_NODAL_KERNEL(AssembleDiagonalPA_Kernel_Fit_2D,id,N,H0,FE,D);
 }
 
 } // namespace mfem

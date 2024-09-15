@@ -125,8 +125,8 @@ void TMOP_Integrator::AssemblePA_Limiting()
    }
 }
 
-static IntegrationRule PermuteIR(const IntegrationRule *irule,
-                                 const Array<int> &perm)
+IntegrationRule PermuteIR(const IntegrationRule *irule,
+                          const Array<int> &perm)
 {
    const int np = irule->GetNPoints();
    MFEM_VERIFY(np == perm.Size(), "Invalid permutation size");
@@ -150,10 +150,9 @@ void TMOP_Integrator::AssemblePA_Fitting()
    MFEM_VERIFY(PA.enabled, "AssemblePA_Fitting but PA is not enabled!");
    MFEM_VERIFY(surf_fit_gf, "No surface fitting function specification!");
 
-   const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
-
    const int NE = PA.ne;
    if (NE == 0) { return; }  // Quick return for empty processors
+   const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    // surf_fit_coeff -> PA.SFC
@@ -170,7 +169,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
    // surf_fit_dof_count -> PA.SFDC (E-vector)
    Vector temp1;
    temp1.SetSize(surf_fit_dof_count.Size());
-   for (int i=0; i< temp1.Size(); i++)
+   for (int i = 0; i < temp1.Size(); i++)
    {
       temp1[i] = surf_fit_dof_count[i];
    }
@@ -179,25 +178,25 @@ void TMOP_Integrator::AssemblePA_Fitting()
    n1_R->Mult(temp1, PA.SFDC);
 
    // surf_fit_marker -> PA.SFM
-   Vector temp2;
-   temp2.SetSize(surf_fit_dof_count.Size());
-   for (int i = 0; i< surf_fit_marker->Size(); i++)
+   Vector temp2(surf_fit_dof_count.Size());
+   for (int i = 0; i < surf_fit_marker->Size(); i++)
    {
-      if ((*surf_fit_marker)[i] == true)
-      {
-         temp2[i] = 1.0;
-      }
-      else
-      {
-         temp2[i] = 0.0;
-      }
+      temp2[i] = (*surf_fit_marker)[i] ? 1.0 : 0.0;
+      // if ((*surf_fit_marker)[i] == true)
+      // {
+      //    temp2[i] = 1.0;
+      // }
+      // else
+      // {
+      //    temp2[i] = 0.0;
+      // }
    }
    PA.SFM.SetSize(n1_R->Height(), Device::GetMemoryType());
    PA.SFM.UseDevice(true);
    n1_R->Mult(temp2, PA.SFM);
 
    // Make list of elements that have atleast one dof marked for fitting
-   PA.SFList.SetSize(0);
+   PA.SFEList.SetSize(0);
    for (int el_id = 0; el_id < NE; el_id++)
    {
       Array<int> dofs, vdofs;
@@ -210,9 +209,9 @@ void TMOP_Integrator::AssemblePA_Fitting()
          const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
          count += ((*surf_fit_marker)[scalar_dof_id]) ? 1 : 0;
       }
-      if (count != 0) { PA.SFList.Append(el_id);}
+      if (count != 0) { PA.SFEList.Append(el_id);}
    }
-   PA.nefit = PA.SFList.Size();
+   PA.nefit = PA.SFEList.Size();
    int fit_el_dof_count = 0;
    if (PA.nefit > 0)
    {
@@ -227,15 +226,16 @@ void TMOP_Integrator::AssemblePA_Fitting()
       const FiniteElementSpace *fes_hess = surf_fit_hess->FESpace();
 
       // surf_fit_grad -> PA.SFG
-      const Operator *n4_R = fes_grad->GetElementRestriction(ordering);
-      PA.SFG.SetSize(n4_R->Height(), Device::GetMemoryType());
+      const Operator *n2_R = fes_grad->GetElementRestriction(ordering);
+      PA.SFG.SetSize(n2_R->Height(), Device::GetMemoryType());
       PA.SFG.UseDevice(true);
-      n4_R->Mult(*surf_fit_grad, PA.SFG);
+      n2_R->Mult(*surf_fit_grad, PA.SFG);
+
       // surf_fit_hess -> PA.SFH
-      const Operator *n5_R = fes_hess->GetElementRestriction(ordering);
-      PA.SFH.SetSize(n5_R->Height(), Device::GetMemoryType());
+      const Operator *n3_R = fes_hess->GetElementRestriction(ordering);
+      PA.SFH.SetSize(n3_R->Height(), Device::GetMemoryType());
       PA.SFH.UseDevice(true);
-      n5_R->Mult(*surf_fit_hess, PA.SFH);
+      n3_R->Mult(*surf_fit_hess, PA.SFH);
    }
    else
    {
@@ -336,7 +336,7 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
 void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
 {
-   UpdateSurfaceFittingCoefficientsPA(x_loc);
+   UpdateSurfaceFittingPA(x_loc);
 
    // Both are constant or not specified.
    if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
@@ -372,10 +372,9 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
    delete T;
 }
 
-void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
+void TMOP_Integrator::UpdateSurfaceFittingPA(const Vector &x_loc)
 {
-   // Update surf_fit_gf and its gradients if surface
-   // fitting is enabled.
+   // Update surf_fit_gf and its gradients if surface fitting is enabled.
    if (!surf_fit_gf) { return; }
    const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -388,11 +387,11 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
       const FiniteElementSpace *fes_grad = surf_fit_grad->FESpace();
       const FiniteElementSpace *fes_hess = surf_fit_hess->FESpace();
 
-      const Operator *n4_R_int = fes_grad->GetElementRestriction(ordering);
-      n4_R_int->Mult(*surf_fit_grad, PA.SFG);
+      const Operator *n2_R_int = fes_grad->GetElementRestriction(ordering);
+      n2_R_int->Mult(*surf_fit_grad, PA.SFG);
 
-      const Operator *n5_R_int = fes_hess->GetElementRestriction(ordering);
-      n5_R_int->Mult(*surf_fit_hess, PA.SFH);
+      const Operator *n3_R_int = fes_hess->GetElementRestriction(ordering);
+      n3_R_int->Mult(*surf_fit_hess, PA.SFH);
    }
    else
    {
@@ -421,28 +420,28 @@ void TMOP_Integrator::UpdateSurfaceFittingCoefficientsPA(const Vector &x_loc)
                                                                         maps, xelem, Jacobians);
       if (PA.dim == 2)
       {
-         constexpr bool P = true;
+         constexpr bool grad_phys = true;
          const int sdim = 2; // spatial dimension = 2
          const int vdim = 1; // level-set field is a scalar function, so vdim = 1
 
-         internal::quadrature_interpolator::CollocatedDerivatives2D<L, P>
+         internal::quadrature_interpolator::CollocatedDerivatives2D<L, grad_phys>
          (nelem,maps.G.Read(),Jacobians.Read(),PA.SFV.Read(),PA.SFG.Write(),sdim,vdim,
           maps.ndof);
 
-         internal::quadrature_interpolator::CollocatedDerivatives2D<L, P>
+         internal::quadrature_interpolator::CollocatedDerivatives2D<L, grad_phys>
          (nelem,maps.G.Read(),Jacobians.Read(),PA.SFG.Read(),PA.SFH.Write(),sdim,vdim*2,
           maps.ndof);
       }
       if (PA.dim == 3)
       {
-         constexpr bool P = true;
+         constexpr bool grad_phys = true;
          const int vdim = 1; // level-set field is a scalar function, so vdim = 1
 
-         internal::quadrature_interpolator::CollocatedDerivatives3D<L, P>
+         internal::quadrature_interpolator::CollocatedDerivatives3D<L, grad_phys>
          (nelem,maps.G.Read(),Jacobians.Read(),PA.SFV.Read(),PA.SFG.Write(),vdim,
           maps.ndof);
 
-         internal::quadrature_interpolator::CollocatedDerivatives3D<L, P>
+         internal::quadrature_interpolator::CollocatedDerivatives3D<L, grad_phys>
          (nelem,maps.G.Read(),Jacobians.Read(),PA.SFG.Read(),PA.SFH.Write(),vdim*3,
           maps.ndof);
       }
