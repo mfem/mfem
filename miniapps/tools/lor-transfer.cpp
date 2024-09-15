@@ -33,8 +33,6 @@
 //
 // Sample runs:  lor-transfer
 //               lor-transfer -h1
-//               lor-transfer -d 'cuda'
-//               lor-transfer -d 'hip'
 //               lor-transfer -t
 //               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
 //               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
@@ -46,7 +44,6 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <chrono>
 
 using namespace std;
 using namespace mfem;
@@ -71,17 +68,14 @@ real_t compute_mass(FiniteElementSpace *, real_t, VisItDataCollection &,
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
-   const char *mesh_file = "../../data/inline-hex.mesh";
-   int order = 2;
+   const char *mesh_file = "../../data/star.mesh";
+   int order = 3;
    int lref = order+1;
    int lorder = 0;
-   int ref_levels = 4;
    bool vis = true;
    bool useH1 = false;
    int visport = 19916;
    bool use_pointwise_transfer = false;
-   bool use_new_method       = true;
-   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -91,8 +85,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&lref, "-lref", "--lor-ref-level", "LOR refinement level.");
    args.AddOption(&lorder, "-lo", "--lor-order",
                   "LOR space order (polynomial degree, zero by default).");
@@ -104,33 +96,11 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
-
-   args.AddOption(&useH1, "-h1", "--use-h1", "-l2", "--use-l2",
-                  "Use H1 spaces instead of L2.");
-
-   args.AddOption(&use_new_method, "-new", "--new-method", "-no-new",
-                  "--no-new-method",
-                  "use_new_method.");
    args.ParseCheck();
-
-
-   //Helper timers
-   std::chrono::time_point<std::chrono::system_clock> start, end;
-
-   Device device(device_config);
-   device.Print();
 
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-
-   // Refine the parent mesh
-   for (int l = 0; l < ref_levels; ++l)
-   {
-      mesh.UniformRefinement();
-   }
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
@@ -198,51 +168,21 @@ int main(int argc, char *argv[])
    {
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
-
-   std::cout<<"use new method = "<<use_new_method<<std::endl;
-   gt->UseDevice(use_new_method);
-   //gt->VerifySolution(true);
-
-   start = std::chrono::system_clock::now();
    const Operator &R = gt->ForwardOperator();
-   end = std::chrono::system_clock::now();
-
-   std::chrono::duration<double> R_constr_elapsed = end - start;
-   std::cout << "R operator construction elapsed time: " <<
-             R_constr_elapsed.count() << "s\n";
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
-   start = std::chrono::system_clock::now();
    R.Mult(rho, rho_lor);
-   end = std::chrono::system_clock::now();
-
-   std::chrono::duration<double> R_mult_elapsed = end - start;
-   std::cout << "R mult elapsed time: " << R_mult_elapsed.count() <<
-             "s\n";
-
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy, visport); Wx += offx; }
 
    if (gt->SupportsBackwardsOperator())
    {
-      start = std::chrono::system_clock::now();
       const Operator &P = gt->BackwardOperator();
-      end = std::chrono::system_clock::now();
-      std::chrono::duration<double> P_constr_elapsed = end - start;
-      std::cout << "P_constr_elapsed time: " << P_constr_elapsed.count()
-                << "s\n";
-
       // LOR->HO prolongation
       direction = "HO -> LOR @ HO";
       GridFunction rho_prev = rho;
-      start = std::chrono::system_clock::now();
       P.Mult(rho_lor, rho);
-      end = std::chrono::system_clock::now();
-      std::chrono::duration<double> P_mult_elapsed = end - start;
-      std::cout << "P mult elapsed time: " << P_mult_elapsed.count()
-                << "s\n";
-
       compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
       if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy, visport); Wx = 0; Wy += offy; }
 
@@ -255,22 +195,9 @@ int main(int argc, char *argv[])
    LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
    if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
    {
-      start = std::chrono::system_clock::now();
       const Operator &P = gt->BackwardOperator();
-      end = std::chrono::system_clock::now();
-      std::chrono::duration<double> P_const_2_elapsed = end - start;
-      std::cout << "P const 2 elapsed time: " << P_const_2_elapsed.count()
-                << "s\n";
-
       M_ho.Mult(rho, M_rho);
-
-      start = std::chrono::system_clock::now();
       P.MultTranspose(M_rho, M_rho_lor);
-      end = std::chrono::system_clock::now();
-      std::chrono::duration<double> P_multT_elapsed = end - start;
-      std::cout << "P_multT_elapsed elapsed time: " << P_multT_elapsed.count()
-                << "s\n";
-
       cout << "HO -> LOR dual field: " << abs(M_rho.Sum()-M_rho_lor.Sum()) << "\n\n";
    }
 
@@ -283,35 +210,17 @@ int main(int argc, char *argv[])
 
    if (gt->SupportsBackwardsOperator())
    {
-      start = std::chrono::system_clock::now();
       const Operator &P = gt->BackwardOperator();
-      end = std::chrono::system_clock::now();
-      std::chrono::duration<double> P_constr_2_elapsed = end - start;
-      std::cout << "P_constr_2_elapsed elapsed time: " << P_constr_2_elapsed.count()
-                << "s\n";
-
       // Prolongate to HO space
       direction = "LOR -> HO @ HO";
-      start = std::chrono::system_clock::now();
       P.Mult(rho_lor, rho);
-      end = std::chrono::system_clock::now();
-      std::chrono::duration<double> P_mult_2_elapsed = end - start;
-      std::cout << "P_mult_2_elapsed time: " << P_mult_2_elapsed.count()
-                << "s\n";
-
       compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
       if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy, visport); Wx += offx; }
 
       // Restrict back to LOR space. This won't give the original function because
       // the rho_lor doesn't necessarily live in the range of R.
       direction = "LOR -> HO @ LOR";
-      start = std::chrono::system_clock::now();
       R.Mult(rho, rho_lor);
-      end = std::chrono::system_clock::now();
-      std::chrono::duration<double> R_mult_2_elapsed = end - start;
-      std::cout << "R_mult_2 elapsed time: " << R_mult_2_elapsed.count()
-                << "s\n";
-
       compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
       if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy, visport); }
 
