@@ -32,23 +32,24 @@
 // particular finite element spaces. For example they satisfy PR=I, plus mass
 // conservation in both directions for L2 fields.
 //
-// Compile with: make lor-transfer
+// Compile with: make lor-transfer-p
 //
-// Sample runs:  lor-transfer
-//               lor-transfer -h1
-//               lor-transfer -d 'cuda'
-//               lor-transfer -d 'hip'
-//               lor-transfer -t
-//               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
-//               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
-//               lor-transfer -lref 4 -o 4 -lo 0 -p 1
-//               lor-transfer -lref 5 -o 4 -lo 0 -p 1
-//               lor-transfer -lref 5 -o 4 -lo 3 -p 2
-//               lor-transfer -lref 5 -o 4 -lo 0 -p 3
+// Sample runs:  lor-transfer-p
+//               lor-transfer-p -h1
+//               lor-transfer-p -d 'cuda'
+//               lor-transfer-p -d 'hip'
+//               lor-transfer-p -t
+//               lor-transfer-p -m ../../data/star-q2.mesh -lref 5 -p 4
+//               lor-transfer-p -m ../../data/star-mixed.mesh -lref 3 -p 2
+//               lor-transfer-p -lref 4 -o 4 -lo 0 -p 1
+//               lor-transfer-p -lref 5 -o 4 -lo 0 -p 1
+//               lor-transfer-p -lref 5 -o 4 -lo 3 -p 2
+//               lor-transfer-p -lref 5 -o 4 -lo 0 -p 3
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
 using namespace mfem;
@@ -68,7 +69,9 @@ real_t RHO_exact(const Vector &x);
 // Helper functions
 void visualize(VisItDataCollection &, string, int, int);
 real_t compute_mass(ParFiniteElementSpace *, real_t, VisItDataCollection &,
-                    string);
+                    string, int);
+
+void report_time(std::chrono::duration<double>, string, int);
 
 int main(int argc, char *argv[])
 {
@@ -78,13 +81,16 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/star.mesh";  //inline-quad.mesh";  //
-   int order = 3;
+   const char *mesh_file = "../../data/inline-hex.mesh";
+   int order = 2;
    int lref = order+1;
-   int lorder = 1;
+   int lorder = 0;
+   int ref_levels = 0;
    bool vis = true;
    bool useH1 = false;
    bool use_pointwise_transfer = false;
+   bool use_new_method       = true;
+   bool verify_solution      = false;
    const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
@@ -95,6 +101,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
    args.AddOption(&lref, "-lref", "--lor-ref-level", "LOR refinement level.");
    args.AddOption(&lorder, "-lo", "--lor-order",
                   "LOR space order (polynomial degree, zero by default).");
@@ -108,19 +116,29 @@ int main(int argc, char *argv[])
                   "Use pointwise transfer operators instead of L2 projection.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_new_method, "-new", "--new-method", "-no-new",
+                  "--no-new-method",
+                  "Use new method.");
+   args.AddOption(&verify_solution, "-verify", "--verify-solution", "-no-verify",
+                  "--no-verify-solution",
+                  "Verify against non-device code.");
    args.ParseCheck();
+
+   //Helper timers
+   std::chrono::time_point<std::chrono::system_clock> start, end;
+
+   // Configure device
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
 
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
    // Make initial refinement on serial mesh.
+   for (int l = 0; l < ref_levels; l++)
    {
-      int ref_levels = (int)floor(log(30./mesh.GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh.UniformRefinement();
-      }
+      mesh.UniformRefinement();
    }
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -129,7 +147,6 @@ int main(int argc, char *argv[])
    // Create the low-order refined mesh
    int basis_lor = BasisType::ClosedUniform; //BasisType::GaussLobatto; //
    ParMesh pmesh_lor = ParMesh::MakeRefined(pmesh, lref, basis_lor);
-   // printf("successfully make parMesh \n");
 
    // Create spaces
    FiniteElementCollection *fec, *fec_lor;
@@ -139,7 +156,7 @@ int main(int argc, char *argv[])
       if (lorder == 0)
       {
          lorder = 1;
-         cerr << "Switching the H1 LOR space order from 0 to 1\n";
+         if (myid == 0) {cerr << "Switching the H1 LOR space order from 0 to 1\n";}
       }
       fec = new H1_FECollection(order, dim);
       fec_lor = new H1_FECollection(lorder, dim);
@@ -153,30 +170,8 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace fespace(&pmesh, fec);
    ParFiniteElementSpace fespace_lor(&pmesh_lor, fec_lor);
-   // HYPRE_BigInt size = fespace.GlobalTrueVSize();
-   // printf("successfully make parFES \n");
-
-
-   // Build the integration rule that matches with quadrature on mixed mass matrix,
-   // assuming HO elements are the same, and that all HO are LOR in the same way
-   Geometry::Type geom = pmesh.GetElementBaseGeometry(0);
-   const FiniteElement &fe = *fespace.GetFE(0);
-   const FiniteElement &fe_lor = *fespace_lor.GetFE(0);
-   ElementTransformation *el_tr = fespace_lor.GetElementTransformation(0);
-   int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW(); // 0 + 3 + 1
-   const IntegrationRule* ir = &IntRules.Get(geom, qorder);
-
-   QuadratureSpace qspace(pmesh_lor, *ir);
-   QuadratureFunction qfunc(&qspace);
-   qfunc = 1.0;
-   // qfunc(2) = 7; // does not pass verify_solution
-   // qfunc(7) = 333.000001; // does not pass verify_solution
-   // qfunc(7) = 333.0000001; // passes verify_solution
-   QuadratureFunctionCoefficient coeff(qfunc);
 
    ParGridFunction rho(&fespace);
-   // std::cout << "size of rho : " << rho.Size() << std::endl;
-   // rho.Print();
    ParGridFunction rho_lor(&fespace_lor);
 
    // Data collections for vis/analysis
@@ -184,14 +179,6 @@ int main(int argc, char *argv[])
    HO_dc.RegisterField("density", &rho);
    VisItDataCollection LOR_dc("LOR", &pmesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
-
-   // ofstream mesh_ofs("HOmesh.mesh");
-   // mesh_ofs.precision(8);
-   // pmesh.Print(mesh_ofs);
-
-   // ofstream mesh_lor_ofs("LORmesh.mesh");
-   // mesh_lor_ofs.precision(8);
-   // pmesh_lor.Print(mesh_lor_ofs);
 
    ParBilinearForm M_ho(&fespace);
    M_ho.AddDomainIntegrator(new MassIntegrator);
@@ -206,15 +193,13 @@ int main(int argc, char *argv[])
    // HO projections
    direction = "HO -> LOR @ HO";
    FunctionCoefficient RHO(RHO_exact);
-   // rho.Print();
    rho.ProjectCoefficient(RHO);
-   // printf("everything before okay \n");
+
    // Make sure AMR constraints are satisfied
    rho.SetTrueVector();
    rho.SetFromTrueVector();
-   // printf("get rho ParGridFunction \n");
 
-   real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
+   real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ",myid);
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
 
    GridTransfer *gt;
@@ -224,39 +209,61 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, false, &coeff,
-                                        MemoryType::HOST);
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, false);
    }
 
-   gt->UseDevice(true);
-   gt->VerifySolution(true);
-   // printf("Get past set device and verify \n");
+   gt->UseDevice(use_new_method);
+   gt->VerifySolution(verify_solution);
 
+   start = std::chrono::system_clock::now();
    const Operator &R = gt->ForwardOperator();
-   // printf("Get past forward operator \n");
+   end = std::chrono::system_clock::now();
+
+   std::chrono::duration<double> R_fwd_elapsed = end - start;
+   report_time(R_fwd_elapsed, "R fwd elapsed time:", myid);
+
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
+   start = std::chrono::system_clock::now();
    R.Mult(rho, rho_lor);
-   // printf("Multiplication passing \n");
-   // exit(0);
-   compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
+   end = std::chrono::system_clock::now();
+
+   std::chrono::duration<double> R_fwd_mult_elapsed = end - start;
+   report_time(R_fwd_mult_elapsed,"R fwd mult elapsed time: ", myid);
+
+   compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ", myid);
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
 
    if (gt->SupportsBackwardsOperator())
    {
-      // printf("entering P operator build \n");
+      start = std::chrono::system_clock::now();
       const Operator &P = gt->BackwardOperator();
+      end = std::chrono::system_clock::now();
+      std::chrono::duration<double> P_bwd_elapsed = end - start;
+
+      report_time(P_bwd_elapsed,"P bwd elapsed time: ", myid);
+
       // LOR->HO prolongation
       direction = "HO -> LOR @ HO";
       ParGridFunction rho_prev = rho;
+      start = std::chrono::system_clock::now();
       P.Mult(rho_lor, rho);
-      compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
+      end = std::chrono::system_clock::now();
+
+      std::chrono::duration<double> P_bwd_mult_elapsed = end - start;
+      report_time(P_bwd_mult_elapsed,"P bwd mult elapsed time: ", myid);
+
+      compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ", myid);
       if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
 
       rho_prev -= rho;
       cout.precision(12);
-      cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+
+      double rho_prev_inf = rho_prev.Normlinf();
+      MPI_Allreduce(MPI_IN_PLACE, &rho_prev_inf, 1, MPI_DOUBLE, MPI_MAX,
+                    MPI_COMM_WORLD);
+      if (myid == 0) { cout << "|HO - P(R(HO))|_∞   = " << rho_prev_inf << endl; }
    }
    // exit(0);
 
@@ -264,46 +271,88 @@ int main(int argc, char *argv[])
    ParLinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
    if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
    {
+      start = std::chrono::system_clock::now();
       const Operator &P = gt->BackwardOperator();
+      end = std::chrono::system_clock::now();
+
+      std::chrono::duration<double> P_bwd_elapsed = end - start;
+      report_time(P_bwd_elapsed,"P bwd elapsed time: ", myid);
+
       M_ho.Mult(rho, M_rho);
+
+      start = std::chrono::system_clock::now();
       P.MultTranspose(M_rho, M_rho_lor);
-      cout << "HO -> LOR dual field: " << abs(M_rho.Sum()-M_rho_lor.Sum()) << "\n\n";
+      end = std::chrono::system_clock::now();
+      std::chrono::duration<double> P_bwd_multT_elapsed = end - start;
+      report_time(P_bwd_multT_elapsed,"P bwd multT elapsed elapsed time: ", myid);
+
+      double M_rho_lor_diff = abs(M_rho.Sum()-M_rho_lor.Sum());
+      MPI_Allreduce(MPI_IN_PLACE, &M_rho_lor_diff, 1, MPI_DOUBLE, MPI_MAX,
+                    MPI_COMM_WORLD);
+      if (myid == 0) { cout << "HO -> LOR dual field: " << abs(M_rho.Sum()-M_rho_lor.Sum()) << "\n\n"; }
    }
 
    // LOR projections
    direction = "LOR -> HO @ LOR";
    rho_lor.ProjectCoefficient(RHO);
    ParGridFunction rho_lor_prev = rho_lor;
-   real_t lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
+   real_t lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ",myid);
    if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
 
    if (gt->SupportsBackwardsOperator())
    {
+      start = std::chrono::system_clock::now();
       const Operator &P = gt->BackwardOperator();
+      end = std::chrono::system_clock::now();
+
+      std::chrono::duration<double> P_bwd_elapsed = end - start;
+      report_time(P_bwd_elapsed,"P bwd elapsed time: ", myid);
+
       // Prolongate to HO space
       direction = "LOR -> HO @ HO";
+      start = std::chrono::system_clock::now();
       P.Mult(rho_lor, rho);
-      compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
+      end = std::chrono::system_clock::now();
+
+      std::chrono::duration<double> P_bwd_mult_elapsed = end - start;
+      report_time(P_bwd_mult_elapsed,"P bwd mult elapsed time: ", myid);
+
+      compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ",myid);
       if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy); Wx += offx; }
 
       // Restrict back to LOR space. This won't give the original function because
       // the rho_lor doesn't necessarily live in the range of R.
       direction = "LOR -> HO @ LOR";
+
+      start = std::chrono::system_clock::now();
       R.Mult(rho, rho_lor);
-      compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
+      end = std::chrono::system_clock::now();
+      std::chrono::duration<double> R_fwd_mult_elapsed = end - start;
+      report_time(R_fwd_mult_elapsed,"R fwd mult elapsed time: ", myid);
+
+      compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))",myid);
       if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
 
       rho_lor_prev -= rho_lor;
+
+      double rho_lor_prev_inf = rho_lor_prev.Normlinf();
+      MPI_Allreduce(MPI_IN_PLACE, &rho_lor_prev, 1, MPI_DOUBLE, MPI_MAX,
+                    MPI_COMM_WORLD);
       cout.precision(12);
-      cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+      if (myid == 0) { cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev_inf << endl; }
    }
 
    // LOR* to HO* dual fields
    if (!use_pointwise_transfer)
    {
       M_lor.Mult(rho_lor, M_rho_lor);
+      start = std::chrono::system_clock::now();
       R.MultTranspose(M_rho_lor, M_rho);
-      cout << "LOR -> HO dual field: " << abs(M_rho.Sum() - M_rho_lor.Sum()) << '\n';
+      end = std::chrono::system_clock::now();
+      std::chrono::duration<double> R_fwd_multT_elapsed = end - start;
+      report_time(R_fwd_multT_elapsed,"R fwd multT elapsed time: ", myid);
+
+      if (myid ==0) { cout << "LOR -> HO dual field: " << abs(M_rho.Sum() - M_rho_lor.Sum()) << '\n'; }
    }
 
    delete fec;
@@ -348,7 +397,7 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
 
 
 real_t compute_mass(ParFiniteElementSpace *L2, real_t massL2,
-                    VisItDataCollection &dc, string prefix)
+                    VisItDataCollection &dc, string prefix, int myid)
 {
    ConstantCoefficient one(1.0);
    ParLinearForm lf(L2);
@@ -359,12 +408,34 @@ real_t compute_mass(ParFiniteElementSpace *L2, real_t massL2,
                                (dc.GetField("density"));
    real_t newmass = lf(*pdensity);
    cout.precision(18);
-   cout << space << " " << prefix << " mass   = " << newmass;
-   if (massL2 >= 0)
+
+   MPI_Allreduce(MPI_IN_PLACE, &newmass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+   if (myid == 0)
    {
-      cout.precision(4);
-      cout << " ("  << fabs(newmass-massL2)*100/massL2 << "%)";
+      cout << space << " " << prefix << " mass   = " << newmass;
+      if (massL2 >= 0)
+      {
+         cout.precision(4);
+         cout << " ("  << fabs(newmass-massL2)*100/massL2 << "%)";
+      }
+      cout << endl;
    }
-   cout << endl;
+
    return newmass;
+}
+
+
+void report_time(std::chrono::duration<double> elapsed_time, string name,
+                 int myid)
+{
+   double elapsed_val = elapsed_time.count();
+   MPI_Allreduce(MPI_IN_PLACE, &elapsed_val, 1, MPI_DOUBLE, MPI_SUM,
+                 MPI_COMM_WORLD);
+
+   if (myid == 0)
+   {
+      std::cout << name << elapsed_val << "s\n";
+   }
+
 }
