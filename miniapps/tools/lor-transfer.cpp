@@ -115,6 +115,13 @@ int main(int argc, char *argv[])
                   "use_new_method.");
    args.ParseCheck();
 
+
+   //Helper timers
+   std::chrono::time_point<std::chrono::system_clock> start, end;
+
+   Device device(device_config);
+   device.Print();
+
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -181,8 +188,6 @@ int main(int argc, char *argv[])
 
    real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
    if (vis) { visualize(HO_dc, "HO", Wx, Wy, visport); Wx += offx; }
-
-   std::chrono::time_point<std::chrono::system_clock> start, end;
 
    GridTransfer *gt;
    if (use_pointwise_transfer)
