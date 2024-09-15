@@ -148,7 +148,7 @@ public:
       }
       else
       {
-         ReportFallback(Kernels::Get().kernel_name, params...);
+         KernelReporter::ReportFallback(Kernels::Get().kernel_name, params...);
          Kernels::Fallback(params...)(std::forward<Args>(args)...);
       }
    }
