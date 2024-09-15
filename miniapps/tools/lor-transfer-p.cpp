@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
    bool vis = true;
    bool useH1 = false;
    bool use_pointwise_transfer = false;
-   bool use_new_method       = true;
+   bool use_fast_version       = true;
    bool verify_solution      = false;
    const char *device_config = "cpu";
 
@@ -116,9 +116,9 @@ int main(int argc, char *argv[])
                   "Use pointwise transfer operators instead of L2 projection.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&use_new_method, "-new", "--new-method", "-no-new",
-                  "--no-new-method",
-                  "Use new method.");
+   args.AddOption(&use_fast_version, "-fast", "--fast-version", "-no-fast",
+                  "--no-fast-version",
+                  "Use fast / device friendly version.");
    args.AddOption(&verify_solution, "-verify", "--verify-solution", "-no-verify",
                   "--no-verify-solution",
                   "Verify against non-device code.");
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor, false);
    }
 
-   gt->UseDevice(use_new_method);
+   gt->UseDevice(use_fast_version);
    gt->VerifySolution(verify_solution);
 
    start = std::chrono::system_clock::now();
