@@ -237,7 +237,8 @@ public:
       */
       Vector MixedMassEA(const FiniteElementSpace& fes_ho_,
                          const FiniteElementSpace& fes_lor_,
-                         Coefficient* coeff_, MemoryType d_mt_ = MemoryType::HOST);
+                         const Coefficient* coeff_, Vector &M_LH,
+                         MemoryType d_mt_ = MemoryType::HOST);
    };
 
    //Class below must be public as we now have device code
@@ -297,7 +298,7 @@ public:
       /*Same as above but assembles and stores R_ea, P_ea */
       void DeviceL2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
                                      const FiniteElementSpace& fes_lor_,
-                                     Coefficient* coeff_);
+                                     const Coefficient* coeff_);
 
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order L2 finite element space, to <tt>y</tt>, primal
@@ -386,11 +387,11 @@ public:
       ///   ( )  ElementRestrictionOperator for HO space
       void DeviceL2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
                                      const FiniteElementSpace &fes_lor_,
-                                     Coefficient* coeff_);
+                                     const Coefficient* coeff_);
 #ifdef MFEM_USE_MPI
       void DeviceL2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                                      const ParFiniteElementSpace &pfes_lor_,
-                                     Coefficient* coeff_);
+                                     const Coefficient* coeff_);
 #endif
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
