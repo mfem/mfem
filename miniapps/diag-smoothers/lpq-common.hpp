@@ -93,8 +93,8 @@ private:
    SolverType solver_type;
    real_t p_order;
    real_t q_order;
-   ConstantCoefficient one;
    OperatorLpqJacobiSmoother* coarse_pc;
+   ConstantCoefficient one;
 
    void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace);
 
