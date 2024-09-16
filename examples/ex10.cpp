@@ -87,16 +87,16 @@ public:
                         real_t visc, real_t mu, real_t K);
 
    /// Compute the right-hand side of the ODE system.
-   virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
+   void Mult(const Vector &vx, Vector &dvx_dt) const override;
    /** Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 
    real_t ElasticEnergy(const Vector &x) const;
    real_t KineticEnergy(const Vector &v) const;
    void GetElasticEnergyDensity(const GridFunction &x, GridFunction &w) const;
 
-   virtual ~HyperelasticOperator();
+   ~HyperelasticOperator() override;
 };
 
 /** Nonlinear operator of the form:
@@ -120,12 +120,12 @@ public:
    void SetParameters(real_t dt_, const Vector *v_, const Vector *x_);
 
    /// Compute y = H(x + dt (v + dt k)) + M k + S (v + dt k).
-   virtual void Mult(const Vector &k, Vector &y) const;
+   void Mult(const Vector &k, Vector &y) const override;
 
    /// Compute J = M + dt S + dt^2 grad_H(x + dt (v + dt k)).
-   virtual Operator &GetGradient(const Vector &k) const;
+   Operator &GetGradient(const Vector &k) const override;
 
-   virtual ~ReducedSystemOperator();
+   ~ReducedSystemOperator() override;
 };
 
 
@@ -141,8 +141,8 @@ private:
 public:
    ElasticEnergyCoefficient(HyperelasticModel &m, const GridFunction &x_)
       : model(m), x(x_) { }
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
-   virtual ~ElasticEnergyCoefficient() { }
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+   ~ElasticEnergyCoefficient() override { }
 };
 
 void InitialDeformation(const Vector &x, Vector &y);

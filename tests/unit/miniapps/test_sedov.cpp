@@ -922,7 +922,7 @@ public:
       gVecH1.SetSize(h1sz);
    }
 
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
 
       l2restrict->Mult(x, gVecL2);
@@ -932,7 +932,7 @@ public:
       h1restrict->MultTranspose(gVecH1, y);
    }
 
-   void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    {
       h1restrict->Mult(x, gVecH1);
       kForceMultTranspose(dim, D1D, Q1D, L1D, H1D, nzones,
@@ -1071,7 +1071,7 @@ public:
       pabf.FormSystemMatrix(mfem::Array<int>(), massOperator);
    }
 
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       // FIXME: why is 'x' being modified here (through 'X')?
       Vector X;
@@ -1094,10 +1094,10 @@ public:
                                               diag);
    }
 
-   const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return FESpace.GetProlongationMatrix(); }
 
-   const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return FESpace.GetRestrictionMatrix(); }
 
    void SetEssentialTrueDofs(Array<int> &dofs)
@@ -1142,7 +1142,7 @@ public:
       diag.SetSize(P->Width());
       P->MultTranspose(d, diag);
    }
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       const int N = x.Size();
       auto d_diag = diag.Read();
@@ -1150,7 +1150,7 @@ public:
       auto d_y = y.Write();
       mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { d_y[i] = d_x[i] / d_diag[i]; });
    }
-   void SetOperator(const Operator&) { }
+   void SetOperator(const Operator&) override { }
 };
 
 struct TimingData
@@ -1294,8 +1294,8 @@ void ComputeRho0DetJ0AndVolume(const int dim,
 
 class TaylorCoefficient : public Coefficient
 {
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    {
       Vector x(2);
       T.Transform(ip, x);
@@ -1736,14 +1736,14 @@ public:
       CG_EMass.SetPrintLevel(-1);
    }
 
-   ~LagrangianHydroOperator()
+   ~LagrangianHydroOperator() override
    {
       delete EMassPA;
       delete VMassPA;
       delete ForcePA;
    }
 
-   virtual void Mult(const Vector &S, Vector &dS_dt) const
+   void Mult(const Vector &S, Vector &dS_dt) const override
    {
       UpdateMesh(S);
       Vector* sptr = const_cast<Vector*>(&S);
@@ -1758,7 +1758,7 @@ public:
       quad_data_is_current = false;
    }
 
-   MemoryClass GetMemoryClass() const  { return Device::GetDeviceMemoryClass(); }
+   MemoryClass GetMemoryClass() const override  { return Device::GetDeviceMemoryClass(); }
 
    void SolveVelocity(const Vector &S, Vector &dS_dt) const
    {

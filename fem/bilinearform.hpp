@@ -294,13 +294,13 @@ public:
    const real_t &operator()(int i, int j) { return (*mat)(i,j); }
 
    /// Returns a reference to: $ M_{ij} $
-   virtual real_t &Elem(int i, int j);
+   real_t &Elem(int i, int j) override;
 
    /// Returns constant reference to: $ M_{ij} $
-   virtual const real_t &Elem(int i, int j) const;
+   const real_t &Elem(int i, int j) const override;
 
    /// Matrix vector multiplication:  $ y = M x $
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Matrix vector multiplication with the original uneliminated
        matrix.  The original matrix is $ M + M_e $ so we have:
@@ -309,7 +309,7 @@ public:
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
    /// Add the matrix vector multiple to a vector:  $ y += a M x $
-   virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const
+   void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override
    { mat -> AddMult (x, y, a); }
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
@@ -319,8 +319,8 @@ public:
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
 
    /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
-   virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const real_t a = 1.0) const
+   void AddMultTranspose(const Vector & x, Vector & y,
+                         const real_t a = 1.0) const override
    { mat->AddMultTranspose(x, y, a); }
 
    /** @brief Add the original uneliminated matrix transpose vector
@@ -330,7 +330,7 @@ public:
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
    /// Matrix transpose vector multiplication:  $ y = M^T x $
-   virtual void MultTranspose(const Vector & x, Vector & y) const;
+   void MultTranspose(const Vector & x, Vector & y) const override;
 
    /// Compute $ y^T M x $
    real_t InnerProduct(const Vector &x, const Vector &y) const
@@ -338,13 +338,13 @@ public:
 
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
        $ M^{-1} $ (currently returns NULL) */
-   virtual MatrixInverse *Inverse() const;
+   MatrixInverse *Inverse() const override;
 
    /** @brief Finalizes the matrix initialization if the ::AssemblyLevel is
        AssemblyLevel::LEGACY.
        The matrix that gets finalized is different if you are using static
        condensation or hybridization.*/
-   virtual void Finalize(int skip_zeros = 1);
+   void Finalize(int skip_zeros = 1) override;
 
    /** @brief Returns a const reference to the sparse matrix:  $ M $
     *
@@ -458,18 +458,18 @@ public:
        conforming prolongation, and |.| denotes the entry-wise absolute value.
        In general, this is just an approximation of the exact diagonal for this
        case. */
-   virtual void AssembleDiagonal(Vector &diag) const;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /// Get the finite element space prolongation operator.
-   virtual const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return fes->GetConformingProlongation(); }
 
    /// Get the finite element space restriction operator
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return fes->GetConformingRestriction(); }
 
    /// Get the output finite element space prolongation matrix
-   virtual const Operator *GetOutputProlongation() const
+   const Operator *GetOutputProlongation() const override
    { return GetProlongation(); }
 
    /** @brief Returns the output fe space restriction matrix, transposed
@@ -477,11 +477,11 @@ public:
        Logically, this is the transpose of GetOutputRestriction, but in
        practice it is convenient to have it in transposed form for
        construction of RAP operators in matrix-free methods. */
-   virtual const Operator *GetOutputRestrictionTranspose() const
+   const Operator *GetOutputRestrictionTranspose() const override
    { return fes->GetRestrictionTransposeOperator(); }
 
    /// Get the output finite element space restriction matrix
-   virtual const Operator *GetOutputRestriction() const
+   const Operator *GetOutputRestriction() const override
    { return GetRestriction(); }
 
    /// Compute serial RAP operator and store it in @a A as a SparseMatrix.
@@ -566,7 +566,8 @@ public:
        FormLinearSystem() method to recover the solution as a GridFunction-size
        vector in @a x. Use the same arguments as in the FormLinearSystem() call.
    */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   void RecoverFEMSolution(const Vector &X, const Vector &b,
+                           Vector &x) override;
 
    /// Compute and store internally all element matrices.
    void ComputeElementMatrices();
@@ -811,32 +812,32 @@ public:
                      MixedBilinearForm *mbf);
 
    /// Returns a reference to: $ M_{ij} $
-   virtual real_t &Elem(int i, int j);
+   real_t &Elem(int i, int j) override;
 
    /// Returns a reference to: $ M_{ij} $
-   virtual const real_t &Elem(int i, int j) const;
+   const real_t &Elem(int i, int j) const override;
 
    /// Matrix multiplication: $ y = M x $
-   virtual void Mult(const Vector & x, Vector & y) const;
+   void Mult(const Vector & x, Vector & y) const override;
 
    /// Add the matrix vector multiple to a vector:  $ y += a M x $
-   virtual void AddMult(const Vector & x, Vector & y,
-                        const real_t a = 1.0) const;
+   void AddMult(const Vector & x, Vector & y,
+                const real_t a = 1.0) const override;
 
    /// Matrix transpose vector multiplication:  $ y = M^T x $
-   virtual void MultTranspose(const Vector & x, Vector & y) const;
+   void MultTranspose(const Vector & x, Vector & y) const override;
 
    /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
-   virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const real_t a = 1.0) const;
+   void AddMultTranspose(const Vector & x, Vector & y,
+                         const real_t a = 1.0) const override;
 
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
        $ M^{-1} $ (currently unimplemented and returns NULL)*/
-   virtual MatrixInverse *Inverse() const;
+   MatrixInverse *Inverse() const override;
 
    /** @brief Finalizes the matrix initialization if the ::AssemblyLevel is
        AssemblyLevel::LEGACY.*/
-   virtual void Finalize(int skip_zeros = 1);
+   void Finalize(int skip_zeros = 1) override;
 
    /** @brief Extract the associated matrix as SparseMatrix blocks. The number
        of block rows and columns is given by the vector dimensions (vdim) of the
@@ -950,19 +951,19 @@ public:
    void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
 
    /// Get the input finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return trial_fes->GetProlongationMatrix(); }
 
    /// Get the input finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return trial_fes->GetRestrictionMatrix(); }
 
    /// Get the test finite element space prolongation matrix
-   virtual const Operator *GetOutputProlongation() const
+   const Operator *GetOutputProlongation() const override
    { return test_fes->GetProlongationMatrix(); }
 
    /// Get the test finite element space restriction matrix
-   virtual const Operator *GetOutputRestriction() const
+   const Operator *GetOutputRestriction() const override
    { return test_fes->GetRestrictionMatrix(); }
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
@@ -1237,7 +1238,7 @@ public:
 
    /** @brief Get the output finite element space restriction matrix in
        transposed form. */
-   virtual const Operator *GetOutputRestrictionTranspose() const
+   const Operator *GetOutputRestrictionTranspose() const override
    { return test_fes->GetRestrictionTransposeOperator(); }
 };
 
