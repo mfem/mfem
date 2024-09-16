@@ -62,11 +62,11 @@ int main(int argc, char *argv[])
    int geometric_levels = 1;
    int order_levels = 1;
    // Solver parameters
-   double rel_tol = 1e-10;
-   double max_iter = 3000;
+   real_t rel_tol = 1e-10;
+   real_t max_iter = 3000;
    // Kershaw Transformation
-   double eps_y = 0.0;
-   double eps_z = 0.0;
+   real_t eps_y = 0.0;
+   real_t eps_z = 0.0;
    // Other options
    string device_config = "cpu";
    bool use_monitor = false;

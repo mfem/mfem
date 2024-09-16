@@ -58,14 +58,14 @@ int main(int argc, char *argv[])
    int refine_serial = 0;
    int refine_parallel = 0;
    // Preconditioner parameters
-   double p_order = 1.0;
-   double q_order = 0.0;
+   real_t p_order = 1.0;
+   real_t q_order = 0.0;
    // Solver parameters
-   double rel_tol = 1e-10;
-   double max_iter = 3000;
+   real_t rel_tol = 1e-10;
+   real_t max_iter = 3000;
    // Kershaw Transformation
-   double eps_y = 0.0;
-   double eps_z = 0.0;
+   real_t eps_y = 0.0;
+   real_t eps_z = 0.0;
    // Other options
    string device_config = "cpu";
    bool use_monitor = false;
