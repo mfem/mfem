@@ -83,14 +83,6 @@ $(MESHES_DEST_DIR)/%: $(SRC_GSLIB_DIR)/% | $(MESHES_DEST_DIR)
 $(MESHES_DEST_DIR)/%: $(SRC_DATA_DIR)/% | $(MESHES_DEST_DIR)
 	cp $< $@
 
-# copy_meshes: $(MESHES_DEST_DIR) $(DEST_MESH_FILES)
-# 
-# $(MESHES_DEST_DIR):
-# 	mkdir -p $@
-# 
-# $(MESHES_DEST_DIR)/%.mesh: $(SRC_DIRS)/%.mesh | $(MESHES_DEST_DIR)
-# 	cp $< $@
-
 # Test targets
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
