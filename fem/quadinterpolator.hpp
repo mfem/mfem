@@ -115,6 +115,10 @@ public:
    void AbsMult(const Vector &e_vec, unsigned eval_flags,
                 Vector &q_val, Vector &q_der, Vector &q_det) const;
 
+   void MultInternal(const Vector &e_vec, unsigned eval_flags,
+                     Vector &q_val, Vector &q_der, Vector &q_det,
+                     bool ABS = false) const;
+
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
    void Values(const Vector &e_vec, Vector &q_val) const;
 

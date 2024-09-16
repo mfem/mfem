@@ -217,6 +217,7 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
+      MFEM_ABORT("AddAbsMultPA not implemented with CEED!");
       ceedOp->AddMult(x, y);
    }
    else
