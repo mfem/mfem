@@ -364,6 +364,8 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
 // determine the search direction
 void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, Vector &zlhat, BlockVector &Xhat, double mu, bool socSolve)
 {
+   StopWatch chrono;
+   chrono.Clear();
    iter++;
    // solve A x = b, where A is the IP-Newton matrix
    BlockOperator A(block_offsetsuml, block_offsetsuml); 
@@ -513,9 +515,15 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          AreducedSolver->SetPrintLevel(3);
          AreducedSolver->SetOperator(*Areduced);
          AreducedSolver->SetPreconditioner(amg);
+         chrono.Start();
          AreducedSolver->Mult(breduced, Xhat.GetBlock(0));
+         chrono.Stop();
          n = AreducedSolver->GetNumIterations();
-
+         if (iAmRoot)
+         {
+            mfem::out << "CG Mult total time     = " << chrono.RealTime() << endl;
+            mfem::out << "CG Mult time/iteration = " << chrono.RealTime()/n << endl;
+         }
          if (!AreducedSolver->GetConverged())
          {
             delete AreducedSolver;
@@ -571,8 +579,16 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          AreducedSolver->SetPrintLevel(3);
          AreducedSolver->SetOperator(*Areduced);
          AreducedSolver->SetPreconditioner(*prec);
+         chrono.Clear();
+         chrono.Start();
          AreducedSolver->Mult(breduced, Xhat.GetBlock(0));
+         chrono.Stop();
          int n = AreducedSolver->GetNumIterations();
+         if (iAmRoot)
+         {
+            mfem::out << "CG Mult total time     = " << chrono.RealTime() << endl;
+            mfem::out << "CG Mult time/iteration = " << chrono.RealTime()/n << endl;
+         }
          if (iAmRoot)
          {
             std::cout << std::string(50,'-') << "\n" << endl;
