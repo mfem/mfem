@@ -576,16 +576,17 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       auto d_B_H = mfem::Reshape(B_H.Read(), qPts, fe_ho_ndof, nref);
       auto d_D   = mfem::Reshape(D.Read(), qPts, nref, nel_ho);
 
-      mfem::forall_3D(nel_ho, fe_lor_ndof, fe_ho_ndof,
+      mfem::forall_2D(nel_ho, fe_ho_ndof,
                       nref, [=] MFEM_HOST_DEVICE (int iho)
       {
 
-         MFEM_FOREACH_THREAD(iref, z, nref)
+         MFEM_FOREACH_THREAD(iref, y, nref)
          {
             // (B_lo_dofs x Q) x (Q x B_ho_dofs)
-            MFEM_FOREACH_THREAD(bh, y, fe_ho_ndof)
+            MFEM_FOREACH_THREAD(bh, x, fe_ho_ndof)
             {
-               MFEM_FOREACH_THREAD(bl, x, fe_lor_ndof)
+              //MFEM_FOREACH_THREAD(bl, x, fe_lor_ndof)
+              for(int bl = 0; bl < fe_lor_ndof; ++bl)
                {
 
                   real_t dot = 0.0;
