@@ -512,29 +512,21 @@ int main (int argc, char *argv[])
       }
       pmesh->SetAttributes();
 
-      GridFunctionCoefficient coeff_mat(&mat);
-      surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat,
-                                             GridFunction::ARITHMETIC);
-      surf_fit_mat_gf.SetTrueVector();
-      surf_fit_mat_gf.SetFromTrueVector();
+      // Set DOFs for fitting
+      surf_fit_marker = false;
+      surf_fit_mat_gf = 0.;
       surf_fit_mat_gf.HostReadWrite();
 
-      // Set DOFs for fitting
       // Strategy 1: Choose face between elements of different attributes.
       if (marking_type == 0)
       {
          mat.ExchangeFaceNbrData();
          const Vector &FaceNbrData = mat.FaceNbrData();
          mat.HostReadWrite();
-         for (int j = 0; j < surf_fit_marker.Size(); j++)
-         {
-            surf_fit_marker[j] = false;
-         }
-         surf_fit_mat_gf = 0.0;
-         surf_fit_mat_gf.HostReadWrite();
 
          Array<int> dof_list;
          Array<int> dofs;
+
          for (int i = 0; i < pmesh->GetNumFaces(); i++)
          {
             auto tr = pmesh->GetInteriorFaceTransformations(i);

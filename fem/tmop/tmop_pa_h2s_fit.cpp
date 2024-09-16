@@ -91,7 +91,8 @@ void TMOP_Integrator::AssembleGradPA_Fit_2D(const Vector &X) const
 
    Vector &H0 = PA.SFH0;
 
-   MFEM_LAUNCH_TMOP_NODAL_KERNEL(SetupGradPA_Fit_2D,D1D,N,PW,N0,S0,DC,M0,D1,D2,FE,H0);
+   MFEM_LAUNCH_TMOP_NODAL_KERNEL(SetupGradPA_Fit_2D,D1D,N,PW,N0,S0,DC,M0,D1,D2,
+                                 FE,H0);
 }
 
 } // namespace mfem

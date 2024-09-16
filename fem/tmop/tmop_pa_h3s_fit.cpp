@@ -95,8 +95,8 @@ void TMOP_Integrator::AssembleGradPA_Fit_3D(const Vector &X) const
    Vector &H0 = PA.SFH0;
    const Array<int> &FE = PA.SFEList;
 
-   MFEM_LAUNCH_TMOP_NODAL_KERNEL(SetupGradPA_Fit_3D,D1D,N,PA.SFC,surf_fit_normal,S0,DC,
-                           M0,D1,D2,FE,H0);
+   MFEM_LAUNCH_TMOP_NODAL_KERNEL(SetupGradPA_Fit_3D,D1D,N,PA.SFC,surf_fit_normal,
+                                 S0,DC,M0,D1,D2,FE,H0);
 }
 
 } // namespace mfem

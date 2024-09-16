@@ -88,7 +88,8 @@ void TMOP_Integrator::AddMultPA_Fit_3D(const Vector &X, Vector &Y) const
    const Array<int> &FE = PA.SFEList;
 
 
-   MFEM_LAUNCH_TMOP_NODAL_KERNEL(AddMultPA_Kernel_Fit_3D,D1D,N,PW,N0,S0,DC,M0,D1,FE,Y);
+   MFEM_LAUNCH_TMOP_NODAL_KERNEL(AddMultPA_Kernel_Fit_3D,D1D,N,PW,N0,S0,DC,M0,
+                                 D1,FE,Y);
 }
 
 } // namespace mfem
