@@ -132,8 +132,8 @@ private:
    SolverType solver_type;
    AssemblyLevel assembly_level;
    bool mg_owned;
-   ConstantCoefficient one;
    OperatorJacobiSmoother* coarse_pc;
+   ConstantCoefficient one;
 
    void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace);
 
