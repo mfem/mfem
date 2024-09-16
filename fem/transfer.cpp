@@ -585,8 +585,8 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
             // (B_lo_dofs x Q) x (Q x B_ho_dofs)
             MFEM_FOREACH_THREAD(bh, x, fe_ho_ndof)
             {
-              //MFEM_FOREACH_THREAD(bl, x, fe_lor_ndof)
-              for(int bl = 0; bl < fe_lor_ndof; ++bl)
+               //MFEM_FOREACH_THREAD(bl, x, fe_lor_ndof)
+               for (int bl = 0; bl < fe_lor_ndof; ++bl)
                {
 
                   real_t dot = 0.0;
@@ -1212,7 +1212,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
    const Vector &x, Vector &y) const
 {
 
-  if (fes_ho.GetNE() == 0) { return; }
+   if (fes_ho.GetNE() == 0) { return; }
 
    if (use_device)
    {
@@ -1290,8 +1290,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
          MFEM_FOREACH_THREAD(iho, x, ndof_ho)
          {
             real_t dot = 0.0;
-            for (int tx = 0; tx < ndof_lor * nref; ++tx) {
-              dot += v_P_ea(iho, tx , e) * v_x(tx, v, e);
+            for (int tx = 0; tx < ndof_lor * nref; ++tx)
+            {
+               dot += v_P_ea(iho, tx, e) * v_x(tx, v, e);
             }
             v_y(iho, v, e) = dot;
          }
