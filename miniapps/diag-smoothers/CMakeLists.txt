@@ -70,35 +70,62 @@ if(MFEM_USE_MPI)
 
   set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES meshes)
   
-  add_mfem_miniapp(lpq-jacobi
-    MAIN lpq-jacobi.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS}
-    EXTRA_SOURCES lpq-common.cpp
-    EXTRA_HEADERS lpq-common.hpp
-    LIBRARIES mfem-common mfem)
-  add_dependencies(lpq-jacobi copy_meshes)
+  # Define miniapps
+  set(MINIAPPS
+    lpq-jacobi
+    mg-lpq-jacobi
+    abs-l1-jacobi
+    mg-abs-l1-jacobi
+  )
 
-  add_mfem_miniapp(mg-lpq-jacobi
-    MAIN mg-lpq-jacobi.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS}
-    EXTRA_SOURCES lpq-common.cpp
-    EXTRA_HEADERS lpq-common.hpp
-    LIBRARIES mfem-common mfem)
-  add_dependencies(mg-lpq-jacobi copy_meshes)
+  # Add miniapps
+  foreach(APP ${MINIAPPS})
+    add_mfem_miniapp(${APP}
+      MAIN ${APP}.cpp
+      ${MFEM_MINIAPPS_COMMON_HEADERS}
+      EXTRA_SOURCES lpq-common.cpp
+      EXTRA_HEADERS lpq-common.hpp
+      LIBRARIES mfem-common mfem
+    )
+    add_dependencies(${APP} copy_meshes)
+  endforeach()
 
-  add_mfem_miniapp(abs-l1-jacobi
-    MAIN abs-l1-jacobi.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS}
-    EXTRA_SOURCES lpq-common.cpp
-    EXTRA_HEADERS lpq-common.hpp
-    LIBRARIES mfem-common mfem)
-  add_dependencies(abs-l1-jacobi copy_meshes)
+  # Add the corresponding tests to the "test" target
+  if (MFEM_ENABLE_TESTING)
+    add_test(NAME lpq-jacobi_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:lpq-jacobi> -m meshes/cube.mesh -rs 1 -rp 1
+      -s 1 -i 1 -p 1.5 -q 0.75 -pc 1 -no-mon -no-vis
+      ${MPIEXEC_POSTFLAGS})
 
-  add_mfem_miniapp(mg-abs-l1-jacobi
-    MAIN mg-abs-l1-jacobi.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS}
-    EXTRA_SOURCES lpq-common.cpp
-    EXTRA_HEADERS lpq-common.hpp
-    LIBRARIES mfem-common mfem)
-  add_dependencies(mg-abs-l1-jacobi copy_meshes)
+    add_test(NAME abs-l1-jacobi_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:abs-l1-jacobi> -m meshes/cube.mesh -rs 1 -rp 1
+      -s 1 -i 1 -a 4 -pc 1 -no-mon -no-vis
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME mg-lpq-jacobi_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:mg-lpq-jacobi> -m meshes/cube.mesh -rs 1 -rp 1
+      -ol 1 -gl 1 -s 1 -i 1 -p 1.5 -q 0.75 -no-mon -no-vis
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME mg-abs-l1-jacobi_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:mg-abs-l1-jacobi> -m meshes/cube.mesh -rs 1 -rp 1
+      -ol 1 -gl 1 -s 1 -i 1 -a 4 -no-mon -no-vis
+      ${MPIEXEC_POSTFLAGS})
+  endif()
+
+  # Add custom target for cleaning everything
+  add_custom_target(clean_all
+    COMMAND ${CMAKE_MAKE_PROGRAM} clean
+    COMMAND ${CMAKE_COMMAND} -E remove_directory meshes
+    COMMAND ${CMAKE_MAKE_PROGRAM} -C ${CMAKE_CURRENT_SOURCE_DIR}/../common clean
+    COMMENT "Cleaning all build artifacts and meshes..."
+  )
 endif()
