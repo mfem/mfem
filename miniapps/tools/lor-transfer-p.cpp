@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
    int order = 2;
    int lref = order+1;
    int lorder = 0;
-   int ref_levels = 0;
+   int ref_levels = 4;
    bool vis = true;
    bool useH1 = false;
    bool use_pointwise_transfer = false;
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
    end = std::chrono::system_clock::now();
 
    std::chrono::duration<double> R_fwd_elapsed = end - start;
-   report_time(R_fwd_elapsed, "R fwd elapsed time:", myid);
+   report_time(R_fwd_elapsed, "R fwd elapsed time: ", myid);
 
 
    // HO->LOR restriction

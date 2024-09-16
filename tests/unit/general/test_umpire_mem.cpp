@@ -228,17 +228,17 @@ static void test_umpire_device_memory()
    SPLIT();
 
    //
-   // Check ReleaseDeviceMemory with temporary device buffers
+   // Check DeleteDevice with temporary device buffers
    //
 
    // remove from temporary memory
    // don't copy to host, verify that the value is still the "host" value
-   host_temp.ReleaseDeviceMemory(false);
+   host_temp.DeleteDevice(false);
    REQUIRE(host_temp[0] == host_val);
    // copy to host, verify that the value is the "device" value
-   dev_temp.ReleaseDeviceMemory();
+   dev_temp.DeleteDevice();
    REQUIRE(dev_temp[0] == dev_val);
-   pinned_host_temp.ReleaseDeviceMemory();
+   pinned_host_temp.DeleteDevice();
 
    printf("Delete all temporary memory: ");
    CHECK_PERM(num_bytes*3);

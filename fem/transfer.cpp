@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-//Tolerance for comparing between non-uniform and uniform transfers
+//Tolerance for comparing between non-uniform and uniform (device friendly) transfers
 constexpr real_t ho_lor_tol = 1e-10;
 
 GridTransfer::GridTransfer(FiniteElementSpace &dom_fes_,
@@ -334,10 +334,8 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
 Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    const FiniteElementSpace& fes_ho_ea,
    const FiniteElementSpace& fes_lor_ea,
-   Coefficient *coeff_, MemoryType d_mt_)
+   const Coefficient *coeff_, Vector &M_LH, MemoryType d_mt_)
 {
-   Vector M_LH;
-
    Mesh* mesh_ho = fes_ho_ea.GetMesh();
    Mesh* mesh_lor = fes_lor_ea.GetMesh();
    int nel_ho = mesh_ho->GetNE();
@@ -363,7 +361,7 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    else
    {
       // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
-      auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
+      auto qfunc_coeff = dynamic_cast<const QuadratureFunctionCoefficient*>(coeff_);
       if (qfunc_coeff == NULL)
       {
          mfem_error("Not a QuadratureFunctionCoefficient - for inside H1");
@@ -578,15 +576,16 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       auto d_B_H = mfem::Reshape(B_H.Read(), qPts, fe_ho_ndof, nref);
       auto d_D   = mfem::Reshape(D.Read(), qPts, nref, nel_ho);
 
-      mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+      mfem::forall_3D(nel_ho, fe_lor_ndof, fe_ho_ndof,
+                      nref, [=] MFEM_HOST_DEVICE (int iho)
       {
 
-         for (int iref = 0; iref < nref; ++iref)
+         MFEM_FOREACH_THREAD(iref, z, nref)
          {
             // (B_lo_dofs x Q) x (Q x B_ho_dofs)
-            for (int bh=0; bh<fe_ho_ndof; ++bh)
+            MFEM_FOREACH_THREAD(bh, y, fe_ho_ndof)
             {
-               for (int bl=0; bl<fe_lor_ndof; ++bl)
+               MFEM_FOREACH_THREAD(bl, x, fe_lor_ndof)
                {
 
                   real_t dot = 0.0;
@@ -764,12 +763,9 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 }
 
 
-
-// START OF DEVICE IMPLEMENTATION
-
 void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 (const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
- Coefficient *coeff_) // coeff : coefficient for weighted integration
+ const Coefficient *coeff_) // coeff : coefficient for weighted integration
 {
    Mesh *mesh_ho = fes_ho.GetMesh();
    Mesh *mesh_lor = fes_lor.GetMesh();
@@ -801,7 +797,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    else
    {
       // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
-      auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
+      auto qfunc_coeff = dynamic_cast<const QuadratureFunctionCoefficient*>(coeff_);
       if (qfunc_coeff == NULL)
       {
          mfem_error("Not a QuadratureFunctionCoefficient - for inside H1");
@@ -845,7 +841,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    }
 
    //Assemble mixed mass matrix
-   Vector M_mixed_all = MixedMassEA(fes_ho, fes_lor, coeff, d_mt);
+   Vector M_mixed_all;
+   MixedMassEA(fes_ho, fes_lor, coeff, M_mixed_all, d_mt);
 
 
    //R = inv(M_L) * M_mixed
@@ -896,15 +893,16 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       MFEM_VERIFY(nel_lor==nel_ho*nref, "nel_lor != nel_ho*nref");
 
       // (ndofs_lor x ndofs_lor) x (ndofs_lor x ndof_ho)
-      mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+      mfem::forall_3D(nel_ho, ndof_lor, nref, ndof_ho, [=] MFEM_HOST_DEVICE (int iho)
       {
-         for (int j=0; j<ndof_ho; ++j)
+         MFEM_FOREACH_THREAD(j, z, ndof_ho)
          {
-            for (int iref = 0; iref < nref; ++iref)
+            MFEM_FOREACH_THREAD(iref, y, nref)
             {
-               const int lor_idx = iref + iho * nref;
-               for (int i=0; i<ndof_lor; ++i)
+               MFEM_FOREACH_THREAD(i, x, ndof_lor)
                {
+
+                  const int lor_idx = iref + iho * nref;
 
                   //matrices are stored in the transpose position
                   real_t dot = 0.0;
@@ -934,14 +932,16 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       Vector RtM_L(ndof_ho*nref*ndof_lor*nel_ho, d_mt);
       auto v_RtM_L = mfem::Reshape(RtM_L.Write(), ndof_ho, ndof_lor, nref, nel_ho);
 
-      mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
+      mfem::forall_3D(nel_ho, ndof_lor, nref, ndof_ho, [=] MFEM_HOST_DEVICE (int e)
       {
 
-         for (int iho=0; iho<ndof_ho; ++iho)
+         MFEM_FOREACH_THREAD(iho, z, ndof_ho)
          {
-            for (int iref=0; iref<nref; ++iref)
+
+            MFEM_FOREACH_THREAD(iref, y, nref)
             {
-               for (int jlo=0; jlo<ndof_lor; ++jlo)
+
+               MFEM_FOREACH_THREAD(jlo, x, ndof_lor)
                {
 
                   const int lor_idx = iref + e * nref;
@@ -964,11 +964,11 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       mfem::Vector RtM_LR(ndof_ho * ndof_ho * nel_ho, d_mt);
       auto v_RtM_LR = mfem::Reshape(RtM_LR.Write(), ndof_ho, ndof_ho, nel_ho);
 
-      mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
+      mfem::forall_2D(nel_ho, ndof_ho, ndof_ho, [=] MFEM_HOST_DEVICE (int e)
       {
-         for (int iho=0; iho<ndof_ho; ++iho)
+         MFEM_FOREACH_THREAD(iho, y, ndof_ho)
          {
-            for (int jho=0; jho<ndof_ho; ++jho)
+            MFEM_FOREACH_THREAD(jho, x, ndof_ho)
             {
                real_t dot = 0.0;
                for (int iref=0; iref<nref; ++iref)
@@ -983,23 +983,11 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
          }
       });
 
-      //recycle batch solver from above
-      //batchSolver.AssignMatrices(RtM_LR, ndof_ho, nel_ho);
-
-      //Copy
+      //Compute the inverse of InvRtM_LR
       DenseTensor InvRtM_LR;
       InvRtM_LR.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt);
+      InvRtM_LR.CopyFromVector(RtM_LR);
 
-      const real_t *d_RtM_LR = RtM_LR.Read();
-      real_t *d_InvRtM_LR = InvRtM_LR.Write();
-      mfem::forall(RtM_LR.Size(), [=] MFEM_HOST_DEVICE (int i)
-      {
-         d_InvRtM_LR[i] = d_RtM_LR[i];
-      });
-
-
-      //InvRtM_LR_LU.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt);
-      //batchSolver.GetInverse(InvRtM_LR);
       BatchedLinAlg::Invert(InvRtM_LR);
 
 
@@ -1010,15 +998,14 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
                                        nel_ho);
       auto v_P_ea = mfem::Reshape(P_ea.Write(), ndof_ho, ndof_lor, nref, nel_ho);
 
-      mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
+      mfem::forall_3D(nel_ho, ndof_lor, nref, ndof_ho, [=] MFEM_HOST_DEVICE (int e)
       {
-         for (int iho=0; iho<ndof_ho; ++iho)
+         MFEM_FOREACH_THREAD(iho, z, ndof_ho)
          {
-            for (int iref=0; iref<nref; ++iref)
+            MFEM_FOREACH_THREAD(iref, y, nref)
             {
-               for (int ilo=0; ilo<ndof_lor; ++ilo)
+               MFEM_FOREACH_THREAD(ilo, x, ndof_lor)
                {
-
                   real_t dot = 0.0;
                   for (int t=0; t<ndof_ho; ++t)
                   {
@@ -1103,15 +1090,14 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
    auto v_x    = mfem::Reshape(x.Read(), ndof_ho, vdim, nel_ho);
    auto v_y    = mfem::Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
 
-   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+   mfem::forall_3D(nel_ho, ndof_lor, nref, vdim, [=] MFEM_HOST_DEVICE (int iho)
    {
 
-      for (int v=0; v<vdim; ++v)
+      MFEM_FOREACH_THREAD(v, z, vdim)
       {
-
-         for (int i=0; i<nref; ++i)
+         MFEM_FOREACH_THREAD(i, y, nref)
          {
-            for (int j=0; j<ndof_lor; ++j)
+            MFEM_FOREACH_THREAD(j, x, ndof_lor)
             {
 
                real_t dot = 0.0;
@@ -1200,11 +1186,11 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
    auto v_x    = mfem::Reshape(x.Read(), ndof_lor, nref, vdim, nel_ho);
    auto v_y    = mfem::Reshape(y.Write(), ndof_ho, vdim, nel_ho);
 
-   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+   mfem::forall_2D(nel_ho, ndof_ho, vdim, [=] MFEM_HOST_DEVICE (int iho)
    {
-      for (int v=0; v<vdim; ++v)
+      MFEM_FOREACH_THREAD(v, y, vdim)
       {
-         for (int k=0; k<ndof_ho; ++k)
+         MFEM_FOREACH_THREAD(k, x, ndof_ho)
          {
             real_t dot = 0.0;
             for (int i=0; i<nref; ++i)
@@ -1225,13 +1211,14 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
    const Vector &x, Vector &y) const
 {
 
+  if (fes_ho.GetNE() == 0) { return; }
+
    if (use_device)
    {
       DeviceProlongate(x,y);
       if (!verify_solution) {return;}
    }
 
-   if (fes_ho.GetNE() == 0) { return; }
    MFEM_VERIFY(P.Size() > 0, "Prolongation not supported for these spaces.")
    int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
@@ -1291,23 +1278,19 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   auto v_P_ea = mfem::Reshape(P_ea.Read(), ndof_ho, ndof_lor, nref, nel_ho);
-   auto v_x    = mfem::Reshape(x.Read(), ndof_lor, nref, vdim, nel_ho);
+   auto v_P_ea = mfem::Reshape(P_ea.Read(), ndof_ho, ndof_lor * nref, nel_ho);
+   auto v_x    = mfem::Reshape(x.Read(), ndof_lor *  nref, vdim, nel_ho);
    auto v_y    = mfem::Reshape(y.Write(), ndof_ho, vdim, nel_ho);
 
-   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(nel_ho, ndof_ho, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
-      for (int v=0; v<vdim; ++v)
+      MFEM_FOREACH_THREAD(v, y, vdim)
       {
-         for (int iho=0; iho<ndof_ho; ++iho)
+         MFEM_FOREACH_THREAD(iho, x, ndof_ho)
          {
             real_t dot = 0.0;
-            for (int iref=0; iref<nref; ++iref)
-            {
-               for (int ilo=0; ilo<ndof_lor; ++ilo)
-               {
-                  dot += v_P_ea(iho, ilo, iref, e) * v_x(ilo, iref, v, e);
-               }
+            for (int tx = 0; tx < ndof_lor * nref; ++tx) {
+              dot += v_P_ea(iho, tx , e) * v_x(tx, v, e);
             }
             v_y(iho, v, e) = dot;
          }
@@ -1389,13 +1372,13 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
    auto v_x    = mfem::Reshape(x.Read(), ndof_ho, vdim, nel_ho);
    auto v_y    = mfem::Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
 
-   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(nel_ho, ndof_lor, nref, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
-      for (int v=0; v<vdim; ++v)
+      MFEM_FOREACH_THREAD(v, z, vdim)
       {
-         for (int iref=0; iref<nref; ++iref)
+         MFEM_FOREACH_THREAD(iref, y, nref)
          {
-            for (int ilo=0; ilo<ndof_lor; ++ilo)
+            MFEM_FOREACH_THREAD(ilo, x, ndof_lor)
             {
                real_t dot = 0.0;
                for (int iho=0; iho<ndof_ho; ++iho)
@@ -1491,8 +1474,6 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 
    std::tie(R, M_LH) = ComputeSparseRAndM_LH();
 
-
-   //Shadows a variable...
    ParFiniteElementSpace pfes_ho_scalar_local(pfes_ho.GetParMesh(),
                                               pfes_ho.FEColl(), 1);
    ParFiniteElementSpace pfes_lor_scalar_local(pfes_lor.GetParMesh(),
@@ -1526,11 +1507,6 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    M_LH.reset(M_LH_mat);
    RTxM_LH.reset(RTxM_LH_mat);
    precon.reset(amg);
-   // Array<int> ess_tdof_list;  // leave empty
-   // // RM_H.SetSize(fes_ho.GetTrueVSize());
-   // // GetTDofs(fes_ho, M_H, RM_H);
-   // precon.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
-
 
    SetupPCG();
    pcg.SetPreconditioner(*precon);
@@ -1554,9 +1530,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
-   Coefficient *coeff_)
+   const Coefficient *coeff_)
 {
-   mfem::out<<"L2ProjectionH1Space::DeviceL2ProjectionH1Space"<<std::endl;
 
    Mesh* mesh_ho = fes_ho.GetMesh();
    Mesh* mesh_lor = fes_lor.GetMesh();
@@ -1589,7 +1564,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    else
    {
       // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
-      auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
+      auto qfunc_coeff = dynamic_cast<const QuadratureFunctionCoefficient*>(coeff_);
       if (qfunc_coeff == NULL)
       {
          mfem_error("Not a QuadratureFunctionCoefficient - for inside H1");
@@ -1690,7 +1665,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // **************************
    // mixed mass M_LH
    // **************************
-   M_LH_ea = MixedMassEA(fes_ho, fes_lor, coeff, d_mt);
+   MixedMassEA(fes_ho, fes_lor, coeff, M_LH_ea, d_mt);
 
    // Set ownership
    M_LH_local_op = new H1SpaceMixedMassOperator(&fes_ho, &fes_lor, &ho2lor,
@@ -1714,7 +1689,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor,
-   Coefficient* coeff_)
+   const Coefficient* coeff_)
 {
    Mesh* mesh_ho = pfes_ho.GetParMesh();
    Mesh* mesh_lor = pfes_lor.GetParMesh();
@@ -1754,7 +1729,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    else
    {
       // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
-      auto qfunc_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(coeff_);
+      auto qfunc_coeff = dynamic_cast<const QuadratureFunctionCoefficient*>(coeff_);
       if (qfunc_coeff == NULL)
       {
          mfem_error("Not a QuadratureFunctionCoefficient - for inside H1");
@@ -1791,89 +1766,15 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    ML_inv_ea.SetSize(ndof_lor);
    ML_inv_ea = 0.0;
 
-   /* ....OLD CPU CODE..... */
-   /*
-   // Compute M_H_ea  and ML_inv_ea
-   int nref;
-   for (int iho = 0; iho < nel_ho; ++iho)
-   {
-      Array<int> lor_els;
-      ho2lor.GetRow(iho, lor_els);
-      nref = ho2lor.RowSize(iho);
-      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
-
-      // Instead of using a MassIntegrator, manually loop over integration
-      // points so we can row sum and store the diagonal as a Vector.
-      const FiniteElement& fe_ho = *pfes_ho.GetFE(0);
-      int nedof_ho = fe_ho.GetDof();
-      Vector MH_el(nedof_ho);
-      MH_el = 0.0;
-      Vector shape_ho(nedof_ho);
-      Array<int> dofs_ho(nedof_ho);
-
-      ElementTransformation* el_tr_ho = pfes_ho.GetElementTransformation(iho);
-      int order = 2 * fe_ho.GetOrder() + el_tr_ho->OrderW();
-      const IntegrationRule* ir_ho = &IntRules.Get(geom, order);
-      for (int i = 0; i < ir_ho->GetNPoints(); ++i)
-      {
-         const IntegrationPoint& ip_ho = ir_ho->IntPoint(i);
-         fe_ho.CalcShape(ip_ho, shape_ho);
-         el_tr_ho->SetIntPoint(&ip_ho);
-         MH_el += (shape_ho *= (el_tr_ho->Weight() * ip_ho.weight));
-      }
-      pfes_ho.GetElementDofs(iho, dofs_ho);
-      M_H.AddElementVector(dofs_ho, MH_el);
-
-      // Similarly for LOR mass matrix: loop over every LOR element in each HO element
-      const FiniteElement& fe_lor = *pfes_lor.GetFE(lor_els[0]);
-      int nedof_lor = fe_lor.GetDof();
-      Vector ML_el(nedof_lor);
-      Vector shape_lor(nedof_lor);
-      Array<int> dofs_lor(nedof_lor);
-      for (int iref = 0; iref < nref; ++iref)
-      {
-         int ilor = lor_els[iref];
-         ElementTransformation* el_tr = pfes_lor.GetElementTransformation(ilor);
-
-         // to re-use coeff, use integration rule from coeff (higher than needed)
-         ML_el = 0.0;
-         int nqPts = ir.GetNPoints();
-         for (int i = 0; i < nqPts; ++i)
-         {
-            const IntegrationPoint& ip_lor = ir.IntPoint(i);
-            fe_lor.CalcShape(ip_lor, shape_lor);
-            el_tr->SetIntPoint(&ip_lor);
-            ML_el += (shape_lor *= (el_tr->Weight() * ip_lor.weight * qfunc[ilor*nqPts +
-                                                                                       i]));
-         }
-         pfes_lor.GetElementDofs(ilor, dofs_lor);
-         ML_inv_ea.AddElementVector(dofs_lor, ML_el);
-      }
-   }
-   */
-
-   //mfem::out<<"using the integrators to build M_H_ea"<<std::endl;
-   //mfem::out<<"Number of elements = "<<nel_ho<<std::endl;
-   //mfem::out<<"number of quad points"<<std::endl;
-
-   //ParFiniteElementSpace
-   //ParFiniteElementSpace &my_pfes_ho = const_cast<ParFiniteElementSpace &>(pfes_ho);
-
-   //const FiniteElement& fe_scalar_ho = *pfes_ho_scalar->GetFE(0);
-
    BilinearForm pMho(pfes_ho_scalar);
    pMho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    pMho.AddDomainIntegrator(new MassIntegrator);
    pMho.Assemble();
 
-
-   //Processor local ranked local lumped Mass
+   //Processor local lumped Mass
    Vector ones_ho(pMho.Width()); ones_ho = 1.0;
-   //const FiniteElement& fe_ho = *pfes_ho.GetFE(0);
-   //const int nedof_ho = fe_ho.GetDof();
    M_H = 0.0;
    pMho.Mult(ones_ho, M_H);
-
 
    ParBilinearForm pMlor(pfes_lor_scalar);
    pMlor.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -1891,7 +1792,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    // **************************
    // mixed mass M_LH
    // **************************
-   M_LH_ea = MixedMassEA(*pfes_ho_scalar, *pfes_lor_scalar, coeff, d_mt);
+   MixedMassEA(*pfes_ho_scalar, *pfes_lor_scalar, coeff, M_LH_ea, d_mt);
 
    // Set ownership
    M_LH_local_op = new H1SpaceMixedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
@@ -2688,17 +2589,14 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x,
    auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_lor, nref, vdim, nel_ho);
 
 
-   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+   mfem::forall_3D(nel_ho, ndof_lor, nref, vdim, [=] MFEM_HOST_DEVICE (int iho)
    {
-
-      for (int v=0; v<vdim; ++v)
+      MFEM_FOREACH_THREAD(v, z, vdim)
       {
-
-         for (int i=0; i<nref; ++i)
+         MFEM_FOREACH_THREAD(i, y, nref)
          {
-            for (int j=0; j<ndof_lor; ++j)
+            MFEM_FOREACH_THREAD(j, x, ndof_lor)
             {
-
                real_t dot = 0.0;
                for (int k=0; k<ndof_ho; ++k)
                {
@@ -2742,11 +2640,11 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(
    auto v_tempx    = mfem::Reshape(tempx.Read(), ndof_lor, nref, vdim, nel_ho);
    auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_ho, vdim, nel_ho);
 
-   mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+   mfem::forall_2D(nel_ho, ndof_ho, vdim, [=] MFEM_HOST_DEVICE (int iho)
    {
-      for (int v=0; v<vdim; ++v)
+      MFEM_FOREACH_THREAD(v, y, vdim)
       {
-         for (int k=0; k<ndof_ho; ++k)
+         MFEM_FOREACH_THREAD(k, x, ndof_ho)
          {
             real_t dot = 0.0;
             for (int i=0; i<nref; ++i)

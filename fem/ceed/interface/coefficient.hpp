@@ -295,7 +295,7 @@ void InitCoefficientWithIndices(mfem::Coefficient *Q, mfem::Mesh &mesh,
          const int e = d_indices[sub_e];
          out(q, sub_e) = in(q, e);
       });
-      m_indices.ReleaseDeviceMemory();
+      m_indices.DeleteDevice();
       InitVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
       coeff_ptr = ceedCoeff;
    }
@@ -388,7 +388,7 @@ void InitCoefficientWithIndices(mfem::VectorCoefficient *VQ, mfem::Mesh &mesh,
             out(d, q, sub_e) = in(d, q, e);
          }
       });
-      m_indices.ReleaseDeviceMemory();
+      m_indices.DeleteDevice();
       InitVector(ceedCoeff->coeff, ceedCoeff->coeffVector);
       coeff_ptr = ceedCoeff;
    }

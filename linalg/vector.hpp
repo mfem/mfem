@@ -211,8 +211,8 @@ public:
    /** @brief Delete the device pointer, if owned. If @a copy_to_host is true
        and the data is valid only on device, move it to host before deleting.
        Invalidates the device memory. */
-   void ReleaseDeviceMemory(bool copy_to_host = true)
-   { data.ReleaseDeviceMemory(copy_to_host); }
+   void DeleteDevice(bool copy_to_host = true)
+   { data.DeleteDevice(copy_to_host); }
 
    /// Returns the size of the vector.
    inline int Size() const { return size; }
