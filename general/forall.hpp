@@ -343,14 +343,6 @@ inline void ForallWrap(const bool use_dev, const int N, d_lambda &&d_body,
    }
 #endif
 
-#ifdef MFEM_USE_SYCL
-   // If Backend::SYCL_HOST is allowed, use it
-   if (Device::Allows(Backend::SYCL_HOST))
-   {
-      return SyclWrap<DIM>::run(N, h_body, X, Y, Z, G);
-   }
-#endif
-
 backend_cpu:
    // Handle Backend::CPU. This is also a fallback for any allowed backends not
    // handled above, e.g. OCCA_CPU with configuration 'occa-cpu,cpu', or
@@ -423,14 +415,6 @@ inline void ForallWrapSmem(const bool use_dev, const int N, const int smem_size,
 
 #ifdef MFEM_USE_RAJA
    MFEM_ABORT("RAJA with dynamic shared memory not implemented");
-#endif
-
-#ifdef MFEM_USE_SYCL
-   // If Backend::SYCL_HOST is allowed, use it
-   if (Device::Allows(Backend::SYCL_HOST))
-   {
-      return SyclWrapSmem<DIM, Tsmem>::run(N, h_body, smem_size, X, Y, Z, G);
-   }
 #endif
 
 backend_cpu:

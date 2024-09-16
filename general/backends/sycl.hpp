@@ -34,8 +34,7 @@
  * the CUDA __shared__ keyword.
  * */
 
-#include <CL/sycl.hpp>
-using namespace cl;
+#include <sycl/sycl.hpp>
 
 #if defined(SYCL_LANGUAGE_VERSION) && defined (__INTEL_LLVM_COMPILER)
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/PreprocessorMacros.md
@@ -212,7 +211,7 @@ template<typename Tsmem> struct SyclWrapSmem<2, Tsmem>
                return;
             }
             // get_pointer is deprecated
-            body(k, sm.template get_multi_ptr<sycl::access::decorated::yes>()); 
+            body(k, sm.template get_multi_ptr<sycl::access::decorated::yes>());
          });
       });
       Q.wait();

@@ -178,16 +178,20 @@ void FaceQuadratureInterpolator::Eval2D(
                 ((eval_flags & NORMALS)
                  || (eval_flags & DETERMINANTS)))
             {
-              // const real_t norm = sqrt(D[0] * D[0] + D[1] * D[1]);
-              const real_t norm = [&]() {
-                real_t norm{};
-                for (int i = 0; i < VDIM; i++)
-                  norm += D[i];
-                return sqrt(norm);
-              }();
-              if (eval_flags & DETERMINANTS) {
-                det(q, f) = norm;
-              }
+               // const real_t norm = sqrt(D[0] * D[0] + D[1] * D[1]);
+               const real_t norm = [&]()
+               {
+                  real_t norm{};
+                  for (int i = 0; i < VDIM; i++)
+                  {
+                     norm += D[i];
+                  }
+                  return sqrt(norm);
+               }();
+               if (eval_flags & DETERMINANTS)
+               {
+                  det(q, f) = norm;
+               }
                if (eval_flags & NORMALS)
                {
                   const real_t s = sign[f] ? -1.0 : 1.0;
