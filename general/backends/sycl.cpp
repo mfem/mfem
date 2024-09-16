@@ -26,10 +26,14 @@ sycl::queue Sycl::Queue()
 {
    // Could use fallback queue
    if (Device::Allows(Backend::SYCL_GPU))
-     return sycl::queue(sycl::gpu_selector_v);
+   {
+      return sycl::queue(sycl::gpu_selector_v);
+   }
 
    if (Device::Allows(Backend::SYCL_CPU))
-     return sycl::queue(sycl::cpu_selector_v);
+   {
+      return sycl::queue(sycl::cpu_selector_v);
+   }
 
    return sycl::queue(sycl::default_selector_v);
 }
@@ -258,9 +262,9 @@ int SyclGetDeviceCount()
          mfem::out << "max_work_group_size: " << max_work_group_size << std::endl;
       }
       const auto has_local_mem =
-          device.is_cpu() ||
-          (device.get_info<sycl::info::device::local_mem_type>() !=
-           sycl::info::local_mem_type::none);
+         device.is_cpu() ||
+         (device.get_info<sycl::info::device::local_mem_type>() !=
+          sycl::info::local_mem_type::none);
       const auto local_mem_size =
          device.get_info<sycl::info::device::local_mem_size>();
       if (debug && has_local_mem)

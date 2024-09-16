@@ -204,7 +204,7 @@ private:
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
 #define MFEM_UNROLL_DEV_DISABLED MFEM_PRAGMA(unroll(1))
-#elif defined(MFEM_USE_SYCL) && defined(__SYCL_DEVICE_ONLY__)
+#elif defined(MFEM_USE_SYCL)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
 #define MFEM_UNROLL_DEV_DISABLED
 #else

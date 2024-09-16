@@ -57,6 +57,7 @@
 #if defined(__SYCL_DEVICE_ONLY__)
 
 #define MFEM_SHARED
+
 template <typename T> inline T& mfem_shared()
 {
    static_assert(std::is_trivial_v<T>, "T should be trivial!");
@@ -68,8 +69,9 @@ template <typename T> inline T& mfem_shared()
 template<typename T, std::size_t UID>
 MFEM_DEVICE inline T& StaticSharedMemoryVariable()
 {
-   MFEM_SHARED uint8_t smem alignas(alignof(T))[sizeof(T)];
-   return *(reinterpret_cast<T*>(smem));
+   // should use same smem type as mfem_shared
+   static const uint8_t smem alignas(alignof(T))[sizeof(T)] {};
+   return *(reinterpret_cast<T *>(const_cast<uint8_t *>(smem)));
 }
 
 #define MFEM_STATIC_SHARED_VAR(var, ...) \
@@ -211,7 +213,8 @@ template<typename Tsmem> struct SyclWrapSmem<2, Tsmem>
                return;
             }
             // get_pointer is deprecated
-            body(k, sm.template get_multi_ptr<sycl::access::decorated::yes>());
+            body(k, sm.template get_multi_ptr<sycl::access::decorated::yes>()
+                 .get());
          });
       });
       Q.wait();
@@ -282,7 +285,8 @@ template<typename Tsmem> struct SyclWrapSmem<3, Tsmem>
             const int k = itm.get_group_linear_id();
             if (k >= N) { return; }
             // body(k, sm.get_pointer()); // 'get_pointer' is deprecated
-            body(k, sm.template get_multi_ptr<sycl::access::decorated::yes>());
+            body(k, sm.template get_multi_ptr<sycl::access::decorated::yes>()
+                 .get());
          });
       });
       Q.wait();
