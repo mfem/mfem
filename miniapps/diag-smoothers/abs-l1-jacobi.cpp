@@ -17,7 +17,6 @@
 // absolute-L(1) Jacobi preconditioner. This preconditioner is tested in different
 // settings. We use Stationary Linear Iterations and Preconditioned Conjugate
 // Gradient as the main solvers.
-// TODO(Gabriel): mass, diffusion, and maxwell so far...
 // We consider a H1-mass matrix, a diffusion matrix, a elasticity system, and a
 // definite Maxwell system.
 //
@@ -50,8 +49,8 @@ int main(int argc, char *argv[])
    string mesh_file = "meshes/cube.mesh";
    // System properties
    int order = 1;
-   SolverType solver_type = sli;
-   IntegratorType integrator_type = mass;
+   SolverType solver_type = cg;
+   IntegratorType integrator_type = diffusion;
    LpqType pc_type = global;
    int assembly_type_int = 4;
    AssemblyLevel assembly_type;
@@ -69,9 +68,8 @@ int main(int argc, char *argv[])
    double eps_z = 0.0;
    // Other options
    string device_config = "cpu";
-   bool use_pc = true;
    bool use_monitor = false;
-   bool visualization = true;
+   bool visualization = false;
 
    // Construct argument parser
    OptionsParser args(argc, argv);
@@ -122,9 +120,6 @@ int main(int argc, char *argv[])
                   " solution.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&use_pc, "-pc", "--preconditioner", "-no-pc",
-                  "--no-preconditioner",
-                  "Enable or disable Absolute L1 Jacobi preconditioner.");
    args.AddOption(&use_monitor, "-mon", "--monitor", "-no-mon",
                   "--no-monitor",
                   "Enable or disable Data Monitor.");
@@ -345,6 +340,12 @@ int main(int argc, char *argv[])
       case none:
          break;
       case global:
+         if (Mpi::Root())
+         {
+            mfem::out << "WARNING: p_order and q_order are "
+                      << "ignored for Abs-Value L1-Jacobi!"
+                      << endl;
+         }
          ones = 1.0;
          A->AbsMult(ones, diag);
          jacobi = new OperatorJacobiSmoother(diag, ess_tdof_list);

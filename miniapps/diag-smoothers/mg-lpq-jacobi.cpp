@@ -50,11 +50,11 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    /// 2. Parse command line options.
-   string mesh_file = "meshes/icf.mesh";
+   string mesh_file = "meshes/cube.mesh";
    // System properties
    int order = 1;
-   SolverType solver_type = sli;
-   IntegratorType integrator_type = mass;
+   SolverType solver_type = cg;
+   IntegratorType integrator_type = diffusion;
    // Number of refinements
    int refine_serial = 0;
    int refine_parallel = 0;
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
    // Other options
    string device_config = "cpu";
    bool use_monitor = false;
-   bool visualization = true;
+   bool visualization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",

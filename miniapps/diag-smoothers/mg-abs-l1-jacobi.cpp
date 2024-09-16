@@ -20,7 +20,7 @@
 // the coarse level solver are user-selected. The current options are SLI and
 // PCG. The intermediate levels are directy smoothed with the absolute value
 // L(1)-Jacobi preconditioner. The systems to solve correspond to a mass matrix,
-// a difussion system, (TODO) an elasticity system, and a definite Maxwell system.
+// a difussion system, an elasticity system, and a definite Maxwell system.
 //
 // The preconditioner can be defined at run-time. Similarly, the mesh can be
 // modified by a Kershaw transformation at run-time. Relative tolerance and
@@ -48,11 +48,11 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    /// 2. Parse command line options.
-   string mesh_file = "meshes/icf.mesh";
+   string mesh_file = "meshes/cube.mesh";
    // System properties
    int order = 1;
    SolverType solver_type = cg;
-   IntegratorType integrator_type = mass;
+   IntegratorType integrator_type = diffusion;
    int assembly_type_int = 4;
    AssemblyLevel assembly_type;
    // Number of refinements
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    // Other options
    string device_config = "cpu";
    bool use_monitor = false;
-   bool visualization = true;
+   bool visualization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -217,7 +217,6 @@ int main(int argc, char *argv[])
    ///    and collections for different systems.
    ///    - H1-conforming Lagrange elements for the H1-mass matrix and the
    ///      diffusion problem.
-   /// TODO(Gabriel): Elasticity not implemented yet for partial assembly
    ///    - Vector H1-conforming Lagrange elements for the elasticity problem.
    ///    - H(curl)-conforming Nedelec elements for the definite Maxwell problem.
    FiniteElementCollection *fec;
