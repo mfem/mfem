@@ -124,8 +124,8 @@ int main(int argc, char *argv[])
    MFEM_ASSERT((0 <= solver_type) && (solver_type < num_solvers), "");
    MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
    MFEM_ASSERT((0 <= pc_type) && (pc_type < num_lpq_pc), "");
-   MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
-   MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
+   MFEM_ASSERT((0.0 <= eps_y) && (eps_y <= 1.0), "eps_y in [0,1]");
+   MFEM_ASSERT((0.0 <= eps_z) && (eps_z <= 1.0), "eps_z in [0,1]");
 
    kappa = freq * M_PI;
 

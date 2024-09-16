@@ -128,8 +128,8 @@ int main(int argc, char *argv[])
    MFEM_ASSERT((0 <= integrator_type) && (integrator_type < num_integrators), "");
    MFEM_ASSERT(geometric_levels >= 0, "geometric_level needs to be non-negative");
    MFEM_ASSERT(order_levels >= 0, "order_level needs to be non-negative");
-   MFEM_ASSERT(0.0 < eps_y <= 1.0, "eps_y in (0,1]");
-   MFEM_ASSERT(0.0 < eps_z <= 1.0, "eps_z in (0,1]");
+   MFEM_ASSERT((0.0 <= eps_y) && (eps_y <= 1.0), "eps_y in [0,1]");
+   MFEM_ASSERT((0.0 <= eps_z) && (eps_z <= 1.0), "eps_z in [0,1]");
 
    kappa = freq * M_PI;
 
