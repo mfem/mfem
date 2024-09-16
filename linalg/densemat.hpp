@@ -457,10 +457,12 @@ public:
 
    /// Prints matrix to stream out.
    void Print(std::ostream &out = mfem::out, int width_ = 4) const override;
-   void PrintMatlab(std::ostream &out = mfem::out) const override;
-   void PrintMathematica(std::ostream &out = mfem::out) const override;
    /// Prints the transpose matrix to stream out.
    virtual void PrintT(std::ostream &out = mfem::out, int width_ = 4) const;
+
+   void PrintMatlab(std::ostream &out = mfem::out) const override;
+
+   void PrintMathematica(std::ostream &out = mfem::out) const;
 
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
