@@ -102,7 +102,7 @@ public:
 
 protected:
    void SetupRestrictionOperators(const L2FaceValues m);
-   void MultInternal(const Vector &x, Vector &y, bool ABS = false) const;
+   void MultInternal(const Vector &x, Vector &y, bool useAbs = false) const;
 
    /// @brief Accumulate the action (or transpose) of the integrator on @a x
    /// into @a y, taking into account the (possibly null) @a markers array.
@@ -116,14 +116,14 @@ protected:
    /// @param attributes Array of element or boundary element attributes.
    /// @param transpose Compute the action or transpose of the integrator .
    /// @param y Output E-vector
-   /// @param ABS Apply absolute-value operator
+   /// @param useAbs Apply absolute-value operator
    void AddMultWithMarkers(const BilinearFormIntegrator &integ,
                            const Vector &x,
                            const Array<int> *markers,
                            const Array<int> &attributes,
                            const bool transpose,
                            Vector &y,
-                           bool ABS = false) const;
+                           bool useAbs = false) const;
 
    /// @brief Performs the same function as AddMultWithMarkers, but takes as
    /// input and output face normal derivatives.
@@ -160,10 +160,13 @@ public:
    EABilinearFormExtension(BilinearForm *form);
 
    void Assemble();
-   void Mult(const Vector &x, Vector &y) const;
-   void AbsMult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-   void AbsMultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const { MultInternal(x,y,false); }
+   void AbsMult(const Vector &x, Vector &y) const { MultInternal(x,y, false, true); }
+   void MultTranspose(const Vector &x, Vector &y) const { MultInternal(x,y,true); }
+   void AbsMultTranspose(const Vector &x, Vector &y) const { MultInternal(x,y,true, true); }
+protected:
+   void MultInternal(const Vector &x, Vector &y, bool useTranspose,
+                     bool useAbs = false) const;
 };
 
 /// Data and methods for fully-assembled bilinear forms
