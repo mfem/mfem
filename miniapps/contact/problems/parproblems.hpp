@@ -243,6 +243,7 @@ protected:
    Vector *B = nullptr;
    Vector gapv;
    HypreParMatrix * M=nullptr;
+   HypreParMatrix * Mt=nullptr;
    void SetupTribol();
    void SetupTribolDoublePass();
    std::set<int> mortar_attrs;
@@ -250,13 +251,14 @@ protected:
    std::set<int> nonmortar_attrs;
    bool doublepass = false;
    bool compute_dof_restrictions = false;
+   void ComputeRestrictionToContactDofs();
+   void ComputeRestrictionToNonContactDofs();
 
 public:
    ParContactProblem(ParElasticityProblem * prob_, 
                      const std::set<int> & mortar_attrs_, const std::set<int> & nonmortar_attrs_,
                      ParGridFunction * coords_,
-                      bool doublepass = false,
-                      bool compute_dof_restrictions = false);
+                      bool doublepass = false);
 
    ParElasticityProblem * GetElasticityProblem() {return prob;}
    MPI_Comm GetComm() {return comm;}
@@ -281,16 +283,28 @@ public:
    HypreParMatrix* Ddg(const Vector &d);
    HypreParMatrix* lDddg(const Vector &d, const Vector &l);
 
-   HypreParMatrix * GetRestrictionToInteriorDofs() {return Pi;}
-   HypreParMatrix * GetRestrictionToContactDofs() {return Pb;}
+   HypreParMatrix * GetRestrictionToInteriorDofs() 
+   {
+      if (!Pi)
+      {
+         ComputeRestrictionToNonContactDofs();
+      }
+      return Pi;
+   }
+   HypreParMatrix * GetRestrictionToContactDofs() 
+   {
+      if (!Pb) ComputeRestrictionToContactDofs();
+      return Pb;
+   }
 
    ~ParContactProblem()
    {
       delete B;
       delete K;
       delete M;
-      delete Pi;
-      delete Pb;
+      if (Mt) delete Mt;
+      if (Pi) delete Pi;
+      if (Pb) delete Pb;
    }
 };
 

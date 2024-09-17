@@ -406,6 +406,13 @@ int main(int argc, char *argv[])
    }
 
    ParFiniteElementSpace * fes = prob->GetFESpace();
+   int gndofs = fes->GlobalTrueVSize();
+   if (myid == 0)
+   {
+      mfem::out << "--------------------------------------" << endl;
+      mfem::out << "Global number of dofs = " << gndofs << endl;
+      mfem::out << "--------------------------------------" << endl;
+   }
    ParGridFunction x_gf(fes); x_gf = 0.0;
    ParGridFunction xnew(fes); xnew = 0.0;
    ParaViewDataCollection * paraview_dc = nullptr;
@@ -494,12 +501,13 @@ int main(int argc, char *argv[])
 
       x_gf.SetTrueVector();
       xref.Set(1.0, x_gf.GetTrueVector());
-      bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
       
       chrono.Clear();
       chrono.Start();
-      ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, compute_dof_projections);
+      ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
       
+      bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
+
       int gncols = (compute_dof_projections) ? contact.GetRestrictionToContactDofs()->GetGlobalNumCols() : -1;
       chrono.Stop();
       if (myid == 0)
@@ -568,6 +576,7 @@ int main(int argc, char *argv[])
       double Efinal = contact.E(xf);
       // double Efinal = contact.E(xf_copy);
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
+      Array<double> & DMaxMinRatios  = optimizer.GetDMaxMinRatios();
       CGiter.push_back(CGiterations);
       int gndofs = prob->GetGlobalNumDofs();
       if (Mpi::Root())
@@ -583,7 +592,22 @@ int main(int argc, char *argv[])
          if (linsolver == 2 || linsolver == 3 || linsolver == 4 || linsolver == 6 || linsolver == 7)
          {
             mfem::out << " CG iteration numbers            = " ;
-            CGiterations.Print(mfem::out, CGiterations.Size());
+            for (int i = 0; i < CGiterations.Size(); ++i) 
+            {
+               std::cout << " " << std::setw(7) << CGiterations[i] << " |";
+            }
+            std::cout << std::endl;
+            mfem::out << " D Max / Min Ratios              = " ;
+            std::ios oldState(nullptr);
+            oldState.copyfmt(std::cout);
+            std::cout << std::setprecision(1) << std::scientific;
+            for (int i = 0; i < DMaxMinRatios.Size(); ++i) 
+            {
+               std::cout << " " << DMaxMinRatios[i] << " |";
+            }
+            std::cout << std::endl;
+            std::cout.copyfmt(oldState);
+
          }
          if (outputfiles)
          {

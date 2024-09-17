@@ -50,6 +50,7 @@ protected:
     HypreParMatrix * JmT = nullptr;
 
     Array<int> cgnum_iterations;
+    Array<double> dmaxmin_ratio;
     Array<int> cgnum_iterations_nocontact;
     ParFiniteElementSpace *pfes = nullptr;
     
@@ -80,6 +81,7 @@ public:
     double E(const BlockVector &, const Vector &, const Vector &, bool);
     bool GetConverged() const;
     Array<int> & GetCGIterNumbers() {return cgnum_iterations;}
+    Array<double> & GetDMaxMinRatios() {return dmaxmin_ratio;}
     Array<int> & GetCGNoContactIterNumbers() {return cgnum_iterations_nocontact;}
     int GetNumIterations() {return iter;}
     // TO DO: include Hessian of Lagrangian

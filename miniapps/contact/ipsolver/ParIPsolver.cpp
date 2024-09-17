@@ -305,6 +305,22 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    {
       DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii));
    }
+
+   double dmax = (DiagLogBar.Size() > 0) ? DiagLogBar.Max() : -infinity();
+   double dmin = (DiagLogBar.Size() > 0) ? DiagLogBar.Min() : infinity();
+
+   MPI_Allreduce(MPI_IN_PLACE, &dmax,1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, &dmin,1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+   if (iAmRoot)
+   {
+      mfem::out << "\n D max = " << dmax << endl;
+      mfem::out << " D min = " << dmin << endl;
+      mfem::out << " Ratio = " << dmax/dmin << endl;
+   }
+   dmaxmin_ratio.Append(dmax/dmin);
+
+
    if(saveLogBarrierIterates)
    {
       std::ofstream diagStream;
@@ -515,6 +531,15 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          AreducedSolver->SetPrintLevel(3);
          AreducedSolver->SetOperator(*Areduced);
          AreducedSolver->SetPreconditioner(amg);
+         chrono.Clear();
+         chrono.Start();
+         amg.Setup(breduced, Xhat.GetBlock(0));
+         chrono.Stop();
+         if (iAmRoot)
+         {
+            mfem::out << "AMG Setup time         = " << chrono.RealTime() << endl;
+         }
+         chrono.Clear();         
          chrono.Start();
          AreducedSolver->Mult(breduced, Xhat.GetBlock(0));
          chrono.Stop();
