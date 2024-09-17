@@ -422,8 +422,8 @@ protected:
 
 /**
  * @brief Godunov flux,
- *    F̂ n = min F(u)n    for u⁻ ≤ u⁺, u ∈ [a,b]
- *    F̂ n = max F(u)n    for u⁻ > u⁺, u ∈ [b,a]
+ *    F̂ n = min F(u)n    for u⁻ ≤ u⁺, u ∈ [u⁻,u⁺]
+ *    F̂ n = max F(u)n    for u⁻ > u⁺, u ∈ [u⁺,u⁻]
  * @note The implementation assumes monotonous F in u
  */
 class GodunovFlux : public RiemannSolver
