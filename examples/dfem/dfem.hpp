@@ -616,7 +616,8 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
    {
       const auto P = get_prolongation(fields[i]);
       const int width = P->Width();
-      const Vector x_i(x.GetData() + data_offset, width);
+      // const Vector x_i(x.GetData() + data_offset, width);
+      const Vector x_i(const_cast<Vector&>(x), data_offset, width);
       fields_l[i].SetSize(P->Height());
 
       P->Mult(x_i, fields_l[i]);
@@ -2387,8 +2388,9 @@ public:
                      "number of parameters doesn't match descriptors");
          for (int i = 0; i < num_parameters; i++)
          {
-            // parameters_l[i].MakeRef(*(p[i]), 0, p[i]->Size());
-            parameters_l[i] = *(p[i]);
+            parameters_l[i].MakeRef(*(p[i]), 0, p[i]->Size());
+            // parameters_l[i].UseDevice(true);
+            // parameters_l[i] = *(p[i]);
          }
       }
 

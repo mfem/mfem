@@ -10,6 +10,7 @@
 #include "fem/lor/lor.hpp"
 #include "fem/pfespace.hpp"
 #include "fem/pgridfunc.hpp"
+#include "general/device.hpp"
 #include "linalg/auxiliary.hpp"
 #include "linalg/hypre.hpp"
 #include "linalg/ode.hpp"
@@ -171,13 +172,17 @@ public:
       op(op),
       x(x)
    {
+      x.UseDevice(true);
+      f.UseDevice(true);
+      xpev.UseDevice(true);
+
       f.SetSize(Height());
       xpev.SetSize(Height());
       op.Mult(x, f);
       xnorm = x.Norml2();
    }
 
-   void Mult(const Vector &v, Vector &y) const
+   void Mult(const Vector &v, Vector &y) const override
    {
       // See [1] for choice of eps.
       //
@@ -202,12 +207,78 @@ public:
       }
    }
 
+   virtual MemoryClass GetMemoryClass() const override
+   {
+      return Device::GetDeviceMemoryClass();
+   }
+
 private:
    const Operator &op;
    Vector x, f;
    mutable Vector xpev;
    real_t lambda = 1.0e-6;
    real_t xnorm;
+};
+
+class MassPAOperator : public Operator
+{
+public:
+   MassPAOperator(ParFiniteElementSpace &pfes,
+                  const IntegrationRule &ir,
+                  Coefficient &Q) :
+      Operator(pfes.GetTrueVSize()),
+      comm(pfes.GetParMesh()->GetComm()),
+      dim(pfes.GetMesh()->Dimension()),
+      NE(pfes.GetMesh()->GetNE()),
+      vsize(pfes.GetVSize()),
+      pabf(&pfes),
+      ess_tdofs_count(0),
+      ess_tdofs(0)
+   {
+      pabf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      pabf.AddDomainIntegrator(new mfem::MassIntegrator(Q, &ir));
+      pabf.Assemble();
+      pabf.FormSystemMatrix(mfem::Array<int>(), mass);
+   }
+
+   void SetEssentialTrueDofs(Array<int> &dofs)
+   {
+      ess_tdofs_count = dofs.Size();
+      if (ess_tdofs.Size() == 0)
+      {
+         int ess_tdofs_sz;
+         MPI_Allreduce(&ess_tdofs_count,&ess_tdofs_sz, 1, MPI_INT, MPI_SUM, comm);
+         MFEM_ASSERT(ess_tdofs_sz > 0, "ess_tdofs_sz should be positive!");
+         ess_tdofs.SetSize(ess_tdofs_sz);
+      }
+      if (ess_tdofs_count == 0) { return; }
+      ess_tdofs = dofs;
+   }
+
+   void EliminateRHS(Vector &b) const
+   {
+      if (ess_tdofs_count > 0) { b.SetSubVector(ess_tdofs, 0.0); }
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      mass->Mult(x, y);
+      if (ess_tdofs_count > 0) { y.SetSubVector(ess_tdofs, 0.0); }
+   }
+
+   void FullAddMult(const Vector &x, Vector &y) const
+   {
+      mass->AddMult(x, y);
+   }
+
+   const ParBilinearForm &GetBF() const { return pabf; }
+
+   const MPI_Comm comm;
+   const int dim, NE, vsize;
+   ParBilinearForm pabf;
+   int ess_tdofs_count;
+   Array<int> ess_tdofs;
+   OperatorPtr mass;
 };
 
 class LagrangianHydroJacobianOperator : public Operator
@@ -237,6 +308,9 @@ public:
               std::shared_ptr<dRedv_t> dRedv,
               std::shared_ptr<dRede_t> dRede)
    {
+      w.UseDevice(true);
+      z.UseDevice(true);
+
       w.SetSize(this->height);
       z.SetSize(this->height);
 
@@ -276,7 +350,15 @@ public:
          dRvdv->Mult(wv, zv);
          zv *= h;
          yv += zv;
-         hydro.Mv.TrueAddMult(wv, yv);
+         // hydro.Mv.TrueAddMult(wv, yv);
+         Vector wvc, yvc;
+         for (int c = 0; c < hydro.H1.GetMesh()->Dimension(); c++)
+         {
+            wvc.MakeRef(wv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
+            yvc.MakeRef(yv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
+            hydro.Mv->FullAddMult(wvc, yvc);
+         }
+
          dRvde->Mult(we, zv);
          zv *= h;
          yv += zv;
@@ -303,9 +385,16 @@ public:
 
          dRede->Mult(we, ze);
          ze *= -h;
-         hydro.Me.TrueAddMult(we, ze);
+         // hydro.Me.TrueAddMult(we, ze);
+         hydro.Me->FullAddMult(we, ze);
+
          ye += ze;
       };
+   }
+
+   virtual MemoryClass GetMemoryClass() const override
+   {
+      return Device::GetDeviceMemoryClass();
    }
 
    real_t h;
@@ -327,7 +416,11 @@ public:
       x(x),
       u(x.Size()),
       H1tsize(hydro.H1.GetTrueVSize()),
-      L2tsize(hydro.L2.GetTrueVSize()) {}
+      L2tsize(hydro.L2.GetTrueVSize())
+   {
+      x.UseDevice(true);
+      u.UseDevice(true);
+   }
 
    void Mult(const Vector &k, Vector &R) const override
    {
@@ -358,7 +451,15 @@ public:
 
       hydro.momentum_mf->SetParameters({&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
       hydro.momentum_mf->Mult(uv, Rv);
-      hydro.Mv.TrueAddMult(kv, Rv);
+      // hydro.Mv.TrueAddMult(kv, Rv);
+      Vector kvc, Rvc;
+      for (int c = 0; c < hydro.H1.GetMesh()->Dimension(); c++)
+      {
+         kvc.MakeRef(kv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
+         Rvc.MakeRef(Rv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
+         hydro.Mv->FullAddMult(kvc, Rvc);
+      }
+
       Rv.SetSubVector(hydro.ess_tdof, 0.0);
       // Rv = 0.0;
 
@@ -375,10 +476,13 @@ public:
          DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &hydro.ir);
          e_source.AddDomainIntegrator(d);
          e_source.Assemble();
+         e_source.UseDevice(true);
+
          Re -= e_source;
       }
 
-      hydro.Me.TrueAddMult(ke, Re);
+      // hydro.Me.TrueAddMult(ke, Re);
+      hydro.Me->FullAddMult(ke, Re);
 
       hydro.qdata_is_current = false;
    }
@@ -402,18 +506,23 @@ public:
       u *= dt;
       u += x;
 
-      auto dRvdx = hydro.momentum_mf->template GetDerivativeWrt<3>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
-      auto dRvdv = hydro.momentum_mf->template GetDerivativeWrt<0>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
-      auto dRvde = hydro.momentum_mf->template GetDerivativeWrt<5>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
-      auto dRedx = hydro.energy_conservation_mf->template GetDerivativeWrt<4>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
-      auto dRedv = hydro.energy_conservation_mf->template GetDerivativeWrt<1>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
-      auto dRede = hydro.energy_conservation_mf->template GetDerivativeWrt<0>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
+      // auto dRvdx = hydro.momentum_mf->template GetDerivativeWrt<3>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
+      // auto dRvdv = hydro.momentum_mf->template GetDerivativeWrt<0>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
+      // auto dRvde = hydro.momentum_mf->template GetDerivativeWrt<5>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
+      // auto dRedx = hydro.energy_conservation_mf->template GetDerivativeWrt<4>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
+      // auto dRedv = hydro.energy_conservation_mf->template GetDerivativeWrt<1>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
+      // auto dRede = hydro.energy_conservation_mf->template GetDerivativeWrt<0>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
 
-      jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede);
-      return *jacobian;
+      // jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede);
+      // return *jacobian;
 
-      // fd_jacobian.reset(new FDJacobian(*this, k));
-      // return *fd_jacobian;
+      fd_jacobian.reset(new FDJacobian(*this, k));
+      return *fd_jacobian;
+   }
+
+   virtual MemoryClass GetMemoryClass() const override
+   {
+      return Device::GetDeviceMemoryClass();
    }
 
    hydro_t &hydro;
@@ -454,6 +563,7 @@ public:
       std::shared_ptr<QuadratureData> qdata) :
       TimeDependentOperator(2*H1.GetVSize()+L2.GetVSize()),
       H1(H1),
+      H1c(H1.GetParMesh(), H1.FEColl(), 1),
       L2(L2),
       ess_tdof(ess_tdof),
       ir(ir),
@@ -469,34 +579,49 @@ public:
       density_mf(density_mf),
       qdata(qdata),
       mesh_nodes(&H1),
-      Mx(&H1),
-      Mv(&H1),
-      Me(&L2),
       RHSv(H1.GetTrueVSize()),
       rhsv(H1.GetVSize()),
       X(2*H1.GetTrueVSize()+L2.GetTrueVSize()),
       Xv(H1.GetTrueVSize()),
+      Xvc(H1c.GetTrueVSize()),
       Xe(L2.GetTrueVSize()),
       K(2*H1.GetTrueVSize()+L2.GetTrueVSize()),
-      B(H1.GetTrueVSize()),
-      dE(L2.GetTrueVSize()),
+      B(H1c.GetTrueVSize()),
       RHSe(L2.GetTrueVSize()),
       rhse(L2.GetVSize()),
+      rhsvc(&H1c),
+      dvc(&H1c),
       nl2dofs(L2.GetFE(0)->GetDof())
    {
-      VectorMassIntegrator *vmi = new VectorMassIntegrator;
-      vmi->SetIntRule(&ir);
-      vmi->SetVDim(2);
-      Mx.AddDomainIntegrator(vmi);
-      Mx.Assemble();
+      RHSv.UseDevice(true);
+      rhsv.UseDevice(true);
+      X.UseDevice(true);
+      Xe.UseDevice(true);
+      RHSe.UseDevice(true);
+      rhse.UseDevice(true);
 
-      vmi = new VectorMassIntegrator(rho0_coeff, &ir);
-      Mv.AddDomainIntegrator(vmi);
-      Mv.Assemble();
+      Mv = new MassPAOperator(H1c, ir, rho0_coeff);
+      Array<int> empty_tdofs;
+      Mv_Jprec = new OperatorJacobiSmoother(Mv->GetBF(), empty_tdofs);
 
-      MassIntegrator *mi = new MassIntegrator(rho0_coeff, &ir);
-      Me.AddDomainIntegrator(mi);
-      Me.Assemble();
+      Me = new MassPAOperator(L2, ir, rho0_coeff);
+
+      // Inside the above constructors for mass, there is reordering of the mesh
+      // nodes which is performed on the host. Since the mesh nodes are a
+      // subvector, so we need to sync with the rest of the base vector (which
+      // is assumed to be in the memory space used by the mfem::Device).
+      H1.GetParMesh()->GetNodes()->ReadWrite();
+      // Attributes 1/2/3 correspond to fixed-x/y/z boundaries, i.e.,
+      // we must enforce v_x/y/z = 0 for the velocity components.
+      const int bdr_attr_max = H1.GetMesh()->bdr_attributes.Max();
+      Array<int> ess_bdr(bdr_attr_max);
+      for (int c = 0; c < H1.GetMesh()->Dimension(); c++)
+      {
+         ess_bdr = 0;
+         ess_bdr[c] = 1;
+         H1c.GetEssentialTrueDofs(ess_bdr, c_tdofs[c]);
+         c_tdofs[c].Read();
+      }
    }
 
    void Mult(const Vector &S, Vector &dSdt) const override
@@ -529,23 +654,44 @@ public:
          RHSv.Neg();
          H1.GetRestrictionMatrix()->MultTranspose(RHSv, rhsv);
 
-         HypreParMatrix A;
-         Mv.FormLinearSystem(ess_tdof, dv, rhsv, A, Xv, B);
+         // solve for each velocity component
+         const int size = H1c.GetVSize();
+         const Operator *Pconf = H1c.GetProlongationMatrix();
+         for (int c = 0; c < H1.GetMesh()->Dimension(); c++)
+         {
+            dvc.MakeRef(&H1c, dSdt, H1vsize + c*size);
+            rhsvc.MakeRef(&H1c, rhsv, c*size);
+            if (Pconf)
+            {
+               Pconf->MultTranspose(rhsvc, B);
+            }
+            else
+            {
+               B = rhsvc;
+            }
 
-         CGSolver cg(H1.GetParMesh()->GetComm());
-         HypreSmoother prec;
-         prec.SetType(HypreSmoother::Jacobi, 1);
-         cg.SetPreconditioner(prec);
-         cg.SetOperator(A);
-         cg.SetRelTol(1e-8);
-         cg.SetAbsTol(0.0);
-         cg.SetMaxIter(300);
-         cg.SetPrintLevel(-1);
-         cg.Mult(B, Xv);
-         Mv.RecoverFEMSolution(Xv, rhsv, dv);
+            CGSolver cg(H1c.GetParMesh()->GetComm());
+            cg.SetPreconditioner(*Mv_Jprec);
+            cg.SetOperator(*Mv);
+            cg.SetRelTol(1e-8);
+            cg.SetAbsTol(0.0);
+            cg.SetMaxIter(300);
+            cg.SetPrintLevel(-1);
 
-         // print_vector(Xv);
-         // print_vector(dv);
+            H1c.GetRestrictionMatrix()->Mult(dvc, Xvc);
+            Mv->SetEssentialTrueDofs(c_tdofs[c]);
+            Mv->EliminateRHS(B);
+            cg.Mult(B, Xvc);
+            if (Pconf)
+            {
+               Pconf->Mult(Xvc, dvc);
+            }
+            else
+            {
+               dvc = Xvc;
+            }
+            dvc.GetMemory().SyncAlias(dSdt.GetMemory(), dvc.Size());
+         }
       }
 
       // solve energy
@@ -556,9 +702,6 @@ public:
          L2.GetRestrictionMatrix()->Mult(e, Xe);
          energy_conservation_mf->Mult(Xe, RHSe);
          L2.GetRestrictionMatrix()->MultTranspose(RHSe, rhse);
-
-         // out << ">>> rhse\n";
-         // print_vector(rhse);
 
          if (problem == 0)
          {
@@ -571,25 +714,15 @@ public:
             rhse += e_source;
          }
 
-         HypreParMatrix A;
-         Array<int> empty;
-         Me.FormSystemMatrix(empty, A);
-
-         CGSolver cg(H1.GetParMesh()->GetComm());
-         HypreSmoother prec;
-         prec.SetType(HypreSmoother::Jacobi, 1);
-         cg.SetPreconditioner(prec);
-         cg.SetOperator(A);
+         CGSolver cg(L2.GetParMesh()->GetComm());
+         cg.SetOperator(*Me);
+         cg.iterative_mode = false;
          cg.SetRelTol(1e-8);
          cg.SetAbsTol(0.0);
          cg.SetMaxIter(300);
          cg.SetPrintLevel(-1);
-         cg.Mult(rhse, Xe);
-         L2.GetProlongationMatrix()->Mult(Xe, de);
-
-         // print_vector(Xe);
-         // out << ">>> de\n";
-         // print_vector(de);
+         cg.Mult(rhse, de);
+         de.GetMemory().SyncAlias(dSdt.GetMemory(), de.Size());
       }
    }
 
@@ -690,8 +823,9 @@ public:
 
    real_t InternalEnergy(ParGridFunction &e)
    {
+      const auto mt = Device::GetDeviceMemoryType();
+      Vector E(L2.GetTrueVSize(), mt), Y(L2.GetTrueVSize(), mt);
       total_internal_energy_mf->SetParameters({&rho0, &x0});
-      Vector E(L2.GetTrueVSize()), Y(L2.GetTrueVSize());
       L2.GetRestrictionMatrix()->Mult(e, E);
       total_internal_energy_mf->Mult(E, Y);
       const real_t ie_local = Y.Sum();
@@ -703,8 +837,9 @@ public:
 
    real_t KineticEnergy(ParGridFunction &v)
    {
+      const auto mt = Device::GetDeviceMemoryType();
+      Vector V(H1.GetTrueVSize(), mt), Y(L2.GetTrueVSize(), mt);
       total_kinetic_energy_mf->SetParameters({&rho0, &x0});
-      Vector V(H1.GetTrueVSize()), Y(L2.GetTrueVSize()), y(L2.GetVSize());
       H1.GetRestrictionMatrix()->Mult(v, V);
       total_kinetic_energy_mf->Mult(V, Y);
       const real_t ke_local = Y.Sum();
@@ -716,9 +851,16 @@ public:
 
    void ComputeDensity(ParGridFunction &rho) { }
 
+   virtual MemoryClass GetMemoryClass() const override
+   {
+      return Device::GetDeviceMemoryClass();
+   }
+
    ParFiniteElementSpace &H1;
    ParFiniteElementSpace &L2;
+   mutable ParFiniteElementSpace H1c;
    const Array<int> &ess_tdof;
+   mutable Array<int> c_tdofs[3];
    const IntegrationRule &ir;
    ParGridFunction &x0;
    ParGridFunction &rho0;
@@ -731,10 +873,11 @@ public:
    std::shared_ptr<density_mf_t> density_mf;
    std::shared_ptr<QuadratureData> qdata;
    mutable bool qdata_is_current = false;
-   mutable ParGridFunction mesh_nodes;
-   mutable ParBilinearForm Mx, Mv, Me;
+   mutable ParGridFunction mesh_nodes, rhsvc, dvc;
+   mutable MassPAOperator *Mv = nullptr, *Me = nullptr;
    mutable FunctionCoefficient rho0_coeff;
-   mutable Vector RHSv, rhsv, X, Xx, Xv, Xe, K, Kx, Kv, Ke, B, RHSe, rhse, dE;
+   OperatorJacobiSmoother *Mv_Jprec = nullptr;
+   mutable Vector RHSv, rhsv, X, Xx, Xv, Xvc, Xe, K, Kx, Kv, Ke, B, RHSe, rhse;
    const int nl2dofs;
 };
 
@@ -1132,7 +1275,8 @@ int main(int argc, char *argv[])
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
                   "            7 - RK2Avg."
                   "            11 - Backward Euler"
-                  "            12 - Implicit Midpoint");
+                  "            12 - Implicit Midpoint"
+                  "            13 - SDIRK33Solver");
    args.ParseCheck();
 
    Device device(device_config);
@@ -1211,7 +1355,7 @@ int main(int argc, char *argv[])
    offset[1] = offset[0] + Vsize_h1;
    offset[2] = offset[1] + Vsize_h1;
    offset[3] = offset[2] + Vsize_l2;
-   BlockVector S(offset, Device::GetMemoryType());
+   BlockVector S(offset, Device::GetDeviceMemoryType());
 
    ParGridFunction x_gf, v_gf, e_gf;
    x_gf.MakeRef(&H1FESpace, S, offset[0]);
@@ -1357,6 +1501,7 @@ int main(int argc, char *argv[])
       case 6: ode_solver = new RK6Solver; break;
       case 11: ode_solver = new BackwardEulerSolver; break;
       case 12: ode_solver = new ImplicitMidpointSolver; break;
+      case 13: ode_solver = new SDIRK33Solver; break;
       default:
          out << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return -1;
@@ -1385,9 +1530,12 @@ int main(int argc, char *argv[])
 
    ParGridFunction verr_gf(v_gf);
    verr_gf.ProjectCoefficient(v_coeff);
+   v_gf.SyncAliasMemory(S);
+   v_gf.HostRead();
+   verr_gf.HostReadWrite();
    for (int i = 0; i < verr_gf.Size(); i++)
    {
-      verr_gf(i) = abs(verr_gf(i) - v_gf(i));
+      verr_gf(i) = abs(verr_gf(i) - std::as_const(v_gf)(i));
    }
 
    ParaViewDataCollection paraview_dc("dfem", &mesh);
@@ -1401,7 +1549,7 @@ int main(int argc, char *argv[])
    // paraview_dc.RegisterField("density", &rho_gf);
    paraview_dc.RegisterField("specific_internal_energy", &e_gf);
    paraview_dc.RegisterField("material", &material_gf);
-   paraview_dc.RegisterField("velocity_error", &verr_gf);
+   // paraview_dc.RegisterField("velocity_error", &verr_gf);
 
    paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0);
@@ -1459,11 +1607,11 @@ int main(int argc, char *argv[])
          out << std::endl;
       }
 
-      verr_gf.ProjectCoefficient(v_coeff);
-      for (int i = 0; i < verr_gf.Size(); i++)
-      {
-         verr_gf(i) = abs(verr_gf(i) - v_gf(i));
-      }
+      // verr_gf.ProjectCoefficient(v_coeff);
+      // for (int i = 0; i < verr_gf.Size(); i++)
+      // {
+      //    verr_gf(i) = abs(verr_gf(i) - v_gf(i));
+      // }
 
       // hydro.ComputeDensity(rho_gf);
 

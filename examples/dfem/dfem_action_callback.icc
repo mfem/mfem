@@ -1,5 +1,3 @@
-#include "examples/dfem/dfem.hpp"
-#include "general/backends.hpp"
 template <
    typename kernels_tuple,
    size_t num_solutions,
@@ -103,7 +101,7 @@ void DifferentiableOperator<kernels_tuple,
 
    Vector shmem_cache(shmem_info.total_size);
 
-   print_shared_memory_info(shmem_info);
+   // print_shared_memory_info(shmem_info);
 
    func = [=](Vector &ye_mem) mutable
    {

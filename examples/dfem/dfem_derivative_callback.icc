@@ -106,7 +106,7 @@ void DifferentiableOperator<kernels_tuple,
 
    Vector shmem_cache(shmem_info.total_size);
 
-   print_shared_memory_info(shmem_info);
+   // print_shared_memory_info(shmem_info);
 
    func = [=](Vector &ye_mem) mutable
    {
@@ -196,15 +196,15 @@ void DifferentiableOperator<kernels_tuple,
                auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
 
                auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
-               apply_kernel_fwddiff_enzyme(
-                  r,
-                  kernel.func,
-                  kernel_args,
-                  input_shmem,
-                  kernel_shadow_args,
-                  shadow_shmem,
-                  q);
-               // printf(">>>>> WARNING: AD DISABLED\n");
+               // apply_kernel_fwddiff_enzyme(
+               //    r,
+               //    kernel.func,
+               //    kernel_args,
+               //    input_shmem,
+               //    kernel_shadow_args,
+               //    shadow_shmem,
+               //    q);
+               printf(">>>>> WARNING: AD DISABLED\n");
             }
          }
          MFEM_SYNC_THREAD;
