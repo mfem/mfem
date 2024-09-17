@@ -2612,6 +2612,25 @@ public:
                                        DenseMatrix &elmat);
 };
 
+/// Integrator for (Q u.n, v.n) for RT elements
+class VectorFEBoundaryFluxIntegrator : public BilinearFormIntegrator
+{
+   Coefficient *Q;
+#ifndef MFEM_THREAD_SAFE
+   Vector shape, te_shape;
+#endif
+public:
+   VectorFEBoundaryFluxIntegrator() { Q = NULL; }
+   VectorFEBoundaryFluxIntegrator(Coefficient &q) { Q = &q; }
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
+};
+
 /// Class for integrating $ (Q \partial_i(u), v) $ where $u$ and $v$ are scalars
 class DerivativeIntegrator : public BilinearFormIntegrator
 {

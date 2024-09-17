@@ -73,6 +73,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_AMGX
       "MFEM_USE_AMGX\n"
 #endif
+#ifdef MFEM_USE_MAGMA
+      "MFEM_USE_MAGMA\n"
+#endif
 #ifdef MFEM_USE_CEED
       "MFEM_USE_CEED\n"
 #endif
