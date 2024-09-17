@@ -2524,6 +2524,7 @@ class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:
    Coefficient *Q;
+   real_t alpha;
 
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
@@ -2545,8 +2546,8 @@ private:
    int dim, ne, dofs1D, L2dofs1D, quad1D;
 
 public:
-   VectorFEDivergenceIntegrator() { Q = NULL; }
-   VectorFEDivergenceIntegrator(Coefficient &q) { Q = &q; }
+   VectorFEDivergenceIntegrator(real_t a = 1.0) { alpha = a; Q = NULL; }
+   VectorFEDivergenceIntegrator(Coefficient &q,real_t a = 1.0) { alpha = a;  Q = &q; }
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat) { }
@@ -2585,6 +2586,34 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 };
+
+
+/** Integrator for $(Q \nabla u, v)$ for ND/RT ($v$) and $H^1$ ($u$) elements. */
+class VectorFEGradIntegrator: public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+
+private:
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape;
+   DenseMatrix dshapedxt;
+   DenseMatrix vshape;
+   DenseMatrix invdfdx;
+#endif
+
+public:
+   VectorFEGradIntegrator() { Q = NULL; }
+   VectorFEGradIntegrator(Coefficient &q) { Q = &q; }
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat) { }
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+};
+
 
 /** Integrator for $(\mathrm{curl}(u), v)$ for Nedelec and Raviart-Thomas elements. If the trial and
     test spaces are switched, assembles the form $(u, \mathrm{curl}(v))$. */
@@ -2836,6 +2865,68 @@ public:
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
+
+/** Integrator for $(Q u, v)$, where $Q$ is an optional coefficient (of type scalar,
+    vector (diagonal matrix), or matrix), trial function $u$ is in $H(curl$ or
+    $H(div)$, and test function $v$ is in $H(curl$, $H(div)$, or $v=(v_1,\dots,v_n)$, where
+    $v_i$ are in $H^1$. */
+class VectorFEDiffusionIntegrator: public BilinearFormIntegrator
+{
+private:
+   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq)
+   { Q = q; DQ = dq; MQ = mq; }
+
+#ifndef MFEM_THREAD_SAFE
+   // Vector shape;
+   Vector D;
+   DenseMatrix K;
+   // DenseMatrix partelmat;
+   DenseTensor test_dvshape;
+   DenseTensor trial_dvshape;
+#endif
+
+protected:
+   Coefficient *Q;
+   DiagonalMatrixCoefficient *DQ;
+   MatrixCoefficient *MQ;
+
+   // PA extension
+   //  Vector pa_data;
+   //  const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   //  const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   //  const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
+   //  const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
+   // const GeometricFactors *geom;   ///< Not owned
+   // int dim, ne, nq, dofs1D, dofs1Dtest, quad1D, trial_fetype, test_fetype;
+   // bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+
+public:
+   VectorFEDiffusionIntegrator() { Init(NULL, NULL, NULL); }
+   VectorFEDiffusionIntegrator(Coefficient *q_) { Init(q_, NULL, NULL); }
+   VectorFEDiffusionIntegrator(Coefficient &q) { Init(&q, NULL, NULL); }
+   VectorFEDiffusionIntegrator(DiagonalMatrixCoefficient *dq_) { Init(NULL, dq_, NULL); }
+   VectorFEDiffusionIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL); }
+   VectorFEDiffusionIntegrator(MatrixCoefficient *mq_) { Init(NULL, NULL, mq_); }
+   VectorFEDiffusionIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+   // virtual void AssemblePA(const FiniteElementSpace &fes);
+   // virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+   //                         const FiniteElementSpace &test_fes);
+   // virtual void AddMultPA(const Vector &x, Vector &y) const;
+   // virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+   // virtual void AssembleDiagonalPA(Vector& diag);
+
+   const Coefficient *GetCoefficient() const { return Q; }
+};
+
 
 /** Integrator for $(Q \nabla \cdot u, v)$ where $u=(u_1,\cdots,u_n)$ and all $u_i$ are in the same
     scalar FE space; $v$ is also in a (different) scalar FE space.  */
@@ -3281,6 +3372,9 @@ protected:
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
+   // these are not thread-safe!
+   DenseMatrix vshape1, vshape2, dvshape1dn, dvshape2dn;
+   DenseTensor dvshape1, dvshape2;
 
    // PA extension
    Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
@@ -3542,7 +3636,7 @@ public:
                                 DenseMatrix &elmat);
 };
 
-/** Integrator for the form: $ \langle v, w \cdot n \rangle $ over a face (the interface) where
+/** Integrator for the form: $ \alpha \langle v, w \cdot n \rangle $ over a face (the interface) where
     the trial variable $v$ is defined on the interface ($H^{1/2}$, i.e., trace of $H^1$)
     and the test variable $w$ is in an $H(div)$-conforming space. */
 class NormalTraceIntegrator : public BilinearFormIntegrator
@@ -3550,14 +3644,25 @@ class NormalTraceIntegrator : public BilinearFormIntegrator
 private:
    Vector face_shape, normal, shape_n;
    DenseMatrix shape;
+   real_t alpha;
 
 public:
-   NormalTraceIntegrator() { }
+   NormalTraceIntegrator(real_t a = 1.0) : alpha(a) { }
    virtual void AssembleTraceFaceMatrix(int ielem,
                                         const FiniteElement &trial_face_fe,
                                         const FiniteElement &test_fe,
                                         FaceElementTransformations &Trans,
                                         DenseMatrix &elmat);
+
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat)
+   {
+      AssembleTraceFaceMatrix(Trans.Elem1->ElementNo,
+                              trial_face_fe, test_fe1, Trans,elmat);
+   }
 };
 
 

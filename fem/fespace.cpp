@@ -95,6 +95,37 @@ FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
    Constructor(mesh_, nurbs_ext, fec_, orig.vdim, orig.ordering);
 }
 
+FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
+                                       const FiniteElementCollection *fec,
+                                       int vdim, int ordering)
+{
+   const NURBSFECollection *nurbs_fec =
+      dynamic_cast<const NURBSFECollection *>(fec);
+   if (!nurbs_fec)
+   {
+      Constructor(mesh, NULL, fec, vdim, ordering);
+   }
+   else if (mesh->NURBSext)
+   {
+      if (fec->GetOrder() == mesh->NURBSext->GetOrder())
+      {
+         Constructor(mesh, NULL, fec, vdim, ordering);
+      }
+      else
+      {
+         Constructor(mesh,
+                     new NURBSExtension(mesh->NURBSext, fec->GetOrder()),
+                     fec, vdim, ordering);
+      }
+
+   }
+   else
+   {
+      MFEM_ABORT("NURBSFECollection requires a NURBS-based mesh.");
+   }
+}
+
+
 void FiniteElementSpace::CopyProlongationAndRestriction(
    const FiniteElementSpace &fes, const Array<int> *perm)
 {
@@ -2470,19 +2501,21 @@ void FiniteElementSpace::UpdateNURBS()
 
    if (dynamic_cast<const NURBS_HDivFECollection *>(fec))
    {
+      bool H1 = dynamic_cast<const NURBS_HDivH1FECollection *>(fec);
       VNURBSext.SetSize(mesh->Dimension());
       for (int d = 0; d < mesh->Dimension(); d++)
       {
-         VNURBSext[d] = NURBSext->GetDivExtension(d);
+         VNURBSext[d] = NURBSext->GetDivExtension(d, H1);
       }
    }
 
    if (dynamic_cast<const NURBS_HCurlFECollection *>(fec))
    {
+      bool H1 = dynamic_cast<const NURBS_HDivH1FECollection *>(fec);
       VNURBSext.SetSize(mesh->Dimension());
       for (int d = 0; d < mesh->Dimension(); d++)
       {
-         VNURBSext[d] = NURBSext->GetCurlExtension(d);
+         VNURBSext[d] = NURBSext->GetCurlExtension(d,H1);
       }
    }
 

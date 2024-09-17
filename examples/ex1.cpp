@@ -139,11 +139,11 @@ int main(int argc, char *argv[])
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
+   FECollection *fec;
    bool delete_fec;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
+      fec = FECollection::NewH1(order, dim, mesh.NURBSext);
       delete_fec = true;
    }
    else if (mesh.GetNodes())
@@ -157,6 +157,7 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
       delete_fec = true;
    }
+
    FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;

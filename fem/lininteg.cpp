@@ -221,9 +221,49 @@ void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
 
       el.CalcShape(ip, shape);
 
-      elvect.Add(ip.weight*(Qvec*nor), shape);
+      elvect.Add(ip.weight*(Qvec*nor)*alpha, shape);
    }
 }
+
+void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   int dim = el.GetDim();
+   int dof = el.GetDof();
+   Vector nor(dim), Qvec;
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetAllIntPoints(&ip);
+      if (dim > 1)
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+      else
+      {
+         nor[0] = 1.0;
+      }
+      Q.Eval(Qvec, *Tr.Elem1, ip);
+
+      el.CalcShape(ip, shape);
+
+      elvect.Add(ip.weight*(Qvec*nor)*alpha, shape);
+   }
+}
+
 
 void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
@@ -831,10 +871,6 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       mq.SetSize(dim);
    }
 
-   shape.SetSize(ndof);
-   dshape.SetSize(ndof, dim);
-   dshape_dn.SetSize(ndof);
-
    elvect.SetSize(ndof);
    elvect = 0.0;
 
@@ -846,53 +882,121 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
-   for (int p = 0; p < ir->GetNPoints(); p++)
+   if (el.GetRangeType() == mfem::FiniteElement::SCALAR)
    {
-      const IntegrationPoint &ip = ir->IntPoint(p);
+      shape.SetSize(ndof);
+      dshape.SetSize(ndof, dim);
+      dshape_dn.SetSize(ndof);
 
-      // Set the integration point in the face and the neighboring element
-      Tr.SetAllIntPoints(&ip);
-
-      // Access the neighboring element's integration point
-      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
-
-      if (dim == 1)
+      for (int p = 0; p < ir->GetNPoints(); p++)
       {
-         nor(0) = 2*eip.x - 1.0;
-      }
-      else
-      {
-         CalcOrtho(Tr.Jacobian(), nor);
-      }
+         const IntegrationPoint &ip = ir->IntPoint(p);
 
-      el.CalcShape(eip, shape);
-      el.CalcDShape(eip, dshape);
+         // Set the integration point in the face and the neighboring element
+         Tr.SetAllIntPoints(&ip);
 
-      // compute uD through the face transformation
-      w = ip.weight * uD->Eval(Tr, ip) / Tr.Elem1->Weight();
-      if (!MQ)
-      {
-         if (Q)
+         // Access the neighboring element's integration point
+         const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+         if (dim == 1)
          {
-            w *= Q->Eval(*Tr.Elem1, eip);
+            nor(0) = 2*eip.x - 1.0;
          }
-         ni.Set(w, nor);
-      }
-      else
-      {
-         nh.Set(w, nor);
-         MQ->Eval(mq, *Tr.Elem1, eip);
-         mq.MultTranspose(nh, ni);
-      }
-      CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
-      adjJ.Mult(ni, nh);
+         else
+         {
+            CalcOrtho(Tr.Jacobian(), nor);
+         }
 
-      dshape.Mult(nh, dshape_dn);
-      elvect.Add(sigma, dshape_dn);
+         el.CalcShape(eip, shape);
+         el.CalcDShape(eip, dshape);
 
-      if (kappa_is_nonzero)
+         // compute uD through the face transformation
+         w = ip.weight * uD->Eval(Tr, ip) / Tr.Elem1->Weight();
+         if (!MQ)
+         {
+            if (Q)
+            {
+               w *= Q->Eval(*Tr.Elem1, eip);
+            }
+            ni.Set(w, nor);
+         }
+         else
+         {
+            nh.Set(w, nor);
+            MQ->Eval(mq, *Tr.Elem1, eip);
+            mq.MultTranspose(nh, ni);
+         }
+         CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
+         adjJ.Mult(ni, nh);
+
+         dshape.Mult(nh, dshape_dn);
+         elvect.Add(sigma, dshape_dn);
+
+         if (kappa_is_nonzero)
+         {
+            elvect.Add(kappa*(ni*nor), shape);
+         }
+      }
+   }
+   else
+   {
+      Vector val(dim);
+      vshape.SetSize(ndof, dim);
+      dvshape.SetSize(ndof, dim, dim);
+      dvshape_dn.SetSize(ndof, dim);
+      DenseMatrix dvshape_flat;
+      dvshape.GetDenseMatrix2(dvshape_flat);
+      Vector dvshape_dn_flat(dvshape_dn.GetData(),ndof*dim);
+      Vector vshape_flat(vshape.GetData(),ndof*dim);
+
+      for (int p = 0; p < ir->GetNPoints(); p++)
       {
-         elvect.Add(kappa*(ni*nor), shape);
+         const IntegrationPoint &ip = ir->IntPoint(p);
+
+         // Set the integration point in the face and the neighboring element
+         Tr.SetAllIntPoints(&ip);
+
+         // Access the neighboring element's integration point
+         const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+         if (dim == 1)
+         {
+            nor(0) = 2*eip.x - 1.0;
+         }
+         else
+         {
+            CalcOrtho(Tr.Jacobian(), nor);
+         }
+
+         el.CalcVShape(*Tr.Elem1, vshape);
+         el.CalcPhysDVShape(*Tr.Elem1, dvshape);
+
+         // compute uD through the face transformation
+         vD->Eval(val, Tr, ip);
+         w = ip.weight;
+
+         if (!MQ)
+         {
+            if (Q)
+            {
+               w *= Q->Eval(*Tr.Elem1, eip);
+            }
+            ni.Set(w, nor);
+         }
+         else
+         {
+            nh.Set(w, nor);
+            MQ->Eval(mq, *Tr.Elem1, eip);
+            mq.MultTranspose(nh, ni);
+         }
+         dvshape_flat.Mult(ni, dvshape_dn_flat);
+         dvshape_dn.AddMult(val, elvect, sigma);
+
+         if (kappa_is_nonzero)
+         {
+            real_t hn = Tr.Elem1->Weight()/Tr.Weight();
+            vshape.AddMult(val, elvect, kappa*(ni*nor)/(Tr.Weight()*hn));
+         }
       }
    }
 }
