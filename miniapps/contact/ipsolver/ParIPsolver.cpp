@@ -588,27 +588,27 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             std::cout << std::string(50,'-') << endl;
          } 
          HypreParMatrix * Pb = problem->GetRestrictionToContactDofs();
-         TwoLevelAMGSolver * prec = new TwoLevelAMGSolver(*Areduced, *Pb);
-         prec->SetAMGRelaxTypre(relax_type);
+         TwoLevelAMGSolver prec(*Areduced, *Pb);
+         prec.SetAMGRelaxType(relax_type);
          if (linSolver == 7) 
          { 
-            prec->EnableAdditiveCoupling(); 
+            prec.EnableAdditiveCoupling(); 
          }
          else
          {
-            prec->EnableMultiplicativeCoupling(); 
+            prec.EnableMultiplicativeCoupling(); 
          }
-         CGSolver * AreducedSolver = new CGSolver(MPI_COMM_WORLD);
-         AreducedSolver->SetRelTol(linSolveRelTol);
-         AreducedSolver->SetMaxIter(50000);
-         AreducedSolver->SetPrintLevel(3);
-         AreducedSolver->SetOperator(*Areduced);
-         AreducedSolver->SetPreconditioner(*prec);
+         CGSolver AreducedSolver(MPI_COMM_WORLD);
+         AreducedSolver.SetRelTol(linSolveRelTol);
+         AreducedSolver.SetMaxIter(50000);
+         AreducedSolver.SetPrintLevel(3);
+         AreducedSolver.SetOperator(*Areduced);
+         AreducedSolver.SetPreconditioner(prec);
          chrono.Clear();
          chrono.Start();
-         AreducedSolver->Mult(breduced, Xhat.GetBlock(0));
+         AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          chrono.Stop();
-         int n = AreducedSolver->GetNumIterations();
+         int n = AreducedSolver.GetNumIterations();
          if (iAmRoot)
          {
             mfem::out << "CG Mult total time     = " << chrono.RealTime() << endl;
@@ -617,7 +617,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          if (iAmRoot)
          {
             std::cout << std::string(50,'-') << "\n" << endl;
-            if (!AreducedSolver->GetConverged())
+            if (!AreducedSolver.GetConverged())
             {
                if (iAmRoot)
                {
@@ -626,10 +626,8 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
                }
             }
          }
-         MFEM_VERIFY(AreducedSolver->GetConverged(), "PCG solver did not converge");
+         MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
          cgnum_iterations.Append(n);
-         delete AreducedSolver;
-         
       }
       // BlockDiagonalPrecoditioner [amg(Aᵢᵢ) 0; 0 A⁻¹ⱼⱼ]
       else // if linsolver == 3 or 4

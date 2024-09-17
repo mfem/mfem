@@ -139,7 +139,8 @@ void ParContactProblem::SetupTribol()
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
    
    HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
-   Mfull->EliminateCols(prob->GetEssentialDofs());
+   HypreParMatrix * Me = Mfull->EliminateCols(prob->GetEssentialDofs());
+   delete Me;
    int h = Mfull->Height();
    SparseMatrix merged;
    Mfull->MergeDiagAndOffd(merged);
@@ -184,6 +185,7 @@ void ParContactProblem::SetupTribol()
    M = new HypreParMatrix(Mfull->GetComm(), nrows, glob_nrows,
                           glob_ncols, reduced_merged->GetI(), reduced_merged->GetJ(),
                           reduced_merged->GetData(), rows,cols); 
+   delete reduced_merged;                          
 
    Vector gap;
    tribol::getMfemGap(coupling_scheme_id, gap);

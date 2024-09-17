@@ -34,7 +34,7 @@ public:
     void SetTransferMap(const Operator & P_);
     void EnableAdditiveCoupling() { additive = true; }
     void EnableMultiplicativeCoupling() { additive = false; }
-    void SetAMGRelaxTypre(int relax_type_) { relax_type = relax_type_;  }
+    void SetAMGRelaxType(int relax_type_) { relax_type = relax_type_;  }
 
     virtual void Mult(const Vector & y, Vector & x) const; 
 
