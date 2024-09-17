@@ -1049,7 +1049,7 @@ void EABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
-      MFEM_ASSERT(useAbs, "AbsMult not implemented with Face integrators");
+      MFEM_ASSERT(!useAbs, "AbsMult not implemented with Face integrators");
       // Apply the Interior Face Restriction
       // TODO: AbsMult if needed
       int_face_restrict_lex->Mult(x, int_face_X);
@@ -1170,7 +1170,7 @@ void EABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
    const int bFISz = bdrFaceIntegrators.Size();
    if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
    {
-      MFEM_ASSERT(useAbs, "AbsMult not implemented with Face integrators");
+      MFEM_ASSERT(!useAbs, "AbsMult not implemented with Face integrators");
       // Apply the Boundary Face Restriction
       // TODO: AbsMult if needed
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
