@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
       case Problem::SteadyBurgers:
       case Problem::NonsteadyBurgers:
          //free (zero Dirichlet)
-         if(bc_neumann)
+         if (bc_neumann)
          {
             bdr_is_neumann[1] = -1;//outflow
             bdr_is_neumann[2] = -1;//outflow
