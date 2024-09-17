@@ -91,20 +91,20 @@ protected:
    Array<int> split_element_index;
    int        NE_split_total;   // total number of elements after mesh splitting
    int        mesh_points_cnt;  // number of mesh nodes
-   // Tolerance to ignore points just outside elements at the boundary.
+   // Tolerance to ignore points found beyond the mesh boundary.
+   // i.e. if ||x*-x(r)||_2^2 > bdr_tol, we mark point as not found.
    double     bdr_tol;
 
-   // Device related data
+   // Device specific data used for FindPoints
    struct
    {
       bool setup_device = false;
       int local_hash_size, dof1d, dof1d_sol, h_o_size, h_nx;
-      double tol;
+      double newt_tol; // Tolerance specified during setup for Newton solve
       struct gslib::crystal *cr;
       struct gslib::hash_data_3 *hash3;
       struct gslib::hash_data_2 *hash2;
       mutable Vector bb, wtend, gll1d, lagcoeff, gll1d_sol, lagcoeff_sol;
-
       mutable Array<unsigned int> loc_hash_offset;
       mutable Vector loc_hash_min, loc_hash_fac;
    } DEV;
