@@ -358,7 +358,7 @@ public:
  * @brief Rusanov flux, also known as local Lax-Friedrichs,
  *    F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
  * where λ is the maximum characteristic velocity
- * @note The implementation assumes non-decreasing F(u,x) in u
+ * @note The implementation assumes monotonous F(u,x) in u
  */
 class RusanovFlux : public RiemannSolver
 {
@@ -437,7 +437,7 @@ protected:
  * @brief Godunov flux,
  *    F̂ n = min F(u)n    for u⁻ ≤ u⁺, u ∈ [a,b]
  *    F̂ n = max F(u)n    for u⁻ > u⁺, u ∈ [b,a]
- * @note The implementation assumes non-decreasing F in u
+ * @note The implementation assumes monotonous F in u
  */
 class GodunovFlux : public RiemannSolver
 {
