@@ -1741,8 +1741,29 @@ IntegrationRule *IntegrationRules::PentatopeIntegrationRule(int Order)
          ir->AddPentPoints10(5, 0.02401496720062019571417799568280, 0.5 - 1.5 * 0.02401496720062019571417799568280, 0.01075810672318828174753857496171 / 24.);
          ir->AddPentPoints20(15, 0.29381800402893687440553094347706, 0.06247517556258090631882140542075, 0.03175922842808185514451579933848 / 24.);
          return ir;
+      
+      case 6:  // 70 points - degree 6 -- taken from https://doi.org/10.1016/j.camwa.2020.07.004
+         PentatopeIntRules[6] = ir = new IntegrationRule(70);
+         ir->AddPentPoints5(0, 0.154743213149364, 0.027287104452858 / 24.);
+         ir->AddPentPoints5(5, 0.243583446244066, 0.030022493650412 / 24.);
+         ir->AddPentPoints10(10, 0.045742589279674, 0.5 - 1.5 * 0.045742589279674, 0.010857537843152 / 24.);
+         ir->AddPentPoints20(20, 0.034061388191316, 0.153237752298796, 0.004213752156913 / 24.);
+         ir->AddPentPoints30(40, 0.042203997139861, 0.211681755872075, 0.017353386263795 / 24.);
+         return ir;
 
-      case 6:
+      case 7:  // 126 points - degree 8 -- taken from https://doi.org/10.1016/j.camwa.2020.07.004
+      case 8:
+         PentatopeIntRules[7] = PentatopeIntRules[8]  = ir = new IntegrationRule(126);
+         ir->AddPentMidPoint(0, 0.018477072894310 / 24.);
+         ir->AddPentPoints5(1, 0.041850193209872, 0.003356028785577 / 24.);
+         ir->AddPentPoints20(6, 0.013234490721597, 0.279965061732618,  0.001166950584118 / 24.);
+         ir->AddPentPoints20(26, 0.183538643543872, 0.051063845643639, 0.019804745119265 / 24.);
+         ir->AddPentPoints20(46, 0.311385773831175, 0.014631015332223, 0.005373375682319 / 24.);
+         ir->AddPentPoints30(66,  0.032042227982220, 0.160928155464441, 0.007544402046650 / 24.);
+         ir->AddPentPoints30(96, 0.088725307776945, 0.403464343042675, 0.007050309802142 / 24.);
+         return ir;
+
+      case -1:
       {
          //construct the higher integration rules with the duffy transformation --> 1d integral in time and a tet quad-rule w.r.t space
 

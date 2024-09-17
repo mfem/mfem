@@ -293,6 +293,42 @@ private:
       IntPoint(off + 18).Set4w(c, a, b, a, weight);
       IntPoint(off + 19).Set4w(c, b, a, a, weight);
    }
+   // given (a,b,c), add the permutations of (a,a,b,b,c), c = 1 - 2 a - 2 b
+   void AddPentPoints30(const int off, const double a, const double b, double weight)
+   {
+      double c = 1. - 2. * a - 2. * b;
+      IntPoint(off + 0).Set4w(a, a, b, b, weight);
+      IntPoint(off + 1).Set4w(a, a, b, c, weight);
+      IntPoint(off + 2).Set4w(a, a, c, b, weight);
+      IntPoint(off + 3).Set4w(a, b, a, b, weight);
+      IntPoint(off + 4).Set4w(a, b, a, c, weight);
+      IntPoint(off + 5).Set4w(a, b, b, a, weight);
+      IntPoint(off + 6).Set4w(a, b, b, c, weight);
+      IntPoint(off + 7).Set4w(a, b, c, a, weight);
+      IntPoint(off + 8).Set4w(a, b, c, b, weight);
+      IntPoint(off + 9).Set4w(a, c, a, b, weight);
+      IntPoint(off + 10).Set4w(a, c, b, a, weight);
+      IntPoint(off + 11).Set4w(a, c, b, b, weight);
+      IntPoint(off + 12).Set4w(b, a, a, b, weight);
+      IntPoint(off + 13).Set4w(b, a, a, c, weight);
+      IntPoint(off + 14).Set4w(b, a, b, a, weight);
+      IntPoint(off + 15).Set4w(b, a, b, c, weight);
+      IntPoint(off + 16).Set4w(b, a, c, a, weight);
+      IntPoint(off + 17).Set4w(b, a, c, b, weight);
+      IntPoint(off + 18).Set4w(b, b, a, a, weight);
+      IntPoint(off + 19).Set4w(b, b, a, c, weight);
+      IntPoint(off + 20).Set4w(b, b, c, a, weight);
+      IntPoint(off + 21).Set4w(b, c, a, a, weight);
+      IntPoint(off + 22).Set4w(b, c, a, b, weight);
+      IntPoint(off + 23).Set4w(b, c, b, a, weight);
+      IntPoint(off + 24).Set4w(c, a, a, b, weight);
+      IntPoint(off + 25).Set4w(c, a, b, a, weight);
+      IntPoint(off + 26).Set4w(c, a, b, b, weight);
+      IntPoint(off + 27).Set4w(c, b, a, a, weight);
+      IntPoint(off + 28).Set4w(c, b, a, b, weight);
+      IntPoint(off + 29).Set4w(c, b, b, a, weight);
+   }
+
 public:
    IntegrationRule() :
       Array<IntegrationPoint>(), Order(0) { }
