@@ -392,8 +392,9 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    gsl_elem.HostReadWrite();
    point_pos.HostRead();
 
-   // tolerance for point to be marked as on element edge/face
-   double btol = 1e-12; // must match MapRefPosAndElemIndices for consistency
+   // Tolerance for point to be marked as on element edge/face based on the
+   // obtained reference-space coordinates.
+   double rbtol = 1e-12; // must match MapRefPosAndElemIndices for consistency
 
    if (np == 1)
    {
@@ -419,7 +420,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          const int elem = gsl_elem[index];
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
          const Geometry::Type gt = fe->GetGeomType(); // assumes quad/hex
-         int setcode = Geometry::CheckPoint(gt, ip, -btol) ?
+         int setcode = Geometry::CheckPoint(gt, ip, -rbtol) ?
                        CODE_INTERNAL : CODE_BORDER;
          gsl_code[index] = setcode==CODE_BORDER && gsl_dist(index)>bdr_tol ?
                            CODE_NOT_FOUND : setcode;
@@ -609,7 +610,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          }
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(opt[point].el);
          const Geometry::Type gt = fe->GetGeomType();
-         int setcode = Geometry::CheckPoint(gt, ip, -btol) ?
+         int setcode = Geometry::CheckPoint(gt, ip, -rbtol) ?
                        CODE_INTERNAL : CODE_BORDER;
          opt[point].code = setcode==CODE_BORDER && opt[point].dist2>bdr_tol ?
                            CODE_NOT_FOUND : setcode;
@@ -686,7 +687,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       const int elem = gsl_elem[index];
       const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
       const Geometry::Type gt = fe->GetGeomType(); // assumes quad/hex
-      int setcode = Geometry::CheckPoint(gt, ip, -btol) ?
+      int setcode = Geometry::CheckPoint(gt, ip, -rbtol) ?
                     CODE_INTERNAL : CODE_BORDER;
       gsl_code[index] = setcode==CODE_BORDER && gsl_dist(index)>bdr_tol ?
                         CODE_NOT_FOUND : setcode;
@@ -700,7 +701,7 @@ void FindPointsGSLIB::SetupDevice()
    auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
    auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
 
-   DEV.tol = dim == 2 ? findptsData2->local.tol : findptsData3->local.tol;
+   DEV.newt_tol = dim == 2 ? findptsData2->local.tol : findptsData3->local.tol;
    if (dim == 3)
    {
       DEV.hash3 = &findptsData3->hash;
@@ -1752,8 +1753,9 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    int nptorig = points_cnt,
        npt = points_cnt;
 
-   // tolerance for point to be marked as on element edge/face
-   double btol = 1e-12;
+   // Tolerance for point to be marked as on element edge/face based on the
+   // obtained reference-space coordinates.
+   double rbtol = 1e-12;
 
    GridFunction *gf_rst_map_temp = NULL;
    int nptsend = 0;
@@ -1810,7 +1812,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
       {
          // check if it is on element boundary
-         pt->code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+         pt->code = Geometry::CheckPoint(gt, ip, -rbtol) ? 0 : 1;
          ++pt;
          continue;
       }
@@ -1843,7 +1845,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 
       // check if point is on element boundary
       ip.Set3(&pt->r[0]);
-      pt->code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+      pt->code = Geometry::CheckPoint(gt, ip, -rbtol) ? 0 : 1;
       ++pt;
    }
 
@@ -1884,7 +1886,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
          gsl_mfem_elem[index] = mesh_elem;
          if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
          {
-            gsl_code[index] = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+            gsl_code[index] = Geometry::CheckPoint(gt, ip, -rbtol) ? 0 : 1;
             continue;
          }
          else if (gt == Geometry::TRIANGLE)
@@ -1910,7 +1912,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
          // Check if the point is on element boundary
          ip.Set2(mfem_ref.GetData());
          if (dim == 3) { ip.z = mfem_ref(2); }
-         gsl_code[index]  = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+         gsl_code[index]  = Geometry::CheckPoint(gt, ip, -rbtol) ? 0 : 1;
       }
    }
 }

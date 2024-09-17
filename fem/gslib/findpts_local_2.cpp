@@ -1205,28 +1205,28 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
 
    switch (DEV.dof1d)
    {
-      case 2: return FindPointsLocal2D_Kernel<2>(npt, DEV.tol,
+      case 2: return FindPointsLocal2D_Kernel<2>(npt, DEV.newt_tol,
                                                     pp, point_pos_ordering,
                                                     pgslm, NE_split_total,
                                                     pwt, pbb,
                                                     DEV.h_nx, plhm, plhf, plho,
                                                     pcode, pelem, pref, pdist,
                                                     pgll1d, plc);
-      case 3: return FindPointsLocal2D_Kernel<3>(npt, DEV.tol,
+      case 3: return FindPointsLocal2D_Kernel<3>(npt, DEV.newt_tol,
                                                     pp, point_pos_ordering,
                                                     pgslm, NE_split_total,
                                                     pwt, pbb,
                                                     DEV.h_nx, plhm, plhf, plho,
                                                     pcode, pelem, pref, pdist,
                                                     pgll1d, plc);
-      case 4: return FindPointsLocal2D_Kernel<4>(npt, DEV.tol,
+      case 4: return FindPointsLocal2D_Kernel<4>(npt, DEV.newt_tol,
                                                     pp, point_pos_ordering,
                                                     pgslm, NE_split_total,
                                                     pwt, pbb,
                                                     DEV.h_nx, plhm, plhf, plho,
                                                     pcode, pelem, pref, pdist,
                                                     pgll1d, plc);
-      default: return FindPointsLocal2D_Kernel(npt, DEV.tol,
+      default: return FindPointsLocal2D_Kernel(npt, DEV.newt_tol,
                                                   pp, point_pos_ordering,
                                                   pgslm, NE_split_total,
                                                   pwt, pbb,
