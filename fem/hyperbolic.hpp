@@ -66,11 +66,12 @@ public:
    virtual ~FluxFunction() {}
 
    /**
-    * @brief Compute flux F(u, x) for given state u and physical point x
+    * @brief Compute flux. Must be implemented in a derived class.
     *
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
-    * @param[out] flux F(u, x) (num_equations, dim)
+    * @param[out] flux flux from the given element at the current
+    * integration point (num_equations, dim)
     * @return real_t maximum characteristic speed
     *
     * @note One can put assertion in here to detect non-physical solution
@@ -78,8 +79,8 @@ public:
    virtual real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                               DenseMatrix &flux) const = 0;
    /**
-    * @brief Compute normal flux. Optionally overloaded in the
-    * derived class to avoid creating full dense matrix for flux.
+    * @brief Compute normal flux. Optionally overloaded in a derived class to
+    * avoid creating a full dense matrix for flux.
     *
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] normal normal vector, @see CalcOrtho (dim)
@@ -94,16 +95,14 @@ public:
 
    /**
     * @brief Compute average flux for over the given interval of states.
-    * Optionally overloaded in the derived class.
+    * Optionally overloaded in a derived class.
     *
     * @param[in] state1 state of the beggining of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
     * @param[in] Tr element transformation
-    * @param[out] flux average flux at the current integration point
-    * (num_equations, dim)
+    * @param[out] flux average flux from the given element at the current
+    * integration point (num_equations, dim)
     * @return real_t maximum characteristic speed
-    *
-    * @note One can put assertion in here to detect non-physical solution
     */
    virtual real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
                                  ElementTransformation &Tr,
@@ -112,7 +111,7 @@ public:
 
    /**
     * @brief Compute average normal flux over the given interval of states.
-    * Optionally overloaded in the derived class.
+    * Optionally overloaded in a derived class.
     *
     * @param[in] state1 state of the beggining of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
@@ -128,12 +127,12 @@ public:
                                      Vector &fluxDotN) const;
 
    /**
-    * @brief Compute flux Jacobian. Optionally overloaded in the derived class
+    * @brief Compute flux Jacobian. Optionally overloaded in a derived class
     * when Jacobian is necessary (e.g. Newton iteration, flux limiter)
     *
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
-    * @param[out] J flux Jacobian, J(i,j,d) = dF_{id} / u_j
+    * @param[out] J flux Jacobian, $ J(i,j,d) = dF_{id} / du_j $
     */
    virtual void ComputeFluxJacobian(const Vector &state,
                                     ElementTransformation &Tr,
@@ -141,13 +140,13 @@ public:
    { MFEM_ABORT("Not Implemented."); }
 
    /**
-    * @brief Compute normal flux Jacobian. Optionally overloaded in the derived
-    * class to avoid creating full dense matrix for Jacobian.
+    * @brief Compute normal flux Jacobian. Optionally overloaded in a derived
+    * class to avoid creating a full dense tensor for Jacobian.
     *
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] normal normal vector, @see CalcOrtho (dim)
     * @param[in] Tr element transformation
-    * @param[out] JDotN normal flux Jacobian, JDotN(i,j) = dF_{id} n_d / u_j
+    * @param[out] JDotN normal flux Jacobian, $ JDotN(i,j) = d(F_{id} n_d) / du_j $
     */
    virtual void ComputeFluxJacobianDotN(const Vector &state,
                                         const Vector &normal,
@@ -174,8 +173,8 @@ public:
       : fluxFunction(fluxFunction) { }
 
    /**
-    * @brief Evaluates numerical flux for the given states and normal. Must be
-    * overloaded in a derived class.
+    * @brief Evaluates normal numerical flux for the given states and normal.
+    * Must be implemented in a derived class.
     *
     * @param[in] state1 state value at a point from the first element
     * (num_equations)
@@ -191,8 +190,8 @@ public:
                        Vector &flux) const = 0;
 
    /**
-    * @brief Evaluates average numerical flux over the interval between the
-    * given end states and for the given normal. Optionally overloaded in a
+    * @brief Evaluates average normal numerical flux over the interval between
+    * the given end states and for the given normal. Optionally overloaded in a
     * derived class.
     *
     * @param[in] state1 state value of the beggining of the interval
@@ -240,7 +239,8 @@ protected:
 };
 
 /**
- * @brief Abstract hyperbolic form integrator, (F(u, x), ∇v) and (F̂(u±, x, n))
+ * @brief Abstract hyperbolic form integrator, (F(u, x), ∇v) and
+ * (F̂(u±, x) n, [v])
  *
  */
 class HyperbolicFormIntegrator : public NonlinearFormIntegrator
@@ -265,8 +265,8 @@ private:
    Vector state1;  // state value at an integration point - first elem
    Vector state2;  // state value at an integration point - second elem
    Vector nor;     // normal vector, @see CalcOrtho
-   Vector fluxN;   // F̂(u,x)
-   DenseMatrix JDotN;   // Ĵ(u,x) n
+   Vector fluxN;   // F̂(u±,x) n
+   DenseMatrix JDotN;   // Ĵ(u±,x) n
 #endif
 
 public:
@@ -280,8 +280,8 @@ public:
     */
    HyperbolicFormIntegrator(
       const RiemannSolver &rsolver,
-      const int IntOrderOffset=0,
-      const real_t sign=1.);
+      const int IntOrderOffset = 0,
+      const real_t sign = 1.);
 
    /**
     * @brief Reset the Max Char Speed 0
@@ -300,7 +300,8 @@ public:
    const FluxFunction &GetFluxFunction() { return fluxFunction; }
 
    /**
-    * @brief implement (F(u), grad v) with abstract F computed by ComputeFlux
+    * @brief Implements (F(u), ∇v) with abstract F computed by
+    * FluxFunction::ComputeFlux()
     *
     * @param[in] el local finite element
     * @param[in] Tr element transformation
@@ -312,7 +313,8 @@ public:
                               const Vector &elfun, Vector &elvect) override;
 
    /**
-    * @brief implement (J(u), grad v) with abstract J computed by ComputeFluxJacobian
+    * @brief Implements (J(u), ∇v) with abstract J computed by
+    * FluxFunction::ComputeFluxJacobian()
     *
     * @param[in] el local finite element
     * @param[in] Tr element transformation
@@ -324,14 +326,14 @@ public:
                             const Vector &elfun, DenseMatrix &grad) override;
 
    /**
-    * @brief implement <-F̂(u,x) n, [[v]]> with abstract F̂ computed by
-    * ComputeFluxDotN and numerical flux object
+    * @brief Implements <-F̂(u,x) n, [v]> with abstract F̂ computed by
+    * RiemannSolver::Eval() of the numerical flux object
     *
     * @param[in] el1 finite element of the first element
     * @param[in] el2 finite element of the second element
     * @param[in] Tr face element transformations
     * @param[in] elfun local coefficient of basis from both elements
-    * @param[out] elvect evaluated dual vector <-F̂(u,x) n, [[v]]>
+    * @param[out] elvect evaluated dual vector <-F̂(u,x) n, [v]>
     */
    void AssembleFaceVector(const FiniteElement &el1,
                            const FiniteElement &el2,
@@ -376,7 +378,7 @@ public:
                Vector &flux) const override;
 
    /**
-    * @brief  Average numerical flux over the interval [u⁻, u⁺] in the
+    * @brief  Average normal numerical flux over the interval [u⁻, u⁺] in the
     * second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
@@ -395,8 +397,8 @@ public:
                   Vector &flux) const override;
 
    /**
-    * @brief  Jacobian of average numerical flux over the interval [u⁻, u⁺] in
-    * the second argument of the flux F̂(u⁻,u,x) n
+    * @brief  Jacobian of average normal numerical flux over the interval
+    * [u⁻, u⁺] in the second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
     *
@@ -456,7 +458,7 @@ public:
                Vector &flux) const override;
 
    /**
-    * @brief  Average numerical flux over the interval [u⁻, u⁺] in the
+    * @brief  Average normal numerical flux over the interval [u⁻, u⁺] in the
     * second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
@@ -476,8 +478,8 @@ public:
                   Vector &flux) const override;
 
    /**
-    * @brief  Jacobian of average numerical flux over the interval [u⁻, u⁺] in
-    * the second argument of the flux F̂(u⁻,u,x) n
+    * @brief  Jacobian of average normal numerical flux over the interval
+    * [u⁻, u⁺] in the second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
     *
@@ -535,7 +537,7 @@ public:
                Vector &flux) const override;
 
    /**
-    * @brief  Average numerical flux over the interval [u⁻, u⁺] in the
+    * @brief  Average normal numerical flux over the interval [u⁻, u⁺] in the
     * second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
@@ -554,8 +556,8 @@ public:
                   Vector &flux) const override;
 
    /**
-    * @brief  Jacobian of average numerical flux over the interval [u⁻, u⁺] in
-    * the second argument of the flux F̂(u⁻,u,x) n
+    * @brief  Jacobian of average normal numerical flux over the interval
+    * [u⁻, u⁺] in the second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
     *
@@ -591,8 +593,7 @@ private:
 public:
 
    /**
-    * @brief Construct a new Advection Flux Function with given
-    * spatial dimension
+    * @brief Construct AdvectionFlux FluxFunction with given velocity
     *
     * @param b velocity coefficient, possibly depends on space
     */
@@ -608,7 +609,7 @@ public:
     * @brief Compute F(u)
     *
     * @param state state (u) at current integration point
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param flux F(u) = ubᵀ
     * @return real_t maximum characteristic speed, |b|
     */
@@ -620,7 +621,7 @@ public:
     *
     * @param state state (u) at current integration point
     * @param normal normal vector, usually not a unit vector
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param fluxDotN F(u) n = u (bᵀn)
     * @return real_t maximum characteristic speed, |b|
     */
@@ -631,10 +632,10 @@ public:
    /**
     * @brief Compute average flux F̄(u)
     *
-    * @param state1 state 1 (u1) at current integration point
-    * @param state2 state 2 (u2) at current integration point
-    * @param Tr current element transformation with integration point
-    * @param flux F̄(u) = (u1+u2)/2*bᵀ
+    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state2 state value (u⁺) of the end of the interval
+    * @param Tr current element transformation with the integration point
+    * @param flux F̄(u) = (u⁻+u⁺)/2*bᵀ
     * @return real_t maximum characteristic speed, |b|
     */
    real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
@@ -643,11 +644,11 @@ public:
    /**
     * @brief Compute average flux F̄(u) n
     *
-    * @param state1 state 1 (u1) at current integration point
-    * @param state2 state 2 (u2) at current integration point
+    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state2 state value (u⁺) of the end of the interval
     * @param normal normal vector, usually not a unit vector
-    * @param Tr current element transformation with integration point
-    * @param fluxDotN F̄(u) n = (u1+u2)/2*(bᵀn)
+    * @param Tr current element transformation with the integration point
+    * @param fluxDotN F̄(u) n = (u⁻+u⁺)/2*(bᵀn)
     * @return real_t maximum characteristic speed, |b|
     */
    real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
@@ -658,7 +659,7 @@ public:
     * @brief Compute J(u)
     *
     * @param state state (u) at current integration point
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param J J(u) = diag(b)
     */
    void ComputeFluxJacobian(const Vector &state,
@@ -670,7 +671,7 @@ public:
     *
     * @param state state (u) at current integration point
     * @param normal normal vector, usually not a unit vector
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param JDotN J(u) n = bᵀn
     */
    void ComputeFluxJacobianDotN(const Vector &state,
@@ -683,8 +684,7 @@ class BurgersFlux : public FluxFunction
 {
 public:
    /**
-    * @brief Construct a new Burgers Flux Function with given
-    * spatial dimension
+    * @brief Construct BurgersFlux FluxFunction with given spatial dimension
     *
     * @param dim spatial dimension
     */
@@ -695,7 +695,7 @@ public:
     * @brief Compute F(u)
     *
     * @param state state (u) at current integration point
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param flux F(u) = ½u²*1ᵀ where 1 is (dim) vector
     * @return real_t maximum characteristic speed, |u|
     */
@@ -707,7 +707,7 @@ public:
     *
     * @param state state (u) at current integration point
     * @param normal normal vector, usually not a unit vector
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param fluxDotN F(u) n = ½u²*(1ᵀn) where 1 is (dim) vector
     * @return real_t maximum characteristic speed, |u|
     */
@@ -719,10 +719,10 @@ public:
    /**
     * @brief Compute average flux F̄(u)
     *
-    * @param state1 state 1 (u1) at current integration point
-    * @param state2 state 2 (u2) at current integration point
-    * @param Tr current element transformation with integration point
-    * @param flux F̄(u) = (u2²+u2*u1+u1²)/6*1ᵀ where 1 is (dim) vector
+    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state2 state value (u⁺) of the end of the interval
+    * @param Tr current element transformation with the integration point
+    * @param flux F̄(u) = (u⁻²+u⁻*u⁺+u⁺²)/6*1ᵀ where 1 is (dim) vector
     * @return real_t maximum characteristic speed, |u|
     */
    real_t ComputeAvgFlux(const Vector &state1,
@@ -733,11 +733,11 @@ public:
    /**
     * @brief Compute average flux F̄(u) n
     *
-    * @param state1 state 1 (u1) at current integration point
-    * @param state2 state 2 (u2) at current integration point
+    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state2 state value (u⁺) of the end of the interval
     * @param normal normal vector, usually not a unit vector
-    * @param Tr current element transformation with integration point
-    * @param fluxDotN F̄(u) n = (u2²+u2*u1+u1²)/6*(1ᵀn) where 1 is (dim) vector
+    * @param Tr current element transformation with the integration point
+    * @param fluxDotN F̄(u) n = (u⁻²+u⁻*u⁺+u⁺²)/6*(1ᵀn) where 1 is (dim) vector
     * @return real_t maximum characteristic speed, |u|
     */
    real_t ComputeAvgFluxDotN(const Vector &state1,
@@ -750,7 +750,7 @@ public:
     * @brief Compute J(u)
     *
     * @param state state (u) at current integration point
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param J J(u) = diag(u*1) where 1 is (dim) vector
     */
    void ComputeFluxJacobian(const Vector &state,
@@ -762,7 +762,7 @@ public:
     *
     * @param state state (u) at current integration point
     * @param normal normal vector, usually not a unit vector
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param JDotN J(u) n = u*(1ᵀn) where 1 is (dim) vector
     */
    void ComputeFluxJacobianDotN(const Vector &state,
