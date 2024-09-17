@@ -514,6 +514,85 @@ protected:
 #endif
 };
 
+/**
+ * @brief Engquist-Osher flux,
+ *    F̂ n = ½ (F(u⁻) + F(u⁺)) n - ½ int |F'(u)| du   for u ∈ [u⁻,u⁺]
+ * @note The implementation assumes monotonous F in u without a change of sign
+ */
+class EngquistOsherFlux : public RiemannSolver
+{
+public:
+   EngquistOsherFlux(const FluxFunction &fluxFunction)
+      : RiemannSolver(fluxFunction)
+   {
+#ifndef MFEM_THREAD_SAFE
+      fluxN1.SetSize(fluxFunction.num_equations);
+      fluxN2.SetSize(fluxFunction.num_equations);
+#endif
+   }
+
+   /**
+    * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n
+    *
+    * @param[in] state1 state value (u⁻) at a point from the first element
+    * (num_equations)
+    * @param[in] state2 state value (u⁺) at a point from the second element
+    * (num_equations)
+    * @param[in] nor normal vector (not a unit vector) (dim)
+    * @param[in] Tr face element transformation
+    * @param[out] flux F̂ n = min(F(u⁻)n, F(u⁺,x)n)
+    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    */
+   real_t Eval(const Vector &state1, const Vector &state2,
+               const Vector &nor, FaceElementTransformations &Tr,
+               Vector &flux) const override;
+
+   /**
+    * @brief  Average numerical flux over the interval [u⁻, u⁺] in the
+    * second argument of the flux F̂(u⁻,u,x) n
+    * @note The average normal flux F̄ n is required to be implemented in
+    * FluxFunction::ComputeAvgFluxDotN()
+    *
+    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * (num_equations)
+    * @param[in] state2 state value (u⁺) of the end of the interval
+    * (num_equations)
+    * @param[in] nor normal vector (not a unit vector) (dim)
+    * @param[in] Tr face element transformation
+    * @param[out] flux F̂ n = min(F(u⁻)n, F̄(u⁺,x)n)
+    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    */
+   real_t Average(const Vector &state1, const Vector &state2,
+                  const Vector &nor, FaceElementTransformations &Tr,
+                  Vector &flux) const override;
+
+   /**
+    * @brief  Jacobian of average numerical flux over the interval [u⁻, u⁺] in
+    * the second argument of the flux F̂(u⁻,u,x) n
+    * @note The average normal flux F̄ n is required to be implemented in
+    * FluxFunction::ComputeAvgFluxDotN()
+    *
+    * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺),
+    * only the latter is implemented (side = 2)
+    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * (num_equations)
+    * @param[in] state2 state value (u⁺) of the end of the interval
+    * (num_equations)
+    * @param[in] nor normal vector (not a unit vector) (dim)
+    * @param[in] Tr face element transformation
+    * @param[out] grad (F(u⁺) - F̄(u⁻,u⁺))n / (u⁺ - u⁻)  for F(u⁺)n < F̄(u⁻,u⁺)n
+    *                  or 0                             for F(u⁺)n ≥ F̄(u⁻,u⁺)n
+    */
+   void AverageGrad(int side, const Vector &state1, const Vector &state2,
+                    const Vector &nor, FaceElementTransformations &Tr,
+                    DenseMatrix &grad) const override;
+
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector fluxN1, fluxN2;
+#endif
+};
+
 class HDGFlux : public RusanovFlux
 {
 public:
