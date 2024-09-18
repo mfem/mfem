@@ -430,6 +430,8 @@ public:
       u *= dt;
       u += x;
 
+      hydro.mesh_nodes.SyncMemory(u);
+
       auto kptr = const_cast<Vector*>(&k);
       Vector kx, kv, ke;
       kx.MakeRef(*kptr, 0, H1tsize);
