@@ -2388,9 +2388,9 @@ public:
                      "number of parameters doesn't match descriptors");
          for (int i = 0; i < num_parameters; i++)
          {
-            parameters_l[i].MakeRef(*(p[i]), 0, p[i]->Size());
-            // parameters_l[i].UseDevice(true);
-            // parameters_l[i] = *(p[i]);
+            p[i]->Read();
+            parameters_l[i] = *p[i];
+            // parameters_l[i].MakeRef(p[i], 0, p[i]->Size());
          }
       }
 

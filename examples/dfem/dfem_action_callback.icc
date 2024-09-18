@@ -111,7 +111,7 @@ void DifferentiableOperator<kernels_tuple,
                             op.element_dof_ordering,
                             op.solutions.size());
 
-      auto ye = Reshape(ye_mem.Write(), test_vdim, num_test_dof, num_entities);
+      auto ye = Reshape(ye_mem.ReadWrite(), test_vdim, num_test_dof, num_entities);
       auto wrapped_fields_e = wrap_fields(this->fields_e, shmem_info.field_sizes, num_entities);
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
@@ -179,7 +179,7 @@ void DifferentiableOperator<kernels_tuple,
                                                       serac::get<0>(output_fops),
                                                       output_dtq_shmem[hardcoded_output_idx],
                                                       scratch_mem);
-      }, num_entities, q1d, q1d, 1, shmem_info.total_size, shmem_cache.GetData());
+      }, num_entities, q1d, q1d, 1, shmem_info.total_size, shmem_cache.ReadWrite());
 
       if constexpr (std::is_same_v<decltype(output_fop), None>)
       {

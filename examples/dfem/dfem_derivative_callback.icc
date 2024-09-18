@@ -84,8 +84,8 @@ void DifferentiableOperator<kernels_tuple,
       {
          no_kinput_is_dependent = false;
          kinput_is_dependent[i] = true;
-         out << "function input " << i << " is dependent on "
-             << op.fields[kinput_to_field[i]].field_label << "\n";
+         // out << "function input " << i << " is dependent on "
+         //     << op.fields[kinput_to_field[i]].field_label << "\n";
       }
       else
       {
@@ -118,7 +118,7 @@ void DifferentiableOperator<kernels_tuple,
       restriction<entity_t>(direction, direction_l, direction_e,
                             op.element_dof_ordering);
 
-      auto ye = Reshape(ye_mem.Write(), num_test_dof, test_vdim, num_entities);
+      auto ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
       auto wrapped_fields_e = wrap_fields(this->fields_e, shmem_info.field_sizes, num_entities);
       auto wrapped_direction_e = Reshape(direction_e.Read(), shmem_info.direction_size, num_entities);
 
@@ -204,7 +204,7 @@ void DifferentiableOperator<kernels_tuple,
                //    kernel_shadow_args,
                //    shadow_shmem,
                //    q);
-               printf(">>>>> WARNING: AD DISABLED\n");
+               // printf(">>>>> WARNING: AD DISABLED\n");
             }
          }
          MFEM_SYNC_THREAD;
@@ -215,7 +215,7 @@ void DifferentiableOperator<kernels_tuple,
                                                             serac::get<0>(output_fops),
                                                             output_dtq_shmem[hardcoded_output_idx],
                                                             scratch_mem);
-      }, num_entities, q1d, q1d, 1, shmem_info.total_size, shmem_cache.GetData());
+      }, num_entities, q1d, q1d, 1, shmem_info.total_size, shmem_cache.ReadWrite());
 
       R->MultTranspose(ye_mem, derivative_action_l);
    };

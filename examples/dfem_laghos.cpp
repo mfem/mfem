@@ -155,7 +155,12 @@ struct QuadratureData
       h0(R),
       order_v(R),
       dt_est(R)
-   {}
+   {
+      h0.UseDevice(true);
+      order_v.UseDevice(true);
+      dt_est.UseDevice(true);
+      stressp.UseDevice(true);
+   }
 
    ParametricSpace StressSpace;
    ParametricFunction stressp;
@@ -172,10 +177,6 @@ public:
       op(op),
       x(x)
    {
-      x.UseDevice(true);
-      f.UseDevice(true);
-      xpev.UseDevice(true);
-
       f.SetSize(Height());
       xpev.SetSize(Height());
       op.Mult(x, f);
@@ -184,6 +185,8 @@ public:
 
    void Mult(const Vector &v, Vector &y) const override
    {
+      x.HostRead();
+
       // See [1] for choice of eps.
       //
       // [1] Woodward, C.S., Gardner, D.J. and Evans, K.J., 2015. On the use of
@@ -308,19 +311,12 @@ public:
               std::shared_ptr<dRedv_t> dRedv,
               std::shared_ptr<dRede_t> dRede)
    {
-      w.UseDevice(true);
-      z.UseDevice(true);
-
       w.SetSize(this->height);
       z.SetSize(this->height);
 
       jvp = [dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede, this, &hydro]
             (const Vector &u, Vector &y)
       {
-         auto uptr = const_cast<Vector*>(&u);
-         Vector uv;
-         uv.MakeRef(*uptr, H1tsize, H1tsize);
-
          w = u;
          Vector wx, wv, we;
          wx.MakeRef(w, 0, H1tsize);
@@ -357,16 +353,19 @@ public:
             wvc.MakeRef(wv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
             yvc.MakeRef(yv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
             hydro.Mv->FullAddMult(wvc, yvc);
+            yvc.SyncAliasMemory(yv);
          }
+         yv.SyncAliasMemory(y);
 
          dRvde->Mult(we, zv);
          zv *= h;
          yv += zv;
-         for (int i = 0; i < hydro.ess_tdof.Size(); i++)
-         {
-            // yv(hydro.ess_tdof[i]) = uv(hydro.ess_tdof[i]);
-            yv(hydro.ess_tdof[i]) = 0.0;
-         }
+         yv.SetSubVector(hydro.ess_tdof, 0.0);
+         // for (int i = 0; i < hydro.ess_tdof.Size(); i++)
+         // {
+         //    // yv(hydro.ess_tdof[i]) = uv(hydro.ess_tdof[i]);
+         //    yv(hydro.ess_tdof[i]) = 0.0;
+         // }
          // yv = 0.0;
 
          // energy
@@ -389,6 +388,10 @@ public:
          hydro.Me->FullAddMult(we, ze);
 
          ye += ze;
+
+         yx.SyncAliasMemory(y);
+         yv.SyncAliasMemory(y);
+         ye.SyncAliasMemory(y);
       };
    }
 
@@ -409,21 +412,24 @@ class LagrangianHydroResidualOperator : public Operator
 {
 public:
    LagrangianHydroResidualOperator(hydro_t &hydro, const real_t dt,
-                                   const Vector &x) :
+                                   const Vector &x, bool fd_gradient) :
       Operator(2*hydro.H1.GetTrueVSize()+hydro.L2.GetTrueVSize()),
       hydro(hydro),
       dt(dt),
       x(x),
       u(x.Size()),
       H1tsize(hydro.H1.GetTrueVSize()),
-      L2tsize(hydro.L2.GetTrueVSize())
-   {
-      x.UseDevice(true);
-      u.UseDevice(true);
-   }
+      L2tsize(hydro.L2.GetTrueVSize()),
+      fd_gradient(fd_gradient) {}
 
    void Mult(const Vector &k, Vector &R) const override
    {
+      hydro.UpdateMesh(u);
+
+      u = k;
+      u *= dt;
+      u += x;
+
       auto kptr = const_cast<Vector*>(&k);
       Vector kx, kv, ke;
       kx.MakeRef(*kptr, 0, H1tsize);
@@ -440,17 +446,12 @@ public:
       Rv.MakeRef(R, H1tsize, H1tsize);
       Re.MakeRef(R, 2*H1tsize, L2tsize);
 
-      u = k;
-      u *= dt;
-      u += x;
-
-      hydro.UpdateMesh(u);
-
       Rx = kx;
       Rx -= uv;
 
       hydro.momentum_mf->SetParameters({&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
       hydro.momentum_mf->Mult(uv, Rv);
+
       // hydro.Mv.TrueAddMult(kv, Rv);
       Vector kvc, Rvc;
       for (int c = 0; c < hydro.H1.GetMesh()->Dimension(); c++)
@@ -458,7 +459,9 @@ public:
          kvc.MakeRef(kv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
          Rvc.MakeRef(Rv, c*hydro.H1c.GetVSize(), hydro.H1c.GetVSize());
          hydro.Mv->FullAddMult(kvc, Rvc);
+         Rvc.SyncAliasMemory(Rv);
       }
+      Rv.SyncAliasMemory(R);
 
       Rv.SetSubVector(hydro.ess_tdof, 0.0);
       // Rv = 0.0;
@@ -476,7 +479,6 @@ public:
          DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &hydro.ir);
          e_source.AddDomainIntegrator(d);
          e_source.Assemble();
-         e_source.UseDevice(true);
 
          Re -= e_source;
       }
@@ -484,12 +486,18 @@ public:
       // hydro.Me.TrueAddMult(ke, Re);
       hydro.Me->FullAddMult(ke, Re);
 
-      hydro.qdata_is_current = false;
+      Rx.SyncAliasMemory(R);
+      Rv.SyncAliasMemory(R);
+      Re.SyncAliasMemory(R);
    }
 
    Operator& GetGradient(const Vector &k) const override
    {
       jacobian.reset(new LagrangianHydroJacobianOperator(dt, H1tsize, L2tsize));
+
+      u = k;
+      u *= dt;
+      u += x;
 
       auto kptr = const_cast<Vector*>(&k);
       Vector kx, kv, ke;
@@ -502,28 +510,29 @@ public:
       uv.MakeRef(u, H1tsize, H1tsize);
       ue.MakeRef(u, 2*H1tsize, L2tsize);
 
-      u = k;
-      u *= dt;
-      u += x;
+      if (fd_gradient)
+      {
+         fd_jacobian.reset(new FDJacobian(*this, k));
+         return *fd_jacobian;
+      }
+      else
+      {
+         auto dRvdx = hydro.momentum_mf->template GetDerivativeWrt<3>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
+         auto dRvdv = hydro.momentum_mf->template GetDerivativeWrt<0>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
+         auto dRvde = hydro.momentum_mf->template GetDerivativeWrt<5>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
+         auto dRedx = hydro.energy_conservation_mf->template GetDerivativeWrt<4>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
+         auto dRedv = hydro.energy_conservation_mf->template GetDerivativeWrt<1>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
+         auto dRede = hydro.energy_conservation_mf->template GetDerivativeWrt<0>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
 
-      // auto dRvdx = hydro.momentum_mf->template GetDerivativeWrt<3>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
-      // auto dRvdv = hydro.momentum_mf->template GetDerivativeWrt<0>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
-      // auto dRvde = hydro.momentum_mf->template GetDerivativeWrt<5>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
-      // auto dRedx = hydro.energy_conservation_mf->template GetDerivativeWrt<4>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
-      // auto dRedv = hydro.energy_conservation_mf->template GetDerivativeWrt<1>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
-      // auto dRede = hydro.energy_conservation_mf->template GetDerivativeWrt<0>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
-
-      // jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede);
-      // return *jacobian;
-
-      fd_jacobian.reset(new FDJacobian(*this, k));
-      return *fd_jacobian;
+         jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede);
+         return *jacobian;
+      }
    }
 
-   virtual MemoryClass GetMemoryClass() const override
-   {
-      return Device::GetDeviceMemoryClass();
-   }
+   // virtual MemoryClass GetMemoryClass() const override
+   // {
+   //    return Device::GetDeviceMemoryClass();
+   // }
 
    hydro_t &hydro;
    const real_t dt;
@@ -533,6 +542,7 @@ public:
    const int L2tsize;
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
    mutable std::shared_ptr<LagrangianHydroJacobianOperator> jacobian;
+   bool fd_gradient;
 };
 
 template <
@@ -560,7 +570,8 @@ public:
       std::shared_ptr<total_internal_energy_mf_t> total_internal_energy_mf,
       std::shared_ptr<total_kinetic_energy_mf_t> total_kinetic_energy_mf,
       std::shared_ptr<density_mf_t>(density_mf),
-      std::shared_ptr<QuadratureData> qdata) :
+      std::shared_ptr<QuadratureData> qdata,
+      bool fd_gradient) :
       TimeDependentOperator(2*H1.GetVSize()+L2.GetVSize()),
       H1(H1),
       H1c(H1.GetParMesh(), H1.FEColl(), 1),
@@ -591,15 +602,9 @@ public:
       rhse(L2.GetVSize()),
       rhsvc(&H1c),
       dvc(&H1c),
-      nl2dofs(L2.GetFE(0)->GetDof())
+      nl2dofs(L2.GetFE(0)->GetDof()),
+      fd_gradient(fd_gradient)
    {
-      RHSv.UseDevice(true);
-      rhsv.UseDevice(true);
-      X.UseDevice(true);
-      Xe.UseDevice(true);
-      RHSe.UseDevice(true);
-      rhse.UseDevice(true);
-
       Mv = new MassPAOperator(H1c, ir, rho0_coeff);
       Array<int> empty_tdofs;
       Mv_Jprec = new OperatorJacobiSmoother(Mv->GetBF(), empty_tdofs);
@@ -744,7 +749,11 @@ public:
       H1.GetRestrictionMatrix()->Mult(xv, Xv);
       L2.GetRestrictionMatrix()->Mult(xe, Xe);
 
-      auto residual = LagrangianHydroResidualOperator(*this, dt, X);
+      Xx.SyncAliasMemory(X);
+      Xv.SyncAliasMemory(X);
+      Xe.SyncAliasMemory(X);
+
+      auto residual = LagrangianHydroResidualOperator(*this, dt, X, fd_gradient);
 
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetMaxIter(500);
@@ -779,6 +788,9 @@ public:
       H1.GetProlongationMatrix()->Mult(Kx, kx);
       H1.GetProlongationMatrix()->Mult(Kv, kv);
       L2.GetProlongationMatrix()->Mult(Ke, ke);
+      // kx.SyncAliasMemory(k);
+      // kv.SyncAliasMemory(k);
+      // ke.SyncAliasMemory(k);
    }
 
    void UpdateMesh(const Vector &S) const
@@ -818,8 +830,6 @@ public:
 
       return dt_est_global;
    }
-
-   void ResetQuadratureData() { qdata_is_current = false; }
 
    real_t InternalEnergy(ParGridFunction &e)
    {
@@ -872,13 +882,13 @@ public:
    std::shared_ptr<total_kinetic_energy_mf_t> total_kinetic_energy_mf;
    std::shared_ptr<density_mf_t> density_mf;
    std::shared_ptr<QuadratureData> qdata;
-   mutable bool qdata_is_current = false;
    mutable ParGridFunction mesh_nodes, rhsvc, dvc;
    mutable MassPAOperator *Mv = nullptr, *Me = nullptr;
    mutable FunctionCoefficient rho0_coeff;
    OperatorJacobiSmoother *Mv_Jprec = nullptr;
    mutable Vector RHSv, rhsv, X, Xx, Xv, Xvc, Xe, K, Kx, Kv, Ke, B, RHSe, rhse;
    const int nl2dofs;
+   bool fd_gradient;
 };
 
 static auto CreateLagrangianHydroOperator(
@@ -889,7 +899,8 @@ static auto CreateLagrangianHydroOperator(
    ParGridFunction &x0_gf,
    ParGridFunction &rho0_gf,
    ParGridFunction &material_gf,
-   const IntegrationRule &ir)
+   const IntegrationRule &ir,
+   bool fd_gradient)
 {
    const int order_v = H1.GetOrder(0);
    ParMesh &mesh = *H1.GetParMesh();
@@ -1235,7 +1246,8 @@ static auto CreateLagrangianHydroOperator(
              std::shared_ptr<total_internal_energy_mf_t>(total_internal_energy_mf),
              std::shared_ptr<total_kinetic_energy_mf_t>(total_kinetic_energy_mf),
              std::shared_ptr<density_mf_t>(density_mf),
-             qdata);
+             qdata,
+             fd_gradient);
 }
 
 int main(int argc, char *argv[])
@@ -1256,6 +1268,7 @@ int main(int argc, char *argv[])
    real_t blast_energy = 0.25;
    real_t blast_position[] = {0.0, 0.0, 0.0};
    int ode_solver_type = 4;
+   bool fd_gradient = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -1270,6 +1283,7 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&use_viscosity, "-av", "--av", "-no-av", "--no-av", "");
+   args.AddOption(&fd_gradient, "-fd", "--fd", "-no-fd", "--no-fd", "");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
@@ -1489,7 +1503,8 @@ int main(int argc, char *argv[])
                                               x0_gf,
                                               rho0_gf,
                                               material_gf,
-                                              ir);
+                                              ir,
+                                              fd_gradient);
 
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
@@ -1581,7 +1596,6 @@ int main(int argc, char *argv[])
          { MFEM_ABORT("The time step crashed!"); }
          t = t_old;
          S = S_old;
-         hydro.ResetQuadratureData();
          if (Mpi::Root()) { out << "Repeating step " << ti << std::endl; }
          ti--; continue;
       }
@@ -1596,7 +1610,7 @@ int main(int argc, char *argv[])
       // and the oper object might have redirected the mesh positions to those.
       mesh.NewNodes(x_gf, false);
 
-      // out << ">>> x_gf outer loop\n";
+      // out << "x_gf outer loop\n";
       // print_vector(x_gf);
 
       if (Mpi::Root())
