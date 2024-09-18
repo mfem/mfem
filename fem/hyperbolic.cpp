@@ -847,15 +847,12 @@ void EngquistOsherFlux::AverageGrad(int side, const Vector &state1,
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
-         if (state1(i) == state2(i)) { continue; }
-         if (fluxN1(i) <= fluxN2(i))
-         {
-            grad(i,i) = JDotN(i,i);// Only diagonal terms are considered
-         }
-         else
-         {
-            grad(i,i) = (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i));
-         }
+         // Only diagonal terms of J are considered
+         // lim_{u → u⁻} (F̄(u⁻,u)n - F(u⁻)n) / (u - u⁻) = ½J(u⁻)n
+         const real_t gr12 = (state1(i) != state2(i))?
+                             (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i))
+                             :(0.5 * JDotN(i,i));
+         grad(i,i) = (fluxN1(i) <= fluxN2(i))?(JDotN(i,i)):(gr12);
       }
    }
    else
