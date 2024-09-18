@@ -82,6 +82,19 @@ enum class ElementDofOrdering
    LEXICOGRAPHIC
 };
 
+/** Represents the index of an element to p-refine, plus a change to the order
+    of that element. */
+struct pRefinement
+{
+   int index; ///< Mesh element number
+   int delta; ///< Change to element order
+
+   pRefinement() = default;
+
+   pRefinement(int element, int change)
+      : index(element), delta(change) {}
+};
+
 // Forward declarations
 class NURBSExtension;
 class BilinearFormIntegrator;
@@ -620,6 +633,9 @@ public:
    /** By default, all elements are assumed to be of fec->GetOrder(). Once
        SetElementOrder is called, the space becomes a variable order space. */
    void SetElementOrder(int i, int p);
+
+   /// Changes the orders of an array elements specified in @a refs.
+   void ChangeElementOrders(const Array<pRefinement> &refs);
 
    /// Returns the order of the i'th finite element.
    int GetElementOrder(int i) const;

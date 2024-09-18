@@ -173,7 +173,9 @@ int main(int argc, char *argv[])
       if (hp == 1)
       {
          // p-ref
-         fespace.SetElementOrder(elem, fespace.GetElementOrder(elem) + 1);
+         Array<pRefinement> refs;
+         refs.Append(pRefinement(elem, 1));  // Increase the element order by 1
+         fespace.ChangeElementOrders(refs);
          numP++;
       }
       else
