@@ -308,6 +308,8 @@ Mesh EulerMesh(const int problem)
       case 4:
          return Mesh("../data/periodic-segment.mesh");
          break;
+    case 5:
+    return Mesh("../data/periodic-cube.mesh");
       default:
          MFEM_ABORT("Problem Undefined");
    }
@@ -358,6 +360,25 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(0) = density;
             y(1) = density * velocity_x;
             y(2) = energy;
+         });
+      case 5: // moving sine wave
+         return VectorFunctionCoefficient(5, [](const Vector &x, Vector &y)
+         {
+            MFEM_ASSERT(x.Size() == 3, "");
+            const real_t density = 1.0 + 0.2 * std::sin(M_PI*(x(0) + x(1) + x(2)));
+            const real_t velocity_x = 0.7;
+            const real_t velocity_y = 0.3;
+            const real_t velocity_z = 0.3;
+            const real_t pressure = 1.0;
+            const real_t energy =
+               pressure / (1.4 - 1.0) +
+               density * 0.5 * (velocity_x * velocity_x + velocity_y * velocity_y + velocity_z * velocity_z);
+
+            y(0) = density;
+            y(1) = density * velocity_x;
+            y(2) = density * velocity_y;
+            y(3) = density * velocity_z;
+            y(4) = energy;
          });
       default:
          MFEM_ABORT("Problem Undefined");
