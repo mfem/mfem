@@ -35,6 +35,7 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
    state1.SetSize(num_equations);
    state2.SetSize(num_equations);
    fluxN.SetSize(num_equations);
+   JDotN.SetSize(num_equations);
    nor.SetSize(fluxFunction.dim);
 #endif
 }
@@ -256,6 +257,135 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       // pre-multiply integration weight to flux
       AddMult_a_VWt(-ip.weight*sign, shape1, fluxN, elvect1_mat);
       AddMult_a_VWt(+ip.weight*sign, shape2, fluxN, elvect2_mat);
+   }
+}
+
+void HyperbolicFormIntegrator::AssembleFaceGrad(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Tr, const Vector &elfun, DenseMatrix &elmat)
+{
+   // current elements' the number of degrees of freedom
+   // does not consider the number of equations
+   const int dof1 = el1.GetDof();
+   const int dof2 = el2.GetDof();
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // shape function value at an integration point - first elem
+   Vector shape1(dof1);
+   // shape function value at an integration point - second elem
+   Vector shape2(dof2);
+   // normal vector (usually not a unit vector)
+   Vector nor(Tr.GetSpaceDim());
+   // state value at an integration point - first elem
+   Vector state1(num_equations);
+   // state value at an integration point - second elem
+   Vector state2(num_equations);
+   // hat(J)(u,x)
+   DenseMatrix JDotN(num_equations);
+#else
+   shape1.SetSize(dof1);
+   shape2.SetSize(dof2);
+#endif
+
+   elmat.SetSize((dof1 + dof2) * num_equations);
+   elmat = 0.0;
+
+   const DenseMatrix elfun1_mat(elfun.GetData(), dof1, num_equations);
+   const DenseMatrix elfun2_mat(elfun.GetData() + dof1 * num_equations, dof2,
+                                num_equations);
+
+   // Obtain integration rule. If integration is rule is given, then use it.
+   // Otherwise, get (2*p + IntOrderOffset) order integration rule
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      const int order = 2*std::max(el1.GetOrder(), el2.GetOrder()) + IntOrderOffset;
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+   // loop over integration points
+   for (int q = 0; q < ir->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
+
+      // Calculate basis functions on both elements at the face
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+      el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+
+      // Interpolate elfun at the point
+      elfun1_mat.MultTranspose(shape1, state1);
+      elfun2_mat.MultTranspose(shape2, state2);
+
+      // Get the normal vector and the flux on the face
+      if (nor.Size() == 1)  // if 1D, use 1 or -1.
+      {
+         // This assume the 1D integration point is in (0,1). This may not work
+         // if this changes.
+         nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
+      }
+      else
+      {
+         CalcOrtho(Tr.Jacobian(), nor);
+      }
+
+      // Trial side 1
+
+      // Compute hat(J) using evaluated quantities
+      rsolver.Grad(1, state1, state2, nor, Tr, JDotN);
+
+      const int ioff = fluxFunction.num_equations * dof1;
+
+      for (int di = 0; di < fluxFunction.num_equations; di++)
+         for (int dj = 0; dj < fluxFunction.num_equations; dj++)
+         {
+            // pre-multiply integration weight to Jacobian
+            const real_t w = -ip.weight * sign * JDotN(di,dj);
+            for (int j = 0; j < dof1; j++)
+            {
+               // Test side 1
+               for (int i = 0; i < dof1; i++)
+               {
+                  elmat(i+dof1*di, j+dof1*dj) += w * shape1(i) * shape1(j);
+               }
+
+               // Test side 2
+               for (int i = 0; i < dof2; i++)
+               {
+                  elmat(ioff+i+dof2*di, j+dof1*dj) -= w * shape2(i) * shape1(j);
+               }
+            }
+         }
+
+      // Trial side 2
+
+      // Compute hat(J) using evaluated quantities
+      rsolver.Grad(2, state1, state2, nor, Tr, JDotN);
+
+      const int joff = ioff;
+
+      for (int di = 0; di < fluxFunction.num_equations; di++)
+         for (int dj = 0; dj < fluxFunction.num_equations; dj++)
+         {
+            // pre-multiply integration weight to Jacobian
+            const real_t w = +ip.weight * sign * JDotN(di,dj);
+            for (int j = 0; j < dof2; j++)
+            {
+               // Test side 1
+               for (int i = 0; i < dof1; i++)
+               {
+                  elmat(i+dof1*di, joff+j+dof2*dj) += w * shape1(i) * shape2(j);
+               }
+
+               // Test side 2
+               for (int i = 0; i < dof2; i++)
+               {
+                  elmat(ioff+i+dof2*di, joff+j+dof2*dj) -= w * shape2(i) * shape2(j);
+               }
+            }
+         }
    }
 }
 
