@@ -482,29 +482,47 @@ void GodunovFlux::AverageGrad(int side, const Vector &state1,
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
-         if (state1(i) == state2(i)) { continue; }
-         const real_t gr12 = (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i));
-         if (gr12 >= 0.)
-         {
-            grad(i,i) = JDotN(i,i);   // Only diagonal terms are considered
-         }
-         else
-         {
-            grad(i,i) = gr12;
-         }
+         // Only diagonal terms of J are considered
+         // lim_{u → u⁻} (F̄(u⁻,u)n - F(u⁻)n) / (u - u⁻) = ½J(u⁻)n
+         const real_t gr12 = (state1(i) != state2(i))?
+                             (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i))
+                             :(0.5 * JDotN(i,i));
+         grad(i,i) = (gr12 >= 0.)?(JDotN(i,i)):(gr12);
       }
    }
    else
    {
+#ifdef MFEM_THREAD_SAFE
+      DenseMatrix JDotN;
+#endif
       fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr, fluxN1);
       fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
+
+      // Jacobian is not needed except the limit case when u⁺=u⁻
+      bool J_needed = false;
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+         if (state1(i) == state2(i))
+         {
+            J_needed = true;
+            break;
+         }
+
+      if (J_needed)
+      {
+         JDotN.SetSize(fluxFunction.num_equations);
+         fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, JDotN);
+      }
 
       grad = 0.;
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
-         if (state1(i) == state2(i)) { continue; }
-         grad(i,i) = std::min((fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i)), 0.);
+         // Only diagonal terms of J are considered
+         // lim_{u → u⁻} (F(u)n - F̄(u⁻,u)n) / (u - u⁻) = ½J(u⁻)n
+         const real_t gr12 = (state1(i) != state2(i))?
+                             (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i))
+                             :(0.5 * JDotN(i,i));
+         grad(i,i) = std::min(gr12, 0.);
       }
    }
 }
