@@ -168,7 +168,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    // shape function value at an integration point - second elem
    Vector shape2(dof2);
    // normal vector (usually not a unit vector)
-   Vector nor(el1.GetDim());
+   Vector nor(Tr.GetSpaceDim());
    // state value at an integration point - first elem
    Vector state1(num_equations);
    // state value at an integration point - second elem
