@@ -617,12 +617,12 @@ int main(int argc, char *argv[])
          if (outputfiles)
          {
             ostringstream file_name;
-            file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/nsteps-" << nsteps << "-step-" << i; 
+            file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/solver-"<<linsolver<<"-dynamic-"<<(int)dynamicsolver<<"-nsteps-" << nsteps << "-step-" << i; 
             OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
             if (i == nsteps-1)
             {
                ostringstream final_file_name;
-               final_file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/nsteps-" << nsteps << "-final"; 
+               final_file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/solver-"<<linsolver<<"-dynamic-"<<(int)dynamicsolver<<"-nsteps-" << nsteps << "-final"; 
                OutputFinalData(final_file_name, Einitial, Efinal, gndofs, numconstr, CGiter);
             }
          }
