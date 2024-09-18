@@ -699,15 +699,45 @@ void GodunovFlux::AverageGrad(int side, const Vector &state1,
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
 #endif
-   fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr, fluxN1);
-   fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
-
-   grad = 0.;
-
-   for (int i = 0; i < fluxFunction.num_equations; i++)
+   if (side == 1)
    {
-      if (state1(i) == state2(i)) { continue; }
-      grad(i,i) = std::min((fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i)), 0.);
+#ifdef MFEM_THREAD_SAFE
+      DenseMatrix JDotN(fluxFunction.num_equations);
+#else
+      JDotN.SetSize(fluxFunction.num_equations);
+#endif
+      fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
+      fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr, fluxN2);
+      fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, JDotN);
+
+      grad = 0.;
+
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         if (state1(i) == state2(i)) { continue; }
+         const real_t gr12 = (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i));
+         if (gr12 >= 0.)
+         {
+            grad(i,i) = JDotN(i,i);   // Only diagonal terms are considered
+         }
+         else
+         {
+            grad(i,i) = gr12;
+         }
+      }
+   }
+   else
+   {
+      fluxFunction.ComputeAvgFluxDotN(state1, state2, nor, Tr, fluxN1);
+      fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
+
+      grad = 0.;
+
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         if (state1(i) == state2(i)) { continue; }
+         grad(i,i) = std::min((fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i)), 0.);
+      }
    }
 }
 
