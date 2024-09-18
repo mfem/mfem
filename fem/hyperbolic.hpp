@@ -701,6 +701,7 @@ protected:
 #endif
 };
 
+/// Advection flux
 class AdvectionFlux : public FluxFunction
 {
 private:
@@ -799,6 +800,7 @@ public:
                                 DenseMatrix &JDotN) const override;
 };
 
+/// Burgers flux
 class BurgersFlux : public FluxFunction
 {
 public:
@@ -890,6 +892,7 @@ public:
                                 DenseMatrix &JDotN) const override;
 };
 
+/// Shallow water flux
 class ShallowWaterFlux : public FluxFunction
 {
 private:
@@ -931,6 +934,7 @@ public:
                           Vector &fluxN) const override;
 };
 
+/// Euler flux
 class EulerFlux : public FluxFunction
 {
 private:
