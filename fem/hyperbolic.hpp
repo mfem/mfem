@@ -190,6 +190,25 @@ public:
                        Vector &flux) const = 0;
 
    /**
+    * @brief Evaluates Jacobian of the normal numerical flux for the given
+    * states and normal. Optionally overloaded in a derived class.
+    *
+    * @param[in] side indicates gradient w.r.t. the first (side = 1)
+    * or second (side = 2) state
+    * @param[in] state1 state value of the beggining of the interval
+    * (num_equations)
+    * @param[in] state2 state value of the end of the interval
+    * (num_equations)
+    * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
+    * @param[in] Tr face transformation
+    * @param[out] grad Jacobian of normal numerical flux (num_equations, dim)
+    */
+   virtual void Grad(int side, const Vector &state1, const Vector &state2,
+                     const Vector &nor, FaceElementTransformations &Tr,
+                     DenseMatrix &grad) const
+   { MFEM_ABORT("Not implemented."); }
+
+   /**
     * @brief Evaluates average normal numerical flux over the interval between
     * the given end states in the second argument and for the given normal.
     * Optionally overloaded in a derived class.
@@ -379,6 +398,28 @@ public:
                Vector &flux) const override;
 
    /**
+    * @brief  Jacobian of normal numerical flux F̂(u⁻,u⁺,x) n
+    * @note The Jacobian of flux J n is required to be implemented in
+    * FluxFunction::ComputeFluxJacobianDotN()
+    *
+    * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
+    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * (num_equations)
+    * @param[in] state2 state value (u⁺) of the end of the interval
+    * (num_equations)
+    * @param[in] nor normal vector (not a unit vector) (dim)
+    * @param[in] Tr face element transformation
+    * @param[out] grad Jacobian of F(u⁻,u⁺,x) n
+    * side = 1:
+    *    ½J(u⁻,x)n + ½λ
+    * side = 2:
+    *    ½J(u⁺,x)n - ½λ
+    */
+   void Grad(int side, const Vector &state1, const Vector &state2,
+             const Vector &nor, FaceElementTransformations &Tr,
+             DenseMatrix &grad) const override;
+
+   /**
     * @brief  Average normal numerical flux over the interval [u⁻, u⁺] in the
     * second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
@@ -464,6 +505,28 @@ public:
                Vector &flux) const override;
 
    /**
+    * @brief  Jacobian of normal numerical flux F̂(u⁻,u⁺,x) n
+    * @note The Jacobian of flux J n is required to be implemented in
+    * FluxFunction::ComputeFluxJacobianDotN()
+    *
+    * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
+    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * (num_equations)
+    * @param[in] state2 state value (u⁺) of the end of the interval
+    * (num_equations)
+    * @param[in] nor normal vector (not a unit vector) (dim)
+    * @param[in] Tr face element transformation
+    * @param[out] grad Jacobian of F(u⁻,u⁺,x) n
+    * side = 1:
+    *    max(J(u⁻,x)n, 0)
+    * side = 2:
+    *    min(J(u⁺,x)n, 0)
+    */
+   void Grad(int side, const Vector &state1, const Vector &state2,
+             const Vector &nor, FaceElementTransformations &Tr,
+             DenseMatrix &grad) const override;
+
+   /**
     * @brief  Average normal numerical flux over the interval [u⁻, u⁺] in the
     * second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
@@ -547,6 +610,30 @@ public:
    real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
                Vector &flux) const override;
+
+   /**
+    * @brief  Jacobian of normal numerical flux F̂(u⁻,u⁺,x) n
+    * @note The Jacobian of flux J n is required to be implemented in
+    * FluxFunction::ComputeFluxJacobianDotN()
+    *
+    * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
+    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * (num_equations)
+    * @param[in] state2 state value (u⁺) of the end of the interval
+    * (num_equations)
+    * @param[in] nor normal vector (not a unit vector) (dim)
+    * @param[in] Tr face element transformation
+    * @param[out] grad Jacobian of F(u⁻,u⁺,x) n
+    * side = 1:
+    *    J(u⁻,x)n          for F(u⁻)n ≤ F(u⁺,x)n
+    *    0                 for F(u⁻)n > F(u⁺,x)n
+    * side = 2:
+    *    J(u⁺,x)n          for F(u⁻)n ≥ F(u⁺,x)n
+    *    0                 for F(u⁻)n < F(u⁺,x)n
+    */
+   void Grad(int side, const Vector &state1, const Vector &state2,
+             const Vector &nor, FaceElementTransformations &Tr,
+             DenseMatrix &grad) const override;
 
    /**
     * @brief  Average normal numerical flux over the interval [u⁻, u⁺] in the

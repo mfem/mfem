@@ -327,6 +327,49 @@ real_t RusanovFlux::Eval(const Vector &state1, const Vector &state2,
    return maxE;
 }
 
+void RusanovFlux::Grad(int side, const Vector &state1, const Vector &state2,
+                       const Vector &nor, FaceElementTransformations &Tr,
+                       DenseMatrix &grad) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
+   DenseMatrix JDotN(fluxFunction.num_equations);
+#else
+   JDotN.SetSize(fluxFunction.num_equations);
+#endif
+
+   const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
+   const real_t speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
+
+   // NOTE: nor in general is not a unit normal
+   const real_t maxE = std::max(speed1, speed2);
+   // here, nor.Norml2() is multiplied to match the scale with fluxN
+   const real_t scaledMaxE = maxE * nor.Norml2();
+
+   grad = 0.;
+
+   if (side == 1)
+   {
+      fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, JDotN);
+
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         // Only diagonal terms of J are considered
+         grad(i,i) = 0.5 * (JDotN(i,i) + scaledMaxE);
+      }
+   }
+   else
+   {
+      fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, JDotN);
+
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         // Only diagonal terms of J are considered
+         grad(i,i) = 0.5 * (JDotN(i,i) - scaledMaxE);
+      }
+   }
+}
+
 real_t RusanovFlux::Average(const Vector &state1, const Vector &state2,
                             const Vector &nor, FaceElementTransformations &Tr,
                             Vector &flux) const
@@ -354,8 +397,7 @@ void RusanovFlux::AverageGrad(int side, const Vector &state1,
                               DenseMatrix &grad) const
 {
 #ifdef MFEM_THREAD_SAFE
-   Vector fluxN1(fluxFunction.num_equations);
-   Vector fluxN2(fluxFunction.num_equations);
+   Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
 #endif
    if (side == 1)
    {
@@ -431,6 +473,40 @@ real_t GodunovFlux::Eval(const Vector &state1, const Vector &state2,
    }
 
    return std::max(speed1, speed2);
+}
+
+void GodunovFlux::Grad(int side, const Vector &state1, const Vector &state2,
+                       const Vector &nor, FaceElementTransformations &Tr,
+                       DenseMatrix &grad) const
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix JDotN(fluxFunction.num_equations);
+#else
+   JDotN.SetSize(fluxFunction.num_equations);
+#endif
+
+   grad = 0.;
+
+   if (side == 1)
+   {
+      fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, JDotN);
+
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         // Only diagonal terms of J are considered
+         grad(i,i) = std::max(JDotN(i,i), 0.);
+      }
+   }
+   else
+   {
+      fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, JDotN);
+
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         // Only diagonal terms of J are considered
+         grad(i,i) = std::min(JDotN(i,i), 0.);
+      }
+   }
 }
 
 real_t GodunovFlux::Average(const Vector &state1, const Vector &state2,
@@ -545,6 +621,44 @@ real_t EngquistOsherFlux::Eval(const Vector &state1, const Vector &state2,
    return std::max(speed1, speed2);
 }
 
+void EngquistOsherFlux::Grad(int side, const Vector &state1,
+                             const Vector &state2, const Vector &nor,
+                             FaceElementTransformations &Tr,
+                             DenseMatrix &grad) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
+   DenseMatrix JDotN(fluxFunction.num_equations);
+#else
+   JDotN.SetSize(fluxFunction.num_equations);
+#endif
+   fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
+   fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
+
+   grad = 0.;
+
+   if (side == 1)
+   {
+      fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, JDotN);
+
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         // Only diagonal terms of J are considered
+         grad(i,i) = (fluxN1(i) <= fluxN2(i))?(JDotN(i,i)):(0.);
+      }
+   }
+   else
+   {
+      fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, JDotN);
+
+      for (int i = 0; i < fluxFunction.num_equations; i++)
+      {
+         // Only diagonal terms of J are considered
+         grad(i,i) = (fluxN1(i) >= fluxN2(i))?(JDotN(i,i)):(0.);
+      }
+   }
+}
+
 real_t EngquistOsherFlux::Average(const Vector &state1, const Vector &state2,
                                   const Vector &nor, FaceElementTransformations &Tr,
                                   Vector &flux) const
@@ -565,8 +679,8 @@ real_t EngquistOsherFlux::Average(const Vector &state1, const Vector &state2,
 }
 
 void EngquistOsherFlux::AverageGrad(int side, const Vector &state1,
-                                    const Vector &state2,
-                                    const Vector &nor, FaceElementTransformations &Tr,
+                                    const Vector &state2, const Vector &nor,
+                                    FaceElementTransformations &Tr,
                                     DenseMatrix &grad) const
 {
 #ifdef MFEM_THREAD_SAFE
