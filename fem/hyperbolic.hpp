@@ -83,7 +83,7 @@ public:
     * avoid creating a full dense matrix for flux.
     *
     * @param[in] state state at the current integration point (num_equations)
-    * @param[in] normal normal vector, @see CalcOrtho (dim)
+    * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
     * @param[out] fluxDotN normal flux from the given element at the current
     * integration point (num_equations)
@@ -115,7 +115,7 @@ public:
     *
     * @param[in] state1 state of the beggining of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
-    * @param[in] normal normal vector, @see CalcOrtho (dim)
+    * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
     * @param[out] fluxDotN average normal flux from the given element at the
     * current integration point (num_equations)
@@ -144,7 +144,7 @@ public:
     * class to avoid creating a full dense tensor for Jacobian.
     *
     * @param[in] state state at the current integration point (num_equations)
-    * @param[in] normal normal vector, @see CalcOrtho (dim)
+    * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr element transformation
     * @param[out] JDotN normal flux Jacobian, $ JDotN(i,j) = d(F_{id} n_d) / du_j $
     */
@@ -284,7 +284,7 @@ private:
    Vector shape2;  // shape function value at an integration point - second elem
    Vector state1;  // state value at an integration point - first elem
    Vector state2;  // state value at an integration point - second elem
-   Vector nor;     // normal vector, @see CalcOrtho
+   Vector nor;     // normal vector, see mfem::CalcOrtho()
    Vector fluxN;   // F̂(u±,x) n
    DenseMatrix JDotN;   // Ĵ(u±,x) n
 #endif
