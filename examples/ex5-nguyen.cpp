@@ -252,6 +252,12 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   if (nonlinear && !hybridization)
+   {
+      cerr << "Warning: Only partial preconditioning and a linear solver are used" <<
+           endl;
+   }
+
    if (btime && nt <= 0)
    {
       cerr << "You must specify the number of time steps for time evolving problems"
