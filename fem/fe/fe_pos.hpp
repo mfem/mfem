@@ -13,6 +13,7 @@
 #define MFEM_FE_POS
 
 #include "fe_base.hpp"
+#include "fe_pyramid.hpp"
 
 namespace mfem
 {
@@ -249,6 +250,33 @@ protected:
 public:
    /// Construct the H1Pos_WedgeElement of order @a p
    H1Pos_WedgeElement(const int p);
+
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+
+/// Arbitrary order H1 elements in 3D utilizing the Bernstein basis on a pyramid
+class H1Pos_PyramidElement : public PositiveFiniteElement, FuentesPyramid
+{
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector m_shape;
+   mutable DenseMatrix m_dshape;
+#endif
+
+public:
+   /// Construct the H1Pos_PyramidElement of order @a p
+   H1Pos_PyramidElement(const int p);
+
+   // The size of shape is (p+1)(p+2)(p+3)(p+4)/24 (dof).
+   static void CalcShape(const int p, const real_t x, const real_t y,
+                         const real_t z, real_t *shape);
+
+   // The size of dshape_1d is p+1; the size of dshape is (dof x dim).
+   static void CalcDShape(const int p, const real_t x, const real_t y,
+                          const real_t z, real_t *dshape_1d, real_t *dshape);
 
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,

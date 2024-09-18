@@ -1042,6 +1042,260 @@ void H1Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
+H1Pos_PyramidElement::H1Pos_PyramidElement(const int p)
+   : PositiveFiniteElement(3, Geometry::PYRAMID,
+                           ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24, p,
+                           FunctionSpace::Uk)
+{
+#ifndef MFEM_THREAD_SAFE
+   m_shape.SetSize(dof);
+   m_dshape.SetSize(dof, dim);
+#endif
+   // dof_map.SetSize(dof);
+}
+
+// static method
+void H1Pos_PyramidElement::CalcShape(const int p, const real_t x,
+                                     const real_t y, const real_t z,
+                                     real_t *shape)
+{
+   const real_t l1 = lam1(x, y, z);
+   const real_t l2 = lam2(x, y, z);
+   const real_t l3 = lam3(x, y, z);
+   const real_t l4 = lam4(x, y, z);
+   const real_t l5 = lam5(x, y, z);
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4 + l5)^p =
+   //      \sum_{l=0}^p \binom{p}{l} l5^l
+   //         \sum_{k=0}^{p-l} \binom{p-l}{k} l4^k
+   //            \sum_{j=0}^{p-l-k} \binom{p-l-k}{j} l3^j
+   //               \sum_{i=0}^{p-l-k-j} \binom{p-l-k-j}{i} l2^i l1^{p-l-k-j-i}
+   const int *bp = Poly_1D::Binom(p);
+   real_t l5l = 1.;
+   for (int o = 0, l = 0; l <= p; l++)
+   {
+      const int *bpl = Poly_1D::Binom(p - l);
+      const real_t el = bp[l]*l5l;
+      real_t l4k = 1.;
+      for (int k = 0; k <= p - l; k++)
+      {
+         const int *bplk = Poly_1D::Binom(p - l - k);
+         const real_t elk = el*bpl[k]*l4k;
+         real_t l3j = 1.;
+         for (int j = 0; j <= p - l - k; j++)
+         {
+            Poly_1D::CalcBinomTerms(p - l - k - j, l2, l1, &shape[o]);
+            real_t elkj = elk*bplk[j]*l3j;
+            for (int i = 0; i <= p - l - k - j; i++)
+            {
+               shape[o++] *= elkj;
+            }
+            l3j *= l3;
+         }
+         l4k *= l4;
+      }
+      l5l *= l5;
+   }
+}
+
+// static method
+void H1Pos_PyramidElement::CalcDShape(const int p, const real_t x,
+                                      const real_t y, const real_t z,
+                                      real_t *dshape_1d, real_t *dshape)
+{
+   const int dof = ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24;
+
+   const real_t l1 = lam1(x, y, z);
+   const real_t l2 = lam2(x, y, z);
+   const real_t l3 = lam3(x, y, z);
+   const real_t l4 = lam4(x, y, z);
+   const real_t l5 = lam5(x, y, z);
+
+   const Vector dl1 = grad_lam1(x, y, z);
+   const Vector dl2 = grad_lam2(x, y, z);
+   const Vector dl3 = grad_lam3(x, y, z);
+   const Vector dl4 = grad_lam4(x, y, z);
+   const Vector dl5 = grad_lam5(x, y, z);
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4 + l5)^p
+   // We will compute the derivative by first computing the derivatives
+   // of these terms w.r.t each of the l1, l2, l3, l4, and l5 and summing
+   // the results together.
+
+   // Derivative w.r.t. l1 times grad(l1)
+   const int *bp = Poly_1D::Binom(p);
+   real_t l5l = 1.;
+   for (int o = 0, l = 0; l <= p; l++)
+   {
+      const int *bpl = Poly_1D::Binom(p - l);
+      const real_t el = bp[l]*l5l;
+      real_t l4k = 1.;
+      for (int k = 0; k <= p - l; k++)
+      {
+         const int *bplk = Poly_1D::Binom(p - l - k);
+         const real_t elk = el*bpl[k]*l4k;
+         real_t l3j = 1.;
+         for (int j = 0; j <= p - l - k; j++)
+         {
+            Poly_1D::CalcDyBinomTerms(p - l - k - j, l2, l1, dshape_1d);
+            real_t elkj = elk*bplk[j]*l3j;
+            for (int i = 0; i <= p - l - k - j; i++)
+            {
+               const real_t dshape_dl1 = dshape_1d[i]*elkj;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * dof] = dshape_dl1 * dl1[d];
+               }
+               o++;
+            }
+            l3j *= l3;
+         }
+         l4k *= l4;
+      }
+      l5l *= l5;
+   }
+
+   // Derivative w.r.t. l2 times grad(l2)
+   l5l = 1.;
+   for (int o = 0, l = 0; l <= p; l++)
+   {
+      const int *bpl = Poly_1D::Binom(p - l);
+      const real_t el = bp[l]*l5l;
+      real_t l4k = 1.;
+      for (int k = 0; k <= p - l; k++)
+      {
+         const int *bplk = Poly_1D::Binom(p - l - k);
+         const real_t elk = el*bpl[k]*l4k;
+         real_t l3j = 1.;
+         for (int j = 0; j <= p - l - k; j++)
+         {
+            Poly_1D::CalcDxBinomTerms(p - l - k - j, l2, l1, dshape_1d);
+            real_t elkj = elk*bplk[j]*l3j;
+            for (int i = 0; i <= p - l - k - j; i++)
+            {
+               const real_t dshape_dl2 = dshape_1d[i]*elkj;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * dof] += dshape_dl2*dl2[d];
+               }
+               o++;
+            }
+            l3j *= l3;
+         }
+         l4k *= l4;
+      }
+      l5l *= l5;
+   }
+
+   // Derivative w.r.t. l3 times grad(l3)
+   l5l = 1.;
+   for (int o = 0, l = 0; l <= p; l++)
+   {
+      const int *bpl = Poly_1D::Binom(p - l);
+      const real_t el = bp[l]*l5l;
+      real_t l4k = 1.;
+      for (int k = 0; k <= p - l; k++)
+      {
+         const int *bplk = Poly_1D::Binom(p - l - k);
+         const real_t elk = el*bpl[k]*l4k;
+         o += p - l - k + 1;
+         real_t l3j = 1.;
+         for (int j = 1; j <= p - l - k; j++)
+         {
+            Poly_1D::CalcBinomTerms(p - l - k - j, l2, l1, dshape_1d);
+            real_t elkj = j*elk*bplk[j]*l3j;
+            for (int i = 0; i <= p - l - k - j; i++)
+            {
+               const real_t dshape_dl3 = dshape_1d[i]*elkj;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * dof] += dshape_dl3*dl3[d];
+               }
+               o++;
+            }
+            l3j *= l3;
+         }
+         l4k *= l4;
+      }
+      l5l *= l5;
+   }
+
+   // Derivative w.r.t. l4 times grad(l4)
+   l5l = 1.;
+   for (int o = 0, l = 0; l <= p; l++)
+   {
+      const int *bpl = Poly_1D::Binom(p - l);
+      const real_t el = bp[l]*l5l;
+      real_t l4k = 1.;
+      o += ((p - l + 1) * (p - l + 2)) / 2;
+      for (int k = 1; k <= p - l; k++)
+      {
+         const int *bplk = Poly_1D::Binom(p - l - k);
+         const real_t elk = k*el*bpl[k]*l4k;
+         real_t l3j = 1.;
+         for (int j = 0; j <= p - l - k; j++)
+         {
+            Poly_1D::CalcBinomTerms(p - l - k - j, l2, l1, dshape_1d);
+            real_t elkj = elk*bplk[j]*l3j;
+            for (int i = 0; i <= p - l - k - j; i++)
+            {
+               const real_t dshape_dl4 = dshape_1d[i]*elkj;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * dof] += dshape_dl4*dl4[d];
+               }
+               o++;
+            }
+            l3j *= l3;
+         }
+         l4k *= l4;
+      }
+      l5l *= l5;
+   }
+
+   // Derivative w.r.t. l4 times grad(l4)
+   l5l = 1.;
+   for (int o = ((p + 1) * (p + 2) * (p + 3)) / 6, l = 1; l <= p; l++)
+   {
+      const int *bpl = Poly_1D::Binom(p - l);
+      const real_t el = l*bp[l]*l5l;
+      real_t l4k = 1.;
+      for (int k = 0; k <= p - l; k++)
+      {
+         const int *bplk = Poly_1D::Binom(p - l - k);
+         const real_t elk = el*bpl[k]*l4k;
+         real_t l3j = 1.;
+         for (int j = 0; j <= p - l - k; j++)
+         {
+            Poly_1D::CalcBinomTerms(p - l - k - j, l2, l1, dshape_1d);
+            real_t elkj = elk*bplk[j]*l3j;
+            for (int i = 0; i <= p - l - k - j; i++)
+            {
+               const real_t dshape_dl5 = dshape_1d[i]*elkj;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * dof] += dshape_dl5*dl5[d];
+               }
+               o++;
+            }
+            l3j *= l3;
+         }
+         l4k *= l4;
+      }
+      l5l *= l5;
+   }
+}
+
+void H1Pos_PyramidElement::CalcShape(const IntegrationPoint &ip,
+                                     Vector &shape) const
+{}
+
+void H1Pos_PyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                      DenseMatrix &dshape) const
+{}
+
 L2Pos_SegmentElement::L2Pos_SegmentElement(const int p)
    : PositiveTensorFiniteElement(1, p, L2_DOF_MAP)
 {
