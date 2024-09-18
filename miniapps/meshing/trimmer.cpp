@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/beam-tet.vtk";
    Array<int> attr;
    Array<int> bdr_attr;
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -69,6 +70,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -264,7 +266,6 @@ int main(int argc, char *argv[])
    {
       // GLVis server to visualize to
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "mesh\n" << trimmed_mesh << flush;
