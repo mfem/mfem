@@ -501,7 +501,7 @@ protected:
  * @brief Godunov flux,
  *    F̂ n = min F(u)n    for u⁻ ≤ u⁺, u ∈ [u⁻,u⁺]
  *    F̂ n = max F(u)n    for u⁻ > u⁺, u ∈ [u⁺,u⁻]
- * @note The implementation assumes monotonous F in u
+ * @note The implementation assumes monotonous F(u,x) in u
  */
 class GodunovFlux : public RiemannSolver
 {
@@ -609,7 +609,7 @@ protected:
 /**
  * @brief Engquist-Osher flux,
  *    F̂ n = ½ (F(u⁻) + F(u⁺)) n - ½ int |F'(u)| du   for u ∈ [u⁻,u⁺]
- * @note The implementation assumes monotonous F in u without a change of sign
+ * @note The implementation assumes monotonous F(u,x) in u
  */
 class EngquistOsherFlux : public RiemannSolver
 {
