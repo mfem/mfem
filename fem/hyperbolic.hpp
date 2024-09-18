@@ -191,8 +191,8 @@ public:
 
    /**
     * @brief Evaluates average normal numerical flux over the interval between
-    * the given end states and for the given normal. Optionally overloaded in a
-    * derived class.
+    * the given end states in the second argument and for the given normal.
+    * Optionally overloaded in a derived class.
     *
     * @param[in] state1 state value of the beggining of the interval
     * (num_equations)
@@ -209,9 +209,9 @@ public:
    { MFEM_ABORT("Not implemented."); }
 
    /**
-    * @brief Evaluates Jacobian of the average numerical flux over the interval
-    * between the given end states and for the given normal. Optionally
-    * overloaded in a derived class.
+    * @brief Evaluates Jacobian of the average normal numerical flux over the
+    * interval between the given end states in the second argument and for the
+    * given normal. Optionally overloaded in a derived class.
     *
     * @param[in] side indicates gradient w.r.t. the first (side = 1)
     * or second (side = 2) state
@@ -221,7 +221,8 @@ public:
     * (num_equations)
     * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
-    * @param[out] grad gradient of the numerical flux (num_equations, dim)
+    * @param[out] grad Jacobian of the average normal numerical flux
+    * (num_equations, dim)
     */
    virtual void AverageGrad(int side, const Vector &state1, const Vector &state2,
                             const Vector &nor, FaceElementTransformations &Tr,
@@ -413,7 +414,8 @@ public:
     * @brief  Jacobian of average normal numerical flux over the interval
     * [u⁻, u⁺] in the second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
-    * FluxFunction::ComputeAvgFluxDotN()
+    * FluxFunction::ComputeAvgFluxDotN() and the Jacobian of flux J n in
+    * FluxFunction::ComputeFluxJacobianDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
     * @param[in] state1 state value (u⁻) of the beggining of the interval
@@ -422,7 +424,7 @@ public:
     * (num_equations)
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
-    * @param[out] grad Jacobian Ĵ(u⁻,u⁺,x) n
+    * @param[out] grad Jacobian of F̄(u⁻,u⁺,x) n
     * side = 1:
     *    ½(F̄(u⁻,u⁺,x)n - F(u⁻,x)n) / (u⁺ - u⁻) - ½J(u⁻,x)n + ¼λ
     * side = 2:
@@ -498,7 +500,8 @@ public:
     * @brief  Jacobian of average normal numerical flux over the interval
     * [u⁻, u⁺] in the second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
-    * FluxFunction::ComputeAvgFluxDotN()
+    * FluxFunction::ComputeAvgFluxDotN() and the Jacobian of flux J n in
+    * FluxFunction::ComputeFluxJacobianDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
     * @param[in] state1 state value (u⁻) of the beggining of the interval
@@ -507,7 +510,7 @@ public:
     * (num_equations)
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
-    * @param[out] grad Jacobian Ĵ(u⁻,u⁺,x) n
+    * @param[out] grad Jacobian of F̄(u⁻,u⁺,x) n
     * side = 1:
     *    (F(u⁺) - F̄(u⁻,u⁺))n / (u⁺ - u⁻)      when negative
     *    J(u⁻,x) n                            otherwise
@@ -581,7 +584,8 @@ public:
     * @brief  Jacobian of average normal numerical flux over the interval
     * [u⁻, u⁺] in the second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
-    * FluxFunction::ComputeAvgFluxDotN()
+    * FluxFunction::ComputeAvgFluxDotN() and the Jacobian of flux J n in
+    * FluxFunction::ComputeFluxJacobianDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
     * @param[in] state1 state value (u⁻) of the beggining of the interval
@@ -590,7 +594,7 @@ public:
     * (num_equations)
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
-    * @param[out] grad Jacobian Ĵ(u⁻,u⁺,x) n
+    * @param[out] grad Jacobian of F̄(u⁻,u⁺,x) n
     * side = 1:
     *    J(u⁻,x) n                        for F(u⁻)n ≤ F̄(u⁻,u⁺)n
     *    (F̄(u⁻,u⁺) - F(u⁻))n / (u⁺ - u⁻)  for F(u⁻)n > F̄(u⁻,u⁺)n
