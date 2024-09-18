@@ -360,6 +360,20 @@ public:
                            FaceElementTransformations &Tr,
                            const Vector &elfun, Vector &elvect) override;
 
+   /**
+    * @brief Implements <-Ĵ(u,x) n, [v]> with abstract Ĵ computed by
+    * RiemannSolver::Grad() of the numerical flux object
+    *
+    * @param[in] el1 finite element of the first element
+    * @param[in] el2 finite element of the second element
+    * @param[in] Tr face element transformations
+    * @param[in] elfun local coefficient of basis from both elements
+    * @param[out] elmat evaluated Jacobian matrix <-Ĵ(u,x) n, [v]>
+    */
+   void AssembleFaceGrad(const FiniteElement &el1,
+                         const FiniteElement &el2,
+                         FaceElementTransformations &Tr,
+                         const Vector &elfun, DenseMatrix &elmat) override;
 };
 
 
