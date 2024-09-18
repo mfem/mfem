@@ -187,6 +187,11 @@ void forall(func_t f,
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(X, Y);
       forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+#if defined(MFEM_USE_CUDA)
+      MFEM_GPU_CHECK(cudaGetLastError());
+#elif defined(MFEM_USE_HIP)
+      MFEM_GPU_CHECK(hipGetLastError());
+#endif
       MFEM_DEVICE_SYNC;
 #endif
    }
@@ -1874,7 +1879,8 @@ void apply_kernel(
    process_kf_result(f_qp, serac::get<0>(serac::apply(kf, args)));
 }
 
-template <typename arg_ts, std::size_t... Is> inline
+template <typename arg_ts, std::size_t... Is>
+MFEM_HOST_DEVICE inline
 auto create_enzyme_args(arg_ts &args,
                         arg_ts &shadow_args,
                         std::index_sequence<Is...>)
@@ -1901,7 +1907,8 @@ auto create_enzyme_args(arg_ts &args,
 //    };
 // }
 
-template <typename kernel_t, typename arg_ts> inline
+template <typename kernel_t, typename arg_ts>
+MFEM_HOST_DEVICE inline
 auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
 {
    auto arg_indices =
@@ -1919,7 +1926,8 @@ auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
    }, enzyme_args);
 }
 
-template <typename kf_t, typename kernel_arg_ts, size_t num_args> inline
+template <typename kf_t, typename kernel_arg_ts, size_t num_args>
+MFEM_HOST_DEVICE inline
 void apply_kernel_fwddiff_enzyme(
    DeviceTensor<1, double> &f_qp,
    const kf_t &kf,

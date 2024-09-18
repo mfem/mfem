@@ -478,6 +478,7 @@ public:
          FunctionCoefficient coeff(taylor_source);
          DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &hydro.ir);
          e_source.AddDomainIntegrator(d);
+         e_source.UseFastAssembly(true);
          e_source.Assemble();
 
          Re -= e_source;
@@ -715,6 +716,7 @@ public:
             FunctionCoefficient coeff(taylor_source);
             DomainLFIntegrator *d = new DomainLFIntegrator(coeff, &ir);
             e_source.AddDomainIntegrator(d);
+            e_source.UseFastAssembly(true);
             e_source.Assemble();
             rhse += e_source;
          }
