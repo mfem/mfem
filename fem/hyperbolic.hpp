@@ -483,15 +483,19 @@ public:
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
     *
-    * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺),
-    * only the latter is implemented (side = 2)
+    * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
     * @param[in] state1 state value (u⁻) of the beggining of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
-    * @param[out] grad min((F(u⁺) - F̄(u⁻,u⁺))n / (u⁺ - u⁻), 0)
+    * @param[out] grad Jacobian Ĵ(u⁻,u⁺,x) n
+    * side = 1:
+    *    (F(u⁺) - F̄(u⁻,u⁺))n / (u⁺ - u⁻)      when negative
+    *    J(u⁻,x) n                            otherwise
+    * side = 2:
+    *    min((F(u⁺) - F̄(u⁻,u⁺))n / (u⁺ - u⁻), 0)
     */
    void AverageGrad(int side, const Vector &state1, const Vector &state2,
                     const Vector &nor, FaceElementTransformations &Tr,
@@ -500,6 +504,7 @@ public:
 protected:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector fluxN1, fluxN2;
+   mutable DenseMatrix JDotN;
 #endif
 };
 
