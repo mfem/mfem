@@ -897,8 +897,8 @@ private:
 
 public:
    /**
-    * @brief Construct a new Shallow Water Flux Function with
-    * given spatial dimension
+    * @brief Construct a new ShallowWaterFlux FluxFunction with given spatial
+    * dimension and gravity constant
     *
     * @param dim spatial dimension
     * @param g gravity constant
@@ -910,7 +910,7 @@ public:
     * @brief Compute F(h, hu)
     *
     * @param state state (h, hu) at current integration point
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param flux F(h, hu) = [huᵀ; huuᵀ + ½gh²I]
     * @return real_t maximum characteristic speed, |u| + √(gh)
     */
@@ -922,7 +922,7 @@ public:
     *
     * @param state state (h, hu) at current integration point
     * @param normal normal vector, usually not a unit vector
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
     * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
@@ -939,8 +939,8 @@ private:
 
 public:
    /**
-    * @brief Construct a new Euler Flux Function with given
-    * spatial dimension
+    * @brief Construct a new EulerFlux FluxFunction with given spatial
+    * dimension and specific heat ratio
     *
     * @param dim spatial dimension
     * @param specific_heat_ratio specific heat ratio, γ
@@ -953,7 +953,7 @@ public:
     * @brief Compute F(ρ, ρu, E)
     *
     * @param state state (ρ, ρu, E) at current integration point
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param flux F(ρ, ρu, E) = [ρuᵀ; ρuuᵀ + pI; uᵀ(E + p)]
     * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
@@ -965,7 +965,7 @@ public:
     *
     * @param x x (ρ, ρu, E) at current integration point
     * @param normal normal vector, usually not a unit vector
-    * @param Tr current element transformation with integration point
+    * @param Tr current element transformation with the integration point
     * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
     * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
