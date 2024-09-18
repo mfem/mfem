@@ -1159,6 +1159,16 @@ public:
        in the already allocated @a d array.*/
    static void CalcDBinomTerms(const int p, const real_t x, const real_t y,
                                real_t *d);
+   /** @brief Compute the derivatives (w.r.t. x) of the terms in the expansion
+       of the binomial (x + y)^p.  Store the results in the already allocated
+       @a d array.*/
+   static void CalcDxBinomTerms(const int p, const real_t x, const real_t y,
+                                real_t *d);
+   /** @brief Compute the derivatives (w.r.t. y) of the terms in the expansion
+       of the binomial (x + y)^p.  Store the results in the already allocated
+       @a d array.*/
+   static void CalcDyBinomTerms(const int p, const real_t x, const real_t y,
+                                real_t *d);
 
    /** @brief Compute the values of the Bernstein basis functions of order
        @a p at coordinate @a x and store the results in the already allocated
