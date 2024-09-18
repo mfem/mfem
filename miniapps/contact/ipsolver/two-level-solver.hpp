@@ -18,7 +18,8 @@ private:
     MPI_Comm comm;
     int numProcs, myid;
     const HypreParMatrix * A = nullptr;
-    const HypreParMatrix * P = nullptr;
+    const HypreParMatrix * Pc = nullptr;
+    const HypreParMatrix * Pnc = nullptr;
     HypreBoomerAMG * amg = nullptr;
     HypreParMatrix * Ac = nullptr;
     MUMPSSolver * M = nullptr;
@@ -31,7 +32,8 @@ public:
     TwoLevelAMGSolver(MPI_Comm comm_);
     TwoLevelAMGSolver(const Operator & Op, const Operator & P_);
     void SetOperator(const Operator &op);
-    void SetTransferMap(const Operator & P_);
+    void SetContactTransferMap(const Operator & P);
+    void SetNonContactTransferMap(const Operator & P);
     void EnableAdditiveCoupling() { additive = true; }
     void EnableMultiplicativeCoupling() { additive = false; }
     void SetAMGRelaxType(int relax_type_) { relax_type = relax_type_;  }

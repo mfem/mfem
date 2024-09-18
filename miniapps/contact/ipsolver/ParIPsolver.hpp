@@ -63,6 +63,8 @@ protected:
     bool saveLogBarrierIterates = false;
 
     int linSolver=0;
+    bool dynamicsolver=false;
+    int dynamiclinSolver=0;
     double linSolveAbsTol = 1e-12;
     double linSolveRelTol = 1e-6;
     int relax_type = 8;
@@ -102,6 +104,8 @@ public:
     {
         pfes = pfes_;
     }
+    void EnableDynamicSolverChoice() { dynamicsolver = true;}
+    void DisableDynamicSolverChoice() { dynamicsolver = false;}
     virtual ~ParInteriorPointSolver();
 };
 

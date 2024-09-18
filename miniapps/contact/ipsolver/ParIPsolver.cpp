@@ -312,11 +312,16 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    MPI_Allreduce(MPI_IN_PLACE, &dmax,1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
    MPI_Allreduce(MPI_IN_PLACE, &dmin,1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 
-   if (iAmRoot)
+   // if (iAmRoot)
+   // {
+   //    mfem::out << "\n D max = " << dmax << endl;
+   //    mfem::out << " D min = " << dmin << endl;
+   //    mfem::out << " Ratio = " << dmax/dmin << endl;
+   // }
+   dynamiclinSolver = linSolver;
+   if (dynamicsolver && linSolver == 2 && dmax/dmin > 5e6)
    {
-      mfem::out << "\n D max = " << dmax << endl;
-      mfem::out << " D min = " << dmin << endl;
-      mfem::out << " Ratio = " << dmax/dmin << endl;
+      dynamiclinSolver = 6;
    }
    dmaxmin_ratio.Append(dmax/dmin);
 
@@ -415,7 +420,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    Xhat = 0.0;
 
    // Direct solver (default)
-   if(linSolver == 0)
+   if(dynamiclinSolver == 0)
    {
       Array2D<HypreParMatrix *> ABlockMatrix(3,3);
       for(int ii = 0; ii < 3; ii++)
@@ -453,7 +458,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
       delete Ah;
    }
-   else if(linSolver >= 1)
+   else if(dynamiclinSolver >= 1)
    {
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
       HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
@@ -474,7 +479,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       breduced.Add(1.0, b.GetBlock(0));
       
       // Direct solver on the reduced system
-      if(linSolver == 1) 
+      if(dynamiclinSolver == 1) 
       {
          // setup the solver for the reduced linear system
 #ifdef MFEM_USE_MUMPS
@@ -493,12 +498,13 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 #endif
       }
       // PCG-AMG solver on the reduced system
-      else if (linSolver == 2 || linSolver == 5)
+      else if (dynamiclinSolver == 2 || dynamiclinSolver == 5)
       {
          HypreBoomerAMG amg(*Areduced);
          // HypreBoomerAMG amg(*Huu);
          amg.SetPrintLevel(0);
          amg.SetRelaxType(relax_type);
+         amg.SetMaxIter(2);
          if (pfes)
          {
             amg.SetElasticityOptions(pfes);
@@ -518,7 +524,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
          IterativeSolver * AreducedSolver = nullptr;
 
-         if (linSolver == 2) 
+         if (dynamiclinSolver == 2) 
          {
             AreducedSolver = new CGSolver(MPI_COMM_WORLD);
          }
@@ -579,7 +585,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          delete AreducedSolver;
       }
 #ifdef MFEM_USE_MUMPS
-      else if (linSolver == 6 || linSolver == 7) // Two level
+      else if (dynamiclinSolver == 6 || dynamiclinSolver == 7) // Two level
       {
          if (iAmRoot)
          {
@@ -646,7 +652,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          Vector bi(PitAPi->Height()); Pi->MultTranspose(breduced,bi); 
          Vector bb(PbtAPb->Height()); Pb->MultTranspose(breduced,bb); 
          Vector Xib, Bib;
-         if (linSolver == 3)
+         if (dynamiclinSolver == 3)
          {
             Array<int> blkoffs(3);
             blkoffs[0] = 0;

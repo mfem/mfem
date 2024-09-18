@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
    int msteps = 0;
    bool outputfiles = false;
    bool doublepass = false;
+   bool dynamicsolver = false;
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&testNo, "-testno", "--test-number",
@@ -177,6 +178,9 @@ int main(int argc, char *argv[])
                   "2: PCG-AMG-reduced,"
                   "3: PCG- with block-diag(AMG,direct solver)"
                   "4: with static cond of contact dofs");
+   args.AddOption(&dynamicsolver, "-dynamic-solver", "--dynamic-solver", "-no-dynamic-solver",
+                  "--no-dynamic-solver",
+                  "Enable or disable dynamic choice between AMG and two-level solver.");                  
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -532,6 +536,7 @@ int main(int argc, char *argv[])
       chrono.Clear();
       chrono.Start();
       ParInteriorPointSolver optimizer(&qpopt);
+      if (dynamicsolver) optimizer.EnableDynamicSolverChoice();
       chrono.Stop();
       if (myid == 0)
       {

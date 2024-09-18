@@ -452,7 +452,7 @@ void ParContactProblem::ComputeRestrictionToContactDofs()
       Mt = M->Transpose();
       Mt->EliminateRows(prob->GetEssentialDofs());
    }
-   
+
    int hJt = Mt->Height();
    SparseMatrix mergedJt;
    Mt->MergeDiagAndOffd(mergedJt);

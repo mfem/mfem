@@ -29,7 +29,7 @@ TwoLevelAMGSolver::TwoLevelAMGSolver(const Operator & Op, const Operator & P_)
    MFEM_VERIFY(PPtr, "Transfer Map: not a compatible matrix type");
    
    SetOperator(Op);
-   SetTransferMap(P_);
+   SetContactTransferMap(P_);
 }
 
 void TwoLevelAMGSolver::Init(MPI_Comm comm_)
@@ -47,10 +47,15 @@ void TwoLevelAMGSolver::SetOperator(const Operator & Op)
     InitAMG();
 }
 
-void TwoLevelAMGSolver::SetTransferMap(const Operator & P_)
+void TwoLevelAMGSolver::SetContactTransferMap(const Operator & P)
 {
-    P = dynamic_cast<const HypreParMatrix *>(&P_);
+    Pc = dynamic_cast<const HypreParMatrix *>(&P);
     InitMumps();
+}
+
+void TwoLevelAMGSolver::SetNonContactTransferMap(const Operator & P)
+{
+    Pnc = dynamic_cast<const HypreParMatrix *>(&P);
 }
 
 void TwoLevelAMGSolver::InitAMG()
@@ -63,7 +68,7 @@ void TwoLevelAMGSolver::InitAMG()
 
 void TwoLevelAMGSolver::InitMumps()
 {
-    Ac = RAP(A, P);
+    Ac = RAP(A, Pc);
     M = new MUMPSSolver(comm);
     M->SetPrintLevel(0);
     M->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
@@ -80,13 +85,13 @@ void TwoLevelAMGSolver::Mult(const Vector & b, Vector & x) const
     Vector z(x);
     amg->Mult(b, z);
     x+=z;
-    Vector rc(P->Width());
-    Vector xc(P->Width());
+    Vector rc(Pc->Width());
+    Vector xc(Pc->Width());
     if (additive)
     {
-        P->MultTranspose(b,rc);
+        Pc->MultTranspose(b,rc);
         M->Mult(rc,xc);
-        P->Mult(xc,z);
+        Pc->Mult(xc,z);
     }
     else
     {
@@ -95,11 +100,11 @@ void TwoLevelAMGSolver::Mult(const Vector & b, Vector & x) const
         A->Mult(x,r);
         r.Neg(); r+=b;
         // 3. Restrict to subspace
-        P->MultTranspose(r,rc);
+        Pc->MultTranspose(r,rc);
         // 4. Solve on the subspace
         M->Mult(rc,xc);
         // 5. Transfer to fine space
-        P->Mult(xc,z);
+        Pc->Mult(xc,z);
         // 6. Update Correction
         x+=z;
         // 7. Compute Residual r = b - A x
