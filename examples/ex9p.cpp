@@ -2,7 +2,7 @@
 //
 // Compile with: make ex9p
 //
-// Sample runs:
+// DG sample runs:
 //    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -dt 0.005
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -dt 0.01
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.01
@@ -20,7 +20,24 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rs 1 -o 2 -tf 2
 //    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
 //
-// Device sample runs:
+// CG sample runs:
+//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 11 -o 1 -s 2 -vs 200
+//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 12 -o 1 -s 2 -vs 200
+//    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -rp 5 -dt 0.00025 -sc 13 -o 1 -s 2 -vs 200
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -rp 1 -dt 0.0025 -tf 2 -vs 20 -sc 11 -s 3 -o 2
+//    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -rp 1 -dt 0.0025 -tf 2 -vs 20 -sc 11
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 3 -dt 0.002 -tf 9 -sc 11 -o 1 -s 2 -vs 20
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 1 -dt 0.002 -tf 9 -sc 11 -vs 20
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -rp 3 -dt 0.002 -tf 9 -sc 13 -o 1 -s 2 -vs 20
+//    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 2 -dt 0.004 -tf 9 -vs 20 -sc 11 -o 1 -s 2
+//    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 2 -dt 0.004 -tf 9 -vs 20 -sc 11 -o 1 -s 2
+//    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9 -sc 11 -vs 20
+//    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 2 -dt 0.005 -tf 9 -sc 12 -s 3 -o 2 -vs 20
+//    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 4 -dt 0.0025 -tf 9 -vs 20 -sc 11 -s 2 -o 1
+//    mpirun -np 4 ex9p -m ../data/periodic-cube.mesh -p 0 -o 2 -s 3 -rp 1 -dt 0.01 -tf 8 -sc 11
+//    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rp 1 -o 2 -s 3 -tf 2 -sc 11
+//
+// Device sample runs (DG only):
 //    mpirun -np 4 ex9p -pa
 //    mpirun -np 4 ex9p -ea
 //    mpirun -np 4 ex9p -fa
@@ -42,7 +59,10 @@
 //               solution. Saving of time-dependent data files for visualization
 //               with VisIt (visit.llnl.gov) and ParaView (paraview.org), as
 //               well as the optional saving with ADIOS2 (adios2.readthedocs.io)
-//               are also illustrated.
+//               are also illustrated. Additionally, the example showcases the
+//               parallel implementation of an element-based Clip & Scale limiter for
+//               continuous finite elements, which is designed to be bound-preserving.
+//               For more detail, see https://doi.org/10.1142/13466.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -63,6 +83,11 @@ real_t u0_function(const Vector &x);
 
 // Inflow boundary condition
 real_t inflow_function(const Vector &x);
+
+// Function f = 1 for lumped boundary operator
+real_t one(const Vector &x) {return 1.0;}
+
+real_t zero = 0.0;
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -208,7 +233,7 @@ public:
     and advection matrices, and b describes the flow on the boundary. This can
     be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
     used to evaluate the right-hand side. */
-class FE_Evolution : public TimeDependentOperator
+class DG_FE_Evolution : public TimeDependentOperator
 {
 private:
    OperatorHandle M, K;
@@ -220,15 +245,115 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
-                PrecType prec_type);
+   DG_FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
+                   PrecType prec_type);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
-   virtual ~FE_Evolution();
+   virtual ~DG_FE_Evolution();
 };
 
+/** Abstract base class for evaluating the time-dependent operator in the ODE formulation.
+    The continuous Galerkin (CG) strong form of the advection equation du/dt = -v.grad(u)
+    is given by M du/dt = -K u + b, where M and K are the mass and advection matrices,
+    respectively, and b represents the boundary flow contribution.
+
+    The ODE can be reformulated as:
+    du/dt = M_L^{-1}((-K + D) u + F^*(u) + b),
+    where M_L is the lumped mass matrix, D is a low-order stabilization term, and F^*(u)
+    represents the limited anti-diffusive fluxes. Here, F^* is a limited version of F,
+    which recovers the high-order target scheme. The limited anti-diffusive fluxes F^*
+    are the sum of the limited element contributions of the original flux F to enforce
+    local bounds.
+
+    Additional to the limiter we implement the low-order scheme and high-order target
+    scheme by chosing:
+    - F^* = 0 for the bound-preserving low-order scheme.
+    - F^* = F for the high-order target scheme which is not bound-preserving.
+
+    This abstract class provides a framework for evaluating the right-hand side of the ODE
+    and is intended to be inherited by classes that implement the three schemes:
+    - The ClipAndScale class, which employes the limiter to enforces local bounds
+    - The HighOrderTargetScheme class, which employs the raw anti-diffusive fluxes F
+    - The LowOrderScheme class, which employs F = 0 and has low accuracy, but is bound-preserving */
+class CG_FE_Evolution : public TimeDependentOperator
+{
+protected:
+   const Vector &lumpedmassmatrix;
+   ParFiniteElementSpace &fes;
+   GroupCommunicator &gcomm;
+   int *I, *J;
+   ParLinearForm b_lumped;
+   ParGridFunction u_inflow;
+
+   mutable DenseMatrix Ke, Me;
+   mutable Vector ue, re, udote, fe, fe_star, gammae;
+   mutable ConvectionIntegrator conv_int;
+   mutable MassIntegrator mass_int;
+   mutable Vector z;
+
+   virtual void ComputeLOTimeDerivatives(const Vector &u, Vector &udot) const;
+
+public:
+   CG_FE_Evolution(ParFiniteElementSpace &fes_,
+                   const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
+                   VectorFunctionCoefficient &velocity,
+                   ParBilinearForm &M);
+
+   virtual void Mult(const Vector &x, Vector &y) const = 0;
+
+   virtual ~CG_FE_Evolution();
+};
+
+// Clip and Scale limiter class
+class ClipAndScale : public CG_FE_Evolution
+{
+private:
+   mutable Array<real_t> umin, umax;
+   mutable Vector udot;
+
+   virtual void ComputeBounds(const Vector &u, Array<real_t> &u_min,
+                              Array<real_t> &u_max) const;
+
+public:
+   ClipAndScale(ParFiniteElementSpace &fes_,
+                const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
+                VectorFunctionCoefficient &velocity, ParBilinearForm &M);
+
+   virtual void Mult(const Vector &x, Vector &y) const override;
+
+   virtual ~ClipAndScale();
+};
+
+// High-order target scheme class
+class HighOrderTargetScheme : public CG_FE_Evolution
+{
+private:
+   mutable Vector udot;
+
+public:
+   HighOrderTargetScheme(ParFiniteElementSpace &fes_,
+                         const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
+                         VectorFunctionCoefficient &velocity, ParBilinearForm &M);
+
+   virtual void Mult(const Vector &x, Vector &y) const override;
+
+   virtual ~HighOrderTargetScheme();
+};
+
+// Low-order scheme class
+class LowOrderScheme : public CG_FE_Evolution
+{
+public:
+   LowOrderScheme(ParFiniteElementSpace &fes_,
+                  const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
+                  VectorFunctionCoefficient &velocity, ParBilinearForm &M);
+
+   virtual void Mult(const Vector &x, Vector &y) const override;
+
+   virtual ~LowOrderScheme();
+};
 
 int main(int argc, char *argv[])
 {
@@ -249,6 +374,7 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
+   int scheme = 1;
    real_t t_final = 10.0;
    real_t dt = 0.01;
    bool visualization = true;
@@ -291,6 +417,11 @@ int main(int argc, char *argv[])
                   "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
                   "            22 - Implicit Midpoint Method,\n\t"
                   "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
+   args.AddOption(&scheme, "-sc", "--scheme",
+                  "Finite Element scheme: 1 - Standard Discontinuous Galerkin method,\n\t"
+                  "                       11 - Clip and Scale Limiter for continuous Galerkin discretization,\n\t"
+                  "                       12 - High-order target schme for continuous Galerkin discretization,\n\t"
+                  "                       13 - Low-order schme for continuous Galerkin discretization");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -328,16 +459,60 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   const bool DG = (scheme < 11);
+
+   // Limiter is only implemented to run on cpu.
+   if (!DG && strcmp(device_config, "cuda") == 0)
+   {
+      if (Mpi::Root())
+      {
+         cout << "Cuda not supported for this CG implementation" << endl;
+      }
+      return 2;
+   }
+
    Device device(device_config);
-   if (Mpi::Root()) { device.Print(); }
+   if (Mpi::Root())
+   {
+      device.Print();
+   }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
+   // Nonconforming meshes are not feasible for continuous elements
+   if (!DG && !mesh->Conforming())
+   {
+      if (Mpi::Root())
+      {
+         cout << "CG needs a conforming mesh." << endl;
+      }
+      return 3;
+   }
+
    // 4. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
+   //    The CG Limiter is only implemented for explicit time-stepping methods.
+   if (!DG && ode_solver_type > 10)
+   {
+      if (Mpi::Root())
+      {
+         cout << "The stabilized CG method is only implemented for explicit Runge-Kutta methods."
+              << endl;
+      }
+      return 4;
+   }
+   // Limiter and low order scheme are only provably bound preserving when employing SSP-RK time-stepping methods
+   else if ((scheme == 11 || scheme == 13) && ode_solver_type > 3)
+   {
+      if (Mpi::Root())
+      {
+         MFEM_WARNING("Using non-stability preserving Runge-Kutta method with limiter. Bounds might be violated.");
+      }
+   }
+
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
@@ -361,7 +536,7 @@ int main(int argc, char *argv[])
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
          delete mesh;
-         return 3;
+         return 5;
    }
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
@@ -388,10 +563,30 @@ int main(int argc, char *argv[])
       pmesh->UniformRefinement();
    }
 
-   // 7. Define the parallel discontinuous DG finite element space on the
-   //    parallel refined mesh of the given polynomial order.
-   DG_FECollection fec(order, dim, BasisType::GaussLobatto);
-   ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
+   // 7. Define the parallel discontinuous DG finite element or continuouts CG
+   // space on the parallel refined mesh of the given polynomial order.
+   DG_FECollection fec_DG(order, dim, BasisType::GaussLobatto);
+   H1_FECollection fec_CG(order, dim, BasisType::Positive);
+
+   ParFiniteElementSpace *fes = NULL;
+   switch (scheme)
+   {
+      case 1:
+         fes = new ParFiniteElementSpace(pmesh, &fec_DG);
+         break;
+      case 11:
+      case 12:
+      case 13:
+         fes = new ParFiniteElementSpace(pmesh, &fec_CG);
+         break;
+      default:
+         if (Mpi::Root())
+         {
+            cout << "Unknown scheme: " << scheme << '\n';
+         }
+         delete pmesh;
+         return 6;
+   }
 
    HYPRE_BigInt global_vSize = fes->GlobalTrueVSize();
    if (Mpi::Root())
@@ -408,41 +603,71 @@ int main(int argc, char *argv[])
 
    ParBilinearForm *m = new ParBilinearForm(fes);
    ParBilinearForm *k = new ParBilinearForm(fes);
-   if (pa)
+   ParBilinearForm *mL = new ParBilinearForm(fes);
+   if (DG)
    {
-      m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      if (pa)
+      {
+         m->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         k->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
+      else if (ea)
+      {
+         m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+         k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      }
+      else if (fa)
+      {
+         m->SetAssemblyLevel(AssemblyLevel::FULL);
+         k->SetAssemblyLevel(AssemblyLevel::FULL);
+      }
    }
-   else if (ea)
+   else if (scheme == 11 && (pa || ea))
    {
-      m->SetAssemblyLevel(AssemblyLevel::ELEMENT);
-      k->SetAssemblyLevel(AssemblyLevel::ELEMENT);
-   }
-   else if (fa)
-   {
-      m->SetAssemblyLevel(AssemblyLevel::FULL);
-      k->SetAssemblyLevel(AssemblyLevel::FULL);
+      if (Mpi::Root())
+      {
+         cout << "The CG Limiter needs full assembly of the mass matrix to obtain the local stencil via its sparsity pattern. "
+              << endl;
+      }
+      delete pmesh;
+      delete fes;
+      return 7;
    }
 
    m->AddDomainIntegrator(new MassIntegrator);
+   m->Assemble();
+   m->Finalize();
+
    constexpr real_t alpha = -1.0;
-   k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
-   k->AddInteriorFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
-   k->AddBdrFaceIntegrator(
-      new NonconservativeDGTraceIntegrator(velocity, alpha));
+   int skip_zeros = 0;
+   Vector lumpedmassmatrix(mL->Height());
+
+   // The convective bilinear form is not needed in the CG case.
+   if (DG)
+   {
+      k->AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
+      k->AddInteriorFaceIntegrator(
+         new NonconservativeDGTraceIntegrator(velocity, alpha));
+      k->AddBdrFaceIntegrator(
+         new NonconservativeDGTraceIntegrator(velocity, alpha));
+
+      k->Assemble(skip_zeros);
+      k->Finalize(skip_zeros);
+   }
+   // lumped mass matrix not needed in the DG case
+   else
+   {
+      mL->AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+      mL->Assemble();
+      mL->Finalize();
+      mL->SpMat().GetDiag(lumpedmassmatrix);
+   }
+   delete mL;
 
    ParLinearForm *b = new ParLinearForm(fes);
    b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, alpha));
-
-   int skip_zeros = 0;
-   m->Assemble();
-   k->Assemble(skip_zeros);
    b->Assemble();
-   m->Finalize();
-   k->Finalize(skip_zeros);
-
 
    HypreParVector *B = b->ParallelAssemble();
 
@@ -451,7 +676,15 @@ int main(int argc, char *argv[])
    //    GLVis visualization.
    ParGridFunction *u = new ParGridFunction(fes);
    u->ProjectCoefficient(u0);
-   HypreParVector *U = u->GetTrueDofs();
+
+   // DG uses a HypreParVector to communicate between processess.
+   // In the implementation of the element-based Clip & Scale limiter we do
+   // this by hand.
+   HypreParVector *U = NULL;
+   if (DG)
+   {
+      U = u->GetTrueDofs();
+   }
 
    {
       ostringstream mesh_name, sol_name;
@@ -564,17 +797,34 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *B, prec_type);
+   TimeDependentOperator *adv = NULL;
+   switch (scheme)
+   {
+      case 1: adv = new DG_FE_Evolution(*m, *k, *B, prec_type); break;
+      case 11: adv = new ClipAndScale(*fes, lumpedmassmatrix, inflow, velocity, *m);
+         break;
+      case 12: adv = new HighOrderTargetScheme(*fes, lumpedmassmatrix, inflow,
+                                                  velocity, *m); break;
+      case 13: adv = new LowOrderScheme(*fes, lumpedmassmatrix, inflow, velocity, *m);
+         break;
+   }
 
    real_t t = 0.0;
-   adv.SetTime(t);
-   ode_solver->Init(adv);
+   adv->SetTime(t);
+   ode_solver->Init(*adv);
 
    bool done = false;
    for (int ti = 0; !done; )
    {
       real_t dt_real = min(dt, t_final - t);
-      ode_solver->Step(*U, t, dt_real);
+      if (DG)
+      {
+         ode_solver->Step(*U, t, dt_real);
+      }
+      else
+      {
+         ode_solver->Step(*u, t, dt_real);
+      }
       ti++;
 
       done = (t >= t_final - 1e-8*dt);
@@ -586,9 +836,12 @@ int main(int argc, char *argv[])
             cout << "time step: " << ti << ", time: " << t << endl;
          }
 
-         // 11. Extract the parallel grid function corresponding to the finite
+         // 11. In case of DG extract the parallel grid function corresponding to the finite
          //     element approximation U (the local solution on each processor).
-         *u = *U;
+         if (DG)
+         {
+            *u = *U;
+         }
 
          if (visualization)
          {
@@ -625,7 +878,6 @@ int main(int argc, char *argv[])
    // 12. Save the final solution in parallel. This output can be viewed later
    //     using GLVis: "glvis -np <np> -m ex9-mesh -g ex9-final".
    {
-      *u = *U;
       ostringstream sol_name;
       sol_name << "ex9-final." << setfill('0') << setw(6) << myid;
       ofstream osol(sol_name.str().c_str());
@@ -634,7 +886,10 @@ int main(int argc, char *argv[])
    }
 
    // 13. Free the used memory.
-   delete U;
+   if (DG)
+   {
+      delete U;
+   }
    delete u;
    delete B;
    delete b;
@@ -644,6 +899,7 @@ int main(int argc, char *argv[])
    delete pmesh;
    delete ode_solver;
    delete pd;
+   delete adv;
 #ifdef MFEM_USE_ADIOS2
    if (adios2)
    {
@@ -656,9 +912,9 @@ int main(int argc, char *argv[])
 }
 
 
-// Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                           const Vector &b_, PrecType prec_type)
+// Implementation of class DG_FE_Evolution
+DG_FE_Evolution::DG_FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
+                                 const Vector &b_, PrecType prec_type)
    : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
      M_solver(M_.ParFESpace()->GetComm()),
      z(height)
@@ -704,7 +960,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
 //    u_t = M^{-1}(Ku + b),
 // by solving associated linear system
 //    (M - dt*K) d = K*u + b
-void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
+void DG_FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    K->Mult(x, z);
    z += b;
@@ -712,7 +968,7 @@ void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
    dg_solver->Mult(z, k);
 }
 
-void FE_Evolution::Mult(const Vector &x, Vector &y) const
+void DG_FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
    // y = M^{-1} (K x + b)
    K->Mult(x, z);
@@ -720,12 +976,330 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    M_solver.Mult(z, y);
 }
 
-FE_Evolution::~FE_Evolution()
+DG_FE_Evolution::~DG_FE_Evolution()
 {
    delete M_prec;
    delete dg_solver;
 }
 
+// Implementation of class CG_FE_Evolution
+CG_FE_Evolution::CG_FE_Evolution(ParFiniteElementSpace &fes_,
+                                 const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
+                                 VectorFunctionCoefficient &velocity, ParBilinearForm &M) :
+   TimeDependentOperator(lumpedmassmatrix_.Size()),
+   lumpedmassmatrix(lumpedmassmatrix_), fes(fes_),
+   gcomm(fes_.GroupComm()), I(M.SpMat().GetI()), J(M.SpMat().GetJ()),
+   b_lumped(&fes),
+   u_inflow(&fes), conv_int(velocity), mass_int()
+{
+   u_inflow.ProjectCoefficient(inflow);
+
+   // distribute the lumped mass matrix entries
+   Array<real_t> lumpedmassmatrix_array(lumpedmassmatrix.GetData(),
+                                        lumpedmassmatrix.Size());
+   gcomm.Reduce<real_t>(lumpedmassmatrix_array, GroupCommunicator::Sum);
+   gcomm.Bcast(lumpedmassmatrix_array);
+
+   // For bound preservation the boundary condition \hat{u} is enforced
+   // via a lumped approximation to < (u_h - u_inflow) * min(v * n, 0 ), w >, i.e.,
+   // (u_i - (u_inflow)_i) * \int_F \varphi_i * min(v * n, 0).
+   // The integral can be implemented as follows:
+   FunctionCoefficient one_coeff(one);
+   b_lumped.AddBdrFaceIntegrator(
+      new BoundaryFlowIntegrator(one_coeff, velocity, 1.0));
+   b_lumped.Assemble();
+
+   z.SetSize(lumpedmassmatrix.Size());
+}
+
+void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u,
+                                               Vector &udot) const
+{
+   udot = 0.0;
+   const int nE = fes.GetNE();
+   Array<int> dofs;
+
+   for (int e = 0; e < nE; e++)
+   {
+      auto element = fes.GetFE(e);
+      auto eltrans = fes.GetElementTransformation(e);
+
+      // assemble element matrix of convection operator
+      conv_int.AssembleElementMatrix(*element, *eltrans, Ke);
+
+      fes.GetElementDofs(e, dofs);
+      ue.SetSize(dofs.Size());
+      u.GetSubVector(dofs, ue);
+      re.SetSize(dofs.Size());
+      re = 0.0;
+
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         for (int j = 0; j < i; j++)
+         {
+            // add low-order stabilization with discrete upwinding
+            real_t dije = max(max(Ke(i,j), Ke(j,i)), zero);
+            real_t diffusion = dije * (ue(j) - ue(i));
+
+            re(i) += diffusion;
+            re(j) -= diffusion;
+         }
+      }
+      // Add -K_e u_e to obtain (-K_e + D_e) u_e and add element contribution
+      // to global vector
+      Ke.AddMult(ue, re, -1.0);
+      udot.AddElementVector(dofs, re);
+   }
+
+   // add boundary condition (u - u_inflow) * b. This is under the assumption that b_lumped has been updated
+   subtract(u, u_inflow, z);
+   z *= b_lumped;
+   udot += z;
+
+   // Distribute
+   Array<real_t> udot_array(udot.GetData(), udot.Size());
+   gcomm.Reduce<real_t>(udot_array, GroupCommunicator::Sum);
+   gcomm.Bcast(udot_array);
+
+   // apply inverse lumped mass matrix
+   udot /= lumpedmassmatrix;
+}
+
+CG_FE_Evolution::~CG_FE_Evolution()
+{ }
+
+// Implementation of class ClipAndScale
+ClipAndScale::ClipAndScale(ParFiniteElementSpace &fes_,
+                           const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
+                           VectorFunctionCoefficient &velocity, ParBilinearForm &M):
+   CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
+{
+   umin.SetSize(lumpedmassmatrix.Size());
+   umax.SetSize(lumpedmassmatrix.Size());
+   udot.SetSize(lumpedmassmatrix.Size());
+}
+
+void ClipAndScale::ComputeBounds(const Vector &u, Array<real_t> &u_min,
+                                 Array<real_t> &u_max) const
+{
+   // iterate over local number of dofs on this processor and compute maximum and minimum over local stencil
+   for (int i = 0; i < fes.GetVSize(); i++)
+   {
+      umin[i] = u(i);
+      umax[i] = u(i);
+
+      for (int k = I[i]; k < I[i+1]; k++)
+      {
+         int j = J[k];
+         umin[i] = min(umin[i], u(j));
+         umax[i] = max(umax[i], u(j));
+      }
+   }
+
+   // Distribute min and max to get max and min of local stencil of shared dofs
+   gcomm.Reduce<real_t>(umax, GroupCommunicator::Max);
+   gcomm.Bcast(umax);
+
+   gcomm.Reduce<real_t>(umin, GroupCommunicator::Min);
+   gcomm.Bcast(umin);
+}
+
+void ClipAndScale::Mult(const Vector &x, Vector &y) const
+{
+   y = 0.0;
+
+   // compute low-order time derivative for high-order stabilization and local bounds
+   ComputeLOTimeDerivatives(x, udot);
+   ComputeBounds(x, umin, umax);
+
+   Array<int> dofs;
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      auto element = fes.GetFE(e);
+      auto eltrans = fes.GetElementTransformation(e);
+
+      // assemble element mass and convection matrices
+      conv_int.AssembleElementMatrix(*element, *eltrans, Ke);
+      mass_int.AssembleElementMatrix(*element, *eltrans, Me);
+
+      fes.GetElementDofs(e, dofs);
+      ue.SetSize(dofs.Size());
+      re.SetSize(dofs.Size());
+      udote.SetSize(dofs.Size());
+      fe.SetSize(dofs.Size());
+      fe_star.SetSize(dofs.Size());
+      gammae.SetSize(dofs.Size());
+
+      x.GetSubVector(dofs, ue);
+      udot.GetSubVector(dofs, udote);
+
+      re = 0.0;
+      fe = 0.0;
+      gammae = 0.0;
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         for (int j = 0; j < i; j++)
+         {
+            // add low-order diffusion
+            // note that dije = djie
+            real_t dije = max(max(Ke(i,j), Ke(j,i)), zero);
+            real_t diffusion = dije * (ue(j) - ue(i));
+
+            re(i) += diffusion;
+            re(j) -= diffusion;
+
+            // for bounding fluxes
+            gammae(i) += dije;
+            gammae(j) += dije;
+
+            // assemble raw antidifussive fluxes f_{i,e} = sum_j m_{ij,e} (udot_i - udot_j) - d_{ij,e} (u_i - u_j)
+            // note fije = - fjie
+            real_t fije = Me(i,j) * (udote(i) - udote(j)) - diffusion;
+            fe(i) += fije;
+            fe(j) -= fije;
+         }
+      }
+
+      // add convective term
+      Ke.AddMult(ue, re, -1.0);
+
+      gammae *= 2.0;
+
+      real_t P_plus = 0.0;
+      real_t P_minus = 0.0;
+
+      //Clip
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         // bounding fluxes to enforce u_i = u_i_min => du/dt >= 0 and vise versa for u_i = u_i_max
+         real_t fie_max = gammae(i) * (umax[dofs[i]] - ue(i));
+         real_t fie_min = gammae(i) * (umin[dofs[i]] - ue(i));
+
+         fe_star(i) = min(max(fie_min, fe(i)), fie_max);
+
+         // track positive and negative contributions
+         P_plus += max(fe_star(i), zero);
+         P_minus += min(fe_star(i), zero);
+      }
+      const real_t P = P_minus + P_plus;
+
+      //and Scale for the sum of fe_star to be 0, i.e., mass conservation
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         if (fe_star(i) > 0.0 && P > 0.0)
+         {
+            fe_star(i) *= - P_minus / P_plus;
+         }
+         else if (fe_star(i) < 0.0 && P < 0.0)
+         {
+            fe_star(i) *= - P_plus / P_minus;
+         }
+      }
+      // add limited antidiffusive fluxes to element contribution and add to global vector
+      re += fe_star;
+      y.AddElementVector(dofs, re);
+   }
+
+   // add boundary condition (u - u_inflow) * b
+   subtract(x, u_inflow, z);
+   z *= b_lumped;
+   y += z;
+
+   // distribute
+   Array<real_t> y_array(y.GetData(), y.Size());
+   gcomm.Reduce<real_t>(y_array, GroupCommunicator::Sum);
+   gcomm.Bcast(y_array);
+
+   // apply inverse lumped mass matrix
+   y /= lumpedmassmatrix;
+}
+
+
+ClipAndScale::~ClipAndScale()
+{ }
+
+// Implementation of class HighOrderTargetScheme
+HighOrderTargetScheme::HighOrderTargetScheme(ParFiniteElementSpace &fes_,
+                                             const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
+                                             VectorFunctionCoefficient &velocity, ParBilinearForm &M):
+   CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
+{
+   udot.SetSize(lumpedmassmatrix.Size());
+}
+
+void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
+{
+   y = 0.0;
+
+   // compute low-order time derivative for high-order stabilization
+   ComputeLOTimeDerivatives(x, udot);
+
+   Array<int> dofs;
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      auto element = fes.GetFE(e);
+      auto eltrans = fes.GetElementTransformation(e);
+
+      // assemble element mass and convection matrices
+      conv_int.AssembleElementMatrix(*element, *eltrans, Ke);
+      mass_int.AssembleElementMatrix(*element, *eltrans, Me);
+
+      fes.GetElementDofs(e, dofs);
+      ue.SetSize(dofs.Size());
+      re.SetSize(dofs.Size());
+      udote.SetSize(dofs.Size());
+
+      x.GetSubVector(dofs, ue);
+      udot.GetSubVector(dofs, udote);
+
+      re = 0.0;
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         for (int j = 0; j < i; j++)
+         {
+            // add high-order stabilization without correction for low-order stabilization
+            real_t fije = Me(i,j) * (udote(i) - udote(j));
+            re(i) += fije;
+            re(j) -= fije;
+         }
+      }
+
+      // add convective term and add to global vector
+      Ke.AddMult(ue, re, -1.0);
+      y.AddElementVector(dofs, re);
+   }
+
+   // add boundary condition (u - u_inflow) * b (u - u_inflow) * b
+   subtract(x, u_inflow, z);
+   z *= b_lumped;
+   y += z;
+
+   // distribute
+   Array<real_t> y_array(y.GetData(), y.Size());
+   gcomm.Reduce<real_t>(y_array, GroupCommunicator::Sum);
+   gcomm.Bcast(y_array);
+
+   // apply inverse lumped mass matrix
+   y /= lumpedmassmatrix;
+}
+
+HighOrderTargetScheme::~HighOrderTargetScheme()
+{ }
+
+// Implementation of Class LowOrderScheme
+LowOrderScheme::LowOrderScheme(ParFiniteElementSpace &fes_,
+                               const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
+                               VectorFunctionCoefficient &velocity, ParBilinearForm &M):
+   CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
+{ }
+
+void LowOrderScheme::Mult(const Vector &x, Vector &y) const
+{
+   ComputeLOTimeDerivatives(x, y);
+}
+
+LowOrderScheme::~LowOrderScheme()
+{ }
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v)
@@ -747,9 +1321,17 @@ void velocity_function(const Vector &x, Vector &v)
          // Translations in 1D, 2D, and 3D
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = sqrt(2./3.);
+               v(1) = sqrt(1./3.);
+               break;
+            case 3:
+               v(0) = sqrt(3./6.);
+               v(1) = sqrt(2./6.);
+               v(2) = sqrt(1./6.);
                break;
          }
          break;
@@ -761,9 +1343,18 @@ void velocity_function(const Vector &x, Vector &v)
          const real_t w = M_PI/2;
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
-            case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = w*X(1);
+               v(1) = -w*X(0);
+               break;
+            case 3:
+               v(0) = w*X(1);
+               v(1) = -w*X(0);
+               v(2) = 0.0;
+               break;
          }
          break;
       }
@@ -775,9 +1366,18 @@ void velocity_function(const Vector &x, Vector &v)
          d = d*d;
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = d*w*X(1); v(1) = -d*w*X(0); break;
-            case 3: v(0) = d*w*X(1); v(1) = -d*w*X(0); v(2) = 0.0; break;
+            case 1:
+               v(0) = 1.0;
+               break;
+            case 2:
+               v(0) = d*w*X(1);
+               v(1) = -d*w*X(0);
+               break;
+            case 3:
+               v(0) = d*w*X(1);
+               v(1) = -d*w*X(0);
+               v(2) = 0.0;
+               break;
          }
          break;
       }
@@ -845,7 +1445,8 @@ real_t inflow_function(const Vector &x)
       case 0:
       case 1:
       case 2:
-      case 3: return 0.0;
+      case 3:
+         return 0.0;
    }
    return 0.0;
 }
