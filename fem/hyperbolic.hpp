@@ -100,7 +100,7 @@ public:
     * @param[in] state1 state of the beggining of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
     * @param[in] Tr element transformation
-    * @param[out] flux average flux from the given element at the current
+    * @param[out] flux_ average flux from the given element at the current
     * integration point (num_equations, dim)
     * @return real_t maximum characteristic speed
     */
@@ -132,7 +132,7 @@ public:
     *
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
-    * @param[out] J flux Jacobian, $ J(i,j,d) = dF_{id} / du_j $
+    * @param[out] J_ flux Jacobian, $ J(i,j,d) = dF_{id} / du_j $
     */
    virtual void ComputeFluxJacobian(const Vector &state,
                                     ElementTransformation &Tr,
