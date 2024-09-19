@@ -22,6 +22,9 @@ failed = 0
 for i in range(len(filenames)):
 	# Parsing reference file
 
+	print("----------------------------------------------------------------")
+	print("Case: "+filenames[i])
+	
 	filename = path + filenames[i]
 
 	def get_ref_option(file, option):
@@ -60,8 +63,6 @@ for i in range(len(filenames)):
 	precond_ref = ref_out.split()[0]
 
 	# Run test case
-	print("----------------------------------------------------------------")
-	print("Case: "+filenames[i])
 	command_line = "./ex5-nguyen -no-vis -nx "+str(nx)+" -ny "+str(ny)+" -p "+problem+" -o "+order
 	if dg:
 		command_line = command_line+' -dg'
