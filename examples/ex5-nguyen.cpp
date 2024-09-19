@@ -254,8 +254,7 @@ int main(int argc, char *argv[])
 
    if (nonlinear && !hybridization)
    {
-      cerr << "Warning: Only partial preconditioning and a linear solver are used" <<
-           endl;
+      cerr << "Warning: A linear solver is used" << endl;
    }
 
    if (btime && nt <= 0)
@@ -1513,6 +1512,14 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
             {
                const SparseMatrix &Mtm(Mt->SpMat());
                SparseMatrix *Snew = Add(Mtm, *S);
+               delete S;
+               S = Snew;
+            }
+            else if (Mtnl)
+            {
+               const SparseMatrix &grad = static_cast<SparseMatrix&>(
+                                             Mtnl->GetGradient(x.GetBlock(1)));
+               SparseMatrix *Snew = Add(grad, *S);
                delete S;
                S = Snew;
             }
