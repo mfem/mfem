@@ -106,7 +106,7 @@ public:
     */
    virtual real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
                                  ElementTransformation &Tr,
-                                 DenseMatrix &flux) const
+                                 DenseMatrix &flux_) const
    { MFEM_ABORT("Not Implemented."); }
 
    /**
@@ -136,7 +136,7 @@ public:
     */
    virtual void ComputeFluxJacobian(const Vector &state,
                                     ElementTransformation &Tr,
-                                    DenseTensor &J) const
+                                    DenseTensor &J_) const
    { MFEM_ABORT("Not Implemented."); }
 
    /**
