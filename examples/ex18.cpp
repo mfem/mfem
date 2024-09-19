@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&rsolver_type, "-rs", "--riemann-solver",
-                  "Riemann solver: 1 - Rusanov, 2 - Godunov, 3 - Engquist-Osher.");
+                  "Riemann solver: 1 - Rusanov, 2 - Godunov.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
@@ -194,7 +194,6 @@ int main(int argc, char *argv[])
    {
       case 1: rsolver = new RusanovFlux(flux); break;
       case 2: rsolver = new GodunovFlux(flux); break;
-      case 3: rsolver = new EngquistOsherFlux(flux); break;
       default:
          cout << "Unknown Riemann solver type: " << rsolver_type << '\n';
          return 3;
