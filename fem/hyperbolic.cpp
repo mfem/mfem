@@ -147,9 +147,9 @@ void HyperbolicFormIntegrator::AssembleElementGrad(
    }
 
    // loop over integration points
-   for (int i = 0; i < ir->GetNPoints(); i++)
+   for (int q = 0; q < ir->GetNPoints(); q++)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
+      const IntegrationPoint &ip = ir->IntPoint(q);
       Tr.SetIntPoint(&ip);
 
       el.CalcShape(ip, shape);
