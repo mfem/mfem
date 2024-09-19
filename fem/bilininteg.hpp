@@ -76,8 +76,12 @@ public:
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
+   virtual void AddAbsMultPA(const Vector &x, Vector &y) const;
+
    /// Method for partially assembled action on NURBS patches.
    virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
+
+   virtual void AddAbsMultNURBSPA(const Vector&x, Vector&y) const;
 
    /// Method for partially assembled transposed action.
    /** Perform the transpose action of integrator on the input @a x and add the
@@ -87,6 +91,8 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddAbsMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Method defining element assembly.
    /** The result of the element assembly is added to the @a emat Vector if
@@ -111,6 +117,8 @@ public:
        called. */
    virtual void AddMultMF(const Vector &x, Vector &y) const;
 
+   virtual void AddAbsMultMF(const Vector &x, Vector &y) const;
+
    /** Perform the transpose action of integrator on the input @a x and add the
        result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
        represent the element-wise discontinuous version of the FE space.
@@ -118,6 +126,8 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
+   virtual void AddAbsMultTransposeMF(const Vector &x, Vector &y) const;
 
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -465,7 +475,11 @@ public:
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
+   virtual void AddAbsMultTransposePA(const Vector &x, Vector &y) const;
+
    virtual void AddMultPA(const Vector& x, Vector& y) const;
+
+   virtual void AddAbsMultPA(const Vector& x, Vector& y) const;
 
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
@@ -2275,7 +2289,11 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddAbsMultPA(const Vector&, Vector&) const;
+
    virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
+   virtual void AddAbsMultTransposePA(const Vector&, Vector&) const;
 
    virtual void AddMultNURBSPA(const Vector&, Vector&) const;
 
@@ -2342,7 +2360,11 @@ public:
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
+   virtual void AddAbsMultPA(const Vector&, Vector&) const;
+
    virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
+   virtual void AddAbsMultTransposePA(const Vector&, Vector&) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
@@ -2714,6 +2736,7 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddAbsMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
 
    const Coefficient *GetCoefficient() const { return Q; }
@@ -2831,6 +2854,7 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddAbsMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
 
@@ -3082,7 +3106,11 @@ public:
 
    virtual void AddMultPA(const Vector &x, Vector &y) const;
 
+   virtual void AddAbsMultPA(const Vector &x, Vector &y) const;
+
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddAbsMultTransposePA(const Vector &x, Vector &y) const;
 
    /** Compute the stress corresponding to the local displacement @a $u$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric
