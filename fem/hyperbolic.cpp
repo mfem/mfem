@@ -624,7 +624,7 @@ void GodunovFlux::Grad(int side, const Vector &state1, const Vector &state2,
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
          // Only diagonal terms of J are considered
-         grad(i,i) = std::max(JDotN(i,i), 0.);
+         grad(i,i) = std::max(JDotN(i,i), 0_r);
       }
    }
    else
@@ -634,7 +634,7 @@ void GodunovFlux::Grad(int side, const Vector &state1, const Vector &state2,
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
          // Only diagonal terms of J are considered
-         grad(i,i) = std::min(JDotN(i,i), 0.);
+         grad(i,i) = std::min(JDotN(i,i), 0_r);
       }
    }
 }
@@ -728,7 +728,7 @@ void GodunovFlux::AverageGrad(int side, const Vector &state1,
          const real_t gr12 = (state1(i) != state2(i))?
                              (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i))
                              :(0.5 * JDotN(i,i));
-         grad(i,i) = std::min(gr12, 0.);
+         grad(i,i) = std::min(gr12, 0_r);
       }
    }
 }
@@ -774,7 +774,7 @@ void EngquistOsherFlux::Grad(int side, const Vector &state1,
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
          // Only diagonal terms of J are considered
-         grad(i,i) = (fluxN1(i) <= fluxN2(i))?(JDotN(i,i)):(0.);
+         grad(i,i) = (fluxN1(i) <= fluxN2(i))?(JDotN(i,i)):(0_r);
       }
    }
    else
@@ -784,7 +784,7 @@ void EngquistOsherFlux::Grad(int side, const Vector &state1,
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
          // Only diagonal terms of J are considered
-         grad(i,i) = (fluxN1(i) >= fluxN2(i))?(JDotN(i,i)):(0.);
+         grad(i,i) = (fluxN1(i) >= fluxN2(i))?(JDotN(i,i)):(0_r);
       }
    }
 }
