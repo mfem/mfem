@@ -24,7 +24,7 @@ for i in range(len(filenames)):
 
 	print("----------------------------------------------------------------")
 	print("Case: "+filenames[i])
-	
+
 	filename = path + filenames[i]
 
 	def get_ref_option(file, option):
@@ -56,7 +56,7 @@ for i in range(len(filenames)):
 	ref_L2_t = float(ref_out.split()[0])
 	ref_out = subprocess.getoutput("grep '|| q_h - q_ex || / || q_ex || = ' "+filename+"  | cut -d '=' -f 2-")
 	ref_L2_q = float(ref_out.split()[0])
-	if nonlin:
+	if nonlin and hb:
 		ref_out = subprocess.getoutput("grep 'LBFGS+' "+filename+"  | cut -d '+' -f 2-")
 	else:
 		ref_out = subprocess.getoutput("grep 'GMRES+' "+filename+"  | cut -d '+' -f 2-")
