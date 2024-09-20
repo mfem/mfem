@@ -160,9 +160,9 @@ int main (int argc, char *argv[])
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
 
-   if (mesh->GetNumGeometries(dim) == 1 &&
-       (mesh->GetElementType(0)==Element::QUADRILATERAL ||
-        mesh->GetElementType(0) == Element::HEXAHEDRON))
+   if (mesh->GetNumGeometries(dim) != 1 ||
+       (mesh->GetElementType(0)!=Element::QUADRILATERAL &&
+        mesh->GetElementType(0) != Element::HEXAHEDRON))
    {
       randomization = 0;
    }
