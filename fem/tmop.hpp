@@ -1854,6 +1854,18 @@ protected:
    // MC: Q-Vector for the metric Coefficient.
    //     Updated when the mesh nodes change.
    //
+   // Fitting
+   // SFE:  E-vector for TMOP-energy while surface fitting.
+   // SFO:  E-Vector of 1.0, used to compute sums using the dot product kernel.
+   // SFH0: E-Vector for Hessian associated with the limiting term.
+   // SFV:  E-Vector for storing the surface fit grid function.
+   // SFDC: E-Vector for storing the surface fit dof count.
+   // SFM:  E-Vector for storing the surface fit marker boolean.
+   // SFG:  E-Vector for storing the surface fit gradients.
+   // SFH:  E-Vector for storing the surface fit hessians.
+   // SFC:  Scalar for surf_fit_coeff->constant.
+   //
+   //
    // maps:     Dof2Quad map for fes associated with the nodal coordinates.
    // maps_lim: Dof2Quad map for fes associated with the limiting dist GridFunc.
    //
@@ -1869,17 +1881,21 @@ protected:
    //   * Merge LD, C0, H0 into one scalar Q-vector
    struct
    {
-      bool enabled;
-      int dim, ne, nq;
+      bool enabled = false;
+      int dim, ne, nq, nefit;
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0, MC;
+      mutable Vector SFO, SFE, SFH0;
+      mutable Vector SFV, SFDC, SFM, SFG, SFH;
+      mutable real_t SFC;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
+      Array<int> SFEList;
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
@@ -1965,28 +1981,44 @@ protected:
    void AssembleGradPA_3D(const Vector&) const;
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
+   void AssembleGradPA_Fit_2D(const Vector&) const;
+   void AssembleGradPA_Fit_3D(const Vector&) const;
 
    real_t GetLocalStateEnergyPA_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_Fit_2D(const Vector&) const;
    real_t GetLocalStateEnergyPA_3D(const Vector&) const;
    real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_Fit_3D(const Vector&) const;
+
 
    void AddMultPA_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;
    void AddMultPA_C0_2D(const Vector&, Vector&) const;
    void AddMultPA_C0_3D(const Vector&, Vector&) const;
+   void AddMultPA_Fit_2D(const Vector&, Vector&) const;
+   void AddMultPA_Fit_3D(const Vector&, Vector&) const;
+
+
 
    void AddMultGradPA_2D(const Vector&, Vector&) const;
    void AddMultGradPA_3D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
    void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
+   void AddMultGradPA_Fit_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_Fit_3D(const Vector&, Vector&) const;
+
 
    void AssembleDiagonalPA_2D(Vector&) const;
    void AssembleDiagonalPA_3D(Vector&) const;
    void AssembleDiagonalPA_C0_2D(Vector&) const;
    void AssembleDiagonalPA_C0_3D(Vector&) const;
+   void AssembleDiagonalPA_Fit_2D(Vector&) const;
+   void AssembleDiagonalPA_Fit_3D(Vector&) const;
+
 
    void AssemblePA_Limiting();
+   void AssemblePA_Fitting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
@@ -2028,6 +2060,8 @@ public:
       : TMOP_Integrator(m, tc, m) { }
 
    ~TMOP_Integrator();
+
+   void UpdateSurfaceFittingPA(const Vector &x_loc);
 
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.
