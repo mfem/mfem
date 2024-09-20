@@ -980,13 +980,14 @@ ComputeQoI(ParGridFunction &u, ParGridFunction &p,
 
    auto ir_face = IntRules.Get(h1vfes.GetMesh()->GetFaceGeometry(0),
                                2 * polynomial_order + 1);
-   auto [drag_local, lift_local] = DragLift(u, p, kinematic_viscosity, qoi_attr,
-                                            ir_face);
+   std::tuple<real_t, real_t> draglift = DragLift(u, p, kinematic_viscosity,
+                                                  qoi_attr,
+                                                  ir_face);
 
    real_t drag_global = 0.0, lift_global = 0.0;
-   MPI_Allreduce(&drag_local, &drag_global, 1, MFEM_MPI_REAL_T, MPI_SUM,
+   MPI_Allreduce(&std::get<0>(draglift), &drag_global, 1, MFEM_MPI_REAL_T, MPI_SUM,
                  MPI_COMM_WORLD);
-   MPI_Allreduce(&lift_local, &lift_global, 1, MFEM_MPI_REAL_T, MPI_SUM,
+   MPI_Allreduce(&std::get<1>(draglift), &lift_global, 1, MFEM_MPI_REAL_T, MPI_SUM,
                  MPI_COMM_WORLD);
 
    return {drag_global, lift_global};
@@ -1047,10 +1048,15 @@ int main(int argc, char *argv[])
 
       // Solve the forward problem (steady, incompressible, Navier-Stokes)
       // to compute velocity and pressure
-      auto [u, p] = SolveForwardProblem(h1vfes, h1fes, kinematic_viscosity);
+      std::tuple<ParGridFunction, ParGridFunction> up = SolveForwardProblem(h1vfes,
+                                                                            h1fes, kinematic_viscosity);
+      ParGridFunction &u = std::get<0>(up);
+      ParGridFunction &p = std::get<1>(up);
 
       // Compute the quantity of interest (lift and drag forces) over the boundary
-      auto [drag, lift] = ComputeQoI(u, p, kinematic_viscosity);
+      std::tuple<real_t, real_t> qoi = ComputeQoI(u, p, kinematic_viscosity);
+      real_t drag = std::get<0>(qoi);
+      real_t lift = std::get<1>(qoi);
 
       const real_t U_mean = 0.2;
       const real_t c0 = 2.0 / (U_mean*U_mean * 0.1);
@@ -1068,8 +1074,11 @@ int main(int argc, char *argv[])
       H1_FECollection feclstar(polynomial_order, dim);
       ParFiniteElementSpace h1fesstar(&mesh, &feclstar);
 
-      auto [zu, zp] = SolveDualProblem(h1vfesstar, h1fesstar, u, p,
-                                       kinematic_viscosity);
+      std::tuple<ParGridFunction, ParGridFunction> zup = SolveDualProblem(h1vfesstar,
+                                                                          h1fesstar, u, p,
+                                                                          kinematic_viscosity);
+      ParGridFunction &zu = std::get<0>(zup);
+      ParGridFunction &zp = std::get<1>(zup);
 
       // Compute the dual-weighted residual (DWR) given both the primal, (u,p), and
       // dual, (zu,zp), solutions. The error indicator is constructed per-element, hence
