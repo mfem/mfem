@@ -9,9 +9,9 @@
 //    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s 12 -dt 0.15 -vs 10
 //    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s 16 -dt 0.3  -vs 5
 //    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s 12 -dt 0.2  -vs 5
-//    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s  2 -dt 3 -nls kinsol
-//    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s  2 -dt 3 -nls kinsol
-//    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s  2 -dt 3 -nls kinsol
+//    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s  2 -dt 3 -nls 1
+//    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s  2 -dt 3 -nls 2
+//    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s  2 -dt 3 -nls 4
 //    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s 14 -dt 0.15 -vs 10
 //    ex10 -m ../../data/beam-tri.mesh  -r 2 -o 2 -s 17 -dt 0.01 -vs 30
 //    ex10 -m ../../data/beam-hex.mesh  -r 1 -o 2 -s 14 -dt 0.15 -vs 10
@@ -303,6 +303,26 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   // check for valid nonlinear solver options
+   if (nonlinear_solver_type < 0 || nonlinear_solver_type > 4)
+   {
+      cout << "Unknown nonlinear solver type: " << nonlinear_solver_type << "\n";
+      return 1;
+   }
+   if (kinsol_damping > 0.0 &&
+      !(nonlinear_solver_type == 3 || nonlinear_solver_type == 4))
+   {
+      cout << "Only KINSOL fixed-point and Picard methods can use damping\n";
+      return 1;
+   }
+   if (kinsol_aa_n > 0 &&
+      !(nonlinear_solver_type == 3 || nonlinear_solver_type == 4))
+   {
+      cout << "Only KINSOL fixed-point and Picard methods can use AA\n";
+      return 1;
+   }
+
+
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -383,10 +403,6 @@ int main(int argc, char *argv[])
             oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
                visc, mu, K, KIN_PICARD, kinsol_damping, kinsol_aa_n);
             break;
-         default:
-            cout << "Unknown type of nonlinear solver: "
-                 << nonlinear_solver_type << endl;
-            return 4;
       }
    }
 
@@ -688,7 +704,7 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
          kinsolver->SetJFNK(true);
          kinsolver->SetLSMaxIter(100);
       }
-      if (kinsol_nls_type == KIN_FP || kinsol_nls_type == KIN_PICARD)
+      if (kinsol_aa_n > 0)
          kinsolver->EnableAndersonAcc(kinsol_aa_n);
       newton_solver = kinsolver;
       newton_solver->SetOperator(*reduced_oper);
