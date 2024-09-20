@@ -323,6 +323,35 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   // check for valid nonlinear solver options
+   if (nonlinear_solver_type < 0 || nonlinear_solver_type > 4)
+   {
+      if (myid == 0)
+      {
+         cout << "Unknown nonlinear solver type: " << nonlinear_solver_type
+              << "\n";
+      }
+      return 1;
+   }
+   if (kinsol_damping > 0.0 &&
+      !(nonlinear_solver_type == 3 || nonlinear_solver_type == 4))
+   {
+      if (myid == 0)
+      {
+         cout << "Only KINSOL fixed-point and Picard methods can use damping\n";
+      }
+      return 1;
+   }
+   if (kinsol_aa_n > 0 &&
+      !(nonlinear_solver_type == 3 || nonlinear_solver_type == 4))
+   {
+      if (myid == 0)
+      {
+         cout << "Only KINSOL fixed-point and Picard methods can use AA\n";
+      }
+      return 1;
+   }
+
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle triangular, quadrilateral, tetrahedral and hexahedral meshes
    //    with the same code.
@@ -748,7 +777,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
          kinsolver->SetJFNK(true);
          kinsolver->SetLSMaxIter(100);
       }
-      if (kinsol_nls_type == KIN_FP || kinsol_nls_type == KIN_PICARD)
+      if (kinsol_aa_n > 0)
          kinsolver->EnableAndersonAcc(kinsol_aa_n);
       newton_solver = kinsolver;
       newton_solver->SetOperator(*reduced_oper);
