@@ -99,19 +99,11 @@ protected:
    double saved_gamma; // saved gamma value from implicit setup
 
 public:
-   /// Solver type to use in the ImplicitSolve() method, used by SDIRK methods.
-   enum NonlinearSolverType
-   {
-      NEWTON = 0, ///< Use MFEM's plain NewtonSolver
-      KINSOL = 1  ///< Use SUNDIALS' KINSOL (through MFEM's class KINSolver)
-   };
 
    HyperelasticOperator(FiniteElementSpace &f, Array<int> &ess_bdr,
                         double visc, double mu, double K,
-                        NonlinearSolverType nls_type,
-                        int kinsol_it_type,
-                        double kinsol_fp_damping,
-                        int kinsol_aan);
+                        int kinsol_nls_type = -1, double kinsol_damping = 0.0,
+                        int kinsol_aa_n = 0);
 
    /// Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
@@ -229,11 +221,10 @@ int main(int argc, char *argv[])
    double mu = 0.25;
    double K = 5.0;
    bool visualization = true;
-   const char *nls = "newton";
+   int nonlinear_solver_type = 0;
    int vis_steps = 1;
-   int kinsol_it_type = KIN_LINESEARCH;
-   double kinsol_fp_damping = 1.0;
-   int kinsol_aan = 0;
+   double kinsol_damping = 0.0;
+   int kinsol_aa_n = -1;
 
    // Relative and absolute tolerances for CVODE and ARKODE.
    const double reltol = 1e-1, abstol = 1e-1;
@@ -270,16 +261,17 @@ int main(int argc, char *argv[])
                   "15 - ARKODE implicit, approximate Jacobian,\n\t"
                   "16 - ARKODE implicit, specified Jacobian,\n\t"
                   "17 - ARKODE explicit, 4th order.");
-   args.AddOption(&nls, "-nls", "--nonlinear-solver",
-                  "Nonlinear systems solver: "
-                  "\"newton\" (plain Newton) or \"kinsol\" (KINSOL).");
-   args.AddOption(&kinsol_it_type, "-nls-type", "--nonlinear-solver-type",
-                  "Nonlinear systems solver type (only valid with KINSOL): "
-                  "0: KIN_NONE, 1: KIN_LINESEARCH, 2: KIN_PICARD, 3: KIN_FP");
-   args.AddOption(&kinsol_fp_damping, "-fpdamping", "--fixed-point-damping",
+   args.AddOption(&nonlinear_solver_type, "-nls", "--nonlinear-solver",
+                  "Nonlinear system solver:\n\t"
+                  "0  - MFEM Newton method,\n\t"
+                  "1  - KINSOL Newton method,\n\t"
+                  "2  - KINSOL Newton method with globalization,\n\t"
+                  "3  - KINSOL fixed-point method (with or without AA),\n\t"
+                  "4  - KINSOL Picard method (with or without AA).");
+   args.AddOption(&kinsol_damping, "-damp", "--kinsol-damping",
                   "Picard or Fixed-Point damping parameter (only valid with KINSOL): "
                   "0 < d <= 1.0");
-   args.AddOption(&kinsol_aan, "-aan", "--anderson-subspace",
+   args.AddOption(&kinsol_aa_n, "-aan", "--anderson-subspace",
                   "Anderson Acceleration subspace size (only valid with KINSOL)");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
@@ -316,17 +308,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 3. Setup the nonlinear solver
-   map<string,HyperelasticOperator::NonlinearSolverType> nls_map;
-   nls_map["newton"] = HyperelasticOperator::NEWTON;
-   nls_map["kinsol"] = HyperelasticOperator::KINSOL;
-   if (nls_map.find(nls) == nls_map.end())
-   {
-      cout << "Unknown type of nonlinear solver: " << nls << endl;
-      return 4;
-   }
-
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter.
    for (int lev = 0; lev < ref_levels; lev++)
@@ -334,7 +316,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   // 5. Define the vector finite element spaces representing the mesh
+   // 4. Define the vector finite element spaces representing the mesh
    //    deformation x, the velocity v, and the initial configuration, x_ref.
    //    Define also the elastic energy density, w, which is in a discontinuous
    //    higher-order space. Since x and v are integrated in time as a system,
@@ -362,7 +344,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace w_fespace(mesh, &w_fec);
    GridFunction w(&w_fespace);
 
-   // 6. Set the initial conditions for v and x, and the boundary conditions on
+   // 5. Set the initial conditions for v and x, and the boundary conditions on
    //    a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
    v.ProjectCoefficient(velo);
@@ -375,11 +357,38 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    ess_bdr[0] = 1; // boundary attribute 1 (index 0) is fixed
 
-   // 7. Initialize the hyperelastic operator, the GLVis visualization and print
+   // 6. Initialize the hyperelastic operator, the GLVis visualization and print
    //    the initial energies.
-   HyperelasticOperator oper(fespace, ess_bdr, visc, mu, K, nls_map[nls],
-                             kinsol_it_type, kinsol_fp_damping, kinsol_aan);
-
+   std::unique_ptr<HyperelasticOperator> oper;
+   if (nonlinear_solver_type == 0)
+      oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr, visc, mu,
+         K);
+   else
+   {
+      switch (nonlinear_solver_type)
+      {
+         case 1:
+            oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
+               visc, mu, K, KIN_NONE);
+            break;
+         case 2:
+            oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
+               visc, mu, K, KIN_LINESEARCH);
+            break;
+         case 3:
+            oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
+               visc, mu, K, KIN_FP, kinsol_damping, kinsol_aa_n);
+            break;
+         case 4:
+            oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
+               visc, mu, K, KIN_PICARD, kinsol_damping, kinsol_aa_n);
+            break;
+         default:
+            cout << "Unknown type of nonlinear solver: "
+                 << nonlinear_solver_type << endl;
+            return 4;
+      }
+   }
 
    socketstream vis_v, vis_w;
    if (visualization)
@@ -393,23 +402,23 @@ int main(int argc, char *argv[])
       vis_w.open(vishost, visport);
       if (vis_w)
       {
-         oper.GetElasticEnergyDensity(x, w);
+         oper->GetElasticEnergyDensity(x, w);
          vis_w.precision(8);
          visualize(vis_w, mesh, &x, &w, "Elastic energy density", true);
       }
    }
 
-   double ee0 = oper.ElasticEnergy(x.GetTrueVector());
-   double ke0 = oper.KineticEnergy(v.GetTrueVector());
+   double ee0 = oper->ElasticEnergy(x.GetTrueVector());
+   double ke0 = oper->KineticEnergy(v.GetTrueVector());
    cout << "initial elastic energy (EE) = " << ee0 << endl;
    cout << "initial kinetic energy (KE) = " << ke0 << endl;
    cout << "initial   total energy (TE) = " << (ee0 + ke0) << endl;
 
-   // 8. Define the ODE solver used for time integration. Several implicit
+   // 7. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
    double t = 0.0;
-   oper.SetTime(t);
+   oper->SetTime(t);
 
    ODESolver *ode_solver = NULL;
    CVODESolver *cvode = NULL;
@@ -433,7 +442,7 @@ int main(int argc, char *argv[])
       case 11:
       case 12:
          cvode = new CVODESolver(CV_BDF);
-         cvode->Init(oper);
+         cvode->Init(*oper);
          cvode->SetSStolerances(reltol, abstol);
          CVodeSetEpsLin(cvode->GetMem(), cvode_eps_lin);
          cvode->SetMaxStep(dt);
@@ -446,7 +455,7 @@ int main(int argc, char *argv[])
       case 13:
       case 14:
          cvode = new CVODESolver(CV_ADAMS);
-         cvode->Init(oper);
+         cvode->Init(*oper);
          cvode->SetSStolerances(reltol, abstol);
          CVodeSetEpsLin(cvode->GetMem(), cvode_eps_lin);
          cvode->SetMaxStep(dt);
@@ -459,7 +468,7 @@ int main(int argc, char *argv[])
       case 15:
       case 16:
          arkode = new ARKStepSolver(ARKStepSolver::IMPLICIT);
-         arkode->Init(oper);
+         arkode->Init(*oper);
          arkode->SetSStolerances(reltol, abstol);
          ARKStepSetNonlinConvCoef(arkode->GetMem(), arkode_eps_nonlin);
          arkode->SetMaxStep(dt);
@@ -471,16 +480,16 @@ int main(int argc, char *argv[])
       // ARKStep Explicit methods
       case 17:
          arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
-         arkode->Init(oper);
+         arkode->Init(*oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          ode_solver = arkode; break;
    }
 
    // Initialize MFEM integrators, SUNDIALS integrators are initialized above
-   if (ode_solver_type < 11) { ode_solver->Init(oper); }
+   if (ode_solver_type < 11) { ode_solver->Init(*oper); }
 
-   // 9. Perform time-integration (looping over the time iterations, ti, with a
+   // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -493,8 +502,8 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         double ee = oper.ElasticEnergy(x.GetTrueVector());
-         double ke = oper.KineticEnergy(v.GetTrueVector());
+         double ee = oper->ElasticEnergy(x.GetTrueVector());
+         double ke = oper->KineticEnergy(v.GetTrueVector());
 
          cout << "step " << ti << ", t = " << t << ", EE = " << ee << ", KE = "
               << ke << ", ΔTE = " << (ee+ke)-(ee0+ke0) << endl;
@@ -508,14 +517,14 @@ int main(int argc, char *argv[])
             visualize(vis_v, mesh, &x, &v);
             if (vis_w)
             {
-               oper.GetElasticEnergyDensity(x, w);
+               oper->GetElasticEnergyDensity(x, w);
                visualize(vis_w, mesh, &x, &w);
             }
          }
       }
    }
 
-   // 10. Save the displaced mesh, the velocity and elastic energy.
+   // 9. Save the displaced mesh, the velocity and elastic energy.
    {
       v.SetFromTrueVector(); x.SetFromTrueVector();
       GridFunction *nodes = &x;
@@ -530,11 +539,11 @@ int main(int argc, char *argv[])
       v.Save(velo_ofs);
       ofstream ee_ofs("elastic_energy.sol");
       ee_ofs.precision(8);
-      oper.GetElasticEnergyDensity(x, w);
+      oper->GetElasticEnergyDensity(x, w);
       w.Save(ee_ofs);
    }
 
-   // 11. Free the used memory.
+   // 10. Free the used memory.
    delete ode_solver;
    delete mesh;
 
@@ -618,9 +627,8 @@ ReducedSystemOperator::~ReducedSystemOperator()
 HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
                                            Array<int> &ess_bdr, double visc,
                                            double mu, double K,
-                                           NonlinearSolverType nls_type,
-                                           int kinsol_it_type,
-                                           double kinsol_fp_damping,
+                                           int kinsol_nls_type,
+                                           double kinsol_damping,
                                            int kinsol_aa_n)
    : TimeDependentOperator(2*f.GetTrueVSize(), 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
@@ -672,18 +680,24 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
    J_prec = NULL;
 #endif
 
-   if (nls_type == KINSOL)
+   if (kinsol_nls_type > 0)
    {
-      KINSolver *kinsolver = new KINSolver(kinsol_it_type, true);
-      kinsolver->SetJFNK(true);
-      kinsolver->SetLSMaxIter(100);
-      kinsolver->EnableAndersonAcc(kinsol_aa_n);
+      KINSolver *kinsolver = new KINSolver(kinsol_nls_type, true);
+      if (kinsol_nls_type != KIN_PICARD)
+      {
+         kinsolver->SetJFNK(true);
+         kinsolver->SetLSMaxIter(100);
+      }
+      if (kinsol_nls_type == KIN_FP || kinsol_nls_type == KIN_PICARD)
+         kinsolver->EnableAndersonAcc(kinsol_aa_n);
       newton_solver = kinsolver;
       newton_solver->SetOperator(*reduced_oper);
       newton_solver->SetMaxIter(200);
       newton_solver->SetRelTol(rel_tol);
       newton_solver->SetPrintLevel(0);
       kinsolver->SetMaxSetupCalls(4);
+      if (kinsol_damping > 0.0)
+         kinsolver->SetDamping(kinsol_damping);
    }
    else
    {
