@@ -48,12 +48,15 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
                                      const int pN = 0)
 {
    const int Nfields = ncomp;
-   const int MD1 = T_D1D ? T_D1D : 10;
+   const int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    const int D1D = T_D1D ? T_D1D : pN;
    const int p_Np = D1D*D1D*D1D;
-   MFEM_VERIFY(MD1 <= 10,"Increase Max allowable polynomial order.");
+   MFEM_VERIFY(MD1 <= DofQuadLimits::MAX_D1D,
+               "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
-   mfem::forall_2D(npt, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
+   #define MAXC(a, b) (((a) > (b)) ? (a) : (b))
+   const int nThreadsy = MAXC(D1D, 3);
+   mfem::forall_2D(npt, D1D, nThreadsy, [=] MFEM_HOST_DEVICE (int i)
    {
       MFEM_SHARED double wtr[3*MD1];
       MFEM_SHARED double sums[MD1*MD1];
@@ -61,16 +64,9 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
       // Evaluate basis functions at the reference space coordinates
       MFEM_FOREACH_THREAD(j,x,D1D)
       {
-         MFEM_FOREACH_THREAD(k,y,D1D)
+         MFEM_FOREACH_THREAD(k,y,3)
          {
-            if (k <= 2)
-            {
-               lagrange_eval(wtr + k*D1D, r[3*i+k], j, D1D, gll1D, lagcoeff);
-            }
-            if (D1D == 2 && k == 1)
-            {
-               lagrange_eval(wtr + 2*D1D, r[3*i+2], j, D1D, gll1D, lagcoeff);
-            }
+            lagrange_eval(wtr + k*D1D, r[3*i+k], j, D1D, gll1D, lagcoeff);
          }
       }
       MFEM_SYNC_THREAD;
@@ -96,19 +92,16 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(j,x,D1D)
+         MFEM_FOREACH_THREAD(j,x,1)
          {
-            MFEM_FOREACH_THREAD(k,y,D1D)
+            MFEM_FOREACH_THREAD(k,y,1)
             {
-               if (j == 0 && k == 0)
+               double sumv = 0.0;
+               for (int jj = 0; jj < D1D*D1D; ++jj)
                {
-                  double sumv = 0.0;
-                  for (int jj = 0; jj < D1D*D1D; ++jj)
-                  {
-                     sumv += sums[jj];
-                  }
-                  int_out[i + fld * npt] = sumv;
+                  sumv += sums[jj];
                }
+               int_out[i + fld * npt] = sumv;
             }
          }
          MFEM_SYNC_THREAD;
