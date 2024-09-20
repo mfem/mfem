@@ -310,13 +310,13 @@ int main(int argc, char *argv[])
       return 1;
    }
    if (kinsol_damping > 0.0 &&
-      !(nonlinear_solver_type == 3 || nonlinear_solver_type == 4))
+       !(nonlinear_solver_type == 3 || nonlinear_solver_type == 4))
    {
       cout << "Only KINSOL fixed-point and Picard methods can use damping\n";
       return 1;
    }
    if (kinsol_aa_n > 0 &&
-      !(nonlinear_solver_type == 3 || nonlinear_solver_type == 4))
+       !(nonlinear_solver_type == 3 || nonlinear_solver_type == 4))
    {
       cout << "Only KINSOL fixed-point and Picard methods can use AA\n";
       return 1;
@@ -382,26 +382,26 @@ int main(int argc, char *argv[])
    std::unique_ptr<HyperelasticOperator> oper;
    if (nonlinear_solver_type == 0)
       oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr, visc, mu,
-         K);
+                                                    K);
    else
    {
       switch (nonlinear_solver_type)
       {
          case 1:
             oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
-               visc, mu, K, KIN_NONE);
+                                                          visc, mu, K, KIN_NONE);
             break;
          case 2:
             oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
-               visc, mu, K, KIN_LINESEARCH);
+                                                          visc, mu, K, KIN_LINESEARCH);
             break;
          case 3:
             oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
-               visc, mu, K, KIN_FP, kinsol_damping, kinsol_aa_n);
+                                                          visc, mu, K, KIN_FP, kinsol_damping, kinsol_aa_n);
             break;
          case 4:
             oper = std::make_unique<HyperelasticOperator>(fespace, ess_bdr,
-               visc, mu, K, KIN_PICARD, kinsol_damping, kinsol_aa_n);
+                                                          visc, mu, K, KIN_PICARD, kinsol_damping, kinsol_aa_n);
             break;
       }
    }
@@ -705,7 +705,9 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
          kinsolver->SetLSMaxIter(100);
       }
       if (kinsol_aa_n > 0)
+      {
          kinsolver->EnableAndersonAcc(kinsol_aa_n);
+      }
       newton_solver = kinsolver;
       newton_solver->SetOperator(*reduced_oper);
       newton_solver->SetMaxIter(200);
@@ -713,7 +715,9 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
       newton_solver->SetPrintLevel(0);
       kinsolver->SetMaxSetupCalls(4);
       if (kinsol_damping > 0.0)
+      {
          kinsolver->SetDamping(kinsol_damping);
+      }
    }
    else
    {
