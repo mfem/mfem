@@ -326,7 +326,7 @@ protected:
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
 
-   std::unique_ptr<PRefinementTransferOperator> PTh;
+   std::shared_ptr<PRefinementTransferOperator> PTh;
 
    /// The element restriction operators, see GetElementRestriction().
    mutable OperatorHandle L2E_nat, L2E_lex;

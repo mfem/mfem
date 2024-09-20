@@ -4032,7 +4032,7 @@ void FiniteElementSpace::Save(std::ostream &os) const
 }
 
 std::shared_ptr<const PRefinementTransferOperator>
-FiniteElementSpace::GetPrefUpdateOperator() { return std::move(PTh); }
+FiniteElementSpace::GetPrefUpdateOperator() { return PTh; }
 
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 {

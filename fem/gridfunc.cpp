@@ -197,7 +197,7 @@ void GridFunction::Update()
 
 void GridFunction::UpdatePRef()
 {
-   std::shared_ptr<const PRefinementTransferOperator> Tp =
+   const std::shared_ptr<const PRefinementTransferOperator> Tp =
       fes->GetPrefUpdateOperator();
    if (Tp)
    {
