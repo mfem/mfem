@@ -205,7 +205,10 @@ private:
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
 #define MFEM_UNROLL_DEV_DISABLED MFEM_PRAGMA(unroll(1))
 #elif defined(MFEM_USE_SYCL)
-#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
+// Avoiding loop not vectorized: the optimizer was unable to perform
+// the requested transformation; the transformation might be disabled
+// or specified as part of an unsupported transformation ordering
+#define MFEM_UNROLL(N) // MFEM_PRAGMA(unroll(N))
 #define MFEM_UNROLL_DEV_DISABLED
 #else
 #define MFEM_UNROLL(N)

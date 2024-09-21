@@ -440,18 +440,17 @@ void PADiffusionApply(const int dim, const int D1D, const int Q1D, const int NE,
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
 
-   constexpr bool MFEM_KERNEL_CHECK = false;
-   if (MFEM_KERNEL_CHECK)
-   {
-      MFEM_WARNING("MFEM_KERNEL_CHECK");
+   const static bool MFEM_KERNEL_CHECK = getenv("MFEM_KERNEL_CHECK") != nullptr;
+   if (MFEM_KERNEL_CHECK) {
+     MFEM_WARNING("MFEM_KERNEL_CHECK");
    }
 
-   enum class MFEM_KERNEL_TYPE { LEGACY, STATIC, DYNAMIC };
+   enum class MFEM_KERNEL_TYPE { LEGACY = 0, STATIC, DYNAMIC };
    const static MFEM_KERNEL_TYPE MFEM_KERNEL_T =
-      getenv("VERSION")
-      ? static_cast<MFEM_KERNEL_TYPE>(std::stoi(getenv("VERSION")))
-      : MFEM_KERNEL_TYPE::LEGACY;
-   // dbg("VERSION:%d",static_cast<int>(MFEM_KERNEL_T));
+       getenv("MFEM_KERNEL_VERSION") ? static_cast<MFEM_KERNEL_TYPE>(std::stoi(
+                                           getenv("MFEM_KERNEL_VERSION")))
+                                     : MFEM_KERNEL_TYPE::LEGACY;
+   dbg("MFEM_KERNEL_VERSION:%d", static_cast<int>(MFEM_KERNEL_T));
 
    if (dim == 2)
    {

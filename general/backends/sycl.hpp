@@ -69,9 +69,13 @@ template <typename T> inline T& mfem_shared()
 template<typename T, std::size_t UID>
 MFEM_DEVICE inline T& StaticSharedMemoryVariable()
 {
-   // should use same smem type as mfem_shared
-   static const uint8_t smem alignas(alignof(T))[sizeof(T)] {};
-   return *(reinterpret_cast<T *>(const_cast<uint8_t *>(smem)));
+  // should use same smem type as mfem_shared
+  // static const uint8_t smem alignas(alignof(T))[sizeof(T)] {};
+  // return *(reinterpret_cast<T *>(const_cast<uint8_t *>(smem)));
+  // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc
+  __attribute__((opencl_local)) std::uint8_t *smem =
+      __sycl_allocateLocalMemory(sizeof(T), alignof(T));
+  return *(reinterpret_cast<T *>(smem));
 }
 
 #define MFEM_STATIC_SHARED_VAR(var, ...) \

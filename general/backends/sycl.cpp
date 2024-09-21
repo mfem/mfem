@@ -16,7 +16,12 @@
 #include "../globals.hpp"
 #include "../device.hpp"
 
-#include "../debug.hpp"
+#ifdef MFEM_USE_MPI
+#ifdef HYPRE_USING_SYCL
+#include <_hypre_utilities.h>
+#include <_hypre_utilities.hpp>
+#endif // HYPRE_USING_SYCL
+#endif // MFEM_USE_MPI
 
 namespace mfem
 {
@@ -24,18 +29,17 @@ namespace mfem
 #ifdef MFEM_USE_SYCL
 sycl::queue Sycl::Queue()
 {
-   // Could use fallback queue
-   if (Device::Allows(Backend::SYCL_GPU))
-   {
-      return sycl::queue(sycl::gpu_selector_v);
-   }
+#ifndef MFEM_USE_MPI
+  if (Device::Allows(Backend::SYCL_GPU))
+    return sycl::queue(sycl::gpu_selector_v);
 
-   if (Device::Allows(Backend::SYCL_CPU))
-   {
-      return sycl::queue(sycl::cpu_selector_v);
-   }
+  if (Device::Allows(Backend::SYCL_CPU))
+    return sycl::queue(sycl::cpu_selector_v);
 
-   return sycl::queue(sycl::default_selector_v);
+  return sycl::queue(sycl::default_selector_v);
+#else
+  return *hypre_HandleComputeStream(hypre_handle());
+#endif // MFEM_USE_MPI
 }
 #endif
 
