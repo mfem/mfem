@@ -360,10 +360,10 @@ int main(int argc, char *argv[])
       //     used to determine if a stopping criterion was met.
 
       // Simply alternate between h- and p-refinement.
-      const bool pRefinement = usePRefinement && ((it % 2) == 1);
+      const bool pRefine = usePRefinement && ((it % 2) == 1);
       bool stop = false;
-      Array<FiniteElementSpace::VarOrderElemInfo> prefinements;
-      if (pRefinement)
+      Array<pRefinement> prefinements;
+      if (pRefine)
       {
          Array<Refinement> refinements;
          refiner.MarkWithoutRefining(*pmesh, refinements);
@@ -372,9 +372,8 @@ int main(int argc, char *argv[])
          prefinements.SetSize(refinements.Size());
          for (int i=0; i<refinements.Size(); ++i)
          {
-            const int elem = refinements[i].index;
-            prefinements[i].element = elem;
-            prefinements[i].order = fespace.GetElementOrder(elem) + 1;
+            prefinements[i].index = refinements[i].index;
+            prefinements[i].delta = 1;  // Increase the element order by 1
          }
       }
       else
@@ -397,9 +396,9 @@ int main(int argc, char *argv[])
       //     to any GridFunctions over the space. In this case, the update
       //     matrix is an interpolation matrix so the updated GridFunction will
       //     still represent the same function as before refinement.
-      if (pRefinement)
+      if (pRefine)
       {
-         fespace.UpdatePRef(prefinements);
+         fespace.UpdatePRef(prefinements, true);
          x.UpdatePRef();
       }
       else

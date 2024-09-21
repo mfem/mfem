@@ -181,14 +181,6 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
    variableOrder = true;
 }
 
-void FiniteElementSpace::ChangeElementOrders(const Array<pRefinement> &refs)
-{
-   for (auto ref : refs)
-   {
-      SetElementOrder(ref.index, GetElementOrder(ref.index) + ref.delta);
-   }
-}
-
 int FiniteElementSpace::GetElementOrder(int i) const
 {
    MFEM_VERIFY(mesh_sequence == mesh->GetSequence(),
