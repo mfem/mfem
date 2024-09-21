@@ -3401,7 +3401,7 @@ void SparseMatrix::PrintMathematica(std::ostream & os) const
    std::streamsize old_prec = os.precision(14);
 
    os << "(* Read file into Mathematica using: "
-      << "my_mat = Get[\"this_file_name\"] *)\n";
+      << "myMat = Get[\"this_file_name\"] *)\n";
    os << "SparseArray[";
 
    if (A == NULL)
