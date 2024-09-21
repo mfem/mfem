@@ -659,8 +659,8 @@ public:
 
    /// Prints matrix as a SparseArray for importing into Mathematica.
    /** The resulting file can be read into Mathematica using an expression such
-       as: my_mat = Get["output_file_name"]
-       The Mathematica variable "my_mat" will then be assigned to a new
+       as: myMat = Get["output_file_name"]
+       The Mathematica variable "myMat" will then be assigned to a new
        SparseArray object containing the data from this MFEM SparseMatrix.
 
        @note Mathematica uses 1-based indexing so the MFEM row and column
