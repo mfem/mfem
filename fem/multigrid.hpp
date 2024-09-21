@@ -106,12 +106,12 @@ public:
                      int postSmoothingSteps_);
 
    /// Application of the multigrid as a preconditioner
-   virtual void Mult(const Vector& x, Vector& y) const override;
-   virtual void ArrayMult(const Array<const Vector*>& X_,
-                          Array<Vector*>& Y_) const override;
+   void Mult(const Vector& x, Vector& y) const override;
+   void ArrayMult(const Array<const Vector*>& X_,
+                  Array<Vector*>& Y_) const override;
 
    /// Not supported for multigrid
-   virtual void SetOperator(const Operator& op) override
+   void SetOperator(const Operator& op) override
    {
       MFEM_ABORT("SetOperator is not supported in Multigrid!");
    }
@@ -155,7 +155,7 @@ public:
 
 private:
    /// Returns prolongation operator at given level
-   virtual const Operator* GetProlongationAtLevel(int level) const override
+   const Operator* GetProlongationAtLevel(int level) const override
    {
       return prolongations[level];
    }
