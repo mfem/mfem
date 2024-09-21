@@ -30,15 +30,19 @@ namespace mfem
 sycl::queue Sycl::Queue()
 {
 #ifndef MFEM_USE_MPI
-  if (Device::Allows(Backend::SYCL_GPU))
-    return sycl::queue(sycl::gpu_selector_v);
+   if (Device::Allows(Backend::SYCL_GPU))
+   {
+      return sycl::queue(sycl::gpu_selector_v);
+   }
 
-  if (Device::Allows(Backend::SYCL_CPU))
-    return sycl::queue(sycl::cpu_selector_v);
+   if (Device::Allows(Backend::SYCL_CPU))
+   {
+      return sycl::queue(sycl::cpu_selector_v);
+   }
 
-  return sycl::queue(sycl::default_selector_v);
+   return sycl::queue(sycl::default_selector_v);
 #else
-  return *hypre_HandleComputeStream(hypre_handle());
+   return *hypre_HandleComputeStream(hypre_handle());
 #endif // MFEM_USE_MPI
 }
 #endif
