@@ -4492,23 +4492,30 @@ void ParFiniteElementSpace::Update(bool want_transform)
 }
 
 // TODO: serial version of this.
-void ParFiniteElementSpace::UpdatePRef(const Array<VarOrderElemInfo> & pref)
+void ParFiniteElementSpace::UpdatePRef(const Array<pRefinement> & refs,
+                                       bool want_transfer)
 {
-   fesPrev.reset(new ParFiniteElementSpace(pmesh, fec));
-   for (int i = 0; i<pmesh->GetNE(); i++)
+   if (want_transfer)
    {
-      fesPrev->SetElementOrder(i, GetElementOrder(i));
+      fesPrev.reset(new ParFiniteElementSpace(pmesh, fec));
+      for (int i = 0; i<pmesh->GetNE(); i++)
+      {
+         fesPrev->SetElementOrder(i, GetElementOrder(i));
+      }
+      fesPrev->Update(false);
    }
-   fesPrev->Update(false);
 
-   for (auto ref : pref)
+   for (auto ref : refs)
    {
-      SetElementOrder(ref.element, (int) ref.order);
+      SetElementOrder(ref.index, GetElementOrder(ref.index) + ref.delta);
    }
 
    Update(false);
 
-   PTh.reset(new PRefinementTransferOperator(*fesPrev, *this));
+   if (want_transfer)
+   {
+      PTh.reset(new PRefinementTransferOperator(*fesPrev, *this));
+   }
 }
 
 void ParFiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)

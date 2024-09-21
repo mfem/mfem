@@ -645,9 +645,6 @@ public:
        SetElementOrder is called, the space becomes a variable order space. */
    void SetElementOrder(int i, int p);
 
-   /// Changes the orders of an array elements specified in @a refs.
-   void ChangeElementOrders(const Array<pRefinement> &refs);
-
    /// Returns the order of the i'th finite element.
    int GetElementOrder(int i) const;
 

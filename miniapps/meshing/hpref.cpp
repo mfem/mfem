@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
          // p-ref
          Array<pRefinement> refs;
          refs.Append(pRefinement(elem, 1));  // Increase the element order by 1
-         fespace.ChangeElementOrders(refs);
+         fespace.UpdatePRef(refs);
          numP++;
       }
       else
