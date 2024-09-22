@@ -38,6 +38,14 @@ void TensorDerivatives(const int NE,
                        const Vector &e_vec,
                        Vector &q_der);
 
+// Tensor-product evaluation of quadrature point derivatives: dispatch function.
+template<QVectorLayout VL>
+void CollocatedTensorDerivatives(const int NE,
+                                 const int vdim,
+                                 const DofToQuad &maps,
+                                 const Vector &e_vec,
+                                 Vector &q_der);
+
 // Tensor-product evaluation of quadrature point physical derivatives: dispatch
 // function.
 template<QVectorLayout VL>
@@ -47,6 +55,14 @@ void TensorPhysDerivatives(const int NE,
                            const GeometricFactors &geom,
                            const Vector &e_vec,
                            Vector &q_der);
+
+template<QVectorLayout VL>
+void CollocatedTensorPhysDerivatives(const int NE,
+                                     const int vdim,
+                                     const DofToQuad &maps,
+                                     const GeometricFactors &geom,
+                                     const Vector &e_vec,
+                                     Vector &q_der);
 
 // Tensor-product evaluation of quadrature point determinants: dispatch
 // function.
