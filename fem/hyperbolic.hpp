@@ -97,7 +97,7 @@ public:
     * @brief Compute average flux for over the given interval of states.
     * Optionally overloaded in a derived class.
     *
-    * @param[in] state1 state of the beggining of the interval (num_equations)
+    * @param[in] state1 state of the beginning of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
     * @param[in] Tr element transformation
     * @param[out] flux_ average flux from the given element at the current
