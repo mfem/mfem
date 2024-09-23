@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -89,6 +89,7 @@ int main (int argc, char *argv[])
    bool hrefinement      = false;
    int point_ordering    = 0;
    int gf_ordering       = 0;
+   int visport           = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -121,6 +122,7 @@ int main (int argc, char *argv[])
    args.AddOption(&gf_ordering, "-gfo", "--gridfunc-ordering",
                   "Ordering of fespace that will be used for gridfunction to be interpolated."
                   "0 (default): byNodes, 1: byVDIM");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
 
    args.Parse();
    if (!args.Good())
@@ -219,7 +221,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout;
       sout.open(vishost, visport);
       if (!sout)
@@ -308,9 +309,8 @@ int main (int argc, char *argv[])
    if (myid == 0 )
    {
       int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
-      double err = 0.0, max_err = 0.0, max_dist = 0.0;
+      double error = 0.0, max_err = 0.0, max_dist = 0.0;
       Vector pos(dim);
-      int npt = 0;
       for (int j = 0; j < vec_dim; j++)
       {
          for (int i = 0; i < pts_cnt; i++)
@@ -330,15 +330,14 @@ int main (int argc, char *argv[])
                }
                Vector exact_val(vec_dim);
                F_exact(pos, exact_val);
-               err = gf_ordering == Ordering::byNODES ?
-                     fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
-                     fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
-               max_err  = std::max(max_err, err);
+               error = gf_ordering == Ordering::byNODES ?
+                       fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                       fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
+               max_err  = std::max(max_err, error);
                max_dist = std::max(max_dist, dist_p_out(i));
                if (code_out[i] == 1 && j == 0) { face_pts++; }
             }
             else { if (j == 0) { not_found++; } }
-            npt++;
          }
       }
 

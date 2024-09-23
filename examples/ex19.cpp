@@ -48,15 +48,15 @@ public:
       print_level = print_lvl;
    }
 
-   virtual void MonitorResidual(int it, double norm, const Vector &r, bool final);
+   void MonitorResidual(int it, real_t norm, const Vector &r, bool final) override;
 
 private:
    const std::string prefix;
    int print_level;
-   mutable double norm0;
+   mutable real_t norm0;
 };
 
-void GeneralResidualMonitor::MonitorResidual(int it, double norm,
+void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
                                              const Vector &r, bool final)
 {
    if (print_level == 1 || (print_level == 3 && (final || it == 0)))
@@ -103,7 +103,7 @@ protected:
    BlockOperator *jacobian;
 
    // Scaling factor for the pressure mass matrix in the block preconditioner
-   double gamma;
+   real_t gamma;
 
    // Objects for the block preconditioner application
    SparseMatrix *pressure_mass;
@@ -116,10 +116,10 @@ public:
    JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
                           SparseMatrix &mass, Array<int> &offsets);
 
-   virtual void Mult(const Vector &k, Vector &y) const;
-   virtual void SetOperator(const Operator &op);
+   void Mult(const Vector &k, Vector &y) const override;
+   void SetOperator(const Operator &op) override;
 
-   virtual ~JacobianPreconditioner();
+   ~JacobianPreconditioner() override;
 };
 
 // After spatial discretization, the rubber model can be written as:
@@ -157,17 +157,17 @@ protected:
 
 public:
    RubberOperator(Array<FiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, double rel_tol, double abs_tol,
+                  Array<int> &block_trueOffsets, real_t rel_tol, real_t abs_tol,
                   int iter, Coefficient &mu);
 
    // Required to use the native newton solver
-   virtual Operator &GetGradient(const Vector &xp) const;
-   virtual void Mult(const Vector &k, Vector &y) const;
+   Operator &GetGradient(const Vector &xp) const override;
+   void Mult(const Vector &k, Vector &y) const override;
 
    // Driver for the newton solver
    void Solve(Vector &xp) const;
 
-   virtual ~RubberOperator();
+   ~RubberOperator() override;
 };
 
 // Visualization driver
@@ -187,10 +187,10 @@ int main(int argc, char *argv[])
    int ref_levels = 0;
    int order = 2;
    bool visualization = true;
-   double newton_rel_tol = 1e-4;
-   double newton_abs_tol = 1e-6;
+   real_t newton_rel_tol = 1e-4;
+   real_t newton_abs_tol = 1e-6;
    int newton_iter = 500;
-   double mu = 1.0;
+   real_t mu = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -449,8 +449,8 @@ JacobianPreconditioner::~JacobianPreconditioner()
 RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
                                Array<Array<int> *> &ess_bdr,
                                Array<int> &offsets,
-                               double rel_tol,
-                               double abs_tol,
+                               real_t rel_tol,
+                               real_t abs_tol,
                                int iter,
                                Coefficient &c_mu)
    : Operator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize()),

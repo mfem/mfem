@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -276,6 +276,8 @@ TEST_CASE("2D Bilinear Mass Integrators",
                SparseMatrix * blfT = Transpose(blfw.SpMat());
                SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
+               delete diff;
+               delete blfT;
             }
             SECTION("With Coefficient")
             {
@@ -297,6 +299,8 @@ TEST_CASE("2D Bilinear Mass Integrators",
                SparseMatrix * blfT = Transpose(blfw.SpMat());
                SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
+               delete diff;
+               delete blfT;
             }
          }
       }
@@ -434,6 +438,8 @@ TEST_CASE("2D Bilinear Mass Integrators",
                SparseMatrix * blfT = Transpose(blfw.SpMat());
                SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
+               delete diff;
+               delete blfT;
             }
             SECTION("With Coefficient")
             {
@@ -455,6 +461,8 @@ TEST_CASE("2D Bilinear Mass Integrators",
                SparseMatrix * blfT = Transpose(blfw.SpMat());
                SparseMatrix * diff = Add(1.0, blf.SpMat(), -1.0, *blfT);
                REQUIRE( diff->MaxNorm() < tol );
+               delete diff;
+               delete blfT;
             }
          }
       }

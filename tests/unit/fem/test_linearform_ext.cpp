@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -40,6 +40,8 @@ static void fvec_dim(const Vector &xvec, Vector &v)
    }
 }
 
+enum QuadratureType { Lobatto, Legendre, LegendreUnderIntegration };
+
 struct LinearFormExtTest
 {
    enum { DLFEval, QLFEval, DLFGrad, // scalar domain
@@ -49,7 +51,7 @@ struct LinearFormExtTest
    const double abs_tol = 1e-14, rel_tol = 1e-14;
    const char *mesh_filename;
    Mesh mesh;
-   const int dim, vdim, ordering, gll, problem, p, q, SEED = 0x100001b3;
+   const int dim, vdim, ordering, problem, p, q, SEED = 0x100001b3;
    H1_FECollection fec;
    FiniteElementSpace vfes;
    const Geometry::Type geom_type;
@@ -67,12 +69,25 @@ struct LinearFormExtTest
    LinearForm lf_dev, lf_std;
    LinearFormIntegrator *lfi_dev, *lfi_std;
 
+   static int GetQOrder(QuadratureType qtype, int p)
+   {
+      switch (qtype)
+      {
+         case Lobatto: return 2*p - 1;
+         case Legendre: return 2*p + 3;
+         case LegendreUnderIntegration: return 2*p - 1;
+      }
+      MFEM_ABORT("Unknown QuadratureType.");
+      return 0;
+   }
+
    LinearFormExtTest(const char *mesh_filename,
-                     int vdim, int ordering, bool gll, int problem, int p):
+                     int vdim, int ordering, QuadratureType qtype, int problem,
+                     int p):
       mesh_filename(mesh_filename),
       mesh(Mesh::LoadFromFile(mesh_filename)),
-      dim(mesh.Dimension()), vdim(vdim), ordering(ordering), gll(gll),
-      problem(problem), p(p), q(2*p + (gll?-1:3)), fec(p, dim),
+      dim(mesh.Dimension()), vdim(vdim), ordering(ordering),
+      problem(problem), p(p), q(GetQOrder(qtype, p)), fec(p, dim),
       vfes(&mesh, &fec, vdim, ordering),
       geom_type(vfes.GetFE(0)->GetGeomType()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
@@ -140,8 +155,8 @@ struct LinearFormExtTest
       if (problem != QLFEval && problem != VQLFEval && problem != BLFEval &&
           problem != BNLFEval)
       {
-         lfi_dev->SetIntRule(gll ? irGLL : ir);
-         lfi_std->SetIntRule(gll ? irGLL : ir);
+         lfi_dev->SetIntRule((qtype == Lobatto) ? irGLL : ir);
+         lfi_std->SetIntRule((qtype == Lobatto) ? irGLL : ir);
       }
 
       if (problem != BLFEval && problem != BNLFEval)
@@ -198,24 +213,24 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
 
    SECTION("Scalar")
    {
-      const auto gll = GENERATE(false, true);
+      const auto qtype = GENERATE(Lobatto, Legendre, LegendreUnderIntegration);
       const auto problem = GENERATE(LinearFormExtTest::DLFEval,
                                     LinearFormExtTest::QLFEval,
                                     LinearFormExtTest::DLFGrad,
                                     LinearFormExtTest::BLFEval,
                                     LinearFormExtTest::BNLFEval);
-      LinearFormExtTest(mesh_file, 1, Ordering::byNODES, gll, problem, p).Run();
+      LinearFormExtTest(mesh_file, 1, Ordering::byNODES, qtype, problem, p).Run();
    }
 
    SECTION("Vector")
    {
-      const auto gll = GENERATE(false, true);
+      const auto qtype = GENERATE(Lobatto, Legendre, LegendreUnderIntegration);
       const auto vdim = all ? GENERATE(1,5,7) : GENERATE(1,5);
       const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
       const auto problem = GENERATE(LinearFormExtTest::VDLFEval,
                                     LinearFormExtTest::VQLFEval,
                                     LinearFormExtTest::VDLFGrad);
-      LinearFormExtTest(mesh_file, vdim, ordering, gll, problem, p).Run();
+      LinearFormExtTest(mesh_file, vdim, ordering, qtype, problem, p).Run();
    }
 
    SECTION("SetIntPoint")
@@ -282,4 +297,68 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [CUDA]")
 
       REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
    }
+
+   SECTION("VectorFE")
+   {
+      Mesh mesh(mesh_file);
+      const int dim = mesh.Dimension();
+
+      CAPTURE(mesh_file, dim, p);
+
+      RT_FECollection fec(p-1, dim);
+      FiniteElementSpace fes(&mesh, &fec);
+
+      FunctionCoefficient coeff(f);
+
+      LinearForm d1(&fes);
+      d1.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(coeff));
+      d1.UseFastAssembly(true);
+      d1.Assemble();
+
+      LinearForm d2(&fes);
+      d2.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(coeff));
+      d2.UseFastAssembly(false);
+      d2.Assemble();
+
+      CAPTURE(d1.Norml2(), d2.Norml2());
+
+      d1 -= d2;
+
+      REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
+   }
+}
+
+TEST_CASE("H(div) Linear Form Extension", "[LinearFormExtension], [CUDA]")
+{
+   const bool all = launch_all_non_regression_tests;
+
+   const auto mesh_file =
+      all ? GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
+                     "../../data/fichera.mesh", "../../data/fichera-q3.mesh") :
+      GENERATE("../../data/star-q3.mesh", "../../data/fichera-q3.mesh");
+   const auto p = all ? GENERATE(1,2,3,4,5,6) : GENERATE(1,3);
+
+   Mesh mesh(mesh_file);
+   const int dim = mesh.Dimension();
+
+   CAPTURE(mesh_file, dim, p);
+
+   RT_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   VectorFunctionCoefficient coeff(dim, fvec_dim);
+
+   LinearForm d1(&fes);
+   d1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
+   d1.UseFastAssembly(true);
+   d1.Assemble();
+
+   LinearForm d2(&fes);
+   d2.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
+   d2.UseFastAssembly(false);
+   d2.Assemble();
+
+   CAPTURE(d1.Norml2(), d2.Norml2());
+   d1 -= d2;
+   REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
 }

@@ -31,7 +31,7 @@ install:
 - ps: ( get-content "GKlib\gk_arch.h") | % { If ($_.ReadCount -ge 52) {$_ -replace "#ifdef __MSC__","#ifdef DISABLE_THIS_ANCIENT_MSC_CHECK"} Else {$_} } | set-content "GKlib\gk_arch.h"
 - cmake -H. -Bbuild
 # -DCMAKE_BUILD_TYPE=Release
-- cmake --build build
+- cmake --build build --target metis -j 4
 - set METIS_PATH=%cd%
 - cd ..
 
@@ -40,7 +40,7 @@ install:
 - 7z x v2.19.0.tar.gz -so | 7z x -si -ttar > nul
 - cd hypre-2.19.0/src
 - cmake -H. -Bbuild
-- cmake --build build
+- cmake --build build -j 4
 - cmake --build build --target install
 - cd ../..
 
@@ -49,14 +49,20 @@ install:
 
 # MFEM
 before_build:
-- cmake -H. -DCMAKE_INSTALL_PREFIX=install -Bbuild_parallel -DMFEM_USE_MPI=TRUE -DMFEM_USE_METIS_5=TRUE -DHYPRE_DIR=%cd%\..\hypre-2.19.0\src\hypre -DMETIS_LIBRARIES=%METIS_PATH%\build\libmetis\Debug\metis.lib -DMETIS_INCLUDE_DIRS=%METIS_PATH%\include
-- cmake -H. -DCMAKE_INSTALL_PREFIX=install -Bbuild_serial -DMFEM_USE_MPI=FALSE
+- cmake . -Bbuild_parallel -DMFEM_USE_MPI=TRUE -DMFEM_USE_METIS_5=TRUE -DHYPRE_DIR=%cd%\..\hypre-2.19.0\src\hypre -DMETIS_LIBRARIES=%METIS_PATH%\build\libmetis\Debug\metis.lib -DMETIS_INCLUDE_DIRS=%METIS_PATH%\include
+# - cmake . -Bbuild_serial -DMFEM_USE_MPI=FALSE
+- cmake . -Bbuild_shared_serial -DMFEM_USE_MPI=FALSE -DBUILD_SHARED_LIBS=ON
 
 build_script:
-- cmake --build build_parallel --config Release -j 4
-- cmake --build build_serial --config Release -j 4
-- cmake --build build_serial --target exec --config Release -j 4
+- cmake --build build_parallel --config Debug -j 4
+# - cmake --build build_serial --config Release -j 4
+# - cmake --build build_serial --target exec --config Release -j 4
+- cmake --build build_shared_serial --config Release -j 4
+- cmake --build build_shared_serial --target exec --config Release -j 4
 
 after_build:
-- cd build_serial
+# - cd build_serial
+# - ctest -C Release --output-on-failure
+# - cd ..
+- cd build_shared_serial
 - ctest -C Release --output-on-failure

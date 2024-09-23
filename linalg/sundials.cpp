@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,8 +20,10 @@
 
 // SUNDIALS vectors
 #include <nvector/nvector_serial.h>
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
 #include <nvector/nvector_cuda.h>
+#elif defined(MFEM_USE_HIP)
+#include <nvector/nvector_hip.h>
 #endif
 #ifdef MFEM_USE_MPI
 #include <nvector/nvector_mpiplusx.h>
@@ -34,6 +36,14 @@
 
 // Access SUNDIALS object's content pointer
 #define GET_CONTENT(X) ( X->content )
+
+#if defined(MFEM_USE_CUDA)
+#define SUN_Hip_OR_Cuda(X) X##_Cuda
+#define SUN_HIP_OR_CUDA(X) X##_CUDA
+#elif defined(MFEM_USE_HIP)
+#define SUN_Hip_OR_Cuda(X) X##_Hip
+#define SUN_HIP_OR_CUDA(X) X##_HIP
+#endif
 
 using namespace std;
 
@@ -112,16 +122,16 @@ MFEM_DEPRECATED N_Vector N_VNewEmpty_Parallel(MPI_Comm comm,
 
 #endif // MFEM_USE_MPI
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
 
 /// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
 /// version < 6
-MFEM_DEPRECATED N_Vector N_VNewWithMemHelp_Cuda(sunindextype length,
-                                                booleantype use_managed_mem,
-                                                SUNMemoryHelper helper,
-                                                SUNContext)
+MFEM_DEPRECATED N_Vector SUN_Hip_OR_Cuda(N_VNewWithMemHelp)(sunindextype length,
+                                                            booleantype use_managed_mem,
+                                                            SUNMemoryHelper helper,
+                                                            SUNContext)
 {
-   return N_VNewWithMemHelp_Cuda(length, use_managed_mem, helper);
+   return SUN_Hip_OR_Cuda(N_VNewWithMemHelp)(length, use_managed_mem, helper);
 }
 
 /// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
@@ -131,9 +141,9 @@ MFEM_DEPRECATED SUNMemoryHelper SUNMemoryHelper_NewEmpty(SUNContext)
    return SUNMemoryHelper_NewEmpty();
 }
 
-#endif // MFEM_USE_CUDA
+#endif // MFEM_USE_CUDA || MFEM_USE_HIP
 
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_CUDA)
+#if defined(MFEM_USE_MPI) && (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 
 /// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
 /// version < 6
@@ -143,7 +153,7 @@ MFEM_DEPRECATED N_Vector N_VMake_MPIPlusX(MPI_Comm comm, N_Vector local_vector,
    return N_VMake_MPIPlusX(comm, local_vector);
 }
 
-#endif // MFEM_USE_MPI && MFEM_USE_CUDA
+#endif // MFEM_USE_MPI && (MFEM_USE_CUDA || MFEM_USE_HIP)
 
 #endif // SUNDIALS_VERSION_MAJOR < 6
 
@@ -206,7 +216,7 @@ Sundials::~Sundials()
 
 #endif // SUNDIALS_VERSION_MAJOR >= 6
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
 SundialsMemHelper::SundialsMemHelper(SUNContext context)
 {
    /* Allocate helper */
@@ -215,8 +225,8 @@ SundialsMemHelper::SundialsMemHelper(SUNContext context)
    /* Set the ops */
    h->ops->alloc     = SundialsMemHelper_Alloc;
    h->ops->dealloc   = SundialsMemHelper_Dealloc;
-   h->ops->copy      = SUNMemoryHelper_Copy_Cuda;
-   h->ops->copyasync = SUNMemoryHelper_CopyAsync_Cuda;
+   h->ops->copy      = SUN_Hip_OR_Cuda(SUNMemoryHelper_Copy);
+   h->ops->copyasync = SUN_Hip_OR_Cuda(SUNMemoryHelper_CopyAsync);
 }
 
 SundialsMemHelper::SundialsMemHelper(SundialsMemHelper&& that_helper)
@@ -240,25 +250,25 @@ int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
 #endif
                                               )
 {
-   int length = memsize/sizeof(double);
    SUNMemory sunmem = SUNMemoryNewEmpty();
 
    sunmem->ptr = NULL;
    sunmem->own = SUNTRUE;
 
+   // memsize is the number of bytes to allocate, so we use Memory<char>
    if (mem_type == SUNMEMTYPE_HOST)
    {
-      Memory<double> mem(length, Device::GetHostMemoryType());
+      Memory<char> mem(memsize, Device::GetHostMemoryType());
       mem.SetHostPtrOwner(false);
-      sunmem->ptr  = mfem::HostReadWrite(mem, length);
+      sunmem->ptr  = mfem::HostReadWrite(mem, memsize);
       sunmem->type = SUNMEMTYPE_HOST;
       mem.Delete();
    }
    else if (mem_type == SUNMEMTYPE_DEVICE || mem_type == SUNMEMTYPE_UVM)
    {
-      Memory<double> mem(length, Device::GetDeviceMemoryType());
+      Memory<char> mem(memsize, Device::GetDeviceMemoryType());
       mem.SetDevicePtrOwner(false);
-      sunmem->ptr  = mfem::ReadWrite(mem, length);
+      sunmem->ptr  = mfem::ReadWrite(mem, memsize);
       sunmem->type = mem_type;
       mem.Delete();
    }
@@ -283,14 +293,14 @@ int SundialsMemHelper::SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
    {
       if (sunmem->type == SUNMEMTYPE_HOST)
       {
-         Memory<double> mem(static_cast<double*>(sunmem->ptr), 1,
-                            Device::GetHostMemoryType(), true);
+         Memory<char> mem(static_cast<char*>(sunmem->ptr), 1,
+                          Device::GetHostMemoryType(), true);
          mem.Delete();
       }
       else if (sunmem->type == SUNMEMTYPE_DEVICE || sunmem->type == SUNMEMTYPE_UVM)
       {
-         Memory<double> mem(static_cast<double*>(sunmem->ptr), 1,
-                            Device::GetDeviceMemoryType(), true);
+         Memory<char> mem(static_cast<char*>(sunmem->ptr), 1,
+                          Device::GetDeviceMemoryType(), true);
          mem.Delete();
       }
       else
@@ -303,7 +313,7 @@ int SundialsMemHelper::SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
    return 0;
 }
 
-#endif // MFEM_USE_CUDA
+#endif // MFEM_USE_CUDA || MFEM_USE_HIP
 
 
 // ---------------------------------------------------------------------------
@@ -329,12 +339,13 @@ void SundialsNVector::_SetNvecDataAndSize_(long glob_size)
          NV_LENGTH_S(local_x) = size;
          break;
       }
-#ifdef MFEM_USE_CUDA
-      case SUNDIALS_NVEC_CUDA:
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+      case SUN_HIP_OR_CUDA(SUNDIALS_NVEC):
       {
-         N_VSetHostArrayPointer_Cuda(HostReadWrite(), local_x);
-         N_VSetDeviceArrayPointer_Cuda(ReadWrite(), local_x);
-         static_cast<N_VectorContent_Cuda>(GET_CONTENT(local_x))->length = size;
+         SUN_Hip_OR_Cuda(N_VSetHostArrayPointer)(HostReadWrite(), local_x);
+         SUN_Hip_OR_Cuda(N_VSetDeviceArrayPointer)(ReadWrite(), local_x);
+         static_cast<SUN_Hip_OR_Cuda(N_VectorContent)>(GET_CONTENT(
+                                                          local_x))->length = size;
          break;
       }
 #endif
@@ -403,14 +414,14 @@ void SundialsNVector::_SetDataAndSize_()
          if (known) { data.ClearOwnerFlags(); }
          break;
       }
-#ifdef MFEM_USE_CUDA
-      case SUNDIALS_NVEC_CUDA:
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+      case SUN_HIP_OR_CUDA(SUNDIALS_NVEC):
       {
-         double *h_ptr = N_VGetHostArrayPointer_Cuda(local_x);
-         double *d_ptr = N_VGetDeviceArrayPointer_Cuda(local_x);
+         double *h_ptr = SUN_Hip_OR_Cuda(N_VGetHostArrayPointer)(local_x);
+         double *d_ptr = SUN_Hip_OR_Cuda(N_VGetDeviceArrayPointer)(local_x);
          const bool known = mm.IsKnown(h_ptr);
-         size = N_VGetLength_Cuda(local_x);
-         data.Wrap(h_ptr, d_ptr, size, Device::GetHostMemoryType(), false);
+         size = SUN_Hip_OR_Cuda(N_VGetLength)(local_x);
+         data.Wrap(h_ptr, d_ptr, size, Device::GetHostMemoryType(), false, false, true);
          if (known) { data.ClearOwnerFlags(); }
          UseDevice(true);
          break;
@@ -525,11 +536,12 @@ void SundialsNVector::SetDataAndSize(double *d, int s, long glob_size)
 N_Vector SundialsNVector::MakeNVector(bool use_device)
 {
    N_Vector x;
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_device)
    {
-      x = N_VNewWithMemHelp_Cuda(0, UseManagedMemory(), Sundials::GetMemHelper(),
-                                 Sundials::GetContext());
+      x = SUN_Hip_OR_Cuda(N_VNewWithMemHelp)(0, UseManagedMemory(),
+                                             Sundials::GetMemHelper(),
+                                             Sundials::GetContext());
    }
    else
    {
@@ -555,12 +567,13 @@ N_Vector SundialsNVector::MakeNVector(MPI_Comm comm, bool use_device)
    }
    else
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
       if (use_device)
       {
-         x = N_VMake_MPIPlusX(comm, N_VNewWithMemHelp_Cuda(0, UseManagedMemory(),
-                                                           Sundials::GetMemHelper(),
-                                                           Sundials::GetContext()),
+         x = N_VMake_MPIPlusX(comm, SUN_Hip_OR_Cuda(N_VNewWithMemHelp)(0,
+                                                                       UseManagedMemory(),
+                                                                       Sundials::GetMemHelper(),
+                                                                       Sundials::GetContext()),
                               Sundials::GetContext());
       }
       else
@@ -569,7 +582,7 @@ N_Vector SundialsNVector::MakeNVector(MPI_Comm comm, bool use_device)
       }
 #else
       x = N_VNewEmpty_Parallel(comm, 0, 0, Sundials::GetContext());
-#endif // MFEM_USE_CUDA
+#endif // MFEM_USE_CUDA || MFEM_USE_HIP
    }
 
    MFEM_VERIFY(x, "Error in SundialsNVector::MakeNVector.");
@@ -1328,38 +1341,59 @@ CVODESSolver::~CVODESSolver()
 // ARKStep interface
 // ---------------------------------------------------------------------------
 
-int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector ydot,
+int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector result,
                         void *user_data)
 {
    // Get data from N_Vectors
    const SundialsNVector mfem_y(y);
-   SundialsNVector mfem_ydot(ydot);
+   SundialsNVector mfem_result(result);
    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
 
-   // Compute f(t, y) in y' = f(t, y) or fe(t, y) in y' = fe(t, y) + fi(t, y)
+   // Compute either f(t, y) in one of
+   //   1. y' = f(t, y)
+   //   2. M y' = f(t, y)
+   // or fe(t, y) in one of
+   //   1. y' = fe(t, y) + fi(t, y)
+   //   2. M y' = fe(t, y) + fi(t, y)
    self->f->SetTime(t);
    if (self->rk_type == IMEX)
    {
       self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    }
-   self->f->Mult(mfem_y, mfem_ydot);
+   if (self->f->isExplicit()) // ODE is in form 1
+   {
+      self->f->Mult(mfem_y, mfem_result);
+   }
+   else // ODE is in form 2
+   {
+      self->f->ExplicitMult(mfem_y, mfem_result);
+   }
 
    // Return success
    return (0);
 }
 
-int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector ydot,
+int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector result,
                         void *user_data)
 {
    // Get data from N_Vectors
    const SundialsNVector mfem_y(y);
-   SundialsNVector mfem_ydot(ydot);
+   SundialsNVector mfem_result(result);
    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
 
-   // Compute fi(t, y) in y' = fe(t, y) + fi(t, y)
+   // Compute fi(t, y) in one of
+   //   1. y' = fe(t, y) + fi(t, y)       (ODE is expressed in EXPLICIT form)
+   //   2. M y' = fe(t, y) + fi(y, t)     (ODE is expressed in IMPLICIT form)
    self->f->SetTime(t);
    self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   self->f->Mult(mfem_y, mfem_ydot);
+   if (self->f->isExplicit())
+   {
+      self->f->Mult(mfem_y, mfem_result);
+   }
+   else
+   {
+      self->f->ExplicitMult(mfem_y, mfem_result);
+   }
 
    // Return success
    return (0);
@@ -1554,7 +1588,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
    reinit = true;
 }
 
-void ARKStepSolver::Step(Vector &x, double &t, double &dt)
+void ARKStepSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    Y->MakeRef(x, 0, x.Size());
    MFEM_VERIFY(Y->Size() == x.Size(), "size mismatch");
@@ -1653,13 +1687,13 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    LSM->content      = this;
    LSM->ops->gettype = LSGetType;
    LSM->ops->solve   = ARKStepSolver::MassSysSolve;
-   LSA->ops->free    = LSFree;
+   LSM->ops->free    = LSFree;
 
    M = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
 
    M->content      = this;
-   M->ops->getid   = SUNMatGetID;
+   M->ops->getid   = MatGetID;
    M->ops->matvec  = ARKStepSolver::MassMult1;
    M->ops->destroy = MatDestroy;
 
@@ -1670,6 +1704,9 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    // Set the linear system function
    flag = ARKStepSetMassFn(sundials_mem, ARKStepSolver::MassSysSetup);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
+
+   // Check that the ODE is not expressed in EXPLICIT form
+   MFEM_VERIFY(!f->isExplicit(), "ODE operator is expressed in EXPLICIT form")
 }
 
 void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
@@ -1690,6 +1727,9 @@ void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
    flag = ARKStepSetMassTimes(sundials_mem, NULL, ARKStepSolver::MassMult2,
                               this);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassTimes()");
+
+   // Check that the ODE is not expressed in EXPLICIT form
+   MFEM_VERIFY(!f->isExplicit(), "ODE operator is expressed in EXPLICIT form")
 }
 
 void ARKStepSolver::SetStepMode(int itask)
@@ -2172,7 +2212,7 @@ void KINSolver::Mult(const Vector&, Vector &x) const
       if (Parallel())
       {
          double lnorm = norm;
-         MPI_Allreduce(&lnorm, &norm, 1, MPI_DOUBLE, MPI_MAX,
+         MPI_Allreduce(&lnorm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
                        Y->GetComm());
       }
 #endif
