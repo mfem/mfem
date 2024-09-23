@@ -139,9 +139,9 @@ QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
 }
 
 QuadratureSpace::QuadratureSpace(Mesh &mesh_, const IntegrationRule &ir)
-   : QuadratureSpaceBase(mesh_, mesh_.GetElementGeometry(0), ir)
+   : QuadratureSpaceBase(mesh_, mesh_.GetTypicalElementGeometry(), ir)
 {
-   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) == 1,
+   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) <= 1,
                "Constructor not valid for mixed meshes");
    ConstructOffsets();
 }
@@ -175,11 +175,11 @@ FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, int order_,
 
 FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, const IntegrationRule &ir,
                                          FaceType face_type_)
-   : QuadratureSpaceBase(mesh_, mesh_.GetFaceGeometry(0), ir),
+   : QuadratureSpaceBase(mesh_, mesh_.GetTypicalFaceGeometry(), ir),
      face_type(face_type_),
      num_faces(mesh.GetNFbyType(face_type))
 {
-   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension() - 1) == 1,
+   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension() - 1) <= 1,
                "Constructor not valid for mixed meshes");
    ConstructOffsets();
 }

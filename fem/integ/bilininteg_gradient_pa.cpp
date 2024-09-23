@@ -202,9 +202,9 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                "PA Only supports Ordering::byNODES!");
    // Assuming the same element type
    Mesh *mesh = trial_fes.GetMesh();
-   const FiniteElement &trial_fe = *trial_fes.GetFE(0); // H1
-   const FiniteElement &test_fe = *test_fes.GetFE(0); // H1^d or L2^d
-   ElementTransformation *trans = mesh->GetElementTransformation(0);
+   const FiniteElement &trial_fe = *trial_fes.GetTypicalFE(); // H1
+   const FiniteElement &test_fe = *test_fes.GetTypicalFE(); // H1^d or L2^d
+   ElementTransformation *trans = mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
                                                             *trans);
    const int dims = trial_fe.GetDim();
