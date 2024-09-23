@@ -218,7 +218,7 @@ int SyclGetDeviceCount()
    int num_gpus = -1;
 
 #ifdef MFEM_USE_SYCL
-   constexpr bool debug = true;
+   constexpr bool debug = false;
    auto GetPlatformsInfo = [](const bool out = false)
    {
       bool at_least_one = false;
