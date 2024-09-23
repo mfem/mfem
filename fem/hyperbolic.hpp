@@ -24,12 +24,12 @@ namespace mfem
 // HyperbolicFormIntegrator is a NonlinearFormIntegrator that implements
 // element weak divergence and interface flux
 //
-//     ∫_T F(u):∇v,   -∫_e F̂(u)⋅[v]
+//     ∫_T F(u):∇v,   -∫_e F̂(u)⋅n[v]
 //
-// Here, T is an element, e is an edge, and [⋅] is jump. This form integrator
-// is coupled with RiemannSolver that implements the numerical flux F̂. For
-// RiemannSolver, the Rusanov flux, also known as local Lax-Friedrichs flux, is
-// provided.
+// Here, T is an element, e is an edge, n normal and [⋅] is jump. This form
+// integrator is coupled with RiemannSolver that implements the numerical flux
+// F̂. For RiemannSolver, the Rusanov flux, also known as local Lax-Friedrichs
+// flux, or Godunov flux are provided.
 //
 // To implement a specific hyperbolic conservation laws, users can create
 // derived classes from FluxFunction with overloaded ComputeFlux. One can
