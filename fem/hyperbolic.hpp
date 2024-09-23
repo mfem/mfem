@@ -113,7 +113,7 @@ public:
     * @brief Compute average normal flux over the given interval of states.
     * Optionally overloaded in a derived class.
     *
-    * @param[in] state1 state of the beggining of the interval (num_equations)
+    * @param[in] state1 state of the beginning of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
     * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
@@ -195,7 +195,7 @@ public:
     *
     * @param[in] side indicates gradient w.r.t. the first (side = 1)
     * or second (side = 2) state
-    * @param[in] state1 state value of the beggining of the interval
+    * @param[in] state1 state value of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value of the end of the interval
     * (num_equations)
@@ -213,7 +213,7 @@ public:
     * the given end states in the second argument and for the given normal.
     * Optionally overloaded in a derived class.
     *
-    * @param[in] state1 state value of the beggining of the interval
+    * @param[in] state1 state value of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value of the end of the interval
     * (num_equations)
@@ -234,7 +234,7 @@ public:
     *
     * @param[in] side indicates gradient w.r.t. the first (side = 1)
     * or second (side = 2) state
-    * @param[in] state1 state value of the beggining of the interval
+    * @param[in] state1 state value of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value of the end of the interval
     * (num_equations)
@@ -417,7 +417,7 @@ public:
     * FluxFunction::ComputeFluxJacobianDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -439,7 +439,7 @@ public:
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
     *
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -460,7 +460,7 @@ public:
     * FluxFunction::ComputeFluxJacobianDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -524,7 +524,7 @@ public:
     * FluxFunction::ComputeFluxJacobianDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -546,7 +546,7 @@ public:
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
     *
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -568,7 +568,7 @@ public:
     * FluxFunction::ComputeFluxJacobianDotN()
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
-    * @param[in] state1 state value (u⁻) of the beggining of the interval
+    * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value (u⁺) of the end of the interval
     * (num_equations)
@@ -643,7 +643,7 @@ public:
    /**
     * @brief Compute average flux F̄(u)
     *
-    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state1 state value (u⁻) of the beginning of the interval
     * @param state2 state value (u⁺) of the end of the interval
     * @param Tr current element transformation with the integration point
     * @param flux F̄(u) = (u⁻+u⁺)/2*bᵀ
@@ -655,7 +655,7 @@ public:
    /**
     * @brief Compute average flux F̄(u) n
     *
-    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state1 state value (u⁻) of the beginning of the interval
     * @param state2 state value (u⁺) of the end of the interval
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with the integration point
@@ -731,7 +731,7 @@ public:
    /**
     * @brief Compute average flux F̄(u)
     *
-    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state1 state value (u⁻) of the beginning of the interval
     * @param state2 state value (u⁺) of the end of the interval
     * @param Tr current element transformation with the integration point
     * @param flux F̄(u) = (u⁻²+u⁻*u⁺+u⁺²)/6*1ᵀ where 1 is (dim) vector
@@ -745,7 +745,7 @@ public:
    /**
     * @brief Compute average flux F̄(u) n
     *
-    * @param state1 state value (u⁻) of the beggining of the interval
+    * @param state1 state value (u⁻) of the beginning of the interval
     * @param state2 state value (u⁺) of the end of the interval
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with the integration point
