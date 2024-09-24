@@ -18,6 +18,13 @@ Discretization improvements
 
 - Added support for boundary constraints to the hybridization class.
 
+- Added assembly of Jacobians to `HyperbolicFormIntegrator`.
+
+- Added average fluxes to `RiemannSolver` and `FluxFunction`.
+
+- Added Godunov flux (`GodunovFlux`) and added it as an option to examples 18
+  and 18p.
+
 Meshing improvements
 --------------------
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
