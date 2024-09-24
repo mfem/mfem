@@ -9,15 +9,15 @@ namespace mfem
 {
 
 /// @brief Inverse sigmoid function
-real_t inv_sigmoid(real_t x)
+real_t inv_sigmoid(const real_t x)
 {
    real_t tol = 1e-12;
-   x = std::min(std::max(tol,x), real_t(1.0)-tol);
-   return std::log(x/(1.0-x));
+   real_t newx = std::min(std::max(tol,x), real_t(1.0)-tol);
+   return std::log(newx/(1.0-newx));
 }
 
 /// @brief Sigmoid function
-real_t sigmoid(real_t x)
+real_t sigmoid(const real_t x)
 {
    if (x >= 0)
    {
@@ -30,7 +30,7 @@ real_t sigmoid(real_t x)
 }
 
 /// @brief Derivative of sigmoid function
-real_t der_sigmoid(real_t x)
+real_t der_sigmoid(const real_t x)
 {
    real_t tmp = sigmoid(-x);
    return tmp - std::pow(tmp,2);
@@ -58,6 +58,32 @@ public:
       return fun(GridFunctionCoefficient::Eval(T, ip));
    }
    void SetFunction(std::function<real_t(const real_t)> fun_) { fun = fun_; }
+};
+
+class MappedPairedGridFunctionCoefficient : public GridFunctionCoefficient
+{
+protected:
+   const GridFunction *other_gf;
+   std::function<real_t(const real_t, const real_t)> fun; // f:R → R
+public:
+   MappedPairedGridFunctionCoefficient()
+      :GridFunctionCoefficient(),
+       other_gf(nullptr),
+       fun([](const real_t x, const real_t y) {return x;}) {}
+   MappedPairedGridFunctionCoefficient(const GridFunction *gf,
+                                       const GridFunction *other_gf,
+                                 std::function<real_t(const real_t, const real_t)> fun_,
+                                 int comp=1)
+      :GridFunctionCoefficient(gf, comp), other_gf(other_gf),
+       fun(fun_) {}
+
+
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      return fun(GridFunctionCoefficient::Eval(T, ip), other_gf->GetValue(T, ip));
+   }
+   void SetFunction(std::function<real_t(const real_t, const real_t)> fun_) { fun = fun_; }
 };
 
 
