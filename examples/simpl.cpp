@@ -408,8 +408,7 @@ int main(int argc, char *argv[])
    // 7. Set-up the filter solver.
    StrainEnergyDensityCoefficient energy(&lambda_cf, &mu_cf, &u, &rho_filter,
                                          rho_min);
-   std::unique_ptr<HelmholtzFilter> FilterSolver(new HelmholtzFilter(filter_fes,
-                                                                     filter_radius, &rho, &energy));
+   std::unique_ptr<HelmholtzFilter> FilterSolver(new HelmholtzFilter(filter_fes, filter_radius, &rho, &energy));
    Array<int> ess_bdr_filter;
    if (pmesh.bdr_attributes.Size())
    {
@@ -433,7 +432,6 @@ int main(int argc, char *argv[])
    vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
    vol_form.Assemble();
    real_t domain_volume = vol_form(onegf);
-   const real_t target_volume = domain_volume * vol_fraction;
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";

@@ -58,9 +58,9 @@ protected:
    std::unique_ptr<BilinearForm> a;
    std::unique_ptr<LinearForm> b;
    std::unique_ptr<LinearForm> adj_b;
-   bool isAstationary;
-   bool isBstationary;
-   bool isAdjBstationary;
+   bool isAstationary=false;
+   bool isBstationary=false;
+   bool isAdjBstationary=false;
    Array<int> ess_tdof_list;
 
    bool parallel;
@@ -71,6 +71,7 @@ protected:
    ParLinearForm *par_b;
    ParLinearForm *par_adj_b;
 #endif
+
 public:
    LinearProblem(FiniteElementSpace &fes, bool has_dualRHS=false)
       : fes(&fes), isAstationary(false), isBstationary(false),
@@ -102,6 +103,9 @@ public:
       if (has_dualRHS) {adjoint_b.reset(new LinearForm(&fes));}
 #endif
    }
+
+   ~LinearProblem() = default;
+
    void SetAstationary(bool isstationary=true) {isAstationary=isstationary;}
    void SetBstationary(bool isstationary=true) {isBstationary=isstationary;}
    void SetAdjBstationary(bool isstationary=true) {isAdjBstationary=isstationary;}
@@ -160,196 +164,111 @@ public:
    }
 };
 
-class LinearElasticityProblem : public LinearProblem
+class LinearEllipticProblem : public LinearProblem
 {
-protected:
-   Coefficient *lambda;
-   Coefficient *mu;
 public:
-   LinearElasticityProblem(FiniteElementSpace &fes, Coefficient *lambda,
-                           Coefficient *mu, bool has_dualRHS=false):LinearProblem(fes, has_dualRHS),
-      lambda(lambda), mu(mu)
-   {
-      a->AddDomainIntegrator(new ElasticityIntegrator(*lambda, *mu));
-   }
-
-   virtual void Solve(GridFunction &x, bool assembleA, bool assembleB) override
+   LinearEllipticProblem(FiniteElementSpace &fes,
+                         bool hasDualRHS):LinearProblem(fes, hasDualRHS) {}
+   ~LinearEllipticProblem() = default;
+   void Solve(GridFunction &x, bool assembleA=false,
+              bool assembleB=true) override final
    {
 #ifdef MFEM_USE_MPI
       if (parallel)
       {
-         if (assembleA) {par_a->Update(); par_a->Assemble(); }
+         if (assembleA) {par_a->Assemble(); }
          if (assembleB) {par_b->Assemble(); }
          ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
          ParSolveEllipticProblem(*par_a, *par_b, *par_x, ess_tdof_list);
       }
       else
       {
-         if (assembleA) {a->Update(); a->Assemble(); }
+         if (assembleA) {a->Assemble(); }
          if (assembleB) {b->Assemble(); }
          SolveEllipticProblem(*a, *b, x, ess_tdof_list);
       }
 #else
-      if (assembleA) {a->Update(); a->Assemble(); }
+      if (assembleA) {a->Assemble(); }
       if (assembleB) {b->Assemble(); }
       SolveEllipticProblem(*a, *b, x, ess_tdof_list);
 #endif
    }
 
-   virtual void SolveDual(GridFunction &x, bool assembleA, bool assembleB) override
+   void SolveDual(GridFunction &x, bool assembleA=false,
+                  bool assembleB=true) override final
    {
+      if (!adj_b) {MFEM_ABORT("Adjoint problem undefined");}
 #ifdef MFEM_USE_MPI
       if (parallel)
       {
-         if (assembleA) {par_a->Update(); par_a->Assemble(); }
+         if (assembleA) {par_a->Assemble(); }
          if (assembleB) {par_adj_b->Assemble(); }
          ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
          ParSolveEllipticProblem(*par_a, *par_adj_b, *par_x, ess_tdof_list);
       }
       else
       {
-         if (assembleA) {a->Update(); a->Assemble(); }
+         if (assembleA) {a->Assemble(); }
          if (assembleB) {adj_b->Assemble(); }
          SolveEllipticProblem(*a, *adj_b, x, ess_tdof_list);
       }
 #else
-      if (assembleA) {a->Update(); a->Assemble(); }
+      if (assembleA) {a->Assemble(); }
       if (assembleB) {adj_b->Assemble(); }
       SolveEllipticProblem(*a, *adj_b, x, ess_tdof_list);
 #endif
    }
 };
 
-class HelmholtzFilter : public LinearProblem
+class LinearElasticityProblem final: public LinearEllipticProblem
+{
+protected:
+   Coefficient *lambda;
+   Coefficient *mu;
+
+public:
+   LinearElasticityProblem(FiniteElementSpace &fes, Coefficient *lambda,
+                           Coefficient *mu, bool has_dualRHS=false):LinearEllipticProblem(fes,
+                                    has_dualRHS),
+      lambda(lambda), mu(mu)
+   {
+      a->AddDomainIntegrator(new ElasticityIntegrator(*lambda, *mu));
+   }
+};
+
+class HelmholtzFilter final: public LinearEllipticProblem
 {
 protected:
    ConstantCoefficient eps2;
    Coefficient *rho;
    Coefficient *energy;
+
 public:
    HelmholtzFilter(FiniteElementSpace &fes, real_t filter_radius, Coefficient *rho,
-                   Coefficient *energy):LinearProblem(fes, true),
+                   Coefficient *energy):LinearEllipticProblem(fes, true),
       eps2(std::pow(filter_radius/(2.0*std::sqrt(3)),2))
    {
       a->AddDomainIntegrator(new DiffusionIntegrator(eps2));
       a->AddDomainIntegrator(new MassIntegrator());
       b->AddDomainIntegrator(new DomainLFIntegrator(*rho));
       adj_b->AddDomainIntegrator(new DomainLFIntegrator(*energy));
-      isBstationary = false;
-      isAdjBstationary = false;
       isAstationary = true;
-   }
-
-   virtual void Solve(GridFunction &x, bool assembleA=false,
-                      bool assembleB=true) override
-   {
-#ifdef MFEM_USE_MPI
-      if (parallel)
-      {
-         if (assembleA) {par_a->Update(); par_a->Assemble(); }
-         if (assembleB) {par_b->Assemble(); }
-         ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
-         ParSolveEllipticProblem(*par_a, *par_b, *par_x, ess_tdof_list);
-      }
-      else
-      {
-         if (assembleA) {a->Update(); a->Assemble(); }
-         if (assembleB) {b->Assemble(); }
-         SolveEllipticProblem(*a, *b, x, ess_tdof_list);
-      }
-#else
-      if (assembleA) {a->Update(); a->Assemble(); }
-      if (assembleB) {b->Assemble(); }
-      SolveEllipticProblem(*a, *b, x, ess_tdof_list);
-#endif
-   }
-
-   virtual void SolveDual(GridFunction &x, bool assembleA=false,
-                          bool assembleB=true) override
-   {
-#ifdef MFEM_USE_MPI
-      if (parallel)
-      {
-         if (assembleA) {par_a->Update(); par_a->Assemble(); }
-         if (assembleB) {par_adj_b->Assemble(); }
-         ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
-         ParSolveEllipticProblem(*par_a, *par_adj_b, *par_x, ess_tdof_list);
-      }
-      else
-      {
-         if (assembleA) {a->Update(); a->Assemble(); }
-         if (assembleB) {adj_b->Assemble(); }
-         SolveEllipticProblem(*a, *adj_b, x, ess_tdof_list);
-      }
-#else
-      if (assembleA) {a->Update(); a->Assemble(); }
-      if (assembleB) {adj_b->Assemble(); }
-      SolveEllipticProblem(*a, *adj_b, x, ess_tdof_list);
-#endif
    }
 };
 
-class L2Projector : public LinearProblem
+class L2Projector final : public LinearEllipticProblem
 {
 protected:
    Coefficient *target;
+
 public:
-   L2Projector(FiniteElementSpace &fes, Coefficient *target):LinearProblem(fes,
-                                                                              false),
+   L2Projector(FiniteElementSpace &fes,
+               Coefficient *target):LinearEllipticProblem(fes, false),
       target(target)
    {
       a->AddDomainIntegrator(new MassIntegrator());
       b->AddDomainIntegrator(new DomainLFIntegrator(*target));
-      isBstationary = false;
       isAstationary = true;
-   }
-
-   virtual void Solve(GridFunction &x, bool assembleA=false,
-                      bool assembleB=true) override
-   {
-#ifdef MFEM_USE_MPI
-      if (parallel)
-      {
-         if (assembleA) {par_a->Assemble(); }
-         if (assembleB) {par_b->Assemble(); }
-         ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
-         ParSolveEllipticProblem(*par_a, *par_b, *par_x, ess_tdof_list);
-      }
-      else
-      {
-         if (assembleA) {a->Assemble(); }
-         if (assembleB) {b->Assemble(); }
-         SolveEllipticProblem(*a, *b, x, ess_tdof_list);
-      }
-#else
-      if (assembleA) {a->Assemble(); }
-      if (assembleB) {b->Assemble(); }
-      SolveEllipticProblem(*a, *b, x, ess_tdof_list);
-#endif
-   }
-
-   virtual void SolveDual(GridFunction &x, bool assembleA=false,
-                          bool assembleB=true) override
-   {
-#ifdef MFEM_USE_MPI
-      if (parallel)
-      {
-         if (assembleA) {par_a->Assemble(); }
-         if (assembleB) {par_adj_b->Assemble(); }
-         ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
-         ParSolveEllipticProblem(*par_a, *par_adj_b, *par_x, ess_tdof_list);
-      }
-      else
-      {
-         if (assembleA) {a->Assemble(); }
-         if (assembleB) {adj_b->Assemble(); }
-         SolveEllipticProblem(*a, *adj_b, x, ess_tdof_list);
-      }
-#else
-      if (assembleA) {a->Assemble(); }
-      if (assembleB) {adj_b->Assemble(); }
-      SolveEllipticProblem(*a, *adj_b, x, ess_tdof_list);
-#endif
    }
 };
 
