@@ -510,22 +510,23 @@ int main(int argc, char *argv[])
       // Backtracking line search
       for (num_reeval = 0; num_reeval < max_backtrack; num_reeval++)
       {
+         if (Mpi::Root()) { std::cout << "\tAttempt " << num_reeval+1 << std::endl; }
          // update psi
          psi = psi_old;
          psi.Add(-alpha, grad);
          // Bregman projection for volume constraint
          material_volume = proj(psi, zerogf, vol_fraction, domain_volume);
-         if (Mpi::Root()) { cout << "Projection done" << std::endl; }
+         if (Mpi::Root()) { cout << "\t\tVolume Projection done" << std::endl; }
 
          // Step 1 - Filter solve
          // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
          FilterSolver->Solve(rho_filter, false, true);
-         if (Mpi::Root()) { cout << "Filter Solve done" << std::endl; }
+         if (Mpi::Root()) { cout << "\t\tFilter Solve done" << std::endl; }
 
          // Step 2 - State solve
          // Solve (λ r(ρ̃) ∇⋅u, ∇⋅v) + (2 μ r(ρ̃) ε(u), ε(v)) = (f,v)
          ElasticitySolver->Solve(u, true, false);
-         if (Mpi::Root()) { cout << "Elasticity Solve done" << std::endl; }
+         if (Mpi::Root()) { cout << "\t\tElasticity Solve done" << std::endl; }
 
          compliance = (ElasticitySolver->GetLinearForm())(u);
          MPI_Allreduce(MPI_IN_PLACE, &compliance, 1, MPITypeMap<real_t>::mpi_type,
@@ -537,7 +538,7 @@ int main(int argc, char *argv[])
          {
             if (Mpi::Root())
             {
-               std::cout << "Backtracking finished with " << num_reeval << "failures" <<
+               std::cout << "\tBacktracking finished with " << num_reeval << " failures" <<
                          std::endl;
             }
             break;
@@ -549,15 +550,6 @@ int main(int argc, char *argv[])
       real_t norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
       real_t norm_reduced_gradient = norm_increment / alpha;
 
-      if (myid == 0)
-      {
-         mfem::out << "norm of the reduced gradient = " << norm_reduced_gradient
-                   << std::endl;
-         mfem::out << "norm of the increment = " << norm_increment << std::endl;
-         mfem::out << "compliance = " << compliance << std::endl;
-         mfem::out << "volume fraction = " << material_volume / domain_volume
-                   << std::endl;
-      }
 
       if (glvis_visualization)
       {
@@ -575,13 +567,14 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
+      if (Mpi::Root()) { cout << "Updating Gradient" << std::endl; }
       // Update gradient
       grad_old = grad;
       FilterSolver->SolveDual(w_filter, false, true);
-      if (Mpi::Root()) { cout << "Dual Filter Solve done" << std::endl; }
+      if (Mpi::Root()) { cout << "\tDual Filter Solve done" << std::endl; }
 
       L2projector->Solve(grad, false, true);
-      if (Mpi::Root()) { cout << "Dual Projection Solve done" << std::endl; }
+      if (Mpi::Root()) { cout << "\tL2 Projection of Gradient done" << std::endl; }
 
       // Stationarity error
       psi_eps = psi;
@@ -599,6 +592,12 @@ int main(int argc, char *argv[])
                    << endl;
          mfem::out << "Successive relative obj diff = "
                    << (compliance_old - compliance) / std::fabs(compliance)
+                   << std::endl;
+         mfem::out << "norm of the reduced gradient = " << norm_reduced_gradient
+                   << std::endl;
+         mfem::out << "norm of the increment = " << norm_increment << std::endl;
+         mfem::out << "compliance = " << compliance << std::endl;
+         mfem::out << "volume fraction = " << material_volume / domain_volume
                    << std::endl;
       }
       logger.Print();
