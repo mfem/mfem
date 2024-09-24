@@ -16,7 +16,6 @@ inline void SolveEllipticProblem(BilinearForm &a, LinearForm &b,
    CGSolver cg;
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
    cg.SetPreconditioner(M);
    cg.SetOperator(A);
    cg.SetPrintLevel(0);
@@ -36,14 +35,17 @@ inline void ParSolveEllipticProblem(ParBilinearForm &a, ParLinearForm &b,
 
    HypreBoomerAMG M;
    M.SetPrintLevel(0);
+   if (a.FESpace()->GetVDim() > 1)
+   {
+      M.SetSystemsOptions(a.FESpace()->GetVDim());
+   }
    if (use_elasticity)
    {
       M.SetElasticityOptions(a.ParFESpace());
    }
-   CGSolver cg(MPI_COMM_WORLD);
+   CGSolver cg(a.ParFESpace()->GetComm());
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
    cg.SetPreconditioner(M);
    cg.SetOperator(A);
    cg.SetPrintLevel(0);
@@ -87,7 +89,7 @@ public:
       if (pmesh)
       {
          parallel = true;
-         pfes = dynamic_cast<ParFiniteElementSpace *>(&fes);
+         pfes = static_cast<ParFiniteElementSpace *>(&fes);
          par_a = new ParBilinearForm(pfes);
          par_b = new ParLinearForm(pfes);
          if (has_dualRHS) { par_adj_b = new ParLinearForm(pfes); }
@@ -183,7 +185,7 @@ public:
       {
          if (assembleA) {par_a->Update(); par_a->Assemble(); }
          if (assembleB) {par_b->Assemble(); }
-         ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
+         ParGridFunction *par_x = static_cast<ParGridFunction*>(&x);
          ParSolveEllipticProblem(*par_a, *par_b, *par_x, ess_tdof_list, isElasticity);
       }
       else
@@ -207,7 +209,7 @@ public:
       {
          if (assembleA) {par_a->Update(); par_a->Assemble(); }
          if (assembleB) {par_adj_b->Assemble(); }
-         ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
+         ParGridFunction *par_x = static_cast<ParGridFunction*>(&x);
          ParSolveEllipticProblem(*par_a, *par_adj_b, *par_x, ess_tdof_list);
       }
       else
@@ -284,7 +286,7 @@ public:
       {
          if (assembleA) {par_a->Update(); par_a->Assemble(); }
          if (assembleB) {par_b->Assemble(); }
-         ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
+         ParGridFunction *par_x = static_cast<ParGridFunction*>(&x);
          par_a->Mult(*par_b, *par_x);
       }
       else
