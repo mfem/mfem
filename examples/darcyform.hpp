@@ -279,32 +279,51 @@ private:
 
    mutable Array<int> darcy_offsets;
    mutable BlockVector darcy_rhs;
-   Vector darcy_p;
+   Vector darcy_u, darcy_p;
    mutable Array<int> f_2_b;
 
    friend class LocalNLOperator;
    class LocalNLOperator : public Operator
    {
+   protected:
       const DarcyHybridization &dh;
       int el;
-      const Vector &bu;
       const BlockVector &trps;
       const Array<int> &faces;
 
       const int a_dofs_size, d_dofs_size;
-      LUFactors LU_A;
       DenseMatrix B;
-      const FiniteElement *fe;
+      const FiniteElement *fe_u, *fe_p;
       IsoparametricTransformation *Tr;
       Array<FaceElementTransformations*> FTrs;
       Array<IsoparametricTransformation*> NbrTrs;
-      mutable Vector u_l, Dp, DpEx;
+      mutable Vector Au, Dp, DpEx;
       mutable DenseMatrix grad;
 
+      void AddMultA(const Vector &u_l, Vector &bu) const;
+      void AddMultD(const Vector &p_l, Vector &bp) const;
+      void AddGradA(const Vector &u_l, DenseMatrix &gA) const;
+      void AddGradD(const Vector &p_l, DenseMatrix &gD) const;
+
    public:
-      LocalNLOperator(const DarcyHybridization &dh, int el, const Vector &bu,
-                      const BlockVector &trps, const Array<int> &faces);
-      ~LocalNLOperator();
+      LocalNLOperator(const DarcyHybridization &dh, int el, const BlockVector &trps,
+                      const Array<int> &faces);
+      virtual ~LocalNLOperator();
+
+      void Mult(const Vector &x, Vector &y) const override;
+      Operator &GetGradient(const Vector &x) const override;
+   };
+
+   class LocalPotNLOperator : public LocalNLOperator
+   {
+      const Vector &bu;
+      LUFactors LU_A;
+
+      mutable Vector u_l;
+
+   public:
+      LocalPotNLOperator(const DarcyHybridization &dh, int el, const Vector &bu,
+                         const BlockVector &trps, const Array<int> &faces);
 
       void SolveU(const Vector &p_l, Vector &u_l) const;
       void Mult(const Vector &x, Vector &y) const override;
@@ -372,6 +391,9 @@ public:
        will delete the integrator when destroyed. */
    void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
                                  NonlinearFormIntegrator *c_pot_integ);
+
+   void SetFluxMassNonlinearIntegrator(NonlinearFormIntegrator *flux_integ,
+                                       bool own = true);
 
    void SetPotMassNonlinearIntegrator(NonlinearFormIntegrator *pot_integ,
                                       bool own = true);
