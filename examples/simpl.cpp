@@ -230,7 +230,8 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 1. Parse command-line options.
-   int ref_levels = 4;
+   int ref_levels = 2;
+   int par_ref_levels = 4;
    int order = 2;
    real_t alpha = 1.0;
    real_t epsilon = 0.01;
@@ -249,8 +250,10 @@ int main(int argc, char *argv[])
    bool paraview_output = false;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&ref_levels, "-r", "--refine",
+   args.AddOption(&ref_levels, "-rs", "--refine",
                   "Number of times to refine the mesh uniformly.");
+   args.AddOption(&ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&alpha, "-alpha", "--alpha-step-length",
@@ -301,6 +304,10 @@ int main(int argc, char *argv[])
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+   for (int lev = 0; lev < par_ref_levels; lev++)
+   {
+      pmesh.UniformRefinement();
+   }
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim);  // space for u
