@@ -97,7 +97,7 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
    real_t va = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
    s = b;
    real_t vb = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
-   
+
    // Auxiliary variables
    real_t c = a;
    real_t vc = va;
@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int ref_levels = 2;
    int par_ref_levels = 4;
-   int order = 2;
+   int order = 1;
    real_t alpha = 1.0;
    // real_t epsilon = 0.01;
    real_t filter_radius = 0.05;
@@ -300,6 +300,7 @@ int main(int argc, char *argv[])
    real_t ntol = 1e-03;
    real_t tol_stationarity = 1e-06;
    real_t tol_compliance = 1e-05;
+   bool stationarity_in_Bregman = true;
    real_t rho_min = 1e-6;
    real_t lambda = 1.0;
    real_t mu = 1.0;
@@ -371,8 +372,7 @@ int main(int argc, char *argv[])
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim);  // space for u
    H1_FECollection filter_fec(order, dim); // space for ρ̃
-   L2_FECollection control_fec(order - 1, dim,
-                               BasisType::GaussLobatto); // space for ψ
+   L2_FECollection control_fec(order - 1, dim); // space for ψ
    ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim);
    ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
    ParFiniteElementSpace control_fes(&pmesh, &control_fec);
@@ -404,8 +404,6 @@ int main(int argc, char *argv[])
    grad = 0.0;
    ParGridFunction w_filter(&filter_fes);
    w_filter = vol_fraction;
-   ParGridFunction onegf(&control_fes);
-   onegf = 1.0;
    ParGridFunction zerogf(&control_fes);
    zerogf = 0.0;
    ParGridFunction grad_old(grad);
@@ -416,7 +414,9 @@ int main(int argc, char *argv[])
    // Interpolation of ρ = sigmoid(ψ) in control fes (for ParaView output)
    // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
    DiffMappedGridFunctionCoefficient succ_diff_rho(&psi, &psi_old, sigmoid);
-   DiffMappedGridFunctionCoefficient stationarity_err(&psi_eps, &psi, sigmoid);
+   DiffMappedGridFunctionCoefficient diff_rho_rhoeps(&psi_eps, &psi, sigmoid);
+   MappedPairedGridFunctionCoefficient diff_rho_rhoeps_bregman(&psi_eps, &psi,
+                                                               bregman_divergence_latent);
    ParLinearForm succ_diff_rho_form(&control_fes);
    succ_diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(succ_diff_rho));
 
@@ -431,8 +431,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient lambda_cf(lambda);
    ConstantCoefficient mu_cf(mu);
    SIMPInterpolationCoefficient SIMP_cf(&rho_filter, rho_min, 1.0);
-   ProductCoefficient lambda_SIMP_cf(lambda_cf, SIMP_cf);
-   ProductCoefficient mu_SIMP_cf(mu_cf, SIMP_cf);
+   ProductCoefficient lambda_SIMP_cf(lambda, SIMP_cf);
+   ProductCoefficient mu_SIMP_cf(mu, SIMP_cf);
+   StrainEnergyDensityCoefficient energy(&lambda_cf, &mu_cf, &u, &rho_filter,
+                                         rho_min);
 
    std::unique_ptr<LinearElasticityProblem> ElasticitySolver(
       new LinearElasticityProblem(state_fes, &lambda_SIMP_cf, &mu_SIMP_cf, false));
@@ -460,17 +462,8 @@ int main(int argc, char *argv[])
    ElasticitySolver->AssembleStationaryOperators();
 
    // 7. Set-up the filter solver.
-   StrainEnergyDensityCoefficient energy(&lambda_cf, &mu_cf, &u, &rho_filter,
-                                         rho_min);
    std::unique_ptr<HelmholtzFilter> FilterSolver(new HelmholtzFilter(filter_fes,
                                                                      filter_radius, &rho, &energy));
-   Array<int> ess_bdr_filter;
-   if (pmesh.bdr_attributes.Size())
-   {
-      ess_bdr_filter.SetSize(pmesh.bdr_attributes.Max());
-      ess_bdr_filter = 0;
-   }
-   FilterSolver->SetEssentialBoundary(ess_bdr_filter);
    FilterSolver->SetAstationary();
    FilterSolver->AssembleStationaryOperators();
 
@@ -483,11 +476,7 @@ int main(int argc, char *argv[])
    L2projector->AssembleStationaryOperators();
 
    // 9. Define some tools for later.
-   ConstantCoefficient zero(0.0);
-   ParLinearForm vol_form(&control_fes);
-   vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
-   vol_form.Assemble();
-   real_t domain_volume = vol_form(onegf);
+   real_t domain_volume = zerogf.ComputeL1Error(one);
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -516,7 +505,7 @@ int main(int argc, char *argv[])
    }
    TableLogger logger;
    real_t material_volume(infinity()), compliance(infinity()),
-          stationarityError(infinity());
+          stationarityError(infinity()), stationarityBregmanError(infinity());
    int num_reeval(-1);
    std::string filename_prefix;
    filename_prefix.append("PMD-Cantilever2");
@@ -524,7 +513,8 @@ int main(int argc, char *argv[])
    // filename_prefix.append("PMD-Torsion");
    logger.Append(std::string("Volume"), material_volume);
    logger.Append(std::string("Compliance"), compliance);
-   logger.Append(std::string("Stationarity"), stationarityError);
+   logger.Append(std::string("Stationarity-2"), stationarityError);
+   logger.Append(std::string("Stationarity-B"), stationarityBregmanError);
    logger.Append(std::string("Re-evel"), num_reeval);
    logger.Append(std::string("Step Size"), alpha);
    logger.SaveWhenPrint(filename_prefix);
@@ -532,6 +522,7 @@ int main(int argc, char *argv[])
    // 11. Iterate:
    alpha = 1.0;
    real_t compliance_old;
+   int total_num_feval(0), total_num_geval(0);
    for (int k = 1; k <= max_it; k++)
    {
       if (myid == 0)
@@ -560,10 +551,12 @@ int main(int argc, char *argv[])
       {
          std::cout << "Backtracking Starts" << std::endl;
       }
-      real_t stationarity_err_0 = -1.0;
+      real_t stationarityError0 = -1.0;
+      real_t stationarityBregmanError0 = -1.0;
       // Backtracking line search
       for (num_reeval = 0; num_reeval < max_backtrack; num_reeval++)
       {
+         total_num_feval++;
          if (Mpi::Root()) { std::cout << "\tAttempt " << num_reeval+1 << std::endl; }
          // update psi
          psi = psi_old;
@@ -621,6 +614,7 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
+      total_num_geval++;
       if (Mpi::Root()) { cout << "Updating Gradient" << std::endl; }
       // Update gradient
       grad_old = grad;
@@ -634,15 +628,20 @@ int main(int argc, char *argv[])
       psi_eps = psi;
       psi_eps.Add(-1e-03, grad);
       proj(psi_eps, zerogf, vol_fraction, domain_volume);
-      stationarityError = zerogf.ComputeL2Error(stationarity_err) / 1e-03;
+      stationarityError = zerogf.ComputeL2Error(diff_rho_rhoeps) / 1e-03;
+      stationarityBregmanError = std::sqrt(zerogf.ComputeL1Error(
+                                              diff_rho_rhoeps_bregman)) / 1e-03;
       if (k == 1)
       {
-         stationarity_err_0 = stationarityError;
+         stationarityError0 = stationarityError;
+         stationarityBregmanError0 = stationarityBregmanError;
       }
 
       if (Mpi::Root())
       {
          mfem::out << "Stationarity measured in L2 = " << stationarityError
+                   << endl;
+         mfem::out << "Stationarity measured in Bregman = " << stationarityBregmanError
                    << endl;
          mfem::out << "Successive relative obj diff = "
                    << (compliance_old - compliance) / std::fabs(compliance)
@@ -656,7 +655,10 @@ int main(int argc, char *argv[])
       }
       logger.Print();
 
-      if (stationarityError / stationarity_err_0 < tol_stationarity &&
+      bool isStationarityPoint = stationarity_in_Bregman
+                                 ? (stationarityBregmanError/stationarityBregmanError0 < tol_stationarity)
+                                 : (stationarityError/stationarityError0 < tol_stationarity);
+      if (stationarityError / stationarityError0 < tol_stationarity &&
           (compliance_old - compliance) / std::fabs(compliance) <
           tol_compliance)
       {
@@ -664,6 +666,12 @@ int main(int argc, char *argv[])
       }
    }
    logger.CloseFile();
+   if (Mpi::Root())
+   {
+      mfem::out << "SiMPL Done" << std::endl;
+      mfem::out << "\tTotal Function Evaluation: " << total_num_feval << std::endl;
+      mfem::out << "\tTotal Gradient Evaluation: " << total_num_geval << std::endl;
+   }
 
    return 0;
 }

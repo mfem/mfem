@@ -9,7 +9,7 @@ namespace mfem
 {
 
 /// @brief Inverse sigmoid function
-real_t inv_sigmoid(const real_t x)
+inline real_t inv_sigmoid(const real_t x)
 {
    real_t tol = 1e-12;
    real_t newx = std::min(std::max(tol,x), real_t(1.0)-tol);
@@ -17,7 +17,7 @@ real_t inv_sigmoid(const real_t x)
 }
 
 /// @brief Sigmoid function
-real_t sigmoid(const real_t x)
+inline real_t sigmoid(const real_t x)
 {
    if (x >= 0)
    {
@@ -30,10 +30,23 @@ real_t sigmoid(const real_t x)
 }
 
 /// @brief Derivative of sigmoid function
-real_t der_sigmoid(const real_t x)
+inline real_t der_sigmoid(const real_t x)
 {
    real_t tmp = sigmoid(-x);
    return tmp - std::pow(tmp,2);
+}
+
+inline real_t safe_log(const real_t x){return x < 1e-300 ? -300*std::log(10) : std::log(x); }
+inline real_t fermi_dirac_entropy(const real_t x)
+{
+   return x*safe_log(x) + (1-x)*safe_log(1-x);
+}
+inline real_t bregman_divergence_latent(const real_t p_dual, const real_t q_dual)
+{
+   const real_t p = sigmoid(p_dual);
+   const real_t q = sigmoid(q_dual);
+
+   return std::max(fermi_dirac_entropy(p) - fermi_dirac_entropy(q) - q_dual*(p-q), 0.0);
 }
 
 /// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
