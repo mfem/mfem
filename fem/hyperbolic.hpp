@@ -100,8 +100,7 @@ public:
     * The average flux is defined as F̄(u1,u2) = ∫ F(u) du / (u2 - u1) for
     * u ∈ [u1,u2], where u1 is the first state (@a state1) and the u2 the
     * second state (@a state2), while F(u) is the flux as defined in
-    * ComputeFlux(). For systems of equations (num_equations > 1),
-    * the average is understood component-wise, i.e., partial averages.
+    * ComputeFlux().
     * @param[in] state1 state of the beginning of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
     * @param[in] Tr element transformation
@@ -121,8 +120,7 @@ public:
     * The average normal flux is defined as F̄(u1,u2)n = ∫ F(u)n du / (u2 - u1)
     * for u ∈ [u1,u2], where u1 is the first state (@a state1) and the u2 the
     * second state (@a state2), while n is the normal and F(u) is the flux as
-    * defined in ComputeFlux(). For systems of equations (num_equations > 1),
-    * the average is understood component-wise, i.e., partial averages.
+    * defined in ComputeFlux().
     * @param[in] state1 state of the beginning of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
     * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
