@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
    real_t lambda = 1.0;
    real_t mu = 1.0;
    bool glvis_visualization = true;
-   bool paraview_output = false;
+   bool paraview_output = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-rs", "--refine",
