@@ -237,6 +237,7 @@ int main(int argc, char *argv[])
    real_t epsilon = 0.01;
    // real_t vol_fraction = 0.5; // Cantilever 2
    real_t vol_fraction = 0.12; // Cantilever 3
+   // real_t vol_fraction = 0.05; // Torsion
    int max_it = 1e3;
    int max_backtrack = 1e2;
    real_t itol = 1e-04;
@@ -293,7 +294,9 @@ int main(int argc, char *argv[])
 
    // Mesh mesh = Mesh::MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL,
    //                                   true, 3.0, 1.0);
-   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::Type::QUADRILATERAL, 2.0, 1.0, 1.0);
+   // Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::Type::QUADRILATERAL, 2.0, 1.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian3D(6, 5, 5, Element::Type::HEXAHEDRON, 0.6, 1.0,
+                                     1.0);
    int dim = mesh.Dimension();
 
    // 3. Refine the mesh.
@@ -355,6 +358,7 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    // ess_bdr[3] = 1; // Cantilever 2
    ess_bdr[4] = 1; // Cantilever 3
+   // ess_bdr[2] = 1; // Torsion
    ConstantCoefficient one(1.0);
    ConstantCoefficient lambda_cf(lambda);
    ConstantCoefficient mu_cf(mu);
@@ -369,11 +373,14 @@ int main(int argc, char *argv[])
       pmesh.Dimension(), [center](const Vector &x, Vector &f)
    {
       f = 0.0;
-      if ((x[0] - center[0]) * (x[0] - center[0]) +
-          (x[2] - center[2]) * (x[2] - center[2]) <
-          0.01)
+      real_t d = ((x[0] - center[0]) * (x[0] - center[0])
+                  + (x[2] - center[2]) * (x[2] - center[2]));
+      // if (d > 0.04 && d < 0.09 && center[0] < 0.05)
+      if (d < 0.0025)
       {
          f[2] = -1.0;
+         // f[1] = -x[2];
+         // f[2] = x[1];
       }
    });
    ElasticitySolver->SetRHSCoefficient(&vforce_cf);
@@ -449,7 +456,9 @@ int main(int argc, char *argv[])
           stationarityError(infinity());
    int num_reeval(-1);
    std::string filename_prefix;
-   filename_prefix.append("PMD-Cantilever2");
+   // filename_prefix.append("PMD-Cantilever2");
+   filename_prefix.append("PMD-Cantilever3");
+   // filename_prefix.append("PMD-Torsion");
    logger.Append(std::string("Volume"), material_volume);
    logger.Append(std::string("Compliance"), compliance);
    logger.Append(std::string("Stationarity"), stationarityError);
