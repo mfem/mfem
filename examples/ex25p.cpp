@@ -453,7 +453,7 @@ int main(int argc, char *argv[])
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   a.Assemble(0);
+   a.Assemble();
 
    OperatorPtr Ah;
    Vector B, X;
@@ -478,23 +478,22 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_MUMPS
    if (!pa && mumps_solver)
    {
-
-      Vector Y(X);
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
       MUMPSSolver mumps;
       mumps.SetPrintLevel(0);
       mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
       mumps.SetOperator(*A);
 
-      mumps.Mult(B,Y);
+      mumps.Mult(B,X);
       delete A;
 
       // complex mumps
+      Vector Y(X);
       ComplexHypreParMatrix * Ac = Ah.As<ComplexHypreParMatrix>();
       ComplexMUMPSSolver cmumps;
       cmumps.SetPrintLevel(0);
       cmumps.SetOperator(*Ac);
-      cmumps.Mult(B,X);
+      cmumps.Mult(B,Y);
 
       Y-=X;
       double diff = Y.Norml2();
