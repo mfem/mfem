@@ -170,8 +170,7 @@ public:
    LinearEllipticProblem(FiniteElementSpace &fes,
                          bool hasDualRHS):LinearProblem(fes, hasDualRHS) {}
    ~LinearEllipticProblem() = default;
-   void Solve(GridFunction &x, bool assembleA=false,
-              bool assembleB=true) override final
+   void Solve(GridFunction &x, bool assembleA, bool assembleB) override final
    {
 #ifdef MFEM_USE_MPI
       if (parallel)
@@ -194,8 +193,7 @@ public:
 #endif
    }
 
-   void SolveDual(GridFunction &x, bool assembleA=false,
-                  bool assembleB=true) override final
+   void SolveDual(GridFunction &x, bool assembleA, bool assembleB) override final
    {
       if (!adj_b) {MFEM_ABORT("Adjoint problem undefined");}
 #ifdef MFEM_USE_MPI
@@ -256,19 +254,49 @@ public:
    }
 };
 
-class L2Projector final : public LinearEllipticProblem
+class L2Projector final : public LinearProblem
 {
 protected:
    Coefficient *target;
 
 public:
    L2Projector(FiniteElementSpace &fes,
-               Coefficient *target):LinearEllipticProblem(fes, false),
+               Coefficient *target):LinearProblem(fes, false),
       target(target)
    {
-      a->AddDomainIntegrator(new MassIntegrator());
+      a->AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
       b->AddDomainIntegrator(new DomainLFIntegrator(*target));
       isAstationary = true;
+   }
+
+   void Solve(GridFunction &x, bool assembleA=false,
+              bool assembleB=true) override final
+   {
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         if (assembleA) {par_a->Update(); par_a->Assemble(); }
+         if (assembleB) {par_b->Assemble(); }
+         ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
+         par_a->Mult(*par_b, *par_x);
+      }
+      else
+      {
+         if (assembleA) {a->Update(); a->Assemble(); }
+         if (assembleB) {b->Assemble(); }
+         a->Mult(*b, x);
+      }
+#else
+      if (assembleA) {a->Update(); a->Assemble(); }
+      if (assembleB) {b->Assemble(); }
+      a->Mult(*b, x);
+#endif
+   }
+
+   void SolveDual(GridFunction &x, bool assembleA=false,
+                  bool assembleB=true) override final
+   {
+      MFEM_ABORT("Dual problem undefined");
    }
 };
 
