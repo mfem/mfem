@@ -317,6 +317,10 @@ public:
                           const IntegrationRule &sir,
                           Vector &weights) override;
 
+   void GetSurfaceNormal(ElementTransformation &Tr,
+                          const IntegrationRule &sir,
+                          DenseMatrix &normal);
+
 private:
 
    /// projects the lvlset coefficient onto the lsvec,

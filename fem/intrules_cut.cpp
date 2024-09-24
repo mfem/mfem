@@ -140,6 +140,35 @@ void AlgoimIntegrationRules::GetSurfaceWeights(ElementTransformation &Tr,
 
 }
 
+void AlgoimIntegrationRules::GetSurfaceNormal(ElementTransformation &Tr,
+                                               const IntegrationRule &sir,
+                                               DenseMatrix &normal)
+{
+   GenerateLSVector(Tr,LvlSet);
+   DenseMatrix bmat; // gradients of the shape functions in physcial space 
+   Vector tnormal; // normal to the level set in physcial space 
+   bmat.SetSize(pe->GetDof(),pe->GetDim());
+   tnormal.SetSize(pe->GetDim());
+   // tnormal.SetSize(pe->GetDim());
+   normal.SetSize(sir.GetNPoints(),pe->GetDim());
+
+
+
+   for (int j = 0; j < sir.GetNPoints(); j++)
+   {
+      const IntegrationPoint &ip = sir.IntPoint(j);
+      Tr.SetIntPoint(&ip);
+      pe->CalcPhysDShape(Tr,bmat);
+      // compute the normal to the LS in physcial space 
+      bmat.MultTranspose(lsvec,tnormal);
+      for (int k = 0; k<pe->GetDim(); k++)
+      {
+         normal(j,k) = -tnormal(k)/tnormal.Norml2();
+      }
+   }
+
+}
+
 void AlgoimIntegrationRules::GenerateLSVector(ElementTransformation &Tr,
                                               Coefficient* lvlset)
 {

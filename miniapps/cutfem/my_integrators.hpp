@@ -284,32 +284,6 @@ virtual void AssembleElementMatrix(const FiniteElement &el,
 
 };
 
-//not working
-class MyNitscheBilinIntegrator : public BilinearFormIntegrator
-{
-protected: 
-   Coefficient *Q;
-   real_t lambda;
-
-   Vector shape1, dshape1dn, nor, nh, ni;
-   DenseMatrix jmat, dshape1, adjJ;
-
-
-private:
-   int dim;
-
-
-public:
-   MyNitscheBilinIntegrator(Coefficient &q, const real_t k)
-      : Q(&q), lambda(k) { }
-   using BilinearFormIntegrator::AssembleFaceMatrix;
-
-   void AssembleFaceMatrix(const FiniteElement &el1,
-                           const FiniteElement &el2,
-                           FaceElementTransformations &Trans,
-                           DenseMatrix &elmat) override;
-};
-
 
 class MyVectorDiffusionIntegrator : public BilinearFormIntegrator
 {
@@ -1193,6 +1167,174 @@ public:
         }
     }
 };
+
+
+
+
+class UnfittedNitscheLFIntegrator : public LinearFormIntegrator
+{
+private:
+   Vector dshape_dn, vec,shape;
+   Coefficient &Q, &uD;
+   Vector sweights,normal_vec;
+   DenseMatrix dshape;
+   DenseMatrix normal;
+   real_t lambda;  
+
+public:
+
+    UnfittedNitscheLFIntegrator(Coefficient &bc, Coefficient &QG,real_t k)
+      : uD(bc), Q(QG), lambda(k) { }
+
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect);
+
+    virtual void SetSurfaceWeights(Vector surface_weights) { sweights = surface_weights; }
+        virtual void SetSurfaceNormal(DenseMatrix surface_normal) { normal = surface_normal; }
+
+};
+
+
+class CutUnfittedNitscheLFIntegrator: public LinearFormIntegrator
+{
+private:
+    UnfittedNitscheLFIntegrator * dint;
+    Array<int>* el_marks;
+    AlgoimIntegrationRules* irules;
+public:
+   /// Constructs a domain integrator with a given Coefficient
+    CutUnfittedNitscheLFIntegrator(Coefficient &bc,Coefficient &q,real_t k,
+                           Array<int>* marks,
+                           AlgoimIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        dint=new UnfittedNitscheLFIntegrator (bc,q,k);
+    }
+    ~CutUnfittedNitscheLFIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       Vector &elvect) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            elvect.SetSize(el.GetDof());
+            elvect=0.0;
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            elvect.SetSize(el.GetDof());
+            elvect=0.0;
+        }
+        else
+        {
+            Vector sweights;
+            DenseMatrix normal;
+            //use cut integration
+            IntegrationRule ir;
+            irules->GetSurfaceIntegrationRule(Trans,ir);
+            irules->GetSurfaceWeights(Trans,ir,sweights);
+            irules->GetSurfaceNormal(Trans,ir,normal);
+            dint->SetIntRule(&ir);
+            dint->SetSurfaceWeights(sweights);
+            dint->SetSurfaceNormal(normal);
+            dint->AssembleRHSElementVect(el,Trans,elvect);
+        }
+    }
+};
+
+
+
+class UnfittedNitscheIntegrator : public BilinearFormIntegrator
+{
+protected: 
+   Coefficient *Q;
+   real_t lambda;
+
+   Vector sweights,normal_vec;
+
+   Vector shape,dshapedn;
+   DenseMatrix jmat, dshape, adjJ, dshapedxt;
+
+    DenseMatrix normal; 
+private:
+   int dim,ndof;
+
+
+public:
+   UnfittedNitscheIntegrator(Coefficient &q, const real_t k)
+      : Q(&q), lambda(k) { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+
+    virtual void SetSurfaceWeights(Vector surface_weights) { sweights = surface_weights; }
+    virtual void SetSurfaceNormal( DenseMatrix  surface_normal) { normal = surface_normal; }
+
+};
+
+class CutNitscheIntegrator: public BilinearFormIntegrator
+{
+private:
+    UnfittedNitscheIntegrator * dint;
+
+    Array<int>* el_marks;
+    AlgoimIntegrationRules* irules;
+public:
+    CutNitscheIntegrator(Coefficient& q,const real_t k,
+                           Array<int>* marks,
+                           AlgoimIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        dint=new UnfittedNitscheIntegrator(q,k);
+    }
+
+    ~CutNitscheIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleElementMatrix(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            elmat.SetSize(el.GetDof());
+            elmat=0.0;
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            elmat.SetSize(el.GetDof());
+            elmat=0.0;
+        }
+        else
+        {   Vector sweights;
+            DenseMatrix normal;
+            //use cut integration
+            IntegrationRule ir;
+            irules->GetSurfaceIntegrationRule(Trans,ir);
+            irules->GetSurfaceWeights(Trans,ir,sweights);
+            irules->GetSurfaceNormal(Trans,ir,normal);
+            dint->SetIntRule(&ir);
+            dint->SetSurfaceWeights(sweights);
+            dint->SetSurfaceNormal(normal);
+            dint->AssembleElementMatrix(el,Trans,elmat);
+        }
+    }
+};
+
 
 }
 #endif
