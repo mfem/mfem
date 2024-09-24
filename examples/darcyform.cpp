@@ -34,6 +34,7 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
 
    M_u = NULL;
    M_p = NULL;
+   Mnl_u = NULL;
    Mnl_p = NULL;
    B = NULL;
 
@@ -68,6 +69,18 @@ const BilinearForm* DarcyForm::GetPotentialMassForm() const
    return M_p;
 }
 
+NonlinearForm *DarcyForm::GetFluxMassNonlinearForm()
+{
+   if (!Mnl_u) { Mnl_u = new NonlinearForm(fes_u); }
+   return Mnl_u;
+}
+
+const NonlinearForm *DarcyForm::GetFluxMassNonlinearForm() const
+{
+   //MFEM_ASSERT(Mnl_u, "Flux mass nonlinear form not allocated!");
+   return Mnl_u;
+}
+
 NonlinearForm* DarcyForm::GetPotentialMassNonlinearForm()
 {
    if (!Mnl_p) { Mnl_p = new NonlinearForm(fes_p); }
@@ -98,6 +111,7 @@ void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 
    if (M_u) { M_u->SetAssemblyLevel(assembly); }
    if (M_p) { M_p->SetAssemblyLevel(assembly); }
+   if (Mnl_u) { Mnl_u->SetAssemblyLevel(assembly); }
    if (Mnl_p) { Mnl_p->SetAssemblyLevel(assembly); }
    if (B) { B->SetAssemblyLevel(assembly); }
 }
@@ -258,6 +272,10 @@ void DarcyForm::Assemble(int skip_zeros)
          M_u->Assemble(skip_zeros);
       }
    }
+   else if (Mnl_u)
+   {
+      Mnl_u->Setup();
+   }
 
    if (B)
    {
@@ -321,6 +339,10 @@ void DarcyForm::Finalize(int skip_zeros)
          M_u->Finalize(skip_zeros);
          block_op->SetDiagonalBlock(0, M_u);
       }
+      else if (Mnl_u)
+      {
+         block_op->SetDiagonalBlock(0, Mnl_u);
+      }
 
       if (M_p)
       {
@@ -362,6 +384,14 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
       {
          M_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0), pM_u,
                                X_, B_, copy_interior);
+         block_op->SetDiagonalBlock(0, pM_u.Ptr());
+      }
+      else if (Mnl_u)
+      {
+         Operator *opM;
+         Mnl_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0), opM,
+                                 X_, B_, copy_interior);
+         pM_u.Reset(opM);
          block_op->SetDiagonalBlock(0, pM_u.Ptr());
       }
 
@@ -447,6 +477,13 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
          M_u->FormSystemMatrix(ess_flux_tdof_list, pM_u);
          block_op->SetDiagonalBlock(0, pM_u.Ptr());
       }
+      else if (Mnl_u)
+      {
+         Operator *opM;
+         Mnl_u->FormSystemOperator(ess_flux_tdof_list, opM);
+         pM_u.Reset(opM);
+         block_op->SetDiagonalBlock(0, pM_u.Ptr());
+      }
 
       if (M_p)
       {
@@ -472,7 +509,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    if (hybridization)
    {
       hybridization->Finalize();
-      if (!Mnl_p)
+      if (!Mnl_u && !Mnl_p)
       {
          A.Reset(&hybridization->GetMatrix(), false);
       }
@@ -538,12 +575,17 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    {
       M_u->EliminateVDofsInRHS(vdofs_flux, x.GetBlock(0), b.GetBlock(0));
    }
+   else if (Mnl_u && pM_u.Ptr())
+   {
+      pM_u.As<ConstrainedOperator>()->EliminateRHS(x.GetBlock(0), b.GetBlock(0));
+   }
 }
 
 void DarcyForm::Update()
 {
    if (M_u) { M_u->Update(); }
    if (M_p) { M_p->Update(); }
+   if (Mnl_u) { Mnl_u->Update(); }
    if (Mnl_p) { Mnl_p->Update(); }
    if (B) { B->Update(); }
 
@@ -556,6 +598,7 @@ DarcyForm::~DarcyForm()
 {
    if (M_u) { delete M_u; }
    if (M_p) { delete M_p; }
+   if (Mnl_u) { delete Mnl_u; }
    if (Mnl_p) { delete Mnl_p; }
    if (B) { delete B; }
 
