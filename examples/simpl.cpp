@@ -291,8 +291,8 @@ int main(int argc, char *argv[])
    real_t alpha = 1.0;
    // real_t epsilon = 0.01;
    real_t filter_radius = 0.05;
-   real_t vol_fraction = 0.5; // Cantilever 2
-   // real_t vol_fraction = 0.12; // Cantilever 3
+   // real_t vol_fraction = 0.5; // Cantilever 2
+   real_t vol_fraction = 0.12; // Cantilever 3
    // real_t vol_fraction = 0.05; // Torsion
    int max_it = 1e3;
    int max_backtrack = 1e2;
@@ -433,8 +433,8 @@ int main(int argc, char *argv[])
    int maxat = pmesh.bdr_attributes.Max();
    Array<int> ess_bdr(maxat);
    ess_bdr = 0;
-   ess_bdr[3] = 1; // Cantilever 2
-   // ess_bdr[4] = 1; // Cantilever 3
+   // ess_bdr[3] = 1; // Cantilever 2
+   ess_bdr[4] = 1; // Cantilever 3
    // ess_bdr[2] = 1; // Torsion
    ConstantCoefficient one(1.0);
    ConstantCoefficient lambda_cf(lambda);
@@ -448,18 +448,20 @@ int main(int argc, char *argv[])
    LinearElasticityProblem ElasticitySolver(state_fes, &lambda_SIMP_cf,
                                             &mu_SIMP_cf, false);
 
-   Vector center({2.9, 0.5}); // cantilever 4
-   // Vector center({1.9, 0.0, 0.1}); // cantilever 3
+   // Vector center({2.9, 0.5}); // cantilever 2
+   Vector center({1.9, 0.0, 0.1}); // cantilever 3
    VectorFunctionCoefficient vforce_cf(
       pmesh.Dimension(), [center](const Vector &x, Vector &f)
    {
       f = 0.0;
       real_t d = ((x[0] - center[0]) * (x[0] - center[0])
-                  + (x[1] - center[1]) * (x[1] - center[1]));
+                  // + (x[1] - center[1]) * (x[1] - center[1])); // cantilever 2
+                  + (x[2] - center[2]) * (x[2] - center[2])); // cantilever 3
       // if (d > 0.04 && d < 0.09 && center[0] < 0.05)
       if (d < 0.0025)
       {
-         f[1] = -1.0;
+         // f[1] = -1.0; // cantilever 2
+         f[2] = -1.0; // cantilever 3
          // f[1] = -x[2];
          // f[2] = x[1];
       }
@@ -516,8 +518,8 @@ int main(int argc, char *argv[])
    real_t succ_compliance_diff;
    int num_reeval(-1);
    std::string filename_prefix;
-   filename_prefix.append("PMD-Cantilever2");
-   // filename_prefix.append("PMD-Cantilever3");
+   // filename_prefix.append("PMD-Cantilever2");
+   filename_prefix.append("PMD-Cantilever3");
    // filename_prefix.append("PMD-Torsion");
    logger.Append(std::string("Volume"), material_volume);
    logger.Append(std::string("Compliance"), compliance);
