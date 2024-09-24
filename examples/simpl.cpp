@@ -320,8 +320,10 @@ int main(int argc, char *argv[])
                   "Filter radius for Helmholtz filter. eps = filter_radius/sqrt(12)");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
-   args.AddOption(&ntol, "-ntol", "--rel-tol", "Normalized exit tolerance.");
-   args.AddOption(&itol, "-itol", "--abs-tol", "Increment exit tolerance.");
+   args.AddOption(&max_backtrack, "-mi-back", "--max-backtrack",
+                  "Maximum number of backtracking iteration");
+   args.AddOption(&tol_stationarity, "-tol-s", "--tol-stationarity", "Tolerance for Stationarity Error");
+   args.AddOption(&tol_compliance, "-tol-c", "--tol-compliance", "Tolerance for relative compliance decrease");
    args.AddOption(&vol_fraction, "-vf", "--volume-fraction",
                   "Volume fraction for the material density.");
    args.AddOption(&lambda, "-lambda", "--lambda", "Lamé constant λ.");
@@ -333,6 +335,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&paraview_output, "-pv", "--paraview", "-no-pv",
                   "--no-paraview", "Enable or disable ParaView output.");
+   args.AddOption(&stationarity_in_Bregman, "-cb", "--converge-bregman", "-c2",
+                  "--converge-L2", "Check stationarity convergence in Bregman or L2");
    args.Parse();
    if (!args.Good())
    {
