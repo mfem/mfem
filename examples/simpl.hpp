@@ -176,19 +176,19 @@ public:
 #ifdef MFEM_USE_MPI
       if (parallel)
       {
-         if (assembleA) {par_a->Assemble(); }
+         if (assembleA) {par_a->Update(); par_a->Assemble(); }
          if (assembleB) {par_b->Assemble(); }
          ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
          ParSolveEllipticProblem(*par_a, *par_b, *par_x, ess_tdof_list);
       }
       else
       {
-         if (assembleA) {a->Assemble(); }
+         if (assembleA) {a->Update(); a->Assemble(); }
          if (assembleB) {b->Assemble(); }
          SolveEllipticProblem(*a, *b, x, ess_tdof_list);
       }
 #else
-      if (assembleA) {a->Assemble(); }
+      if (assembleA) {a->Update(); a->Assemble(); }
       if (assembleB) {b->Assemble(); }
       SolveEllipticProblem(*a, *b, x, ess_tdof_list);
 #endif
@@ -201,19 +201,19 @@ public:
 #ifdef MFEM_USE_MPI
       if (parallel)
       {
-         if (assembleA) {par_a->Assemble(); }
+         if (assembleA) {par_a->Update(); par_a->Assemble(); }
          if (assembleB) {par_adj_b->Assemble(); }
          ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
          ParSolveEllipticProblem(*par_a, *par_adj_b, *par_x, ess_tdof_list);
       }
       else
       {
-         if (assembleA) {a->Assemble(); }
+         if (assembleA) {a->Update(); a->Assemble(); }
          if (assembleB) {adj_b->Assemble(); }
          SolveEllipticProblem(*a, *adj_b, x, ess_tdof_list);
       }
 #else
-      if (assembleA) {a->Assemble(); }
+      if (assembleA) {a->Update(); a->Assemble(); }
       if (assembleB) {adj_b->Assemble(); }
       SolveEllipticProblem(*a, *adj_b, x, ess_tdof_list);
 #endif
