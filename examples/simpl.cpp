@@ -48,6 +48,7 @@
 //     for Numerical Methods in Engineering, 86(6), 765-781.
 
 #include "ex37.hpp"
+#include "simpl.hpp"
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -234,9 +235,10 @@ int main(int argc, char *argv[])
    int par_ref_levels = 4;
    int order = 2;
    real_t alpha = 1.0;
-   real_t epsilon = 0.01;
-   // real_t vol_fraction = 0.5; // Cantilever 2
-   real_t vol_fraction = 0.12; // Cantilever 3
+   // real_t epsilon = 0.01;
+   real_t filter_radius = 0.05;
+   real_t vol_fraction = 0.5; // Cantilever 2
+   // real_t vol_fraction = 0.12; // Cantilever 3
    // real_t vol_fraction = 0.05; // Torsion
    int max_it = 1e3;
    int max_backtrack = 1e2;
@@ -259,8 +261,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&alpha, "-alpha", "--alpha-step-length",
                   "Step length for gradient descent.");
-   args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
-                  "Length scale for ρ.");
+   args.AddOption(&filter_radius, "-fr", "--filter-radius",
+                  "Filter radius for Helmholtz filter. eps = filter_radius/sqrt(12)");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&ntol, "-ntol", "--rel-tol", "Normalized exit tolerance.");
@@ -292,11 +294,11 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // Mesh mesh = Mesh::MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL,
-   //                                   true, 3.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL,
+                                     true, 3.0, 1.0);
    // Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::Type::QUADRILATERAL, 2.0, 1.0, 1.0);
-   Mesh mesh = Mesh::MakeCartesian3D(6, 5, 5, Element::Type::HEXAHEDRON, 0.6, 1.0,
-                                     1.0);
+   // Mesh mesh = Mesh::MakeCartesian3D(6, 5, 5, Element::Type::HEXAHEDRON, 0.6, 1.0,
+   //                                   1.0);
    int dim = mesh.Dimension();
 
    // 3. Refine the mesh.
@@ -333,19 +335,31 @@ int main(int argc, char *argv[])
 
    // 5. Set the initial guess for ρ.
    ParGridFunction u(&state_fes);
-   ParGridFunction psi(&control_fes);
-   ParGridFunction psi_old(&control_fes);
-   ParGridFunction psi_eps(&control_fes); // forcomputing stationarity
-   ParGridFunction rho_filter(&filter_fes);
    u = 0.0;
-   rho_filter = vol_fraction;
+   ParGridFunction psi(&control_fes);
    psi = inv_sigmoid(vol_fraction);
+   ParGridFunction psi_old(&control_fes);
    psi_old = inv_sigmoid(vol_fraction);
+   ParGridFunction psi_eps(&control_fes); // forcomputing stationarity
+   psi_eps = inv_sigmoid(vol_fraction);
+   ParGridFunction rho_filter(&filter_fes);
+   rho_filter = inv_sigmoid(vol_fraction);
+   ParGridFunction rho_gf(&control_fes);
+   rho_gf = vol_fraction;
+   ParGridFunction grad(&control_fes);
+   grad = 0.0;
+   ParGridFunction w_filter(&filter_fes);
+   w_filter = vol_fraction;
+   ParGridFunction onegf(&control_fes);
+   onegf = 1.0;
+   ParGridFunction zerogf(&control_fes);
+   zerogf = 0.0;
+   ParGridFunction grad_old(grad);
+   grad_old = 0.0;
 
    // ρ = sigmoid(ψ)
    MappedGridFunctionCoefficient rho(&psi, sigmoid);
    // Interpolation of ρ = sigmoid(ψ) in control fes (for ParaView output)
-   ParGridFunction rho_gf(&control_fes);
    // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
    DiffMappedGridFunctionCoefficient succ_diff_rho(&psi, &psi_old, sigmoid);
    DiffMappedGridFunctionCoefficient stationarity_err(&psi_eps, &psi, sigmoid);
@@ -356,43 +370,46 @@ int main(int argc, char *argv[])
    int maxat = pmesh.bdr_attributes.Max();
    Array<int> ess_bdr(maxat);
    ess_bdr = 0;
-   // ess_bdr[3] = 1; // Cantilever 2
-   ess_bdr[4] = 1; // Cantilever 3
+   ess_bdr[3] = 1; // Cantilever 2
+   // ess_bdr[4] = 1; // Cantilever 3
    // ess_bdr[2] = 1; // Torsion
    ConstantCoefficient one(1.0);
    ConstantCoefficient lambda_cf(lambda);
    ConstantCoefficient mu_cf(mu);
-   std::unique_ptr<LinearElasticitySolver> ElasticitySolver(
-      new LinearElasticitySolver());
-   ElasticitySolver->SetMesh(&pmesh);
-   ElasticitySolver->SetOrder(state_fec.GetOrder());
-   ElasticitySolver->SetupFEM();
-   // Vector center({2.9, 0.5});
-   Vector center({1.9, 0.0, 0.1});
+   SIMPInterpolationCoefficient SIMP_cf(&rho_filter, rho_min, 1.0);
+   ProductCoefficient lambda_SIMP_cf(lambda_cf, SIMP_cf);
+   ProductCoefficient mu_SIMP_cf(mu_cf, SIMP_cf);
+
+   std::unique_ptr<LinearElasticityProblem> ElasticitySolver(
+      new LinearElasticityProblem(state_fes, &lambda_SIMP_cf, &mu_SIMP_cf, false));
+
+   Vector center({2.9, 0.5}); // cantilever 4
+   // Vector center({1.9, 0.0, 0.1}); // cantilever 3
    VectorFunctionCoefficient vforce_cf(
       pmesh.Dimension(), [center](const Vector &x, Vector &f)
    {
       f = 0.0;
       real_t d = ((x[0] - center[0]) * (x[0] - center[0])
-                  + (x[2] - center[2]) * (x[2] - center[2]));
+                  + (x[1] - center[1]) * (x[1] - center[1]));
       // if (d > 0.04 && d < 0.09 && center[0] < 0.05)
       if (d < 0.0025)
       {
-         f[2] = -1.0;
+         f[1] = -1.0;
          // f[1] = -x[2];
          // f[2] = x[1];
       }
    });
-   ElasticitySolver->SetRHSCoefficient(&vforce_cf);
+   ElasticitySolver->GetLinearForm().AddDomainIntegrator(new
+                                                         VectorDomainLFIntegrator(vforce_cf));
    ElasticitySolver->SetEssentialBoundary(ess_bdr);
+   ElasticitySolver->SetBstationary();
+   ElasticitySolver->AssembleStationaryOperators();
 
    // 7. Set-up the filter solver.
-   ConstantCoefficient eps2_cf(epsilon * epsilon);
-   std::unique_ptr<DiffusionSolver> FilterSolver(new DiffusionSolver());
-   FilterSolver->SetMesh(&pmesh);
-   FilterSolver->SetOrder(filter_fec.GetOrder());
-   FilterSolver->SetDiffusionCoefficient(&eps2_cf);
-   FilterSolver->SetMassCoefficient(&one);
+   StrainEnergyDensityCoefficient energy(&lambda_cf, &mu_cf, &u, &rho_filter,
+                                         rho_min);
+   std::unique_ptr<HelmholtzFilter> FilterSolver(new HelmholtzFilter(filter_fes,
+                                                                     filter_radius, &rho, &energy));
    Array<int> ess_bdr_filter;
    if (pmesh.bdr_attributes.Size())
    {
@@ -400,26 +417,18 @@ int main(int argc, char *argv[])
       ess_bdr_filter = 0;
    }
    FilterSolver->SetEssentialBoundary(ess_bdr_filter);
-   FilterSolver->SetupFEM();
-
-   ParBilinearForm mass(&control_fes);
-   mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
-   mass.Assemble();
-   HypreParMatrix M;
-   Array<int> empty;
-   mass.FormSystemMatrix(empty, M);
+   FilterSolver->SetAstationary();
+   FilterSolver->AssembleStationaryOperators();
 
    // 8. Define the Lagrange multiplier and gradient functions.
-   ParGridFunction grad(&control_fes);
-   grad = 0.0;
-   ParGridFunction w_filter(&filter_fes);
+
+   GridFunctionCoefficient w_filter_cf(&w_filter);
+   std::unique_ptr<L2Projector> L2projector(new L2Projector(control_fes, &w_filter_cf));
+   FilterSolver->SetAstationary();
+   L2projector->AssembleStationaryOperators();
 
    // 9. Define some tools for later.
    ConstantCoefficient zero(0.0);
-   ParGridFunction onegf(&control_fes);
-   onegf = 1.0;
-   ParGridFunction zerogf(&control_fes);
-   zerogf = 0.0;
    ParLinearForm vol_form(&control_fes);
    vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
    vol_form.Assemble();
@@ -456,8 +465,8 @@ int main(int argc, char *argv[])
           stationarityError(infinity());
    int num_reeval(-1);
    std::string filename_prefix;
-   // filename_prefix.append("PMD-Cantilever2");
-   filename_prefix.append("PMD-Cantilever3");
+   filename_prefix.append("PMD-Cantilever2");
+   // filename_prefix.append("PMD-Cantilever3");
    // filename_prefix.append("PMD-Torsion");
    logger.Append(std::string("Volume"), material_volume);
    logger.Append(std::string("Compliance"), compliance);
@@ -468,7 +477,6 @@ int main(int argc, char *argv[])
 
    // 11. Iterate:
    alpha = 1.0;
-   ParGridFunction grad_old(grad);
    real_t compliance_old;
    for (int k = 1; k <= max_it; k++)
    {
@@ -514,20 +522,13 @@ int main(int argc, char *argv[])
 
          // Step 1 - Filter solve
          // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
-         FilterSolver->SetRHSCoefficient(&rho);
-         FilterSolver->Solve();
-         rho_filter = *FilterSolver->GetFEMSolution();
+         FilterSolver->Solve(rho_filter, false, true);
 
          // Step 2 - State solve
          // Solve (λ r(ρ̃) ∇⋅u, ∇⋅v) + (2 μ r(ρ̃) ε(u), ε(v)) = (f,v)
-         SIMPInterpolationCoefficient SIMP_cf(&rho_filter, rho_min, 1.0);
-         ProductCoefficient lambda_SIMP_cf(lambda_cf, SIMP_cf);
-         ProductCoefficient mu_SIMP_cf(mu_cf, SIMP_cf);
-         ElasticitySolver->SetLameCoefficients(&lambda_SIMP_cf, &mu_SIMP_cf);
-         ElasticitySolver->Solve();
-         u = *ElasticitySolver->GetFEMSolution();
+         ElasticitySolver->Solve(u, true, false);
 
-         compliance = (*(ElasticitySolver->GetLinearForm()))(u);
+         compliance = (ElasticitySolver->GetLinearForm())(u);
          MPI_Allreduce(MPI_IN_PLACE, &compliance, 1, MPITypeMap<real_t>::mpi_type,
                        MPI_SUM, MPI_COMM_WORLD);
          succ_diff_rho_form.Assemble();
@@ -582,19 +583,11 @@ int main(int argc, char *argv[])
       grad_old = grad;
       // Step 3 - Adjoint filter solve
       // Solve (ϵ² ∇ w̃, ∇ v) + (w̃ ,v) = (-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)
-      StrainEnergyDensityCoefficient rhs_cf(&lambda_cf, &mu_cf, &u, &rho_filter,
-                                            rho_min);
-      FilterSolver->SetRHSCoefficient(&rhs_cf);
-      FilterSolver->Solve();
-      w_filter = *FilterSolver->GetFEMSolution();
+      FilterSolver->SolveDual(w_filter);
 
       // Step 4 - Compute gradient
       // Solve G = M⁻¹w̃
-      GridFunctionCoefficient w_cf(&w_filter);
-      ParLinearForm w_rhs(&control_fes);
-      w_rhs.AddDomainIntegrator(new DomainLFIntegrator(w_cf));
-      w_rhs.Assemble();
-      M.Mult(w_rhs, grad);
+      L2projector->Solve(grad, false, true);
 
       psi_eps = psi;
       psi_eps.Add(-1e-03, grad);
