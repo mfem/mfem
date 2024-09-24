@@ -483,7 +483,6 @@ int main(int argc, char *argv[])
       mumps.SetPrintLevel(0);
       mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
       mumps.SetOperator(*A);
-
       mumps.Mult(B, X);
       delete A;
 
