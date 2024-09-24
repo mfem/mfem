@@ -74,31 +74,65 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
             real_t volume_fraction, real_t domain_volume, real_t tol = 1e-12,
             int max_its = 10)
 {
-   real_t lower = inv_sigmoid(volume_fraction) - psi.Max();
-   real_t upper = inv_sigmoid(volume_fraction) - psi.Min();
-   MPI_Allreduce(MPI_IN_PLACE, &lower, 1, MFEM_MPI_REAL_T, MPI_MIN,
+   real_t target_volume = domain_volume * volume_fraction;
+
+   // Solution bracket
+   real_t a = inv_sigmoid(volume_fraction) - psi.Max();
+   MPI_Allreduce(MPI_IN_PLACE, &a, 1, MFEM_MPI_REAL_T, MPI_MIN,
                  psi.ParFESpace()->GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &upper, 1, MFEM_MPI_REAL_T, MPI_MAX,
+   real_t b = inv_sigmoid(volume_fraction) - psi.Min();
+   MPI_Allreduce(MPI_IN_PLACE, &b, 1, MFEM_MPI_REAL_T, MPI_MAX,
                  psi.ParFESpace()->GetComm());
-   real_t mu;
+   // Current testing iterate
+   real_t s, vs(0.0);
    MappedGridFunctionCoefficient sigmoid_psi(
-   &psi, [&mu](const real_t x) { return sigmoid(x + mu); });
-   real_t volume = 0;
-   while (upper - lower > 1e-06)
+   &psi, [&s](const real_t x) { return sigmoid(x + s); });
+   s = a;
+   real_t va = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
+   s = b;
+   real_t vb = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
+   real_t c = a;
+   real_t vc = va;
+   real_t d = c;
+   bool mflag = true;
+   while (b - a > tol && std::fabs(vs)>tol)
    {
-      mu = (lower + upper) * 0.5;
-      volume = zerogf.ComputeL1Error(sigmoid_psi);
-      if (volume > volume_fraction * domain_volume)
+      if (std::fabs(va-vc) > 1e-08 && std::fabs(vb-vc) > 1e-08)
       {
-         upper = mu;
+         s = a*vb*vc/((va-vb)*(va-vc))+b*va*vc/((vb-va)*(vb-vc))+c*va*vb/((vc-va)*
+                                                                          (vc-vb));
       }
       else
       {
-         lower = mu;
+         s = b - vb*(b-a)/(vb-va);
+      }
+      bool cond1 = (s>(3*a+b)/4.0 && s<b) || (s>b && s<(3*a+b)/4.0);
+      bool cond2 = mflag && std::fabs(s-b) >= std::fabs(b-c)/2.0;
+      bool cond3 = !mflag && std::fabs(s-b) >= std::fabs(c-d)/2.0;
+      bool cond4 = mflag && std::fabs(b-c) < tol;
+      bool cond5 = !mflag && std::fabs(c-d) < tol;
+      if (cond1 || cond2 || cond3 || cond4 || cond5)
+      {
+         s = (a+b)*0.5;
+         mflag = true;
+      }
+      else
+      {
+         mflag = false;
+      }
+      vs = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
+      d = c;
+      c = b;
+      if (va*vs < 0) {b = s;}
+      else {a=s;}
+      if (std::fabs(va) < std::fabs(vb))
+      {
+         real_t temp = b;
+         b = a; a = temp;
       }
    }
-   psi += mu;
-   return volume;
+   psi += s;
+   return vs+target_volume;
 }
 
 class TableLogger
