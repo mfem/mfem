@@ -1,7 +1,7 @@
 MFEM NURBS mesh v1.0
 
 #
-# MFEM Geometry Types (see mesh/geom.hpp):
+# MFEM Geometry Types (see fem/geom.hpp):
 #
 # SEGMENT     = 1
 # SQUARE      = 3
@@ -18,9 +18,9 @@ elements
 boundary
 4
 1 1 0 1
-1 1 2 3
-1 1 3 0
-1 1 1 2
+2 1 2 3
+3 1 3 0
+4 1 1 2
 
 edges
 4

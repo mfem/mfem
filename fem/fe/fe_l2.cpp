@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 
 #include "fe_l2.hpp"
 #include "fe_h1.hpp"
+#include "../coefficient.hpp"
 
 namespace mfem
 {
@@ -22,7 +23,7 @@ using namespace std;
 L2_SegmentElement::L2_SegmentElement(const int p, const int btype)
    : NodalTensorFiniteElement(1, p, VerifyOpen(btype), L2_DOF_MAP)
 {
-   const double *op = poly1d.OpenPoints(p, btype);
+   const real_t *op = poly1d.OpenPoints(p, btype);
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -38,6 +39,7 @@ L2_SegmentElement::L2_SegmentElement(const int p, const int btype)
 void L2_SegmentElement::CalcShape(const IntegrationPoint &ip,
                                   Vector &shape) const
 {
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape);
 }
 
@@ -49,13 +51,14 @@ void L2_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 #else
    dshape_x.SetData(dshape.Data());
 #endif
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x, dshape_x);
 }
 
 void L2_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
-   const double *op = poly1d.OpenPoints(p, b_type);
+   const real_t *op = poly1d.OpenPoints(p, b_type);
 
    switch (vertex)
    {
@@ -79,7 +82,7 @@ void L2_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 L2_QuadrilateralElement::L2_QuadrilateralElement(const int p, const int btype)
    : NodalTensorFiniteElement(2, p, VerifyOpen(btype), L2_DOF_MAP)
 {
-   const double *op = poly1d.OpenPoints(p, b_type);
+   const real_t *op = poly1d.OpenPoints(p, b_type);
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -104,6 +107,7 @@ void L2_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1);
 #endif
 
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x);
    basis1d.Eval(ip.y, shape_y);
 
@@ -123,6 +127,7 @@ void L2_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
 #endif
 
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x, dshape_x);
    basis1d.Eval(ip.y, shape_y, dshape_y);
 
@@ -137,7 +142,7 @@ void L2_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
 void L2_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
-   const double *op = poly1d.OpenPoints(p, b_type);
+   const real_t *op = poly1d.OpenPoints(p, b_type);
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
@@ -182,11 +187,118 @@ void L2_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
    }
 }
 
+void L2_QuadrilateralElement::ProjectDiv(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         DenseMatrix &div) const
+{
+   if (basis1d.IsIntegratedType())
+   {
+      // Compute subcell integrals of the divergence
+      const int fe_ndof = fe.GetDof();
+      Vector div_shape(fe_ndof);
+      div.SetSize(dof, fe_ndof);
+      div = 0.0;
+
+      const IntegrationRule &ir = IntRules.Get(geom_type, fe.GetOrder());
+      const real_t *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
+
+      // Loop over subcells
+      for (int iy = 0; iy < order+1; ++iy)
+      {
+         const real_t hy = gll_pts[iy+1] - gll_pts[iy];
+         for (int ix = 0; ix < order+1; ++ix)
+         {
+            const int i = ix + iy*(order+1);
+            const real_t hx = gll_pts[ix+1] - gll_pts[ix];
+            // Loop over subcell quadrature points
+            for (int iq = 0; iq < ir.Size(); ++iq)
+            {
+               IntegrationPoint ip = ir[iq];
+               ip.x = gll_pts[ix] + hx*ip.x;
+               ip.y = gll_pts[iy] + hy*ip.y;
+               Trans.SetIntPoint(&ip);
+               fe.CalcDivShape(ip, div_shape);
+               real_t w = ip.weight;
+               if (map_type == VALUE)
+               {
+                  const real_t detJ = Trans.Weight();
+                  w /= detJ;
+               }
+               else if (map_type == INTEGRAL)
+               {
+                  w *= hx*hy;
+               }
+               for (int j = 0; j < fe_ndof; j++)
+               {
+                  const real_t div_j = div_shape(j);
+                  div(i,j) += w*div_j;
+               }
+            }
+         }
+      }
+      // Filter small entries
+      for (int i = 0; i < dof; ++i)
+      {
+         for (int j = 0; j < fe_ndof; j++)
+         {
+            if (std::fabs(div(i,j)) < 1e-12) { div(i,j) = 0.0; }
+         }
+      }
+   }
+   else
+   {
+      // Fall back on standard nodal interpolation
+      NodalFiniteElement::ProjectDiv(fe, Trans, div);
+   }
+}
+
+void L2_QuadrilateralElement::Project(Coefficient &coeff,
+                                      ElementTransformation &Trans,
+                                      Vector &dofs) const
+{
+   if (basis1d.IsIntegratedType())
+   {
+      const IntegrationRule &ir = IntRules.Get(geom_type, order);
+      const real_t *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
+
+      dofs = 0.0;
+      // Loop over subcells
+      for (int iy = 0; iy < order+1; ++iy)
+      {
+         const real_t hy = gll_pts[iy+1] - gll_pts[iy];
+         for (int ix = 0; ix < order+1; ++ix)
+         {
+            const int i = ix + iy*(order+1);
+            const real_t hx = gll_pts[ix+1] - gll_pts[ix];
+            // Loop over subcell quadrature points
+            for (int iq = 0; iq < ir.Size(); ++iq)
+            {
+               IntegrationPoint ip = ir[iq];
+               ip.x = gll_pts[ix] + hx*ip.x;
+               ip.y = gll_pts[iy] + hy*ip.y;
+               Trans.SetIntPoint(&ip);
+               const real_t val = coeff.Eval(Trans, ip);
+               real_t w = ip.weight;
+               if (map_type == INTEGRAL)
+               {
+                  w *= hx*hy*Trans.Weight();
+               }
+               dofs[i] += val*w;
+            }
+         }
+      }
+   }
+   else
+   {
+      NodalFiniteElement::Project(coeff, Trans, dofs);
+   }
+}
+
 
 L2_HexahedronElement::L2_HexahedronElement(const int p, const int btype)
    : NodalTensorFiniteElement(3, p, VerifyOpen(btype), L2_DOF_MAP)
 {
-   const double *op = poly1d.OpenPoints(p, btype);
+   const real_t *op = poly1d.OpenPoints(p, btype);
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -214,6 +326,7 @@ void L2_HexahedronElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1), shape_z(p+1);
 #endif
 
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x);
    basis1d.Eval(ip.y, shape_y);
    basis1d.Eval(ip.z, shape_z);
@@ -236,6 +349,7 @@ void L2_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
    Vector dshape_x(p+1), dshape_y(p+1), dshape_z(p+1);
 #endif
 
+   basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x, dshape_x);
    basis1d.Eval(ip.y, shape_y, dshape_y);
    basis1d.Eval(ip.z, shape_z, dshape_z);
@@ -253,7 +367,7 @@ void L2_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
 void L2_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    const int p = order;
-   const double *op = poly1d.OpenPoints(p, b_type);
+   const real_t *op = poly1d.OpenPoints(p, b_type);
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape_x(p+1), shape_y(p+1);
@@ -334,12 +448,130 @@ void L2_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
    }
 }
 
+void L2_HexahedronElement::ProjectDiv(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &div) const
+{
+   if (basis1d.IsIntegratedType())
+   {
+      // Compute subcell integrals of the divergence
+      const int fe_ndof = fe.GetDof();
+      Vector div_shape(fe_ndof);
+      div.SetSize(dof, fe_ndof);
+      div = 0.0;
+
+      const IntegrationRule &ir = IntRules.Get(geom_type, fe.GetOrder());
+      const real_t *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
+
+      // Loop over subcells
+      for (int iz = 0; iz < order+1; ++iz)
+      {
+         const real_t hz = gll_pts[iz+1] - gll_pts[iz];
+         for (int iy = 0; iy < order+1; ++iy)
+         {
+            const real_t hy = gll_pts[iy+1] - gll_pts[iy];
+            for (int ix = 0; ix < order+1; ++ix)
+            {
+               const int i = ix + iy*(order+1) + iz*(order+1)*(order+1);
+               const real_t hx = gll_pts[ix+1] - gll_pts[ix];
+               // Loop over subcell quadrature points
+               for (int iq = 0; iq < ir.Size(); ++iq)
+               {
+                  IntegrationPoint ip = ir[iq];
+                  ip.x = gll_pts[ix] + hx*ip.x;
+                  ip.y = gll_pts[iy] + hy*ip.y;
+                  ip.z = gll_pts[iz] + hz*ip.z;
+                  Trans.SetIntPoint(&ip);
+                  fe.CalcDivShape(ip, div_shape);
+                  real_t w = ip.weight;
+                  if (map_type == VALUE)
+                  {
+                     const real_t detJ = Trans.Weight();
+                     w /= detJ;
+                  }
+                  else if (map_type == INTEGRAL)
+                  {
+                     w *= hx*hy*hz;
+                  }
+                  for (int j = 0; j < fe_ndof; j++)
+                  {
+                     const real_t div_j = div_shape(j);
+                     div(i,j) += w*div_j;
+                  }
+               }
+            }
+         }
+      }
+      // Filter small entries
+      for (int i = 0; i < dof; ++i)
+      {
+         for (int j = 0; j < fe_ndof; j++)
+         {
+            if (std::fabs(div(i,j)) < 1e-12) { div(i,j) = 0.0; }
+         }
+      }
+   }
+   else
+   {
+      // Fall back on standard nodal interpolation
+      NodalFiniteElement::ProjectDiv(fe, Trans, div);
+   }
+}
+
+void L2_HexahedronElement::Project(Coefficient &coeff,
+                                   ElementTransformation &Trans,
+                                   Vector &dofs) const
+{
+   if (basis1d.IsIntegratedType())
+   {
+      const IntegrationRule &ir = IntRules.Get(geom_type, order);
+      const real_t *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
+
+      dofs = 0.0;
+      // Loop over subcells
+      for (int iz = 0; iz < order+1; ++iz)
+      {
+         const real_t hz = gll_pts[iz+1] - gll_pts[iz];
+         for (int iy = 0; iy < order+1; ++iy)
+         {
+            const real_t hy = gll_pts[iy+1] - gll_pts[iy];
+            for (int ix = 0; ix < order+1; ++ix)
+            {
+               const real_t hx = gll_pts[ix+1] - gll_pts[ix];
+               const int i = ix + iy*(order+1) + iz*(order+1)*(order+1);
+               // Loop over subcell quadrature points
+               for (int iq = 0; iq < ir.Size(); ++iq)
+               {
+                  IntegrationPoint ip = ir[iq];
+                  ip.x = gll_pts[ix] + hx*ip.x;
+                  ip.y = gll_pts[iy] + hy*ip.y;
+                  ip.z = gll_pts[iz] + hz*ip.z;
+                  Trans.SetIntPoint(&ip);
+                  const real_t val = coeff.Eval(Trans, ip);
+                  real_t w = ip.weight;
+                  if (map_type == INTEGRAL)
+                  {
+                     const real_t detJ = Trans.Weight();
+                     w *= detJ*hx*hy*hz;
+                  }
+                  dofs[i] += val*w;
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      NodalFiniteElement::Project(coeff, Trans, dofs);
+   }
+}
+
 
 L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
    : NodalFiniteElement(2, Geometry::TRIANGLE, ((p + 1)*(p + 2))/2, p,
                         FunctionSpace::Pk)
 {
-   const double *op = poly1d.OpenPoints(p, VerifyOpen(btype));
+   const real_t *op = poly1d.OpenPoints(p, VerifyOpen(btype));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -357,7 +589,7 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
    for (int o = 0, j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)
       {
-         double w = op[i] + op[j] + op[p-i-j];
+         real_t w = op[i] + op[j] + op[p-i-j];
          Nodes.IntPoint(o++).Set2(op[i]/w, op[j]/w);
       }
 
@@ -464,7 +696,7 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::TETRAHEDRON, ((p + 1)*(p + 2)*(p + 3))/6,
                         p, FunctionSpace::Pk)
 {
-   const double *op = poly1d.OpenPoints(p, VerifyNodal(VerifyOpen(btype)));
+   const real_t *op = poly1d.OpenPoints(p, VerifyOpen(btype));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -485,7 +717,7 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int btype)
       for (int j = 0; j + k <= p; j++)
          for (int i = 0; i + j + k <= p; i++)
          {
-            double w = op[i] + op[j] + op[k] + op[p-i-j-k];
+            real_t w = op[i] + op[j] + op[k] + op[p-i-j-k];
             Nodes.IntPoint(o++).Set3(op[i]/w, op[j]/w, op[k]/w);
          }
 

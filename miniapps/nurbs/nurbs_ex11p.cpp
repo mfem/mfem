@@ -47,11 +47,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
    int seed = 75;
    bool slu_solver  = false;
    bool sp_solver = false;
+   int visport = 19916;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -90,6 +91,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (slu_solver && sp_solver)
    {
@@ -109,7 +111,6 @@ int main(int argc, char *argv[])
          {
             args.PrintUsage(cout);
          }
-         MPI_Finalize();
          return 1;
       }
    }
@@ -231,7 +232,7 @@ int main(int argc, char *argv[])
    m->AddDomainIntegrator(new MassIntegrator(one));
    m->Assemble();
    // shift the eigenvalue corresponding to eliminated dofs to a large value
-   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<double>::min());
+   m->EliminateEssentialBCDiag(ess_bdr, numeric_limits<real_t>::min());
    m->Finalize();
 
    HypreParMatrix *A = a->ParallelAssemble();
@@ -282,12 +283,13 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
       if (sp_solver)
       {
-         STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+         STRUMPACKSolver * strumpack = new STRUMPACKSolver(MPI_COMM_WORLD, argc, argv);
          strumpack->SetPrintFactorStatistics(true);
          strumpack->SetPrintSolveStatistics(false);
          strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
          strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-         strumpack->DisableMatching();
+         strumpack->SetMatching(strumpack::MatchingJob::NONE);
+         strumpack->SetCompression(strumpack::CompressionType::NONE);
          strumpack->SetOperator(*Arow);
          strumpack->SetFromCommandLine();
          precond = strumpack;
@@ -310,7 +312,7 @@ int main(int argc, char *argv[])
    // 9. Compute the eigenmodes and extract the array of eigenvalues. Define a
    //    parallel grid function to represent each of the eigenmodes returned by
    //    the solver.
-   Array<double> eigenvalues;
+   Array<real_t> eigenvalues;
    lobpcg->Solve();
    lobpcg->GetEigenvalues(eigenvalues);
    ParGridFunction x(fespace);
@@ -344,7 +346,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream mode_sock(vishost, visport);
       mode_sock.precision(8);
 
@@ -395,8 +396,6 @@ int main(int argc, char *argv[])
       delete fec;
    }
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

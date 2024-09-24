@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -235,7 +235,7 @@ void TMOPRefinerEstimator::SetTriIntRules()
    // Reftype = 0 // original element
    const int Nvert = 3, NEsplit = 1;
    Mesh meshsplit(2, Nvert, NEsplit, 0, 2);
-   const double tri_v[3][2] =
+   const real_t tri_v[3][2] =
    {
       {0, 0}, {1, 0}, {0, 1}
    };
@@ -278,7 +278,7 @@ void TMOPRefinerEstimator::SetTetIntRules()
    // Reftype = 0 // original element
    const int Nvert = 4, NEsplit = 1;
    Mesh meshsplit(3, Nvert, NEsplit, 0, 3);
-   const double tet_v[4][3] =
+   const real_t tet_v[4][3] =
    {
       {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}
    };
@@ -306,7 +306,7 @@ void TMOPRefinerEstimator::SetTetIntRules()
       Mesh mesh_ref(base_mesh_copy);
       for (int e = 0; e < mesh_ref.GetNE(); e++)
       {
-         marked_elements.Append(Refinement(e, i)); //ref_type will default to 7
+         marked_elements.Append(Refinement(e, i)); // ref_type will default to 7
       }
       mesh_ref.GeneralRefinement(marked_elements, 1, 0);
       TetIntRule[i] = SetIntRulesFromMesh(mesh_ref);
@@ -372,7 +372,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 
       Vector local_err(meshcopy.GetNE());
       local_err = 0.;
-      double threshold = std::numeric_limits<float>::max();
+      real_t threshold = std::numeric_limits<float>::max();
       meshcopy.DerefineByError(local_err, threshold, 0, 1);
 
       if (meshcopy.GetGlobalNE() == mesh->GetGlobalNE())
@@ -394,15 +394,16 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 
       const CoarseFineTransformations &dtrans =
          meshcopy.ncmesh->GetDerefinementTransforms();
-      Table coarse_to_fine;
-      dtrans.GetCoarseToFineMap(meshcopy, coarse_to_fine);
 
+      Table coarse_to_fine;
+      dtrans.MakeCoarseToFineTable(coarse_to_fine);
+
+      Array<int> tabrow;
       for (int pe = 0; pe < coarse_to_fine.Size(); pe++)
       {
-         Array<int> tabrow;
          coarse_to_fine.GetRow(pe, tabrow);
          int nchild = tabrow.Size();
-         double parent_energy = coarse_energy(pe);
+         real_t parent_energy = coarse_energy(pe);
          for (int fe = 0; fe < nchild; fe++)
          {
             int child = tabrow[fe];
@@ -424,7 +425,7 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 
       Vector local_err(meshcopy.GetNE());
       local_err = 0.;
-      double threshold = std::numeric_limits<float>::max();
+      real_t threshold = std::numeric_limits<float>::max();
       meshcopy.DerefineByError(local_err, threshold, 0, 1);
 
       if (meshcopy.GetGlobalNE() == pmesh->GetGlobalNE())
@@ -446,15 +447,16 @@ bool TMOPDeRefinerEstimator::GetDerefineEnergyForIntegrator(
 
       const CoarseFineTransformations &dtrans =
          meshcopy.pncmesh->GetDerefinementTransforms();
-      Table coarse_to_fine;
-      dtrans.GetCoarseToFineMap(meshcopy, coarse_to_fine);
 
+      Table coarse_to_fine;
+      dtrans.MakeCoarseToFineTable(coarse_to_fine);
+
+      Array<int> tabrow;
       for (int pe = 0; pe < meshcopy.GetNE(); pe++)
       {
-         Array<int> tabrow;
          coarse_to_fine.GetRow(pe, tabrow);
          int nchild = tabrow.Size();
-         double parent_energy = coarse_energy(pe);
+         real_t parent_energy = coarse_energy(pe);
          for (int fe = 0; fe < nchild; fe++)
          {
             int child = tabrow[fe];
@@ -580,7 +582,9 @@ TMOPHRSolver::TMOPHRSolver(ParMesh &pmesh_, ParNonlinearForm &pnlf_,
 void TMOPHRSolver::Mult()
 {
    Vector b(0);
+#ifdef MFEM_USE_MPI
    int myid = 0;
+#endif
    if (serial)
    {
       tmopns->SetOperator(*nlf);
@@ -595,10 +599,6 @@ void TMOPHRSolver::Mult()
    if (!hradaptivity)
    {
       tmopns->Mult(b, x->GetTrueVector());
-      if (tmopns->GetConverged() == false)
-      {
-         if (myid == 0) { mfem::out << "Nonlinear solver: rtol not achieved.\n"; }
-      }
       x->SetFromTrueVector();
       return;
    }
@@ -658,7 +658,7 @@ void TMOPHRSolver::Mult()
    {
 #ifdef MFEM_USE_MPI
       int NEGlob;
-      double tmopenergy;
+      real_t tmopenergy;
       for (int i_hr = 0; i_hr < hr_iter; i_hr++)
       {
          if (!radaptivity)
@@ -717,8 +717,8 @@ void TMOPHRSolver::Mult()
                }
                break;
             }
-         } //n_r limit
-      } //n_hr
+         } // n_r limit
+      } // n_hr
 #endif
    }
 }
@@ -835,26 +835,26 @@ void TMOPHRSolver::ParUpdate()
 }
 #endif
 
-void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *mesh, NonlinearForm *nlf)
+void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *mesh_, NonlinearForm *nlf_)
 {
-   const FiniteElementSpace &fes = *mesh->GetNodalFESpace();
+   const FiniteElementSpace &fes = *mesh_->GetNodalFESpace();
 
    // Update Nonlinear form and Set Essential BC
-   nlf->Update();
+   nlf_->Update();
    const int dim = fes.GetFE(0)->GetDim();
    if (move_bnd == false)
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
+      Array<int> ess_bdr(mesh_->bdr_attributes.Max());
       ess_bdr = 1;
-      nlf->SetEssentialBC(ess_bdr);
+      nlf_->SetEssentialBC(ess_bdr);
    }
    else
    {
       const int nd  = fes.GetBE(0)->GetDof();
       int n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh_->GetNBE(); i++)
       {
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         const int attr = mesh_->GetBdrElement(i)->GetAttribute();
          MFEM_VERIFY(!(dim == 2 && attr == 3),
                      "Boundary attribute 3 must be used only for 3D meshes. "
                      "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
@@ -864,9 +864,9 @@ void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *mesh, NonlinearForm *nlf)
       }
       Array<int> ess_vdofs(n), vdofs;
       n = 0;
-      for (int i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh_->GetNBE(); i++)
       {
-         const int attr = mesh->GetBdrElement(i)->GetAttribute();
+         const int attr = mesh_->GetBdrElement(i)->GetAttribute();
          fes.GetBdrElementVDofs(i, vdofs);
          if (attr == 1) // Fix x components.
          {
@@ -889,7 +889,7 @@ void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *mesh, NonlinearForm *nlf)
             { ess_vdofs[n++] = vdofs[j]; }
          }
       }
-      nlf->SetEssentialVDofs(ess_vdofs);
+      nlf_->SetEssentialVDofs(ess_vdofs);
    }
 }
 

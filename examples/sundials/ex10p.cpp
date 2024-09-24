@@ -1,7 +1,9 @@
 //                       MFEM Example 10 - Parallel Version
 //                             SUNDIALS Modification
 //
-// Compile with: make ex10p
+// Compile with:
+//    make ex10p            (GNU make)
+//    make sundials_ex10p   (CMake)
 //
 // Sample runs:
 //    mpirun -np 4 ex10p -m ../../data/beam-quad.mesh -rp 1 -o 2 -s 12 -dt 0.15 -vs 10
@@ -208,18 +210,18 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 void InitialVelocity(const Vector &x, Vector &v);
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI, HYPRE, and SUNDIALS.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
+   Sundials::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-quad.mesh";
@@ -298,7 +300,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -313,7 +314,6 @@ int main(int argc, char *argv[])
       {
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
       }
-      MPI_Finalize();
       return 1;
    }
 
@@ -334,7 +334,6 @@ int main(int argc, char *argv[])
          cout << "Unknown type of nonlinear solver: " << nls << endl;
       }
       delete mesh;
-      MPI_Finalize();
       return 4;
    }
 
@@ -579,15 +578,13 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh, ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
-   if (!out)
+   if (!os)
    {
       return;
    }
@@ -597,25 +594,25 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
-   out << "solution\n" << *mesh << *field;
+   os << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
+   os << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
 
    if (init_vis)
    {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
+      os << "window_size 800 800\n";
+      os << "window_title '" << field_name << "'\n";
       if (mesh->SpaceDimension() == 2)
       {
-         out << "view 0 0\n"; // view from top
-         out << "keys jl\n";  // turn off perspective and light
+         os << "view 0 0\n"; // view from top
+         os << "keys jl\n";  // turn off perspective and light
       }
-      out << "keys cm\n";         // show colorbar and mesh
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
-      out << "pause\n";
+      os << "keys cm\n";         // show colorbar and mesh
+      os << "autoscale value\n"; // update value-range; keep mesh-extents fixed
+      os << "pause\n";
    }
-   out << flush;
+   os << flush;
 }
 
 
@@ -861,10 +858,7 @@ double HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 
 double HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
-   double loc_energy = 0.5*M.InnerProduct(v, v);
-   double energy;
-   MPI_Allreduce(&loc_energy, &energy, 1, MPI_DOUBLE, MPI_SUM,
-                 fespace.GetComm());
+   double energy = 0.5*M.ParInnerProduct(v, v);
    return energy;
 }
 

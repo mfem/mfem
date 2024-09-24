@@ -1,7 +1,9 @@
 //                                MFEM Example 10
 //                             SUNDIALS Modification
 //
-// Compile with: make ex10
+// Compile with:
+//    make ex10             (GNU make)
+//    make sundials_ex10    (CMake)
 //
 // Sample runs:
 //    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s 12 -dt 0.15 -vs 10
@@ -203,13 +205,16 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 void InitialVelocity(const Vector &x, Vector &v);
 
-void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
+void visualize(ostream &os, Mesh *mesh, GridFunction *deformed_nodes,
                GridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
 
 int main(int argc, char *argv[])
 {
+   // 0. Initialize SUNDIALS.
+   Sundials::Init();
+
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/beam-quad.mesh";
    int ref_levels = 2;
@@ -521,10 +526,10 @@ int main(int argc, char *argv[])
 }
 
 
-void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
+void visualize(ostream &os, Mesh *mesh, GridFunction *deformed_nodes,
                GridFunction *field, const char *field_name, bool init_vis)
 {
-   if (!out)
+   if (!os)
    {
       return;
    }
@@ -534,24 +539,24 @@ void visualize(ostream &out, Mesh *mesh, GridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "solution\n" << *mesh << *field;
+   os << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
 
    if (init_vis)
    {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
+      os << "window_size 800 800\n";
+      os << "window_title '" << field_name << "'\n";
       if (mesh->SpaceDimension() == 2)
       {
-         out << "view 0 0\n"; // view from top
-         out << "keys jl\n";  // turn off perspective and light
+         os << "view 0 0\n"; // view from top
+         os << "keys jl\n";  // turn off perspective and light
       }
-      out << "keys cm\n";         // show colorbar and mesh
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
-      out << "pause\n";
+      os << "keys cm\n";         // show colorbar and mesh
+      os << "autoscale value\n"; // update value-range; keep mesh-extents fixed
+      os << "pause\n";
    }
-   out << flush;
+   os << flush;
 }
 
 
