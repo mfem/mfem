@@ -69,21 +69,19 @@ protected:
    bool isAdjBstationary=false;
    Array<int> ess_tdof_list;
 
-   bool parallel;
+   bool parallel=false;
 #ifdef MFEM_USE_MPI
-   ParMesh *pmesh;
-   ParFiniteElementSpace *pfes;
-   ParBilinearForm *par_a;
-   ParLinearForm *par_b;
-   ParLinearForm *par_adj_b;
+   ParMesh *pmesh=nullptr;
+   ParFiniteElementSpace *pfes=nullptr;
+   ParBilinearForm *par_a=nullptr;
+   ParLinearForm *par_b=nullptr;
+   ParLinearForm *par_adj_b=nullptr;
 #endif
 
 public:
    LinearProblem(FiniteElementSpace &fes, bool has_dualRHS=false)
-      : fes(&fes), isAstationary(false), isBstationary(false),
-        isAdjBstationary(false), ess_tdof_list(0), parallel(false)
+      : fes(&fes), mesh(fes.GetMesh()), ess_tdof_list(0)
    {
-      mesh = fes.GetMesh();
 #ifdef MFEM_USE_MPI
       pmesh = dynamic_cast<ParMesh *>(mesh);
       if (pmesh)
@@ -92,10 +90,13 @@ public:
          pfes = static_cast<ParFiniteElementSpace *>(&fes);
          par_a = new ParBilinearForm(pfes);
          par_b = new ParLinearForm(pfes);
-         if (has_dualRHS) { par_adj_b = new ParLinearForm(pfes); }
          a.reset(par_a);
          b.reset(par_b);
-         adj_b.reset(par_adj_b);
+         if (has_dualRHS)
+         {
+            par_adj_b = new ParLinearForm(pfes);
+            adj_b.reset(par_adj_b);
+         }
       }
       else
       {
@@ -106,7 +107,7 @@ public:
 #else
       a.reset(new BilinearForm(&fes));
       b.reset(new LinearForm(&fes));
-      if (has_dualRHS) {adjoint_b.reset(new LinearForm(&fes));}
+      if (has_dualRHS) {adj_b.reset(new LinearForm(&fes));}
 #endif
    }
 
