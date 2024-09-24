@@ -5,6 +5,30 @@
 namespace mfem
 {
 
+void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> marker,
+                  int attr)
+{
+   Array<int> v;
+   Vector center(mesh.SpaceDimension());
+   Vector coord(mesh.SpaceDimension());
+   for (int i=0; i<mesh.GetNBE(); i++)
+   {
+      center = 0.0;
+      mesh.GetBdrElementVertices(i, v);
+      for (int j=0; j<v.Size(); j++)
+      {
+         coord.SetData(mesh.GetVertex(i));
+         center.Add(1.0, coord);
+      }
+      center *= 1.0 / v.Size();
+      if (marker(center))
+      {
+         mesh.SetBdrAttribute(i, attr);
+      }
+   }
+   mesh.SetAttributes();
+}
+
 inline void SolveEllipticProblem(BilinearForm &a, LinearForm &b,
                                  GridFunction &x, Array<int> ess_tdof_list, bool use_elasticity=false)
 {
@@ -33,24 +57,18 @@ inline void ParSolveEllipticProblem(ParBilinearForm &a, ParLinearForm &b,
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, 1);
 
-   HypreBoomerAMG M;
-   M.SetPrintLevel(0);
+   HypreBoomerAMG amg(A);
    if (a.FESpace()->GetVDim() > 1)
    {
-      M.SetSystemsOptions(a.FESpace()->GetVDim());
+      amg.SetSystemsOptions(a.FESpace()->GetVDim());
    }
-   if (use_elasticity)
-   {
-      M.SetElasticityOptions(a.ParFESpace());
-   }
-   CGSolver cg(a.ParFESpace()->GetComm());
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPreconditioner(M);
-   cg.SetOperator(A);
-   cg.SetPrintLevel(0);
-   cg.iterative_mode=true;
-   cg.Mult(B, X);
+   amg.SetPrintLevel(0);
+   HyprePCG pcg(A);
+   pcg.SetTol(1e-8);
+   pcg.SetMaxIter(2000);
+   pcg.SetPrintLevel(0);
+   pcg.SetPreconditioner(amg);
+   pcg.Mult(B, X);
 
    a.RecoverFEMSolution(X, b, x);
 }
@@ -69,6 +87,9 @@ protected:
    bool isAdjBstationary=false;
    Array<int> ess_tdof_list;
 
+   Array<Coefficient*> ownedCoefficients;
+   Array<VectorCoefficient*> ownedVectorCoefficients;
+
    bool parallel=false;
 #ifdef MFEM_USE_MPI
    ParMesh *pmesh=nullptr;
@@ -80,7 +101,8 @@ protected:
 
 public:
    LinearProblem(FiniteElementSpace &fes, bool has_dualRHS=false)
-      : fes(&fes), mesh(fes.GetMesh()), ess_tdof_list(0)
+      : fes(&fes), mesh(fes.GetMesh()), ess_tdof_list(0),
+        ownedCoefficients(0), ownedVectorCoefficients(0)
    {
 #ifdef MFEM_USE_MPI
       pmesh = dynamic_cast<ParMesh *>(mesh);
@@ -111,7 +133,7 @@ public:
 #endif
    }
 
-   ~LinearProblem() = default;
+   ~LinearProblem() {ownedVectorCoefficients.DeleteAll(); ownedCoefficients.DeleteAll();}
 
    void SetAstationary(bool isstationary=true) {isAstationary=isstationary;}
    void SetBstationary(bool isstationary=true) {isBstationary=isstationary;}
@@ -128,6 +150,9 @@ public:
    LinearForm & GetAdjointLinearForm() {return *adj_b;}
    virtual void Solve(GridFunction &x, bool assembleA, bool assembleB) = 0;
    virtual void SolveDual(GridFunction &x, bool assembleA, bool assembleB) = 0;
+   void MakeCoefficientOwner(Coefficient *coeff) {ownedCoefficients.Append(coeff);}
+   void MakeVectorCoefficientOwner(VectorCoefficient
+                                   *coeff) {ownedVectorCoefficients.Append(coeff);}
 
 
    void SetEssentialBoundary(Array<int> ess_bdr)
@@ -309,6 +334,174 @@ public:
       MFEM_ABORT("Dual problem undefined");
    }
 };
+
+enum TopoptProblem
+{
+   Cantilever2=1,
+   Cantilever3=2,
+   MBB2=3,
+   Torsion3=4
+};
+
+#ifdef MFEM_USE_MPI
+ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
+                         int ref_parallel,
+                         Array2D<int> &ess_bdr)
+{
+   switch (problem)
+   {
+      case Cantilever2: // Cantilver 2
+      {
+         Mesh mesh = Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
+                                           3.0, 1.0);
+         for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
+         ParMesh pmesh(MPI_COMM_WORLD, mesh);
+         mesh.Clear();
+         for (int i=0; i<ref_parallel; i++) {pmesh.UniformRefinement(); }
+         ess_bdr.SetSize(3, 4);
+         ess_bdr = 0;
+         ess_bdr(0, 3) = 1;
+         return pmesh;
+         break;
+      }
+      case Cantilever3:
+      {
+         Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::Type::HEXAHEDRON, 2.0, 1.0,
+                                           1.0);
+         for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
+         ParMesh pmesh(MPI_COMM_WORLD, mesh);
+         mesh.Clear();
+         for (int i=0; i<ref_parallel; i++) {pmesh.UniformRefinement(); }
+         ess_bdr.SetSize(4, 6);
+         ess_bdr = 0;
+         ess_bdr(0, 4) = 1;
+         return pmesh;
+         break;
+      }
+      case Torsion3:
+      {
+         Mesh mesh = Mesh::MakeCartesian3D(5, 12, 12, Element::Type::HEXAHEDRON, 0.5,
+                                           1.2, 1.2);
+         for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
+         ParMesh pmesh(MPI_COMM_WORLD, mesh);
+         mesh.Clear();
+         for (int i=0; i<ref_parallel; i++) {pmesh.UniformRefinement(); }
+         ess_bdr.SetSize(4, 6);
+         ess_bdr = 0;
+         ess_bdr(0, 2) = 1;
+         return pmesh;
+         break;
+      }
+      case MBB2:
+      {
+         Mesh mesh = Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
+                                           3.0, 1.0);
+         for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
+         ParMesh pmesh(MPI_COMM_WORLD, mesh);
+         mesh.Clear();
+         const real_t h = std::pow(2.0, -(ref_serial + ref_parallel));
+         MarkBoundary(pmesh, [h](const Vector &x)
+         {
+            return (x[0] > 3.0 - std::pow(2.0, -5)) && (x[1] < std::pow(h,2.0));
+         }, 5);
+         ess_bdr.SetSize(3, 5);
+         ess_bdr = 0;
+         ess_bdr(1, 3) = 1;
+         ess_bdr(2, 4) = 1;
+         return pmesh;
+         break;
+      }
+   }
+}
+#endif
+
+void SetupTopoptProblem(TopoptProblem problem,
+                        LinearElasticityProblem &elasticity,
+                        real_t &filter_radius, real_t &vol_fraction)
+{
+   switch (problem)
+   {
+      case Cantilever2:
+      {
+         const Vector center({2.9, 0.5});
+         auto *coeff = new VectorFunctionCoefficient(
+            2, [center](const Vector &x, Vector &f)
+         {
+            f = 0.0;
+            real_t d = ((x[0] - center[0]) * (x[0] - center[0])
+                        + (x[1] - center[1]) * (x[1] - center[1]));
+            if (d < 0.0025)
+            {
+               f[1] = -1.0;
+            }
+         });
+         elasticity.MakeVectorCoefficientOwner(coeff);
+         elasticity.GetLinearForm().AddDomainIntegrator(new VectorDomainLFIntegrator(
+                                                           *coeff));
+         if (filter_radius < 0) { filter_radius = 0.05; }
+         if (vol_fraction < 0) { vol_fraction = 0.5; }
+         break;
+      }
+      case Cantilever3:
+      {
+         const Vector center({1.9, 0.0, 0.1});
+         auto *coeff = new VectorFunctionCoefficient(
+            3, [center](const Vector &x, Vector &f)
+         {
+            f = 0.0;
+            real_t d = ((x[0] - center[0]) * (x[0] - center[0])
+                        + (x[2] - center[2]) * (x[2] - center[2]));
+            if (d < 0.0025)
+            {
+               f[2] = -1.0;
+            }
+         });
+         elasticity.MakeVectorCoefficientOwner(coeff);
+         elasticity.GetLinearForm().AddDomainIntegrator(new VectorDomainLFIntegrator(
+                                                           *coeff));
+         if (filter_radius < 0) { filter_radius = 0.05; }
+         if (vol_fraction < 0) { vol_fraction = 0.12; }
+         break;
+      }
+      case Torsion3:
+      {
+         const Vector center({0.0, 0.6, 0.6});
+         auto *coeff = new VectorFunctionCoefficient(
+            3, [center](const Vector &x, Vector &f)
+         {
+            f = 0.0;
+            real_t d = ((x[1] - center[1]) * (x[1] - center[1])
+                        + (x[2] - center[2]) * (x[2] - center[2]));
+            if (x[0] < 0.05 && d > 0.04 && d < 0.09)
+            {
+               f[1] = center[2]-x[2];
+               f[2] = x[1]-center[1];
+            }
+         });
+         if (filter_radius < 0) { filter_radius = 0.0025; }
+         if (vol_fraction < 0) { vol_fraction = 0.01; }
+         break;
+      }
+      case MBB2:
+      {
+         auto *coeff = new VectorFunctionCoefficient(
+            2, [](const Vector &x, Vector &f)
+         {
+            f = 0.0;
+            if (x[0] < 0.05 && x[1] > 0.95)
+            {
+               f[1] = -1.0;
+            }
+         });
+         elasticity.MakeVectorCoefficientOwner(coeff);
+         elasticity.GetLinearForm().AddDomainIntegrator(new VectorDomainLFIntegrator(
+                                                           *coeff));
+         if (filter_radius < 0) { filter_radius = 0.05; }
+         if (vol_fraction < 0) { vol_fraction = 0.5; }
+         break;
+      }
+   }
+}
 
 } // end of namespace mfem
 #endif // end of define SIMPL

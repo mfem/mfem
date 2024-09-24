@@ -290,10 +290,8 @@ int main(int argc, char *argv[])
    int order = 1;
    real_t alpha = 1.0;
    // real_t epsilon = 0.01;
-   real_t filter_radius = 0.05;
-   // real_t vol_fraction = 0.5; // Cantilever 2
-   real_t vol_fraction = 0.12; // Cantilever 3
-   // real_t vol_fraction = 0.05; // Torsion
+   real_t filter_radius = -1;
+   real_t vol_fraction = -1;
    int max_it = 1e3;
    int max_backtrack = 1e2;
    real_t tol_stationarity = 1e-06;
@@ -305,8 +303,16 @@ int main(int argc, char *argv[])
    real_t mu = 1.0;
    bool glvis_visualization = true;
    bool paraview_output = true;
+   int problem = 1;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&problem, "-p", "--problem",
+                  "Topology Problem:\n\t"
+                  "1 : Cantilever 2D\n\t"
+                  "2 : Cantilever 3D\n\t"
+                  "3 : MBB 2D\n\t"
+                  "4 : Torsion 3D\n\t"
+                  );
    args.AddOption(&ref_levels, "-rs", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&ref_levels, "-rp", "--refine-parallel",
@@ -356,25 +362,11 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   Mesh mesh = Mesh::MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL,
-                                     true, 3.0, 1.0);
-   // Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::Type::QUADRILATERAL, 2.0, 1.0, 1.0);
-   // Mesh mesh = Mesh::MakeCartesian3D(6, 5, 5, Element::Type::HEXAHEDRON, 0.6, 1.0,
-   //                                   1.0);
-   int dim = mesh.Dimension();
+   Array2D<int> ess_bdr;
+   ParMesh pmesh = GetParMeshTopopt((TopoptProblem)problem, ref_levels,
+                                    par_ref_levels, ess_bdr);
 
-   // 3. Refine the mesh.
-   for (int lev = 0; lev < ref_levels; lev++)
-   {
-      mesh.UniformRefinement();
-   }
-
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
-   for (int lev = 0; lev < par_ref_levels; lev++)
-   {
-      pmesh.UniformRefinement();
-   }
+   int dim = pmesh.Dimension();
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim);  // space for u
@@ -398,19 +390,14 @@ int main(int argc, char *argv[])
    ParGridFunction u(&state_fes);
    u = 0.0;
    ParGridFunction psi(&control_fes);
-   psi = inv_sigmoid(vol_fraction);
    ParGridFunction psi_old(&control_fes);
-   psi_old = inv_sigmoid(vol_fraction);
    ParGridFunction psi_eps(&control_fes); // forcomputing stationarity
-   psi_eps = inv_sigmoid(vol_fraction);
    ParGridFunction rho_filter(&filter_fes);
-   rho_filter = inv_sigmoid(vol_fraction);
    ParGridFunction rho_gf(&control_fes);
-   rho_gf = vol_fraction;
    ParGridFunction grad(&control_fes);
    grad = 0.0;
    ParGridFunction w_filter(&filter_fes);
-   w_filter = vol_fraction;
+   w_filter = 0.0;
    ParGridFunction zerogf(&control_fes);
    zerogf = 0.0;
    ParGridFunction grad_old(grad);
@@ -430,12 +417,6 @@ int main(int argc, char *argv[])
    succ_diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(succ_diff_rho));
 
    // 6. Set-up the physics solver.
-   int maxat = pmesh.bdr_attributes.Max();
-   Array<int> ess_bdr(maxat);
-   ess_bdr = 0;
-   // ess_bdr[3] = 1; // Cantilever 2
-   ess_bdr[4] = 1; // Cantilever 3
-   // ess_bdr[2] = 1; // Torsion
    ConstantCoefficient one(1.0);
    ConstantCoefficient lambda_cf(lambda);
    ConstantCoefficient mu_cf(mu);
@@ -447,30 +428,16 @@ int main(int argc, char *argv[])
 
    LinearElasticityProblem ElasticitySolver(state_fes, &lambda_SIMP_cf,
                                             &mu_SIMP_cf, false);
-
-   // Vector center({2.9, 0.5}); // cantilever 2
-   Vector center({1.9, 0.0, 0.1}); // cantilever 3
-   VectorFunctionCoefficient vforce_cf(
-      pmesh.Dimension(), [center](const Vector &x, Vector &f)
-   {
-      f = 0.0;
-      real_t d = ((x[0] - center[0]) * (x[0] - center[0])
-                  // + (x[1] - center[1]) * (x[1] - center[1])); // cantilever 2
-                  + (x[2] - center[2]) * (x[2] - center[2])); // cantilever 3
-      // if (d > 0.04 && d < 0.09 && center[0] < 0.05)
-      if (d < 0.0025)
-      {
-         // f[1] = -1.0; // cantilever 2
-         f[2] = -1.0; // cantilever 3
-         // f[1] = -x[2];
-         // f[2] = x[1];
-      }
-   });
-   ElasticitySolver.GetLinearForm().AddDomainIntegrator(new
-                                                        VectorDomainLFIntegrator(vforce_cf));
+   SetupTopoptProblem((TopoptProblem)problem, ElasticitySolver, filter_radius, vol_fraction);
    ElasticitySolver.SetEssentialBoundary(ess_bdr);
    ElasticitySolver.SetBstationary();
    ElasticitySolver.AssembleStationaryOperators();
+
+   psi = inv_sigmoid(vol_fraction);
+   psi_old = inv_sigmoid(vol_fraction);
+   psi_eps = inv_sigmoid(vol_fraction);
+   rho_filter = vol_fraction;
+   rho_gf = vol_fraction;
 
    // 7. Set-up the filter solver.
    HelmholtzFilter FilterSolver(filter_fes, filter_radius, &rho, &energy);
@@ -490,11 +457,15 @@ int main(int argc, char *argv[])
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int visport = 19916;
-   socketstream sout_r;
+   socketstream sout_filter, sout_rho, sout_u;
    if (glvis_visualization)
    {
-      sout_r.open(vishost, visport);
-      sout_r.precision(8);
+      sout_filter.open(vishost, visport);
+      sout_filter.precision(8);
+      sout_rho.open(vishost, visport);
+      sout_rho.precision(8);
+      sout_u.open(vishost, visport);
+      sout_u.precision(8);
    }
 
    mfem::ParaViewDataCollection paraview_dc("ex37p", &pmesh);
@@ -562,8 +533,6 @@ int main(int argc, char *argv[])
       {
          std::cout << "Backtracking Starts" << std::endl;
       }
-      real_t stationarityError0 = -1.0;
-      real_t stationarityBregmanError0 = -1.0;
       // Backtracking line search
       for (num_reeval = 0; num_reeval < max_backtrack; num_reeval++)
       {
@@ -625,9 +594,18 @@ int main(int argc, char *argv[])
 
       if (glvis_visualization)
       {
-         sout_r << "parallel " << num_procs << " " << myid << "\n";
-         sout_r << "solution\n"
+         sout_filter << "parallel " << num_procs << " " << myid << "\n";
+         sout_filter << "solution\n"
                 << pmesh << rho_filter << "window_title 'Filtered density ρ̃'"
+                << flush;
+         rho_gf.ProjectCoefficient(rho);
+         sout_rho << "parallel " << num_procs << " " << myid << "\n";
+         sout_rho << "solution\n"
+                << pmesh << rho_gf << "window_title 'Control density rho'"
+                << flush;
+         sout_u << "parallel " << num_procs << " " << myid << "\n";
+         sout_u << "solution\n"
+                << pmesh << u << "window_title 'Velocity Magnitude u'"
                 << flush;
       }
 
@@ -657,17 +635,12 @@ int main(int argc, char *argv[])
       stationarityBregmanError = std::sqrt(zerogf.ComputeL1Error(
                                               diff_rho_rhoeps_bregman)) / 1e-03;
       succ_compliance_diff = (compliance_old - compliance) / std::fabs(compliance);
-      if (k == 1)
-      {
-         stationarityError0 = stationarityError;
-         stationarityBregmanError0 = stationarityBregmanError;
-      }
 
       logger.Print(true);
 
       bool isStationarityPoint = stationarity_in_Bregman
-                                 ? (stationarityBregmanError/stationarityBregmanError0 < tol_stationarity)
-                                 : (stationarityError/stationarityError0 < tol_stationarity);
+                                 ? (stationarityBregmanError < tol_stationarity)
+                                 : (stationarityError < tol_stationarity);
       bool objConverged = (compliance_old - compliance) / std::fabs(
                              compliance) < tol_compliance;
       if (isStationarityPoint && objConverged)
