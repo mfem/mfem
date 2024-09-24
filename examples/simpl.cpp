@@ -296,8 +296,6 @@ int main(int argc, char *argv[])
    // real_t vol_fraction = 0.05; // Torsion
    int max_it = 1e3;
    int max_backtrack = 1e2;
-   real_t itol = 1e-04;
-   real_t ntol = 1e-03;
    real_t tol_stationarity = 1e-06;
    real_t tol_compliance = 1e-05;
    bool stationarity_in_Bregman = true;
