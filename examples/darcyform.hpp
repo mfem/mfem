@@ -30,7 +30,7 @@ class DarcyForm : public Operator
    bool bsym;
 
    BilinearForm *M_u, *M_p;
-   NonlinearForm *Mnl_p;
+   NonlinearForm *Mnl_u, *Mnl_p;
    MixedBilinearForm *B;
 
    OperatorHandle pM_u, pM_p, pB, pBt;
@@ -58,6 +58,9 @@ public:
 
    BilinearForm *GetPotentialMassForm();
    const BilinearForm *GetPotentialMassForm() const;
+
+   NonlinearForm *GetFluxMassNonlinearForm();
+   const NonlinearForm *GetFluxMassNonlinearForm() const;
 
    NonlinearForm *GetPotentialMassNonlinearForm();
    const NonlinearForm *GetPotentialMassNonlinearForm() const;
@@ -226,8 +229,8 @@ private:
    FiniteElementSpace *fes_p;
    BilinearFormIntegrator *c_bfi_p;
    NonlinearFormIntegrator *c_nlfi_p;
-   NonlinearFormIntegrator *m_nlfi_p;
-   bool own_m_nlfi_p;
+   NonlinearFormIntegrator *m_nlfi_u, *m_nlfi_p;
+   bool own_m_nlfi_u, own_m_nlfi_p;
 
    /// Set of constraint boundary face integrators to be applied.
    Array<BilinearFormIntegrator*>  boundary_constraint_pot_integs;
