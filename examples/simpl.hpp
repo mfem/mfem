@@ -12,8 +12,16 @@ inline void SolveEllipticProblem(BilinearForm &a, LinearForm &b,
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, 1);
 
-   GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   GSSmoother M;
+   CGSolver cg;
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(1);
+   cg.SetPreconditioner(M);
+   cg.SetOperator(A);
+   cg.SetPrintLevel(0);
+   cg.iterative_mode=true;
+   cg.Mult(B, X);
 
    a.RecoverFEMSolution(X, b, x);
 }
@@ -26,7 +34,7 @@ inline void ParSolveEllipticProblem(ParBilinearForm &a, ParLinearForm &b,
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, 1);
 
-   HypreBoomerAMG M(A);
+   HypreBoomerAMG M;
    M.SetPrintLevel(0);
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
@@ -35,6 +43,7 @@ inline void ParSolveEllipticProblem(ParBilinearForm &a, ParLinearForm &b,
    cg.SetPreconditioner(M);
    cg.SetOperator(A);
    cg.SetPrintLevel(0);
+   cg.iterative_mode=true;
    cg.Mult(B, X);
 
    a.RecoverFEMSolution(X, b, x);
