@@ -676,7 +676,8 @@ int main(int argc, char *argv[])
    logger.CloseFile();
    if (Mpi::Root())
    {
-      mfem::out << "SiMPL Done" << std::endl;
+      mfem::out << "SiMPL-" << (backtrack_bregman ? "B" : "A") << " Done" <<
+                std::endl;
       mfem::out << "\tTotal Function Evaluation: " << total_num_feval << std::endl;
       mfem::out << "\tTotal Gradient Evaluation: " << total_num_geval << std::endl;
    }
