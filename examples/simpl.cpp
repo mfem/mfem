@@ -558,8 +558,8 @@ int main(int argc, char *argv[])
       if (paraview_output)
       {
          rho_gf.ProjectCoefficient(rho);
-         paraview_dc.SetCycle(k);
-         paraview_dc.SetTime((real_t)k);
+         paraview_dc.SetCycle(0);
+         paraview_dc.SetTime((real_t)0);
          paraview_dc.Save();
       }
 
