@@ -1,0 +1,8 @@
+import .bazelrc-cc
+
+# Prevent Bazel from detecting the system's C++ toolchain.
+# build --action_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+# build --incompatible_strict_action_env=true
+
+# Enable the CC toolchain resolution based on platforms.
+build --incompatible_enable_cc_toolchain_resolution

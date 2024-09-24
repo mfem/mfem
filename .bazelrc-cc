@@ -1,0 +1,17 @@
+# MacOS
+build:macos --copt=-Wall
+build:macos --copt=-Wextra
+build:macos --copt=-Werror
+build:macos --copt=-std=c++20
+build:macos --cxxopt=-Wno-unused-parameter
+build:macos --cxxopt=-Wno-error=deprecated-declarations
+build:macos --cxxopt=-Wno-error=deprecated-enum-enum-conversion
+build:macos --cxxopt=-Wno-error=deprecated-anon-enum-enum-conversion
+build:macos --cxxopt=-Wno-error=inconsistent-missing-override
+build:macos --cxxopt=-Wno-error=overloaded-virtual
+
+# Linux
+build:linux --copt=-Wall
+build:linux --copt=-Wextra
+build:linux --copt=-Werror
+build:linux --copt=-std=c++20

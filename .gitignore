@@ -47,6 +47,9 @@ doc/warnings.log
 *.dSYM
 .DS_Store
 
+# Bazel specific
+bazel-*
+
 # Example and miniapp binaries and outputs
 
 examples/ex[0-9]
