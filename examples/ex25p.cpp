@@ -484,7 +484,7 @@ int main(int argc, char *argv[])
       mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
       mumps.SetOperator(*A);
 
-      mumps.Mult(B,X);
+      mumps.Mult(B, X);
       delete A;
 
       // complex mumps
@@ -493,7 +493,7 @@ int main(int argc, char *argv[])
       ComplexMUMPSSolver cmumps;
       cmumps.SetPrintLevel(0);
       cmumps.SetOperator(*Ac);
-      cmumps.Mult(B,Y);
+      cmumps.Mult(B, Y);
 
       Y-=X;
       double diff = Y.Norml2();
