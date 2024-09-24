@@ -6,7 +6,7 @@ namespace mfem
 {
 
 inline void SolveEllipticProblem(BilinearForm &a, LinearForm &b,
-                                 GridFunction &x, Array<int> ess_tdof_list)
+                                 GridFunction &x, Array<int> ess_tdof_list, bool use_elasticity=false)
 {
    SparseMatrix A;
    Vector B, X;
@@ -28,7 +28,7 @@ inline void SolveEllipticProblem(BilinearForm &a, LinearForm &b,
 
 #ifdef MFEM_USE_MPI
 inline void ParSolveEllipticProblem(ParBilinearForm &a, ParLinearForm &b,
-                                    ParGridFunction &x, Array<int> ess_tdof_list)
+                                    ParGridFunction &x, Array<int> ess_tdof_list, bool use_elasticity=false)
 {
    HypreParMatrix A;
    Vector B, X;
@@ -36,6 +36,10 @@ inline void ParSolveEllipticProblem(ParBilinearForm &a, ParLinearForm &b,
 
    HypreBoomerAMG M;
    M.SetPrintLevel(0);
+   if (use_elasticity)
+   {
+      M.SetElasticityOptions(a.ParFESpace());
+   }
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(2000);
@@ -166,6 +170,8 @@ public:
 
 class LinearEllipticProblem : public LinearProblem
 {
+protected:
+   bool isElasticity=false;
 public:
    LinearEllipticProblem(FiniteElementSpace &fes,
                          bool hasDualRHS):LinearProblem(fes, hasDualRHS) {}
@@ -178,18 +184,18 @@ public:
          if (assembleA) {par_a->Update(); par_a->Assemble(); }
          if (assembleB) {par_b->Assemble(); }
          ParGridFunction *par_x = dynamic_cast<ParGridFunction*>(&x);
-         ParSolveEllipticProblem(*par_a, *par_b, *par_x, ess_tdof_list);
+         ParSolveEllipticProblem(*par_a, *par_b, *par_x, ess_tdof_list, isElasticity);
       }
       else
       {
          if (assembleA) {a->Update(); a->Assemble(); }
          if (assembleB) {b->Assemble(); }
-         SolveEllipticProblem(*a, *b, x, ess_tdof_list);
+         SolveEllipticProblem(*a, *b, x, ess_tdof_list, isElasticity);
       }
 #else
       if (assembleA) {a->Update(); a->Assemble(); }
       if (assembleB) {b->Assemble(); }
-      SolveEllipticProblem(*a, *b, x, ess_tdof_list);
+      SolveEllipticProblem(*a, *b, x, ess_tdof_list, isElasticity);
 #endif
    }
 
@@ -231,6 +237,7 @@ public:
       lambda(lambda), mu(mu)
    {
       a->AddDomainIntegrator(new ElasticityIntegrator(*lambda, *mu));
+      isElasticity = true;
    }
 };
 

@@ -408,7 +408,8 @@ int main(int argc, char *argv[])
    // 7. Set-up the filter solver.
    StrainEnergyDensityCoefficient energy(&lambda_cf, &mu_cf, &u, &rho_filter,
                                          rho_min);
-   std::unique_ptr<HelmholtzFilter> FilterSolver(new HelmholtzFilter(filter_fes, filter_radius, &rho, &energy));
+   std::unique_ptr<HelmholtzFilter> FilterSolver(new HelmholtzFilter(filter_fes,
+                                                                     filter_radius, &rho, &energy));
    Array<int> ess_bdr_filter;
    if (pmesh.bdr_attributes.Size())
    {
@@ -422,7 +423,8 @@ int main(int argc, char *argv[])
    // 8. Define the Lagrange multiplier and gradient functions.
 
    GridFunctionCoefficient w_filter_cf(&w_filter);
-   std::unique_ptr<L2Projector> L2projector(new L2Projector(control_fes, &w_filter_cf));
+   std::unique_ptr<L2Projector> L2projector(new L2Projector(control_fes,
+                                                            &w_filter_cf));
    FilterSolver->SetAstationary();
    L2projector->AssembleStationaryOperators();
 
@@ -502,32 +504,28 @@ int main(int argc, char *argv[])
       psi_old = psi;
       if (Mpi::Root())
       {
-         std::cout << "Backtracking" << std::flush;
+         std::cout << "Backtracking Starts" << std::endl;
       }
       real_t stationarity_err_0 = -1.0;
       // Backtracking line search
       for (num_reeval = 0; num_reeval < max_backtrack; num_reeval++)
       {
-         if (Mpi::Root())
-         {
-            std::cout << "." << std::flush;
-         }
          // update psi
          psi = psi_old;
          psi.Add(-alpha, grad);
          // Bregman projection for volume constraint
          material_volume = proj(psi, zerogf, vol_fraction, domain_volume);
-         cout << "Projection done" << std::endl;
+         if (Mpi::Root()) { cout << "Projection done" << std::endl; }
 
          // Step 1 - Filter solve
          // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
          FilterSolver->Solve(rho_filter, false, true);
-         cout << "Filter Solve done" << std::endl;
+         if (Mpi::Root()) { cout << "Filter Solve done" << std::endl; }
 
          // Step 2 - State solve
          // Solve (λ r(ρ̃) ∇⋅u, ∇⋅v) + (2 μ r(ρ̃) ε(u), ε(v)) = (f,v)
          ElasticitySolver->Solve(u, true, false);
-         cout << "Elasticity Solve done" << std::endl;
+         if (Mpi::Root()) { cout << "Elasticity Solve done" << std::endl; }
 
          compliance = (ElasticitySolver->GetLinearForm())(u);
          MPI_Allreduce(MPI_IN_PLACE, &compliance, 1, MPITypeMap<real_t>::mpi_type,
@@ -539,7 +537,8 @@ int main(int argc, char *argv[])
          {
             if (Mpi::Root())
             {
-               std::cout << "Backtracking finished with " << num_reeval << "failures" << std::endl;
+               std::cout << "Backtracking finished with " << num_reeval << "failures" <<
+                         std::endl;
             }
             break;
          }
@@ -553,11 +552,11 @@ int main(int argc, char *argv[])
       if (myid == 0)
       {
          mfem::out << "norm of the reduced gradient = " << norm_reduced_gradient
-                   << endl;
-         mfem::out << "norm of the increment = " << norm_increment << endl;
-         mfem::out << "compliance = " << compliance << endl;
+                   << std::endl;
+         mfem::out << "norm of the increment = " << norm_increment << std::endl;
+         mfem::out << "compliance = " << compliance << std::endl;
          mfem::out << "volume fraction = " << material_volume / domain_volume
-                   << endl;
+                   << std::endl;
       }
 
       if (glvis_visualization)
@@ -576,18 +575,15 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
+      // Update gradient
       grad_old = grad;
-      // Step 3 - Adjoint filter solve
-      // Solve (ϵ² ∇ w̃, ∇ v) + (w̃ ,v) = (-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)
       FilterSolver->SolveDual(w_filter, false, true);
-      cout << "Dual Filter Solve done" << std::endl;
+      if (Mpi::Root()) { cout << "Dual Filter Solve done" << std::endl; }
 
-
-      // Step 4 - Compute gradient
-      // Solve G = M⁻¹w̃
       L2projector->Solve(grad, false, true);
-      cout << "Dual Projection Solve done" << std::endl;
+      if (Mpi::Root()) { cout << "Dual Projection Solve done" << std::endl; }
 
+      // Stationarity error
       psi_eps = psi;
       psi_eps.Add(-1e-03, grad);
       proj(psi_eps, zerogf, vol_fraction, domain_volume);
