@@ -189,7 +189,7 @@ public:
    // Add double data to be monitored
    void Append(const std::string name, int &val);
    // Print a row of currently monitored data. If it is called
-   void Print();
+   void Print(bool print_valname=false);
    // Save data to a file whenever Print is called.
    void SaveWhenPrint(std::string filename,
                       std::ios::openmode mode = std::ios::out);
@@ -540,7 +540,7 @@ int main(int argc, char *argv[])
          alpha = std::fabs(numer / denomi);
          if (Mpi::Root())
          {
-            mfem::out << "step size: " << alpha << ", " << numer << ", " << denomi
+            mfem::out << "step size: " << alpha << " = " << numer << " / " << denomi
                       << std::endl;
          }
       }
@@ -579,9 +579,15 @@ int main(int argc, char *argv[])
          MPI_Allreduce(MPI_IN_PLACE, &compliance, 1, MPITypeMap<real_t>::mpi_type,
                        MPI_SUM, MPI_COMM_WORLD);
          succ_diff_rho_form.Assemble();
-         if (compliance <
-             compliance_old +
-             1e-04 * InnerProduct(MPI_COMM_WORLD, grad, succ_diff_rho_form))
+         real_t directional_derval = InnerProduct(MPI_COMM_WORLD, grad,
+                                                  succ_diff_rho_form);
+         if (Mpi::Root())
+         {
+            cout << "\t\tNew Compliance : " << compliance << std::endl;
+            cout << "\t\tArmijo upper   : " << compliance_old + 1e-04*directional_derval <<
+                 " = " << compliance_old << " + 10^-4*" << directional_derval << std::endl;
+         }
+         if (compliance < compliance_old + 1e-04*directional_derval)
          {
             if (Mpi::Root())
             {
@@ -653,14 +659,13 @@ int main(int argc, char *argv[])
          mfem::out << "volume fraction = " << material_volume / domain_volume
                    << std::endl;
       }
-      logger.Print();
+      logger.Print(true);
 
       bool isStationarityPoint = stationarity_in_Bregman
                                  ? (stationarityBregmanError/stationarityBregmanError0 < tol_stationarity)
                                  : (stationarityError/stationarityError0 < tol_stationarity);
-      if (stationarityError / stationarityError0 < tol_stationarity &&
-          (compliance_old - compliance) / std::fabs(compliance) <
-          tol_compliance)
+      bool objConverged = (compliance_old - compliance) / std::fabs(compliance) < tol_compliance;
+      if (isStationarityPoint && objConverged)
       {
          break;
       }
@@ -698,20 +703,19 @@ void TableLogger::Append(const std::string name, int &val)
    data_order.push_back(dtype::INT);
 }
 
-void TableLogger::Print()
+void TableLogger::Print(bool print_varname)
 {
    if (isRoot)
    {
-      if (!var_name_printed)
+      if (!var_name_printed || print_varname)
       {
-         var_name_printed = true;
          for (auto &name : names)
          {
             os << std::setw(w) << name << "\t";
          }
          os << "\b\b";
          os << "\n";
-         if (file && file->is_open())
+         if (!var_name_printed && file && file->is_open())
          {
             for (auto &name : names)
             {
@@ -719,6 +723,7 @@ void TableLogger::Print()
             }
             *file << std::endl;
          }
+         var_name_printed = true;
       }
       int i_double(0), i_int(0);
       for (auto d : data_order)
