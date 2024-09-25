@@ -314,6 +314,22 @@ private:
       Operator &GetGradient(const Vector &x) const override;
    };
 
+   class LocalFluxNLOperator : public LocalNLOperator
+   {
+      const Vector &bp;
+      LUFactors LU_D;
+
+      mutable Vector p_l;
+
+   public:
+      LocalFluxNLOperator(const DarcyHybridization &dh, int el, const Vector &bp,
+                          const BlockVector &trps, const Array<int> &faces);
+
+      void SolveP(const Vector &u_l, Vector &p_l) const;
+      void Mult(const Vector &x, Vector &y) const override;
+      Operator &GetGradient(const Vector &x) const override;
+   };
+
    class LocalPotNLOperator : public LocalNLOperator
    {
       const Vector &bu;
@@ -339,6 +355,7 @@ private:
    void AllocEG();
    void MultNL(int mode, const BlockVector &b, const Vector &x, Vector &y) const;
    void InvertA();
+   void InvertD();
    void ComputeH();
    FaceElementTransformations * GetCtFaceMatrix(int f, DenseMatrix & Ct_1,
                                                 DenseMatrix & Ct_2, Array<int>& c_dofs) const;

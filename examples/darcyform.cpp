@@ -1441,6 +1441,22 @@ void DarcyHybridization::InvertA()
    }
 }
 
+void DarcyHybridization::InvertD()
+{
+   const int NE = fes->GetNE();
+
+   for (int el = 0; el < NE; el++)
+   {
+      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+
+      // Decompose A
+
+      LUFactors LU_D(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
+
+      LU_D.Factor(d_dofs_size);
+   }
+}
+
 void DarcyHybridization::ComputeH()
 {
    MFEM_ASSERT(!bnl, "Cannot assemble H matrix in the non-linear regime");
@@ -1824,7 +1840,15 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
          DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
          Ct.AddMult_a(-1., x_f, bu_l);
 
-         //NOTE: bp - Ex is deferred to MultInvNL
+         //bp - E x
+         if (c_bfi_p)
+         {
+            if (GetEFaceMatrix(faces[f], E_1, E_2, c_dofs))
+            {
+               DenseMatrix &E = (FTr->Elem1No == el)?(E_1):(E_2);
+               E.AddMult_a(-1., x_f, bp_l);
+            }
+         }
       }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       // bu - C^T sol
@@ -1954,6 +1978,10 @@ void DarcyHybridization::Finalize()
          {
             InvertA();
          }
+         if (!m_nlfi_p)
+         {
+            InvertD();
+         }
       }
       else
       {
@@ -2050,11 +2078,11 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
    LocalNLOperator *lop;
 
-   /*if (!m_nlfi_p && !c_nlfi_p)
+   if (!m_nlfi_p && !c_nlfi_p)
    {
-      lop = NULL;
+      lop = new LocalFluxNLOperator(*this, el, bp_l, x_l, faces);
    }
-   else*/ if (!m_nlfi_u)
+   else if (!m_nlfi_u)
    {
       lop = new LocalPotNLOperator(*this, el, bu_l, x_l, faces);
    }
@@ -2111,15 +2139,15 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    lsolver->SetAbsTol(lsolve.atol);
    lsolver->SetPrintLevel(lsolve.print_lvl);
 
-   /*if (!m_nlfi_p && !c_nlfi_p)
+   if (!m_nlfi_p && !c_nlfi_p)
    {
       //solve the flux
       lsolver->Mult(bu_l, u_l);
 
       //solve the potential
-      //static_cast<LocalFluxNLOperator*>(lop)->SolveP(p_l, u_l);
+      static_cast<LocalFluxNLOperator*>(lop)->SolveP(u_l, p_l);
    }
-   else*/ if (!m_nlfi_u)
+   else if (!m_nlfi_u)
    {
       //solve the potential
       lsolver->Mult(bp_l, p_l);
@@ -2698,6 +2726,65 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    grad_D = 0.;
    AddGradDE(p_l, grad_D);
    grad.CopyMN(grad_D, a_dofs_size, a_dofs_size);
+
+   return grad;
+}
+
+DarcyHybridization::LocalFluxNLOperator::LocalFluxNLOperator(
+   const DarcyHybridization &dh_, int el_, const Vector &bp_,
+   const BlockVector &trps_, const Array<int> &faces_)
+   : LocalNLOperator(dh_, el_, trps_, faces_), bp(bp_),
+     LU_D(dh.Df_data + dh.Df_offsets[el], dh.Df_ipiv + dh.Df_f_offsets[el])
+{
+   MFEM_ASSERT(bp.Size() == d_dofs_size, "Incompatible size");
+
+   width = height = a_dofs_size;
+}
+
+void DarcyHybridization::LocalFluxNLOperator::SolveP(const Vector &u_l,
+                                                     Vector &p_l) const
+{
+   p_l = bp;
+
+   //bp - E x - B^T p
+   B.AddMult(u_l, p_l, -1.);
+
+   //p = D^-1 rp
+   LU_D.Solve(d_dofs_size, 1, p_l.GetData());
+}
+
+void DarcyHybridization::LocalFluxNLOperator::Mult(const Vector &u_l,
+                                                   Vector &bu) const
+{
+   MFEM_ASSERT(u_l.Size() == a_dofs_size &&
+               bu.Size() == a_dofs_size, "Incompatible size");
+
+   SolveP(u_l, p_l);
+
+   //bu = B^T p
+   B.MultTranspose(p_l, bu);
+   if (dh.bsym) { bu.Neg(); }
+
+   AddMultA(u_l, bu);
+}
+
+Operator &DarcyHybridization::LocalFluxNLOperator::GetGradient(
+   const Vector &u_l) const
+{
+   MFEM_ASSERT(u_l.Size() == a_dofs_size, "Incompatible size");
+
+   SolveP(u_l, p_l);
+
+   //grad = B^T D^-1 B
+   DenseMatrix DiB = B;
+
+   LU_D.Solve(d_dofs_size, a_dofs_size, DiB.GetData());
+   grad.SetSize(a_dofs_size);
+   MultAtB(B, DiB, grad);
+   if (!dh.bsym) { grad.Neg(); }
+
+   //grad += A
+   AddGradA(u_l, grad);
 
    return grad;
 }
