@@ -74,13 +74,13 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
             real_t volume_fraction, real_t domain_volume, real_t tol = 1e-12,
             int max_its = 10)
 {
-   real_t target_volume = domain_volume * volume_fraction;
+   real_t target_volume = domain_volume * std::fabs(volume_fraction);
 
    // Solution bracket
-   real_t a = inv_sigmoid(volume_fraction) - psi.Max();
+   real_t a = inv_sigmoid(std::fabs(volume_fraction)) - psi.Max();
    MPI_Allreduce(MPI_IN_PLACE, &a, 1, MFEM_MPI_REAL_T, MPI_MIN,
                  psi.ParFESpace()->GetComm());
-   real_t b = inv_sigmoid(volume_fraction) - psi.Min();
+   real_t b = inv_sigmoid(std::fabs(volume_fraction)) - psi.Min();
    MPI_Allreduce(MPI_IN_PLACE, &b, 1, MFEM_MPI_REAL_T, MPI_MAX,
                  psi.ParFESpace()->GetComm());
 
@@ -88,9 +88,18 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
    real_t s(0), vs(mfem::infinity());
    MappedGridFunctionCoefficient sigmoid_psi(
    &psi, [&s](const real_t x) { return sigmoid(x + s); });
+   real_t current_volume = zerogf.ComputeL1Error(sigmoid_psi);
+   // check wether volume constraint is already satisfied or not
+   if (volume_fraction < 0) // lower bound
+   {
+      volume_fraction = -volume_fraction;
+      if (current_volume > volume_fraction) {return current_volume;}
+   }
+   else
+   {
+      if (current_volume < volume_fraction) {return current_volume;}
+   }
 
-   // If psi is constant everywhere, there is nothing to do. Return current volume
-   if (a==b) { return zerogf.ComputeL1Error(sigmoid_psi); }
 
    // Compute bracket function value
    s = a;
@@ -392,10 +401,15 @@ int main(int argc, char *argv[])
    ParGridFunction u(&state_fes);
    u = 0.0;
    ParGridFunction psi(&control_fes);
+   psi = inv_sigmoid(std::fabs(vol_fraction));
    ParGridFunction psi_old(&control_fes);
+   psi_old = inv_sigmoid(std::fabs(vol_fraction));
    ParGridFunction psi_eps(&control_fes); // forcomputing stationarity
+   psi_eps = inv_sigmoid(std::fabs(vol_fraction));
    ParGridFunction rho_filter(&filter_fes);
+   rho_filter = std::fabs(vol_fraction);
    ParGridFunction rho_gf(&control_fes);
+   rho_gf = std::fabs(vol_fraction);
    ParGridFunction grad(&control_fes);
    grad = 0.0;
    ParGridFunction w_filter(&filter_fes);
@@ -436,11 +450,6 @@ int main(int argc, char *argv[])
    ElasticitySolver.SetBstationary();
    ElasticitySolver.AssembleStationaryOperators();
 
-   psi = inv_sigmoid(vol_fraction);
-   psi_old = inv_sigmoid(vol_fraction);
-   psi_eps = inv_sigmoid(vol_fraction);
-   rho_filter = vol_fraction;
-   rho_gf = vol_fraction;
 
    // 7. Set-up the filter solver.
    HelmholtzFilter FilterSolver(filter_fes, filter_radius, &rho, &energy);
