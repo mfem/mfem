@@ -17,7 +17,7 @@ void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> marker,
       mesh.GetBdrElementVertices(i, v);
       for (int j=0; j<v.Size(); j++)
       {
-         coord.SetData(mesh.GetVertex(i));
+         coord.SetData(mesh.GetVertex(v[j]));
          center.Add(1.0, coord);
       }
       center *= 1.0 / v.Size();
@@ -399,6 +399,7 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
          ParMesh pmesh(MPI_COMM_WORLD, mesh);
          mesh.Clear();
+         for (int i=0; i<ref_parallel; i++) {pmesh.UniformRefinement(); }
          const real_t h = std::pow(2.0, -(ref_serial + ref_parallel));
          MarkBoundary(pmesh, [h](const Vector &x)
          {
