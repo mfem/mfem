@@ -731,6 +731,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    Be_data = NULL;
    Df_data = NULL;
    Df_ipiv = NULL;
+   D_empty = true;
    Ct_data = NULL;
    E_data = NULL;
    G_data = NULL;
@@ -1028,6 +1029,8 @@ void DarcyHybridization::AssemblePotMassMatrix(int el, const DenseMatrix &D)
    MFEM_ASSERT(D.Size() == s, "Incompatible sizes");
 
    D_i += D;
+
+   D_empty = false;
 }
 
 void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
@@ -2061,7 +2064,7 @@ void DarcyHybridization::Finalize()
          {
             InvertA();
          }
-         if (!m_nlfi_p)
+         if (!m_nlfi_p && !D_empty)
          {
             InvertD();
          }
@@ -2161,7 +2164,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
    LocalNLOperator *lop;
 
-   if (!m_nlfi_p && !c_nlfi_p)
+   if (!m_nlfi_p && !c_nlfi_p && !D_empty)
    {
       lop = new LocalFluxNLOperator(*this, el, bp_l, x_l, faces);
    }
@@ -2222,7 +2225,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    lsolver->SetAbsTol(lsolve.atol);
    lsolver->SetPrintLevel(lsolve.print_lvl);
 
-   if (!m_nlfi_p && !c_nlfi_p)
+   if (!m_nlfi_p && !c_nlfi_p && !D_empty)
    {
       //solve the flux
       lsolver->Mult(bu_l, u_l);
@@ -2551,7 +2554,11 @@ void DarcyHybridization::Reset()
 
    const int NE = fes->GetMesh()->GetNE();
    memset(Bf_data, 0, Bf_offsets[NE] * sizeof(real_t));
-   if (Df_data) { memset(Df_data, 0, Df_offsets[NE] * sizeof(real_t)); }
+   if (Df_data)
+   {
+      memset(Df_data, 0, Df_offsets[NE] * sizeof(real_t));
+      D_empty = true;
+   }
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    memset(Be_data, 0, Be_offsets[NE] * sizeof(real_t));
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS

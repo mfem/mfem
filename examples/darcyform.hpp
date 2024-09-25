@@ -267,6 +267,7 @@ private:
    Array<int> Df_offsets, Df_f_offsets;
    real_t *Df_data;
    int *Df_ipiv;
+   bool D_empty;
 
    Array<int> Ct_offsets;
    real_t *Ct_data;
