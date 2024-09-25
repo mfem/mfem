@@ -415,6 +415,21 @@ int main(int argc, char *argv[])
    psi_eps = inv_sigmoid(std::fabs(vol_fraction));
    ParGridFunction rho_filter(&filter_fes);
    rho_filter = std::fabs(vol_fraction);
+   {
+      ConstantCoefficient const_cf(0.0);
+
+      Array<int> bdr;
+      bdr = ess_bdr_filter;
+      // void boundary
+      const_cf.constant = 0.0;
+      for(auto &i:bdr){i = i==-1;}
+      rho_filter.ProjectBdrCoefficient(const_cf, bdr);
+      // material boundary
+      bdr = ess_bdr_filter;
+      for(auto &i:bdr){i = i==1;}
+      const_cf.constant = 1.0;
+      rho_filter.ProjectBdrCoefficient(const_cf, bdr);
+   }
    ParGridFunction rho_gf(&control_fes);
    rho_gf = std::fabs(vol_fraction);
    ParGridFunction grad(&control_fes);

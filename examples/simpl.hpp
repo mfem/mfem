@@ -435,7 +435,7 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
       case Bridge2:
       {
          if (filter_radius < 0) { filter_radius = 0.05; }
-         if (vol_fraction < 0) { vol_fraction = -0.5; }
+         if (vol_fraction < 0) { vol_fraction = -0.2; }
          Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
                                            2.0, 1.0);
          for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
@@ -455,7 +455,9 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          ess_bdr_filter.SetSize(6); ess_bdr_filter = 0;
          ess_bdr(1, 3) = 1;
          ess_bdr(0, 4) = 1;
-         ess_bdr_filter[5]=-1;
+         ess_bdr(1, 5) = 1;
+         ess_bdr_filter[5] = -1;
+         ess_bdr_filter[2] = 1;
          return pmesh;
          break;
       }
