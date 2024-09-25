@@ -1490,7 +1490,20 @@ void DarcyHybridization::InvertD()
    {
       int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
 
-      // Decompose A
+      // Decompose D
+
+#ifdef MFEM_DEBUG
+      DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+      const double norm = D.MaxMaxNorm();
+      if (norm == 0.)
+      {
+         MFEM_ABORT("Inverting an empty matrix!");
+      }
+      if (D.Rank(norm * 1e-12) < d_dofs_size)
+      {
+         MFEM_ABORT("Inverting a singular matrix!");
+      }
+#endif
 
       LUFactors LU_D(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
 
