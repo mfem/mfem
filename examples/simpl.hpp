@@ -138,6 +138,9 @@ public:
    void SetAstationary(bool isstationary=true) {isAstationary=isstationary;}
    void SetBstationary(bool isstationary=true) {isBstationary=isstationary;}
    void SetAdjBstationary(bool isstationary=true) {isAdjBstationary=isstationary;}
+   bool IsAstationary() {return isAstationary;}
+   bool IsBstationary() {return isBstationary;}
+   bool IsAdjBstationary() {return isAdjBstationary;}
    void AssembleStationaryOperators()
    {
       if (isAstationary) {a->Update(); a->Assemble();}
@@ -341,9 +344,9 @@ enum TopoptProblem
    Cantilever3=2,
    MBB2=3,
    Torsion3=4,
+   Bridge2=5,
    // Below this require adjoint solution of elasticity problem
    // Make sure that they are with negative numbers
-   Bridge2=-1,
    ForceInverter=-2
 };
 
@@ -430,6 +433,8 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
 
       case Bridge2:
       {
+         if (filter_radius < 0) { filter_radius = 0.05; }
+         if (vol_fraction < 0) { vol_fraction = -0.5; }
          Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
                                            2.0, 1.0);
          for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
@@ -439,7 +444,7 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          const real_t h = std::pow(2.0, -(ref_serial + ref_parallel));
          MarkBoundary(pmesh, [h](const Vector &x)
          {
-            return (x[1] < 0.5) && (x[0] < std::pow(h,2.0));
+            return (x[1] > 1.0 - std::pow(2.0, 5)) && (x[0] > 2.0 - std::pow(h,2.0));
          }, 5);
          ess_bdr.SetSize(3, 6);
          ess_bdr = 0;
@@ -495,7 +500,8 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
 #endif
 
 void SetupTopoptProblem(TopoptProblem problem,
-                        LinearElasticityProblem &elasticity, Coefficient &frho_cf)
+                        LinearElasticityProblem &elasticity, HelmholtzFilter &filter,
+                        VectorCoefficient &u_cf, Coefficient &frho_cf)
 {
    switch (problem)
    {
@@ -582,20 +588,26 @@ void SetupTopoptProblem(TopoptProblem problem,
             f = 0.0;
             if (x[1] > 1.0 - std::pow(2, -5)) { f[1] = -40.0; }
          });
-         elasticity.MakeVectorCoefficientOwner(coeff);
          Vector g({0.0, -9.8});
          auto *g_cf = new VectorConstantCoefficient(g);
-         elasticity.MakeVectorCoefficientOwner(g_cf);
          auto *gfrho_cf = new ScalarVectorProductCoefficient(frho_cf, *g_cf);
+         auto *gu_cf = new InnerProductCoefficient(u_cf, *g_cf);
+         elasticity.GetLinearForm().AddDomainIntegrator(
+            new VectorDomainLFIntegrator(*coeff)
+         );
+         elasticity.MakeVectorCoefficientOwner(coeff);
+         elasticity.GetLinearForm().AddDomainIntegrator(
+            new VectorDomainLFIntegrator(*gfrho_cf)
+         );
+         elasticity.MakeVectorCoefficientOwner(g_cf);
          elasticity.MakeVectorCoefficientOwner(gfrho_cf);
-         elasticity.GetLinearForm().AddDomainIntegrator(
-            new VectorDomainLFIntegrator(*coeff));
-         elasticity.GetLinearForm().AddDomainIntegrator(
-            new VectorDomainLFIntegrator(*gfrho_cf));
-         elasticity.GetAdjointLinearForm().AddDomainIntegrator(
-            new VectorDomainLFIntegrator(*coeff));
-         elasticity.GetAdjointLinearForm().AddDomainIntegrator(
-            new VectorDomainLFIntegrator(*g_cf));
+         elasticity.SetBstationary(false);
+
+         filter.GetAdjointLinearForm().AddDomainIntegrator(
+            new DomainLFIntegrator(*gu_cf)
+         );
+         filter.MakeCoefficientOwner(gu_cf);
+         filter.SetAdjBstationary(false);
          break;
       }
 
@@ -606,6 +618,7 @@ void SetupTopoptProblem(TopoptProblem problem,
          {
          });
          elasticity.MakeVectorCoefficientOwner(coeff);
+
          break;
       }
    }

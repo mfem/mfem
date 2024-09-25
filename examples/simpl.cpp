@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
    int max_it = 1e3;
    int max_backtrack = 1e2;
    real_t tol_stationarity = 1e-06;
-   real_t tol_compliance = 1e-05;
+   real_t tol_objdiff = 1e-05;
    bool stationarity_in_Bregman = true;
    bool backtrack_bregman = true;
    real_t rho_min = 1e-6;
@@ -338,8 +338,8 @@ int main(int argc, char *argv[])
                   "Maximum number of backtracking iteration");
    args.AddOption(&tol_stationarity, "-tol-s", "--tol-stationarity",
                   "Tolerance for Stationarity Error");
-   args.AddOption(&tol_compliance, "-tol-c", "--tol-compliance",
-                  "Tolerance for relative compliance decrease");
+   args.AddOption(&tol_objdiff, "-tol-o", "--tol-objective",
+                  "Tolerance for relative objective decrease");
    args.AddOption(&vol_fraction, "-vf", "--volume-fraction",
                   "Volume fraction for the material density.");
    args.AddOption(&lambda, "-lambda", "--lambda", "Lamé constant λ.");
@@ -400,6 +400,12 @@ int main(int argc, char *argv[])
    // 5. Set the initial guess for ρ.
    ParGridFunction u(&state_fes);
    u = 0.0;
+   std::unique_ptr<ParGridFunction> adju(nullptr);
+   if (problem < 0) // only when adjoint solver is necessary
+   {
+      adju.reset(new ParGridFunction(&state_fes));
+      *adju = 0.0;
+   }
    ParGridFunction psi(&control_fes);
    psi = inv_sigmoid(std::fabs(vol_fraction));
    ParGridFunction psi_old(&control_fes);
@@ -421,6 +427,7 @@ int main(int argc, char *argv[])
 
    // ρ = sigmoid(ψ)
    MappedGridFunctionCoefficient rho(&psi, sigmoid);
+   VectorGridFunctionCoefficient u_cf(&u);
    GridFunctionCoefficient rho_filter_cf(&rho_filter);
    // Interpolation of ρ = sigmoid(ψ) in control fes (for ParaView output)
    // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
@@ -440,27 +447,29 @@ int main(int argc, char *argv[])
    SIMPInterpolationCoefficient SIMP_cf(&rho_filter, rho_min, 1.0);
    ProductCoefficient lambda_SIMP_cf(lambda, SIMP_cf);
    ProductCoefficient mu_SIMP_cf(mu, SIMP_cf);
-   StrainEnergyDensityCoefficient energy(&lambda_cf, &mu_cf, &u, &rho_filter,
+   StrainEnergyDensityCoefficient energy(&lambda_cf, &mu_cf, &u, adju.get(),
+                                         &rho_filter,
                                          rho_min);
 
+   // Create elasticity solver. If problem is negative, then we need to solve dual problem
    LinearElasticityProblem ElasticitySolver(state_fes, &lambda_SIMP_cf,
-                                            &mu_SIMP_cf, false);
-   SetupTopoptProblem((TopoptProblem)problem, ElasticitySolver, rho_filter_cf);
-   ElasticitySolver.SetEssentialBoundary(ess_bdr);
+                                            &mu_SIMP_cf, problem < 0);
    ElasticitySolver.SetBstationary();
-   ElasticitySolver.AssembleStationaryOperators();
-
-
-   // 7. Set-up the filter solver.
    HelmholtzFilter FilterSolver(filter_fes, filter_radius, &rho, &energy);
    FilterSolver.SetAstationary();
-   FilterSolver.AssembleStationaryOperators();
+
+   SetupTopoptProblem((TopoptProblem)problem, ElasticitySolver, FilterSolver, u_cf,
+                      rho_filter_cf);
+   ElasticitySolver.SetEssentialBoundary(ess_bdr);
+
 
    // 8. Define the Lagrange multiplier and gradient functions.
-
    GridFunctionCoefficient w_filter_cf(&w_filter);
    L2Projector L2projector(control_fes, &w_filter_cf);
-   FilterSolver.SetAstationary();
+   L2projector.SetAstationary();
+
+   ElasticitySolver.AssembleStationaryOperators();
+   FilterSolver.AssembleStationaryOperators();
    L2projector.AssembleStationaryOperators();
 
    // 9. Define some tools for later.
@@ -496,26 +505,26 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
    TableLogger logger;
-   real_t material_volume(infinity()), compliance(infinity()),
+   real_t material_volume(infinity()), objval(infinity()),
           stationarityError(infinity()), stationarityBregmanError(infinity());
-   real_t succ_compliance_diff;
+   real_t succ_objval_diff;
    int num_reeval(-1);
    std::string filename_prefix;
    // filename_prefix.append("PMD-Cantilever2");
    filename_prefix.append("PMD-Cantilever3");
    // filename_prefix.append("PMD-Torsion");
    logger.Append(std::string("Volume"), material_volume);
-   logger.Append(std::string("Compliance"), compliance);
+   logger.Append(std::string("Obj"), objval);
    logger.Append(std::string("Stationarity-2"), stationarityError);
    logger.Append(std::string("Stationarity-B"), stationarityBregmanError);
    logger.Append(std::string("Re-evel"), num_reeval);
    logger.Append(std::string("Step Size"), alpha);
-   logger.Append(std::string("Succ-Obj-Diff"), succ_compliance_diff);
+   logger.Append(std::string("Succ-Obj-Diff"), succ_objval_diff);
    logger.SaveWhenPrint(filename_prefix);
 
    // 11. Iterate:
    alpha = 1.0;
-   real_t compliance_old;
+   real_t objval_old;
    int total_num_feval(0), total_num_geval(0);
    for (int k = 1; k <= max_it; k++)
    {
@@ -539,7 +548,7 @@ int main(int argc, char *argv[])
          }
       }
 
-      compliance_old = compliance;
+      objval_old = objval;
       psi_old = psi;
       if (Mpi::Root())
       {
@@ -564,35 +573,33 @@ int main(int argc, char *argv[])
 
          // Step 2 - State solve
          // Solve (λ r(ρ̃) ∇⋅u, ∇⋅v) + (2 μ r(ρ̃) ε(u), ε(v)) = (f,v)
-         ElasticitySolver.Solve(u, true, false);
+         ElasticitySolver.Solve(u, true, !ElasticitySolver.IsBstationary());
          if (Mpi::Root()) { cout << "\t\tElasticity Solve done" << std::endl; }
 
-         compliance = (ElasticitySolver.GetLinearForm())(u);
-         MPI_Allreduce(MPI_IN_PLACE, &compliance, 1, MPITypeMap<real_t>::mpi_type,
-                       MPI_SUM, MPI_COMM_WORLD);
+         objval = InnerProduct(MPI_COMM_WORLD, ElasticitySolver.GetLinearForm(), u);
          succ_diff_rho_form.Assemble();
          real_t directional_derval = InnerProduct(MPI_COMM_WORLD, grad,
                                                   succ_diff_rho_form);
          real_t succ_bregman = zerogf.ComputeL1Error(succ_diff_rho_bregman);
          if (Mpi::Root())
          {
-            cout << "\t\tNew Compliance    : " << compliance << std::endl;
+            cout << "\t\tNew Objective    : " << objval << std::endl;
             if (backtrack_bregman)
             {
-               cout << "\t\tTarget Compliance : " << compliance_old + directional_derval +
+               cout << "\t\tTarget Objective : " << objval_old + directional_derval +
                     succ_bregman/alpha <<
-                    " = " << compliance_old << " + " << directional_derval << " + " << succ_bregman
+                    " = " << objval_old << " + " << directional_derval << " + " << succ_bregman
                     << " / " << alpha << std::endl;
             }
             else
             {
-               cout << "\t\tTarget Compliance : " << compliance_old + 1e-04*directional_derval
+               cout << "\t\tTarget Objective : " << objval_old + 1e-04*directional_derval
                     <<
-                    " = " << compliance_old << " + 10^-4*" << directional_derval << std::endl;
+                    " = " << objval_old << " + 10^-4*" << directional_derval << std::endl;
 
             }
          }
-         if (compliance < compliance_old + 1e-04*directional_derval)
+         if (objval < objval_old + 1e-04*directional_derval)
          {
             if (Mpi::Root())
             {
@@ -629,8 +636,14 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
+
       total_num_geval++;
       if (Mpi::Root()) { cout << "Updating Gradient" << std::endl; }
+      // Solve dual system
+      if (adju)
+      {
+         ElasticitySolver.SolveDual(*adju, false, true);
+      }
       // Update gradient
       grad_old = grad;
       FilterSolver.SolveDual(w_filter, false, true);
@@ -646,15 +659,15 @@ int main(int argc, char *argv[])
       stationarityError = zerogf.ComputeL2Error(diff_rho_rhoeps) / 1e-03;
       stationarityBregmanError = std::sqrt(zerogf.ComputeL1Error(
                                               diff_rho_rhoeps_bregman)) / 1e-03;
-      succ_compliance_diff = (compliance_old - compliance) / std::fabs(compliance);
+      succ_objval_diff = (objval_old - objval) / std::fabs(objval);
 
       logger.Print(true);
 
       bool isStationarityPoint = stationarity_in_Bregman
                                  ? (stationarityBregmanError < tol_stationarity)
                                  : (stationarityError < tol_stationarity);
-      bool objConverged = (compliance_old - compliance) / std::fabs(
-                             compliance) < tol_compliance;
+      bool objConverged = (objval_old - objval) / std::fabs(
+                             objval) < tol_objdiff;
       if (isStationarityPoint && objConverged)
       {
          break;
