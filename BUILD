@@ -1,15 +1,54 @@
+# load("@bazel//tools/build_defs/repo:http.bzl", "http_archive")
+# load("@bazel//tools/build_defs/repo:local.bzl", "new_local_repository")
+
+### Load rules ################################################################
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 ### MFEM examples #############################################################
-load("//:.bazel.bzl", "generate_examples")
+load("//:.bazel.bzl", "generate_examples", "get_bash_bin")
 
 generate_examples()
+
+### MPI #######################################################################
+# add_mpi_local_repository()
+
+# new_local_repository(
+#     # repo_mapping, # _not_ supported in `MODULE.bazel`
+#     name = "MPI",
+#     # build_file = "bazel/mpi",
+#     # build_file_content = "",
+#     path = "/opt/homebrew/opt/openmpi",
+# )
+
+# mpicc [-showme[:<command,compile,link,incdirs,libdirs,libs,version,help>]] args
+#   -showme:command    Show command used to invoke real compiler
+#   -showme:compile    Show flags added when compiling
+#   -showme:link       Show flags added when linking
+#   -showme:incdirs    Show list of include dirs added when compiling
+#   -showme:libdirs    Show list of library dirs added when linking
+#   -showme:libs       Show list of libraries added when linking
+#   -showme:version    Show version of Open MPI
+#   -showme:help       This help message
+genrule(
+    name = "mpi",
+    srcs = [],
+    outs = ["mpi_path"],
+    cmd_bash = "which mpicxx > $@ ",
+    message = "Running which_mpicxx",
+)
+# load("path.bzl", "MPI_PATH")
+# which_mpicxx()
+# my_rule()
+# mpi_path(name = "mpi")
+
+get_bash_bin(name = "bash")
 
 ### MFEM library ##############################################################
 
 cc_library(
     name = "mfem",
     deps = [
+        "bash",
         "fem",
         "general",
         "linalg",

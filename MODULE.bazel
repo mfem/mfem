@@ -1,5 +1,9 @@
-# https://github.com/bazel-contrib/toolchains_llvm/releases
-# https://github.com/bazel-contrib/toolchains_llvm/blob/master/toolchain/internal/llvm_distributions.bzl
+"""
+https://github.com/bazel-contrib/toolchains_llvm/releases
+https://github.com/bazel-contrib/toolchains_llvm/blob/master/toolchain/internal/llvm_distributions.bzl
+"""
+
+module(name = "mfem", version = "0.1")
 
 bazel_dep(name = "toolchains_llvm", version = "v1.1.2")
 
