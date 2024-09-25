@@ -137,9 +137,9 @@ public:
    virtual ~GeneralAMS();
 
    /// in principle this should set A_ = op;
-   void SetOperator(const Operator &op) {}
+   void SetOperator(const Operator &op) override {}
 
-   virtual void Mult(const Vector& x, Vector& y) const;
+   void Mult(const Vector& x, Vector& y) const override;
 
 private:
    const Operator& curlcurl_op;
