@@ -28,13 +28,13 @@ private:
 public:
    /// Construct the L2_SegmentElement of order @a p and BasisType @a btype
    L2_SegmentElement(const int p, const int btype = BasisType::GaussLegendre);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { ScalarLocalL2Restriction(Trans, R, *this); }
 
 };
@@ -52,25 +52,25 @@ public:
    /// Construct the L2_QuadrilateralElement of order @a p and BasisType @a btype
    L2_QuadrilateralElement(const int p,
                            const int btype = BasisType::GaussLegendre);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
+   void ProjectCurl(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &curl) const override
    { ProjectCurl_2D(fe, Trans, curl); }
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { ScalarLocalL2Restriction(Trans, R, *this); }
 
    using FiniteElement::Project;
-   virtual void ProjectDiv(const FiniteElement &fe,
-                           ElementTransformation &Trans,
-                           DenseMatrix &div) const;
-   virtual void Project(Coefficient &coeff,
-                        ElementTransformation &Trans, Vector &dofs) const;
+   void ProjectDiv(const FiniteElement &fe,
+                   ElementTransformation &Trans,
+                   DenseMatrix &div) const override;
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 
@@ -86,21 +86,21 @@ public:
    /// Construct the L2_HexahedronElement of order @a p and BasisType @a btype
    L2_HexahedronElement(const int p,
                         const int btype = BasisType::GaussLegendre);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { ScalarLocalL2Restriction(Trans, R, *this); }
 
    using FiniteElement::Project;
-   virtual void ProjectDiv(const FiniteElement &fe,
-                           ElementTransformation &Trans,
-                           DenseMatrix &div) const;
-   virtual void Project(Coefficient &coeff,
-                        ElementTransformation &Trans, Vector &dofs) const;
+   void ProjectDiv(const FiniteElement &fe,
+                   ElementTransformation &Trans,
+                   DenseMatrix &div) const override;
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 
@@ -118,17 +118,17 @@ public:
    /// Construct the L2_TriangleElement of order @a p and BasisType @a btype
    L2_TriangleElement(const int p,
                       const int btype = BasisType::GaussLegendre);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
+   void ProjectCurl(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &curl) const override
    { ProjectCurl_2D(fe, Trans, curl); }
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { ScalarLocalL2Restriction(Trans, R, *this); }
 
 };
@@ -149,13 +149,13 @@ public:
    /// Construct the L2_TetrahedronElement of order @a p and BasisType @a btype
    L2_TetrahedronElement(const int p,
                          const int btype = BasisType::GaussLegendre);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { ScalarLocalL2Restriction(Trans, R, *this); }
 
 };
@@ -178,9 +178,9 @@ public:
    /// Construct the L2_WedgeElement of order @a p and BasisType @a btype
    L2_WedgeElement(const int p,
                    const int btype = BasisType::GaussLegendre);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 } // namespace mfem

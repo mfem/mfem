@@ -460,7 +460,7 @@ public:
        @note On input, the values of @a t and @a dt are used to compute desired
        output time for the integration, tout = @a t + @a dt.
    */
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 
    /** @brief Attach the linear system setup and solve methods from the
        TimeDependentOperator i.e., SUNImplicitSetup() and SUNImplicitSolve() to
@@ -586,7 +586,7 @@ public:
 
        @note On input, the values of t and dt are used to compute desired
        output time for the integration, tout = t + dt. */
-   virtual void Step(Vector &x, double &t, double &dt);
+   void Step(Vector &x, double &t, double &dt) override;
 
    /// Solve one adjoint time step
    virtual void StepB(Vector &w, double &t, double &dt);
@@ -763,7 +763,7 @@ public:
        @note On input, the values of @a t and @a dt are used to compute desired
        output time for the integration, tout = @a t + @a dt.
    */
-   virtual void Step(Vector &x, real_t &t, real_t &dt) override;
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 
    /** @brief Attach the linear system setup and solve methods from the
        TimeDependentOperator i.e., SUNImplicitSetup() and SUNImplicitSolve() to
@@ -916,7 +916,7 @@ public:
    /** @note If this method is called a second time with a different problem
        size, then non-default KINSOL-specific options will be lost and will need
        to be set again. */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Set the linear solver for inverting the Jacobian.
    /** @note This function assumes that Operator::GetGradient(const Vector &)
@@ -924,10 +924,10 @@ public:
              SetOperator(const Operator &).
 
              This method must be called after SetOperator(). */
-   virtual void SetSolver(Solver &solver);
+   void SetSolver(Solver &solver) override;
 
    /// Equivalent to SetSolver(solver).
-   virtual void SetPreconditioner(Solver &solver) { SetSolver(solver); }
+   void SetPreconditioner(Solver &solver) override { SetSolver(solver); }
 
    /// Set KINSOL's scaled step tolerance.
    /** The default tolerance is $ U^\frac{2}{3} $ , where
@@ -967,10 +967,10 @@ public:
    void SetLSMaxRestarts(int m) { maxlrs = m; }
 
    /// Set the print level for the KINSetPrintLevel function.
-   virtual void SetPrintLevel(int print_lvl) { print_level = print_lvl; }
+   void SetPrintLevel(int print_lvl) override { print_level = print_lvl; }
 
    /// This method is not supported and will throw an error.
-   virtual void SetPrintLevel(PrintLevel);
+   void SetPrintLevel(PrintLevel) override;
 
    /// Solve the nonlinear system $ F(x) = 0 $.
    /** This method computes the x_scale and fx_scale vectors and calls the
@@ -981,7 +981,7 @@ public:
        @param[in,out] x  On input, initial guess, if @a #iterative_mode = true,
                          otherwise the initial guess is zero; on output, the
                          solution */
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 
    /// Solve the nonlinear system $ F(x) = 0 $.
    /** Calls KINSol() to solve the nonlinear system. Before calling KINSol(),
