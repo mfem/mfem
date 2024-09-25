@@ -353,7 +353,8 @@ enum TopoptProblem
 #ifdef MFEM_USE_MPI
 ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
                          int ref_parallel,
-                         real_t &filter_radius, real_t &vol_fraction, Array2D<int> &ess_bdr)
+                         real_t &filter_radius, real_t &vol_fraction,
+                         Array2D<int> &ess_bdr, Array<int> &ess_bdr_filter)
 {
    switch (problem)
    {
@@ -367,8 +368,8 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          ParMesh pmesh(MPI_COMM_WORLD, mesh);
          mesh.Clear();
          for (int i=0; i<ref_parallel; i++) {pmesh.UniformRefinement(); }
-         ess_bdr.SetSize(3, 4);
-         ess_bdr = 0;
+         ess_bdr.SetSize(3, 4); ess_bdr = 0;
+         ess_bdr_filter.SetSize(4); ess_bdr_filter = 0;
          ess_bdr(0, 3) = 1;
          return pmesh;
          break;
@@ -384,8 +385,8 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          ParMesh pmesh(MPI_COMM_WORLD, mesh);
          mesh.Clear();
          for (int i=0; i<ref_parallel; i++) {pmesh.UniformRefinement(); }
-         ess_bdr.SetSize(4, 6);
-         ess_bdr = 0;
+         ess_bdr.SetSize(4, 6); ess_bdr = 0;
+         ess_bdr_filter.SetSize(6); ess_bdr_filter = 0;
          ess_bdr(0, 4) = 1;
          return pmesh;
          break;
@@ -401,8 +402,8 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          ParMesh pmesh(MPI_COMM_WORLD, mesh);
          mesh.Clear();
          for (int i=0; i<ref_parallel; i++) {pmesh.UniformRefinement(); }
-         ess_bdr.SetSize(4, 6);
-         ess_bdr = 0;
+         ess_bdr.SetSize(4, 6); ess_bdr = 0;
+         ess_bdr_filter.SetSize(6); ess_bdr_filter = 0;
          ess_bdr(0, 2) = 1;
          return pmesh;
          break;
@@ -423,8 +424,8 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          {
             return (x[0] > 3.0 - std::pow(2.0, -5)) && (x[1] < std::pow(h,2.0));
          }, 5);
-         ess_bdr.SetSize(3, 5);
-         ess_bdr = 0;
+         ess_bdr.SetSize(3, 5); ess_bdr = 0;
+         ess_bdr_filter.SetSize(5); ess_bdr_filter = 0;
          ess_bdr(1, 3) = 1;
          ess_bdr(2, 4) = 1;
          return pmesh;
@@ -446,10 +447,15 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          {
             return (x[1] > 1.0 - std::pow(2.0, 5)) && (x[0] > 2.0 - std::pow(h,2.0));
          }, 5);
-         ess_bdr.SetSize(3, 6);
-         ess_bdr = 0;
+         MarkBoundary(pmesh, [h](const Vector &x)
+         {
+            return (x[1] < 0.5) && (x[0] < std::pow(h,2.0));
+         }, 6);
+         ess_bdr.SetSize(3, 6); ess_bdr = 0;
+         ess_bdr_filter.SetSize(6); ess_bdr_filter = 0;
          ess_bdr(1, 3) = 1;
          ess_bdr(0, 4) = 1;
+         ess_bdr_filter[5]=-1;
          return pmesh;
          break;
       }
@@ -487,8 +493,8 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
             // fixed, left bottom
             return (x[1] < 0.01) && (x[0] < std::pow(h,2.0));
          }, 7);
-         ess_bdr.SetSize(3, 7);
-         ess_bdr = 0;
+         ess_bdr.SetSize(3, 7); ess_bdr = 0;
+         ess_bdr_filter.SetSize(7); ess_bdr_filter = 0;
          ess_bdr(0, 6) = 1;
          ess_bdr(2, 2) = 1;
          return pmesh;

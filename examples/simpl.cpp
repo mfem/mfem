@@ -367,10 +367,11 @@ int main(int argc, char *argv[])
    }
 
    Array2D<int> ess_bdr;
+   Array<int> ess_bdr_filter;
    ParMesh pmesh = GetParMeshTopopt((TopoptProblem)problem,
                                     ref_levels, par_ref_levels,
                                     filter_radius, vol_fraction,
-                                    ess_bdr);
+                                    ess_bdr, ess_bdr_filter);
    if (myid == 0)
    {
       mfem::out << num_procs << " number of process created.\n";
@@ -455,12 +456,13 @@ int main(int argc, char *argv[])
    LinearElasticityProblem ElasticitySolver(state_fes, &lambda_SIMP_cf,
                                             &mu_SIMP_cf, problem < 0);
    ElasticitySolver.SetBstationary();
+   ElasticitySolver.SetEssentialBoundary(ess_bdr);
    HelmholtzFilter FilterSolver(filter_fes, filter_radius, &rho, &energy);
    FilterSolver.SetAstationary();
+   FilterSolver.SetEssentialBoundary(ess_bdr_filter);
 
    SetupTopoptProblem((TopoptProblem)problem, ElasticitySolver, FilterSolver, u_cf,
                       rho_filter_cf);
-   ElasticitySolver.SetEssentialBoundary(ess_bdr);
 
 
    // 8. Define the Lagrange multiplier and gradient functions.
