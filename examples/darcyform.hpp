@@ -301,9 +301,9 @@ private:
       mutable DenseMatrix grad;
 
       void AddMultA(const Vector &u_l, Vector &bu) const;
-      void AddMultD(const Vector &p_l, Vector &bp) const;
+      void AddMultDE(const Vector &p_l, Vector &bp) const;
       void AddGradA(const Vector &u_l, DenseMatrix &gA) const;
-      void AddGradD(const Vector &p_l, DenseMatrix &gD) const;
+      void AddGradDE(const Vector &p_l, DenseMatrix &gD) const;
 
    public:
       LocalNLOperator(const DarcyHybridization &dh, int el, const BlockVector &trps,

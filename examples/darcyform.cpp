@@ -2518,8 +2518,8 @@ void DarcyHybridization::LocalNLOperator::AddMultA(const Vector &u_l,
    }
 }
 
-void DarcyHybridization::LocalNLOperator::AddMultD(const Vector &p_l,
-                                                   Vector &bp) const
+void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
+                                                    Vector &bp) const
 {
    //bp += D p_l
    if (dh.m_nlfi_p)
@@ -2530,7 +2530,7 @@ void DarcyHybridization::LocalNLOperator::AddMultD(const Vector &p_l,
 
    if (dh.c_nlfi_p)
    {
-      // D p_l + E x
+      //bp += E x
       for (int f = 0; f < faces.Size(); f++)
       {
          FaceElementTransformations *FTr = FTrs[f];
@@ -2583,8 +2583,8 @@ void DarcyHybridization::LocalNLOperator::AddGradA(const Vector &u_l,
    }
 }
 
-void DarcyHybridization::LocalNLOperator::AddGradD(const Vector &p_l,
-                                                   DenseMatrix &grad) const
+void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
+                                                    DenseMatrix &grad) const
 {
    //grad += D
    if (dh.m_nlfi_p)
@@ -2658,7 +2658,7 @@ void DarcyHybridization::LocalNLOperator::Mult(const Vector &x, Vector &y) const
    B.Mult(u_l, bp);
 
    //bp += D p
-   AddMultD(p_l, bp);
+   AddMultDE(p_l, bp);
 }
 
 Operator &DarcyHybridization::LocalNLOperator::GetGradient(
@@ -2696,7 +2696,7 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    //D
    DenseMatrix grad_D(d_dofs_size);
    grad_D = 0.;
-   AddGradD(p_l, grad_D);
+   AddGradDE(p_l, grad_D);
    grad.CopyMN(grad_D, a_dofs_size, a_dofs_size);
 
    return grad;
@@ -2736,7 +2736,7 @@ void DarcyHybridization::LocalPotNLOperator::Mult(const Vector &p_l,
    //bp = B u
    B.Mult(u_l, bp);
 
-   AddMultD(p_l, bp);
+   AddMultDE(p_l, bp);
 }
 
 Operator &DarcyHybridization::LocalPotNLOperator::GetGradient(
@@ -2755,7 +2755,7 @@ Operator &DarcyHybridization::LocalPotNLOperator::GetGradient(
    if (!dh.bsym) { grad.Neg(); }
 
    //grad += D
-   AddGradD(p_l, grad);
+   AddGradDE(p_l, grad);
 
    return grad;
 }
