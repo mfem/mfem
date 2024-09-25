@@ -32,7 +32,7 @@ protected:
 
    /** @brief Default function for assembling the AD computed derivatives into the local gradient matrix 'A'.
     *
-       @param[in] H       Dense Tensor holding the AD computed local gradients.
+       @param[in] H       Dense tensor holding the AD computed local gradients.
        @param[in] DS      Gradient of the basis matrix (dof x dim).
        @param[in] weight  Quadrature weight coefficient for the point.
        @param[in,out]  A  Local gradient matrix where the contribution from this
