@@ -69,7 +69,7 @@ public:
    void SetDisplacement(GridFunction &u_) { u = &u_; }
    void SetComponent(int i, int j) { si = i; sj = j; }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
 
 // Simple GLVis visualization manager.
@@ -89,7 +89,7 @@ public:
    void NewWindow();
    void CloseConnection();
    void PositionWindow();
-   virtual ~VisMan();
+   ~VisMan() override;
 };
 
 // Manipulators for the GLVis visualization manager.

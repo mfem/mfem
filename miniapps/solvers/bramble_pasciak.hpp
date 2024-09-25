@@ -77,10 +77,10 @@ public:
       : IterativeSolver(comm_) { pprec = &ppc; iprec = &ipc; }
 #endif
 
-   virtual void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void SetPreconditioner(Solver &pc)
+   void SetPreconditioner(Solver &pc) override
    { if (Mpi::Root()) { MFEM_WARNING("SetPreconditioner has no effect on BPCGSolver.\n"); } }
 
    virtual void SetIncompletePreconditioner(const Operator &ipc)
@@ -89,7 +89,7 @@ public:
    virtual void SetParticularPreconditioner(const Operator &ppc)
    { pprec = &ppc; }
 
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 };
 
 /// Bramble-Pasciak Solver for Darcy equation.
@@ -161,10 +161,10 @@ public:
    static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf,
                                                       real_t alpha = 0.5);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void SetOperator(const Operator &op) { }
+   void Mult(const Vector &x, Vector &y) const override;
+   void SetOperator(const Operator &op) override { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
-   virtual int GetNumIterations() const { return solver_->GetNumIterations(); }
+   int GetNumIterations() const override { return solver_->GetNumIterations(); }
 };
 
 } // namespace blocksolvers

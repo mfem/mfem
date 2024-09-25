@@ -142,19 +142,19 @@ public:
 
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
-   virtual void AdjointRateMult(const Vector &y, Vector &yB,
-                                Vector &yBdot) const;
+   void AdjointRateMult(const Vector &y, Vector &yB,
+                        Vector &yBdot) const override;
 
-   virtual int SUNImplicitSetup(const Vector &y,
-                                const Vector &fy, int jok, int *jcur,
-                                real_t gamma);
+   int SUNImplicitSetup(const Vector &y,
+                        const Vector &fy, int jok, int *jcur,
+                        real_t gamma) override;
 
-   virtual int SUNImplicitSolve(const Vector &b, Vector &x, real_t tol);
+   int SUNImplicitSolve(const Vector &b, Vector &x, real_t tol) override;
 
-   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
-                                          Vector &qbdot) const;
+   void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
+                                  Vector &qbdot) const override;
 
    ~AdvDiffSUNDIALS()
    {
