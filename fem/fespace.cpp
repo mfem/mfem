@@ -2804,7 +2804,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
 
       const int numEdges = mesh->GetNEdges();
 
-      // propagate from slave edges to master edges
+      // Propagate from slave edges to master edges
       const NCMesh::NCList &edge_list = mesh->ncmesh->GetEdgeList();
       for (const NCMesh::Master &master : edge_list.masters)
       {
@@ -2847,7 +2847,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
          }
       }
 
-      // propagate from slave faces(+edges) to master faces(+edges)
+      // Propagate from slave faces(+edges) to master faces.
       const int numFaces = mesh->GetNumFaces();
 
       const NCMesh::NCList &face_list = mesh->ncmesh->GetFaceList();
@@ -2917,7 +2917,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
          }
       }
 
-      // make sure edges support (new) orders required by incident faces
+      // Make sure edges support (new) orders required by incident faces.
       for (int i = 0; i < mesh->GetNFaces(); i++)
       {
          mesh->GetFaceEdges(i, E, ori);
@@ -2981,8 +2981,8 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
    // indices e.g. 100, 101, 103, 106, respectively. These numbers are stored
    // in row 'i' of var_edge_dofs. Variant zero is always the lowest order DOF
    // set, followed by consecutive ranges of higher order DOFs. Variable order
-   // faces are handled similarly by var_face_dofs, which holds at most two DOF
-   // set variants per face. The tables are empty for constant-order spaces.
+   // faces are handled similarly by var_face_dofs. The tables are empty for
+   // constant-order spaces.
 
    int num_ent = entity_orders.Size();
    int total_dofs = 0;

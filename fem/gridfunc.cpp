@@ -203,6 +203,8 @@ void GridFunction::UpdatePRef()
    {
       Vector old_data;
       old_data.Swap(*this);
+      MFEM_VERIFY(Tp->Width() == old_data.Size(),
+                  "Wrong size of PRefinementTransferOperator in UpdatePRef");
       SetSize(Tp->Height());
       UseDevice(true);
       Tp->Mult(old_data, *this);
@@ -4055,7 +4057,7 @@ std::unique_ptr<GridFunction> GridFunction::ProlongateToMaxOrder() const
       fes->GetElementVDofs(i, dofs);
       Vector elemvect(0), vectInt(0);
       GetSubVector(dofs, elemvect);
-      DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
+      DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size() / vdim, vdim);
 
       const auto *fe = fesc->GetFE(geom, fes->GetElementOrder(i));
       const auto *feInt = fecMax->GetFE(geom, maxOrder);
@@ -4064,7 +4066,7 @@ std::unique_ptr<GridFunction> GridFunction::ProlongateToMaxOrder() const
 
       fesMax->GetElementVDofs(i, dofs);
       vectInt.SetSize(dofs.Size());
-      DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size()/vdim, vdim);
+      DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size() / vdim, vdim);
 
       Mult(I, elemvecMat, vectIntMat);
       xMax->SetSubVector(dofs, vectInt);
