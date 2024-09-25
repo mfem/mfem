@@ -30,6 +30,20 @@ protected:
        for TMOP_QualityMetric%s, because it is not used. */
    void SetTransformation(ElementTransformation &) { }
 
+   /** @brief Default function for assembling the AD computed derivatives into the local gradient matrix 'A'.
+    *
+       @param[in] Jpt     Represents the target->physical transformation
+                          Jacobian matrix.
+       @param[in] DS      Gradient of the basis matrix (dof x dim).
+       @param[in] weight  Quadrature weight coefficient for the point.
+       @param[in,out]  A  Local gradient matrix where the contribution from this
+                          point will be added.
+
+       Computes weight * d(dW_dxi)_d(xj) computed by AD at the current point,
+       for all i and j, where x1 ... xn are the FE dofs. . */
+   void DefaultAssembleH(const DenseTensor &H, const DenseMatrix &DS,
+                         const real_t weight, DenseMatrix &A) const;
+
 public:
    TMOP_QualityMetric() : Jtr(NULL) { }
    virtual ~TMOP_QualityMetric() { }
@@ -574,12 +588,10 @@ public:
    // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const real_t weight, DenseMatrix &A) const;
 };
 
 /// 2D compound barrier Shape+Size (VS) metric (balanced).
@@ -631,12 +643,10 @@ public:
    // W = 1/tau |T-I|^2.
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const real_t weight, DenseMatrix &A) const;
 };
 
 /// 2D untangling metric.
@@ -1116,12 +1126,10 @@ public:
    // 0.5 * ( sqrt(alpha/omega) - sqrt(omega/alpha) )^2
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const real_t weight, DenseMatrix &A) const;
 };
 
 /// 2D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
@@ -1134,12 +1142,12 @@ public:
    // (1/alpha) | A - W |^2
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
+
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const real_t weight, DenseMatrix &A) const;
 };
 
 /// 2D barrier Shape+Orientation (OS) metric (polyconvex).
@@ -1152,12 +1160,10 @@ public:
    // (1/2 alpha) | A - (|A|/|W|) W |^2
    virtual real_t EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const real_t weight, DenseMatrix &A) const;
 };
 
 /// 2D barrier Shape+Size (VS) metric (polyconvex).
