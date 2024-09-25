@@ -473,7 +473,7 @@ void SetupTopoptProblem(TopoptProblem problem,
             f = 0.0;
             real_t d = ((x[1] - center[1]) * (x[1] - center[1])
                         + (x[2] - center[2]) * (x[2] - center[2]));
-            if (x[0] < 0.05 && d > 0.04 && d < 0.09)
+            if (x[0] < 0.01 && d > 0.04 && d < 0.09)
             {
                f[1] = center[2]-x[2];
                f[2] = x[1]-center[1];
