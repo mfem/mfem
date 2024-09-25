@@ -734,6 +734,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    Ct_data = NULL;
    E_data = NULL;
    G_data = NULL;
+   H_data = NULL;
 }
 
 DarcyHybridization::~DarcyHybridization()
@@ -758,6 +759,7 @@ DarcyHybridization::~DarcyHybridization()
    delete[] Ct_data;
    delete[] E_data;
    delete[] G_data;
+   delete[] H_data;
 }
 
 void DarcyHybridization::SetConstraintIntegrators(
@@ -979,6 +981,10 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    if (c_bfi_p)
    {
       AllocEG();
+      if (bnl)
+      {
+         AllocH();
+      }
    }
 }
 
@@ -1118,9 +1124,17 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    G_f.CopyMN(elmat, c_dof, ndof1+ndof2, ndof1+ndof2, 0);
 
    // assemble H matrix
-   if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
-   h_elmat.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
-   H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
+   if (bnl)
+   {
+      DenseMatrix H_f(H_data + H_offsets[face], c_dof, c_dof);
+      H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
+   }
+   else
+   {
+      if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
+      h_elmat.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
+      H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
+   }
 }
 
 void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
@@ -1178,9 +1192,17 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    G_f.CopyMN(elmat, c_dof, ndof, ndof, 0);
 
    // assemble H matrix
-   if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
-   h_elmat.CopyMN(elmat, c_dof, c_dof, ndof, ndof);
-   H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
+   if (bnl)
+   {
+      DenseMatrix H_f(H_data + H_offsets[face], c_dof, c_dof);
+      H_f.CopyMN(elmat, c_dof, c_dof, ndof, ndof);
+   }
+   else
+   {
+      if (!H) { H = new SparseMatrix(c_fes->GetVSize()); }
+      h_elmat.CopyMN(elmat, c_dof, c_dof, ndof, ndof);
+      H->AddSubMatrix(c_dofs, c_dofs, h_elmat);
+   }
 }
 
 void DarcyHybridization::GetFDofs(int el, Array<int> &fdofs) const
@@ -1423,6 +1445,25 @@ void DarcyHybridization::AllocEG()
 
    E_data = new real_t[E_offsets[num_faces]]();//init by zeros
    G_data = new real_t[G_offsets[num_faces]]();//init by zeros
+}
+
+void DarcyHybridization::AllocH()
+{
+   Mesh *mesh = fes->GetMesh();
+   int num_faces = mesh->GetNumFaces();
+   Array<int> c_vdofs;
+
+   // Define E_offsets and allocate E_data and G_data
+   H_offsets.SetSize(num_faces+1);
+   H_offsets[0] = 0;
+   for (int f = 0; f < num_faces; f++)
+   {
+      c_fes->GetFaceVDofs(f, c_vdofs);
+      const int c_size = c_vdofs.Size();
+      H_offsets[f+1] = H_offsets[f] + c_size * c_size;
+   }
+
+   H_data = new real_t[H_offsets[num_faces]]();//init by zeros
 }
 
 void DarcyHybridization::InvertA()
@@ -1691,6 +1732,15 @@ FaceElementTransformations *DarcyHybridization::GetGFaceMatrix(
    return FTr;
 }
 
+void DarcyHybridization::GetHFaceMatrix(int f, DenseMatrix &H,
+                                        Array<int> &c_dofs) const
+{
+   c_fes->GetFaceVDofs(f, c_dofs);
+   const int c_size = c_dofs.Size();
+
+   H.Reset(H_data + H_offsets[f], c_size, c_size);
+}
+
 void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> &c_dofs,
                                         DenseMatrix &Ct_l) const
 {
@@ -1745,7 +1795,7 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
    const int NE = fes->GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    const int dim = fes->GetMesh()->Dimension();
-   DenseMatrix Ct_1, Ct_2, E_1, E_2;
+   DenseMatrix Ct_1, Ct_2, E_1, E_2, G_1, G_2, H;
    BlockVector x_l;
    Array<int> c_dofs;
    Array<int> c_offsets;
@@ -1907,44 +1957,64 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
 
          //G p_l + H x_l
          const Vector &x_f = x_l.GetBlock(f);
-         Vector GpHx_l;
-         int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
-                    | NonlinearFormIntegrator::HDGFaceType::FACE;
 
-         if (FTr->Elem2No >= 0)
+         if (c_bfi_p)
          {
-            //interior
-            if (c_nlfi_p)
+            //linear
+            if (GetGFaceMatrix(faces[f], G_1, G_2, c_dofs))
             {
-               if (FTr->Elem1No != el) { type |= 1; }
+               DenseMatrix &G = (FTr->Elem1No == el)?(G_1):(G_2);
+               G.AddMult(p_l, y_l);
+            }
 
-               c_nlfi_p->AssembleHDGFaceVector(type,
-                                               *c_fes->GetFaceElement(faces[f]),
-                                               *fes_p->GetFE(el),
-                                               *fes->GetMesh()->GetInteriorFaceTransformations(faces[f]),
-                                               x_f, p_l, GpHx_l);
-
-               y_l += GpHx_l;
+            //integrate the face contrbution only on one (first) side
+            if (FTr->Elem1No == el)
+            {
+               GetHFaceMatrix(faces[f], H, c_dofs);
+               H.AddMult(x_f, y_l);
             }
          }
          else
          {
-            //boundary
-
-            const int bdr_attr = fes->GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
-
-            for (int i = 0; i < boundary_constraint_pot_nonlin_integs.Size(); i++)
+            //nonlinear
+            Vector GpHx_l;
+            int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                       | NonlinearFormIntegrator::HDGFaceType::FACE;
+            if (FTr->Elem2No >= 0)
             {
-               if (boundary_constraint_pot_nonlin_integs_marker[i]
-                   && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+               //interior
+               if (c_nlfi_p)
+               {
+                  if (FTr->Elem1No != el) { type |= 1; }
 
-               boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                               *c_fes->GetFaceElement(faces[f]),
-                                                                               *fes_p->GetFE(el),
-                                                                               *fes->GetMesh()->GetFaceElementTransformations(faces[f]),
-                                                                               x_f, p_l, GpHx_l);
+                  c_nlfi_p->AssembleHDGFaceVector(type,
+                                                  *c_fes->GetFaceElement(faces[f]),
+                                                  *fes_p->GetFE(el),
+                                                  *fes->GetMesh()->GetInteriorFaceTransformations(faces[f]),
+                                                  x_f, p_l, GpHx_l);
 
-               y_l += GpHx_l;
+                  y_l += GpHx_l;
+               }
+            }
+            else
+            {
+               //boundary
+
+               const int bdr_attr = fes->GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
+
+               for (int i = 0; i < boundary_constraint_pot_nonlin_integs.Size(); i++)
+               {
+                  if (boundary_constraint_pot_nonlin_integs_marker[i]
+                      && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+                  boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
+                                                                                  *c_fes->GetFaceElement(faces[f]),
+                                                                                  *fes_p->GetFE(el),
+                                                                                  *fes->GetMesh()->GetFaceElementTransformations(faces[f]),
+                                                                                  x_f, p_l, GpHx_l);
+
+                  y_l += GpHx_l;
+               }
             }
          }
 
