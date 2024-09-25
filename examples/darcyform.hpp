@@ -277,6 +277,9 @@ private:
    Array<int> &G_offsets{E_offsets};
    real_t *G_data;
 
+   Array<int> H_offsets;
+   real_t *H_data;
+
    mutable Array<int> darcy_offsets;
    mutable BlockVector darcy_rhs;
    Vector darcy_u, darcy_p;
@@ -353,6 +356,7 @@ private:
                             DenseMatrix &Ct, int ioff=0);
    void ConstructC();
    void AllocEG();
+   void AllocH();
    void MultNL(int mode, const BlockVector &b, const Vector &x, Vector &y) const;
    void InvertA();
    void InvertD();
@@ -363,6 +367,7 @@ private:
                                               DenseMatrix &E_2, Array<int> &c_dofs) const;
    FaceElementTransformations *GetGFaceMatrix(int f, DenseMatrix &Gt_1,
                                               DenseMatrix &Gt_2, Array<int> &c_dofs) const;
+   void GetHFaceMatrix(int f, DenseMatrix &H, Array<int> &c_dofs) const;
    void GetCtSubMatrix(int el, const Array<int> &c_dofs, DenseMatrix &Ct) const;
    void MultInvNL(int el, const Vector &bu_l, const Vector &bp_l,
                   const BlockVector &x_l, Vector &u_l, Vector &p_l) const;
