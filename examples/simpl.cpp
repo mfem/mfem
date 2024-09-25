@@ -71,10 +71,20 @@ using namespace mfem;
  * @return real_t Final volume, ∫_Ω sigmoid(ψ)
  */
 real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
-            real_t volume_fraction, real_t domain_volume, real_t tol = 1e-12,
+            real_t volume_fraction, real_t domain_volume, bool hasPassiveElements,
+            real_t tol = 1e-12,
             int max_its = 10)
 {
    real_t target_volume = domain_volume * std::fabs(volume_fraction);
+
+   ConstantCoefficient const_coeff(0.0);
+   if (hasPassiveElements)
+   {
+      const_coeff.constant = 100;
+      ProjectCoefficient(psi, const_coeff, 2);
+      const_coeff.constant = -100;
+      ProjectCoefficient(psi, const_coeff, 3);
+   }
 
    // Solution bracket
    real_t a = inv_sigmoid(std::fabs(volume_fraction)) - psi.Max();
@@ -87,7 +97,7 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
    // Current testing iterate
    real_t s(0), vs(mfem::infinity());
    MappedGridFunctionCoefficient sigmoid_psi(
-   &psi, [&s](const real_t x) { return sigmoid(x + s); });
+   &psi, [s](const real_t x) { return sigmoid(x+s); });
    real_t current_volume = zerogf.ComputeL1Error(sigmoid_psi);
    // check wether volume constraint is already satisfied or not
    if (volume_fraction < 0) // lower bound
@@ -145,6 +155,13 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
          mflag = false;
       }
       // Update current value
+      if (hasPassiveElements)
+      {
+         const_coeff.constant = 100-s;
+         ProjectCoefficient(psi, const_coeff, 2);
+         const_coeff.constant = -100-s;
+         ProjectCoefficient(psi, const_coeff, 3);
+      }
       vs = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
 
       // Update iterates
@@ -379,12 +396,15 @@ int main(int argc, char *argv[])
    }
 
    int dim = pmesh.Dimension();
+   int hasPassiveElements = pmesh.attributes.Max() > 1;
+   MPI_Allreduce(MPI_IN_PLACE, &hasPassiveElements, 1, MPI_INT, MPI_MAX,
+                 MPI_COMM_WORLD);
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim);  // space for u
    H1_FECollection filter_fec(order, dim); // space for ρ̃
    L2_FECollection control_fec(order - 1, dim); // space for ψ
-   ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim);
+   ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim, Ordering::byNODES);
    ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
    ParFiniteElementSpace control_fes(&pmesh, &control_fec);
 
@@ -422,11 +442,11 @@ int main(int argc, char *argv[])
       bdr = ess_bdr_filter;
       // void boundary
       const_cf.constant = 0.0;
-      for(auto &i:bdr){i = i==-1;}
+      for (auto &i:bdr) {i = i==-1;}
       rho_filter.ProjectBdrCoefficient(const_cf, bdr);
       // material boundary
       bdr = ess_bdr_filter;
-      for(auto &i:bdr){i = i==1;}
+      for (auto &i:bdr) {i = i==1;}
       const_cf.constant = 1.0;
       rho_filter.ProjectBdrCoefficient(const_cf, bdr);
    }
@@ -458,6 +478,7 @@ int main(int argc, char *argv[])
 
    // 6. Set-up the physics solver.
    ConstantCoefficient one(1.0);
+   ConstantCoefficient zero(0.0);
    ConstantCoefficient lambda_cf(lambda);
    ConstantCoefficient mu_cf(mu);
    SIMPInterpolationCoefficient SIMP_cf(&rho_filter, rho_min, 1.0);
@@ -580,7 +601,8 @@ int main(int argc, char *argv[])
          psi = psi_old;
          psi.Add(-alpha, grad);
          // Bregman projection for volume constraint
-         material_volume = proj(psi, zerogf, vol_fraction, domain_volume);
+         material_volume = proj(psi, zerogf, vol_fraction, domain_volume,
+                                hasPassiveElements);
          if (Mpi::Root()) { cout << "\t\tVolume Projection done" << std::endl; }
 
          // Step 1 - Filter solve
@@ -668,11 +690,16 @@ int main(int argc, char *argv[])
 
       L2projector.Solve(grad, false, true);
       if (Mpi::Root()) { cout << "\tL2 Projection of Gradient done" << std::endl; }
+      if (hasPassiveElements)
+      {
+         ProjectCoefficient(grad, zero, 2);
+         ProjectCoefficient(grad, zero, 3);
+      }
 
       // Stationarity error
       psi_eps = psi;
       psi_eps.Add(-1e-03, grad);
-      proj(psi_eps, zerogf, vol_fraction, domain_volume);
+      proj(psi_eps, zerogf, vol_fraction, domain_volume, hasPassiveElements);
       stationarityError = zerogf.ComputeL2Error(diff_rho_rhoeps) / 1e-03;
       stationarityBregmanError = std::sqrt(zerogf.ComputeL1Error(
                                               diff_rho_rhoeps_bregman)) / 1e-03;

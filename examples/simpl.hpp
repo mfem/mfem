@@ -29,6 +29,50 @@ void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> marker,
    mesh.SetAttributes();
 }
 
+void MarkElement(Mesh &mesh, std::function<bool(const Vector &)> marker,
+                 int attr)
+{
+   Vector center(mesh.SpaceDimension());
+   for (int i=0; i<mesh.GetNE(); i++)
+   {
+      center = 0.0;
+      mesh.GetElementCenter(i, center);
+      if (marker(center))
+      {
+         mesh.SetAttribute(i, attr);
+      }
+   }
+   mesh.SetAttributes();
+}
+
+void ProjectCoefficient(GridFunction &x, Coefficient &coeff,
+                        int attribute)
+{
+   int i;
+   Array<int> vdofs;
+   Vector vals;
+   FiniteElementSpace* fes = x.FESpace();
+
+   DofTransformation * doftrans = NULL;
+
+   for (i = 0; i < fes->GetNE(); i++)
+   {
+      if (fes->GetAttribute(i) != attribute)
+      {
+         continue;
+      }
+
+      doftrans = fes->GetElementVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+      fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+      if (doftrans)
+      {
+         doftrans->TransformPrimal(vals);
+      }
+      x.SetSubVector(vdofs, vals);
+   }
+}
+
 inline void SolveEllipticProblem(BilinearForm &a, LinearForm &b,
                                  GridFunction &x, Array<int> ess_tdof_list, bool use_elasticity=false)
 {
@@ -58,7 +102,15 @@ inline void ParSolveEllipticProblem(ParBilinearForm &a, ParLinearForm &b,
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, 1);
 
    HypreBoomerAMG amg(A);
-   if (a.FESpace()->GetVDim() > 1)
+   // if (a.FESpace()->GetVDim() > 1)
+   // {
+   //    amg.SetSystemsOptions(a.FESpace()->GetVDim());
+   // }
+   if (use_elasticity)
+   {
+      amg.SetElasticityOptions(a.ParFESpace());
+   }
+   else if (a.FESpace()->GetVDim() > 1)
    {
       amg.SetSystemsOptions(a.FESpace()->GetVDim());
    }
@@ -445,17 +497,24 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          const real_t h = std::pow(2.0, -(ref_serial + ref_parallel));
          MarkBoundary(pmesh, [h](const Vector &x)
          {
-            return (x[1] > 1.0 - std::pow(2.0, 5)) && (x[0] > 2.0 - std::pow(h,2.0));
+            // mark top right corner for pin support
+            return (x[1] < std::pow(2.0, -5)) && (x[0] > 2.0 - std::pow(h,2.0));
          }, 5);
          MarkBoundary(pmesh, [h](const Vector &x)
          {
+            // mark bottom left corner for no material boundary
             return (x[1] < 0.5) && (x[0] < std::pow(h,2.0));
          }, 6);
+         MarkElement(pmesh, [](const Vector &x)
+         {
+            // mark top portion as passive elements
+            return x[1]>(1-std::pow(2.0,-5));
+         }, 2);
          ess_bdr.SetSize(3, 6); ess_bdr = 0;
          ess_bdr_filter.SetSize(6); ess_bdr_filter = 0;
          ess_bdr(1, 3) = 1;
          ess_bdr(0, 4) = 1;
-         ess_bdr(1, 5) = 1;
+         // ess_bdr(1, 5) = 1;
          ess_bdr_filter[5] = -1;
          ess_bdr_filter[2] = 1;
          return pmesh;
@@ -594,7 +653,7 @@ void SetupTopoptProblem(TopoptProblem problem,
             2, [](const Vector &x, Vector &f)
          {
             f = 0.0;
-            if (x[1] > 1.0 - std::pow(2, -5)) { f[1] = -40.0; }
+            if (x[1] > 1.0 - std::pow(2, -5)) { f[1] = -10.0; }
          });
          Vector g({0.0, -9.8});
          auto *g_cf = new VectorConstantCoefficient(g);
