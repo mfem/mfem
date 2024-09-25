@@ -805,6 +805,30 @@ void Vector::Print_HYPRE(std::ostream &os) const
    os.flags(old_fmt);
 }
 
+void Vector::PrintMathematica(std::ostream & os) const
+{
+   std::ios::fmtflags old_fmt = os.flags();
+   os.setf(std::ios::scientific);
+   std::streamsize old_prec = os.precision(14);
+
+   os << "(* Read file into Mathematica using: "
+      << "myVec = Get[\"this_file_name\"] *)\n";
+   os << "{\n";
+
+   data.Read(MemoryClass::HOST, size);
+   for (int i = 0; i < size; i++)
+   {
+      os << "Internal`StringToMReal[\"" << ZeroSubnormal(data[i]) << "\"]";
+      if (i < size - 1) { os << ','; }
+      os << '\n';
+   }
+
+   os << "}\n";
+
+   os.precision(old_prec);
+   os.flags(old_fmt);
+}
+
 void Vector::PrintHash(std::ostream &os) const
 {
    os << "size: " << size << '\n';
