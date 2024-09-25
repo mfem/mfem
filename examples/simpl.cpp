@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
                   "2 : Cantilever 3D\n\t"
                   "3 : MBB 2D\n\t"
                   "4 : Torsion 3D\n\t"
-                  );
+                 );
    args.AddOption(&ref_levels, "-rs", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&ref_levels, "-rp", "--refine-parallel",
@@ -356,15 +356,17 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
+
+   Array2D<int> ess_bdr;
+   ParMesh pmesh = GetParMeshTopopt((TopoptProblem)problem,
+                                    ref_levels, par_ref_levels,
+                                    filter_radius, vol_fraction,
+                                    ess_bdr);
    if (myid == 0)
    {
       mfem::out << num_procs << " number of process created.\n";
       args.PrintOptions(cout);
    }
-
-   Array2D<int> ess_bdr;
-   ParMesh pmesh = GetParMeshTopopt((TopoptProblem)problem, ref_levels,
-                                    par_ref_levels, ess_bdr);
 
    int dim = pmesh.Dimension();
 
@@ -405,6 +407,7 @@ int main(int argc, char *argv[])
 
    // ρ = sigmoid(ψ)
    MappedGridFunctionCoefficient rho(&psi, sigmoid);
+   GridFunctionCoefficient rho_filter_cf(&rho_filter);
    // Interpolation of ρ = sigmoid(ψ) in control fes (for ParaView output)
    // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
    DiffMappedGridFunctionCoefficient succ_diff_rho(&psi, &psi_old, sigmoid);
@@ -428,7 +431,7 @@ int main(int argc, char *argv[])
 
    LinearElasticityProblem ElasticitySolver(state_fes, &lambda_SIMP_cf,
                                             &mu_SIMP_cf, false);
-   SetupTopoptProblem((TopoptProblem)problem, ElasticitySolver, filter_radius, vol_fraction);
+   SetupTopoptProblem((TopoptProblem)problem, ElasticitySolver, rho_filter_cf);
    ElasticitySolver.SetEssentialBoundary(ess_bdr);
    ElasticitySolver.SetBstationary();
    ElasticitySolver.AssembleStationaryOperators();
@@ -596,13 +599,13 @@ int main(int argc, char *argv[])
       {
          sout_filter << "parallel " << num_procs << " " << myid << "\n";
          sout_filter << "solution\n"
-                << pmesh << rho_filter << "window_title 'Filtered density ρ̃'"
-                << flush;
+                     << pmesh << rho_filter << "window_title 'Filtered density ρ̃'"
+                     << flush;
          rho_gf.ProjectCoefficient(rho);
          sout_rho << "parallel " << num_procs << " " << myid << "\n";
          sout_rho << "solution\n"
-                << pmesh << rho_gf << "window_title 'Control density rho'"
-                << flush;
+                  << pmesh << rho_gf << "window_title 'Control density rho'"
+                  << flush;
          sout_u << "parallel " << num_procs << " " << myid << "\n";
          sout_u << "solution\n"
                 << pmesh << u << "window_title 'Velocity Magnitude u'"

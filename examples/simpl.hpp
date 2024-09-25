@@ -340,18 +340,24 @@ enum TopoptProblem
    Cantilever2=1,
    Cantilever3=2,
    MBB2=3,
-   Torsion3=4
+   Torsion3=4,
+   // Below this require adjoint solution of elasticity problem
+   // Make sure that they are with negative numbers
+   Bridge2=-1,
+   ForceInverter=-2
 };
 
 #ifdef MFEM_USE_MPI
 ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
                          int ref_parallel,
-                         Array2D<int> &ess_bdr)
+                         real_t &filter_radius, real_t &vol_fraction, Array2D<int> &ess_bdr)
 {
    switch (problem)
    {
       case Cantilever2: // Cantilver 2
       {
+         if (filter_radius < 0) { filter_radius = 0.05; }
+         if (vol_fraction < 0) { vol_fraction = 0.5; }
          Mesh mesh = Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
                                            3.0, 1.0);
          for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
@@ -364,8 +370,11 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          return pmesh;
          break;
       }
+
       case Cantilever3:
       {
+         if (filter_radius < 0) { filter_radius = 0.05; }
+         if (vol_fraction < 0) { vol_fraction = 0.12; }
          Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::Type::HEXAHEDRON, 2.0, 1.0,
                                            1.0);
          for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
@@ -378,8 +387,11 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          return pmesh;
          break;
       }
+
       case Torsion3:
       {
+         if (filter_radius < 0) { filter_radius = 0.0025; }
+         if (vol_fraction < 0) { vol_fraction = 0.01; }
          Mesh mesh = Mesh::MakeCartesian3D(5, 12, 12, Element::Type::HEXAHEDRON, 0.5,
                                            1.2, 1.2);
          for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
@@ -392,8 +404,11 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          return pmesh;
          break;
       }
+
       case MBB2:
       {
+         if (filter_radius < 0) { filter_radius = 0.05; }
+         if (vol_fraction < 0) { vol_fraction = 0.5; }
          Mesh mesh = Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
                                            3.0, 1.0);
          for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
@@ -412,13 +427,75 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          return pmesh;
          break;
       }
+
+      case Bridge2:
+      {
+         Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
+                                           2.0, 1.0);
+         for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
+         ParMesh pmesh(MPI_COMM_WORLD, mesh);
+         mesh.Clear();
+         for (int i=0; i<ref_parallel; i++) {pmesh.UniformRefinement(); }
+         const real_t h = std::pow(2.0, -(ref_serial + ref_parallel));
+         MarkBoundary(pmesh, [h](const Vector &x)
+         {
+            return (x[1] < 0.5) && (x[0] < std::pow(h,2.0));
+         }, 5);
+         ess_bdr.SetSize(3, 6);
+         ess_bdr = 0;
+         ess_bdr(1, 3) = 1;
+         ess_bdr(0, 4) = 1;
+         return pmesh;
+         break;
+      }
+
+      case ForceInverter:
+      {
+         Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
+                                           2.0, 1.0);
+         for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
+         ParMesh pmesh(MPI_COMM_WORLD, mesh);
+         mesh.Clear();
+         for (int i=0; i<ref_parallel; i++) {pmesh.UniformRefinement(); }
+         //                        X-Roller (3)
+         //               ---------------------------------
+         //  INPUT (6) -> |                               | <- output (5)
+         //               -                               -
+         //               |                               |
+         //               |                               |
+         //               -                               |
+         //  FIXED (7)  X |                               |
+         //               ---------------------------------
+         const real_t h = std::pow(2.0, -(ref_serial + ref_parallel));
+         MarkBoundary(pmesh, [h](const Vector &x)
+         {
+            // output, right top
+            return (x[1] > 1.0 - 0.01) && (x[0] > 2.0 - std::pow(h,2.0));
+         }, 5);
+         MarkBoundary(pmesh, [h](const Vector &x)
+         {
+            // input, left top
+            return (x[1] > 1.0 - 0.01) && (x[0] < std::pow(h,2.0));
+         }, 6);
+         MarkBoundary(pmesh, [h](const Vector &x)
+         {
+            // fixed, left bottom
+            return (x[1] < 0.01) && (x[0] < std::pow(h,2.0));
+         }, 7);
+         ess_bdr.SetSize(3, 7);
+         ess_bdr = 0;
+         ess_bdr(0, 6) = 1;
+         ess_bdr(2, 2) = 1;
+         return pmesh;
+         break;
+      }
+
    }
 }
 #endif
 
 void SetupTopoptProblem(TopoptProblem problem,
-                        LinearElasticityProblem &elasticity,
-                        real_t &filter_radius, real_t &vol_fraction)
+                        LinearElasticityProblem &elasticity, Coefficient &frho_cf)
 {
    switch (problem)
    {
@@ -437,12 +514,11 @@ void SetupTopoptProblem(TopoptProblem problem,
             }
          });
          elasticity.MakeVectorCoefficientOwner(coeff);
-         elasticity.GetLinearForm().AddDomainIntegrator(new VectorDomainLFIntegrator(
-                                                           *coeff));
-         if (filter_radius < 0) { filter_radius = 0.05; }
-         if (vol_fraction < 0) { vol_fraction = 0.5; }
+         elasticity.GetLinearForm().AddDomainIntegrator(
+            new VectorDomainLFIntegrator( *coeff));
          break;
       }
+
       case Cantilever3:
       {
          const Vector center({1.9, 0.0, 0.1});
@@ -458,12 +534,11 @@ void SetupTopoptProblem(TopoptProblem problem,
             }
          });
          elasticity.MakeVectorCoefficientOwner(coeff);
-         elasticity.GetLinearForm().AddDomainIntegrator(new VectorDomainLFIntegrator(
-                                                           *coeff));
-         if (filter_radius < 0) { filter_radius = 0.05; }
-         if (vol_fraction < 0) { vol_fraction = 0.12; }
+         elasticity.GetLinearForm().AddDomainIntegrator(
+            new VectorDomainLFIntegrator( *coeff));
          break;
       }
+
       case Torsion3:
       {
          const Vector center({0.0, 0.6, 0.6});
@@ -479,10 +554,9 @@ void SetupTopoptProblem(TopoptProblem problem,
                f[2] = x[1]-center[1];
             }
          });
-         if (filter_radius < 0) { filter_radius = 0.0025; }
-         if (vol_fraction < 0) { vol_fraction = 0.01; }
          break;
       }
+
       case MBB2:
       {
          auto *coeff = new VectorFunctionCoefficient(
@@ -495,10 +569,43 @@ void SetupTopoptProblem(TopoptProblem problem,
             }
          });
          elasticity.MakeVectorCoefficientOwner(coeff);
-         elasticity.GetLinearForm().AddDomainIntegrator(new VectorDomainLFIntegrator(
-                                                           *coeff));
-         if (filter_radius < 0) { filter_radius = 0.05; }
-         if (vol_fraction < 0) { vol_fraction = 0.5; }
+         elasticity.GetLinearForm().AddDomainIntegrator(
+            new VectorDomainLFIntegrator( *coeff));
+         break;
+      }
+
+      case Bridge2:
+      {
+         auto *coeff = new VectorFunctionCoefficient(
+            2, [](const Vector &x, Vector &f)
+         {
+            f = 0.0;
+            if (x[1] > 1.0 - std::pow(2, -5)) { f[1] = -40.0; }
+         });
+         elasticity.MakeVectorCoefficientOwner(coeff);
+         Vector g({0.0, -9.8});
+         auto *g_cf = new VectorConstantCoefficient(g);
+         elasticity.MakeVectorCoefficientOwner(g_cf);
+         auto *gfrho_cf = new ScalarVectorProductCoefficient(frho_cf, *g_cf);
+         elasticity.MakeVectorCoefficientOwner(gfrho_cf);
+         elasticity.GetLinearForm().AddDomainIntegrator(
+            new VectorDomainLFIntegrator(*coeff));
+         elasticity.GetLinearForm().AddDomainIntegrator(
+            new VectorDomainLFIntegrator(*gfrho_cf));
+         elasticity.GetAdjointLinearForm().AddDomainIntegrator(
+            new VectorDomainLFIntegrator(*coeff));
+         elasticity.GetAdjointLinearForm().AddDomainIntegrator(
+            new VectorDomainLFIntegrator(*g_cf));
+         break;
+      }
+
+      case ForceInverter:
+      {
+         auto *coeff = new VectorFunctionCoefficient(
+            2, [](const Vector &x, Vector &f)
+         {
+         });
+         elasticity.MakeVectorCoefficientOwner(coeff);
          break;
       }
    }
