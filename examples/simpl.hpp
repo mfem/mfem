@@ -714,7 +714,7 @@ void SetupTopoptProblem(TopoptProblem problem,
             2, [](const Vector &x, Vector &f)
          {
             f = 0.0;
-            if (x[1] > 1.0 - std::pow(2, -5)) { f[1] = -40.0; }
+            if (x[1] > 1.0 - std::pow(2, -5)) { f[1] = -20.0; }
          });
          Vector g({0.0, -9.8});
          auto *g_cf = new VectorConstantCoefficient(g);
