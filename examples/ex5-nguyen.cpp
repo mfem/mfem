@@ -62,14 +62,6 @@ typedef std::function<real_t(const Vector &, real_t)> TFunc;
 typedef std::function<void(const Vector &, Vector &)> VecFunc;
 typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
 
-TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c);
-VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c);
-VecFunc GetCFun(int prob, real_t c);
-TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c);
-FluxFunction* GetFluxFun(int prob, VectorCoefficient &ccoeff);
-
-constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
-
 enum Problem
 {
    SteadyDiffusion = 1,
@@ -80,6 +72,14 @@ enum Problem
    SteadyBurgers,
    NonsteadyBurgers,
 };
+
+TFunc GetTFun(Problem prob, real_t t_0, real_t k, real_t c);
+VecTFunc GetQFun(Problem prob, real_t t_0, real_t k, real_t c);
+VecFunc GetCFun(Problem prob, real_t c);
+TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c);
+FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
+
+constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
 class FEOperator : public TimeDependentOperator
 {
@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool dg = false;
    bool upwinded = false;
-   int problem = Problem::SteadyDiffusion;
+   int iproblem = Problem::SteadyDiffusion;
    real_t tf = 1.;
    int nt = 0;
    int ode = 1;
@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
                   "--no-discontinuous", "Enable DG elements for fluxes.");
    args.AddOption(&upwinded, "-up", "--upwinded", "-ce", "--centered",
                   "Switches between upwinded (1) and centered (0=default) stabilization.");
-   args.AddOption(&problem, "-p", "--problem",
+   args.AddOption(&iproblem, "-p", "--problem",
                   "Problem to solve:\n\t\t"
                   "1=steady diff\n\t\t"
                   "2=steady adv-diff\n\t\t"
@@ -224,6 +224,7 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Set the problem options
+   Problem problem = (Problem)iproblem;
    bool bconv = false, bnlconv = false, btime = false;
    switch (problem)
    {
@@ -957,7 +958,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
+TFunc GetTFun(Problem prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
@@ -1040,7 +1041,7 @@ TFunc GetTFun(int prob, real_t t_0, real_t k, real_t c)
    return TFunc();
 }
 
-VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
+VecTFunc GetQFun(Problem prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
@@ -1147,11 +1148,13 @@ VecTFunc GetQFun(int prob, real_t t_0, real_t k, real_t c)
    return VecTFunc();
 }
 
-VecFunc GetCFun(int prob, real_t c)
+VecFunc GetCFun(Problem prob, real_t c)
 {
    switch (prob)
    {
       case Problem::SteadyDiffusion:
+      case Problem::SteadyBurgers:
+      case Problem::NonsteadyBurgers:
          // null
          break;
       case Problem::SteadyAdvectionDiffusion:
@@ -1211,7 +1214,7 @@ VecFunc GetCFun(int prob, real_t c)
    return VecFunc();
 }
 
-TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c)
+TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c)
 {
    switch (prob)
    {
@@ -1287,10 +1290,13 @@ TFunc GetFFun(int prob, real_t t_0, real_t k, real_t c)
    return TFunc();
 }
 
-FluxFunction* GetFluxFun(int prob, VectorCoefficient &ccoef)
+FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
 {
    switch (prob)
    {
+      case Problem::SteadyDiffusion:
+         //null
+         break;
       case Problem::SteadyAdvectionDiffusion:
       case Problem::SteadyAdvection:
       case Problem::NonsteadyAdvectionDiffusion:
