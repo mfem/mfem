@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   const HYPRE_BigInt size = fespace.GetTrueVSize();
+   const int size = fespace.GetTrueVSize();
    cout << "Number of finite element unknowns: " << size << endl;
 
    // 6. Determine the list of essential boundary dofs. In this example, the
