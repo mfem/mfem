@@ -92,10 +92,13 @@ TransferMap::TransferMap(const GridFunction &src,
 
          if (!root_fes_reset)
          {
+            const FiniteElementCollection *src_fec = src.FESpace()->FEColl();
+            const FiniteElementCollection *dst_fec = dst.FESpace()->FEColl();
+            auto *root_fec = src_sm_dim == parent_dim ? src_fec : dst_fec;
+
             root_fes_.reset(new FiniteElementSpace(
-                               *src.FESpace(),
                                const_cast<Mesh *>(
-                                  SubMeshUtils::GetRootParent(*src_sm))));
+                                  SubMeshUtils::GetRootParent(*src_sm)), root_fec));
          }
       }
 

@@ -21,12 +21,12 @@ add_mfem_miniapp(toy_mandel
 add_mfem_miniapp(toy_rubik
     MAIN rubik.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
 add_mfem_miniapp(toy_snake
     MAIN snake.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
 add_mfem_miniapp(toy_lissajous
     MAIN lissajous.cpp LIBRARIES mfem)
