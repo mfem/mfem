@@ -323,6 +323,8 @@ protected:
    /// Operator computing the action of the transpose of the restriction.
    mutable std::unique_ptr<Operator> R_transpose;
 
+   std::unique_ptr<FiniteElementSpace> fesPrev;
+
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
 
@@ -1363,6 +1365,11 @@ public:
        GridFunction transformation operator (unless want_transform is false).
        Safe to call multiple times, does nothing if space already up to date. */
    virtual void Update(bool want_transform = true);
+
+   /** P-refine and update the space. If @a want_transfer, also maintain the old
+        space and a transfer operator accessible by GetPrefUpdateOperator(). */
+   virtual void UpdatePRef(const Array<pRefinement> & refs,
+                           bool want_transfer = false);
 
    /// Get the GridFunction update operator.
    const Operator* GetUpdateOperator() { Update(); return Th.Ptr(); }

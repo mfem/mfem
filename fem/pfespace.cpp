@@ -4432,7 +4432,15 @@ void ParFiniteElementSpace::Update(bool want_transform)
    // In the variable order case, we call CommunicateGhostOrder whether h-
    // or p-refinement is done.
    Array<VarOrderElemInfo> pref_data;
-   if (variableOrder) { CommunicateGhostOrder(pref_data); }
+   if (variableOrder)
+   {
+      // Variable order space needs a nontrivial P matrix + also ghost elements
+      // in parallel, we thus require the mesh to be NC.
+      MFEM_VERIFY(Nonconforming(),
+                  "Variable order space requires a nonconforming mesh.");
+
+      CommunicateGhostOrder(pref_data);
+   }
 
    FiniteElementSpace::Construct(&pref_data);
    Construct();
@@ -4491,18 +4499,17 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 }
 
-// TODO: serial version of this.
 void ParFiniteElementSpace::UpdatePRef(const Array<pRefinement> & refs,
                                        bool want_transfer)
 {
    if (want_transfer)
    {
-      fesPrev.reset(new ParFiniteElementSpace(pmesh, fec));
+      pfesPrev.reset(new ParFiniteElementSpace(pmesh, fec));
       for (int i = 0; i<pmesh->GetNE(); i++)
       {
-         fesPrev->SetElementOrder(i, GetElementOrder(i));
+         pfesPrev->SetElementOrder(i, GetElementOrder(i));
       }
-      fesPrev->Update(false);
+      pfesPrev->Update(false);
    }
 
    for (auto ref : refs)
@@ -4514,7 +4521,7 @@ void ParFiniteElementSpace::UpdatePRef(const Array<pRefinement> & refs,
 
    if (want_transfer)
    {
-      PTh.reset(new PRefinementTransferOperator(*fesPrev, *this));
+      PTh.reset(new PRefinementTransferOperator(*pfesPrev, *this));
    }
 }
 
