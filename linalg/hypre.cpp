@@ -29,15 +29,28 @@ namespace mfem
 
 bool Hypre::configure_runtime_policy_from_mfem = true;
 
-Hypre::Hypre()
+void Hypre::Init()
 {
-#if MFEM_HYPRE_VERSION >= 21900
-   // Initializing hypre
-   HYPRE_Init();
+   Hypre hypre = Instance();
+   if (hypre.state == Hypre::State::NONE)
+   {
+      // initialize Hypre
+#if MFEM_HYPRE_VERSION >= 22900
+      if (!HYPRE_Initialized())
+      {
+         HYPRE_Init();
+      }
+#elif MFEM_HYPRE_VERSION >= 21900
+      // potential problematic edge case if user manually called HYPRE_Init with
+      // HYPRE 2.19.0 to 2.28.0. Unfortunately there's no way to check in these
+      // versions if this is the case.
+      HYPRE_Init();
 #endif
 
-   // Global hypre options that we set by default
-   SetDefaultOptions();
+      // Global hypre options that we set by default
+      hypre.SetDefaultOptions();
+      hypre.state = Hypre::State::INITIALIZED;
+   }
 }
 
 void Hypre::InitDevice()
@@ -65,19 +78,13 @@ void Hypre::InitDevice()
 
 void Hypre::Finalize()
 {
-   // In hypre 2.29 and above, we can check if the hypre library has been
-   // initialized. If it has not been initialized, we can return early.
-#if MFEM_HYPRE_VERSION >= 22900
-   if (!HYPRE_Initialized()) { return; }
-#endif
-
    Hypre &hypre = Instance();
-   if (!hypre.finalized)
+   if (hypre.state == Hypre::State::INITIALIZED)
    {
 #if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Finalize();
 #endif
-      hypre.finalized = true;
+      hypre.state = Hypre::State::FINALIZED;
    }
 }
 
