@@ -650,19 +650,32 @@ int main(int argc, char *argv[])
 
       if (glvis_visualization)
       {
-         sout_filter << "parallel " << num_procs << " " << myid << "\n";
-         sout_filter << "solution\n"
-                     << pmesh << rho_filter << "window_title 'Filtered density ρ̃'"
+         if (sout_filter.is_open())
+         {
+            sout_filter << "parallel " << num_procs << " " << myid << "\n";
+            sout_filter << "solution\n"
+                        << pmesh << rho_filter << "window_title 'Filtered density ρ̃'"
+                        << flush;
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
+
+         if (sout_rho.is_open())
+         {
+            rho_gf.ProjectCoefficient(rho);
+            sout_rho << "parallel " << num_procs << " " << myid << "\n";
+            sout_rho << "solution\n"
+                     << pmesh << rho_gf << "window_title 'Control density rho'"
                      << flush;
-         rho_gf.ProjectCoefficient(rho);
-         sout_rho << "parallel " << num_procs << " " << myid << "\n";
-         sout_rho << "solution\n"
-                  << pmesh << rho_gf << "window_title 'Control density rho'"
-                  << flush;
-         sout_u << "parallel " << num_procs << " " << myid << "\n";
-         sout_u << "solution\n"
-                << pmesh << u << "window_title 'Velocity Magnitude u'"
-                << flush;
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
+         if (sout_u.is_open())
+         {
+            sout_u << "parallel " << num_procs << " " << myid << "\n";
+            sout_u << "solution\n"
+                   << pmesh << u << "window_title 'Velocity Magnitude u'"
+                   << flush;
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
       }
 
       if (paraview_output)
@@ -671,6 +684,7 @@ int main(int argc, char *argv[])
          paraview_dc.SetCycle(0);
          paraview_dc.SetTime((real_t)0);
          paraview_dc.Save();
+         MPI_Barrier(MPI_COMM_WORLD);
       }
 
 
@@ -679,7 +693,9 @@ int main(int argc, char *argv[])
       // Solve dual system
       if (adju)
       {
+
          ElasticitySolver.SolveDual(*adju, false, true);
+         if (Mpi::Root()) { cout << "\tDual Elasticity Solve done" << std::endl; }
       }
       // Update gradient
       grad_old = grad;

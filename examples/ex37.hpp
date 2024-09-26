@@ -36,17 +36,19 @@ inline real_t der_sigmoid(const real_t x)
    return tmp - std::pow(tmp,2);
 }
 
-inline real_t safe_log(const real_t x){return x < 1e-300 ? -300*std::log(10) : std::log(x); }
+inline real_t safe_log(const real_t x) {return x < 1e-300 ? -300*std::log(10) : std::log(x); }
 inline real_t fermi_dirac_entropy(const real_t x)
 {
    return x*safe_log(x) + (1-x)*safe_log(1-x);
 }
-inline real_t bregman_divergence_latent(const real_t p_dual, const real_t q_dual)
+inline real_t bregman_divergence_latent(const real_t p_dual,
+                                        const real_t q_dual)
 {
    const real_t p = sigmoid(p_dual);
    const real_t q = sigmoid(q_dual);
 
-   return std::max(fermi_dirac_entropy(p) - fermi_dirac_entropy(q) - q_dual*(p-q), 0.0);
+   return std::max(fermi_dirac_entropy(p) - fermi_dirac_entropy(q) - q_dual*(p-q),
+                   0.0);
 }
 
 /// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
@@ -85,8 +87,8 @@ public:
        fun([](const real_t x, const real_t y) {return x;}) {}
    MappedPairedGridFunctionCoefficient(const GridFunction *gf,
                                        const GridFunction *other_gf,
-                                 std::function<real_t(const real_t, const real_t)> fun_,
-                                 int comp=1)
+                                       std::function<real_t(const real_t, const real_t)> fun_,
+                                       int comp=1)
       :GridFunctionCoefficient(gf, comp), other_gf(other_gf),
        fun(fun_) {}
 
@@ -163,16 +165,19 @@ protected:
    Coefficient * lambda=nullptr;
    Coefficient * mu=nullptr;
    GridFunction *u = nullptr; // displacement
+   GridFunction *adju = nullptr; // adjoint displacement
    GridFunction *rho_filter = nullptr; // filter density
    DenseMatrix grad; // auxiliary matrix, used in Eval
+   DenseMatrix adjgrad; // auxiliary matrix, used in Eval
    real_t exponent;
    real_t rho_min;
 
 public:
    StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_,
-                                  GridFunction * u_, GridFunction * rho_filter_, real_t rho_min_=1e-6,
+                                  GridFunction * u_, GridFunction *adju_, GridFunction * rho_filter_,
+                                  real_t rho_min_=1e-6,
                                   real_t exponent_ = 3.0)
-      : lambda(lambda_), mu(mu_),  u(u_), rho_filter(rho_filter_),
+      : lambda(lambda_), mu(mu_),  u(u_), adju(adju_), rho_filter(rho_filter_),
         exponent(exponent_), rho_min(rho_min_)
    {
       MFEM_ASSERT(rho_min_ >= 0.0, "rho_min must be >= 0");
@@ -186,15 +191,31 @@ public:
       real_t L = lambda->Eval(T, ip);
       real_t M = mu->Eval(T, ip);
       u->GetVectorGradient(T, grad);
+      if (adju) { adju->GetVectorGradient(T, adjgrad); }
+
       real_t div_u = grad.Trace();
-      real_t density = L*div_u*div_u;
+      real_t density = L*div_u*(adju ? adjgrad.Trace() : div_u);
       int dim = T.GetSpaceDim();
-      for (int i=0; i<dim; i++)
+      if (adju)
       {
-         for (int j=0; j<dim; j++)
+         for (int i=0; i<dim; i++)
          {
-            density += M*grad(i,j)*(grad(i,j)+grad(j,i));
+            for (int j=0; j<dim; j++)
+            {
+               density += M*grad(i,j)*(adjgrad(i,j)+adjgrad(j,i));
+            }
          }
+      }
+      else
+      {
+         for (int i=0; i<dim; i++)
+         {
+            for (int j=0; j<dim; j++)
+            {
+               density += M*grad(i,j)*(grad(i,j)+grad(j,i));
+            }
+         }
+
       }
       real_t val = rho_filter->GetValue(T,ip);
 
