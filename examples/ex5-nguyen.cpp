@@ -895,13 +895,16 @@ int main(int argc, char *argv[])
                qa_sock << "window_title 'Heat flux analytic'" << endl;
                qa_sock << "keys Rljvvvvvmmc" << endl;
             }
-            static socketstream qta_sock(vishost, visport);
-            qta_sock.precision(8);
-            qta_sock << "solution\n" << *mesh << qt_a << endl;
-            if (ti == 0)
+            if (bconv || bnlconv)
             {
-               qta_sock << "window_title 'Total flux analytic'" << endl;
-               qta_sock << "keys Rljvvvvvmmc" << endl;
+               static socketstream qta_sock(vishost, visport);
+               qta_sock.precision(8);
+               qta_sock << "solution\n" << *mesh << qt_a << endl;
+               if (ti == 0)
+               {
+                  qta_sock << "window_title 'Total flux analytic'" << endl;
+                  qta_sock << "keys Rljvvvvvmmc" << endl;
+               }
             }
             static socketstream ta_sock(vishost, visport);
             ta_sock.precision(8);
