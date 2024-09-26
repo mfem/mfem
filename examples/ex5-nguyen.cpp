@@ -165,7 +165,14 @@ int main(int argc, char *argv[])
    args.AddOption(&upwinded, "-up", "--upwinded", "-ce", "--centered",
                   "Switches between upwinded (1) and centered (0=default) stabilization.");
    args.AddOption(&problem, "-p", "--problem",
-                  "Problem to solve (1=steady diff, 2=steady adv-diff, 3=steady adv, 4=nonsteady adv-diff, 5=Kovasznay flow).");
+                  "Problem to solve:\n\t\t"
+                  "1=steady diff\n\t\t"
+                  "2=steady adv-diff\n\t\t"
+                  "3=steady adv\n\t\t"
+                  "4=nonsteady adv-diff\n\t\t"
+                  "5=Kovasznay flow\n\t\t"
+                  "6=steady Burgers\n\t\t"
+                  "7=nonsteady Burgers\n\t\t");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
