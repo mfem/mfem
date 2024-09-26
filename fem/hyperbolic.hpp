@@ -423,6 +423,8 @@ public:
     * @brief  Jacobian of normal numerical flux F̂(u⁻,u⁺,x) n
     * @note The Jacobian of flux J n is required to be implemented in
     * FluxFunction::ComputeFluxJacobianDotN()
+    * @note Only the diagonal terms of the J n are considered, i.e., systems
+    * are treated as a set of independent equations
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
     * @param[in] state1 state value (u⁻) of the beginning of the interval
@@ -466,6 +468,8 @@ public:
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN() and the Jacobian of flux J n in
     * FluxFunction::ComputeFluxJacobianDotN()
+    * @note Only the diagonal terms of the J n are considered, i.e., systems
+    * are treated as a set of independent equations
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
     * @param[in] state1 state value (u⁻) of the beginning of the interval
@@ -530,6 +534,8 @@ public:
     * @brief  Jacobian of normal numerical flux F̂(u⁻,u⁺,x) n
     * @note The Jacobian of flux J n is required to be implemented in
     * FluxFunction::ComputeFluxJacobianDotN()
+    * @note Only the diagonal terms of the J n are considered, i.e., systems
+    * are treated as a set of independent equations
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
     * @param[in] state1 state value (u⁻) of the beginning of the interval
@@ -574,6 +580,8 @@ public:
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN() and the Jacobian of flux J n in
     * FluxFunction::ComputeFluxJacobianDotN()
+    * @note Only the diagonal terms of the J n are considered, i.e., systems
+    * are treated as a set of independent equations
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
     * @param[in] state1 state value (u⁻) of the beginning of the interval
