@@ -189,9 +189,13 @@ int main(int argc, char *argv[])
    }
 
    const HYPRE_BigInt size = fespace.GlobalTrueVSize();
+   const int maxP = fespace.GetMaxElementOrder();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
+      cout << "Total number of h-refinements: " << numH
+           << "\nTotal number of p-refinements: " << numP
+           << "\nMaximum order " << maxP << "\n";
    }
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
@@ -336,14 +340,6 @@ int main(int argc, char *argv[])
    if (delete_fec)
    {
       delete fec;
-   }
-
-   const int maxP = fespace.GetMaxElementOrder();
-   if (myid == 0)
-   {
-      cout << "Total number of h-refinements: " << numH
-           << "\nTotal number of p-refinements: " << numP
-           << "\nMaximum order " << maxP << "\n";
    }
 
    return 0;
