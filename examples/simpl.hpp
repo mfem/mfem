@@ -518,6 +518,9 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          ess_bdr.SetSize(4, 6); ess_bdr = 0;
          ess_bdr_filter.SetSize(6); ess_bdr_filter = 0;
          ess_bdr(0, 2) = 1;
+         ess_bdr_filter = 1;
+         ess_bdr_filter[2] = 0;
+         ess_bdr_filter[4] = 0;
          return pmesh;
          break;
       }
