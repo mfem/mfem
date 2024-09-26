@@ -329,8 +329,15 @@ public:
    const FiniteElementSpace *FESpace(int k) const { return fes[k]; }
 
    /// (Re)initialize the BlockNonlinearForm.
-   /** After a call to SetSpaces(), the essential b.c. must be set again. */
+   /** After calling this method, the essential boundary conditions need to be
+       set again. */
    void SetSpaces(Array<FiniteElementSpace *> &f);
+
+   /** @brief Update the BlockNonlinearForm to propagate updates of the
+       associated FE spaces. */
+   /** After calling this method, the essential boundary conditions need to be
+       set again. */
+   virtual void Update();
 
    /// Return the regular dof offsets.
    const Array<int> &GetBlockOffsets() const { return block_offsets; }

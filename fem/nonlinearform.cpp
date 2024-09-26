@@ -707,6 +707,12 @@ BlockNonlinearForm::BlockNonlinearForm() :
 
 void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 {
+   f.Copy(fes);
+   Update();
+}
+
+void BlockNonlinearForm::Update()
+{
    delete BlockGrad;
    BlockGrad = NULL;
    for (int i=0; i<Grads.NumRows(); ++i)
@@ -724,9 +730,8 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 
    height = 0;
    width = 0;
-   f.Copy(fes);
-   block_offsets.SetSize(f.Size() + 1);
-   block_trueOffsets.SetSize(f.Size() + 1);
+   block_offsets.SetSize(fes.Size() + 1);
+   block_trueOffsets.SetSize(fes.Size() + 1);
    block_offsets[0] = 0;
    block_trueOffsets[0] = 0;
 
