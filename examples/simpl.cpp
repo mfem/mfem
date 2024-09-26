@@ -97,19 +97,17 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
    // Current testing iterate
    real_t s(0), vs(mfem::infinity());
    MappedGridFunctionCoefficient sigmoid_psi(
-   &psi, [s](const real_t x) { return sigmoid(x+s); });
+   &psi, [&s](const real_t x) { return sigmoid(x+s); });
    real_t current_volume = zerogf.ComputeL1Error(sigmoid_psi);
    // check wether volume constraint is already satisfied or not
    if (volume_fraction < 0) // lower bound
    {
-      volume_fraction = -volume_fraction;
-      if (current_volume > volume_fraction) {return current_volume;}
+      if (current_volume > target_volume) {return current_volume;}
    }
    else
    {
-      if (current_volume < volume_fraction) {return current_volume;}
+      if (current_volume < target_volume) {return current_volume;}
    }
-
 
    // Compute bracket function value
    s = a;
