@@ -429,7 +429,7 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
 
       case Cantilever3:
       {
-         if (filter_radius < 0) { filter_radius = 0.05; }
+         if (filter_radius < 0) { filter_radius = 0.01; }
          if (vol_fraction < 0) { vol_fraction = 0.12; }
          Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::Type::HEXAHEDRON, 2.0, 1.0,
                                            1.0);
@@ -440,6 +440,8 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
          ess_bdr.SetSize(4, 6); ess_bdr = 0;
          ess_bdr_filter.SetSize(6); ess_bdr_filter = 0;
          ess_bdr(0, 4) = 1;
+         ess_bdr_filter[0] = -1;
+         ess_bdr_filter[5] = -1;
          return pmesh;
          break;
       }
