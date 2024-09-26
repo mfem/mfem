@@ -106,7 +106,7 @@ public:
     * @param[in] Tr element transformation
     * @param[out] flux_ average flux from the given element at the current
     * integration point (num_equations, dim)
-    * @return real_t maximum characteristic speed
+    * @return real_t maximum characteristic speed over the interval
     */
    virtual real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
                                  ElementTransformation &Tr,
@@ -127,7 +127,7 @@ public:
     * @param[in] Tr face transformation
     * @param[out] fluxDotN average normal flux from the given element at the
     * current integration point (num_equations)
-    * @return real_t maximum (normal) characteristic velocity
+    * @return real_t maximum (normal) characteristic velocity over the interval
     */
    virtual real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
                                      const Vector &normal,
