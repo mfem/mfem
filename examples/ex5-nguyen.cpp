@@ -423,49 +423,34 @@ int main(int argc, char *argv[])
       {
          Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
       }
-      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
-      if (upwinded)
+      if (upwinded && td > 0. && hybridization)
       {
-         B->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                         new DGNormalTraceIntegrator(ccoeff, -1.)));
-         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                            ccoeff, -1.)), bdr_is_neumann);
-         if (td > 0. && hybridization)
+         if (Mt)
          {
-            if (Mt)
-            {
-               Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
-               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
-                                        bdr_is_neumann);
-            }
-            if (Mtnl)
-            {
-               Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
-               Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
-                                          bdr_is_neumann);
-            }
+            Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
+            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
+                                     bdr_is_neumann);
+         }
+         if (Mtnl)
+         {
+            Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
+            Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
+                                       bdr_is_neumann);
          }
       }
-      else
+      else if (!upwinded && td > 0.)
       {
-         B->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                         new DGNormalTraceIntegrator(-1.)));
-         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
-                                                            -1.)), bdr_is_neumann);
-         if (td > 0.)
+         if (Mt)
          {
-            if (Mt)
-            {
-               Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
-                                        bdr_is_neumann);
-            }
-            if (Mtnl)
-            {
-               Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-               Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
-                                          bdr_is_neumann);
-            }
+            Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
+            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+                                     bdr_is_neumann);
+         }
+         if (Mtnl)
+         {
+            Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
+            Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+                                       bdr_is_neumann);
          }
       }
    }
@@ -479,6 +464,30 @@ int main(int argc, char *argv[])
       {
          Mqnl->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
       }
+   }
+
+   //divergence/weak gradient
+
+   if (dg)
+   {
+      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      if (upwinded)
+      {
+         B->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                         new DGNormalTraceIntegrator(ccoeff, -1.)));
+         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
+                                                            ccoeff, -1.)), bdr_is_neumann);
+      }
+      else
+      {
+         B->AddInteriorFaceIntegrator(new TransposeIntegrator(
+                                         new DGNormalTraceIntegrator(-1.)));
+         B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
+                                                            -1.)), bdr_is_neumann);
+      }
+   }
+   else
+   {
       B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
    }
 
