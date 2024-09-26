@@ -5,6 +5,65 @@
 namespace mfem
 {
 
+class VectorBdrDirectionalMassIntegrator : public BilinearFormIntegrator
+{
+private:
+   Coefficient &k;
+   VectorCoefficient &d;
+   const int vdim;
+   const int oa, ob;
+public:
+   VectorBdrDirectionalMassIntegrator(
+      Coefficient &k, VectorCoefficient &d, const int vdim, const int oa=2,
+      const int ob=0):
+      BilinearFormIntegrator(NULL), k(k), d(d), vdim(vdim), oa(oa), ob(ob) {}
+   VectorBdrDirectionalMassIntegrator(
+      Coefficient &k, VectorCoefficient &d, const int vdim,
+      const IntegrationRule *ir):
+      BilinearFormIntegrator(ir), k(k), d(d), vdim(vdim), oa(0), ob(0) {}
+
+   void AssembleFaceMatrix(const FiniteElement &el,
+                           const FiniteElement &dummy,
+                           FaceElementTransformations &Tr,
+                           DenseMatrix &elmat) override
+   {
+      int dof = el.GetDof();
+      Vector shape(dof);
+
+      elmat.SetSize(dof*vdim);
+      elmat = 0.0;
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int intorder = oa * el.GetOrder() + ob;    // <------ user control
+         ir = &IntRules.Get(Tr.FaceGeom, intorder); // of integration order
+      }
+
+      DenseMatrix elmat_scalar(dof);
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+
+         // Set the integration point in the face and the neighboring element
+         Tr.SetAllIntPoints(&ip);
+
+         // Access the neighboring element's integration point
+         const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+         double val = k.Eval(*Tr.Face, ip)*Tr.Face->Weight() * ip.weight;
+
+         el.CalcShape(eip, shape);
+         MultVVt(shape, elmat_scalar);
+         elmat_scalar *= val;
+         for (int row = 0; row < vdim; row++)
+         {
+            elmat.AddSubMatrix(dof*row, elmat_scalar);
+         }
+      }
+   }
+};
+
 void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> marker,
                   int attr)
 {
@@ -489,7 +548,7 @@ ParMesh GetParMeshTopopt(TopoptProblem problem, int ref_serial,
       case Bridge2:
       {
          if (filter_radius < 0) { filter_radius = 0.05; }
-         if (vol_fraction < 0) { vol_fraction = -0.2; }
+         if (vol_fraction < 0) { vol_fraction = -0.2; } // negative: lower bound
          Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
                                            2.0, 1.0);
          for (int i=0; i<ref_serial; i++) {mesh.UniformRefinement(); }
@@ -655,7 +714,7 @@ void SetupTopoptProblem(TopoptProblem problem,
             2, [](const Vector &x, Vector &f)
          {
             f = 0.0;
-            if (x[1] > 1.0 - std::pow(2, -5)) { f[1] = -10.0; }
+            if (x[1] > 1.0 - std::pow(2, -5)) { f[1] = -40.0; }
          });
          Vector g({0.0, -9.8});
          auto *g_cf = new VectorConstantCoefficient(g);
@@ -685,8 +744,22 @@ void SetupTopoptProblem(TopoptProblem problem,
          auto *coeff = new VectorFunctionCoefficient(
             2, [](const Vector &x, Vector &f)
          {
+
          });
          elasticity.MakeVectorCoefficientOwner(coeff);
+         real_t k_in(1.0), k_out(1e-3);
+         Vector traction({100.0, 0.0});
+         auto *traction_cf = new VectorConstantCoefficient(traction);
+         elasticity.MakeVectorCoefficientOwner(traction_cf);
+         elasticity.GetLinearForm().AddDomainIntegrator(
+            new VectorDomainLFIntegrator(*traction_cf)
+         );
+         Vector d_in({k_in, 0.0}), d_out({-k_out, 0.0});
+         auto *kd_in = new VectorConstantCoefficient(d_in);
+         auto *kd_out = new VectorConstantCoefficient(d_out);
+
+
+
 
          break;
       }

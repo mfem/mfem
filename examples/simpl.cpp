@@ -339,7 +339,7 @@ int main(int argc, char *argv[])
                  );
    args.AddOption(&ref_levels, "-rs", "--refine",
                   "Number of times to refine the mesh uniformly.");
-   args.AddOption(&ref_levels, "-rp", "--refine-parallel",
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
@@ -380,6 +380,18 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
+   std::stringstream filename_prefix;
+   filename_prefix << "SiMPL-" << (backtrack_bregman ? "B" : "A");
+   switch ((TopoptProblem)problem)
+   {
+      case Cantilever2: filename_prefix << "-Cantilever2"; break;
+      case Cantilever3: filename_prefix << "-Cantilever3"; break;
+      case MBB2: filename_prefix << "-MBB2"; break;
+      case Torsion3: filename_prefix << "-Torsion3"; break;
+      case Bridge2: filename_prefix << "-Bridge2"; break;
+      case ForceInverter: filename_prefix << "-ForceInverter"; break;
+   }
+   filename_prefix << "-" << ref_levels << "-" << par_ref_levels;
 
    Array2D<int> ess_bdr;
    Array<int> ess_bdr_filter;
@@ -399,7 +411,7 @@ int main(int argc, char *argv[])
                  MPI_COMM_WORLD);
 
    // 4. Define the necessary finite element spaces on the mesh.
-   H1_FECollection state_fec(order, dim);  // space for u
+   H1_FECollection state_fec(order+1, dim);  // space for u
    H1_FECollection filter_fec(order, dim); // space for ρ̃
    L2_FECollection control_fec(order - 1, dim); // space for ψ
    ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim, Ordering::byNODES);
@@ -525,7 +537,7 @@ int main(int argc, char *argv[])
       sout_u.precision(8);
    }
 
-   mfem::ParaViewDataCollection paraview_dc("ex37p", &pmesh);
+   mfem::ParaViewDataCollection paraview_dc(filename_prefix.str(), &pmesh);
    if (paraview_output)
    {
       rho_gf.ProjectCoefficient(rho);
@@ -545,10 +557,6 @@ int main(int argc, char *argv[])
           stationarityError(infinity()), stationarityBregmanError(infinity());
    real_t succ_objval_diff;
    int num_reeval(-1);
-   std::string filename_prefix;
-   // filename_prefix.append("PMD-Cantilever2");
-   filename_prefix.append("PMD-Cantilever3");
-   // filename_prefix.append("PMD-Torsion");
    logger.Append(std::string("Volume"), material_volume);
    logger.Append(std::string("Obj"), objval);
    logger.Append(std::string("Stationarity-2"), stationarityError);
@@ -556,7 +564,7 @@ int main(int argc, char *argv[])
    logger.Append(std::string("Re-evel"), num_reeval);
    logger.Append(std::string("Step Size"), alpha);
    logger.Append(std::string("Succ-Obj-Diff"), succ_objval_diff);
-   logger.SaveWhenPrint(filename_prefix);
+   logger.SaveWhenPrint(filename_prefix.str());
 
    // 11. Iterate:
    alpha = 1.0;
