@@ -160,6 +160,11 @@ int main(int argc, char *argv[])
    const int size = fespace.GetTrueVSize();
    cout << "Number of finite element unknowns: " << size << endl;
 
+   const int maxP = fespace.GetMaxElementOrder();
+   cout << "Total number of h-refinements: " << numH
+        << "\nTotal number of p-refinements: " << numP
+        << "\nMaximum order " << maxP << "\n";
+
    // 6. Determine the list of essential boundary dofs. In this example, the
    //    boundary conditions are defined by marking all the boundary attributes
    //    from the mesh as essential (Dirichlet) and converting them to a list of
@@ -295,11 +300,6 @@ int main(int argc, char *argv[])
    {
       delete fec;
    }
-
-   const int maxP = fespace.GetMaxElementOrder();
-   cout << "Total number of h-refinements: " << numH
-        << "\nTotal number of p-refinements: " << numP
-        << "\nMaximum order " << maxP << "\n";
 
    return 0;
 }
