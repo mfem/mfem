@@ -94,7 +94,7 @@ private:
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
 
-   std::unique_ptr<ParFiniteElementSpace> fesPrev;
+   std::unique_ptr<ParFiniteElementSpace> pfesPrev;
 
    /// Resets nd_strias flag at construction or after rebalancing
    void CheckNDSTriaDofs();
@@ -449,7 +449,8 @@ public:
 
    /** P-refine and update the space. If @a want_transfer, also maintain the old
        space and a transfer operator accessible by GetPrefUpdateOperator(). */
-   void UpdatePRef(const Array<pRefinement> & refs, bool want_transfer = false);
+   void UpdatePRef(const Array<pRefinement> & refs,
+                   bool want_transfer = false) override;
 
    /// Free ParGridFunction transformation matrix (if any), to save memory.
    void UpdatesFinished() override

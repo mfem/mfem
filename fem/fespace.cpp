@@ -3949,6 +3949,32 @@ void FiniteElementSpace::Update(bool want_transform)
    }
 }
 
+void FiniteElementSpace::UpdatePRef(const Array<pRefinement> & refs,
+                                    bool want_transfer)
+{
+   if (want_transfer)
+   {
+      fesPrev.reset(new FiniteElementSpace(mesh, fec));
+      for (int i = 0; i<mesh->GetNE(); i++)
+      {
+         fesPrev->SetElementOrder(i, GetElementOrder(i));
+      }
+      fesPrev->Update(false);
+   }
+
+   for (auto ref : refs)
+   {
+      SetElementOrder(ref.index, GetElementOrder(ref.index) + ref.delta);
+   }
+
+   Update(false);
+
+   if (want_transfer)
+   {
+      PTh.reset(new PRefinementTransferOperator(*fesPrev, *this));
+   }
+}
+
 void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
 {
    mesh = new_mesh;

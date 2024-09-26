@@ -9,11 +9,11 @@
 //               finite element discretization of the Laplace problem (cf. ex1p)
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Refinements are performed iteratively, each iteration having h-
-//               p-refinements on all MPI processes. For simplicity, we randomly
-//               choose the elements and the type of refinement, for each
-//               iteration. In practice, these choices may be made in a problem-
-//               dependent way, but this example serves only to illustrate the
-//               capabilities of hp-refinement in parallel.
+//               or p-refinements on all MPI processes. For simplicity, we
+//               randomly choose the elements and the type of refinement, for
+//               each iteration. In practice, these choices may be made in a
+//               problem-dependent way, but this example serves only to
+//               illustrate the capabilities of hp-refinement in parallel.
 
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -163,7 +163,6 @@ int main(int argc, char *argv[])
       const int r2 = deterministic ? MyRand(seed) : rand();
       const int elem = r1 % pmesh.GetNE();
       int hp = r2 % 2;
-
       MPI_Bcast(&hp, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
       if (myid == 0)
@@ -184,13 +183,12 @@ int main(int argc, char *argv[])
          Array<Refinement> refs;
          refs.Append(Refinement(elem));
          pmesh.GeneralRefinement(refs);
+         fespace.Update(false);
          numH++;
       }
-
-      fespace.Update(false);
    }
 
-   HYPRE_BigInt size = fespace.GlobalTrueVSize();
+   const HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -224,7 +222,7 @@ int main(int argc, char *argv[])
 
    // 11. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the
-   //     Diffusion domain integrator.
+   //     diffusion domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    if (fa)

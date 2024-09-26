@@ -103,6 +103,7 @@ if (MFEM_ENABLE_TESTING)
     polar-nc
     reflector
     mesh-quality
+    hpref_serial
   )
   foreach(test ${SERIAL_TESTS})
     add_test(NAME ${test} COMMAND ${test} -no-vis)
@@ -135,6 +136,10 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(hpref
     MAIN hpref.cpp
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(hpref_serial
+    MAIN hpref_serial.cpp
     LIBRARIES mfem)
 
   # Add parallel tests.
