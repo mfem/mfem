@@ -71,7 +71,7 @@ public:
    /// program exit.
    ///
    /// Calling HYPRE_Finalize() manually is not compatible with this class.
-   static void Init() { Instance(); }
+   static void Init();
 
    /// @brief Configure HYPRE's compute and memory policy.
    ///
@@ -104,8 +104,7 @@ public:
    static bool configure_runtime_policy_from_mfem;
 
 private:
-   /// Calls HYPRE_Init() when the singleton is constructed.
-   Hypre();
+   Hypre() = default;
 
    /// The singleton destructor (called at program exit) finalizes hypre.
    ~Hypre() { Finalize(); }
@@ -120,7 +119,10 @@ private:
       return hypre;
    }
 
-   bool finalized = false; ///< Has Hypre::Finalize() been called already?
+   enum class State { NONE, INITIALIZED, FINALIZED };
+
+   /// tracks whether Hypre was initialized or finalized by this class
+   State state = State::NONE;
 };
 
 
