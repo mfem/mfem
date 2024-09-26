@@ -405,6 +405,7 @@ public:
 
    /**
     * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n
+    * @note Systems of equations are treated component-wise
     *
     * @param[in] state1 state value (u⁻) at a point from the first element
     * (num_equations)
@@ -448,6 +449,7 @@ public:
     * second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
+    * @note Systems of equations are treated component-wise
     *
     * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
@@ -515,6 +517,7 @@ public:
 
    /**
     * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n
+    * @note Systems of equations are treated component-wise
     *
     * @param[in] state1 state value (u⁻) at a point from the first element
     * (num_equations)
@@ -559,6 +562,7 @@ public:
     * second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
+    * @note Systems of equations are treated component-wise
     *
     * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
