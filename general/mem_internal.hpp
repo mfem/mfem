@@ -144,9 +144,9 @@ class Aligned32HostMemorySpace : public HostMemorySpace
 {
 public:
    Aligned32HostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes)
+   void Alloc(void **ptr, size_t bytes) override
    { if (mfem_memalign(ptr, 32, bytes) != 0) { throw ::std::bad_alloc(); } }
-   void Dealloc(Memory &mem) { mfem_aligned_free(mem.h_ptr); }
+   void Dealloc(Memory &mem) override { mfem_aligned_free(mem.h_ptr); }
 };
 
 /// The aligned 64 host memory space
@@ -154,9 +154,9 @@ class Aligned64HostMemorySpace : public HostMemorySpace
 {
 public:
    Aligned64HostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes)
+   void Alloc(void **ptr, size_t bytes) override
    { if (mfem_memalign(ptr, 64, bytes) != 0) { throw ::std::bad_alloc(); } }
-   void Dealloc(Memory &mem) { mfem_aligned_free(mem.h_ptr); }
+   void Dealloc(Memory &mem) override { mfem_aligned_free(mem.h_ptr); }
 };
 
 #ifndef _WIN32
@@ -285,17 +285,17 @@ class MmuHostMemorySpace : public HostMemorySpace
 {
 public:
    MmuHostMemorySpace(): HostMemorySpace() { MmuInit(); }
-   void Alloc(void **ptr, size_t bytes) { MmuAlloc(ptr, bytes); }
-   void Dealloc(Memory &mem) { MmuDealloc(mem.h_ptr, mem.bytes); }
-   void Protect(const Memory& mem, size_t bytes)
+   void Alloc(void **ptr, size_t bytes) override { MmuAlloc(ptr, bytes); }
+   void Dealloc(Memory &mem) override { MmuDealloc(mem.h_ptr, mem.bytes); }
+   void Protect(const Memory& mem, size_t bytes) override
    { if (mem.h_rw) { mem.h_rw = false; MmuProtect(mem.h_ptr, bytes); } }
-   void Unprotect(const Memory &mem, size_t bytes)
+   void Unprotect(const Memory &mem, size_t bytes) override
    { if (!mem.h_rw) { mem.h_rw = true; MmuAllow(mem.h_ptr, bytes); } }
    /// Aliases need to be restricted during protection
-   void AliasProtect(const void *ptr, size_t bytes)
+   void AliasProtect(const void *ptr, size_t bytes) override
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
    /// Aliases need to be prolongated for un-protection
-   void AliasUnprotect(const void *ptr, size_t bytes)
+   void AliasUnprotect(const void *ptr, size_t bytes) override
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
 };
 
@@ -304,19 +304,23 @@ class UvmHostMemorySpace : public HostMemorySpace
 {
 public:
    UvmHostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
-   void Dealloc(Memory &mem) { CuMemFree(mem.h_ptr); }
+   void Alloc(void **ptr, size_t bytes) override
+   { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
+   void Dealloc(Memory &mem) override { CuMemFree(mem.h_ptr); }
 };
 
 /// The 'No' device memory space
 class NoDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
-   void Alloc(internal::Memory&) { mfem_error("! Device Alloc"); }
-   void Dealloc(Memory&) { mfem_error("! Device Dealloc"); }
-   void *HtoD(void*, const void*, size_t) { mfem_error("!HtoD"); return nullptr; }
-   void *DtoD(void*, const void*, size_t) { mfem_error("!DtoD"); return nullptr; }
-   void *DtoH(void*, const void*, size_t) { mfem_error("!DtoH"); return nullptr; }
+   void Alloc(internal::Memory&) override { mfem_error("! Device Alloc"); }
+   void Dealloc(Memory&) override { mfem_error("! Device Dealloc"); }
+   void *HtoD(void*, const void*, size_t) override
+   { mfem_error("!HtoD"); return nullptr; }
+   void *DtoD(void*, const void*, size_t) override
+   { mfem_error("!DtoD"); return nullptr; }
+   void *DtoH(void*, const void*, size_t) override
+   { mfem_error("!DtoH"); return nullptr; }
 };
 
 /// The std:: device memory space, used with the 'debug' device
@@ -327,13 +331,13 @@ class CudaDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    CudaDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &base) { CuMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) { CuMemFree(base.d_ptr); }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void Alloc(Memory &base) override { CuMemAlloc(&base.d_ptr, base.bytes); }
+   void Dealloc(Memory &base) override { CuMemFree(base.d_ptr); }
+   void *HtoD(void *dst, const void *src, size_t bytes) override
    { return CuMemcpyHtoD(dst, src, bytes); }
-   void *DtoD(void* dst, const void* src, size_t bytes)
+   void *DtoD(void* dst, const void* src, size_t bytes) override
    { return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes) override
    { return CuMemcpyDtoH(dst, src, bytes); }
 };
 
@@ -367,16 +371,16 @@ class HipDeviceMemorySpace: public DeviceMemorySpace
 {
 public:
    HipDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &base) { HipMemAlloc(&base.d_ptr, base.bytes); }
-   void Dealloc(Memory &base) { HipMemFree(base.d_ptr); }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void Alloc(Memory &base) override { HipMemAlloc(&base.d_ptr, base.bytes); }
+   void Dealloc(Memory &base) override { HipMemFree(base.d_ptr); }
+   void *HtoD(void *dst, const void *src, size_t bytes) override
    { return HipMemcpyHtoD(dst, src, bytes); }
-   void *DtoD(void* dst, const void* src, size_t bytes)
+   void *DtoD(void* dst, const void* src, size_t bytes) override
    // Unlike cudaMemcpy(DtoD), hipMemcpy(DtoD) causes a host-side synchronization so
    // instead we use hipMemcpyAsync to get similar behavior.
    // for more info see: https://github.com/mfem/mfem/pull/2780
    { return HipMemcpyDtoDAsync(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes) override
    { return HipMemcpyDtoH(dst, src, bytes); }
 };
 
@@ -384,16 +388,16 @@ public:
 class UvmCudaMemorySpace : public DeviceMemorySpace
 {
 public:
-   void Alloc(Memory &base) { base.d_ptr = base.h_ptr; }
-   void Dealloc(Memory&) { }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void Alloc(Memory &base) override { base.d_ptr = base.h_ptr; }
+   void Dealloc(Memory&) override { }
+   void *HtoD(void *dst, const void *src, size_t bytes) override
    {
       if (dst == src) { MFEM_STREAM_SYNC; return dst; }
       return CuMemcpyHtoD(dst, src, bytes);
    }
-   void *DtoD(void* dst, const void* src, size_t bytes)
+   void *DtoD(void* dst, const void* src, size_t bytes) override
    { return CuMemcpyDtoD(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes) override
    {
       if (dst == src) { MFEM_STREAM_SYNC; return dst; }
       return CuMemcpyDtoH(dst, src, bytes);
@@ -405,23 +409,23 @@ class MmuDeviceMemorySpace : public DeviceMemorySpace
 {
 public:
    MmuDeviceMemorySpace(): DeviceMemorySpace() { }
-   void Alloc(Memory &m) { MmuAlloc(&m.d_ptr, m.bytes); }
-   void Dealloc(Memory &m) { MmuDealloc(m.d_ptr, m.bytes); }
-   void Protect(const Memory &m)
+   void Alloc(Memory &m) override { MmuAlloc(&m.d_ptr, m.bytes); }
+   void Dealloc(Memory &m) override { MmuDealloc(m.d_ptr, m.bytes); }
+   void Protect(const Memory &m) override
    { if (m.d_rw) { m.d_rw = false; MmuProtect(m.d_ptr, m.bytes); } }
-   void Unprotect(const Memory &m)
+   void Unprotect(const Memory &m) override
    { if (!m.d_rw) { m.d_rw = true; MmuAllow(m.d_ptr, m.bytes); } }
    /// Aliases need to be restricted during protection
-   void AliasProtect(const void *ptr, size_t bytes)
+   void AliasProtect(const void *ptr, size_t bytes) override
    { MmuProtect(MmuAddrR(ptr), MmuLengthR(ptr, bytes)); }
    /// Aliases need to be prolongated for un-protection
-   void AliasUnprotect(const void *ptr, size_t bytes)
+   void AliasUnprotect(const void *ptr, size_t bytes) override
    { MmuAllow(MmuAddrP(ptr), MmuLengthP(ptr, bytes)); }
-   void *HtoD(void *dst, const void *src, size_t bytes)
+   void *HtoD(void *dst, const void *src, size_t bytes) override
    { return std::memcpy(dst, src, bytes); }
-   void *DtoD(void *dst, const void *src, size_t bytes)
+   void *DtoD(void *dst, const void *src, size_t bytes) override
    { return std::memcpy(dst, src, bytes); }
-   void *DtoH(void *dst, const void *src, size_t bytes)
+   void *DtoH(void *dst, const void *src, size_t bytes) override
    { return std::memcpy(dst, src, bytes); }
 };
 
