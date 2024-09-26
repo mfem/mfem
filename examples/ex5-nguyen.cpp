@@ -1436,7 +1436,7 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
             prec = NULL;
             darcy->GetHybridization()->SetLocalNLSolver(
                DarcyHybridization::LSsolveType::Newton,
-               maxIter, rtol*1e-1, atol, -1);
+               maxIter, rtol * 1e-2, atol, -1);
             prec_str = "Newton";
             solver = new LBFGSSolver();
             solver_str = "LBFGS";
