@@ -27,12 +27,16 @@ namespace quadrature_interpolator
 {
 
 static void Det1D(const int NE,
+                  const real_t *b,
                   const real_t *g,
                   const real_t *x,
                   real_t *y,
                   const int d1d,
-                  const int q1d)
+                  const int q1d,
+                  Vector *d_buff = nullptr)
 {
+   MFEM_CONTRACT_VAR(b);
+   MFEM_CONTRACT_VAR(d_buff);
    const auto G = Reshape(g, q1d, d1d);
    const auto X = Reshape(x, d1d, NE);
 
@@ -59,8 +63,10 @@ static void Det2D(const int NE,
                   const real_t *x,
                   real_t *y,
                   const int d1d = 0,
-                  const int q1d = 0)
+                  const int q1d = 0,
+                  Vector *d_buff = nullptr)
 {
+   MFEM_CONTRACT_VAR(d_buff);
    static constexpr int SDIM = 2;
    static constexpr int NBZ = 1;
 
@@ -109,8 +115,11 @@ static void Det2DSurface(const int NE,
                          const real_t *x,
                          real_t *y,
                          const int d1d = 0,
-                         const int q1d = 0)
+                         const int q1d = 0,
+                         Vector *d_buff = nullptr)
 {
+   MFEM_CONTRACT_VAR(d_buff);
+
    static constexpr int SDIM = 3;
    static constexpr int NBZ = 1;
 
@@ -272,91 +281,63 @@ static void Det3D(const int NE,
    });
 }
 
-// Tensor-product evaluation of quadrature point determinants: dispatch
-// function.
-void TensorDeterminants(const int NE,
-                        const int vdim,
-                        const DofToQuad &maps,
-                        const Vector &e_vec,
-                        Vector &q_det,
-                        Vector &d_buff)
+void InitDetKernels()
 {
-   if (NE == 0) { return; }
-   const int dim = maps.FE->GetDim();
-   const int D1D = maps.ndof;
-   const int Q1D = maps.nqpt;
-   const real_t *B = maps.B.Read();
-   const real_t *G = maps.G.Read();
-   const real_t *X = e_vec.Read();
-   real_t *Y = q_det.Write();
-
-   const int id = (vdim<<8) | (D1D<<4) | Q1D;
-
-   if (dim == 1)
-   {
-      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D,
-                  "Orders higher than " << DeviceDofQuadLimits::Get().MAX_D1D-1
-                  << " are not supported!");
-      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D,
-                  "Quadrature rules with more than "
-                  << DeviceDofQuadLimits::Get().MAX_Q1D << " 1D points are not supported!");
-      Det1D(NE, G, X, Y, D1D, Q1D);
-      return;
-   }
-   if (dim == 2)
-   {
-      switch (id)
-      {
-         case 0x222: return Det2D<2,2>(NE,B,G,X,Y);
-         case 0x223: return Det2D<2,3>(NE,B,G,X,Y);
-         case 0x224: return Det2D<2,4>(NE,B,G,X,Y);
-         case 0x226: return Det2D<2,6>(NE,B,G,X,Y);
-         case 0x234: return Det2D<3,4>(NE,B,G,X,Y);
-         case 0x236: return Det2D<3,6>(NE,B,G,X,Y);
-         case 0x244: return Det2D<4,4>(NE,B,G,X,Y);
-         case 0x246: return Det2D<4,6>(NE,B,G,X,Y);
-         case 0x256: return Det2D<5,6>(NE,B,G,X,Y);
-         default:
-         {
-            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
-            const int MQ = DeviceDofQuadLimits::Get().MAX_Q1D;
-            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
-                        << " are not supported!");
-            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
-                        << MQ << " 1D points are not supported!");
-            if (vdim == 2) { Det2D(NE,B,G,X,Y,D1D,Q1D); }
-            else if (vdim == 3) { Det2DSurface(NE,B,G,X,Y,D1D,Q1D); }
-            else { MFEM_ABORT("Invalid space dimension."); }
-            return;
-         }
-      }
-   }
-   if (dim == 3)
-   {
-      switch (id)
-      {
-         case 0x324: return Det3D<2,4>(NE,B,G,X,Y);
-         case 0x333: return Det3D<3,3>(NE,B,G,X,Y);
-         case 0x335: return Det3D<3,5>(NE,B,G,X,Y);
-         case 0x336: return Det3D<3,6>(NE,B,G,X,Y);
-         default:
-         {
-            const int MD = DeviceDofQuadLimits::Get().MAX_DET_1D;
-            const int MQ = DeviceDofQuadLimits::Get().MAX_DET_1D;
-            // Highest orders that fit in shared memory
-            if (D1D <= MD && Q1D <= MQ)
-            { return Det3D<0,0,true>(NE,B,G,X,Y,D1D,Q1D); }
-            // Last fall-back will use global memory
-            return Det3D<0,0,false>(
-                      NE,B,G,X,Y,D1D,Q1D,&d_buff);
-         }
-      }
-   }
-   MFEM_ABORT("Kernel " << std::hex << id << std::dec << " not supported yet");
+   using k = QuadratureInterpolator::DetKernels;
+   // 2D
+   k::Specialization<2,2,2,2>::Add();
+   k::Specialization<2,2,2,3>::Add();
+   k::Specialization<2,2,2,4>::Add();
+   k::Specialization<2,2,2,6>::Add();
+   k::Specialization<2,2,3,4>::Add();
+   k::Specialization<2,2,3,6>::Add();
+   k::Specialization<2,2,4,4>::Add();
+   k::Specialization<2,2,4,6>::Add();
+   k::Specialization<2,2,5,6>::Add();
+   // 3D
+   k::Specialization<3,3,2,4>::Add();
+   k::Specialization<3,3,3,3>::Add();
+   k::Specialization<3,3,3,5>::Add();
+   k::Specialization<3,3,3,6>::Add();
 }
 
 } // namespace quadrature_interpolator
 
 } // namespace internal
+
+/// @cond Suppress_Doxygen_warnings
+
+namespace
+{
+using DetKernel = QuadratureInterpolator::DetKernelType;
+}
+
+template<int DIM, int SDIM, int D1D, int Q1D>
+DetKernel QuadratureInterpolator::DetKernels::Kernel()
+{
+   if (DIM == 1) { return internal::quadrature_interpolator::Det1D; }
+   else if (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<D1D, Q1D>; }
+   else if (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<D1D, Q1D>; }
+   else if (DIM == 3) { return internal::quadrature_interpolator::Det3D<D1D, Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+DetKernel QuadratureInterpolator::DetKernels::Fallback(
+   int DIM, int SDIM, int D1D, int Q1D)
+{
+   if (DIM == 1) { return internal::quadrature_interpolator::Det1D; }
+   else if (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D; }
+   else if (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface; }
+   else if (DIM == 3)
+   {
+      const int MD = DeviceDofQuadLimits::Get().MAX_DET_1D;
+      const int MQ = DeviceDofQuadLimits::Get().MAX_DET_1D;
+      if (D1D <= MD && Q1D <= MQ) { return internal::quadrature_interpolator::Det3D<0,0,true>; }
+      else { return internal::quadrature_interpolator::Det3D<0,0,false>; }
+   }
+   else { MFEM_ABORT(""); }
+}
+
+/// @endcond
 
 } // namespace mfem
