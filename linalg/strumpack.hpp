@@ -52,7 +52,7 @@ public:
    ~STRUMPACKRowLocMatrix();
 
    /// Matrix vector products are not supported for this type of matrix.
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       MFEM_ABORT("STRUMPACKRowLocMatrix::Mult: Matrix vector products are not "
                  "supported!");
@@ -96,7 +96,7 @@ public:
    virtual ~STRUMPACKSolverBase();
 
    /// Factor and solve the linear system $y = Op^{-1} x $.
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Factor and solve the linear systems $ Y_i = Op^{-1} X_i $
        across the array of vectors. */
@@ -104,7 +104,7 @@ public:
 
    /** @brief Set the operator/matrix.
        \note  @a A must be a STRUMPACKRowLocMatrix. */
-   void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /** @brief Set options that were captured from the command line.
 
