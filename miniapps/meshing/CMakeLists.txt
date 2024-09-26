@@ -89,6 +89,10 @@ add_mfem_miniapp(polar-nc
   MAIN polar-nc.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(hpref_serial
+  MAIN hpref_serial.cpp
+  LIBRARIES mfem)
+
 # Add serial tests.
 if (MFEM_ENABLE_TESTING)
   set(SERIAL_TESTS
@@ -136,10 +140,6 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(hpref
     MAIN hpref.cpp
-    LIBRARIES mfem)
-
-  add_mfem_miniapp(hpref_serial
-    MAIN hpref_serial.cpp
     LIBRARIES mfem)
 
   # Add parallel tests.
