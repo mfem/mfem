@@ -102,18 +102,18 @@ inline void ParSolveEllipticProblem(ParBilinearForm &a, ParLinearForm &b,
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, 1);
 
    HypreBoomerAMG amg(A);
-   // if (a.FESpace()->GetVDim() > 1)
-   // {
-   //    amg.SetSystemsOptions(a.FESpace()->GetVDim());
-   // }
-   if (use_elasticity)
-   {
-      amg.SetElasticityOptions(a.ParFESpace());
-   }
-   else if (a.FESpace()->GetVDim() > 1)
+   if (a.FESpace()->GetVDim() > 1)
    {
       amg.SetSystemsOptions(a.FESpace()->GetVDim());
    }
+   // if (use_elasticity)
+   // {
+   //    amg.SetElasticityOptions(a.ParFESpace());
+   // }
+   // else if (a.FESpace()->GetVDim() > 1)
+   // {
+   //    amg.SetSystemsOptions(a.FESpace()->GetVDim());
+   // }
    amg.SetPrintLevel(0);
    HyprePCG pcg(A);
    pcg.SetTol(1e-8);
