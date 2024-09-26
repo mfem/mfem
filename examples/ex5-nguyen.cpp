@@ -392,7 +392,8 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
-   BilinearForm *Mq = darcy->GetFluxMassForm();
+   BilinearForm *Mq =(!nonlinear)?(darcy->GetFluxMassForm()):(NULL);
+   NonlinearForm *Mqnl = (nonlinear)?(darcy->GetFluxMassNonlinearForm()):(NULL);
    MixedBilinearForm *B = darcy->GetFluxDivForm();
    BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || bconv || btime))?
                       (darcy->GetPotentialMassForm()):(NULL);
@@ -403,11 +404,18 @@ int main(int argc, char *argv[])
    FluxFunction *FluxFun = NULL;
    RiemannSolver *FluxSolver = NULL;
 
-   //(linear) diffusion
+   //linear diffusion
 
    if (dg)
    {
-      Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+      if (Mq)
+      {
+         Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+      }
+      if (Mqnl)
+      {
+         Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+      }
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
       if (upwinded)
       {
@@ -456,7 +464,14 @@ int main(int argc, char *argv[])
    }
    else
    {
-      Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
+      if (Mq)
+      {
+         Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
+      }
+      if (Mqnl)
+      {
+         Mqnl->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
+      }
       B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
    }
 
@@ -1422,16 +1437,19 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 
       bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
 
-      const BilinearForm *Mq = darcy->GetFluxMassForm();
-      const MixedBilinearForm *B = darcy->GetFluxDivForm();
-      const BilinearForm *Mt = (const_cast<const DarcyForm*>
-                                (darcy))->GetPotentialMassForm();
-      const NonlinearForm *Mtnl = (const_cast<const DarcyForm*>
-                                   (darcy))->GetPotentialMassNonlinearForm();
+      // We do not want to initialize any new forms here, only obtain
+      // the existing ones, so we const cast the DarcyForm
+      const DarcyForm *cdarcy = const_cast<const DarcyForm*>(darcy);
+
+      const BilinearForm *Mq = cdarcy->GetFluxMassForm();
+      const NonlinearForm *Mqnl = cdarcy->GetFluxMassNonlinearForm();
+      const MixedBilinearForm *B = cdarcy->GetFluxDivForm();
+      const BilinearForm *Mt = cdarcy->GetPotentialMassForm();
+      const NonlinearForm *Mtnl = cdarcy->GetPotentialMassNonlinearForm();
 
       if (trace_space)
       {
-         if (Mtnl)
+         if (Mqnl || Mtnl)
          {
             prec = NULL;
             darcy->GetHybridization()->SetLocalNLSolver(
@@ -1466,7 +1484,7 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
          //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
          //     temperature Schur Complement
          SparseMatrix *MinvBt = NULL;
-         Vector Md(Mq->Height());
+         Vector Md((Mq)?(Mq->Height()):(Mqnl->Height()));
 
          const Array<int> &block_offsets = darcy->GetOffsets();
          auto *darcyPrec = new BlockDiagonalPreconditioner(block_offsets);
@@ -1494,9 +1512,21 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
          }
          else
          {
-            const SparseMatrix &Mqm(Mq->SpMat());
-            Mqm.GetDiag(Md);
-            Md.HostReadWrite();
+            if (Mq)
+            {
+               const SparseMatrix &Mqm(Mq->SpMat());
+               Mqm.GetDiag(Md);
+               Md.HostReadWrite();
+               invM = new DSmoother(Mqm);
+            }
+            else if (Mqnl)
+            {
+               const SparseMatrix &Mqm = static_cast<SparseMatrix&>(
+                                            Mqnl->GetGradient(x.GetBlock(0)));
+               Mqm.GetDiag(Md);
+               Md.HostReadWrite();
+               invM = new DSmoother(Mqm);
+            }
 
             const SparseMatrix &Bm(B->SpMat());
             MinvBt = Transpose(Bm);
@@ -1507,6 +1537,7 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
             }
 
             S = mfem::Mult(Bm, *MinvBt);
+
             if (Mt)
             {
                const SparseMatrix &Mtm(Mt->SpMat());
