@@ -1,4 +1,22 @@
-import .bazelrc-cc
+# Enable Bzlmod for every Bazel command
+common --enable_bzlmod
+
+build --copt=-Wall
+build --copt=-Wextra
+build --copt=-Werror
+build --copt=-std=c++17
+
+# MacOS
+build:macos --copt=-g
+build:macos --cxxopt=-Wno-unused-parameter
+# build:macos --cxxopt=-Wno-error=deprecated-declarations
+# build:macos --cxxopt=-Wno-error=deprecated-enum-enum-conversion
+# build:macos --cxxopt=-Wno-error=deprecated-anon-enum-enum-conversion
+# build:macos --cxxopt=-Wno-error=inconsistent-missing-override
+# build:macos --cxxopt=-Wno-error=overloaded-virtual
+
+# Linux
+# build:linux --cxxopt=
 
 # Prevent Bazel from detecting the system's C++ toolchain.
 # build --action_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
