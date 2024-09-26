@@ -71,9 +71,6 @@ double Find_t(std::vector<double>& p, std::vector<double>& q,
         }
     }
 
-
-
-
     bool flag=false; //iteration flag
     int iter=0;
 
@@ -239,6 +236,7 @@ public:
     std::vector<std::bitset<6>>& GetSupp(){ return vsupp;}
 
 
+    //clears all simulation cases and the associated probabilities
     void ClearCases()
     {
         vsupp.clear();
@@ -246,6 +244,7 @@ public:
         thresholds.clear();
     }
 
+    //sets the simulation cases and the associated probabilities
     void SetCases(double eta=0.5)
     {
        std::bitset<6> bset;
