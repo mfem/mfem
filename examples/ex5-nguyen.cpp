@@ -1554,8 +1554,6 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
                S = Snew;
             }
 
-            invM = new DSmoother(Mqm);
-
 #ifndef MFEM_USE_SUITESPARSE
             invS = new GSSmoother(*S);
             prec_str = "GS";
