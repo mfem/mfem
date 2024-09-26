@@ -328,6 +328,9 @@ int main(int argc, char *argv[])
    bool glvis_visualization = true;
    bool paraview_output = true;
    int problem = 1;
+   int state_order=1;
+   int filter_order=1;
+   int control_order=0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&problem, "-p", "--problem",
@@ -370,6 +373,12 @@ int main(int argc, char *argv[])
                   "--converge-L2", "Check stationarity convergence in Bregman or L2");
    args.AddOption(&backtrack_bregman, "-bb", "--backtrack-bregman", "-ba",
                   "--backtrack-armijo", "Backtracking using Bregman or Armijo");
+   args.AddOption(&state_order, "-os", "--state-order",
+                  "FESpace order for state");
+   args.AddOption(&filter_order, "-of", "--filter-order",
+                  "FESpace order for filter");
+   args.AddOption(&control_order, "-oc", "--control-order",
+                  "FESpace order for control");
    args.Parse();
    if (!args.Good())
    {
@@ -411,9 +420,9 @@ int main(int argc, char *argv[])
                  MPI_COMM_WORLD);
 
    // 4. Define the necessary finite element spaces on the mesh.
-   H1_FECollection state_fec(order+1, dim);  // space for u
-   H1_FECollection filter_fec(order, dim); // space for ρ̃
-   L2_FECollection control_fec(order - 1, dim); // space for ψ
+   H1_FECollection state_fec(state_order, dim);  // space for u
+   H1_FECollection filter_fec(filter_order, dim); // space for ρ̃
+   L2_FECollection control_fec(control_order, dim); // space for ψ
    ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim, Ordering::byNODES);
    ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
    ParFiniteElementSpace control_fes(&pmesh, &control_fec);
