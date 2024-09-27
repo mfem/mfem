@@ -41,13 +41,15 @@ double der_sigmoid(double x,double p=1.0, double a=0.0)
     return s*(tmp - std::pow(tmp,2));
 }
 
-
-double Find_t(std::vector<double>& p, std::vector<double>& q,
+// ind should consists of unique indices
+// f should be the size of ind
+double Find_t(const std::vector<double>& p,
+              const std::vector<double>& q,
               double alpha, double gamma,
-              std::vector<double>& f,
-              std::vector<int>& ind,
-              double tol=1e-12, int max_it=100
-              )
+              const std::vector<double>& f,
+              const std::vector<int>& ind,
+              double tol=1e-12,
+              int max_it=100)
 {
 
     double cval=-1.0;
@@ -64,12 +66,34 @@ double Find_t(std::vector<double>& p, std::vector<double>& q,
         }
     }
 
+    for(int i=0;i<p.size();i++){
+        std::cout<<" "<<p[i];
+    }
+    std::cout<<std::endl;
+    for(int i=0;i<q.size();i++){
+        std::cout<<" "<<q[i];
+    }
+    std::cout<<std::endl;
+    for(int i=0;i<f.size();i++){
+        std::cout<<" "<<f[i];
+    }
+    std::cout<<std::endl;
+
+
+    std::cout<<"cval="<<cval<<std::endl;
+
+
     std::vector<double> g; g.resize(f.size());
     {
         for(size_t i=0;i<ind.size();i++){
             g[i]=inv_sigmoid(q[ind[i]],p[ind[i]],alpha)+gamma*f[i];
         }
     }
+
+    for(int i=0;i<g.size();i++){
+        std::cout<<" "<<g[i];
+    }
+    std::cout<<std::endl;
 
     bool flag=false; //iteration flag
     int iter=0;
@@ -91,9 +115,12 @@ double Find_t(std::vector<double>& p, std::vector<double>& q,
             df=df-der_sigmoid(g[i]-tt,p[ind[i]],alpha);
         }
 
+        std::cout<<"tt="<<tt<<" ff="<<ff<<" df="<<df<<" dc="<<dc<<std::endl;
+
         if(fabs(df)<tol){break;}
         dc=-ff/df;
-        tt=tt-dc;
+        tt=tt+dc;
+        std::cout<<"tt="<<tt<<" ff="<<ff<<" df="<<df<<" dc="<<dc<<std::endl;
         if(fabs(dc)<tol){flag=true; break;}
     }
 
@@ -292,6 +319,70 @@ public:
            primp[i]=dualq[i];
        }
     }
+
+
+    double EvalApproxGradientFullSampling(mfem::Vector& grad, double alpha, double gamma)
+    {
+        int myrank=ppmesh->GetMyRank();
+        //compute the objective and the gradients
+        int nsampl=dualq.size();
+        std::vector<double> vals; vals.resize(nsampl);
+
+        grad=0.0;
+        mfem::Vector cgrad(grad.Size()); cgrad=0.0;
+        std::vector<mfem::Vector> grads;
+        std::vector<int> ind;
+        double rez=0.0;
+        double nfa=0.0;
+        for(size_t i=0;i<dualq.size();i++){
+            vals[i]=Compliance(vsupp[i],thresholds[i],cgrad);
+            rez=rez+vals[i]*dualq[i];
+            grads.push_back(cgrad); ind.push_back(i);
+            nfa=nfa+dualq[i];
+        }
+        rez/=nfa;
+
+        if(myrank==0){
+            std::cout<<"rez="<<rez<<" nsampl="<<nsampl<<std::endl;
+        }
+
+        //generate qnew
+        //find t
+        double t;
+        if(myrank==0){
+            t=adsampl::Find_t(primp,dualq,alpha,gamma,vals,ind, 1e-12,100);
+        }
+        //communicate t from 0 to all
+        MPI_Bcast(&t,1,MPI_DOUBLE,0,ppmesh->GetComm());
+
+        std::vector<double> w; w.resize(ind.size());
+        double tmp;
+        for(size_t i=0;i<ind.size();i++){
+            tmp=adsampl::inv_sigmoid(dualq[ind[i]],primp[ind[i]],alpha);
+            tmp=tmp+gamma*vals[i]-t;
+            w[i]=adsampl::sigmoid(tmp,primp[ind[i]],alpha);
+        }
+
+
+        rez=0.0;
+        double sum=0.0;
+        for(size_t i=0;i<ind.size();i++){
+            grad.Add(w[i],grads[i]);
+            rez=rez+w[i]*vals[i];
+            sum=sum+w[i];
+            //copy w to q
+            dualq[i]=w[i];
+        }
+        grad*=gamma;
+
+        if(myrank==0){
+            std::cout<<"rez="<<rez<<" t="<<t<<" sum="<<sum<<std::endl;
+        }
+
+        //return the objective
+        return rez;
+    }
+
 
     double EGDUpdate(mfem::Vector& grad, double eta_rate)
     {
@@ -712,7 +803,9 @@ int main(int argc, char *argv[])
 
           //cpl=alco->Compliance(ograd);
           //cpl=alco->MeanCompl(ograd);
-          cpl=alco->EGDUpdate(ograd,0.001);
+          //cpl=alco->EGDUpdate(ograd,0.001);
+
+          cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.001);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 

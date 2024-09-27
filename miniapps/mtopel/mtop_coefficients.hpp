@@ -15,6 +15,7 @@
 
 namespace mfem {
 
+
 // return <flag,root, f(root), eps=|a-b|>
 template<typename ftype>
 std::tuple<bool,ftype,ftype,ftype>
