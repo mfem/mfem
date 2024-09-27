@@ -73,7 +73,7 @@
   "moduleExtensions": {
     "//config/bazel:external.bzl%external": {
       "general": {
-        "bzlTransitiveDigest": "s6GVNfxR3dq1xghgVA97YEmSHZu/UFnATZErYaqH3is=",
+        "bzlTransitiveDigest": "DMyZw637Tf2d17Dudrr+8kUH/qNxl5oBCbcr8uAaziA=",
         "usagesDigest": "7KQUlOU+Dr8btt3EIUoIQnfrSm6abuW1Jx2axoT9AZ8=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -101,6 +101,14 @@
             "attributes": {
               "build_file_content": "\ncc_library(\n    name = \"metis\",\n    srcs = [\"lib/libmetis.dylib\"],\n    hdrs = glob([\"include/metis.h\"]),\n    includes = [\"include\"],\n    visibility = [\"//visibility:public\"],\n)",
               "path": "/opt/homebrew/Cellar/metis/5.1.0"
+            }
+          },
+          "config": {
+            "bzlFile": "@@bazel_tools//tools/build_defs/repo:local.bzl",
+            "ruleClassName": "new_local_repository",
+            "attributes": {
+              "build_file_content": "\ncc_library(\n    name = \"config\",\n    defines = [\"MFEM_CONFIG_FILE=\\\\\\\"_config.hpp\\\\\\\"\"],\n    visibility = [\"//visibility:public\"],\n)",
+              "path": ""
             }
           }
         },

@@ -1,6 +1,10 @@
 # Enable Bzlmod for every Bazel command
 common --enable_bzlmod
 
+ # Alias definition ###########################################################
+build --flag_alias=mode=//:mode
+
+ # Compilation options ########################################################
 build --copt=-Wall
 build --copt=-Wextra
 build --copt=-Werror

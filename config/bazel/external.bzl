@@ -5,6 +5,16 @@ load("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
 
 def _external(_):
     new_local_repository(
+        name = "config",
+        build_file_content = """
+cc_library(
+    name = "config",
+    defines = ["MFEM_CONFIG_FILE=\\\\\\"_config.hpp\\\\\\""],
+    visibility = ["//visibility:public"],
+)""",
+        path = "",
+    )
+    new_local_repository(
         name = "mpi",
         build_file_content = """
 cc_library(

@@ -1,19 +1,40 @@
+### String Flags ##############################################################
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+
 ### Load rules ################################################################
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 ### MFEM configuration ########################################################
 load("//config/bazel:config.bzl", "mfem_examples", "mfem_parallel_examples")
 
-### Bazel config settings #####################################################
 ### https://bazel.build/docs/configurable-attributes
+load("//config/bazel:settings.bzl", "mode", "print_mode")
+
+string_flag(
+    name = "mode",
+    build_setting_default = "serial",
+)
+
+mode(name = "serial")
+
+mode(name = "parallel")
+
 config_setting(
     name = "serial_build",
-    values = {"cpu": "serial"},
+    flag_values = {":mode": "serial"},
 )
 
 config_setting(
     name = "parallel_build",
-    values = {"cpu": "parallel"},
+    flag_values = {":mode": "parallel"},
+)
+
+print_mode(
+    name = "print_mode",
+    mode = select({
+        ":serial_build": "serial",
+        ":parallel_build": "parallel",
+    }),
 )
 
 ### MFEM Examples #############################################################
@@ -30,6 +51,7 @@ cc_library(
         "general",
         "linalg",
         "mesh",
+        "@config",
     ] + select({
         ":parallel_build": ["@mpi"],
         "//conditions:default": [],
@@ -56,6 +78,7 @@ cc_library(
         "general_hpp",
         "linalg_hpp",
         "mesh_hpp",
+        "@config",
     ] + select({
         ":parallel_build": ["@mpi"],
         "//conditions:default": [],
