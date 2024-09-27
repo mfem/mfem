@@ -1207,7 +1207,6 @@ void VectorFiniteElement::Project_ND(
    bool my_assembly=true;
    if (my_assembly)
    {
-       cout<<"Turn on my Project_ND"<<endl;
        vc.Eval(M, Trans, Nodes);
        //cout<<"dof="<<dof<<" Nodes dofs="<<Nodes.GetNPoints()<<endl;
    }
