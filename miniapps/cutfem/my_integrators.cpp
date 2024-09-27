@@ -814,12 +814,11 @@ void UnfittedBoundaryLFIntegrator::AssembleRHSElementVect(
 {
    int dof = el.GetDof();
 
-   shape.SetSize(dof);        // vector of size dof
+   shape.SetSize(dof);        
    elvect.SetSize(dof);
    elvect = 0.0;
 
    const IntegrationRule *ir = IntRule;
-
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -833,7 +832,6 @@ void UnfittedBoundaryLFIntegrator::AssembleRHSElementVect(
       add(elvect, ip.weight * val*sweights(i), shape, elvect);
       
    }
-   elvect.Print();
 }
 
 
@@ -1189,19 +1187,18 @@ void UnfittedNitscheLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
       normal.GetRow(i,normal_vec);
       bc = uD.Eval(Tr,ip);
-  
       Tr.SetIntPoint (&ip);
       real_t val = Tr.Weight()  * ip.weight * sweights(i)*bc * Q.Eval(Tr, ip);
-
       el.CalcPhysDShape(Tr, dshape);
       dshape.Mult(normal_vec, dshape_dn);
       add(elvect, -1*val , dshape_dn, elvect);
-
       el.CalcShape(ip, shape);
       add(elvect, lambda * val, shape, elvect);
-      
    }
 }
+
+
+
 
 void UnfittedNitscheIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Tr,
@@ -1270,7 +1267,262 @@ void UnfittedNitscheIntegrator::AssembleElementMatrix
 }
 
 
+void UnfittedNitscheVectorLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+   int dim = el.GetDim();
+   shape.SetSize(dof);
+   dshape.SetSize(dof, dim);
+   dshape_dn.SetSize(dof);
+     // vector of size dof
+   elvect.SetSize(dof*dim);
+   elvect = 0.0;
+   Vector pelvect;
+   pelvect.SetSize(dof);
+   pelvect = 0.0;
+   Vector pelvect1;
+   pelvect1.SetSize(dof);
+   pelvect1 = 0.0;
+   Vector normal_vec(dim);
+   const IntegrationRule *ir = IntRule;
 
+   Vector bc;
+   bc.SetSize(dim);
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      pelvect = 0.0;
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      normal.GetRow(i,normal_vec);
+      uD.Eval(bc,Tr,ip);
+      Tr.SetIntPoint (&ip);
+      real_t val = Tr.Weight()  * ip.weight * sweights(i)* Q.Eval(Tr, ip);
+      el.CalcPhysDShape(Tr, dshape);
+      dshape.Mult(normal_vec, dshape_dn);
+
+      el.CalcShape(ip, shape);
+
+
+      add(pelvect, -1*val , dshape_dn, pelvect);
+      add(pelvect, lambda * val, shape, pelvect);
+      for (int k = 0; k < dim; ++k)
+      {
+         pelvect1.Add(bc(k),pelvect);
+         elvect.AddSubVector(pelvect1, dof*k);
+         pelvect1 = 0.0;
+      }
+   }
+}
+
+
+
+
+void UnfittedNitscheVectorIntegrator::AssembleElementMatrix
+( const FiniteElement &el, ElementTransformation &Tr,
+  DenseMatrix &elmat )
+{
+   dim = el.GetDim();
+   ndof = el.GetDof();
+   DenseMatrix elmat1;
+   elmat1.SetSize(ndof);
+   elmat1=0.0;
+   elmat.SetSize(ndof*dim);
+   elmat=0.0;
+   jmat.SetSize(ndof);
+   jmat=0.0;
+   shape.SetSize(ndof);
+   dshape.SetSize(ndof,dim);
+   dshapedxt.SetSize(ndof,dim);
+   dshapedn.SetSize(ndof);
+   adjJ.SetSize(dim);
+   const IntegrationRule *ir = IntRule;
+
+   real_t w;
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      Tr.SetIntPoint (&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
+      normal.GetRow(p,normal_vec);
+
+      w = ip.weight*sweights(p)*Q->Eval(Tr, ip);
+
+      CalcAdjugate(Tr.Jacobian(), adjJ);
+      Mult(dshape, adjJ , dshapedxt);
+      dshapedxt.Mult(normal_vec,dshapedn);
+
+      for (int i = 0; i < ndof; i++)
+         for (int j = 0; j < ndof; j++)
+         {
+            elmat1(i, j) += w*shape(i) * dshapedn(j);
+         }
+
+
+      // only assemble the lower triangular part of jmat
+      w *= lambda*Tr.Weight();
+      for (int i = 0; i < ndof; i++)
+      {
+         const real_t wsi = w*shape(i);
+         for (int j = 0; j <= i; j++)
+         {
+            jmat(i, j) += wsi * shape(j);
+         }
+      }
+   }
+
+   // elmat := -elmat -elmat^t + jmat
+
+   for (int i = 0; i < ndof; i++)
+   {
+      for (int j = 0; j < i; j++)
+      {
+         real_t aij = elmat1(i,j), aji = elmat1(j,i), mij = jmat(i,j);
+         elmat1(i,j) = -aij - aji + mij;
+         elmat1(j,i) = -aij - aji + mij;
+      }
+      elmat1(i,i) = -2*elmat1(i,i) + jmat(i,i);
+   }
+
+   for (int k = 0; k < dim; ++k)
+   {
+      elmat.AddMatrix(elmat1, ndof*k, ndof*k);
+   }
+}
+
+
+void UnfittedNitscheSymmetricLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dof = el.GetDof();
+   int dim = el.GetDim();
+   shape.SetSize(dof);
+   dshape.SetSize(dof, dim);
+   dshape_dn.SetSize(dof);
+     // vector of size dof
+   elvect.SetSize(dof*dim);
+   elvect = 0.0;
+   Vector pelvect;
+   pelvect.SetSize(dof);
+   pelvect = 0.0;
+   Vector pelvect1;
+   pelvect1.SetSize(dof);
+   pelvect1 = 0.0;
+   Vector normal_vec(dim);
+   const IntegrationRule *ir = IntRule;
+
+
+   Vector bc;
+   bc.SetSize(dim);
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      pelvect = 0.0; 
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      normal.GetRow(i,normal_vec);
+      uD.Eval(bc,Tr,ip);
+      Tr.SetIntPoint (&ip);
+      real_t val = Tr.Weight()  * ip.weight * sweights(i)* Q.Eval(Tr, ip);
+      el.CalcPhysDShape(Tr, dshape);
+      dshape.Mult(normal_vec, dshape_dn);
+
+      el.CalcShape(ip, shape);
+
+
+      add(pelvect, -0.5*val , dshape_dn, pelvect);
+      add(pelvect, lambda * val, shape, pelvect);
+
+      for (int k = 0; k < dim; ++k)
+      {
+         pelvect1.Add(bc(k),pelvect);
+         elvect.AddSubVector(pelvect1, dof*k);
+         pelvect1 = 0.0;
+      }
+
+
+      for (int k = 0; k < dim; ++k)
+         for (int j = 0; j<dof;j++)
+         {
+            elvect(j*k) = normal_vec.Sum()*dshape(j,k);
+         }
+   }
+}
+
+
+
+void UnfittedNitscheSymmetricIntegrator::AssembleElementMatrix
+( const FiniteElement &el, ElementTransformation &Tr,
+  DenseMatrix &elmat )
+{
+   dim = el.GetDim();
+   ndof = el.GetDof();
+   DenseMatrix elmat1;
+   elmat1.SetSize(ndof);
+   elmat1=0.0;
+   elmat.SetSize(ndof*dim);
+   elmat=0.0;
+   jmat.SetSize(ndof);
+   jmat=0.0;
+   shape.SetSize(ndof);
+   dshape.SetSize(ndof,dim);
+   dshapedxt.SetSize(ndof,dim);
+   dshapedn.SetSize(ndof);
+   adjJ.SetSize(dim);
+   const IntegrationRule *ir = IntRule;
+
+   real_t w;
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      Tr.SetIntPoint (&ip);
+
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
+      normal.GetRow(p,normal_vec);
+
+      w = ip.weight*sweights(p)*Q->Eval(Tr, ip);
+
+      CalcAdjugate(Tr.Jacobian(), adjJ);
+      Mult(dshape, adjJ , dshapedxt);
+      dshapedxt.Mult(normal_vec,dshapedn);
+
+      for (int i = 0; i < ndof; i++)
+         for (int j = 0; j < ndof; j++)
+         {
+            elmat1(i, j) += w*shape(i) * dshapedn(j);
+         }
+
+
+      // only assemble the lower triangular part of jmat
+      w *= lambda*Tr.Weight();
+      for (int i = 0; i < ndof; i++)
+      {
+         const real_t wsi = w*shape(i);
+         for (int j = 0; j <= i; j++)
+         {
+            jmat(i, j) += wsi * shape(j);
+         }
+      }
+   }
+
+   // elmat := -elmat -elmat^t + jmat
+
+   for (int i = 0; i < ndof; i++)
+   {
+      for (int j = 0; j < i; j++)
+      {
+         real_t aij = elmat1(i,j), aji = elmat1(j,i), mij = jmat(i,j);
+         elmat1(i,j) = -aij - aji + mij;
+         elmat1(j,i) = -aij - aji + mij;
+      }
+      elmat1(i,i) = -2*elmat1(i,i) + jmat(i,i);
+   }
+
+   for (int k = 0; k < dim; ++k)
+   {
+      elmat.AddMatrix(elmat1, ndof*k, ndof*k);
+   }
+}
 
 
 }  //end mfem namespace
