@@ -694,7 +694,7 @@ bool MemoryManager::IsDanglingAlias_(const void *h_ptr)
    if (alias_it != maps->aliases.end())
    {
       const internal::Alias &alias = alias_it->second;
-      const void *base_h_ptr = static_cast<const char*>(h_ptr) + alias.offset;
+      const void *base_h_ptr = static_cast<const char*>(h_ptr) - alias.offset;
       const auto base_it = maps->memories.find(base_h_ptr);
       if (base_it == maps->memories.end()) { return true; }
       if (base_it->second.h_mt != alias.h_mt) { return true; }
