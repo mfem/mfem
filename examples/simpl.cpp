@@ -77,6 +77,13 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
 {
    real_t target_volume = domain_volume * std::fabs(volume_fraction);
 
+   real_t mu_l = inv_sigmoid(std::fabs(volume_fraction)) - psi.Max();
+   MPI_Allreduce(MPI_IN_PLACE, &mu_l, 1, MFEM_MPI_REAL_T, MPI_MIN,
+                 psi.ParFESpace()->GetComm());
+   real_t mu_r = inv_sigmoid(std::fabs(volume_fraction)) - psi.Min();
+   MPI_Allreduce(MPI_IN_PLACE, &mu_r, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                 psi.ParFESpace()->GetComm());
+
    ConstantCoefficient const_coeff(0.0);
    if (hasPassiveElements)
    {
@@ -86,97 +93,144 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
       ProjectCoefficient(psi, const_coeff, 3);
    }
 
-   // Solution bracket
-   real_t a = inv_sigmoid(std::fabs(volume_fraction)) - psi.Max();
-   MPI_Allreduce(MPI_IN_PLACE, &a, 1, MFEM_MPI_REAL_T, MPI_MIN,
-                 psi.ParFESpace()->GetComm());
-   real_t b = inv_sigmoid(std::fabs(volume_fraction)) - psi.Min();
-   MPI_Allreduce(MPI_IN_PLACE, &b, 1, MFEM_MPI_REAL_T, MPI_MAX,
-                 psi.ParFESpace()->GetComm());
+   real_t mu=0.0;
+   MappedGridFunctionCoefficient rho_projected(
+   &psi, [&mu](const real_t x) {return sigmoid(x+mu);});
+   real_t current_volume = zerogf.ComputeL1Error(rho_projected);
 
-   // Current testing iterate
-   real_t s(0), vs(mfem::infinity());
-   MappedGridFunctionCoefficient sigmoid_psi(
-   &psi, [&s](const real_t x) { return sigmoid(x+s); });
-   real_t current_volume = zerogf.ComputeL1Error(sigmoid_psi);
-   // check wether volume constraint is already satisfied or not
-   if (volume_fraction < 0) // lower bound
+   if ((volume_fraction > 0) == (current_volume < target_volume))
    {
-      if (current_volume > target_volume) {return current_volume;}
-   }
-   else
-   {
-      if (current_volume < target_volume) {return current_volume;}
+      return current_volume;
    }
 
-   // Compute bracket function value
-   s = a;
-   real_t va = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
-   s = b;
-   real_t vb = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
-
-   // Auxiliary variables
-   real_t c = a;
-   real_t vc = va;
-   real_t d = c;
-   bool mflag = true;
-
-   // Brent's method
-   while (std::fabs(b - a) > tol && std::fabs(vs)>tol)
+   while ((mu_r - mu_l) > 1e-06 &&
+          std::fabs(current_volume - target_volume) > 1e-06)
    {
-      if (std::fabs(va-vc) > 1e-08 && std::fabs(vb-vc) > 1e-08)
-      {
-         // inverse quadratic interpolation
-         s = a*vb*vc/((va-vb)*(va-vc))+b*va*vc/((vb-va)*(vb-vc))+c*va*vb/((vc-va)*
-                                                                          (vc-vb));
-      }
-      else
-      {
-         // Secant method
-         s = b - vb*(b-a)/(vb-va);
-      }
-      // conditions to be checked
-      bool cond1 = (s>(3*a+b)/4.0 && s<b) || (s>b && s<(3*a+b)/4.0);
-      bool cond2 = mflag && std::fabs(s-b) >= std::fabs(b-c)/2.0;
-      bool cond3 = !mflag && std::fabs(s-b) >= std::fabs(c-d)/2.0;
-      bool cond4 = mflag && std::fabs(b-c) < tol;
-      bool cond5 = !mflag && std::fabs(c-d) < tol;
-      if (cond1 || cond2 || cond3 || cond4 || cond5)
-      {
-         // use bisection
-         s = (a+b)*0.5;
-         mflag = true;
-      }
-      else
-      {
-         // use better ones
-         mflag = false;
-      }
-      // Update current value
+      mu = (mu_r + mu_l)*0.5;
       if (hasPassiveElements)
       {
-         const_coeff.constant = 100-s;
+         const_coeff.constant = 100 - mu;
          ProjectCoefficient(psi, const_coeff, 2);
-         const_coeff.constant = -100-s;
+         const_coeff.constant = -100 - mu;
          ProjectCoefficient(psi, const_coeff, 3);
       }
-      vs = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
-
-      // Update iterates
-      d = c;
-      c = b; vc=vb;
-      if (va*vs < 0) {b = s; vb = vs;}
-      else {a=s; va=vs;}
-      if (std::fabs(va) < std::fabs(vb))
+      current_volume = zerogf.ComputeL1Error(rho_projected);
+      if (current_volume > target_volume)
       {
-         real_t temp = b;
-         b = a; a = temp;
-         temp = vb;
-         vb = va; va = temp;
+         mu_r = mu;
+      }
+      else
+      {
+         mu_l = mu;
       }
    }
-   psi += s;
-   return vs+target_volume;
+   psi += mu;
+   return current_volume;
+
+
+
+   // real_t target_volume = domain_volume * std::fabs(volume_fraction);
+   //
+   // ConstantCoefficient const_coeff(0.0);
+   // if (hasPassiveElements)
+   // {
+   //    const_coeff.constant = 100;
+   //    ProjectCoefficient(psi, const_coeff, 2);
+   //    const_coeff.constant = -100;
+   //    ProjectCoefficient(psi, const_coeff, 3);
+   // }
+   //
+   // // Solution bracket
+   // real_t a = inv_sigmoid(std::fabs(volume_fraction)) - psi.Max();
+   // MPI_Allreduce(MPI_IN_PLACE, &a, 1, MFEM_MPI_REAL_T, MPI_MIN,
+   //               psi.ParFESpace()->GetComm());
+   // real_t b = inv_sigmoid(std::fabs(volume_fraction)) - psi.Min();
+   // MPI_Allreduce(MPI_IN_PLACE, &b, 1, MFEM_MPI_REAL_T, MPI_MAX,
+   //               psi.ParFESpace()->GetComm());
+   //
+   // // Current testing iterate
+   // real_t s(0), vs(mfem::infinity());
+   // MappedGridFunctionCoefficient sigmoid_psi(
+   // &psi, [&s](const real_t x) { return sigmoid(x+s); });
+   // real_t current_volume = zerogf.ComputeL1Error(sigmoid_psi);
+   // // check wether volume constraint is already satisfied or not
+   // if (volume_fraction < 0) // lower bound
+   // {
+   //    if (current_volume > target_volume) {return current_volume;}
+   // }
+   // else
+   // {
+   //    if (current_volume < target_volume) {return current_volume;}
+   // }
+   //
+   // // Compute bracket function value
+   // s = a;
+   // real_t va = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
+   // s = b;
+   // real_t vb = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
+   //
+   // // Auxiliary variables
+   // real_t c = a;
+   // real_t vc = va;
+   // real_t d = c;
+   // bool mflag = true;
+   //
+   // // Brent's method
+   // while (std::fabs(b - a) > tol && std::fabs(vs)>tol)
+   // {
+   //    if (std::fabs(va-vc) > 1e-08 && std::fabs(vb-vc) > 1e-08)
+   //    {
+   //       // inverse quadratic interpolation
+   //       s = a*vb*vc/((va-vb)*(va-vc))+b*va*vc/((vb-va)*(vb-vc))+c*va*vb/((vc-va)*
+   //                                                                        (vc-vb));
+   //    }
+   //    else
+   //    {
+   //       // Secant method
+   //       s = b - vb*(b-a)/(vb-va);
+   //    }
+   //    // conditions to be checked
+   //    bool cond1 = (s>(3*a+b)/4.0 && s<b) || (s>b && s<(3*a+b)/4.0);
+   //    bool cond2 = mflag && std::fabs(s-b) >= std::fabs(b-c)/2.0;
+   //    bool cond3 = !mflag && std::fabs(s-b) >= std::fabs(c-d)/2.0;
+   //    bool cond4 = mflag && std::fabs(b-c) < tol;
+   //    bool cond5 = !mflag && std::fabs(c-d) < tol;
+   //    if (cond1 || cond2 || cond3 || cond4 || cond5)
+   //    {
+   //       // use bisection
+   //       s = (a+b)*0.5;
+   //       mflag = true;
+   //    }
+   //    else
+   //    {
+   //       // use better ones
+   //       mflag = false;
+   //    }
+   //    // Update current value
+   //    if (hasPassiveElements)
+   //    {
+   //       const_coeff.constant = 100-s;
+   //       ProjectCoefficient(psi, const_coeff, 2);
+   //       const_coeff.constant = -100-s;
+   //       ProjectCoefficient(psi, const_coeff, 3);
+   //    }
+   //    vs = zerogf.ComputeL1Error(sigmoid_psi) - target_volume;
+   //
+   //    // Update iterates
+   //    d = c;
+   //    c = b; vc=vb;
+   //    if (va*vs < 0) {b = s; vb = vs;}
+   //    else {a=s; va=vs;}
+   //    if (std::fabs(va) < std::fabs(vb))
+   //    {
+   //       real_t temp = b;
+   //       b = a; a = temp;
+   //       temp = vb;
+   //       vb = va; va = temp;
+   //    }
+   // }
+   // psi += s;
+   // return vs+target_volume;
 }
 
 class TableLogger
@@ -318,8 +372,8 @@ int main(int argc, char *argv[])
    real_t vol_fraction = -1;
    int max_it = 1e3;
    int max_backtrack = 1e2;
-   real_t tol_stationarity = 1e-06;
-   real_t tol_objdiff = 1e-05;
+   real_t tol_stationarity = 1e-04;
+   real_t tol_objdiff = 1e-04;
    bool stationarity_in_Bregman = true;
    bool backtrack_bregman = true;
    real_t rho_min = 1e-6;
