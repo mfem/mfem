@@ -154,6 +154,11 @@ public:
        array is not preserved. */
    inline void SetSize(int nsize, MemoryType mt);
 
+   /** @brief Resize the array to size @a nsize using host MemoryType @a h_mt
+       and device MemoryType @a d_mt. Note that unlike the other versions of
+       SetSize(), the current content of the array is not preserved. */
+   inline void SetSize(int nsize, MemoryType h_mt, MemoryType d_mt);
+
    /** Maximum number of entries the array can store without allocating more
        memory. */
    inline int Capacity() const { return data.Capacity(); }
@@ -739,6 +744,33 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
    if (nsize > 0)
    {
       data.New(nsize, mt);
+      size = nsize;
+   }
+   else
+   {
+      data.Reset();
+      size = 0;
+   }
+   data.UseDevice(use_dev);
+}
+
+template <class T>
+inline void Array<T>::SetSize(int nsize, MemoryType h_mt, MemoryType d_mt)
+{
+   MFEM_ASSERT(nsize >= 0, "invalid new size: " << nsize);
+   if ((h_mt == data.GetHostMemoryType()) && (d_mt == data.GetDeviceMemoryType()))
+   {
+      if (nsize <= Capacity())
+      {
+         size = nsize;
+         return;
+      }
+   }
+   const bool use_dev = data.UseDevice();
+   data.Delete();
+   if (nsize > 0)
+   {
+      data.New(nsize, h_mt, d_mt);
       size = nsize;
    }
    else
