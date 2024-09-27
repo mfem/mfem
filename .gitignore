@@ -52,6 +52,7 @@ doc/warnings.log
 
 # Bazel specific
 bazel-*
+*.bazel_cache
 
 # Example and miniapp binaries and outputs
 

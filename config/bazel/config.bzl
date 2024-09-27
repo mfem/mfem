@@ -28,5 +28,6 @@ def mfem_parallel_examples():
                 "mfem",
                 "mfem_hpp",
                 "examples_hpp",
+                "@mpi",
             ],
         )

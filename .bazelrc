@@ -1,6 +1,9 @@
 # Enable Bzlmod for every Bazel command
 common --enable_bzlmod
 
+ # Disk cache setup ###########################################################
+build --disk_cache=~/.bazel_cache
+
  # Alias definition ###########################################################
 build --flag_alias=mode=//:mode
 
