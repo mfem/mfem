@@ -617,7 +617,8 @@ int main(int argc, char *argv[])
    }
    TableLogger logger;
    real_t material_volume(infinity()), objval(infinity()),
-          stationarityError(infinity()), stationarityBregmanError(infinity());
+          stationarityError(infinity()), stationarityBregmanError(infinity()),
+          rel_stationarityError(infinity()), rel_stationarityBregmanError(infinity());
    real_t succ_objval_diff;
    int num_reeval(-1);
    logger.Append(std::string("Volume"), material_volume);
@@ -627,6 +628,8 @@ int main(int argc, char *argv[])
    logger.Append(std::string("Re-evel"), num_reeval);
    logger.Append(std::string("Step Size"), alpha);
    logger.Append(std::string("Succ-Obj-Diff"), succ_objval_diff);
+   logger.Append(std::string("RelStationarity-2"), rel_stationarityError);
+   logger.Append(std::string("RelStationarity-B"), rel_stationarityBregmanError);
    logger.SaveWhenPrint(filename_prefix.str());
 
    // 11. Iterate:
@@ -797,10 +800,12 @@ int main(int argc, char *argv[])
          stationarityBregmanError0 = stationarityBregmanError;
          stationarityError0 = stationarityError;
       }
+      rel_stationarityError = stationarityError/stationarityError0;
+      rel_stationarityBregmanError = stationarityBregmanError/stationarityBregmanError0;
 
       bool isStationarityPoint = stationarity_in_Bregman
-                                 ? (stationarityBregmanError/stationarityBregmanError0 < tol_stationarity)
-                                 : (stationarityError/stationarityError0 < tol_stationarity);
+                                 ? (rel_stationarityBregmanError < tol_stationarity)
+                                 : (rel_stationarityError < tol_stationarity);
       bool objConverged = (objval_old - objval) / std::fabs(
                              objval) < tol_objdiff;
       if (isStationarityPoint && objConverged)
