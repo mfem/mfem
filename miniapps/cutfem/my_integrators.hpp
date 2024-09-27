@@ -1364,7 +1364,7 @@ public:
 };
 
 
-
+// Coefficient not not vector format! 
 class UnfittedNitscheVectorLFIntegrator : public LinearFormIntegrator
 {
 private:
@@ -1450,7 +1450,7 @@ public:
 };
 
 
-
+// Coefficient not not vector format! 
 class UnfittedNitscheVectorIntegrator : public BilinearFormIntegrator
 {
 protected: 
@@ -1536,6 +1536,8 @@ public:
     }
 };
 
+
+// Coefficient not not vector format! 
 class UnfittedNitscheSymmetricLFIntegrator : public LinearFormIntegrator
 {
 private:
@@ -1562,6 +1564,7 @@ public:
 
 };
 
+// Coefficient not not vector format! 
 class CutUnfittedNitscheSymmetricLFIntegrator: public LinearFormIntegrator
 {
 private:
@@ -1619,13 +1622,16 @@ public:
     }
 };
 
+
+// Implements -(nabla u n,v) - (nabla v n,u) - (nabla u.T n,v) -  (nabla v.T n,u) + lambda (u,v)
+// Coefficient not not vector format! 
 class UnfittedNitscheSymmetricIntegrator : public BilinearFormIntegrator
 {
 protected: 
    Coefficient *Q;
    real_t lambda;
 
-   Vector sweights,normal_vec;
+   Vector sweights,n;
 
    Vector shape,dshapedn;
    DenseMatrix jmat, dshape, adjJ, dshapedxt;
@@ -1649,6 +1655,7 @@ public:
 
 };
 
+// Coefficient not not vector format! 
 class CutNitscheSymmetricIntegrator: public BilinearFormIntegrator
 {
 private:
@@ -1703,6 +1710,66 @@ public:
         }
     }
 };
+
+
+
+// bad naming of this one, only uses the second part of the original elasticity integrator 
+class CutElasticityIntegrator: public BilinearFormIntegrator
+{
+private:
+    ElasticityIntegrator* dint;
+
+    Array<int>* el_marks;
+    CutIntegrationRules* irules;
+
+        ConstantCoefficient zero;
+                ConstantCoefficient one;
+
+
+public:
+    CutElasticityIntegrator(Coefficient& q,
+                           Array<int>* marks,
+                           CutIntegrationRules* cut_int)
+    {
+        el_marks=marks;
+        irules=cut_int;
+        zero = ConstantCoefficient(0.0);
+        dint=new ElasticityIntegrator(zero, q);
+    }
+
+    ~CutElasticityIntegrator()
+    {
+        delete dint;
+    }
+
+    virtual void AssembleElementMatrix(const FiniteElement &el,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat) override
+    {
+
+        if((*el_marks)[Trans.ElementNo]==ElementMarker::OUTSIDE)
+        {
+            int sdim = Trans.GetSpaceDim();
+            elmat.SetSize(sdim*el.GetDof());
+            elmat=0.0;
+        }
+        else if((*el_marks)[Trans.ElementNo]==ElementMarker::INSIDE)
+        {
+            //use standard integration rule
+            dint->SetIntRule(nullptr);
+            dint->AssembleElementMatrix(el,Trans,elmat);
+        }
+        else
+        {
+            //use cut integration
+            IntegrationRule ir;
+            irules->GetVolumeIntegrationRule(Trans,ir);
+            dint->SetIntRule(&ir);
+            dint->AssembleElementMatrix(el,Trans,elmat);
+        }
+    }
+};
+
 
 }
 #endif

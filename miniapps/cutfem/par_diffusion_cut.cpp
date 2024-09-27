@@ -11,12 +11,17 @@ real_t f_rhs(const Vector &x);
 real_t u_ex(const Vector &x);
 real_t bcf(const Vector &x);
 real_t g_neumann(const Vector &x);
-void u_grad_exact(const Vector &x, Vector &u);
 real_t circle_func(const Vector &x);
 real_t ellipsoide_func(const Vector &x);
 real_t sphere_func(const Vector &x);
+real_t new_func(const Vector &xx);
+real_t new_func3d(const Vector &xx);
+real_t new_func2d(const Vector &xx);
+real_t koeff(const Vector &x);
 
 
+// solves the diffusion problem Delta u = f, with either Dirichlet conditions weakly imposed, 
+// or neumann + Dirichlet conditions 
 int main(int argc, char *argv[])
 {
     // 1. Initialize MPI and HYPRE.
@@ -32,12 +37,12 @@ int main(int argc, char *argv[])
     bool pa = false;
     bool fa = false;
     const char *device_config = "cpu";
-    bool visualization = true;
+    bool visualization = false;
     bool visualization_paraview = true;
     bool algebraic_ceed = false;
     int ser_ref_levels = 1;
-    int aorder = 6; // Algoim integration points
-    real_t g = 0.1;
+    int aorder = 8; // Algoim integration points
+    real_t g = 1;
 
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh",
@@ -80,7 +85,9 @@ int main(int argc, char *argv[])
     }
     //Mesh mesh(mesh_file, 1, 1);
 
-    Mesh mesh = Mesh::MakeCartesian2D( 2*2, 2 , mfem::Element::Type::QUADRILATERAL, true, 1, 0.5);
+    Mesh mesh = Mesh::MakeCartesian2D(2, 2, mfem::Element::Type::QUADRILATERAL, true, 1, 1);
+    // Mesh mesh = Mesh::MakeCartesian3D( 4, 4 ,4, mfem::Element::Type::HEXAHEDRON, 2.2, 2.2,2.2 );
+
 
     int dim = mesh.Dimension();
     {
@@ -116,20 +123,21 @@ int main(int argc, char *argv[])
     }
 
     ConstantCoefficient one(1.0);
+    // FunctionCoefficient coeff(koeff);
     ParGridFunction x(&fespace);
-    FunctionCoefficient bc (bcf);
+    FunctionCoefficient bc (u_ex);
     FunctionCoefficient f (f_rhs);
     x.ProjectCoefficient(bc);
     FunctionCoefficient neumann(g_neumann);
 
     // level set function
     ParGridFunction lsgf(&fespace);
-    FunctionCoefficient level_set(ellipsoide_func);
+    FunctionCoefficient level_set(circle_func);
     lsgf.ProjectCoefficient(level_set);
 
     // mark elements and outside DOFs
     Array<int> boundary_dofs;
-    fespace.GetBoundaryTrueDofs(boundary_dofs);
+    // fespace.GetBoundaryTrueDofs(boundary_dofs);
     Array<int> outside_dofs;
     Array<int> marks;
     Array<int> face_marks;
@@ -152,16 +160,21 @@ int main(int argc, char *argv[])
     int otherorder = 2;
     AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,level_set,otherorder);
     real_t gp = g/(h_min*h_min);
+    real_t lambda = 10/h_min;
 
     ParLinearForm b(&fespace);
 
     b.AddDomainIntegrator(new CutDomainLFIntegrator(f,&marks,air));
-    b.AddDomainIntegrator(new CutUnfittedBoundaryLFIntegrator(neumann,&marks,air));
+    // b.AddDomainIntegrator(new CutUnfittedBoundaryLFIntegrator(neumann,&marks,air)); //when neumann condition 
+    b.AddDomainIntegrator(new  CutUnfittedNitscheLFIntegrator(bc,one,lambda,&marks,air));
+
     b.Assemble();
 
     ParBilinearForm a(&fespace);
     a.AddDomainIntegrator(new CutDiffusionIntegrator(one,&marks,air,false));
     a.AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp,&face_marks));
+    a.AddDomainIntegrator(new CutNitscheIntegrator(one,lambda,&marks,air));
+
     a.Assemble();
 
     OperatorPtr A;
@@ -172,7 +185,7 @@ int main(int argc, char *argv[])
     prec = new HypreBoomerAMG;
     CGSolver cg(MPI_COMM_WORLD);
     cg.SetRelTol(1e-20);
-    cg.SetMaxIter(1000);
+    cg.SetMaxIter(1500);
     cg.SetPrintLevel(1);
     if (prec) { cg.SetPreconditioner(*prec); }
     cg.SetOperator(*A);
@@ -200,8 +213,11 @@ int main(int argc, char *argv[])
        ParNonlinearForm* nf=new ParNonlinearForm(&fespace);
        nf->AddDomainIntegrator(new CutScalarErrorIntegrator(uex,&marks,air));
         real_t error_squared = nf->GetEnergy(x.GetTrueVector());
+        if (myid==0)
+        {
        cout << "\n|| u_h - u ||_{L^2} = " << sqrt(error_squared)<< std::endl;
         cout << "h: " << h_min<< std::endl;
+        }
        delete nf;
    }
 
@@ -256,6 +272,7 @@ real_t f_rhs(const Vector &x)
 }
 
 
+
 real_t u_ex(const Vector &x)
 {
     real_t x0 = 0.5;
@@ -265,31 +282,38 @@ real_t u_ex(const Vector &x)
 
 real_t bcf(const Vector &x)
 {
-    real_t x0 = 0.5;
-    real_t y0 = 0.5;
-    return sin(M_PI*x(0))*cos((M_PI*x(1)));//sin(M_PI*x(0))*cos((M_PI*x(1)));
-}
-
-void u_grad_exact(const Vector &x, Vector &u)
-{
-    u(0) =M_PI*cos(M_PI*x(0)) *cos(M_PI* x(1));
-    u(1) =  -M_PI*sin(M_PI*x(0)) * sin(M_PI* x(1));
+    return cos(M_PI*x(0))*cos((M_PI*x(1)))+ sin(M_PI*x(0))*sin((M_PI*x(1)));;//sin(M_PI*x(0))*cos((M_PI*x(1)));
 }
 
 
-real_t g_neumann(const Vector &x)
+real_t g_neumann(const Vector &xx)
+{    
+    real_t x = xx(0);
+    real_t y = xx(1);
+
+    real_t dldx =- M_PI*(4*sin(x*2* M_PI)*cos(x*2* M_PI) +cos(x*M_PI/2)/2 );
+    real_t dldy = 1 ;
+
+    real_t dudx = M_PI*(-sin(M_PI*xx(0)) * cos(M_PI* xx(1)) + cos(M_PI*xx(0)) * sin(M_PI* xx(1)));
+    real_t dudy = M_PI*( - cos(M_PI*xx(0)) * sin(M_PI* xx(1)) + sin(M_PI*xx(0)) * cos(M_PI* xx(1)));
+
+    real_t normalize = sqrt(dldx*dldx + dldy*dldy);
+   return dudx *dldx/normalize + dudy *dldy/normalize;
+}
+
+
+
+real_t g_neumann3d(const Vector &x)
 {
-    real_t a = 1.5;
-    real_t b = 0.5;
     real_t x0 = 0.5;
-    real_t y0 = 0.25;
+    real_t y0 = 0;
+    real_t z0 = 0.5;
     real_t xx = x(0)-x0;
     real_t y = x(1)-y0;
-    real_t normalize = sqrt((xx*xx)/(a*a*a*a) + y*y/(b*b*b*b));
-   return M_PI*cos(M_PI*x(0)) *cos(M_PI* x(1))*xx/(a*a*normalize) -M_PI*sin(M_PI*x(0)) * sin(M_PI* x(1))*y/(b*b*normalize);
+    real_t z = x(2)-z0;
+    real_t normalize = sqrt(xx*xx + y*y + z*z);
+    return M_PI*cos(M_PI*x(0)) *cos(M_PI* x(1))*cos((x(2)))*xx/(normalize) -M_PI*sin(M_PI*x(0)) * sin(M_PI* x(1))*cos((x(2)))*y/(normalize)- sin(M_PI*x(0)) * cos(M_PI* x(1))*sin((x(2)))*z/(normalize);
 }
-
-
 
 
 real_t circle_func(const Vector &x)
@@ -314,8 +338,61 @@ real_t ellipsoide_func(const Vector &x)
 real_t sphere_func(const Vector &x)
 {
     real_t x0 = 0.5;
-    real_t y0 = 0;
+    real_t y0 = 0.5;
     real_t z0 = 0.5;
     real_t r = 0.4;
     return -(x(0)-x0)*(x(0)-x0) - (x(1)-y0)*(x(1)-y0)  - (x(2)-z0)*(x(2)-z0) + r*r;
 }
+
+
+real_t new_func(const Vector &xx)
+{
+
+    real_t x = xx(0);
+    real_t y = xx(1);
+
+    return sin(x*2* M_PI)*sin(x*2* M_PI)+sin(x*M_PI/2)-y;
+
+}
+
+real_t new_func3d(const Vector &xx)
+{
+
+    real_t x = xx(0)-1;
+    real_t y = xx(1)-1;
+    real_t z = xx(2)-1;
+    real_t r = 0.5;
+    real_t r0 = 3.5;
+
+    return -(sqrt(x*x + y*y + z*z) - r + r/r0*cos(5*atan2(y,x))*cos(M_PI*z));
+
+}
+
+
+real_t new_func2d(const Vector &xx)
+{
+
+    real_t x = xx(0)-1.1;
+    real_t y = xx(1)-1.1;
+    real_t r = 0.6;
+    real_t r0 = 0.2;
+// - r0*cos(atan2(y,x)))
+    return -(sqrt(x*x + y*y) - r- r0*cos(5*atan2(y,x)));
+
+}
+
+// real_t f_rhs(const Vector &x) //koeff
+// {
+//    return sin(x(0)) * sin( x(1)) + (2*x(0)+4)*cos(x(0))*sin(x(1));
+// }
+
+
+real_t koeff(const Vector &x)
+{
+   return x(0) + 2; 
+}
+
+// real_t u_ex(const Vector &x)
+// {
+//     return cos(x(0))*sin(x(1));
+// }

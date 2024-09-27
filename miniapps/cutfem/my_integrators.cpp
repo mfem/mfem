@@ -1296,7 +1296,7 @@ void UnfittedNitscheVectorLFIntegrator::AssembleRHSElementVect(
       normal.GetRow(i,normal_vec);
       uD.Eval(bc,Tr,ip);
       Tr.SetIntPoint (&ip);
-      real_t val = Tr.Weight()  * ip.weight * sweights(i)* Q.Eval(Tr, ip);
+      real_t val = Tr.Weight()  * ip.weight * sweights(i);
       el.CalcPhysDShape(Tr, dshape);
       dshape.Mult(normal_vec, dshape_dn);
 
@@ -1347,7 +1347,7 @@ void UnfittedNitscheVectorIntegrator::AssembleElementMatrix
       el.CalcDShape(ip, dshape);
       normal.GetRow(p,normal_vec);
 
-      w = ip.weight*sweights(p)*Q->Eval(Tr, ip);
+      w = ip.weight*sweights(p);
 
       CalcAdjugate(Tr.Jacobian(), adjJ);
       Mult(dshape, adjJ , dshapedxt);
@@ -1422,14 +1422,14 @@ void UnfittedNitscheSymmetricLFIntegrator::AssembleRHSElementVect(
       normal.GetRow(i,normal_vec);
       uD.Eval(bc,Tr,ip);
       Tr.SetIntPoint (&ip);
-      real_t val = Tr.Weight()  * ip.weight * sweights(i)* Q.Eval(Tr, ip);
+      real_t val = Tr.Weight()  * ip.weight * sweights(i);
       el.CalcPhysDShape(Tr, dshape);
       dshape.Mult(normal_vec, dshape_dn);
 
       el.CalcShape(ip, shape);
 
 
-      add(pelvect, -0.5*val , dshape_dn, pelvect);
+      add(pelvect, -1*val , dshape_dn, pelvect);
       add(pelvect, lambda * val, shape, pelvect);
 
       for (int k = 0; k < dim; ++k)
@@ -1440,16 +1440,18 @@ void UnfittedNitscheSymmetricLFIntegrator::AssembleRHSElementVect(
       }
 
 
-      for (int k = 0; k < dim; ++k)
-         for (int j = 0; j<dof;j++)
-         {
-            elvect(j*k) = normal_vec.Sum()*dshape(j,k);
-         }
+      for (int k = 0; k < dim; k++)
+         for (int l =0; l<dim; l++ )
+            for (int j = 0; j<dof;j++)
+            {
+               elvect(j+dof*k) += -1*val*(dshape(j,l)*normal_vec(k)*bc(l));
+            }
    }
+   
 }
 
 
-
+// (\nabla u^t *n,v)  
 void UnfittedNitscheSymmetricIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Tr,
   DenseMatrix &elmat )
@@ -1469,7 +1471,7 @@ void UnfittedNitscheSymmetricIntegrator::AssembleElementMatrix
    dshapedn.SetSize(ndof);
    adjJ.SetSize(dim);
    const IntegrationRule *ir = IntRule;
-
+   Vector n(dim);
    real_t w;
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
@@ -1478,14 +1480,21 @@ void UnfittedNitscheSymmetricIntegrator::AssembleElementMatrix
 
       el.CalcShape(ip, shape);
       el.CalcDShape(ip, dshape);
-      normal.GetRow(p,normal_vec);
+      normal.GetRow(p,n);
 
-      w = ip.weight*sweights(p)*Q->Eval(Tr, ip);
+      w = ip.weight*sweights(p);
 
       CalcAdjugate(Tr.Jacobian(), adjJ);
       Mult(dshape, adjJ , dshapedxt);
-      dshapedxt.Mult(normal_vec,dshapedn);
-
+      dshapedxt.Mult(n,dshapedn);
+   // symmetric part 
+      for (int k = 0; k < dim;k++)
+         for (int l = 0; l < dim; l++)
+            for (int i = 0; i < ndof; i++)
+               for (int j = 0; j < ndof; j++)
+               {
+                  elmat(i + ndof*k,j+ndof*l) -= w* (dshapedxt(i,k)*n(l)*shape(j) +dshapedxt(j,k)*n(l)*shape(i));
+               }
       for (int i = 0; i < ndof; i++)
          for (int j = 0; j < ndof; j++)
          {
@@ -1522,6 +1531,8 @@ void UnfittedNitscheSymmetricIntegrator::AssembleElementMatrix
    {
       elmat.AddMatrix(elmat1, ndof*k, ndof*k);
    }
+
+   
 }
 
 

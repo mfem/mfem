@@ -27,16 +27,17 @@ int main(int argc, char *argv[])
 
 
    int n =30;
-   Mesh mesh = Mesh::MakeCartesian2D( n*2, n , mfem::Element::Type::QUADRILATERAL, true, 1, 0.5);
-   int dim = mesh.Dimension();
+
 
    int order = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
+   args.AddOption(&n, "-n", "--n", "n");
    args.ParseCheck();
+   Mesh mesh = Mesh::MakeCartesian2D( n, n , mfem::Element::Type::QUADRILATERAL, true, 1, 1);
 
-
+   int dim = mesh.Dimension();
    double h_min, h_max, kappa_min, kappa_max;
    mesh.GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
 
@@ -60,7 +61,7 @@ int main(int argc, char *argv[])
 
    // level set function 
    GridFunction cgf(&fespacescalar);
-   FunctionCoefficient circle(ellipsoide_func);
+   FunctionCoefficient circle(circle_func);
    cgf.ProjectCoefficient(circle);
 
    // mark elements and outside DOFs
@@ -68,11 +69,13 @@ int main(int argc, char *argv[])
    fespace.GetBoundaryTrueDofs(boundary_dofs);
    // Array<int> outside_dofs;
    Array<int> marks;
+      Array<int> face_marks;
    {
       //  Array<int> outside_dofs;
        ElementMarker* elmark=new ElementMarker(mesh,true,true); 
        elmark->SetLevelSetFunction(cgf);
        elmark->MarkElements(marks);
+      elmark->MarkGhostPenaltyFaces(face_marks);
       //  elmark->ListEssentialTDofs(marks,fespace,outside_dofs);
        delete elmark;
    }
@@ -81,22 +84,27 @@ int main(int argc, char *argv[])
    //  outside_dofs.Unique();
 
    int otherorder = 2;
-   int aorder = 2; // Algoim integration points
+   int aorder = 4; // Algoim integration points
    AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,circle,otherorder);
-   real_t gp = 0.1/(h_min*h_min);
+   real_t gp = 10/(h_min*h_min);
+   real_t lambda = 20/h_min;
 
    // 6. Set up the linear form b(.) corresponding to the right-hand side.
 
    LinearForm b(&fespace);
 
    b.AddDomainIntegrator(new CutVectorDomainLFIntegrator(f,&marks,air));
-   b.AddDomainIntegrator(new CutUnfittedVectorBoundaryLFIntegrator(neumann,&marks,air));
+   // b.AddDomainIntegrator(new CutUnfittedVectorBoundaryLFIntegrator(neumann,&marks,air));
+   b.AddDomainIntegrator(new  CutUnfittedNitscheSymmetricLFIntegrator(bc,one,lambda,&marks,air));
    b.Assemble();
 
    // 7. Set up the bilinear form a(.,.) corresponding to the -Delta operator.
    BilinearForm a(&fespace);
-   a.AddDomainIntegrator(new CutVectorDiffusionIntegrator(one,&marks,air));
-   a.AddInteriorFaceIntegrator(new CutGhostPenaltyVectorIntegrator(gp,&marks));
+   a.AddDomainIntegrator(new CutElasticityIntegrator(one,&marks,air));
+   // a.AddDomainIntegrator(new CutNitscheVectorIntegrator(one,lambda,&marks,air));
+      a.AddDomainIntegrator(new CutNitscheSymmetricIntegrator(one,lambda,&marks,air));
+
+   a.AddInteriorFaceIntegrator(new CutGhostPenaltyVectorIntegrator(gp,&face_marks));
    a.Assemble();
 
    
@@ -113,15 +121,16 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, x);
 
 
-   //compute the error
-   // {
-   //     NonlinearForm* nf=new NonlinearForm(&fespace);
-   //     nf->AddDomainIntegrator(new CutScalarErrorIntegrator(bc,&marks,air));
+   // compute the error
+   {
+       NonlinearForm* nf=new NonlinearForm(&fespace);
+       nf->AddDomainIntegrator(new  CutVectorErrorIntegrator(bc,&marks,air));
 
-   //     cout << "\n|| u_h - u ||_{L^2} = " << nf->GetEnergy(x.GetTrueVector())<< std::endl;
+        real_t error_squared = nf->GetEnergy(x.GetTrueVector());
+       cout << "\n|| u_h - u ||_{L^2} = " << sqrt(error_squared)<< std::endl;
 
-   //     delete nf;
-   // }
+       delete nf;
+   }
 
    // to visualize level set and markings
    L2_FECollection* l2fec= new L2_FECollection(0,mesh.Dimension());
@@ -168,15 +177,15 @@ int main(int argc, char *argv[])
    return 0;  
 }
 //for gradient case
-void f_rhs(const Vector &x,Vector &y)
-{
-   y(0)= sin(x(0)),y(1)=sin(x(0));//sin(x(0));
-}
+// void f_rhs(const Vector &x,Vector &y)
+// {
+//    y(0)= sin(x(0)),y(1)=sin(x(0));//sin(x(0));
+// }
 
-void u_ex(const Vector &x,Vector &y)
-{
-   y(0)= sin(x(0)),y(1)=sin(x(0));
-}
+// void u_ex(const Vector &x,Vector &y)
+// {
+//    y(0)= sin(x(0)),y(1)=sin(x(0));
+// }
 
 void g_neumann(const Vector &x, Vector &z)
 {
@@ -210,16 +219,16 @@ real_t ellipsoide_func(const Vector &x)
     real_t y = x(1)-y0;
     return -(xx)*(xx)/(1.5*1.5) - (y)*(y)/(0.5*0.5)+ r*r; // + 0.25*cos(atan2(x(1)-y0,x(0)-x0))*cos(atan2(x(1)-y0,x(0)-x0));  
 }
-// // for symmetric gradient
-// void f_rhs(const Vector &x,Vector &y)
-// {
-//    y(0) = 3*cos(x(0))*sin(x(1)) - cos(x(0))*cos(x(1)), y(1)=3*sin(x(0))*sin(x(1))+sin(x(0))*cos(x(1));
-// }
+// for symmetric gradient
+void f_rhs(const Vector &x,Vector &y)
+{
+   y(0) = 3*cos(x(0))*sin(x(1)) - cos(x(0))*cos(x(1)), y(1)=3*sin(x(0))*sin(x(1))+sin(x(0))*cos(x(1));
+}
 
-// void u_ex(const Vector &x,Vector &y)
-// {
-//    y(0)= cos(x(0))*sin(x(1)),y(1)=sin(x(0))*sin(x(1));
-// }
+void u_ex(const Vector &x,Vector &y)
+{
+   y(0)= cos(x(0))*sin(x(1)),y(1)=sin(x(0))*sin(x(1));
+}
 
 
 

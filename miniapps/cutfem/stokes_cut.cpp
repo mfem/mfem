@@ -26,12 +26,14 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command line options.
-   int n = 8;
-   Mesh mesh = Mesh::MakeCartesian2D( n*2, n , mfem::Element::Type::QUADRILATERAL, true, 1, 0.5);
+   int n = 20;
    int order = 1;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
+      args.AddOption(&n, "-n", "--n", "n");
+
    args.ParseCheck();
+   Mesh mesh = Mesh::MakeCartesian2D( n*2, n , mfem::Element::Type::QUADRILATERAL, true, 1, 0.5);
 
    double h_min, h_max, kappa_min, kappa_max;
    mesh.GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
@@ -82,12 +84,14 @@ int main(int argc, char *argv[])
    Array<int> outside_dofs_v;
    Array<int> outside_dofs_p;
    Array<int> marks;
+   Array<int> face_marks;
    {
        ElementMarker* elmark=new ElementMarker(mesh,true,true); 
        elmark->SetLevelSetFunction(cgf);
        elmark->MarkElements(marks);
        elmark->ListEssentialTDofs(marks,Vspace,outside_dofs_v);
        elmark->ListEssentialTDofs(marks,Qspace,outside_dofs_p);
+      elmark->MarkGhostPenaltyFaces(face_marks);
        delete elmark;
    }
    //  outside_dofs.Append(boundary_dofs);
@@ -95,7 +99,7 @@ int main(int argc, char *argv[])
    //  outside_dofs.Unique();
 
    int otherorder = 2;
-   int aorder = 2; // Algoim integration points
+   int aorder = 8; // Algoim integration points
    AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,circle,otherorder);
    real_t gp1 = 0.1/(h_min*h_min);
    real_t gp2 = -0.1;
@@ -116,11 +120,11 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
 
    // if rhs on second block: 
-   LinearForm *gform(new LinearForm);
-   gform->Update(&Qspace, rhs.GetBlock(1), 0);
-   gform->AddDomainIntegrator(new CutDomainLFIntegrator(zero,&marks,air));
-   gform->Assemble();
-   gform->SyncAliasMemory(rhs);
+   // LinearForm *gform(new LinearForm);
+   // gform->Update(&Qspace, rhs.GetBlock(1), 0);
+   // gform->AddDomainIntegrator(new CutDomainLFIntegrator(zero,&marks,air));
+   // gform->Assemble();
+   // gform->SyncAliasMemory(rhs);
    
    ConstantCoefficient one(1.0);
 
@@ -139,7 +143,7 @@ int main(int argc, char *argv[])
 
    // mVarf->AddDomainIntegrator(new VectorDiffusionIntegrator);
    mVarf->AddDomainIntegrator(new CutVectorDiffusionIntegrator(one,&marks,air));
-   mVarf->AddInteriorFaceIntegrator(new CutGhostPenaltyVectorIntegrator(gp1,&marks));
+   mVarf->AddInteriorFaceIntegrator(new CutGhostPenaltyVectorIntegrator(gp1,&face_marks));
    mVarf->Assemble(0);
    mVarf->EliminateEssentialBC(boundary_dofs, v, rhs.GetBlock(0));
    // smVarf->EliminateVDofs(outside_dofs_v);
@@ -148,11 +152,11 @@ int main(int argc, char *argv[])
 
 
    bVarf->AddDomainIntegrator(new CutVectorDivergenceIntegrator(one,&marks,air));
-   bVarf->Assemble();
+   bVarf->Assemble(0);
    bVarf->EliminateTrialDofs(boundary_dofs, v, rhs.GetBlock(1));
-   bVarf->Finalize();
+   bVarf->Finalize(0);
 
-   cVarf->AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp2,&marks));
+   cVarf->AddInteriorFaceIntegrator(new CutGhostPenaltyIntegrator(gp2,&face_marks));
    cVarf->Assemble(0);
    cVarf->Finalize(0);
 
@@ -168,7 +172,7 @@ int main(int argc, char *argv[])
    cout <<  outside_dofs_p.Size()<<": "<<  outside_dofs_v.Size()  << endl;
 
    Vector before;
-   Ms.GetDiag(before);
+   C.GetDiag(before);
    cout <<"before"<<endl;
    //before.Print();
 
@@ -176,26 +180,15 @@ int main(int argc, char *argv[])
    {
       // cout<<outside_dofs_v[i]<<endl;
       Ms.EliminateRowColDiag(outside_dofs_v[i],1.0);
-      
-      Bs.EliminateCol(outside_dofs_v[i]);
    }
 
    //Ms.SetDiagIdentity();
 
-   Vector after; 
-   Ms.GetDiag(after);
-   cout <<"after"<<endl;
-   //after.Print();
-
-   for(int i=0;i<after.Size();i++){
-       cout<<"i="<<i<<" "<<before[i]<<" "<<after[i]<<std::endl;
-   }
 
 
    for(int i=0;i<outside_dofs_p.Size();i++)
    {
       C.EliminateRowCol(outside_dofs_p[i]);
-      Bs.EliminateRow(outside_dofs_p[i]);
    }
 
 
@@ -207,6 +200,9 @@ int main(int argc, char *argv[])
    StokesOp.SetBlock(1,0, &Bs);
    StokesOp.SetBlock(1,1, &C);
 
+   // rhs.Print();
+   // C.Print();
+   // Bs.Print();
 
    // for preconditioner 
    BilinearForm *mpre(new BilinearForm(&Vspace));
@@ -227,18 +223,22 @@ int main(int argc, char *argv[])
    SparseMatrix &I(cpre->SpMat());
 
 
-   solM = new DSmoother(M);
+   solM = new GSSmoother(Ms);
    solI = new GSSmoother(I);
 
-   solM->iterative_mode = false;
-   solI->iterative_mode = false;
+
+  Vector id_vec(bVarf->Height());
+   id_vec = 1.0;
+   SparseMatrix id_mat(id_vec);
+
+
 
    stokesPrec.SetDiagonalBlock(0, solM);
-   stokesPrec.SetDiagonalBlock(1, solI);
+   stokesPrec.SetDiagonalBlock(1, &id_mat);
 
    // 11. Solve the linear system with MINRES.
    int maxIter(30000);
-   real_t rtol(1.e-6);
+   real_t rtol(1.e-15);
    real_t atol(1.e-10);
 
 
@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
    p.MakeRef(&Qspace, x.GetBlock(1), 0);
 
 
-   int order_quad = max(2, 2*order+1);
+   int order_quad = max(5, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)
    {
@@ -286,8 +286,24 @@ int main(int argc, char *argv[])
    }
    FunctionCoefficient press (p_ex);
 
-   cout << "\n|| u_h - u ||_{L^2} = " << u.ComputeL2Error(v_coeff,irs) << '\n' << endl;
-   cout << "\n|| p_h - p ||_{L^2} = " << p.ComputeL2Error(press,irs) << '\n' << endl;
+      //compute the error
+   {
+       NonlinearForm* nf=new NonlinearForm(&Vspace);
+       nf->AddDomainIntegrator(new CutVectorErrorIntegrator(v_coeff,&marks,air));
+        real_t error_squared = nf->GetEnergy(u.GetTrueVector());
+       cout << "\n|| u_h - u ||_{L^2} = " << sqrt(error_squared)<< std::endl;
+
+         NonlinearForm* nf2=new NonlinearForm(&Qspace);
+       nf2->AddDomainIntegrator(new CutScalarErrorIntegrator(press,&marks,air));
+        real_t error_squared_p = nf2->GetEnergy(p.GetTrueVector());
+      cout << "\n|| p_h - p ||_{L^2} = " << sqrt(error_squared_p) << '\n' << endl;
+
+       delete nf;
+              delete nf2;
+   }
+
+   // cout << "\n|| u_h - u ||_{L^2} = " << u.ComputeL2Error(v_coeff,irs) << '\n' << endl;
+   // cout << "\n|| p_h - p ||_{L^2} = " << p.ComputeL2Error(press,irs) << '\n' << endl;
 
    // to visualize level set and markings
    L2_FECollection* l2fec= new L2_FECollection(0,mesh.Dimension());
@@ -334,6 +350,7 @@ int main(int argc, char *argv[])
 void f_rhs(const Vector &x,Vector &y)
 {
    y(0) = sin(x(1)) + 3*x(0) * x(0), y(1) = sin(x(0)) + 3*x(1) * x(1);
+   // y(0) = sin(x(1)), y(1) = sin(x(0)) ;
 }
 
 void u_ex(const Vector &x,Vector &y)
