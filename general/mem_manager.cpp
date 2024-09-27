@@ -408,8 +408,26 @@ class UvmHostMemorySpace : public HostMemorySpace
 {
 public:
    UvmHostMemorySpace(): HostMemorySpace() { }
-   void Alloc(void **ptr, size_t bytes) override { CuMallocManaged(ptr, bytes == 0 ? 8 : bytes); }
-   void Dealloc(void *ptr) override { CuMemFree(ptr); }
+
+   void Alloc(void **ptr, size_t bytes) override
+   {
+#ifdef MFEM_USE_CUDA
+      CuMallocManaged(ptr, bytes == 0 ? 8 : bytes);
+#endif
+#ifdef MFEM_USE_HIP
+      HipMallocManaged(ptr, bytes == 0 ? 8 : bytes);
+#endif
+   }
+
+   void Dealloc(void *ptr) override
+   {
+#ifdef MFEM_USE_CUDA
+      CuMemFree(ptr);
+#endif
+#ifdef MFEM_USE_HIP
+      HipMemFree(ptr);
+#endif
+   }
 };
 
 /// The 'No' device memory space
@@ -501,6 +519,25 @@ public:
    {
       if (dst == src) { MFEM_STREAM_SYNC; return dst; }
       return CuMemcpyDtoH(dst, src, bytes);
+   }
+};
+
+class UvmHipMemorySpace : public DeviceMemorySpace
+{
+public:
+   void Alloc(Memory &base) { base.d_ptr = base.h_ptr; }
+   void Dealloc(Memory&) { }
+   void *HtoD(void *dst, const void *src, size_t bytes)
+   {
+      if (dst == src) { MFEM_STREAM_SYNC; return dst; }
+      return HipMemcpyHtoD(dst, src, bytes);
+   }
+   void *DtoD(void* dst, const void* src, size_t bytes)
+   { return HipMemcpyDtoD(dst, src, bytes); }
+   void *DtoH(void *dst, const void *src, size_t bytes)
+   {
+      if (dst == src) { MFEM_STREAM_SYNC; return dst; }
+      return HipMemcpyDtoH(dst, src, bytes);
    }
 };
 
@@ -661,7 +698,15 @@ public:
 
       // Filling the device memory backends, shifting with the device size
       constexpr int shift = DeviceMemoryType;
+#if defined(MFEM_USE_CUDA)
       device[static_cast<int>(MT::MANAGED)-shift] = new UvmCudaMemorySpace();
+#elif defined(MFEM_USE_HIP)
+      device[static_cast<int>(MT::MANAGED)-shift] = new UvmHipMemorySpace();
+#else
+      // this re-creates the original behavior, but should this be nullptr instead?
+      device[static_cast<int>(MT::MANAGED)-shift] = new UvmCudaMemorySpace();
+#endif
+
       // All other devices controllers are delayed
       device[static_cast<int>(MemoryType::DEVICE)-shift] = nullptr;
       device[static_cast<int>(MT::DEVICE_DEBUG)-shift] = nullptr;
