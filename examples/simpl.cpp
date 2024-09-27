@@ -693,25 +693,28 @@ int main(int argc, char *argv[])
          real_t directional_derval = InnerProduct(MPI_COMM_WORLD, grad,
                                                   succ_diff_rho_form);
          real_t succ_bregman = zerogf.ComputeL1Error(succ_diff_rho_bregman);
-         if (Mpi::Root())
+         real_t target_obj;
+         if (backtrack_bregman)
          {
-            cout << "\t\tNew Objective    : " << objval << std::endl;
-            if (backtrack_bregman)
+            target_obj = objval_old + directional_derval + succ_bregman/alpha;
+
+            if (Mpi::Root())
             {
-               cout << "\t\tTarget Objective : " << objval_old + directional_derval +
-                    succ_bregman/alpha <<
-                    " = " << objval_old << " + " << directional_derval << " + " << succ_bregman
+               cout << "\t\tTarget Objective : " << target_obj
+                    << " = " << objval_old << " + " << directional_derval << " + " << succ_bregman
                     << " / " << alpha << std::endl;
             }
-            else
+         }
+         else
+         {
+            target_obj = objval_old + 1e-04*directional_derval;
+            if (Mpi::Root())
             {
-               cout << "\t\tTarget Objective : " << objval_old + 1e-04*directional_derval
-                    <<
-                    " = " << objval_old << " + 10^-4*" << directional_derval << std::endl;
-
+               cout << "\t\tTarget Objective : " << target_obj
+                    << " = " << objval_old << " + 10^-4*" << directional_derval << std::endl;
             }
          }
-         if (objval < objval_old + 1e-04*directional_derval)
+         if (objval < target_obj)
          {
             if (Mpi::Root())
             {
@@ -801,7 +804,8 @@ int main(int argc, char *argv[])
          stationarityError0 = stationarityError;
       }
       rel_stationarityError = stationarityError/stationarityError0;
-      rel_stationarityBregmanError = stationarityBregmanError/stationarityBregmanError0;
+      rel_stationarityBregmanError =
+         stationarityBregmanError/stationarityBregmanError0;
 
       bool isStationarityPoint = stationarity_in_Bregman
                                  ? (rel_stationarityBregmanError < tol_stationarity)
