@@ -103,8 +103,8 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
       return current_volume;
    }
 
-   while ((mu_r - mu_l) > 1e-06 &&
-          std::fabs(current_volume - target_volume) > 1e-06)
+   while ((mu_r - mu_l) > 1e-09 ||
+          std::fabs(current_volume - target_volume) > 1e-09)
    {
       mu = (mu_r + mu_l)*0.5;
       if (hasPassiveElements)
@@ -633,6 +633,7 @@ int main(int argc, char *argv[])
    alpha = 1.0;
    real_t objval_old;
    int total_num_feval(0), total_num_geval(0);
+   real_t stationarityBregmanError0, stationarityError0;
    for (int k = 1; k <= max_it; k++)
    {
       if (myid == 0)
@@ -791,10 +792,15 @@ int main(int argc, char *argv[])
       succ_objval_diff = (objval_old - objval) / std::fabs(objval);
 
       logger.Print(true);
+      if (k == 1)
+      {
+         stationarityBregmanError0 = stationarityBregmanError;
+         stationarityError0 = stationarityError;
+      }
 
       bool isStationarityPoint = stationarity_in_Bregman
-                                 ? (stationarityBregmanError < tol_stationarity)
-                                 : (stationarityError < tol_stationarity);
+                                 ? (stationarityBregmanError/stationarityBregmanError0 < tol_stationarity)
+                                 : (stationarityError/stationarityError0 < tol_stationarity);
       bool objConverged = (objval_old - objval) / std::fabs(
                              objval) < tol_objdiff;
       if (isStationarityPoint && objConverged)
