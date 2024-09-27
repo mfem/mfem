@@ -317,6 +317,16 @@ public:
                           const IntegrationRule &sir,
                           Vector &weights) override;
 
+   /**
+   @brief Compute normal vectors for surface integration.
+
+
+   @param [in]  Tr      Specifies the IntegrationRule's associated element.
+   @param [in]  sir     IntegrationRule defining the IntegrationPoints
+   @param [out] normal  Matrix where each row contain the normal for the corrsponding 
+   integration point.
+   */
+
    void GetSurfaceNormal(ElementTransformation &Tr,
                           const IntegrationRule &sir,
                           DenseMatrix &normal);
