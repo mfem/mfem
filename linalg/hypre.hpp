@@ -104,7 +104,14 @@ public:
    static bool configure_runtime_policy_from_mfem;
 
 private:
+   /// Default constructor. Singleton object; private.
    Hypre() = default;
+
+   /// Copy constructor. Deleted.
+   Hypre(Hypre&) = delete;
+
+   /// Move constructor. Deleted.
+   Hypre(Hypre&&) = delete;
 
    /// The singleton destructor (called at program exit) finalizes hypre.
    ~Hypre() { Finalize(); }
@@ -121,7 +128,7 @@ private:
 
    enum class State { NONE, INITIALIZED, FINALIZED };
 
-   /// tracks whether Hypre was initialized or finalized by this class
+   /// Tracks whether Hypre was initialized or finalized by this class.
    State state = State::NONE;
 };
 

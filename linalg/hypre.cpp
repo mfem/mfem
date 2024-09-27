@@ -31,8 +31,8 @@ bool Hypre::configure_runtime_policy_from_mfem = true;
 
 void Hypre::Init()
 {
-   Hypre hypre = Instance();
-   if (hypre.state == Hypre::State::NONE)
+   Hypre &hypre = Instance();
+   if (hypre.state == State::NONE)
    {
       // initialize Hypre
 #if MFEM_HYPRE_VERSION >= 22900
@@ -49,7 +49,7 @@ void Hypre::Init()
 
       // Global hypre options that we set by default
       hypre.SetDefaultOptions();
-      hypre.state = Hypre::State::INITIALIZED;
+      hypre.state = State::INITIALIZED;
    }
 }
 
@@ -79,12 +79,12 @@ void Hypre::InitDevice()
 void Hypre::Finalize()
 {
    Hypre &hypre = Instance();
-   if (hypre.state == Hypre::State::INITIALIZED)
+   if (hypre.state == State::INITIALIZED)
    {
 #if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Finalize();
 #endif
-      hypre.state = Hypre::State::FINALIZED;
+      hypre.state = State::FINALIZED;
    }
 }
 
