@@ -237,7 +237,11 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
                kernels::LUSolve(A_bb, nbdofs, ipiv_bb, Sb_inv_Cb_t);
                for (int i = 0; i < nbdofs; ++i)
                {
-                  d_AhatInvCt(bdofs_loc[i], j, f, e) = Sb_inv_Cb_t[i];
+                  const int b_i = bdofs_loc[i];
+                  real_t val;
+                  if (d_hat_dof_marker(b_i, e) == ESSENTIAL) { val = 0.0; }
+                  else { val = Sb_inv_Cb_t[i]; }
+                  d_AhatInvCt(b_i, j, f, e) = val;
                }
                for (int i = 0; i < nidofs; ++i)
                {
