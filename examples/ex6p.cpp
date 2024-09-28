@@ -442,6 +442,7 @@ int main(int argc, char *argv[])
    }
 
    // Save result
+   if (usePRefinement)
    {
       L2_FECollection fecL2(0, dim);
       ParFiniteElementSpace l2fespace(pmesh, &fecL2);
@@ -464,7 +465,7 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+      pmesh->ParPrint(mesh_ofs);
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
