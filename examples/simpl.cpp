@@ -103,8 +103,7 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
       return current_volume;
    }
 
-   while ((mu_r - mu_l) > 1e-09 ||
-          std::fabs(current_volume - target_volume) > 1e-09)
+   while ((mu_r - mu_l) > 1e-12)
    {
       mu = (mu_r + mu_l)*0.5;
       if (hasPassiveElements)
@@ -372,8 +371,10 @@ int main(int argc, char *argv[])
    real_t vol_fraction = -1;
    int max_it = 1e3;
    int max_backtrack = 1e2;
-   real_t tol_stationarity = 1e-04;
-   real_t tol_objdiff = 1e-04;
+   real_t rel_tol_stationarity = 1e-04;
+   real_t rel_tol_objdiff = 1e-04;
+   real_t abs_tol_stationarity = 1e-06;
+   real_t abs_tol_objdiff = 1e-06;
    bool stationarity_in_Bregman = true;
    bool backtrack_bregman = true;
    real_t rho_min = 1e-6;
@@ -408,9 +409,13 @@ int main(int argc, char *argv[])
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&max_backtrack, "-mi-back", "--max-backtrack",
                   "Maximum number of backtracking iteration");
-   args.AddOption(&tol_stationarity, "-tol-s", "--tol-stationarity",
+   args.AddOption(&rel_tol_stationarity, "-rtol-s", "--rel-tol-stationarity",
                   "Tolerance for Stationarity Error");
-   args.AddOption(&tol_objdiff, "-tol-o", "--tol-objective",
+   args.AddOption(&rel_tol_objdiff, "-rtol-o", "--rel-tol-objective",
+                  "Tolerance for relative objective decrease");
+   args.AddOption(&rel_tol_stationarity, "-atol-s", "--abs-tol-stationarity",
+                  "Tolerance for Stationarity Error");
+   args.AddOption(&rel_tol_objdiff, "-atol-o", "--abs-tol-objective",
                   "Tolerance for relative objective decrease");
    args.AddOption(&vol_fraction, "-vf", "--volume-fraction",
                   "Volume fraction for the material density.");
@@ -700,7 +705,8 @@ int main(int argc, char *argv[])
 
             if (Mpi::Root())
             {
-               cout << "\t\tTarget Objective : " << target_obj
+               cout << "\t\t   New Objective : " << objval << "\n"
+                    << "\t\tTarget Objective : " << target_obj
                     << " = " << objval_old << " + " << directional_derval << " + " << succ_bregman
                     << " / " << alpha << std::endl;
             }
@@ -710,7 +716,8 @@ int main(int argc, char *argv[])
             target_obj = objval_old + 1e-04*directional_derval;
             if (Mpi::Root())
             {
-               cout << "\t\tTarget Objective : " << target_obj
+               cout << "\t\t   New Objective : " << objval << "\n"
+                    << "\t\tTarget Objective : " << target_obj
                     << " = " << objval_old << " + 10^-4*" << directional_derval << std::endl;
             }
          }
@@ -808,10 +815,10 @@ int main(int argc, char *argv[])
          stationarityBregmanError/stationarityBregmanError0;
 
       bool isStationarityPoint = stationarity_in_Bregman
-                                 ? (rel_stationarityBregmanError < tol_stationarity)
-                                 : (rel_stationarityError < tol_stationarity);
-      bool objConverged = (objval_old - objval) / std::fabs(
-                             objval) < tol_objdiff;
+                                 ? (rel_stationarityBregmanError < rel_tol_stationarity || stationarityBregmanError < abs_tol_stationarity)
+                                 : (rel_stationarityError < rel_tol_stationarity || stationarityError < abs_tol_stationarity);
+      bool objConverged = (objval_old - objval) / std::fabs(objval) < rel_tol_objdiff
+      || (objval_old - objval) < abs_tol_objdiff;
       if (isStationarityPoint && objConverged)
       {
          break;
