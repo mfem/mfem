@@ -31,3 +31,19 @@ def mfem_parallel_examples():
                 "@mpi",
             ],
         )
+
+### MFEM_USE_* ################################################################
+def _mfem_use(ctx):
+    value = "//" if not ctx.attr.use else ""
+    value += "#define " + ctx.attr.define
+    return [
+        platform_common.TemplateVariableInfo({ctx.attr.define: value}),
+    ]
+
+mfem_use = rule(
+    implementation = _mfem_use,
+    attrs = {
+        "define": attr.string(),
+        "use": attr.bool(),
+    },
+)

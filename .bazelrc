@@ -6,6 +6,7 @@ build --disk_cache=~/.bazel_cache
 
  # Alias definition ###########################################################
 build --flag_alias=mode=//:mode
+build --flag_alias=precision=//:precision
 
  # Compilation options ########################################################
 build --copt=-Wall

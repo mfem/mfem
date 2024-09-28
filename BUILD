@@ -5,11 +5,12 @@ load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 ### MFEM configuration ########################################################
-load("//config/bazel:config.bzl", "mfem_examples", "mfem_parallel_examples")
+load("//config/bazel:config.bzl", "mfem_examples", "mfem_parallel_examples", "mfem_use")
 
 ### https://bazel.build/docs/configurable-attributes
-load("//config/bazel:settings.bzl", "mode", "print_mode")
+load("//config/bazel:settings.bzl", "mode", "precision", "print_mode")
 
+# FLAG: Serial/Parallel MODE ##################################################
 string_flag(
     name = "mode",
     build_setting_default = "serial",
@@ -35,6 +36,214 @@ print_mode(
         ":serial_build": "serial",
         ":parallel_build": "parallel",
     }),
+)
+
+# FLAG: Double/Single PRECISION ###############################################
+string_flag(
+    name = "precision",
+    build_setting_default = "double",
+)
+
+precision(name = "double")
+
+precision(name = "single")
+
+config_setting(
+    name = "single_precision",
+    flag_values = {":precision": "single"},
+)
+
+config_setting(
+    name = "double_precision",
+    flag_values = {":precision": "double"},
+)
+
+# MFEM_USE_* definitions ######################################################
+mfem_use(
+    name = "mfem_not_mpi",
+    define = "MFEM_USE_MPI",
+    use = False,
+)
+
+mfem_use(
+    name = "mfem_use_mpi",
+    define = "MFEM_USE_MPI",
+    use = True,
+)
+
+mfem_use(
+    name = "mfem_not_metis",
+    define = "MFEM_USE_METIS",
+    use = False,
+)
+
+mfem_use(
+    name = "mfem_use_metis",
+    define = "MFEM_USE_METIS",
+    use = True,
+)
+
+mfem_use(
+    name = "mfem_not_metis_5",
+    define = "MFEM_USE_METIS_5",
+    use = False,
+)
+
+mfem_use(
+    name = "mfem_use_metis_5",
+    define = "MFEM_USE_METIS_5",
+    use = True,
+)
+
+mfem_use(
+    name = "no_mfem_hypre_version",
+    define = "MFEM_HYPRE_VERSION",
+    use = False,
+)
+
+mfem_use(
+    name = "mfem_hypre_version",
+    define = "MFEM_HYPRE_VERSION",
+    use = True,
+)
+
+mfem_use(
+    name = "mfem_not_double",
+    define = "MFEM_USE_DOUBLE",
+    use = False,
+)
+
+mfem_use(
+    name = "mfem_use_double",
+    define = "MFEM_USE_DOUBLE",
+    use = True,
+)
+
+mfem_use(
+    name = "mfem_not_single",
+    define = "MFEM_USE_SINGLE",
+    use = False,
+)
+
+mfem_use(
+    name = "mfem_use_single",
+    define = "MFEM_USE_SINGLE",
+    use = True,
+)
+
+### https://bazel.build/reference/be/general#genrule
+genrule(
+    name = "genrule_config_bazel",
+    srcs = ["BUILD"],
+    outs = ["config/bazel.hpp"],
+    cmd = """cat <<EOF > $@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifndef MFEM_CONFIG_HEADER
+#define MFEM_CONFIG_HEADER
+
+// MFEM version: integer of the form: (major*100 + minor)*100 + patch.
+#define MFEM_VERSION 40701
+
+// MFEM version string of the form "3.3" or "3.3.1".
+#define MFEM_VERSION_STRING "4.7.1"
+
+// MFEM version type, see the MFEM_VERSION_TYPE_* constants below.
+#define MFEM_VERSION_TYPE ((MFEM_VERSION) % 2)
+
+// MFEM version type constants.
+#define MFEM_VERSION_TYPE_RELEASE 0
+#define MFEM_VERSION_TYPE_DEVELOPMENT 1
+
+// Separate MFEM version numbers for major, minor, and patch.
+#define MFEM_VERSION_MAJOR ((MFEM_VERSION) / 10000)
+#define MFEM_VERSION_MINOR (((MFEM_VERSION) / 100) % 100)
+#define MFEM_VERSION_PATCH ((MFEM_VERSION) % 100)
+
+// The absolute path of the MFEM source prefix.
+#define MFEM_SOURCE_DIR "$$(realpath $$(realpath BUILD)/..)"
+
+// The absolute path of the MFEM installation prefix.
+#define MFEM_INSTALL_DIR "$$(realpath $(BINDIR))"
+
+// Description of the git commit used to build MFEM.
+#define MFEM_GIT_STRING "heads/bazel-git-..."
+
+// Build the parallel MFEM library.
+// Requires an MPI compiler, and the libraries HYPRE and METIS.
+$(MFEM_USE_MPI)
+
+// Enable MFEM features that use the METIS library (parallel MFEM).
+$(MFEM_USE_METIS)
+
+// Enable this option if linking with METIS version 5 (parallel MFEM).
+$(MFEM_USE_METIS_5)
+
+// Version of HYPRE used for building MFEM.
+$(MFEM_HYPRE_VERSION) 23100
+
+// Use single/double-precision floating point type
+$(MFEM_USE_DOUBLE)
+$(MFEM_USE_SINGLE)
+
+// Internal MFEM option: enable group/batch allocation for some small objects.
+#define MFEM_USE_MEMALLOC
+
+// Which library functions to use in class StopWatch for measuring time.
+// For a list of the available options, see INSTALL.
+// If not defined, an option is selected automatically.
+#define MFEM_TIMER_TYPE 4
+
+#endif // MFEM_CONFIG_HEADER
+EOF""",
+    local = False,
+    message = "Generating config bazel.hpp file",
+    toolchains = select({
+        ":serial_build": [
+            ":mfem_not_mpi",
+            ":mfem_not_metis",
+            ":mfem_not_metis_5",
+            ":no_mfem_hypre_version",
+        ],
+        ":parallel_build": [
+            ":mfem_use_mpi",
+            ":mfem_use_metis",
+            ":mfem_use_metis_5",
+            ":mfem_hypre_version",
+        ],
+        "//conditions:default": [
+            ":mfem_not_mpi",
+            ":mfem_not_metis",
+            ":mfem_not_metis_5",
+            ":mfem_hypre_version",
+            ":mfem_use_double",
+            ":mfem_not_single",
+        ],
+    }) + select({
+        ":double_precision": [
+            ":mfem_use_double",
+            ":mfem_not_single",
+        ],
+        ":single_precision": [
+            ":mfem_not_double",
+            ":mfem_use_single",
+        ],
+    }),
+)
+
+cc_library(
+    name = "config_bazel_hpp",
+    srcs = ["config/bazel.hpp"],
+    includes = ["config"],
 )
 
 ### MFEM Examples #############################################################
@@ -78,7 +287,6 @@ cc_library(
         "general_hpp",
         "linalg_hpp",
         "mesh_hpp",
-        "@config",
     ] + select({
         ":parallel_build": ["@mpi"],
         "//conditions:default": [],
@@ -157,6 +365,10 @@ cc_library(
 cc_library(
     name = "config_hpp",
     srcs = glob(["config/*.hpp"]),
+    deps = [
+        ":config_bazel_hpp",
+        "@config",
+    ],
 )
 
 cc_library(
@@ -166,6 +378,7 @@ cc_library(
         "fem/*.h",
     ]),
     deps = [
+        "config_hpp",
         "fem_ceed_hpp",
         "fem_fe_hpp",
         "fem_integ_hpp",

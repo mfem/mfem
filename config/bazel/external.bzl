@@ -9,7 +9,7 @@ def _external(_):
         build_file_content = """
 cc_library(
     name = "config",
-    defines = ["MFEM_CONFIG_FILE=\\\\\\"_config.hpp\\\\\\""],
+    defines = ["MFEM_CONFIG_FILE=\\\\\\"config/bazel.hpp\\\\\\""],
     visibility = ["//visibility:public"],
 )""",
         path = "",
