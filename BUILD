@@ -189,7 +189,8 @@ $(MFEM_USE_METIS)
 $(MFEM_USE_METIS_5)
 
 // Version of HYPRE used for building MFEM.
-$(MFEM_HYPRE_VERSION) 23100
+// macOS: 23100, ubuntu: 21821
+$(MFEM_HYPRE_VERSION) 21821
 
 // Use single/double-precision floating point type
 $(MFEM_USE_DOUBLE)
@@ -201,7 +202,8 @@ $(MFEM_USE_SINGLE)
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.
-#define MFEM_TIMER_TYPE 4
+// 0/1/2/3/4/5/6/NO
+#define MFEM_TIMER_TYPE 0
 
 #endif // MFEM_CONFIG_HEADER
 EOF""",

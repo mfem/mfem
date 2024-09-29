@@ -73,7 +73,7 @@
   "moduleExtensions": {
     "//config/bazel:external.bzl%external": {
       "general": {
-        "bzlTransitiveDigest": "s8oOCYVNpRt2nnITVp8gUjjI17X1dr6mJ1QhOAc8L7E=",
+        "bzlTransitiveDigest": "5TBR6w/Nee6cjLsaVY6O+ccr9N/Zfs3Nfnn2XCRUthw=",
         "usagesDigest": "7KQUlOU+Dr8btt3EIUoIQnfrSm6abuW1Jx2axoT9AZ8=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -83,24 +83,24 @@
             "bzlFile": "@@bazel_tools//tools/build_defs/repo:local.bzl",
             "ruleClassName": "new_local_repository",
             "attributes": {
-              "build_file_content": "\ncc_library(\n    name = \"hypre\",\n    srcs = [\"lib/libHYPRE.a\"],\n    hdrs = glob([\"include/*.h\"]),\n    includes = [\"include\"],\n    visibility = [\"//visibility:public\"],\n)",
-              "path": "/opt/homebrew/Cellar/hypre/2.31.0"
+              "build_file_content": "\ncc_library(\n    name = \"hypre\",\n    # srcs = [\"lib/libHYPRE.a\"],\n    srcs = [\"lib/x86_64-linux-gnu/libHYPRE.so\",\n            \"lib/x86_64-linux-gnu/libHYPRE_core.so\"],\n    hdrs = glob([\"include/hypre/*.h\"]),\n    # includes = [\"include\"],\n    includes = [\"include/hypre\"],\n    visibility = [\"//visibility:public\"],\n)",
+              "path": "/usr"
             }
           },
           "mpi": {
             "bzlFile": "@@bazel_tools//tools/build_defs/repo:local.bzl",
             "ruleClassName": "new_local_repository",
             "attributes": {
-              "build_file_content": "\ncc_library(\n    name = \"mpi\",\n    srcs = [\"lib/libmpi.dylib\"],\n    hdrs = glob([\"include/**/*.h\"]),\n    includes = [\"include\"],\n    visibility = [\"//visibility:public\"],\n    deps = [\"@hypre\", \"@metis\"],\n)",
-              "path": "/opt/homebrew/Cellar/open-mpi/5.0.3_1"
+              "build_file_content": "\ncc_library(\n    name = \"mpi\",\n    # srcs = [\"lib/libmpi.dylib\"],\n    srcs = [\"lib/libmpi.so\"],\n    hdrs = glob([\"include/**/*.h\"]),\n    includes = [\"include\"],\n    visibility = [\"//visibility:public\"],\n    deps = [\"@hypre\", \"@metis\"],\n)",
+              "path": "/usr/lib/x86_64-linux-gnu/openmpi"
             }
           },
           "metis": {
             "bzlFile": "@@bazel_tools//tools/build_defs/repo:local.bzl",
             "ruleClassName": "new_local_repository",
             "attributes": {
-              "build_file_content": "\ncc_library(\n    name = \"metis\",\n    srcs = [\"lib/libmetis.dylib\"],\n    hdrs = glob([\"include/metis.h\"]),\n    includes = [\"include\"],\n    visibility = [\"//visibility:public\"],\n)",
-              "path": "/opt/homebrew/Cellar/metis/5.1.0"
+              "build_file_content": "\ncc_library(\n    name = \"metis\",\n    # srcs = [\"lib/libmetis.dylib\"],\n    srcs = [\"lib/x86_64-linux-gnu/libmetis.so.5\"],\n    hdrs = glob([\"include/metis.h\"]),\n    # includes = [\"include\"],\n    visibility = [\"//visibility:public\"],\n)",
+              "path": "/usr"
             }
           },
           "config": {
@@ -1689,7 +1689,7 @@
     "@@toolchains_llvm~//toolchain/extensions:llvm.bzl%llvm": {
       "general": {
         "bzlTransitiveDigest": "y9h5L2NtWbogyWSOJgqnUaU50MTPWAW+waelXSirMVg=",
-        "usagesDigest": "d94GEcBq6bl0dK4bKhgewPJ7hmW7nj+mBpRXO2dBoMM=",
+        "usagesDigest": "bmN1gESMQa8g+sNSW7T6MiS5+TyZ+wHdc6hhkSUN5q0=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -1712,11 +1712,13 @@
               "link_flags": {},
               "link_libs": {},
               "llvm_versions": {
-                "": "17.0.6"
+                "": "13.0.0"
               },
               "opt_compile_flags": {},
               "opt_link_flags": {},
-              "stdlib": {},
+              "stdlib": {
+                "linux-x86_64": "stdc++"
+              },
               "target_settings": {},
               "unfiltered_compile_flags": {},
               "toolchain_roots": {},
@@ -1733,7 +1735,7 @@
               "exec_arch": "",
               "exec_os": "",
               "llvm_mirror": "",
-              "llvm_version": "17.0.6",
+              "llvm_version": "13.0.0",
               "llvm_versions": {},
               "netrc": "",
               "sha256": {},
