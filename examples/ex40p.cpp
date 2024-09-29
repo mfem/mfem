@@ -69,8 +69,8 @@ public:
 
    using VectorCoefficient::Eval;
 
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    void SetAlpha(real_t alpha_) { alpha = alpha_; }
 };
 
@@ -84,8 +84,8 @@ public:
    DZCoefficient(int height, ParGridFunction &psi_, real_t alpha_ = 1.0)
       : MatrixCoefficient(height),  psi(&psi_), alpha(alpha_) { }
 
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    void SetAlpha(real_t alpha_) { alpha = alpha_; }
 };
 

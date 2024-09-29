@@ -2281,6 +2281,35 @@ void DenseMatrix::PrintMatlab(std::ostream &os) const
    os.flags(old_flags);
 }
 
+void DenseMatrix::PrintMathematica(std::ostream &os) const
+{
+   ios::fmtflags old_fmt = os.flags();
+   os.setf(ios::scientific);
+   std::streamsize old_prec = os.precision(14);
+
+   os << "(* Read file into Mathematica using: "
+      << "myMat = Get[\"this_file_name\"] *)\n";
+   os << "{\n";
+
+   for (int i = 0; i < height; i++)
+   {
+      os << "{\n";
+      for (int j = 0; j < width; j++)
+      {
+         os << "Internal`StringToMReal[\"" << (*this)(i,j) << "\"]";
+         if (j < width - 1) { os << ','; }
+         os << '\n';
+      }
+      os << '}';
+      if (i < height - 1) { os << ','; }
+      os << '\n';
+   }
+   os << "}\n";
+
+   os.precision(old_prec);
+   os.flags(old_fmt);
+}
+
 void DenseMatrix::PrintT(std::ostream &os, int width_) const
 {
    // save current output flags

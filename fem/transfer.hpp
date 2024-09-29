@@ -155,9 +155,9 @@ public:
    void SetMassIntegrator(BilinearFormIntegrator *mass_integ_,
                           bool own_mass_integ_ = true);
 
-   virtual const Operator &ForwardOperator();
+   const Operator &ForwardOperator() override;
 
-   virtual const Operator &BackwardOperator();
+   const Operator &BackwardOperator() override;
 };
 
 
@@ -306,7 +306,7 @@ public:
       /// finite element space. Refined mesh should be a uniform refinement of
       /// the coarse mesh. Coefficients are computed through minimization of L2
       /// error between the fields.
-      virtual void Mult(const Vector& x, Vector& y) const;
+      void Mult(const Vector& x, Vector& y) const override;
 
       //Perform mult on the device (same as above)
       void DeviceMult(const Vector& x, Vector& y) const;
@@ -318,7 +318,7 @@ public:
       /// coarse mesh. Coefficients are computed through minimization of L2
       /// error between the primal fields. Note, if the <tt>x</tt>-coefficients
       /// come from ProlongateTranspose, then mass is conserved.
-      virtual void MultTranspose(const Vector& x, Vector& y) const;
+      void MultTranspose(const Vector& x, Vector& y) const override;
 
       void DeviceMultTranspose(const Vector& x, Vector& y) const;
 
@@ -329,7 +329,7 @@ public:
       /// coarse mesh. Coefficients are computed from the mass conservative
       /// left-inverse prolongation operation. This functionality is also
       /// provided as an Operator by L2Prolongation.
-      virtual void Prolongate(const Vector& x, Vector& y) const;
+      void Prolongate(const Vector& x, Vector& y) const override;
 
       void DeviceProlongate(const Vector& x, Vector& y) const;
 
@@ -340,13 +340,12 @@ public:
       /// coarse mesh. Coefficients are computed from the transpose of the mass
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
-      virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
+      void ProlongateTranspose(const Vector& x, Vector& y) const override;
 
       void DeviceProlongateTranspose(const Vector& x, Vector& y) const;
 
-
-      virtual void SetRelTol(real_t p_rtol_) { } ///< No-op.
-      virtual void SetAbsTol(real_t p_atol_) { } ///< No-op.
+      void SetRelTol(real_t p_rtol_) override { } ///< No-op.
+      void SetAbsTol(real_t p_atol_) override { } ///< No-op.
 
       //friend class L2ProjectionGridTransfer;
    };
@@ -399,7 +398,7 @@ public:
       /// finite element space. Refined mesh should be a uniform refinement of
       /// the coarse mesh. Coefficients are computed through minimization of L2
       /// error between the fields.
-      virtual void Mult(const Vector& x, Vector& y) const;
+      void Mult(const Vector& x, Vector& y) const override;
 
       // Perform mult on the device (same as above)
       void DeviceMult(const Vector& x, Vector& y) const;
@@ -411,7 +410,7 @@ public:
       /// coarse mesh. Coefficients are computed through minimization of L2
       /// error between the primal fields. Note, if the <tt>x</tt>-coefficients
       /// come from ProlongateTranspose, then mass is conserved.
-      virtual void MultTranspose(const Vector& x, Vector& y) const;
+      void MultTranspose(const Vector& x, Vector& y) const override;
 
       void DeviceMultTranspose(const Vector& x, Vector& y) const;
 
@@ -422,7 +421,7 @@ public:
       /// coarse mesh. Coefficients are computed from the mass conservative
       /// left-inverse prolongation operation. This functionality is also
       /// provided as an Operator by L2Prolongation.
-      virtual void Prolongate(const Vector& x, Vector& y) const;
+      void Prolongate(const Vector& x, Vector& y) const override;
 
       void DeviceProlongate(const Vector& x, Vector& y) const;
 
@@ -433,15 +432,16 @@ public:
       /// coarse mesh. Coefficients are computed from the transpose of the mass
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
-      virtual void ProlongateTranspose(const Vector& x, Vector& y) const;
+      void ProlongateTranspose(const Vector& x, Vector& y) const override;
 
       void DeviceProlongateTranspose(const Vector& x, Vector& y) const;
 
       /// Returns the inverse of an on-rank lumped mass matrix
       void LumpedMassInverse(Vector& ML_inv) const;
 
-      virtual void SetRelTol(real_t p_rtol_);
-      virtual void SetAbsTol(real_t p_atol_);
+      void SetRelTol(real_t p_rtol_) override;
+      void SetAbsTol(real_t p_atol_) override;
+
    protected:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
@@ -563,11 +563,11 @@ public:
    { }
    virtual ~L2ProjectionGridTransfer();
 
-   virtual const Operator &ForwardOperator();
+   const Operator &ForwardOperator() override;
 
-   virtual const Operator &BackwardOperator();
+   const Operator &BackwardOperator() override;
 
-   virtual bool SupportsBackwardsOperator() const;
+   bool SupportsBackwardsOperator() const override;
 private:
    void BuildF();
 
@@ -596,12 +596,12 @@ public:
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
-   virtual void Mult(const Vector& x, Vector& y) const override;
+   void Mult(const Vector& x, Vector& y) const override;
 
    /// Restriction by applying the transpose of the Mult method.
    /** The vector \p x corresponding to the fine space is restricted to the
        vector \p y corresponding to the coarse space. */
-   virtual void MultTranspose(const Vector& x, Vector& y) const override;
+   void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
 /// Matrix-free transfer operator between finite element spaces on the same mesh
@@ -626,12 +626,12 @@ public:
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
-   virtual void Mult(const Vector& x, Vector& y) const override;
+   void Mult(const Vector& x, Vector& y) const override;
 
    /// Restriction by applying the transpose of the Mult method.
    /** The vector \p x corresponding to the fine space is restricted to the
    vector \p y corresponding to the coarse space. */
-   virtual void MultTranspose(const Vector& x, Vector& y) const override;
+   void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
 /// @brief Matrix-free transfer operator between finite element spaces on the
@@ -668,12 +668,12 @@ public:
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
-   virtual void Mult(const Vector& x, Vector& y) const override;
+   void Mult(const Vector& x, Vector& y) const override;
 
    /// Restriction by applying the transpose of the Mult method.
    /** The vector \p x corresponding to the fine space is restricted to the
    vector \p y corresponding to the coarse space. */
-   virtual void MultTranspose(const Vector& x, Vector& y) const override;
+   void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
 /// @brief Matrix-free transfer operator between finite element spaces working
@@ -702,12 +702,12 @@ public:
    /// dof vector \p y.
    /** The true dof vector \p x corresponding to the coarse space is restricted
        to the true dof vector \p y corresponding to the fine space. */
-   virtual void Mult(const Vector& x, Vector& y) const override;
+   void Mult(const Vector& x, Vector& y) const override;
 
    /// Restriction by applying the transpose of the Mult method.
    /** The true dof vector \p x corresponding to the fine space is restricted to
        the true dof vector \p y corresponding to the coarse space. */
-   virtual void MultTranspose(const Vector& x, Vector& y) const override;
+   void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
 } // namespace mfem
