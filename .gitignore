@@ -117,6 +117,8 @@ examples/cond_j.*
 examples/cond_mesh.*
 examples/port_mesh.*
 examples/port_mode.*
+examples/*.png
+examples/*.csv
 
 examples/euler-*
 
