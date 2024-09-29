@@ -815,10 +815,12 @@ int main(int argc, char *argv[])
          stationarityBregmanError/stationarityBregmanError0;
 
       bool isStationarityPoint = stationarity_in_Bregman
-                                 ? (rel_stationarityBregmanError < rel_tol_stationarity || stationarityBregmanError < abs_tol_stationarity)
-                                 : (rel_stationarityError < rel_tol_stationarity || stationarityError < abs_tol_stationarity);
+                                 ? (rel_stationarityBregmanError < rel_tol_stationarity ||
+                                    stationarityBregmanError < abs_tol_stationarity)
+                                 : (rel_stationarityError < rel_tol_stationarity ||
+                                    stationarityError < abs_tol_stationarity);
       bool objConverged = (objval_old - objval) / std::fabs(objval) < rel_tol_objdiff
-      || (objval_old - objval) < abs_tol_objdiff;
+                          || (objval_old - objval) < abs_tol_objdiff;
       if (isStationarityPoint && objConverged)
       {
          break;
