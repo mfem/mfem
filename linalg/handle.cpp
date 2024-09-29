@@ -44,6 +44,7 @@ Operator::Type OperatorHandle::CheckType(Operator::Type tid)
 #endif
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      case Operator::PETSC_MATGENERIC:
 #ifdef MFEM_USE_PETSC
          break;
 #else
@@ -148,6 +149,7 @@ void OperatorHandle::MakePtAP(OperatorHandle &A, OperatorHandle &P)
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      case Operator::PETSC_MATGENERIC:
       {
          pSet(mfem::RAP(A.As<PetscParMatrix>(), P.As<PetscParMatrix>()));
          break;
@@ -186,6 +188,7 @@ void OperatorHandle::MakeRAP(OperatorHandle &Rt, OperatorHandle &A,
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      case Operator::PETSC_MATGENERIC:
       {
          pSet(mfem::RAP(Rt.As<PetscParMatrix>(), A.As<PetscParMatrix>(),
                         P.As<PetscParMatrix>()));
@@ -288,6 +291,7 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
       }
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      case Operator::PETSC_MATGENERIC:
       {
 #ifdef MFEM_USE_PETSC
          pSet(A.As<PetscParMatrix>()->EliminateRowsCols(ess_dof_list));
@@ -368,6 +372,7 @@ void OperatorHandle::EliminateBC(const OperatorHandle &A_e,
       }
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      case Operator::PETSC_MATGENERIC:
       {
 #ifdef MFEM_USE_PETSC
          mfem::EliminateBC(*As<PetscParMatrix>(), *A_e.As<PetscParMatrix>(),
