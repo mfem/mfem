@@ -439,6 +439,31 @@ public:
    virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
+/// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
+class MappedGridFunctionCoefficient : public GridFunctionCoefficient
+{
+protected:
+   std::function<real_t(const real_t)> fun; // f:R → R
+public:
+   MappedGridFunctionCoefficient()
+      :GridFunctionCoefficient(),
+       fun([](real_t x) {return x;}) {}
+   MappedGridFunctionCoefficient(const GridFunction *gf,
+                                 std::function<real_t(const real_t)> fun_,
+                                 int comp=1)
+      :GridFunctionCoefficient(gf, comp),
+       fun(fun_) {}
+
+   virtual real_t Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      return fun(GridFunctionCoefficient::Eval(T, ip));
+   }
+   void SetFunction(std::function<real_t(const real_t)> fun_) { fun = fun_; }
+   void SetGridFunction(GridFunction &new_gf){GridFunctionCoefficient::SetGridFunction(&new_gf);}
+};
+
+
 /** @brief Delta function coefficient optionally multiplied by a weight
     coefficient and a scaled time dependent C-function.
 

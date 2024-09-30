@@ -138,20 +138,20 @@ public:
 class SIMPInterpolationCoefficient : public Coefficient
 {
 protected:
-   GridFunction *rho_filter;
+   Coefficient *rho_filter;
    real_t min_val;
    real_t max_val;
    real_t exponent;
 
 public:
-   SIMPInterpolationCoefficient(GridFunction *rho_filter_, real_t min_val_= 1e-6,
+   SIMPInterpolationCoefficient(Coefficient *rho_filter_, real_t min_val_= 1e-6,
                                 real_t max_val_ = 1.0, real_t exponent_ = 3)
       : rho_filter(rho_filter_), min_val(min_val_), max_val(max_val_),
         exponent(exponent_) { }
 
    virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
-      real_t val = rho_filter->GetValue(T, ip);
+      real_t val = rho_filter->Eval(T, ip);
       real_t coeff = min_val + pow(val,exponent)*(max_val-min_val);
       return coeff;
    }
@@ -166,7 +166,7 @@ protected:
    Coefficient * mu=nullptr;
    GridFunction *u = nullptr; // displacement
    GridFunction *adju = nullptr; // adjoint displacement
-   GridFunction *rho_filter = nullptr; // filter density
+   Coefficient *rho_filter = nullptr; // filter density
    DenseMatrix grad; // auxiliary matrix, used in Eval
    DenseMatrix adjgrad; // auxiliary matrix, used in Eval
    real_t exponent;
@@ -174,7 +174,7 @@ protected:
 
 public:
    StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_,
-                                  GridFunction * u_, GridFunction *adju_, GridFunction * rho_filter_,
+                                  GridFunction * u_, GridFunction *adju_, Coefficient * rho_filter_,
                                   real_t rho_min_=1e-6,
                                   real_t exponent_ = 3.0)
       : lambda(lambda_), mu(mu_),  u(u_), adju(adju_), rho_filter(rho_filter_),
@@ -217,7 +217,7 @@ public:
          }
 
       }
-      real_t val = rho_filter->GetValue(T,ip);
+      real_t val = rho_filter->Eval(T,ip);
 
       return -exponent * pow(val, exponent-1.0) * (1-rho_min) * density;
    }
