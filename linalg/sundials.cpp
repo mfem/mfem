@@ -2058,8 +2058,10 @@ void KINSolver::SetOperator(const Operator &op)
          flag = KINSetDampingAA(sundials_mem, aa_damping);
          MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDampingAA()");
 
+#if SUNDIALS_VERSION_MAJOR >= 6
          flag = KINSetOrthAA(sundials_mem, aa_orth);
          MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetOrthAA()");
+#endif
       }
 
       // Initialize KINSOL
@@ -2205,8 +2207,16 @@ void KINSolver::EnableAndersonAcc(int n, int orth, int delay, double damping)
       flag = KINSetDampingAA(sundials_mem, damping);
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDampingAA()");
 
+#if SUNDIALS_VERSION_MAJOR >= 6
       flag = KINSetOrthAA(sundials_mem, orth);
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetOrthAA()");
+#else
+      if (orth != KIN_ORTH_MGS)
+      {
+         MFEM_WARNING("SUNDIALS < v6 does not support setting the Anderson"
+                      " acceleration orthogonalization routine!");
+      }
+#endif
    }
 
    aa_n = n;
