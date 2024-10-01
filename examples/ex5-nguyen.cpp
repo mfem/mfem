@@ -74,13 +74,6 @@ enum Problem
    NonsteadyBurgers,
 };
 
-TFunc GetTFun(Problem prob, real_t t_0, real_t k, real_t c);
-VecTFunc GetQFun(Problem prob, real_t t_0, real_t k, real_t c);
-VecFunc GetCFun(Problem prob, real_t c);
-TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c);
-FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
-KFunc GetInvKappaFun(Problem prob, real_t k);
-
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
 class FEOperator : public TimeDependentOperator
@@ -116,9 +109,64 @@ public:
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 };
 
+class MixedFluxFunction : public FluxFunction
+{
+public:
+   MixedFluxFunction(const int num_equations, const int dim)
+      : FluxFunction(num_equations, dim) { }
+
+   virtual ~MixedFluxFunction() { }
+
+   virtual real_t ComputeDualFlux(const Vector &state, const DenseMatrix &flux,
+                                  ElementTransformation &Tr,
+                                  DenseMatrix &dualFlux) const = 0;
+
+   virtual void ComputeDualFluxJacobian(const Vector &, const DenseMatrix &flux,
+                                        ElementTransformation &Tr,
+                                        DenseTensor &J) const
+   { MFEM_ABORT("Not Implemented."); }
+};
+
+class LinearDiffusionFlux : public MixedFluxFunction
+{
+   Coefficient *coeff;
+
+public:
+   LinearDiffusionFlux(int dim, Coefficient *coeff)
+      : MixedFluxFunction(1, dim), coeff(coeff) { }
+
+   real_t ComputeDualFlux(const Vector &, const DenseMatrix &flux,
+                          ElementTransformation &Tr,
+                          DenseMatrix &dualFlux) const override
+   {
+      const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
+      dualFlux.Set(ikappa, flux);
+      return ikappa;
+   }
+
+   real_t ComputeFlux(const Vector &,
+                      ElementTransformation &,
+                      DenseMatrix &flux) const override
+   {
+      flux = 0.;
+      return 0.;
+   }
+
+   void ComputeDualFluxJacobian(const Vector &, const DenseMatrix &flux,
+                                ElementTransformation &Tr,
+                                DenseTensor &J) const override
+   {
+      const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
+      for (int d = 0; d < dim; d++)
+      {
+         J(d)(0,0) = ikappa;
+      }
+   }
+};
+
 class ConductionNLFIntegrator : public BlockNonlinearFormIntegrator
 {
-   std::function<real_t(real_t f, const Vector &x)> Function;
+   const MixedFluxFunction &fluxFunction;
 
    DenseMatrix vshape_u;
    Vector shape_u, shape_p;
@@ -126,9 +174,9 @@ class ConductionNLFIntegrator : public BlockNonlinearFormIntegrator
 
 public:
    ConductionNLFIntegrator(
-      std::function<real_t(real_t f, const Vector &x)> F,
+      const MixedFluxFunction &fluxFunction,
       const IntegrationRule *ir = NULL)
-      : Function(std::move(F)), IntRule(ir) { }
+      : fluxFunction(fluxFunction), IntRule(ir) { }
 
    void AssembleElementVector(const Array<const FiniteElement*> &el,
                               ElementTransformation &Tr,
@@ -140,6 +188,13 @@ public:
                             const Array<const Vector *> &elfun,
                             const Array2D<DenseMatrix *> &elmats);
 };
+
+TFunc GetTFun(Problem prob, real_t t_0, real_t k, real_t c);
+VecTFunc GetQFun(Problem prob, real_t t_0, real_t k, real_t c);
+VecFunc GetCFun(Problem prob, real_t c);
+TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c);
+FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
+MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim);
 
 int main(int argc, char *argv[])
 {
@@ -443,6 +498,7 @@ int main(int argc, char *argv[])
    BilinearForm *Mt0 = (btime)?(new BilinearForm(W_space)):(NULL);
    FluxFunction *FluxFun = NULL;
    RiemannSolver *FluxSolver = NULL;
+   MixedFluxFunction *HeatFluxFun = NULL;
 
    //diffusion
 
@@ -475,14 +531,14 @@ int main(int argc, char *argv[])
    else
    {
       //nonlinear diffusion
-      auto InvKappaFun = GetInvKappaFun(problem, k);
+      HeatFluxFun = GetHeatFluxFun(problem, k, dim);
       if (dg)
       {
-         Mnl->AddDomainIntegrator(new ConductionNLFIntegrator(InvKappaFun));
+         Mnl->AddDomainIntegrator(new ConductionNLFIntegrator(*HeatFluxFun));
       }
       else
       {
-         Mnl->AddDomainIntegrator(new ConductionNLFIntegrator(InvKappaFun));
+         Mnl->AddDomainIntegrator(new ConductionNLFIntegrator(*HeatFluxFun));
       }
    }
 
@@ -999,6 +1055,7 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
+   delete HeatFluxFun;
    delete FluxFun;
    delete FluxSolver;
    delete fform;
@@ -1369,7 +1426,7 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
    return NULL;
 }
 
-KFunc GetInvKappaFun(Problem prob, real_t k)
+MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
 {
    switch (prob)
    {
@@ -1380,13 +1437,18 @@ KFunc GetInvKappaFun(Problem prob, real_t k)
       case Problem::KovasznayFlow:
       case Problem::SteadyBurgers:
       case Problem::NonsteadyBurgers:
-         return [=](real_t T, const Vector &x) -> real_t
+         static FunctionCoefficient ikappa([=](const Vector &x) -> real_t { return 1./k; });
+         return new LinearDiffusionFlux(dim, &ikappa);
+      case Problem::SteadyLinearKappa:
+      case Problem::NonsteadyLinearKappa:
+         /*return [=](real_t T, const Vector &x) -> real_t
          {
-            return 1./k;
-         };
+            return 1./(k*T);
+         };*/
+         return NULL;
    }
 
-   return KFunc();
+   return NULL;
 }
 
 FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
@@ -1755,7 +1817,8 @@ void ConductionNLFIntegrator::AssembleElementVector(
    elvect_p.SetSize(ndof_p);
    elvect_p = 0.0;
 
-   Vector x(sdim), u(sdim);
+   Vector x(sdim), u(sdim), F(sdim), p(1);
+   DenseMatrix mu(u.GetData(), 1, sdim), mF(F.GetData(), 1, sdim);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -1781,16 +1844,17 @@ void ConductionNLFIntegrator::AssembleElementVector(
          fe_u.CalcShape(ip, shape_u);
          fe_p.CalcShape(ip, shape_p);
 
-         const real_t val = elfun_p * shape_p;
+         p(0) = elfun_p * shape_p;
          real_t w = ip.weight * Tr.Weight();
-         w *= Function(val, x);
 
          elfun_u_mat.MultTranspose(shape_u, u);
+
+         fluxFunction.ComputeDualFlux(p, mu, Tr, mF);
 
          for (int d = 0; d < sdim; d++)
             for (int i = 0; i < ndof_u; i++)
             {
-               elvect_u(i+d*ndof_u) += w * shape_u(i) * u(d);
+               elvect_u(i+d*ndof_u) += w * shape_u(i) * F(d);
             }
       }
    }
@@ -1809,13 +1873,14 @@ void ConductionNLFIntegrator::AssembleElementVector(
          fe_u.CalcVShape(Tr, vshape_u);
          fe_p.CalcShape(ip, shape_p);
 
-         const real_t val = elfun_p * shape_p;
+         p(0) = elfun_p * shape_p;
          real_t w = ip.weight * Tr.Weight();
-         w *= Function(val, x);
 
          vshape_u.MultTranspose(elfun_u, u);
 
-         vshape_u.AddMult_a(w, u, elvect_u);
+         fluxFunction.ComputeDualFlux(p, mu, Tr, mF);
+
+         vshape_u.AddMult_a(w, F, elvect_u);
       }
    }
 }
@@ -1830,12 +1895,14 @@ void ConductionNLFIntegrator::AssembleElementGrad(
 
    const FiniteElement &fe_u = *el[0];
    const FiniteElement &fe_p = *el[1];
-   //const Vector &elfun_u = *elfun[0];
+   const Vector &elfun_u = *elfun[0];
    const Vector &elfun_p = *elfun[1];
 
    shape_p.SetSize(ndof_p);
 
-   Vector x(sdim);
+   DenseTensor J(1, 1, sdim);
+   Vector x(sdim), u(sdim), p(1);
+   DenseMatrix mu(u.GetData(), 1, sdim);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -1850,6 +1917,8 @@ void ConductionNLFIntegrator::AssembleElementGrad(
       elmats(0,0)->SetSize(ndof_u * sdim);
       *elmats(0,0) = 0.0;
 
+      DenseMatrix elfun_u_mat(elfun_u.GetData(), ndof_u, sdim);
+
       for (int q = 0; q < ir->Size(); q++)
       {
          const IntegrationPoint &ip = ir->IntPoint(q);
@@ -1859,15 +1928,19 @@ void ConductionNLFIntegrator::AssembleElementGrad(
          fe_u.CalcShape(ip, shape_u);
          fe_p.CalcShape(ip, shape_p);
 
-         const real_t val = elfun_p * shape_p;
+         p(0) = elfun_p * shape_p;
          real_t w = ip.weight * Tr.Weight();
-         w *= Function(val, x);
+
+         elfun_u_mat.MultTranspose(shape_u, u);
+
+         fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J);
 
          for (int d = 0; d < sdim; d++)
             for (int j = 0; j < ndof_u; j++)
                for (int i = 0; i < ndof_u; i++)
                {
-                  (*elmats(0,0))(i+d*ndof_u, j+d*ndof_u) += w * shape_u(i) * shape_u(j);
+                  (*elmats(0,0))(i+d*ndof_u, j+d*ndof_u)
+                  += w * J(0,0,d) * shape_u(i) * shape_u(j);
                }
       }
    }
@@ -1876,6 +1949,8 @@ void ConductionNLFIntegrator::AssembleElementGrad(
       vshape_u.SetSize(ndof_u, sdim);
       elmats(0,0)->SetSize(ndof_u);
       *elmats(0,0) = 0.0;
+
+      Vector vJ(J.Data(), sdim);
 
       for (int q = 0; q < ir->Size(); q++)
       {
@@ -1886,11 +1961,15 @@ void ConductionNLFIntegrator::AssembleElementGrad(
          fe_u.CalcVShape(Tr, vshape_u);
          fe_p.CalcShape(ip, shape_p);
 
-         const real_t val = elfun_p * shape_p;
+         p(0) = elfun_p * shape_p;
          real_t w = ip.weight * Tr.Weight();
-         w *= Function(val, x);
 
-         AddMult_a_AAt(w, vshape_u, *elmats(0,0));
+         vshape_u.MultTranspose(elfun_u, u);
+
+         fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J);
+
+         vJ *= w;
+         AddMultADAt(vshape_u, vJ, *elmats(0,0));
       }
    }
 }
