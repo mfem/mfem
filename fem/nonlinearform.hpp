@@ -353,6 +353,16 @@ public:
                             Array<int> &elem_marker)
    { dnfi.Append(nlfi); dnfi_marker.Append(&elem_marker); }
 
+   /// Access all domain integrators added with AddDomainIntegrator().
+   const Array<BlockNonlinearFormIntegrator*> &GetDomainIntegrators() const
+   { return dnfi; }
+
+   /// Access all domain markers added with AddDomainIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   const Array<Array<int>*> &GetDomainIntegratorsMarkers() const
+   { return dnfi_marker; }
+
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(BlockNonlinearFormIntegrator *nlfi)
    { bnfi.Append(nlfi); bnfi_marker.Append(NULL); }
@@ -362,9 +372,23 @@ public:
                               Array<int> &elem_marker)
    { bnfi.Append(nlfi); bnfi_marker.Append(&elem_marker); }
 
+   /// Access all boundary integrators added with AddBoundaryIntegrator().
+   const Array<BlockNonlinearFormIntegrator*> &GetBoundaryIntegrators() const
+   { return bnfi; }
+
+   /// Access all boundary markers added with AddBoundaryIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   const Array<Array<int>*> &GetBoundaryIntegratorsMarkers() const
+   { return bnfi_marker; }
+
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
    { fnfi.Append(nlfi); }
+
+   /// Access all inetrior face integrators added with AddInteriorFaceIntegrator().
+   const Array<BlockNonlinearFormIntegrator*> &GetInteriorFaceIntegrators() const
+   { return fnfi; }
 
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
@@ -375,6 +399,16 @@ public:
    void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nlfi,
                              Array<int> &bdr_marker)
    { bfnfi.Append(nlfi); bfnfi_marker.Append(&bdr_marker); }
+
+   /// Access all boundary face integrators added with AddBdrFaceIntegrator().
+   const Array<BlockNonlinearFormIntegrator*> &GetBdrFaceIntegrators() const
+   { return bfnfi; }
+
+   /// Access all boundary face markers added with AddBdrFaceIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   const Array<Array<int>*> &GetBdrFaceIntegratorsMarkers() const
+   { return bfnfi_marker; }
 
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);
