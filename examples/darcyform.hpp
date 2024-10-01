@@ -32,8 +32,9 @@ class DarcyForm : public Operator
    BilinearForm *M_u, *M_p;
    NonlinearForm *Mnl_u, *Mnl_p;
    MixedBilinearForm *B;
+   BlockNonlinearForm *Mnl;
 
-   OperatorHandle pM_u, pM_p, pB, pBt;
+   OperatorHandle pM_u, pM_p, pB, pBt, pM;
 
    /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly;
@@ -67,6 +68,9 @@ public:
 
    MixedBilinearForm *GetFluxDivForm();
    const MixedBilinearForm *GetFluxDivForm() const;
+
+   BlockNonlinearForm *GetBlockNonlinearForm();
+   const BlockNonlinearForm *GetBlockNonlinearForm() const;
 
    /// Set the desired assembly level.
    /** Valid choices are:
@@ -186,10 +190,10 @@ public:
                             const BlockVector &x, BlockVector &b);
 
    /// Operator application
-   void Mult (const Vector & x, Vector & y) const override { block_op->Mult(x, y); }
+   void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
-   void MultTranspose (const Vector & x, Vector & y) const override { block_op->MultTranspose(x, y); }
+   void MultTranspose (const Vector & x, Vector & y) const override;
 
    /// Return the flux FE space associated with the DarcyForm.
    FiniteElementSpace *FluxFESpace() { return fes_u; }

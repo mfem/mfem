@@ -37,6 +37,7 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
    Mnl_u = NULL;
    Mnl_p = NULL;
    B = NULL;
+   Mnl = NULL;
 
    assembly = AssemblyLevel::LEGACY;
 
@@ -105,6 +106,22 @@ const MixedBilinearForm* DarcyForm::GetFluxDivForm() const
    return B;
 }
 
+BlockNonlinearForm *DarcyForm::GetBlockNonlinearForm()
+{
+   if (!Mnl)
+   {
+      Array<FiniteElementSpace*> fes({fes_u, fes_p});
+      Mnl = new BlockNonlinearForm(fes);
+   }
+   return Mnl;
+}
+
+const BlockNonlinearForm *DarcyForm::GetBlockNonlinearForm() const
+{
+   //MFEM_ASSERT(Mnl, "Block nonlinear form not allocated!");
+   return Mnl;
+}
+
 void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
    assembly = assembly_level;
@@ -120,7 +137,7 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
                                     BilinearFormIntegrator *constr_flux_integ,
                                     const Array<int> &ess_flux_tdof_list)
 {
-   MFEM_ASSERT(M_u || Mnl_u,
+   MFEM_ASSERT(M_u || Mnl_u || Mnl,
                "Mass form for the fluxes must be set prior to this call!");
    delete hybridization;
    if (assembly != AssemblyLevel::LEGACY)
@@ -361,6 +378,10 @@ void DarcyForm::Finalize(int skip_zeros)
       {
          block_op->SetDiagonalBlock(0, Mnl_u);
       }
+      else if (Mnl)
+      {
+         pM.Reset(Mnl, false);
+      }
 
       if (M_p)
       {
@@ -412,6 +433,12 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
          pM_u.Reset(opM);
          block_op->SetDiagonalBlock(0, pM_u.Ptr());
       }
+      else if (Mnl)
+      {
+         Operator *opM;
+         Mnl->FormLinearSystem(ess_flux_tdof_list, x, b, opM, X_, B_, copy_interior);
+         pM.Reset(opM);
+      }
 
       if (M_p)
       {
@@ -447,7 +474,14 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
          block_op->SetBlock(1, 0, pB.Ptr(), (bsym)?(-1.):(+1.));
       }
 
-      A.Reset(block_op, false);
+      if (Mnl && pM.Ptr())
+      {
+         A.Reset(new SumOperator(block_op, 1., pM.Ptr(), 1., false, false));
+      }
+      else
+      {
+         A.Reset(block_op, false);
+      }
 
       X_.MakeRef(x, 0, x.Size());
       B_.MakeRef(b, 0, b.Size());
@@ -502,6 +536,12 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
          pM_u.Reset(opM);
          block_op->SetDiagonalBlock(0, pM_u.Ptr());
       }
+      else if (Mnl)
+      {
+         Operator *opM;
+         Mnl->FormSystemOperator(ess_flux_tdof_list, opM);
+         pM.Reset(opM);
+      }
 
       if (M_p)
       {
@@ -527,7 +567,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    if (hybridization)
    {
       hybridization->Finalize();
-      if (!Mnl_u && !Mnl_p)
+      if (!Mnl_u && !Mnl_p && !Mnl)
       {
          A.Reset(&hybridization->GetMatrix(), false);
       }
@@ -538,7 +578,14 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    }
    else
    {
-      A.Reset(block_op, false);
+      if (Mnl && pM.Ptr())
+      {
+         A.Reset(new SumOperator(block_op, 1., pM.Ptr(), 1., false, false));
+      }
+      else
+      {
+         A.Reset(block_op, false);
+      }
    }
 }
 
@@ -597,6 +644,23 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    {
       pM_u.As<ConstrainedOperator>()->EliminateRHS(x.GetBlock(0), b.GetBlock(0));
    }
+   else if (Mnl && pM.Ptr())
+   {
+      pM.As<ConstrainedOperator>()->EliminateRHS(x, b);
+   }
+
+}
+
+void DarcyForm::Mult(const Vector &x, Vector &y) const
+{
+   block_op->Mult(x, y);
+   if (pM.Ptr()) { pM->AddMult(x, y); }
+}
+
+void DarcyForm::MultTranspose(const Vector &x, Vector &y) const
+{
+   block_op->MultTranspose(x, y);
+   if (pM.Ptr()) { pM->AddMultTranspose(x, y); }
 }
 
 void DarcyForm::Update()
@@ -606,6 +670,7 @@ void DarcyForm::Update()
    if (Mnl_u) { Mnl_u->Update(); }
    if (Mnl_p) { Mnl_p->Update(); }
    if (B) { B->Update(); }
+   if (Mnl) { Mnl->Update(); }
 
    pBt.Clear();
 
@@ -619,6 +684,7 @@ DarcyForm::~DarcyForm()
    if (Mnl_u) { delete Mnl_u; }
    if (Mnl_p) { delete Mnl_p; }
    if (B) { delete B; }
+   if (Mnl) { delete Mnl; }
 
    delete block_op;
 
