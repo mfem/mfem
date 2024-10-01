@@ -68,6 +68,12 @@ constexpr ARKODE_ERKTableID ARKODE_FEHLBERG_13_7_8 = FEHLBERG_13_7_8;
 /// arbitrary type for more compact backwards compatibility
 using SUNContext = void*;
 
+/// KIN_ORTH_MGS was introduced in SUNDIALS v6; here, we define it just so that
+/// it can be used as the default option in the second parameter of
+/// KINSolver::EnableAndersonAcc -- the actual value of the parameter will be
+/// ignored when using SUNDIALS < v6.
+#define KIN_ORTH_MGS 0
+
 #endif // SUNDIALS_VERSION_MAJOR < 6
 
 namespace mfem
