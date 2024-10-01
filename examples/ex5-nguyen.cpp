@@ -61,6 +61,7 @@ using namespace mfem;
 typedef std::function<real_t(const Vector &, real_t)> TFunc;
 typedef std::function<void(const Vector &, Vector &)> VecFunc;
 typedef std::function<void(const Vector &, real_t, Vector &)> VecTFunc;
+typedef std::function<real_t(real_t f, const Vector &x)> KFunc;
 
 enum Problem
 {
@@ -78,6 +79,7 @@ VecTFunc GetQFun(Problem prob, real_t t_0, real_t k, real_t c);
 VecFunc GetCFun(Problem prob, real_t c);
 TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c);
 FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
+KFunc GetInvKappaFun(Problem prob, real_t k);
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
@@ -114,6 +116,31 @@ public:
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 };
 
+class ConductionNLFIntegrator : public BlockNonlinearFormIntegrator
+{
+   std::function<real_t(real_t f, const Vector &x)> Function;
+
+   DenseMatrix vshape_u;
+   Vector shape_u, shape_p;
+   const IntegrationRule *IntRule;
+
+public:
+   ConductionNLFIntegrator(
+      std::function<real_t(real_t f, const Vector &x)> F,
+      const IntegrationRule *ir = NULL)
+      : Function(std::move(F)), IntRule(ir) { }
+
+   void AssembleElementVector(const Array<const FiniteElement*> &el,
+                              ElementTransformation &Tr,
+                              const Array<const Vector*> &elfun,
+                              const Array<Vector*> &elvect) override;
+
+   void AssembleElementGrad(const Array<const FiniteElement*> &el,
+                            ElementTransformation &Tr,
+                            const Array<const Vector *> &elfun,
+                            const Array2D<DenseMatrix *> &elmats);
+};
+
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
@@ -138,6 +165,7 @@ int main(int argc, char *argv[])
    bool hybridization = false;
    bool nonlinear = false;
    bool nonlinear_conv = false;
+   bool nonlinear_diff = false;
    int hdg_scheme = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -193,6 +221,8 @@ int main(int argc, char *argv[])
                   "--no-nonlinear", "Enable non-linear regime.");
    args.AddOption(&nonlinear_conv, "-nlc", "--nonlinear-convection", "-no-nlc",
                   "--no-nonlinear-convection", "Enable non-linear convection regime.");
+   args.AddOption(&nonlinear_diff, "-nld", "--nonlinear-diffusion", "-no-nld",
+                  "--no-nonlinear-diffusion", "Enable non-linear diffusion regime.");
    args.AddOption(&hdg_scheme, "-hdg", "--hdg_scheme",
                   "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov, 4=Godunov).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -225,7 +255,7 @@ int main(int argc, char *argv[])
 
    // Set the problem options
    Problem problem = (Problem)iproblem;
-   bool bconv = false, bnlconv = false, btime = false;
+   bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff, btime = false;
    switch (problem)
    {
       case Problem::SteadyDiffusion:
@@ -400,8 +430,10 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   q_h, v_h \in V_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   q_h \in V_h, w_h \in W_h
-   BilinearForm *Mq =(!nonlinear)?(darcy->GetFluxMassForm()):(NULL);
-   NonlinearForm *Mqnl = (nonlinear)?(darcy->GetFluxMassNonlinearForm()):(NULL);
+   BilinearForm *Mq =(!nonlinear && !bnldiff)?(darcy->GetFluxMassForm()):(NULL);
+   NonlinearForm *Mqnl = (nonlinear && !bnldiff)?
+                         (darcy->GetFluxMassNonlinearForm()):(NULL);
+   BlockNonlinearForm *Mnl = (bnldiff)?(darcy->GetBlockNonlinearForm()):(NULL);
    MixedBilinearForm *B = darcy->GetFluxDivForm();
    BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || bconv || btime))?
                       (darcy->GetPotentialMassForm()):(NULL);
@@ -412,18 +444,56 @@ int main(int argc, char *argv[])
    FluxFunction *FluxFun = NULL;
    RiemannSolver *FluxSolver = NULL;
 
-   //linear diffusion
+   //diffusion
 
+   if (!bnldiff)
+   {
+      //linear diffusion
+      if (dg)
+      {
+         if (Mq)
+         {
+            Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+         }
+         if (Mqnl)
+         {
+            Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+         }
+      }
+      else
+      {
+         if (Mq)
+         {
+            Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
+         }
+         if (Mqnl)
+         {
+            Mqnl->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
+         }
+      }
+   }
+   else
+   {
+      //nonlinear diffusion
+      auto InvKappaFun = GetInvKappaFun(problem, k);
+      if (dg)
+      {
+         Mnl->AddDomainIntegrator(new ConductionNLFIntegrator(InvKappaFun));
+      }
+      else
+      {
+         Mnl->AddDomainIntegrator(new ConductionNLFIntegrator(InvKappaFun));
+      }
+   }
+
+   //diffusion stabilization
    if (dg)
    {
-      if (Mq)
+      if (bnldiff)
       {
-         Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+         cerr << "Warning: Using linear stabilization for non-linear diffusion" << endl;
       }
-      if (Mqnl)
-      {
-         Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
-      }
+
       if (upwinded && td > 0. && hybridization)
       {
          if (Mt)
@@ -453,17 +523,6 @@ int main(int argc, char *argv[])
             Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                        bdr_is_neumann);
          }
-      }
-   }
-   else
-   {
-      if (Mq)
-      {
-         Mq->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
-      }
-      if (Mqnl)
-      {
-         Mqnl->AddDomainIntegrator(new VectorFEMassIntegrator(ikcoeff));
       }
    }
 
@@ -1310,6 +1369,26 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
    return NULL;
 }
 
+KFunc GetInvKappaFun(Problem prob, real_t k)
+{
+   switch (prob)
+   {
+      case Problem::SteadyDiffusion:
+      case Problem::SteadyAdvectionDiffusion:
+      case Problem::SteadyAdvection:
+      case Problem::NonsteadyAdvectionDiffusion:
+      case Problem::KovasznayFlow:
+      case Problem::SteadyBurgers:
+      case Problem::NonsteadyBurgers:
+         return [=](real_t T, const Vector &x) -> real_t
+         {
+            return 1./k;
+         };
+   }
+
+   return KFunc();
+}
+
 FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
                        DarcyForm *darcy_, LinearForm *g_, LinearForm *f_, LinearForm *h_,
                        const Array<Coefficient*> &coeffs_, bool btime_)
@@ -1468,6 +1547,7 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 
       const BilinearForm *Mq = cdarcy->GetFluxMassForm();
       const NonlinearForm *Mqnl = cdarcy->GetFluxMassNonlinearForm();
+      const BlockNonlinearForm *Mnl = cdarcy->GetBlockNonlinearForm();
       const MixedBilinearForm *B = cdarcy->GetFluxDivForm();
       const BilinearForm *Mt = cdarcy->GetPotentialMassForm();
       const NonlinearForm *Mtnl = cdarcy->GetPotentialMassNonlinearForm();
@@ -1509,7 +1589,7 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
          //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
          //     temperature Schur Complement
          SparseMatrix *MinvBt = NULL;
-         Vector Md((Mq)?(Mq->Height()):(Mqnl->Height()));
+         Vector Md(offsets[1] - offsets[0]);
 
          const Array<int> &block_offsets = darcy->GetOffsets();
          auto *darcyPrec = new BlockDiagonalPreconditioner(block_offsets);
@@ -1537,11 +1617,11 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
          }
          else
          {
+            // get diagonal
             if (Mq)
             {
                const SparseMatrix &Mqm(Mq->SpMat());
                Mqm.GetDiag(Md);
-               Md.HostReadWrite();
                invM = new DSmoother(Mqm);
             }
             else if (Mqnl)
@@ -1549,9 +1629,21 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
                const SparseMatrix &Mqm = static_cast<SparseMatrix&>(
                                             Mqnl->GetGradient(x.GetBlock(0)));
                Mqm.GetDiag(Md);
-               Md.HostReadWrite();
                invM = new DSmoother(Mqm);
             }
+            else if (Mnl)
+            {
+               BlockOperator &bop = static_cast<BlockOperator&>(
+                                       Mnl->GetGradient(x));
+
+               const SparseMatrix &Mqm = static_cast<SparseMatrix&>(
+                                            bop.GetBlock(0,0));
+
+               Mqm.GetDiag(Md);
+               invM = new DSmoother(Mqm);
+            }
+
+            Md.HostReadWrite();
 
             const SparseMatrix &Bm(B->SpMat());
             MinvBt = Transpose(Bm);
@@ -1640,4 +1732,165 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 
    dx_v -= x_v;
    dx_v *= idt;
+}
+
+void ConductionNLFIntegrator::AssembleElementVector(
+   const Array<const FiniteElement*> &el, ElementTransformation &Tr,
+   const Array<const Vector*> &elfun, const Array<Vector*> &elvect)
+{
+   const int ndof_u = el[0]->GetDof();
+   const int ndof_p = el[1]->GetDof();
+   const int sdim = Tr.GetSpaceDim();
+
+   const FiniteElement &fe_u = *el[0];
+   const FiniteElement &fe_p = *el[1];
+   const Vector &elfun_u = *elfun[0];
+   const Vector &elfun_p = *elfun[1];
+   Vector &elvect_u = *elvect[0];
+   Vector &elvect_p = *elvect[1];
+
+   shape_p.SetSize(ndof_p);
+
+   //not used
+   elvect_p.SetSize(ndof_p);
+   elvect_p = 0.0;
+
+   Vector x(sdim), u(sdim);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      const int order = 2*fe_u.GetOrder() + Tr.OrderW();//<---
+      ir = &IntRules.Get(fe_u.GetGeomType(), order);
+   }
+
+   if (fe_u.GetRangeType() == FiniteElement::SCALAR)
+   {
+      shape_u.SetSize(ndof_u);
+      elvect_u.SetSize(ndof_u * sdim);
+      elvect_u = 0.0;
+
+      DenseMatrix elfun_u_mat(elfun_u.GetData(), ndof_u, sdim);
+
+      for (int q = 0; q < ir->Size(); q++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         Tr.Transform(ip, x);
+
+         fe_u.CalcShape(ip, shape_u);
+         fe_p.CalcShape(ip, shape_p);
+
+         const real_t val = elfun_p * shape_p;
+         real_t w = ip.weight * Tr.Weight();
+         w *= Function(val, x);
+
+         elfun_u_mat.MultTranspose(shape_u, u);
+
+         for (int d = 0; d < sdim; d++)
+            for (int i = 0; i < ndof_u; i++)
+            {
+               elvect_u(i+d*ndof_u) += w * shape_u(i) * u(d);
+            }
+      }
+   }
+   else
+   {
+      vshape_u.SetSize(ndof_u, sdim);
+      elvect_u.SetSize(ndof_u);
+      elvect_u = 0.0;
+
+      for (int q = 0; q < ir->Size(); q++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         Tr.Transform(ip, x);
+
+         fe_u.CalcVShape(Tr, vshape_u);
+         fe_p.CalcShape(ip, shape_p);
+
+         const real_t val = elfun_p * shape_p;
+         real_t w = ip.weight * Tr.Weight();
+         w *= Function(val, x);
+
+         vshape_u.MultTranspose(elfun_u, u);
+
+         vshape_u.AddMult_a(w, u, elvect_u);
+      }
+   }
+}
+
+void ConductionNLFIntegrator::AssembleElementGrad(
+   const Array<const FiniteElement *> &el, ElementTransformation &Tr,
+   const Array<const Vector *> &elfun, const Array2D<DenseMatrix *> &elmats)
+{
+   const int ndof_u = el[0]->GetDof();
+   const int ndof_p = el[1]->GetDof();
+   const int sdim = Tr.GetSpaceDim();
+
+   const FiniteElement &fe_u = *el[0];
+   const FiniteElement &fe_p = *el[1];
+   //const Vector &elfun_u = *elfun[0];
+   const Vector &elfun_p = *elfun[1];
+
+   shape_p.SetSize(ndof_p);
+
+   Vector x(sdim);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      const int order = 2*fe_u.GetOrder() + Tr.OrderW();//<---
+      ir = &IntRules.Get(fe_u.GetGeomType(), order);
+   }
+
+   if (fe_u.GetRangeType() == FiniteElement::SCALAR)
+   {
+      shape_u.SetSize(ndof_u);
+      elmats(0,0)->SetSize(ndof_u * sdim);
+      *elmats(0,0) = 0.0;
+
+      for (int q = 0; q < ir->Size(); q++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         Tr.Transform(ip, x);
+
+         fe_u.CalcShape(ip, shape_u);
+         fe_p.CalcShape(ip, shape_p);
+
+         const real_t val = elfun_p * shape_p;
+         real_t w = ip.weight * Tr.Weight();
+         w *= Function(val, x);
+
+         for (int d = 0; d < sdim; d++)
+            for (int j = 0; j < ndof_u; j++)
+               for (int i = 0; i < ndof_u; i++)
+               {
+                  (*elmats(0,0))(i+d*ndof_u, j+d*ndof_u) += w * shape_u(i) * shape_u(j);
+               }
+      }
+   }
+   else
+   {
+      vshape_u.SetSize(ndof_u, sdim);
+      elmats(0,0)->SetSize(ndof_u);
+      *elmats(0,0) = 0.0;
+
+      for (int q = 0; q < ir->Size(); q++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         Tr.Transform(ip, x);
+
+         fe_u.CalcVShape(Tr, vshape_u);
+         fe_p.CalcShape(ip, shape_p);
+
+         const real_t val = elfun_p * shape_p;
+         real_t w = ip.weight * Tr.Weight();
+         w *= Function(val, x);
+
+         AddMult_a_AAt(w, vshape_u, *elmats(0,0));
+      }
+   }
 }
