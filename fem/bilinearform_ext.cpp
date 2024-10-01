@@ -1326,7 +1326,6 @@ void EABilinearFormExtension::GetElementMatrices(
       // lexicographic volume index, depending on the local face index).
       const Mesh &mesh = *trial_fes->GetMesh();
       const int dim = mesh.Dimension();
-      const int d1d = int(floor(pow(ndof_face, 1.0/(dim - 1)) + 0.5));
       const int n_faces_per_el = 2*dim; // assuming tensor product
       Array<int> face_maps(ndof_face * n_faces_per_el);
       for (int lf_i = 0; lf_i < n_faces_per_el; ++lf_i)
@@ -1339,48 +1338,31 @@ void EABilinearFormExtension::GetElementMatrices(
          }
       }
 
-      Array<int> face_info(nf_bdr * 3);
+      Array<int> face_info(nf_bdr * 2);
       {
          int fidx = 0;
          for (int f = 0; f < mesh.GetNumFaces(); ++f)
          {
             Mesh::FaceInformation finfo = mesh.GetFaceInformation(f);
             if (!finfo.IsBoundary()) { continue; }
-            face_info[0 + fidx*3] = finfo.element[0].local_face_id;
-            face_info[1 + fidx*3] = finfo.element[0].orientation;
-            face_info[2 + fidx*3] = finfo.element[0].index;
+            face_info[0 + fidx*2] = finfo.element[0].local_face_id;
+            face_info[1 + fidx*2] = finfo.element[0].index;
             fidx++;
          }
       }
 
       const auto d_face_maps = Reshape(face_maps.Read(), ndof_face, n_faces_per_el);
-      const auto d_face_info = Reshape(face_info.Read(), 3, nf_bdr);
-
-      auto permute_face = [=] MFEM_HOST_DEVICE(int local_face_id, int orient,
-                                               int size1d, int index)
-      {
-         if (dim == 2)
-         {
-            return internal::PermuteFace2D(local_face_id, orient, size1d, index);
-         }
-         else // dim == 3
-         {
-            return internal::PermuteFace3D(local_face_id, orient, size1d, index);
-         }
-      };
+      const auto d_face_info = Reshape(face_info.Read(), 2, nf_bdr);
 
       const bool reorder = (ordering == ElementDofOrdering::NATIVE);
 
       mfem::forall_2D(nf_bdr, ndof_face, ndof_face, [=] MFEM_HOST_DEVICE (int f)
       {
          const int lf_i = d_face_info(0, f);
-         const int orient = d_face_info(1, f);
-         const int e = d_face_info(2, f);
+         const int e = d_face_info(1, f);
          // Loop over face indices in "native ordering"
          MFEM_FOREACH_THREAD(i_lex_face, x, ndof_face)
          {
-            // Convert to lexicographic relative to the face itself
-            const int i_face = permute_face(lf_i, orient, d1d, i_lex_face);
             // Convert from lexicographic face DOF to volume DOF
             const int i_lex = d_face_maps(i_lex_face, lf_i);
 
@@ -1392,8 +1374,6 @@ void EABilinearFormExtension::GetElementMatrices(
 
             MFEM_FOREACH_THREAD(j_lex_face, y, ndof_face)
             {
-               // Convert to lexicographic relative to the face itself
-               const int j_face = permute_face(lf_i, orient, d1d, j_lex_face);
                // Convert from lexicographic face DOF to volume DOF
                const int j_lex = d_face_maps(j_lex_face, lf_i);
 
@@ -1404,7 +1384,7 @@ void EABilinearFormExtension::GetElementMatrices(
                const int s_j = (jj_s < 0 && reorder) ? -1 : 1;
 
                AtomicAdd(d_element_matrices(i, j, e),
-                         s_i*s_j*d_ea_bdr(i_face, j_face, f));
+                         s_i*s_j*d_ea_bdr(i_lex_face, j_lex_face, f));
             }
          }
       });
