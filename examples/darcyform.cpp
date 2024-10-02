@@ -672,6 +672,14 @@ void DarcyForm::MultTranspose(const Vector &x, Vector &y) const
    if (pM.Ptr()) { pM->AddMultTranspose(x, y); }
 }
 
+Operator &DarcyForm::GetGradient(const Vector &x) const
+{
+   if (!Mnl) { return *block_op; }
+
+   pG.Reset(new SumOperator(block_op, 1., &Mnl->GetGradient(x), 1., false, false));
+   return *pG.Ptr();
+}
+
 void DarcyForm::Update()
 {
    if (M_u) { M_u->Update(); }
