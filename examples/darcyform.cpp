@@ -2251,17 +2251,22 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
    LocalNLOperator *lop;
 
+   enum class LocalOpType { FluxNL, PotNL, FullNL } ltype;
+
    if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
    {
       lop = new LocalFluxNLOperator(*this, el, bp_l, x_l, faces);
+      ltype = LocalOpType::FluxNL;
    }
    else if (!m_nlfi_u && !m_nlfi)
    {
       lop = new LocalPotNLOperator(*this, el, bu_l, x_l, faces);
+      ltype = LocalOpType::PotNL;
    }
    else
    {
       lop = new LocalNLOperator(*this, el, x_l, faces);
+      ltype = LocalOpType::FullNL;
    }
 
    //solve the local system
@@ -2312,39 +2317,45 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    lsolver->SetAbsTol(lsolve.atol);
    lsolver->SetPrintLevel(lsolve.print_lvl);
 
-   if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
+   switch (ltype)
    {
-      //solve the flux
-      lsolver->Mult(bu_l, u_l);
+      case LocalOpType::FluxNL:
+      {
+         //solve the flux
+         lsolver->Mult(bu_l, u_l);
 
-      //solve the potential
-      static_cast<LocalFluxNLOperator*>(lop)->SolveP(u_l, p_l);
-   }
-   else if (!m_nlfi_u && !m_nlfi)
-   {
-      //solve the potential
-      lsolver->Mult(bp_l, p_l);
+         //solve the potential
+         static_cast<LocalFluxNLOperator*>(lop)->SolveP(u_l, p_l);
+      }
+      break;
+      case LocalOpType::PotNL:
+      {
+         //solve the potential
+         lsolver->Mult(bp_l, p_l);
 
-      //solve the flux
-      static_cast<LocalPotNLOperator*>(lop)->SolveU(p_l, u_l);
-   }
-   else
-   {
-      //rhs
-      BlockVector b(lop->GetOffsets());
-      b.GetBlock(0) = bu_l;
-      b.GetBlock(1) = bp_l;
+         //solve the flux
+         static_cast<LocalPotNLOperator*>(lop)->SolveU(p_l, u_l);
+      }
+      break;
+      case LocalOpType::FullNL:
+      {
+         //rhs
+         BlockVector b(lop->GetOffsets());
+         b.GetBlock(0) = bu_l;
+         b.GetBlock(1) = bp_l;
 
-      //x
-      BlockVector x(lop->GetOffsets());
-      x.GetBlock(0) = u_l;
-      x.GetBlock(1) = p_l;
+         //x
+         BlockVector x(lop->GetOffsets());
+         x.GetBlock(0) = u_l;
+         x.GetBlock(1) = p_l;
 
-      //solve the flux and potential
-      lsolver->Mult(b, x);
+         //solve the flux and potential
+         lsolver->Mult(b, x);
 
-      u_l = x.GetBlock(0);
-      p_l = x.GetBlock(1);
+         u_l = x.GetBlock(0);
+         p_l = x.GetBlock(1);
+      }
+      break;
    }
 
    if (lsolver->GetConverged())
