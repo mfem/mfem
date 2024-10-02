@@ -92,7 +92,7 @@ private:
 public:
    AIR_prec(int blocksize_) : AIR_solver(NULL), blocksize(blocksize_) { }
 
-   void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    {
       width = op.Width();
       height = op.Height();
@@ -110,7 +110,7 @@ public:
       AIR_solver->SetMaxLevels(50);
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       // Scale the rhs by block inverse and solve system
       HypreParVector z_s;
@@ -119,7 +119,7 @@ public:
       AIR_solver->Mult(z_s, y);
    }
 
-   ~AIR_prec()
+   ~AIR_prec() override
    {
       delete AIR_solver;
    }
@@ -185,17 +185,17 @@ public:
       }
    }
 
-   void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    {
       linear_solver.SetOperator(op);
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       linear_solver.Mult(x, y);
    }
 
-   ~DG_Solver()
+   ~DG_Solver() override
    {
       delete prec;
       delete A;
@@ -223,10 +223,10 @@ public:
    FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
                 PrecType prec_type);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
+   void Mult(const Vector &x, Vector &y) const override;
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 
-   virtual ~FE_Evolution();
+   ~FE_Evolution() override;
 };
 
 

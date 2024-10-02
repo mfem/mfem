@@ -138,7 +138,7 @@ public:
    ExactDistSphereLoc(ParGridFunction &d)
       : dist(d), dx(dist.ParFESpace()->GetParMesh()->GetElementSize(0)) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       Vector pos(T.GetDimension());
       T.Transform(ip, pos);
@@ -216,6 +216,7 @@ int main(int argc, char *argv[])
    int order = 2;
    real_t t_param = 1.0;
    const char *device_config = "cpu";
+   int visport = 19916;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -245,6 +246,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -352,7 +354,6 @@ int main(int argc, char *argv[])
    {
       int size = 500;
       char vishost[] = "localhost";
-      int  visport   = 19916;
 
       socketstream sol_sock_w;
       common::VisualizeField(sol_sock_w, vishost, visport, filt_gf,
