@@ -301,12 +301,15 @@ private:
 
       const int a_dofs_size, d_dofs_size;
       DenseMatrix B;
+      TransposeOperator Bt;
       const FiniteElement *fe_u, *fe_p;
       IsoparametricTransformation *Tr;
       Array<FaceElementTransformations*> FTrs;
       Array<IsoparametricTransformation*> NbrTrs;
+      const Array<int> offsets;
       mutable Vector Au, Dp, DpEx;
-      mutable DenseMatrix grad;
+      mutable DenseMatrix grad_A, grad_D;
+      mutable BlockOperator grad;
 
       void AddMultA(const Vector &u_l, Vector &bu) const;
       void AddMultDE(const Vector &p_l, Vector &bp) const;
@@ -317,6 +320,8 @@ private:
       LocalNLOperator(const DarcyHybridization &dh, int el, const BlockVector &trps,
                       const Array<int> &faces);
       virtual ~LocalNLOperator();
+
+      inline const Array<int>& GetOffsets() const { return offsets; }
 
       void Mult(const Vector &x, Vector &y) const override;
       Operator &GetGradient(const Vector &x) const override;

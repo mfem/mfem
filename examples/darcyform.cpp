@@ -2310,22 +2310,20 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    else
    {
       //rhs
-      Vector b(a_dofs_size + d_dofs_size);
-      b.SetVector(bu_l, 0);
-      b.SetVector(bp_l, a_dofs_size);
+      BlockVector b(lop->GetOffsets());
+      b.GetBlock(0) = bu_l;
+      b.GetBlock(1) = bp_l;
 
       //x
-      Vector x(a_dofs_size + d_dofs_size);
-      x.SetVector(u_l, 0);
-      x.SetVector(p_l, a_dofs_size);
+      BlockVector x(lop->GetOffsets());
+      x.GetBlock(0) = u_l;
+      x.GetBlock(1) = p_l;
 
       //solve the flux and potential
       lsolver->Mult(b, x);
 
-      Vector xu(x, 0, a_dofs_size);
-      u_l = xu;
-      Vector xp(x, a_dofs_size, d_dofs_size);
-      p_l = xp;
+      u_l = x.GetBlock(0);
+      p_l = x.GetBlock(1);
    }
 
    if (lsolver->GetConverged())
@@ -2637,18 +2635,22 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
    : dh(dh_), el(el_), trps(trps_), faces(faces_),
      a_dofs_size(dh.Af_f_offsets[el+1] - dh.Af_f_offsets[el]),
      d_dofs_size(dh.Df_f_offsets[el+1] - dh.Df_f_offsets[el]),
-     B(dh.Bf_data + dh.Bf_offsets[el], d_dofs_size, a_dofs_size)
+     B(dh.Bf_data + dh.Bf_offsets[el], d_dofs_size, a_dofs_size),
+     Bt(B), offsets({0, a_dofs_size, a_dofs_size+d_dofs_size}), grad(offsets)
 {
    width = height = a_dofs_size + d_dofs_size;
 
    fe_u = dh.fes->GetFE(el);
    fe_p = dh.fes_p->GetFE(el);
+
+   // element transformation
    Tr = new IsoparametricTransformation();
    if (faces.Size() <= 0)
    {
       dh.fes_p->GetMesh()->GetElementTransformation(el, Tr);
    }
 
+   // face transformations
    FTrs.SetSize(faces.Size());
    NbrTrs.SetSize(faces.Size());
    for (int f = 0; f < faces.Size(); f++)
@@ -2826,10 +2828,12 @@ void DarcyHybridization::LocalNLOperator::Mult(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == Width() && y.Size() == Height(), "Incompatible size");
 
-   const Vector u_l(const_cast<Vector&>(x), 0, a_dofs_size);
-   const Vector p_l(const_cast<Vector&>(x), a_dofs_size, d_dofs_size);
-   Vector bu(y, 0, a_dofs_size);
-   Vector bp(y, a_dofs_size, d_dofs_size);
+   const BlockVector x_l(const_cast<Vector&>(x), offsets);
+   const Vector &u_l = x_l.GetBlock(0);
+   const Vector &p_l = x_l.GetBlock(1);
+   BlockVector b(y, offsets);
+   Vector &bu = b.GetBlock(0);
+   Vector &bp = b.GetBlock(1);
 
    //bu = B^T p
    B.MultTranspose(p_l, bu);
@@ -2850,38 +2854,27 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
 {
    MFEM_ASSERT(x.Size() == Width(), "Incompatible size");
 
-   const Vector u_l(const_cast<Vector&>(x), 0, a_dofs_size);
-   const Vector p_l(const_cast<Vector&>(x), a_dofs_size, d_dofs_size);
-
-   grad.SetSize(Width());
+   const BlockVector x_l(const_cast<Vector&>(x), offsets);
+   const Vector &u_l = x_l.GetBlock(0);
+   const Vector &p_l = x_l.GetBlock(1);
 
    //A
-   DenseMatrix grad_A(a_dofs_size);
+   grad_A.SetSize(a_dofs_size);
    grad_A = 0.;
    AddGradA(u_l, grad_A);
-   grad.CopyMN(grad_A, 0, 0);
+   grad.SetDiagonalBlock(0, &grad_A);
 
    //B
-   grad.CopyMN(B, a_dofs_size, 0);
+   grad.SetBlock(1, 0, &const_cast<DenseMatrix&>(B));
 
    //B^T
-   if (!dh.bsym)
-   {
-      grad.CopyMNt(B, 0, a_dofs_size);
-   }
-   else
-   {
-      DenseMatrix Bt;
-      Bt.Transpose(B);
-      Bt.Neg();
-      grad.CopyMN(Bt, 0, a_dofs_size);
-   }
+   grad.SetBlock(0, 1, &const_cast<TransposeOperator&>(Bt), (dh.bsym)?(-1.):(+1.));
 
    //D
-   DenseMatrix grad_D(d_dofs_size);
+   grad_D.SetSize(d_dofs_size);
    grad_D = 0.;
    AddGradDE(p_l, grad_D);
-   grad.CopyMN(grad_D, a_dofs_size, a_dofs_size);
+   grad.SetDiagonalBlock(1, &grad_D);
 
    return grad;
 }
@@ -2935,14 +2928,14 @@ Operator &DarcyHybridization::LocalFluxNLOperator::GetGradient(
    DenseMatrix DiB = B;
 
    LU_D.Solve(d_dofs_size, a_dofs_size, DiB.GetData());
-   grad.SetSize(a_dofs_size);
-   MultAtB(B, DiB, grad);
-   if (!dh.bsym) { grad.Neg(); }
+   grad_A.SetSize(a_dofs_size);
+   MultAtB(B, DiB, grad_A);
+   if (!dh.bsym) { grad_A.Neg(); }
 
    //grad += A
-   AddGradA(u_l, grad);
+   AddGradA(u_l, grad_A);
 
-   return grad;
+   return grad_A;
 }
 
 DarcyHybridization::LocalPotNLOperator::LocalPotNLOperator(
@@ -2993,13 +2986,13 @@ Operator &DarcyHybridization::LocalPotNLOperator::GetGradient(
    DenseMatrix BAi = B;
 
    LU_A.RightSolve(a_dofs_size, d_dofs_size, BAi.GetData());
-   grad.SetSize(d_dofs_size);
-   MultABt(BAi, B, grad);
-   if (!dh.bsym) { grad.Neg(); }
+   grad_D.SetSize(d_dofs_size);
+   MultABt(BAi, B, grad_D);
+   if (!dh.bsym) { grad_D.Neg(); }
 
    //grad += D
-   AddGradDE(p_l, grad);
+   AddGradDE(p_l, grad_D);
 
-   return grad;
+   return grad_D;
 }
 }
