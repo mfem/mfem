@@ -103,7 +103,8 @@ real_t proj(ParGridFunction &psi, ParGridFunction &zerogf,
       return current_volume;
    }
 
-   while ((mu_r - mu_l) > 1e-12)
+   int maxit = std::ceil(12.0*std::log2(10)+std::log2(mu_r-mu_l));
+   for(int i=0;i<maxit;i++)
    {
       mu = (mu_r + mu_l)*0.5;
       if (hasPassiveElements)
@@ -378,8 +379,8 @@ int main(int argc, char *argv[])
    bool stationarity_in_Bregman = true;
    bool backtrack_bregman = true;
    real_t rho_min = 1e-6;
-   real_t lambda = 1.0;
-   real_t mu = 1.0;
+   real_t E = 1.0;
+   real_t nu = 0.3;
    bool glvis_visualization = true;
    bool paraview_output = true;
    int problem = 1;
@@ -419,8 +420,8 @@ int main(int argc, char *argv[])
                   "Tolerance for relative objective decrease");
    args.AddOption(&vol_fraction, "-vf", "--volume-fraction",
                   "Volume fraction for the material density.");
-   args.AddOption(&lambda, "-lambda", "--lambda", "Lamé constant λ.");
-   args.AddOption(&mu, "-mu", "--mu", "Lamé constant μ.");
+   args.AddOption(&E, "-lambda", "--lambda", "Lamé constant λ.");
+   args.AddOption(&nu, "-mu", "--mu", "Lamé constant μ.");
    args.AddOption(&rho_min, "-rmin", "--psi-min",
                   "Minimum of density coefficient.");
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
@@ -477,6 +478,8 @@ int main(int argc, char *argv[])
    int hasPassiveElements = pmesh.attributes.Max() > 1;
    MPI_Allreduce(MPI_IN_PLACE, &hasPassiveElements, 1, MPI_INT, MPI_MAX,
                  MPI_COMM_WORLD);
+   real_t lambda = E*nu/((1+nu)*(1-(dim-1)*nu));
+   real_t mu = E/(2*(1+nu));
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(state_order, dim);  // space for u
@@ -559,11 +562,11 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
    ConstantCoefficient lambda_cf(lambda);
    ConstantCoefficient mu_cf(mu);
-   SIMPInterpolationCoefficient SIMP_cf(&rho_filter, rho_min, 1.0);
+   SIMPInterpolationCoefficient SIMP_cf(&rho_filter_cf, rho_min, 1.0);
    ProductCoefficient lambda_SIMP_cf(lambda, SIMP_cf);
    ProductCoefficient mu_SIMP_cf(mu, SIMP_cf);
    StrainEnergyDensityCoefficient energy(&lambda_cf, &mu_cf, &u, adju.get(),
-                                         &rho_filter,
+                                         &rho_filter_cf,
                                          rho_min);
 
    // Create elasticity solver. If problem is negative, then we need to solve dual problem
@@ -679,6 +682,13 @@ int main(int argc, char *argv[])
          psi = psi_old;
          psi.Add(-alpha, grad);
          // Bregman projection for volume constraint
+         real_t psi_min = psi.Min();
+         MPI_Allreduce(MPI_IN_PLACE, &psi_min, 1, MFEM_MPI_REAL_T, MPI_MIN,
+                       MPI_COMM_WORLD);
+         real_t psi_max = psi.Max();
+         MPI_Allreduce(MPI_IN_PLACE, &psi_max, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                       MPI_COMM_WORLD);
+         if (Mpi::Root()) { cout << "\t\tThe range of psi: " <<  psi_min << ", " << psi_max << std::endl;}
          material_volume = proj(psi, zerogf, vol_fraction, domain_volume,
                                 hasPassiveElements);
          if (Mpi::Root()) { cout << "\t\tVolume Projection done" << std::endl; }
@@ -926,7 +936,7 @@ void TableLogger::SaveWhenPrint(std::string filename, std::ios::openmode mode)
 {
    if (isRoot)
    {
-      filename = filename.append(".txt");
+      filename = filename.append(".csv");
       file.reset(new std::ofstream);
       file->open(filename, mode);
       if (!file->is_open())
