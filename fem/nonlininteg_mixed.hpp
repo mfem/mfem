@@ -47,31 +47,15 @@ public:
 
    real_t ComputeDualFlux(const Vector &, const DenseMatrix &flux,
                           ElementTransformation &Tr,
-                          DenseMatrix &dualFlux) const override
-   {
-      const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
-      dualFlux.Set(ikappa, flux);
-      return ikappa;
-   }
+                          DenseMatrix &dualFlux) const override;
 
    real_t ComputeFlux(const Vector &,
                       ElementTransformation &,
-                      DenseMatrix &flux) const override
-   {
-      flux = 0.;
-      return 0.;
-   }
+                      DenseMatrix &flux) const override;
 
    void ComputeDualFluxJacobian(const Vector &, const DenseMatrix &flux,
                                 ElementTransformation &Tr,
-                                DenseTensor &J) const override
-   {
-      const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
-      for (int d = 0; d < dim; d++)
-      {
-         J(d)(0,0) = ikappa;
-      }
-   }
+                                DenseTensor &J) const override;
 };
 
 class MixedConductionNLFIntegrator : public BlockNonlinearFormIntegrator
