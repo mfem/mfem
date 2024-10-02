@@ -105,6 +105,7 @@ set(SRCS
   nonlinearform.cpp
   nonlinearform_ext.cpp
   nonlininteg.cpp
+  nonlininteg_mixed.cpp
   fespacehierarchy.cpp
   qfunction.cpp
   qinterp/det.cpp
@@ -222,6 +223,7 @@ set(HDRS
   nonlinearform.hpp
   nonlinearform_ext.hpp
   nonlininteg.hpp
+  nonlininteg_mixed.hpp
   qfunction.hpp
   qinterp/dispatch.hpp
   qinterp/eval.hpp
