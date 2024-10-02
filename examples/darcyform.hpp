@@ -235,6 +235,8 @@ private:
    NonlinearFormIntegrator *c_nlfi_p;
    NonlinearFormIntegrator *m_nlfi_u, *m_nlfi_p;
    bool own_m_nlfi_u, own_m_nlfi_p;
+   BlockNonlinearFormIntegrator *m_nlfi;
+   bool own_m_nlfi;
 
    /// Set of constraint boundary face integrators to be applied.
    Array<BilinearFormIntegrator*>  boundary_constraint_pot_integs;
@@ -429,6 +431,9 @@ public:
 
    void SetPotMassNonlinearIntegrator(NonlinearFormIntegrator *pot_integ,
                                       bool own = true);
+
+   void SetBlockNonlinearIntegrator(BlockNonlinearFormIntegrator *block_integ,
+                                    bool own = true);
 
    BilinearFormIntegrator* GetFluxConstraintIntegrator() const { return c_bfi; }
 

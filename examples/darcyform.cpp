@@ -220,6 +220,15 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       hybridization->SetPotMassNonlinearIntegrator(pot_integ);
    }
 
+   // Automatically load the block integrators
+   if (Mnl)
+   {
+      BlockNonlinearFormIntegrator *block_integ = NULL;
+      auto &dnlfi = Mnl->GetDomainIntegrators();
+      block_integ = dnlfi[0];
+      hybridization->SetBlockNonlinearIntegrator(block_integ, false);
+   }
+
    // Automatically add the boundary flux constraint integrators
    if (B)
    {
@@ -783,6 +792,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    c_nlfi_p = NULL;
    m_nlfi_u = NULL;
    m_nlfi_p = NULL;
+   m_nlfi = NULL;
    own_m_nlfi_u = false;
    own_m_nlfi_p = false;
 
@@ -810,6 +820,7 @@ DarcyHybridization::~DarcyHybridization()
    delete c_nlfi_p;
    if (own_m_nlfi_u) { delete m_nlfi_u; }
    if (own_m_nlfi_p) { delete m_nlfi_p; }
+   if (own_m_nlfi) { delete m_nlfi; }
    if (!extern_bdr_constr_pot_integs)
    {
       for (int k=0; k < boundary_constraint_pot_integs.Size(); k++)
@@ -875,6 +886,16 @@ void DarcyHybridization::SetPotMassNonlinearIntegrator(NonlinearFormIntegrator
    if (own_m_nlfi_p) { delete m_nlfi_p; }
    own_m_nlfi_p = own;
    m_nlfi_p = pot_integ;
+
+   bnl = true;
+}
+
+void DarcyHybridization::SetBlockNonlinearIntegrator(
+   BlockNonlinearFormIntegrator *block_integ, bool own)
+{
+   if (own_m_nlfi) { delete m_nlfi; }
+   own_m_nlfi = own;
+   m_nlfi = block_integ;
 
    bnl = true;
 }
@@ -992,7 +1013,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
       Af_f_offsets[i+1] = Af_f_offsets[i] + f_size;
    }
 
-   if (!m_nlfi_u)
+   if (!m_nlfi_u && !m_nlfi)
    {
       Af_data = new real_t[Af_offsets[NE]];
       Af_ipiv = new int[Af_f_offsets[NE]];
@@ -2126,7 +2147,7 @@ void DarcyHybridization::Finalize()
    {
       if (bnl)
       {
-         if (!m_nlfi_u)
+         if (!m_nlfi_u && !m_nlfi)
          {
             InvertA();
          }
@@ -2230,11 +2251,11 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
    LocalNLOperator *lop;
 
-   if (!m_nlfi_p && !c_nlfi_p && !D_empty)
+   if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
    {
       lop = new LocalFluxNLOperator(*this, el, bp_l, x_l, faces);
    }
-   else if (!m_nlfi_u)
+   else if (!m_nlfi_u && !m_nlfi)
    {
       lop = new LocalPotNLOperator(*this, el, bu_l, x_l, faces);
    }
@@ -2291,7 +2312,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    lsolver->SetAbsTol(lsolve.atol);
    lsolver->SetPrintLevel(lsolve.print_lvl);
 
-   if (!m_nlfi_p && !c_nlfi_p && !D_empty)
+   if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
    {
       //solve the flux
       lsolver->Mult(bu_l, u_l);
@@ -2299,7 +2320,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
       //solve the potential
       static_cast<LocalFluxNLOperator*>(lop)->SolveP(u_l, p_l);
    }
-   else if (!m_nlfi_u)
+   else if (!m_nlfi_u && !m_nlfi)
    {
       //solve the potential
       lsolver->Mult(bp_l, p_l);
@@ -2847,6 +2868,18 @@ void DarcyHybridization::LocalNLOperator::Mult(const Vector &x, Vector &y) const
 
    //bp += D p
    AddMultDE(p_l, bp);
+
+   //bu += A u_l - B^T p_l
+   //bp += B u_l + D p_l
+   if (dh.m_nlfi)
+   {
+      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
+      Array<const Vector*> x_arr({&u_l, &p_l});
+      Array<Vector*> y_arr({&Au, &Dp});
+      dh.m_nlfi->AssembleElementVector(fe_arr, *Tr, x_arr, y_arr);
+      bu += Au;
+      bp += Dp;
+   }
 }
 
 Operator &DarcyHybridization::LocalNLOperator::GetGradient(
@@ -2858,9 +2891,27 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    const Vector &u_l = x_l.GetBlock(0);
    const Vector &p_l = x_l.GetBlock(1);
 
+
+   if (dh.m_nlfi)
+   {
+      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
+      Array<const Vector*> x_arr({&u_l, &p_l});
+      Array2D<DenseMatrix*> grad_arr(2,2);
+      grad_arr(0,0) = &grad_A;
+      grad_arr(1,0) = NULL;
+      grad_arr(0,1) = NULL;
+      grad_arr(1,1) = &grad_D;
+      dh.m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
+   }
+   else
+   {
+      grad_A.SetSize(a_dofs_size);
+      grad_A = 0.;
+      grad_D.SetSize(d_dofs_size);
+      grad_D = 0.;
+   }
+
    //A
-   grad_A.SetSize(a_dofs_size);
-   grad_A = 0.;
    AddGradA(u_l, grad_A);
    grad.SetDiagonalBlock(0, &grad_A);
 
@@ -2871,8 +2922,6 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    grad.SetBlock(0, 1, &const_cast<TransposeOperator&>(Bt), (dh.bsym)?(-1.):(+1.));
 
    //D
-   grad_D.SetSize(d_dofs_size);
-   grad_D = 0.;
    AddGradDE(p_l, grad_D);
    grad.SetDiagonalBlock(1, &grad_D);
 
