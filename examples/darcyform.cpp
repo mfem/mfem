@@ -1897,11 +1897,11 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
       return;
    }
 
-   MultNL(0, darcy_rhs, x, y);
+   MultNL(MultNlMode::Mult, darcy_rhs, x, y);
 }
 
-void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
-                                Vector &y) const
+void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
+                                const Vector &x, Vector &y) const
 {
    const int NE = fes->GetNE();
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
@@ -1916,7 +1916,7 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
                "Potential constraint is not supported in non-block assembly!");
    Vector hat_bu(hat_offsets.Last());
    Vector hat_u;
-   if (mode == 0)
+   if (mode == MultNlMode::Mult)
    {
       hat_u.SetSize(hat_offsets.Last());
       hat_u = 0.;//essential vdofs?!
@@ -1928,7 +1928,7 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
    const Vector &bu = b.GetBlock(0);
    const Vector &bp = b.GetBlock(1);
    BlockVector yb;
-   if (mode == 1)
+   if (mode == MultNlMode::Sol)
    {
       yb.Update(y, darcy_offsets);
    }
@@ -2048,7 +2048,7 @@ void DarcyHybridization::MultNL(int mode, const BlockVector &b, const Vector &x,
       //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
       MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
 
-      if (mode == 1)
+      if (mode == MultNlMode::Sol)
       {
          yb.GetBlock(0).SetSubVector(u_vdofs, u_l);
          yb.GetBlock(1).SetSubVector(p_dofs, p_l);
@@ -2556,7 +2556,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
 {
    if (bnl)
    {
-      MultNL(1, b, sol_r, sol);
+      MultNL(MultNlMode::Sol, b, sol_r, sol);
       return;
    }
 
