@@ -582,6 +582,8 @@ int main(int argc, char *argv[])
       // double Efinal = contact.E(xf_copy);
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
       Array<double> & DMaxMinRatios  = optimizer.GetDMaxMinRatios();
+      Array<double> & JtDJMaxMinRatios  = optimizer.GetJtDJMaxMinRatios();
+      Array<double> & ADiagMaxMinRatios  = optimizer.GetAdiagMaxMinRatios();
       CGiter.push_back(CGiterations);
       int gndofs = prob->GetGlobalNumDofs();
       if (Mpi::Root())
@@ -609,6 +611,18 @@ int main(int argc, char *argv[])
             for (int i = 0; i < DMaxMinRatios.Size(); ++i) 
             {
                std::cout << " " << DMaxMinRatios[i] << " |";
+            }
+            std::cout << std::endl;
+            mfem::out << " JtDJ Max / Min Ratios           = " ;
+            for (int i = 0; i < JtDJMaxMinRatios.Size(); ++i) 
+            {
+               std::cout << " " << JtDJMaxMinRatios[i] << " |";
+            }
+            std::cout << std::endl;
+            mfem::out << " ADiag Max / Min Ratios          = " ;
+            for (int i = 0; i < ADiagMaxMinRatios.Size(); ++i) 
+            {
+               std::cout << " " << ADiagMaxMinRatios[i] << " |";
             }
             std::cout << std::endl;
             std::cout.copyfmt(oldState);

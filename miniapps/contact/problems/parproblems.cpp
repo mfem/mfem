@@ -95,6 +95,8 @@ void ParContactProblem::SetupTribol()
    // Initialize Tribol contact library
    tribol::initialize(3, MPI_COMM_WORLD);
 
+   tribol::parameters_t::getInstance().gap_separation_ratio = 8;
+
    int coupling_scheme_id = 0;
    int mesh1_id = 0;
    int mesh2_id = 1;
@@ -436,6 +438,9 @@ void ParContactProblem::SetupTribolDoublePass()
    A_array(1,0) = M2;
 
    M = HypreParMatrixFromBlocks(A_array);
+
+   delete M1;
+   delete M2;
 
    constraints_starts.SetSize(2);
    constraints_starts[0] = M->RowPart()[0];

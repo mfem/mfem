@@ -51,6 +51,8 @@ protected:
 
     Array<int> cgnum_iterations;
     Array<double> dmaxmin_ratio;
+    Array<double> jtdj_ratio;
+    Array<double> Adiag_ratio;
     Array<int> cgnum_iterations_nocontact;
     ParFiniteElementSpace *pfes = nullptr;
     
@@ -84,6 +86,8 @@ public:
     bool GetConverged() const;
     Array<int> & GetCGIterNumbers() {return cgnum_iterations;}
     Array<double> & GetDMaxMinRatios() {return dmaxmin_ratio;}
+    Array<double> & GetJtDJMaxMinRatios() {return jtdj_ratio;}
+    Array<double> & GetAdiagMaxMinRatios() {return Adiag_ratio;}
     Array<int> & GetCGNoContactIterNumbers() {return cgnum_iterations_nocontact;}
     int GetNumIterations() {return iter;}
     // TO DO: include Hessian of Lagrangian
