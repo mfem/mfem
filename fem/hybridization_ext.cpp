@@ -163,15 +163,33 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
          for (int i = 0; i < nidofs; i++) { idofs_loc[i] = d_idofs[i]; }
          for (int i = 0; i < nbdofs; i++) { bdofs_loc[i] = d_bdofs[i]; }
 
+         LocalMemory<int,MAX_BDOFS> essdofs_loc;
+         int nbfdofs = 0;
+         int nessdofs = 0;
+         for (int i = 0; i < nbdofs; i++)
+         {
+            const int dof_idx = bdofs_loc[i];
+            if (d_hat_dof_marker(dof_idx, e) == ESSENTIAL)
+            {
+               essdofs_loc[nessdofs] = dof_idx;
+               nessdofs += 1;
+            }
+            else
+            {
+               bdofs_loc[nbfdofs] = dof_idx;
+               nbfdofs += 1;
+            }
+         }
+
          LocalMemory<real_t, MID*MID> A_ii_loc;
          LocalMemory<real_t, MBD*MID> A_bi_loc;
          LocalMemory<real_t, MID*MBD> A_ib_loc;
          LocalMemory<real_t, MBD*MBD> A_bb_loc;
 
          DeviceMatrix A_ii(GLOBAL ? &d_A_ii(0,0,e) : A_ii_loc, nidofs, nidofs);
-         DeviceMatrix A_ib(GLOBAL ? &d_A_ib(0,0,e) : A_ib_loc, nidofs, nbdofs);
-         DeviceMatrix A_bi(GLOBAL ? &d_A_bi(0,0,e) : A_bi_loc, nbdofs, nidofs);
-         DeviceMatrix A_bb(GLOBAL ? &d_A_bb(0,0,e) : A_bb_loc, nbdofs, nbdofs);
+         DeviceMatrix A_ib(GLOBAL ? &d_A_ib(0,0,e) : A_ib_loc, nidofs, nbfdofs);
+         DeviceMatrix A_bi(GLOBAL ? &d_A_bi(0,0,e) : A_bi_loc, nbfdofs, nidofs);
+         DeviceMatrix A_bb(GLOBAL ? &d_A_bb(0,0,e) : A_bb_loc, nbfdofs, nbfdofs);
 
          for (int j = 0; j < nidofs; j++)
          {
@@ -180,38 +198,21 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
             {
                A_ii(i,j) = d_Ahat(idofs_loc[i], jj, e);
             }
-            for (int i = 0; i < nbdofs; i++)
+            for (int i = 0; i < nbfdofs; i++)
             {
                A_bi(i,j) = d_Ahat(bdofs_loc[i], jj, e);
             }
          }
-         for (int j = 0; j < nbdofs; j++)
+         for (int j = 0; j < nbfdofs; j++)
          {
             const int jj = bdofs_loc[j];
             for (int i = 0; i < nidofs; i++)
             {
                A_ib(i,j) = d_Ahat(idofs_loc[i], jj, e);
             }
-            for (int i = 0; i < nbdofs; i++)
+            for (int i = 0; i < nbfdofs; i++)
             {
                A_bb(i,j) = d_Ahat(bdofs_loc[i], jj, e);
-            }
-         }
-         for (int j = 0; j < nbdofs; ++j)
-         {
-            if (d_hat_dof_marker(bdofs_loc[j], e) == ESSENTIAL)
-            {
-               for (int i = 0; i < nidofs; ++i)
-               {
-                  A_ib(i,j) = 0.0;
-                  A_bi(j,i) = 0.0;
-               }
-               for (int i = 0; i < nbdofs; ++i)
-               {
-                  A_bb(i,j) = 0.0;
-                  A_bb(i,j) = 0.0;
-               }
-               A_bb(j,j) = 1.0;
             }
          }
 
@@ -222,30 +223,31 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
          auto ipiv_bb = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_bb_loc;
 
          kernels::LUFactor(A_ii, nidofs, ipiv_ii);
-         kernels::BlockFactor(A_ii, nidofs, ipiv_ii, nbdofs, A_ib, A_bi, A_bb);
-         kernels::LUFactor(A_bb, nbdofs, ipiv_bb);
+         kernels::BlockFactor(A_ii, nidofs, ipiv_ii, nbfdofs, A_ib, A_bi, A_bb);
+         kernels::LUFactor(A_bb, nbfdofs, ipiv_bb);
 
          for (int f = 0; f < n_faces_per_el; ++f)
          {
             for (int j = 0; j < n; ++j)
             {
                LocalMemory<real_t,MAX_BDOFS> Sb_inv_Cb_t;
-               for (int i = 0; i < nbdofs; ++i)
+               for (int i = 0; i < nbfdofs; ++i)
                {
                   Sb_inv_Cb_t[i] = d_Ct_mat(bdofs_loc[i], j, f, e);
                }
-               kernels::LUSolve(A_bb, nbdofs, ipiv_bb, Sb_inv_Cb_t);
-               for (int i = 0; i < nbdofs; ++i)
+               kernels::LUSolve(A_bb, nbfdofs, ipiv_bb, Sb_inv_Cb_t);
+               for (int i = 0; i < nbfdofs; ++i)
                {
                   const int b_i = bdofs_loc[i];
-                  real_t val;
-                  if (d_hat_dof_marker(b_i, e) == ESSENTIAL) { val = 0.0; }
-                  else { val = Sb_inv_Cb_t[i]; }
-                  d_AhatInvCt(b_i, j, f, e) = val;
+                  d_AhatInvCt(b_i, j, f, e) = Sb_inv_Cb_t[i];
                }
                for (int i = 0; i < nidofs; ++i)
                {
                   d_AhatInvCt(idofs_loc[i], j, f, e) = 0.0;
+               }
+               for (int i = 0; i < nessdofs; ++i)
+               {
+                  d_AhatInvCt(essdofs_loc[i], j, f, e) = 0.0;
                }
             }
          }
@@ -260,19 +262,19 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
                {
                   d_A_ii(i,j,e) = A_ii(i,j);
                }
-               for (int i = 0; i < nbdofs; i++)
+               for (int i = 0; i < nbfdofs; i++)
                {
                   d_A_bi(i,j,e) = A_bi(i,j);
                }
             }
-            for (int j = 0; j < nbdofs; j++)
+            for (int j = 0; j < nbfdofs; j++)
             {
                d_ipiv_bb(j,e) = ipiv_bb[j];
                for (int i = 0; i < nidofs; i++)
                {
                   d_A_ib(i,j,e) = A_ib(i,j);
                }
-               for (int i = 0; i < nbdofs; i++)
+               for (int i = 0; i < nbfdofs; i++)
                {
                   d_A_bb(i,j,e) = A_bb(i,j);
                }
@@ -987,6 +989,8 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
    const int nidofs = idofs.Size();
    const int nbdofs = bdofs.Size();
 
+   const auto d_hat_dof_marker = Reshape(hat_dof_marker.Read(), n, ne);
+
    const auto d_A_ii = Reshape(Ahat_ii.Read(), nidofs, nidofs, ne);
    const auto d_A_ib = Reshape(Ahat_ib.Read(), nidofs, nbdofs, ne);
    const auto d_A_bi = Reshape(Ahat_bi.Read(), nbdofs, nidofs, ne);
@@ -1016,30 +1020,51 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
          d_bvals(i, e) = d_x(d_bdofs[i], e);
       }
 
-      // Block forward substitution:
-      // B1 <- L^{-1} P B1
-      kernels::LSolve(&d_A_ii(0,0,e), nidofs, &d_ipiv_ii(0,e), &d_ivals(0,e));
-      // B2 <- B2 - L21 B1
-      kernels::SubMult(
-         nidofs, nbdofs, 1, &d_A_bi(0,0,e), &d_ivals(0,e), &d_bvals(0, e));
+      constexpr int MD1D = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MAX_DOFS = 3*MD1D*(MD1D-1)*(MD1D-1);
+      internal::LocalMemory<int,MAX_DOFS> bdofs_loc;
+
+      int nbfdofs = 0;
+      for (int i = 0; i < nbdofs; i++)
+      {
+         const int dof_idx = d_bdofs[i];
+         if (d_hat_dof_marker(dof_idx, e) != ESSENTIAL)
+         {
+            bdofs_loc[nbfdofs] = dof_idx;
+            nbfdofs += 1;
+         }
+      }
+
+      if (nidofs > 0)
+      {
+         // Block forward substitution:
+         // B1 <- L^{-1} P B1
+         kernels::LSolve(&d_A_ii(0,0,e), nidofs, &d_ipiv_ii(0,e), &d_ivals(0,e));
+         // B2 <- B2 - L21 B1
+         kernels::SubMult(
+            nidofs, nbfdofs, 1, &d_A_bi(0,0,e), &d_ivals(0,e), &d_bvals(0, e));
+      }
 
       // Schur complement solve
-      kernels::LUSolve(&d_A_bb(0,0,e), nbdofs, &d_ipiv_bb(0,e), &d_bvals(0,e));
+      kernels::LUSolve(&d_A_bb(0,0,e), nbfdofs, &d_ipiv_bb(0,e), &d_bvals(0,e));
 
-      // Block backward substitution
-      // Y1 <- Y1 - U12 X2
-      kernels::SubMult(
-         nbdofs, nidofs, 1, &d_A_ib(0,0,e), &d_bvals(0,e), &d_ivals(0, e));
-      // Y1 <- U^{-1} Y1
-      kernels::USolve(&d_A_ii(0,0,e), nidofs, &d_ivals(0,e));
+      if (nidofs > 0)
+      {
+         // Block backward substitution
+         // Y1 <- Y1 - U12 X2
+         kernels::SubMult(
+            nbfdofs, nidofs, 1, &d_A_ib(0,0,e), &d_bvals(0,e), &d_ivals(0, e));
+         // Y1 <- U^{-1} Y1
+         kernels::USolve(&d_A_ii(0,0,e), nidofs, &d_ivals(0,e));
+      }
 
       for (int i = 0; i < nidofs; ++i)
       {
          d_x(d_idofs[i], e) = d_ivals(i, e);
       }
-      for (int i = 0; i < nbdofs; ++i)
+      for (int i = 0; i < nbfdofs; ++i)
       {
-         d_x(d_bdofs[i], e) = d_bvals(i, e);
+         d_x(bdofs_loc[i], e) = d_bvals(i, e);
       }
    });
 }
