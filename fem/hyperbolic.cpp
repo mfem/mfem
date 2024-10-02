@@ -539,7 +539,7 @@ void RusanovFlux::AverageGrad(int side, const Vector &state1,
    constexpr real_t tol = 1.;
 #endif
 
-   auto equal_check = [](real_t a, real_t b) -> bool { return std::abs(a - b) <= tol * std::abs(a + b); };
+   auto equal_check = [=](real_t a, real_t b) -> bool { return std::abs(a - b) <= tol * std::abs(a + b); };
 
    if (side == 1)
    {
@@ -695,7 +695,7 @@ void GodunovFlux::AverageGrad(int side, const Vector &state1,
    constexpr real_t tol = 1.;
 #endif
 
-   auto equal_check = [](real_t a, real_t b) -> bool { return std::abs(a - b) <= tol * std::abs(a + b); };
+   auto equal_check = [=](real_t a, real_t b) -> bool { return std::abs(a - b) <= tol * std::abs(a + b); };
 
    if (side == 1)
    {
