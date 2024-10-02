@@ -35,6 +35,7 @@ class DarcyForm : public Operator
    BlockNonlinearForm *Mnl;
 
    OperatorHandle pM_u, pM_p, pB, pBt, pM;
+   mutable OperatorHandle pG;
 
    /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly;
@@ -194,6 +195,9 @@ public:
 
    /// Action of the transpose operator
    void MultTranspose (const Vector & x, Vector & y) const override;
+
+   /// Evaluate the gradient operator at the point @a x.
+   Operator &GetGradient(const Vector &x) const override;
 
    /// Return the flux FE space associated with the DarcyForm.
    FiniteElementSpace *FluxFESpace() { return fes_u; }
