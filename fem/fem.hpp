@@ -24,6 +24,7 @@
 #include "convergence.hpp"
 #include "lininteg.hpp"
 #include "nonlininteg.hpp"
+#include "nonlininteg_mixed.hpp"
 #include "bilininteg.hpp"
 #include "fespace.hpp"
 #include "gridfunc.hpp"
