@@ -1609,7 +1609,7 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 
       if (trace_space)
       {
-         if (Mqnl || Mtnl)
+         if (Mqnl || Mtnl || Mnl)
          {
             prec = NULL;
             darcy->GetHybridization()->SetLocalNLSolver(
@@ -1892,6 +1892,10 @@ void ConductionNLFIntegrator::AssembleElementGrad(
    const Vector &elfun_p = *elfun[1];
 
    shape_p.SetSize(ndof_p);
+
+   //not used
+   elmats(1,1)->SetSize(ndof_p);
+   *elmats(1,1) = 0.0;
 
    DenseTensor J(1, 1, sdim);
    Vector x(sdim), u(sdim), p(1);
