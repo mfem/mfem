@@ -787,6 +787,18 @@ void RusanovFlux::AverageGrad(int side, const Vector &state1,
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
 #endif
+
+#if defined(MFEM_USE_DOUBLE)
+   constexpr real_t tol = 1e-12;
+#elif defined(MFEM_USE_SINGLE)
+   constexpr real_t tol = 4e-6;
+#else
+#error "Only single and double precision are supported!"
+   constexpr real_t tol = 1.;
+#endif
+
+   auto equal_check = [](real_t a, real_t b) -> bool { return std::abs(a - b) <= tol * std::abs(a + b); };
+
    if (side == 1)
    {
 #ifdef MFEM_THREAD_SAFE
@@ -810,7 +822,7 @@ void RusanovFlux::AverageGrad(int side, const Vector &state1,
       {
          // Only diagonal terms of J are considered
          // lim_{u → u⁻} (F̄(u⁻,u)n - F(u⁻)n) / (u - u⁻) = ½λ
-         if (state1(i) == state2(i)) { continue; }
+         if (equal_check(state1(i), state2(i))) { continue; }
          grad(i,i) = 0.5 * ((fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i))
                             - JDotN(i,i) + scaledMaxE);
       }
@@ -831,7 +843,7 @@ void RusanovFlux::AverageGrad(int side, const Vector &state1,
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
          // lim_{u → u⁻} (F(u)n - F̄(u⁻,u)n) / (u - u⁻) = ½λ
-         if (state1(i) == state2(i)) { continue; }
+         if (equal_check(state1(i), state2(i))) { continue; }
          grad(i,i) = 0.5 * ((fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i))
                             - scaledMaxE);
       }
@@ -931,6 +943,18 @@ void GodunovFlux::AverageGrad(int side, const Vector &state1,
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
 #endif
+
+#if defined(MFEM_USE_DOUBLE)
+   constexpr real_t tol = 1e-12;
+#elif defined(MFEM_USE_SINGLE)
+   constexpr real_t tol = 4e-6;
+#else
+#error "Only single and double precision are supported!"
+   constexpr real_t tol = 1.;
+#endif
+
+   auto equal_check = [](real_t a, real_t b) -> bool { return std::abs(a - b) <= tol * std::abs(a + b); };
+
    if (side == 1)
    {
 #ifdef MFEM_THREAD_SAFE
@@ -948,7 +972,7 @@ void GodunovFlux::AverageGrad(int side, const Vector &state1,
       {
          // Only diagonal terms of J are considered
          // lim_{u → u⁻} (F̄(u⁻,u)n - F(u⁻)n) / (u - u⁻) = ½J(u⁻)n
-         const real_t gr12 = (state1(i) != state2(i))?
+         const real_t gr12 = (!equal_check(state1(i), state2(i)))?
                              (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i))
                              :(0.5 * JDotN(i,i));
          grad(i,i) = (gr12 >= 0.)?(JDotN(i,i)):(gr12);
@@ -965,7 +989,7 @@ void GodunovFlux::AverageGrad(int side, const Vector &state1,
       // Jacobian is not needed except the limit case when u⁺=u⁻
       bool J_needed = false;
       for (int i = 0; i < fluxFunction.num_equations; i++)
-         if (state1(i) == state2(i))
+         if (equal_check(state1(i), state2(i)))
          {
             J_needed = true;
             break;
@@ -983,7 +1007,7 @@ void GodunovFlux::AverageGrad(int side, const Vector &state1,
       {
          // Only diagonal terms of J are considered
          // lim_{u → u⁻} (F(u)n - F̄(u⁻,u)n) / (u - u⁻) = ½J(u⁻)n
-         const real_t gr12 = (state1(i) != state2(i))?
+         const real_t gr12 = (!equal_check(state1(i), state2(i)))?
                              (fluxN2(i) - fluxN1(i)) / (state2(i) - state1(i))
                              :(0.5 * JDotN(i,i));
          grad(i,i) = std::min(gr12, 0.);
