@@ -125,7 +125,6 @@ real_t Volume()
    }
 }
 
-#ifdef MFEM_USE_LAPACK
 /**
  @brief Class for surface IntegrationRule
 
@@ -153,15 +152,33 @@ public:
     @param [in] lsOrder Polynomial degree for approx of level-set function
     @param [in] mesh Pointer to the mesh that is used
    */
-   SIntegrationRule(int Order, Coefficient& LvlSet, int lsOrder, Mesh* mesh)
+   SIntegrationRule(int method, int Order,
+                    Coefficient& LvlSet, int lsOrder, Mesh* mesh)
    {
       dim = mesh->Dimension();
 
+      CutIntegrationRules *cut_ir;
+      if (method == 0)
+      {
+#ifdef MFEM_USE_LAPACK
+         cut_ir = new MomentFittingIntRules(Order, LvlSet, lsOrder);
+#else
+         MFEM_ABORT("Moment-fitting requires MFEM to be built with LAPACK!");
+#endif
+      }
+      else
+      {
+#ifdef MFEM_USE_ALGOIM
+         cut_ir = new AlgoimIntegrationRules(Order, LvlSet, lsOrder);;
+#else
+         MFEM_ABORT("MFEM is not built with Algoim support!");
+#endif
+      }
+
       IsoparametricTransformation Tr;
-      MomentFittingIntRules MFIRs(Order, LvlSet, lsOrder);
       mesh->GetElementTransformation(0, &Tr);
       IntegrationRule ir;
-      MFIRs.GetSurfaceIntegrationRule(Tr, ir);
+      cut_ir->GetSurfaceIntegrationRule(Tr, ir);
       if (dim >1)
       {
          Weights.SetSize(ir.GetNPoints(), mesh->GetNE());
@@ -172,7 +189,7 @@ public:
       }
       SurfaceWeights.SetSize(ir.GetNPoints(), mesh->GetNE());
       Vector w;
-      MFIRs.GetSurfaceWeights(Tr, ir, w);
+      cut_ir->GetSurfaceWeights(Tr, ir, w);
       SurfaceWeights.SetCol(0, w);
       SetSize(ir.GetNPoints());
 
@@ -198,8 +215,8 @@ public:
       for (int elem = 1; elem < mesh->GetNE(); elem++)
       {
          mesh->GetElementTransformation(elem, &Tr);
-         MFIRs.GetSurfaceIntegrationRule(Tr, ir);
-         MFIRs.GetSurfaceWeights(Tr, ir, w);
+         cut_ir->GetSurfaceIntegrationRule(Tr, ir);
+         cut_ir->GetSurfaceWeights(Tr, ir, w);
          SurfaceWeights.SetCol(elem, w);
 
          for (int ip = 0; ip < GetNPoints(); ip++)
@@ -215,6 +232,8 @@ public:
             }
          }
       }
+
+      delete cut_ir;
    }
 
    /**
@@ -284,15 +303,33 @@ public:
     @param [in] lsOrder Polynomial degree for approx of level-set function
     @param [in] mesh Pointer to the mesh that is used
    */
-   CIntegrationRule(int Order, Coefficient& LvlSet, int lsOrder, Mesh* mesh)
+   CIntegrationRule(int method, int Order,
+                    Coefficient& LvlSet, int lsOrder, Mesh* mesh)
    {
       dim = mesh->Dimension();
 
+      CutIntegrationRules *cut_ir;
+      if (method == 0)
+      {
+#ifdef MFEM_USE_LAPACK
+         cut_ir = new MomentFittingIntRules(Order, LvlSet, lsOrder);
+#else
+         MFEM_ABORT("Moment-fitting requires MFEM to be built with LAPACK!");
+#endif
+      }
+      else
+      {
+#ifdef MFEM_USE_ALGOIM
+         cut_ir = new AlgoimIntegrationRules(Order, LvlSet, lsOrder);;
+#else
+         MFEM_ABORT("MFEM is not built with Algoim support!");
+#endif
+      }
+
       IsoparametricTransformation Tr;
-      MomentFittingIntRules MFIRs(Order, LvlSet, lsOrder);
       mesh->GetElementTransformation(0, &Tr);
       IntegrationRule ir;
-      MFIRs.GetVolumeIntegrationRule(Tr, ir);
+      cut_ir->GetVolumeIntegrationRule(Tr, ir);
       if (dim > 1)
       {
          Weights.SetSize(ir.GetNPoints(), mesh->GetNE());
@@ -324,7 +361,7 @@ public:
       for (int elem = 1; elem < mesh->GetNE(); elem++)
       {
          mesh->GetElementTransformation(elem, &Tr);
-         MFIRs.GetVolumeIntegrationRule(Tr, ir);
+         cut_ir->GetVolumeIntegrationRule(Tr, ir);
 
          for (int ip = 0; ip < GetNPoints(); ip++)
          {
@@ -339,6 +376,8 @@ public:
             }
          }
       }
+
+      delete cut_ir;
    }
 
    /// @brief Set the weights for the given element
@@ -362,6 +401,8 @@ public:
    /// @brief Destructor of CIntegrationRule
    ~CIntegrationRule() {}
 };
+
+
 /**
  @brief Class for surface linearform integrator
 
@@ -498,7 +539,6 @@ public:
       }
    }
 };
-#endif // MFEM_USE_LAPACK
 
 int main(int argc, char *argv[])
 {
@@ -509,6 +549,7 @@ int main(int argc, char *argv[])
    // 1. Parse he command-line options.
    int ref_levels = 3;
    int order = 2;
+   int method = 0;
    const char *inttype = "surface2d";
    bool visualization = true;
    itype = IntegrationType::Surface2D;
@@ -516,6 +557,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "Order of quadrature rule");
    args.AddOption(&ref_levels, "-r", "--refine", "Number of meh refinements");
+   args.AddOption(&method, "-m", "--method",
+                  "Cut integration method: 0 for moments-based, 1 for Algoim.");
    args.AddOption(&inttype, "-i", "--integrationtype",
                   "IntegrationType to demonstrate");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -598,13 +641,14 @@ int main(int argc, char *argv[])
    // 5. Define the necessary Integration rules on element 0.
    IsoparametricTransformation Tr;
    mesh->GetElementTransformation(0, &Tr);
-   SIntegrationRule* sir = new SIntegrationRule(order, levelset, 2, mesh);
+   SIntegrationRule* sir = new SIntegrationRule(method, order,
+                                                levelset, 2, mesh);
    CIntegrationRule* cir = NULL;
    if (itype == IntegrationType::Volumetric1D
        || itype == IntegrationType::Volumetric2D
        || itype == IntegrationType::Volumetric3D)
    {
-      cir = new CIntegrationRule(order, levelset, 2, mesh);
+      cir = new CIntegrationRule(method, order, levelset, 2, mesh);
    }
 
    // 6. Define and assemble the linear forms on the finite element space.

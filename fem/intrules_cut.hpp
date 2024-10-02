@@ -229,8 +229,8 @@ public:
        @param [in] lsO    Polynomial degree for projecting the level-set
                           Coefficient to a GridFunction, which is used to
                           compute gradients and normals. */
-   AlgoimIntegrationRules(int order, Coefficient &lvlset,
-                          int lsO=2):CutIntegrationRules(order, lvlset,lsO)
+   AlgoimIntegrationRules(int order, Coefficient &lvlset, int lsO = 2)
+      : CutIntegrationRules(order, lvlset, lsO)
    {
       pe=nullptr;
       le=nullptr;
@@ -239,16 +239,13 @@ public:
       currentElementNo=-1;
    }
 
-   /// Destructor
-   virtual
-   ~AlgoimIntegrationRules()
+   virtual ~AlgoimIntegrationRules()
    {
       delete pe;
       delete le;
    }
 
-   virtual
-   void SetOrder(int order) override
+   virtual void SetOrder(int order) override
    {
       MFEM_VERIFY(order > 0, "Invalid input");
       Order = order;
@@ -261,8 +258,7 @@ public:
       currentElementNo=-1;
    }
 
-   virtual
-   void SetLevelSetProjectionOrder(int order) override
+   virtual void SetLevelSetProjectionOrder(int order) override
    {
       MFEM_VERIFY(order > 0, "Invalid input");
       lsOrder = order;
