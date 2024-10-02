@@ -373,7 +373,9 @@ private:
    void ConstructC();
    void AllocEG();
    void AllocH();
-   void MultNL(int mode, const BlockVector &b, const Vector &x, Vector &y) const;
+   enum class MultNlMode { Mult, Sol };
+   void MultNL(MultNlMode mode, const BlockVector &b, const Vector &x,
+               Vector &y) const;
    void InvertA();
    void InvertD();
    void ComputeH();
