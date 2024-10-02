@@ -14,6 +14,33 @@
 namespace mfem
 {
 
+real_t mfem::LinearDiffusionFlux::ComputeDualFlux(
+   const Vector &, const DenseMatrix &flux, ElementTransformation &Tr,
+   DenseMatrix &dualFlux) const
+{
+   const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
+   dualFlux.Set(ikappa, flux);
+   return ikappa;
+}
+
+real_t LinearDiffusionFlux::ComputeFlux(
+   const Vector &, ElementTransformation &, DenseMatrix &flux) const
+{
+   flux = 0.;
+   return 0.;
+}
+
+void LinearDiffusionFlux::ComputeDualFluxJacobian(
+   const Vector &, const DenseMatrix &flux, ElementTransformation &Tr,
+   DenseTensor &J) const
+{
+   const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
+   for (int d = 0; d < dim; d++)
+   {
+      J(d)(0,0) = ikappa;
+   }
+}
+
 void MixedConductionNLFIntegrator::AssembleElementVector(
    const Array<const FiniteElement*> &el, ElementTransformation &Tr,
    const Array<const Vector*> &elfun, const Array<Vector*> &elvect)
