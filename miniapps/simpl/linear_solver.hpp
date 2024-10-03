@@ -1,3 +1,5 @@
+#ifndef LINEAR_SOLVER_HPP
+#define LINEAR_SOLVER_HPP
 #include "mfem.hpp"
 
 namespace mfem
@@ -221,3 +223,4 @@ public:
 };
 
 }// namespace mfem
+#endif

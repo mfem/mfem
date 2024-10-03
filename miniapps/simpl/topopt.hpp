@@ -1,3 +1,6 @@
+#ifndef TOPOPT_HPP
+#define TOPOPT_HPP
+
 #include "mfem.hpp"
 #include "funs.hpp"
 #include "linear_solver.hpp"
@@ -24,6 +27,50 @@ public:
 
    real_t ApplyVolumeProjection(GridFunction &x);
 };
+
+class StrainEnergyDensityCoefficient : public Coefficient
+{
+protected:
+   Coefficient &lambda;
+   Coefficient &mu;
+   Coefficient &der_simp_cf;
+   GridFunction &state_gf; // displacement
+   GridFunction *adjstate_gf; // adjoint displacement
+   DenseMatrix grad; // auxiliary matrix, used in Eval
+   DenseMatrix adjgrad; // auxiliary matrix, used in Eval
+
+public:
+   StrainEnergyDensityCoefficient(Coefficient &lambda, Coefficient &mu,
+                                  Coefficient &der_simp_cf,
+                                  GridFunction &state_gf, GridFunction *adju_gf=nullptr)
+      :lambda(lambda), mu(mu), der_simp_cf(der_simp_cf),
+       state_gf(state_gf), adjstate_gf(adju_gf)
+   { }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      real_t L = lambda.Eval(T, ip);
+      real_t M = mu.Eval(T, ip);
+
+      state_gf.GetVectorGradient(T, grad);
+      real_t div_u = grad.Trace();
+
+      if (adjstate_gf) { adjstate_gf->GetVectorGradient(T, adjgrad); }
+      else {adjgrad = grad;}
+
+      real_t density = L*div_u*adjgrad.Trace();
+      int dim = T.GetSpaceDim();
+      for (int i=0; i<dim; i++)
+      {
+         for (int j=0; j<dim; j++)
+         {
+            density += M*grad(i,j)*(adjgrad(i,j)+adjgrad(j,i));
+         }
+      }
+      return -der_simp_cf.Eval(T, ip)* density;
+   }
+};
+
 
 class DensityBasedTopOpt
 {
@@ -154,3 +201,4 @@ public:
 };
 
 } // end of namespace mfem
+#endif

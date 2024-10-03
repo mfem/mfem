@@ -1,3 +1,5 @@
+#ifndef FUNS_HPP
+#define FUNS_HPP
 #include "mfem.hpp"
 
 namespace mfem
@@ -70,12 +72,17 @@ private:
    bool own_function;
 
 public:
-   MappedGFCoefficient(GridFunction &gf, fun_type &fun)
-      : GridFunctionCoefficient(&gf), fun(&fun), own_function(false) {}
-   MappedGFCoefficient(fun_type *fun)
-      : GridFunctionCoefficient(nullptr), fun(fun), own_function(true) {}
    MappedGFCoefficient():GridFunctionCoefficient(nullptr), fun(nullptr),
       own_function(false) {}
+   MappedGFCoefficient(GridFunction &gf, fun_type &fun, int comp=1)
+      : GridFunctionCoefficient(&gf, comp), fun(&fun), own_function(false) {}
+   MappedGFCoefficient(GridFunction &gf, fun_type *fun, bool own_function=true,
+                       int comp=1)
+      : GridFunctionCoefficient(&gf, comp), fun(fun), own_function(own_function) {}
+   MappedGFCoefficient(fun_type *fun)
+      : GridFunctionCoefficient(nullptr), fun(fun), own_function(true) {}
+   MappedGFCoefficient(GridFunction *gf, int comp=1)
+      : GridFunctionCoefficient(gf, comp), fun(nullptr), own_function(true) {}
    ~MappedGFCoefficient()
    {
       if (own_function && fun) { delete fun; }
@@ -169,7 +176,7 @@ public:
 // An entropy defined by Legendre function
 // With Bregman divergence, this function can generate
 // mapping between a convex set to a vector space
-class LegendreEntropy : public Coefficient
+class LegendreEntropy
 {
    typedef std::function<real_t(const real_t)> fun_type;
 public:
@@ -210,3 +217,4 @@ public:
 
 
 } // end of namespace mfem
+#endif

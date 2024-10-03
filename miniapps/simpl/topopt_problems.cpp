@@ -44,7 +44,7 @@ void MarkElements(Mesh &mesh, int attr,
 
 
 Mesh * GetTopoptMesh(TopoptProblem prob,
-                     real_t &r_min, real_t &min_vol, real_t &max_vol,
+                     real_t &r_min, real_t &tot_vol, real_t &min_vol, real_t &max_vol,
                      real_t &lambda, real_t &mu,
                      Array2D<int> &ess_bdr_displacement,
                      Array<int> &ess_bdr_filter,
@@ -52,18 +52,24 @@ Mesh * GetTopoptMesh(TopoptProblem prob,
 {
    Mesh * mesh;
    real_t E, nu;
+   tot_vol = 0.0;
    switch (prob)
    {
 
       case Cantilever2:
       {
          if (r_min < 0) { r_min = 0.05; }
-         if (min_vol < 0) { min_vol = 0.0; }
-         if (max_vol < 0) { max_vol = 3.0*0.5; }
          E = 1.0;
          nu = 0.3;
          mesh = new Mesh(Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
                                                3.0, 1.0));
+
+         for (int i=0; i<mesh->GetNE(); i++)
+         {
+            tot_vol += mesh->GetElementVolume(i);
+         }
+         if (min_vol < 0) { min_vol = 0.0; }
+         if (max_vol < 0) { max_vol = tot_vol*0.5; }
          for (int i=0; i<ser_ref_levels; i++)
          {
             mesh->UniformRefinement();
@@ -96,12 +102,16 @@ Mesh * GetTopoptMesh(TopoptProblem prob,
       case MBB2:
       {
          if (r_min < 0) { r_min = 0.05; }
-         if (min_vol < 0) { min_vol = 0.0; }
-         if (max_vol < 0) { max_vol = 3.0*0.5; }
          E = 1.0;
          nu = 0.3;
          mesh = new Mesh(Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
                                                3.0, 1.0));
+         for (int i=0; i<mesh->GetNE(); i++)
+         {
+            tot_vol += mesh->GetElementVolume(i);
+         }
+         if (min_vol < 0) { min_vol = 0.0; }
+         if (max_vol < 0) { max_vol = tot_vol*0.5; }
          for (int i=0; i<ser_ref_levels; i++)
          {
             mesh->UniformRefinement();
@@ -141,12 +151,16 @@ Mesh * GetTopoptMesh(TopoptProblem prob,
       case Arch2:
       {
          if (r_min < 0) { r_min = 0.05; }
-         if (min_vol < 0) { min_vol = 0.0; }
-         if (max_vol < 0) { max_vol = 3.0*0.5; }
          E = 1.0;
          nu = 0.3;
          mesh = new Mesh(Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
                                                3.0, 1.0));
+         for (int i=0; i<mesh->GetNE(); i++)
+         {
+            tot_vol += mesh->GetElementVolume(i);
+         }
+         if (min_vol < 0) { min_vol = 0.0; }
+         if (max_vol < 0) { max_vol = tot_vol*0.5; }
          for (int i=0; i<ser_ref_levels; i++)
          {
             mesh->UniformRefinement();
@@ -188,12 +202,16 @@ Mesh * GetTopoptMesh(TopoptProblem prob,
       case Cantilever3:
       {
          if (r_min < 0) { r_min = 0.02; }
-         if (min_vol < 0) { min_vol = 0.0; }
-         if (max_vol < 0) { max_vol = 2.0*0.12; }
          E = 1.0;
          nu = 0.3;
          mesh = new Mesh(Mesh::MakeCartesian3D(2, 1, 1, Element::Type::HEXAHEDRON,
                                                2.0, 1.0, 1.0));
+         for (int i=0; i<mesh->GetNE(); i++)
+         {
+            tot_vol += mesh->GetElementVolume(i);
+         }
+         if (min_vol < 0) { min_vol = 0.0; }
+         if (max_vol < 0) { max_vol = tot_vol*0.5; }
          for (int i=0; i<ser_ref_levels; i++)
          {
             mesh->UniformRefinement();
