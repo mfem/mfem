@@ -469,7 +469,7 @@ protected:
       DerefinementOperator(const FiniteElementSpace *f_fes,
                            const FiniteElementSpace *c_fes,
                            BilinearFormIntegrator *mass_integ);
-      virtual void Mult(const Vector &x, Vector &y) const;
+      void Mult(const Vector &x, Vector &y) const override;
       virtual ~DerefinementOperator();
    };
 

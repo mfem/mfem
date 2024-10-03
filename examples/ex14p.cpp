@@ -53,7 +53,7 @@ public:
       pmesh(pmesh_),
       pgf(pgf_) {}
 
-   void MonitorSolution(int i, real_t norm, const Vector &x, bool final)
+   void MonitorSolution(int i, real_t norm, const Vector &x, bool final) override
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
