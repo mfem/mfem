@@ -151,7 +151,6 @@ public:
       }
       grad_control.SetFromTrueVector();
    }
-
 };
 
 } // end of namespace mfem
