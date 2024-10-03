@@ -121,7 +121,7 @@ public:
    }
 
    void MakeCoefficientOwner(Coefficient *coeff) {owned_coeffs.Append(coeff);}
-   void MakeVectorCoefficientOwner(VectorCoefficient *coeff) {owned_vcoeffs.Append(coeff);}
+   void MakeCoefficientOwner(VectorCoefficient *coeff) {owned_vcoeffs.Append(coeff);}
 
    void SetAStationary(bool stationary=false) {isAStationary=stationary;}
    void SetBStationary(bool stationary=false) {isBStationary=stationary;}
