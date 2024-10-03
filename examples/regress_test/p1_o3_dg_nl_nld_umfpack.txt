@@ -16,7 +16,7 @@ Options used:
    --stab_diff 0.5
    --no-bc-neumann
    --no-hybridization
-   --no-nonlinear
+   --nonlinear
    --no-nonlinear-convection
    --nonlinear-diffusion
    --hdg_scheme 1
@@ -34,8 +34,8 @@ dim(V) = 2048
 dim(W) = 1024
 dim(V+W) = 3072
 ***********************************************************
-Assembly took 0.141771s.
-Preconditioner took 0.0573248s.
+Assembly took 0.103665s.
+Preconditioner took 0.0620818s.
    Pass :  1   Iteration :   0  ||B r|| = 34.0948
    Pass :  1   Iteration :   1  ||B r|| = 34.0948
    Pass :  1   Iteration :   2  ||B r|| = 0.0882945
@@ -52,6 +52,6 @@ Preconditioner took 0.0573248s.
    Pass :  1   Iteration :  13  ||B r|| = 4.64374e-05
    Pass :  1   Iteration :  14  ||B r|| = 2.53717e-05
 GMRES+UMFPack converged in 14 iterations with a residual norm of 2.53717e-05.
-solver took 0.0894688s.
+solver took 0.188367s.
 || q_h - q_ex || / || q_ex || = 5.06633e-05
 || t_h - t_ex || / || t_ex || = 2.61371e-05

@@ -16,7 +16,7 @@ Options used:
    --stab_diff 0.5
    --no-bc-neumann
    --no-hybridization
-   --no-nonlinear
+   --nonlinear
    --no-nonlinear-convection
    --nonlinear-diffusion
    --hdg_scheme 1
@@ -34,8 +34,8 @@ dim(V) = 2048
 dim(W) = 1024
 dim(V+W) = 3072
 ***********************************************************
-Assembly took 0.125661s.
-Preconditioner took 0.06072s.
+Assembly took 0.104116s.
+Preconditioner took 0.0497789s.
    Pass :  1   Iteration :   0  ||B r|| = 0.900577
    Pass :  1   Iteration :   1  ||B r|| = 0.900577
    Pass :  1   Iteration :   2  ||B r|| = 0.900434
@@ -420,6 +420,6 @@ Restarting...
    Pass :  8   Iteration : 374  ||B r|| = 9.02529e-07
    Pass :  8   Iteration : 375  ||B r|| = 8.35677e-07
 GMRES+GS converged in 375 iterations with a residual norm of 8.35677e-07.
-solver took 2.17952s.
+solver took 4.61728s.
 || q_h - q_ex || / || q_ex || = 5.07159e-05
 || t_h - t_ex || / || t_ex || = 2.61662e-05
