@@ -46,12 +46,15 @@ private:
    Array2D<int> *ess_bdr_mat;
    bool parallel;
    bool hasAdjoint;
+   Array<Coefficient*> owned_coeffs;
+   Array<VectorCoefficient*> owned_vcoeffs;
 protected:
    std::unique_ptr<BilinearForm> a;
    std::unique_ptr<LinearForm> b;
    std::unique_ptr<LinearForm> adjb;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *par_fes;
+   MPI_Comm comm;
    ParBilinearForm *par_a;
    ParLinearForm *par_b;
    ParLinearForm *par_adjb;
@@ -63,6 +66,7 @@ protected:
       if (par_fes)
       {
          parallel = true;
+         comm = par_fes->GetComm();
          par_a = new ParBilinearForm(par_fes);
          par_b = new ParLinearForm(par_fes);
          a.reset(par_a);
@@ -109,6 +113,15 @@ public:
    {
       InitializeForms();
    }
+
+   ~EllipticProblem()
+   {
+      for (Coefficient *coeff:owned_coeffs) { if (coeff) {delete coeff;} }
+      for (VectorCoefficient *coeff:owned_vcoeffs) { if (coeff) {delete coeff;} }
+   }
+
+   void MakeCoefficientOwner(Coefficient *coeff) {owned_coeffs.Append(coeff);}
+   void MakeVectorCoefficientOwner(VectorCoefficient *coeff) {owned_vcoeffs.Append(coeff);}
 
    void SetAStationary(bool stationary=false) {isAStationary=stationary;}
    void SetBStationary(bool stationary=false) {isBStationary=stationary;}
@@ -158,6 +171,11 @@ public:
       if (!solver || !isAStationary) {Update();}
       solver->Solve(*b, x);
    }
+   bool HasAdjoint() {return hasAdjoint;}
+   bool IsParallel() { return parallel; }
+#ifdef MFEM_USE_MPI
+   bool GetComm() {return comm;}
+#endif
 };
 
 class HelmholtzFilter: public EllipticProblem
