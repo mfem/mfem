@@ -11,7 +11,7 @@ real_t sigmoid(const real_t x);
 real_t invsigmoid(const real_t x);
 real_t der_sigmoid(const real_t x);
 real_t simp(const real_t x, const real_t exponent, const real_t rho0);
-real_t der_simpl(const real_t x, const real_t exponent, const real_t rho0);
+real_t der_simp(const real_t x, const real_t exponent, const real_t rho0);
 
 
 // A coefficient that maps a given gridfunction with a given function.
