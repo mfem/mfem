@@ -138,9 +138,9 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
       auto d_Ahat = Reshape(Ahat.Read(), m, m, ne);
 
       auto d_A_ii = Reshape(Ahat_ii.Write(), nidofs, nidofs, ne);
-      auto d_A_ib = Reshape(Ahat_ib.Write(), nidofs, nbdofs, ne);
-      auto d_A_bi = Reshape(Ahat_bi.Write(), nbdofs, nidofs, ne);
-      auto d_A_bb = Reshape(Ahat_bb.Write(), nbdofs, nbdofs, ne);
+      auto d_A_ib_all = Reshape(Ahat_ib.Write(), nidofs*nbdofs, ne);
+      auto d_A_bi_all = Reshape(Ahat_bi.Write(), nbdofs*nidofs, ne);
+      auto d_A_bb_all = Reshape(Ahat_bb.Write(), nbdofs*nbdofs, ne);
 
       auto d_ipiv_ii = Reshape(Ahat_ii_piv.Write(), nidofs, ne);
       auto d_ipiv_bb = Reshape(Ahat_bb_piv.Write(), nbdofs, ne);
@@ -187,9 +187,9 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
          LocalMemory<real_t, MBD*MBD> A_bb_loc;
 
          DeviceMatrix A_ii(GLOBAL ? &d_A_ii(0,0,e) : A_ii_loc, nidofs, nidofs);
-         DeviceMatrix A_ib(GLOBAL ? &d_A_ib(0,0,e) : A_ib_loc, nidofs, nbfdofs);
-         DeviceMatrix A_bi(GLOBAL ? &d_A_bi(0,0,e) : A_bi_loc, nbfdofs, nidofs);
-         DeviceMatrix A_bb(GLOBAL ? &d_A_bb(0,0,e) : A_bb_loc, nbfdofs, nbfdofs);
+         DeviceMatrix A_ib(GLOBAL ? &d_A_ib_all(0,e) : A_ib_loc, nidofs, nbfdofs);
+         DeviceMatrix A_bi(GLOBAL ? &d_A_bi_all(0,e) : A_bi_loc, nbfdofs, nidofs);
+         DeviceMatrix A_bb(GLOBAL ? &d_A_bb_all(0,e) : A_bb_loc, nbfdofs, nbfdofs);
 
          for (int j = 0; j < nidofs; j++)
          {
@@ -255,6 +255,10 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
          // Write out to global memory
          if (!GLOBAL)
          {
+            DeviceMatrix d_A_bi(&d_A_bi_all(0,e), nbfdofs, nidofs);
+            DeviceMatrix d_A_ib(&d_A_ib_all(0,e), nidofs, nbfdofs);
+            DeviceMatrix d_A_bb(&d_A_bb_all(0,e), nbfdofs, nbfdofs);
+
             for (int j = 0; j < nidofs; j++)
             {
                d_ipiv_ii(j,e) = ipiv_ii[j];
@@ -264,7 +268,7 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
                }
                for (int i = 0; i < nbfdofs; i++)
                {
-                  d_A_bi(i,j,e) = A_bi(i,j);
+                  d_A_bi(i,j) = A_bi(i,j);
                }
             }
             for (int j = 0; j < nbfdofs; j++)
@@ -272,11 +276,11 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
                d_ipiv_bb(j,e) = ipiv_bb[j];
                for (int i = 0; i < nidofs; i++)
                {
-                  d_A_ib(i,j,e) = A_ib(i,j);
+                  d_A_ib(i,j) = A_ib(i,j);
                }
                for (int i = 0; i < nbfdofs; i++)
                {
-                  d_A_bb(i,j,e) = A_bb(i,j);
+                  d_A_bb(i,j) = A_bb(i,j);
                }
             }
          }
@@ -992,9 +996,9 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
    const auto d_hat_dof_marker = Reshape(hat_dof_marker.Read(), n, ne);
 
    const auto d_A_ii = Reshape(Ahat_ii.Read(), nidofs, nidofs, ne);
-   const auto d_A_ib = Reshape(Ahat_ib.Read(), nidofs, nbdofs, ne);
-   const auto d_A_bi = Reshape(Ahat_bi.Read(), nbdofs, nidofs, ne);
-   const auto d_A_bb = Reshape(Ahat_bb.Read(), nbdofs, nbdofs, ne);
+   const auto d_A_ib = Reshape(Ahat_ib.Read(), nidofs*nbdofs, ne);
+   const auto d_A_bi = Reshape(Ahat_bi.Read(), nbdofs*nidofs, ne);
+   const auto d_A_bb = Reshape(Ahat_bb.Read(), nbdofs*nbdofs, ne);
 
    const auto d_ipiv_ii = Reshape(Ahat_ii_piv.Read(), nidofs, ne);
    const auto d_ipiv_bb = Reshape(Ahat_bb_piv.Read(), nbdofs, ne);
@@ -1011,15 +1015,6 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
 
    mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
    {
-      for (int i = 0; i < nidofs; ++i)
-      {
-         d_ivals(i, e) = d_x(d_idofs[i], e);
-      }
-      for (int i = 0; i < nbdofs; ++i)
-      {
-         d_bvals(i, e) = d_x(d_bdofs[i], e);
-      }
-
       constexpr int MD1D = DofQuadLimits::HDIV_MAX_D1D;
       constexpr int MAX_DOFS = 3*MD1D*(MD1D-1)*(MD1D-1);
       internal::LocalMemory<int,MAX_DOFS> bdofs_loc;
@@ -1035,6 +1030,15 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
          }
       }
 
+      for (int i = 0; i < nidofs; ++i)
+      {
+         d_ivals(i, e) = d_x(d_idofs[i], e);
+      }
+      for (int i = 0; i < nbfdofs; ++i)
+      {
+         d_bvals(i, e) = d_x(bdofs_loc[i], e);
+      }
+
       if (nidofs > 0)
       {
          // Block forward substitution:
@@ -1042,18 +1046,18 @@ void HybridizationExtension::MultAhatInv(Vector &x) const
          kernels::LSolve(&d_A_ii(0,0,e), nidofs, &d_ipiv_ii(0,e), &d_ivals(0,e));
          // B2 <- B2 - L21 B1
          kernels::SubMult(
-            nidofs, nbfdofs, 1, &d_A_bi(0,0,e), &d_ivals(0,e), &d_bvals(0, e));
+            nidofs, nbfdofs, 1, &d_A_bi(0,e), &d_ivals(0,e), &d_bvals(0, e));
       }
 
       // Schur complement solve
-      kernels::LUSolve(&d_A_bb(0,0,e), nbfdofs, &d_ipiv_bb(0,e), &d_bvals(0,e));
+      kernels::LUSolve(&d_A_bb(0,e), nbfdofs, &d_ipiv_bb(0,e), &d_bvals(0,e));
 
       if (nidofs > 0)
       {
          // Block backward substitution
          // Y1 <- Y1 - U12 X2
          kernels::SubMult(
-            nbfdofs, nidofs, 1, &d_A_ib(0,0,e), &d_bvals(0,e), &d_ivals(0, e));
+            nbfdofs, nidofs, 1, &d_A_ib(0,e), &d_bvals(0,e), &d_ivals(0, e));
          // Y1 <- U^{-1} Y1
          kernels::USolve(&d_A_ii(0,0,e), nidofs, &d_ivals(0,e));
       }
