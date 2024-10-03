@@ -289,6 +289,13 @@ endif
 ifeq ($(MFEM_USE_HIP),YES)
    SUNDIALS_LIB += -lsundials_nvechip
 endif
+SUNDIALS_CORE_PAT = $(subst\
+ @MFEM_DIR@,$(MFEM_DIR),$(SUNDIALS_DIR))/lib*/libsundials_core.*
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   ifneq ($(wildcard $(SUNDIALS_CORE_PAT)),)
+      SUNDIALS_LIB += -lsundials_core
+   endif
+endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
 
