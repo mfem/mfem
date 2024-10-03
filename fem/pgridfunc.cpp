@@ -590,13 +590,15 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 
 void ParGridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
-   (*this) = std::numeric_limits<real_t>::min();
    GridFunction::ProjectCoefficient(vcoeff);
 
    // Accumulate for all vdofs.
-   GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
-   gcomm.Bcast<real_t>(data);
+   if (pfes->GetNURBSext())
+   {
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
+      gcomm.Bcast<real_t>(data);
+   }
 }
 
 void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff,
