@@ -19,6 +19,7 @@ private:
    MPI_Comm comm;
    std::unique_ptr<HyprePCG> par_solver;
    std::unique_ptr<HypreBoomerAMG> par_prec;
+   HypreParVector par_B;
 #endif
 public:
 private:
@@ -27,6 +28,7 @@ private:
 public:
    EllipticSolver(BilinearForm &a, Array<int> &ess_bdr);
    EllipticSolver(BilinearForm &a, Array2D<int> &ess_bdr);
+   void UseElasticityOption();
    void Solve(LinearForm &b, GridFunction &x);
 };
 

@@ -49,6 +49,7 @@ void EllipticSolver::SetupSolver()
       par_solver->SetOperator(*A.As<HypreParMatrix>());
       par_solver->SetPreconditioner(*par_prec);
       par_prec->SetPrintLevel(0);
+      par_B.SetSize(par_a->ParFESpace()->GetTrueVSize());
    }
    else
    {
@@ -78,16 +79,25 @@ void EllipticSolver::SetupSolver()
 #endif
 }
 
+void EllipticSolver::UseElasticityOption()
+{
+#ifdef MFEM_USE_MPI
+   if (!parallel) { MFEM_ABORT("Tried to use elasticity option for HypreBoomerAMG, but operator is serial bilinear form."); }
+   par_prec->SetElasticityOptions(par_a->ParFESpace());
+#else
+   MFEM_ABORT("Tried to use elasticity option for HypreBoomerAMG, but MFEM is serial version.");
+#endif
+}
+
 void EllipticSolver::Solve(LinearForm &b, GridFunction &x)
 {
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
-      std::unique_ptr<HypreParVector> BB(dynamic_cast<ParLinearForm*>
-                                         (&b)->ParallelAssemble());
-      X.MakeRef(static_cast<ParGridFunction*>(&x)->GetTrueVector(), 0, BB->Size());
-      par_a->EliminateVDofsInRHS(ess_tdof_list, X, *BB);
-      par_solver->Mult(*BB, X);
+      dynamic_cast<ParLinearForm*>(&b)->ParallelAssemble(par_B);
+      X.MakeRef(static_cast<ParGridFunction*>(&x)->GetTrueVector(), 0, par_B.Size());
+      par_a->EliminateVDofsInRHS(ess_tdof_list, X, par_B);
+      par_solver->Mult(par_B, X);
       par_a->RecoverFEMSolution(X, b, x);
    }
    else

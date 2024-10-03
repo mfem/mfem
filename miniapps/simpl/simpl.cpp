@@ -82,7 +82,6 @@ int main(int argc, char *argv[])
    for (int i=0; i<10; i++)
    {
       b.Assemble();
-      x = 0.0;
       solver.Solve(b, x);
       char vishost[] = "localhost";
       int  visport   = 19916;
