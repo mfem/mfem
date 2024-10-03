@@ -3562,7 +3562,7 @@ void NURBSExtension::GenerateOffsets()
          for (auto me : masterEdges)
          {
             const int mid = masterEdgeToId.at(me);
-            if (masterEdgeSlaves[mid].size() == 0)
+            if (masterEdgeSlaves[mid].size() <= 1)
             {
                falseMasterEdges.push_back(me);
             }
@@ -4865,7 +4865,6 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
          pkv[2] = kv[KnotInd(edges[8])];
       }
 
-
       // Check whether inserted knots should be flipped before inserting.
       // Knotvectors are stored in a different array pkvc such that the original
       // knots which are inserted are not changed.
@@ -4930,14 +4929,14 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
          {
             // Find flip point, for knotvectors that do not have the domain [0:1]
             KnotVector *kva = knotVectorsCompr[Dimension()*p+d];
-            double apb = (*kva)[0] + (*kva)[kva->Size()-1];
+            real_t apb = (*kva)[0] + (*kva)[kva->Size()-1];
 
             // Flip vector
             int size = pkvc[d]->Size();
             int ns = ceil(size/2.0);
             for (int j = 0; j < ns; j++)
             {
-               double tmp = apb - pkvc[d]->Elem(j);
+               real_t tmp = apb - pkvc[d]->Elem(j);
                pkvc[d]->Elem(j) = apb - pkvc[d]->Elem(size-1-j);
                pkvc[d]->Elem(size-1-j) = tmp;
             }
