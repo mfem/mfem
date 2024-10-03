@@ -260,7 +260,11 @@ int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
 #endif
                                               )
 {
+#if (SUNDIALS_VERSION_MAJOR < 7)
    SUNMemory sunmem = SUNMemoryNewEmpty();
+#else
+   SUNMemory sunmem = SUNMemoryNewEmpty(helper->sunctx);
+#endif
 
    sunmem->ptr = NULL;
    sunmem->own = SUNTRUE;
