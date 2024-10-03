@@ -79,15 +79,24 @@ int main(int argc, char *argv[])
    a.Assemble();
 
    EllipticSolver solver(a, ess_bdr);
-   solver.Solve(b, x);
+   for (int i=0; i<10; i++)
+   {
+      b.Assemble();
+      x = 0.0;
+      solver.Solve(b, x);
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x << flush;
 
+   }
    // 10. Form the linear system A X = B. This includes eliminating boundary
    //     conditions, applying AMR constraints, parallel assembly, etc.
 
    // 12. Recover the solution x as a grid function and save to file. The output
    //     can be viewed using GLVis as follows: "glvis -np <np> -m mesh -g sol"
-   x.Save("sol");
-   mesh.Save("mesh");
 
    return 0;
 }

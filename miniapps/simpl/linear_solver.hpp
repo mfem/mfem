@@ -24,13 +24,10 @@ public:
 private:
    void BuildEssTdofList();
    void SetupSolver();
-   public:
+public:
    EllipticSolver(BilinearForm &a, Array<int> &ess_bdr);
    EllipticSolver(BilinearForm &a, Array2D<int> &ess_bdr);
    void Solve(LinearForm &b, GridFunction &x);
-   Solver* GetSolver();
-
-
 };
 
 }// namespace mfem

@@ -9,7 +9,7 @@ void EllipticSolver::BuildEssTdofList()
 EllipticSolver::EllipticSolver(BilinearForm &a, Array<int> &ess_bdr):a(a)
 {
    a.FESpace()->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   a.FormSystemMatrix(ess_tdof_list, A);
+   SetupSolver();
 }
 
 EllipticSolver::EllipticSolver(BilinearForm &a, Array2D<int> &ess_bdr):a(a),
@@ -25,19 +25,13 @@ EllipticSolver::EllipticSolver(BilinearForm &a, Array2D<int> &ess_bdr):a(a),
       a.FESpace()->GetEssentialTrueDofs(ess_bdr_comp, ess_tdof_list_comp, i-1);
       ess_tdof_list.Append(ess_tdof_list_comp);
    }
-   a.FormSystemMatrix(ess_tdof_list, A);
-   parallel = false;
-#ifdef MFEM_USE_MPI
-   par_a = dynamic_cast<ParBilinearForm*>(&a);
-   if (par_a)
-   {
-      parallel = true;
-   }
-#endif
+   SetupSolver();
 }
 
 void EllipticSolver::SetupSolver()
 {
+   a.FormSystemMatrix(ess_tdof_list, A);
+
    parallel = false;
 #ifdef MFEM_USE_MPI
    par_a = dynamic_cast<ParBilinearForm*>(&a);
@@ -69,6 +63,7 @@ void EllipticSolver::SetupSolver()
       solver->SetPrintLevel(0);
       solver->SetOperator(*A.As<SparseMatrix>());
       solver->SetPreconditioner(*prec);
+      solver->iterative_mode=true;
    }
 #else
    solver.reset(new CGSolver());
@@ -88,13 +83,28 @@ void EllipticSolver::Solve(LinearForm &b, GridFunction &x)
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
-      a.EliminateVDofsInRHS(ess_tdof_list, x, b);
-      par_solver->Mult(x, b);
+      std::unique_ptr<HypreParVector> BB(dynamic_cast<ParLinearForm*>
+                                         (&b)->ParallelAssemble());
+      X.MakeRef(static_cast<ParGridFunction*>(&x)->GetTrueVector(), 0, BB->Size());
+      par_a->EliminateVDofsInRHS(ess_tdof_list, X, *BB);
+      par_solver->Mult(*BB, X);
+      par_a->RecoverFEMSolution(X, b, x);
    }
+   else
+   {
+      B.MakeRef(b, 0, b.Size());
+      X.MakeRef(x, 0, x.Size());
+      a.EliminateVDofsInRHS(ess_tdof_list, X, B);
+      solver->Mult(B, X);
+      a.RecoverFEMSolution(X, b, x);
+   }
+#else
+   B.MakeRef(b, 0, b.Size());
+   X.MakeRef(x, 0, x.Size());
+   a.EliminateVDofsInRHS(ess_tdof_list, X, B);
+   solver->Mult(B, X);
+   a.RecoverFEMSolution(X, b, x);
 #endif
 }
-Solver* EllipticSolver::GetSolver()
-{
-   return nullptr;
-}
+
 }
