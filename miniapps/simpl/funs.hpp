@@ -126,11 +126,10 @@ public:
 class LegendreEntropy : public Coefficient
 {
    typedef std::function<real_t(const real_t)> fun_type;
-private:
+public:
    fun_type entropy;
    fun_type forward; // primal to dual
    fun_type backward; // dual to primal
-public:
    LegendreEntropy(fun_type entropy, fun_type forward, fun_type backward)
       :entropy(entropy), forward(forward), backward(backward) {}
    MappedGFCoefficient GetForwardCoeff();
