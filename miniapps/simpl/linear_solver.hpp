@@ -30,6 +30,8 @@ public:
    EllipticSolver(BilinearForm &a, Array2D<int> &ess_bdr);
    void UseElasticityOption();
    void Solve(LinearForm &b, GridFunction &x);
+   // This must be called after reassembly
+   void Update();
 };
 
 }// namespace mfem
