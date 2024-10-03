@@ -15,6 +15,11 @@ if (MFEM_USE_MPI)
     EXTRA_SOURCES linear_solver.cpp
     EXTRA_HEADERS linear_solver.hpp
     LIBRARIES mfem)
+  add_mfem_miniapp(diffusion_test
+    MAIN diffusion_test.cpp
+    EXTRA_SOURCES linear_solver.cpp
+    EXTRA_HEADERS linear_solver.hpp
+    LIBRARIES mfem)
   add_mfem_miniapp(elasticity_test
     MAIN elasticity_test.cpp
     EXTRA_SOURCES linear_solver.cpp
