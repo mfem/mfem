@@ -1021,11 +1021,8 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
       Af_f_offsets[i+1] = Af_f_offsets[i] + f_size;
    }
 
-   if (!m_nlfi_u && !m_nlfi)
-   {
-      Af_data = new real_t[Af_offsets[NE]];
-      Af_ipiv = new int[Af_f_offsets[NE]];
-   }
+   Af_data = new real_t[Af_offsets[NE]];
+   Af_ipiv = new int[Af_f_offsets[NE]];
 
    // Assemble the constraint matrix C
    ConstructC();
@@ -1518,7 +1515,14 @@ void DarcyHybridization::ConstructC()
    }
 }
 
-void DarcyHybridization::AllocEG()
+void DarcyHybridization::AllocD() const
+{
+   const int NE = fes_p->GetNE();
+   Df_data = new real_t[Df_offsets[NE]]();//init by zeros
+   Df_ipiv = new int[Df_f_offsets[NE]];
+}
+
+void DarcyHybridization::AllocEG() const
 {
    FaceElementTransformations *FTr;
    Mesh *mesh = fes->GetMesh();
@@ -1545,7 +1549,7 @@ void DarcyHybridization::AllocEG()
    G_data = new real_t[G_offsets[num_faces]]();//init by zeros
 }
 
-void DarcyHybridization::AllocH()
+void DarcyHybridization::AllocH() const
 {
    Mesh *mesh = fes->GetMesh();
    int num_faces = mesh->GetNumFaces();
@@ -1900,6 +1904,30 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
    MultNL(MultNlMode::Mult, darcy_rhs, x, y);
 }
 
+Operator &DarcyHybridization::GetGradient(const Vector &x) const
+{
+   MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
+
+   if (H) { return *H; }
+
+   const int NE = fes->GetNE();
+
+   if (!Df_data) { AllocD(); }// D is resetted in ConstructGrad()
+   if (!E_data || !G_data) { AllocEG(); }// E and G are rewritten
+   if (!H_data) { AllocH(); }
+   else if (c_nlfi_p)
+   {
+      // H is resetted here for additive double side integration
+      memset(H_data, 0, H_offsets[NE] * sizeof(real_t));
+   }
+
+   Vector y;//dummy
+   MultNL(MultNlMode::Grad, darcy_rhs, x, y);
+
+   pGrad.Reset(new Gradient(*this));
+   return *pGrad;
+}
+
 void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
                                 const Vector &x, Vector &y) const
 {
@@ -1951,15 +1979,25 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
    {
       //Load RHS
 
-      GetFDofs(el, u_vdofs);
-      bu.GetSubVector(u_vdofs, bu_l);
-
-      fes_p->GetElementDofs(el, p_dofs);
-      bp.GetSubVector(p_dofs, bp_l);
-      if (bsym)
+      if (mode != MultNlMode::GradMult)
       {
-         //In the case of the symmetrized system, the sign is oppposite!
-         bp_l.Neg();
+         GetFDofs(el, u_vdofs);
+         bu.GetSubVector(u_vdofs, bu_l);
+
+         fes_p->GetElementDofs(el, p_dofs);
+         bp.GetSubVector(p_dofs, bp_l);
+         if (bsym)
+         {
+            //In the case of the symmetrized system, the sign is oppposite!
+            bp_l.Neg();
+         }
+      }
+      else
+      {
+         bu_l.SetSize(Af_f_offsets[el+1] - Af_f_offsets[el]);
+         bu_l = 0.;
+         bp_l.SetSize(Df_f_offsets[el+1] - Df_f_offsets[el]);
+         bp_l = 0.;
       }
 
       switch (dim)
@@ -2002,7 +2040,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
          Ct.AddMult_a(-1., x_f, bu_l);
 
          //bp - E x
-         if (c_bfi_p)
+         if (c_bfi_p || mode == MultNlMode::GradMult)
          {
             if (GetEFaceMatrix(faces[f], E_1, E_2, c_dofs))
             {
@@ -2020,39 +2058,52 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
       }
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 
-      //local u
-      if (darcy_u.Size() > 0)
+      if (mode != MultNlMode::GradMult)
       {
-         //load the initial guess from the non-reduced solution vector
-         darcy_u.GetSubVector(u_vdofs, u_l);
+         //local u
+         if (darcy_u.Size() > 0)
+         {
+            //load the initial guess from the non-reduced solution vector
+            darcy_u.GetSubVector(u_vdofs, u_l);
+         }
+         else
+         {
+            u_l.SetSize(u_vdofs.Size());
+            u_l = 0.;//initial guess?
+
+         }
+
+         //local p
+         if (darcy_p.Size() > 0)
+         {
+            //load the initial guess from the non-reduced solution vector
+            darcy_p.GetSubVector(p_dofs, p_l);
+         }
+         else
+         {
+            p_l.SetSize(p_dofs.Size());
+            p_l = 0.;//initial guess?
+         }
+
+         //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
+         MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
+
+         if (mode == MultNlMode::Sol)
+         {
+            yb.GetBlock(0).SetSubVector(u_vdofs, u_l);
+            yb.GetBlock(1).SetSubVector(p_dofs, p_l);
+            continue;
+         }
+         else if (mode == MultNlMode::Grad)
+         {
+            ConstructGrad(el, faces, x_l, u_l, p_l);
+            continue;
+         }
       }
       else
       {
-         u_l.SetSize(u_vdofs.Size());
-         u_l = 0.;//initial guess?
-
-      }
-
-      //local p
-      if (darcy_p.Size() > 0)
-      {
-         //load the initial guess from the non-reduced solution vector
-         darcy_p.GetSubVector(p_dofs, p_l);
-      }
-      else
-      {
-         p_l.SetSize(p_dofs.Size());
-         p_l = 0.;//initial guess?
-      }
-
-      //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
-      MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
-
-      if (mode == MultNlMode::Sol)
-      {
-         yb.GetBlock(0).SetSubVector(u_vdofs, u_l);
-         yb.GetBlock(1).SetSubVector(p_dofs, p_l);
-         continue;
+         //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
+         MultInv(el, bu_l, bp_l, u_l, p_l);
       }
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
@@ -2069,7 +2120,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
          //G p_l + H x_l
          const Vector &x_f = x_l.GetBlock(f);
 
-         if (c_bfi_p)
+         if (c_bfi_p || mode == MultNlMode::GradMult)
          {
             //linear
             if (GetGFaceMatrix(faces[f], G_1, G_2, c_dofs))
@@ -2390,8 +2441,6 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
                                  Vector &u, Vector &p) const
 {
-   MFEM_ASSERT(!bnl, "Cannot mult the inverse matrix in the non-linear regime");
-
    Vector AiBtSiBAibu, AiBtSibp;
 
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
@@ -2431,6 +2480,134 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    if (bsym) { u += AiBtSiBAibu; }
    else { u -= AiBtSiBAibu; }
+}
+
+void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
+                                       const BlockVector &x_l,
+                                       const Vector &u_l, const Vector &p_l) const
+{
+   const FiniteElement *fe_u = fes->GetFE(el);
+   const FiniteElement *fe_p = fes_p->GetFE(el);
+   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+   ElementTransformation *Tr = fes->GetElementTransformation(el);
+
+   DenseMatrix A(Af_data + Af_offsets[el], a_dofs_size, a_dofs_size);
+   DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+   LUFactors LU_A(A.GetData(), Af_ipiv + Af_f_offsets[el]);
+
+   MFEM_ASSERT(!m_nlfi,
+               "Not implemented");//<--- backup of uninverted matrices is needed
+   MFEM_ASSERT(m_nlfi_p || D_empty || m_nlfi,
+               "Not implemented");//<--- D is inverted already
+
+   if (m_nlfi_u)
+   {
+      m_nlfi_u->AssembleElementGrad(*fe_u, *Tr, u_l, A);
+
+      // Decompose A
+      LU_A.Factor(a_dofs_size);
+   }
+
+   if (m_nlfi_p)
+   {
+      m_nlfi_p->AssembleElementGrad(*fe_p, *Tr, p_l, D);
+   }
+   else
+   {
+      D = 0.;
+   }
+
+   if (c_nlfi_p)
+   {
+      //bp += E x
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         FaceElementTransformations *FTr = fes->GetMesh()->GetFaceElementTransformations(
+                                              faces[f], 0);
+
+         const Vector &x_f = x_l.GetBlock(f);
+
+         if (FTr->Elem2No >= 0)
+         {
+            //interior
+            AssembleHDGGrad(el, faces[f], *c_nlfi_p, x_f, p_l);
+         }
+         else
+         {
+            //boundary
+            const int bdr_attr = fes->GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
+
+            for (int i = 0; i < boundary_constraint_pot_nonlin_integs.Size(); i++)
+            {
+               if (boundary_constraint_pot_nonlin_integs_marker[i]
+                   && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+               AssembleHDGGrad(el, faces[f], *boundary_constraint_pot_nonlin_integs[i], x_f,
+                               p_l);
+            }
+         }
+      }
+   }
+
+   // Construct Schur complement
+   DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+   DenseMatrix AiBt(a_dofs_size, d_dofs_size);
+
+   AiBt.Transpose(B);
+   if (!bsym) { AiBt.Neg(); }
+   LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
+   mfem::AddMult(B, AiBt, D);
+
+   // Decompose Schur complement
+   LUFactors LU_S(D.GetData(), Df_ipiv + Df_f_offsets[el]);
+
+   LU_S.Factor(d_dofs_size);
+}
+
+void DarcyHybridization::AssembleHDGGrad(int el, int f,
+                                         NonlinearFormIntegrator &nlfi, const Vector &x_f, const Vector &p_l) const
+{
+   const FiniteElement *fe_c = c_fes->GetFaceElement(f);
+   const FiniteElement *fe_p = fes_p->GetFE(el);
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+   const int c_dofs_size = x_f.Size();
+
+   FaceElementTransformations *FTr =
+      fes->GetMesh()->GetFaceElementTransformations(f);
+
+   int type = NonlinearFormIntegrator::HDGFaceType::ELEM
+              | NonlinearFormIntegrator::HDGFaceType::TRACE
+              | NonlinearFormIntegrator::HDGFaceType::CONSTR
+              | NonlinearFormIntegrator::HDGFaceType::FACE;
+
+   if (FTr->Elem1No != el) { type |= 1; }
+
+   DenseMatrix elmat;
+
+   nlfi.AssembleHDGFaceGrad(type, *fe_c, *fe_p, *FTr, x_f, p_l, elmat);
+
+   // assemble D element matrices
+   DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+   DenseMatrix elmat_D;
+   elmat_D.CopyMN(elmat, d_dofs_size, d_dofs_size, 0, 0);
+   D += elmat_D;
+
+   // assemble E constraint
+   const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
+   DenseMatrix E_f(E_data + E_offsets[f] + E_off, d_dofs_size, c_dofs_size);
+   E_f.CopyMN(elmat, d_dofs_size, c_dofs_size, 0, d_dofs_size);
+
+   // assemble G constraint
+   const int G_off = E_off;
+   DenseMatrix G_f(G_data + G_offsets[f] + G_off, c_dofs_size, d_dofs_size);
+   G_f.CopyMN(elmat, c_dofs_size, d_dofs_size, d_dofs_size, 0);
+
+   // assemble H matrix
+   DenseMatrix H_f(H_data + H_offsets[f], c_dofs_size, c_dofs_size);
+   DenseMatrix elmat_H;
+   elmat_H.CopyMN(elmat, c_dofs_size, c_dofs_size, d_dofs_size, d_dofs_size);
+   H_f += elmat_H;
 }
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
@@ -2668,6 +2845,11 @@ void DarcyHybridization::Reset()
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
+void DarcyHybridization::Gradient::Mult(const Vector &x, Vector &y) const
+{
+   //note that rhs is not used, it is only a dummy
+   dh.MultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
+}
 
 DarcyHybridization::LocalNLOperator::LocalNLOperator(
    const DarcyHybridization &dh_, int el_, const BlockVector &trps_,
