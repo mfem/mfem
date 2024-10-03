@@ -117,4 +117,25 @@ void EllipticSolver::Solve(LinearForm &b, GridFunction &x)
 #endif
 }
 
+void EllipticSolver::Update()
+{
+   a.FormSystemMatrix(ess_tdof_list, A);
+
+#ifdef MFEM_USE_MPI
+   if (par_a)
+   {
+      par_solver->SetOperator(*A.As<HypreParMatrix>());
+      par_prec->SetOperator(*A.As<HypreParMatrix>());
+   }
+   else
+   {
+      solver->SetOperator(*A.As<SparseMatrix>());
+      prec->SetOperator(*A.As<SparseMatrix>());
+   }
+#else
+   solver->SetOperator(*A.As<SparseMatrix>());
+   prec->SetOperator(*A.As<SparseMatrix>());
+#endif
+}
+
 }
