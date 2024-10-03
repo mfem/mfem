@@ -78,11 +78,21 @@ constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
 class FEOperator : public TimeDependentOperator
 {
+public:
+   enum class SolverType
+   {
+      LBFGS = 1,
+      LBB,
+      Newton,
+   };
+
+private:
    Array<int> offsets;
    const Array<int> &ess_flux_tdofs_list;
    DarcyForm *darcy;
    LinearForm *g, *f, *h;
    const Array<Coefficient*> &coeffs;
+   SolverType solver_type;
    bool btime;
 
    FiniteElementSpace *trace_space{};
@@ -91,6 +101,7 @@ class FEOperator : public TimeDependentOperator
    Coefficient *idtcoeff{};
    BilinearForm *Mt0{};
 
+   const char *lsolver_str{};
    Solver *prec{};
    const char *prec_str{};
    IterativeSolver *solver{};
@@ -100,7 +111,7 @@ class FEOperator : public TimeDependentOperator
 public:
    FEOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
               LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
-              bool btime = true);
+              SolverType stype = SolverType::LBFGS, bool btime = true);
    ~FEOperator();
 
    static Array<int> ConstructOffsets(const DarcyForm &darcy);
@@ -142,6 +153,7 @@ int main(int argc, char *argv[])
    bool nonlinear_conv = false;
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
+   int solver_type = (int)FEOperator::SolverType::LBFGS;
    bool pa = false;
    const char *device_config = "cpu";
    bool mfem = false;
@@ -200,6 +212,8 @@ int main(int argc, char *argv[])
                   "--no-nonlinear-diffusion", "Enable non-linear diffusion regime.");
    args.AddOption(&hdg_scheme, "-hdg", "--hdg_scheme",
                   "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov, 4=Godunov).");
+   args.AddOption(&solver_type, "-nls", "--nonlinear-solver",
+                  "Nonlinear solver type (1=LBFGS, 2=LBB, 3=Newton).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -740,7 +754,7 @@ int main(int argc, char *argv[])
                                (Coefficient*)&qtcoeff});
 
    FEOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
-                 btime);
+                 (FEOperator::SolverType) solver_type, btime);
 
    //construct the time solver
 
@@ -1366,10 +1380,10 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
 
 FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
                        DarcyForm *darcy_, LinearForm *g_, LinearForm *f_, LinearForm *h_,
-                       const Array<Coefficient*> &coeffs_, bool btime_)
+                       const Array<Coefficient*> &coeffs_, SolverType stype_, bool btime_)
    : TimeDependentOperator(0, 0., IMPLICIT),
      ess_flux_tdofs_list(ess_flux_tdofs_list_), darcy(darcy_), g(g_), f(f_), h(h_),
-     coeffs(coeffs_), btime(btime_)
+     coeffs(coeffs_), solver_type(stype_), btime(btime_)
 {
    offsets = ConstructOffsets(*darcy);
    width = height = offsets.Last();
@@ -1531,13 +1545,36 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
       {
          if (Mqnl || Mtnl || Mnl)
          {
-            prec = NULL;
             darcy->GetHybridization()->SetLocalNLSolver(
                DarcyHybridization::LSsolveType::Newton,
                maxIter, rtol * 1e-2, atol, -1);
-            prec_str = "Newton";
-            solver = new LBFGSSolver();
-            solver_str = "LBFGS";
+            lsolver_str = "Newton";
+
+            IterativeSolver *lin_solver = NULL;
+            switch (solver_type)
+            {
+               case SolverType::LBFGS:
+                  prec = NULL;
+                  solver = new LBFGSSolver();
+                  solver_str = "LBFGS";
+                  break;
+               case SolverType::LBB:
+                  prec = NULL;
+                  solver = new LBBSolver();
+                  solver_str = "LBB";
+                  break;
+               case SolverType::Newton:
+                  lin_solver = new GMRESSolver();
+                  lin_solver->SetAbsTol(atol);
+                  lin_solver->SetRelTol(rtol * 1e-2);
+                  lin_solver->SetMaxIter(maxIter);
+                  lin_solver->SetPrintLevel(0);
+                  prec = lin_solver;
+                  prec_str = "GMRES";
+                  solver = new NewtonSolver();
+                  solver_str = "Newton";
+                  break;
+            }
          }
          else
          {
@@ -1689,17 +1726,18 @@ void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
 
    chrono.Stop();
 
+   std::cout << solver_str;
+   if (prec_str) { std::cout << "+" << prec_str; }
+   if (lsolver_str) { std::cout << "+" << lsolver_str; }
    if (solver->GetConverged())
    {
-      std::cout << solver_str << "+" << prec_str
-                << " converged in " << solver->GetNumIterations()
+      std::cout << " converged in " << solver->GetNumIterations()
                 << " iterations with a residual norm of " << solver->GetFinalNorm()
                 << ".\n";
    }
    else
    {
-      std::cout << solver_str << "+" << prec_str
-                << " did not converge in " << solver->GetNumIterations()
+      std::cout << " did not converge in " << solver->GetNumIterations()
                 << " iterations. Residual norm is " << solver->GetFinalNorm()
                 << ".\n";
    }
