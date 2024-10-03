@@ -37,7 +37,7 @@ real_t simp(const real_t x, const real_t exponent, const real_t rho0)
    return rho0 + (1.0-rho0)*std::pow(x, exponent);
 }
 
-real_t der_simpl(const real_t x, const real_t exponent, const real_t rho0)
+real_t der_simp(const real_t x, const real_t exponent, const real_t rho0)
 {
    return exponent*(1.0-rho0)*std::pow(x, exponent-1.0);
 }
