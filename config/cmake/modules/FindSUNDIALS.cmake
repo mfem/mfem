@@ -31,4 +31,5 @@ mfem_find_package(SUNDIALS SUNDIALS SUNDIALS_DIR
   ADD_COMPONENT CVODE "include" cvode/cvode.h "lib" sundials_cvode
   ADD_COMPONENT CVODES "include" cvodes/cvodes.h "lib" sundials_cvodes
   ADD_COMPONENT ARKODE "include" arkode/arkode.h "lib" sundials_arkode
-  ADD_COMPONENT KINSOL "include" kinsol/kinsol.h "lib" sundials_kinsol)
+  ADD_COMPONENT KINSOL "include" kinsol/kinsol.h "lib" sundials_kinsol
+  ADD_COMPONENT Core "include" sundials/sundials_core.h "lib" sundials_core)
