@@ -13,6 +13,52 @@ real_t der_sigmoid(const real_t x);
 real_t simp(const real_t x, const real_t exponent, const real_t rho0);
 real_t der_simp(const real_t x, const real_t exponent, const real_t rho0);
 
+class CompositeCoefficient : public Coefficient
+{
+   typedef std::function<real_t(const real_t)> fun_type;
+private:
+   Coefficient *coeff;
+   bool own_coeff;
+   fun_type *fun;
+   bool own_function;
+public:
+   CompositeCoefficient(Coefficient &coeff, fun_type &fun):coeff(&coeff),
+      own_coeff(false), fun(&fun), own_function(false) {}
+   CompositeCoefficient(Coefficient *coeff, fun_type *fun,
+                        bool own_coeff=true, bool own_fun=true)
+      :coeff(coeff), own_coeff(own_coeff),
+       fun(fun), own_function(own_fun) {}
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      return (*fun)(coeff->Eval(T, ip));
+   };
+
+   void SetCoefficient(Coefficient &cf)
+   {
+      if (own_coeff && coeff) {delete coeff;}
+      coeff = &cf;
+      own_coeff = false;
+   }
+   void SetCoefficient(Coefficient *cf, bool own_cf=true)
+   {
+      if (own_coeff && coeff) {delete coeff;}
+      coeff = cf;
+      own_coeff = own_cf;
+   }
+
+   void SetFunction(fun_type &new_fun)
+   {
+      if (own_function && fun) {delete fun;}
+      fun = &new_fun;
+      own_function = false;
+   }
+   void SetFunction(fun_type *new_fun, bool own_fun=true)
+   {
+      if (own_function && fun) {delete fun;}
+      fun = new_fun;
+      own_function = own_fun;
+   }
+};
 
 // A coefficient that maps a given gridfunction with a given function.
 // x |-> f(gf(x))
