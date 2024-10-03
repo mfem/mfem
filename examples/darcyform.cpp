@@ -2159,7 +2159,7 @@ void DarcyHybridization::Finalize()
          {
             InvertA();
          }
-         if (!m_nlfi_p && !D_empty)
+         if (!m_nlfi_p && !D_empty && !m_nlfi)
          {
             InvertD();
          }
@@ -2753,6 +2753,11 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
       dh.m_nlfi_p->AssembleElementVector(*fe_p, *Tr, p_l, Dp);
       bp += Dp;
    }
+   else if (!dh.D_empty)
+   {
+      DenseMatrix D(dh.Df_data + dh.Df_offsets[el], d_dofs_size, d_dofs_size);
+      D.AddMult(p_l, bp);
+   }
 
    if (dh.c_nlfi_p)
    {
@@ -2818,6 +2823,11 @@ void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
       DenseMatrix grad_D;
       dh.m_nlfi_p->AssembleElementGrad(*fe_p, *Tr, p_l, grad_D);
       grad += grad_D;
+   }
+   else if (!dh.D_empty)
+   {
+      DenseMatrix D(dh.Df_data + dh.Df_offsets[el], d_dofs_size, d_dofs_size);
+      grad += D;
    }
 
    if (dh.c_nlfi_p)
