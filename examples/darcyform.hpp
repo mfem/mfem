@@ -275,26 +275,38 @@ private:
    real_t *Bf_data, *Be_data;
 
    Array<int> Df_offsets, Df_f_offsets;
-   real_t *Df_data;
-   int *Df_ipiv;
+   mutable real_t *Df_data;
+   mutable int *Df_ipiv;
    bool D_empty;
 
    Array<int> Ct_offsets;
    real_t *Ct_data;
 
-   Array<int> E_offsets;
-   real_t *E_data;
+   mutable Array<int> E_offsets;
+   mutable real_t *E_data;
 
    Array<int> &G_offsets{E_offsets};
-   real_t *G_data;
+   mutable real_t *G_data;
 
-   Array<int> H_offsets;
-   real_t *H_data;
+   mutable Array<int> H_offsets;
+   mutable real_t *H_data;
 
    mutable Array<int> darcy_offsets;
    mutable BlockVector darcy_rhs;
    Vector darcy_u, darcy_p;
    mutable Array<int> f_2_b;
+   mutable OperatorHandle pGrad;
+
+   friend class Gradient;
+   class Gradient : public Operator
+   {
+      const DarcyHybridization &dh;
+   public:
+      Gradient(const DarcyHybridization &dh)
+         : Operator(dh.Width()), dh(dh) { }
+
+      void Mult(const Vector &x, Vector &y) const override;
+   };
 
    friend class LocalNLOperator;
    class LocalNLOperator : public Operator
@@ -371,9 +383,10 @@ private:
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             DenseMatrix &Ct, int ioff=0);
    void ConstructC();
-   void AllocEG();
-   void AllocH();
-   enum class MultNlMode { Mult, Sol };
+   void AllocD() const;
+   void AllocEG() const;
+   void AllocH() const;
+   enum class MultNlMode { Mult, Sol, Grad, GradMult };
    void MultNL(MultNlMode mode, const BlockVector &b, const Vector &x,
                Vector &y) const;
    void InvertA();
@@ -391,6 +404,11 @@ private:
                   const BlockVector &x_l, Vector &u_l, Vector &p_l) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p) const;
+   void ConstructGrad(int el, const Array<int> &faces, const BlockVector &x_l,
+                      const Vector &u_l,
+                      const Vector &p_l) const;
+   void AssembleHDGGrad(int el, int f, NonlinearFormIntegrator &nlfi,
+                        const Vector &x_f, const Vector &p_l) const;
 
 public:
    /// Constructor
@@ -546,6 +564,8 @@ public:
    /// Operator application: `y=A(x)`.
    void Mult(const Vector &x, Vector &y) const override;
 
+   /// Evaluate the gradient operator at the point @a x.
+   Operator &GetGradient(const Vector &x) const override;
 
    /// Finalize the construction of the hybridized matrix.
    void Finalize() override;
