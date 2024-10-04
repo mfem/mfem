@@ -625,7 +625,7 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
             for (int di = 0; di < num_equations; di++)
                for (int dj = 0; dj < num_equations; dj++)
                   for (int i = 0; i < dof_el; i++)
-                     for (int j = 0; j < dof_el; j++)
+                     for (int j = 0; j < dof_tr; j++)
                      {
                         elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
                            w * JDotN(di,dj) * shape_el(i) * shape_tr(j);
@@ -637,7 +637,7 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
             for (int di = 0; di < num_equations; di++)
                for (int dj = 0; dj < num_equations; dj++)
                   for (int i = 0; i < dof_tr; i++)
-                     for (int j = 0; j < dof_el; j++)
+                     for (int j = 0; j < dof_tr; j++)
                      {
                         elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
                            w * JDotN(di,dj) * shape_tr(i) * shape_tr(j);
