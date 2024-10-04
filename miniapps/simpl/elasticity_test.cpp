@@ -248,7 +248,8 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   EllipticSolver solver(*a, ess_bdr);
+   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   EllipticSolver solver(*a, ess_tdof_list);
    solver.UseElasticityOption();
    solver.Solve(*b, x);
 
@@ -303,17 +304,17 @@ int main(int argc, char *argv[])
       *nodes += x;
       x *= -1;
 
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
+      // ostringstream mesh_name, sol_name;
+      // mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+      // sol_name << "sol." << setfill('0') << setw(6) << myid;
+      //
+      // ofstream mesh_ofs(mesh_name.str().c_str());
+      // mesh_ofs.precision(8);
+      // pmesh->Print(mesh_ofs);
+      //
+      // ofstream sol_ofs(sol_name.str().c_str());
+      // sol_ofs.precision(8);
+      // x.Save(sol_ofs);
    }
 
    // 18. Send the above data by socket to a GLVis server.  Use the "n" and "b"

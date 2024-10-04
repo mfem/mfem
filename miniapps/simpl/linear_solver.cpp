@@ -2,33 +2,8 @@
 
 namespace mfem
 {
-void EllipticSolver::BuildEssTdofList()
-{
-
-}
-EllipticSolver::EllipticSolver(BilinearForm &a, Array<int> &ess_bdr):a(a)
-{
-   a.FESpace()->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   SetupSolver();
-}
-
-EllipticSolver::EllipticSolver(BilinearForm &a, Array2D<int> &ess_bdr):a(a),
-   ess_tdof_list(0)
-{
-   MFEM_ASSERT(ess_bdr.NumRows() == a.FESpace()->GetVDim()+1,
-               "Boundary data should have 1+vdim size (all, 1st, ..., last)");
-   Array<int> ess_tdof_list_comp;
-   Array<int> ess_bdr_comp;
-   for (int i=0; i<ess_bdr.NumRows(); i++)
-   {
-      ess_bdr.GetRow(i, ess_bdr_comp);
-      a.FESpace()->GetEssentialTrueDofs(ess_bdr_comp, ess_tdof_list_comp, i-1);
-      ess_tdof_list.Append(ess_tdof_list_comp);
-   }
-   SetupSolver();
-}
-
-void EllipticSolver::SetupSolver()
+EllipticSolver::EllipticSolver(BilinearForm &a, Array<int> &ess_tdof_list):a(a),
+   ess_tdof_list(ess_tdof_list)
 {
    a.FormSystemMatrix(ess_tdof_list, A);
 
@@ -73,6 +48,26 @@ void EllipticSolver::SetupSolver()
    }
 }
 
+void EllipticProblem::BuildTDofList(Array<int> &ess_bdr)
+{
+   fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+}
+
+void EllipticProblem::BuildTDofList(Array2D<int> &ess_bdr)
+{
+   ess_tdof_list.SetSize(0);
+   MFEM_ASSERT(ess_bdr.NumRows() == fes.GetVDim()+1,
+               "Boundary data should have 1+vdim size (all, 1st, ..., last)");
+   Array<int> ess_tdof_list_comp;
+   Array<int> ess_bdr_comp;
+   for (int i=0; i<ess_bdr.NumRows(); i++)
+   {
+      ess_bdr.GetRow(i, ess_bdr_comp);
+      fes.GetEssentialTrueDofs(ess_bdr_comp, ess_tdof_list_comp, i-1);
+      ess_tdof_list.Append(ess_tdof_list_comp);
+   }
+}
+
 void EllipticSolver::UseElasticityOption()
 {
    if (parallel)
@@ -95,8 +90,6 @@ void EllipticSolver::Solve(LinearForm &b, GridFunction &x)
       static_cast<ParLinearForm*>(&b)->ParallelAssemble(par_B);
       X.MakeRef(static_cast<ParGridFunction*>(&x)->GetTrueVector(), 0, par_B.Size());
       par_a->EliminateVDofsInRHS(ess_tdof_list, X, par_B);
-      par_solver->Setup(par_B, X);
-      par_prec->Setup(par_B, X);
       par_solver->Mult(par_B, X);
       par_a->RecoverFEMSolution(X, b, x);
 #endif
