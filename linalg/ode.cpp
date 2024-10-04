@@ -1122,12 +1122,6 @@ void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f_)
    state.SetSize(f->Width(), mem_type);
 }
 
-void NewmarkSolver::Init(SecondOrderTimeDependentOperator &f_)
-{
-   SecondOrderODESolver::Init(f_);
-   state.SetSize(f->Width(), mem_type);
-}
-
 void NewmarkSolver::PrintProperties(std::ostream &os)
 {
    os << "Newmark time integrator:" << std::endl;
@@ -1198,7 +1192,6 @@ void GeneralizedAlpha2Solver::Init(SecondOrderTimeDependentOperator &f_)
    xa.SetSize(f->Width(), mem_type);
    va.SetSize(f->Width(), mem_type);
    aa.SetSize(f->Width(), mem_type);
-   state.SetSize(f->Width(), mem_type);
 }
 
 void GeneralizedAlpha2Solver::PrintProperties(std::ostream &os)

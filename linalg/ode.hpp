@@ -789,6 +789,9 @@ public:
    ODEStateData&  GetState() { return state; }
    const ODEStateData&  GetState() const { return state; }
 
+   /// Returns how many State vectors the ODE requires
+   int GetStateSize() { return GetState().MaxSize(); };
+
    /// Help info for SecondOrderODESolver options
    static MFEM_EXPORT std::string Types;
 
@@ -816,8 +819,6 @@ public:
    };
 
    void PrintProperties(std::ostream &os = mfem::out);
-
-   void Init(SecondOrderTimeDependentOperator &f_) override;
 
    void Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt) override;
 };
