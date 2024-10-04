@@ -180,10 +180,16 @@ int main(int argc, char *argv[])
 
    // elasticity coefficients
    ConstantCoefficient zero_cf(0.0);
-   MappedGFCoefficient simp_cf(filter_gf,
-   new std::function<real_t(const real_t)>([exponent, rho0](const real_t x) {return simp(x, exponent, rho0);}));
-   MappedGFCoefficient der_simp_cf(filter_gf,
-   new std::function<real_t(const real_t)>([exponent, rho0](const real_t x) {return der_simp(x, exponent, rho0);}));
+   MappedGFCoefficient simp_cf(
+      filter_gf, [exponent, rho0](const real_t x)
+   {
+      return simp(x, exponent, rho0);
+   });
+   MappedGFCoefficient der_simp_cf(
+      filter_gf, [exponent, rho0](const real_t x)
+   {
+      return der_simp(x, exponent, rho0);
+   });
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ProductCoefficient lambda_simp_cf(lambda, simp_cf), mu_simp_cf(mu, simp_cf);
 
@@ -199,6 +205,11 @@ int main(int argc, char *argv[])
    MappedPairedGFCoefficient bregman_diff_eps
       = entropy.GetBregman_dual(control_eps_gf, control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
+   MappedPairedGFCoefficient diff_density_cf(
+      control_gf, control_old_gf, [](const real_t x, const real_t y)
+   {
+      return sigmoid(x)-sigmoid(y);
+   });
 
    // Filter
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);

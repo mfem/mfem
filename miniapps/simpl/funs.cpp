@@ -90,11 +90,10 @@ MappedPairedGFCoefficient LegendreEntropy::GetBregman(GridFunction &x,
 {
    MappedPairedGFCoefficient coeff;
    coeff.SetGridFunction(&x, &y);
-   coeff.SetFunction(new std::function<real_t(const real_t, const real_t)>(
-                        [this](const real_t p, const real_t q)
+   coeff.SetFunction([this](const real_t p, const real_t q)
    {
       return this->entropy(p) - this->entropy(q) - this->forward(q)*(p-q);
-   }), true);
+   });
    return coeff;
 }
 
@@ -103,13 +102,12 @@ MappedPairedGFCoefficient LegendreEntropy::GetBregman_dual(GridFunction &x,
 {
    MappedPairedGFCoefficient coeff;
    coeff.SetGridFunction(&x, &y);
-   coeff.SetFunction(new std::function<real_t(const real_t, const real_t)>(
-                        [this](const real_t p_dual, const real_t q_dual)
+   coeff.SetFunction([this](const real_t p_dual, const real_t q_dual)
    {
       const real_t p=this->backward(p_dual);
       const real_t q=this->backward(q_dual);
       return this->entropy(p) - this->entropy(q) - q_dual*(p-q);
-   }), true);
+   });
    return coeff;
 }
 
