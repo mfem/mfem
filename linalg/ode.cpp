@@ -106,12 +106,9 @@ std::unique_ptr<ODESolver> ODESolver::SelectImplicit(int ode_solver_type)
 }
 
 
-void ODEStateDataVector::SetSize(int stages, int vsize, MemoryType m_t)
+void ODEStateDataVector::SetSize( int vsize, MemoryType m_t)
 {
    mem_type = m_t;
-   smax = stages;
-   data.resize(smax);
-   idx.SetSize(smax);
    for (int i = 0; i < smax; i++)
    {
       idx[i] = smax - i - 1;
@@ -131,6 +128,12 @@ Vector &ODEStateDataVector::Get(int i)
 {
    MFEM_ASSERT_INDEX_IN_RANGE(i,0,ss);
    return data[idx[i]];
+}
+
+void ODEStateDataVector::Get(int i, Vector &vec) const
+{
+   MFEM_ASSERT_INDEX_IN_RANGE(i,0,ss);
+   vec = data[idx[i]];
 }
 
 void ODEStateDataVector::Set(int i, Vector &state)
@@ -484,7 +487,7 @@ const real_t RK8Solver::c[] =
 
 
 AdamsBashforthSolver::AdamsBashforthSolver(int s_, const real_t *a_):
-   stages(s_)
+   stages(s_), state(s_)
 {
    a = a_;
 }
@@ -493,7 +496,7 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 {
    ODESolver::Init(f_);
    if (RKsolver) { RKsolver->Init(f_); }
-   state.SetSize(stages,f->Width(), mem_type);
+   state.SetSize(f->Width(), mem_type);
    dt_ = -1.0;
 }
 
@@ -557,7 +560,7 @@ const real_t AB5Solver::a[] =
 
 
 AdamsMoultonSolver::AdamsMoultonSolver(int s_, const real_t *a_):
-   stages(s_)
+   stages(s_), state(s_)
 {
    a = a_;
 }
@@ -566,7 +569,7 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
 {
    ODESolver::Init(f_);
    if (RKsolver) { RKsolver->Init(f_); }
-   state.SetSize(stages,f->Width(), mem_type);
+   state.SetSize(f->Width(), mem_type);
    dt_ = -1.0;
 }
 
@@ -875,7 +878,7 @@ void GeneralizedAlphaSolver::Init(TimeDependentOperator &f_)
    ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
-   state.SetSize(1, f->Width(), mem_type);
+   state.SetSize(f->Width(), mem_type);
 }
 
 void GeneralizedAlphaSolver::SetRhoInf(real_t rho_inf)
@@ -1116,13 +1119,13 @@ void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f_)
 {
    this->f = &f_;
    mem_type = GetMemoryType(f_.GetMemoryClass());
-   state.SetSize(1, f->Width(), mem_type);
+   state.SetSize(f->Width(), mem_type);
 }
 
 void NewmarkSolver::Init(SecondOrderTimeDependentOperator &f_)
 {
    SecondOrderODESolver::Init(f_);
-   state.SetSize(1, f->Width(), mem_type);
+   state.SetSize(f->Width(), mem_type);
 }
 
 void NewmarkSolver::PrintProperties(std::ostream &os)
@@ -1195,7 +1198,7 @@ void GeneralizedAlpha2Solver::Init(SecondOrderTimeDependentOperator &f_)
    xa.SetSize(f->Width(), mem_type);
    va.SetSize(f->Width(), mem_type);
    aa.SetSize(f->Width(), mem_type);
-   state.SetSize(1, f->Width(), mem_type);
+   state.SetSize(f->Width(), mem_type);
 }
 
 void GeneralizedAlpha2Solver::PrintProperties(std::ostream &os)
