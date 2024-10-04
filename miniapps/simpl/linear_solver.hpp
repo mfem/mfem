@@ -171,7 +171,7 @@ public:
       if (!isAStationary) {a->Update(); a->Assemble();}
       if (!isAdjBStationary) {adjb->Assemble();}
       if (!solver || !isAStationary) {Update();}
-      solver->Solve(*b, x);
+      solver->Solve(*adjb, x);
    }
    bool HasAdjoint() {return hasAdjoint;}
    bool IsParallel() { return parallel; }
