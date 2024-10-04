@@ -566,7 +566,13 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
 
    if (delta_c == NULL)
    {
+      (*this) = std::numeric_limits<real_t>::min();
       GridFunction::ProjectCoefficient(coeff);
+
+      // Accumulate for all vdofs.
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
+      gcomm.Bcast<real_t>(data);
    }
    else
    {
@@ -581,6 +587,91 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
       (*this) *= (delta_c->Scale() / glob_integral);
    }
 }
+
+void ParGridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
+{
+   GridFunction::ProjectCoefficient(vcoeff);
+
+   // Accumulate for all vdofs.
+   if (pfes->GetNURBSext())
+   {
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
+      gcomm.Bcast<real_t>(data);
+   }
+}
+
+void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff,
+                                                 real_t rtol,
+                                                 int iter)
+{
+   // Define and assemble linear form
+   ParLinearForm b(pfes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+   b.Assemble();
+
+   // Define and assemble bilinear form
+   ParBilinearForm a(pfes);
+   a.AddDomainIntegrator(new MassIntegrator());
+   a.Assemble();
+
+   // Configure solver
+   OperatorPtr A;
+   Vector B, X, x(*this);
+   Array<int> ess_tdof_list;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   Solver *prec = new HypreBoomerAMG;
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
+   cg.SetPreconditioner(*prec);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   a.RecoverFEMSolution(X, b, x);
+   delete prec;
+}
+
+void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                                 real_t rtol, int iter)
+{
+   // Define and assemble linear form
+   ParLinearForm b(pfes);
+   ParBilinearForm a(pfes);
+
+   // Dimension argument to GetRangeType is arbitrary to be 3, could also be 2.
+   if (fes->FEColl()->GetRangeType(3)  == mfem::FiniteElement::VECTOR)
+   {
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator());
+   }
+   else
+   {
+      b.AddDomainIntegrator(new VectorDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorMassIntegrator());
+   }
+   b.Assemble();
+   a.Assemble();
+
+   // Configure solver
+   OperatorPtr A;
+   Vector B, X, x(*this);
+   x = 0.0;
+   Array<int> ess_tdof_list;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   Solver *prec = new HypreBoomerAMG;
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
+   cg.SetPreconditioner(*prec);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   a.RecoverFEMSolution(X, b, x);
+   x.Print();
+   delete prec;
+}
+
 
 void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 {

@@ -394,6 +394,50 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    return fec;
 }
 
+FiniteElementCollection *FiniteElementCollection::NewH1(const int order,
+                                                        const int dim,
+                                                        const bool NURBS)
+{
+   if (NURBS)
+   {
+      return new NURBSFECollection(order);
+   }
+   return new H1_FECollection(order, dim);
+}
+
+FiniteElementCollection *FiniteElementCollection::NewL2(const int order,
+                                                        const int dim,
+                                                        const bool NURBS)
+{
+   if (NURBS)
+   {
+      return new NURBSFECollection(order);
+   }
+   return new L2_FECollection(order, dim);
+}
+
+FiniteElementCollection *FiniteElementCollection::NewHDiv(const int order,
+                                                          const int dim,
+                                                          const bool NURBS)
+{
+   if (NURBS)
+   {
+      return new NURBS_HDivFECollection(order);
+   }
+   return new RT_FECollection(order, dim);
+}
+
+FiniteElementCollection *FiniteElementCollection::NewHCurl(const int order,
+                                                           const int dim,
+                                                           const bool NURBS)
+{
+   if (NURBS)
+   {
+      return new NURBS_HCurlFECollection(order);
+   }
+   return new ND_FECollection(order, dim);
+}
+
 FiniteElementCollection *FiniteElementCollection::Clone(int p) const
 {
    // default implementation for collections that don't care about variable p
