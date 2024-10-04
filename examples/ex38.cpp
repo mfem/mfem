@@ -12,7 +12,7 @@
 //              * ex38 -i volumetric2d
 //              * ex38 -i volumetric2d -o 4 -r 5 -m 1
 //              * ex38 -i surface3d
-//              * ex38 -i surface3d -o 4 -r 5 -m 1
+//              * ex38 -i surface3d -o 3 -r 4 -m 1
 //              * ex38 -i volumetric3d
 //              * ex38 -i volumetric3d -o 3 -r 4 -m 1
 //
