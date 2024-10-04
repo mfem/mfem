@@ -150,6 +150,9 @@ Device::Device()
 
 Device::~Device()
 {
+#ifdef MFEM_USE_MPI
+   Hypre::Finalize();
+#endif
    if ( device_env && !destroy_mm) { return; }
    if (!device_env &&  destroy_mm && !mem_host_env)
    {
