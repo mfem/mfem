@@ -271,6 +271,20 @@ int main(int argc, char *argv[])
    logger.Append("stnrty-L2", stationarity_error_L2);
    logger.Append("stnrty-B", stationarity_error_bregman);
    logger.SaveWhenPrint(filename.str());
+   mfem::ParaViewDataCollection paraview_dc(filename.str(), mesh.get());
+   if (use_paraview)
+   {
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order_state);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetTime(0.0);
+      paraview_dc.RegisterField("displacement", &state_gf);
+      paraview_dc.RegisterField("density", &density_gf);
+      paraview_dc.RegisterField("filtered_density", &filter_gf);
+      paraview_dc.Save();
+   }
 
    grad_gf = 0.0;
    for (it_md = 0; it_md<max_it; it_md++)
@@ -341,7 +355,8 @@ int main(int argc, char *argv[])
       curr_vol = optproblem.GetCurrentVolume();
 
       density_gf.ProjectCoefficient(density_cf);
-      glvis.Update();
+      if (use_glvis) { glvis.Update(); }
+      if (use_paraview) { paraview_dc.Save(); }
 
       optproblem.UpdateGradient();
 
