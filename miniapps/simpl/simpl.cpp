@@ -117,10 +117,8 @@ int main(int argc, char *argv[])
                                     prob, r_min, tot_vol, min_vol, max_vol,
                                     E, nu, ess_bdr_state, ess_bdr_filter,
                                     ser_ref_levels, par_ref_levels));
-   // const real_t lambda = E*nu/((1+nu)*(1-2*nu));
-   // const real_t mu = E/(2*(1+nu));
-   const real_t lambda = 1.0;
-   const real_t mu = 1.0;
+   const real_t lambda = E*nu/((1+nu)*(1-2*nu));
+   const real_t mu = E/(2*(1+nu));
    const int dim = mesh->SpaceDimension();
    if (myid == 0)
    {
@@ -173,6 +171,7 @@ int main(int argc, char *argv[])
    ParGridFunction control_old_gf(&fes_control);
    ParGridFunction control_eps_gf(&fes_control);
    ParGridFunction grad_old_gf(&fes_control);
+   ParGridFunction density_gf(&fes_control); // this is only for visualization
    if (Mpi::Root())
    {
       out << "done" << std::endl;
@@ -247,77 +246,24 @@ int main(int argc, char *argv[])
    grad_gf = 0.0;
 
    GLVis glvis("localhost", 19916, true);
-   glvis.Append(control_gf, "control variable");
-   glvis.Append(filter_gf, "filtered density");
-   glvis.Append(state_gf, "displacement magnitude");
-
-
-   // socketstream sout_filter, sout_state;
-   // if (use_glvis)
-   // {
-   //    char vishost[] = "localhost";
-   //    int visport = 19916;
-   //
-   //    sout_filter.open(vishost, visport);
-   //    if (!sout_filter)
-   //    {
-   //       use_glvis = false;
-   //       if (Mpi::Root())
-   //       {
-   //          out << "Unable to connect to GLVis server at " << vishost << ':'
-   //              << visport << std::endl;
-   //          out << "GLVis visualization disabled.\n";
-   //       }
-   //    }
-   //    else
-   //    {
-   //       sout_filter.precision(8);
-   //       // Plot magnitude of vector-valued momentum
-   //       sout_filter << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
-   //                   "\n";
-   //       sout_filter << "solution\n" << *mesh << filter_gf;
-   //       sout_filter << "window_title 'filtered density'\n";
-   //       sout_filter << "view 0 0\n";  // view from top
-   //       sout_filter << "keys jlm\n";  // turn off perspective and light, show mesh
-   //       sout_filter << std::flush;
-   //       MPI_Barrier(mesh->GetComm());
-   //    }
-   //    sout_state.open(vishost, visport);
-   //    if (!sout_state)
-   //    {
-   //       use_glvis = false;
-   //       if (Mpi::Root())
-   //       {
-   //          out << "Unable to connect to GLVis server at " << vishost << ':'
-   //              << visport << std::endl;
-   //          out << "GLVis visualization disabled.\n";
-   //       }
-   //    }
-   //    else
-   //    {
-   //       sout_state.precision(8);
-   //       // Plot magnitude of vector-valued momentum
-   //       sout_state << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
-   //                  "\n";
-   //       sout_state << "solution\n" << *mesh << state_gf;
-   //       sout_state << "window_title 'state'\n";
-   //       sout_state << "view 0 0\n";  // view from top
-   //       sout_state << "keys jlm\n";  // turn off perspective and light, show mesh
-   //       sout_state << std::flush;
-   //       MPI_Barrier(mesh->GetComm());
-   //    }
-   // }
+   const char keys[] = "Rjmml****************";
+   glvis.Append(control_gf, "control variable", keys);
+   glvis.Append(density_gf, "design density", keys);
+   glvis.Append(filter_gf, "filtered density", keys);
+   glvis.Append(state_gf, "displacement magnitude", keys);
 
    for (int k=-1; k<max_it; k++)
    {
+      if (Mpi::Root()) { out << "  Mirror Descent Step " << k << std::endl; }
       control_gf.Add(-step_size, grad_gf);
       old_objval = objval;
       objval = optproblem.Eval();
       if (Mpi::Root())
       {
-         out << "\t\tNew Objective: " << objval << std::endl;
-         out << "\t\tCurrent Volume: " << optproblem.GetCurrentVolume() << std::endl;
+         out << "    New Objective: " << objval << std::endl;
+         out << "    Current Volume: " << optproblem.GetCurrentVolume() << std::endl;
       }
+      density_gf.ProjectCoefficient(density_cf);
       glvis.Update();
 
       optproblem.UpdateGradient();

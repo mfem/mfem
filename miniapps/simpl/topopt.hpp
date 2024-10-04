@@ -31,7 +31,7 @@ public:
 
    ~GLVis() {sockets.DeleteAll();}
 
-   void Append(GridFunction &gf, const char window_title[]=nullptr)
+   void Append(GridFunction &gf, const char window_title[]=nullptr, const char keys[]=nullptr)
    {
       socketstream *socket = new socketstream(hostname, port, secure);
       sockets.Append(socket);
@@ -45,7 +45,14 @@ public:
       }
 #endif
       *socket << "solution\n" << *meshes.Last() << gf;
+      if (keys)
+      {
+         *socket << "keys " << keys << "\n";
+      }
+      if (window_title)
+      {
       *socket << "window_title '" << window_title <<"'\n";
+      }
       *socket << std::flush;
    }
 
@@ -158,7 +165,7 @@ public:
        obj(elasticity.HasAdjoint() ? *elasticity.GetAdjLinearForm():
            *elasticity.GetLinearForm())
    {
-      Array<int> empty(gf_control.FESpace()->GetMesh()->attributes.Max());
+      Array<int> empty(gf_control.FESpace()->GetMesh()->bdr_attributes.Max());
       empty = 0;
       L2projector.reset(new L2Projection(*gf_control.FESpace(), empty));
       grad_filter_cf.SetGridFunction(&grad_filter);
