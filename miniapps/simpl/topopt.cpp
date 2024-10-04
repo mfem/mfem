@@ -59,7 +59,6 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x)
    {
       target_vol = min_vol;
    }
-   if (Mpi::Root()) out << "\t\tVolume projection: Target Volume = " << target_vol << ", Current = " <<curr_vol << std::endl;
 
    // if target volume is -1, then it is already satisfied
    if (target_vol == -1) { return curr_vol; }

@@ -15,7 +15,7 @@ EllipticSolver::EllipticSolver(BilinearForm &a, Array<int> &ess_bdr):a(a)
 EllipticSolver::EllipticSolver(BilinearForm &a, Array2D<int> &ess_bdr):a(a),
    ess_tdof_list(0)
 {
-   MFEM_ASSERT(ess_bdr.NumRows() != a.FESpace()->GetVDim()+1,
+   MFEM_ASSERT(ess_bdr.NumRows() == a.FESpace()->GetVDim()+1,
                "Boundary data should have 1+vdim size (all, 1st, ..., last)");
    Array<int> ess_tdof_list_comp;
    Array<int> ess_bdr_comp;

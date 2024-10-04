@@ -92,7 +92,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob,
          ess_bdr_displacement = 0;
          ess_bdr_displacement(0,3) = 1;
 
-         ess_bdr_filter.SetSize(3, 4);
+         ess_bdr_filter.SetSize(4);
          ess_bdr_filter = 0;
          break;
       }
@@ -141,7 +141,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob,
          ess_bdr_displacement(1, 3) = 1; // left: x-fixed
          ess_bdr_displacement(2, 0) = 1; // right: y-fixed
 
-         ess_bdr_filter.SetSize(3, num_bdr_attr);
+         ess_bdr_filter.SetSize(num_bdr_attr);
          ess_bdr_filter = 0;
          break;
       }
@@ -187,7 +187,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob,
          ess_bdr_displacement = 0;
          ess_bdr_displacement(0, 4) = 1; // left: x-fixed
 
-         ess_bdr_filter.SetSize(3, num_bdr_attr);
+         ess_bdr_filter.SetSize(num_bdr_attr);
          ess_bdr_filter = 0;
          ess_bdr_filter[0] = -1; // bottom: no material
          ess_bdr_filter[5] = -1; // top: no material
