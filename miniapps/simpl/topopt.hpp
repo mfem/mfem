@@ -35,9 +35,14 @@ public:
                const char keys[]=nullptr)
    {
       socketstream *socket = new socketstream(hostname, port, secure);
+      if (!socket->is_open())
+      {
+         return;
+      }
       sockets.Append(socket);
+      Mesh *mesh = gf.FESpace()->GetMesh();
       gfs.Append(&gf);
-      meshes.Append(gf.FESpace()->GetMesh());
+      meshes.Append(mesh);
       socket->precision(8);
 #ifdef MFEM_USE_MPI
       if (parallel)
@@ -45,7 +50,7 @@ public:
          *socket << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
       }
 #endif
-      *socket << "solution\n" << *meshes.Last() << gf;
+      *socket << "solution\n" << *mesh << gf;
       if (keys)
       {
          *socket << "keys " << keys << "\n";
@@ -61,6 +66,10 @@ public:
    {
       for (int i=0; i<sockets.Size(); i++)
       {
+         if (!sockets[i]->is_open())
+         {
+            continue;
+         }
 #ifdef MFEM_USE_MPI
          if (parallel)
          {
@@ -180,7 +189,8 @@ public:
 
    real_t Eval()
    {
-      current_volume = density.ApplyVolumeProjection(control_gf, density.hasEntropy());
+      current_volume = density.ApplyVolumeProjection(control_gf,
+                                                     density.hasEntropy());
       filter.Solve(filter_gf);
       elasticity.Solve(state_gf);
       if (elasticity.IsParallel())
