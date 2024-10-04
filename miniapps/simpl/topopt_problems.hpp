@@ -32,7 +32,8 @@ void MarkElements(Mesh &mesh, int attr,
 
 Mesh * GetTopoptMesh(TopoptProblem prob,
                      real_t &r_min, real_t &tot_vol, real_t &min_vol, real_t &max_vol,
-                     real_t &lambda, real_t &mu,
+                     real_t &E, real_t &nu,
+                     Array2D<int> &ess_bdr_displacement, Array<int> &ess_bdr_filter,
                      int ser_ref_levels, int par_ref_levels=-1);
 
 void SetupTopoptProblem(TopoptProblem prob, ElasticityProblem &elasticity,

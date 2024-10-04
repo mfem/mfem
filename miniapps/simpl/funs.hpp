@@ -202,7 +202,7 @@ class FermiDiracEntropy : public LegendreEntropy
 {
 public:
    FermiDiracEntropy():LegendreEntropy(
-         [](const real_t x) {return x*safe_log(x)+(1.0-x)*safe_log(x);},
+         [](const real_t x) {return x*safe_log(x)+(1.0-x)*safe_log(1.0 - x);},
    invsigmoid, sigmoid) {}
 };
 

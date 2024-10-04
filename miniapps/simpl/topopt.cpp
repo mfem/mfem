@@ -50,8 +50,16 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x)
 
    // Check the volume constraints and determine the target volume
    real_t curr_vol = zero->ComputeL1Error(density);
-   real_t target_vol = curr_vol > max_vol ? max_vol : curr_vol < min_vol ?
-                       min_vol : -1;
+   real_t target_vol=-1;
+   if (curr_vol > max_vol)
+   {
+      target_vol = max_vol;
+   }
+   else if (curr_vol < min_vol)
+   {
+      target_vol = min_vol;
+   }
+   if (Mpi::Root()) out << "\t\tVolume projection: Target Volume = " << target_vol << ", Current = " <<curr_vol << std::endl;
 
    // if target volume is -1, then it is already satisfied
    if (target_vol == -1) { return curr_vol; }
@@ -62,7 +70,7 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x)
    // subtracting max/min of the current variable from the baseline
    // This is possible because our density mapping is an increasing function
    real_t baseline = entropy
-                     ? entropy->backward(target_vol / tot_vol)
+                     ? entropy->forward(target_vol / tot_vol)
                      : target_vol / tot_vol;
    real_t upper = baseline - x.Min();
    real_t lower = baseline - x.Max();

@@ -100,7 +100,7 @@ protected:
 public:
    EllipticProblem(FiniteElementSpace &fes, Array<int> &ess_bdr,
                    bool hasAdjoint=false)
-      :fes(fes), ess_bdr_vec(&ess_bdr),
+      :fes(fes), ess_bdr_vec(&ess_bdr), ess_bdr_mat(nullptr),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
        parallel(false), hasAdjoint(hasAdjoint)
    {
@@ -109,7 +109,7 @@ public:
 
    EllipticProblem(FiniteElementSpace &fes, Array2D<int> &ess_bdr,
                    bool hasAdjoint=false)
-      :fes(fes), ess_bdr_mat(&ess_bdr),
+      :fes(fes), ess_bdr_vec(nullptr), ess_bdr_mat(&ess_bdr),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
        parallel(false), hasAdjoint(hasAdjoint)
    {
@@ -125,9 +125,9 @@ public:
    void MakeCoefficientOwner(Coefficient *coeff) {owned_coeffs.Append(coeff);}
    void MakeCoefficientOwner(VectorCoefficient *coeff) {owned_vcoeffs.Append(coeff);}
 
-   void SetAStationary(bool stationary=false) {isAStationary=stationary;}
-   void SetBStationary(bool stationary=false) {isBStationary=stationary;}
-   void SetAdjBStationary(bool stationary=false) {isAdjBStationary=stationary;}
+   void SetAStationary(bool stationary=true) {isAStationary=stationary;}
+   void SetBStationary(bool stationary=true) {isBStationary=stationary;}
+   void SetAdjBStationary(bool stationary=true) {isAdjBStationary=stationary;}
 
    BilinearForm *GetBilinearForm() {return a.get();}
    LinearForm *GetLinearForm() {return b.get();}
@@ -158,7 +158,7 @@ public:
 
    void Solve(GridFunction &x)
    {
-      if (!isAStationary) {a->Assemble();}
+      if (!isAStationary) {a->Update(); a->Assemble();}
       if (!isBStationary) {b->Assemble();}
       if (!solver || !isAStationary) { Update();}
       solver->Solve(*b, x);
@@ -168,7 +168,7 @@ public:
    {
       MFEM_ASSERT(hasAdjoint,
                   "SolveAdjoint(GridFunction &) is called without setting hasAdjoint=true.");
-      if (!isAStationary) {a->Assemble();}
+      if (!isAStationary) {a->Update(); a->Assemble();}
       if (!isAdjBStationary) {adjb->Assemble();}
       if (!solver || !isAStationary) {Update();}
       solver->Solve(*b, x);
@@ -176,7 +176,7 @@ public:
    bool HasAdjoint() {return hasAdjoint;}
    bool IsParallel() { return parallel; }
 #ifdef MFEM_USE_MPI
-   bool GetComm() {return comm;}
+   MPI_Comm GetComm() {return comm;}
 #endif
 };
 
@@ -216,6 +216,20 @@ public:
       :EllipticProblem(fes, ess_bdr, hasAdjoint)
    {
       a->AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+      a->Assemble();
+      Update();
+      SetAStationary(true);
+   }
+};
+
+class L2Projection: public EllipticProblem
+{
+private:
+public:
+   L2Projection(FiniteElementSpace &fes, Array<int> &ess_bdr)
+   :EllipticProblem(fes, ess_bdr, false)
+   {
+      a->AddDomainIntegrator(new MassIntegrator());
       a->Assemble();
       Update();
       SetAStationary(true);

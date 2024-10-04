@@ -12,8 +12,13 @@
 if (MFEM_USE_MPI)
   add_mfem_miniapp(simpl
     MAIN simpl.cpp
-    EXTRA_SOURCES linear_solver.cpp
-    EXTRA_HEADERS linear_solver.hpp
+    EXTRA_SOURCES linear_solver.cpp topopt.cpp topopt_problems.cpp funs.cpp
+    EXTRA_HEADERS linear_solver.hpp topopt.hpp topopt_problems.hpp funs.hpp
+    LIBRARIES mfem)
+  add_mfem_miniapp(filter_test
+    MAIN filter_test.cpp
+    EXTRA_SOURCES linear_solver.cpp topopt.cpp topopt_problems.cpp funs.cpp
+    EXTRA_HEADERS linear_solver.hpp topopt.hpp topopt_problems.hpp funs.hpp
     LIBRARIES mfem)
   add_mfem_miniapp(diffusion_test
     MAIN diffusion_test.cpp

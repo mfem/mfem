@@ -19,7 +19,7 @@ EllipticSolver::EllipticSolver(BilinearForm &a, Array2D<int> &ess_bdr):a(a),
                "Boundary data should have 1+vdim size (all, 1st, ..., last)");
    Array<int> ess_tdof_list_comp;
    Array<int> ess_bdr_comp;
-   for (int i=0; i<ess_bdr.NumRows() + 1; i++)
+   for (int i=0; i<ess_bdr.NumRows(); i++)
    {
       ess_bdr.GetRow(i, ess_bdr_comp);
       a.FESpace()->GetEssentialTrueDofs(ess_bdr_comp, ess_tdof_list_comp, i-1);
@@ -39,7 +39,12 @@ void EllipticSolver::SetupSolver()
    {
       parallel = true;
       comm = par_a->ParFESpace()->GetComm();
+   }
+#endif
 
+   if (parallel)
+   {
+#ifdef MFEM_USE_MPI
       par_solver.reset(new HyprePCG(comm));
       par_prec.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
 
@@ -50,11 +55,10 @@ void EllipticSolver::SetupSolver()
       par_solver->SetPreconditioner(*par_prec);
       par_prec->SetPrintLevel(0);
       par_B.SetSize(par_a->ParFESpace()->GetTrueVSize());
+#endif
    }
    else
    {
-      parallel = false;
-
       solver.reset(new CGSolver());
       prec.reset(new GSSmoother(*A.As<SparseMatrix>()));
 
@@ -66,39 +70,33 @@ void EllipticSolver::SetupSolver()
       solver->SetPreconditioner(*prec);
       solver->iterative_mode=true;
    }
-#else
-   solver.reset(new CGSolver());
-   prec.reset(new GSSmoother(*A.As<SparseMatrix>()));
-
-   solver->SetAbsTol(1e-12);
-   solver->SetRelTol(1e-8);
-   solver->SetMaxIter(2000);
-   solver->SetPrintLevel(0);
-   solver->SetOperator(*A.As<SparseMatrix>());
-   solver->SetPreconditioner(*prec);
-#endif
 }
 
 void EllipticSolver::UseElasticityOption()
 {
+   if (parallel)
+   {
 #ifdef MFEM_USE_MPI
-   if (!parallel) { MFEM_ABORT("Tried to use elasticity option for HypreBoomerAMG, but operator is serial bilinear form."); }
-   par_prec->SetElasticityOptions(par_a->ParFESpace());
-#else
-   MFEM_ABORT("Tried to use elasticity option for HypreBoomerAMG, but MFEM is serial version.");
+      par_prec->SetElasticityOptions(par_a->ParFESpace());
 #endif
+   }
+   else
+   {
+      MFEM_ABORT("Tried to use elasticity option for HypreBoomerAMG, but parallel option is turned off");
+   }
 }
 
 void EllipticSolver::Solve(LinearForm &b, GridFunction &x)
 {
-#ifdef MFEM_USE_MPI
    if (parallel)
    {
+#ifdef MFEM_USE_MPI
       static_cast<ParLinearForm*>(&b)->ParallelAssemble(par_B);
       X.MakeRef(static_cast<ParGridFunction*>(&x)->GetTrueVector(), 0, par_B.Size());
       par_a->EliminateVDofsInRHS(ess_tdof_list, X, par_B);
       par_solver->Mult(par_B, X);
       par_a->RecoverFEMSolution(X, b, x);
+#endif
    }
    else
    {
@@ -108,34 +106,24 @@ void EllipticSolver::Solve(LinearForm &b, GridFunction &x)
       solver->Mult(B, X);
       a.RecoverFEMSolution(X, b, x);
    }
-#else
-   B.MakeRef(b, 0, b.Size());
-   X.MakeRef(x, 0, x.Size());
-   a.EliminateVDofsInRHS(ess_tdof_list, X, B);
-   solver->Mult(B, X);
-   a.RecoverFEMSolution(X, b, x);
-#endif
 }
 
 void EllipticSolver::Update()
 {
    a.FormSystemMatrix(ess_tdof_list, A);
 
-#ifdef MFEM_USE_MPI
-   if (par_a)
+   if (parallel)
    {
+#ifdef MFEM_USE_MPI
       par_solver->SetOperator(*A.As<HypreParMatrix>());
       par_prec->SetOperator(*A.As<HypreParMatrix>());
+#endif
    }
    else
    {
       solver->SetOperator(*A.As<SparseMatrix>());
       prec->SetOperator(*A.As<SparseMatrix>());
    }
-#else
-   solver->SetOperator(*A.As<SparseMatrix>());
-   prec->SetOperator(*A.As<SparseMatrix>());
-#endif
 }
 
 }
