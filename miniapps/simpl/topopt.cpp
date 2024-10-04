@@ -34,7 +34,7 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
 
    // define density with perturbation
    std::function<real_t(const real_t)> density_fun;
-   if (entropy)
+   if (entropy && use_entropy)
    {
       // if entropy exists, then use the Bregman projection
       // assuming x is the dual variable
@@ -68,7 +68,7 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
    // Then the lower/upper bounds of mu can be found by
    // subtracting max/min of the current variable from the baseline
    // This is possible because our density mapping is an increasing function
-   real_t baseline = entropy
+   real_t baseline = entropy && use_entropy
                      ? entropy->forward(target_vol / tot_vol)
                      : target_vol / tot_vol;
    real_t upper = baseline - x.Min();
