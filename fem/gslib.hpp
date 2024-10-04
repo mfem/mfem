@@ -20,9 +20,9 @@
 namespace gslib
 {
 struct comm;
-struct findpts_data_2;
-struct findpts_data_3;
 struct crystal;
+struct hash_data_3;
+struct hash_data_2;
 struct gs_data;
 }
 
@@ -71,18 +71,16 @@ public:
 protected:
    Mesh *mesh;
    Array<Mesh *> mesh_split;  // Meshes used to split simplices.
-   // IntegrationRules for simplex->Quad/Hex and to project to highest polynomial
-   // order in-case of p-refinement.
+   // IntegrationRules for simplex->Quad/Hex and to project to p_max in-case of
+   // p-refinement.
    Array<IntegrationRule *> ir_split;
-   Array<FiniteElementSpace *>
-   fes_rst_map; // FESpaces to map info Quad/Hex->Simplex
-   Array<GridFunction *> gf_rst_map; // GridFunctions to map info Quad/Hex->Simplex
+   Array<FiniteElementSpace *> fes_rst_map; //FESpaces to map Quad/Hex->Simplex
+   Array<GridFunction *> gf_rst_map; // GridFunctions to map Quad/Hex->Simplex
    FiniteElementCollection *fec_map_lin;
-   struct gslib::findpts_data_2 *fdata2D; // gslib's internal data
-   struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
+   void *fdataD;
    struct gslib::crystal *cr;             // gslib's internal data
    struct gslib::comm *gsl_comm;          // gslib's internal data
-   int dim, points_cnt;
+   int dim, points_cnt;                   // mesh dimension and number of points
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    Array<unsigned int> recv_proc, recv_index; // data for custom interpolation
@@ -91,9 +89,25 @@ protected:
    AvgType avgtype;             // average type used for L2 functions
    Array<int> split_element_map;
    Array<int> split_element_index;
-   int        NE_split_total;
-   // Tolerance to ignore points just outside elements at the boundary.
+   int        NE_split_total;   // total number of elements after mesh splitting
+   int        mesh_points_cnt;  // number of mesh nodes
+   // Tolerance to ignore points found beyond the mesh boundary.
+   // i.e. if ||x*-x(r)||_2^2 > bdr_tol, we mark point as not found.
    double     bdr_tol;
+
+   // Device specific data used for FindPoints
+   struct
+   {
+      bool setup_device = false;
+      int local_hash_size, dof1d, dof1d_sol, h_o_size, h_nx;
+      double newt_tol; // Tolerance specified during setup for Newton solve
+      struct gslib::crystal *cr;
+      struct gslib::hash_data_3 *hash3;
+      struct gslib::hash_data_2 *hash2;
+      mutable Vector bb, wtend, gll1d, lagcoeff, gll1d_sol, lagcoeff_sol;
+      mutable Array<unsigned int> loc_hash_offset;
+      mutable Vector loc_hash_min, loc_hash_fac;
+   } DEV;
 
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
@@ -120,6 +134,63 @@ protected:
    /// during the setup phase.
    virtual void MapRefPosAndElemIndices();
 
+   // Device functions
+   // FindPoints locally on device for 3D.
+   void FindPointsLocal3(const Vector &point_pos,
+                         int point_pos_ordering,
+                         Array<unsigned int> &gsl_code_dev_l,
+                         Array<unsigned int> &gsl_elem_dev_l,
+                         Vector &gsl_ref_l,
+                         Vector &gsl_dist_l,
+                         int npt);
+
+   // FindPoints locally on device for 2D.
+   void FindPointsLocal2(const Vector &point_pos,
+                         int point_pos_ordering,
+                         Array<unsigned int> &gsl_code_dev_l,
+                         Array<unsigned int> &gsl_elem_dev_l,
+                         Vector &gsl_ref_l,
+                         Vector &gsl_dist_l,
+                         int npt);
+
+   // Interpolate on device for 3D.
+   void InterpolateLocal3(const Vector &field_in,
+                          Array<int> &gsl_elem_dev_l,
+                          Vector &gsl_ref_l,
+                          Vector &field_out,
+                          int npt, int ncomp,
+                          int nel, int dof1dsol);
+   // Interpolate on device for 2D.
+   void InterpolateLocal2(const Vector &field_in,
+                          Array<int> &gsl_elem_dev_l,
+                          Vector &gsl_ref_l,
+                          Vector &field_out,
+                          int npt, int ncomp,
+                          int nel, int dof1dsol);
+
+   // Prepare data for device functions.
+   void SetupDevice();
+
+   /** Searches positions given in physical space by @a point_pos.
+       These positions can be ordered byNodes: (XXX...,YYY...,ZZZ) or
+       byVDim: (XYZ,XYZ,....XYZ) specified by @a point_pos_ordering. */
+   void FindPointsOnDevice(const Vector &point_pos,
+                           int point_pos_ordering = Ordering::byNODES);
+
+   /** Interpolation of field values at prescribed reference space positions.
+       @param[in] field_in_evec E-vector of gridfunction to be interpolated.
+                                Assumed ordering is NDOFSxVDIMxNEL
+       @param[in] nel           Number of elements in the mesh.
+       @param[in] ncomp         Number of components in the field.
+       @param[in] dof1dsol      Number of degrees of freedom in each reference
+                                space direction.
+       @param[in] ordering      Ordering of the out field values: byNodes/byVDIM
+
+       @param[out] field_out  Interpolated values. For points that are not found
+                              the value is set to #default_interp_value. */
+   void InterpolateOnDevice(const Vector &field_in_evec, Vector &field_out,
+                            const int nel, const int ncomp,
+                            const int dof1dsol, const int ordering);
 public:
    FindPointsGSLIB();
 
@@ -237,6 +308,13 @@ public:
    /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
+
+   // Bounding box meshes used internally by GSLIB.
+   // 0 - element-wise axis-aligned bounding box. NE_split_total elem per proc
+   // 1 - element-wise oriented     bounding box. NE_split_total elem per proc
+   // 2 - proc-wise local hash mesh.              Size based on setup parameters
+   // 3 - Global hash mesh.                       size based on setup parameters
+   virtual Mesh* GetBoundingBoxMesh(int type = 0);
 
    /** @name Methods to support a custom interpolation procedure.
        \brief The physical-space point that the user seeks to interpolate at
