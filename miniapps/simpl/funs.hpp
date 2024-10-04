@@ -86,14 +86,13 @@ private:
    fun_type fun;
    GridFunction *other_gf;
    int other_gf_comp;
-   bool own_function;
 
 public:
    // Create a coefficient that returns f(v1,v2) where v1=gf(x) and v2=other_gf(x)
    MappedPairedGFCoefficient(GridFunction &gf, GridFunction &other_gf,
                              fun_type fun)
       : GridFunctionCoefficient(&gf), fun(fun), other_gf(&other_gf),
-        other_gf_comp(1), own_function(false) {}
+        other_gf_comp(1) {}
 
    // Create only with function. Use SetGridFunction to set gridfunctions.
    // By default, the object takes the ownership.

@@ -8,8 +8,6 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options.
@@ -105,7 +103,7 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
+      if (Mpi::Root())
       {
          args.PrintUsage(out);
       }
@@ -125,7 +123,7 @@ int main(int argc, char *argv[])
    const real_t lambda = E*nu/((1+nu)*(1-2*nu));
    const real_t mu = E/(2*(1+nu));
    const int dim = mesh->SpaceDimension();
-   if (myid == 0)
+   if (Mpi::Root())
    {
       args.PrintOptions(out);
    }

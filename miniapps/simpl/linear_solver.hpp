@@ -9,7 +9,7 @@ class EllipticSolver
 {
 private:
    BilinearForm &a;
-   Array<int> ess_tdof_list;
+   Array<int> &ess_tdof_list;
    std::unique_ptr<CGSolver> solver;
    std::unique_ptr<GSSmoother> prec;
    OperatorHandle A;
@@ -26,7 +26,6 @@ private:
 public:
 private:
    void BuildEssTdofList();
-   void SetupSolver();
 public:
    EllipticSolver(BilinearForm &a, Array<int> &ess_bdr);
    EllipticSolver(BilinearForm &a, Array2D<int> &ess_bdr);
@@ -44,8 +43,7 @@ private:
    bool isBStationary;
    bool isAdjBStationary;
    std::unique_ptr<EllipticSolver> solver;
-   Array<int> *ess_bdr_vec;
-   Array2D<int> *ess_bdr_mat;
+   Array<int> ess_tdof_list;
    bool parallel;
    bool hasAdjoint;
    Array<Coefficient*> owned_coeffs;
@@ -61,6 +59,8 @@ protected:
    ParLinearForm *par_b;
    ParLinearForm *par_adjb;
 #endif
+   void BuildTDofList(Array<int> &ess_bdr);
+   void BuildTDofList(Array2D<int> &ess_bdr);
    void InitializeForms()
    {
 #ifdef MFEM_USE_MPI
@@ -100,7 +100,7 @@ protected:
 public:
    EllipticProblem(FiniteElementSpace &fes, Array<int> &ess_bdr,
                    bool hasAdjoint=false)
-      :fes(fes), ess_bdr_vec(&ess_bdr), ess_bdr_mat(nullptr),
+      :fes(fes),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
        parallel(false), hasAdjoint(hasAdjoint)
    {
@@ -109,7 +109,7 @@ public:
 
    EllipticProblem(FiniteElementSpace &fes, Array2D<int> &ess_bdr,
                    bool hasAdjoint=false)
-      :fes(fes), ess_bdr_vec(nullptr), ess_bdr_mat(&ess_bdr),
+      :fes(fes),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
        parallel(false), hasAdjoint(hasAdjoint)
    {
@@ -129,6 +129,8 @@ public:
    void SetBStationary(bool stationary=true) {isBStationary=stationary;}
    void SetAdjBStationary(bool stationary=true) {isAdjBStationary=stationary;}
 
+   void ResetSolver() {solver.reset(new EllipticSolver(*a, ess_tdof_list));}
+
    BilinearForm *GetBilinearForm() {return a.get();}
    LinearForm *GetLinearForm() {return b.get();}
    LinearForm *GetAdjLinearForm() {return adjb.get();}
@@ -138,29 +140,14 @@ public:
    ParLinearForm *GetAdjParLinearForm() {return par_adjb;}
 #endif
 
-   // Must be called after assembly
-   void Update()
-   {
-      if (solver)
-      {
-         solver->Update();
-         return;
-      }
-      if (ess_bdr_vec)
-      {
-         solver.reset(new EllipticSolver(*a, *ess_bdr_vec));
-      }
-      else
-      {
-         solver.reset(new EllipticSolver(*a, *ess_bdr_mat));
-      }
-   }
-
    void Solve(GridFunction &x)
    {
       if (!isAStationary) {a->Update(); a->Assemble();}
       if (!isBStationary) {b->Assemble();}
-      if (!solver || !isAStationary) { Update();}
+      if (!solver || !isAStationary)
+      {
+         ResetSolver();
+      }
       solver->Solve(*b, x);
    }
 
@@ -170,7 +157,10 @@ public:
                   "SolveAdjoint(GridFunction &) is called without setting hasAdjoint=true.");
       if (!isAStationary) {a->Update(); a->Assemble();}
       if (!isAdjBStationary) {adjb->Assemble();}
-      if (!solver || !isAStationary) {Update();}
+      if (!solver || !isAStationary)
+      {
+         ResetSolver();
+      }
       solver->Solve(*adjb, x);
    }
    bool HasAdjoint() {return hasAdjoint;}
@@ -187,14 +177,13 @@ private:
    std::unique_ptr<ConstantCoefficient> eps2;
 public:
    HelmholtzFilter(FiniteElementSpace &fes, Array<int> &ess_bdr,
-                   const double r_min, bool hasAdjoint)
+                   const real_t r_min, bool hasAdjoint)
       :EllipticProblem(fes, ess_bdr, hasAdjoint), r_min(r_min)
    {
       eps2.reset(new ConstantCoefficient(r_min*r_min/12.0));
       a->AddDomainIntegrator(new DiffusionIntegrator(*eps2));
       a->AddDomainIntegrator(new MassIntegrator());
       a->Assemble();
-      Update();
       SetAStationary(true);
    }
    real_t GetFilterRadius() {return r_min;}
@@ -203,7 +192,6 @@ public:
       r_min = new_r_min;
       eps2->constant=r_min*r_min/12.0;
       a->Update(); a->Assemble();
-      Update();
    }
 };
 
@@ -217,7 +205,6 @@ public:
    {
       a->AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
       a->Assemble();
-      Update();
       SetAStationary(true);
    }
 };
@@ -227,11 +214,10 @@ class L2Projection: public EllipticProblem
 private:
 public:
    L2Projection(FiniteElementSpace &fes, Array<int> &ess_bdr)
-   :EllipticProblem(fes, ess_bdr, false)
+      :EllipticProblem(fes, ess_bdr, false)
    {
       a->AddDomainIntegrator(new MassIntegrator());
       a->Assemble();
-      Update();
       SetAStationary(true);
    }
 };

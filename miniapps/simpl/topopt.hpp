@@ -85,6 +85,8 @@ public:
    socketstream &GetSocket(int i) {return *sockets[i];}
 };
 
+void ProjectCoefficient(GridFunction &x, Coefficient &coeff, int attribute);
+
 class DesignDensity
 {
 private:
@@ -93,6 +95,8 @@ private:
    const real_t min_vol;
    const real_t max_vol;
    bool hasPassiveElements;
+   int void_attr_id;
+   int solid_attr_id;
    LegendreEntropy *entropy;
    std::unique_ptr<GridFunction> zero;
 public:
@@ -100,6 +104,9 @@ public:
       FiniteElementSpace &fes_control, const real_t tot_vol,
       const real_t min_vol, const real_t max_vol,
       LegendreEntropy *entropy=nullptr);
+
+   void SetSolidAttr(int attr) {solid_attr_id = attr;}
+   void SetVoidAttr(int attr) {void_attr_id = attr;}
 
    real_t ApplyVolumeProjection(GridFunction &x, bool use_entropy);
    bool hasEntropy() {return entropy?true:false;}

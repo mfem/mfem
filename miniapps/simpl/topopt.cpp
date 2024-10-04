@@ -3,6 +3,34 @@
 namespace mfem
 {
 
+void ProjectCoefficient(GridFunction &x, Coefficient &coeff, int attribute)
+{
+   int i;
+   Array<int> dofs;
+   Vector vals;
+
+   DofTransformation * doftrans = NULL;
+
+   FiniteElementSpace *fes = x.FESpace();
+
+   for (i = 0; i < fes->GetNE(); i++)
+   {
+      if (fes->GetAttribute(i) != attribute)
+      {
+         continue;
+      }
+
+      doftrans = fes->GetElementDofs(i, dofs);
+      vals.SetSize(dofs.Size());
+      fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+      if (doftrans)
+      {
+         doftrans->TransformPrimal(vals);
+      }
+      x.SetSubVector(dofs, vals);
+   }
+}
+
 DesignDensity::DesignDensity(
    FiniteElementSpace &fes_control, const real_t tot_vol,
    const real_t min_vol, const real_t max_vol,
@@ -73,6 +101,10 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
                      : target_vol / tot_vol;
    real_t upper = baseline - x.Min();
    real_t lower = baseline - x.Max();
+
+   real_t maxval = entropy && use_entropy ? entropy->forward(1-1e-12) : 1-1e-12;
+   real_t minval = entropy && use_entropy ? entropy->forward(1e-12) : 1e-12;
+   ConstantCoefficient const_cf(1.0);
 #ifdef MFEM_USE_MPI
    ParGridFunction *px = dynamic_cast<ParGridFunction*>(&x);
    MPI_Comm comm;
@@ -93,6 +125,13 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
       curr_vol = zero->ComputeL1Error(density);
       dc *= 0.5;
       mu += curr_vol < target_vol ? dc : -dc;
+      if (hasPassiveElements)
+      {
+         const_cf.constant = maxval-mu;
+         ProjectCoefficient(x, const_cf, solid_attr_id);
+         const_cf.constant = minval-mu;
+         ProjectCoefficient(x, const_cf, void_attr_id);
+      }
    }
    x += mu;
    return curr_vol;
