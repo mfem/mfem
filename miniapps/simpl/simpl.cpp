@@ -34,7 +34,8 @@ int main(int argc, char *argv[])
    // Stopping-criteria related
    int max_it = 300;
    real_t tol_stationary_rel = 1e-04;
-   real_t tol_stationary_abs = 1e-06;
+   real_t tol_stationary_abs = 1e-04;
+   real_t eps_stationarity = 1e-04;
    bool use_bregman_stationary = true;
    real_t tol_obj_diff_rel = 1e-03;
    real_t tol_obj_diff_abs = 1e-03;
@@ -234,6 +235,7 @@ int main(int argc, char *argv[])
    {
       return sigmoid(x)-sigmoid(y);
    });
+   MappedGFCoefficient density_eps_cf = entropy.GetBackwardCoeff(control_eps_gf);
    GridFunctionCoefficient grad_cf(&grad_gf);
    ParGridFunction zero_gf(&fes_control);
    zero_gf = 0.0;
@@ -252,22 +254,96 @@ int main(int argc, char *argv[])
    glvis.Append(filter_gf, "filtered density", keys);
    glvis.Append(state_gf, "displacement magnitude", keys);
 
-   for (int k=-1; k<max_it; k++)
+   real_t 
+   for (int it_md=-1; it_md<max_it; it_md++)
    {
-      if (Mpi::Root()) { out << "  Mirror Descent Step " << k << std::endl; }
-      control_gf.Add(-step_size, grad_gf);
-      old_objval = objval;
-      objval = optproblem.Eval();
-      if (Mpi::Root())
+      if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
+      if (it_md > 1)
       {
-         out << "    New Objective: " << objval << std::endl;
-         out << "    Current Volume: " << optproblem.GetCurrentVolume() << std::endl;
+         diff_density_form.Assemble();
+         grad_old_gf -= grad_gf;
+         real_t grad_diffrho = -InnerProduct(MPI_COMM_WORLD,
+                                             diff_density_form, grad_old_gf);
+         control_old_gf -= control_gf;
+         real_t psi_diffrho = -InnerProduct(MPI_COMM_WORLD,
+                                            diff_density_form, control_old_gf);
+         step_size = std::fabs(psi_diffrho / grad_diffrho);
+         if (Mpi::Root())
+         {
+            out << "   Step size = " << step_size
+                << " = | " << psi_diffrho << " / " << grad_diffrho << " |" << std::endl;
+         }
       }
+
+      control_old_gf = control_gf;
+      old_objval = objval;
+      for (int it_back=0; it_back < max_it_backtrack; it_back++)
+      {
+         add(control_old_gf, -step_size, grad_gf, control_gf);
+         objval = optproblem.Eval();
+         diff_density_form.Assemble();
+         real_t grad_diffrho = InnerProduct(MPI_COMM_WORLD,
+                                            diff_density_form, grad_gf);
+         real_t bregman_diff = zero_gf.ComputeL1Error(bregman_diff_old);
+         real_t target_objval = use_bregman_backtrack
+                                ? old_objval + grad_diffrho + bregman_diff / step_size
+                                : old_objval + c1*grad_diffrho;
+         if (Mpi::Root())
+         {
+            out << "      New    Objective  : " << objval << std::endl;
+            out << "      Target Objective  : " << target_objval;
+            if (use_bregman_backtrack)
+            {
+               out << " ( " << old_objval << " + " << grad_diffrho
+                   << " + " << bregman_diff << " / " << step_size << " )" << std::endl;
+            }
+            else
+            {
+               out << " ( " << old_objval << " + " << c1 << " * " << grad_diffrho << " )" <<
+                   std::endl;
+            }
+         }
+         if (objval < target_objval)
+         {
+            if (Mpi::Root())
+            {
+               out << "   Backtracking terminated after "
+                   << it_back << " re-eval" << std::endl;
+            }
+            break;
+         }
+         step_size *= 0.5;
+      }
+      grad_old_gf = grad_gf;
       density_gf.ProjectCoefficient(density_cf);
+
       glvis.Update();
 
       optproblem.UpdateGradient();
+      real_t stationarity_error;
 
+      if (use_bregman_stationary)
+      {
+         add(control_gf, -eps_stationarity, grad_gf, control_eps_gf);
+         density.ApplyVolumeProjection(control_eps_gf, true);
+         stationarity_error = std::sqrt(zero_gf.ComputeL1Error(
+                                           bregman_diff_eps))/eps_stationarity;
+      }
+      else
+      {
+         add(density_gf, -eps_stationarity, grad_gf, control_eps_gf);
+         density.ApplyVolumeProjection(control_eps_gf, false);
+         stationarity_error = density_gf.ComputeL2Error(density_eps_cf);
+      }
+      if (Mpi::Root())
+      {
+         out << "   Stationarity error : " << stationarity_error << std::endl;
+         out << "--------------------------------------------" << std::endl;
+      }
+      if (stationarity_error < tol_stationary_abs)
+      {
+         break;
+      }
    }
    return 0;
 }

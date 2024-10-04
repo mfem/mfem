@@ -28,7 +28,7 @@ DesignDensity::DesignDensity(
    *zero = 0.0;
 }
 
-real_t DesignDensity::ApplyVolumeProjection(GridFunction &x)
+real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
 {
    real_t mu = 0.0; // constant perturbation
 
