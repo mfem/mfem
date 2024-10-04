@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-quad.mesh";
    int ref_levels = 2;
    int order = 2;
-   int ode_solver_type = 3;
+   int ode_solver_type = 23;
    real_t t_final = 300.0;
    real_t dt = 3.0;
    real_t visc = 1e-2;
