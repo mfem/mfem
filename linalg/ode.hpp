@@ -179,7 +179,7 @@ public:
    }
 
    /// Returns how many State vectors the ODE requires
-   virtual int GetStateSize(){ return 0; };
+   virtual int GetStateSize() { return 0; };
 
    // Help info for ODESolver options
    static MFEM_EXPORT std::string ExplicitTypes;
@@ -217,7 +217,7 @@ public:
    virtual const ODEStateData& GetState() const = 0;
 
    /// Returns how many State vectors the ODE requires
-   virtual int GetStateSize(){ return GetState().MaxSize(); };
+   virtual int GetStateSize() { return GetState().MaxSize(); };
 };
 
 
