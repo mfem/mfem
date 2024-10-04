@@ -226,6 +226,7 @@ miniapps/meshing/extruder
 miniapps/meshing/fit-node-position
 miniapps/meshing/trimmer
 miniapps/meshing/reflector
+miniapps/meshing/ref321
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
 miniapps/meshing/pmesh-fitting
@@ -245,6 +246,8 @@ miniapps/meshing/shaper.mesh
 miniapps/meshing/extruder.mesh
 miniapps/meshing/trimmer.mesh
 miniapps/meshing/reflected.mesh
+miniapps/meshing/ref321.mesh
+miniapps/meshing/sol.gf
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
@@ -316,6 +319,8 @@ miniapps/shifted/ParaViewExtrapolate
 miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf
+miniapps/shifted/distance.mesh
+miniapps/shifted/distance.gf
 miniapps/shifted/ParaViewDiffusion
 miniapps/shifted/lsf_integral
 
