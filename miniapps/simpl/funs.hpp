@@ -7,7 +7,7 @@ namespace mfem
 
 // Some useful function for topology optimization
 #define LOGMIN 2e-50
-#define LOGMIN_VAL -50
+#define LOGMIN_VAL -34.65735902799726547086160607290882840377500671801276270603400047
 real_t safe_log(const real_t x);
 real_t sigmoid(const real_t x);
 real_t invsigmoid(const real_t x);

@@ -36,10 +36,10 @@ int main(int argc, char *argv[])
    int max_it = 300;
    real_t tol_stationary_rel = 1e-04;
    real_t tol_stationary_abs = 1e-04;
-   real_t eps_stationarity = 1e-06;
+   real_t eps_stationarity = 1e-04;
    bool use_bregman_stationary = true;
    real_t tol_obj_diff_rel = 1e-06;
-   real_t tol_obj_diff_abs = 1e-08;
+   real_t tol_obj_diff_abs = 1e-06;
    // backtracking related
    int max_it_backtrack = 300;
    bool use_bregman_backtrack = true;
@@ -259,7 +259,7 @@ int main(int argc, char *argv[])
    real_t stationarity0, obj0,
           stationarity_error_L2, stationarity_error_bregman, stationarity_error,
           curr_vol,
-          objval(infinity()), old_objval(infinity());
+          objval(infinity()), old_objval(infinity()), succ_obj_diff(infinity());
    int tot_reeval(0), num_reeval(0);
    int it_md;
    TableLogger logger;
@@ -268,6 +268,7 @@ int main(int argc, char *argv[])
    logger.Append("obj", objval);
    logger.Append("step-size", step_size);
    logger.Append("num-reeval", num_reeval);
+   logger.Append("succ-objdiff", succ_obj_diff);
    logger.Append("stnrty-L2", stationarity_error_L2);
    logger.Append("stnrty-B", stationarity_error_bregman);
    logger.SaveWhenPrint(filename.str());
@@ -351,6 +352,7 @@ int main(int argc, char *argv[])
          }
          step_size *= 0.5;
       }
+      succ_obj_diff = old_objval - objval;
       grad_old_gf = grad_gf;
       curr_vol = optproblem.GetCurrentVolume();
 
@@ -382,10 +384,10 @@ int main(int argc, char *argv[])
          stationarity0 = stationarity_error;
          obj0 = objval;
       }
-      if (stationarity_error < tol_stationary_abs
-          || stationarity_error < tol_stationary_rel*stationarity0
-          || std::abs(objval - old_objval) < tol_obj_diff_abs
-          || std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(obj0))
+      if ((stationarity_error < tol_stationary_abs
+           || stationarity_error < tol_stationary_rel*stationarity0)
+          && (std::abs(objval - old_objval) < tol_obj_diff_abs
+              || std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(obj0)))
       {
          break;
       }
