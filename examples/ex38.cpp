@@ -3,18 +3,18 @@
 // Compile with: make ex38
 //
 // Sample runs:
-// (since all sample runs require LAPACK, the * symbol is used to exclude them
-// from the automatically generated internal MFEM tests).
+// (since all sample runs require LAPACK or ALGOIM, the * symbol is used to
+//  exclude them from the automatically generated internal MFEM tests).
 //              * ex38
 //              * ex38 -i volumetric1d
 //              * ex38 -i surface2d
 //              * ex38 -i surface2d -o 4 -r 5
 //              * ex38 -i volumetric2d
-//              * ex38 -i volumetric2d -o 4 -r 5
+//              * ex38 -i volumetric2d -o 4 -r 5 -m 1
 //              * ex38 -i surface3d
 //              * ex38 -i surface3d -o 4 -r 5
 //              * ex38 -i volumetric3d
-//              * ex38 -i volumetric3d -o 4 -r 5
+//              * ex38 -i volumetric3d -o 3 -r 4 -m 1
 //
 // Description: This example code demonstrates the use of MFEM to integrate
 //              functions over implicit interfaces and subdomains bounded by
@@ -41,8 +41,7 @@ using namespace mfem;
 
 /// @brief Integration rule the example should demonstrate
 enum class IntegrationType { Volumetric1D, Surface2D, Volumetric2D,
-                             Surface3D, Volumetric3D
-                           };
+                             Surface3D, Volumetric3D };
 IntegrationType itype;
 
 /// @brief Level-set function defining the implicit interface
@@ -287,9 +286,12 @@ public:
 class CIntegrationRule : public IntegrationRule
 {
 protected:
-   /// @brief Space Dimension of the IntegrationRule
+   /// method 0 is moments-based, 1 is Algoim.
+   int method, ir_order, ls_order;
+   Coefficient &level_set;
+   /// Space Dimension of the IntegrationRule
    int dim;
-   /// @brief Column-wise matrix of the quadtrature weights
+   /// Column-wise matrix of the quadtrature positions and weights.
    DenseMatrix Weights;
 
 public:
@@ -303,33 +305,24 @@ public:
     @param [in] lsOrder Polynomial degree for approx of level-set function
     @param [in] mesh Pointer to the mesh that is used
    */
-   CIntegrationRule(int method, int Order,
-                    Coefficient& LvlSet, int lsOrder, Mesh* mesh)
+   CIntegrationRule(int method_, int Order,
+                    Coefficient &LvlSet, int lsOrder, Mesh *mesh)
+       : method(method_), ir_order(Order), ls_order(lsOrder),
+         level_set(LvlSet), dim(mesh->Dimension())
    {
-      dim = mesh->Dimension();
+      // Nothing gets pre-computed for Algoim.
+      if (method == 1) { return; }
 
-      CutIntegrationRules *cut_ir;
-      if (method == 0)
-      {
 #ifdef MFEM_USE_LAPACK
-         cut_ir = new MomentFittingIntRules(Order, LvlSet, lsOrder);
+      MomentFittingIntRules mf_ir(ir_order, level_set, ls_order);
 #else
-         MFEM_ABORT("Moment-fitting requires MFEM to be built with LAPACK!");
+      MFEM_ABORT("Moment-fitting requires MFEM to be built with LAPACK!");
 #endif
-      }
-      else
-      {
-#ifdef MFEM_USE_ALGOIM
-         cut_ir = new AlgoimIntegrationRules(Order, LvlSet, lsOrder);;
-#else
-         MFEM_ABORT("MFEM is not built with Algoim support!");
-#endif
-      }
 
       IsoparametricTransformation Tr;
       mesh->GetElementTransformation(0, &Tr);
       IntegrationRule ir;
-      cut_ir->GetVolumeIntegrationRule(Tr, ir);
+      mf_ir.GetVolumeIntegrationRule(Tr, ir);
       if (dim > 1)
       {
          Weights.SetSize(ir.GetNPoints(), mesh->GetNE());
@@ -361,9 +354,9 @@ public:
       for (int elem = 1; elem < mesh->GetNE(); elem++)
       {
          mesh->GetElementTransformation(elem, &Tr);
-         cut_ir->GetVolumeIntegrationRule(Tr, ir);
+         mf_ir.GetVolumeIntegrationRule(Tr, ir);
 
-         for (int ip = 0; ip < GetNPoints(); ip++)
+         for (int ip = 0; ip < ir.GetNPoints(); ip++)
          {
             if (dim > 1)
             {
@@ -376,30 +369,33 @@ public:
             }
          }
       }
-
-      delete cut_ir;
    }
 
    /// @brief Set the weights for the given element
-   void SetElement(int Element)
+   void SetElement(ElementTransformation &Tr)
    {
-      if (dim == 1)
-         for (int ip = 0; ip < GetNPoints(); ip++)
-         {
-            IntegrationPoint &intp = IntPoint(ip);
-            intp.x = Weights(2 * ip, Element);
-            intp.weight = Weights(2 * ip + 1, Element);
-         }
-      else
-         for (int ip = 0; ip < GetNPoints(); ip++)
-         {
-            IntegrationPoint &intp = IntPoint(ip);
-            intp.weight = Weights(ip, Element);
-         }
-   }
+      if (method == 1)
+      {
+#ifdef MFEM_USE_ALGOIM
+         AlgoimIntegrationRules a_ir(ir_order, level_set, ls_order);
+         a_ir.GetVolumeIntegrationRule(Tr, *this);
+         return;
+#else
+         MFEM_ABORT("MFEM is not built with Algoim support!");
+#endif
+      }
 
-   /// @brief Destructor of CIntegrationRule
-   ~CIntegrationRule() {}
+      for (int ip = 0; ip < GetNPoints(); ip++)
+      {
+         IntegrationPoint &intp = IntPoint(ip);
+         if (dim == 1)
+         {
+            intp.x = Weights(2 * ip, Tr.ElementNo);
+            intp.weight = Weights(2 * ip + 1, Tr.ElementNo);
+         }
+         else { intp.weight = Weights(ip, Tr.ElementNo); }
+      }
+   }
 };
 
 
@@ -527,7 +523,7 @@ public:
       elvect = 0.;
 
       // Update the subdomain integration rule
-      CIntRule->SetElement(Tr.ElementNo);
+      CIntRule->SetElement(Tr);
 
       for (int ip = 0; ip < CIntRule->GetNPoints(); ip++)
       {
@@ -695,7 +691,7 @@ int main(int argc, char *argv[])
    cout << "============================================" << endl;
    cout << "Computed value of surface integral: " << surface.Sum() << endl;
    cout << "True value of surface integral:     " << Surface() << endl;
-   cout << "Absolute Error (Surface):            ";
+   cout << "Absolute Error (Surface):           ";
    cout << abs(surface.Sum() - Surface()) << endl;
    cout << "Relative Error (Surface):           ";
    cout << abs(surface.Sum() - Surface()) / Surface() << endl;
@@ -706,7 +702,7 @@ int main(int argc, char *argv[])
       cout << "--------------------------------------------" << endl;
       cout << "Computed value of volume integral:  " << volume.Sum() << endl;
       cout << "True value of volume integral:      " << Volume() << endl;
-      cout << "Absolute Error (Volume):             ";
+      cout << "Absolute Error (Volume):            ";
       cout << abs(volume.Sum() - Volume()) << endl;
       cout << "Relative Error (Volume):            ";
       cout << abs(volume.Sum() - Volume()) / Volume() << endl;

@@ -236,7 +236,7 @@ public:
       le=nullptr;
       currentLvlSet=nullptr;
       currentGeometry=Geometry::Type::INVALID;
-      currentElementNo=-1;
+      currentElementNo = -1;
    }
 
    virtual ~AlgoimIntegrationRules()

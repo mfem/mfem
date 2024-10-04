@@ -171,7 +171,6 @@ void AlgoimIntegrationRules::GenerateLSVector(ElementTransformation &Tr,
       {
          pe=new H1Pos_HexahedronElement(lsOrder);
          le=new H1_HexahedronElement(lsOrder);
-
       }
       else
       {
