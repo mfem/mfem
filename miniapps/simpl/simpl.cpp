@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
    ParGridFunction control_old_gf(&fes_control);
    ParGridFunction control_eps_gf(&fes_control);
    ParGridFunction grad_old_gf(&fes_control);
-   ParGridFunction density_gf(&fes_control); // this is only for visualization
+   ParGridFunction density_gf(&fes_control); density_gf = 0.0; // this is only for visualization
    if (Mpi::Root())
    {
       out << "done" << std::endl;

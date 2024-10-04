@@ -95,6 +95,8 @@ void EllipticSolver::Solve(LinearForm &b, GridFunction &x)
       static_cast<ParLinearForm*>(&b)->ParallelAssemble(par_B);
       X.MakeRef(static_cast<ParGridFunction*>(&x)->GetTrueVector(), 0, par_B.Size());
       par_a->EliminateVDofsInRHS(ess_tdof_list, X, par_B);
+      par_solver->Setup(par_B, X);
+      par_prec->Setup(par_B, X);
       par_solver->Mult(par_B, X);
       par_a->RecoverFEMSolution(X, b, x);
 #endif
