@@ -37,6 +37,9 @@ public:
    /// Get the ith state vector - non-const version
    virtual Vector &Get(int i) = 0;
 
+   /// Get the ith state vector - with a copy
+   virtual void Get(int i, Vector &vec) const = 0;
+
    /// Set the ith state vector
    virtual void Set(int i, Vector &state) = 0;
 
@@ -57,10 +60,15 @@ private:
    Array<int> idx;
 
 public:
-   ODEStateDataVector () { ss = smax = 0;};
+   ODEStateDataVector (int smax): smax(smax)
+   {
+      data.resize(smax);
+      idx.SetSize(smax);
+      ss = 0;
+   };
 
    /// Set the number of stages and the size of the vectors
-   void  SetSize(int stages, int vsize, MemoryType mem_type);
+   void  SetSize(int vsize, MemoryType mem_type);
 
    /// Shift the stage counter for the next timestep
    inline void ShiftStages()
@@ -89,6 +97,7 @@ public:
 
    const Vector &Get(int i) const override;
    Vector &Get(int i) override;
+   void Get(int i, Vector &vec) const override;
 
    void Set(int i, Vector &state) override;
 
@@ -169,6 +178,9 @@ public:
       while (t < tf) { Step(x, t, dt); }
    }
 
+   /// Returns how many State vectors the ODE requires
+   virtual int GetStateSize(){ return 0; };
+
    // Help info for ODESolver options
    static MFEM_EXPORT std::string ExplicitTypes;
    static MFEM_EXPORT std::string ImplicitTypes;
@@ -203,6 +215,9 @@ public:
 
    /// Returns the StateData
    virtual const ODEStateData& GetState() const = 0;
+
+   /// Returns how many State vectors the ODE requires
+   virtual int GetStateSize(){ return GetState().MaxSize(); };
 };
 
 
@@ -450,7 +465,7 @@ protected:
    void PrintProperties(std::ostream &os = mfem::out);
 public:
 
-   GeneralizedAlphaSolver(real_t rho = 1.0) { SetRhoInf(rho); };
+   GeneralizedAlphaSolver(real_t rho = 1.0) : state(1) { SetRhoInf(rho); };
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
@@ -695,7 +710,7 @@ protected:
    ODEStateDataVector state;
 
 public:
-   SecondOrderODESolver() : f(NULL) { mem_type = MemoryType::HOST; }
+   SecondOrderODESolver() : f(NULL), state(1) { mem_type = MemoryType::HOST; }
 
    /// Associate a TimeDependentOperator with the ODE solver.
    /** This method has to be called:
