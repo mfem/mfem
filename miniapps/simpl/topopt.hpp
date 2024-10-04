@@ -31,7 +31,8 @@ public:
 
    ~GLVis() {sockets.DeleteAll();}
 
-   void Append(GridFunction &gf, const char window_title[]=nullptr, const char keys[]=nullptr)
+   void Append(GridFunction &gf, const char window_title[]=nullptr,
+               const char keys[]=nullptr)
    {
       socketstream *socket = new socketstream(hostname, port, secure);
       sockets.Append(socket);
@@ -51,7 +52,7 @@ public:
       }
       if (window_title)
       {
-      *socket << "window_title '" << window_title <<"'\n";
+         *socket << "window_title '" << window_title <<"'\n";
       }
       *socket << std::flush;
    }
@@ -91,7 +92,8 @@ public:
       const real_t min_vol, const real_t max_vol,
       LegendreEntropy *entropy=nullptr);
 
-   real_t ApplyVolumeProjection(GridFunction &x);
+   real_t ApplyVolumeProjection(GridFunction &x, bool use_entropy);
+   bool hasEntropy() {return entropy?true:false;}
 };
 
 class StrainEnergyDensityCoefficient : public Coefficient
@@ -178,7 +180,7 @@ public:
 
    real_t Eval()
    {
-      current_volume = density.ApplyVolumeProjection(control_gf);
+      current_volume = density.ApplyVolumeProjection(control_gf, density.hasEntropy());
       filter.Solve(filter_gf);
       elasticity.Solve(state_gf);
       if (elasticity.IsParallel())

@@ -217,7 +217,7 @@ void SetupTopoptProblem(TopoptProblem prob, ElasticityProblem &elasticity,
             2, [](const Vector &x, Vector &f)
          {
             f = 0.0;
-            if (std::pow(x[0]-2.9, 2.0) + std::pow(x[1] - 0.5, 2.0) < 0.1*0.1)
+            if (std::pow(x[0]-2.9, 2.0) + std::pow(x[1] - 0.5, 2.0) < 0.05*0.05)
             {
                f[1] = -1.0;
             }

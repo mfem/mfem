@@ -53,6 +53,7 @@ void EllipticSolver::SetupSolver()
       par_solver->SetPrintLevel(0);
       par_solver->SetOperator(*A.As<HypreParMatrix>());
       par_solver->SetPreconditioner(*par_prec);
+      par_solver->iterative_mode = true;
       par_prec->SetPrintLevel(0);
       par_B.SetSize(par_a->ParFESpace()->GetTrueVSize());
 #endif
