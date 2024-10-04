@@ -73,6 +73,26 @@ int main(int argc, char *argv[])
                   "Young's modulus E");
    args.AddOption(&nu, "-nu", "--poisson-ratio",
                   "Poinsson ration nu");
+
+   args.AddOption(&max_it, "-mi", "--max-it",
+                  "Maximum number of iteration for Mirror Descent Step");
+   args.AddOption(&max_it_backtrack, "-mi-back", "--max-it-backtrack",
+                  "Maximum number of iteration for backtracking");
+   args.AddOption(&tol_stationary_rel, "-rtol", "--rel-tol",
+                  "Tolerance for relative stationarity error");
+   args.AddOption(&tol_stationary_abs, "-atol", "--abs-tol",
+                  "Tolerance for absolute stationarity error");
+   args.AddOption(&tol_obj_diff_rel, "-rtol-obj", "--rel-tol-obj",
+                  "Tolerance for relative successive objective difference");
+   args.AddOption(&tol_obj_diff_abs, "-atol-obj", "--abs-tol-obj",
+                  "Tolerance for absolute successive objective difference");
+   args.AddOption(&use_bregman_backtrack, "-bb", "--bregman-backtrack", "-ab",
+                  "--armijo-backtrack",
+                  "Option to choose Bregman backtracking algorithm or Armijo backtracking algorithm");
+   args.AddOption(&use_bregman_stationary, "-bs", "--bregman-stationarity", "-L2",
+                  "--L2-stationarity",
+                  "Option to choose Bregman stationarity or L2 stationarity for stopping criteria");
+
    // visualization related options
    args.AddOption(&use_glvis, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -293,4 +313,5 @@ int main(int argc, char *argv[])
       step_size += 1;
 
    }
+   return 0;
 }

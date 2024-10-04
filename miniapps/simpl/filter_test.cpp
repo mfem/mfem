@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    // 7. Define the solution x as a finite element grid function in fespace. Set
    //    the initial guess to zero, which also sets the boundary conditions.
    ParGridFunction filter_gf(&fespace);
+   ParGridFunction adjfilter_gf(&fespace);
    ParGridFunction control_gf(&fespace);
    ParGridFunction simp_gf(&fespace);
    const real_t exponent(3.0), rho0(1e-06);
@@ -73,23 +74,31 @@ int main(int argc, char *argv[])
       return simp(x, exponent, rho0);
    }));
    filter_gf = 0.0;
+   adjfilter_gf = 0.0;
 
    // 8. Set up the linear form b(.) corresponding to the right-hand side.
    real_t r = 1;
    FunctionCoefficient f([&r](const Vector &x) {return x*x < r*r;});
-   HelmholtzFilter filter(fespace, ess_bdr, 0.05, false);
+   FunctionCoefficient adjf([&r](const Vector &x) {return x*x > r*r;});
+   HelmholtzFilter filter(fespace, ess_bdr, 0.05, true);
    filter.GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(f));
+   filter.GetAdjLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(adjf));
 
    for (int i=0; i<1; i++)
    {
       r=std::pow(2,-i-1);
       filter.Solve(filter_gf);
+      filter.SolveAdjoint(adjfilter_gf);
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream filter_sock(vishost, visport);
       filter_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
       filter_sock.precision(8);
       filter_sock << "solution\n" << mesh << filter_gf << flush;
+      socketstream adjfilter_sock(vishost, visport);
+      adjfilter_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      adjfilter_sock.precision(8);
+      adjfilter_sock << "solution\n" << mesh << adjfilter_gf << flush;
       control_gf.ProjectCoefficient(f);
       socketstream control_sock(vishost, visport);
       control_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
