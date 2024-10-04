@@ -41,7 +41,8 @@ using namespace mfem;
 
 /// @brief Integration rule the example should demonstrate
 enum class IntegrationType { Volumetric1D, Surface2D, Volumetric2D,
-                             Surface3D, Volumetric3D };
+                             Surface3D, Volumetric3D
+                           };
 IntegrationType itype;
 
 /// @brief Level-set function defining the implicit interface
@@ -156,17 +157,14 @@ public:
    */
    SIntegrationRule(int method_, int Order,
                     Coefficient& LvlSet, int lsOrder, Mesh* mesh)
-       : method(method_), ir_order(Order), ls_order(lsOrder),
-         level_set(LvlSet), dim(mesh->Dimension())
+      : method(method_), ir_order(Order), ls_order(lsOrder),
+        level_set(LvlSet), dim(mesh->Dimension())
    {
       // Nothing gets pre-computed for Algoim.
       if (method == 1) { return; }
 
 #ifdef MFEM_USE_LAPACK
       MomentFittingIntRules mf_ir(ir_order, level_set, ls_order);
-#else
-      MFEM_ABORT("Moment-fitting requires MFEM to be built with LAPACK!");
-#endif
 
       IsoparametricTransformation Tr;
       mesh->GetElementTransformation(0, &Tr);
@@ -225,6 +223,9 @@ public:
             }
          }
       }
+#else
+      MFEM_ABORT("Moment-fitting requires MFEM to be built with LAPACK!");
+#endif
    }
 
    /**
@@ -296,17 +297,14 @@ public:
    */
    CIntegrationRule(int method_, int Order,
                     Coefficient &LvlSet, int lsOrder, Mesh *mesh)
-       : method(method_), ir_order(Order), ls_order(lsOrder),
-         level_set(LvlSet), dim(mesh->Dimension())
+      : method(method_), ir_order(Order), ls_order(lsOrder),
+        level_set(LvlSet), dim(mesh->Dimension())
    {
       // Nothing gets pre-computed for Algoim.
       if (method == 1) { return; }
 
 #ifdef MFEM_USE_LAPACK
       MomentFittingIntRules mf_ir(ir_order, level_set, ls_order);
-#else
-      MFEM_ABORT("Moment-fitting requires MFEM to be built with LAPACK!");
-#endif
 
       IsoparametricTransformation Tr;
       mesh->GetElementTransformation(0, &Tr);
@@ -358,6 +356,9 @@ public:
             }
          }
       }
+#else
+      MFEM_ABORT("Moment-fitting requires MFEM to be built with LAPACK!");
+#endif
    }
 
    /// @brief Set the weights for the given element
@@ -527,10 +528,6 @@ public:
 
 int main(int argc, char *argv[])
 {
-#ifndef MFEM_USE_LAPACK
-   cout << "MFEM must be built with LAPACK for this example." << endl;
-   return MFEM_SKIP_RETURN_VALUE;
-#else
    // 1. Parse he command-line options.
    int ref_levels = 3;
    int order = 2;
@@ -720,5 +717,4 @@ int main(int argc, char *argv[])
    delete fespace;
    delete mesh;
    return EXIT_SUCCESS;
-#endif //MFEM_USE_LAPACK
 }
