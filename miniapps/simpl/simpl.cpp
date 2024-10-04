@@ -200,16 +200,7 @@ int main(int argc, char *argv[])
    // Density
    FermiDiracEntropy entropy;
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
-   MappedPairedGFCoefficient bregman_diff_old
-      = entropy.GetBregman_dual(control_old_gf, control_gf);
-   MappedPairedGFCoefficient bregman_diff_eps
-      = entropy.GetBregman_dual(control_eps_gf, control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
-   MappedPairedGFCoefficient diff_density_cf(
-      control_gf, control_old_gf, [](const real_t x, const real_t y)
-   {
-      return sigmoid(x)-sigmoid(y);
-   });
 
    // Filter
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);
@@ -234,66 +225,88 @@ int main(int argc, char *argv[])
       out << "done" << std::endl;
    }
 
+   // Backtracking related stuffs
+   MappedPairedGFCoefficient bregman_diff_old
+      = entropy.GetBregman_dual(control_old_gf, control_gf);
+   MappedPairedGFCoefficient bregman_diff_eps
+      = entropy.GetBregman_dual(control_eps_gf, control_gf);
+   MappedPairedGFCoefficient diff_density_cf(
+      control_gf, control_old_gf, [](const real_t x, const real_t y)
+   {
+      return sigmoid(x)-sigmoid(y);
+   });
+   GridFunctionCoefficient grad_cf(&grad_gf);
+   ParGridFunction zero_gf(&fes_control);
+   zero_gf = 0.0;
+   ParLinearForm diff_density_form(&fes_control);
+   diff_density_form.AddDomainIntegrator(new DomainLFIntegrator(diff_density_cf));
+
    real_t step_size = 1.0;
    real_t objval = infinity();
    real_t old_objval = infinity();
    grad_gf = 0.0;
 
-   socketstream sout_filter, sout_state;
-   if (use_glvis)
-   {
-      char vishost[] = "localhost";
-      int visport = 19916;
+   GLVis glvis("localhost", 19916, true);
+   glvis.Append(control_gf, "control variable");
+   glvis.Append(filter_gf, "filtered density");
+   glvis.Append(state_gf, "displacement magnitude");
 
-      sout_filter.open(vishost, visport);
-      if (!sout_filter)
-      {
-         use_glvis = false;
-         if (Mpi::Root())
-         {
-            out << "Unable to connect to GLVis server at " << vishost << ':'
-                << visport << std::endl;
-            out << "GLVis visualization disabled.\n";
-         }
-      }
-      else
-      {
-         sout_filter.precision(8);
-         // Plot magnitude of vector-valued momentum
-         sout_filter << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
-                     "\n";
-         sout_filter << "solution\n" << *mesh << filter_gf;
-         sout_filter << "window_title 'filtered density'\n";
-         sout_filter << "view 0 0\n";  // view from top
-         sout_filter << "keys jlm\n";  // turn off perspective and light, show mesh
-         sout_filter << std::flush;
-         MPI_Barrier(mesh->GetComm());
-      }
-      sout_state.open(vishost, visport);
-      if (!sout_state)
-      {
-         use_glvis = false;
-         if (Mpi::Root())
-         {
-            out << "Unable to connect to GLVis server at " << vishost << ':'
-                << visport << std::endl;
-            out << "GLVis visualization disabled.\n";
-         }
-      }
-      else
-      {
-         sout_state.precision(8);
-         // Plot magnitude of vector-valued momentum
-         sout_state << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
-                    "\n";
-         sout_state << "solution\n" << *mesh << state_gf;
-         sout_state << "window_title 'state'\n";
-         sout_state << "view 0 0\n";  // view from top
-         sout_state << "keys jlm\n";  // turn off perspective and light, show mesh
-         sout_state << std::flush;
-         MPI_Barrier(mesh->GetComm());
-      }
-   }
+
+   // socketstream sout_filter, sout_state;
+   // if (use_glvis)
+   // {
+   //    char vishost[] = "localhost";
+   //    int visport = 19916;
+   //
+   //    sout_filter.open(vishost, visport);
+   //    if (!sout_filter)
+   //    {
+   //       use_glvis = false;
+   //       if (Mpi::Root())
+   //       {
+   //          out << "Unable to connect to GLVis server at " << vishost << ':'
+   //              << visport << std::endl;
+   //          out << "GLVis visualization disabled.\n";
+   //       }
+   //    }
+   //    else
+   //    {
+   //       sout_filter.precision(8);
+   //       // Plot magnitude of vector-valued momentum
+   //       sout_filter << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
+   //                   "\n";
+   //       sout_filter << "solution\n" << *mesh << filter_gf;
+   //       sout_filter << "window_title 'filtered density'\n";
+   //       sout_filter << "view 0 0\n";  // view from top
+   //       sout_filter << "keys jlm\n";  // turn off perspective and light, show mesh
+   //       sout_filter << std::flush;
+   //       MPI_Barrier(mesh->GetComm());
+   //    }
+   //    sout_state.open(vishost, visport);
+   //    if (!sout_state)
+   //    {
+   //       use_glvis = false;
+   //       if (Mpi::Root())
+   //       {
+   //          out << "Unable to connect to GLVis server at " << vishost << ':'
+   //              << visport << std::endl;
+   //          out << "GLVis visualization disabled.\n";
+   //       }
+   //    }
+   //    else
+   //    {
+   //       sout_state.precision(8);
+   //       // Plot magnitude of vector-valued momentum
+   //       sout_state << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
+   //                  "\n";
+   //       sout_state << "solution\n" << *mesh << state_gf;
+   //       sout_state << "window_title 'state'\n";
+   //       sout_state << "view 0 0\n";  // view from top
+   //       sout_state << "keys jlm\n";  // turn off perspective and light, show mesh
+   //       sout_state << std::flush;
+   //       MPI_Barrier(mesh->GetComm());
+   //    }
+   // }
 
    for (int k=-1; k<max_it; k++)
    {
@@ -305,23 +318,9 @@ int main(int argc, char *argv[])
          out << "\t\tNew Objective: " << objval << std::endl;
          out << "\t\tCurrent Volume: " << optproblem.GetCurrentVolume() << std::endl;
       }
+      glvis.Update();
 
-      if (sout_filter.is_open())
-      {
-         sout_filter << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
-                     "\n";
-         sout_filter << "solution\n" << *mesh << filter_gf;
-         sout_filter << std::flush;
-      }
-      if (sout_state.is_open())
-      {
-         sout_state << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
-                    "\n";
-         sout_state << "solution\n" << *mesh << state_gf;
-         sout_state << std::flush;
-      }
       optproblem.UpdateGradient();
-      step_size += 1;
 
    }
    return 0;
