@@ -105,6 +105,7 @@ public:
        parallel(false), hasAdjoint(hasAdjoint)
    {
       InitializeForms();
+      BuildTDofList(ess_bdr);
    }
 
    EllipticProblem(FiniteElementSpace &fes, Array2D<int> &ess_bdr,
@@ -114,6 +115,7 @@ public:
        parallel(false), hasAdjoint(hasAdjoint)
    {
       InitializeForms();
+      BuildTDofList(ess_bdr);
    }
 
    ~EllipticProblem()
