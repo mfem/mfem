@@ -275,6 +275,10 @@ int main(int argc, char *argv[])
    mfem::ParaViewDataCollection paraview_dc(filename.str(), mesh.get());
    if (use_paraview)
    {
+      if (paraview_dc.Error())
+      {
+         use_paraview=false;
+      }
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(order_state);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
@@ -358,7 +362,11 @@ int main(int argc, char *argv[])
 
       density_gf.ProjectCoefficient(density_cf);
       if (use_glvis) { glvis.Update(); }
-      if (use_paraview) { paraview_dc.Save(); }
+      if (use_paraview)
+      {
+         if (!paraview_dc.Error()) { paraview_dc.Save(); }
+         else {use_paraview = false;}
+      }
 
       optproblem.UpdateGradient();
 
