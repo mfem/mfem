@@ -109,8 +109,8 @@ protected:
    // Determine sedge_ledge and sface_lface.
    void FinalizeParTopo();
 
-   // Mark all tets to ensure consistency across MPI tasks; also mark the
-   // shared and boundary triangle faces using the consistently marked tets.
+   // Mark all tets to ensure consistency across MPI tasks; also mark the shared
+   // and boundary triangle faces using the consistently marked tets.
    void MarkTetMeshForRefinement(const DSTable &v_to_v) override;
 
    /// Return a number(0-1) identifying how the given edge has been split
@@ -337,12 +337,12 @@ public:
       have_face_nbr_data(false), pncmesh(NULL) { }
 
    /// Create a parallel mesh by partitioning a serial Mesh.
-   /** The mesh is partitioned automatically or using external partitioning
-       data (the optional parameter 'partitioning_[i]' contains the desired MPI
-       rank for element 'i'). Automatic partitioning uses METIS for conforming
-       meshes and quick space-filling curve equipartitioning for nonconforming
-       meshes (elements of nonconforming meshes should ideally be ordered as a
-       sequence of face-neighbors). */
+   /** The mesh is partitioned automatically or using external partitioning data
+       (the optional parameter 'partitioning_[i]' contains the desired MPI rank
+       for element 'i'). Automatic partitioning uses METIS for conforming meshes
+       and quick space-filling curve equipartitioning for nonconforming meshes
+       (elements of nonconforming meshes should ideally be ordered as a sequence
+       of face-neighbors). */
    ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_ = nullptr,
            int part_method = 1);
 
@@ -446,11 +446,42 @@ public:
    int GroupNTriangles(int group) const { return group_stria.RowSize(group-1); }
    int GroupNQuadrilaterals(int group) const { return group_squad.RowSize(group-1); }
 
+   /**
+    * @brief Accessors for entities within a shared group structure.
+    * @details For all vertex/edge/face the two argument version returns the
+    * local index, for those entities with an orientation. The two out parameter
+    * version additionally returns an orientation to use in manipulating the
+    * entity.
+    *
+    * @param group The communicator group's indices
+    * @param i the index within the group
+    * @return int The local index of the entity
+    */
    int GroupVertex(int group, int i) const
    { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
    void GroupEdge(int group, int i, int &edge, int &o) const;
    void GroupTriangle(int group, int i, int &face, int &o) const;
    void GroupQuadrilateral(int group, int i, int &face, int &o) const;
+   int GroupEdge(int group, int i) const
+   {
+      int e, o;
+      GroupEdge(group, i, e, o);
+      return e;
+   }
+   int GroupTriangle(int group, int i) const
+   {
+      int f, o;
+      GroupTriangle(group, i, f, o);
+      return f;
+   }
+   int GroupQuadrilateral(int group, int i) const
+   {
+      int f, o;
+      GroupQuadrilateral(group, i, f, o);
+      return f;
+   }
+
+
    ///@}
 
    /**
@@ -496,18 +527,15 @@ public:
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;
 
-   /** Return true if the face is interior or shared. In parallel, this
-       method only works if the face neighbor data is exchanged. */
-   inline bool FaceIsTrueInterior(int FaceNo) const { return Mesh::FaceIsTrueInterior(FaceNo); }
-
+   using Mesh::FaceIsTrueInterior;
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
 
    void SetCurvature(int order, bool discont = false, int space_dim = -1,
                      int ordering = 1) override;
 
-   /** Replace the internal node GridFunction with a new GridFunction defined
-       on the given FiniteElementSpace. The new node coordinates are projected
+   /** Replace the internal node GridFunction with a new GridFunction defined on
+       the given FiniteElementSpace. The new node coordinates are projected
        (derived) from the current nodes/vertices. */
    void SetNodalFESpace(FiniteElementSpace *nfes) override;
    void SetNodalFESpace(ParFiniteElementSpace *npfes);
@@ -571,15 +599,15 @@ public:
                                       IsoparametricTransformation &ElTr2,
                                       int mask = 31) const override;
 
-   /// @brief Get the FaceElementTransformations for the given shared face
-   /// (edge 2D) using the shared face index @a sf. @a fill2 specify if the
-   /// information for elem2 of the face should be computed or not.
-   /// In the returned object, 1 and 2 refer to the local and the neighbor
-   /// elements, respectively.
+   /// @brief Get the FaceElementTransformations for the given shared face (edge
+   /// 2D) using the shared face index @a sf. @a fill2 specify if the
+   /// information for elem2 of the face should be computed or not. In the
+   /// returned object, 1 and 2 refer to the local and the neighbor elements,
+   /// respectively.
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
-   /// calling this function resets pointers obtained from previous calls.
-   /// Also, the returned object should NOT be deleted by the caller.
+   /// calling this function resets pointers obtained from previous calls. Also,
+   /// the returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
@@ -591,15 +619,14 @@ public:
                                      IsoparametricTransformation &ElTr2,
                                      bool fill2 = true) const;
 
-   /// @brief Get the FaceElementTransformations for the given shared face
-   /// (edge 2D) using the face index @a FaceNo. @a fill2 specify if the
-   /// information for elem2 of the face should be computed or not.
-   /// In the returned object, 1 and 2 refer to the local and the neighbor
-   /// elements, respectively.
+   /// @brief Get the FaceElementTransformations for the given shared face (edge
+   /// 2D) using the face index @a FaceNo. @a fill2 specify if the information
+   /// for elem2 of the face should be computed or not. In the returned object,
+   /// 1 and 2 refer to the local and the neighbor elements, respectively.
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
-   /// calling this function resets pointers obtained from previous calls.
-   /// Also, the returned object should NOT be deleted by the caller.
+   /// calling this function resets pointers obtained from previous calls. Also,
+   /// the returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
 
@@ -615,8 +642,8 @@ public:
    /// neighbor.
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
-   /// calling this function resets pointers obtained from previous calls.
-   /// Also, the returned object should NOT be deleted by the caller.
+   /// calling this function resets pointers obtained from previous calls. Also,
+   /// the returned object should NOT be deleted by the caller.
    ElementTransformation *GetFaceNbrElementTransformation(int FaceNo);
 
    /// @brief Variant of GetFaceNbrElementTransformation using a user allocated
@@ -637,11 +664,11 @@ public:
    /** @brief Returns the number of local faces according to the requested type,
        does not count master non-conforming faces.
 
-       If type==Boundary returns only the number of true boundary faces
-       contrary to GetNBE() that returns all "boundary" elements which may
-       include actual interior faces.
-       Similarly, if type==Interior, only the true interior faces (including
-       shared faces) are counted excluding all master non-conforming faces. */
+       If type==Boundary returns only the number of true boundary faces contrary
+       to GetNBE() that returns all "boundary" elements which may include actual
+       interior faces. Similarly, if type==Interior, only the true interior
+       faces (including shared faces) are counted excluding all master
+       non-conforming faces. */
    int GetNFbyType(FaceType type) const override;
 
    void GenerateBoundaryElements() override
@@ -657,9 +684,9 @@ public:
        sequence of elements. Works for nonconforming meshes only. */
    void Rebalance();
 
-   /** Load balance a nonconforming mesh using a user-defined partition.
-       Each local element 'i' is migrated to processor rank 'partition[i]',
-       for 0 <= i < GetNE(). */
+   /** Load balance a nonconforming mesh using a user-defined partition. Each
+       local element 'i' is migrated to processor rank 'partition[i]', for 0 <=
+       i < GetNE(). */
    void Rebalance(const Array<int> &partition);
 
    /** Save the mesh in a parallel mesh format. If @a comments is non-empty, it
