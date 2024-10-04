@@ -8,11 +8,11 @@
 //              * ex38
 //              * ex38 -i volumetric1d
 //              * ex38 -i surface2d
-//              * ex38 -i surface2d -o 4 -r 5
+//              * ex38 -i surface2d -o 4 -r 5 -m 1
 //              * ex38 -i volumetric2d
 //              * ex38 -i volumetric2d -o 4 -r 5 -m 1
 //              * ex38 -i surface3d
-//              * ex38 -i surface3d -o 4 -r 5
+//              * ex38 -i surface3d -o 4 -r 5 -m 1
 //              * ex38 -i volumetric3d
 //              * ex38 -i volumetric3d -o 3 -r 4 -m 1
 //
@@ -133,11 +133,14 @@ real_t Volume()
 class SIntegrationRule : public IntegrationRule
 {
 protected:
-   /// @brief Space Dimension of the IntegrationRule
+   /// method 0 is moments-based, 1 is Algoim.
+   int method, ir_order, ls_order;
+   Coefficient &level_set;
+   /// Space Dimension of the IntegrationRule
    int dim;
-   /// @brief Column-wise matrix of the quadtrature weights
+   /// Column-wise matrix of the quadtrature weights
    DenseMatrix Weights;
-   /// @brief Column-wise matrix of the transformation weights of the normal
+   /// Column-wise matrix of the transformation weights of the normal
    DenseMatrix SurfaceWeights;
 
 public:
@@ -151,33 +154,24 @@ public:
     @param [in] lsOrder Polynomial degree for approx of level-set function
     @param [in] mesh Pointer to the mesh that is used
    */
-   SIntegrationRule(int method, int Order,
+   SIntegrationRule(int method_, int Order,
                     Coefficient& LvlSet, int lsOrder, Mesh* mesh)
+       : method(method_), ir_order(Order), ls_order(lsOrder),
+         level_set(LvlSet), dim(mesh->Dimension())
    {
-      dim = mesh->Dimension();
+      // Nothing gets pre-computed for Algoim.
+      if (method == 1) { return; }
 
-      CutIntegrationRules *cut_ir;
-      if (method == 0)
-      {
 #ifdef MFEM_USE_LAPACK
-         cut_ir = new MomentFittingIntRules(Order, LvlSet, lsOrder);
+      MomentFittingIntRules mf_ir(ir_order, level_set, ls_order);
 #else
-         MFEM_ABORT("Moment-fitting requires MFEM to be built with LAPACK!");
+      MFEM_ABORT("Moment-fitting requires MFEM to be built with LAPACK!");
 #endif
-      }
-      else
-      {
-#ifdef MFEM_USE_ALGOIM
-         cut_ir = new AlgoimIntegrationRules(Order, LvlSet, lsOrder);;
-#else
-         MFEM_ABORT("MFEM is not built with Algoim support!");
-#endif
-      }
 
       IsoparametricTransformation Tr;
       mesh->GetElementTransformation(0, &Tr);
       IntegrationRule ir;
-      cut_ir->GetSurfaceIntegrationRule(Tr, ir);
+      mf_ir.GetSurfaceIntegrationRule(Tr, ir);
       if (dim >1)
       {
          Weights.SetSize(ir.GetNPoints(), mesh->GetNE());
@@ -188,7 +182,7 @@ public:
       }
       SurfaceWeights.SetSize(ir.GetNPoints(), mesh->GetNE());
       Vector w;
-      cut_ir->GetSurfaceWeights(Tr, ir, w);
+      mf_ir.GetSurfaceWeights(Tr, ir, w);
       SurfaceWeights.SetCol(0, w);
       SetSize(ir.GetNPoints());
 
@@ -214,8 +208,8 @@ public:
       for (int elem = 1; elem < mesh->GetNE(); elem++)
       {
          mesh->GetElementTransformation(elem, &Tr);
-         cut_ir->GetSurfaceIntegrationRule(Tr, ir);
-         cut_ir->GetSurfaceWeights(Tr, ir, w);
+         mf_ir.GetSurfaceIntegrationRule(Tr, ir);
+         mf_ir.GetSurfaceWeights(Tr, ir, w);
          SurfaceWeights.SetCol(elem, w);
 
          for (int ip = 0; ip < GetNPoints(); ip++)
@@ -231,50 +225,45 @@ public:
             }
          }
       }
-
-      delete cut_ir;
    }
 
    /**
     @brief Set the weights for the given element and multiply them with the
     transformation of the interface
     */
-   void SetElementinclSurfaceWeight(int Element)
+   void SetElementAndSurfaceWeight(ElementTransformation &Tr)
    {
-      if (dim == 1)
+      if (method == 1)
       {
-         IntegrationPoint &intp = IntPoint(0);
-         intp.x = Weights(0, Element);
-         intp.weight = Weights(1, Element);
-         cout << intp.x << " " << Element << endl;
-      }
-      else
+#ifdef MFEM_USE_ALGOIM
+         AlgoimIntegrationRules a_ir(ir_order, level_set, ls_order);
+         a_ir.GetSurfaceIntegrationRule(Tr, *this);
+         Vector w;
+         a_ir.GetSurfaceWeights(Tr, *this, w);
          for (int ip = 0; ip < GetNPoints(); ip++)
          {
-            IntegrationPoint &intp = IntPoint(ip);
-            intp.weight = Weights(ip, Element) * SurfaceWeights(ip, Element);
+            IntPoint(ip).weight *= w(ip);
          }
-   }
+         return;
+#else
+         MFEM_ABORT("MFEM is not built with Algoim support!");
+#endif
+      }
 
-   /// @brief Set the weights for the given element
-   void SetElement(int Element)
-   {
       if (dim == 1)
       {
-         IntegrationPoint &intp = IntPoint(0);
-         intp.x = Weights(0, Element);
-         intp.weight = Weights(1, Element);
+         IntPoint(0).x = Weights(0, Tr.ElementNo);
+         IntPoint(0).weight = Weights(1, Tr.ElementNo);
       }
       else
+      {
          for (int ip = 0; ip < GetNPoints(); ip++)
          {
-            IntegrationPoint &intp = IntPoint(ip);
-            intp.weight = Weights(ip, Element);
+            IntPoint(ip).weight = Weights(ip, Tr.ElementNo) *
+                                  SurfaceWeights(ip, Tr.ElementNo);
          }
+      }
    }
-
-   /// @brief Destructor of SIntegrationRule
-   ~SIntegrationRule() {}
 };
 
 /**
@@ -455,7 +444,7 @@ public:
       elvect = 0.;
 
       // Update the surface integration rule for the current element
-      SIntRule->SetElementinclSurfaceWeight(Tr.ElementNo);
+      SIntRule->SetElementAndSurfaceWeight(Tr);
 
       for (int ip = 0; ip < SIntRule->GetNPoints(); ip++)
       {
