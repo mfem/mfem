@@ -68,11 +68,10 @@ int main(int argc, char *argv[])
    ParGridFunction control_gf(&fespace);
    ParGridFunction simp_gf(&fespace);
    const real_t exponent(3.0), rho0(1e-06);
-   MappedGFCoefficient simp_cf(filter_gf,
-                               new std::function<real_t(const real_t)>([exponent, rho0](const real_t x)
+   MappedGFCoefficient simp_cf(filter_gf, [exponent, rho0](const real_t x)
    {
       return simp(x, exponent, rho0);
-   }));
+   });
    filter_gf = 0.0;
    adjfilter_gf = 0.0;
 
@@ -92,16 +91,19 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream filter_sock(vishost, visport);
-      filter_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      filter_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
+                  "\n";
       filter_sock.precision(8);
       filter_sock << "solution\n" << mesh << filter_gf << flush;
       socketstream adjfilter_sock(vishost, visport);
-      adjfilter_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      adjfilter_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
+                     "\n";
       adjfilter_sock.precision(8);
       adjfilter_sock << "solution\n" << mesh << adjfilter_gf << flush;
       control_gf.ProjectCoefficient(f);
       socketstream control_sock(vishost, visport);
-      control_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      control_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
+                   "\n";
       control_sock.precision(8);
       control_sock << "solution\n" << mesh << control_gf << flush;
       simp_gf.ProjectCoefficient(simp_cf);

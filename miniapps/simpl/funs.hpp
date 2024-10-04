@@ -21,18 +21,16 @@ class CompositeCoefficient : public Coefficient
 private:
    Coefficient *coeff;
    bool own_coeff;
-   fun_type *fun;
-   bool own_function;
+   fun_type fun;
 public:
-   CompositeCoefficient(Coefficient &coeff, fun_type &fun):coeff(&coeff),
-      own_coeff(false), fun(&fun), own_function(false) {}
-   CompositeCoefficient(Coefficient *coeff, fun_type *fun,
-                        bool own_coeff=true, bool own_fun=true)
-      :coeff(coeff), own_coeff(own_coeff),
-       fun(fun), own_function(own_fun) {}
+   CompositeCoefficient(Coefficient &coeff, fun_type fun):coeff(&coeff),
+      own_coeff(false), fun(fun) {}
+   CompositeCoefficient(Coefficient *coeff, fun_type fun,
+                        bool own_coeff=true)
+      :coeff(coeff), own_coeff(own_coeff), fun(fun) {}
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
-      return (*fun)(coeff->Eval(T, ip));
+      return fun(coeff->Eval(T, ip));
    };
 
    void SetCoefficient(Coefficient &cf)
@@ -41,6 +39,7 @@ public:
       coeff = &cf;
       own_coeff = false;
    }
+
    void SetCoefficient(Coefficient *cf, bool own_cf=true)
    {
       if (own_coeff && coeff) {delete coeff;}
@@ -48,18 +47,7 @@ public:
       own_coeff = own_cf;
    }
 
-   void SetFunction(fun_type &new_fun)
-   {
-      if (own_function && fun) {delete fun;}
-      fun = &new_fun;
-      own_function = false;
-   }
-   void SetFunction(fun_type *new_fun, bool own_fun=true)
-   {
-      if (own_function && fun) {delete fun;}
-      fun = new_fun;
-      own_function = own_fun;
-   }
+   void SetFunction(fun_type new_fun) { fun = new_fun; }
 };
 
 // A coefficient that maps a given gridfunction with a given function.
@@ -68,42 +56,23 @@ class MappedGFCoefficient : public GridFunctionCoefficient
 {
    typedef std::function<real_t(const real_t)> fun_type;
 private:
-   fun_type *fun;
-   bool own_function;
+   fun_type fun;
 
 public:
-   MappedGFCoefficient():GridFunctionCoefficient(nullptr), fun(nullptr),
-      own_function(false) {}
-   MappedGFCoefficient(GridFunction &gf, fun_type &fun, int comp=1)
-      : GridFunctionCoefficient(&gf, comp), fun(&fun), own_function(false) {}
-   MappedGFCoefficient(GridFunction &gf, fun_type *fun, bool own_function=true,
-                       int comp=1)
-      : GridFunctionCoefficient(&gf, comp), fun(fun), own_function(own_function) {}
-   MappedGFCoefficient(fun_type *fun)
-      : GridFunctionCoefficient(nullptr), fun(fun), own_function(true) {}
+   MappedGFCoefficient():GridFunctionCoefficient(nullptr) {}
+   MappedGFCoefficient(GridFunction &gf, fun_type fun, int comp=1)
+      : GridFunctionCoefficient(&gf, comp), fun(fun) {}
+   MappedGFCoefficient(fun_type fun)
+      : GridFunctionCoefficient(nullptr), fun(fun) {}
    MappedGFCoefficient(GridFunction *gf, int comp=1)
-      : GridFunctionCoefficient(gf, comp), fun(nullptr), own_function(true) {}
-   ~MappedGFCoefficient()
-   {
-      if (own_function && fun) { delete fun; }
-   }
+      : GridFunctionCoefficient(gf, comp) {}
 
-   void SetFunction(fun_type &newfun)
-   {
-      if (own_function && fun) {delete fun;}
-      fun=&newfun; own_function = false;
-   }
-
-   void SetFunction(fun_type *newfun, bool makeOwner=true)
-   {
-      if (own_function && fun) {delete fun;}
-      fun=newfun; own_function = makeOwner;
-   }
+   void SetFunction(fun_type newfun) { fun=newfun; }
 
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override
    {
-      return fun->operator()(GridFunctionCoefficient::Eval(T, ip));
+      return fun(GridFunctionCoefficient::Eval(T, ip));
    }
 };
 
@@ -114,7 +83,7 @@ class MappedPairedGFCoefficient : public GridFunctionCoefficient
 {
    typedef std::function<real_t(const real_t, const real_t)> fun_type;
 private:
-   fun_type *fun;
+   fun_type fun;
    GridFunction *other_gf;
    int other_gf_comp;
    bool own_function;
@@ -122,24 +91,17 @@ private:
 public:
    // Create a coefficient that returns f(v1,v2) where v1=gf(x) and v2=other_gf(x)
    MappedPairedGFCoefficient(GridFunction &gf, GridFunction &other_gf,
-                             fun_type &fun)
-      : GridFunctionCoefficient(&gf), fun(&fun), other_gf(&other_gf),
+                             fun_type fun)
+      : GridFunctionCoefficient(&gf), fun(fun), other_gf(&other_gf),
         other_gf_comp(1), own_function(false) {}
 
    // Create only with function. Use SetGridFunction to set gridfunctions.
    // By default, the object takes the ownership.
-   MappedPairedGFCoefficient(fun_type *fun, bool makeOwner=true)
-      : GridFunctionCoefficient(nullptr), fun(fun), other_gf(nullptr),
-        own_function(makeOwner) {}
+   MappedPairedGFCoefficient(fun_type fun)
+      : GridFunctionCoefficient(nullptr), fun(fun), other_gf(nullptr) {}
 
    // Create an empty object. Use SetFunction and SetGridFunction
-   MappedPairedGFCoefficient():GridFunctionCoefficient(nullptr), fun(nullptr),
-      own_function(false) {}
-
-   ~MappedPairedGFCoefficient()
-   {
-      if (own_function && fun) { delete fun; }
-   }
+   MappedPairedGFCoefficient():GridFunctionCoefficient(nullptr) {}
 
    void SetGridFunction(GridFunction *new_gf, GridFunction *new_other_gf)
    {
@@ -153,22 +115,15 @@ public:
       other_gf_comp=new_other_comp;
    }
 
-   void SetFunction(fun_type &newfun)
+   void SetFunction(fun_type newfun)
    {
-      if (own_function && fun) {delete fun;}
-      fun=&newfun; own_function = false;
-   }
-
-   void SetFunction(fun_type *newfun, bool makeOwner=true)
-   {
-      if (own_function && fun) {delete fun;}
-      fun=newfun; own_function = makeOwner;
+      fun=newfun;
    }
 
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override
    {
-      return fun->operator()(GridFunctionCoefficient::Eval(T, ip),
+      return fun(GridFunctionCoefficient::Eval(T, ip),
                              other_gf->GetValue(T, ip, other_gf_comp));
    }
 };
