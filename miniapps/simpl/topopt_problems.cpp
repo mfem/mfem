@@ -43,7 +43,7 @@ void MarkElements(Mesh &mesh, int attr,
 }
 
 
-Mesh * GetTopoptMesh(TopoptProblem prob,
+Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
                      real_t &r_min, real_t &tot_vol, real_t &min_vol, real_t &max_vol,
                      real_t &E, real_t &nu,
                      Array2D<int> &ess_bdr_displacement, Array<int> &ess_bdr_filter,
@@ -56,6 +56,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob,
 
       case Cantilever2:
       {
+         filename << "Cantilever2";
          if (r_min < 0) { r_min = 0.05; }
          if (E < 0) { E = 1.0; }
          if (nu < 0) { nu = 0.3; }
@@ -99,6 +100,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob,
 
       case MBB2:
       {
+         filename << "MBB2";
          if (r_min < 0) { r_min = 0.05; }
          if (E < 0) { E = 1.0; }
          if (nu < 0) { nu = 0.3; }
@@ -152,6 +154,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob,
 
       case Cantilever3:
       {
+         filename << "Cantilever3";
          if (r_min < 0) { r_min = 0.02; }
          if (E < 0) { E = 1.0; }
          if (nu < 0) { nu = 0.3; }

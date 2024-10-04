@@ -1,5 +1,6 @@
 #include "mfem.hpp"
 #include "topopt_problems.hpp"
+#include "logger.hpp"
 
 using namespace mfem;
 
@@ -35,10 +36,10 @@ int main(int argc, char *argv[])
    int max_it = 300;
    real_t tol_stationary_rel = 1e-04;
    real_t tol_stationary_abs = 1e-04;
-   real_t eps_stationarity = 1e-04;
+   real_t eps_stationarity = 1e-06;
    bool use_bregman_stationary = true;
-   real_t tol_obj_diff_rel = 1e-03;
-   real_t tol_obj_diff_abs = 1e-03;
+   real_t tol_obj_diff_rel = 1e-06;
+   real_t tol_obj_diff_abs = 1e-08;
    // backtracking related
    int max_it_backtrack = 300;
    bool use_bregman_backtrack = true;
@@ -110,12 +111,15 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   std::stringstream filename;
+   filename << "SiMPL-" << (use_bregman_backtrack?"B":"A") << "-";
 
    Array2D<int> ess_bdr_state;
    Array<int> ess_bdr_filter;
    real_t tot_vol;
    std::unique_ptr<ParMesh> mesh((ParMesh*)GetTopoptMesh(
-                                    prob, r_min, tot_vol, min_vol, max_vol,
+                                    prob, filename,
+                                    r_min, tot_vol, min_vol, max_vol,
                                     E, nu, ess_bdr_state, ess_bdr_filter,
                                     ser_ref_levels, par_ref_levels));
    const real_t lambda = E*nu/((1+nu)*(1-2*nu));
@@ -235,7 +239,9 @@ int main(int argc, char *argv[])
    {
       return sigmoid(x)-sigmoid(y);
    });
-   MappedGFCoefficient density_eps_cf = entropy.GetBackwardCoeff(control_eps_gf);
+   MappedGFCoefficient density_eps_dual_cf = entropy.GetBackwardCoeff(
+                                                control_eps_gf);
+   GridFunctionCoefficient density_eps_primal_cf(&control_eps_gf);
    GridFunctionCoefficient grad_cf(&grad_gf);
    ParGridFunction zero_gf(&fes_control);
    zero_gf = 0.0;
@@ -243,10 +249,6 @@ int main(int argc, char *argv[])
    diff_density_form.AddDomainIntegrator(new DomainLFIntegrator(diff_density_cf));
 
    real_t step_size = 1.0;
-   real_t objval = infinity();
-   real_t old_objval = infinity();
-   grad_gf = 0.0;
-
    GLVis glvis("localhost", 19916, true);
    const char keys[] = "Rjmml****************";
    glvis.Append(control_gf, "control variable", keys);
@@ -254,8 +256,24 @@ int main(int argc, char *argv[])
    glvis.Append(filter_gf, "filtered density", keys);
    glvis.Append(state_gf, "displacement magnitude", keys);
 
-   real_t 
-   for (int it_md=-1; it_md<max_it; it_md++)
+   real_t stationarity0, obj0,
+          stationarity_error_L2, stationarity_error_bregman, stationarity_error,
+          curr_vol,
+          objval(infinity()), old_objval(infinity());
+   int tot_reeval(0), num_reeval(0);
+   int it_md;
+   TableLogger logger;
+   logger.Append("iteration", it_md);
+   logger.Append("volume", curr_vol);
+   logger.Append("obj", objval);
+   logger.Append("step-size", step_size);
+   logger.Append("num-reeval", num_reeval);
+   logger.Append("stnrty-L2", stationarity_error_L2);
+   logger.Append("stnrty-B", stationarity_error_bregman);
+   logger.SaveWhenPrint(filename.str());
+
+   grad_gf = 0.0;
+   for (it_md = 0; it_md<max_it; it_md++)
    {
       if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
       if (it_md > 1)
@@ -277,7 +295,7 @@ int main(int argc, char *argv[])
 
       control_old_gf = control_gf;
       old_objval = objval;
-      for (int it_back=0; it_back < max_it_backtrack; it_back++)
+      for (num_reeval=0; num_reeval < max_it_backtrack; num_reeval++)
       {
          add(control_old_gf, -step_size, grad_gf, control_gf);
          objval = optproblem.Eval();
@@ -308,42 +326,60 @@ int main(int argc, char *argv[])
             if (Mpi::Root())
             {
                out << "   Backtracking terminated after "
-                   << it_back << " re-eval" << std::endl;
+                   << num_reeval << " re-eval" << std::endl;
             }
+            tot_reeval += num_reeval;
             break;
+         }
+         if (Mpi::Root())
+         {
+            out << "   --Attempt failed" << std::endl;
          }
          step_size *= 0.5;
       }
       grad_old_gf = grad_gf;
-      density_gf.ProjectCoefficient(density_cf);
+      curr_vol = optproblem.GetCurrentVolume();
 
+      density_gf.ProjectCoefficient(density_cf);
       glvis.Update();
 
       optproblem.UpdateGradient();
-      real_t stationarity_error;
 
-      if (use_bregman_stationary)
-      {
-         add(control_gf, -eps_stationarity, grad_gf, control_eps_gf);
-         density.ApplyVolumeProjection(control_eps_gf, true);
-         stationarity_error = std::sqrt(zero_gf.ComputeL1Error(
-                                           bregman_diff_eps))/eps_stationarity;
-      }
-      else
-      {
-         add(density_gf, -eps_stationarity, grad_gf, control_eps_gf);
-         density.ApplyVolumeProjection(control_eps_gf, false);
-         stationarity_error = density_gf.ComputeL2Error(density_eps_cf);
-      }
+      add(control_gf, -eps_stationarity, grad_gf, control_eps_gf);
+      density.ApplyVolumeProjection(control_eps_gf, true);
+      stationarity_error_bregman = std::sqrt(zero_gf.ComputeL1Error(
+                                                bregman_diff_eps))/eps_stationarity;
+
+      add(density_gf, -eps_stationarity, grad_gf, control_eps_gf);
+      density.ApplyVolumeProjection(control_eps_gf, false);
+      stationarity_error_L2 = density_gf.ComputeL2Error(
+                                 density_eps_primal_cf)/eps_stationarity;
+
+      stationarity_error = use_bregman_stationary
+                           ? stationarity_error_bregman : stationarity_error_L2;
+      logger.Print(true);
       if (Mpi::Root())
       {
-         out << "   Stationarity error : " << stationarity_error << std::endl;
          out << "--------------------------------------------" << std::endl;
       }
-      if (stationarity_error < tol_stationary_abs)
+      if (it_md == -1)
+      {
+         stationarity0 = stationarity_error;
+         obj0 = objval;
+      }
+      if (stationarity_error < tol_stationary_abs
+          || stationarity_error < tol_stationary_rel*stationarity0
+          || std::abs(objval - old_objval) < tol_obj_diff_abs
+          || std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(obj0))
       {
          break;
       }
    }
+   if (Mpi::Root())
+   {
+      out << filename.str() << " terminated after " << it_md
+          << " with " << tot_reeval << " re-eval" << std::endl;
+   }
+   logger.CloseFile();
    return 0;
 }
