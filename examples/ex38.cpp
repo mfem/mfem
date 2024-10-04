@@ -575,7 +575,7 @@ int main(int argc, char *argv[])
    }
 
    // 2. Construct and refine the mesh.
-   Mesh *mesh;
+   Mesh *mesh = nullptr;
    if (itype == IntegrationType::Volumetric1D)
    {
       mesh = new Mesh("../data/inline-segment.mesh");
