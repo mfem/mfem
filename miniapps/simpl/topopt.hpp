@@ -9,6 +9,65 @@
 namespace mfem
 {
 
+class GLVis
+{
+   Array<socketstream*> sockets;
+   Array<GridFunction*> gfs;
+   Array<Mesh*> meshes;
+   bool parallel;
+   const char *hostname;
+   const int port;
+   bool secure;
+public:
+#ifdef MFEM_USE_GNUTLS
+   static const bool secure_default = true;
+#else
+   static const bool secure_default = false;
+#endif
+   GLVis(const char hostname[], int port, bool parallel,
+         bool secure = secure_default)
+      :sockets(0), gfs(0), meshes(0), parallel(parallel),
+       hostname(hostname), port(port), secure(secure_default) {}
+
+   ~GLVis() {sockets.DeleteAll();}
+
+   void Append(GridFunction &gf, const char window_title[]=nullptr)
+   {
+      socketstream *socket = new socketstream(hostname, port, secure);
+      sockets.Append(socket);
+      gfs.Append(&gf);
+      meshes.Append(gf.FESpace()->GetMesh());
+      socket->precision(8);
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         *socket << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
+      }
+#endif
+      *socket << "solution\n" << *meshes.Last() << gf;
+      *socket << "window_title '" << window_title <<"'\n";
+      *socket << std::flush;
+   }
+
+   void Update()
+   {
+      for (int i=0; i<sockets.Size(); i++)
+      {
+#ifdef MFEM_USE_MPI
+         if (parallel)
+         {
+            *sockets[i] << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
+                        "\n";
+         }
+#endif
+         *sockets[i] << "solution\n" << *meshes[i] << *gfs[i];
+         *sockets[i] << std::flush;
+      }
+   }
+
+   socketstream &GetSocket(int i) {return *sockets[i];}
+};
+
 class DesignDensity
 {
 private:
@@ -103,7 +162,8 @@ public:
       empty = 0;
       L2projector.reset(new L2Projection(*gf_control.FESpace(), empty));
       grad_filter_cf.SetGridFunction(&grad_filter);
-      L2projector->GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(grad_filter_cf));
+      L2projector->GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(
+                                                           grad_filter_cf));
    }
 
    real_t GetCurrentVolume() {return current_volume;}
