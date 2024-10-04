@@ -394,7 +394,7 @@ void BilinearFormIntegrator::AssembleHDGFaceGrad(
          for (int i = 0; i < ndof_face; i++)
             for (int j = 0; j < ndof_face; j++)
             {
-               elmat(ioff+i, joff+j) /= 2.;
+               grad(ioff+i, joff+j) /= 2.;
             }
       }
    }
