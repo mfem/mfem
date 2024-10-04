@@ -53,12 +53,10 @@ public:
       real_t M = mu.Eval(T, ip);
 
       state_gf.GetVectorGradient(T, grad);
-      real_t div_u = grad.Trace();
-
       if (adjstate_gf) { adjstate_gf->GetVectorGradient(T, adjgrad); }
-      else {adjgrad = grad;}
+      else {adjgrad.UseExternalData(grad.GetData(), grad.NumCols(), grad.NumRows());}
 
-      real_t density = L*div_u*adjgrad.Trace();
+      real_t density = L*grad.Trace()*adjgrad.Trace();
       int dim = T.GetSpaceDim();
       for (int i=0; i<dim; i++)
       {
@@ -67,7 +65,7 @@ public:
             density += M*grad(i,j)*(adjgrad(i,j)+adjgrad(j,i));
          }
       }
-      return -der_simp_cf.Eval(T, ip)* density;
+      return -der_simp_cf.Eval(T, ip)*density;
    }
 };
 
@@ -76,102 +74,55 @@ class DensityBasedTopOpt
 {
 private:
    DesignDensity &density;
-   GridFunction &gf_control;
+   GridFunction &control_gf;
    GridFunction &grad_control;
    HelmholtzFilter &filter;
-   GridFunction &gf_filter;
+   GridFunction &filter_gf;
    GridFunction &grad_filter;
    GridFunctionCoefficient grad_filter_cf;
    ElasticityProblem &elasticity;
-   GridFunction &gf_state;
-   std::unique_ptr<GridFunction> gf_adj_state;
+   GridFunction &state_gf;
+   std::unique_ptr<GridFunction> adj_state_gf;
    LinearForm &obj;
 
-   OperatorHandle L2projector;
-   std::unique_ptr<LinearForm> grad_filter_form;
+   std::unique_ptr<L2Projection> L2projector;
    real_t objval;
+   real_t current_volume;
 public:
    DensityBasedTopOpt(
       DesignDensity &density, GridFunction &gf_control, GridFunction &grad_control,
       HelmholtzFilter &filter, GridFunction &gf_filter, GridFunction &grad_filter,
       ElasticityProblem &elasticity, GridFunction &gf_state)
-      :density(density), gf_control(gf_control), grad_control(grad_control),
-       filter(filter), gf_filter(gf_filter), grad_filter(grad_filter),
-       elasticity(elasticity), gf_state(gf_state),
+      :density(density), control_gf(gf_control), grad_control(grad_control),
+       filter(filter), filter_gf(gf_filter), grad_filter(grad_filter),
+       elasticity(elasticity), state_gf(gf_state),
        obj(elasticity.HasAdjoint() ? *elasticity.GetAdjLinearForm():
            *elasticity.GetLinearForm())
    {
-      // setup L2Projector
-      FiniteElementSpace *fes_control = gf_control.FESpace();
-      bool parallel = false;
-      std::unique_ptr<BilinearForm> L2projector_bilf;
-#ifdef MFEM_USE_MPI
-      ParFiniteElementSpace *pfes_control
-         = dynamic_cast<ParFiniteElementSpace*>(fes_control);
-      if (pfes_control)
-      {
-         L2projector_bilf.reset(new ParBilinearForm(pfes_control));
-         grad_filter_form.reset(new ParLinearForm(pfes_control));
-      }
-      else
-      {
-         L2projector_bilf.reset(new BilinearForm(fes_control));
-         grad_filter_form.reset(new LinearForm(fes_control));
-      }
-#else
-      L2projector_bilf.reset(new BilinearForm(fes_control));
-      grad_filter_form.reset(new LinearForm(fes_control));
-#endif
-      L2projector_bilf->AddDomainIntegrator(new InverseIntegrator(
-                                               new MassIntegrator()));
-      L2projector_bilf->Assemble();
-      if (parallel)
-      {
-#ifdef MFEM_USE_MPI
-         L2projector.Reset<HypreParMatrix>(
-            static_cast<ParBilinearForm*>(L2projector_bilf.get())->ParallelAssemble(),
-            true);
-#endif
-      }
-      else
-      {
-         L2projector.Reset<SparseMatrix>(L2projector_bilf->LoseMat(), true);
-      }
+      Array<int> empty(gf_control.FESpace()->GetMesh()->attributes.Max());
+      empty = 0;
+      L2projector.reset(new L2Projection(*gf_control.FESpace(), empty));
       grad_filter_cf.SetGridFunction(&grad_filter);
-      grad_filter_form->AddDomainIntegrator(new DomainLFIntegrator(grad_filter_cf));
-
-      if (elasticity.HasAdjoint())
-      {
-         FiniteElementSpace *fes_state = gf_state.FESpace();
-         if (elasticity.IsParallel())
-         {
-#ifdef MFEM_USE_MPI
-            ParFiniteElementSpace *pfes_state
-               = static_cast<ParFiniteElementSpace*>(fes_state);
-            gf_adj_state.reset(new ParGridFunction(pfes_state));
-#endif
-         }
-         else
-         {
-            gf_adj_state.reset(new GridFunction(fes_state));
-         }
-      }
+      L2projector->GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(grad_filter_cf));
    }
+
+   real_t GetCurrentVolume() {return current_volume;}
+   real_t GetCurrentObjectValue() {return objval;}
 
    real_t Eval()
    {
-      density.ApplyVolumeProjection(gf_control);
-      filter.Solve(gf_filter);
-      elasticity.Solve(gf_state);
+      current_volume = density.ApplyVolumeProjection(control_gf);
+      filter.Solve(filter_gf);
+      elasticity.Solve(state_gf);
       if (elasticity.IsParallel())
       {
 #ifdef MFEM_USE_MPI
-         objval = InnerProduct(elasticity.GetComm(), obj, gf_state);
+         objval = InnerProduct(elasticity.GetComm(), obj, state_gf);
 #endif
       }
       else
       {
-         objval = InnerProduct(obj, gf_state);
+         objval = InnerProduct(obj, state_gf);
       }
       return objval;
    }
@@ -180,23 +131,10 @@ public:
    {
       if (elasticity.HasAdjoint())
       {
-         elasticity.SolveAdjoint(*gf_adj_state);
+         elasticity.SolveAdjoint(*adj_state_gf);
       }
       filter.SolveAdjoint(grad_filter);
-      grad_filter_form->Assemble();
-      if (filter.IsParallel())
-      {
-#ifdef MFEM_USE_MPI
-         std::unique_ptr<HypreParVector> v(static_cast<ParLinearForm*>
-                                           (grad_filter_form.get())->ParallelAssemble());
-         L2projector->Mult(*v, grad_control.GetTrueVector());
-#endif
-      }
-      else
-      {
-         L2projector->Mult(*grad_filter_form, grad_control.GetTrueVector());
-      }
-      grad_control.SetFromTrueVector();
+      L2projector->Solve(grad_control);
    }
 };
 

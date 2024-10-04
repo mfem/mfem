@@ -5,19 +5,19 @@ namespace mfem
 
 real_t safe_log(const real_t x)
 {
-   return x<LOGMIN ? LOGMIN_VAL : std::log(x);
+   return x<LOGMIN ? LOGMIN_VAL : std::log2(x);
 }
 
 real_t sigmoid(const real_t x)
 {
-   if (x < 0)
+   if (x >= 0)
    {
-      return 1.0 / (1.0 + std::exp(-x));
+      return 1.0/(1.0+std::pow(2.0, -x));
    }
    else
    {
-      const real_t expx = std::exp(x);
-      return expx / (1.0 + expx);
+      const real_t expx = std::pow(2.0, x);
+      return expx/(1.0+expx);
    }
 }
 
