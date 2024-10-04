@@ -62,11 +62,8 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          if (nu < 0) { nu = 0.3; }
          mesh = new Mesh(Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
                                                3.0, 1.0));
-
-         for (int i=0; i<mesh->GetNE(); i++)
-         {
-            tot_vol += mesh->GetElementVolume(i);
-         }
+         tot_vol = 0.0;
+         for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
          if (min_vol < 0) { min_vol = 0.0; }
          if (max_vol < 0) { max_vol = tot_vol*0.5; }
          for (int i=0; i<ser_ref_levels; i++)
@@ -106,10 +103,8 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          if (nu < 0) { nu = 0.3; }
          mesh = new Mesh(Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
                                                3.0, 1.0));
-         for (int i=0; i<mesh->GetNE(); i++)
-         {
-            tot_vol += mesh->GetElementVolume(i);
-         }
+         tot_vol = 0.0;
+         for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
          if (min_vol < 0) { min_vol = 0.0; }
          if (max_vol < 0) { max_vol = tot_vol*0.5; }
          for (int i=0; i<ser_ref_levels; i++)
@@ -135,13 +130,13 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          MarkBoundaries(*mesh, 5,
                         [](const Vector &x)
          {
-            return x[0] > 3.0 - std::pow(2.0, -5.0);
+            return x[0] > 3.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
          });
          num_bdr_attr++;
          ess_bdr_displacement.SetSize(3, num_bdr_attr);
          ess_bdr_displacement = 0;
          ess_bdr_displacement(1, 3) = 1; // left: x-fixed
-         ess_bdr_displacement(2, 0) = 1; // right: y-fixed
+         ess_bdr_displacement(2, 4) = 1; // right: y-fixed
 
          ess_bdr_filter.SetSize(num_bdr_attr);
          ess_bdr_filter = 0;
@@ -160,12 +155,10 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          if (nu < 0) { nu = 0.3; }
          mesh = new Mesh(Mesh::MakeCartesian3D(2, 1, 1, Element::Type::HEXAHEDRON,
                                                2.0, 1.0, 1.0));
-         for (int i=0; i<mesh->GetNE(); i++)
-         {
-            tot_vol += mesh->GetElementVolume(i);
-         }
+         tot_vol = 0.0;
+         for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
          if (min_vol < 0) { min_vol = 0.0; }
-         if (max_vol < 0) { max_vol = tot_vol*0.5; }
+         if (max_vol < 0) { max_vol = tot_vol*0.12; }
          for (int i=0; i<ser_ref_levels; i++)
          {
             mesh->UniformRefinement();
@@ -236,10 +229,11 @@ void SetupTopoptProblem(TopoptProblem prob, ElasticityProblem &elasticity,
          auto load = new VectorFunctionCoefficient(
             2, [](const Vector &x, Vector &f)
          {
+
             f = 0.0;
-            if (x[0] < 0.1 && x[1] > 0.9)
+            if (std::pow(x[0], 2.0) + std::pow(x[1] - 1.0, 2.0) < 0.05*0.05)
             {
-               f[1] = -1.0;
+               f[1]=-1.0;
             }
          });
          elasticity.MakeCoefficientOwner(load);
