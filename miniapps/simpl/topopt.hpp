@@ -29,17 +29,17 @@ public:
       :sockets(0), gfs(0), meshes(0), parallel(parallel),
        hostname(hostname), port(port), secure(secure_default) {}
 
-   ~GLVis() {sockets.DeleteAll();}
+   ~GLVis() {for (socketstream* socket:sockets) {if (socket) {delete socket;}}}
 
    void Append(GridFunction &gf, const char window_title[]=nullptr,
                const char keys[]=nullptr)
    {
-      socketstream *socket = new socketstream(hostname, port, secure);
+      sockets.Append(new socketstream(hostname, port, secure));
+      socketstream *socket = sockets.Last();
       if (!socket->is_open())
       {
          return;
       }
-      sockets.Append(socket);
       Mesh *mesh = gf.FESpace()->GetMesh();
       gfs.Append(&gf);
       meshes.Append(mesh);

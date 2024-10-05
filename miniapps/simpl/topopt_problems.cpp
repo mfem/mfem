@@ -6,7 +6,7 @@ namespace mfem
 void MarkBoundaries(Mesh &mesh, int attr,
                     std::function<bool(const Vector &x)> marker)
 {
-   Vector curr_coord(mesh.SpaceDimension());
+   const int dim = mesh.SpaceDimension();
    Vector center(mesh.SpaceDimension());
    Array<int> vertices;
    for (int i=0; i<mesh.GetNBE(); i++)
@@ -15,8 +15,11 @@ void MarkBoundaries(Mesh &mesh, int attr,
       mesh.GetBdrElement(i)->GetVertices(vertices);
       for (auto v:vertices)
       {
-         curr_coord.SetData(mesh.GetVertex(v));
-         center += curr_coord;
+         real_t * coord = mesh.GetVertex(v);
+         for (int d=0; d<dim; d++)
+         {
+            center[d] += coord[d];
+         }
       }
       center *= 1.0 / vertices.Size();
       if (marker(center))
