@@ -528,6 +528,7 @@ public:
 
 int main(int argc, char *argv[])
 {
+#if defined(MFEM_USE_LAPACK) || defined(MFEM_USE_ALGOIM)
    // 1. Parse he command-line options.
    int ref_levels = 3;
    int order = 2;
@@ -717,4 +718,8 @@ int main(int argc, char *argv[])
    delete fespace;
    delete mesh;
    return EXIT_SUCCESS;
+#else
+   cout << "MFEM must be built with LAPACK or ALGOIM for this example." << endl;
+   return MFEM_SKIP_RETURN_VALUE;
+#endif // MFEM_USE_LAPACK
 }
