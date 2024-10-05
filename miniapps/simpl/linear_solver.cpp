@@ -68,6 +68,67 @@ void EllipticProblem::BuildTDofList(Array2D<int> &ess_bdr)
    }
 }
 
+void EllipticProblem::InitializeForms()
+{
+#ifdef MFEM_USE_MPI
+   par_fes = dynamic_cast<ParFiniteElementSpace*>(&fes);
+   if (par_fes)
+   {
+      parallel = true;
+      comm = par_fes->GetComm();
+      par_a = new ParBilinearForm(par_fes);
+      par_b = new ParLinearForm(par_fes);
+      a.reset(par_a);
+      b.reset(par_b);
+      if (hasAdjoint)
+      {
+         par_adjb = new ParLinearForm(par_fes);
+         adjb.reset(par_adjb);
+      }
+   }
+   else
+   {
+      a.reset(new BilinearForm(&fes));
+      b.reset(new LinearForm(&fes));
+      if (hasAdjoint)
+      {
+         adjb.reset(new LinearForm(&fes));
+      }
+   }
+#else
+   a.reset(new BilinearForm(&fes));
+   b.reset(new LinearForm(&fes));
+   if (hasAdjoint)
+   {
+      adjb.reset(new LinearForm(&fes));
+   }
+#endif
+}
+
+void EllipticProblem::Solve(GridFunction &x)
+{
+   if (!isAStationary) {a->Update(); a->Assemble();}
+   if (!isBStationary) {b->Assemble();}
+   if (!solver || !isAStationary)
+   {
+      ResetSolver();
+   }
+   solver->Solve(*b, x);
+}
+
+void EllipticProblem::SolveAdjoint(GridFunction &x)
+{
+   MFEM_ASSERT(hasAdjoint,
+               "SolveAdjoint(GridFunction &) is called without setting hasAdjoint=true.");
+   if (!isAStationary) {a->Update(); a->Assemble();}
+   if (!isAdjBStationary) {adjb->Assemble();}
+   if (!solver || !isAStationary)
+   {
+      ResetSolver();
+   }
+   solver->Solve(*adjb, x);
+}
+
 void EllipticSolver::UseElasticityOption()
 {
    if (parallel)

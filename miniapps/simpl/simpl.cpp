@@ -110,8 +110,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    std::stringstream filename;
-   filename << "SiMPL-" << (use_bregman_backtrack?"B":"A")
-      << "-" << ser_ref_levels + par_ref_levels;
+   filename << "SiMPL-" << (use_bregman_backtrack?"B-":"A-");
 
    Array2D<int> ess_bdr_state;
    Array<int> ess_bdr_filter;
@@ -121,6 +120,7 @@ int main(int argc, char *argv[])
                                     r_min, tot_vol, min_vol, max_vol,
                                     E, nu, ess_bdr_state, ess_bdr_filter,
                                     ser_ref_levels, par_ref_levels));
+   filename << "-" << ser_ref_levels + par_ref_levels;
    const real_t lambda = E*nu/((1+nu)*(1-2*nu));
    const real_t mu = E/(2*(1+nu));
    const int dim = mesh->SpaceDimension();

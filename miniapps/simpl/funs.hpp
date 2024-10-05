@@ -28,6 +28,7 @@ public:
    CompositeCoefficient(Coefficient *coeff, fun_type fun,
                         bool own_coeff=true)
       :coeff(coeff), own_coeff(own_coeff), fun(fun) {}
+
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       return fun(coeff->Eval(T, ip));
