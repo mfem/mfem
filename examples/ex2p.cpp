@@ -95,6 +95,15 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   if (amg_elast && reorder_space)
+   {
+      if (myid == 0)
+         cerr << "\nThe AMG elasticity solver requires ordering byVDIM! "
+              << "Ignoring the specified option -nodes/--by-nodes.\n"
+              << endl;
+      reorder_space = false;
+   }
+
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
