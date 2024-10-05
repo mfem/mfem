@@ -174,7 +174,8 @@ int main(int argc, char *argv[])
    ParGridFunction control_old_gf(&fes_control);
    ParGridFunction control_eps_gf(&fes_control);
    ParGridFunction grad_old_gf(&fes_control);
-   ParGridFunction density_gf(&fes_control); density_gf = 0.0; // this is only for visualization
+   ParGridFunction density_gf(&fes_control);
+   density_gf = 0.0; // this is only for visualization
    if (Mpi::Root())
    {
       out << "done" << std::endl;
@@ -385,15 +386,15 @@ int main(int argc, char *argv[])
       {
          out << "--------------------------------------------" << std::endl;
       }
-      if (it_md == -1)
+      if (it_md == 0)
       {
          stationarity0 = stationarity_error;
          obj0 = objval;
       }
-      if ((stationarity_error < tol_stationary_abs
-           || stationarity_error < tol_stationary_rel*stationarity0)
-          && (std::abs(objval - old_objval) < tol_obj_diff_abs
-              || std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(obj0)))
+      if ((stationarity_error < tol_stationary_abs ||
+           stationarity_error < tol_stationary_rel*stationarity0)
+          && (std::abs(objval - old_objval) < tol_obj_diff_abs ||
+              std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(obj0)))
       {
          break;
       }
