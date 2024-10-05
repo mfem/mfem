@@ -110,7 +110,8 @@ int main(int argc, char *argv[])
       return 1;
    }
    std::stringstream filename;
-   filename << "SiMPL-" << (use_bregman_backtrack?"B":"A") << "-";
+   filename << "SiMPL-" << (use_bregman_backtrack?"B":"A")
+      << "-" << ser_ref_levels + par_ref_levels;
 
    Array2D<int> ess_bdr_state;
    Array<int> ess_bdr_filter;
