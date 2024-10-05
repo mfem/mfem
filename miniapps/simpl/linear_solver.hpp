@@ -46,6 +46,7 @@ private:
    Array<int> ess_tdof_list;
    bool parallel;
    bool hasAdjoint;
+   bool elast;
    Array<Coefficient*> owned_coeffs;
    Array<VectorCoefficient*> owned_vcoeffs;
 protected:
@@ -59,50 +60,17 @@ protected:
    ParLinearForm *par_b;
    ParLinearForm *par_adjb;
 #endif
+
    void BuildTDofList(Array<int> &ess_bdr);
    void BuildTDofList(Array2D<int> &ess_bdr);
-   void InitializeForms()
-   {
-#ifdef MFEM_USE_MPI
-      par_fes = dynamic_cast<ParFiniteElementSpace*>(&fes);
-      if (par_fes)
-      {
-         parallel = true;
-         comm = par_fes->GetComm();
-         par_a = new ParBilinearForm(par_fes);
-         par_b = new ParLinearForm(par_fes);
-         a.reset(par_a);
-         b.reset(par_b);
-         if (hasAdjoint)
-         {
-            par_adjb = new ParLinearForm(par_fes);
-            adjb.reset(par_adjb);
-         }
-      }
-      else
-      {
-         a.reset(new BilinearForm(&fes));
-         b.reset(new LinearForm(&fes));
-         if (hasAdjoint)
-         {
-            adjb.reset(new LinearForm(&fes));
-         }
-      }
-#else
-      a.reset(new BilinearForm(&fes));
-      b.reset(new LinearForm(&fes));
-      if (hasAdjoint)
-      {
-         adjb.reset(new LinearForm(&fes));
-      }
-#endif
-   }
+   void InitializeForms();
+
 public:
    EllipticProblem(FiniteElementSpace &fes, Array<int> &ess_bdr,
                    bool hasAdjoint=false)
       :fes(fes),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
-       parallel(false), hasAdjoint(hasAdjoint)
+       parallel(false), hasAdjoint(hasAdjoint), elast(false)
    {
       InitializeForms();
       BuildTDofList(ess_bdr);
@@ -112,7 +80,7 @@ public:
                    bool hasAdjoint=false)
       :fes(fes),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
-       parallel(false), hasAdjoint(hasAdjoint)
+       parallel(false), hasAdjoint(hasAdjoint), elast(false)
    {
       InitializeForms();
       BuildTDofList(ess_bdr);
@@ -131,7 +99,11 @@ public:
    void SetBStationary(bool stationary=true) {isBStationary=stationary;}
    void SetAdjBStationary(bool stationary=true) {isAdjBStationary=stationary;}
 
-   void ResetSolver() {solver.reset(new EllipticSolver(*a, ess_tdof_list));}
+   void ResetSolver()
+   {
+      solver.reset(new EllipticSolver(*a, ess_tdof_list));
+      if (elast) {solver->UseElasticityOption();}
+   }
 
    BilinearForm *GetBilinearForm() {return a.get();}
    LinearForm *GetLinearForm() {return b.get();}
@@ -142,29 +114,8 @@ public:
    ParLinearForm *GetAdjParLinearForm() {return par_adjb;}
 #endif
 
-   void Solve(GridFunction &x)
-   {
-      if (!isAStationary) {a->Update(); a->Assemble();}
-      if (!isBStationary) {b->Assemble();}
-      if (!solver || !isAStationary)
-      {
-         ResetSolver();
-      }
-      solver->Solve(*b, x);
-   }
-
-   void SolveAdjoint(GridFunction &x)
-   {
-      MFEM_ASSERT(hasAdjoint,
-                  "SolveAdjoint(GridFunction &) is called without setting hasAdjoint=true.");
-      if (!isAStationary) {a->Update(); a->Assemble();}
-      if (!isAdjBStationary) {adjb->Assemble();}
-      if (!solver || !isAStationary)
-      {
-         ResetSolver();
-      }
-      solver->Solve(*adjb, x);
-   }
+   void Solve(GridFunction &x);
+   void SolveAdjoint(GridFunction &x);
    bool HasAdjoint() {return hasAdjoint;}
    bool IsParallel() { return parallel; }
 #ifdef MFEM_USE_MPI

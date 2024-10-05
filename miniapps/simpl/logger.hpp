@@ -42,12 +42,6 @@ public:
    void SaveWhenPrint(std::string filename,
                       std::ios::openmode mode = std::ios::out);
    // Close file manually.
-   void CloseFile()
-   {
-      if (file)
-      {
-         file.reset(nullptr);
-      }
-   }
+   void CloseFile() { if (file) { file.reset(nullptr); } }
 };
 
