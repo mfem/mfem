@@ -10,6 +10,8 @@
 
 Version 4.7.1 (development)
 ===========================
+- Refactored ALGOIM cut integration rules. The interface is unified with
+  the interface for moment based cut integration rules.
 
 Discretization improvements
 ---------------------------
