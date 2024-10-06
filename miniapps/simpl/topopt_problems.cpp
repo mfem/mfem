@@ -236,7 +236,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          ess_bdr_displacement.SetSize(3, num_bdr_attr);
          ess_bdr_displacement = 0;
          ess_bdr_displacement(1, 3) = 1; // left: x-fixed
-         ess_bdr_displacement(2, 4) = 1; // right: y-fixed
+         ess_bdr_displacement(0, 4) = 1; // right: fixed
 
          ess_bdr_filter.SetSize(num_bdr_attr);
          ess_bdr_filter = 0;
