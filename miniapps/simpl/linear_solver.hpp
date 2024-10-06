@@ -49,6 +49,7 @@ private:
    bool elast;
    Array<Coefficient*> owned_coeffs;
    Array<VectorCoefficient*> owned_vcoeffs;
+   Array<Vector*> owned_vectors;
 protected:
    std::unique_ptr<BilinearForm> a;
    std::unique_ptr<LinearForm> b;
@@ -70,7 +71,8 @@ public:
                    bool hasAdjoint=false)
       :fes(fes),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
-       parallel(false), hasAdjoint(hasAdjoint), elast(false)
+       parallel(false), hasAdjoint(hasAdjoint), elast(false),
+       owned_coeffs(0), owned_vcoeffs(0), owned_vectors(0)
    {
       InitializeForms();
       BuildTDofList(ess_bdr);
@@ -80,7 +82,8 @@ public:
                    bool hasAdjoint=false)
       :fes(fes),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
-       parallel(false), hasAdjoint(hasAdjoint), elast(false)
+       parallel(false), hasAdjoint(hasAdjoint), elast(false),
+       owned_coeffs(0), owned_vcoeffs(0), owned_vectors(0)
    {
       InitializeForms();
       BuildTDofList(ess_bdr);
@@ -90,10 +93,12 @@ public:
    {
       for (Coefficient *coeff:owned_coeffs) { if (coeff) {delete coeff;} }
       for (VectorCoefficient *coeff:owned_vcoeffs) { if (coeff) {delete coeff;} }
+      for (Vector *v:owned_vectors) { if (v) {delete v;} }
    }
 
    void MakeCoefficientOwner(Coefficient *coeff) {owned_coeffs.Append(coeff);}
    void MakeCoefficientOwner(VectorCoefficient *coeff) {owned_vcoeffs.Append(coeff);}
+   void MakeVectorOwner(Vector *v) {owned_vectors.Append(v);}
 
    void SetAStationary(bool stationary=true) {isAStationary=stationary;}
    void SetBStationary(bool stationary=true) {isBStationary=stationary;}

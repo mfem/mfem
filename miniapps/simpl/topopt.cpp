@@ -111,7 +111,6 @@ DesignDensity::DesignDensity(
    :fes_control(fes_control), tot_vol(tot_vol),
     min_vol(min_vol), max_vol(max_vol), entropy(entropy)
 {
-   hasPassiveElements = fes_control.GetMesh()->attributes.Max() > 1;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace * pfes_control = dynamic_cast<ParFiniteElementSpace*>
                                           (&fes_control);
@@ -198,10 +197,13 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
       curr_vol = zero->ComputeL1Error(density);
       dc *= 0.5;
       mu += curr_vol < target_vol ? dc : -dc;
-      if (hasPassiveElements)
+      if (solid_attr_id)
       {
          const_cf.constant = maxval-mu;
          ProjectCoefficient(x, const_cf, solid_attr_id);
+      }
+      if (void_attr_id)
+      {
          const_cf.constant = minval-mu;
          ProjectCoefficient(x, const_cf, void_attr_id);
       }
