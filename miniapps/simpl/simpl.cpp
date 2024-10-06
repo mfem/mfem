@@ -30,6 +30,10 @@ int main(int argc, char *argv[])
    real_t max_vol = -1.0;
    real_t min_vol = -1.0;
 
+   // Solid / Void material element attributes
+   int solid_attr = 0;
+   int void_attr = 0;
+
    // Stopping-criteria related
    int max_it = 300;
    real_t tol_stationary_rel = 1e-04;
@@ -119,6 +123,7 @@ int main(int argc, char *argv[])
                                     prob, filename,
                                     r_min, tot_vol, min_vol, max_vol,
                                     E, nu, ess_bdr_state, ess_bdr_filter,
+                                    solid_attr, void_attr,
                                     ser_ref_levels, par_ref_levels));
    filename << "-" << ser_ref_levels + par_ref_levels;
    const real_t lambda = E*nu/((1+nu)*(1-2*nu));
@@ -205,6 +210,8 @@ int main(int argc, char *argv[])
    FermiDiracEntropy entropy;
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
+   density.SetVoidAttr(void_attr);
+   density.SetSolidAttr(solid_attr);
 
    // Filter
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);
@@ -219,7 +226,7 @@ int main(int argc, char *argv[])
    ElasticityProblem elasticity(fes_state, ess_bdr_state, lambda_simp_cf,
                                 mu_simp_cf, prob < 0);
    elasticity.SetAStationary(false);
-   SetupTopoptProblem(prob, elasticity, filter_gf, state_gf);
+   SetupTopoptProblem(prob, filter, elasticity, filter_gf, state_gf);
    DensityBasedTopOpt optproblem(density, control_gf, grad_gf,
                                  filter, filter_gf, grad_filter_gf,
                                  elasticity, state_gf);
@@ -283,8 +290,6 @@ int main(int argc, char *argv[])
       paraview_dc.SetLevelsOfDetail(order_state);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetTime(0.0);
       paraview_dc.RegisterField("displacement", &state_gf);
       paraview_dc.RegisterField("density", &density_gf);
       paraview_dc.RegisterField("filtered_density", &filter_gf);

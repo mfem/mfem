@@ -50,6 +50,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
                      real_t &r_min, real_t &tot_vol, real_t &min_vol, real_t &max_vol,
                      real_t &E, real_t &nu,
                      Array2D<int> &ess_bdr_displacement, Array<int> &ess_bdr_filter,
+                     int &solid_attr, int &void_attr,
                      int ser_ref_levels, int par_ref_levels)
 {
    Mesh * mesh;
@@ -146,9 +147,101 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          break;
       }
 
-      case Arch2: {MFEM_ABORT("Undefined yet"); break; }
+      case Arch2:
+      {
+         filename << "Arch2";
+         if (r_min < 0) { r_min = 0.05; }
+         if (E < 0) { E = 1.0; }
+         if (nu < 0) { nu = 0.3; }
+         mesh = new Mesh(Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
+                                               2.0, 1.0));
+         tot_vol = 0.0;
+         for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
+         if (min_vol < 0) { min_vol = tot_vol*0.3;}
+         if (max_vol < 0) { max_vol = tot_vol*0.7; }
+         for (int i=0; i<ser_ref_levels; i++)
+         {
+            mesh->UniformRefinement();
+         }
+         if (par_ref_levels > -1)
+         {
+#ifdef MFEM_USE_MPI
+            Mesh * ser_mesh = mesh;
+            mesh = new ParMesh(MPI_COMM_WORLD, *ser_mesh);
+            ser_mesh->Clear();
+            delete ser_mesh;
+            for (int i=0; i<par_ref_levels; i++)
+            {
+               mesh->UniformRefinement();
+            }
+#else
+            MFEM_ABORT("MFEM is built without MPI but tried to use parallel refinement");
+#endif
+         }
+         int num_bdr_attr = 4;
+         MarkBoundaries(*mesh, 5,
+                        [](const Vector &x)
+         {
+            return x[0] > 2.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
+         });
+         num_bdr_attr++;
+         ess_bdr_displacement.SetSize(3, num_bdr_attr);
+         ess_bdr_displacement = 0;
+         ess_bdr_displacement(1, 3) = 1; // left: x-fixed
+         ess_bdr_displacement(0, 4) = 1; // right-bottom: fixed
 
-      case Bridge2: {MFEM_ABORT("Undefined yet"); break; }
+         ess_bdr_filter.SetSize(num_bdr_attr);
+         ess_bdr_filter = 0;
+         break;
+      }
+
+      case Bridge2:
+      {
+         filename << "Bridge2";
+         if (r_min < 0) { r_min = 0.05; }
+         if (E < 0) { E = 1.0; }
+         if (nu < 0) { nu = 0.3; }
+         mesh = new Mesh(Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
+                                               2.0, 1.0));
+         tot_vol = 0.0;
+         for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
+         if (min_vol < 0) { min_vol = tot_vol*0.2; }
+         if (max_vol < 0) { max_vol = tot_vol*0.7; }
+         for (int i=0; i<ser_ref_levels; i++)
+         {
+            mesh->UniformRefinement();
+         }
+         if (par_ref_levels > -1)
+         {
+#ifdef MFEM_USE_MPI
+            Mesh * ser_mesh = mesh;
+            mesh = new ParMesh(MPI_COMM_WORLD, *ser_mesh);
+            ser_mesh->Clear();
+            delete ser_mesh;
+            for (int i=0; i<par_ref_levels; i++)
+            {
+               mesh->UniformRefinement();
+            }
+#else
+            MFEM_ABORT("MFEM is built without MPI but tried to use parallel refinement");
+#endif
+         }
+         int num_bdr_attr = 4;
+         MarkBoundaries(*mesh, 5,
+                        [](const Vector &x)
+         {
+            return x[0] > 2.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
+         });
+         num_bdr_attr++;
+         ess_bdr_displacement.SetSize(3, num_bdr_attr);
+         ess_bdr_displacement = 0;
+         ess_bdr_displacement(1, 3) = 1; // left: x-fixed
+         ess_bdr_displacement(2, 4) = 1; // right: y-fixed
+
+         ess_bdr_filter.SetSize(num_bdr_attr);
+         ess_bdr_filter = 0;
+         break;
+      }
 
       case Cantilever3:
       {
@@ -204,7 +297,8 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
    return mesh;
 }
 
-void SetupTopoptProblem(TopoptProblem prob, ElasticityProblem &elasticity,
+void SetupTopoptProblem(TopoptProblem prob,
+                        HelmholtzFilter &filter, ElasticityProblem &elasticity,
                         GridFunction &gf_filter, GridFunction &gf_state)
 {
 
@@ -245,9 +339,67 @@ void SetupTopoptProblem(TopoptProblem prob, ElasticityProblem &elasticity,
          break;
       }
 
-      case Arch2: {MFEM_ABORT("Undefined yet"); break; }
+      case Arch2:
+      {
+         auto g = new Vector({0.0, -9.8});
+         auto gravity_cf = new VectorConstantCoefficient(*g);
+         auto filter_cf = new GridFunctionCoefficient(&gf_filter);
+         auto state_cf = new VectorGridFunctionCoefficient(&gf_state);
 
-      case Bridge2: {MFEM_ABORT("Undefined yet"); break; }
+         auto weight_cf = new ScalarVectorProductCoefficient(*filter_cf, *gravity_cf);
+         auto gu = new InnerProductCoefficient(*gravity_cf, *state_cf);
+
+         elasticity.GetLinearForm()->AddDomainIntegrator(
+            new VectorDomainLFIntegrator(*weight_cf)
+         );
+         elasticity.MakeCoefficientOwner(gravity_cf);
+         elasticity.MakeCoefficientOwner(filter_cf);
+         elasticity.MakeCoefficientOwner(weight_cf);
+         elasticity.MakeVectorOwner(g);
+
+         filter.GetAdjLinearForm()->AddDomainIntegrator(
+            new DomainLFIntegrator(*gu)
+         );
+         filter.MakeCoefficientOwner(state_cf);
+         filter.MakeCoefficientOwner(gu);
+      }
+
+      case Bridge2:
+      {
+         auto g = new Vector({0.0, -9.8});
+         auto gravity_cf = new VectorConstantCoefficient(*g);
+         auto filter_cf = new GridFunctionCoefficient(&gf_filter);
+         auto state_cf = new VectorGridFunctionCoefficient(&gf_state);
+
+         auto load = new VectorFunctionCoefficient(
+            2, [](const Vector &x, Vector &f)
+         {
+            f = 0.0;
+            if (x[1] > 1 - std::pow(2, -5))
+            {
+               f[2] = -40;
+            }
+         }
+         );
+         auto weight_cf = new ScalarVectorProductCoefficient(*filter_cf, *gravity_cf);
+         auto total_load_cf = new VectorSumCoefficient(*weight_cf, *load);
+         auto gu = new InnerProductCoefficient(*gravity_cf, *state_cf);
+
+         elasticity.GetLinearForm()->AddDomainIntegrator(
+            new VectorDomainLFIntegrator(*weight_cf)
+         );
+         elasticity.MakeCoefficientOwner(gravity_cf);
+         elasticity.MakeCoefficientOwner(filter_cf);
+         elasticity.MakeCoefficientOwner(weight_cf);
+         elasticity.MakeCoefficientOwner(total_load_cf);
+         elasticity.MakeVectorOwner(g);
+
+         filter.GetAdjLinearForm()->AddDomainIntegrator(
+            new DomainLFIntegrator(*gu)
+         );
+         filter.MakeCoefficientOwner(state_cf);
+         filter.MakeCoefficientOwner(gu);
+      }
 
       case Cantilever3:
       {
