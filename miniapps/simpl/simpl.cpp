@@ -177,6 +177,12 @@ int main(int argc, char *argv[])
       *adj_state_gf = 0.0;
    }
 
+   // Filter Essential BDR
+   Array<int> solid_bdr_filter(ess_bdr_filter);
+   for(auto &isSolid:solid_bdr_filter){isSolid = isSolid==1;};
+   ConstantCoefficient one_cf(1.0);
+   filter_gf.ProjectBdrCoefficient(one_cf, solid_bdr_filter);
+
    ParGridFunction control_old_gf(&fes_control);
    ParGridFunction control_eps_gf(&fes_control);
    ParGridFunction grad_old_gf(&fes_control);
