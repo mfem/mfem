@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,7 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_3D,
                            const int NE,
-                           const Array<double> &b,
+                           const Array<real_t> &b,
                            const Vector &h0,
                            Vector &diagonal,
                            const int d1d,
@@ -39,13 +39,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_3D,
       constexpr int DIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      MFEM_SHARED double qqd[MQ1*MQ1*MD1];
-      MFEM_SHARED double qdd[MQ1*MD1*MD1];
-      DeviceTensor<3,double> QQD(qqd, MQ1, MQ1, MD1);
-      DeviceTensor<3,double> QDD(qdd, MQ1, MD1, MD1);
+      MFEM_SHARED real_t qqd[MQ1*MQ1*MD1];
+      MFEM_SHARED real_t qdd[MQ1*MD1*MD1];
+      DeviceTensor<3,real_t> QQD(qqd, MQ1, MQ1, MD1);
+      DeviceTensor<3,real_t> QDD(qdd, MQ1, MD1, MD1);
 
       for (int v = 0; v < DIM; ++v)
       {
@@ -60,7 +60,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_3D,
                   MFEM_UNROLL(MQ1)
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-                     const double Bz = B(qz,dz);
+                     const real_t Bz = B(qz,dz);
                      QQD(qx,qy,dz) += Bz * H0(v,v,qx,qy,qz,e) * Bz;
                   }
                }
@@ -78,7 +78,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_3D,
                   MFEM_UNROLL(MQ1)
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const double By = B(qy,dy);
+                     const real_t By = B(qy,dy);
                      QDD(qx,dy,dz) += By * QQD(qx,qy,dz) * By;
                   }
                }
@@ -92,11 +92,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_C0_3D,
             {
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
-                  double d = 0.0;
+                  real_t d = 0.0;
                   MFEM_UNROLL(MQ1)
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double Bx = B(qx,dx);
+                     const real_t Bx = B(qx,dx);
                      d += Bx * QDD(qx,dy,dz) * Bx;
                   }
                   D(dx,dy,dz, v, e) += d;
@@ -114,7 +114,7 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &D) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const Array<double> &B = PA.maps->B;
+   const Array<real_t> &B = PA.maps->B;
    const Vector &H0 = PA.H0;
 
    MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_C0_3D,id,N,B,H0,D);

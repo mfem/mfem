@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -508,7 +508,7 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
       }
 
       // assemble rhs
-      double * data = rvecptr->GetData();
+      real_t * data = rvecptr->GetData();
       Vector vec1;
       // ref subvector
       vec1.SetDataAndSize(&data[offsets[i]],

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -89,6 +89,7 @@ int main (int argc, char *argv[])
    bool hrefinement      = false;
    int point_ordering    = 0;
    int gf_ordering       = 0;
+   int visport           = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -121,6 +122,7 @@ int main (int argc, char *argv[])
    args.AddOption(&gf_ordering, "-gfo", "--gridfunc-ordering",
                   "Ordering of fespace that will be used for gridfunction to be interpolated."
                   "0 (default): byNodes, 1: byVDIM");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
 
    args.Parse();
    if (!args.Good())
@@ -219,7 +221,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout;
       sout.open(vishost, visport);
       if (!sout)

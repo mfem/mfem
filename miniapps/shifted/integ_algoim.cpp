@@ -1,8 +1,17 @@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "integ_algoim.hpp"
 
-
 #ifdef MFEM_USE_ALGOIM
-
 
 namespace mfem
 {
@@ -28,14 +37,13 @@ AlgoimIntegrationRule::AlgoimIntegrationRule(int o, const FiniteElement &el,
       MFEM_ABORT("Currently MFEM + Algoim supports only quads and hexes.");
    }
 
-   //change the basis of the level-set function
-   //from Lagrangian to Bernstein (positive)
+   // change the basis of the level-set function
+   // from Lagrangian to Bernstein (positive)
    lsvec.SetSize(pe->GetDof());
    DenseMatrix T(pe->GetDof());
    pe->Project(el,trans,T);
    T.Mult(lsfun,lsvec);
 }
-
 
 const IntegrationRule* AlgoimIntegrationRule::GetVolumeIntegrationRule()
 {
@@ -46,7 +54,7 @@ const IntegrationRule* AlgoimIntegrationRule::GetVolumeIntegrationRule()
    if (dim==2)
    {
       LevelSet2D ls(pe,lsvec);
-      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<double,2>(0.0,1.0),
+      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<real_t,2>(0.0,1.0),
                                   -1, -1, np1d);
 
       vir=new IntegrationRule(q.nodes.size());
@@ -60,7 +68,7 @@ const IntegrationRule* AlgoimIntegrationRule::GetVolumeIntegrationRule()
    else
    {
       LevelSet3D ls(pe,lsvec);
-      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<double,3>(0.0,1.0),
+      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<real_t,3>(0.0,1.0),
                                   -1, -1, np1d);
 
       vir=new IntegrationRule(q.nodes.size());
@@ -84,7 +92,7 @@ const IntegrationRule* AlgoimIntegrationRule::GetSurfaceIntegrationRule()
    if (dim==2)
    {
       LevelSet2D ls(pe,lsvec);
-      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<double,2>(0.0,1.0),
+      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<real_t,2>(0.0,1.0),
                                   2, -1, np1d);
 
       sir=new IntegrationRule(q.nodes.size());
@@ -98,7 +106,7 @@ const IntegrationRule* AlgoimIntegrationRule::GetSurfaceIntegrationRule()
    else
    {
       LevelSet3D ls(pe,lsvec);
-      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<double,3>(0.0,1.0),
+      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<real_t,3>(0.0,1.0),
                                   3, -1, np1d);
 
       sir=new IntegrationRule(q.nodes.size());

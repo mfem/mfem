@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,8 +18,8 @@ namespace mfem
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EAConvectionAssemble1D(const int NE,
-                                   const Array<double> &b,
-                                   const Array<double> &g,
+                                   const Array<real_t> &b,
+                                   const Array<real_t> &g,
                                    const Vector &padata,
                                    Vector &eadata,
                                    const bool add,
@@ -28,8 +28,8 @@ static void EAConvectionAssemble1D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
@@ -38,9 +38,9 @@ static void EAConvectionAssemble1D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_Gi[MQ1];
-      double r_Bj[MQ1];
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_Gi[MQ1];
+      real_t r_Bj[MQ1];
       for (int q = 0; q < Q1D; q++)
       {
          r_Gi[q] = G(q,MFEM_THREAD_ID(x));
@@ -50,7 +50,7 @@ static void EAConvectionAssemble1D(const int NE,
       {
          MFEM_FOREACH_THREAD(j1,y,D1D)
          {
-            double val = 0.0;
+            real_t val = 0.0;
             for (int k1 = 0; k1 < Q1D; ++k1)
             {
                val += r_Bj[k1] * D(k1, e) * r_Gi[k1];
@@ -70,8 +70,8 @@ static void EAConvectionAssemble1D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EAConvectionAssemble2D(const int NE,
-                                   const Array<double> &b,
-                                   const Array<double> &g,
+                                   const Array<real_t> &b,
+                                   const Array<real_t> &g,
                                    const Vector &padata,
                                    Vector &eadata,
                                    const bool add,
@@ -80,8 +80,8 @@ static void EAConvectionAssemble2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, NE);
@@ -90,10 +90,10 @@ static void EAConvectionAssemble2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_B[MQ1][MD1];
-      double r_G[MQ1][MD1];
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_B[MQ1][MD1];
+      real_t r_G[MQ1][MD1];
       for (int d = 0; d < D1D; d++)
       {
          for (int q = 0; q < Q1D; q++)
@@ -102,7 +102,7 @@ static void EAConvectionAssemble2D(const int NE,
             r_G[q][d] = G(q,d);
          }
       }
-      MFEM_SHARED double s_D[MQ1][MQ1][2];
+      MFEM_SHARED real_t s_D[MQ1][MQ1][2];
       MFEM_FOREACH_THREAD(k1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(k2,y,Q1D)
@@ -120,7 +120,7 @@ static void EAConvectionAssemble2D(const int NE,
             {
                for (int j2 = 0; j2 < D1D; ++j2)
                {
-                  double val = 0.0;
+                  real_t val = 0.0;
                   for (int k1 = 0; k1 < Q1D; ++k1)
                   {
                      for (int k2 = 0; k2 < Q1D; ++k2)
@@ -147,8 +147,8 @@ static void EAConvectionAssemble2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EAConvectionAssemble3D(const int NE,
-                                   const Array<double> &b,
-                                   const Array<double> &g,
+                                   const Array<real_t> &b,
+                                   const Array<real_t> &g,
                                    const Vector &padata,
                                    Vector &eadata,
                                    const bool add,
@@ -157,8 +157,8 @@ static void EAConvectionAssemble3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, 3, NE);
@@ -167,10 +167,10 @@ static void EAConvectionAssemble3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_B[MQ1][MD1];
-      double r_G[MQ1][MD1];
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_B[MQ1][MD1];
+      real_t r_G[MQ1][MD1];
       for (int d = 0; d < D1D; d++)
       {
          for (int q = 0; q < Q1D; q++)
@@ -191,16 +191,16 @@ static void EAConvectionAssemble3D(const int NE,
                   {
                      for (int j3 = 0; j3 < D1D; ++j3)
                      {
-                        double val = 0.0;
+                        real_t val = 0.0;
                         for (int k1 = 0; k1 < Q1D; ++k1)
                         {
                            for (int k2 = 0; k2 < Q1D; ++k2)
                            {
                               for (int k3 = 0; k3 < Q1D; ++k3)
                               {
-                                 double D0 = D(k1,k2,k3,0,e);
-                                 double D1 = D(k1,k2,k3,1,e);
-                                 double D2 = D(k1,k2,k3,2,e);
+                                 real_t D0 = D(k1,k2,k3,0,e);
+                                 real_t D1 = D(k1,k2,k3,1,e);
+                                 real_t D2 = D(k1,k2,k3,2,e);
                                  val += (r_G[k1][i1] * r_B[k2][i2] * r_B[k3][i3] * D0
                                          + r_B[k1][i1] * r_G[k2][i2] * r_B[k3][i3] * D1
                                          + r_B[k1][i1] * r_B[k2][i2] * r_G[k3][i3] * D2)
@@ -231,8 +231,8 @@ void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
 {
    AssemblePA(fes);
    ne = fes.GetMesh()->GetNE();
-   const Array<double> &B = maps->B;
-   const Array<double> &G = maps->G;
+   const Array<real_t> &B = maps->B;
+   const Array<real_t> &G = maps->G;
    if (dim == 1)
    {
       switch ((dofs1D << 4 ) | quad1D)

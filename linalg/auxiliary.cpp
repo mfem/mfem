@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -338,7 +338,7 @@ public:
       }
    }
 
-   void Mult(const Vector& x, Vector& y) const
+   void Mult(const Vector& x, Vector& y) const override
    {
       amg_->Mult(x, y);
 
@@ -349,9 +349,9 @@ public:
       }
    }
 
-   void SetOperator(const Operator&) { }
+   void SetOperator(const Operator&) override { }
 
-   ~ZeroWrapAMG()
+   ~ZeroWrapAMG() override
    {
       delete amg_;
    }

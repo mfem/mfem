@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -148,7 +148,7 @@ void LinearFormExtension::Update()
       std::unordered_map<int,int> f_to_be;
       for (int i = 0; i < mesh.GetNBE(); ++i)
       {
-         const int f = mesh.GetBdrElementEdgeIndex(i);
+         const int f = mesh.GetBdrElementFaceIndex(i);
          f_to_be[f] = i;
       }
       MFEM_VERIFY(size_t(nf_bdr) == f_to_be.size(), "Incompatible sizes");

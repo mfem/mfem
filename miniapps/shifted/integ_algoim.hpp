@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #ifndef INTEG_ALGOIM_HPP
 #define INTEG_ALGOIM_HPP
 
@@ -9,8 +20,7 @@
 namespace mfem
 {
 
-
-//define templated element bases
+// define templated element bases
 namespace TmplPoly_1D
 {
 
@@ -272,8 +282,8 @@ private:
    IntegrationRule* sir; // Surface integration rule. Owned.
    IntegrationRule* vir; // Volumetric integration rule. Owned.
    PositiveTensorFiniteElement *pe;
-   Vector lsvec; //level-set in Bernstein bases
-   int int_order; //integration order
+   Vector lsvec; // level-set in Bernstein bases
+   int int_order; // integration order
 };
 
 }

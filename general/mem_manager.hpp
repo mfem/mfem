@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,13 +12,20 @@
 #ifndef MFEM_MEM_MANAGER_HPP
 #define MFEM_MEM_MANAGER_HPP
 
+#include "enzyme.hpp"
 #include "globals.hpp"
 #include "error.hpp"
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
+
 #ifdef MFEM_USE_MPI
-#include <HYPRE_config.h> // HYPRE_USING_GPU
+// Enable internal hypre timing routines
+#define HYPRE_TIMING
+#include <HYPRE_utilities.h> // for HYPRE_GetMemoryLocation() and others
+#if (21400 <= MFEM_HYPRE_VERSION) && (MFEM_HYPRE_VERSION < 21900)
+#include <_hypre_utilities.h> // for HYPRE_MEMORY_HOST and others
+#endif
 #endif
 
 namespace mfem
@@ -367,7 +374,8 @@ public:
 
    /** Wrap an externally pair of allocated pointers, @a h_ptr and @a d_ptr,
        of the given host MemoryType @a h_mt. */
-   /** The new memory object will have the device MemoryType set as valid.
+   /** The new memory object will have the device MemoryType set as valid unless
+       specified otherwise by the parameters @a valid_host and @a valid_device.
 
        The given @a h_ptr and @a d_ptr must be allocated appropriately for the
        given host MemoryType and its dual device MemoryType as defined by
@@ -376,13 +384,18 @@ public:
        The parameter @a own determines whether both @a h_ptr and @a d_ptr will
        be deleted when the method Delete() is called.
 
+       The parameters @a valid_host and @a valid_device determine which
+       pointers, host and/or device, will be marked as valid; at least one of
+       the two parameters must be set to true.
+
        @note Ownership can also be controlled by using the following methods:
          - ClearOwnerFlags,
          - SetHostPtrOwner,
          - SetDevicePtrOwner.
 
        @note The current memory is NOT deleted by this method. */
-   inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own);
+   inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own,
+                    bool valid_host = false, bool valid_device = true);
 
    /// Create a memory object that points inside the memory object @a base.
    /** The new Memory object uses the same MemoryType(s) as @a base.
@@ -537,12 +550,12 @@ public:
 
    /// Print the internal flags.
    /** This method can be useful for debugging. It is explicitly instantiated
-       for Memory<T> with T = int and T = double. */
+       for Memory<T> with T = int and T = real_t. */
    inline void PrintFlags() const;
 
    /// If both the host and the device data are valid, compare their contents.
    /** This method can be useful for debugging. It is explicitly instantiated
-       for Memory<T> with T = int and T = double. */
+       for Memory<T> with T = int and T = real_t. */
    inline int CompareHostAndDevice(int size) const;
 
 private:
@@ -598,13 +611,13 @@ private:
    template <typename T> friend class Memory;
 
    /// Host memory type set during the Setup.
-   static MemoryType host_mem_type;
+   MFEM_ENZYME_INACTIVE static MemoryType host_mem_type;
 
    /// Device memory type set during the Setup.
-   static MemoryType device_mem_type;
+   MFEM_ENZYME_INACTIVE static MemoryType device_mem_type;
 
    /// Allow to detect if a global memory manager instance exists.
-   static bool exists;
+   MFEM_ENZYME_INACTIVE static bool exists;
 
    /// Return true if the global memory manager instance exists.
    static bool Exists() { return exists; }
@@ -612,13 +625,13 @@ private:
    /// Array defining the dual MemoryType for each MemoryType
    /** The dual of a host MemoryType is a device MemoryType and vice versa: the
        dual of a device MemoryType is a host MemoryType. */
-   static MemoryType dual_map[MemoryTypeSize];
+   MFEM_ENZYME_INACTIVE static MemoryType dual_map[MemoryTypeSize];
 
    /// Update the dual memory type of @a mt to be @a dual_mt.
    static void UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
    /// True if Configure() was called.
-   static bool configured;
+   MFEM_ENZYME_INACTIVE static bool configured;
 
    /// Host and device allocator names for Umpire.
 #ifdef MFEM_USE_UMPIRE
@@ -639,13 +652,15 @@ private: // Static methods used by the Memory<T> class
 
    /// Register an external pointer of the given MemoryType.
    /// Return the host pointer.
-   static void *Register_(void *ptr, void *h_ptr, size_t bytes, MemoryType mt,
-                          bool own, bool alias, unsigned &flags);
+   MFEM_ENZYME_INACTIVE static void *Register_(void *ptr, void *h_ptr,
+                                               size_t bytes, MemoryType mt,
+                                               bool own, bool alias, unsigned &flags);
 
    /// Register a pair of external host and device pointers
    static void Register2_(void *h_ptr, void *d_ptr, size_t bytes,
                           MemoryType h_mt, MemoryType d_mt,
-                          bool own, bool alias, unsigned &flags);
+                          bool own, bool alias, unsigned &flags,
+                          unsigned valid_flags);
 
    /// Register an alias. Note: base_h_ptr may be an alias.
    static void Alias_(void *base_h_ptr, size_t offset, size_t bytes,
@@ -655,7 +670,8 @@ private: // Static methods used by the Memory<T> class
                                     MemoryType d_mt);
 
    /// Un-register and free memory identified by its host pointer.
-   static void Delete_(void *h_ptr, MemoryType mt, unsigned flags);
+   MFEM_ENZYME_FN_LIKE_FREE static void Delete_(void *h_ptr, MemoryType mt,
+                                                unsigned flags);
 
    /// Free device memory identified by its host pointer
    static void DeleteDevice_(void *h_ptr, unsigned & flags);
@@ -666,14 +682,17 @@ private: // Static methods used by the Memory<T> class
 
    /// Return a pointer to the memory identified by the host pointer h_ptr for
    /// access with the given MemoryClass.
-   static void *ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
-                           size_t bytes, unsigned &flags);
+   MFEM_ENZYME_FN_LIKE_DYNCAST static void *ReadWrite_(void *h_ptr,
+                                                       MemoryType h_mt, MemoryClass mc,
+                                                       size_t bytes, unsigned &flags);
 
-   static const void *Read_(void *h_ptr, MemoryType h_mt,  MemoryClass mc,
-                            size_t bytes, unsigned &flags);
+   MFEM_ENZYME_FN_LIKE_DYNCAST static const void *Read_(void *h_ptr,
+                                                        MemoryType h_mt,  MemoryClass mc,
+                                                        size_t bytes, unsigned &flags);
 
-   static void *Write_(void *h_ptr, MemoryType h_mt,  MemoryClass mc,
-                       size_t bytes, unsigned &flags);
+   MFEM_ENZYME_FN_LIKE_DYNCAST static void *Write_(void *h_ptr, MemoryType h_mt,
+                                                   MemoryClass mc,
+                                                   size_t bytes, unsigned &flags);
 
    static void SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
                           size_t alias_bytes, unsigned base_flags,
@@ -681,10 +700,11 @@ private: // Static methods used by the Memory<T> class
 
    /// Return the type the of the currently valid memory.
    /// If more than one types are valid, return a device type.
-   static MemoryType GetDeviceMemoryType_(void *h_ptr, bool alias);
+   MFEM_ENZYME_INACTIVE static MemoryType GetDeviceMemoryType_(void *h_ptr,
+                                                               bool alias);
 
    /// Return the type the of the host memory.
-   static MemoryType GetHostMemoryType_(void *h_ptr);
+   MFEM_ENZYME_INACTIVE static MemoryType GetHostMemoryType_(void *h_ptr);
 
    /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
    static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr, bool alias);
@@ -851,10 +871,47 @@ public:
    inline static void* __enzyme_allocation_like2[4] = {(void*)static_cast<void*(*)(void*, size_t, MemoryType, MemoryType, unsigned, unsigned&)>(MemoryManager::New_),
                                                        (void*)1, (void*)"-1,2,4", (void*)MemoryManager::Delete_
                                                       };
-   __attribute__((used))
-   inline static void* __enzyme_function_like[2] = {(void*)MemoryManager::Delete_, (void*)"free"};
 #endif
 };
+
+
+#ifdef MFEM_USE_MPI
+
+#if MFEM_HYPRE_VERSION < 21400
+#define HYPRE_MEMORY_DEVICE (0)
+#define HYPRE_MEMORY_HOST   (1)
+#endif
+#if MFEM_HYPRE_VERSION < 21900
+typedef int HYPRE_MemoryLocation;
+#endif
+
+/// Return the configured HYPRE_MemoryLocation
+inline HYPRE_MemoryLocation GetHypreMemoryLocation()
+{
+#if !defined(HYPRE_USING_GPU)
+   return HYPRE_MEMORY_HOST;
+#elif MFEM_HYPRE_VERSION < 23100
+   return HYPRE_MEMORY_DEVICE;
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   HYPRE_MemoryLocation loc;
+   HYPRE_GetMemoryLocation(&loc);
+   return loc;
+#endif
+}
+
+/// Return true if HYPRE is configured to use GPU
+inline bool HypreUsingGPU()
+{
+#if !defined(HYPRE_USING_GPU)
+   return false;
+#elif MFEM_HYPRE_VERSION < 23100
+   return true;
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   return GetHypreMemoryLocation() != HYPRE_MEMORY_HOST;
+#endif
+}
+
+#endif // MFEM_USE_MPI
 
 
 // Inline methods
@@ -958,17 +1015,20 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 }
 
 template <typename T>
-inline void Memory<T>::Wrap(T *ptr, T *d_ptr, int size, MemoryType mt, bool own)
+inline void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, int size, MemoryType h_mt_,
+                            bool own, bool valid_host, bool valid_device)
 {
-   h_mt = mt;
+   h_mt = h_mt_;
    flags = 0;
-   h_ptr = ptr;
+   h_ptr = h_ptr_;
    capacity = size;
    MFEM_ASSERT(IsHostMemory(h_mt),"");
+   MFEM_ASSERT(valid_host || valid_device,"");
    const size_t bytes = size*sizeof(T);
    const MemoryType d_mt = MemoryManager::GetDualMemoryType(h_mt);
    MemoryManager::Register2_(h_ptr, d_ptr, bytes, h_mt, d_mt,
-                             own, false, flags);
+                             own, false, flags,
+                             valid_host*VALID_HOST|valid_device*VALID_DEVICE);
 }
 
 template <typename T>
@@ -989,10 +1049,12 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
          // If the following condition is true then MemoryManager::Exists()
          // should also be true:
          IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
-#else
-         // When HYPRE_USING_GPU is defined we always register the 'base' if
-         // the MemoryManager::Exists():
+#elif MFEM_HYPRE_VERSION < 23100
+         // When HYPRE_USING_GPU is defined and HYPRE < 2.31.0, we always
+         // register the 'base' if the MemoryManager::Exists():
          MemoryManager::Exists()
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+         MemoryManager::Exists() && HypreUsingGPU()
 #endif
       )
       {
@@ -1198,9 +1260,10 @@ template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
    MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
+   if (size <= 0) { return; }
    if (!(flags & Registered) && !(src.flags & Registered))
    {
-      if (h_ptr != src.h_ptr && size != 0)
+      if (h_ptr != src.h_ptr)
       {
          MFEM_ASSERT(h_ptr + size <= src.h_ptr || src.h_ptr + size <= h_ptr,
                      "data overlaps!");
@@ -1218,9 +1281,10 @@ template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
+   if (size <= 0) { return; }
    if (!(flags & Registered))
    {
-      if (h_ptr != src && size != 0)
+      if (h_ptr != src)
       {
          MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
                      "data overlaps!");
@@ -1237,7 +1301,6 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 template <typename T>
 inline void Memory<T>::CopyTo(Memory &dest, int size) const
 {
-   MFEM_VERIFY(capacity>=size, "Incorrect size");
    dest.CopyFrom(*this, size);
 }
 
@@ -1245,9 +1308,10 @@ template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
+   if (size <= 0) { return; }
    if (!(flags & Registered))
    {
-      if (h_ptr != dest && size != 0)
+      if (h_ptr != dest)
       {
          MFEM_ASSERT(h_ptr + size <= dest || dest + size <= h_ptr,
                      "data overlaps!");

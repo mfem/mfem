@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,7 +15,7 @@
 //
 // Solves the grad-div problem u - grad(div(u)) = f using a variety of solver
 // techniques. This miniapp supports solving this problem using a variety of
-// matrix-free and matrix-based preconditioning methods, inclding:
+// matrix-free and matrix-based preconditioning methods, including:
 //
 // * Matrix-free block-diagonal preconditioning for the saddle-point system.
 // * ADS-AMG preconditioning.
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
 
       X_block.SyncToBlocks();
       x.SetFromTrueDofs(X_block.GetBlock(1));
-      const double error = x.ComputeL2Error(u_vec_coeff);
+      const real_t error = x.ComputeL2Error(u_vec_coeff);
       if (Mpi::Root()) { cout << "L2 error: " << error << endl; }
    }
 
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
 
       SolveCG(Ah, *prec, B, X);
       x.SetFromTrueDofs(X);
-      const double error = x.ComputeL2Error(u_vec_coeff);
+      const real_t error = x.ComputeL2Error(u_vec_coeff);
       if (Mpi::Root()) { cout << "L2 error: " << error << endl; }
    }
 
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 
       SolveCG(*A, *prec, B, X);
       a.RecoverFEMSolution(X, b_lor, x_lor);
-      const double error = x_lor.ComputeL2Error(u_vec_coeff);
+      const real_t error = x_lor.ComputeL2Error(u_vec_coeff);
       if (Mpi::Root()) { cout << "L2 error: " << error << endl; }
    }
 
@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
 
       SolveCG(*A, amg_hb, B, X);
       a.RecoverFEMSolution(X, b, x);
-      const double error = x.ComputeL2Error(u_vec_coeff);
+      const real_t error = x.ComputeL2Error(u_vec_coeff);
       if (Mpi::Root()) { cout << "L2 error: " << error << endl; }
    }
 
@@ -278,4 +278,4 @@ void SolveCG(Operator &A, Solver &P, const Vector &B, Vector &X)
       cout << "Done.\nIterations: " << cg.GetNumIterations()
            << "\nElapsed: " << tic_toc.RealTime() << endl;
    }
-};
+}

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -149,7 +149,8 @@ public:
 // {
 //    constexpr int T_MAX = 4;
 //    const int D1D = (id>>4)&0xF, Q1D = id&0xF;
-//    MFEM_VERIFY(D1D <= MAX_D1D && Q1D <= MAX_Q1D, "Max size error!");
+//    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D &&
+//                Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "Max size error!");
 //    return Name<0,0,T_MAX>(NE,B,D,D1D,Q1D);
 // };
 
@@ -182,7 +183,7 @@ if (K##kernel.Find(id)) { return K##kernel.At(id)(__VA_ARGS__,0,0); }\
 else {\
    constexpr int T_MAX = 4;\
    const int d1d = (id>>4)&0xF, q1d = id&0xF;\
-   MFEM_VERIFY(d1d <= MAX_D1D && q1d <= MAX_Q1D, "Max size error!");\
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D && q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "Max size error!");\
    return kernel<0,0,T_MAX>(__VA_ARGS__,d1d,q1d); }
 
 } // namespace kernels

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,8 +25,8 @@ class FiniteElementSpace;
 class ParFiniteElementSpace;
 #endif
 
-/** @brief An abstract class to solve the constrained system \f$ Ax = f \f$
-    subject to the constraint \f$ B x = r \f$.
+/** @brief An abstract class to solve the constrained system $ Ax = f $
+    subject to the constraint $ B x = r $.
 
     Although implementations may not use the below formulation, for
     understanding some of its methods and notation you can think of
@@ -39,8 +39,8 @@ class ParFiniteElementSpace;
     pointwise constraints and is not a Solver.
 
     The height and width of this object as an IterativeSolver are the same as
-    just the unconstrained operator \f$ A \f$, and the Mult() interface just
-    takes \f$ f \f$ as an argument. You can set \f$ r \f$ with
+    just the unconstrained operator $ A $, and the Mult() interface just
+    takes $ f $ as an argument. You can set $ r $ with
     SetConstraintRHS() (it defaults to zero) and get the Lagrange multiplier
     solution with GetMultiplierSolution().
 
@@ -60,7 +60,7 @@ public:
 
    virtual ~ConstrainedSolver() { }
 
-   virtual void SetOperator(const Operator& op) override { }
+   void SetOperator(const Operator& op) override { }
 
    /** @brief Set the right-hand side r for the constraint B x = r
 
@@ -75,16 +75,16 @@ public:
        system with Mult() or LagrangeSystemMult() */
    void GetMultiplierSolution(Vector& lambda) const { lambda = multiplier_sol; }
 
-   /** @brief Solve for \f$ x \f$ given \f$ f \f$.
+   /** @brief Solve for $ x $ given $ f $.
 
-       If you want to set \f$ r \f$, call SetConstraintRHS() before this.
+       If you want to set $ r $, call SetConstraintRHS() before this.
 
-       If you want to get \f$ \lambda \f$, call GetMultiplierSolution() after
+       If you want to get $ \lambda $, call GetMultiplierSolution() after
        this.
 
        The base class implementation calls LagrangeSystemMult(), so derived
        classes must implement either this or LagrangeSystemMult() */
-   virtual void Mult(const Vector& f, Vector& x) const override;
+   void Mult(const Vector& f, Vector& x) const override;
 
    /** @brief Solve for (x, lambda) given (f, r)
 
@@ -114,8 +114,8 @@ private:
     This keeps track of primary / secondary tdofs and does small dense block
     solves to eliminate constraints from a global system.
 
-    \f$ B_s^{-1} \f$ maps the lagrange space into secondary dofs, while
-    \f$ -B_s^{-1} B_p \f$ maps primary dofs to secondary dofs. */
+    $ B_s^{-1} $ maps the lagrange space into secondary dofs, while
+    $ -B_s^{-1} B_p $ maps primary dofs to secondary dofs. */
 class Eliminator
 {
 public:
@@ -128,19 +128,19 @@ public:
    const Array<int>& SecondaryDofs() const { return secondary_tdofs; }
 
    /// Given primary dofs in in, return secondary dofs in out
-   /// This applies \f$ -B_s^{-1} B_p \f$.
+   /// This applies $ -B_s^{-1} B_p $.
    void Eliminate(const Vector& in, Vector& out) const;
 
-   /// Transpose of Eliminate(), applies \f$ -B_p^T B_s^{-T} \f$
+   /// Transpose of Eliminate(), applies $ -B_p^T B_s^{-T} $
    void EliminateTranspose(const Vector& in, Vector& out) const;
 
-   /// Maps Lagrange multipliers to secondary dofs, applies \f$ B_s^{-1} \f$
+   /// Maps Lagrange multipliers to secondary dofs, applies $ B_s^{-1} $
    void LagrangeSecondary(const Vector& in, Vector& out) const;
 
    /// Transpose of LagrangeSecondary()
    void LagrangeSecondaryTranspose(const Vector& in, Vector& out) const;
 
-   /// Return \f$ -B_s^{-1} B_p \f$ explicitly assembled in mat
+   /// Return $ -B_s^{-1} B_p $ explicitly assembled in mat
    void ExplicitAssembly(DenseMatrix& mat) const;
 
 private:
@@ -179,8 +179,8 @@ public:
        Some day we may also want to try approximate variants. */
    SparseMatrix * AssembleExact() const;
 
-   /** Given Lagrange multiplier right-hand-side \f$ g \f$, return
-       \f$ \tilde{g} \f$ */
+   /** Given Lagrange multiplier right-hand-side $ g $, return
+       $ \tilde{g} $ */
    void BuildGTilde(const Vector& g, Vector& gtilde) const;
 
    /** After a solve, recover the Lagrange multiplier. */
@@ -197,7 +197,7 @@ private:
 /** @brief Solve constrained system by eliminating the constraint; see
     ConstrainedSolver
 
-    Solves the system with the operator \f$ P^T A P + Z_P \f$, where P is
+    Solves the system with the operator $ P^T A P + Z_P $, where P is
     EliminationProjection and Z_P is the identity on the eliminated dofs. */
 class EliminationSolver : public ConstrainedSolver
 {
@@ -268,7 +268,7 @@ public:
    { }
 
 protected:
-   virtual Solver* BuildPreconditioner() const override
+   Solver* BuildPreconditioner() const override
    {
       HypreBoomerAMG * h_prec = new HypreBoomerAMG(*h_explicit_operator);
       h_prec->SetPrintLevel(0);
@@ -276,7 +276,7 @@ protected:
       return h_prec;
    }
 
-   virtual IterativeSolver* BuildKrylov() const override
+   IterativeSolver* BuildKrylov() const override
    { return new CGSolver(GetComm()); }
 
 private:
@@ -296,7 +296,7 @@ public:
    { }
 
 protected:
-   virtual Solver* BuildPreconditioner() const override
+   Solver* BuildPreconditioner() const override
    {
       HypreBoomerAMG * h_prec = new HypreBoomerAMG(*h_explicit_operator);
       h_prec->SetPrintLevel(0);
@@ -304,7 +304,7 @@ protected:
       return h_prec;
    }
 
-   virtual IterativeSolver* BuildKrylov() const override
+   IterativeSolver* BuildKrylov() const override
    { return new GMRESSolver(GetComm()); }
 
 private:
@@ -320,10 +320,10 @@ class PenaltyConstrainedSolver : public ConstrainedSolver
 {
 public:
    PenaltyConstrainedSolver(HypreParMatrix& A, SparseMatrix& B,
-                            double penalty_);
+                            real_t penalty_);
 
    PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
-                            double penalty_);
+                            real_t penalty_);
 
    PenaltyConstrainedSolver(HypreParMatrix& A, HypreParMatrix& B,
                             Vector& penalty_);
@@ -362,13 +362,13 @@ protected:
 class PenaltyPCGSolver : public PenaltyConstrainedSolver
 {
 public:
-   PenaltyPCGSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_,
+   PenaltyPCGSolver(HypreParMatrix& A, SparseMatrix& B, real_t penalty_,
                     int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
    { }
 
-   PenaltyPCGSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_,
+   PenaltyPCGSolver(HypreParMatrix& A, HypreParMatrix& B, real_t penalty_,
                     int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
@@ -381,7 +381,7 @@ public:
    { }
 
 protected:
-   virtual Solver* BuildPreconditioner() const override
+   Solver* BuildPreconditioner() const override
    {
       HypreBoomerAMG* h_prec = new HypreBoomerAMG(*penalized_mat);
       h_prec->SetPrintLevel(0);
@@ -389,7 +389,7 @@ protected:
       return h_prec;
    }
 
-   virtual IterativeSolver* BuildKrylov() const override
+   IterativeSolver* BuildKrylov() const override
    { return new CGSolver(GetComm()); }
 
 private:
@@ -401,13 +401,13 @@ private:
 class PenaltyGMRESSolver : public PenaltyConstrainedSolver
 {
 public:
-   PenaltyGMRESSolver(HypreParMatrix& A, SparseMatrix& B, double penalty_,
+   PenaltyGMRESSolver(HypreParMatrix& A, SparseMatrix& B, real_t penalty_,
                       int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
    { }
 
-   PenaltyGMRESSolver(HypreParMatrix& A, HypreParMatrix& B, double penalty_,
+   PenaltyGMRESSolver(HypreParMatrix& A, HypreParMatrix& B, real_t penalty_,
                       int dimension=0, bool reorder=false) :
       PenaltyConstrainedSolver(A, B, penalty_),
       dimension_(dimension), reorder_(reorder)
@@ -420,7 +420,7 @@ public:
    { }
 
 protected:
-   virtual Solver* BuildPreconditioner() const override
+   Solver* BuildPreconditioner() const override
    {
       HypreBoomerAMG* h_prec = new HypreBoomerAMG(*penalized_mat);
       h_prec->SetPrintLevel(0);
@@ -428,7 +428,7 @@ protected:
       return h_prec;
    }
 
-   virtual IterativeSolver* BuildKrylov() const override
+   IterativeSolver* BuildKrylov() const override
    { return new GMRESSolver(GetComm()); }
 
 private:
@@ -459,7 +459,7 @@ public:
    SchurConstrainedSolver(Operator& A_, Operator& B_, Solver& primal_pc_);
    virtual ~SchurConstrainedSolver();
 
-   virtual void LagrangeSystemMult(const Vector& x, Vector& y) const override;
+   void LagrangeSystemMult(const Vector& x, Vector& y) const override;
 
 protected:
 #ifdef MFEM_USE_MPI
@@ -484,11 +484,11 @@ private:
     operators are assembled HypreParMatrix objects.)
 
     This uses a block-diagonal preconditioner that approximates
-    \f$ [ A^{-1} 0; 0 (B A^{-1} B^T)^{-1} ] \f$.
+    $ [ A^{-1} 0; 0 (B A^{-1} B^T)^{-1} ] $.
 
-    In the top-left block, we approximate \f$ A^{-1} \f$ with HypreBoomerAMG.
-    In the bottom-right, we approximate \f$ A^{-1} \f$ with the inverse of the
-    diagonal of \f$ A \f$, assemble \f$ B diag(A)^{-1} B^T \f$, and use
+    In the top-left block, we approximate $ A^{-1} $ with HypreBoomerAMG.
+    In the bottom-right, we approximate $ A^{-1} $ with the inverse of the
+    diagonal of $ A $, assemble $ B diag(A)^{-1} B^T $, and use
     HypreBoomerAMG on that assembled matrix. */
 class SchurConstrainedHypreSolver : public SchurConstrainedSolver
 {

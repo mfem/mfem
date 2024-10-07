@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,13 +13,16 @@
 #define MFEM_LIBCEED_UTIL
 
 #include "../../../config/config.hpp"
+#include "../../../general/error.hpp"
+
+#include <functional>
+#include <string>
 #include <tuple>
 #include <unordered_map>
-#include <string>
 
 #include "ceed.hpp"
+
 #ifdef MFEM_USE_CEED
-#include <ceed/hash.h>
 #include <ceed/backend.h>  // for CeedOperatorField
 #endif
 
@@ -105,6 +108,21 @@ const IntegrationRule & GetRule(
 /// Return the path to the libCEED q-function headers.
 const std::string &GetCeedPath();
 
+/// Wrapper for std::hash.
+template <typename T>
+inline std::size_t CeedHash(const T key)
+{
+   return std::hash<T> {}(key);
+}
+
+/// Effective way to combine hashes (from libCEED).
+inline std::size_t CeedHashCombine(std::size_t seed, std::size_t hash)
+{
+   // See https://doi.org/10.1002/asi.10170, or
+   //     https://dl.acm.org/citation.cfm?id=759509.
+   return seed ^ (hash + (seed << 6) + (seed >> 2));
+}
+
 // Hash table for CeedBasis
 using BasisKey = std::tuple<const mfem::FiniteElementSpace*,
       const mfem::IntegrationRule*,
@@ -115,12 +133,12 @@ struct BasisHash
    {
       return CeedHashCombine(
                 CeedHashCombine(
-                   CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
-                   CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<1>(k)))),
+                   CeedHash(std::get<0>(k)),
+                   CeedHash(std::get<1>(k))),
                 CeedHashCombine(
-                   CeedHashCombine(CeedHashInt(std::get<2>(k)),
-                                   CeedHashInt(std::get<3>(k))),
-                   CeedHashInt(std::get<4>(k))));
+                   CeedHashCombine(CeedHash(std::get<2>(k)),
+                                   CeedHash(std::get<3>(k))),
+                   CeedHash(std::get<4>(k))));
    }
 };
 using BasisMap = std::unordered_map<const BasisKey, CeedBasis, BasisHash>;
@@ -137,11 +155,11 @@ struct RestrHash
       return CeedHashCombine(
                 CeedHashCombine(
                    CeedHashCombine(
-                      CeedHashInt(reinterpret_cast<CeedHash64_t>(std::get<0>(k))),
-                      CeedHashInt(std::get<1>(k))),
-                   CeedHashCombine(CeedHashInt(std::get<2>(k)),
-                                   CeedHashInt(std::get<3>(k)))),
-                CeedHashInt(std::get<4>(k)));
+                      CeedHash(std::get<0>(k)),
+                      CeedHash(std::get<1>(k))),
+                   CeedHashCombine(CeedHash(std::get<2>(k)),
+                                   CeedHash(std::get<3>(k)))),
+                CeedHash(std::get<4>(k)));
    }
 };
 using RestrMap =
@@ -155,10 +173,12 @@ namespace internal
 {
 
 #ifdef MFEM_USE_CEED
+
 /** @warning These maps have a tendency to create bugs when adding new "types"
     of CeedBasis and CeedElemRestriction. */
 extern ceed::BasisMap ceed_basis_map;
 extern ceed::RestrMap ceed_restr_map;
+
 #endif
 
 } // namespace internal

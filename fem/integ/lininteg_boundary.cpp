@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,9 +19,9 @@ namespace mfem
 template<int T_D1D = 0, int T_Q1D = 0>
 static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
                               const int q,
-                              const bool normals, const int *markers, const double *b,
-                              const double *detj, const double *n, const double *weights,
-                              const Vector &coeff, double *y)
+                              const bool normals, const int *markers, const real_t *b,
+                              const real_t *detj, const real_t *n, const real_t *weights,
+                              const Vector &coeff, real_t *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, nbe);
@@ -38,19 +38,19 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      double QQ[Q];
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t QQ[Q];
 
       for (int c = 0; c < vdim; ++c)
       {
          for (int qx = 0; qx < q; ++qx)
          {
-            double coeff_val = 0.0;
+            real_t coeff_val = 0.0;
             if (normals)
             {
                for (int cd = 0; cd < 2; ++cd)
                {
-                  const double cval = cst ? C(cd,0,0) : C(cd,qx,e);
+                  const real_t cval = cst ? C(cd,0,0) : C(cd,qx,e);
                   coeff_val += cval * N(qx, cd, e);
                }
             }
@@ -62,7 +62,7 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
          }
          for (int dx = 0; dx < d; ++dx)
          {
-            double u = 0;
+            real_t u = 0;
             for (int qx = 0; qx < q; ++qx) { u += QQ[qx] * B(qx,dx); }
             Y(dx,c,e) += u;
          }
@@ -73,9 +73,9 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
 template<int T_D1D = 0, int T_Q1D = 0>
 static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
                               const int q,
-                              const bool normals, const int *markers, const double *b,
-                              const double *detj, const double *n, const double *weights,
-                              const Vector &coeff, double *y)
+                              const bool normals, const int *markers, const real_t *b,
+                              const real_t *detj, const real_t *n, const real_t *weights,
+                              const Vector &coeff, real_t *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, nbe);
@@ -92,12 +92,12 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
-      MFEM_SHARED double sBt[Q*D];
-      MFEM_SHARED double sQQ[Q*Q];
-      MFEM_SHARED double sQD[Q*D];
+      MFEM_SHARED real_t sBt[Q*D];
+      MFEM_SHARED real_t sQQ[Q*Q];
+      MFEM_SHARED real_t sQD[Q*D];
 
       const DeviceMatrix Bt(sBt, d, q);
       kernels::internal::LoadB<D,Q>(d, q, B, sBt);
@@ -111,12 +111,12 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
          {
             MFEM_FOREACH_THREAD(y,y,q)
             {
-               double coeff_val = 0.0;
+               real_t coeff_val = 0.0;
                if (normals)
                {
                   for (int cd = 0; cd < 3; ++cd)
                   {
-                     double cval = cst ? C(cd,0,0,0) : C(cd,x,y,e);
+                     real_t cval = cst ? C(cd,0,0,0) : C(cd,x,y,e);
                      coeff_val += cval * N(x,y,cd,e);
                   }
                }
@@ -132,7 +132,7 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
          {
             MFEM_FOREACH_THREAD(dx,x,d)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int qx = 0; qx < q; ++qx) { u += QQ(qy,qx) * Bt(dx,qx); }
                QD(qy,dx) = u;
             }
@@ -142,7 +142,7 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
          {
             MFEM_FOREACH_THREAD(dx,x,d)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int qy = 0; qy < q; ++qy) { u += QD(qy,dx) * Bt(dy,qy); }
                Y(dx,dy,c,e) += u;
             }
@@ -159,6 +159,7 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
                             const bool normals,
                             Vector &y)
 {
+   if (fes.GetNBE() == 0) { return; }
    Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.Dimension();
    const FiniteElement &el = *fes.GetBE(0);
@@ -202,11 +203,11 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
    const int vdim = fes.GetVDim();
    const int nbe = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
    const int *M = markers.Read();
-   const double *B = maps.B.Read();
-   const double *detJ = geom->detJ.Read();
-   const double *n = geom->normal.Read();
-   const double *W = ir.GetWeights().Read();
-   double *Y = y.ReadWrite();
+   const real_t *B = maps.B.Read();
+   const real_t *detJ = geom->detJ.Read();
+   const real_t *n = geom->normal.Read();
+   const real_t *W = ir.GetWeights().Read();
+   real_t *Y = y.ReadWrite();
    ker(vdim, nbe, d, q, normals, M, B, detJ, n, W, coeff, Y);
 }
 
@@ -214,6 +215,7 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)
 {
+   if (fes.GetNBE() == 0) { return; }
    const FiniteElement &fe = *fes.GetBE(0);
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
@@ -229,6 +231,7 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                 const Array<int> &markers,
                                                 Vector &b)
 {
+   if (fes.GetNBE() == 0) { return; }
    const FiniteElement &fe = *fes.GetBE(0);
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,6 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_RUNNER
+#include "mfem.hpp"
+#include "run_unit_tests.hpp"
+
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -17,9 +21,6 @@
 #include <list>
 #include <fstream>
 #include <iostream>
-
-#include "mfem.hpp"
-#include "unit_tests.hpp"
 #include "miniapps/meshing/mesh-optimizer.hpp"
 
 #if defined(MFEM_TMOP_MPI) && !defined(MFEM_USE_MPI)
@@ -53,11 +54,11 @@ namespace mfem
 
 struct Req
 {
-   double init_energy;
-   double tauval;
-   double dot;
-   double final_energy;
-   double diag;
+   real_t init_energy;
+   real_t tauval;
+   real_t dot;
+   real_t final_energy;
+   real_t diag;
 };
 
 int tmop(int id, Req &res, int argc, char *argv[])
@@ -71,13 +72,13 @@ int tmop(int id, Req &res, int argc, char *argv[])
    int quad_type         = 1;
    int quad_order        = 2;
    int newton_iter       = 100;
-   double newton_rtol    = 1e-8;
+   real_t newton_rtol    = 1e-8;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
-   double lim_const      = 0.0;
+   real_t lim_const      = 0.0;
    int lim_type          = 0;
    int normalization     = 0;
-   double jitter         = 0.0;
+   real_t jitter         = 0.0;
    bool diag             = true;
    int newton_loop       = 1;
    int combo             = 0;
@@ -134,18 +135,18 @@ int tmop(int id, Req &res, int argc, char *argv[])
    REQUIRE(order > 0);
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fes(pmesh, &fec, dim);
-   ParGridFunction x0(&fes), x(&fes);
+   ParGridFunction x0(&fes), x(&fes), x0_before_jitter(&fes);
    pmesh->SetNodalGridFunction(&x);
 
    Vector h0(fes.GetNDofs());
    h0 = infinity();
-   double volume = 0.0;
+   real_t volume = 0.0;
    {
       Array<int> dofs;
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          fes.GetElementDofs(i, dofs);
-         const double hi = pmesh->GetElementSize(i);
+         const real_t hi = pmesh->GetElementSize(i);
          for (int j = 0; j < dofs.Size(); j++)
          {
             h0(dofs[j]) = min(h0(dofs[j]), hi);
@@ -153,7 +154,11 @@ int tmop(int id, Req &res, int argc, char *argv[])
          volume += pmesh->GetElementVolume(i);
       }
    }
-   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+   const real_t small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+
+   // When the target is GIVEN_SHAPE_AND_SIZE, we want to call tc->SetNodes()
+   // with something other than x0 (otherwise all metrics would be 0).
+   x0_before_jitter = x;
 
    ParGridFunction rdm(&fes);
    rdm.Randomize(seed);
@@ -249,6 +254,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
          target_c = tc;
          break;
       }
+      case 8: // fully specified through the initial mesh, 2D or 3D.
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE; break;
+      }
       default:
       {
          if (id == 0) { cout << "Unknown target_id: " << target_id << endl; }
@@ -266,7 +275,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
 #endif
-   target_c->SetNodes(x0);
+   target_c->SetNodes(x0_before_jitter);
 
    // Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = nullptr;
@@ -294,7 +303,8 @@ int tmop(int id, Req &res, int argc, char *argv[])
    ParGridFunction dist(&dist_fes);
    dist = 1.0;
    if (normalization == 1) { dist = small_phys_size; }
-   ConstantCoefficient lim_coeff(lim_const);
+   auto coeff_lim_func = [&](const Vector &x) { return x(0) + lim_const; };
+   FunctionCoefficient lim_coeff(coeff_lim_func);
    if (lim_const != 0.0)
    {
       if (lim_type == 0)
@@ -311,14 +321,15 @@ int tmop(int id, Req &res, int argc, char *argv[])
    ParNonlinearForm nlf(&fes);
    nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY);
 
-   ConstantCoefficient *coeff1 = nullptr;
+   FunctionCoefficient *coeff1 = nullptr;
    TMOP_QualityMetric *metric2 = nullptr;
    TargetConstructor *target_c2 = nullptr;
    FunctionCoefficient coeff2(weight_fun);
    if (combo > 0)
    {
       // First metric.
-      coeff1 = new ConstantCoefficient(1.0);
+      auto coeff_1_func = [&](const Vector &x) { return x(0) + 10.0; };
+      coeff1 = new FunctionCoefficient(coeff_1_func);
       he_nlf_integ->SetCoefficient(*coeff1);
       // Second metric.
       if (dim == 2) { metric2 = new TMOP_Metric_077; }
@@ -351,7 +362,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    }
    nlf.Setup();
 
-   const double init_energy = nlf.GetParGridFunctionEnergy(x);
+   const real_t init_energy = nlf.GetParGridFunctionEnergy(x);
    res.init_energy = init_energy;
 
    // Fix all boundary nodes (-fix-bnd)
@@ -394,7 +405,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
    // Linear solver for the system's Jacobian
    Solver *S = nullptr, *S_prec = nullptr;
-   constexpr double linsol_rtol = 1e-12;
+   constexpr real_t linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
       S = new DSmoother(1, 1.0, max_lin_iter);
@@ -439,7 +450,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    }
 
    // Compute the minimum det(J) of the starting mesh
-   double tauval = infinity();
+   real_t tauval = infinity();
    const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
@@ -450,13 +461,15 @@ int tmop(int id, Req &res, int argc, char *argv[])
          tauval = min(tauval, transf->Jacobian().Det());
       }
    }
-   double minJ0;
-   MPI_Allreduce(&tauval, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+   real_t minJ0;
+   MPI_Allreduce(&tauval, &minJ0, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 MPI_COMM_WORLD);
    tauval = minJ0;
    //if (id == 0) { cout << "Min det(J) of the mesh is " << tauval << endl; }
    REQUIRE(tauval > 0.0);
-   double h0min = h0.Min(), h0min_all;
-   MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+   real_t h0min = h0.Min(), h0min_all;
+   MPI_Allreduce(&h0min, &h0min_all, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 MPI_COMM_WORLD);
    tauval -= 0.01 * h0min_all; // Slightly below minJ0 to avoid div by 0.
    res.tauval = tauval;
 
@@ -510,13 +523,14 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
       REQUIRE(newton->GetConverged());
 
-      const double final_energy = nlf.GetParGridFunctionEnergy(x);
+      const real_t final_energy = nlf.GetParGridFunctionEnergy(x);
       res.final_energy = final_energy;
    }
 
    Vector &x_t(x.GetTrueVector());
-   double x_t_dot = x_t*x_t, dot;
-   MPI_Allreduce(&x_t_dot, &dot, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
+   real_t x_t_dot = x_t*x_t, dot;
+   MPI_Allreduce(&x_t_dot, &dot, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 pmesh->GetComm());
    res.dot = dot;
 
    delete S;
@@ -619,7 +633,7 @@ static inline const char *itoa(const int i, char *buf)
    return buf;
 }
 
-static inline const char *dtoa(const double d, char *buf)
+static inline const char *dtoa(const real_t d, char *buf)
 {
    std::snprintf(buf, sz, "%.4f", d);
    return buf;
@@ -640,9 +654,9 @@ public:
       int max_lin_iter  = 100;
       int combo = 0;
       bool normalization = false;
-      double lim_const = 0.0;
+      real_t lim_const = 0.0;
       int lim_type = 0;
-      double jitter = 0.0;
+      real_t jitter = 0.0;
       set order = {1,2,3,4};
       set target_id = {1,2,3};
       set metric_id = {1,2};
@@ -658,9 +672,9 @@ public:
       Args &LINEAR_ITERATIONS(const int arg) { max_lin_iter = arg; return *this; }
       Args &CMB(const int arg) { combo = arg; return *this; }
       Args &NORMALIZATION(const bool arg) { normalization = arg; return *this; }
-      Args &LIMITING(const double arg) { lim_const = arg; return *this; }
+      Args &LIMITING(const real_t arg) { lim_const = arg; return *this; }
       Args &LIMIT_TYPE(const int arg) { lim_type = arg; return *this; }
-      Args &JI(const double arg) { jitter = arg; return *this; }
+      Args &JI(const real_t arg) { jitter = arg; return *this; }
 
       Args &POR(set arg) { order = arg; return *this; }
       Args &TID(set arg) { target_id = arg; return *this; }
@@ -672,7 +686,7 @@ public:
    const char *name, *mesh;
    int NEWTON_ITERATIONS, REFINE, LINEAR_ITERATIONS, COMBO, LIMIT_TYPE;
    bool NORMALIZATION;
-   double LIMITING, JITTER;
+   real_t LIMITING, JITTER;
    set P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
 public:
    Launch(Args a = Args()):
@@ -747,13 +761,16 @@ public:
 // id: MPI rank, nr: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
 {
-#if defined(MFEM_TMOP_MPI) && defined(HYPRE_USING_GPU)
-   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-        << "is NOT supported with the GPU version of hypre.\n\n";
-   return;
+#if defined(MFEM_TMOP_MPI)
+   if (HypreUsingGPU())
+   {
+      cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+           << "is NOT supported with the GPU version of hypre.\n\n";
+      return;
+   }
 #endif
 
-   const double jitter = 1./(M_PI*M_PI);
+   const real_t jitter = 1./(M_PI*M_PI);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_2D_KERNEL").
           MESH("../../data/star.mesh").REFINE(1).JI(jitter).
@@ -764,6 +781,19 @@ static void tmop_tests(int id = 0, bool all = false)
           MESH("../../data/star.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
           TID({3}).MID({2})).Run(id,all);
+
+   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_2D_KERNEL").
+          MESH("../../data/star.mesh").REFINE(1).JI(jitter).
+          NORMALIZATION(true).
+          POR({1,2}).QOR({2,3}).
+          TID({8}).MID({94}).LS({3})).Run(id,all);
+
+   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_3D_KERNEL").
+          MESH("../../data/toroid-hex.mesh").
+          LIMITING(M_PI).LIMIT_TYPE(1).REFINE(1).JI(jitter).
+          NORMALIZATION(true).
+          POR({2}).QOR({4}).
+          TID({8}).MID({338}).LS({3})).Run(id,all);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
@@ -907,34 +937,41 @@ static void tmop_tests(int id = 0, bool all = false)
           TID({5}).MID({2})).Run(id,true);
 }
 
-#if defined(MFEM_TMOP_MPI)
-#ifndef MFEM_TMOP_DEVICE
+#ifdef MFEM_TMOP_MPI
 TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
 {
    tmop_tests(Mpi::WorldRank(), launch_all_non_regression_tests);
 }
 #else
-TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
-{
-   Device device;
-   device.Configure(MFEM_TMOP_DEVICE);
-   device.Print();
-   tmop_tests(Mpi::WorldRank(), launch_all_non_regression_tests);
-}
-#endif
-#else
-#ifndef MFEM_TMOP_DEVICE
 TEST_CASE("tmop_pa", "[TMOP_PA]")
 {
    tmop_tests(0, launch_all_non_regression_tests);
 }
-#else
-TEST_CASE("tmop_pa", "[TMOP_PA]")
+#endif
+
+int main(int argc, char *argv[])
 {
-   Device device;
-   device.Configure(MFEM_TMOP_DEVICE);
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe TMOP unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
+#ifdef MFEM_TMOP_MPI
+   mfem::Mpi::Init();
+   mfem::Hypre::Init();
+#endif
+#ifdef MFEM_TMOP_DEVICE
+   Device device(MFEM_TMOP_DEVICE);
+#else
+   Device device("cpu"); // make sure hypre runs on CPU, if possible
+#endif
    device.Print();
-   tmop_tests(0, launch_all_non_regression_tests);
+
+#ifdef MFEM_TMOP_MPI
+   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
+#else
+   // Exclude parallel tests.
+   return RunCatchSession(argc, argv, {"~[Parallel]"});
+#endif
 }
-#endif
-#endif

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,9 +18,9 @@ namespace mfem
 
 template<int T_D1D = 0, int T_Q1D = 0> static
 void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
-                       const int *markers, const double *b, const double *g,
-                       const double *jacobians,
-                       const double *weights, const Vector &coeff, double *y)
+                       const int *markers, const real_t *b, const real_t *g,
+                       const real_t *jacobians,
+                       const real_t *weights, const Vector &coeff, real_t *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
@@ -36,12 +36,12 @@ void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
-      MFEM_SHARED double sBGt[2][Q*D];
-      MFEM_SHARED double sQQ[2][Q*Q];
-      MFEM_SHARED double sDQ[2][D*Q];
+      MFEM_SHARED real_t sBGt[2][Q*D];
+      MFEM_SHARED real_t sQQ[2][Q*Q];
+      MFEM_SHARED real_t sDQ[2][D*Q];
 
       const DeviceMatrix Bt(sBGt[0], q, d);
       const DeviceMatrix Gt(sBGt[1], q, d);
@@ -55,20 +55,20 @@ void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
 
       for (int c = 0; c < vdim; ++c)
       {
-         const double cst_val0 = C(0,c,0,0,0);
-         const double cst_val1 = C(1,c,0,0,0);
+         const real_t cst_val0 = C(0,c,0,0,0);
+         const real_t cst_val1 = C(1,c,0,0,0);
 
          MFEM_FOREACH_THREAD(x,x,q)
          {
             MFEM_FOREACH_THREAD(y,y,q)
             {
-               const double w = W(x,y);
-               const double J11 = J(x,y,0,0,e);
-               const double J21 = J(x,y,1,0,e);
-               const double J12 = J(x,y,0,1,e);
-               const double J22 = J(x,y,1,1,e);
-               const double u = cst ? cst_val0 : C(0,c,x,y,e);
-               const double v = cst ? cst_val1 : C(1,c,x,y,e);
+               const real_t w = W(x,y);
+               const real_t J11 = J(x,y,0,0,e);
+               const real_t J21 = J(x,y,1,0,e);
+               const real_t J12 = J(x,y,0,1,e);
+               const real_t J22 = J(x,y,1,1,e);
+               const real_t u = cst ? cst_val0 : C(0,c,x,y,e);
+               const real_t v = cst ? cst_val1 : C(1,c,x,y,e);
                // QQ = w * det(J) * J^{-1} . C = w * adj(J) . { u, v }
                QQ0(y,x) = w * (J22*u - J12*v);
                QQ1(y,x) = w * (J11*v - J21*u);
@@ -79,7 +79,7 @@ void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
          {
             MFEM_FOREACH_THREAD(dy,y,d)
             {
-               double u = 0.0, v = 0.0;
+               real_t u = 0.0, v = 0.0;
                for (int qy = 0; qy < q; ++qy)
                {
                   u += QQ0(qy,qx) * Bt(qy,dy);
@@ -94,7 +94,7 @@ void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
          {
             MFEM_FOREACH_THREAD(dy,y,d)
             {
-               double u = 0.0, v = 0.0;
+               real_t u = 0.0, v = 0.0;
                for (int qx = 0; qx < q; ++qx)
                {
                   u += DQ0(dy,qx) * Gt(qx,dx);
@@ -110,10 +110,10 @@ void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
 
 template<int T_D1D = 0, int T_Q1D = 0> static
 void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
-                       const int *markers, const double *b, const double *g,
-                       const double *jacobians,
-                       const double *weights, const Vector &coeff,
-                       double *output)
+                       const int *markers, const real_t *b, const real_t *g,
+                       const real_t *jacobians,
+                       const real_t *weights, const Vector &coeff,
+                       real_t *output)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, ne);
@@ -130,23 +130,23 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQD = (Q >= D) ? Q : D;
 
-      MFEM_SHARED double sBGt[2][Q*D];
+      MFEM_SHARED real_t sBGt[2][Q*D];
       const DeviceMatrix Bt(sBGt[0], q,d), Gt(sBGt[1], q,d);
 
-      MFEM_SHARED double sQQQ[MQD*MQD*MQD];
+      MFEM_SHARED real_t sQQQ[MQD*MQD*MQD];
       const DeviceCube QQQ(sQQQ, MQD,MQD,MQD);
 
       kernels::internal::LoadBGt<D,Q>(d,q,B,G,sBGt);
 
       for (int c = 0; c < vdim; ++c)
       {
-         const double cst_val_0 = C(0,c,0,0,0,0);
-         const double cst_val_1 = C(1,c,0,0,0,0);
-         const double cst_val_2 = C(2,c,0,0,0,0);
+         const real_t cst_val_0 = C(0,c,0,0,0,0);
+         const real_t cst_val_1 = C(1,c,0,0,0,0);
+         const real_t cst_val_2 = C(2,c,0,0,0,0);
 
          for (int k = 0; k < 3; ++k)
          {
@@ -156,42 +156,42 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
                {
                   MFEM_FOREACH_THREAD(x,x,q)
                   {
-                     const double J11 = J(x,y,z,0,0,e);
-                     const double J21 = J(x,y,z,1,0,e);
-                     const double J31 = J(x,y,z,2,0,e);
-                     const double J12 = J(x,y,z,0,1,e);
-                     const double J22 = J(x,y,z,1,1,e);
-                     const double J32 = J(x,y,z,2,1,e);
-                     const double J13 = J(x,y,z,0,2,e);
-                     const double J23 = J(x,y,z,1,2,e);
-                     const double J33 = J(x,y,z,2,2,e);
+                     const real_t J11 = J(x,y,z,0,0,e);
+                     const real_t J21 = J(x,y,z,1,0,e);
+                     const real_t J31 = J(x,y,z,2,0,e);
+                     const real_t J12 = J(x,y,z,0,1,e);
+                     const real_t J22 = J(x,y,z,1,1,e);
+                     const real_t J32 = J(x,y,z,2,1,e);
+                     const real_t J13 = J(x,y,z,0,2,e);
+                     const real_t J23 = J(x,y,z,1,2,e);
+                     const real_t J33 = J(x,y,z,2,2,e);
 
-                     const double u = cst ? cst_val_0 : C(0,c,x,y,z,e);
-                     const double v = cst ? cst_val_1 : C(1,c,x,y,z,e);
-                     const double w = cst ? cst_val_2 : C(2,c,x,y,z,e);
+                     const real_t u = cst ? cst_val_0 : C(0,c,x,y,z,e);
+                     const real_t v = cst ? cst_val_1 : C(1,c,x,y,z,e);
+                     const real_t w = cst ? cst_val_2 : C(2,c,x,y,z,e);
 
                      if (k == 0)
                      {
-                        const double A11 = (J22 * J33) - (J23 * J32);
-                        const double A12 = (J32 * J13) - (J12 * J33);
-                        const double A13 = (J12 * J23) - (J22 * J13);
+                        const real_t A11 = (J22 * J33) - (J23 * J32);
+                        const real_t A12 = (J32 * J13) - (J12 * J33);
+                        const real_t A13 = (J12 * J23) - (J22 * J13);
                         QQQ(z,y,x) = A11*u + A12*v + A13*w;
 
                      }
 
                      if (k == 1)
                      {
-                        const double A21 = (J31 * J23) - (J21 * J33);
-                        const double A22 = (J11 * J33) - (J13 * J31);
-                        const double A23 = (J21 * J13) - (J11 * J23);
+                        const real_t A21 = (J31 * J23) - (J21 * J33);
+                        const real_t A22 = (J11 * J33) - (J13 * J31);
+                        const real_t A23 = (J21 * J13) - (J11 * J23);
                         QQQ(z,y,x) = A21*u + A22*v + A23*w;
                      }
 
                      if (k == 2)
                      {
-                        const double A31 = (J21 * J32) - (J31 * J22);
-                        const double A32 = (J31 * J12) - (J11 * J32);
-                        const double A33 = (J11 * J22) - (J12 * J21);
+                        const real_t A31 = (J21 * J32) - (J31 * J22);
+                        const real_t A32 = (J31 * J12) - (J11 * J32);
+                        const real_t A33 = (J11 * J22) - (J12 * J21);
                         QQQ(z,y,x) = A31*u + A32*v + A33*w;
                      }
 
@@ -204,11 +204,11 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
             {
                MFEM_FOREACH_THREAD(qy,y,q)
                {
-                  double r_u[Q];
+                  real_t r_u[Q];
                   for (int qx = 0; qx < q; ++qx) { r_u[qx] = QQQ(qz,qy,qx); }
                   for (int dx = 0; dx < d; ++dx)
                   {
-                     double u = 0.0;
+                     real_t u = 0.0;
                      for (int qx = 0; qx < q; ++qx)
                      {
                         u += (k == 0 ? Gt(qx,dx) : Bt(qx,dx)) * r_u[qx];
@@ -222,11 +222,11 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
             {
                MFEM_FOREACH_THREAD(dx,x,d)
                {
-                  double r_u[Q];
+                  real_t r_u[Q];
                   for (int qy = 0; qy < q; ++qy) { r_u[qy] = QQQ(qz,qy,dx); }
                   for (int dy = 0; dy < d; ++dy)
                   {
-                     double u = 0.0;
+                     real_t u = 0.0;
                      for (int qy = 0; qy < q; ++qy)
                      {
                         u += (k == 1 ? Gt(qy,dy) : Bt(qy,dy)) * r_u[qy];
@@ -240,11 +240,11 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
             {
                MFEM_FOREACH_THREAD(dx,x,d)
                {
-                  double r_u[Q];
+                  real_t r_u[Q];
                   for (int qz = 0; qz < q; ++qz) { r_u[qz] = QQQ(qz,dy,dx); }
                   for (int dz = 0; dz < d; ++dz)
                   {
-                     double u = 0.0;
+                     real_t u = 0.0;
                      for (int qz = 0; qz < q; ++qz)
                      {
                         u += (k == 2 ? Gt(qz,dz) : Bt(qz,dz)) * r_u[qz];
@@ -307,11 +307,11 @@ static void DLFGradAssemble(const FiniteElementSpace &fes,
    const int vdim = fes.GetVDim();
    const int ne = fes.GetMesh()->GetNE();
    const int *M = markers.Read();
-   const double *B = maps.B.Read();
-   const double *G = maps.G.Read();
-   const double *J = geom->J.Read();
-   const double *W = ir->GetWeights().Read();
-   double *Y = y.ReadWrite();
+   const real_t *B = maps.B.Read();
+   const real_t *G = maps.G.Read();
+   const real_t *J = geom->J.Read();
+   const real_t *W = ir->GetWeights().Read();
+   real_t *Y = y.ReadWrite();
    ker(vdim, ne, d, q, M, B, G, J, W, coeff, Y);
 }
 

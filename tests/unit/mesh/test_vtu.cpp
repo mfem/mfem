@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,16 +29,35 @@ TEST_CASE("VTU XML Reader", "[Mesh][VTU][XML]")
       "quad_binary_compress.vtu"
    });
 #endif
-   for (const std::string &fname : mesh_filenames)
+
+   const auto fname = GENERATE_COPY(from_range(mesh_filenames));
+
+   Mesh mesh = Mesh::LoadFromFile("data/" + fname);
+   REQUIRE(mesh.Dimension() == 2);
+   REQUIRE(mesh.GetNE() == 9);
+   REQUIRE(mesh.GetNV() == 16);
+   REQUIRE(mesh.HasGeometry(Geometry::POINT));
+   REQUIRE(mesh.HasGeometry(Geometry::SEGMENT));
+   REQUIRE(mesh.HasGeometry(Geometry::SQUARE));
+   REQUIRE(mesh.GetNumGeometries(2) == 1);
+}
+
+TEST_CASE("VTU Attributes", "[VTU][XML]")
+{
+   // quad_attribute.vtu contains the attributes in a cell data array named
+   // "attribute"
+   Mesh mesh_1 = Mesh::LoadFromFile("data/quad_attribute.vtu");
+   // quad_material_attribute.vtu has cell data arrays named "material" and
+   // "attribute". The one named "material" should take precedence.
+   Mesh mesh_2 = Mesh::LoadFromFile("data/quad_material_attribute.vtu");
+
+   REQUIRE(mesh_1.GetNE() == 9);
+   REQUIRE(mesh_2.GetNE() == 9);
+
+   for (int i = 0; i < mesh_1.GetNE(); ++i)
    {
-      Mesh mesh = Mesh::LoadFromFile(("data/" + fname).c_str());
-      REQUIRE(mesh.Dimension() == 2);
-      REQUIRE(mesh.GetNE() == 9);
-      REQUIRE(mesh.GetNV() == 16);
-      REQUIRE(mesh.HasGeometry(Geometry::POINT));
-      REQUIRE(mesh.HasGeometry(Geometry::SEGMENT));
-      REQUIRE(mesh.HasGeometry(Geometry::SQUARE));
-      REQUIRE(mesh.GetNumGeometries(2) == 1);
+      REQUIRE(mesh_1.GetAttribute(i) == i+1);
+      REQUIRE(mesh_2.GetAttribute(i) == i+1);
    }
 }
 
@@ -52,8 +71,7 @@ TEST_CASE("VTU XML Compressed Blocks", "[VTU][XML][MFEMData]")
                       "bracket_inline_compressed.vtu"
                    );
 
-   std::string mesh_path = mfem_data_dir + "/vtk/" + filename;
-   Mesh mesh = Mesh::LoadFromFile(mesh_path.c_str());
+   Mesh mesh = Mesh::LoadFromFile(mfem_data_dir + "/vtk/" + filename);
 
    REQUIRE(mesh.Dimension() == 3);
    REQUIRE(mesh.GetNE() == 206208);
