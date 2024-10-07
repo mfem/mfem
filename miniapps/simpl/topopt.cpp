@@ -148,6 +148,20 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
    }
    MappedGFCoefficient density(x, density_fun);
 
+   real_t maxval = entropy && use_entropy ? entropy->forward(1-1e-12) : 1-1e-12;
+   real_t minval = entropy && use_entropy ? entropy->forward(1e-12) : 1e-12;
+   ConstantCoefficient const_cf(1.0);
+   if (solid_attr_id)
+   {
+      const_cf.constant = maxval;
+      ProjectCoefficient(x, const_cf, solid_attr_id);
+   }
+   if (void_attr_id)
+   {
+      const_cf.constant = minval;
+      ProjectCoefficient(x, const_cf, void_attr_id);
+   }
+
    // Check the volume constraints and determine the target volume
    real_t curr_vol = zero->ComputeL1Error(density);
    real_t target_vol=-1;
@@ -174,9 +188,6 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
    real_t upper = baseline - x.Min();
    real_t lower = baseline - x.Max();
 
-   real_t maxval = entropy && use_entropy ? entropy->forward(1-1e-12) : 1-1e-12;
-   real_t minval = entropy && use_entropy ? entropy->forward(1e-12) : 1e-12;
-   ConstantCoefficient const_cf(1.0);
 #ifdef MFEM_USE_MPI
    ParGridFunction *px = dynamic_cast<ParGridFunction*>(&x);
    MPI_Comm comm;
