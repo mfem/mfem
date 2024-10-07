@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
    ParLinearForm diff_density_form(&fes_control);
    diff_density_form.AddDomainIntegrator(new DomainLFIntegrator(diff_density_cf));
 
-   real_t step_size = 1e-03;
+   real_t step_size = 1.0;
    GLVis glvis("localhost", 19916, true);
    const char keys[] = "Rjmml****************";
    glvis.Append(control_gf, "control variable", keys);
