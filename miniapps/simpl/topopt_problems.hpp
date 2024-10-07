@@ -31,6 +31,7 @@ void MarkBoundaries(Mesh &mesh, int attr,
 void MarkElements(Mesh &mesh, int attr,
                   std::function<bool(const Vector &x)> marker);
 
+// Mesh, BC, filter radius, material properties
 Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
                      real_t &r_min, real_t &tot_vol, real_t &min_vol, real_t &max_vol,
                      real_t &E, real_t &nu,
@@ -38,6 +39,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
                      int &solid_attr, int &void_attr,
                      int ser_ref_levels, int par_ref_levels=-1);
 
+// Right hand side. Force or adjoint problems
 void SetupTopoptProblem(TopoptProblem prob,
                         HelmholtzFilter &filter, ElasticityProblem &elasticity,
                         GridFunction &gf_filter, GridFunction &gf_state);
