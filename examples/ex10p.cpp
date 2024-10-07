@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 2;
-   int ode_solver_type = 3;
+   int ode_solver_type = 23;
    real_t t_final = 300.0;
    real_t dt = 3.0;
    real_t visc = 1e-2;
