@@ -90,11 +90,11 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
 #endif
          }
          int num_bdr_attr = 4;
-         ess_bdr_displacement.SetSize(3, 4);
+         ess_bdr_displacement.SetSize(3, num_bdr_attr);
          ess_bdr_displacement = 0;
          ess_bdr_displacement(0,3) = 1;
 
-         ess_bdr_filter.SetSize(4);
+         ess_bdr_filter.SetSize(num_bdr_attr);
          ess_bdr_filter = 0;
          break;
       }
@@ -233,6 +233,12 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
             return x[0] > 2.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
          });
          num_bdr_attr++;
+         MarkBoundaries(*mesh, 6,
+                        [](const Vector &x)
+         {
+            return x[0] < 1e-09 && x[1] < 0.5;
+         });
+         num_bdr_attr++;
          ess_bdr_displacement.SetSize(3, num_bdr_attr);
          ess_bdr_displacement = 0;
          ess_bdr_displacement(1, 3) = 1; // left: x-fixed
@@ -240,6 +246,11 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
 
          ess_bdr_filter.SetSize(num_bdr_attr);
          ess_bdr_filter = 0;
+         ess_bdr_filter[2] = 1;
+         ess_bdr_filter[5] = -1;
+         MarkElements(*mesh, 2, [](const Vector &x) {return x[1]>1.0 - std::pow(2,-5);});
+         solid_attr = 2;
+
          break;
       }
 
@@ -299,7 +310,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
 
 void SetupTopoptProblem(TopoptProblem prob,
                         HelmholtzFilter &filter, ElasticityProblem &elasticity,
-                        GridFunction &gf_filter, GridFunction &gf_state)
+                        GridFunction &filter_gf, GridFunction &state_gf)
 {
 
    switch (prob)
@@ -343,8 +354,8 @@ void SetupTopoptProblem(TopoptProblem prob,
       {
          auto g = new Vector({0.0, -9.8});
          auto gravity_cf = new VectorConstantCoefficient(*g);
-         auto filter_cf = new GridFunctionCoefficient(&gf_filter);
-         auto state_cf = new VectorGridFunctionCoefficient(&gf_state);
+         auto filter_cf = new GridFunctionCoefficient(&filter_gf);
+         auto state_cf = new VectorGridFunctionCoefficient(&state_gf);
 
          auto weight_cf = new ScalarVectorProductCoefficient(*filter_cf, *gravity_cf);
          auto gu = new InnerProductCoefficient(*gravity_cf, *state_cf);
@@ -368,8 +379,8 @@ void SetupTopoptProblem(TopoptProblem prob,
       {
          auto g = new Vector({0.0, -9.8});
          auto gravity_cf = new VectorConstantCoefficient(*g);
-         auto filter_cf = new GridFunctionCoefficient(&gf_filter);
-         auto state_cf = new VectorGridFunctionCoefficient(&gf_state);
+         auto filter_cf = new GridFunctionCoefficient(&filter_gf);
+         auto state_cf = new VectorGridFunctionCoefficient(&state_gf);
 
          auto load = new VectorFunctionCoefficient(
             2, [](const Vector &x, Vector &f)
@@ -386,7 +397,7 @@ void SetupTopoptProblem(TopoptProblem prob,
          auto gu = new InnerProductCoefficient(*gravity_cf, *state_cf);
 
          elasticity.GetLinearForm()->AddDomainIntegrator(
-            new VectorDomainLFIntegrator(*weight_cf)
+            new VectorDomainLFIntegrator(*total_load_cf)
          );
          elasticity.MakeCoefficientOwner(gravity_cf);
          elasticity.MakeCoefficientOwner(filter_cf);
