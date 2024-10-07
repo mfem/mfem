@@ -219,7 +219,15 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
          ProjectCoefficient(x, const_cf, void_attr_id);
       }
    }
-   x += mu;
+   if (entropy && use_entropy)
+   {
+      x += mu;
+   }
+   else
+   {
+      x.ProjectCoefficient(density);
+   }
+
    return curr_vol;
 }
 
