@@ -20,6 +20,7 @@ enum TopoptProblem
    MBB3=32,
    Arch3=33,
    Bridge3=34,
+   Torsion3=35,
 
    // 2D Compliant mechanism
    ForceInverter2=-21,

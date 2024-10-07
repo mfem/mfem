@@ -301,6 +301,50 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
 
       case Bridge3: {MFEM_ABORT("Undefined yet"); break; }
 
+      case Torsion3:
+      {
+         filename << "Torsion3";
+         if (r_min < 0) { r_min = 0.02; }
+         if (E < 0) { E = 1.0; }
+         if (nu < 0) { nu = 0.3; }
+         mesh = new Mesh(Mesh::MakeCartesian3D(5, 6, 6, Element::Type::HEXAHEDRON,
+                                               0.5, 0.6, 0.6));
+         tot_vol = 0.0;
+         for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
+         if (min_vol < 0) { min_vol = 0.0; }
+         if (max_vol < 0) { max_vol = tot_vol*0.12; }
+         for (int i=0; i<ser_ref_levels; i++)
+         {
+            mesh->UniformRefinement();
+         }
+         if (par_ref_levels > -1)
+         {
+#ifdef MFEM_USE_MPI
+            Mesh * ser_mesh = mesh;
+            mesh = new ParMesh(MPI_COMM_WORLD, *ser_mesh);
+            ser_mesh->Clear();
+            delete ser_mesh;
+            for (int i=0; i<par_ref_levels; i++)
+            {
+               mesh->UniformRefinement();
+            }
+#else
+            MFEM_ABORT("MFEM is built without MPI but tried to use parallel refinement");
+#endif
+         }
+         int num_bdr_attr = 6;
+         ess_bdr_displacement.SetSize(4, num_bdr_attr);
+         ess_bdr_displacement = 0;
+         ess_bdr_displacement(0, 2) = 1; // Right is fixed.
+
+
+         ess_bdr_filter.SetSize(num_bdr_attr);
+         ess_bdr_filter = -1; // default: void boundary
+         ess_bdr_filter[2] = 0; // Right: free
+         ess_bdr_filter[4] = 0; // Left: fee
+         break;
+      }
+
       case ForceInverter2: {MFEM_ABORT("Undefined yet"); break; }
    }
    return mesh;
@@ -418,7 +462,7 @@ void SetupTopoptProblem(TopoptProblem prob,
             3, [](const Vector &x, Vector &f)
          {
             f = 0.0;
-            if (std::pow(x[0]-1.9, 2.0) + std::pow(x[2] - 0.1, 2.0) < 0.1*0.1)
+            if (std::pow(x[0]-1.9, 2.0) + std::pow(x[2] - 0.1, 2.0) < 0.05*0.05)
             {
                f[2] = -1.0;
             }
@@ -434,6 +478,26 @@ void SetupTopoptProblem(TopoptProblem prob,
       case Arch3: {MFEM_ABORT("Undefined yet"); break; }
 
       case Bridge3: {MFEM_ABORT("Undefined yet"); break; }
+
+      case Torsion3:
+      {
+         auto load = new VectorFunctionCoefficient(
+            3, [](const Vector &x, Vector &f)
+         {
+            // Apply rotating force on the left center
+            f=0.0;
+            if (std::pow(x[1]-0.6, 2.0) + std::pow(x[2]-0.6, 2.0) < 0.2*0.2 && x[0] < 0.1)
+            {
+               f[1] = -(x[2]-0.6);
+               f[2] = x[1]-0.6;
+            }
+         });
+         elasticity.MakeCoefficientOwner(load);
+         elasticity.GetLinearForm()->AddDomainIntegrator(
+            new VectorDomainLFIntegrator(*load)
+         );
+         break;
+      }
 
       case ForceInverter2: {MFEM_ABORT("Undefined yet"); break; }
    }
