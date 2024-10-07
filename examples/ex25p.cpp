@@ -512,6 +512,21 @@ int main(int argc, char *argv[])
       mumps.SetOperator(*A);
       mumps.Mult(B, X);
       delete A;
+
+      // complex mumps
+      Vector Y(X);
+      ComplexHypreParMatrix * Ac = Ah.As<ComplexHypreParMatrix>();
+      ComplexMUMPSSolver cmumps;
+      cmumps.SetPrintLevel(0);
+      cmumps.SetOperator(*Ac);
+      cmumps.Mult(B, Y);
+
+      Y-=X;
+      double diff = Y.Norml2();
+      if (myid == 0)
+      {
+         cout << "||X - Y|| = " << diff << endl;
+      }
    }
 #endif
    // 16a. Set up the parallel Bilinear form a(.,.) for the preconditioner
