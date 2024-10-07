@@ -46,7 +46,6 @@ private:
    const real_t tot_vol;
    const real_t min_vol;
    const real_t max_vol;
-   bool hasPassiveElements;
    int void_attr_id;
    int solid_attr_id;
    LegendreEntropy *entropy;
