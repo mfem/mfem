@@ -109,6 +109,7 @@ public:
       solver.reset(new EllipticSolver(*a, ess_tdof_list));
       if (elast) {solver->UseElasticityOption();}
    }
+   void UseElasticityOption(bool flag=true) {elast = flag;}
 
    BilinearForm *GetBilinearForm() {return a.get();}
    LinearForm *GetLinearForm() {return b.get();}
@@ -163,6 +164,7 @@ public:
    {
       a->AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
       a->Assemble();
+      // UseElasticityOption(true);
       SetAStationary(true);
    }
 };

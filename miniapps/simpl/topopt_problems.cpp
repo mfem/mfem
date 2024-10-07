@@ -153,12 +153,12 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          if (r_min < 0) { r_min = 0.05; }
          if (E < 0) { E = 1.0; }
          if (nu < 0) { nu = 0.3; }
-         mesh = new Mesh(Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
-                                               2.0, 1.0));
+         mesh = new Mesh(Mesh::MakeCartesian2D(3, 2, Element::Type::QUADRILATERAL, false,
+                                               1.5, 1.0));
          tot_vol = 0.0;
          for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
          if (min_vol < 0) { min_vol = tot_vol*0.3;}
-         if (max_vol < 0) { max_vol = tot_vol*0.7; }
+         if (max_vol < 0) { max_vol = tot_vol*1.0; }
          for (int i=0; i<ser_ref_levels; i++)
          {
             mesh->UniformRefinement();
@@ -182,7 +182,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          MarkBoundaries(*mesh, 5,
                         [](const Vector &x)
          {
-            return x[0] > 2.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
+            return x[0] > 1.5 - std::pow(2.0, -5.0) && x[1] < 1e-09;
          });
          num_bdr_attr++;
          ess_bdr_displacement.SetSize(3, num_bdr_attr);
@@ -198,7 +198,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
       case Bridge2:
       {
          filename << "Bridge2";
-         if (r_min < 0) { r_min = 0.05; }
+         if (r_min < 0) { r_min = 0.02; }
          if (E < 0) { E = 1.0; }
          if (nu < 0) { nu = 0.3; }
          mesh = new Mesh(Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
@@ -227,18 +227,16 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
 #endif
          }
          int num_bdr_attr = 4;
-         MarkBoundaries(*mesh, 5,
+         MarkBoundaries(*mesh,++num_bdr_attr,
                         [](const Vector &x)
          {
             return x[0] > 2.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
          });
-         num_bdr_attr++;
-         MarkBoundaries(*mesh, 6,
+         MarkBoundaries(*mesh, ++num_bdr_attr,
                         [](const Vector &x)
          {
             return x[0] < 1e-09 && x[1] < 0.5;
          });
-         num_bdr_attr++;
          ess_bdr_displacement.SetSize(3, num_bdr_attr);
          ess_bdr_displacement = 0;
          ess_bdr_displacement(1, 3) = 1; // left: x-fixed
@@ -373,6 +371,7 @@ void SetupTopoptProblem(TopoptProblem prob,
          );
          filter.MakeCoefficientOwner(state_cf);
          filter.MakeCoefficientOwner(gu);
+         break;
       }
 
       case Bridge2:
@@ -388,7 +387,7 @@ void SetupTopoptProblem(TopoptProblem prob,
             f = 0.0;
             if (x[1] > 1 - std::pow(2, -5))
             {
-               f[2] = -40;
+               f[1] = -30;
             }
          }
          );
@@ -410,6 +409,7 @@ void SetupTopoptProblem(TopoptProblem prob,
          );
          filter.MakeCoefficientOwner(state_cf);
          filter.MakeCoefficientOwner(gu);
+         break;
       }
 
       case Cantilever3:
