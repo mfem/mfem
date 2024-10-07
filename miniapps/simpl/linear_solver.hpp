@@ -119,8 +119,8 @@ public:
    ParLinearForm *GetAdjParLinearForm() {return par_adjb;}
 #endif
 
-   void Solve(GridFunction &x);
-   void SolveAdjoint(GridFunction &x);
+   void Solve(GridFunction &x, bool assembleA=false, bool assembleB=false);
+   void SolveAdjoint(GridFunction &x, bool assembleA=false, bool assembleB=false);
    bool HasAdjoint() {return hasAdjoint;}
    bool IsParallel() { return parallel; }
 #ifdef MFEM_USE_MPI

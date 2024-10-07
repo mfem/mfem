@@ -105,10 +105,10 @@ void EllipticProblem::InitializeForms()
 #endif
 }
 
-void EllipticProblem::Solve(GridFunction &x)
+void EllipticProblem::Solve(GridFunction &x, bool assembleA, bool assembleB)
 {
-   if (!isAStationary) {a->Update(); a->Assemble();}
-   if (!isBStationary) {b->Assemble();}
+   if (!isAStationary || assembleA) {a->Update(); a->Assemble();}
+   if (!isBStationary || assembleB) {b->Assemble();}
    if (!solver || !isAStationary)
    {
       ResetSolver();
@@ -116,12 +116,13 @@ void EllipticProblem::Solve(GridFunction &x)
    solver->Solve(*b, x);
 }
 
-void EllipticProblem::SolveAdjoint(GridFunction &x)
+void EllipticProblem::SolveAdjoint(GridFunction &x, bool assembleA,
+                                   bool assembleB)
 {
    MFEM_ASSERT(hasAdjoint,
                "SolveAdjoint(GridFunction &) is called without setting hasAdjoint=true.");
-   if (!isAStationary) {a->Update(); a->Assemble();}
-   if (!isAdjBStationary) {adjb->Assemble();}
+   if (!isAStationary || assembleA) {a->Update(); a->Assemble();}
+   if (!isAdjBStationary || assembleB) {adjb->Assemble();}
    if (!solver || !isAStationary)
    {
       ResetSolver();
