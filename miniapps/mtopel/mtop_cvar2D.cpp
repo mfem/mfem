@@ -52,6 +52,11 @@ double Find_t(const std::vector<double>& p,
               int max_it=100)
 {
 
+    if(ind.size()==0){
+        return 0.0;
+    }
+
+
     double cval=-1.0;
     {
         std::vector<bool> pv; pv.resize(p.size());
@@ -66,15 +71,15 @@ double Find_t(const std::vector<double>& p,
         }
     }
 
-    for(int i=0;i<p.size();i++){
+    for(size_t i=0;i<p.size();i++){
         std::cout<<" "<<p[i];
     }
     std::cout<<std::endl;
-    for(int i=0;i<q.size();i++){
+    for(size_t i=0;i<q.size();i++){
         std::cout<<" "<<q[i];
     }
     std::cout<<std::endl;
-    for(int i=0;i<f.size();i++){
+    for(size_t i=0;i<f.size();i++){
         std::cout<<" "<<f[i];
     }
     std::cout<<std::endl;
@@ -90,7 +95,7 @@ double Find_t(const std::vector<double>& p,
         }
     }
 
-    for(int i=0;i<g.size();i++){
+    for(size_t i=0;i<g.size();i++){
         std::cout<<" "<<g[i];
     }
     std::cout<<std::endl;
@@ -132,8 +137,123 @@ double Find_t(const std::vector<double>& p,
     return tt;
 }
 
+// ind should consists of unique indices
+// f should be the size of ind
+double Find_t_bisection(const std::vector<double>& p,
+                        const std::vector<double>& q,
+                        double alpha, double gamma,
+                        const std::vector<double>& f,
+                        const std::vector<int>& ind,
+                        double tol=1e-12,
+                        int max_it=100)
+{
+
+    if(ind.size()==0){
+        return 0.0;
+    }
+
+    double cval=-1.0;
+    {
+        std::vector<bool> pv; pv.resize(p.size());
+        for(size_t i=0;i<p.size();i++){
+            pv[i]=true;
+        }
+        for(size_t i=0;i<ind.size();i++){
+            pv[ind[i]]=false;
+        }
+        for(size_t i=0;i<p.size();i++){
+            if(pv[i]){	cval=cval+q[i]; }
+        }
+    }
+
+    for(size_t i=0;i<p.size();i++){
+        std::cout<<" "<<p[i];
+    }
+    std::cout<<std::endl;
+    for(size_t i=0;i<q.size();i++){
+        std::cout<<" "<<q[i];
+    }
+    std::cout<<std::endl;
+    for(size_t i=0;i<f.size();i++){
+        std::cout<<" "<<f[i];
+    }
+    std::cout<<std::endl;
 
 
+    std::cout<<"cval="<<cval<<std::endl;
+
+    std::vector<double> g; g.resize(f.size());
+    {
+        for(size_t i=0;i<ind.size();i++){
+            g[i]=inv_sigmoid(q[ind[i]],p[ind[i]],alpha)+gamma*f[i];
+        }
+    }
+
+    for(size_t i=0;i<g.size();i++){
+        std::cout<<" "<<g[i];
+    }
+    std::cout<<std::endl;
+
+    double fmin=gamma*f[0];
+    double fmax=gamma*f[0];
+
+    for(size_t i=0;i<ind.size();i++)
+    {
+        if(fmin>gamma*f[i]){fmin=gamma*f[i];}
+        if(fmax<gamma*f[i]){fmax=gamma*f[i];}
+    }
+
+    double tmin=fmax+fabs(fmax)*0.01;
+    double tmax=fmin-fabs(fmin)*0.01;
+
+    fmin=cval;
+    fmax=cval;
+    for(size_t i=0;i<ind.size();i++){
+        fmin=fmin+sigmoid(g[i]-tmin,p[ind[i]],alpha);
+        fmax=fmax+sigmoid(g[i]-tmax,p[ind[i]],alpha);
+    }
+
+    if(fmin>fmax){
+        std::swap(tmin,tmax);
+        std::swap(fmin,fmax);
+    }
+
+    int iter=0;
+
+    double ff;
+    double tt;
+
+    std::cout<<"fmin="<<fmin<<" fmax="<<fmax<<std::endl;
+
+
+    bool flag=false; //iteration flag
+
+    for(int k=0;k<max_it;k++)
+    {
+        iter++;
+
+        ff=cval;
+        tt=(tmin+tmax)/2.0;
+
+        for(size_t i=0;i<ind.size();i++){
+            ff=ff+sigmoid(g[i]-tt,p[ind[i]],alpha);
+        }
+
+        std::cout<<"tt="<<tt<<" ff="<<ff<<std::endl;
+
+        if(ff<0.0){fmin=ff; tmin=tt;}
+        else{fmax=ff; tmax=tt;}
+
+        if((fmax-fmin)<tol){flag=true; break;}
+    }
+
+    if(!flag){
+        mfem::mfem_warning("Projection reached maximum iteration without converging. "
+                     "Result may not be accurate.");
+    }
+
+    return tt;
+}
 
 
 }
@@ -350,7 +470,8 @@ public:
         //find t
         double t;
         if(myrank==0){
-            t=adsampl::Find_t(primp,dualq,alpha,gamma,vals,ind, 1e-12,100);
+            //t=adsampl::Find_t(primp,dualq,alpha,gamma,vals,ind, 1e-12,100);
+            t=adsampl::Find_t_bisection(primp,dualq,alpha,gamma,vals,ind, 1e-12,1000);
         }
         //communicate t from 0 to all
         MPI_Bcast(&t,1,MPI_DOUBLE,0,ppmesh->GetComm());
@@ -805,7 +926,7 @@ int main(int argc, char *argv[])
           //cpl=alco->MeanCompl(ograd);
           //cpl=alco->EGDUpdate(ograd,0.001);
 
-          cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.001);
+          cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
