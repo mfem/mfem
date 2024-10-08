@@ -18,6 +18,7 @@ set(SRCS
   integ/bilininteg_convection_pa.cpp
   integ/bilininteg_convection_ea.cpp
   integ/bilininteg_curlcurl_pa.cpp
+  integ/bilininteg_dgdiffusion_pa.cpp
   integ/bilininteg_dgtrace_pa.cpp
   integ/bilininteg_dgtrace_ea.cpp
   integ/bilininteg_diffusion_mf.cpp
@@ -111,12 +112,11 @@ set(SRCS
   qinterp/eval_by_vdim.cpp
   qinterp/grad_by_nodes.cpp
   qinterp/grad_by_vdim.cpp
-  qinterp/grad_phys_by_nodes.cpp
-  qinterp/grad_phys_by_vdim.cpp
   qspace.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
   restriction.cpp
+  normal_deriv_restriction.cpp
   staticcond.cpp
   tmop.cpp
   tmop/tmop_pa.cpp
@@ -149,6 +149,7 @@ set(SRCS
   tmop_amr.cpp
   gslib.cpp
   transfer.cpp
+  hyperbolic.cpp
   )
 
 set(HDRS
@@ -189,6 +190,9 @@ set(HDRS
   hybridization.hpp
   intrules.hpp
   intrules_cut.hpp
+  kernel_dispatch.hpp
+  kernel_reporter.hpp
+  kernels.hpp
   ceed/interface/basis.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp
@@ -220,13 +224,13 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   qfunction.hpp
-  qinterp/dispatch.hpp
   qinterp/eval.hpp
   qinterp/grad.hpp
   qspace.hpp
   quadinterpolator.hpp
   quadinterpolator_face.hpp
   restriction.hpp
+  normal_deriv_restriction.hpp
   fespacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp
@@ -243,6 +247,7 @@ set(HDRS
   tmop_amr.hpp
   gslib.hpp
   transfer.hpp
+  hyperbolic.hpp
   )
 
 if (MFEM_USE_SIDRE)

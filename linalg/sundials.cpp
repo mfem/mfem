@@ -1341,38 +1341,59 @@ CVODESSolver::~CVODESSolver()
 // ARKStep interface
 // ---------------------------------------------------------------------------
 
-int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector ydot,
+int ARKStepSolver::RHS1(realtype t, const N_Vector y, N_Vector result,
                         void *user_data)
 {
    // Get data from N_Vectors
    const SundialsNVector mfem_y(y);
-   SundialsNVector mfem_ydot(ydot);
+   SundialsNVector mfem_result(result);
    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
 
-   // Compute f(t, y) in y' = f(t, y) or fe(t, y) in y' = fe(t, y) + fi(t, y)
+   // Compute either f(t, y) in one of
+   //   1. y' = f(t, y)
+   //   2. M y' = f(t, y)
+   // or fe(t, y) in one of
+   //   1. y' = fe(t, y) + fi(t, y)
+   //   2. M y' = fe(t, y) + fi(t, y)
    self->f->SetTime(t);
    if (self->rk_type == IMEX)
    {
       self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    }
-   self->f->Mult(mfem_y, mfem_ydot);
+   if (self->f->isExplicit()) // ODE is in form 1
+   {
+      self->f->Mult(mfem_y, mfem_result);
+   }
+   else // ODE is in form 2
+   {
+      self->f->ExplicitMult(mfem_y, mfem_result);
+   }
 
    // Return success
    return (0);
 }
 
-int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector ydot,
+int ARKStepSolver::RHS2(realtype t, const N_Vector y, N_Vector result,
                         void *user_data)
 {
    // Get data from N_Vectors
    const SundialsNVector mfem_y(y);
-   SundialsNVector mfem_ydot(ydot);
+   SundialsNVector mfem_result(result);
    ARKStepSolver *self = static_cast<ARKStepSolver*>(user_data);
 
-   // Compute fi(t, y) in y' = fe(t, y) + fi(t, y)
+   // Compute fi(t, y) in one of
+   //   1. y' = fe(t, y) + fi(t, y)       (ODE is expressed in EXPLICIT form)
+   //   2. M y' = fe(t, y) + fi(y, t)     (ODE is expressed in IMPLICIT form)
    self->f->SetTime(t);
    self->f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   self->f->Mult(mfem_y, mfem_ydot);
+   if (self->f->isExplicit())
+   {
+      self->f->Mult(mfem_y, mfem_result);
+   }
+   else
+   {
+      self->f->ExplicitMult(mfem_y, mfem_result);
+   }
 
    // Return success
    return (0);
@@ -1567,7 +1588,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
    reinit = true;
 }
 
-void ARKStepSolver::Step(Vector &x, double &t, double &dt)
+void ARKStepSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    Y->MakeRef(x, 0, x.Size());
    MFEM_VERIFY(Y->Size() == x.Size(), "size mismatch");
@@ -1666,7 +1687,7 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    LSM->content      = this;
    LSM->ops->gettype = LSGetType;
    LSM->ops->solve   = ARKStepSolver::MassSysSolve;
-   LSA->ops->free    = LSFree;
+   LSM->ops->free    = LSFree;
 
    M = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
@@ -1683,6 +1704,9 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    // Set the linear system function
    flag = ARKStepSetMassFn(sundials_mem, ARKStepSolver::MassSysSetup);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
+
+   // Check that the ODE is not expressed in EXPLICIT form
+   MFEM_VERIFY(!f->isExplicit(), "ODE operator is expressed in EXPLICIT form")
 }
 
 void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
@@ -1703,6 +1727,9 @@ void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
    flag = ARKStepSetMassTimes(sundials_mem, NULL, ARKStepSolver::MassMult2,
                               this);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassTimes()");
+
+   // Check that the ODE is not expressed in EXPLICIT form
+   MFEM_VERIFY(!f->isExplicit(), "ODE operator is expressed in EXPLICIT form")
 }
 
 void ARKStepSolver::SetStepMode(int itask)
@@ -1926,7 +1953,7 @@ int KINSolver::PrecSolve(N_Vector uu,
 
 KINSolver::KINSolver(int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
-     f_scale(NULL), jacobian(NULL), maa(0)
+     f_scale(NULL), jacobian(NULL)
 {
    Y = new SundialsNVector();
    y_scale = new SundialsNVector();
@@ -1940,7 +1967,7 @@ KINSolver::KINSolver(int strategy, bool oper_grad)
 #ifdef MFEM_USE_MPI
 KINSolver::KINSolver(MPI_Comm comm, int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
-     f_scale(NULL), jacobian(NULL), maa(0)
+     f_scale(NULL), jacobian(NULL)
 {
    Y = new SundialsNVector(comm);
    y_scale = new SundialsNVector(comm);
@@ -2019,11 +2046,22 @@ void KINSolver::SetOperator(const Operator &op)
       sundials_mem = KINCreate(Sundials::GetContext());
       MFEM_VERIFY(sundials_mem, "Error in KINCreate().");
 
-      // Set number of acceleration vectors
-      if (maa > 0)
+      // Enable Anderson Acceleration
+      if (aa_n > 0)
       {
-         flag = KINSetMAA(sundials_mem, maa);
+         flag = KINSetMAA(sundials_mem, aa_n);
          MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+
+         flag = KINSetDelayAA(sundials_mem, aa_delay);
+         MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDelayAA()");
+
+         flag = KINSetDampingAA(sundials_mem, aa_damping);
+         MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDampingAA()");
+
+#if SUNDIALS_VERSION_MAJOR >= 6
+         flag = KINSetOrthAA(sundials_mem, aa_orth);
+         MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetOrthAA()");
+#endif
       }
 
       // Initialize KINSOL
@@ -2033,6 +2071,9 @@ void KINSolver::SetOperator(const Operator &op)
       // Attach the KINSolver as user-defined data
       flag = KINSetUserData(sundials_mem, this);
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetUserData()");
+
+      flag = KINSetDamping(sundials_mem, fp_damping);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDamping()");
 
       // Set the linear solver
       if (prec || jfnk)
@@ -2145,15 +2186,52 @@ void KINSolver::SetMaxSetupCalls(int max_calls)
    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMaxSetupCalls()");
 }
 
-void KINSolver::SetMAA(int m_aa)
+void KINSolver::EnableAndersonAcc(int n, int orth, int delay, double damping)
 {
-   // Store internally as maa must be set before calling KINInit() to
-   // set the maximum acceleration space size.
-   maa = m_aa;
+   if (sundials_mem != nullptr)
+   {
+      if (aa_n < n)
+      {
+         MFEM_ABORT("Subsequent calls to EnableAndersonAcc() must set"
+                    " the subspace size to less or equal to the initially requested size."
+                    " If SetOperator() has already been called, the subspace size can't be"
+                    " increased.");
+      }
+
+      flag = KINSetMAA(sundials_mem, n);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+
+      flag = KINSetDelayAA(sundials_mem, delay);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDelayAA()");
+
+      flag = KINSetDampingAA(sundials_mem, damping);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDampingAA()");
+
+#if SUNDIALS_VERSION_MAJOR >= 6
+      flag = KINSetOrthAA(sundials_mem, orth);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetOrthAA()");
+#else
+      if (orth != KIN_ORTH_MGS)
+      {
+         MFEM_WARNING("SUNDIALS < v6 does not support setting the Anderson"
+                      " acceleration orthogonalization routine!");
+      }
+#endif
+   }
+
+   aa_n = n;
+   aa_delay = delay;
+   aa_damping = damping;
+   aa_orth = orth;
+}
+
+void KINSolver::SetDamping(double damping)
+{
+   fp_damping = damping;
    if (sundials_mem)
    {
-      flag = KINSetMAA(sundials_mem, maa);
-      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+      flag = KINSetDamping(sundials_mem, fp_damping);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDamping()");
    }
 }
 
@@ -2185,7 +2263,7 @@ void KINSolver::Mult(const Vector&, Vector &x) const
       if (Parallel())
       {
          double lnorm = norm;
-         MPI_Allreduce(&lnorm, &norm, 1, MPI_DOUBLE, MPI_MAX,
+         MPI_Allreduce(&lnorm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
                        Y->GetComm());
       }
 #endif

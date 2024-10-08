@@ -45,12 +45,12 @@ BlockOperator::BlockOperator(const Array<int> & row_offsets_,
    op = static_cast<Operator *>(NULL);
 }
 
-void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, double c)
+void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, real_t c)
 {
    SetBlock(iblock, iblock, opt, c);
 }
 
-void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, double c)
+void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
 {
    if (owns_blocks && op(iRow, iCol))
    {
@@ -81,7 +81,7 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
       tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
       for (int jCol=0; jCol < nColBlocks; ++jCol)
       {
-         if (op(iRow,jCol))
+         if (op(iRow,jCol) && coef(iRow,jCol) != 0.)
          {
             op(iRow,jCol)->Mult(xblock.GetBlock(jCol), tmp);
             yblock.GetBlock(iRow).Add(coef(iRow,jCol), tmp);
@@ -112,7 +112,7 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
       tmp.SetSize(col_offsets[iRow+1] - col_offsets[iRow]);
       for (int jCol=0; jCol < nRowBlocks; ++jCol)
       {
-         if (op(jCol,iRow))
+         if (op(jCol,iRow) && coef(jCol,iRow) != 0.)
          {
             op(jCol,iRow)->MultTranspose(xblock.GetBlock(jCol), tmp);
             yblock.GetBlock(iRow).Add(coef(jCol,iRow), tmp);

@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
 #ifdef HYPRE_USING_GPU
    cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this miniapp\n"
         << "is NOT supported with the GPU version of hypre.\n\n";
-   return 242;
+   return MFEM_SKIP_RETURN_VALUE;
 #endif
 
    // Initialize MPI and HYPRE.
@@ -103,7 +103,8 @@ int main(int argc, char *argv[])
    int neumann_level_set_type = -1;
    bool dirichlet_combo = false;
    int ho_terms = 0;
-   double alpha = 1;
+   real_t alpha = 1;
+   int visport = 19916;
    bool include_cut_cell = false;
 
    OptionsParser args(argc, argv);
@@ -131,6 +132,7 @@ int main(int argc, char *argv[])
    args.AddOption(&include_cut_cell, "-cut", "--cut", "-no-cut-cell",
                   "--no-cut-cell",
                   "Include or not include elements cut by true boundary.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -222,7 +224,7 @@ int main(int argc, char *argv[])
    if (dirichlet_level_set_type > 0)
    {
       dirichlet_dist_coef = new Dist_Level_Set_Coefficient(dirichlet_level_set_type);
-      const double dx = AvgElementSize(pmesh);
+      const real_t dx = AvgElementSize(pmesh);
       PDEFilter filter(pmesh, dx);
       filter.Filter(*dirichlet_dist_coef, level_set_gf);
       //level_set_gf.ProjectCoefficient(*dirichlet_dist_coef);
@@ -266,10 +268,10 @@ int main(int argc, char *argv[])
       ParGridFunction elem_marker_gf(&pfesl2);
       for (int i = 0; i < elem_marker_gf.Size(); i++)
       {
-         elem_marker_gf(i) = (double)elem_marker[i];
+         elem_marker_gf(i) = (real_t)elem_marker[i];
       }
       char vishost[] = "localhost";
-      int  visport   = 19916, s = 350;
+      int s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, elem_marker_gf,
                              "Element Flags", 0, 0, s, s, "Rjmpc");
@@ -289,7 +291,7 @@ int main(int argc, char *argv[])
          face_dofs(sb_dofs[i]) = 1.0;
       }
       char vishost[] = "localhost";
-      int  visport   = 19916, s = 350;
+      int s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, face_dofs,
                              "Shifted Face Dofs", 0, s, s, s, "Rjmplo");
@@ -320,7 +322,7 @@ int main(int argc, char *argv[])
    else
    {
       // Discrete distance vector.
-      double dx = AvgElementSize(pmesh);
+      real_t dx = AvgElementSize(pmesh);
       ParGridFunction filt_gf(&pfespace);
       PDEFilter filter(pmesh, 2.0 * dx);
       filter.Filter(combo_dist_coef, filt_gf);
@@ -329,7 +331,7 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          char vishost[] = "localhost";
-         int  visport   = 19916, s = 350;
+         int s = 350;
          socketstream sol_sock;
          common::VisualizeField(sol_sock, vishost, visport, filt_gf,
                                 "Input Level Set", 0, 2*s, s, s, "Rjmm");
@@ -346,7 +348,7 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916, s = 350;
+      int s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, distance,
                              "Distance Vector", s, s, s, s, "Rjmmpcvv", 1);
@@ -592,7 +594,7 @@ int main(int argc, char *argv[])
 
       // Send the solution by socket to a GLVis server.
       char vishost[] = "localhost";
-      int  visport   = 19916, s = 350;
+      int s = 350;
       socketstream sol_sock;
       common::VisualizeField(sol_sock, vishost, visport, x,
                              "Solution", s, 0, s, s, "Rj");
@@ -609,7 +611,7 @@ int main(int argc, char *argv[])
       {
          pxyz(0) = vxyz(i);
          pxyz(1) = vxyz(i+nodes_cnt);
-         double exact_val = 0.;
+         real_t exact_val = 0.;
          if (dirichlet_level_set_type == 2 || neumann_level_set_type == 2)
          {
             exact_val = dirichlet_velocity_xy_exponent(pxyz);
@@ -624,20 +626,20 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          char vishost[] = "localhost";
-         int  visport   = 19916, s = 350;
+         int s = 350;
          socketstream sol_sock;
          common::VisualizeField(sol_sock, vishost, visport, error,
                                 "Error", 2*s, 0, s, s, "Rj");
       }
 
-      const double global_error = x.ComputeL2Error(*exactCoef);
+      const real_t global_error = x.ComputeL2Error(*exactCoef);
       if (myid == 0)
       {
          std::cout << "Global L2 error: " << global_error << endl;
       }
    }
 
-   const double norm = x.ComputeL1Error(one);
+   const real_t norm = x.ComputeL1Error(one);
    if (myid == 0) { std::cout << setprecision(10) << norm << std::endl; }
 
    // Free the used memory.

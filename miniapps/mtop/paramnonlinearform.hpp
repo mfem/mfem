@@ -24,7 +24,7 @@ class ParametricBNLFormIntegrator
 {
 public:
    /// Compute the local energy
-   virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
+   virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
                                    const Array<const FiniteElement *>&pel,
                                    ElementTransformation &Tr,
                                    const Array<const Vector *>&elfun,
@@ -178,7 +178,7 @@ protected:
 
    const BlockVector &ParamProlongate(const BlockVector &bx) const;
 
-   double GetEnergyBlocked(const BlockVector &bx, const BlockVector &dx) const;
+   real_t GetEnergyBlocked(const BlockVector &bx, const BlockVector &dx) const;
 
 
    /// Specialized version of Mult() for BlockVector%s
@@ -267,11 +267,11 @@ public:
 
 
    /// Computes the energy for a state vector x.
-   virtual double GetEnergy(const Vector &x) const;
+   virtual real_t GetEnergy(const Vector &x) const;
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
@@ -279,7 +279,7 @@ public:
 
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.
-   virtual BlockOperator &GetGradient(const Vector &x) const;
+   BlockOperator &GetGradient(const Vector &x) const override;
 
    /// Set the state fields
    virtual void SetStateFields(const Vector &xv) const;

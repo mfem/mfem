@@ -182,7 +182,14 @@ protected:
    /// Refine a mixed 3D mesh uniformly.
    void UniformRefinement3D() override;
 
-   void NURBSUniformRefinement() override;
+   /** @brief Refine NURBS mesh, with an optional refinement factor.
+
+       @param[in] rf  Optional refinement factor. If scalar, the factor is used
+                      for all dimensions. If an array, factors can be specified
+                      for each dimension.
+       @param[in] tol NURBS geometry deviation tolerance. */
+   void NURBSUniformRefinement(int rf = 2, real_t tol=1.0e-12) override;
+   void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12) override;
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    void LocalRefinement(const Array<int> &marked_el, int type = 3) override;
@@ -191,8 +198,8 @@ protected:
    void NonconformingRefinement(const Array<Refinement> &refinements,
                                 int nc_limit = 0) override;
 
-   bool NonconformingDerefinement(Array<double> &elem_error,
-                                  double threshold, int nc_limit = 0,
+   bool NonconformingDerefinement(Array<real_t> &elem_error,
+                                  real_t threshold, int nc_limit = 0,
                                   int op = 1) override;
 
    void RebalanceImpl(const Array<int> *partition);
@@ -234,7 +241,7 @@ protected:
    void BuildVertexGroup(int ngroups, const Table& vert_element);
 
    void BuildSharedFaceElems(int ntri_faces, int nquad_faces,
-                             const Mesh &mesh, int *partitioning,
+                             const Mesh &mesh, const int *partitioning,
                              const STable3D *faces_tbl,
                              const Array<int> &face_group,
                              const Array<int> &vert_global_local);
@@ -336,7 +343,7 @@ public:
        meshes and quick space-filling curve equipartitioning for nonconforming
        meshes (elements of nonconforming meshes should ideally be ordered as a
        sequence of face-neighbors). */
-   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
+   ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_ = nullptr,
            int part_method = 1);
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
@@ -431,8 +438,6 @@ public:
 
    ParNCMesh* pncmesh;
 
-   int *partitioning_cache = nullptr;
-
    int GetNGroups() const { return gtopo.NGroups(); }
 
    ///@{ @name These methods require group > 0
@@ -490,6 +495,10 @@ public:
 
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;
+
+   /** Return true if the face is interior or shared. In parallel, this
+       method only works if the face neighbor data is exchanged. */
+   inline bool FaceIsTrueInterior(int FaceNo) const { return Mesh::FaceIsTrueInterior(FaceNo); }
 
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
@@ -617,7 +626,7 @@ public:
 
    /// Get the size of the i-th face neighbor element relative to the reference
    /// element.
-   double GetFaceNbrElementSize(int i, int type = 0);
+   real_t GetFaceNbrElementSize(int i, int type = 0);
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
@@ -634,6 +643,9 @@ public:
        Similarly, if type==Interior, only the true interior faces (including
        shared faces) are counted excluding all master non-conforming faces. */
    int GetNFbyType(FaceType type) const override;
+
+   void GenerateBoundaryElements() override
+   { MFEM_ABORT("Generation of boundary elements works properly only on serial meshes."); }
 
    /// See the remarks for the serial version in mesh.hpp
    MFEM_DEPRECATED void ReorientTetMesh() override;
@@ -727,8 +739,8 @@ public:
    /// high-order meshes, the geometry is refined first "ref" times.
    void GetBoundingBox(Vector &p_min, Vector &p_max, int ref = 2);
 
-   void GetCharacteristics(double &h_min, double &h_max,
-                           double &kappa_min, double &kappa_max);
+   void GetCharacteristics(real_t &h_min, real_t &h_max,
+                           real_t &kappa_min, real_t &kappa_max);
 
    /// Swaps internal data with another ParMesh, including non-geometry members.
    /// See @a Mesh::Swap

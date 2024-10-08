@@ -36,6 +36,17 @@ protected:
    /// Space order for the LS projection.
    int lsOrder;
 
+   /// @name Tolerances used for point comparisons
+   ///@{
+#ifdef MFEM_USE_DOUBLE
+   static constexpr real_t tol_1 = 1e-12;
+   static constexpr real_t tol_2 = 1e-15;
+#elif defined(MFEM_USE_SINGLE)
+   static constexpr real_t tol_1 = 1e-5;
+   static constexpr real_t tol_2 = 1e-7;
+#endif
+   ///@}
+
    /** @brief Constructor to set up the generated cut IntegrationRules.
 
        @param [in] order  Order of the constructed IntegrationRule.
@@ -364,9 +375,9 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
    shape.SetSize(nBasis, 3);
    shape = 0.;
 
-   double xi = X(0);
-   double eta = X(1);
-   double nu = X(2);
+   real_t xi = X(0);
+   real_t eta = X(1);
+   real_t nu = X(2);
 
    switch (Order)
    {

@@ -11,45 +11,44 @@
 #include <fstream>
 #include <iostream>
 #include "ipsolver/ParIPsolver.hpp"
-
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <string>
+#include <errno.h>
 using namespace std;
 using namespace mfem;
 
-double GetBdrElementVolume(int i, Mesh & mesh)
-{
-   ElementTransformation *et = mesh.GetBdrElementTransformation(i);
-   const IntegrationRule &ir = IntRules.Get(mesh.GetBdrElementGeometry(i),
-                                            et->OrderJ());
-   double volume = 0.0;
-   for (int j = 0; j < ir.GetNPoints(); j++)
-   {
-      const IntegrationPoint &ip = ir.IntPoint(j);
-      et->SetIntPoint(&ip);
-      volume += ip.weight * et->Weight();
-   }
+bool create_directories_if_not_exist(const std::string& path) {
+    mode_t mode = 0755;  // Permissions for the directories
+    size_t pos = 0;
+    std::string dir;
 
-   return volume;
-}
-
-
-double GetBdrArea(int bdrattr, Mesh&mesh)
-{
-   double area = 0.0;
-   for (int i = 0; i<mesh.GetNBE(); i++)
-   {
-      if (mesh.GetBdrAttribute(i) == bdrattr)
-      {
-         area += GetBdrElementVolume(i,mesh);
-      }
-   }
-
-   MPI_Allreduce(MPI_IN_PLACE,&area,1, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-   return area;
+    while ((pos = path.find_first_of('/', pos)) != std::string::npos) {
+        dir = path.substr(0, pos++);  // Get parent directory
+        if (dir.empty()) continue;    // Skip the root path "/"
+        if (mkdir(dir.c_str(), mode) && errno != EEXIST) {
+            std::cerr << "Error creating directory " << dir << ": " << strerror(errno) << std::endl;
+            return false;
+        }
+    }
+    
+    if (mkdir(path.c_str(), mode) && errno != EEXIST) {
+        std::cerr << "Error creating directory " << path << ": " << strerror(errno) << std::endl;
+        return false;
+    }
+    
+    return true;
 }
 
 void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, int optit, const Array<int> & iters)
 {
    file_name << ".csv";
+
+   std::string directory = file_name.str().substr(0, file_name.str().find_last_of('/'));
+   // Create directories if they do not exist
+   MFEM_VERIFY(create_directories_if_not_exist(directory), "Cannot create file path"); 
+
+
    std::ofstream outputfile(file_name.str().c_str());
    if (!outputfile.is_open()) 
    {

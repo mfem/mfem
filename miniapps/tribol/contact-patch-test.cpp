@@ -13,8 +13,8 @@
 //                Tribol Miniapp: Mortar contact patch test
 //                -----------------------------------------
 //
-// Tribol is an open source contact mechanics library available at
-// https://github.com/LLNL/Tribol.
+// This miniapp depends on Tribol, an open source contact mechanics library
+// available at https://github.com/LLNL/Tribol.
 //
 // This miniapp uses Tribol's mortar method to solve a contact patch test.
 // Tribol has native support for MFEM data structures (ParMesh, ParGridFunction,
@@ -40,8 +40,8 @@
 //
 // Compile with: see README.md
 //
-// Sample runs:  mpirun -n 2 ContactPatchTest
-//               mpirun -n 2 ContactPatchTest -r 3
+// Sample runs:  mpirun -n 2 contact-patch-test
+//               mpirun -n 2 contact-patch-test -r 3
 
 #include "mfem.hpp"
 
@@ -49,6 +49,14 @@
 
 #include "tribol/interface/tribol.hpp"
 #include "tribol/interface/mfem_tribol.hpp"
+
+// Define MPI_REAL_T
+#if defined(MFEM_USE_DOUBLE)
+#define MPI_REAL_T MPI_DOUBLE
+#else
+#error "Tribol requires MFEM built with double precision!"
+#endif
+
 
 int main(int argc, char *argv[])
 {
@@ -61,8 +69,8 @@ int main(int argc, char *argv[])
 
    // Define command line options
    int ref_levels = 2;   // number of times to uniformly refine the serial mesh
-   double lambda = 50.0; // Lame parameter lambda
-   double mu = 50.0;     // Lame parameter mu (shear modulus)
+   mfem::real_t lambda = 50.0; // Lame parameter lambda
+   mfem::real_t mu = 50.0;     // Lame parameter mu (shear modulus)
 
    // Parse command line options
    mfem::OptionsParser args(argc, argv);
@@ -216,8 +224,8 @@ int main(int argc, char *argv[])
 
    // #5: Update contact gaps, forces, and tangent stiffness contributions
    int cycle = 1;   // pseudo cycle
-   double t = 1.0;  // pseudo time
-   double dt = 1.0; // pseudo dt
+   mfem::real_t t = 1.0;  // pseudo time
+   mfem::real_t dt = 1.0; // pseudo dt
    tribol::update(cycle, t, dt);
 
    // #6a: Return contact contribution to the tangent stiffness matrix as a
@@ -230,7 +238,7 @@ int main(int argc, char *argv[])
    A_blk->SetBlock(0, 0, A.release());
 
    // Convert block operator to a single HypreParMatrix
-   mfem::Array2D<mfem::HypreParMatrix*> hypre_blocks(2, 2);
+   mfem::Array2D<const mfem::HypreParMatrix*> hypre_blocks(2, 2);
    for (int i{0}; i < 2; ++i)
    {
       for (int j{0}; j < 2; ++j)
@@ -238,7 +246,7 @@ int main(int argc, char *argv[])
          if (A_blk->GetBlock(i, j).Height() != 0 && A_blk->GetBlock(i, j).Width() != 0)
          {
             hypre_blocks(i, j) =
-               dynamic_cast<mfem::HypreParMatrix*>(&A_blk->GetBlock(i, j));
+               dynamic_cast<const mfem::HypreParMatrix*>(&A_blk->GetBlock(i, j));
          }
          else
          {
@@ -288,6 +296,7 @@ int main(int argc, char *argv[])
    solver.SetPrintLevel(3);
    solver.SetOperator(*A_hyprePar);
    mfem::HypreDiagScale prec(*A_hyprePar);
+   prec.SetErrorMode(mfem::HypreSolver::IGNORE_HYPRE_ERRORS);
    solver.SetPreconditioner(prec);
 #endif
    solver.Mult(B_blk, X_blk);
@@ -318,13 +327,13 @@ int main(int argc, char *argv[])
    auto resid_linf = resid_true.Normlinf();
    if (mfem::Mpi::Root())
    {
-      MPI_Reduce(MPI_IN_PLACE, &resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0,
+      MPI_Reduce(MPI_IN_PLACE, &resid_linf, 1, MPI_REAL_T, MPI_MAX, 0,
                  MPI_COMM_WORLD);
       std::cout << "|| force residual ||_(infty) = " << resid_linf << std::endl;
    }
    else
    {
-      MPI_Reduce(&resid_linf, &resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      MPI_Reduce(&resid_linf, &resid_linf, 1, MPI_REAL_T, MPI_MAX, 0, MPI_COMM_WORLD);
    }
 
    // Verify the gap is closed by the displacements, i.e. B*u = gap
@@ -336,13 +345,13 @@ int main(int argc, char *argv[])
    auto gap_resid_linf = gap_resid_true.Normlinf();
    if (mfem::Mpi::Root())
    {
-      MPI_Reduce(MPI_IN_PLACE, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0,
+      MPI_Reduce(MPI_IN_PLACE, &gap_resid_linf, 1, MPI_REAL_T, MPI_MAX, 0,
                  MPI_COMM_WORLD);
       std::cout << "|| gap residual ||_(infty) = " << gap_resid_linf << std::endl;
    }
    else
    {
-      MPI_Reduce(&gap_resid_linf, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0,
+      MPI_Reduce(&gap_resid_linf, &gap_resid_linf, 1, MPI_REAL_T, MPI_MAX, 0,
                  MPI_COMM_WORLD);
    }
 
@@ -352,11 +361,11 @@ int main(int argc, char *argv[])
    tribol::updateMfemParallelDecomposition();
 
    // Save data in VisIt format
-   mfem::VisItDataCollection visit_vol_dc("ContactPatchTestVolume", &mesh);
+   mfem::VisItDataCollection visit_vol_dc("contact-patch-test-volume", &mesh);
    visit_vol_dc.RegisterField("coordinates", &coords);
    visit_vol_dc.RegisterField("displacement", &displacement);
    visit_vol_dc.Save();
-   mfem::VisItDataCollection visit_surf_dc("ContactPatchTestSurface",
+   mfem::VisItDataCollection visit_surf_dc("contact-patch-test-surface",
                                            pressure.ParFESpace()->GetMesh());
    visit_surf_dc.RegisterField("pressure", &pressure);
    visit_surf_dc.Save();

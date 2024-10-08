@@ -67,8 +67,8 @@ public:
 
 /*!
  * @brief Integrator for scalar finite elements
- * \f$ (u, v)_{L^2(\mathcal{T}_m \cap \mathcal{T}_s)}, u \in U(\mathcal{T}_m )
- * and v \in V(\mathcal{T}_s ) \f$
+ * $$ (u, v)_{L^2(\mathcal{T}_m \cap \mathcal{T}_s)}, u \in U(\mathcal{T}_m )
+ * and v \in V(\mathcal{T}_s ) $$
  */
 class L2MortarIntegrator : public MortarIntegrator
 {
@@ -86,8 +86,8 @@ public:
 
 /*!
  * @brief Integrator for vector finite elements. Experimental.
- * \f$ (u, v)_{L^2(\mathcal{T}_m \cap \mathcal{T}_s)}, u \in U(\mathcal{T}_m )
- * and v \in V(\mathcal{T}_s ) \f$
+ * $$ (u, v)_{L^2(\mathcal{T}_m \cap \mathcal{T}_s)}, u \in U(\mathcal{T}_m )
+ * and v \in V(\mathcal{T}_s ) $$
  */
 class VectorL2MortarIntegrator : public MortarIntegrator
 {
