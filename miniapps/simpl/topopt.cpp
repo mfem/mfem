@@ -117,10 +117,11 @@ real_t StrainEnergyDensityCoefficient::Eval(
    ElementTransformation &T, const IntegrationPoint &ip)
 {
    real_t L = lambda.Eval(T, ip);
-   real_t M = mu.Eval(T, ip);
+   real_t M = mu.Eval(T, ip)*0.5;
 
    state_gf.GetVectorGradient(T, grad);
-   if (adjstate_gf) { adjstate_gf->GetVectorGradient(T, adjgrad); }
+   grad.Symmetrize();
+   if (adjstate_gf) { adjstate_gf->GetVectorGradient(T, adjgrad); adjgrad.Symmetrize(); }
    else {adjgrad.UseExternalData(grad.GetData(), grad.NumCols(), grad.NumRows());}
 
    real_t density = L*grad.Trace()*adjgrad.Trace();
@@ -129,7 +130,7 @@ real_t StrainEnergyDensityCoefficient::Eval(
    {
       for (int j=0; j<dim; j++)
       {
-         density += M*grad(i,j)*(adjgrad(i,j)+adjgrad(j,i));
+         density += M*grad(i,j)*adjgrad(i,j);
       }
    }
    return -der_simp_cf.Eval(T, ip)*density;
@@ -344,6 +345,8 @@ void DensityBasedTopOpt::UpdateGradient()
 {
    if (elasticity.HasAdjoint())
    {
+      // Since the elasticity coefficient is the same,
+      // reuse the solver
       elasticity.SolveAdjoint(*adj_state_gf, true);
    }
 

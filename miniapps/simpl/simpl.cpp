@@ -170,12 +170,6 @@ int main(int argc, char *argv[])
    ParGridFunction state_gf(&fes_state); state_gf = 0.0;
    ParGridFunction grad_gf(&fes_control); grad_gf = 0.0;
    ParGridFunction grad_filter_gf(&fes_filter); grad_filter_gf = 0.0;
-   std::unique_ptr<ParGridFunction> adj_state_gf;
-   if (prob < 0)
-   {
-      adj_state_gf.reset(new ParGridFunction(&fes_state));
-      *adj_state_gf = 0.0;
-   }
 
    // Filter Essential BDR
    Array<int> solid_bdr_filter(ess_bdr_filter);
@@ -212,13 +206,13 @@ int main(int argc, char *argv[])
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
    density.SetVoidAttr(void_attr);
    density.SetSolidAttr(solid_attr);
-
+   if (prob == mfem::ForceInverter2) { ForceInverterInitialDesign(control_gf, &entropy); }
    // Filter
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);
    filter.GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(density_cf));
    filter.SetBStationary(false);
    StrainEnergyDensityCoefficient energy(lambda_cf, mu_cf, der_simp_cf, state_gf,
-                                         adj_state_gf.get());
+                                         nullptr);
    filter.GetAdjLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(energy));
    filter.SetAdjBStationary(false);
 
@@ -230,6 +224,7 @@ int main(int argc, char *argv[])
    DensityBasedTopOpt optproblem(density, control_gf, grad_gf,
                                  filter, filter_gf, grad_filter_gf,
                                  elasticity, state_gf);
+   if (elasticity.HasAdjoint()) {energy.SetAdjState(optproblem.GetAdjState());}
    if (Mpi::Root()) { out << "done" << std::endl; }
 
    // Backtracking related stuffs
@@ -257,6 +252,7 @@ int main(int argc, char *argv[])
    glvis.Append(density_gf, "design density", keys);
    glvis.Append(filter_gf, "filtered density", keys);
    glvis.Append(state_gf, "displacement magnitude", keys);
+   if (elasticity.HasAdjoint()) {glvis.Append(optproblem.GetAdjState(), "adjoint displacement", keys);}
 
    real_t stationarity0, obj0,
           stationarity_error_L2, stationarity_error_bregman, stationarity_error,
