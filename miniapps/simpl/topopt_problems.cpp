@@ -345,7 +345,68 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          break;
       }
 
-      case ForceInverter2: {MFEM_ABORT("Undefined yet"); break; }
+      case ForceInverter2:
+      {
+         filename << "ForceInverter2";
+         if (r_min < 0) { r_min = 0.05; }
+         if (E < 0) { E = 1.0; }
+         if (nu < 0) { nu = 0.3; }
+         mesh = new Mesh(Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
+                                               2.0, 1.0));
+         tot_vol = 0.0;
+         for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
+         if (min_vol < 0) { min_vol = tot_vol*0.3; }
+         if (max_vol < 0) { max_vol = tot_vol*1.0; }
+         for (int i=0; i<ser_ref_levels; i++)
+         {
+            mesh->UniformRefinement();
+         }
+         if (par_ref_levels > -1)
+         {
+#ifdef MFEM_USE_MPI
+            Mesh * ser_mesh = mesh;
+            mesh = new ParMesh(MPI_COMM_WORLD, *ser_mesh);
+            ser_mesh->Clear();
+            delete ser_mesh;
+            for (int i=0; i<par_ref_levels; i++)
+            {
+               mesh->UniformRefinement();
+            }
+#else
+            MFEM_ABORT("MFEM is built without MPI but tried to use parallel refinement");
+#endif
+         }
+         int num_bdr_attr = 4;
+         MarkBoundaries(*mesh, ++num_bdr_attr,
+                        [](const Vector &x)
+         {
+            // Top right 5: Output port
+            return x[0] > 2.0 - 1e-09 && x[1] > 1.0 - std::pow(2,-5);
+         });
+         MarkBoundaries(*mesh, ++num_bdr_attr,
+                        [](const Vector &x)
+         {
+            // Top left 6: Input Port
+            return x[0] < 0.0 + 1e-09 && x[1] > 1.0 - std::pow(2,-5);
+         });
+         MarkBoundaries(*mesh, ++num_bdr_attr,
+                        [](const Vector &x)
+         {
+            // Bottom left 7: Fixed
+            return x[0] < 0.0 + 1e-09 && x[1] < 0.0 + std::pow(2,-5);
+         });
+         ess_bdr_displacement.SetSize(3, num_bdr_attr);
+         ess_bdr_displacement = 0;
+         ess_bdr_displacement(2, 2) = 1; // top: x-roller
+         ess_bdr_displacement(0, 6) = 1;
+
+         ess_bdr_filter.SetSize(num_bdr_attr);
+         ess_bdr_filter = 0;
+         ess_bdr_filter[4] = 1;
+         ess_bdr_filter[5] = 1;
+         ess_bdr_filter[6] = 1;
+         break;
+      }
    }
    return mesh;
 }
@@ -499,7 +560,36 @@ void SetupTopoptProblem(TopoptProblem prob,
          break;
       }
 
-      case ForceInverter2: {MFEM_ABORT("Undefined yet"); break; }
+      case ForceInverter2:
+      {
+         real_t k_in(1.0), k_out(1e-03);
+
+         auto d_in = new Vector({1.0, 0.0});
+         auto d_out = new Vector({1.0, 0.0});
+         auto d_in_cf = new VectorConstantCoefficient(*d_in);
+         auto d_out_cf = new VectorConstantCoefficient(*d_out);
+
+         auto input_bdr = new Array<int>(7); *input_bdr = 0; (*input_bdr)[5] = 1;
+         auto output_bdr = new Array<int>(7); *output_bdr = 0; (*output_bdr)[4] = 1;
+
+         elasticity.GetBilinearForm()->AddBdrFaceIntegrator(
+            new DirectionalHookesLawBdrIntegrator(k_in, d_in_cf), *input_bdr);
+         elasticity.GetBilinearForm()->AddBdrFaceIntegrator(
+            new DirectionalHookesLawBdrIntegrator(k_out, d_out_cf), *output_bdr);
+         elasticity.GetLinearForm()->AddBdrFaceIntegrator(
+            new VectorBoundaryLFIntegrator(*d_in_cf), *input_bdr);
+         elasticity.GetAdjLinearForm()->AddBdrFaceIntegrator(
+            new VectorBoundaryLFIntegrator(*d_out_cf), *output_bdr);
+
+         elasticity.MakeVectorOwner(d_in);
+         elasticity.MakeVectorOwner(d_out);
+         elasticity.MakeVectorOwner(input_bdr);
+         elasticity.MakeVectorOwner(output_bdr);
+         elasticity.MakeCoefficientOwner(d_in_cf);
+         elasticity.MakeCoefficientOwner(d_out_cf);
+
+         break;
+      }
    }
 }
 } // end of namespace

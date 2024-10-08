@@ -50,6 +50,7 @@ private:
    Array<Coefficient*> owned_coeffs;
    Array<VectorCoefficient*> owned_vcoeffs;
    Array<Vector*> owned_vectors;
+   Array<Array<int>*> owned_intArrays;
 protected:
    std::unique_ptr<BilinearForm> a;
    std::unique_ptr<LinearForm> b;
@@ -72,7 +73,7 @@ public:
       :fes(fes),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
        parallel(false), hasAdjoint(hasAdjoint), elast(false),
-       owned_coeffs(0), owned_vcoeffs(0), owned_vectors(0)
+       owned_coeffs(0), owned_vcoeffs(0), owned_vectors(0), owned_intArrays(0)
    {
       InitializeForms();
       BuildTDofList(ess_bdr);
@@ -83,7 +84,7 @@ public:
       :fes(fes),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
        parallel(false), hasAdjoint(hasAdjoint), elast(false),
-       owned_coeffs(0), owned_vcoeffs(0), owned_vectors(0)
+       owned_coeffs(0), owned_vcoeffs(0), owned_vectors(0), owned_intArrays(0)
    {
       InitializeForms();
       BuildTDofList(ess_bdr);
@@ -94,11 +95,13 @@ public:
       for (Coefficient *coeff:owned_coeffs) { if (coeff) {delete coeff;} }
       for (VectorCoefficient *coeff:owned_vcoeffs) { if (coeff) {delete coeff;} }
       for (Vector *v:owned_vectors) { if (v) {delete v;} }
+      for (Array<int> *v:owned_intArrays) { if (v) {delete v;} }
    }
 
    void MakeCoefficientOwner(Coefficient *coeff) {owned_coeffs.Append(coeff);}
    void MakeCoefficientOwner(VectorCoefficient *coeff) {owned_vcoeffs.Append(coeff);}
    void MakeVectorOwner(Vector *v) {owned_vectors.Append(v);}
+   void MakeVectorOwner(Array<int> *v) {owned_intArrays.Append(v);}
 
    void SetAStationary(bool stationary=true) {isAStationary=stationary;}
    void SetBStationary(bool stationary=true) {isBStationary=stationary;}
@@ -120,8 +123,8 @@ public:
    ParLinearForm *GetAdjParLinearForm() {return par_adjb;}
 #endif
 
-   void Solve(GridFunction &x, bool assembleA=false, bool assembleB=false);
-   void SolveAdjoint(GridFunction &x, bool assembleA=false, bool assembleB=false);
+   void Solve(GridFunction &x);
+   void SolveAdjoint(GridFunction &x, bool reuse_solver=false);
    bool HasAdjoint() {return hasAdjoint;}
    bool IsParallel() { return parallel; }
 #ifdef MFEM_USE_MPI

@@ -19,6 +19,7 @@ int main(int argc, char *argv[])
    int order_state = 1;
    bool use_glvis = true;
    bool use_paraview = true;
+   real_t step_size = 1.0;
 
    real_t exponent = 3.0;
    real_t rho0 = 1e-06;
@@ -90,6 +91,8 @@ int main(int argc, char *argv[])
                   "Tolerance for relative successive objective difference");
    args.AddOption(&tol_obj_diff_abs, "-atol-obj", "--abs-tol-obj",
                   "Tolerance for absolute successive objective difference");
+   args.AddOption(&step_size, "-a0", "--init-step",
+                  "Initial step size");
    args.AddOption(&use_bregman_backtrack, "-bb", "--bregman-backtrack", "-ab",
                   "--armijo-backtrack",
                   "Option to choose Bregman backtracking algorithm or Armijo backtracking algorithm");
@@ -161,10 +164,7 @@ int main(int argc, char *argv[])
                 << "\tThe number of state   unknowns: " << state_ndof << std::endl;
    }
 
-   if (Mpi::Root())
-   {
-      out << "Creating gridfunctions ... " << std::flush;
-   }
+   if (Mpi::Root()) { out << "Creating gridfunctions ... " << std::flush; }
    ParGridFunction control_gf(&fes_control); control_gf = 0.0;
    ParGridFunction filter_gf(&fes_filter); filter_gf = 0.0;
    ParGridFunction state_gf(&fes_state); state_gf = 0.0;
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
 
    // Filter Essential BDR
    Array<int> solid_bdr_filter(ess_bdr_filter);
-   for(auto &isSolid:solid_bdr_filter){isSolid = isSolid==1;};
+   for (auto &isSolid:solid_bdr_filter) {isSolid = isSolid==1;};
    ConstantCoefficient one_cf(1.0);
    filter_gf.ProjectBdrCoefficient(one_cf, solid_bdr_filter);
 
@@ -188,10 +188,7 @@ int main(int argc, char *argv[])
    ParGridFunction grad_old_gf(&fes_control);
    ParGridFunction density_gf(&fes_control);
    density_gf = 0.0; // this is only for visualization
-   if (Mpi::Root())
-   {
-      out << "done" << std::endl;
-   }
+   if (Mpi::Root()) { out << "done" << std::endl; }
 
    // elasticity coefficients
    ConstantCoefficient zero_cf(0.0);
@@ -208,10 +205,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ProductCoefficient lambda_simp_cf(lambda, simp_cf), mu_simp_cf(mu, simp_cf);
 
-   if (Mpi::Root())
-   {
-      out << "Creating problems ... " << std::flush;
-   }
+   if (Mpi::Root()) { out << "Creating problems ... " << std::flush; }
    // Density
    FermiDiracEntropy entropy;
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
@@ -236,11 +230,7 @@ int main(int argc, char *argv[])
    DensityBasedTopOpt optproblem(density, control_gf, grad_gf,
                                  filter, filter_gf, grad_filter_gf,
                                  elasticity, state_gf);
-   elasticity.SetBStationary(false);
-   if (Mpi::Root())
-   {
-      out << "done" << std::endl;
-   }
+   if (Mpi::Root()) { out << "done" << std::endl; }
 
    // Backtracking related stuffs
    MappedPairedGFCoefficient bregman_diff_old
@@ -261,7 +251,6 @@ int main(int argc, char *argv[])
    ParLinearForm diff_density_form(&fes_control);
    diff_density_form.AddDomainIntegrator(new DomainLFIntegrator(diff_density_cf));
 
-   real_t step_size = 1.0;
    GLVis glvis("localhost", 19916, true);
    const char keys[] = "Rjmml****************";
    glvis.Append(control_gf, "control variable", keys);
