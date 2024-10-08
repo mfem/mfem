@@ -345,17 +345,11 @@ void DensityBasedTopOpt::UpdateGradient()
 {
    if (elasticity.HasAdjoint())
    {
-      // Since the elasticity coefficient is the same,
-      // reuse the solver
+      // Since the elasticity coefficient is the same, reuse the solver
       elasticity.SolveAdjoint(*adj_state_gf, true);
    }
 
    filter.GetAdjLinearForm()->Assemble();
-   real_t val = filter.GetAdjLinearForm()->Sum();
-   MPI_Allreduce(MPI_IN_PLACE, &val, 1, MFEM_MPI_REAL_T, MPI_SUM,
-                 elasticity.GetComm());
-   if (Mpi::Root()) {out << val << std::endl;}
-
    filter.SolveAdjoint(grad_filter);
    L2projector->Solve(grad_control);
 }

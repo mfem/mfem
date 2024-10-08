@@ -263,12 +263,12 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
 #endif
          }
          int num_bdr_attr = 4;
-         MarkBoundaries(*mesh,++num_bdr_attr,
+         MarkBoundaries(*mesh,++num_bdr_attr, // 5
                         [](const Vector &x)
          {
             return x[0] > 2.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
          });
-         MarkBoundaries(*mesh, ++num_bdr_attr,
+         MarkBoundaries(*mesh, ++num_bdr_attr, // 6
                         [](const Vector &x)
          {
             return x[0] < 1e-09 && x[1] < 0.5;
@@ -280,7 +280,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
 
          ess_bdr_filter.SetSize(num_bdr_attr);
          ess_bdr_filter = 0;
-         ess_bdr_filter[2] = 1;
+         // ess_bdr_filter[2] = 1;
          ess_bdr_filter[5] = -1;
          MarkElements(*mesh, 2, [](const Vector &x) {return x[1]>1.0 - std::pow(2,-5);});
          solid_attr = 2;
