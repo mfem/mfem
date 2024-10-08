@@ -222,7 +222,7 @@ TEST_CASE("H1 Pyramid Finite Element",
          {
             REQUIRE( fe.GetDim()            == 3                           );
             REQUIRE( fe.GetGeomType()       == Geometry::PYRAMID           );
-            REQUIRE( fe.Space()             == (int) FunctionSpace::Qk     );
+            REQUIRE( fe.Space()             == (int) FunctionSpace::Uk     );
             REQUIRE( fe.GetRangeType()      == (int) FiniteElement::SCALAR );
             REQUIRE( fe.GetMapType()        == (int) FiniteElement::VALUE  );
             REQUIRE( fe.GetDerivType()      == (int) FiniteElement::GRAD   );
@@ -246,7 +246,7 @@ TEST_CASE("H1 Pyramid Finite Element",
          {
             REQUIRE( fe.GetDim()            == 3                           );
             REQUIRE( fe.GetGeomType()       == Geometry::PYRAMID           );
-            REQUIRE( fe.Space()             == (int) FunctionSpace::Qk     );
+            REQUIRE( fe.Space()             == (int) FunctionSpace::Uk     );
             REQUIRE( fe.GetRangeType()      == (int) FiniteElement::SCALAR );
             REQUIRE( fe.GetMapType()        == (int) FiniteElement::VALUE  );
             REQUIRE( fe.GetDerivType()      == (int) FiniteElement::GRAD   );
