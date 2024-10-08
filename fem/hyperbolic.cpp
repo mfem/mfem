@@ -38,6 +38,7 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
    JDotN.SetSize(num_equations);
    nor.SetSize(fluxFunction.dim);
 #endif
+   ResetMaxCharSpeed();
 }
 
 void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
