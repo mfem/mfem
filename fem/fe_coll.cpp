@@ -1873,7 +1873,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
          H1_dof[Geometry::PRISM] = TriDof*pm1;
-         if (pyrtype == 0)
+         if (pyrtype == 0 || b_type == BasisType::Positive)
          {
             H1_dof[Geometry::PYRAMID] = pm2*pm1*(2*p-3)/6; // Bergot (JSC)
          }
@@ -1891,6 +1891,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
             H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
             H1_Elements[Geometry::PRISM] = new H1Pos_WedgeElement(p);
+            H1_Elements[Geometry::PYRAMID] = new H1Pos_PyramidElement(p);
          }
          else
          {
@@ -2252,6 +2253,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          L2_Elements[Geometry::TETRAHEDRON] = new L2Pos_TetrahedronElement(p);
          L2_Elements[Geometry::CUBE] = new L2Pos_HexahedronElement(p);
          L2_Elements[Geometry::PRISM] = new L2Pos_WedgeElement(p);
+         L2_Elements[Geometry::PYRAMID] = new L2Pos_PyramidElement(p);
       }
       else
       {
@@ -2274,6 +2276,10 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       L2_Elements[Geometry::PRISM]->SetMapType(map_type);
       L2_Elements[Geometry::PYRAMID]->SetMapType(map_type);
+      if (b_type != BasisType::Positive)
+      {
+         L2_Elements[Geometry::PYRAMID]->SetMapType(map_type);
+      }
       // Trace element use the default Gauss-Legendre nodal points for positive basis
       if (b_type == BasisType::Positive)
       {
