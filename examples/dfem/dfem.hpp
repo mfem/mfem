@@ -950,36 +950,60 @@ void map_field_to_quadrature_data_tensor_product(
    {
       auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
-      const auto field = Reshape(&field_e[0], d1d, d1d, vdim);
-      auto fqp = Reshape(&field_qp[0], vdim, q1d, q1d);
-      auto S1 = Reshape(&scratch_mem[0](0), q1d, d1d);
+      const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
+      auto fqp = Reshape(&field_qp[0], vdim, q1d, q1d, q1d);
+      auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
+      auto s1 = Reshape(&scratch_mem[1](0), d1d, q1d, q1d);
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         MFEM_FOREACH_THREAD(dy, y, d1d)
+         MFEM_FOREACH_THREAD(dz, z, d1d)
          {
-            MFEM_FOREACH_THREAD(qx, x, q1d)
+            MFEM_FOREACH_THREAD(dy, y, d1d)
             {
-               double acc = 0.0;
-               for (int dx = 0; dx < d1d; dx++)
+               MFEM_FOREACH_THREAD(qx, x, q1d)
                {
-                  acc += B(qx, 0, dx) * field(dx, dy, vd);
+                  double acc = 0.0;
+                  for (int dx = 0; dx < d1d; dx++)
+                  {
+                     acc += B(qx, 0, dx) * field(dx, dy, dz, vd);
+                  }
+                  s0(dz, dy, qx) = acc;
                }
-               S1(qx, dy) = acc;
             }
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD(dz, z, d1d)
+         {
+            MFEM_FOREACH_THREAD(qx, x, q1d)
+            {
+               MFEM_FOREACH_THREAD(qy, y, q1d)
+               {
+                  double acc = 0.0;
+                  for (int dy = 0; dy < d1d; dy++)
+                  {
+                     acc += s0(dz, dy, qx) * B(qy, 0, dy);
+                  }
+                  s1(dz, qy, qx) = acc;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(qz, z, q1d)
          {
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               double acc = 0.0;
-               for (int dy = 0; dy < d1d; dy++)
+               MFEM_FOREACH_THREAD(qx, x, q1d)
                {
-                  acc += B(qy, 0, dy) * S1(qx, dy);
+                  double acc = 0.0;
+                  for (int dz = 0; dz < d1d; dz++)
+                  {
+                     acc += s1(dz, qy, qx) * B(qz, 0, dz);
+                  }
+                  fqp(vd, qx, qy, qz) = acc;
                }
-               fqp(vd, qx, qy) = acc;
             }
          }
          MFEM_SYNC_THREAD;
@@ -991,44 +1015,76 @@ void map_field_to_quadrature_data_tensor_product(
       const auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const int dim = input.dim;
-      const auto field = Reshape(&field_e[0], d1d, d1d, vdim);
-      auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d);
+      const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
+      auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d, q1d);
 
-      auto dq0 = Reshape(&scratch_mem[0](0), d1d, q1d);
-      auto dq1 = Reshape(&scratch_mem[1](0), d1d, q1d);
+      auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
+      auto s1 = Reshape(&scratch_mem[1](0), d1d, d1d, q1d);
+      auto s2 = Reshape(&scratch_mem[2](0), d1d, q1d, q1d);
+      auto s3 = Reshape(&scratch_mem[3](0), d1d, q1d, q1d);
+      auto s4 = Reshape(&scratch_mem[4](0), d1d, q1d, q1d);
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         MFEM_FOREACH_THREAD(dy, y, d1d)
+         MFEM_FOREACH_THREAD(dz, z, d1d)
          {
-            MFEM_FOREACH_THREAD(qx, x, q1d)
+            MFEM_FOREACH_THREAD(dy, y, d1d)
             {
-               double u = 0.0;
-               double v = 0.0;
-               for (int dx = 0; dx < d1d; dx++)
+               MFEM_FOREACH_THREAD(qx, x, q1d)
                {
-                  u += B(qx, 0, dx) * field(dx, dy, vd);
-                  v += G(qx, 0, dx) * field(dx, dy, vd);
+                  real_t uv[2] = {0.0, 0.0};
+                  for (int dx = 0; dx < d1d; dx++)
+                  {
+                     const real_t f = field(dx, dy, dz, vd);
+                     uv[0] += f * B(qx, 0, dx);
+                     uv[1] += f * G(qx, 0, dx);
+                  }
+                  s0(dz, dy, qx) = uv[0];
+                  s1(dz, dy, qx) = uv[1];
                }
-               dq0(dy, qx) = u;
-               dq1(dy, qx) = v;
             }
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD(dz, z, d1d)
          {
-            MFEM_FOREACH_THREAD(qx, x, q1d)
+            MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               double du[2] = {0.0, 0.0};
-               for (int dy = 0; dy < d1d; dy++)
+               MFEM_FOREACH_THREAD(qx, x, q1d)
                {
-                  du[0] += dq1(dy, qx) * B(qy, 0, dy);
-                  du[1] += dq0(dy, qx) * G(qy, 0, dy);
+                  real_t uvw[3] = {0.0, 0.0, 0.0};
+                  for (int dy = 0; dy < d1d; dy++)
+                  {
+                     const real_t s0i = s0(dz, dy, qx);
+                     uvw[0] += s1(dz, dy, qx) * B(qy, 0, dy);
+                     uvw[1] += s0i * G(qy, 0, dy);
+                     uvw[2] += s0i * B(qy, 0, dy);
+                  }
+                  s2(dz, qy, qx) = uvw[0];
+                  s3(dz, qy, qx) = uvw[1];
+                  s4(dz, qy, qx) = uvw[2];
                }
+            }
+         }
+         MFEM_SYNC_THREAD;
 
-               fqp(vd, 0, qx, qy) = du[0];
-               fqp(vd, 1, qx, qy) = du[1];
+         MFEM_FOREACH_THREAD(qz, z, q1d)
+         {
+            MFEM_FOREACH_THREAD(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD(qx, x, q1d)
+               {
+                  real_t uvw[3] = {0.0, 0.0, 0.0};
+                  for (int dz = 0; dz < d1d; dz++)
+                  {
+                     uvw[0] += s2(dz, qy, qx) * B(qz, 0, dz);
+                     uvw[1] += s3(dz, qy, qx) * B(qz, 0, dz);
+                     uvw[2] += s4(dz, qy, qx) * G(qz, 0, dz);
+                  }
+                  fqp(vd, 0, qx, qy, qz) = uvw[0];
+                  fqp(vd, 1, qx, qy, qz) = uvw[1];
+                  fqp(vd, 2, qx, qy, qz) = uvw[2];
+               }
             }
          }
          MFEM_SYNC_THREAD;
@@ -1040,13 +1096,16 @@ void map_field_to_quadrature_data_tensor_product(
       const int num_qp = integration_weights.GetShape()[0];
       // TODO: eeek
       const int q1d = (int)floor(pow(num_qp, 1.0/input.dim) + 0.5);
-      auto w = Reshape(&integration_weights[0], q1d, q1d);
-      auto f = Reshape(&field_qp[0], q1d, q1d);
+      auto w = Reshape(&integration_weights[0], q1d, q1d, q1d);
+      auto f = Reshape(&field_qp[0], q1d, q1d, q1d);
       MFEM_FOREACH_THREAD(qy, y, q1d)
       {
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            f(qx, qy) = w(qx, qy);
+            MFEM_FOREACH_THREAD(qz, z, q1d)
+            {
+               f(qx, qy, qz) = w(qx, qy, qz);
+            }
          }
       }
       MFEM_SYNC_THREAD;
@@ -1054,8 +1113,8 @@ void map_field_to_quadrature_data_tensor_product(
    else if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::None>)
    {
       const int q1d = B.GetShape()[0];
-      auto field = Reshape(&field_e[0], input.size_on_qp, q1d, q1d);
-      auto fqp = Reshape(&field_qp[0], input.size_on_qp, q1d, q1d);
+      auto field = Reshape(&field_e[0], input.size_on_qp, q1d, q1d, q1d);
+      auto fqp = Reshape(&field_qp[0], input.size_on_qp, q1d, q1d, q1d);
 
       for (int sq = 0; sq < input.size_on_qp; sq++)
       {
@@ -1063,7 +1122,10 @@ void map_field_to_quadrature_data_tensor_product(
          {
             MFEM_FOREACH_THREAD(qx, x, q1d)
             {
-               fqp(sq, qx, qy) = field(sq, qx, qy);
+               MFEM_FOREACH_THREAD(qz, z, q1d)
+               {
+                  fqp(sq, qx, qy, qz) = field(sq, qx, qy, qz);
+               }
             }
          }
          MFEM_SYNC_THREAD;
@@ -1418,10 +1480,11 @@ get_shmem_info(
    const int d1d = max_dtq_dofs;
 
    // TODO-bug: this depends on the dimension
-   constexpr int hardcoded_spatial_dimension = 2;
-   for (int i = 0; i < hardcoded_spatial_dimension; i++)
+   constexpr int hardcoded_temp_num = 6;
+   for (int i = 0; i < hardcoded_temp_num; i++)
    {
-      temp_sizes[i] = q1d * d1d;
+      // TODO-bug: over-allocates if q1d <= d1d
+      temp_sizes[i] = q1d * q1d * q1d;
    }
    total_size += std::accumulate(
                     std::begin(temp_sizes), std::end(temp_sizes), 0);
@@ -1879,16 +1942,16 @@ void apply_kernel(
    process_kf_result(f_qp, serac::get<0>(serac::apply(kf, args)));
 }
 
-template <typename arg_ts, std::size_t... Is>
-MFEM_HOST_DEVICE inline
-auto create_enzyme_args(arg_ts &args,
-                        arg_ts &shadow_args,
-                        std::index_sequence<Is...>)
-{
-   // (out << ... << serac::get<Is>(shadow_args));
-   return std::tuple_cat(std::tie(enzyme_dup, serac::get<Is>(args),
-                                  serac::get<Is>(shadow_args))...);
-}
+// template <typename arg_ts, std::size_t... Is>
+// MFEM_HOST_DEVICE inline
+// auto create_enzyme_args(arg_ts &args,
+//                         arg_ts &shadow_args,
+//                         std::index_sequence<Is...>)
+// {
+//    // (out << ... << serac::get<Is>(shadow_args));
+//    return std::tuple_cat(std::tie(enzyme_dup, serac::get<Is>(args),
+//                                   serac::get<Is>(shadow_args))...);
+// }
 
 // template <typename arg_ts, std::size_t... Is> inline
 // auto create_enzyme_args(arg_ts &args,
@@ -1907,45 +1970,45 @@ auto create_enzyme_args(arg_ts &args,
 //    };
 // }
 
-template <typename kernel_t, typename arg_ts>
-MFEM_HOST_DEVICE inline
-auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
-{
-   auto arg_indices =
-      std::make_index_sequence<serac::tuple_size<std::remove_reference_t<arg_ts>>::value> {};
+// template <typename kernel_t, typename arg_ts>
+// MFEM_HOST_DEVICE inline
+// auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
+// {
+//    auto arg_indices =
+//       std::make_index_sequence<serac::tuple_size<std::remove_reference_t<arg_ts>>::value> {};
 
-   auto enzyme_args = create_enzyme_args(args, shadow_args, arg_indices);
+//    auto enzyme_args = create_enzyme_args(args, shadow_args, arg_indices);
 
-   using kf_return_t = typename create_function_signature<
-                       decltype(&kernel_t::operator())>::type::return_t;
+//    using kf_return_t = typename create_function_signature<
+//                        decltype(&kernel_t::operator())>::type::return_t;
 
-   return std::apply([&](auto &&...args)
-   {
-      return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
-      // return serac::get<0>(enzyme::autodiff<enzyme::Forward>(+kernel, args...));
-   }, enzyme_args);
-}
+//    return std::apply([&](auto &&...args)
+//    {
+//       return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
+//       // return serac::get<0>(enzyme::autodiff<enzyme::Forward>(+kernel, args...));
+//    }, enzyme_args);
+// }
 
-template <typename kf_t, typename kernel_arg_ts, size_t num_args>
-MFEM_HOST_DEVICE inline
-void apply_kernel_fwddiff_enzyme(
-   DeviceTensor<1, double> &f_qp,
-   const kf_t &kf,
-   kernel_arg_ts &args,
-   const std::array<DeviceTensor<2>, num_args> &u,
-   kernel_arg_ts &shadow_args,
-   const std::array<DeviceTensor<2>, num_args> &v,
-   int qp_idx)
-{
-   process_kf_args(u, args, qp_idx,
-                   std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
+// template <typename kf_t, typename kernel_arg_ts, size_t num_args>
+// MFEM_HOST_DEVICE inline
+// void apply_kernel_fwddiff_enzyme(
+//    DeviceTensor<1, double> &f_qp,
+//    const kf_t &kf,
+//    kernel_arg_ts &args,
+//    const std::array<DeviceTensor<2>, num_args> &u,
+//    kernel_arg_ts &shadow_args,
+//    const std::array<DeviceTensor<2>, num_args> &v,
+//    int qp_idx)
+// {
+//    process_kf_args(u, args, qp_idx,
+//                    std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
 
-   process_kf_args(v, shadow_args, qp_idx,
-                   std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
+//    process_kf_args(v, shadow_args, qp_idx,
+//                    std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
 
-   process_kf_result(f_qp,
-                     serac::get<0>(fwddiff_apply_enzyme(kf, args, shadow_args)));
-}
+//    process_kf_result(f_qp,
+//                      serac::get<0>(fwddiff_apply_enzyme(kf, args, shadow_args)));
+// }
 
 template <typename T> inline
 void process_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
@@ -2079,13 +2142,11 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
       const int vdim = output.vdim;
       const int test_dim = output.size_on_qp / vdim;
 
-      auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d);
-      auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
+      auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d, q1d);
+      auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
 
-      // TODO-bug: make this shared memory
-      // Vector s0mem(d1d*q1d);
-      // auto s0 = Reshape(s0mem.Write(), d1d, q1d);
-      auto s0 = Reshape(&scratch_mem[0](0), d1d, q1d);
+      auto s0 = Reshape(&scratch_mem[0](0), q1d, q1d, d1d);
+      auto s1 = Reshape(&scratch_mem[1](0), q1d, d1d, d1d);
 
       for (int vd = 0; vd < vdim; vd++)
       {
@@ -2093,12 +2154,15 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
             {
-               double a = 0.0;
-               for (int qx = 0; qx < q1d; qx++)
+               MFEM_FOREACH_THREAD(qz, z, q1d)
                {
-                  a += B(qx, 0, dx) * fqp(vd, 0, qx, qy);
+                  double acc = 0.0;
+                  for (int qx = 0; qx < q1d; qx++)
+                  {
+                     acc += fqp(vd, 0, qx, qy, qz) * B(qx, 0, dx);
+                  }
+                  s0(qz, qy, dx) = acc;
                }
-               s0(dx, qy) = a;
             }
          }
          MFEM_SYNC_THREAD;
@@ -2107,12 +2171,33 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
             {
-               double a = 0.0;
-               for (int qy = 0; qy < q1d; qy++)
+               MFEM_FOREACH_THREAD(qz, z, q1d)
                {
-                  a += s0(dx, qy) * B(qy, 0, dy);
+                  double acc = 0.0;
+                  for (int qy = 0; qy < q1d; qy++)
+                  {
+                     acc += s0(qz, qy, dx) * B(qy, 0, dy);
+                  }
+                  s1(qz, dy, dx) = acc;
                }
-               yd(dx, dy, vd) += a;
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+
+         MFEM_FOREACH_THREAD(dy, y, d1d)
+         {
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            {
+               MFEM_FOREACH_THREAD(dz, z, d1d)
+               {
+                  double acc = 0.0;
+                  for (int qz = 0; qz < q1d; qz++)
+                  {
+                     acc += s1(qz, dy, dx) * B(qz, 0, dz);
+                  }
+                  yd(dx, dy, dz, vd) += acc;
+               }
             }
          }
          MFEM_SYNC_THREAD;
@@ -2124,48 +2209,75 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
       const auto [q1d, unused, d1d] = G.GetShape();
       const int vdim = output.vdim;
       const int test_dim = output.size_on_qp / vdim;
-      auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d);
-      auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
+      auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d, q1d);
+      auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
 
-      // TODO-bug: make this shared memory
-      // Vector s0mem(q1d*d1d);
-      // Vector s1mem(q1d*d1d);
-      // auto s0 = Reshape(s0mem.Write(), d1d, q1d);
-      // auto s1 = Reshape(s1mem.Write(), d1d, q1d);
-      auto s0 = Reshape(&scratch_mem[0](0), d1d, q1d);
-      auto s1 = Reshape(&scratch_mem[1](0), d1d, q1d);
+      auto s0 = Reshape(&scratch_mem[0](0), q1d, q1d, d1d);
+      auto s1 = Reshape(&scratch_mem[1](0), q1d, q1d, d1d);
+      auto s2 = Reshape(&scratch_mem[2](0), q1d, q1d, d1d);
+      auto s3 = Reshape(&scratch_mem[3](0), q1d, d1d, d1d);
+      auto s4 = Reshape(&scratch_mem[4](0), q1d, d1d, d1d);
+      auto s5 = Reshape(&scratch_mem[5](0), q1d, d1d, d1d);
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD(qz, z, q1d)
          {
-            MFEM_FOREACH_THREAD(dx, x, d1d)
+            MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               double u = 0.0;
-               double v = 0.0;
-               for (int qx = 0; qx < q1d; qx++)
+               MFEM_FOREACH_THREAD(dx, x, d1d)
                {
-                  u += G(qx, 0, dx) * fqp(vd, 0, qx, qy);
-                  v += B(qx, 0, dx) * fqp(vd, 1, qx, qy);
+                  real_t uvw[3] = {0.0, 0.0, 0.0};
+                  for (int qx = 0; qx < q1d; qx++)
+                  {
+                     uvw[0] += fqp(vd, 0, qx, qy, qz) * G(qx, 0, dx);
+                     uvw[1] += fqp(vd, 1, qx, qy, qz) * B(qx, 0, dx);
+                     uvw[2] += fqp(vd, 2, qx, qy, qz) * B(qx, 0, dx);
+                  }
+                  s0(qz, qy, dx) = uvw[0];
+                  s1(qz, qy, dx) = uvw[1];
+                  s2(qz, qy, dx) = uvw[2];
                }
-               s0(dx, qy) = u;
-               s1(dx, qy) = v;
             }
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(dy, y, d1d)
+         MFEM_FOREACH_THREAD(qz, z, q1d)
          {
-            MFEM_FOREACH_THREAD(dx, x, d1d)
+            MFEM_FOREACH_THREAD(dy, y, d1d)
             {
-               double u = 0.0;
-               double v = 0.0;
-               for (int qy = 0; qy < q1d; qy++)
+               MFEM_FOREACH_THREAD(dx, x, d1d)
                {
-                  u += s0(dx, qy) * B(qy, 0, dy);
-                  v += s1(dx, qy) * G(qy, 0, dy);
+                  real_t uvw[3] = {0.0, 0.0, 0.0};
+                  for (int qy = 0; qy < q1d; qy++)
+                  {
+                     uvw[0] += s0(qz, qy, dx) * B(qy, 0, dy);
+                     uvw[1] += s1(qz, qy, dx) * G(qy, 0, dy);
+                     uvw[2] += s2(qz, qy, dx) * B(qy, 0, dy);
+                  }
+                  s3(qz, dy, dx) = uvw[0];
+                  s4(qz, dy, dx) = uvw[1];
+                  s5(qz, dy, dx) = uvw[2];
                }
-               yd(dx, dy, vd) += (u + v);
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(dz, z, d1d)
+         {
+            MFEM_FOREACH_THREAD(dy, y, d1d)
+            {
+               MFEM_FOREACH_THREAD(dx, x, d1d)
+               {
+                  real_t uvw[3] = {0.0, 0.0, 0.0};
+                  for (int qz = 0; qz < q1d; qz++)
+                  {
+                     uvw[0] += s3(qz, dy, dx) * B(qz, 0, dz);
+                     uvw[1] += s4(qz, dy, dx) * B(qz, 0, dz);
+                     uvw[2] += s5(qz, dy, dx) * G(qz, 0, dz);
+                  }
+                  yd(dx, dy, dz, vd) += uvw[0] + uvw[1] + uvw[2];
+               }
             }
          }
          MFEM_SYNC_THREAD;
@@ -2174,8 +2286,8 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
    else if constexpr (std::is_same_v<decltype(output), BareFieldOperator::None>)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
-      auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d);
-      auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d);
+      auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d, q1d);
+      auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d, q1d);
 
       for (int sq = 0; sq < output.size_on_qp; sq++)
       {
@@ -2183,7 +2295,10 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
          {
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               yqp(sq, qx, qy) = fqp(sq, qx, qy);
+               MFEM_FOREACH_THREAD(qz, z, q1d)
+               {
+                  yqp(sq, qx, qy, qz) = fqp(sq, qx, qy, qz);
+               }
             }
          }
          MFEM_SYNC_THREAD;

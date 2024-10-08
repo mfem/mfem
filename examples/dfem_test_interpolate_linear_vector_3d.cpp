@@ -1,0 +1,105 @@
+#include "dfem/dfem.hpp"
+#include "dfem/dfem_test_macro.hpp"
+
+using namespace mfem;
+using mfem::internal::tensor;
+
+int test_interpolate_linear_vector_3d(std::string mesh_file, int refinements,
+                                      int polynomial_order)
+{
+
+   constexpr int dim = 3;
+   constexpr int vdim = 3;
+   Mesh mesh_serial = Mesh(mesh_file);
+   MFEM_ASSERT(mesh_serial.Dimension() == dim, "wrong mesh dimension");
+
+   for (int i = 0; i < refinements; i++)
+   {
+      mesh_serial.UniformRefinement();
+   }
+
+   ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
+   mesh.SetCurvature(1);
+   mesh_serial.Clear();
+
+   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
+   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+
+   H1_FECollection h1fec(polynomial_order, dim);
+   ParFiniteElementSpace h1fes(&mesh, &h1fec, vdim);
+
+   const IntegrationRule &ir =
+      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder() + 1);
+
+   QuadratureSpace qspace(mesh, ir);
+   QuadratureFunction qf(&qspace, vdim);
+
+   ParGridFunction f1_g(&h1fes);
+
+   auto kernel = [](const tensor<double, vdim> &u)
+   {
+      return serac::tuple{u};
+   };
+
+   serac::tuple argument_operators = {Value{"potential"}};
+   serac::tuple output_operator = {None{"potential"}};
+
+   ElementOperator eop{kernel, argument_operators, output_operator};
+   auto ops = serac::tuple{eop};
+
+   auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
+   auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
+
+   DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+
+   auto f1 = [](const Vector &coords, Vector &u)
+   {
+      const double x = coords(0);
+      const double y = coords(1);
+      const double z = coords(2);
+      u(0) = 2.345 + x + y + 3.0 * z;
+      u(1) = 12.345 + x + y + 2.0 * z;
+      u(2) = 5.345 + x + y + 1.0 * z;
+   };
+
+   VectorFunctionCoefficient f1_c(vdim, f1);
+   f1_g.ProjectCoefficient(f1_c);
+
+   Vector x(f1_g), y(f1_g.Size());
+   dop.SetParameters({mesh_nodes});
+   dop.Mult(x, y);
+
+   Vector f_test(qf.Size());
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(e);
+      for (int qp = 0; qp < ir.GetNPoints(); qp++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(qp);
+         T->SetIntPoint(&ip);
+
+         Vector f(vdim);
+         f1_g.GetVectorValue(*T, ip, f);
+         for (int d = 0; d < vdim; d++)
+         {
+            int qpo = qp * vdim;
+            int eo = e * (ir.GetNPoints() * vdim);
+            f_test(d + qpo + eo) = f(d);
+         }
+      }
+   }
+
+   Vector diff(f_test);
+   diff -= y;
+   if (diff.Norml2() > 1e-10)
+   {
+      print_vector(diff);
+      print_vector(f_test);
+      print_vector(y);
+      return 1;
+   }
+
+   return 0;
+}
+
+DFEM_TEST_MAIN(test_interpolate_linear_vector_3d);

@@ -163,12 +163,15 @@ void DifferentiableOperator<kernels_tuple,
          {
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               const int q = qy + qx * q1d;
-               // printf("qp: %d\n", q);
+               MFEM_FOREACH_THREAD(qz, z, q1d)
+               {
+                  const int q = qx + q1d * (qy + q1d * qz);
+                  // printf("qp: %d\n", q);
 
-               auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
-               auto r = Reshape(&residual_shmem(0, q), residual_size_on_qp);
-               apply_kernel(r, kernel.func, kernel_args, input_shmem, q);
+                  auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+                  auto r = Reshape(&residual_shmem(0, q), residual_size_on_qp);
+                  apply_kernel(r, kernel.func, kernel_args, input_shmem, q);
+               }
             }
          }
          MFEM_SYNC_THREAD;
@@ -179,7 +182,7 @@ void DifferentiableOperator<kernels_tuple,
                                                       serac::get<0>(output_fops),
                                                       output_dtq_shmem[hardcoded_output_idx],
                                                       scratch_mem);
-      }, num_entities, q1d, q1d, 1, shmem_info.total_size, shmem_cache.ReadWrite());
+      }, num_entities, q1d, q1d, q1d, shmem_info.total_size, shmem_cache.ReadWrite());
 
       if constexpr (std::is_same_v<decltype(output_fop), None>)
       {
