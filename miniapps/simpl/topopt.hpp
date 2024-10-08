@@ -39,6 +39,30 @@ public:
 
 void ProjectCoefficient(GridFunction &x, Coefficient &coeff, int attribute);
 
+// Hooke's Law
+// -kx\cdot d = (f_ext + sigma n)\cdot d
+class DirectionalHookesLawBdrIntegrator : public BilinearFormIntegrator
+{
+   // properties
+private:
+   VectorCoefficient *direction;
+   real_t k;
+   mutable Vector shape;
+protected:
+public:
+
+   // methods
+private:
+protected:
+public:
+   DirectionalHookesLawBdrIntegrator(const real_t k, VectorCoefficient *direction)
+      :k(k), direction(direction) {}
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
 class DesignDensity
 {
 private:
@@ -104,7 +128,7 @@ private:
    std::unique_ptr<L2Projection> L2projector;
    real_t objval;
    real_t current_volume;
-   
+
 public:
    DensityBasedTopOpt(
       DesignDensity &density, GridFunction &gf_control, GridFunction &grad_control,

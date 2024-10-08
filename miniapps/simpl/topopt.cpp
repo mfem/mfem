@@ -54,6 +54,65 @@ void GLVis::Update()
    }
 }
 
+void DirectionalHookesLawBdrIntegrator::AssembleFaceMatrix(
+   const FiniteElement &el, const FiniteElement &dummy,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+
+   real_t kw;
+   int dim = el.GetDim();
+   int ndof = el.GetDof();
+   Vector dir(dim), nor(dim);
+
+   shape.SetSize(ndof);
+   elmat.SetSize(ndof*dim);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      // Assuming order(u)==order(mesh)
+      order = Trans.Elem1->OrderW() + 2*el.GetOrder();
+      if (el.Space() == FunctionSpace::Pk)
+      {
+         order++;
+      }
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+
+      el.CalcPhysShape(*Trans.Elem1, shape);
+
+      direction->Eval(dir, *Trans.Elem1, eip1);
+
+      kw = k*ip.weight;
+      for (int d2=0; d2<dim; d2++)
+      {
+         for (int j = 0; j < ndof; j++)
+         {
+            for (int d1 = 0; d1 < dim; d1++)
+            {
+               for (int i = 0; i < ndof; i++)
+               {
+                  elmat(i+d1*ndof, j+d2*ndof) += kw * dir[d1] * dir[d2] * shape(i) * shape(j);
+               }
+            }
+         }
+      }
+   }
+}
+
 real_t StrainEnergyDensityCoefficient::Eval(
    ElementTransformation &T, const IntegrationPoint &ip)
 {
@@ -232,21 +291,33 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
 }
 
 DensityBasedTopOpt::DensityBasedTopOpt(
-   DesignDensity &density, GridFunction &gf_control, GridFunction &grad_control,
-   HelmholtzFilter &filter, GridFunction &gf_filter, GridFunction &grad_filter,
-   ElasticityProblem &elasticity, GridFunction &gf_state)
-   :density(density), control_gf(gf_control), grad_control(grad_control),
-    filter(filter), filter_gf(gf_filter), grad_filter(grad_filter),
-    elasticity(elasticity), state_gf(gf_state),
+   DesignDensity &density, GridFunction &control_gf, GridFunction &grad_control,
+   HelmholtzFilter &filter, GridFunction &filter_gf, GridFunction &grad_filter,
+   ElasticityProblem &elasticity, GridFunction &state_gf)
+   :density(density), control_gf(control_gf), grad_control(grad_control),
+    filter(filter), filter_gf(filter_gf), grad_filter(grad_filter),
+    elasticity(elasticity), state_gf(state_gf),
     obj(elasticity.HasAdjoint() ? *elasticity.GetAdjLinearForm():
         *elasticity.GetLinearForm())
 {
-   Array<int> empty(gf_control.FESpace()->GetMesh()->bdr_attributes.Max());
+   Array<int> empty(control_gf.FESpace()->GetMesh()->bdr_attributes.Max());
    empty = 0;
-   L2projector.reset(new L2Projection(*gf_control.FESpace(), empty));
+   L2projector.reset(new L2Projection(*control_gf.FESpace(), empty));
    grad_filter_cf.SetGridFunction(&grad_filter);
    L2projector->GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(
                                                         grad_filter_cf));
+   if (elasticity.HasAdjoint())
+   {
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>
+                                    (state_gf.FESpace());
+      if (pfes) {adj_state_gf.reset(new ParGridFunction(pfes));}
+      else {adj_state_gf.reset(new GridFunction(state_gf.FESpace()));}
+#else
+      adj_state_gf.reset(new GridFunction(state_gf.FESpace()));
+#endif
+      *adj_state_gf = 0.0;
+   }
 }
 
 real_t DensityBasedTopOpt::Eval()
@@ -255,6 +326,7 @@ real_t DensityBasedTopOpt::Eval()
                                                   density.hasEntropy());
    filter.Solve(filter_gf);
    elasticity.Solve(state_gf);
+   obj.Assemble();
    if (elasticity.IsParallel())
    {
 #ifdef MFEM_USE_MPI
@@ -272,8 +344,15 @@ void DensityBasedTopOpt::UpdateGradient()
 {
    if (elasticity.HasAdjoint())
    {
-      elasticity.SolveAdjoint(*adj_state_gf);
+      elasticity.SolveAdjoint(*adj_state_gf, true);
    }
+
+   filter.GetAdjLinearForm()->Assemble();
+   real_t val = filter.GetAdjLinearForm()->Sum();
+   MPI_Allreduce(MPI_IN_PLACE, &val, 1, MFEM_MPI_REAL_T, MPI_SUM,
+                 elasticity.GetComm());
+   if (Mpi::Root()) {out << val << std::endl;}
+
    filter.SolveAdjoint(grad_filter);
    L2projector->Solve(grad_control);
 }
