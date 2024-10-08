@@ -106,6 +106,8 @@ public:
        state_gf(state_gf), adjstate_gf(adju_gf)
    { }
 
+   void SetAdjState(GridFunction &adj){adjstate_gf = &adj;}
+
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
 
@@ -137,6 +139,7 @@ public:
 
    real_t GetCurrentVolume() {return current_volume;}
    real_t GetCurrentObjectValue() {return objval;}
+   GridFunction& GetAdjState() {return *adj_state_gf;}
 
    real_t Eval();
 

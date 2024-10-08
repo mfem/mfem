@@ -45,6 +45,42 @@ void MarkElements(Mesh &mesh, int attr,
    mesh.SetAttributes();
 }
 
+real_t DistanceToSegment(const Vector &p, const Vector &v, const Vector &w)
+{
+   const double l2 = v.DistanceSquaredTo(w);
+   const double t = std::max(0.0, std::min(1.0,
+                                           ((p*w) - (p*v) - (v*w) + (v*v))/l2));
+   Vector projection(v);
+   projection.Add(t, w);
+   projection.Add(-t, v);
+   return p.DistanceTo(projection);
+}
+
+void ForceInverterInitialDesign(GridFunction &x, LegendreEntropy *entropy)
+{
+   Array<Vector*> ports(0);
+   ports.Append(new Vector({0.0,1.0}));
+   ports.Append(new Vector({0.0,0.0}));
+   ports.Append(new Vector({2.0,1.0}));
+   Vector domain_center({1.0,0.5});
+
+   FunctionCoefficient dist([&domain_center, &ports](const Vector &x)
+   {
+      double d = infinity();
+      for (auto &port : ports) {d = std::min(d, DistanceToSegment(x, domain_center, *port));}
+      return (1-d);
+   });
+   if (entropy)
+   {
+      x.ProjectCoefficient(dist);
+   }
+   else
+   {
+      CompositeCoefficient dist_cut(dist, [](const real_t x) {return std::min(1.0, std::max(0.0, x));});
+      x.ProjectCoefficient(dist_cut);
+   }
+   for (auto port:ports) { delete port; }
+}
 
 Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
                      real_t &r_min, real_t &tot_vol, real_t &min_vol, real_t &max_vol,
@@ -407,6 +443,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          ess_bdr_filter[6] = 1;
          break;
       }
+      default: MFEM_ABORT("Problem Undefined");
    }
    return mesh;
 }
@@ -590,6 +627,7 @@ void SetupTopoptProblem(TopoptProblem prob,
 
          break;
       }
+      default: MFEM_ABORT("Problem Undefined");
    }
 }
 } // end of namespace

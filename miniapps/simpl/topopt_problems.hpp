@@ -44,5 +44,8 @@ void SetupTopoptProblem(TopoptProblem prob,
                         HelmholtzFilter &filter, ElasticityProblem &elasticity,
                         GridFunction &gf_filter, GridFunction &gf_state);
 
+real_t DistanceToSegment(const Vector &p, const Vector &v, const Vector &w);
+void ForceInverterInitialDesign(GridFunction &x, LegendreEntropy *entropy=nullptr);
+
 } // end of namespace mfem
 #endif
