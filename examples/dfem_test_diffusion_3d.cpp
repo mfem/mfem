@@ -42,8 +42,8 @@ int test_diffusion_3d(
    printf("#nqp = %d\n", ir.GetNPoints());
    printf("#q1d = %d\n", (int)floor(pow(ir.GetNPoints(), 1.0/dim) + 0.5));
 
-   ParametricSpace qdata_space(dim, dim, ir.GetNPoints(),
-                               dim * ir.GetNPoints() * mesh.GetNE());
+   ParametricSpace qdata_space(dim, dim * dim, ir.GetNPoints(),
+                               dim * dim * ir.GetNPoints() * mesh.GetNE());
    ParametricFunction qdata(qdata_space);
 
    ParGridFunction f1_g(&h1fes);
@@ -64,19 +64,14 @@ int test_diffusion_3d(
       auto diffusion_setup_kernel =
          [] MFEM_HOST_DEVICE (
             const tensor<double, dim, dim>& J,
-            const double& w,
-            const tensor<double, dim>& dudxi)
+            const double& w)
       {
          auto invJ = inv(J);
-         return serac::tuple{invJ * transpose(invJ) * dudxi * det(J) * w};
+         return serac::tuple{invJ * transpose(invJ) * det(J) * w};
       };
 
-      serac::tuple argument_operators =
-      {
-         Gradient{"coordinates"}, Weight{}, Gradient{"potential"}
-      };
+      serac::tuple argument_operators = {Gradient{"coordinates"}, Weight{}};
       serac::tuple output_operator = {None{"qdata"}};
-      // serac::tuple output_operator = {Gradient{"potential"}};
 
       ElementOperator eop = {diffusion_setup_kernel, argument_operators, output_operator};
       auto ops = serac::tuple{eop};
@@ -100,19 +95,20 @@ int test_diffusion_3d(
       qdata.HostRead();
    }
 
-   printf("qdata: ");
-   print_vector(qdata);
+   // printf("qdata: ");
+   // print_vector(qdata);
 
    Vector y(h1fes.GetTrueVSize());
    {
       auto diffusion_apply_kernel =
          [] MFEM_HOST_DEVICE (
-            const tensor<double, dim>& qdata)
+            const tensor<double, dim>& dudxi,
+            const tensor<double, dim, dim>& qdata)
       {
-         return serac::tuple{qdata};
+         return serac::tuple{qdata * dudxi};
       };
 
-      serac::tuple argument_operators = {None{"qdata"}};
+      serac::tuple argument_operators = {Gradient{"potential"}, None{"qdata"}};
       serac::tuple output_operator = {Gradient{"potential"}};
 
       ElementOperator eop = {diffusion_apply_kernel, argument_operators, output_operator};
@@ -134,9 +130,8 @@ int test_diffusion_3d(
       y.HostRead();
    }
 
-   printf("y: ");
-   print_vector(y);
-
+   // printf("y: ");
+   // print_vector(y);
 
    Vector y2(h1fes.TrueVSize());
    for (int i = 0; i < num_samples; i++)
@@ -149,10 +144,10 @@ int test_diffusion_3d(
       a.Assemble();
       a.Finalize();
       a.Mult(x, y2);
+      y2.HostRead();
    }
-   y2.HostRead();
-   printf("y2: ");
-   print_vector(y2);
+   // printf("y2: ");
+   // print_vector(y2);
 
    Vector diff(y2);
    diff -= y;
