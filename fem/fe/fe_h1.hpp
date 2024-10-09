@@ -156,8 +156,8 @@ private:
    mutable real_t zmax;
 
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector tmp_i, u;
-   mutable DenseMatrix tmp1_ij, tmp2_ij, du;
+   mutable Vector tmp_i, tmp_u;
+   mutable DenseMatrix tmp1_ij, tmp2_ij, tmp_du;
    mutable DenseTensor tmp_ijk;
 #endif
    DenseMatrixInverse Ti;

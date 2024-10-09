@@ -1054,11 +1054,10 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
    tmp1_ij.SetSize(p + 1, p + 1);
    tmp2_ij.SetSize(p + 1, dim);
    tmp_ijk.SetSize(p + 1, p + 1, dim);
-   u.SetSize(dof);
-   du.SetSize(dof, dim);
+   tmp_u.SetSize(dof);
+   tmp_du.SetSize(dof, dim);
 #else
    Vector tmp_i(p + 1);
-   Vector u(dof);
    DenseMatrix tmp1_ij(p + 1, p + 1);
 #endif
 
@@ -1175,13 +1174,13 @@ void H1_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
 
 #ifdef MFEM_THREAD_SAFE
    Vector tmp_i(p + 1);
-   Vector u(dof);
+   Vector tmp_u(dof);
    DenseMatrix tmp1_ij(p + 1, p + 1);
 #endif
 
-   calcBasis(p, ip, tmp_i, tmp1_ij, u);
+   calcBasis(p, ip, tmp_i, tmp1_ij, tmp_u);
 
-   Ti.Mult(u, shape);
+   Ti.Mult(tmp_u, shape);
 }
 
 void H1_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
@@ -1194,11 +1193,11 @@ void H1_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix tmp1_ij(p + 1, p + 1);
    DenseMatrix tmp2_ij(p + 1, dim);
    DenseTensor tmp_ijk(p + 1, p + 1, dim);
-   DenseMatrix du(dof, dim);
+   DenseMatrix tmp_du(dof, dim);
 #endif
 
-   calcGradBasis(p, ip, tmp_i, tmp2_ij, tmp1_ij, tmp_ijk, du);
-   Ti.Mult(du, dshape);
+   calcGradBasis(p, ip, tmp_i, tmp2_ij, tmp1_ij, tmp_ijk, tmp_du);
+   Ti.Mult(tmp_du, dshape);
 }
 
 void H1_FuentesPyramidElement::CalcRawShape(const IntegrationPoint &ip,
