@@ -1,5 +1,6 @@
 #include "dfem/dfem.hpp"
 #include "dfem/dfem_test_macro.hpp"
+#include "examples/dfem/dfem_parametricspace.hpp"
 #include "fem/bilininteg.hpp"
 
 using namespace mfem;
@@ -8,6 +9,7 @@ using mfem::internal::tensor;
 int test_diffusion_3d(
    std::string mesh_file, int refinements, int polynomial_order)
 {
+   constexpr int num_samples = 100;
    constexpr int dim = 3;
    Mesh mesh_serial = Mesh(mesh_file);
    MFEM_ASSERT(mesh_serial.Dimension() == dim, "incorrect mesh dimension");
@@ -29,39 +31,23 @@ int test_diffusion_3d(
    H1_FECollection h1fec(polynomial_order, dim);
    ParFiniteElementSpace h1fes(&mesh, &h1fec);
 
+
    out << "#dofs " << h1fes.GetTrueVSize() << "\n";
 
    const IntegrationRule& ir =
       IntRules.Get(h1fes.GetFE(0)->GetGeomType(),
-                   polynomial_order * h1fec.GetOrder() + 2);
+                   2 * h1fec.GetOrder() + 1);
 
    printf("#ndof per el = %d\n", h1fes.GetFE(0)->GetDof());
    printf("#nqp = %d\n", ir.GetNPoints());
    printf("#q1d = %d\n", (int)floor(pow(ir.GetNPoints(), 1.0/dim) + 0.5));
 
+   ParametricSpace qdata_space(dim, dim, ir.GetNPoints(),
+                               dim * ir.GetNPoints() * mesh.GetNE());
+   ParametricFunction qdata(qdata_space);
+
    ParGridFunction f1_g(&h1fes);
    ParGridFunction rho_g(&h1fes);
-
-   auto kernel = [] MFEM_HOST_DEVICE(const tensor<double, dim, dim>& J,
-                                     const double& w, const tensor<double, dim>& dudxi)
-   {
-      auto invJ = inv(J);
-      return serac::tuple{dudxi * invJ * transpose(invJ) * det(J) * w};
-   };
-
-   serac::tuple argument_operators =
-   {
-      Gradient{"coordinates"}, Weight{}, Gradient{"potential"}
-   };
-   serac::tuple output_operator = {Gradient{"potential"}};
-
-   ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = serac::tuple{eop};
-
-   auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
-   auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
-
-   DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
 
    auto f1 = [](const Vector& coords)
    {
@@ -70,29 +56,103 @@ int test_diffusion_3d(
       const double z = coords(2);
       return 2.345 + x + x*y + 1.25 * z*x;
    };
-
    FunctionCoefficient f1_c(f1);
    f1_g.ProjectCoefficient(f1_c);
 
-   Vector x(f1_g), y(h1fes.TrueVSize());
-   dop.SetParameters({mesh_nodes});
-   tic();
-   dop.Mult(x, y);
-   real_t elapsed = toc();
-   printf("dfem apply: %fs\n", elapsed);
-   y.HostRead();
+   Vector x(f1_g);
+   {
+      auto diffusion_setup_kernel =
+         [] MFEM_HOST_DEVICE (
+            const tensor<double, dim, dim>& J,
+            const double& w,
+            const tensor<double, dim>& dudxi)
+      {
+         auto invJ = inv(J);
+         return serac::tuple{invJ * transpose(invJ) * dudxi * det(J) * w};
+      };
 
-   ParBilinearForm a(&h1fes);
-   auto diff_integ = new DiffusionIntegrator;
-   diff_integ->SetIntRule(&ir);
-   a.AddDomainIntegrator(diff_integ);
-   a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   a.Assemble();
-   a.Finalize();
+      serac::tuple argument_operators =
+      {
+         Gradient{"coordinates"}, Weight{}, Gradient{"potential"}
+      };
+      serac::tuple output_operator = {None{"qdata"}};
+      // serac::tuple output_operator = {Gradient{"potential"}};
+
+      ElementOperator eop = {diffusion_setup_kernel, argument_operators, output_operator};
+      auto ops = serac::tuple{eop};
+
+      auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
+      auto parameters = std::array
+      {
+         FieldDescriptor{&mesh_fes, "coordinates"},
+         FieldDescriptor{&qdata_space, "qdata"}};
+
+      DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+
+      dop.SetParameters({mesh_nodes, &qdata});
+      tic();
+      for (int i = 0; i < num_samples; i++)
+      {
+         dop.Mult(x, qdata);
+      }
+      real_t elapsed = toc();
+      printf("dfem setup: %fs\n", elapsed / num_samples);
+      qdata.HostRead();
+   }
+
+   printf("qdata: ");
+   print_vector(qdata);
+
+   Vector y(h1fes.GetTrueVSize());
+   {
+      auto diffusion_apply_kernel =
+         [] MFEM_HOST_DEVICE (
+            const tensor<double, dim>& qdata)
+      {
+         return serac::tuple{qdata};
+      };
+
+      serac::tuple argument_operators = {None{"qdata"}};
+      serac::tuple output_operator = {Gradient{"potential"}};
+
+      ElementOperator eop = {diffusion_apply_kernel, argument_operators, output_operator};
+      auto ops = serac::tuple{eop};
+
+      auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
+      auto parameters = std::array{FieldDescriptor{&qdata_space, "qdata"}};
+
+      DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+
+      dop.SetParameters({&qdata});
+      tic();
+      for (int i = 0; i < num_samples; i++)
+      {
+         dop.Mult(x, y);
+      }
+      real_t elapsed = toc();
+      printf("dfem apply: %fs\n", elapsed / num_samples);
+      y.HostRead();
+   }
+
+   printf("y: ");
+   print_vector(y);
+
 
    Vector y2(h1fes.TrueVSize());
-   a.Mult(x, y2);
+   for (int i = 0; i < num_samples; i++)
+   {
+      ParBilinearForm a(&h1fes);
+      auto diff_integ = new DiffusionIntegrator;
+      diff_integ->SetIntRule(&ir);
+      a.AddDomainIntegrator(diff_integ);
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a.Assemble();
+      a.Finalize();
+      a.Mult(x, y2);
+   }
    y2.HostRead();
+   printf("y2: ");
+   print_vector(y2);
 
    Vector diff(y2);
    diff -= y;

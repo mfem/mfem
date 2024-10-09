@@ -185,7 +185,7 @@ void forall(func_t f,
 #if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
-      dim3 block_size(X, Y);
+      dim3 block_size(X, Y, Z);
       forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
 #if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
