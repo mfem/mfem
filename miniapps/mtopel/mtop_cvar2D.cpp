@@ -178,6 +178,10 @@ double Find_t_bisection(const std::vector<double>& p,
         std::cout<<" "<<f[i];
     }
     std::cout<<std::endl;
+    for(size_t i=0;i<f.size();i++){
+        std::cout<<" "<<ind[i];
+    }
+    std::cout<<std::endl;
 
 
     std::cout<<"cval="<<cval<<std::endl;
@@ -197,7 +201,7 @@ double Find_t_bisection(const std::vector<double>& p,
     double fmin=gamma*f[0];
     double fmax=gamma*f[0];
 
-    for(size_t i=0;i<ind.size();i++)
+    for(size_t i=1;i<ind.size();i++)
     {
         if(fmin>gamma*f[i]){fmin=gamma*f[i];}
         if(fmax<gamma*f[i]){fmax=gamma*f[i];}
@@ -206,12 +210,21 @@ double Find_t_bisection(const std::vector<double>& p,
     double tmin=fmax+fabs(fmax)*0.01;
     double tmax=fmin-fabs(fmin)*0.01;
 
+    double umin=cval;
+    double umax=cval;
+
     fmin=cval;
     fmax=cval;
     for(size_t i=0;i<ind.size();i++){
         fmin=fmin+sigmoid(g[i]-tmin,p[ind[i]],alpha);
         fmax=fmax+sigmoid(g[i]-tmax,p[ind[i]],alpha);
+
+        umin=umin+sigmoid(inv_sigmoid(q[ind[i]],p[ind[i]],alpha),p[ind[i]],alpha);
+        umax=umax+q[ind[i]];
     }
+
+    std::cout<<"tmin="<<tmin<<" fmin="<<fmin<<" gma="<<gamma<<" u="<<umax<<std::endl;
+    std::cout<<"tmax="<<tmax<<" fmax="<<fmax<<" gma="<<gamma<<" u="<<umax<<std::endl;
 
     if(fmin>fmax){
         std::swap(tmin,tmax);
@@ -417,7 +430,7 @@ public:
            }
            vsupp.push_back(bset);
            thresholds.push_back(eta);
-           dualq.push_back(0.01);
+           dualq.push_back(0.1);
        }
 
        for(int i=0;i<4;i++){
@@ -427,7 +440,7 @@ public:
            }
            vsupp.push_back(bset);
            thresholds.push_back(eta);
-           dualq.push_back(0.01);
+           dualq.push_back(0.1);
        }
 
        primp.resize(dualq.size());
@@ -439,7 +452,6 @@ public:
            primp[i]=dualq[i];
        }
     }
-
 
     double EvalApproxGradientFullSampling(mfem::Vector& grad, double alpha, double gamma)
     {
@@ -502,6 +514,122 @@ public:
 
         //return the objective
         return rez;
+    }
+
+
+    double EvalApproxGradientSampling(mfem::Vector& grad, double alpha, double gamma,int dnsampl)
+    {
+
+       int myrank=ppmesh->GetMyRank();
+       MPI_Comm comm=ppmesh->GetComm();
+
+
+       std::vector<int> ind;
+       std::vector<int> frq;//frequency of the indices
+       int nsampl;
+       if(myrank==0){
+           std::map<int,int> ind_sampl;
+           //do the sampling
+           //construct discrete distribution
+           std::discrete_distribution<int> d(dualq.begin(),dualq.end());
+           for(int i=0;i<dnsampl;i++){
+               int vv=d(generator);
+               auto it=ind_sampl.find(vv);
+               if(it==ind_sampl.end()){
+                   ind_sampl[vv]=1;
+               }else{
+                   it->second=it->second+1;
+               }
+           }
+
+           for(auto it=ind_sampl.begin();it!=ind_sampl.end();it++){
+               ind.push_back(it->first);
+               frq.push_back(it->second);
+           }
+
+           nsampl=ind.size();
+       }
+
+       //communicate the samples
+       MPI_Bcast(&nsampl,1,MPI_INT,0,comm);
+       if(myrank!=0){
+           ind.resize(nsampl);
+           frq.resize(nsampl);
+       }
+       MPI_Bcast(ind.data(), nsampl, MPI_INT, 0, comm);
+       MPI_Bcast(frq.data(), nsampl, MPI_INT, 0, comm);
+
+
+       //compute the objective and the gradients
+       std::vector<double> vals; vals.resize(nsampl);
+       grad=0.0;
+       mfem::Vector cgrad(grad.Size()); cgrad=0.0;
+       std::vector<mfem::Vector> grads;
+
+       double rez=0.0;
+       double nfa=0.0;
+       for(int i=0;i<nsampl;i++){
+           //generate sample
+           vals[i]=Compliance(vsupp[ind[i]],thresholds[ind[i]],cgrad);
+           rez=rez+vals[i]*frq[i];
+           nfa=nfa+frq[i];
+           grads.push_back(cgrad);
+       }
+       rez=rez/nfa;
+       if(myrank==0){
+           std::cout<<"rez="<<rez<<" nsampl="<<nsampl<<std::endl;
+       }
+
+       //generate qnew
+       //find t
+       double t;
+       if(myrank==0){
+           //t=adsampl::Find_t(primp,dualq,alpha,gamma,vals,ind, 1e-12,100);
+           t=adsampl::Find_t_bisection(primp,dualq,alpha,gamma,vals,ind, 1e-12,1000);
+       }
+       //communicate t from 0 to all
+       MPI_Bcast(&t,1,MPI_DOUBLE,0,ppmesh->GetComm());
+
+       std::vector<double> w; w.resize(nsampl);
+       double tmp;
+       for(size_t i=0;i<ind.size();i++){
+           tmp=adsampl::inv_sigmoid(dualq[ind[i]],primp[ind[i]],alpha);
+           tmp=tmp+gamma*vals[i]-t;
+           w[i]=adsampl::sigmoid(tmp,primp[ind[i]],alpha);
+       }
+
+       if(myrank==0){
+           std::cout<<"w= ";
+           for(size_t i=0;i<frq.size();i++){
+               std::cout<<" "<<w[i];
+           }
+           std::cout<<std::endl;
+           std::cout<<"frq= ";
+           for(size_t i=0;i<frq.size();i++){
+               std::cout<<" "<<frq[i];
+           }
+           std::cout<<std::endl;
+       }
+
+       rez=0.0;
+       for(size_t i=0;i<ind.size();i++){
+           double lw=frq[i]*w[i]/dualq[ind[i]];
+           grad.Add(lw,grads[i]);
+           rez=rez+lw*vals[i];
+           //copy w to q
+           dualq[ind[i]]=w[i];
+       }
+
+
+       rez=rez/nfa;
+       grad*=(gamma/nfa);
+
+
+       if(myrank==0){
+           std::cout<<"rez="<<rez<<" t="<<t<<std::endl;
+       }
+
+       return rez;
     }
 
 
@@ -926,7 +1054,8 @@ int main(int argc, char *argv[])
           //cpl=alco->MeanCompl(ograd);
           //cpl=alco->EGDUpdate(ograd,0.001);
 
-          cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
+          //cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
+          cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.01,1600);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
