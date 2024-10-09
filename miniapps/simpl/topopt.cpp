@@ -283,14 +283,16 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
    if (entropy && use_entropy)
    {
       x += mu;
-      if (mfem::IsFinite(entropy->GetUpperBound()))
+      if (std::isfinite(entropy->GetUpperBound()))
       {
          real_t uval = entropy->GetUpperBound();
+         if (Mpi::Root()) { out << "Enforcing Upper Bound " << uval << std::endl; }
          for (real_t &val:x) { val = std::min(uval, val); }
       }
-      if (mfem::IsFinite(entropy->GetLowerBound()))
+      if (std::isfinite(entropy->GetLowerBound()))
       {
          real_t lval = entropy->GetLowerBound();
+         if (Mpi::Root()) { out << "Enforcing Lower Bound " << lval << std::endl; }
          for (real_t &val:x) { val = std::max(lval, val); }
       }
    }
@@ -361,7 +363,9 @@ void DensityBasedTopOpt::UpdateGradient()
    }
 
    filter.GetAdjLinearForm()->Assemble();
+   for (auto &x:*(filter.GetAdjLinearForm())) {if (x > 0) out << "rhs is positive." << std::endl;}
    filter.SolveAdjoint(grad_filter);
+   for (auto &x:*(filter.GetAdjLinearForm())) {if (x > 0) out << "rhs is positive." << std::endl;}
    L2projector->Solve(grad_control);
 }
 
