@@ -146,7 +146,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          tot_vol = 0.0;
          for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
          if (min_vol < 0) { min_vol = 0.0; }
-         if (max_vol < 0) { max_vol = tot_vol*0.5; }
+         if (max_vol < 0) { max_vol = tot_vol*0.3; }
          for (int i=0; i<ser_ref_levels; i++)
          {
             mesh->UniformRefinement();

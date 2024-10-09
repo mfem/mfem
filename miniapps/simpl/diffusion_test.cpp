@@ -77,8 +77,11 @@ int main(int argc, char *argv[])
    ParBilinearForm a(&fespace);
    a.AddDomainIntegrator(new DiffusionIntegrator);
    a.Assemble();
+   Array<int> ess_tdof_list;
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   EllipticSolver solver(a, ess_bdr);
+   EllipticSolver solver(a, ess_tdof_list);
+   solver.Update();
    for (int i=0; i<10; i++)
    {
       b.Assemble();
