@@ -36,6 +36,8 @@
 //               4) non-steady advection(-diffusion) - with Dirichlet temperature BCs
 //               5) Kovasznay flow - with Dirichlet temperature inflow BC and Neumann
 //                                   total flux outflow BCs
+//               6) steady-state Burgers flow - with zero Dirichlet temperature BCs
+//               7) non-steady Burgers flow - with zero Dirichlet temperature BCs
 //               Here, we use a given exact solution (q,T) and compute the
 //               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
 //               finite elements (heat flux q) and piecewise discontinuous
