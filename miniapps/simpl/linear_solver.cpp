@@ -30,6 +30,11 @@ EllipticSolver::EllipticSolver(BilinearForm &a, Array<int> &ess_tdof_list):a(a),
       par_solver->SetOperator(*A.As<HypreParMatrix>());
       par_solver->SetPreconditioner(*par_prec);
       par_solver->iterative_mode = true;
+      if (a.FESpace()->GetVDim() > 1)
+      {
+         par_prec->SetSystemsOptions(a.FESpace()->GetVDim(),
+                                     a.FESpace()->GetOrdering() == Ordering::byNODES);
+      }
       par_prec->SetPrintLevel(0);
       par_B.SetSize(par_a->ParFESpace()->GetTrueVSize());
 #endif
