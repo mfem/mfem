@@ -124,7 +124,7 @@ public:
                const IntegrationPoint &ip) override
    {
       return fun(GridFunctionCoefficient::Eval(T, ip),
-                             other_gf->GetValue(T, ip, other_gf_comp));
+                 other_gf->GetValue(T, ip, other_gf_comp));
    }
 };
 
@@ -143,6 +143,8 @@ public:
    MappedGFCoefficient GetForwardCoeff();
    MappedGFCoefficient GetBackwardCoeff();
    MappedGFCoefficient GetEntropyCoeff();
+   virtual real_t GetLowerBound() = 0;
+   virtual real_t GetUpperBound() = 0;
    MappedGFCoefficient GetForwardCoeff(GridFunction &x);
    MappedGFCoefficient GetBackwardCoeff(GridFunction &psi);
    MappedGFCoefficient GetEntropyCoeff(GridFunction &x);
@@ -159,15 +161,19 @@ public:
    FermiDiracEntropy():LegendreEntropy(
          [](const real_t x) {return x*safe_log(x)+(1.0-x)*safe_log(1.0 - x);},
    invsigmoid, sigmoid) {}
+   real_t GetLowerBound(){return -mfem::infinity();}
+   real_t GetUpperBound(){return +mfem::infinity();}
 };
 
 // Shannon Entropy with effective domain (0,1)
-class Shannon : public LegendreEntropy
+class ShannonEntropy : public LegendreEntropy
 {
 public:
-   Shannon():LegendreEntropy(
+   ShannonEntropy():LegendreEntropy(
          [](const real_t x) {return x*safe_log(x)-1;},
    safe_log, [](const real_t x) {return std::exp(x);}) {}
+   real_t GetLowerBound(){return -mfem::infinity();}
+   real_t GetUpperBound(){return 0.0;}
 };
 
 
