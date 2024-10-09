@@ -39,7 +39,8 @@ real_t simp(const real_t x, const real_t exponent, const real_t rho0)
 
 real_t der_simp(const real_t x, const real_t exponent, const real_t rho0)
 {
-   return exponent*(1.0-rho0)*std::pow(std::min(1.0, std::max(0.0, x)), exponent-1.0);
+   if (x < 0 || x > 1) { return 0.0; }
+   else { return exponent*(1.0-rho0)*std::pow(x, exponent-1.0); }
 }
 
 MappedGFCoefficient LegendreEntropy::GetForwardCoeff()
@@ -92,7 +93,8 @@ MappedPairedGFCoefficient LegendreEntropy::GetBregman(GridFunction &x,
    coeff.SetGridFunction(&x, &y);
    coeff.SetFunction([this](const real_t p, const real_t q)
    {
-      return std::max(0.0, this->entropy(p) - this->entropy(q) - this->forward(q)*(p-q));
+      return std::max(0.0, this->entropy(p) - this->entropy(q) - this->forward(q)*
+                      (p-q));
    });
    return coeff;
 }
