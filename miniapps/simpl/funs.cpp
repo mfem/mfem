@@ -34,12 +34,12 @@ real_t der_sigmoid(const real_t x)
 
 real_t simp(const real_t x, const real_t exponent, const real_t rho0)
 {
-   return rho0 + (1.0-rho0)*std::pow(x, exponent);
+   return rho0 + (1.0-rho0)*std::pow(std::min(1.0, std::max(0.0, x)), exponent);
 }
 
 real_t der_simp(const real_t x, const real_t exponent, const real_t rho0)
 {
-   return exponent*(1.0-rho0)*std::pow(x, exponent-1.0);
+   return exponent*(1.0-rho0)*std::pow(std::min(1.0, std::max(0.0, x)), exponent-1.0);
 }
 
 MappedGFCoefficient LegendreEntropy::GetForwardCoeff()

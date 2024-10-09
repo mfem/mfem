@@ -134,17 +134,21 @@ public:
 class LegendreEntropy
 {
    typedef std::function<real_t(const real_t)> fun_type;
+private:
+   real_t lower_bound;
+   real_t upper_bound;
 public:
    fun_type entropy;
    fun_type forward; // primal to dual
    fun_type backward; // dual to primal
-   LegendreEntropy(fun_type entropy, fun_type forward, fun_type backward)
-      :entropy(entropy), forward(forward), backward(backward) {}
+   LegendreEntropy(fun_type entropy, fun_type forward, fun_type backward,
+                   real_t lower_bound, real_t upper_bound)
+      :entropy(entropy), forward(forward), backward(backward), lower_bound(lower_bound), upper_bound(upper_bound) {}
    MappedGFCoefficient GetForwardCoeff();
    MappedGFCoefficient GetBackwardCoeff();
    MappedGFCoefficient GetEntropyCoeff();
-   virtual real_t GetLowerBound() = 0;
-   virtual real_t GetUpperBound() = 0;
+   real_t GetLowerBound() {return lower_bound;};
+   real_t GetUpperBound() {return upper_bound;};
    MappedGFCoefficient GetForwardCoeff(GridFunction &x);
    MappedGFCoefficient GetBackwardCoeff(GridFunction &psi);
    MappedGFCoefficient GetEntropyCoeff(GridFunction &x);
@@ -160,9 +164,7 @@ class FermiDiracEntropy : public LegendreEntropy
 public:
    FermiDiracEntropy():LegendreEntropy(
          [](const real_t x) {return x*safe_log(x)+(1.0-x)*safe_log(1.0 - x);},
-   invsigmoid, sigmoid) {}
-   real_t GetLowerBound(){return -mfem::infinity();}
-   real_t GetUpperBound(){return +mfem::infinity();}
+   invsigmoid, sigmoid, -mfem::infinity(), mfem::infinity()) {}
 };
 
 // Shannon Entropy with effective domain (0,1)
@@ -170,10 +172,8 @@ class ShannonEntropy : public LegendreEntropy
 {
 public:
    ShannonEntropy():LegendreEntropy(
-         [](const real_t x) {return x*safe_log(x)-1;},
-   safe_log, [](const real_t x) {return std::exp(x);}) {}
-   real_t GetLowerBound(){return -mfem::infinity();}
-   real_t GetUpperBound(){return 0.0;}
+         [](const real_t x) {return x*safe_log(x)-x;},
+   safe_log, [](const real_t x) {return std::exp(x);}, -mfem::infinity(), 0.0) {}
 };
 
 
