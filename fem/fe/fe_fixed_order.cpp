@@ -5126,8 +5126,8 @@ void Nedelec1PyrFiniteElement::ProjectGrad(const FiniteElement &fe,
 Nedelec2PyrFiniteElement::Nedelec2PyrFiniteElement()
    : VectorFiniteElement(3, Geometry::PYRAMID, 28, 2, H_CURL)
 {
-   const double *eop = poly1d.OpenPoints(2 - 1);
-   const double  fop = 1. / 3.;
+   const real_t *eop = poly1d.OpenPoints(2 - 1);
+   const real_t  fop = 1. / 3.;
 
    // not real nodes ...
    Nodes.IntPoint(0).Set3(eop[0], 0., 0.);
@@ -5194,10 +5194,10 @@ void Nedelec2PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
 {
    shape = 0.0;
 
-   const double x = ip.x, y = ip.y, z = ip.z/*, z2 = 2. * ip.z*/;
-   const double ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
-   const double sq3 = sqrt(3.0);
-   const double tol = 1e-6;
+   const real_t x = ip.x, y = ip.y, z = ip.z/*, z2 = 2. * ip.z*/;
+   const real_t ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
+   const real_t sq3 = sqrt(3.0);
+   const real_t tol = 1e-6;
 
    if (oz <= tol)
    {
@@ -5239,75 +5239,75 @@ void Nedelec2PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
       return;
    }
 
-   const double ozi = 1.0 / oz;
+   const real_t ozi = 1.0 / oz;
 
-   const double me0120[3] = {oy, 0., x * oy * ozi};
-   const double me1120[3] = {(x - ox) * oy, 0., (x - ox) * x * oy * ozi};
+   const real_t me0120[3] = {oy, 0., x * oy * ozi};
+   const real_t me1120[3] = {(x - ox) * oy, 0., (x - ox) * x * oy * ozi};
 
-   const double me0121[3] = {y, 0., x * y * ozi};
-   const double me1121[3] = {(x - ox) * y, 0., (x - ox) * x * y * ozi};
+   const real_t me0121[3] = {y, 0., x * y * ozi};
+   const real_t me1121[3] = {(x - ox) * y, 0., (x - ox) * x * y * ozi};
 
-   const double me0210[3] = {0., ox, ox * y * ozi};
-   const double me1210[3] = {0., ox * (y - oy), ox * y * (y - oy) * ozi};
+   const real_t me0210[3] = {0., ox, ox * y * ozi};
+   const real_t me1210[3] = {0., ox * (y - oy), ox * y * (y - oy) * ozi};
 
-   const double me0211[3] = {0., x, x * y * ozi};
-   const double me1211[3] = {0., x * (y - oy), x * y * (y - oy) * ozi};
+   const real_t me0211[3] = {0., x, x * y * ozi};
+   const real_t me1211[3] = {0., x * (y - oy), x * y * (y - oy) * ozi};
 
-   const double te01[3] = {oy * z * ozi, ox * z * ozi,
+   const real_t te01[3] = {oy * z * ozi, ox * z * ozi,
                            (ox * oy + (x * oy + ox * y) * z) * ozi * ozi
                           };
-   const double te11[3] = {oy * z * (z * oz - ox * oy) * ozi * ozi,
+   const real_t te11[3] = {oy * z * (z * oz - ox * oy) * ozi * ozi,
                            ox * z * (z * oz - ox * oy) * ozi * ozi,
                            (ox * oy + z * (x * oy + ox * y)) *
                            (z * oz - ox * oy) * ozi * ozi * ozi
                           };
 
-   const double te02[3] = {-oy * z * ozi, x * z * ozi,
+   const real_t te02[3] = {-oy * z * ozi, x * z * ozi,
                            x * (y * z + oy * oz) * ozi * ozi
                           };
-   const double te12[3] = {oy * z * (x * oy - z * oz) * ozi * ozi,
+   const real_t te12[3] = {oy * z * (x * oy - z * oz) * ozi * ozi,
                            -x * z * (x * oy - z * oz) * ozi * ozi,
                            -x * (y * z + oy * oz) * (x * oy - z * oz)
                            * ozi * ozi * ozi
                           };
 
-   const double te03[3] = {-y * z * ozi, -x * z * ozi,
+   const real_t te03[3] = {-y * z * ozi, -x * z * ozi,
                            x * y * (1. - 2. * z) * ozi * ozi
                           };
-   const double te13[3] = {y * z * (x * y - z * oz) * ozi * ozi,
+   const real_t te13[3] = {y * z * (x * y - z * oz) * ozi * ozi,
                            x * z * (x * y - z * oz) * ozi * ozi,
                            -x * y * (1. - 2. * z) * (x * y - z * oz)
                            * ozi * ozi * ozi
                           };
 
-   const double te04[3] = {y * z * ozi, -ox * z * ozi,
+   const real_t te04[3] = {y * z * ozi, -ox * z * ozi,
                            y * (x * z + ox * oz) * ozi * ozi
                           };
-   const double te14[3] = {-y * z * (ox * y - z * oz) * ozi * ozi,
+   const real_t te14[3] = {-y * z * (ox * y - z * oz) * ozi * ozi,
                            ox * z * (ox * y - z * oz) * ozi * ozi,
                            -y * (x * z + ox * oz) * (ox * y - z * oz)
                            * ozi * ozi * ozi
                           };
 
-   const double qI02[3] = {-y * oy * ozi, 0., -x * y * oy * ozi * ozi};
-   const double qI12[3] = {-(x - ox) * y * oy * ozi * ozi, 0.,
+   const real_t qI02[3] = {-y * oy * ozi, 0., -x * y * oy * ozi * ozi};
+   const real_t qI12[3] = {-(x - ox) * y * oy * ozi * ozi, 0.,
                            -(x - ox) * x * y * oy * ozi * ozi * ozi
                           };
 
-   const double qII02[3] = {0., -x * ox * ozi, -x * y * ox * ozi * ozi};
-   const double qII12[3] = {0., -x * ox * (y - oy) * ozi * ozi,
+   const real_t qII02[3] = {0., -x * ox * ozi, -x * y * ox * ozi * ozi};
+   const real_t qII12[3] = {0., -x * ox * (y - oy) * ozi * ozi,
                             -x * ox * y * (y - oy) * ozi * ozi * ozi
                            };
 
-   const double tI120[3] = {oy * z, 0., x * oy * z * ozi};
-   const double tI121[3] = {y * z, 0., x * y * z * ozi};
-   const double tI210[3] = {0., ox * z, ox * y * z * ozi};
-   const double tI211[3] = {0., x * z, x * y * z * ozi};
+   const real_t tI120[3] = {oy * z, 0., x * oy * z * ozi};
+   const real_t tI121[3] = {y * z, 0., x * y * z * ozi};
+   const real_t tI210[3] = {0., ox * z, ox * y * z * ozi};
+   const real_t tI211[3] = {0., x * z, x * y * z * ozi};
 
-   const double tII120[3] = {-ox * oy * z * ozi, 0., x * ox * oy * ozi};
-   const double tII121[3] = {-ox * y * z * ozi, 0., x * ox * y * ozi};
-   const double tII210[3] = {0., -ox * oy * z * ozi, ox * y * oy * ozi};
-   const double tII211[3] = {0., -x * oy * z * ozi, x * y * oy * ozi};
+   const real_t tII120[3] = {-ox * oy * z * ozi, 0., x * ox * oy * ozi};
+   const real_t tII121[3] = {-ox * y * z * ozi, 0., x * ox * y * ozi};
+   const real_t tII210[3] = {0., -ox * oy * z * ozi, ox * y * oy * ozi};
+   const real_t tII211[3] = {0., -x * oy * z * ozi, x * y * oy * ozi};
 
    // Edge 0,1
    for (int d=0; d<3; d++)
@@ -5469,10 +5469,10 @@ void Nedelec2PyrFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
                                              DenseMatrix &curl_shape)
 const
 {
-   double x = ip.x, y = ip.y, z = ip.z, z2 = 2. * z;
-   double ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
+   real_t x = ip.x, y = ip.y, z = ip.z, z2 = 2. * z;
+   real_t ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
 
-   double tol = 1e-6;
+   real_t tol = 1e-6;
 
    if (oz <= tol)
    {
@@ -5515,7 +5515,7 @@ const
       return;
    }
 
-   double ozi = 1. / oz;
+   real_t ozi = 1. / oz;
 
    curl_shape(0,0) = - x * ozi;
    curl_shape(0,1) = - 2. + y * ozi;
@@ -5550,7 +5550,7 @@ const
    curl_shape(7,2) =   0.;
 }
 
-const double Nedelec2PyrFiniteElement::tk[28][3] =
+const real_t Nedelec2PyrFiniteElement::tk[28][3] =
 {
    {1,0,0}, {1,0,0}, {0,1,0}, {0,1,0},
    {1,0,0}, {1,0,0}, {0,1,0}, {0,1,0},
@@ -5575,7 +5575,7 @@ void Nedelec2PyrFiniteElement::GetLocalInterpolation (
       CalcVShape (Nodes.IntPoint(k), vshape);
       for (j = 0; j < dof; j++)
       {
-         double d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
+         real_t d = ( vshape(j,0)*tk[k][0] + vshape(j,1)*tk[k][1] +
                       vshape(j,2)*tk[k][2] );
          if (j == k) { d -= 1.0; }
          if (fabs(d) > 1.0e-12)
@@ -5593,7 +5593,7 @@ void Nedelec2PyrFiniteElement::GetLocalInterpolation (
    Trans.SetIntPoint (&ip);
    // Trans must be linear
    const DenseMatrix &J = Trans.Jacobian();
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (k = 0; k < dof; k++)
@@ -5618,7 +5618,7 @@ void Nedelec2PyrFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans,
    Vector &dofs) const
 {
-   double vk[3];
+   real_t vk[3];
    Vector xk (vk, 3);
 
    for (int k = 0; k < dof; k++)
