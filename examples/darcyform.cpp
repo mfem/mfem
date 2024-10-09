@@ -2210,7 +2210,7 @@ void DarcyHybridization::Finalize()
          {
             InvertA();
          }
-         if (!m_nlfi_p && !D_empty && !m_nlfi)
+         if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
          {
             InvertD();
          }
