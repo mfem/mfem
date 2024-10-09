@@ -189,13 +189,14 @@ public:
    /// Shifted and Scaled Legendre Polynomials
    /** Implements a scaled and shifted set of Legendre polynomials
 
-         P_i(x;t) = P_i(x / t) * t^i
+         $P_i(x;t) = P_i(x / t) * t^i$
 
-       where @a t >= 0.0, @a x \in [0,t], and P_i is the shifted Legendre
-       polynomial defined on [0,1] rather than the usual [-1,1]. The
-       entries stored in @a u correspond to the values of P_0, P_1, ... P_p.
+       where @a t >= 0.0, @a x $\in [0,t]$, and $P_i$ is the shifted Legendre
+       polynomial defined on $[0,1]$ rather than the usual $[-1,1]$. The
+       entries stored in @a u correspond to the values of
+       $P_0$, $P_1$, ... $P_p$.
 
-       u must be at least p+1 in length
+       @a u must be at least @a p + 1 in length
    */
    static void CalcScaledLegendre(int p, real_t x, real_t t,
                                   real_t *u);
@@ -210,13 +211,16 @@ public:
    /// Integrated Legendre Polynomials
    /** These are the integrals of the shifted and scaled Legendre polynomials
        provided above and defined as:
-         L_i(x;t) = \int_0^x P_{i-1}(y;t)dy for i>=1
+
+         $L_i(x;t) = \int_0^x P_{i-1}(y;t)dy\mbox{ for }i>=1$
 
        These polynomials are computed as:
-         L_0(x;t) = 0, L_1(x;t) = x,
-         2(2i-1)L_i(x;t) = P_i(x;t) - t^2 P_{i-2}(x;t) for i>=2
 
-       u must be at least p+1 in length
+         $L_0(x;t) = 0$, $L_1(x;t) = x$,
+
+         $2(2i-1)L_i(x;t) = P_i(x;t) - t^2 P_{i-2}(x;t)\mbox{ for }i>=2$
+
+       @a u must be at least @a p + 1 in length
     */
    static void CalcIntegratedLegendre(int p, real_t x,
                                       real_t t, real_t *u);
@@ -230,7 +234,7 @@ public:
                                       real_t t, Vector &u,
                                       Vector &dudx, Vector &dudt);
 
-   /** u must be at least p+1 in length */
+   /** @a u must be at least @a p + 1 in length */
    static void CalcHomogenizedScaLegendre(int p, real_t s0, real_t s1,
                                           real_t *u);
    static void CalcHomogenizedScaLegendre(int p,
@@ -244,7 +248,7 @@ public:
                                           Vector &u,
                                           Vector &duds0, Vector &duds1);
 
-   /** u must be at least p+1 in length */
+   /** @a u must be at least @a p + 1 in length */
    static void CalcHomogenizedIntLegendre(int p,
                                           real_t t0, real_t t1,
                                           real_t *u);
@@ -263,13 +267,18 @@ public:
    /// Shifted and Scaled Jacobi Polynomials
    /** Implements a scaled and shifted set of Jacobi polynomials
 
-         P^alpha_i(x / t) * t^i
+         $P^\alpha_i(x / t) * t^i$
 
-       where @a alpha>-1, @a t >= 0.0, @a x \in [0,t], and P_i is the shifted
-       Jacobi polynomial defined on [0,1] rather than the usual [-1,1]. The
-       entries stored in @a u correspond to the values of P_0, P_1, ... P_p.
+       where @a alpha $= \alpha >-1$, @a t $>= 0.0$, @a x $\in [0,t]$, and
+       $P^\alpha_i$ is the shifted Jacobi polynomial defined on $[0,1]$ rather
+       than the usual $[-1,1]$. The entries stored in @a u correspond to the
+       values of $P^\alpha_0$, $P^\alpha_1$, ... $P^\alpha_p$.
 
-       u must be at least p+1 in length
+       @note Jacobi polynomials typically posses two parameters,
+       $P^{\alpha, \beta}_i$, but we only consider the special case where
+       $\beta=0$.
+
+       @a u must be at least @a p + 1 in length
    */
    static void CalcScaledJacobi(int p, real_t alpha,
                                 real_t x, real_t t,
@@ -288,19 +297,25 @@ public:
    /// Integrated Jacobi Polynomials
    /** These are the integrals of the shifted and scaled Jacobi polynomials
        provided above and defined as:
-         L^alpha_i(x;t) = \int_0^x P^alpha_{i-1}(y;t)dy for i>=1
+
+         $L^\alpha_i(x;t) = \int_0^x P^\alpha_{i-1}(y;t)dy\mbox{ for }i>=1$
 
        These polynomials are computed as:
-         L^alpha_0(x;t) = 0, L^alpha_1(x;t) = x,
-         L^alpha_i(x;t) = a_i P^alpha_i(x;t) + b_i t P^alpha_{i-1}(x;t)
-                        - c_i t^2 P^alpha_{i-2}(x;t) for i>=2
+
+         $L^\alpha_0(x;t) = 0$, $L^\alpha_1(x;t) = x$,
+
+         $L^\alpha_i(x;t) = a_i P^\alpha_i(x;t) + b_i t P^\alpha_{i-1}(x;t)
+                        - c_i t^2 P^\alpha_{i-2}(x;t)\mbox{ for }i>=2$
 
        With
-         a_i = (i + alpha) / (2i + alpha - 1)(2i + alpha)
-         b_i = alpha / (2i + alpha - 2)(2i + alpha)
-         c_i = (i - 1) / (2i + alpha - 2)(2i + alpha - 1)
 
-       u must be at least p+1 in length
+         $a_i = (i + \alpha) / (2i + \alpha - 1)(2i + \alpha)$
+
+         $b_i = \alpha / (2i + \alpha - 2)(2i + \alpha)$
+
+         $c_i = (i - 1) / (2i + \alpha - 2)(2i + \alpha - 1)$
+
+       @a u must be at least @a p + 1 in length
     */
    static void CalcIntegratedJacobi(int p, real_t alpha,
                                     real_t x, real_t t,
@@ -321,7 +336,7 @@ public:
                            dudx.GetData(), dudt.GetData());
    }
 
-   /** u must be at least p+1 in length */
+   /** @a u must be at least @a p + 1 in length */
    static void CalcHomogenizedScaJacobi(int p, real_t alpha,
                                         real_t t0, real_t t1,
                                         real_t *u)
@@ -338,7 +353,7 @@ public:
                                         Vector &u,
                                         Vector &dudt0, Vector &dudt1);
 
-   /** u must be at least p+1 in length */
+   /** @a u must be at least @a p + 1 in length */
    static void CalcHomogenizedIntJacobi(int p, real_t alpha,
                                         real_t t0, real_t t1,
                                         real_t *u)
@@ -355,18 +370,18 @@ public:
                                         Vector &u,
                                         Vector &dudt0, Vector &dudt1);
 
-   /** u must be at least p+1 in length */
+   /** @a u must be at least @a p + 1 in length */
    static void phi_E(int p, real_t s0, real_t s1, real_t *u);
    static void phi_E(int p, real_t s0, real_t s1, real_t *u,
                      real_t *duds0, real_t *duds1);
    static void phi_E(int p, Vector s, Vector &u);
    static void phi_E(int p, Vector s, Vector &u, DenseMatrix &duds);
 
-   /** grad_s must be 2x3 */
+   /** @a grad_s must be 2x3 */
    void phi_E(int p, Vector s, const DenseMatrix &grad_s,
               Vector &u, DenseMatrix &grad_u) const;
 
-   /** u must be at least (p+1)x(p+1) in size */
+   /** @a u must be at least (p+1)x(p+1) in size */
    void phi_Q(int p, Vector s, Vector t, DenseMatrix &u) const;
    void phi_Q(int p, Vector s, const DenseMatrix &grad_s,
               Vector t, const DenseMatrix &grad_t,
@@ -405,7 +420,9 @@ public:
 
    The vectors @a s and @a t contain pairs of coordinate values and @a ds and
    @a dt are related to derivatives of these coordinates:
+
       ds = s0 grad s1 - s1 grad s0
+
       dt = t0 grad t1 - t1 grad t0
    */
    void V_Q(int p, Vector s, Vector ds, Vector t, Vector dt,
@@ -416,6 +433,7 @@ public:
 
    The vector @a s contains three coordinate values and @a sdsxds is related to
    derivatives of these coordinates with respect to the reference coordinates:
+
       sdsxds = s0 grad s1 x grad s2 + s1 grad s2 x grad s0 +
                s2 grad s0 x grad s1
    */
@@ -425,9 +443,12 @@ public:
 
    The vector @a s contains three coordinate values and @a sdsxds is related to
    derivatives of these coordinates with respect to the reference coordinates:
+
       sdsxds = s0 grad s1 x grad s2 + s1 grad s2 x grad s0 +
                s2 grad s0 x grad s1
+
    The scalar @a dsdsxds is the divergence of sdsxds:
+
       dsdsxds = grad s0 dot (grad s1 x grad s2)
    */
    void V_T(int p, Vector s, Vector sdsxds, real_t dsdsxds,
@@ -441,7 +462,7 @@ public:
 
    /** This implements $V^\unlhd_{ij}$ from the Fuentes paper
 
-      u must be at least (p+1)x(p+1)x3
+      @a u must be at least (p+1)x(p+1)x3
    */
    void V_L(int p, Vector sx, const DenseMatrix &grad_sx,
             Vector sy, const DenseMatrix &grad_sy,
@@ -449,7 +470,7 @@ public:
 
    /** This implements $V^\unrhd_i$ from the Fuentes paper
 
-      u must be at least (p+1)x3 */
+      @a u must be at least (p+1)x3 */
    void V_R(int p, Vector s, const DenseMatrix &grad_s,
             real_t mu, Vector grad_mu,
             real_t t, Vector grad_t, DenseMatrix &u) const;
