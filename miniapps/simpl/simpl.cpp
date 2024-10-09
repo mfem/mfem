@@ -359,9 +359,11 @@ int main(int argc, char *argv[])
       if (use_glvis) { glvis.Update(); }
       if (use_paraview && (it_md % 10 == 0))
       {
-         if (!paraview_dc.Error()) {
+         if (!paraview_dc.Error())
+         {
             paraview_dc.SetCycle(it_md / 10);
-            paraview_dc.Save(); }
+            paraview_dc.Save();
+         }
          else {use_paraview = false;}
       }
 
@@ -401,6 +403,15 @@ int main(int argc, char *argv[])
    {
       out << filename.str() << " terminated after " << it_md
           << " with " << tot_reeval << " re-eval" << std::endl;
+   }
+   if (use_paraview)
+   {
+      if (!paraview_dc.Error())
+      {
+         paraview_dc.SetCycle(it_md / 10);
+         paraview_dc.Save();
+      }
+      else {use_paraview = false;}
    }
    logger.CloseFile();
    return 0;
