@@ -814,6 +814,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    Bf_data = NULL;
    Be_data = NULL;
    Df_data = NULL;
+   Df_lin_data = NULL;
    Df_ipiv = NULL;
    D_empty = true;
    Ct_data = NULL;
@@ -841,6 +842,7 @@ DarcyHybridization::~DarcyHybridization()
    delete[] Bf_data;
    delete[] Be_data;
    delete[] Df_data;
+   delete[] Df_lin_data;
    delete[] Df_ipiv;
    delete[] Ct_data;
    delete[] E_data;
@@ -2214,6 +2216,15 @@ void DarcyHybridization::Finalize()
          {
             InvertD();
          }
+         else if (!D_empty)
+         {
+            std::swap(Df_data, Df_lin_data);
+            if (!Df_data)
+            {
+               const int NE = fes->GetMesh()->GetNE();
+               Df_data = new real_t[Df_offsets[NE]]();
+            }
+         }
       }
       else
       {
@@ -2496,26 +2507,40 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
    LUFactors LU_A(A.GetData(), Af_ipiv + Af_f_offsets[el]);
 
-   MFEM_ASSERT(!m_nlfi,
-               "Not implemented");//<--- backup of uninverted matrices is needed
-   MFEM_ASSERT(m_nlfi_p || D_empty || m_nlfi,
-               "Not implemented");//<--- D is inverted already
+   if (m_nlfi)
+   {
+      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
+      Array<const Vector*> x_arr({&u_l, &p_l});
+      Array2D<DenseMatrix*> grad_arr(2,2);
+      grad_arr(0,0) = &A;
+      grad_arr(1,0) = NULL;
+      grad_arr(0,1) = NULL;
+      grad_arr(1,1) = &D;
+      m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
+   }
+   else
+   {
+      if (m_nlfi_u) { A = 0.; }
+      D = 0.;
+   }
 
    if (m_nlfi_u)
    {
-      m_nlfi_u->AssembleElementGrad(*fe_u, *Tr, u_l, A);
-
-      // Decompose A
-      LU_A.Factor(a_dofs_size);
+      DenseMatrix grad_A;
+      m_nlfi_u->AssembleElementGrad(*fe_u, *Tr, u_l, grad_A);
+      A += grad_A;
    }
 
    if (m_nlfi_p)
    {
-      m_nlfi_p->AssembleElementGrad(*fe_p, *Tr, p_l, D);
+      DenseMatrix grad_D;
+      m_nlfi_p->AssembleElementGrad(*fe_p, *Tr, p_l, grad_D);
+      D += grad_D;
    }
-   else
+   else if (!D_empty)
    {
-      D = 0.;
+      DenseMatrix D_lin(Df_lin_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+      D += D_lin;
    }
 
    if (c_nlfi_p)
@@ -2548,6 +2573,12 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
             }
          }
       }
+   }
+
+   if (m_nlfi_u || m_nlfi)
+   {
+      // Decompose A
+      LU_A.Factor(a_dofs_size);
    }
 
    // Construct Schur complement
@@ -2939,7 +2970,7 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
    }
    else if (!dh.D_empty)
    {
-      DenseMatrix D(dh.Df_data + dh.Df_offsets[el], d_dofs_size, d_dofs_size);
+      DenseMatrix D(dh.Df_lin_data + dh.Df_offsets[el], d_dofs_size, d_dofs_size);
       D.AddMult(p_l, bp);
    }
 
@@ -3010,7 +3041,7 @@ void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
    }
    else if (!dh.D_empty)
    {
-      DenseMatrix D(dh.Df_data + dh.Df_offsets[el], d_dofs_size, d_dofs_size);
+      DenseMatrix D(dh.Df_lin_data + dh.Df_offsets[el], d_dofs_size, d_dofs_size);
       grad += D;
    }
 
