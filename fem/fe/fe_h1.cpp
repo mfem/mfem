@@ -1047,7 +1047,7 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
 {
    zmax = 0.0;
 
-   const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
+   const real_t *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
 #ifndef MFEM_THREAD_SAFE
    tmp_i.SetSize(p + 1);
@@ -1116,25 +1116,25 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,1,4)
       {
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[i]/w, cp[0], cp[j]/w);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (1,2,4)
       {
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(1.0 - cp[j]/w, cp[i]/w, cp[j]/w);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (3,4,2)
       {
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[j]/w, 1.0 - cp[i]/w, cp[i]/w);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,4,3)
       {
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[0], cp[j]/w, cp[i]/w);
       }
 
@@ -1657,7 +1657,7 @@ H1_BergotPyramidElement::H1_BergotPyramidElement(const int p, const int btype)
                         (p + 1) * (p + 2) * (2 * p + 3) / 6, // Bergot (JSC)
                         p, FunctionSpace::Qk)
 {
-   const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
+   const real_t *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -1732,25 +1732,25 @@ H1_BergotPyramidElement::H1_BergotPyramidElement(const int p, const int btype)
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,1,4)
       {
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[i]/w, cp[0], cp[j]/w);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (1,2,4)
       {
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(1.0 - cp[j]/w, cp[i]/w, cp[j]/w);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (3,4,2)
       {
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[j]/w, 1.0 - cp[i]/w, cp[i]/w);
       }
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (0,4,3)
       {
-         double w = cp[i] + cp[j] + cp[p-i-j];
+         real_t w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set3(cp[0], cp[j]/w, cp[i]/w);
       }
 
@@ -1759,11 +1759,11 @@ H1_BergotPyramidElement::H1_BergotPyramidElement(const int p, const int btype)
    {
       for (int j = 1; j < p - k; j++)
       {
-         double wjk = cp[j] + cp[k] + cp[p-j-k];
+         real_t wjk = cp[j] + cp[k] + cp[p-j-k];
          for (int i = 1; i < p - k; i++)
          {
-            double wik = cp[i] + cp[k] + cp[p-i-k];
-            double w = wik * wjk * cp[p-k];
+            real_t wik = cp[i] + cp[k] + cp[p-i-k];
+            real_t w = wik * wjk * cp[p-k];
             Nodes.IntPoint(o++).Set3(cp[i] * (cp[j] + cp[p-j-k]) / w,
                                      cp[j] * (cp[i] + cp[p-i-k]) / w,
                                      cp[k] * cp[p-k] / w);
@@ -1780,9 +1780,9 @@ H1_BergotPyramidElement::H1_BergotPyramidElement(const int p, const int btype)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
 
-      double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
-      double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
-      double z = ip.z;
+      real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+      real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+      real_t z = ip.z;
 
       poly1d.CalcLegendre(p, x, shape_x.GetData());
       poly1d.CalcLegendre(p, y, shape_y.GetData());
@@ -1820,9 +1820,9 @@ void H1_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
    Vector u(dof);
 #endif
 
-   double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
-   double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
-   double z = ip.z;
+   real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   real_t z = ip.z;
 
    poly1d.CalcLegendre(p, x, shape_x.GetData());
    poly1d.CalcLegendre(p, y, shape_y.GetData());
@@ -1850,9 +1850,9 @@ void H1_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix du(dof, dim);
 #endif
-   double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
-   double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
-   double z = ip.z;
+   real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   real_t z = ip.z;
 
    poly1d.CalcLegendre(p, x, shape_x.GetData(), dshape_x.GetData());
    poly1d.CalcLegendre(p, y, shape_y.GetData(), dshape_y.GetData());
