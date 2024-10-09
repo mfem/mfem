@@ -602,9 +602,12 @@ void SetupTopoptProblem(TopoptProblem prob,
          real_t k_in(1.0), k_out(1e-03);
 
          auto d_in = new Vector({1.0, 0.0});
-         auto d_out = new Vector({1.0, 0.0});
+         auto d_out = new Vector({-1.0, 0.0});
          auto d_in_cf = new VectorConstantCoefficient(*d_in);
          auto d_out_cf = new VectorConstantCoefficient(*d_out);
+         
+         auto load = new ScalarVectorProductCoefficient(std::pow(2.0, 12.0), *d_in_cf);
+         auto obj = new ScalarVectorProductCoefficient(-std::pow(2.0, 12.0), *d_out_cf);
 
          auto input_bdr = new Array<int>(7); *input_bdr = 0; (*input_bdr)[5] = 1;
          auto output_bdr = new Array<int>(7); *output_bdr = 0; (*output_bdr)[4] = 1;
@@ -614,9 +617,9 @@ void SetupTopoptProblem(TopoptProblem prob,
          elasticity.GetBilinearForm()->AddBdrFaceIntegrator(
             new DirectionalHookesLawBdrIntegrator(k_out, d_out_cf), *output_bdr);
          elasticity.GetLinearForm()->AddBdrFaceIntegrator(
-            new VectorBoundaryLFIntegrator(*d_in_cf), *input_bdr);
+            new VectorBoundaryLFIntegrator(*load), *input_bdr);
          elasticity.GetAdjLinearForm()->AddBdrFaceIntegrator(
-            new VectorBoundaryLFIntegrator(*d_out_cf), *output_bdr);
+            new VectorBoundaryLFIntegrator(*obj), *output_bdr);
 
          elasticity.MakeVectorOwner(d_in);
          elasticity.MakeVectorOwner(d_out);
@@ -624,6 +627,8 @@ void SetupTopoptProblem(TopoptProblem prob,
          elasticity.MakeVectorOwner(output_bdr);
          elasticity.MakeCoefficientOwner(d_in_cf);
          elasticity.MakeCoefficientOwner(d_out_cf);
+         elasticity.MakeCoefficientOwner(load);
+         elasticity.MakeCoefficientOwner(obj);
 
          break;
       }

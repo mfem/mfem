@@ -20,10 +20,11 @@ EllipticSolver::EllipticSolver(BilinearForm &a, Array<int> &ess_tdof_list):a(a),
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
-      par_solver.reset(new HyprePCG(comm));
+      par_solver.reset(new CGSolver(comm));
       par_prec.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
 
-      par_solver->SetTol(1e-12);
+      par_solver->SetAbsTol(1e-12);
+      par_solver->SetRelTol(1e-6);
       par_solver->SetMaxIter(2000);
       par_solver->SetPrintLevel(0);
       par_solver->SetOperator(*A.As<HypreParMatrix>());
