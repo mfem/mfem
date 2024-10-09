@@ -65,6 +65,11 @@ public:
        order @a order and number of control points @a NCP. */
    KnotVector(int order, int NCP);
 
+   /// Construct a knot vector corresponding to the number of intervals in the input array intervals and having inter-element continuity given by the array continuity.  The length of the continuity array must be 1 greater than the length of the interval array.
+   KnotVector(int Order_, const Array<double> intervals,
+              const Array<int> continuity );
+
+
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
 
@@ -264,6 +269,16 @@ public:
 
    /// Constructor for a patch of dimension equal to the size of @a kv.
    NURBSPatch(Array<const KnotVector *> &kv, int dim);
+
+   /// Constructor for a two-dimensional patch with control points
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_,
+              const double* control_points);
+   /// Constructor for a three-dimensional patch with control points
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, const KnotVector *kv2,
+              int dim_, const double* control_points);
+   /// Constructor for a dim_-dimensional patch with control points
+   NURBSPatch(Array<const KnotVector *> &kv, int dim_,
+              const double* control_points);
 
    /// Copy assignment not supported.
    NURBSPatch& operator=(const NURBSPatch&) = delete;
@@ -495,7 +510,7 @@ protected:
    Array<int> p_spaceOffsets;
 
    /// Table of DOFs for each element (el_dof) or boundary element (bel_dof).
-   Table *el_dof, *bel_dof;
+   Table *el_dof, *bel_dof, *p_dof;
 
    /// Map from element indices to patch indices
    Array<int> el_to_patch;
@@ -598,6 +613,10 @@ protected:
    /** @brief Based on activeElem, count NumOfActiveDofs and generate el_dof,
        el_to_patch, el_to_IJK, activeDof map (global-to-local). */
    void GenerateElementDofTable();
+   void GeneratePatchDofTable();
+   void Generate2DPatchDofTable();
+   void Generate3DPatchDofTable();
+
 
    /** @brief Generate elem_to_global-dof table for the active elements, and
        define el_to_patch, el_to_IJK, activeDof (as bool). */
@@ -673,6 +692,9 @@ public:
 
    /// Copy assignment not supported.
    NURBSExtension& operator=(const NURBSExtension&) = delete;
+
+   NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p);
+
 
    /// Generate connections between boundaries, such as periodic BCs.
    void ConnectBoundaries(Array<int> &master, Array<int> &slave);
@@ -886,6 +908,10 @@ public:
    const Array<int>& GetPatchElements(int patch);
    /// Return the array of indices of all boundary elements in patch @a patch.
    const Array<int>& GetPatchBdrElements(int patch);
+   Array2D<int> ndof1D;
+   std::vector<Array2D<int>> patchDofs2d;
+   std::vector<Array3D<int>> patchDofs3d;
+   std::vector<std::vector<std::set<int>>> patch_ijk;
 };
 
 

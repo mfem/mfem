@@ -895,8 +895,10 @@ public:
 
    ///@}
 
-   /** @anchor mfem_Mesh_construction
-       @name Methods for piecewise Mesh construction.
+   /// Construct a Mesh from a NURBSExtension
+   explicit Mesh( const NURBSExtension& ext );
+
+   /** @name Methods for Mesh construction.
 
        These methods are intended to be used with the @ref mfem_Mesh_init_ctor
        "init constructor". */
@@ -1112,7 +1114,7 @@ public:
        that are in physical proximity closer in memory. It can also be used to
        obtain a space-filling curve ordering for ParNCMesh partitioning.
        @param[out] ordering Output element ordering.
-       @param iterations Total number of V cycles. The ordering may improve with
+       @param
        more iterations. The best iteration is returned at the end.
        @param window Initial window size. This determines the number of
        permutations tested at each multigrid level and strongly influences the
