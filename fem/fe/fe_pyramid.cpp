@@ -588,14 +588,6 @@ void FuentesPyramid::CalcIntegratedJacobi(int p, real_t alpha,
    dudt[0] = 0.0;
 }
 
-/** Implements a set of scaled and shifted subset of Jacobi polynomials
-
-      P_i^{\alpha, 0}(x / t) * t^i
-
-   where t >= 0.0, x \in [0,t], and P_i^{\alpha, \beta} is the shifted Jacobi
-   polynomial defined on [0,1] rather than the usual [-1,1]. Note that we only
-   consider the special case when \beta = 0.
-*/
 void FuentesPyramid::CalcScaledJacobi(int p, real_t alpha,
                                       real_t x, real_t t,
                                       real_t *u)
