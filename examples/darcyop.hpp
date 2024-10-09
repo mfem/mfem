@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-class FEOperator : public TimeDependentOperator
+class DarcyOperator : public TimeDependentOperator
 {
 public:
    enum class SolverType
@@ -51,10 +51,10 @@ private:
    SparseMatrix *S{};
 
 public:
-   FEOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
-              LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
-              SolverType stype = SolverType::LBFGS, bool btime = true);
-   ~FEOperator();
+   DarcyOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
+                 LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
+                 SolverType stype = SolverType::LBFGS, bool btime = true);
+   ~DarcyOperator();
 
    static Array<int> ConstructOffsets(const DarcyForm &darcy);
    inline const Array<int>& GetOffsets() const { return offsets; }

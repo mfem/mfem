@@ -15,9 +15,9 @@
 namespace mfem
 {
 
-FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
-                       DarcyForm *darcy_, LinearForm *g_, LinearForm *f_, LinearForm *h_,
-                       const Array<Coefficient*> &coeffs_, SolverType stype_, bool btime_)
+DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
+                             DarcyForm *darcy_, LinearForm *g_, LinearForm *f_, LinearForm *h_,
+                             const Array<Coefficient*> &coeffs_, SolverType stype_, bool btime_)
    : TimeDependentOperator(0, 0., IMPLICIT),
      ess_flux_tdofs_list(ess_flux_tdofs_list_), darcy(darcy_), g(g_), f(f_), h(h_),
      coeffs(coeffs_), solver_type(stype_), btime(btime_)
@@ -55,7 +55,7 @@ FEOperator::FEOperator(const Array<int> &ess_flux_tdofs_list_,
    }
 }
 
-FEOperator::~FEOperator()
+DarcyOperator::~DarcyOperator()
 {
    delete solver;
    delete prec;
@@ -64,7 +64,7 @@ FEOperator::~FEOperator()
    delete idtcoeff;
 }
 
-Array<int> FEOperator::ConstructOffsets(const DarcyForm &darcy)
+Array<int> DarcyOperator::ConstructOffsets(const DarcyForm &darcy)
 {
    if (!darcy.GetHybridization())
    {
@@ -81,7 +81,8 @@ Array<int> FEOperator::ConstructOffsets(const DarcyForm &darcy)
    return offsets;
 }
 
-void FEOperator::ImplicitSolve(const real_t dt, const Vector &x_v, Vector &dx_v)
+void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
+                                  Vector &dx_v)
 {
    //form the linear system
 
