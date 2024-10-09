@@ -927,7 +927,7 @@ L2_FuentesPyramidElement::L2_FuentesPyramidElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::PYRAMID, ((p + 1)*(p + 1)*(p + 1)),
                         p, FunctionSpace::Uk)
 {
-   const double *op = poly1d.OpenPoints(p, VerifyNodal(VerifyOpen(btype)));
+   const double *op = poly1d.OpenPoints(p, VerifyOpen(btype));
 
    // These basis functions are not independent on a closed set of
    // interpolation points when p >= 1. For this reason we force the points
@@ -1078,7 +1078,7 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::PYRAMID, (p + 1)*(p + 2)*(2*p + 3)/6,
                         p, FunctionSpace::Pk)
 {
-   const double *op = poly1d.OpenPoints(p, VerifyNodal(VerifyOpen(btype)));
+   const double *op = poly1d.OpenPoints(p, VerifyOpen(btype));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
