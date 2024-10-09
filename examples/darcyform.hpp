@@ -275,7 +275,7 @@ private:
    real_t *Bf_data, *Be_data;
 
    Array<int> Df_offsets, Df_f_offsets;
-   mutable real_t *Df_data;
+   mutable real_t *Df_data, *Df_lin_data;
    mutable int *Df_ipiv;
    bool D_empty;
 
