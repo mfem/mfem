@@ -368,6 +368,7 @@ miniapps/solvers/sol.*
 
 miniapps/simpl/ParaView
 miniapps/simpl/SiMPL-*
+miniapps/simpl/*.png
 
 miniapps/hdiv-linear-solver/darcy
 miniapps/hdiv-linear-solver/grad_div
