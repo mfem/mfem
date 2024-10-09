@@ -284,7 +284,6 @@ int main(int argc, char *argv[])
       paraview_dc.RegisterField("displacement", &state_gf);
       paraview_dc.RegisterField("density", &density_gf);
       paraview_dc.RegisterField("filtered_density", &filter_gf);
-      paraview_dc.Save();
    }
 
    grad_gf = 0.0;
@@ -358,9 +357,11 @@ int main(int argc, char *argv[])
 
       density_gf.ProjectCoefficient(density_cf);
       if (use_glvis) { glvis.Update(); }
-      if (use_paraview)
+      if (use_paraview && (it_md % 10 == 0))
       {
-         if (!paraview_dc.Error()) { paraview_dc.Save(); }
+         if (!paraview_dc.Error()) {
+            paraview_dc.SetCycle(it_md / 10);
+            paraview_dc.Save(); }
          else {use_paraview = false;}
       }
 
