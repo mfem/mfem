@@ -1518,7 +1518,7 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    real_t x = ip.x;
    real_t y = ip.y;
    real_t z = ip.z;
-   Vector xy({x,y}), dmuz;
+   Vector xy({x,y});
    real_t mu;
 
    if (std::fabs(1.0 - z) < 1e-8)
@@ -1554,6 +1554,8 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    // Triangular faces
    if (z < 1.0)
    {
+      Vector dmuz;
+
       // (a,b) = (1,2), c = 0
       V_T(p, nu012(z, xy, 1), nu012_grad_nu012(z, xy, 1), VT_ijk);
       mu = mu0(z, xy, 2);
@@ -1776,7 +1778,7 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
    real_t x = ip.x;
    real_t y = ip.y;
    real_t z = ip.z;
-   Vector xy({x,y}), dmuz(3);
+   Vector xy({x,y});
    real_t mu;
 
    bool limz1 = false;
@@ -1821,6 +1823,8 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
 
    // Triangular faces
    {
+      Vector dmuz;
+
       // (a,b) = (1,2), c = 0
       V_T(p, nu012(z, xy, 1), nu012_grad_nu012(z, xy, 1), VT_ijk);
       mu = mu0(z, xy, 2);
