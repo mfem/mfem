@@ -1022,7 +1022,7 @@ public:
 class Nedelec2PyrFiniteElement : public VectorFiniteElement
 {
 private:
-   static const double tk[28][3];
+   static const real_t tk[28][3];
 
 public:
    /// Construct the Nedelec2PyrFiniteElement
