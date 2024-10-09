@@ -458,9 +458,9 @@ protected:
       }
    };
 
-public:
-   /// Construct the L2Pos_PyramidElement of order @a p
-   L2Pos_PyramidElement(const int p);
+   // Returns (p+1)(p+2)(p+3)(p+4)/24 which is the size of the temporary arrays
+   // needed below
+   int GetNumTerms() const { return nterms; }
 
    // The size of shape is (p+1)(p+2)(p+3)(p+4)/24.
    // The size of shape_1d should be at least p+1.
@@ -472,13 +472,13 @@ public:
    static void CalcDShape(const int p, const real_t x, const real_t y,
                           const real_t z, real_t *dshape_1d, real_t *dshape);
 
+public:
+   /// Construct the L2Pos_PyramidElement of order @a p
+   L2Pos_PyramidElement(const int p);
+
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
-
-   // Returns (p+1)(p+2)(p+3)(p+4)/24 which is the size of the temporary arrays
-   // needed above
-   int GetNumTerms() const { return nterms; }
 };
 
 } // namespace mfem
