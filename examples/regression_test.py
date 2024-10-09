@@ -52,15 +52,21 @@ for i in range(len(filenames)):
 	ny = int(get_ref_param(filename, '--ncells-y'))
 	kappa = float(get_ref_param(filename, '--kappa', "1"))
 	hdg = int(get_ref_param(filename, '--hdg_scheme', "1"))
+	nls = int(get_ref_param(filename, '--nonlinear-solver', "1"))
 
 	ref_out = subprocess.getoutput("grep '|| t_h - t_ex || / || t_ex || = ' "+filename+"  | cut -d '=' -f 2-")
 	ref_L2_t = float(ref_out.split()[0])
 	ref_out = subprocess.getoutput("grep '|| q_h - q_ex || / || q_ex || = ' "+filename+"  | cut -d '=' -f 2-")
 	ref_L2_q = float(ref_out.split()[0])
-	if nonlin and hb:
-		ref_out = subprocess.getoutput("grep 'LBFGS+' "+filename+"  | cut -d '+' -f 2-")
-	else:
-		ref_out = subprocess.getoutput("grep 'GMRES+' "+filename+"  | cut -d '+' -f 2-")
+	solver = "GMRES"
+	if (nonlin or nonlin_diff) and hb:
+		if nls == 1:
+			solver = "LBFGS"
+		elif nls == 2:
+			solver = "LBB"
+		elif nls == 3:
+			solver = "Newton"
+	ref_out = subprocess.getoutput("grep '"+solver+"+' "+filename+"  | cut -d '+' -f 2-")
 	precond_ref = ref_out.split()[0]
 
 	# Run test case
@@ -87,6 +93,8 @@ for i in range(len(filenames)):
 		command_line += ' -k ' + str(kappa)
 	if hdg != 1:
 		command_line += ' -hdg ' + str(hdg)
+	if nls != 1:
+		command_line += ' -nls ' + str(nls)
 
 	cmd_out = subprocess.getoutput(command_line)
 	split_cmd_out = cmd_out.splitlines()
