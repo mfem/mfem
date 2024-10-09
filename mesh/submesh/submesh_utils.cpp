@@ -543,7 +543,7 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
          Break if top level face or joined existing branch (without reordering).
       */
      bool root_path_is_ambiguous=false;
-     std::vector<int> ambiguous_elements;
+     bool fix_parent = false, tri_face = (face_geom == Geometry::TRIANGLE);
      std::cout << std::boolalpha;
       while (true)
       {
@@ -554,7 +554,7 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
          for (auto x : fn.nodes) { std::cout << x << ' '; }
          std::cout << "child " << child << ' ';
 
-         if (child == 3) { root_path_is_ambiguous = true; }
+         if (tri_face && child == 3) { root_path_is_ambiguous = true; }
 
          if (child == -1) // A root face
          {
@@ -564,7 +564,6 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
          }
          auto pelem = pnodes_new_elem.find(fn);
          bool new_parent = pelem == pnodes_new_elem.end();
-         bool fix_parent = false;
 
          std::cout << "new_parent " << new_parent << '\n';
          if (new_parent)
@@ -604,7 +603,7 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
             }
             std::cout << '\n';
 
-            if (face_geom == Geometry::Type::TRIANGLE && !root_path_is_ambiguous
+            if (tri_face && !root_path_is_ambiguous
                 && !std::equal(fn.nodes.begin(), fn.nodes.end(), pelem->first.nodes.begin()))
             {
                std::cout << "reindexing \n";
@@ -631,23 +630,40 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
                         {
                            child_nodes[i2] = parent_elem.child[i1]; break;
                         }
+                  std::cout << "parent_elem.child ";
+                  for (int j = 0; j < NCMesh::MaxFaceNodes; j++)
+                  {
+                     std::cout << parent_elem.child[j] << ' ';
+                  }
                   std::copy(child_nodes, child_nodes+NCMesh::MaxFaceNodes, parent_elem.child);
+                  std::cout << " -> ";
                }
                // Re-key the map
                pnodes_new_elem.erase(pelem->first);
                pelem = pnodes_new_elem.emplace(fn, pelem_id).first;
             }
          }
+
          // Ensure parent element is marked as non-leaf.
          submesh.elements[pelem->second].ref_type = submesh.Dim == 2 ? Refinement::XY :
                                                     Refinement::X;
          // Know that the parent element exists, connect parent and child
-         submesh.elements[pelem->second].child[child] = new_elem_id;
+         if (child == 3 || !root_path_is_ambiguous)
+         {
+            submesh.elements[pelem->second].child[child] = new_elem_id;
+         }
          submesh.elements[new_elem_id].parent = pelem->second;
          // If this was neither new nor a fixed parent, the higher levels of the
          // tree have been built, otherwise we recurse up the tree to add/fix
          // more parents.
+         std::cout << "submesh.elements[pelem->second].child ";
+         for (int j = 0; j < NCMesh::MaxFaceNodes; j++)
+         {
+            std::cout << submesh.elements[pelem->second].child[j] << ' ';
+         }
+         std::cout << '\n';
          if (!new_parent && !fix_parent) { break; }
+
          new_elem_id = pelem->second;
       }
    }
