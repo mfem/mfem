@@ -19,7 +19,7 @@ private:
 #ifdef MFEM_USE_MPI
    ParBilinearForm *par_a;
    MPI_Comm comm;
-   std::unique_ptr<HyprePCG> par_solver;
+   std::unique_ptr<CGSolver> par_solver;
    std::unique_ptr<HypreBoomerAMG> par_prec;
    HypreParVector par_B;
 #endif

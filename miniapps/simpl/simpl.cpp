@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
    density.SetVoidAttr(void_attr);
    density.SetSolidAttr(solid_attr);
-   // if (prob == mfem::ForceInverter2) { ForceInverterInitialDesign(control_gf, &entropy); }
+   if (prob == mfem::ForceInverter2) { ForceInverterInitialDesign(control_gf, &entropy); }
    // Filter
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);
    filter.GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(density_cf));
