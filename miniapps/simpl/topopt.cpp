@@ -198,7 +198,7 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
    {
       // if entropy exists, then use the Bregman projection
       // assuming x is the dual variable
-      density_fun = [this, &mu](const real_t psi) { return this->entropy->backward(psi + mu); };
+      density_fun = [this, &mu](const real_t psi) { return std::max(0.0, std::min(1.0, this->entropy->backward(psi + mu))); };
    }
    else
    {
@@ -258,6 +258,7 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
       MPI_Allreduce(MPI_IN_PLACE, &lower, 1, MFEM_MPI_REAL_T, MPI_MIN, comm);
    }
 #endif
+   if (upper == lower) {x = baseline; return target_vol;}
 
    // bisection
    real_t target_accuracy = 1e-12;
@@ -282,6 +283,16 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
    if (entropy && use_entropy)
    {
       x += mu;
+      if (mfem::IsFinite(entropy->GetUpperBound()))
+      {
+         real_t uval = entropy->GetUpperBound();
+         for (real_t &val:x) { val = std::min(uval, val); }
+      }
+      if (mfem::IsFinite(entropy->GetLowerBound()))
+      {
+         real_t lval = entropy->GetLowerBound();
+         for (real_t &val:x) { val = std::max(lval, val); }
+      }
    }
    else
    {
