@@ -134,7 +134,6 @@ int test_diffusion_3d(
    // print_vector(y);
 
    Vector y2(h1fes.TrueVSize());
-   for (int i = 0; i < num_samples; i++)
    {
       ParBilinearForm a(&h1fes);
       auto diff_integ = new DiffusionIntegrator;
@@ -143,7 +142,13 @@ int test_diffusion_3d(
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       a.Assemble();
       a.Finalize();
-      a.Mult(x, y2);
+      tic();
+      for (int i = 0; i < num_samples; i++)
+      {
+         a.Mult(x, y2);
+      }
+      real_t elapsed = toc();
+      printf("mfem apply: %fs\n", elapsed / num_samples);
       y2.HostRead();
    }
    // printf("y2: ");
