@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
    bool nonlinear_conv = false;
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
-   int solver_type = (int)FEOperator::SolverType::LBFGS;
+   int solver_type = (int)DarcyOperator::SolverType::LBFGS;
    bool pa = false;
    const char *device_config = "cpu";
    bool mfem = false;
@@ -607,7 +607,7 @@ int main(int argc, char *argv[])
    // 8. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   const Array<int> block_offsets(FEOperator::ConstructOffsets(*darcy));
+   const Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -710,8 +710,8 @@ int main(int argc, char *argv[])
                                (Coefficient*)&fcoeff,
                                (Coefficient*)&qtcoeff});
 
-   FEOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
-                 (FEOperator::SolverType) solver_type, btime);
+   DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
+                    (DarcyOperator::SolverType) solver_type, btime);
 
    //construct the time solver
 
