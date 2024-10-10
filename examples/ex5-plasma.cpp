@@ -347,7 +347,6 @@ int main(int argc, char *argv[])
    NonlinearForm *Mtnl = (nonlinear && ((dg && td > 0.) || bconv || bnlconv ||
                                         btime))?
                          (darcy->GetPotentialMassNonlinearForm()):(NULL);
-   BilinearForm *Mt0 = (btime)?(new BilinearForm(B_space)):(NULL);
    FluxFunction *FluxFun = NULL;
    RiemannSolver *FluxSolver = NULL;
    MixedFluxFunction *HeatFluxFun = NULL;*/
@@ -903,8 +902,6 @@ int main(int argc, char *argv[])
    delete fform;
    delete gform;
    delete hform;
-   //delete Mt0;
-   delete darcy;
    delete B_space;
    delete E_space;
    delete trace_space;
