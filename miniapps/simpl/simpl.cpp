@@ -361,7 +361,8 @@ int main(int argc, char *argv[])
       {
          if (!paraview_dc.Error())
          {
-            paraview_dc.SetCycle(it_md / 10);
+            paraview_dc.SetCycle(it_md);
+            paraview_dc.SetTime(it_md);
             paraview_dc.Save();
          }
          else {use_paraview = false;}
