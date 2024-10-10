@@ -469,6 +469,7 @@ void SparseMatrix::SortColumnIndices()
 #if defined(MFEM_USE_CUDA)
       size_t pBufferSizeInBytes = 0;
       void *pBuffer = NULL;
+      int *P = NULL;
 
       const int n = Height();
       const int m = Width();
@@ -476,35 +477,26 @@ void SparseMatrix::SortColumnIndices()
       real_t * d_a_sorted = ReadWriteData();
       const int * d_ia = ReadI();
       int * d_ja_sorted = ReadWriteJ();
-      csru2csrInfo_t sortInfoA;
 
       cusparseMatDescr_t matA_descr;
       cusparseCreateMatDescr( &matA_descr );
       cusparseSetMatIndexBase( matA_descr, CUSPARSE_INDEX_BASE_ZERO );
       cusparseSetMatType( matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL );
 
-      cusparseCreateCsru2csrInfo( &sortInfoA );
-
-#ifdef MFEM_USE_SINGLE
-      cusparseScsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
-                                       d_ja_sorted, sortInfoA,
-                                       &pBufferSizeInBytes);
-#elif defined MFEM_USE_DOUBLE
-      cusparseDcsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
-                                       d_ja_sorted, sortInfoA,
-                                       &pBufferSizeInBytes);
-#else
-      MFEM_ABORT("Floating point type undefined");
-#endif
+      cusparseXcsrsort_bufferSizeExt(handle, n, m, nnzA, d_ia, d_ja_sorted,
+                                     &pBufferSizeInBytes);
 
       CuMemAlloc( &pBuffer, pBufferSizeInBytes );
 
+      cusparseCreateIdentityPermutation(handle, nnzA, P);
+      cusparseXcsrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
+
 #ifdef MFEM_USE_SINGLE
-      cusparseScsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
-                         d_ja_sorted, sortInfoA, pBuffer);
+      cusparseSgthr(handle, nnzA, d_a_sorted, d_a_sorted, P,
+                    CUSPARSE_INDEX_BASE_ZERO);
 #elif defined MFEM_USE_DOUBLE
-      cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
-                         d_ja_sorted, sortInfoA, pBuffer);
+      cusparseDgthr(handle, nnzA, d_a_sorted, d_a_sorted, P,
+                    CUSPARSE_INDEX_BASE_ZERO);
 #else
       MFEM_ABORT("Floating point type undefined");
 #endif
@@ -513,10 +505,10 @@ void SparseMatrix::SortColumnIndices()
       // wait for it to finish before we can free device temporaries.
       MFEM_STREAM_SYNC;
 
-      cusparseDestroyCsru2csrInfo( sortInfoA );
       cusparseDestroyMatDescr( matA_descr );
 
       CuMemFree( pBuffer );
+      CuMemFree( P );
 #endif
    }
    else if ( Device::Allows( Backend::HIP_MASK ))
