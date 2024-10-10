@@ -130,25 +130,25 @@ ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
          new_parent_to_submesh_element_ids[new_parent_element_ids[i]] = i;
       }
 
-//       MFEM_ASSERT(new_parent_element_ids.Size() == submesh.parent_element_ids_.Size(),
-//                   new_parent_element_ids.Size() << ' ' << submesh.parent_element_ids_.Size());
-// #ifdef MFEM_DEBUG
-//       for (auto x : new_parent_element_ids)
-//       {
-//          MFEM_ASSERT(std::find(submesh.parent_element_ids_.begin(),
-//                                submesh.parent_element_ids_.end(), x)
-//                      != submesh.parent_element_ids_.end(),
-//                      x << " not found in submesh.parent_element_ids_");
-//       }
-//       for (auto x : submesh.parent_element_ids_)
-//       {
-//          MFEM_ASSERT(std::find(new_parent_element_ids.begin(),
-//                                new_parent_element_ids.end(), x)
-//                      != new_parent_element_ids.end(), x << " not found in new_parent_element_ids_");
-//       }
-// #endif
-//       submesh.parent_element_ids_ = new_parent_element_ids;
-//       submesh.parent_to_submesh_element_ids_ = new_parent_to_submesh_element_ids;
+      MFEM_ASSERT(new_parent_element_ids.Size() == submesh.parent_element_ids_.Size(),
+                  new_parent_element_ids.Size() << ' ' << submesh.parent_element_ids_.Size());
+#ifdef MFEM_DEBUG
+      for (auto x : new_parent_element_ids)
+      {
+         MFEM_ASSERT(std::find(submesh.parent_element_ids_.begin(),
+                               submesh.parent_element_ids_.end(), x)
+                     != submesh.parent_element_ids_.end(),
+                     x << " not found in submesh.parent_element_ids_");
+      }
+      for (auto x : submesh.parent_element_ids_)
+      {
+         MFEM_ASSERT(std::find(new_parent_element_ids.begin(),
+                               new_parent_element_ids.end(), x)
+                     != new_parent_element_ids.end(), x << " not found in new_parent_element_ids_");
+      }
+#endif
+      submesh.parent_element_ids_ = new_parent_element_ids;
+      submesh.parent_to_submesh_element_ids_ = new_parent_to_submesh_element_ids;
    }
 }
 

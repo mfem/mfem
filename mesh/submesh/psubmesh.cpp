@@ -97,16 +97,16 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
       // Update the submesh to parent vertex mapping, NCSubMesh reordered the
       // vertices so the map to parent is no longer valid.
-      // parent_to_submesh_vertex_ids_ = -1;
-      // for (int i = 0; i < parent_vertex_ids_.Size(); i++)
-      // {
-      //    // vertex -> node -> parent node -> parent vertex
-      //    auto node = pncsubmesh_->vertex_nodeId[i];
-      //    auto parent_node = pncsubmesh_->parent_node_ids_[node];
-      //    auto parent_vertex = parent.pncmesh->GetNodeVertex(parent_node);
-      //    parent_vertex_ids_[i] = parent_vertex;
-      //    parent_to_submesh_vertex_ids_[parent_vertex] = i;
-      // }
+      parent_to_submesh_vertex_ids_ = -1;
+      for (int i = 0; i < parent_vertex_ids_.Size(); i++)
+      {
+         // vertex -> node -> parent node -> parent vertex
+         auto node = pncsubmesh_->vertex_nodeId[i];
+         auto parent_node = pncsubmesh_->parent_node_ids_[node];
+         auto parent_vertex = parent.pncmesh->GetNodeVertex(parent_node);
+         parent_vertex_ids_[i] = parent_vertex;
+         parent_to_submesh_vertex_ids_[parent_vertex] = i;
+      }
       GenerateNCFaceInfo();
       SetAttributes();
    }
@@ -128,7 +128,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    parent_to_submesh_edge_ids_ = -1;
    for (int i = 0; i < parent_edge_ids_.Size(); i++)
    {
-      // parent_to_submesh_edge_ids_[parent_edge_ids_[i]] = i;
+      parent_to_submesh_edge_ids_[parent_edge_ids_[i]] = i;
    }
 
    if (Dim == 3)
@@ -140,7 +140,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       parent_to_submesh_face_ids_ = -1;
       for (int i = 0; i < parent_face_ids_.Size(); i++)
       {
-         // parent_to_submesh_face_ids_[parent_face_ids_[i]] = i;
+         parent_to_submesh_face_ids_[parent_face_ids_[i]] = i;
       }
 
       parent_face_ori_.SetSize(NumOfFaces);
@@ -152,19 +152,19 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          Array<int> sub_par_vert(sub_vert.Size());
          for (int j = 0; j < sub_vert.Size(); j++)
          {
-            // sub_par_vert[j] = parent_vertex_ids_[sub_vert[j]];
+            sub_par_vert[j] = parent_vertex_ids_[sub_vert[j]];
          }
 
          Array<int> par_vert;
-         // parent.GetFaceVertices(parent_face_ids_[i], par_vert);
+         parent.GetFaceVertices(parent_face_ids_[i], par_vert);
 
          if (par_vert.Size() == 3)
          {
-            // parent_face_ori_[i] = GetTriOrientation(par_vert, sub_par_vert);
+            parent_face_ori_[i] = GetTriOrientation(par_vert, sub_par_vert);
          }
          else
          {
-            // parent_face_ori_[i] = GetQuadOrientation(par_vert, sub_par_vert);
+            parent_face_ori_[i] = GetQuadOrientation(par_vert, sub_par_vert);
          }
       }
    }
@@ -180,32 +180,32 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          Array<int> sub_par_vert(sub_vert.Size());
          for (int j = 0; j < sub_vert.Size(); j++)
          {
-            // sub_par_vert[j] = parent_vertex_ids_[sub_vert[j]];
+            sub_par_vert[j] = parent_vertex_ids_[sub_vert[j]];
          }
 
          Array<int> par_vert;
          int be_ori = 0;
          if (from == SubMesh::From::Boundary)
          {
-            // parent.GetBdrElementVertices(parent_element_ids_[i], par_vert);
+            parent.GetBdrElementVertices(parent_element_ids_[i], par_vert);
 
-            // int f = -1;
-            // parent.GetBdrElementFace(parent_element_ids_[i], &f, &be_ori);
+            int f = -1;
+            parent.GetBdrElementFace(parent_element_ids_[i], &f, &be_ori);
          }
          else
          {
-            // parent.GetElementVertices(parent_element_ids_[i], par_vert);
+            parent.GetElementVertices(parent_element_ids_[i], par_vert);
          }
 
          if (par_vert.Size() == 3)
          {
-            // int se_ori = GetTriOrientation(par_vert, sub_par_vert);
-            // parent_face_ori_[i] = ComposeTriOrientations(be_ori, se_ori);
+            int se_ori = GetTriOrientation(par_vert, sub_par_vert);
+            parent_face_ori_[i] = ComposeTriOrientations(be_ori, se_ori);
          }
          else
          {
-            // int se_ori = GetQuadOrientation(par_vert, sub_par_vert);
-            // parent_face_ori_[i] = ComposeQuadOrientations(be_ori, se_ori);
+            int se_ori = GetQuadOrientation(par_vert, sub_par_vert);
+            parent_face_ori_[i] = ComposeQuadOrientations(be_ori, se_ori);
          }
       }
    }
@@ -267,22 +267,23 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    ExchangeFaceNbrData();
 
-   if (Conforming())
+   // if (Conforming())
+   // {
+   //    // Conforming submesh must now discover and add boundary elements, taking
+   //    // care with "ghost boundary elements" if a volume submesh. A
+   //    // nonconforming mesh already has constructed this information during
+   //    // initialization.
+   // }
+   if (from == SubMesh::From::Domain)
    {
-      // Conforming submesh must now discover and add boundary elements, taking
-      // care with "ghost boundary elements" if a volume submesh. A
-      // nonconforming mesh already has constructed this information during
-      // initialization.
-      if (from == SubMesh::From::Domain)
-      {
-         SubMeshUtils::AddBoundaryElements(*this, FindGhostBoundaryElementAttributes());
-      }
-      else
-      {
-         SubMeshUtils::AddBoundaryElements(*this);
-      }
+      SubMeshUtils::AddBoundaryElements(*this, FindGhostBoundaryElementAttributes());
+   }
+   else
+   {
+      SubMeshUtils::AddBoundaryElements(*this);
    }
 
+   SubMeshUtils::AddBoundaryElements(*this);
 
    if (Dim > 1)
    {
