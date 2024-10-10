@@ -367,7 +367,8 @@ miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
 miniapps/simpl/ParaView
-miniapps/simpl/SiMPL-*
+miniapps/simpl/**/SiMPL-*
+miniapps/simpl/**/OC-*
 miniapps/simpl/*.png
 
 miniapps/hdiv-linear-solver/darcy
