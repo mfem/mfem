@@ -143,7 +143,8 @@ public:
    fun_type backward; // dual to primal
    LegendreEntropy(fun_type entropy, fun_type forward, fun_type backward,
                    real_t lower_bound, real_t upper_bound)
-      :entropy(entropy), forward(forward), backward(backward), lower_bound(lower_bound), upper_bound(upper_bound) {}
+      :entropy(entropy), forward(forward), backward(backward),
+       lower_bound(lower_bound), upper_bound(upper_bound) {}
    MappedGFCoefficient GetForwardCoeff();
    MappedGFCoefficient GetBackwardCoeff();
    MappedGFCoefficient GetEntropyCoeff();
