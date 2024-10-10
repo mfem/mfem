@@ -475,9 +475,6 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
                   "Internal nonconforming boundaries are not reliably supported yet.");
       auto face_geom = FaceGeomFromNodes(fn.nodes);
       int new_elem_id = submesh.AddElement(face_geom, face.attribute);
-      std::cout << "Added leaf elem " << new_elem_id << '\n';
-
-      // std::cout << "nfaces_found " << ++nfaces_found << '\n';
 
       // Rank needs to be established by presence (or lack of) in the submesh.
       submesh.elements[new_elem_id].rank = [&parent, &face]()
@@ -509,69 +506,40 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
       }
 
       /*
-         For segment and quad faces, given a set of face nodes, the parent face nodes can be
-         discovered reliably. For a triangle face, there is a core ambiguity, which comes
-         from the fact that for a central face, the node orientation can be arbitrary
-         depending on the split sequence of the original element and which face of that
-         element it was originally. Given this, triangle parent face nodes can only be
-         learned from parent vertex attached faces. Additionally it is insufficient to act
-         just on whether there was a central child face at the lowest level, as both
-
-         central -> corner -> root
-
-         and
-
-         corner -> central -> root
-
-         can both result in a set of root face nodes that are then inconsistent with the
-         corner face nodes.
-
-         To solve this, when traversing from leaf to root, if a triangle face passes through
-         a central face relation, the path is marked ambiguous and parent faces will not be
-         corrected. Additionally the ambiguous element will be saved for a post construction
-         cleanup, where the nodes of all children need to be
-      */
-
-
-      /*
          - Check not top level face
          - Check for parent of the newly entered element
             - if not present, add in
-            - if present but different order, reorder so consistent with child
+            - if present but different order and this path is non-ambiguous, reorder so consistent with child
                elements.
-         - Set .child in the parent of the newly entered element
          - Set .parent in the newly entered element
          Break if top level face or joined existing branch (without reordering).
+
+         child element indices will be set afterwards because the orientation can change
+         during traversal.
       */
-     bool root_path_is_ambiguous=false;
-     bool fix_parent = false, tri_face = (face_geom == Geometry::TRIANGLE);
-     std::cout << std::boolalpha;
+      bool root_path_is_ambiguous=false;
+      bool fix_parent = false, tri_face = (face_geom == Geometry::TRIANGLE);
       while (true)
       {
-         std::cout << "fn.nodes ";
-         for (auto x : fn.nodes) { std::cout << x << ' '; }
          int child = submesh.parent_->ParentFaceNodes(fn.nodes);
-         std::cout << " -> ";
-         for (auto x : fn.nodes) { std::cout << x << ' '; }
-         std::cout << "child " << child << ' ';
-
-         if (tri_face && child == 3) { root_path_is_ambiguous = true; }
+         if (tri_face && child == 3)
+         {
+            // Traversing a central triangle face involves flipping the face orientation.
+            // Do not use this pathway for reordering any parent face's nodes.
+            root_path_is_ambiguous = true;
+         }
 
          if (child == -1) // A root face
          {
             submesh.elements[new_elem_id].parent = -1;
-            std::cout << '\n';
             break;
          }
          auto pelem = pnodes_new_elem.find(fn);
          bool new_parent = pelem == pnodes_new_elem.end();
-
-         std::cout << "new_parent " << new_parent << '\n';
          if (new_parent)
          {
             // Add in this parent
             int pelem_id = submesh.AddElement(FaceGeomFromNodes(fn.nodes), face.attribute);
-            std::cout << "Added elem " << pelem_id << '\n';
             pelem = pnodes_new_elem.emplace(fn, pelem_id).first;
             auto parent_face_id = submesh.ParentFaces().FindId(fn.nodes[0], fn.nodes[1],
                                                                fn.nodes[2],
@@ -589,8 +557,8 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
             //    the outer child faces not the interior. If either of these
             //    scenarios, and there's a mismatch, then reorder the parent and
             //    all ancestors if necessary.
-            std::cout << "Found elem " << pelem->second << '\n';
-            if (!root_path_is_ambiguous && !std::equal(fn.nodes.begin(), fn.nodes.end(), pelem->first.nodes.begin()))
+            if (!root_path_is_ambiguous &&
+                !std::equal(fn.nodes.begin(), fn.nodes.end(), pelem->first.nodes.begin()))
             {
                fix_parent = true;
                auto pelem_id = pelem->second;
@@ -603,7 +571,8 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
             }
          }
          // Ensure parent element is marked as non-leaf, and attach to the child.
-         submesh.elements[pelem->second].ref_type = submesh.Dim == 2 ? Refinement::XY : Refinement::X;
+         submesh.elements[pelem->second].ref_type = submesh.Dim == 2 ? Refinement::XY :
+                                                    Refinement::X;
          submesh.elements[new_elem_id].parent = pelem->second;
 
          // If this was neither new nor a fixed parent, the higher levels of the
@@ -627,66 +596,12 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
       const auto &child_elem = submesh.elements[fn_elem.second];
       if (child_elem.parent == -1) { continue; }
       int child = submesh.parent_->ParentFaceNodes(fn.nodes);
-      MFEM_ASSERT(pnodes_new_elem[fn] == child_elem.parent, pnodes_new_elem[fn] << ' ' << child_elem.parent);
+      MFEM_ASSERT(pnodes_new_elem[fn] == child_elem.parent,
+                  pnodes_new_elem[fn] << ' ' << child_elem.parent);
       auto &parent_elem = submesh.elements[child_elem.parent];
       MFEM_ASSERT(parent_elem.ref_type != char(0), int(parent_elem.ref_type));
       submesh.elements[child_elem.parent].child[child] = fn_elem.second;
    }
-
-   std::set<int> child_check;
-   std::cout << "Checking children:\n";
-   for (int n = 0; n < submesh.elements.Size(); n++)
-   {
-      const auto &e = submesh.elements[n];
-      if (e.ref_type != char(0))
-      {
-         // Check children
-         for (int i = 0; i < 4; i++)
-         {
-            child_check.insert(e.child[i]);
-         }
-         if (child_check.size() != std::size_t(4) || child_check.find(-1) != child_check.end())
-         {
-            std::cout << "Element " << n << " child ";
-            for (int i = 0; i < 4; i++)
-            {
-               std::cout << e.child[i] << ' ';
-            }
-            std::cout << '\n';
-         }
-         child_check.clear();
-      }
-   }
-
-   for (const auto& kv : pnodes_new_elem)
-   {
-      std::cout << kv.second << "->"
-         << kv.first.nodes[0] << ' '
-         << kv.first.nodes[1] << ' '
-         << kv.first.nodes[2] << ' '
-         << kv.first.nodes[3] << '\n';
-   }
-
-   int nleaf = 0;
-   int nref = 0;
-   for (int i = 0; i < submesh.elements.Size(); i++)
-   {
-      const auto &x = submesh.elements[i];
-      if (x.ref_type == char(0)) { nleaf++; }
-      else {
-         nref++;
-         std::cout << "elem " << i << " child ";
-         for (int n = 0; n < 8; n++)
-         {
-            std::cout << x.child[n] << ' ';
-         }
-         std::cout << '\n';
-      }
-   }
-   std::cout << "nleaf " << nleaf << " nref " << nref << '\n';
-
-   std::cout << "parent_element_ids.Size() " << parent_element_ids.Size() << '\n';
-   std::cout << "submesh.elements.Size() " << submesh.elements.Size() << '\n';
 
    /*
       All elements have been added into the tree but a) The nodes are all from
@@ -788,20 +703,6 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
          elem.parent = elem.parent == -1 ? -1 : old_to_new[elem.parent];
       }
    }
-
-   // for (int i = 0; i < submesh.elements.Size(); i++)
-   // {
-   //    const auto &x = submesh.elements[i];
-   //    if (x.ref_type != char(0))
-   //    {
-   //       std::cout << "elem " << i << " child ";
-   //       for (int n = 0; n < 8; n++)
-   //       {
-   //          std::cout << x.child[n] << ' ';
-   //       }
-   //       std::cout << '\n';
-   //    }
-   // }
 
    // Apply new node ordering to relations, and sign in on edges/vertices
    for (auto &elem : submesh.elements)
