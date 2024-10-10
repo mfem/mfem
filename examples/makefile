@@ -104,6 +104,7 @@ ex5-max: darcyform.o
 ex5-hdg: darcyform.o
 ex5-heat: darcyform.o
 ex5-nguyen: darcyform.o darcyop.o
+ex5-plasma: darcyform.o darcyop.o
 ex18: $(SRC)ex18.hpp
 ex33: $(SRC)ex33.hpp
 ex37: $(SRC)ex37.hpp
