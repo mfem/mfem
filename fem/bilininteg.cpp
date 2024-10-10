@@ -3139,11 +3139,33 @@ void ElasticityIntegrator::AssembleElementMatrix(
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
+   const NURBSFiniteElement *NURBSFE =
+      dynamic_cast<const NURBSFiniteElement *>(&el);
+
+   IntegrationRule *irn = nullptr;
+   bool deleteRule = false;
+   if (NURBSFE && patchRules)
+   {
+      const int patch = NURBSFE->GetPatch();
+      int ijk[3];
+      NURBSFE->GetIJK(ijk);
+      Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
+
+      MFEM_VERIFY(kv.Size() == dim, "Sanity check (remove later)");
+
+      irn = &patchRules->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv,
+                                        deleteRule);
+   }
+
+   const int numIP = irn ? irn->GetNPoints() : ir->GetNPoints();
+
    elmat = 0.0;
 
-   for (int i = 0; i < ir -> GetNPoints(); i++)
+   // for (int i = 0; i < ir->GetNPoints(); i++)
+   for (int i = 0; i < numIP; i++)
    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
+      // const IntegrationPoint &ip = ir->IntPoint(i);
+      const IntegrationPoint &ip = irn ? irn->IntPoint(i) : ir->IntPoint(i);
 
       el.CalcDShape(ip, dshape);
 

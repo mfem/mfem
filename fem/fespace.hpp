@@ -587,6 +587,31 @@ public:
    bool Conforming() const { return mesh->Conforming() && cP == NULL; }
    bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
 
+   void SetProlongation(const SparseMatrix* p)
+   {
+      if ( cP == NULL )
+      {
+         cP = std::unique_ptr<SparseMatrix>( new SparseMatrix( *p ) );
+      }
+      else
+      {
+         *cP = *p;
+      }
+      cP_is_set = true;
+   }
+
+   void SetRestriction(const SparseMatrix* r)
+   {
+      if ( cR == NULL )
+      {
+         cR = std::unique_ptr<SparseMatrix>( new SparseMatrix( *r ) );
+      }
+      else
+      {
+         *cR = *r;
+      }
+   }
+
    /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->GetOrder(). Once
        SetElementOrder is called, the space becomes a variable order space. */
