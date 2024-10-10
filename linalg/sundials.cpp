@@ -1953,7 +1953,7 @@ int KINSolver::PrecSolve(N_Vector uu,
 
 KINSolver::KINSolver(int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
-     f_scale(NULL), jacobian(NULL), maa(0)
+     f_scale(NULL), jacobian(NULL)
 {
    Y = new SundialsNVector();
    y_scale = new SundialsNVector();
@@ -1967,7 +1967,7 @@ KINSolver::KINSolver(int strategy, bool oper_grad)
 #ifdef MFEM_USE_MPI
 KINSolver::KINSolver(MPI_Comm comm, int strategy, bool oper_grad)
    : global_strategy(strategy), use_oper_grad(oper_grad), y_scale(NULL),
-     f_scale(NULL), jacobian(NULL), maa(0)
+     f_scale(NULL), jacobian(NULL)
 {
    Y = new SundialsNVector(comm);
    y_scale = new SundialsNVector(comm);
@@ -2046,11 +2046,22 @@ void KINSolver::SetOperator(const Operator &op)
       sundials_mem = KINCreate(Sundials::GetContext());
       MFEM_VERIFY(sundials_mem, "Error in KINCreate().");
 
-      // Set number of acceleration vectors
-      if (maa > 0)
+      // Enable Anderson Acceleration
+      if (aa_n > 0)
       {
-         flag = KINSetMAA(sundials_mem, maa);
+         flag = KINSetMAA(sundials_mem, aa_n);
          MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+
+         flag = KINSetDelayAA(sundials_mem, aa_delay);
+         MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDelayAA()");
+
+         flag = KINSetDampingAA(sundials_mem, aa_damping);
+         MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDampingAA()");
+
+#if SUNDIALS_VERSION_MAJOR >= 6
+         flag = KINSetOrthAA(sundials_mem, aa_orth);
+         MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetOrthAA()");
+#endif
       }
 
       // Initialize KINSOL
@@ -2060,6 +2071,9 @@ void KINSolver::SetOperator(const Operator &op)
       // Attach the KINSolver as user-defined data
       flag = KINSetUserData(sundials_mem, this);
       MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetUserData()");
+
+      flag = KINSetDamping(sundials_mem, fp_damping);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDamping()");
 
       // Set the linear solver
       if (prec || jfnk)
@@ -2172,15 +2186,52 @@ void KINSolver::SetMaxSetupCalls(int max_calls)
    MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMaxSetupCalls()");
 }
 
-void KINSolver::SetMAA(int m_aa)
+void KINSolver::EnableAndersonAcc(int n, int orth, int delay, double damping)
 {
-   // Store internally as maa must be set before calling KINInit() to
-   // set the maximum acceleration space size.
-   maa = m_aa;
+   if (sundials_mem != nullptr)
+   {
+      if (aa_n < n)
+      {
+         MFEM_ABORT("Subsequent calls to EnableAndersonAcc() must set"
+                    " the subspace size to less or equal to the initially requested size."
+                    " If SetOperator() has already been called, the subspace size can't be"
+                    " increased.");
+      }
+
+      flag = KINSetMAA(sundials_mem, n);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+
+      flag = KINSetDelayAA(sundials_mem, delay);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDelayAA()");
+
+      flag = KINSetDampingAA(sundials_mem, damping);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDampingAA()");
+
+#if SUNDIALS_VERSION_MAJOR >= 6
+      flag = KINSetOrthAA(sundials_mem, orth);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetOrthAA()");
+#else
+      if (orth != KIN_ORTH_MGS)
+      {
+         MFEM_WARNING("SUNDIALS < v6 does not support setting the Anderson"
+                      " acceleration orthogonalization routine!");
+      }
+#endif
+   }
+
+   aa_n = n;
+   aa_delay = delay;
+   aa_damping = damping;
+   aa_orth = orth;
+}
+
+void KINSolver::SetDamping(double damping)
+{
+   fp_damping = damping;
    if (sundials_mem)
    {
-      flag = KINSetMAA(sundials_mem, maa);
-      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetMAA()");
+      flag = KINSetDamping(sundials_mem, fp_damping);
+      MFEM_ASSERT(flag == KIN_SUCCESS, "error in KINSetDamping()");
    }
 }
 

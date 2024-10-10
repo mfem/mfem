@@ -29,7 +29,7 @@ public:
    SparseSmoother(const SparseMatrix &a)
       : MatrixInverse(a) { oper = &a; }
 
-   virtual void SetOperator(const Operator &a);
+   void SetOperator(const Operator &a) override;
 };
 
 /// Data type for Gauss-Seidel smoother of sparse matrix
@@ -48,7 +48,7 @@ public:
       : SparseSmoother(a) { type = t; iterations = it; }
 
    /// Matrix vector multiplication with GS Smoother.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 };
 
 /// Data type for scaled Jacobi-type smoother of sparse matrix
@@ -75,7 +75,7 @@ public:
    void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
 
    /// Matrix vector multiplication with Jacobi smoother.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 };
 
 }

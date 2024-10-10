@@ -36,62 +36,63 @@ public:
                         const int cb_type = BasisType::GaussLobatto,
                         const int ob_type = BasisType::GaussLegendre);
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_ND(Trans, shape); }
 
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
 
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { LocalRestriction_ND(tk, dof2tk, Trans, R); }
 
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
 
    using FiniteElement::Project;
 
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override
    {
       if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
       else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    }
 
-   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
-                                 Vector &dofs) const
+   void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                         Vector &dofs) const override
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
 
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &T,
+                                 Vector &dofs) const override
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
 
-   virtual void Project(const FiniteElement &fe,
-                        ElementTransformation &Trans,
-                        DenseMatrix &I) const
+   void Project(const FiniteElement &fe,
+                ElementTransformation &Trans,
+                DenseMatrix &I) const override
    { Project_ND(tk, dof2tk, fe, Trans, I); }
 
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
 
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const
+   void ProjectCurl(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &curl) const override
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 
-   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+   void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 
 protected:
    void ProjectIntegrated(VectorCoefficient &vc,
@@ -118,46 +119,47 @@ public:
    ND_QuadrilateralElement(const int p,
                            const int cb_type = BasisType::GaussLobatto,
                            const int ob_type = BasisType::GaussLegendre);
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_ND(Trans, shape); }
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { LocalRestriction_ND(tk, dof2tk, Trans, R); }
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    using FiniteElement::Project;
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override
    {
       if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
       else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
    }
-   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
-                                 Vector &dofs) const
+   void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                         Vector &dofs) const override
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &T,
+                                 Vector &dofs) const override
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
-   virtual void Project(const FiniteElement &fe,
-                        ElementTransformation &Trans,
-                        DenseMatrix &I) const
+   void Project(const FiniteElement &fe,
+                ElementTransformation &Trans,
+                DenseMatrix &I) const override
    { Project_ND(tk, dof2tk, fe, Trans, I); }
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
 
-   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+   void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 
 protected:
    void ProjectIntegrated(VectorCoefficient &vc,
@@ -184,47 +186,48 @@ class ND_TetrahedronElement : public VectorFiniteElement
 public:
    /// Construct the ND_TetrahedronElement of order @a p
    ND_TetrahedronElement(const int p);
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_ND(Trans, shape); }
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { LocalRestriction_ND(tk, dof2tk, Trans, R); }
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
-   virtual const StatelessDofTransformation *GetDofTransformation() const
+   const StatelessDofTransformation *GetDofTransformation() const override
    { return &doftrans; }
    using FiniteElement::Project;
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
-                                 Vector &dofs) const
+   void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                         Vector &dofs) const override
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &T,
+                                 Vector &dofs) const override
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
-   virtual void Project(const FiniteElement &fe,
-                        ElementTransformation &Trans,
-                        DenseMatrix &I) const
+   void Project(const FiniteElement &fe,
+                ElementTransformation &Trans,
+                DenseMatrix &I) const override
    { Project_ND(tk, dof2tk, fe, Trans, I); }
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
 
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const
+   void ProjectCurl(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &curl) const override
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
@@ -247,42 +250,43 @@ class ND_TriangleElement : public VectorFiniteElement
 public:
    /// Construct the ND_TriangleElement of order @a p
    ND_TriangleElement(const int p);
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_ND(Trans, shape); }
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { LocalRestriction_ND(tk, dof2tk, Trans, R); }
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
-   virtual const StatelessDofTransformation *GetDofTransformation() const
+   const StatelessDofTransformation *GetDofTransformation() const override
    { return &doftrans; }
    using FiniteElement::Project;
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
-                                 Vector &dofs) const
+   void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                         Vector &dofs) const override
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &T,
+                                 Vector &dofs) const override
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
-   virtual void Project(const FiniteElement &fe,
-                        ElementTransformation &Trans,
-                        DenseMatrix &I) const
+   void Project(const FiniteElement &fe,
+                ElementTransformation &Trans,
+                DenseMatrix &I) const override
    { Project_ND(tk, dof2tk, fe, Trans, I); }
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
 };
 
@@ -298,39 +302,40 @@ public:
    /** @brief Construct the ND_SegmentElement of order @a p and open
        BasisType @a ob_type */
    ND_SegmentElement(const int p, const int ob_type = BasisType::GaussLegendre);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override
    { obasis1d.Eval(ip.x, shape); }
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_ND(Trans, shape); }
-   // virtual void CalcCurlShape(const IntegrationPoint &ip,
+   // void CalcCurlShape(const IntegrationPoint &ip,
    //                            DenseMatrix &curl_shape) const;
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { LocalRestriction_ND(tk, dof2tk, Trans, R); }
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    using FiniteElement::Project;
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &T,
+                                 Vector &dofs) const override
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
-   virtual void Project(const FiniteElement &fe,
-                        ElementTransformation &Trans,
-                        DenseMatrix &I) const
+   void Project(const FiniteElement &fe,
+                ElementTransformation &Trans,
+                DenseMatrix &I) const override
    { Project_ND(tk, dof2tk, fe, Trans, I); }
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
 };
 
@@ -358,53 +363,54 @@ public:
                    const int cb_type = BasisType::GaussLobatto,
                    const int ob_type = BasisType::GaussLegendre);
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
    { CalcVShape_ND(Trans, shape); }
 
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
 
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { LocalRestriction_ND(tk, dof2tk, Trans, R); }
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
 
-   virtual const StatelessDofTransformation *GetDofTransformation() const
+   const StatelessDofTransformation *GetDofTransformation() const override
    { return &doftrans; }
 
    using FiniteElement::Project;
 
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
 
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &T,
+                                 Vector &dofs) const override
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
 
-   virtual void Project(const FiniteElement &fe,
-                        ElementTransformation &Trans,
-                        DenseMatrix &I) const
+   void Project(const FiniteElement &fe,
+                ElementTransformation &Trans,
+                DenseMatrix &I) const override
    { Project_ND(tk, dof2tk, fe, Trans, I); }
 
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
 
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const
+   void ProjectCurl(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &curl) const override
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
@@ -423,11 +429,11 @@ public:
 
    using FiniteElement::CalcVShape;
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override;
 };
 
 /// Arbitrary order, three component, Nedelec elements in 1D on a segment
@@ -455,56 +461,57 @@ public:
    using FiniteElement::CalcVShape;
    using FiniteElement::CalcPhysCurlShape;
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
 
-   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
-                                  DenseMatrix &curl_shape) const;
+   void CalcPhysCurlShape(ElementTransformation &Trans,
+                          DenseMatrix &curl_shape) const override;
 
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { LocalInterpolation_ND(*this, tk, dof2tk, Trans, I); }
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { LocalRestriction_ND(tk, dof2tk, Trans, R); }
 
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
 
    using FiniteElement::Project;
 
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
-                                 Vector &dofs) const
+   void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                         Vector &dofs) const override
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
 
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &T,
+                                 Vector &dofs) const override
    { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
 
-   virtual void Project(const FiniteElement &fe,
-                        ElementTransformation &Trans,
-                        DenseMatrix &I) const;
+   void Project(const FiniteElement &fe,
+                ElementTransformation &Trans,
+                DenseMatrix &I) const override;
 
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
 
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const
+   void ProjectCurl(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &curl) const override
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 };
 
@@ -535,32 +542,32 @@ public:
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
 
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { LocalInterpolation(*this, Trans, I); }
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { MFEM_ABORT("method is not overloaded"); }
 
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
 
    using FiniteElement::Project;
 
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 class ND_R2D_FiniteElement : public VectorFiniteElement
@@ -580,35 +587,35 @@ public:
    using FiniteElement::CalcVShape;
    using FiniteElement::CalcPhysCurlShape;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override;
 
-   virtual void CalcPhysCurlShape(ElementTransformation &Trans,
-                                  DenseMatrix &curl_shape) const;
+   void CalcPhysCurlShape(ElementTransformation &Trans,
+                          DenseMatrix &curl_shape) const override;
 
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { LocalInterpolation(*this, Trans, I); }
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const;
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override;
 
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
 
    using FiniteElement::Project;
 
-   virtual void Project(VectorCoefficient &vc,
-                        ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const;
+   void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                DenseMatrix &I) const override;
 
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
 };
 
 /// Arbitrary order Nedelec 3D elements in 2D on a triangle
@@ -635,10 +642,10 @@ public:
    using ND_R2D_FiniteElement::CalcVShape;
    using ND_R2D_FiniteElement::CalcPhysCurlShape;
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
 };
 
 
@@ -664,10 +671,10 @@ public:
    using ND_R2D_FiniteElement::CalcVShape;
    using ND_R2D_FiniteElement::CalcPhysCurlShape;
 
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
 };
 
 

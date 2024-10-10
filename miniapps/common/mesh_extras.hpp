@@ -98,8 +98,8 @@ public:
       else { return a + (b-a) * (x*x*x*(x*(6*x-15)+10)); }
    }
 
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    using VectorCoefficient::Eval;
 };

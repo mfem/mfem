@@ -90,7 +90,8 @@ private:
 
    public:
       NormalizationCoeff(ParGridFunction &u_gf) : u(u_gf) { }
-      virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+      real_t Eval(ElementTransformation &T,
+                  const IntegrationPoint &ip) override;
    };
 
 public:
@@ -153,7 +154,8 @@ public:
    PProductCoefficient(Coefficient& basec_, Coefficient& corrc_)
       : basef(basec_), corrf(corrc_) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    {
       T.SetIntPoint(&ip);
       real_t u = basef.Eval(T,ip);
@@ -186,19 +188,19 @@ public:
 
    void SetInput(Coefficient &nfunc) { func = &nfunc; }
 
-   virtual real_t GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &trans,
-                                   const Vector &elfun) override;
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &trans,
+                           const Vector &elfun) override;
 
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &trans,
-                                      const Vector &elfun,
-                                      Vector &elvect) override;
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &trans,
+                              const Vector &elfun,
+                              Vector &elvect) override;
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &trans,
-                                    const Vector &elfun,
-                                    DenseMatrix &elmat) override;
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            DenseMatrix &elmat) override;
 };
 
 
@@ -232,19 +234,19 @@ public:
       }
    }
 
-   virtual real_t GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &trans,
-                                   const Vector &elfun) override;
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &trans,
+                           const Vector &elfun) override;
 
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &trans,
-                                      const Vector &elfun,
-                                      Vector &elvect) override;
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &trans,
+                              const Vector &elfun,
+                              Vector &elvect) override;
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &trans,
-                                    const Vector &elfun,
-                                    DenseMatrix &elmat) override;
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            DenseMatrix &elmat) override;
 };
 
 // Low-pass filter based on the Screened Poisson equation.
