@@ -2082,7 +2082,6 @@ void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
 void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
                                  int &counter)
 {
-   // std::cout << "Elem " << elem;
    Element &el = elements[elem];
    if (!el.ref_type)
    {
@@ -2091,14 +2090,12 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
          if (!IsGhost(el))
          {
             leaf_elements.Append(elem);
-            // std::cout << " is a leaf\n";
          }
          else
          {
             // in parallel (or in serial loading a parallel file), collect
             // elements of neighboring ranks in a separate array
             ghosts.Append(elem);
-            // std::cout << " is a ghost\n";
          }
 
          // assign the SFC index (temporarily, will be replaced by Mesh index)
@@ -2106,7 +2103,6 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
       }
       else
       {
-         // std::cout << " is beyond ghost\n";
          // elements beyond the ghost layer are invalid and don't appear in
          // 'leaf_elements' (also for performance reasons)
          el.index = -1;
@@ -2114,7 +2110,6 @@ void NCMesh::CollectLeafElements(int elem, int state, Array<int> &ghosts,
    }
    else // Refined element
    {
-      // std::cout << " is refined\n";
       // in non-leaf elements, the 'rank' and 'index' members have no meaning
       el.rank = -1;
       el.index = -1;
@@ -2159,22 +2154,18 @@ void NCMesh::UpdateLeafElements()
    // collect leaf elements in leaf_elements and ghosts elements in ghosts from
    // all roots
    leaf_elements.SetSize(0);
-   // std::cout << "elements.Size() " << elements.Size() << '\n';
-   // std::cout << "root_state.Size() " << root_state.Size() << '\n';
    for (int i = 0, counter = 0; i < root_state.Size(); i++)
    {
       CollectLeafElements(i, root_state[i], ghosts, counter);
    }
 
    NElements = leaf_elements.Size();
-   // std::cout << "NElements " << NElements << '\n';
    NGhostElements = ghosts.Size();
 
    // append ghost elements at the end of 'leaf_element' (if any) and assign the
    // final (Mesh) indices of leaves
    leaf_elements.Append(ghosts);
    leaf_sfc_index.SetSize(leaf_elements.Size());
-
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       Element &el = elements[leaf_elements[i]];
