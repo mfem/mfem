@@ -1,6 +1,9 @@
 if [[ `git status --porcelain` ]]; then
   echo "There are uncommited changes. Abort."
 else
+  rm *.o
+  make simpl -j
+  make oc -j
   BACKTRACK="-ab -bb"
   for back in $BACKTRACK
   do
