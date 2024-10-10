@@ -101,7 +101,7 @@ void DifferentiableOperator<kernels_tuple,
 
    Vector shmem_cache(shmem_info.total_size);
 
-   // print_shared_memory_info(shmem_info);
+   print_shared_memory_info(shmem_info);
 
    func = [=](Vector &ye_mem) mutable
    {
@@ -154,6 +154,8 @@ void DifferentiableOperator<kernels_tuple,
             shmem,
             shmem_info.offsets[SharedMemory::Index::TEMP],
             shmem_info.temp_sizes);
+
+         MFEM_SYNC_THREAD;
 
          map_fields_to_quadrature_data<TensorProduct>(
             input_shmem, fields_shmem, input_dtq_shmem, input_fops, ir_weights, scratch_mem,

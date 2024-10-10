@@ -1582,7 +1582,6 @@ std::array<DofToQuadMap, N> load_dtq_mem(
                mem_Bi(q, 0, d) = B(q, 0, d);
             }
          }
-         MFEM_SYNC_THREAD;
       }
       offset += sizes[i][0];
 
@@ -1599,7 +1598,6 @@ std::array<DofToQuadMap, N> load_dtq_mem(
                mem_Gi(q, 0, d) = G(q, 0, d);
             }
          }
-         MFEM_SYNC_THREAD;
       }
       offset += sizes[i][1];
 
@@ -1624,13 +1622,16 @@ load_field_mem(
    std::array<DeviceTensor<1, const double>, num_kinputs> f;
    for (int i = 0; i < N; i++)
    {
-      int block_size = MFEM_THREAD_SIZE(x) * MFEM_THREAD_SIZE(y);
-      int tid = MFEM_THREAD_ID(x) + MFEM_THREAD_ID(y) * MFEM_THREAD_SIZE(x);
+      int block_size = MFEM_THREAD_SIZE(x) *
+                       MFEM_THREAD_SIZE(y) *
+                       MFEM_THREAD_SIZE(z);
+      int tid = MFEM_THREAD_ID(x) +
+                MFEM_THREAD_SIZE(x) *
+                (MFEM_THREAD_ID(y) + MFEM_THREAD_SIZE(y) * MFEM_THREAD_ID(z));
       for (int k = tid; k < sizes[i]; k += block_size)
       {
          reinterpret_cast<real_t *>(mem)[offset + k] = fields_e[i](k, entity_idx);
       }
-      MFEM_SYNC_THREAD;
 
       for (int j = 0; j < num_kinputs; j++)
       {

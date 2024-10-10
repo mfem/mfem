@@ -9,7 +9,7 @@ using mfem::internal::tensor;
 int test_diffusion_3d(
    std::string mesh_file, int refinements, int polynomial_order)
 {
-   constexpr int num_samples = 100;
+   constexpr int num_samples = 1;
    constexpr int dim = 3;
    Mesh mesh_serial = Mesh(mesh_file);
    MFEM_ASSERT(mesh_serial.Dimension() == dim, "incorrect mesh dimension");
@@ -36,7 +36,8 @@ int test_diffusion_3d(
 
    const IntegrationRule& ir =
       IntRules.Get(h1fes.GetFE(0)->GetGeomType(),
-                   2 * h1fec.GetOrder() + 1);
+                   h1fes.GetFE(0)->GetOrder() + h1fes.GetFE(0)->GetOrder() + h1fes.GetFE(
+                      0)->GetDim() - 1);
 
    printf("#ndof per el = %d\n", h1fes.GetFE(0)->GetDof());
    printf("#nqp = %d\n", ir.GetNPoints());
