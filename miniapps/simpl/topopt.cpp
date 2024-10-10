@@ -130,7 +130,7 @@ real_t StrainEnergyDensityCoefficient::Eval(
    {
       for (int j=0; j<dim; j++)
       {
-         density += M*0.5*grad(i,j)*adjgrad(i,j);
+         density += 2.0*M*grad(i,j)*adjgrad(i,j);
       }
    }
    return -der_simp_cf.Eval(T, ip)*density;
