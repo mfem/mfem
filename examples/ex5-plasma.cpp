@@ -71,13 +71,13 @@ enum Problem
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
-TFunc GetBFun(Problem prob, real_t t_0, real_t k, real_t f);
-VecTFunc GetEFun(Problem prob, real_t t_0, real_t k, real_t f);
+TFunc GetBFun(Problem prob, real_t t_0, real_t sigma, real_t f);
+VecTFunc GetEFun(Problem prob, real_t t_0, real_t sigma, real_t f);
 //VecFunc GetCFun(Problem prob, real_t c);
-TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t f);
-VecTFunc GetGFun(Problem prob, real_t t_0, real_t k, real_t f);
+TFunc GetFFun(Problem prob, real_t t_0, real_t sigma, real_t f);
+VecTFunc GetGFun(Problem prob, real_t t_0, real_t sigma, real_t f);
 //FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
-//MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim);
+//MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t sigma, int dim);
 
 int main(int argc, char *argv[])
 {
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
    real_t tf = 1.;
    int nt = 0;
    int ode = 1;
-   real_t k = 1.;
+   real_t sigma = 1.;
    real_t c = 1.;
    real_t td = 0.5;
    bool bc_neumann = false;
@@ -140,8 +140,8 @@ int main(int argc, char *argv[])
                   "Number of time steps.");
    args.AddOption(&ode, "-ode", "--ode-solver",
                   "ODE time solver (1=Bacward Euler, 2=RK23L, 3=RK23A, 4=RK34).");
-   args.AddOption(&k, "-k", "--kappa",
-                  "Heat conductivity");
+   args.AddOption(&sigma, "-s", "--sigma",
+                  "Electric conductivity");
    args.AddOption(&c, "-c", "--velocity",
                   "Convection velocity");
    args.AddOption(&td, "-td", "--stab_diff",
@@ -305,23 +305,23 @@ int main(int argc, char *argv[])
    const real_t t_0 = 1.; //base temperature
    const real_t f = 1.;//frequency
 
-   ConstantCoefficient sigmacoeff(1./k);
+   ConstantCoefficient sigmacoeff(sigma);
    ConstantCoefficient muinvsqrt(1.0);
 
    //auto cFun = GetCFun(problem, c);
    //VectorFunctionCoefficient ccoeff(dim, cFun);
 
-   auto BFun = GetBFun(problem, t_0, k, f);
+   auto BFun = GetBFun(problem, t_0, sigma, f);
    FunctionCoefficient Bcoeff(BFun);
    //SumCoefficient gcoeff(0., Bcoeff, 1., -1.);
 
-   auto fFun = GetFFun(problem, t_0, k, f);
+   auto fFun = GetFFun(problem, t_0, sigma, f);
    FunctionCoefficient fcoeff(fFun);
 
-   auto gFun = GetGFun(problem, t_0, k, f);
+   auto gFun = GetGFun(problem, t_0, sigma, f);
    VectorFunctionCoefficient gcoeff(dim, gFun);
 
-   auto EFun = GetEFun(problem, t_0, k, f);
+   auto EFun = GetEFun(problem, t_0, sigma, f);
    VectorFunctionCoefficient Ecoeff(dim, EFun);
    //ConstantCoefficient one;
    //VectorSumCoefficient Etcoeff_(ccoeff, Ecoeff, Bcoeff, one);//total flux
@@ -382,7 +382,7 @@ int main(int argc, char *argv[])
    /*else
    {
       //nonlinear diffusion
-      HeatFluxFun = GetHeatFluxFun(problem, k, dim);
+      HeatFluxFun = GetHeatFluxFun(problem, sigma, dim);
       if (dg)
       {
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
@@ -916,7 +916,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-TFunc GetBFun(Problem prob, real_t t_0, real_t k, real_t f)
+TFunc GetBFun(Problem prob, real_t t_0, real_t sigma, real_t f)
 {
    switch (prob)
    {
@@ -930,7 +930,7 @@ TFunc GetBFun(Problem prob, real_t t_0, real_t k, real_t f)
    return TFunc();
 }
 
-VecTFunc GetEFun(Problem prob, real_t t_0, real_t k, real_t f)
+VecTFunc GetEFun(Problem prob, real_t t_0, real_t sigma, real_t f)
 {
    switch (prob)
    {
@@ -967,7 +967,7 @@ VecFunc GetCFun(Problem prob, real_t c)
    return VecFunc();
 }
 */
-TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t f)
+TFunc GetFFun(Problem prob, real_t t_0, real_t sigma, real_t f)
 {
    switch (prob)
    {
@@ -980,7 +980,7 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t f)
    return TFunc();
 }
 
-VecTFunc GetGFun(Problem prob, real_t t_0, real_t k, real_t f)
+VecTFunc GetGFun(Problem prob, real_t t_0, real_t sigma, real_t f)
 {
    switch (prob)
    {
@@ -1018,7 +1018,7 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
    return NULL;
 }
 
-MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
+MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t sigma, int dim)
 {
    switch (prob)
    {
