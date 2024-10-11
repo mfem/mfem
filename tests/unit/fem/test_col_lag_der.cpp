@@ -40,14 +40,14 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
    // Add some specializations for the kernels
    // DIM, LAYOUT, PHYS, VDIM, D1D, Q1D
    QuadratureInterpolator::GradKernels::Specialization
-   <1, QVectorLayout::byNODES, false, 1, 2, 2>::template Opt<1>::Add();
+   <1, QVectorLayout::byNODES, false, 1, 2, 2>::Add();
    QuadratureInterpolator::GradKernels::Specialization
-   <1, QVectorLayout::byNODES, true, 1, 2, 2>::template Opt<1>::Add();
+   <1, QVectorLayout::byNODES, true, 1, 2, 2>::Add();
 
    QuadratureInterpolator::CollocatedGradKernels::Specialization
-   <1, QVectorLayout::byNODES, false, 1, 2>::template Opt<1>::Add();
+   <1, QVectorLayout::byNODES, false, 1, 2>::Add();
    QuadratureInterpolator::CollocatedGradKernels::Specialization
-   <1, QVectorLayout::byNODES, true, 1, 2>::template Opt<1>::Add();
+   <1, QVectorLayout::byNODES, true, 1, 2>::Add();
 
    const auto mesh_fname = GENERATE(
                               "../../data/inline-segment.mesh",

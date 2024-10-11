@@ -48,26 +48,26 @@ void InitGradByNodesKernels()
 
    k::Specialization<2,L,P,2,5,6>::template Opt<2>::Add();
    // 3D
-   k::Specialization<3,L,P,1,2,4>::template Opt<1>::Add();
-   k::Specialization<3,L,P,1,3,3>::template Opt<1>::Add();
-   k::Specialization<3,L,P,1,3,4>::template Opt<1>::Add();
-   k::Specialization<3,L,P,1,3,6>::template Opt<1>::Add();
-   k::Specialization<3,L,P,1,4,4>::template Opt<1>::Add();
-   k::Specialization<3,L,P,1,4,8>::template Opt<1>::Add();
+   k::Specialization<3,L,P,1,2,4>::Add();
+   k::Specialization<3,L,P,1,3,3>::Add();
+   k::Specialization<3,L,P,1,3,4>::Add();
+   k::Specialization<3,L,P,1,3,6>::Add();
+   k::Specialization<3,L,P,1,4,4>::Add();
+   k::Specialization<3,L,P,1,4,8>::Add();
 
-   k::Specialization<3,L,P,3,2,3>::template Opt<1>::Add();
-   k::Specialization<3,L,P,3,2,4>::template Opt<1>::Add();
-   k::Specialization<3,L,P,3,2,5>::template Opt<1>::Add();
-   k::Specialization<3,L,P,3,2,6>::template Opt<1>::Add();
+   k::Specialization<3,L,P,3,2,3>::Add();
+   k::Specialization<3,L,P,3,2,4>::Add();
+   k::Specialization<3,L,P,3,2,5>::Add();
+   k::Specialization<3,L,P,3,2,6>::Add();
 
-   k::Specialization<3,L,P,3,3,3>::template Opt<1>::Add();
-   k::Specialization<3,L,P,3,3,4>::template Opt<1>::Add();
-   k::Specialization<3,L,P,3,3,5>::template Opt<1>::Add();
-   k::Specialization<3,L,P,3,3,6>::template Opt<1>::Add();
-   k::Specialization<3,L,P,3,4,4>::template Opt<1>::Add();
-   k::Specialization<3,L,P,3,4,6>::template Opt<1>::Add();
-   k::Specialization<3,L,P,3,4,7>::template Opt<1>::Add();
-   k::Specialization<3,L,P,3,4,8>::template Opt<1>::Add();
+   k::Specialization<3,L,P,3,3,3>::Add();
+   k::Specialization<3,L,P,3,3,4>::Add();
+   k::Specialization<3,L,P,3,3,5>::Add();
+   k::Specialization<3,L,P,3,3,6>::Add();
+   k::Specialization<3,L,P,3,4,4>::Add();
+   k::Specialization<3,L,P,3,4,6>::Add();
+   k::Specialization<3,L,P,3,4,7>::Add();
+   k::Specialization<3,L,P,3,4,8>::Add();
 
    using k2 = QuadratureInterpolator::CollocatedGradKernels;
 
@@ -79,17 +79,17 @@ void InitGradByNodesKernels()
    k2::Specialization<2,L,P,2,3>::template Opt<4>::Add();
    k2::Specialization<2,L,P,2,4>::template Opt<2>::Add();
 
-   k2::Specialization<3,L,P,1,2>::template Opt<1>::Add();
-   k2::Specialization<3,L,P,1,3>::template Opt<1>::Add();
-   k2::Specialization<3,L,P,1,4>::template Opt<1>::Add();
+   k2::Specialization<3,L,P,1,2>::Add();
+   k2::Specialization<3,L,P,1,3>::Add();
+   k2::Specialization<3,L,P,1,4>::Add();
 
-   k2::Specialization<3,L,P,2,2>::template Opt<1>::Add();
-   k2::Specialization<3,L,P,2,3>::template Opt<1>::Add();
-   k2::Specialization<3,L,P,2,4>::template Opt<1>::Add();
+   k2::Specialization<3,L,P,2,2>::Add();
+   k2::Specialization<3,L,P,2,3>::Add();
+   k2::Specialization<3,L,P,2,4>::Add();
 
-   k2::Specialization<3,L,P,3,2>::template Opt<1>::Add();
-   k2::Specialization<3,L,P,3,3>::template Opt<1>::Add();
-   k2::Specialization<3,L,P,3,4>::template Opt<1>::Add();
+   k2::Specialization<3,L,P,3,2>::Add();
+   k2::Specialization<3,L,P,3,3>::Add();
+   k2::Specialization<3,L,P,3,4>::Add();
 }
 
 template void InitGradByNodesKernels<true>();
