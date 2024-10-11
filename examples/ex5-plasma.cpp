@@ -395,7 +395,10 @@ int main(int argc, char *argv[])
       }
    }*/
 
-  Mt->AddDomainIntegrator(new MassIntegrator());
+   if (!btime)
+   {
+      Mt->AddDomainIntegrator(new MassIntegrator());
+   }
 
    //diffusion stabilization
    /*if (dg)
