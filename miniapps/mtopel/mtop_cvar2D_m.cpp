@@ -341,7 +341,7 @@ public:
         E.SetProjParam(eta,8.0);
         //set all bc
         esolv->DelDispBC();
-        for(int j=0;j<6;j++){
+        for(int j=0;j<20;j++){
             if(supp[j]==true){esolv->AddDispBC(3+j,4,0.0);}
         }
         esolv->AddSurfLoad(1,0.00,1.00,0.0);
