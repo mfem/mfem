@@ -959,6 +959,8 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
             auto pncmesh_exposed = ParNCMeshExposed(*submesh.pncmesh);
             CHECK(pncmesh_exposed.GetNumRootElements() == 1);
             CHECK(pncmesh_exposed.CountUniqueLeafElements() == 4*4);
+            CHECK(submesh.bdr_attributes.Size() == 1);
+            CHECK(submesh.bdr_attributes[0] == mesh.bdr_attributes.Max() + 1);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CheckProjectMatch(pmesh, submesh, fec_type);
@@ -976,6 +978,8 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
             auto pncmesh_exposed = ParNCMeshExposed(*submesh.pncmesh);
             CHECK(pncmesh_exposed.GetNumRootElements() == 2);
             CHECK(pncmesh_exposed.CountUniqueLeafElements() == 2*4*4);
+            CHECK(submesh.bdr_attributes.Size() == 1);
+            CHECK(submesh.bdr_attributes[0] == mesh.bdr_attributes.Max() + 1);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CheckProjectMatch(pmesh, submesh, fec_type);
@@ -998,6 +1002,8 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
             auto pncmesh_exposed = ParNCMeshExposed(*submesh.pncmesh);
             CHECK(pncmesh_exposed.GetNumRootElements() == 1);
             CHECK(pncmesh_exposed.CountUniqueLeafElements() == 4 - 1 + 4);
+            CHECK(submesh.bdr_attributes.Size() == 1);
+            CHECK(submesh.bdr_attributes[0] == mesh.bdr_attributes.Max() + 1);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CheckProjectMatch(pmesh, submesh, fec_type);
@@ -1014,6 +1020,8 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
             auto pncmesh_exposed = ParNCMeshExposed(*submesh.pncmesh);
             CHECK(pncmesh_exposed.GetNumRootElements() == 1);
             CHECK(pncmesh_exposed.CountUniqueLeafElements() == 4 - 1 + 4 - 1 + 4);
+            CHECK(submesh.bdr_attributes.Size() == 1);
+            CHECK(submesh.bdr_attributes[0] == mesh.bdr_attributes.Max() + 1);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CheckProjectMatch(pmesh, submesh, fec_type);
@@ -1041,6 +1049,8 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
             auto pncmesh_exposed = ParNCMeshExposed(*submesh.pncmesh);
             CHECK(pncmesh_exposed.GetNumRootElements() == 1);
             CHECK(pncmesh_exposed.CountUniqueLeafElements() == 4*4);
+            CHECK(submesh.bdr_attributes.Size() == 1);
+            CHECK(submesh.bdr_attributes[0] == mesh.bdr_attributes.Max() + 1);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CheckProjectMatch(pmesh, submesh, fec_type);
@@ -1058,6 +1068,8 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
             auto pncmesh_exposed = ParNCMeshExposed(*submesh.pncmesh);
             CHECK(pncmesh_exposed.GetNumRootElements() == 2);
             CHECK(pncmesh_exposed.CountUniqueLeafElements() == 2*4*4);
+            CHECK(submesh.bdr_attributes.Size() == 1);
+            CHECK(submesh.bdr_attributes[0] == mesh.bdr_attributes.Max() + 1);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CheckProjectMatch(pmesh, submesh, fec_type);
@@ -1080,6 +1092,8 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
             auto pncmesh_exposed = ParNCMeshExposed(*submesh.pncmesh);
             CHECK(pncmesh_exposed.GetNumRootElements() == 1);
             CHECK(pncmesh_exposed.CountUniqueLeafElements() == 4 - 1 + 4);
+            CHECK(submesh.bdr_attributes.Size() == 1);
+            CHECK(submesh.bdr_attributes[0] == mesh.bdr_attributes.Max() + 1);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CheckProjectMatch(pmesh, submesh, fec_type);
@@ -1095,6 +1109,8 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
             auto pncmesh_exposed = ParNCMeshExposed(*submesh.pncmesh);
             CHECK(pncmesh_exposed.GetNumRootElements() == 1);
             CHECK(pncmesh_exposed.CountUniqueLeafElements() == 4 - 1 + 4 - 1 + 4);
+            CHECK(submesh.bdr_attributes.Size() == 1);
+            CHECK(submesh.bdr_attributes[0] == mesh.bdr_attributes.Max() + 1);
             for (auto fec_type : {FECType::H1, FECType::L2, FECType::ND, FECType::RT})
             {
                CheckProjectMatch(pmesh, submesh, fec_type);
@@ -1102,6 +1118,8 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
          }
       }
    }
+
+
 }
 
 

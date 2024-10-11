@@ -301,6 +301,9 @@ public:
    /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
    int IsSorted() const;
 
+   /// Does the Array have Size zero.
+   bool IsEmpty() const { return Size() == 0; }
+
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
 
