@@ -318,9 +318,13 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          ess_bdr_displacement(0, 4) = 1; // left: x-fixed
 
          ess_bdr_filter.SetSize(num_bdr_attr);
-         ess_bdr_filter = 0;
-         ess_bdr_filter[0] = -1; // bottom: no material
-         ess_bdr_filter[5] = -1; // top: no material
+         ess_bdr_filter = -1; // default no material
+         ess_bdr_filter[2] = 0; // right: free
+         ess_bdr_filter[4] = 0; // left: free
+
+         MarkElements(*mesh, 2,
+         [](const Vector &x) {return std::pow(x[0]-1.9, 2.0) + std::pow(x[2] - 0.1, 2.0) < 0.05*0.05;});
+         solid_attr = 2;
          break;
       }
 
