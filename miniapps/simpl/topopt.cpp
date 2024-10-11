@@ -338,6 +338,10 @@ real_t DensityBasedTopOpt::Eval()
 {
    current_volume = density.ApplyVolumeProjection(control_gf,
                                                   density.hasEntropy());
+   for (auto &v : control_gf)
+   {
+      v = std::min(1e06, std::max(-1e06, v));
+   }
    filter.Solve(filter_gf);
    elasticity.Solve(state_gf);
    obj.Assemble();
