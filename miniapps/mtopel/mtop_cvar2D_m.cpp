@@ -336,13 +336,13 @@ public:
 
     }
 
-    double Compliance(std::bitset<6>& supp, double eta, mfem::Vector& grad)
+    double Compliance(std::bitset<20>& supp, double eta, mfem::Vector& grad)
     {
         E.SetProjParam(eta,8.0);
         //set all bc
         esolv->DelDispBC();
         for(int j=0;j<6;j++){
-            if(supp[j]==true){esolv->AddDispBC(2+j,4,0.0);}
+            if(supp[j]==true){esolv->AddDispBC(3+j,4,0.0);}
         }
         esolv->AddSurfLoad(1,0.00,1.00,0.0);
         esolv->FSolve();
@@ -354,8 +354,8 @@ public:
 
     double Compliance(mfem::Vector& grad, double eta=0.5)
     {
-        std::bitset<6> supp;
-        for(int i=0;i<6;i++){supp[i]=true;}
+        std::bitset<20> supp;
+        for(int i=0;i<20;i++){supp[i]=true;}
         return Compliance(supp,eta,grad);
     }
 
@@ -393,7 +393,7 @@ public:
 
     std::vector<double>& GetDualProb(){	return dualq;}
     std::vector<double>& GetThesholds(){ return thresholds;}
-    std::vector<std::bitset<6>>& GetSupp(){ return vsupp;}
+    std::vector<std::bitset<20>>& GetSupp(){ return vsupp;}
 
 
     //clears all simulation cases and the associated probabilities
@@ -407,24 +407,24 @@ public:
     //sets the simulation cases and the associated probabilities
     void SetCases(double eta=0.5)
     {
-       std::bitset<6> bset;
-       std::bitset<6> aset;
-       for(int j=0;j<6;j++){bset[j]=true;}
+       std::bitset<20> bset;
+       std::bitset<20> aset;
+
+       /*
+       for(int j=0;j<20;j++){bset[j]=true;}
        vsupp.push_back(bset);
        asupp.push_back(bset);
        thresholds.push_back(eta);
        dualq.push_back(0.1);
 
-       for(int i=0;i<6;i++){
-           for(int j=0;j<6;j++){
+       for(int i=0;i<20;i++){
+           for(int j=0;j<20;j++){
 
                if(j!=i){bset[j]=true;}
                else{bset[j]=false;}
 
-               aset[5-j]=bset[j];
+               aset[19-j]=bset[j];
            }
-
-
 
            vsupp.push_back(bset);
            asupp.push_back(aset);
@@ -432,12 +432,12 @@ public:
            dualq.push_back(0.1);
        }
 
-       for(int i=0;i<5;i++){
-           for(int j=0;j<6;j++){
+       for(int i=0;i<19;i++){
+           for(int j=0;j<20;j++){
                if((j!=i)&&(j!=(i+1))){bset[j]=true;}
                else{bset[j]=false;}
 
-               aset[5-j]=bset[j];
+               aset[19-j]=bset[j];
            }
            vsupp.push_back(bset);
            asupp.push_back(aset);
@@ -445,18 +445,82 @@ public:
            dualq.push_back(0.1);
        }
 
-       for(int i=0;i<4;i++){
-           for(int j=0;j<6;j++){
+       for(int i=0;i<18;i++){
+           for(int j=0;j<20;j++){
                if((j!=i)&&(j!=(i+1))&&(j!=(i+2))){bset[j]=true;}
                else{bset[j]=false;}
 
-               aset[5-j]=bset[j];
+               aset[19-j]=bset[j];
            }
            vsupp.push_back(bset);
            asupp.push_back(aset);
            thresholds.push_back(eta);
            dualq.push_back(0.1);
        }
+
+       for(int i=0;i<17;i++){
+           for(int j=0;j<20;j++){
+               if((j!=i)&&(j!=(i+1))&&(j!=(i+2))){
+                   if(j!=(i+3)){
+                       bset[j]=true;
+                   }else{
+                       bset[j]=false;
+                   }
+               }
+               else{
+                   bset[j]=false;
+               }
+               aset[19-j]=bset[j];
+           }
+           vsupp.push_back(bset);
+           asupp.push_back(aset);
+           thresholds.push_back(eta);
+           dualq.push_back(0.1);
+       }
+
+       for(int i=0;i<16;i++){
+           for(int j=0;j<20;j++){
+               if((j!=i)&&(j!=(i+1))&&(j!=(i+2))){
+                   if((j!=(i+3))&&(j!=(i+4))){
+                       bset[j]=true;
+                   }else{
+                       bset[j]=false;
+                   }
+               }
+               else{
+                   bset[j]=false;
+               }
+               aset[19-j]=bset[j];
+           }
+           vsupp.push_back(bset);
+           asupp.push_back(aset);
+           thresholds.push_back(eta);
+           dualq.push_back(0.1);
+       }
+       */
+
+       for(int i=0;i<20;i++){
+           for(int j=(i+1);j<20;j++){
+               for(int k=(j+1);k<20;k++){
+                   for(int l=(k+1);l<20;l++){
+                       for(int p=0;p<20;p++){bset[p]=true; aset[p]=true;}
+                       bset[i]=false;
+                       aset[19-i]=false;
+                       bset[j]=false;
+                       aset[19-j]=false;
+                       bset[k]=false;
+                       aset[19-k]=false;
+                       bset[l]=false;
+                       aset[19-l]=false;
+                       vsupp.push_back(bset);
+                       asupp.push_back(aset);
+                       thresholds.push_back(eta);
+                       dualq.push_back(0.1);
+                   }
+               }
+           }
+       }
+
 
        primp.resize(dualq.size());
        //normalize
@@ -483,9 +547,6 @@ public:
                std::cout<<vsupp[i]<<" "<<asupp[i]<<" a="<<aind[i]<<std::endl;
            }
        }
-
-
-
     }
 
     double EvalApproxGradientFullSampling(mfem::Vector& grad, double alpha, double gamma)
@@ -676,109 +737,6 @@ public:
     }
 
 
-    double EGDUpdate(mfem::Vector& grad, double eta_rate)
-    {
-        int myrank=ppmesh->GetMyRank();
-        //compute the objective and the gradients
-        std::vector<double> vals; vals.resize(dualq.size());
-
-        grad=0.0;
-        mfem::Vector cgrad(grad.Size()); cgrad=0.0;
-
-        double rez=0.0;
-        double nfa=0.0;
-        for(size_t i=0;i<dualq.size();i++){
-            vals[i]=Compliance(vsupp[i],thresholds[i],cgrad);
-            rez=rez+vals[i]*dualq[i];
-            grad.Add(dualq[i],cgrad);
-            nfa=nfa+dualq[i];
-        }
-        grad/=nfa;
-        rez/=nfa;
-
-        std::vector<double> w; w.resize(dualq.size());
-        for(size_t i=0;i<dualq.size();i++){ w[i]=dualq[i]*exp(eta_rate*vals[i]); }
-
-        nfa=0.0;
-        for(size_t i=0;i<w.size();i++){nfa=nfa+w[i];}
-        for(size_t i=0;i<w.size();i++){
-            w[i]/=nfa;
-            dualq[i]=dualq[i]+w[i];
-
-            if(myrank==0){std::cout<<w[i]<<" ";}
-        }
-        if(myrank==0){std::cout<<std::endl;}
-
-        for(size_t i=0;i<w.size();i++){
-            if(myrank==0){std::cout<<dualq[i]<<" ";}
-        }
-        if(myrank==0){std::cout<<std::endl;}
-
-
-        return rez;
-    }
-
-
-    double EGDUpdate(mfem::Vector& grad, double eta_rate, int nsampl)
-    {
-        //construct discrete distribution
-        std::discrete_distribution<int> d(dualq.begin(),dualq.end());
-
-
-        int* tmpv=new int[nsampl];
-
-        //generate nsampl
-        MPI_Comm comm=ppmesh->GetComm();
-        int myrank=ppmesh->GetMyRank();
-        if(myrank==0){
-            for(int i=0;i<nsampl;i++){
-                tmpv[i]=d(generator);
-                std::cout<<tmpv[i]<<" ";
-            }
-            std::cout<<std::endl;
-        }
-        //communicate the center from process zero to all others
-        MPI_Bcast(tmpv, nsampl, MPI_INT, 0, comm);
-
-        //compute the objective and the gradients
-        std::vector<double> vals; vals.resize(nsampl);
-
-        grad=0.0;
-        mfem::Vector cgrad(grad.Size()); cgrad=0.0;
-
-        double rez=0.0;
-        double nfa=double(nsampl);
-        for(int i=0;i<nsampl;i++){
-            vals[i]=Compliance(vsupp[tmpv[i]],thresholds[tmpv[i]],cgrad);
-            rez=rez+vals[i];
-            grad.Add(1.0,cgrad);
-        }
-        grad/=nfa;
-        rez/=nfa;
-
-        std::vector<double> w; w=dualq;
-        for(int i=0;i<nsampl;i++){ w[tmpv[i]]=0.0;}
-
-        //update the dual probabilities
-        for(int i=0;i<nsampl;i++){
-            w[tmpv[i]]=w[tmpv[i]]+dualq[tmpv[i]]*exp(eta_rate*vals[i]);
-        }
-        //normalize the dual probabilities
-        nfa=0.0;
-        for(size_t i=0;i<w.size();i++){nfa=nfa+w[i];}
-        for(size_t i=0;i<w.size();i++){
-            w[i]/=nfa;
-            dualq[i]=dualq[i]+w[i];
-        }
-
-
-        delete [] tmpv;
-        //return the objective
-        return rez;
-    }
-
-
-
 private:
     mfem::YoungModulus E;
     double nu;
@@ -796,8 +754,8 @@ private:
     //the following three vectors should have the same size
     std::vector<double> dualq;
     std::vector<double> primp;
-    std::vector<std::bitset<6>> vsupp;
-    std::vector<std::bitset<6>> asupp;
+    std::vector<std::bitset<20>> vsupp;
+    std::vector<std::bitset<20>> asupp;
     std::vector<int> aind;
     std::vector<double> thresholds;
 
@@ -816,7 +774,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    // Parse command-line options.
-   const char *mesh_file = "./canti_2D_6.msh";
+   const char *mesh_file = "./canti_2D_m.msh";
    int order = 1;
    bool static_cond = false;
    int ser_ref_levels = 0;
@@ -950,13 +908,10 @@ int main(int argc, char *argv[])
    mfem::FilterSolver* fsolv=new mfem::FilterSolver(0.07,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
    fsolv->AddBC(1,1.0);
-   fsolv->AddBC(2,1.0);
-   fsolv->AddBC(3,1.0);
-   fsolv->AddBC(4,1.0);
-   fsolv->AddBC(5,1.0);
-   fsolv->AddBC(6,1.0);
-   fsolv->AddBC(7,1.0);
-   fsolv->AddBC(8,0.0);
+   fsolv->AddBC(2,0.0);
+   for(int i=3;i<23;i++){
+       fsolv->AddBC(i,1.0);
+   }
 
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
@@ -1025,7 +980,7 @@ int main(int argc, char *argv[])
        vdens=1.0;
        tot_vol=vobj->Eval(vdens);
    }
-   double max_vol=0.4*tot_vol;
+   double max_vol=0.5*tot_vol;
    if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
 
    //intermediate volume
@@ -1095,12 +1050,12 @@ int main(int argc, char *argv[])
           vobj->SetProjection(0.3,8.0);
           alco->SetDensity(vdens,0.7,8.0,1.0);
 
-          //cpl=alco->Compliance(ograd);
+          cpl=alco->Compliance(ograd);
           //cpl=alco->MeanCompl(ograd);
           //cpl=alco->EGDUpdate(ograd,0.001);
 
           //cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
-          cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.001,1600);
+          //cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.001,20);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 

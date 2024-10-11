@@ -146,6 +146,11 @@ add_mfem_miniapp(mtop_cvar2D
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_cvar2Di_m
+     MAIN mtop_cvar2D_m.cpp
+     ${PARADIFF_COMMON_FILES}
+     LIBRARIES mfem)
+
 add_mfem_miniapp(mtop_L2
      MAIN mtop_L2_projection.cpp
      ${PARADIFF_COMMON_FILES}
