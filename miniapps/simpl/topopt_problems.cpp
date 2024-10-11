@@ -268,11 +268,6 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          {
             return x[0] > 2.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
          });
-         MarkBoundaries(*mesh, ++num_bdr_attr, // 6
-                        [](const Vector &x)
-         {
-            return x[0] < 1e-09 && x[1] < 0.5;
-         });
          ess_bdr_displacement.SetSize(3, num_bdr_attr);
          ess_bdr_displacement = 0;
          ess_bdr_displacement(1, 3) = 1; // left: x-fixed
@@ -280,8 +275,6 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
 
          ess_bdr_filter.SetSize(num_bdr_attr);
          ess_bdr_filter = 0;
-         // ess_bdr_filter[2] = 1;
-         ess_bdr_filter[5] = -1;
          MarkElements(*mesh, 2, [](const Vector &x) {return x[1]>1.0 - std::pow(2,-5);});
          solid_attr = 2;
 
@@ -529,7 +522,7 @@ void SetupTopoptProblem(TopoptProblem prob,
             f = 0.0;
             if (x[1] > 1 - std::pow(2, -5))
             {
-               f[1] = -30;
+               f[1] = -20;
             }
          }
          );
@@ -599,15 +592,15 @@ void SetupTopoptProblem(TopoptProblem prob,
 
       case ForceInverter2:
       {
-         real_t k_in(1.0), k_out(1e-03);
+         real_t k_in(0.1), k_out(0.1);
 
          auto d_in = new Vector({1.0, 0.0});
          auto d_out = new Vector({-1.0, 0.0});
          auto d_in_cf = new VectorConstantCoefficient(*d_in);
          auto d_out_cf = new VectorConstantCoefficient(*d_out);
          
-         auto load = new ScalarVectorProductCoefficient(std::pow(2.0, 12.0), *d_in_cf);
-         auto obj = new ScalarVectorProductCoefficient(-std::pow(2.0, 12.0), *d_out_cf);
+         auto load = new ScalarVectorProductCoefficient(1.0*std::pow(2.0, 8.0), *d_in_cf);
+         auto obj = new ScalarVectorProductCoefficient(-1.0*std::pow(2.0, 8.0), *d_out_cf);
 
          auto input_bdr = new Array<int>(7); *input_bdr = 0; (*input_bdr)[5] = 1;
          auto output_bdr = new Array<int>(7); *output_bdr = 0; (*output_bdr)[4] = 1;
