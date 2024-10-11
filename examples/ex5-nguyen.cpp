@@ -947,6 +947,8 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
+
+   delete ode_solver;
    delete HeatFluxFun;
    delete FluxFun;
    delete FluxSolver;
