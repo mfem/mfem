@@ -608,12 +608,6 @@ int main(int argc, char *argv[])
       B_h.ProjectCoefficient(Bcoeff); //initial condition
    }
 
-   if (!dg)
-   {
-      E_h.ProjectBdrCoefficientTangent(Ecoeff,
-                                       bdr_is_neumann);   //essential Neumann BC
-   }
-
    LinearForm *gform(new LinearForm);
    gform->Update(E_space, rhs.GetBlock(0), 0);
    gform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(gcoeff));
@@ -709,6 +703,14 @@ int main(int argc, char *argv[])
       //set current time
 
       real_t t = tf * ti / nt;
+
+      //essential Neumann BC
+      if (!dg)
+      {
+         Ecoeff.SetTime(t);
+         E_h.ProjectBdrCoefficientTangent(Ecoeff,
+                                          bdr_is_neumann);
+      }
 
       //perform time step
 
