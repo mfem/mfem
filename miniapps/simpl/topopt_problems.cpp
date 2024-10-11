@@ -522,7 +522,7 @@ void SetupTopoptProblem(TopoptProblem prob,
             f = 0.0;
             if (x[1] > 1 - std::pow(2, -5))
             {
-               f[1] = -20;
+               f[1] = -40;
             }
          }
          );

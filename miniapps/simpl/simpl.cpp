@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
    int order_state = 1;
    bool use_glvis = true;
    bool use_paraview = true;
-   real_t step_size = 1.0;
+   real_t step_size = -1.0;
 
    real_t exponent = 3.0;
    real_t rho0 = 1e-06;
@@ -298,6 +298,10 @@ int main(int argc, char *argv[])
    for (it_md = 0; it_md<max_it; it_md++)
    {
       if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
+      if (it_md == 1 && step_size < 0)
+      {
+         step_size = 1.0 / grad_gf.ComputeMaxError(zero_cf);
+      }
       if (it_md > 1)
       {
          diff_density_form.Assemble();
