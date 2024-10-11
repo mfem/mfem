@@ -116,6 +116,8 @@ void DifferentiableOperator<kernels_tuple,
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
+         // printf("\ne: %d\n", e);
+         // tic();
          auto input_dtq_shmem = load_dtq_mem(
             shmem,
             shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
@@ -156,11 +158,15 @@ void DifferentiableOperator<kernels_tuple,
             shmem_info.temp_sizes);
 
          MFEM_SYNC_THREAD;
+         // printf("shmem load elapsed: %.1fus\n", toc() * 1e6);
 
+         // tic();
          map_fields_to_quadrature_data<TensorProduct>(
             input_shmem, fields_shmem, input_dtq_shmem, input_fops, ir_weights, scratch_mem,
          std::make_index_sequence<kernel.num_kinputs> {});
+         // printf("interpolate elapsed: %.1fus\n", toc() * 1e6);
 
+         // tic();
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
             MFEM_FOREACH_THREAD(qy, y, q1d)
@@ -168,8 +174,6 @@ void DifferentiableOperator<kernels_tuple,
                MFEM_FOREACH_THREAD(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
-                  // printf("qp: %d\n", q);
-
                   auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
                   auto r = Reshape(&residual_shmem(0, q), residual_size_on_qp);
                   apply_kernel(r, kernel.func, kernel_args, input_shmem, q);
@@ -177,13 +181,17 @@ void DifferentiableOperator<kernels_tuple,
             }
          }
          MFEM_SYNC_THREAD;
+         // printf("qf elapsed: %.1fus\n", toc() * 1e6);
 
+         // tic();
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
          map_quadrature_data_to_fields<TensorProduct>(y, fhat,
                                                       serac::get<0>(output_fops),
                                                       output_dtq_shmem[hardcoded_output_idx],
                                                       scratch_mem);
+         // printf("integrate elapsed: %.1fus\n", toc() * 1e6);
+
       }, num_entities, q1d, q1d, q1d, shmem_info.total_size, shmem_cache.ReadWrite());
 
       if constexpr (std::is_same_v<decltype(output_fop), None>)

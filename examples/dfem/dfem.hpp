@@ -1098,9 +1098,9 @@ void map_field_to_quadrature_data_tensor_product(
       const int q1d = (int)floor(pow(num_qp, 1.0/input.dim) + 0.5);
       auto w = Reshape(&integration_weights[0], q1d, q1d, q1d);
       auto f = Reshape(&field_qp[0], q1d, q1d, q1d);
-      MFEM_FOREACH_THREAD(qy, y, q1d)
+      MFEM_FOREACH_THREAD(qx, x, q1d)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
+         MFEM_FOREACH_THREAD(qy, y, q1d)
          {
             MFEM_FOREACH_THREAD(qz, z, q1d)
             {
@@ -1118,9 +1118,9 @@ void map_field_to_quadrature_data_tensor_product(
 
       for (int sq = 0; sq < input.size_on_qp; sq++)
       {
-         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qx, x, q1d)
+            MFEM_FOREACH_THREAD(qy, y, q1d)
             {
                MFEM_FOREACH_THREAD(qz, z, q1d)
                {
