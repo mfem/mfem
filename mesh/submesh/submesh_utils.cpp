@@ -292,23 +292,25 @@ void AddBoundaryElements(SubMeshT &mesh,
    const auto &parent_edge_ids = mesh.GetParentEdgeIDMap();
    const auto &parent_vertex_ids = mesh.GetParentVertexIDMap();
    const auto &parent_face_to_be = parent.GetFaceToBdrElMap();
+   const auto &face_to_be = mesh.GetFaceToBdrElMap();
    int max_bdr_attr = parent.bdr_attributes.Max();
    for (int i = 0; i < num_codim_1; i++)
    {
-      if (mesh.GetFaceInformation(i).IsBoundary())
+      auto pfid = [&](int i)
+      {
+         switch (mesh.Dimension())
+         {
+            case 3: return parent_face_ids[i];
+            case 2: return parent_edge_ids[i];
+            case 1: return parent_vertex_ids[i];
+         }
+         MFEM_ABORT("!");
+         return -1;
+      };
+      if (mesh.GetFaceInformation(i).IsBoundary()
+          && (face_to_be.IsEmpty() || face_to_be[i] == -1))
       {
          auto * be = mesh.GetFace(i)->Duplicate(&mesh);
-         auto pfid = [&](int i)
-         {
-            switch (mesh.Dimension())
-            {
-               case 3: return parent_face_ids[i];
-               case 2: return parent_edge_ids[i];
-               case 1: return parent_vertex_ids[i];
-            }
-            MFEM_ABORT("!");
-            return -1;
-         };
 
          if (mesh.GetFrom() == SubMesh::From::Domain && mesh.Dimension() >= 2)
          {

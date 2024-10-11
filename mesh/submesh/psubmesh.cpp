@@ -267,23 +267,10 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    ExchangeFaceNbrData();
 
-   // if (Conforming())
-   // {
-   //    // Conforming submesh must now discover and add boundary elements, taking
-   //    // care with "ghost boundary elements" if a volume submesh. A
-   //    // nonconforming mesh already has constructed this information during
-   //    // initialization.
-   // }
-   if (from == SubMesh::From::Domain)
-   {
-      SubMeshUtils::AddBoundaryElements(*this, FindGhostBoundaryElementAttributes());
-   }
-   else
-   {
-      SubMeshUtils::AddBoundaryElements(*this);
-   }
-
-   SubMeshUtils::AddBoundaryElements(*this);
+   SubMeshUtils::AddBoundaryElements(*this,
+                                     (from == SubMesh::From::Domain)
+                                     ? FindGhostBoundaryElementAttributes()
+                                     : std::unordered_map<int,int> {});
 
    if (Dim > 1)
    {
