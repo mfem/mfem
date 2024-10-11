@@ -38,7 +38,7 @@ void GLVis::Update()
 {
    for (int i=0; i<sockets.Size(); i++)
    {
-      if (!sockets[i]->is_open())
+      if (!sockets[i]->good() && !sockets[i]->is_open())
       {
          continue;
       }
@@ -362,10 +362,7 @@ void DensityBasedTopOpt::UpdateGradient()
       elasticity.SolveAdjoint(*adj_state_gf, true);
    }
 
-   filter.GetAdjLinearForm()->Assemble();
-   for (auto &x:*(filter.GetAdjLinearForm())) {if (x > 0) out << "rhs is positive." << std::endl;}
    filter.SolveAdjoint(grad_filter);
-   for (auto &x:*(filter.GetAdjLinearForm())) {if (x > 0) out << "rhs is positive." << std::endl;}
    L2projector->Solve(grad_control);
 }
 

@@ -37,6 +37,7 @@ int main(int argc, char *argv[])
 
    // Stopping-criteria related
    int max_it = 300;
+   int min_it = 10;
    real_t tol_stationary_rel = 1e-04;
    real_t tol_stationary_abs = 1e-04;
    real_t eps_stationarity = 1e-04;
@@ -81,6 +82,8 @@ int main(int argc, char *argv[])
 
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of iteration for Mirror Descent Step");
+   args.AddOption(&min_it, "-mini", "--min-it",
+                  "Minimum number of iteration for Mirror Descent Step");
    args.AddOption(&max_it_backtrack, "-mi-back", "--max-it-backtrack",
                   "Maximum number of iteration for backtracking");
    args.AddOption(&tol_stationary_rel, "-rtol", "--rel-tol",
@@ -202,11 +205,12 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { out << "Creating problems ... " << std::flush; }
    // Density
    FermiDiracEntropy entropy;
+   control_gf = entropy.forward((min_vol ? min_vol : max_vol)/tot_vol);
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
    density.SetVoidAttr(void_attr);
    density.SetSolidAttr(solid_attr);
-   if (prob == mfem::ForceInverter2) { ForceInverterInitialDesign(control_gf, &entropy); }
+   // if (prob == mfem::ForceInverter2) { ForceInverterInitialDesign(control_gf, &entropy); }
    // Filter
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);
    filter.GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(density_cf));
@@ -246,13 +250,17 @@ int main(int argc, char *argv[])
    ParLinearForm diff_density_form(&fes_control);
    diff_density_form.AddDomainIntegrator(new DomainLFIntegrator(diff_density_cf));
 
-   GLVis glvis("localhost", 19916, true);
-   const char keys[] = "Rjmml****************";
-   glvis.Append(control_gf, "control variable", keys);
-   glvis.Append(density_gf, "design density", keys);
-   glvis.Append(filter_gf, "filtered density", keys);
-   glvis.Append(state_gf, "displacement magnitude", keys);
-   if (elasticity.HasAdjoint()) {glvis.Append(optproblem.GetAdjState(), "adjoint displacement", keys);}
+   std::unique_ptr<GLVis> glvis;
+   if (use_glvis)
+   {
+      glvis.reset(new GLVis ("localhost", 19916, true));
+      const char keys[] = "Rjmml****************";
+      glvis->Append(control_gf, "control variable", keys);
+      glvis->Append(density_gf, "design density", keys);
+      glvis->Append(filter_gf, "filtered density", keys);
+      glvis->Append(state_gf, "displacement magnitude", keys);
+      if (elasticity.HasAdjoint()) {glvis->Append(optproblem.GetAdjState(), "adjoint displacement", keys);}
+   }
 
    real_t stationarity0, obj0,
           stationarity_error_L2, stationarity_error_bregman, stationarity_error,
@@ -270,22 +278,22 @@ int main(int argc, char *argv[])
    logger.Append("stnrty-L2", stationarity_error_L2);
    logger.Append("stnrty-B", stationarity_error_bregman);
    logger.SaveWhenPrint(filename.str());
-   mfem::ParaViewDataCollection paraview_dc(filename.str(), mesh.get());
+   std::unique_ptr<ParaViewDataCollection> paraview_dc;
    if (use_paraview)
    {
-      if (paraview_dc.Error())
+      paraview_dc.reset(new mfem::ParaViewDataCollection(filename.str(), mesh.get()));
+      if (paraview_dc->Error()) { use_paraview=false; }
+      else
       {
-         use_paraview=false;
+         paraview_dc->SetPrefixPath("ParaView");
+         paraview_dc->SetLevelsOfDetail(order_state);
+         paraview_dc->SetDataFormat(VTKFormat::BINARY);
+         paraview_dc->SetHighOrderOutput(true);
+         paraview_dc->RegisterField("displacement", &state_gf);
+         paraview_dc->RegisterField("density", &density_gf);
+         paraview_dc->RegisterField("filtered_density", &filter_gf);
       }
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order_state);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.RegisterField("displacement", &state_gf);
-      paraview_dc.RegisterField("density", &density_gf);
-      paraview_dc.RegisterField("filtered_density", &filter_gf);
    }
-
    grad_gf = 0.0;
    for (it_md = 0; it_md<max_it; it_md++)
    {
@@ -356,14 +364,14 @@ int main(int argc, char *argv[])
       curr_vol = optproblem.GetCurrentVolume();
 
       density_gf.ProjectCoefficient(density_cf);
-      if (use_glvis) { glvis.Update(); }
-      if (use_paraview && (it_md % 10 == 0))
+      if (it_md % 10 == 0)
       {
-         if (!paraview_dc.Error())
+         if (use_glvis) { glvis->Update(); }
+         if (use_paraview && !(paraview_dc->Error()))
          {
-            paraview_dc.SetCycle(it_md);
-            paraview_dc.SetTime(it_md);
-            paraview_dc.Save();
+            paraview_dc->SetCycle(it_md);
+            paraview_dc->SetTime(it_md);
+            paraview_dc->Save();
          }
          else {use_paraview = false;}
       }
@@ -397,7 +405,7 @@ int main(int argc, char *argv[])
           && (std::abs(objval - old_objval) < tol_obj_diff_abs ||
               std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(obj0)))
       {
-         break;
+         if (it_md > min_it) { break; }
       }
    }
    if (Mpi::Root())
@@ -405,14 +413,11 @@ int main(int argc, char *argv[])
       out << filename.str() << " terminated after " << it_md
           << " with " << tot_reeval << " re-eval" << std::endl;
    }
-   if (use_paraview)
+   if (use_paraview && !paraview_dc->Error())
    {
-      if (!paraview_dc.Error())
-      {
-         paraview_dc.SetCycle(it_md / 10);
-         paraview_dc.Save();
-      }
-      else {use_paraview = false;}
+      paraview_dc->SetCycle(it_md);
+      paraview_dc->SetTime(it_md);
+      paraview_dc->Save();
    }
    logger.CloseFile();
    return 0;
