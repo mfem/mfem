@@ -66,7 +66,7 @@ typedef std::function<real_t(real_t f, const Vector &x)> KFunc;
 
 enum Problem
 {
-   SteadyLinearDumping,
+   SteadyMaxwell,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool dg = false;
    bool upwinded = false;
-   int iproblem = Problem::SteadyLinearDumping;
+   int iproblem = Problem::SteadyMaxwell;
    real_t tf = 1.;
    int nt = 0;
    int ode = 1;
@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
    bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff, btime = false;
    switch (problem)
    {
-      case Problem::SteadyLinearDumping:
+      case Problem::SteadyMaxwell:
          break;
       default:
          cerr << "Unknown problem" << endl;
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
 
    switch (problem)
    {
-      case Problem::SteadyLinearDumping:
+      case Problem::SteadyMaxwell:
          bdr_is_neumann = -1;
          break;
    }
@@ -920,7 +920,7 @@ TFunc GetBFun(Problem prob, real_t t_0, real_t sigma, real_t f)
 {
    switch (prob)
    {
-      case Problem::SteadyLinearDumping:
+      case Problem::SteadyMaxwell:
          return [=](const Vector &x, real_t) -> real_t
          {
             const real_t kappa = M_PI * f;
@@ -934,7 +934,7 @@ VecTFunc GetEFun(Problem prob, real_t t_0, real_t sigma, real_t f)
 {
    switch (prob)
    {
-      case Problem::SteadyLinearDumping:
+      case Problem::SteadyMaxwell:
          return [=](const Vector &x, real_t, Vector &E)
          {
             const int dim = x.Size();
@@ -961,7 +961,7 @@ VecFunc GetCFun(Problem prob, real_t c)
 {
    switch (prob)
    {
-      case Problem::SteadyLinearDumping:
+      case Problem::SteadyMaxwell:
          break;
    }
    return VecFunc();
@@ -971,7 +971,7 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t sigma, real_t f)
 {
    switch (prob)
    {
-      case Problem::SteadyLinearDumping:
+      case Problem::SteadyMaxwell:
          return [](const Vector &, real_t) -> real_t
          {
             return 0.;
@@ -984,7 +984,7 @@ VecTFunc GetGFun(Problem prob, real_t t_0, real_t sigma, real_t f)
 {
    switch (prob)
    {
-      case Problem::SteadyLinearDumping:
+      case Problem::SteadyMaxwell:
          return [=](const Vector &x, real_t t, Vector &v)
          {
             const int dim = x.Size();
@@ -1011,7 +1011,7 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
 {
    switch (prob)
    {
-      case Problem::SteadyLinearDumping:
+      case Problem::SteadyMaxwell:
          break;
    }
 
@@ -1022,7 +1022,7 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t sigma, int dim)
 {
    switch (prob)
    {
-      case Problem::SteadyLinearDumping:
+      case Problem::SteadyMaxwell:
          break;
    }
 
