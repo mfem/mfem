@@ -560,8 +560,7 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
             {
                fix_parent = true;
                auto pelem_id = pelem->second;
-               auto &parent_elem = submesh.elements[pelem_id];
-               MFEM_ASSERT(!parent_elem.IsLeaf(), pelem_id);
+               MFEM_ASSERT(!submesh.elements[pelem_id].IsLeaf(), pelem_id);
 
                // Re-key the map, the existing entry is inconsistent with the tree.
                pnodes_new_elem.erase(pelem->first);
