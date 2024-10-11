@@ -595,8 +595,7 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
       int child = submesh.parent_->ParentFaceNodes(fn.nodes);
       MFEM_ASSERT(pnodes_new_elem[fn] == child_elem.parent,
                   pnodes_new_elem[fn] << ' ' << child_elem.parent);
-      auto &parent_elem = submesh.elements[child_elem.parent];
-      MFEM_ASSERT(parent_elem.ref_type != char(0), int(parent_elem.ref_type));
+      MFEM_ASSERT(submesh.elements[child_elem.parent].ref_type != char(0), int(submesh.elements[child_elem.parent].ref_type));
       submesh.elements[child_elem.parent].child[child] = fn_elem.second;
    }
 
