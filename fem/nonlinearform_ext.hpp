@@ -68,17 +68,17 @@ private:
       Gradient(const PANonlinearFormExtension &ext);
 
       /// Assumes that @a x and @a y are ldof Vector%s.
-      virtual void Mult(const Vector &x, Vector &y) const;
+      void Mult(const Vector &x, Vector &y) const override;
 
       /// Assumes that @a g is an ldof Vector.
       void AssembleGrad(const Vector &g);
 
       /// Assemble the diagonal of the gradient into the ldof Vector @a diag.
-      virtual void AssembleDiagonal(Vector &diag) const;
+      void AssembleDiagonal(Vector &diag) const override;
 
       /** @brief Define the prolongation Operator for use with methods like
           FormSystemOperator. */
-      virtual const Operator *GetProlongation() const
+      const Operator *GetProlongation() const override
       {
          return ext.fes.GetProlongationMatrix();
       }

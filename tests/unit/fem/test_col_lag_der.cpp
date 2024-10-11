@@ -11,23 +11,11 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
-#include "fem/qinterp/dispatch.hpp"
+
+#include "fem/qinterp/grad.hpp"
 
 using namespace std;
 using namespace mfem;
-using namespace mfem::internal::quadrature_interpolator;
-
-static void dummyfunction(const Vector &x, Vector &p)
-{
-   for (int i = 0; i < p.Size(); i++)
-   {
-      p(i) = 0.0;
-      for (int j = 0; j < x.Size(); j++)
-      {
-         p(i) += std::pow(x(j), i+1.0);
-      }
-   }
-}
 
 static IntegrationRule PermuteIR(const IntegrationRule *irule,
                                  const Array<int> &perm)
@@ -47,7 +35,7 @@ static IntegrationRule PermuteIR(const IntegrationRule *irule,
    return ir;
 }
 
-TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
+TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
 {
    const auto mesh_fname = GENERATE(
                               "../../data/inline-segment.mesh",
@@ -62,7 +50,6 @@ TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
                               "../../data/star-surf.mesh" // surface mesh
                            );
    int p = GENERATE(range(1,7)); // element order, 1 <= p < 7
-   // int p = GENERATE(range(1,2)); // element order, 1 <= p < 7
    int vdim = GENERATE(1,2,3); // vector dimension for grid-function
 
    const int seed = 0x100001b3;
@@ -70,16 +57,7 @@ TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
    const int dim = mesh.Dimension();
    const int sdim = mesh.SpaceDimension();
 
-   // Keep for debugging purposes:
-   if (verbose_tests)
-   {
-      std::cout << "testCollocatedLagrangeDerivatives(mesh=" << mesh_fname
-                << ",dim=" << dim
-                << ",sdim=" << sdim
-                << ",p=" << p
-                << ",vdim=" << vdim
-                << ")" << std::endl;
-   }
+   CAPTURE(mesh_fname, dim, sdim, p, vdim);
 
    int nelem = mesh.GetNE();
 
@@ -88,7 +66,17 @@ TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
    FiniteElementSpace nfes(&mesh, &fec, sdim);
 
    GridFunction x(&fes);
-   VectorFunctionCoefficient gfc(vdim, dummyfunction);
+   VectorFunctionCoefficient gfc(vdim, [](const Vector &x, Vector &p)
+   {
+      for (int i = 0; i < p.Size(); i++)
+      {
+         p(i) = 0.0;
+         for (int j = 0; j < x.Size(); j++)
+         {
+            p(i) += std::pow(x(j), i+1.0);
+         }
+      }
+   });
    x.ProjectCoefficient(gfc);
 
    GridFunction nodes(&nfes);
@@ -143,46 +131,25 @@ TEST_CASE("CollocatedLagrangeDerivatives", "[CollocatedLagrangeDerivatives]")
    evec_values.SetSize(n0_R->Height());
    n0_R->Mult(x, evec_values);
 
-   /// Check gradient
-   /// Use quadrature kernels
-   Vector qp_der(nelem*vdim*nqp*dim);
-   TensorDerivatives<QVectorLayout::byNODES>(nelem, vdim, maps, evec_values,
-                                             qp_der);
+   SECTION("Compare collocated kernels")
+   {
+      auto L = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
+      auto P = GENERATE(true, false);
 
-   /// Use collocated point kernels
-   Vector col_der(nelem*vdim*nqp*dim);
-   CollocatedTensorDerivatives<QVectorLayout::byNODES>(nelem, vdim, maps,
-                                                       evec_values, col_der);
-   qp_der -= col_der;
-   REQUIRE(qp_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
+      const int nd = maps.ndof;
+      const int nq = maps.nqpt;
 
-   /// Check gradient
-   /// Use quadrature kernels
-   Vector qp_phys_der(nelem*vdim*nqp*sdim);
-   TensorPhysDerivatives<QVectorLayout::byNODES>(nelem, vdim, maps, *geom,
-                                                 evec_values, qp_phys_der);
+      Vector qp_der(nelem*vdim*nqp*(P ? sdim : dim));
+      QuadratureInterpolator::GradKernels::Run(
+         dim, L, P, vdim, nd, nq, nelem, maps.B.Read(), maps.G.Read(), geom->J.Read(),
+         evec_values.Read(), qp_der.Write(), sdim, vdim, nd, nq);
 
-   /// Use collocated point kernels
-   Vector col_phys_der(nelem*vdim*nqp*sdim);
-   CollocatedTensorPhysDerivatives<QVectorLayout::byNODES>(nelem, vdim, maps,
-                                                           *geom, evec_values, col_phys_der);
-   qp_phys_der -= col_phys_der;
-   REQUIRE(qp_phys_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
+      Vector col_der(nelem*vdim*nqp*(P ? sdim : dim));
+      QuadratureInterpolator::CollocatedGradKernels::Run(
+         dim, L, P, vdim, nd, nelem, maps.G.Read(), geom->J.Read(),
+         evec_values.Read(), col_der.Write(), sdim, vdim, nd);
 
-   /// Check but now use byVDIM layout
-   /// Gradient
-   TensorDerivatives<QVectorLayout::byVDIM>(nelem, vdim, maps, evec_values,
-                                            qp_der);
-   CollocatedTensorDerivatives<QVectorLayout::byVDIM>(nelem, vdim, maps,
-                                                      evec_values, col_der);
-   qp_der -= col_der;
-   REQUIRE(qp_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
-
-   /// Physical gradient
-   TensorPhysDerivatives<QVectorLayout::byVDIM>(nelem, vdim, maps, *geom,
-                                                evec_values, qp_phys_der);
-   CollocatedTensorPhysDerivatives<QVectorLayout::byVDIM>(nelem, vdim, maps,
-                                                          *geom, evec_values, col_phys_der);
-   qp_phys_der -= col_phys_der;
-   REQUIRE(qp_phys_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
+      qp_der -= col_der;
+      REQUIRE(qp_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
+   }
 }
