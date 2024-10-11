@@ -98,6 +98,7 @@ int main(int argc, char *argv[])
    int ode = 1;
    real_t sigma = 1.;
    real_t c = 1.;
+   real_t freq = 1.;
    real_t td = 0.5;
    bool bc_neumann = false;
    bool hybridization = false;
@@ -144,6 +145,8 @@ int main(int argc, char *argv[])
                   "Electric conductivity");
    args.AddOption(&c, "-c", "--velocity",
                   "Convection velocity");
+   args.AddOption(&freq, "-f", "--frequency",
+                  "Frequency");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&bc_neumann, "-bcn", "--bc-neumann", "-no-bcn",
@@ -303,7 +306,6 @@ int main(int argc, char *argv[])
 
    // 6. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t t_0 = 1.; //base temperature
-   const real_t f = 1.;//frequency
 
    ConstantCoefficient sigmacoeff(sigma);
    ConstantCoefficient muinvsqrt(1.0);
@@ -311,17 +313,17 @@ int main(int argc, char *argv[])
    //auto cFun = GetCFun(problem, c);
    //VectorFunctionCoefficient ccoeff(dim, cFun);
 
-   auto BFun = GetBFun(problem, t_0, sigma, f);
+   auto BFun = GetBFun(problem, t_0, sigma, freq);
    FunctionCoefficient Bcoeff(BFun);
    //SumCoefficient gcoeff(0., Bcoeff, 1., -1.);
 
-   auto fFun = GetFFun(problem, t_0, sigma, f);
+   auto fFun = GetFFun(problem, t_0, sigma, freq);
    FunctionCoefficient fcoeff(fFun);
 
-   auto gFun = GetGFun(problem, t_0, sigma, f);
+   auto gFun = GetGFun(problem, t_0, sigma, freq);
    VectorFunctionCoefficient gcoeff(dim, gFun);
 
-   auto EFun = GetEFun(problem, t_0, sigma, f);
+   auto EFun = GetEFun(problem, t_0, sigma, freq);
    VectorFunctionCoefficient Ecoeff(dim, EFun);
    //ConstantCoefficient one;
    //VectorSumCoefficient Etcoeff_(ccoeff, Ecoeff, Bcoeff, one);//total flux
