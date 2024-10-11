@@ -602,9 +602,11 @@ void SetupTopoptProblem(TopoptProblem prob,
          auto d_out = new Vector({-1.0, 0.0});
          auto d_in_cf = new VectorConstantCoefficient(*d_in);
          auto d_out_cf = new VectorConstantCoefficient(*d_out);
-         
-         auto load = new ScalarVectorProductCoefficient(1.0*std::pow(2.0, 8.0), *d_in_cf);
-         auto obj = new ScalarVectorProductCoefficient(-1.0*std::pow(2.0, 8.0), *d_out_cf);
+
+         auto load = new ScalarVectorProductCoefficient(1.0*std::pow(2.0, 8.0),
+                                                        *d_in_cf);
+         auto obj = new ScalarVectorProductCoefficient(-1.0*std::pow(2.0, 8.0),
+                                                       *d_out_cf);
 
          auto input_bdr = new Array<int>(7); *input_bdr = 0; (*input_bdr)[5] = 1;
          auto output_bdr = new Array<int>(7); *output_bdr = 0; (*output_bdr)[4] = 1;
