@@ -37,6 +37,18 @@ static IntegrationRule PermuteIR(const IntegrationRule *irule,
 
 TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
 {
+   // Add some specializations for the kernels
+   // DIM, LAYOUT, PHYS, VDIM, D1D, Q1D
+   QuadratureInterpolator::GradKernels::Specialization
+   <1, QVectorLayout::byNODES, false, 1, 2, 2>::template Opt<1>::Add();
+   QuadratureInterpolator::GradKernels::Specialization
+   <1, QVectorLayout::byNODES, true, 1, 2, 2>::template Opt<1>::Add();
+
+   QuadratureInterpolator::CollocatedGradKernels::Specialization
+   <1, QVectorLayout::byNODES, false, 1, 2>::template Opt<1>::Add();
+   QuadratureInterpolator::CollocatedGradKernels::Specialization
+   <1, QVectorLayout::byNODES, true, 1, 2>::template Opt<1>::Add();
+
    const auto mesh_fname = GENERATE(
                               "../../data/inline-segment.mesh",
                               "../../data/inline-quad.mesh",
@@ -131,6 +143,9 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
    evec_values.SetSize(n0_R->Height());
    n0_R->Mult(x, evec_values);
 
+   using GK = QuadratureInterpolator::GradKernels;
+   using CGK = QuadratureInterpolator::CollocatedGradKernels;
+
    SECTION("Compare collocated kernels")
    {
       auto L = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
@@ -140,14 +155,13 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
       const int nq = maps.nqpt;
 
       Vector qp_der(nelem*vdim*nqp*(P ? sdim : dim));
-      QuadratureInterpolator::GradKernels::Run(
-         dim, L, P, vdim, nd, nq, nelem, maps.B.Read(), maps.G.Read(), geom->J.Read(),
-         evec_values.Read(), qp_der.Write(), sdim, vdim, nd, nq);
+      GK::Run(dim, L, P, vdim, nd, nq, nelem, maps.B.Read(),
+              maps.G.Read(), geom->J.Read(), evec_values.Read(),
+              qp_der.Write(), sdim, vdim, nd, nq);
 
       Vector col_der(nelem*vdim*nqp*(P ? sdim : dim));
-      QuadratureInterpolator::CollocatedGradKernels::Run(
-         dim, L, P, vdim, nd, nelem, maps.G.Read(), geom->J.Read(),
-         evec_values.Read(), col_der.Write(), sdim, vdim, nd);
+      CGK::Run(dim, L, P, vdim, nd, nelem, maps.G.Read(), geom->J.Read(),
+               evec_values.Read(), col_der.Write(), sdim, vdim, nd);
 
       qp_der -= col_der;
       REQUIRE(qp_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
