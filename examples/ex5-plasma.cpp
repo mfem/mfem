@@ -67,6 +67,8 @@ typedef std::function<real_t(real_t f, const Vector &x)> KFunc;
 enum Problem
 {
    SteadyMaxwell,
+   SteadyLinearDumping,
+   NonsteadyLinearDumping,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
@@ -197,6 +199,10 @@ int main(int argc, char *argv[])
    switch (problem)
    {
       case Problem::SteadyMaxwell:
+      case Problem::SteadyLinearDumping:
+         break;
+      case Problem::NonsteadyLinearDumping:
+         btime = true;
          break;
       default:
          cerr << "Unknown problem" << endl;
@@ -263,6 +269,10 @@ int main(int argc, char *argv[])
    {
       case Problem::SteadyMaxwell:
          bdr_is_neumann = -1;
+         break;
+      case Problem::SteadyLinearDumping:
+      case Problem::NonsteadyLinearDumping:
+         bdr_is_neumann[1] = -1;
          break;
    }
 
@@ -933,6 +943,12 @@ TFunc GetBFun(Problem prob, real_t t_0, real_t sigma, real_t f)
             const real_t kappa = M_PI * f;
             return kappa * (-cos(kappa * x(0)) + cos(kappa * x(1)));
          };
+      case Problem::SteadyLinearDumping:
+      case Problem::NonsteadyLinearDumping:
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            return 0.;
+         };
    }
    return TFunc();
 }
@@ -960,6 +976,18 @@ VecTFunc GetEFun(Problem prob, real_t t_0, real_t sigma, real_t f)
                if (x.Size() == 3) { E(2) = 0.0; }
             }
          };
+      case Problem::SteadyLinearDumping:
+      case Problem::NonsteadyLinearDumping:
+         return [=](const Vector &x, real_t t, Vector &E)
+         {
+            const int dim = x.Size();
+            const real_t kappa = M_PI * f;
+
+            E(0) = 0.;
+            E(1) = cos(kappa * x(0)) * sin(kappa * x(1));
+            if (prob == Problem::NonsteadyLinearDumping) { E(1) *= sin(kappa * t); }
+            if (dim == 3) { E(2) = 0.0; }
+         };
    }
    return VecTFunc();
 }
@@ -979,6 +1007,8 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t sigma, real_t f)
    switch (prob)
    {
       case Problem::SteadyMaxwell:
+      case Problem::SteadyLinearDumping:
+      case Problem::NonsteadyLinearDumping:
          return [](const Vector &, real_t) -> real_t
          {
             return 0.;
@@ -1009,6 +1039,12 @@ VecTFunc GetGFun(Problem prob, real_t t_0, real_t sigma, real_t f)
                v(1) = (1. + kappa * kappa) * sin(kappa * x(0));
                if (x.Size() == 3) { v(2) = 0.0; }
             }
+         };
+      case Problem::SteadyLinearDumping:
+      case Problem::NonsteadyLinearDumping:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            v = 0.;
          };
    }
    return VecTFunc();
