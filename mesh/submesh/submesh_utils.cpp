@@ -453,19 +453,15 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
                                                (parent)).GetFaceList();
    // Double indexing loop because begin() and end() do not align with index 0
    // and size-1.
-   int nfaces_found = 0;
    for (int i = 0, ipe = 0; ipe < parent.GetNumFaces(); i++)
    {
       const auto &face = parent.GetFace(i);
       if (face.Unused()) { continue; }
       ipe++; // actual possible parent element.
-      const auto &elem = parent.GetElement(face.elem[0] >= 0 ? face.elem[0] :
-                                           face.elem[1]);
       if (!HasAttribute(face, attributes)
           || face_list.GetMeshIdType(face.index) == NCMesh::NCList::MeshIdType::MASTER
          ) { continue; }
 
-      auto face_type = face_list.GetMeshIdType(face.index);
       auto fn = FaceNodes{submesh.parent_->FindFaceNodes(face)};
       if (pnodes_new_elem.find(fn) != pnodes_new_elem.end()) { continue; }
 
