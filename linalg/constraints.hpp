@@ -60,7 +60,7 @@ public:
 
    virtual ~ConstrainedSolver() { }
 
-   virtual void SetOperator(const Operator& op) override { }
+   void SetOperator(const Operator& op) override { }
 
    /** @brief Set the right-hand side r for the constraint B x = r
 
@@ -84,7 +84,7 @@ public:
 
        The base class implementation calls LagrangeSystemMult(), so derived
        classes must implement either this or LagrangeSystemMult() */
-   virtual void Mult(const Vector& f, Vector& x) const override;
+   void Mult(const Vector& f, Vector& x) const override;
 
    /** @brief Solve for (x, lambda) given (f, r)
 
@@ -268,7 +268,7 @@ public:
    { }
 
 protected:
-   virtual Solver* BuildPreconditioner() const override
+   Solver* BuildPreconditioner() const override
    {
       HypreBoomerAMG * h_prec = new HypreBoomerAMG(*h_explicit_operator);
       h_prec->SetPrintLevel(0);
@@ -276,7 +276,7 @@ protected:
       return h_prec;
    }
 
-   virtual IterativeSolver* BuildKrylov() const override
+   IterativeSolver* BuildKrylov() const override
    { return new CGSolver(GetComm()); }
 
 private:
@@ -296,7 +296,7 @@ public:
    { }
 
 protected:
-   virtual Solver* BuildPreconditioner() const override
+   Solver* BuildPreconditioner() const override
    {
       HypreBoomerAMG * h_prec = new HypreBoomerAMG(*h_explicit_operator);
       h_prec->SetPrintLevel(0);
@@ -304,7 +304,7 @@ protected:
       return h_prec;
    }
 
-   virtual IterativeSolver* BuildKrylov() const override
+   IterativeSolver* BuildKrylov() const override
    { return new GMRESSolver(GetComm()); }
 
 private:
@@ -381,7 +381,7 @@ public:
    { }
 
 protected:
-   virtual Solver* BuildPreconditioner() const override
+   Solver* BuildPreconditioner() const override
    {
       HypreBoomerAMG* h_prec = new HypreBoomerAMG(*penalized_mat);
       h_prec->SetPrintLevel(0);
@@ -389,7 +389,7 @@ protected:
       return h_prec;
    }
 
-   virtual IterativeSolver* BuildKrylov() const override
+   IterativeSolver* BuildKrylov() const override
    { return new CGSolver(GetComm()); }
 
 private:
@@ -420,7 +420,7 @@ public:
    { }
 
 protected:
-   virtual Solver* BuildPreconditioner() const override
+   Solver* BuildPreconditioner() const override
    {
       HypreBoomerAMG* h_prec = new HypreBoomerAMG(*penalized_mat);
       h_prec->SetPrintLevel(0);
@@ -428,7 +428,7 @@ protected:
       return h_prec;
    }
 
-   virtual IterativeSolver* BuildKrylov() const override
+   IterativeSolver* BuildKrylov() const override
    { return new GMRESSolver(GetComm()); }
 
 private:
@@ -459,7 +459,7 @@ public:
    SchurConstrainedSolver(Operator& A_, Operator& B_, Solver& primal_pc_);
    virtual ~SchurConstrainedSolver();
 
-   virtual void LagrangeSystemMult(const Vector& x, Vector& y) const override;
+   void LagrangeSystemMult(const Vector& x, Vector& y) const override;
 
 protected:
 #ifdef MFEM_USE_MPI
