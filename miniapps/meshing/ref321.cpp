@@ -56,22 +56,7 @@ void FindChildren(const Mesh & mesh, int elem, Array<int> & children)
 void Refine31(Mesh & mesh, int elem, int type)
 {
    Array<Refinement> refs;  // Refinement is defined in ncmesh.hpp
-   real_t sx = 0.5;
-   real_t sy = 0.5;
-   real_t sz = 0.5;
-   if (type == Refinement::X)
-   {
-      sx = 2.0/3.0;
-   }
-   else if (type == Refinement::Y)
-   {
-      sy = 2.0/3.0;
-   }
-   else if (type == Refinement::Z)
-   {
-      sz = 2.0/3.0;
-   }
-   refs.Append(Refinement(elem, type, sx, sy, sz));
+   refs.Append(Refinement(elem, type, 2.0 / 3.0));
    mesh.GeneralRefinement(refs);
 
    // Find the elements with parent `elem`

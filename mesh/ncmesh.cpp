@@ -489,6 +489,103 @@ int NCMesh::Face::GetSingleElement() const
 
 //// Refinement ////////////////////////////////////////////////////////////////
 
+void Refinement::SetScale(const ScaledType &r)
+{
+   switch (r.first)
+   {
+      case Type::X :
+         s[0] = r.second;
+         break;
+      case Type::Y :
+         s[1] = r.second;
+         break;
+      case Type::Z :
+         s[2] = r.second;
+         break;
+      case Type::XY :
+         s[0] = r.second;
+         s[1] = r.second;
+         break;
+      case Type::YZ :
+         s[1] = r.second;
+         s[2] = r.second;
+         break;
+      case Type::XZ :
+         s[0] = r.second;
+         s[2] = r.second;
+         break;
+      case Type::XYZ :
+         s[0] = r.second;
+         s[1] = r.second;
+         s[2] = r.second;
+         break;
+      default:
+         MFEM_ABORT("Unsupported refinement type.");
+   }
+}
+
+Refinement::Refinement(int index, const std::initializer_list<ScaledType> &refs)
+   : index(index)
+{
+   for (int i=0; i<3; ++i) { s[i] = 0.0; }
+   if (refs.size() == 0)
+   {
+      // Default case is XYZ type with scale 0.5.
+      SetScale(ScaledType(XYZ, 0.5));
+   }
+   else
+   {
+      for (const auto & ref : refs)
+      {
+         SetScale(ref);
+      }
+   }
+}
+
+Refinement::Refinement(int index, Type type, real_t scale)
+   : index(index)
+{
+   for (int i=0; i<3; ++i) { s[i] = 0.0; }
+   SetScale(ScaledType(type, scale));
+}
+
+Refinement::Refinement(int index, int type, real_t scale)
+   : index(index)
+{
+   for (int i=0; i<3; ++i) { s[i] = 0.0; }
+   SetScale(ScaledType((Type) type, scale));
+}
+
+int Refinement::GetType() const
+{
+   int t = 0;
+   int d = 1;
+   for (int i=0; i<3; ++i)
+   {
+      if (s[i] > 0.0)
+      {
+         t += d;
+      }
+
+      d *= 2;
+   }
+
+   return t;
+}
+
+void Refinement::Set(int element, int type, real_t scale)
+{
+   index = element;
+   for (int i=0; i<3; ++i) { s[i] = 0.0; }
+   SetScale(ScaledType((Type) type, scale));
+}
+
+void Refinement::SetType(int type, real_t scale)
+{
+   for (int i=0; i<3; ++i) { s[i] = 0.0; }
+   SetScale(ScaledType((Type) type, scale));
+}
+
 NCMesh::Element::Element(Geometry::Type geom, int attr)
    : geom(geom), ref_type(0), tet_type(0), flag(0), index(-1)
    , rank(0), attribute(attr), parent(-1)
@@ -753,7 +850,7 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
          // Y split
          const bool rev = CubeFaceFront(vn2, el_nodes) &&
                           CubeFaceBack(vn1, el_nodes);
-         ref_stack.Append(Refinement(elem, 2, 0.5, GetScale(scale, rev)));
+         ref_stack.Append(Refinement(elem, 2, GetScale(scale, rev)));
       }
       else if ((CubeFaceBottom(vn1, el_nodes) && CubeFaceTop(vn2, el_nodes)) ||
                (CubeFaceBottom(vn2, el_nodes) && CubeFaceTop(vn1, el_nodes)))
@@ -761,7 +858,7 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
          // Z split
          const bool rev = CubeFaceBottom(vn2, el_nodes) &&
                           CubeFaceTop(vn1, el_nodes);
-         ref_stack.Append(Refinement(elem, 4, 0.5, 0.5, GetScale(scale, rev)));
+         ref_stack.Append(Refinement(elem, 4, GetScale(scale, rev)));
       }
       else
       {
@@ -1822,9 +1919,9 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    ref_stack.Reserve(refinements.Size());
    for (int i = refinements.Size()-1; i >= 0; i--)
    {
-      const Refinement& ref = refinements[i];
-      ref_stack.Append(Refinement(leaf_elements[ref.index], ref.ref_type,
-                                  ref.scale_x, ref.scale_y, ref.scale_z));
+      Refinement ref = refinements[i];  // Copy
+      ref.index = leaf_elements[ref.index];
+      ref_stack.Append(ref);
    }
 
    // keep refining as long as the stack contains something
@@ -1835,7 +1932,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_stack.DeleteLast();
 
       int size = ref_stack.Size();
-      RefineElement(ref.index, ref.ref_type, ref.scale_x, ref.scale_y, ref.scale_z);
+      RefineElement(ref.index, ref.GetType(), ref.s[0], ref.s[1], ref.s[2]);
       nforced += ref_stack.Size() - size;
    }
 

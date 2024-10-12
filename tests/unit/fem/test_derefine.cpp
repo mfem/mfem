@@ -68,8 +68,8 @@ TEST_CASE("Derefine")
             x.Update();
 
             Array<Refinement> refinements;
-            refinements.Append(Refinement(1));
-            refinements.Append(Refinement(2));
+            refinements.Append(Refinement(1, {}));
+            refinements.Append(Refinement(2, {}));
 
             int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
 
@@ -83,7 +83,7 @@ TEST_CASE("Derefine")
             Vector diff(x);
 
             refinements.DeleteAll();
-            refinements.Append(Refinement(2));
+            refinements.Append(Refinement(2, {}));
             mesh.GeneralRefinement(refinements, 1, nonconformity_limit);
 
             fespace.Update();
@@ -168,7 +168,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    FunctionCoefficient c(PolyCoeff::poly_coeff);
 
    Array<Refinement> refinements;
-   refinements.Append(Refinement(0));
+   refinements.Append(Refinement(0, {}));
    mesh.GeneralRefinement(refinements);
 
    fespace.Update();
@@ -308,7 +308,7 @@ void RefineRandomly(ParMesh& pmesh,
       double a = rand()/double(RAND_MAX);
       if (a < freq)
       {
-         refinements.Append(Refinement(k));
+         refinements.Append(Refinement(k, {}));
       }
    }
 
@@ -524,8 +524,8 @@ TEST_CASE("ParDerefine", "[Parallel]")
             Vector diff(x);
 
             Array<Refinement> refinements;
-            refinements.Append(Refinement(1));
-            refinements.Append(Refinement(2));
+            refinements.Append(Refinement(1, {}));
+            refinements.Append(Refinement(2, {}));
 
             int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
 

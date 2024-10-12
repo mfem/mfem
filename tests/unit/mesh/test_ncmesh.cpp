@@ -142,7 +142,7 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
    mesh.EnsureNCMesh(true);
    real_t original_volume = mesh.GetElementVolume(0);
    Array<Refinement> ref(1);
-   ref[0].Set(0, ref_type, scale, scale, scale);
+   ref[0].Set(0, ref_type, scale);
 
    mesh.GeneralRefinement(ref, 1);
    real_t summed_volume = 0.0;
@@ -1728,7 +1728,8 @@ TEST_CASE("ReferenceCubeInternalBoundaries", "[NCMesh]")
 
       // Now NC refine one of the attached elements, this should result in 2
       // internal boundary elements.
-      refs[0].Set(ref, ref_type);
+      refs[0].index = ref;
+      refs[0].SetType(ref_type);
 
       ssmesh.GeneralRefinement(refs);
 
@@ -1833,7 +1834,7 @@ TEST_CASE("RefinedCubesInternalBoundaries", "[NCMesh]")
    {
       if (smesh.GetAttribute(n) == 2)
       {
-         refs.Append(Refinement{n, Refinement::XYZ});
+         refs.Append(Refinement{n, {}});
       }
    }
 
@@ -2046,7 +2047,7 @@ TEST_CASE("RefinedTetsInternalBoundaries", "[NCMesh]")
    {
       if (smesh.GetAttribute(n) == 2)
       {
-         refs.Append(Refinement{n, Refinement::XYZ});
+         refs.Append(Refinement{n, {}});
       }
    }
 
@@ -2107,7 +2108,7 @@ TEST_CASE("PoissonOnReferenceCubeNC", "[NCMesh]")
    for (auto refined_elem : {0}) // The left or the right element
    {
       auto ssmesh = Mesh(smesh);
-      refs[0].Set(refined_elem, ref_type, scale, scale, scale);
+      refs[0].Set(refined_elem, ref_type, scale);
 
       ssmesh.GeneralRefinement(refs);
       ssmesh.FinalizeTopology();
@@ -2770,7 +2771,7 @@ TEST_CASE("RP=I", "[NCMesh]")
       refinements[0].Set(0, Refinement::X);
 
       mesh.GeneralRefinement(refinements);
-      refinements[0].Set(0, Refinement::XYZ);
+      refinements[0].SetType(Refinement::XYZ);
 
       mesh.GeneralRefinement(refinements);
       SECTION("ND")
@@ -2797,7 +2798,7 @@ TEST_CASE("RP=I", "[NCMesh]")
       refinements[0].Set(0, Refinement::X);
       mesh.GeneralRefinement(refinements);
       mesh.EnsureNCMesh(true);
-      refinements[0].Set(0, Refinement::XYZ);
+      refinements[0].SetType(Refinement::XYZ);
       mesh.GeneralRefinement(refinements);
       SECTION("ND")
       {
