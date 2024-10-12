@@ -2492,9 +2492,6 @@ public:
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
    /// @todo This method needs a proper description
-   void MesquiteSmooth(const int mesquite_option = 0);
-
-   /// @todo This method needs a proper description
    void CheckDisplacements(const Vector &displacements, real_t &tmax);
 
    /// @}
@@ -2952,8 +2949,8 @@ public:
    NodeExtrudeCoefficient(const int dim, const int n_, const real_t s_);
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    virtual ~NodeExtrudeCoefficient() { }
 };
 
