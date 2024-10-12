@@ -39,28 +39,29 @@ namespace mfem
     reference element in each direction. */
 struct Refinement
 {
-   enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    int index; ///< Mesh element number
-   char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
-   real_t scale_x, scale_y, scale_z; ///< Scaling in each direction
-
+   /** Type is used only for input. The struct stores the refinement type in the
+       triple @a scale, which specifies the refinement scale in each dimension,
+       with 0 representing no refinement in that dimension. */
+   enum Type : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
+   using ScaledType = std::pair<Type, real_t>;
+   real_t s[3];  /// Refinement scale in each dimension
    Refinement() = default;
-
-   Refinement(int index, int type = Refinement::XYZ, real_t s_x = 0.5,
-              real_t s_y = 0.5, real_t s_z = 0.5)
-      : index(index), ref_type(type), scale_x(s_x), scale_y(s_y), scale_z(s_z)
-   {}
-
-   /// Set all data members
-   void Set(int elem, int type = Refinement::XYZ, real_t s_x = 0.5,
-            real_t s_y = 0.5, real_t s_z = 0.5)
-   {
-      index = elem;
-      ref_type = type;
-      scale_x = s_x;
-      scale_y = s_y;
-      scale_z = s_z;
-   }
+   /// Default case of empty list @a refs is XYZ with scale 0.5.
+   Refinement(int index, const std::initializer_list<ScaledType> &refs);
+   /// Refine element with a single type and scale in all dimensions.
+   Refinement(int index, Type type, real_t scale = 0.5);
+   Refinement(int index, int type, real_t scale = 0.5);
+   /// Return the type as an integer.
+   int GetType() const;
+   /// Set the element, type, and scale.
+   void Set(int element, int type,
+            real_t scale = 0.5);  /// Uses @a scale in all dimensions
+   /// Set the type and scale, assuming the element is already set.
+   void SetType(int type,
+                real_t scale = 0.5);  /// Uses @a scale in all dimensions
+private :
+   void SetScale(const ScaledType &ref);
 };
 
 

@@ -381,7 +381,9 @@ void RefineUsingDistance(const ParGridFunction & dist_s,
                const real_t sx = ix == 0 ? a : 1.0 - a;
                const real_t sy = iy == 0 ? a : 1.0 - a;
 
-               refs.Append(Refinement(el, Refinement::XY, sx, sy));
+               refs.Append(Refinement(el, {{Refinement::Type::X, sx},
+                  {Refinement::Type::Y, sy}
+               }));
                refDist.Append(elAvgDist);
             }
             else
@@ -402,19 +404,18 @@ void RefineUsingDistance(const ParGridFunction & dist_s,
                const bool xedge = vij[0][0] != vij[1][0];
                const auto type = xedge ? Refinement::Y : Refinement::X;
 
-               real_t sx = 0.5;
-               real_t sy = 0.5;
+               real_t scale = 0.5;
 
                if (xedge)
                {
-                  sy = vij[0][1] == 0 ? a : 1.0 - a;
+                  scale = vij[0][1] == 0 ? a : 1.0 - a;
                }
                else
                {
-                  sx = vij[0][0] == 0 ? a : 1.0 - a;
+                  scale = vij[0][0] == 0 ? a : 1.0 - a;
                }
 
-               refs.Append(Refinement(el, type, sx, sy));
+               refs.Append(Refinement(el, type, scale));
             }
          }
       }
