@@ -1542,10 +1542,7 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
       FaceWeightsComp = 0.;
    }
 
-   //std::cout << "before surface: " << ir.GetNPoints() << std::endl;
-
    IntegrationRule SIR;
-   // if (Tr.GetDimension() != 1)
    if (true)
    {
       if (sir == NULL && Tr.GetDimension() != 1)
@@ -1560,7 +1557,7 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
          GetSurfaceIntegrationRule(Tr, SIR);
          Order--;
       }
-      else if(Tr.GetDimension() != 1)
+      else if (Tr.GetDimension() != 1)
       {
          SIR = *sir;
       }
@@ -1570,8 +1567,6 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
          InitVolume(Order, *LvlSet, lsOrder, Tr);
       }
    }
-
-   //std::cout << "here: " << ir.GetNPoints() << std::endl;
 
    if (Tr.GetDimension() == 1)
    {
@@ -1586,7 +1581,6 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
       ComputeVolumeWeights3D(Tr, &SIR);
    }
 
-   //std::cout << "end: " << ir.GetNPoints() << std::endl;
    result.SetSize(ir.GetNPoints());
    for (int ip = 0; ip < ir.GetNPoints(); ip++)
    {
