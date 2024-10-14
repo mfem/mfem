@@ -304,8 +304,7 @@ double bisect(ElementTransformation &Tr, Coefficient *LvlSet)
    return intp.x;
 }
 
-void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr,
-                                                   const IntegrationRule* sir)
+void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr)
 {
    IntegrationRules irs(0, Quadrature1D::GaussLegendre);
    IntegrationRule ir2 = irs.Get(Geometry::SEGMENT, ir.GetOrder());
@@ -321,8 +320,8 @@ void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr,
       real_t length;
       if (LvlSet->Eval(Tr, ip0) > 0.)
       {
-         length = sir->IntPoint(0).x;
-         //length = bisect(Tr, LvlSet);
+         //length = sir->IntPoint(0).x;
+         length = bisect(Tr, LvlSet);
          for (int ip = 0; ip < ir.GetNPoints(); ip++)
          {
             IntegrationPoint &intp = ir.IntPoint(ip);
@@ -332,13 +331,13 @@ void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr,
       }
       else
       {
-         length = 1. - sir->IntPoint(0).x;
-         //length = 1. - bisect(Tr, LvlSet);
+         //length = 1. - sir->IntPoint(0).x;
+         length = 1. - bisect(Tr, LvlSet);
          for (int ip = 0; ip < ir.GetNPoints(); ip++)
          {
             IntegrationPoint &intp = ir.IntPoint(ip);
-            intp.x = sir->IntPoint(ip).x + ir2.IntPoint(ip).x * length;
-            //intp.x = bisect(Tr, LvlSet) + ir2.IntPoint(ip).x * length;
+            //intp.x = sir->IntPoint(ip).x + ir2.IntPoint(ip).x * length;
+            intp.x = bisect(Tr, LvlSet) + ir2.IntPoint(ip).x * length;
             intp.weight = ir2.IntPoint(ip).weight * length;
          }
       }
@@ -1549,21 +1548,26 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
    // if (Tr.GetDimension() != 1)
    if (true)
    {
-      if (sir == NULL)
+      if (sir == NULL && Tr.GetDimension() != 1)
       {
          Order++;
          GetSurfaceIntegrationRule(Tr, SIR);
          Order--;
       }
-      else if ((sir->GetOrder() - 1) != ir.GetOrder())
+      else if ((sir->GetOrder() - 1) != ir.GetOrder() && Tr.GetDimension() != 1)
       {
          Order++;
          GetSurfaceIntegrationRule(Tr, SIR);
          Order--;
+      }
+      else if(Tr.GetDimension() != 1)
+      {
+         SIR = *sir;
       }
       else
       {
-         SIR = *sir;
+         Clear();
+         InitVolume(Order, *LvlSet, lsOrder, Tr);
       }
    }
 
@@ -1571,7 +1575,7 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
 
    if (Tr.GetDimension() == 1)
    {
-      ComputeVolumeWeights1D(Tr, &SIR);
+      ComputeVolumeWeights1D(Tr);
    }
    else if (Tr.GetDimension() == 2)
    {
