@@ -769,7 +769,7 @@ public:
 
    /// Sets the operator to be used for mat-vec operations and
    /// for the construction of the preconditioner
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Allows to prescribe a different operator (@a pop) to construct
    /// the preconditioner
@@ -780,8 +780,8 @@ public:
    void SetPreconditioner(Solver &precond);
 
    /// Application of the solver.
-   virtual void Mult(const Vector &b, Vector &x) const;
-   virtual void MultTranspose(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
+   void MultTranspose(const Vector &b, Vector &x) const override;
 
    /// Conversion function to PETSc's KSP type.
    operator petsc::KSP() const { return (petsc::KSP)obj; }
@@ -815,11 +815,11 @@ public:
                        const std::string &prefix = std::string());
    virtual ~PetscPreconditioner();
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Application of the preconditioner.
-   virtual void Mult(const Vector &b, Vector &x) const;
-   virtual void MultTranspose(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
+   void MultTranspose(const Vector &b, Vector &x) const override;
 
    /// Conversion function to PETSc's PC type.
    operator petsc::PC() const { return (petsc::PC)obj; }
@@ -913,14 +913,14 @@ public:
    virtual ~PetscNonlinearSolver();
 
    /// Specification of the nonlinear operator.
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Specifies the desired format of the Jacobian in case a PetscParMatrix
    /// is not returned by the GetGradient method.
    void SetJacobianType(Operator::Type type);
 
    /// Application of the solver.
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 
    /// Specification of an objective function to be used for line search.
    void SetObjective(void (*obj)(Operator* op, const Vector &x, real_t *f));
