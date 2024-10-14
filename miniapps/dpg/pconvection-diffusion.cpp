@@ -11,17 +11,17 @@
 //
 //             MFEM Ultraweak DPG parallel example for convection-diffusion
 //
-// Compile with: make  pconvection-diffusion
+// Compile with: make pconvection-diffusion
 //
 // sample runs
-// mpirun -np 4 pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
-// mpirun -np 4 pconvection-diffusion -m ../../data/inline-hex.mesh -o 2 -ref 1 -prob 0 -sc -eps 1e-1 -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -m ../../data/inline-hex.mesh -o 2 -ref 1 -prob 0 -sc -eps 1e-1 -theta 0.0
 
 // AMR runs
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 10 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 15 -prob 2 -eps 5e-3 -theta 0.7 -sc
-// mpirun -np 4 pconvection-diffusion  -o 2 -ref 12 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 10 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 15 -prob 2 -eps 5e-3 -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 2 -ref 12 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve a parallel
@@ -123,6 +123,7 @@ int main(int argc, char *argv[])
    epsilon = 1e0;
 
    bool visualization = true;
+   int visport = 19916;
    bool paraview = false;
 
    OptionsParser args(argc, argv);
@@ -150,6 +151,7 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -564,7 +566,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "cgRjmlk\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
          VisualizeField(u_out,vishost, visport, u_gf,
                         "Numerical u", 0,0, 500, 500, keys);
          VisualizeField(sigma_out,vishost, visport, sigma_gf,

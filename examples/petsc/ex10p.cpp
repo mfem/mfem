@@ -206,6 +206,7 @@ int main(int argc, char *argv[])
    bool use_petsc = true;
    const char *petscrc_file = "";
    bool petsc_use_jfnk = false;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -243,6 +244,8 @@ int main(int argc, char *argv[])
    args.AddOption(&petsc_use_jfnk, "-jfnk", "--jfnk", "-no-jfnk",
                   "--no-jfnk",
                   "Use JFNK with user-defined preconditioner factory.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -257,7 +260,12 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 2b. We initialize PETSc
+   // 2b. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 2c. We initialize PETSc
    if (use_petsc)
    {
       MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
@@ -709,10 +717,7 @@ real_t HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 
 real_t HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
-   real_t loc_energy = 0.5*M.InnerProduct(v, v);
-   real_t energy;
-   MPI_Allreduce(&loc_energy, &energy, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                 fespace.GetComm());
+   real_t energy = 0.5*M.ParInnerProduct(v, v);
    return energy;
 }
 

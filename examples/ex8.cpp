@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
    MixedBilinearForm *B0 = new MixedBilinearForm(x0_space,test_space);
    B0->AddDomainIntegrator(new DiffusionIntegrator(one));
    B0->Assemble();
-   B0->EliminateTrialDofs(ess_bdr, x.GetBlock(x0_var), F);
+   B0->EliminateTrialEssentialBC(ess_bdr, x.GetBlock(x0_var), F);
    B0->Finalize();
 
    MixedBilinearForm *Bhat = new MixedBilinearForm(xhat_space,test_space);
