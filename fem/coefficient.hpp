@@ -90,12 +90,12 @@ public:
    explicit ConstantCoefficient(real_t c = 1.0) { constant=c; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    { return (constant); }
 
    /// Fill the QuadratureFunction @a qf with the constant value.
-   void Project(QuadratureFunction &qf);
+   void Project(QuadratureFunction &qf) override;
 };
 
 /** @brief A piecewise constant coefficient with the constants keyed
@@ -130,8 +130,8 @@ public:
    int GetNConst() { return constants.Size(); }
 
    /// Evaluate the coefficient.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /** @brief A piecewise coefficient with the pieces keyed off the element
@@ -195,7 +195,7 @@ public:
    { InitMap(attr, coefs); }
 
    /// Set the time for time dependent coefficients
-   virtual void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Replace a set of coefficients
    void UpdateCoefficients(const Array<int> & attr,
@@ -211,8 +211,8 @@ public:
    { pieces.erase(attr); }
 
    /// Evaluate the coefficient.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// A general function coefficient
@@ -254,8 +254,8 @@ public:
    }
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// A common base class for returning individual components of the domain's
@@ -271,8 +271,8 @@ protected:
 
 public:
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// Scalar coefficient which returns the x-component of the evaluation point
@@ -307,8 +307,8 @@ public:
    CylindricalRadialCoefficient() : transip(3) {}
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// Scalar coefficient which returns the angular position or azimuth (often
@@ -323,8 +323,8 @@ public:
    CylindricalAzimuthalCoefficient() : transip(3) {}
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// Scalar coefficient which returns the height or altitude of
@@ -342,8 +342,8 @@ public:
    SphericalRadialCoefficient() : transip(3) {}
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// Scalar coefficient which returns the azimuthal angle (often denoted by phi)
@@ -357,8 +357,8 @@ public:
    SphericalAzimuthalCoefficient() : transip(3) {}
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// Scalar coefficient which returns the polar angle (often denoted by theta)
@@ -372,8 +372,8 @@ public:
    SphericalPolarCoefficient() : transip(3) {}
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 class GridFunction;
@@ -399,15 +399,15 @@ public:
    const GridFunction * GetGridFunction() const { return GridF; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
    ///
    /// This function uses the efficient QuadratureFunction::ProjectGridFunction
    /// to fill the QuadratureFunction.
-   virtual void Project(QuadratureFunction &qf);
+   void Project(QuadratureFunction &qf) override;
 };
 
 
@@ -433,10 +433,10 @@ public:
       : Q1(q1), Q2(q2), Transform2(std::move(F)) { Transform1 = 0; }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
 
 /** @brief Delta function coefficient optionally multiplied by a weight
@@ -488,7 +488,7 @@ public:
    }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Set the center location of the delta function.
    void SetDeltaCenter(const Vector& center);
@@ -534,7 +534,7 @@ public:
    virtual real_t EvalDelta(ElementTransformation &T, const IntegrationPoint &ip);
    /** @brief A DeltaFunction cannot be evaluated. Calling this method will
        cause an MFEM error, terminating the application. */
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    { mfem_error("DeltaCoefficient::Eval"); return 0.; }
    virtual ~DeltaCoefficient() { delete weight; }
 };
@@ -555,10 +555,10 @@ public:
    { c = &c_; attr.Copy(active_attr); }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    { return active_attr[T.Attribute-1] ? c->Eval(T, ip, GetTime()) : 0.0; }
 };
 
@@ -628,8 +628,8 @@ public:
    using VectorCoefficient::Eval;
 
    ///  Evaluate the vector coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip) { V = vec; }
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override { V = vec; }
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() const { return vec; }
@@ -698,7 +698,7 @@ public:
       : VectorCoefficient(vd) { InitMap(attr, coefs); }
 
    /// Set the time for time dependent coefficients
-   virtual void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Replace a set of coefficients
    void UpdateCoefficients(const Array<int> & attr,
@@ -713,8 +713,8 @@ public:
    { pieces.erase(attr); }
 
    /// Evaluate the coefficient.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 };
 
@@ -728,8 +728,8 @@ public:
 
    using VectorCoefficient::Eval;
    /// Evaluate the vector coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    virtual ~PositionVectorCoefficient() { }
 };
@@ -765,8 +765,8 @@ public:
 
    using VectorCoefficient::Eval;
    /// Evaluate the vector coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    virtual ~VectorFunctionCoefficient() { }
 };
@@ -787,7 +787,7 @@ public:
    explicit VectorArrayCoefficient(int dim);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Returns i'th coefficient.
    Coefficient* GetCoeff(int i) { return Coeff[i]; }
@@ -806,8 +806,8 @@ public:
    using VectorCoefficient::Eval;
    /** @brief Evaluate the coefficient. Each element of vector V comes from the
        associated array of scalar coefficients. */
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    /// Destroys vector coefficient.
    virtual ~VectorArrayCoefficient();
@@ -836,21 +836,21 @@ public:
    const GridFunction * GetGridFunction() const { return GridFunc; }
 
    /// Evaluate the vector coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    /** @brief Evaluate the vector coefficients at all of the locations in the
        integration rule and write the vectors into the columns of matrix @a
        M. */
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationRule &ir) override;
 
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
    ///
    /// This function uses the efficient QuadratureFunction::ProjectGridFunction
    /// to fill the QuadratureFunction.
-   virtual void Project(QuadratureFunction &qf);
+   void Project(QuadratureFunction &qf) override;
 
    virtual ~VectorGridFunctionCoefficient() { }
 };
@@ -874,14 +874,14 @@ public:
    const GridFunction * GetGridFunction() const { return GridFunc; }
 
    /// Evaluate the gradient vector coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    /** @brief Evaluate the gradient vector coefficient at all of the locations
        in the integration rule and write the vectors into columns of matrix @a
        M. */
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationRule &ir) override;
 
    virtual ~GradientGridFunctionCoefficient() { }
 };
@@ -905,8 +905,8 @@ public:
 
    using VectorCoefficient::Eval;
    /// Evaluate the vector curl coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    virtual ~CurlGridFunctionCoefficient() { }
 };
@@ -929,8 +929,8 @@ public:
    const GridFunction * GetGridFunction() const { return GridFunc; }
 
    /// Evaluate the scalar divergence coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 
    virtual ~DivergenceGridFunctionCoefficient() { }
 };
@@ -973,7 +973,7 @@ public:
       : VectorCoefficient(dir_.Size()), dir(dir_), d(x,y,z,s) { }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Replace the associated DeltaCoefficient with a new DeltaCoefficient.
    /** The new DeltaCoefficient cannot have a specified weight Coefficient, i.e.
@@ -998,8 +998,8 @@ public:
    using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
        will cause an MFEM error, terminating the application. */
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    { mfem_error("VectorDeltaCoefficient::Eval"); }
    virtual ~VectorDeltaCoefficient() { }
 };
@@ -1021,17 +1021,17 @@ public:
    { c = &vc; attr.Copy(active_attr); }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Evaluate the vector coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    /** @brief Evaluate the vector coefficient at all of the locations in the
        integration rule and write the vectors into the columns of matrix @a
        M. */
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationRule &ir) override;
 };
 
 typedef VectorCoefficient DiagonalMatrixCoefficient;
@@ -1113,8 +1113,8 @@ public:
       : MatrixCoefficient(m.Height(), m.Width()), mat(m) { }
    using MatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip) { M = mat; }
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override { M = mat; }
    /// Return a reference to the constant matrix.
    const DenseMatrix& GetMatrix() { return mat; }
 };
@@ -1207,7 +1207,7 @@ public:
       : MatrixCoefficient(h, w, symm) { InitMap(attr, coefs); }
 
    /// Set the time for time dependent coefficients
-   virtual void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Replace a set of coefficients
    void UpdateCoefficients(const Array<int> & attr,
@@ -1222,8 +1222,8 @@ public:
    { pieces.erase(attr); }
 
    /// Evaluate the coefficient.
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 /** @brief A matrix coefficient with an optional scalar coefficient multiplier
@@ -1280,16 +1280,16 @@ public:
    { }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    /// (DEPRECATED) Evaluate the symmetric matrix coefficient at @a ip.
    /** @deprecated Use Eval() instead. */
-   virtual void EvalSymmetric(Vector &K, ElementTransformation &T,
-                              const IntegrationPoint &ip);
+   void EvalSymmetric(Vector &K, ElementTransformation &T,
+                      const IntegrationPoint &ip) override;
 
    virtual ~MatrixFunctionCoefficient() { }
 };
@@ -1310,7 +1310,7 @@ public:
    explicit MatrixArrayCoefficient (int dim);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Get the coefficient located at (i,j) in the matrix.
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
@@ -1328,8 +1328,8 @@ public:
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
 
    /// Evaluate the matrix coefficient @a ip.
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    virtual ~MatrixArrayCoefficient();
 };
@@ -1392,11 +1392,11 @@ public:
    { c = &mc; attr.Copy(active_attr); }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 /// Coefficients based on sums, products, or other functions of coefficients.
@@ -1425,7 +1425,7 @@ public:
       : aConst(0.0), a(&A), b(&B), alpha(alpha_), beta(beta_) { }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the first term in the linear combination as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
@@ -1453,8 +1453,8 @@ public:
    real_t GetBeta() const { return beta; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    {
       return alpha * ((a == NULL ) ? aConst : a->Eval(T, ip) )
              + beta * b->Eval(T, ip);
@@ -1502,8 +1502,8 @@ public:
        @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
 
    /// @deprecated Return a reference to the internal matrix used when evaluating this coefficient as a DenseMatrix.
@@ -1525,8 +1525,8 @@ public:
       : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip) { M = mat; }
+   void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override { M = mat; }
 
    /// Return a reference to the constant matrix.
    const DenseSymmetricMatrix& GetMatrix() { return mat; }
@@ -1576,12 +1576,12 @@ public:
    { }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
    virtual ~SymmetricMatrixFunctionCoefficient() { }
 };
@@ -1606,7 +1606,7 @@ public:
       : aConst(0.0), a(&A), b(&B) { }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the first term in the product as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
@@ -1624,8 +1624,8 @@ public:
    Coefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    { return ((a == NULL ) ? aConst : a->Eval(T, ip) ) * b->Eval(T, ip); }
 };
 
@@ -1654,7 +1654,7 @@ public:
       : aConst(0.0), bConst(B), a(&A), b(NULL) { }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the numerator in the ratio as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
@@ -1677,8 +1677,8 @@ public:
    Coefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    {
       real_t den = (b == NULL ) ? bConst : b->Eval(T, ip);
       MFEM_ASSERT(den != 0.0, "Division by zero in RatioCoefficient");
@@ -1700,7 +1700,7 @@ public:
       : a(&A), p(p_) { }
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the base coefficient
    void SetACoef(Coefficient &A) { a = &A; }
@@ -1713,8 +1713,8 @@ public:
    real_t GetExponent() const { return p; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    { return pow(a->Eval(T, ip), p); }
 };
 
@@ -1733,7 +1733,7 @@ public:
    InnerProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the first vector in the inner product
    void SetACoef(VectorCoefficient &A) { a = &A; }
@@ -1746,8 +1746,8 @@ public:
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// Scalar coefficient defined as a cross product of two vectors in the xy-plane.
@@ -1765,7 +1765,7 @@ public:
    VectorRotProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the first vector in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
@@ -1778,8 +1778,8 @@ public:
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// Scalar coefficient defined as the determinant of a matrix coefficient
@@ -1795,7 +1795,7 @@ public:
    DeterminantCoefficient(MatrixCoefficient &A);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -1803,8 +1803,8 @@ public:
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the determinant coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// Scalar coefficient defined as the trace of a matrix coefficient
@@ -1820,7 +1820,7 @@ public:
    TraceCoefficient(MatrixCoefficient &A);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -1828,8 +1828,8 @@ public:
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the trace coefficient at @a ip.
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
 };
 
 /// Vector coefficient defined as the linear combination of two vectors
@@ -1866,7 +1866,7 @@ public:
                         Coefficient &alpha_, Coefficient &beta_);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the first vector coefficient
    void SetACoef(VectorCoefficient &A_) { ACoef = &A_; }
@@ -1909,8 +1909,8 @@ public:
    real_t GetBeta() const { return beta; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 };
 
@@ -1930,7 +1930,7 @@ public:
    ScalarVectorProductCoefficient(Coefficient &A, VectorCoefficient &B);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the scalar factor as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
@@ -1948,8 +1948,8 @@ public:
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 };
 
@@ -1971,7 +1971,7 @@ public:
    NormalizedVectorCoefficient(VectorCoefficient &A, real_t tol = 1e-6);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the vector coefficient
    void SetACoef(VectorCoefficient &A) { a = &A; }
@@ -1979,8 +1979,8 @@ public:
    VectorCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 };
 
@@ -1999,7 +1999,7 @@ public:
    VectorCrossProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the first term in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
@@ -2012,8 +2012,8 @@ public:
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 };
 
@@ -2033,7 +2033,7 @@ public:
    MatrixVectorProductCoefficient(MatrixCoefficient &A, VectorCoefficient &B);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -2046,8 +2046,8 @@ public:
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the vector coefficient at @a ip.
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 };
 
@@ -2066,8 +2066,8 @@ public:
       : MatrixCoefficient(d, d), dim(d) { }
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 /// Matrix coefficient defined as the linear combination of two matrices
@@ -2088,7 +2088,7 @@ public:
                         real_t alpha_ = 1.0, real_t beta_ = 1.0);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the first matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -2111,8 +2111,8 @@ public:
    real_t GetBeta() const { return beta; }
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 /// Matrix coefficient defined as the product of two matrices
@@ -2140,8 +2140,8 @@ public:
    MatrixCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 /** @brief Matrix coefficient defined as a product of a scalar coefficient and a
@@ -2161,7 +2161,7 @@ public:
    ScalarMatrixProductCoefficient(Coefficient &A, MatrixCoefficient &B);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the scalar factor as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
@@ -2179,8 +2179,8 @@ public:
    MatrixCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 /// Matrix coefficient defined as the transpose of a matrix coefficient
@@ -2194,7 +2194,7 @@ public:
    TransposeMatrixCoefficient(MatrixCoefficient &A);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -2202,8 +2202,8 @@ public:
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 /// Matrix coefficient defined as the inverse of a matrix coefficient.
@@ -2217,7 +2217,7 @@ public:
    InverseMatrixCoefficient(MatrixCoefficient &A);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -2225,8 +2225,8 @@ public:
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 /// Matrix coefficient defined as the exponential of a matrix coefficient.
@@ -2240,7 +2240,7 @@ public:
    ExponentialMatrixCoefficient(MatrixCoefficient &A);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
@@ -2248,8 +2248,8 @@ public:
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 /// Matrix coefficient defined as the outer product of two vector coefficients.
@@ -2267,7 +2267,7 @@ public:
    OuterProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the first vector in the outer product
    void SetACoef(VectorCoefficient &A) { a = &A; }
@@ -2280,8 +2280,8 @@ public:
    VectorCoefficient * GetBCoef() const { return b; }
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 /** @brief Matrix coefficient defined as -a k x k x, for a vector k and scalar a
@@ -2305,7 +2305,7 @@ public:
    CrossCrossCoefficient(Coefficient &A, VectorCoefficient &K);
 
    /// Set the time for internally stored coefficients
-   void SetTime(real_t t);
+   void SetTime(real_t t) override;
 
    /// Reset the scalar factor as a constant
    void SetAConst(real_t A) { a = NULL; aConst = A; }
@@ -2323,8 +2323,8 @@ public:
    VectorCoefficient * GetKCoef() const { return k; }
 
    /// Evaluate the matrix coefficient at @a ip.
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 ///@}
 
@@ -2349,10 +2349,10 @@ public:
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 
-   virtual void Project(QuadratureFunction &qf);
+   void Project(QuadratureFunction &qf) override;
 
    virtual ~VectorQuadratureFunctionCoefficient() { }
 };
@@ -2371,9 +2371,9 @@ public:
 
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 
-   virtual void Project(QuadratureFunction &qf);
+   void Project(QuadratureFunction &qf) override;
 
    virtual ~QuadratureFunctionCoefficient() { }
 };

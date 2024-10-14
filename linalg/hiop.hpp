@@ -268,7 +268,7 @@ public:
    virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
    /// Solves the optimization problem with xt as initial guess.
-   virtual void Mult(const Vector &xt, Vector &x) const;
+   void Mult(const Vector &xt, Vector &x) const override;
 };
 
 } // mfem namespace

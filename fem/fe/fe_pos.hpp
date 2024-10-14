@@ -35,31 +35,31 @@ public:
       ScalarFiniteElement(D, G, Do, O, F)
    { }
 
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { ScalarLocalInterpolation(Trans, I, *this); }
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override
    { ScalarLocalL2Restriction(Trans, R, *this); }
 
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { CheckScalarFE(fe).ScalarLocalInterpolation(Trans, I, *this); }
 
    using FiniteElement::Project;
 
    // Low-order monotone "projection" (actually it is not a projection): the
    // dofs are set to be the Coefficient values at the nodes.
-   virtual void Project(Coefficient &coeff,
-                        ElementTransformation &Trans, Vector &dofs) const;
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project (VectorCoefficient &vc,
+                 ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const;
+   void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                DenseMatrix &I) const override;
 };
 
 
@@ -89,17 +89,17 @@ class BiQuadPos2DFiniteElement : public PositiveFiniteElement
 public:
    /// Construct the BiQuadPos2DFiniteElement
    BiQuadPos2DFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override;
    using FiniteElement::Project;
-   virtual void Project(Coefficient &coeff, ElementTransformation &Trans,
-                        Vector &dofs) const;
-   virtual void Project(VectorCoefficient &vc, ElementTransformation &Trans,
-                        Vector &dofs) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
+   void Project(Coefficient &coeff, ElementTransformation &Trans,
+                Vector &dofs) const override;
+   void Project(VectorCoefficient &vc, ElementTransformation &Trans,
+                Vector &dofs) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.; dofs(vertex) = 1.; }
 };
 
@@ -110,9 +110,9 @@ class QuadPos1DFiniteElement : public PositiveFiniteElement
 public:
    /// Construct the QuadPos1DFiniteElement
    QuadPos1DFiniteElement();
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 
@@ -132,10 +132,10 @@ private:
 public:
    /// Construct the H1Pos_SegmentElement of order @a p
    H1Pos_SegmentElement(const int p);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -151,10 +151,10 @@ private:
 public:
    /// Construct the H1Pos_QuadrilateralElement of order @a p
    H1Pos_QuadrilateralElement(const int p);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -170,10 +170,10 @@ private:
 public:
    /// Construct the H1Pos_HexahedronElement of order @a p
    H1Pos_HexahedronElement(const int p);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -199,9 +199,9 @@ public:
    static void CalcDShape(const int p, const real_t x, const real_t y,
                           real_t *dshape_1d, real_t *dshape);
 
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 
@@ -228,9 +228,9 @@ public:
    static void CalcDShape(const int p, const real_t x, const real_t y,
                           const real_t z, real_t *dshape_1d, real_t *dshape);
 
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 
@@ -251,9 +251,9 @@ public:
    /// Construct the H1Pos_WedgeElement of order @a p
    H1Pos_WedgeElement(const int p);
 
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 
@@ -324,10 +324,10 @@ private:
 public:
    /// Construct the L2Pos_SegmentElement of order @a p
    L2Pos_SegmentElement(const int p);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -342,10 +342,10 @@ private:
 public:
    /// Construct the L2Pos_QuadrilateralElement of order @a p
    L2Pos_QuadrilateralElement(const int p);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -360,10 +360,10 @@ private:
 public:
    /// Construct the L2Pos_HexahedronElement of order @a p
    L2Pos_HexahedronElement(const int p);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -378,10 +378,10 @@ private:
 public:
    /// Construct the L2Pos_TriangleElement of order @a p
    L2Pos_TriangleElement(const int p);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -397,10 +397,10 @@ private:
 public:
    /// Construct the L2Pos_TetrahedronElement of order @a p
    L2Pos_TetrahedronElement(const int p);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -421,9 +421,9 @@ public:
    /// Construct the L2Pos_WedgeElement of order @a p
    L2Pos_WedgeElement(const int p);
 
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 /// Arbitrary order L2 elements in 3D utilizing the Bernstein basis on a pyramid
