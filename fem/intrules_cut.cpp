@@ -320,7 +320,6 @@ void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr)
       real_t length;
       if (LvlSet->Eval(Tr, ip0) > 0.)
       {
-         //length = sir->IntPoint(0).x;
          length = bisect(Tr, LvlSet);
          for (int ip = 0; ip < ir.GetNPoints(); ip++)
          {
@@ -331,12 +330,10 @@ void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr)
       }
       else
       {
-         //length = 1. - sir->IntPoint(0).x;
          length = 1. - bisect(Tr, LvlSet);
          for (int ip = 0; ip < ir.GetNPoints(); ip++)
          {
             IntegrationPoint &intp = ir.IntPoint(ip);
-            //intp.x = sir->IntPoint(ip).x + ir2.IntPoint(ip).x * length;
             intp.x = bisect(Tr, LvlSet) + ir2.IntPoint(ip).x * length;
             intp.weight = ir2.IntPoint(ip).weight * length;
          }
