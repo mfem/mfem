@@ -1655,7 +1655,7 @@ void H1_FuentesPyramidElement::calcGradBasis(const int p,
 H1_BergotPyramidElement::H1_BergotPyramidElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::PYRAMID,
                         (p + 1) * (p + 2) * (2 * p + 3) / 6, // Bergot (JSC)
-                        p, FunctionSpace::Qk)
+                        p, FunctionSpace::Uk)
 {
    const real_t *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
