@@ -10,11 +10,11 @@
 // CONTRIBUTING.md for details.
 
 // This miniapp is a variant of the multidomain miniapp which aims to extend
-// the demonstration given therein to PDEs involving H(div) fininte elements.
+// the demonstration given therein to PDEs involving H(div) finite elements.
 //
 // A 3D domain comprised of an outer box with a cylinder shaped inside is used.
 //
-// A pressure wave diffiusion equation is described on the outer box domain
+// A pressure wave diffusion equation is described on the outer box domain
 //
 //                  dp/dt = ∇(κ∇•p)     in outer box
 //                    n•p = n•p_wall    on outside wall
@@ -151,7 +151,7 @@ public:
       du_dt.SetSubVector(ess_tdofs_, 0.0);
    }
 
-   ~ConvectionDiffusionTDO()
+   ~ConvectionDiffusionTDO() override
    {
       delete aq;
       delete q;
@@ -213,6 +213,7 @@ int main(int argc, char *argv[])
    real_t t_final = 5.0;
    real_t dt = 1.0e-5;
    bool visualization = true;
+   int visport = 19916;
    int vis_steps = 10;
 
    OptionsParser args(argc, argv);
@@ -320,7 +321,6 @@ int main(int argc, char *argv[])
       ParSubMesh::CreateFromBoundary(parent_mesh, cylinder_surface_attributes);
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
    socketstream cyl_sol_sock;
    if (visualization)
    {
