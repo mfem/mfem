@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -943,6 +943,7 @@ void ParaViewDataCollection::Save()
             pvtu_out << "<PDataArray type=\"" << GetDataTypeString()
                      << "\" Name=\"" << field_it.first
                      << "\" NumberOfComponents=\"" << vec_dim << "\" "
+                     << VTKComponentLabels(vec_dim) << " "
                      << "format=\"" << GetDataFormatString() << "\" />\n";
          }
          pvtu_out << "</PPointData>\n";
@@ -977,6 +978,7 @@ void ParaViewDataCollection::Save()
          pvtu_out << "<PDataArray type=\"" << GetDataTypeString()
                   << "\" Name=\"" << q_field_name
                   << "\" NumberOfComponents=\"" << vec_dim << "\" "
+                  << VTKComponentLabels(vec_dim) << " "
                   << "format=\"" << GetDataFormatString() << "\" />\n";
          pvtu_out << "</PPointData>\n";
          WritePVTUFooter(pvtu_out, q_field_name);
@@ -1069,8 +1071,9 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
    int vec_dim = it->second->VectorDim();
    os << "<DataArray type=\"" << GetDataTypeString()
       << "\" Name=\"" << it->first
-      << "\" NumberOfComponents=\"" << vec_dim << "\""
-      << " format=\"" << GetDataFormatString() << "\" >" << '\n';
+      << "\" NumberOfComponents=\"" << vec_dim << "\" "
+      << VTKComponentLabels(vec_dim) << " "
+      << "format=\"" << GetDataFormatString() << "\" >" << '\n';
    if (vec_dim == 1)
    {
       // scalar data

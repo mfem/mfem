@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,10 +48,13 @@ void Pyramid::SetVertices(const int *ind)
 void Pyramid::GetVertices(Array<int> &v) const
 {
    v.SetSize(5);
-   for (int i = 0; i < 5; i++)
-   {
-      v[i] = indices[i];
-   }
+   std::copy(indices, indices + 5, v.begin());
+}
+
+void Pyramid::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 5, "!");
+   std::copy(v.begin(), v.end(), indices);
 }
 
 int Pyramid::GetNFaces(int &nFaceVertices) const

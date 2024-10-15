@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,7 +41,7 @@ namespace mfem
 template <typename meshType, typename solFESpace,
           typename IR, typename IntegratorType,
           typename solVecLayout_t = ScalarLayout,
-          typename complex_t = double, typename real_t = double,
+          typename complex_t = real_t, typename real_t = real_t,
           typename impl_traits_t = AutoSIMDTraits<complex_t,real_t> >
 class TBilinearForm : public Operator
 {
@@ -503,7 +503,7 @@ public:
 
       Array<int> vdofs;
       const Array<int> *dof_map = sol_fe.GetDofMap();
-      const int *dof_map_ = dof_map->GetData();
+      const int *dof_map_ = (dof_map) ? dof_map->GetData() : NULL;
       DenseMatrix M_loc_perm(dofs*vdim,dofs*vdim); // initialized with zeros
 
       const int NE = mesh.GetNE();

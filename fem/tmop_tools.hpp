@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,14 +27,14 @@ private:
    RK4Solver ode_solver;
    Vector nodes0;
    Vector field0;
-   const double dt_scale;
+   const real_t dt_scale;
    const AssemblyLevel al;
    MemoryType opt_mt = MemoryType::DEFAULT;
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:
    AdvectorCG(AssemblyLevel al = AssemblyLevel::LEGACY,
-              double timestep_scale = 0.5)
+              real_t timestep_scale = 0.5)
       : AdaptivityEvaluator(),
         ode_solver(), nodes0(), field0(), dt_scale(timestep_scale), al(al) { }
 
@@ -134,21 +134,23 @@ protected:
    int solver_type;
    bool parallel;
 
-   // Line search step is rejected if min(detJ) <= min_detJ_threshold.
-   double min_detJ_threshold = 0.0;
+   // Line search step is rejected if min(detJ) <= min_detJ_limit.
+   real_t min_detJ_limit = 0.0;
 
    // Surface fitting variables.
-   mutable double surf_fit_err_avg_prvs = 10000.0;
-   mutable double surf_fit_err_avg, surf_fit_err_max;
-   mutable bool update_surf_fit_coeff = false;
-   double surf_fit_max_threshold = -1.0;
-   double surf_fit_rel_change_threshold = 0.001;
-   double surf_fit_scale_factor = 0.0;
-   mutable int adapt_inc_count = 0;
-   mutable int max_adapt_inc_count = 10;
+   mutable real_t surf_fit_avg_err_prvs = 10000.0;
+   mutable real_t surf_fit_avg_err, surf_fit_max_err;
+   mutable bool surf_fit_coeff_update = false;
+   real_t surf_fit_max_err_limit = -1.0;
+   real_t surf_fit_err_rel_change_limit = 0.001;
+   real_t surf_fit_scale_factor = 0.0;
+   mutable int surf_fit_adapt_count = 0;
+   mutable int surf_fit_adapt_count_limit = 10;
+   mutable real_t surf_fit_weight_limit = 1e10;
+   bool surf_fit_converge_error = false;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
-   double *min_det_ptr = nullptr;
+   real_t *min_det_ptr = nullptr;
    // Flag to compute minimum determinant and maximum metric in ProcessNewState,
    // which is required for TMOP_WorstCaseUntangleOptimizer_Metric.
    mutable bool compute_metric_quantile_flag = true;
@@ -170,11 +172,11 @@ protected:
       return ir;
    }
 
-   double ComputeMinDet(const Vector &x_loc,
+   real_t ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
 
-   double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
-   double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
+   real_t MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
+   real_t MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
 
    /** @name Methods for adaptive surface fitting weight. */
    ///@{
@@ -182,14 +184,17 @@ protected:
    /// If there is more than 1 TMOP integrator, we get the maximum of the
    /// average and maximum error over all integrators.
    virtual void GetSurfaceFittingError(const Vector &x_loc,
-                                       double &err_avg, double &err_max) const;
+                                       real_t &err_avg, real_t &err_max) const;
 
    /// Update surface fitting weight as surf_fit_weight *= factor.
-   void UpdateSurfaceFittingWeight(double factor) const;
+   void UpdateSurfaceFittingWeight(real_t factor) const;
 
    /// Get the surface fitting weight for all the TMOP integrators.
-   void GetSurfaceFittingWeight(Array<double> &weights) const;
+   void GetSurfaceFittingWeight(Array<real_t> &weights) const;
    ///@}
+
+   /// Check if surface fitting is enabled.
+   bool IsSurfaceFittingEnabled() const;
 
 public:
 #ifdef MFEM_USE_MPI
@@ -210,7 +215,7 @@ public:
       integ_order = order;
    }
 
-   void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }
+   void SetMinDetPtr(real_t *md_ptr) { min_det_ptr = md_ptr; }
 
    /// Set the memory type for temporary memory allocations.
    void SetTempMemoryType(MemoryType mt) { temp_mt = mt; }
@@ -218,44 +223,100 @@ public:
    /// Compute scaling factor for the node movement direction using line-search.
    /// We impose constraints on TMOP energy, gradient, minimum Jacobian of
    /// the mesh, and (optionally) on the surface fitting error.
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const;
+   virtual real_t ComputeScalingFactor(const Vector &x, const Vector &b) const;
 
    /// Update (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
    virtual void ProcessNewState(const Vector &x) const;
 
-   /** @name Methods for adaptive surface fitting weight. (Experimental) */
-   /// Enable/Disable adaptive surface fitting weight.
-   /// The weight is modified after each TMOPNewtonSolver iteration as:
-   /// w_{k+1} = w_{k} * @a surf_fit_scale_factor if relative change in
-   /// max surface fitting error < @a surf_fit_rel_change_threshold.
-   /// The solver terminates if the maximum surface fitting error does
-   /// not sufficiently decrease for @a max_adapt_inc_count consecutive
-   /// solver iterations or if the max error falls below @a surf_fit_max_threshold.
-   void EnableAdaptiveSurfaceFitting()
+   /** @name Methods for adaptive surface fitting.
+       \brief These methods control the behavior of the weight and the
+       termination of the solver. (Experimental)
+
+       Adaptive fitting weight: The weight is modified after each
+       TMOPNewtonSolver iteration as:
+       w_{k+1} = w_{k} * \ref surf_fit_scale_factor if the relative
+       change in average fitting error < \ref surf_fit_err_rel_change_limit.
+       When converging based on the residual, we enforce the fitting weight
+       to be at-most \ref surf_fit_weight_limit, and increase it only if the
+       fitting error is below user prescribed threshold
+       (\ref surf_fit_max_err_limit).
+       See \ref SetAdaptiveSurfaceFittingScalingFactor and
+       \ref SetAdaptiveSurfaceFittingRelativeChangeThreshold.
+
+       Note that the solver stops if the maximum surface fitting error
+       does not sufficiently decrease for \ref surf_fit_adapt_count_limit (default 10)
+       consecutive increments of the fitting weight during weight adaptation.
+       This typically occurs when the mesh cannot align with the level-set
+       without degrading element quality.
+       See \ref SetMaxNumberofIncrementsForAdaptiveFitting.
+
+       Convergence criterion: There are two modes, residual- and error-based,
+       which can be toggled using \ref SetSurfaceFittingConvergenceBasedOnError.
+
+       (i) Residual based (default): Stop when the norm of the gradient of the
+       TMOP objective reaches the prescribed tolerance. This method is best used
+       with a reasonable value for \ref surf_fit_weight_limit when the
+       adaptive surface fitting scheme is used. See method
+       \ref SetSurfaceFittingWeightLimit.
+
+       (ii) Error based: Stop when the maximum fitting error
+       reaches the user-prescribed threshold, \ref surf_fit_max_err_limit.
+       In this case, \ref surf_fit_weight_limit is ignored during weight
+       adaptation.
+   */
+   ///@{
+   void SetAdaptiveSurfaceFittingScalingFactor(real_t factor)
    {
-      surf_fit_scale_factor = 10.0;
-      surf_fit_rel_change_threshold = 0.001;
-   }
-   void SetAdaptiveSurfaceFittingScalingFactor(double factor)
-   {
+      MFEM_VERIFY(factor > 1.0, "Scaling factor must be greater than 1.");
       surf_fit_scale_factor = factor;
    }
-   void SetAdaptiveSurfaceFittingRelativeChangeThreshold(double threshold)
+   void SetAdaptiveSurfaceFittingRelativeChangeThreshold(real_t threshold)
    {
-      surf_fit_rel_change_threshold = threshold;
+      surf_fit_err_rel_change_limit = threshold;
    }
+   /// Used for stopping based on the number of consecutive failed weight
+   /// adaptation iterations.
+   // TODO: Rename to SetMaxNumberofIncrementsForAdaptiveSurfaceFitting
+   // in future.
    void SetMaxNumberofIncrementsForAdaptiveFitting(int count)
    {
-      max_adapt_inc_count = count;
+      surf_fit_adapt_count_limit = count;
    }
-   void SetTerminationWithMaxSurfaceFittingError(double max_error)
+   /// Used for error-based surface fitting termination.
+   void SetTerminationWithMaxSurfaceFittingError(real_t max_error)
    {
-      surf_fit_max_threshold = max_error;
+      surf_fit_max_err_limit = max_error;
+      surf_fit_converge_error = true;
    }
-   void SetMinimumDeterminantThreshold(double threshold)
+   /// Could be used with both error-based or residual-based convergence.
+   void SetSurfaceFittingMaxErrorLimit(real_t max_error)
    {
-      min_detJ_threshold = threshold;
+      surf_fit_max_err_limit = max_error;
+   }
+   /// Used for residual-based surface fitting termination.
+   void SetSurfaceFittingWeightLimit(real_t weight)
+   {
+      surf_fit_weight_limit = weight;
+   }
+   /// Toggle convergence based on residual or error.
+   void SetSurfaceFittingConvergenceBasedOnError(bool mode)
+   {
+      surf_fit_converge_error = mode;
+      if (surf_fit_converge_error)
+      {
+         MFEM_VERIFY(surf_fit_max_err_limit >= 0,
+                     "Fitting error based convergence requires the user to "
+                     "first set the error threshold."
+                     "See SetTerminationWithMaxSurfaceFittingError");
+      }
+   }
+   ///@}
+
+   /// Set minimum determinant enforced during line-search.
+   void SetMinimumDeterminantThreshold(real_t threshold)
+   {
+      min_detJ_limit = threshold;
    }
 
    virtual void Mult(const Vector &b, Vector &x) const

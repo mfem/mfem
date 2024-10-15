@@ -1,7 +1,9 @@
 //                                MFEM Example 10
 //                             SUNDIALS Modification
 //
-// Compile with: make ex10
+// Compile with:
+//    make ex10             (GNU make)
+//    make sundials_ex10    (CMake)
 //
 // Sample runs:
 //    ex10 -m ../../data/beam-quad.mesh -r 2 -o 2 -s 12 -dt 0.15 -vs 10

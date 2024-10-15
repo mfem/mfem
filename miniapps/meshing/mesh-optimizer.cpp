@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -118,16 +118,20 @@ int main(int argc, char *argv[])
    const char *mesh_file = "icf.mesh";
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
-   double jitter         = 0.0;
+   real_t jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
-   double lim_const      = 0.0;
-   double adapt_lim_const   = 0.0;
+   real_t lim_const      = 0.0;
+   real_t adapt_lim_const   = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
    int solver_iter       = 20;
-   double solver_rtol    = 1e-10;
+#ifdef MFEM_USE_SINGLE
+   real_t solver_rtol    = 1e-4;
+#else
+   real_t solver_rtol    = 1e-10;
+#endif
    int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
@@ -365,21 +369,21 @@ int main(int argc, char *argv[])
    //    In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
    h0 = infinity();
-   double mesh_volume = 0.0;
+   real_t mesh_volume = 0.0;
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
       fespace->GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = mesh->GetElementSize(i);
+      const real_t hi = mesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
       mesh_volume += mesh->GetElementVolume(i);
    }
-   const double small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
+   const real_t small_phys_size = pow(mesh_volume, 1.0 / dim) / 100.0;
 
    // 8. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -423,7 +427,7 @@ int main(int argc, char *argv[])
    x0 = x;
 
    // 11. Form the integrator that uses the chosen metric and target.
-   double min_detJ = -0.1;
+   real_t min_detJ = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -631,16 +635,16 @@ int main(int argc, char *argv[])
          {
             size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
          }
-         const double max = size.Max();
+         const real_t max = size.Max();
 
          for (int i = 0; i < d_x.Size(); i++)
          {
             d_x(i) = std::abs(d_x(i));
             d_y(i) = std::abs(d_y(i));
          }
-         const double eps = 0.01;
-         const double aspr_ratio = 20.0;
-         const double size_ratio = 40.0;
+         const real_t eps = 0.01;
+         const real_t aspr_ratio = 20.0;
+         const real_t size_ratio = 40.0;
 
          for (int i = 0; i < size.Size(); i++)
          {
@@ -652,7 +656,7 @@ int main(int argc, char *argv[])
          }
          Vector vals;
          const int NE = mesh->GetNE();
-         double volume = 0.0, volume_ind = 0.0;
+         real_t volume = 0.0, volume_ind = 0.0;
 
          for (int i = 0; i < NE; i++)
          {
@@ -669,19 +673,19 @@ int main(int argc, char *argv[])
             }
          }
 
-         const double avg_zone_size = volume / NE;
+         const real_t avg_zone_size = volume / NE;
 
-         const double small_avg_ratio = (volume_ind + (volume - volume_ind) /
+         const real_t small_avg_ratio = (volume_ind + (volume - volume_ind) /
                                          size_ratio) /
                                         volume;
 
-         const double small_zone_size = small_avg_ratio * avg_zone_size;
-         const double big_zone_size   = size_ratio * small_zone_size;
+         const real_t small_zone_size = small_avg_ratio * avg_zone_size;
+         const real_t big_zone_size   = size_ratio * small_zone_size;
 
          for (int i = 0; i < size.Size(); i++)
          {
-            const double val = size(i);
-            const double a = (big_zone_size - small_zone_size) / small_zone_size;
+            const real_t val = size(i);
+            const real_t a = (big_zone_size - small_zone_size) / small_zone_size;
             size(i) = big_zone_size / (1.0+a*val);
          }
 
@@ -953,9 +957,9 @@ int main(int argc, char *argv[])
    }
 
    // For HR tests, the energy is normalized by the number of elements.
-   const double init_energy = a.GetGridFunctionEnergy(x) /
+   const real_t init_energy = a.GetGridFunctionEnergy(x) /
                               (hradaptivity ? mesh->GetNE() : 1);
-   double init_metric_energy = init_energy;
+   real_t init_metric_energy = init_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
@@ -1033,7 +1037,11 @@ int main(int argc, char *argv[])
    // As we use the inexact Newton method to solve the resulting nonlinear
    // system, here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL, *S_prec = NULL;
-   const double linsol_rtol = 1e-12;
+#ifdef MFEM_USE_SINGLE
+   const real_t linsol_rtol = 1e-5;
+#else
+   const real_t linsol_rtol = 1e-12;
+#endif
    // Level of output.
    IterativeSolver::PrintLevel linsolver_print;
    if (verbosity_level == 2)
@@ -1132,9 +1140,9 @@ int main(int argc, char *argv[])
    }
 
    // Report the final energy of the functional.
-   const double fin_energy = a.GetGridFunctionEnergy(x) /
+   const real_t fin_energy = a.GetGridFunctionEnergy(x) /
                              (hradaptivity ? mesh->GetNE() : 1);
-   double fin_metric_energy = fin_energy;
+   real_t fin_metric_energy = fin_energy;
    if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
