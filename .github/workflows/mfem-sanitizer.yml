@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -27,18 +27,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Temporary workaround for sanitizer crashes
+        # See https://github.com/actions/runner-images/issues/9491
+        # The issue should be fixed in the next runner image for Ubuntu 22.04,
+        # see https://github.com/actions/runner-images/pull/9513
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.11.0
+        uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
       - name: MFEM Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: mfem
 
       - name: MFEM Build
-        uses: mfem/github-actions/build-mfem@v2.4
+        uses: mfem/github-actions/build-mfem@v2.5
         with:
           os: ${{ runner.os }}
           target: opt

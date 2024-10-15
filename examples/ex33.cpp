@@ -19,8 +19,11 @@
 //    ex33 -m ../data/amr-quad.mesh -ver -alpha 2.6 -o 2 -r 2
 //    ex33 -m ../data/inline-hex.mesh -ver -alpha 0.3 -o 2 -r 1
 //
-//  Note: the analytic solution to this problem is u = ∏_{i=0}^{dim-1} sin(π x_i)
-//        for all alpha.
+//  Note: The manufactured solution used in this problem is
+//
+//            u = ∏_{i=0}^{dim-1} sin(π x_i) ,
+//
+//        regardless of the value of alpha.
 //
 // Description:
 //
@@ -86,11 +89,16 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_SINGLE
+   cout << "This example is not supported in single precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    int num_refs = 3;
-   double alpha = 0.5;
+   real_t alpha = 0.5;
    bool visualization = true;
    bool verification = false;
 
@@ -109,7 +117,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verification, "-ver", "--verification", "-no-ver",
                   "--no-verification",
-                  "Use sinusoidal function (f) for analytic comparison.");
+                  "Use sinusoidal function (f) for manufactured "
+                  "solution test.");
    args.Parse();
    if (!args.Good())
    {
@@ -118,13 +127,13 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   Array<double> coeffs, poles;
+   Array<real_t> coeffs, poles;
    int progress_steps = 1;
 
    // 2. Compute the rational expansion coefficients that define the
    //    integer-order PDEs.
    const int power_of_laplace = (int)floor(alpha);
-   double exponent_to_approximate = alpha - power_of_laplace;
+   real_t exponent_to_approximate = alpha - power_of_laplace;
    bool integer_order = false;
    // Check if alpha is an integer or not.
    if (abs(exponent_to_approximate) > 1e-12)
@@ -135,7 +144,7 @@ int main(int argc, char *argv[])
       ComputePartialFractionApproximation(exponent_to_approximate, coeffs,
                                           poles);
 
-      // If the example is build without LAPACK, the exponent_to_approximate
+      // If the example is built without LAPACK, the exponent_to_approximate
       // might be modified by the function call above.
       alpha = exponent_to_approximate + power_of_laplace;
    }
@@ -158,7 +167,7 @@ int main(int argc, char *argv[])
    // 5. Define a finite element space on the mesh.
    H1_FECollection fec(order, dim);
    FiniteElementSpace fespace(&mesh, &fec);
-   cout << "Number of finite element unknowns: "
+   cout << "Number of degrees of freedom: "
         << fespace.GetTrueVSize() << endl;
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -173,7 +182,7 @@ int main(int argc, char *argv[])
    // 7. Define diffusion coefficient, load, and solution GridFunction.
    auto func = [&alpha](const Vector &x)
    {
-      double val = 1.0;
+      real_t val = 1.0;
       for (int i=0; i<x.Size(); i++)
       {
          val *= sin(M_PI*x(i));
@@ -364,7 +373,7 @@ int main(int argc, char *argv[])
    {
       auto solution = [] (const Vector &x)
       {
-         double val = 1.0;
+         real_t val = 1.0;
          for (int i=0; i<x.Size(); i++)
          {
             val *= sin(M_PI*x(i));
@@ -372,31 +381,31 @@ int main(int argc, char *argv[])
          return val;
       };
       FunctionCoefficient sol(solution);
-      double l2_error = u.ComputeL2Error(sol);
+      real_t l2_error = u.ComputeL2Error(sol);
 
-      string analytic_solution,expected_mesh;
+      string manufactured_solution,expected_mesh;
       switch (dim)
       {
          case 1:
-            analytic_solution = "sin(π x)";
+            manufactured_solution = "sin(π x)";
             expected_mesh = "inline_segment.mesh";
             break;
          case 2:
-            analytic_solution = "sin(π x) sin(π y)";
+            manufactured_solution = "sin(π x) sin(π y)";
             expected_mesh = "inline_quad.mesh";
             break;
          default:
-            analytic_solution = "sin(π x) sin(π y) sin(π z)";
+            manufactured_solution = "sin(π x) sin(π y) sin(π z)";
             expected_mesh = "inline_hex.mesh";
             break;
       }
 
       mfem::out << "\n" << string(80,'=')
                 << "\n\nSolution Verification in "<< dim << "D \n\n"
-                << "Analytic solution : " << analytic_solution << "\n"
-                << "Expected mesh     : " << expected_mesh <<"\n"
-                << "Your mesh         : " << mesh_file << "\n"
-                << "L2 error          : " << l2_error << "\n\n"
+                << "Manufactured solution : " << manufactured_solution << "\n"
+                << "Expected mesh         : " << expected_mesh <<"\n"
+                << "Your mesh             : " << mesh_file << "\n"
+                << "L2 error              : " << l2_error << "\n\n"
                 << string(80,'=') << endl;
    }
 

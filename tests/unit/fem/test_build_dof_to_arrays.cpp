@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -251,9 +251,6 @@ Mesh * GetMesh(MeshType type)
          mesh->AddVertex(a_);
 
          mesh->AddSegment(0, 1);
-
-         mesh->AddBdrPoint(0);
-         mesh->AddBdrPoint(1);
          break;
       case QUADRILATERAL:
          mesh = new Mesh(2, 4, 1);

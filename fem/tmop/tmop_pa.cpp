@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -359,11 +359,11 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    }
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
 {
    // This method must be called after AssemblePA().
 
-   double energy = 0.0;
+   real_t energy = 0.0;
 
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {

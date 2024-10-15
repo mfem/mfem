@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -40,6 +40,7 @@ private:
 public:
    /// Creates a new (stopped) StopWatch object.
    StopWatch();
+   StopWatch(const StopWatch &);
 
    /// Clear the elapsed time on the stopwatch and restart it if it's running.
    void Clear();

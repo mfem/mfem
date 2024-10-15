@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,7 +20,7 @@ Mesh *mesh_2d_orientation(int face_perm_1, int face_perm_2)
    static const int nv = 6;
    static const int nel = 2;
    Mesh *mesh = new Mesh(dim, nv, nel);
-   double x[dim];
+   real_t x[dim];
    x[0] = 0.0;   x[1] = 0.0;
    mesh->AddVertex(x);
    x[0] = 1.0;   x[1] = 0.0;
@@ -97,7 +97,7 @@ Mesh *mesh_3d_orientation(int face_perm_1, int face_perm_2)
    static const int nv = 12;
    static const int nel = 2;
    Mesh *mesh = new Mesh(dim, nv, nel);
-   double x[dim];
+   real_t x[dim];
    x[0] = 0.0;   x[1] = 0.0;   x[2] = 0.0;
    mesh->AddVertex(x);
    x[0] = 1.0;   x[1] = 0.0;   x[2] = 0.0;
@@ -153,11 +153,11 @@ Mesh *mesh_3d_orientation(int face_perm_1, int face_perm_2)
    return mesh;
 }
 
-double x_fn(const Vector &xvec) { return xvec[0]; }
-double y_fn(const Vector &xvec) { return xvec[1]; }
-double z_fn(const Vector &xvec) { return xvec[2]; }
+real_t x_fn(const Vector &xvec) { return xvec[0]; }
+real_t y_fn(const Vector &xvec) { return xvec[1]; }
+real_t z_fn(const Vector &xvec) { return xvec[2]; }
 
-double TestFaceRestriction(Mesh &mesh, int order)
+real_t TestFaceRestriction(Mesh &mesh, int order)
 {
    int dim = mesh.Dimension();
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
@@ -171,10 +171,10 @@ double TestFaceRestriction(Mesh &mesh, int order)
 
    Vector face_values(ndof_face*2);
 
-   double max_err = 0.0;
+   real_t max_err = 0.0;
    for (int d=0; d<dim; ++d)
    {
-      double (*fn)(const Vector &);
+      real_t (*fn)(const Vector &);
       if (d == 0)
       {
          fn = x_fn;
@@ -198,7 +198,7 @@ double TestFaceRestriction(Mesh &mesh, int order)
 
       for (int i=0; i<ndof_face; ++i)
       {
-         double error = std::abs(face_values(i) - face_values(i + ndof_face));
+         real_t error = std::abs(face_values(i) - face_values(i + ndof_face));
          max_err = std::max(max_err, error);
       }
    }
@@ -208,13 +208,13 @@ double TestFaceRestriction(Mesh &mesh, int order)
 TEST_CASE("2D Face Permutation", "[Face Permutation]")
 {
    int order = 3;
-   double max_err = 0.0;
+   real_t max_err = 0.0;
    for (int fp2=0; fp2<4; ++fp2)
    {
       for (int fp1=0; fp1<4; ++fp1)
       {
          Mesh *mesh = mesh_2d_orientation(fp1, fp2);
-         double error = TestFaceRestriction(*mesh, order);
+         real_t error = TestFaceRestriction(*mesh, order);
          max_err = std::max(max_err, error);
          delete mesh;
       }
@@ -225,13 +225,13 @@ TEST_CASE("2D Face Permutation", "[Face Permutation]")
 TEST_CASE("3D Face Permutation", "[Face Permutation]")
 {
    int order = 3;
-   double max_err = 0.0;
+   real_t max_err = 0.0;
    for (int fp2=0; fp2<24; ++fp2)
    {
       for (int fp1=0; fp1<24; ++fp1)
       {
          Mesh *mesh = mesh_3d_orientation(fp1, fp2);
-         double error = TestFaceRestriction(*mesh, order);
+         real_t error = TestFaceRestriction(*mesh, order);
          max_err = std::max(max_err, error);
          delete mesh;
       }

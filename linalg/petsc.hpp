@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,8 +27,11 @@
 #include "../general/mem_manager.hpp"
 
 #include "petscconf.h"
-#if !defined(PETSC_USE_REAL_DOUBLE)
-#error "MFEM does not work with PETSc compiled without double precision"
+#if defined(MFEM_USE_DOUBLE) && !defined(PETSC_USE_REAL_DOUBLE)
+#error "Mismatch between MFEM and PETSc real types"
+#endif
+#if defined(MFEM_USE_SINGLE) && !defined(PETSC_USE_REAL_SINGLE)
+#error "Mismatch between MFEM and PETSc real types"
 #endif
 #if defined(PETSC_USE_COMPLEX)
 #error "MFEM does not work with PETSc compiled with complex numbers support"
@@ -45,8 +48,8 @@
 #include "petscsystypes.h"
 #else
 typedef HYPRE_Int PetscInt;
-typedef double PetscScalar;
-typedef double PetscReal;
+typedef real_t PetscScalar;
+typedef real_t PetscReal;
 typedef int PetscClassId;
 typedef struct _p_PetscObject *PetscObject;
 #endif
@@ -81,10 +84,10 @@ void MFEMInitializePetsc(int*,char***,const char[],const char[]);
 void MFEMFinalizePetsc();
 
 /// Wrapper for syncing PETSc's vector memory
-class PetscMemory : public Memory<double>
+class PetscMemory : public Memory<real_t>
 {
 private:
-   Memory<double> *base;
+   Memory<real_t> *base;
    bool read;
    bool write;
    bool usedev;
@@ -96,21 +99,21 @@ public:
    void SetDeviceInvalid() const      { flags &= ~VALID_DEVICE; }
    inline bool IsAliasForSync() const { return base && (flags & ALIAS); }
 
-   inline void MakeAliasForSync(const Memory<double> &base_, int offset_,
+   inline void MakeAliasForSync(const Memory<real_t> &base_, int offset_,
                                 int size_, bool usedev_)
    {
       MFEM_VERIFY(!IsAliasForSync(),"Already alias");
-      base = (Memory<double>*)&base_;
+      base = (Memory<real_t>*)&base_;
       read = true;
       write = false;
       usedev = usedev_;
       MakeAlias(base_,offset_,size_);
    }
-   inline void MakeAliasForSync(Memory<double> &base_, int offset_, int size_,
+   inline void MakeAliasForSync(Memory<real_t> &base_, int offset_, int size_,
                                 bool read_, bool write_, bool usedev_)
    {
       MFEM_VERIFY(!IsAliasForSync(),"Already alias");
-      base = (Memory<double>*)&base_;
+      base = (Memory<real_t>*)&base_;
       read = read_;
       write = write_;
       usedev = usedev_;
@@ -142,8 +145,8 @@ public:
       MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
       return usedev;
    }
-   const double *GetHostPointer() const;
-   const double *GetDevicePointer() const;
+   const real_t *GetHostPointer() const;
+   const real_t *GetDevicePointer() const;
 };
 
 /// Wrapper for PETSc's vector class
@@ -282,11 +285,11 @@ public:
    /** @brief This requests write access from where the memory is valid
        and temporarily replaces the corresponding array used by the PETSc Vec
        The bool parameter indicates read/write request */
-   void PlaceMemory(Memory<double>&,bool=false);
+   void PlaceMemory(Memory<real_t>&,bool=false);
 
    /** @brief This requests read access from where the memory is valid
        and temporarily replaces the corresponding array used by the PETSc Vec */
-   void PlaceMemory(const Memory<double>&);
+   void PlaceMemory(const Memory<real_t>&);
 
    /** @brief Completes the operation started with PlaceMemory */
    void ResetMemory();
@@ -300,12 +303,12 @@ public:
    /// Prints the vector (to stdout if @a fname is NULL)
    void Print(const char *fname = NULL, bool binary = false) const;
 
-   const double *Read(bool=true) const override;
-   const double *HostRead() const override;
-   double *Write(bool=true) override;
-   double *HostWrite() override;
-   double *ReadWrite(bool=true) override;
-   double *HostReadWrite() override;
+   const real_t *Read(bool=true) const override;
+   const real_t *HostRead() const override;
+   real_t *Write(bool=true) override;
+   real_t *HostWrite() override;
+   real_t *ReadWrite(bool=true) override;
+   real_t *HostReadWrite() override;
    bool UseDevice() const override;
    void UseDevice(bool) const override;
 };
@@ -436,10 +439,10 @@ public:
    ///@}
 
    /// Matvec: @a y = @a a A @a x + @a b @a y.
-   void Mult(double a, const Vector &x, double b, Vector &y) const;
+   void Mult(real_t a, const Vector &x, real_t b, Vector &y) const;
 
    /// Matvec transpose: @a y = @a a A^T @a x + @a b @a y.
-   void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
+   void MultTranspose(real_t a, const Vector &x, real_t b, Vector &y) const;
 
    void Mult(const Vector &x, Vector &y) const override
    { Mult(1.0, x, 0.0, y); }
@@ -448,11 +451,11 @@ public:
    { MultTranspose(1.0, x, 0.0, y); }
 
    void AddMult(const Vector &x, Vector &y,
-                const double a = 1.0) const override
+                const real_t a = 1.0) const override
    { Mult(a, x, 1.0, y); }
 
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override
+                         const real_t a = 1.0) const override
    { MultTranspose(a, x, 1.0, y); }
 
    /// Get the associated MPI communicator
@@ -510,15 +513,15 @@ public:
    void Print(const char *fname = NULL, bool binary = false) const;
 
    /// Scale all entries by s: A_scaled = s*A.
-   void operator*=(double s);
+   void operator*=(real_t s);
 
    /** @brief Eliminate rows and columns from the matrix, and rows from the
        vector @a B. Modify @a B with the BC values in @a X. Put @a diag
        on the diagonal corresponding to eliminated entries */
    void EliminateRowsCols(const Array<int> &rows_cols, const PetscParVector &X,
-                          PetscParVector &B, double diag = 1.);
+                          PetscParVector &B, real_t diag = 1.);
    void EliminateRowsCols(const Array<int> &rows_cols, const HypreParVector &X,
-                          HypreParVector &B, double diag = 1.);
+                          HypreParVector &B, real_t diag = 1.);
 
    /** @brief Eliminate rows and columns from the matrix and store the
        eliminated elements in a new matrix Ae (returned).
@@ -534,7 +537,7 @@ public:
    void ScaleCols(const Vector & s);
 
    /// Shift diagonal by a constant
-   void Shift(double s);
+   void Shift(real_t s);
 
    /// Shift diagonal by a vector
    void Shift(const Vector & s);
@@ -597,7 +600,7 @@ public:
 
    PetscBCHandler(Type type_ = ZERO) :
       bctype(type_), setup(false), eval_t(0.0),
-      eval_t_cached(std::numeric_limits<double>::min()) {}
+      eval_t_cached(std::numeric_limits<real_t>::min()) {}
    PetscBCHandler(Array<int>& ess_tdof_list, Type type_ = ZERO);
 
    virtual ~PetscBCHandler() {}
@@ -611,7 +614,7 @@ public:
    /// Boundary conditions evaluation
    /** In the result vector, @a g, only values at the essential dofs need to be
        set. */
-   virtual void Eval(double t, Vector &g)
+   virtual void Eval(real_t t, Vector &g)
    { mfem_error("PetscBCHandler::Eval method not overloaded"); }
 
    /// Sets essential dofs (local, per-process numbering)
@@ -621,7 +624,7 @@ public:
    Array<int>& GetTDofs() { return ess_tdof_list; }
 
    /// Sets the current time
-   void SetTime(double t) { eval_t = t; }
+   void SetTime(real_t t) { eval_t = t; }
 
    /// SetUp the helper object, where @a n is the size of the solution vector
    void SetUp(PetscInt n);
@@ -645,8 +648,8 @@ private:
    enum Type bctype;
    bool setup;
 
-   double eval_t;
-   double eval_t_cached;
+   real_t eval_t;
+   real_t eval_t_cached;
    Vector eval_g;
 
    Array<int> ess_tdof_list;    //Essential true dofs
@@ -705,9 +708,9 @@ public:
        options.
        @note They will be overwritten by the options in the input PETSc file. */
    ///@{
-   void SetTol(double tol);
-   void SetRelTol(double tol);
-   void SetAbsTol(double tol);
+   void SetTol(real_t tol);
+   void SetRelTol(real_t tol);
+   void SetAbsTol(real_t tol);
    void SetMaxIter(int max_iter);
    void SetPrintLevel(int plev);
    ///@}
@@ -717,7 +720,7 @@ public:
    void Customize(bool customize = true) const;
    int GetConverged();
    int GetNumIterations();
-   double GetFinalNorm();
+   real_t GetFinalNorm();
 
    /// Sets user-defined monitoring routine.
    void SetMonitor(PetscSolverMonitor *ctx);
@@ -920,7 +923,7 @@ public:
    virtual void Mult(const Vector &b, Vector &x) const;
 
    /// Specification of an objective function to be used for line search.
-   void SetObjective(void (*obj)(Operator* op, const Vector &x, double *f));
+   void SetObjective(void (*obj)(Operator* op, const Vector &x, real_t *f));
 
    /// User-defined routine to be applied after a successful line search step.
    /// The user can change the current direction Y and/or the updated solution W
@@ -969,8 +972,8 @@ public:
    /// is not returned by the GetGradient methods
    void SetJacobianType(Operator::Type type);
 
-   virtual void Step(Vector &x, double &t, double &dt);
-   virtual void Run(Vector &x, double &t, double &dt, double t_final);
+   virtual void Step(Vector &x, real_t &t, real_t &dt);
+   virtual void Run(Vector &x, real_t &t, real_t &dt, real_t t_final);
 
    /// Conversion function to PETSc's TS type.
    operator petsc::TS() const { return (petsc::TS)obj; }

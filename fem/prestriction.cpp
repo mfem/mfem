@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,6 +18,7 @@
 #include "pgridfunc.hpp"
 #include "pfespace.hpp"
 #include "fespace.hpp"
+#include "fe/face_map_utils.hpp"
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -67,7 +68,7 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
    mfem::forall_2D(num_nc_faces, nface_dofs, 1, [=] MFEM_HOST_DEVICE (int nc_face)
    {
-      MFEM_SHARED double dof_values[max_nd];
+      MFEM_SHARED real_t dof_values[max_nd];
       const NCInterpConfig conf = interp_config_ptr[nc_face];
       if ( conf.is_non_conforming && conf.master_side == 0 )
       {
@@ -82,7 +83,7 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
             MFEM_SYNC_THREAD;
             MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
             {
-               double res = 0.0;
+               real_t res = 0.0;
                for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                {
                   res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
@@ -96,7 +97,7 @@ void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
 }
 
 void ParNCH1FaceRestriction::AddMultTranspose(const Vector &x, Vector &y,
-                                              const double a) const
+                                              const real_t a) const
 {
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
@@ -144,7 +145,7 @@ void ParNCH1FaceRestriction::NonconformingTransposeInterpolationInPlace(
       mfem::forall_2D(num_nc_faces, nface_dofs, 1,
                       [=] MFEM_HOST_DEVICE (int nc_face)
       {
-         MFEM_SHARED double dof_values[max_nd];
+         MFEM_SHARED real_t dof_values[max_nd];
          const NCInterpConfig conf = interp_config_ptr[nc_face];
          const int master_side = conf.master_side;
          if ( conf.is_non_conforming && master_side==0 )
@@ -161,7 +162,7 @@ void ParNCH1FaceRestriction::NonconformingTransposeInterpolationInPlace(
                MFEM_SYNC_THREAD;
                MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
                {
-                  double res = 0.0;
+                  real_t res = 0.0;
                   for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                   {
                      res += d_interp(dof_in, dof_out, interp_index)*dof_values[dof_in];
@@ -226,6 +227,7 @@ void ParNCH1FaceRestriction::ComputeScatterIndicesAndOffsets(
       }
       else if (face_type==FaceType::Boundary && face.IsBoundary())
       {
+         interpolations.RegisterFaceConformingInterpolation(face,f_ind);
          SetFaceDofsScatterIndices(face, f_ind, f_ordering);
          f_ind++;
       }
@@ -276,21 +278,22 @@ void ParNCH1FaceRestriction::ComputeGatherIndices(
    gather_offsets[0] = 0;
 }
 
-ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
+ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &pfes_,
                                            ElementDofOrdering f_ordering,
                                            FaceType type,
                                            L2FaceValues m,
                                            bool build)
-   : L2FaceRestriction(fes, f_ordering, type, m, false)
+   : L2FaceRestriction(pfes_, f_ordering, type, m, false),
+     pfes(pfes_)
 {
    if (!build) { return; }
    if (nf==0) { return; }
 
-   CheckFESpace(f_ordering);
+   CheckFESpace();
 
-   ComputeScatterIndicesAndOffsets(f_ordering, type);
+   ComputeScatterIndicesAndOffsets();
 
-   ComputeGatherIndices(f_ordering, type);
+   ComputeGatherIndices();
 }
 
 ParL2FaceRestriction::ParL2FaceRestriction(const ParFiniteElementSpace &fes,
@@ -306,14 +309,8 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    MFEM_ASSERT(
       m == L2FaceValues::DoubleValued,
       "This method should be called when m == L2FaceValues::DoubleValued.");
-   const ParFiniteElementSpace &pfes =
-      static_cast<const ParFiniteElementSpace&>(this->fes);
-   ParGridFunction x_gf;
-   x_gf.MakeRef(const_cast<ParFiniteElementSpace*>(&pfes),
-                const_cast<Vector&>(x), 0);
-   // Face-neighbor information is only needed for interior faces. For boundary
-   // faces, no communication is required.
-   if (type == FaceType::Interior) { x_gf.ExchangeFaceNbrData(); }
+
+   Vector face_nbr_data = GetLVectorFaceNbrData(fes, x, type);
 
    // Early return only after calling ParGridFunction::ExchangeFaceNbrData,
    // otherwise MPI communication can hang.
@@ -328,7 +325,7 @@ void ParL2FaceRestriction::DoubleValuedConformingMult(
    auto d_indices1 = scatter_indices1.Read();
    auto d_indices2 = scatter_indices2.Read();
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
-   auto d_x_shared = Reshape(x_gf.FaceNbrData().Read(),
+   auto d_x_shared = Reshape(face_nbr_data.Read(),
                              t?vd:nsdofs, t?nsdofs:vd);
    auto d_y = Reshape(y.Write(), nface_dofs, vd, 2, nf);
    mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
@@ -566,13 +563,9 @@ void ParL2FaceRestriction::FillJAndData(const Vector &ea_data,
    });
 }
 
-void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets()
 {
    Mesh &mesh = *fes.GetMesh();
-   const ParFiniteElementSpace &pfes =
-      static_cast<const ParFiniteElementSpace&>(this->fes);
 
    // Initialization of the offsets
    for (int i = 0; i <= ndofs; ++i)
@@ -621,9 +614,7 @@ void ParL2FaceRestriction::ComputeScatterIndicesAndOffsets(
 }
 
 
-void ParL2FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void ParL2FaceRestriction::ComputeGatherIndices()
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -665,11 +656,11 @@ ParNCL2FaceRestriction::ParNCL2FaceRestriction(const ParFiniteElementSpace &fes,
    if (nf==0) { return; }
    x_interp.UseDevice(true);
 
-   CheckFESpace(f_ordering);
+   CheckFESpace();
 
-   ComputeScatterIndicesAndOffsets(f_ordering, type);
+   ComputeScatterIndicesAndOffsets();
 
-   ComputeGatherIndices(f_ordering, type);
+   ComputeGatherIndices();
 }
 
 void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
@@ -695,7 +686,7 @@ void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
    MFEM_VERIFY(nface_dofs<=max_nd, "Too many degrees of freedom.");
    mfem::forall_2D(nf, nface_dofs, 1, [=] MFEM_HOST_DEVICE (int face)
    {
-      MFEM_SHARED double dof_values[max_nd];
+      MFEM_SHARED real_t dof_values[max_nd];
       const InterpConfig conf = interp_config_ptr[face];
       const int master_side = conf.master_side;
       const int interp_index = conf.index;
@@ -742,7 +733,7 @@ void ParNCL2FaceRestriction::SingleValuedNonconformingMult(
             MFEM_SYNC_THREAD;
             MFEM_FOREACH_THREAD(dof_out,x,nface_dofs)
             {
-               double res = 0.0;
+               real_t res = 0.0;
                for (int dof_in = 0; dof_in<nface_dofs; dof_in++)
                {
                   res += d_interp(dof_out, dof_in, interp_index)*dof_values[dof_in];
@@ -787,7 +778,7 @@ void ParNCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 }
 
 void ParNCL2FaceRestriction::AddMultTranspose(const Vector &x, Vector &y,
-                                              const double a) const
+                                              const real_t a) const
 {
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
@@ -849,7 +840,30 @@ void ParNCL2FaceRestriction::AddMultTransposeInPlace(Vector& x, Vector& y) const
 void ParNCL2FaceRestriction::FillI(SparseMatrix &mat,
                                    const bool keep_nbr_block) const
 {
-   MFEM_ABORT("Not yet implemented.");
+   if (keep_nbr_block)
+   {
+      return NCL2FaceRestriction::FillI(mat, keep_nbr_block);
+   }
+   const int nface_dofs = face_dofs;
+   const int Ndofs = ndofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto I = mat.ReadWriteI();
+   mfem::forall(nf*nface_dofs, [=] MFEM_HOST_DEVICE (int fdof)
+   {
+      const int f  = fdof/nface_dofs;
+      const int iF = fdof%nface_dofs;
+      const int iE1 = d_indices1[f*nface_dofs+iF];
+      if (iE1 < Ndofs)
+      {
+         AddNnz(iE1,I,nface_dofs);
+      }
+      const int iE2 = d_indices2[f*nface_dofs+iF];
+      if (iE2 < Ndofs)
+      {
+         AddNnz(iE2,I,nface_dofs);
+      }
+   });
 }
 
 void ParNCL2FaceRestriction::FillI(SparseMatrix &mat,
@@ -858,11 +872,94 @@ void ParNCL2FaceRestriction::FillI(SparseMatrix &mat,
    MFEM_ABORT("Not yet implemented.");
 }
 
-void ParNCL2FaceRestriction::FillJAndData(const Vector &ea_data,
+void ParNCL2FaceRestriction::FillJAndData(const Vector &fea_data,
                                           SparseMatrix &mat,
                                           const bool keep_nbr_block) const
 {
-   MFEM_ABORT("Not yet implemented.");
+   if (keep_nbr_block)
+   {
+      return NCL2FaceRestriction::FillJAndData(fea_data, mat, keep_nbr_block);
+   }
+   const int nface_dofs = face_dofs;
+   const int Ndofs = ndofs;
+   auto d_indices1 = scatter_indices1.Read();
+   auto d_indices2 = scatter_indices2.Read();
+   auto I = mat.ReadWriteI();
+   auto mat_fea = Reshape(fea_data.Read(), nface_dofs, nface_dofs, 2, nf);
+   auto J = mat.WriteJ();
+   auto Data = mat.WriteData();
+   auto interp_config_ptr = interpolations.GetFaceInterpConfig().Read();
+   auto interpolators = interpolations.GetInterpolators().Read();
+   const int nc_size = interpolations.GetNumInterpolators();
+   auto d_interp = Reshape(interpolators, nface_dofs, nface_dofs, nc_size);
+   mfem::forall(nf*nface_dofs, [=] MFEM_HOST_DEVICE (int fdof)
+   {
+      const int f  = fdof/nface_dofs;
+      const InterpConfig conf = interp_config_ptr[f];
+      const int master_side = conf.master_side;
+      const int interp_index = conf.index;
+      const int iF = fdof%nface_dofs;
+      const int iE1 = d_indices1[f*nface_dofs+iF];
+      if (iE1 < Ndofs)
+      {
+         const int offset1 = AddNnz(iE1,I,nface_dofs);
+         for (int jF = 0; jF < nface_dofs; jF++)
+         {
+            const int jE2 = d_indices2[f*nface_dofs+jF];
+            J[offset1+jF] = jE2;
+            real_t val2 = 0.0;
+            if ( conf.is_non_conforming && master_side==0 )
+            {
+               for (int kF = 0; kF < nface_dofs; kF++)
+               {
+                  val2 += d_interp(kF, iF, interp_index) * mat_fea(jF,kF,1,f);
+               }
+            }
+            else if ( conf.is_non_conforming && master_side==1 )
+            {
+               for (int kF = 0; kF < nface_dofs; kF++)
+               {
+                  val2 += mat_fea(kF,iF,1,f) * d_interp(kF, jF, interp_index);
+               }
+            }
+            else
+            {
+               val2 = mat_fea(jF,iF,1,f);
+            }
+            Data[offset1+jF] = val2;
+         }
+      }
+      const int iE2 = d_indices2[f*nface_dofs+iF];
+      if (iE2 < Ndofs)
+      {
+         const int offset2 = AddNnz(iE2,I,nface_dofs);
+         for (int jF = 0; jF < nface_dofs; jF++)
+         {
+            const int jE1 = d_indices1[f*nface_dofs+jF];
+            J[offset2+jF] = jE1;
+            real_t val1 = 0.0;
+            if ( conf.is_non_conforming && master_side==0 )
+            {
+               for (int kF = 0; kF < nface_dofs; kF++)
+               {
+                  val1 += mat_fea(kF,iF,0,f) * d_interp(kF, jF, interp_index);
+               }
+            }
+            else if ( conf.is_non_conforming && master_side==1 )
+            {
+               for (int kF = 0; kF < nface_dofs; kF++)
+               {
+                  val1 += d_interp(kF, iF, interp_index) * mat_fea(jF,kF,0,f);
+               }
+            }
+            else
+            {
+               val1 = mat_fea(jF,iF,0,f);
+            }
+            Data[offset2+jF] = val1;
+         }
+      }
+   });
 }
 
 void ParNCL2FaceRestriction::FillJAndData(const Vector &ea_data,
@@ -872,9 +969,7 @@ void ParNCL2FaceRestriction::FillJAndData(const Vector &ea_data,
    MFEM_ABORT("Not yet implemented.");
 }
 
-void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets()
 {
    Mesh &mesh = *fes.GetMesh();
 
@@ -933,6 +1028,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
       }
       else if (type==FaceType::Boundary && face.IsBoundary())
       {
+         interpolations.RegisterFaceConformingInterpolation(face,f_ind);
          SetFaceDofsScatterIndices1(face,f_ind);
          if ( m==L2FaceValues::DoubleValued )
          {
@@ -956,9 +1052,7 @@ void ParNCL2FaceRestriction::ComputeScatterIndicesAndOffsets(
    interpolations.InitializeNCInterpConfig();
 }
 
-void ParNCL2FaceRestriction::ComputeGatherIndices(
-   const ElementDofOrdering f_ordering,
-   const FaceType type)
+void ParNCL2FaceRestriction::ComputeGatherIndices()
 {
    Mesh &mesh = *fes.GetMesh();
 

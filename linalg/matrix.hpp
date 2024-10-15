@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,10 +39,10 @@ public:
    bool IsSquare() const { return (height == width); }
 
    /// Returns reference to a_{ij}.
-   virtual double &Elem(int i, int j) = 0;
+   virtual real_t &Elem(int i, int j) = 0;
 
    /// Returns constant reference to a_{ij}.
-   virtual const double &Elem(int i, int j) const = 0;
+   virtual const real_t &Elem(int i, int j) const = 0;
 
    /// Returns a pointer to (an approximation) of the matrix inverse.
    virtual MatrixInverse *Inverse() const = 0;
@@ -93,18 +93,18 @@ public:
 
        If entry (i,i) does not belong to the sparsity pattern of A, then an
        error will occur. */
-   virtual void EliminateZeroRows(const double threshold = 1e-12) = 0;
+   virtual void EliminateZeroRows(const real_t threshold = 1e-12) = 0;
 
    /// Matrix-Vector Multiplication y = A*x
    virtual void Mult(const Vector &x, Vector &y) const = 0;
    /// Matrix-Vector Multiplication y = y + val*A*x
    virtual void AddMult(const Vector &x, Vector &y,
-                        const double val = 1.) const = 0;
+                        const real_t val = 1.) const = 0;
    /// MatrixTranspose-Vector Multiplication y = A'*x
    virtual void MultTranspose(const Vector &x, Vector &y) const = 0;
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
    virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double val = 1.) const = 0;
+                                 const real_t val = 1.) const = 0;
 
    /// Destroys AbstractSparseMatrix.
    virtual ~AbstractSparseMatrix() { }
