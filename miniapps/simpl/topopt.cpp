@@ -282,16 +282,23 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
 
    return curr_vol;
 }
+real_t DesignDensity::ComputeVolume(GridFunction &x)
+{
+   MappedGFCoefficient density_cf=entropy->GetBackwardCoeff(x);
+   return zero->ComputeL1Error(density_cf);
+}
 
 DensityBasedTopOpt::DensityBasedTopOpt(
    DesignDensity &density, GridFunction &control_gf, GridFunction &grad_control,
    HelmholtzFilter &filter, GridFunction &filter_gf, GridFunction &grad_filter,
-   ElasticityProblem &elasticity, GridFunction &state_gf)
+   ElasticityProblem &elasticity, GridFunction &state_gf,
+   bool enforce_volume_constraint)
    :density(density), control_gf(control_gf), grad_control(grad_control),
     filter(filter), filter_gf(filter_gf), grad_filter(grad_filter),
     elasticity(elasticity), state_gf(state_gf),
     obj(elasticity.HasAdjoint() ? *elasticity.GetAdjLinearForm():
-        *elasticity.GetLinearForm())
+        *elasticity.GetLinearForm()),
+    enforce_volume_constraint(enforce_volume_constraint)
 {
    Array<int> empty(control_gf.FESpace()->GetMesh()->bdr_attributes.Max());
    empty = 0;
@@ -315,8 +322,15 @@ DensityBasedTopOpt::DensityBasedTopOpt(
 
 real_t DensityBasedTopOpt::Eval()
 {
-   current_volume = density.ApplyVolumeProjection(control_gf,
-                                                  density.hasEntropy());
+   if (enforce_volume_constraint)
+   {
+      current_volume = density.ApplyVolumeProjection(control_gf,
+                                                     density.hasEntropy());
+   }
+   else
+   {
+      current_volume = density.ComputeVolume(control_gf);
+   }
    filter.Solve(filter_gf);
    elasticity.Solve(state_gf);
    obj.Assemble();

@@ -157,6 +157,8 @@ public:
    real_t GetUpperBound() {return upper_bound;};
    real_t GetFiniteLowerBound() {return finite_lower_bound;};
    real_t GetFiniteUpperBound() {return finite_upper_bound;};
+   void SetFiniteLowerBound(real_t new_lower_bound) { finite_lower_bound = new_lower_bound; };
+   void SetFiniteUpperBound(real_t new_upper_bound) { finite_upper_bound = new_upper_bound;};
    MappedGFCoefficient GetForwardCoeff(GridFunction &x);
    MappedGFCoefficient GetBackwardCoeff(GridFunction &psi);
    MappedGFCoefficient GetEntropyCoeff(GridFunction &x);
