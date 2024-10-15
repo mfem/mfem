@@ -428,6 +428,10 @@ TEST_CASE("GSLIBCustomInterpolation",
    int npt = 101;
    Vector xyz(npt*dim);
    xyz.Randomize(myid + 1);
+   if (myid == 1) // zero out # of points on rank 1
+   {
+      xyz.SetSize(0);
+   }
 
    // Find points on the ParMesh
    Vector interp_vals(npt);
