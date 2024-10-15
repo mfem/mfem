@@ -65,6 +65,10 @@ public:
        order @a order and number of control points @a NCP. */
    KnotVector(int order, int NCP);
 
+   /** @brief Create a KnotVector by passing in a degree, a list of double interval
+       lengths of lenght n, and a list of continuity of length n + 1 */
+   KnotVector(int order, const Array<double> intervals, const Array<int> continuity );
+
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
 

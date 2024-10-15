@@ -13,6 +13,7 @@
 #include "../fem/fem.hpp"
 #include "../general/text.hpp"
 
+#include <stdexcept>
 #include <fstream>
 #include <algorithm>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
@@ -43,6 +44,36 @@ KnotVector::KnotVector(int order, int NCP)
    NumOfElements = 0;
 
    knot = -1.;
+}
+
+KnotVector::KnotVector(int order, const Array<double> intervals, const Array<int> continuity )
+{
+	Order = order;
+	NumOfElements = intervals.Size();
+	const int num_knots = Order * continuity.Size() - continuity.Sum();
+	NumOfControlPoints = num_knots - Order - 1;
+	knot.SetSize(num_knots);
+	double accum = 0;
+	int iknot = 0;
+	for (int i = 0; i < intervals.Size(); ++i) {
+		const int multiplicity = max(1, Order - continuity[i]);
+		for (int j = 0; j < multiplicity; ++j) {
+			knot[iknot] = accum;
+			++iknot;
+		}
+		accum += intervals[i];
+	}
+	if (intervals.Size() < continuity.Size()) {
+		const int multiplicity = max(1, Order - continuity[continuity.Size() - 1]);
+		for (int j = 0; j < multiplicity; ++j) {
+			knot[iknot] = accum;
+			++iknot;
+		}
+	} else {
+		/// The periodic case is not handled right now
+		throw std::runtime_error( "KnotVector::KnotVector the periodic case is not handled right now" );
+	}
+
 }
 
 KnotVector &KnotVector::operator=(const KnotVector &kv)
