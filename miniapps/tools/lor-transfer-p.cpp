@@ -357,7 +357,8 @@ int main(int argc, char *argv[])
 
    delete fec;
    delete fec_lor;
-
+   delete gt;
+   
    return 0;
 }
 
