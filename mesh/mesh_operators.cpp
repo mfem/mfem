@@ -113,7 +113,7 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    {
       if (local_err(el) > threshold)
       {
-         marked_elements.Append(Refinement(el, {}));
+         marked_elements.Append(Refinement(el));
       }
    }
 

@@ -43,14 +43,16 @@ struct Refinement
    /** Type is used only for input. The struct stores the refinement type in the
        triple @a scale, which specifies the refinement scale in each dimension,
        with 0 representing no refinement in that dimension. */
-   enum Type : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
-   using ScaledType = std::pair<Type, real_t>;
+   enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
+   using ScaledType = std::pair<char, real_t>;
    real_t s[3];  /// Refinement scale in each dimension
    Refinement() = default;
+   /// Refinement type XYZ, with scale 0.5.
+   Refinement(int index);
    /// Default case of empty list @a refs is XYZ with scale 0.5.
    Refinement(int index, const std::initializer_list<ScaledType> &refs);
    /// Refine element with a single type and scale in all dimensions.
-   Refinement(int index, Type type, real_t scale = 0.5);
+   Refinement(int index, char type, real_t scale = 0.5);
    Refinement(int index, int type, real_t scale = 0.5);
    /// Return the type as an integer.
    int GetType() const;

@@ -493,28 +493,28 @@ void Refinement::SetScale(const ScaledType &r)
 {
    switch (r.first)
    {
-      case Type::X :
+      case X:
          s[0] = r.second;
          break;
-      case Type::Y :
+      case Y:
          s[1] = r.second;
          break;
-      case Type::Z :
+      case Z:
          s[2] = r.second;
          break;
-      case Type::XY :
+      case XY:
          s[0] = r.second;
          s[1] = r.second;
          break;
-      case Type::YZ :
+      case YZ:
          s[1] = r.second;
          s[2] = r.second;
          break;
-      case Type::XZ :
+      case XZ:
          s[0] = r.second;
          s[2] = r.second;
          break;
-      case Type::XYZ :
+      case XYZ:
          s[0] = r.second;
          s[1] = r.second;
          s[2] = r.second;
@@ -522,6 +522,14 @@ void Refinement::SetScale(const ScaledType &r)
       default:
          MFEM_ABORT("Unsupported refinement type.");
    }
+}
+
+Refinement::Refinement(int index)
+   : index(index)
+{
+   for (int i=0; i<3; ++i) { s[i] = 0.0; }
+   // Default case is XYZ type with scale 0.5.
+   SetScale(ScaledType(XYZ, 0.5));
 }
 
 Refinement::Refinement(int index, const std::initializer_list<ScaledType> &refs)
@@ -542,7 +550,7 @@ Refinement::Refinement(int index, const std::initializer_list<ScaledType> &refs)
    }
 }
 
-Refinement::Refinement(int index, Type type, real_t scale)
+Refinement::Refinement(int index, char type, real_t scale)
    : index(index)
 {
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
@@ -553,7 +561,7 @@ Refinement::Refinement(int index, int type, real_t scale)
    : index(index)
 {
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
-   SetScale(ScaledType((Type) type, scale));
+   SetScale(ScaledType((char) type, scale));
 }
 
 int Refinement::GetType() const
@@ -577,13 +585,13 @@ void Refinement::Set(int element, int type, real_t scale)
 {
    index = element;
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
-   SetScale(ScaledType((Type) type, scale));
+   SetScale(ScaledType((char) type, scale));
 }
 
 void Refinement::SetType(int type, real_t scale)
 {
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
-   SetScale(ScaledType((Type) type, scale));
+   SetScale(ScaledType((char) type, scale));
 }
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
