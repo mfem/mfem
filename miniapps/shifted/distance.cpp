@@ -381,8 +381,8 @@ void RefineUsingDistance(const ParGridFunction & dist_s,
                const real_t sx = ix == 0 ? a : 1.0 - a;
                const real_t sy = iy == 0 ? a : 1.0 - a;
 
-               refs.Append(Refinement(el, {{Refinement::Type::X, sx},
-                  {Refinement::Type::Y, sy}
+               refs.Append(Refinement(el, {{Refinement::X, sx},
+                  {Refinement::Y, sy}
                }));
                refDist.Append(elAvgDist);
             }
