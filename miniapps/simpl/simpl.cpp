@@ -20,6 +20,7 @@ int main(int argc, char *argv[])
    bool use_glvis = true;
    int vis_steps = 10;
    bool use_paraview = true;
+   bool overwrite_paraview = false;
    real_t step_size = -1.0;
 
    real_t exponent = 3.0;
@@ -117,6 +118,9 @@ int main(int argc, char *argv[])
    args.AddOption(&use_paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
                   "Enable or disable paraview export.");
+   args.AddOption(&overwrite_paraview, "-po", "--paraview-overwrite", "-pn",
+                  "--paraview-newiteration",
+                  "Overwrites paraview file");
    args.Parse();
    if (!args.Good())
    {
@@ -304,8 +308,8 @@ int main(int argc, char *argv[])
          paraview_dc->SetLevelsOfDetail(order_state);
          paraview_dc->SetDataFormat(VTKFormat::BINARY);
          paraview_dc->SetHighOrderOutput(true);
-         paraview_dc->RegisterField("displacement", &state_gf);
-         paraview_dc->RegisterField("density", &density_gf);
+         // paraview_dc->RegisterField("displacement", &state_gf);
+         // paraview_dc->RegisterField("density", &density_gf);
          paraview_dc->RegisterField("filtered_density", &filter_gf);
       }
    }
@@ -388,8 +392,11 @@ int main(int argc, char *argv[])
          if (use_glvis) { glvis->Update(); }
          if (use_paraview && !(paraview_dc->Error()))
          {
-            paraview_dc->SetCycle(it_md);
-            paraview_dc->SetTime(it_md);
+            if (!overwrite_paraview)
+            {
+               paraview_dc->SetCycle(it_md);
+               paraview_dc->SetTime(it_md);
+            }
             paraview_dc->Save();
          }
          else {use_paraview = false;}
@@ -433,8 +440,11 @@ int main(int argc, char *argv[])
    }
    if (use_paraview && !paraview_dc->Error())
    {
-      paraview_dc->SetCycle(it_md);
-      paraview_dc->SetTime(it_md);
+      if (!overwrite_paraview)
+      {
+         paraview_dc->SetCycle(it_md);
+         paraview_dc->SetTime(it_md);
+      }
       paraview_dc->Save();
    }
    logger.CloseFile();
