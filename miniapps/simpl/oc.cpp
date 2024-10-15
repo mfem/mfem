@@ -18,8 +18,9 @@ int main(int argc, char *argv[])
    int order_filter = 1;
    int order_state = 1;
    bool use_glvis = true;
+   int vis_steps = 10;
    bool use_paraview = true;
-   real_t step_size = 1.0;
+   real_t step_size = -1.0;
 
    real_t exponent = 3.0;
    real_t rho0 = 1e-06;
@@ -28,8 +29,8 @@ int main(int argc, char *argv[])
    real_t E = -1.0;
    real_t nu = -1.0;
    real_t r_min = -1.0;
-   real_t max_vol = 1.5;
-   real_t min_vol = 1.5;
+   real_t max_vol = -1.0;
+   real_t min_vol = -1.0;
 
    // Solid / Void material element attributes
    int solid_attr = 0;
@@ -37,14 +38,15 @@ int main(int argc, char *argv[])
 
    // Stopping-criteria related
    int max_it = 300;
+   int min_it = 10;
    real_t tol_stationary_rel = 1e-04;
    real_t tol_stationary_abs = 1e-04;
    real_t eps_stationarity = 1e-04;
    bool use_bregman_stationary = true;
-   real_t tol_obj_diff_rel = 1e-06;
-   real_t tol_obj_diff_abs = 1e-06;
+   real_t tol_obj_diff_rel = 5e-05;
+   real_t tol_obj_diff_abs = 5e-05;
    // backtracking related
-   int max_it_backtrack = 300;
+   int max_it_backtrack = 20;
    bool use_bregman_backtrack = true;
    real_t c1 = 1e-04;
 
@@ -81,6 +83,8 @@ int main(int argc, char *argv[])
 
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of iteration for Mirror Descent Step");
+   args.AddOption(&min_it, "-mini", "--min-it",
+                  "Minimum number of iteration for Mirror Descent Step");
    args.AddOption(&max_it_backtrack, "-mi-back", "--max-it-backtrack",
                   "Maximum number of iteration for backtracking");
    args.AddOption(&tol_stationary_rel, "-rtol", "--rel-tol",
@@ -104,6 +108,8 @@ int main(int argc, char *argv[])
    args.AddOption(&use_glvis, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+                  "Visualize every n-th timestep.");
    args.AddOption(&use_paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
                   "Enable or disable paraview export.");
@@ -117,7 +123,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    std::stringstream filename;
-   filename << "OC-" << (use_bregman_backtrack?"B-":"A-");
+   filename << "OC-";
 
    Array2D<int> ess_bdr_state;
    Array<int> ess_bdr_filter;
@@ -128,6 +134,8 @@ int main(int argc, char *argv[])
                                     E, nu, ess_bdr_state, ess_bdr_filter,
                                     solid_attr, void_attr,
                                     ser_ref_levels, par_ref_levels));
+   if (min_vol) {max_vol = min_vol;}
+   else {min_vol = max_vol;}
    filename << "-" << ser_ref_levels + par_ref_levels;
    const real_t lambda = E*nu/((1+nu)*(1-2*nu));
    const real_t mu = E/(2*(1+nu));
@@ -202,11 +210,11 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { out << "Creating problems ... " << std::flush; }
    // Density
    ShannonEntropy entropy;
+   control_gf = entropy.forward((min_vol ? min_vol : max_vol)/tot_vol);
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
    density.SetVoidAttr(void_attr);
    density.SetSolidAttr(solid_attr);
-   if (prob == mfem::ForceInverter2) { ForceInverterInitialDesign(control_gf, &entropy); }
    // Filter
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);
    filter.GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(density_cf));
@@ -215,6 +223,12 @@ int main(int argc, char *argv[])
                                          nullptr);
    filter.GetAdjLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(energy));
    filter.SetAdjBStationary(false);
+   if (prob == mfem::ForceInverter2)
+   {
+      ForceInverterInitialDesign(control_gf, &entropy);
+   }
+   density.ApplyVolumeProjection(control_gf, true);
+   filter.Solve(filter_gf);
 
    // elasticity
    ElasticityProblem elasticity(fes_state, ess_bdr_state, lambda_simp_cf,
@@ -233,9 +247,9 @@ int main(int argc, char *argv[])
    MappedPairedGFCoefficient bregman_diff_eps
       = entropy.GetBregman_dual(control_eps_gf, control_gf);
    MappedPairedGFCoefficient diff_density_cf(
-      control_gf, control_old_gf, [&entropy](const real_t x, const real_t y)
+      control_gf, control_old_gf, [](const real_t x, const real_t y)
    {
-      return entropy.backward(x)-entropy.backward(y);
+      return std::exp(x)-std::exp(y);
    });
    MappedGFCoefficient density_eps_dual_cf = entropy.GetBackwardCoeff(
                                                 control_eps_gf);
@@ -246,13 +260,18 @@ int main(int argc, char *argv[])
    ParLinearForm diff_density_form(&fes_control);
    diff_density_form.AddDomainIntegrator(new DomainLFIntegrator(diff_density_cf));
 
-   GLVis glvis("localhost", 19916, true);
-   const char keys[] = "Rjmml****************";
-   glvis.Append(control_gf, "control variable", keys);
-   glvis.Append(density_gf, "design density", keys);
-   glvis.Append(filter_gf, "filtered density", keys);
-   glvis.Append(state_gf, "displacement magnitude", keys);
-   if (elasticity.HasAdjoint()) {glvis.Append(optproblem.GetAdjState(), "adjoint displacement", keys);}
+   std::unique_ptr<GLVis> glvis;
+   if (use_glvis)
+   {
+      glvis.reset(new GLVis ("localhost", 19916, true));
+      const char keys[] = "Rjmml****************";
+      glvis->Append(control_gf, "control variable", keys);
+      density_gf.ProjectCoefficient(density_cf);
+      glvis->Append(density_gf, "design density", keys);
+      glvis->Append(filter_gf, "filtered density", keys);
+      glvis->Append(state_gf, "displacement magnitude", keys);
+      if (elasticity.HasAdjoint()) {glvis->Append(optproblem.GetAdjState(), "adjoint displacement", keys);}
+   }
 
    real_t stationarity0, obj0,
           stationarity_error_L2, stationarity_error_bregman, stationarity_error,
@@ -270,109 +289,57 @@ int main(int argc, char *argv[])
    logger.Append("stnrty-L2", stationarity_error_L2);
    logger.Append("stnrty-B", stationarity_error_bregman);
    logger.SaveWhenPrint(filename.str());
-   mfem::ParaViewDataCollection paraview_dc(filename.str(), mesh.get());
+   std::unique_ptr<ParaViewDataCollection> paraview_dc;
    if (use_paraview)
    {
-      if (paraview_dc.Error())
+      paraview_dc.reset(new mfem::ParaViewDataCollection(filename.str(), mesh.get()));
+      if (paraview_dc->Error()) { use_paraview=false; }
+      else
       {
-         use_paraview=false;
+         paraview_dc->SetPrefixPath("ParaView");
+         paraview_dc->SetLevelsOfDetail(order_state);
+         paraview_dc->SetDataFormat(VTKFormat::BINARY);
+         paraview_dc->SetHighOrderOutput(true);
+         paraview_dc->RegisterField("displacement", &state_gf);
+         paraview_dc->RegisterField("density", &density_gf);
+         paraview_dc->RegisterField("filtered_density", &filter_gf);
       }
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order_state);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.RegisterField("displacement", &state_gf);
-      paraview_dc.RegisterField("density", &density_gf);
-      paraview_dc.RegisterField("filtered_density", &filter_gf);
    }
-
    grad_gf = 0.0;
-   ParGridFunction log_grad_gf(&fes_control); log_grad_gf = 0.0;
+   ParGridFunction log_grad_gf(&fes_control);
+   log_grad_gf = 0.0;
    for (it_md = 0; it_md<max_it; it_md++)
    {
       if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
-      if (it_md > 1)
-      {
-         diff_density_form.Assemble();
-         grad_old_gf -= grad_gf;
-         real_t grad_diffrho = -InnerProduct(MPI_COMM_WORLD,
-                                             diff_density_form, grad_old_gf);
-         control_old_gf -= control_gf;
-         real_t psi_diffrho = -InnerProduct(MPI_COMM_WORLD,
-                                            diff_density_form, control_old_gf);
-         step_size = std::fabs(psi_diffrho / grad_diffrho);
-         if (Mpi::Root())
-         {
-            out << "   Step size = " << step_size
-                << " = | " << psi_diffrho << " / " << grad_diffrho << " |" << std::endl;
-         }
-      }
+
 
       control_old_gf = control_gf;
       old_objval = objval;
+
       step_size = 0.5;
-      for (num_reeval=0; num_reeval < 1; num_reeval++)
-      {
-         add(control_old_gf, -step_size, log_grad_gf, control_gf);
-         objval = optproblem.Eval();
-         diff_density_form.Assemble();
-         real_t grad_diffrho = InnerProduct(MPI_COMM_WORLD,
-                                            diff_density_form, grad_gf);
-         real_t bregman_diff = zero_gf.ComputeL1Error(bregman_diff_old);
-         real_t target_objval = use_bregman_backtrack
-                                ? old_objval + grad_diffrho + bregman_diff / step_size
-                                : old_objval + c1*grad_diffrho;
-         if (Mpi::Root())
-         {
-            out << "      New    Objective  : " << objval << std::endl;
-            out << "      Target Objective  : " << target_objval;
-            if (use_bregman_backtrack)
-            {
-               out << " ( " << old_objval << " + " << grad_diffrho
-                   << " + " << bregman_diff << " / " << step_size << " )" << std::endl;
-            }
-            else
-            {
-               out << " ( " << old_objval << " + " << c1 << " * " << grad_diffrho << " )" <<
-                   std::endl;
-            }
-         }
-         if (objval < target_objval)
-         {
-            if (Mpi::Root())
-            {
-               out << "   Backtracking terminated after "
-                   << num_reeval << " re-eval" << std::endl;
-            }
-            tot_reeval += num_reeval;
-            break;
-         }
-         if (Mpi::Root())
-         {
-            out << "   --Attempt failed" << std::endl;
-         }
-         step_size *= 0.5;
-      }
+      add(control_old_gf, -step_size, log_grad_gf, control_gf);
+      objval = optproblem.Eval();
       succ_obj_diff = old_objval - objval;
       grad_old_gf = grad_gf;
       curr_vol = optproblem.GetCurrentVolume();
 
       density_gf.ProjectCoefficient(density_cf);
-      if (use_glvis) { glvis.Update(); }
-      if (use_paraview && (it_md % 10 == 0))
+      if (it_md % vis_steps == 0)
       {
-         if (!paraview_dc.Error())
+         if (use_glvis) { glvis->Update(); }
+         if (use_paraview && !(paraview_dc->Error()))
          {
-            paraview_dc.SetCycle(it_md);
-            paraview_dc.SetTime(it_md);
-            paraview_dc.Save();
+            paraview_dc->SetCycle(it_md);
+            paraview_dc->SetTime(it_md);
+            paraview_dc->Save();
          }
          else {use_paraview = false;}
       }
 
       optproblem.UpdateGradient();
       log_grad_gf = grad_gf;
-      for (int i=0; i<log_grad_gf.Size(); i++){ log_grad_gf[i] = -safe_log(-log_grad_gf[i]); }
+      for (auto &v : log_grad_gf) {v = - safe_log(-v);}
+
       add(control_gf, -eps_stationarity, grad_gf, control_eps_gf);
       density.ApplyVolumeProjection(control_eps_gf, true);
       stationarity_error_bregman = std::sqrt(zero_gf.ComputeL1Error(
@@ -393,14 +360,13 @@ int main(int argc, char *argv[])
       if (it_md == 0)
       {
          stationarity0 = stationarity_error;
-         obj0 = objval;
       }
       if ((stationarity_error < tol_stationary_abs ||
            stationarity_error < tol_stationary_rel*stationarity0)
           && (std::abs(objval - old_objval) < tol_obj_diff_abs ||
-              std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(obj0)))
+              std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(objval)))
       {
-         break;
+         if (it_md > min_it) { break; }
       }
    }
    if (Mpi::Root())
@@ -408,15 +374,11 @@ int main(int argc, char *argv[])
       out << filename.str() << " terminated after " << it_md
           << " with " << tot_reeval << " re-eval" << std::endl;
    }
-   if (use_paraview)
+   if (use_paraview && !paraview_dc->Error())
    {
-      if (!paraview_dc.Error())
-      {
-         paraview_dc.SetCycle(it_md);
-         paraview_dc.SetTime(it_md);
-         paraview_dc.Save();
-      }
-      else {use_paraview = false;}
+      paraview_dc->SetCycle(it_md);
+      paraview_dc->SetTime(it_md);
+      paraview_dc->Save();
    }
    logger.CloseFile();
    return 0;
