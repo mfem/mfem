@@ -78,7 +78,8 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
 
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
    {
-      tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
+      Vector tmp(row_offsets[iRow+1] - row_offsets[iRow],
+                 Device::GetDeviceTemporaryMemoryType());
       for (int jCol=0; jCol < nColBlocks; ++jCol)
       {
          if (op(iRow,jCol) && coef(iRow,jCol) != 0.)
@@ -109,7 +110,8 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
-      tmp.SetSize(col_offsets[iRow+1] - col_offsets[iRow]);
+      Vector tmp(col_offsets[iRow+1] - col_offsets[iRow],
+                 Device::GetDeviceTemporaryMemoryType());
       for (int jCol=0; jCol < nRowBlocks; ++jCol)
       {
          if (op(jCol,iRow) && coef(jCol,iRow) != 0.)
@@ -284,8 +286,10 @@ void BlockLowerTriangularPreconditioner::Mult (const Vector & x,
    y = 0.0;
    for (int iRow=0; iRow < nBlocks; ++iRow)
    {
-      tmp.SetSize(offsets[iRow+1] - offsets[iRow]);
-      tmp2.SetSize(offsets[iRow+1] - offsets[iRow]);
+      Vector tmp(offsets[iRow+1] - offsets[iRow],
+                 Device::GetDeviceTemporaryMemoryType());
+      Vector tmp2(offsets[iRow+1] - offsets[iRow],
+                  Device::GetDeviceTemporaryMemoryType());
       tmp2 = 0.0;
       tmp2 += xblock.GetBlock(iRow);
       for (int jCol=0; jCol < iRow; ++jCol)
@@ -320,8 +324,10 @@ void BlockLowerTriangularPreconditioner::MultTranspose (const Vector & x,
    y = 0.0;
    for (int iRow=nBlocks-1; iRow >=0; --iRow)
    {
-      tmp.SetSize(offsets[iRow+1] - offsets[iRow]);
-      tmp2.SetSize(offsets[iRow+1] - offsets[iRow]);
+      Vector tmp(offsets[iRow+1] - offsets[iRow],
+                 Device::GetDeviceTemporaryMemoryType());
+      Vector tmp2(offsets[iRow+1] - offsets[iRow],
+                  Device::GetDeviceTemporaryMemoryType());
       tmp2 = 0.0;
       tmp2 += xblock.GetBlock(iRow);
       for (int jCol=iRow+1; jCol < nBlocks; ++jCol)
