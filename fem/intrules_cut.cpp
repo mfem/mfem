@@ -201,7 +201,7 @@ double bisect(ElementTransformation &Tr, Coefficient *LvlSet)
    ip2.x = .5;
 
    while (LvlSet->Eval(Tr, ip2) > 1e-12
-    || LvlSet->Eval(Tr, ip2) < -1e-12)
+          || LvlSet->Eval(Tr, ip2) < -1e-12)
    {
       if (LvlSet->Eval(Tr, ip0) * LvlSet->Eval(Tr, ip2) < 0.)
       {
