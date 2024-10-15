@@ -242,6 +242,9 @@ public:
    using GridFunction::ProjectCoefficient;
    void ProjectCoefficient(Coefficient &coeff) override;
 
+   void ProjectCoefficient(VectorCoefficient &vcoeff) override;
+
+
    using GridFunction::ProjectDiscCoefficient;
    /** @brief Project a discontinuous vector coefficient as a grid function on
        a continuous finite element space. The values in shared dofs are
@@ -264,6 +267,14 @@ public:
 
    void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                      const Array<int> &bdr_attr) override;
+
+   void ProjectCoefficientGlobalL2(Coefficient &coeff,
+                                   real_t rtol = 1e-12,
+                                   int iter = 1000) override;
+
+   void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                   real_t rtol = 1e-12,
+                                   int iter = 1000) override;
 
    real_t ComputeL1Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL) const override
