@@ -43,12 +43,13 @@ static void Derivatives1D(const int NE,
                           const int q1d)
 {
    MFEM_CONTRACT_VAR(b_);
+   const int SDIM = GRAD_PHYS ? sdim : 1;
    const auto g = Reshape(g_, q1d, d1d);
-   const auto j = Reshape(j_, q1d, sdim, NE);
+   const auto j = Reshape(j_, q1d, SDIM, NE);
    const auto x = Reshape(x_, d1d, vdim, NE);
    auto y = Q_LAYOUT == QVectorLayout::byNODES ?
-            Reshape(y_, q1d, vdim, sdim, NE):
-            Reshape(y_, vdim, sdim, q1d, NE);
+            Reshape(y_, q1d, vdim, SDIM, NE):
+            Reshape(y_, vdim, SDIM, q1d, NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -63,8 +64,8 @@ static void Derivatives1D(const int NE,
             }
             if (GRAD_PHYS)
             {
-               if (sdim == 1) { du[0] /= j(q, 0, e); }
-               else if (sdim == 2)
+               if (SDIM == 1) { du[0] /= j(q, 0, e); }
+               else if (SDIM == 2)
                {
                   const real_t Jloc[2] = {j(q,0,e), j(q,1,e)};
                   real_t Jinv[3];
@@ -74,7 +75,7 @@ static void Derivatives1D(const int NE,
                   du[0] = U;
                   du[1] = V;
                }
-               else // sdim == 3
+               else // SDIM == 3
                {
                   const real_t Jloc[3] = {j(q,0,e), j(q,1,e), j(q,2,e)};
                   real_t Jinv[3];
@@ -87,7 +88,7 @@ static void Derivatives1D(const int NE,
                   du[2] = W;
                }
             }
-            for (int d = 0; d < sdim; ++d)
+            for (int d = 0; d < SDIM; ++d)
             {
                if (Q_LAYOUT == QVectorLayout::byVDIM)  { y(c, d, q, e) = du[d]; }
                if (Q_LAYOUT == QVectorLayout::byNODES) { y(q, c, d, e) = du[d]; }
@@ -372,20 +373,239 @@ static void Derivatives3D(const int NE,
    });
 }
 
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+static void CollocatedDerivatives1D(const int NE,
+                                    const real_t *g_,
+                                    const real_t *j_,
+                                    const real_t *x_,
+                                    real_t *y_,
+                                    const int sdim,
+                                    const int vdim,
+                                    const int d1d)
+{
+   Derivatives1D<Q_LAYOUT, GRAD_PHYS>(
+      NE, nullptr, g_, j_, x_, y_, sdim, vdim, d1d, d1d);
+}
+
+// Template compute kernel for derivatives in 2D: tensor product version.
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
+         int T_VDIM = 0, int T_D1D = 0,
+         int T_NBZ = 1>
+static void CollocatedDerivatives2D(const int NE,
+                                    const real_t *g_,
+                                    const real_t *j_,
+                                    const real_t *x_,
+                                    real_t *y_,
+                                    const int sdim = 2,
+                                    const int vdim = 0,
+                                    const int d1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+   const int SDIM = GRAD_PHYS ? sdim : 2;
+   static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+
+   const auto g = Reshape(g_, D1D, D1D);
+   const auto j = Reshape(j_, D1D, D1D, SDIM, 2, NE);
+   const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
+   auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
+            Reshape(y_, D1D, D1D, VDIM, SDIM, NE):
+            Reshape(y_, VDIM, SDIM, D1D, D1D, NE);
+
+   mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+
+      const int tidz = MFEM_THREAD_ID(z);
+
+      MFEM_SHARED real_t XY[NBZ][MD1*MD1];
+      DeviceTensor<2> X((real_t*)(XY+tidz), D1D, D1D);
+
+      for (int c = 0; c < VDIM; ++c)
+      {
+         kernels::internal::LoadX<MD1,NBZ>(e,D1D,c,x,XY);
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               real_t u = 0.0;
+               real_t v = 0.0;
+               real_t w = 0.0;
+               for (int dxy = 0; dxy < D1D; ++dxy)
+               {
+                  u += X(dxy, dy) * g(dx,dxy);
+                  v += X(dx, dxy) * g(dy,dxy);
+               }
+
+               if (GRAD_PHYS)
+               {
+                  if (SDIM == 2)
+                  {
+                     real_t Jloc[4], Jinv[4];
+                     Jloc[0] = j(dx,dy,0,0,e);
+                     Jloc[1] = j(dx,dy,1,0,e);
+                     Jloc[2] = j(dx,dy,0,1,e);
+                     Jloc[3] = j(dx,dy,1,1,e);
+                     kernels::CalcInverse<2>(Jloc, Jinv);
+                     const real_t U = Jinv[0]*u + Jinv[1]*v;
+                     const real_t V = Jinv[2]*u + Jinv[3]*v;
+                     u = U;
+                     v = V;
+                  }
+                  else
+                  {
+                     real_t Jloc[6], Jinv[6];
+                     Jloc[0] = j(dx,dy,0,0,e);
+                     Jloc[1] = j(dx,dy,1,0,e);
+                     Jloc[2] = j(dx,dy,2,0,e);
+                     Jloc[3] = j(dx,dy,0,1,e);
+                     Jloc[4] = j(dx,dy,1,1,e);
+                     Jloc[5] = j(dx,dy,2,1,e);
+                     kernels::CalcLeftInverse<3,2>(Jloc, Jinv);
+                     const real_t U = Jinv[0]*u + Jinv[1]*v;
+                     const real_t V = Jinv[2]*u + Jinv[3]*v;
+                     const real_t W = Jinv[4]*u + Jinv[5]*v;
+                     u = U;
+                     v = V;
+                     w = W;
+                  }
+               }
+
+               if (Q_LAYOUT == QVectorLayout::byVDIM)
+               {
+                  y(c,0,dx,dy,e) = u;
+                  y(c,1,dx,dy,e) = v;
+                  if (SDIM == 3) { y(c,2,dx,dy,e) = w; }
+               }
+               if (Q_LAYOUT == QVectorLayout::byNODES)
+               {
+                  y(dx,dy,c,0,e) = u;
+                  y(dx,dy,c,1,e) = v;
+                  if (SDIM == 3) { y(dx,dy,c,2,e) = w; }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
+// Template compute kernel for derivatives in 3D: tensor product version.
+template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
+         int T_VDIM = 0, int T_D1D = 0>
+static void CollocatedDerivatives3D(const int NE,
+                                    const real_t *g_,
+                                    const real_t *j_,
+                                    const real_t *x_,
+                                    real_t *y_,
+                                    const int sdim = 3,
+                                    const int vdim = 0,
+                                    const int d1d = 0)
+{
+   MFEM_VERIFY(sdim == 3, "");
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int VDIM = T_VDIM ? T_VDIM : vdim;
+
+   const auto g = Reshape(g_, D1D, D1D);
+   const auto j = Reshape(j_, D1D, D1D, D1D, 3, 3, NE);
+   const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
+   auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
+            Reshape(y_, D1D, D1D, D1D, VDIM, 3, NE):
+            Reshape(y_, VDIM, 3, D1D, D1D, D1D, NE);
+
+   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int VDIM = T_VDIM ? T_VDIM : vdim;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_INTERP_1D;
+
+      MFEM_SHARED real_t uvw[MD1*MD1*MD1];
+      DeviceTensor<3> X(uvw, D1D, D1D, D1D);
+
+      for (int c = 0; c < VDIM; ++c)
+      {
+         kernels::internal::LoadX(e,D1D,c,x,X);
+         MFEM_FOREACH_THREAD(dz,z,D1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1D)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1D)
+               {
+                  real_t u = 0.0;
+                  real_t v = 0.0;
+                  real_t w = 0.0;
+                  for (int dxyz = 0; dxyz < D1D; ++dxyz)
+                  {
+                     u += X(dxyz, dy, dz) * g(dx,dxyz);
+                     v += X(dx, dxyz, dz) * g(dy,dxyz);
+                     w += X(dx, dy, dxyz) * g(dz,dxyz);
+                  }
+
+                  if (GRAD_PHYS)
+                  {
+                     real_t Jloc[9], Jinv[9];
+                     for (int col = 0; col < 3; col++)
+                     {
+                        for (int row = 0; row < 3; row++)
+                        {
+                           Jloc[row+3*col] = j(dx,dy,dz,row,col,e);
+                        }
+                     }
+                     kernels::CalcInverse<3>(Jloc, Jinv);
+                     const real_t U = Jinv[0]*u + Jinv[1]*v + Jinv[2]*w;
+                     const real_t V = Jinv[3]*u + Jinv[4]*v + Jinv[5]*w;
+                     const real_t W = Jinv[6]*u + Jinv[7]*v + Jinv[8]*w;
+                     u = U; v = V; w = W;
+                  }
+                  if (Q_LAYOUT == QVectorLayout::byVDIM)
+                  {
+                     y(c,0,dx,dy,dz,e) = u;
+                     y(c,1,dx,dy,dz,e) = v;
+                     y(c,2,dx,dy,dz,e) = w;
+                  }
+                  if (Q_LAYOUT == QVectorLayout::byNODES)
+                  {
+                     y(dx,dy,dz,c,0,e) = u;
+                     y(dx,dy,dz,c,1,e) = v;
+                     y(dx,dy,dz,c,2,e) = w;
+                  }
+
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
 } // namespace quadrature_interpolator
 
 } // namespace internal
 
 /// @cond Suppress_Doxygen_warnings
 
-template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
-         int VDIM, int D1D, int Q1D, int NBZ>
+template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
+         int Q1D, int NBZ>
 QuadratureInterpolator::GradKernelType
 QuadratureInterpolator::GradKernels::Kernel()
 {
    if (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
    else if (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D, NBZ>; }
    else if (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
+         int NBZ>
+QuadratureInterpolator::CollocatedGradKernelType
+QuadratureInterpolator::CollocatedGradKernels::Kernel()
+{
+   if (DIM == 1) { return internal::quadrature_interpolator::CollocatedDerivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 2) { return internal::quadrature_interpolator::CollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, NBZ>; }
+   else if (DIM == 3) { return internal::quadrature_interpolator::CollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D>; }
    else { MFEM_ABORT(""); }
 }
 
