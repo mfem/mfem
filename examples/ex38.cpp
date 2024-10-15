@@ -71,7 +71,7 @@ real_t integrand(const Vector& X)
    switch (itype)
    {
       case IntegrationType::Volumetric1D:
-         return 1.;
+         return pow(X(0), 2.);
       case IntegrationType::Surface2D:
          return 3. * pow(X(0), 2.) - pow(X(1), 2.);
       case IntegrationType::Volumetric2D:
@@ -91,7 +91,7 @@ real_t Surface()
    switch (itype)
    {
       case IntegrationType::Volumetric1D:
-         return 1.;
+         return .3025;
       case IntegrationType::Surface2D:
          return 2. * M_PI;
       case IntegrationType::Volumetric2D:
@@ -111,7 +111,7 @@ real_t Volume()
    switch (itype)
    {
       case IntegrationType::Volumetric1D:
-         return .55;
+         return pow(.55, 3.) / 3.;
       case IntegrationType::Surface2D:
          return NAN;
       case IntegrationType::Volumetric2D:
@@ -228,7 +228,6 @@ public:
          IntegrationPoint &intp = IntPoint(0);
          intp.x = Weights(0, Element);
          intp.weight = Weights(1, Element);
-         cout << intp.x << " " << Element << endl;
       }
       else
          for (int ip = 0; ip < GetNPoints(); ip++)

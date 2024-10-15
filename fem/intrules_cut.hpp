@@ -201,10 +201,8 @@ protected:
     rule.
 
     @param [in] Tr ElementTransformation of the current element
-    @param [in] sir corresponding IntegrationRule on surface
     */
-   void ComputeVolumeWeights1D(ElementTransformation& Tr,
-                               const IntegrationRule* sir);
+   void ComputeVolumeWeights1D(ElementTransformation& Tr);
 
    /**
     @brief Compute 2D quadrature weights
@@ -233,7 +231,33 @@ protected:
                                const IntegrationRule* sir);
 
    /**
-    @brief Compute 2D quadrature weights
+    @brief Compute face quadrature weights
+
+    Compute the 2D face quadrature weights for the surface quadrature rule by
+    means of moment-fitting. To construct the quadrature rule, special integrals
+    are reduced to integrals over the edges of the subcell where the level-set
+    is positive.
+
+    @param [in] Tr ElementTransformation of the current element
+    */
+   void ComputeFSurfaceWeights3D(ElementTransformation& Tr);
+
+   /**
+    @brief Compute the face quadrature weights
+
+    Compute the 2D face quadrature weights for the volumetric subdomain
+    quadrature rule by means of moment-fitting. To construct the quadrature
+    rule, special integrals are reduced to integrals over the boundary of the
+    subcell where the level-set is positive.
+
+    @param [in] Tr ElementTransformation of the current element
+    @param [in] sir corresponding IntegrationRule on surface
+    */
+   void ComputeFVolumeWeights3D(ElementTransformation& Tr,
+                                const IntegrationRule* sir);
+
+   /**
+    @brief Compute 3D quadrature weights
 
     Compute the quadrature weights for the 3D surface quadrature rule by means
     of moment-fitting. To construct the quadrature rule, special integrals are
