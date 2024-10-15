@@ -4835,6 +4835,39 @@ const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
    return patch_to_bel[patch];
 }
 
+NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_, const double* control_points)
+{
+       kv.SetSize(2);
+       kv[0] = new KnotVector(*kv0);
+       kv[1] = new KnotVector(*kv1);
+       init(dim_);
+       memcpy(data, control_points, sizeof (double) * ni * nj * dim_);
+}
+
+NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
+               const KnotVector *kv2, int dim_, const double* control_points)
+{
+       kv.SetSize(3);
+       kv[0] = new KnotVector(*kv0);
+       kv[1] = new KnotVector(*kv1);
+       kv[2] = new KnotVector(*kv2);
+       init(dim_);
+       memcpy(data, control_points, sizeof (double) * ni * nj * nk * dim_);
+}
+
+NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_, const double* control_points)
+{
+       kv.SetSize(kv_.Size());
+       size_t n = dim_;
+       for (int i = 0; i < kv.Size(); i++)
+       {
+               kv[i] = new KnotVector(*kv_[i]);
+               n *= kv[i]->GetNCP();
+       }
+       init(dim_);
+       memcpy(data, control_points, n);
+}
+
 #ifdef MFEM_USE_MPI
 ParNURBSExtension::ParNURBSExtension(const ParNURBSExtension &orig)
    : NURBSExtension(orig),

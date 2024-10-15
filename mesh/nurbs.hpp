@@ -266,6 +266,12 @@ public:
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
               const KnotVector *kv2, int dim);
 
+
+   //Coreform added NURBSPatch 
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_, const double* control_points);
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, const KnotVector *kv2, int dim_, const double* control_points);
+   NURBSPatch(Array<const KnotVector *> &kv_,  int dim_, const double* control_points);
+
    /// Constructor for a patch of dimension equal to the size of @a kv.
    NURBSPatch(Array<const KnotVector *> &kv, int dim);
 
