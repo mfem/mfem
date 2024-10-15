@@ -116,12 +116,15 @@ double reynolds = 10.0;
 
 int main(int argc, char *argv[])
 {
+   constexpr int dim = 3;
+   constexpr int vdim = dim;
+
    Mpi::Init();
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   const char *mesh_file = "../data/ref-square.mesh";
+   const char *mesh_file = "../data/ref-cube.mesh";
    int polynomial_order = 2;
    int ir_order = 2;
    int refinements = 2;
@@ -139,7 +142,6 @@ int main(int argc, char *argv[])
    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
 
    mesh.SetCurvature(1);
-   const int dim = mesh.Dimension();
    mesh_serial.Clear();
 
    ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
@@ -170,8 +172,8 @@ int main(int argc, char *argv[])
    auto u_f = [](const Vector &coords, Vector &u)
    {
       const double x = coords(0);
-      const double y = coords(1);
-      if (y >= 1.0)
+      const double z = coords(2);
+      if (z >= 1.0)
       {
          u(0) = 1.0;
       }
@@ -180,6 +182,7 @@ int main(int argc, char *argv[])
          u(0) = 0.0;
       }
       u(1) = 0.0;
+      u(2) = 0.0;
    };
    auto u_coef = VectorFunctionCoefficient(dim, u_f);
 
@@ -187,54 +190,55 @@ int main(int argc, char *argv[])
    p = 0.0;
 
    // -\nabla \cdot (\nabla u + p * I) -> (\nabla u + p * I, \nabla v)
-   auto momentum_kernel = [](const tensor<double, 2> &u,
-                             const tensor<double, 2, 2> &dudxi,
+   auto momentum_kernel = [](const tensor<double, dim> &u,
+                             const tensor<double, dim, dim> &dudxi,
                              const double &p,
-                             const tensor<double, 2, 2> &J,
+                             const tensor<double, dim, dim> &J,
                              const double &w)
    {
-      static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
+      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       auto invJ = inv(J);
       auto dudx = dudxi * invJ;
       double Re = reynolds;
-      return std::tuple{(outer(u, u) - 1.0 / Re * dudx + p * I) * det(J) * w * transpose(invJ)};
+      return mfem::tuple{(outer(u, u) - 1.0 / Re * dudx + p * I) * det(J) * w * transpose(invJ)};
    };
 
-   std::tuple argument_operators_0{Value{"velocity"}, Gradient{"velocity"}, Value{"pressure"}, Gradient{"coordinates"}, Weight{}};
-   std::tuple output_operator_0{Gradient{"velocity"}};
+   mfem::tuple argument_operators_0{Value{"velocity"}, Gradient{"velocity"}, Value{"pressure"}, Gradient{"coordinates"}, Weight{}};
+   mfem::tuple output_operator_0{Gradient{"velocity"}};
    ElementOperator op_0{momentum_kernel, argument_operators_0, output_operator_0};
 
    // (\nabla \cdot u, q)
-   auto mass_conservation_kernel = [](const tensor<double, 2, 2> &dudxi,
-                                      const tensor<double, 2, 2> &J,
+   auto mass_conservation_kernel = [](const tensor<double, dim, dim> &dudxi,
+                                      const tensor<double, dim, dim> &J,
                                       const double &w)
    {
-      return std::tuple{tr(dudxi * inv(J)) * det(J) * w};
+      return mfem::tuple{tr(dudxi * inv(J)) * det(J) * w};
    };
 
-   std::tuple argument_operators_1{Gradient{"velocity"}, Gradient{"coordinates"}, Weight{}};
-   std::tuple output_operator_1{Value{"pressure"}};
+   mfem::tuple argument_operators_1{Gradient{"velocity"}, Gradient{"coordinates"}, Weight{}};
+   mfem::tuple output_operator_1{Value{"pressure"}};
    ElementOperator op_1{mass_conservation_kernel, argument_operators_1, output_operator_1};
 
    std::array solutions{FieldDescriptor{&velocity_fes, "velocity"}, FieldDescriptor{&pressure_fes, "pressure"}};
    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-   DifferentiableOperator momentum_op{solutions, parameters, std::tuple{op_0}, mesh, velocity_ir};
-   DifferentiableOperator mass_conservation_op{solutions, parameters, std::tuple{op_1}, mesh, pressure_ir};
+   DifferentiableOperator momentum_op{solutions, parameters, mfem::tuple{op_0}, mesh, velocity_ir};
+   DifferentiableOperator mass_conservation_op{solutions, parameters, mfem::tuple{op_1}, mesh, pressure_ir};
 
    // Preconditioner form
-   auto pressure_mass_kernel = [](const double &p, const tensor<double, 2, 2> &J,
+   auto pressure_mass_kernel = [](const double &p,
+                                  const tensor<double, dim, dim> &J,
                                   const double &w)
    {
-      return std::tuple{p * det(J) * w};
+      return mfem::tuple{p * det(J) * w};
    };
 
-   std::tuple pms_args{Value{"pressure"}, Gradient{"coordinates"}, Weight{}};
-   std::tuple pms_outs{Value{"pressure"}};
+   mfem::tuple pms_args{Value{"pressure"}, Gradient{"coordinates"}, Weight{}};
+   mfem::tuple pms_outs{Value{"pressure"}};
    ElementOperator pressure_mass{pressure_mass_kernel, pms_args, pms_outs};
    std::array pms_sols{FieldDescriptor{&pressure_fes, "pressure"}};
    std::array pms_params{FieldDescriptor{&mesh_fes, "coordinates"}};
-   DifferentiableOperator pressure_mass_op{pms_sols, pms_params, std::tuple{pressure_mass}, mesh, pressure_ir};
+   DifferentiableOperator pressure_mass_op{pms_sols, pms_params, mfem::tuple{pressure_mass}, mesh, pressure_ir};
 
    Array<int> block_offsets(3);
    block_offsets[0] = 0;

@@ -69,18 +69,18 @@ int test_elasticity(std::string mesh_file,
       static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
       auto invJ = inv(J);
       auto eps = sym(dudxi * invJ);
-      return serac::tuple{transpose(lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(invJ)};
+      return mfem::tuple{transpose(lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(invJ)};
    };
 
-   serac::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
-   serac::tuple output_operator{Gradient{"displacement"}};
+   mfem::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
+   mfem::tuple output_operator{Gradient{"displacement"}};
 
    ElementOperator op{elasticity_kernel, argument_operators, output_operator};
 
    std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-   DifferentiableOperator dop{solutions, parameters, serac::tuple{op}, mesh, ir};
+   DifferentiableOperator dop{solutions, parameters, mfem::tuple{op}, mesh, ir};
 
    Vector x(u), y1(h1fes.GetTrueVSize()),
           y2(h1fes.GetTrueVSize());

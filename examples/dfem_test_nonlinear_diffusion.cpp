@@ -44,10 +44,10 @@ int test_nonlinear_diffusion(
                     const double& u)
    {
       auto invJ = inv(J);
-      return serac::tuple{(u * u) * dudxi * invJ * transpose(invJ) * det(J) * w};
+      return mfem::tuple{(u * u) * dudxi * invJ * transpose(invJ) * det(J) * w};
    };
 
-   serac::tuple argument_operators =
+   mfem::tuple argument_operators =
    {
       Gradient{"coordinates"},
       Weight{},
@@ -55,13 +55,13 @@ int test_nonlinear_diffusion(
       Value{"potential"}
    };
 
-   serac::tuple output_operator =
+   mfem::tuple output_operator =
    {
       Gradient{"potential"}
    };
 
    ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = serac::tuple{eop};
+   auto ops = mfem::tuple{eop};
 
    auto solutions = std::array
    {

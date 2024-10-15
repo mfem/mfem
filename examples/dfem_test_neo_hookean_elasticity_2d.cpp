@@ -52,16 +52,16 @@ int test_neo_hookean_elasticity_2d(
       // 2D plane strain formulation
       auto P = mu * (F - transpose(invF)) + lambda * log(det(F)) * transpose(invF);
 
-      return serac::tuple{P * det(J) * w};
+      return mfem::tuple{P * det(J) * w};
    };
 
-   serac::tuple argument_operators = {Gradient{"coordinates"}, Weight{},
-                                      Gradient{"displacement"}
-                                     };
-   serac::tuple output_operator = {Gradient{"displacement"}};
+   mfem::tuple argument_operators = {Gradient{"coordinates"}, Weight{},
+                                     Gradient{"displacement"}
+                                    };
+   mfem::tuple output_operator = {Gradient{"displacement"}};
 
    ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = serac::tuple{eop};
+   auto ops = mfem::tuple{eop};
 
    auto solutions = std::array{FieldDescriptor{&h1fes, "displacement"}};
    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};

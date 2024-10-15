@@ -68,7 +68,7 @@ using matd = tensor<real_t, 2, 2>;
 
 template <bool compute_dtest = false>
 MFEM_HOST_DEVICE
-serac::tuple<matd, real_t> qdata_setup(
+mfem::tuple<matd, real_t> qdata_setup(
    const matd &dvdxi,
    const real_t &rho0,
    const matd &J0,
@@ -137,7 +137,7 @@ serac::tuple<matd, real_t> qdata_setup(
    }
 
    matd stressJiT = stress * transpose(invJ) * detJ * w;
-   return serac::tuple{stressJiT, dt_est};
+   return mfem::tuple{stressJiT, dt_est};
 }
 
 struct QuadratureData
@@ -938,12 +938,12 @@ static auto CreateLagrangianHydroOperator(
          const real_t &order_v,
          const real_t &w)
    {
-      real_t dt_est = serac::get<1>(
+      real_t dt_est = mfem::get<1>(
                          qdata_setup<true>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
-      return serac::tuple{dt_est};
+      return mfem::tuple{dt_est};
    };
 
-   serac::tuple dt_est_kernel_ao =
+   mfem::tuple dt_est_kernel_ao =
    {
       Gradient{"velocity"},
       Value{"density0"},
@@ -956,10 +956,10 @@ static auto CreateLagrangianHydroOperator(
       Weight{}
    };
 
-   serac::tuple dt_est_kernel_oo = {None{"dt_est"}};
+   mfem::tuple dt_est_kernel_oo = {None{"dt_est"}};
 
    ElementOperator dt_est_eop{dt_est_kernel, dt_est_kernel_ao, dt_est_kernel_oo};
-   auto dt_est_ops = serac::tuple{dt_est_eop};
+   auto dt_est_ops = mfem::tuple{dt_est_eop};
 
    std::array dt_est_solutions =
    {
@@ -996,17 +996,17 @@ static auto CreateLagrangianHydroOperator(
          const real_t &order_v,
          const real_t &w)
    {
-      auto stressJiT = serac::get<0>(
+      auto stressJiT = mfem::get<0>(
                           qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
 
       // out << gamma << " " << rho << " " << Ez << " " << p << " " << cs << "\n";
       // out << stressJiT << "\n";
       // TODO-bug: investigate transpose of matrices in return types
-      // return serac::tuple{transpose(stressJiT)};
-      return serac::tuple{stressJiT};
+      // return mfem::tuple{transpose(stressJiT)};
+      return mfem::tuple{stressJiT};
    };
 
-   serac::tuple momentum_mf_kernel_ao =
+   mfem::tuple momentum_mf_kernel_ao =
    {
       Gradient{"velocity"},
       Value{"density0"},
@@ -1019,12 +1019,12 @@ static auto CreateLagrangianHydroOperator(
       Weight{}
    };
 
-   serac::tuple momentum_mf_kernel_oo = {Gradient{"velocity"}};
+   mfem::tuple momentum_mf_kernel_oo = {Gradient{"velocity"}};
 
    // <sigma, grad(w) * J^-T> * det(J) * weights
    // <sigma(J^-T det(J) weights), grad(w)>
    ElementOperator momentum_mf_eop{momentum_mf_kernel, momentum_mf_kernel_ao, momentum_mf_kernel_oo};
-   auto momentum_mf_ops = serac::tuple{momentum_mf_eop};
+   auto momentum_mf_ops = mfem::tuple{momentum_mf_eop};
 
    std::array momentum_mf_solutions =
    {
@@ -1061,12 +1061,12 @@ static auto CreateLagrangianHydroOperator(
          const real_t &order_v,
          const real_t &w)
    {
-      auto stressJiT = serac::get<0>(
+      auto stressJiT = mfem::get<0>(
                           qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
-      return serac::tuple{ddot(stressJiT, dvdxi)};
+      return mfem::tuple{ddot(stressJiT, dvdxi)};
    };
 
-   serac::tuple energy_conservation_mf_kernel_ao =
+   mfem::tuple energy_conservation_mf_kernel_ao =
    {
       Gradient{"velocity"},
       Value{"density0"},
@@ -1079,12 +1079,12 @@ static auto CreateLagrangianHydroOperator(
       Weight{}
    };
 
-   serac::tuple energy_conservation_mf_kernel_oo = {Value{"specific_internal_energy"}};
+   mfem::tuple energy_conservation_mf_kernel_oo = {Value{"specific_internal_energy"}};
 
    // <sigma, grad(v) * inv(J) * phi> * det(J) * w
    // <sigma(J^-T det(J) w), grad(v) * inv(J)>
    ElementOperator energy_conservation_mf_eop{energy_conservation_mf_kernel, energy_conservation_mf_kernel_ao, energy_conservation_mf_kernel_oo};
-   auto energy_conservation_mf_ops = serac::tuple{energy_conservation_mf_eop};
+   auto energy_conservation_mf_ops = mfem::tuple{energy_conservation_mf_eop};
 
    std::array energy_conservation_mf_solutions =
    {
@@ -1117,10 +1117,10 @@ static auto CreateLagrangianHydroOperator(
          const matd &J0,
          const real_t &w)
    {
-      return serac::tuple{rho0 * E * det(J0) * w};
+      return mfem::tuple{rho0 * E * det(J0) * w};
    };
 
-   serac::tuple total_internal_energy_kernel_ao =
+   mfem::tuple total_internal_energy_kernel_ao =
    {
       Value{"specific_internal_energy"},
       Value{"density0"},
@@ -1128,10 +1128,10 @@ static auto CreateLagrangianHydroOperator(
       Weight{}
    };
 
-   serac::tuple total_internal_energy_kernel_oo = {Value{"specific_internal_energy"}};
+   mfem::tuple total_internal_energy_kernel_oo = {Value{"specific_internal_energy"}};
 
    ElementOperator total_internal_energy_eop{total_internal_energy_kernel, total_internal_energy_kernel_ao, total_internal_energy_kernel_oo};
-   auto total_internal_energy_ops = serac::tuple{total_internal_energy_eop};
+   auto total_internal_energy_ops = mfem::tuple{total_internal_energy_eop};
 
    std::array total_internal_energy_solutions =
    {
@@ -1160,10 +1160,10 @@ static auto CreateLagrangianHydroOperator(
          const matd &J0,
          const real_t &w)
    {
-      return serac::tuple{rho0 * 0.5 * v * v * det(J0) * w};
+      return mfem::tuple{rho0 * 0.5 * v * v * det(J0) * w};
    };
 
-   serac::tuple total_kinetic_energy_kernel_ao =
+   mfem::tuple total_kinetic_energy_kernel_ao =
    {
       Value{"velocity"},
       Value{"density0"},
@@ -1171,10 +1171,10 @@ static auto CreateLagrangianHydroOperator(
       Weight{}
    };
 
-   serac::tuple total_kinetic_energy_kernel_oo = {Value{"density0"}};
+   mfem::tuple total_kinetic_energy_kernel_oo = {Value{"density0"}};
 
    ElementOperator total_kinetic_energy_eop{total_kinetic_energy_kernel, total_kinetic_energy_kernel_ao, total_kinetic_energy_kernel_oo};
-   auto total_kinetic_energy_ops = serac::tuple{total_kinetic_energy_eop};
+   auto total_kinetic_energy_ops = mfem::tuple{total_kinetic_energy_eop};
 
    std::array total_kinetic_energy_solutions =
    {
@@ -1202,20 +1202,20 @@ static auto CreateLagrangianHydroOperator(
          const matd &J0,
          const real_t &w)
    {
-      return serac::tuple{rho0 * det(J0) * w};
+      return mfem::tuple{rho0 * det(J0) * w};
    };
 
-   serac::tuple density_kernel_ao =
+   mfem::tuple density_kernel_ao =
    {
       Value{"density0"},
       Gradient{"coordinates0"},
       Weight{}
    };
 
-   serac::tuple density_kernel_oo = {Value{"density0"}};
+   mfem::tuple density_kernel_oo = {Value{"density0"}};
 
    ElementOperator density_eop{density_kernel, density_kernel_ao, density_kernel_oo};
-   auto density_ops = serac::tuple{density_eop};
+   auto density_ops = mfem::tuple{density_eop};
 
    std::array density_solutions =
    {

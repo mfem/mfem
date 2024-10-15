@@ -56,18 +56,18 @@ int test_ordering(std::string mesh_file,
       out << "J: " << J << "\n";
       out << "u: " << u << "\n";
       out << "dudxi: " << dudxi << "\n\n";
-      return serac::tuple{J};
+      return mfem::tuple{J};
    };
 
-   serac::tuple argument_operators{Value{"coordinates"}, Gradient{"coordinates"}, Value{"potential"}, Gradient{"potential"}};
-   serac::tuple output_operator{Gradient{"potential"}};
+   mfem::tuple argument_operators{Value{"coordinates"}, Gradient{"coordinates"}, Value{"potential"}, Gradient{"potential"}};
+   mfem::tuple output_operator{Gradient{"potential"}};
 
    ElementOperator op{kernel, argument_operators, output_operator};
 
    std::array solutions{FieldDescriptor{&mesh_fes, "potential"}};
    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-   DifferentiableOperator dop{solutions, parameters, serac::tuple{op}, mesh, ir};
+   DifferentiableOperator dop{solutions, parameters, mfem::tuple{op}, mesh, ir};
 
    Vector y(u);
 

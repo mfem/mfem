@@ -68,14 +68,14 @@ int test_diffusion_3d(
             const double& w)
       {
          auto invJ = inv(J);
-         return serac::tuple{invJ * transpose(invJ) * det(J) * w};
+         return mfem::tuple{invJ * transpose(invJ) * det(J) * w};
       };
 
-      serac::tuple argument_operators = {Gradient{"coordinates"}, Weight{}};
-      serac::tuple output_operator = {None{"qdata"}};
+      mfem::tuple argument_operators = {Gradient{"coordinates"}, Weight{}};
+      mfem::tuple output_operator = {None{"qdata"}};
 
       ElementOperator eop = {diffusion_setup_kernel, argument_operators, output_operator};
-      auto ops = serac::tuple{eop};
+      auto ops = mfem::tuple{eop};
 
       auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
       auto parameters = std::array
@@ -106,14 +106,14 @@ int test_diffusion_3d(
             const tensor<double, dim>& dudxi,
             const tensor<double, dim, dim>& qdata)
       {
-         return serac::tuple{qdata * dudxi};
+         return mfem::tuple{qdata * dudxi};
       };
 
-      serac::tuple argument_operators = {Gradient{"potential"}, None{"qdata"}};
-      serac::tuple output_operator = {Gradient{"potential"}};
+      mfem::tuple argument_operators = {Gradient{"potential"}, None{"qdata"}};
+      mfem::tuple output_operator = {Gradient{"potential"}};
 
       ElementOperator eop = {diffusion_apply_kernel, argument_operators, output_operator};
-      auto ops = serac::tuple{eop};
+      auto ops = mfem::tuple{eop};
 
       auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
       auto parameters = std::array{FieldDescriptor{&qdata_space, "qdata"}};
@@ -159,12 +159,12 @@ int test_diffusion_3d(
    diff -= y;
    if (diff.Norml2() > 1e-15)
    {
-      printf("y ");
-      print_vector(y);
-      printf("y2: ");
-      print_vector(y2);
-      printf("diff: ");
-      print_vector(diff);
+      // printf("y ");
+      // print_vector(y);
+      // printf("y2: ");
+      // print_vector(y2);
+      // printf("diff: ");
+      // print_vector(diff);
       return 1;
    }
 

@@ -33,14 +33,14 @@ int test_interpolate_linear_scalar(std::string mesh_file,
    auto kernel = [](const double &u, const tensor<double, 2, 2> &J,
                     const double &w)
    {
-      return serac::tuple{u};
+      return mfem::tuple{u};
    };
 
-   serac::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
-   serac::tuple output_operator = {None{"potential"}};
+   mfem::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
+   mfem::tuple output_operator = {None{"potential"}};
 
    ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = serac::tuple{eop};
+   auto ops = mfem::tuple{eop};
 
    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};

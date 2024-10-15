@@ -42,17 +42,17 @@ int test_diffusion(
                                      const double& w, const tensor<double, 2>& dudxi)
    {
       auto invJ = inv(J);
-      return serac::tuple{dudxi * invJ * transpose(invJ) * det(J) * w};
+      return mfem::tuple{dudxi * invJ * transpose(invJ) * det(J) * w};
    };
 
-   serac::tuple argument_operators =
+   mfem::tuple argument_operators =
    {
       Gradient{"coordinates"}, Weight{}, Gradient{"potential"}
    };
-   serac::tuple output_operator = {Gradient{"potential"}};
+   mfem::tuple output_operator = {Gradient{"potential"}};
 
    ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = serac::tuple{eop};
+   auto ops = mfem::tuple{eop};
 
    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};

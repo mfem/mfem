@@ -43,14 +43,14 @@ int test_interpolate_gradient_linear_scalar_3d(std::string mesh_file,
    auto kernel = [](const tensor<double, dim> &dudxi,
                     const tensor<double, dim, dim> &J)
    {
-      return serac::tuple{dudxi * inv(J)};
+      return mfem::tuple{dudxi * inv(J)};
    };
 
-   serac::tuple argument_operators = {Gradient{"potential"}, Gradient{"coordinates"}};
-   serac::tuple output_operator = {None{"qdata"}};
+   mfem::tuple argument_operators = {Gradient{"potential"}, Gradient{"coordinates"}};
+   mfem::tuple output_operator = {None{"qdata"}};
 
    ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = serac::tuple{eop};
+   auto ops = mfem::tuple{eop};
 
    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
    auto parameters = std::array

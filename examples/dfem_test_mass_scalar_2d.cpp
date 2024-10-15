@@ -48,14 +48,14 @@ int dfem_test_mass_scalar_2d(std::string mesh_file,
                     const double& w)
    {
       out << x << ": " << u << "\n";
-      return serac::tuple{u * w * det(J)};
+      return mfem::tuple{u * w * det(J)};
    };
 
-   serac::tuple argument_operators = {Value{"potential"}, Value{"coordinates"}, Gradient{"coordinates"}, Weight{}};
-   serac::tuple output_operator = {Value{"potential"}};
+   mfem::tuple argument_operators = {Value{"potential"}, Value{"coordinates"}, Gradient{"coordinates"}, Weight{}};
+   mfem::tuple output_operator = {Value{"potential"}};
 
    ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = serac::tuple{eop};
+   auto ops = mfem::tuple{eop};
 
    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};

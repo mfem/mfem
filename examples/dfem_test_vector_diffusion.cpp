@@ -54,19 +54,19 @@ int test_vector_diffusion(std::string mesh_file,
    {
       out << "xi: " << xi << "\n";
       out << "dudxi: " << dudxi << "\n";
-      return serac::tuple{dudxi * inv(J) * det(J) * w * transpose(inv(J))};
-      // return serac::tuple{dudxi};
+      return mfem::tuple{dudxi * inv(J) * det(J) * w * transpose(inv(J))};
+      // return mfem::tuple{dudxi};
    };
 
-   serac::tuple argument_operators{Value{"coordinates"}, Gradient{"potential"}, Gradient{"coordinates"}, Weight{}};
-   serac::tuple output_operator{Gradient{"potential"}};
+   mfem::tuple argument_operators{Value{"coordinates"}, Gradient{"potential"}, Gradient{"coordinates"}, Weight{}};
+   mfem::tuple output_operator{Gradient{"potential"}};
 
    ElementOperator op{vector_diffusion_kernel, argument_operators, output_operator};
 
    std::array solutions{FieldDescriptor{&h1fes, "potential"}};
    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-   DifferentiableOperator dop{solutions, parameters, serac::tuple{op}, mesh, ir};
+   DifferentiableOperator dop{solutions, parameters, mfem::tuple{op}, mesh, ir};
 
    Vector x(u), y1(h1fes.GetTrueVSize()),
           y2(h1fes.GetTrueVSize());

@@ -38,14 +38,14 @@ int test_interpolate_linear_vector_3d(std::string mesh_file, int refinements,
 
    auto kernel = [](const tensor<double, vdim> &u)
    {
-      return serac::tuple{u};
+      return mfem::tuple{u};
    };
 
-   serac::tuple argument_operators = {Value{"potential"}};
-   serac::tuple output_operator = {None{"potential"}};
+   mfem::tuple argument_operators = {Value{"potential"}};
+   mfem::tuple output_operator = {None{"potential"}};
 
    ElementOperator eop{kernel, argument_operators, output_operator};
-   auto ops = serac::tuple{eop};
+   auto ops = mfem::tuple{eop};
 
    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};

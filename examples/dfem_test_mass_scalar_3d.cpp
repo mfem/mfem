@@ -29,44 +29,44 @@ int dfem_test_mass_scalar_3d(std::string mesh_file,
    H1_FECollection h1fec(polynomial_order, dim);
    ParFiniteElementSpace h1fes(&mesh, &h1fec);
 
-   const IntegrationRule &ir =
+   const IntegrationRule& ir =
       IntRules.Get(h1fes.GetFE(0)->GetGeomType(),
-                   polynomial_order * h1fec.GetOrder() + 2);
+                   h1fes.GetFE(0)->GetOrder() + h1fes.GetFE(0)->GetOrder() + h1fes.GetFE(
+                      0)->GetDim() - 1);
 
    // IntegrationRules gll_rules(0, Quadrature1D::GaussLobatto);
    // const IntegrationRule &ir = gll_rules.Get(h1fes.GetFE(0)->GetGeomType(),
    //                                           2 * polynomial_order - 1);
 
    auto dtq = h1fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
-   printf("\n B: ");
-   dtq.B.Print(out, dtq.B.Size());
-   printf("\n G: ");
-   dtq.G.Print(out, dtq.G.Size());
-   printf("\n w: ");
-   ir.GetWeights().Print(out, ir.GetWeights().Size());
+   // printf("\n B: ");
+   // dtq.B.Print(out, dtq.B.Size());
+   // printf("\n G: ");
+   // dtq.G.Print(out, dtq.G.Size());
+   // printf("\n w: ");
+   // ir.GetWeights().Print(out, ir.GetWeights().Size());
 
-   printf("#ndof per el = %d\n", h1fes.GetFE(0)->GetDof());
-   printf("#nqp = %d\n", ir.GetNPoints());
-   printf("#q1d = %d\n", (int)floor(pow(ir.GetNPoints(), 1.0/dim) + 0.5));
+   // printf("#ndof per el = %d\n", h1fes.GetFE(0)->GetDof());
+   // printf("#nqp = %d\n", ir.GetNPoints());
+   // printf("#q1d = %d\n", (int)floor(pow(ir.GetNPoints(), 1.0/dim) + 0.5));
 
-   printf("nodes: ");
-   print_vector(*mesh_nodes);
+   // printf("nodes: ");
+   // print_vector(*mesh_nodes);
 
    ParGridFunction f1_g(&h1fes);
 
-   auto kernel = [](const double& u,
-                    const tensor<double, dim> x,
-                    const tensor<double, dim, dim> J,
-                    const double& w)
+   auto kernel = [](const double &u,
+                    const tensor<double, dim, dim> &J,
+                    const double &w)
    {
-      return serac::tuple{u * det(J) * w};
+      return mfem::tuple{u * det(J) * w};
    };
 
-   serac::tuple argument_operators = {Value{"potential"}, Value{"coordinates"}, Gradient{"coordinates"}, Weight{}};
-   serac::tuple output_operator = {Value{"potential"}};
+   mfem::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
+   mfem::tuple output_operator = {Value{"potential"}};
 
    ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = serac::tuple{eop};
+   auto ops = mfem::tuple{eop};
 
    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
@@ -83,17 +83,17 @@ int dfem_test_mass_scalar_3d(std::string mesh_file,
 
    FunctionCoefficient f1_c(f1);
    f1_g.ProjectCoefficient(f1_c);
-   printf("\nf1_g: ");
-   print_vector(f1_g);
+   // printf("\nf1_g: ");
+   // print_vector(f1_g);
 
    auto R = h1fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-   Vector f1_g_e(R->Height());
-   R->Mult(f1_g, f1_g_e);
-   printf("\nf1_g_e: ");
-   print_vector(f1_g_e);
-   auto r_out = std::ofstream("r_mat.mtx");
-   R->PrintMatlab(r_out);
-   r_out.close();
+   // Vector f1_g_e(R->Height());
+   // R->Mult(f1_g, f1_g_e);
+   // printf("\nf1_g_e: ");
+   // print_vector(f1_g_e);
+   // auto r_out = std::ofstream("r_mat.mtx");
+   // R->PrintMatlab(r_out);
+   // r_out.close();
 
    Vector x(*f1_g.GetTrueDofs()), y(h1fes.TrueVSize());
    dop.SetParameters({mesh_nodes});
@@ -119,6 +119,23 @@ int dfem_test_mass_scalar_3d(std::string mesh_file,
       print_vector(y);
       printf("y2: ");
       print_vector(y2);
+      printf("diff: ");
+      print_vector(diff);
+      return 1;
+   }
+
+   Vector y3(h1fes.TrueVSize());
+   auto dFdu = dop.GetDerivativeWrt<0>({&f1_g}, {mesh_nodes});
+
+   dFdu->Mult(x, y3);
+   diff = y2;
+   diff -= y;
+   if (diff.Norml2() > 1e-15)
+   {
+      printf("y2 ");
+      print_vector(y2);
+      printf("y3: ");
+      print_vector(y3);
       printf("diff: ");
       print_vector(diff);
       return 1;
