@@ -153,7 +153,6 @@ void MomentFittingIntRules::ComputeFaceWeights(ElementTransformation& Tr)
          //New alternative:
          IsoparametricTransformation faceTrafo;
          mesh->GetFaceTransformation(faces[face], &faceTrafo);
-         cout << faceTrafo.GetDimension() << endl;
 
          // The 3D face integrals are computed as 2D volumetric integrals.
          MomentFittingIntRules FaceRules(Order, *LvlSet, lsOrder);
@@ -860,7 +859,7 @@ void MomentFittingIntRules::ComputeFSurfaceWeights3D(ElementTransformation& Tr)
 
    // find the edges that are intersected by the surface and inside the area
    for (int edge = 0; edge < fe->GetNEdges(); edge++)
-   {cout << fe->GetNEdges() << endl;
+   {
       enum class Layout {inside, intersected, outside};
       Layout layout;
 
