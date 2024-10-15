@@ -188,7 +188,7 @@ void IterativeSolver::SetOperator(const Operator &op)
    }
 }
 
-bool IterativeSolver::Monitor(int it, double norm, const Vector& r,
+bool IterativeSolver::Monitor(int it, real_t norm, const Vector& r,
                               const Vector& x, bool final) const
 {
    if (monitor != nullptr)
