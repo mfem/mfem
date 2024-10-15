@@ -144,10 +144,12 @@ public:
    fun_type forward; // primal to dual
    fun_type backward; // dual to primal
    LegendreEntropy(fun_type entropy, fun_type forward, fun_type backward,
-                   real_t lower_bound, real_t upper_bound, real_t finite_lower_bound, real_t finite_upper_bound)
+                   real_t lower_bound, real_t upper_bound,
+                   real_t finite_lower_bound, real_t finite_upper_bound)
       :entropy(entropy), forward(forward), backward(backward),
        lower_bound(lower_bound), upper_bound(upper_bound),
-       finite_lower_bound(finite_lower_bound), finite_upper_bound(finite_upper_bound) {}
+       finite_lower_bound(finite_lower_bound),
+       finite_upper_bound(finite_upper_bound) {}
    MappedGFCoefficient GetForwardCoeff();
    MappedGFCoefficient GetBackwardCoeff();
    MappedGFCoefficient GetEntropyCoeff();
@@ -162,6 +164,15 @@ public:
    MappedPairedGFCoefficient GetBregman(GridFunction &x, GridFunction &y);
    // Get Bregman divergence with dual variables
    MappedPairedGFCoefficient GetBregman_dual(GridFunction &psi, GridFunction &chi);
+};
+
+class PrimalEntropy : public LegendreEntropy
+{
+public:
+   PrimalEntropy():LegendreEntropy(
+         [](const real_t x) {return x*x; }, [](const real_t x) {return x;}, [](
+         const real_t x) {return x;}, 0, 1, 0, 1
+   ) {}
 };
 
 // Fermi-Dirac Entropy with effective domain (0,1)
@@ -179,7 +190,8 @@ class ShannonEntropy : public LegendreEntropy
 public:
    ShannonEntropy():LegendreEntropy(
          [](const real_t x) {return x*safe_log(x)-x;},
-   safe_log, [](const real_t x) {return std::exp(x);}, -mfem::infinity(), 0.0, -1e09, 0.0) {}
+   safe_log, [](const real_t x) {return std::exp(x);}, -mfem::infinity(), 0.0,
+   -1e09, 0.0) {}
 };
 
 
