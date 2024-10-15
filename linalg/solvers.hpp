@@ -39,12 +39,22 @@ protected:
    /// The last IterativeSolver to which this monitor was attached.
    const class IterativeSolver *iter_solver;
 
+   /// In MonitorResidual or MonitorSolution, this member variable can be set
+   /// to true to indicate early convergence.
+   bool converged = false;
+
 public:
    IterativeSolverMonitor() : iter_solver(nullptr) {}
 
    virtual ~IterativeSolverMonitor() {}
 
-   /// Monitor the residual vector r
+   /// Has the solver converged?
+   ///
+   /// Can be used if convergence is detected in the monitor (before reaching
+   /// the relative or absolute tolerance of the IterativeSolver).
+   bool HasConverged() { return converged; }
+
+   /// Monitor the solution vector r
    virtual void MonitorResidual(int it, real_t norm, const Vector &r,
                                 bool final)
    {
@@ -169,6 +179,7 @@ protected:
 
    ///@}
 
+
    /** @brief Return the standard (l2, i.e., Euclidean) inner product of
        @a x and @a y
        @details Overriding this method in a derived class enables a
@@ -180,7 +191,7 @@ protected:
    real_t Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
 
    /// Monitor both the residual @a r and the solution @a x
-   void Monitor(int it, real_t norm, const Vector& r, const Vector& x,
+   bool Monitor(int it, real_t norm, const Vector& r, const Vector& x,
                 bool final=false) const;
 
 public:
