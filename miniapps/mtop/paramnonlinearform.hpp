@@ -271,7 +271,7 @@ public:
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
@@ -279,7 +279,7 @@ public:
 
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.
-   virtual BlockOperator &GetGradient(const Vector &x) const;
+   BlockOperator &GetGradient(const Vector &x) const override;
 
    /// Set the state fields
    virtual void SetStateFields(const Vector &xv) const;
