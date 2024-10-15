@@ -7,6 +7,8 @@ using mfem::internal::tensor;
 int test_nonlinear_diffusion(
    std::string mesh_file, int refinements, int polynomial_order)
 {
+   constexpr int dim = 3;
+
    Mesh mesh_serial = Mesh(mesh_file);
    for (int i = 0; i < refinements; i++)
    {
@@ -15,7 +17,6 @@ int test_nonlinear_diffusion(
    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
 
    mesh.SetCurvature(1);
-   const int dim = mesh.Dimension();
    mesh_serial.Clear();
 
    out << "#el: " << mesh.GetNE() << "\n";
@@ -29,7 +30,9 @@ int test_nonlinear_diffusion(
    out << "#dofs " << h1fes.GetTrueVSize() << "\n";
 
    const IntegrationRule& ir =
-      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder());
+      IntRules.Get(h1fes.GetFE(0)->GetGeomType(),
+                   h1fes.GetFE(0)->GetOrder() + h1fes.GetFE(0)->GetOrder() + h1fes.GetFE(
+                      0)->GetDim() - 1);
 
    out << "#qp: " << ir.GetNPoints() << "\n";
 
@@ -38,9 +41,9 @@ int test_nonlinear_diffusion(
    bool inactive_derivative = false;
 
    auto kernel = [] MFEM_HOST_DEVICE(
-                    const tensor<double, 2, 2>& J,
+                    const tensor<double, dim, dim>& J,
                     const double& w,
-                    const tensor<double, 2>& dudxi,
+                    const tensor<double, dim>& dudxi,
                     const double& u)
    {
       auto invJ = inv(J);
@@ -78,7 +81,8 @@ int test_nonlinear_diffusion(
    {
       const double x = coords(0);
       const double y = coords(1);
-      return 2.345 + 0.25 * x * x * y + y * y * x;
+      const double z = coords(2);
+      return 2.345 + 0.25 * x * x * y + y * y * x + z;
    };
 
    FunctionCoefficient f1_c(f1);

@@ -1,22 +1,143 @@
 #include "dfem/dfem.hpp"
 #include "dfem/dfem_test_macro.hpp"
+#include "fem/pfespace.hpp"
+#include "linalg/operator.hpp"
+#include <fstream>
 
 using namespace mfem;
 using mfem::internal::tensor;
 
-template <typename stress_t>
-class ElasticityOperator : public Operator
+class FDJacobian : public Operator
 {
 public:
-   ElasticityOperator(stress_t &stress, Array<int> &ess_tdofs) :
-      stress(stress),
-      ess_tdofs(ess_tdofs)
+   FDJacobian(const Operator &op, const Vector &x) :
+      Operator(op.Height()),
+      op(op),
+      x(x)
    {
-
+      f.SetSize(Height());
+      xpev.SetSize(Height());
+      op.Mult(x, f);
+      xnorm = x.Norml2();
    }
 
-   stress_t stress;
+   void Mult(const Vector &v, Vector &y) const override
+   {
+      x.HostRead();
+
+      // See [1] for choice of eps.
+      //
+      // [1] Woodward, C.S., Gardner, D.J. and Evans, K.J., 2015. On the use of
+      // finite difference matrix-vector products in Newton-Krylov solvers for
+      // implicit climate dynamics with spectral elements. Procedia Computer
+      // Science, 51, pp.2036-2045.
+      real_t eps = lambda * (lambda + xnorm / v.Norml2());
+
+      for (int i = 0; i < x.Size(); i++)
+      {
+         xpev(i) = x(i) + eps * v(i);
+      }
+
+      // y = f(x + eps * v)
+      op.Mult(xpev, y);
+
+      // y = (f(x + eps * v) - f(x)) / eps
+      for (int i = 0; i < x.Size(); i++)
+      {
+         y(i) = (y(i) - f(i)) / eps;
+      }
+   }
+
+   virtual MemoryClass GetMemoryClass() const override
+   {
+      return Device::GetDeviceMemoryClass();
+   }
+
+private:
+   const Operator &op;
+   Vector x, f;
+   mutable Vector xpev;
+   real_t lambda = 1.0e-6;
+   real_t xnorm;
+};
+
+template <typename elasticity_t>
+class ElasticityOperator : public Operator
+{
+   template <typename elasticity_du_t>
+   class ElasticityJacobianOperator : public Operator
+   {
+   public:
+      ElasticityJacobianOperator(const ElasticityOperator *elasticity,
+                                 std::shared_ptr<elasticity_du_t> dRdu) :
+         Operator(elasticity->Height()),
+         elasticity(elasticity),
+         dRdu(dRdu),
+         x_ess(dRdu->Height()) {}
+
+      void Mult(const Vector &x, Vector &y) const override
+      {
+         x_ess = x;
+         x_ess.SetSubVector(elasticity->ess_tdofs, 0.0);
+         dRdu->Mult(x_ess, y);
+         for (int i = 0; i < elasticity->ess_tdofs.Size(); i++)
+         {
+            y[elasticity->ess_tdofs[i]] = x[elasticity->ess_tdofs[i]];
+         }
+      }
+
+      const ElasticityOperator *elasticity = nullptr;
+      std::shared_ptr<elasticity_du_t> dRdu;
+      mutable Vector x_ess;
+   };
+
+public:
+   ElasticityOperator(ParFiniteElementSpace &fes, elasticity_t &elasticity,
+                      Array<int> &ess_tdofs) :
+      Operator(fes.GetTrueVSize()),
+      fes(fes),
+      elasticity(elasticity),
+      ess_tdofs(ess_tdofs) {}
+
+   void Mult(const Vector &x, Vector &r) const override
+   {
+      elasticity.Mult(x, r);
+      r.SetSubVector(ess_tdofs, 0.0);
+   }
+
+   Operator &GetGradient(const Vector &x) const override
+   {
+      ParGridFunction u(const_cast<ParFiniteElementSpace *>
+                        (*std::get_if<const ParFiniteElementSpace *>
+                         (&elasticity.solutions[0].data)));
+
+      u.SetFromTrueDofs(x);
+      auto dRdu = elasticity.template GetDerivativeWrt<0>({&u}, {mesh_nodes});
+
+      std::ofstream drdu_out("drdu_mat.dat");
+      dRdu->PrintMatlab(drdu_out);
+      drdu_out.close();
+
+      jacobian.reset(
+         new ElasticityJacobianOperator<
+         typename std::remove_pointer<decltype(dRdu.get())>::type> (this, dRdu));
+
+      // jacobian.reset(new FDJacobian(*this, x));
+
+      return *jacobian;
+   }
+
+   void SetParameters(ParGridFunction &mesh_nodes)
+   {
+      elasticity.SetParameters({&mesh_nodes});
+      this->mesh_nodes = &mesh_nodes;
+   }
+
+   ParFiniteElementSpace &fes;
+   elasticity_t &elasticity;
    Array<int> ess_tdofs;
+   mutable ParGridFunction *mesh_nodes = nullptr;
+   mutable std::shared_ptr<Operator> jacobian;
 };
 
 int test_nonlinear_elasticity_3d(std::string mesh_file,
@@ -58,21 +179,20 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
 
    ParGridFunction u(&h1fes);
 
-   ConstantCoefficient l_coeff(0.5), m_coeff(0.25);
-
    auto elasticity_kernel = [](const tensor<real_t, dim, dim> &dudxi,
                                const tensor<real_t, dim, dim> &J,
                                const double &w)
    {
-      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
-      real_t D1 = 100.0;
-      real_t C1 = 50.0;
+      mfem::real_t D1 = 100.0;
+      mfem::real_t C1 = 50.0;
+      constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       auto invJ = inv(J);
       auto dudx = dudxi * invJ;
-      real_t detF = det(I + dudx);
-      real_t p = -2.0 * D1 * detF * (detF - 1);
+      real_t F = det(I + dudx);
+      real_t p = -2.0 * D1 * F * (F - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
-      auto sigma = -(p / detF) * I + 2.0 * (C1 / pow(detF, 5.0 / 3.0)) * devB;
+      auto sigma = -(p / F) * I + 2 * (C1 / pow(F, 5.0 / 3.0)) * devB;
+
       return mfem::tuple{sigma * det(J) * w * transpose(invJ)};
    };
 
@@ -85,6 +205,8 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
    DifferentiableOperator dop{solutions, parameters, mfem::tuple{op}, mesh, ir};
+
+   ElasticityOperator elasticity(h1fes, dop, ess_tdof_list);
 
    VectorArrayCoefficient f(dim);
    for (int i = 0; i < dim-1; i++)
@@ -107,20 +229,32 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
 
    GMRESSolver gmres(MPI_COMM_WORLD);
    gmres.SetRelTol(1e-8);
-   gmres.SetMaxIter(5000);
+   gmres.SetMaxIter(1000);
    gmres.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
 
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetSolver(gmres);
-   newton.SetOperator(dop);
+   newton.SetOperator(elasticity);
    newton.SetRelTol(1e-6);
    newton.SetMaxIter(100);
    newton.SetPrintLevel(1);
 
-   dop.SetParameters({mesh_nodes});
+   elasticity.SetParameters(*mesh_nodes);
 
-   Vector zero;
-   newton.Mult(zero, X);
+   // Vector zero;
+   newton.Mult(*B, X);
+
+   u.SetFromTrueDofs(X);
+
+   ParaViewDataCollection paraview_dc("dfem", &mesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(polynomial_order);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetTime(0.0);
+   paraview_dc.RegisterField("displacement", &u);
+   paraview_dc.Save();
 
    return 0;
 }
