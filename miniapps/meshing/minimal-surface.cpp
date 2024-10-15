@@ -425,7 +425,7 @@ public:
             {
                const real_t rho = minW / maxW;
                MFEM_VERIFY(rho <= 1.0, "");
-               if (rho < opt.amr_threshold) { amr.Append(Refinement(e, {})); }
+               if (rho < opt.amr_threshold) { amr.Append(Refinement(e)); }
             }
          }
          if (amr.Size()>0)

@@ -103,7 +103,7 @@ TEST_CASE("Variable Order FiniteElementSpace",
 
          // h-refine element 1
          Array<Refinement> refinements;
-         refinements.Append(Refinement(1, {}));
+         refinements.Append(Refinement(1));
 
          int nonconformity_limit = 0; // 0 meaning allow unlimited ratio
          mesh.GeneralRefinement(refinements, 1, nonconformity_limit);  // h-refinement

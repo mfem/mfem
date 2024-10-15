@@ -1834,7 +1834,7 @@ TEST_CASE("RefinedCubesInternalBoundaries", "[NCMesh]")
    {
       if (smesh.GetAttribute(n) == 2)
       {
-         refs.Append(Refinement{n, {}});
+         refs.Append(Refinement{n});
       }
    }
 
@@ -2047,7 +2047,7 @@ TEST_CASE("RefinedTetsInternalBoundaries", "[NCMesh]")
    {
       if (smesh.GetAttribute(n) == 2)
       {
-         refs.Append(Refinement{n, {}});
+         refs.Append(Refinement{n});
       }
    }
 
