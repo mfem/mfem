@@ -772,6 +772,14 @@ protected:
    /// Entries are not owned.
    Array<Array<int>*> boundary_integs_marker;
 
+   /// Interior face integrators.
+   Array<BilinearFormIntegrator*> interior_face_integs;
+
+   /// Boundary face integrators.
+   Array<BilinearFormIntegrator*> boundary_face_integs;
+   /// Entries are not owned.
+   Array<Array<int>*> boundary_face_integs_marker;
+
    /// Trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> trace_face_integs;
 
@@ -893,6 +901,16 @@ public:
    void AddBoundaryIntegrator(BilinearFormIntegrator * bfi,
                               Array<int> &bdr_marker);
 
+   /// Adds an interior face integrator. Assumes ownership of @a bfi.
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Adds a boundary face integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Adds a boundary face integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                             Array<int> &bdr_marker);
+
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
        This type of integrator assembles terms over all faces of the mesh using
@@ -922,6 +940,16 @@ public:
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBBFI_Marker() { return &boundary_integs_marker; }
+
+   /// Access all integrators added with AddInteriorFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetFBFI() { return &interior_face_integs; }
+
+   /// Access all integrators added with AddBdrFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetBFBFI() { return &boundary_face_integs; }
+   /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBFBFI_Marker() { return &boundary_face_integs_marker; }
 
    /// Access all integrators added with AddTraceFaceIntegrator().
    Array<BilinearFormIntegrator*> *GetTFBFI() { return &trace_face_integs; }
@@ -987,6 +1015,13 @@ public:
    /// Compute the boundary trace face matrix of the given boundary element
    /** @note The boundary attribute markers of the integrators are ignored. */
    void ComputeBdrTraceFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the face matrix of the given face element
+   void ComputeFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the boundary face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
