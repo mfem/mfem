@@ -63,7 +63,7 @@ public:
     * The ParMesh @a mesh can be a linear or curved parallel mesh. The @a order
     * of the finite element spaces is
     */
-   IncompressibleNavierSolver(ParMesh *mesh, int velorder, int porder, real_t kin_vis);
+   IncompressibleNavierSolver(ParMesh *mesh, int velorder, int porder, int tOrder, real_t kin_vis);
 
    /// Initialize forms, solvers and preconditioners.
    void Setup(real_t dt);
@@ -75,13 +75,13 @@ public:
    void Step(real_t &time, real_t dt, int cur_step, bool provisional = false);
 
    /// Return a pointer to the provisional velocity ParGridFunction.
-   ParGridFunction *GetProvisionalVelocity() { return &un_next_gf; }
+   ParGridFunction *GetProvisionalVelocity() { return velGF[1]; }
 
    /// Return a pointer to the current velocity ParGridFunction.
-   ParGridFunction *GetCurrentVelocity() { return &un_gf; }
+   ParGridFunction *GetCurrentVelocity() { return velGF[0]; }
 
    /// Return a pointer to the current pressure ParGridFunction.
-   ParGridFunction *GetCurrentPressure() { return &pn_gf; }
+   ParGridFunction *GetCurrentPressure() { return pGF[0]; }
 
    /// Add a Dirichlet boundary condition to the velocity field.
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
@@ -116,12 +116,7 @@ public:
    /// Compute CFL
    real_t ComputeCFL(ParGridFunction &u, real_t dt);
 
-   /// Set the number of modes to cut off in the interpolation filter
-   void SetCutoffModes(int c) { filter_cutoff_modes = c; }
-
 protected:
-   /// Print information about the Navier version.
-   void PrintInfo();
 
    /// Eliminate essential BCs in an Operator and apply to RHS.
    void EliminateRHS(Operator &A,
@@ -151,9 +146,13 @@ protected:
    /// The order of the velocity and pressure space.
    int velorder;
    int porder;
+   int torder;
 
    /// Kinematic viscosity (dimensionless).
    real_t kin_vis;
+   Coefficient * kinvisCoeff = nullptr;
+
+   Coefficient *dtCoeff = nullptr;
 
    IntegrationRules gll_rules;
 
@@ -179,6 +178,15 @@ protected:
    ParBilinearForm *psiBForm = nullptr;
    ParBilinearForm *pBForm = nullptr;
 
+   ParLinearForm *velLForm = nullptr;
+   ParLinearForm *psiLForm = nullptr;
+   ParLinearForm *pLForm = nullptr;
+
+   std::vector<ParGridFunction*> velGF;
+   std::vector<ParGridFunction*> pGF;
+   ParGridFunction* psiGF;
+   
+
    // VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;
 
    // ParLinearForm *FText_bdr_form = nullptr;
@@ -197,11 +205,9 @@ protected:
    // ConstantCoefficient H_lincoeff;
    // ConstantCoefficient H_bdfcoeff;
 
-   // OperatorHandle Mv;
-   // OperatorHandle Sp;
-   // OperatorHandle D;
-   // OperatorHandle G;
-   // OperatorHandle H;
+   OperatorHandle vOp;
+   OperatorHandle psiOp;
+   OperatorHandle pOp;
 
    // Solver *MvInvPC = nullptr;
    // CGSolver *MvInv = nullptr;
@@ -236,11 +242,11 @@ protected:
    std::vector<VelDirichletBC_T> vel_dbcs;
 
    // Bookkeeping for pressure dirichlet bcs.
-   std::vector<PresDirichletBC_T> pres_dbcs;
+   //std::vector<PresDirichletBC_T> pres_dbcs;
 
 };
 
-} // namespace navier
+} // namespace incompressible_navier
 
 } // namespace mfem
 

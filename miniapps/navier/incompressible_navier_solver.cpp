@@ -17,15 +17,15 @@
 using namespace mfem;
 using namespace incompressible_navier;
 
-IncompressibleNavierSolver::NavierSolver(ParMesh *mesh, int velorder, int porder, real_t kin_vis)
-   : pmesh(mesh), velorder(velorder), porder(porder), kin_vis(kin_vis),
-     gll_rules(0, Quadrature1D::GaussLobatto)
+IncompressibleNavierSolver::IncompressibleNavierSolver(ParMesh *mesh, int velorder, int porder, int torder, real_t kin_vis)
+   : pmesh(mesh), velorder(velorder), porder(porder), torder(torder), kin_vis(kin_vis),
+     gll_rules(0, Quadrature1D::GaussLobatto), velGF(torder+1,nullptr), pGF(torder+1,nullptr)
 {
    vfec   = new H1_FECollection(velorder, pmesh->Dimension());
    psifec = new H1_FECollection(velorder);
    pfec   = new H1_FECollection(porder);
    vfes   = new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension());
-   psifes s= new ParFiniteElementSpace(pmesh, pfec);
+   psifes = new ParFiniteElementSpace(pmesh, pfec);
    pfes   = new ParFiniteElementSpace(pmesh, pfec);
 
    // Check if fully periodic mesh
@@ -41,10 +41,11 @@ IncompressibleNavierSolver::NavierSolver(ParMesh *mesh, int velorder, int porder
    int vfes_truevsize = vfes->GetTrueVSize();
    int pfes_truevsize = pfes->GetTrueVSize();
 
-   un.SetSize(vfes_truevsize);
-   un = 0.0;
-
-   PrintInfo();
+   for( int i; i<torder; i++)
+   {
+      velGF[i] = new ParGridFunction(vfes); *velGF[i] = 0.0;
+      pGF[i]   = new ParGridFunction(pfes); *pGF[i]   = 0.0;
+   }
 }
 
 void IncompressibleNavierSolver::Setup(real_t dt)
@@ -69,13 +70,16 @@ void IncompressibleNavierSolver::Setup(real_t dt)
 
    // GLL integration rule (Numerical Integration)
    const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
-                                                2 * order - 1);
+                                                2 * velorder - 1);
+
+   kinvisCoeff  = new ConstantCoefficient(kin_vis);
+   dtCoeff      = new ConstantCoefficient(-1.0/dt);
 
    //-------------------------------------------------------------------------
 
    velBForm = new ParBilinearForm(vfes);
-   auto *vmass_blfi = new VectorMassIntegrator();       //FIXEM add -1/dt coefficient
-   auto *vdiff_blfi = new VectorDiffusionIntegrator();   //FIXEM add nu coefficient
+   auto *vmass_blfi = new VectorMassIntegrator(*dtCoeff);       
+   auto *vdiff_blfi = new VectorDiffusionIntegrator(*kinvisCoeff);   
 
    if (numerical_integ)
    {
@@ -90,7 +94,7 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    }
 
    velBForm->Assemble();
-   //velBForm->FormSystemMatrix(empty, Mv);
+   velBForm->FormSystemMatrix(vel_ess_tdof, vOp);
 
    //-------------------------------------------------------------------------
 
@@ -108,7 +112,7 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    }
 
    psiBForm->Assemble();
-   //psiBForm->FormSystemMatrix(empty, Mv);
+   psiBForm->FormSystemMatrix(empty, psiOp);
 
    //-------------------------------------------------------------------------
 
@@ -126,7 +130,20 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    }
 
    pBForm->Assemble();
-   //pBForm->FormSystemMatrix(empty, Mv);
+   pBForm->FormSystemMatrix(empty, pOp);
+
+   //-------------------------------------------------------------------------
+
+   velLForm = new ParLinearForm(vfes);
+
+
+   //-------------------------------------------------------------------------
+
+   psiLForm = new ParLinearForm(psifes);
+
+   //-------------------------------------------------------------------------
+
+   pLForm = new ParLinearForm(pfes); 
 
    //-------------------------------------------------------------------------
 }
@@ -173,12 +190,21 @@ void IncompressibleNavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr
 
 }
 
-IncompressibleNavierSolver::~NavierSolver()
+IncompressibleNavierSolver::~IncompressibleNavierSolver()
 {
 
    delete velBForm;
    delete psiBForm;
    delete pBForm;
+
+   delete kinvisCoeff;
+   delete dtCoeff;
+
+   for( int i; i<torder; i++)
+   {
+      delete velGF[i];
+      delete pGF[i];
+   }
 
    delete vfec;
    delete psifec;
