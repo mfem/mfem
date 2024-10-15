@@ -35,6 +35,7 @@ int main(int argc, char *argv[])
    // Solid / Void material element attributes
    int solid_attr = 0;
    int void_attr = 0;
+   real_t max_latent = 1e09;
 
    // Stopping-criteria related
    int max_it = 300;
@@ -80,6 +81,9 @@ int main(int argc, char *argv[])
                   "Young's modulus E");
    args.AddOption(&nu, "-nu", "--poisson-ratio",
                   "Poinsson ration nu");
+
+   args.AddOption(&max_latent, "-maxl", "--max-latent",
+                  "Maximum value for the latent variable to prevent overflow");
 
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of iteration for Mirror Descent Step");
@@ -208,6 +212,8 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { out << "Creating problems ... " << std::flush; }
    // Density
    FermiDiracEntropy entropy;
+   entropy.SetFiniteLowerBound(-max_latent);
+   entropy.SetFiniteUpperBound(+max_latent);
    control_gf = entropy.forward((min_vol ? min_vol : max_vol)/tot_vol);
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
@@ -245,9 +251,9 @@ int main(int argc, char *argv[])
    MappedPairedGFCoefficient bregman_diff_eps
       = entropy.GetBregman_dual(control_eps_gf, control_gf);
    MappedPairedGFCoefficient diff_density_cf(
-      control_gf, control_old_gf, [](const real_t x, const real_t y)
+      control_gf, control_old_gf, [&entropy](const real_t x, const real_t y)
    {
-      return sigmoid(x)-sigmoid(y);
+      return entropy.backward(x)-entropy.backward(y);
    });
    MappedGFCoefficient density_eps_dual_cf = entropy.GetBackwardCoeff(
                                                 control_eps_gf);
