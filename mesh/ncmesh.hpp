@@ -428,17 +428,20 @@ public:
    /// Return the number of root elements.
    int GetNumRootElements() { return root_state.Size(); }
 
-   /// Return the distance of leaf 'i' from the root.
+   /// Return the distance of leaf @a i from the root.
    int GetElementDepth(int i) const;
 
    /** Return the size reduction compared to the root element (ignoring local
        stretching and curvature). */
    int GetElementSizeReduction(int i) const;
 
-   /// Return the faces and face attributes of leaf element 'i'.
+   /// Return the faces and face attributes of leaf element @a i.
    void GetElementFacesAttributes(int i, Array<int> &faces,
                                   Array<int> &fattr) const;
 
+   /// Set the attribute of leaf element @a i, which is a Mesh element index.
+   void SetAttribute(int i, int attr)
+   { elements[leaf_elements[i]].attribute = attr; }
 
    /** I/O: Print the mesh in "MFEM NC mesh v1.0" format. If @a comments is
        non-empty, it will be printed after the first line of the file, and each
@@ -666,7 +669,6 @@ protected: // implementation
 
    /// Return true if the Element @a el is a ghost element.
    bool IsGhost(const Element &el) const { return el.rank != MyRank; }
-
 
    // refinement/derefinement
 
