@@ -77,7 +77,7 @@ public:
    using VectorCoefficient::Eval;
 
    void Eval(Vector &V, ElementTransformation &T,
-             const IntegrationPoint &ip)
+             const IntegrationPoint &ip) override
    {
       V.SetSize(vdim);
       CalcOrtho(T.Jacobian(), V);
