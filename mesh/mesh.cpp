@@ -7346,6 +7346,12 @@ void Mesh::GetBdrElementAdjacentElement2(
    info = fi.Elem1Inf + ori;
 }
 
+void Mesh::SetAttribute(int i, int attr)
+{
+  elements[i]->SetAttribute(attr);
+  if (ncmesh) ncmesh->SetAttribute(i, attr);
+}
+
 Element::Type Mesh::GetElementType(int i) const
 {
    return elements[i]->GetType();
