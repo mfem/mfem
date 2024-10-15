@@ -18,6 +18,7 @@ int main(int argc, char *argv[])
    int order_filter = 1;
    int order_state = 1;
    bool use_glvis = true;
+   int vis_steps = 10;
    bool use_paraview = true;
    real_t step_size = -1.0;
 
@@ -42,10 +43,10 @@ int main(int argc, char *argv[])
    real_t tol_stationary_abs = 1e-04;
    real_t eps_stationarity = 1e-04;
    bool use_bregman_stationary = true;
-   real_t tol_obj_diff_rel = 1e-06;
-   real_t tol_obj_diff_abs = 1e-06;
+   real_t tol_obj_diff_rel = 5e-05;
+   real_t tol_obj_diff_abs = 5e-05;
    // backtracking related
-   int max_it_backtrack = 300;
+   int max_it_backtrack = 20;
    bool use_bregman_backtrack = true;
    real_t c1 = 1e-04;
 
@@ -107,6 +108,8 @@ int main(int argc, char *argv[])
    args.AddOption(&use_glvis, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+                  "Visualize every n-th timestep.");
    args.AddOption(&use_paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
                   "Enable or disable paraview export.");
@@ -210,7 +213,6 @@ int main(int argc, char *argv[])
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
    density.SetVoidAttr(void_attr);
    density.SetSolidAttr(solid_attr);
-   // if (prob == mfem::ForceInverter2) { ForceInverterInitialDesign(control_gf, &entropy); }
    // Filter
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);
    filter.GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(density_cf));
@@ -219,6 +221,12 @@ int main(int argc, char *argv[])
                                          nullptr);
    filter.GetAdjLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(energy));
    filter.SetAdjBStationary(false);
+   if (prob == mfem::ForceInverter2)
+   {
+      ForceInverterInitialDesign(control_gf, &entropy);
+   }
+   density.ApplyVolumeProjection(control_gf, true);
+   filter.Solve(filter_gf);
 
    // elasticity
    ElasticityProblem elasticity(fes_state, ess_bdr_state, lambda_simp_cf,
@@ -256,6 +264,7 @@ int main(int argc, char *argv[])
       glvis.reset(new GLVis ("localhost", 19916, true));
       const char keys[] = "Rjmml****************";
       glvis->Append(control_gf, "control variable", keys);
+      density_gf.ProjectCoefficient(density_cf);
       glvis->Append(density_gf, "design density", keys);
       glvis->Append(filter_gf, "filtered density", keys);
       glvis->Append(state_gf, "displacement magnitude", keys);
@@ -368,7 +377,7 @@ int main(int argc, char *argv[])
       curr_vol = optproblem.GetCurrentVolume();
 
       density_gf.ProjectCoefficient(density_cf);
-      if (it_md % 10 == 0)
+      if (it_md % vis_steps == 0)
       {
          if (use_glvis) { glvis->Update(); }
          if (use_paraview && !(paraview_dc->Error()))
@@ -402,12 +411,11 @@ int main(int argc, char *argv[])
       if (it_md == 0)
       {
          stationarity0 = stationarity_error;
-         obj0 = objval;
       }
       if ((stationarity_error < tol_stationary_abs ||
            stationarity_error < tol_stationary_rel*stationarity0)
           && (std::abs(objval - old_objval) < tol_obj_diff_abs ||
-              std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(obj0)))
+              std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(objval)))
       {
          if (it_md > min_it) { break; }
       }

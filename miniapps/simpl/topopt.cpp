@@ -193,23 +193,9 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
    real_t mu = 0.0; // constant perturbation
 
    // define density with perturbation
-   std::function<real_t(const real_t)> density_fun;
-   if (entropy && use_entropy)
-   {
-      // if entropy exists, then use the Bregman projection
-      // assuming x is the dual variable
-      density_fun = [this, &mu](const real_t psi) { return std::max(0.0, std::min(1.0, this->entropy->backward(psi + mu))); };
-   }
-   else
-   {
-      // if entropy does not exist, then use the L2 projection
-      // assuming x is the primal variable
-      density_fun = [&mu](const real_t rho) {return std::max(0.0, std::min(rho + mu, 1.0));};
-   }
-   MappedGFCoefficient density(x, density_fun);
+   real_t maxval = entropy && use_entropy ? entropy->GetFiniteUpperBound() : 1.0;
+   real_t minval = entropy && use_entropy ? entropy->GetFiniteLowerBound() : 0.0;
 
-   real_t maxval = entropy && use_entropy ? entropy->forward(1-1e-12) : 1-1e-12;
-   real_t minval = entropy && use_entropy ? entropy->forward(1e-12) : 1e-12;
    ConstantCoefficient const_cf(1.0);
    if (solid_attr_id)
    {
@@ -222,8 +208,23 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
       ProjectCoefficient(x, const_cf, void_attr_id);
    }
 
+   std::unique_ptr<Coefficient> density_cf, latent_cf;
+   if (entropy && use_entropy)
+   {
+      latent_cf.reset(new MappedGFCoefficient(
+                         x, [&mu, maxval, minval](const real_t psi)
+      {return std::max(minval, std::min(maxval, psi + mu));}));
+      x.ProjectCoefficient(*latent_cf); // apply clipping.
+      density_cf.reset(new CompositeCoefficient(*latent_cf, [this](
+      const real_t x) {return entropy->backward(x);}));
+   }
+   else
+   {
+      density_cf.reset(new MappedGFCoefficient(x, [&mu](const real_t x) {return std::max(0.0, std::min(1.0, x+mu));}));
+   }
+
    // Check the volume constraints and determine the target volume
-   real_t curr_vol = zero->ComputeL1Error(density);
+   real_t curr_vol = zero->ComputeL1Error(*density_cf);
    real_t target_vol=-1;
    if (curr_vol > max_vol)
    {
@@ -266,39 +267,17 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
    mu = (upper + lower) * 0.5; // initial choice
    while (dc > target_accuracy)
    {
-      curr_vol = zero->ComputeL1Error(density);
+      curr_vol = zero->ComputeL1Error(*density_cf);
       dc *= 0.5;
       mu += curr_vol < target_vol ? dc : -dc;
-      if (solid_attr_id)
-      {
-         const_cf.constant = maxval-mu;
-         ProjectCoefficient(x, const_cf, solid_attr_id);
-      }
-      if (void_attr_id)
-      {
-         const_cf.constant = minval-mu;
-         ProjectCoefficient(x, const_cf, void_attr_id);
-      }
    }
    if (entropy && use_entropy)
    {
-      x += mu;
-      if (std::isfinite(entropy->GetUpperBound()))
-      {
-         real_t uval = entropy->GetUpperBound();
-         if (Mpi::Root()) { out << "Enforcing Upper Bound " << uval << std::endl; }
-         for (real_t &val:x) { val = std::min(uval, val); }
-      }
-      if (std::isfinite(entropy->GetLowerBound()))
-      {
-         real_t lval = entropy->GetLowerBound();
-         if (Mpi::Root()) { out << "Enforcing Lower Bound " << lval << std::endl; }
-         for (real_t &val:x) { val = std::max(lval, val); }
-      }
+      x.ProjectCoefficient(*latent_cf);
    }
    else
    {
-      x.ProjectCoefficient(density);
+      x.ProjectCoefficient(*density_cf);
    }
 
    return curr_vol;
@@ -338,10 +317,6 @@ real_t DensityBasedTopOpt::Eval()
 {
    current_volume = density.ApplyVolumeProjection(control_gf,
                                                   density.hasEntropy());
-   for (auto &v : control_gf)
-   {
-      v = std::min(1e06, std::max(-1e06, v));
-   }
    filter.Solve(filter_gf);
    elasticity.Solve(state_gf);
    obj.Assemble();

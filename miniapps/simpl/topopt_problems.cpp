@@ -64,21 +64,28 @@ void ForceInverterInitialDesign(GridFunction &x, LegendreEntropy *entropy)
    ports.Append(new Vector({2.0,1.0}));
    Vector domain_center({1.0,0.5});
 
-   FunctionCoefficient dist([&domain_center, &ports](const Vector &x)
+   real_t max_d = -infinity();
+
+   FunctionCoefficient dist([&domain_center, &ports, &max_d](const Vector &x)
    {
       double d = infinity();
       for (auto &port : ports) {d = std::min(d, DistanceToSegment(x, domain_center, *port));}
-      return (1-d);
+      max_d = std::max(max_d, d);
+      return d;
    });
-   if (entropy)
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace * pfes = dynamic_cast<ParFiniteElementSpace*>
+                                  (x.FESpace());
+   if (pfes)
    {
-      x.ProjectCoefficient(dist);
+      MPI_Allreduce(MPI_IN_PLACE, &max_d, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                    pfes->GetComm());
    }
-   else
-   {
-      CompositeCoefficient dist_cut(dist, [](const real_t x) {return std::min(1.0, std::max(0.0, x));});
-      x.ProjectCoefficient(dist_cut);
-   }
+#endif
+   x.ProjectCoefficient(dist);
+   real_t maxval = entropy ? entropy->GetFiniteUpperBound() : 1.0;
+   real_t minval = entropy ? entropy->GetFiniteLowerBound() : 0.0;
+   for (auto &val : x) {val = (max_d - val) / max_d * (maxval - minval) + minval; }
    for (auto port:ports) { delete port; }
 }
 
@@ -381,15 +388,15 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
       case ForceInverter2:
       {
          filename << "ForceInverter2";
-         if (r_min < 0) { r_min = 0.05; }
+         if (r_min < 0) { r_min = 0.02; }
          if (E < 0) { E = 1.0; }
          if (nu < 0) { nu = 0.3; }
          mesh = new Mesh(Mesh::MakeCartesian2D(2, 1, Element::Type::QUADRILATERAL, false,
                                                2.0, 1.0));
          tot_vol = 0.0;
          for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
-         if (min_vol < 0) { min_vol = tot_vol*0.3; }
-         if (max_vol < 0) { max_vol = tot_vol*1.0; }
+         if (min_vol < 0) { min_vol = tot_vol*0.0; }
+         if (max_vol < 0) { max_vol = tot_vol*0.3; }
          for (int i=0; i<ser_ref_levels; i++)
          {
             mesh->UniformRefinement();
@@ -596,7 +603,7 @@ void SetupTopoptProblem(TopoptProblem prob,
 
       case ForceInverter2:
       {
-         real_t k_in(0.1), k_out(0.1);
+         real_t k_in(1), k_out(0.001);
 
          auto d_in = new Vector({1.0, 0.0});
          auto d_out = new Vector({-1.0, 0.0});
