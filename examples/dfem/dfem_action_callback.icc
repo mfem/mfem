@@ -30,7 +30,7 @@ void DifferentiableOperator<kernels_tuple,
    const Operator *R = get_restriction<entity_t>(op.fields[test_space_field_idx],
                                                  element_dof_ordering);
 
-   auto output_fop = serac::get<hardcoded_output_idx>(kernel.outputs);
+   auto output_fop = mfem::get<hardcoded_output_idx>(kernel.outputs);
 
    const int num_elements = GetNumEntities<Entity::Element>(op.mesh);
    const int num_entities = GetNumEntities<entity_t>(op.mesh);
@@ -65,7 +65,7 @@ void DifferentiableOperator<kernels_tuple,
    residual_e.SetSize(R->Height());
 
    const int residual_size_on_qp = GetSizeOnQP<entity_t>(
-                                      serac::get<hardcoded_output_idx>(kernel.outputs),
+                                      mfem::get<hardcoded_output_idx>(kernel.outputs),
                                       op.fields[test_space_field_idx]);
 
    auto input_dtq_maps = create_dtq_maps<entity_t>(kernel.inputs, dtq,
@@ -76,12 +76,12 @@ void DifferentiableOperator<kernels_tuple,
    auto input_fops = create_bare_fops(kernel.inputs);
    auto output_fops = create_bare_fops(kernel.outputs);
 
-   const int test_vdim = serac::get<hardcoded_output_idx>(output_fops).vdim;
+   const int test_vdim = mfem::get<hardcoded_output_idx>(output_fops).vdim;
    const int test_op_dim =
-      serac::get<hardcoded_output_idx>(output_fops).size_on_qp /
-      serac::get<hardcoded_output_idx>(output_fops).vdim;
+      mfem::get<hardcoded_output_idx>(output_fops).size_on_qp /
+      mfem::get<hardcoded_output_idx>(output_fops).vdim;
    const int num_test_dof = R->Height() /
-                            serac::get<hardcoded_output_idx>(output_fops).vdim /
+                            mfem::get<hardcoded_output_idx>(output_fops).vdim /
                             num_entities;
 
    auto ir_weights = Reshape(this->op.integration_rule.GetWeights().Read(),
@@ -187,7 +187,7 @@ void DifferentiableOperator<kernels_tuple,
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
          map_quadrature_data_to_fields<TensorProduct>(y, fhat,
-                                                      serac::get<0>(output_fops),
+                                                      mfem::get<0>(output_fops),
                                                       output_dtq_shmem[hardcoded_output_idx],
                                                       scratch_mem);
          // printf("integrate elapsed: %.1fus\n", toc() * 1e6);

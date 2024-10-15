@@ -5,8 +5,9 @@
 #include "general/backends.hpp"
 #include <utility>
 #include <mfem.hpp>
+#include <tuple>
 
-namespace serac
+namespace mfem
 {
 
 /**
@@ -204,8 +205,8 @@ struct tuple_size
 };
 
 template <class... Types>
-struct tuple_size<serac::tuple<Types...>> :
-                                       std::integral_constant<std::size_t, sizeof...(Types)>
+struct tuple_size<mfem::tuple<Types...>> :
+                                      std::integral_constant<std::size_t, sizeof...(Types)>
 {
 };
 
@@ -702,11 +703,11 @@ MFEM_HOST_DEVICE constexpr auto operator*(const tuple<T...>& x, const double a)
  * @brief helper used to implement printing a tuple of values
  */
 template <typename... T, std::size_t... i>
-auto& print_helper(std::ostream& out, const serac::tuple<T...>& A,
+auto& print_helper(std::ostream& out, const mfem::tuple<T...>& A,
                    std::integer_sequence<size_t, i...>)
 {
    out << "tuple{";
-   (..., (out << (i == 0 ? "" : ", ") << serac::get<i>(A)));
+   (..., (out << (i == 0 ? "" : ", ") << mfem::get<i>(A)));
    out << "}";
    return out;
 }
@@ -718,7 +719,7 @@ auto& print_helper(std::ostream& out, const serac::tuple<T...>& A,
  * @brief print a tuple of values
  */
 template <typename... T>
-auto& operator<<(std::ostream& out, const serac::tuple<T...>& A)
+auto& operator<<(std::ostream& out, const mfem::tuple<T...>& A)
 {
    return print_helper(out, A, std::make_integer_sequence<size_t, sizeof...(T)>());
 }
@@ -747,7 +748,7 @@ MFEM_HOST_DEVICE auto apply_helper(lambda f, tuple<T...>& args,
  * @param args a tuple of arguments
  * @brief a way of passing an n-tuple to a function that expects n separate arguments
  *
- *   e.g. foo(bar, baz) is equivalent to apply(foo, serac::tuple(bar,baz));
+ *   e.g. foo(bar, baz) is equivalent to apply(foo, mfem::tuple(bar,baz));
  */
 template <typename lambda, typename... T>
 MFEM_HOST_DEVICE auto apply(lambda f, tuple<T...>& args)
@@ -773,7 +774,7 @@ MFEM_HOST_DEVICE auto apply_helper(lambda f, const tuple<T...>& args,
  * @param args a tuple of arguments
  * @brief a way of passing an n-tuple to a function that expects n separate arguments
  *
- *   e.g. foo(bar, baz) is equivalent to apply(foo, serac::tuple(bar,baz));
+ *   e.g. foo(bar, baz) is equivalent to apply(foo, mfem::tuple(bar,baz));
  */
 template <typename lambda, typename... T>
 MFEM_HOST_DEVICE auto apply(lambda f, const tuple<T...>& args)
@@ -810,7 +811,7 @@ struct tuple_element<0, tuple<Head, Tail...>>
 };
 
 /**
- * @brief Trait for checking if a type is a @p serac::tuple
+ * @brief Trait for checking if a type is a @p mfem::tuple
  */
 template <typename T>
 struct is_tuple : std::false_type
@@ -819,12 +820,12 @@ struct is_tuple : std::false_type
 
 /// @overload
 template <typename... T>
-struct is_tuple<serac::tuple<T...>> : std::true_type
+struct is_tuple<mfem::tuple<T...>> : std::true_type
 {
 };
 
 /**
- * @brief Trait for checking if a type if a @p serac::tuple containing only @p serac::tuple
+ * @brief Trait for checking if a type if a @p mfem::tuple containing only @p mfem::tuple
  */
 template <typename T>
 struct is_tuple_of_tuples : std::false_type
@@ -832,10 +833,10 @@ struct is_tuple_of_tuples : std::false_type
 };
 
 /**
- * @brief Trait for checking if a type if a @p serac::tuple containing only @p serac::tuple
+ * @brief Trait for checking if a type if a @p mfem::tuple containing only @p mfem::tuple
  */
 template <typename... T>
-struct is_tuple_of_tuples<serac::tuple<T...>>
+struct is_tuple_of_tuples<mfem::tuple<T...>>
 {
    static constexpr bool value = (is_tuple<T>::value &&
                                   ...);  ///< true/false result of type check

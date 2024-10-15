@@ -32,7 +32,7 @@ void DifferentiableOperator<kernels_tuple,
    const Operator *R = get_restriction<entity_t>(op.fields[test_space_field_idx],
                                                  element_dof_ordering);
 
-   auto output_fop = serac::get<hardcoded_output_idx>(kernel.outputs);
+   auto output_fop = mfem::get<hardcoded_output_idx>(kernel.outputs);
 
    const int num_elements = GetNumEntities<Entity::Element>(op.mesh);
    const int num_entities = GetNumEntities<entity_t>(op.mesh);
@@ -50,7 +50,7 @@ void DifferentiableOperator<kernels_tuple,
    derivative_action_e.SetSize(R->Height());
 
    const int da_size_on_qp = GetSizeOnQP<entity_t>(
-                                serac::get<hardcoded_output_idx>(kernel.outputs),
+                                mfem::get<hardcoded_output_idx>(kernel.outputs),
                                 op.fields[test_space_field_idx]);
 
    auto input_dtq_maps = create_dtq_maps<entity_t>(kernel.inputs, dtq,
@@ -61,12 +61,12 @@ void DifferentiableOperator<kernels_tuple,
    auto input_fops = create_bare_fops(kernel.inputs);
    auto output_fops = create_bare_fops(kernel.outputs);
 
-   const int test_vdim = serac::get<hardcoded_output_idx>(output_fops).vdim;
+   const int test_vdim = mfem::get<hardcoded_output_idx>(output_fops).vdim;
    const int test_op_dim =
-      serac::get<hardcoded_output_idx>(output_fops).size_on_qp /
-      serac::get<hardcoded_output_idx>(output_fops).vdim;
+      mfem::get<hardcoded_output_idx>(output_fops).size_on_qp /
+      mfem::get<hardcoded_output_idx>(output_fops).vdim;
    const int num_test_dof = R->Height() /
-                            serac::get<hardcoded_output_idx>(output_fops).vdim /
+                            mfem::get<hardcoded_output_idx>(output_fops).vdim /
                             num_entities;
 
    auto ir_weights = Reshape(this->op.integration_rule.GetWeights().Read(),
@@ -106,7 +106,7 @@ void DifferentiableOperator<kernels_tuple,
 
    Vector shmem_cache(shmem_info.total_size);
 
-   // print_shared_memory_info(shmem_info);
+   print_shared_memory_info(shmem_info);
 
    func = [=](Vector &ye_mem) mutable
    {
@@ -190,31 +190,34 @@ void DifferentiableOperator<kernels_tuple,
          {
             MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               const int q = qy + qx * q1d;
+               MFEM_FOREACH_THREAD(qz, z, q1d)
+               {
+                  const int q = qx + q1d * (qy + q1d * qz);
 
-               auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
-               auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+                  auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+                  auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
 
-               auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
-               // apply_kernel_fwddiff_enzyme(
-               //    r,
-               //    kernel.func,
-               //    kernel_args,
-               //    input_shmem,
-               //    kernel_shadow_args,
-               //    shadow_shmem,
-               //    q);
-               printf(">>>>> WARNING: AD DISABLED\n");
+                  auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
+                  apply_kernel_fwddiff_enzyme(
+                     r,
+                     kernel.func,
+                     kernel_args,
+                     input_shmem,
+                     kernel_shadow_args,
+                     shadow_shmem,
+                     q);
+                  // printf(">>>>> WARNING: AD DISABLED\n");
+               }
             }
          }
          MFEM_SYNC_THREAD;
 
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-         map_quadrature_data_to_fields<mfem::TensorProduct>(y, fhat,
-                                                            serac::get<0>(output_fops),
-                                                            output_dtq_shmem[hardcoded_output_idx],
-                                                            scratch_mem);
+         map_quadrature_data_to_fields<TensorProduct>(y, fhat,
+                                                      mfem::get<0>(output_fops),
+                                                      output_dtq_shmem[hardcoded_output_idx],
+                                                      scratch_mem);
       }, num_entities, q1d, q1d, 1, shmem_info.total_size, shmem_cache.ReadWrite());
 
       R->MultTranspose(ye_mem, derivative_action_l);

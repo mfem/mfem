@@ -16,10 +16,8 @@
 #include "tuple.hpp"
 #include "mesh/mesh.hpp"
 #include <linalg/tensor.hpp>
-#include "dfem_smm.hpp"
-
-// #include "noisy.hpp"
-// #include <enzyme/enzyme>
+#include <enzyme/utils>
+#include <enzyme/enzyme>
 
 using std::size_t;
 
@@ -103,8 +101,8 @@ void print_array(const mfem::Array<T>& v)
 }
 
 template <typename ... Ts>
-constexpr auto decay_types(serac::tuple<Ts...> const &)
--> serac::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
+constexpr auto decay_types(mfem::tuple<Ts...> const &)
+-> mfem::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
 
 template <typename T>
 using decay_tuple = decltype(decay_types(std::declval<T>()));
@@ -115,7 +113,7 @@ template <typename output_t, typename... input_ts>
 struct FunctionSignature<output_t(input_ts...)>
 {
    using return_t = output_t;
-   using parameter_ts = serac::tuple<input_ts...>;
+   using parameter_ts = mfem::tuple<input_ts...>;
 };
 
 template <class T> struct create_function_signature;
@@ -240,13 +238,13 @@ struct ElementOperator;
 
 template <typename func_t, typename... input_ts,
           typename... output_ts>
-struct ElementOperator<func_t, serac::tuple<input_ts...>,
-          serac::tuple<output_ts...>>
+struct ElementOperator<func_t, mfem::tuple<input_ts...>,
+          mfem::tuple<output_ts...>>
 {
    using entity_t = Entity::Element;
    func_t func;
-   serac::tuple<input_ts...> inputs;
-   serac::tuple<output_ts...> outputs;
+   mfem::tuple<input_ts...> inputs;
+   mfem::tuple<output_ts...> outputs;
    using kf_param_ts = typename create_function_signature<
                        decltype(&decltype(func)::operator())>::type::parameter_ts;
 
@@ -257,15 +255,15 @@ struct ElementOperator<func_t, serac::tuple<input_ts...>,
    using kernel_outputs_t = decltype(outputs);
 
    static constexpr size_t num_kinputs =
-      serac::tuple_size<kernel_inputs_t>::value;
+      mfem::tuple_size<kernel_inputs_t>::value;
    static constexpr size_t num_koutputs =
-      serac::tuple_size<kernel_outputs_t>::value;
+      mfem::tuple_size<kernel_outputs_t>::value;
 
    Array<int> attributes;
 
    ElementOperator(func_t func,
-                   serac::tuple<input_ts...> inputs,
-                   serac::tuple<output_ts...> outputs,
+                   mfem::tuple<input_ts...> inputs,
+                   mfem::tuple<output_ts...> outputs,
                    Array<int> *attr = nullptr)
       : func(func), inputs(inputs), outputs(outputs)
    {
@@ -287,11 +285,11 @@ struct ElementOperator<func_t, serac::tuple<input_ts...>,
                        "more than one output per kernel is not supported right now");
       }
 
-      constexpr size_t num_kfinputs = serac::tuple_size<kf_param_ts>::value;
+      constexpr size_t num_kfinputs = mfem::tuple_size<kf_param_ts>::value;
       static_assert(num_kfinputs == num_kinputs,
                     "kernel function inputs and descriptor inputs have to match");
 
-      constexpr size_t num_kfoutputs = serac::tuple_size<kf_output_t>::value;
+      constexpr size_t num_kfoutputs = mfem::tuple_size<kf_output_t>::value;
       static_assert(num_kfoutputs == num_koutputs,
                     "kernel function outputs and descriptor outputs have to match");
    }
@@ -299,10 +297,10 @@ struct ElementOperator<func_t, serac::tuple<input_ts...>,
 
 template <typename func_t, typename... input_ts,
           typename... output_ts>
-ElementOperator(func_t, serac::tuple<input_ts...>,
-                serac::tuple<output_ts...>)
--> ElementOperator<func_t, serac::tuple<input_ts...>,
-serac::tuple<output_ts...>>;
+ElementOperator(func_t, mfem::tuple<input_ts...>,
+                mfem::tuple<output_ts...>)
+-> ElementOperator<func_t, mfem::tuple<input_ts...>,
+mfem::tuple<output_ts...>>;
 
 template <typename func_t, typename input_t, typename output_t>
 struct BoundaryElementOperator : public
@@ -857,13 +855,13 @@ int find_name_idx(const std::array<FieldDescriptor, num_fields> &fields,
 }
 
 template <typename entity_t, size_t num_fields, typename field_operator_ts, std::size_t... idx>
-std::array<int, serac::tuple_size<field_operator_ts>::value>
+std::array<int, mfem::tuple_size<field_operator_ts>::value>
 create_descriptors_to_fields_map(
    std::array<FieldDescriptor, num_fields> &fields,
    field_operator_ts &fops,
    std::index_sequence<idx...>)
 {
-   std::array<int, serac::tuple_size<field_operator_ts>::value> map;
+   std::array<int, mfem::tuple_size<field_operator_ts>::value> map;
 
    auto f = [&](auto &fop, auto &map)
    {
@@ -897,7 +895,7 @@ create_descriptors_to_fields_map(
       }
    };
 
-   (f(serac::get<idx>(fops), map[idx]), ...);
+   (f(mfem::get<idx>(fops), map[idx]), ...);
 
    return map;
 }
@@ -907,7 +905,7 @@ std::array<DeviceTensor<3>, sizeof...(i)> wrap_input_memory(
    std::array<Vector, sizeof...(i)> &input_qp_mem, int num_qp, int num_entities,
    const input_t &inputs, std::index_sequence<i...>)
 {
-   return {DeviceTensor<3>(input_qp_mem[i].Write(), serac::get<i>(inputs).size_on_qp, num_qp, num_entities) ...};
+   return {DeviceTensor<3>(input_qp_mem[i].Write(), mfem::get<i>(inputs).size_on_qp, num_qp, num_entities) ...};
 }
 
 template <typename input_t, std::size_t... i>
@@ -917,7 +915,7 @@ std::array<Vector, sizeof...(i)> create_input_qp_memory(
    input_t &inputs,
    std::index_sequence<i...>)
 {
-   return {Vector(serac::get<i>(inputs).size_on_qp * num_qp * num_entities)...};
+   return {Vector(mfem::get<i>(inputs).size_on_qp * num_qp * num_entities)...};
 }
 
 struct DofToQuadMap
@@ -1250,7 +1248,7 @@ void map_fields_to_quadrature_data(
 
       (map_field_to_quadrature_data_tensor_product(fields_qp[i],
                                                    dtqmaps[i], fields_e[i],
-                                                   serac::get<i>(fops), integration_weights,
+                                                   mfem::get<i>(fops), integration_weights,
                                                    scratch_mem),
        ...);
    }
@@ -1258,7 +1256,7 @@ void map_fields_to_quadrature_data(
    {
       (map_field_to_quadrature_data(fields_qp[i],
                                     dtqmaps[i], fields_e[i],
-                                    serac::get<i>(fops), integration_weights),
+                                    mfem::get<i>(fops), integration_weights),
        ...);
    }
 }
@@ -1306,7 +1304,7 @@ void map_fields_to_quadrature_data_conditional(
    (map_field_to_quadrature_data_conditional<T>(fields_qp[i],
                                                 fields_e[i],
                                                 dtqmaps[i],
-                                                serac::get<i>(fops),
+                                                mfem::get<i>(fops),
                                                 integration_weights,
                                                 scratch_mem,
                                                 conditions[i]),
@@ -1328,7 +1326,7 @@ void map_direction_to_quadrature_data_conditional(
    (map_field_to_quadrature_data_conditional<T>(directions_qp[i],
                                                 direction_e,
                                                 dtqmaps[i],
-                                                serac::get<i>(fops),
+                                                mfem::get<i>(fops),
                                                 integration_weights,
                                                 scratch_mem,
                                                 conditions[i]),
@@ -1340,7 +1338,7 @@ std::array<int, sizeof...(i)> get_input_size_on_qp(
    const input_t &inputs,
    std::index_sequence<i...>)
 {
-   return {serac::get<i>(inputs).size_on_qp...};
+   return {mfem::get<i>(inputs).size_on_qp...};
 }
 
 namespace SharedMemory
@@ -1554,7 +1552,7 @@ void print_shared_memory_info(
    {
       out << i << " ";
    }
-   out << "\n";
+   out << "\n\n";
 }
 
 template <size_t N>
@@ -1654,8 +1652,12 @@ DeviceTensor<1, const double> load_direction_mem(
    const DeviceTensor<2, const double> &direction,
    const int &entity_idx)
 {
-   int block_size = MFEM_THREAD_SIZE(x) * MFEM_THREAD_SIZE(y);
-   int tid = MFEM_THREAD_ID(x) + MFEM_THREAD_ID(y) * MFEM_THREAD_SIZE(x);
+   int block_size = MFEM_THREAD_SIZE(x) *
+                    MFEM_THREAD_SIZE(y) *
+                    MFEM_THREAD_SIZE(z);
+   int tid = MFEM_THREAD_ID(x) +
+             MFEM_THREAD_SIZE(x) *
+             (MFEM_THREAD_ID(y) + MFEM_THREAD_SIZE(y) * MFEM_THREAD_ID(z));
    for (int k = tid; k < size; k += block_size)
    {
       reinterpret_cast<real_t *>(mem)[offset + k] = direction(k, entity_idx);
@@ -1785,8 +1787,8 @@ int accumulate_sizes_on_qp(
       }
       return GetSizeOnQP(input, field);
    }
-   (serac::get<i>(inputs),
-    serac::get<i>(kinput_is_dependent),
+   (mfem::get<i>(inputs),
+    mfem::get<i>(kinput_is_dependent),
     fields[kinput_to_field[i]]));
 }
 
@@ -1865,7 +1867,7 @@ MFEM_HOST_DEVICE
 void process_kf_args(const std::array<DeviceTensor<2>, num_fields> &u,
                      kf_args &args, int qp, std::index_sequence<i...>)
 {
-   (process_kf_arg(u[i], serac::get<i>(args), qp), ...);
+   (process_kf_arg(u[i], mfem::get<i>(args), qp), ...);
 }
 
 template <typename T0, typename T1> inline
@@ -1938,78 +1940,81 @@ void apply_kernel(
    int qp)
 {
    process_kf_args(u, args, qp,
-                   std::make_index_sequence<serac::tuple_size<kernel_args_ts>::value> {});
+                   std::make_index_sequence<mfem::tuple_size<kernel_args_ts>::value> {});
 
-   process_kf_result(f_qp, serac::get<0>(serac::apply(kf, args)));
+   process_kf_result(f_qp, mfem::get<0>(mfem::apply(kf, args)));
 }
 
-// template <typename arg_ts, std::size_t... Is>
-// MFEM_HOST_DEVICE inline
-// auto create_enzyme_args(arg_ts &args,
-//                         arg_ts &shadow_args,
-//                         std::index_sequence<Is...>)
-// {
-//    // (out << ... << serac::get<Is>(shadow_args));
-//    return std::tuple_cat(std::tie(enzyme_dup, serac::get<Is>(args),
-//                                   serac::get<Is>(shadow_args))...);
-// }
+// Version for active function arguments only
+//
+// This is an Enzyme regression and can be removed in later versions.
+template <typename kernel_t, typename arg_ts, std::size_t... Is,
+          typename inactive_arg_ts>
+inline auto fwddiff_apply_enzyme_indexed(kernel_t kernel, arg_ts &&args,
+                                         arg_ts &&shadow_args,
+                                         std::index_sequence<Is...>,
+                                         inactive_arg_ts &&inactive_args,
+                                         std::index_sequence<>)
+{
+   using kf_return_t = typename create_function_signature<
+                       decltype(&kernel_t::operator())>::type::return_t;
+   return __enzyme_fwddiff<kf_return_t>(
+             +kernel, enzyme_dup, &mfem::get<Is>(args)..., enzyme_interleave,
+             &mfem::get<Is>(shadow_args)...);
+}
 
-// template <typename arg_ts, std::size_t... Is> inline
-// auto create_enzyme_args(arg_ts &args,
-//                         arg_ts &shadow_args,
-//                         std::index_sequence<Is...>)
-// {
-//    // PURE CPP EVIL
-//    return serac::tuple<enzyme::Duplicated<
-//           std::add_lvalue_reference_t<
-//           typename std::add_const<
-//           std::remove_reference_t<
-//           std::remove_cv_t<
-//           decltype(serac::get<Is>(args))>>>::type>>...>
-//    {
-//       { serac::get<Is>(args), serac::get<Is>(shadow_args) }...
-//    };
-// }
+// Interleave function arguments for enzyme
+template <typename kernel_t, typename arg_ts, std::size_t... Is,
+          typename inactive_arg_ts, std::size_t... Js>
+inline auto fwddiff_apply_enzyme_indexed(kernel_t kernel, arg_ts &&args,
+                                         arg_ts &&shadow_args,
+                                         std::index_sequence<Is...>,
+                                         inactive_arg_ts &&inactive_args,
+                                         std::index_sequence<Js...>)
+{
+   using kf_return_t = typename create_function_signature<
+                       decltype(&kernel_t::operator())>::type::return_t;
+   return __enzyme_fwddiff<kf_return_t>(
+             +kernel, enzyme_dup, &std::get<Is>(args)..., enzyme_const,
+             &mfem::get<Js>(inactive_args)..., enzyme_interleave,
+             &mfem::get<Is>(shadow_args)...);
+}
 
-// template <typename kernel_t, typename arg_ts>
-// MFEM_HOST_DEVICE inline
-// auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args, arg_ts &&shadow_args)
-// {
-//    auto arg_indices =
-//       std::make_index_sequence<serac::tuple_size<std::remove_reference_t<arg_ts>>::value> {};
+template <typename kernel_t, typename arg_ts, typename inactive_arg_ts>
+inline auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args,
+                                 arg_ts &&shadow_args,
+                                 inactive_arg_ts &&inactive_args)
+{
+   auto arg_indices = std::make_index_sequence<
+                      mfem::tuple_size<std::remove_reference_t<arg_ts>>::value> {};
 
-//    auto enzyme_args = create_enzyme_args(args, shadow_args, arg_indices);
+   auto inactive_arg_indices = std::make_index_sequence<
+                               mfem::tuple_size<std::remove_reference_t<inactive_arg_ts>>::value> {};
 
-//    using kf_return_t = typename create_function_signature<
-//                        decltype(&kernel_t::operator())>::type::return_t;
+   return fwddiff_apply_enzyme_indexed(kernel, args, shadow_args, arg_indices,
+                                       inactive_args, inactive_arg_indices);
+}
 
-//    return std::apply([&](auto &&...args)
-//    {
-//       return __enzyme_fwddiff<kf_return_t>((void*)+kernel, &args...);
-//       // return serac::get<0>(enzyme::autodiff<enzyme::Forward>(+kernel, args...));
-//    }, enzyme_args);
-// }
+template <typename kf_t, typename kernel_arg_ts, size_t num_args>
+MFEM_HOST_DEVICE inline
+void apply_kernel_fwddiff_enzyme(
+   DeviceTensor<1, double> &f_qp,
+   const kf_t &kf,
+   kernel_arg_ts &args,
+   const std::array<DeviceTensor<2>, num_args> &u,
+   kernel_arg_ts &shadow_args,
+   const std::array<DeviceTensor<2>, num_args> &v,
+   int qp_idx)
+{
+   process_kf_args(u, args, qp_idx,
+                   std::make_index_sequence<mfem::tuple_size<kernel_arg_ts>::value> {});
 
-// template <typename kf_t, typename kernel_arg_ts, size_t num_args>
-// MFEM_HOST_DEVICE inline
-// void apply_kernel_fwddiff_enzyme(
-//    DeviceTensor<1, double> &f_qp,
-//    const kf_t &kf,
-//    kernel_arg_ts &args,
-//    const std::array<DeviceTensor<2>, num_args> &u,
-//    kernel_arg_ts &shadow_args,
-//    const std::array<DeviceTensor<2>, num_args> &v,
-//    int qp_idx)
-// {
-//    process_kf_args(u, args, qp_idx,
-//                    std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
+   process_kf_args(v, shadow_args, qp_idx,
+                   std::make_index_sequence<mfem::tuple_size<kernel_arg_ts>::value> {});
 
-//    process_kf_args(v, shadow_args, qp_idx,
-//                    std::make_index_sequence<serac::tuple_size<kernel_arg_ts>::value> {});
-
-//    process_kf_result(f_qp,
-//                      serac::get<0>(fwddiff_apply_enzyme(kf, args, shadow_args)));
-// }
+   process_kf_result(f_qp,
+                     mfem::get<0>(fwddiff_apply_enzyme(kf, args, shadow_args, mfem::tuple<> {})));
+}
 
 template <typename T> inline
 void process_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
@@ -2046,7 +2051,7 @@ void process_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
                      std::array<DeviceTensor<2>, num_fields> &v,
                      kf_args &args, int qp, std::index_sequence<i...>)
 {
-   (process_kf_arg(u[i], v[i], serac::get<i>(args), qp), ...);
+   (process_kf_arg(u[i], v[i], mfem::get<i>(args), qp), ...);
 }
 
 template <typename output_type>
@@ -2401,7 +2406,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
    };
    return std::array<DofToQuadMap, N>
    {
-      f(serac::get<i>(fops), i)...
+      f(mfem::get<i>(fops), i)...
    };
 }
 
@@ -2414,7 +2419,7 @@ std::array<DofToQuadMap, N> create_dtq_maps(
    return create_dtq_maps_impl<entity_t>(
              fops, dtqmaps,
              to_field_map,
-             std::make_index_sequence<serac::tuple_size<field_operator_ts>::value> {});
+             std::make_index_sequence<mfem::tuple_size<field_operator_ts>::value> {});
 }
 
 template <typename field_operator_ts, std::size_t... I>
@@ -2447,7 +2452,7 @@ auto create_bare_fops_impl(
          return BareFieldOperator::Base(fop);
       }
    };
-   return serac::make_tuple(f(serac::get<I>(fops), I)...);
+   return mfem::make_tuple(f(mfem::get<I>(fops), I)...);
 }
 
 template <typename field_operator_ts>
@@ -2455,7 +2460,7 @@ auto create_bare_fops(const field_operator_ts &fops)
 {
    return create_bare_fops_impl(
              fops,
-             std::make_index_sequence<serac::tuple_size<field_operator_ts>::value> {});
+             std::make_index_sequence<mfem::tuple_size<field_operator_ts>::value> {});
 }
 
 template <
@@ -2463,7 +2468,7 @@ template <
    size_t num_solutions,
    size_t num_parameters,
    size_t num_fields = num_solutions + num_parameters,
-   size_t num_kernels = serac::tuple_size<kernels_tuple>::value
+   size_t num_kernels = mfem::tuple_size<kernels_tuple>::value
    >
 class DifferentiableOperator : public Operator
 {
@@ -2482,13 +2487,13 @@ public:
                                  std::array<mult_func_t, num_kernels>,
                                  std::index_sequence<idx...> const&)
       {
-         (create_action_callback(serac::get<idx>(ks), funcs[idx]), ...);
+         (create_action_callback(mfem::get<idx>(ks), funcs[idx]), ...);
       }
 
       Action(DifferentiableOperator &op, kernels_tuple &ks) : op(op)
       {
          materialize_callbacks(ks, funcs,
-                               std::make_index_sequence<serac::tuple_size<kernels_tuple>::value>());
+                               std::make_index_sequence<mfem::tuple_size<kernels_tuple>::value>());
       }
 
       void Mult(const Vector &x, Vector &y) const
@@ -2544,7 +2549,7 @@ public:
                                  std::array<mult_func_t, num_kernels>,
                                  std::index_sequence<idx...> const&)
       {
-         (create_callback(serac::get<idx>(ks), funcs[idx]), ...);
+         (create_callback(mfem::get<idx>(ks), funcs[idx]), ...);
       }
 
       Derivative(
@@ -2618,7 +2623,7 @@ public:
          Vector &v,
          std::index_sequence<idx...> const&)
       {
-         (assemble_vector_impl(serac::get<idx>(ks), v), ...);
+         (assemble_vector_impl(mfem::get<idx>(ks), v), ...);
       }
 
       void Assemble(Vector &v)
@@ -2635,7 +2640,7 @@ public:
          HypreParMatrix &A,
          std::index_sequence<idx...> const&)
       {
-         (assemble_hypreparmatrix_impl(serac::get<idx>(ks), A), ...);
+         (assemble_hypreparmatrix_impl(mfem::get<idx>(ks), A), ...);
       }
 
       void Assemble(HypreParMatrix &A)

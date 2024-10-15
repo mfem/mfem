@@ -394,14 +394,14 @@ using mfem::internal::tensor;
 //    {
 //       // out << "u: " << u << "\n";
 //       // out << "J: " << J << "\n";
-//       return serac::tuple{u * det(J) * w};
+//       return mfem::tuple{u * det(J) * w};
 //    };
 
-//    serac::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
-//    serac::tuple output_operator = {Value{"potential"}};
+//    mfem::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
+//    mfem::tuple output_operator = {Value{"potential"}};
 
 //    ElementOperator eop{kernel, argument_operators, output_operator};
-//    auto ops = serac::tuple{eop};
+//    auto ops = mfem::tuple{eop};
 
 //    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
 //    auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
@@ -631,14 +631,14 @@ int test_diffusion_integrator(std::string mesh_file,
                   const tensor<double, 2> &dudxi)
    {
       auto invJ = inv(J);
-      return serac::tuple{dudxi * invJ * transpose(invJ) * det(J) * w};
+      return mfem::tuple{dudxi * invJ * transpose(invJ) * det(J) * w};
    };
 
-   serac::tuple argument_operators = {Gradient{"coordinates"}, Weight{}, Gradient{"potential"}};
-   serac::tuple output_operator = {Gradient{"potential"}};
+   mfem::tuple argument_operators = {Gradient{"coordinates"}, Weight{}, Gradient{"potential"}};
+   mfem::tuple output_operator = {Gradient{"potential"}};
 
    ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = serac::tuple{eop};
+   auto ops = mfem::tuple{eop};
 
    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
    auto parameters = std::array
@@ -804,13 +804,13 @@ int test_diffusion_integrator(std::string mesh_file,
 //       const tensor<double, 2, 2> &J,
 //       const double &w)
 //    {
-//       return serac::tuple{u * det(J) * w};
+//       return mfem::tuple{u * det(J) * w};
 //    };
-//    serac::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
-//    serac::tuple output_operator = {Value{"potential"}};
+//    mfem::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
+//    mfem::tuple output_operator = {Value{"potential"}};
 
 //    ElementOperator eop = {kernel, argument_operators, output_operator};
-//    auto ops = serac::tuple{eop};
+//    auto ops = mfem::tuple{eop};
 
 //    auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
 //    // std::array<FieldDescriptor, 0> parameters;
@@ -1407,18 +1407,18 @@ int test_diffusion_integrator(std::string mesh_file,
 //       static constexpr auto I = mfem::internal::IsotropicIdentity<2>();
 //       auto invJ = inv(J);
 //       auto eps = sym(dudxi * invJ);
-//       return serac::tuple{transpose((lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(invJ))};
+//       return mfem::tuple{transpose((lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(invJ))};
 //    };
 
-//    serac::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
-//    serac::tuple output_operator{Gradient{"displacement"}};
+//    mfem::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
+//    mfem::tuple output_operator{Gradient{"displacement"}};
 
 //    ElementOperator op{elasticity_kernel, argument_operators, output_operator};
 
 //    std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
 //    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-//    DifferentiableOperator dop{solutions, parameters, serac::tuple{op}, mesh, ir};
+//    DifferentiableOperator dop{solutions, parameters, mfem::tuple{op}, mesh, ir};
 
 //    Vector x(h1fes.GetTrueVSize()), y1(h1fes.GetTrueVSize()),
 //           y2(h1fes.GetTrueVSize());
