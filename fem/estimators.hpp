@@ -172,10 +172,10 @@ public:
    void SetFluxAveraging(int fa) { flux_averaging = fa; }
 
    /// Return the total error from the last error estimate.
-   virtual real_t GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
@@ -184,14 +184,14 @@ public:
    /** @brief Get an Array<int> with anisotropic flags for all mesh elements.
        Return an empty array when anisotropic estimates are not available or
        enabled. */
-   virtual const Array<int> &GetAnisotropicFlags() override
+   const Array<int> &GetAnisotropicFlags() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return aniso_flags;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    /** @brief Destroy a ZienkiewiczZhuEstimator object. Destroys, if owned, the
        FiniteElementSpace, flux_space. */
@@ -298,17 +298,17 @@ public:
    }
 
    /// Return the total error from the last error estimate.
-   virtual real_t GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    virtual ~LSZienkiewiczZhuEstimator() { }
 };
@@ -411,17 +411,17 @@ public:
    void SetLocalErrorNormP(int p) { local_norm_p = p; }
 
    /// Return the total error from the last error estimate.
-   virtual real_t GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
    }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    /** @brief Destroy a L2ZienkiewiczZhuEstimator object. Destroys, if owned,
        the FiniteElementSpace, flux_space. */
@@ -505,10 +505,10 @@ public:
    void SetCoef(VectorCoefficient &A) { vcoef = &A; }
 
    /// Reset the error estimator.
-   virtual void Reset() override { current_sequence = -1; }
+   void Reset() override { current_sequence = -1; }
 
    /// Get a Vector with all element errors.
-   virtual const Vector &GetLocalErrors() override
+   const Vector &GetLocalErrors() override
    {
       if (MeshIsModified()) { ComputeEstimates(); }
       return error_estimates;
@@ -661,7 +661,7 @@ public:
    /// Reset the error estimator.
    void Reset() override { current_sequence = -1; };
 
-   virtual real_t GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override { return total_error; }
 
    /** @brief Change the method to compute hₑ on a per-element basis.
        @param compute_element_coefficient_

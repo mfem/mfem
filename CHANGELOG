@@ -11,6 +11,63 @@
 Version 4.7.1 (development)
 ===========================
 
+Discretization improvements
+---------------------------
+- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single
+  patch meshes. Only implemented for serial computations.
+
+- Added support for boundary constraints to the hybridization class.
+
+Meshing improvements
+--------------------
+- The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
+  are also supported.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
+
+- Added an MFEM example for the eikonal equation. This new solver is based on
+  the proximal Galerkin method introduced by Keith and Surowiec.
+
+- Added a command line option to all miniapps (`-p` or `--send-port`) for
+  specifying the GLVis server socket port (19916 by default).
+
+GPU computing
+-------------
+- Added support for GPU-accelerated batched linear algebra (using cuBLAS,
+  hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
+
+- A new GPU kernel dispatch mechanism was introduced. Users can instantiate
+  specialized kernels for specific combinations of (for example) polynomial
+  degree and number of quadrature points using
+  `DiffusionIntegrator::AddSpecialization` and
+  `MassIntegrator::AddSpecialization` (this functionality may be added to more
+  integrators in the future).
+
+- Calls to slower fallback kernels can be reported to `mfem::err` by setting
+  the environment variable `MFEM_REPORT_KERNELS` to any value other than `NO`
+  or by explicitly calling `KernelReporter::Enable`. Users can then add
+  specializations for these kernels to achieve higher performance.
+
+Miscellaneous
+-------------
+- Refactored the `ARKStepSolver` class (ARKODE interface) to use
+  `TimeDependentOperator::Mult` only when the associated ODE operator is
+  expressed in explicit form (i.e., `TimeDependentOperator::isExplicit()`),
+  otherwise `TimeDependentOperator::ExplicitMult` is used. A check has been
+  added to `ARKStepSolver` to verify that the associated ODE operator is not in
+  explicit form when a mass matrix solver is enabled via a call to either the
+  `UseMFEMMassLinearSolver` or `UseSundialsMassLinearSolver` methods. This is
+  because enabling a mass matrix solver assumes that F(u,k,t) = M k in the
+  associated ODE operator.
+
+- Added support for custom interpolation procedure in FindPointsGSLIB.
+
+API changes
+-----------
+- API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
+
 
 Version 4.7, released on May 7, 2024
 ====================================
@@ -34,6 +91,9 @@ Meshing improvements
   NURBS coarsening and knot removal are also introduced.
 
 - Added support for internal boundary elements in nonconforming meshes.
+
+- Added ExodusII output capability. The writer can handle first-order (Pyramid5,
+  Wedge6, Hex8, Tet4) and second-order FE types (Pyramid14, Wedge18, Hex27, Tet10).
 
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
 
@@ -106,6 +166,8 @@ Miscellaneous
   depending on the functionality older versions may still work.
 
 - Various other simplifications, extensions, and bugfixes in the code.
+
+- Added GSLIB-based gather-scatter operator.
 
 
 Version 4.6, released on September 27, 2023
