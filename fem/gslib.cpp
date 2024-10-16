@@ -259,6 +259,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    gsl_elem.SetSize(points_cnt);
    gsl_ref.SetSize(points_cnt * dim);
    gsl_dist.SetSize(points_cnt);
+   gsl_iter.SetSize(points_cnt);
 
    bool tensor_product_only = mesh->GetNE() == 0 ||
                               (mesh->GetNumGeometries(dim) == 1 &&
@@ -401,16 +402,18 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    gsl_elem      = 0;
    gsl_mfem_elem = 0;
    gsl_proc      = id;
+   gsl_iter      = 0;
 
    if (dim == 2)
    {
       FindPointsLocal2(point_pos, point_pos_ordering,
-                       gsl_code, gsl_elem, gsl_ref, gsl_dist, points_cnt);
+                       gsl_code, gsl_elem, gsl_ref, gsl_dist, gsl_iter,
+                       points_cnt);
    }
    else
    {
       FindPointsLocal3(point_pos, point_pos_ordering,
-                       gsl_code, gsl_elem, gsl_ref, gsl_dist, points_cnt);
+                       gsl_code, gsl_elem, gsl_ref, gsl_dist, gsl_iter, points_cnt);
    }
 
    // Sync from device to host
@@ -418,6 +421,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    gsl_dist.HostReadWrite();
    gsl_code.HostReadWrite();
    gsl_elem.HostReadWrite();
+   gsl_iter.HostReadWrite();
    point_pos.HostRead();
 
    // Tolerance for point to be marked as on element edge/face based on the
@@ -469,7 +473,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    struct outPt_t
    {
       double r[3], dist2;
-      unsigned int index, code, el, proc;
+      unsigned int index, code, el, proc, iter;
    };
 
    {
@@ -584,7 +588,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       point_pos_l.UseDevice(true); point_pos_l.SetSize(n*dim);
       auto pointl = point_pos_l.HostWrite();
 
-      Array<unsigned int> gsl_code_l(n), gsl_elem_l(n);
+      Array<unsigned int> gsl_code_l(n), gsl_elem_l(n), gsl_iter_l(n);
 
       for (int point = 0; point < n; ++point)
       {
@@ -598,18 +602,19 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       if (dim == 2)
       {
          FindPointsLocal2(point_pos_l, point_pos_ordering,
-                          gsl_code_l, gsl_elem_l, gsl_ref_l, gsl_dist_l, n);
+                          gsl_code_l, gsl_elem_l, gsl_ref_l, gsl_dist_l, gsl_iter_l, n);
       }
       else
       {
          FindPointsLocal3(point_pos_l, point_pos_ordering,
-                          gsl_code_l, gsl_elem_l, gsl_ref_l, gsl_dist_l, n);
+                          gsl_code_l, gsl_elem_l, gsl_ref_l, gsl_dist_l, gsl_iter_l, n);
       }
 
       gsl_ref_l.HostRead();
       gsl_dist_l.HostRead();
       gsl_code_l.HostRead();
       gsl_elem_l.HostRead();
+      gsl_iter_l.HostRead();
 
       // unpack arrays into opt
       for (int point = 0; point < n; point++)
@@ -621,6 +626,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
          }
          opt[point].el   = AsConst(gsl_elem_l)[point];
          opt[point].dist2 = AsConst(gsl_dist_l)[point];
+         opt[point].iter = AsConst(gsl_iter_l)[point];
          for (int d = 0; d < dim; ++d)
          {
             opt[point].r[d] = AsConst(gsl_ref_l)[dim * point + d];
@@ -686,6 +692,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
             gsl_elem[index] = opt->el;
             gsl_mfem_elem[index]   = opt->el;
             gsl_code[index] = opt->code;
+            gsl_iter[index] = opt->iter;
          }
       }
       array_free(&out_pt);

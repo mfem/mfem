@@ -19,8 +19,6 @@
 
 #ifdef MFEM_USE_GSLIB
 
-#define GSLIB_GET_ITER
-
 namespace gslib
 {
 struct comm;
@@ -98,9 +96,7 @@ protected:
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    Array<unsigned int> recv_proc, recv_index; // data for custom interpolation
-#ifdef GSLIB_GET_ITER
    Array<unsigned int> gsl_iter;
-#endif
    bool setupflag;              // flag to indicate if gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
    AvgType avgtype;             // average type used for L2 functions
@@ -162,6 +158,7 @@ protected:
                          Array<unsigned int> &gsl_elem_dev_l,
                          Vector &gsl_ref_l,
                          Vector &gsl_dist_l,
+                         Array<unsigned int> &gsl_iter_dev_l,
                          int npt);
 
    // FindPoints locally on device for 2D.
@@ -171,6 +168,7 @@ protected:
                          Array<unsigned int> &gsl_elem_dev_l,
                          Vector &gsl_ref_l,
                          Vector &gsl_dist_l,
+                         Array<unsigned int> &gsl_iter_dev_l,
                          int npt);
 
    // Interpolate on device for 3D.
@@ -328,6 +326,7 @@ public:
    /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
+   virtual const Array<unsigned int> &GetGSLIBIterations() const { return gsl_iter; }
 
    // Bounding box meshes used internally by GSLIB.
    // 0 - element-wise axis-aligned bounding box. NE_split_total elem per proc

@@ -1055,6 +1055,7 @@ static void FindPointsLocal3DKernel(const int npt,
                                     unsigned int *const el_base,
                                     double *const r_base,
                                     double *const dist2_base,
+                                    unsigned int *const iter_base,
                                     const double *gll1D,
                                     const double *lagcoeff,
                                     const int pN = 0)
@@ -1102,6 +1103,7 @@ static void FindPointsLocal3DKernel(const int npt,
 
       unsigned int *code_i = code_base+i;
       double *dist2_i = dist2_base+i;
+      unsigned int *iter_i = iter_base + i;
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
@@ -1170,6 +1172,7 @@ static void FindPointsLocal3DKernel(const int npt,
                         xElemCoord+d*nel*p_NE+el*p_NE;
             }
 
+            int stepc = 0;
             //// findpts_el ////
             {
                MFEM_SYNC_THREAD;
@@ -1235,6 +1238,7 @@ static void FindPointsLocal3DKernel(const int npt,
 
                for (int step = 0; step < 50; step++)
                {
+                  stepc = step+1;
                   switch (num_constrained(tmp->flags & FLAG_MASK))
                   {
                      case 0: // findpt_vol
@@ -1753,6 +1757,7 @@ static void FindPointsLocal3DKernel(const int npt,
                   *code_i = converged_internal ?  CODE_INTERNAL :
                               CODE_BORDER;
                   *dist2_i = fpt->dist2;
+                  *iter_i  = stepc;
                }
                MFEM_FOREACH_THREAD(j,x,DIM)
                {
@@ -1775,6 +1780,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                        Array<unsigned int> &elem,
                                        Vector &ref,
                                        Vector &dist,
+                                       Array<unsigned int> &iter,
                                        int npt)
 {
    if (npt == 0) { return; }
@@ -1791,6 +1797,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
    auto pdist = dist.Write();
    auto pgll1d = DEV.gll1d.ReadWrite();
    auto plc = DEV.lagcoeff.Read();
+   auto piter = iter.Write();
    switch (DEV.dof1d)
    {
       case 2: FindPointsLocal3DKernel<2>(npt, DEV.newt_tol,
@@ -1799,6 +1806,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                             pwt, pbb,
                                             DEV.h_nx, plhm, plhf, plho,
                                             pcode, pelem, pref, pdist,
+                                            piter,
                                             pgll1d, plc);
          break;
       case 3: FindPointsLocal3DKernel<3>(npt, DEV.newt_tol,
@@ -1807,6 +1815,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                             pwt, pbb,
                                             DEV.h_nx, plhm, plhf, plho,
                                             pcode, pelem, pref, pdist,
+                                            piter,
                                             pgll1d, plc);
          break;
       case 4: FindPointsLocal3DKernel<4>(npt, DEV.newt_tol,
@@ -1815,6 +1824,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                             pwt, pbb,
                                             DEV.h_nx, plhm, plhf, plho,
                                             pcode, pelem, pref, pdist,
+                                            piter,
                                             pgll1d, plc);
          break;
       case 5: FindPointsLocal3DKernel<5>(npt, DEV.newt_tol,
@@ -1823,6 +1833,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                             pwt, pbb,
                                             DEV.h_nx, plhm, plhf, plho,
                                             pcode, pelem, pref, pdist,
+                                            piter,
                                             pgll1d, plc);
          break;
       default: FindPointsLocal3DKernel(npt, DEV.newt_tol,
@@ -1831,6 +1842,7 @@ void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
                                           pwt, pbb,
                                           DEV.h_nx, plhm, plhf, plho,
                                           pcode, pelem, pref, pdist,
+                                            piter,
                                           pgll1d, plc, DEV.dof1d);
    }
 }
