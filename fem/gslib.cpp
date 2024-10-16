@@ -170,6 +170,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    dim  = mesh->Dimension();
    unsigned dof1D = meshOrder + 1;
 
+   setupSW.Clear();
+   setupSW.Start();
    SetupSplitMeshes();
    if (dim == 2)
    {
@@ -199,13 +201,21 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
       ir_split[3] = new IntegrationRule(8*pow(dof1D, dim));
       SetupIntegrationRuleForSplitMesh(mesh_split[3], ir_split[3], meshOrder);
    }
+   setupSW.Stop();
+   setup_split_time = setupSW.RealTime();
 
+   setupSW.Clear();
+   setupSW.Start();
    GetNodalValues(mesh->GetNodes(), gsl_mesh);
+   setupSW.Stop();
+   setup_nodalmapping_time = setupSW.RealTime();
 
    mesh_points_cnt = gsl_mesh.Size()/dim;
 
    DEV.local_hash_size = mesh_points_cnt;
    DEV.dof1d = (int)dof1D;
+   setupSW.Clear();
+   setupSW.Start();
    if (dim == 2)
    {
       unsigned nr[2] = { dof1D, dof1D };
@@ -233,6 +243,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
                                DEV.local_hash_size,
                                mesh_points_cnt, npt_max, newt_tol);
    }
+   setupSW.Stop();
+   setup_findpts_setup_time = setupSW.RealTime();
    setupflag = true;
 }
 
@@ -257,9 +269,14 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                  MPI_LAND, gsl_comm->c);
 #endif
 
+   setupSW.Clear();
+   setupSW.Start();
    if (dev_mode && tensor_product_only)
    {
       FindPointsOnDevice(point_pos, point_pos_ordering);
+      setupSW.Stop();
+      findpts_findpts_time = setupSW.RealTime();
+      findpts_mapelemrst_time = 0.0;
       return;
    }
 
@@ -308,6 +325,11 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                 xv_base, xv_stride, points_cnt,
                 findptsData);
    }
+   setupSW.Stop();
+   findpts_findpts_time = setupSW.RealTime();
+
+   setupSW.Clear();
+   setupSW.Start();
 
    // Set the element number and reference position to 0 for points not found
    for (int i = 0; i < points_cnt; i++)
@@ -325,6 +347,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    // both simplices and quads. Also sets code to 1 for points found on element
    // faces/edges.
    MapRefPosAndElemIndices();
+   setupSW.Stop();
+   findpts_mapelemrst_time = setupSW.RealTime();
 }
 
 static slong lfloor(double x) { return floor(x); }
@@ -357,7 +381,11 @@ static ulong hash_index_2(const gslib::hash_data_2 *p, const double x[2])
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                                          int point_pos_ordering)
 {
+   SW2.Clear();
+   SW2.Start();
    if (!DEV.setup_device) { SetupDevice(); }
+   SW2.Stop();
+   findpts_setup_device_arrays_time = SW2.RealTime();
 
    const int id = gsl_comm->id,
              np = gsl_comm->np;
@@ -2177,6 +2205,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                  MPI_LAND, gsl_comm->c);
 #endif
 
+   setupSW.Clear();
+   setupSW.Start();
    if (Device::IsEnabled() && field_in.UseDevice() && fec_h1 &&
        !field_in.FESpace()->IsVariableOrder() && tensor_product_only)
    {
@@ -2195,6 +2225,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 
       InterpolateOnDevice(node_vals, field_out, NE_split_total, ncomp,
                           maxOrder+1, field_in.FESpace()->GetOrdering());
+      setupSW.Stop();
+      interpolate_h1_time = setupSW.RealTime();
       return;
    }
    field_in.HostRead();
@@ -2206,16 +2238,22 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
        mesh->GetNodalFESpace()->IsVariableOrder())
    {
       InterpolateH1(field_in, field_out);
+      setupSW.Stop();
+      interpolate_h1_time = setupSW.RealTime();
       return;
    }
    else
    {
       InterpolateGeneral(field_in, field_out);
+      setupSW.Stop();
+      interpolate_general_time = setupSW.RealTime();
       if (!fec_l2 || avgtype == AvgType::NONE) { return; }
    }
 
    // For points on element borders, project the L2 GridFunction to H1 and
    // re-interpolate.
+   setupSW.Clear();
+   setupSW.Start();
    if (fec_l2)
    {
       Array<int> indl2;
@@ -2272,6 +2310,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
          }
       }
    }
+   setupSW.Stop();
+   interpolate_l2_pass2_time = setupSW.RealTime();
 }
 
 void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
