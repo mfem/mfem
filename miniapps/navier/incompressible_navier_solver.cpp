@@ -294,6 +294,9 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
    res_psolve = pInv->GetFinalNorm();
    pBForm->RecoverFEMSolution(X3, pLF, *pGF[0]);
 
+   *velGF[1] = *velGF[0];
+   *pGF[1]   = *pGF[0];
+
 
 
 }
