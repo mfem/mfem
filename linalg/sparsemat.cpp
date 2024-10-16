@@ -489,7 +489,7 @@ void SparseMatrix::SortColumnIndices()
       CuMemAlloc( &pBuffer, pBufferSizeInBytes );
 
       cusparseCreateIdentityPermutation(handle, nnzA, P);
-      cusparseXcsrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
+      cusparseXcsrsort(handle, n, m, nnzA, matA_descr, d_ia, d_ja_sorted, P, pBuffer);
 
 #ifdef MFEM_USE_SINGLE
       cusparseSgthr(handle, nnzA, d_a_sorted, d_a_sorted, P,
