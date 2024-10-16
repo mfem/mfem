@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "../fem/bilinearform.hpp"
 #include "../fem/nonlinearform.hpp"
+#include "darcyreduction.hpp"
 #include "darcyhybridization.hpp"
 
 namespace mfem
@@ -41,6 +42,7 @@ class DarcyForm : public Operator
 
    BlockOperator *block_op;
 
+   DarcyReduction *reduction; ///< Owned.
    DarcyHybridization *hybridization; ///< Owned.
 
    void AssemblePotHDGFaces(int skip_zeros);
@@ -88,9 +90,17 @@ public:
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
+   /// Enable reduction.
+   /** For details see the description for class
+       DarcyReduction in darcyreduction.hpp. This method should be called
+       before assembly. */
+   void EnableReduction(const Array<int> &ess_flux_tdof_list);
+
+   DarcyReduction *GetReduction() const { return reduction; }
+
    /// Enable hybridization.
    /** For details see the description for class
-       Hybridization in fem/hybridization.hpp. This method should be called
+       DarcyHybridization in darcyhybridization.hpp. This method should be called
        before assembly. */
    void EnableHybridization(FiniteElementSpace *constr_space,
                             BilinearFormIntegrator *constr_flux_integ,

@@ -229,6 +229,27 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
          if (prec) { solver->SetPreconditioner(*prec); }
          solver->SetPrintLevel(btime?0:1);
       }
+      else if (darcy->GetReduction())
+      {
+         SparseMatrix &R = *op.As<SparseMatrix>();
+#ifndef MFEM_USE_SUITESPARSE
+         prec = new GSSmoother(R);
+         prec_str = "GS";
+#else
+         prec = new UMFPackSolver(R);
+         prec_str = "UMFPack";
+#endif
+
+         solver = new GMRESSolver();
+         solver_str = "GMRES";
+         solver->SetAbsTol(atol);
+         solver->SetRelTol(rtol);
+         solver->SetMaxIter(maxIter);
+         solver->SetOperator(*op);
+         solver->SetPreconditioner(*prec);
+         solver->SetPrintLevel(btime?0:1);
+         solver->iterative_mode = true;
+      }
       else
       {
          // Construct the operators for preconditioner

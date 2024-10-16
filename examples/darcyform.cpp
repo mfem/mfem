@@ -37,6 +37,7 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
 
    block_op = NULL;
 
+   reduction = NULL;
    hybridization = NULL;
 }
 
@@ -125,6 +126,56 @@ void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    if (Mnl_u) { Mnl_u->SetAssemblyLevel(assembly); }
    if (Mnl_p) { Mnl_p->SetAssemblyLevel(assembly); }
    if (B) { B->SetAssemblyLevel(assembly); }
+}
+
+void DarcyForm::EnableReduction(const Array<int> &ess_flux_tdof_list)
+{
+   MFEM_ASSERT((M_u || Mnl_u) && (M_p || Mnl_p),
+               "Mass forms for the fluxes and potentials must be set prior to this call!");
+   delete reduction;
+   if (assembly != AssemblyLevel::LEGACY)
+   {
+      reduction = NULL;
+      MFEM_WARNING("Reduction not supported for this assembly level");
+      return;
+   }
+   reduction = new DarcyReduction(fes_u, fes_p);
+
+   // Automatically load the flux mass integrators
+   if (Mnl_u)
+   {
+      NonlinearFormIntegrator *flux_integ = NULL;
+      auto dnlfi = Mnl_u->GetDNFI();
+      if (dnlfi->Size())
+      {
+         SumNLFIntegrator *snlfi = new SumNLFIntegrator(false);
+         for (NonlinearFormIntegrator *nlfi : *dnlfi)
+         {
+            snlfi->AddIntegrator(nlfi);
+         }
+         flux_integ = snlfi;
+      }
+      reduction->SetFluxMassNonlinearIntegrator(flux_integ);
+   }
+
+   // Automatically load the potential mass integrators
+   if (Mnl_p)
+   {
+      NonlinearFormIntegrator *pot_integ = NULL;
+      auto dnlfi = Mnl_p->GetDNFI();
+      if (dnlfi->Size())
+      {
+         SumNLFIntegrator *snlfi = new SumNLFIntegrator(false);
+         for (NonlinearFormIntegrator *nlfi : *dnlfi)
+         {
+            snlfi->AddIntegrator(nlfi);
+         }
+         pot_integ = snlfi;
+      }
+      reduction->SetPotMassNonlinearIntegrator(pot_integ);
+   }
+
+   reduction->Init(ess_flux_tdof_list);
 }
 
 void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
@@ -305,6 +356,20 @@ void DarcyForm::Assemble(int skip_zeros)
             hybridization->AssembleFluxMassMatrix(i, elmat);
          }
       }
+      else if (reduction)
+      {
+         DenseMatrix elmat;
+
+         // Element-wise integration
+         for (int i = 0; i < fes_u -> GetNE(); i++)
+         {
+            M_u->ComputeElementMatrix(i, elmat);
+#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+            M_u->AssembleElementMatrix(i, elmat, skip_zeros);
+#endif //!MFEM_DARCY_REDUCTION_ELIM_BCS
+            reduction->AssembleFluxMassMatrix(i, elmat);
+         }
+      }
       else
       {
          M_u->Assemble(skip_zeros);
@@ -331,6 +396,20 @@ void DarcyForm::Assemble(int skip_zeros)
             hybridization->AssembleDivMatrix(i, elmat);
          }
       }
+      else if (reduction)
+      {
+         DenseMatrix elmat;
+
+         // Element-wise integration
+         for (int i = 0; i < fes_u -> GetNE(); i++)
+         {
+            B->ComputeElementMatrix(i, elmat);
+#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+            B->AssembleElementMatrix(i, elmat, skip_zeros);
+#endif //!MFEM_DARCY_REDUCTION_ELIM_BCS
+            reduction->AssembleDivMatrix(i, elmat);
+         }
+      }
       else
       {
          B->Assemble(skip_zeros);
@@ -354,6 +433,20 @@ void DarcyForm::Assemble(int skip_zeros)
          }
 
          AssemblePotHDGFaces(skip_zeros);
+      }
+      else if (reduction)
+      {
+         DenseMatrix elmat;
+
+         // Element-wise integration
+         for (int i = 0; i < fes_p -> GetNE(); i++)
+         {
+            M_p->ComputeElementMatrix(i, elmat);
+#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+            M_p->AssembleElementMatrix(i, elmat, skip_zeros);
+#endif //!MFEM_DARCY_REDUCTION_ELIM_BCS
+            reduction->AssemblePotMassMatrix(i, elmat);
+         }
       }
       else
       {
@@ -410,6 +503,10 @@ void DarcyForm::Finalize(int skip_zeros)
    if (hybridization)
    {
       hybridization->Finalize();
+   }
+   else if (reduction)
+   {
+      reduction->Finalize();
    }
 }
 
@@ -505,6 +602,14 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
       X_.SetSize(B_.Size());
       X_ = 0.0;
    }
+   else if (reduction)
+   {
+      // Reduction to the Lagrange multipliers system
+      EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
+      reduction->ReduceRHS(b, B_);
+      X_.SetSize(B_.Size());
+      X_ = 0.0;
+   }
    else
    {
       // A, X and B point to the same data as mat, x and b
@@ -580,6 +685,18 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
          A.Reset(hybridization, false);
       }
    }
+   else if (reduction)
+   {
+      reduction->Finalize();
+      if (!Mnl_u && !Mnl_p && !Mnl)
+      {
+         A.Reset(&reduction->GetMatrix(), false);
+      }
+      else
+      {
+         A.Reset(reduction, false);
+      }
+   }
    else
    {
       if (Mnl && pM.Ptr())
@@ -600,6 +717,11 @@ void DarcyForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
    {
       //conforming
       hybridization->ComputeSolution(b, X, x);
+   }
+   else if (reduction)
+   {
+      //conforming
+      reduction->ComputeSolution(b, X, x);
    }
    else
    {
@@ -625,6 +747,13 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
       return;
    }
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
+   if (reduction)
+   {
+      reduction->EliminateVDofsInRHS(vdofs_flux, x, b);
+      return;
+   }
+#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
    if (B)
    {
       if (bsym)
@@ -686,6 +815,7 @@ void DarcyForm::Update()
 
    pBt.Clear();
 
+   if (reduction) { reduction->Reset(); }
    if (hybridization) { hybridization->Reset(); }
 }
 
@@ -700,19 +830,19 @@ DarcyForm::~DarcyForm()
 
    delete block_op;
 
+   delete reduction;
    delete hybridization;
 }
 
 void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
+   FaceElementTransformations *tr;
    DenseMatrix elmat1, elmat2;
    Array<int> vdofs1, vdofs2;
 
    if (hybridization->GetPotConstraintIntegrator())
    {
-      FaceElementTransformations *tr;
-
       int nfaces = mesh->GetNumFaces();
       for (int i = 0; i < nfaces; i++)
       {
@@ -732,8 +862,6 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
 
    if (boundary_face_integs_marker.Size())
    {
-      FaceElementTransformations *tr;
-
       // Which boundary attributes need to be processed?
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
@@ -774,9 +902,15 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
 
 void DarcyForm::AllocBlockOp()
 {
+   bool noblock = false;
+#ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
+   noblock = noblock || reduction;
+#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   if (!hybridization)
+   noblock = noblock || hybridization;
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+
+   if (!noblock)
    {
       delete block_op;
       block_op = new BlockOperator(offsets);

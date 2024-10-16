@@ -107,6 +107,7 @@ int main(int argc, char *argv[])
    real_t c = 1.;
    real_t td = 0.5;
    bool bc_neumann = false;
+   bool reduction = false;
    bool hybridization = false;
    bool nonlinear = false;
    bool nonlinear_conv = false;
@@ -161,6 +162,8 @@ int main(int argc, char *argv[])
                   "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&bc_neumann, "-bcn", "--bc-neumann", "-no-bcn",
                   "--no-bc-neumann", "Enable Neumann outflow boundary condition.");
+   args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
+                  "--no-reduction", "Enable reduction.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&nonlinear, "-nl", "--nonlinear", "-no-nl",
@@ -602,6 +605,16 @@ int main(int argc, char *argv[])
       chrono.Stop();
       std::cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
    }
+   else if (reduction)
+   {
+      chrono.Clear();
+      chrono.Start();
+
+      darcy->EnableReduction(ess_flux_tdofs_list);
+
+      chrono.Stop();
+      std::cout << "Reduction init took " << chrono.RealTime() << "s.\n";
+   }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
@@ -612,15 +625,18 @@ int main(int argc, char *argv[])
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
-   std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
-   if (hybridization)
+   if (!reduction)
    {
-      std::cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
-      std::cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
-   }
-   else
-   {
-      std::cout << "dim(V+W) = " << block_offsets.Last() << "\n";
+      std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
+      if (hybridization)
+      {
+         std::cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
+         std::cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
+      }
+      else
+      {
+         std::cout << "dim(V+W) = " << block_offsets.Last() << "\n";
+      }
    }
    std::cout << "***********************************************************\n";
 
