@@ -147,10 +147,16 @@ private:
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
    void GetBareDofsVar(int entity, int index, Array<int> &dofs) const;
 
+   /** @brief Return the local space DOF index for the DOF with index @a edof
+       with respect to the mesh entity @a index of type @a entity (0: vertex,
+       1: edge, 2: face). In the variable-order case, use variant @a var. */
    int  PackDof(int entity, int index, int edof, int var = 0) const;
+   /// Inverse of function @a PackDof, setting order instead of variant.
    void UnpackDof(int dof, int &entity, int &index, int &edof, int &order) const;
 
+   /// Implementation of function @a PackDof for the variable order case.
    int  PackDofVar(int entity, int index, int edof, int var = 0) const;
+   /// Implementation of function @a UnpackDof for the variable order case.
    void UnpackDofVar(int dof, int &entity, int &index, int &edof,
                      int &order) const;
 
@@ -422,6 +428,8 @@ public:
                                DofTransformation &doftrans) const;
    DofTransformation *GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
+   /** In the variable order case with @a ndofs > 0, the order is taken such
+       that the number of DOFs is @a ndofs. */
    const FiniteElement *GetFaceNbrFE(int i, int ndofs = 0) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
    const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }

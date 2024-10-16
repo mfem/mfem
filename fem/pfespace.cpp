@@ -136,6 +136,11 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 void ParFiniteElementSpace::CommunicateGhostOrder(
    Array<VarOrderElemInfo> & pref_data)
 {
+   // Variable order space needs a nontrivial P matrix + also ghost elements
+   // in parallel, we thus require the mesh to be NC.
+   MFEM_VERIFY(variableOrder && Nonconforming(),
+               "Variable order space requires a nonconforming mesh.");
+
    // Check whether h-refinement was done.
    const bool href = mesh->GetLastOperation() == Mesh::REFINE &&
                      mesh->GetSequence() != mesh_sequence;
@@ -4432,15 +4437,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
    // In the variable order case, we call CommunicateGhostOrder whether h-
    // or p-refinement is done.
    Array<VarOrderElemInfo> pref_data;
-   if (variableOrder)
-   {
-      // Variable order space needs a nontrivial P matrix + also ghost elements
-      // in parallel, we thus require the mesh to be NC.
-      MFEM_VERIFY(Nonconforming(),
-                  "Variable order space requires a nonconforming mesh.");
-
-      CommunicateGhostOrder(pref_data);
-   }
+   if (variableOrder) { CommunicateGhostOrder(pref_data); }
 
    FiniteElementSpace::Construct(&pref_data);
    Construct();

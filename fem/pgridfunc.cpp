@@ -284,8 +284,11 @@ const
       int fes_vdim = pfes->GetVDim();
       const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
                                                    nbr_el_no, dofs);
-      // Choose fe to be of the order whose number of DOFs matches dofs.Size().
-      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no, dofs.Size());
+      // Choose fe to be of the order whose number of DOFs matches dofs.Size(),
+      // in the variable order case.
+      const int ndofs = pfes->IsVariableOrder() ? dofs.Size() : 0;
+      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no, ndofs);
+
       if (fes_vdim > 1)
       {
          int s = dofs.Size()/fes_vdim;

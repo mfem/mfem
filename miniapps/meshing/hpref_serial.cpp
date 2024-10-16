@@ -27,7 +27,7 @@ using namespace mfem;
 real_t CheckH1Continuity(GridFunction & x);
 
 // Deterministic function for "random" integers.
-int MyRand(int & seed)
+int DetRand(int & seed)
 {
    seed++;
    return int(std::abs(1.0e5 * sin(seed * 1.1234 * M_PI)));
@@ -130,8 +130,8 @@ int main(int argc, char *argv[])
 
    for (int iter=0; iter<numIter; ++iter)
    {
-      const int r1 = deterministic ? MyRand(seed) : rand();
-      const int r2 = deterministic ? MyRand(seed) : rand();
+      const int r1 = deterministic ? DetRand(seed) : rand();
+      const int r2 = deterministic ? DetRand(seed) : rand();
       const int elem = r1 % mesh.GetNE();
       const int hp = r2 % 2;
 
