@@ -1,7 +1,6 @@
 #include "mfem.hpp"
 #include "topopt_problems.hpp"
 #include "logger.hpp"
-#include "MMA_wrapper.hpp"
 
 using namespace mfem;
 
@@ -316,16 +315,9 @@ int main(int argc, char *argv[])
    std::unique_ptr<HypreParMatrix> Mass(mass.ParallelAssemble());
    lower = 1.0;
    Mass->Mult(lower, dv);
-   std::unique_ptr<NativeMMA> mma;
-   {
-      real_t a=0.0;
-      real_t c=1000.0;
-      real_t d=0.0;
-   if (Mpi::Root()){out << "MMA Created" << std::endl;}
-      mma.reset(new mfem::NativeMMA(M_grad_gf.ParFESpace()->GetComm(), 1, M_grad_gf, &a, &c, &d));
-   if (Mpi::Root()){out << "MMA Created" << std::endl;}
-   }
+   MMAOpt mma(mesh->GetComm(), control_gf.Size(), 1, control_gf);
    optproblem.Eval();
+   Vector con(1);
    for (it_md = 0; it_md<max_it; it_md++)
    {
       control_old_gf = control_gf;
@@ -335,8 +327,9 @@ int main(int argc, char *argv[])
          lower[i] = std::max(0.0, control_gf[i]-max_ch);
          upper[i] = std::min(1.0, control_gf[i]+max_ch);
       }
-      real_t con = optproblem.GetCurrentVolume() - tot_vol;
-      mma->Update(control_gf, M_grad_gf, &con, &dv, lower, upper);
+      con[0] = curr_vol - max_vol;
+      // M_grad_gf.Neg();
+      mma.Update(it_md, grad_gf, con, dv, lower, upper, control_gf);
       objval = optproblem.Eval();
       succ_obj_diff = old_objval - objval;
       grad_old_gf = grad_gf;
@@ -356,7 +349,7 @@ int main(int argc, char *argv[])
       }
 
       optproblem.UpdateGradient();
-      Mass->Mult(grad_gf, M_grad_gf);
+      // Mass->Mult(grad_gf, M_grad_gf);
 
       add(control_gf, -eps_stationarity, grad_gf, control_eps_gf);
       density.ApplyVolumeProjection(control_eps_gf, true);

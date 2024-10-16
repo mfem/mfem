@@ -1168,17 +1168,6 @@ void MMA::Update(int iter, const real_t* dfdx,
       }
    }
 
-   for (int i=0; i<nVar; i++)
-   {
-      mfem::out<<" "<<low[i];
-   }
-   mfem::out<<std::endl;
-   for (int i=0; i<nVar; i++)
-   {
-      mfem::out<<" "<<upp[i];
-   }
-   mfem::out<<std::endl;
-
    mSubProblem->Update(dfdx,gx,dgdx,xmin,xmax,xval);
    // Update design variables
    for (int i = 0; i < nVar; i++)
