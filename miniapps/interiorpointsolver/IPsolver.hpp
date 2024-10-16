@@ -47,7 +47,7 @@ protected:
     bool iAmRoot;
 
     bool saveLogBarrierIterates;
-
+    bool saveIterates;
     int linSolver;
     double linSolveTol;
 public:
@@ -73,7 +73,7 @@ public:
     void SetTol(double);
     void SetMaxIter(int);
     void SetBarrierParameter(double);    
-    void SaveLogBarrierHessianIterates(bool);
+    void SaveIterates(bool);
     void SetLinearSolver(int);
     void SetLinearSolveTol(double);
     void FeasibilityRestoration(const BlockVector &, const Vector &, const Vector &, BlockVector &, double); 

@@ -49,19 +49,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--mesh_refinement", \
 		  "Mesh Refinement");
   
-   args.Parse();
-   if(!args.Good())
-   {
-     args.PrintUsage(cout);
-     return 1;
-   }
-   else
-   {
-     if(myid == 0)
-     {  
-       args.PrintOptions(cout);
-     }
-   }
+   args.ParseCheck();
 
    const char *meshFile = "disk.mesh";
    Mesh mesh(meshFile, 1, 1);
@@ -82,14 +70,13 @@ int main(int argc, char *argv[])
    int dimD = Vh->GetTrueVSize();
    Vector xDC(dimD); xDC = 0.0;
 
-   //ParObstacleProblem problem(Vh, Vh, &fRhs, &spherical_obstacle, boundary_dofs, xDC);
    ParObstacleProblem problem(Vh, &fRhs, &spherical_obstacle, boundary_dofs, xDC);
    Vector x0(dimD); x0.Set(1.0, xDC);
    Vector xf(dimD); xf = 0.0;
 
    ParInteriorPointSolver optimizer(&problem); 
    optimizer.SetTol(1.e-7);
-   optimizer.SetLinearSolveTol(1.e-10);
+   optimizer.SetLinearSolveTol(1.e-9);
    optimizer.SetLinearSolver(linSolver);
    optimizer.SetMaxIter(maxIPMiters);
    optimizer.Mult(x0, xf);

@@ -11,7 +11,7 @@
 //              bound-constrained minimization problem
 //
 //              minimize_(x \in R^n) 1/2 x^T x subject to x - xl ≥ 0 (component-wise).
-
+//              
 #include "mfem.hpp"
 #include "Problem.hpp"
 #include "IPsolver.hpp"
@@ -27,13 +27,17 @@ using namespace mfem;
 // solve min 1/2 x^T K x s.t. J x - xl >= 0
 // where K and J are identity matrices and xl
 // has uniform random values in [-1, 1]
+// for the Lagrangian L(x, s, l, z) = 1/2 x^T x + l^T (x - xl - s) - z^T s
+// the optimal solution is x*_i = max{0, (xl)_i}, z*_i = x*_i
+
+
 class ParEx1Problem : public ParOptProblem
 {
 protected:
    HypreParMatrix *K;
    HypreParMatrix *J;
    Vector xl;
-   HYPRE_BigInt * dofOffsets;
+   //HYPRE_BigInt * dofOffsets;
 public:
    // create offsets internally only pass problem size
    //ParEx1Problem(HYPRE_BigInt * offsets);
@@ -82,14 +86,20 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();   
 
-   int n = 50;
+   int n = 10;
+   OptionsParser args(argc, argv);
+   args.AddOption(&n, "-n", "--n", \
+		   "Size of the optimization problem (dimension of primal variable)");
+   args.ParseCheck();
+   
+   
    ParEx1Problem problem(n);
    
    Vector xOptimal, lambdaOptimal;
    mfemIPSolve(problem, xOptimal, lambdaOptimal);
    for(int i = 0; i < xOptimal.Size(); i++)
    {
-     cout << "optimal (x, lambda)_" << i << " = (" << xOptimal(i) << ", " << lambdaOptimal(i) << ")\n";
+     cout << "optimal (x, z)_" << i << " = (" << xOptimal(i) << ", " << lambdaOptimal(i) << ")\n";
    }
 
    Mpi::Finalize();
@@ -100,19 +110,20 @@ int main(int argc, char *argv[])
 // Ex1Problem
 // min 1/2 x^T K x such that J x - xl >= 0
 // where K and J are identity matrices
-ParEx1Problem::ParEx1Problem(int n) : ParOptProblem(), K(nullptr), J(nullptr), dofOffsets(nullptr)
+ParEx1Problem::ParEx1Problem(int n) : ParOptProblem(), K(nullptr), J(nullptr)
 {
   // generate the parallel partition of the 
   // variable x and the 
   int nprocs = Mpi::WorldSize();
   int myrank = Mpi::WorldRank();
   
-  dofOffsets = new HYPRE_BigInt[2];
+  
+  HYPRE_BigInt * dofOffsets = new HYPRE_BigInt[2];
   dofOffsets[0] = HYPRE_BigInt(myrank * n / nprocs);
   dofOffsets[1] = HYPRE_BigInt((myrank + 1) * n / nprocs);
   
   Init(dofOffsets, dofOffsets);
-   
+
   Vector iDiag(dofOffsets[1] - dofOffsets[0]); iDiag = 1.0;
   
   K = GenerateHypreParMatrixFromDiagonal(dofOffsets, iDiag);
@@ -120,9 +131,10 @@ ParEx1Problem::ParEx1Problem(int n) : ParOptProblem(), K(nullptr), J(nullptr), d
   J = GenerateHypreParMatrixFromDiagonal(dofOffsets, iDiag);
 
   xl.SetSize(dofOffsets[1] - dofOffsets[0]);
-  xl.Randomize();
+  xl.Randomize(myrank);
   xl *= 2.0;
   xl -= 1.0;
+  delete[] dofOffsets;
 }
 
 
@@ -163,7 +175,6 @@ HypreParMatrix * ParEx1Problem::Ddg(const Vector &)
 
 ParEx1Problem::~ParEx1Problem()
 {
-   delete[] dofOffsets;
    delete K;
    delete J;
 }

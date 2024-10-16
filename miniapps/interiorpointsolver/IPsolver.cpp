@@ -15,7 +15,7 @@ ParInteriorPointSolver::ParInteriorPointSolver(ParGeneralOptProblem * problem_)
                        Huu(nullptr), Hum(nullptr), Hmu(nullptr), 
                        Hmm(nullptr), Wmm(nullptr), D(nullptr), 
                        Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), 
-                       saveLogBarrierIterates(false)
+                       saveIterates(false)
 {
    OptTol  = 1.e-2;
    max_iter = 20;
@@ -116,9 +116,8 @@ void ParInteriorPointSolver::Mult(const Vector &x0, Vector &xf)
 {
    BlockVector x0block(block_offsetsx); x0block = 0.0;
    x0block.GetBlock(0).Set(1.0, x0);
-   //if(dimM > 0 ) { x0block.GetBlock(1) = 1.e2;}
-   //x0block.GetBlock(1).Add(1.0, ml);
-   // experimental, assuming c(u, m) = g(u) - m we can adjust m so that the initial point is feasible
+   
+   
    ParOptProblem * OptProblem = dynamic_cast<ParOptProblem *>(problem);
    if (dimM > 0)
    {
@@ -143,11 +142,6 @@ void ParInteriorPointSolver::Mult(const Vector &x0, Vector &xf)
 	 x0block.GetBlock(1).Add(1.0, dm);
       }
    }  
-   
-   //Vector cx(dimC); cx = 0.0;
-   //problem->c(x0block, cx);
-   //x0block.GetBlock(1).Add(1.0, cx);
-
    
    BlockVector xfblock(block_offsetsx); xfblock = 0.0;
    Mult(x0block, xfblock);
@@ -317,15 +311,12 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          {
             cout << "lineSearch not successful :(\n";
             cout << "attempting feasibility restoration with theta = " << thx0 << endl;
-         //   cout << "no feasibility restoration implemented, exiting now \n";
          }
 	 FeasibilityRestoration(xk, lk, zlk, Xk, mu_k);
          xk.GetBlock(0).Set(1.0, Xk.GetBlock(0));
          xk.GetBlock(1).Set(1.0, Xk.GetBlock(1));
          lk.Set(1.0,   Xk.GetBlock(2));
          zlk.Set(1.0,  Xk.GetBlock(3));
-	 
-         ///break;
       }
       if(jOpt + 1 == max_iter && iAmRoot) 
       {  
@@ -354,6 +345,8 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    {
       DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii));
    }
+   
+   if (saveIterates)
    {
       std::ofstream diagStream;
       char diagString[100];
@@ -509,6 +502,13 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    }
    else if(linSolver == 1 || linSolver == 2)
    {
+     
+      // assuming Jm = -I and Hum = 0, Hmu = 0, Hmm = 0
+      ParOptProblem * tempProblem = dynamic_cast<ParOptProblem *>(problem);
+      MFEM_VERIFY(tempProblem != nullptr, "linSolver option 1 and 2 are only applicable to ParOptProblem's");      
+      
+
+
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
       HypreParMatrix * Huuloc = dynamic_cast<HypreParMatrix *>(const_cast<Operator *>(&(A.GetBlock(0, 0))));
       HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(const_cast<Operator *>(&(A.GetBlock(1, 1))));
@@ -516,10 +516,10 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       HypreParMatrix * JuTloc = dynamic_cast<HypreParMatrix *>(const_cast<Operator *>(&(A.GetBlock(0, 2))));
       
       
-      HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
+      HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);      // Ju^T D Ju
       HypreParMatrix *Areduced = ParAdd(Huuloc, JuTDJu);  // Huu + Ju^T D Ju
-      /* prepare the reduced rhs */
-      // breduced = bu + Ju^T (bm + Wmm bl)
+      /* prepare the reduced rhs 
+       * breduced = bu + Ju^T (bm + Wmm bl) */
       Vector breduced(dimU); breduced = 0.0;
       Vector tempVec(dimM); tempVec = 0.0;
       Wmmloc->Mult(b.GetBlock(2), tempVec);
@@ -589,6 +589,8 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    {
       cout << "SMALL STEP\n";
    }
+   
+   
    // free memory
    delete D;
    delete JuT;
@@ -711,21 +713,6 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
                lineSearchSuccess = true;
                break;
             }
-         }
-         // A-5.5: Initialize the second-order correction
-         if((!(thx0 < thxtrial)) && i == 0)
-         {
-            if (iAmRoot)
-            {
-               cout << "second order correction\n";
-            }
-            //problem->c(xtrial, ckSoc);
-            //problem->c(x0, ck0);
-            //ckSoc.Add(alphaMax, ck0);
-            //// A-5.6 Compute the second-order correction.
-            //IPNewtonSolve(x0, l0, z0, zhatsoc, Xhatumlsoc, mu, true);
-            //mhatsoc.Set(1.0, Xhatumlsoc.GetBlock(1));
-            ////WARNING: not complete but currently solver isn't entering this region
          }
       }
       else
@@ -912,17 +899,11 @@ void ParInteriorPointSolver::DxL(const BlockVector &x, const Vector &l, const Ve
    BlockVector gradxf(block_offsetsx); gradxf = 0.0;
    problem->CalcObjectiveGrad(x, gradxf);
    
-   HypreParMatrix *Jacu, *Jacm, *JacuT, *JacmT;
+   HypreParMatrix *Jacu, *Jacm;
    Jacu = problem->Duc(x); 
    Jacm = problem->Dmc(x);
-   JacuT = Jacu->Transpose();
-   JacmT = Jacm->Transpose();
-   
-   JacuT->Mult(l, y.GetBlock(0));
-   JacmT->Mult(l, y.GetBlock(1));
-   
-   delete JacuT;
-   delete JacmT;
+   Jacu->MultTranspose(l, y.GetBlock(0));
+   Jacm->MultTranspose(l, y.GetBlock(1));   
    
    y.Add(1.0, gradxf);
    (y.GetBlock(1)).Add(-1.0, zl);
@@ -948,11 +929,11 @@ void ParInteriorPointSolver::SetBarrierParameter(double mu_0)
    mu_k = mu_0;
 }
 
-void ParInteriorPointSolver::SaveLogBarrierHessianIterates(bool save)
+void ParInteriorPointSolver::SaveIterates(bool save)
 {
-   MFEM_ASSERT(MyRank == 0 || save == false, "currently can only save logbarrier hessian in serial codes");
-   saveLogBarrierIterates = save;
+   saveIterates = save;
 }
+
 
 void ParInteriorPointSolver::SetLinearSolver(int LinSolver)
 {
