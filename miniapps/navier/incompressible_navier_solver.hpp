@@ -55,18 +55,25 @@ public:
    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
    {
       Vector val(vdim);
+      Vector resultVal(vdim);
+      DenseMatrix vecGrad;
+      V.SetSize(vdim);
       gridFuncCoeff->Eval(val, T, ip);
 
-      V.SetSize(vdim); V = val;
+      gridfunc_->GetVectorGradient(T, vecGrad);
+
+      vecGrad.MultTranspose( val, V );
    }
 
-   void SetGridFunction( GridFunction * gridfunc )
+   void SetGridFunction( ParGridFunction * gridfunc )
    {
       delete gridFuncCoeff;
+      gridfunc_ = gridfunc;
       gridFuncCoeff = new VectorGridFunctionCoefficient( gridfunc );
    }
 
    VectorGridFunctionCoefficient *gridFuncCoeff = nullptr;
+   ParGridFunction *gridfunc_ = nullptr;
 };
 
 /// Container for a Dirichlet boundary condition of the velocity field.
@@ -237,6 +244,7 @@ protected:
    DivergenceGridFunctionCoefficient * divVelCoeff = nullptr;
    GridFunctionCoefficient * pRHSCoeff = nullptr;
    UnitVectorGridFunctionCoeff * pUnitVectorCoeff = nullptr;
+   NonLinTermVectorGridFunctionCoeff * nonlinTermCoeff = nullptr;
    
 
    // VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;
@@ -261,21 +269,20 @@ protected:
    OperatorHandle psiOp;
    OperatorHandle pOp;
 
-   // Solver *MvInvPC = nullptr;
-   // CGSolver *MvInv = nullptr;
+   Solver *velInvPC = nullptr;
+   CGSolver *velInv = nullptr;
 
-   // HypreBoomerAMG *SpInvPC = nullptr;
-   // OrthoSolver *SpInvOrthoPC = nullptr;
-   // CGSolver *SpInv = nullptr;
+   Solver *psiInvPC = nullptr;
+   CGSolver *psiInv = nullptr;
 
-   // Solver *HInvPC = nullptr;
-   // CGSolver *HInv = nullptr;
+   Solver *pInvPC = nullptr;
+   CGSolver *pInv = nullptr;
 
    // Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext,
    //        resu;
    // Vector tmp1;
 
-   // Vector pn, resp, FText_bdr, g_bdr;
+   Vector velLF, psiLF, pLF;
 
    // ParGridFunction un_gf, un_next_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf,
    //                 resu_gf;
@@ -295,6 +302,33 @@ protected:
 
    // Bookkeeping for pressure dirichlet bcs.
    //std::vector<PresDirichletBC_T> pres_dbcs;
+
+   // Print levels.
+   int pl_psolve = 0;
+   int pl_psisolve = 0;
+   int pl_velsolve = 0;
+   int pl_amg = 0;
+
+   #if defined(MFEM_USE_DOUBLE)
+   real_t rtol_psolve = 1e-10;
+   real_t rtol_psisolve = 1e-10;
+   real_t rtol_velsolve = 1e-12;
+#elif defined(MFEM_USE_SINGLE)
+   real_t rtol_psolve = 1e-9;
+   real_t rtol_psisolve = 1e-5;
+   real_t rtol_velsolve = 1e-7;
+#else
+#error "Only single and double precision are supported!"
+   real_t rtol_psolve = 1e-12;
+   real_t rtol_psisolve = 1e-6;
+   real_t rtol_velsolve = 1e-8;
+#endif
+
+   // Iteration counts.
+   int iter_vsolve = 0, iter_psolve = 0, iter_psisolve = 0;
+
+   // Residuals.
+   real_t res_vsolve = 0.0, res_psolve = 0.0, res_psisolve = 0.0;
 
 };
 

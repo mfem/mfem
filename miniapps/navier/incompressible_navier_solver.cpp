@@ -141,15 +141,16 @@ void IncompressibleNavierSolver::Setup(real_t dt)
 
    velLForm = new ParLinearForm(vfes);
    pUnitVectorCoeff = new UnitVectorGridFunctionCoeff(pmesh->Dimension());
-   auto *pvel_lfi = new DomainLFGradIntegrator(*pUnitVectorCoeff);
-   //auto *p_nonlintermlfi = new DomainLFIntegrator(*pRHSCoeff)
+   nonlinTermCoeff = new NonLinTermVectorGridFunctionCoeff(pmesh->Dimension());
+   auto *pvel_lfi = new VectorDomainLFGradIntegrator(*pUnitVectorCoeff);
+   auto *p_nonlintermlfi = new VectorDomainLFIntegrator(*nonlinTermCoeff);
    if (numerical_integ)
    {
       pvel_lfi->SetIntRule(&ir_ni);
+      p_nonlintermlfi->SetIntRule(&ir_ni);
    }
    velLForm->AddDomainIntegrator(pvel_lfi);
-
-
+   velLForm->AddDomainIntegrator(p_nonlintermlfi);
 
    //-------------------------------------------------------------------------
 
@@ -175,6 +176,40 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    pLForm->AddDomainIntegrator(p_lfi);
 
    //-------------------------------------------------------------------------
+
+   velInvPC = new HypreSmoother(*vOp.As<HypreParMatrix>());
+   dynamic_cast<HypreSmoother *>(velInvPC)->SetType(HypreSmoother::Jacobi, 1);
+
+   velInv = new CGSolver(vfes->GetComm());
+   velInv->iterative_mode = true;
+   velInv->SetOperator(*vOp);
+   velInv->SetPreconditioner(*velInvPC);
+   velInv->SetPrintLevel(pl_velsolve);
+   velInv->SetRelTol(rtol_velsolve);
+   velInv->SetMaxIter(200);
+
+   psiInvPC = new HypreSmoother(*psiOp.As<HypreParMatrix>());
+   dynamic_cast<HypreSmoother *>(psiInvPC)->SetType(HypreSmoother::Jacobi, 1);
+
+   psiInv = new CGSolver(vfes->GetComm());
+   psiInv->iterative_mode = true;
+   psiInv->SetOperator(*psiOp);
+   psiInv->SetPreconditioner(*psiInvPC);
+   psiInv->SetPrintLevel(pl_psisolve);
+   psiInv->SetRelTol(rtol_psisolve);
+   psiInv->SetMaxIter(200);
+
+   pInvPC = new HypreSmoother(*pOp.As<HypreParMatrix>());
+   dynamic_cast<HypreSmoother *>(pInvPC)->SetType(HypreSmoother::Jacobi, 1);
+
+   pInv = new CGSolver(vfes->GetComm());
+   pInv->iterative_mode = true;
+   pInv->SetOperator(*pOp);
+   pInv->SetPreconditioner(*pInvPC);
+   pInv->SetPrintLevel(pl_psolve);
+   pInv->SetRelTol(rtol_psolve);
+   pInv->SetMaxIter(200);
+
 }
 
 void IncompressibleNavierSolver::UpdateTimestepHistory(real_t dt)
@@ -186,6 +221,8 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
                         bool provisional)
 {
    pUnitVectorCoeff->SetGridFunction( pGF[0] );
+   nonlinTermCoeff->SetGridFunction( velGF[1] );
+
 
 
    subtract(1.0/dt, *velGF[1], *velGF[0], DvGF);
@@ -201,11 +238,61 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
    add( pRHS, -1.0*kin_vis, divVelGF, pRHS);
    pRHSCoeff->SetGridFunction( &pRHS );
 
+   //-------------------------------------------------------------------------
 
-   	//MatrixVectorProductCoefficient
+   Array<int> empty;
+   // velBForm->Update();
+   // velBForm->Assemble();
+   // velBForm->FormSystemMatrix(vel_ess_tdof, vOp);
 
-   // DvGF
+   // psiBForm->Update();
+   // psiBForm->Assemble();
+   // psiBForm->FormSystemMatrix(vel_ess_tdof, psiOp);
 
+   // vpBForm->Update();
+   // vpBForm->Assemble();
+   // vpBForm->FormSystemMatrix(vel_ess_tdof, pOp);
+
+   //-------------------------------------------------------------------------
+   velLForm->Assemble();
+   velLForm->ParallelAssemble(velLF);
+
+   psiLForm->Assemble();
+   psiLForm->ParallelAssemble(psiLF);
+
+   pLForm->Assemble();
+   pLForm->ParallelAssemble(pLF);
+
+   //-------------------------------------------------------------------------
+
+   Vector X1, B1;
+   Vector X2, B2;
+   Vector X3, B3;
+   if (partial_assembly)
+   {
+
+   }
+   else
+   {
+      velBForm->FormLinearSystem(vel_ess_tdof, *velGF[0], velLF, vOp  , X1, B1, 1);
+      psiBForm->FormLinearSystem(empty       , psiGF    , psiLF, psiOp, X2, B2, 1);
+      pBForm  ->FormLinearSystem(empty        , *pGF[0] , pLF  , pOp  , X3, B3, 1);
+   }
+
+   velInv->Mult(B1, X1);
+   iter_vsolve = velInv->GetNumIterations();
+   res_vsolve = velInv->GetFinalNorm();
+   velBForm->RecoverFEMSolution(X1, velLF, *velGF[0]);
+
+   psiInv->Mult(B2, X2);
+   iter_psisolve = psiInv->GetNumIterations();
+   res_psisolve = psiInv->GetFinalNorm();
+   psiBForm->RecoverFEMSolution(X2, psiLF, psiGF);
+
+   pInv->Mult(B3, X3);
+   iter_psolve = pInv->GetNumIterations();
+   res_psolve = pInv->GetFinalNorm();
+   pBForm->RecoverFEMSolution(X3, pLF, *pGF[0]);
 
 
 
