@@ -2551,19 +2551,14 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 
          for (int i = 0; i < fes->GetNE(); i++)
          {
-            DofTransformation * doftrans = NULL;
-
-            for (i = 0; i < fes->GetNE(); i++)
+            doftrans = fes->GetElementVDofs(i, vdofs);
+            vals.SetSize(vdofs.Size());
+            fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+            if (doftrans)
             {
-               doftrans = fes->GetElementVDofs(i, vdofs);
-               vals.SetSize(vdofs.Size());
-               fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-               if (doftrans)
-               {
-                  doftrans->TransformPrimal(vals);
-               }
-               SetSubVector(vdofs, vals);
+               doftrans->TransformPrimal(vals);
             }
+            SetSubVector(vdofs, vals);
          }
       }
       else
