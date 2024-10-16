@@ -66,7 +66,10 @@ TEST_CASE("ParGridFunction in Serial", "[ParGridFunction][Parallel]")
       const double par_to_ser_l2_read_norm = x_par_to_ser_read.ComputeL2Error(zero);
 
       REQUIRE(par_to_ser_l2_read_norm == MFEM_Approx(l2_norm));
+   }
 
+   if (my_rank == save_rank)
+   {
       // Clean up
       REQUIRE(std::remove("parallel_in_serial.mesh") == 0);
       REQUIRE(std::remove("parallel_in_serial.gf") == 0);
