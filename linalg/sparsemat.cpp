@@ -3231,6 +3231,36 @@ SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
    return (*this);
 }
 
+void SparseMatrix::AddSubSparseMatrix(const real_t a, const SparseMatrix &B,
+                                      int ioff, int joff)
+{
+   MFEM_ASSERT(height >= ioff + B.height && width >= joff + B.width,
+               "Mismatch of this matrix size and the sub-matrix.  This height = "
+               << height << ", width = " << width << ", B.height = "
+               << B.height << ", B.width = " << B.width
+               << ", row offset = " << ioff << ", column offset = " << joff);
+
+   for (int i = 0; i < B.height; i++)
+   {
+      SetColPtr(i+ioff);
+      if (B.Rows)
+      {
+         for (RowNode *aux = B.Rows[i]; aux != NULL; aux = aux->Prev)
+         {
+            _Add_(aux->Column+joff, a*aux->Value);
+         }
+      }
+      else
+      {
+         for (int j = B.I[i]; j < B.I[i+1]; j++)
+         {
+            _Add_(B.J[j]+joff, a*B.A[j]);
+         }
+      }
+      ClearColPtr();
+   }
+}
+
 void SparseMatrix::Add(const real_t a, const SparseMatrix &B)
 {
    for (int i = 0; i < height; i++)

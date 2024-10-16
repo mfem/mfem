@@ -256,6 +256,9 @@ public:
    /// Evaluate the coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   const std::function<real_t(const Vector &)>& GetFunction() const { return Function; }
+   const std::function<real_t(const Vector &, real_t)>& GetTDFunction() const { return TDFunction; }
 };
 
 /// A common base class for returning individual components of the domain's
@@ -768,6 +771,10 @@ public:
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override;
 
+   const std::function<void(const Vector &, Vector &)>& GetFunction() const { return Function; }
+   const std::function<void(const Vector &, real_t, Vector &)>& GetTDFunction()
+   const { return TDFunction; }
+
    virtual ~VectorFunctionCoefficient() { }
 };
 
@@ -984,7 +991,10 @@ public:
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
 
    void SetScale(real_t s) { d.SetScale(s); }
+   void SetTol(real_t tol) { d.SetTol(tol); }
+
    void SetDirection(const Vector& d_);
+   void GetDirection(Vector &d_) { d_ = dir; }
 
    void SetDeltaCenter(const Vector& center) { d.SetDeltaCenter(center); }
    void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
