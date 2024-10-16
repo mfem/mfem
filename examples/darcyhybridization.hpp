@@ -267,6 +267,7 @@ public:
    BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p; }
    NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p; }
 
+   NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_p; }
    NonlinearFormIntegrator* GetPotMassNonlinearIntegrator() const { return m_nlfi_p; }
 
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ) = delete;
