@@ -35,7 +35,7 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
 
    assembly = AssemblyLevel::LEGACY;
 
-   block_op = new BlockOperator(offsets);
+   block_op = NULL;
 
    hybridization = NULL;
 }
@@ -368,9 +368,9 @@ void DarcyForm::Assemble(int skip_zeros)
 
 void DarcyForm::Finalize(int skip_zeros)
 {
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   if (!hybridization)
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   AllocBlockOp();
+
+   if (block_op)
    {
       if (M_u)
       {
@@ -406,6 +406,7 @@ void DarcyForm::Finalize(int skip_zeros)
          block_op->SetBlock(1, 0, B, (bsym)?(-1.):(+1.));
       }
    }
+
    if (hybridization)
    {
       hybridization->Finalize();
@@ -521,9 +522,9 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
                                  OperatorHandle &A)
 {
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   if (!hybridization)
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   AllocBlockOp();
+
+   if (block_op)
    {
       Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
 
@@ -768,6 +769,17 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          }
       }
+   }
+}
+
+void DarcyForm::AllocBlockOp()
+{
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   if (!hybridization)
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   {
+      delete block_op;
+      block_op = new BlockOperator(offsets);
    }
 }
 

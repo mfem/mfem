@@ -45,6 +45,7 @@ class DarcyForm : public Operator
 
    void AssemblePotHDGFaces(int skip_zeros);
 
+   void AllocBlockOp();
    const Operator* ConstructBT(const MixedBilinearForm *B);
    const Operator* ConstructBT(const Operator *opB);
 
