@@ -11,7 +11,7 @@
     do
       for i in 6 7 8
       do
-        mpirun -np 8 ./simpl -rs $i -rp 0 -p $p $back
+        mpirun -np 8 ./simpl -rs $i -rp 0 -p $p -L2 -atol 5e-05 -rtol 5e-05 $back
       done
     done
   done

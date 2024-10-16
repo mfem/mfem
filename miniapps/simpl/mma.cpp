@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    std::stringstream filename;
-   filename << "SiMPL-" << (use_bregman_backtrack?"B-":"A-");
+   filename << "MMA-";
 
    Array2D<int> ess_bdr_state;
    Array<int> ess_bdr_filter;
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root()) { out << "Creating problems ... " << std::flush; }
    // Density
-   FermiDiracEntropy entropy;
+   PrimalEntropy entropy;
    control_gf = entropy.forward((min_vol ? min_vol : max_vol)/tot_vol);
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
    SetupTopoptProblem(prob, filter, elasticity, filter_gf, state_gf);
    DensityBasedTopOpt optproblem(density, control_gf, grad_gf,
                                  filter, filter_gf, grad_filter_gf,
-                                 elasticity, state_gf);
+                                 elasticity, state_gf, false);
    if (elasticity.HasAdjoint()) {energy.SetAdjState(optproblem.GetAdjState());}
    if (Mpi::Root()) { out << "done" << std::endl; }
 
@@ -246,9 +246,9 @@ int main(int argc, char *argv[])
    MappedPairedGFCoefficient bregman_diff_eps
       = entropy.GetBregman_dual(control_eps_gf, control_gf);
    MappedPairedGFCoefficient diff_density_cf(
-      control_gf, control_old_gf, [](const real_t x, const real_t y)
+      control_gf, control_old_gf, [&entropy](const real_t x, const real_t y)
    {
-      return sigmoid(x)-sigmoid(y);
+      return entropy.backward(x)-entropy.backward(y);
    });
    MappedGFCoefficient density_eps_dual_cf = entropy.GetBackwardCoeff(
                                                 control_eps_gf);
@@ -305,82 +305,39 @@ int main(int argc, char *argv[])
       }
    }
    grad_gf = 0.0;
-   ParGridFunction M_grad_gf(&fes_control);
-   NativeMMA *mma;
+   ParGridFunction M_grad_gf(&fes_control), dv(&fes_control), lower(&fes_control),
+                   upper(&fes_control);
+   M_grad_gf=0.0;
+   real_t max_ch(0.1);
+   ParBilinearForm mass(&fes_control);
+   mass.AddDomainIntegrator(new MassIntegrator());
+   mass.Assemble();
+   mass.Finalize();
+   std::unique_ptr<HypreParMatrix> Mass(mass.ParallelAssemble());
+   lower = 1.0;
+   Mass->Mult(lower, dv);
+   std::unique_ptr<NativeMMA> mma;
    {
-      double a=0.0;
-      double c=1000.0;
-      double d=0.0;
-      mma = new mfem::NativeMMA(mesh->GetComm(), 1, M_grad_gf, &a, &c, &d);
+      real_t a=0.0;
+      real_t c=1000.0;
+      real_t d=0.0;
+   if (Mpi::Root()){out << "MMA Created" << std::endl;}
+      mma.reset(new mfem::NativeMMA(M_grad_gf.ParFESpace()->GetComm(), 1, M_grad_gf, &a, &c, &d));
+   if (Mpi::Root()){out << "MMA Created" << std::endl;}
    }
+   optproblem.Eval();
    for (it_md = 0; it_md<max_it; it_md++)
    {
-      if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
-      if (it_md == 1 && step_size < 0)
-      {
-         step_size = 1.0 / grad_gf.ComputeMaxError(zero_cf);
-      }
-      if (it_md > 1)
-      {
-         diff_density_form.Assemble();
-         grad_old_gf -= grad_gf;
-         real_t grad_diffrho = -InnerProduct(MPI_COMM_WORLD,
-                                             diff_density_form, grad_old_gf);
-         control_old_gf -= control_gf;
-         real_t psi_diffrho = -InnerProduct(MPI_COMM_WORLD,
-                                            diff_density_form, control_old_gf);
-         step_size = std::fabs(psi_diffrho / grad_diffrho);
-         if (Mpi::Root())
-         {
-            out << "   Step size = " << step_size
-                << " = | " << psi_diffrho << " / " << grad_diffrho << " |" << std::endl;
-         }
-      }
-
       control_old_gf = control_gf;
       old_objval = objval;
-      for (num_reeval=0; num_reeval < max_it_backtrack; num_reeval++)
+      for (int i=0; i<control_gf.Size(); i++)
       {
-         add(control_old_gf, -step_size, grad_gf, control_gf);
-         objval = optproblem.Eval();
-         diff_density_form.Assemble();
-         real_t grad_diffrho = InnerProduct(MPI_COMM_WORLD,
-                                            diff_density_form, grad_gf);
-         real_t bregman_diff = zero_gf.ComputeL1Error(bregman_diff_old);
-         real_t target_objval = use_bregman_backtrack
-                                ? old_objval + grad_diffrho + bregman_diff / step_size
-                                : old_objval + c1*grad_diffrho;
-         if (Mpi::Root())
-         {
-            out << "      New    Objective  : " << objval << std::endl;
-            out << "      Target Objective  : " << target_objval;
-            if (use_bregman_backtrack)
-            {
-               out << " ( " << old_objval << " + " << grad_diffrho
-                   << " + " << bregman_diff << " / " << step_size << " )" << std::endl;
-            }
-            else
-            {
-               out << " ( " << old_objval << " + " << c1 << " * " << grad_diffrho << " )" <<
-                   std::endl;
-            }
-         }
-         if (objval < target_objval)
-         {
-            if (Mpi::Root())
-            {
-               out << "   Backtracking terminated after "
-                   << num_reeval << " re-eval" << std::endl;
-            }
-            tot_reeval += num_reeval;
-            break;
-         }
-         if (Mpi::Root())
-         {
-            out << "   --Attempt failed" << std::endl;
-         }
-         step_size *= 0.5;
+         lower[i] = std::max(0.0, control_gf[i]-max_ch);
+         upper[i] = std::min(1.0, control_gf[i]+max_ch);
       }
+      real_t con = optproblem.GetCurrentVolume() - tot_vol;
+      mma->Update(control_gf, M_grad_gf, &con, &dv, lower, upper);
+      objval = optproblem.Eval();
       succ_obj_diff = old_objval - objval;
       grad_old_gf = grad_gf;
       curr_vol = optproblem.GetCurrentVolume();
@@ -399,6 +356,7 @@ int main(int argc, char *argv[])
       }
 
       optproblem.UpdateGradient();
+      Mass->Mult(grad_gf, M_grad_gf);
 
       add(control_gf, -eps_stationarity, grad_gf, control_eps_gf);
       density.ApplyVolumeProjection(control_eps_gf, true);
