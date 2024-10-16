@@ -563,7 +563,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 
    // mark possible hidden boundary edges in a non-conforming mesh, also
    // local DOFs affected by boundary elements on other processors
-   if (Nonconforming())
+   if (mesh->Nonconforming())
    {
       Array<int> bdr_verts, bdr_edges, bdr_faces;
       mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges,
@@ -3363,9 +3363,40 @@ void FiniteElementSpace::GetEdgeInteriorDofs(int i, Array<int> &dofs) const
 
 void FiniteElementSpace::GetPatchDofs(int patch, Array<int> &dofs) const
 {
+	/*
    MFEM_ASSERT(NURBSext,
                "FiniteElementSpace::GetPatchDofs needs a NURBSExtension");
-   NURBSext->GetPatchDofs(patch, dofs);
+	if(NURBSext->Dimension()==1)
+	{
+         MFEM_ABORT("One-dimensional NURBS spaces are not supported.");
+	}
+	else if(NURBSext->Dimension()==2)
+	{
+		const int nx = NURBSext->ndof1D(patch,0);
+		const int ny = NURBSext->ndof1D(patch,1);
+		dofs.SetSize(nx * ny);
+
+		for (int j=0; j<ny; ++j)
+			for (int i=0; i<nx; ++i)
+			{
+				dofs[i + (nx * (j))] = NURBSext->patchDofs2d[patch](i,j);
+			}
+	}
+	else if(NURBSext->Dimension()==3)
+	{
+		const int nx = NURBSext->ndof1D(patch,0);
+		const int ny = NURBSext->ndof1D(patch,1);
+		const int nz = NURBSext->ndof1D(patch,2);
+		dofs.SetSize(nx * ny * nz);
+
+		for (int k=0; k<nz; ++k)
+			for (int j=0; j<ny; ++j)
+				for (int i=0; i<nx; ++i)
+				{
+					dofs[i + (nx * (j + (k * ny)))] = NURBSext->patchDofs3d[patch](i,j,k);
+				}
+	}
+	*/
 }
 
 const FiniteElement *FiniteElementSpace::GetFE(int i) const

@@ -20,11 +20,13 @@
 namespace mfem
 {
 
+
 /// Abstract base class LinearFormIntegrator
 class LinearFormIntegrator
 {
 protected:
    const IntegrationRule *IntRule;
+   NURBSMeshRules *patchRule = nullptr;
 
    LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
 
@@ -50,9 +52,15 @@ public:
                                        const FiniteElement &el2,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
+   virtual void AssembleNURBSPatchVect(const FiniteElement &el,
+				       ElementTransformation &Tr,
+				       Vector &elvect);
 
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule* GetIntRule() { return IntRule; }
+
+   void SetNURBSPatchIntRule(NURBSMeshRules *pr) { patchRule = pr; }
+   bool HasNURBSPatchRule() { return patchRule != nullptr; }
 
    virtual ~LinearFormIntegrator() { }
 };

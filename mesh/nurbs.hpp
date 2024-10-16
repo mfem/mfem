@@ -681,6 +681,8 @@ public:
 
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
+   NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p);
+
    /// Copy assignment not supported.
    NURBSExtension& operator=(const NURBSExtension&) = delete;
 

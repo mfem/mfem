@@ -180,3 +180,68 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    // on the original mesh, but it doesn't happen for these test cases.
    REQUIRE(simplex_mesh.GetNE() == orig_mesh.GetNE()*factor);
 }
+
+TEST_CASE("MakeNurbs", "[Mesh]") {
+  Array<double> intervals;
+  intervals.Append(1);
+  intervals.Append(1);
+  intervals.Append(1);
+  Array<int> continuity;
+  continuity.Append(-1);
+  continuity.Append(1);
+  continuity.Append(1);
+  continuity.Append(-1);
+  {
+    const KnotVector kv(2, intervals, continuity);
+    REQUIRE(kv.GetNE() == 3);
+    REQUIRE(kv.GetNCP() == 5);
+    REQUIRE(kv.GetOrder() == 2);
+    REQUIRE(kv.Size() == 8);
+  }
+  {
+    const KnotVector kv(3, intervals, continuity);
+    REQUIRE(kv.GetNE() == 3);
+    REQUIRE(kv.GetNCP() == 8);
+    REQUIRE(kv.GetOrder() == 3);
+    REQUIRE(kv.Size() == 12);
+  }
+  const KnotVector kv(2, intervals, continuity);
+  Array<NURBSPatch *> patches;
+  Array<double> grev_pts;
+  grev_pts.Append(0);
+  grev_pts.Append(1.0 / 6);
+  grev_pts.Append(0.5);
+  grev_pts.Append(5.0 / 6);
+  grev_pts.Append(1);
+
+  Array<double> pts(4 * kv.GetNCP() * kv.GetNCP() * kv.GetNCP());
+  int count = 0;
+  for (int k = 0; k < kv.GetNCP(); ++k)
+    for (int j = 0; j < kv.GetNCP(); ++j)
+      for (int i = 0; i < kv.GetNCP(); ++i) {
+	pts[count + 0] = grev_pts[i];
+	pts[count + 1] = grev_pts[j];
+	pts[count + 2] = grev_pts[k];
+	pts[count + 3] = 1;
+	count += 4;
+      }
+  patches.Append(new NURBSPatch(&kv, &kv, &kv, 4, pts.GetData()));
+  Mesh patch_topology =
+      Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
+  NURBSExtension ne(&patch_topology, patches);
+  Mesh mesh(ne);
+  GridFunction *nodes = mesh.GetNodes();
+  REQUIRE(nodes != NULL);
+  FiniteElementSpace *fe = nodes->FESpace();
+  REQUIRE(fe != NULL);
+  SparseMatrix p(fe->GetNDofs(), fe->GetNDofs());
+  SparseMatrix r(fe->GetNDofs(), fe->GetNDofs());
+  for (size_t i = 0; i < fe->GetNDofs(); ++i) {
+    p.Add(i, i, 1);
+    r.Add(i, i, 1);
+  }
+  p.Finalize();
+  r.Finalize();
+  fe->SetProlongation(&p);
+  fe->SetRestriction(&r);
+}
