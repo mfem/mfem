@@ -23,6 +23,52 @@ namespace incompressible_navier
 using VecFuncT = void(const Vector &x, real_t t, Vector &u);
 using ScalarFuncT = real_t(const Vector &x, real_t t);
 
+class UnitVectorGridFunctionCoeff : public VectorCoefficient
+{
+public:
+   UnitVectorGridFunctionCoeff( int dim)
+   : VectorCoefficient(dim)
+   { }
+
+   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      real_t coeffVal = gridfunc_->GetValue(T, ip);
+
+      V.SetSize(vdim); V = coeffVal;
+   }
+
+   void SetGridFunction( GridFunction * gridfunc )
+   {
+      gridfunc_ = gridfunc;
+   }
+
+   GridFunction *gridfunc_ = nullptr;
+};
+
+class NonLinTermVectorGridFunctionCoeff : public VectorCoefficient
+{
+public:
+   NonLinTermVectorGridFunctionCoeff( int dim)
+   : VectorCoefficient(dim)
+   { }
+
+   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      Vector val(vdim);
+      gridFuncCoeff->Eval(val, T, ip);
+
+      V.SetSize(vdim); V = val;
+   }
+
+   void SetGridFunction( GridFunction * gridfunc )
+   {
+      delete gridFuncCoeff;
+      gridFuncCoeff = new VectorGridFunctionCoefficient( gridfunc );
+   }
+
+   VectorGridFunctionCoefficient *gridFuncCoeff = nullptr;
+};
+
 /// Container for a Dirichlet boundary condition of the velocity field.
 class VelDirichletBC_T
 {
@@ -184,7 +230,13 @@ protected:
 
    std::vector<ParGridFunction*> velGF;
    std::vector<ParGridFunction*> pGF;
-   ParGridFunction* psiGF;
+   ParGridFunction psiGF;
+
+   ParGridFunction DvGF, divVelGF, pRHS;
+   VectorGridFunctionCoefficient * DvelCoeff = nullptr;
+   DivergenceGridFunctionCoefficient * divVelCoeff = nullptr;
+   GridFunctionCoefficient * pRHSCoeff = nullptr;
+   UnitVectorGridFunctionCoeff * pUnitVectorCoeff = nullptr;
    
 
    // VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;

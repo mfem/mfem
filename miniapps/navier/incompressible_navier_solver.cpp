@@ -46,6 +46,11 @@ IncompressibleNavierSolver::IncompressibleNavierSolver(ParMesh *mesh, int velord
       velGF[i] = new ParGridFunction(vfes); *velGF[i] = 0.0;
       pGF[i]   = new ParGridFunction(pfes); *pGF[i]   = 0.0;
    }
+
+   psiGF.SetSpace(psifes);
+   DvGF.SetSpace(vfes);
+   divVelGF.SetSpace(pfes);
+   pRHS.SetSpace(pfes);
 }
 
 void IncompressibleNavierSolver::Setup(real_t dt)
@@ -135,15 +140,39 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    //-------------------------------------------------------------------------
 
    velLForm = new ParLinearForm(vfes);
+   pUnitVectorCoeff = new UnitVectorGridFunctionCoeff(pmesh->Dimension());
+   auto *pvel_lfi = new DomainLFGradIntegrator(*pUnitVectorCoeff);
+   //auto *p_nonlintermlfi = new DomainLFIntegrator(*pRHSCoeff)
+   if (numerical_integ)
+   {
+      pvel_lfi->SetIntRule(&ir_ni);
+   }
+   velLForm->AddDomainIntegrator(pvel_lfi);
+
 
 
    //-------------------------------------------------------------------------
 
    psiLForm = new ParLinearForm(psifes);
+   DvelCoeff = new VectorGridFunctionCoefficient;
+   auto *Dvel_lfi = new DomainLFGradIntegrator(*DvelCoeff);
+   if (numerical_integ)
+   {
+      Dvel_lfi->SetIntRule(&ir_ni);
+   }
+   psiLForm->AddDomainIntegrator(Dvel_lfi);
 
    //-------------------------------------------------------------------------
 
    pLForm = new ParLinearForm(pfes); 
+   divVelCoeff = new DivergenceGridFunctionCoefficient(velGF[0]);
+   pRHSCoeff = new GridFunctionCoefficient(&pRHS);
+   auto *p_lfi = new DomainLFIntegrator(*pRHSCoeff);
+   if (numerical_integ)
+   {
+      p_lfi->SetIntRule(&ir_ni);
+   }
+   pLForm->AddDomainIntegrator(p_lfi);
 
    //-------------------------------------------------------------------------
 }
@@ -156,6 +185,28 @@ void IncompressibleNavierSolver::UpdateTimestepHistory(real_t dt)
 void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
                         bool provisional)
 {
+   pUnitVectorCoeff->SetGridFunction( pGF[0] );
+
+
+   subtract(1.0/dt, *velGF[1], *velGF[0], DvGF);
+   DvelCoeff->SetGridFunction( &DvGF );
+
+
+
+
+   divVelCoeff->SetGridFunction( velGF[0]);
+   divVelGF.ProjectCoefficient( *divVelCoeff );
+
+   add( *pGF[1], psiGF, pRHS);
+   add( pRHS, -1.0*kin_vis, divVelGF, pRHS);
+   pRHSCoeff->SetGridFunction( &pRHS );
+
+
+   	//MatrixVectorProductCoefficient
+
+   // DvGF
+
+
 
 
 }
@@ -205,6 +256,11 @@ IncompressibleNavierSolver::~IncompressibleNavierSolver()
       delete velGF[i];
       delete pGF[i];
    }
+
+   delete DvelCoeff;
+   delete divVelCoeff;
+   delete pRHSCoeff;
+   delete pUnitVectorCoeff;
 
    delete vfec;
    delete psifec;
