@@ -25,7 +25,7 @@ SIMPL_SRC = funs.cpp linear_solver.cpp logger.cpp topopt.cpp topopt_problems.cpp
 SIMPL_OBJ = $(SIMPL_SRC:.cpp=.o)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = simpl oc diffusion_test filter_test elasticity_test
+PAR_MINIAPPS = simpl oc mma diffusion_test filter_test elasticity_test
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -49,6 +49,8 @@ $(MINIAPPS):%: %.o $(SIMPL_OBJ)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
+mma: $(SRC)MMA_wrapper.hpp
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
