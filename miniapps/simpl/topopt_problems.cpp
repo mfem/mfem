@@ -82,9 +82,9 @@ void ForceInverterInitialDesign(GridFunction &x, LegendreEntropy *entropy)
                     pfes->GetComm());
    }
 #endif
+   real_t maxval = entropy ? std::min(20.0, entropy->GetFiniteUpperBound()) : 1.0;
+   real_t minval = entropy ? std::max(-20.0, entropy->GetFiniteLowerBound()) : 0.0;
    x.ProjectCoefficient(dist);
-   real_t maxval = entropy ? entropy->GetFiniteUpperBound() : 1.0;
-   real_t minval = entropy ? entropy->GetFiniteLowerBound() : 0.0;
    for (auto &val : x) {val = (max_d - val) / max_d * (maxval - minval) + minval; }
    for (auto port:ports) { delete port; }
 }
@@ -603,7 +603,7 @@ void SetupTopoptProblem(TopoptProblem prob,
 
       case ForceInverter2:
       {
-         real_t k_in(1), k_out(0.001);
+         real_t k_in(1), k_out(0.0001);
 
          auto d_in = new Vector({1.0, 0.0});
          auto d_out = new Vector({-1.0, 0.0});
