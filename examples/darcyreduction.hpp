@@ -96,6 +96,26 @@ public:
    virtual void Reset();
 };
 
+class DarcyFluxReduction : public DarcyReduction
+{
+   int *Af_ipiv;
+
+   void ComputeS() override;
+
+public:
+   DarcyFluxReduction(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
+                      bool bsymmetrize = true);
+
+   ~DarcyFluxReduction();
+
+   void Init(const Array<int> &ess_flux_tdof_list) override;
+
+   void ReduceRHS(const BlockVector &b, Vector &b_r) const override;
+
+   void ComputeSolution(const BlockVector &b, const Vector &sol_r,
+                        BlockVector &sol) const override;
+};
+
 class DarcyPotentialReduction : public DarcyReduction
 {
    int *Df_ipiv;

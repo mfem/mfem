@@ -229,6 +229,12 @@ int main(int argc, char *argv[])
          return 1;
    }
 
+   if (bnldiff && reduction)
+   {
+      cerr << "Reduction is not possible with non-linear diffusion" << endl;
+      return 1;
+   }
+
    if (!bconv && !bnlconv && upwinded)
    {
       cerr << "Upwinded scheme cannot work without advection" << endl;
@@ -610,7 +616,19 @@ int main(int argc, char *argv[])
       chrono.Clear();
       chrono.Start();
 
-      darcy->EnablePotentialReduction(ess_flux_tdofs_list);
+      if (dg)
+      {
+         darcy->EnableFluxReduction();
+      }
+      else if (!bconv && !bnlconv)
+      {
+         darcy->EnablePotentialReduction(ess_flux_tdofs_list);
+      }
+      else
+      {
+         std::cerr << "No possible reduction!" << std::endl;
+         return 1;
+      }
 
       chrono.Stop();
       std::cout << "Reduction init took " << chrono.RealTime() << "s.\n";
@@ -624,10 +642,16 @@ int main(int argc, char *argv[])
    const Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
 
    std::cout << "***********************************************************\n";
-   std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
-   if (!reduction)
+   if (!reduction || (reduction && !dg))
+   {
+      std::cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+   }
+   if (!reduction || (reduction && dg))
    {
       std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
+   }
+   if (!reduction)
+   {
       if (hybridization)
       {
          std::cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";

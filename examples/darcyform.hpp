@@ -45,6 +45,9 @@ class DarcyForm : public Operator
    DarcyReduction *reduction; ///< Owned.
    DarcyHybridization *hybridization; ///< Owned.
 
+   void EnableReduction(const Array<int> &ess_flux_tdof_list,
+                        DarcyReduction *reduction);
+
    void AssemblePotHDGFaces(int skip_zeros);
 
    void AllocBlockOp();
@@ -90,11 +93,22 @@ public:
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
+   /// Enable flux reduction.
+   /** For details see the description for class
+       DarcyFluxReduction in darcyreduction.hpp. This method should be
+       called before assembly. */
+   void EnableFluxReduction()
+   {
+      Array<int> ess_flux_tdof_list; //empty
+      EnableReduction(ess_flux_tdof_list, new DarcyFluxReduction(fes_u, fes_p));
+   }
+
    /// Enable potential reduction.
    /** For details see the description for class
        DarcyPotentialReduction in darcyreduction.hpp. This method should be
        called before assembly. */
-   void EnablePotentialReduction(const Array<int> &ess_flux_tdof_list);
+   void EnablePotentialReduction(const Array<int> &ess_flux_tdof_list)
+   { EnableReduction(ess_flux_tdof_list, new DarcyPotentialReduction(fes_u, fes_p)); }
 
    DarcyReduction *GetReduction() const { return reduction; }
 

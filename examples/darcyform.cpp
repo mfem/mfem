@@ -128,10 +128,13 @@ void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    if (B) { B->SetAssemblyLevel(assembly); }
 }
 
-void DarcyForm::EnablePotentialReduction(const Array<int> &ess_flux_tdof_list)
+void DarcyForm::EnableReduction(const Array<int> &ess_flux_tdof_list,
+                                DarcyReduction *reduction_)
 {
+   MFEM_ASSERT(!Mnl, "Reduction cannot be used with block nonlinear forms");
    MFEM_ASSERT((M_u || Mnl_u) && (M_p || Mnl_p),
                "Mass forms for the fluxes and potentials must be set prior to this call!");
+
    delete reduction;
    if (assembly != AssemblyLevel::LEGACY)
    {
@@ -139,7 +142,7 @@ void DarcyForm::EnablePotentialReduction(const Array<int> &ess_flux_tdof_list)
       MFEM_WARNING("Reduction not supported for this assembly level");
       return;
    }
-   reduction = new DarcyPotentialReduction(fes_u, fes_p);
+   reduction = reduction_;
 
    // Automatically load the flux mass integrators
    if (Mnl_u)
