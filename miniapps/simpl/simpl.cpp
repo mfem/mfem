@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
    // Solid / Void material element attributes
    int solid_attr = 0;
    int void_attr = 0;
-   real_t max_latent = 1e09;
+   real_t max_latent = 1e18;
 
    // Stopping-criteria related
    int max_it = 300;
@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
    bool use_bregman_stationary = true;
    real_t tol_obj_diff_rel = 5e-05;
    real_t tol_obj_diff_abs = 5e-05;
+   real_t tol_kkt = 2e-04;
    // backtracking related
    int max_it_backtrack = 20;
    bool use_bregman_backtrack = true;
@@ -261,9 +262,27 @@ int main(int argc, char *argv[])
    });
    MappedGFCoefficient density_eps_dual_cf = entropy.GetBackwardCoeff(
                                                 control_eps_gf);
+   real_t avg_grad;
+   MappedPairedGFCoefficient KKT_cf(control_gf,
+                                    grad_gf, [&avg_grad](const real_t x, const real_t g)
+   {
+      real_t rho_k = sigmoid(x);
+      // return avg_grad - g;
+      return std::max(0.0, avg_grad-g)*(1.0-rho_k)-std::min(0.0, avg_grad-g)*rho_k;
+   });
+   ParBilinearForm mass(&fes_control);
+   mass.AddDomainIntegrator(new MassIntegrator());
+   mass.Assemble();
+   mass.Finalize();
+   ParGridFunction kkt_gf(&fes_control);
+   std::unique_ptr<HypreParMatrix> Mass(mass.ParallelAssemble());
+
    GridFunctionCoefficient density_eps_primal_cf(&control_eps_gf);
    GridFunctionCoefficient grad_cf(&grad_gf);
    ParGridFunction zero_gf(&fes_control);
+   zero_gf=1.0;
+   ParGridFunction dv(&fes_control);
+   Mass->Mult(zero_gf, dv);
    zero_gf = 0.0;
    ParLinearForm diff_density_form(&fes_control);
    diff_density_form.AddDomainIntegrator(new DomainLFIntegrator(diff_density_cf));
@@ -278,6 +297,7 @@ int main(int argc, char *argv[])
       glvis->Append(density_gf, "design density", keys);
       glvis->Append(filter_gf, "filtered density", keys);
       glvis->Append(state_gf, "displacement magnitude", keys);
+      glvis->Append(kkt_gf, "KKT", keys);
       if (elasticity.HasAdjoint()) {glvis->Append(optproblem.GetAdjState(), "adjoint displacement", keys);}
    }
 
@@ -285,10 +305,11 @@ int main(int argc, char *argv[])
           stationarity_error_L2, stationarity_error_bregman, stationarity_error,
           curr_vol,
           objval(infinity()), old_objval(infinity()), succ_obj_diff(infinity());
+   real_t kkt, kkt0;
    int tot_reeval(0), num_reeval(0);
    int it_md;
    TableLogger logger;
-   logger.Append("iteration", it_md);
+   logger.Append("it", it_md);
    logger.Append("volume", curr_vol);
    logger.Append("obj", objval);
    logger.Append("step-size", step_size);
@@ -296,6 +317,7 @@ int main(int argc, char *argv[])
    logger.Append("succ-objdiff", succ_obj_diff);
    logger.Append("stnrty-L2", stationarity_error_L2);
    logger.Append("stnrty-B", stationarity_error_bregman);
+   logger.Append("kkt", kkt);
    logger.SaveWhenPrint(filename.str());
    std::unique_ptr<ParaViewDataCollection> paraview_dc;
    if (use_paraview)
@@ -403,6 +425,7 @@ int main(int argc, char *argv[])
       }
 
       optproblem.UpdateGradient();
+      avg_grad = InnerProduct(fes_control.GetComm(), grad_gf, dv)/tot_vol;
 
       add(control_gf, -eps_stationarity, grad_gf, control_eps_gf);
       density.ApplyVolumeProjection(control_eps_gf, true);
@@ -413,6 +436,8 @@ int main(int argc, char *argv[])
       density.ApplyVolumeProjection(control_eps_gf, false);
       stationarity_error_L2 = density_gf.ComputeL2Error(
                                  density_eps_primal_cf)/eps_stationarity;
+      kkt = zero_gf.ComputeL1Error(KKT_cf);
+      zero_gf.ComputeElementL1Errors(KKT_cf, kkt_gf);
 
       stationarity_error = use_bregman_stationary
                            ? stationarity_error_bregman : stationarity_error_L2;
@@ -424,11 +449,9 @@ int main(int argc, char *argv[])
       if (it_md == 0)
       {
          stationarity0 = stationarity_error;
+         kkt0 = kkt;
       }
-      if ((stationarity_error < tol_stationary_abs ||
-           stationarity_error < tol_stationary_rel*stationarity0)
-          && (std::abs(objval - old_objval) < tol_obj_diff_abs ||
-              std::abs(objval - old_objval) < tol_obj_diff_rel*std::fabs(objval)))
+      if ((kkt < tol_kkt*kkt0))
       {
          if (it_md > min_it) { break; }
       }

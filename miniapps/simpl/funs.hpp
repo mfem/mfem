@@ -172,7 +172,7 @@ class PrimalEntropy : public LegendreEntropy
 {
 public:
    PrimalEntropy():LegendreEntropy(
-         [](const real_t x) {return x*x; }, [](const real_t x) {return x;}, [](
+         [](const real_t x) {return x*x/2.0; }, [](const real_t x) {return x;}, [](
          const real_t x) {return x;}, 0, 1, 0, 1
    ) {}
 };
