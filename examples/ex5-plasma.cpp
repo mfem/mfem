@@ -459,6 +459,7 @@ int main(int argc, char *argv[])
 
    //divergence/weak gradient
 
+   ConstantCoefficient minus(-1.);
    /*if (dg)
    {
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
@@ -479,7 +480,7 @@ int main(int argc, char *argv[])
    }
    else*/
    {
-      B->AddDomainIntegrator(new MixedScalarCurlIntegrator());
+      B->AddDomainIntegrator(new MixedScalarCurlIntegrator(minus));
    }
 
    //linear convection in the linear regime
