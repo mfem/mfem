@@ -73,4 +73,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf mesh.* sol.* ParaView
+	@rm -rf mesh.* sol.* ParaView *.csv

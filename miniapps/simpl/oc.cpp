@@ -47,7 +47,8 @@ int main(int argc, char *argv[])
    bool use_bregman_stationary = true;
    real_t tol_obj_diff_rel = 5e-05;
    real_t tol_obj_diff_abs = 5e-05;
-   real_t tol_kkt = 2e-04;
+   real_t tol_kkt_rel = 2e-04;
+   real_t tol_kkt_abs = 2e-05;
 
    OptionsParser args(argc, argv);
    // problem
@@ -257,12 +258,18 @@ int main(int argc, char *argv[])
    MappedGFCoefficient density_eps_dual_cf = entropy.GetBackwardCoeff(
                                                 control_eps_gf);
    real_t avg_grad;
-   MappedPairedGFCoefficient KKT_cf(control_gf,
-                                    grad_gf, [&avg_grad, &entropy](const real_t x, const real_t g)
+   MappedPairedGFCoefficient KKT_cf(
+      control_gf, grad_gf,
+      [&avg_grad, &entropy](const real_t x, const real_t g)
    {
       real_t rho_k = entropy.backward(x);
-      // return avg_grad - g;
-      return std::max(0.0, avg_grad-g)*(1.0-rho_k)-std::min(0.0, avg_grad-g)*rho_k;
+      real_t lambda_k = avg_grad - g;
+      // Definition -Brendan
+      return std::max(0.0, lambda_k)*(1.0-rho_k)-std::min(0.0, lambda_k)*rho_k;
+      // Definition -Thomas
+      // return lambda_k
+      //        - std::min(0.0, rho_k     + lambda_k)
+      //        - std::max(0.0, rho_k - 1 + lambda_k);
    });
    ParBilinearForm mass(&fes_control);
    mass.AddDomainIntegrator(new MassIntegrator());
@@ -393,7 +400,7 @@ int main(int argc, char *argv[])
          stationarity0 = stationarity_error;
          kkt0 = kkt;
       }
-      if ((kkt < tol_kkt*kkt0))
+      if ((kkt < tol_kkt_rel*kkt0) || (kkt < tol_kkt_abs))
       {
          if (it_md > min_it) { break; }
       }
