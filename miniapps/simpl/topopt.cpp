@@ -188,6 +188,55 @@ DesignDensity::DesignDensity(
    *zero = 0.0;
 }
 
+void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
+                                  const GridFunction &grad, real_t &mu, real_t &vol)
+{
+   x.Add(-step_size, grad);
+
+   mu = 0.0;
+   const real_t maxval = entropy->GetFiniteUpperBound();
+   const real_t minval = entropy->GetFiniteLowerBound();
+
+   MappedGFCoefficient newx_cf(x, [&mu, maxval, minval,
+                                        step_size](const real_t psi)
+   {
+      return std::max(minval, std::min(maxval, psi + mu));
+   });
+   CompositeCoefficient density_cf(newx_cf, entropy->backward);
+   vol = zero->ComputeL1Error(density_cf);
+   if (vol <= max_vol && vol >= min_vol)
+   {
+      x.ProjectCoefficient(newx_cf);
+      return;
+   }
+
+   GridFunctionCoefficient grad_cf(&grad);
+   real_t mu_max(-x.Min()), mu_min(-x.Max());
+#ifdef MFEM_USE_MPI
+   auto *pfes = dynamic_cast<ParFiniteElementSpace*>(x.FESpace());
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &mu_max, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                    pfes->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &mu_min, 1, MFEM_MPI_REAL_T, MPI_MIN,
+                    pfes->GetComm());
+   }
+#endif
+   // real_t mu_max = zero->ComputeLpError(mfem::infinity(), grad_cf);
+   // real_t mu_min = -mu_max;
+   const real_t targ_vol = vol > max_vol ? max_vol : min_vol;
+
+   while (mu_max - mu_min > 1e-12)
+   {
+      mu = (mu_max+mu_min)*0.5;
+      vol = zero->ComputeL1Error(density_cf);
+      if (vol > targ_vol) { mu_max = mu; }
+      else if (vol < targ_vol) { mu_min = mu; }
+      else { break; }
+   }
+   x.ProjectCoefficient(newx_cf);
+}
+
 real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
 {
    real_t mu = 0.0; // constant perturbation
