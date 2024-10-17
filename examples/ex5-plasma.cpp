@@ -66,7 +66,7 @@ typedef std::function<real_t(real_t f, const Vector &x)> KFunc;
 
 enum Problem
 {
-   SteadyMaxwell,
+   SteadyMaxwell = 1,
    SteadyLinearDumping,
    NonsteadyLinearDumping,
 };
@@ -137,7 +137,9 @@ int main(int argc, char *argv[])
                   "Switches between upwinded (1) and centered (0=default) stabilization.");
    args.AddOption(&iproblem, "-p", "--problem",
                   "Problem to solve:\n\t\t"
-                  "1=linear wave dumping");
+                  "1=steady Maxwell\n\t\t"
+                  "2=steady linear dumping\n\t\t"
+                  "3=nonsteady linear dumping\n\t\t");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
