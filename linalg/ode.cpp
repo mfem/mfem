@@ -18,7 +18,7 @@ namespace mfem
 
 std::string ODESolver::ExplicitTypes =
    "\n\tExplicit solver: \n\t"
-   "        RK      :  1 - Forward Euler, 2 - RK2(0.5), 3 - RK3 SSP, 4 - RK4,\n\t"
+   "        RK      :  1 - Forward Euler, 2 - RK2(0.5), 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
    "        AB      : 11 - AB1, 12 - AB2, 13 - AB3, 14 - AB4, 15 - AB5\n";
 
 std::string ODESolver::ImplicitTypes  =
@@ -53,6 +53,7 @@ std::unique_ptr<ODESolver> ODESolver::SelectExplicit(int ode_solver_type)
       case 2: return ode_ptr(new RK2Solver(0.5)); // midpoint method
       case 3: return ode_ptr(new RK3SSPSolver);
       case 4: return ode_ptr(new RK4Solver);
+      case 6: return ode_ptr(new RK6Solver);
 
       // Explicit AB methods
       case 11: return ode_ptr(new AB1Solver);
