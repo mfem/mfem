@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    std::stringstream filename;
-   filename << "MMA-";
+   filename << "SiMPL-" << (use_bregman_backtrack?"B-":"A-");
 
    Array2D<int> ess_bdr_state;
    Array<int> ess_bdr_filter;
@@ -217,8 +217,6 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { out << "Creating problems ... " << std::flush; }
    // Density
    PrimalEntropy entropy;
-   entropy.SetFiniteLowerBound(0.0);
-   entropy.SetFiniteUpperBound(1.0);
    control_gf = entropy.forward((min_vol ? min_vol : max_vol)/tot_vol);
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
@@ -246,7 +244,7 @@ int main(int argc, char *argv[])
    SetupTopoptProblem(prob, filter, elasticity, filter_gf, state_gf);
    DensityBasedTopOpt optproblem(density, control_gf, grad_gf,
                                  filter, filter_gf, grad_filter_gf,
-                                 elasticity, state_gf, false);
+                                 elasticity, state_gf);
    if (elasticity.HasAdjoint()) {energy.SetAdjState(optproblem.GetAdjState());}
    if (Mpi::Root()) { out << "done" << std::endl; }
 
@@ -264,8 +262,9 @@ int main(int argc, char *argv[])
                                                 control_eps_gf);
    real_t avg_grad;
    MappedPairedGFCoefficient KKT_cf(control_gf,
-                                    grad_gf, [&avg_grad](const real_t rho_k, const real_t g)
+                                    grad_gf, [&avg_grad, &entropy](const real_t x, const real_t g)
    {
+      real_t rho_k = entropy.backward(x);
       // return avg_grad - g;
       return std::max(0.0, avg_grad-g)*(1.0-rho_k)-std::min(0.0, avg_grad-g)*rho_k;
    });
@@ -341,12 +340,12 @@ int main(int argc, char *argv[])
    optproblem.Eval();
    grad_gf = 0.0;
    Vector con(1);
+   real_t volume_correction;
    for (it_md = 0; it_md<max_it; it_md++)
    {
       if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
 
       control_old_gf = control_gf;
-      old_objval = objval;
       for (int i=0; i<control_gf.Size(); i++)
       {
          lower[i] = std::max(0.0, control_gf[i] - max_ch);
@@ -354,6 +353,8 @@ int main(int argc, char *argv[])
       }
       con[0] = optproblem.GetCurrentVolume() - max_vol;
       mma.Update(it_md, grad_gf, con, dv, lower, upper, control_gf);
+
+      old_objval = objval;
       objval = optproblem.Eval();
       succ_obj_diff = old_objval - objval;
       grad_old_gf = grad_gf;
@@ -378,16 +379,15 @@ int main(int argc, char *argv[])
       optproblem.UpdateGradient();
       avg_grad = InnerProduct(fes_control.GetComm(), grad_gf, dv)/tot_vol;
 
-      add(control_gf, -eps_stationarity, grad_gf, control_eps_gf);
-      density.ApplyVolumeProjection(control_eps_gf, true);
+      real_t dummy1, dummy2;
+      control_eps_gf = control_gf;
+      density.ProjectedStep(control_eps_gf, eps_stationarity, grad_gf, dummy1,
+                            dummy2);
       stationarity_error_bregman = std::sqrt(zero_gf.ComputeL1Error(
                                                 bregman_diff_eps))/eps_stationarity;
 
-      add(density_gf, -eps_stationarity, grad_gf, control_eps_gf);
-      density.ApplyVolumeProjection(control_eps_gf, false);
-      stationarity_error_L2 = density_gf.ComputeL2Error(
-                                 density_eps_primal_cf)/eps_stationarity;
-      kkt = zero_gf.ComputeL1Error(KKT_cf) + std::fabs(max_vol - optproblem.GetCurrentVolume());
+      stationarity_error_L2 = stationarity_error_bregman;
+      kkt = zero_gf.ComputeL1Error(KKT_cf);
       zero_gf.ComputeElementL1Errors(KKT_cf, kkt_gf);
 
       stationarity_error = use_bregman_stationary
