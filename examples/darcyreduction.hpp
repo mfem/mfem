@@ -28,13 +28,11 @@ protected:
    NonlinearFormIntegrator *m_nlfi_u, *m_nlfi_p;
    bool own_m_nlfi_u, own_m_nlfi_p;
 
-   Array<int> hat_offsets, hat_dofs_marker;
+   Array<int> Af_offsets, Af_f_offsets;
+   real_t *Af_data;
 
-   Array<int> Af_offsets, Af_f_offsets, Ae_offsets;
-   real_t *Af_data, *Ae_data;
-
-   Array<int> Bf_offsets, Be_offsets;
-   real_t *Bf_data, *Be_data;
+   Array<int> Bf_offsets;
+   real_t *Bf_data;
 
    Array<int> Df_offsets, Df_f_offsets;
    real_t *Df_data;
@@ -43,9 +41,8 @@ protected:
 
    SparseMatrix *S;
 
-   void GetFDofs(int el, Array<int> &fdofs) const;
-   void GetEDofs(int el, Array<int> &edofs) const;
-
+   void InitA();
+   void InitBD();
    virtual void ComputeS() = 0;
 
 public:
@@ -68,16 +65,17 @@ public:
    /// Prepare the DarcyReduction object for assembly.
    virtual void Init(const Array<int> &ess_flux_tdof_list);
 
-   void AssembleFluxMassMatrix(int el, const DenseMatrix &A);
+   virtual void AssembleFluxMassMatrix(int el, const DenseMatrix &A);
 
-   void AssemblePotMassMatrix(int el, const DenseMatrix &D);
+   virtual void AssemblePotMassMatrix(int el, const DenseMatrix &D);
 
-   void AssembleDivMatrix(int el, const DenseMatrix &B);
+   virtual void AssembleDivMatrix(int el, const DenseMatrix &B);
 
    /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
        @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
    virtual void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
-                                    const BlockVector &x, BlockVector &b);
+                                    const BlockVector &x, BlockVector &b)
+   { MFEM_ABORT("Not implemented"); }
 
    /// Operator application: `y=A(x)`.
    void Mult(const Vector &x, Vector &y) const override;
@@ -110,6 +108,10 @@ public:
 
    void Init(const Array<int> &ess_flux_tdof_list) override;
 
+   void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
+                            const BlockVector &x, BlockVector &b) override
+   { MFEM_ASSERT(vdofs_flux.Size() == 0, "Essential VDOFs are not supported"); }
+
    void ReduceRHS(const BlockVector &b, Vector &b_r) const override;
 
    void ComputeSolution(const BlockVector &b, const Vector &sol_r,
@@ -118,7 +120,18 @@ public:
 
 class DarcyPotentialReduction : public DarcyReduction
 {
+   Array<int> hat_offsets, hat_dofs_marker;
+
+   Array<int> Ae_offsets;
+   real_t *Ae_data;
+
+   Array<int> Be_offsets;
+   real_t *Be_data;
+
    int *Df_ipiv;
+
+   void GetFDofs(int el, Array<int> &fdofs) const;
+   void GetEDofs(int el, Array<int> &edofs) const;
 
    void ComputeS() override;
 
@@ -130,10 +143,19 @@ public:
 
    void Init(const Array<int> &ess_flux_tdof_list) override;
 
+   void AssembleFluxMassMatrix(int el, const DenseMatrix &A) override;
+
+   void AssembleDivMatrix(int el, const DenseMatrix &B) override;
+
+   void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
+                            const BlockVector &x, BlockVector &b) override;
+
    void ReduceRHS(const BlockVector &b, Vector &b_r) const override;
 
    void ComputeSolution(const BlockVector &b, const Vector &sol_r,
                         BlockVector &sol) const override;
+
+   void Reset() override;
 };
 
 }
