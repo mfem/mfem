@@ -752,7 +752,7 @@ int main(int argc, char *argv[])
                                (Coefficient*)&qtcoeff});
 
    DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
-                    (DarcyOperator::SolverType) solver_type, btime);
+                    (DarcyOperator::SolverType) solver_type, false, btime);
 
    //construct the time solver
 

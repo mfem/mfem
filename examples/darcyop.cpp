@@ -17,10 +17,11 @@ namespace mfem
 
 DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
                              DarcyForm *darcy_, LinearForm *g_, LinearForm *f_, LinearForm *h_,
-                             const Array<Coefficient*> &coeffs_, SolverType stype_, bool btime_)
+                             const Array<Coefficient*> &coeffs_, SolverType stype_, bool btime_u_,
+                             bool btime_p_)
    : TimeDependentOperator(0, 0., IMPLICIT),
      ess_flux_tdofs_list(ess_flux_tdofs_list_), darcy(darcy_), g(g_), f(f_), h(h_),
-     coeffs(coeffs_), solver_type(stype_), btime(btime_)
+     coeffs(coeffs_), solver_type(stype_), btime_u(btime_u_), btime_p(btime_p_)
 {
    offsets = ConstructOffsets(*darcy);
    width = height = offsets.Last();
@@ -30,13 +31,66 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
       trace_space = darcy->GetHybridization()->ConstraintFESpace();
    }
 
-   if (btime)
+   if (btime_u || btime_p)
+      idtcoeff = new FunctionCoefficient([&](const Vector &) { return idt; });
+
+   if (btime_u)
+   {
+      BilinearForm *Mq = const_cast<BilinearForm*>(
+                            (const_cast<const DarcyForm*>(darcy))->GetFluxMassForm());
+      NonlinearForm *Mqnl = const_cast<NonlinearForm*>(
+                               (const_cast<const DarcyForm*>(darcy))->GetFluxMassNonlinearForm());
+      const int dim = darcy->FluxFESpace()->GetMesh()->Dimension();
+      const bool dg = (darcy->FluxFESpace()->FEColl()->GetRangeType(
+                          dim) == FiniteElement::SCALAR);
+      if (Mq)
+      {
+         if (dg)
+         {
+            Mq->AddDomainIntegrator(new VectorMassIntegrator(*idtcoeff));
+         }
+         else
+         {
+            Mq->AddDomainIntegrator(new VectorFEMassIntegrator(*idtcoeff));
+         }
+      }
+      if (Mqnl)
+      {
+         if (dg)
+         {
+            Mqnl->AddDomainIntegrator(new VectorMassIntegrator(*idtcoeff));
+         }
+         else
+         {
+            Mqnl->AddDomainIntegrator(new VectorFEMassIntegrator(*idtcoeff));
+         }
+
+         if (trace_space)
+         {
+            //hybridization must be reconstructed, since the non-linear
+            //potential mass must be passed to it
+            darcy->EnableHybridization(trace_space,
+                                       new NormalTraceJumpIntegrator(),
+                                       ess_flux_tdofs_list);
+         }
+      }
+      Mq0 = new BilinearForm(darcy->FluxFESpace());
+      if (dg)
+      {
+         Mq0->AddDomainIntegrator(new VectorMassIntegrator(*idtcoeff));
+      }
+      else
+      {
+         Mq0->AddDomainIntegrator(new VectorFEMassIntegrator(*idtcoeff));
+      }
+   }
+
+   if (btime_p)
    {
       BilinearForm *Mt = const_cast<BilinearForm*>(
                             (const_cast<const DarcyForm*>(darcy))->GetPotentialMassForm());
       NonlinearForm *Mtnl = const_cast<NonlinearForm*>(
                                (const_cast<const DarcyForm*>(darcy))->GetPotentialMassNonlinearForm());
-      idtcoeff = new FunctionCoefficient([&](const Vector &) { return idt; });
       if (Mt) { Mt->AddDomainIntegrator(new MassIntegrator(*idtcoeff)); }
       if (Mtnl)
       {
@@ -61,6 +115,7 @@ DarcyOperator::~DarcyOperator()
    delete prec;
    delete S;
    delete Mt0;
+   delete Mq0;
    delete idtcoeff;
 }
 
@@ -122,22 +177,43 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       //assemble the system
 
       darcy->Assemble();
+      if (Mq0)
+      {
+         Mq0->Update();
+         Mq0->Assemble();
+         //Mq0->Finalize();
+      }
       if (Mt0)
       {
          Mt0->Update();
          Mt0->Assemble();
          //Mt0->Finalize();
-
       }
+   }
+
+   if (Mq0)
+   {
+      GridFunction u_h;
+      u_h.MakeRef(darcy->FluxFESpace(), x.GetBlock(0), 0);
+      Mq0->AddMult(u_h, *g, +1.);
    }
 
    if (Mt0)
    {
-      GridFunction t_h;
-      t_h.MakeRef(darcy->PotentialFESpace(), x.GetBlock(1), 0);
-      Mt0->AddMult(t_h, *f, -1.);
+      GridFunction p_h;
+      p_h.MakeRef(darcy->PotentialFESpace(), x.GetBlock(1), 0);
+      Mt0->AddMult(p_h, *f, -1.);
    }
-
+#if 0
+   if (Mq0 && Mt0)
+   {
+      GridFunction u_h, p_h;
+      u_h.MakeRef(darcy->FluxFESpace(), x.GetBlock(0), 0);
+      p_h.MakeRef(darcy->PotentialFESpace(), x.GetBlock(1), 0);
+      darcy->GetFluxDivForm()->AddMultTranspose(p_h, *g, -1.);
+      darcy->GetFluxDivForm()->AddMult(u_h, *f, +1.);
+   }
+#endif
    //form the reduced system
 
    OperatorHandle op;
@@ -227,7 +303,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
          solver->SetMaxIter(maxIter);
          solver->SetOperator(*op);
          if (prec) { solver->SetPreconditioner(*prec); }
-         solver->SetPrintLevel(btime?0:1);
+         solver->SetPrintLevel((btime_u || btime_p)?0:1);
       }
       else if (darcy->GetReduction())
       {
@@ -247,7 +323,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
          solver->SetMaxIter(maxIter);
          solver->SetOperator(*op);
          solver->SetPreconditioner(*prec);
-         solver->SetPrintLevel(btime?0:1);
+         solver->SetPrintLevel((btime_u || btime_p)?0:1);
          solver->iterative_mode = true;
       }
       else
@@ -364,7 +440,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
          solver->SetMaxIter(maxIter);
          solver->SetOperator(*op);
          solver->SetPreconditioner(*prec);
-         solver->SetPrintLevel(btime?0:1);
+         solver->SetPrintLevel((btime_u || btime_p)?0:1);
          solver->iterative_mode = true;
 
          delete MinvBt;

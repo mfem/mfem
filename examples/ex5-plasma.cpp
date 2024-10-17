@@ -200,19 +200,21 @@ int main(int argc, char *argv[])
 
    // Set the problem options
    Problem problem = (Problem)iproblem;
-   bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff, btime = false;
+   bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff;
+   bool btime_e = false, btime_b = false, btime = false;
    switch (problem)
    {
       case Problem::SteadyMaxwell:
       case Problem::SteadyLinearDumping:
          break;
       case Problem::NonsteadyLinearDumping:
-         btime = true;
+         btime_b = true;
          break;
       default:
          cerr << "Unknown problem" << endl;
          return 1;
    }
+   btime = btime_e || btime_b;
 
    if (!bconv && !bnlconv && upwinded)
    {
@@ -410,7 +412,7 @@ int main(int argc, char *argv[])
       }
    }*/
 
-   if (!btime)
+   if (!btime_b)
    {
       Mt->AddDomainIntegrator(new MassIntegrator());
    }
@@ -631,7 +633,7 @@ int main(int argc, char *argv[])
    E_h.MakeRef(E_space, x.GetBlock(0), 0);
    B_h.MakeRef(B_space, x.GetBlock(1), 0);
 
-   if (btime)
+   if (btime_b)
    {
       B_h.ProjectCoefficient(Bcoeff); //initial condition
    }
@@ -701,7 +703,7 @@ int main(int argc, char *argv[])
                                (Coefficient*)&Ecoeff});
 
    DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
-                    (DarcyOperator::SolverType) solver_type, btime);
+                    (DarcyOperator::SolverType) solver_type, btime_e, btime_b);
 
    //construct the time solver
 

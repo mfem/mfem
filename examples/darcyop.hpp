@@ -35,13 +35,13 @@ private:
    LinearForm *g, *f, *h;
    const Array<Coefficient*> &coeffs;
    SolverType solver_type;
-   bool btime;
+   bool btime_u, btime_p;
 
    FiniteElementSpace *trace_space{};
 
    real_t idt{};
    Coefficient *idtcoeff{};
-   BilinearForm *Mt0{};
+   BilinearForm *Mt0{}, *Mq0{};
 
    const char *lsolver_str{};
    Solver *prec{};
@@ -53,7 +53,8 @@ private:
 public:
    DarcyOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
                  LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
-                 SolverType stype = SolverType::LBFGS, bool btime = true);
+                 SolverType stype = SolverType::LBFGS,  bool bflux_u = true,
+                 bool btime_p = true);
    ~DarcyOperator();
 
    static Array<int> ConstructOffsets(const DarcyForm &darcy);
