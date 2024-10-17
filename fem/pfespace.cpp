@@ -2380,8 +2380,8 @@ struct PMatrixElement
    typedef std::vector<PMatrixElement> List;
 };
 
-/** Represents one row of the P matrix, for the construction code below.
- *  The row is complete: diagonal and offdiagonal elements are not distinguished.
+/** Represents one row of the P matrix, for the construction code below. The row
+ *  is complete: diagonal and off-diagonal elements are not distinguished.
  */
 struct PMatrixRow
 {
@@ -3776,7 +3776,7 @@ HypreParMatrix* ParFiniteElementSpace
    HYPRE_BigInt first_col = col_starts[assumed ? 0 : MyRank];
    HYPRE_BigInt next_col = col_starts[assumed ? 1 : MyRank+1];
 
-   // count nonzeros in diagonal/offdiagonal parts
+   // count nonzeros in diagonal/off-diagonal parts
    HYPRE_Int nnz_diag = 0, nnz_offd = 0;
    std::map<HYPRE_BigInt, int> col_map;
    for (int i = 0; i < local_rows; i++)
@@ -3948,7 +3948,7 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    Array<long> old_remote_dofs;
    old_pncmesh->RecvRebalanceDofs(new_elements, old_remote_dofs);
 
-   // create the offdiagonal part of the matrix
+   // create the off-diagonal part of the matrix
    HYPRE_BigInt* i_offd = make_i_array<HYPRE_BigInt>(vsize);
    for (int i = 0, pos = 0; i < new_elements.Size(); i++)
    {
@@ -4167,7 +4167,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
       MPI_Wait(&it->second.request, MPI_STATUS_IGNORE);
    }
 
-   // create the offdiagonal part of the derefinement matrix
+   // create the off-diagonal part of the derefinement matrix
    SparseMatrix *offd = new SparseMatrix(ndofs*vdim, 1);
 
    std::map<HYPRE_BigInt, int> col_map;
