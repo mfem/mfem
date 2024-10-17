@@ -23,6 +23,7 @@ namespace mfem
 
 class DarcyReduction : public Operator
 {
+protected:
    FiniteElementSpace *fes_u, *fes_p;
    NonlinearFormIntegrator *m_nlfi_u, *m_nlfi_p;
    bool own_m_nlfi_u, own_m_nlfi_p;
@@ -36,9 +37,7 @@ class DarcyReduction : public Operator
    real_t *Bf_data, *Be_data;
 
    Array<int> Df_offsets, Df_f_offsets;
-   mutable real_t *Df_data;
-   mutable int *Df_ipiv;
-   bool D_empty;
+   real_t *Df_data;
 
    bool bsym;
 
@@ -46,7 +45,8 @@ class DarcyReduction : public Operator
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
-   void ComputeS();
+
+   virtual void ComputeS() = 0;
 
 public:
    /// Constructor
@@ -54,7 +54,7 @@ public:
                   bool bsymmetrize = true);
 
    /// Destructor
-   ~DarcyReduction();
+   virtual ~DarcyReduction();
 
    void SetFluxMassNonlinearIntegrator(NonlinearFormIntegrator *flux_integ,
                                        bool own = true);
@@ -66,7 +66,7 @@ public:
    NonlinearFormIntegrator* GetPotMassNonlinearIntegrator() const { return m_nlfi_p; }
 
    /// Prepare the DarcyReduction object for assembly.
-   void Init(const Array<int> &ess_flux_tdof_list);
+   virtual void Init(const Array<int> &ess_flux_tdof_list);
 
    void AssembleFluxMassMatrix(int el, const DenseMatrix &A);
 
@@ -74,26 +74,46 @@ public:
 
    void AssembleDivMatrix(int el, const DenseMatrix &B);
 
+   /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
+       @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
+   virtual void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
+                                    const BlockVector &x, BlockVector &b);
+
    /// Operator application: `y=A(x)`.
    void Mult(const Vector &x, Vector &y) const override;
 
    /// Finalize the construction of the reduced matrix.
-   void Finalize();
+   virtual void Finalize();
 
    /// Return the serial reduced matrix.
    SparseMatrix &GetMatrix() { return *S; }
 
-   /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
-       @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
-   void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
-                            const BlockVector &x, BlockVector &b);
+   virtual void ReduceRHS(const BlockVector &b, Vector &b_r) const = 0;
 
-   void ReduceRHS(const BlockVector &b, Vector &b_r) const;
+   virtual void ComputeSolution(const BlockVector &b, const Vector &sol_r,
+                                BlockVector &sol) const = 0;
+
+   virtual void Reset();
+};
+
+class DarcyPotentialReduction : public DarcyReduction
+{
+   int *Df_ipiv;
+
+   void ComputeS() override;
+
+public:
+   DarcyPotentialReduction(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
+                           bool bsymmetrize = true);
+
+   ~DarcyPotentialReduction();
+
+   void Init(const Array<int> &ess_flux_tdof_list) override;
+
+   void ReduceRHS(const BlockVector &b, Vector &b_r) const override;
 
    void ComputeSolution(const BlockVector &b, const Vector &sol_r,
-                        BlockVector &sol) const;
-
-   void Reset();
+                        BlockVector &sol) const override;
 };
 
 }

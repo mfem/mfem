@@ -610,7 +610,7 @@ int main(int argc, char *argv[])
       chrono.Clear();
       chrono.Start();
 
-      darcy->EnableReduction(ess_flux_tdofs_list);
+      darcy->EnablePotentialReduction(ess_flux_tdofs_list);
 
       chrono.Stop();
       std::cout << "Reduction init took " << chrono.RealTime() << "s.\n";

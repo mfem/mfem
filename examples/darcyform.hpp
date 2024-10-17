@@ -90,11 +90,11 @@ public:
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
-   /// Enable reduction.
+   /// Enable potential reduction.
    /** For details see the description for class
-       DarcyReduction in darcyreduction.hpp. This method should be called
-       before assembly. */
-   void EnableReduction(const Array<int> &ess_flux_tdof_list);
+       DarcyPotentialReduction in darcyreduction.hpp. This method should be
+       called before assembly. */
+   void EnablePotentialReduction(const Array<int> &ess_flux_tdof_list);
 
    DarcyReduction *GetReduction() const { return reduction; }
 
