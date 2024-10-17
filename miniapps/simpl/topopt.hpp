@@ -1,9 +1,9 @@
 #ifndef TOPOPT_HPP
 #define TOPOPT_HPP
 
-#include "mfem.hpp"
 #include "funs.hpp"
 #include "linear_solver.hpp"
+#include "mfem.hpp"
 
 namespace mfem {
 
@@ -91,6 +91,9 @@ public:
         void_attr_id = attr;
     }
 
+    void ProjectedStep(GridFunction &x, const real_t step_size,
+                       const GridFunction &grad, real_t &mu, real_t &vol);
+
     real_t ApplyVolumeProjection(GridFunction &x, bool use_entropy);
     real_t ComputeVolume(GridFunction &x);
     bool hasEntropy() {
@@ -107,7 +110,7 @@ protected:
     GridFunction *adjstate_gf; // adjoint displacement
     DenseMatrix grad;          // auxiliary matrix, used in Eval
     DenseMatrix adjgrad;       // auxiliary matrix, used in Eval
-    Array<Coefficient*> owned_coeffs;
+    Array<Coefficient *> owned_coeffs;
     std::unique_ptr<ElasticityIntegrator> energy;
 
 public:
@@ -116,19 +119,22 @@ public:
                                    GridFunction &state_gf,
                                    GridFunction *adju_gf = nullptr)
         : lambda(lambda), mu(mu), der_simp_cf(der_simp_cf), state_gf(state_gf),
-    adjstate_gf(adju_gf) {
-    auto neg_der_simp_cf = new ProductCoefficient(-1.0, der_simp_cf);
-    auto neg_der_simp_lambda_cf = new ProductCoefficient(*neg_der_simp_cf, lambda);
-    auto neg_der_simp_mu_cf = new ProductCoefficient(*neg_der_simp_cf, mu);
-    energy.reset(new ElasticityIntegrator(*neg_der_simp_lambda_cf, *neg_der_simp_mu_cf));
-    owned_coeffs.Append(neg_der_simp_cf);
-    owned_coeffs.Append(neg_der_simp_lambda_cf);
-    owned_coeffs.Append(neg_der_simp_mu_cf);
-  }
-  ~StrainEnergyDensityCoefficient()
-  {
-    for(auto cf : owned_coeffs) { delete cf; }
-  }
+          adjstate_gf(adju_gf) {
+        auto neg_der_simp_cf = new ProductCoefficient(-1.0, der_simp_cf);
+        auto neg_der_simp_lambda_cf =
+            new ProductCoefficient(*neg_der_simp_cf, lambda);
+        auto neg_der_simp_mu_cf = new ProductCoefficient(*neg_der_simp_cf, mu);
+        energy.reset(
+            new ElasticityIntegrator(*neg_der_simp_lambda_cf, *neg_der_simp_mu_cf));
+        owned_coeffs.Append(neg_der_simp_cf);
+        owned_coeffs.Append(neg_der_simp_lambda_cf);
+        owned_coeffs.Append(neg_der_simp_mu_cf);
+    }
+    ~StrainEnergyDensityCoefficient() {
+        for (auto cf : owned_coeffs) {
+            delete cf;
+        }
+    }
 
     void SetAdjState(GridFunction &adj) {
         adjstate_gf = &adj;
@@ -155,14 +161,14 @@ private:
     real_t objval;
     real_t current_volume;
 
-   bool enforce_volume_constraint;
+    bool enforce_volume_constraint;
 
 public:
     DensityBasedTopOpt(DesignDensity &density, GridFunction &gf_control,
                        GridFunction &grad_control, HelmholtzFilter &filter,
                        GridFunction &gf_filter, GridFunction &grad_filter,
                        ElasticityProblem &elasticity, GridFunction &gf_state,
-                       bool enforce_volume_constraint=true);
+                       bool enforce_volume_constraint = true);
 
     real_t GetCurrentVolume() {
         return current_volume;

@@ -217,11 +217,13 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { out << "Creating problems ... " << std::flush; }
    // Density
    FermiDiracEntropy entropy;
+   PrimalEntropy entropy_primal;
    entropy.SetFiniteLowerBound(-max_latent);
    entropy.SetFiniteUpperBound(+max_latent);
    control_gf = entropy.forward((min_vol ? min_vol : max_vol)/tot_vol);
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
+   DesignDensity density_primal(fes_control, tot_vol, min_vol, max_vol, &entropy_primal);
    density.SetVoidAttr(void_attr);
    density.SetSolidAttr(solid_attr);
    // Filter
@@ -336,6 +338,7 @@ int main(int argc, char *argv[])
       }
    }
    grad_gf = 0.0;
+   real_t volume_correction;
    for (it_md = 0; it_md<max_it; it_md++)
    {
       if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
@@ -364,7 +367,9 @@ int main(int argc, char *argv[])
       old_objval = objval;
       for (num_reeval=0; num_reeval < max_it_backtrack; num_reeval++)
       {
-         add(control_old_gf, -step_size, grad_gf, control_gf);
+         control_gf = control_old_gf;
+         density.ProjectedStep(control_gf, step_size, grad_gf, volume_correction,
+                               curr_vol);
          objval = optproblem.Eval();
          diff_density_form.Assemble();
          real_t grad_diffrho = InnerProduct(MPI_COMM_WORLD,
@@ -427,13 +432,14 @@ int main(int argc, char *argv[])
       optproblem.UpdateGradient();
       avg_grad = InnerProduct(fes_control.GetComm(), grad_gf, dv)/tot_vol;
 
-      add(control_gf, -eps_stationarity, grad_gf, control_eps_gf);
-      density.ApplyVolumeProjection(control_eps_gf, true);
+      real_t dummy1, dummy2;
+      control_eps_gf = control_gf;
+      density.ProjectedStep(control_eps_gf, eps_stationarity, grad_gf, dummy1, dummy2);
       stationarity_error_bregman = std::sqrt(zero_gf.ComputeL1Error(
                                                 bregman_diff_eps))/eps_stationarity;
 
-      add(density_gf, -eps_stationarity, grad_gf, control_eps_gf);
-      density.ApplyVolumeProjection(control_eps_gf, false);
+      control_eps_gf.ProjectCoefficient(density_cf);
+      density_primal.ProjectedStep(control_eps_gf, eps_stationarity, grad_gf, dummy1, dummy2);
       stationarity_error_L2 = density_gf.ComputeL2Error(
                                  density_eps_primal_cf)/eps_stationarity;
       kkt = zero_gf.ComputeL1Error(KKT_cf);
