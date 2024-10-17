@@ -366,10 +366,10 @@ miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
-miniapps/simpl/ParaView
+miniapps/simpl/ParaView*
 miniapps/simpl/**/SiMPL-*
 miniapps/simpl/**/OC-*
-miniapps/simpl/*.png
+miniapps/simpl/**/MMA-*
 
 miniapps/hdiv-linear-solver/darcy
 miniapps/hdiv-linear-solver/grad_div
