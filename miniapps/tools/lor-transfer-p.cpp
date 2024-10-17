@@ -431,12 +431,16 @@ void report_time(std::chrono::duration<double> elapsed_time, string name,
                  int myid)
 {
    double elapsed_val = elapsed_time.count();
+   double walltime = elapsed_val;
    MPI_Allreduce(MPI_IN_PLACE, &elapsed_val, 1, MPI_DOUBLE, MPI_SUM,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, &walltime, 1, MPI_DOUBLE, MPI_MAX,
                  MPI_COMM_WORLD);
 
    if (myid == 0)
    {
-      std::cout << name << elapsed_val << "s\n";
+     std::cout << "cpu time " << name << elapsed_val << "s\n";
+     std::cout << "wall time " << name << walltime << "s\n";
    }
 
 }
