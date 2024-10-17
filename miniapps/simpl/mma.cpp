@@ -47,7 +47,8 @@ int main(int argc, char *argv[])
    bool use_bregman_stationary = true;
    real_t tol_obj_diff_rel = 5e-05;
    real_t tol_obj_diff_abs = 5e-05;
-   real_t tol_kkt = 2e-04;
+   real_t tol_kkt_rel = 2e-04;
+   real_t tol_kkt_abs = 2e-05;
    // backtracking related
    int max_it_backtrack = 20;
    bool use_bregman_backtrack = true;
@@ -132,7 +133,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    std::stringstream filename;
-   filename << "SiMPL-" << (use_bregman_backtrack?"B-":"A-");
+   filename << "MMA-";
 
    Array2D<int> ess_bdr_state;
    Array<int> ess_bdr_filter;
@@ -261,12 +262,18 @@ int main(int argc, char *argv[])
    MappedGFCoefficient density_eps_dual_cf = entropy.GetBackwardCoeff(
                                                 control_eps_gf);
    real_t avg_grad;
-   MappedPairedGFCoefficient KKT_cf(control_gf,
-                                    grad_gf, [&avg_grad, &entropy](const real_t x, const real_t g)
+   MappedPairedGFCoefficient KKT_cf(
+      control_gf, grad_gf,
+      [&avg_grad, &entropy](const real_t x, const real_t g)
    {
       real_t rho_k = entropy.backward(x);
-      // return avg_grad - g;
-      return std::max(0.0, avg_grad-g)*(1.0-rho_k)-std::min(0.0, avg_grad-g)*rho_k;
+      real_t lambda_k = avg_grad - g;
+      // Definition -Brendan
+      return std::max(0.0, lambda_k)*(1.0-rho_k)-std::min(0.0, lambda_k)*rho_k;
+      // Definition -Thomas
+      // return lambda_k
+      //        - std::min(0.0, rho_k     + lambda_k)
+      //        - std::max(0.0, rho_k - 1 + lambda_k);
    });
    ParBilinearForm mass(&fes_control);
    mass.AddDomainIntegrator(new MassIntegrator());
@@ -305,9 +312,9 @@ int main(int argc, char *argv[])
           objval(infinity()), old_objval(infinity()), succ_obj_diff(infinity());
    real_t kkt, kkt0;
    int tot_reeval(0), num_reeval(0);
-   int it_md;
+   int it_mma;
    TableLogger logger;
-   logger.Append("it", it_md);
+   logger.Append("it", it_mma);
    logger.Append("volume", curr_vol);
    logger.Append("obj", objval);
    logger.Append("step-size", step_size);
@@ -341,9 +348,9 @@ int main(int argc, char *argv[])
    grad_gf = 0.0;
    Vector con(1);
    real_t volume_correction;
-   for (it_md = 0; it_md<max_it; it_md++)
+   for (it_mma = 0; it_mma<max_it; it_mma++)
    {
-      if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
+      if (Mpi::Root()) { out << "MMA Step " << it_mma << std::endl; }
 
       control_old_gf = control_gf;
       for (int i=0; i<control_gf.Size(); i++)
@@ -352,7 +359,7 @@ int main(int argc, char *argv[])
          upper[i] = std::min(1.0, control_gf[i] + max_ch);
       }
       con[0] = optproblem.GetCurrentVolume() - max_vol;
-      mma.Update(it_md, grad_gf, con, dv, lower, upper, control_gf);
+      mma.Update(it_mma, grad_gf, con, dv, lower, upper, control_gf);
 
       old_objval = objval;
       objval = optproblem.Eval();
@@ -361,15 +368,15 @@ int main(int argc, char *argv[])
       curr_vol = optproblem.GetCurrentVolume();
 
       density_gf.ProjectCoefficient(density_cf);
-      if (it_md % vis_steps == 0)
+      if (it_mma % vis_steps == 0)
       {
          if (use_glvis) { glvis->Update(); }
          if (use_paraview && !(paraview_dc->Error()))
          {
             if (!overwrite_paraview)
             {
-               paraview_dc->SetCycle(it_md);
-               paraview_dc->SetTime(it_md);
+               paraview_dc->SetCycle(it_mma);
+               paraview_dc->SetTime(it_mma);
             }
             paraview_dc->Save();
          }
@@ -387,7 +394,7 @@ int main(int argc, char *argv[])
                                                 bregman_diff_eps))/eps_stationarity;
 
       stationarity_error_L2 = stationarity_error_bregman;
-      kkt = zero_gf.ComputeL1Error(KKT_cf);
+      kkt = zero_gf.ComputeL1Error(KKT_cf) + (max_vol - curr_vol)/max_vol;
       zero_gf.ComputeElementL1Errors(KKT_cf, kkt_gf);
 
       stationarity_error = use_bregman_stationary
@@ -397,27 +404,27 @@ int main(int argc, char *argv[])
       {
          out << "--------------------------------------------" << std::endl;
       }
-      if (it_md == 0)
+      if (it_mma == 0)
       {
          stationarity0 = stationarity_error;
          kkt0 = kkt;
       }
-      if ((kkt < tol_kkt*kkt0))
+      if ((kkt < tol_kkt_rel*kkt0) || (kkt < tol_kkt_abs))
       {
-         if (it_md > min_it) { break; }
+         if (it_mma > min_it) { break; }
       }
    }
    if (Mpi::Root())
    {
-      out << filename.str() << " terminated after " << it_md
+      out << filename.str() << " terminated after " << it_mma
           << " with " << tot_reeval << " re-eval" << std::endl;
    }
    if (use_paraview && !paraview_dc->Error())
    {
       if (!overwrite_paraview)
       {
-         paraview_dc->SetCycle(it_md);
-         paraview_dc->SetTime(it_md);
+         paraview_dc->SetCycle(it_mma);
+         paraview_dc->SetTime(it_mma);
       }
       paraview_dc->Save();
    }
