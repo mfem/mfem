@@ -1238,8 +1238,9 @@ void MemoryManager::Copy_(void *dst_h_ptr, const void *src_h_ptr,
       {
          if (dst_h_ptr != src_d_ptr && bytes != 0)
          {
-            internal::Memory &src_d_base = maps->memories.at(src_h_ptr);
-            MemoryType src_d_mt = src_d_base.d_mt;
+            MemoryType src_d_mt = (src_flags & Mem::ALIAS) ?
+                                  maps->aliases.at(src_h_ptr).mem->d_mt :
+                                  maps->memories.at(src_h_ptr).d_mt;
             ctrl->Device(src_d_mt)->DtoH(dst_h_ptr, src_d_ptr, bytes);
          }
       }
@@ -1299,9 +1300,10 @@ void MemoryManager::CopyToHost_(void *dest_h_ptr, const void *src_h_ptr,
       const void *src_d_ptr = (src_flags & Mem::ALIAS) ?
                               mm.GetAliasDevicePtr(src_h_ptr, bytes, false) :
                               mm.GetDevicePtr(src_h_ptr, bytes, false);
-      const internal::Memory &base = maps->memories.at(dest_h_ptr);
-      const MemoryType d_mt = base.d_mt;
-      ctrl->Device(d_mt)->DtoH(dest_h_ptr, src_d_ptr, bytes);
+      MemoryType src_d_mt = (src_flags & Mem::ALIAS) ?
+                            maps->aliases.at(src_h_ptr).mem->d_mt :
+                            maps->memories.at(src_h_ptr).d_mt;
+      ctrl->Device(src_d_mt)->DtoH(dest_h_ptr, src_d_ptr, bytes);
    }
 }
 
@@ -1328,9 +1330,10 @@ void MemoryManager::CopyFromHost_(void *dest_h_ptr, const void *src_h_ptr,
       void *dest_d_ptr = (dest_flags & Mem::ALIAS) ?
                          mm.GetAliasDevicePtr(dest_h_ptr, bytes, false) :
                          mm.GetDevicePtr(dest_h_ptr, bytes, false);
-      const internal::Memory &base = maps->memories.at(dest_h_ptr);
-      const MemoryType d_mt = base.d_mt;
-      ctrl->Device(d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
+      MemoryType dest_d_mt = (dest_flags & Mem::ALIAS) ?
+                             maps->aliases.at(dest_h_ptr).mem->d_mt :
+                             maps->memories.at(dest_h_ptr).d_mt;
+      ctrl->Device(dest_d_mt)->HtoD(dest_d_ptr, src_h_ptr, bytes);
    }
    dest_flags = dest_flags &
                 ~(dest_on_host ? Mem::VALID_DEVICE : Mem::VALID_HOST);
