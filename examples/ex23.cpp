@@ -201,9 +201,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
-                  "\t   11 - Average Acceleration, 12 - Linear Acceleration\n"
-                  "\t   13 - CentralDifference, 14 - FoxGoodwin");
+                  SecondOrderODESolver::Types.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -238,32 +236,7 @@ int main(int argc, char *argv[])
 
    // 3. Define the ODE solver used for time integration. Several second order
    //    time integrators are available.
-   SecondOrderODESolver *ode_solver;
-   switch (ode_solver_type)
-   {
-      // Implicit methods
-      case 0: ode_solver = new GeneralizedAlpha2Solver(0.0); break;
-      case 1: ode_solver = new GeneralizedAlpha2Solver(0.1); break;
-      case 2: ode_solver = new GeneralizedAlpha2Solver(0.2); break;
-      case 3: ode_solver = new GeneralizedAlpha2Solver(0.3); break;
-      case 4: ode_solver = new GeneralizedAlpha2Solver(0.4); break;
-      case 5: ode_solver = new GeneralizedAlpha2Solver(0.5); break;
-      case 6: ode_solver = new GeneralizedAlpha2Solver(0.6); break;
-      case 7: ode_solver = new GeneralizedAlpha2Solver(0.7); break;
-      case 8: ode_solver = new GeneralizedAlpha2Solver(0.8); break;
-      case 9: ode_solver = new GeneralizedAlpha2Solver(0.9); break;
-      case 10: ode_solver = new GeneralizedAlpha2Solver(1.0); break;
-
-      case 11: ode_solver = new AverageAccelerationSolver(); break;
-      case 12: ode_solver = new LinearAccelerationSolver(); break;
-      case 13: ode_solver = new CentralDifferenceSolver(); break;
-      case 14: ode_solver = new FoxGoodwinSolver(); break;
-
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
-         return 3;
-   }
+   SecondOrderODESolver *ode_solver= SecondOrderODESolver::Select(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
