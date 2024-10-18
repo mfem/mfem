@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dfem_util.hpp"
+#include <type_traits>
 
 namespace mfem
 {
@@ -11,14 +12,15 @@ void map_field_to_quadrature_data_tensor_product(
    DeviceTensor<2> &field_qp,
    const DofToQuadMap &dtq,
    const DeviceTensor<1, const double> &field_e,
-   field_operator_t &input,
+   const field_operator_t &input,
    const DeviceTensor<1, const double> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    auto B = dtq.B;
    auto G = dtq.G;
 
-   if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::Value>)
+   if constexpr (
+      std::is_same_v<std::decay_t<field_operator_t>, BareFieldOperator::Value>)
    {
       auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
@@ -82,7 +84,7 @@ void map_field_to_quadrature_data_tensor_product(
       }
    }
    else if constexpr (
-      std::is_same_v<field_operator_t, BareFieldOperator::Gradient>)
+      std::is_same_v<std::decay_t<field_operator_t>, BareFieldOperator::Gradient>)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
@@ -163,7 +165,8 @@ void map_field_to_quadrature_data_tensor_product(
       }
    }
    // TODO: Create separate function for clarity
-   else if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::Weight>)
+   else if constexpr (
+      std::is_same_v<std::decay_t<field_operator_t>, BareFieldOperator::Weight>)
    {
       const int num_qp = integration_weights.GetShape()[0];
       // TODO: eeek
@@ -182,7 +185,8 @@ void map_field_to_quadrature_data_tensor_product(
       }
       MFEM_SYNC_THREAD;
    }
-   else if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::None>)
+   else if constexpr (
+      std::is_same_v<std::decay_t<field_operator_t>, BareFieldOperator::None>)
    {
       const int q1d = B.GetShape()[0];
       auto field = Reshape(&field_e[0], input.size_on_qp, q1d, q1d, q1d);
@@ -205,7 +209,7 @@ void map_field_to_quadrature_data_tensor_product(
    }
    else
    {
-      static_assert(always_false<field_operator_t>,
+      static_assert(always_false<std::decay_t<field_operator_t>>,
                     "can't map field to quadrature data");
    }
 }
@@ -307,13 +311,13 @@ void map_field_to_quadrature_data(
    }
 }
 
-template <typename T = NonTensorProduct, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
+template <typename T = NonTensorProduct, size_t num_kinputs, typename field_operator_ts, std::size_t... i>
 MFEM_HOST_DEVICE inline
 void map_fields_to_quadrature_data(
    std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
    const std::array<DeviceTensor<1, const double>, num_kinputs> &fields_e,
    const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
-   field_operator_tuple_t fops,
+   const field_operator_ts &fops,
    const DeviceTensor<1, const double> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    std::index_sequence<i...>)
@@ -364,13 +368,13 @@ void map_field_to_quadrature_data_conditional(
    }
 }
 
-template <typename T = NonTensorProduct, size_t num_fields, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
+template <typename T = NonTensorProduct, size_t num_fields, size_t num_kinputs, typename field_operator_ts, std::size_t... i>
 MFEM_HOST_DEVICE
 void map_fields_to_quadrature_data_conditional(
    std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
    const std::array<DeviceTensor<1, const double>, num_fields> &fields_e,
    const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
-   field_operator_tuple_t fops,
+   field_operator_ts fops,
    const DeviceTensor<1, const double> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const std::array<bool, num_kinputs> &conditions,
@@ -386,13 +390,13 @@ void map_fields_to_quadrature_data_conditional(
     ...);
 }
 
-template <typename T = NonTensorProduct, size_t num_kinputs, typename field_operator_tuple_t, std::size_t... i>
+template <typename T = NonTensorProduct, size_t num_kinputs, typename field_operator_ts, std::size_t... i>
 MFEM_HOST_DEVICE
 void map_direction_to_quadrature_data_conditional(
    std::array<DeviceTensor<2>, num_kinputs> &directions_qp,
    const DeviceTensor<1, const double> &direction_e,
    const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
-   field_operator_tuple_t fops,
+   field_operator_ts fops,
    const DeviceTensor<1, const double> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const std::array<bool, num_kinputs> &conditions,

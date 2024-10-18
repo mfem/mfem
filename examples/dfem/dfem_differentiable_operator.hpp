@@ -12,6 +12,7 @@
 #include <type_traits>
 #include "dfem_fieldoperator.hpp"
 #include "dfem_parametricspace.hpp"
+#include "general/tic_toc.hpp"
 #include "tuple.hpp"
 #include <linalg/tensor.hpp>
 #include <enzyme/utils>
@@ -420,7 +421,7 @@ void DifferentiableOperator<kernels_tuple,
 
    Vector shmem_cache(shmem_info.total_size);
 
-   print_shared_memory_info(shmem_info);
+   // print_shared_memory_info(shmem_info);
 
    func = [=](Vector &ye_mem) mutable
    {
@@ -443,7 +444,6 @@ void DifferentiableOperator<kernels_tuple,
             shmem_info.input_dtq_sizes,
             input_dtq_maps);
 
-
          auto output_dtq_shmem = load_dtq_mem(
             shmem,
             shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
@@ -455,27 +455,29 @@ void DifferentiableOperator<kernels_tuple,
             shmem_info.offsets[SharedMemory::Index::FIELD],
             shmem_info.field_sizes,
             kinput_to_field,
+            input_fops,
             wrapped_fields_e,
-            e);
+            e,
+         std::make_index_sequence<kernel.num_kinputs> {});
 
-         // These methods don't copy, they simply create a `DeviceTensor` object
+         // These functions don't copy, they simply create a `DeviceTensor` object
          // that points to correct chunks of the shared memory pool.
          auto input_shmem = load_input_mem(
-            shmem,
-            shmem_info.offsets[SharedMemory::Index::INPUT],
-            shmem_info.input_sizes,
-            num_qp);
+                               shmem,
+                               shmem_info.offsets[SharedMemory::Index::INPUT],
+                               shmem_info.input_sizes,
+                               num_qp);
 
          auto residual_shmem = load_residual_mem(
-            shmem,
-            shmem_info.offsets[SharedMemory::Index::OUTPUT],
-            shmem_info.residual_size,
-            num_qp);
+                                  shmem,
+                                  shmem_info.offsets[SharedMemory::Index::OUTPUT],
+                                  shmem_info.residual_size,
+                                  num_qp);
 
          auto scratch_mem = load_scratch_mem(
-            shmem,
-            shmem_info.offsets[SharedMemory::Index::TEMP],
-            shmem_info.temp_sizes);
+                               shmem,
+                               shmem_info.offsets[SharedMemory::Index::TEMP],
+                               shmem_info.temp_sizes);
 
          MFEM_SYNC_THREAD;
          // printf("shmem load elapsed: %.1fus\n", toc() * 1e6);
@@ -483,7 +485,7 @@ void DifferentiableOperator<kernels_tuple,
          // tic();
          map_fields_to_quadrature_data<TensorProduct>(
             input_shmem, fields_shmem, input_dtq_shmem, input_fops, ir_weights, scratch_mem,
-         std::make_index_sequence<kernel.num_kinputs> {});
+            std::make_index_sequence<kernel.num_kinputs> {});
          // printf("interpolate elapsed: %.1fus\n", toc() * 1e6);
 
          // tic();
@@ -659,7 +661,7 @@ void DifferentiableOperator<kernels_tuple,
 
    Vector shmem_cache(shmem_info.total_size);
 
-   print_shared_memory_info(shmem_info);
+   // print_shared_memory_info(shmem_info);
 
    func = [=](Vector &ye_mem) mutable
    {
@@ -694,44 +696,46 @@ void DifferentiableOperator<kernels_tuple,
             shmem_info.offsets[SharedMemory::Index::FIELD],
             shmem_info.field_sizes,
             kinput_to_field,
+            input_fops,
             wrapped_fields_e,
-            e);
+            e,
+         std::make_index_sequence<kernel.num_kinputs> {});
 
          auto direction_shmem = load_direction_mem(
-            shmem,
-            shmem_info.offsets[SharedMemory::Index::DIRECTION],
-            shmem_info.direction_size,
-            wrapped_direction_e,
-            e);
+                                   shmem,
+                                   shmem_info.offsets[SharedMemory::Index::DIRECTION],
+                                   shmem_info.direction_size,
+                                   wrapped_direction_e,
+                                   e);
 
          // These methods don't copy, they simply create a `DeviceTensor` object
          // that points to correct chunks of the shared memory pool.
          auto input_shmem = load_input_mem(
-            shmem,
-            shmem_info.offsets[SharedMemory::Index::INPUT],
-            shmem_info.input_sizes,
-            num_qp);
+                               shmem,
+                               shmem_info.offsets[SharedMemory::Index::INPUT],
+                               shmem_info.input_sizes,
+                               num_qp);
 
          auto shadow_shmem = load_input_mem(
-            shmem,
-            shmem_info.offsets[SharedMemory::Index::SHADOW],
-            shmem_info.input_sizes,
-            num_qp);
+                                shmem,
+                                shmem_info.offsets[SharedMemory::Index::SHADOW],
+                                shmem_info.input_sizes,
+                                num_qp);
 
          auto residual_shmem = load_residual_mem(
-            shmem,
-            shmem_info.offsets[SharedMemory::Index::OUTPUT],
-            shmem_info.residual_size,
-            num_qp);
+                                  shmem,
+                                  shmem_info.offsets[SharedMemory::Index::OUTPUT],
+                                  shmem_info.residual_size,
+                                  num_qp);
 
          auto scratch_mem = load_scratch_mem(
-            shmem,
-            shmem_info.offsets[SharedMemory::Index::TEMP],
-            shmem_info.temp_sizes);
+                               shmem,
+                               shmem_info.offsets[SharedMemory::Index::TEMP],
+                               shmem_info.temp_sizes);
 
          map_fields_to_quadrature_data<TensorProduct>(
             input_shmem, fields_shmem, input_dtq_shmem, input_fops, ir_weights, scratch_mem,
-         std::make_index_sequence<kernel.num_kinputs> {});
+            std::make_index_sequence<kernel.num_kinputs> {});
 
          zero_all(shadow_shmem);
          map_direction_to_quadrature_data_conditional<TensorProduct>(

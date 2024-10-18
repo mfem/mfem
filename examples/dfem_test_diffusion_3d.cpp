@@ -2,6 +2,7 @@
 #include "dfem/dfem_test_macro.hpp"
 #include "examples/dfem/dfem_parametricspace.hpp"
 #include "fem/bilininteg.hpp"
+#include "general/tic_toc.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -9,7 +10,7 @@ using mfem::internal::tensor;
 int test_diffusion_3d(
    std::string mesh_file, int refinements, int polynomial_order)
 {
-   constexpr int num_samples = 1;
+   constexpr int num_samples = 10;
    constexpr int dim = 3;
    Mesh mesh_serial = Mesh(mesh_file);
    MFEM_ASSERT(mesh_serial.Dimension() == dim, "incorrect mesh dimension");
@@ -86,13 +87,14 @@ int test_diffusion_3d(
       DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
 
       dop.SetParameters({mesh_nodes, &qdata});
-      tic();
+      StopWatch sw;
+      sw.Start();
       for (int i = 0; i < num_samples; i++)
       {
          dop.Mult(x, qdata);
       }
-      real_t elapsed = toc();
-      printf("dfem setup: %fs\n", elapsed / num_samples);
+      sw.Stop();
+      printf("dfem setup: %fs\n", sw.RealTime() / num_samples);
       qdata.HostRead();
    }
 
@@ -121,13 +123,14 @@ int test_diffusion_3d(
       DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
 
       dop.SetParameters({&qdata});
-      tic();
+      StopWatch sw;
+      sw.Start();
       for (int i = 0; i < num_samples; i++)
       {
          dop.Mult(x, y);
       }
-      real_t elapsed = toc();
-      printf("dfem apply: %fs\n", elapsed / num_samples);
+      sw.Stop();
+      printf("dfem apply: %fs\n", sw.RealTime() / num_samples);
       y.HostRead();
    }
 
@@ -141,15 +144,22 @@ int test_diffusion_3d(
       diff_integ->SetIntRule(&ir);
       a.AddDomainIntegrator(diff_integ);
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+      StopWatch sw;
+      sw.Start();
       a.Assemble();
+      sw.Stop();
+      printf("mfem setup: %fs\n", sw.RealTime());
+
       a.Finalize();
-      tic();
+      sw.Clear();
+      sw.Start();
       for (int i = 0; i < num_samples; i++)
       {
          a.Mult(x, y2);
       }
-      real_t elapsed = toc();
-      printf("mfem apply: %fs\n", elapsed / num_samples);
+      sw.Stop();
+      printf("mfem apply: %fs\n", sw.RealTime() / num_samples);
       y2.HostRead();
    }
    // printf("y2: ");

@@ -1,22 +1,23 @@
 #pragma once
 
 #include "dfem_util.hpp"
+#include <type_traits>
 
 namespace mfem
 {
 
-template <typename output_type>
+template <typename output_t>
 MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
                                         const DeviceTensor<3, double> &f,
-                                        output_type output,
+                                        const output_t &output,
                                         const DofToQuadMap &dtq)
 {
    auto B = dtq.B;
    auto G = dtq.G;
    // assuming the quadrature point residual has to "play nice with
    // the test function"
-   if constexpr (std::is_same_v<decltype(output), BareFieldOperator::Value>)
+   if constexpr (std::is_same_v<std::decay_t<output_t>, BareFieldOperator::Value>)
    {
       const auto [num_qp, cdim, num_dof] = B.GetShape();
       const int vdim = output.vdim > 0 ? output.vdim : cdim ;
@@ -34,7 +35,7 @@ void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
       }
    }
    else if constexpr (
-      std::is_same_v<decltype(output), BareFieldOperator::Gradient>)
+      std::is_same_v<std::decay_t<output_t>, BareFieldOperator::Gradient>)
    {
       const auto [num_qp, dim, num_dof] = G.GetShape();
       const int vdim = output.vdim;
@@ -54,7 +55,7 @@ void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
          }
       }
    }
-   // else if constexpr (std::is_same_v<decltype(output), One>)
+   // else if constexpr (std::is_same_v<std::decay_t<output_t>, One>)
    // {
    //    // This is the "integral over all quadrature points type" applying
    //    // B = 1 s.t. B^T * C \in R^1.
@@ -65,7 +66,8 @@ void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
    //       y(0, 0) += cc(i);
    //    }
    // }
-   else if constexpr (std::is_same_v<decltype(output), BareFieldOperator::None>)
+   else if constexpr (
+      std::is_same_v<std::decay_t<output_t>, BareFieldOperator::None>)
    {
       const auto [vdim, dim, num_qp] = G.GetShape();
       auto cc = Reshape(&f(0, 0, 0), num_qp * vdim);
@@ -82,18 +84,18 @@ void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
    }
 }
 
-template <typename output_type>
+template <typename output_t>
 MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
                                                const DeviceTensor<3, double> &f,
-                                               output_type output,
+                                               const output_t &output,
                                                const DofToQuadMap &dtq,
                                                std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
    auto B = dtq.B;
    auto G = dtq.G;
 
-   if constexpr (std::is_same_v<decltype(output), BareFieldOperator::Value>)
+   if constexpr (std::is_same_v<std::decay_t<output_t>, BareFieldOperator::Value>)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = output.vdim;
@@ -161,7 +163,7 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
       }
    }
    else if constexpr (
-      std::is_same_v<decltype(output), BareFieldOperator::Gradient>)
+      std::is_same_v<std::decay_t<output_t>, BareFieldOperator::Gradient>)
    {
       const auto [q1d, unused, d1d] = G.GetShape();
       const int vdim = output.vdim;
@@ -240,7 +242,8 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
          MFEM_SYNC_THREAD;
       }
    }
-   else if constexpr (std::is_same_v<decltype(output), BareFieldOperator::None>)
+   else if constexpr (
+      std::is_same_v<std::decay_t<output_t>, BareFieldOperator::None>)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
       auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d, q1d);
@@ -268,11 +271,11 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
    }
 }
 
-template <typename T = NonTensorProduct, typename output_type>
+template <typename T = NonTensorProduct, typename output_t>
 MFEM_HOST_DEVICE
 void map_quadrature_data_to_fields(DeviceTensor<2, double> &y,
                                    const DeviceTensor<3, double> &f,
-                                   output_type output,
+                                   const output_t &output,
                                    const DofToQuadMap &dtq,
                                    std::array<DeviceTensor<1>, 6> &scratch_mem)
 {

@@ -973,12 +973,12 @@ get_shmem_info(
    std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
    std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
    const std::array<FieldDescriptor, num_fields> &fields,
-   int num_entities,
+   const int &num_entities,
    const input_t &inputs,
-   int num_qp,
+   const int &num_qp,
    const std::array<int, num_inputs> &input_size_on_qp,
-   int residual_size_on_qp,
-   int derivative_idx = -1)
+   const int &residual_size_on_qp,
+   const int &derivative_idx = -1)
 {
    std::array<int, 8> offsets = {0};
    int total_size = 0;
@@ -1202,41 +1202,56 @@ std::array<DofToQuadMap, N> load_dtq_mem(
    return f;
 }
 
-template <size_t N, size_t num_kinputs>
+template <typename field_operator_ts, size_t num_fields, size_t num_kinputs, std::size_t... Is>
 MFEM_HOST_DEVICE inline
 std::array<DeviceTensor<1, const double>, num_kinputs>
 load_field_mem(
    void *mem,
-   int offset,
-   const std::array<int, N> &sizes,
+   const int &global_offset,
+   const std::array<int, num_fields> &sizes,
    const std::array<int, num_kinputs> &kinput_to_field,
-   const std::array<DeviceTensor<2, const double>, N> &fields_e,
-   const int &entity_idx)
+   const field_operator_ts &fops,
+   const std::array<DeviceTensor<2, const double>, num_fields> &fields_e,
+   const int &entity_idx,
+   std::index_sequence<Is...>)
 {
    std::array<DeviceTensor<1, const double>, num_kinputs> f;
-   for (int i = 0; i < N; i++)
-   {
-      int block_size = MFEM_THREAD_SIZE(x) *
-                       MFEM_THREAD_SIZE(y) *
-                       MFEM_THREAD_SIZE(z);
-      int tid = MFEM_THREAD_ID(x) +
-                MFEM_THREAD_SIZE(x) *
-                (MFEM_THREAD_ID(y) + MFEM_THREAD_SIZE(y) * MFEM_THREAD_ID(z));
-      for (int k = tid; k < sizes[i]; k += block_size)
-      {
-         reinterpret_cast<real_t *>(mem)[offset + k] = fields_e[i](k, entity_idx);
-      }
+   int offset = global_offset;
 
-      for (int j = 0; j < num_kinputs; j++)
+   ([&](auto &f, const auto &fop, const int &field_idx, const size_t &kinput_idx)
+   {
+      if (field_idx != -1)
       {
-         if (kinput_to_field[j] == i)
+         if constexpr (
+            std::is_same_v<std::decay_t<decltype(fop)>, BareFieldOperator::None>)
          {
-            f[j] = DeviceTensor<1, const double>(&reinterpret_cast<real_t *>(mem)[offset],
-                                                 sizes[i]);
+            f = DeviceTensor<1, const double>(
+                   reinterpret_cast<const real_t *>(&fields_e[field_idx](0, entity_idx)),
+                   sizes[kinput_idx]);
+            offset += sizes[field_idx];
+         }
+         else
+         {
+            int block_size = MFEM_THREAD_SIZE(x) *
+                             MFEM_THREAD_SIZE(y) *
+                             MFEM_THREAD_SIZE(z);
+            int tid = MFEM_THREAD_ID(x) +
+                      MFEM_THREAD_SIZE(x) *
+                      (MFEM_THREAD_ID(y) + MFEM_THREAD_SIZE(y) * MFEM_THREAD_ID(z));
+            for (int k = tid; k < sizes[field_idx]; k += block_size)
+            {
+               reinterpret_cast<real_t *>(mem)[offset + k] =
+                  fields_e[field_idx](k, entity_idx);
+            }
+
+            f = DeviceTensor<1, const double>(
+                   &reinterpret_cast<real_t *> (mem)[offset], sizes[kinput_idx]);
+            offset += sizes[field_idx];
          }
       }
-      offset += sizes[i];
    }
+   (f[Is], mfem::get<Is>(fops), kinput_to_field[Is], Is), ...);
+
    return f;
 }
 
@@ -1270,13 +1285,14 @@ std::array<DeviceTensor<2>, N> load_input_mem(
    void *mem,
    int offset,
    const std::array<int, N> &sizes,
-   int M)
+   const int &num_qp)
 {
    std::array<DeviceTensor<2>, N> f;
    for (int i = 0; i < N; i++)
    {
-      f[i] = DeviceTensor<2>(&reinterpret_cast<real_t *>(mem)[offset], sizes[i] / M,
-                             M);
+      f[i] = DeviceTensor<2>(&reinterpret_cast<real_t *>(mem)[offset],
+                             sizes[i] / num_qp,
+                             num_qp);
       offset += sizes[i];
    }
    return f;
@@ -1286,8 +1302,8 @@ MFEM_HOST_DEVICE inline
 DeviceTensor<2> load_residual_mem(
    void *mem,
    int offset,
-   int residual_size,
-   int num_qp)
+   const int &residual_size,
+   const int &num_qp)
 {
    return DeviceTensor<2>(reinterpret_cast<real_t *>(mem) + offset, residual_size,
                           num_qp);
