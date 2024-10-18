@@ -79,7 +79,9 @@ class ElasticityOperator : public Operator
       {
          x_ess = x;
          x_ess.SetSubVector(elasticity->ess_tdofs, 0.0);
+
          dRdu->Mult(x_ess, y);
+
          for (int i = 0; i < elasticity->ess_tdofs.Size(); i++)
          {
             y[elasticity->ess_tdofs[i]] = x[elasticity->ess_tdofs[i]];
@@ -179,9 +181,10 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
 
    ParGridFunction u(&h1fes);
 
-   auto elasticity_kernel = [](const tensor<real_t, dim, dim> &dudxi,
-                               const tensor<real_t, dim, dim> &J,
-                               const double &w)
+   auto elasticity_kernel = [] MFEM_HOST_DEVICE
+                            (const tensor<real_t, dim, dim> &dudxi,
+                             const tensor<real_t, dim, dim> &J,
+                             const double &w)
    {
       mfem::real_t D1 = 100.0;
       mfem::real_t C1 = 50.0;
@@ -191,7 +194,7 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
       real_t F = det(I + dudx);
       real_t p = -2.0 * D1 * F * (F - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
-      auto sigma = -(p / F) * I + 2 * (C1 / pow(F, 5.0 / 3.0)) * devB;
+      auto sigma = -(p / F) * I + 2.0 * (C1 / pow(F, 5.0 / 3.0)) * devB;
 
       return mfem::tuple{sigma * det(J) * w * transpose(invJ)};
    };
@@ -222,6 +225,7 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
 
    ParLinearForm b(&h1fes);
    b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
+   b.UseFastAssembly(true);
    b.Assemble();
    auto B = b.ParallelAssemble();
 
