@@ -69,6 +69,7 @@ typedef std::function<void(const Vector &, DenseMatrix &)> MatFunc;
 enum Problem
 {
    SteadyDiffusion = 1,
+   MFEMLogo,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
@@ -218,6 +219,8 @@ int main(int argc, char *argv[])
    {
       case Problem::SteadyDiffusion:
          break;
+      case Problem::MFEMLogo:
+         break;
       default:
          cerr << "Unknown problem" << endl;
          return 1;
@@ -288,6 +291,7 @@ int main(int argc, char *argv[])
    switch (problem)
    {
       case Problem::SteadyDiffusion:
+      case Problem::MFEMLogo:
          //free (zero Dirichlet)
          if (bc_neumann)
          {
@@ -995,6 +999,7 @@ MatFunc GetKFun(Problem prob, real_t k, real_t ks, real_t ka)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
+      case Problem::MFEMLogo:
          return [=](const Vector &x, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
@@ -1053,6 +1058,55 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
             }
             return t0 - div / a * t;
          };
+      case Problem::MFEMLogo:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+#if 1
+            constexpr int iw = 38;
+            constexpr int ih = 7;
+            static const unsigned char logo[ih][iw] = {
+               "##     ## ######## ######## ##     ##",
+               "###   ### ##       ##       ###   ###",
+               "#### #### ##       ##       #### ####",
+               "## ### ## ######   ######   ## ### ##",
+               "##     ## ##       ##       ##     ##",
+               "##     ## ##       ##       ##     ##",
+               "##     ## ##       ######## ##     ##",
+            };
+#else
+            constexpr int iw = 50;
+            constexpr int ih = 8;
+            static const unsigned char logo[ih][iw] = {
+               "888b     d888 8888888888 8888888888 888b     d888",
+               "8888b   d8888 888        888        8888b   d8888",
+               "88888b.d88888 888        888        88888b.d88888",
+               "888Y88888P888 8888888    8888888    888Y88888P888",
+               "888 Y888P 888 888        888        888 Y888P 888",
+               "888  Y8P  888 888        888        888  Y8P  888",
+               "888   8   888 888        888        888   8   888",
+               "888       888 888        8888888888 888       888",
+            };
+#endif
+
+            constexpr real_t w = 0.8;
+            constexpr real_t h = (w * ih) / iw;
+            constexpr real_t xo = 0.5;
+            constexpr real_t yo = 0.5;
+            const real_t dx = x(0) - xo;
+            const real_t dy = x(1) - yo;
+
+            const int ix = (dx/w + 0.5) * iw;
+            const int iy = (dy/h + 0.5) * ih;
+
+            if (ix < 0 || ix >= iw || iy < 0 || iy >= ih)
+            {
+               return 0.;
+            }
+
+            const real_t T = (logo[ih-1-iy][ix] != ' ')?(t_0):(0.);
+            return T;
+         };
+
    }
    return TFunc();
 }
@@ -1093,6 +1147,13 @@ VecTFunc GetQFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun,
                v.Neg();
             }
          };
+      case Problem::MFEMLogo:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+            v = 0.;
+         };
    }
    return VecTFunc();
 }
@@ -1102,6 +1163,7 @@ VecFunc GetCFun(Problem prob, real_t c)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
+      case Problem::MFEMLogo:
          // null
          break;
    }
@@ -1115,6 +1177,7 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
+      case Problem::MFEMLogo:
          return [=](const Vector &x, real_t) -> real_t
          {
             const real_t T = TFun(x, 0);
@@ -1129,6 +1192,7 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
+      case Problem::MFEMLogo:
          //null
          break;
    }
@@ -1141,6 +1205,7 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
+      case Problem::MFEMLogo:
          static FunctionCoefficient ikappa([=](const Vector &x) -> real_t { return 1./k; });
          return new LinearDiffusionFlux(dim, &ikappa);
    }
