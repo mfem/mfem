@@ -17,6 +17,9 @@
 #include <enzyme/utils>
 #include <enzyme/enzyme>
 #include "dfem_util.hpp"
+#include "dfem_interpolate.hpp"
+#include "dfem_qfunction.hpp"
+#include "dfem_integrate.hpp"
 
 namespace mfem
 {
@@ -439,6 +442,7 @@ void DifferentiableOperator<kernels_tuple,
             shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
             shmem_info.input_dtq_sizes,
             input_dtq_maps);
+
 
          auto output_dtq_shmem = load_dtq_mem(
             shmem,
