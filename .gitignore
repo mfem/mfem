@@ -18,6 +18,9 @@ CMakeFiles/
 # Backup files
 *~
 
+# clangd index
+/.cache/
+
 # Default install location
 /mfem/
 

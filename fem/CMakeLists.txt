@@ -124,46 +124,46 @@ set(SRCS
   tmop/tmop_pa_h2m.cpp
   tmop/tmop_pa_h2m_c0.cpp
   tmop/tmop_pa_h2s.cpp
-  tmop/metrics/tmop_pa_h2s_001.cpp
-  tmop/metrics/tmop_pa_h2s_002.cpp
-  tmop/metrics/tmop_pa_h2s_007.cpp
-  tmop/metrics/tmop_pa_h2s_056.cpp
-  tmop/metrics/tmop_pa_h2s_077.cpp
-  tmop/metrics/tmop_pa_h2s_080.cpp
-  tmop/metrics/tmop_pa_h2s_094.cpp
+  tmop/metrics/h2s_001.cpp
+  tmop/metrics/h2s_002.cpp
+  tmop/metrics/h2s_007.cpp
+  tmop/metrics/h2s_056.cpp
+  tmop/metrics/h2s_077.cpp
+  tmop/metrics/h2s_080.cpp
+  tmop/metrics/h2s_094.cpp
   tmop/tmop_pa_h2s_c0.cpp
   tmop/tmop_pa_h3d.cpp
   tmop/tmop_pa_h3d_c0.cpp
   tmop/tmop_pa_h3m.cpp
   tmop/tmop_pa_h3m_c0.cpp
   tmop/tmop_pa_h3s.cpp
-  tmop/metrics/tmop_pa_h3s_302.cpp
-  tmop/metrics/tmop_pa_h3s_303.cpp
-  tmop/metrics/tmop_pa_h3s_315.cpp
-  tmop/metrics/tmop_pa_h3s_318.cpp
-  tmop/metrics/tmop_pa_h3s_321.cpp
-  tmop/metrics/tmop_pa_h3s_332.cpp
-  tmop/metrics/tmop_pa_h3s_338.cpp
+  tmop/metrics/h3s_302.cpp
+  tmop/metrics/h3s_303.cpp
+  tmop/metrics/h3s_315.cpp
+  tmop/metrics/h3s_318.cpp
+  tmop/metrics/h3s_321.cpp
+  tmop/metrics/h3s_332.cpp
+  tmop/metrics/h3s_338.cpp
   tmop/tmop_pa_h3s_c0.cpp
   tmop/tmop_pa_jp2.cpp
   tmop/tmop_pa_jp3.cpp
   tmop/tmop_pa_p2.cpp
-  tmop/metrics/tmop_pa_p2_001.cpp
-  tmop/metrics/tmop_pa_p2_002.cpp
-  tmop/metrics/tmop_pa_p2_007.cpp
-  tmop/metrics/tmop_pa_p2_056.cpp
-  tmop/metrics/tmop_pa_p2_077.cpp
-  tmop/metrics/tmop_pa_p2_080.cpp
-  tmop/metrics/tmop_pa_p2_094.cpp
+  tmop/metrics/p2_001.cpp
+  tmop/metrics/p2_002.cpp
+  tmop/metrics/p2_007.cpp
+  tmop/metrics/p2_056.cpp
+  tmop/metrics/p2_077.cpp
+  tmop/metrics/p2_080.cpp
+  tmop/metrics/p2_094.cpp
   tmop/tmop_pa_p2_c0.cpp
   tmop/tmop_pa_p3.cpp
-  tmop/metrics/tmop_pa_p3_302.cpp
-  tmop/metrics/tmop_pa_p3_303.cpp
-  tmop/metrics/tmop_pa_p3_315.cpp
-  tmop/metrics/tmop_pa_p3_318.cpp
-  tmop/metrics/tmop_pa_p3_321.cpp
-  tmop/metrics/tmop_pa_p3_332.cpp
-  tmop/metrics/tmop_pa_p3_338.cpp
+  tmop/metrics/p3_302.cpp
+  tmop/metrics/p3_303.cpp
+  tmop/metrics/p3_315.cpp
+  tmop/metrics/p3_318.cpp
+  tmop/metrics/p3_321.cpp
+  tmop/metrics/p3_332.cpp
+  tmop/metrics/p3_338.cpp
   tmop/tmop_pa_p3_c0.cpp
   tmop/tmop_pa_tc2.cpp
   tmop/tmop_pa_tc3.cpp
