@@ -36,9 +36,7 @@ void TMOP_EnergyPA_2D(const double metric_normal, const double *w,
    // const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto MC = const_m0 ?
-                   Reshape(mc, 1, 1, 1) :
-                   Reshape(mc, Q1D, Q1D, NE);
+   const auto MC = const_m0 ? Reshape(mc, 1, 1, 1) : Reshape(mc, Q1D, Q1D, NE);
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -140,9 +138,8 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
 
    const bool const_m0 = mc.Size() == 1;
 
-   const auto MC = const_m0 ?
-                   Reshape(mc.Read(), 1, 1, 1) :
-                   Reshape(mc.Read(), q, q, NE);
+   const auto MC =
+      const_m0 ? Reshape(mc.Read(), 1, 1, 1) : Reshape(mc.Read(), q, q, NE);
 
    const double *w = mp.Read();
 
@@ -156,25 +153,67 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
 
    decltype(&TMOP_EnergyPA_2D<>) ker = TMOP_EnergyPA_2D;
 
-   if (d == 2 && q == 2) { ker = TMOP_EnergyPA_2D<2, 2>; }
-   if (d == 2 && q == 3) { ker = TMOP_EnergyPA_2D<2, 3>; }
-   if (d == 2 && q == 4) { ker = TMOP_EnergyPA_2D<2, 4>; }
-   if (d == 2 && q == 5) { ker = TMOP_EnergyPA_2D<2, 5>; }
-   if (d == 2 && q == 6) { ker = TMOP_EnergyPA_2D<2, 6>; }
+   if (d == 2 && q == 2)
+   {
+      ker = TMOP_EnergyPA_2D<2, 2>;
+   }
+   if (d == 2 && q == 3)
+   {
+      ker = TMOP_EnergyPA_2D<2, 3>;
+   }
+   if (d == 2 && q == 4)
+   {
+      ker = TMOP_EnergyPA_2D<2, 4>;
+   }
+   if (d == 2 && q == 5)
+   {
+      ker = TMOP_EnergyPA_2D<2, 5>;
+   }
+   if (d == 2 && q == 6)
+   {
+      ker = TMOP_EnergyPA_2D<2, 6>;
+   }
 
-   if (d == 3 && q == 3) { ker = TMOP_EnergyPA_2D<3, 3>; }
-   if (d == 3 && q == 4) { ker = TMOP_EnergyPA_2D<3, 4>; }
-   if (d == 3 && q == 5) { ker = TMOP_EnergyPA_2D<3, 5>; }
-   if (d == 3 && q == 6) { ker = TMOP_EnergyPA_2D<3, 6>; }
+   if (d == 3 && q == 3)
+   {
+      ker = TMOP_EnergyPA_2D<3, 3>;
+   }
+   if (d == 3 && q == 4)
+   {
+      ker = TMOP_EnergyPA_2D<3, 4>;
+   }
+   if (d == 3 && q == 5)
+   {
+      ker = TMOP_EnergyPA_2D<3, 5>;
+   }
+   if (d == 3 && q == 6)
+   {
+      ker = TMOP_EnergyPA_2D<3, 6>;
+   }
 
-   if (d == 4 && q == 4) { ker = TMOP_EnergyPA_2D<4, 4>; }
-   if (d == 4 && q == 5) { ker = TMOP_EnergyPA_2D<4, 5>; }
-   if (d == 4 && q == 6) { ker = TMOP_EnergyPA_2D<4, 6>; }
+   if (d == 4 && q == 4)
+   {
+      ker = TMOP_EnergyPA_2D<4, 4>;
+   }
+   if (d == 4 && q == 5)
+   {
+      ker = TMOP_EnergyPA_2D<4, 5>;
+   }
+   if (d == 4 && q == 6)
+   {
+      ker = TMOP_EnergyPA_2D<4, 6>;
+   }
 
-   if (d == 5 && q == 5) { ker = TMOP_EnergyPA_2D<5, 5>; }
-   if (d == 5 && q == 6) { ker = TMOP_EnergyPA_2D<5, 6>; }
+   if (d == 5 && q == 5)
+   {
+      ker = TMOP_EnergyPA_2D<5, 5>;
+   }
+   if (d == 5 && q == 6)
+   {
+      ker = TMOP_EnergyPA_2D<5, 6>;
+   }
 
-   ker(mn, w, const_m0, mc, mp/*w*/, MId, NE, J, W, B, G, X, E, d, q, 4);
+   ker(mn, w, const_m0, MC, mp, MId, NE, J, W, B, G, X, E, d, q, 4);
    return PA.E * PA.O;
 }
 
