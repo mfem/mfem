@@ -52,10 +52,7 @@ protected:
 
    inline void GrowSize(int minsize);
 
-   static inline void TypeAssert()
-   {
-      static_assert(std::is_trivial<T>::value, "type T must be trivial");
-   }
+   static_assert(std::is_trivial<T>::value, "type T must be trivial");
 
 public:
    friend void Swap<T>(Array<T> &, Array<T> &);
@@ -95,11 +92,26 @@ public:
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
 
+   /**
+    * @brief Construct a new Array object from an initializer list.
+    *
+    * @param init_list List of entities to construct from.
+    */
+   Array(const std::initializer_list<T> &init_list)
+      : Array(static_cast<int>(init_list.size()))
+   {
+      auto * it = GetData();
+      for (auto value : init_list)
+      {
+         *it++ = value;
+      }
+   }
+
    /// Move constructor ("steals" data from 'src')
    inline Array(Array<T> &&src) { Swap(src, *this); }
 
    /// Destructor
-   inline ~Array() { TypeAssert(); data.Delete(); }
+   inline ~Array() { data.Delete(); }
 
    /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
@@ -204,6 +216,8 @@ public:
    /// Delete the whole array.
    inline void DeleteAll();
 
+   /// Reduces the capacity of the array to exactly match the current size.
+   inline void ShrinkToFit();
 
    ///  Create a copy of the internal array to the provided @a copy.
    inline void Copy(Array &copy) const;
@@ -221,6 +235,18 @@ public:
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
 
+   /**
+    * @brief Permute the array using the provided indices. Sorts the indices
+    * variable in the process, thereby destroying the permutation. The rvalue
+    * reference is to be used when this destruction is allowed, whilst the const
+    * reference preserves at the cost of duplication.
+    *
+    * @param indices The indices of the ordering. data[i] = data[indices[i]].
+    */
+   template <typename I>
+   inline void Permute(I &&indices);
+   template <typename I>
+   inline void Permute(const I &indices) { Permute(I(indices)); }
 
    /// Copy sub array starting from @a offset out to the provided @a sa.
    inline void GetSubArray(int offset, int sa_size, Array<T> &sa) const;
@@ -274,6 +300,9 @@ public:
 
    /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
    int IsSorted() const;
+
+   /// Does the Array have Size zero.
+   bool IsEmpty() const { return Size() == 0; }
 
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
@@ -492,6 +521,8 @@ public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
    BlockArray& operator=(const BlockArray&) = delete; // not supported
+   BlockArray(BlockArray<T> &&other) = default;
+   BlockArray& operator=(BlockArray<T> &&other) = default;
    ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.
@@ -613,6 +644,8 @@ public:
 
    iterator begin() { return size ? iterator(this) : iterator(true); }
    iterator end() { return iterator(); }
+   const_iterator begin() const { return cbegin(); }
+   const_iterator end() const { return cend(); }
 
    const_iterator cbegin() const
    { return size ? const_iterator(this) : const_iterator(true); }
@@ -683,6 +716,35 @@ inline void Array<T>::GrowSize(int minsize)
    p.UseDevice(data.UseDevice());
    data.Delete();
    data = p;
+}
+
+template <typename T>
+inline void Array<T>::ShrinkToFit()
+{
+   if (Capacity() == size) { return; }
+   Memory<T> p(size, data.GetMemoryType());
+   p.CopyFrom(data, size);
+   p.UseDevice(data.UseDevice());
+   data.Delete();
+   data = p;
+}
+
+template <typename T>
+template <typename I>
+inline void Array<T>::Permute(I &&indices)
+{
+   for (int i = 0; i < size; i++)
+   {
+      auto current = i;
+      while (i != indices[current])
+      {
+         auto next = indices[current];
+         std::swap(data[current], data[next]);
+         indices[current] = current;
+         current = next;
+      }
+      indices[current] = current;
+   }
 }
 
 template <typename T> template <typename CT>
