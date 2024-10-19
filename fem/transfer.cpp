@@ -1818,7 +1818,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
                                                   false, false));
 
          Vector RM_H(pfes_ho_scalar->GetTrueVSize());
-         GetTDofs(*pfes_ho_scalar, M_H, RM_H);
+         GetTDofsTranspose(*pfes_ho_scalar, M_H, RM_H);
          precon_vea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
       }
       else if (P_ho)
@@ -1828,14 +1828,14 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
          M_LH_vea.reset(new ProductOperator(M_LH_local_op, P_ho, false, false));
 
          Vector RM_H(pfes_ho_scalar->GetTrueVSize());
-         GetTDofs(*pfes_ho_scalar, M_H, RM_H);
+         GetTDofsTranspose(*pfes_ho_scalar, M_H, RM_H);
          precon_vea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
       }
       else if (P_lor)
       {
          Operator *Pt_lor = new TransposeOperator(P_lor);
          RML_inv.SetSize(pfes_lor_scalar->GetTrueVSize());
-         GetTDofs(*pfes_lor_scalar, ML_inv_ea, RML_inv);
+         GetTDofsTranspose(*pfes_lor_scalar, ML_inv_ea, RML_inv);
          ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
                                                         RML_inv));
          M_LH_vea.reset(new ProductOperator(Pt_lor, M_LH_local_op, false, false));
