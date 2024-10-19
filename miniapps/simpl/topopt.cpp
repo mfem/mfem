@@ -197,44 +197,44 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
    const real_t maxval = entropy->GetFiniteUpperBound();
    const real_t minval = entropy->GetFiniteLowerBound();
 
+   const real_t abs_step_size = std::fabs(step_size);
    MappedGFCoefficient newx_cf(x, [&mu, maxval, minval,
-                                        step_size](const real_t psi)
+                                        abs_step_size](const real_t psi)
    {
-      return std::max(minval, std::min(maxval, psi + mu));
+      return std::max(minval, std::min(maxval, psi + mu*abs_step_size));
    });
-   CompositeCoefficient density_cf(newx_cf, entropy->backward);
+   MaskedCoefficient masked_newx_cf(newx_cf);
+   ConstantCoefficient maxval_cf(maxval);
+   ConstantCoefficient minval_cf(minval);
+   if (solid_attr_id) { masked_newx_cf.AddMasking(maxval_cf, solid_attr_id); }
+   if (void_attr_id) { masked_newx_cf.AddMasking(minval_cf, void_attr_id); }
+   CompositeCoefficient density_cf(masked_newx_cf, entropy->backward);
    vol = zero->ComputeL1Error(density_cf);
    if (vol <= max_vol && vol >= min_vol)
    {
-      x.ProjectCoefficient(newx_cf);
+      x.ProjectCoefficient(masked_newx_cf);
       return;
    }
 
    GridFunctionCoefficient grad_cf(&grad);
-   real_t mu_max(-x.Min()), mu_min(-x.Max());
-#ifdef MFEM_USE_MPI
-   auto *pfes = dynamic_cast<ParFiniteElementSpace*>(x.FESpace());
-   if (pfes)
+   real_t max_grad = zero->ComputeMaxError(grad_cf);
+   real_t mu_max(max_grad), mu_min(-max_grad);
+   if (max_grad == 0.0)
    {
-      MPI_Allreduce(MPI_IN_PLACE, &mu_max, 1, MFEM_MPI_REAL_T, MPI_MAX,
-                    pfes->GetComm());
-      MPI_Allreduce(MPI_IN_PLACE, &mu_min, 1, MFEM_MPI_REAL_T, MPI_MIN,
-                    pfes->GetComm());
+      mu_max = entropy->GetFiniteUpperBound();
+      mu_min = entropy->GetFiniteLowerBound();
    }
-#endif
-   // real_t mu_max = zero->ComputeLpError(mfem::infinity(), grad_cf);
-   // real_t mu_min = -mu_max;
    const real_t targ_vol = vol > max_vol ? max_vol : min_vol;
 
-   while (mu_max - mu_min > 1e-12)
+   for (int i=0; i< 200; i++)
    {
       mu = (mu_max+mu_min)*0.5;
       vol = zero->ComputeL1Error(density_cf);
       if (vol > targ_vol) { mu_max = mu; }
-      else if (vol < targ_vol) { mu_min = mu; }
-      else { break; }
+      else { mu_min = mu; }
+      if (mu_max - mu_min < 1e-12) { break; }
    }
-   x.ProjectCoefficient(newx_cf);
+   x.ProjectCoefficient(masked_newx_cf);
 }
 
 real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)

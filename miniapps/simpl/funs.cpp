@@ -50,7 +50,7 @@ MappedGFCoefficient LegendreEntropy::GetForwardCoeff()
    return coeff;
 }
 
-MappedGFCoefficient LegendreEntropy::GetForwardCoeff(GridFunction &gf)
+MappedGFCoefficient LegendreEntropy::GetForwardCoeff(const GridFunction &gf)
 {
    auto coeff = GetForwardCoeff();
    coeff.SetGridFunction(&gf);
@@ -64,7 +64,7 @@ MappedGFCoefficient LegendreEntropy::GetBackwardCoeff()
    return coeff;
 }
 
-MappedGFCoefficient LegendreEntropy::GetBackwardCoeff(GridFunction &gf)
+MappedGFCoefficient LegendreEntropy::GetBackwardCoeff(const GridFunction &gf)
 {
    auto coeff = GetBackwardCoeff();
    coeff.SetGridFunction(&gf);
@@ -79,15 +79,15 @@ MappedGFCoefficient LegendreEntropy::GetEntropyCoeff()
    return coeff;
 }
 
-MappedGFCoefficient LegendreEntropy::GetEntropyCoeff(GridFunction &gf)
+MappedGFCoefficient LegendreEntropy::GetEntropyCoeff(const GridFunction &gf)
 {
    auto coeff = GetEntropyCoeff();
    coeff.SetGridFunction(&gf);
    return coeff;
 }
 
-MappedPairedGFCoefficient LegendreEntropy::GetBregman(GridFunction &x,
-                                                      GridFunction &y)
+MappedPairedGFCoefficient LegendreEntropy::GetBregman(const GridFunction &x,
+                                                      const GridFunction &y)
 {
    MappedPairedGFCoefficient coeff;
    coeff.SetGridFunction(&x, &y);
@@ -99,8 +99,8 @@ MappedPairedGFCoefficient LegendreEntropy::GetBregman(GridFunction &x,
    return coeff;
 }
 
-MappedPairedGFCoefficient LegendreEntropy::GetBregman_dual(GridFunction &x,
-                                                           GridFunction &y)
+MappedPairedGFCoefficient LegendreEntropy::GetBregman_dual(
+   const GridFunction &x, const GridFunction &y)
 {
    MappedPairedGFCoefficient coeff;
    coeff.SetGridFunction(&x, &y);

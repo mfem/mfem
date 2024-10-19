@@ -61,11 +61,11 @@ private:
 
 public:
    MappedGFCoefficient():GridFunctionCoefficient(nullptr) {}
-   MappedGFCoefficient(GridFunction &gf, fun_type fun, int comp=1)
+   MappedGFCoefficient(const GridFunction &gf, fun_type fun, int comp=1)
       : GridFunctionCoefficient(&gf, comp), fun(fun) {}
    MappedGFCoefficient(fun_type fun)
       : GridFunctionCoefficient(nullptr), fun(fun) {}
-   MappedGFCoefficient(GridFunction *gf, int comp=1)
+   MappedGFCoefficient(const GridFunction *gf, int comp=1)
       : GridFunctionCoefficient(gf, comp) {}
 
    void SetFunction(fun_type newfun) { fun=newfun; }
@@ -85,12 +85,12 @@ class MappedPairedGFCoefficient : public GridFunctionCoefficient
    typedef std::function<real_t(const real_t, const real_t)> fun_type;
 private:
    fun_type fun;
-   GridFunction *other_gf;
+   const GridFunction *other_gf;
    int other_gf_comp;
 
 public:
    // Create a coefficient that returns f(v1,v2) where v1=gf(x) and v2=other_gf(x)
-   MappedPairedGFCoefficient(GridFunction &gf, GridFunction &other_gf,
+   MappedPairedGFCoefficient(const GridFunction &gf, const GridFunction &other_gf,
                              fun_type fun)
       : GridFunctionCoefficient(&gf), fun(fun), other_gf(&other_gf),
         other_gf_comp(1) {}
@@ -103,13 +103,15 @@ public:
    // Create an empty object. Use SetFunction and SetGridFunction
    MappedPairedGFCoefficient():GridFunctionCoefficient(nullptr) {}
 
-   void SetGridFunction(GridFunction *new_gf, GridFunction *new_other_gf)
+   void SetGridFunction(const GridFunction *new_gf,
+                        const GridFunction *new_other_gf)
    {
       GridFunctionCoefficient::SetGridFunction(new_gf);
       other_gf=new_other_gf;
    }
 
-   void SetOtherGridFunction(GridFunction *new_other_gf, int new_other_comp=-1)
+   void SetOtherGridFunction(const GridFunction *new_other_gf,
+                             int new_other_comp=-1)
    {
       other_gf = new_other_gf;
       other_gf_comp=new_other_comp;
@@ -126,6 +128,34 @@ public:
       return fun(GridFunctionCoefficient::Eval(T, ip),
                  other_gf->GetValue(T, ip, other_gf_comp));
    }
+};
+
+class MaskedCoefficient : public Coefficient
+{
+   Coefficient &default_coeff;
+   Array<Coefficient*> masking_coeff;
+   Array<int> masking_attr;
+public:
+   MaskedCoefficient(Coefficient &default_coeff):default_coeff(default_coeff),
+      masking_coeff(0), masking_attr(0) {}
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      for (int i=0; i< masking_attr.Size(); i++)
+      {
+         if (T.Attribute == masking_attr[i])
+         {
+            return masking_coeff[i]->Eval(T, ip);
+         }
+      }
+      return default_coeff.Eval(T, ip);
+   }
+   void AddMasking(Coefficient &coeff, int attr)
+   {
+      masking_coeff.Append(&coeff);
+      masking_attr.Append(attr);
+   }
+
+
 };
 
 // An entropy defined by Legendre function
@@ -159,13 +189,15 @@ public:
    real_t GetFiniteUpperBound() {return finite_upper_bound;};
    void SetFiniteLowerBound(real_t new_lower_bound) { finite_lower_bound = new_lower_bound; };
    void SetFiniteUpperBound(real_t new_upper_bound) { finite_upper_bound = new_upper_bound;};
-   MappedGFCoefficient GetForwardCoeff(GridFunction &x);
-   MappedGFCoefficient GetBackwardCoeff(GridFunction &psi);
-   MappedGFCoefficient GetEntropyCoeff(GridFunction &x);
+   MappedGFCoefficient GetForwardCoeff(const GridFunction &x);
+   MappedGFCoefficient GetBackwardCoeff(const GridFunction &psi);
+   MappedGFCoefficient GetEntropyCoeff(const GridFunction &x);
    // Get Bregman divergence with primal variables
-   MappedPairedGFCoefficient GetBregman(GridFunction &x, GridFunction &y);
+   MappedPairedGFCoefficient GetBregman(const GridFunction &x,
+                                        const GridFunction &y);
    // Get Bregman divergence with dual variables
-   MappedPairedGFCoefficient GetBregman_dual(GridFunction &psi, GridFunction &chi);
+   MappedPairedGFCoefficient GetBregman_dual(const GridFunction &psi,
+                                             const GridFunction &chi);
 };
 
 class PrimalEntropy : public LegendreEntropy
