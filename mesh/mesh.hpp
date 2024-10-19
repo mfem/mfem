@@ -2263,6 +2263,7 @@ public:
 
    bool Conforming() const { return ncmesh == NULL; }
    bool Nonconforming() const { return ncmesh != NULL; }
+   bool IsNURBS() const { return NURBSext != NULL; }
 
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
