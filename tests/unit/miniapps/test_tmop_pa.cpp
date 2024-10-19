@@ -307,10 +307,6 @@ int tmop(int id, Req &res, int argc, char *argv[])
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
          break;
       }
-      case 8: // fully specified through the initial mesh, 2D or 3D.
-      {
-         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE; break;
-      }
       default:
       {
          cout << "Unknown target_id: " << target_id << endl;

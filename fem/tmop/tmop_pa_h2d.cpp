@@ -62,8 +62,6 @@ void TMOP_AssembleDiagonalPA_2D(const int NE, const ConstDeviceMatrix &B,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       // Takes into account Jtr by replacing H with Href at all quad points.
       MFEM_SHARED real_t Href_data[DIM * DIM * DIM * MQ1 * MQ1];
@@ -143,7 +141,6 @@ void TMOP_AssembleDiagonalPA_2D(const int NE, const ConstDeviceMatrix &B,
          {
             MFEM_FOREACH_THREAD(dx, x, D1D)
             {
-               real_t d = 0.0;
                real_t d = 0.0;
                MFEM_UNROLL(MQ1)
                for (int qx = 0; qx < Q1D; ++qx)

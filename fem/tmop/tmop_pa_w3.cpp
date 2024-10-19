@@ -16,6 +16,7 @@ namespace mfem
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_EnergyPA_3D(const double metric_normal, const double *w,
+                      const bool const_m0, const double *mc,
                       const int mid, const int NE,
                       const DeviceTensor<6, const double> &J,
                       const ConstDeviceCube &W, const ConstDeviceMatrix &B,
@@ -30,6 +31,10 @@ void TMOP_EnergyPA_3D(const double metric_normal, const double *w,
                "3D metric not yet implemented!");
 
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   const auto MC = const_m0 ? //
+                   Reshape(mc, 1, 1, 1, 1) :
+                   Reshape(mc, Q1D, Q1D, Q1D, NE);
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -59,12 +64,10 @@ void TMOP_EnergyPA_3D(const double metric_normal, const double *w,
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                const real_t detJtr = kernels::Det<3>(Jtr);
-#warning MC M_PI
-               const real_t m_coef = M_PI;//const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
+               const real_t m_coef = const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
                const real_t weight = metric_normal * m_coef * W(qx, qy, qz) * detJtr;
 
                // Jrt = Jtr^{-1}
-               real_t Jrt[9];
                real_t Jrt[9];
                kernels::CalcInverse<3>(Jtr, Jrt);
 
@@ -139,6 +142,14 @@ double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &x) const
    {
       m->GetWeights(mp);
    }
+
+   const Vector &mc = PA.MC;
+
+   const bool const_m0 = mc.Size() == 1;
+
+   const auto MC =
+      const_m0 ? Reshape(mc.Read(), 1, 1, 1) : Reshape(mc.Read(), q, q, NE);
+
    const double *w = mp.Read();
 
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
@@ -210,7 +221,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &x) const
       ker = TMOP_EnergyPA_3D<5, 6>;
    }
 
-   ker(mn, w, M, NE, J, W, B, G, X, E, d, q, 4);
+   ker(mn, w, const_m0, MC, M, NE, J, W, B, G, X, E, d, q, 4);
    return PA.E * PA.O;
 }
 

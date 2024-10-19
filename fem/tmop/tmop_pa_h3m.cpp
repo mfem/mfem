@@ -56,7 +56,6 @@ void TMOP_AddMultGradPA_3D(const int NE, const ConstDeviceMatrix &B,
 
                // Jrt = Jtr^{-1}
                real_t Jrt[9];
-               real_t Jrt[9];
                kernels::CalcInverse<3>(Jtr, Jrt);
 
                // Jpr = X^T.DSh

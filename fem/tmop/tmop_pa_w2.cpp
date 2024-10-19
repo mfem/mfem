@@ -30,13 +30,13 @@ void TMOP_EnergyPA_2D(const double metric_normal, const double *w,
                mid == 80 || mid == 94,
                "2D metric not yet implemented!");
 
-   // constexpr int DIM = 2;
    constexpr int NBZ = 1;
 
-   // const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto MC = const_m0 ? Reshape(mc, 1, 1, 1) : Reshape(mc, Q1D, Q1D, NE);
+   const auto MC = const_m0 ? //
+                   Reshape(mc, 1, 1, 1) :
+                   Reshape(mc, Q1D, Q1D, NE);
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -67,7 +67,6 @@ void TMOP_EnergyPA_2D(const double metric_normal, const double *w,
             const real_t weight = metric_normal * m_coef * W(qx, qy) * detJtr;
 
             // Jrt = Jtr^{-1}
-            real_t Jrt[4];
             real_t Jrt[4];
             kernels::CalcInverse<2>(Jtr, Jrt);
 
@@ -142,7 +141,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
    const auto MC =
       const_m0 ? Reshape(mc.Read(), 1, 1, 1) : Reshape(mc.Read(), q, q, NE);
 
-   const double *w = mp.Read();
+   const real_t *w = mp.Read();
 
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
    const auto B = Reshape(PA.maps->B.Read(), q, d);

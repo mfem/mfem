@@ -83,7 +83,6 @@ void TMOP_AddMultPA_C0_2D(
             const real_t dist = ld;  // GetValues, default comp set to 0
 
             real_t d1[2];
-            real_t d1[2];
             // Eval_d1 (Quadratic Limiter)
             // subtract(1.0 / (dist * dist), x, x0, d1);
             // z = a * (x - y)
