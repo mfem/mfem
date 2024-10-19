@@ -23,22 +23,46 @@ template <bool P>
 void InitGradByVDimKernels()
 {
    using k = QuadratureInterpolator::GradKernels;
+   constexpr auto L = QVectorLayout::byVDIM;
    // 2D
-   k::Specialization<2,QVectorLayout::byVDIM,P,1,3,4>::template Opt<8>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,P,1,4,6>::template Opt<4>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,P,1,5,8>::template Opt<2>::Add();
+   k::Specialization<2,L,P,1,3,4>::template Opt<8>::Add();
+   k::Specialization<2,L,P,1,4,6>::template Opt<4>::Add();
+   k::Specialization<2,L,P,1,5,8>::template Opt<2>::Add();
 
-   k::Specialization<2,QVectorLayout::byVDIM,P,2,3,3>::template Opt<8>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,P,2,3,4>::template Opt<8>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,P,2,4,6>::template Opt<4>::Add();
-   k::Specialization<2,QVectorLayout::byVDIM,P,2,5,8>::template Opt<2>::Add();
+   k::Specialization<2,L,P,2,3,3>::template Opt<8>::Add();
+   k::Specialization<2,L,P,2,3,4>::template Opt<8>::Add();
+   k::Specialization<2,L,P,2,4,6>::template Opt<4>::Add();
+   k::Specialization<2,L,P,2,5,8>::template Opt<2>::Add();
    // 3D
-   k::Specialization<3,QVectorLayout::byVDIM,P,1,3,4>::template Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,P,1,4,6>::template Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,P,1,5,8>::template Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,P,3,3,4>::template Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,P,3,4,6>::template Opt<1>::Add();
-   k::Specialization<3,QVectorLayout::byVDIM,P,3,5,8>::template Opt<1>::Add();
+   k::Specialization<3,L,P,1,3,4>::Add();
+   k::Specialization<3,L,P,1,4,6>::Add();
+   k::Specialization<3,L,P,1,5,8>::Add();
+   k::Specialization<3,L,P,3,3,4>::Add();
+   k::Specialization<3,L,P,3,4,6>::Add();
+   k::Specialization<3,L,P,3,5,8>::Add();
+
+   using k2 = QuadratureInterpolator::CollocatedGradKernels;
+   // 2D
+   k2::Specialization<2,L,P,1,2>::template Opt<16>::Add();
+   k2::Specialization<2,L,P,1,3>::template Opt<16>::Add();
+   k2::Specialization<2,L,P,1,4>::template Opt<16>::Add();
+
+   k2::Specialization<2,L,P,2,2>::template Opt<16>::Add();
+   k2::Specialization<2,L,P,2,3>::template Opt<4>::Add();
+   k2::Specialization<2,L,P,2,4>::template Opt<2>::Add();
+
+   // 3D
+   k2::Specialization<3,L,P,1,2>::Add();
+   k2::Specialization<3,L,P,1,3>::Add();
+   k2::Specialization<3,L,P,1,4>::Add();
+
+   k2::Specialization<3,L,P,2,2>::Add();
+   k2::Specialization<3,L,P,2,3>::Add();
+   k2::Specialization<3,L,P,2,4>::Add();
+
+   k2::Specialization<3,L,P,3,2>::Add();
+   k2::Specialization<3,L,P,3,3>::Add();
+   k2::Specialization<3,L,P,3,4>::Add();
 }
 
 template void InitGradByVDimKernels<true>();
