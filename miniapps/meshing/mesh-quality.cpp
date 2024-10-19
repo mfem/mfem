@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
          mesh->GetElementJacobian(e, jacobian, &ip);
-         double sizeVal;
+         real_t sizeVal;
          Vector asprVals, skewVals, oriVals;
          mesh->GetGeometricParametersFromJacobian(jacobian, sizeVal,
                                                   asprVals, skewVals, oriVals);
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
             common::VisualizeField(vis1, "localhost", 19916, size_gf,
                                    "Size", cx, cy, visw, vish, "Rjmc");
          }
-         double min_size = size_gf.Min(),
+         real_t min_size = size_gf.Min(),
                 max_size = size_gf.Max();
          cout << "Min size:           " << min_size << endl;
          cout << "Max size:           " << max_size << endl;
@@ -174,9 +174,9 @@ int main(int argc, char *argv[])
             common::VisualizeField(vis2, "localhost", 19916, aspr_gf,
                                    "Aspect-Ratio", cx, cy, visw, vish, "Rjmc");
          }
-         double min_aspr = aspr_gf.Min(),
+         real_t min_aspr = aspr_gf.Min(),
                 max_aspr = aspr_gf.Max();
-         max_aspr = max(1.0/min_aspr, max_aspr);
+         max_aspr = std::max((real_t) 1.0/min_aspr, max_aspr);
          cout << "Worst aspect-ratio: " << max_aspr << endl;
          cout << "(in any direction)" << endl;
       }
@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
                                    "Skewness (radians)", cx, cy, visw, vish,
                                    "Rjmc");
          }
-         double min_skew = skew_gf.Min(),
+         real_t min_skew = skew_gf.Min(),
                 max_skew = skew_gf.Max();
          cout << "Min skew (in deg):  " << min_skew*180/M_PI << endl;
          cout << "Max skew (in deg):  " << max_skew*180/M_PI << endl;
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
             common::VisualizeField(vis1, "localhost", 19916, size_gf,
                                    "Size", cx, cy, visw, vish, "Rjmc");
          }
-         double min_size = size_gf.Min(),
+         real_t min_size = size_gf.Min(),
                 max_size = size_gf.Max();
          cout << "Min size:            " << min_size << endl;
          cout << "Max size:            " << max_size << endl;
@@ -244,24 +244,24 @@ int main(int argc, char *argv[])
             common::VisualizeField(vis3, "localhost", 19916, aspr_gf2,
                                    "Aspect-Ratio2", cx, cy, visw, vish, "Rjmc");
          }
-         double min_aspr1 = aspr_gf1.Min(),
+         real_t min_aspr1 = aspr_gf1.Min(),
                 max_aspr1 = aspr_gf1.Max();
-         max_aspr1 = max(1.0/min_aspr1, max_aspr1);
+         max_aspr1 = std::max((real_t) 1.0/min_aspr1, max_aspr1);
 
-         double min_aspr2 = aspr_gf2.Min(),
+         real_t min_aspr2 = aspr_gf2.Min(),
                 max_aspr2 = aspr_gf2.Max();
-         max_aspr2 = max(1.0/min_aspr2, max_aspr2);
-         double max_aspr = max(max_aspr1, max_aspr2);
+         max_aspr2 = std::max((real_t) 1.0/min_aspr2, max_aspr2);
+         real_t max_aspr = max(max_aspr1, max_aspr2);
 
          Vector aspr_gf3(aspr_gf1.Size());
          for (int i = 0; i < aspr_gf1.Size(); i++)
          {
             aspr_gf3(i) = 1.0/(aspr_gf1(i)*aspr_gf2(i));
          }
-         double min_aspr3 = aspr_gf3.Min(),
+         real_t min_aspr3 = aspr_gf3.Min(),
                 max_aspr3 = aspr_gf3.Max();
-         max_aspr3 = max(1.0/min_aspr3, max_aspr3);
-         max_aspr = max(max_aspr, max_aspr3);
+         max_aspr3 = std::max((real_t) 1.0/min_aspr3, max_aspr3);
+         max_aspr = std::max(max_aspr, max_aspr3);
 
          cout << "Worst aspect-ratio:  " << max_aspr << endl;
          cout << "(in any direction)" << endl;
@@ -292,11 +292,11 @@ int main(int argc, char *argv[])
             common::VisualizeField(vis6, "localhost", 19916, skew_gf3,
                                    "Dihedral", cx, cy, visw, vish, "Rjmc");
          }
-         double min_skew1 = skew_gf1.Min(),
+         real_t min_skew1 = skew_gf1.Min(),
                 max_skew1 = skew_gf1.Max();
-         double min_skew2 = skew_gf2.Min(),
+         real_t min_skew2 = skew_gf2.Min(),
                 max_skew2 = skew_gf2.Max();
-         double min_skew3 = skew_gf3.Min(),
+         real_t min_skew3 = skew_gf3.Min(),
                 max_skew3 = skew_gf3.Max();
          cout << "Min skew 1 (in deg): " << min_skew1*180/M_PI << endl;
          cout << "Max skew 1 (in deg): " << max_skew1*180/M_PI << endl;

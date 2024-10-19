@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -993,7 +993,7 @@ protected:
 
 /// complex_t - dof/qpt data type, real_t - ShapeEvaluator (FE basis) data type
 template <typename FESpace_t, typename VecLayout_t, typename IR,
-          typename complex_t = double, typename real_t = double>
+          typename complex_t = real_t, typename real_t = real_t>
 class FieldEvaluator
    : public FieldEvaluator_base<FESpace_t,VecLayout_t,IR,complex_t,real_t>
 {

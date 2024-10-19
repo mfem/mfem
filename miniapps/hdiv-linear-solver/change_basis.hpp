@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,8 +26,8 @@ class ChangeOfBasis_L2 : public Operator
 private:
    const int ne; ///< Number of elements in the mesh.
    mutable DofToQuad dof2quad; ///< 1D basis transformation.
-   Array<double> B_1d; ///< 1D basis transformation matrix.
-   Array<double> Bt_1d; ///< 1D basis transformation matrix traspose.
+   Array<real_t> B_1d; ///< 1D basis transformation matrix.
+   Array<real_t> Bt_1d; ///< 1D basis transformation matrix transpose.
    bool no_op; ///< If the basis types are the same, the operation is a no-op.
 public:
    ChangeOfBasis_L2(FiniteElementSpace &fes);
@@ -56,12 +56,12 @@ private:
    const int ne; ///< Number of elements.
    const int p; ///< Polynomial degree.
    const ElementRestriction *elem_restr; ///< Element restriction operator.
-   Array<double> Bc_1d; ///< 1D closed basis transformation matrix.
-   Array<double> Bci_1d; ///< 1D closed basis transformation matrix inverse.
-   Array<double> Bct_1d; ///< 1D closed basis transformation matrix transpose.
-   Array<double> Bo_1d; ///< 1D open basis transformation matrix.
-   Array<double> Boi_1d; ///< 1D open basis transformation matrix inverse.
-   Array<double> Bot_1d; ///< 1D open basis transformation matrix transpose.
+   Array<real_t> Bc_1d; ///< 1D closed basis transformation matrix.
+   Array<real_t> Bci_1d; ///< 1D closed basis transformation matrix inverse.
+   Array<real_t> Bct_1d; ///< 1D closed basis transformation matrix transpose.
+   Array<real_t> Bo_1d; ///< 1D open basis transformation matrix.
+   Array<real_t> Boi_1d; ///< 1D open basis transformation matrix inverse.
+   Array<real_t> Bot_1d; ///< 1D open basis transformation matrix transpose.
 
    mutable Vector x_l, y_l; ///< L-vector layout
    mutable Vector x_e, y_e; ///< E-vector layout
@@ -69,8 +69,8 @@ private:
    bool no_op; ///< If the spaces are the same, the operation is a no-op.
 
    void Mult(const Vector &x, Vector &y, Mode mode) const;
-   const double *GetOpenMap(Mode mode) const;
-   const double *GetClosedMap(Mode mode) const;
+   const real_t *GetOpenMap(Mode mode) const;
+   const real_t *GetClosedMap(Mode mode) const;
 public:
    ChangeOfBasis_RT(FiniteElementSpace &fes);
    void Mult(const Vector &x, Vector &y) const override;

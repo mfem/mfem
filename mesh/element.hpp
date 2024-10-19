@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,11 +57,14 @@ public:
    /// Set element's attribute.
    inline void SetAttribute(const int attr) { attribute = attr; }
 
-   /// Set the indices the element according to the input.
-   virtual void SetVertices(const int *ind);
-
-   /// Returns element's vertices.
+   /// Get the indices defining the vertices.
    virtual void GetVertices(Array<int> &v) const = 0;
+
+   /// Set the indices defining the vertices.
+   virtual void SetVertices(const Array<int> &v) = 0;
+
+   /// Set the indices defining the vertices.
+   virtual void SetVertices(const int *ind) = 0;
 
    /// @note The returned array should NOT be deleted by the caller.
    virtual int *GetVertices() = 0;

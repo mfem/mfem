@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -42,6 +42,7 @@ int main (int argc, char *argv[])
    const char *sltn_file_2 = "triple-pt-2.gf";
    bool visualization    = true;
    int pts_cnt_1D = 100;
+   int visport = 19916;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -58,6 +59,7 @@ int main (int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -105,7 +107,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout1, sout2;
       sout1.open(vishost, visport);
       sout2.open(vishost, visport);
@@ -225,7 +226,6 @@ int main (int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sout3;
       sout3.open(vishost, visport);
       sout3.precision(8);

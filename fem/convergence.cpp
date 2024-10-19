@@ -1,7 +1,17 @@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "convergence.hpp"
 
 using namespace std;
-
 
 namespace mfem
 {
@@ -24,11 +34,11 @@ void ConvergenceStudy::Reset()
    ndofs.SetSize(0);
 }
 
-double ConvergenceStudy::GetNorm(GridFunction *gf, Coefficient *scalar_u,
+real_t ConvergenceStudy::GetNorm(GridFunction *gf, Coefficient *scalar_u,
                                  VectorCoefficient *vector_u)
 {
    bool norm_set = false;
-   double norm=0.0;
+   real_t norm=0.0;
    int order = gf->FESpace()->GetMaxElementOrder();
    int order_quad = std::max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -87,7 +97,7 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
 #endif
    if (!tdofs) { tdofs = gf->FESpace()->GetTrueVSize(); }
    ndofs.Append(tdofs);
-   double L2Err = 1.;
+   real_t L2Err = 1.;
    if (scalar_u)
    {
       L2Err = gf->ComputeL2Error(*scalar_u);
@@ -105,11 +115,11 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
    L2Errors.Append(L2Err);
    // Compute the rate of convergence by:
    // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
-   double val=0.;
+   real_t val=0.;
    if (counter)
    {
-      double num =  log(L2Errors[counter-1]/L2Err);
-      double den = log((double)ndofs[counter]/ndofs[counter-1]);
+      real_t num =  log(L2Errors[counter-1]/L2Err);
+      real_t den = log((real_t)ndofs[counter]/ndofs[counter-1]);
       val = dim * num/den;
    }
    L2Rates.Append(val);
@@ -132,19 +142,19 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
 
    if (grad)
    {
-      double GradErr = gf->ComputeGradError(grad);
+      real_t GradErr = gf->ComputeGradError(grad);
       DErrors.Append(GradErr);
-      double error =
+      real_t error =
          sqrt(L2Errors[counter-1]*L2Errors[counter-1]+GradErr*GradErr);
       EnErrors.Append(error);
       // Compute the rate of convergence by:
       // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
-      double val = 0.;
-      double eval = 0.;
+      real_t val = 0.;
+      real_t eval = 0.;
       if (dcounter)
       {
-         double num = log(DErrors[dcounter-1]/GradErr);
-         double den = log((double)ndofs[dcounter]/ndofs[dcounter-1]);
+         real_t num = log(DErrors[dcounter-1]/GradErr);
+         real_t den = log((real_t)ndofs[dcounter]/ndofs[dcounter-1]);
          val = dim * num/den;
          num = log(EnErrors[dcounter-1]/error);
          eval = dim * num/den;
@@ -159,15 +169,15 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
 
    if (cont_type == mfem::FiniteElementCollection::DISCONTINUOUS && ell_coeff)
    {
-      double DGErr = gf->ComputeDGFaceJumpError(scalar_u,ell_coeff,jump_scaling);
+      real_t DGErr = gf->ComputeDGFaceJumpError(scalar_u,ell_coeff,jump_scaling);
       DGFaceErrors.Append(DGErr);
       // Compute the rate of convergence by:
       // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
-      double val = 0.;
+      real_t val = 0.;
       if (fcounter)
       {
-         double num = log(DGFaceErrors[fcounter-1]/DGErr);
-         double den = log((double)ndofs[fcounter]/ndofs[fcounter-1]);
+         real_t num = log(DGFaceErrors[fcounter-1]/DGErr);
+         real_t den = log((real_t)ndofs[fcounter]/ndofs[fcounter-1]);
          val = dim * num/den;
       }
       DGFaceRates.Append(val);
@@ -183,7 +193,7 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
 
    AddL2Error(gf,nullptr,vector_u);
    int dim = gf->FESpace()->GetMesh()->Dimension();
-   double DErr = 0.0;
+   real_t DErr = 0.0;
    bool derivative = false;
    if (curl)
    {
@@ -200,17 +210,17 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
    }
    if (derivative)
    {
-      double error = sqrt(L2Errors[counter-1]*L2Errors[counter-1] + DErr*DErr);
+      real_t error = sqrt(L2Errors[counter-1]*L2Errors[counter-1] + DErr*DErr);
       DErrors.Append(DErr);
       EnErrors.Append(error);
       // Compute the rate of convergence by:
       // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
-      double val = 0.;
-      double eval = 0.;
+      real_t val = 0.;
+      real_t eval = 0.;
       if (dcounter)
       {
-         double num = log(DErrors[dcounter-1]/DErr);
-         double den = log((double)ndofs[dcounter]/ndofs[dcounter-1]);
+         real_t num = log(DErrors[dcounter-1]/DErr);
+         real_t den = log((real_t)ndofs[dcounter]/ndofs[dcounter-1]);
          val = dim * num/den;
          num = log(EnErrors[dcounter-1]/error);
          eval = dim * num/den;
@@ -238,7 +248,7 @@ void ConvergenceStudy::Print(bool relative, std::ostream &os)
       os << " -------------------------------------------"
          << "\n";
       os << std::setprecision(4);
-      double d = (relative) ? CoeffNorm : 1.0;
+      real_t d = (relative) ? CoeffNorm : 1.0;
       for (int i =0; i<counter; i++)
       {
          os << std::right << std::setw(10)<< ndofs[i] << std::setw(16)

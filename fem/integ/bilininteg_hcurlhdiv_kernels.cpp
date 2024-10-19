@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,7 +24,7 @@ void PAHcurlHdivMassSetup2D(const int Q1D,
                             const int coeffDim,
                             const int NE,
                             const bool transpose,
-                            const Array<double> &w_,
+                            const Array<real_t> &w_,
                             const Vector &j,
                             Vector &coeff_,
                             Vector &op)
@@ -46,25 +46,25 @@ void PAHcurlHdivMassSetup2D(const int Q1D,
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            const double J11 = J(qx,qy,0,0,e);
-            const double J21 = J(qx,qy,1,0,e);
-            const double J12 = J(qx,qy,0,1,e);
-            const double J22 = J(qx,qy,1,1,e);
-            const double w_detJ = W(qx,qy) / ((J11*J22) - (J21*J12));
+            const real_t J11 = J(qx,qy,0,0,e);
+            const real_t J21 = J(qx,qy,1,0,e);
+            const real_t J12 = J(qx,qy,0,1,e);
+            const real_t J22 = J(qx,qy,1,1,e);
+            const real_t w_detJ = W(qx,qy) / ((J11*J22) - (J21*J12));
 
             if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient version
             {
                // First compute entries of R = MJ
-               const double M11 = coeff(i11,qx,qy,e);
-               const double M12 = (!symmetric) ? coeff(i12,qx,qy,e) : coeff(1,qx,qy,e);
-               const double M21 = (!symmetric) ? coeff(i21,qx,qy,e) : M12;
-               const double M22 = (!symmetric) ? coeff(i22,qx,qy,e) : coeff(2,qx,qy,e);
+               const real_t M11 = coeff(i11,qx,qy,e);
+               const real_t M12 = (!symmetric) ? coeff(i12,qx,qy,e) : coeff(1,qx,qy,e);
+               const real_t M21 = (!symmetric) ? coeff(i21,qx,qy,e) : M12;
+               const real_t M22 = (!symmetric) ? coeff(i22,qx,qy,e) : coeff(2,qx,qy,e);
 
                // J^{-1} M^T
-               const double R11 = ( J22*M11 - J12*M12); // 1,1
-               const double R12 = ( J22*M21 - J12*M22); // 1,2
-               const double R21 = (-J21*M11 + J11*M12); // 2,1
-               const double R22 = (-J21*M21 + J11*M22); // 2,2
+               const real_t R11 = ( J22*M11 - J12*M12); // 1,1
+               const real_t R12 = ( J22*M21 - J12*M22); // 1,2
+               const real_t R21 = (-J21*M11 + J11*M12); // 2,1
+               const real_t R22 = (-J21*M21 + J11*M22); // 2,2
 
                // (RJ)^T
                y(i11,qx,qy,e) = w_detJ * (R11*J11 + R12*J21); // 1,1
@@ -74,12 +74,12 @@ void PAHcurlHdivMassSetup2D(const int Q1D,
             }
             else if (coeffDim == 2) // Vector coefficient version
             {
-               const double D1 = coeff(0,qx,qy,e);
-               const double D2 = coeff(1,qx,qy,e);
-               const double R11 = D1*J11;
-               const double R12 = D1*J12;
-               const double R21 = D2*J21;
-               const double R22 = D2*J22;
+               const real_t D1 = coeff(0,qx,qy,e);
+               const real_t D2 = coeff(1,qx,qy,e);
+               const real_t R11 = D1*J11;
+               const real_t R12 = D1*J12;
+               const real_t R21 = D2*J21;
+               const real_t R22 = D2*J22;
                y(i11,qx,qy,e) = w_detJ * ( J22*R11 - J12*R21); // 1,1
                y(i21,qx,qy,e) = w_detJ * ( J22*R12 - J12*R22); // 1,2 (transpose)
                y(i12,qx,qy,e) = w_detJ * (-J21*R11 + J11*R21); // 2,1 (transpose)
@@ -97,7 +97,7 @@ void PAHcurlHdivMassSetup3D(const int Q1D,
                             const int coeffDim,
                             const int NE,
                             const bool transpose,
-                            const Array<double> &w_,
+                            const Array<real_t> &w_,
                             const Vector &j,
                             Vector &coeff_,
                             Vector &op)
@@ -126,52 +126,52 @@ void PAHcurlHdivMassSetup3D(const int Q1D,
          {
             MFEM_FOREACH_THREAD(qz,z,Q1D)
             {
-               const double J11 = J(qx,qy,qz,0,0,e);
-               const double J21 = J(qx,qy,qz,1,0,e);
-               const double J31 = J(qx,qy,qz,2,0,e);
-               const double J12 = J(qx,qy,qz,0,1,e);
-               const double J22 = J(qx,qy,qz,1,1,e);
-               const double J32 = J(qx,qy,qz,2,1,e);
-               const double J13 = J(qx,qy,qz,0,2,e);
-               const double J23 = J(qx,qy,qz,1,2,e);
-               const double J33 = J(qx,qy,qz,2,2,e);
-               const double detJ = J11 * (J22 * J33 - J32 * J23) -
+               const real_t J11 = J(qx,qy,qz,0,0,e);
+               const real_t J21 = J(qx,qy,qz,1,0,e);
+               const real_t J31 = J(qx,qy,qz,2,0,e);
+               const real_t J12 = J(qx,qy,qz,0,1,e);
+               const real_t J22 = J(qx,qy,qz,1,1,e);
+               const real_t J32 = J(qx,qy,qz,2,1,e);
+               const real_t J13 = J(qx,qy,qz,0,2,e);
+               const real_t J23 = J(qx,qy,qz,1,2,e);
+               const real_t J33 = J(qx,qy,qz,2,2,e);
+               const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                                    J21 * (J12 * J33 - J32 * J13) +
                                    J31 * (J12 * J23 - J22 * J13);
-               const double w_detJ = W(qx,qy,qz) / detJ;
+               const real_t w_detJ = W(qx,qy,qz) / detJ;
                // adj(J)
-               const double A11 = (J22 * J33) - (J23 * J32);
-               const double A12 = (J32 * J13) - (J12 * J33);
-               const double A13 = (J12 * J23) - (J22 * J13);
-               const double A21 = (J31 * J23) - (J21 * J33);
-               const double A22 = (J11 * J33) - (J13 * J31);
-               const double A23 = (J21 * J13) - (J11 * J23);
-               const double A31 = (J21 * J32) - (J31 * J22);
-               const double A32 = (J31 * J12) - (J11 * J32);
-               const double A33 = (J11 * J22) - (J12 * J21);
+               const real_t A11 = (J22 * J33) - (J23 * J32);
+               const real_t A12 = (J32 * J13) - (J12 * J33);
+               const real_t A13 = (J12 * J23) - (J22 * J13);
+               const real_t A21 = (J31 * J23) - (J21 * J33);
+               const real_t A22 = (J11 * J33) - (J13 * J31);
+               const real_t A23 = (J21 * J13) - (J11 * J23);
+               const real_t A31 = (J21 * J32) - (J31 * J22);
+               const real_t A32 = (J31 * J12) - (J11 * J32);
+               const real_t A33 = (J11 * J22) - (J12 * J21);
 
                if (coeffDim == 6 || coeffDim == 9) // Matrix coefficient version
                {
                   // First compute entries of R = M^T J
-                  const double M11 = (!symmetric) ? coeff(i11,qx,qy,qz,e) : coeff(0,qx,qy,qz,e);
-                  const double M12 = (!symmetric) ? coeff(i12,qx,qy,qz,e) : coeff(1,qx,qy,qz,e);
-                  const double M13 = (!symmetric) ? coeff(i13,qx,qy,qz,e) : coeff(2,qx,qy,qz,e);
-                  const double M21 = (!symmetric) ? coeff(i21,qx,qy,qz,e) : M12;
-                  const double M22 = (!symmetric) ? coeff(i22,qx,qy,qz,e) : coeff(3,qx,qy,qz,e);
-                  const double M23 = (!symmetric) ? coeff(i23,qx,qy,qz,e) : coeff(4,qx,qy,qz,e);
-                  const double M31 = (!symmetric) ? coeff(i31,qx,qy,qz,e) : M13;
-                  const double M32 = (!symmetric) ? coeff(i32,qx,qy,qz,e) : M23;
-                  const double M33 = (!symmetric) ? coeff(i33,qx,qy,qz,e) : coeff(5,qx,qy,qz,e);
+                  const real_t M11 = (!symmetric) ? coeff(i11,qx,qy,qz,e) : coeff(0,qx,qy,qz,e);
+                  const real_t M12 = (!symmetric) ? coeff(i12,qx,qy,qz,e) : coeff(1,qx,qy,qz,e);
+                  const real_t M13 = (!symmetric) ? coeff(i13,qx,qy,qz,e) : coeff(2,qx,qy,qz,e);
+                  const real_t M21 = (!symmetric) ? coeff(i21,qx,qy,qz,e) : M12;
+                  const real_t M22 = (!symmetric) ? coeff(i22,qx,qy,qz,e) : coeff(3,qx,qy,qz,e);
+                  const real_t M23 = (!symmetric) ? coeff(i23,qx,qy,qz,e) : coeff(4,qx,qy,qz,e);
+                  const real_t M31 = (!symmetric) ? coeff(i31,qx,qy,qz,e) : M13;
+                  const real_t M32 = (!symmetric) ? coeff(i32,qx,qy,qz,e) : M23;
+                  const real_t M33 = (!symmetric) ? coeff(i33,qx,qy,qz,e) : coeff(5,qx,qy,qz,e);
 
-                  const double R11 = M11*J11 + M21*J21 + M31*J31;
-                  const double R12 = M11*J12 + M21*J22 + M31*J32;
-                  const double R13 = M11*J13 + M21*J23 + M31*J33;
-                  const double R21 = M12*J11 + M22*J21 + M32*J31;
-                  const double R22 = M12*J12 + M22*J22 + M32*J32;
-                  const double R23 = M12*J13 + M22*J23 + M32*J33;
-                  const double R31 = M13*J11 + M23*J21 + M33*J31;
-                  const double R32 = M13*J12 + M23*J22 + M33*J32;
-                  const double R33 = M13*J13 + M23*J23 + M33*J33;
+                  const real_t R11 = M11*J11 + M21*J21 + M31*J31;
+                  const real_t R12 = M11*J12 + M21*J22 + M31*J32;
+                  const real_t R13 = M11*J13 + M21*J23 + M31*J33;
+                  const real_t R21 = M12*J11 + M22*J21 + M32*J31;
+                  const real_t R22 = M12*J12 + M22*J22 + M32*J32;
+                  const real_t R23 = M12*J13 + M22*J23 + M32*J33;
+                  const real_t R31 = M13*J11 + M23*J21 + M33*J31;
+                  const real_t R32 = M13*J12 + M23*J22 + M33*J32;
+                  const real_t R33 = M13*J13 + M23*J23 + M33*J33;
 
                   // y = (J^{-1} M^T J)^T
                   y(i11,qx,qy,qz,e) = w_detJ * (A11*R11 + A12*R21 + A13*R31); // 1,1
@@ -186,9 +186,9 @@ void PAHcurlHdivMassSetup3D(const int Q1D,
                }
                else if (coeffDim == 3)  // Vector coefficient version
                {
-                  const double D1 = coeff(0,qx,qy,qz,e);
-                  const double D2 = coeff(1,qx,qy,qz,e);
-                  const double D3 = coeff(2,qx,qy,qz,e);
+                  const real_t D1 = coeff(0,qx,qy,qz,e);
+                  const real_t D2 = coeff(1,qx,qy,qz,e);
+                  const real_t D3 = coeff(2,qx,qy,qz,e);
                   // detJ J^{-1} DJ = adj(J) DJ
                   // transpose
                   y(i11,qx,qy,qz,e) = w_detJ * (D1*A11*J11 + D2*A12*J21 + D3*A13*J31); // 1,1
@@ -216,19 +216,18 @@ void PAHcurlHdivMassApply2D(const int D1D,
                             const bool scalarCoeff,
                             const bool trialHcurl,
                             const bool transpose,
-                            const Array<double> &Bo_,
-                            const Array<double> &Bc_,
-                            const Array<double> &Bot_,
-                            const Array<double> &Bct_,
+                            const Array<real_t> &Bo_,
+                            const Array<real_t> &Bc_,
+                            const Array<real_t> &Bot_,
+                            const Array<real_t> &Bct_,
                             const Vector &op_,
                             const Vector &x_,
                             Vector &y_)
 {
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
-
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 2;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -244,7 +243,9 @@ void PAHcurlHdivMassApply2D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double mass[MAX_Q1D][MAX_Q1D][VDIM];
+      constexpr static int MAX_Q1D = DofQuadLimits::HCURL_MAX_Q1D;
+
+      real_t mass[MAX_Q1D][MAX_Q1D][VDIM];
 
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -267,7 +268,7 @@ void PAHcurlHdivMassApply2D(const int D1D,
 
          for (int dy = 0; dy < D1Dy; ++dy)
          {
-            double massX[MAX_Q1D];
+            real_t massX[MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                massX[qx] = 0.0;
@@ -275,7 +276,7 @@ void PAHcurlHdivMassApply2D(const int D1D,
 
             for (int dx = 0; dx < D1Dx; ++dx)
             {
-               const double t = x(dx + (dy * D1Dx) + osc, e);
+               const real_t t = x(dx + (dy * D1Dx) + osc, e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] += t * (trialHcurl ? ((c == 0) ? Bo(qx,dx) : Bc(qx,dx)) :
@@ -285,7 +286,7 @@ void PAHcurlHdivMassApply2D(const int D1D,
 
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double wy = trialHcurl ? ((c == 1) ? Bo(qy,dy) : Bc(qy,dy)) :
+               const real_t wy = trialHcurl ? ((c == 1) ? Bo(qy,dy) : Bc(qy,dy)) :
                                  ((c == 1) ? Bc(qy,dy) : Bo(qy,dy));
                for (int qx = 0; qx < Q1D; ++qx)
                {
@@ -302,12 +303,12 @@ void PAHcurlHdivMassApply2D(const int D1D,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const double O11 = op(0,qx,qy,e);
-            const double O12 = scalarCoeff ? 0.0 : op(i12,qx,qy,e);
-            const double O21 = scalarCoeff ? 0.0 : op(i21,qx,qy,e);
-            const double O22 = scalarCoeff ? O11 : op(3,qx,qy,e);
-            const double massX = mass[qy][qx][0];
-            const double massY = mass[qy][qx][1];
+            const real_t O11 = op(0,qx,qy,e);
+            const real_t O12 = scalarCoeff ? 0.0 : op(i12,qx,qy,e);
+            const real_t O21 = scalarCoeff ? 0.0 : op(i21,qx,qy,e);
+            const real_t O22 = scalarCoeff ? O11 : op(3,qx,qy,e);
+            const real_t massX = mass[qy][qx][0];
+            const real_t massY = mass[qy][qx][1];
             mass[qy][qx][0] = (O11*massX)+(O12*massY);
             mass[qy][qx][1] = (O21*massX)+(O22*massY);
          }
@@ -323,7 +324,7 @@ void PAHcurlHdivMassApply2D(const int D1D,
 
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double massX[HDIV_MAX_D1D];
+            real_t massX[DofQuadLimits::HDIV_MAX_D1D];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
                massX[dx] = 0.0;
@@ -339,7 +340,7 @@ void PAHcurlHdivMassApply2D(const int D1D,
             }
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               const double wy = trialHcurl ? ((c == 1) ? Bct(dy,qy) : Bot(dy,qy)) :
+               const real_t wy = trialHcurl ? ((c == 1) ? Bct(dy,qy) : Bot(dy,qy)) :
                                  ((c == 1) ? Bot(dy,qy) : Bct(dy,qy));
                for (int dx = 0; dx < D1Dx; ++dx)
                {
@@ -362,19 +363,18 @@ void PAHcurlHdivMassApply3D(const int D1D,
                             const bool scalarCoeff,
                             const bool trialHcurl,
                             const bool transpose,
-                            const Array<double> &Bo_,
-                            const Array<double> &Bc_,
-                            const Array<double> &Bot_,
-                            const Array<double> &Bct_,
+                            const Array<real_t> &Bo_,
+                            const Array<real_t> &Bc_,
+                            const Array<real_t> &Bot_,
+                            const Array<real_t> &Bct_,
                             const Vector &op_,
                             const Vector &x_,
                             Vector &y_)
 {
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
-
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -395,7 +395,9 @@ void PAHcurlHdivMassApply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
+      constexpr static int MAX_Q1D = DofQuadLimits::HCURL_MAX_Q1D;
+
+      real_t mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -423,7 +425,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            double massXY[MAX_Q1D][MAX_Q1D];
+            real_t massXY[MAX_Q1D][MAX_Q1D];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -434,7 +436,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               double massX[MAX_Q1D];
+               real_t massX[MAX_Q1D];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -442,7 +444,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  const double t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  const real_t t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      massX[qx] += t * (trialHcurl ? ((c == 0) ? Bo(qx,dx) : Bc(qx,dx)) :
@@ -452,11 +454,11 @@ void PAHcurlHdivMassApply3D(const int D1D,
 
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy = trialHcurl ? ((c == 1) ? Bo(qy,dy) : Bc(qy,dy)) :
+                  const real_t wy = trialHcurl ? ((c == 1) ? Bo(qy,dy) : Bc(qy,dy)) :
                                     ((c == 1) ? Bc(qy,dy) : Bo(qy,dy));
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const double wx = massX[qx];
+                     const real_t wx = massX[qx];
                      massXY[qy][qx] += wx * wy;
                   }
                }
@@ -464,7 +466,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
 
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz = trialHcurl ? ((c == 2) ? Bo(qz,dz) : Bc(qz,dz)) :
+               const real_t wz = trialHcurl ? ((c == 2) ? Bo(qz,dz) : Bc(qz,dz)) :
                                  ((c == 2) ? Bc(qz,dz) : Bo(qz,dz));
                for (int qy = 0; qy < Q1D; ++qy)
                {
@@ -486,18 +488,18 @@ void PAHcurlHdivMassApply3D(const int D1D,
          {
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double O11 = op(0,qx,qy,qz,e);
-               const double O12 = scalarCoeff ? 0.0 : op(i12,qx,qy,qz,e);
-               const double O13 = scalarCoeff ? 0.0 : op(i13,qx,qy,qz,e);
-               const double O21 = scalarCoeff ? 0.0 : op(i21,qx,qy,qz,e);
-               const double O22 = scalarCoeff ? O11 : op(4,qx,qy,qz,e);
-               const double O23 = scalarCoeff ? 0.0 : op(i23,qx,qy,qz,e);
-               const double O31 = scalarCoeff ? 0.0 : op(i31,qx,qy,qz,e);
-               const double O32 = scalarCoeff ? 0.0 : op(i32,qx,qy,qz,e);
-               const double O33 = scalarCoeff ? O11 : op(8,qx,qy,qz,e);
-               const double massX = mass[qz][qy][qx][0];
-               const double massY = mass[qz][qy][qx][1];
-               const double massZ = mass[qz][qy][qx][2];
+               const real_t O11 = op(0,qx,qy,qz,e);
+               const real_t O12 = scalarCoeff ? 0.0 : op(i12,qx,qy,qz,e);
+               const real_t O13 = scalarCoeff ? 0.0 : op(i13,qx,qy,qz,e);
+               const real_t O21 = scalarCoeff ? 0.0 : op(i21,qx,qy,qz,e);
+               const real_t O22 = scalarCoeff ? O11 : op(4,qx,qy,qz,e);
+               const real_t O23 = scalarCoeff ? 0.0 : op(i23,qx,qy,qz,e);
+               const real_t O31 = scalarCoeff ? 0.0 : op(i31,qx,qy,qz,e);
+               const real_t O32 = scalarCoeff ? 0.0 : op(i32,qx,qy,qz,e);
+               const real_t O33 = scalarCoeff ? O11 : op(8,qx,qy,qz,e);
+               const real_t massX = mass[qz][qy][qx][0];
+               const real_t massY = mass[qz][qy][qx][1];
+               const real_t massZ = mass[qz][qy][qx][2];
                mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
                mass[qz][qy][qx][1] = (O21*massX)+(O22*massY)+(O23*massZ);
                mass[qz][qy][qx][2] = (O31*massX)+(O32*massY)+(O33*massZ);
@@ -507,7 +509,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double massXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
+         real_t massXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
          osc = 0;
          for (int c = 0; c < VDIM; ++c)  // loop over x, y, z test components
@@ -528,7 +530,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[HDIV_MAX_D1D];
+               real_t massX[DofQuadLimits::HDIV_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   massX[dx] = 0.0;
@@ -544,7 +546,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
                }
                for (int dy = 0; dy < D1Dy; ++dy)
                {
-                  const double wy = trialHcurl ? ((c == 1) ? Bct(dy,qy) : Bot(dy,qy)) :
+                  const real_t wy = trialHcurl ? ((c == 1) ? Bct(dy,qy) : Bot(dy,qy)) :
                                     ((c == 1) ? Bot(dy,qy) : Bct(dy,qy));
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
@@ -555,7 +557,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
 
             for (int dz = 0; dz < D1Dz; ++dz)
             {
-               const double wz = trialHcurl ? ((c == 2) ? Bct(dz,qz) : Bot(dz,qz)) :
+               const real_t wz = trialHcurl ? ((c == 2) ? Bct(dz,qz) : Bot(dz,qz)) :
                                  ((c == 2) ? Bot(dz,qz) : Bct(dz,qz));
                for (int dy = 0; dy < D1Dy; ++dy)
                {

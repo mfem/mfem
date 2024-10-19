@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,7 +22,6 @@
 #include "globals.hpp"
 #include <mpi.h>
 
-
 namespace mfem
 {
 
@@ -32,10 +31,34 @@ namespace mfem
 class Mpi
 {
 public:
-   /// Singleton creation with Mpi::Init();
-   static void Init() { Init_(NULL, NULL); }
-   /// Singleton creation with Mpi::Init(argc,argv);
-   static void Init(int &argc, char **&argv) { Init_(&argc, &argv); }
+   /// Singleton creation with Mpi::Init(argc, argv).
+   static void Init(int &argc, char **&argv,
+                    int required = default_thread_required,
+                    int *provided = nullptr)
+   { Init(&argc, &argv, required, provided); }
+   /// Singleton creation with Mpi::Init().
+   static void Init(int *argc = nullptr, char ***argv = nullptr,
+                    int required = default_thread_required,
+                    int *provided = nullptr)
+   {
+      MFEM_VERIFY(!IsInitialized(), "MPI already initialized!");
+      if (required == MPI_THREAD_SINGLE)
+      {
+         int mpi_err = MPI_Init(argc, argv);
+         MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
+         if (provided) { *provided = MPI_THREAD_SINGLE; }
+      }
+      else
+      {
+         int mpi_provided;
+         int mpi_err = MPI_Init_thread(argc, argv, required, &mpi_provided);
+         MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
+         if (provided) { *provided = mpi_provided; }
+      }
+      // The Mpi singleton object below needs to be created after MPI_Init() for
+      // some MPI implementations.
+      Singleton();
+   }
    /// Finalize MPI (if it has been initialized and not yet already finalized).
    static void Finalize()
    {
@@ -71,20 +94,19 @@ public:
    }
    /// Return true if the rank in MPI_COMM_WORLD is zero.
    static bool Root() { return WorldRank() == 0; }
+   /// Default level of thread support for MPI_Init_thread.
+   static MFEM_EXPORT int default_thread_required;
 private:
-   /// Initialize MPI
-   static void Init_(int *argc, char ***argv)
+   /// Initialize the Mpi singleton.
+   static Mpi &Singleton()
    {
-      MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
-      MPI_Init(argc, argv);
-      // The "mpi" object below needs to be created after MPI_Init() for some
-      // MPI implementations
       static Mpi mpi;
+      return mpi;
    }
-   /// Finalize MPI
+   /// Finalize MPI.
    ~Mpi() { Finalize(); }
-   /// Prevent direct construction of objects of this class
-   Mpi() { }
+   /// Prevent direct construction of objects of this class.
+   Mpi() {}
 };
 
 /** @brief A simple convenience class based on the Mpi singleton class above.
@@ -548,8 +570,8 @@ struct VarMessage
    }
 
 protected:
-   virtual void Encode(int rank) {}
-   virtual void Decode(int rank) {}
+   virtual void Encode(int rank) = 0;
+   virtual void Decode(int rank) = 0;
 };
 
 
@@ -557,8 +579,18 @@ protected:
 template <typename Type> struct MPITypeMap;
 
 // Specializations of MPITypeMap; mpi_type initialized in communication.cpp:
-template<> struct MPITypeMap<int>    { static const MPI_Datatype mpi_type; };
-template<> struct MPITypeMap<double> { static const MPI_Datatype mpi_type; };
+template<> struct MPITypeMap<int>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<double>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
+template<> struct MPITypeMap<float>
+{
+   static MFEM_EXPORT const MPI_Datatype mpi_type;
+};
 
 
 /** Reorder MPI ranks to follow the Z-curve within the physical machine topology

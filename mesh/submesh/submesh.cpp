@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,7 +31,7 @@ SubMesh SubMesh::CreateFromBoundary(const Mesh &parent,
 SubMesh::SubMesh(const Mesh &parent, From from,
                  Array<int> attributes) : parent_(parent), from_(from), attributes_(attributes)
 {
-   if (Nonconforming())
+   if (parent.Nonconforming())
    {
       MFEM_ABORT("SubMesh does not support non-conforming meshes");
    }
@@ -65,7 +65,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
       for (int i = 0; i < NumOfBdrElements; i++)
       {
-         int pbeid = parent_face_to_be[parent_face_ids_[GetBdrFace(i)]];
+         int pbeid = parent_face_to_be[parent_face_ids_[GetBdrElementFaceIndex(i)]];
          if (pbeid != -1)
          {
             int attr = parent.GetBdrElement(pbeid)->GetAttribute();
@@ -108,6 +108,31 @@ SubMesh::SubMesh(const Mesh &parent, From from,
    }
    else if (Dim == 2)
    {
+      if (from == From::Domain)
+      {
+         parent_edge_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
+                                                       parent_element_ids_);
+         Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+         int max_bdr_attr = parent.bdr_attributes.Max();
+
+         for (int i = 0; i < NumOfBdrElements; i++)
+         {
+            int pbeid = parent_face_to_be[parent_edge_ids_[GetBdrElementFaceIndex(i)]];
+            if (pbeid != -1)
+            {
+               int attr = parent.GetBdrElement(pbeid)->GetAttribute();
+               GetBdrElement(i)->SetAttribute(attr);
+            }
+            else
+            {
+               // This case happens when a domain is extracted, but the root parent
+               // mesh didn't have a boundary element on the surface that defined
+               // it's boundary. It still creates a valid mesh, so we allow it.
+               GetBdrElement(i)->SetAttribute(max_bdr_attr + 1);
+            }
+         }
+      }
+
       parent_face_ori_.SetSize(NumOfElements);
 
       for (int i = 0; i < NumOfElements; i++)
@@ -167,8 +192,6 @@ SubMesh::SubMesh(const Mesh &parent, From from,
    SetAttributes();
    Finalize();
 }
-
-SubMesh::~SubMesh() {}
 
 void SubMesh::Transfer(const GridFunction &src, GridFunction &dst)
 {

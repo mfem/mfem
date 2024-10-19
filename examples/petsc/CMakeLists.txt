@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -24,13 +24,13 @@ if (MFEM_USE_MPI)
     ex10p.cpp
     )
   list(APPEND PETSC_RC_FILES
-    rc_ex1p
-    rc_ex2p
+    rc_ex1p rc_ex1p_device rc_ex1p_deviceamg
+    rc_ex2p rc_ex2p_bddc rc_ex2p_asm
     rc_ex3p rc_ex3p_bddc
     rc_ex4p rc_ex4p_bddc
     rc_ex5p_bddc rc_ex5p_fieldsplit
-    rc_ex9p_expl rc_ex9p_impl
-    rc_ex10p
+    rc_ex9p_expl rc_ex9p_expl_device rc_ex9p_impl
+    rc_ex10p rc_ex10p_mf rc_ex10p_mfop rc_ex10p_jfnk
     )
 endif()
 
@@ -39,7 +39,7 @@ if (MFEM_USE_SLEPC)
     ex11p.cpp
     )
   list(APPEND PETSC_RC_FILES
-    rc_ex11p_lobpcg rc_ex11p_gd
+    rc_ex11p_lobpcg rc_ex11p_lobpcg_device rc_ex11p_gd
     )
 endif()
 
@@ -74,8 +74,15 @@ add_mfem_examples(PETSC_EXAMPLES_SRCS ${PFX} copy_petsc_rc_files test_petsc)
 # Command line options for the tests.
 set(EX1_ARGS_W       -m ../../data/amr-quad.mesh --usepetsc)
 set(EX1_ARGS_P       -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p)
+set(EX1_ARGS_CUDA    -m ../../data/star.mesh --usepetsc --partial-assembly --device cuda --petscopts rc_ex1p_device)
+set(EX1_ARGS_CUDAAMG -m ../../data/star.mesh --usepetsc --device cuda --petscopts rc_ex1p_deviceamg)
+set(EX1_ARGS_HIP     -m ../../data/star.mesh --usepetsc --partial-assembly --device hip --petscopts rc_ex1p_device)
+set(EX1_ARGS_HIPAMG  -m ../../data/star.mesh --usepetsc --device hip --petscopts rc_ex1p_deviceamg)
 set(EX2_ARGS         -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p)
-set(EX3_ARGS         -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping)
+set(EX2_ARGS_BDDC    -m ../../data/beam-tri.mesh --usepetsc --nonoverlapping --petscopts rc_ex2p_bddc)
+set(EX2_ARGS_ASM     -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p_asm)
+set(EX3_ARGS_BDDC_2D -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping)
+set(EX3_ARGS_BDDC_3D -m ../../data/amr-hex.mesh -rs 1 -rp 0 -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping)
 set(EX4_ARGS         -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping)
 set(EX4_HYB_ARGS     -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping --hybridization)
 set(EX5_BDDC_LB_ARGS -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping --local-bdr)
@@ -85,22 +92,46 @@ set(EX6_ARGS         -m ../../data/amr-quad.mesh --usepetsc)
 set(EX6_NONOVL_ARGS  -m ../../data/amr-quad.mesh --usepetsc --nonoverlapping)
 set(EX9_E_ARGS       -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl -dt 0.1)
 set(EX9_ES_ARGS      -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl --no-step)
+set(EX9_ES_ARGS_CUDA -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl_device --no-step --partial-assembly --device cuda)
+set(EX9_ES_ARGS_HIP  -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl_device --no-step --partial-assembly --device hip)
 set(EX9_IS_ARGS      -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_impl --implicit -tf 0.5)
 set(EX10_ARGS        -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p -tf 30 -s 3 -rs 2 -dt 3)
+set(EX10_MF_ARGS     -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_mf -tf 6 -s 3 -rs 0 -dt 3)
+set(EX10_MFOP_ARGS   -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_mfop -tf 6 -s 3 -rs 0 -dt 3)
+set(EX10_JFNK_ARGS   -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p_jfnk --jfnk -tf 6 -s 3 -rs 0 -dt 3)
 if (MFEM_USE_SLEPC)
   set(EX11_ARGS_SINV   -m ../../data/star.mesh --useslepc)
   set(EX11_ARGS_LOBPCG -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_lobpcg)
+  set(EX11_ARGS_LOBPCG_CUDA -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_lobpcg_device --device cuda)
+  set(EX11_ARGS_LOBPCG_HIP  -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_lobpcg_device --device hip)
   set(EX11_ARGS_GD -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_gd)
 endif()
 
 # Add the tests: one test per command-line-variable.
 if (MFEM_ENABLE_TESTING)
   set(TEST_OPTIONS_VARS
-      EX1_ARGS_W EX1_ARGS_P EX2_ARGS EX3_ARGS EX4_ARGS EX4_HYB_ARGS
-      EX5_BDDC_LB_ARGS EX5_BDDC_GB_ARGS EX5_FSPL_ARGS EX6_ARGS EX6_NONOVL_ARGS
-      EX9_E_ARGS EX9_ES_ARGS EX9_IS_ARGS EX10_ARGS)
+    EX1_ARGS_W EX1_ARGS_P EX2_ARGS EX2_ARGS_BDDC EX2_ARGS_ASM EX3_ARGS_BDDC_2D
+    EX3_ARGS_BDDC_3D EX4_ARGS EX4_HYB_ARGS EX5_BDDC_LB_ARGS EX5_BDDC_GB_ARGS
+    EX5_FSPL_ARGS EX6_ARGS EX6_NONOVL_ARGS EX9_E_ARGS EX9_ES_ARGS EX9_IS_ARGS
+    EX10_ARGS EX10_MF_ARGS EX10_MFOP_ARGS EX10_JFNK_ARGS)
   if (MFEM_USE_SLEPC)
-      list(APPEND TEST_OPTIONS_VARS EX11_ARGS_SINV EX11_ARGS_LOBPCG EX11_ARGS_GD)
+    list(APPEND TEST_OPTIONS_VARS
+      EX11_ARGS_SINV EX11_ARGS_LOBPCG EX11_ARGS_GD)
+  endif()
+  # CUDA/HIP tests
+  if (MFEM_USE_CUDA)
+    list(APPEND TEST_OPTIONS_VARS
+      EX1_ARGS_CUDA EX1_ARGS_CUDAAMG EX9_ES_ARGS_CUDA)
+    if (MFEM_USE_SLEPC)
+      list(APPEND TEST_OPTIONS_VARS EX11_ARGS_LOBPCG_CUDA)
+    endif()
+  elseif (MFEM_USE_HIP)
+    list(APPEND TEST_OPTIONS_VARS
+      EX1_ARGS_HIP EX1_ARGS_HIPAMG EX9_ES_ARGS_HIP)
+    if (MFEM_USE_SLEPC)
+      # SLEPc does not support BVSVEC with HIP
+      # list(APPEND TEST_OPTIONS_VARS EX11_ARGS_LOBPCG_HIP)
+    endif()
   endif()
 
   foreach(TEST_OPTIONS_VAR ${TEST_OPTIONS_VARS})
@@ -115,7 +146,7 @@ if (MFEM_ENABLE_TESTING)
 
     # All PETSC tests are parallel.
     if (MFEM_USE_MPI)
-      add_test(NAME ${TEST_NAME_FULL}_np=4
+      add_test(NAME ${TEST_NAME_FULL}_np=${MFEM_MPI_NP}
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS}
         $<TARGET_FILE:${TEST_NAME}> ${TEST_OPTIONS}

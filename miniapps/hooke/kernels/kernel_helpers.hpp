@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,11 +48,12 @@ inline void CheckMemoryRestriction(int d1d, int q1d)
    MFEM_VERIFY(d1d <= q1d,
                "There should be more or equal quadrature points "
                "as there are dofs");
-   MFEM_VERIFY(d1d <= MAX_D1D,
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D,
                "Maximum number of degrees of freedom in 1D reached."
                "This number can be increased globally in general/forall.hpp if "
                "device memory allows.");
-   MFEM_VERIFY(q1d <= MAX_Q1D, "Maximum quadrature points 1D reached."
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D,
+               "Maximum quadrature points 1D reached."
                "This number can be increased globally in "
                "general/forall.hpp if device memory allows.");
 }
@@ -80,11 +81,11 @@ inline void CheckMemoryRestriction(int d1d, int q1d)
  */
 template <int dim, int d1d, int q1d>
 static inline MFEM_HOST_DEVICE void
-CalcGrad(const tensor<double, q1d, d1d> &B,
-         const tensor<double, q1d, d1d> &G,
-         tensor<double,2,3,q1d,q1d,q1d> &smem,
-         const DeviceTensor<4, const double> &U,
-         tensor<double, q1d, q1d, q1d, dim, dim> &dUdxi)
+CalcGrad(const tensor<real_t, q1d, d1d> &B,
+         const tensor<real_t, q1d, d1d> &G,
+         tensor<real_t,2,3,q1d,q1d,q1d> &smem,
+         const DeviceTensor<4, const real_t> &U,
+         tensor<real_t, q1d, q1d, q1d, dim, dim> &dUdxi)
 {
    for (int c = 0; c < dim; ++c)
    {
@@ -105,11 +106,11 @@ CalcGrad(const tensor<double, q1d, d1d> &B,
          {
             MFEM_FOREACH_THREAD(qx,x,q1d)
             {
-               double u = 0.0;
-               double v = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
                for (int dx = 0; dx < d1d; ++dx)
                {
-                  const double input = smem(0,0,dx,dy,dz);
+                  const real_t input = smem(0,0,dx,dy,dz);
                   u += input * B(qx,dx);
                   v += input * G(qx,dx);
                }
@@ -125,9 +126,9 @@ CalcGrad(const tensor<double, q1d, d1d> &B,
          {
             MFEM_FOREACH_THREAD(qx,x,q1d)
             {
-               double u = 0.0;
-               double v = 0.0;
-               double w = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
+               real_t w = 0.0;
                for (int dy = 0; dy < d1d; ++dy)
                {
                   u += smem(0,2,dz,dy,qx) * B(qy,dy);
@@ -147,9 +148,9 @@ CalcGrad(const tensor<double, q1d, d1d> &B,
          {
             MFEM_FOREACH_THREAD(qx,x,q1d)
             {
-               double u = 0.0;
-               double v = 0.0;
-               double w = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
+               real_t w = 0.0;
                for (int dz = 0; dz < d1d; ++dz)
                {
                   u += smem(1,0,dz,qy,qx) * B(qz,dz);
@@ -186,11 +187,11 @@ CalcGrad(const tensor<double, q1d, d1d> &B,
  */
 template <int dim, int d1d, int q1d>
 static inline MFEM_HOST_DEVICE void
-CalcGradTSum(const tensor<double, q1d, d1d> &B,
-             const tensor<double, q1d, d1d> &G,
-             tensor<double, 2, 3, q1d, q1d, q1d> &smem,
-             const tensor<double, q1d, q1d, q1d, dim, dim> &U,
-             DeviceTensor<4, double> &F)
+CalcGradTSum(const tensor<real_t, q1d, d1d> &B,
+             const tensor<real_t, q1d, d1d> &G,
+             tensor<real_t, 2, 3, q1d, q1d, q1d> &smem,
+             const tensor<real_t, q1d, q1d, q1d, dim, dim> &U,
+             DeviceTensor<4, real_t> &F)
 {
    for (int c = 0; c < dim; ++c)
    {
@@ -200,7 +201,7 @@ CalcGradTSum(const tensor<double, q1d, d1d> &B,
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
             {
-               double u = 0.0, v = 0.0, w = 0.0;
+               real_t u = 0.0, v = 0.0, w = 0.0;
                for (int qx = 0; qx < q1d; ++qx)
                {
                   u += U(qx, qy, qz, 0, c) * G(qx, dx);
@@ -220,7 +221,7 @@ CalcGradTSum(const tensor<double, q1d, d1d> &B,
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
             {
-               double u = 0.0, v = 0.0, w = 0.0;
+               real_t u = 0.0, v = 0.0, w = 0.0;
                for (int qy = 0; qy < q1d; ++qy)
                {
                   u += smem(0, 0, qz, qy, dx) * B(qy, dy);
@@ -240,14 +241,14 @@ CalcGradTSum(const tensor<double, q1d, d1d> &B,
          {
             MFEM_FOREACH_THREAD(dx, x, d1d)
             {
-               double u = 0.0, v = 0.0, w = 0.0;
+               real_t u = 0.0, v = 0.0, w = 0.0;
                for (int qz = 0; qz < q1d; ++qz)
                {
                   u += smem(1, 0, qz, dy, dx) * B(qz, dz);
                   v += smem(1, 1, qz, dy, dx) * B(qz, dz);
                   w += smem(1, 2, qz, dy, dx) * G(qz, dz);
                }
-               const double sum = u + v + w;
+               const real_t sum = u + v + w;
                F(dx, dy, dz, c) += sum;
             }
          }
@@ -278,13 +279,13 @@ CalcGradTSum(const tensor<double, q1d, d1d> &B,
  * x d1d x d1d x dim.
  */
 template <int dim, int d1d, int q1d>
-static inline MFEM_HOST_DEVICE tensor<double, d1d, d1d, d1d, dim>
+static inline MFEM_HOST_DEVICE tensor<real_t, d1d, d1d, d1d, dim>
 GradAllShapeFunctions(int qx, int qy, int qz,
-                      const tensor<double, q1d, d1d> &B,
-                      const tensor<double, q1d, d1d> &G,
-                      const tensor<double, dim, dim> &invJ)
+                      const tensor<real_t, q1d, d1d> &B,
+                      const tensor<real_t, q1d, d1d> &G,
+                      const tensor<real_t, dim, dim> &invJ)
 {
-   tensor<double, d1d, d1d, d1d, dim> dphi_dx;
+   tensor<real_t, d1d, d1d, d1d, dim> dphi_dx;
    // G (x) B (x) B
    // B (x) G (x) B
    // B (x) B (x) G
@@ -296,7 +297,7 @@ GradAllShapeFunctions(int qx, int qy, int qz,
          {
             dphi_dx(dx,dy,dz) =
                transpose(invJ) *
-               tensor<double, dim> {G(qx, dx) * B(qy, dy) * B(qz, dz),
+               tensor<real_t, dim> {G(qx, dx) * B(qy, dy) * B(qz, dz),
                                     B(qx, dx) * G(qy, dy) * B(qz, dz),
                                     B(qx, dx) * B(qy, dy) * G(qz, dz)
                                    };

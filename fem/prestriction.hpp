@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,7 +68,7 @@ public:
        @param[in,out] y The L-vector degrees of freedom.
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override;
+                         const real_t a = 1.0) const override;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -139,9 +139,11 @@ public: // For nvcc
 class ParL2FaceRestriction : virtual public L2FaceRestriction
 {
 protected:
+   const ParFiniteElementSpace &pfes;
+
    /** @brief Constructs an ParL2FaceRestriction.
 
-       @param[in] fes        The ParFiniteElementSpace on which this operates
+       @param[in] pfes_      The ParFiniteElementSpace on which this operates
        @param[in] f_ordering Request a specific face dof ordering
        @param[in] type       Request internal or boundary faces dofs
        @param[in] m          Request the face dofs for elem1, or both elem1 and
@@ -149,7 +151,7 @@ protected:
        @param[in] build      Request the ParL2FaceRestriction to compute the
                              scatter/gather indices. False should only be used
                              when inheriting from ParL2FaceRestriction. */
-   ParL2FaceRestriction(const ParFiniteElementSpace& fes,
+   ParL2FaceRestriction(const ParFiniteElementSpace &pfes_,
                         ElementDofOrdering f_ordering,
                         FaceType type,
                         L2FaceValues m,
@@ -229,22 +231,14 @@ public:
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector.
-
-       @param[in] f_ordering Request a specific face dof ordering.
-       @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering f_ordering,
-                                        const FaceType type);
+   void ComputeScatterIndicesAndOffsets();
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
        Note: Requires the gather offsets to be computed.
-
-       @param[in] f_ordering Request a specific face dof ordering.
-       @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeGatherIndices(const ElementDofOrdering f_ordering,
-                             const FaceType type);
+   void ComputeGatherIndices();
 
 public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
@@ -307,7 +301,7 @@ public:
        @param[in,out] y The L-vector degrees of freedom.
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override;
+                         const real_t a = 1.0) const override;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
@@ -381,22 +375,14 @@ private:
    /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
        for the gathering: E-vector to L-vector, and the interpolators from
        coarse to fine face for master non-comforming faces.
-
-       @param[in] f_ordering Request a specific face dof ordering.
-       @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeScatterIndicesAndOffsets(const ElementDofOrdering f_ordering,
-                                        const FaceType type);
+   void ComputeScatterIndicesAndOffsets();
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
        Note: Requires the gather offsets to be computed.
-
-       @param[in] f_ordering Request a specific face dof ordering.
-       @param[in] type       Request internal or boundary faces dofs.
    */
-   void ComputeGatherIndices(const ElementDofOrdering f_ordering,
-                             const FaceType type);
+   void ComputeGatherIndices();
 
 public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to

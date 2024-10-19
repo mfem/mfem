@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -27,44 +27,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.11.0
-      with:
-        access_token: ${{ github.token }}
+      - name: Temporary workaround for sanitizer crashes
+        # See https://github.com/actions/runner-images/issues/9491
+        # The issue should be fixed in the next runner image for Ubuntu 22.04,
+        # see https://github.com/actions/runner-images/pull/9513
+        run: sudo sysctl vm.mmap_rnd_bits=28
 
-    - name: MFEM Checkout
-      uses: actions/checkout@v3
-      with:
-        path: mfem
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.12.1
+        with:
+          access_token: ${{ github.token }}
 
-    - name: MFEM Build
-      uses: mfem/github-actions/build-mfem@v2.4
-      with:
-        os: ${{ runner.os }}
-        target: opt
-        mpi: seq
-        hypre-dir: unused-hypre-dir
-        metis-dir: unused-metis-dir
-        mfem-dir: mfem
-        build-system: make
-        library-only: false
-        config-options:
-          CXX="clang++-14"
-          CXXFLAGS="-g -O1 -std=c++11
-                    -fsanitize=address
-                    -fno-omit-frame-pointer
-                    -fsanitize-address-use-after-scope"
+      - name: MFEM Checkout
+        uses: actions/checkout@v4
+        with:
+          path: mfem
 
-    - name: MFEM Info
-      working-directory: mfem
-      run: make info
+      - name: MFEM Build
+        uses: mfem/github-actions/build-mfem@v2.5
+        with:
+          os: ${{ runner.os }}
+          target: opt
+          mpi: seq
+          hypre-dir: unused-hypre-dir
+          metis-dir: unused-metis-dir
+          mfem-dir: mfem
+          build-system: make
+          library-only: false
+          config-options:
+            CXX="clang++-14"
+            CXXFLAGS="-g -O1 -std=c++11
+                      -fsanitize=address
+                      -fno-omit-frame-pointer
+                      -fsanitize-address-use-after-scope"
 
-    - name: MFEM Sanitize
-      working-directory: mfem
-      run:
-        ASAN_OPTIONS="detect_leaks=1,
-                      strict_init_order=1,
-                      strict_string_checks=1,
-                      check_initialization_order=1,
-                      detect_stack_use_after_return=1"
-        make test
+      - name: MFEM Info
+        working-directory: mfem
+        run: make info
+
+      - name: MFEM Sanitize
+        working-directory: mfem
+        run:
+          ASAN_OPTIONS="detect_leaks=1,
+                        strict_init_order=1,
+                        strict_string_checks=1,
+                        check_initialization_order=1,
+                        detect_stack_use_after_return=1"
+          make test

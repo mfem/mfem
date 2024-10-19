@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,16 +51,24 @@ public:
 
    virtual ~SlepcEigenSolver();
 
-   /// Set solver tolerance
-   void SetTol(double tol);
+   /** @brief Set solver convergence tolerance relative to the magnitude of the
+       eigenvalue.
 
-   /// Set maximum number of iterations
+       @note Default value is 1e-8
+   */
+   void SetTol(real_t tol);
+
+   /** @brief Set maximum number of iterations allowed in the call to
+       SlepcEigenSolver::Solve */
    void SetMaxIter(int max_iter);
-   /// Set the number of required eigenmodes
+
+   /// Set the number of eigenmodes to compute
    void SetNumModes(int num_eigs);
+
    /// Set operator for standard eigenvalue problem
    void SetOperator(const PetscParMatrix &op);
-   /// Set operator for generalized eigenvalue problem
+
+   /// Set operators for generalized eigenvalue problem
    void SetOperators(const PetscParMatrix &op, const PetscParMatrix &opB);
 
    /// Customize object with options set
@@ -69,39 +77,105 @@ public:
    /// Solve the eigenvalue problem for the specified number of eigenvalues
    void Solve();
 
-   /// Get the number of converged eigenvalues
+   /** @brief Get the number of converged eigenvalues after the call to
+       SlepcEigenSolver::Solve */
    int GetNumConverged();
 
-   /// Get the corresponding eigenvalue
-   void GetEigenvalue(unsigned int i, double & lr) const;
-   void GetEigenvalue(unsigned int i, double & lr, double & lc) const;
+   /** @brief Get the ith eigenvalue after the system has been solved
+      @param[in] i The index for the eigenvalue you want ordered by
+                 SlepcEigenSolver::SetWhichEigenpairs
+      @param[out] lr The real component of the eigenvalue
+      @note the index @a i must be between 0 and
+            SlepcEigenSolver::GetNumConverged - 1
+   */
+   void GetEigenvalue(unsigned int i, real_t & lr) const;
 
-   /// Get the corresponding eigenvector
+   /** @brief Get the ith eigenvalue after the system has been solved
+      @param[in] i The index for the eigenvalue you want ordered by
+                 SlepcEigenSolver::SetWhichEigenpairs
+      @param[out] lr The real component of the eigenvalue
+      @param[out] lc The imaginary component of the eigenvalue
+      @note the index @a i must be between 0 and
+            SlepcEigenSolver::GetNumConverged - 1
+   */
+   void GetEigenvalue(unsigned int i, real_t & lr, real_t & lc) const;
+
+   /** @brief Get the ith eigenvector after the system has been solved
+      @param[in] i The index for the eigenvector you want ordered by
+                 SlepcEigenSolver::SetWhichEigenpairs
+      @param[out] vr The real components of the eigenvector
+      @note the index @a i must be between 0 and
+            SlepcEigenSolver::GetNumConverged - 1
+   */
    void GetEigenvector(unsigned int i, Vector & vr) const;
+
+   /** @brief Get the ith eigenvector after the system has been solved
+      @param[in] i The index for the eigenvector you want ordered by
+                 SlepcEigenSolver::SetWhichEigenpairs
+      @param[out] vr The real components of the eigenvector
+      @param[out] vc The imaginary components of the eigenvector
+      @note the index @a i must be between 0 and
+            SlepcEigenSolver::GetNumConverged - 1
+   */
    void GetEigenvector(unsigned int i, Vector & vr, Vector & vc) const;
 
-   /// Target spectrum for the eigensolver. Target imaginary is not supported
-   /// without complex support in SLEPc, and intervals are not implemented.
+   /** @brief Target spectrum for the eigensolver.
+
+       This will define the order in which the eigenvalues/eigenvectors are
+       indexed after the call to SlepcEigenSolver::Solve.
+       @note Target imaginary is not supported without complex support in SLEPc,
+       and intervals are not implemented.
+   */
    enum Which
    {
+      /// The eigenvalues with the largest complex magnitude (default)
       LARGEST_MAGNITUDE,
+      /// The eigenvalues with the smallest complex magnitude
       SMALLEST_MAGNITUDE,
+      /// The eigenvalues with the largest real component
       LARGEST_REAL,
+      /// The eigenvalues with the smallest real component
       SMALLEST_REAL,
+      /// The eigenvalues with the largest imaginary component
       LARGEST_IMAGINARY,
+      /// The eigenvalues with the smallest imaginary component
       SMALLEST_IMAGINARY,
+      /// The eigenvalues with complex magnitude closest to the target value
       TARGET_MAGNITUDE,
+      /// The eigenvalues with the real component closest to the target value
       TARGET_REAL
    };
 
+   /** @brief Spectral transformations that can be used by the solver in order
+       to accelerate the convergence to the target eignevalues
+   */
    enum SpectralTransformation
    {
+      /// Utilize the shift of origin strategy
       SHIFT,
+      /// Utilize the shift and invert strategy
       SHIFT_INVERT
    };
 
+   /** @brief Set the which eigenvalues the solver will target and the order
+       they will be indexed in.
+
+       For SlepcEigenSolver::TARGET_MAGNITUDE or SlepcEigenSolver::TARGET_REAL
+       you will also need to set the target value with
+       SlepcEigenSolver::SetTarget.
+   */
    void SetWhichEigenpairs(Which which);
-   void SetTarget(double target);
+
+   /** @brief Set the target value for the eigenpairs you want when using
+       SlepcEigenSolver::TARGET_MAGNITUDE or SlepcEigenSolver::TARGET_REAL in
+       the SlepcEigenSolver::SetWhichEigenpairs method.
+   */
+   void SetTarget(real_t target);
+
+   /** @brief Set the spectral transformation strategy for acceletating
+       convergenvce. Both SlepcEigenSolver::SHIFT and
+       SlepcEigenSolver::SHIFT_INVERT are available.
+   */
    void SetSpectralTransformation(SpectralTransformation transformation);
 
    /// Conversion function to SLEPc's EPS type.

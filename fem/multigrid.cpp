@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -231,10 +231,6 @@ void MultigridBase::Cycle(int level) const
    }
 }
 
-Multigrid::Multigrid()
-   : MultigridBase()
-{}
-
 Multigrid::Multigrid(const Array<Operator*>& operators_,
                      const Array<Solver*>& smoothers_,
                      const Array<Operator*>& prolongations_,
@@ -258,10 +254,64 @@ Multigrid::~Multigrid()
    }
 }
 
-GeometricMultigrid::
-GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_)
-   : MultigridBase(), fespaces(fespaces_)
-{}
+GeometricMultigrid::GeometricMultigrid(
+   const FiniteElementSpaceHierarchy& fespaces_)
+   : fespaces(fespaces_)
+{
+   const int nlevels = fespaces.GetNumLevels();
+   ownedProlongations.SetSize(nlevels - 1);
+   ownedProlongations = false;
+
+   prolongations.SetSize(nlevels - 1);
+   for (int level = 0; level < nlevels - 1; ++level)
+   {
+      prolongations[level] = fespaces.GetProlongationAtLevel(level);
+   }
+}
+
+GeometricMultigrid::GeometricMultigrid(
+   const FiniteElementSpaceHierarchy& fespaces_,
+   const Array<int> &ess_bdr)
+   : fespaces(fespaces_)
+{
+   bool have_ess_bdr = false;
+   for (int i = 0; i < ess_bdr.Size(); i++)
+   {
+      if (ess_bdr[i]) { have_ess_bdr = true; break; }
+   }
+
+   const int nlevels = fespaces.GetNumLevels();
+   ownedProlongations.SetSize(nlevels - 1);
+   ownedProlongations = have_ess_bdr;
+
+   if (have_ess_bdr)
+   {
+      essentialTrueDofs.SetSize(nlevels);
+      for (int level = 0; level < nlevels; ++level)
+      {
+         essentialTrueDofs[level] = new Array<int>;
+         fespaces.GetFESpaceAtLevel(level).GetEssentialTrueDofs(
+            ess_bdr, *essentialTrueDofs[level]);
+      }
+   }
+
+   prolongations.SetSize(nlevels - 1);
+   for (int level = 0; level < nlevels - 1; ++level)
+   {
+      if (have_ess_bdr)
+      {
+         prolongations[level] = new RectangularConstrainedOperator(
+            fespaces.GetProlongationAtLevel(level),
+            *essentialTrueDofs[level],
+            *essentialTrueDofs[level + 1]
+         );
+      }
+      else
+      {
+         prolongations[level] = fespaces.GetProlongationAtLevel(level);
+      }
+   }
+}
 
 GeometricMultigrid::~GeometricMultigrid()
 {

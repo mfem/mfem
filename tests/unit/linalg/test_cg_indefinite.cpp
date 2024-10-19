@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,8 +21,8 @@ private:
 
 public:
    FakeSolver(Operator& op_) : Solver(op_.Height()), op(op_) { }
-   void SetOperator(const Operator &op_) { }
-   void Mult(const Vector& x, Vector& y) const { op.Mult(x, y); }
+   void SetOperator(const Operator &op_) override { }
+   void Mult(const Vector& x, Vector& y) const override { op.Mult(x, y); }
 };
 
 TEST_CASE("CGSolver", "[Indefinite]")
