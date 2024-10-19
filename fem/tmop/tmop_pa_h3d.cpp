@@ -23,6 +23,10 @@ void TMOP_AssembleDiagonalPA_3D(const int NE, const ConstDeviceMatrix &B,
                                 const int q1d = 0, const int max = 4)
 {
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= r_MAX_D1D,
+               "D1D: " << D1D << ", r_MAX_D1D: " << r_MAX_D1D);
+   MFEM_VERIFY(Q1D <= r_MAX_Q1D,
+               "Q1D: " << Q1D << ", r_MAX_Q1D: " << r_MAX_Q1D);
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {

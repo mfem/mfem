@@ -34,27 +34,74 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &x) const
    }
    if (mid == 2)
    {
-      return TMOPAssembleGradPA_002(ker);
-   }
-   if (mid == 7)
+      nconst int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int NBZ = 1;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
+      constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
+
+      MFEM_SHARED double s_BG[2][MQ1*MD1];
+      MFEM_SHARED double s_X[2][NBZ][MD1*MD1];
+      MFEM_SHARED double s_DQ[4][NBZ][MD1*MQ1];
+      MFEM_SHARED double s_QQ[4][NBZ][MQ1*MQ1];
+
+      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,s_X);
+      kernels::internal::LoadBG<MD1,MQ1>(D1D, Q1D, b, g, s_BG);
+
+      kernels::internal::GradX<MD1,MQ1,NBZ>(D1D, Q1D, s_BG, s_X, s_DQ);
+      kernels::internal::GradY<MD1,MQ1,NBZ>(D1D, Q1D, s_BG, s_DQ, s_QQ);
+
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            const double *Jtr = &J(0,0,qx,qy,e);
+            const double detJtr = kernels::Det<2>(Jtr);
+            const double weight = metric_normal * W(qx,qy) * detJtr;
+
+            // Jrt = Jtr^{-1}
+            double Jrt[4];
+            kernels::CalcInverse<2>(Jtr, Jrt);
+
+            // Jpr = X^t.DSh
+            double Jpr[4];
+            kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,s_QQ,Jpr);
+
+            // Jpt = Jpr.Jrt
+            double Jpt[4];
+            kernels::Mult(2,2,2, Jpr, Jrt, Jpt);
+
+            // metric->AssembleH
+            if (mid ==  1) { EvalH_001(e,qx,qy,weight,Jpt,H); }
+            if (mid ==  2) { EvalH_002(e,qx,qy,weight,Jpt,H); }
+            if (mid ==  7) { EvalH_007(e,qx,qy,weight,Jpt,H); }
+            if (mid == 77) { EvalH_077(e,qx,qy,weight,Jpt,H); }
+            if (mid == 56) { EvalH_056(e,qx,qy,weight,Jpt,H); }
+            if (mid == 80) { EvalH_080(e,qx,qy,weight,metric_data,Jpt,H); }
+            if (mid == 94) { EvalH_094(e,qx,qy,weight,metric_data,Jpt,H); }
+         } // qx
+      } // qy
+   });
+}
+
+void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
+{
+   const int N = PA.ne;
+   const int M = metric->Id();
+   const int D1D = PA.maps->ndof;
+   const int Q1D = PA.maps->nqpt;
+   const int id = (D1D << 4 ) | Q1D;
+   const double mn = metric_normal;
+   const DenseTensor &J = PA.Jtr;
+   const Array<double> &W = PA.ir->GetWeights();
+   const Array<double> &B = PA.maps->B;
+   const Array<double> &G = PA.maps->G;
+   Vector &H = PA.H;
+
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
    {
-      return TMOPAssembleGradPA_007(ker);
-   }
-   if (mid == 56)
-   {
-      return TMOPAssembleGradPA_056(ker);
-   }
-   if (mid == 77)
-   {
-      return TMOPAssembleGradPA_077(ker);
-   }
-   if (mid == 80)
-   {
-      return TMOPAssembleGradPA_080(ker);
-   }
-   if (mid == 94)
-   {
-      return TMOPAssembleGradPA_094(ker);
+      m->GetWeights(mp);
    }
 
    MFEM_ABORT("Unsupported TMOP metric " << mid);

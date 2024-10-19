@@ -91,6 +91,7 @@ void TMOP_AddMultPA_C0_3D(
                kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, QQQ1, p1);
 
                real_t d1[3];
+               real_t d1[3];
                // Eval_d1 (Quadratic Limiter)
                // subtract(1.0 / (dist * dist), x, x0, d1);
                // z = a * (x - y)

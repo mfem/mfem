@@ -68,6 +68,7 @@ void TMOP_EnergyPA_2D(const double metric_normal, const double *w,
 
             // Jrt = Jtr^{-1}
             real_t Jrt[4];
+            real_t Jrt[4];
             kernels::CalcInverse<2>(Jtr, Jrt);
 
             // Jpr = X^t.DSh

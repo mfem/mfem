@@ -307,6 +307,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
          break;
       }
+      case 8: // fully specified through the initial mesh, 2D or 3D.
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE; break;
+      }
       default:
       {
          cout << "Unknown target_id: " << target_id << endl;
@@ -479,7 +483,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
    // Linear solver for the system's Jacobian
    Solver *S = nullptr, *S_prec = nullptr;
-   constexpr double linsol_rtol = 1e-12;
+   constexpr real_t linsol_rtol = 1e-12;
    if (lin_solver == 0)
    {
       S=new DSmoother(1, 1.0, max_lin_iter);
