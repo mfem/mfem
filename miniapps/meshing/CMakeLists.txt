@@ -89,6 +89,10 @@ add_mfem_miniapp(polar-nc
   MAIN polar-nc.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(hpref_serial
+  MAIN hpref_serial.cpp
+  LIBRARIES mfem)
+
 # Add serial tests.
 if (MFEM_ENABLE_TESTING)
   set(SERIAL_TESTS
@@ -103,6 +107,7 @@ if (MFEM_ENABLE_TESTING)
     polar-nc
     reflector
     mesh-quality
+    hpref_serial
   )
   foreach(test ${SERIAL_TESTS})
     add_test(NAME ${test} COMMAND ${test} -no-vis)
@@ -133,6 +138,10 @@ if (MFEM_USE_MPI)
     MAIN pminimal-surface.cpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(hpref
+    MAIN hpref.cpp
+    LIBRARIES mfem)
+
   # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
@@ -140,6 +149,7 @@ if (MFEM_USE_MPI)
       pmesh-fitting
       fit-node-position
       pminimal-surface
+      hpref
     )
     # Meshing miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)
