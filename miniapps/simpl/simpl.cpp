@@ -1,8 +1,19 @@
 #include "mfem.hpp"
 #include "topopt_problems.hpp"
 #include "logger.hpp"
+// #include <chrono>
+// #include <thread>
 
 using namespace mfem;
+
+real_t ComputeKKT(const ParGridFunction &control_gf,
+                  const ParGridFunction &grad, LegendreEntropy &entropy,
+                  const int solid_attr, const int void_attr,
+                  const real_t min_vol, const real_t max_vol, const real_t cur_vol,
+                  const ParGridFunction &one_gf, const ParGridFunction &zero_gf,
+                  const ParGridFunction &dv,
+                  ParGridFunction &dual_B, real_t &dual_V);
+inline int sign(const real_t x) { return x > 0 ? 1 : x < 0 ? -1 : 0; }
 
 int main(int argc, char *argv[])
 {
@@ -21,7 +32,7 @@ int main(int argc, char *argv[])
    int vis_steps = 10;
    bool use_paraview = true;
    bool overwrite_paraview = false;
-   real_t step_size = -1.0;
+   real_t step_size = 1.0;
 
    real_t exponent = 3.0;
    real_t rho0 = 1e-06;
@@ -43,14 +54,14 @@ int main(int argc, char *argv[])
    int min_it = 10;
    real_t tol_stationary_rel = 1e-04;
    real_t tol_stationary_abs = 1e-04;
-   real_t eps_stationarity = 1e-04;
+   real_t eps_stationarity = 1;
    bool use_bregman_stationary = true;
    real_t tol_obj_diff_rel = 5e-05;
    real_t tol_obj_diff_abs = 5e-05;
-   real_t tol_kkt_rel = 2e-04;
-   real_t tol_kkt_abs = 2e-05;
+   real_t tol_kkt_rel = 2e-06;
+   real_t tol_kkt_abs = 1e-04;
    // backtracking related
-   int max_it_backtrack = 20;
+   int max_it_backtrack = 300;
    bool use_bregman_backtrack = true;
    real_t c1 = 1e-04;
 
@@ -221,6 +232,8 @@ int main(int argc, char *argv[])
    PrimalEntropy entropy_primal;
    entropy.SetFiniteLowerBound(-max_latent);
    entropy.SetFiniteUpperBound(+max_latent);
+   entropy_primal.SetFiniteLowerBound(0.0);
+   entropy_primal.SetFiniteUpperBound(1.0);
    control_gf = entropy.forward((min_vol ? min_vol : max_vol)/tot_vol);
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
@@ -240,7 +253,6 @@ int main(int argc, char *argv[])
    {
       ForceInverterInitialDesign(control_gf, &entropy);
    }
-   density.ApplyVolumeProjection(control_gf, true);
    filter.Solve(filter_gf);
 
    // elasticity
@@ -259,6 +271,8 @@ int main(int argc, char *argv[])
       = entropy.GetBregman_dual(control_old_gf, control_gf);
    MappedPairedGFCoefficient bregman_diff_eps
       = entropy.GetBregman_dual(control_eps_gf, control_gf);
+   MappedPairedGFCoefficient primal_diff_eps
+      = entropy_primal.GetBregman_dual(control_eps_gf, density_gf);
    MappedPairedGFCoefficient diff_density_cf(
       control_gf, control_old_gf, [&entropy](const real_t x, const real_t y)
    {
@@ -274,11 +288,12 @@ int main(int argc, char *argv[])
       real_t rho_k = entropy.backward(x);
       real_t lambda_k = avg_grad - g;
       // Definition -Brendan
-      return std::max(0.0, lambda_k)*(1.0-rho_k)-std::min(0.0, lambda_k)*rho_k;
+      // return std::max(0.0, lambda_k)*(1.0-rho_k)-std::min(0.0, lambda_k)*rho_k;
       // Definition -Thomas
-      // return lambda_k
-      //        - std::min(0.0, rho_k     + lambda_k)
-      //        - std::max(0.0, rho_k - 1 + lambda_k);
+      return lambda_k
+             - std::min(0.0, rho_k     + lambda_k)
+             - std::max(0.0, rho_k - 1 + lambda_k);
+      // return lambda_k*(1.0-2*rho_k) >= 0;
    });
    ParBilinearForm mass(&fes_control);
    mass.AddDomainIntegrator(new MassIntegrator());
@@ -289,11 +304,10 @@ int main(int argc, char *argv[])
 
    GridFunctionCoefficient density_eps_primal_cf(&control_eps_gf);
    GridFunctionCoefficient grad_cf(&grad_gf);
-   ParGridFunction zero_gf(&fes_control);
-   zero_gf=1.0;
+   ParGridFunction zero_gf(&fes_control), one_gf(&fes_control);
+   zero_gf=0.0; one_gf=1.0;
    ParGridFunction dv(&fes_control);
-   Mass->Mult(zero_gf, dv);
-   zero_gf = 0.0;
+   Mass->Mult(one_gf, dv);
    ParLinearForm diff_density_form(&fes_control);
    diff_density_form.AddDomainIntegrator(new DomainLFIntegrator(diff_density_cf));
 
@@ -304,9 +318,9 @@ int main(int argc, char *argv[])
       const char keys[] = "Rjmml****************";
       glvis->Append(control_gf, "control variable", keys);
       density_gf.ProjectCoefficient(density_cf);
-      glvis->Append(density_gf, "design density", keys);
+      // glvis->Append(density_gf, "design density", keys);
       glvis->Append(filter_gf, "filtered density", keys);
-      glvis->Append(state_gf, "displacement magnitude", keys);
+      // glvis->Append(state_gf, "displacement magnitude", keys);
       glvis->Append(kkt_gf, "KKT", keys);
       if (elasticity.HasAdjoint()) {glvis->Append(optproblem.GetAdjState(), "adjoint displacement", keys);}
    }
@@ -347,10 +361,12 @@ int main(int argc, char *argv[])
    }
    grad_gf = 0.0;
    real_t volume_correction;
+   ParGridFunction dual_B(&fes_control);
+   real_t dual_V;
    for (it_md = 0; it_md<max_it; it_md++)
    {
       if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
-      if (it_md == 1 && step_size < 0)
+      if (it_md == 1 && step_size == -1.0)
       {
          step_size = 1.0 / grad_gf.ComputeMaxError(zero_cf);
       }
@@ -368,6 +384,10 @@ int main(int argc, char *argv[])
          {
             out << "   Step size = " << step_size
                 << " = | " << psi_diffrho << " / " << grad_diffrho << " |" << std::endl;
+         }
+         if (!isfinite(step_size))
+         {
+            break;
          }
       }
 
@@ -422,20 +442,6 @@ int main(int argc, char *argv[])
       curr_vol = optproblem.GetCurrentVolume();
 
       density_gf.ProjectCoefficient(density_cf);
-      if (it_md % vis_steps == 0)
-      {
-         if (use_glvis) { glvis->Update(); }
-         if (use_paraview && !(paraview_dc->Error()))
-         {
-            if (!overwrite_paraview)
-            {
-               paraview_dc->SetCycle(it_md);
-               paraview_dc->SetTime(it_md);
-            }
-            paraview_dc->Save();
-         }
-         else {use_paraview = false;}
-      }
 
       optproblem.UpdateGradient();
       avg_grad = InnerProduct(fes_control.GetComm(), grad_gf, dv)/tot_vol;
@@ -450,10 +456,13 @@ int main(int argc, char *argv[])
       control_eps_gf.ProjectCoefficient(density_cf);
       density_primal.ProjectedStep(control_eps_gf, eps_stationarity, grad_gf, dummy1,
                                    dummy2);
-      stationarity_error_L2 = density_gf.ComputeL2Error(
-                                 density_eps_primal_cf)/eps_stationarity;
-      kkt = zero_gf.ComputeL1Error(KKT_cf);
-      zero_gf.ComputeElementMaxErrors(KKT_cf, kkt_gf);
+      stationarity_error_L2 = std::sqrt(zero_gf.ComputeL1Error(
+                                           primal_diff_eps))/eps_stationarity;
+      // kkt = zero_gf.ComputeL1Error(KKT_cf);
+      // zero_gf.ComputeElementMaxErrors(KKT_cf, kkt_gf);
+      kkt = ComputeKKT(control_gf, grad_gf, entropy, solid_attr, void_attr,
+                       min_vol, max_vol, curr_vol,
+                       one_gf, zero_gf, dv, kkt_gf, dual_V);
 
       stationarity_error = use_bregman_stationary
                            ? stationarity_error_bregman : stationarity_error_L2;
@@ -461,6 +470,20 @@ int main(int argc, char *argv[])
       if (Mpi::Root())
       {
          out << "--------------------------------------------" << std::endl;
+      }
+      if (it_md % vis_steps == 0)
+      {
+         if (use_glvis) { glvis->Update(); }
+         if (use_paraview && !(paraview_dc->Error()))
+         {
+            if (!overwrite_paraview)
+            {
+               paraview_dc->SetCycle(it_md);
+               paraview_dc->SetTime(it_md);
+            }
+            paraview_dc->Save();
+         }
+         else {use_paraview = false;}
       }
       if (it_md == 0)
       {
@@ -477,6 +500,10 @@ int main(int argc, char *argv[])
       out << filename.str() << " terminated after " << it_md
           << " with " << tot_reeval << " re-eval" << std::endl;
    }
+   if (use_glvis)
+   {
+      glvis->Update();
+   }
    if (use_paraview && !paraview_dc->Error())
    {
       if (!overwrite_paraview)
@@ -488,4 +515,70 @@ int main(int argc, char *argv[])
    }
    logger.CloseFile();
    return 0;
+}
+
+real_t ComputeKKT(const ParGridFunction &control_gf,
+                  const ParGridFunction &grad, LegendreEntropy &entropy,
+                  const int solid_attr, const int void_attr,
+                  const real_t min_vol, const real_t max_vol, const real_t cur_vol,
+                  const ParGridFunction &one_gf, const ParGridFunction &zero_gf,
+                  const ParGridFunction &dv,
+                  ParGridFunction &kkt, real_t &dual_V)
+{
+   MPI_Comm comm = control_gf.ParFESpace()->GetComm();
+   ParGridFunction &dual_B = kkt;
+   MappedPairedGFCoefficient signmismatch(control_gf, grad, [&dual_V,
+                                                             &entropy](const real_t psi, const real_t g)
+   {
+      return sign((entropy.backward(psi)-0.5000000000001)*(-g+dual_V)) < 0;
+   });
+   ConstantCoefficient zero_cf(0.0);
+   MaskedCoefficient masked_signmismatch(signmismatch);
+   if (solid_attr) { masked_signmismatch.AddMasking(zero_cf, solid_attr); }
+   if (void_attr) { masked_signmismatch.AddMasking(zero_cf, void_attr); }
+   GridFunctionCoefficient grad_cf(&grad);
+   SumCoefficient shifted_grad_cf(1.0, grad_cf);
+   ProductCoefficient mismatch_grad(shifted_grad_cf, masked_signmismatch);
+   const real_t tot_vol = InnerProduct(comm, one_gf, dv);
+   const real_t vol_res = 2*cur_vol - min_vol - max_vol;
+   const real_t avg_grad = InnerProduct(comm, grad, dv);
+
+   dual_V = avg_grad/tot_vol;
+   real_t upper_bound = infinity();
+   real_t lower_bound = -infinity();
+   real_t old_dual_V = infinity();
+   kkt.ProjectCoefficient(mismatch_grad);
+   real_t best_mismatch = zero_gf.ComputeL1Error(mismatch_grad);
+   real_t best_guess = dual_V;
+   real_t cur_mismatch;
+   for (int i=0; i< 100; i++)
+   {
+      old_dual_V = dual_V;
+      shifted_grad_cf.SetAConst(-dual_V);
+      kkt.ProjectCoefficient(mismatch_grad);
+      real_t delta_dual = InnerProduct(comm, kkt, dv);
+      dual_V += delta_dual / tot_vol;
+      shifted_grad_cf.SetAConst(-dual_V);
+      kkt.ProjectCoefficient(mismatch_grad);
+      cur_mismatch = zero_gf.ComputeL1Error(mismatch_grad);
+      // if (Mpi::Root())
+      // {
+      //    out << dual_V << ", " << cur_mismatch << std::endl;
+      // }
+      if (cur_mismatch < best_mismatch)
+      {
+         best_guess = dual_V;
+         best_mismatch = cur_mismatch;
+      }
+      if (std::fabs(old_dual_V - dual_V) < 1e-12)
+      {
+         break;
+      }
+   }
+   dual_V = best_guess;
+   shifted_grad_cf.SetAConst(-dual_V);
+   zero_gf.ComputeElementMaxErrors(mismatch_grad, kkt);
+   real_t grad_res = zero_gf.ComputeL1Error(mismatch_grad);
+   if (Mpi::Root()) { out << dual_V << ", " << cur_mismatch << ", " << best_mismatch << ", " << dual_V*vol_res/tot_vol << std::endl; }
+   return grad_res + std::max(0.0, dual_V*vol_res / tot_vol);
 }

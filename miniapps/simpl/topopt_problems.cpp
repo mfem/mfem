@@ -64,28 +64,24 @@ void ForceInverterInitialDesign(GridFunction &x, LegendreEntropy *entropy)
    ports.Append(new Vector({2.0,1.0}));
    Vector domain_center({1.0,0.5});
 
-   real_t max_d = -infinity();
 
-   FunctionCoefficient dist([&domain_center, &ports, &max_d](const Vector &x)
+   FunctionCoefficient dist([&domain_center, &ports](const Vector &x)
    {
       double d = infinity();
       for (auto &port : ports) {d = std::min(d, DistanceToSegment(x, domain_center, *port));}
-      max_d = std::max(max_d, d);
       return d;
    });
-#ifdef MFEM_USE_MPI
-   ParFiniteElementSpace * pfes = dynamic_cast<ParFiniteElementSpace*>
-                                  (x.FESpace());
-   if (pfes)
-   {
-      MPI_Allreduce(MPI_IN_PLACE, &max_d, 1, MFEM_MPI_REAL_T, MPI_MAX,
-                    pfes->GetComm());
-   }
-#endif
-   real_t maxval = entropy ? std::min(20.0, entropy->GetFiniteUpperBound()) : 1.0;
-   real_t minval = entropy ? std::max(-20.0, entropy->GetFiniteLowerBound()) : 0.0;
    x.ProjectCoefficient(dist);
-   for (auto &val : x) {val = (max_d - val) / max_d * (maxval - minval) + minval; }
+   ConstantCoefficient zero_cf(0.0);
+   real_t max_d = x.ComputeMaxError(zero_cf);
+   for (auto &val : x) { val = (max_d - val) / max_d; }
+   if (entropy)
+   {
+      for (real_t &val : x)
+      {
+         val = entropy->forward(val);
+      }
+   }
    for (auto port:ports) { delete port; }
 }
 
