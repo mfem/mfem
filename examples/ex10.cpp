@@ -3,14 +3,14 @@
 // Compile with: make ex10
 //
 // Sample runs:
-//    ex10 -m ../data/beam-quad.mesh -s 3 -r 2 -o 2 -dt 3
-//    ex10 -m ../data/beam-tri.mesh -s 3 -r 2 -o 2 -dt 3
-//    ex10 -m ../data/beam-hex.mesh -s 2 -r 1 -o 2 -dt 3
-//    ex10 -m ../data/beam-tet.mesh -s 2 -r 1 -o 2 -dt 3
-//    ex10 -m ../data/beam-wedge.mesh -s 2 -r 1 -o 2 -dt 3
-//    ex10 -m ../data/beam-quad.mesh -s 14 -r 2 -o 2 -dt 0.03 -vs 20
-//    ex10 -m ../data/beam-hex.mesh -s 14 -r 1 -o 2 -dt 0.05 -vs 20
-//    ex10 -m ../data/beam-quad-amr.mesh -s 3 -r 2 -o 2 -dt 3
+//    ex10 -m ../data/beam-quad.mesh -s 23 -r 2 -o 2 -dt 3
+//    ex10 -m ../data/beam-tri.mesh -s 23 -r 2 -o 2 -dt 3
+//    ex10 -m ../data/beam-hex.mesh -s 22 -r 1 -o 2 -dt 3
+//    ex10 -m ../data/beam-tet.mesh -s 22 -r 1 -o 2 -dt 3
+//    ex10 -m ../data/beam-wedge.mesh -s 22 -r 1 -o 2 -dt 3
+//    ex10 -m ../data/beam-quad.mesh -s 4 -r 2 -o 2 -dt 0.03 -vs 20
+//    ex10 -m ../data/beam-hex.mesh -s 4 -r 1 -o 2 -dt 0.05 -vs 20
+//    ex10 -m ../data/beam-quad-amr.mesh -s 23 -r 2 -o 2 -dt 3
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-quad.mesh";
    int ref_levels = 2;
    int order = 2;
-   int ode_solver_type = 3;
+   int ode_solver_type = 23;
    real_t t_final = 300.0;
    real_t dt = 3.0;
    real_t visc = 1e-2;
@@ -177,11 +177,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "            11 - Forward Euler, 12 - RK2,\n\t"
-                  "            13 - RK3 SSP, 14 - RK4."
-                  "            22 - Implicit Midpoint Method,\n\t"
-                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
+                  ODESolver::Types.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -213,28 +209,7 @@ int main(int argc, char *argv[])
    // 3. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   ODESolver *ode_solver;
-   switch (ode_solver_type)
-   {
-      // Implicit L-stable methods
-      case 1: ode_solver = new BackwardEulerSolver; break;
-      case 2: ode_solver = new SDIRK23Solver(2); break;
-      case 3: ode_solver = new SDIRK33Solver; break;
-      // Explicit methods
-      case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 13: ode_solver = new RK3SSPSolver; break;
-      case 14: ode_solver = new RK4Solver; break;
-      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
-         return 3;
-   }
+   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -371,7 +346,6 @@ int main(int argc, char *argv[])
    }
 
    // 10. Free the used memory.
-   delete ode_solver;
    delete mesh;
 
    return 0;

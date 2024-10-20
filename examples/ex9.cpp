@@ -9,7 +9,7 @@
 //    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
-//    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 13 -tf 9
+//    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 23 -tf 9
 //    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
@@ -182,12 +182,7 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
-                  "            11 - Backward Euler,\n\t"
-                  "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
-                  "            22 - Implicit Midpoint Method,\n\t"
-                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
+                  ODESolver::Types.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -224,28 +219,7 @@ int main(int argc, char *argv[])
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
-   ODESolver *ode_solver = NULL;
-   switch (ode_solver_type)
-   {
-      // Explicit methods
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
-      case 6: ode_solver = new RK6Solver; break;
-      // Implicit (L-stable) methods
-      case 11: ode_solver = new BackwardEulerSolver; break;
-      case 12: ode_solver = new SDIRK23Solver(2); break;
-      case 13: ode_solver = new SDIRK33Solver; break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         return 3;
-   }
+   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -440,7 +414,6 @@ int main(int argc, char *argv[])
    }
 
    // 10. Free the used memory.
-   delete ode_solver;
    delete pd;
    delete dc;
 
