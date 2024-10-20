@@ -258,19 +258,6 @@ int main(int argc, char *argv[])
    MappedGFCoefficient density_eps_dual_cf = entropy.GetBackwardCoeff(
                                                 control_eps_gf);
    real_t avg_grad;
-   MappedPairedGFCoefficient KKT_cf(
-      control_gf, grad_gf,
-      [&avg_grad, &entropy](const real_t x, const real_t g)
-   {
-      real_t rho_k = entropy.backward(x);
-      real_t lambda_k = avg_grad - g;
-      // Definition -Brendan
-      return std::max(0.0, lambda_k)*(1.0-rho_k)-std::min(0.0, lambda_k)*rho_k;
-      // Definition -Thomas
-      // return lambda_k
-      //        - std::min(0.0, rho_k     + lambda_k)
-      //        - std::max(0.0, rho_k - 1 + lambda_k);
-   });
    ParBilinearForm mass(&fes_control);
    mass.AddDomainIntegrator(new MassIntegrator());
    mass.Assemble();
@@ -280,11 +267,10 @@ int main(int argc, char *argv[])
 
    GridFunctionCoefficient density_eps_primal_cf(&control_eps_gf);
    GridFunctionCoefficient grad_cf(&grad_gf);
-   ParGridFunction zero_gf(&fes_control);
-   zero_gf=1.0;
+   ParGridFunction zero_gf(&fes_control), one_gf(&fes_control);
+   zero_gf = 0.0; one_gf = 1.0;
    ParGridFunction dv(&fes_control);
-   Mass->Mult(zero_gf, dv);
-   zero_gf = 0.0;
+   Mass->Mult(one_gf, dv);
    ParLinearForm diff_density_form(&fes_control);
    diff_density_form.AddDomainIntegrator(new DomainLFIntegrator(diff_density_cf));
 
@@ -304,7 +290,7 @@ int main(int argc, char *argv[])
 
    real_t stationarity0, obj0,
           stationarity_error_L2, stationarity_error_bregman, stationarity_error,
-          curr_vol,
+          curr_vol, dual_V,
           objval(infinity()), old_objval(infinity()), succ_obj_diff(infinity());
    real_t kkt, kkt0;
    int tot_reeval(0), num_reeval(0);
@@ -385,8 +371,8 @@ int main(int argc, char *argv[])
                                    dummy2);
       stationarity_error_L2 = density_gf.ComputeL2Error(
                                  density_eps_primal_cf)/eps_stationarity;
-      kkt = zero_gf.ComputeL1Error(KKT_cf);
-      zero_gf.ComputeElementL1Errors(KKT_cf, kkt_gf);
+      ComputeKKT(control_gf, grad_gf, entropy, solid_attr, void_attr, 0.0, max_vol,
+                 curr_vol, one_gf, zero_gf, dv, kkt_gf, dual_V);
 
       stationarity_error = use_bregman_stationary
                            ? stationarity_error_bregman : stationarity_error_L2;
