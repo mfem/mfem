@@ -242,13 +242,13 @@ void BatchedLOR_AMS::FormGradientMatrix()
 template <typename T>
 static inline const T *HypreRead(const Memory<T> &mem)
 {
-   return mem.Read(GetHypreMemoryClass(), mem.Capacity());
+   return mem.Read(GetHypreForallMemoryClass(), mem.Capacity());
 }
 
 template <typename T>
 static inline T *HypreWrite(Memory<T> &mem)
 {
-   return mem.Write(GetHypreMemoryClass(), mem.Capacity());
+   return mem.Write(GetHypreForallMemoryClass(), mem.Capacity());
 }
 
 void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
@@ -278,10 +278,7 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    const int sdim = vert_fes.GetMesh()->SpaceDimension();
    const int ntdofs = R->Height();
 
-   const MemoryClass mc = GetHypreMemoryClass();
-   bool dev = (mc == MemoryClass::DEVICE);
-
-   xyz_tvec = new Vector(ntdofs*sdim);
+   xyz_tvec = new Vector(ntdofs*sdim, GetHypreMemoryType());
 
    auto xyz_tv = Reshape(HypreWrite(xyz_tvec->GetMemory()), ntdofs, sdim);
    const auto xyz_e =
@@ -304,15 +301,12 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    // Make x, y, z HypreParVectors point to T-vector data
    HYPRE_BigInt glob_size = vert_fes.GlobalTrueVSize();
    HYPRE_BigInt *cols = vert_fes.GetTrueDofOffsets();
-
-   real_t *d_x_ptr = xyz_tv + 0*ntdofs;
-   x = new HypreParVector(vert_fes.GetComm(), glob_size, d_x_ptr, cols, dev);
-   real_t *d_y_ptr = xyz_tv + 1*ntdofs;
-   y = new HypreParVector(vert_fes.GetComm(), glob_size, d_y_ptr, cols, dev);
+   MPI_Comm comm = vert_fes.GetComm();
+   x = new HypreParVector(comm, glob_size, *xyz_tvec, 0*ntdofs, cols);
+   y = new HypreParVector(comm, glob_size, *xyz_tvec, 1*ntdofs, cols);
    if (sdim == 3)
    {
-      real_t *d_z_ptr = xyz_tv + 2*ntdofs;
-      z = new HypreParVector(vert_fes.GetComm(), glob_size, d_z_ptr, cols, dev);
+      z = new HypreParVector(comm, glob_size, *xyz_tvec, 2*ntdofs, cols);
    }
    else
    {

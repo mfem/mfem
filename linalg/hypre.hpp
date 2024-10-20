@@ -247,6 +247,12 @@ public:
        allocated in the memory location HYPRE_MEMORY_DEVICE. */
    HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, real_t *data_,
                   HYPRE_BigInt *col, bool is_device_ptr = false);
+   /** @brief Creates a vector that uses the data of the Vector @a base,
+       starting at the given @a offset. */
+   /** The @a base Vector must have memory types compatible with the MemoryClass
+       returned by GetHypreMemoryClass(). */
+   HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, Vector &base,
+                  int offset, HYPRE_BigInt *col);
    /// Creates a deep copy of @a y
    HypreParVector(const HypreParVector &y);
    /// Move constructor for HypreParVector. "Steals" data from its argument.
@@ -312,7 +318,8 @@ public:
    /// Sets the data of the Vector and the hypre_ParVector to @a data_.
    /** Must be used only for HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *). */
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
+   */
    void SetData(real_t *data_);
 
    /** @brief Prepare the HypreParVector for read access in hypre's device
@@ -332,7 +339,7 @@ public:
        HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
@@ -343,7 +350,7 @@ public:
        space, HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
@@ -354,7 +361,7 @@ public:
        HYPRE_MEMORY_DEVICE. */
    /** This method must be used with HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm, HYPRE_BigInt, double *, HYPRE_BigInt *).
+       HypreParVector(MPI_Comm, HYPRE_BigInt, real_t *, HYPRE_BigInt *, bool).
 
        The Memory @a mem must be accessible with the hypre MemoryClass defined
        by GetHypreMemoryClass(). */
@@ -393,7 +400,7 @@ private:
    /// Auxiliary vectors for typecasting
    mutable HypreParVector *X, *Y;
    /** @brief Auxiliary buffers for the case when the input or output arrays in
-       methods like Mult(double, const Vector &, double, Vector &) need to be
+       methods like Mult(real_t, const Vector &, real_t, Vector &) need to be
        deep copied in order to be used by hypre. */
    mutable Memory<real_t> auxX, auxY;
 

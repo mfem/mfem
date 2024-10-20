@@ -211,6 +211,24 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    own_ParVector = 1;
 }
 
+HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
+                               Vector &base, int offset, HYPRE_BigInt *col)
+   : HypreParVector(comm, glob_size, nullptr, col, false)
+{
+   MFEM_ASSERT(CanShallowCopy(base.GetMemory(), GetHypreMemoryClass()),
+               "the MemoryTypes of 'base' are incompatible with Hypre!");
+   MFEM_ASSERT(offset + size <= base.Size(),
+               "the size of 'base' is too small!");
+
+   data.Delete();
+   data.MakeAlias(base.GetMemory(), offset, size);
+   hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
+   hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
+#ifdef HYPRE_USING_GPU
+   hypre_VectorMemoryLocation(x_loc) = GetHypreMemoryLocation();
+#endif
+}
+
 // Call the move constructor on the "compatible" temp vector
 HypreParVector::HypreParVector(const HypreParVector &y) : HypreParVector(
       y.CreateCompatibleVector())
@@ -1580,14 +1598,12 @@ void HypreParMatrix::GetDiag(Vector &diag) const
 {
    const int size = Height();
    diag.SetSize(size);
-   auto hypre_ml = GetHypreMemoryLocation();
    // Avoid using GetHypreMemoryClass() since it may be MemoryClass::MANAGED and
    // that may not play well with the memory types used by 'diag'.
-   MemoryClass hypre_mc = (hypre_ml == HYPRE_MEMORY_HOST) ?
-                          MemoryClass::HOST : MemoryClass::DEVICE;
+   MemoryClass hypre_mc = GetHypreForallMemoryClass();
    real_t *diag_hd = diag.GetMemory().Write(hypre_mc, size);
 #if MFEM_HYPRE_VERSION >= 21800
-   MFEM_VERIFY(A->diag->memory_location == hypre_ml,
+   MFEM_VERIFY(A->diag->memory_location == GetHypreMemoryLocation(),
                "unexpected HypreParMatrix memory location!");
 #endif
    const HYPRE_Int *A_diag_i = A->diag->i;
@@ -2494,7 +2510,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
 
    const int n_ess_dofs = ess_dofs.Size();
    const auto ess_dofs_d = ess_dofs.GetMemory().Read(
-                              GetHypreMemoryClass(), n_ess_dofs);
+                              GetHypreForallMemoryClass(), n_ess_dofs);
 
    // Start communication to figure out which columns need to be eliminated in
    // the off-diagonal block
