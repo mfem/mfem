@@ -408,5 +408,72 @@ void DensityBasedTopOpt::UpdateGradient()
    L2projector->Solve(grad_control);
 }
 
+int sign(const real_t x) { return x > 0 ? 1 : x < 0 ? -1 : 0; }
+real_t ComputeKKT(const ParGridFunction &control_gf,
+                  const ParGridFunction &grad, LegendreEntropy &entropy,
+                  const int solid_attr, const int void_attr,
+                  const real_t min_vol, const real_t max_vol, const real_t cur_vol,
+                  const ParGridFunction &one_gf, const ParGridFunction &zero_gf,
+                  const ParGridFunction &dv,
+                  ParGridFunction &kkt, real_t &dual_V)
+{
+   MPI_Comm comm = control_gf.ParFESpace()->GetComm();
+   ParGridFunction &dual_B = kkt;
+   MappedPairedGFCoefficient signmismatch(control_gf, grad, [&dual_V,
+                                                             &entropy](const real_t psi, const real_t g)
+   {
+      return sign((entropy.backward(psi)-0.5000000000001)*(-g+dual_V)) < 0;
+   });
+   ConstantCoefficient zero_cf(0.0);
+   MaskedCoefficient masked_signmismatch(signmismatch);
+   if (solid_attr) { masked_signmismatch.AddMasking(zero_cf, solid_attr); }
+   if (void_attr) { masked_signmismatch.AddMasking(zero_cf, void_attr); }
+   GridFunctionCoefficient grad_cf(&grad);
+   SumCoefficient shifted_grad_cf(1.0, grad_cf);
+   ProductCoefficient mismatch_grad(shifted_grad_cf, masked_signmismatch);
+   const real_t tot_vol = InnerProduct(comm, one_gf, dv);
+   const real_t vol_res = 2*cur_vol - min_vol - max_vol;
+   const real_t avg_grad = InnerProduct(comm, grad, dv);
+
+   dual_V = avg_grad/tot_vol;
+   real_t upper_bound = infinity();
+   real_t lower_bound = -infinity();
+   real_t old_dual_V = infinity();
+   kkt.ProjectCoefficient(mismatch_grad);
+   real_t best_mismatch = zero_gf.ComputeL1Error(mismatch_grad);
+   real_t best_guess = dual_V;
+   real_t cur_mismatch;
+   for (int i=0; i< 100; i++)
+   {
+      old_dual_V = dual_V;
+      shifted_grad_cf.SetAConst(-dual_V);
+      kkt.ProjectCoefficient(mismatch_grad);
+      real_t delta_dual = InnerProduct(comm, kkt, dv);
+      dual_V += delta_dual / tot_vol;
+      shifted_grad_cf.SetAConst(-dual_V);
+      kkt.ProjectCoefficient(mismatch_grad);
+      cur_mismatch = zero_gf.ComputeL1Error(mismatch_grad);
+      // if (Mpi::Root())
+      // {
+      //    out << dual_V << ", " << cur_mismatch << std::endl;
+      // }
+      if (cur_mismatch < best_mismatch)
+      {
+         best_guess = dual_V;
+         best_mismatch = cur_mismatch;
+      }
+      if (std::fabs(old_dual_V - dual_V) < 1e-12)
+      {
+         break;
+      }
+   }
+   dual_V = best_guess;
+   shifted_grad_cf.SetAConst(-dual_V);
+   zero_gf.ComputeElementMaxErrors(mismatch_grad, kkt);
+   real_t grad_res = zero_gf.ComputeL1Error(mismatch_grad);
+   if (Mpi::Root()) { out << dual_V << ", " << cur_mismatch << ", " << best_mismatch << ", " << dual_V*vol_res/tot_vol << std::endl; }
+   return grad_res + std::max(0.0, dual_V*vol_res / tot_vol);
+}
+
 
 } // end of namespace mfem

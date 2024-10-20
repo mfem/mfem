@@ -185,5 +185,15 @@ public:
     void UpdateGradient();
 };
 
+real_t ComputeKKT(const ParGridFunction &control_gf,
+                  const ParGridFunction &grad, LegendreEntropy &entropy,
+                  const int solid_attr, const int void_attr,
+                  const real_t min_vol, const real_t max_vol, const real_t cur_vol,
+                  const ParGridFunction &one_gf, const ParGridFunction &zero_gf,
+                  const ParGridFunction &dv,
+                  ParGridFunction &dual_B, real_t &dual_V);
+
+int sign(const real_t x);
+
 } // end of namespace mfem
 #endif
