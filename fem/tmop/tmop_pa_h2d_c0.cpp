@@ -15,13 +15,13 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_AssembleDiagonalPA_C0_2D(const int NE, const ConstDeviceMatrix &B,
-                                   const DeviceTensor<5, const double> &H0,
+void TMOP_AssembleDiagonalPA_C0_2D(const int NE,
+                                   const ConstDeviceMatrix &B,
+                                   const DeviceTensor<5, const real_t> &H0,
                                    DeviceTensor<4> &D, const int d1d,
                                    const int q1d, const int max)
 {
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       constexpr int DIM = 2;

@@ -11,8 +11,7 @@
 
 #include "tmop_pa_p2.hpp"
 
-namespace mfem
-{
+namespace mfem {
 
 extern void TMOPAddMultPA_001(TMOPAddMultPA2D &ker);
 extern void TMOPAddMultPA_002(TMOPAddMultPA2D &ker);
@@ -22,42 +21,34 @@ extern void TMOPAddMultPA_077(TMOPAddMultPA2D &ker);
 extern void TMOPAddMultPA_080(TMOPAddMultPA2D &ker);
 extern void TMOPAddMultPA_094(TMOPAddMultPA2D &ker);
 
-void TMOP_Integrator::AddMultPA_2D(const Vector &x, Vector &y) const
-{
-   const int mid = metric->Id();
+void TMOP_Integrator::AddMultPA_2D(const Vector &x, Vector &y) const {
+  const int mid = metric->Id();
 
-   TMOPAddMultPA2D ker(this, x, y);
+  TMOPAddMultPA2D ker(this, x, y);
 
-   if (mid == 1)
-   {
-      return TMOPAddMultPA_001(ker);
-   }
-   if (mid == 2)
-   {
-      return TMOPAddMultPA_002(ker);
-   }
-   if (mid == 7)
-   {
-      return TMOPAddMultPA_007(ker);
-   }
-   if (mid == 56)
-   {
-      return TMOPAddMultPA_056(ker);
-   }
-   if (mid == 77)
-   {
-      return TMOPAddMultPA_077(ker);
-   }
-   if (mid == 80)
-   {
-      return TMOPAddMultPA_080(ker);
-   }
-   if (mid == 94)
-   {
-      return TMOPAddMultPA_094(ker);
-   }
+  if (mid == 1) {
+    return TMOPAddMultPA_001(ker);
+  }
+  if (mid == 2) {
+    return TMOPAddMultPA_002(ker);
+  }
+  if (mid == 7) {
+    return TMOPAddMultPA_007(ker);
+  }
+  if (mid == 56) {
+    return TMOPAddMultPA_056(ker);
+  }
+  if (mid == 77) {
+    return TMOPAddMultPA_077(ker);
+  }
+  if (mid == 80) {
+    return TMOPAddMultPA_080(ker);
+  }
+  if (mid == 94) {
+    return TMOPAddMultPA_094(ker);
+  }
 
-   MFEM_ABORT("Unsupported TMOP metric " << mid);
+  MFEM_ABORT("Unsupported TMOP metric " << mid);
 }
 
 }  // namespace mfem

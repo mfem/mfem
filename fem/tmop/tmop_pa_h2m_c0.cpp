@@ -33,7 +33,7 @@ void TMOP_AddMultGradPA_C0_2D(const int NE, const ConstDeviceMatrix &B,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double sB[MQ1 * MD1];
+      MFEM_SHARED real_t sB[MQ1 * MD1];
 
       MFEM_SHARED real_t XY[2][NBZ][MD1 * MD1];
       MFEM_SHARED real_t DQ[2][NBZ][MD1 * MQ1];

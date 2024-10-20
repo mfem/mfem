@@ -16,7 +16,7 @@ namespace mfem
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_SetupGradPA_C0_2D(
-   const double lim_normal, const ConstDeviceCube &LD, const bool const_c0,
+   const real_t lim_normal, const ConstDeviceCube &LD, const bool const_c0,
    const DeviceTensor<3, const double> &C0, const int NE,
    const DeviceTensor<5, const double> &J, const ConstDeviceMatrix &W,
    const ConstDeviceMatrix &b, const ConstDeviceMatrix &bld,
@@ -77,22 +77,25 @@ void TMOP_SetupGradPA_C0_2D(
             const real_t coeff0 = const_c0 ? C0(0, 0, 0) : C0(qx, qy, e);
             const real_t weight_m = weight * lim_normal * coeff0;
 
-            double D, grad_grad[4];
+            real_t D, p0[2], p1[2];
             kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ, D);
-            const double dist = D;  // GetValues, default comp set to 0
+            kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ0, p0);
+            kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ1, p1);
+
+            const real_t dist = D;  // GetValues, default comp set to 0
+
+            // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
+            real_t grad_grad[4];
 
             if (!exp_lim)
             {
-               // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
                // d2.Diag(1.0 / (dist * dist), x.Size());
                const real_t c = 1.0 / (dist * dist);
                kernels::Diag<2>(c, grad_grad);
             }
             else
             {
-               double p0[2], p1[2], tmp[2];
-               kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ0, p0);
-               kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ1, p1);
+               real_t tmp[2];
                kernels::Subtract<2>(1.0, p1, p0, tmp);
                real_t dsq = kernels::DistanceSquared<2>(p1, p0);
                real_t dist_squared = dist * dist;
