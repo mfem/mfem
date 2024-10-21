@@ -64,15 +64,16 @@ protected:
 
 public:
    /** Construct a transfer algorithm between the domain, @a dom_fes_, and
-       range, @a ran_fes_, FE spaces. */
+       range, @a ran_fes_, FE spaces, d_mt_ will specify memory space for
+       large data structures */
    GridTransfer(FiniteElementSpace &dom_fes_,
                 FiniteElementSpace &ran_fes_,
-                MemoryType d_mt_ = MemoryType::HOST);
+                MemoryType d_mt_ = Device::GetHostMemoryType());
 
    /// Virtual destructor
    virtual ~GridTransfer() { }
 
-   void UseDevice(bool use_device_ = true) { use_device = use_device_;}
+   void UseDevice(bool use_device_) { use_device = use_device_;}
 
    void VerifySolution(bool verify) { verify_solution = verify;}
 
@@ -214,7 +215,7 @@ public:
       L2Projection(const FiniteElementSpace& fes_ho_,
                    const FiniteElementSpace& fes_lor_,
                    Coefficient* coeff_,
-                   MemoryType d_mt_ = MemoryType::HOST);
+                   MemoryType d_mt_ = Device::GetHostMemoryType());
 
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
@@ -237,7 +238,7 @@ public:
       Vector MixedMassEA(const FiniteElementSpace& fes_ho_,
                          const FiniteElementSpace& fes_lor_,
                          const Coefficient* coeff_, Vector &M_LH,
-                         MemoryType d_mt_ = MemoryType::HOST);
+                         MemoryType d_mt_ = Device::GetHostMemoryType());
    };
 
    // Class below must be public as we now have device code
@@ -292,7 +293,7 @@ public:
                           const bool use_device_,
                           const bool verify_solution_,
                           Coefficient* coeff_,
-                          MemoryType d_mt_ = MemoryType::HOST);
+                          MemoryType d_mt_ = Device::GetHostMemoryType());
 
       /*Same as above but assembles and stores R_ea, P_ea */
       void DeviceL2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
@@ -368,14 +369,14 @@ public:
                           const bool use_device_,
                           const bool verify_solution_,
                           Coefficient *coeff_,
-                          MemoryType d_mt_ = MemoryType::HOST);
+                          MemoryType d_mt_ = Device::GetHostMemoryType());
 #ifdef MFEM_USE_MPI
       L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                           const ParFiniteElementSpace &pfes_lor_,
                           const bool use_device_,
                           const bool verify_solution_,
                           Coefficient *coeff_,
-                          MemoryType d_mt_ = MemoryType::HOST);
+                          MemoryType d_mt_ = Device::GetHostMemoryType());
 #endif
       /// Same as above but assembles action of R through 4 parts:
       ///   ( )  inv( lumped(M_L) ), which is a diagonal matrix (essentially a vector)
@@ -555,7 +556,7 @@ public:
                             FiniteElementSpace &fine_fes_,
                             bool force_l2_space_ = false,
                             Coefficient *coeff_ = nullptr,
-                            MemoryType d_mt_ = MemoryType::HOST)
+                            MemoryType d_mt_ = Device::GetHostMemoryType())
       : GridTransfer(coarse_fes_, fine_fes_, d_mt_),
         F(NULL), B(NULL), force_l2_space(force_l2_space_), coeff(coeff_)
    { }
