@@ -58,7 +58,7 @@ void NativeBatchedLinAlg::Invert(DenseTensor &A) const
 
    auto data_all = mfem::Reshape(LU.Read(), m, m, NE);
    auto piv_all  = mfem::Reshape(P.Read(), m, NE);
-   auto inv_all  = mfem::Reshape(A.ReadWrite(), m, m, NE);
+   auto inv_all  = mfem::Reshape(A.Write(), m, m, NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
