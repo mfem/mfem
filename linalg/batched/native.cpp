@@ -25,9 +25,9 @@ void NativeBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
    const int n_mat = A.SizeK();
    const int k = x.Size() / n / n_mat;
 
-   auto d_A = mfem::Reshape(A.Read(), m, n, n_mat);
-   auto d_x = mfem::Reshape(x.Read(), n, k, n_mat);
-   auto d_y = mfem::Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
+   auto d_A = Reshape(A.Read(), m, n, n_mat);
+   auto d_x = Reshape(x.Read(), n, k, n_mat);
+   auto d_y = Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
 
    mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -55,9 +55,9 @@ void NativeBatchedLinAlg::Invert(DenseTensor &A) const
 
    LUFactor(LU, P);
 
-   auto data_all = mfem::Reshape(LU.Read(), m, m, NE);
-   auto piv_all  = mfem::Reshape(P.Read(), m, NE);
-   auto inv_all  = mfem::Reshape(A.Write(), m, m, NE);
+   auto data_all = Reshape(LU.Read(), m, m, NE);
+   auto piv_all  = Reshape(P.Read(), m, NE);
+   auto inv_all  = Reshape(A.Write(), m, m, NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -122,8 +122,7 @@ void NativeBatchedLinAlg::Invert(DenseTensor &A) const
          {
             for (int i = 0; i < m; i++)
             {
-               //Swap<real_t>(X[i+k*m], X[i+piv_k*m]);
-               mfem::kernels::internal::Swap<real_t>(X[i + k * m], X[i + piv_k * m]);
+               kernels::internal::Swap(X[i + k * m], X[i + piv_k * m]);
             }
          }
       }
@@ -137,8 +136,8 @@ void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
    const int NE = A.SizeK();
    P.SetSize(m*NE);
 
-   auto data_all = mfem::Reshape(A.ReadWrite(), m, m, NE);
-   auto ipiv_all = mfem::Reshape(P.Write(), m, NE);
+   auto data_all = Reshape(A.ReadWrite(), m, m, NE);
+   auto ipiv_all = Reshape(P.Write(), m, NE);
    Array<bool> pivot_flag(1);
    pivot_flag[0] = true;
    bool *d_pivot_flag = pivot_flag.ReadWrite();
@@ -203,9 +202,9 @@ void NativeBatchedLinAlg::LUSolve(const DenseTensor &LU, const Array<int> &P,
    const int n_mat = LU.SizeK();
    const int n_rhs = x.Size() / m / n_mat;
 
-   auto d_LU = mfem::Reshape(LU.Read(), m, m, n_mat);
-   auto d_P = mfem::Reshape(P.Read(), m, n_mat);
-   auto d_x = mfem::Reshape(x.Write(), m, n_rhs, n_mat);
+   auto d_LU = Reshape(LU.Read(), m, m, n_mat);
+   auto d_P = Reshape(P.Read(), m, n_mat);
+   auto d_x = Reshape(x.Write(), m, n_rhs, n_mat);
 
    mfem::forall(n_mat * n_rhs, [=] MFEM_HOST_DEVICE (int idx)
    {
