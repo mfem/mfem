@@ -84,7 +84,8 @@ void TMOP_SetupGradPA_C0_3D(
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                const real_t detJtr = kernels::Det<3>(Jtr);
                const real_t weight = W(qx, qy, qz) * detJtr;
-               const real_t coeff0 = const_c0 ? C0(0, 0, 0, 0) : C0(qx, qy, qz, e);
+               const real_t coeff0 =
+                  const_c0 ? C0(0, 0, 0, 0) : C0(qx, qy, qz, e);
                const real_t weight_m = weight * lim_normal * coeff0;
 
                real_t D, p0[3], p1[3];
@@ -92,7 +93,7 @@ void TMOP_SetupGradPA_C0_3D(
                kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, QQQ0, p0);
                kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, QQQ1, p1);
 
-               const double dist = D;  // GetValues, default comp set to 0
+               const double dist = D; // GetValues, default comp set to 0
 
                // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
 
@@ -115,13 +116,16 @@ void TMOP_SetupGradPA_C0_3D(
                   grad_grad[0] =
                      ((400.0 * tmp[0] * tmp[0] * f) / dist_squared_squared) +
                      (20.0 * f / dist_squared);
-                  grad_grad[1] = (400.0 * tmp[0] * tmp[1] * f) / dist_squared_squared;
-                  grad_grad[2] = (400.0 * tmp[0] * tmp[2] * f) / dist_squared_squared;
+                  grad_grad[1] =
+                     (400.0 * tmp[0] * tmp[1] * f) / dist_squared_squared;
+                  grad_grad[2] =
+                     (400.0 * tmp[0] * tmp[2] * f) / dist_squared_squared;
                   grad_grad[3] = grad_grad[1];
                   grad_grad[4] =
                      ((400.0 * tmp[1] * tmp[1] * f) / dist_squared_squared) +
                      (20.0 * f / dist_squared);
-                  grad_grad[5] = (400.0 * tmp[1] * tmp[2] * f) / dist_squared_squared;
+                  grad_grad[5] =
+                     (400.0 * tmp[1] * tmp[2] * f) / dist_squared_squared;
                   grad_grad[6] = grad_grad[2];
                   grad_grad[7] = grad_grad[5];
                   grad_grad[8] =
@@ -166,67 +170,25 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 
    decltype(&TMOP_SetupGradPA_C0_3D<>) ker = TMOP_SetupGradPA_C0_3D;
 
-   if (d == 2 && q == 2)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<2, 2>;
-   }
-   if (d == 2 && q == 3)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<2, 3>;
-   }
-   if (d == 2 && q == 4)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<2, 4>;
-   }
-   if (d == 2 && q == 5)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<2, 5>;
-   }
-   if (d == 2 && q == 6)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<2, 6>;
-   }
+   if (d == 2 && q == 2) { ker = TMOP_SetupGradPA_C0_3D<2, 2>; }
+   if (d == 2 && q == 3) { ker = TMOP_SetupGradPA_C0_3D<2, 3>; }
+   if (d == 2 && q == 4) { ker = TMOP_SetupGradPA_C0_3D<2, 4>; }
+   if (d == 2 && q == 5) { ker = TMOP_SetupGradPA_C0_3D<2, 5>; }
+   if (d == 2 && q == 6) { ker = TMOP_SetupGradPA_C0_3D<2, 6>; }
 
-   if (d == 3 && q == 3)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<3, 3>;
-   }
-   if (d == 3 && q == 4)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<3, 4>;
-   }
-   if (d == 3 && q == 5)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<3, 5>;
-   }
-   if (d == 3 && q == 6)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<3, 6>;
-   }
+   if (d == 3 && q == 3) { ker = TMOP_SetupGradPA_C0_3D<3, 3>; }
+   if (d == 3 && q == 4) { ker = TMOP_SetupGradPA_C0_3D<3, 4>; }
+   if (d == 3 && q == 5) { ker = TMOP_SetupGradPA_C0_3D<3, 5>; }
+   if (d == 3 && q == 6) { ker = TMOP_SetupGradPA_C0_3D<3, 6>; }
 
-   if (d == 4 && q == 4)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<4, 4>;
-   }
-   if (d == 4 && q == 5)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<4, 5>;
-   }
-   if (d == 4 && q == 6)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<4, 6>;
-   }
+   if (d == 4 && q == 4) { ker = TMOP_SetupGradPA_C0_3D<4, 4>; }
+   if (d == 4 && q == 5) { ker = TMOP_SetupGradPA_C0_3D<4, 5>; }
+   if (d == 4 && q == 6) { ker = TMOP_SetupGradPA_C0_3D<4, 6>; }
 
-   if (d == 5 && q == 5)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<5, 5>;
-   }
-   if (d == 5 && q == 6)
-   {
-      ker = TMOP_SetupGradPA_C0_3D<5, 6>;
-   }
+   if (d == 5 && q == 5) { ker = TMOP_SetupGradPA_C0_3D<5, 5>; }
+   if (d == 5 && q == 6) { ker = TMOP_SetupGradPA_C0_3D<5, 6>; }
 
    ker(ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X, H0, exp_lim, d, q, 4);
 }
 
-}  // namespace mfem
+} // namespace mfem

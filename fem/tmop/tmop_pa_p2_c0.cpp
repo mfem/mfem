@@ -80,7 +80,7 @@ void TMOP_AddMultPA_C0_2D(
             kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ0, p0);
             kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ1, p1);
 
-            const real_t dist = ld;  // GetValues, default comp set to 0
+            const real_t dist = ld; // GetValues, default comp set to 0
 
             real_t d1[2];
             // Eval_d1 (Quadratic Limiter)
@@ -91,17 +91,14 @@ void TMOP_AddMultPA_C0_2D(
             // Eval_d1 (Exponential Limiter)
             // double dist_squared = dist*dist;
             // subtract(20.0*exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared)
-            // - 1.0)) / dist_squared, x, x0, d1); z = a * (x - y) grad = a * (x -
-            // x0)
+            // - 1.0)) / dist_squared, x, x0, d1); z = a * (x - y) grad = a * (x
+            // - x0)
 
             real_t a = 0.0;
             const real_t w = weight * lim_normal * coeff0;
             const real_t dist_squared = dist * dist;
 
-            if (!exp_lim)
-            {
-               a = 1.0 / dist_squared;
-            }
+            if (!exp_lim) { a = 1.0 / dist_squared; }
             else
             {
                real_t dsq = kernels::DistanceSquared<2>(p1, p0) / dist_squared;
@@ -144,67 +141,25 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
 
    decltype(&TMOP_AddMultPA_C0_2D<>) ker = TMOP_AddMultPA_C0_2D;
 
-   if (d == 2 && q == 2)
-   {
-      ker = TMOP_AddMultPA_C0_2D<2, 2>;
-   }
-   if (d == 2 && q == 3)
-   {
-      ker = TMOP_AddMultPA_C0_2D<2, 3>;
-   }
-   if (d == 2 && q == 4)
-   {
-      ker = TMOP_AddMultPA_C0_2D<2, 4>;
-   }
-   if (d == 2 && q == 5)
-   {
-      ker = TMOP_AddMultPA_C0_2D<2, 5>;
-   }
-   if (d == 2 && q == 6)
-   {
-      ker = TMOP_AddMultPA_C0_2D<2, 6>;
-   }
+   if (d == 2 && q == 2) { ker = TMOP_AddMultPA_C0_2D<2, 2>; }
+   if (d == 2 && q == 3) { ker = TMOP_AddMultPA_C0_2D<2, 3>; }
+   if (d == 2 && q == 4) { ker = TMOP_AddMultPA_C0_2D<2, 4>; }
+   if (d == 2 && q == 5) { ker = TMOP_AddMultPA_C0_2D<2, 5>; }
+   if (d == 2 && q == 6) { ker = TMOP_AddMultPA_C0_2D<2, 6>; }
 
-   if (d == 3 && q == 3)
-   {
-      ker = TMOP_AddMultPA_C0_2D<3, 3>;
-   }
-   if (d == 3 && q == 4)
-   {
-      ker = TMOP_AddMultPA_C0_2D<3, 4>;
-   }
-   if (d == 3 && q == 5)
-   {
-      ker = TMOP_AddMultPA_C0_2D<3, 5>;
-   }
-   if (d == 3 && q == 6)
-   {
-      ker = TMOP_AddMultPA_C0_2D<3, 6>;
-   }
+   if (d == 3 && q == 3) { ker = TMOP_AddMultPA_C0_2D<3, 3>; }
+   if (d == 3 && q == 4) { ker = TMOP_AddMultPA_C0_2D<3, 4>; }
+   if (d == 3 && q == 5) { ker = TMOP_AddMultPA_C0_2D<3, 5>; }
+   if (d == 3 && q == 6) { ker = TMOP_AddMultPA_C0_2D<3, 6>; }
 
-   if (d == 4 && q == 4)
-   {
-      ker = TMOP_AddMultPA_C0_2D<4, 4>;
-   }
-   if (d == 4 && q == 5)
-   {
-      ker = TMOP_AddMultPA_C0_2D<4, 5>;
-   }
-   if (d == 4 && q == 6)
-   {
-      ker = TMOP_AddMultPA_C0_2D<4, 6>;
-   }
+   if (d == 4 && q == 4) { ker = TMOP_AddMultPA_C0_2D<4, 4>; }
+   if (d == 4 && q == 5) { ker = TMOP_AddMultPA_C0_2D<4, 5>; }
+   if (d == 4 && q == 6) { ker = TMOP_AddMultPA_C0_2D<4, 6>; }
 
-   if (d == 5 && q == 5)
-   {
-      ker = TMOP_AddMultPA_C0_2D<5, 5>;
-   }
-   if (d == 5 && q == 6)
-   {
-      ker = TMOP_AddMultPA_C0_2D<5, 6>;
-   }
+   if (d == 5 && q == 5) { ker = TMOP_AddMultPA_C0_2D<5, 5>; }
+   if (d == 5 && q == 6) { ker = TMOP_AddMultPA_C0_2D<5, 6>; }
 
    ker(ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X, Y, exp_lim, d, q, 4);
 }
 
-}  // namespace mfem
+} // namespace mfem

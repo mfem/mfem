@@ -79,68 +79,26 @@ double TMOPNewtonSolver::MinDetJpr_2D(const FiniteElementSpace *fes,
 
    decltype(&TMOP_MinDetJpr_2D<>) ker = TMOP_MinDetJpr_2D;
 
-   if (d == 2 && q == 2)
-   {
-      ker = TMOP_MinDetJpr_2D<2, 2>;
-   }
-   if (d == 2 && q == 3)
-   {
-      ker = TMOP_MinDetJpr_2D<2, 3>;
-   }
-   if (d == 2 && q == 4)
-   {
-      ker = TMOP_MinDetJpr_2D<2, 4>;
-   }
-   if (d == 2 && q == 5)
-   {
-      ker = TMOP_MinDetJpr_2D<2, 5>;
-   }
-   if (d == 2 && q == 6)
-   {
-      ker = TMOP_MinDetJpr_2D<2, 6>;
-   }
+   if (d == 2 && q == 2) { ker = TMOP_MinDetJpr_2D<2, 2>; }
+   if (d == 2 && q == 3) { ker = TMOP_MinDetJpr_2D<2, 3>; }
+   if (d == 2 && q == 4) { ker = TMOP_MinDetJpr_2D<2, 4>; }
+   if (d == 2 && q == 5) { ker = TMOP_MinDetJpr_2D<2, 5>; }
+   if (d == 2 && q == 6) { ker = TMOP_MinDetJpr_2D<2, 6>; }
 
-   if (d == 3 && q == 3)
-   {
-      ker = TMOP_MinDetJpr_2D<3, 3>;
-   }
-   if (d == 3 && q == 4)
-   {
-      ker = TMOP_MinDetJpr_2D<3, 4>;
-   }
-   if (d == 3 && q == 5)
-   {
-      ker = TMOP_MinDetJpr_2D<3, 5>;
-   }
-   if (d == 3 && q == 6)
-   {
-      ker = TMOP_MinDetJpr_2D<3, 6>;
-   }
+   if (d == 3 && q == 3) { ker = TMOP_MinDetJpr_2D<3, 3>; }
+   if (d == 3 && q == 4) { ker = TMOP_MinDetJpr_2D<3, 4>; }
+   if (d == 3 && q == 5) { ker = TMOP_MinDetJpr_2D<3, 5>; }
+   if (d == 3 && q == 6) { ker = TMOP_MinDetJpr_2D<3, 6>; }
 
-   if (d == 4 && q == 4)
-   {
-      ker = TMOP_MinDetJpr_2D<4, 4>;
-   }
-   if (d == 4 && q == 5)
-   {
-      ker = TMOP_MinDetJpr_2D<4, 5>;
-   }
-   if (d == 4 && q == 6)
-   {
-      ker = TMOP_MinDetJpr_2D<4, 6>;
-   }
+   if (d == 4 && q == 4) { ker = TMOP_MinDetJpr_2D<4, 4>; }
+   if (d == 4 && q == 5) { ker = TMOP_MinDetJpr_2D<4, 5>; }
+   if (d == 4 && q == 6) { ker = TMOP_MinDetJpr_2D<4, 6>; }
 
-   if (d == 5 && q == 5)
-   {
-      ker = TMOP_MinDetJpr_2D<5, 5>;
-   }
-   if (d == 5 && q == 6)
-   {
-      ker = TMOP_MinDetJpr_2D<5, 6>;
-   }
+   if (d == 5 && q == 5) { ker = TMOP_MinDetJpr_2D<5, 5>; }
+   if (d == 5 && q == 6) { ker = TMOP_MinDetJpr_2D<5, 6>; }
 
    ker(NE, B, G, XE, E, d, q, 4);
    return e.Min();
 }
 
-}  // namespace mfem
+} // namespace mfem

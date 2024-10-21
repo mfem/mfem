@@ -18,7 +18,7 @@ AlignConsecutiveShortCaseStatements:
   AcrossComments: false
   AlignCaseColons: false
 AlignEscapedNewlines: LeftWithLastLine
-AlignOperands: Align
+AlignOperands: AlignAfterOperator
 AlignTrailingComments: true
 AllowAllArgumentsOnNextLine: false
 AllowAllParametersOfDeclarationOnNextLine: false
@@ -34,7 +34,8 @@ AllowShortLambdasOnASingleLine: All
 AllowShortLoopsOnASingleLine: true
 
 # Packing
-PackConstructorInitializers: CurrentLine
+PackConstructorInitializers: BinPack
+SpaceBeforeCtorInitializerColon: false
 
 # Breaks
 BreakBeforeBraces: Allman
@@ -42,33 +43,34 @@ InsertBraces: true # Warning
 BreakArrays: false
 BreakAfterReturnType: None
 BreakTemplateDeclarations: Yes
-BreakBeforeTernaryOperators: false
+BreakBeforeTernaryOperators: true
 BreakConstructorInitializers: AfterColon
 BreakFunctionDefinitionParameters: false
 AlwaysBreakBeforeMultilineStrings: false
 
 # Indentation
-AccessModifierOffset: 0
-ConstructorInitializerIndentWidth: 2
+IndentWidth: 3
+ContinuationIndentWidth: 3
+ConstructorInitializerIndentWidth: 3
 Cpp11BracedListStyle: false
-DerivePointerAlignment: false
-ContinuationIndentWidth: 0
-NamespaceIndentation: None
-FixNamespaceComments: true
 LambdaBodyIndentation: OuterScope
 IndentAccessModifiers: false
-IndentCaseBlocks: true
+AccessModifierOffset: -3
+IndentCaseBlocks: false
 IndentCaseLabels: false
 IndentExternBlock: false
 IndentGotoLabels: false
 IndentPPDirectives: AfterHash
-IndentWidth: 3
 IndentWrappedFunctionNames: false
-InsertNewlineAtEOF: true
+# ReflowComments: true
 
+# Namespaces
+NamespaceIndentation: None
+FixNamespaceComments: true
 
-# Alignments
+# Pointers
 PointerAlignment: Right
+DerivePointerAlignment: false
 
 # Tabs and spaces
 SpaceAfterCStyleCast: false
@@ -92,3 +94,4 @@ KeepEmptyLines:
   AtEndOfFile: false
   AtStartOfBlock: false
   AtStartOfFile: false
+InsertNewlineAtEOF: true

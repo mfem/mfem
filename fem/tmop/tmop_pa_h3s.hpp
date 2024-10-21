@@ -16,12 +16,13 @@ namespace mfem
 
 class TMOPSetupGradPA3D
 {
-   const mfem::TMOP_Integrator *ti;  // not owned
+   const mfem::TMOP_Integrator *ti; // not owned
    const Vector &x;
 
 public:
-   TMOPSetupGradPA3D(const TMOP_Integrator *ti, const Vector &x)
-      : ti(ti), x(x) {}
+   TMOPSetupGradPA3D(const TMOP_Integrator *ti, const Vector &x) : ti(ti), x(x)
+   {
+   }
 
    int Ndof() const { return ti->PA.maps->ndof; }
 
@@ -85,7 +86,8 @@ public:
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   const real_t detJtr = kernels::Det<3>(Jtr);
-                  const real_t m_coef = const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
+                  const real_t m_coef =
+                     const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
                   const real_t weight =
                      metric_normal * m_coef * W(qx, qy, qz) * detJtr;
 
@@ -101,12 +103,13 @@ public:
                   real_t Jpt[9];
                   kernels::Mult(3, 3, 3, Jpr, Jrt, Jpt);
 
-                  METRIC{}.AssembleH(qx, qy, qz, e, weight, Jrt, Jpr, Jpt, w, H);
-               }  // qx
-            }  // qy
-         }  // qz
+                  METRIC{}.AssembleH(qx, qy, qz, e, weight, Jrt, Jpr, Jpt, w,
+                                     H);
+               } // qx
+            } // qy
+         } // qz
       });
    }
 };
 
-}  // namespace mfem
+} // namespace mfem

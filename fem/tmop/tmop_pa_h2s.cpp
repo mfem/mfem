@@ -28,36 +28,15 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &x) const
 
    TMOPSetupGradPA2D ker(this, x);
 
-   if (mid == 1)
-   {
-      return TMOPAssembleGradPA_001(ker);
-   }
-   if (mid == 2)
-   {
-      return TMOPAssembleGradPA_002(ker);
-   }
-   if (mid == 7)
-   {
-      return TMOPAssembleGradPA_007(ker);
-   }
-   if (mid == 56)
-   {
-      return TMOPAssembleGradPA_056(ker);
-   }
-   if (mid == 77)
-   {
-      return TMOPAssembleGradPA_077(ker);
-   }
-   if (mid == 80)
-   {
-      return TMOPAssembleGradPA_080(ker);
-   }
-   if (mid == 94)
-   {
-      return TMOPAssembleGradPA_094(ker);
-   }
+   if (mid == 1) { return TMOPAssembleGradPA_001(ker); }
+   if (mid == 2) { return TMOPAssembleGradPA_002(ker); }
+   if (mid == 7) { return TMOPAssembleGradPA_007(ker); }
+   if (mid == 56) { return TMOPAssembleGradPA_056(ker); }
+   if (mid == 77) { return TMOPAssembleGradPA_077(ker); }
+   if (mid == 80) { return TMOPAssembleGradPA_080(ker); }
+   if (mid == 94) { return TMOPAssembleGradPA_094(ker); }
 
    MFEM_ABORT("Unsupported TMOP metric " << mid);
 }
 
-}  // namespace mfem
+} // namespace mfem

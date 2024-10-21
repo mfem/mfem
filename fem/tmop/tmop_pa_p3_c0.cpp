@@ -85,7 +85,8 @@ void TMOP_AddMultPA_C0_3D(
                const real_t weight = W(qx, qy, qz) * detJtr;
 
                real_t D, p0[3], p1[3];
-               const real_t coeff0 = const_c0 ? C0(0, 0, 0, 0) : C0(qx, qy, qz, e);
+               const real_t coeff0 =
+                  const_c0 ? C0(0, 0, 0, 0) : C0(qx, qy, qz, e);
                kernels::internal::PullEval(qx, qy, qz, QQQ, D);
                kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, QQQ0, p0);
                kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, QQQ1, p1);
@@ -98,21 +99,20 @@ void TMOP_AddMultPA_C0_3D(
 
                // Eval_d1 (Exponential Limiter)
                // real_t dist_squared = dist*dist;
-               // subtract(20.0*exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared)
-               // - 1.0)) / dist_squared, x, x0, d1); z = a * (x - y) grad = a * (x -
-               // x0)
-               const real_t dist = D;  // GetValues, default comp set to 0
+               // subtract(20.0*exp(10.0*((x.DistanceSquaredTo(x0) /
+               // dist_squared)
+               // - 1.0)) / dist_squared, x, x0, d1); z = a * (x - y) grad = a *
+               // (x - x0)
+               const real_t dist = D; // GetValues, default comp set to 0
                real_t a = 0.0;
                const real_t w = weight * lim_normal * coeff0;
                const real_t dist_squared = dist * dist;
 
-               if (!exp_lim)
-               {
-                  a = 1.0 / dist_squared;
-               }
+               if (!exp_lim) { a = 1.0 / dist_squared; }
                else
                {
-                  real_t dsq = kernels::DistanceSquared<3>(p1, p0) / dist_squared;
+                  real_t dsq =
+                     kernels::DistanceSquared<3>(p1, p0) / dist_squared;
                   a = 20.0 * exp(10.0 * (dsq - 1.0)) / dist_squared;
                }
 
@@ -155,67 +155,25 @@ void TMOP_Integrator::AddMultPA_C0_3D(const Vector &x, Vector &y) const
 
    decltype(&TMOP_AddMultPA_C0_3D<>) ker = TMOP_AddMultPA_C0_3D;
 
-   if (d == 2 && q == 2)
-   {
-      ker = TMOP_AddMultPA_C0_3D<2, 2>;
-   }
-   if (d == 2 && q == 3)
-   {
-      ker = TMOP_AddMultPA_C0_3D<2, 3>;
-   }
-   if (d == 2 && q == 4)
-   {
-      ker = TMOP_AddMultPA_C0_3D<2, 4>;
-   }
-   if (d == 2 && q == 5)
-   {
-      ker = TMOP_AddMultPA_C0_3D<2, 5>;
-   }
-   if (d == 2 && q == 6)
-   {
-      ker = TMOP_AddMultPA_C0_3D<2, 6>;
-   }
+   if (d == 2 && q == 2) { ker = TMOP_AddMultPA_C0_3D<2, 2>; }
+   if (d == 2 && q == 3) { ker = TMOP_AddMultPA_C0_3D<2, 3>; }
+   if (d == 2 && q == 4) { ker = TMOP_AddMultPA_C0_3D<2, 4>; }
+   if (d == 2 && q == 5) { ker = TMOP_AddMultPA_C0_3D<2, 5>; }
+   if (d == 2 && q == 6) { ker = TMOP_AddMultPA_C0_3D<2, 6>; }
 
-   if (d == 3 && q == 3)
-   {
-      ker = TMOP_AddMultPA_C0_3D<3, 3>;
-   }
-   if (d == 3 && q == 4)
-   {
-      ker = TMOP_AddMultPA_C0_3D<3, 4>;
-   }
-   if (d == 3 && q == 5)
-   {
-      ker = TMOP_AddMultPA_C0_3D<3, 5>;
-   }
-   if (d == 3 && q == 6)
-   {
-      ker = TMOP_AddMultPA_C0_3D<3, 6>;
-   }
+   if (d == 3 && q == 3) { ker = TMOP_AddMultPA_C0_3D<3, 3>; }
+   if (d == 3 && q == 4) { ker = TMOP_AddMultPA_C0_3D<3, 4>; }
+   if (d == 3 && q == 5) { ker = TMOP_AddMultPA_C0_3D<3, 5>; }
+   if (d == 3 && q == 6) { ker = TMOP_AddMultPA_C0_3D<3, 6>; }
 
-   if (d == 4 && q == 4)
-   {
-      ker = TMOP_AddMultPA_C0_3D<4, 4>;
-   }
-   if (d == 4 && q == 5)
-   {
-      ker = TMOP_AddMultPA_C0_3D<4, 5>;
-   }
-   if (d == 4 && q == 6)
-   {
-      ker = TMOP_AddMultPA_C0_3D<4, 6>;
-   }
+   if (d == 4 && q == 4) { ker = TMOP_AddMultPA_C0_3D<4, 4>; }
+   if (d == 4 && q == 5) { ker = TMOP_AddMultPA_C0_3D<4, 5>; }
+   if (d == 4 && q == 6) { ker = TMOP_AddMultPA_C0_3D<4, 6>; }
 
-   if (d == 5 && q == 5)
-   {
-      ker = TMOP_AddMultPA_C0_3D<5, 5>;
-   }
-   if (d == 5 && q == 6)
-   {
-      ker = TMOP_AddMultPA_C0_3D<5, 6>;
-   }
+   if (d == 5 && q == 5) { ker = TMOP_AddMultPA_C0_3D<5, 5>; }
+   if (d == 5 && q == 6) { ker = TMOP_AddMultPA_C0_3D<5, 6>; }
 
    ker(ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X, Y, exp_lim, d, q, 4);
 }
 
-}  // namespace mfem
+} // namespace mfem

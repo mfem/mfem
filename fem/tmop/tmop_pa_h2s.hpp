@@ -16,12 +16,13 @@ namespace mfem
 
 class TMOPSetupGradPA2D
 {
-   const mfem::TMOP_Integrator *ti;  // not owned
+   const mfem::TMOP_Integrator *ti; // not owned
    const Vector &x;
 
-public:
-   TMOPSetupGradPA2D(const TMOP_Integrator *ti, const Vector &x)
-      : ti(ti), x(x) {}
+private:
+   TMOPSetupGradPA2D(const TMOP_Integrator *ti, const Vector &x) : ti(ti), x(x)
+   {
+   }
 
    int Ndof() const { return ti->PA.maps->ndof; }
 
@@ -81,7 +82,8 @@ public:
                const double *Jtr = &J(0, 0, qx, qy, e);
                const double detJtr = kernels::Det<2>(Jtr);
                const real_t m_coef = const_m0 ? MC(0, 0, 0) : MC(qx, qy, e);
-               const double weight = metric_normal * m_coef * W(qx, qy) * detJtr;
+               const double weight =
+                  metric_normal * m_coef * W(qx, qy) * detJtr;
 
                // Jrt = Jtr^{-1}
                double Jrt[4];
@@ -97,10 +99,10 @@ public:
 
                // metric->AssembleH
                METRIC{}.AssembleH(qx, qy, e, weight, Jpt, w, H);
-            }  // qx
-         }  // qy
+            } // qx
+         } // qy
       });
    }
 };
 
-}  // namespace mfem
+} // namespace mfem

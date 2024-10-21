@@ -38,19 +38,13 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
    if (PA.dim == 2)
    {
       AssembleGradPA_2D(xe);
-      if (lim_coeff)
-      {
-         AssembleGradPA_C0_2D(xe);
-      }
+      if (lim_coeff) { AssembleGradPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
       AssembleGradPA_3D(xe);
-      if (lim_coeff)
-      {
-         AssembleGradPA_C0_3D(xe);
-      }
+      if (lim_coeff) { AssembleGradPA_C0_3D(xe); }
    }
 }
 
@@ -59,10 +53,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
    const MemoryType mt =
       (pa_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : pa_mt;
    // Return immediately if limiting is not enabled
-   if (lim_coeff == nullptr)
-   {
-      return;
-   }
+   if (lim_coeff == nullptr) { return; }
    MFEM_VERIFY(lim_nodes0, "internal error");
 
    MFEM_VERIFY(PA.enabled, "AssemblePA_Limiting but PA is not enabled!");
@@ -74,10 +65,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
 
    const FiniteElementSpace *fes = PA.fes;
    const int NE = PA.ne;
-   if (NE == 0)
-   {
-      return;
-   }  // Quick return for empty processors
+   if (NE == 0) { return; } // Quick return for empty processors
    const IntegrationRule &ir = *PA.ir;
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -88,8 +76,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
 
    // lim_coeff -> PA.C0 (Q-vector)
    PA.C0.UseDevice(true);
-   if (ConstantCoefficient *cQ =
-          dynamic_cast<ConstantCoefficient *>(lim_coeff))
+   if (ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient *>(lim_coeff))
    {
       PA.C0.SetSize(1, Device::GetMemoryType());
       PA.C0.HostWrite();
@@ -128,10 +115,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
       const Operator *ld_R = limfes->GetElementRestriction(ordering);
       ld_R->Mult(*lim_dist, PA.LD);
    }
-   else
-   {
-      PA.LD = 1.0;
-   }
+   else { PA.LD = 1.0; }
 }
 
 void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
@@ -142,19 +126,10 @@ void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
    MFEM_VERIFY(Jtr.SizeI() == Jtr.SizeJ() && Jtr.SizeI() > 1, "");
    const int dim = Jtr.SizeI();
    bool done = false;
-   if (dim == 2)
-   {
-      done = ComputeAllElementTargets<2>(fes, ir, xe, Jtr);
-   }
-   if (dim == 3)
-   {
-      done = ComputeAllElementTargets<3>(fes, ir, xe, Jtr);
-   }
+   if (dim == 2) { done = ComputeAllElementTargets<2>(fes, ir, xe, Jtr); }
+   if (dim == 3) { done = ComputeAllElementTargets<3>(fes, ir, xe, Jtr); }
 
-   if (!done)
-   {
-      ComputeAllElementTargets_Fallback(fes, ir, xe, Jtr);
-   }
+   if (!done) { ComputeAllElementTargets_Fallback(fes, ir, xe, Jtr); }
 }
 
 void AnalyticAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &fes,
@@ -190,10 +165,7 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    PA.Jtr_needs_update = false;
    PA.Jtr_debug_grad = false;
    const FiniteElementSpace *fes = PA.fes;
-   if (PA.ne == 0)
-   {
-      return;
-   }  // Quick return for empty processors
+   if (PA.ne == 0) { return; } // Quick return for empty processors
    const IntegrationRule &ir = *PA.ir;
 
    // Compute PA.Jtr for all elements
@@ -203,10 +175,7 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
 {
    // Both are constant or not specified.
-   if (PA.MC.Size() == 1 && PA.C0.Size() == 1)
-   {
-      return;
-   }
+   if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
 
    // Coefficients are always evaluated on the CPU for now.
    PA.MC.HostWrite();
@@ -247,10 +216,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
    const int ne = PA.ne = mesh->GetNE();
-   if (ne == 0)
-   {
-      return;
-   }  // Quick return for empty processors
+   if (ne == 0) { return; } // Quick return for empty processors
    const int dim = PA.dim = mesh->Dimension();
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "Not yet implemented!");
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
@@ -314,11 +280,9 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.Jtr_needs_update = true;
    PA.Jtr_debug_grad = false;
 
-   // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.X0, lim_dist -> PA.LD, PA.H0
-   if (lim_coeff)
-   {
-      AssemblePA_Limiting();
-   }
+   // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.X0, lim_dist -> PA.LD,
+   // PA.H0
+   if (lim_coeff) { AssemblePA_Limiting(); }
 }
 
 void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
@@ -337,19 +301,13 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
    if (PA.dim == 2)
    {
       AssembleDiagonalPA_2D(de);
-      if (lim_coeff)
-      {
-         AssembleDiagonalPA_C0_2D(de);
-      }
+      if (lim_coeff) { AssembleDiagonalPA_C0_2D(de); }
    }
 
    if (PA.dim == 3)
    {
       AssembleDiagonalPA_3D(de);
-      if (lim_coeff)
-      {
-         AssembleDiagonalPA_C0_3D(de);
-      }
+      if (lim_coeff) { AssembleDiagonalPA_C0_3D(de); }
    }
 }
 
@@ -365,19 +323,13 @@ void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
    if (PA.dim == 2)
    {
       AddMultPA_2D(xe, ye);
-      if (lim_coeff)
-      {
-         AddMultPA_C0_2D(xe, ye);
-      }
+      if (lim_coeff) { AddMultPA_C0_2D(xe, ye); }
    }
 
    if (PA.dim == 3)
    {
       AddMultPA_3D(xe, ye);
-      if (lim_coeff)
-      {
-         AddMultPA_C0_3D(xe, ye);
-      }
+      if (lim_coeff) { AddMultPA_C0_3D(xe, ye); }
    }
 }
 
@@ -397,19 +349,13 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    if (PA.dim == 2)
    {
       AddMultGradPA_2D(re, ce);
-      if (lim_coeff)
-      {
-         AddMultGradPA_C0_2D(re, ce);
-      }
+      if (lim_coeff) { AddMultGradPA_C0_2D(re, ce); }
    }
 
    if (PA.dim == 3)
    {
       AddMultGradPA_3D(re, ce);
-      if (lim_coeff)
-      {
-         AddMultGradPA_C0_3D(re, ce);
-      }
+      if (lim_coeff) { AddMultGradPA_C0_3D(re, ce); }
    }
 }
 
@@ -427,22 +373,16 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
    if (PA.dim == 2)
    {
       energy = GetLocalStateEnergyPA_2D(xe);
-      if (lim_coeff)
-      {
-         energy += GetLocalStateEnergyPA_C0_2D(xe);
-      }
+      if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
       energy = GetLocalStateEnergyPA_3D(xe);
-      if (lim_coeff)
-      {
-         energy += GetLocalStateEnergyPA_C0_3D(xe);
-      }
+      if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
    }
 
    return energy;
 }
 
-}  // namespace mfem
+} // namespace mfem

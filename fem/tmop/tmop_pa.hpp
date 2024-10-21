@@ -30,13 +30,15 @@ struct TMOP_PA_Metric_2D
    using Args = kernels::InvariantsEvaluator2D::Buffers;
 
    virtual MFEM_HOST_DEVICE void EvalP(const double (&Jpt)[4], const double *w,
-                                       double (&P)[4]) {}
+                                       double (&P)[4])
+   {
+   }
 
-   virtual MFEM_HOST_DEVICE void AssembleH(const int qx, const int qy,
-                                           const int e, const double weight,
-                                           const double (&Jpt)[4],
-                                           const double *w,
-                                           const DeviceTensor<7> &H) {}
+   virtual MFEM_HOST_DEVICE void
+   AssembleH(const int qx, const int qy, const int e, const double weight,
+             const double (&Jpt)[4], const double *w, const DeviceTensor<7> &H)
+   {
+   }
 };
 
 struct TMOP_PA_Metric_001 : TMOP_PA_Metric_2D
@@ -326,8 +328,9 @@ struct TMOP_PA_Metric_094 : TMOP_PA_Metric_2D
                {
                   H(r, c, i, j, qx, qy, e) =
                      w[0] * 0.5 * weight * ddi1b(r, c) +
-                     w[1] * (weight * (0.5 - 0.5 / (I2b * I2b)) * ddi2b(r, c) +
-                             weight / (I2b * I2b * I2b) * di2b(r, c) * di2b(i, j));
+                     w[1] *
+                     (weight * (0.5 - 0.5 / (I2b * I2b)) * ddi2b(r, c) +
+                      weight / (I2b * I2b * I2b) * di2b(r, c) * di2b(i, j));
                }
             }
          }
@@ -346,11 +349,13 @@ struct TMOP_PA_Metric_3D
    {
    }
 
-   virtual MFEM_HOST_DEVICE void AssembleH(
-      const int qx, const int qy, const int qz, const int e,
-      const double weight, double *Jrt, double *Jpr,
-      const double (&Jpt)[DIM * DIM], const double *w,
-      const DeviceTensor<5 + DIM> &H) const {}
+   virtual MFEM_HOST_DEVICE void
+   AssembleH(const int qx, const int qy, const int qz, const int e,
+             const double weight, double *Jrt, double *Jpr,
+             const double (&Jpt)[DIM * DIM], const double *w,
+             const DeviceTensor<5 + DIM> &H) const
+   {
+   }
 };
 
 struct TMOP_PA_Metric_302 : TMOP_PA_Metric_3D
@@ -377,7 +382,7 @@ struct TMOP_PA_Metric_302 : TMOP_PA_Metric_3D
       double B[9];
       double dI1b[9], ddI1b[9];
       double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
-      double dI3b[9];  // = Jrt;
+      double dI3b[9]; // = Jrt;
       // (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
       kernels::InvariantsEvaluator3D ie(Args()
                                         .J(Jpt)
@@ -424,7 +429,8 @@ struct TMOP_PA_Metric_303 : TMOP_PA_Metric_3D
       // dI1b/3
       double B[9];
       double dI1b[9], dI3b[9];
-      kernels::InvariantsEvaluator3D ie(Args().J(Jpt).B(B).dI1b(dI1b).dI3b(dI3b));
+      kernels::InvariantsEvaluator3D ie(
+         Args().J(Jpt).B(B).dI1b(dI1b).dI3b(dI3b));
       kernels::Set(3, 3, 1. / 3., ie.Get_dI1b(), P);
    }
 
@@ -556,8 +562,8 @@ struct TMOP_PA_Metric_318 : TMOP_PA_Metric_3D
                {
                   const double dp =
                      weight * (I3b - 1.0 / (I3b * I3b * I3b)) * ddi3b(r, c) +
-                     weight * (1.0 + 3.0 / (I3b * I3b * I3b * I3b)) * di3b(r, c) *
-                     di3b(i, j);
+                     weight * (1.0 + 3.0 / (I3b * I3b * I3b * I3b)) *
+                     di3b(r, c) * di3b(i, j);
                   H(r, c, i, j, qx, qy, qz, e) = dp;
                }
             }
@@ -705,9 +711,11 @@ struct TMOP_PA_Metric_332 : TMOP_PA_Metric_3D
                   const double dp_302 =
                      (di2b(r, c) * di1b(i, j) + di1b(r, c) * di2b(i, j)) +
                      ddi2b(r, c) * I1b + ddi1b(r, c) * I2b;
-                  const double dp_315 = 2.0 * weight * (I3b - 1.0) * ddi3b(r, c) +
-                                        2.0 * weight * di3b(r, c) * di3b(i, j);
-                  H(r, c, i, j, qx, qy, qz, e) = w[0] * c1 * dp_302 + w[1] * dp_315;
+                  const double dp_315 =
+                     2.0 * weight * (I3b - 1.0) * ddi3b(r, c) +
+                     2.0 * weight * di3b(r, c) * di3b(i, j);
+                  H(r, c, i, j, qx, qy, qz, e) =
+                     w[0] * c1 * dp_302 + w[1] * dp_315;
                }
             }
          }
@@ -780,9 +788,10 @@ struct TMOP_PA_Metric_338 : TMOP_PA_Metric_3D
                      ddi2b(r, c) * I1b + ddi1b(r, c) * I2b;
                   const double dp_318 =
                      weight * (I3b - 1.0 / (I3b * I3b * I3b)) * ddi3b(r, c) +
-                     weight * (1.0 + 3.0 / (I3b * I3b * I3b * I3b)) * di3b(r, c) *
-                     di3b(i, j);
-                  H(r, c, i, j, qx, qy, qz, e) = w[0] * c1 * dp_302 + w[1] * dp_318;
+                     weight * (1.0 + 3.0 / (I3b * I3b * I3b * I3b)) *
+                     di3b(r, c) * di3b(i, j);
+                  H(r, c, i, j, qx, qy, qz, e) =
+                     w[0] * c1 * dp_302 + w[1] * dp_318;
                }
             }
          }
@@ -795,69 +804,27 @@ static void TMOPKernelLaunch(K &ker)
 {
    const int d = ker.Ndof(), q = ker.Nqpt();
 
-   if (d == 2 && q == 2)
-   {
-      return ker.template operator()<M, 2, 2>();
-   }
-   if (d == 2 && q == 3)
-   {
-      return ker.template operator()<M, 2, 3>();
-   }
-   if (d == 2 && q == 4)
-   {
-      return ker.template operator()<M, 2, 4>();
-   }
-   if (d == 2 && q == 5)
-   {
-      return ker.template operator()<M, 2, 5>();
-   }
-   if (d == 2 && q == 6)
-   {
-      return ker.template operator()<M, 2, 6>();
-   }
+   if (d == 2 && q == 2) { return ker.template operator()<M, 2, 2>(); }
+   if (d == 2 && q == 3) { return ker.template operator()<M, 2, 3>(); }
+   if (d == 2 && q == 4) { return ker.template operator()<M, 2, 4>(); }
+   if (d == 2 && q == 5) { return ker.template operator()<M, 2, 5>(); }
+   if (d == 2 && q == 6) { return ker.template operator()<M, 2, 6>(); }
 
-   if (d == 3 && q == 3)
-   {
-      return ker.template operator()<M, 3, 3>();
-   }
-   if (d == 3 && q == 4)
-   {
-      return ker.template operator()<M, 3, 4>();
-   }
-   if (d == 3 && q == 5)
-   {
-      return ker.template operator()<M, 3, 5>();
-   }
-   if (d == 3 && q == 6)
-   {
-      return ker.template operator()<M, 3, 6>();
-   }
+   if (d == 3 && q == 3) { return ker.template operator()<M, 3, 3>(); }
+   if (d == 3 && q == 4) { return ker.template operator()<M, 3, 4>(); }
+   if (d == 3 && q == 5) { return ker.template operator()<M, 3, 5>(); }
+   if (d == 3 && q == 6) { return ker.template operator()<M, 3, 6>(); }
 
-   if (d == 4 && q == 4)
-   {
-      return ker.template operator()<M, 4, 4>();
-   }
-   if (d == 4 && q == 5)
-   {
-      return ker.template operator()<M, 4, 5>();
-   }
-   if (d == 4 && q == 6)
-   {
-      return ker.template operator()<M, 4, 6>();
-   }
+   if (d == 4 && q == 4) { return ker.template operator()<M, 4, 4>(); }
+   if (d == 4 && q == 5) { return ker.template operator()<M, 4, 5>(); }
+   if (d == 4 && q == 6) { return ker.template operator()<M, 4, 6>(); }
 
-   if (d == 5 && q == 5)
-   {
-      return ker.template operator()<M, 5, 5>();
-   }
-   if (d == 5 && q == 6)
-   {
-      return ker.template operator()<M, 5, 6>();
-   }
+   if (d == 5 && q == 5) { return ker.template operator()<M, 5, 5>(); }
+   if (d == 5 && q == 6) { return ker.template operator()<M, 5, 6>(); }
 
    ker.template operator()<M, 0, 0>();
 }
 
-}  // namespace mfem
+} // namespace mfem
 
-#endif  // MFEM_TMOP_PA_HPP
+#endif // MFEM_TMOP_PA_HPP

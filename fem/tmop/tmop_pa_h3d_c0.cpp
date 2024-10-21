@@ -108,67 +108,25 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &diagonal) const
    decltype(&TMOP_AssembleDiagonalPA_C0_3D<>) ker =
       TMOP_AssembleDiagonalPA_C0_3D;
 
-   if (d == 2 && q == 2)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<2, 2>;
-   }
-   if (d == 2 && q == 3)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<2, 3>;
-   }
-   if (d == 2 && q == 4)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<2, 4>;
-   }
-   if (d == 2 && q == 5)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<2, 5>;
-   }
-   if (d == 2 && q == 6)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<2, 6>;
-   }
+   if (d == 2 && q == 2) { ker = TMOP_AssembleDiagonalPA_C0_3D<2, 2>; }
+   if (d == 2 && q == 3) { ker = TMOP_AssembleDiagonalPA_C0_3D<2, 3>; }
+   if (d == 2 && q == 4) { ker = TMOP_AssembleDiagonalPA_C0_3D<2, 4>; }
+   if (d == 2 && q == 5) { ker = TMOP_AssembleDiagonalPA_C0_3D<2, 5>; }
+   if (d == 2 && q == 6) { ker = TMOP_AssembleDiagonalPA_C0_3D<2, 6>; }
 
-   if (d == 3 && q == 3)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<3, 3>;
-   }
-   if (d == 3 && q == 4)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<3, 4>;
-   }
-   if (d == 3 && q == 5)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<3, 5>;
-   }
-   if (d == 3 && q == 6)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<3, 6>;
-   }
+   if (d == 3 && q == 3) { ker = TMOP_AssembleDiagonalPA_C0_3D<3, 3>; }
+   if (d == 3 && q == 4) { ker = TMOP_AssembleDiagonalPA_C0_3D<3, 4>; }
+   if (d == 3 && q == 5) { ker = TMOP_AssembleDiagonalPA_C0_3D<3, 5>; }
+   if (d == 3 && q == 6) { ker = TMOP_AssembleDiagonalPA_C0_3D<3, 6>; }
 
-   if (d == 4 && q == 4)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<4, 4>;
-   }
-   if (d == 4 && q == 5)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<4, 5>;
-   }
-   if (d == 4 && q == 6)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<4, 6>;
-   }
+   if (d == 4 && q == 4) { ker = TMOP_AssembleDiagonalPA_C0_3D<4, 4>; }
+   if (d == 4 && q == 5) { ker = TMOP_AssembleDiagonalPA_C0_3D<4, 5>; }
+   if (d == 4 && q == 6) { ker = TMOP_AssembleDiagonalPA_C0_3D<4, 6>; }
 
-   if (d == 5 && q == 5)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<5, 5>;
-   }
-   if (d == 5 && q == 6)
-   {
-      ker = TMOP_AssembleDiagonalPA_C0_3D<5, 6>;
-   }
+   if (d == 5 && q == 5) { ker = TMOP_AssembleDiagonalPA_C0_3D<5, 5>; }
+   if (d == 5 && q == 6) { ker = TMOP_AssembleDiagonalPA_C0_3D<5, 6>; }
 
    ker(NE, B, H0, D, d, q, 4);
 }
 
-}  // namespace mfem
+} // namespace mfem

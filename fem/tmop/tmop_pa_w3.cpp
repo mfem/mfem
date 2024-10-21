@@ -62,8 +62,10 @@ void TMOP_EnergyPA_3D(const double metric_normal, const double *w,
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                const real_t detJtr = kernels::Det<3>(Jtr);
-               const real_t m_coef = const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
-               const real_t weight = metric_normal * m_coef * W(qx, qy, qz) * detJtr;
+               const real_t m_coef =
+                  const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
+               const real_t weight =
+                  metric_normal * m_coef * W(qx, qy, qz) * detJtr;
 
                // Jrt = Jtr^{-1}
                real_t Jrt[9];
@@ -81,38 +83,34 @@ void TMOP_EnergyPA_3D(const double metric_normal, const double *w,
                real_t B[9];
                kernels::InvariantsEvaluator3D ie(Args().J(Jpt).B(B));
 
-               auto EvalW_302 = [&]()  // I1b * I2b / 9 - 1
+               auto EvalW_302 = [&]() // I1b * I2b / 9 - 1
                { return ie.Get_I1b() * ie.Get_I2b() / 9. - 1.; };
 
-               auto EvalW_303 = [&]()  // mu_303 = I1b/3 - 1
+               auto EvalW_303 = [&]() // mu_303 = I1b/3 - 1
                { return ie.Get_I1b() / 3. - 1.; };
 
-               auto EvalW_315 = [&]()  // (I3b - 1)^2
+               auto EvalW_315 = [&]() // (I3b - 1)^2
                {
                   const real_t a = ie.Get_I3b() - 1.0;
                   return a * a;
                };
 
-               auto EvalW_318 = [&]()  //  0.5 * (I3 + 1/I3) - 1.
+               auto EvalW_318 = [&]() //  0.5 * (I3 + 1/I3) - 1.
                {
                   const real_t I3 = ie.Get_I3();
                   return 0.5 * (I3 + 1.0 / I3) - 1.0;
                };
 
-               auto EvalW_321 = [&]()  // I1 + I2/I3 - 6
+               auto EvalW_321 = [&]() // I1 + I2/I3 - 6
                { return ie.Get_I1() + ie.Get_I2() / ie.Get_I3() - 6.0; };
 
                auto EvalW_332 = [&]()
-               {
-                  return w[0] * EvalW_302() + w[1] * EvalW_315();
-               };
+               { return w[0] * EvalW_302() + w[1] * EvalW_315(); };
 
                auto EvalW_338 = [&]()
-               {
-                  return w[0] * EvalW_302() + w[1] * EvalW_318();
-               };
+               { return w[0] * EvalW_302() + w[1] * EvalW_318(); };
 
-               const real_t EvalW = mid == 302   ? EvalW_302()
+               const real_t EvalW = mid == 302 ? EvalW_302()
                                     : mid == 303 ? EvalW_303()
                                     : mid == 315 ? EvalW_315()
                                     : mid == 318 ? EvalW_318()
@@ -159,68 +157,26 @@ double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &x) const
 
    decltype(&TMOP_EnergyPA_3D<>) ker = TMOP_EnergyPA_3D;
 
-   if (d == 2 && q == 2)
-   {
-      ker = TMOP_EnergyPA_3D<2, 2>;
-   }
-   if (d == 2 && q == 3)
-   {
-      ker = TMOP_EnergyPA_3D<2, 3>;
-   }
-   if (d == 2 && q == 4)
-   {
-      ker = TMOP_EnergyPA_3D<2, 4>;
-   }
-   if (d == 2 && q == 5)
-   {
-      ker = TMOP_EnergyPA_3D<2, 5>;
-   }
-   if (d == 2 && q == 6)
-   {
-      ker = TMOP_EnergyPA_3D<2, 6>;
-   }
+   if (d == 2 && q == 2) { ker = TMOP_EnergyPA_3D<2, 2>; }
+   if (d == 2 && q == 3) { ker = TMOP_EnergyPA_3D<2, 3>; }
+   if (d == 2 && q == 4) { ker = TMOP_EnergyPA_3D<2, 4>; }
+   if (d == 2 && q == 5) { ker = TMOP_EnergyPA_3D<2, 5>; }
+   if (d == 2 && q == 6) { ker = TMOP_EnergyPA_3D<2, 6>; }
 
-   if (d == 3 && q == 3)
-   {
-      ker = TMOP_EnergyPA_3D<3, 3>;
-   }
-   if (d == 3 && q == 4)
-   {
-      ker = TMOP_EnergyPA_3D<3, 4>;
-   }
-   if (d == 3 && q == 5)
-   {
-      ker = TMOP_EnergyPA_3D<3, 5>;
-   }
-   if (d == 3 && q == 6)
-   {
-      ker = TMOP_EnergyPA_3D<3, 6>;
-   }
+   if (d == 3 && q == 3) { ker = TMOP_EnergyPA_3D<3, 3>; }
+   if (d == 3 && q == 4) { ker = TMOP_EnergyPA_3D<3, 4>; }
+   if (d == 3 && q == 5) { ker = TMOP_EnergyPA_3D<3, 5>; }
+   if (d == 3 && q == 6) { ker = TMOP_EnergyPA_3D<3, 6>; }
 
-   if (d == 4 && q == 4)
-   {
-      ker = TMOP_EnergyPA_3D<4, 4>;
-   }
-   if (d == 4 && q == 5)
-   {
-      ker = TMOP_EnergyPA_3D<4, 5>;
-   }
-   if (d == 4 && q == 6)
-   {
-      ker = TMOP_EnergyPA_3D<4, 6>;
-   }
+   if (d == 4 && q == 4) { ker = TMOP_EnergyPA_3D<4, 4>; }
+   if (d == 4 && q == 5) { ker = TMOP_EnergyPA_3D<4, 5>; }
+   if (d == 4 && q == 6) { ker = TMOP_EnergyPA_3D<4, 6>; }
 
-   if (d == 5 && q == 5)
-   {
-      ker = TMOP_EnergyPA_3D<5, 5>;
-   }
-   if (d == 5 && q == 6)
-   {
-      ker = TMOP_EnergyPA_3D<5, 6>;
-   }
+   if (d == 5 && q == 5) { ker = TMOP_EnergyPA_3D<5, 5>; }
+   if (d == 5 && q == 6) { ker = TMOP_EnergyPA_3D<5, 6>; }
 
    ker(mn, w, const_m0, MC, M, NE, J, W, B, G, X, E, d, q, 4);
    return PA.E * PA.O;
 }
 
-}  // namespace mfem
+} // namespace mfem

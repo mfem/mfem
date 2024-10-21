@@ -99,10 +99,7 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
    const Mesh *mesh = fes.GetMesh();
    const int NE = mesh->GetNE();
    // Quick return for empty processors:
-   if (NE == 0)
-   {
-      return true;
-   }
+   if (NE == 0) { return true; }
    const int dim = mesh->Dimension();
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
                "mixed meshes are not supported");
@@ -123,37 +120,21 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
 
    switch (target_type)
    {
-      case IDEAL_SHAPE_UNIT_SIZE:  // Jtr(i) = Wideal;
+      case IDEAL_SHAPE_UNIT_SIZE: // Jtr(i) = Wideal;
       {
          decltype(&TMOP_TcIdealShapeUnitSize_3D<>) ker =
             TMOP_TcIdealShapeUnitSize_3D;
 
-         if (q == 2)
-         {
-            ker = TMOP_TcIdealShapeUnitSize_3D<2>;
-         }
-         if (q == 3)
-         {
-            ker = TMOP_TcIdealShapeUnitSize_3D<3>;
-         }
-         if (q == 4)
-         {
-            ker = TMOP_TcIdealShapeUnitSize_3D<4>;
-         }
-         if (q == 5)
-         {
-            ker = TMOP_TcIdealShapeUnitSize_3D<5>;
-         }
-         if (q == 6)
-         {
-            ker = TMOP_TcIdealShapeUnitSize_3D<6>;
-         }
+         if (q == 2) { ker = TMOP_TcIdealShapeUnitSize_3D<2>; }
+         if (q == 3) { ker = TMOP_TcIdealShapeUnitSize_3D<3>; }
+         if (q == 4) { ker = TMOP_TcIdealShapeUnitSize_3D<4>; }
+         if (q == 5) { ker = TMOP_TcIdealShapeUnitSize_3D<5>; }
+         if (q == 6) { ker = TMOP_TcIdealShapeUnitSize_3D<6>; }
 
          ker(NE, W, J, q);
          return true;
       }
-      case IDEAL_SHAPE_EQUAL_SIZE:
-         return false;
+      case IDEAL_SHAPE_EQUAL_SIZE: return false;
       case IDEAL_SHAPE_GIVEN_SIZE:
       {
          MFEM_VERIFY(nodes, "");
@@ -167,75 +148,31 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
          decltype(&TMOP_TcIdealShapeGivenSize_3D<>) ker =
             TMOP_TcIdealShapeGivenSize_3D;
 
-         if (d == 2 && q == 2)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<2, 2>;
-         }
-         if (d == 2 && q == 3)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<2, 3>;
-         }
-         if (d == 2 && q == 4)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<2, 4>;
-         }
-         if (d == 2 && q == 5)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<2, 5>;
-         }
-         if (d == 2 && q == 6)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<2, 6>;
-         }
+         if (d == 2 && q == 2) { ker = TMOP_TcIdealShapeGivenSize_3D<2, 2>; }
+         if (d == 2 && q == 3) { ker = TMOP_TcIdealShapeGivenSize_3D<2, 3>; }
+         if (d == 2 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_3D<2, 4>; }
+         if (d == 2 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_3D<2, 5>; }
+         if (d == 2 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_3D<2, 6>; }
 
-         if (d == 3 && q == 3)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<3, 3>;
-         }
-         if (d == 3 && q == 4)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<3, 4>;
-         }
-         if (d == 3 && q == 5)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<3, 5>;
-         }
-         if (d == 3 && q == 6)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<3, 6>;
-         }
+         if (d == 3 && q == 3) { ker = TMOP_TcIdealShapeGivenSize_3D<3, 3>; }
+         if (d == 3 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_3D<3, 4>; }
+         if (d == 3 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_3D<3, 5>; }
+         if (d == 3 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_3D<3, 6>; }
 
-         if (d == 4 && q == 4)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<4, 4>;
-         }
-         if (d == 4 && q == 5)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<4, 5>;
-         }
-         if (d == 4 && q == 6)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<4, 6>;
-         }
+         if (d == 4 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_3D<4, 4>; }
+         if (d == 4 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_3D<4, 5>; }
+         if (d == 4 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_3D<4, 6>; }
 
-         if (d == 5 && q == 5)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<5, 5>;
-         }
-         if (d == 5 && q == 6)
-         {
-            ker = TMOP_TcIdealShapeGivenSize_3D<5, 6>;
-         }
+         if (d == 5 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_3D<5, 5>; }
+         if (d == 5 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_3D<5, 6>; }
 
          ker(NE, detW, B, G, W, X, J, d, q, 4);
          return true;
       }
-      case GIVEN_SHAPE_AND_SIZE:
-         return false;
-      default:
-         return false;
+      case GIVEN_SHAPE_AND_SIZE: return false;
+      default:                   return false;
    }
    return false;
 }
 
-}  // namespace mfem
+} // namespace mfem

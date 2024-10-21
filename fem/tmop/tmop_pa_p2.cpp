@@ -28,36 +28,15 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &x, Vector &y) const
 
    TMOPAddMultPA2D ker(this, x, y);
 
-   if (mid == 1)
-   {
-      return TMOPAddMultPA_001(ker);
-   }
-   if (mid == 2)
-   {
-      return TMOPAddMultPA_002(ker);
-   }
-   if (mid == 7)
-   {
-      return TMOPAddMultPA_007(ker);
-   }
-   if (mid == 56)
-   {
-      return TMOPAddMultPA_056(ker);
-   }
-   if (mid == 77)
-   {
-      return TMOPAddMultPA_077(ker);
-   }
-   if (mid == 80)
-   {
-      return TMOPAddMultPA_080(ker);
-   }
-   if (mid == 94)
-   {
-      return TMOPAddMultPA_094(ker);
-   }
+   if (mid == 1) { return TMOPAddMultPA_001(ker); }
+   if (mid == 2) { return TMOPAddMultPA_002(ker); }
+   if (mid == 7) { return TMOPAddMultPA_007(ker); }
+   if (mid == 56) { return TMOPAddMultPA_056(ker); }
+   if (mid == 77) { return TMOPAddMultPA_077(ker); }
+   if (mid == 80) { return TMOPAddMultPA_080(ker); }
+   if (mid == 94) { return TMOPAddMultPA_094(ker); }
 
    MFEM_ABORT("Unsupported TMOP metric " << mid);
 }
 
-}  // namespace mfem
+} // namespace mfem

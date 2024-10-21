@@ -80,10 +80,7 @@ void DatcSize(const int NE, const int ncomp, const int sizeidx,
          MFEM_SYNC_THREAD;
       }
       min = min_size[0];
-      if (input_min_size > 0.)
-      {
-         min = input_min_size;
-      }
+      if (input_min_size > 0.) { min = input_min_size; }
       kernels::internal::EvalX(D1D, Q1D, B, DDD, DDQ);
       kernels::internal::EvalY(D1D, Q1D, B, DDQ, DQQ);
       kernels::internal::EvalZ(D1D, Q1D, B, DQQ, QQQ);
@@ -134,10 +131,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const Mesh *mesh = fes->GetMesh();
    const int NE = mesh->GetNE();
    // Quick return for empty processors:
-   if (NE == 0)
-   {
-      return;
-   }
+   if (NE == 0) { return; }
    const int dim = mesh->Dimension();
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
                "mixed meshes are not supported");
@@ -161,7 +155,8 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    Vector tspec_e;
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    const Operator *R = fes->GetElementRestriction(ordering);
-   MFEM_VERIFY(R && R->Height() == NE * ncomp * d * d * d, "Restriction error!");
+   MFEM_VERIFY(R && R->Height() == NE * ncomp * d * d * d,
+               "Restriction error!");
    tspec_e.SetSize(R->Height(), Device::GetDeviceMemoryType());
    tspec_e.UseDevice(true);
    tspec.UseDevice(true);
@@ -175,67 +170,25 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
 
    decltype(&DatcSize<>) ker = DatcSize;
 
-   if (d == 2 && q == 2)
-   {
-      ker = DatcSize<2, 2>;
-   }
-   if (d == 2 && q == 3)
-   {
-      ker = DatcSize<2, 3>;
-   }
-   if (d == 2 && q == 4)
-   {
-      ker = DatcSize<2, 4>;
-   }
-   if (d == 2 && q == 5)
-   {
-      ker = DatcSize<2, 5>;
-   }
-   if (d == 2 && q == 6)
-   {
-      ker = DatcSize<2, 6>;
-   }
+   if (d == 2 && q == 2) { ker = DatcSize<2, 2>; }
+   if (d == 2 && q == 3) { ker = DatcSize<2, 3>; }
+   if (d == 2 && q == 4) { ker = DatcSize<2, 4>; }
+   if (d == 2 && q == 5) { ker = DatcSize<2, 5>; }
+   if (d == 2 && q == 6) { ker = DatcSize<2, 6>; }
 
-   if (d == 3 && q == 3)
-   {
-      ker = DatcSize<3, 3>;
-   }
-   if (d == 3 && q == 4)
-   {
-      ker = DatcSize<4, 4>;
-   }
-   if (d == 3 && q == 5)
-   {
-      ker = DatcSize<5, 5>;
-   }
-   if (d == 3 && q == 6)
-   {
-      ker = DatcSize<6, 6>;
-   }
+   if (d == 3 && q == 3) { ker = DatcSize<3, 3>; }
+   if (d == 3 && q == 4) { ker = DatcSize<4, 4>; }
+   if (d == 3 && q == 5) { ker = DatcSize<5, 5>; }
+   if (d == 3 && q == 6) { ker = DatcSize<6, 6>; }
 
-   if (d == 4 && q == 4)
-   {
-      ker = DatcSize<4, 4>;
-   }
-   if (d == 4 && q == 5)
-   {
-      ker = DatcSize<4, 5>;
-   }
-   if (d == 4 && q == 6)
-   {
-      ker = DatcSize<4, 6>;
-   }
+   if (d == 4 && q == 4) { ker = DatcSize<4, 4>; }
+   if (d == 4 && q == 5) { ker = DatcSize<4, 5>; }
+   if (d == 4 && q == 6) { ker = DatcSize<4, 6>; }
 
-   if (d == 5 && q == 5)
-   {
-      ker = DatcSize<5, 5>;
-   }
-   if (d == 5 && q == 6)
-   {
-      ker = DatcSize<5, 6>;
-   }
+   if (d == 5 && q == 5) { ker = DatcSize<5, 5>; }
+   if (d == 5 && q == 6) { ker = DatcSize<5, 6>; }
 
    ker(NE, ncomp, sizeidx, input_min_size, nc_red, W, B, X, J, d, q, 4);
 }
 
-}  // namespace mfem
+} // namespace mfem

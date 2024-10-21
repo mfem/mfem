@@ -16,13 +16,15 @@ namespace mfem
 
 class TMOPAddMultPA3D
 {
-   const mfem::TMOP_Integrator *ti;  // not owned
+   const mfem::TMOP_Integrator *ti; // not owned
    const Vector &x;
    Vector &y;
 
 public:
-   TMOPAddMultPA3D(const TMOP_Integrator *ti, const Vector &x, Vector &y)
-      : ti(ti), x(x), y(y) {}
+   TMOPAddMultPA3D(const TMOP_Integrator *ti, const Vector &x, Vector &y):
+      ti(ti), x(x), y(y)
+   {
+   }
 
    int Ndof() const { return ti->PA.maps->ndof; }
 
@@ -83,7 +85,8 @@ public:
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
                   const real_t detJtr = kernels::Det<3>(Jtr);
-                  const real_t m_coef = const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
+                  const real_t m_coef =
+                     const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
                   const real_t weight =
                      metric_normal * m_coef * W(qx, qy, qz) * detJtr;
 
@@ -102,10 +105,7 @@ public:
                   double P[9];
                   METRIC{}.EvalP(Jpt, w, P);
 
-                  for (int i = 0; i < 9; i++)
-                  {
-                     P[i] *= weight;
-                  }
+                  for (int i = 0; i < 9; i++) { P[i] *= weight; }
 
                   // Y += DS . P^t += DSh . (Jrt . P^t)
                   double A[9];
@@ -123,4 +123,4 @@ public:
    }
 };
 
-}  // namespace mfem
+} // namespace mfem

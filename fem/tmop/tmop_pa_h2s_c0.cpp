@@ -82,7 +82,7 @@ void TMOP_SetupGradPA_C0_2D(
             kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ0, p0);
             kernels::internal::PullEval<MQ1, NBZ>(Q1D, qx, qy, QQ1, p1);
 
-            const real_t dist = D;  // GetValues, default comp set to 0
+            const real_t dist = D; // GetValues, default comp set to 0
 
             // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
             real_t grad_grad[4];
@@ -104,7 +104,8 @@ void TMOP_SetupGradPA_C0_2D(
                grad_grad[0] =
                   ((400.0 * tmp[0] * tmp[0] * f) / dist_squared_squared) +
                   (20.0 * f / dist_squared);
-               grad_grad[1] = (400.0 * tmp[0] * tmp[1] * f) / dist_squared_squared;
+               grad_grad[1] =
+                  (400.0 * tmp[0] * tmp[1] * f) / dist_squared_squared;
                grad_grad[2] = grad_grad[1];
                grad_grad[3] =
                   ((400.0 * tmp[1] * tmp[1] * f) / dist_squared_squared) +
@@ -131,7 +132,7 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
    const double ln = lim_normal;
    const bool const_c0 = PA.C0.Size() == 1;
 
-   const auto C0 = const_c0 ? Reshape(PA.C0.Read(), 1, 1, 1)
+   const auto C0 = PA.C0.Size() == 1 ? Reshape(PA.C0.Read(), 1, 1, 1)
                    : Reshape(PA.C0.Read(), q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
@@ -147,67 +148,25 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
 
    decltype(&TMOP_SetupGradPA_C0_2D<>) ker = TMOP_SetupGradPA_C0_2D;
 
-   if (d == 2 && q == 2)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<2, 2>;
-   }
-   if (d == 2 && q == 3)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<2, 3>;
-   }
-   if (d == 2 && q == 4)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<2, 4>;
-   }
-   if (d == 2 && q == 5)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<2, 5>;
-   }
-   if (d == 2 && q == 6)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<2, 6>;
-   }
+   if (d == 2 && q == 2) { ker = TMOP_SetupGradPA_C0_2D<2, 2>; }
+   if (d == 2 && q == 3) { ker = TMOP_SetupGradPA_C0_2D<2, 3>; }
+   if (d == 2 && q == 4) { ker = TMOP_SetupGradPA_C0_2D<2, 4>; }
+   if (d == 2 && q == 5) { ker = TMOP_SetupGradPA_C0_2D<2, 5>; }
+   if (d == 2 && q == 6) { ker = TMOP_SetupGradPA_C0_2D<2, 6>; }
 
-   if (d == 3 && q == 3)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<3, 3>;
-   }
-   if (d == 3 && q == 4)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<3, 4>;
-   }
-   if (d == 3 && q == 5)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<3, 5>;
-   }
-   if (d == 3 && q == 6)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<3, 6>;
-   }
+   if (d == 3 && q == 3) { ker = TMOP_SetupGradPA_C0_2D<3, 3>; }
+   if (d == 3 && q == 4) { ker = TMOP_SetupGradPA_C0_2D<3, 4>; }
+   if (d == 3 && q == 5) { ker = TMOP_SetupGradPA_C0_2D<3, 5>; }
+   if (d == 3 && q == 6) { ker = TMOP_SetupGradPA_C0_2D<3, 6>; }
 
-   if (d == 4 && q == 4)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<4, 4>;
-   }
-   if (d == 4 && q == 5)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<4, 5>;
-   }
-   if (d == 4 && q == 6)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<4, 6>;
-   }
+   if (d == 4 && q == 4) { ker = TMOP_SetupGradPA_C0_2D<4, 4>; }
+   if (d == 4 && q == 5) { ker = TMOP_SetupGradPA_C0_2D<4, 5>; }
+   if (d == 4 && q == 6) { ker = TMOP_SetupGradPA_C0_2D<4, 6>; }
 
-   if (d == 5 && q == 5)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<5, 5>;
-   }
-   if (d == 5 && q == 6)
-   {
-      ker = TMOP_SetupGradPA_C0_2D<5, 6>;
-   }
+   if (d == 5 && q == 5) { ker = TMOP_SetupGradPA_C0_2D<5, 5>; }
+   if (d == 5 && q == 6) { ker = TMOP_SetupGradPA_C0_2D<5, 6>; }
 
    ker(ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X, H0, exp_lim, d, q, 4);
 }
 
-}  // namespace mfem
+} // namespace mfem

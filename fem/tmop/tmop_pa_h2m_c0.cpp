@@ -57,10 +57,7 @@ void TMOP_AddMultGradPA_C0_2D(const int NE, const ConstDeviceMatrix &B,
             DeviceMatrix H(H_data, 2, 2);
             for (int i = 0; i < DIM; i++)
             {
-               for (int j = 0; j < DIM; j++)
-               {
-                  H(i, j) = H0(i, j, qx, qy, e);
-               }
+               for (int j = 0; j < DIM; j++) { H(i, j) = H0(i, j, qx, qy, e); }
             }
 
             // p2 = H . Xh
@@ -88,67 +85,25 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &R, Vector &C) const
 
    decltype(&TMOP_AddMultGradPA_C0_2D<>) ker = TMOP_AddMultGradPA_C0_2D;
 
-   if (d == 2 && q == 2)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<2, 2>;
-   }
-   if (d == 2 && q == 3)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<2, 3>;
-   }
-   if (d == 2 && q == 4)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<2, 4>;
-   }
-   if (d == 2 && q == 5)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<2, 5>;
-   }
-   if (d == 2 && q == 6)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<2, 6>;
-   }
+   if (d == 2 && q == 2) { ker = TMOP_AddMultGradPA_C0_2D<2, 2>; }
+   if (d == 2 && q == 3) { ker = TMOP_AddMultGradPA_C0_2D<2, 3>; }
+   if (d == 2 && q == 4) { ker = TMOP_AddMultGradPA_C0_2D<2, 4>; }
+   if (d == 2 && q == 5) { ker = TMOP_AddMultGradPA_C0_2D<2, 5>; }
+   if (d == 2 && q == 6) { ker = TMOP_AddMultGradPA_C0_2D<2, 6>; }
 
-   if (d == 3 && q == 3)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<3, 3>;
-   }
-   if (d == 3 && q == 4)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<3, 4>;
-   }
-   if (d == 3 && q == 5)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<3, 5>;
-   }
-   if (d == 3 && q == 6)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<3, 6>;
-   }
+   if (d == 3 && q == 3) { ker = TMOP_AddMultGradPA_C0_2D<3, 3>; }
+   if (d == 3 && q == 4) { ker = TMOP_AddMultGradPA_C0_2D<3, 4>; }
+   if (d == 3 && q == 5) { ker = TMOP_AddMultGradPA_C0_2D<3, 5>; }
+   if (d == 3 && q == 6) { ker = TMOP_AddMultGradPA_C0_2D<3, 6>; }
 
-   if (d == 4 && q == 4)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<4, 4>;
-   }
-   if (d == 4 && q == 5)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<4, 5>;
-   }
-   if (d == 4 && q == 6)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<4, 6>;
-   }
+   if (d == 4 && q == 4) { ker = TMOP_AddMultGradPA_C0_2D<4, 4>; }
+   if (d == 4 && q == 5) { ker = TMOP_AddMultGradPA_C0_2D<4, 5>; }
+   if (d == 4 && q == 6) { ker = TMOP_AddMultGradPA_C0_2D<4, 6>; }
 
-   if (d == 5 && q == 5)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<5, 5>;
-   }
-   if (d == 5 && q == 6)
-   {
-      ker = TMOP_AddMultGradPA_C0_2D<5, 6>;
-   }
+   if (d == 5 && q == 5) { ker = TMOP_AddMultGradPA_C0_2D<5, 5>; }
+   if (d == 5 && q == 6) { ker = TMOP_AddMultGradPA_C0_2D<5, 6>; }
 
    ker(NE, B, H0, X, Y, d, q, 4);
 }
 
-}  // namespace mfem
+} // namespace mfem
