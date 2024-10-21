@@ -362,10 +362,8 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    {
       // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
       auto qfunc_coeff = dynamic_cast<const QuadratureFunctionCoefficient*>(coeff_);
-      if (qfunc_coeff == NULL)
-      {
-         mfem_error("Not a QuadratureFunctionCoefficient - for inside H1");
-      }
+      MFEM_VERIFY(qfunc_coeff != NULL,
+                  "Only QuadratureFunctionCoefficient is currently supported");
       qfunc = qfunc_coeff->GetQuadFunction();
       // Store the mixed mass matrix integration rule, which is assumed same on all elements
       ir = qfunc.GetIntRule(0);
