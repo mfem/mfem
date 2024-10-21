@@ -27,14 +27,16 @@ class UnitVectorGridFunctionCoeff : public VectorCoefficient
 {
 public:
    UnitVectorGridFunctionCoeff( int dim)
-   : VectorCoefficient(dim)
+   : VectorCoefficient(dim*dim)
    { }
 
    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
    {
       real_t coeffVal = gridfunc_->GetValue(T, ip);
 
-      V.SetSize(vdim); V = coeffVal;
+      V.SetSize(vdim); V = 0.0;                           // FIXME
+      V[0] = coeffVal;
+      V[3] = coeffVal;
    }
 
    void SetGridFunction( GridFunction * gridfunc )
@@ -43,6 +45,34 @@ public:
    }
 
    GridFunction *gridfunc_ = nullptr;
+};
+
+class PrevVelVectorGridFunctionCoeff : public VectorCoefficient
+{
+public:
+   PrevVelVectorGridFunctionCoeff( int dim)
+   : VectorCoefficient(dim)
+   { }
+
+   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      V.SetSize(vdim);
+      gridFuncCoeff->Eval(V, T, ip);
+
+      V *= 1.0/dt_;
+   }
+
+   void SetGridFunction( GridFunction * gridfunc, real_t dt )
+   {
+      gridfunc_ = gridfunc;
+      dt_ = dt;
+      delete gridFuncCoeff;
+      gridFuncCoeff = new VectorGridFunctionCoefficient( gridfunc );
+   }
+
+   GridFunction *gridfunc_ = nullptr;
+   VectorGridFunctionCoefficient *gridFuncCoeff = nullptr;
+   real_t dt_;
 };
 
 class NonLinTermVectorGridFunctionCoeff : public VectorCoefficient
@@ -63,6 +93,8 @@ public:
       gridfunc_->GetVectorGradient(T, vecGrad);
 
       vecGrad.MultTranspose( val, V );
+
+      V *= -1.0;
    }
 
    void SetGridFunction( ParGridFunction * gridfunc )
@@ -245,6 +277,7 @@ protected:
    GridFunctionCoefficient * pRHSCoeff = nullptr;
    UnitVectorGridFunctionCoeff * pUnitVectorCoeff = nullptr;
    NonLinTermVectorGridFunctionCoeff * nonlinTermCoeff = nullptr;
+   PrevVelVectorGridFunctionCoeff * prevVelLoadCoeff = nullptr;
    
 
    // VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;
@@ -325,7 +358,7 @@ protected:
 #endif
 
    // Iteration counts.
-   int iter_vsolve = 0, iter_psolve = 0, iter_psisolve = 0;
+   int iter = 1, iter_vsolve = 0, iter_psolve = 0, iter_psisolve = 0;
 
    // Residuals.
    real_t res_vsolve = 0.0, res_psolve = 0.0, res_psisolve = 0.0;

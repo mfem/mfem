@@ -17,9 +17,9 @@
 using namespace mfem;
 using namespace incompressible_navier;
 
-IncompressibleNavierSolver::IncompressibleNavierSolver(ParMesh *mesh, int velorder, int porder, int torder, real_t kin_vis)
-   : pmesh(mesh), velorder(velorder), porder(porder), torder(torder), kin_vis(kin_vis),
-     gll_rules(0, Quadrature1D::GaussLobatto), velGF(torder+1,nullptr), pGF(torder+1,nullptr)
+IncompressibleNavierSolver::IncompressibleNavierSolver(ParMesh *mesh, int velorder, int porder, int torder_, real_t kin_vis)
+   : pmesh(mesh), velorder(velorder), porder(porder), torder(torder_), kin_vis(kin_vis),
+     gll_rules(0, Quadrature1D::GaussLobatto), velGF(torder_+1,nullptr), pGF(torder_+1,nullptr)
 {
    vfec   = new H1_FECollection(velorder, pmesh->Dimension());
    psifec = new H1_FECollection(velorder);
@@ -41,7 +41,7 @@ IncompressibleNavierSolver::IncompressibleNavierSolver(ParMesh *mesh, int velord
    int vfes_truevsize = vfes->GetTrueVSize();
    int pfes_truevsize = pfes->GetTrueVSize();
 
-   for( int i; i<torder; i++)
+   for( int i = 0; i<torder+1; i++)
    {
       velGF[i] = new ParGridFunction(vfes); *velGF[i] = 0.0;
       pGF[i]   = new ParGridFunction(pfes); *pGF[i]   = 0.0;
@@ -69,7 +69,7 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    }
 
    vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
-   pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
+   //pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
    Array<int> empty;
 
@@ -78,7 +78,7 @@ void IncompressibleNavierSolver::Setup(real_t dt)
                                                 2 * velorder - 1);
 
    kinvisCoeff  = new ConstantCoefficient(kin_vis);
-   dtCoeff      = new ConstantCoefficient(-1.0/dt);
+   dtCoeff      = new ConstantCoefficient(1.0/dt);
 
    //-------------------------------------------------------------------------
 
@@ -140,17 +140,31 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    //-------------------------------------------------------------------------
 
    velLForm = new ParLinearForm(vfes);
+   prevVelLoadCoeff = new PrevVelVectorGridFunctionCoeff(pmesh->Dimension());
    pUnitVectorCoeff = new UnitVectorGridFunctionCoeff(pmesh->Dimension());
    nonlinTermCoeff = new NonLinTermVectorGridFunctionCoeff(pmesh->Dimension());
+   auto *prevVelLoadLFi = new VectorDomainLFIntegrator(*prevVelLoadCoeff);
    auto *pvel_lfi = new VectorDomainLFGradIntegrator(*pUnitVectorCoeff);
    auto *p_nonlintermlfi = new VectorDomainLFIntegrator(*nonlinTermCoeff);
    if (numerical_integ)
    {
+      prevVelLoadLFi->SetIntRule(&ir_ni);
       pvel_lfi->SetIntRule(&ir_ni);
       p_nonlintermlfi->SetIntRule(&ir_ni);
    }
+   velLForm->AddDomainIntegrator(prevVelLoadLFi);
    velLForm->AddDomainIntegrator(pvel_lfi);
    velLForm->AddDomainIntegrator(p_nonlintermlfi);
+
+   // for (auto &vel_dbc : vel_dbcs)
+   // {
+   //    auto *bdr_integrator = new BoundaryNormalLFIntegrator(*vel_dbc.coeff);
+   //    if (numerical_integ)
+   //    {
+   //       bdr_integrator->SetIntRule(&ir_ni);
+   //    }
+   //    velLForm->AddBoundaryIntegrator(bdr_integrator, vel_dbc.attr);
+   // }
 
    //-------------------------------------------------------------------------
 
@@ -199,6 +213,14 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    psiInv->SetRelTol(rtol_psisolve);
    psiInv->SetMaxIter(200);
 
+   //  mfem::SuperLURowLocMatrix SA(*psiOp.As<mfem::HypreParMatrix>());
+   //  mfem::SuperLUSolver ls(vfes->GetComm());
+   //  ls.SetPrintStatistics(false);
+   //  ls.SetSymmetricPattern(false);
+   //  //ls.SetColumnPermutation(mfem::superlu::METIS_AT_PLUS_A);
+   //  ls.SetOperator(SA);
+   //  ls.Mult(B, X);
+
    pInvPC = new HypreSmoother(*pOp.As<HypreParMatrix>());
    dynamic_cast<HypreSmoother *>(pInvPC)->SetType(HypreSmoother::Jacobi, 1);
 
@@ -210,6 +232,8 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    pInv->SetRelTol(rtol_psolve);
    pInv->SetMaxIter(200);
 
+   std::cout<<" --- setup done ---"<<std::endl;
+
 }
 
 void IncompressibleNavierSolver::UpdateTimestepHistory(real_t dt)
@@ -220,23 +244,17 @@ void IncompressibleNavierSolver::UpdateTimestepHistory(real_t dt)
 void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
                         bool provisional)
 {
+   for (auto &vel_dbc : vel_dbcs)
+   {
+      velGF[0]->ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
+      velGF[1]->ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
+   }
+
+   //-------------------------------------------------------------------------
+
+   prevVelLoadCoeff ->SetGridFunction( velGF[0], dt ); 
    pUnitVectorCoeff->SetGridFunction( pGF[0] );
    nonlinTermCoeff->SetGridFunction( velGF[1] );
-
-
-
-   subtract(1.0/dt, *velGF[1], *velGF[0], DvGF);
-   DvelCoeff->SetGridFunction( &DvGF );
-
-
-
-
-   divVelCoeff->SetGridFunction( velGF[0]);
-   divVelGF.ProjectCoefficient( *divVelCoeff );
-
-   add( *pGF[1], psiGF, pRHS);
-   add( pRHS, -1.0*kin_vis, divVelGF, pRHS);
-   pRHSCoeff->SetGridFunction( &pRHS );
 
    //-------------------------------------------------------------------------
 
@@ -254,16 +272,13 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
    // vpBForm->FormSystemMatrix(vel_ess_tdof, pOp);
 
    //-------------------------------------------------------------------------
+
    velLForm->Assemble();
    velLForm->ParallelAssemble(velLF);
 
-   psiLForm->Assemble();
-   psiLForm->ParallelAssemble(psiLF);
-
-   pLForm->Assemble();
-   pLForm->ParallelAssemble(pLF);
-
    //-------------------------------------------------------------------------
+
+   std::cout<<" --- solve ---"<<std::endl;
 
    Vector X1, B1;
    Vector X2, B2;
@@ -275,8 +290,6 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
    else
    {
       velBForm->FormLinearSystem(vel_ess_tdof, *velGF[0], velLF, vOp  , X1, B1, 1);
-      psiBForm->FormLinearSystem(empty       , psiGF    , psiLF, psiOp, X2, B2, 1);
-      pBForm  ->FormLinearSystem(empty        , *pGF[0] , pLF  , pOp  , X3, B3, 1);
    }
 
    velInv->Mult(B1, X1);
@@ -284,21 +297,61 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
    res_vsolve = velInv->GetFinalNorm();
    velBForm->RecoverFEMSolution(X1, velLF, *velGF[0]);
 
+   //-------------------------------------------------------------------------
+   
+   subtract(1.0/dt, *velGF[0], *velGF[1], DvGF);
+   DvelCoeff->SetGridFunction( &DvGF );
+
+   psiLForm->Assemble();
+   psiLForm->ParallelAssemble(psiLF);
+
+   if (partial_assembly)
+   {
+
+   }
+   else
+   {
+      psiBForm->FormLinearSystem(empty       , psiGF    , psiLF, psiOp, X2, B2, 1);
+   }
+
    psiInv->Mult(B2, X2);
    iter_psisolve = psiInv->GetNumIterations();
    res_psisolve = psiInv->GetFinalNorm();
    psiBForm->RecoverFEMSolution(X2, psiLF, psiGF);
 
+   //-------------------------------------------------------------------------
+   divVelCoeff->SetGridFunction( velGF[0]);
+   divVelGF.ProjectCoefficient( *divVelCoeff );
+
+   add( *pGF[1], psiGF, pRHS);
+   add( pRHS, -1.0*kin_vis, divVelGF, pRHS);
+   pRHSCoeff->SetGridFunction( &pRHS );
+
+   pLForm->Assemble();
+   pLForm->ParallelAssemble(pLF);
+
+   if (partial_assembly)
+   {
+
+   }
+   else
+   {
+      pBForm  ->FormLinearSystem(empty        , *pGF[0] , pLF  , pOp  , X3, B3, 1);
+   }
+
    pInv->Mult(B3, X3);
    iter_psolve = pInv->GetNumIterations();
-   res_psolve = pInv->GetFinalNorm();
+   res_psisolve = pInv->GetFinalNorm();
    pBForm->RecoverFEMSolution(X3, pLF, *pGF[0]);
+
+   mfem::out << "It: " << iter << " | Iter_U: " << iter_vsolve << " | Iter_Psi: " << iter_psisolve << " | Iter_P: " << iter_psolve  << "\n";
+   mfem::out << "It: " << iter << " | Resid_U: " << res_vsolve << " | Resid_Psi: " << res_psisolve << " | Resid_P: " << res_psisolve  << "\n";
 
    *velGF[1] = *velGF[0];
    *pGF[1]   = *pGF[0];
 
-
-
+   time += dt;
+   iter ++;
 }
 
 
@@ -312,7 +365,15 @@ void IncompressibleNavierSolver::EliminateRHS(Operator &A,
                                 Vector &B,
                                 int copy_interior)
 {
-
+   const Operator *Po = A.GetOutputProlongation();
+   const Operator *Pi = A.GetProlongation();
+   const Operator *Ri = A.GetRestriction();
+   A.InitTVectors(Po, Ri, Pi, x, b, X, B);
+   if (!copy_interior)
+   {
+      X.SetSubVectorComplement(ess_tdof_list, 0.0);
+   }
+   constrainedA.EliminateRHS(X, B);
 }
 
 real_t IncompressibleNavierSolver::ComputeCFL(ParGridFunction &u, real_t dt)
@@ -323,12 +384,36 @@ real_t IncompressibleNavierSolver::ComputeCFL(ParGridFunction &u, real_t dt)
 
 void IncompressibleNavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 {
+   vel_dbcs.emplace_back(attr, coeff);
+
+   if (verbose && pmesh->GetMyRank() == 0)
+   {
+      mfem::out << "Adding Velocity Dirichlet BC to attributes ";
+      for (int i = 0; i < attr.Size(); ++i)
+      {
+         if (attr[i] == 1)
+         {
+            mfem::out << i << " ";
+         }
+      }
+      mfem::out << std::endl;
+   }
+
+   for (int i = 0; i < attr.Size(); ++i)
+   {
+      MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
+                  "Duplicate boundary definition deteceted.");
+      if (attr[i] == 1)
+      {
+         vel_ess_attr[i] = 1;
+      }
+   }
 
 }
 
 void IncompressibleNavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
 {
-
+   AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
 }
 
 IncompressibleNavierSolver::~IncompressibleNavierSolver()
@@ -341,7 +426,7 @@ IncompressibleNavierSolver::~IncompressibleNavierSolver()
    delete kinvisCoeff;
    delete dtCoeff;
 
-   for( int i; i<torder; i++)
+   for( int i = 0; i<torder+1; i++)
    {
       delete velGF[i];
       delete pGF[i];
