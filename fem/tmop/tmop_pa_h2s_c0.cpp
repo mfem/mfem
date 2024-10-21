@@ -144,7 +144,7 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
    const bool const_c0 = PA.C0.Size() == 1;
 
    const auto C0 = PA.C0.Size() == 1 ? Reshape(PA.C0.Read(), 1, 1, 1)
-                                     : Reshape(PA.C0.Read(), q, q, NE);
+                   : Reshape(PA.C0.Read(), q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
    const auto B = Reshape(PA.maps->B.Read(), q, d);

@@ -354,8 +354,8 @@ struct TMOP_PA_Metric_094 : TMOP_PA_Metric_2D
                   H(r, c, i, j, qx, qy, e) =
                      w[0] * 0.5 * weight * ddi1b(r, c) +
                      w[1] *
-                        (weight * (0.5 - 0.5 / (I2b * I2b)) * ddi2b(r, c) +
-                         weight / (I2b * I2b * I2b) * di2b(r, c) * di2b(i, j));
+                     (weight * (0.5 - 0.5 / (I2b * I2b)) * ddi2b(r, c) +
+                      weight / (I2b * I2b * I2b) * di2b(r, c) * di2b(i, j));
                }
             }
          }
@@ -419,15 +419,15 @@ struct TMOP_PA_Metric_302 : TMOP_PA_Metric_3D
       real_t dI3b[9]; // = Jrt;
       // (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
       kernels::InvariantsEvaluator3D ie(Args()
-                                           .J(Jpt)
-                                           .B(B)
-                                           .dI1b(dI1b)
-                                           .ddI1b(ddI1b)
-                                           .dI2(dI2)
-                                           .dI2b(dI2b)
-                                           .ddI2(ddI2)
-                                           .ddI2b(ddI2b)
-                                           .dI3b(dI3b));
+                                        .J(Jpt)
+                                        .B(B)
+                                        .dI1b(dI1b)
+                                        .ddI1b(ddI1b)
+                                        .dI2(dI2)
+                                        .dI2b(dI2b)
+                                        .ddI2(ddI2)
+                                        .ddI2b(ddI2b)
+                                        .dI3b(dI3b));
 
       const real_t c1 = weight / 9.;
       const real_t I1b = ie.Get_I1b();
@@ -487,17 +487,17 @@ struct TMOP_PA_Metric_303 : TMOP_PA_Metric_3D
 
       // ddI1b/3
       kernels::InvariantsEvaluator3D ie(Args()
-                                           .J(Jpt)
-                                           .B(B)
-                                           .dI1b(dI1b)
-                                           .ddI1(ddI1)
-                                           .ddI1b(ddI1b)
-                                           .dI2(dI2)
-                                           .dI2b(dI2b)
-                                           .ddI2(ddI2)
-                                           .ddI2b(ddI2b)
-                                           .dI3b(dI3b)
-                                           .ddI3b(ddI3b));
+                                        .J(Jpt)
+                                        .B(B)
+                                        .dI1b(dI1b)
+                                        .ddI1(ddI1)
+                                        .ddI1b(ddI1b)
+                                        .dI2(dI2)
+                                        .dI2b(dI2b)
+                                        .ddI2(ddI2)
+                                        .ddI2b(ddI2b)
+                                        .dI3b(dI3b)
+                                        .ddI3b(ddI3b));
 
       const real_t c1 = weight / 3.;
       for (int i = 0; i < DIM; i++)
@@ -615,7 +615,7 @@ struct TMOP_PA_Metric_318 : TMOP_PA_Metric_3D
                   const real_t dp =
                      weight * (I3b - 1.0 / (I3b * I3b * I3b)) * ddi3b(r, c) +
                      weight * (1.0 + 3.0 / (I3b * I3b * I3b * I3b)) *
-                        di3b(r, c) * di3b(i, j);
+                     di3b(r, c) * di3b(i, j);
                   H(r, c, i, j, qx, qy, qz, e) = dp;
                }
             }
@@ -664,17 +664,17 @@ struct TMOP_PA_Metric_321 : TMOP_PA_Metric_3D
       //      + (6*I2/I3b^4)*(dI3b x dI3b)
       //      + (-2*I2/I3b^3)*ddI3b
       kernels::InvariantsEvaluator3D ie(Args()
-                                           .J(Jpt)
-                                           .B(B)
-                                           .dI1b(dI1b)
-                                           .ddI1(ddI1)
-                                           .ddI1b(ddI1b)
-                                           .dI2(dI2)
-                                           .dI2b(dI2b)
-                                           .ddI2(ddI2)
-                                           .ddI2b(ddI2b)
-                                           .dI3b(dI3b)
-                                           .ddI3b(ddI3b));
+                                        .J(Jpt)
+                                        .B(B)
+                                        .dI1b(dI1b)
+                                        .ddI1(ddI1)
+                                        .ddI1b(ddI1b)
+                                        .dI2(dI2)
+                                        .dI2b(dI2b)
+                                        .ddI2(ddI2)
+                                        .ddI2b(ddI2b)
+                                        .dI3b(dI3b)
+                                        .ddI3b(ddI3b));
       real_t sign_detJ;
       const real_t I2 = ie.Get_I2();
       const real_t I3b = ie.Get_I3b(sign_detJ);
@@ -743,16 +743,16 @@ struct TMOP_PA_Metric_332 : TMOP_PA_Metric_3D
       real_t *dI3b = Jrt, *ddI3b = Jpr;
       // w0 H_302 + w1 H_315
       kernels::InvariantsEvaluator3D ie(Args()
-                                           .J(Jpt)
-                                           .B(B)
-                                           .dI1b(dI1b)
-                                           .ddI1b(ddI1b)
-                                           .dI2(dI2)
-                                           .dI2b(dI2b)
-                                           .ddI2(ddI2)
-                                           .ddI2b(ddI2b)
-                                           .dI3b(dI3b)
-                                           .ddI3b(ddI3b));
+                                        .J(Jpt)
+                                        .B(B)
+                                        .dI1b(dI1b)
+                                        .ddI1b(ddI1b)
+                                        .dI2(dI2)
+                                        .dI2b(dI2b)
+                                        .ddI2(ddI2)
+                                        .ddI2b(ddI2b)
+                                        .dI3b(dI3b)
+                                        .ddI3b(ddI3b));
       real_t sign_detJ;
       const real_t c1 = weight / 9.0;
       const real_t I1b = ie.Get_I1b();
@@ -824,16 +824,16 @@ struct TMOP_PA_Metric_338 : TMOP_PA_Metric_3D
       real_t *dI3b = Jrt, *ddI3b = Jpr;
       // w0 H_302 + w1 H_318
       kernels::InvariantsEvaluator3D ie(Args()
-                                           .J(Jpt)
-                                           .B(B)
-                                           .dI1b(dI1b)
-                                           .ddI1b(ddI1b)
-                                           .dI2(dI2)
-                                           .dI2b(dI2b)
-                                           .ddI2(ddI2)
-                                           .ddI2b(ddI2b)
-                                           .dI3b(dI3b)
-                                           .ddI3b(ddI3b));
+                                        .J(Jpt)
+                                        .B(B)
+                                        .dI1b(dI1b)
+                                        .ddI1b(ddI1b)
+                                        .dI2(dI2)
+                                        .dI2b(dI2b)
+                                        .ddI2(ddI2)
+                                        .ddI2b(ddI2b)
+                                        .dI3b(dI3b)
+                                        .ddI3b(ddI3b));
       real_t sign_detJ;
       const real_t c1 = weight / 9.;
       const real_t I1b = ie.Get_I1b();
@@ -859,7 +859,7 @@ struct TMOP_PA_Metric_338 : TMOP_PA_Metric_3D
                   const real_t dp_318 =
                      weight * (I3b - 1.0 / (I3b * I3b * I3b)) * ddi3b(r, c) +
                      weight * (1.0 + 3.0 / (I3b * I3b * I3b * I3b)) *
-                        di3b(r, c) * di3b(i, j);
+                     di3b(r, c) * di3b(i, j);
                   H(r, c, i, j, qx, qy, qz, e) =
                      w[0] * c1 * dp_302 + w[1] * dp_318;
                }

@@ -137,7 +137,7 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
 
    const bool const_c0 = PA.C0.Size() == 1;
    const auto C0 = const_c0 ? Reshape(PA.C0.Read(), 1, 1, 1)
-                            : Reshape(PA.C0.Read(), q, q, NE);
+                   : Reshape(PA.C0.Read(), q, q, NE);
    const auto LD = Reshape(PA.LD.Read(), d, d, NE);
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
    const auto B = Reshape(PA.maps->B.Read(), q, d);

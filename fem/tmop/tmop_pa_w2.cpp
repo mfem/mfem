@@ -38,7 +38,7 @@ void TMOP_EnergyPA_2D(const real_t metric_normal,
 {
    using Args = kernels::InvariantsEvaluator2D::Buffers;
    MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 56 || mid == 77 ||
-                  mid == 80 || mid == 94,
+               mid == 80 || mid == 94,
                "2D metric not yet implemented!");
 
    constexpr int NBZ = 1;
@@ -116,13 +116,13 @@ void TMOP_EnergyPA_2D(const real_t metric_normal,
             { return w[0] * EvalW_02() + w[1] * EvalW_56(); };
 
             const real_t EvalW = mid == 1  ? EvalW_01()
-                               : mid == 2  ? EvalW_02()
-                               : mid == 7  ? EvalW_07()
-                               : mid == 56 ? EvalW_56()
-                               : mid == 77 ? EvalW_77()
-                               : mid == 80 ? EvalW_80()
-                               : mid == 94 ? EvalW_94()
-                                           : 0.0;
+                                 : mid == 2  ? EvalW_02()
+                                 : mid == 7  ? EvalW_07()
+                                 : mid == 56 ? EvalW_56()
+                                 : mid == 77 ? EvalW_77()
+                                 : mid == 80 ? EvalW_80()
+                                 : mid == 94 ? EvalW_94()
+                                 : 0.0;
 
             E(qx, qy, e) = weight * EvalW;
          }
