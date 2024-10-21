@@ -240,7 +240,7 @@ public:
                          MemoryType d_mt_ = MemoryType::HOST);
    };
 
-   //Class below must be public as we now have device code
+   // Class below must be public as we now have device code
 public:
    class H1SpaceMixedMassOperator : public Operator
    {
@@ -276,11 +276,11 @@ public:
        refined mesh (LOR). */
    class L2ProjectionL2Space : public L2Projection
    {
-      // The restriction and prolongation operators are represented as dense
-      // elementwise matrices (of potentially different sizes, because of mixed
-      // meshes or p-refinement). The matrix entries are stored in the R and P
-      // arrays. The entries of the i'th high-order element are stored at the
-      // index given by offsets[i].
+      /// The restriction and prolongation operators are represented as dense
+      /// elementwise matrices (of potentially different sizes, because of mixed
+      /// meshes or p-refinement). The matrix entries are stored in the R and P
+      /// arrays. The entries of the i'th high-order element are stored at the
+      /// index given by offsets[i].
       mutable Array<real_t> R, P;
       mutable Array<real_t> R_ea, P_ea;
 
@@ -307,7 +307,7 @@ public:
       /// error between the fields.
       void Mult(const Vector& x, Vector& y) const override;
 
-      //Perform mult on the device (same as above)
+      /// Perform mult on the device (same as above)
       void DeviceMult(const Vector& x, Vector& y) const;
 
       /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
@@ -346,7 +346,6 @@ public:
       void SetRelTol(real_t p_rtol_) override { } ///< No-op.
       void SetAbsTol(real_t p_atol_) override { } ///< No-op.
 
-      //friend class L2ProjectionGridTransfer;
    };
 
 protected:
