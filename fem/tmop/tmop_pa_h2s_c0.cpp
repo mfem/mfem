@@ -21,14 +21,14 @@ template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
                             const ConstDeviceCube &LD,
                             const bool const_c0,
-                            const DeviceTensor<3, const double> &C0,
+                            const DeviceTensor<3, const real_t> &C0,
                             const int NE,
-                            const DeviceTensor<5, const double> &J,
+                            const DeviceTensor<5, const real_t> &J,
                             const ConstDeviceMatrix &W,
                             const ConstDeviceMatrix &b,
                             const ConstDeviceMatrix &bld,
-                            const DeviceTensor<4, const double> &X0,
-                            const DeviceTensor<4, const double> &X1,
+                            const DeviceTensor<4, const real_t> &X0,
+                            const DeviceTensor<4, const real_t> &X1,
                             DeviceTensor<5> &H0,
                             const bool exp_lim,
                             const int d1d,
@@ -140,7 +140,7 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
 {
    constexpr int DIM = 2;
    const int NE = PA.ne, d = PA.maps_lim->ndof, q = PA.maps_lim->nqpt;
-   const double ln = lim_normal;
+   const real_t ln = lim_normal;
    const bool const_c0 = PA.C0.Size() == 1;
 
    const auto C0 = PA.C0.Size() == 1 ? Reshape(PA.C0.Read(), 1, 1, 1)

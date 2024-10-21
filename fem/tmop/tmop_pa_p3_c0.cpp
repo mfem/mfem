@@ -18,17 +18,17 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_AddMultPA_C0_3D(const double lim_normal,
-                          const DeviceTensor<4, const double> &LD,
+void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
+                          const DeviceTensor<4, const real_t> &LD,
                           const bool const_c0,
-                          const DeviceTensor<4, const double> &C0,
+                          const DeviceTensor<4, const real_t> &C0,
                           const int NE,
-                          const DeviceTensor<6, const double> &J,
+                          const DeviceTensor<6, const real_t> &J,
                           const ConstDeviceCube &W,
                           const ConstDeviceMatrix &b,
                           const ConstDeviceMatrix &bld,
-                          const DeviceTensor<5, const double> &X0,
-                          const DeviceTensor<5, const double> &X1,
+                          const DeviceTensor<5, const real_t> &X0,
+                          const DeviceTensor<5, const real_t> &X1,
                           DeviceTensor<5> &Y,
                           const bool exp_lim,
                           const int d1d,
@@ -143,7 +143,7 @@ void TMOP_AddMultPA_C0_3D(const double lim_normal,
 void TMOP_Integrator::AddMultPA_C0_3D(const Vector &x, Vector &y) const
 {
    constexpr int DIM = 3;
-   const double ln = lim_normal;
+   const real_t ln = lim_normal;
    const bool const_c0 = PA.C0.Size() == 1;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 

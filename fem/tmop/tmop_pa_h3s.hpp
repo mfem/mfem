@@ -35,14 +35,14 @@ public:
    void operator()()
    {
       constexpr int DIM = 3;
-      const double metric_normal = ti->metric_normal;
+      const real_t metric_normal = ti->metric_normal;
 
-      Array<double> mp;
+      Array<real_t> mp;
       if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
       {
          m->GetWeights(mp);
       }
-      const double *w = mp.Read();
+      const real_t *w = mp.Read();
 
       const int d = ti->PA.maps->ndof, q = ti->PA.maps->nqpt;
 

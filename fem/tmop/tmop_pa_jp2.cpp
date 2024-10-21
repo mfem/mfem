@@ -22,7 +22,7 @@ template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_MinDetJpr_2D(const int NE,
                        const ConstDeviceMatrix &B,
                        const ConstDeviceMatrix &G,
-                       const DeviceTensor<4, const double> &X,
+                       const DeviceTensor<4, const real_t> &X,
                        DeviceTensor<3> &E,
                        const int d1d,
                        const int q1d,
@@ -62,7 +62,7 @@ void TMOP_MinDetJpr_2D(const int NE,
    });
 }
 
-double TMOPNewtonSolver::MinDetJpr_2D(const FiniteElementSpace *fes,
+real_t TMOPNewtonSolver::MinDetJpr_2D(const FiniteElementSpace *fes,
                                       const Vector &x) const
 {
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;

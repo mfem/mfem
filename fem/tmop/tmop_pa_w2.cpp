@@ -19,18 +19,18 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_EnergyPA_2D(const double metric_normal,
-                      const double *w,
+void TMOP_EnergyPA_2D(const real_t metric_normal,
+                      const real_t *w,
                       const bool const_m0,
-                      const double *mc,
+                      const real_t *mc,
                       const real_t *metric_param,
                       const int mid,
                       const int NE,
-                      const DeviceTensor<5, const double> &J,
+                      const DeviceTensor<5, const real_t> &J,
                       const ConstDeviceMatrix &W,
                       const ConstDeviceMatrix &B,
                       const ConstDeviceMatrix &G,
-                      const DeviceTensor<4, const double> &X,
+                      const DeviceTensor<4, const real_t> &X,
                       DeviceTensor<3> &E,
                       const int d1d,
                       const int q1d,
@@ -130,10 +130,10 @@ void TMOP_EnergyPA_2D(const double metric_normal,
    });
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
 {
    constexpr int DIM = 2;
-   const double mn = metric_normal;
+   const real_t mn = metric_normal;
    const int NE = PA.ne, MId = metric->Id();
    const int d = PA.maps->ndof, q = PA.maps->nqpt;
 

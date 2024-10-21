@@ -39,15 +39,15 @@ public:
    void operator()()
    {
       constexpr int DIM = 2, NBZ = 1;
-      const double metric_normal = ti->metric_normal;
+      const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d = ti->PA.maps->ndof, q = ti->PA.maps->nqpt;
 
-      Array<double> mp;
+      Array<real_t> mp;
       if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
       {
          m->GetWeights(mp);
       }
-      const double *w = mp.Read();
+      const real_t *w = mp.Read();
 
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, q, q, NE);
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), q, q);
@@ -71,10 +71,10 @@ public:
          const int D1D = T_D1D ? T_D1D : d;
          const int Q1D = T_Q1D ? T_Q1D : q;
 
-         MFEM_SHARED double BG[2][MQ1 * MD1];
-         MFEM_SHARED double XY[2][NBZ][MD1 * MD1];
-         MFEM_SHARED double DQ[4][NBZ][MD1 * MQ1];
-         MFEM_SHARED double QQ[4][NBZ][MQ1 * MQ1];
+         MFEM_SHARED real_t BG[2][MQ1 * MD1];
+         MFEM_SHARED real_t XY[2][NBZ][MD1 * MD1];
+         MFEM_SHARED real_t DQ[4][NBZ][MD1 * MQ1];
+         MFEM_SHARED real_t QQ[4][NBZ][MQ1 * MQ1];
 
          kernels::internal::LoadX<MD1, NBZ>(e, D1D, X, XY);
          kernels::internal::LoadBG<MD1, MQ1>(D1D, Q1D, B, G, BG);
@@ -86,31 +86,31 @@ public:
          {
             MFEM_FOREACH_THREAD(qx, x, Q1D)
             {
-               const double *Jtr = &J(0, 0, qx, qy, e);
-               const double detJtr = kernels::Det<2>(Jtr);
+               const real_t *Jtr = &J(0, 0, qx, qy, e);
+               const real_t detJtr = kernels::Det<2>(Jtr);
                const real_t m_coef = const_m0 ? MC(0, 0, 0) : MC(qx, qy, e);
-               const double weight =
+               const real_t weight =
                   metric_normal * m_coef * W(qx, qy) * detJtr;
 
                // Jrt = Jtr^{-1}
-               double Jrt[4];
+               real_t Jrt[4];
                kernels::CalcInverse<2>(Jtr, Jrt);
 
                // Jpr = X{^T}.DSh
-               double Jpr[4];
+               real_t Jpr[4];
                kernels::internal::PullGrad<MQ1, NBZ>(Q1D, qx, qy, QQ, Jpr);
 
                // Jpt = X{^T}.DS = (X{^T}.DSh).Jrt = Jpr.Jrt
-               double Jpt[4];
+               real_t Jpt[4];
                kernels::Mult(2, 2, 2, Jpr, Jrt, Jpt);
 
-               double P[4];
+               real_t P[4];
                METRIC{}.EvalP(Jpt, w, P);
 
                for (int i = 0; i < 4; i++) { P[i] *= weight; }
 
                // PMatO += DS . P^t += DSh . (Jrt . P^t)
-               double A[4];
+               real_t A[4];
                kernels::MultABt(2, 2, 2, Jrt, P, A);
                kernels::internal::PushGrad<MQ1, NBZ>(Q1D, qx, qy, A, QQ);
             }

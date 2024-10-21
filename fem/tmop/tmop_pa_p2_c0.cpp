@@ -18,17 +18,17 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_AddMultPA_C0_2D(const double lim_normal,
+void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
                           const ConstDeviceCube &LD,
                           const bool const_c0,
-                          const DeviceTensor<3, const double> &C0,
+                          const DeviceTensor<3, const real_t> &C0,
                           const int NE,
-                          const DeviceTensor<5, const double> &J,
+                          const DeviceTensor<5, const real_t> &J,
                           const ConstDeviceMatrix &W,
                           const ConstDeviceMatrix &b,
                           const ConstDeviceMatrix &bld,
-                          const DeviceTensor<4, const double> &X0,
-                          const DeviceTensor<4, const double> &X1,
+                          const DeviceTensor<4, const real_t> &X0,
+                          const DeviceTensor<4, const real_t> &X1,
                           DeviceTensor<4> &Y,
                           const bool exp_lim,
                           const int d1d,
@@ -100,7 +100,7 @@ void TMOP_AddMultPA_C0_2D(const double lim_normal,
             // grad = a * (x - x0)
 
             // Eval_d1 (Exponential Limiter)
-            // double dist_squared = dist*dist;
+            // real_t dist_squared = dist*dist;
             // subtract(20.0*exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared)
             // - 1.0)) / dist_squared, x, x0, d1); z = a * (x - y) grad = a * (x
             // - x0)
@@ -131,7 +131,7 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
    constexpr int DIM = 2;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
-   const double ln = lim_normal;
+   const real_t ln = lim_normal;
    MFEM_VERIFY(PA.maps_lim->ndof == d, "");
    MFEM_VERIFY(PA.maps_lim->nqpt == q, "");
 

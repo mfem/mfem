@@ -20,8 +20,8 @@ namespace mfem
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_AddMultGradPA_C0_3D(const int NE,
                               const ConstDeviceMatrix &b,
-                              const DeviceTensor<6, const double> &H0,
-                              const DeviceTensor<5, const double> &X,
+                              const DeviceTensor<6, const real_t> &H0,
+                              const DeviceTensor<5, const real_t> &X,
                               DeviceTensor<5> &Y,
                               const int d1d,
                               const int q1d,

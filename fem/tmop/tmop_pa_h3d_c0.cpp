@@ -18,7 +18,7 @@ namespace mfem
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
                                    const ConstDeviceMatrix &B,
-                                   const DeviceTensor<6, const double> &H0,
+                                   const DeviceTensor<6, const real_t> &H0,
                                    DeviceTensor<5> &D,
                                    const int d1d,
                                    const int q1d,

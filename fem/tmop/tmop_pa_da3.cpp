@@ -20,11 +20,11 @@ template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void DatcSize(const int NE,
               const int ncomp,
               const int sizeidx,
-              const double input_min_size,
-              const double *nc_red,
+              const real_t input_min_size,
+              const real_t *nc_red,
               const ConstDeviceMatrix &W,
               const ConstDeviceMatrix &B,
-              const DeviceTensor<5, const double> &X,
+              const DeviceTensor<5, const real_t> &X,
               DeviceTensor<6> &J,
               const int d1d = 0,
               const int q1d = 0,
@@ -150,7 +150,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const int d = maps.ndof, q = maps.nqpt;
-   const double input_min_size = lim_min_size;
+   const real_t input_min_size = lim_min_size;
 
    Vector nc_size_red(NE, Device::GetDeviceMemoryType());
    nc_size_red.HostWrite();
@@ -159,7 +159,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    {
       nc_size_red(e) = (ncmesh) ? ncmesh->GetElementSizeReduction(e) : 1.0;
    }
-   const double *nc_red = nc_size_red.Read();
+   const real_t *nc_red = nc_size_red.Read();
 
    Vector tspec_e;
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;

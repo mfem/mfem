@@ -39,15 +39,15 @@ public:
    void operator()()
    {
       constexpr int DIM = 3;
-      const double metric_normal = ti->metric_normal;
+      const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d = ti->PA.maps->ndof, q = ti->PA.maps->nqpt;
 
-      Array<double> mp;
+      Array<real_t> mp;
       if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(ti->metric))
       {
          m->GetWeights(mp);
       }
-      const double *w = mp.Read();
+      const real_t *w = mp.Read();
 
       const auto J = Reshape(ti->PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), q, q, q);
@@ -96,24 +96,24 @@ public:
                      metric_normal * m_coef * W(qx, qy, qz) * detJtr;
 
                   // Jrt = Jtr^{-1}
-                  double Jrt[9];
+                  real_t Jrt[9];
                   kernels::CalcInverse<3>(Jtr, Jrt);
 
                   // Jpr = X^T.DSh
-                  double Jpr[9];
+                  real_t Jpr[9];
                   kernels::internal::PullGrad<MQ1>(Q1D, qx, qy, qz, s_QQQ, Jpr);
 
                   // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
-                  double Jpt[9];
+                  real_t Jpt[9];
                   kernels::Mult(3, 3, 3, Jpr, Jrt, Jpt);
 
-                  double P[9];
+                  real_t P[9];
                   METRIC{}.EvalP(Jpt, w, P);
 
                   for (int i = 0; i < 9; i++) { P[i] *= weight; }
 
                   // Y += DS . P^t += DSh . (Jrt . P^t)
-                  double A[9];
+                  real_t A[9];
                   kernels::MultABt(3, 3, 3, Jrt, P, A);
                   kernels::internal::PushGrad<MQ1>(Q1D, qx, qy, qz, A, s_QQQ);
                }

@@ -18,17 +18,17 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_SetupGradPA_C0_3D(const double lim_normal,
-                            const DeviceTensor<4, const double> &LD,
+void TMOP_SetupGradPA_C0_3D(const real_t lim_normal,
+                            const DeviceTensor<4, const real_t> &LD,
                             const bool const_c0,
-                            const DeviceTensor<4, const double> &C0,
+                            const DeviceTensor<4, const real_t> &C0,
                             const int NE,
-                            const DeviceTensor<6, const double> &J,
+                            const DeviceTensor<6, const real_t> &J,
                             const ConstDeviceCube &W,
                             const ConstDeviceMatrix &b,
                             const ConstDeviceMatrix &bld,
-                            const DeviceTensor<5, const double> &X0,
-                            const DeviceTensor<5, const double> &X1,
+                            const DeviceTensor<5, const real_t> &X0,
+                            const DeviceTensor<5, const real_t> &X1,
                             DeviceTensor<6> &H0,
                             const bool exp_lim,
                             const int d1d,
@@ -104,7 +104,7 @@ void TMOP_SetupGradPA_C0_3D(const double lim_normal,
                kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, QQQ0, p0);
                kernels::internal::PullEval<MQ1>(Q1D, qx, qy, qz, QQQ1, p1);
 
-               const double dist = D; // GetValues, default comp set to 0
+               const real_t dist = D; // GetValues, default comp set to 0
 
                // lim_func->Eval_d2(p1, p0, d_vals(q), grad_grad);
 
@@ -118,7 +118,7 @@ void TMOP_SetupGradPA_C0_3D(const double lim_normal,
                }
                else
                {
-                  double tmp[3];
+                  real_t tmp[3];
                   kernels::Subtract<3>(1.0, p1, p0, tmp);
                   real_t dsq = kernels::DistanceSquared<3>(p1, p0);
                   real_t dist_squared = dist * dist;
@@ -161,7 +161,7 @@ void TMOP_SetupGradPA_C0_3D(const double lim_normal,
 void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 {
    constexpr int DIM = 3;
-   const double ln = lim_normal;
+   const real_t ln = lim_normal;
    const bool const_c0 = PA.C0.Size() == 1;
    const int NE = PA.ne, d = PA.maps_lim->ndof, q = PA.maps_lim->nqpt;
 

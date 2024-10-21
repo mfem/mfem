@@ -35,7 +35,7 @@ namespace mfem
                      {
                         for (int cc = 0; cc < dim; cc++)
                         {
-                           const double H = h(r, c, rr, cc);
+                           const real_t H = h(r, c, rr, cc);
                            A(e, i + r*dof, j + rr*dof) +=
                                  weight_q * DS(i, c) * DS(j, cc) * H;
                         }
@@ -51,8 +51,8 @@ template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_AssembleDiagonalPA_2D(const int NE,
                                 const ConstDeviceMatrix &B,
                                 const ConstDeviceMatrix &G,
-                                const DeviceTensor<5, const double> &J,
-                                const DeviceTensor<7, const double> &H,
+                                const DeviceTensor<5, const real_t> &J,
+                                const DeviceTensor<7, const real_t> &H,
                                 DeviceTensor<4> &D,
                                 const int d1d = 0,
                                 const int q1d = 0,

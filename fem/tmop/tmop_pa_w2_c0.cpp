@@ -18,17 +18,17 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_EnergyPA_C0_2D(const double lim_normal,
+void TMOP_EnergyPA_C0_2D(const real_t lim_normal,
                          const ConstDeviceCube &LD,
                          const bool const_c0,
-                         const DeviceTensor<3, const double> &C0,
+                         const DeviceTensor<3, const real_t> &C0,
                          const int NE,
-                         const DeviceTensor<5, const double> &J,
+                         const DeviceTensor<5, const real_t> &J,
                          const ConstDeviceMatrix &W,
                          const ConstDeviceMatrix &b,
                          const ConstDeviceMatrix &bld,
-                         const DeviceTensor<4, const double> &X0,
-                         const DeviceTensor<4, const double> &X1,
+                         const DeviceTensor<4, const real_t> &X0,
+                         const DeviceTensor<4, const real_t> &X1,
                          DeviceTensor<3> &E,
                          const bool exp_lim,
                          const int d1d,
@@ -110,10 +110,10 @@ void TMOP_EnergyPA_C0_2D(const double lim_normal,
    });
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
 {
    constexpr int DIM = 2;
-   const double ln = lim_normal;
+   const real_t ln = lim_normal;
    const bool const_c0 = PA.C0.Size() == 1;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 

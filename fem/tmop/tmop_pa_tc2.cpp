@@ -45,11 +45,11 @@ void TMOP_TcIdealShapeUnitSize_2D(const int NE,
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_TcIdealShapeGivenSize_2D(const int NE,
-                                   const double detW,
+                                   const real_t detW,
                                    const ConstDeviceMatrix &B,
                                    const ConstDeviceMatrix &G,
                                    const ConstDeviceMatrix &W,
-                                   const DeviceTensor<4, const double> &X,
+                                   const DeviceTensor<4, const real_t> &X,
                                    DeviceTensor<5> &J,
                                    const int d1d,
                                    const int q1d,
@@ -113,7 +113,7 @@ bool TargetConstructor::ComputeAllElementTargets<2>(
    const FiniteElement &fe = *fes.GetFE(0);
    MFEM_VERIFY(fe.GetGeomType() == Geometry::SQUARE, "");
    const DenseMatrix &w = Geometries.GetGeomToPerfGeomJac(Geometry::SQUARE);
-   const double detW = w.Det();
+   const real_t detW = w.Det();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const int d = maps.ndof, q = maps.nqpt;
