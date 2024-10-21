@@ -2167,12 +2167,12 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongateTranspose(
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(real_t p_rtol_)
 {
-   pcg.SetRelTol(p_rtol_);
+   use_device ? pcg_vea.SetRelTol(p_rtol_) : pcg.SetRelTol(p_rtol_);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(real_t p_atol_)
 {
-   pcg.SetAbsTol(p_atol_);
+   use_device ? pcg_vea.SetAbsTol(p_atol_) : pcg.SetAbsTol(p_atol_);
 }
 
 std::pair<
