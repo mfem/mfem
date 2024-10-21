@@ -1223,7 +1223,7 @@ VecFunc GetCFun(Problem prob, real_t c)
          constexpr real_t ymax = 1.;
          constexpr real_t wmax = .05;
          DenseMatrix bubbles(4, n);
-         for(int i = 0; i < n; i++)
+         for (int i = 0; i < n; i++)
          {
             bubbles(0, i) = rand_real() * xmax;
             bubbles(1, i) = rand_real() * ymax;
