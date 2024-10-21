@@ -1,0 +1,94 @@
+# Astyl => .clang-format
+# https://astyle.sourceforge.net/astyle.html
+# https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+
+# Align
+AlignAfterOpenBracket: Align
+AlignArrayOfStructures: Right
+AlignConsecutiveAssignments: 
+  Enabled: false
+  AcrossComments: false
+  AcrossEmptyLines: false
+AlignConsecutiveBitFields: Consecutive
+AlignConsecutiveDeclarations: None
+AlignConsecutiveMacros: None
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCaseColons: false
+AlignEscapedNewlines: LeftWithLastLine
+AlignOperands: Align
+AlignTrailingComments: true
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+
+# Shorts
+AllowShortBlocksOnASingleLine: true
+AllowShortCaseExpressionOnASingleLine: true 
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortEnumsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: OnlyFirstIf
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: true
+
+# Packing
+PackConstructorInitializers: CurrentLine
+
+# Breaks
+BreakBeforeBraces: Allman
+InsertBraces: true # Warning
+BreakArrays: false
+BreakAfterReturnType: None
+BreakTemplateDeclarations: Yes
+BreakBeforeTernaryOperators: false
+BreakConstructorInitializers: AfterColon
+BreakFunctionDefinitionParameters: false
+AlwaysBreakBeforeMultilineStrings: false
+
+# Indentation
+AccessModifierOffset: 0
+ConstructorInitializerIndentWidth: 2
+Cpp11BracedListStyle: false
+DerivePointerAlignment: false
+ContinuationIndentWidth: 0
+NamespaceIndentation: None
+FixNamespaceComments: true
+LambdaBodyIndentation: OuterScope
+IndentAccessModifiers: false
+IndentCaseBlocks: true
+IndentCaseLabels: false
+IndentExternBlock: false
+IndentGotoLabels: false
+IndentPPDirectives: AfterHash
+IndentWidth: 3
+IndentWrappedFunctionNames: false
+InsertNewlineAtEOF: true
+
+
+# Alignments
+PointerAlignment: Right
+
+# Tabs and spaces
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpacesBeforeTrailingComments: 1
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+SpaceInEmptyParentheses: false
+SpacesInCStyleCastParentheses: false
+SpaceBeforeParens: ControlStatementsExceptControlMacros
+SpacesInAngles: false
+UseTab: Never
+TabWidth: 3
+ColumnLimit: 80
+
+# Other
+LineEnding: LF
+SortIncludes: false
+IncludeBlocks: Regroup
+KeepEmptyLines: 
+  AtEndOfFile: false
+  AtStartOfBlock: false
+  AtStartOfFile: false
