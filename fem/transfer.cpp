@@ -1524,8 +1524,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
    // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
    pcg.SetMaxIter(1000);
    // initial values for relative and absolute tolerance
-   pcg.SetRelTol(1e-13);
-   pcg.SetAbsTol(1e-13);
+   pcg.SetRelTol(1e-15);
+   pcg.SetAbsTol(1e-15);
    pcg.SetPreconditioner(*precon);
    pcg.SetOperator(*RTxM_LH);
 }
@@ -1871,8 +1871,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceSetupPCG()
    // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
    pcg_vea.SetMaxIter(1000);
    // initial values for relative and absolute tolerance
-   pcg_vea.SetRelTol(1e-13);
-   pcg_vea.SetAbsTol(1e-13);
+   pcg_vea.SetRelTol(1e-15);
+   pcg_vea.SetAbsTol(1e-15);
    pcg_vea.SetPreconditioner(*precon_vea);
    pcg_vea.SetOperator(*RTxM_LH_vea);
 }
@@ -2449,7 +2449,13 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::LumpedMassInverse(
    if (P) { P->MultTranspose(ML_inv_full, ML_inv_true); }
    else { ML_inv_true = ML_inv_full; }
 
-   ML_inv_true.Reciprocal();
+   //ML_inv_true.Reciprocal();
+   real_t *d_ML_inv_true = ML_inv_true.ReadWrite();
+
+   mfem::forall(ML_inv_true.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_ML_inv_true[i] = 1.0 / d_ML_inv_true[i];
+   });
 
    if (P) { P->Mult(ML_inv_true, ML_inv_full); }
    else { ML_inv_full = ML_inv_true; }
