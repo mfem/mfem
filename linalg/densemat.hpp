@@ -1233,10 +1233,6 @@ public:
        'x' and 'y' use the same elem_dof table. */
    void AddMult(const Table &elem_dof, const Vector &x, Vector &y) const;
 
-   /// Assmes DenseTensor has been configured
-   /// and makes a copy of the data
-   void CopyFromVector(const Vector &vec);
-
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
 

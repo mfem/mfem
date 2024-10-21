@@ -872,10 +872,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    const bool add = false;
    mi.AssembleEA(fes_lor, M_ea_lor, add);
 
-
    DenseTensor Minv_ear_lor;
    Minv_ear_lor.SetSize(ndof_lor, ndof_lor, nel_lor, d_mt);
-   Minv_ear_lor.CopyFromVector(M_ea_lor);
+   Minv_ear_lor.GetMemory().CopyFrom(M_ea_lor.GetMemory(), M_ea_lor.Size());
 
    BatchedLinAlg::Invert(Minv_ear_lor);
    {
@@ -987,10 +986,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       //Compute the inverse of InvRtM_LR
       DenseTensor InvRtM_LR;
       InvRtM_LR.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt);
-      InvRtM_LR.CopyFromVector(RtM_LR);
+      InvRtM_LR.GetMemory().CopyFrom(RtM_LR.GetMemory(), RtM_LR.Size());
 
       BatchedLinAlg::Invert(InvRtM_LR);
-
 
       //Form P_ea
       //P_ea should be of dimension (ndof_ho x ndof_ho) x (ndof_ho x nref*ndof_lor)
