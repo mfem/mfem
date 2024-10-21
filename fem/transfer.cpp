@@ -566,15 +566,15 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       //Recall MFEM is column major
 
       //rows x columns is inverted  - matrix is ndof_lor x ndof_ho
-      auto v_M_LH = mfem::Reshape(M_LH.Write(), ndof_lor, ndof_ho, nref,
-                                  nel_ho);
+      auto v_M_LH = Reshape(M_LH.Write(), ndof_lor, ndof_ho, nref,
+                            nel_ho);
 
       const int fe_ho_ndof = fe_ho.GetDof();
       const int fe_lor_ndof = fe_lor.GetDof();
 
-      auto d_B_L = mfem::Reshape(B_L.Read(), qPts, fe_lor_ndof, nref);
-      auto d_B_H = mfem::Reshape(B_H.Read(), qPts, fe_ho_ndof, nref);
-      auto d_D   = mfem::Reshape(D.Read(), qPts, nref, nel_ho);
+      auto d_B_L = Reshape(B_L.Read(), qPts, fe_lor_ndof, nref);
+      auto d_B_H = Reshape(B_H.Read(), qPts, fe_ho_ndof, nref);
+      auto d_D   = Reshape(D.Read(), qPts, nref, nel_ho);
 
       mfem::forall_2D(nel_ho, fe_ho_ndof,
                       nref, [=] MFEM_HOST_DEVICE (int iho)
@@ -881,15 +881,15 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    {
       //Recall mfem is column major
       // ndof_lor x ndof_ho
-      auto v_M_mixed_all = mfem::Reshape(M_mixed_all.Read(), ndof_lor, ndof_ho, nref,
-                                         nel_ho);
+      auto v_M_mixed_all = Reshape(M_mixed_all.Read(), ndof_lor, ndof_ho, nref,
+                                   nel_ho);
 
       //matrix is symmetric
-      auto v_Minv_ear_lor = mfem::Reshape(Minv_ear_lor.Read(), ndof_lor, ndof_lor,
-                                          nel_lor);
+      auto v_Minv_ear_lor = Reshape(Minv_ear_lor.Read(), ndof_lor, ndof_lor,
+                                    nel_lor);
 
       //ndof_lor x ndof_ho
-      auto v_R_ea = mfem::Reshape(R_ea.Write(), ndof_lor, nref, ndof_ho, nel_ho);
+      auto v_R_ea = Reshape(R_ea.Write(), ndof_lor, nref, ndof_ho, nel_ho);
 
       MFEM_VERIFY(nel_lor==nel_ho*nref, "nel_lor != nel_ho*nref");
 
@@ -925,13 +925,13 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
       //M_lor is size of ndof_lor x ndof_lor
       //R is size of (ndof_lor x nref x ndof_ho)
-      auto v_M_ea_lor = mfem::Reshape(M_ea_lor.Read(), ndof_lor, ndof_lor, nel_lor);
-      auto v_R_ea = mfem::Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+      auto v_M_ea_lor = Reshape(M_ea_lor.Read(), ndof_lor, ndof_lor, nel_lor);
+      auto v_R_ea = Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
       //R^T M_LO is of size nref x ndof_lor
 
       //Compute R^T M_L
       Vector RtM_L(ndof_ho*nref*ndof_lor*nel_ho, d_mt);
-      auto v_RtM_L = mfem::Reshape(RtM_L.Write(), ndof_ho, ndof_lor, nref, nel_ho);
+      auto v_RtM_L = Reshape(RtM_L.Write(), ndof_ho, ndof_lor, nref, nel_ho);
 
       mfem::forall_3D(nel_ho, ndof_lor, nref, ndof_ho, [=] MFEM_HOST_DEVICE (int e)
       {
@@ -962,8 +962,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
       //resulting matrix should be: ndof_ho x ndof_ho
       //R^T M_L x R
-      mfem::Vector RtM_LR(ndof_ho * ndof_ho * nel_ho, d_mt);
-      auto v_RtM_LR = mfem::Reshape(RtM_LR.Write(), ndof_ho, ndof_ho, nel_ho);
+      Vector RtM_LR(ndof_ho * ndof_ho * nel_ho, d_mt);
+      auto v_RtM_LR = Reshape(RtM_LR.Write(), ndof_ho, ndof_ho, nel_ho);
 
       mfem::forall_2D(nel_ho, ndof_ho, ndof_ho, [=] MFEM_HOST_DEVICE (int e)
       {
@@ -995,9 +995,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
       //Form P_ea
       //P_ea should be of dimension (ndof_ho x ndof_ho) x (ndof_ho x nref*ndof_lor)
       //P_ea ndof_ho x nref*ndof_lor
-      auto v_InvRtM_LR = mfem::Reshape(InvRtM_LR.Read(), ndof_ho, ndof_ho,
-                                       nel_ho);
-      auto v_P_ea = mfem::Reshape(P_ea.Write(), ndof_ho, ndof_lor, nref, nel_ho);
+      auto v_InvRtM_LR = Reshape(InvRtM_LR.Read(), ndof_ho, ndof_ho,
+                                 nel_ho);
+      auto v_P_ea = Reshape(P_ea.Write(), ndof_ho, ndof_lor, nref, nel_ho);
 
       mfem::forall_3D(nel_ho, ndof_lor, nref, ndof_ho, [=] MFEM_HOST_DEVICE (int e)
       {
@@ -1087,9 +1087,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   auto v_R_ea = mfem::Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
-   auto v_x    = mfem::Reshape(x.Read(), ndof_ho, vdim, nel_ho);
-   auto v_y    = mfem::Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
+   auto v_R_ea = Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+   auto v_x    = Reshape(x.Read(), ndof_ho, vdim, nel_ho);
+   auto v_y    = Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
 
    mfem::forall_3D(nel_ho, ndof_lor, nref, vdim, [=] MFEM_HOST_DEVICE (int iho)
    {
@@ -1183,9 +1183,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   auto v_R_ea = mfem::Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
-   auto v_x    = mfem::Reshape(x.Read(), ndof_lor, nref, vdim, nel_ho);
-   auto v_y    = mfem::Reshape(y.Write(), ndof_ho, vdim, nel_ho);
+   auto v_R_ea = Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+   auto v_x    = Reshape(x.Read(), ndof_lor, nref, vdim, nel_ho);
+   auto v_y    = Reshape(y.Write(), ndof_ho, vdim, nel_ho);
 
    mfem::forall_2D(nel_ho, ndof_ho, vdim, [=] MFEM_HOST_DEVICE (int iho)
    {
@@ -1279,9 +1279,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   auto v_P_ea = mfem::Reshape(P_ea.Read(), ndof_ho, ndof_lor * nref, nel_ho);
-   auto v_x    = mfem::Reshape(x.Read(), ndof_lor *  nref, vdim, nel_ho);
-   auto v_y    = mfem::Reshape(y.Write(), ndof_ho, vdim, nel_ho);
+   auto v_P_ea = Reshape(P_ea.Read(), ndof_ho, ndof_lor * nref, nel_ho);
+   auto v_x    = Reshape(x.Read(), ndof_lor *  nref, vdim, nel_ho);
+   auto v_y    = Reshape(y.Write(), ndof_ho, vdim, nel_ho);
 
    mfem::forall_2D(nel_ho, ndof_ho, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -1370,9 +1370,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   auto v_P_ea = mfem::Reshape(P_ea.Read(), ndof_ho, ndof_lor, nref, nel_ho);
-   auto v_x    = mfem::Reshape(x.Read(), ndof_ho, vdim, nel_ho);
-   auto v_y    = mfem::Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
+   auto v_P_ea = Reshape(P_ea.Read(), ndof_ho, ndof_lor, nref, nel_ho);
+   auto v_x    = Reshape(x.Read(), ndof_ho, vdim, nel_ho);
+   auto v_y    = Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
 
    mfem::forall_3D(nel_ho, ndof_lor, nref, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -2585,10 +2585,10 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x,
    Vector tempy(ndof_lor*nref*vdim*nel_ho);
    tempy = 0.0;
 
-   auto v_M_mixed_ea = mfem::Reshape(M_LH_ea->Read(), ndof_lor, ndof_ho, nref,
-                                     nel_ho);
-   auto v_tempx    = mfem::Reshape(tempx.Read(), ndof_ho, vdim, nel_ho);
-   auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_lor, nref, vdim, nel_ho);
+   auto v_M_mixed_ea = Reshape(M_LH_ea->Read(), ndof_lor, ndof_ho, nref,
+                               nel_ho);
+   auto v_tempx    = Reshape(tempx.Read(), ndof_ho, vdim, nel_ho);
+   auto v_tempy    = Reshape(tempy.Write(), ndof_lor, nref, vdim, nel_ho);
 
 
    mfem::forall_3D(nel_ho, ndof_lor, nref, vdim, [=] MFEM_HOST_DEVICE (int iho)
@@ -2637,10 +2637,10 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(
    Vector tempy(ndof_ho*vdim*nel_ho);
    tempy = 0.0;
 
-   auto v_M_mixed_ea = mfem::Reshape(M_LH_ea->Read(), ndof_lor, ndof_ho, nref,
-                                     nel_ho);
-   auto v_tempx    = mfem::Reshape(tempx.Read(), ndof_lor, nref, vdim, nel_ho);
-   auto v_tempy    = mfem::Reshape(tempy.Write(), ndof_ho, vdim, nel_ho);
+   auto v_M_mixed_ea = Reshape(M_LH_ea->Read(), ndof_lor, ndof_ho, nref,
+                               nel_ho);
+   auto v_tempx    = Reshape(tempx.Read(), ndof_lor, nref, vdim, nel_ho);
+   auto v_tempy    = Reshape(tempy.Write(), ndof_ho, vdim, nel_ho);
 
    mfem::forall_2D(nel_ho, ndof_ho, vdim, [=] MFEM_HOST_DEVICE (int iho)
    {
@@ -2678,9 +2678,9 @@ void L2ProjectionGridTransfer::H1SpaceLumpedMassOperator::Mult(const Vector &x,
                                                                Vector &y) const
 {
    MFEM_ASSERT(ML_inv->Size() == x.Size(), "sizes not the same");
-   auto v_ML_inv = mfem::Reshape(ML_inv->Read(), ML_inv->Size());
-   auto v_x = mfem::Reshape(x.Read(), x.Size());
-   auto v_y = mfem::Reshape(y.Write(), y.Size());
+   auto v_ML_inv = Reshape(ML_inv->Read(), ML_inv->Size());
+   auto v_x = Reshape(x.Read(), x.Size());
+   auto v_y = Reshape(y.Write(), y.Size());
 
    mfem::forall(ML_inv->Size(), [=] MFEM_HOST_DEVICE(int i)
    { v_y(i) = v_ML_inv(i) * v_x(i); });
