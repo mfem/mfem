@@ -48,7 +48,6 @@ void NativeBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
 
 void NativeBatchedLinAlg::Invert(DenseTensor &A) const
 {
-
    const int m = A.SizeI();
    const int NE = A.SizeK();
    DenseTensor LU = A;
