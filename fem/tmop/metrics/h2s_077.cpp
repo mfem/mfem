@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../tmop_pa.hpp"
 #include "../tmop_pa_h2s.hpp"
 
 namespace mfem

@@ -20,7 +20,6 @@ AlignConsecutiveShortCaseStatements:
 AlignEscapedNewlines: LeftWithLastLine
 AlignOperands: AlignAfterOperator
 AlignTrailingComments: true
-AllowAllArgumentsOnNextLine: false
 AllowAllParametersOfDeclarationOnNextLine: false
 
 # Shorts
@@ -34,7 +33,10 @@ AllowShortLambdasOnASingleLine: All
 AllowShortLoopsOnASingleLine: true
 
 # Packing
-PackConstructorInitializers: BinPack
+BinPackArguments: true 
+AllowAllArgumentsOnNextLine: false
+BinPackParameters: false
+PackConstructorInitializers: CurrentLine
 SpaceBeforeCtorInitializerColon: false
 
 # Breaks
@@ -42,7 +44,7 @@ BreakBeforeBraces: Allman
 InsertBraces: true # Warning
 BreakArrays: false
 BreakAfterReturnType: None
-BreakTemplateDeclarations: Yes
+BreakTemplateDeclarations: Leave
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializers: AfterColon
 BreakFunctionDefinitionParameters: false
@@ -70,9 +72,11 @@ FixNamespaceComments: true
 
 # Pointers
 PointerAlignment: Right
+QualifierAlignment: Left
 DerivePointerAlignment: false
 
 # Tabs and spaces
+SpaceAroundPointerQualifiers: Default
 SpaceAfterCStyleCast: false
 SpaceBeforeAssignmentOperators: true
 SpacesBeforeTrailingComments: 1
@@ -81,7 +85,7 @@ SpacesInSquareBrackets: false
 SpaceInEmptyParentheses: false
 SpacesInCStyleCastParentheses: false
 SpaceBeforeParens: ControlStatementsExceptControlMacros
-SpacesInAngles: false
+SpacesInAngles: Never
 UseTab: Never
 TabWidth: 3
 ColumnLimit: 80

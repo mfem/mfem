@@ -9,24 +9,35 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop_pa.hpp"
+#include "../tmop.hpp"
+#include "../../fem/kernels.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
+#include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_EnergyPA_3D(const double metric_normal, const double *w,
-                      const bool const_m0, const double *mc, const int mid,
-                      const int NE, const DeviceTensor<6, const double> &J,
-                      const ConstDeviceCube &W, const ConstDeviceMatrix &B,
+void TMOP_EnergyPA_3D(const double metric_normal,
+                      const double *w,
+                      const bool const_m0,
+                      const double *mc,
+                      const int mid,
+                      const int NE,
+                      const DeviceTensor<6, const double> &J,
+                      const ConstDeviceCube &W,
+                      const ConstDeviceMatrix &B,
                       const ConstDeviceMatrix &G,
                       const DeviceTensor<5, const double> &X,
-                      DeviceTensor<4> &E, const int d1d, const int q1d,
+                      DeviceTensor<4> &E,
+                      const int d1d,
+                      const int q1d,
                       const int max)
 {
    using Args = kernels::InvariantsEvaluator3D::Buffers;
    MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 318 ||
-               mid == 321 || mid == 332 || mid == 338,
+                  mid == 321 || mid == 332 || mid == 338,
                "3D metric not yet implemented!");
 
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -111,13 +122,13 @@ void TMOP_EnergyPA_3D(const double metric_normal, const double *w,
                { return w[0] * EvalW_302() + w[1] * EvalW_318(); };
 
                const real_t EvalW = mid == 302 ? EvalW_302()
-                                    : mid == 303 ? EvalW_303()
-                                    : mid == 315 ? EvalW_315()
-                                    : mid == 318 ? EvalW_318()
-                                    : mid == 321 ? EvalW_321()
-                                    : mid == 332 ? EvalW_332()
-                                    : mid == 338 ? EvalW_338()
-                                    : 0.0;
+                                  : mid == 303 ? EvalW_303()
+                                  : mid == 315 ? EvalW_315()
+                                  : mid == 318 ? EvalW_318()
+                                  : mid == 321 ? EvalW_321()
+                                  : mid == 332 ? EvalW_332()
+                                  : mid == 338 ? EvalW_338()
+                                               : 0.0;
 
                E(qx, qy, qz, e) = weight * EvalW;
             }

@@ -9,7 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop_pa.hpp"
+#include "../tmop.hpp"
+#include "../../fem/kernels.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {
@@ -22,7 +25,9 @@ class TMOPAddMultPA3D
 
 public:
    TMOPAddMultPA3D(const TMOP_Integrator *ti, const Vector &x, Vector &y):
-      ti(ti), x(x), y(y)
+      ti(ti),
+      x(x),
+      y(y)
    {
    }
 
@@ -55,7 +60,7 @@ public:
 
       const bool const_m0 = ti->PA.MC.Size() == 1;
       const auto MC = const_m0 ? Reshape(ti->PA.MC.Read(), 1, 1, 1, 1)
-                      : Reshape(ti->PA.MC.Read(), Q1D, Q1D, Q1D, NE);
+                               : Reshape(ti->PA.MC.Read(), Q1D, Q1D, Q1D, NE);
 
       mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {

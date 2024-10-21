@@ -9,17 +9,26 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop_pa.hpp"
+#include "../tmop.hpp"
+#include "../../fem/kernels.hpp"
+#include "../../general/forall.hpp"
 
 namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void DatcSize(const int NE, const int ncomp, const int sizeidx,
-              const double input_min_size, const double *nc_red,
-              const ConstDeviceMatrix &W, const ConstDeviceMatrix &B,
-              const DeviceTensor<5, const double> &X, DeviceTensor<6> &J,
-              const int d1d = 0, const int q1d = 0, const int max = 4)
+void DatcSize(const int NE,
+              const int ncomp,
+              const int sizeidx,
+              const double input_min_size,
+              const double *nc_red,
+              const ConstDeviceMatrix &W,
+              const ConstDeviceMatrix &B,
+              const DeviceTensor<5, const double> &X,
+              DeviceTensor<6> &J,
+              const int d1d = 0,
+              const int q1d = 0,
+              const int max = 4)
 {
    MFEM_VERIFY(ncomp == 1, "");
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -115,7 +124,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
                                                DenseTensor &Jtr) const
 {
    MFEM_VERIFY(target_type == IDEAL_SHAPE_GIVEN_SIZE ||
-               target_type == GIVEN_SHAPE_AND_SIZE,
+                  target_type == GIVEN_SHAPE_AND_SIZE,
                "");
 
    MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");

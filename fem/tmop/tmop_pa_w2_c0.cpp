@@ -9,22 +9,31 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop_pa.hpp"
+#include "../tmop.hpp"
+#include "../../fem/kernels.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_EnergyPA_C0_2D(const double lim_normal, const ConstDeviceCube &LD,
+void TMOP_EnergyPA_C0_2D(const double lim_normal,
+                         const ConstDeviceCube &LD,
                          const bool const_c0,
-                         const DeviceTensor<3, const double> &C0, const int NE,
+                         const DeviceTensor<3, const double> &C0,
+                         const int NE,
                          const DeviceTensor<5, const double> &J,
-                         const ConstDeviceMatrix &W, const ConstDeviceMatrix &b,
+                         const ConstDeviceMatrix &W,
+                         const ConstDeviceMatrix &b,
                          const ConstDeviceMatrix &bld,
                          const DeviceTensor<4, const double> &X0,
                          const DeviceTensor<4, const double> &X1,
-                         DeviceTensor<3> &E, const bool exp_lim, const int d1d,
-                         const int q1d, const int max)
+                         DeviceTensor<3> &E,
+                         const bool exp_lim,
+                         const int d1d,
+                         const int q1d,
+                         const int max)
 {
    constexpr int NBZ = 1;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -112,7 +121,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
    MFEM_VERIFY(PA.maps_lim->nqpt == q, "");
 
    const auto C0 = const_c0 ? Reshape(PA.C0.Read(), 1, 1, 1)
-                   : Reshape(PA.C0.Read(), q, q, NE);
+                            : Reshape(PA.C0.Read(), q, q, NE);
    const auto LD = Reshape(PA.LD.Read(), d, d, NE);
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
    const auto B = Reshape(PA.maps->B.Read(), q, d);

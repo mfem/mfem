@@ -9,24 +9,29 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop_pa.hpp"
+#include "../tmop.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_AssembleDiagonalPA_3D(const int NE, const ConstDeviceMatrix &B,
+void TMOP_AssembleDiagonalPA_3D(const int NE,
+                                const ConstDeviceMatrix &B,
                                 const ConstDeviceMatrix &G,
                                 const DeviceTensor<6, const real_t> &J,
                                 const DeviceTensor<8, const real_t> &H,
-                                DeviceTensor<5> &D, const int d1d = 0,
-                                const int q1d = 0, const int max = 4)
+                                DeviceTensor<5> &D,
+                                const int d1d = 0,
+                                const int q1d = 0,
+                                const int max = 4)
 {
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-      // This kernel uses its own CUDA/ROCM limits: compile time values:
+   // This kernel uses its own CUDA/ROCM limits: compile time values:
 #if defined(__CUDA_ARCH__)
       constexpr int MAX_D1D = 6;
       constexpr int MAX_Q1D = 7;

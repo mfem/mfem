@@ -9,7 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop_pa.hpp"
+#include "../tmop.hpp"
+#include "../tmop_tools.hpp"
+#include "../../fem/kernels.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 using namespace mfem;
 
@@ -17,8 +21,10 @@ namespace mfem
 {
 
 template <int T_Q1D = 0>
-void TMOP_TcIdealShapeUnitSize_2D(const int NE, const ConstDeviceMatrix &W,
-                                  DeviceTensor<5> &J, const int q1d)
+void TMOP_TcIdealShapeUnitSize_2D(const int NE,
+                                  const ConstDeviceMatrix &W,
+                                  DeviceTensor<5> &J,
+                                  const int q1d)
 {
    constexpr int NBZ = 1;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -38,13 +44,16 @@ void TMOP_TcIdealShapeUnitSize_2D(const int NE, const ConstDeviceMatrix &W,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_TcIdealShapeGivenSize_2D(const int NE, const double detW,
+void TMOP_TcIdealShapeGivenSize_2D(const int NE,
+                                   const double detW,
                                    const ConstDeviceMatrix &B,
                                    const ConstDeviceMatrix &G,
                                    const ConstDeviceMatrix &W,
                                    const DeviceTensor<4, const double> &X,
-                                   DeviceTensor<5> &J, const int d1d,
-                                   const int q1d, const int max)
+                                   DeviceTensor<5> &J,
+                                   const int d1d,
+                                   const int q1d,
+                                   const int max)
 {
    constexpr int NBZ = 1;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -87,7 +96,9 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE, const double detW,
 
 template <>
 bool TargetConstructor::ComputeAllElementTargets<2>(
-   const FiniteElementSpace &fes, const IntegrationRule &ir, const Vector &,
+   const FiniteElementSpace &fes,
+   const IntegrationRule &ir,
+   const Vector &,
    DenseTensor &Jtr) const
 {
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != nullptr, "");
@@ -115,58 +126,58 @@ bool TargetConstructor::ComputeAllElementTargets<2>(
 
    switch (target_type)
    {
-      case IDEAL_SHAPE_UNIT_SIZE: // Jtr(i) = Wideal;
-      {
-         decltype(&TMOP_TcIdealShapeUnitSize_2D<>) ker =
-            TMOP_TcIdealShapeUnitSize_2D;
+   case IDEAL_SHAPE_UNIT_SIZE: // Jtr(i) = Wideal;
+   {
+      decltype(&TMOP_TcIdealShapeUnitSize_2D<>) ker =
+         TMOP_TcIdealShapeUnitSize_2D;
 
-         if (q == 2) { ker = TMOP_TcIdealShapeUnitSize_2D<2>; }
-         if (q == 3) { ker = TMOP_TcIdealShapeUnitSize_2D<3>; }
-         if (q == 4) { ker = TMOP_TcIdealShapeUnitSize_2D<4>; }
-         if (q == 5) { ker = TMOP_TcIdealShapeUnitSize_2D<5>; }
-         if (q == 6) { ker = TMOP_TcIdealShapeUnitSize_2D<6>; }
+      if (q == 2) { ker = TMOP_TcIdealShapeUnitSize_2D<2>; }
+      if (q == 3) { ker = TMOP_TcIdealShapeUnitSize_2D<3>; }
+      if (q == 4) { ker = TMOP_TcIdealShapeUnitSize_2D<4>; }
+      if (q == 5) { ker = TMOP_TcIdealShapeUnitSize_2D<5>; }
+      if (q == 6) { ker = TMOP_TcIdealShapeUnitSize_2D<6>; }
 
-         ker(NE, W, J, q);
-         return true;
-      }
-      case IDEAL_SHAPE_EQUAL_SIZE: return false;
-      case IDEAL_SHAPE_GIVEN_SIZE:
-      {
-         MFEM_VERIFY(nodes, "");
-         const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-         const Operator *R = fes.GetElementRestriction(ordering);
-         Vector x(R->Height(), Device::GetDeviceMemoryType());
-         x.UseDevice(true);
-         R->Mult(*nodes, x);
-         MFEM_ASSERT(nodes->FESpace()->GetVDim() == 2, "");
-         const auto X = Reshape(x.Read(), d, d, DIM, NE);
+      ker(NE, W, J, q);
+      return true;
+   }
+   case IDEAL_SHAPE_EQUAL_SIZE: return false;
+   case IDEAL_SHAPE_GIVEN_SIZE:
+   {
+      MFEM_VERIFY(nodes, "");
+      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *R = fes.GetElementRestriction(ordering);
+      Vector x(R->Height(), Device::GetDeviceMemoryType());
+      x.UseDevice(true);
+      R->Mult(*nodes, x);
+      MFEM_ASSERT(nodes->FESpace()->GetVDim() == 2, "");
+      const auto X = Reshape(x.Read(), d, d, DIM, NE);
 
-         decltype(&TMOP_TcIdealShapeGivenSize_2D<>) ker =
-            TMOP_TcIdealShapeGivenSize_2D;
+      decltype(&TMOP_TcIdealShapeGivenSize_2D<>) ker =
+         TMOP_TcIdealShapeGivenSize_2D;
 
-         if (d == 2 && q == 2) { ker = TMOP_TcIdealShapeGivenSize_2D<2, 2>; }
-         if (d == 2 && q == 3) { ker = TMOP_TcIdealShapeGivenSize_2D<2, 3>; }
-         if (d == 2 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_2D<2, 4>; }
-         if (d == 2 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_2D<2, 5>; }
-         if (d == 2 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_2D<2, 6>; }
+      if (d == 2 && q == 2) { ker = TMOP_TcIdealShapeGivenSize_2D<2, 2>; }
+      if (d == 2 && q == 3) { ker = TMOP_TcIdealShapeGivenSize_2D<2, 3>; }
+      if (d == 2 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_2D<2, 4>; }
+      if (d == 2 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_2D<2, 5>; }
+      if (d == 2 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_2D<2, 6>; }
 
-         if (d == 3 && q == 3) { ker = TMOP_TcIdealShapeGivenSize_2D<3, 3>; }
-         if (d == 3 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_2D<3, 4>; }
-         if (d == 3 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_2D<3, 5>; }
-         if (d == 3 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_2D<3, 6>; }
+      if (d == 3 && q == 3) { ker = TMOP_TcIdealShapeGivenSize_2D<3, 3>; }
+      if (d == 3 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_2D<3, 4>; }
+      if (d == 3 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_2D<3, 5>; }
+      if (d == 3 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_2D<3, 6>; }
 
-         if (d == 4 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_2D<4, 4>; }
-         if (d == 4 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_2D<4, 5>; }
-         if (d == 4 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_2D<4, 6>; }
+      if (d == 4 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_2D<4, 4>; }
+      if (d == 4 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_2D<4, 5>; }
+      if (d == 4 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_2D<4, 6>; }
 
-         if (d == 5 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_2D<5, 5>; }
-         if (d == 5 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_2D<5, 6>; }
+      if (d == 5 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_2D<5, 5>; }
+      if (d == 5 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_2D<5, 6>; }
 
-         ker(NE, detW, B, G, W, X, J, d, q, 4);
-         return true;
-      }
-      case GIVEN_SHAPE_AND_SIZE: return false;
-      default:                   return false;
+      ker(NE, detW, B, G, W, X, J, d, q, 4);
+      return true;
+   }
+   case GIVEN_SHAPE_AND_SIZE: return false;
+   default:                   return false;
    }
    return false;
 }

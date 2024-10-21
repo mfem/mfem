@@ -9,16 +9,22 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop_pa.hpp"
+#include "../tmop.hpp"
+#include "../../fem/kernels.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
 
 namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_AddMultGradPA_C0_3D(const int NE, const ConstDeviceMatrix &b,
+void TMOP_AddMultGradPA_C0_3D(const int NE,
+                              const ConstDeviceMatrix &b,
                               const DeviceTensor<6, const double> &H0,
                               const DeviceTensor<5, const double> &X,
-                              DeviceTensor<5> &Y, const int d1d, const int q1d,
+                              DeviceTensor<5> &Y,
+                              const int d1d,
+                              const int q1d,
                               const int max)
 {
    const int Q1D = T_Q1D ? T_Q1D : q1d;

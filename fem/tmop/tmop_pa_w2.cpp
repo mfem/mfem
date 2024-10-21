@@ -9,25 +9,36 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop_pa.hpp"
+#include "../tmop.hpp"
+#include "../../fem/kernels.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/kernels.hpp"
+#include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_EnergyPA_2D(const double metric_normal, const double *w,
-                      const bool const_m0, const double *mc,
-                      const real_t *metric_param, const int mid, const int NE,
+void TMOP_EnergyPA_2D(const double metric_normal,
+                      const double *w,
+                      const bool const_m0,
+                      const double *mc,
+                      const real_t *metric_param,
+                      const int mid,
+                      const int NE,
                       const DeviceTensor<5, const double> &J,
-                      const ConstDeviceMatrix &W, const ConstDeviceMatrix &B,
+                      const ConstDeviceMatrix &W,
+                      const ConstDeviceMatrix &B,
                       const ConstDeviceMatrix &G,
                       const DeviceTensor<4, const double> &X,
-                      DeviceTensor<3> &E, const int d1d, const int q1d,
+                      DeviceTensor<3> &E,
+                      const int d1d,
+                      const int q1d,
                       const int max)
 {
    using Args = kernels::InvariantsEvaluator2D::Buffers;
    MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 56 || mid == 77 ||
-               mid == 80 || mid == 94,
+                  mid == 80 || mid == 94,
                "2D metric not yet implemented!");
 
    constexpr int NBZ = 1;
@@ -105,13 +116,13 @@ void TMOP_EnergyPA_2D(const double metric_normal, const double *w,
             { return w[0] * EvalW_02() + w[1] * EvalW_56(); };
 
             const real_t EvalW = mid == 1  ? EvalW_01()
-                                 : mid == 2  ? EvalW_02()
-                                 : mid == 7  ? EvalW_07()
-                                 : mid == 56 ? EvalW_56()
-                                 : mid == 77 ? EvalW_77()
-                                 : mid == 80 ? EvalW_80()
-                                 : mid == 94 ? EvalW_94()
-                                 : 0.0;
+                               : mid == 2  ? EvalW_02()
+                               : mid == 7  ? EvalW_07()
+                               : mid == 56 ? EvalW_56()
+                               : mid == 77 ? EvalW_77()
+                               : mid == 80 ? EvalW_80()
+                               : mid == 94 ? EvalW_94()
+                                           : 0.0;
 
             E(qx, qy, e) = weight * EvalW;
          }

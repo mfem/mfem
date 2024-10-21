@@ -9,16 +9,20 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "tmop_pa.hpp"
+#include "../tmop.hpp"
+#include "../../general/forall.hpp"
 
 namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void TMOP_AssembleDiagonalPA_C0_3D(const int NE, const ConstDeviceMatrix &B,
+void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
+                                   const ConstDeviceMatrix &B,
                                    const DeviceTensor<6, const double> &H0,
-                                   DeviceTensor<5> &D, const int d1d,
-                                   const int q1d, const int max)
+                                   DeviceTensor<5> &D,
+                                   const int d1d,
+                                   const int q1d,
+                                   const int max)
 {
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
