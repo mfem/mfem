@@ -568,7 +568,6 @@ public:
    bool SupportsBackwardsOperator() const override;
 private:
    void BuildF();
-
 };
 
 /// Matrix-free transfer operator between finite element spaces
