@@ -2449,12 +2449,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::LumpedMassInverse(
    if (P) { P->MultTranspose(ML_inv_full, ML_inv_true); }
    else { ML_inv_true = ML_inv_full; }
 
-   real_t *d_ML_inv_true = ML_inv_true.ReadWrite();
-
-   mfem::forall(ML_inv_true.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      d_ML_inv_true[i] = 1.0 / d_ML_inv_true[i];
-   });
+   ML_inv_true.Reciprocal();
 
    if (P) { P->Mult(ML_inv_true, ML_inv_full); }
    else { ML_inv_full = ML_inv_true; }
