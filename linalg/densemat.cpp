@@ -4420,20 +4420,6 @@ const
    }
 }
 
-void DenseTensor::CopyFromVector(const Vector &vec)
-{
-
-   MFEM_ASSERT(vec.Size() == SizeI()*SizeJ()*SizeK(),
-               "incompatible vec and densetensor size");
-
-   const bool use_dev = true;
-   const real_t *d_vec_data = mfem::Read(vec.GetMemory(), vec.Size(), use_dev);
-   real_t *d_data     = mfem::Write(tdata, SizeI()*SizeJ()*SizeK(), use_dev);
-
-   mfem::forall_switch(use_dev, vec.Size(), [=] MFEM_HOST_DEVICE (int i) { d_data[i] = d_vec_data[i];});
-
-}
-
 DenseTensor &DenseTensor::operator=(real_t c)
 {
    int s = SizeI() * SizeJ() * SizeK();
