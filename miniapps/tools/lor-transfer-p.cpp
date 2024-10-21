@@ -410,7 +410,6 @@ real_t compute_mass(ParFiniteElementSpace *L2, real_t massL2,
    real_t newmass = lf(*pdensity);
    cout.precision(18);
 
-   MPI_Allreduce(MPI_IN_PLACE, &newmass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
    if (myid == 0)
    {
