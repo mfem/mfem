@@ -220,6 +220,7 @@ int main(int argc, char *argv[])
       case Problem::SteadyDiffusion:
          break;
       case Problem::MFEMLogo:
+         bconv = true;
          break;
       default:
          cerr << "Unknown problem" << endl;
@@ -342,6 +343,9 @@ int main(int argc, char *argv[])
    const real_t t_0 = 1.; //base temperature
 
    ConstantCoefficient acoeff(a);
+
+   constexpr unsigned int seed = 0;
+   srand(seed);// init random number generator
 
    auto kFun = GetKFun(problem, k, ks, ka);
    MatrixFunctionCoefficient kcoeff(dim, kFun);
@@ -999,7 +1003,6 @@ MatFunc GetKFun(Problem prob, real_t k, real_t ks, real_t ka)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
-      case Problem::MFEMLogo:
          return [=](const Vector &x, DenseMatrix &kappa)
          {
             const int ndim = x.Size();
@@ -1013,6 +1016,52 @@ MatFunc GetKFun(Problem prob, real_t k, real_t ks, real_t ka)
                kappa(2,0) = -ka * k;
             }
          };
+      case Problem::MFEMLogo:
+      {
+         constexpr int n = 80;
+         constexpr real_t xmax = 1.;
+         constexpr real_t ymax = 1.;
+         constexpr real_t wmax = .05;
+         constexpr real_t kmax = .8;
+         DenseMatrix bubbles(5, n);
+         for (int i = 0; i < n; i++)
+         {
+            bubbles(0, i) = rand_real() * xmax;
+            bubbles(1, i) = rand_real() * ymax;
+            bubbles(2, i) = rand_real() * wmax;
+            bubbles(3, i) = rand_real() * k * kmax;
+            bubbles(4, i) = rand_real() * ks;
+            //bubbles(5, i) = rand_real() * ka;
+         }
+
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            real_t kap = 0.;
+            real_t kap_s = 0.;
+            real_t kap_a = 0.;
+            for (int i = 0; i < bubbles.Width(); i++)
+            {
+               const real_t dx = x(0) - bubbles(0,i);
+               const real_t dy = x(1) - bubbles(1,i);
+               const real_t w = bubbles(2,i);
+               const real_t k = bubbles(3,i) * exp(-(dx*dx+dy*dy)/(w*w));
+               kap += k;
+               kap_s += k * bubbles(4,i);
+               //kap_a += k * bubbles(5, i);
+            }
+            const int ndim = x.Size();
+            const real_t kmin = (1. - kmax) * k;
+            kappa.Diag(kmin + kap, ndim);
+            kappa(0,0) = kmin + kap_s;
+            kappa(0,1) = +kap_a * k;
+            kappa(1,0) = -kap_a * k;
+            if (ndim > 2)
+            {
+               kappa(0,2) = +kap_a * k;
+               kappa(2,0) = -kap_a * k;
+            }
+         };
+      }
    }
    return MatFunc();
 }
@@ -1062,6 +1111,7 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
          return [=](const Vector &x, real_t t) -> real_t
          {
 #if 1
+            //Banner
             constexpr int iw = 38;
             constexpr int ih = 7;
             static const unsigned char logo[ih][iw] = {
@@ -1074,6 +1124,7 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
                "##     ## ##       ######## ##     ##",
             };
 #else
+            //Collosal
             constexpr int iw = 50;
             constexpr int ih = 8;
             static const unsigned char logo[ih][iw] = {
@@ -1163,9 +1214,39 @@ VecFunc GetCFun(Problem prob, real_t c)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
-      case Problem::MFEMLogo:
          // null
          break;
+      case Problem::MFEMLogo:
+      {
+         constexpr int n = 80;
+         constexpr real_t xmax = 1.;
+         constexpr real_t ymax = 1.;
+         constexpr real_t wmax = .05;
+         DenseMatrix bubbles(4, n);
+         for(int i = 0; i < n; i++)
+         {
+            bubbles(0, i) = rand_real() * xmax;
+            bubbles(1, i) = rand_real() * ymax;
+            bubbles(2, i) = rand_real() * wmax;
+            bubbles(3, i) = (rand_real() * 2. - 1.) * c;
+         }
+
+         return [=](const Vector &x, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+            v = 0.;
+            for (int i = 0; i < bubbles.Width(); i++)
+            {
+               const real_t dx = x(0) - bubbles(0,i);
+               const real_t dy = x(1) - bubbles(1,i);
+               const real_t w = bubbles(2,i);
+               const real_t c = bubbles(3,i) * exp(-(dx*dx+dy*dy)/(w*w));
+               v(0) += +c * dy;
+               v(1) += -c * dx;
+            }
+         };
+      }
    }
    return VecFunc();
 }
