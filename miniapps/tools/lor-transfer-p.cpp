@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
    delete fec;
    delete fec_lor;
    delete gt;
-   
+
    return 0;
 }
 
@@ -439,8 +439,7 @@ void report_time(std::chrono::duration<double> elapsed_time, string name,
 
    if (myid == 0)
    {
-     std::cout << "cpu time " << name << elapsed_val << "s\n";
-     std::cout << "wall time " << name << walltime << "s\n";
+      mfem::out << "wall time " << name << walltime << "s\n";
    }
 
 }
