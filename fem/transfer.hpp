@@ -232,8 +232,9 @@ public:
                          DenseMatrix& B_L, DenseMatrix& B_H) const;
    public:
       /*
-      Returns the Mixed Mass M_LH via device element assembly by building the basis functions and
-      data at the quadrature points.
+      Returns the Mixed Mass M_LH via device element assembly
+      by building the basis functions and data at the quadrature
+      points.
       */
       Vector MixedMassEA(const FiniteElementSpace& fes_ho_,
                          const FiniteElementSpace& fes_lor_,
