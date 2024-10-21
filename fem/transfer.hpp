@@ -181,7 +181,7 @@ public:
     smaller than the number of coarse dofs. */
 class L2ProjectionGridTransfer : public GridTransfer
 {
-public:
+protected:
 
    /** Abstract class representing projection operator between a high-order
        finite element space on a coarse mesh, and a low-order finite element
@@ -347,7 +347,6 @@ public:
 
       void SetRelTol(real_t p_rtol_) override { } ///< No-op.
       void SetAbsTol(real_t p_atol_) override { } ///< No-op.
-
    };
 
 protected:
