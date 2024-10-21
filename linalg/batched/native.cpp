@@ -129,7 +129,6 @@ void NativeBatchedLinAlg::Invert(DenseTensor &A) const
          }
       }
    });
-
 }
 
 void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
