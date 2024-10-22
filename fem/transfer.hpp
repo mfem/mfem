@@ -352,7 +352,7 @@ public:
 
 protected:
 
-   //Class below must be public as we now have device code
+   /// Class below must be public as we now have device code
 public:
 
    /** Projection operator between a H1 high-order finite element space on a
