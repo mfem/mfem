@@ -352,8 +352,6 @@ public:
 
 protected:
 
-   friend class L2ProjectionL2Space;
-
    //Class below must be public as we now have device code
 public:
 
