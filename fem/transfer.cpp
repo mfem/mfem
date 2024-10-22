@@ -583,7 +583,6 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
             // (B_lo_dofs x Q) x (Q x B_ho_dofs)
             MFEM_FOREACH_THREAD(bh, x, fe_ho_ndof)
             {
-               //MFEM_FOREACH_THREAD(bl, x, fe_lor_ndof)
                for (int bl = 0; bl < fe_lor_ndof; ++bl)
                {
 
