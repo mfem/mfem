@@ -43,20 +43,20 @@ template <typename M, int D, int Q>
 kernel_t Kernels::Kernel()
 {
    dbg("TMOP_PA_Metric_001, D:{}, Q:{}", D, Q);
-   return TMOPSetupGradPA2D_Kernel<TMOP_PA_Metric_001, D, Q>;
+   return TMOPSetupGradPA2D_Kernel<M, D, Q>;
 }
 
 kernel_t Kernels::Fallback(metric_t, int, int)
 {
    dbg("TMOP_PA_Metric_001, Fallback");
-   return TMOPSetupGradPA2D_Kernel<TMOP_PA_Metric_001>;
+   return TMOPSetupGradPA2D_Kernel<metric_t>;
 }
 
 // static auto add_kernels = [] { return (TMOPAdd<metric_t, Kernels>(), 0); }();
 static auto add_kernels = []
 {
-   return (Kernels::template Specialization<2, 2>::Add(),
-           Kernels::template Specialization<2, 3>::Add(), 0);
+   return (Kernels::template Specialization<metric_t, 2, 2>::Add(),
+           Kernels::template Specialization<metric_t, 2, 3>::Add(), 0);
 }();
 
 void TMOPAssembleGradPA_001(TMOPSetupGradPA2D &ker,

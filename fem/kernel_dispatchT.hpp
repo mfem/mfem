@@ -122,15 +122,15 @@ public:
    }
 
    /// Register a specialized kernel for dispatch.
-   template <Params... PARAMS>
+   template <typename U, Params... PARAMS>
    struct Specialization
    {
       // Version without optional parameters
       static void Add()
       {
-         std::tuple<T, Params...> param_tuple(T{}, PARAMS...);
+         std::tuple<U, Params...> param_tuple(U{}, PARAMS...);
          Kernels::Get().table[param_tuple] =
-            Kernels::template Kernel<T, PARAMS...>();
+            Kernels::template Kernel<U, PARAMS...>();
       };
    };
 };
