@@ -73,8 +73,12 @@ public:
    /// Virtual destructor
    virtual ~GridTransfer() { }
 
+   /** Uses device friendly versions for L2Projection transfers,
+       L2, H1 FEM spaces currently supported */
    void UseDevice(bool use_device_) { use_device = use_device_;}
 
+   /** Performs an comparison using l2 norm of the data structures
+       of the device and CPU versions of the code */
    void VerifySolution(bool verify) { verify_solution = verify;}
 
    /** @brief Set the desired Operator::Type for the construction of all
@@ -182,7 +186,6 @@ public:
 class L2ProjectionGridTransfer : public GridTransfer
 {
 protected:
-
    /** Abstract class representing projection operator between a high-order
        finite element space on a coarse mesh, and a low-order finite element
        space on a refined mesh (LOR). We assume that the low-order space,
