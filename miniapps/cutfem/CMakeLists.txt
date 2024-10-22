@@ -84,4 +84,10 @@ add_mfem_miniapp(par_diffusion_cut
         ${PARCUT_COMMON_FILES}
         LIBRARIES mfem)
 
+add_mfem_miniapp(par_diffusion_cut_3D
+	MAIN par_diffusion_cut_3D.cpp
+        ${PARCUT_COMMON_FILES}
+        LIBRARIES mfem)
+
+
 endif ()
