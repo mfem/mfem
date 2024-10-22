@@ -461,15 +461,14 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
             const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
             const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
 
-            mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+            mfem::forall_2D(nel_ho, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int iho)
             {
                for (int iref = 0; iref < nref; ++iref)
                {
-
                   const int lo_el_id = iref + nref*iho;
-                  for (int qy=0; qy<Q1D; ++qy)
+                  MFEM_FOREACH_THREAD(qy, y, Q1D)
                   {
-                     for (int qx=0; qx<Q1D; ++qx)
+                     MFEM_FOREACH_THREAD(qx, x, Q1D)
                      {
                         const int q = qx + Q1D*qy;
                         const real_t detJ = J(qx, qy, lo_el_id);
@@ -489,18 +488,17 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
             const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
             const auto d_qfunc = Reshape(qfunc.Read(), qPts, nref, nel_ho);
 
-            mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+            mfem::forall_3D(nel_ho, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int iho)
             {
                for (int iref = 0; iref < nref; ++iref)
                {
 
                   const int lo_el_id = iref + nref*iho;
-
-                  for (int qz=0; qz<Q1D; qz++)
+                  MFEM_FOREACH_THREAD(qz, z, Q1D)
                   {
-                     for (int qy=0; qy<Q1D; ++qy)
+                     MFEM_FOREACH_THREAD(qy, y, Q1D)
                      {
-                        for (int qx=0; qx<Q1D; ++qx)
+                        MFEM_FOREACH_THREAD(qx, x, Q1D)
                         {
                            const int q = qx + Q1D*qy + Q1D*Q1D*qz;
                            const real_t detJ = J(qx, qy, qz, lo_el_id);
@@ -1354,6 +1352,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
    const Vector &x, Vector &y) const
 {
 
+   std::cout<<"calling DeviceProlongateTranspose"<<std::endl;
    const int vdim = fes_ho.GetVDim();
 
    const int iho = 0;
