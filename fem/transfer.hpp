@@ -297,9 +297,7 @@ public:
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 
       /*Same as above but assembles and stores R_ea, P_ea */
-      void DeviceL2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
-                                     const FiniteElementSpace& fes_lor_,
-                                     const Coefficient* coeff_);
+      void DeviceL2ProjectionL2Space();
 
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order L2 finite element space, to <tt>y</tt>, primal
