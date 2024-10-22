@@ -14,7 +14,9 @@
 namespace mfem
 {
 
-extern void TMOPAssembleGradPA_001(TMOPSetupGradPA2D &ker);
+extern void TMOPAssembleGradPA_001(TMOPSetupGradPA2D &ker,
+                                   const TMOP_Integrator *ti,
+                                   const Vector &x);
 extern void TMOPAssembleGradPA_002(TMOPSetupGradPA2D &ker);
 extern void TMOPAssembleGradPA_007(TMOPSetupGradPA2D &ker);
 extern void TMOPAssembleGradPA_056(TMOPSetupGradPA2D &ker);
@@ -28,7 +30,7 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &x) const
 
    TMOPSetupGradPA2D ker(this, x);
 
-   if (mid == 1) { return TMOPAssembleGradPA_001(ker); }
+   if (mid == 1) { return TMOPAssembleGradPA_001(ker, this, x); }
    if (mid == 2) { return TMOPAssembleGradPA_002(ker); }
    if (mid == 7) { return TMOPAssembleGradPA_007(ker); }
    if (mid == 56) { return TMOPAssembleGradPA_056(ker); }
