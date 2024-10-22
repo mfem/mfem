@@ -81,12 +81,19 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
       ierr = CeedOperatorFieldGetVector(input_fields[i], &vec); PCeedChk(ierr);
       if (vec == CEED_VECTOR_ACTIVE)
       {
-         ierr = CeedOperatorFieldGetBasis(input_fields[i], &basisin);
-         PCeedChk(ierr);
+         if (!basisin)
+         {
+            ierr = CeedOperatorFieldGetBasis(input_fields[i], &basisin);
+            PCeedChk(ierr);
+         }
          ierr = CeedBasisGetNumComponents(basisin, &ncomp); PCeedChk(ierr);
          ierr = CeedBasisGetDimension(basisin, &dim); PCeedChk(ierr);
-         ierr = CeedOperatorFieldGetElemRestriction(input_fields[i], &rstrin);
-         PCeedChk(ierr);
+         ierr = CeedBasisDestroy(&basisin); PCeedChk(ierr);
+         if (!rstrin)
+         {
+            ierr = CeedOperatorFieldGetElemRestriction(input_fields[i], &rstrin);
+            PCeedChk(ierr);
+         }
          CeedEvalMode emode;
          ierr = CeedQFunctionFieldGetEvalMode(qffields[i], &emode);
          PCeedChk(ierr);
@@ -112,6 +119,7 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
                break; // Caught by QF Assembly
          }
       }
+      ierr = CeedVectorDestroy(&vec); PCeedChk(ierr);
    }
 
    // Determine active output basis
@@ -127,11 +135,16 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
       ierr = CeedOperatorFieldGetVector(output_fields[i], &vec); PCeedChk(ierr);
       if (vec == CEED_VECTOR_ACTIVE)
       {
-         ierr = CeedOperatorFieldGetBasis(output_fields[i], &basisout);
-         PCeedChk(ierr);
-         ierr = CeedOperatorFieldGetElemRestriction(output_fields[i], &rstrout);
-         PCeedChk(ierr);
-         PCeedChk(ierr);
+         if (!basisout)
+         {
+            ierr = CeedOperatorFieldGetBasis(output_fields[i], &basisout);
+            PCeedChk(ierr);
+         }
+         if (!rstrout)
+         {
+            ierr = CeedOperatorFieldGetElemRestriction(output_fields[i], &rstrout);
+            PCeedChk(ierr);
+         }
          CeedEvalMode emode;
          ierr = CeedQFunctionFieldGetEvalMode(qffields[i], &emode);
          PCeedChk(ierr);
@@ -157,6 +170,7 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
                break; // Caught by QF Assembly
          }
       }
+      ierr = CeedVectorDestroy(&vec); PCeedChk(ierr);
    }
 
    CeedInt nelem, elemsize, nqpts;
@@ -200,7 +214,7 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    PCeedChk(ierr);
 
    CeedInt layout[3];
-   ierr = CeedElemRestrictionGetELayout(rstr_q, &layout); PCeedChk(ierr);
+   ierr = CeedElemRestrictionGetELayout(rstr_q, layout); PCeedChk(ierr);
    ierr = CeedElemRestrictionDestroy(&rstr_q); PCeedChk(ierr);
 
    // enforce structurally symmetric for later elimination
@@ -285,6 +299,10 @@ int CeedSingleOperatorFullAssemble(CeedOperator op, SparseMatrix *out)
    ierr = CeedVectorRestoreArrayRead(assembledqf, &assembledqfarray);
    PCeedChk(ierr);
    ierr = CeedVectorDestroy(&assembledqf); PCeedChk(ierr);
+   ierr = CeedElemRestrictionDestroy(&rstrin); PCeedChk(ierr);
+   ierr = CeedElemRestrictionDestroy(&rstrout); PCeedChk(ierr);
+   ierr = CeedBasisDestroy(&basisin); PCeedChk(ierr);
+   ierr = CeedBasisDestroy(&basisout); PCeedChk(ierr);
    ierr = CeedHackFree(&emodein); PCeedChk(ierr);
    ierr = CeedHackFree(&emodeout); PCeedChk(ierr);
 
@@ -310,13 +328,8 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
    {
       CeedInt numsub;
       CeedOperator *subops;
-#if CEED_VERSION_GE(0, 10, 2)
-      CeedCompositeOperatorGetNumSub(op, &numsub);
-      ierr = CeedCompositeOperatorGetSubList(op, &subops); PCeedChk(ierr);
-#else
-      CeedOperatorGetNumSub(op, &numsub);
-      ierr = CeedOperatorGetSubList(op, &subops); PCeedChk(ierr);
-#endif
+      ierr = CeedOperatorCompositeGetNumSub(op, &numsub); PCeedChk(ierr);
+      ierr = CeedOperatorCompositeGetSubList(op, &subops); PCeedChk(ierr);
       for (int i = 0; i < numsub; ++i)
       {
          ierr = CeedSingleOperatorFullAssemble(subops[i], out); PCeedChk(ierr);
