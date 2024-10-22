@@ -63,6 +63,11 @@ public:
    /// Returns the indices (i,j) in 2D or (i,j,k) in 3D of this element in the
    /// tensor product ordering of the patch.
    const int* GetIJK() const { return ijk; }
+   void GetIJK(int *IJK) const
+   {
+      for (int i=0; i<3; ++i) { IJK[i] = ijk[i]; }
+   }
+
 };
 
 
