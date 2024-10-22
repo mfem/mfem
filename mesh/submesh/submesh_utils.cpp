@@ -65,7 +65,7 @@ AddElementsToMesh(const Mesh& parent,
    {
       const Element *pel = from_boundary ?
                            parent.GetBdrElement(i) : parent.GetElement(i);
-      if (!ElementHasAttribute(*pel, attributes)) { continue; }
+      if (!HasAttribute(*pel, attributes)) { continue; }
       pel->GetVertices(vert);
       submesh_vert.SetSize(vert.Size());
       for (int iv = 0; iv < vert.Size(); iv++)

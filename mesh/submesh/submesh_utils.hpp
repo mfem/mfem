@@ -178,7 +178,17 @@ bool HasAttribute(const T &el, const Array<int> &attributes)
    }
    return false;
 }
-inline bool ElementHasAttribute(const Element &el, const Array<int> &attributes)
+
+/**
+ * @brief Forwarding dispatch to HasAttribute for backwards compatability
+ *
+ * @param el Instance of T, requires method `GetAttribute()`
+ * @param attributes Set of attributes to match against
+ * @return true The attribute of el is contained within attributes
+ * @return false
+ */
+MFEM_DEPRECATED inline bool ElementHasAttribute(const Element &el,
+                                                const Array<int> &attributes)
 {
    return HasAttribute(el,attributes);
 }

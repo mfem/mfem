@@ -645,12 +645,16 @@ public:
    int ParentFaceNodes(std::array<int, 4> &nodes) const;
 
    /**
-    * @brief Find the nodes that make up faces[face].
+    * @brief  method for finding the @a node associated to a @a face
     * @return Nodes making up the face
     */
    std::array<int, 4> FindFaceNodes(int face) const;
    std::array<int, 4> FindFaceNodes(const Face &fa) const;
-   void FindFaceNodes(int face, int node[4]) const;
+   /**
+    * @brief Backwards compatible method for finding the @a node associated to a
+    * @a face
+    */
+   MFEM_DEPRECATED void FindFaceNodes(int face, int node[4]) const;
 protected:
 
 
