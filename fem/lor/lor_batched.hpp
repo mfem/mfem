@@ -25,6 +25,7 @@ namespace mfem
 /// supported, currently:
 ///
 ///  - H1 diffusion + mass
+///  - DG diffusion + mass (in progress)
 ///  - ND curl-curl + mass
 ///  - RT div-div + mass
 ///
@@ -76,6 +77,9 @@ public:
 protected:
    /// After assembling the "sparse IJ" format, convert it to CSR.
    void SparseIJToCSR(OperatorHandle &A) const;
+
+   /// Specialized implementation of SparseIJToCSR for DG spaces.
+   void SparseIJToCSR_DG(SparseMatrix &A) const;
 
    /// Assemble the system without eliminating essential DOFs.
    void AssembleWithoutBC(BilinearForm &a, OperatorHandle &A);

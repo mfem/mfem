@@ -17,6 +17,7 @@
 
 // Specializations
 #include "lor_h1.hpp"
+#include "lor_dg.hpp"
 #include "lor_nd.hpp"
 #include "lor_rt.hpp"
 
@@ -54,17 +55,18 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    // Batched LOR requires all tensor elements
    if (!UsesTensorBasis(*a.FESpace())) { return false; }
 
-   if (dynamic_cast<const H1_FECollection*>(fec))
+   if (dynamic_cast<const H1_FECollection*>(fec) ||
+       dynamic_cast<const DG_FECollection*>(fec))
    {
-      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a)) { return true; }
+      return HasIntegrators<DiffusionIntegrator, MassIntegrator>(a);
    }
    else if (dynamic_cast<const ND_FECollection*>(fec))
    {
-      if (HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a)) { return true; }
+      return HasIntegrators<CurlCurlIntegrator, VectorFEMassIntegrator>(a);
    }
    else if (dynamic_cast<const RT_FECollection*>(fec))
    {
-      if (HasIntegrators<DivDivIntegrator, VectorFEMassIntegrator>(a)) { return true; }
+      return HasIntegrators<DivDivIntegrator, VectorFEMassIntegrator>(a);
    }
    return false;
 }
@@ -158,6 +160,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
    const auto dof_glob2loc = dof_glob2loc_.Read();
    const auto K = dof_glob2loc_offsets_.Read();
    const auto map = Reshape(sparse_mapping.Read(), nnz_per_row, ndof_per_el);
+
 
    auto I = A.WriteI();
 
@@ -358,6 +361,39 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
    });
 }
 
+void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
+{
+   const int nvdof = fes_ho.GetVSize();
+   const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
+   const int nel_ho = fes_ho.GetNE();
+   const int nnz_per_row = sparse_ij.Size()/ndof_per_el/nel_ho;
+
+   auto I = A.WriteI();
+
+   mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE (int i)
+   {
+      I[i] = i;
+   });
+
+   const int nnz = nvdof;
+
+   EnsureCapacity(A.GetMemoryJ(), nnz);
+   EnsureCapacity(A.GetMemoryData(), nnz);
+
+   const auto V = Reshape(sparse_ij.Read(), nnz_per_row, ndof_per_el, nel_ho);
+
+   auto J = A.WriteJ();
+   auto AV = A.WriteData();
+
+   mfem::forall(nnz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int iel_ho = i / ndof_per_el;
+      const int iloc = i % ndof_per_el;
+      J[i] = i;
+      AV[i] = V(0, iloc, iel_ho);
+   });
+}
+
 void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
 {
    const int nvdof = fes_ho.GetVSize();
@@ -372,13 +408,20 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
    }
 
    A_mat->OverrideSize(nvdof, nvdof);
+   EnsureCapacity(A_mat->GetMemoryI(), nvdof + 1);
 
-   A_mat->GetMemoryI().New(nvdof+1, Device::GetDeviceMemoryType());
-   int nnz = FillI(*A_mat);
-
-   A_mat->GetMemoryJ().New(nnz, Device::GetDeviceMemoryType());
-   A_mat->GetMemoryData().New(nnz, Device::GetDeviceMemoryType());
-   FillJAndData(*A_mat);
+   // Assembling the CSR matrix for DG spaces uses a different algorithm
+   if (dynamic_cast<const DG_FECollection*>(fes_ho.FEColl()))
+   {
+      SparseIJToCSR_DG(*A_mat);
+   }
+   else
+   {
+      const int nnz = FillI(*A_mat);
+      EnsureCapacity(A_mat->GetMemoryJ(), nnz);
+      EnsureCapacity(A_mat->GetMemoryData(), nnz);
+      FillJAndData(*A_mat);
+   }
 }
 
 template <int ORDER, int SDIM, typename LOR_KERNEL>
@@ -436,6 +479,13 @@ void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)
       if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
       {
          AssemblyKernel<BatchedLOR_H1>(a);
+      }
+   }
+   else if (dynamic_cast<const DG_FECollection*>(fec))
+   {
+      if (HasIntegrators<DiffusionIntegrator, MassIntegrator>(a))
+      {
+         AssemblyKernel<BatchedLOR_DG>(a);
       }
    }
    else if (dynamic_cast<const ND_FECollection*>(fec))
