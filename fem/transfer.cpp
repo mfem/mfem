@@ -615,7 +615,7 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 
    if (use_device || verify_solution)
    {
-      DeviceL2ProjectionL2Space(fes_ho_, fes_lor_, coeff_);
+      DeviceL2ProjectionL2Space();
       if (!verify_solution) {return;}
    }
 
@@ -762,9 +762,7 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 }
 
 
-void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
-(const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
- const Coefficient *coeff_) // coeff : coefficient for weighted integration
+void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
 {
    Mesh *mesh_ho = fes_ho.GetMesh();
    Mesh *mesh_lor = fes_lor.GetMesh();
@@ -780,7 +778,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
 
    QuadratureFunction qfunc;
    IntegrationRule ir;
-   if (coeff_ == nullptr)
+   if (coeff == nullptr)
    {
       Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
       const FiniteElement &fe = *fes_ho.GetFE(0);
@@ -796,7 +794,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space
    else
    {
       // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
-      auto qfunc_coeff = dynamic_cast<const QuadratureFunctionCoefficient*>(coeff_);
+      auto qfunc_coeff = dynamic_cast<const QuadratureFunctionCoefficient*>(coeff);
       if (qfunc_coeff == NULL)
       {
          mfem_error("Not a QuadratureFunctionCoefficient - for inside H1");
