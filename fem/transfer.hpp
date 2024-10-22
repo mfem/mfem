@@ -381,9 +381,8 @@ public:
       ///   ( )  ElementRestrictionOperator for LOR space
       ///   ( )  mixed mass matrix M_{LH}
       ///   ( )  ElementRestrictionOperator for HO space
-      void DeviceL2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
-                                     const FiniteElementSpace &fes_lor_,
-                                     const Coefficient* coeff_);
+      void DeviceL2ProjectionH1Space();
+
 #ifdef MFEM_USE_MPI
       void DeviceL2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                                      const ParFiniteElementSpace &pfes_lor_,
