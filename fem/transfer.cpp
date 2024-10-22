@@ -1464,7 +1464,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 {
    if (use_device || verify_solution)
    {
-      DeviceL2ProjectionH1Space(pfes_ho, pfes_lor, coeff_);
+      DeviceL2ProjectionH1Space(pfes_ho, pfes_lor);
       if (!verify_solution) {return;}
    }
 
@@ -1679,9 +1679,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space()
 }
 
 #ifdef MFEM_USE_MPI
-void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
-   const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor,
-   const Coefficient* coeff_)
+void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space
+(const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor)
 {
    Mesh* mesh_ho = pfes_ho.GetParMesh();
    Mesh* mesh_lor = pfes_lor.GetParMesh();
@@ -1705,7 +1704,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
 
    QuadratureFunction qfunc;
    IntegrationRule ir;
-   if (coeff_ == nullptr)
+   if (coeff == nullptr)
    {
       Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
       const FiniteElement &fe = *pfes_ho.GetFE(0);
@@ -1721,7 +1720,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space(
    else
    {
       // dynamic_cast to check if QuadFuncCoeff; if yes, continue; if no, return error
-      auto qfunc_coeff = dynamic_cast<const QuadratureFunctionCoefficient*>(coeff_);
+      auto qfunc_coeff = dynamic_cast<const QuadratureFunctionCoefficient*>(coeff);
       if (qfunc_coeff == NULL)
       {
          mfem_error("Not a QuadratureFunctionCoefficient - for inside H1");
