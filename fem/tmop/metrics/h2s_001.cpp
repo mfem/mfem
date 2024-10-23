@@ -36,29 +36,29 @@ namespace mfem
 using kernel_t = void (*)(const TMOP_Integrator *, const Vector &x);
 
 using metric_t = decltype(typename mfem::TMOP_PA_Metric_001{});
+// using metric_t = mfem::TMOP_PA_Metric_001;
 
 MFEM_REGISTER_KERNELS_T(Kernels, kernel_t, (metric_t, int, int));
 
-// template <typename M, int D, int Q>
 template <auto... args>
 kernel_t Kernels::Kernel()
 {
-   // dbg("TMOP_PA_Metric_001, D:{}, Q:{}", D, Q);
-   // return TMOPSetupGradPA2D_Kernel<M, D, Q>;
-   // return TMOPSetupGradPA2D_Kernel<args...>; // M, D, Q>;
-   return TMOPSetupGradPA2D_Kernel<TMOP_PA_Metric_001>;
+   dbg("TMOP_PA_Metric_001");
+   printTypes<decltype(args)...>();
+
+   // return TMOPSetupGradPA2D_Kernel<args...>;
+   return TMOPSetupGradPA2D_Kernel<metric_t, 2, 3>;
 }
 
 kernel_t Kernels::Fallback(metric_t, int, int)
 {
    dbg("TMOP_PA_Metric_001, Fallback");
-   return TMOPSetupGradPA2D_Kernel<TMOP_PA_Metric_001>;
+   return TMOPSetupGradPA2D_Kernel<metric_t>;
 }
 
 // static auto add_kernels = [] { return (TMOPAdd<metric_t, Kernels>(), 0); }();
 static auto add_kernels = []
 {
-   printTypes<metric_t, int, char>();
    return (Kernels::template Specialization<metric_t{}, 2, 2>::Add(),
            Kernels::template Specialization<metric_t{}, 2, 3>::Add(), 0);
 }();

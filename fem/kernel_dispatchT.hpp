@@ -29,6 +29,14 @@ void printTypes()
     ...);
 }
 
+template <typename... Args>
+void printValues(Args &&...args)
+{
+   std::cout << "\033[32m";
+   (std::cout << ... << args) << std::endl;
+   std::cout << "\033[m";
+}
+
 using metric_t = decltype(mfem::TMOP_PA_Metric_001{});
 
 #define MFEM_PARAM_LIST(...) __VA_ARGS__
@@ -123,7 +131,8 @@ public:
    {
       const auto &table = Kernels::Get().table;
       // const std::tuple<Params...> key = std::make_tuple(params...);
-      const std::tuple<M, int, int> key = std::make_tuple(M{}, d, q);
+      // const std::tuple<M, int, int> key = std::make_tuple(M{}, d, q);
+      const std::tuple key(M{}, d, q);
       const auto it = table.find(key);
       if (it != table.end()) { it->second(std::forward<Args>(args)...); }
       else
@@ -146,6 +155,9 @@ public:
       // Version without optional parameters
       static void Add()
       {
+         printTypes<decltype(PARAMS)...>();
+         printValues(PARAMS...);
+
          // std::tuple<Params...> param_tuple(PARAMS...);
          // std::tuple<M, int, int> param_tuple(M{}, D, Q);
          std::tuple param_tuple(PARAMS...);
