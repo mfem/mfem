@@ -1177,6 +1177,8 @@ public:
    void MakeRef(Array<real_t> &base)
    {
       tdata.Delete();
+      MFEM_ASSERT(base.size() == i*j*k,
+                  "vector and dense tensor size does not match");
       tdata.MakeAlias(base.GetMemory(), 0, base.Size());
    }
 
