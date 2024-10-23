@@ -757,7 +757,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
    // If the local mesh is empty, skip all computations
    if (nel_ho == 0) { return; }
 
-
    Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
    const FiniteElement &fe = *fes_ho.GetFE(0);
    const FiniteElement &fe_lor = *fes_lor.GetFE(0);
@@ -1341,20 +1340,28 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
    const int nel_ho = mesh_ho->GetNE();
 
    //Here we want to make a reference...
-   DenseTensor A(ndof_ho, ndof_lor*nref, nel_ho);
-   A.MakeRef(P_ea);
+   auto v_P_ea = Reshape(P_ea.Read(), ndof_ho, ndof_lor, nref, nel_ho);
+   auto v_x    = Reshape(x.Read(), ndof_ho, vdim, nel_ho);
+   auto v_y    = Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
 
-   int x_vec_size = x.Size()/vdim;
-   int y_vec_size = y.Size()/vdim;
-
-   Vector x_vi, y_vi;
-   for (int d=0; d<vdim; ++d)
+   mfem::forall_3D(nel_ho, ndof_lor, nref, vdim, [=] MFEM_HOST_DEVICE (int e)
    {
-      x_vi.MakeRef(const_cast<Vector &>(x), d * x_vec_size, x_vec_size);
-      y_vi.MakeRef(y, d * y_vec_size, y_vec_size);
-      BatchedLinAlg::Mult(A, x_vi, y_vi);
-   }
-
+      MFEM_FOREACH_THREAD(v, z, vdim)
+      {
+         MFEM_FOREACH_THREAD(iref, y, nref)
+         {
+            MFEM_FOREACH_THREAD(ilo, x, ndof_lor)
+            {
+               real_t dot = 0.0;
+               for (int iho=0; iho<ndof_ho; ++iho)
+               {
+                  dot += v_P_ea(iho, ilo, iref, e) * v_x(iho, v, e);
+               }
+               v_y(ilo, iref, v, e) = dot;
+            }
+         }
+      }
+   });
 }
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
