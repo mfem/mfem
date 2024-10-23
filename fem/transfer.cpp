@@ -1154,18 +1154,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   DenseTensor A(ndof_lor*nref, ndof_ho, nel_ho);
-   A.MakeRef(R_ea);
-
-   Vector x_vi, y_vi;
-   for (int d=0; d<vdim; ++d)
-   {
-      x_vi.MakeRef(const_cast<Vector &>(x), d * ndof_ho *nel_ho, ndof_ho * nel_ho);
-      y_vi.MakeRef(y, d * ndof_lor * nref * nel_ho, ndof_lor * nref * nel_ho);
-      BatchedLinAlg::Mult(A, x_vi, y_vi);
-   }
-
-#if 0
    auto v_R_ea = Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
    auto v_x    = Reshape(x.Read(), ndof_lor, nref, vdim, nel_ho);
    auto v_y    = Reshape(y.Write(), ndof_ho, vdim, nel_ho);
@@ -1183,13 +1171,12 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
                {
                   dot += v_R_ea(j, i, k, iho) * v_x(j, i, v, iho);
                }
-
-               v_y(k, v, iho) = dot;
             }
+            v_y(k, v, iho) = dot;
          }
       }
    });
-#endif
+
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
@@ -1357,11 +1344,14 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
    DenseTensor A(ndof_ho, ndof_lor*nref, nel_ho);
    A.MakeRef(P_ea);
 
+   int x_vec_size = x.Size()/vdim;
+   int y_vec_size = y.Size()/vdim;
+
    Vector x_vi, y_vi;
    for (int d=0; d<vdim; ++d)
    {
-      x_vi.MakeRef(const_cast<Vector &>(x), d * ndof_ho * nel_ho, ndof_ho * nel_ho);
-      y_vi.MakeRef(y, d * ndof_ho * ndof_lor, nref  * nel_ho);
+      x_vi.MakeRef(const_cast<Vector &>(x), d * x_vec_size, x_vec_size);
+      y_vi.MakeRef(y, d * y_vec_size, y_vec_size);
       BatchedLinAlg::Mult(A, x_vi, y_vi);
    }
 
