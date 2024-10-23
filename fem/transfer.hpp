@@ -559,10 +559,11 @@ public:
                             FiniteElementSpace &fine_fes_,
                             bool force_l2_space_ = false,
                             Coefficient *coeff_ = nullptr,
-                            IntegrationRule *int_rule = nullptr,
+                            IntegrationRule *int_rule_ = nullptr,
                             MemoryType d_mt_ = Device::GetHostMemoryType())
       : GridTransfer(coarse_fes_, fine_fes_, d_mt_),
-        F(NULL), B(NULL), force_l2_space(force_l2_space_), coeff(coeff_)
+        F(NULL), B(NULL), force_l2_space(force_l2_space_),
+        coeff(coeff_), int_rule(int_rule_)
    { }
    virtual ~L2ProjectionGridTransfer();
 
