@@ -1329,7 +1329,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
 
    //Here we want to make a reference...
    DenseTensor A(ndof_ho, ndof_lor*nref, nel_ho);
-   A.GetMemory().CopyFrom(P_ea.GetMemory(), P_ea.Size());
+   A.MakeRef(P_ea);
 
    Vector x_vi, y_vi;
    for (int d=0; d<vdim; ++d)
