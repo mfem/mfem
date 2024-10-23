@@ -902,23 +902,23 @@ static void TMOPKernelLaunch(K &ker)
 template <typename M, typename K>
 void TMOPAdd()
 {
-   K::template Specialization<(int)M{}, 2, 2>::Add();
-   K::template Specialization<(int)M{}, 2, 3>::Add();
-   // K::template Specialization<2, 4>::Add();
-   // K::template Specialization<2, 5>::Add();
-   // K::template Specialization<2, 6>::Add();
+   K::template Specialization<M{}, 2, 2>::Add();
+   K::template Specialization<M{}, 2, 3>::Add();
+   K::template Specialization<M{}, 2, 4>::Add();
+   K::template Specialization<M{}, 2, 5>::Add();
+   K::template Specialization<M{}, 2, 6>::Add();
 
-   // K::template Specialization<3, 3>::Add();
-   // K::template Specialization<3, 4>::Add();
-   // K::template Specialization<3, 5>::Add();
-   // K::template Specialization<3, 6>::Add();
+   K::template Specialization<M{}, 3, 3>::Add();
+   K::template Specialization<M{}, 3, 4>::Add();
+   K::template Specialization<M{}, 3, 5>::Add();
+   K::template Specialization<M{}, 3, 6>::Add();
 
-   // K::template Specialization<4, 4>::Add();
-   // K::template Specialization<4, 5>::Add();
-   // K::template Specialization<4, 6>::Add();
+   K::template Specialization<M{}, 4, 4>::Add();
+   K::template Specialization<M{}, 4, 5>::Add();
+   K::template Specialization<M{}, 4, 6>::Add();
 
-   // K::template Specialization<5, 5>::Add();
-   // K::template Specialization<5, 6>::Add();
+   K::template Specialization<M{}, 5, 5>::Add();
+   K::template Specialization<M{}, 5, 6>::Add();
 }
 
 } // namespace mfem

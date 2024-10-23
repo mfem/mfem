@@ -22,6 +22,7 @@
 
 namespace mfem
 {
+
 template <typename... Ts>
 void printTypes()
 {
@@ -47,12 +48,12 @@ using metric_t = decltype(mfem::TMOP_PA_Metric_001{});
 #define MFEM_REGISTER_KERNELS_T(KernelName, KernelType, P1)            \
    class KernelName : public KernelDispatchTable<                      \
                          KernelName, KernelType,                       \
-                         internal::KernelTypeList<metric_t, int, int>> \
+                         internal::KernelTypeList<MFEM_PARAM_LIST P1>> \
    {                                                                   \
    public:                                                             \
       const char *kernel_name = MFEM_KERNEL_NAME(KernelName);          \
       using KernelSignature = KernelType;                              \
-      template <metric_t, int, int>                                    \
+      template <MFEM_PARAM_LIST P1>                                    \
       static KernelSignature Kernel();                                 \
       static KernelSignature Fallback(metric_t, int, int);             \
       static KernelName &Get()                                         \
@@ -108,15 +109,14 @@ template <typename... T> class KernelDispatchTable
 {
 };
 
-template <typename Kernels, typename Signature> //, typename... Params>
+template <typename Kernels, typename Signature, typename... Params>
 class KernelDispatchTable<Kernels,
                           Signature,
-                          //   internal::KernelTypeList<Params...>
-                          internal::KernelTypeList<metric_t, int, int>>
+                          internal::KernelTypeList<Params...>>
 {
-   std::unordered_map<std::tuple<metric_t, int, int>,
+   std::unordered_map<std::tuple<Params...>,
                       Signature,
-                      KernelDispatchKeyHash<metric_t, int, int>>
+                      KernelDispatchKeyHash<Params...>>
       table;
 
 public:
@@ -125,47 +125,27 @@ public:
    /// If a compile-time specialized version of the kernel with the given
    /// parameters has been registered, it will be called. Otherwise, the
    /// fallback kernel will be called.
-   // static void Run(Params... params, Args &&...args)
-   template <typename M, typename... Args>
-   static void Run(M m, int d, int q, Args &&...args)
+   template <typename... Args>
+   static void Run(Params... params, Args &&...args)
    {
       const auto &table = Kernels::Get().table;
-      // const std::tuple<Params...> key = std::make_tuple(params...);
-      // const std::tuple<M, int, int> key = std::make_tuple(M{}, d, q);
-      const std::tuple key(M{}, d, q);
-      const auto it = table.find(key);
+      const auto it = table.find(std::tuple(params...));
       if (it != table.end()) { it->second(std::forward<Args>(args)...); }
       else
       {
-         // KernelReporter::ReportFallback(Kernels::Get().kernel_name,
-         // params...);
-         // Kernels::Fallback(params...)(std::forward<Args>(args)...);
-         Kernels::Fallback(m, d, q)(std::forward<Args>(args)...);
+         KernelReporter::ReportFallback(Kernels::Get().kernel_name, params...);
+         Kernels::Fallback(params...)(std::forward<Args>(args)...);
       }
    }
 
    /// Register a specialized kernel for dispatch.
-   // template <Params... PARAMS>
-   // template <typename... PARAMS>
-   template <metric_t M, int D, int Q>
-   // template <auto... PARAMS>
+   template <auto... Ps>
    struct Specialization
    {
-      // Version without optional parameters
       static void Add()
       {
-         // printTypes<decltype(PARAMS)...>();
-         // printValues(PARAMS...);
-
-         // std::tuple<Params...> param_tuple(PARAMS...);
-         // std::tuple<M, int, int> param_tuple(M{}, D, Q);
-         // std::tuple param_tuple(PARAMS...);
-
-         // Kernels::Get().table[std::tuple(PARAMS...)] =
-         //    Kernels::template Kernel<PARAMS...>();
-
-         Kernels::Get().table[std::tuple(M, D, Q)] =
-            Kernels::template Kernel<M, D, Q>();
+         Kernels::Get().table[std::tuple(Ps...)] =
+            Kernels::template Kernel<Ps...>();
       }
    };
 };
