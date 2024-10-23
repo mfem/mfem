@@ -1174,6 +1174,12 @@ public:
       tdata.Wrap(ext_data, i*j*k, false);
    }
 
+   void MakeRef(Array<real_t> &base)
+   {
+      tdata.Delete();
+      tdata.MakeAlias(base.GetMemory(), 0, base.Size());
+   }
+
    /// Sets the tensor elements equal to constant c
    DenseTensor &operator=(real_t c);
 
