@@ -18,25 +18,28 @@
 #include <tuple>
 #include <cstddef>
 
+#include "./tmop/tmop_pa.hpp"
+
 namespace mfem
 {
+using metric_t = decltype(mfem::TMOP_PA_Metric_001{});
 
 #define MFEM_PARAM_LIST(...) __VA_ARGS__
 
 // P1 are the parameters, P2 are the optional (non-dispatch parameters), and P3
 // is the concatenation of P1 and P2. We need to pass it as a separate argument
 // to avoid a trailing comma in the case that P2 is empty.
-#define MFEM_REGISTER_KERNELS_T(KernelName, KernelType, T, P1)         \
+#define MFEM_REGISTER_KERNELS_T(KernelName, KernelType, P1)            \
    class KernelName : public KernelDispatchTable<                      \
-                         KernelName, KernelType, T,                    \
-                         internal::KernelTypeList<MFEM_PARAM_LIST P1>> \
+                         KernelName, KernelType,                       \
+                         internal::KernelTypeList<metric_t, int, int>> \
    {                                                                   \
    public:                                                             \
       const char *kernel_name = MFEM_KERNEL_NAME(KernelName);          \
       using KernelSignature = KernelType;                              \
-      template <typename T, MFEM_PARAM_LIST P1>                        \
+      template <int, int>                                              \
       static KernelSignature Kernel();                                 \
-      static KernelSignature Fallback(T, MFEM_PARAM_LIST P1);          \
+      static KernelSignature Fallback(metric_t, int, int);             \
       static KernelName &Get()                                         \
       {                                                                \
          static KernelName table;                                      \
@@ -90,15 +93,15 @@ template <typename... T> class KernelDispatchTable
 {
 };
 
-template <typename Kernels, typename Signature, typename T, typename... Params>
+template <typename Kernels, typename Signature> //, typename... Params>
 class KernelDispatchTable<Kernels,
                           Signature,
-                          T,
-                          internal::KernelTypeList<Params...>>
+                          //   internal::KernelTypeList<Params...>
+                          internal::KernelTypeList<metric_t, int, int>>
 {
-   std::unordered_map<std::tuple<T, Params...>,
+   std::unordered_map<std::tuple<metric_t, int, int>,
                       Signature,
-                      KernelDispatchKeyHash<T, Params...>>
+                      KernelDispatchKeyHash<metric_t, int, int>>
       table;
 
 public:
@@ -108,30 +111,35 @@ public:
    /// parameters has been registered, it will be called. Otherwise, the
    /// fallback kernel will be called.
    template <typename... Args>
-   static void Run(Params... params, Args &&...args)
+   // static void Run(Params... params, Args &&...args)
+   static void Run(metric_t, int, int, Args &&...args)
    {
-      const auto &table = Kernels::Get().table;
-      const std::tuple<T, Params...> key = std::make_tuple(T{}, params...);
+      /*const auto &table = Kernels::Get().table;
+      const std::tuple<Params...> key = std::make_tuple(params...);
       const auto it = table.find(key);
       if (it != table.end()) { it->second(std::forward<Args>(args)...); }
       else
       {
          KernelReporter::ReportFallback(Kernels::Get().kernel_name, params...);
-         Kernels::Fallback(T{}, params...)(std::forward<Args>(args)...);
-      }
+         Kernels::Fallback(params...)(std::forward<Args>(args)...);
+      }*/
    }
 
    /// Register a specialized kernel for dispatch.
-   template <typename U, Params... PARAMS>
+   // template <Params... PARAMS>
+   // template <typename... PARAMS>
+   template <typename M, int D, int Q>
    struct Specialization
    {
       // Version without optional parameters
       static void Add()
       {
-         std::tuple<U, Params...> param_tuple(U{}, PARAMS...);
+         // std::tuple<Params...> param_tuple(PARAMS...);
+         std::tuple<M, int, int> param_tuple(M{}, D, Q);
          Kernels::Get().table[param_tuple] =
-            Kernels::template Kernel<U, PARAMS...>();
-      };
+            // Kernels::template Kernel<PARAMS...>();
+            Kernels::template Kernel</*M{},*/ D, Q>();
+      }
    };
 };
 
