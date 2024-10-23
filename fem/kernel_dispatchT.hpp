@@ -147,7 +147,7 @@ public:
    /// Register a specialized kernel for dispatch.
    // template <Params... PARAMS>
    // template <typename... PARAMS>
-   template <auto M, int D, int Q>
+   template <metric_t M, int D, int Q>
    // template <auto... PARAMS>
    struct Specialization
    {
