@@ -39,7 +39,7 @@ using metric_t = decltype(typename mfem::TMOP_PA_Metric_001{});
 
 MFEM_REGISTER_KERNELS_T(Kernels, kernel_t, (metric_t, int, int));
 
-template <typename M, int D, int Q>
+template <metric_t M, int D, int Q>
 kernel_t Kernels::Kernel()
 {
    dbg("TMOP_PA_Metric_001 decltype(kernel_t):");
@@ -63,7 +63,7 @@ kernel_t Kernels::Kernel()
 
    // return TMOPSetupGradPA2D_Kernel<args...>;
    // return TMOPSetupGradPA2D_Kernel<metric_t, 2, 3>;
-   return TMOPSetupGradPA2D_Kernel<M, D, Q>;
+   return TMOPSetupGradPA2D_Kernel<decltype(M), D, Q>;
 }
 
 kernel_t Kernels::Fallback(metric_t, int, int)

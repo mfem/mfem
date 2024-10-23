@@ -52,7 +52,7 @@ using metric_t = decltype(mfem::TMOP_PA_Metric_001{});
    public:                                                             \
       const char *kernel_name = MFEM_KERNEL_NAME(KernelName);          \
       using KernelSignature = KernelType;                              \
-      template <typename, int, int>                                    \
+      template <metric_t, int, int>                                    \
       static KernelSignature Kernel();                                 \
       static KernelSignature Fallback(metric_t, int, int);             \
       static KernelName &Get()                                         \
@@ -165,7 +165,7 @@ public:
          //    Kernels::template Kernel<PARAMS...>();
 
          Kernels::Get().table[std::tuple(M, D, Q)] =
-            Kernels::template Kernel<decltype(M), D, Q>();
+            Kernels::template Kernel<M, D, Q>();
       }
    };
 };
