@@ -52,7 +52,7 @@ using metric_t = decltype(mfem::TMOP_PA_Metric_001{});
    public:                                                             \
       const char *kernel_name = MFEM_KERNEL_NAME(KernelName);          \
       using KernelSignature = KernelType;                              \
-      template <auto...>                                               \
+      template <typename, int, int>                                    \
       static KernelSignature Kernel();                                 \
       static KernelSignature Fallback(metric_t, int, int);             \
       static KernelName &Get()                                         \
@@ -147,23 +147,25 @@ public:
    /// Register a specialized kernel for dispatch.
    // template <Params... PARAMS>
    // template <typename... PARAMS>
-   // template <typename M, int D, int Q>
-   // template <typename M, int D, int Q>
-   template <auto... PARAMS>
+   template <auto M, int D, int Q>
+   // template <auto... PARAMS>
    struct Specialization
    {
       // Version without optional parameters
       static void Add()
       {
-         printTypes<decltype(PARAMS)...>();
-         printValues(PARAMS...);
+         // printTypes<decltype(PARAMS)...>();
+         // printValues(PARAMS...);
 
          // std::tuple<Params...> param_tuple(PARAMS...);
          // std::tuple<M, int, int> param_tuple(M{}, D, Q);
-         std::tuple param_tuple(PARAMS...);
-         Kernels::Get().table[param_tuple] =
-            // Kernels::template Kernel<PARAMS...>();
-            Kernels::template Kernel<PARAMS...>();
+         // std::tuple param_tuple(PARAMS...);
+
+         // Kernels::Get().table[std::tuple(PARAMS...)] =
+         //    Kernels::template Kernel<PARAMS...>();
+
+         Kernels::Get().table[std::tuple(M, D, Q)] =
+            Kernels::template Kernel<decltype(M), D, Q>();
       }
    };
 };
