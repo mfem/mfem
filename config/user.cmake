@@ -15,7 +15,7 @@ set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 find_package(fmt CONFIG REQUIRED)
 add_link_options(-L/opt/homebrew/opt/fmt/lib -lfmt)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_COMPILER_LAUNCHER ccache)
 # set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "Verbose makefiles.")

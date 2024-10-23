@@ -22,6 +22,13 @@
 
 namespace mfem
 {
+template <typename... Ts>
+void printTypes()
+{
+   ((std::cout << "\033[33m" << typeid(Ts).name() << "\033[m" << std::endl),
+    ...);
+}
+
 using metric_t = decltype(mfem::TMOP_PA_Metric_001{});
 
 #define MFEM_PARAM_LIST(...) __VA_ARGS__
@@ -37,7 +44,7 @@ using metric_t = decltype(mfem::TMOP_PA_Metric_001{});
    public:                                                             \
       const char *kernel_name = MFEM_KERNEL_NAME(KernelName);          \
       using KernelSignature = KernelType;                              \
-      template <int, int>                                              \
+      template <auto...>                                               \
       static KernelSignature Kernel();                                 \
       static KernelSignature Fallback(metric_t, int, int);             \
       static KernelName &Get()                                         \
@@ -110,35 +117,41 @@ public:
    /// If a compile-time specialized version of the kernel with the given
    /// parameters has been registered, it will be called. Otherwise, the
    /// fallback kernel will be called.
-   template <typename... Args>
    // static void Run(Params... params, Args &&...args)
-   static void Run(metric_t, int, int, Args &&...args)
+   template <typename M, typename... Args>
+   static void Run(M m, int d, int q, Args &&...args)
    {
-      /*const auto &table = Kernels::Get().table;
-      const std::tuple<Params...> key = std::make_tuple(params...);
+      const auto &table = Kernels::Get().table;
+      // const std::tuple<Params...> key = std::make_tuple(params...);
+      const std::tuple<M, int, int> key = std::make_tuple(M{}, d, q);
       const auto it = table.find(key);
       if (it != table.end()) { it->second(std::forward<Args>(args)...); }
       else
       {
-         KernelReporter::ReportFallback(Kernels::Get().kernel_name, params...);
-         Kernels::Fallback(params...)(std::forward<Args>(args)...);
-      }*/
+         // KernelReporter::ReportFallback(Kernels::Get().kernel_name,
+         // params...);
+         // Kernels::Fallback(params...)(std::forward<Args>(args)...);
+         Kernels::Fallback(m, d, q)(std::forward<Args>(args)...);
+      }
    }
 
    /// Register a specialized kernel for dispatch.
    // template <Params... PARAMS>
    // template <typename... PARAMS>
-   template <typename M, int D, int Q>
+   // template <typename M, int D, int Q>
+   // template <typename M, int D, int Q>
+   template <auto... PARAMS>
    struct Specialization
    {
       // Version without optional parameters
       static void Add()
       {
          // std::tuple<Params...> param_tuple(PARAMS...);
-         std::tuple<M, int, int> param_tuple(M{}, D, Q);
+         // std::tuple<M, int, int> param_tuple(M{}, D, Q);
+         std::tuple param_tuple(PARAMS...);
          Kernels::Get().table[param_tuple] =
             // Kernels::template Kernel<PARAMS...>();
-            Kernels::template Kernel</*M{},*/ D, Q>();
+            Kernels::template Kernel<PARAMS...>();
       }
    };
 };
