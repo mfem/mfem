@@ -9,64 +9,40 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#define DBG_COLOR ::debug::kGreen
-#include "general/debug.hpp"
+// #define DBG_COLOR ::debug::kGreen
+// #include "general/debug.hpp"
 
 #include "../tmop_pa.hpp"
 #include "../tmop_pa_h2s.hpp"
 
-namespace std
-{
-template <>
-struct hash<mfem::TMOP_PA_Metric_001>
-{
-   size_t operator()(const mfem::TMOP_PA_Metric_001 &) const noexcept
-   {
-      dbg("TMOP_PA_Metric_001 hash");
-      return 1;
-   }
-};
-} // namespace std
-
-#include "../../kernel_dispatchT.hpp"
+#include "../../kernel_dispatch.hpp"
 
 namespace mfem
 {
 
 using kernel_t = void (*)(const TMOP_Integrator *, const Vector &x);
+using metric_t = mfem::TMOP_PA_Metric_001;
 
-using metric_t = decltype(typename mfem::TMOP_PA_Metric_001{});
+MFEM_REGISTER_KERNELS(Kernels, kernel_t, (int, int));
 
-MFEM_REGISTER_KERNELS_T(Kernels, kernel_t, (metric_t, int, int));
-
-template <metric_t M, int D, int Q>
+template <int D, int Q>
 kernel_t Kernels::Kernel()
 {
-   return TMOPSetupGradPA2D_Kernel<decltype(M), D, Q>;
+   return TMOPSetupGradPA2D_Kernel<metric_t, D, Q>;
 }
 
-kernel_t Kernels::Fallback(metric_t, int, int)
+kernel_t Kernels::Fallback(int, int)
 {
    return TMOPSetupGradPA2D_Kernel<metric_t>;
 }
-
-static auto add_kernels = [] { return (TMOPAdd<metric_t, Kernels>(), 0); }();
-// static auto add_kernels = []
-// {
-//    return (Kernels::template Specialization<metric_t{}, 2, 2>::Add(), // 2, 2
-//            Kernels::template Specialization<metric_t{}, 2, 3>::Add(), // 2, 3
-//            0);
-// }();
 
 void TMOPAssembleGradPA_001(TMOPSetupGradPA2D &ker,
                             const TMOP_Integrator *ti,
                             const Vector &x)
 {
-   // TMOPKernelLaunch<TMOP_PA_Metric_001>(ker);
-
-   const int d = ker.Ndof(), q = ker.Nqpt();
-   dbg("TMOP_PA_Metric_001, d:{}, q:{}", d, q);
-   Kernels::Run(metric_t{}, d, q, ti, x);
+   static const auto specialized_kernels = [] { return TMOPAdd<Kernels>(); }();
+   const auto d = ker.Ndof(), q = ker.Nqpt();
+   Kernels::Run(d, q, ti, x);
 }
 
 } // namespace mfem

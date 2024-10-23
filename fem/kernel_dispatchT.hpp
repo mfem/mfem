@@ -68,7 +68,7 @@ using metric_t = decltype(mfem::TMOP_PA_Metric_001{});
 ///
 /// For example, packs containing int, bool, enum values, etc.
 template <typename... KernelParameters>
-struct KernelDispatchKeyHash
+struct KernelDispatchKeyHashT
 {
 private:
    template <int N>
@@ -100,23 +100,23 @@ public:
 
 namespace internal
 {
-template <typename... Types> struct KernelTypeList
+template <typename... Types> struct KernelTypeListT
 {
 };
 } // namespace internal
 
-template <typename... T> class KernelDispatchTable
+template <typename... T> class KernelDispatchTableT
 {
 };
 
 template <typename Kernels, typename Signature, typename... Params>
-class KernelDispatchTable<Kernels,
-                          Signature,
-                          internal::KernelTypeList<Params...>>
+class KernelDispatchTableT<Kernels,
+                           Signature,
+                           internal::KernelTypeListT<Params...>>
 {
    std::unordered_map<std::tuple<Params...>,
                       Signature,
-                      KernelDispatchKeyHash<Params...>>
+                      KernelDispatchKeyHashT<Params...>>
       table;
 
 public:
@@ -139,13 +139,14 @@ public:
    }
 
    /// Register a specialized kernel for dispatch.
-   template <auto... Ps>
+   template <typename M, Params... PARAMS>
    struct Specialization
    {
       static void Add()
       {
-         Kernels::Get().table[std::tuple(Ps...)] =
-            Kernels::template Kernel<Ps...>();
+         std::tuple<Params...> param_tuple(M{}, PARAMS...);
+         Kernels::Get().table[param_tuple] =
+            Kernels::template Kernel<PARAMS...>();
       }
    };
 };
