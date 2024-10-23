@@ -1045,6 +1045,21 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
+   /*
+   DenseTensor A(ndof_lor*nref, ndof_ho, nel_ho);
+   A.MakeRef(R_ea);
+
+   Vector x_vi, y_vi;
+   for (int d=0; d<vdim; ++d)
+   {
+     x_vi.MakeRef(const_cast<Vector &>(x), d * ndof_ho *nel_ho, ndof_ho * nel_ho);
+     y_vi.MakeRef(y, d * ndof_lor * nref * nel_ho, ndof_lor * nref * nel_ho);
+     BatchedLinAlg::MultTranpose(A, x_vi, y_vi);
+   }
+   */
+
+   // Hand rolled since mult transpose is not supported in batch lin alg yet
+   // To be replaced with code above once we implement ::MultTranspose
    auto v_R_ea = Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
    auto v_x    = Reshape(x.Read(), ndof_ho, vdim, nel_ho);
    auto v_y    = Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
@@ -1070,9 +1085,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
          }
       }
    });
-
 }
-
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
    const Vector &x, Vector &y) const
@@ -1141,6 +1154,18 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
+   DenseTensor A(ndof_lor*nref, ndof_ho, nel_ho);
+   A.MakeRef(R_ea);
+
+   Vector x_vi, y_vi;
+   for (int d=0; d<vdim; ++d)
+   {
+      x_vi.MakeRef(const_cast<Vector &>(x), d * ndof_ho *nel_ho, ndof_ho * nel_ho);
+      y_vi.MakeRef(y, d * ndof_lor * nref * nel_ho, ndof_lor * nref * nel_ho);
+      BatchedLinAlg::Mult(A, x_vi, y_vi);
+   }
+
+#if 0
    auto v_R_ea = Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
    auto v_x    = Reshape(x.Read(), ndof_lor, nref, vdim, nel_ho);
    auto v_y    = Reshape(y.Write(), ndof_ho, vdim, nel_ho);
@@ -1164,6 +1189,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
          }
       }
    });
+#endif
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
