@@ -47,14 +47,14 @@ int main(int argc, char *argv[])
    real_t tol_stationary_rel = 1e-04;
    real_t tol_stationary_abs = 1e-04;
    real_t eps_stationarity = 1;
-   bool use_bregman_stationary = true;
    real_t tol_obj_diff_rel = 5e-05;
    real_t tol_obj_diff_abs = 5e-05;
-   real_t tol_kkt_rel = 1e-06;
-   real_t tol_kkt_abs = 1e-06;
+   real_t tol_rel = 1e-05;
+   real_t tol_abs = 1e-05;
    // backtracking related
    int max_it_backtrack = 300;
    bool use_bregman_backtrack = true;
+   bool use_L2_stationarity = false;
    real_t c1 = 1e-04;
 
    OptionsParser args(argc, argv);
@@ -97,10 +97,10 @@ int main(int argc, char *argv[])
                   "Minimum number of iteration for Mirror Descent Step");
    args.AddOption(&max_it_backtrack, "-mi-back", "--max-it-backtrack",
                   "Maximum number of iteration for backtracking");
-   args.AddOption(&tol_stationary_rel, "-rtol", "--rel-tol",
-                  "Tolerance for relative stationarity error");
-   args.AddOption(&tol_stationary_abs, "-atol", "--abs-tol",
-                  "Tolerance for absolute stationarity error");
+   args.AddOption(&tol_rel, "-rtol", "--rel-tol",
+                  "Tolerance for relative KKT residual");
+   args.AddOption(&tol_abs, "-atol", "--abs-tol",
+                  "Tolerance for absolute KKT residual");
    args.AddOption(&tol_obj_diff_rel, "-rtol-obj", "--rel-tol-obj",
                   "Tolerance for relative successive objective difference");
    args.AddOption(&tol_obj_diff_abs, "-atol-obj", "--abs-tol-obj",
@@ -110,9 +110,9 @@ int main(int argc, char *argv[])
    args.AddOption(&use_bregman_backtrack, "-bb", "--bregman-backtrack", "-ab",
                   "--armijo-backtrack",
                   "Option to choose Bregman backtracking algorithm or Armijo backtracking algorithm");
-   args.AddOption(&use_bregman_stationary, "-bs", "--bregman-stationarity", "-L2",
-                  "--L2-stationarity",
-                  "Option to choose Bregman stationarity or L2 stationarity for stopping criteria");
+   args.AddOption(&use_L2_stationarity, "-L2", "--L2-stationarity", "-kkt",
+                  "--kkt-residual",
+                  "Option to use L2 stationarity for the stopping criteria. KKT is the default");
 
    // visualization related options
    args.AddOption(&use_glvis, "-vis", "--visualization", "-no-vis",
@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
    filter.SetAdjBStationary(false);
    if (prob == mfem::ForceInverter2)
    {
-      ForceInverterInitialDesign(control_gf, &entropy);
+      // ForceInverterInitialDesign(control_gf, &entropy);
    }
    filter.Solve(filter_gf);
 
@@ -273,18 +273,20 @@ int main(int argc, char *argv[])
    MappedGFCoefficient density_eps_dual_cf = entropy.GetBackwardCoeff(
                                                 control_eps_gf);
    real_t avg_grad;
+   real_t step_size_old;
    MappedPairedGFCoefficient KKT_cf(
-      control_gf, grad_gf,
-      [&avg_grad, &entropy](const real_t x, const real_t g)
+      control_gf, control_old_gf,
+      [&avg_grad, &entropy, &step_size_old](const real_t x, const real_t x_old)
    {
-      real_t rho_k = entropy.backward(x);
-      real_t lambda_k = avg_grad - g;
+      real_t rho_k = entropy.backward(x_old);
+      real_t lambda_k = (x - x_old)/step_size_old; // -grad F(rho_{k-1})
       // Definition -Brendan
       // return std::max(0.0, lambda_k)*(1.0-rho_k)-std::min(0.0, lambda_k)*rho_k;
       // Definition -Thomas
-      return lambda_k
-             - std::min(0.0, rho_k     + lambda_k)
-             - std::max(0.0, rho_k - 1 + lambda_k);
+      // More robust when gradient has large magnitude.
+      return std::fabs(lambda_k
+                       - std::min(0.0, rho_k     + lambda_k)
+                       - std::max(0.0, rho_k - 1 + lambda_k));
       // return lambda_k*(1.0-2*rho_k) >= 0;
    });
    ParBilinearForm mass(&fes_control);
@@ -318,7 +320,7 @@ int main(int argc, char *argv[])
    }
 
    real_t stationarity0, obj0,
-          stationarity_error_L2, stationarity_error_bregman, stationarity_error,
+          stationarity, stationarity_error,
           curr_vol,
           objval(infinity()), old_objval(infinity()), succ_obj_diff(infinity());
    real_t kkt, kkt0;
@@ -331,8 +333,7 @@ int main(int argc, char *argv[])
    logger.Append("step-size", step_size);
    logger.Append("num-reeval", num_reeval);
    logger.Append("succ-objdiff", succ_obj_diff);
-   logger.Append("stnrty-L2", stationarity_error_L2);
-   logger.Append("stnrty-B", stationarity_error_bregman);
+   logger.Append("stnrty-L2", stationarity);
    logger.Append("kkt", kkt);
    logger.SaveWhenPrint(filename.str());
    std::unique_ptr<ParaViewDataCollection> paraview_dc;
@@ -357,6 +358,7 @@ int main(int argc, char *argv[])
    real_t dual_V;
    for (it_md = 0; it_md<max_it; it_md++)
    {
+      step_size_old = step_size;
       if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
       if (it_md == 1 && step_size == -1.0)
       {
@@ -439,25 +441,21 @@ int main(int argc, char *argv[])
       avg_grad = InnerProduct(fes_control.GetComm(), grad_gf, dv)/tot_vol;
 
       real_t dummy1, dummy2;
-      control_eps_gf = control_gf;
-      density.ProjectedStep(control_eps_gf, eps_stationarity, grad_gf, dummy1,
-                            dummy2);
-      stationarity_error_bregman = std::sqrt(zero_gf.ComputeL1Error(
-                                                bregman_diff_eps))/eps_stationarity;
-
       control_eps_gf.ProjectCoefficient(density_cf);
       density_primal.ProjectedStep(control_eps_gf, eps_stationarity, grad_gf, dummy1,
                                    dummy2);
-      stationarity_error_L2 = std::sqrt(zero_gf.ComputeL1Error(
-                                           primal_diff_eps))/eps_stationarity;
-      // kkt = zero_gf.ComputeL1Error(KKT_cf);
-      // zero_gf.ComputeElementMaxErrors(KKT_cf, kkt_gf);
-      kkt = ComputeKKT(control_gf, grad_gf, entropy, solid_attr, void_attr,
-                       min_vol, max_vol, curr_vol,
-                       one_gf, zero_gf, dv, kkt_gf, dual_V);
+      stationarity = std::sqrt(zero_gf.ComputeL1Error(
+                                  primal_diff_eps))/eps_stationarity;
+      kkt = zero_gf.ComputeL1Error(KKT_cf);
+      zero_gf.ComputeElementMaxErrors(KKT_cf, kkt_gf);
+      // kkt = ComputeKKT(control_gf, grad_gf, entropy, solid_attr, void_attr,
+      //                  min_vol, max_vol, curr_vol,
+      //                  one_gf, zero_gf, dv, kkt_gf, dual_V);
 
-      stationarity_error = use_bregman_stationary
-                           ? stationarity_error_bregman : stationarity_error_L2;
+      real_t abs_residual = use_L2_stationarity ? stationarity : kkt;
+      real_t rel_residual = use_L2_stationarity ? stationarity_error/stationarity0 :
+                            kkt/kkt0;
+
       logger.Print(true);
       if (Mpi::Root())
       {
@@ -465,6 +463,7 @@ int main(int argc, char *argv[])
       }
       if (it_md % vis_steps == 0)
       {
+         kkt_gf.ProjectCoefficient(KKT_cf);
          if (use_glvis) { glvis->Update(); }
          if (use_paraview && !(paraview_dc->Error()))
          {
@@ -482,7 +481,7 @@ int main(int argc, char *argv[])
          stationarity0 = stationarity_error;
          kkt0 = kkt;
       }
-      if ((kkt < tol_kkt_rel*kkt0) || (kkt < tol_kkt_abs))
+      if ((kkt < tol_rel*kkt0) || (kkt < tol_abs))
       {
          if (it_md > min_it) { break; }
       }
