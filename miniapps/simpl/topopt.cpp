@@ -136,6 +136,19 @@ real_t StrainEnergyDensityCoefficient::Eval(
    return -der_simp_cf.Eval(T, ip)*density;
 }
 
+real_t DiffusionEnergyDensityCoefficient::Eval(
+   ElementTransformation &T, const IntegrationPoint &ip)
+{
+   real_t K_val = K.Eval(T, ip);
+
+   state_gf.GetGradient(T, grad);
+   if (adjstate_gf) { adjstate_gf->GetGradient(T, adjgrad); }
+   else {adjgrad.MakeRef(grad, 0);}
+
+   real_t density = K_val*InnerProduct(grad, adjgrad);
+   return -der_simp_cf.Eval(T, ip)*density;
+}
+
 void ProjectCoefficient(GridFunction &x, Coefficient &coeff, int attribute)
 {
    int i;
@@ -331,7 +344,7 @@ real_t DesignDensity::ApplyVolumeProjection(GridFunction &x, bool use_entropy)
 
    return curr_vol;
 }
-real_t DesignDensity::ComputeVolume(GridFunction &x)
+real_t DesignDensity::ComputeVolume(const GridFunction &x)
 {
    MappedGFCoefficient density_cf=entropy->GetBackwardCoeff(x);
    return zero->ComputeL1Error(density_cf);
@@ -340,13 +353,13 @@ real_t DesignDensity::ComputeVolume(GridFunction &x)
 DensityBasedTopOpt::DensityBasedTopOpt(
    DesignDensity &density, GridFunction &control_gf, GridFunction &grad_control,
    HelmholtzFilter &filter, GridFunction &filter_gf, GridFunction &grad_filter,
-   ElasticityProblem &elasticity, GridFunction &state_gf,
+   EllipticProblem &state_eq, GridFunction &state_gf,
    bool enforce_volume_constraint)
    :density(density), control_gf(control_gf), grad_control(grad_control),
     filter(filter), filter_gf(filter_gf), grad_filter(grad_filter),
-    elasticity(elasticity), state_gf(state_gf),
-    obj(elasticity.HasAdjoint() ? *elasticity.GetAdjLinearForm():
-        *elasticity.GetLinearForm()),
+    elasticity(state_eq), state_gf(state_gf),
+    obj(state_eq.HasAdjoint() ? *state_eq.GetAdjLinearForm():
+        *state_eq.GetLinearForm()),
     enforce_volume_constraint(enforce_volume_constraint)
 {
    Array<int> empty(control_gf.FESpace()->GetMesh()->bdr_attributes.Max());
@@ -355,7 +368,7 @@ DensityBasedTopOpt::DensityBasedTopOpt(
    grad_filter_cf.SetGridFunction(&grad_filter);
    L2projector->GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(
                                                         grad_filter_cf));
-   if (elasticity.HasAdjoint())
+   if (state_eq.HasAdjoint())
    {
 #ifdef MFEM_USE_MPI
       ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>
@@ -422,20 +435,20 @@ real_t ComputeKKT(const ParGridFunction &control_gf,
    MappedPairedGFCoefficient signmismatch(control_gf, grad, [&dual_V,
                                                              &entropy](const real_t psi, const real_t g)
    {
-      return sign((entropy.backward(psi)-0.5000000000001)*(-g+dual_V)) < 0;
+      return sign(entropy.backward(psi)-0.5)!=sign(-g+dual_V);
    });
    ConstantCoefficient zero_cf(0.0);
    MaskedCoefficient masked_signmismatch(signmismatch);
    if (solid_attr) { masked_signmismatch.AddMasking(zero_cf, solid_attr); }
    if (void_attr) { masked_signmismatch.AddMasking(zero_cf, void_attr); }
    GridFunctionCoefficient grad_cf(&grad);
-   SumCoefficient shifted_grad_cf(1.0, grad_cf);
+   MappedGFCoefficient shifted_grad_cf(grad, [&dual_V](const real_t x) {return x-dual_V;});
    ProductCoefficient mismatch_grad(shifted_grad_cf, masked_signmismatch);
    const real_t tot_vol = InnerProduct(comm, one_gf, dv);
    const real_t vol_res = 2*cur_vol - min_vol - max_vol;
-   const real_t avg_grad = InnerProduct(comm, grad, dv);
+   const real_t avg_grad = InnerProduct(comm, grad, dv)/tot_vol;
 
-   dual_V = avg_grad/tot_vol;
+   dual_V = avg_grad;
    real_t upper_bound = infinity();
    real_t lower_bound = -infinity();
    real_t old_dual_V = infinity();
@@ -446,11 +459,9 @@ real_t ComputeKKT(const ParGridFunction &control_gf,
    for (int i=0; i< 100; i++)
    {
       old_dual_V = dual_V;
-      shifted_grad_cf.SetAConst(-dual_V);
       kkt.ProjectCoefficient(mismatch_grad);
       real_t delta_dual = InnerProduct(comm, kkt, dv);
       dual_V += delta_dual / tot_vol;
-      shifted_grad_cf.SetAConst(-dual_V);
       kkt.ProjectCoefficient(mismatch_grad);
       cur_mismatch = zero_gf.ComputeL1Error(mismatch_grad);
       // if (Mpi::Root())
@@ -468,10 +479,9 @@ real_t ComputeKKT(const ParGridFunction &control_gf,
       }
    }
    dual_V = best_guess;
-   shifted_grad_cf.SetAConst(-dual_V);
    zero_gf.ComputeElementMaxErrors(mismatch_grad, kkt);
    real_t grad_res = zero_gf.ComputeL1Error(mismatch_grad);
-   if (Mpi::Root()) { out << dual_V << ", " << cur_mismatch << ", " << best_mismatch << ", " << dual_V*vol_res/tot_vol << std::endl; }
+   if (Mpi::Root()) { out << dual_V << ", " << cur_mismatch << ", " << best_mismatch << ", " << dual_V << std::endl; }
    return grad_res + std::max(0.0, dual_V*vol_res / tot_vol);
 }
 

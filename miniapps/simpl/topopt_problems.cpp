@@ -62,7 +62,7 @@ void ForceInverterInitialDesign(GridFunction &x, LegendreEntropy *entropy)
    ports.Append(new Vector({0.0,1.0}));
    ports.Append(new Vector({0.0,0.0}));
    ports.Append(new Vector({2.0,1.0}));
-   Vector domain_center({1.0,0.5});
+   Vector domain_center({1.0,0.0});
 
 
    FunctionCoefficient dist([&domain_center, &ports](const Vector &x)
@@ -599,7 +599,7 @@ void SetupTopoptProblem(TopoptProblem prob,
 
       case ForceInverter2:
       {
-         real_t k_in(1), k_out(0.0001);
+         real_t k_in(1), k_out(0.0005);
 
          auto d_in = new Vector({1.0, 0.0});
          auto d_out = new Vector({-1.0, 0.0});

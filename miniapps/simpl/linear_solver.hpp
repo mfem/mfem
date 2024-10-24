@@ -142,8 +142,12 @@ public:
                    const real_t r_min, bool hasAdjoint)
       :EllipticProblem(fes, ess_bdr, hasAdjoint), r_min(r_min)
    {
-      eps2.reset(new ConstantCoefficient(r_min*r_min/12.0));
-      a->AddDomainIntegrator(new DiffusionIntegrator(*eps2));
+      if (r_min > 0)
+      {
+
+         eps2.reset(new ConstantCoefficient(r_min*r_min/12.0));
+         a->AddDomainIntegrator(new DiffusionIntegrator(*eps2));
+      }
       a->AddDomainIntegrator(new MassIntegrator());
       a->Assemble();
       SetAStationary(true);
@@ -168,6 +172,19 @@ public:
       a->AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
       a->Assemble();
       // UseElasticityOption(true);
+      SetAStationary(true);
+   }
+};
+class DiffusionProblem: public EllipticProblem
+{
+private:
+public:
+   DiffusionProblem(FiniteElementSpace &fes, Array<int> &ess_bdr,
+                    Coefficient &K, bool hasAdjoint)
+      :EllipticProblem(fes, ess_bdr, hasAdjoint)
+   {
+      a->AddDomainIntegrator(new DiffusionIntegrator(K));
+      a->Assemble();
       SetAStationary(true);
    }
 };
