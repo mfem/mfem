@@ -204,14 +204,16 @@ void IncompressibleNavierSolver::Setup(real_t dt)
 
    psiInvPC = new HypreSmoother(*psiOp.As<HypreParMatrix>());
    dynamic_cast<HypreSmoother *>(psiInvPC)->SetType(HypreSmoother::Jacobi, 1);
+   SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
+   SpInvOrthoPC->SetSolver(*psiInvPC);
 
    psiInv = new CGSolver(vfes->GetComm());
    psiInv->iterative_mode = true;
    psiInv->SetOperator(*psiOp);
-   psiInv->SetPreconditioner(*psiInvPC);
+   psiInv->SetPreconditioner(*SpInvOrthoPC);
    psiInv->SetPrintLevel(pl_psisolve);
    psiInv->SetRelTol(rtol_psisolve);
-   psiInv->SetMaxIter(200);
+   psiInv->SetMaxIter(1000);
 
    //  mfem::SuperLURowLocMatrix SA(*psiOp.As<mfem::HypreParMatrix>());
    //  mfem::SuperLUSolver ls(vfes->GetComm());
@@ -230,10 +232,7 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    pInv->SetPreconditioner(*pInvPC);
    pInv->SetPrintLevel(pl_psolve);
    pInv->SetRelTol(rtol_psolve);
-   pInv->SetMaxIter(200);
-
-   std::cout<<" --- setup done ---"<<std::endl;
-
+   pInv->SetMaxIter(1000);
 }
 
 void IncompressibleNavierSolver::UpdateTimestepHistory(real_t dt)
@@ -252,8 +251,8 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
 
    //-------------------------------------------------------------------------
 
-   prevVelLoadCoeff ->SetGridFunction( velGF[0], dt ); 
-   pUnitVectorCoeff->SetGridFunction( pGF[0] );
+   prevVelLoadCoeff ->SetGridFunction( velGF[1], dt ); 
+   pUnitVectorCoeff->SetGridFunction( pGF[1] );
    nonlinTermCoeff->SetGridFunction( velGF[1] );
 
    //-------------------------------------------------------------------------
@@ -277,8 +276,6 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
    velLForm->ParallelAssemble(velLF);
 
    //-------------------------------------------------------------------------
-
-   std::cout<<" --- solve ---"<<std::endl;
 
    Vector X1, B1;
    Vector X2, B2;

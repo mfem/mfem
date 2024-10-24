@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    Hypre::Init();
 
-   int serial_refinements = 0;
+   int serial_refinements = 1;
    int vOrder = 2;
    int pOrder = 1;
    int tOrder = 1;
@@ -90,6 +90,7 @@ int main(int argc, char *argv[])
 
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
    ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
+   ParGridFunction *psi_gf = flowsolver.GetCurrentPsi();
 
    ParaViewDataCollection pvdc("3dfoc", pmesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
@@ -98,6 +99,7 @@ int main(int argc, char *argv[])
    pvdc.SetTime(t);
    pvdc.RegisterField("velocity", u_gf);
    pvdc.RegisterField("pressure", p_gf);
+   pvdc.RegisterField("psi", psi_gf);
    pvdc.Save();
 
    for (int step = 0; !last_step; ++step)

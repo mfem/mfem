@@ -54,6 +54,11 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+  add_mfem_miniapp(incompNS_2Dtest
+    MAIN incompNS_2Dtest.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
   add_mfem_miniapp(navier_turbchan
     MAIN navier_turbchan.cpp
     ${NAVIER_COMMON_FILES}

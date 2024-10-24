@@ -168,6 +168,10 @@ public:
    /// Return a pointer to the current pressure ParGridFunction.
    ParGridFunction *GetCurrentPressure() { return pGF[0]; }
 
+   /// Return a pointer to the current pressure ParGridFunction.
+   ParGridFunction *GetCurrentPsi() { return &psiGF ; }
+
+
    /// Add a Dirichlet boundary condition to the velocity field.
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
 
@@ -306,6 +310,7 @@ protected:
    CGSolver *velInv = nullptr;
 
    Solver *psiInvPC = nullptr;
+   OrthoSolver *SpInvOrthoPC = nullptr;
    CGSolver *psiInv = nullptr;
 
    Solver *pInvPC = nullptr;
