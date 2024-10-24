@@ -343,12 +343,16 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    int ndof_ho = fes_ho_ea.GetNDofs();
    int ndof_lor = fes_lor_ea.GetNDofs();
 
-   Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
-   const FiniteElement &fe = *fes_ho.GetFE(0);
-   const FiniteElement &fe_lor = *fes_lor.GetFE(0);
-   ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
-   int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW();
-   IntegrationRule ir = int_rule ? *int_rule : IntRules.Get(geom, qorder);
+
+   IntegrationRule ir;
+   {
+      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
+      const FiniteElement &fe = *fes_ho.GetFE(0);
+      const FiniteElement &fe_lor = *fes_lor.GetFE(0);
+      ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
+      int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW();
+      ir = int_rule ? *int_rule : IntRules.Get(geom, qorder);
+   }
 
    QuadratureSpace qspace(*mesh_lor, ir);
    CoefficientVector coeff_vec(coeff, qspace);
@@ -387,7 +391,7 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          //Allocate space for DenseTensors
          ElementTransformation *el_tr = fes_lor_ea.GetElementTransformation(0);
          int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
-         const IntegrationRule* ir_ea = &IntRules.Get(geom, order);
+         const IntegrationRule* ir_ea = int_rule ? int_rule : &IntRules.Get(geom, order);
          int qPts = ir_ea->GetNPoints();
 
          //Containers for the basis functions sampled
@@ -757,12 +761,15 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
    // If the local mesh is empty, skip all computations
    if (nel_ho == 0) { return; }
 
-   Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
-   const FiniteElement &fe = *fes_ho.GetFE(0);
-   const FiniteElement &fe_lor = *fes_lor.GetFE(0);
-   ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
-   int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW();
-   IntegrationRule ir = int_rule ? *int_rule : IntRules.Get(geom, qorder);
+   IntegrationRule ir;
+   {
+      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
+      const FiniteElement &fe = *fes_ho.GetFE(0);
+      const FiniteElement &fe_lor = *fes_lor.GetFE(0);
+      ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
+      int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW();
+      ir = int_rule ? *int_rule : IntRules.Get(geom, qorder);
+   }
 
    QuadratureSpace qspace(*mesh_lor, ir);
    CoefficientVector coeff_vec(coeff, qspace);
@@ -1514,12 +1521,15 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space()
       return;
    }
 
-   Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
-   const FiniteElement &fe = *fes_ho.GetFE(0);
-   const FiniteElement &fe_lor = *fes_lor.GetFE(0);
-   ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
-   int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW();
-   IntegrationRule ir = int_rule ? *int_rule : IntRules.Get(geom, qorder);
+   IntegrationRule ir;
+   {
+      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
+      const FiniteElement &fe = *fes_ho.GetFE(0);
+      const FiniteElement &fe_lor = *fes_lor.GetFE(0);
+      ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
+      int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW();
+      ir = int_rule ? *int_rule : IntRules.Get(geom, qorder);
+   }
 
    QuadratureSpace qspace(*mesh_lor, ir);
    CoefficientVector coeff_vec(coeff, qspace);
