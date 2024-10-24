@@ -2972,7 +2972,6 @@ void curve_current_source_v0_i(const Vector &x, Vector &j)
       double rmin = 2.415 + 0.035;
       double rmax = rmin + 0.02;
       double length = 0.325;
-
       double rthetamax = (3.8*M_PI)/180.0;
       double rthetamin = (-1.0*3.8*M_PI)/180.0;
       double theta_ext = rthetamax - rthetamin;
@@ -3569,15 +3568,642 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
    }
 }
 
+void curve_current_source_v3_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double xmin = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195;
+   double xmax = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195 + 0.02;
+
+   double b = 0.415;
+   double c = 0.15;
+
+   // Configurations:
+   double A = curve_params_(5); // Standard dipole: 0/pi/0/pi
+   //double B = curve_params_(6); // Modified dipole: 0/pi/pi/0
+
+   // Top Strap 1:
+   double zmin1t = 0.11792;
+   double zmax1t = 0.4325;
+   double phi1r = 0.0;
+   double phi1l = 0.08;
+   if (r >= xmin && r <= xmax &&
+      z >= zmin1t && z <= zmax1t &&
+      x[1] >= phi1r && x[1] <= phi1l)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(1)/mag;
+            j(2) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin1t;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Bottom Strap 1:
+   double zmin1b = -0.30925;
+   double zmax1b = 0.01211;
+   if (r >= xmin && r <= xmax &&
+       z >= zmin1b && z <= zmax1b &&
+       x[1] >= phi1r && x[1] <= phi1l)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(3)/mag;
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax1b;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Top Strap 2:
+   double zmin2t = 0.074;
+   double zmax2t = 0.39137;
+   double phi2r = 0.181;
+   double phi2l = 0.08+0.181;
+   if (r >= xmin && r <= xmax &&
+      z >= zmin2t && z <= zmax2t &&
+      x[1] >= phi2r && x[1] <= phi2l)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = A*curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = A*curve_params_(1)/mag;
+            j(2) = A*curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = A*curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = A*curve_params_(2);
+            double j_z   = A*curve_params_(1)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin2t;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Bottom Strap 2:
+   double zmin2b = -0.34802;
+   double zmax2b = -0.0283;
+   if (r >= xmin && r <= xmax &&
+       z >= zmin2b && z <= zmax2b &&
+       x[1] >= phi2r && x[1] <= phi2l)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = A*curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = A*curve_params_(3)/mag;
+            j(2) = A*curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = A*curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = A*curve_params_(4);
+            double j_z   = A*curve_params_(3)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax2b;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Top Strap 3:
+   double zmin3t = 0.01818;
+   double zmax3t = 0.33835;
+   double phi3r = 0.181*2;
+   double phi3l = 0.08+0.181*2;
+   if (r >= xmin && r <= xmax &&
+      z >= zmin3t && z <= zmax3t &&
+      x[1] >= phi3r && x[1] <= phi3l)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(1)/mag;
+            j(2) = curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(2);
+            double j_z   = curve_params_(1)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin3t;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Bottom Strap 3:
+   double zmin3b = -0.39616;
+   double zmax3b = -0.0791;
+   if (r >= xmin && r <= xmax &&
+       z >= zmin3b && z <= zmax3b &&
+       x[1] >= phi3r && x[1] <= phi3l)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(3)/mag;
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax3b;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Top Strap 4:
+   double zmin4t = -0.02218;
+   double zmax4t = 0.29953;
+   double phi4r = 0.181*3;
+   double phi4l = 0.08+0.181*3;
+   if (r >= xmin && r <= xmax &&
+      z >= zmin4t && z <= zmax4t &&
+      x[1] >= phi4r && x[1] <= phi4l)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = A*curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = A*curve_params_(1)/mag;
+            j(2) = A*curve_params_(2);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = A*curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = A*curve_params_(2);
+            double j_z   = A*curve_params_(1)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin4t;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Bottom Strap 4:
+   double zmin4b = -0.42963;
+   double zmax4b = -0.11485;
+   if (r >= xmin && r <= xmax &&
+       z >= zmin4b && z <= zmax4b &&
+       x[1] >= phi4r && x[1] <= phi4l)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(3)/mag;
+            j(2) = curve_params_(4);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(4);
+            double j_z   = curve_params_(3)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax4b;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   }
+
+void curve_current_source_v3_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double xmin = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195;
+   double xmax = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195 + 0.02;
+
+   double b = 0.415;
+   double c = 0.15;
+
+   // Configurations:
+   double A = curve_params_(5); // Standard dipole: 0/pi/0/pi
+
+   // Top Strap 1:
+   double zmin1t = 0.11792;
+   double zmax1t = 0.4325;
+   double phi1r = 0.0;
+   double phi1l = 0.08;
+   if (r >= xmin && r <= xmax &&
+      z >= zmin1t && z <= zmax1t &&
+      x[2] >= phi1l && x[2] <= phi1r)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(6)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(6)/mag;
+            j(2) = curve_params_(7);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(6)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(7);
+            double j_z   = curve_params_(6)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin1t;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Bottom Strap 1:
+   double zmin1b = -0.30925;
+   double zmax1b = 0.01211;
+   if (r >= xmin && r <= xmax &&
+            z >= zmin1b && z <= zmax1b &&
+            x[2] >= phi1l && x[2] <= phi1r)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(8)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(8)/mag;
+            j(2) = curve_params_(9);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(8)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(9);
+            double j_z   = curve_params_(8)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax1b;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Top Strap 2:
+   double zmin2t = 0.074;
+   double zmax2t = 0.39137;
+   double phi2r = 0.181;
+   double phi2l = 0.08+0.181;
+   if (r >= xmin && r <= xmax &&
+      z >= zmin2t && z <= zmax2t &&
+      x[2] >= phi2l && x[2] <= phi2r)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = A*curve_params_(6)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = A*curve_params_(6)/mag;
+            j(2) = A*curve_params_(7);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = A*curve_params_(6)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = A*curve_params_(6);
+            double j_z   = A*curve_params_(7)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin2t;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Bottom Strap 2:
+   double zmin2b = -0.34802;
+   double zmax2b = -0.0283;
+   if (r >= xmin && r <= xmax &&
+            z >= zmin2b && z <= zmax2b &&
+            x[2] >= phi2l && x[2] <= phi2r)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = A*curve_params_(8)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = A*curve_params_(8)/mag;
+            j(2) = A*curve_params_(9);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(8)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(9);
+            double j_z   = curve_params_(8)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax2b;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Top Strap 3:
+   double zmin3t = 0.01818;
+   double zmax3t = 0.33835;
+   double phi3r = 0.181*2;
+   double phi3l = 0.08+0.181*2;
+   if (r >= xmin && r <= xmax &&
+      z >= zmin3t && z <= zmax3t &&
+      x[2] >= phi3l && x[2] <= phi3r)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(6)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(6)/mag;
+            j(2) = curve_params_(7);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(6)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(7);
+            double j_z   = curve_params_(6)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin3t;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Bottom Strap 3:
+   double zmin3b = -0.39616;
+   double zmax3b = -0.0791;
+   if (r >= xmin && r <= xmax &&
+            z >= zmin3b && z <= zmax3b &&
+            x[2] >= phi3l && x[2] <= phi3r)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = curve_params_(8)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = curve_params_(8)/mag;
+            j(2) = curve_params_(9);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = curve_params_(8)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = curve_params_(9);
+            double j_z   = curve_params_(8)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax3b;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Top Strap 4:
+   double zmin4t = -0.02218;
+   double zmax4t = 0.29953;
+   double phi4r = 0.181*3;
+   double phi4l = 0.08+0.181*3;
+   if (r >= xmin && r <= xmax &&
+      z >= zmin4t && z <= zmax4t &&
+      x[2] >= phi4l && x[2] <= phi4r)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = A*curve_params_(6)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = A*curve_params_(6)/mag;
+            j(2) = A*curve_params_(7);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = A*curve_params_(6)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = A*curve_params_(7);
+            double j_z   = A*curve_params_(6)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin4t;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   // Bottom Strap 4:
+   double zmin4b = -0.42963;
+   double zmax4b = -0.11485;
+   if (r >= xmin && r <= xmax &&
+            z >= zmin4b && z <= zmax4b &&
+            x[2] >= phi4l && x[2] <= phi4r)
+      {
+         double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
+         if (!j_cyl_)
+         {
+            j(0) = A*curve_params_(8)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            j(1) = A*curve_params_(8)/mag;
+            j(2) = A*curve_params_(9);
+         }
+         else
+         {
+            double cosphi = x[0] / r;
+            double sinphi = x[1] / r;
+
+            double j_r   = A*curve_params_(8)*(-2*b*z - 4*c*pow(z,3.0))/mag;
+            double j_phi = A*curve_params_(9);
+            double j_z   = A*curve_params_(8)/mag;
+
+            j(0) = j_r * cosphi - j_phi * sinphi;
+            j(1) = j_r * sinphi + j_phi * cosphi;
+            j(2) = j_z;
+         }
+         if (vol_profile_ == 1)
+         {
+            double dlant = 0.325;
+            double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax4b;
+            j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
+         }
+      }
+   }
+
 
 void curve_current_source_r(const Vector &x, Vector &j)
 {
-   curve_current_source_v2_r(x, j);
+   curve_current_source_v3_r(x, j);
 }
 
 void curve_current_source_i(const Vector &x, Vector &j)
 {
-   curve_current_source_v2_i(x, j);
+   curve_current_source_v3_i(x, j);
 }
 
 void e_bc_r(const Vector &x, Vector &E)
