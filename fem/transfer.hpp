@@ -40,6 +40,11 @@ protected:
    OperatorHandle fw_t_oper; ///< Forward true-dof operator
    OperatorHandle bw_t_oper; ///< Backward true-dof operator
 
+   bool use_device;
+   bool verify_solution;
+
+   MemoryType d_mt;
+
 #ifdef MFEM_USE_MPI
    bool parallel;
 #endif
@@ -59,11 +64,22 @@ protected:
 
 public:
    /** Construct a transfer algorithm between the domain, @a dom_fes_, and
-       range, @a ran_fes_, FE spaces. */
-   GridTransfer(FiniteElementSpace &dom_fes_, FiniteElementSpace &ran_fes_);
+       range, @a ran_fes_, FE spaces, d_mt_ will specify memory space for
+       large data structures */
+   GridTransfer(FiniteElementSpace &dom_fes_,
+                FiniteElementSpace &ran_fes_,
+                MemoryType d_mt_ = Device::GetHostMemoryType());
 
    /// Virtual destructor
    virtual ~GridTransfer() { }
+
+   /** Uses device friendly versions for L2Projection transfers,
+       L2, H1 FEM spaces currently supported */
+   void UseDevice(bool use_device_) { use_device = use_device_;}
+
+   /** Performs an comparison using l2 norm of the data structures
+       of the device and CPU versions of the code */
+   void VerifySolution(bool verify) { verify_solution = verify;}
 
    /** @brief Set the desired Operator::Type for the construction of all
        operators defined by the underlying transfer algorithm. */
@@ -169,7 +185,8 @@ public:
     smaller than the number of coarse dofs. */
 class L2ProjectionGridTransfer : public GridTransfer
 {
-protected:
+   // Must be public due to host device lambdas
+public:
    /** Abstract class representing projection operator between a high-order
        finite element space on a coarse mesh, and a low-order finite element
        space on a refined mesh (LOR). We assume that the low-order space,
@@ -193,11 +210,18 @@ protected:
    protected:
       const FiniteElementSpace& fes_ho;
       const FiniteElementSpace& fes_lor;
+      Coefficient* coeff;
+      IntegrationRule* int_rule;
 
+      MemoryType d_mt;
+      Array<int> offsets;
       Table ho2lor;
 
       L2Projection(const FiniteElementSpace& fes_ho_,
-                   const FiniteElementSpace& fes_lor_);
+                   const FiniteElementSpace& fes_lor_,
+                   Coefficient* coeff_,
+                   IntegrationRule* int_rule_ = nullptr,
+                   MemoryType d_mt_ = Device::GetHostMemoryType());
 
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
@@ -207,6 +231,52 @@ protected:
                          ElementTransformation* tr_lor,
                          IntegrationPointTransformation& ip_tr,
                          DenseMatrix& M_mixed_el) const;
+
+      void ElemMixedMass(Geometry::Type geom, const FiniteElement& fe_ho,
+                         const FiniteElement& fe_lor, ElementTransformation* el_tr,
+                         IntegrationPointTransformation& ip_tr,
+                         DenseMatrix& B_L, DenseMatrix& B_H) const;
+   public:
+      /*
+      Returns the Mixed Mass M_LH via device element assembly
+      by building the basis functions and data at the quadrature
+      points.
+      */
+      Vector MixedMassEA(const FiniteElementSpace& fes_ho_,
+                         const FiniteElementSpace& fes_lor_,
+                         Vector &M_LH,
+                         MemoryType d_mt_ = Device::GetHostMemoryType());
+   };
+
+   // Class below must be public as we now have device code
+public:
+   class H1SpaceMixedMassOperator : public Operator
+   {
+   protected:
+      const FiniteElementSpace* fes_ho;
+      const FiniteElementSpace* fes_lor;
+      Table* ho2lor;
+      Vector* M_LH_ea;
+   public:
+      H1SpaceMixedMassOperator(const FiniteElementSpace* fes_ho_,
+                               const FiniteElementSpace* fes_lor_,
+                               Table* ho2lor_, Vector* M_LH_ea_);
+      void Mult(const Vector& x, Vector& y) const;
+      void MultTranspose(const Vector& x, Vector& y) const;
+   };
+
+   class H1SpaceLumpedMassOperator : public Operator
+   {
+   protected:
+      const FiniteElementSpace* fes_ho;
+      const FiniteElementSpace* fes_lor;
+      Vector* ML_inv; // inverse of lumped M_L
+   public:
+      H1SpaceLumpedMassOperator(const FiniteElementSpace* fes_ho_,
+                                const FiniteElementSpace* fes_lor_,
+                                Vector& ML_inv_);
+      void Mult(const Vector& x, Vector& y) const;
+      void MultTranspose(const Vector& x, Vector& y) const;
    };
 
    /** Class for projection operator between a L2 high-order finite element
@@ -214,17 +284,28 @@ protected:
        refined mesh (LOR). */
    class L2ProjectionL2Space : public L2Projection
    {
-      // The restriction and prolongation operators are represented as dense
-      // elementwise matrices (of potentially different sizes, because of mixed
-      // meshes or p-refinement). The matrix entries are stored in the R and P
-      // arrays. The entries of the i'th high-order element are stored at the
-      // index given by offsets[i].
+      /// The restriction and prolongation operators are represented as dense
+      /// elementwise matrices (of potentially different sizes, because of mixed
+      /// meshes or p-refinement). The matrix entries are stored in the R and P
+      /// arrays. The entries of the i'th high-order element are stored at the
+      /// index given by offsets[i].
       mutable Array<real_t> R, P;
-      Array<int> offsets;
+      mutable Array<real_t> R_ea, P_ea;
+
+      const bool use_device, verify_solution;
 
    public:
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
-                          const FiniteElementSpace& fes_lor_);
+                          const FiniteElementSpace& fes_lor_,
+                          const bool use_device_,
+                          const bool verify_solution_,
+                          Coefficient* coeff_,
+                          IntegrationRule* intRule_,
+                          MemoryType d_mt_ = Device::GetHostMemoryType());
+
+      /*Same as above but assembles and stores R_ea, P_ea */
+      void DeviceL2ProjectionL2Space();
+
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order L2 finite element space, to <tt>y</tt>, primal
       /// field coefficients defined on a refined mesh with a low order L2
@@ -232,6 +313,10 @@ protected:
       /// the coarse mesh. Coefficients are computed through minimization of L2
       /// error between the fields.
       void Mult(const Vector& x, Vector& y) const override;
+
+      /// Perform mult on the device (same as above)
+      void DeviceMult(const Vector& x, Vector& y) const;
+
       /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
       /// with a low order L2 finite element space, to <tt>y</tt>, dual field
       /// coefficients defined on a coarse mesh with a higher order L2 finite
@@ -240,6 +325,9 @@ protected:
       /// error between the primal fields. Note, if the <tt>x</tt>-coefficients
       /// come from ProlongateTranspose, then mass is conserved.
       void MultTranspose(const Vector& x, Vector& y) const override;
+
+      void DeviceMultTranspose(const Vector& x, Vector& y) const;
+
       /// Maps <tt>x</tt>, primal field coefficients defined on a refined mesh
       /// with a low order L2 finite element space, to <tt>y</tt>, primal field
       /// coefficients defined on a coarse mesh with a higher order L2 finite
@@ -248,6 +336,9 @@ protected:
       /// left-inverse prolongation operation. This functionality is also
       /// provided as an Operator by L2Prolongation.
       void Prolongate(const Vector& x, Vector& y) const override;
+
+      void DeviceProlongate(const Vector& x, Vector& y) const;
+
       /// Maps <tt>x</tt>, dual field coefficients defined on a coarse mesh with
       /// a higher order L2 finite element space, to <tt>y</tt>, dual field
       /// coefficients defined on a refined mesh with a low order L2 finite
@@ -256,21 +347,52 @@ protected:
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
       void ProlongateTranspose(const Vector& x, Vector& y) const override;
+
+      void DeviceProlongateTranspose(const Vector& x, Vector& y) const;
+
       void SetRelTol(real_t p_rtol_) override { } ///< No-op.
       void SetAbsTol(real_t p_atol_) override { } ///< No-op.
    };
+
+protected:
+
+   /// Class below must be public as we now have device code
+public:
 
    /** Projection operator between a H1 high-order finite element space on a
        coarse mesh, and a H1 low-order finite element space on a refined mesh
        (LOR). */
    class L2ProjectionH1Space : public L2Projection
    {
+      const bool use_device, verify_solution;
+
    public:
       L2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
-                          const FiniteElementSpace &fes_lor_);
+                          const FiniteElementSpace &fes_lor_,
+                          const bool use_device_,
+                          const bool verify_solution_,
+                          Coefficient *coeff_,
+                          IntegrationRule* int_rule_,
+                          MemoryType d_mt_ = Device::GetHostMemoryType());
 #ifdef MFEM_USE_MPI
       L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
-                          const ParFiniteElementSpace &pfes_lor_);
+                          const ParFiniteElementSpace &pfes_lor_,
+                          const bool use_device_,
+                          const bool verify_solution_,
+                          Coefficient *coeff_,
+                          IntegrationRule* int_rule_,
+                          MemoryType d_mt_ = Device::GetHostMemoryType());
+#endif
+      /// Same as above but assembles action of R through 4 parts:
+      ///   ( )  inv( lumped(M_L) ), which is a diagonal matrix (essentially a vector)
+      ///   ( )  ElementRestrictionOperator for LOR space
+      ///   ( )  mixed mass matrix M_{LH}
+      ///   ( )  ElementRestrictionOperator for HO space
+      void DeviceL2ProjectionH1Space();
+
+#ifdef MFEM_USE_MPI
+      void DeviceL2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
+                                     const ParFiniteElementSpace &pfes_lor_);
 #endif
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
@@ -279,6 +401,10 @@ protected:
       /// the coarse mesh. Coefficients are computed through minimization of L2
       /// error between the fields.
       void Mult(const Vector& x, Vector& y) const override;
+
+      // Perform mult on the device (same as above)
+      void DeviceMult(const Vector& x, Vector& y) const;
+
       /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
       /// with a low order H1 finite element space, to <tt>y</tt>, dual field
       /// coefficients defined on a coarse mesh with a higher order H1 finite
@@ -287,6 +413,9 @@ protected:
       /// error between the primal fields. Note, if the <tt>x</tt>-coefficients
       /// come from ProlongateTranspose, then mass is conserved.
       void MultTranspose(const Vector& x, Vector& y) const override;
+
+      void DeviceMultTranspose(const Vector& x, Vector& y) const;
+
       /// Maps <tt>x</tt>, primal field coefficients defined on a refined mesh
       /// with a low order H1 finite element space, to <tt>y</tt>, primal field
       /// coefficients defined on a coarse mesh with a higher order H1 finite
@@ -295,6 +424,9 @@ protected:
       /// left-inverse prolongation operation. This functionality is also
       /// provided as an Operator by L2Prolongation.
       void Prolongate(const Vector& x, Vector& y) const override;
+
+      void DeviceProlongate(const Vector& x, Vector& y) const;
+
       /// Maps <tt>x</tt>, dual field coefficients defined on a coarse mesh with
       /// a higher order H1 finite element space, to <tt>y</tt>, dual field
       /// coefficients defined on a refined mesh with a low order H1 finite
@@ -303,14 +435,25 @@ protected:
       /// conservative left-inverse prolongation operation. This functionality
       /// is also provided as an Operator by L2Prolongation.
       void ProlongateTranspose(const Vector& x, Vector& y) const override;
+
+      void DeviceProlongateTranspose(const Vector& x, Vector& y) const;
+
+      /// Returns the inverse of an on-rank lumped mass matrix
+      void LumpedMassInverse(Vector& ML_inv) const;
+
       void SetRelTol(real_t p_rtol_) override;
       void SetAbsTol(real_t p_atol_) override;
+
    protected:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
-      /// Computes on-rank R and M_LH matrices.
+      void DeviceSetupPCG();
+
+      /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
+      /// inverse lumped mass matrix error when compared to device implementation.
       std::pair<std::unique_ptr<SparseMatrix>,
-          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
+          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(bool GetM_LHError=false,
+                                                               bool getML_invError=false);
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
       void GetTDofs(const FiniteElementSpace& fes, const Vector& x, Vector& X) const;
@@ -333,10 +476,8 @@ protected:
       void TDofsListByVDim(const FiniteElementSpace& fes,
                            int vdim,
                            Array<int>& vdofs_list) const;
-      /// Returns the inverse of an on-rank lumped mass matrix
-      void LumpedMassInverse(Vector& ML_inv) const;
+
       /// @brief Computes sparsity pattern and initializes R matrix.
-      ///
       /// Based on BilinearForm::AllocMat(), except maps between coarse HO
       /// elements and refined LOR elements.
       std::unique_ptr<SparseMatrix> AllocR();
@@ -350,6 +491,40 @@ protected:
       // Used to compute P = (RT*M_LH)^(-1) M_LH^T
       std::unique_ptr<Operator> M_LH;
       std::unique_ptr<Operator> RTxM_LH;
+
+      // "_vea" stands for "via EA"
+      CGSolver pcg_vea;
+      std::unique_ptr<Solver> precon_vea;
+      // Restriction operator built via EA. Wrapped with restriction maps to send
+      // scalar TDof HO vectors to TDof LOR vectors.
+      std::unique_ptr<Operator> R_vea;
+      // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
+      // to multiply with scalar TDof LOR vectors.
+      std::unique_ptr<Operator> ML_inv_vea;
+      // TDof Mixed mass operator built via EA. Wrapped with restriction maps to send
+      // scalar TDof HO vectors to TDof LOR vectors.
+      // Used to compute P = (RT*M_LH)^(-1) M_LH^T
+      std::unique_ptr<Operator> M_LH_vea;
+      // Inverted operator in P = (RT*M_LH)^(-1) M_LH^T. Used to compute P via PCG.
+      std::unique_ptr<Operator> RTxM_LH_vea;
+      // LDof Mixed mass operator built via EA. Wrapped with restrition maps to send
+      // scalar LDof HO vectors to LDof LOR vectors.
+      Operator *M_LH_local_op;
+      // Scalar finite element spaces for stored Tdof-to-and-from-LDof maps.
+      const FiniteElementSpace* fes_ho_scalar;
+      const FiniteElementSpace* fes_lor_scalar;
+      // Element Assembled mixed mass
+      Vector M_LH_ea;
+      // Element Assembled lumped M_L inverse built via EA. Stores diagonal as a Ldof vector.
+      Vector ML_inv_ea;
+
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace* pfes_ho_scalar;
+      ParFiniteElementSpace* pfes_lor_scalar;
+      Vector RML_inv;
+#endif
+
+      friend class L2ProjectionL2Space;
    };
 
    /** Mass-conservative prolongation operator going in the opposite direction
@@ -377,11 +552,19 @@ protected:
    bool force_l2_space;
 
 public:
+   // Coefficient for weighted integration in mass matrices; allows for spatial variation
+   Coefficient *coeff;
+   IntegrationRule *int_rule;
+
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
                             FiniteElementSpace &fine_fes_,
-                            bool force_l2_space_ = false)
-      : GridTransfer(coarse_fes_, fine_fes_),
-        F(NULL), B(NULL), force_l2_space(force_l2_space_)
+                            bool force_l2_space_ = false,
+                            Coefficient *coeff_ = nullptr,
+                            IntegrationRule *int_rule_ = nullptr,
+                            MemoryType d_mt_ = Device::GetHostMemoryType())
+      : GridTransfer(coarse_fes_, fine_fes_, d_mt_),
+        F(NULL), B(NULL), force_l2_space(force_l2_space_),
+        coeff(coeff_), int_rule(int_rule_)
    { }
    virtual ~L2ProjectionGridTransfer();
 
