@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
           stationarity, stationarity_error,
           curr_vol,
           objval(infinity()), old_objval(infinity()), succ_obj_diff(infinity());
-   real_t kkt, kkt0;
+   real_t kkt, kkt0(infinity());
    int tot_reeval(0), num_reeval(0);
    int it_md;
    TableLogger logger;
@@ -479,6 +479,9 @@ int main(int argc, char *argv[])
       if (it_md == 0)
       {
          stationarity0 = stationarity_error;
+      }
+      if (it_md == 1) // kkt is only meaningful when k >= 1
+      {
          kkt0 = kkt;
       }
       if ((kkt < tol_rel*kkt0) || (kkt < tol_abs))
