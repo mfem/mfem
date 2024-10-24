@@ -185,7 +185,8 @@ public:
     smaller than the number of coarse dofs. */
 class L2ProjectionGridTransfer : public GridTransfer
 {
-protected:
+  // Must be public due to host device lambdas
+public:
    /** Abstract class representing projection operator between a high-order
        finite element space on a coarse mesh, and a low-order finite element
        space on a refined mesh (LOR). We assume that the low-order space,
