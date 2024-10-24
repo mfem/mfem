@@ -119,60 +119,60 @@ set(SRCS
   normal_deriv_restriction.cpp
   staticcond.cpp
   tmop.cpp
-  tmop/tmop_pa.cpp
-  tmop/tmop_pa_da3.cpp
-  tmop/tmop_pa_h2d.cpp
-  tmop/tmop_pa_h2d_c0.cpp
-  tmop/tmop_pa_h2m.cpp
-  tmop/tmop_pa_h2m_c0.cpp
-  tmop/tmop_pa_h2s.cpp
-  tmop/metrics/h2s_001.cpp
-  tmop/metrics/h2s_002.cpp
-  tmop/metrics/h2s_007.cpp
-  tmop/metrics/h2s_056.cpp
-  tmop/metrics/h2s_077.cpp
-  tmop/metrics/h2s_080.cpp
-  tmop/metrics/h2s_094.cpp
-  tmop/tmop_pa_h2s_c0.cpp
-  tmop/tmop_pa_h3d.cpp
-  tmop/tmop_pa_h3d_c0.cpp
-  tmop/tmop_pa_h3m.cpp
-  tmop/tmop_pa_h3m_c0.cpp
-  tmop/tmop_pa_h3s.cpp
-  tmop/metrics/h3s_302.cpp
-  tmop/metrics/h3s_303.cpp
-  tmop/metrics/h3s_315.cpp
-  tmop/metrics/h3s_318.cpp
-  tmop/metrics/h3s_321.cpp
-  tmop/metrics/h3s_332.cpp
-  tmop/metrics/h3s_338.cpp
-  tmop/tmop_pa_h3s_c0.cpp
-  tmop/tmop_pa_jp2.cpp
-  tmop/tmop_pa_jp3.cpp
-  tmop/tmop_pa_p2.cpp
-  tmop/metrics/p2_001.cpp
-  tmop/metrics/p2_002.cpp
-  tmop/metrics/p2_007.cpp
-  tmop/metrics/p2_056.cpp
-  tmop/metrics/p2_077.cpp
-  tmop/metrics/p2_080.cpp
-  tmop/metrics/p2_094.cpp
-  tmop/tmop_pa_p2_c0.cpp
-  tmop/tmop_pa_p3.cpp
-  tmop/metrics/p3_302.cpp
-  tmop/metrics/p3_303.cpp
-  tmop/metrics/p3_315.cpp
-  tmop/metrics/p3_318.cpp
-  tmop/metrics/p3_321.cpp
-  tmop/metrics/p3_332.cpp
-  tmop/metrics/p3_338.cpp
-  tmop/tmop_pa_p3_c0.cpp
-  tmop/tmop_pa_tc2.cpp
-  tmop/tmop_pa_tc3.cpp
-  tmop/tmop_pa_w2.cpp
-  tmop/tmop_pa_w2_c0.cpp
-  tmop/tmop_pa_w3.cpp
-  tmop/tmop_pa_w3_c0.cpp
+  tmop/pa.cpp
+  tmop/mult/h2m.cpp
+  tmop/mult/h2m_c0.cpp
+  tmop/mult/h3m.cpp
+  tmop/mult/h3m_c0.cpp
+  tmop/mult/p2.cpp
+  tmop/mult/p2_c0.cpp
+  tmop/mult/p2_001.cpp
+  tmop/mult/p2_002.cpp
+  tmop/mult/p2_007.cpp
+  tmop/mult/p2_056.cpp
+  tmop/mult/p2_077.cpp
+  tmop/mult/p2_080.cpp
+  tmop/mult/p2_094.cpp
+  tmop/mult/p3.cpp
+  tmop/mult/p3_c0.cpp
+  tmop/mult/p3_302.cpp
+  tmop/mult/p3_303.cpp
+  tmop/mult/p3_315.cpp
+  tmop/mult/p3_318.cpp
+  tmop/mult/p3_321.cpp
+  tmop/mult/p3_332.cpp
+  tmop/mult/p3_338.cpp
+  tmop/setup/h2d.cpp
+  tmop/setup/h2d_c0.cpp
+  tmop/setup/h2s.cpp
+  tmop/setup/h2s_c0.cpp
+  tmop/setup/h2s_001.cpp
+  tmop/setup/h2s_002.cpp
+  tmop/setup/h2s_007.cpp
+  tmop/setup/h2s_056.cpp
+  tmop/setup/h2s_077.cpp
+  tmop/setup/h2s_080.cpp
+  tmop/setup/h2s_094.cpp
+  tmop/setup/h3d.cpp
+  tmop/setup/h3d_c0.cpp  
+  tmop/setup/h3s.cpp
+  tmop/setup/h3s_c0.cpp
+  tmop/setup/h3s_302.cpp
+  tmop/setup/h3s_303.cpp
+  tmop/setup/h3s_315.cpp
+  tmop/setup/h3s_318.cpp
+  tmop/setup/h3s_321.cpp
+  tmop/setup/h3s_332.cpp
+  tmop/setup/h3s_338.cpp
+  tmop/tools/da3.cpp
+  tmop/tools/jp2.cpp
+  tmop/tools/jp3.cpp
+  tmop/tools/tc2.cpp
+  tmop/tools/tc3.cpp
+  tmop/tools/w2.cpp
+  tmop/tools/w2_c0.cpp
+  tmop/tools/w3.cpp
+  tmop/tools/w3_c0.cpp
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
@@ -270,11 +270,11 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
-  tmop/tmop_pa.hpp
-  tmop/tmop_pa_h2s.hpp
-  tmop/tmop_pa_h3s.hpp
-  tmop/tmop_pa_p2.hpp
-  tmop/tmop_pa_p3.hpp
+  tmop/pa.hpp
+  tmop/mult/p2.hpp
+  tmop/mult/p3.hpp
+  tmop/setup/h2s.hpp
+  tmop/setup/h3s.hpp
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp
