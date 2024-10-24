@@ -142,7 +142,7 @@ TEST_CASE("Identity Linear Interpolators",
    double tol = 1e-9;
 
    for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::WEDGE; type++)
+        type <= (int)Element::PYRAMID; type++)
    {
       Mesh mesh;
 
@@ -521,7 +521,7 @@ TEST_CASE("Derivative Linear Interpolators",
    double tol = 1e-9;
 
    for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::WEDGE; type++)
+        type <= (int)Element::PYRAMID; type++)
    {
       Mesh mesh;
 
@@ -741,7 +741,7 @@ TEST_CASE("Product Linear Interpolators",
    double tol = 1e-9;
 
    for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::WEDGE; type++)
+        type <= (int)Element::PYRAMID; type++)
    {
       Mesh mesh;
 
@@ -935,6 +935,103 @@ TEST_CASE("Product Linear Interpolators",
                REQUIRE( FG3.ComputeL2Error(FGCoef) < tol );
             }
          }
+      }
+   }
+}
+
+TEST_CASE("Exact Sequence Properties: d(df)=0",
+          "[GradientInterpolator]"
+          "[CurlInterpolator]"
+          "[DivergenceInterpolator]")
+{
+   const int maxOrder = 3;
+   auto order = GENERATE_COPY(range(1, maxOrder + 1));
+   CAPTURE(order);
+
+   int n = 3, dim = -1;
+   real_t tol = 1e-10;
+
+   auto type = (Element::Type)GENERATE(range((int)Element::TRIANGLE,
+                                             (int)Element::PYRAMID + 1));
+   CAPTURE(type);
+
+   Mesh mesh;
+
+   if (type < (int)Element::TETRAHEDRON)
+   {
+      dim = 2;
+      mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
+   }
+   else
+   {
+      dim = 3;
+      mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                   2.0, 3.0, 5.0);
+   }
+
+   H1_FECollection    fec_h1(order, dim);
+   ND_FECollection    fec_nd(order, dim);
+   RT_FECollection    fec_rt(order - 1, dim);
+   L2_FECollection    fec_l2(order - 1, dim);
+
+   FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+   FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+   FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+   FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+   if (dim == 2)
+   {
+      DiscreteLinearOperator Grad(&fespace_h1, &fespace_nd);
+      Grad.AddDomainInterpolator(new GradientInterpolator());
+      Grad.Assemble();
+      Grad.Finalize();
+
+      DiscreteLinearOperator Curl(&fespace_nd, &fespace_l2);
+      Curl.AddDomainInterpolator(new CurlInterpolator());
+      Curl.Assemble();
+      Curl.Finalize();
+
+      SECTION("Curl of Gradient (2D)")
+      {
+         SparseMatrix * CurlGrad = Mult(Curl.SpMat(), Grad.SpMat());
+
+         REQUIRE(CurlGrad->MaxNorm() < tol);
+
+         delete CurlGrad;
+      }
+   }
+   else
+   {
+      DiscreteLinearOperator Grad(&fespace_h1, &fespace_nd);
+      Grad.AddDomainInterpolator(new GradientInterpolator());
+      Grad.Assemble();
+      Grad.Finalize();
+
+      DiscreteLinearOperator Curl(&fespace_nd, &fespace_rt);
+      Curl.AddDomainInterpolator(new CurlInterpolator());
+      Curl.Assemble();
+      Curl.Finalize();
+
+      DiscreteLinearOperator Div(&fespace_rt, &fespace_l2);
+      Div.AddDomainInterpolator(new DivergenceInterpolator());
+      Div.Assemble();
+      Div.Finalize();
+
+      SECTION("Curl of Gradient (3D)")
+      {
+         SparseMatrix * CurlGrad = Mult(Curl.SpMat(), Grad.SpMat());
+
+         REQUIRE(CurlGrad->MaxNorm() < tol);
+
+         delete CurlGrad;
+      }
+      SECTION("Divergence of Curl (3D)")
+      {
+         SparseMatrix * DivCurl = Mult(Div.SpMat(), Curl.SpMat());
+
+         REQUIRE(DivCurl->MaxNorm() < tol);
+
+         delete DivCurl;
       }
    }
 }

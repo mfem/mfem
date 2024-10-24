@@ -206,6 +206,62 @@ TEST_CASE("H1 Wedge Finite Element",
    }
 }
 
+TEST_CASE("H1 Pyramid Finite Element",
+          "[H1_PyramidElement]"
+          "[NodalFiniteElement]"
+          "[ScalarFiniteElement]"
+          "[FiniteElement]")
+{
+   for (int p = 1; p<=4; p++)
+   {
+      H1_FuentesPyramidElement fe(p);
+
+      if (p == 1)
+      {
+         SECTION("Attributes")
+         {
+            REQUIRE( fe.GetDim()            == 3                           );
+            REQUIRE( fe.GetGeomType()       == Geometry::PYRAMID           );
+            REQUIRE( fe.Space()             == (int) FunctionSpace::Uk     );
+            REQUIRE( fe.GetRangeType()      == (int) FiniteElement::SCALAR );
+            REQUIRE( fe.GetMapType()        == (int) FiniteElement::VALUE  );
+            REQUIRE( fe.GetDerivType()      == (int) FiniteElement::GRAD   );
+            REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::VECTOR );
+            REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::H_CURL );
+         }
+      }
+      SECTION("Sizes for p = " + std::to_string(p))
+      {
+         REQUIRE( fe.GetDof()   == p*(p*p+3)+1 ); // Fuentes et al
+         REQUIRE( fe.GetOrder() == p                   );
+      }
+   }
+   for (int p = 1; p<=4; p++)
+   {
+      H1_BergotPyramidElement fe(p);
+
+      if (p == 1)
+      {
+         SECTION("Attributes")
+         {
+            REQUIRE( fe.GetDim()            == 3                           );
+            REQUIRE( fe.GetGeomType()       == Geometry::PYRAMID           );
+            REQUIRE( fe.Space()             == (int) FunctionSpace::Uk     );
+            REQUIRE( fe.GetRangeType()      == (int) FiniteElement::SCALAR );
+            REQUIRE( fe.GetMapType()        == (int) FiniteElement::VALUE  );
+            REQUIRE( fe.GetDerivType()      == (int) FiniteElement::GRAD   );
+            REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::VECTOR );
+            REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::H_CURL );
+         }
+      }
+      SECTION("Sizes for p = " + std::to_string(p))
+      {
+         REQUIRE( fe.GetDof()   == (p+1)*(p+2)*(2*p+3)/6 ); // JSC
+         REQUIRE( fe.GetOrder() == p                   );
+      }
+   }
+}
+
 TEST_CASE("Nedelec Segment Finite Element",
           "[ND_SegmentElement]"
           "[VectorFiniteElement]"
