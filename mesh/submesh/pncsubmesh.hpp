@@ -90,8 +90,8 @@ protected:
    std::unordered_map<int, int> parent_to_submesh_element_ids_;
 
    // Helper friend methods for construction.
-   friend void SubMeshUtils::ConstructFaceTree<ParNCSubMesh>(ParNCSubMesh &submesh,
-                                                             const Array<int> &attributes);
+   friend void SubMeshUtils::ConstructFaceTree<ParNCSubMesh>
+   (ParNCSubMesh &submesh, const Array<int> &attributes);
    friend void SubMeshUtils::ConstructVolumeTree<ParNCSubMesh>
    (ParNCSubMesh &submesh, const Array<int> &attributes);
 
