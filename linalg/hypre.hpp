@@ -938,6 +938,8 @@ public:
        without the need to save the whole matrix. */
    void PrintHash(std::ostream &out) const;
 
+   /// return the Frobenius norm of the matrix if assembled, otherwise return 0 
+   real_t NormFro() const;
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
 
