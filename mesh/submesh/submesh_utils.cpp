@@ -507,8 +507,8 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
          - Check not top level face
          - Check for parent of the newly entered element
             - if not present, add in
-            - if present but different order and this path is non-ambiguous, reorder so consistent with child
-               elements.
+            - if present but different order and this path is non-ambiguous,
+               reorder so consistent with child elements.
          - Set .parent in the newly entered element
          Break if top level face or joined existing branch (without reordering).
 

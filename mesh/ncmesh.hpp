@@ -587,7 +587,7 @@ protected: // implementation
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 public:
    /**
-    * @brief The number of nodes
+    * @brief The number of Nodes.
     *
     * @return int
     */
@@ -644,8 +644,9 @@ public:
     */
    int ParentFaceNodes(std::array<int, 4> &nodes) const;
 
+protected:
    /**
-    * @brief  method for finding the @a node associated to a @a face
+    * @brief Method for finding the nodes associated to a @a face
     * @return Nodes making up the face
     */
    std::array<int, 4> FindFaceNodes(int face) const;
@@ -655,7 +656,6 @@ public:
     * @a face
     */
    MFEM_DEPRECATED void FindFaceNodes(int face, int node[4]) const;
-protected:
 
 
    /** Initial traversal state (~ element orientation) for each root element
@@ -1079,9 +1079,9 @@ protected:
 
        The following transformation gives the relation between the reference
        quad face coordinates (xi, eta) in [0,1]^2, and the fine quad face
-       coordinates (x, y): x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta +
-       a3*(1-xi)*eta y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta +
-       b3*(1-xi)*eta
+       coordinates (x, y):
+         x = a0*(1-xi)*(1-eta) + a1*xi*(1-eta) + a2*xi*eta + a3*(1-xi)*eta
+         y = b0*(1-xi)*(1-eta) + b1*xi*(1-eta) + b2*xi*eta + b3*(1-xi)*eta
    */
    struct PointMatrix
    {
