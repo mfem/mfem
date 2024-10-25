@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
    bool visit = false;
    bool paraview = false;
    bool visualization = true;
-   bool vis_iters = false;
+   int vis_iters = -1;
    bool analytic = false;
 
    OptionsParser args(argc, argv);
@@ -201,9 +201,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&vis_iters, "-vis-its", "--visualization-iters", "-no-vis-its",
-                  "--no-visualization-iters",
-                  "Enable or disable GLVis visualization of the solver iterations.");
+   args.AddOption(&vis_iters, "-vis-its", "--visualization-iters",
+                  "Set step for GLVis visualization of the solver iterations (<0=off).");
    args.AddOption(&analytic, "-anal", "--analytic", "-no-anal",
                   "--no-analytic",
                   "Enable or disable analytic solution.");
@@ -762,9 +761,9 @@ int main(int argc, char *argv[])
    DarcyOperator op(ess_flux_tdofs_list, darcy, gform, fform, hform, coeffs,
                     (DarcyOperator::SolverType) solver_type, false, btime);
 
-   if (vis_iters)
+   if (vis_iters >= 0)
    {
-      op.EnableIterationsVisualization();
+      op.EnableIterationsVisualization(vis_iters);
    }
 
    //construct the time solver

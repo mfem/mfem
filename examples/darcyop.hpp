@@ -50,15 +50,16 @@ private:
    IterativeSolver *solver{};
    const char *solver_str{};
    IterativeSolverMonitor *monitor{};
-   bool bmonitor{};
+   int monitor_step{-1};
    SparseMatrix *S{};
 
    class IterativeGLVis : public IterativeSolverMonitor
    {
       DarcyOperator *p;
+      int step;
       socketstream q_sock, t_sock;
    public:
-      IterativeGLVis(DarcyOperator *p);
+      IterativeGLVis(DarcyOperator *p, int step = 0);
 
       void MonitorSolution(int it, real_t norm, const Vector &x,
                            bool final) override;
@@ -71,7 +72,7 @@ public:
                  bool btime_p = true);
    ~DarcyOperator();
 
-   void EnableIterationsVisualization(bool on=true) { bmonitor = on; }
+   void EnableIterationsVisualization(int vis_step = 0) { monitor_step = vis_step; }
 
    static Array<int> ConstructOffsets(const DarcyForm &darcy);
    inline const Array<int>& GetOffsets() const { return offsets; }

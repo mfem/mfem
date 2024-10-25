@@ -297,9 +297,9 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
             prec_str = "GS";
             solver = new GMRESSolver();
             solver_str = "GMRES";
-            if (bmonitor)
+            if (monitor_step >= 0)
             {
-               monitor = new IterativeGLVis(this);
+               monitor = new IterativeGLVis(this, monitor_step);
                solver->SetMonitor(*monitor);
             }
          }
@@ -488,8 +488,8 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    dx_v *= idt;
 }
 
-DarcyOperator::IterativeGLVis::IterativeGLVis(DarcyOperator *p_)
-   : p(p_)
+DarcyOperator::IterativeGLVis::IterativeGLVis(DarcyOperator *p_, int step_)
+   : p(p_), step(step_)
 {
    const char vishost[] = "localhost";
    const int  visport   = 19916;
@@ -502,6 +502,8 @@ DarcyOperator::IterativeGLVis::IterativeGLVis(DarcyOperator *p_)
 void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
                                                     const Vector &X, bool final)
 {
+   if (step != 0 && it % step != 0 && !final) { return; }
+
    BlockVector x(p->darcy->GetOffsets()); x = 0.;
    BlockVector rhs(p->g->GetData(), p->darcy->GetOffsets());
    p->darcy->RecoverFEMSolution(X, rhs, x);
