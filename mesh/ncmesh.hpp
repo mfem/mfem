@@ -644,7 +644,6 @@ public:
     */
    int ParentFaceNodes(std::array<int, 4> &nodes) const;
 
-protected:
    /**
     * @brief Method for finding the nodes associated to a @a face
     * @return Nodes making up the face
@@ -656,7 +655,7 @@ protected:
     * @a face
     */
    MFEM_DEPRECATED void FindFaceNodes(int face, int node[4]) const;
-
+protected:
 
    /** Initial traversal state (~ element orientation) for each root element
        NOTE: M = root_state.Size() is the number of root elements. NOTE: the
@@ -667,9 +666,7 @@ protected:
        Mesh is curved (Nodes != NULL) and NCMesh is topology-only. */
    Array<real_t> coordinates;
 
-
    // secondary data
-
    /** Apart from the primary data structure, which is the element/node/face
        hierarchy, there is secondary data that is derived from the primary data
        and needs to be updated when the primary data changes. Update() takes
