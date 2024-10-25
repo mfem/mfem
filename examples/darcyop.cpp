@@ -112,6 +112,7 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
 DarcyOperator::~DarcyOperator()
 {
    delete solver;
+   delete monitor;
    delete prec;
    delete S;
    delete Mt0;
@@ -296,6 +297,11 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
             prec_str = "GS";
             solver = new GMRESSolver();
             solver_str = "GMRES";
+            if (bmonitor)
+            {
+               monitor = new IterativeGLVis(this);
+               solver->SetMonitor(*monitor);
+            }
          }
 
          solver->SetAbsTol(atol);
@@ -480,6 +486,42 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
    dx_v -= x_v;
    dx_v *= idt;
+}
+
+DarcyOperator::IterativeGLVis::IterativeGLVis(DarcyOperator *p_)
+   : p(p_)
+{
+   const char vishost[] = "localhost";
+   const int  visport   = 19916;
+   q_sock.open(vishost, visport);
+   q_sock.precision(8);
+   t_sock.open(vishost, visport);
+   t_sock.precision(8);
+}
+
+void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
+                                                    const Vector &X, bool final)
+{
+   BlockVector x(p->darcy->GetOffsets()); x = 0.;
+   BlockVector rhs(p->g->GetData(), p->darcy->GetOffsets());
+   p->darcy->RecoverFEMSolution(X, rhs, x);
+
+   GridFunction q_h(p->darcy->FluxFESpace(), x.GetBlock(0));
+   GridFunction t_h(p->darcy->PotentialFESpace(), x.GetBlock(1));
+
+   q_sock << "solution\n" << *q_h.FESpace()->GetMesh() << q_h << std::endl;
+   if (it == 0)
+   {
+      q_sock << "window_title 'Heat flux'" << std::endl;
+      q_sock << "keys Rljvvvvvmmc" << std::endl;
+   }
+
+   t_sock << "solution\n" << *t_h.FESpace()->GetMesh() << t_h << std::endl;
+   if (it == 0)
+   {
+      t_sock << "window_title 'Temperature'" << std::endl;
+      t_sock << "keys Rljmmc" << std::endl;
+   }
 }
 
 }

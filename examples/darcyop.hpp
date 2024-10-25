@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "darcyform.hpp"
+#include "../general/socketstream.hpp"
 
 namespace mfem
 {
@@ -48,7 +49,20 @@ private:
    const char *prec_str{};
    IterativeSolver *solver{};
    const char *solver_str{};
+   IterativeSolverMonitor *monitor{};
+   bool bmonitor{};
    SparseMatrix *S{};
+
+   class IterativeGLVis : public IterativeSolverMonitor
+   {
+      DarcyOperator *p;
+      socketstream q_sock, t_sock;
+   public:
+      IterativeGLVis(DarcyOperator *p);
+
+      void MonitorSolution(int it, real_t norm, const Vector &x,
+                           bool final) override;
+   };
 
 public:
    DarcyOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
@@ -56,6 +70,8 @@ public:
                  SolverType stype = SolverType::LBFGS,  bool bflux_u = true,
                  bool btime_p = true);
    ~DarcyOperator();
+
+   void EnableIterationsVisualization(bool on=true) { bmonitor = on; }
 
    static Array<int> ConstructOffsets(const DarcyForm &darcy);
    inline const Array<int>& GetOffsets() const { return offsets; }
