@@ -58,7 +58,7 @@ public:
    ParSubMesh() = delete;
 
    /**
-    * @brief Create a domain ParSubMesh from it's parent.
+    * @brief Create a domain ParSubMesh from its parent.
     *
     * The ParSubMesh object expects the parent ParMesh object to be valid for
     * the entire object lifetime. The @a domain_attributes have to mark exactly
@@ -71,7 +71,7 @@ public:
                                       const Array<int> &domain_attributes);
 
    /**
-   * @brief Create a surface ParSubMesh from it's parent.
+   * @brief Create a surface ParSubMesh from its parent.
    *
    * The ParSubMesh object expects the parent ParMesh object to be valid for the
    * entire object lifetime. The @a boundary_attributes have to mark exactly one

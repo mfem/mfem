@@ -23,14 +23,14 @@ namespace mfem
 class IntegerSet : public Array<int>
 {
 public:
-   using Array<int>::Array;
+   using Array<int>::Array; ///< Inherit all Array constructors.
    // MSVC fails to recognize that rule of zero applies after using base class
    // constructors.
-   IntegerSet() = default;
-   IntegerSet(const IntegerSet &) = default;
-   IntegerSet(IntegerSet &&) = default;
-   IntegerSet& operator=(const IntegerSet &) = default;
-   IntegerSet& operator=(IntegerSet &&) = default;
+   IntegerSet() = default; ///< Default construct and empty set.
+   IntegerSet(const IntegerSet &) = default; ///< Copy constructor.
+   IntegerSet(IntegerSet &&) = default; ///< Move constructor.
+   IntegerSet& operator=(const IntegerSet &) = default; ///< Copy assignment.
+   IntegerSet& operator=(IntegerSet &&) = default; ///< Move assignment.
 
    /// Create an integer set from C-array 'p' of 'n' integers.
    IntegerSet(const int n, const int *p) { Recreate(n, p); }
