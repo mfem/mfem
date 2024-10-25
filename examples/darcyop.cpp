@@ -11,6 +11,7 @@
 
 #include "darcyop.hpp"
 #include "../general/tic_toc.hpp"
+#include <fstream>
 
 namespace mfem
 {
@@ -511,6 +512,15 @@ void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
    GridFunction q_h(p->darcy->FluxFESpace(), x.GetBlock(0));
    GridFunction t_h(p->darcy->PotentialFESpace(), x.GetBlock(1));
 
+   //heat flux
+
+   std::stringstream ss;
+   ss.str("");
+   ss << "mesh_" << it << ".mesh";
+   std::ofstream ofs(ss.str());
+   q_h.FESpace()->GetMesh()->Print(ofs);
+   ofs.close();
+
    q_sock << "solution\n" << *q_h.FESpace()->GetMesh() << q_h << std::endl;
    if (it == 0)
    {
@@ -518,12 +528,22 @@ void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
       q_sock << "keys Rljvvvvvmmc" << std::endl;
    }
 
+   ss.str("");
+   ss << "qh_" << std::setfill('0') << std::setw(5) << it << ".gf";
+   q_h.Save(ss.str().c_str());
+
+   //temperature
+
    t_sock << "solution\n" << *t_h.FESpace()->GetMesh() << t_h << std::endl;
    if (it == 0)
    {
       t_sock << "window_title 'Temperature'" << std::endl;
       t_sock << "keys Rljmmc" << std::endl;
    }
+
+   ss.str("");
+   ss << "th_" << std::setfill('0') << std::setw(5) << it << ".gf";
+   t_h.Save(ss.str().c_str());
 }
 
 }
