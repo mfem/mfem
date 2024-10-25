@@ -2784,8 +2784,8 @@ real_t HypreParMatrix::NormFro() const
    if (A != NULL)
    {
       ierr += hypre_ParCSRMatrixNormFro(A, &norm_fro);
-      MFEM_VERIFY(ierr == 0, "");
    }
+   MFEM_VERIFY(ierr == 0, "");
    return norm_fro;
 }
 
