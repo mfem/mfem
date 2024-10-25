@@ -2777,7 +2777,7 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
    os << "col map offd hash : " << hf.GetHash() << '\n';
 }
 
-real_t HypreParMatrix::NormFro() const
+real_t HypreParMatrix::FNorm() const
 {
    int ierr = 0;
    real_t norm_fro = 0.0;
