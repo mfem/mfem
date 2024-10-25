@@ -527,10 +527,9 @@ protected: // implementation
    {
       char vert_refc, edge_refc;
       int vert_index, edge_index;
-      real_t scale;  ///< Scale from struct Refinement, default 0.5
 
       Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1),
-         scale(0.5) {}
+         scale(0.5), scaleSet(false) {}
       ~Node();
 
       bool HasVertex() const { return vert_refc > 0; }
@@ -539,6 +538,14 @@ protected: // implementation
       // decrease vertex/edge ref count, return false if Node should be deleted
       bool UnrefVertex() { --vert_refc; return vert_refc || edge_refc; }
       bool UnrefEdge()   { --edge_refc; return vert_refc || edge_refc; }
+
+      real_t GetScale() const { return scale; }
+      void SetScale(real_t s, bool overwrite = false);
+
+   private:
+      real_t scale;  ///< Scale from struct Refinement, default 0.5
+      bool scaleSet; ///< Indicates whether scale is set and cannot be changed
+      static constexpr real_t scaleTol = 1.0e-8; ///< Scale comparison tolerance
    };
 
    /** Similarly to nodes, faces can be accessed by hashing their four vertex

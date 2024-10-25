@@ -296,6 +296,19 @@ NCMesh::~NCMesh()
 #endif
 }
 
+void NCMesh::Node::SetScale(real_t s, bool overwrite)
+{
+   if (!overwrite && scaleSet && std::abs((s - scale) / scale) > scaleTol)
+   {
+      MFEM_ABORT("Node scale is already set (inconsistent refinement)");
+   }
+   else if (overwrite || !scaleSet)
+   {
+      scale = s;
+      scaleSet = true;
+   }
+}
+
 NCMesh::Node::~Node()
 {
    MFEM_ASSERT(!vert_refc && !edge_refc, "node was not unreferenced properly, "
@@ -306,7 +319,7 @@ NCMesh::Node::~Node()
 void NCMesh::ReparentNode(int node, int new_p1, int new_p2, real_t scale)
 {
    Node &nd = nodes[node];
-   nd.scale = GetScale(scale, new_p1 > new_p2);
+   nd.SetScale(GetScale(scale, new_p1 > new_p2), true);
    int old_p1 = nd.p1, old_p2 = nd.p2;
 
    // assign new parents
@@ -834,13 +847,13 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 
       if (node12)
       {
-         scale = GetScale(node12->scale, vn1 > vn2);
+         scale = GetScale(node12->GetScale(), vn1 > vn2);
       }
       else
       {
          Node* node34 = nodes.Find(vn3, vn4);
          MFEM_ASSERT(node34, "Scale not set in NCMesh::ForceRefinement");
-         scale = GetScale(node34->scale, vn4 > vn3);
+         scale = GetScale(node34->GetScale(), vn4 > vn3);
       }
 
       // schedule the right split depending on face orientation
@@ -1013,7 +1026,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             if (node12)
             {
                const bool rev = (vn1 < vn2) != (mid41 < mid23);
-               midfNode->scale = GetScale(node12->scale, rev);
+               midfNode->SetScale(GetScale(node12->GetScale(), rev));
             }
             else
             {
@@ -1021,7 +1034,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
                if (node34)
                {
                   const bool rev = (vn4 < vn3) != (mid41 < mid23);
-                  midfNode->scale = GetScale(node34->scale, rev);
+                  midfNode->SetScale(GetScale(node34->GetScale(), rev));
                }
             }
          }
@@ -1029,7 +1042,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
          reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
 
          Node* node23 = nodes.Find(vn2, vn3);
-         reparentScale.Append(GetScale(node23->scale, vn2 > vn3));
+         reparentScale.Append(GetScale(node23->GetScale(), vn2 > vn3));
 
          int rs = ref_stack.Size();
 
@@ -1110,7 +1123,7 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
 void NCMesh::SetNodeScale(int p0, int p1, real_t scale)
 {
    Node* node = nodes.Find(p0, p1);
-   if (node) { node->scale = GetScale(scale, p0 > p1); }
+   if (node) { node->SetScale(GetScale(scale, p0 > p1)); }
 }
 
 void NCMesh::RefineElement(int elem, char ref_type, real_t scale_x,
@@ -2731,7 +2744,7 @@ const real_t* NCMesh::CalcVertexPos(int node) const
 
    for (int i = 0; i < 3; i++)
    {
-      tv.pos[i] = ((1.0 - nd.scale) * pos1[i]) + (nd.scale * pos2[i]);
+      tv.pos[i] = ((1.0 - nd.GetScale()) * pos1[i]) + (nd.GetScale() * pos2[i]);
    }
    tv.valid = true;
    return tv.pos;
@@ -3051,14 +3064,14 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4, real_t & s,
    else if (midf1 >= 0) // face split "vertically"
    {
       if (mid) { mid[4] = midf1; }
-      s = nodes[e1].scale;
+      s = nodes[e1].GetScale();
       if (v1 > v2) { s = 1.0 - s; }
       return 1;
    }
    else // face split "horizontally"
    {
       if (mid) { mid[4] = midf2; }
-      s = nodes[e2].scale;
+      s = nodes[e2].GetScale();
       if (v2 > v3) { s = 1.0 - s; }
       return 2;
    }
@@ -3599,7 +3612,7 @@ void NCMesh::TraverseEdge(int vn0, int vn1, real_t t0, real_t t1, int flags,
    }
 
    // recurse deeper
-   const real_t scale = GetScale(nd.scale, vn0 > vn1);
+   const real_t scale = GetScale(nd.GetScale(), vn0 > vn1);
    const real_t tmid = ((1.0 - scale) * t0) + (scale * t1);
    TraverseEdge(vn0, mid, t0, tmid, flags, level+1, matrix_map);
    TraverseEdge(mid, vn1, tmid, t1, flags, level+1, matrix_map);
@@ -5877,8 +5890,8 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
             MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
 
             (*os) << node.index() << " " << node->p1 << " " << node->p2;
-            if (node->scale != 0.5) { uniformScaling = false; }
-            if (usingScaling) { (*os) << " " << node->scale; }
+            if (node->GetScale() != 0.5) { uniformScaling = false; }
+            if (usingScaling) { (*os) << " " << node->GetScale(); }
             (*os) << "\n";
          }
       }
@@ -5911,7 +5924,7 @@ void NCMesh::LoadVertexParents(std::istream &input)
       // assign new parents for the node
       nodes.Reparent(id, p1, p2);
 
-      nodes[id].scale = s;
+      nodes[id].SetScale(s);
    }
 }
 
