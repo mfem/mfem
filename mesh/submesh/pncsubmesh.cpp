@@ -25,8 +25,8 @@ namespace mfem
 using namespace SubMeshUtils;
 
 
-ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh,
-                           const ParNCMesh &parent, From from, const Array<int> &attributes)
+ParNCSubMesh::ParNCSubMesh(ParSubMesh& submesh, const ParNCMesh &parent,
+                           From from, const Array<int> &attributes)
    : ParNCMesh(), parent_(&parent), from_(from), attributes_(attributes)
 {
    MyComm = submesh.GetComm();
