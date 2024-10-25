@@ -939,7 +939,7 @@ public:
    void PrintHash(std::ostream &out) const;
 
    /// return the Frobenius norm of the matrix if assembled, otherwise return 0 
-   real_t NormFro() const;
+   real_t FNorm() const;
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
 
