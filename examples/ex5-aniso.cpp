@@ -20,28 +20,25 @@
 // Description:  This example code solves a simple 2D/3D asymptotic heat diffusion
 //               problem in the mixed formulation corresponding to the system
 //
-//                                 1/k*q +           grad T =  g
-//                                 div q + div(T*c) + dT/dt = -f
+//                                 k^-1.q +         grad T =  g
+//                                  div q + div(T*c) + a T = -f
 //
-//               with natural boundary condition -T = <given temperature> and/or
-//               essential (RT) / natural (DG) boundary condition qT.n = (q + T*c).n
-//               = <given total flux>. The scalar k is the heat conductivity and c the
-//               given velocity field. Multiple problems are offered based on the paper:
-//               N.C. Nguyen et al., Journal of Computational Physics 228 (2009) 3232–3254.
-//               In particular, they are (corresponding to the subsections of section 5):
-//               1) steady-state diffusion - with zero Dirichlet temperature BCs
-//               2) steady-state advection-diffusion - with zero Dirichlet temperature BCs
-//               3) steady-state advection  - with Dirichlet temperature inflow BC and
-//                                            Neumann total flux outflow BC
-//               4) non-steady advection(-diffusion) - with Dirichlet temperature BCs
-//               5) Kovasznay flow - with Dirichlet temperature inflow BC and Neumann
-//                                   total flux outflow BCs
-//               6) steady-state Burgers flow - with zero Dirichlet temperature BCs
-//               7) non-steady Burgers flow - with zero Dirichlet temperature BCs
-//               Here, we use a given exact solution (q,T) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
-//               finite elements (heat flux q) and piecewise discontinuous
-//               polynomials (temperature T).
+//               with natural boundary condition q.n = 0, where n is the outer
+//               normal. The tensor k represents the heat conductivity, where its
+//               symmetric and antisymmetric parts can be adjusted. The scalar a
+//               is then the heat capacity, which can be zero, changing the problem
+//               to steady-state, indefinite, saddle-point. The r.h.s. is f = 0 and
+//               g = -a * <initial temperature> for the definite problem and
+//               g = -<initial temperature> for the indefinite one. These problems
+//               are offered:
+//               1) sine diffusion - with the asymptotic (a -> infinity) reference
+//                                   solution with the first order correction
+//               2) MFEM logo convection-diffusion - random Gaussian blobs of
+//                                                   conductivity and circular velocity
+//                                                   with ASCII art of MFEM text as IC
+//               We discretize with Raviart-Thomas finite elements (heat flux q)
+//               and piecewise discontinuous polynomials (temperature T). Alternatively,
+//               the piecewise discontinuous polynomials are used for both quantities.
 //
 //               The example demonstrates the use of the DarcyForm class, as
 //               well as hybridization of mixed systems and the collective saving
@@ -144,13 +141,8 @@ int main(int argc, char *argv[])
                   "Switches between upwinded (1) and centered (0=default) stabilization.");
    args.AddOption(&iproblem, "-p", "--problem",
                   "Problem to solve:\n\t\t"
-                  "1=steady diff\n\t\t"
-                  "2=steady adv-diff\n\t\t"
-                  "3=steady adv\n\t\t"
-                  "4=nonsteady adv-diff\n\t\t"
-                  "5=Kovasznay flow\n\t\t"
-                  "6=steady Burgers\n\t\t"
-                  "7=nonsteady Burgers\n\t\t");
+                  "1=sine diffusion\n\t\t"
+                  "2=MFEM logo\n\t\t");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
