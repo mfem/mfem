@@ -36,10 +36,10 @@
 #if defined(PETSC_USE_COMPLEX)
 #error "MFEM does not work with PETSc compiled with complex numbers support"
 #endif
-#if defined(PETSC_USE_64BIT_INDICES) && !defined(HYPRE_BIGINT)
+#if defined(PETSC_USE_64BIT_INDICES) && !defined(HYPRE_BIGINT) && !defined(HYPRE_MIXEDINT)
 #error "Mismatch between HYPRE (32bit) and PETSc (64bit) integer types"
 #endif
-#if !defined(PETSC_USE_64BIT_INDICES) && defined(HYPRE_BIGINT)
+#if !defined(PETSC_USE_64BIT_INDICES) && (defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT))
 #error "Mismatch between HYPRE (64bit) and PETSc (32bit) integer types"
 #endif
 
