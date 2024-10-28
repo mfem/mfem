@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-     args.PrintUsage(std::cout);
+     args.PrintUsage(mfem::cout);
       return 1;
    }
 
