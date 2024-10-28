@@ -122,11 +122,11 @@ public:
       u.SetFromTrueDofs(x);
       auto dRdu = elasticity.template GetDerivativeWrt<0>({&u}, {mesh_nodes});
 
-      // jacobian.reset(
-      //    new ElasticityJacobianOperator<
-      //    typename std::remove_pointer<decltype(dRdu.get())>::type> (this, dRdu));
+      jacobian.reset(
+         new ElasticityJacobianOperator<
+         typename std::remove_pointer<decltype(dRdu.get())>::type> (this, dRdu));
 
-      jacobian.reset(new FDJacobian(*this, x));
+      // jacobian.reset(new FDJacobian(*this, x));
 
       return *jacobian;
    }
@@ -188,14 +188,14 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
                              const real_t &w)
    {
       // shear modulus
-      dual<real_t, real_t> D1{0.1e6};
+      real_t D1{0.1e6};
       // bulk modulus
-      dual<real_t, real_t> C1{1.0e6};
+      real_t C1{1.0e6};
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       auto invJ = inv(J);
       auto dudx = dudxi * invJ;
-      dual<real_t, real_t> F = det(I + dudx);
-      dual<real_t, real_t> p = -2.0 * D1 * F * (F - 1);
+      auto F = det(I + dudx);
+      auto p = -2.0 * D1 * F * (F - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
       auto sigma = -(p / F) * I + 2.0 * (C1 / pow(F, 5.0 / 3.0)) * devB;
 
@@ -211,7 +211,7 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
    DifferentiableOperator dop(solutions, parameters,
-                              mfem::tuple{op}, mesh, ir, AutoDiff::EnzymeForward{});
+                              mfem::tuple{op}, mesh, ir, AutoDiff::NativeDualNumber{});
 
    ElasticityOperator elasticity(h1fes, dop, ess_tdof_list);
 
@@ -245,7 +245,7 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
    newton.SetOperator(elasticity);
    newton.SetRelTol(1e-6);
    newton.SetMaxIter(100);
-   newton.SetAdaptiveLinRtol();
+   // newton.SetAdaptiveLinRtol();
    newton.SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
 
    elasticity.SetParameters(*mesh_nodes);
