@@ -416,92 +416,26 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          //*********************************
          // Setup data at quadrature points
          //*********************************
-         if (dim == 1)
+         const auto W = Reshape(ir_ea->GetWeights().Read(), qPts);
+         const auto J = Reshape(geo_facts->detJ.Read(), qPts, nel_lor);
+         const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
+         const auto d_qfunc = Reshape(coeff_vec.Read(), qPts, nref, nel_ho);
+
+         mfem::forall_3D(nel_ho, qPts, 1, 1, [=] MFEM_HOST_DEVICE (int iho)
          {
-
-            const auto W = Reshape(ir_ea->GetWeights().Read(),
-                                   Q1D);  // grabbing the weights of the integration rule
-            const auto J = Reshape(geo_facts->detJ.Read(), Q1D, nel_lor);  //
-            const auto d_D = Reshape(D.Write(), qPts, nref,
-                                     nel_ho);  // diagonal at the quadrature points
-            const auto d_qfunc = Reshape(coeff_vec.Read(), qPts, nref, nel_ho);
-
-            mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iho)
+            for (int iref = 0; iref < nref; ++iref)
             {
-               for (int iref = 0; iref < nref; ++iref)
+               const int lo_el_id = iref + nref*iho;
+               MFEM_FOREACH_THREAD(q, x, qPts)
                {
-                  const int lo_el_id = iref + nref*iho;
-                  for (int qx=0; qx<Q1D; ++qx)
-                  {
-                     const real_t detJ = J(qx, lo_el_id);
-                     d_D(qx, iref, iho) = W(qx) * detJ * d_qfunc(qx, iref, iho);
-                  }
+                  const real_t detJ = J(q, lo_el_id);
+                  d_D(q, iref, iho) = W(q) * detJ * d_qfunc(q, iref, iho);
                }
-            });
-
-         }
-
-         if (dim == 2)
-         {
-
-            const auto W = Reshape(ir_ea->GetWeights().Read(), Q1D, Q1D);
-            const auto J = Reshape(geo_facts->detJ.Read(), Q1D,Q1D, nel_lor);
-            const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
-            const auto d_qfunc = Reshape(coeff_vec.Read(), qPts, nref, nel_ho);
-
-            mfem::forall_2D(nel_ho, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int iho)
-            {
-               for (int iref = 0; iref < nref; ++iref)
-               {
-                  const int lo_el_id = iref + nref*iho;
-                  MFEM_FOREACH_THREAD(qy, y, Q1D)
-                  {
-                     MFEM_FOREACH_THREAD(qx, x, Q1D)
-                     {
-                        const int q = qx + Q1D*qy;
-                        const real_t detJ = J(qx, qy, lo_el_id);
-                        d_D(q, iref, iho) = W(qx, qy) * detJ * d_qfunc(q, iref, iho);
-                     }
-                  }
-
-               }
-            });
-         }
-
-         if (dim == 3)
-         {
-
-            const auto W = Reshape(ir_ea->GetWeights().Read(), Q1D, Q1D, Q1D);
-            const auto J = Reshape(geo_facts->detJ.Read(), Q1D, Q1D, Q1D, nel_lor);
-            const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
-            const auto d_qfunc = Reshape(coeff_vec.Read(), qPts, nref, nel_ho);
-
-            mfem::forall_3D(nel_ho, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int iho)
-            {
-               for (int iref = 0; iref < nref; ++iref)
-               {
-
-                  const int lo_el_id = iref + nref*iho;
-                  MFEM_FOREACH_THREAD(qz, z, Q1D)
-                  {
-                     MFEM_FOREACH_THREAD(qy, y, Q1D)
-                     {
-                        MFEM_FOREACH_THREAD(qx, x, Q1D)
-                        {
-                           const int q = qx + Q1D*qy + Q1D*Q1D*qz;
-                           const real_t detJ = J(qx, qy, qz, lo_el_id);
-                           d_D(q, iref, iho) = W(qx, qy, qz) * detJ * d_qfunc(q, iref, iho);
-                        }
-                     }
-                  }
-
-               }
-            });
-         }
+            }
+         });
 
          emb_tr.SetIdentityTransformation(geom);
          const DenseTensor &pmats = cf_tr.point_matrices[geom];
-
 
          //Collect the basis functions
          for (int iref = 0; iref < nref; ++iref)
