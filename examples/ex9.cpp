@@ -104,12 +104,12 @@ public:
       }
    }
 
-   void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    {
       linear_solver.SetOperator(op);
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       linear_solver.Mult(x, y);
    }
@@ -134,10 +134,10 @@ private:
 public:
    FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
+   void Mult(const Vector &x, Vector &y) const override;
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 
-   virtual ~FE_Evolution();
+   ~FE_Evolution() override;
 };
 
 

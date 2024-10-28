@@ -30,10 +30,25 @@ New and updated examples and miniapps
 - Added an MFEM example for the eikonal equation. This new solver is based on
   the proximal Galerkin method introduced by Keith and Surowiec.
 
+- Added a command line option to all miniapps (`-p` or `--send-port`) for
+  specifying the GLVis server socket port (19916 by default).
+
 GPU computing
 -------------
 - Added support for GPU-accelerated batched linear algebra (using cuBLAS,
   hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
+
+- A new GPU kernel dispatch mechanism was introduced. Users can instantiate
+  specialized kernels for specific combinations of (for example) polynomial
+  degree and number of quadrature points using
+  `DiffusionIntegrator::AddSpecialization` and
+  `MassIntegrator::AddSpecialization` (this functionality may be added to more
+  integrators in the future).
+
+- Calls to slower fallback kernels can be reported to `mfem::err` by setting
+  the environment variable `MFEM_REPORT_KERNELS` to any value other than `NO`
+  or by explicitly calling `KernelReporter::Enable`. Users can then add
+  specializations for these kernels to achieve higher performance.
 
 Miscellaneous
 -------------
