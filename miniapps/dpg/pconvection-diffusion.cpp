@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-     args.PrintOptions(mfem::out);
+      args.PrintOptions(mfem::out);
    }
 
    mesh.EnsureNCMesh(true);
