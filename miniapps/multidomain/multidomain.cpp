@@ -151,7 +151,7 @@ public:
       du_dt.SetSubVector(ess_tdofs_, 0.0);
    }
 
-   ~ConvectionDiffusionTDO()
+   ~ConvectionDiffusionTDO() override
    {
       delete q;
       delete d;
@@ -212,6 +212,7 @@ int main(int argc, char *argv[])
    real_t t_final = 5.0;
    real_t dt = 1.0e-5;
    bool visualization = true;
+   int visport = 19916;
    int vis_steps = 10;
 
    OptionsParser args(argc, argv);
@@ -321,7 +322,6 @@ int main(int argc, char *argv[])
                                                                   cylinder_surface_attributes);
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
    socketstream cyl_sol_sock;
    if (visualization)
    {

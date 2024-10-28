@@ -490,9 +490,9 @@ protected:
    Vector k, y;
 
 public:
-   virtual void Init(TimeDependentOperator &f_);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, real_t &t, real_t &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -504,9 +504,9 @@ protected:
    Vector k, y, z;
 
 public:
-   virtual void Init(TimeDependentOperator &f_);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, real_t &t, real_t &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 
@@ -518,9 +518,9 @@ protected:
    Vector k, y, z;
 
 public:
-   virtual void Init(TimeDependentOperator &f_);
+   void Init(TimeDependentOperator &f_) override;
 
-   virtual void Step(Vector &x, real_t &t, real_t &dt);
+   void Step(Vector &x, real_t &t, real_t &dt) override;
 };
 
 

@@ -46,16 +46,16 @@ public:
    real_t GetEnergy(const ParGridFunction &x) const
    { return GetParGridFunctionEnergy(x); }
 
-   virtual real_t GetEnergy(const Vector &x) const
+   real_t GetEnergy(const Vector &x) const override
    { return GetParGridFunctionEnergy(Prolongate(x)); }
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Return the local gradient matrix for the given true-dof vector x.
    /** The returned matrix does NOT have any boundary conditions imposed. */
    const SparseMatrix &GetLocalGradient(const Vector &x) const;
 
-   virtual Operator &GetGradient(const Vector &x) const;
+   Operator &GetGradient(const Vector &x) const override;
 
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }
@@ -64,7 +64,7 @@ public:
        parallel FE space. */
    /** After calling this method, the essential boundary conditions need to be
        set again. */
-   virtual void Update();
+   void Update() override;
 
    virtual ~ParNonlinearForm() { }
 };
@@ -83,7 +83,7 @@ protected:
 
 public:
    /// Computes the energy of the system
-   virtual real_t GetEnergy(const Vector &x) const;
+   real_t GetEnergy(const Vector &x) const override;
 
    /// Construct an empty ParBlockNonlinearForm. Initialize with SetParSpaces().
    ParBlockNonlinearForm() : pBlockGrad(NULL) { }
@@ -103,16 +103,16 @@ public:
    void SetParSpaces(Array<ParFiniteElementSpace *> &pf);
 
    // Here, rhs is a true dof vector
-   virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
-                               Array<Vector *> &rhs);
+   void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
+                       Array<Vector *> &rhs) override;
 
    /// Block T-Vector to Block T-Vector
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Return the local block gradient matrix for the given true-dof vector x
    const BlockOperator &GetLocalGradient(const Vector &x) const;
 
-   virtual BlockOperator &GetGradient(const Vector &x) const;
+   BlockOperator &GetGradient(const Vector &x) const override;
 
    /** @brief Set the operator type id for the blocks of the parallel gradient
        matrix/operator. The default type is Operator::Hypre_ParCSR. */

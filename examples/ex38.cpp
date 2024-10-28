@@ -408,9 +408,9 @@ public:
     @param [in] Tr transformation of finite element
     @param [out] elvect vector containing the
    */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect) override
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override
    {
       int dof = el.GetDof();
       shape.SetSize(dof);
@@ -476,9 +476,9 @@ public:
     @param [in] Tr transformation of finite element
     @param [out] elvect vector containing the
    */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect) override
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override
    {
       int dof = el.GetDof();
       shape.SetSize(dof);
