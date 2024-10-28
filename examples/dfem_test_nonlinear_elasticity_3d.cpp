@@ -1,7 +1,9 @@
 #include "dfem/dfem.hpp"
 #include "dfem/dfem_test_macro.hpp"
 #include "fem/pfespace.hpp"
+#include "linalg/hypre.hpp"
 #include "linalg/operator.hpp"
+#include "linalg/solvers.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -73,7 +75,9 @@ class ElasticityOperator : public Operator
          Operator(elasticity->Height()),
          elasticity(elasticity),
          dRdu(dRdu),
-         x_ess(dRdu->Height()) {}
+         x_ess(dRdu->Height())
+      {
+      }
 
       void Mult(const Vector &x, Vector &y) const override
       {
@@ -115,10 +119,6 @@ public:
 
       u.SetFromTrueDofs(x);
       auto dRdu = elasticity.template GetDerivativeWrt<0>({&u}, {mesh_nodes});
-
-      std::ofstream drdu_out("drdu_mat.dat");
-      dRdu->PrintMatlab(drdu_out);
-      drdu_out.close();
 
       jacobian.reset(
          new ElasticityJacobianOperator<
@@ -176,8 +176,7 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
                       0)->GetDim() - 1);
 
    out << "#qp: " << ir.GetNPoints() << "\n";
-   out << "#dof_el: " << h1fes.GetRestrictionMatrix()->Height() / mesh.GetNE() <<
-       "\n";
+   out << "#dof: " << h1fes.GetNDofs() << "\n";
 
    ParGridFunction u(&h1fes);
 
@@ -186,8 +185,10 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
                              const tensor<real_t, dim, dim> &J,
                              const double &w)
    {
-      mfem::real_t D1 = 100.0;
-      mfem::real_t C1 = 50.0;
+      // shear modulus
+      mfem::real_t D1 = 0.1e6;
+      // bulk modulus
+      mfem::real_t C1 = 1.0e6;
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       auto invJ = inv(J);
       auto dudx = dudxi * invJ;
@@ -231,17 +232,18 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
 
    Vector X = u.GetTrueVector();
 
-   GMRESSolver gmres(MPI_COMM_WORLD);
-   gmres.SetRelTol(1e-8);
-   gmres.SetMaxIter(1000);
-   gmres.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-8);
+   cg.SetMaxIter(1000);
+   cg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
 
    NewtonSolver newton(MPI_COMM_WORLD);
-   newton.SetSolver(gmres);
+   newton.SetSolver(cg);
    newton.SetOperator(elasticity);
    newton.SetRelTol(1e-6);
    newton.SetMaxIter(100);
-   newton.SetPrintLevel(1);
+   newton.SetAdaptiveLinRtol();
+   newton.SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
 
    elasticity.SetParameters(*mesh_nodes);
 

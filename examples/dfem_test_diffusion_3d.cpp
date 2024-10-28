@@ -7,6 +7,7 @@
 using namespace mfem;
 using mfem::internal::tensor;
 
+
 int test_diffusion_3d(
    std::string mesh_file, int refinements, int polynomial_order)
 {
@@ -61,7 +62,41 @@ int test_diffusion_3d(
    FunctionCoefficient f1_c(f1);
    f1_g.ProjectCoefficient(f1_c);
 
-   Vector x(f1_g);
+   Vector x(f1_g), y(h1fes.GetTrueVSize());
+   {
+      auto diffusion_mf_kernel =
+         [] MFEM_HOST_DEVICE (
+            const tensor<double, dim>& dudxi,
+            const tensor<double, dim, dim>& J,
+            const double& w)
+      {
+         auto invJ = inv(J);
+         return mfem::tuple{dudxi * invJ * transpose(invJ) * det(J) * w};
+      };
+
+      mfem::tuple argument_operators = {Gradient{"potential"}, Gradient{"coordinates"}, Weight{}};
+      mfem::tuple output_operator = {Gradient{"potential"}};
+
+      ElementOperator eop = {diffusion_mf_kernel, argument_operators, output_operator};
+      auto ops = mfem::tuple{eop};
+
+      auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
+      auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
+
+      DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+
+      dop.SetParameters({mesh_nodes});
+      StopWatch sw;
+      sw.Start();
+      for (int i = 0; i < num_samples; i++)
+      {
+         dop.Mult(x, y);
+      }
+      sw.Stop();
+      printf("dfem mf:       %fs\n", sw.RealTime() / num_samples);
+      y.HostRead();
+   }
+
    {
       auto diffusion_setup_kernel =
          [] MFEM_HOST_DEVICE (
@@ -94,21 +129,20 @@ int test_diffusion_3d(
          dop.Mult(x, qdata);
       }
       sw.Stop();
-      printf("dfem setup: %fs\n", sw.RealTime() / num_samples);
+      printf("dfem pa setup: %fs\n", sw.RealTime() / num_samples);
       qdata.HostRead();
    }
 
    // printf("qdata: ");
    // print_vector(qdata);
 
-   Vector y(h1fes.GetTrueVSize());
    {
       auto diffusion_apply_kernel =
          [] MFEM_HOST_DEVICE (
             const tensor<double, dim>& dudxi,
             const tensor<double, dim, dim>& qdata)
       {
-         return mfem::tuple{qdata * dudxi};
+         return mfem::tuple{dudxi * qdata};
       };
 
       mfem::tuple argument_operators = {Gradient{"potential"}, None{"qdata"}};
@@ -130,7 +164,7 @@ int test_diffusion_3d(
          dop.Mult(x, y);
       }
       sw.Stop();
-      printf("dfem apply: %fs\n", sw.RealTime() / num_samples);
+      printf("dfem pa apply: %fs\n", sw.RealTime() / num_samples);
       y.HostRead();
    }
 
@@ -145,21 +179,24 @@ int test_diffusion_3d(
       a.AddDomainIntegrator(diff_integ);
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
+      OperatorPtr A;
       StopWatch sw;
       sw.Start();
       a.Assemble();
-      sw.Stop();
-      printf("mfem setup: %fs\n", sw.RealTime());
-
       a.Finalize();
+      Array<int> empty;
+      a.FormSystemMatrix(empty, A);
+      sw.Stop();
+      printf("mfem pa setup: %fs\n", sw.RealTime());
+
       sw.Clear();
       sw.Start();
       for (int i = 0; i < num_samples; i++)
       {
-         a.Mult(x, y2);
+         A->Mult(x, y2);
       }
       sw.Stop();
-      printf("mfem apply: %fs\n", sw.RealTime() / num_samples);
+      printf("mfem pa apply: %fs\n", sw.RealTime() / num_samples);
       y2.HostRead();
    }
    // printf("y2: ");
