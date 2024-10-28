@@ -6,7 +6,7 @@
 
 using namespace mfem;
 using mfem::internal::tensor;
-
+using mfem::internal::dual;
 
 int test_diffusion_3d(
    std::string mesh_file, int refinements, int polynomial_order)
@@ -66,7 +66,7 @@ int test_diffusion_3d(
    {
       auto diffusion_mf_kernel =
          [] MFEM_HOST_DEVICE (
-            const tensor<double, dim>& dudxi,
+            const tensor<dual<real_t, real_t>, dim>& dudxi,
             const tensor<double, dim, dim>& J,
             const double& w)
       {
@@ -139,7 +139,7 @@ int test_diffusion_3d(
    {
       auto diffusion_apply_kernel =
          [] MFEM_HOST_DEVICE (
-            const tensor<double, dim>& dudxi,
+            const tensor<dual<real_t, real_t>, dim>& dudxi,
             const tensor<double, dim, dim>& qdata)
       {
          return mfem::tuple{dudxi * qdata};

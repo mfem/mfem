@@ -1,21 +1,33 @@
 #pragma once
 #include "dfem_util.hpp"
+#include <enzyme/utils>
+#include <enzyme/enzyme>
 
 namespace mfem
 {
 
-MFEM_HOST_DEVICE inline
+template <typename T0, typename T1>
+MFEM_HOST_DEVICE
+void process_kf_arg(const T0 &, T1 &)
+{
+   static_assert(always_false<T0, T1>,
+                 "process_kf_arg not implemented for arg type");
+}
+
+template <typename T>
+MFEM_HOST_DEVICE
 void process_kf_arg(
-   const DeviceTensor<1> &u,
-   double &arg)
+   const DeviceTensor<1, T> &u,
+   T &arg)
 {
    arg = u(0);
 }
 
-MFEM_HOST_DEVICE inline
+template <typename T>
+MFEM_HOST_DEVICE
 void process_kf_arg(
-   const DeviceTensor<1> &u,
-   internal::tensor<double> &arg)
+   const DeviceTensor<1, T> &u,
+   internal::tensor<T> &arg)
 {
    arg(0) = u(0);
 }
@@ -32,11 +44,11 @@ void process_kf_arg(
    }
 }
 
-template <int n, int m>
+template <typename T, int n, int m>
 MFEM_HOST_DEVICE
 void process_kf_arg(
    const DeviceTensor<1> &u,
-   internal::tensor<double, n, m> &arg)
+   internal::tensor<T, n, m> &arg)
 {
    for (int i = 0; i < m; i++)
    {
@@ -57,27 +69,17 @@ template <typename arg_type>
 MFEM_HOST_DEVICE
 void process_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
 {
-   // out << "qp: " << qp << "\n";
-   // for (int i = 0; i < u.GetShape()[0] * u.GetShape()[1]; i++)
-   // {
-   //    out << (&u(0, 0))[i] << " ";
-   // }
-   // out << "\n";
-
    const auto u_qp = Reshape(&u(0, qp), u.GetShape()[0]);
-   // for (int i = 0; i < u_qp.GetShape()[0]; i++)
-   // {
-   //    out << (&u_qp(0))[i] << " ";
-   // }
-   // out << "\n";
-
    process_kf_arg(u_qp, arg);
 }
 
 template <size_t num_fields, typename kf_args, std::size_t... i>
 MFEM_HOST_DEVICE
-void process_kf_args(const std::array<DeviceTensor<2>, num_fields> &u,
-                     kf_args &args, int qp, std::index_sequence<i...>)
+void process_kf_args(
+   const std::array<DeviceTensor<2>, num_fields> &u,
+   kf_args &args,
+   const int &qp,
+   std::index_sequence<i...>)
 {
    (process_kf_arg(u[i], mfem::get<i>(args), qp), ...);
 }
@@ -125,7 +127,6 @@ void process_kf_result(
    DeviceTensor<1, T> &r,
    const internal::tensor<T, n, m> &x)
 {
-   // out << "x: " << x << "\n";
    for (size_t i = 0; i < n; i++)
    {
       for (size_t j = 0; j < m; j++)
@@ -133,25 +134,24 @@ void process_kf_result(
          r(i + n * j) = x(i, j);
       }
    }
-
-   // out << "r: ";
-   // for (int i = 0; i < r.GetShape()[0]; i++)
-   // {
-   //    out << r(i) << " ";
-   // }
-   // out << "\n\n";
 }
 
-template <typename T> inline
-void process_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
-                    double &arg)
+template <typename T>
+MFEM_HOST_DEVICE inline
+void process_kf_arg(
+   const DeviceTensor<1> &u,
+   const DeviceTensor<1> &v,
+   double &arg)
 {
    arg = u(0);
 }
 
-template <int n, int m> inline
-void process_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
-                    internal::tensor<double, n, m> &arg)
+template <int n, int m>
+MFEM_HOST_DEVICE inline
+void process_kf_arg(
+   const DeviceTensor<1> &u,
+   const DeviceTensor<1> &v,
+   internal::tensor<double, n, m> &arg)
 {
    for (int i = 0; i < m; i++)
    {
@@ -160,23 +160,6 @@ void process_kf_arg(const DeviceTensor<1> &u, const DeviceTensor<1> &v,
          arg(j, i) = u((i * m) + j);
       }
    }
-}
-
-template <typename arg_type> inline
-void process_kf_arg(const DeviceTensor<2> &u, const DeviceTensor<2> &v,
-                    arg_type &arg, int qp)
-{
-   const auto u_qp = Reshape(&u(0, qp), u.GetShape()[0]);
-   const auto v_qp = Reshape(&v(0, qp), v.GetShape()[0]);
-   process_kf_arg(u_qp, v_qp, arg);
-}
-
-template <size_t num_fields, typename kf_args, std::size_t... i> inline
-void process_kf_args(std::array<DeviceTensor<2>, num_fields> &u,
-                     std::array<DeviceTensor<2>, num_fields> &v,
-                     kf_args &args, int qp, std::index_sequence<i...>)
-{
-   (process_kf_arg(u[i], v[i], mfem::get<i>(args), qp), ...);
 }
 
 template <typename kernel_func_t, typename kernel_args_ts, size_t num_args>
@@ -199,11 +182,12 @@ void apply_kernel(
 // This is an Enzyme regression and can be removed in later versions.
 template <typename kernel_t, typename arg_ts, std::size_t... Is,
           typename inactive_arg_ts>
-inline auto fwddiff_apply_enzyme_indexed(kernel_t kernel, arg_ts &&args,
-                                         arg_ts &&shadow_args,
-                                         std::index_sequence<Is...>,
-                                         inactive_arg_ts &&inactive_args,
-                                         std::index_sequence<>)
+MFEM_HOST_DEVICE inline
+auto fwddiff_apply_enzyme_indexed(kernel_t kernel, arg_ts &&args,
+                                  arg_ts &&shadow_args,
+                                  std::index_sequence<Is...>,
+                                  inactive_arg_ts &&inactive_args,
+                                  std::index_sequence<>)
 {
    using kf_return_t = typename create_function_signature<
                        decltype(&kernel_t::operator())>::type::return_t;
@@ -215,11 +199,12 @@ inline auto fwddiff_apply_enzyme_indexed(kernel_t kernel, arg_ts &&args,
 // Interleave function arguments for enzyme
 template <typename kernel_t, typename arg_ts, std::size_t... Is,
           typename inactive_arg_ts, std::size_t... Js>
-inline auto fwddiff_apply_enzyme_indexed(kernel_t kernel, arg_ts &&args,
-                                         arg_ts &&shadow_args,
-                                         std::index_sequence<Is...>,
-                                         inactive_arg_ts &&inactive_args,
-                                         std::index_sequence<Js...>)
+MFEM_HOST_DEVICE inline
+auto fwddiff_apply_enzyme_indexed(kernel_t kernel, arg_ts &&args,
+                                  arg_ts &&shadow_args,
+                                  std::index_sequence<Is...>,
+                                  inactive_arg_ts &&inactive_args,
+                                  std::index_sequence<Js...>)
 {
    using kf_return_t = typename create_function_signature<
                        decltype(&kernel_t::operator())>::type::return_t;
@@ -230,9 +215,10 @@ inline auto fwddiff_apply_enzyme_indexed(kernel_t kernel, arg_ts &&args,
 }
 
 template <typename kernel_t, typename arg_ts, typename inactive_arg_ts>
-inline auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args,
-                                 arg_ts &&shadow_args,
-                                 inactive_arg_ts &&inactive_args)
+MFEM_HOST_DEVICE inline
+auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args,
+                          arg_ts &&shadow_args,
+                          inactive_arg_ts &&inactive_args)
 {
    auto arg_indices = std::make_index_sequence<
                       mfem::tuple_size<std::remove_reference_t<arg_ts>>::value> {};
@@ -250,8 +236,8 @@ void apply_kernel_fwddiff_enzyme(
    DeviceTensor<1, double> &f_qp,
    const kf_t &kf,
    kernel_arg_ts &args,
-   const std::array<DeviceTensor<2>, num_args> &u,
    kernel_arg_ts &shadow_args,
+   const std::array<DeviceTensor<2>, num_args> &u,
    const std::array<DeviceTensor<2>, num_args> &v,
    int qp_idx)
 {

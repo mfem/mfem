@@ -16,8 +16,6 @@
 #include "tuple.hpp"
 #include "mesh/mesh.hpp"
 #include <linalg/tensor.hpp>
-#include <enzyme/utils>
-#include <enzyme/enzyme>
 
 using std::size_t;
 
@@ -98,6 +96,12 @@ void print_array(const mfem::Array<T>& v)
       }
    }
    std::cout << "]\n";
+}
+
+namespace AutoDiff
+{
+struct NativeDualNumber {};
+struct EnzymeForward {};
 }
 
 template <typename ... Ts>

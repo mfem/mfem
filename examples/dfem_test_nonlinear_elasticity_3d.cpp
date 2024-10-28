@@ -1,5 +1,6 @@
 #include "dfem/dfem.hpp"
 #include "dfem/dfem_test_macro.hpp"
+#include "examples/dfem/dfem_util.hpp"
 #include "fem/pfespace.hpp"
 #include "linalg/hypre.hpp"
 #include "linalg/operator.hpp"
@@ -8,6 +9,7 @@
 
 using namespace mfem;
 using mfem::internal::tensor;
+using mfem::internal::dual;
 
 class FDJacobian : public Operator
 {
@@ -120,11 +122,11 @@ public:
       u.SetFromTrueDofs(x);
       auto dRdu = elasticity.template GetDerivativeWrt<0>({&u}, {mesh_nodes});
 
-      jacobian.reset(
-         new ElasticityJacobianOperator<
-         typename std::remove_pointer<decltype(dRdu.get())>::type> (this, dRdu));
+      // jacobian.reset(
+      //    new ElasticityJacobianOperator<
+      //    typename std::remove_pointer<decltype(dRdu.get())>::type> (this, dRdu));
 
-      // jacobian.reset(new FDJacobian(*this, x));
+      jacobian.reset(new FDJacobian(*this, x));
 
       return *jacobian;
    }
@@ -181,19 +183,19 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
    ParGridFunction u(&h1fes);
 
    auto elasticity_kernel = [] MFEM_HOST_DEVICE
-                            (const tensor<real_t, dim, dim> &dudxi,
+                            (const tensor<dual<real_t, real_t>, dim, dim> &dudxi,
                              const tensor<real_t, dim, dim> &J,
-                             const double &w)
+                             const real_t &w)
    {
       // shear modulus
-      mfem::real_t D1 = 0.1e6;
+      dual<real_t, real_t> D1{0.1e6};
       // bulk modulus
-      mfem::real_t C1 = 1.0e6;
+      dual<real_t, real_t> C1{1.0e6};
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       auto invJ = inv(J);
       auto dudx = dudxi * invJ;
-      real_t F = det(I + dudx);
-      real_t p = -2.0 * D1 * F * (F - 1);
+      dual<real_t, real_t> F = det(I + dudx);
+      dual<real_t, real_t> p = -2.0 * D1 * F * (F - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
       auto sigma = -(p / F) * I + 2.0 * (C1 / pow(F, 5.0 / 3.0)) * devB;
 
@@ -208,7 +210,8 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
    std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-   DifferentiableOperator dop{solutions, parameters, mfem::tuple{op}, mesh, ir};
+   DifferentiableOperator dop(solutions, parameters,
+                              mfem::tuple{op}, mesh, ir, AutoDiff::EnzymeForward{});
 
    ElasticityOperator elasticity(h1fes, dop, ess_tdof_list);
 

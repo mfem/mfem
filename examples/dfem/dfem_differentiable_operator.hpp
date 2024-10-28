@@ -20,6 +20,7 @@
 #include "dfem_util.hpp"
 #include "dfem_interpolate.hpp"
 #include "dfem_qfunction.hpp"
+#include "dfem_qfunction_dual.hpp"
 #include "dfem_integrate.hpp"
 
 namespace mfem
@@ -32,7 +33,8 @@ template <
    size_t num_solutions,
    size_t num_parameters,
    size_t num_fields = num_solutions + num_parameters,
-   size_t num_kernels = mfem::tuple_size<kernels_tuple>::value
+   size_t num_kernels = mfem::tuple_size<kernels_tuple>::value,
+   typename autodiff_t = AutoDiff::NativeDualNumber
    >
 class DifferentiableOperator : public Operator
 {
@@ -239,7 +241,8 @@ public:
                           std::array<FieldDescriptor, num_parameters> p,
                           kernels_tuple ks,
                           ParMesh &m,
-                          const IntegrationRule &integration_rule) :
+                          const IntegrationRule &integration_rule,
+                          autodiff_t ad = AutoDiff::NativeDualNumber{}) :
       kernels(ks),
       mesh(m),
       dim(mesh.Dimension()),
@@ -323,7 +326,8 @@ template <
    size_t num_solutions,
    size_t num_parameters,
    size_t num_fields,
-   size_t num_kernels
+   size_t num_kernels,
+   typename autodiff_t
    >
 template <
    typename kernel_t
@@ -332,7 +336,8 @@ void DifferentiableOperator<kernels_tuple,
      num_solutions,
      num_parameters,
      num_fields,
-     num_kernels>::Action::create_action_callback(
+     num_kernels,
+     autodiff_t>::Action::create_action_callback(
         kernel_t kernel,
         mult_func_t &func)
 {
@@ -558,7 +563,8 @@ template <
    size_t num_solutions,
    size_t num_parameters,
    size_t num_fields,
-   size_t num_kernels
+   size_t num_kernels,
+   typename autodiff_t
    >
 template <
    size_t derivative_idx
@@ -570,8 +576,9 @@ void DifferentiableOperator<kernels_tuple,
      num_solutions,
      num_parameters,
      num_fields,
-     num_kernels>::Derivative<derivative_idx>::create_callback(kernel_t kernel,
-                                                               mult_func_t &func)
+     num_kernels,
+     autodiff_t>::Derivative<derivative_idx>::create_callback(kernel_t kernel,
+                                                              mult_func_t &func)
 {
    using entity_t = typename kernel_t::entity_t;
 
@@ -750,19 +757,35 @@ void DifferentiableOperator<kernels_tuple,
                MFEM_FOREACH_THREAD(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
-
-                  auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
-                  auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
-
                   auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
-                  apply_kernel_fwddiff_enzyme(
-                     r,
-                     kernel.func,
-                     kernel_args,
-                     input_shmem,
-                     kernel_shadow_args,
-                     shadow_shmem,
-                     q);
+                  auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+
+                  if constexpr (std::is_same_v<autodiff_t, AutoDiff::EnzymeForward>)
+                  {
+                     auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+                     apply_kernel_fwddiff_enzyme(
+                        r,
+                        kernel.func,
+                        kernel_args,
+                        kernel_shadow_args,
+                        input_shmem,
+                        shadow_shmem,
+                        q);
+                  }
+                  else if constexpr (std::is_same_v<autodiff_t, AutoDiff::NativeDualNumber>)
+                  {
+                     apply_kernel_native_dual(
+                        r,
+                        kernel.func,
+                        kernel_args,
+                        input_shmem,
+                        shadow_shmem,
+                        q);
+                  }
+                  else
+                  {
+                     static_assert(always_false<autodiff_t>, "unknown autodiff type");
+                  }
                   // printf(">>>>> WARNING: AD DISABLED\n");
                }
             }
