@@ -799,10 +799,10 @@ public:
    void Set(int i, Coefficient *c, bool own=true);
 
    /// Set ownership of the i'th coefficient
-   void SetOwnership(int i, bool own) { ownCoeff[i] = own; };
+   void SetOwnership(int i, bool own) { ownCoeff[i] = own; }
 
    /// Get ownership of the i'th coefficient
-   bool GetOwnership(int i) const { return ownCoeff[i]; };
+   bool GetOwnership(int i) const { return ownCoeff[i]; }
 
    /// Evaluates i'th component of the vector of coefficients and returns the
    /// value.
@@ -1327,10 +1327,10 @@ public:
    void Set(int i, int j, Coefficient * c, bool own=true);
 
    /// Set ownership of the coefficient at (i,j) in the matrix
-   void SetOwnership(int i, int j, bool own) { ownCoeff[i*width+j] = own; };
+   void SetOwnership(int i, int j, bool own) { ownCoeff[i*width+j] = own; }
 
    /// Get ownership of the coefficient at (i,j) in the matrix
-   bool GetOwnership(int i, int j) const { return ownCoeff[i*width+j]; };
+   bool GetOwnership(int i, int j) const { return ownCoeff[i*width+j]; }
 
    using MatrixCoefficient::Eval;
 
@@ -1373,10 +1373,10 @@ public:
    void Set(int i, VectorCoefficient * c, bool own=true);
 
    /// Set ownership of the i'th coefficient
-   void SetOwnership(int i, bool own) { ownCoeff[i] = own; };
+   void SetOwnership(int i, bool own) { ownCoeff[i] = own; }
 
    /// Get ownership of the i'th coefficient
-   bool GetOwnership(int i) const { return ownCoeff[i]; };
+   bool GetOwnership(int i) const { return ownCoeff[i]; }
 
    using MatrixCoefficient::Eval;
 
