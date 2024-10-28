@@ -1434,8 +1434,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
    // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
    pcg.SetMaxIter(1000);
    // initial values for relative and absolute tolerance
-   pcg.SetRelTol(1e-15);
-   pcg.SetAbsTol(1e-15);
+   pcg.SetRelTol(1e-13);
+   pcg.SetAbsTol(1e-13);
    pcg.SetPreconditioner(*precon);
    pcg.SetOperator(*RTxM_LH);
 }
@@ -1734,8 +1734,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceSetupPCG()
    // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
    pcg_vea.SetMaxIter(1000);
    // initial values for relative and absolute tolerance
-   pcg_vea.SetRelTol(1e-15);
-   pcg_vea.SetAbsTol(1e-15);
+   pcg_vea.SetRelTol(1e-13);
+   pcg_vea.SetAbsTol(1e-13);
    pcg_vea.SetPreconditioner(*precon_vea);
    pcg_vea.SetOperator(*RTxM_LH_vea);
 }
