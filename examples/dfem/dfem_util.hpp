@@ -1204,18 +1204,18 @@ std::array<DofToQuadMap, N> load_dtq_mem(
 
 template <typename field_operator_ts, size_t num_fields, size_t num_kinputs, std::size_t... Is>
 MFEM_HOST_DEVICE inline
-std::array<DeviceTensor<1, const double>, num_kinputs>
+std::array<DeviceTensor<1>, num_kinputs>
 load_field_mem(
    void *mem,
    const int &global_offset,
    const std::array<int, num_fields> &sizes,
    const std::array<int, num_kinputs> &kinput_to_field,
    const field_operator_ts &fops,
-   const std::array<DeviceTensor<2, const double>, num_fields> &fields_e,
+   const std::array<DeviceTensor<2>, num_fields> &fields_e,
    const int &entity_idx,
    std::index_sequence<Is...>)
 {
-   std::array<DeviceTensor<1, const double>, num_kinputs> f;
+   std::array<DeviceTensor<1>, num_kinputs> f;
    int offset = global_offset;
 
    ([&](auto &f, const auto &fop, const int &field_idx, const size_t &kinput_idx)
@@ -1225,8 +1225,8 @@ load_field_mem(
          if constexpr (
             std::is_same_v<std::decay_t<decltype(fop)>, BareFieldOperator::None>)
          {
-            f = DeviceTensor<1, const double>(
-                   reinterpret_cast<const real_t *>(&fields_e[field_idx](0, entity_idx)),
+            f = DeviceTensor<1>(
+                   reinterpret_cast<real_t *>(&fields_e[field_idx](0, entity_idx)),
                    sizes[kinput_idx]);
             offset += sizes[field_idx];
          }
@@ -1244,7 +1244,7 @@ load_field_mem(
                   fields_e[field_idx](k, entity_idx);
             }
 
-            f = DeviceTensor<1, const double>(
+            f = DeviceTensor<1>(
                    &reinterpret_cast<real_t *> (mem)[offset], sizes[kinput_idx]);
             offset += sizes[field_idx];
          }
@@ -1256,11 +1256,11 @@ load_field_mem(
 }
 
 MFEM_HOST_DEVICE inline
-DeviceTensor<1, const double> load_direction_mem(
+DeviceTensor<1> load_direction_mem(
    void *mem,
    int offset,
    const int &size,
-   const DeviceTensor<2, const double> &direction,
+   const DeviceTensor<2> &direction,
    const int &entity_idx)
 {
    int block_size = MFEM_THREAD_SIZE(x) *
@@ -1275,7 +1275,7 @@ DeviceTensor<1, const double> load_direction_mem(
    }
    MFEM_SYNC_THREAD;
 
-   return DeviceTensor<1, const double>(
+   return DeviceTensor<1>(
              &reinterpret_cast<real_t *>(mem)[offset], size);
 }
 
@@ -1356,17 +1356,17 @@ void zero_all(std::array<DeviceTensor<2>, N> &v)
 }
 
 template<size_t N, size_t... i>
-std::array<DeviceTensor<2, const double>, N> wrap_fields_impl(
+std::array<DeviceTensor<2>, N> wrap_fields_impl(
    std::array<Vector, N> &fields,
    std::array<int, N> &field_sizes,
    int num_entities,
    std::index_sequence<i...>)
 {
-   return std::array<DeviceTensor<2, const double>, N>
+   return std::array<DeviceTensor<2>, N>
    {
       {
-         DeviceTensor<2, const double>(
-            fields[i].Read(),
+         DeviceTensor<2>(
+            fields[i].ReadWrite(),
             field_sizes[i],
             num_entities)...
       }
@@ -1374,7 +1374,7 @@ std::array<DeviceTensor<2, const double>, N> wrap_fields_impl(
 }
 
 template <size_t N>
-std::array<DeviceTensor<2, const double>, N> wrap_fields(
+std::array<DeviceTensor<2>, N> wrap_fields(
    std::array<Vector, N> &fields,
    std::array<int, N> &field_sizes,
    int num_entities)

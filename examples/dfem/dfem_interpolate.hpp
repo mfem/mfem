@@ -11,7 +11,7 @@ MFEM_HOST_DEVICE inline
 void map_field_to_quadrature_data_tensor_product(
    DeviceTensor<2> &field_qp,
    const DofToQuadMap &dtq,
-   const DeviceTensor<1, const double> &field_e,
+   const DeviceTensor<1> &field_e,
    const field_operator_t &input,
    const DeviceTensor<1, const double> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem)
@@ -189,23 +189,8 @@ void map_field_to_quadrature_data_tensor_product(
       std::is_same_v<std::decay_t<field_operator_t>, BareFieldOperator::None>)
    {
       const int q1d = B.GetShape()[0];
-      auto field = Reshape(&field_e[0], input.size_on_qp, q1d, q1d, q1d);
-      auto fqp = Reshape(&field_qp[0], input.size_on_qp, q1d, q1d, q1d);
-
-      for (int sq = 0; sq < input.size_on_qp; sq++)
-      {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
-               {
-                  fqp(sq, qx, qy, qz) = field(sq, qx, qy, qz);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
+      auto field = Reshape(&field_e[0], input.size_on_qp, q1d * q1d * q1d);
+      field_qp = field;
    }
    else
    {
@@ -315,7 +300,7 @@ template <typename T = NonTensorProduct, size_t num_kinputs, typename field_oper
 MFEM_HOST_DEVICE inline
 void map_fields_to_quadrature_data(
    std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
-   const std::array<DeviceTensor<1, const double>, num_kinputs> &fields_e,
+   const std::array<DeviceTensor<1>, num_kinputs> &fields_e,
    const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
    const field_operator_ts &fops,
    const DeviceTensor<1, const double> &integration_weights,
@@ -344,7 +329,7 @@ template <typename T, typename field_operator_t>
 MFEM_HOST_DEVICE
 void map_field_to_quadrature_data_conditional(
    DeviceTensor<2> &field_qp,
-   const DeviceTensor<1, const double> &field_e,
+   const DeviceTensor<1> &field_e,
    const DofToQuadMap &dtqmap,
    field_operator_t &fop,
    const DeviceTensor<1, const double> &integration_weights,
@@ -394,7 +379,7 @@ template <typename T = NonTensorProduct, size_t num_kinputs, typename field_oper
 MFEM_HOST_DEVICE
 void map_direction_to_quadrature_data_conditional(
    std::array<DeviceTensor<2>, num_kinputs> &directions_qp,
-   const DeviceTensor<1, const double> &direction_e,
+   const DeviceTensor<1> &direction_e,
    const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
    field_operator_ts fops,
    const DeviceTensor<1, const double> &integration_weights,

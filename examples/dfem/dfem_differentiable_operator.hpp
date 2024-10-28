@@ -675,7 +675,7 @@ void DifferentiableOperator<kernels_tuple,
 
       auto ye = Reshape(ye_mem.ReadWrite(), num_test_dof, test_vdim, num_entities);
       auto wrapped_fields_e = wrap_fields(this->fields_e, shmem_info.field_sizes, num_entities);
-      auto wrapped_direction_e = Reshape(direction_e.Read(), shmem_info.direction_size, num_entities);
+      auto wrapped_direction_e = Reshape(direction_e.ReadWrite(), shmem_info.direction_size, num_entities);
 
       forall([=] MFEM_HOST_DEVICE (int e, double *shmem)
       {
