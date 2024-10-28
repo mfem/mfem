@@ -1786,7 +1786,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
    const Vector& x, Vector& y) const
 {
-   y = 0.0;
    Vector X(fes_ho.GetTrueVSize());
 
    Vector X_dim(R_vea->Width());
