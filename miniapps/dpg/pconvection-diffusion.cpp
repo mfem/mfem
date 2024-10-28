@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
    {
       if (myid == 0)
       {
-	args.PrintUsage(mfem::out);
+	 args.PrintUsage(mfem::out);
       }
       return 1;
    }
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-     args.PrintOptions(mfem::out);
+      args.PrintOptions(mfem::out);
    }
 
    mesh.EnsureNCMesh(true);
