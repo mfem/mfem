@@ -34,14 +34,8 @@ protected:
    Array<int> Bf_offsets;
    real_t *Bf_data;
 
-   Array<int> D_offsets, D_f_offsets;
-   real_t *D_data;
-
-   Array<int> E_offsets;
-   real_t *E_data;
-
-   Array<int> &G_offsets{E_offsets};
-   real_t *G_data;
+   Array<int> D_offsets, D_f_offsets, D_face_offsets;
+   real_t *D_data, *D_face_data;
 
    bool bsym;
 
@@ -49,7 +43,7 @@ protected:
 
    void InitA();
    void InitBD();
-   void InitEG();
+   void InitDFaces();
    virtual void ComputeS() = 0;
 
 public:

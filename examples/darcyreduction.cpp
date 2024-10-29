@@ -26,6 +26,7 @@ DarcyReduction::DarcyReduction(FiniteElementSpace *fes_u_,
    Af_data = NULL;
    Bf_data = NULL;
    D_data = NULL;
+   D_face_data = NULL;
 
    S = NULL;
 }
@@ -38,6 +39,7 @@ DarcyReduction::~DarcyReduction()
    delete[] Af_data;
    delete[] Bf_data;
    delete[] D_data;
+   delete[] D_face_data;
 
    delete S;
 }
@@ -109,28 +111,31 @@ void DarcyReduction::InitBD()
    }
 }
 
-void DarcyReduction::InitEG()
+void DarcyReduction::InitDFaces()
 {
    FaceElementTransformations *FTr;
    Mesh *mesh = fes_u->GetMesh();
    int num_faces = mesh->GetNumFaces();
 
-   // Define E_offsets and allocate E_data and G_data
-   E_offsets.SetSize(num_faces+1);
-   E_offsets[0] = 0;
+   // Define D_face_offsets and allocate D_face_data
+   D_face_offsets.SetSize(num_faces+1);
+   D_face_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
    {
       FTr = mesh->GetInteriorFaceTransformations(f, 0);
+      if (!FTr)
+      {
+         D_face_offsets[f+1] = D_face_offsets[f];
+         continue;
+      }
 
-      int d_size_1 = (FTr)?(D_f_offsets[FTr->Elem1No+1] - D_f_offsets[FTr->Elem1No])
-                     :(0);
-      int d_size_2 = (FTr)?(D_f_offsets[FTr->Elem2No+1] - D_f_offsets[FTr->Elem2No])
-                     :(0);
-      E_offsets[f+1] = E_offsets[f] + d_size_1 * d_size_2;
+      int d_size_1 = D_f_offsets[FTr->Elem1No+1] - D_f_offsets[FTr->Elem1No];
+      int d_size_2 = D_f_offsets[FTr->Elem2No+1] - D_f_offsets[FTr->Elem2No];
+
+      D_face_offsets[f+1] = D_face_offsets[f] + d_size_1 * d_size_2 * 2;
    }
 
-   E_data = new real_t[E_offsets[num_faces]]();//init by zeros
-   G_data = new real_t[G_offsets[num_faces]]();//init by zeros
+   D_face_data = new real_t[D_face_offsets[num_faces]]();//init by zeros
 }
 
 void DarcyReduction::Init(const Array<int> &)
@@ -169,13 +174,13 @@ void DarcyReduction::AssembleDivMatrix(int el, const DenseMatrix &B)
 
 void DarcyReduction::AssemblePotFaceMatrix(int face, const DenseMatrix &elmat)
 {
-   if (!E_data || !G_data) { InitEG(); }
+   if (!D_face_data) { InitDFaces(); }
 
    FaceElementTransformations *Tr =
       fes_p->GetMesh()->GetFaceElementTransformations(face, 0);
    const int ndof1 = fes_p->GetFE(Tr->Elem1No)->GetDof();
 
-   //D1
+   //D_11
    DenseMatrix D_1(ndof1);
    D_1.CopyMN(elmat, ndof1, ndof1, 0, 0);
    AssemblePotMassMatrix(Tr->Elem1No, D_1);
@@ -184,22 +189,23 @@ void DarcyReduction::AssemblePotFaceMatrix(int face, const DenseMatrix &elmat)
    {
       const int ndof2 = fes_p->GetFE(Tr->Elem2No)->GetDof();
 
-      //D2
+      //D_22
       DenseMatrix D_2(ndof2);
       D_2.CopyMN(elmat, ndof2, ndof2, ndof1, ndof1);
       AssemblePotMassMatrix(Tr->Elem2No, D_2);
 
-      //E
-      DenseMatrix E(ndof1, ndof2);
-      E.CopyMN(elmat, ndof1, ndof2, 0, ndof1);
-      DenseMatrix E_f(E_data + E_offsets[face], ndof1, ndof2);
-      E_f += E;
+      //D_12
+      DenseMatrix D_12(ndof1, ndof2);
+      D_12.CopyMN(elmat, ndof1, ndof2, 0, ndof1);
+      DenseMatrix D_f_12(D_face_data + D_face_offsets[face], ndof1, ndof2);
+      D_f_12 += D_12;
 
-      //G
-      DenseMatrix G(ndof2, ndof1);
-      G.CopyMN(elmat, ndof2, ndof1, ndof1, 0);
-      DenseMatrix G_f(G_data + G_offsets[face], ndof2, ndof1);
-      G_f += G;
+      //D_21
+      DenseMatrix D_21(ndof2, ndof1);
+      D_21.CopyMN(elmat, ndof2, ndof1, ndof1, 0);
+      DenseMatrix D_f_21(D_face_data + D_face_offsets[face] + ndof1*ndof2,
+                         ndof2, ndof1);
+      D_f_21 += D_21;
    }
 }
 
@@ -223,13 +229,9 @@ void DarcyReduction::Reset()
    {
       memset(D_data, 0, D_offsets.Last() * sizeof(real_t));
    }
-   if (E_data)
+   if (D_face_data)
    {
-      memset(E_data, 0, E_offsets.Last() * sizeof(real_t));
-   }
-   if (G_data)
-   {
-      memset(G_data, 0, G_offsets.Last() * sizeof(real_t));
+      memset(D_face_data, 0, D_face_offsets.Last() * sizeof(real_t));
    }
 }
 
@@ -298,7 +300,7 @@ void DarcyFluxReduction::ComputeS()
 
    // Face contributions
 
-   if (E_data && G_data)
+   if (D_face_data)
    {
       const int nfaces = mesh->GetNumFaces();
       Array<int> p_dofs_1, p_dofs_2;
@@ -308,17 +310,17 @@ void DarcyFluxReduction::ComputeS()
          FaceElementTransformations *Tr = mesh->GetInteriorFaceTransformations(f, 0);
          if (!Tr) { continue; }
 
-         int d_dofs_size_1 = D_f_offsets[Tr->Elem1No+1] - D_f_offsets[Tr->Elem1No];
-         int d_dofs_size_2 = D_f_offsets[Tr->Elem2No+1] - D_f_offsets[Tr->Elem2No];
-
          fes_p->GetElementDofs(Tr->Elem1No, p_dofs_1);
          fes_p->GetElementDofs(Tr->Elem2No, p_dofs_2);
+         const int d_dofs_size_1 = p_dofs_1.Size();
+         const int d_dofs_size_2 = p_dofs_2.Size();
 
-         DenseMatrix E(E_data + E_offsets[f], d_dofs_size_1, d_dofs_size_2);
-         S->AddSubMatrix(p_dofs_1, p_dofs_2, E, skip_zeros);
+         DenseMatrix D_12(D_face_data + D_face_offsets[f], d_dofs_size_1, d_dofs_size_2);
+         S->AddSubMatrix(p_dofs_1, p_dofs_2, D_12, skip_zeros);
 
-         DenseMatrix G(G_data + G_offsets[f], d_dofs_size_2, d_dofs_size_1);
-         S->AddSubMatrix(p_dofs_2, p_dofs_1, G, skip_zeros);
+         DenseMatrix D_21(D_face_data + D_face_offsets[f] +
+                          d_dofs_size_1 * d_dofs_size_2, d_dofs_size_2, d_dofs_size_1);
+         S->AddSubMatrix(p_dofs_2, p_dofs_1, D_21, skip_zeros);
       }
    }
 
