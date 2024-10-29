@@ -11,10 +11,10 @@
 
 #include "fem.hpp"
 #include <cmath>
+#include "intrules.hpp"
 
 namespace mfem
 {
-
 void LinearFormIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)
@@ -45,7 +45,9 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   bool deleteRule;
+   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr, deleteRule);
+
    if (ir == NULL)
    {
       // ir = &IntRules.Get(el.GetGeomType(),
@@ -63,6 +65,10 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       el.CalcPhysShape(Tr, shape);
 
       add(elvect, ip.weight * val, shape, elvect);
+   }
+   if (deleteRule)
+   {
+      delete ir;
    }
 }
 
@@ -86,7 +92,8 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   bool deleteRule;
+   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr, deleteRule);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
@@ -104,6 +111,10 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
       Qvec *= ip.weight * Tr.Weight();
 
       dshape.AddMult(Qvec, elvect);
+   }
+   if (deleteRule)
+   {
+      delete ir;
    }
 }
 
@@ -278,7 +289,8 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof * vdim);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   bool deleteRule;
+   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr, deleteRule);
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();
@@ -304,6 +316,10 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
             elvect(dof*k+s) += ip.weight * cf * shape(s);
          }
       }
+   }
+   if (deleteRule)
+   {
+      delete ir;
    }
 }
 
@@ -337,7 +353,8 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof*(vdim/sdim));
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   bool deleteRule;
+   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr, deleteRule);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
@@ -364,6 +381,7 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
          for (int s = 0; s < dof; ++s) { elvect(s+k*dof) += pelvect(s); }
       }
    }
+   if (deleteRule) {delete ir;}
 }
 
 void VectorDomainLFGradIntegrator::AssembleDeltaElementVect(
@@ -463,7 +481,8 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   bool deleteRule;
+   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr, deleteRule);
    if (ir == NULL)
    {
       // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
@@ -482,6 +501,7 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
       vec *= ip.weight * Tr.Weight();
       vshape.AddMult (vec, elvect);
    }
+   if (deleteRule) {delete ir;}
 }
 
 void VectorFEDomainLFIntegrator::AssembleDeltaElementVect(
@@ -512,7 +532,8 @@ void VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   bool deleteRule;
+   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr, deleteRule);
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();
@@ -530,6 +551,7 @@ void VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect(
       vec *= ip.weight * Tr.Weight();
       curlshape.AddMult (vec, elvect);
    }
+   if (deleteRule) {delete ir;}
 }
 
 void VectorFEDomainLFCurlIntegrator::AssembleDeltaElementVect(
@@ -558,7 +580,8 @@ void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   bool deleteRule;
+   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr, deleteRule);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
@@ -575,6 +598,7 @@ void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
 
       add(elvect, ip.weight * val, divshape, elvect);
    }
+   if (deleteRule) {delete ir;}
 }
 
 void VectorFEDomainLFDivIntegrator::AssembleDeltaElementVect(
