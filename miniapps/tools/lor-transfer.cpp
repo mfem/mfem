@@ -76,6 +76,8 @@ int main(int argc, char *argv[])
    bool useH1 = false;
    int visport = 19916;
    bool use_pointwise_transfer = false;
+   const char *device_config = "cpu";
+   bool use_ea       = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -96,6 +98,11 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
+                  "--no-ea-version",
+                  "Use element assembly version.");
    args.ParseCheck();
 
    // Read the mesh from the given mesh file.
@@ -168,6 +175,9 @@ int main(int argc, char *argv[])
    {
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
+
+   gt->UseEA(use_ea);
+
    const Operator &R = gt->ForwardOperator();
 
    // HO->LOR restriction

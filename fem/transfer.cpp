@@ -17,16 +17,12 @@
 namespace mfem
 {
 
-//Tolerance for comparing between non-uniform and uniform (device friendly) transfers
-constexpr real_t ho_lor_tol = 1e-10;
-
 GridTransfer::GridTransfer(FiniteElementSpace &dom_fes_,
                            FiniteElementSpace &ran_fes_,
                            MemoryType d_mt_)
    : dom_fes(dom_fes_), ran_fes(ran_fes_),
      oper_type(Operator::ANY_TYPE),
-     fw_t_oper(), bw_t_oper(), use_device(false), verify_solution(false),
-     d_mt(d_mt_)
+     fw_t_oper(), bw_t_oper(), use_ea(false), d_mt(d_mt_)
 {
 #ifdef MFEM_USE_MPI
    const bool par_dom = dynamic_cast<ParFiniteElementSpace*>(&dom_fes);
@@ -506,15 +502,15 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
 
 L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 (const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
- const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+ const bool use_ea_, MemoryType d_mt_)
    : L2Projection(fes_ho_, fes_lor_, d_mt_),
-     use_device(use_device_), verify_solution(verify_solution_)
+     use_ea(use_ea_)
 {
 
-   if (use_device || verify_solution)
+   if (use_ea)
    {
       DeviceL2ProjectionL2Space();
-      if (!verify_solution) {return;}
+      return;
    }
 
    Mesh *mesh_ho = fes_ho.GetMesh();
@@ -635,28 +631,6 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
       }
    }
 
-
-   if (verify_solution)
-   {
-      real_t R_error = 0.0, P_error = 0.0;
-      for (int i=0; i<R.Size(); ++i)
-      {
-         R_error += (R[i] - R_ea.HostRead()[i])*(R[i] - R_ea.HostRead()[i]);
-      }
-      R_error = std::sqrt(R_error);
-
-      for (int j=0; j<P.Size(); ++j)
-      {
-         P_error += (P[j] - P_ea.HostRead()[j])*(P[j] - P_ea.HostRead()[j]);
-      }
-      P_error = std::sqrt(P_error);
-
-      if (R_error > ho_lor_tol || P_error > ho_lor_tol)
-      {
-         MFEM_VERIFY(false,
-                     "Error in operator assembly R_error = "<<R_error<<" P_error ="<<P_error);
-      }
-   }
 }
 
 
@@ -697,14 +671,14 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
       offsets[iho+1] = offsets[iho] + fe_ho.GetDof()*fe_lor.GetDof()*nref;
    }
 
-   // R_ea will contain the restriction (L^2 projection operator) defined on each
+   // R will contain the restriction (L^2 projection operator) defined on each
    // coarse HO element (and corresponding patch of LOR elements)
-   R_ea.SetSize(offsets[nel_ho]);
+   R.SetSize(offsets[nel_ho]);
 
    if (build_P)
    {
       // P will contain the corresponding prolongation operator
-      P_ea.SetSize(offsets[nel_ho]);
+      P.SetSize(offsets[nel_ho]);
    }
 
    // Assemble mixed mass matrix
@@ -755,7 +729,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
                                     nel_lor);
 
       // ndof_lor x ndof_ho
-      auto v_R_ea = Reshape(R_ea.Write(), ndof_lor, nref, ndof_ho, nel_ho);
+      auto v_R = Reshape(R.Write(), ndof_lor, nref, ndof_ho, nel_ho);
 
       MFEM_VERIFY(nel_lor==nel_ho*nref, "nel_lor != nel_ho*nref");
 
@@ -777,7 +751,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
                   {
                      dot += v_Minv_ear_lor(i, k, lor_idx) * v_M_mixed_all(k, j, iref, iho);
                   }
-                  v_R_ea(i, iref, j, iho) = dot;
+                  v_R(i, iref, j, iho) = dot;
                }
             }
          }
@@ -791,7 +765,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
       // M_lor is size of ndof_lor x ndof_lor
       // R is size of (ndof_lor x nref x ndof_ho)
       auto v_M_ea_lor = Reshape(M_ea_lor.Read(), ndof_lor, ndof_lor, nel_lor);
-      auto v_R_ea = Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+      auto v_R = Reshape(R.Read(), ndof_lor, nref, ndof_ho, nel_ho);
       // R^T M_LO is of size nref x ndof_lor
 
       // Compute R^T M_L
@@ -815,7 +789,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
                   real_t dot = 0.0;
                   for (int t=0; t<ndof_lor; ++t)
                   {
-                     dot += v_R_ea(t, iref, iho, e) * v_M_ea_lor(t, jlo, lor_idx);
+                     dot += v_R(t, iref, iho, e) * v_M_ea_lor(t, jlo, lor_idx);
                   }
 
                   v_RtM_L(iho, jlo, iref, e) = dot;
@@ -841,7 +815,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
                {
                   for (int ilo=0; ilo<ndof_lor; ++ilo)
                   {
-                     dot += v_RtM_L(iho, ilo, iref, e) *  v_R_ea(ilo, iref, jho, e);
+                     dot += v_RtM_L(iho, ilo, iref, e) *  v_R(ilo, iref, jho, e);
                   }
                }
                v_RtM_LR(iho, jho, e) = dot;
@@ -856,12 +830,12 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
 
       BatchedLinAlg::Invert(InvRtM_LR);
 
-      // Form P_ea
-      // P_ea should be of dimension (ndof_ho x ndof_ho) x (ndof_ho x nref*ndof_lor)
-      // P_ea ndof_ho x nref*ndof_lor
+      // Form P
+      // P should be of dimension (ndof_ho x ndof_ho) x (ndof_ho x nref*ndof_lor)
+      // P ndof_ho x nref*ndof_lor
       auto v_InvRtM_LR = Reshape(InvRtM_LR.Read(), ndof_ho, ndof_ho,
                                  nel_ho);
-      auto v_P_ea = Reshape(P_ea.Write(), ndof_ho, ndof_lor, nref, nel_ho);
+      auto v_P = Reshape(P.Write(), ndof_ho, ndof_lor, nref, nel_ho);
 
       mfem::forall_3D(nel_ho, ndof_lor, nref, ndof_ho, [=] MFEM_HOST_DEVICE (int e)
       {
@@ -876,7 +850,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
                   {
                      dot += v_InvRtM_LR(iho, t, e) * v_RtM_L(t, ilo, iref, e);
                   }
-                  v_P_ea(iho, ilo, iref, e) = dot;
+                  v_P(iho, ilo, iref, e) = dot;
 
                }
             }
@@ -892,10 +866,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
    const Vector &x, Vector &y) const
 {
 
-   if (use_device)
+   if (use_ea)
    {
-      DeviceMult(x,y);
-      if (!verify_solution) {return;}
+      return DeviceMult(x,y);
    }
 
 
@@ -926,18 +899,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
          }
       }
    }
-
-   if (verify_solution)
-   {
-      Vector y_temp(y.Size());
-      DeviceMult(x, y_temp);
-      y_temp -= y;
-      real_t error = y_temp.Norml2();
-      if (error > ho_lor_tol)
-      {
-         MFEM_VERIFY(false, "Mult difference too high = "<<error);
-      }
-   }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
@@ -953,7 +914,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
 
    // Hand rolled since mult transpose is not supported in batch lin alg yet
    // To be replaced with code above once we implement ::MultTranspose
-   auto v_R_ea = Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+   auto v_R = Reshape(R.Read(), ndof_lor, nref, ndof_ho, nel_ho);
    auto v_x    = Reshape(x.Read(), ndof_ho, vdim, nel_ho);
    auto v_y    = Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
 
@@ -970,7 +931,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
                real_t dot = 0.0;
                for (int k=0; k<ndof_ho; ++k)
                {
-                  dot += v_R_ea(j, i, k, iho) * v_x(k, v, iho);
+                  dot += v_R(j, i, k, iho) * v_x(k, v, iho);
                }
 
                v_y(j, i, v, iho) = dot;
@@ -984,10 +945,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
    const Vector &x, Vector &y) const
 {
 
-   if (use_device)
+   if (use_ea)
    {
-      DeviceMultTranspose(x,y);
-      if (!verify_solution) {return;}
+      return DeviceMultTranspose(x,y);
    }
 
    int vdim = fes_ho.GetVDim();
@@ -1021,18 +981,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
       y.AddElementVector(vdofs, yel_mat.GetData());
    }
 
-   if (verify_solution)
-   {
-      Vector y_temp(y.Size());
-      DeviceMultTranspose(x, y_temp);
-      y_temp -= y;
-      real_t error = y_temp.Norml2();
-      if (error > ho_lor_tol)
-      {
-         MFEM_VERIFY(false, "MultTranspose difference too high = "<<error);
-      }
-   }
-
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
@@ -1047,7 +995,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   auto v_R_ea = Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+   auto v_R = Reshape(R.Read(), ndof_lor, nref, ndof_ho, nel_ho);
    auto v_x    = Reshape(x.Read(), ndof_lor, nref, vdim, nel_ho);
    auto v_y    = Reshape(y.Write(), ndof_ho, vdim, nel_ho);
 
@@ -1062,7 +1010,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
             {
                for (int j=0; j<ndof_lor; ++j)
                {
-                  dot += v_R_ea(j, i, k, iho) * v_x(j, i, v, iho);
+                  dot += v_R(j, i, k, iho) * v_x(j, i, v, iho);
                }
             }
             v_y(k, v, iho) = dot;
@@ -1078,10 +1026,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
 
    if (fes_ho.GetNE() == 0) { return; }
 
-   if (use_device)
+   if (use_ea)
    {
-      DeviceProlongate(x,y);
-      if (!verify_solution) {return;}
+      return DeviceProlongate(x,y);
    }
 
    MFEM_VERIFY(P.Size() > 0, "Prolongation not supported for these spaces.")
@@ -1116,18 +1063,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
       y.AddElementVector(vdofs, yel_mat.GetData());
    }
 
-   if (verify_solution)
-   {
-      Vector y_temp(y.Size());
-      DeviceProlongate(x, y_temp);
-      y_temp -= y;
-      real_t error = y_temp.Norml2();
-      if (error > ho_lor_tol)
-      {
-         MFEM_VERIFY(false, "Prolongate difference too high = "<<error);
-      }
-   }
-
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
@@ -1143,7 +1078,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   auto v_P_ea = Reshape(P_ea.Read(), ndof_ho, ndof_lor * nref, nel_ho);
+   auto v_P = Reshape(P.Read(), ndof_ho, ndof_lor * nref, nel_ho);
    auto v_x    = Reshape(x.Read(), ndof_lor *  nref, vdim, nel_ho);
    auto v_y    = Reshape(y.Write(), ndof_ho, vdim, nel_ho);
 
@@ -1156,7 +1091,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
             real_t dot = 0.0;
             for (int tx = 0; tx < ndof_lor * nref; ++tx)
             {
-               dot += v_P_ea(iho, tx, e) * v_x(tx, v, e);
+               dot += v_P(iho, tx, e) * v_x(tx, v, e);
             }
             v_y(iho, v, e) = dot;
          }
@@ -1169,10 +1104,9 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
    const Vector &x, Vector &y) const
 {
 
-   if (use_device)
+   if (use_ea)
    {
-      DeviceProlongateTranspose(x,y);
-      if (!verify_solution) {return;}
+      return DeviceProlongateTranspose(x,y);
    }
 
 
@@ -1207,18 +1141,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
       }
    }
 
-   if (verify_solution)
-   {
-      Vector y_temp(y.Size());
-      DeviceProlongateTranspose(x, y_temp);
-      y_temp -= y;
-      real_t error = y_temp.Norml2();
-      if (error > ho_lor_tol)
-      {
-         MFEM_VERIFY(false, "Prolongate transpose difference too high = "<<error);
-      }
-   }
-
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
@@ -1233,7 +1155,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   auto v_P_ea = Reshape(P_ea.Read(), ndof_ho, ndof_lor, nref, nel_ho);
+   auto v_P = Reshape(P.Read(), ndof_ho, ndof_lor, nref, nel_ho);
    auto v_x    = Reshape(x.Read(), ndof_ho, vdim, nel_ho);
    auto v_y    = Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
 
@@ -1248,7 +1170,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
                real_t dot = 0.0;
                for (int iho=0; iho<ndof_ho; ++iho)
                {
-                  dot += v_P_ea(iho, ilo, iref, e) * v_x(iho, v, e);
+                  dot += v_P(iho, ilo, iref, e) * v_x(iho, v, e);
                }
                v_y(ilo, iref, v, e) = dot;
             }
@@ -1259,28 +1181,19 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_,
-   const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+   const bool use_ea_, MemoryType d_mt_)
    : L2Projection(fes_ho_, fes_lor_, d_mt_),
-     use_device(use_device_), verify_solution(verify_solution_)
+     use_ea(use_ea_)
 {
-   if (use_device || verify_solution)
+   if (use_ea)
    {
       DeviceL2ProjectionH1Space();
-      if (!verify_solution) {return;}
+      return;
    }
 
    std::unique_ptr<SparseMatrix> R_mat, M_LH_mat;
-   bool GetM_LHError = false;
-   bool GetML_invError = false;
-   if (verify_solution)
-   {
-      // Check that M_LH is built correctly
-      GetM_LHError = true;
 
-      // Check that lumped(inv M_L) is built correctly
-      GetML_invError = true;
-   }
-   std::tie(R_mat, M_LH_mat) = ComputeSparseRAndM_LH(GetM_LHError, GetML_invError);
+   std::tie(R_mat, M_LH_mat) = ComputeSparseRAndM_LH();
 
    //Shadows variables
    FiniteElementSpace fes_ho_scalar_local(fes_ho.GetMesh(), fes_ho.FEColl(), 1);
@@ -1323,15 +1236,14 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor,
-   const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+   const bool use_ea_, MemoryType d_mt_)
    : L2Projection(pfes_ho, pfes_lor, d_mt_),
-     use_device(use_device_), verify_solution(verify_solution_),
-     pcg(pfes_ho.GetComm()), pcg_vea(pfes_ho.GetComm())
+     use_ea(use_ea_), pcg(pfes_ho.GetComm()), pcg_vea(pfes_ho.GetComm())
 {
-   if (use_device || verify_solution)
+   if (use_ea)
    {
       DeviceL2ProjectionH1Space(pfes_ho, pfes_lor);
-      if (!verify_solution) {return;}
+      return;
    }
 
    std::tie(R, M_LH) = ComputeSparseRAndM_LH();
@@ -1651,10 +1563,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceSetupPCG()
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
    const Vector& x, Vector& y) const
 {
-   if (use_device)
+   if (use_ea)
    {
-      DeviceMult(x,y);
-      if (!verify_solution) {return;}
+      return DeviceMult(x,y);
    }
 
    Vector X(fes_ho.GetTrueVSize());
@@ -1678,17 +1589,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
 
    SetFromTDofs(fes_lor, Y, y);
 
-   if (verify_solution)
-   {
-      Vector y_temp(y.Size());
-      DeviceMult(x, y_temp);
-      y_temp -= y;
-      real_t error = y_temp.Norml2();
-      if (error > ho_lor_tol)
-      {
-         MFEM_VERIFY(false, "Mult difference too high = "<<error);
-      }
-   }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
@@ -1720,10 +1620,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
    const Vector& x, Vector& y) const
 {
-   if (use_device)
+   if (use_ea)
    {
-      DeviceMultTranspose(x,y);
-      if (!verify_solution) {return;}
+      return DeviceMultTranspose(x,y);
    }
    Vector X(fes_lor.GetTrueVSize());
    Vector X_dim(R->Height());
@@ -1746,17 +1645,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
 
    SetFromTDofsTranspose(fes_ho, Y, y);
 
-   if (verify_solution)
-   {
-      Vector y_temp(y.Size());
-      DeviceMultTranspose(x, y_temp);
-      y_temp -= y;
-      real_t error = y_temp.Norml2();
-      if (error > ho_lor_tol)
-      {
-         MFEM_VERIFY(false, "MultTranspose difference too high = "<<error);
-      }
-   }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMultTranspose(
@@ -1787,10 +1675,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMultTranspose(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
    const Vector& x, Vector& y) const
 {
-   if (use_device)
+   if (use_ea)
    {
-      DeviceProlongate(x,y);
-      if (!verify_solution) {return;}
+      return DeviceProlongate(x,y);
    }
 
    Vector X(fes_lor.GetTrueVSize());
@@ -1818,17 +1705,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
 
    SetFromTDofs(fes_ho, Y, y);
 
-   if (verify_solution)
-   {
-      Vector y_temp(y.Size());
-      DeviceProlongate(x, y_temp);
-      y_temp -= y;
-      real_t error = y_temp.Norml2();
-      if (error > ho_lor_tol)
-      {
-         MFEM_VERIFY(false, "Prolongate difference too high = "<<error);
-      }
-   }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongate(
@@ -1866,10 +1742,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongate(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
    const Vector& x, Vector& y) const
 {
-   if (use_device)
+   if (use_ea)
    {
-      DeviceProlongateTranspose(x,y);
-      if (!verify_solution) {return;}
+      return DeviceProlongateTranspose(x,y);
    }
 
    Vector X(fes_ho.GetTrueVSize());
@@ -1897,17 +1772,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
 
    SetFromTDofsTranspose(fes_lor, Y, y);
 
-   if (verify_solution)
-   {
-      Vector y_temp(y.Size());
-      DeviceProlongateTranspose(x, y_temp);
-      y_temp -= y;
-      real_t error = y_temp.Norml2();
-      if (error > ho_lor_tol)
-      {
-         MFEM_VERIFY(false, "Prolongate transpose difference too high = "<<error);
-      }
-   }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongateTranspose(
@@ -1941,19 +1805,18 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongateTranspose(
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(real_t p_rtol_)
 {
-   use_device ? pcg_vea.SetRelTol(p_rtol_) : pcg.SetRelTol(p_rtol_);
+   use_ea ? pcg_vea.SetRelTol(p_rtol_) : pcg.SetRelTol(p_rtol_);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(real_t p_atol_)
 {
-   use_device ? pcg_vea.SetAbsTol(p_atol_) : pcg.SetAbsTol(p_atol_);
+   use_ea ? pcg_vea.SetAbsTol(p_atol_) : pcg.SetAbsTol(p_atol_);
 }
 
 std::pair<
 std::unique_ptr<SparseMatrix>,
 std::unique_ptr<SparseMatrix>>
-                            L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH(
-                               bool GetM_LHError, bool GetML_invError)
+                            L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH()
 {
    std::pair<std::unique_ptr<SparseMatrix>,
        std::unique_ptr<SparseMatrix>> r_and_mlh;
@@ -2054,7 +1917,6 @@ std::unique_ptr<SparseMatrix>>
    IsoparametricTransformation& emb_tr = ip_tr.Transf;
 
    // Compute M_LH and R
-   real_t error = 0.0;
    offsets.SetSize(nel_ho+1);
    offsets[0] = 0;
    for (int iho = 0; iho < nel_ho; ++iho)
@@ -2102,24 +1964,6 @@ std::unique_ptr<SparseMatrix>>
          r_and_mlh.second->AddSubMatrix(dofs_lor, dofs_ho, M_LH_el);
          r_and_mlh.first->AddSubMatrix(dofs_lor, dofs_ho, R_el);
 
-         if (GetM_LHError == true)
-         {
-            real_t mat_error = 0.0;
-            for (int i = 0; i < nedof_lor; ++i)
-            {
-               for (int j = 0; j < nedof_ho; ++j)
-               {
-                  mat_error += (M_LH_ea.Read()[i+j*nedof_lor+offsets[iho]+nedof_lor*nedof_ho*iref]
-                                - M_LH_el(i,j))*(M_LH_ea.Read()[i+j*nedof_lor+offsets[iho]
-                                                                +nedof_lor*nedof_ho*iref] - M_LH_el(i,j));
-               }
-            }
-            error += std::sqrt(mat_error);
-            if (error > ho_lor_tol)
-            {
-               MFEM_VERIFY(false, "error in M_LH difference too high = " << error);
-            }
-         }
       }
    }
 
@@ -2487,7 +2331,7 @@ void L2ProjectionGridTransfer::BuildF()
       if (!Parallel())
       {
          F = new L2ProjectionH1Space(dom_fes, ran_fes,
-                                     use_device, verify_solution, d_mt);
+                                     use_ea, d_mt);
       }
       else
       {
@@ -2497,14 +2341,14 @@ void L2ProjectionGridTransfer::BuildF()
          const mfem::ParFiniteElementSpace& ran_pfes =
             static_cast<mfem::ParFiniteElementSpace&>(ran_fes);
          F = new L2ProjectionH1Space(dom_pfes, ran_pfes,
-                                     use_device, verify_solution, d_mt);
+                                     use_ea, d_mt);
 #endif
       }
    }
    else
    {
       F = new L2ProjectionL2Space(dom_fes, ran_fes,
-                                  use_device, verify_solution, d_mt);
+                                  use_ea, d_mt);
    }
 }
 

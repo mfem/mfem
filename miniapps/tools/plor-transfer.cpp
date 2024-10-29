@@ -80,6 +80,8 @@ int main(int argc, char *argv[])
    bool useH1 = false;
    int visport = 19916;
    bool use_pointwise_transfer = false;
+   const char *device_config = "cpu";
+   bool use_ea       = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -180,6 +182,8 @@ int main(int argc, char *argv[])
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
    const Operator &R = gt->ForwardOperator();
+
+   gt->UseEA(use_ea);
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";

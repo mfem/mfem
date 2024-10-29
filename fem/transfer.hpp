@@ -40,8 +40,7 @@ protected:
    OperatorHandle fw_t_oper; ///< Forward true-dof operator
    OperatorHandle bw_t_oper; ///< Backward true-dof operator
 
-   bool use_device;
-   bool verify_solution;
+   bool use_ea;
 
    MemoryType d_mt;
 
@@ -73,13 +72,9 @@ public:
    /// Virtual destructor
    virtual ~GridTransfer() { }
 
-   /** Uses device friendly versions for L2Projection transfers,
-       L2, H1 FEM spaces currently supported */
-   void UseDevice(bool use_device_) { use_device = use_device_;}
-
-   /** Performs an comparison using l2 norm of the data structures
-       of the device and CPU versions of the code */
-   void VerifySolution(bool verify) { verify_solution = verify;}
+   /** Uses device friendly element assembly versions for L2Projection
+       transfers, L2, H1 FEM spaces currently supported */
+   void UseEA(bool use_ea_) { use_ea = use_ea_;}
 
    /** @brief Set the desired Operator::Type for the construction of all
        operators defined by the underlying transfer algorithm. */
@@ -287,15 +282,14 @@ public:
       /// arrays. The entries of the i'th high-order element are stored at the
       /// index given by offsets[i].
       mutable Array<real_t> R, P;
-      mutable Array<real_t> R_ea, P_ea;
+      //mutable Array<real_t> R_ea, P_ea;
 
-      const bool use_device, verify_solution;
+      const bool use_ea;
 
    public:
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_,
-                          const bool use_device_,
-                          const bool verify_solution_,
+                          const bool use_ea_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 
       /*Same as above but assembles and stores R_ea, P_ea */
@@ -359,19 +353,17 @@ public:
        (LOR). */
    class L2ProjectionH1Space : public L2Projection
    {
-      const bool use_device, verify_solution;
+      const bool use_ea;
 
    public:
       L2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
                           const FiniteElementSpace &fes_lor_,
-                          const bool use_device_,
-                          const bool verify_solution_,
+                          const bool use_ea_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 #ifdef MFEM_USE_MPI
       L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                           const ParFiniteElementSpace &pfes_lor_,
-                          const bool use_device_,
-                          const bool verify_solution_,
+                          const bool use_ea_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 #endif
       /// Same as above but assembles action of R through 4 parts:
@@ -443,8 +435,8 @@ public:
       /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
       /// inverse lumped mass matrix error when compared to device implementation.
       std::pair<std::unique_ptr<SparseMatrix>,
-          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(bool GetM_LHError=false,
-                                                               bool getML_invError=false);
+          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
+
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
       void GetTDofs(const FiniteElementSpace& fes, const Vector& x, Vector& X) const;
