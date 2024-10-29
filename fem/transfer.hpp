@@ -66,8 +66,7 @@ public:
        range, @a ran_fes_, FE spaces, d_mt_ will specify memory space for
        large data structures */
    GridTransfer(FiniteElementSpace &dom_fes_,
-                FiniteElementSpace &ran_fes_,
-                MemoryType d_mt_ = Device::GetHostMemoryType());
+                FiniteElementSpace &ran_fes_);
 
    /// Virtual destructor
    virtual ~GridTransfer() { }
@@ -76,8 +75,11 @@ public:
        transfers, L2, H1 FEM spaces currently supported */
    void UseEA(bool use_ea_) { use_ea = use_ea_;}
 
+   /** Set memory type for large data structures */
+   void SetMemType(MemoryType d_mt_) {d_mt = d_mt_;}
+
    /** @brief Set the desired Operator::Type for the construction of all
-       operators defined by the underlying transfer algorithm. */
+        operators defined by the underlying transfer algorithm. */
    /** The default value is Operator::ANY_TYPE which typically corresponds to a
        matrix-free operator representation. Note that derived classes are not
        required to support this setting and can ignore it. */
@@ -518,7 +520,7 @@ public:
                             FiniteElementSpace &fine_fes_,
                             bool force_l2_space_ = false,
                             MemoryType d_mt_ = Device::GetHostMemoryType()) //move to method
-      : GridTransfer(coarse_fes_, fine_fes_, d_mt_),
+      : GridTransfer(coarse_fes_, fine_fes_),
         F(NULL), B(NULL), force_l2_space(force_l2_space_)
    { }
    virtual ~L2ProjectionGridTransfer();
