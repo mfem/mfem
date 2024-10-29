@@ -236,9 +236,9 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
 
 L2ProjectionGridTransfer::L2Projection::L2Projection(
    const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
-   Coefficient* coeff_, IntegrationRule* ir, MemoryType d_mt_)
+   MemoryType d_mt_)
    : Operator(fes_lor_.GetVSize(), fes_ho_.GetVSize()),
-     fes_ho(fes_ho_), fes_lor(fes_lor_), coeff(coeff_), int_rule(ir), d_mt(d_mt_)
+     fes_ho(fes_ho_), fes_lor(fes_lor_), d_mt(d_mt_)
 { }
 
 void L2ProjectionGridTransfer::L2Projection::BuildHo2Lor(
@@ -343,20 +343,6 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    int ndof_ho = fes_ho_ea.GetNDofs();
    int ndof_lor = fes_lor_ea.GetNDofs();
 
-
-   IntegrationRule ir;
-   {
-      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
-      const FiniteElement &fe = *fes_ho.GetFE(0);
-      const FiniteElement &fe_lor = *fes_lor.GetFE(0);
-      ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
-      int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW();
-      ir = int_rule ? *int_rule : IntRules.Get(geom, qorder);
-   }
-
-   QuadratureSpace qspace(*mesh_lor, ir);
-   CoefficientVector coeff_vec(coeff, qspace);
-
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
    int nref_max = 0;
@@ -391,11 +377,10 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          //Allocate space for DenseTensors
          ElementTransformation *el_tr = fes_lor_ea.GetElementTransformation(0);
          int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
-         const IntegrationRule* ir_ea = int_rule ? int_rule : &IntRules.Get(geom, order);
+         const IntegrationRule* ir_ea = &IntRules.Get(geom, order);
          int qPts = ir_ea->GetNPoints();
 
-         //Containers for the basis functions sampled
-         //at quadrature points
+         //Containers for the basis functions sampled at quadrature points
          B_L.SetSize(qPts, fe_lor.GetDof(), nref, d_mt);
          B_H.SetSize(qPts, fe_ho.GetDof(), nref, d_mt);
          D.SetSize(qPts, nref, nel_ho, d_mt);
@@ -410,16 +395,14 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          const int dim = mesh_ho->Dimension();
 
          MFEM_ASSERT(nel_ho*nref == nel_lor, "we expect nel_ho*nref == nel_lor");
-         MFEM_VERIFY(D.TotalSize() == coeff_vec.Size(),
-                     "Dimensions don't match  "<<D.TotalSize()<<" "<<coeff_vec.Size());
 
-         //*********************************
+         //**************************************
          // Setup data at quadrature points
-         //*********************************
+         // TODO add support for user coefficient
+         //**************************************
          const auto W = Reshape(ir_ea->GetWeights().Read(), qPts);
          const auto J = Reshape(geo_facts->detJ.Read(), qPts, nel_lor);
          const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
-         const auto d_qfunc = Reshape(coeff_vec.Read(), qPts, nref, nel_ho);
 
          mfem::forall_3D(nel_ho, qPts, 1, 1, [=] MFEM_HOST_DEVICE (int iho)
          {
@@ -429,7 +412,7 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
                MFEM_FOREACH_THREAD(q, x, qPts)
                {
                   const real_t detJ = J(q, lo_el_id);
-                  d_D(q, iref, iho) = W(q) * detJ * d_qfunc(q, iref, iho);
+                  d_D(q, iref, iho) = W(q) * detJ;
                }
             }
          });
@@ -440,9 +423,7 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          //Collect the basis functions
          for (int iref = 0; iref < nref; ++iref)
          {
-
             int ilor = lor_els[iref];
-
             // Now assemble the block-row of the mixed mass matrix associated
             // with integrating HO functions against LOR functions on the LOR
             // sub-element.
@@ -526,9 +507,8 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
 
 L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 (const FiniteElementSpace &fes_ho_, const FiniteElementSpace &fes_lor_,
- const bool use_device_, const bool verify_solution_, Coefficient *coeff_,
- IntegrationRule *IntRule_, MemoryType d_mt_)
-   : L2Projection(fes_ho_, fes_lor_, coeff_, IntRule_, d_mt_),
+ const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+   : L2Projection(fes_ho_, fes_lor_, d_mt_),
      use_device(use_device_), verify_solution(verify_solution_)
 {
 
@@ -695,19 +675,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
    // If the local mesh is empty, skip all computations
    if (nel_ho == 0) { return; }
 
-   IntegrationRule ir;
-   {
-      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
-      const FiniteElement &fe = *fes_ho.GetFE(0);
-      const FiniteElement &fe_lor = *fes_lor.GetFE(0);
-      ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
-      int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW();
-      ir = int_rule ? *int_rule : IntRules.Get(geom, qorder);
-   }
-
-   QuadratureSpace qspace(*mesh_lor, ir);
-   CoefficientVector coeff_vec(coeff, qspace);
-
    const CoarseFineTransformations &cf_tr = mesh_lor->GetRefinementTransforms();
 
    int nref_max = 0;
@@ -741,15 +708,16 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
       P_ea.SetSize(offsets[nel_ho]);
    }
 
-   //Assemble mixed mass matrix
+   // Assemble mixed mass matrix
    Vector M_mixed_all;
    MixedMassEA(fes_ho, fes_lor, M_mixed_all, d_mt);
 
 
-   //R = inv(M_L) * M_mixed
-   //Need to compute M_L
-   //Note: Using user-inputted M_LH IntegrationRule ir (higher order than needed) in order to re-use coeff
-   MassIntegrator mi(*coeff, &ir);
+   // R = inv(M_L) * M_mixed
+   // Need to compute M_L
+   // Note: Using user-inputted M_LH IntegrationRule ir
+   // (higher order than needed) in order to re-use coeff
+   MassIntegrator mi;
 
    Vector M_ea_lor;
    int ndof_lor;
@@ -816,7 +784,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
          }
       });
    }
-
 
    if (build_P)
    {
@@ -984,19 +951,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
    const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
-
-   /*
-   DenseTensor A(ndof_lor*nref, ndof_ho, nel_ho);
-   A.MakeRef(R_ea);
-
-   Vector x_vi, y_vi;
-   for (int d=0; d<vdim; ++d)
-   {
-     x_vi.MakeRef(const_cast<Vector &>(x), d * ndof_ho *nel_ho, ndof_ho * nel_ho);
-     y_vi.MakeRef(y, d * ndof_lor * nref * nel_ho, ndof_lor * nref * nel_ho);
-     BatchedLinAlg::MultTranpose(A, x_vi, y_vi);
-   }
-   */
 
    // Hand rolled since mult transpose is not supported in batch lin alg yet
    // To be replaced with code above once we implement ::MultTranspose
@@ -1307,9 +1261,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    const FiniteElementSpace& fes_ho_, const FiniteElementSpace& fes_lor_,
-   const bool use_device_, const bool verify_solution_, Coefficient* coeff_,
-   IntegrationRule* IntRule_, MemoryType d_mt_)
-   : L2Projection(fes_ho_, fes_lor_, coeff_, IntRule_, d_mt_),
+   const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+   : L2Projection(fes_ho_, fes_lor_, d_mt_),
      use_device(use_device_), verify_solution(verify_solution_)
 {
    if (use_device || verify_solution)
@@ -1372,9 +1325,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor,
-   const bool use_device_, const bool verify_solution_, Coefficient* coeff_,
-   IntegrationRule *IntRule_, MemoryType d_mt_)
-   : L2Projection(pfes_ho, pfes_lor, coeff_, IntRule_, d_mt_),
+   const bool use_device_, const bool verify_solution_, MemoryType d_mt_)
+   : L2Projection(pfes_ho, pfes_lor, d_mt_),
      use_device(use_device_), verify_solution(verify_solution_),
      pcg(pfes_ho.GetComm()), pcg_vea(pfes_ho.GetComm())
 {
@@ -1455,18 +1407,11 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space()
       return;
    }
 
-   IntegrationRule ir;
-   {
-      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(0);
-      const FiniteElement &fe = *fes_ho.GetFE(0);
-      const FiniteElement &fe_lor = *fes_lor.GetFE(0);
-      ElementTransformation *el_tr = fes_lor.GetElementTransformation(0);
-      int qorder = fe_lor.GetOrder() + fe.GetOrder() + el_tr->OrderW();
-      ir = int_rule ? *int_rule : IntRules.Get(geom, qorder);
-   }
-
-   QuadratureSpace qspace(*mesh_lor, ir);
-   CoefficientVector coeff_vec(coeff, qspace);
+   // need scalar to keep dimensions matching (operators are built to apply individually on each vdim)
+   fes_ho_scalar = new FiniteElementSpace(fes_ho.GetMesh(),
+                                          fes_ho.FEColl(), 1);
+   fes_lor_scalar = new FiniteElementSpace(fes_lor.GetMesh(),
+                                           fes_lor.FEColl(), 1);
 
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
@@ -1495,67 +1440,32 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space()
    ML_inv_ea.SetSize(ndof_lor);
    ML_inv_ea = 0.0;
 
-   // Compute ML_inv_ea
-   int nref;
-   for (int iho = 0; iho < nel_ho; ++iho)
-   {
-      Array<int> lor_els;
-      ho2lor.GetRow(iho, lor_els);
-      nref = ho2lor.RowSize(iho);
-      Geometry::Type geom = mesh_ho->GetElementBaseGeometry(iho);
+   // ML_inv_ea contains the inverse lumped (row sum) mass matrix. Note that the
+   // method will also work with a full (consistent) mass matrix, though this is
+   // not implemented here. L refers to the low-order refined mesh
+   ML_inv_ea.SetSize(ndof_lor);
+   ML_inv_ea = 0.0;
 
-      // Instead of using a MassIntegrator, manually loop over integration
-      // points so we can row sum and store the diagonal as a Vector.
-      const FiniteElement& fe_ho = *fes_ho.GetFE(0);
-      int nedof_ho = fe_ho.GetDof();
-      Vector MH_el(nedof_ho);
-      MH_el = 0.0;
-      Vector shape_ho(nedof_ho);
-      Array<int> dofs_ho(nedof_ho);
+   BilinearForm Mho(fes_ho_scalar);
+   Mho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   Mho.AddDomainIntegrator(new MassIntegrator);
+   Mho.Assemble();
 
-      ElementTransformation* el_tr_ho = fes_ho.GetElementTransformation(iho);
-      int order = 2 * fe_ho.GetOrder() + el_tr_ho->OrderW();
-      const IntegrationRule* ir_ho = &IntRules.Get(geom, order);
-      for (int i = 0; i < ir_ho->GetNPoints(); ++i)
-      {
-         const IntegrationPoint& ip_ho = ir_ho->IntPoint(i);
-         fe_ho.CalcShape(ip_ho, shape_ho);
-         el_tr_ho->SetIntPoint(&ip_ho);
-         MH_el += (shape_ho *= (el_tr_ho->Weight() * ip_ho.weight));
-      }
-      fes_ho.GetElementDofs(iho, dofs_ho);
-      M_H.AddElementVector(dofs_ho, MH_el);
+   // Processor local lumped Mass
+   Vector ones_ho(Mho.Width()); ones_ho = 1.0;
+   M_H = 0.0;
+   Mho.Mult(ones_ho, M_H);
 
-      // Similarly for LOR mass matrix: loop over every LOR element in each HO element
-      const FiniteElement& fe_lor = *fes_lor.GetFE(lor_els[0]);
-      int nedof_lor = fe_lor.GetDof();
-      Vector ML_el(nedof_lor);
-      Vector shape_lor(nedof_lor);
-      Array<int> dofs_lor(nedof_lor);
-      for (int iref = 0; iref < nref; ++iref)
-      {
-         int ilor = lor_els[iref];
-         ElementTransformation* el_tr = fes_lor.GetElementTransformation(ilor);
+   BilinearForm Mlor(fes_lor_scalar);
+   Mlor.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   Mlor.AddDomainIntegrator(new MassIntegrator);
+   Mlor.Assemble();
 
-         // to re-use coeff, use integration rule from coeff (higher than needed)
-         ML_el = 0.0;
-         int nqPts = ir.GetNPoints();
-         for (int i = 0; i < nqPts; ++i)
-         {
-            const IntegrationPoint& ip_lor = ir.IntPoint(i);
-            fe_lor.CalcShape(ip_lor, shape_lor);
-            el_tr->SetIntPoint(&ip_lor);
-            ML_el += (shape_lor *= (el_tr->Weight() * ip_lor.weight * coeff_vec[ilor*nqPts +
-                                                                                           i]));
+   Vector ones_lor(Mlor.Width()); ones_lor = 1.0;
+   Mlor.Mult(ones_lor, ML_inv_ea);
 
-         }
-         fes_lor.GetElementDofs(ilor, dofs_lor);
-         ML_inv_ea.AddElementVector(dofs_lor, ML_el);
-      }
-   }
    // DOF by DOF inverse of non-zero entries
    LumpedMassInverse(ML_inv_ea);
-
 
    // **************************
    // mixed mass M_LH
@@ -1636,7 +1546,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space
    pMho.AddDomainIntegrator(new MassIntegrator);
    pMho.Assemble();
 
-   //Processor local lumped Mass
+   // Processor local lumped Mass
    Vector ones_ho(pMho.Width()); ones_ho = 1.0;
    M_H = 0.0;
    pMho.Mult(ones_ho, M_H);
@@ -2579,7 +2489,7 @@ void L2ProjectionGridTransfer::BuildF()
       if (!Parallel())
       {
          F = new L2ProjectionH1Space(dom_fes, ran_fes,
-                                     use_device, verify_solution, coeff, int_rule, d_mt);
+                                     use_device, verify_solution, d_mt);
       }
       else
       {
@@ -2589,14 +2499,14 @@ void L2ProjectionGridTransfer::BuildF()
          const mfem::ParFiniteElementSpace& ran_pfes =
             static_cast<mfem::ParFiniteElementSpace&>(ran_fes);
          F = new L2ProjectionH1Space(dom_pfes, ran_pfes,
-                                     use_device, verify_solution, coeff, int_rule, d_mt);
+                                     use_device, verify_solution, d_mt);
 #endif
       }
    }
    else
    {
       F = new L2ProjectionL2Space(dom_fes, ran_fes,
-                                  use_device, verify_solution, coeff, int_rule, d_mt);
+                                  use_device, verify_solution, d_mt);
    }
 }
 
