@@ -381,12 +381,8 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          B_H.SetSize(qPts, fe_ho.GetDof(), nref, d_mt);
          D.SetSize(qPts, nref, nel_ho, d_mt);
 
-         const DofToQuad *maps_lor = &fe_lor.GetDofToQuad(*ir_ea, DofToQuad::TENSOR);
-
          const GeometricFactors *geo_facts =
             mesh_lor->GetGeometricFactors(*ir_ea, GeometricFactors::DETERMINANTS);
-
-         const int dim = mesh_ho->Dimension();
 
          MFEM_ASSERT(nel_ho*nref == nel_lor, "we expect nel_ho*nref == nel_lor");
 
