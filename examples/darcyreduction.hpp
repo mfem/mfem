@@ -34,8 +34,8 @@ protected:
    Array<int> Bf_offsets;
    real_t *Bf_data;
 
-   Array<int> Df_offsets, Df_f_offsets;
-   real_t *Df_data;
+   Array<int> D_offsets, D_f_offsets;
+   real_t *D_data;
 
    Array<int> E_offsets;
    real_t *E_data;
@@ -137,7 +137,7 @@ class DarcyPotentialReduction : public DarcyReduction
    Array<int> Be_offsets;
    real_t *Be_data;
 
-   int *Df_ipiv;
+   int *D_ipiv;
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;

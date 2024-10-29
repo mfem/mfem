@@ -25,7 +25,7 @@ DarcyReduction::DarcyReduction(FiniteElementSpace *fes_u_,
 
    Af_data = NULL;
    Bf_data = NULL;
-   Df_data = NULL;
+   D_data = NULL;
 
    S = NULL;
 }
@@ -37,7 +37,7 @@ DarcyReduction::~DarcyReduction()
 
    delete[] Af_data;
    delete[] Bf_data;
-   delete[] Df_data;
+   delete[] D_data;
 
    delete S;
 }
@@ -85,27 +85,27 @@ void DarcyReduction::InitBD()
 {
    const int NE = fes_u->GetNE();
 
-   // Define Bf_offsets, Df_offsets and Df_f_offsets
+   // Define Bf_offsets, D_offsets and D_f_offsets
    Bf_offsets.SetSize(NE+1);
    Bf_offsets[0] = 0;
-   Df_offsets.SetSize(NE+1);
-   Df_offsets[0] = 0;
-   Df_f_offsets.SetSize(NE+1);
-   Df_f_offsets[0] = 0;
+   D_offsets.SetSize(NE+1);
+   D_offsets[0] = 0;
+   D_f_offsets.SetSize(NE+1);
+   D_f_offsets[0] = 0;
 
    for (int i = 0; i < NE; i++)
    {
       int f_size = Af_f_offsets[i+1] - Af_f_offsets[i];
       int d_size = fes_p->GetFE(i)->GetDof();
       Bf_offsets[i+1] = Bf_offsets[i] + f_size*d_size;
-      Df_offsets[i+1] = Df_offsets[i] + d_size*d_size;
-      Df_f_offsets[i+1] = Df_f_offsets[i] + d_size;
+      D_offsets[i+1] = D_offsets[i] + d_size*d_size;
+      D_f_offsets[i+1] = D_f_offsets[i] + d_size;
    }
 
    Bf_data = new real_t[Bf_offsets[NE]]();//init by zeros
    if (!m_nlfi_p)
    {
-      Df_data = new real_t[Df_offsets[NE]]();//init by zeros
+      D_data = new real_t[D_offsets[NE]]();//init by zeros
    }
 }
 
@@ -122,9 +122,9 @@ void DarcyReduction::InitEG()
    {
       FTr = mesh->GetInteriorFaceTransformations(f, 0);
 
-      int d_size_1 = (FTr)?(Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No])
+      int d_size_1 = (FTr)?(D_f_offsets[FTr->Elem1No+1] - D_f_offsets[FTr->Elem1No])
                      :(0);
-      int d_size_2 = (FTr)?(Df_f_offsets[FTr->Elem2No+1] - Df_f_offsets[FTr->Elem2No])
+      int d_size_2 = (FTr)?(D_f_offsets[FTr->Elem2No+1] - D_f_offsets[FTr->Elem2No])
                      :(0);
       E_offsets[f+1] = E_offsets[f] + d_size_1 * d_size_2;
    }
@@ -150,8 +150,8 @@ void DarcyReduction::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 
 void DarcyReduction::AssemblePotMassMatrix(int el, const DenseMatrix &D)
 {
-   const int s = Df_f_offsets[el+1] - Df_f_offsets[el];
-   DenseMatrix D_i(Df_data + Df_offsets[el], s, s);
+   const int s = D_f_offsets[el+1] - D_f_offsets[el];
+   DenseMatrix D_i(D_data + D_offsets[el], s, s);
    MFEM_ASSERT(D.Size() == s, "Incompatible sizes");
 
    D_i += D;
@@ -160,7 +160,7 @@ void DarcyReduction::AssemblePotMassMatrix(int el, const DenseMatrix &D)
 void DarcyReduction::AssembleDivMatrix(int el, const DenseMatrix &B)
 {
    const int w = Af_f_offsets[el+1] - Af_f_offsets[el];
-   const int h = Df_f_offsets[el+1] - Df_f_offsets[el];
+   const int h = D_f_offsets[el+1] - D_f_offsets[el];
    DenseMatrix B_i(Bf_data + Bf_offsets[el], h, w);
    MFEM_ASSERT(B.Width() == w && B.Height() == h, "Incompatible sizes");
 
@@ -219,9 +219,9 @@ void DarcyReduction::Reset()
    S = NULL;
 
    memset(Bf_data, 0, Bf_offsets.Last() * sizeof(real_t));
-   if (Df_data)
+   if (D_data)
    {
-      memset(Df_data, 0, Df_offsets.Last() * sizeof(real_t));
+      memset(D_data, 0, D_offsets.Last() * sizeof(real_t));
    }
    if (E_data)
    {
@@ -275,9 +275,9 @@ void DarcyFluxReduction::ComputeS()
    for (int el = 0; el < NE; el++)
    {
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
 
-      DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+      DenseMatrix D(D_data + D_offsets[el], d_dofs_size, d_dofs_size);
       DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
 
       // Decompose A
@@ -308,8 +308,8 @@ void DarcyFluxReduction::ComputeS()
          FaceElementTransformations *Tr = mesh->GetInteriorFaceTransformations(f, 0);
          if (!Tr) { continue; }
 
-         int d_dofs_size_1 = Df_f_offsets[Tr->Elem1No+1] - Df_f_offsets[Tr->Elem1No];
-         int d_dofs_size_2 = Df_f_offsets[Tr->Elem2No+1] - Df_f_offsets[Tr->Elem2No];
+         int d_dofs_size_1 = D_f_offsets[Tr->Elem1No+1] - D_f_offsets[Tr->Elem1No];
+         int d_dofs_size_2 = D_f_offsets[Tr->Elem2No+1] - D_f_offsets[Tr->Elem2No];
 
          fes_p->GetElementDofs(Tr->Elem1No, p_dofs_1);
          fes_p->GetElementDofs(Tr->Elem2No, p_dofs_2);
@@ -352,7 +352,7 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_r) const
       // -B A^-1 bu
 
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
       DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
       LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
 
@@ -391,7 +391,7 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
       // A^-1 (R - B^T p)
 
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
       DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
       LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
 
@@ -411,14 +411,14 @@ DarcyPotentialReduction::DarcyPotentialReduction(FiniteElementSpace *fes_u,
 
    Ae_data = NULL;
    Be_data = NULL;
-   Df_ipiv = NULL;
+   D_ipiv = NULL;
 }
 
 DarcyPotentialReduction::~DarcyPotentialReduction()
 {
    delete[] Ae_data;
    delete[] Be_data;
-   delete[] Df_ipiv;
+   delete[] D_ipiv;
 }
 
 void DarcyPotentialReduction::Init(const Array<int> &ess_flux_tdof_list)
@@ -557,7 +557,7 @@ void DarcyPotentialReduction::Init(const Array<int> &ess_flux_tdof_list)
 #ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
    Be_data = new real_t[Be_offsets[NE]]();//init by zeros
 #endif //MFEM_DARCY_REDUCTION_ELIM_BCS
-   Df_ipiv = new int[Df_f_offsets[NE]];
+   D_ipiv = new int[D_f_offsets[NE]];
 }
 
 void DarcyPotentialReduction::GetFDofs(int el, Array<int> &fdofs) const
@@ -612,13 +612,13 @@ void DarcyPotentialReduction::ComputeS()
    for (int el = 0; el < NE; el++)
    {
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
 
       DenseMatrix A(Af_data + Af_offsets[el], a_dofs_size, a_dofs_size);
       DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
 
       // Decompose D
-      LUFactors LU_D(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
+      LUFactors LU_D(D_data + D_offsets[el], D_ipiv + D_f_offsets[el]);
 
       LU_D.Factor(d_dofs_size);
 
@@ -682,7 +682,7 @@ void DarcyPotentialReduction::AssembleDivMatrix(int el, const DenseMatrix &B)
 {
    const int o = hat_offsets[el];
    const int w = hat_offsets[el+1] - o;
-   const int h = Df_f_offsets[el+1] - Df_f_offsets[el];
+   const int h = D_f_offsets[el+1] - D_f_offsets[el];
    real_t *Bf_el_data = Bf_data + Bf_offsets[el];
 #ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
    real_t *Be_el_data = Be_data + Be_offsets[el];
@@ -739,7 +739,7 @@ void DarcyPotentialReduction::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
       bu.AddElementVector(u_vdofs, bu_e);
 
       //bp -= B_e u_e
-      const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      const int d_size = D_f_offsets[el+1] - D_f_offsets[el];
       DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
 
       bp_e.SetSize(d_size);
@@ -784,9 +784,9 @@ void DarcyPotentialReduction::ReduceRHS(const BlockVector &b, Vector &b_r) const
       // -B^T D^-1 bp
 
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
       DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
-      LUFactors LU_D(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
+      LUFactors LU_D(D_data + D_offsets[el], D_ipiv + D_f_offsets[el]);
 
       LU_D.Solve(d_dofs_size, 1, bp_l.GetData());
       bp_l.Neg();
@@ -829,9 +829,9 @@ void DarcyPotentialReduction::ComputeSolution(const BlockVector &b,
       // D^-1 (F - B u)
 
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      int d_dofs_size = D_f_offsets[el+1] - D_f_offsets[el];
       DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
-      LUFactors LU_D(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
+      LUFactors LU_D(D_data + D_offsets[el], D_ipiv + D_f_offsets[el]);
 
       B.AddMult(u_l, bp_l, -1.);
 
