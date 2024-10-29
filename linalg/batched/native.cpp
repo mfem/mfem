@@ -18,22 +18,37 @@ namespace mfem
 {
 
 void NativeBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
-                                  Vector &y, real_t alpha, real_t beta) const
+                                  Vector &y, real_t alpha, real_t beta,
+                                  Op op) const
 {
+   const bool tr = (op == Op::T);
+
    const int m = A.SizeI();
    const int n = A.SizeJ();
    const int n_mat = A.SizeK();
-   const int k = x.Size() / n / n_mat;
+   const int k = x.Size() / (tr ? m : n) / n_mat;
 
    auto d_A = Reshape(A.Read(), m, n, n_mat);
-   auto d_x = Reshape(x.Read(), n, k, n_mat);
-   auto d_y = Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
+   auto d_x = Reshape(x.Read(), (tr ? m : n), k, n_mat);
+   auto d_y = Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(),
+                      (tr ? n : m), k, n_mat);
 
-   mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
+   if (tr)
    {
-      kernels::AddMult(m, k, n, &d_A(0,0,i), &d_x(0,0,i), &d_y(0,0,i),
-                       alpha, beta);
-   });
+      mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
+      {
+         kernels::AddMultAtB(m, n, k, &d_A(0,0,i), &d_x(0,0,i), &d_y(0,0,i),
+                             alpha, beta);
+      });
+   }
+   else
+   {
+      mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
+      {
+         kernels::AddMult(m, k, n, &d_A(0,0,i), &d_x(0,0,i), &d_y(0,0,i),
+                          alpha, beta);
+      });
+   }
 
    // Alternative approach, threading also over the second index. Which one is
    // better?
@@ -165,7 +180,7 @@ void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
                // swap rows i and piv in both L and U parts
                for (int j = 0; j < m; j++)
                {
-                  mfem::kernels::internal::Swap<real_t>(data_all(i,j,e), data_all(piv,j,e));
+                  kernels::internal::Swap<real_t>(data_all(i,j,e), data_all(piv,j,e));
                }
             }
          } // pivot end
