@@ -210,8 +210,8 @@ public:
    protected:
       const FiniteElementSpace& fes_ho;
       const FiniteElementSpace& fes_lor;
-      Coefficient* coeff;
-      IntegrationRule* int_rule;
+      //Coefficient* coeff;
+      //const IntegrationRule* int_rule;
 
       MemoryType d_mt;
       Array<int> offsets;
@@ -219,8 +219,6 @@ public:
 
       L2Projection(const FiniteElementSpace& fes_ho_,
                    const FiniteElementSpace& fes_lor_,
-                   Coefficient* coeff_,
-                   IntegrationRule* int_rule_ = nullptr,
                    MemoryType d_mt_ = Device::GetHostMemoryType());
 
       void BuildHo2Lor(int nel_ho, int nel_lor,
@@ -233,7 +231,8 @@ public:
                          DenseMatrix& M_mixed_el) const;
 
       void ElemMixedMass(Geometry::Type geom, const FiniteElement& fe_ho,
-                         const FiniteElement& fe_lor, ElementTransformation* el_tr,
+                         const FiniteElement& fe_lor,
+                         ElementTransformation* el_tr,
                          IntegrationPointTransformation& ip_tr,
                          DenseMatrix& B_L, DenseMatrix& B_H) const;
    public:
@@ -299,8 +298,6 @@ public:
                           const FiniteElementSpace& fes_lor_,
                           const bool use_device_,
                           const bool verify_solution_,
-                          Coefficient* coeff_,
-                          IntegrationRule* intRule_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 
       /*Same as above but assembles and stores R_ea, P_ea */
@@ -371,16 +368,12 @@ public:
                           const FiniteElementSpace &fes_lor_,
                           const bool use_device_,
                           const bool verify_solution_,
-                          Coefficient *coeff_,
-                          IntegrationRule* int_rule_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 #ifdef MFEM_USE_MPI
       L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                           const ParFiniteElementSpace &pfes_lor_,
                           const bool use_device_,
                           const bool verify_solution_,
-                          Coefficient *coeff_,
-                          IntegrationRule* int_rule_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 #endif
       /// Same as above but assembles action of R through 4 parts:
@@ -511,8 +504,8 @@ public:
       // scalar LDof HO vectors to LDof LOR vectors.
       Operator *M_LH_local_op;
       // Scalar finite element spaces for stored Tdof-to-and-from-LDof maps.
-      const FiniteElementSpace* fes_ho_scalar;
-      const FiniteElementSpace* fes_lor_scalar;
+      FiniteElementSpace* fes_ho_scalar;
+      FiniteElementSpace* fes_lor_scalar;
       // Element Assembled mixed mass
       Vector M_LH_ea;
       // Element Assembled lumped M_L inverse built via EA. Stores diagonal as a Ldof vector.
@@ -552,19 +545,12 @@ public:
    bool force_l2_space;
 
 public:
-   // Coefficient for weighted integration in mass matrices; allows for spatial variation
-   Coefficient *coeff;
-   IntegrationRule *int_rule;
-
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
                             FiniteElementSpace &fine_fes_,
                             bool force_l2_space_ = false,
-                            Coefficient *coeff_ = nullptr,
-                            IntegrationRule *int_rule_ = nullptr,
-                            MemoryType d_mt_ = Device::GetHostMemoryType())
+                            MemoryType d_mt_ = Device::GetHostMemoryType()) //move to method
       : GridTransfer(coarse_fes_, fine_fes_, d_mt_),
-        F(NULL), B(NULL), force_l2_space(force_l2_space_),
-        coeff(coeff_), int_rule(int_rule_)
+        F(NULL), B(NULL), force_l2_space(force_l2_space_)
    { }
    virtual ~L2ProjectionGridTransfer();
 
