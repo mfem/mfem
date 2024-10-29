@@ -282,7 +282,6 @@ public:
       /// arrays. The entries of the i'th high-order element are stored at the
       /// index given by offsets[i].
       mutable Array<real_t> R, P;
-      //mutable Array<real_t> R_ea, P_ea;
 
       const bool use_ea;
 
