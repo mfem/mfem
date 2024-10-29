@@ -108,11 +108,21 @@ int main(int argc, char *argv[])
                   "--no-ea-version", "Use element assembly version.");
    args.ParseCheck();
 
+   // Configure device
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
+
    // Read the mesh from the given mesh file.
    Mesh serial_mesh(mesh_file, 1, 1);
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
    int dim = mesh.Dimension();
+
+   // Make initial refinement on serial mesh.
+   for (int l = 0; l < 4; l++)
+   {
+      mesh.UniformRefinement();
+   }
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;

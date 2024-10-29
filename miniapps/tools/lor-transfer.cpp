@@ -104,6 +104,10 @@ int main(int argc, char *argv[])
                   "--no-ea-version", "Use element assembly version.");
    args.ParseCheck();
 
+   // Configure device
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();

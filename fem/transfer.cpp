@@ -506,10 +506,9 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
    : L2Projection(fes_ho_, fes_lor_, d_mt_),
      use_ea(use_ea_)
 {
-
    if (use_ea)
    {
-      DeviceL2ProjectionL2Space();
+      EAL2ProjectionL2Space();
       return;
    }
 
@@ -634,7 +633,7 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
 }
 
 
-void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
+void L2ProjectionGridTransfer::L2ProjectionL2Space::EAL2ProjectionL2Space()
 {
    Mesh *mesh_ho = fes_ho.GetMesh();
    Mesh *mesh_lor = fes_lor.GetMesh();
@@ -868,7 +867,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
 
    if (use_ea)
    {
-      return DeviceMult(x,y);
+      return EAMult(x,y);
    }
 
 
@@ -901,7 +900,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
    }
 }
 
-void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMult(
+void L2ProjectionGridTransfer::L2ProjectionL2Space::EAMult(
    const Vector &x, Vector &y) const
 {
    const int vdim = fes_ho.GetVDim();
@@ -947,7 +946,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
 
    if (use_ea)
    {
-      return DeviceMultTranspose(x,y);
+      return EAMultTranspose(x,y);
    }
 
    int vdim = fes_ho.GetVDim();
@@ -983,7 +982,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
 
 }
 
-void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceMultTranspose(
+void L2ProjectionGridTransfer::L2ProjectionL2Space::EAMultTranspose(
    const Vector &x, Vector &y) const
 {
    const int vdim = fes_ho.GetVDim();
@@ -1028,7 +1027,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
 
    if (use_ea)
    {
-      return DeviceProlongate(x,y);
+      return EAProlongate(x,y);
    }
 
    MFEM_VERIFY(P.Size() > 0, "Prolongation not supported for these spaces.")
@@ -1065,7 +1064,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
 
 }
 
-void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongate(
+void L2ProjectionGridTransfer::L2ProjectionL2Space::EAProlongate(
    const Vector &x, Vector &y) const
 {
 
@@ -1106,7 +1105,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
 
    if (use_ea)
    {
-      return DeviceProlongateTranspose(x,y);
+      return EAProlongateTranspose(x,y);
    }
 
 
@@ -1143,7 +1142,7 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
 
 }
 
-void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
+void L2ProjectionGridTransfer::L2ProjectionL2Space::EAProlongateTranspose(
    const Vector &x, Vector &y) const
 {
    const int vdim = fes_ho.GetVDim();
@@ -1187,7 +1186,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 {
    if (use_ea)
    {
-      DeviceL2ProjectionH1Space();
+      EAL2ProjectionH1Space();
       return;
    }
 
@@ -1238,11 +1237,11 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor,
    const bool use_ea_, MemoryType d_mt_)
    : L2Projection(pfes_ho, pfes_lor, d_mt_),
-     use_ea(use_ea_), pcg(pfes_ho.GetComm()), pcg_vea(pfes_ho.GetComm())
+     use_ea(use_ea_), pcg(pfes_ho.GetComm())
 {
    if (use_ea)
    {
-      DeviceL2ProjectionH1Space(pfes_ho, pfes_lor);
+      EAL2ProjectionH1Space(pfes_ho, pfes_lor);
       return;
    }
 
@@ -1296,13 +1295,13 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
    // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
    pcg.SetMaxIter(1000);
    // initial values for relative and absolute tolerance
-   pcg.SetRelTol(1e-15);
-   pcg.SetAbsTol(1e-15);
+   pcg.SetRelTol(1e-13);
+   pcg.SetAbsTol(1e-13);
    pcg.SetPreconditioner(*precon);
    pcg.SetOperator(*RTxM_LH);
 }
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space()
+void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
 {
    Mesh* mesh_ho = fes_ho.GetMesh();
    Mesh* mesh_lor = fes_lor.GetMesh();
@@ -1387,21 +1386,21 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space()
                                                 &M_LH_ea);
 
    ML_inv_vea.reset(new H1SpaceLumpedMassOperator(&fes_ho, &fes_lor, ML_inv_ea));
-   M_LH_vea.reset(M_LH_local_op);
-   R_vea.reset(new ProductOperator(ML_inv_vea.get(), M_LH_vea.get(), false,
-                                   false));
+   M_LH.reset(M_LH_local_op);
+   R.reset(new ProductOperator(ML_inv_vea.get(), M_LH.get(), false,
+                               false));
 
    Array<int> ess_tdof_list;  // leave empty
-   precon_vea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
+   precon.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
 
-   TransposeOperator* R_veaT = new TransposeOperator(R_vea.get());
-   RTxM_LH_vea.reset(new ProductOperator(R_veaT, M_LH_vea.get(), false, false));
+   TransposeOperator* RT = new TransposeOperator(R.get());
+   RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), false, false));
 
-   DeviceSetupPCG();
+   SetupPCG();
 }
 
 #ifdef MFEM_USE_MPI
-void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space
+void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
 (const ParFiniteElementSpace& pfes_ho, const ParFiniteElementSpace& pfes_lor)
 {
    Mesh* mesh_ho = pfes_ho.GetParMesh();
@@ -1497,22 +1496,22 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space
          GetTDofs(*pfes_lor_scalar, ML_inv_ea, RML_inv);
          ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
                                                         RML_inv));
-         M_LH_vea.reset(new TripleProductOperator(Pt_lor, M_LH_local_op, P_ho, false,
-                                                  false, false));
+         M_LH.reset(new TripleProductOperator(Pt_lor, M_LH_local_op, P_ho, false,
+                                              false, false));
 
          Vector RM_H(pfes_ho_scalar->GetTrueVSize());
          GetTDofsTranspose(*pfes_ho_scalar, M_H, RM_H);
-         precon_vea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
+         precon.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
       }
       else if (P_ho)
       {
          ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
                                                         ML_inv_ea));
-         M_LH_vea.reset(new ProductOperator(M_LH_local_op, P_ho, false, false));
+         M_LH.reset(new ProductOperator(M_LH_local_op, P_ho, false, false));
 
          Vector RM_H(pfes_ho_scalar->GetTrueVSize());
          GetTDofsTranspose(*pfes_ho_scalar, M_H, RM_H);
-         precon_vea.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
+         precon.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
       }
       else if (P_lor)
       {
@@ -1521,53 +1520,35 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceL2ProjectionH1Space
          GetTDofsTranspose(*pfes_lor_scalar, ML_inv_ea, RML_inv);
          ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
                                                         RML_inv));
-         M_LH_vea.reset(new ProductOperator(Pt_lor, M_LH_local_op, false, false));
-         R_vea.reset(new ProductOperator(ML_inv_vea.get(), M_LH_vea.get(), false,
-                                         false));
+         M_LH.reset(new ProductOperator(Pt_lor, M_LH_local_op, false, false));
+         R.reset(new ProductOperator(ML_inv_vea.get(), M_LH.get(), false,
+                                     false));
 
-         precon_vea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
+         precon.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
       }
       else
       {
          ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
                                                         ML_inv_ea));
-         M_LH_vea.reset(M_LH_local_op);
+         M_LH.reset(M_LH_local_op);
 
-         precon_vea.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
+         precon.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
       }
    }
-   R_vea.reset(new ProductOperator(ML_inv_vea.get(), M_LH_vea.get(), false,
-                                   false));
+   R.reset(new ProductOperator(ML_inv_vea.get(), M_LH.get(), false,
+                               false));
 
-   TransposeOperator* R_veaT = new TransposeOperator(R_vea.get());
-   RTxM_LH_vea.reset(new ProductOperator(R_veaT, M_LH_vea.get(), false, false));
+   TransposeOperator* RT = new TransposeOperator(R.get());
+   RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), false, false));
 
-   DeviceSetupPCG();
+   SetupPCG();
 }
 
 #endif
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceSetupPCG()
-{
-   // Basic PCG solver setup
-   pcg_vea.SetPrintLevel(0); // 3 : intial & final residual
-   // pcg.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
-   pcg_vea.SetMaxIter(1000);
-   // initial values for relative and absolute tolerance
-   pcg_vea.SetRelTol(1e-15);
-   pcg_vea.SetAbsTol(1e-15);
-   pcg_vea.SetPreconditioner(*precon_vea);
-   pcg_vea.SetOperator(*RTxM_LH_vea);
-}
-
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
    const Vector& x, Vector& y) const
 {
-   if (use_ea)
-   {
-      return DeviceMult(x,y);
-   }
-
    Vector X(fes_ho.GetTrueVSize());
    Vector X_dim(R->Width());
 
@@ -1591,39 +1572,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Mult(
 
 }
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMult(
-   const Vector& x, Vector& y) const
-{
-   Vector X(fes_ho.GetTrueVSize());
-
-   Vector X_dim(R_vea->Width());
-
-   Vector Y_dim(R_vea->Height());
-   Vector Y(fes_lor.GetTrueVSize());
-
-   Array<int> vdofs_list;
-
-   GetTDofs(fes_ho, x, X);
-
-   for (int d = 0; d < fes_ho.GetVDim(); ++d)
-   {
-      TDofsListByVDim(fes_ho, d, vdofs_list);
-      X.GetSubVector(vdofs_list, X_dim);
-      R_vea->Mult(X_dim, Y_dim);
-      TDofsListByVDim(fes_lor, d, vdofs_list);
-      Y.SetSubVector(vdofs_list, Y_dim);
-   }
-
-   SetFromTDofs(fes_lor, Y, y);
-}
-
 void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
    const Vector& x, Vector& y) const
 {
-   if (use_ea)
-   {
-      return DeviceMultTranspose(x,y);
-   }
    Vector X(fes_lor.GetTrueVSize());
    Vector X_dim(R->Height());
 
@@ -1647,38 +1598,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::MultTranspose(
 
 }
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceMultTranspose(
-   const Vector& x, Vector& y) const
-{
-   Vector X(fes_lor.GetTrueVSize());
-   Vector X_dim(R_vea->Height());
-
-   Vector Y_dim(R_vea->Width());
-   Vector Y(fes_ho.GetTrueVSize());
-
-   Array<int> vdofs_list;
-
-   GetTDofsTranspose(fes_lor, x, X);
-
-   for (int d = 0; d < fes_ho.GetVDim(); ++d)
-   {
-      TDofsListByVDim(fes_lor, d, vdofs_list);
-      X.GetSubVector(vdofs_list, X_dim);
-      R_vea->MultTranspose(X_dim, Y_dim);
-      TDofsListByVDim(fes_ho, d, vdofs_list);
-      Y.SetSubVector(vdofs_list, Y_dim);
-   }
-
-   SetFromTDofsTranspose(fes_ho, Y, y);
-}
-
 void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
    const Vector& x, Vector& y) const
 {
-   if (use_ea)
-   {
-      return DeviceProlongate(x,y);
-   }
 
    Vector X(fes_lor.GetTrueVSize());
    Vector X_dim(M_LH->Height());
@@ -1707,46 +1629,9 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
 
 }
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongate(
-   const Vector &x, Vector &y) const
-{
-   Vector X(fes_lor.GetTrueVSize());
-   Vector X_dim(M_LH_vea->Height());
-   MFEM_ASSERT(M_LH_vea->Width()==pcg_vea.Width(),
-               "M_LH and PCG dimensions don't match");
-   Vector Xbar(pcg_vea.Width());
-
-   Vector Y_dim(pcg_vea.Height());
-   Y_dim = 0.0;
-   Vector Y(fes_ho.GetTrueVSize());
-
-   Array<int> vdofs_list;
-
-   GetTDofs(fes_lor, x, X);
-
-   for (int d = 0; d < fes_ho.GetVDim(); ++d)
-   {
-      TDofsListByVDim(fes_lor, d, vdofs_list);
-      X.GetSubVector(vdofs_list, X_dim);
-
-      // Compute y = P x = (R^T M_LH)^(-1) M_LH^T X = (R^T M_LH)^(-1) Xbar
-      M_LH_vea->MultTranspose(X_dim, Xbar);
-      pcg_vea.Mult(Xbar, Y_dim);
-      TDofsListByVDim(fes_ho, d, vdofs_list);
-      Y.SetSubVector(vdofs_list, Y_dim);
-   }
-
-   SetFromTDofs(fes_ho, Y, y);
-}
-
 void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
    const Vector& x, Vector& y) const
 {
-   if (use_ea)
-   {
-      return DeviceProlongateTranspose(x,y);
-   }
-
    Vector X(fes_ho.GetTrueVSize());
    Vector X_dim(pcg.Width());
    Vector Xbar(pcg.Height());
@@ -1774,43 +1659,14 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
 
 }
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::DeviceProlongateTranspose(
-   const Vector &x, Vector &y) const
-{
-   Vector X(fes_ho.GetTrueVSize());
-   Vector X_dim(pcg_vea.Width());
-   Vector Xbar(pcg_vea.Height());
-
-   Vector Y_dim(M_LH_vea->Height());
-   Vector Y(fes_lor.GetTrueVSize());
-
-   Array<int> vdofs_list;
-
-   GetTDofsTranspose(fes_ho, x, X);
-
-   for (int d = 0; d < fes_ho.GetVDim(); ++d)
-   {
-      TDofsListByVDim(fes_ho, d, vdofs_list);
-      X.GetSubVector(vdofs_list, X_dim);
-      // Compute y = P^T x = M_LH (R^T M_LH)^(-1) X = M_LH Xbar
-      Xbar = 0.0;
-      pcg_vea.Mult(X_dim, Xbar);
-      M_LH_vea->Mult(Xbar, Y_dim);
-      TDofsListByVDim(fes_lor, d, vdofs_list);
-      Y.SetSubVector(vdofs_list, Y_dim);
-   }
-
-   SetFromTDofsTranspose(fes_lor, Y, y);
-}
-
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(real_t p_rtol_)
 {
-   use_ea ? pcg_vea.SetRelTol(p_rtol_) : pcg.SetRelTol(p_rtol_);
+   pcg.SetRelTol(p_rtol_);
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(real_t p_atol_)
 {
-   use_ea ? pcg_vea.SetAbsTol(p_atol_) : pcg.SetAbsTol(p_atol_);
+   pcg.SetAbsTol(p_atol_);
 }
 
 std::pair<

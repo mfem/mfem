@@ -293,7 +293,7 @@ public:
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 
       /*Same as above but assembles and stores R_ea, P_ea */
-      void DeviceL2ProjectionL2Space();
+      void EAL2ProjectionL2Space();
 
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order L2 finite element space, to <tt>y</tt>, primal
@@ -304,7 +304,7 @@ public:
       void Mult(const Vector& x, Vector& y) const override;
 
       /// Perform mult on the device (same as above)
-      void DeviceMult(const Vector& x, Vector& y) const;
+      void EAMult(const Vector& x, Vector& y) const;
 
       /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
       /// with a low order L2 finite element space, to <tt>y</tt>, dual field
@@ -315,7 +315,7 @@ public:
       /// come from ProlongateTranspose, then mass is conserved.
       void MultTranspose(const Vector& x, Vector& y) const override;
 
-      void DeviceMultTranspose(const Vector& x, Vector& y) const;
+      void EAMultTranspose(const Vector& x, Vector& y) const;
 
       /// Maps <tt>x</tt>, primal field coefficients defined on a refined mesh
       /// with a low order L2 finite element space, to <tt>y</tt>, primal field
@@ -326,7 +326,7 @@ public:
       /// provided as an Operator by L2Prolongation.
       void Prolongate(const Vector& x, Vector& y) const override;
 
-      void DeviceProlongate(const Vector& x, Vector& y) const;
+      void EAProlongate(const Vector& x, Vector& y) const;
 
       /// Maps <tt>x</tt>, dual field coefficients defined on a coarse mesh with
       /// a higher order L2 finite element space, to <tt>y</tt>, dual field
@@ -337,7 +337,7 @@ public:
       /// is also provided as an Operator by L2Prolongation.
       void ProlongateTranspose(const Vector& x, Vector& y) const override;
 
-      void DeviceProlongateTranspose(const Vector& x, Vector& y) const;
+      void EAProlongateTranspose(const Vector& x, Vector& y) const;
 
       void SetRelTol(real_t p_rtol_) override { } ///< No-op.
       void SetAbsTol(real_t p_atol_) override { } ///< No-op.
@@ -371,11 +371,11 @@ public:
       ///   ( )  ElementRestrictionOperator for LOR space
       ///   ( )  mixed mass matrix M_{LH}
       ///   ( )  ElementRestrictionOperator for HO space
-      void DeviceL2ProjectionH1Space();
+      void EAL2ProjectionH1Space();
 
 #ifdef MFEM_USE_MPI
-      void DeviceL2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
-                                     const ParFiniteElementSpace &pfes_lor_);
+      void EAL2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
+                                 const ParFiniteElementSpace &pfes_lor_);
 #endif
       /// Maps <tt>x</tt>, primal field coefficients defined on a coarse mesh
       /// with a higher order H1 finite element space, to <tt>y</tt>, primal
@@ -384,9 +384,6 @@ public:
       /// the coarse mesh. Coefficients are computed through minimization of L2
       /// error between the fields.
       void Mult(const Vector& x, Vector& y) const override;
-
-      // Perform mult on the device (same as above)
-      void DeviceMult(const Vector& x, Vector& y) const;
 
       /// Maps <tt>x</tt>, dual field coefficients defined on a refined mesh
       /// with a low order H1 finite element space, to <tt>y</tt>, dual field
@@ -397,8 +394,6 @@ public:
       /// come from ProlongateTranspose, then mass is conserved.
       void MultTranspose(const Vector& x, Vector& y) const override;
 
-      void DeviceMultTranspose(const Vector& x, Vector& y) const;
-
       /// Maps <tt>x</tt>, primal field coefficients defined on a refined mesh
       /// with a low order H1 finite element space, to <tt>y</tt>, primal field
       /// coefficients defined on a coarse mesh with a higher order H1 finite
@@ -407,8 +402,6 @@ public:
       /// left-inverse prolongation operation. This functionality is also
       /// provided as an Operator by L2Prolongation.
       void Prolongate(const Vector& x, Vector& y) const override;
-
-      void DeviceProlongate(const Vector& x, Vector& y) const;
 
       /// Maps <tt>x</tt>, dual field coefficients defined on a coarse mesh with
       /// a higher order H1 finite element space, to <tt>y</tt>, dual field
@@ -419,8 +412,6 @@ public:
       /// is also provided as an Operator by L2Prolongation.
       void ProlongateTranspose(const Vector& x, Vector& y) const override;
 
-      void DeviceProlongateTranspose(const Vector& x, Vector& y) const;
-
       /// Returns the inverse of an on-rank lumped mass matrix
       void LumpedMassInverse(Vector& ML_inv) const;
 
@@ -430,7 +421,6 @@ public:
    protected:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
-      void DeviceSetupPCG();
 
       /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
       /// inverse lumped mass matrix error when compared to device implementation.
@@ -470,29 +460,19 @@ public:
       // The restriction operator is represented as an Operator R. The
       // prolongation operator is a dense matrix computed as the inverse of (R^T
       // M_L R), and hence, is not stored.
+      // If element assembly is enabled
       std::unique_ptr<Operator> R;
       // Used to compute P = (RT*M_LH)^(-1) M_LH^T
       std::unique_ptr<Operator> M_LH;
+      // Inverted operator in P = (RT*M_LH)^(-1) M_LH^T. Used to compute P via PCG.
       std::unique_ptr<Operator> RTxM_LH;
-
-      // "_vea" stands for "via EA"
-      CGSolver pcg_vea;
-      std::unique_ptr<Solver> precon_vea;
-      // Restriction operator built via EA. Wrapped with restriction maps to send
-      // scalar TDof HO vectors to TDof LOR vectors.
-      std::unique_ptr<Operator> R_vea;
       // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
       // to multiply with scalar TDof LOR vectors.
       std::unique_ptr<Operator> ML_inv_vea;
-      // TDof Mixed mass operator built via EA. Wrapped with restriction maps to send
-      // scalar TDof HO vectors to TDof LOR vectors.
-      // Used to compute P = (RT*M_LH)^(-1) M_LH^T
-      std::unique_ptr<Operator> M_LH_vea;
-      // Inverted operator in P = (RT*M_LH)^(-1) M_LH^T. Used to compute P via PCG.
-      std::unique_ptr<Operator> RTxM_LH_vea;
       // LDof Mixed mass operator built via EA. Wrapped with restrition maps to send
       // scalar LDof HO vectors to LDof LOR vectors.
       Operator *M_LH_local_op;
+
       // Scalar finite element spaces for stored Tdof-to-and-from-LDof maps.
       FiniteElementSpace* fes_ho_scalar;
       FiniteElementSpace* fes_lor_scalar;
