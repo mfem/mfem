@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
    int visport = 19916;
    bool use_pointwise_transfer = false;
    const char *device_config = "cpu";
-   bool use_ea       = true;
+   bool use_ea       = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -101,8 +101,7 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
-                  "--no-ea-version",
-                  "Use element assembly version.");
+                  "--no-ea-version", "Use element assembly version.");
    args.ParseCheck();
 
    // Read the mesh from the given mesh file.
@@ -176,6 +175,7 @@ int main(int argc, char *argv[])
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
 
+   // Configure element assembly for device acceleration
    gt->UseEA(use_ea);
 
    const Operator &R = gt->ForwardOperator();
