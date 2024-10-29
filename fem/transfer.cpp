@@ -461,10 +461,9 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       M_LH.SetSize(ndof_lor*ndof_ho*nref*nel_ho, d_mt);
       M_LH = 0.0;
 
-      //Rows x columns
-      //Recall MFEM is column major
-
-      //rows x columns is inverted  - matrix is ndof_lor x ndof_ho
+      // Rows x columns
+      // Recall MFEM is column major
+      // rows x columns is inverted  - matrix is ndof_lor x ndof_ho
       auto v_M_LH = Reshape(M_LH.Write(), ndof_lor, ndof_ho, nref,
                             nel_ho);
 
@@ -746,16 +745,16 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
 
    BatchedLinAlg::Invert(Minv_ear_lor);
    {
-      //Recall mfem is column major
+      // Recall mfem is column major
       // ndof_lor x ndof_ho
       auto v_M_mixed_all = Reshape(M_mixed_all.Read(), ndof_lor, ndof_ho, nref,
                                    nel_ho);
 
-      //matrix is symmetric
+      // matrix is symmetric
       auto v_Minv_ear_lor = Reshape(Minv_ear_lor.Read(), ndof_lor, ndof_lor,
                                     nel_lor);
 
-      //ndof_lor x ndof_ho
+      // ndof_lor x ndof_ho
       auto v_R_ea = Reshape(R_ea.Write(), ndof_lor, nref, ndof_ho, nel_ho);
 
       MFEM_VERIFY(nel_lor==nel_ho*nref, "nel_lor != nel_ho*nref");
@@ -787,15 +786,15 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
 
    if (build_P)
    {
-      //P = inv(R^T M_L R) * R^T M_L
+      // P = inv(R^T M_L R) * R^T M_L
 
-      //M_lor is size of ndof_lor x ndof_lor
-      //R is size of (ndof_lor x nref x ndof_ho)
+      // M_lor is size of ndof_lor x ndof_lor
+      // R is size of (ndof_lor x nref x ndof_ho)
       auto v_M_ea_lor = Reshape(M_ea_lor.Read(), ndof_lor, ndof_lor, nel_lor);
       auto v_R_ea = Reshape(R_ea.Read(), ndof_lor, nref, ndof_ho, nel_ho);
-      //R^T M_LO is of size nref x ndof_lor
+      // R^T M_LO is of size nref x ndof_lor
 
-      //Compute R^T M_L
+      // Compute R^T M_L
       Vector RtM_L(ndof_ho*nref*ndof_lor*nel_ho, d_mt);
       auto v_RtM_L = Reshape(RtM_L.Write(), ndof_ho, ndof_lor, nref, nel_ho);
 
@@ -826,8 +825,8 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
          }
       });
 
-      //resulting matrix should be: ndof_ho x ndof_ho
-      //R^T M_L x R
+      // Resulting matrix should be: ndof_ho x ndof_ho
+      // R^T M_L x R
       Vector RtM_LR(ndof_ho * ndof_ho * nel_ho, d_mt);
       auto v_RtM_LR = Reshape(RtM_LR.Write(), ndof_ho, ndof_ho, nel_ho);
 
@@ -850,16 +849,16 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceL2ProjectionL2Space()
          }
       });
 
-      //Compute the inverse of InvRtM_LR
+      // Compute the inverse of InvRtM_LR
       DenseTensor InvRtM_LR;
       InvRtM_LR.SetSize(ndof_ho, ndof_ho, nel_ho, d_mt);
       InvRtM_LR.GetMemory().CopyFrom(RtM_LR.GetMemory(), RtM_LR.Size());
 
       BatchedLinAlg::Invert(InvRtM_LR);
 
-      //Form P_ea
-      //P_ea should be of dimension (ndof_ho x ndof_ho) x (ndof_ho x nref*ndof_lor)
-      //P_ea ndof_ho x nref*ndof_lor
+      // Form P_ea
+      // P_ea should be of dimension (ndof_ho x ndof_ho) x (ndof_ho x nref*ndof_lor)
+      // P_ea ndof_ho x nref*ndof_lor
       auto v_InvRtM_LR = Reshape(InvRtM_LR.Read(), ndof_ho, ndof_ho,
                                  nel_ho);
       auto v_P_ea = Reshape(P_ea.Write(), ndof_ho, ndof_lor, nref, nel_ho);
@@ -1234,7 +1233,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::DeviceProlongateTranspose(
    const Mesh *mesh_ho = fes_ho.GetMesh();
    const int nel_ho = mesh_ho->GetNE();
 
-   //Here we want to make a reference...
    auto v_P_ea = Reshape(P_ea.Read(), ndof_ho, ndof_lor, nref, nel_ho);
    auto v_x    = Reshape(x.Read(), ndof_ho, vdim, nel_ho);
    auto v_y    = Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
