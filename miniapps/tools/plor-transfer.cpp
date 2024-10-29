@@ -195,10 +195,11 @@ int main(int argc, char *argv[])
    {
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
-   const Operator &R = gt->ForwardOperator();
 
    // Configure element assembly for device acceleration
    gt->UseEA(use_ea);
+
+   const Operator &R = gt->ForwardOperator();
 
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";

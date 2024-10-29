@@ -106,7 +106,6 @@ int main(int argc, char *argv[])
 
    // Configure device
    Device device(device_config);
-   if (myid == 0) { device.Print(); }
 
    // Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
