@@ -62,7 +62,7 @@ void ForceInverterInitialDesign(GridFunction &x, LegendreEntropy *entropy)
    ports.Append(new Vector({0.0,1.0}));
    ports.Append(new Vector({0.0,0.0}));
    ports.Append(new Vector({2.0,1.0}));
-   Vector domain_center({1.0,0.0});
+   Vector domain_center({1.0,0.5});
 
 
    FunctionCoefficient dist([&domain_center, &ports](const Vector &x)

@@ -39,7 +39,9 @@ real_t simp(const real_t x, const real_t exponent, const real_t rho0)
 
 real_t der_simp(const real_t x, const real_t exponent, const real_t rho0)
 {
-   if (x < 0 || x > 1) { return 0.0; }
+   // if (x < 0 || x > 1) { return 0.0; }
+   if (x < 0) { return 0.0; }
+   else if (x > 1) { return exponent*(1.0 - rho0); }
    else { return exponent*(1.0-rho0)*std::pow(x, exponent-1.0); }
 }
 

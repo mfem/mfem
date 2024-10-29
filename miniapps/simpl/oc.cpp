@@ -47,8 +47,8 @@ int main(int argc, char *argv[])
    real_t eps_stationarity = 1;
    real_t tol_obj_diff_rel = 5e-05;
    real_t tol_obj_diff_abs = 5e-05;
-   real_t tol_rel = 1e-06;
-   real_t tol_abs = 5e-06;
+   real_t tol_rel = 1e-05;
+   real_t tol_abs = 1e-05;
    // backtracking related
    int max_it_backtrack = 300;
    bool use_bregman_backtrack = true;
@@ -351,10 +351,9 @@ int main(int argc, char *argv[])
 
       real_t dummy1, dummy2;
       control_eps_gf.ProjectCoefficient(density_cf);
-      density_primal.ProjectedStep(control_eps_gf, eps_stationarity, grad_gf, dummy1,
-                                   dummy2);
-      stationarity = std::sqrt(zero_gf.ComputeL1Error(
-                                           primal_diff_eps))/eps_stationarity;
+      density_primal.ProjectedStep(control_eps_gf, 1.0, grad_gf, dummy1, dummy2);
+      // stationarity = std::sqrt(zero_gf.ComputeL1Error(primal_diff_eps));
+      stationarity = control_eps_gf.ComputeL2Error(density_cf);
 
       logger.Print(true);
       if (Mpi::Root())
