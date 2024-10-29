@@ -1,7 +1,6 @@
 #pragma once
 
 #include "dfem_util.hpp"
-#include <type_traits>
 
 namespace mfem
 {

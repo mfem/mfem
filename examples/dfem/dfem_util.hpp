@@ -98,12 +98,6 @@ void print_array(const mfem::Array<T>& v)
    std::cout << "]\n";
 }
 
-namespace AutoDiff
-{
-struct NativeDualNumber {};
-struct EnzymeForward {};
-}
-
 template <typename ... Ts>
 constexpr auto decay_types(mfem::tuple<Ts...> const &)
 -> mfem::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
@@ -156,6 +150,12 @@ struct BoundaryFace;
 
 struct TensorProduct;
 struct NonTensorProduct;
+
+namespace AutoDiff
+{
+struct NativeDualNumber {};
+struct EnzymeForward {};
+}
 
 #if (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 template <typename func_t>
@@ -233,96 +233,6 @@ GeometricFactorMaps GetGeometricFactorMaps(Mesh &mesh,
    Vector zero;
    return GeometricFactorMaps{DeviceTensor<3, const double>(zero.Read(), 0, 0, 0)};
 }
-
-template <typename func_t, typename input_t,
-          typename output_t>
-struct ElementOperator;
-
-template <typename func_t, typename... input_ts,
-          typename... output_ts>
-struct ElementOperator<func_t, mfem::tuple<input_ts...>,
-          mfem::tuple<output_ts...>>
-{
-   using entity_t = Entity::Element;
-   func_t func;
-   mfem::tuple<input_ts...> inputs;
-   mfem::tuple<output_ts...> outputs;
-   using kf_param_ts = typename create_function_signature<
-                       decltype(&decltype(func)::operator())>::type::parameter_ts;
-
-   using kf_output_t = typename create_function_signature<
-                       decltype(&decltype(func)::operator())>::type::return_t;
-
-   using kernel_inputs_t = decltype(inputs);
-   using kernel_outputs_t = decltype(outputs);
-
-   static constexpr size_t num_kinputs =
-      mfem::tuple_size<kernel_inputs_t>::value;
-   static constexpr size_t num_koutputs =
-      mfem::tuple_size<kernel_outputs_t>::value;
-
-   Array<int> attributes;
-
-   ElementOperator(func_t func,
-                   mfem::tuple<input_ts...> inputs,
-                   mfem::tuple<output_ts...> outputs,
-                   Array<int> *attr = nullptr)
-      : func(func), inputs(inputs), outputs(outputs)
-   {
-      if (attr)
-      {
-         attributes = *attr;
-      }
-      // Properly check all parameter types of the kernel
-      // std::apply([](auto&&... args)
-      // {
-      //    ((out << std::is_reference_v<decltype(args)> << "\n"), ...);
-      // },
-      // kf_param_ts);
-
-      // Consistency checks
-      if constexpr (num_koutputs > 1)
-      {
-         static_assert(always_false<func_t>,
-                       "more than one output per kernel is not supported right now");
-      }
-
-      constexpr size_t num_kfinputs = mfem::tuple_size<kf_param_ts>::value;
-      static_assert(num_kfinputs == num_kinputs,
-                    "kernel function inputs and descriptor inputs have to match");
-
-      constexpr size_t num_kfoutputs = mfem::tuple_size<kf_output_t>::value;
-      static_assert(num_kfoutputs == num_koutputs,
-                    "kernel function outputs and descriptor outputs have to match");
-   }
-};
-
-template <typename func_t, typename... input_ts,
-          typename... output_ts>
-ElementOperator(func_t, mfem::tuple<input_ts...>,
-                mfem::tuple<output_ts...>)
--> ElementOperator<func_t, mfem::tuple<input_ts...>,
-mfem::tuple<output_ts...>>;
-
-template <typename func_t, typename input_t, typename output_t>
-struct BoundaryElementOperator : public
-   ElementOperator<func_t, input_t, output_t>
-{
-public:
-   using entity_t = Entity::BoundaryElement;
-   BoundaryElementOperator(func_t func, input_t inputs, output_t outputs)
-      : ElementOperator<func_t, input_t, output_t>(func, inputs, outputs) {}
-};
-
-template <typename func_t, typename input_t, typename output_t>
-struct FaceOperator : public
-   ElementOperator<func_t, input_t, output_t>
-{
-public:
-   using entity_t = Entity::Face;
-   FaceOperator(func_t func, input_t inputs, output_t outputs)
-      : ElementOperator<func_t, input_t, output_t>(func, inputs, outputs) {}
-};
 
 int GetVSize(const FieldDescriptor &f)
 {

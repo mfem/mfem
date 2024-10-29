@@ -241,12 +241,10 @@ public:
                           std::array<FieldDescriptor, num_parameters> p,
                           kernels_tuple ks,
                           ParMesh &m,
-                          const IntegrationRule &integration_rule,
                           autodiff_t ad = AutoDiff::NativeDualNumber{}) :
       kernels(ks),
       mesh(m),
       dim(mesh.Dimension()),
-      integration_rule(integration_rule),
       solutions(s),
       parameters(p)
    {
@@ -290,7 +288,6 @@ public:
    kernels_tuple kernels;
    ParMesh &mesh;
    const int dim;
-   const IntegrationRule &integration_rule;
 
    std::array<FieldDescriptor, num_solutions> solutions;
    std::array<FieldDescriptor, num_parameters> parameters;
@@ -359,7 +356,7 @@ void DifferentiableOperator<kernels_tuple,
 
    const int num_elements = GetNumEntities<Entity::Element>(op.mesh);
    const int num_entities = GetNumEntities<entity_t>(op.mesh);
-   const int num_qp = op.integration_rule.GetNPoints();
+   const int num_qp = kernel.integration_rule.GetNPoints();
 
    // All solutions T-vector sizes make up the width of the operator, since
    // they are explicitly provided in Mult() for example.
@@ -382,7 +379,7 @@ void DifferentiableOperator<kernels_tuple,
    std::vector<const DofToQuad*> dtq;
    for (const auto &field : op.fields)
    {
-      dtq.emplace_back(GetDofToQuad<entity_t>(field, op.integration_rule,
+      dtq.emplace_back(GetDofToQuad<entity_t>(field, kernel.integration_rule,
                                               doftoquad_mode));
    }
    const int q1d = (int)floor(pow(num_qp, 1.0/op.mesh.Dimension()) + 0.5);
@@ -409,8 +406,7 @@ void DifferentiableOperator<kernels_tuple,
                             mfem::get<hardcoded_output_idx>(output_fops).vdim /
                             num_entities;
 
-   auto ir_weights = Reshape(this->op.integration_rule.GetWeights().Read(),
-                             num_qp);
+   auto ir_weights = Reshape(kernel.integration_rule.GetWeights().Read(), num_qp);
 
    auto input_size_on_qp = get_input_size_on_qp(kernel.inputs,
                                                 std::make_index_sequence<kernel.num_kinputs> {});
@@ -598,13 +594,13 @@ void DifferentiableOperator<kernels_tuple,
 
    const int num_elements = GetNumEntities<Entity::Element>(op.mesh);
    const int num_entities = GetNumEntities<entity_t>(op.mesh);
-   const int num_qp = op.integration_rule.GetNPoints();
+   const int num_qp = kernel.integration_rule.GetNPoints();
 
    // assume only a single element type for now
    std::vector<const DofToQuad*> dtq;
    for (const auto &field : op.fields)
    {
-      dtq.emplace_back(GetDofToQuad<entity_t>(field, op.integration_rule,
+      dtq.emplace_back(GetDofToQuad<entity_t>(field, kernel.integration_rule,
                                               doftoquad_mode));
    }
    const int q1d = dtq[0]->nqpt;
@@ -631,8 +627,7 @@ void DifferentiableOperator<kernels_tuple,
                             mfem::get<hardcoded_output_idx>(output_fops).vdim /
                             num_entities;
 
-   auto ir_weights = Reshape(this->op.integration_rule.GetWeights().Read(),
-                             num_qp);
+   auto ir_weights = Reshape(kernel.integration_rule.GetWeights().Read(), num_qp);
 
    auto input_size_on_qp = get_input_size_on_qp(kernel.inputs,
                                                 std::make_index_sequence<kernel.num_kinputs> {});
@@ -823,7 +818,4 @@ void DifferentiableOperator<kernels_tuple,
    }
 }
 
-// #include "dfem_assemble_vector.icc"
-// #include "dfem_assemble_hypreparmatrix.icc"
-
-}
+} // namespace mfem

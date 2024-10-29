@@ -1,10 +1,5 @@
 #include "dfem/dfem.hpp"
 #include "dfem/dfem_test_macro.hpp"
-#include "examples/dfem/dfem_util.hpp"
-#include "fem/pfespace.hpp"
-#include "linalg/hypre.hpp"
-#include "linalg/operator.hpp"
-#include "linalg/solvers.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -205,13 +200,13 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
    mfem::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
    mfem::tuple output_operator{Gradient{"displacement"}};
 
-   ElementOperator op{elasticity_kernel, argument_operators, output_operator};
+   ElementOperator op(elasticity_kernel, argument_operators, output_operator, ir);
 
    std::array solutions{FieldDescriptor{&h1fes, "displacement"}};
    std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
 
-   DifferentiableOperator dop(solutions, parameters,
-                              mfem::tuple{op}, mesh, ir, AutoDiff::NativeDualNumber{});
+   DifferentiableOperator dop(solutions, parameters, mfem::tuple{op}, mesh,
+                              AutoDiff::NativeDualNumber{});
 
    ElasticityOperator elasticity(h1fes, dop, ess_tdof_list);
 
