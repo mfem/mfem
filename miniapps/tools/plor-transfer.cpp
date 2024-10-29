@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
    int visport = 19916;
    bool use_pointwise_transfer = false;
    const char *device_config = "cpu";
-   bool use_ea       = true;
+   bool use_ea       = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -102,6 +102,10 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
+                  "--no-ea-version", "Use element assembly version.");
    args.ParseCheck();
 
    // Read the mesh from the given mesh file.
@@ -183,6 +187,7 @@ int main(int argc, char *argv[])
    }
    const Operator &R = gt->ForwardOperator();
 
+   // Configure element assembly for device acceleration
    gt->UseEA(use_ea);
 
    // HO->LOR restriction
@@ -288,11 +293,10 @@ int main(int argc, char *argv[])
       real_t ho_dual_mass = global_sum(M_rho);
       real_t lor_dual_mass = global_sum(M_rho_lor);
 
-      cout << lor_dual_mass << '\n';
-      cout << ho_dual_mass << '\n';
-
       if (Mpi::Root())
       {
+         cout << "lor dual mass = " << lor_dual_mass << '\n';
+         cout << "ho dual mass = " << ho_dual_mass << '\n';
          cout << "LOR -> HO dual field: " << abs(ho_dual_mass - lor_dual_mass) << '\n';
       }
    }
