@@ -210,8 +210,6 @@ public:
    protected:
       const FiniteElementSpace& fes_ho;
       const FiniteElementSpace& fes_lor;
-      //Coefficient* coeff;
-      //const IntegrationRule* int_rule;
 
       MemoryType d_mt;
       Array<int> offsets;
