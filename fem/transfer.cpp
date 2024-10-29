@@ -386,8 +386,6 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          const GeometricFactors *geo_facts =
             mesh_lor->GetGeometricFactors(*ir_ea, GeometricFactors::DETERMINANTS);
 
-         const int Q1D         = maps_lor->nqpt;
-
          const int dim = mesh_ho->Dimension();
 
          MFEM_ASSERT(nel_ho*nref == nel_lor, "we expect nel_ho*nref == nel_lor");
