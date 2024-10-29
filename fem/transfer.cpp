@@ -326,7 +326,7 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
 
 }
 
-Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
+void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    const FiniteElementSpace& fes_ho_ea,
    const FiniteElementSpace& fes_lor_ea,
    Vector &M_LH, MemoryType d_mt_)
@@ -448,7 +448,6 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       const int qPts = D.SizeI();
 
       M_LH.SetSize(ndof_lor*ndof_ho*nref*nel_ho, d_mt);
-      M_LH = 0.0;
 
       // Rows x columns
       // Recall MFEM is column major
@@ -489,8 +488,6 @@ Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          }
       });
    } // end of mixed assembly mass matrix
-
-   return M_LH;
 }
 
 L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
