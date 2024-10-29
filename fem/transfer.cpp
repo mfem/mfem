@@ -18,11 +18,10 @@ namespace mfem
 {
 
 GridTransfer::GridTransfer(FiniteElementSpace &dom_fes_,
-                           FiniteElementSpace &ran_fes_,
-                           MemoryType d_mt_)
+                           FiniteElementSpace &ran_fes_)
    : dom_fes(dom_fes_), ran_fes(ran_fes_),
      oper_type(Operator::ANY_TYPE),
-     fw_t_oper(), bw_t_oper(), use_ea(false), d_mt(d_mt_)
+     fw_t_oper(), bw_t_oper(), use_ea(false), d_mt(Device::GetHostMemoryType())
 {
 #ifdef MFEM_USE_MPI
    const bool par_dom = dynamic_cast<ParFiniteElementSpace*>(&dom_fes);
