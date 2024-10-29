@@ -155,7 +155,16 @@ New and updated examples and miniapps
 
 - Added two new example codes: 38 and 39/39p described above. Substantially
   updated Example 18/18p.
+  
+- Added ODE solvers selection routines. This creates a uniformity across examples,
+  miniapps and other executables in regard to ODE(time-integrator) selection.
 
+- Added new mechanism for retrieving and setting state vectors in ODE solvers.
+  This is relevant for AB/AM and gen-alpha solvers.
+
+- Added ODEsolver/ODEsolver2 unit tests to verify order of convergence and
+  read/write functionality.
+  
 Miscellaneous
 -------------
 - Updated the Doxygen documentation style, which now requires Doxygen version
