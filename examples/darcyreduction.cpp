@@ -218,19 +218,18 @@ void DarcyReduction::Reset()
    delete S;
    S = NULL;
 
-   const int NE = fes_u->GetMesh()->GetNE();
-   memset(Bf_data, 0, Bf_offsets[NE] * sizeof(real_t));
+   memset(Bf_data, 0, Bf_offsets.Last() * sizeof(real_t));
    if (Df_data)
    {
-      memset(Df_data, 0, Df_offsets[NE] * sizeof(real_t));
+      memset(Df_data, 0, Df_offsets.Last() * sizeof(real_t));
    }
    if (E_data)
    {
-      memset(E_data, 0, E_offsets[NE] * sizeof(real_t));
+      memset(E_data, 0, E_offsets.Last() * sizeof(real_t));
    }
    if (G_data)
    {
-      memset(G_data, 0, G_offsets[NE] * sizeof(real_t));
+      memset(G_data, 0, G_offsets.Last() * sizeof(real_t));
    }
 }
 
