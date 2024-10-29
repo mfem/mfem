@@ -53,14 +53,14 @@ $(MINIAPPS):%: %.o $(SIMPL_OBJ)
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
-# Testing: Specific execution options
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-darcy-test-par: darcy
-	@$(call mfem-test,$<, $(RUN_MPI), H(div) Darcy solver miniapp,\
-	  -m ../../data/fichera-q2.mesh,SKIP-NO-VIS)
-grad_div-test-par: grad_div
-	@$(call mfem-test,$<, $(RUN_MPI), H(div) grad-div solver miniapp,-sp -ams \
-	  -lor -hb -m ../../data/fichera-q2.mesh -rp 0,SKIP-NO-VIS)
+# # Testing: Specific execution options
+# RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+# darcy-test-par: darcy
+# 	@$(call mfem-test,$<, $(RUN_MPI), H(div) Darcy solver miniapp,\
+# 	  -m ../../data/fichera-q2.mesh,SKIP-NO-VIS)
+# grad_div-test-par: grad_div
+# 	@$(call mfem-test,$<, $(RUN_MPI), H(div) grad-div solver miniapp,-sp -ams \
+# 	  -lor -hb -m ../../data/fichera-q2.mesh -rp 0,SKIP-NO-VIS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

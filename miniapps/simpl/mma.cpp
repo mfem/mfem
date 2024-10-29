@@ -337,7 +337,7 @@ int main(int argc, char *argv[])
    MMAOpt mma(fes_control.GetComm(), control_gf.Size(), 1, control_gf);
    Vector con(1);
    ParGridFunction lower(&fes_control), upper(&fes_control);
-   real_t max_ch=0.5;
+   real_t max_ch=0.1;
    // optproblem.Eval();
    // optproblem.UpdateGradient();
    // const real_t obj_scale = grad_gf.ComputeMaxError(zero_cf);
@@ -367,10 +367,9 @@ int main(int argc, char *argv[])
 
       real_t dummy1, dummy2;
       control_eps_gf = control_gf;
-      density.ProjectedStep(control_eps_gf, eps_stationarity, grad_gf, dummy1,
-                            dummy2);
-      stationarity = std::sqrt(zero_gf.ComputeL1Error(
-                                  bregman_diff_eps))/eps_stationarity;
+      density.ProjectedStep(control_eps_gf, 1.0, grad_gf, dummy1, dummy2);
+      // stationarity = std::sqrt(zero_gf.ComputeL1Error(bregman_diff_eps));
+      stationarity = control_eps_gf.ComputeL2Error(density_cf);
 
 
       logger.Print(true);

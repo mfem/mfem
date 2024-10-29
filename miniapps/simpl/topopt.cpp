@@ -232,7 +232,20 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
    GridFunctionCoefficient grad_cf(&grad);
    real_t max_grad = zero->ComputeMaxError(grad_cf);
    real_t mu_max(max_grad), mu_min(-max_grad);
-   if (max_grad == 0.0)
+   // real_t mu_max(1e10), mu_min(-1e10);
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace*>(grad.FESpace());
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &mu_max, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                    pfes->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &mu_min, 1, MFEM_MPI_REAL_T, MPI_MIN,
+                    pfes->GetComm());
+   }
+   // out << mu_max << ", " << mu_min << std::endl;
+#endif
+   // real_t mu_max(max_grad), mu_min(-max_grad);
+   if (mu_max == mu_min)
    {
       mu_max = entropy->GetFiniteUpperBound();
       mu_min = entropy->GetFiniteLowerBound();
@@ -244,7 +257,8 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
       mu = (mu_max+mu_min)*0.5;
       vol = zero->ComputeL1Error(density_cf);
       if (vol > targ_vol) { mu_max = mu; }
-      else { mu_min = mu; }
+      else if (vol < targ_vol) { mu_min = mu; }
+      else { break; }
       if (mu_max - mu_min < 1e-12) { break; }
    }
    x.ProjectCoefficient(masked_newx_cf);
