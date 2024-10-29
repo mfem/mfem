@@ -450,6 +450,8 @@ void DarcyForm::Assemble(int skip_zeros)
 #endif //!MFEM_DARCY_REDUCTION_ELIM_BCS
             reduction->AssemblePotMassMatrix(i, elmat);
          }
+
+         AssemblePotLDGFaces(skip_zeros);
       }
       else
       {
@@ -835,6 +837,116 @@ DarcyForm::~DarcyForm()
 
    delete reduction;
    delete hybridization;
+}
+
+void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
+{
+   Mesh *mesh = fes_p->GetMesh();
+   FaceElementTransformations *tr;
+#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+   DenseMatrix elmat1, elmat2;
+   Array<int> vdofs1, vdofs2;
+#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+
+   auto &interior_face_integs = *M_p->GetFBFI();
+
+   if (interior_face_integs.Size())
+   {
+      DenseMatrix elmat, elem_mat;
+
+      int nfaces = mesh->GetNumFaces();
+      for (int i = 0; i < nfaces; i++)
+      {
+         tr = mesh -> GetInteriorFaceTransformations (i);
+         if (tr == NULL) { continue; }
+
+         const FiniteElement *fe1 = fes_p->GetFE(tr->Elem1No);
+         const FiniteElement *fe2 = fes_p->GetFE(tr->Elem2No);
+
+         interior_face_integs[0]->AssembleFaceMatrix(*fe1, *fe2, *tr, elmat);
+         for (int i = 1; i < interior_face_integs.Size(); i++)
+         {
+            interior_face_integs[i]->AssembleFaceMatrix(*fe1, *fe2, *tr, elem_mat);
+            elmat += elem_mat;
+         }
+
+         reduction->AssemblePotFaceMatrix(i, elmat);
+
+#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+         const int ndof1 = fe1->GetDof();
+         fes_p->GetElementVDofs(tr->Elem1No, vdofs1);
+         elmat1.CopyMN(elmat, ndof1, ndof1, 0, 0);
+         M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
+
+         const int ndof2 = fe2->GetDof();
+         fes_p->GetElementVDofs(tr->Elem2No, vdofs2);
+         elmat2.CopyMN(elmat, ndof2, ndof2, ndof1, ndof1);
+         M_p->SpMat().AddSubMatrix(vdofs2, vdofs2, elmat2, skip_zeros);
+#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+      }
+   }
+
+   auto &boundary_face_integs = *M_p->GetBFBFI();
+   auto &boundary_face_integs_marker = *M_p->GetBFBFI_Marker();
+
+   if (boundary_face_integs.Size())
+   {
+      DenseMatrix elmat, elem_mat;
+
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < boundary_face_integs_marker.Size(); k++)
+      {
+         if (boundary_face_integs_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < fes_p -> GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         tr = mesh -> GetBdrFaceTransformations (i);
+         if (tr != NULL)
+         {
+            const FiniteElement *fe1 = fes_p->GetFE(tr->Elem1No);
+            const int ndof1 = fe1->GetDof();
+
+            elmat.SetSize(ndof1);
+            elmat = 0.;
+
+            for (int i = 0; i < boundary_face_integs.Size(); i++)
+            {
+               if (boundary_face_integs_marker[i]
+                   && (*boundary_face_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+               boundary_face_integs[i]->AssembleFaceMatrix(*fe1, *fe1, *tr, elem_mat);
+               elmat += elem_mat;
+            }
+
+            const int face = mesh->GetBdrElementFaceIndex(i);
+            reduction->AssemblePotFaceMatrix(face, elmat);
+
+#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+            fes_p->GetElementVDofs(tr->Elem1No, vdofs1);
+            M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat, skip_zeros);
+#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+         }
+      }
+   }
 }
 
 void DarcyForm::AssemblePotHDGFaces(int skip_zeros)

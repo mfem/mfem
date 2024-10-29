@@ -37,12 +37,19 @@ protected:
    Array<int> Df_offsets, Df_f_offsets;
    real_t *Df_data;
 
+   Array<int> E_offsets;
+   real_t *E_data;
+
+   Array<int> &G_offsets{E_offsets};
+   real_t *G_data;
+
    bool bsym;
 
    SparseMatrix *S;
 
    void InitA();
    void InitBD();
+   void InitEG();
    virtual void ComputeS() = 0;
 
 public:
@@ -70,6 +77,8 @@ public:
    virtual void AssemblePotMassMatrix(int el, const DenseMatrix &D);
 
    virtual void AssembleDivMatrix(int el, const DenseMatrix &B);
+
+   virtual void AssemblePotFaceMatrix(int face, const DenseMatrix &);
 
    /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
        @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
@@ -146,6 +155,9 @@ public:
    void AssembleFluxMassMatrix(int el, const DenseMatrix &A) override;
 
    void AssembleDivMatrix(int el, const DenseMatrix &B) override;
+
+   void AssemblePotFaceMatrix(int face, const DenseMatrix &) override
+   { MFEM_ABORT("Cannot eliminate potential with face contributions!"); }
 
    void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                             const BlockVector &x, BlockVector &b) override;
