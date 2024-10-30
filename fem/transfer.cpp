@@ -390,17 +390,17 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          const auto J = Reshape(geo_facts->detJ.Read(), qPts, nel_lor);
          const auto d_D = Reshape(D.Write(), qPts, nref, nel_ho);
 
-         mfem::forall_3D(nel_ho, qPts, 1, 1, [=] MFEM_HOST_DEVICE (int iho)
+         mfem::forall(qPts * nref * nel_ho, [=] MFEM_HOST_DEVICE (int tid)
          {
-            for (int iref = 0; iref < nref; ++iref)
-            {
-               const int lo_el_id = iref + nref*iho;
-               MFEM_FOREACH_THREAD(q, x, qPts)
-               {
-                  const real_t detJ = J(q, lo_el_id);
-                  d_D(q, iref, iho) = W(q) * detJ;
-               }
-            }
+            const int q    = tid % qPts;
+            const int iref = (tid / qPts) % nref;
+            const int iho  = (tid / (qPts * nref)) % nel_ho;
+
+            const int lo_el_id = iref + nref*iho;
+            const real_t detJ = J(q, lo_el_id);
+
+            d_D(q, iref, iho) = W(q) * detJ;
+
          });
 
          emb_tr.SetIdentityTransformation(geom);
@@ -1896,24 +1896,20 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x,
    auto v_tempy    = Reshape(tempy.Write(), ndof_lor, nref, vdim, nel_ho);
 
 
-   mfem::forall_3D(nel_ho, ndof_lor, nref, vdim, [=] MFEM_HOST_DEVICE (int iho)
+   mfem::forall(ndof_lor * nref * vdim * nel_ho, [=] MFEM_HOST_DEVICE (int tid)
    {
-      MFEM_FOREACH_THREAD(v, z, vdim)
-      {
-         MFEM_FOREACH_THREAD(i, y, nref)
-         {
-            MFEM_FOREACH_THREAD(j, x, ndof_lor)
-            {
-               real_t dot = 0.0;
-               for (int k=0; k<ndof_ho; ++k)
-               {
-                  dot += v_M_mixed_ea(j, k, i, iho) * v_tempx(k, v, iho);
-               }
+      const int j   = tid % ndof_lor;
+      const int i   = (tid / ndof_lor) % nref;
+      const int v   = (tid / (ndof_lor * nref)) % vdim;
+      const int iho = (tid / (ndof_lor * nref * vdim)) % nel_ho;
 
-               v_tempy(j, i, v, iho) = dot;
-            }
-         }
+      real_t dot = 0.0;
+      for (int k=0; k<ndof_ho; ++k)
+      {
+         dot += v_M_mixed_ea(j, k, i, iho) * v_tempx(k, v, iho);
       }
+
+      v_tempy(j, i, v, iho) = dot;
    });
 
    elem_restrict_lor->MultTranspose(tempy, y);
@@ -1945,23 +1941,20 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(
    auto v_tempx    = Reshape(tempx.Read(), ndof_lor, nref, vdim, nel_ho);
    auto v_tempy    = Reshape(tempy.Write(), ndof_ho, vdim, nel_ho);
 
-   mfem::forall_2D(nel_ho, ndof_ho, vdim, [=] MFEM_HOST_DEVICE (int iho)
+   mfem::forall(ndof_ho * vdim * nel_ho, [=] MFEM_HOST_DEVICE (int tid)
    {
-      MFEM_FOREACH_THREAD(v, y, vdim)
-      {
-         MFEM_FOREACH_THREAD(k, x, ndof_ho)
-         {
-            real_t dot = 0.0;
-            for (int i=0; i<nref; ++i)
-            {
-               for (int j=0; j<ndof_lor; ++j)
-               {
-                  dot += v_M_mixed_ea(j, k, i, iho) * v_tempx(j, i, v, iho);
-               }
+      const int k = tid % ndof_ho;
+      const int v = (tid / ndof_ho) % vdim;
+      const int iho = (tid / (ndof_ho * vdim)) % nel_ho;
 
-               v_tempy(k, v, iho) = dot;
-            }
+      real_t dot = 0.0;
+      for (int i=0; i<nref; ++i)
+      {
+         for (int j=0; j<ndof_lor; ++j)
+         {
+            dot += v_M_mixed_ea(j, k, i, iho) * v_tempx(j, i, v, iho);
          }
+         v_tempy(k, v, iho) = dot;
       }
    });
 
