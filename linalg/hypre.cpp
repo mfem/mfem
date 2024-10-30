@@ -2793,6 +2793,18 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
    os << "col map offd hash : " << hf.GetHash() << '\n';
 }
 
+real_t HypreParMatrix::FNorm() const
+{
+   real_t norm_fro = 0.0;
+   if (A != NULL)
+   {
+      const int ierr = hypre_ParCSRMatrixNormFro(A, &norm_fro);
+      MFEM_VERIFY(ierr == 0, "");
+   }
+   return norm_fro;
+}
+
+
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
 {
    HYPRE_BigInt  *A_col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
