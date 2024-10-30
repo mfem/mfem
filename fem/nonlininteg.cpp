@@ -403,8 +403,8 @@ real_t HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Ttr, deleteRule);
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Ttr);
+   const IntegrationRule* ir = irp.Get();
 
    energy = 0.0;
    model->SetTransformation(Ttr);
@@ -420,7 +420,6 @@ real_t HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
 
       energy += ip.weight * Ttr.Weight() * model->EvalW(Jpt);
    }
-   if (deleteRule) {delete ir;}
    return energy;
 }
 
@@ -439,8 +438,8 @@ void HyperelasticNLFIntegrator::AssembleElementVector(
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Ttr, deleteRule);
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Ttr);
+   const IntegrationRule* ir = irp.Get();
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -463,7 +462,6 @@ void HyperelasticNLFIntegrator::AssembleElementVector(
       P *= ip.weight * Ttr.Weight();
       AddMultABt(DS, P, PMatO);
    }
-   if (deleteRule) {delete ir;}
 }
 
 void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
@@ -480,8 +478,8 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Ttr, deleteRule);
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Ttr);
+   const IntegrationRule* ir = irp.Get();
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -501,7 +499,6 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
 
       model->AssembleH(Jpt, DS, ip.weight * Ttr.Weight(), elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 real_t IncompressibleNeoHookeanIntegrator::GetElementEnergy(
@@ -764,8 +761,8 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
    ELV.UseExternalData(elvect.GetData(), nd, dim);
 
    Vector vec1(dim), vec2(dim);
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &T, deleteRule);
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &T);
+   const IntegrationRule *ir = irp.Get();
    if (!ir) {ir = &GetRule(el, T);}
    ELV = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -783,7 +780,6 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
       vec2 *= w;
       AddMultVWt(shape, vec2, ELV);
    }
-   if (deleteRule) {delete ir;}
 }
 
 void VectorConvectionNLFIntegrator::AssembleElementGrad(
@@ -807,8 +803,8 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    real_t w;
    Vector vec1(dim), vec2(dim), vec3(nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &trans, deleteRule);
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &trans);
+   const IntegrationRule *ir = irp.Get();
    if (!ir) {ir = &GetRule(el, trans);}
 
    elmat = 0.0;
@@ -857,7 +853,6 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
          }
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 
@@ -881,8 +876,8 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
 
    Vector vec1(dim), vec2(dim), vec3(nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &trans, deleteRule);
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &trans);
+   const IntegrationRule* ir = irp.Get();
    if (!ir) {ir = &GetRule(el, trans);}
 
    elmat = 0.0;
@@ -909,7 +904,6 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
          elmat.AddMatrix(elmat_comp, ii * nd, ii * nd);
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 
@@ -935,8 +929,8 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
 
    Vector vec1(dim), vec2(dim), vec3(nd), vec4(dim), vec5(nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &trans, deleteRule);
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &trans);
+   const IntegrationRule* ir = irp.Get();
    if (!ir) {ir = &GetRule(el, trans);}
 
    elmat = 0.0;
@@ -968,7 +962,6 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
          elmat.AddMatrix(-.5, elmat_comp_T, ii * nd, ii * nd);
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 }

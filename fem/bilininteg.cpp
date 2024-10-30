@@ -508,9 +508,9 @@ void MixedScalarIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize(test_nd, trial_nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
@@ -540,7 +540,6 @@ void MixedScalarIntegrator::AssembleElementMatrix2(
       trial_shape.SetDataAndSize(NULL, 0);
    }
 #endif
-   if (deleteRule) {delete ir;}
 }
 
 void MixedVectorIntegrator::AssembleElementMatrix2(
@@ -602,9 +601,9 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize(test_nd, trial_nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
@@ -717,7 +716,6 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
       trial_shape.ClearExternalData();
    }
 #endif
-   if (deleteRule) {delete ir;}
 }
 
 void MixedScalarVectorIntegrator::AssembleElementMatrix2(
@@ -761,9 +759,9 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize(test_nd, trial_nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int ir_order = this->GetIntegrationOrder(trial_fe, test_fe, Trans);
@@ -794,7 +792,6 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
       vshape.Mult(V,vshape_tmp);
       AddMultVWt(V_test, W_trial, elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 
@@ -814,9 +811,9 @@ void GradientIntegrator::AssembleElementMatrix2(
    shape.SetSize(test_dof);
    elmat.SetSize(dim * test_dof, trial_dof);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
 
    elmat = 0.0;
    elmat_comp.SetSize(test_dof, trial_dof);
@@ -853,7 +850,6 @@ void GradientIntegrator::AssembleElementMatrix2(
          }
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 const IntegrationRule &GradientIntegrator::GetRule(const FiniteElement
@@ -903,8 +899,9 @@ void DiffusionIntegrator::AssembleElementMatrix
 #endif
    elmat.SetSize(nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -939,11 +936,6 @@ void DiffusionIntegrator::AssembleElementMatrix
          }
          AddMult_a_AAt(w, dshapedxt, elmat);
       }
-   }
-
-   if (deleteRule)
-   {
-      delete ir;
    }
 }
 
@@ -990,9 +982,9 @@ void DiffusionIntegrator::AssembleElementMatrix2(
 #endif
    elmat.SetSize(te_nd, tr_nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -1031,7 +1023,6 @@ void DiffusionIntegrator::AssembleElementMatrix2(
          AddMultABt(te_dshapedxt, dshapedxt, elmat);
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 void DiffusionIntegrator::AssembleElementVector(
@@ -1071,8 +1062,9 @@ void DiffusionIntegrator::AssembleElementVector(
 
    elvect.SetSize(nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Tr);
+   const IntegrationRule* ir = irp.Get();
    if (!ir) { ir = &GetRule(el, el); }
 
    elvect = 0.0;
@@ -1116,7 +1108,6 @@ void DiffusionIntegrator::AssembleElementVector(
       invdfdx.Mult(pointflux, vec);
       dshape.AddMult(vec, elvect);
    }
-   if (deleteRule) {delete ir;}
 }
 
 void DiffusionIntegrator::ComputeElementFlux
@@ -1239,7 +1230,7 @@ real_t DiffusionIntegrator::ComputeFluxEnergy
    if (MQ) { M.SetSize(spaceDim); }
 
    int order = 2 * fluxelem.GetOrder(); // <--
-   const IntegrationRule *ir = &IntRules.Get(fluxelem.GetGeomType(), order);
+   const IntegrationRule* ir = &IntRules.Get(fluxelem.GetGeomType(), order);
 
    real_t energy = 0.0;
    if (d_energy) { *d_energy = 0.0; }
@@ -1330,8 +1321,9 @@ void MassIntegrator::AssembleElementMatrix
    elmat.SetSize(nd);
    shape.SetSize(nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (!ir) { ir = &GetRule(el, el, Trans); }
 
    elmat = 0.0;
@@ -1350,10 +1342,6 @@ void MassIntegrator::AssembleElementMatrix
 
       AddMult_a_VVt(w, shape, elmat);
    }
-   if (deleteRule)
-   {
-      delete ir;
-   }
 }
 
 void MassIntegrator::AssembleElementMatrix2(
@@ -1371,9 +1359,9 @@ void MassIntegrator::AssembleElementMatrix2(
    shape.SetSize(tr_nd);
    te_shape.SetSize(te_nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (!ir) { ir = &GetRule(trial_fe, test_fe, Trans); }
 
    elmat = 0.0;
@@ -1394,7 +1382,6 @@ void MassIntegrator::AssembleElementMatrix2(
       te_shape *= w;
       AddMultVWt(te_shape, shape, elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
@@ -1428,7 +1415,7 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
    elmat.SetSize(nd1);
    shape.SetSize(nd1);
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule* ir = IntRule;
    if (ir == NULL)
    {
       int order = 2 * el1.GetOrder();
@@ -1475,8 +1462,9 @@ void ConvectionIntegrator::AssembleElementMatrix(
 
    Vector vec1;
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = Trans.OrderGrad(&el) + Trans.Order() + el.GetOrder();
@@ -1502,7 +1490,6 @@ void ConvectionIntegrator::AssembleElementMatrix(
 
       AddMultVWt(shape, BdFidxT, elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 
@@ -1518,8 +1505,9 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
    shape.SetSize(nd);
    grad.SetSize(nd,dim);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = Trans.OrderGrad(&el) + el.GetOrder();
@@ -1557,7 +1545,6 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
          }
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 const IntegrationRule &ConvectionIntegrator::GetRule(
@@ -1599,8 +1586,9 @@ void VectorMassIntegrator::AssembleElementMatrix
       mcoeff.SetSize(vdim);
    }
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = 2 * el.GetOrder() + Trans.OrderW() + Q_order;
@@ -1656,7 +1644,6 @@ void VectorMassIntegrator::AssembleElementMatrix
          }
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 void VectorMassIntegrator::AssembleElementMatrix2(
@@ -1684,9 +1671,9 @@ void VectorMassIntegrator::AssembleElementMatrix2(
       mcoeff.SetSize(vdim);
    }
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = (trial_fe.GetOrder() + test_fe.GetOrder() +
@@ -1744,7 +1731,6 @@ void VectorMassIntegrator::AssembleElementMatrix2(
          }
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
@@ -1762,9 +1748,9 @@ void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize(test_nd, trial_nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = trial_fe.GetOrder() + test_fe.GetOrder() - 1; // <--
@@ -1787,7 +1773,6 @@ void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
       shape *= w;
       AddMultVWt(shape, divshape, elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
@@ -1816,9 +1801,9 @@ void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize(test_nd, trial_nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       // The integrand on the reference element is:
@@ -1872,7 +1857,6 @@ void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
 
       AddMultABt(dshapedxt, vshape, elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 void VectorFECurlIntegrator::AssembleElementMatrix2(
@@ -1912,9 +1896,9 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize(test_nd, trial_nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = trial_fe.GetOrder() + test_fe.GetOrder() - 1; // <--
@@ -1972,7 +1956,6 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
          AddMultABt(curlshapeTrial_dFT, vshapeTest, elmat);
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 void VectorFEBoundaryFluxIntegrator::AssembleElementMatrix(
@@ -1988,7 +1971,7 @@ void VectorFEBoundaryFluxIntegrator::AssembleElementMatrix(
    elmat.SetSize(nd);
    shape.SetSize(nd);
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule* ir = IntRule;
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder() + Tr.OrderW();  // <----------
@@ -2079,9 +2062,8 @@ void DerivativeIntegrator::AssembleElementMatrix2 (
    invdfdx.SetSize(dim, spaceDim);
    shape.SetSize (test_nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order;
@@ -2126,7 +2108,6 @@ void DerivativeIntegrator::AssembleElementMatrix2 (
       shape *= Q->Eval(Trans,ip) * det * ip.weight;
       AddMultVWt (shape, dshapedxi, elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 void CurlCurlIntegrator::AssembleElementMatrix
@@ -2149,8 +2130,9 @@ void CurlCurlIntegrator::AssembleElementMatrix
    if (MQ) { M.SetSize(dimc); }
    if (DQ) { D.SetSize(dimc); }
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order;
@@ -2199,7 +2181,6 @@ void CurlCurlIntegrator::AssembleElementMatrix
          AddMult_a_AAt(w, curlshape_dFt, elmat);
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 void CurlCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
@@ -2228,9 +2209,9 @@ void CurlCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
    if (MQ) { M.SetSize(dimc); }
    if (DQ) { D.SetSize(dimc); }
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order;
@@ -2279,7 +2260,6 @@ void CurlCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
          AddMultABt(te_curlshape_dFt, curlshape_dFt, elmat);
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 void CurlCurlIntegrator
@@ -2423,8 +2403,9 @@ void VectorCurlCurlIntegrator::AssembleElementMatrix(
    Jadj.SetSize(dim);
 #endif
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       // use the same integration rule as diffusion
@@ -2453,7 +2434,6 @@ void VectorCurlCurlIntegrator::AssembleElementMatrix(
 
       AddMult_a_AAt(w, curlshape, elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 real_t VectorCurlCurlIntegrator::GetElementEnergy(
@@ -2473,8 +2453,9 @@ real_t VectorCurlCurlIntegrator::GetElementEnergy(
 #endif
    DenseMatrix elfun_mat(elfun.GetData(), dof, dim);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Tr);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       // use the same integration rule as diffusion
@@ -2518,7 +2499,6 @@ real_t VectorCurlCurlIntegrator::GetElementEnergy(
    }
 
    elfun_mat.ClearExternalData();
-   if (deleteRule) {delete ir;}
 
    return 0.5 * energy;
 }
@@ -2558,9 +2538,9 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
 
    real_t c;
    Vector d_col;
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderJ();
@@ -2600,7 +2580,6 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
          }
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 
@@ -2629,8 +2608,9 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
    elmat.SetSize(dof);
    elmat = 0.0;
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       // int order = 2 * el.GetOrder();
@@ -2669,16 +2649,14 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
          AddMult_a_AAt (w, trial_vshape, elmat);
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 void VectorFEMassIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
 
    if (test_fe.GetRangeType() == FiniteElement::SCALAR
        && trial_fe.GetRangeType() == FiniteElement::VECTOR)
@@ -2847,7 +2825,6 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       MFEM_ABORT("VectorFEMassIntegrator::AssembleElementMatrix2(...)\n"
                  "   is not implemented for given trial and test bases.");
    }
-   if (deleteRule) {delete ir;}
 }
 
 void VectorDivergenceIntegrator::AssembleElementMatrix2(
@@ -2869,9 +2846,9 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize (test_dof, dim*trial_dof);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (!ir) { ir = &GetRule(trial_fe, test_fe, Trans); }
 
    elmat = 0.0;
@@ -2900,7 +2877,6 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
       shape *= c;
       AddMultVWt (shape, divshape, elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 const IntegrationRule &VectorDivergenceIntegrator::GetRule(
@@ -2928,8 +2904,9 @@ void DivDivIntegrator::AssembleElementMatrix(
 #endif
    elmat.SetSize(dof);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = 2 * el.GetOrder() - 2; // <--- OK for RTk
@@ -2955,7 +2932,6 @@ void DivDivIntegrator::AssembleElementMatrix(
       // elmat += c * divshape * divshape ^ t
       AddMult_a_VVt (c, divshape, elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 void DivDivIntegrator::AssembleElementMatrix2(
@@ -2977,9 +2953,9 @@ void DivDivIntegrator::AssembleElementMatrix2(
 #endif
    elmat.SetSize(te_nd,tr_nd);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans,
-                                                  deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = 2 * max(test_fe.GetOrder(),
@@ -3007,7 +2983,6 @@ void DivDivIntegrator::AssembleElementMatrix2(
       te_divshape *= c;
       AddMultVWt(te_divshape, divshape, elmat);
    }
-   if (deleteRule) {delete ir;}
 }
 
 void VectorDiffusionIntegrator::AssembleElementMatrix(
@@ -3038,8 +3013,9 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    elmat.SetSize(vdim * dof);
    pelmat.SetSize(dof);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       ir = &DiffusionIntegrator::GetRule(el,el);
@@ -3091,7 +3067,6 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
          }
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 void VectorDiffusionIntegrator::AssembleElementVector(
@@ -3127,8 +3102,9 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    DenseMatrix mat_in(elfun.GetData(), dof, vdim);
    DenseMatrix mat_out(elvect.GetData(), dof, vdim);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Tr);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       ir = &DiffusionIntegrator::GetRule(el,el);
@@ -3183,7 +3159,6 @@ void VectorDiffusionIntegrator::AssembleElementVector(
          }
       }
    }
-   if (deleteRule) {delete ir;}
 }
 
 ElasticityComponentIntegrator::ElasticityComponentIntegrator(
@@ -3214,8 +3189,9 @@ void ElasticityIntegrator::AssembleElementMatrix(
 
    elmat.SetSize(dof * dim);
 
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&el, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = 2 * Trans.OrderGrad(&el); // correct order?
@@ -3273,10 +3249,6 @@ void ElasticityIntegrator::AssembleElementMatrix(
                   }
             }
       }
-   }
-   if (deleteRule)
-   {
-      delete ir;
    }
 }
 
@@ -3387,8 +3359,9 @@ real_t ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
    // Use the same integration rule as in AssembleElementMatrix, replacing 'el'
    // with 'fluxelem' when 'IntRule' is not set.
    // Should we be using a different (more accurate) rule here?
-   bool deleteRule;
-   const IntegrationRule *ir = GetIntegrationRule(&fluxelem, &Trans, deleteRule);
+
+   const IntegrationRulePtr irp = GetIntegrationRule(&fluxelem, &Trans);
+   const IntegrationRule* ir = irp.Get();
    if (ir == NULL)
    {
       int order = 2 * Trans.OrderGrad(&fluxelem);
@@ -3449,7 +3422,6 @@ real_t ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
 
       energy += w * pt_e;
    }
-   if (deleteRule) {delete ir;}
    return energy;
 }
 

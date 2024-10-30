@@ -4,43 +4,44 @@
 
 namespace mfem
 {
-const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement*
-                                                      trial_fe, const FiniteElement* test_fe, const ElementTransformation* trans,
-                                                      bool& deleteRule) const
+IntegrationRulePtr Integrator::GetIntegrationRule(const FiniteElement*
+                                                  trial_fe, const FiniteElement* test_fe,
+                                                  const ElementTransformation* trans) const
 {
    const NURBSFiniteElement *NURBSFE = dynamic_cast<const NURBSFiniteElement *>
                                        (test_fe);
-   deleteRule = false;
+   bool deleteRule = false;
+   const IntegrationRule* result;
    if (NURBSFE && patchRules)
    {
       const int patch = NURBSFE->GetPatch();
       const int* ijk = NURBSFE->GetIJK();
       Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
-      return &patchRules->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv,
-                                         deleteRule);
+      result = &patchRules->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv,
+                                           deleteRule);
    }
    else if (IntRule)
    {
-      return IntRule;
+      result = IntRule;
    }
    else
    {
-      return GetDefaultIntegrationRule(trial_fe, test_fe, trans);
+      result = GetDefaultIntegrationRule(trial_fe, test_fe, trans);
    }
+   return IntegrationRulePtr(result, deleteRule);
 }
-const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement*
-                                                      trial_fe, const FiniteElement* test_fe, bool& deleteRule) const
+IntegrationRulePtr Integrator::GetIntegrationRule(const FiniteElement*
+                                                  trial_fe, const FiniteElement* test_fe) const
 {
-   return GetIntegrationRule(trial_fe, test_fe, NULL, deleteRule);
+   return GetIntegrationRule(trial_fe, test_fe, NULL);
 }
-const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement* el,
-                                                      const ElementTransformation* trans, bool& deleteRule) const
+IntegrationRulePtr Integrator::GetIntegrationRule(const FiniteElement* el,
+                                                  const ElementTransformation* trans) const
 {
-   return GetIntegrationRule(el, el, trans, deleteRule);
+   return GetIntegrationRule(el, el, trans);
 }
-const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement* el,
-                                                      bool& deleteRule) const
+IntegrationRulePtr Integrator::GetIntegrationRule(const FiniteElement* el) const
 {
-   return GetIntegrationRule(el, el, NULL, deleteRule);
+   return GetIntegrationRule(el, el, NULL);
 }
 }
