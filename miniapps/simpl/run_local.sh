@@ -26,15 +26,24 @@ mpirun -np 8 ./simpl -rs 4 -rp 4 -p 24 -vs 1 -ab
 # Compliant Mechanism with no initial design
 sed -i '' '251s/.*/      \/\/ ForceInverterInitialDesign\(control_gf, \&entropy\);/' simpl.cpp
 make simpl -j
-mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-06 -rtol 1e-06 -bb
-mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-06 -rtol 1e-06 -ab
+mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-08 -rtol 1e-08 -bb
+mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-08 -rtol 1e-08 -ab
+mv ParaView/SiMPL-A-ForceInverter2-8 ParaView/SiMPL-A-ForceInverter2-8-const
+mv SiMPL-A-ForceInverter2-8.csv SiMPL-A-ForceInverter2-8-const.csv
+mv ParaView/SiMPL-B-ForceInverter2-8 ParaView/SiMPL-B-ForceInverter2-8-const
+mv SiMPL-B-ForceInverter2-8.csv SiMPL-B-ForceInverter2-8-const.csv
 
-# Compliant Mechanism with Initial Design connecting top
+# Compliant Mechanism with Initial Design connecting center
 sed -i '' '251s/.*/      ForceInverterInitialDesign\(control_gf, \&entropy\);/' simpl.cpp
 sed -i '' '65s/.*/   Vector domain_center\(\{1.0,0.5\}\);/' topopt_problems.cpp
 make simpl -j
+mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-08 -rtol 1e-08 -bb
+mv ParaView/SiMPL-B-ForceInverter2-8 ParaView/SiMPL-B-ForceInverter2-8-center
+mv SiMPL-B-ForceInverter2-8.csv SiMPL-B-ForceInverter2-8-center.csv
+
 # Compliant Mechanism with Initial Design connecting bottom
-mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-06 -rtol 1e-06 -bb
 sed -i '' '65s/.*/   Vector domain_center\(\{1.0,0.0\}\);/' topopt_problems.cpp
 make simpl -j
-mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-06 -rtol 1e-06 -bb
+mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-08 -rtol 1e-08 -bb
+mv ParaView/SiMPL-B-ForceInverter2-8 ParaView/SiMPL-B-ForceInverter2-8-bottom
+mv SiMPL-B-ForceInverter2-8.csv SiMPL-B-ForceInverter2-8-bottom.csv

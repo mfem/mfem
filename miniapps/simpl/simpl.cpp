@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
    real_t tol_rel = 1e-05;
    real_t tol_abs = 1e-05;
    // backtracking related
-   int max_it_backtrack = 300;
+   int max_it_backtrack = 20;
    bool use_bregman_backtrack = true;
    bool use_L2_stationarity = false;
    real_t c1 = 1e-04;
@@ -418,7 +418,7 @@ int main(int argc, char *argv[])
                                 ? old_objval + grad_diffrho + bregman_diff / step_size
                                 : old_objval + c1*grad_diffrho;
          if (Mpi::Root())
-          {
+         {
             out << "      New    Objective  : " << objval << std::endl;
             out << "      Target Objective  : " << target_objval;
             if (use_bregman_backtrack)
@@ -447,6 +447,17 @@ int main(int argc, char *argv[])
             out << "   --Attempt failed" << std::endl;
          }
          step_size *= 0.5;
+      }
+      if (num_reeval == max_it_backtrack)
+      {
+         if (succ_obj_diff < 1e-08)
+         {
+            if (Mpi::Root())
+            {
+               out << " Failed to find feasible direction and successive difference is too small. Terminate SiMPL"
+                   << std::endl;;
+            }
+         }
       }
       succ_obj_diff = old_objval - objval;
       grad_old_gf = grad_gf;
@@ -497,14 +508,17 @@ int main(int argc, char *argv[])
          }
          else {use_paraview = false;}
       }
-      if (use_L2_stationarity && (stationarity < tol_rel*stationarity0 ||
-                                  stationarity < tol_abs))
+      if (it_md > min_it)
       {
-         break;
-      }
-      if (!use_L2_stationarity && (kkt < tol_rel*kkt0 || kkt < tol_abs))
-      {
-         break;
+         if (use_L2_stationarity && (stationarity < tol_rel*stationarity0 ||
+                                     stationarity < tol_abs))
+         {
+            break;
+         }
+         if (!use_L2_stationarity && (kkt < tol_rel*kkt0 || kkt < tol_abs))
+         {
+            break;
+         }
       }
    }
    if (Mpi::Root())
