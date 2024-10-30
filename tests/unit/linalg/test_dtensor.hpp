@@ -14,7 +14,7 @@
 
 #include <numeric>
 
-#include "../config/config.hpp"
+#include "config/config.hpp"
 
 namespace mfem
 {

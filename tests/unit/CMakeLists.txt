@@ -30,6 +30,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_complex_operator.cpp
   linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
+#   linalg/test_dtensor.cpp
   linalg/test_hypre_ilu.cpp
   linalg/test_hypre_prec.cpp
   linalg/test_hypre_vector.cpp
@@ -397,3 +398,13 @@ mfem_add_executable(debug_device_tests ${DEBUG_DEVICE_SRCS})
 target_link_libraries(debug_device_tests mfem)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} debug_device_tests)
 add_test(NAME debug_device_tests COMMAND debug_device_tests)
+
+#-----------------------------------------------------------
+# DEVICE TENSOR TESTS:
+#   device_tensor_tests
+#-----------------------------------------------------------
+set(DEVICE_TENSOR_SRCS linalg/test_dtensor.cpp)
+mfem_add_executable(device_tensor_tests ${DEVICE_TENSOR_SRCS})
+target_link_libraries(device_tensor_tests mfem)
+add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} device_tensor_tests)
+add_test(NAME device_tensor_tests COMMAND device_tensor_tests)
