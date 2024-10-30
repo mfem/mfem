@@ -1109,7 +1109,6 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
 void NCMesh::SetNodeScale(int p0, int p1, real_t scale)
 {
    Node* node = nodes.Find(p0, p1);
-   MFEM_ASSERT(node, "Node not found");
    if (node) { node->SetScale(GetScale(scale, p0 > p1)); }
 }
 
