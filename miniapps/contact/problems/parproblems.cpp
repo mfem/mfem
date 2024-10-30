@@ -1,5 +1,111 @@
 #include "parproblems.hpp"
 
+
+
+void ParNonlinearElasticityProblem::Init()
+{
+   int dim = pmesh->Dimension();
+   fec = new H1_FECollection(order,dim);
+   fes = new ParFiniteElementSpace(pmesh,fec,dim,Ordering::byVDIM);
+   ndofs = fes->GetVSize();
+   ntdofs = fes->GetTrueVSize();
+   gndofs = fes->GlobalTrueVSize();
+   pmesh->SetNodalFESpace(fes);
+   if (pmesh->bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+   }
+   ess_bdr = 0; 
+   Array<int> ess_tdof_list_temp;
+   for (int i = 0; i < ess_bdr_attr.Size(); i++ )
+   {
+      ess_bdr[ess_bdr_attr[i]-1] = 1;
+      fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list_temp,ess_bdr_attr_comp[i]);
+      ess_tdof_list.Append(ess_tdof_list_temp);
+      ess_bdr[ess_bdr_attr[i]-1] = 0;
+   }
+   // Solution GridFunction
+   x.SetSpace(fes);  x = 0.0;
+   // RHS
+   b = new ParLinearForm(fes);
+   B.SetSize(fes->TrueVSize()); B = 0.0;
+   // Elasticity operator
+   material_model = new NeoHookeanModel(shear_modulus, bulk_modulus);
+   a = new ParNonlinearForm(fes);
+   a->AddDomainIntegrator(new HyperelasticNLFIntegrator(material_model));
+   a->SetEssentialTrueDofs(ess_tdof_list);
+}
+
+void ParNonlinearElasticityProblem::UpdateStep()
+{
+   //if (formsystem)
+   //{
+      delete b;
+      b = new ParLinearForm(fes);
+      delete material_model;
+      material_model = new NeoHookeanModel(shear_modulus, bulk_modulus);
+      delete a;
+      a = new ParNonlinearForm(fes);
+      a->AddDomainIntegrator(new HyperelasticNLFIntegrator(material_model));
+      a->SetEssentialTrueDofs(ess_tdof_list);
+      formsystem = false;
+   //}
+}
+
+
+void ParNonlinearElasticityProblem::FormLinearSystem()
+{
+   if (!formsystem) 
+   {
+      formsystem = true;
+      b->Assemble();
+      b->ParallelAssemble(B);
+      B.SetSubVector(ess_tdof_list, 0.0);
+
+      a->SetEssentialTrueDofs(ess_tdof_list);
+   }
+}
+
+void ParNonlinearElasticityProblem::UpdateLinearSystem()
+{
+   UpdateStep();
+   FormLinearSystem();
+}
+
+
+real_t ParNonlinearElasticityProblem::E(const Vector & u) const
+{
+   real_t energy = 0.0;
+   ParGridFunction u_gf(fes);
+   Vector temp(u.Size()); temp = 0.0;
+   temp.Set(1.0, xframe);
+   temp.Add(1.0, u);
+   u_gf.SetFromTrueDofs(temp);
+   energy += a->GetEnergy(u_gf);
+   energy -= InnerProduct(MPI_COMM_WORLD, B, u);
+   return energy;
+}
+
+void ParNonlinearElasticityProblem::DuE(const Vector & u, Vector & gradE) const
+{
+   Vector temp(u.Size()); temp = 0.0;
+   temp.Set(1.0, xframe);
+   temp.Add(1.0, u);
+   a->Mult(temp, gradE);
+   gradE.Add(-1.0, B);
+}
+
+HypreParMatrix * ParNonlinearElasticityProblem::DuuE(const Vector & u)
+{
+   Vector temp(u.Size()); temp = 0.0;
+   temp.Set(1.0, xframe);
+   temp.Add(1.0, u);
+   return dynamic_cast<HypreParMatrix *>(&a->GetGradient(temp));
+}
+
+
+
+
 void ParElasticityProblem::Init()
 {
    int dim = pmesh->Dimension();
@@ -86,6 +192,42 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob_,
       SetupTribol();
    }
 }
+
+
+ParContactProblem::ParContactProblem(ParNonlinearElasticityProblem * nlprob_,
+	                             ParElasticityProblem * prob_,	
+                                                         const std::set<int> & mortar_attrs_, 
+                                                         const std::set<int> & nonmortar_attrs_,
+                                                         ParGridFunction * coords_,
+                                                         bool doublepass_ )
+: nlprob(nlprob_), prob(prob_), mortar_attrs(mortar_attrs_), 
+   nonmortar_attrs(nonmortar_attrs_), coords(coords_),
+   doublepass(doublepass_), nonlinearelasticity(true)
+{
+   ParMesh* pmesh = prob->GetMesh();
+   comm = pmesh->GetComm();
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &numprocs);
+   
+    
+   dim = pmesh->Dimension();
+   prob->FormLinearSystem();
+   K = new HypreParMatrix(prob->GetOperator());
+   if (doublepass)
+   {
+      SetupTribolDoublePass();
+   }
+   else
+   {
+      SetupTribol();
+   }
+
+   nonlinearelasticity = true;
+}
+
+
+
+
 
 void ParContactProblem::SetupTribol()
 {
@@ -563,21 +705,43 @@ void ParContactProblem::ComputeRestrictionToNonContactDofs()
 
 double ParContactProblem::E(const Vector & d)
 {
-   Vector kd(K->Height());
-   K->Mult(d,kd);
-   return 0.5 * InnerProduct(comm,d, kd) - InnerProduct(comm,d, *B);
+   if (nonlinearelasticity)
+   {
+      return nlprob->E(d);
+   }
+   else
+   {
+      Vector kd(K->Height());
+      K->Mult(d,kd);
+      return 0.5 * InnerProduct(comm,d, kd) - InnerProduct(comm,d, *B);
+   }
 }
+
 
 void ParContactProblem::DdE(const Vector &d, Vector &gradE)
 {
-   gradE.SetSize(K->Height());
-   K->Mult(d, gradE);
-   gradE.Add(-1.0, *B); 
+   if (nonlinearelasticity)
+   {
+      nlprob->DuE(d, gradE);
+   }
+   else
+   {
+      gradE.SetSize(K->Height());
+      K->Mult(d, gradE);
+      gradE.Add(-1.0, *B); 
+   }
 }
 
 HypreParMatrix* ParContactProblem::DddE(const Vector &d)
 {
-   return K; 
+   if (nonlinearelasticity)
+   {
+      return nlprob->DuuE(d);
+   }
+   else
+   {
+      return K; 
+   }
 }
 
 void ParContactProblem::g(const Vector &d, Vector &gd)
@@ -611,7 +775,53 @@ QPOptParContactProblem::QPOptParContactProblem(ParContactProblem * problem_, con
 
    NegId = new HypreParMatrix(problem->GetComm(),gsize, rows,&diag);
    HypreStealOwnership(*NegId, diag);
+
+   label = -1;
+
+   nonlinearelasticity = problem->IsElasticityModelNonlinear();
+   if (nonlinearelasticity)
+   {
+      KQP = new HypreParMatrix(*problem->DddE(xref));
+      gradEQP.SetSize(dimU); gradEQP = 0.0;
+      problem->DdE(xref, gradEQP);
+      EQP = problem->E(xref);
+   }
 }
+
+
+QPOptParContactProblem::QPOptParContactProblem(ParContactProblem * problem_, const Vector & xref_, const Vector & xframe_)
+: problem(problem_), xref(xref_), xframe(xframe_)
+{
+   dimU = problem->GetNumDofs();
+   dimM = problem->GetNumContraints();
+   dimC = problem->GetNumContraints();
+   ml.SetSize(dimM); ml = 0.0;
+   Vector negone(dimM); negone = -1.0;
+   SparseMatrix diag(negone);
+
+   int gsize = problem->GetGlobalNumConstraints();
+   int * rows = problem->GetConstraintsStarts().GetData();
+
+   NegId = new HypreParMatrix(problem->GetComm(),gsize, rows,&diag);
+   HypreStealOwnership(*NegId, diag);
+
+   label = -1;
+
+   nonlinearelasticity = problem->IsElasticityModelNonlinear();
+   if (nonlinearelasticity)
+   {
+      Vector temp(dimU); temp = 0.0;
+      temp.Set(1.0, xframe);
+      temp.Add(1.0, xref);
+      KQP = problem->DddE(temp);
+      gradEQP.SetSize(dimU); gradEQP = 0.0;
+      problem->DdE(temp, gradEQP);
+      EQP = problem->E(temp);
+   }
+}
+
+
+
 
 int QPOptParContactProblem::GetDimU() { return dimU; }
 
@@ -623,7 +833,7 @@ Vector & QPOptParContactProblem::Getml() { return ml; }
 
 HypreParMatrix * QPOptParContactProblem::Duuf(const BlockVector & x)
 {
-   return problem->DddE(x.GetBlock(0));
+   return DddE(x.GetBlock(0));
 }
 
 HypreParMatrix * QPOptParContactProblem::Dumf(const BlockVector & x)
@@ -656,7 +866,6 @@ HypreParMatrix * QPOptParContactProblem::lDuuc(const BlockVector & x, const Vect
    return nullptr;
 }
 
-// J * d + g0 - slack
 // J(dref) * (d - dref) + g(dref) - slack
 void QPOptParContactProblem::c(const BlockVector &x, Vector & y)
 {
@@ -668,20 +877,73 @@ void QPOptParContactProblem::c(const BlockVector &x, Vector & y)
    problem->GetJacobian()->Mult(temp, y); // J * (d - xref)
    y.Add(1.0, g0); // J * (d - xref) + g0 
    y.Add(-1.0, x.GetBlock(1)); // J * (d - xref) + g0 - s
-
-   // Instead of the above we can do 
-   // problem->GetJacobian()->Mult(x.GetBlock(0), y); // J * (d - xref)
-   // y.Add(-1.0, x.GetBlock(1));
 }
 
 double QPOptParContactProblem::CalcObjective(const BlockVector & x)
 {
-   return problem->E(x.GetBlock(0));
+    return E(x.GetBlock(0));
 }
+
+// QPOptParContactProblem will take in a relative displacement
+double QPOptParContactProblem::E(const Vector & d)
+{
+   if (nonlinearelasticity)
+   {
+      // TO DO: compute QP approximation of E
+      // (d - xref)^T [ 1/2 K * (d - xref) + gradEQP] + EQP
+      double energy = 0.0;
+      Vector dx(dimU); dx = 0.0;
+      Vector temp(dimU); temp = 0.0;
+      dx.Set(1.0, d);
+      dx.Add(-1.0, xref);
+      KQP->Mult(dx, temp);
+      temp *= 0.5;
+      temp.Add(1.0, gradEQP);
+      energy = InnerProduct(MPI_COMM_WORLD, dx, temp);
+      energy += EQP;
+      return energy;
+   }
+   else
+   {
+      return problem->E(d);
+   }
+}
+
+void QPOptParContactProblem::DdE(const Vector & d, Vector & gradE)
+{
+   if (nonlinearelasticity)
+   {
+      // KQP * (d - xref) + gradEQP
+      Vector dx(dimU); dx = 0.0;
+      dx.Set(1.0, d);
+      dx.Add(-1.0, xref);
+      KQP->Mult(dx, gradE);
+      gradE.Add(1.0, gradEQP);
+   }
+   else
+   {
+      problem->DdE(d, gradE);
+   }
+}
+
+HypreParMatrix * QPOptParContactProblem::DddE(const Vector & d)
+{
+   if (nonlinearelasticity)
+   {
+      return KQP;
+   }
+   else
+   {
+      return problem->DddE(d);
+   }
+}
+
+
+
 
 void QPOptParContactProblem::CalcObjectiveGrad(const BlockVector & x, BlockVector & y)
 {
-   problem->DdE(x.GetBlock(0), y.GetBlock(0));
+   DdE(x.GetBlock(0), y.GetBlock(0));
    y.GetBlock(1) = 0.0;
 }
 
