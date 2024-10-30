@@ -2270,7 +2270,7 @@ public:
        nonconforming with nonuniform refinement spacings. */
    void SetScaledNCMesh()
    {
-      ncmesh->usingScaling = true;
+      ncmesh->using_scaling = true;
    }
 
    /** Return fine element transformations following a mesh refinement.

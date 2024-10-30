@@ -247,7 +247,7 @@ NCMesh::NCMesh(const NCMesh &other)
    , Legacy(other.Legacy)
    , nodes(other.nodes)
    , faces(other.faces)
-   , usingScaling(other.usingScaling)
+   , using_scaling(other.using_scaling)
    , elements(other.elements)
    , shadow(1024, 2048)
 {
@@ -298,6 +298,7 @@ NCMesh::~NCMesh()
 
 void NCMesh::Node::SetScale(real_t s, bool overwrite)
 {
+   MFEM_ASSERT(0.0 < s && s < 1.0, "Invalid scale");
    if (!overwrite && scaleSet && std::abs((s - scale) / scale) > scaleTol)
    {
       MFEM_ABORT("Node scale is already set (inconsistent refinement)");
@@ -570,41 +571,26 @@ Refinement::Refinement(int index, char type, real_t scale)
    SetScale(ScaledType(type, scale));
 }
 
-Refinement::Refinement(int index, int type, real_t scale)
-   : index(index)
+char Refinement::GetType() const
 {
-   for (int i=0; i<3; ++i) { s[i] = 0.0; }
-   SetScale(ScaledType((char) type, scale));
-}
-
-int Refinement::GetType() const
-{
-   int t = 0;
-   int d = 1;
-   for (int i=0; i<3; ++i)
-   {
-      if (s[i] > 0.0)
-      {
-         t += d;
-      }
-
-      d *= 2;
-   }
-
+   char t{0}; // Set the X, Y or Z bit
+   for (int i = 0; i < 3; ++i)
+      if (s[i] > real_t{0})
+         t |= (1 << i);
    return t;
 }
 
-void Refinement::Set(int element, int type, real_t scale)
+void Refinement::Set(int element, char type, real_t scale)
 {
    index = element;
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
-   SetScale(ScaledType((char) type, scale));
+   SetScale(ScaledType(type, scale));
 }
 
-void Refinement::SetType(int type, real_t scale)
+void Refinement::SetType(char type, real_t scale)
 {
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
-   SetScale(ScaledType((char) type, scale));
+   SetScale(ScaledType(type, scale));
 }
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
@@ -1042,7 +1028,7 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
          reparents.Append(Triple<int, int, int>(midf, mid12, mid34));
 
          Node* node23 = nodes.Find(vn2, vn3);
-         reparentScale.Append(GetScale(node23->GetScale(), vn2 > vn3));
+         reparent_scale.Append(GetScale(node23->GetScale(), vn2 > vn3));
 
          int rs = ref_stack.Size();
 
@@ -1071,10 +1057,10 @@ void NCMesh::CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
             for (int i = 0; i < reparents.Size(); i++)
             {
                const Triple<int, int, int> &tr = reparents[i];
-               ReparentNode(tr.one, tr.two, tr.three, reparentScale[i]);
+               ReparentNode(tr.one, tr.two, tr.three, reparent_scale[i]);
             }
             reparents.DeleteAll();
-            reparentScale.DeleteAll();
+            reparent_scale.DeleteAll();
          }
          return;
       }
@@ -1123,6 +1109,7 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
 void NCMesh::SetNodeScale(int p0, int p1, real_t scale)
 {
    Node* node = nodes.Find(p0, p1);
+   MFEM_ASSERT(node, "Node not found");
    if (node) { node->SetScale(GetScale(scale, p0 > p1)); }
 }
 
@@ -3043,8 +3030,6 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4, real_t & s,
    if (e1 >= 0 && e3 >= 0) { midf1 = FindMidEdgeNode(e1, e3); }
    if (e2 >= 0 && e4 >= 0) { midf2 = FindMidEdgeNode(e2, e4); }
 
-   s = 0.5;
-
    // get proper node if shadow node exists
    if (midf1 >= 0 && midf1 == midf2)
    {
@@ -3059,6 +3044,7 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4, real_t & s,
    if (midf1 < 0 && midf2 < 0) // face not split
    {
       if (mid) { mid[4] = -1; }
+      s = 0.0;
       return 0;
    }
    else if (midf1 >= 0) // face split "vertically"
@@ -5881,7 +5867,7 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
    else
    {
       // print the relations
-      bool uniformScaling = true;  // Check whether all nodes have scale 0.5
+      bool uniform_scaling = true;  // Check whether all nodes have scale 0.5
       for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
       {
          if (node->HasVertex() && node->p1 != node->p2)
@@ -5890,12 +5876,12 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
             MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
 
             (*os) << node.index() << " " << node->p1 << " " << node->p2;
-            if (node->GetScale() != 0.5) { uniformScaling = false; }
-            if (usingScaling) { (*os) << " " << node->GetScale(); }
+            if (node->GetScale() != 0.5) { uniform_scaling = false; }
+            if (using_scaling) { (*os) << " " << node->GetScale(); }
             (*os) << "\n";
          }
       }
-      MFEM_VERIFY(usingScaling || uniformScaling, "NCMesh has nonuniform "
+      MFEM_VERIFY(using_scaling || uniform_scaling, "NCMesh has nonuniform "
                   "scaling. Call Mesh::SetScaledNCMesh first.");
       return 0;
    }
@@ -5910,7 +5896,7 @@ void NCMesh::LoadVertexParents(std::istream &input)
       int id, p1, p2;
       real_t s{0.5};
       input >> id >> p1 >> p2;
-      if (usingScaling) { input >> s; }
+      if (using_scaling) { input >> s; }
       MFEM_VERIFY(input, "problem reading vertex parents.");
 
       MFEM_VERIFY(nodes.IdExists(id), "vertex " << id << " not found.");
@@ -6057,7 +6043,7 @@ bool NCMesh::ZeroRootStates() const
 
 void NCMesh::Print(std::ostream &os, const std::string &comments) const
 {
-   if (usingScaling)
+   if (using_scaling)
    {
       os << "MFEM NC mesh v1.1\n\n";
    }
@@ -6198,7 +6184,7 @@ int NCMesh::CountTopLevelNodes() const
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false),
-     usingScaling(version == 11)
+     using_scaling(version == 11)
 {
    is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
