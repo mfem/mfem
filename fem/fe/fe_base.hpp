@@ -1034,6 +1034,10 @@ public:
       void ScaleIntegrated(bool scale_integrated_);
       /// Returns true if the basis is "integrated", false otherwise.
       bool IsIntegratedType() const { return etype == Integrated; }
+
+      const Vector &GetNodes() const { return x; }
+
+      const Vector &GetWeights() const { return w; }
       ~Basis();
    };
 

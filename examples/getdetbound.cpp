@@ -2,7 +2,7 @@
 //
 // Compile with: make getdetjelem
 //
-// Sample runs:  make getdetjelem && ./getdetjelem -nmin -0.2 -nmax 0.2 -o 2 -nt 100000
+// Sample runs:  make getdetbound -j4 && ./getdetbound -nfac 32 -nh 40 -m semi-invert.mesh
 // grep -i k10jac info.out | awk '{print $1 " " $2 " " $3 " " $4}' > detJnodes.out
 //
 // Description: This example code demonstrates the most basic usage of MFEM to
