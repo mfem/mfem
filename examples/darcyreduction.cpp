@@ -611,7 +611,7 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
       DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
       LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
 
-      B.AddMultTranspose(p_l, bu_l, (bsym)?(-1.):(+1.));
+      B.AddMultTranspose(p_l, bu_l, (bsym)?(+1.):(-1.));
 
       // Face contributions
 
@@ -648,7 +648,7 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
             // bu -= B_f^T p
 
             p.GetSubVector(p_dofs_f, p_f);
-            B_f.AddMultTranspose(p_f, bu_l, (bsym)?(-1.):(+1.));
+            B_f.AddMultTranspose(p_f, bu_l, (bsym)?(+1.):(-1.));
          }
       }
 
