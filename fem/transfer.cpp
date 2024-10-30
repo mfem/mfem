@@ -459,29 +459,21 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       auto d_B_H = Reshape(B_H.Read(), qPts, fe_ho_ndof, nref);
       auto d_D   = Reshape(D.Read(), qPts, nref, nel_ho);
 
-      mfem::forall_2D(nel_ho, fe_ho_ndof,
-                      nref, [=] MFEM_HOST_DEVICE (int iho)
+      mfem::forall(fe_ho_ndof*nref*nel_ho, [=] MFEM_HOST_DEVICE (int idx)
       {
-
-         MFEM_FOREACH_THREAD(iref, y, nref)
+         const int bh = idx % fe_ho_ndof;
+         const int iref = (idx / fe_ho_ndof) % nref;
+         const int iho = idx / fe_ho_ndof / nref;
+         // (B_lo_dofs x Q) x (Q x B_ho_dofs)
+         for (int bl = 0; bl < fe_lor_ndof; ++bl)
          {
-            // (B_lo_dofs x Q) x (Q x B_ho_dofs)
-            MFEM_FOREACH_THREAD(bh, x, fe_ho_ndof)
+            real_t dot = 0.0;
+            for (int qi=0; qi<qPts; ++qi)
             {
-               for (int bl = 0; bl < fe_lor_ndof; ++bl)
-               {
-
-                  real_t dot = 0.0;
-                  for (int qi=0; qi<qPts; ++qi)
-                  {
-                     dot += d_B_L(qi, bl, iref) *  d_D(qi, iref, iho) * d_B_H(qi, bh, iref);
-                  }
-
-                  //column major storange
-                  v_M_LH(bl, bh, iref, iho) = dot;
-               }
+               dot += d_B_L(qi, bl, iref) *  d_D(qi, iref, iho) * d_B_H(qi, bh, iref);
             }
-
+            //column major storange
+            v_M_LH(bl, bh, iref, iho) = dot;
          }
       });
    } // end of mixed assembly mass matrix
