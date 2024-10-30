@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
    real_t max_latent = 1e18;
 
    // Stopping-criteria related
-   int max_it = 300;
+   int max_it = 200;
    int min_it = 10;
    real_t tol_stationary_rel = 1e-04;
    real_t tol_stationary_abs = 1e-04;
