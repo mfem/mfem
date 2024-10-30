@@ -412,6 +412,8 @@ void DarcyForm::Assemble(int skip_zeros)
 #endif //!MFEM_DARCY_REDUCTION_ELIM_BCS
             reduction->AssembleDivMatrix(i, elmat);
          }
+
+         AssembleDivLDGFaces(skip_zeros);
       }
       else
       {
@@ -837,6 +839,122 @@ DarcyForm::~DarcyForm()
 
    delete reduction;
    delete hybridization;
+}
+
+void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
+{
+   Mesh *mesh = fes_p->GetMesh();
+   FaceElementTransformations *tr;
+#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+   DenseMatrix elmat1, elmat2;
+   Array<int> tr_vdofs1, te_vdofs1, tr_vdofs2, te_vdofs2;
+#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+
+   auto &interior_face_integs = *B->GetFBFI();
+
+   if (interior_face_integs.Size())
+   {
+      DenseMatrix elmat, elem_mat;
+
+      int nfaces = mesh->GetNumFaces();
+      for (int i = 0; i < nfaces; i++)
+      {
+         tr = mesh -> GetInteriorFaceTransformations (i);
+         if (tr == NULL) { continue; }
+
+         const FiniteElement *trial_fe1 = fes_u->GetFE(tr->Elem1No);
+         const FiniteElement *trial_fe2 = fes_u->GetFE(tr->Elem2No);
+         const FiniteElement *test_fe1 = fes_p->GetFE(tr->Elem1No);
+         const FiniteElement *test_fe2 = fes_p->GetFE(tr->Elem2No);
+
+         interior_face_integs[0]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
+                                                     *test_fe2, *tr, elmat);
+         for (int i = 1; i < interior_face_integs.Size(); i++)
+         {
+            interior_face_integs[i]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
+                                                        *test_fe2, *tr, elmat);
+            elmat += elem_mat;
+         }
+
+         reduction->AssembleDivFaceMatrix(i, elmat);
+
+#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+         fes_u->GetElementVDofs(tr->Elem1No, tr_vdofs1);
+         fes_p->GetElementVDofs(tr->Elem1No, te_vdofs1);
+         fes_u->GetElementVDofs(tr->Elem2No, tr_vdofs2);
+         fes_p->GetElementVDofs(tr->Elem2No, te_vdofs2);
+         tr_vdofs1.Append(tr_vdofs2);
+         te_vdofs1.Append(te_vdofs2);
+         B->SpMat().AddSubMatrix(te_vdofs1, tr_vdofs1, elmat, skip_zeros);
+#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+      }
+   }
+
+   auto &boundary_face_integs = *B->GetBFBFI();
+   auto &boundary_face_integs_marker = *B->GetBFBFI_Marker();
+
+   if (boundary_face_integs.Size())
+   {
+      DenseMatrix elmat, elem_mat;
+
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < boundary_face_integs_marker.Size(); k++)
+      {
+         if (boundary_face_integs_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < fes_p -> GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         tr = mesh -> GetBdrFaceTransformations (i);
+         if (tr != NULL)
+         {
+            const FiniteElement *trial_fe1 = fes_u->GetFE(tr->Elem1No);
+            const FiniteElement *test_fe1 = fes_p->GetFE(tr->Elem1No);
+            const int tr_ndof1 = trial_fe1->GetDof();
+            const int te_ndof1 = test_fe1->GetDof();
+
+            elmat.SetSize(te_ndof1, tr_ndof1);
+            elmat = 0.;
+
+            for (int i = 0; i < boundary_face_integs.Size(); i++)
+            {
+               if (boundary_face_integs_marker[i]
+                   && (*boundary_face_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+               boundary_face_integs[i]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe1,
+                                                           *test_fe1, *tr, elmat);
+               elmat += elem_mat;
+            }
+
+            const int face = mesh->GetBdrElementFaceIndex(i);
+            reduction->AssembleDivFaceMatrix(face, elmat);
+
+#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+            fes_u->GetElementVDofs(tr->Elem1No, tr_vdofs1);
+            fes_p->GetElementVDofs(tr->Elem1No, te_vdofs1);
+            B->SpMat().AddSubMatrix(te_vdofs1, tr_vdofs1, elmat, skip_zeros);
+#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+         }
+      }
+   }
 }
 
 void DarcyForm::AssemblePotLDGFaces(int skip_zeros)

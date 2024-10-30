@@ -31,8 +31,8 @@ protected:
    Array<int> Af_offsets, Af_f_offsets;
    real_t *Af_data;
 
-   Array<int> Bf_offsets;
-   real_t *Bf_data;
+   Array<int> Bf_offsets, Bf_face_offsets;
+   real_t *Bf_data, *Bf_face_data;
 
    Array<int> D_offsets, D_f_offsets, D_face_offsets;
    real_t *D_data, *D_face_data;
@@ -43,6 +43,7 @@ protected:
 
    void InitA();
    void InitBD();
+   void InitBFaces();
    void InitDFaces();
    virtual void ComputeS() = 0;
 
@@ -71,6 +72,8 @@ public:
    virtual void AssemblePotMassMatrix(int el, const DenseMatrix &D);
 
    virtual void AssembleDivMatrix(int el, const DenseMatrix &B);
+
+   virtual void AssembleDivFaceMatrix(int face, const DenseMatrix &);
 
    virtual void AssemblePotFaceMatrix(int face, const DenseMatrix &);
 
