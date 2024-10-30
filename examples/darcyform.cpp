@@ -928,7 +928,7 @@ void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
          {
             const FiniteElement *trial_fe1 = fes_u->GetFE(tr->Elem1No);
             const FiniteElement *test_fe1 = fes_p->GetFE(tr->Elem1No);
-            const int tr_ndof1 = trial_fe1->GetDof();
+            const int tr_ndof1 = trial_fe1->GetDof() * fes_u->GetVDim();
             const int te_ndof1 = test_fe1->GetDof();
 
             elmat.SetSize(te_ndof1, tr_ndof1);
@@ -940,7 +940,7 @@ void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
                    && (*boundary_face_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
                boundary_face_integs[i]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe1,
-                                                           *test_fe1, *tr, elmat);
+                                                           *test_fe1, *tr, elem_mat);
                elmat += elem_mat;
             }
 
