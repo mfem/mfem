@@ -18,6 +18,9 @@ CMakeFiles/
 # Clangd server cache
 *.cache*
 
+# VSCode configuration
+/.vscode/
+
 # Backup files
 *~
 

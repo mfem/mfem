@@ -27,7 +27,7 @@ class UnitVectorGridFunctionCoeff : public VectorCoefficient
 {
 public:
    UnitVectorGridFunctionCoeff( int dim)
-   : VectorCoefficient(dim*dim)
+      : VectorCoefficient(dim*dim)
    { }
 
    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
@@ -51,7 +51,7 @@ class PrevVelVectorGridFunctionCoeff : public VectorCoefficient
 {
 public:
    PrevVelVectorGridFunctionCoeff( int dim)
-   : VectorCoefficient(dim)
+      : VectorCoefficient(dim)
    { }
 
    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
@@ -79,7 +79,7 @@ class NonLinTermVectorGridFunctionCoeff : public VectorCoefficient
 {
 public:
    NonLinTermVectorGridFunctionCoeff( int dim)
-   : VectorCoefficient(dim)
+      : VectorCoefficient(dim)
    { }
 
    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
@@ -148,14 +148,15 @@ public:
     * The ParMesh @a mesh can be a linear or curved parallel mesh. The @a order
     * of the finite element spaces is
     */
-   IncompressibleNavierSolver(ParMesh *mesh, int velorder, int porder, int tOrder, real_t kin_vis);
+   IncompressibleNavierSolver(ParMesh *mesh, int velorder, int porder, int tOrder,
+                              real_t kin_vis);
 
    /// Initialize forms, solvers and preconditioners.
    void Setup(real_t dt);
 
    /// Compute solution at the next time step t+dt.
    /**
-    * This method can 
+    * This method can
     */
    void Step(real_t &time, real_t dt, int cur_step, bool provisional = false);
 
@@ -263,13 +264,13 @@ protected:
    /// Pressure $H^1$ finite element space.
    ParFiniteElementSpace *pfes = nullptr;
 
-   ParBilinearForm *velBForm = nullptr;
-   ParBilinearForm *psiBForm = nullptr;
-   ParBilinearForm *pBForm = nullptr;
+   ParBilinearForm *velBForm = nullptr; // vmass + vdiff
+   ParBilinearForm *psiBForm = nullptr; // diffusion
+   ParBilinearForm *pBForm = nullptr;   // mass
 
-   ParLinearForm *velLForm = nullptr;
-   ParLinearForm *psiLForm = nullptr;
-   ParLinearForm *pLForm = nullptr;
+   ParLinearForm *velLForm = nullptr;   // vLF + vLFGrad + vLF
+   ParLinearForm *psiLForm = nullptr;   // LFGrad
+   ParLinearForm *pLForm = nullptr;     // LF
 
    std::vector<ParGridFunction*> velGF;
    std::vector<ParGridFunction*> pGF;
@@ -282,7 +283,7 @@ protected:
    UnitVectorGridFunctionCoeff * pUnitVectorCoeff = nullptr;
    NonLinTermVectorGridFunctionCoeff * nonlinTermCoeff = nullptr;
    PrevVelVectorGridFunctionCoeff * prevVelLoadCoeff = nullptr;
-   
+
 
    // VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;
 
@@ -347,7 +348,7 @@ protected:
    int pl_velsolve = 0;
    int pl_amg = 0;
 
-   #if defined(MFEM_USE_DOUBLE)
+#if defined(MFEM_USE_DOUBLE)
    real_t rtol_psolve = 1e-10;
    real_t rtol_psisolve = 1e-10;
    real_t rtol_velsolve = 1e-12;

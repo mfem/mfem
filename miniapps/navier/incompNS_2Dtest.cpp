@@ -27,11 +27,12 @@ void vel(const Vector &x, real_t t, Vector &u)
 
 void vel_inlet(const Vector &x, real_t t, Vector &u)
 {
-    u = 0.0;
-    if (x(0) < 0.001) {
- 
+   u = 0.0;
+   if (x(0) < 0.001)
+   {
+
       u(0) = -0.01 * (std::pow(x(1) - 0.5, 2.0) - 0.25);
-    }
+   }
 }
 
 int main(int argc, char *argv[])
@@ -50,7 +51,8 @@ int main(int argc, char *argv[])
    bool last_step = false;
 
    //Mesh *mesh = new Mesh("box-cylinder.mesh");
-   Mesh mesh = Mesh::MakeCartesian2D(90, 30, mfem::Element::QUADRILATERAL, true, 3, 1);
+   Mesh mesh = Mesh::MakeCartesian2D(90, 30, mfem::Element::QUADRILATERAL, true, 3,
+                                     1);
 
    for (int i = 0; i < serial_refinements; ++i)
    {
