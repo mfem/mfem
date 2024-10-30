@@ -38,7 +38,7 @@ for filename in filenames:
 		continue
 
 	def get_ref_option(file, option):
-		ref_out = subprocess.getoutput("grep ' "+option+"' "+file)
+		ref_out = subprocess.getoutput("grep '^   "+option+"$' "+file)
 		return len(ref_out) > 0
 
 	dg = get_ref_option(filename, '--discontinuous')
@@ -50,7 +50,7 @@ for filename in filenames:
 	nonlin_diff = get_ref_option(filename, '--nonlinear-diffusion')
 
 	def get_ref_param(file, param, default=""):
-		ref_out = subprocess.getoutput("grep ' "+param+"' "+file+"| cut -d ' ' -f 5")
+		ref_out = subprocess.getoutput("grep '^   "+param+"' "+file+" | cut -d ' ' -f 5")
 		if len(ref_out) > 0:
 			return ref_out.split()[0]
 		else:
