@@ -43,6 +43,7 @@ for filename in filenames:
 
 	dg = get_ref_option(filename, '--discontinuous')
 	bcn = get_ref_option(filename, '--bc-neumann')
+	rd = get_ref_option(filename, '--reduction')
 	hb = get_ref_option(filename, '--hybridization')
 	upwind = get_ref_option(filename, '--upwinded')
 	nonlin = get_ref_option(filename, '--nonlinear')
@@ -89,6 +90,8 @@ for filename in filenames:
 		command_line += ' -dg'
 	if bcn:
 		command_line += ' -bcn'
+	if rd:
+		command_line += ' -rd'
 	if hb:
 		command_line += ' -hb'
 	if upwind:

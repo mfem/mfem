@@ -1,0 +1,45 @@
+Options used:
+   --mesh 
+   --ncells-x 20
+   --ncells-y 20
+   --size-x 1
+   --size-y 1
+   --order 1
+   --discontinuous
+   --upwinded
+   --problem 3
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1e-07
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --reduction
+   --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 1
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+Reduction init took 0.000121001s.
+***********************************************************
+dim(W) = 1600
+***********************************************************
+Assembly took 0.0801079s.
+Preconditioner took 0.0067354s.
+   Pass :  1   Iteration :   0  ||B r|| = 17.0824
+   Pass :  1   Iteration :   1  ||B r|| = 3.98038e-14
+GMRES+UMFPack converged in 1 iterations with a residual norm of 3.98038e-14.
+solver took 0.00259332s.
+|| q_h - q_ex || / || q_ex || = 0.330042
+|| t_h - t_ex || / || t_ex || = 0.0520619
