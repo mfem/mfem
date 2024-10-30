@@ -15,6 +15,9 @@ real_t der_sigmoid(const real_t x);
 real_t simp(const real_t x, const real_t exponent, const real_t rho0);
 real_t der_simp(const real_t x, const real_t exponent, const real_t rho0);
 
+real_t GetMaxval(const GridFunction &x);
+real_t GetMinval(const GridFunction &x);
+
 class CompositeCoefficient : public Coefficient
 {
    typedef std::function<real_t(const real_t)> fun_type;

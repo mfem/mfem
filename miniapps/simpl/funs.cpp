@@ -45,6 +45,36 @@ real_t der_simp(const real_t x, const real_t exponent, const real_t rho0)
    else { return exponent*(1.0-rho0)*std::pow(x, exponent-1.0); }
 }
 
+real_t GetMaxval(const GridFunction &x)
+{
+   real_t maxval = x.Max();
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace*>
+                                       (x.FESpace());
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &maxval, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                    pfes->GetComm());
+   }
+#endif
+   return maxval;
+}
+
+real_t GetMinval(const GridFunction &x)
+{
+   real_t minval = x.Min();
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace*>
+                                       (x.FESpace());
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &minval, 1, MFEM_MPI_REAL_T, MPI_MIN,
+                    pfes->GetComm());
+   }
+#endif
+   return minval;
+}
+
 MappedGFCoefficient LegendreEntropy::GetForwardCoeff()
 {
    MappedGFCoefficient coeff;

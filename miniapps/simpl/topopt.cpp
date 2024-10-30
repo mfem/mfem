@@ -204,17 +204,32 @@ DesignDensity::DesignDensity(
 void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
                                   const GridFunction &grad, real_t &mu, real_t &vol)
 {
+   const real_t maxval = entropy->GetFiniteUpperBound();
+   const real_t minval = entropy->GetFiniteLowerBound();
+   const real_t x_max = GetMaxval(x);
+   const real_t x_min = GetMinval(x);
+   real_t beta_max = infinity();
+   real_t beta_min = infinity();
+   if (x_max > maxval){
+      beta_max = maxval/x_max;
+   }
+   if (x_min < minval){
+      beta_min = minval / x_min;
+   }
+   if (IsFinite(beta_max) || IsFinite(beta_min))
+   {
+      x *= std::min(beta_max, beta_min);
+   }
+
+
    x.Add(-step_size, grad);
 
    mu = 0.0;
-   const real_t maxval = entropy->GetFiniteUpperBound();
-   const real_t minval = entropy->GetFiniteLowerBound();
-
    const real_t abs_step_size = std::fabs(step_size);
    MappedGFCoefficient newx_cf(x, [&mu, maxval, minval,
                                         abs_step_size](const real_t psi)
    {
-      return std::max(minval, std::min(maxval, psi + mu*abs_step_size));
+      return psi + mu*abs_step_size;
    });
    MaskedCoefficient masked_newx_cf(newx_cf);
    ConstantCoefficient maxval_cf(maxval);
