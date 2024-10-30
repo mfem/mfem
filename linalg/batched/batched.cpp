@@ -52,20 +52,14 @@ BatchedLinAlg &BatchedLinAlg::Instance()
 }
 
 void BatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x, Vector &y,
-                            real_t alpha, real_t beta, Op op)
+                            real_t alpha, real_t beta)
 {
-   Get(Instance().active_backend).AddMult(A, x, y, alpha, beta, op);
+   Get(Instance().active_backend).AddMult(A, x, y, alpha, beta);
 }
 
 void BatchedLinAlg::Mult(const DenseTensor &A, const Vector &x, Vector &y)
 {
    Get(Instance().active_backend).Mult(A, x, y);
-}
-
-void BatchedLinAlg::MultTranspose(const DenseTensor &A, const Vector &x,
-                                  Vector &y)
-{
-   Get(Instance().active_backend).MultTranspose(A, x, y);
 }
 
 void BatchedLinAlg::Invert(DenseTensor &A)
@@ -111,12 +105,6 @@ void BatchedLinAlgBase::Mult(const DenseTensor &A, const Vector &x,
                              Vector &y) const
 {
    AddMult(A, x, y, 1.0, 0.0);
-}
-
-void BatchedLinAlgBase::MultTranspose(const DenseTensor &A, const Vector &x,
-                                      Vector &y) const
-{
-   AddMult(A, x, y, 1.0, 0.0, Op::T);
 }
 
 }

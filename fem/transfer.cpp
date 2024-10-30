@@ -298,6 +298,9 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
    int order = fe_lor.GetOrder() + fe_ho.GetOrder() + el_tr->OrderW();
    const IntegrationRule* ir = &IntRules.Get(geom, order);
 
+   DenseMatrix M_mixed_el(fe_lor.GetDof(), fe_ho.GetDof());
+   M_mixed_el = 0.0;
+
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint& ip_lor = ir->IntPoint(i);
@@ -323,7 +326,7 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
 
 }
 
-void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
+Vector L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    const FiniteElementSpace& fes_ho_ea,
    const FiniteElementSpace& fes_lor_ea,
    Vector &M_LH, MemoryType d_mt_)
@@ -445,6 +448,7 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       const int qPts = D.SizeI();
 
       M_LH.SetSize(ndof_lor*ndof_ho*nref*nel_ho, d_mt);
+      M_LH = 0.0;
 
       // Rows x columns
       // Recall MFEM is column major
@@ -485,6 +489,8 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          }
       });
    } // end of mixed assembly mass matrix
+
+   return M_LH;
 }
 
 L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
@@ -787,13 +793,27 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAL2ProjectionL2Space()
 
       // Resulting matrix should be: ndof_ho x ndof_ho
       // R^T M_L x R
-      DenseTensor RtM_L_dt;
-      RtM_L_dt.NewMemoryAndSize(RtM_L.GetMemory(), ndof_ho, ndof_lor*nref,
-                                nel_ho, false);
-      Vector R_vec;
-      R_vec.NewMemoryAndSize(R.GetMemory(), R.Size(), false);
       Vector RtM_LR(ndof_ho * ndof_ho * nel_ho, d_mt);
-      BatchedLinAlg::Mult(RtM_L_dt, R_vec, RtM_LR);
+      auto v_RtM_LR = Reshape(RtM_LR.Write(), ndof_ho, ndof_ho, nel_ho);
+
+      mfem::forall_2D(nel_ho, ndof_ho, ndof_ho, [=] MFEM_HOST_DEVICE (int e)
+      {
+         MFEM_FOREACH_THREAD(iho, y, ndof_ho)
+         {
+            MFEM_FOREACH_THREAD(jho, x, ndof_ho)
+            {
+               real_t dot = 0.0;
+               for (int iref=0; iref<nref; ++iref)
+               {
+                  for (int ilo=0; ilo<ndof_lor; ++ilo)
+                  {
+                     dot += v_RtM_L(iho, ilo, iref, e) *  v_R(ilo, iref, jho, e);
+                  }
+               }
+               v_RtM_LR(iho, jho, e) = dot;
+            }
+         }
+      });
 
       // Compute the inverse of InvRtM_LR
       DenseTensor InvRtM_LR;
@@ -805,9 +825,32 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAL2ProjectionL2Space()
       // Form P
       // P should be of dimension (ndof_ho x ndof_ho) x (ndof_ho x nref*ndof_lor)
       // P ndof_ho x nref*ndof_lor
-      Vector P_vec;
-      P_vec.NewMemoryAndSize(P.GetMemory(), P.Size(), false);
-      BatchedLinAlg::Mult(InvRtM_LR, RtM_L, P_vec);
+      auto v_InvRtM_LR = Reshape(InvRtM_LR.Read(), ndof_ho, ndof_ho,
+                                 nel_ho);
+      auto v_P = Reshape(P.Write(), ndof_ho, ndof_lor, nref, nel_ho);
+
+      mfem::forall_3D(nel_ho, ndof_lor, nref, ndof_ho, [=] MFEM_HOST_DEVICE (int e)
+      {
+         MFEM_FOREACH_THREAD(iho, z, ndof_ho)
+         {
+            MFEM_FOREACH_THREAD(iref, y, nref)
+            {
+               MFEM_FOREACH_THREAD(ilo, x, ndof_lor)
+               {
+                  real_t dot = 0.0;
+                  for (int t=0; t<ndof_ho; ++t)
+                  {
+                     dot += v_InvRtM_LR(iho, t, e) * v_RtM_L(t, ilo, iref, e);
+                  }
+                  v_P(iho, ilo, iref, e) = dot;
+
+               }
+            }
+
+         }
+
+      });
+
    }
 }
 
@@ -853,15 +896,41 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::EAMult(
    const Vector &x, Vector &y) const
 {
+   const int vdim = fes_ho.GetVDim();
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
    const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const int nel_ho = fes_ho.GetMesh()->GetNE();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
 
-   DenseTensor R_dt;
-   R_dt.NewMemoryAndSize(R.GetMemory(), ndof_lor*nref, ndof_ho, nel_ho, false);
-   BatchedLinAlg::Mult(R_dt, x, y);
+   // Hand rolled since mult transpose is not supported in batch lin alg yet
+   // To be replaced with code above once we implement ::MultTranspose
+   auto v_R = Reshape(R.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+   auto v_x    = Reshape(x.Read(), ndof_ho, vdim, nel_ho);
+   auto v_y    = Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
+
+   mfem::forall_3D(nel_ho, ndof_lor, nref, vdim, [=] MFEM_HOST_DEVICE (int iho)
+   {
+
+      MFEM_FOREACH_THREAD(v, z, vdim)
+      {
+         MFEM_FOREACH_THREAD(i, y, nref)
+         {
+            MFEM_FOREACH_THREAD(j, x, ndof_lor)
+            {
+
+               real_t dot = 0.0;
+               for (int k=0; k<ndof_ho; ++k)
+               {
+                  dot += v_R(j, i, k, iho) * v_x(k, v, iho);
+               }
+
+               v_y(j, i, v, iho) = dot;
+            }
+         }
+      }
+   });
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
@@ -909,15 +978,38 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::EAMultTranspose(
    const Vector &x, Vector &y) const
 {
+   const int vdim = fes_ho.GetVDim();
+
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
    const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const int nel_ho = fes_ho.GetMesh()->GetNE();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
 
-   DenseTensor R_dt;
-   R_dt.NewMemoryAndSize(R.GetMemory(), ndof_lor*nref, ndof_ho, nel_ho, false);
-   BatchedLinAlg::MultTranspose(R_dt, x, y);
+   auto v_R = Reshape(R.Read(), ndof_lor, nref, ndof_ho, nel_ho);
+   auto v_x    = Reshape(x.Read(), ndof_lor, nref, vdim, nel_ho);
+   auto v_y    = Reshape(y.Write(), ndof_ho, vdim, nel_ho);
+
+   mfem::forall_2D(nel_ho, ndof_ho, vdim, [=] MFEM_HOST_DEVICE (int iho)
+   {
+      MFEM_FOREACH_THREAD(v, y, vdim)
+      {
+         MFEM_FOREACH_THREAD(k, x, ndof_ho)
+         {
+            real_t dot = 0.0;
+            for (int i=0; i<nref; ++i)
+            {
+               for (int j=0; j<ndof_lor; ++j)
+               {
+                  dot += v_R(j, i, k, iho) * v_x(j, i, v, iho);
+               }
+            }
+            v_y(k, v, iho) = dot;
+         }
+      }
+   });
+
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
@@ -968,15 +1060,36 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::EAProlongate(
    const Vector &x, Vector &y) const
 {
+
+   const int vdim = fes_ho.GetVDim();
+
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
    const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const int nel_ho = fes_ho.GetMesh()->GetNE();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
 
-   DenseTensor P_dt;
-   P_dt.NewMemoryAndSize(P.GetMemory(), ndof_ho, ndof_lor * nref, nel_ho, false);
-   BatchedLinAlg::Mult(P_dt, x, y);
+   auto v_P = Reshape(P.Read(), ndof_ho, ndof_lor * nref, nel_ho);
+   auto v_x    = Reshape(x.Read(), ndof_lor *  nref, vdim, nel_ho);
+   auto v_y    = Reshape(y.Write(), ndof_ho, vdim, nel_ho);
+
+   mfem::forall_2D(nel_ho, ndof_ho, vdim, [=] MFEM_HOST_DEVICE (int e)
+   {
+      MFEM_FOREACH_THREAD(v, y, vdim)
+      {
+         MFEM_FOREACH_THREAD(iho, x, ndof_ho)
+         {
+            real_t dot = 0.0;
+            for (int tx = 0; tx < ndof_lor * nref; ++tx)
+            {
+               dot += v_P(iho, tx, e) * v_x(tx, v, e);
+            }
+            v_y(iho, v, e) = dot;
+         }
+      }
+   });
+
 }
 
 void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
@@ -1025,15 +1138,37 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::EAProlongateTranspose(
    const Vector &x, Vector &y) const
 {
+   const int vdim = fes_ho.GetVDim();
+
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
    const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const int nel_ho = fes_ho.GetMesh()->GetNE();
+   const Mesh *mesh_ho = fes_ho.GetMesh();
+   const int nel_ho = mesh_ho->GetNE();
 
-   DenseTensor P_dt;
-   P_dt.NewMemoryAndSize(P.GetMemory(), ndof_ho, ndof_lor * nref, nel_ho, false);
-   BatchedLinAlg::MultTranspose(P_dt, x, y);
+   auto v_P = Reshape(P.Read(), ndof_ho, ndof_lor, nref, nel_ho);
+   auto v_x    = Reshape(x.Read(), ndof_ho, vdim, nel_ho);
+   auto v_y    = Reshape(y.Write(), ndof_lor, nref, vdim, nel_ho);
+
+   mfem::forall_3D(nel_ho, ndof_lor, nref, vdim, [=] MFEM_HOST_DEVICE (int e)
+   {
+      MFEM_FOREACH_THREAD(v, z, vdim)
+      {
+         MFEM_FOREACH_THREAD(iref, y, nref)
+         {
+            MFEM_FOREACH_THREAD(ilo, x, ndof_lor)
+            {
+               real_t dot = 0.0;
+               for (int iho=0; iho<ndof_ho; ++iho)
+               {
+                  dot += v_P(iho, ilo, iref, e) * v_x(iho, v, e);
+               }
+               v_y(ilo, iref, v, e) = dot;
+            }
+         }
+      }
+   });
 }
 
 L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
@@ -1902,9 +2037,11 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x,
    const int nel_ho = mesh_ho->GetNE();
 
    Vector tempx(elem_restrict_ho->Height());
+   tempx = 0.0;
    elem_restrict_ho->Mult(x, tempx);
 
    Vector tempy(ndof_lor*nref*vdim*nel_ho);
+   tempy = 0.0;
 
    auto v_M_mixed_ea = Reshape(M_LH_ea->Read(), ndof_lor, ndof_ho, nref,
                                nel_ho);
@@ -1952,9 +2089,11 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(
    const int nel_ho = mesh_ho->GetNE();
 
    Vector tempx(elem_restrict_lor->Height());
+   tempx = 0.0;
    elem_restrict_lor->Mult(x, tempx);
 
    Vector tempy(ndof_ho*vdim*nel_ho);
+   tempy = 0.0;
 
    auto v_M_mixed_ea = Reshape(M_LH_ea->Read(), ndof_lor, ndof_ho, nref,
                                nel_ho);
