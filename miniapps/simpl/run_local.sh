@@ -26,8 +26,8 @@ mpirun -np 8 ./simpl -rs 4 -rp 4 -p 24 -vs 1 -ab
 # Compliant Mechanism with no initial design
 sed -i '' '251s/.*/      \/\/ ForceInverterInitialDesign\(control_gf, \&entropy\);/' simpl.cpp
 make simpl -j
-mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-06 -rtol 1e-07 -bb
-mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-06 -rtol 1e-07 -ab
+mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-06 -rtol 1e-06 -bb -mini 30
+mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-06 -rtol 1e-06 -ab -mini 30
 mv ParaView/SiMPL-A-ForceInverter2-8 ParaView/SiMPL-A-ForceInverter2-8-const
 mv SiMPL-A-ForceInverter2-8.csv SiMPL-A-ForceInverter2-8-const.csv
 mv ParaView/SiMPL-B-ForceInverter2-8 ParaView/SiMPL-B-ForceInverter2-8-const

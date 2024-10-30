@@ -215,15 +215,19 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
       const real_t x_min = GetMinval(x);
       if (x_max > maxval)
       {
-         beta_max = x_max / maxval;
+         beta_max = maxval/x_max;
       }
       if (x_min < minval)
       {
-         beta_min = x_min / minval;
+         beta_min = minval/x_min;
       }
       if (IsFinite(beta_max) || IsFinite(beta_min))
       {
-         penalty = (std::max(beta_min, beta_max)+1)/step_size;
+         if (Mpi::Root())
+         {
+         out << beta_max << ", " << beta_min << ", " << beta_max / step_size << ", " << beta_min / step_size << std::endl;
+         }
+         penalty = (1-std::max(IsFinite(beta_max)? beta_max : 0.0, IsFinite(beta_min) ? beta_min : 0.0))/step_size;
          x *= (1.0 - step_size*penalty);
       }
    }
@@ -421,15 +425,15 @@ DensityBasedTopOpt::DensityBasedTopOpt(
 
 real_t DensityBasedTopOpt::Eval()
 {
-   if (enforce_volume_constraint)
-   {
-      current_volume = density.ApplyVolumeProjection(control_gf,
-                                                     density.hasEntropy());
-   }
-   else
-   {
+   // if (enforce_volume_constraint)
+   // {
+   //    current_volume = density.ApplyVolumeProjection(control_gf,
+   //                                                   density.hasEntropy());
+   // }
+   // else
+   // {
       current_volume = density.ComputeVolume(control_gf);
-   }
+   // }
    filter.Solve(filter_gf);
    elasticity.Solve(state_gf);
    obj.Assemble();

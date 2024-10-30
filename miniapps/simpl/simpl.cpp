@@ -420,7 +420,7 @@ int main(int argc, char *argv[])
                                 ? old_objval + grad_diffrho + bregman_diff / step_size
                                 : old_objval + c1*grad_diffrho;
          if (Mpi::Root())
-          {
+         {
             out << "      New    Objective  : " << objval << std::endl;
             out << "      Target Objective  : " << target_objval;
             if (use_bregman_backtrack)
@@ -461,10 +461,12 @@ int main(int argc, char *argv[])
       real_t dummy2, dummy3;
 
       control_eps_gf.ProjectCoefficient(density_cf);
-      density_primal.ProjectedStep(control_eps_gf, 1.0, grad_gf, lambda_V, dummy2, dummy3, false);
+      density_primal.ProjectedStep(control_eps_gf, 1.0, grad_gf, lambda_V, dummy2,
+                                   dummy3, false);
       stationarity = control_eps_gf.ComputeL2Error(density_cf);
       control_eps_gf = control_gf;
-      density.ProjectedStep(control_eps_gf, step_size, grad_gf, lambda_V, dummy2, dummy3, false);
+      density.ProjectedStep(control_eps_gf, step_size, grad_gf, lambda_V, dummy2,
+                            dummy3, false);
       kkt = zero_gf.ComputeL1Error(KKT_cf);
       // control_eps_gf = control_gf;
       // density.ProjectedStep(control_eps_gf, 1.0, grad_gf, lambda_V, dummy2);
@@ -499,14 +501,18 @@ int main(int argc, char *argv[])
          }
          else {use_paraview = false;}
       }
-      if (use_L2_stationarity && (stationarity < tol_rel*stationarity0 ||
-                                  stationarity < tol_abs))
+      if (min_it < it_md)
       {
-         break;
-      }
-      if (!use_L2_stationarity && (kkt < tol_rel*kkt0 || kkt < tol_abs))
-      {
-         break;
+         if (use_L2_stationarity && (stationarity < tol_rel*stationarity0 ||
+                                     stationarity < tol_abs))
+         {
+            break;
+         }
+         if (!use_L2_stationarity && (kkt < tol_rel*kkt0 || kkt < tol_abs))
+         {
+            break;
+         }
+
       }
    }
    if (Mpi::Root())
