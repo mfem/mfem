@@ -40,9 +40,6 @@ namespace mfem
 struct Refinement
 {
    int index; ///< Mesh element number
-   /** Type is used only for input. The struct stores the refinement type in the
-       triple @a scale, which specifies the refinement scale in each dimension,
-       with 0 representing no refinement in that dimension. */
    enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    using ScaledType = std::pair<char, real_t>;
    real_t s[3];  /// Refinement scale in each dimension
@@ -53,14 +50,13 @@ struct Refinement
    Refinement(int index, const std::initializer_list<ScaledType> &refs);
    /// Refine element with a single type and scale in all dimensions.
    Refinement(int index, char type, real_t scale = 0.5);
-   Refinement(int index, int type, real_t scale = 0.5);
-   /// Return the type as an integer.
-   int GetType() const;
+   /// Return the type as char.
+   char GetType() const;
    /// Set the element, type, and scale.
-   void Set(int element, int type,
+   void Set(int element, char type,
             real_t scale = 0.5);  /// Uses @a scale in all dimensions
    /// Set the type and scale, assuming the element is already set.
-   void SetType(int type,
+   void SetType(char type,
                 real_t scale = 0.5);  /// Uses @a scale in all dimensions
 private :
    void SetScale(const ScaledType &ref);
@@ -602,7 +598,7 @@ protected: // implementation
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
 
-   bool usingScaling = false; // Whether Node::scale is being used
+   bool using_scaling = false; // Whether Node::scale is being used
 
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
@@ -705,7 +701,7 @@ protected: // implementation
    Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
    HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
-   Array<real_t> reparentScale;  ///< scale associated with reparents (tmp)
+   Array<real_t> reparent_scale;  ///< scale associated with reparents (tmp)
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
