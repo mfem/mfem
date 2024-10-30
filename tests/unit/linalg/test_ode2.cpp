@@ -80,17 +80,16 @@ TEST_CASE("Second order ODE methods", "[ODE]")
 
       void init_hist(SecondOrderODESolver* ode_solver,real_t dt_)
       {
-         int nstate = ode_solver->GetStateSize();
+         int nstate = ode_solver->GetState().Size();
 
          for (int s = 0; s< nstate; s++)
          {
             real_t t = -(s)*dt_;
             Vector uh(1);
             uh[0] = -cos(t) - sin(t);
-            ode_solver->SetStateVector(s,uh);
+            ode_solver->GetState().Set(s,uh);
          }
       }
-
 
       real_t order(SecondOrderODESolver* ode_solver, bool init_hist_ = false)
       {
@@ -124,7 +123,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
          mfem::out<<std::setw(12)<<err_u[0]
                   <<std::setw(12)<<err_du[0]<<std::endl;
 
-         std::vector<Vector> uh(ode_solver->GetMaxStateSize());
+         std::vector<Vector> uh(ode_solver->GetState().MaxSize());
          for (int l = 1; l< levels; l++)
          {
             int lvl = static_cast<int>(pow(2,l));
@@ -144,26 +143,26 @@ TEST_CASE("Second order ODE methods", "[ODE]")
                ode_solver->Step(u, du, t, dt_order);
             }
 
-            int nstate = ode_solver->GetStateSize();
+            int nstate = ode_solver->GetState().Size();
             for (int s = 0; s < nstate; s++)
             {
-               ode_solver->GetStateVector(s,uh[s]);
+               uh[s] = ode_solver->GetState().Get(s);
             }
 
             for (int ll = 1; ll < lvl; ll++)
             {
                for (int s = 0; s < nstate; s++)
                {
-                  ode_solver->SetStateVector(s,uh[s]);
+                  ode_solver->GetState().Set(s,uh[s]);
                }
                for (int ti = 0; ti < steps; ti++)
                {
                   ode_solver->Step(u, du, t, dt_order);
                }
-               nstate = ode_solver->GetStateSize();
+               nstate = ode_solver->GetState().Size();
                for (int s = 0; s< nstate; s++)
                {
-                  uh[s] = ode_solver->GetStateVector(s);
+                  uh[s] = ode_solver->GetState().Get(s);
                }
             }
 
