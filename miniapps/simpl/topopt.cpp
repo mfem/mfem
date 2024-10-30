@@ -202,23 +202,30 @@ DesignDensity::DesignDensity(
 }
 
 void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
-                                  const GridFunction &grad, real_t &mu, real_t &vol)
+                                  const GridFunction &grad, real_t &mu, real_t &vol, real_t &penalty,
+                                  bool apply_penalty)
 {
    const real_t maxval = entropy->GetFiniteUpperBound();
    const real_t minval = entropy->GetFiniteLowerBound();
-   const real_t x_max = GetMaxval(x);
-   const real_t x_min = GetMinval(x);
    real_t beta_max = infinity();
    real_t beta_min = infinity();
-   if (x_max > maxval){
-      beta_max = maxval/x_max;
-   }
-   if (x_min < minval){
-      beta_min = minval / x_min;
-   }
-   if (IsFinite(beta_max) || IsFinite(beta_min))
+   if (apply_penalty)
    {
-      x *= std::min(beta_max, beta_min);
+      const real_t x_max = GetMaxval(x);
+      const real_t x_min = GetMinval(x);
+      if (x_max > maxval)
+      {
+         beta_max = x_max / maxval;
+      }
+      if (x_min < minval)
+      {
+         beta_min = x_min / minval;
+      }
+      if (IsFinite(beta_max) || IsFinite(beta_min))
+      {
+         penalty = (std::max(beta_min, beta_max)+1)/step_size;
+         x *= (1.0 - step_size*penalty);
+      }
    }
 
 
@@ -249,7 +256,8 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
    real_t mu_max(max_grad), mu_min(-max_grad);
    // real_t mu_max(1e10), mu_min(-1e10);
 #ifdef MFEM_USE_MPI
-   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace*>(grad.FESpace());
+   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace*>
+                                       (grad.FESpace());
    if (pfes)
    {
       MPI_Allreduce(MPI_IN_PLACE, &mu_max, 1, MFEM_MPI_REAL_T, MPI_MAX,

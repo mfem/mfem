@@ -331,13 +331,14 @@ int main(int argc, char *argv[])
    step_size = 0.5;
    ParGridFunction log_grad_gf(&fes_control);
    log_grad_gf = 0.0;
+   real_t penalty;
    for (it_md = 0; it_md<max_it; it_md++)
    {
       if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
       control_old_gf = control_gf;
       old_objval = objval;
       density.ProjectedStep(control_gf, step_size, log_grad_gf, volume_correction,
-                            curr_vol);
+                            curr_vol, penalty, false);
       objval = optproblem.Eval();
       succ_obj_diff = old_objval - objval;
       grad_old_gf = grad_gf;
@@ -351,7 +352,7 @@ int main(int argc, char *argv[])
 
       real_t dummy1, dummy2;
       control_eps_gf.ProjectCoefficient(density_cf);
-      density_primal.ProjectedStep(control_eps_gf, 1.0, grad_gf, dummy1, dummy2);
+      density_primal.ProjectedStep(control_eps_gf, 1.0, grad_gf, dummy1, dummy2, penalty, false);
       // stationarity = std::sqrt(zero_gf.ComputeL1Error(primal_diff_eps));
       stationarity = control_eps_gf.ComputeL2Error(density_cf);
 

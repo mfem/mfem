@@ -102,7 +102,7 @@ public:
    }
 
    void ProjectedStep(GridFunction &x, const real_t step_size,
-                      const GridFunction &grad, real_t &mu, real_t &vol);
+                      const GridFunction &grad, real_t &mu, real_t &vol, real_t &penalty, bool apply_penalty = true);
 
    real_t ApplyVolumeProjection(GridFunction &x, bool use_entropy);
    real_t ComputeVolume(const GridFunction &x);

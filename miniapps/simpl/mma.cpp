@@ -365,9 +365,9 @@ int main(int argc, char *argv[])
       optproblem.UpdateGradient();
       avg_grad = InnerProduct(fes_control.GetComm(), grad_gf, dv)/tot_vol;
 
-      real_t dummy1, dummy2;
+      real_t dummy1, dummy2, dummy3;
       control_eps_gf = control_gf;
-      density.ProjectedStep(control_eps_gf, 1.0, grad_gf, dummy1, dummy2);
+      density.ProjectedStep(control_eps_gf, 1.0, grad_gf, dummy1, dummy2, dummy3, false);
       // stationarity = std::sqrt(zero_gf.ComputeL1Error(bregman_diff_eps));
       stationarity = control_eps_gf.ComputeL2Error(density_cf);
 

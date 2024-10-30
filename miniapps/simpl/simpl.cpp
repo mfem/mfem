@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
    filter.SetAdjBStationary(false);
    if (prob == mfem::ForceInverter2)
    {
-      ForceInverterInitialDesign(control_gf, &entropy);
+      // ForceInverterInitialDesign(control_gf, &entropy);
    }
    filter.Solve(filter_gf);
 
@@ -334,6 +334,7 @@ int main(int argc, char *argv[])
    real_t kkt, kkt0(infinity());
    int tot_reeval(0), num_reeval(0);
    int it_md;
+   real_t penalty(0);
    TableLogger logger;
    logger.Append("it", it_md);
    logger.Append("volume", curr_vol);
@@ -345,6 +346,7 @@ int main(int argc, char *argv[])
    logger.Append("kkt", kkt);
    logger.Append("tot_reeval", tot_reeval);
    logger.Append("volume_correction", volume_correction);
+   logger.Append("Penalty", penalty);
    logger.SaveWhenPrint(filename.str());
    std::unique_ptr<ParaViewDataCollection> paraview_dc;
    if (use_paraview)
@@ -402,7 +404,7 @@ int main(int argc, char *argv[])
       {
          control_gf = control_old_gf;
          density.ProjectedStep(control_gf, step_size, grad_gf, volume_correction,
-                               curr_vol);
+                               curr_vol, penalty, true);
          objval = optproblem.Eval();
          // kkt = zero_gf.ComputeL1Error(KKT_cf);
          // if (it_md > 1 && !use_L2_stationarity && (kkt < tol_rel*kkt0 || kkt < tol_abs))
@@ -456,13 +458,13 @@ int main(int argc, char *argv[])
       optproblem.UpdateGradient();
       avg_grad = InnerProduct(fes_control.GetComm(), grad_gf, dv)/tot_vol;
 
-      real_t dummy2;
+      real_t dummy2, dummy3;
 
       control_eps_gf.ProjectCoefficient(density_cf);
-      density_primal.ProjectedStep(control_eps_gf, 1.0, grad_gf, lambda_V, dummy2);
+      density_primal.ProjectedStep(control_eps_gf, 1.0, grad_gf, lambda_V, dummy2, dummy3, false);
       stationarity = control_eps_gf.ComputeL2Error(density_cf);
       control_eps_gf = control_gf;
-      density.ProjectedStep(control_eps_gf, step_size, grad_gf, lambda_V, dummy2);
+      density.ProjectedStep(control_eps_gf, step_size, grad_gf, lambda_V, dummy2, dummy3, false);
       kkt = zero_gf.ComputeL1Error(KKT_cf);
       // control_eps_gf = control_gf;
       // density.ProjectedStep(control_eps_gf, 1.0, grad_gf, lambda_V, dummy2);
