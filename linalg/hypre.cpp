@@ -2779,13 +2779,12 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
 
 real_t HypreParMatrix::FNorm() const
 {
-   int ierr = 0;
    real_t norm_fro = 0.0;
    if (A != NULL)
    {
-      ierr += hypre_ParCSRMatrixNormFro(A, &norm_fro);
+      const int ierr = hypre_ParCSRMatrixNormFro(A, &norm_fro);
+      MFEM_VERIFY(ierr == 0, "");
    }
-   MFEM_VERIFY(ierr == 0, "");
    return norm_fro;
 }
 
