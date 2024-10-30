@@ -48,15 +48,6 @@ public:
       return parent_;
    }
 
-   /**
-    * @brief Get the From indicator.
-    *
-    * Indicates whether the SubMesh has been created from a domain or surface.
-    */
-   ParSubMesh::From GetFrom() const
-   {
-      return from_;
-   }
 protected:
    /// protected constructor
    ParNCSubMesh(ParSubMesh& submesh, const ParNCMesh &parent, From from,
@@ -64,14 +55,6 @@ protected:
 
    /// The parent ParNCMesh. Not owned.
    const ParNCMesh *parent_;
-
-   /// Indicator from which part of the parent ParMesh the ParSubMesh is going
-   /// to be created.
-   From from_;
-
-   /// Attributes on the parent NCMesh on which the ParNCSubMesh is created.
-   /// Could either be domain or boundary attributes (determined by from_).
-   Array<int> attributes_;
 
    /// Mapping from submesh element nc ids (index of the array), to the parent
    /// element ids. If from a boundary, these map to faces in the parent.

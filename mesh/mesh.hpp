@@ -1116,7 +1116,7 @@ public:
    /**
     * @brief Clear the boundary element to edge map.
     */
-   void RemoveBoundaryElementToEdge()
+   void DeleteBoundaryElementToEdge()
    {
       delete bel_to_edge;
       bel_to_edge = nullptr;

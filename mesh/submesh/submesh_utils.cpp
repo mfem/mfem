@@ -271,7 +271,7 @@ void AddBoundaryElements(SubMeshT &mesh,
    {
       // In 3D we check for `bel_to_edge`. It shouldn't have been set
       // previously.
-      mesh.RemoveBoundaryElementToEdge();
+      mesh.DeleteBoundaryElementToEdge();
    }
    int NumOfBdrElements = 0;
    for (int i = 0; i < num_codim_1; i++)

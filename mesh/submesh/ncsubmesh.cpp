@@ -22,7 +22,7 @@ using namespace SubMeshUtils;
 
 NCSubMesh::NCSubMesh(SubMesh& submesh, const NCMesh &parent, From from,
                      const Array<int> &attributes)
-   : NCMesh(), parent_(&parent), from_(from), attributes_(attributes)
+   : NCMesh(), parent_(&parent)
 {
    Dim = submesh.Dimension();
    spaceDim = submesh.SpaceDimension();
