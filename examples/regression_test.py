@@ -4,28 +4,38 @@
 # The reference cases are stored in the regress_test folder
 
 import os
+import sys
 import subprocess
 
 class bcolors:
 	HEADER = '\033[95m'
 	OKGREEN = '\033[92m'
 	FAIL = '\033[91m'
-	RESET = "\033[0m"
+	WARN = '\033[93m'
+	RESET = '\033[0m'
 
 tol = 1e-7
 
 print('Running Regression Testing:')
 path = 'regress_test/'
-filenames = os.listdir(path)
+if len(sys.argv) > 1:
+	filenames = sys.argv[1:]
+else:
+	filenames = os.listdir(path)
+	filenames = [ path + name for name in filenames ]
+
 failed = 0
 
-for i in range(len(filenames)):
+for filename in filenames:
 	# Parsing reference file
 
 	print("----------------------------------------------------------------")
-	print("Case: "+filenames[i])
+	print("Case: " + filename)
 
-	filename = path + filenames[i]
+	if not os.path.isfile(filename):
+		failed += 1
+		print(bcolors.WARN + "NOT FOUND" + bcolors.RESET)
+		continue
 
 	def get_ref_option(file, option):
 		ref_out = subprocess.getoutput("grep ' "+option+"' "+file)
