@@ -442,12 +442,15 @@ int main(int argc, char *argv[])
    ParGridFunction xcopy_gf(&fes_copy); xcopy_gf = 0.0;
 
    // set the reference configuration to the nlproblem
-   VectorFunctionCoefficient refconf(dim, ReferenceConfiguration);
-   ParGridFunction x_ref(fes); x_ref = 0.0;
-   x_ref.ProjectCoefficient(refconf);
-   nlprob->SetFrame(*x_ref.GetTrueDofs());
+   {
+      VectorFunctionCoefficient refconf(dim, ReferenceConfiguration);
+      ParGridFunction x_refconfig(fes); x_refconfig = 0.0;
+      x_refconfig.ProjectCoefficient(refconf);
+      nlprob->SetFrame(*x_refconfig.GetTrueDofs());
+   }
 
-   ParGridFunction x_def(fes); x_def = 0.0;
+
+   ParGridFunction xBC(fes); xBC = 0.0;
    
    if (paraview)
    {
@@ -462,7 +465,6 @@ int main(int argc, char *argv[])
       paraview_dc->SetHighOrderOutput(true);
       // paraview_dc->RegisterField("u", &x_gf);
       paraview_dc->RegisterField("u", &xcopy_gf);
-      paraview_dc->RegisterField("udef", &x_def);
       paraview_dc->SetCycle(0);
       paraview_dc->SetTime(double(0));
       paraview_dc->Save();
@@ -480,6 +482,8 @@ int main(int argc, char *argv[])
    pmesh->GetNodes(new_coords);
    pmesh->GetNodes(ref_coords);
    
+   
+   // deviation from the reference configuration
    Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
 
 
@@ -538,88 +542,40 @@ int main(int argc, char *argv[])
       }
 
       nlprob->FormLinearSystem();
-
-
       x_gf.SetTrueVector();
-      ////x_gf.SetTrueVector();
-      ////xref.Set(1.0, x_gf.GetTrueVector());
-      //x_def = 0.0;
-      //x_def.SetSubVector(ess_bdr, ess_values);
-      //x_def.SetTrueVector();
-      //xref.Set(1.0, *x_ref.GetTrueDofs());
-      ////xref.Add(1.0, *x_def.GetTrueDofs());
-      //
-      //
-      // CHALLENGE: How to set the reference state xref for the expansion
-      //            Note x_ref refers to a displacement state describing an undeformed mesh
-      
      
-      // relative deformation
-      x_def = 0.0;
-      VectorConstantCoefficient x_def_cf(ess_values);
-      x_def.ProjectBdrCoefficient(x_def_cf, ess_bdr);
-      x_def.SetTrueVector();
-
-
-      //Vector temp1, temp2;
-      //x_ref.GetTrueDofs()->GetSubVector(ess_tdof_list, temp1);
-      //x_def.GetTrueDofs()->GetSubVector(ess_tdof_list, temp2);
-      //temp1.Add(1.0, temp2);
-      Vector temp1;
-      x_def.GetTrueDofs()->GetSubVector(ess_tdof_list, temp1);
-
-      xref = 0.0;
-      // set nonessential dofs
+      // xref will also satisfy the essential boundary conditions and the nonessential
+      // dofs will be equal to the solution at the previous time step (if it exists)
+      // or zero  
+      // xref will be used to set the reference/expansion point used for the QPOptContactProblem
+      // and also used as the initial point for the IP solver 
       if (i == 0)
       {
-         xref = 0.0; //xref.Set(1.0, *x_ref.GetTrueDofs());
+         xref = 0.0;
       }
       else
       {
          xref.Set(1.0, *x_gf.GetTrueDofs());      
-      } 
-      xref.SetSubVector(ess_tdof_list, temp1);
+      }
+      // set essential dofs with respect
+      // to a deformation relative to the "frame" or 
+      // the reference configuration given by the original mesh
       
-      //x_gf.SetFromTrueDofs(xref);
-      //add(ref_coords,x_gf,new_coords);
-      //
-      //pmesh_copy.SetNodes(new_coords);
-      //
-      //
-      //paraview_dc->SetCycle(1);
-      //paraview_dc->SetTime(double(1.0));
-      //paraview_dc->Save();
+      // xBC is a grid function that satisfies the essential boundary conditions
+      xBC = 0.0;
+      VectorConstantCoefficient xBC_cf(ess_values);
+      xBC.ProjectBdrCoefficient(xBC_cf, ess_bdr);
+      xBC.SetTrueVector();      
+      Vector DCvals;
+      xBC.GetTrueDofs()->GetSubVector(ess_tdof_list, DCvals);
+      xref.SetSubVector(ess_tdof_list, DCvals);
       
-      //new_coords.SetFromTrueDofs(xref); 
-     
-
-
-      //// is the reference state reasonable?
-      //x_gf.SetFromTrueDofs(xref);
-      //
-      //int owned_nodes = 0;
-      //GridFunction * nodes_gf = &x_gf;
-      //pmesh_copy.SwapNodes(nodes_gf, owned_nodes); 
-      //xcopy_gf = x_gf;
-      //xcopy_gf.Add(-1.0, x_ref);
-      //xcopy_gf.SetTrueVector();
-      //if (paraview)
-      //{
-      //   paraview_dc->SetCycle(i+1);
-      //   paraview_dc->SetTime(double(i+1));
-      //   paraview_dc->Save();
-      //}
-
-
-      //exit(1);
-      // end question
-
 
 
       chrono.Clear();
       chrono.Start();
-      //ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
-      ParContactProblem contact(nlprob, prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
+      //ParContactProblem contact(nlprob, prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
+      ParContactProblem contact(nlprob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
       bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
 
       int gncols = (compute_dof_projections) ? contact.GetRestrictionToContactDofs()->GetGlobalNumCols() : -1;
@@ -633,8 +589,7 @@ int main(int argc, char *argv[])
       
       chrono.Clear();
       chrono.Start();
-      //QPOptParContactProblem qpopt(&contact,xref);
-      QPOptParContactProblem qpopt(&contact, xref);//, *x_ref.GetTrueDofs()); 
+      QPOptParContactProblem qpopt(&contact, xref); 
       qpopt.SetProblemLabel(i);
       chrono.Stop();
       if (myid == 0)
@@ -669,7 +624,6 @@ int main(int argc, char *argv[])
       }
 
       x_gf.SetTrueVector();
-      // Vector x0 = x_gf.GetTrueVector();
       int ndofs = prob->GetFESpace()->GetTrueVSize();
       Vector x0(ndofs); x0 = 0.0;
       x0.Set(1.0, xref);

@@ -472,15 +472,15 @@ public:
                      ParGridFunction * coords_,
                       bool doublepass = false);
    ParContactProblem(ParNonlinearElasticityProblem * nlprob_,
-		     ParElasticityProblem * prob_, 
+		     //ParElasticityProblem * prob_, 
                      const std::set<int> & mortar_attrs_, const std::set<int> & nonmortar_attrs_,
                      ParGridFunction * coords_,
                       bool doublepass = false);
 
    ParElasticityProblem * GetElasticityProblem() {return prob;}
    MPI_Comm GetComm() {return comm;}
-   int GetNumDofs() {return K->Height();}
-   int GetGlobalNumDofs() {return K->GetGlobalNumRows();}
+   int GetNumDofs() {return vfes->GetTrueVSize(); }
+   int GetGlobalNumDofs() {return vfes->GlobalTrueVSize(); }
    int GetNumContraints() {return M->Height();}
    int GetGlobalNumConstraints() { return M->GetGlobalNumRows(); }
    
@@ -520,7 +520,10 @@ public:
    ~ParContactProblem()
    {
       delete B;
-      delete K;
+      if (K != nullptr)
+      {
+         delete K;
+      }
       delete M;
       if (Mt) delete Mt;
       if (Pi) delete Pi;

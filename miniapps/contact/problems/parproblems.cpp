@@ -195,24 +195,25 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob_,
 
 
 ParContactProblem::ParContactProblem(ParNonlinearElasticityProblem * nlprob_,
-	                             ParElasticityProblem * prob_,	
+	                             //ParElasticityProblem * prob_,	
                                                          const std::set<int> & mortar_attrs_, 
                                                          const std::set<int> & nonmortar_attrs_,
                                                          ParGridFunction * coords_,
                                                          bool doublepass_ )
-: nlprob(nlprob_), prob(prob_), mortar_attrs(mortar_attrs_), 
+: nlprob(nlprob_), //prob(prob_), 
+   mortar_attrs(mortar_attrs_), 
    nonmortar_attrs(nonmortar_attrs_), coords(coords_),
    doublepass(doublepass_), nonlinearelasticity(true)
 {
-   ParMesh* pmesh = prob->GetMesh();
+   ParMesh* pmesh = nlprob->GetMesh();
    comm = pmesh->GetComm();
    MPI_Comm_rank(comm, &myid);
    MPI_Comm_size(comm, &numprocs);
    
     
    dim = pmesh->Dimension();
-   prob->FormLinearSystem();
-   K = new HypreParMatrix(prob->GetOperator());
+   //prob->FormLinearSystem();
+   //K = new HypreParMatrix(prob->GetOperator());
    if (doublepass)
    {
       SetupTribolDoublePass();
@@ -242,8 +243,18 @@ void ParContactProblem::SetupTribol()
    int coupling_scheme_id = 0;
    int mesh1_id = 0;
    int mesh2_id = 1;
-   vfes = prob->GetFESpace();
-   ParMesh * pmesh = prob->GetMesh();
+   
+   ParMesh * pmesh;
+   if (!nonlinearelasticity)
+   {
+      vfes = prob->GetFESpace();
+      pmesh = prob->GetMesh();
+   }
+   else
+   {
+      vfes = nlprob->GetFESpace();
+      pmesh = nlprob->GetMesh();
+   }
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id, mesh1_id, mesh2_id,
       *pmesh, *coords, mortar_attrs, nonmortar_attrs,
@@ -283,7 +294,15 @@ void ParContactProblem::SetupTribol()
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
    
    HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
-   HypreParMatrix * Me = Mfull->EliminateCols(prob->GetEssentialDofs());
+   HypreParMatrix * Me;
+   if (!nonlinearelasticity)
+   {
+      Mfull->EliminateCols(prob->GetEssentialDofs());
+   }
+   else
+   {
+      Mfull->EliminateCols(nlprob->GetEssentialDofs());
+   }
    delete Me;
    int h = Mfull->Height();
    SparseMatrix merged;
@@ -360,9 +379,24 @@ void ParContactProblem::SetupTribolDoublePass()
    int coupling_scheme_id1 = 0;
    int mesh1_id1 = 0;
    int mesh2_id1 = 1;
-   vfes = prob->GetFESpace();
+   if (!nonlinearelasticity)
+   {
+      vfes = prob->GetFESpace();
+   }
+   else
+   {
+      vfes = nlprob->GetFESpace();
+   }
    ParGridFunction * coords1 = new ParGridFunction(vfes);
-   ParMesh * pmesh1 = prob->GetMesh();
+   ParMesh * pmesh1;
+   if (!nonlinearelasticity)
+   {
+      pmesh1 = prob->GetMesh();
+   }
+   else
+   {
+      pmesh1 = nlprob->GetMesh();
+   }
    pmesh1->SetNodalGridFunction(coords1);
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id1, mesh1_id1, mesh2_id1,
@@ -403,7 +437,14 @@ void ParContactProblem::SetupTribolDoublePass()
    auto A_blk1 = tribol::getMfemBlockJacobian(coupling_scheme_id1);
    
    HypreParMatrix * Mfull1 = (HypreParMatrix *)(&A_blk1->GetBlock(1,0));
-   Mfull1->EliminateCols(prob->GetEssentialDofs());
+   if (!nonlinearelasticity)
+   {
+      Mfull1->EliminateCols(prob->GetEssentialDofs());
+   }
+   else
+   {
+      Mfull1->EliminateCols(nlprob->GetEssentialDofs());
+   }
    int h1 = Mfull1->Height();
    SparseMatrix merged1;
    Mfull1->MergeDiagAndOffd(merged1);
@@ -468,7 +509,15 @@ void ParContactProblem::SetupTribolDoublePass()
    int mesh1_id2 = 0;
    int mesh2_id2 = 1;
    ParGridFunction * coords2 = new ParGridFunction(vfes);
-   ParMesh * pmesh2 = prob->GetMesh();
+   ParMesh * pmesh2;
+   if (!nonlinearelasticity)
+   {
+      pmesh2 = prob->GetMesh();
+   }
+   else
+   {
+      pmesh2 = nlprob->GetMesh();
+   }
    pmesh2->SetNodalGridFunction(coords2);
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id2, mesh1_id2, mesh2_id2,
@@ -509,7 +558,14 @@ void ParContactProblem::SetupTribolDoublePass()
    auto A_blk2 = tribol::getMfemBlockJacobian(coupling_scheme_id2);
    
    HypreParMatrix * Mfull2 = (HypreParMatrix *)(&A_blk2->GetBlock(1,0));
-   Mfull2->EliminateCols(prob->GetEssentialDofs());
+   if (!nonlinearelasticity)
+   {
+      Mfull2->EliminateCols(prob->GetEssentialDofs());
+   }
+   else
+   {
+      Mfull2->EliminateCols(nlprob->GetEssentialDofs());
+   }
    int h2 = Mfull2->Height();
    SparseMatrix merged2;
    Mfull2->MergeDiagAndOffd(merged2);
@@ -597,7 +653,14 @@ void ParContactProblem::ComputeRestrictionToContactDofs()
    if (!Mt) 
    {
       Mt = M->Transpose();
-      Mt->EliminateRows(prob->GetEssentialDofs());
+      if (!nonlinearelasticity)
+      {
+         Mt->EliminateRows(prob->GetEssentialDofs());
+      }
+      else
+      {
+         Mt->EliminateRows(nlprob->GetEssentialDofs());
+      }
    }
 
    int hJt = Mt->Height();
@@ -614,11 +677,11 @@ void ParContactProblem::ComputeRestrictionToContactDofs()
    }
 
    int hb = nonzerorows.Size();
-   SparseMatrix Pbt(hb,K->GetGlobalNumCols());
+   SparseMatrix Pbt(hb,vfes->GlobalTrueVSize());//K->GetGlobalNumCols());
 
    for (int i = 0; i<hb; i++)
    {
-      int col = nonzerorows[i]+prob->GetFESpace()->GetMyTDofOffset();
+      int col = nonzerorows[i]+vfes->GetMyTDofOffset();//prob->GetFESpace()->GetMyTDofOffset();
       Pbt.Set(i,col,1.0);
    }
    Pbt.Finalize();
@@ -633,10 +696,14 @@ void ParContactProblem::ComputeRestrictionToContactDofs()
    row_offset_b-=nrows_b;
    rows_b[0] = row_offset_b;
    rows_b[1] = row_offset_b+nrows_b;
-   cols_b[0] = K->ColPart()[0];
-   cols_b[1] = K->ColPart()[1];
+   for (int i = 0; i < 2; i++)
+   {
+      cols_b[i] = vfes->GetTrueDofOffsets()[i];
+   }
+   //cols_b[0] = K->ColPart()[0];
+   //cols_b[1] = K->ColPart()[1];
    int glob_nrows_b;
-   int glob_ncols_b = K->GetGlobalNumCols();
+   int glob_ncols_b = vfes->GlobalTrueVSize();//K->GetGlobalNumCols();
    MPI_Allreduce(&nrows_b, &glob_nrows_b,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
 
    HypreParMatrix * P_bt = new HypreParMatrix(MPI_COMM_WORLD, nrows_b, glob_nrows_b,
@@ -652,7 +719,14 @@ void ParContactProblem::ComputeRestrictionToNonContactDofs()
    if (!Mt) 
    {
       Mt = M->Transpose();
-      Mt->EliminateRows(prob->GetEssentialDofs());
+      if (!nonlinearelasticity)
+      {
+         Mt->EliminateRows(prob->GetEssentialDofs());
+      }
+      else
+      {
+         Mt->EliminateRows(nlprob->GetEssentialDofs());
+      }
    }
 
    int hJt = Mt->Height();
@@ -669,11 +743,11 @@ void ParContactProblem::ComputeRestrictionToNonContactDofs()
    }
 
    int hi = zerorows.Size();
-   SparseMatrix Pit(hi,K->GetGlobalNumCols());
+   SparseMatrix Pit(hi,vfes->GlobalTrueVSize());//K->GetGlobalNumCols());
 
    for (int i = 0; i<hi; i++)
    {
-      int col = zerorows[i]+prob->GetFESpace()->GetMyTDofOffset();
+      int col = zerorows[i]+vfes->GetMyTDofOffset();//prob->GetFESpace()->GetMyTDofOffset();
       Pit.Set(i,col,1.0);
    }
    Pit.Finalize();
@@ -688,10 +762,12 @@ void ParContactProblem::ComputeRestrictionToNonContactDofs()
    row_offset_i-=nrows_i;
    rows_i[0] = row_offset_i;
    rows_i[1] = row_offset_i+nrows_i;
-   cols_i[0] = K->ColPart()[0];
-   cols_i[1] = K->ColPart()[1];
+   for (int i = 0; i < 2; i++)
+   {
+      cols_i[i] = vfes->GetTrueDofOffsets()[i];
+   }
    int glob_nrows_i;
-   int glob_ncols_i = K->GetGlobalNumCols();
+   int glob_ncols_i = vfes->GlobalTrueVSize();//K->GetGlobalNumCols();
    MPI_Allreduce(&nrows_i, &glob_nrows_i,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
 
    HypreParMatrix * P_it = new HypreParMatrix(MPI_COMM_WORLD, nrows_i, glob_nrows_i,
