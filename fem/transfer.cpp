@@ -712,27 +712,24 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAL2ProjectionL2Space()
       MFEM_VERIFY(nel_lor==nel_ho*nref, "nel_lor != nel_ho*nref");
 
       // (ndofs_lor x ndofs_lor) x (ndofs_lor x ndof_ho)
-      mfem::forall_3D(nel_ho, ndof_lor, nref, ndof_ho, [=] MFEM_HOST_DEVICE (int iho)
+      mfem::forall(ndof_lor * nref * ndof_ho * nel_ho, [=] MFEM_HOST_DEVICE (int tid)
       {
-         MFEM_FOREACH_THREAD(j, z, ndof_ho)
+
+         const int i = tid % ndof_lor;
+         const int iref = (tid / ndof_lor) % nref;
+         const int j    = (tid / (ndof_lor * nref) ) % ndof_ho;
+         const int iho  = (tid / (ndof_lor * nref * ndof_ho)) % nel_ho;
+
+         const int lor_idx = iref + iho * nref;
+
+         //matrices are stored in the transpose position
+         real_t dot = 0.0;
+         for (int k=0; k<ndof_lor; ++k)
          {
-            MFEM_FOREACH_THREAD(iref, y, nref)
-            {
-               MFEM_FOREACH_THREAD(i, x, ndof_lor)
-               {
-
-                  const int lor_idx = iref + iho * nref;
-
-                  //matrices are stored in the transpose position
-                  real_t dot = 0.0;
-                  for (int k=0; k<ndof_lor; ++k)
-                  {
-                     dot += v_Minv_ear_lor(i, k, lor_idx) * v_M_mixed_all(k, j, iref, iho);
-                  }
-                  v_R(i, iref, j, iho) = dot;
-               }
-            }
+            dot += v_Minv_ear_lor(i, k, lor_idx) * v_M_mixed_all(k, j, iref, iho);
          }
+         v_R(i, iref, j, iho) = dot;
+
       });
    }
 
@@ -750,31 +747,24 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAL2ProjectionL2Space()
       Vector RtM_L(ndof_ho*nref*ndof_lor*nel_ho, d_mt);
       auto v_RtM_L = Reshape(RtM_L.Write(), ndof_ho, ndof_lor, nref, nel_ho);
 
-      mfem::forall_3D(nel_ho, ndof_lor, nref, ndof_ho, [=] MFEM_HOST_DEVICE (int e)
+      mfem::forall(ndof_lor * nref * ndof_ho * nel_ho, [=] MFEM_HOST_DEVICE (int tid)
       {
 
-         MFEM_FOREACH_THREAD(iho, z, ndof_ho)
+         const int jlo = tid % ndof_lor;
+         const int iref = (tid / ndof_lor) % nref;
+         const int iho  = (tid / (ndof_lor * nref)) % ndof_ho;
+         const int e    = (tid / (ndof_lor * nref * ndof_ho)) % nel_ho;
+
+         const int lor_idx = iref + e * nref;
+
+         real_t dot = 0.0;
+         for (int t=0; t<ndof_lor; ++t)
          {
-
-            MFEM_FOREACH_THREAD(iref, y, nref)
-            {
-
-               MFEM_FOREACH_THREAD(jlo, x, ndof_lor)
-               {
-
-                  const int lor_idx = iref + e * nref;
-
-                  real_t dot = 0.0;
-                  for (int t=0; t<ndof_lor; ++t)
-                  {
-                     dot += v_R(t, iref, iho, e) * v_M_ea_lor(t, jlo, lor_idx);
-                  }
-
-                  v_RtM_L(iho, jlo, iref, e) = dot;
-
-               }
-            }
+            dot += v_R(t, iref, iho, e) * v_M_ea_lor(t, jlo, lor_idx);
          }
+
+         v_RtM_L(iho, jlo, iref, e) = dot;
+
       });
 
       // Resulting matrix should be: ndof_ho x ndof_ho
