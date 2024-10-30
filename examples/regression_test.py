@@ -122,13 +122,14 @@ for filename in filenames:
 	except:
 		fail = True
 
-	if precond_test == precond_ref:
-		if abs(ref_L2_t - test_L2_t) < tol and abs(ref_L2_q - test_L2_q) < tol:
-			print(bcolors.OKGREEN + "SUCCESS: " + bcolors.RESET + command_line, flush=True)
+	if not fail:
+		if precond_test == precond_ref:
+			if abs(ref_L2_t - test_L2_t) < tol and abs(ref_L2_q - test_L2_q) < tol:
+				print(bcolors.OKGREEN + "SUCCESS: " + bcolors.RESET + command_line, flush=True)
+			else:
+				fail = True
 		else:
-			fail = True
-	else:
-		print(bcolors.HEADER + "SKIPPING: "+ bcolors.RESET + command_line + " → incompatible preconditioner")
+			print(bcolors.HEADER + "SKIPPING: "+ bcolors.RESET + command_line + " → incompatible preconditioner")
 	
 	if fail:
 		print(bcolors.FAIL + "FAIL: " + bcolors.RESET + command_line, flush=True)
