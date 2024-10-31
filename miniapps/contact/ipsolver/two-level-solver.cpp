@@ -71,9 +71,10 @@ void TwoLevelAMGSolver::InitCoarseSolver()
     Ac = RAP(A, Pc);
 #ifdef MFEM_USE_MUMPS
     Mcoarse = new MUMPSSolver(comm);
-    Mcoarse->SetPrintLevel(0);
-    Mcoarse->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-    Mcoarse->SetOperator(*Ac);
+    auto M = dynamic_cast<MUMPSSolver *>(Mcoarse);
+    M->SetPrintLevel(0);
+    M->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+    M->SetOperator(*Ac);
 #else
 #ifdef MFEM_USE_MKL_CPARDISO
     Mcoarse = new CPardisoSolver(comm);

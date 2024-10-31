@@ -657,46 +657,46 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       }
       else if (dynamiclinSolver == 7) // Two level
       {
-         if (iAmRoot)
-         {
-            std::cout << "\n" << std::string(50,'-') << endl;
-            mfem::out << std::string(20,' ') << "PCG SOLVER" << endl;
-            std::cout << std::string(50,'-') << endl;
-         } 
-         HypreParMatrix * Pc = problem->GetRestrictionToContactDofs();
-         HypreParMatrix * Pi = problem->GetRestrictionToInteriorDofs();
-         TwoLevelContactSolver prec(*Huuloc, *JuTDJu, *Pi, *Pc);
-         prec.SetAMGRelaxType(relax_type);
-         CGSolver AreducedSolver(MPI_COMM_WORLD);
-         AreducedSolver.SetRelTol(linSolveRelTol);
-         AreducedSolver.SetMaxIter(50000);
-         AreducedSolver.SetPrintLevel(3);
-         AreducedSolver.SetOperator(*Areduced);
-         AreducedSolver.SetPreconditioner(prec);
-         chrono.Clear();
-         chrono.Start();
-         AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-         chrono.Stop();
-         int n = AreducedSolver.GetNumIterations();
-         if (iAmRoot)
-         {
-            mfem::out << "CG Mult total time     = " << chrono.RealTime() << endl;
-            mfem::out << "CG Mult time/iteration = " << chrono.RealTime()/n << endl;
-         }
-         if (iAmRoot)
-         {
-            std::cout << std::string(50,'-') << "\n" << endl;
-            if (!AreducedSolver.GetConverged())
-            {
-               if (iAmRoot)
-               {
-                  mfem::out << "CG interagtions = "; 
-                  cgnum_iterations.Print(mfem::out, cgnum_iterations.Size());
-               }
-            }
-         }
-         MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
-         cgnum_iterations.Append(n);
+         // if (iAmRoot)
+         // {
+         //    std::cout << "\n" << std::string(50,'-') << endl;
+         //    mfem::out << std::string(20,' ') << "PCG SOLVER" << endl;
+         //    std::cout << std::string(50,'-') << endl;
+         // } 
+         // HypreParMatrix * Pc = problem->GetRestrictionToContactDofs();
+         // HypreParMatrix * Pi = problem->GetRestrictionToInteriorDofs();
+         // TwoLevelContactSolver prec(*Huuloc, *JuTDJu, *Pi, *Pc);
+         // prec.SetAMGRelaxType(relax_type);
+         // CGSolver AreducedSolver(MPI_COMM_WORLD);
+         // AreducedSolver.SetRelTol(linSolveRelTol);
+         // AreducedSolver.SetMaxIter(50000);
+         // AreducedSolver.SetPrintLevel(3);
+         // AreducedSolver.SetOperator(*Areduced);
+         // AreducedSolver.SetPreconditioner(prec);
+         // chrono.Clear();
+         // chrono.Start();
+         // AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+         // chrono.Stop();
+         // int n = AreducedSolver.GetNumIterations();
+         // if (iAmRoot)
+         // {
+         //    mfem::out << "CG Mult total time     = " << chrono.RealTime() << endl;
+         //    mfem::out << "CG Mult time/iteration = " << chrono.RealTime()/n << endl;
+         // }
+         // if (iAmRoot)
+         // {
+         //    std::cout << std::string(50,'-') << "\n" << endl;
+         //    if (!AreducedSolver.GetConverged())
+         //    {
+         //       if (iAmRoot)
+         //       {
+         //          mfem::out << "CG interagtions = "; 
+         //          cgnum_iterations.Print(mfem::out, cgnum_iterations.Size());
+         //       }
+         //    }
+         // }
+         // MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
+         // cgnum_iterations.Append(n);
       }
       // BlockDiagonalPrecoditioner [amg(Aᵢᵢ) 0; 0 A⁻¹ⱼⱼ]
       else // if linsolver == 3 or 4
