@@ -861,7 +861,8 @@ struct BufferReader : BufferReaderBase
          std::vector<char> data, header;
          // Compute number of characters needed to encode header in base 64,
          // then round to nearest multiple of 4 to take padding into account.
-         int header_b64 = static_cast<int>(bin_io::NumBase64Chars(NumHeaderBytes(nblocks_buf.data())));
+         int header_b64 = static_cast<int>(bin_io::NumBase64Chars(NumHeaderBytes(
+                                                                     nblocks_buf.data())));
          // If data is compressed, header is encoded separately
          bin_io::DecodeBase64(txt, header_b64, header);
          bin_io::DecodeBase64(txt + header_b64, strlen(txt)-header_b64, data);

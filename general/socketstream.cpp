@@ -141,7 +141,8 @@ int socketbuf::open(const char hostname[], int port)
       }
 #endif
 
-      if (connect(socket_descriptor, rp->ai_addr, static_cast<int>(rp->ai_addrlen)) < 0)
+      if (connect(socket_descriptor, rp->ai_addr,
+                  static_cast<int>(rp->ai_addrlen)) < 0)
       {
          closesocket(socket_descriptor);
          socket_descriptor = -2;
