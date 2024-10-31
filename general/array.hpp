@@ -92,7 +92,11 @@ public:
    template <typename CT>
    inline Array(const Array<CT> &src);
 
-   /// Deep copy from a braced init-list of convertible type
+   /// Construct an Array from a C-style array of static length
+   template <typename CT, int N>
+   explicit inline Array(const CT (&values)[N]);
+
+   /// Construct an Array from a braced initializer list of convertible type
    template <typename CT>
    explicit inline Array(std::initializer_list<CT> values);
 
@@ -673,6 +677,12 @@ template <typename T> template <typename CT>
 inline Array<T>::Array(std::initializer_list<CT> values) : Array(values.size())
 {
    std::copy(values.begin(), values.end(), begin());
+}
+
+template <typename T> template <typename CT, int N>
+inline Array<T>::Array(const CT (&values)[N]) : Array(N)
+{
+   std::copy(values, values + N, begin());
 }
 
 template <class T>
