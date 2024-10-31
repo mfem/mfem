@@ -2780,11 +2780,21 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
 real_t HypreParMatrix::FNorm() const
 {
    real_t norm_fro = 0.0;
-   if (A != NULL)
+if (A != NULL)
+#if MFEM_HYPRE_VERSION >= 21900
    {
       const int ierr = hypre_ParCSRMatrixNormFro(A, &norm_fro);
       MFEM_VERIFY(ierr == 0, "");
    }
+#else
+   {   
+      MPI_Comm comm = hypre_ParCSRMatrixComm(A);
+      hypre_CSRMatrix *hypre_merged = hypre_MergeDiagAndOffd(A);
+      Vector Avec(hypre_merged->data, hypre_merged->num_nonzeros);
+      norm_fro += GlobalLpNorm(2, Avec.Norml2(), comm);
+      hypre_CSRMatrixDestroy(hypre_merged);
+   }
+#endif
    return norm_fro;
 }
 
