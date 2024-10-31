@@ -121,7 +121,8 @@ public:
       : data(size_, h_mt, d_mt), size(size_) { }
 
    /// Create a vector using a braced initializer list
-   template <typename CT>
+   template <typename CT, typename std::enable_if<
+                std::is_convertible<CT,real_t>::value,bool>::type = true>
    explicit Vector(std::initializer_list<CT> values) : Vector(values.size())
    { std::copy(values.begin(), values.end(), begin()); }
 
