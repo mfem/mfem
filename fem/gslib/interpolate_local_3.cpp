@@ -54,7 +54,7 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
    MFEM_VERIFY(MD1 <= DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
-   #define MAXC(a, b) (((a) > (b)) ? (a) : (b))
+#define MAXC(a, b) (((a) > (b)) ? (a) : (b))
    const int nThreadsy = MAXC(D1D, 3);
    mfem::forall_2D(npt, D1D, nThreadsy, [=] MFEM_HOST_DEVICE (int i)
    {
