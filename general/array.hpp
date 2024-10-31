@@ -23,6 +23,7 @@
 #include <cstring>
 #include <algorithm>
 #include <type_traits>
+#include <initializer_list>
 
 namespace mfem
 {
@@ -92,8 +93,8 @@ public:
    inline Array(const Array<CT> &src);
 
    /// Deep copy from a braced init-list of convertible type
-   template <typename CT, int N>
-   explicit inline Array(const CT (&values)[N]);
+   template <typename CT>
+   explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
    inline Array(Array<T> &&src) { Swap(src, *this); }
@@ -668,10 +669,10 @@ inline Array<T>::Array(const Array<CT> &src)
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }
 
-template <typename T> template <typename CT, int N>
-inline Array<T>::Array(const CT (&values)[N]) : Array(N)
+template <typename T> template <typename CT>
+inline Array<T>::Array(std::initializer_list<CT> values) : Array(values.size())
 {
-   for (int i = 0; i < size; i++) { (*this)[i] = T(values[i]); }
+   std::copy(values.begin(), values.end(), begin());
 }
 
 template <class T>
