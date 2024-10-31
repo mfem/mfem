@@ -2615,13 +2615,13 @@ struct WeightMinHeap
       c.pop_back();
       // Mark as removed
       loc[i] = -1;
-      if (c.empty()) { return i; }
+      if (c.empty()) { return static_cast<int>(i); }
       real_t val = w[j];
       size_t pos = 0;
       pos = percolate_down(pos, val);
       c[pos] = j;
       loc[j] = pos;
-      return i;
+      return static_cast<int>(i);
    }
 
    void update(size_t i)
@@ -2819,7 +2819,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
             unique_block_cols[iblock].insert(J[k] / block_size);
          }
       }
-      nnz += unique_block_cols[iblock].size();
+      nnz += static_cast<int>(unique_block_cols[iblock].size());
    }
 
    if (reordering != Reordering::NONE)

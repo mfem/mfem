@@ -11144,14 +11144,14 @@ const CoarseFineTransformations &Mesh::GetRefinementTransforms() const
             if (code)
             {
                int &matrix = mat_no[code];
-               if (!matrix) { matrix = mat_no.size(); }
+               if (!matrix) { matrix = static_cast<int>(mat_no.size()); }
                index = matrix-1;
             }
             CoarseFineTr.embeddings[j].matrix = index;
          }
 
          DenseTensor &pmats = CoarseFineTr.point_matrices[geom];
-         pmats.SetSize(Dim, Dim+1, mat_no.size());
+         pmats.SetSize(Dim, Dim+1, static_cast<int>((mat_no.size())));
 
          // calculate the point matrices used
          std::map<unsigned, int>::iterator it;
@@ -13871,7 +13871,7 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
          const int *v = elem->GetVertices();
          vertex_set.insert(v, v + nv);
       }
-      vertex_loc_to_glob.SetSize(vertex_set.size());
+      vertex_loc_to_glob.SetSize(static_cast<int>(vertex_set.size()));
       std::copy(vertex_set.begin(), vertex_set.end(), // src
                 vertex_loc_to_glob.begin());          // dest
    }
