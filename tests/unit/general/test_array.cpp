@@ -14,27 +14,17 @@
 
 using namespace mfem;
 
-TEST_CASE("Array init-list construction", "[Array]")
+TEST_CASE("Array init-list and C-style array constructors", "[Array]")
 {
    int ContigData[6] = {6, 5, 4, 3, 2, 1};
    Array<int> a(ContigData, 6);
-   Array<int> b({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
+   Array<int> b({6, 5, 4, 3, 2, 1});
+   Array<int> c(ContigData);
 
    for (int i = 0; i < a.Size(); i++)
    {
       REQUIRE(a[i] == b[i]);
-   }
-}
-
-TEST_CASE("Array C-style array construction", "[Array]")
-{
-   int ContigData[6] = {6, 5, 4, 3, 2, 1};
-   Array<int> a(ContigData, 6);
-   Array<int> b(ContigData);
-
-   for (int i = 0; i < a.Size(); i++)
-   {
-      REQUIRE(a[i] == b[i]);
+      REQUIRE(a[i] == c[i]);
    }
 }
 

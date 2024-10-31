@@ -120,6 +120,11 @@ public:
    Vector(int size_, MemoryType h_mt, MemoryType d_mt)
       : data(size_, h_mt, d_mt), size(size_) { }
 
+   /// Create a vector from a statically sized C-style array of convertible type
+   template <int N, typename CT>
+   explicit Vector(const CT (&values)[N]) : Vector(N)
+   { std::copy(values, values + N, begin()); }
+
    /// Create a vector using a braced initializer list
    template <typename CT, typename std::enable_if<
                 std::is_convertible<CT,real_t>::value,bool>::type = true>
