@@ -3669,7 +3669,7 @@ private:
 class VectorIdentityInterpolator : public DiscreteInterpolator
 {
 protected:
-   int vdim;
+   const int vdim;
 
 public:
    VectorIdentityInterpolator(int vdim_) : vdim(vdim_) { }
