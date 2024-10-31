@@ -121,7 +121,7 @@ public:
       : data(size_, h_mt, d_mt), size(size_) { }
 
    /// Create a vector from a statically sized C-style array of convertible type
-   template <int N, typename CT>
+   template <typename CT, int N>
    explicit Vector(const CT (&values)[N]) : Vector(N)
    { std::copy(values, values + N, begin()); }
 
