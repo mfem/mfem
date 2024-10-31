@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
    // Perform time-integration (looping over the time iterations, ti, with a
    // time-step dt).
    bool done = false;
-   for ( ; !done; )
+   while(!done)
    {
       real_t dt_real = max(dt, t_final - t);
       cvodes->Step(u, t, dt_real);
