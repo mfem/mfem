@@ -15,15 +15,17 @@
 
 using namespace mfem;
 
-TEST_CASE("Vector init-list construction", "[Vector]")
+TEST_CASE("Vector init-list and C-style array constructors", "[Vector]")
 {
    real_t ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
    Vector a(ContigData, 6);
    Vector b({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
+   Vector c(ContigData);
 
    for (int i = 0; i < a.Size(); i++)
    {
-      REQUIRE(a(i) == b(i));
+      REQUIRE(a[i] == b[i]);
+      REQUIRE(a[i] == c[i]);
    }
 }
 
