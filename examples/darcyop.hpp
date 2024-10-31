@@ -27,6 +27,7 @@ public:
       LBFGS = 1,
       LBB,
       Newton,
+      KINSol,
    };
 
 private:

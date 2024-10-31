@@ -290,6 +290,22 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                   solver = new NewtonSolver();
                   solver_str = "Newton";
                   break;
+               case SolverType::KINSol:
+#ifdef MFEM_USE_SUNDIALS
+                  lin_solver = new GMRESSolver();
+                  lin_solver->SetAbsTol(atol);
+                  lin_solver->SetRelTol(rtol * 1e-2);
+                  lin_solver->SetMaxIter(maxIter);
+                  lin_solver->SetPrintLevel(0);
+                  prec = lin_solver;
+                  prec_str = "GMRES";
+                  solver = new KINSolver(KIN_PICARD);
+                  static_cast<KINSolver*>(solver)->EnableAndersonAcc(10);
+                  solver_str = "KINSol";
+#else
+                  MFEM_ABORT("Sundials not installed!");
+#endif
+                  break;
             }
          }
          else

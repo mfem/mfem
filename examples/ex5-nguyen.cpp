@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
    args.AddOption(&hdg_scheme, "-hdg", "--hdg_scheme",
                   "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov, 4=Godunov).");
    args.AddOption(&solver_type, "-nls", "--nonlinear-solver",
-                  "Nonlinear solver type (1=LBFGS, 2=LBB, 3=Newton).");
+                  "Nonlinear solver type (1=LBFGS, 2=LBB, 3=Newton, 4=KINSol).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
