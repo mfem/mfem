@@ -888,7 +888,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            const int qp = j % D1D;
                            const int d = j / D1D;
                            lag_eval_first_der(wtr + 2*d*D1D, tmp->r[d], qp,
-                                                gll1D, lagcoeff, D1D);
+                                              gll1D, lagcoeff, D1D);
                         }
                         MFEM_SYNC_THREAD;
 
@@ -898,11 +898,11 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            const int d = j / D1D;
                            double *idx = jac_temp+2*d+4*qp;
                            resid_temp[d+qp*2] = tensor_ig2_j(idx, wtr,
-                                                               wtr+D1D,
-                                                               wtr+2*D1D,
-                                                               wtr+3*D1D,
-                                                               elx[d], qp,
-                                                               D1D);
+                                                             wtr+D1D,
+                                                             wtr+2*D1D,
+                                                             wtr+3*D1D,
+                                                             elx[d], qp,
+                                                             D1D);
                         }
                         MFEM_SYNC_THREAD;
 
@@ -987,7 +987,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            if (ei >= 2)
                            {
                               double temp1 = jac[1],
-                                       temp2 = jac[3];
+                                     temp2 = jac[3];
                               jac[1] = jac[0];
                               jac[3] = jac[2];
                               jac[0] = temp1;
@@ -1115,7 +1115,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                {
                   *el_i = el;
                   *code_i = converged_internal ? CODE_INTERNAL :
-                              CODE_BORDER;
+                            CODE_BORDER;
                   *dist2_i = fpt->dist2;
                }
                MFEM_FOREACH_THREAD(j,x,DIM)

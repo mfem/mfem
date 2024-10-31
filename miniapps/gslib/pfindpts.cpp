@@ -38,7 +38,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-wedge.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -o 2
 //    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
-//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -ft 1 -no-vis -sr0
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -ft 1 -sr0
 //    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2
 //    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr
 //    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
@@ -46,9 +46,9 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 //    mpirun -np 2 pfindpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 // Device runs:
-//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -random 1 -mo 2 -d debug
-//    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -npt 100 -d debug -random 1
-//    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -mo 2 -o 3 -random 1 -d debug
+//    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -mo 2 -random 1 -d debug
+//    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -random 1 -npt 100 -d debug
+//    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug
 
 
 #include "mfem.hpp"
@@ -302,12 +302,13 @@ int main (int argc, char *argv[])
          {
             if (point_ordering == Ordering::byNODES)
             {
-               vxyz(i + d*pts_cnt) = pos_min(d) + vxyz(i + d*pts_cnt)*(pos_max(d) - pos_min(
-                                                                          d));
+               vxyz(i + d*pts_cnt) =
+                  pos_min(d) + vxyz(i + d*pts_cnt) * (pos_max(d) - pos_min(d));
             }
             else
             {
-               vxyz(i*dim + d) = pos_min(d) + vxyz(i*dim + d)*(pos_max(d) - pos_min(d));
+               vxyz(i*dim + d) =
+                  pos_min(d) + vxyz(i*dim + d) * (pos_max(d) - pos_min(d));
             }
          }
       }

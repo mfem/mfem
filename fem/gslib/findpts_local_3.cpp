@@ -1065,7 +1065,7 @@ static void FindPointsLocal3DKernel(const int npt,
    MFEM_VERIFY(MD1 <= DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
-   #define MAXC(a, b) (((a) > (b)) ? (a) : (b))
+#define MAXC(a, b) (((a) > (b)) ? (a) : (b))
    const int nThreads = MAXC(D1D*DIM, 15);
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
@@ -1251,7 +1251,7 @@ static void FindPointsLocal3DKernel(const int npt,
                            const int qp = j % D1D;
                            const int d = j / D1D;
                            lag_eval_first_der(wtr+2*d*D1D, tmp->r[d], qp,
-                                                gll1D, lagcoeff, D1D);
+                                              gll1D, lagcoeff, D1D);
                         }
                         MFEM_SYNC_THREAD;
 
@@ -1261,14 +1261,14 @@ static void FindPointsLocal3DKernel(const int npt,
                            const int d = j / D1D;
                            double *idx = jac_temp+3*d+9*qp;
                            resid_temp[d+qp*3] = tensor_ig3_j(idx,
-                                                               wtr,
-                                                               wtr+D1D,
-                                                               wtr+2*D1D,
-                                                               wtr+3*D1D,
-                                                               wtr+4*D1D,
-                                                               wtr+5*D1D,
-                                                               elx[d],
-                                                               qp, D1D);
+                                                             wtr,
+                                                             wtr+D1D,
+                                                             wtr+2*D1D,
+                                                             wtr+3*D1D,
+                                                             wtr+4*D1D,
+                                                             wtr+5*D1D,
+                                                             elx[d],
+                                                             qp, D1D);
                         }
                         MFEM_SYNC_THREAD;
 
@@ -1326,7 +1326,7 @@ static void FindPointsLocal3DKernel(const int npt,
                            const int d = j / D1D;
                            const int qp = j % D1D;
                            lag_eval_second_der(wt1+3*d*D1D, tmp->r[dd[d]],
-                                                qp, gll1D, lagcoeff, D1D);
+                                               qp, gll1D, lagcoeff, D1D);
                         }
                         MFEM_SYNC_THREAD;
 
@@ -1450,7 +1450,8 @@ static void FindPointsLocal3DKernel(const int npt,
                                                          edge.dxdn1,
                                                          edge.dxdn2,
                                                          edge.d2xdn1,
-                                                         edge.d2xdn2};
+                                                         edge.d2xdn2
+                                                        };
 
                         MFEM_FOREACH_THREAD(j,x,D1D)
                         {
@@ -1615,14 +1616,14 @@ static void FindPointsLocal3DKernel(const int npt,
                                        hi1 = 1, hi2 = 3;
                                        double rh[3];
                                        rh[0] = resid[0]*hes[hi0] +
-                                                resid[1]*hes[6+hi0] +
-                                                resid[2]*hes[12+hi0];
+                                               resid[1]*hes[6+hi0] +
+                                               resid[2]*hes[12+hi0];
                                        rh[1] = resid[0]*hes[hi1] +
-                                                resid[1]*hes[6+hi1] +
-                                                resid[2]*hes[12+hi1];
+                                               resid[1]*hes[6+hi1] +
+                                               resid[2]*hes[12+hi1];
                                        rh[2] = resid[0]*hes[hi2] +
-                                                resid[1]*hes[6+hi2] +
-                                                resid[2]*hes[12+hi2];
+                                               resid[1]*hes[6+hi2] +
+                                               resid[2]*hes[12+hi2];
                                        newton_face(fpt, jac, rh, resid,
                                                    d1, d2, dn,
                                                    (tmp->flags)&(3u<<(2*dn)),
@@ -1637,14 +1638,14 @@ static void FindPointsLocal3DKernel(const int npt,
                                        hi1 = 2, hi2 = 0;
                                        double rh[3];
                                        rh[0] = resid[0]*hes[hi0] +
-                                                resid[1]*hes[6+hi0] +
-                                                resid[2]*hes[12+hi0];
+                                               resid[1]*hes[6+hi0] +
+                                               resid[2]*hes[12+hi0];
                                        rh[1] = resid[0]*hes[hi1] +
-                                                resid[1]*hes[6+hi1] +
-                                                resid[2]*hes[12+hi1];
+                                               resid[1]*hes[6+hi1] +
+                                               resid[2]*hes[12+hi1];
                                        rh[2] = resid[0]*hes[hi2] +
-                                                resid[1]*hes[6+hi2] +
-                                                resid[2]*hes[12+hi2];
+                                               resid[1]*hes[6+hi2] +
+                                               resid[2]*hes[12+hi2];
                                        newton_face(fpt, jac, rh, resid,
                                                    d1, d2, dn,
                                                    (tmp->flags)&(3u<<(2*dn)),
@@ -1674,14 +1675,14 @@ static void FindPointsLocal3DKernel(const int npt,
                                        hi0 = 3, hi1 = 4, hi2 = 5;
                                        double rh[3];
                                        rh[0] = resid[0]*hes[hi0] +
-                                                resid[1]*hes[6+hi0] +
-                                                resid[2]*hes[12+hi0];
+                                               resid[1]*hes[6+hi0] +
+                                               resid[2]*hes[12+hi0];
                                        rh[1] = resid[0]*hes[hi1] +
-                                                resid[1]*hes[6+hi1] +
-                                                resid[2]*hes[12+hi1];
+                                               resid[1]*hes[6+hi1] +
+                                               resid[2]*hes[12+hi1];
                                        rh[2] = resid[0]*hes[hi2] +
-                                                resid[1]*hes[6+hi2] +
-                                                resid[2]*hes[12+hi2];
+                                               resid[1]*hes[6+hi2] +
+                                               resid[2]*hes[12+hi2];
                                        newton_face(fpt, jac, rh, resid,
                                                    d1, d2, dn,
                                                    (tmp->flags)&(3u<<(2*dn)),
@@ -1751,7 +1752,7 @@ static void FindPointsLocal3DKernel(const int npt,
                {
                   *(el_base+i) = el;
                   *code_i = converged_internal ?  CODE_INTERNAL :
-                              CODE_BORDER;
+                            CODE_BORDER;
                   *dist2_i = fpt->dist2;
                }
                MFEM_FOREACH_THREAD(j,x,DIM)
