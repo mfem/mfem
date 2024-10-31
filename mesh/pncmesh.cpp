@@ -2231,7 +2231,7 @@ void ParNCMesh::SendRebalanceDofs(int old_ndofs,
    {
       RebalanceDofMessage &msg = it->second;
       msg.dofs.clear();
-      int ne = msg.elem_ids.size();
+      int ne = static_cast<int>(msg.elem_ids.size());
       if (ne)
       {
          msg.dofs.reserve(old_element_dofs.RowSize(msg.elem_ids[0]) * ne * vdim);
