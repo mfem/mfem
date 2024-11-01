@@ -157,6 +157,16 @@ MFEM_DEPRECATED N_Vector N_VMake_MPIPlusX(MPI_Comm comm, N_Vector local_vector,
 
 #endif // SUNDIALS_VERSION_MAJOR < 6
 
+#if MFEM_SUNDIALS_VERSION < 70100
+#define MFEM_ARKode(FUNC) ARKStep##FUNC
+#else
+#define MFEM_ARKode(FUNC) ARKode##FUNC
+#endif
+
+// Macro STR(): expand the argument and add double quotes
+#define STR1(s) #s
+#define STR(s)  STR1(s)
+
 
 namespace mfem
 {
@@ -1551,11 +1561,7 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
       // Free existing solver memory and re-create with new vector size
       if (resize)
       {
-#if MFEM_SUNDIALS_VERSION < 70100
-         ARKStepFree(&sundials_mem);
-#else
-         ARKodeFree(&sundials_mem);
-#endif
+         MFEM_ARKode(Free)(&sundials_mem);
          sundials_mem = NULL;
       }
    }
@@ -1593,20 +1599,15 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
       MFEM_VERIFY(sundials_mem, "error in ARKStepCreate()");
 
       // Attach the ARKStepSolver as user-defined data
-#if MFEM_SUNDIALS_VERSION < 70100
-      flag = ARKStepSetUserData(sundials_mem, this);
-#else
-      flag = ARKodeSetUserData(sundials_mem, this);
-#endif
-      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetUserData()");
+      flag = MFEM_ARKode(SetUserData)(sundials_mem, this);
+      MFEM_VERIFY(flag == ARK_SUCCESS,
+                  "error in " STR(MFEM_ARKode(SetUserData)) "()");
 
       // Set default tolerances
-#if MFEM_SUNDIALS_VERSION < 70100
-      flag = ARKStepSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
-#else
-      flag = ARKodeSStolerances(sundials_mem, default_rel_tol, default_abs_tol);
-#endif
-      MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetSStolerances()");
+      flag = MFEM_ARKode(SStolerances)(sundials_mem, default_rel_tol,
+                                       default_abs_tol);
+      MFEM_VERIFY(flag == ARK_SUCCESS,
+                  "error in " STR(MFEM_ARKode(SStolerances)) "()");
 
       // If implicit, attach MFEM linear solver by default
       if (use_implicit) { UseMFEMLinearSolver(); }
@@ -1645,23 +1646,16 @@ void ARKStepSolver::Step(Vector &x, real_t &t, real_t &dt)
 
    // Integrate the system
    double tout = t + dt;
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepEvolve(sundials_mem, tout, *Y, &t, step_mode);
-#else
-   flag = ARKodeEvolve(sundials_mem, tout, *Y, &t, step_mode);
-#endif
-   MFEM_VERIFY(flag >= 0, "error in ARKStepEvolve()");
+   flag = MFEM_ARKode(Evolve)(sundials_mem, tout, *Y, &t, step_mode);
+   MFEM_VERIFY(flag >= 0, "error in " STR(MFEM_ARKode(Evolve)) "()");
 
    // Make sure host is up to date
    Y->HostRead();
 
    // Return the last incremental step size
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepGetLastStep(sundials_mem, &dt);
-#else
-   flag = ARKodeGetLastStep(sundials_mem, &dt);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepGetLastStep()");
+   flag = MFEM_ARKode(GetLastStep)(sundials_mem, &dt);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(GetLastStep)) "()");
 }
 
 void ARKStepSolver::UseMFEMLinearSolver()
@@ -1687,20 +1681,14 @@ void ARKStepSolver::UseMFEMLinearSolver()
    A->ops->destroy = MatDestroy;
 
    // Attach the linear solver and matrix
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSetLinearSolver(sundials_mem, LSA, A);
-#else
-   flag = ARKodeSetLinearSolver(sundials_mem, LSA, A);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
+   flag = MFEM_ARKode(SetLinearSolver)(sundials_mem, LSA, A);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SetLinearSolver)) "()");
 
    // Set the linear system evaluation function
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSetLinSysFn(sundials_mem, ARKStepSolver::LinSysSetup);
-#else
-   flag = ARKodeSetLinSysFn(sundials_mem, ARKStepSolver::LinSysSetup);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinSysFn()");
+   flag = MFEM_ARKode(SetLinSysFn)(sundials_mem, ARKStepSolver::LinSysSetup);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SetLinSysFn)) "()");
 }
 
 void ARKStepSolver::UseSundialsLinearSolver()
@@ -1714,12 +1702,9 @@ void ARKStepSolver::UseSundialsLinearSolver()
    MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
 
    // Attach linear solver
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSetLinearSolver(sundials_mem, LSA, NULL);
-#else
-   flag = ARKodeSetLinearSolver(sundials_mem, LSA, NULL);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
+   flag = MFEM_ARKode(SetLinearSolver)(sundials_mem, LSA, NULL);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SetLinearSolver)) "()");
 }
 
 void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
@@ -1746,20 +1731,14 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    M->ops->destroy = MatDestroy;
 
    // Attach the linear solver and matrix
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSetMassLinearSolver(sundials_mem, LSM, M, tdep);
-#else
-   flag = ARKodeSetMassLinearSolver(sundials_mem, LSM, M, tdep);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetLinearSolver()");
+   flag = MFEM_ARKode(SetMassLinearSolver)(sundials_mem, LSM, M, tdep);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SetMassLinearSolver)) "()");
 
    // Set the linear system function
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSetMassFn(sundials_mem, ARKStepSolver::MassSysSetup);
-#else
-   flag = ARKodeSetMassFn(sundials_mem, ARKStepSolver::MassSysSetup);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassFn()");
+   flag = MFEM_ARKode(SetMassFn)(sundials_mem, ARKStepSolver::MassSysSetup);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SetMassFn)) "()");
 
    // Check that the ODE is not expressed in EXPLICIT form
    MFEM_VERIFY(!f->isExplicit(), "ODE operator is expressed in EXPLICIT form")
@@ -1776,22 +1755,15 @@ void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
    MFEM_VERIFY(LSM, "error in SUNLinSol_SPGMR()");
 
    // Attach linear solver
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSetMassLinearSolver(sundials_mem, LSM, NULL, tdep);
-#else
-   flag = ARKodeSetMassLinearSolver(sundials_mem, LSM, NULL, tdep);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassLinearSolver()");
+   flag = MFEM_ARKode(SetMassLinearSolver)(sundials_mem, LSM, NULL, tdep);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SetMassLinearSolver)) "()");
 
    // Attach matrix multiplication function
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSetMassTimes(sundials_mem, NULL, ARKStepSolver::MassMult2,
-                              this);
-#else
-   flag = ARKodeSetMassTimes(sundials_mem, NULL, ARKStepSolver::MassMult2,
-                             this);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMassTimes()");
+   flag = MFEM_ARKode(SetMassTimes)(sundials_mem, NULL,
+                                    ARKStepSolver::MassMult2, this);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SetMassTimes)) "()");
 
    // Check that the ODE is not expressed in EXPLICIT form
    MFEM_VERIFY(!f->isExplicit(), "ODE operator is expressed in EXPLICIT form")
@@ -1804,32 +1776,23 @@ void ARKStepSolver::SetStepMode(int itask)
 
 void ARKStepSolver::SetSStolerances(double reltol, double abstol)
 {
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSStolerances(sundials_mem, reltol, abstol);
-#else
-   flag = ARKodeSStolerances(sundials_mem, reltol, abstol);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSStolerances()");
+   flag = MFEM_ARKode(SStolerances)(sundials_mem, reltol, abstol);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SStolerances)) "()");
 }
 
 void ARKStepSolver::SetMaxStep(double dt_max)
 {
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSetMaxStep(sundials_mem, dt_max);
-#else
-   flag = ARKodeSetMaxStep(sundials_mem, dt_max);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetMaxStep()");
+   flag = MFEM_ARKode(SetMaxStep)(sundials_mem, dt_max);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SetMaxStep)) "()");
 }
 
 void ARKStepSolver::SetOrder(int order)
 {
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSetOrder(sundials_mem, order);
-#else
-   flag = ARKodeSetOrder(sundials_mem, order);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetOrder()");
+   flag = MFEM_ARKode(SetOrder)(sundials_mem, order);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SetOrder)) "()");
 }
 
 void ARKStepSolver::SetERKTableNum(ARKODE_ERKTableID table_id)
@@ -1853,12 +1816,9 @@ void ARKStepSolver::SetIMEXTableNum(ARKODE_ERKTableID etable_id,
 
 void ARKStepSolver::SetFixedStep(double dt)
 {
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepSetFixedStep(sundials_mem, dt);
-#else
-   flag = ARKodeSetFixedStep(sundials_mem, dt);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetFixedStep()");
+   flag = MFEM_ARKode(SetFixedStep)(sundials_mem, dt);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(SetFixedStep)) "()");
 }
 
 void ARKStepSolver::PrintInfo() const
@@ -1880,33 +1840,19 @@ void ARKStepSolver::PrintInfo() const
                                      &netfails);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepGetTimestepperStats()");
 
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepGetStepStats(sundials_mem,
-                              &nsteps,
-                              &hinused,
-                              &hlast,
-                              &hcur,
-                              &tcur);
-#else
-   flag = ARKodeGetStepStats(sundials_mem,
-                             &nsteps,
-                             &hinused,
-                             &hlast,
-                             &hcur,
-                             &tcur);
-#endif
+   flag = MFEM_ARKode(GetStepStats)(sundials_mem,
+                                    &nsteps,
+                                    &hinused,
+                                    &hlast,
+                                    &hcur,
+                                    &tcur);
 
    // Get nonlinear solver stats
-#if MFEM_SUNDIALS_VERSION < 70100
-   flag = ARKStepGetNonlinSolvStats(sundials_mem,
-                                    &nniters,
-                                    &nncfails);
-#else
-   flag = ARKodeGetNonlinSolvStats(sundials_mem,
-                                   &nniters,
-                                   &nncfails);
-#endif
-   MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepGetNonlinSolvStats()");
+   flag = MFEM_ARKode(GetNonlinSolvStats)(sundials_mem,
+                                          &nniters,
+                                          &nncfails);
+   MFEM_VERIFY(flag == ARK_SUCCESS,
+               "error in " STR(MFEM_ARKode(GetNonlinSolvStats)) "()");
 
    mfem::out <<
              "ARKStep:\n"
@@ -1934,11 +1880,7 @@ ARKStepSolver::~ARKStepSolver()
    SUNMatDestroy(A);
    SUNLinSolFree(LSA);
    SUNNonlinSolFree(NLS);
-#if MFEM_SUNDIALS_VERSION < 70100
-   ARKStepFree(&sundials_mem);
-#else
-   ARKodeFree(&sundials_mem);
-#endif
+   MFEM_ARKode(Free)(&sundials_mem);
 }
 
 // ---------------------------------------------------------------------------
