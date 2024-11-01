@@ -15,6 +15,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    TopoptProblem prob = Cantilever2;
+   int KKT_type = 1;
    int ser_ref_levels = 2;
    int par_ref_levels = 4;
    int order_control = 0;
@@ -102,6 +103,8 @@ int main(int argc, char *argv[])
                   "Tolerance for relative KKT residual");
    args.AddOption(&tol_abs, "-atol", "--abs-tol",
                   "Tolerance for absolute KKT residual");
+   args.AddOption(&KKT_type, "-kkt-type", "--kkt-type",
+                  "KKT type: 1) Brendan, 2) Thomas");
    args.AddOption(&tol_obj_diff_rel, "-rtol-obj", "--rel-tol-obj",
                   "Tolerance for relative successive objective difference");
    args.AddOption(&tol_obj_diff_abs, "-atol-obj", "--abs-tol-obj",
@@ -245,7 +248,6 @@ int main(int argc, char *argv[])
    StrainEnergyDensityCoefficient energy(lambda_cf, mu_cf, der_simp_cf, state_gf,
                                          nullptr);
    filter.GetAdjLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(energy));
-   filter.SetAdjBStationary(false);
    if (prob == mfem::ForceInverter2)
    {
       ForceInverterInitialDesign(control_gf, &entropy);
@@ -281,22 +283,47 @@ int main(int argc, char *argv[])
    real_t step_size_old;
    real_t lambda_V;
    real_t volume_correction;
-   MappedPairedGFCoefficient KKT_cf(
-      control_eps_gf, control_gf,
-      [&avg_grad, &entropy, &step_size](const real_t x, const real_t x_old)
+   MappedPairedGFCoefficient KKT_cf;
+   KKT_cf.SetGridFunction(&control_eps_gf, &control_gf);
+   switch (KKT_type)
    {
-      real_t rho_k = entropy.backward(x_old);
-      real_t lambda_k = (x - x_old)/step_size; // -grad F(rho_{k-1})
-      // Definition -Brendan
-      // return std::max(-lambda_k*rho_k, lambda_k*(1-rho_k));
-      // return std::max(0.0, lambda_k)*(1.0-rho_k)-std::min(0.0, lambda_k)*rho_k;
-      // Definition -Thomas
-      // More robust when gradient has large magnitude.
-      return std::fabs(lambda_k
-                       - std::min(0.0, rho_k     + lambda_k)
-                       - std::max(0.0, rho_k - 1 + lambda_k));
-      // return lambda_k*(1.0-2*rho_k) >= 0;
-   });
+      case 1:
+      {
+         KKT_cf.SetFunction([&avg_grad, &entropy, &step_size](const real_t x,
+                                                              const real_t x_old)
+         {
+            real_t rho_k = entropy.backward(x_old);
+            real_t lambda_k = (x - x_old)/step_size; // -grad F(rho_{k-1})
+            // Definition -Brendan
+            return std::max(std::max(-lambda_k*rho_k, lambda_k*(1-rho_k)), 0.0);
+            // return std::max(0.0, lambda_k)*(1.0-rho_k)-std::min(0.0, lambda_k)*rho_k;
+            // Definition -Thomas
+            // More robust when gradient has large magnitude.
+            return std::fabs(lambda_k
+                             - std::min(0.0, rho_k     + lambda_k)
+                             - std::max(0.0, rho_k - 1 + lambda_k));
+            // return lambda_k*(1.0-2*rho_k) >= 0;
+         });
+         break;
+      }
+      case 2:
+      {
+         KKT_cf.SetFunction([&avg_grad, &entropy, &step_size](const real_t x,
+                                                              const real_t x_old)
+         {
+            real_t rho_k = entropy.backward(x_old);
+            real_t lambda_k = (x - x_old)/step_size; // -grad F(rho_{k-1})
+            // Definition -Thomas
+            // More robust when gradient has large magnitude.
+            return std::fabs(lambda_k
+                             - std::min(0.0, rho_k     + lambda_k)
+                             - std::max(0.0, rho_k - 1 + lambda_k));
+            // return lambda_k*(1.0-2*rho_k) >= 0;
+         });
+         break;
+      }
+      default: MFEM_ABORT("Undefined KKT type");
+   }
    ParBilinearForm mass(&fes_control);
    mass.AddDomainIntegrator(new MassIntegrator());
    mass.Assemble();
@@ -457,6 +484,7 @@ int main(int argc, char *argv[])
                out << " Failed to find feasible direction and successive difference is too small. Terminate SiMPL"
                    << std::endl;;
             }
+            break;
          }
       }
       succ_obj_diff = old_objval - objval;
