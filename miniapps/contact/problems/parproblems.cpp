@@ -1,5 +1,283 @@
 #include "parproblems.hpp"
 
+ElasticityOperator::ElasticityOperator(ParMesh * pmesh_, Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_, int order_, bool nonlinear_)
+: pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_), ess_bdr_attr_comp(ess_bdr_attr_comp_),
+  order(order_), nonlinear(nonlinear_)
+{
+   comm = pmesh->GetComm();
+   Init();
+}  
+
+void ElasticityOperator::Init()
+{
+   int dim = pmesh->Dimension();
+   fec = new H1_FECollection(order,dim);
+   fes = new ParFiniteElementSpace(pmesh,fec,dim,Ordering::byVDIM);
+   ndofs = fes->GetVSize();
+   ntdofs = fes->GetTrueVSize();
+   gndofs = fes->GlobalTrueVSize();
+   pmesh->SetNodalFESpace(fes);
+   SetEssentialBC();
+   UpdateStep();
+}
+
+void ElasticityOperator::SetEssentialBC()
+{
+   ess_tdof_list.SetSize(0);
+   if (pmesh->bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+   }
+   ess_bdr = 0; 
+   Array<int> ess_tdof_list_temp;
+   for (int i = 0; i < ess_bdr_attr.Size(); i++ )
+   {
+      ess_bdr[ess_bdr_attr[i]-1] = 1;
+      fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list_temp,ess_bdr_attr_comp[i]);
+      ess_tdof_list.Append(ess_tdof_list_temp);
+      ess_bdr[ess_bdr_attr[i]-1] = 0;
+   }
+   x.SetSpace(fes);  x = 0.0;
+   b = new ParLinearForm(fes);
+
+   if (nonlinear)
+   {
+      shear_modulus.SetSize(pmesh->attributes.Max()); 
+      shear_modulus = 0.5*1e3/1.3;
+      bulk_modulus.SetSize(pmesh->attributes.Max());  
+      bulk_modulus = 1e3/3/0.4;
+      shear_moduli_cf.UpdateConstants(shear_modulus);
+      bulk_moduli_cf.UpdateConstants(bulk_modulus);
+      material_model = new NeoHookeanModel(shear_moduli_cf, bulk_moduli_cf);
+      op = new ParNonlinearForm(fes);
+      dynamic_cast<ParNonlinearForm*>(op)->AddDomainIntegrator(new HyperelasticNLFIntegrator(material_model));
+   }
+   else
+   {
+      lambda.SetSize(pmesh->attributes.Max());
+      mu.SetSize(pmesh->attributes.Max());
+      lambda_cf.UpdateConstants(lambda);
+      mu_cf.UpdateConstants(mu);
+      op = new ParBilinearForm(fes);
+      dynamic_cast<ParBilinearForm*>(op)->AddDomainIntegrator(new ElasticityIntegrator(lambda_cf,mu_cf));
+   }
+
+}
+
+void ElasticityOperator::SetParameters(const Vector & E, const Vector & nu)
+{
+   int n = E.Size();
+   MFEM_VERIFY(nu.Size() == n, "Incorrect parameter size");
+   if (nonlinear)
+   {
+      MFEM_VERIFY(shear_modulus.Size() == n, "Incorrect parameter size");
+      MFEM_VERIFY(bulk_modulus.Size() == n, "Incorrect parameter size");
+      for (int i = 0; i<n; i++)
+      {
+         shear_modulus[i] = 0.5*E(i) / (1+nu(i));
+         bulk_modulus[i] = E(i)/(1-2*nu(i))/3;
+      }
+      shear_moduli_cf.UpdateConstants(shear_modulus);
+      bulk_moduli_cf.UpdateConstants(bulk_modulus);
+   }
+   else
+   {
+      MFEM_VERIFY(lambda.Size() == n, "Incorrect parameter size");
+      MFEM_VERIFY(mu.Size() == n, "Incorrect parameter size");
+      for (int i = 0; i<n; i++)
+      {
+         lambda[i] = E(i) * nu(i) / ( (1+nu(i)) * (1-2*nu(i)) );
+         mu(i) = 0.5 * E(i)/(1+nu(i));
+      }
+      lambda_cf.UpdateConstants(lambda);
+      mu_cf.UpdateConstants(mu);
+   }
+}
+
+void ElasticityOperator::SetNeumanPressureData(ConstantCoefficient &f, Array<int> & bdr_marker)
+{
+   pressure_cf.constant = f.constant;
+   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),bdr_marker);
+}
+
+void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta, Array<int> essbdr)
+{
+   VectorConstantCoefficient delta_cf(delta);
+   x.ProjectBdrCoefficient(delta_cf,essbdr);
+} 
+
+void ElasticityOperator::ResetDisplacementDirichletData()
+{
+   x = 0.0;
+}
+
+void ElasticityOperator::UpdateEssentialBC(Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_)
+{
+   ess_bdr_attr = ess_bdr_attr_;
+   ess_bdr_attr_comp = ess_bdr_attr_comp_;
+   SetEssentialBC();
+}
+
+void ElasticityOperator::FormLinearSystem()
+{
+   if (!formsystem) 
+   {
+      formsystem = true;
+      b->Assemble();
+      if (nonlinear)
+      {
+         b->ParallelAssemble(B);
+         B.SetSubVector(ess_tdof_list, 0.0);
+         dynamic_cast<ParNonlinearForm*>(op)->SetEssentialTrueDofs(ess_tdof_list);
+      }
+      else
+      {
+         dynamic_cast<ParBilinearForm*>(op)->Assemble();
+         dynamic_cast<ParBilinearForm*>(op)->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+      }
+   }
+}
+
+void ElasticityOperator::UpdateStep()
+{
+   if (formsystem)
+   {
+      formsystem = false;
+      delete b;
+      b = new ParLinearForm(fes);
+      delete op;
+      if (nonlinear)
+      {
+         delete material_model;
+         material_model = new NeoHookeanModel(shear_moduli_cf, bulk_moduli_cf);
+         op = new ParNonlinearForm(fes);
+         dynamic_cast<ParNonlinearForm*>(op)->AddDomainIntegrator(new HyperelasticNLFIntegrator(material_model));
+      }
+      else
+      {
+         op = new ParBilinearForm(fes);
+         dynamic_cast<ParBilinearForm*>(op)->AddDomainIntegrator(new ElasticityIntegrator(lambda_cf,mu_cf));
+      }
+   }
+}
+
+void ElasticityOperator::UpdateLinearSystem()
+{
+   UpdateStep();
+   FormLinearSystem();
+}
+
+void ElasticityOperator::SetFrame(const Vector & xframe_)
+{
+   xframe.Set(1.0, xframe_);
+}
+
+const ParMesh * ElasticityOperator::GetMesh() const
+{
+   return pmesh;
+}
+
+const ParFiniteElementSpace * ElasticityOperator::GetFESpace() const
+{
+   return fes;
+}
+   
+const FiniteElementCollection * ElasticityOperator::GetFECol() const
+{
+   return fec;
+}
+
+const int ElasticityOperator::GetNumDofs() const
+{
+   return ndofs;
+}
+
+const int ElasticityOperator::GetNumTDofs() const
+{
+   return ntdofs;
+}
+
+const int ElasticityOperator::GetGlobalNumDofs() const
+{
+   return gndofs;
+}
+
+const HypreParMatrix & ElasticityOperator::GetOperator() const
+{
+   return A;
+} 
+
+const Vector & ElasticityOperator::GetRHS() const
+{
+   return B; 
+} 
+
+const ParGridFunction & ElasticityOperator::GetDisplacementGridFunction() const
+{
+   return x;
+}
+
+const Array<int> & ElasticityOperator::GetEssentialDofs() const
+{
+   return ess_tdof_list;
+}
+
+const real_t ElasticityOperator::GetEnergy(const Vector & u) const
+{
+   if (nonlinear)
+   {
+      real_t energy = 0.0;
+      ParGridFunction u_gf(fes);
+      Vector temp(u.Size()); temp = 0.0;
+      temp.Set(1.0, xframe);
+      temp.Add(1.0, u);
+      u_gf.SetFromTrueDofs(temp);
+      energy += dynamic_cast<ParNonlinearForm*>(op)->GetEnergy(u_gf);
+      energy -= InnerProduct(MPI_COMM_WORLD, B, u);
+      return energy;
+   }
+   else
+   {
+      MFEM_ABORT("ElasticityOperator::GetEnergy not implemented for the linear case");
+   }
+}
+   
+const void ElasticityOperator::GetGradient(const Vector & u, Vector & gradE) const
+{
+   if (nonlinear)
+   {
+      Vector temp(u.Size()); temp = 0.0;
+      temp.Set(1.0, xframe);
+      temp.Add(1.0, u);
+      dynamic_cast<ParNonlinearForm*>(op)->Mult(temp, gradE);
+      gradE.Add(-1.0, B);
+   }
+   else
+   {
+      MFEM_ABORT("ElasticityOperator::GetGradient not implemented for the linear case");
+   }
+}
+
+const HypreParMatrix * ElasticityOperator::GetHessian(const Vector & u)
+{
+   if (nonlinear)
+   {
+      Vector temp(u.Size()); temp = 0.0;
+      temp.Set(1.0, xframe);
+      temp.Add(1.0, u);
+      return dynamic_cast<HypreParMatrix *>(&dynamic_cast<ParNonlinearForm*>(op)->GetGradient(temp));
+   }
+   else
+   {
+      MFEM_ABORT("ElasticityOperator::GetHessian not implemented for the linear case");
+   }
+}
+
+ElasticityOperator::~ElasticityOperator()
+{
+
+}
+
 
 
 void ParNonlinearElasticityProblem::Init()
@@ -30,7 +308,13 @@ void ParNonlinearElasticityProblem::Init()
    b = new ParLinearForm(fes);
    B.SetSize(fes->TrueVSize()); B = 0.0;
    // Elasticity operator
-   material_model = new NeoHookeanModel(shear_modulus, bulk_modulus);
+   shear_modulus.SetSize(pmesh->attributes.Max()); 
+   shear_modulus = 0.5*1e3/1.3;
+   bulk_modulus.SetSize(pmesh->attributes.Max());  
+   bulk_modulus = 1e3/3/0.4;
+   shear_moduli_cf.UpdateConstants(shear_modulus);
+   bulk_moduli_cf.UpdateConstants(bulk_modulus);
+   material_model = new NeoHookeanModel(shear_moduli_cf, bulk_moduli_cf);
    a = new ParNonlinearForm(fes);
    a->AddDomainIntegrator(new HyperelasticNLFIntegrator(material_model));
    a->SetEssentialTrueDofs(ess_tdof_list);
@@ -43,7 +327,7 @@ void ParNonlinearElasticityProblem::UpdateStep()
       delete b;
       b = new ParLinearForm(fes);
       delete material_model;
-      material_model = new NeoHookeanModel(shear_modulus, bulk_modulus);
+      material_model = new NeoHookeanModel(shear_moduli_cf, bulk_moduli_cf);
       delete a;
       a = new ParNonlinearForm(fes);
       a->AddDomainIntegrator(new HyperelasticNLFIntegrator(material_model));
@@ -61,7 +345,6 @@ void ParNonlinearElasticityProblem::FormLinearSystem()
       b->Assemble();
       b->ParallelAssemble(B);
       B.SetSubVector(ess_tdof_list, 0.0);
-
       a->SetEssentialTrueDofs(ess_tdof_list);
    }
 }
@@ -102,9 +385,6 @@ HypreParMatrix * ParNonlinearElasticityProblem::DuuE(const Vector & u)
    temp.Add(1.0, u);
    return dynamic_cast<HypreParMatrix *>(&a->GetGradient(temp));
 }
-
-
-
 
 void ParElasticityProblem::Init()
 {
@@ -223,11 +503,7 @@ ParContactProblem::ParContactProblem(ParNonlinearElasticityProblem * nlprob_,
       SetupTribol();
    }
 
-   nonlinearelasticity = true;
 }
-
-
-
 
 
 void ParContactProblem::SetupTribol()
@@ -294,7 +570,6 @@ void ParContactProblem::SetupTribol()
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
    
    HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
-   HypreParMatrix * Me;
    if (!nonlinearelasticity)
    {
       Mfull->EliminateCols(prob->GetEssentialDofs());
@@ -303,7 +578,6 @@ void ParContactProblem::SetupTribol()
    {
       Mfull->EliminateCols(nlprob->GetEssentialDofs());
    }
-   delete Me;
    int h = Mfull->Height();
    SparseMatrix merged;
    Mfull->MergeDiagAndOffd(merged);

@@ -1,6 +1,74 @@
 
 #include "parproblems_util.hpp"
 
+// class that handles both linear and non-linear elasticity operator
+class ElasticityOperator
+{
+private:
+   MPI_Comm comm;
+   bool nonlinear = false;
+   bool formsystem = false;
+   ParMesh * pmesh = nullptr;
+   Array<int> ess_bdr_attr, ess_bdr_attr_comp;
+   Array<int> ess_bdr, ess_tdof_list;
+   int order, ndofs, ntdofs, gndofs;
+   FiniteElementCollection * fec = nullptr;
+   ParFiniteElementSpace * fes = nullptr;
+   Operator * op = nullptr; // Bilinear or Nonlinear form
+   ParLinearForm * b = nullptr;
+   ParGridFunction x;
+   HypreParMatrix A;
+   Vector B, X;
+   ConstantCoefficient pressure_cf;
+
+   // for linear elasticity
+   Vector lambda, mu;
+   PWConstCoefficient lambda_cf, mu_cf;
+
+   // for non-linear elasticity
+   Vector shear_modulus, bulk_modulus;
+   PWConstCoefficient shear_moduli_cf, bulk_moduli_cf;
+   NeoHookeanModel * material_model = nullptr;
+
+   Vector xframe;
+   void Init();
+   void SetEssentialBC();
+
+public:
+   ElasticityOperator(ParMesh * pmesh_, Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_, int order_ = 1, bool nonlinear_ = false); 
+   void SetParameters(const Vector & E, const Vector & nu); 
+   void SetNeumanPressureData(ConstantCoefficient &f, Array<int> & bdr_marker);
+   void SetDisplacementDirichletData(const Vector & delta, Array<int> essbdr); 
+   void ResetDisplacementDirichletData();
+   void UpdateEssentialBC(Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_);
+   void FormLinearSystem();
+   void UpdateStep();
+   void UpdateLinearSystem();
+   void SetFrame(const Vector & xframe_);
+
+   const ParMesh * GetMesh() const;
+   const ParFiniteElementSpace * GetFESpace() const;
+   const FiniteElementCollection * GetFECol() const;
+   const int GetNumDofs() const;
+   const int GetNumTDofs() const;
+   const int GetGlobalNumDofs() const;
+   const HypreParMatrix & GetOperator() const; 
+   const Vector & GetRHS() const; 
+
+   const ParGridFunction & GetDisplacementGridFunction() const;
+   const Array<int> & GetEssentialDofs() const;
+
+   const real_t GetEnergy(const Vector & u) const;
+   const void GetGradient(const Vector & u, Vector & gradE) const;
+   const HypreParMatrix * GetHessian(const Vector & u);
+
+   ~ElasticityOperator();
+};
+
+
+
+
+
 
 class ParNonlinearElasticityProblem
 {
@@ -15,9 +83,8 @@ private:
    int gndofs;
    FiniteElementCollection * fec = nullptr;
    ParFiniteElementSpace * fes = nullptr;
-   real_t shear_modulus = 100.0;
-   real_t bulk_modulus  = 50.0;
-
+   Vector shear_modulus;
+   Vector bulk_modulus;
    PWConstCoefficient shear_moduli_cf, bulk_moduli_cf;
    Array<int> ess_bdr, ess_tdof_list;
    ParNonlinearForm *a;
@@ -80,6 +147,23 @@ public:
       return B; 
    }
 
+   void SetParameters(const Vector & E, const Vector & nu) 
+   { 
+      int n = E.Size();
+      MFEM_VERIFY(nu.Size() == n, "Incorrect parameter size");
+      MFEM_VERIFY(shear_modulus.Size() == n, "Incorrect parameter size");
+      MFEM_VERIFY(bulk_modulus.Size() == n, "Incorrect parameter size");
+
+      for (int i = 0; i<n; i++)
+      {
+         shear_modulus[i] = 0.5*E(i) / (1+nu(i));
+         bulk_modulus[i] = E(i)/(1-2*nu(i))/3;
+      }
+
+      shear_moduli_cf.UpdateConstants(shear_modulus);
+      bulk_moduli_cf.UpdateConstants(bulk_modulus);
+   }
+
    void SetNeumanPressureData(ConstantCoefficient &f, Array<int> & bdr_marker)
    { 
       pressure_cf.constant = f.constant;
@@ -139,20 +223,6 @@ public:
    {
       VectorConstantCoefficient delta_cf(delta);
       x.ProjectBdrCoefficient(delta_cf, ess_bdr);
-      bool vis = false;
-      if (vis)
-      {
-         int myid, num_procs;
-         MPI_Comm_rank(comm, &myid);
-         MPI_Comm_size(comm, &num_procs);
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream sol_sock(vishost, visport);
-         sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << *pmesh << x << std::flush;
-         MFEM_ABORT("");
-      }
    };
 
    void ResetDisplacementDirichletData()
@@ -164,24 +234,7 @@ public:
    {
       VectorConstantCoefficient delta_cf(delta);
       x.ProjectBdrCoefficient(delta_cf,essbdr);
-      bool vis = false;
-      if (vis)
-      {
-         int myid, num_procs;
-         MPI_Comm_rank(comm, &myid);
-         MPI_Comm_size(comm, &num_procs);
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream sol_sock(vishost, visport);
-         sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << *pmesh << x << std::flush;
-         MFEM_ABORT("");
-      }
    };
-
-   
-
 
    ParGridFunction & GetDisplacementGridFunction() {return x;};
    Array<int> & GetEssentialDofs() {return ess_tdof_list;};
@@ -192,9 +245,6 @@ public:
 
    void SetFrame(const Vector & xframe_) { xframe.Set(1.0, xframe_); };
    
-
-
-
    ~ParNonlinearElasticityProblem()
    {
       delete a;
@@ -209,8 +259,6 @@ public:
    }
 };
 
-
-
 class ParElasticityProblem
 {
 private:
@@ -224,6 +272,7 @@ private:
    int gndofs;
    FiniteElementCollection * fec = nullptr;
    ParFiniteElementSpace * fes = nullptr;
+
    Vector lambda, mu;
    PWConstCoefficient lambda_cf, mu_cf;
    Array<int> ess_bdr, ess_tdof_list;
@@ -283,14 +332,20 @@ public:
       return B; 
    }
 
-   void SetLambda(const Vector & lambda_) 
+   void SetParameters(const Vector & E, const Vector & nu) 
    { 
-      lambda = lambda_; 
+      int n = E.Size();
+      MFEM_VERIFY(nu.Size() == n, "Incorrect parameter size");
+      MFEM_VERIFY(lambda.Size() == n, "Incorrect parameter size");
+      MFEM_VERIFY(mu.Size() == n, "Incorrect parameter size");
+
+      for (int i = 0; i<n; i++)
+      {
+         lambda[i] = E(i) * nu(i) / ( (1+nu(i)) * (1-2*nu(i)) );
+         mu(i) = 0.5 * E(i)/(1+nu(i));
+      }
+
       lambda_cf.UpdateConstants(lambda);
-   }
-   void SetMu(const Vector & mu_) 
-   { 
-      mu = mu_; 
       mu_cf.UpdateConstants(mu);
    }
 

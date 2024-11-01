@@ -308,16 +308,11 @@ int main(int argc, char *argv[])
       ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
       ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
    }
-
-   
    
    StopWatch chrono;
    chrono.Clear();
    chrono.Start();
 
-   ParElasticityProblem * prob = new ParElasticityProblem(pmesh,
-                                                          ess_bdr_attr,ess_bdr_attr_comp,
-                                                          order);
    ParNonlinearElasticityProblem * nlprob = new ParNonlinearElasticityProblem(pmesh, ess_bdr_attr, ess_bdr_attr_comp, order);//, *x_ref.GetTrueDofs());
    
    chrono.Stop();
@@ -327,31 +322,27 @@ int main(int argc, char *argv[])
       mfem::out << "Elasticity problem constructor: " << chrono.RealTime() << " sec" << endl;
       mfem::out << "--------------------------------------------" << endl;
    }
-   
-   Vector lambda(prob->GetMesh()->attributes.Max());
-   Vector mu(prob->GetMesh()->attributes.Max());
+  
+   Vector E(nlprob->GetMesh()->attributes.Max());
+   Vector nu(nlprob->GetMesh()->attributes.Max());
 
    if (testNo == -1 )
    {
-      lambda = 57.6923076923;
-      mu = 38.4615384615;
+      E = 1e2;
+      nu = 0.3;
    }
    else if (testNo == 6 || testNo == 61 || testNo == 62)
    {
-      lambda = (1000*0.3)/(1.3*0.4);
-      mu = 500/(1.3);
+      E = 1e3;
+      nu = 0.3;
    }
    else
    {
-      lambda[0] = 0.499/(1.499*0.002);
-      // lambda[0] = 0.3/0.52;
-      lambda[1] = 0.0;
-      mu[0] = 1./(2*1.499);
-      // mu[0] = 1./2.6;
-      mu[1] = 500;
+      E[0] = 1.0;  E[1] = 1e3;
+      nu[0] = 0.499;  nu[1] = 0.0;
    }
 
-   prob->SetLambda(lambda); prob->SetMu(mu);
+   nlprob->SetParameters(E,nu);
 
    int dim = pmesh->Dimension();
    Vector ess_values(dim);
@@ -371,7 +362,6 @@ int main(int argc, char *argv[])
       ess_bdr[1] = 1;
       ess_bdr[3] = 1;
       ess_bdr[4] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       nlprob->SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
@@ -386,11 +376,9 @@ int main(int argc, char *argv[])
       ess_bdr = 0;
       ess_bdr[3] = 1;
       ess_bdr[4] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       nlprob->SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
-      prob->SetNeumanData(0,3,-2.0);
       nlprob->SetNeumanData(0,3,-2.0);
       mortar_attr.insert(6);
       mortar_attr.insert(9);
@@ -501,7 +489,6 @@ int main(int argc, char *argv[])
          ess_bdr = 0;
          ess_bdr[2] = 1;
          f.constant = -p*(i+1)/nsteps;
-         prob->SetNeumanPressureData(f,ess_bdr);
          nlprob->SetNeumanPressureData(f,ess_bdr);
       }
       else if (testNo == 4 || testNo == 40 || testNo == 5 || testNo == 51 || testNo == 43 || testNo == 44)
@@ -523,7 +510,6 @@ int main(int argc, char *argv[])
             ess_values[0] = -8.0/1.4*(i+1-nsteps)/msteps;
             ess_values[2] = 1.0/1.4;
          }
-         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
          nlprob->SetDisplacementDirichletData(ess_values, ess_bdr);
       }
       else if (testNo == 41)
@@ -532,12 +518,10 @@ int main(int argc, char *argv[])
          ess_values[0] = 1.0/1.4*nsteps*(i+1);
          essbdr_attr =  2;
          ess_bdr[essbdr_attr-1] = 1;
-         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
          nlprob->SetDisplacementDirichletData(ess_values, ess_bdr);
          essbdr_attr = 6;
          ess_values = 0.0; 
          ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
          nlprob->SetDisplacementDirichletData(ess_values, ess_bdr);
       }
 
@@ -620,11 +604,11 @@ int main(int argc, char *argv[])
       optimizer.SetLinearSolveRelaxType(relax_type);
       if (elast)
       {
-         optimizer.SetElasticityOptions(prob->GetFESpace());
+         optimizer.SetElasticityOptions(nlprob->GetFESpace());
       }
 
       x_gf.SetTrueVector();
-      int ndofs = prob->GetFESpace()->GetTrueVSize();
+      int ndofs = nlprob->GetFESpace()->GetTrueVSize();
       Vector x0(ndofs); x0 = 0.0;
       x0.Set(1.0, xref);
       Vector xf(ndofs); xf = 0.0;
@@ -722,29 +706,27 @@ int main(int argc, char *argv[])
       }
       //pmesh_copy.SwapNodes(nodes_gf, owned_nodes);
 
-      //if (visualization)
-      //{
-      //   sol_sock << "parallel " << num_procs << " " << myid << "\n"
-      //            << "solution\n" << pmesh_copy << x_gf << flush;
-      //
-      //   if (i == total_steps - 1)
-      //   {
-      //      pmesh->MoveNodes(x_gf);
-      //      char vishost[] = "localhost";
-      //      int  visport   = 19916;
-      //      socketstream sol_sock1(vishost, visport);
-      //      sol_sock1 << "parallel " << num_procs << " " << myid << "\n";
-      //      sol_sock1.precision(8);
-      //      sol_sock1 << "solution\n" << *pmesh << x_gf << flush;
-      //   }
-      //}
+      if (visualization)
+      {
+        sol_sock << "parallel " << num_procs << " " << myid << "\n"
+                 << "solution\n" << pmesh_copy << x_gf << flush;
+      
+        if (i == total_steps - 1)
+        {
+           pmesh->MoveNodes(x_gf);
+           char vishost[] = "localhost";
+           int  visport   = 19916;
+           socketstream sol_sock1(vishost, visport);
+           sol_sock1 << "parallel " << num_procs << " " << myid << "\n";
+           sol_sock1.precision(8);
+           sol_sock1 << "solution\n" << *pmesh << x_gf << flush;
+        }
+      }
       cout << "||xf||_2 = " << xf.Norml2() << endl;
       if (i == total_steps-1) break;
-      prob->UpdateStep();
       nlprob->UpdateStep();
    }
 
-   delete prob;
    delete nlprob;
    delete pmesh;
    delete mesh;

@@ -304,9 +304,14 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
 
-   ParElasticityProblem * prob = new ParElasticityProblem(pmesh,
-                                                          ess_bdr_attr,ess_bdr_attr_comp,
-                                                          order);
+   // ParElasticityProblem * prob = new ParElasticityProblem(pmesh,
+   //                                                        ess_bdr_attr,ess_bdr_attr_comp,
+   //                                                        order);
+
+   ParNonlinearElasticityProblem *prob = 
+   new ParNonlinearElasticityProblem(pmesh, ess_bdr_attr, 
+                                    ess_bdr_attr_comp, order);//, 
+
    chrono.Stop();
    if (myid == 0)
    {
@@ -315,30 +320,28 @@ int main(int argc, char *argv[])
       mfem::out << "--------------------------------------------" << endl;
    }
    
-   Vector lambda(prob->GetMesh()->attributes.Max());
-   Vector mu(prob->GetMesh()->attributes.Max());
+   Vector E(prob->GetMesh()->attributes.Max());
+   Vector nu(prob->GetMesh()->attributes.Max());
 
    if (testNo == -1 )
    {
-      lambda = 57.6923076923;
-      mu = 38.4615384615;
+      E = 1e2;
+      nu = 0.3;
    }
    else if (testNo == 6 || testNo == 61 || testNo == 62)
    {
-      lambda = (1000*0.3)/(1.3*0.4);
-      mu = 500/(1.3);
+      E = 1e3;
+      nu = 0.3;
    }
    else
    {
-      lambda[0] = 0.499/(1.499*0.002);
-      // lambda[0] = 0.3/0.52;
-      lambda[1] = 0.0;
-      mu[0] = 1./(2*1.499);
-      // mu[0] = 1./2.6;
-      mu[1] = 500;
+      E[0] = 1.0;  E[1] = 1e3;
+      nu[0] = 0.499;  nu[1] = 0.0;
    }
 
-   prob->SetLambda(lambda); prob->SetMu(mu);
+   prob->SetParameters(E,nu);
+
+   // prob->SetLambda(lambda); prob->SetMu(mu);
 
    int dim = pmesh->Dimension();
    Vector ess_values(dim);

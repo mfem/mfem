@@ -624,7 +624,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          HypreParMatrix * Pb = problem->GetRestrictionToContactDofs();
          TwoLevelAMGSolver prec(*Areduced, *Pb);
          prec.SetAMGRelaxType(relax_type);
-         CGSolver AreducedSolver(MPI_COMM_WORLD);
+         GMRESSolver AreducedSolver(MPI_COMM_WORLD);
          AreducedSolver.SetRelTol(linSolveRelTol);
          AreducedSolver.SetMaxIter(50000);
          AreducedSolver.SetPrintLevel(3);
