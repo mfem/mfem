@@ -25,7 +25,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = volta tesla maxwell joule
+PAR_MINIAPPS = volta tesla maxwell joule lorentz_pm
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -55,6 +55,10 @@ all: $(MINIAPPS)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(COMMON_LIB) \
 	  $(MFEM_LIBS)
+
+lorentz_pm: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies
 $(addsuffix _solver.o,$(MINIAPPS)): \
@@ -117,4 +121,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf Volta-AMR* Tesla-AMR* Maxwell-Parallel* Joule_*
+	@rm -rf Volta-AMR* Tesla-AMR* Maxwell-Parallel* Joule_* LorentzPM*
