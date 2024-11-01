@@ -126,6 +126,7 @@ void ElasticityOperator::FormLinearSystem()
       b->Assemble();
       if (nonlinear)
       {
+         B.SetSize(ntdofs);
          b->ParallelAssemble(B);
          B.SetSubVector(ess_tdof_list, 0.0);
          dynamic_cast<ParNonlinearForm*>(op)->SetEssentialTrueDofs(ess_tdof_list);
