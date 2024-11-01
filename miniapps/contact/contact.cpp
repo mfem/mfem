@@ -304,13 +304,9 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
 
-   // ParElasticityProblem * prob = new ParElasticityProblem(pmesh,
-   //                                                        ess_bdr_attr,ess_bdr_attr_comp,
-   //                                                        order);
-
-   ParNonlinearElasticityProblem *prob = 
-   new ParNonlinearElasticityProblem(pmesh, ess_bdr_attr, 
-                                    ess_bdr_attr_comp, order);//, 
+   ElasticityOperator * prob = new ElasticityOperator(pmesh,
+                                                      ess_bdr_attr,ess_bdr_attr_comp,
+                                                      order,false);
 
    chrono.Stop();
    if (myid == 0)
@@ -341,7 +337,6 @@ int main(int argc, char *argv[])
 
    prob->SetParameters(E,nu);
 
-   // prob->SetLambda(lambda); prob->SetMu(mu);
 
    int dim = pmesh->Dimension();
    Vector ess_values(dim);
@@ -378,7 +373,7 @@ int main(int argc, char *argv[])
       prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
-      prob->SetNeumanData(0,3,-2.0);
+      // prob->SetNeumanData(0,3,-2.0);
       mortar_attr.insert(6);
       mortar_attr.insert(9);
       nonmortar_attr.insert(7);

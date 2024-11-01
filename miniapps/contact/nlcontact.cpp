@@ -313,8 +313,9 @@ int main(int argc, char *argv[])
    chrono.Clear();
    chrono.Start();
 
-   ParNonlinearElasticityProblem * nlprob = new ParNonlinearElasticityProblem(pmesh, ess_bdr_attr, ess_bdr_attr_comp, order);//, *x_ref.GetTrueDofs());
-   
+   ElasticityOperator * prob = new ElasticityOperator(pmesh,
+                                                      ess_bdr_attr,ess_bdr_attr_comp,
+                                                      order,true);
    chrono.Stop();
    if (myid == 0)
    {
@@ -323,8 +324,8 @@ int main(int argc, char *argv[])
       mfem::out << "--------------------------------------------" << endl;
    }
   
-   Vector E(nlprob->GetMesh()->attributes.Max());
-   Vector nu(nlprob->GetMesh()->attributes.Max());
+   Vector E(prob->GetMesh()->attributes.Max());
+   Vector nu(prob->GetMesh()->attributes.Max());
 
    if (testNo == -1 )
    {
@@ -342,7 +343,7 @@ int main(int argc, char *argv[])
       nu[0] = 0.499;  nu[1] = 0.0;
    }
 
-   nlprob->SetParameters(E,nu);
+   prob->SetParameters(E,nu);
 
    int dim = pmesh->Dimension();
    Vector ess_values(dim);
@@ -362,7 +363,7 @@ int main(int argc, char *argv[])
       ess_bdr[1] = 1;
       ess_bdr[3] = 1;
       ess_bdr[4] = 1;
-      nlprob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
       mortar_attr.insert(6);
@@ -376,10 +377,10 @@ int main(int argc, char *argv[])
       ess_bdr = 0;
       ess_bdr[3] = 1;
       ess_bdr[4] = 1;
-      nlprob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
-      nlprob->SetNeumanData(0,3,-2.0);
+      // prob->SetNeumanData(0,3,-2.0);
       mortar_attr.insert(6);
       mortar_attr.insert(9);
       nonmortar_attr.insert(7);
@@ -412,8 +413,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   ParFiniteElementSpace * fes = nlprob->GetFESpace();
-   Array<int> ess_tdof_list = nlprob->GetEssentialDofs();
+   ParFiniteElementSpace * fes = prob->GetFESpace();
+   Array<int> ess_tdof_list = prob->GetEssentialDofs();
    
    int gndofs = fes->GlobalTrueVSize();
    if (myid == 0)
@@ -434,7 +435,7 @@ int main(int argc, char *argv[])
       VectorFunctionCoefficient refconf(dim, ReferenceConfiguration);
       ParGridFunction x_refconfig(fes); x_refconfig = 0.0;
       x_refconfig.ProjectCoefficient(refconf);
-      nlprob->SetFrame(*x_refconfig.GetTrueDofs());
+      prob->SetFrame(*x_refconfig.GetTrueDofs());
    }
 
 
@@ -465,11 +466,10 @@ int main(int argc, char *argv[])
       sol_sock.open(vishost, visport);
       sol_sock.precision(8);
    }
-   ParGridFunction ref_coords(nlprob->GetFESpace()); 
-   ParGridFunction new_coords(nlprob->GetFESpace()); 
+   ParGridFunction ref_coords(prob->GetFESpace()); 
+   ParGridFunction new_coords(prob->GetFESpace()); 
    pmesh->GetNodes(new_coords);
    pmesh->GetNodes(ref_coords);
-   
    
    // deviation from the reference configuration
    Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
@@ -489,7 +489,7 @@ int main(int argc, char *argv[])
          ess_bdr = 0;
          ess_bdr[2] = 1;
          f.constant = -p*(i+1)/nsteps;
-         nlprob->SetNeumanPressureData(f,ess_bdr);
+         prob->SetNeumanPressureData(f,ess_bdr);
       }
       else if (testNo == 4 || testNo == 40 || testNo == 5 || testNo == 51 || testNo == 43 || testNo == 44)
       {
@@ -510,7 +510,7 @@ int main(int argc, char *argv[])
             ess_values[0] = -8.0/1.4*(i+1-nsteps)/msteps;
             ess_values[2] = 1.0/1.4;
          }
-         nlprob->SetDisplacementDirichletData(ess_values, ess_bdr);
+         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       }
       else if (testNo == 41)
       {
@@ -518,14 +518,14 @@ int main(int argc, char *argv[])
          ess_values[0] = 1.0/1.4*nsteps*(i+1);
          essbdr_attr =  2;
          ess_bdr[essbdr_attr-1] = 1;
-         nlprob->SetDisplacementDirichletData(ess_values, ess_bdr);
+         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
          essbdr_attr = 6;
          ess_values = 0.0; 
          ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-         nlprob->SetDisplacementDirichletData(ess_values, ess_bdr);
+         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       }
 
-      nlprob->FormLinearSystem();
+      prob->FormLinearSystem();
       x_gf.SetTrueVector();
      
       // xref will also satisfy the essential boundary conditions and the nonessential
@@ -558,8 +558,8 @@ int main(int argc, char *argv[])
 
       chrono.Clear();
       chrono.Start();
-      //ParContactProblem contact(nlprob, prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
-      ParContactProblem contact(nlprob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
+  
+      ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
       bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
 
       int gncols = (compute_dof_projections) ? contact.GetRestrictionToContactDofs()->GetGlobalNumCols() : -1;
@@ -604,11 +604,11 @@ int main(int argc, char *argv[])
       optimizer.SetLinearSolveRelaxType(relax_type);
       if (elast)
       {
-         optimizer.SetElasticityOptions(nlprob->GetFESpace());
+         optimizer.SetElasticityOptions(prob->GetFESpace());
       }
 
       x_gf.SetTrueVector();
-      int ndofs = nlprob->GetFESpace()->GetTrueVSize();
+      int ndofs = prob->GetFESpace()->GetTrueVSize();
       Vector x0(ndofs); x0 = 0.0;
       x0.Set(1.0, xref);
       Vector xf(ndofs); xf = 0.0;
@@ -639,7 +639,7 @@ int main(int argc, char *argv[])
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
       Array<double> & DMaxMinRatios  = optimizer.GetDMaxMinRatios();
       CGiter.push_back(CGiterations);
-      int gndofs = nlprob->GetGlobalNumDofs();
+      int gndofs = prob->GetGlobalNumDofs();
       if (Mpi::Root())
       {
          mfem::out << endl;
@@ -724,10 +724,10 @@ int main(int argc, char *argv[])
       }
       cout << "||xf||_2 = " << xf.Norml2() << endl;
       if (i == total_steps-1) break;
-      nlprob->UpdateStep();
+      prob->UpdateStep();
    }
 
-   delete nlprob;
+   delete prob;
    delete pmesh;
    delete mesh;
    return 0;

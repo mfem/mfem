@@ -46,8 +46,8 @@ public:
    void UpdateLinearSystem();
    void SetFrame(const Vector & xframe_);
 
-   const ParMesh * GetMesh() const;
-   const ParFiniteElementSpace * GetFESpace() const;
+   ParMesh * GetMesh() const;
+   ParFiniteElementSpace * GetFESpace() const;
    const FiniteElementCollection * GetFECol() const;
    const int GetNumDofs() const;
    const int GetNumTDofs() const;
@@ -60,14 +60,11 @@ public:
 
    const real_t GetEnergy(const Vector & u) const;
    const void GetGradient(const Vector & u, Vector & gradE) const;
-   const HypreParMatrix * GetHessian(const Vector & u);
+   HypreParMatrix * GetHessian(const Vector & u);
+   bool IsNonlinear() {return nonlinear;}
 
    ~ElasticityOperator();
 };
-
-
-
-
 
 
 class ParNonlinearElasticityProblem
@@ -485,8 +482,7 @@ private:
    MPI_Comm comm;
    int numprocs;
    int myid;
-   ParElasticityProblem * prob = nullptr;
-   ParNonlinearElasticityProblem * nlprob = nullptr;
+   ElasticityOperator * prob = nullptr;
    ParFiniteElementSpace * vfes = nullptr;
    int dim;
    std::set<int> contact_vertices;
@@ -522,17 +518,12 @@ protected:
    void ComputeRestrictionToNonContactDofs();
 
 public:
-   ParContactProblem(ParElasticityProblem * prob_, 
-                     const std::set<int> & mortar_attrs_, const std::set<int> & nonmortar_attrs_,
-                     ParGridFunction * coords_,
-                      bool doublepass = false);
-   ParContactProblem(ParNonlinearElasticityProblem * nlprob_,
-		     //ParElasticityProblem * prob_, 
+   ParContactProblem(ElasticityOperator * prob_, 
                      const std::set<int> & mortar_attrs_, const std::set<int> & nonmortar_attrs_,
                      ParGridFunction * coords_,
                       bool doublepass = false);
 
-   ParElasticityProblem * GetElasticityProblem() {return prob;}
+   ElasticityOperator * GetElasticityProblem() {return prob;}
    MPI_Comm GetComm() {return comm;}
    int GetNumDofs() {return vfes->GetTrueVSize(); }
    int GetGlobalNumDofs() {return vfes->GlobalTrueVSize(); }

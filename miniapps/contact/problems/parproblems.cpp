@@ -169,15 +169,16 @@ void ElasticityOperator::UpdateLinearSystem()
 
 void ElasticityOperator::SetFrame(const Vector & xframe_)
 {
+   xframe.SetSize(xframe_.Size());
    xframe.Set(1.0, xframe_);
 }
 
-const ParMesh * ElasticityOperator::GetMesh() const
+ParMesh * ElasticityOperator::GetMesh() const
 {
    return pmesh;
 }
 
-const ParFiniteElementSpace * ElasticityOperator::GetFESpace() const
+ParFiniteElementSpace * ElasticityOperator::GetFESpace() const
 {
    return fes;
 }
@@ -258,7 +259,7 @@ const void ElasticityOperator::GetGradient(const Vector & u, Vector & gradE) con
    }
 }
 
-const HypreParMatrix * ElasticityOperator::GetHessian(const Vector & u)
+HypreParMatrix * ElasticityOperator::GetHessian(const Vector & u)
 {
    if (nonlinear)
    {
@@ -275,7 +276,10 @@ const HypreParMatrix * ElasticityOperator::GetHessian(const Vector & u)
 
 ElasticityOperator::~ElasticityOperator()
 {
-
+   delete op;
+   delete b;
+   delete fes;
+   delete fec;
 }
 
 
@@ -445,24 +449,27 @@ void ParElasticityProblem::UpdateLinearSystem()
 
 
 
-ParContactProblem::ParContactProblem(ParElasticityProblem * prob_, 
-                                                         const std::set<int> & mortar_attrs_, 
-                                                         const std::set<int> & nonmortar_attrs_,
-                                                         ParGridFunction * coords_,
-                                                         bool doublepass_ )
+ParContactProblem::ParContactProblem(ElasticityOperator * prob_, 
+                                     const std::set<int> & mortar_attrs_, 
+                                     const std::set<int> & nonmortar_attrs_,
+                                     ParGridFunction * coords_,
+                                     bool doublepass_ )
 : prob(prob_), mortar_attrs(mortar_attrs_), 
    nonmortar_attrs(nonmortar_attrs_), coords(coords_),
-   doublepass(doublepass_)
+   doublepass(doublepass_), nonlinearelasticity(prob->IsNonlinear())
 {
-   ParMesh* pmesh = prob->GetMesh();
+   const ParMesh* pmesh = prob->GetMesh();
    comm = pmesh->GetComm();
    MPI_Comm_rank(comm, &myid);
    MPI_Comm_size(comm, &numprocs);
+   dim = pmesh->Dimension();
  
-   dim = pmesh->Dimension();
-   prob->FormLinearSystem();
-   K = new HypreParMatrix(prob->GetOperator());
-   B = new Vector(prob->GetRHS());
+   if (!nonlinearelasticity)
+   {
+      prob->FormLinearSystem();
+      K = new HypreParMatrix(prob->GetOperator());
+      B = new Vector(prob->GetRHS());
+   }
    if (doublepass)
    {
       SetupTribolDoublePass();
@@ -471,38 +478,6 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob_,
    {
       SetupTribol();
    }
-}
-
-
-ParContactProblem::ParContactProblem(ParNonlinearElasticityProblem * nlprob_,
-	                             //ParElasticityProblem * prob_,	
-                                                         const std::set<int> & mortar_attrs_, 
-                                                         const std::set<int> & nonmortar_attrs_,
-                                                         ParGridFunction * coords_,
-                                                         bool doublepass_ )
-: nlprob(nlprob_), //prob(prob_), 
-   mortar_attrs(mortar_attrs_), 
-   nonmortar_attrs(nonmortar_attrs_), coords(coords_),
-   doublepass(doublepass_), nonlinearelasticity(true)
-{
-   ParMesh* pmesh = nlprob->GetMesh();
-   comm = pmesh->GetComm();
-   MPI_Comm_rank(comm, &myid);
-   MPI_Comm_size(comm, &numprocs);
-   
-    
-   dim = pmesh->Dimension();
-   //prob->FormLinearSystem();
-   //K = new HypreParMatrix(prob->GetOperator());
-   if (doublepass)
-   {
-      SetupTribolDoublePass();
-   }
-   else
-   {
-      SetupTribol();
-   }
-
 }
 
 
@@ -520,17 +495,9 @@ void ParContactProblem::SetupTribol()
    int mesh1_id = 0;
    int mesh2_id = 1;
    
-   ParMesh * pmesh;
-   if (!nonlinearelasticity)
-   {
-      vfes = prob->GetFESpace();
-      pmesh = prob->GetMesh();
-   }
-   else
-   {
-      vfes = nlprob->GetFESpace();
-      pmesh = nlprob->GetMesh();
-   }
+   ParMesh * pmesh = prob->GetMesh();
+   vfes = prob->GetFESpace();
+
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id, mesh1_id, mesh2_id,
       *pmesh, *coords, mortar_attrs, nonmortar_attrs,
@@ -570,14 +537,8 @@ void ParContactProblem::SetupTribol()
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
    
    HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
-   if (!nonlinearelasticity)
-   {
-      Mfull->EliminateCols(prob->GetEssentialDofs());
-   }
-   else
-   {
-      Mfull->EliminateCols(nlprob->GetEssentialDofs());
-   }
+   Mfull->EliminateCols(prob->GetEssentialDofs());
+
    int h = Mfull->Height();
    SparseMatrix merged;
    Mfull->MergeDiagAndOffd(merged);
@@ -653,24 +614,10 @@ void ParContactProblem::SetupTribolDoublePass()
    int coupling_scheme_id1 = 0;
    int mesh1_id1 = 0;
    int mesh2_id1 = 1;
-   if (!nonlinearelasticity)
-   {
-      vfes = prob->GetFESpace();
-   }
-   else
-   {
-      vfes = nlprob->GetFESpace();
-   }
+   vfes = prob->GetFESpace();
+
    ParGridFunction * coords1 = new ParGridFunction(vfes);
-   ParMesh * pmesh1;
-   if (!nonlinearelasticity)
-   {
-      pmesh1 = prob->GetMesh();
-   }
-   else
-   {
-      pmesh1 = nlprob->GetMesh();
-   }
+   ParMesh * pmesh1 = prob->GetMesh();
    pmesh1->SetNodalGridFunction(coords1);
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id1, mesh1_id1, mesh2_id1,
@@ -711,14 +658,7 @@ void ParContactProblem::SetupTribolDoublePass()
    auto A_blk1 = tribol::getMfemBlockJacobian(coupling_scheme_id1);
    
    HypreParMatrix * Mfull1 = (HypreParMatrix *)(&A_blk1->GetBlock(1,0));
-   if (!nonlinearelasticity)
-   {
-      Mfull1->EliminateCols(prob->GetEssentialDofs());
-   }
-   else
-   {
-      Mfull1->EliminateCols(nlprob->GetEssentialDofs());
-   }
+   Mfull1->EliminateCols(prob->GetEssentialDofs());
    int h1 = Mfull1->Height();
    SparseMatrix merged1;
    Mfull1->MergeDiagAndOffd(merged1);
@@ -783,15 +723,7 @@ void ParContactProblem::SetupTribolDoublePass()
    int mesh1_id2 = 0;
    int mesh2_id2 = 1;
    ParGridFunction * coords2 = new ParGridFunction(vfes);
-   ParMesh * pmesh2;
-   if (!nonlinearelasticity)
-   {
-      pmesh2 = prob->GetMesh();
-   }
-   else
-   {
-      pmesh2 = nlprob->GetMesh();
-   }
+   ParMesh * pmesh2 = prob->GetMesh();
    pmesh2->SetNodalGridFunction(coords2);
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id2, mesh1_id2, mesh2_id2,
@@ -832,14 +764,7 @@ void ParContactProblem::SetupTribolDoublePass()
    auto A_blk2 = tribol::getMfemBlockJacobian(coupling_scheme_id2);
    
    HypreParMatrix * Mfull2 = (HypreParMatrix *)(&A_blk2->GetBlock(1,0));
-   if (!nonlinearelasticity)
-   {
-      Mfull2->EliminateCols(prob->GetEssentialDofs());
-   }
-   else
-   {
-      Mfull2->EliminateCols(nlprob->GetEssentialDofs());
-   }
+   Mfull2->EliminateCols(prob->GetEssentialDofs());
    int h2 = Mfull2->Height();
    SparseMatrix merged2;
    Mfull2->MergeDiagAndOffd(merged2);
@@ -927,14 +852,7 @@ void ParContactProblem::ComputeRestrictionToContactDofs()
    if (!Mt) 
    {
       Mt = M->Transpose();
-      if (!nonlinearelasticity)
-      {
-         Mt->EliminateRows(prob->GetEssentialDofs());
-      }
-      else
-      {
-         Mt->EliminateRows(nlprob->GetEssentialDofs());
-      }
+      Mt->EliminateRows(prob->GetEssentialDofs());
    }
 
    int hJt = Mt->Height();
@@ -993,14 +911,7 @@ void ParContactProblem::ComputeRestrictionToNonContactDofs()
    if (!Mt) 
    {
       Mt = M->Transpose();
-      if (!nonlinearelasticity)
-      {
-         Mt->EliminateRows(prob->GetEssentialDofs());
-      }
-      else
-      {
-         Mt->EliminateRows(nlprob->GetEssentialDofs());
-      }
+      Mt->EliminateRows(prob->GetEssentialDofs());
    }
 
    int hJt = Mt->Height();
@@ -1057,7 +968,7 @@ double ParContactProblem::E(const Vector & d)
 {
    if (nonlinearelasticity)
    {
-      return nlprob->E(d);
+      return prob->GetEnergy(d);
    }
    else
    {
@@ -1072,7 +983,7 @@ void ParContactProblem::DdE(const Vector &d, Vector &gradE)
 {
    if (nonlinearelasticity)
    {
-      nlprob->DuE(d, gradE);
+      prob->GetGradient(d, gradE);
    }
    else
    {
@@ -1086,7 +997,7 @@ HypreParMatrix* ParContactProblem::DddE(const Vector &d)
 {
    if (nonlinearelasticity)
    {
-      return nlprob->DuuE(d);
+      return prob->GetHessian(d);
    }
    else
    {
@@ -1287,8 +1198,6 @@ HypreParMatrix * QPOptParContactProblem::DddE(const Vector & d)
       return problem->DddE(d);
    }
 }
-
-
 
 
 void QPOptParContactProblem::CalcObjectiveGrad(const BlockVector & x, BlockVector & y)
