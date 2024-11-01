@@ -2780,25 +2780,21 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
 real_t HypreParMatrix::FNorm() const
 {
    real_t norm_fro = 0.0;
-if (A != NULL)
+   if (A != NULL)
 #if MFEM_HYPRE_VERSION >= 21900
    {
       const int ierr = hypre_ParCSRMatrixNormFro(A, &norm_fro);
       MFEM_VERIFY(ierr == 0, "");
    }
 #else
-   {   
-      MPI_Comm comm = hypre_ParCSRMatrixComm(A);
-      real_t normsqr_fro_loc = 0.0;
-      hypre_CSRMatrix * csr;
-      csr = A->diag;
-      Vector Avec_diag(csr->data, csr->num_nonzeros);
-      normsqr_fro_loc += InnerProduct(Avec_diag, Avec_diag);
-      csr = A->offd;
-      Vector Avec_offd(csr->data, csr->num_nonzeros);
-      normsqr_fro_loc += InnerProduct(Avec_offd, Avec_offd);
-      MPI_Allreduce(&normsqr_fro_loc, &norm_fro, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-      norm_fro = sqrt(norm_fro);
+   {
+      Vector Avec_diag(A->diag->data, A->diag->num_nonzeros);
+      real_t normsqr_fro = InnerProduct(Avec_diag, Avec_diag);
+      Vector Avec_offd(A->offd->data, A->offd->num_nonzeros);
+      normsqr_fro += InnerProduct(Avec_offd, Avec_offd);
+      MPI_Allreduce(MPI_IN_PLACE, &normsqr_fro, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, hypre_ParCSRMatrixComm(A));
+      norm_fro = sqrt(normsqr_fro);
    }
 #endif
    return norm_fro;
