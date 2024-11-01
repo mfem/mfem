@@ -442,7 +442,7 @@ struct VarMessage
    {
       Encode(rank);
       MPI_Issend((void*) data.data(), static_cast<int>(data.length()), MPI_BYTE, rank,
-                  Tag, comm, &send_request);
+                 Tag, comm, &send_request);
    }
 
    /// Helper to send all messages in a rank-to-message map container.
