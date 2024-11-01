@@ -133,6 +133,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    real_t rnum=1.0;
    int ref = 0;
+   int visport = 19916;
    bool static_cond = false;
 
    OptionsParser args(argc, argv);
@@ -155,6 +156,7 @@ int main(int argc, char *argv[])
                   "Number of serial refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -510,7 +512,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
          VisualizeField(E_out_r,vishost, visport, E_r,
                         "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
          VisualizeField(E_out_i,vishost, visport, E_i,

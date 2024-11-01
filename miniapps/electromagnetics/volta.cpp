@@ -111,6 +111,7 @@ int main(int argc, char *argv[])
    int maxit = 100;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
+   int visport = 19916;
    bool visualization = true;
    bool visit = true;
 
@@ -163,6 +164,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -305,7 +307,7 @@ int main(int argc, char *argv[])
       // Send the solution by socket to a GLVis server.
       if (visualization)
       {
-         Volta.DisplayToGLVis();
+         Volta.DisplayToGLVis(visport);
       }
 
       if (Mpi::Root())
