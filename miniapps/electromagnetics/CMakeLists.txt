@@ -34,8 +34,8 @@ if (MFEM_USE_MPI)
    EXTRA_HEADERS maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem-common)
 
- add_mfem_miniapp(lorentz_pm
-   MAIN lorentz_pm.cpp
+ add_mfem_miniapp(lorentz
+   MAIN lorentz.cpp
    EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem-common)
 
