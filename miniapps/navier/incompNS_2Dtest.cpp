@@ -30,7 +30,7 @@ void vel_inlet(const Vector &x, real_t t, Vector &u)
     u = 0.0;
     if (x(0) < 0.001) {
  
-      u(0) = -0.01 * (std::pow(x(1) - 0.5, 2.0) - 0.25);
+      u(0) = -0.001 * (std::pow(x(1) - 0.5, 2.0) - 0.25);
     }
 }
 
@@ -43,10 +43,10 @@ int main(int argc, char *argv[])
    int vOrder = 2;
    int pOrder = 1;
    int tOrder = 1;
-   real_t kin_vis = 1.0;
-   real_t dt = 1e-3;
+   real_t kin_vis = 20.0;
+   real_t dt = 1e-2;
    real_t t = 0.0;
-   real_t t_final = 0.1;
+   real_t t_final = 1.0;
    bool last_step = false;
 
    //Mesh *mesh = new Mesh("box-cylinder.mesh");

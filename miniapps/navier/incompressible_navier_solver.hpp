@@ -283,25 +283,6 @@ protected:
    NonLinTermVectorGridFunctionCoeff * nonlinTermCoeff = nullptr;
    PrevVelVectorGridFunctionCoeff * prevVelLoadCoeff = nullptr;
    
-
-   // VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;
-
-   // ParLinearForm *FText_bdr_form = nullptr;
-
-   // ParLinearForm *f_form = nullptr;
-
-   // ParLinearForm *g_bdr_form = nullptr;
-
-   // /// Linear form to compute the mass matrix in various subroutines.
-   // ParLinearForm *mass_lf = nullptr;
-   // ConstantCoefficient onecoeff;
-   // real_t volume = 0.0;
-
-   // ConstantCoefficient nlcoeff;
-   // ConstantCoefficient Sp_coeff;
-   // ConstantCoefficient H_lincoeff;
-   // ConstantCoefficient H_bdfcoeff;
-
    OperatorHandle vOp;
    OperatorHandle psiOp;
    OperatorHandle pOp;
@@ -309,23 +290,15 @@ protected:
    Solver *velInvPC = nullptr;
    CGSolver *velInv = nullptr;
 
-   Solver *psiInvPC = nullptr;
+   ParLORDiscretization *lor = nullptr;
+   HypreBoomerAMG *psiInvPC = nullptr;
    OrthoSolver *SpInvOrthoPC = nullptr;
    CGSolver *psiInv = nullptr;
 
    Solver *pInvPC = nullptr;
    CGSolver *pInv = nullptr;
 
-   // Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, Fext, FText, Lext,
-   //        resu;
-   // Vector tmp1;
-
    Vector velLF, psiLF, pLF;
-
-   // ParGridFunction un_gf, un_next_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf,
-   //                 resu_gf;
-
-   // ParGridFunction pn_gf, resp_gf;
 
    // All essential attributes.
    Array<int> vel_ess_attr;
@@ -337,9 +310,6 @@ protected:
 
    // Bookkeeping for velocity dirichlet bcs.
    std::vector<VelDirichletBC_T> vel_dbcs;
-
-   // Bookkeeping for pressure dirichlet bcs.
-   //std::vector<PresDirichletBC_T> pres_dbcs;
 
    // Print levels.
    int pl_psolve = 0;
