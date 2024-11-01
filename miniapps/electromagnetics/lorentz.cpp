@@ -60,7 +60,7 @@ using namespace mfem::common;
 using namespace mfem::electromagnetics;
 
 typedef DataCollection::FieldMapType fields_t;
-
+/*
 // Background Electric field
 static Vector e_dir({1.0, 0.0, 0.0});
 static real_t e_mag = 1.0;
@@ -78,7 +78,7 @@ void background_b(const Vector &x, Vector &B)
    B = b_dir;
    B *= b_mag;
 }
-
+*/
 class BorisAlgorithm
 {
 private:
@@ -234,6 +234,18 @@ public:
    }
 };
 
+// Open the named VisItDataCollection and read the named field.
+// Returns pointers to the two new objects.
+int ReadGridFunction(const char * coll_name, const char * field_name,
+                     int pad_digits_cycle, int pad_digits_rank, int cycle,
+                     VisItDataCollection *&dc, ParGridFunction *& gf);
+
+// By default the initial position will be the center of the intersection
+// of the bounding boxes of the meshes containing the E and B fields.
+void SetInitialPosition(VisItDataCollection *E_dc,
+                        VisItDataCollection *B_dc,
+                        Vector &x_init);
+
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
 
@@ -244,13 +256,13 @@ int main(int argc, char *argv[])
 
    if ( Mpi::Root() ) { display_banner(cout); }
 
-   const char *E_coll_name = "Volta-AMR-Parallel";
+   const char *E_coll_name = "";
    const char *E_field_name = "E";
    int E_cycle = 10;
    int E_pad_digits_cycle = 6;
    int E_pad_digits_rank = 6;
 
-   const char *B_coll_name = "Tesla-AMR-Parallel";
+   const char *B_coll_name = "";
    const char *B_field_name = "B";
    int B_cycle = 10;
    int B_pad_digits_cycle = 6;
@@ -326,42 +338,39 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   VisItDataCollection E_dc(MPI_COMM_WORLD, E_coll_name);
+   VisItDataCollection *E_dc = NULL;
+   ParGridFunction     *E_gf = NULL;
 
-   E_dc.SetPadDigitsCycle(E_pad_digits_cycle);
-   E_dc.SetPadDigitsRank(E_pad_digits_rank);
-   E_dc.Load(E_cycle);
-
-   if (E_dc.Error() != DataCollection::No_Error)
+   if (strcmp(E_coll_name, ""))
    {
-      mfem::out << "Error loading E field VisIt data collection: "
-                << E_coll_name << endl;
-      return 1;
+      if (ReadGridFunction(E_coll_name, E_field_name, E_pad_digits_cycle,
+                           E_pad_digits_rank, E_cycle, E_dc, E_gf))
+      {
+         mfem::out << "Error loading E field" << endl;
+         return 1;
+      }
    }
 
-   ParGridFunction *E_gf = NULL;
-   if (E_dc.HasField(E_field_name))
+   VisItDataCollection *B_dc = NULL;
+   ParGridFunction     *B_gf = NULL;
+
+   if (strcmp(B_coll_name, ""))
    {
-      E_gf = E_dc.GetParField(E_field_name);
+      if (ReadGridFunction(B_coll_name, B_field_name, B_pad_digits_cycle,
+                           B_pad_digits_rank, B_cycle, B_dc, B_gf))
+      {
+         mfem::out << "Error loading B field" << endl;
+         return 1;
+      }
    }
 
-   VisItDataCollection B_dc(MPI_COMM_WORLD, B_coll_name);
-
-   B_dc.SetPadDigitsCycle(B_pad_digits_cycle);
-   B_dc.SetPadDigitsRank(B_pad_digits_rank);
-   B_dc.Load(B_cycle);
-
-   if (B_dc.Error() != DataCollection::No_Error)
+   if (x_init.Size() < 3)
    {
-      mfem::out << "Error loading B field VisIt data collection: "
-                << B_coll_name << endl;
-      return 1;
+      SetInitialPosition(E_dc, B_dc, x_init);
    }
-
-   ParGridFunction *B_gf = NULL;
-   if (B_dc.HasField(B_field_name))
+   if (p_init.Size() < 3)
    {
-      B_gf = B_dc.GetParField(B_field_name);
+      p_init.SetSize(3); p_init = 0.0;
    }
 
    BorisAlgorithm boris(E_gf, B_gf, q, m);
@@ -459,6 +468,10 @@ int main(int argc, char *argv[])
                         traj_time, "Trajectory", Wx, Wy, Ww, Wh);
       }
    }
+
+   // Clean up
+   delete E_dc;
+   delete B_dc;
 }
 
 // Print the Lorentz ascii logo to the given ostream
@@ -476,4 +489,68 @@ void display_banner(ostream & os)
       << endl
       << "          \\/                 \\/     \\/           \\/"
       << endl << flush;
+}
+
+int ReadGridFunction(const char * coll_name, const char * field_name,
+                     int pad_digits_cycle, int pad_digits_rank, int cycle,
+                     VisItDataCollection *&dc, ParGridFunction *& gf)
+{
+   dc = new VisItDataCollection(MPI_COMM_WORLD, coll_name);
+   dc->SetPadDigitsCycle(pad_digits_cycle);
+   dc->SetPadDigitsRank(pad_digits_rank);
+   dc->Load(cycle);
+
+   if (dc->Error() != DataCollection::No_Error)
+   {
+      mfem::out << "Error loading VisIt data collection: "
+                << coll_name << endl;
+      return 1;
+   }
+
+   if (dc->GetMesh()->Dimension() < 3)
+   {
+      mfem::out << "Field must be defined on a three dimensional mesh"
+                << endl;
+      return 1;
+   }
+
+   if (dc->HasField(field_name))
+   {
+      gf = dc->GetParField(field_name);
+   }
+
+   return 0;
+}
+
+void SetInitialPosition(VisItDataCollection *E_dc,
+                        VisItDataCollection *B_dc,
+                        Vector &x_init)
+{
+   x_init.SetSize(3); x_init = 0.0;
+
+   if (E_dc != NULL || B_dc != NULL)
+   {
+      Vector E_p_min(3); E_p_min = std::numeric_limits<real_t>::lowest();
+      Vector E_p_max(3); E_p_max = std::numeric_limits<real_t>::max();
+      if (E_dc != NULL)
+      {
+         ParMesh * E_pmesh = dynamic_cast<ParMesh*>(E_dc->GetMesh());
+         E_pmesh->GetBoundingBox(E_p_min, E_p_max);
+      }
+
+      Vector B_p_min(3); B_p_min = std::numeric_limits<real_t>::lowest();
+      Vector B_p_max(3); B_p_max = std::numeric_limits<real_t>::max();
+      if (B_dc != NULL)
+      {
+         ParMesh *B_pmesh = dynamic_cast<ParMesh*>(B_dc->GetMesh());
+         B_pmesh->GetBoundingBox(B_p_min, B_p_max);
+      }
+
+      for (int d = 0; d<3; d++)
+      {
+         const real_t p_min = std::max(E_p_min[d], B_p_min[d]);
+         const real_t p_max = std::min(E_p_max[d], B_p_max[d]);
+         x_init[d] = 0.5 * (p_min + p_max);
+      }
+   }
 }
