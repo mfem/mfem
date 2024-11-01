@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <type_traits>
 #include <initializer_list>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
