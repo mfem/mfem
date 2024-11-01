@@ -15,6 +15,12 @@
 
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe serial unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    // Exclude parallel tests.
    return RunCatchSession(argc, argv, {"~[Parallel]"});
 }

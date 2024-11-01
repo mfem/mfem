@@ -41,8 +41,8 @@ public:
                Array<int> & dbcs, Vector & dbcv,
                Array<int> & nbcs, Vector & nbcv,
                Coefficient & epsCoef,
-               double (*phi_bc )(const Vector&),
-               double (*rho_src)(const Vector&),
+               real_t (*phi_bc )(const Vector&),
+               real_t (*rho_src)(const Vector&),
                void   (*p_src  )(const Vector&, Vector&),
                Vector & point_charges);
    ~VoltaSolver();
@@ -65,7 +65,7 @@ public:
 
    void InitializeGLVis();
 
-   void DisplayToGLVis();
+   void DisplayToGLVis(int visport = 19916);
 
    const ParGridFunction & GetVectorPotential() { return *phi_; }
 
@@ -121,8 +121,8 @@ private:
    VectorCoefficient * pCoef_;     // Polarization Vector Field Coefficient
 
    // Source functions
-   double (*phi_bc_func_ )(const Vector&);          // Scalar Potential BC
-   double (*rho_src_func_)(const Vector&);          // Volumetric Charge Density
+   real_t (*phi_bc_func_ )(const Vector&);          // Scalar Potential BC
+   real_t (*rho_src_func_)(const Vector&);          // Volumetric Charge Density
    void   (*p_src_func_  )(const Vector&, Vector&); // Polarization Field
 
    const Vector & point_charge_params_;

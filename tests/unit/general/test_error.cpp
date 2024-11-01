@@ -23,4 +23,5 @@ TEST_CASE("MFEM_ABORT noreturn", "[General]")
       MFEM_ABORT("");
    };
    MFEM_CONTRACT_VAR(lambda);
+   if (false) { lambda(); }
 }

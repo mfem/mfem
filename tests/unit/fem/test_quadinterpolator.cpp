@@ -61,7 +61,7 @@ static bool testQuadratureInterpolator(const int dim,
       for (int i = 0; i < mesh.GetNE(); i++)
       {
          vfes.GetElementDofs(i, dofs);
-         const double hi = mesh.GetElementSize(i);
+         const real_t hi = mesh.GetElementSize(i);
          for (int j = 0; j < dofs.Size(); j++)
          {
             h0(dofs[j]) = std::min(h0(dofs[j]), hi);
@@ -104,7 +104,7 @@ static bool testQuadratureInterpolator(const int dim,
    MFEM_VERIFY(VRN, "No element vn-restriction operator found!");
    MFEM_VERIFY(VRL, "No element vl-restriction operator found!");
 
-   const double rel_tol = 1e-12;
+   const real_t rel_tol = 1e-12;
 
    {
       // Scalar
@@ -138,7 +138,7 @@ static bool testQuadratureInterpolator(const int dim,
 
          sqi->PhysDerivatives(xe, sq_pdr_t);
       }
-      double norm, rel_error;
+      real_t norm, rel_error;
 
       norm = sq_val_f.Normlinf();
       sq_val_f -= sq_val_t;
@@ -202,7 +202,7 @@ static bool testQuadratureInterpolator(const int dim,
 
          vqi->PhysDerivatives(ne, vq_pdr_t);
       }
-      double norm, rel_error;
+      real_t norm, rel_error;
 
       norm = vq_val_f.Normlinf();
       vq_val_f -= vq_val_t;

@@ -52,7 +52,7 @@ using namespace std;
 // the rescaled coordinates.
 int material(Vector &x, Vector &xmin, Vector &xmax)
 {
-   static double p = 2.0;
+   static real_t p = 2.0;
 
    // Rescaling to [-1,1]^sdim
    for (int i = 0; i < x.Size(); i++)
@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
    int nclimit = 1;
    const char *mesh_file = "../../data/inline-quad.mesh";
    bool aniso = false;
+   int visport = 19916;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -83,6 +84,7 @@ int main(int argc, char *argv[])
                   "Level of hanging nodes allowed (-1 = unlimited).");
    args.AddOption(&aniso, "-a", "--aniso", "-i", "--iso",
                   "Enable anisotropic refinement of quads and hexes.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -107,7 +109,6 @@ int main(int argc, char *argv[])
 
    // GLVis server to visualize to
    char vishost[] = "localhost";
-   int  visport   = 19916;
    socketstream sol_sock(vishost, visport);
    sol_sock.precision(8);
 
@@ -130,7 +131,7 @@ int main(int argc, char *argv[])
          // sophisticated logic can be implemented here -- e.g. don't refine
          // the interfaces between certain materials.
          Array<int> mat(ir.GetNPoints());
-         double matsum = 0.0;
+         real_t matsum = 0.0;
          for (int j = 0; j < ir.GetNPoints(); j++)
          {
             T->Transform(ir.IntPoint(j), pt);

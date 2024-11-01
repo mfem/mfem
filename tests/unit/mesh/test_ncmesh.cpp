@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-constexpr double EPS = 1e-10;
+constexpr real_t EPS = 1e-10;
 
 // Test case: Verify that a conforming mesh yields the same norm for the
 //            assembled diagonal with PA when using the standard (conforming)
@@ -63,7 +63,7 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
          a.AssembleDiagonal(diag);
          nc_a.AssembleDiagonal(nc_diag);
 
-         double error = fabs(diag.Norml2() - nc_diag.Norml2());
+         real_t error = fabs(diag.Norml2() - nc_diag.Norml2());
          CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
       }
@@ -107,7 +107,7 @@ TEST_CASE("NCMesh PA diagonal", "[NCMesh]")
          a.AssembleDiagonal(diag);
          nc_a.AssembleDiagonal(nc_diag);
 
-         double error = fabs(diag.Sum() - nc_diag.Sum());
+         real_t error = fabs(diag.Sum() - nc_diag.Sum());
          CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
       }
@@ -133,12 +133,12 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
 
    Mesh mesh(mesh_fname, 1, 1);
    mesh.EnsureNCMesh(true);
-   double original_volume = mesh.GetElementVolume(0);
+   real_t original_volume = mesh.GetElementVolume(0);
    Array<Refinement> ref(1);
    ref[0].ref_type = ref_type; ref[0].index = 0;
 
    mesh.GeneralRefinement(ref, 1);
-   double summed_volume = 0.0;
+   real_t summed_volume = 0.0;
    for (int i = 0; i < mesh.GetNE(); ++i)
    {
       summed_volume += mesh.GetElementVolume(i);
@@ -158,20 +158,20 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
 
    Mesh mesh(mesh_fname, 1, 1);
    mesh.EnsureNCMesh(true);
-   double original_volume = mesh.GetElementVolume(0);
+   real_t original_volume = mesh.GetElementVolume(0);
    Array<Refinement> ref(1);
    ref[0].ref_type = ref_type; ref[0].index = 0;
 
    mesh.GeneralRefinement(ref, 1);
 
-   Array<double> elem_error(mesh.GetNE());
+   Array<real_t> elem_error(mesh.GetNE());
    for (int i = 0; i < mesh.GetNE(); ++i)
    {
       elem_error[i] = 0.0;
    }
    mesh.DerefineByError(elem_error, 1.0);
 
-   double derefined_volume = mesh.GetElementVolume(0);
+   real_t derefined_volume = mesh.GetElementVolume(0);
    REQUIRE(derefined_volume == MFEM_Approx(original_volume));
 } // test case
 
@@ -228,13 +228,14 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
          a.AssembleDiagonal(diag);
          nc_a.AssembleDiagonal(nc_diag);
 
-         double diag_lsum = diag.Sum(), nc_diag_lsum = nc_diag.Sum();
-         double diag_gsum = 0.0, nc_diag_gsum = 0.0;
-         MPI_Allreduce(&diag_lsum, &diag_gsum, 1, MPI_DOUBLE, MPI_SUM,
-                       MPI_COMM_WORLD);
-         MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1, MPI_DOUBLE, MPI_SUM,
-                       MPI_COMM_WORLD);
-         double error = fabs(diag_gsum - nc_diag_gsum);
+         real_t diag_lsum = diag.Sum(), nc_diag_lsum = nc_diag.Sum();
+         real_t diag_gsum = 0.0, nc_diag_gsum = 0.0;
+         MPI_Allreduce(&diag_lsum, &diag_gsum, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+
+         real_t error = fabs(diag_gsum - nc_diag_gsum);
          CAPTURE(order, error);
          REQUIRE(error == MFEM_Approx(0.0, EPS));
          MPI_Barrier(MPI_COMM_WORLD);
@@ -282,15 +283,15 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
          a.AssembleDiagonal(diag);
          nc_a.AssembleDiagonal(nc_diag);
 
-         double diag_lsum = diag.Sum(), nc_diag_lsum = nc_diag.Sum();
-         double diag_gsum = 0.0, nc_diag_gsum = 0.0;
-         MPI_Allreduce(&diag_lsum, &diag_gsum, 1, MPI_DOUBLE, MPI_SUM,
-                       MPI_COMM_WORLD);
-         MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1, MPI_DOUBLE, MPI_SUM,
-                       MPI_COMM_WORLD);
-         double error = fabs(diag_gsum - nc_diag_gsum);
-         CAPTURE(order, error);
-         REQUIRE(error == MFEM_Approx(0.0, EPS));
+         real_t diag_lsum = diag.Sum(), nc_diag_lsum = nc_diag.Sum();
+         real_t diag_gsum = 0.0, nc_diag_gsum = 0.0;
+         MPI_Allreduce(&diag_lsum, &diag_gsum, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+
+         CAPTURE(order, diag_gsum, nc_diag_gsum);
+         REQUIRE(nc_diag_gsum == MFEM_Approx(diag_gsum));
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
@@ -418,14 +419,14 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
          // Use P4 to ensure there's a few fully interior DOF.
          {
             auto error = CheckL2Projection(ttmp, sttmp, 4, exact_soln);
-            double constexpr tol = 1e-9;
+            real_t constexpr tol = 1e-9;
             CHECK(std::abs(error[1] - error[0]) < tol);
          }
          ttmp.ExchangeFaceNbrData();
          ttmp.Rebalance();
          {
             auto error = CheckL2Projection(ttmp, sttmp, 4, exact_soln);
-            double constexpr tol = 1e-9;
+            real_t constexpr tol = 1e-9;
             CHECK(std::abs(error[1] - error[0]) < tol);
          }
       }
@@ -539,7 +540,7 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
       {
          CAPTURE(order);
          auto error = CheckL2Projection(pmesh, smesh, order, exact_soln);
-         double constexpr tol = 1e-9;
+         real_t constexpr tol = 1e-9;
          CHECK(std::abs(error[1] - error[0]) < tol);
       }
    }
@@ -1053,7 +1054,7 @@ TEST_CASE("InteriorBoundaryReferenceCubes", "[Parallel], [NCMesh]")
       }
       if (Mpi::WorldSize() > 0)
       {
-         // Make sure on rank 1 there is a parent face with only ghost child
+         // Make sure on rank 1 there is a parent face with only ghost child
          // faces. This can cause issues with higher order dofs being
          // uncontrolled.
          partition[refined_elem == 0 ? modified_smesh.GetNE() - 1 : 0] = 0;
@@ -1368,7 +1369,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
 
    // A smooth function in each vector component
    constexpr int order = 3, dim = 3, quadrature_order = 4;
-   constexpr double kappa = 2 * M_PI;
+   constexpr real_t kappa = 2 * M_PI;
    auto E_exact = [=](const Vector &x, Vector &E)
    {
       E(0) = cos(kappa * x(1));
@@ -1419,7 +1420,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
          face_element_transform.Loc1.Transform(ir, left_eir);
          face_element_transform.Loc2.Transform(ir, right_eir);
 
-         constexpr double tol = 1e-14;
+         constexpr real_t tol = 1e-14;
          REQUIRE(left_eir.GetNPoints() == ir.GetNPoints());
          REQUIRE(right_eir.GetNPoints() == ir.GetNPoints());
          Vector left_val, right_val;
@@ -2527,7 +2528,7 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
 
    // A smooth function in each vector component
    constexpr int order = 3, dim = 3, quadrature_order = 4;
-   constexpr double kappa = 2 * M_PI;
+   constexpr real_t kappa = 2 * M_PI;
    auto E_exact = [=](const Vector &x, Vector &E)
    {
       E(0) = cos(kappa * x(1));
@@ -2594,7 +2595,7 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
             face_element_transform.Loc1.Transform(ir, left_eir);
             face_element_transform.Loc2.Transform(ir, right_eir);
 
-            constexpr double tol = 1e-14;
+            constexpr real_t tol = 1e-14;
             REQUIRE(left_eir.GetNPoints() == ir.GetNPoints());
             REQUIRE(right_eir.GetNPoints() == ir.GetNPoints());
             Vector left_val, right_val;
@@ -2745,7 +2746,7 @@ TEST_CASE("RP=I", "[NCMesh]")
       for (int i = 0; i < R->Height(); i++)
          for (int j = 0; j < P->Width(); j++)
          {
-            double dot = 0.0;
+            real_t dot = 0.0;
             for (int k = 0; k < R->Width(); k++)
             {
                dot += (*R)(i,k)*(*P)(k,j);
@@ -2809,5 +2810,83 @@ TEST_CASE("RP=I", "[NCMesh]")
       }
    }
 }
+
+
+TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
+{
+   auto test_project_H1 = [](Mesh &mesh, int order, double coef)
+   {
+      MFEM_ASSERT(std::abs(coef) > 0,
+                  "Non zero coef value required for meaningful test.");
+      H1_FECollection fe_collection(order, mesh.SpaceDimension());
+      FiniteElementSpace fe_space(&mesh, &fe_collection);
+      GridFunction x(&fe_space);
+      x = -coef;
+      ConstantCoefficient c(coef);
+
+      // Check projecting on the internal face sets essential dof.
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 0;
+      ess_bdr.Last() = 1; // internal boundary
+      x.ProjectBdrCoefficient(c, ess_bdr);
+
+      Array<int> ess_vdofs_list, ess_vdofs_marker;
+      fe_space.GetEssentialVDofs(ess_bdr, ess_vdofs_marker);
+      fe_space.MarkerToList(ess_vdofs_marker, ess_vdofs_list);
+      for (auto ess_dof : ess_vdofs_list)
+      {
+         CHECK(x[ess_dof] == Approx(coef).epsilon(1e-8));
+      }
+
+      int iess = 0;
+      for (int i = 0; i < x.Size(); i++)
+      {
+         if (iess < ess_vdofs_list.Size() && i == ess_vdofs_list[iess])
+         {
+            iess++;
+            continue;
+         }
+         CHECK(x[i] == Approx(-coef).epsilon(1e-8));
+      }
+
+   };
+
+   auto OneSidedNCRefine = [](Mesh &mesh)
+   {
+      // Pick one element attached to the new boundary attribute and refine.
+      const auto interface_attr = mesh.bdr_attributes.Max();
+      Array<int> el_to_ref;
+      for (int nbe = 0; nbe < mesh.GetNBE(); nbe++)
+      {
+         if (mesh.GetBdrAttribute(nbe) == interface_attr)
+         {
+            int f, o, e1, e2;
+            mesh.GetBdrElementFace(nbe, &f, &o);
+            mesh.GetFaceElements(f, &e1, &e2);
+            el_to_ref.Append(e1);
+         }
+      }
+      mesh.GeneralRefinement(el_to_ref);
+      return;
+   };
+
+   SECTION("Hex")
+   {
+      auto smesh = DividingPlaneMesh(false, true);
+      smesh.EnsureNCMesh(true);
+      OneSidedNCRefine(smesh);
+      test_project_H1(smesh, 2, 0.25);
+   }
+
+   SECTION("Tet")
+   {
+      auto smesh = DividingPlaneMesh(true, true);
+      smesh.EnsureNCMesh(true);
+      OneSidedNCRefine(smesh);
+      test_project_H1(smesh, 3, 0.25);
+   }
+}
+
+
 
 } // namespace mfem

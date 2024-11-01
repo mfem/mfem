@@ -319,7 +319,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
             const int min_e = GetMinElt(i_elts, i_ne, j_elts, j_ne);
             if (iel_ho == min_e) // add the nnz only once
             {
-               double val = 0.0;
+               real_t val = 0.0;
                for (int k = 0; k < i_ne; k++)
                {
                   const int iel_ho_2 = i_elts[k];

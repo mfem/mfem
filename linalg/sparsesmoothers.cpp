@@ -56,7 +56,7 @@ void GSSmoother::Mult(const Vector &x, Vector &y) const
 }
 
 /// Create the Jacobi smoother.
-DSmoother::DSmoother(const SparseMatrix &a, int t, double s, int it, bool own)
+DSmoother::DSmoother(const SparseMatrix &a, int t, real_t s, int it, bool own)
    : SparseSmoother(a, own)
 {
    type = t;

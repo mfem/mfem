@@ -9,7 +9,7 @@
 //    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
-//    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 13 -tf 9
+//    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 23 -tf 9
 //    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
@@ -58,10 +58,10 @@ int problem;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
-double u0_function(const Vector &x);
+real_t u0_function(const Vector &x);
 
 // Inflow boundary condition
-double inflow_function(const Vector &x);
+real_t inflow_function(const Vector &x);
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -72,7 +72,7 @@ private:
    SparseMatrix &M, &K, A;
    GMRESSolver linear_solver;
    BlockILU prec;
-   double dt;
+   real_t dt;
 public:
    DG_Solver(SparseMatrix &M_, SparseMatrix &K_, const FiniteElementSpace &fes)
       : M(M_),
@@ -89,7 +89,7 @@ public:
       linear_solver.SetPreconditioner(prec);
    }
 
-   void SetTimeStep(double dt_)
+   void SetTimeStep(real_t dt_)
    {
       if (dt_ != dt)
       {
@@ -104,12 +104,12 @@ public:
       }
    }
 
-   void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    {
       linear_solver.SetOperator(op);
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       linear_solver.Mult(x, y);
    }
@@ -134,10 +134,10 @@ private:
 public:
    FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   void Mult(const Vector &x, Vector &y) const override;
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 
-   virtual ~FE_Evolution();
+   ~FE_Evolution() override;
 };
 
 
@@ -153,8 +153,8 @@ int main(int argc, char *argv[])
    bool fa = false;
    const char *device_config = "cpu";
    int ode_solver_type = 4;
-   double t_final = 10.0;
-   double dt = 0.01;
+   real_t t_final = 10.0;
+   real_t dt = 0.01;
    bool visualization = true;
    bool visit = false;
    bool paraview = false;
@@ -182,12 +182,7 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
-                  "            11 - Backward Euler,\n\t"
-                  "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
-                  "            22 - Implicit Midpoint Method,\n\t"
-                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
+                  ODESolver::Types.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -224,28 +219,7 @@ int main(int argc, char *argv[])
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
-   ODESolver *ode_solver = NULL;
-   switch (ode_solver_type)
-   {
-      // Explicit methods
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
-      case 6: ode_solver = new RK6Solver; break;
-      // Implicit (L-stable) methods
-      case 11: ode_solver = new BackwardEulerSolver; break;
-      case 12: ode_solver = new SDIRK23Solver(2); break;
-      case 13: ode_solver = new SDIRK33Solver; break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         return 3;
-   }
+   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -293,7 +267,7 @@ int main(int argc, char *argv[])
       k.SetAssemblyLevel(AssemblyLevel::FULL);
    }
    m.AddDomainIntegrator(new MassIntegrator);
-   constexpr double alpha = -1.0;
+   constexpr real_t alpha = -1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, alpha));
    k.AddInteriorFaceIntegrator(
       new NonconservativeDGTraceIntegrator(velocity, alpha));
@@ -393,14 +367,14 @@ int main(int argc, char *argv[])
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv(m, k, b);
 
-   double t = 0.0;
+   real_t t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
 
    bool done = false;
    for (int ti = 0; !done; )
    {
-      double dt_real = min(dt, t_final - t);
+      real_t dt_real = min(dt, t_final - t);
       ode_solver->Step(u, t, dt_real);
       ti++;
 
@@ -440,7 +414,6 @@ int main(int argc, char *argv[])
    }
 
    // 10. Free the used memory.
-   delete ode_solver;
    delete pd;
    delete dc;
 
@@ -482,7 +455,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    M_solver.Mult(z, y);
 }
 
-void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
+void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    MFEM_VERIFY(dg_solver != NULL,
                "Implicit time integration is not supported with partial assembly");
@@ -507,7 +480,7 @@ void velocity_function(const Vector &x, Vector &v)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -529,7 +502,7 @@ void velocity_function(const Vector &x, Vector &v)
       case 2:
       {
          // Clockwise rotation in 2D around the origin
-         const double w = M_PI/2;
+         const real_t w = M_PI/2;
          switch (dim)
          {
             case 1: v(0) = 1.0; break;
@@ -541,8 +514,8 @@ void velocity_function(const Vector &x, Vector &v)
       case 3:
       {
          // Clockwise twisting rotation in 2D around the origin
-         const double w = M_PI/2;
-         double d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
+         const real_t w = M_PI/2;
+         real_t d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
          d = d*d;
          switch (dim)
          {
@@ -556,7 +529,7 @@ void velocity_function(const Vector &x, Vector &v)
 }
 
 // Initial condition
-double u0_function(const Vector &x)
+real_t u0_function(const Vector &x)
 {
    int dim = x.Size();
 
@@ -564,7 +537,7 @@ double u0_function(const Vector &x)
    Vector X(dim);
    for (int i = 0; i < dim; i++)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
+      real_t center = (bb_min[i] + bb_max[i]) * 0.5;
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
@@ -580,28 +553,28 @@ double u0_function(const Vector &x)
             case 2:
             case 3:
             {
-               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               real_t rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
                if (dim == 3)
                {
-                  const double s = (1. + 0.25*cos(2*M_PI*X(2)));
+                  const real_t s = (1. + 0.25*cos(2*M_PI*X(2)));
                   rx *= s;
                   ry *= s;
                }
-               return ( erfc(w*(X(0)-cx-rx))*erfc(-w*(X(0)-cx+rx)) *
-                        erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16;
+               return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
+                        std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
             }
          }
       }
       case 2:
       {
-         double x_ = X(0), y_ = X(1), rho, phi;
-         rho = hypot(x_, y_);
+         real_t x_ = X(0), y_ = X(1), rho, phi;
+         rho = std::hypot(x_, y_);
          phi = atan2(y_, x_);
          return pow(sin(M_PI*rho),2)*sin(3*phi);
       }
       case 3:
       {
-         const double f = M_PI;
+         const real_t f = M_PI;
          return sin(f*X(0))*sin(f*X(1));
       }
    }
@@ -609,7 +582,7 @@ double u0_function(const Vector &x)
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
-double inflow_function(const Vector &x)
+real_t inflow_function(const Vector &x)
 {
    switch (problem)
    {

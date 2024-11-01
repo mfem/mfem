@@ -70,7 +70,7 @@ void Operator::Mult(const mfem::Vector &x, mfem::Vector &y) const
 }
 
 void Operator::AddMult(const mfem::Vector &x, mfem::Vector &y,
-                       const double a) const
+                       const real_t a) const
 {
 #ifdef MFEM_USE_CEED
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");

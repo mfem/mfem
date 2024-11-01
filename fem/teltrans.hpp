@@ -29,7 +29,7 @@ namespace mfem
     points. The desired result is specified through the template subclass Result
     and stored in an object of the same type.
 */
-template <typename Mesh_t, typename IR, typename real_t = double>
+template <typename Mesh_t, typename IR, typename real_t = real_t>
 class TElementTransformation
 {
 public:
@@ -98,7 +98,7 @@ protected:
       const int vsize = sizeof(vint_t)/sizeof(attrib[0][0]);
       for (int i = 0; i < NE; i++)
       {
-         for (int j = 0; j < vsize; i++)
+         for (int j = 0; j < vsize; j++)
          {
             attrib[i][j] = elements[el+j+i*vsize]->GetAttribute();
          }

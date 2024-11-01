@@ -28,7 +28,8 @@ namespace mfem
 
 using namespace bin_io;
 
-ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
+ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh,
+                     const int *partitioning)
    : NCMesh(ncmesh)
 {
    MyComm = comm;
@@ -39,7 +40,8 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
    // sequence of leaf elements into 'NRanks' parts
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      elements[leaf_elements[i]].rank = part ? part[i] : InitialPartition(i);
+      elements[leaf_elements[i]].rank =
+         partitioning ? partitioning[i] : InitialPartition(i);
    }
 
    Update();
@@ -1810,11 +1812,13 @@ void ParNCMesh::SynchronizeDerefinementData(Array<Type> &elem_data,
    }
 }
 
-// instantiate SynchronizeDerefinementData for int and double
+// instantiate SynchronizeDerefinementData for int, double, and float
 template void
 ParNCMesh::SynchronizeDerefinementData<int>(Array<int> &, const Table &);
 template void
 ParNCMesh::SynchronizeDerefinementData<double>(Array<double> &, const Table &);
+template void
+ParNCMesh::SynchronizeDerefinementData<float>(Array<float> &, const Table &);
 
 
 void ParNCMesh::CheckDerefinementNCLevel(const Table &deref_table,

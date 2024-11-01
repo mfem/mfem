@@ -305,7 +305,7 @@ AlgebraicMultigrid::AlgebraicMultigrid(
    AlgebraicSpaceHierarchy &hierarchy,
    BilinearForm &form,
    const Array<int> &ess_tdofs
-) : GeometricMultigrid(hierarchy)
+) : GeometricMultigrid(hierarchy, Array<int>())
 {
    int nlevels = fespaces.GetNumLevels();
    ceed_operators.SetSize(nlevels);

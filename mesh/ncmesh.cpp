@@ -228,7 +228,7 @@ NCMesh::NCMesh(const Mesh *mesh)
       coordinates.SetSize(3*mesh->GetNV());
       for (int i = 0; i < mesh->GetNV(); i++)
       {
-         std::memcpy(&coordinates[3*i], mesh->GetVertex(i), 3*sizeof(double));
+         std::memcpy(&coordinates[3*i], mesh->GetVertex(i), 3*sizeof(real_t));
       }
    }
 
@@ -2435,7 +2435,7 @@ mfem::Element* NCMesh::NewMeshElement(int geom) const
    return NULL;
 }
 
-const double* NCMesh::CalcVertexPos(int node) const
+const real_t* NCMesh::CalcVertexPos(int node) const
 {
    const Node &nd = nodes[node];
    if (nd.p1 == nd.p2) // top-level vertex
@@ -2449,8 +2449,8 @@ const double* NCMesh::CalcVertexPos(int node) const
    MFEM_VERIFY(tv.visited == false, "cyclic vertex dependencies.");
    tv.visited = true;
 
-   const double* pos1 = CalcVertexPos(nd.p1);
-   const double* pos2 = CalcVertexPos(nd.p2);
+   const real_t* pos1 = CalcVertexPos(nd.p1);
+   const real_t* pos2 = CalcVertexPos(nd.p2);
 
    for (int i = 0; i < 3; i++)
    {
@@ -2852,25 +2852,54 @@ int NCMesh::find_local_face(int geom, int a, int b, int c)
    return -1;
 }
 
+namespace
+{
+template <typename T> struct IntHash;
+template <> struct IntHash<float>
+{
+   using int_type = uint32_t;
+   static constexpr int_type initial_value = 0xc4a016dd; // random value;
+};
+template <> struct IntHash<double>
+{
+   using int_type = uint64_t;
+   static constexpr int_type initial_value = 0xf9ca9ba106acbba9; // random value
+};
+}
 
 /// Hash function for a PointMatrix, used in MatrixMap::map.
 struct PointMatrixHash
 {
    std::size_t operator()(const NCMesh::PointMatrix &pm) const
    {
-      MFEM_ASSERT(sizeof(double) == sizeof(std::uint64_t), "");
-
       // This is a variation on "Hashing an array of floats" from here:
       // https://cs.stackexchange.com/questions/37952
-      std::uint64_t hash = 0xf9ca9ba106acbba9; // random initial value
+
+      // Make sure (at compile time) that the types have compatible sizes
+      static_assert(sizeof(IntHash<real_t>::int_type) == sizeof(real_t), "");
+      // Suppress maybe unused warnings
+      MFEM_CONTRACT_VAR(IntHash<float>::initial_value);
+      MFEM_CONTRACT_VAR(IntHash<double>::initial_value);
+
+      auto int_bit_cast = [](real_t val)
+      {
+         // std::memcpy is the proper way of doing type punning, see e.g.
+         // https://gist.github.com/shafik/848ae25ee209f698763cffee272a58f8
+         IntHash<real_t>::int_type int_val;
+         std::memcpy(&int_val, &val, sizeof(real_t));
+         return int_val;
+      };
+
+      IntHash<real_t>::int_type hash = IntHash<real_t>::initial_value;
+
       for (int i = 0; i < pm.np; i++)
       {
          for (int j = 0; j < pm.points[i].dim; j++)
          {
             // mix the doubles by adding their binary representations many times
             // over (note: 31 is 11111 in binary)
-            double coord = pm.points[i].coord[j];
-            hash = 31*hash + *((std::uint64_t*) &coord);
+            real_t coord = pm.points[i].coord[j];
+            hash = 31*hash + int_bit_cast(coord);
          }
       }
       return hash; // return the lowest bits of the huge sum
@@ -3261,7 +3290,7 @@ void NCMesh::BuildFaceList()
    }
 }
 
-void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
+void NCMesh::TraverseEdge(int vn0, int vn1, real_t t0, real_t t1, int flags,
                           int level, MatrixMap &matrix_map)
 {
    int mid = nodes.FindId(vn0, vn1);
@@ -3284,7 +3313,7 @@ void NCMesh::TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
    }
 
    // recurse deeper
-   double tmid = (t0 + t1) / 2;
+   real_t tmid = (t0 + t1) / 2;
    TraverseEdge(vn0, mid, t0, tmid, flags, level+1, matrix_map);
    TraverseEdge(mid, vn1, tmid, t1, flags, level+1, matrix_map);
 }
@@ -3348,7 +3377,7 @@ void NCMesh::BuildEdgeList()
          processed_edges[enode] = 1;
 
          // prepare edge interval for slave traversal, handle orientation
-         double t0 = 0.0, t1 = 1.0;
+         real_t t0 = 0.0, t1 = 1.0;
          int v0index = nodes[node[0]].vert_index;
          int v1index = nodes[node[1]].vert_index;
          int flags = (v0index > v1index) ? 1 : 0;
@@ -6396,7 +6425,7 @@ void NCMesh::DebugLeafOrder(std::ostream &os) const
       const Element* elem = &elements[leaf_elements[i]];
       for (int j = 0; j < Dim; j++)
       {
-         double sum = 0.0;
+         real_t sum = 0.0;
          int count = 0;
          for (int k = 0; k < MaxElemNodes; k++)
          {
@@ -6420,7 +6449,7 @@ void NCMesh::DebugDump(std::ostream &os) const
    os << nodes.Size() << "\n";
    for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
-      const double *pos = CalcVertexPos(node.index());
+      const real_t *pos = CalcVertexPos(node.index());
       os << node.index() << " "
          << pos[0] << " " << pos[1] << " " << pos[2] << " "
          << node->p1 << " " << node->p2 << " "

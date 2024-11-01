@@ -46,7 +46,7 @@ enum class IntegrationType { Volumetric1D, Surface2D, Volumetric2D,
 IntegrationType itype;
 
 /// @brief Level-set function defining the implicit interface
-double lvlset(const Vector& X)
+real_t lvlset(const Vector& X)
 {
    switch (itype)
    {
@@ -66,7 +66,7 @@ double lvlset(const Vector& X)
 }
 
 /// @brief Function that should be integrated
-double integrand(const Vector& X)
+real_t integrand(const Vector& X)
 {
    switch (itype)
    {
@@ -86,7 +86,7 @@ double integrand(const Vector& X)
 }
 
 /// @brief Analytic surface integral
-double Surface()
+real_t Surface()
 {
    switch (itype)
    {
@@ -106,7 +106,7 @@ double Surface()
 }
 
 /// @brief Analytic volume integral over subdomain with positive level-set
-double Volume()
+real_t Volume()
 {
    switch (itype)
    {
@@ -199,7 +199,6 @@ public:
       {
          mesh->GetElementTransformation(elem, &Tr);
          MFIRs.GetSurfaceIntegrationRule(Tr, ir);
-         Vector w;
          MFIRs.GetSurfaceWeights(Tr, ir, w);
          SurfaceWeights.SetCol(elem, w);
 
@@ -409,9 +408,9 @@ public:
     @param [in] Tr transformation of finite element
     @param [out] elvect vector containing the
    */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect) override
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override
    {
       int dof = el.GetDof();
       shape.SetSize(dof);
@@ -424,7 +423,7 @@ public:
       for (int ip = 0; ip < SIntRule->GetNPoints(); ip++)
       {
          Tr.SetIntPoint((&(SIntRule->IntPoint(ip))));
-         double val = Tr.Weight() * Q.Eval(Tr, SIntRule->IntPoint(ip));
+         real_t val = Tr.Weight() * Q.Eval(Tr, SIntRule->IntPoint(ip));
          el.CalcShape(SIntRule->IntPoint(ip), shape);
          add(elvect, SIntRule->IntPoint(ip).weight * val, shape, elvect);
       }
@@ -477,9 +476,9 @@ public:
     @param [in] Tr transformation of finite element
     @param [out] elvect vector containing the
    */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect) override
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override
    {
       int dof = el.GetDof();
       shape.SetSize(dof);
@@ -492,7 +491,7 @@ public:
       for (int ip = 0; ip < CIntRule->GetNPoints(); ip++)
       {
          Tr.SetIntPoint((&(CIntRule->IntPoint(ip))));
-         double val = Tr.Weight()
+         real_t val = Tr.Weight()
                       * Q.Eval(Tr, CIntRule->IntPoint(ip));
          el.CalcPhysShape(Tr, shape);
          add(elvect, CIntRule->IntPoint(ip).weight * val, shape, elvect);
@@ -504,8 +503,8 @@ public:
 int main(int argc, char *argv[])
 {
 #ifndef MFEM_USE_LAPACK
-   cout << "MFEM must be build with LAPACK for this example." << endl;
-   return EXIT_FAILURE;
+   cout << "MFEM must be built with LAPACK for this example." << endl;
+   return MFEM_SKIP_RETURN_VALUE;
 #else
    // 1. Parse he command-line options.
    int ref_levels = 3;
@@ -636,11 +635,11 @@ int main(int argc, char *argv[])
    cout << "Mesh size dx:                       ";
    if (itype != IntegrationType::Volumetric1D)
    {
-      cout << 3.2 / pow(2., (double)ref_levels) << endl;
+      cout << 3.2 / pow(2., (real_t)ref_levels) << endl;
    }
    else
    {
-      cout << .25 / pow(2., (double)ref_levels) << endl;
+      cout << .25 / pow(2., (real_t)ref_levels) << endl;
    }
    if (itype == IntegrationType::Surface2D
        || itype == IntegrationType::Volumetric2D)
@@ -652,7 +651,7 @@ int main(int argc, char *argv[])
    cout << "============================================" << endl;
    cout << "Computed value of surface integral: " << surface.Sum() << endl;
    cout << "True value of surface integral:     " << Surface() << endl;
-   cout << "Absolut Error (Surface):            ";
+   cout << "Absolute Error (Surface):            ";
    cout << abs(surface.Sum() - Surface()) << endl;
    cout << "Relative Error (Surface):           ";
    cout << abs(surface.Sum() - Surface()) / Surface() << endl;
@@ -663,7 +662,7 @@ int main(int argc, char *argv[])
       cout << "--------------------------------------------" << endl;
       cout << "Computed value of volume integral:  " << volume.Sum() << endl;
       cout << "True value of volume integral:      " << Volume() << endl;
-      cout << "Absolut Error (Volume):             ";
+      cout << "Absolute Error (Volume):             ";
       cout << abs(volume.Sum() - Volume()) << endl;
       cout << "Relative Error (Volume):            ";
       cout << abs(volume.Sum() - Volume()) / Volume() << endl;

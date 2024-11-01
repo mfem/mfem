@@ -164,9 +164,10 @@ Mesh TetStarMesh()
    return mesh;
 }
 
-Mesh DividingPlaneMesh(bool tet_mesh, bool split)
+Mesh DividingPlaneMesh(bool tet_mesh, bool split, bool three_dim)
 {
-   auto mesh = Mesh("../../data/ref-cube.mesh");
+   auto mesh = three_dim ? Mesh("../../data/ref-cube.mesh") :
+               Mesh("../../data/ref-square.mesh");
    {
       Array<Refinement> refs;
       refs.Append(Refinement(0, Refinement::X));
@@ -202,6 +203,7 @@ Mesh DividingPlaneMesh(bool tet_mesh, bool split)
    mesh.Finalize(true, true);
    return mesh;
 }
+
 
 Mesh OrientedTriFaceMesh(int orientation, bool add_extbdr)
 {
@@ -242,7 +244,7 @@ Mesh OrientedTriFaceMesh(int orientation, bool add_extbdr)
 
 Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant)
 {
-   double c[3];
+   real_t c[3];
 
    const int nnodes = (el_type == Geometry::CUBE) ? 24 : 15;
    const int nelems = [&]()
@@ -343,32 +345,32 @@ Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant)
          {
             d.SetSize(3);
             d = x;
-            const double Rmax = 2.74;
-            const double Rmin = 1.14;
-            double ax = std::abs(x[0]);
+            const real_t Rmax = 2.74;
+            const real_t Rmin = 1.14;
+            real_t ax = std::abs(x[0]);
             if (ax <= 1e-6) { return; }
-            double ay = std::abs(x[1]);
+            real_t ay = std::abs(x[1]);
             if (ay <= 1e-6) { return; }
-            double r = ax + ay;
+            real_t r = ax + ay;
             if (r <= Rmin + 1e-6) { return; }
 
-            double sx = std::copysign(1.0, x[0]);
-            double sy = std::copysign(1.0, x[1]);
+            real_t sx = std::copysign(1.0, x[0]);
+            real_t sy = std::copysign(1.0, x[1]);
 
-            double R = (Rmax - Rmin) * Rmax / (r - Rmin);
-            double r2 = r * r;
-            double R2 = R * R;
+            real_t R = (Rmax - Rmin) * Rmax / (r - Rmin);
+            real_t r2 = r * r;
+            real_t R2 = R * R;
 
-            double acosarg = 0.5 * (r + std::sqrt(2.0 * R2 - r2)) / R;
-            double tR = std::acos(std::min(acosarg, 1.0));
-            double tQ = (1.0 + sx * sy * (ay - ax) / r);
-            double tP = 0.25 * M_PI * (3.0 - (2.0 + sx) * sy);
+            real_t acosarg = 0.5 * (r + std::sqrt(2.0 * R2 - r2)) / R;
+            real_t tR = std::acos(std::min(acosarg, (real_t) 1.0));
+            real_t tQ = (1.0 + sx * sy * (ay - ax) / r);
+            real_t tP = 0.25 * M_PI * (3.0 - (2.0 + sx) * sy);
 
-            double t = tR + (0.25 * M_PI - tR) * tQ + tP;
+            real_t t = tR + (0.25 * M_PI - tR) * tQ + tP;
 
-            double s0 = std::sqrt(2.0 * R2 - r2);
-            double s1 = 0.25 * std::pow(r + s0, 2);
-            double s = std::sqrt(R2 - s1);
+            real_t s0 = std::sqrt(2.0 * R2 - r2);
+            real_t s1 = 0.25 * std::pow(r + s0, 2);
+            real_t s = std::sqrt(R2 - s1);
 
             d[0] = R * std::cos(t) - sx * s;
             d[1] = R * std::sin(t) - sy * s;
@@ -383,15 +385,15 @@ Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant)
          {
             d.SetSize(3);
             d = x;
-            double ax = std::abs(x[0]);
-            double ay = std::abs(x[1]);
-            double r = ax + ay;
+            real_t ax = std::abs(x[0]);
+            real_t ay = std::abs(x[1]);
+            real_t r = ax + ay;
             if (r < 1e-6) { return; }
 
-            double sx = std::copysign(1.0, x[0]);
-            double sy = std::copysign(1.0, x[1]);
+            real_t sx = std::copysign(1.0, x[0]);
+            real_t sy = std::copysign(1.0, x[1]);
 
-            double t = ((2.0 - (1.0 + sx) * sy) * ax +
+            real_t t = ((2.0 - (1.0 + sx) * sy) * ax +
                         (2.0 - sy) * ay) * 0.5 * M_PI / r;
             d[0] = r * std::cos(t);
             d[1] = r * std::sin(t);
@@ -431,7 +433,7 @@ void TestVectorValueInVolume(Mesh &smesh, int nc_level, int skip, bool use_ND)
       if ((Mpi::WorldRank() + 1) % 2 == 0)
       {
          // Refine a subset of all shared faces. Using a subset helps to mix in
-         // conformal faces with nonconformal faces.
+         // conformal faces with nonconforming faces.
          for (int n = 0; n < pmesh.GetNSharedFaces(); ++n)
          {
             if (n % skip != 0) { continue; }
@@ -481,7 +483,7 @@ void TestVectorValueInVolume(Mesh &smesh, int nc_level, int skip, bool use_ND)
    bool valid = true;
    for (int n = 0; n < pmesh.GetNE(); ++n)
    {
-      constexpr double tol = 1e-12;
+      constexpr real_t tol = 1e-12;
       for (const auto &ip : ir)
       {
          coords->GetVectorValue(n, ip, position);
@@ -505,7 +507,7 @@ void TestVectorValueInVolume(Mesh &smesh, int nc_level, int skip, bool use_ND)
 
       auto &T = *pmesh.GetFaceNbrElementTransformation(face_info.element[1].index);
 
-      constexpr double tol = 1e-12;
+      constexpr real_t tol = 1e-12;
       for (const auto &ip : ir)
       {
          T.SetIntPoint(&ip);
@@ -637,8 +639,8 @@ bool CheckFaceInternal(ParMesh& pmesh, int f,
    return false;
 };
 
-std::array<double, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
-                                        std::function<double(Vector const&)> exact_soln)
+std::array<real_t, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
+                                        std::function<real_t(Vector const&)> exact_soln)
 {
    REQUIRE(pmesh.GetGlobalNE() == smesh.GetNE());
    REQUIRE(pmesh.Dimension() == smesh.Dimension());
@@ -652,7 +654,7 @@ std::array<double, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
    ConstantCoefficient one(1.0);
    FunctionCoefficient rhs_coef(exact_soln);
 
-   constexpr double linear_tol = 1e-16;
+   constexpr real_t linear_tol = 1e-16;
 
    // serial solve
    auto serror = [&]
@@ -662,7 +664,7 @@ std::array<double, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
       GridFunction x(&fes);
       x = 0.0;
 
-      double snorm = x.ComputeL2Error(rhs_coef);
+      real_t snorm = x.ComputeL2Error(rhs_coef);
 
       LinearForm b(&fes);
       b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
@@ -705,7 +707,7 @@ std::array<double, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
       ParGridFunction x(&fes);
       x = 0.0;
 
-      double pnorm = x.ComputeL2Error(rhs_coef);
+      real_t pnorm = x.ComputeL2Error(rhs_coef);
       b.AddDomainIntegrator(new DomainLFIntegrator(rhs_coef));
       b.Assemble();
 

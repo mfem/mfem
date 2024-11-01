@@ -24,9 +24,9 @@ namespace spde
 
 /// This function effectively implements equation 19 of the paper (see header).
 ///  `\Phi [y(x)]`
-double TransformToUniform(double x) { return std::erfc(-x / std::sqrt(2)) / 2; }
+real_t TransformToUniform(real_t x) { return std::erfc(-x / std::sqrt(2)) / 2; }
 
-double ApplyLevelSetAtZero(double x) { return x >= 0 ? 1 : 0; }
+real_t ApplyLevelSetAtZero(real_t x) { return x >= 0 ? 1 : 0; }
 
 // ---------------------------------------------------------------------------
 // Member functions for GFTransformer class

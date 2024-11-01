@@ -32,7 +32,7 @@ public:
 
    virtual ~SparseSmoother() { if (own_oper) { delete oper; } }
 
-   virtual void SetOperator(const Operator &a);
+   void SetOperator(const Operator &a) override;
 
    void SetOwnership(bool own) { own_oper = own; }
    bool GetOwnership() const { return own_oper; }
@@ -54,7 +54,7 @@ public:
       : SparseSmoother(a, own) { type = t; iterations = it; }
 
    /// Matrix vector multiplication with GS Smoother.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 };
 
 /// Data type for scaled Jacobi-type smoother of sparse matrix
@@ -62,7 +62,7 @@ class DSmoother : public SparseSmoother
 {
 protected:
    int type; // 0, 1, 2 - scaled Jacobi, scaled l1-Jacobi, scaled lumped-Jacobi
-   double scale;
+   real_t scale;
    int iterations;
    /// Uses abs values of the diagonal entries. Relevant only when type = 0.
    bool use_abs_diag = false;
@@ -71,18 +71,18 @@ protected:
 
 public:
    /// Create Jacobi smoother.
-   DSmoother(int t = 0, double s = 1., int it = 1)
+   DSmoother(int t = 0, real_t s = 1., int it = 1)
    { type = t; scale = s; iterations = it; }
 
    /// Create Jacobi smoother.
-   DSmoother(const SparseMatrix &a, int t = 0, double s = 1., int it = 1,
+   DSmoother(const SparseMatrix &a, int t = 0, real_t s = 1., int it = 1,
              bool own = false);
 
    /// Replace diag entries with their abs values. Relevant only when type = 0.
    void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
 
    /// Matrix vector multiplication with Jacobi smoother.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 };
 
 }

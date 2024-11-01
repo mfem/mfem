@@ -407,7 +407,7 @@ void LinearForm::AssembleDelta()
    }
 }
 
-LinearForm & LinearForm::operator=(double value)
+LinearForm & LinearForm::operator=(real_t value)
 {
    Vector::operator=(value);
    return *this;

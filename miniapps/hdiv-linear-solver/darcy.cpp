@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
    int ser_ref = 1;
    int par_ref = 1;
    int order = 3;
-   double alpha = 0.0;
+   real_t alpha = 0.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&device_config, "-d", "--device",
@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
 
    ParGridFunction x(&fes_l2);
    x.SetFromTrueDofs(X_block.GetBlock(0));
-   const double error = x.ComputeL2Error(u_coeff);
+   const real_t error = x.ComputeL2Error(u_coeff);
    if (Mpi::Root()) { cout << "L2 error: " << error << endl; }
 
    return 0;

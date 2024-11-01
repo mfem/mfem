@@ -26,7 +26,7 @@ namespace mfem
 {
 
 /// Compute a global Lp norm from the local Lp norms computed by each processor
-double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm);
+real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm);
 
 /// Class for parallel grid function
 class ParGridFunction : public GridFunction
@@ -44,7 +44,7 @@ protected:
    Vector send_data;
 
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
-                              Array<int> &attr);
+                              const Array<int> &attr);
 
 public:
    ParGridFunction() { pfes = NULL; }
@@ -62,7 +62,7 @@ public:
        can be NULL. The data array can be replaced later using the method
        SetData().
     */
-   ParGridFunction(ParFiniteElementSpace *pf, double *data) :
+   ParGridFunction(ParFiniteElementSpace *pf, real_t *data) :
       GridFunction(pf, data), pfes(pf) { }
 
    /** @brief Construct a ParGridFunction using previously allocated Vector
@@ -103,7 +103,7 @@ public:
    { return operator=((const Vector &)rhs); }
 
    /// Assign constant values to the ParGridFunction data.
-   ParGridFunction &operator=(double value)
+   ParGridFunction &operator=(real_t value)
    { GridFunction::operator=(value); return *this; }
 
    /// Copy the data from a Vector to the ParGridFunction data.
@@ -130,14 +130,14 @@ public:
        ParGridFunction and sets the pointer @a v as external data in the
        ParGridFunction. The new space @a f is expected to be a
        ParFiniteElementSpace. */
-   void MakeRef(FiniteElementSpace *f, double *v) override;
+   void MakeRef(FiniteElementSpace *f, real_t *v) override;
 
    /** @brief Make the ParGridFunction reference external data on a new
        ParFiniteElementSpace. */
    /** This method changes the ParFiniteElementSpace associated with the
        ParGridFunction and sets the pointer @a v as external data in the
        ParGridFunction. */
-   void MakeRef(ParFiniteElementSpace *f, double *v);
+   void MakeRef(ParFiniteElementSpace *f, real_t *v);
 
    /** @brief Make the ParGridFunction reference external data on a new
        FiniteElementSpace. */
@@ -162,8 +162,8 @@ public:
        true dofs, i.e. P tv. */
    void Distribute(const Vector *tv);
    void Distribute(const Vector &tv) { Distribute(&tv); }
-   void AddDistribute(double a, const Vector *tv);
-   void AddDistribute(double a, const Vector &tv) { AddDistribute(a, &tv); }
+   void AddDistribute(real_t a, const Vector *tv);
+   void AddDistribute(real_t a, const Vector &tv) { AddDistribute(a, &tv); }
 
    /// Set the GridFunction from the given true-dof vector.
    void SetFromTrueDofs(const Vector &tv) override { Distribute(tv); }
@@ -209,13 +209,13 @@ public:
    const Vector &FaceNbrData() const { return face_nbr_data; }
 
    // Redefine to handle the case when i is a face-neighbor element
-   double GetValue(int i, const IntegrationPoint &ip,
+   real_t GetValue(int i, const IntegrationPoint &ip,
                    int vdim = 1) const override;
-   double GetValue(ElementTransformation &T)
+   real_t GetValue(ElementTransformation &T)
    { return GetValue(T, T.GetIntPoint()); }
 
    // Redefine to handle the case when T describes a face-neighbor element
-   double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+   real_t GetValue(ElementTransformation &T, const IntegrationPoint &ip,
                    int comp = 0, Vector *tr = NULL) const override;
 
    void GetVectorValue(int i, const IntegrationPoint &ip,
@@ -231,7 +231,7 @@ public:
    void CountElementsPerVDof(Array<int> &elem_per_vdof) const override;
 
    /// Parallel version of GridFunction::GetDerivative(); see its documentation.
-   void GetDerivative(int comp, int der_comp, ParGridFunction &der);
+   void GetDerivative(int comp, int der_comp, ParGridFunction &der) const;
 
    /** Sets the output vector @a dof_vals to the values of the degrees of
        freedom of element @a el. If @a el is greater than or equal to the number
@@ -254,35 +254,33 @@ public:
 
    using GridFunction::ProjectBdrCoefficient;
 
-   // Only the values in the master are guaranteed to be correct!
    void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
-                              Array<int> &attr) override
+                              const Array<int> &attr) override
    { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
 
-   // Only the values in the master are guaranteed to be correct!
-   void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr) override
+   void ProjectBdrCoefficient(Coefficient *coeff[],
+                              const Array<int> &attr) override
    { ProjectBdrCoefficient(coeff, NULL, attr); }
 
-   // Only the values in the master are guaranteed to be correct!
    void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
-                                     Array<int> &bdr_attr) override;
+                                     const Array<int> &bdr_attr) override;
 
-   double ComputeL1Error(Coefficient *exsol[],
+   real_t ComputeL1Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(1.0, GridFunction::ComputeL1Error(exsol, irs),
                           pfes->GetComm());
    }
 
-   double ComputeL1Error(Coefficient &exsol,
+   real_t ComputeL1Error(Coefficient &exsol,
                          const IntegrationRule *irs[] = NULL) const override
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
-   double ComputeL1Error(VectorCoefficient &exsol,
+   real_t ComputeL1Error(VectorCoefficient &exsol,
                          const IntegrationRule *irs[] = NULL) const override
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
-   double ComputeL2Error(Coefficient *exsol[],
+   real_t ComputeL2Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL,
                          const Array<int> *elems = NULL) const override
    {
@@ -290,7 +288,7 @@ public:
                           pfes->GetComm());
    }
 
-   double ComputeL2Error(Coefficient &exsol,
+   real_t ComputeL2Error(Coefficient &exsol,
                          const IntegrationRule *irs[] = NULL,
                          const Array<int> *elems = NULL) const override
    {
@@ -299,7 +297,7 @@ public:
    }
 
 
-   double ComputeL2Error(VectorCoefficient &exsol,
+   real_t ComputeL2Error(VectorCoefficient &exsol,
                          const IntegrationRule *irs[] = NULL,
                          const Array<int> *elems = NULL) const override
    {
@@ -308,7 +306,7 @@ public:
    }
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
-   double ComputeGradError(VectorCoefficient *exgrad,
+   real_t ComputeGradError(VectorCoefficient *exgrad,
                            const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeGradError(exgrad,irs),
@@ -316,7 +314,7 @@ public:
    }
 
    /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
-   double ComputeCurlError(VectorCoefficient *excurl,
+   real_t ComputeCurlError(VectorCoefficient *excurl,
                            const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeCurlError(excurl,irs),
@@ -324,7 +322,7 @@ public:
    }
 
    /// Returns ||div u_ex - div u_h||_L2 for RT elements
-   double ComputeDivError(Coefficient *exdiv,
+   real_t ComputeDivError(Coefficient *exdiv,
                           const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs),
@@ -332,15 +330,15 @@ public:
    }
 
    /// Returns the Face Jumps error for L2 elements
-   double ComputeDGFaceJumpError(Coefficient *exsol,
+   real_t ComputeDGFaceJumpError(Coefficient *exsol,
                                  Coefficient *ell_coeff,
                                  JumpScaling jump_scaling,
                                  const IntegrationRule *irs[]=NULL) const override;
 
    /// Returns either the H1-seminorm or the DG Face Jumps error or both
    /// depending on norm_type = 1, 2, 3
-   double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                         Coefficient *ell_coef, double Nu,
+   real_t ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                         Coefficient *ell_coef, real_t Nu,
                          int norm_type) const override
    {
       return GlobalLpNorm(2.0,
@@ -351,7 +349,7 @@ public:
 
    /// Returns the error measured in H1-norm for H1 elements or in "broken"
    /// H1-norm for L2 elements
-   double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+   real_t ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                          const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeH1Error(exsol,exgrad,irs),
@@ -359,7 +357,7 @@ public:
    }
 
    /// Returns the error measured H(div)-norm for RT elements
-   double ComputeHDivError(VectorCoefficient *exsol,
+   real_t ComputeHDivError(VectorCoefficient *exsol,
                            Coefficient *exdiv,
                            const IntegrationRule *irs[] = NULL) const override
    {
@@ -368,7 +366,7 @@ public:
    }
 
    /// Returns the error measured H(curl)-norm for ND elements
-   double ComputeHCurlError(VectorCoefficient *exsol,
+   real_t ComputeHCurlError(VectorCoefficient *exsol,
                             VectorCoefficient *excurl,
                             const IntegrationRule *irs[] = NULL) const override
    {
@@ -377,7 +375,7 @@ public:
                           pfes->GetComm());
    }
 
-   double ComputeMaxError(Coefficient *exsol[],
+   real_t ComputeMaxError(Coefficient *exsol[],
                           const IntegrationRule *irs[] = NULL) const override
    {
       return GlobalLpNorm(infinity(),
@@ -385,19 +383,19 @@ public:
                           pfes->GetComm());
    }
 
-   double ComputeMaxError(Coefficient &exsol,
+   real_t ComputeMaxError(Coefficient &exsol,
                           const IntegrationRule *irs[] = NULL) const override
    {
       return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
-   double ComputeMaxError(VectorCoefficient &exsol,
+   real_t ComputeMaxError(VectorCoefficient &exsol,
                           const IntegrationRule *irs[] = NULL) const override
    {
       return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
-   double ComputeLpError(const double p, Coefficient &exsol,
+   real_t ComputeLpError(const real_t p, Coefficient &exsol,
                          Coefficient *weight = NULL,
                          const IntegrationRule *irs[] = NULL,
                          const Array<int> *elems = NULL) const override
@@ -409,7 +407,7 @@ public:
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the
        scalar error is the l_2 norm of the vector error. */
-   double ComputeLpError(const double p, VectorCoefficient &exsol,
+   real_t ComputeLpError(const real_t p, VectorCoefficient &exsol,
                          Coefficient *weight = NULL,
                          VectorCoefficient *v_weight = NULL,
                          const IntegrationRule *irs[] = NULL) const override
@@ -469,11 +467,11 @@ public:
     least conforming) space, and computes the Lp norms of the differences
     between them on each element. This is one approach to handling conforming
     and non-conforming elements in parallel. Returns the total error estimate. */
-double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
+real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,
                           ParFiniteElementSpace &smooth_flux_fes,
                           ParFiniteElementSpace &flux_fes,
-                          Vector &errors, int norm_p = 2, double solver_tol = 1e-12,
+                          Vector &errors, int norm_p = 2, real_t solver_tol = 1e-12,
                           int solver_max_it = 200);
 
 }

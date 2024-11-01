@@ -64,7 +64,7 @@ void ElasticityDiagonalPreconditioner::Mult(const Vector &x, Vector &y) const
 
          const auto x_block = make_tensor<dim>([&](int i) { return X(s, i); });
 
-         tensor<double, dim> y_block = submat_inv * x_block;
+         tensor<real_t, dim> y_block = submat_inv * x_block;
 
          for (int i = 0; i < dim; i++)
          {

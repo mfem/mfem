@@ -15,7 +15,14 @@
 
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe serial CUDA unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    mfem::Device device("cuda");
+
    // Include only tests labeled with CUDA. Exclude parallel tests.
    return RunCatchSession(argc, argv, {"[CUDA]", "~[Parallel]"});
 }
