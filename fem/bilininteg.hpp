@@ -3636,14 +3636,37 @@ private:
     the range space. Otherwise, a dof projection matrix is constructed. */
 class IdentityInterpolator : public DiscreteInterpolator
 {
+protected:
+   const int vdim;
+
 public:
-   IdentityInterpolator(): dofquad_fe(NULL) { }
+   /** @brief Construct an identity interpolator.
+
+       @param[in]  vdim_  Vector dimension (number of components) in the domain
+                          and range FE spaces.
+   */
+   IdentityInterpolator(int vdim_ = 1) : vdim(vdim_), dofquad_fe(NULL) { }
 
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat)
-   { ran_fe.Project(dom_fe, Trans, elmat); }
+   {
+      if (vdim == 1)
+      {
+         ran_fe.Project(dom_fe, Trans, elmat);
+         return;
+      }
+      DenseMatrix elmat_block;
+      ran_fe.Project(dom_fe, Trans, elmat_block);
+      elmat.SetSize(vdim*elmat_block.Height(), vdim*elmat_block.Width());
+      elmat = 0_r;
+      for (int i = 0; i < vdim; i++)
+      {
+         elmat.SetSubMatrix(i*elmat_block.Height(), i*elmat_block.Width(),
+                            elmat_block);
+      }
+   }
 
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
@@ -3666,34 +3689,13 @@ private:
 };
 
 
-class VectorIdentityInterpolator : public DiscreteInterpolator
+/** @brief Class identical to IdentityInterpolator with the exception that it
+    requires the vector dimension (number of components) to be specified during
+    construction. */
+class VectorIdentityInterpolator : public IdentityInterpolator
 {
-protected:
-   const int vdim;
-
 public:
-   VectorIdentityInterpolator(int vdim_) : vdim(vdim_) { }
-
-   void AssembleElementMatrix2(const FiniteElement &dom_fe,
-                               const FiniteElement &ran_fe,
-                               ElementTransformation &Trans,
-                               DenseMatrix &elmat) override
-   {
-      if (vdim == 1)
-      {
-         ran_fe.Project(dom_fe, Trans, elmat);
-         return;
-      }
-      DenseMatrix elmat_block;
-      ran_fe.Project(dom_fe, Trans, elmat_block);
-      elmat.SetSize(vdim*elmat_block.Height(), vdim*elmat_block.Width());
-      elmat = 0_r;
-      for (int i = 0; i < vdim; i++)
-      {
-         elmat.SetSubMatrix(i*elmat_block.Height(), i*elmat_block.Width(),
-                            elmat_block);
-      }
-   }
+   VectorIdentityInterpolator(int vdim_) : IdentityInterpolator(vdim_) { }
 };
 
 
