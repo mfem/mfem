@@ -2789,10 +2789,16 @@ if (A != NULL)
 #else
    {   
       MPI_Comm comm = hypre_ParCSRMatrixComm(A);
-      hypre_CSRMatrix *hypre_merged = hypre_MergeDiagAndOffd(A);
-      Vector Avec(hypre_merged->data, hypre_merged->num_nonzeros);
-      norm_fro += GlobalLpNorm(2, Avec.Norml2(), comm);
-      hypre_CSRMatrixDestroy(hypre_merged);
+      real_t normsqr_fro_loc = 0.0;
+      hypre_CSRMatrix * csr;
+      csr = A->diag;
+      Vector Avec_diag(csr->data, csr->num_nonzeros);
+      normsqr_fro_loc += InnerProduct(Avec_diag, Avec_diag);
+      csr = A->offd;
+      Vector Avec_offd(csr->data, csr->num_nonzeros);
+      normsqr_fro_loc += InnerProduct(Avec_offd, Avec_offd);
+      MPI_Allreduce(&normsqr_fro_loc, &norm_fro, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+      norm_fro = sqrt(norm_fro);
    }
 #endif
    return norm_fro;
