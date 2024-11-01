@@ -146,7 +146,9 @@ if (MFEM_USE_CUDA)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
    find_package(CUDAToolkit REQUIRED)
    set(CUSPARSE_FOUND TRUE)
+   set(CUBLAS_FOUND TRUE)
    get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
+   get_target_property(CUBLAS_LIBRARIES CUDA::cublas LOCATION)
 endif()
 
 if (XSDK_ENABLE_C)
@@ -231,6 +233,7 @@ if (MFEM_USE_HIP)
     list(INSERT CMAKE_PREFIX_PATH 0 ${ROCM_PATH})
   endif()
   find_package(HIP REQUIRED)
+  find_package(HIPBLAS REQUIRED)
   find_package(HIPSPARSE REQUIRED)
 endif()
 
@@ -396,6 +399,10 @@ if (MFEM_USE_AMGX)
   find_package(AMGX REQUIRED)
 endif()
 
+if (MFEM_USE_MAGMA)
+  find_package(MAGMA REQUIRED)
+endif()
+
 if (MFEM_USE_CONDUIT)
     find_package(Conduit REQUIRED conduit relay blueprint)
 endif()
@@ -557,8 +564,9 @@ find_package(Threads REQUIRED)
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
-    ADIOS2 CUSPARSE MKL_CPARDISO MKL_PARDISO AMGX CALIPER CODIPACK
-    BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
+    ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CALIPER CODIPACK
+    BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
+    ALGOIM ENZYME)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -673,7 +681,7 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
 
-    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "${PROJECT_BINARY_DIR}/${Header}.tmp"
       "${PROJECT_BINARY_DIR}/${Header}"
     )
@@ -687,7 +695,7 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 #include \"mfem/${Header}\"
 ")
 
-    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
       "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
     )

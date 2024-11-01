@@ -30,6 +30,7 @@
 #include <iostream>
 #include <array>
 #include <map>
+#include <vector>
 #include <memory>
 
 namespace mfem
@@ -49,6 +50,13 @@ enum class FaceType : bool {Interior, Boundary};
 #ifdef MFEM_USE_MPI
 class ParMesh;
 class ParNCMesh;
+#endif
+
+#ifdef MFEM_USE_NETCDF
+namespace cubit
+{
+class CubitBlock;
+}
 #endif
 
 /// Mesh data type
@@ -341,6 +349,29 @@ protected:
 #ifdef MFEM_USE_NETCDF
    /// @brief Load a mesh from a Genesis file.
    void ReadCubit(const std::string &filename, int &curved, int &read_gf);
+
+   /// @brief Called internally in ReadCubit. This method creates the vertices.
+   void BuildCubitVertices(const std::vector<int> & unique_vertex_ids,
+                           const std::vector<double> & coordx, const std::vector<double> & coordy,
+                           const std::vector<double> & coordz);
+
+   /// @brief Called internally in ReadCubit. This method builds the mesh elements.
+   void BuildCubitElements(const int num_elements,
+                           const cubit::CubitBlock * blocks,
+                           const std::vector<int> & block_ids,
+                           const std::map<int, std::vector<int>> & element_ids_for_block_id,
+                           const std::map<int, std::vector<int>> & node_ids_for_element_id,
+                           const std::map<int, int> & cubit_to_mfem_vertex_map);
+
+   /// @brief Called internally in ReadCubit. This method adds the mesh boundary elements.
+   void BuildCubitBoundaries(
+      const cubit::CubitBlock * blocks,
+      const std::vector<int> & boundary_ids,
+      const std::map<int, std::vector<int>> & element_ids_for_boundary_id,
+      const std::map<int, std::vector<std::vector<int>>> & node_ids_for_boundary_id,
+      const std::map<int, std::vector<int>> & side_ids_for_boundary_id,
+      const std::map<int, int> & block_id_for_element_id,
+      const std::map<int, int> & cubit_to_mfem_vertex_map);
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
@@ -2452,9 +2483,6 @@ public:
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
    /// @todo This method needs a proper description
-   void MesquiteSmooth(const int mesquite_option = 0);
-
-   /// @todo This method needs a proper description
    void CheckDisplacements(const Vector &displacements, real_t &tmax);
 
    /// @}
@@ -2912,8 +2940,8 @@ public:
    NodeExtrudeCoefficient(const int dim, const int n_, const real_t s_);
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    virtual ~NodeExtrudeCoefficient() { }
 };
 
