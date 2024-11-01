@@ -85,16 +85,6 @@ private:
    real_t charge_;
    real_t mass_;
 
-   //ParMesh &pmesh_;
-   //VectorCoefficient &ECoef_;
-   //VectorCoefficient &BCoef_;
-   /*
-   VisItDataCollection &E_dc_;
-   const char * E_field_;
-
-   VisItDataCollection &B_dc_;
-   const char * B_field_;
-   */
    ParMesh *E_pmesh_;
    ParGridFunction *E_field_;
 
@@ -476,7 +466,7 @@ void display_banner(ostream & os)
 {
    os << "   ____                                __          "
       << endl
-      << "  |    |    ___________   ____   _____/  |________\\"
+      << "  |    |    ___________   ____   _____/  |_________"
       << endl
       << "  |    |   /  _ \\_  __ \\_/ __ \\ /    \\   __\\___   /"
       << endl
