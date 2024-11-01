@@ -28,7 +28,7 @@ IncompressibleNavierSolver::IncompressibleNavierSolver(ParMesh *mesh,
      pGF(torder_+1,nullptr)
 {
    vfec   = new H1_FECollection(velorder, pmesh->Dimension());
-   psifec = new H1_FECollection(velorder);
+   psifec = new H1_FECollection(porder);
    pfec   = new H1_FECollection(porder);
    vfes   = new ParFiniteElementSpace(pmesh, vfec, pmesh->Dimension());
    psifes = new ParFiniteElementSpace(pmesh, pfec);
@@ -197,8 +197,17 @@ void IncompressibleNavierSolver::Setup(real_t dt)
 
    //-------------------------------------------------------------------------
 
-   velInvPC = new HypreSmoother(*vOp.As<HypreParMatrix>());
-   dynamic_cast<HypreSmoother *>(velInvPC)->SetType(HypreSmoother::Jacobi, 1);
+   if (partial_assembly)
+   {
+      Vector diag_pa(vfes->GetTrueVSize());
+      velBForm->AssembleDiagonal(diag_pa);
+      velInvPC = new OperatorJacobiSmoother(diag_pa, vel_ess_tdof);
+   }
+   else
+   {
+      velInvPC = new HypreSmoother(*vOp.As<HypreParMatrix>());
+      dynamic_cast<HypreSmoother *>(velInvPC)->SetType(HypreSmoother::Jacobi, 1);
+   }
 
    velInv = new CGSolver(vfes->GetComm());
    velInv->iterative_mode = true;
@@ -206,14 +215,30 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    velInv->SetPreconditioner(*velInvPC);
    velInv->SetPrintLevel(pl_velsolve);
    velInv->SetRelTol(rtol_velsolve);
-   velInv->SetMaxIter(200);
+   velInv->SetMaxIter(1200);
 
-   psiInvPC = new HypreSmoother(*psiOp.As<HypreParMatrix>());
-   dynamic_cast<HypreSmoother *>(psiInvPC)->SetType(HypreSmoother::Jacobi, 1);
-   SpInvOrthoPC = new OrthoSolver(vfes->GetComm());
-   SpInvOrthoPC->SetSolver(*psiInvPC);
+   if (partial_assembly)
+   {
+      int psifes_truevsize = psifes->GetTrueVSize();
+      mfem::Vector psin(psifes_truevsize);      psin = 0.0;
+      mfem::Vector respsi(psifes_truevsize);    respsi = 0.0;
 
-   psiInv = new CGSolver(vfes->GetComm());
+      lor = new ParLORDiscretization(*psiBForm, empty);
+      psiInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
+      psiInvPC->SetPrintLevel(0);
+      psiInvPC->Mult(respsi, psin);
+      SpInvOrthoPC = new OrthoSolver(psifes->GetComm());
+      SpInvOrthoPC->SetSolver(*psiInvPC);
+   }
+   else
+   {
+      psiInvPC = new HypreBoomerAMG(*psiOp.As<HypreParMatrix>());
+      psiInvPC->SetPrintLevel(0);
+      SpInvOrthoPC = new OrthoSolver(psifes->GetComm());
+      SpInvOrthoPC->SetSolver(*psiInvPC);
+   }
+
+   psiInv = new CGSolver(psifes->GetComm());
    psiInv->iterative_mode = true;
    psiInv->SetOperator(*psiOp);
    psiInv->SetPreconditioner(*SpInvOrthoPC);
@@ -221,18 +246,19 @@ void IncompressibleNavierSolver::Setup(real_t dt)
    psiInv->SetRelTol(rtol_psisolve);
    psiInv->SetMaxIter(1000);
 
-   //  mfem::SuperLURowLocMatrix SA(*psiOp.As<mfem::HypreParMatrix>());
-   //  mfem::SuperLUSolver ls(vfes->GetComm());
-   //  ls.SetPrintStatistics(false);
-   //  ls.SetSymmetricPattern(false);
-   //  //ls.SetColumnPermutation(mfem::superlu::METIS_AT_PLUS_A);
-   //  ls.SetOperator(SA);
-   //  ls.Mult(B, X);
+   if (partial_assembly)
+   {
+      Vector diag_pa(pfes->GetTrueVSize());
+      pBForm->AssembleDiagonal(diag_pa);
+      pInvPC = new OperatorJacobiSmoother(diag_pa, empty);
+   }
+   else
+   {
+      pInvPC = new HypreSmoother(*pOp.As<HypreParMatrix>());
+      dynamic_cast<HypreSmoother *>(pInvPC)->SetType(HypreSmoother::Jacobi, 1);
+   }
 
-   pInvPC = new HypreSmoother(*pOp.As<HypreParMatrix>());
-   dynamic_cast<HypreSmoother *>(pInvPC)->SetType(HypreSmoother::Jacobi, 1);
-
-   pInv = new CGSolver(vfes->GetComm());
+   pInv = new CGSolver(pfes->GetComm());
    pInv->iterative_mode = true;
    pInv->SetOperator(*pOp);
    pInv->SetPreconditioner(*pInvPC);
@@ -261,20 +287,7 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
    pUnitVectorCoeff->SetGridFunction( pGF[1] );
    nonlinTermCoeff->SetGridFunction( velGF[1] );
 
-   //-------------------------------------------------------------------------
-
    Array<int> empty;
-   // velBForm->Update();
-   // velBForm->Assemble();
-   // velBForm->FormSystemMatrix(vel_ess_tdof, vOp);
-
-   // psiBForm->Update();
-   // psiBForm->Assemble();
-   // psiBForm->FormSystemMatrix(vel_ess_tdof, psiOp);
-
-   // vpBForm->Update();
-   // vpBForm->Assemble();
-   // vpBForm->FormSystemMatrix(vel_ess_tdof, pOp);
 
    //-------------------------------------------------------------------------
 
@@ -288,7 +301,8 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
    Vector X3, B3;
    if (partial_assembly)
    {
-
+      auto *vpC = vOp.As<ConstrainedOperator>();
+      EliminateRHS(*velBForm, *vpC, vel_ess_tdof, *velGF[0], velLF, X1, B1, 1);
    }
    else
    {
@@ -310,7 +324,8 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
 
    if (partial_assembly)
    {
-
+      auto *psipC = psiOp.As<ConstrainedOperator>();
+      EliminateRHS(*psiBForm, *psipC, empty, psiGF, psiLF, X2, B2, 1);
    }
    else
    {
@@ -335,11 +350,12 @@ void IncompressibleNavierSolver::Step(real_t &time, real_t dt, int current_step,
 
    if (partial_assembly)
    {
-
+      auto *ppC = pOp.As<ConstrainedOperator>();
+      EliminateRHS(*pBForm, *ppC, empty, *pGF[0], pLF, X3, B3, 1);
    }
    else
    {
-      pBForm  ->FormLinearSystem(empty, *pGF[0], pLF, pOp, X3, B3, 1);
+      pBForm->FormLinearSystem(empty, *pGF[0], pLF, pOp, X3, B3, 1);
    }
 
    pInv->Mult(B3, X3);
@@ -425,7 +441,6 @@ void IncompressibleNavierSolver::AddVelDirichletBC(VecFuncT *f,
 
 IncompressibleNavierSolver::~IncompressibleNavierSolver()
 {
-
    delete velBForm;
    delete psiBForm;
    delete pBForm;
@@ -443,6 +458,15 @@ IncompressibleNavierSolver::~IncompressibleNavierSolver()
    delete divVelCoeff;
    delete pRHSCoeff;
    delete pUnitVectorCoeff;
+
+   delete velInv;
+   delete velInvPC;
+   delete psiInv;
+   delete SpInvOrthoPC;
+   delete psiInvPC;
+   delete lor;
+   delete pInv;
+   delete pInvPC;
 
    delete vfec;
    delete psifec;
