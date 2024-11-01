@@ -97,7 +97,8 @@ public:
    explicit inline Array(const CT (&values)[N]);
 
    /// Construct an Array from a braced initializer list of convertible type
-   template <typename CT>
+   template <typename CT, typename std::enable_if<
+                std::is_convertible<CT,T>::value,bool>::type = true>
    explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
@@ -673,7 +674,9 @@ inline Array<T>::Array(const Array<CT> &src)
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }
 
-template <typename T> template <typename CT>
+template <typename T>
+template <typename CT, typename std::enable_if<
+             std::is_convertible<CT,T>::value,bool>::type>
 inline Array<T>::Array(std::initializer_list<CT> values) : Array(values.size())
 {
    std::copy(values.begin(), values.end(), begin());
