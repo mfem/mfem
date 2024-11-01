@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//          -------------------------------------------------------
-//          LorentzPM Miniapp:  Simple Lorentz Force Particle Mover
-//          -------------------------------------------------------
+//           -----------------------------------------------------
+//           Lorentz Miniapp:  Simple Lorentz Force Particle Mover
+//           -----------------------------------------------------
 //
 // This miniapp computes the trajectory of a single charged particle subject to
 // Lorentz forces.
@@ -33,13 +33,13 @@
 // parallel format e.g. visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);.
 // Without this optional format specifier the vector field lookups will fail.
 //
-// Compile with: make lorentz_pm
+// Compile with: make lorentz
 //
 // Sample runs:
 //
 // ./volta -m bcc_16.mesh -dbcs 1 -cs '0 0 0 0.1 2e-11' -rs 2
 // ./tesla -m hex_prism_3.mesh -rs 2 -bm '0 0 -0.1 0 0 0.1 0.1 1e8'
-// ./lorentz_pm -x0 '-0.5 0.1 0.0' -p0 '0 0 0' -q -10 -tf 8 -dt 1e-3 -rf 1e-6
+// ./lorentz -x0 '-0.5 0.1 0.0' -p0 '0 0 0' -q -10 -tf 8 -dt 1e-3 -rf 1e-6
 //
 // This miniapp demonstrates the use of the ParMesh::FindPoints functionality
 // to evaluate field data from stored DataCollection objects.  While this
@@ -378,7 +378,7 @@ int main(int argc, char *argv[])
    Vector pos(x_init);
    Vector mom(p_init);
 
-   ofstream ofs("LorentzPM.dat");
+   ofstream ofs("Lorentz.dat");
    ofs.precision(14);
 
    int nsteps = (int)ceil(t_final - t_init) / dt;
@@ -448,7 +448,7 @@ int main(int argc, char *argv[])
 
       if (visit)
       {
-         VisItDataCollection visit_dc("LorentzPM", &trajectory);
+         VisItDataCollection visit_dc("Lorentz", &trajectory);
          visit_dc.RegisterField("Time", &traj_time);
          visit_dc.SetCycle(step);
          visit_dc.SetTime(step * dt);
@@ -471,19 +471,19 @@ int main(int argc, char *argv[])
    }
 }
 
-// Print the LorentzPM ascii logo to the given ostream
+// Print the Lorentz ascii logo to the given ostream
 void display_banner(ostream & os)
 {
-   os << "   ____                                __         __________  _____   "
+   os << "   ____                                __          "
       << endl
-      << "  |    |    ___________   ____   _____/  |________\\______   \\/     \\  "
+      << "  |    |    ___________   ____   _____/  |________\\"
       << endl
-      << "  |    |   /  _ \\_  __ \\_/ __ \\ /    \\   __\\___   /|     ___/  \\ /  \\ "
+      << "  |    |   /  _ \\_  __ \\_/ __ \\ /    \\   __\\___   /"
       << endl
-      << "  |    |__(  <_> )  | \\/\\  ___/|   |  \\  |  /    / |    |  /    Y    \\"
+      << "  |    |__(  <_> )  | \\/\\  ___/|   |  \\  |  /    / "
       << endl
-      << "  |_______ \\____/|__|    \\___  >___|  /__| /_____ \\|____|  \\____|__  /"
+      << "  |_______ \\____/|__|    \\___  >___|  /__| /_____ \\"
       << endl
-      << "          \\/                 \\/     \\/           \\/                \\/ "
+      << "          \\/                 \\/     \\/           \\/"
       << endl << flush;
 }
