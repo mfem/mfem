@@ -2788,6 +2788,9 @@ real_t HypreParMatrix::FNorm() const
    }
 #else
    {
+      // HYPRE_USING_GPU is not defined for
+      // MFEM_HYPRE_VERSION < 22100 and so here it is
+      // guaranteed that the matrix is in "host" memory
       Vector Avec_diag(A->diag->data, A->diag->num_nonzeros);
       real_t normsqr_fro = InnerProduct(Avec_diag, Avec_diag);
       Vector Avec_offd(A->offd->data, A->offd->num_nonzeros);
