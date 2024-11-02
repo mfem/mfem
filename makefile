@@ -429,8 +429,8 @@ DIRS = general linalg linalg/simd linalg/batched mesh mesh/submesh fem \
        fem/ceed/interface fem/ceed/integrators/mass \
        fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
        fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
-       fem/qinterp fem/integ fem/tmop \
-		 fem/tmop/metrics
+       fem/qinterp fem/integ \
+	   fem/tmop fem/tmop/mult fem/tmop/setup fem/tmop/tools
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -789,7 +789,8 @@ FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
 FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
-COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
+COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp' \
+'^general/debug\.hpp' '^fem/kernel_dispatchT\.hpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
