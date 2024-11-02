@@ -205,11 +205,11 @@ int main(int argc, char *argv[])
    // 6. Set up the nonlinear form with euler flux and numerical flux
    EulerFlux flux(dim, specific_heat_ratio);
 
-   RiemannSolver *rsolver = NULL;
+   unique_ptr<RiemannSolver> rsolver;
    switch (rsolver_type)
    {
-      case 1: rsolver = new RusanovFlux(flux); break;
-      case 2: rsolver = new GodunovFlux(flux); break;
+      case 1: rsolver.reset(new RusanovFlux(flux)); break;
+      case 2: rsolver.reset(new GodunovFlux(flux)); break;
       default:
          cout << "Unknown Riemann solver type: " << rsolver_type << '\n';
          return 3;
@@ -360,9 +360,6 @@ int main(int argc, char *argv[])
    {
       cout << "Solution error: " << error << endl;
    }
-
-   // Free the used memory.
-   delete rsolver;
 
    return 0;
 }

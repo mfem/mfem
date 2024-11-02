@@ -177,11 +177,11 @@ int main(int argc, char *argv[])
    // 6. Set up the nonlinear form with euler flux and numerical flux
    EulerFlux flux(dim, specific_heat_ratio);
 
-   RiemannSolver *rsolver = NULL;
+   unique_ptr<RiemannSolver> rsolver;
    switch (rsolver_type)
    {
-      case 1: rsolver = new RusanovFlux(flux); break;
-      case 2: rsolver = new GodunovFlux(flux);
+      case 1: rsolver.reset(new RusanovFlux(flux)); break;
+      case 2: rsolver.reset(new GodunovFlux(flux));
          cout << "Warning: Godunov flux is implemented only component-wise." << endl;
          break;
       default:
@@ -306,9 +306,6 @@ int main(int argc, char *argv[])
    // 10. Compute the L2 solution error summed for all components.
    const real_t error = sol.ComputeLpError(2, u0);
    cout << "Solution error: " << error << endl;
-
-   // Free the used memory.
-   delete rsolver;
 
    return 0;
 }
