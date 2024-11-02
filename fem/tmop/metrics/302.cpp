@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../kernel_dispatch.hpp"
+
 #include "../pa.hpp"
 #include "../mult/p3.hpp"
 #include "../setup/h3s.hpp"
@@ -89,14 +91,50 @@ struct TMOP_PA_Metric_302 : TMOP_PA_Metric_3D
    }
 };
 
-void TMOPAssembleGradPA_302(TMOPSetupGradPA3D &ker)
+using metric_t = TMOP_PA_Metric_302;
+using mult_t = TMOPAddMultPA3D;
+using setup_t = TMOPSetupGradPA3D;
+
+using setup = func_t<setup_t>;
+using mult = func_t<mult_t>;
+
+// TMOP PA Setup, metric: 302
+MFEM_REGISTER_KERNELS(S302, setup, (int, int));
+
+template <int D, int Q>
+setup S302::Kernel()
 {
-   TMOPKernelLaunch<TMOP_PA_Metric_302>(ker);
+   return setup_t::Mult<metric_t, D, Q>;
 }
 
-void TMOPAddMultPA_302(TMOPAddMultPA3D &ker)
+setup S302::Fallback(int, int) { return setup_t::Mult<metric_t>; }
+
+template <>
+void TMOPKernel<302>(setup_t &ker)
 {
-   TMOPKernelLaunch<TMOP_PA_Metric_302>(ker);
+   const static auto setup_kernels = []
+   { return KernelSpecializations<S302>(); }();
+   S302::Run(ker.Ndof(), ker.Nqpt(), ker);
+}
+
+// TMOP PA Mult, metric: 302
+
+MFEM_REGISTER_KERNELS(K302, mult, (int, int));
+
+template <int D, int Q>
+mult K302::Kernel()
+{
+   return mult_t::Mult<metric_t, D, Q>;
+}
+
+mult K302::Fallback(int, int) { return mult_t::Mult<metric_t>; }
+
+template <>
+void TMOPKernel<302>(mult_t &ker)
+{
+   const static auto mult_kernels = []
+   { return KernelSpecializations<K302>(); }();
+   K302::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 
 } // namespace mfem

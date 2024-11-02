@@ -93,7 +93,8 @@ setup S007::Fallback(int, int) { return setup_t::Mult<metric_t>; }
 template <>
 void TMOPKernel<7>(setup_t &ker)
 {
-   const static auto setup_kernels = [] { return TMOPAdd<S007>(); }();
+   const static auto setup_kernels = []
+   { return KernelSpecializations<S007>(); }();
    S007::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 
@@ -112,7 +113,8 @@ mult K007::Fallback(int, int) { return mult_t::Mult<metric_t>; }
 template <>
 void TMOPKernel<7>(mult_t &ker)
 {
-   const static auto mult_kernels = [] { return TMOPAdd<K007>(); }();
+   const static auto mult_kernels = []
+   { return KernelSpecializations<K007>(); }();
    K007::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 

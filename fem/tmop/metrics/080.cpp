@@ -91,7 +91,8 @@ setup S080::Fallback(int, int) { return setup_t::Mult<metric_t>; }
 template <>
 void TMOPKernel<80>(setup_t &ker)
 {
-   const static auto setup_kernels = [] { return TMOPAdd<S080>(); }();
+   const static auto setup_kernels = []
+   { return KernelSpecializations<S080>(); }();
    S080::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 
@@ -110,7 +111,8 @@ mult K080::Fallback(int, int) { return mult_t::Mult<metric_t>; }
 template <>
 void TMOPKernel<80>(mult_t &ker)
 {
-   const static auto mult_kernels = [] { return TMOPAdd<K080>(); }();
+   const static auto mult_kernels = []
+   { return KernelSpecializations<K080>(); }();
    K080::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 

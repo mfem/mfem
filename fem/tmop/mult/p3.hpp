@@ -36,8 +36,9 @@ public:
    int Nqpt() const { return ti->PA.maps->nqpt; }
 
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-   void operator()()
+   static void Mult(TMOPAddMultPA3D &ker)
    {
+      const mfem::TMOP_Integrator *ti = ker.ti;
       constexpr int DIM = 3;
       const real_t metric_normal = ti->metric_normal;
       const int NE = ti->PA.ne, d = ti->PA.maps->ndof, q = ti->PA.maps->nqpt;
@@ -53,8 +54,8 @@ public:
       const auto W = Reshape(ti->PA.ir->GetWeights().Read(), q, q, q);
       const auto B = Reshape(ti->PA.maps->B.Read(), q, d);
       const auto G = Reshape(ti->PA.maps->G.Read(), q, d);
-      const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
-      auto Y = Reshape(y.ReadWrite(), d, d, d, DIM, NE);
+      const auto X = Reshape(ker.x.Read(), d, d, d, DIM, NE);
+      auto Y = Reshape(ker.y.ReadWrite(), d, d, d, DIM, NE);
 
       const int Q1D = T_Q1D ? T_Q1D : q;
 

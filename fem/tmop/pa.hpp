@@ -66,52 +66,26 @@ struct TMOP_PA_Metric_3D
              const DeviceTensor<5 + DIM> &H) const = 0;
 };
 
-template <typename M /* metric */, typename K /* kernel */>
-static void TMOPKernelLaunch(K &ker)
+template <typename Kernel>
+int KernelSpecializations()
 {
-   const int d = ker.Ndof(), q = ker.Nqpt();
+   Kernel::template Specialization<2, 2>::Add();
+   Kernel::template Specialization<2, 3>::Add();
+   Kernel::template Specialization<2, 4>::Add();
+   Kernel::template Specialization<2, 5>::Add();
+   Kernel::template Specialization<2, 6>::Add();
 
-   if (d == 2 && q == 2) { return ker.template operator()<M, 2, 2>(); }
-   if (d == 2 && q == 3) { return ker.template operator()<M, 2, 3>(); }
-   if (d == 2 && q == 4) { return ker.template operator()<M, 2, 4>(); }
-   if (d == 2 && q == 5) { return ker.template operator()<M, 2, 5>(); }
-   if (d == 2 && q == 6) { return ker.template operator()<M, 2, 6>(); }
+   Kernel::template Specialization<3, 3>::Add();
+   Kernel::template Specialization<3, 4>::Add();
+   Kernel::template Specialization<3, 5>::Add();
+   Kernel::template Specialization<3, 6>::Add();
 
-   if (d == 3 && q == 3) { return ker.template operator()<M, 3, 3>(); }
-   if (d == 3 && q == 4) { return ker.template operator()<M, 3, 4>(); }
-   if (d == 3 && q == 5) { return ker.template operator()<M, 3, 5>(); }
-   if (d == 3 && q == 6) { return ker.template operator()<M, 3, 6>(); }
+   Kernel::template Specialization<4, 4>::Add();
+   Kernel::template Specialization<4, 5>::Add();
+   Kernel::template Specialization<4, 6>::Add();
 
-   if (d == 4 && q == 4) { return ker.template operator()<M, 4, 4>(); }
-   if (d == 4 && q == 5) { return ker.template operator()<M, 4, 5>(); }
-   if (d == 4 && q == 6) { return ker.template operator()<M, 4, 6>(); }
-
-   if (d == 5 && q == 5) { return ker.template operator()<M, 5, 5>(); }
-   if (d == 5 && q == 6) { return ker.template operator()<M, 5, 6>(); }
-
-   ker.template operator()<M, 0, 0>();
-}
-
-template <typename K>
-int TMOPAdd()
-{
-   K::template Specialization<2, 2>::Add();
-   K::template Specialization<2, 3>::Add();
-   K::template Specialization<2, 4>::Add();
-   K::template Specialization<2, 5>::Add();
-   K::template Specialization<2, 6>::Add();
-
-   K::template Specialization<3, 3>::Add();
-   K::template Specialization<3, 4>::Add();
-   K::template Specialization<3, 5>::Add();
-   K::template Specialization<3, 6>::Add();
-
-   K::template Specialization<4, 4>::Add();
-   K::template Specialization<4, 5>::Add();
-   K::template Specialization<4, 6>::Add();
-
-   K::template Specialization<5, 5>::Add();
-   K::template Specialization<5, 6>::Add();
+   Kernel::template Specialization<5, 5>::Add();
+   Kernel::template Specialization<5, 6>::Add();
    return 0;
 }
 

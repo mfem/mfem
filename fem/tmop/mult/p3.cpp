@@ -9,18 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../pa.hpp"
 #include "p3.hpp"
 
 namespace mfem
 {
-
-extern void TMOPAddMultPA_302(TMOPAddMultPA3D &ker);
-extern void TMOPAddMultPA_303(TMOPAddMultPA3D &ker);
-extern void TMOPAddMultPA_315(TMOPAddMultPA3D &ker);
-extern void TMOPAddMultPA_318(TMOPAddMultPA3D &ker);
-extern void TMOPAddMultPA_321(TMOPAddMultPA3D &ker);
-extern void TMOPAddMultPA_332(TMOPAddMultPA3D &ker);
-extern void TMOPAddMultPA_338(TMOPAddMultPA3D &ker);
 
 void TMOP_Integrator::AddMultPA_3D(const Vector &x, Vector &y) const
 {
@@ -28,13 +21,13 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &x, Vector &y) const
 
    TMOPAddMultPA3D ker(this, x, y);
 
-   if (mid == 302) { return TMOPAddMultPA_302(ker); }
-   if (mid == 303) { return TMOPAddMultPA_303(ker); }
-   if (mid == 315) { return TMOPAddMultPA_315(ker); }
-   if (mid == 318) { return TMOPAddMultPA_318(ker); }
-   if (mid == 321) { return TMOPAddMultPA_321(ker); }
-   if (mid == 332) { return TMOPAddMultPA_332(ker); }
-   if (mid == 338) { return TMOPAddMultPA_338(ker); }
+   if (mid == 302) { return TMOPKernel<302>(ker); }
+   if (mid == 303) { return TMOPKernel<303>(ker); }
+   if (mid == 315) { return TMOPKernel<315>(ker); }
+   if (mid == 318) { return TMOPKernel<318>(ker); }
+   if (mid == 321) { return TMOPKernel<321>(ker); }
+   if (mid == 332) { return TMOPKernel<332>(ker); }
+   if (mid == 338) { return TMOPKernel<338>(ker); }
 
    MFEM_ABORT("Unsupported TMOP metric " << mid);
 }
