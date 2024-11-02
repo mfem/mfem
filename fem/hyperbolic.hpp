@@ -68,6 +68,9 @@ public:
    /**
     * @brief Compute flux. Must be implemented in a derived class.
     *
+    * Used in HyperbolicFormIntegrator::AssembleElementVector() for evaluation
+    * of the convective flux in an element and in the default implementation
+    * of ComputeFluxDotN().
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
     * @param[out] flux flux from the given element at the current
@@ -82,6 +85,7 @@ public:
     * @brief Compute normal flux. Optionally overloaded in a derived class to
     * avoid creating a full dense matrix for flux.
     *
+    * Used in RiemannSolver for evaluation of the normal flux on a face.
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
@@ -101,6 +105,8 @@ public:
     * u ∈ [u1,u2], where u1 is the first state (@a state1) and the u2 the
     * second state (@a state2), while F(u) is the flux as defined in
     * ComputeFlux().
+    *
+    * Used in the default implementation of ComputeAvgFluxDotN().
     * @param[in] state1 state of the beginning of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
     * @param[in] Tr element transformation
@@ -121,6 +127,9 @@ public:
     * for u ∈ [u1,u2], where u1 is the first state (@a state1) and the u2 the
     * second state (@a state2), while n is the normal and F(u) is the flux as
     * defined in ComputeFlux().
+    *
+    * Used in RiemannSolver::Average() and RiemannSolver::AverageGrad() for
+    * evaluation of the average normal flux on a face.
     * @param[in] state1 state of the beginning of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
     * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
@@ -138,6 +147,9 @@ public:
     * @brief Compute flux Jacobian. Optionally overloaded in a derived class
     * when Jacobian is necessary (e.g. Newton iteration, flux limiter)
     *
+    * Used in HyperbolicFormIntegrator::AssembleElementGrad() for evaluation of
+    * Jacobian of the flux in an element and in the default implementation of
+    * ComputeFluxJacobianDotN().
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
     * @param[out] J_ flux Jacobian, $ J(i,j,d) = dF_{id} / du_j $
@@ -151,6 +163,8 @@ public:
     * @brief Compute normal flux Jacobian. Optionally overloaded in a derived
     * class to avoid creating a full dense tensor for Jacobian.
     *
+    * Used in RiemannSolver for evaluation of Jacobian of the normal flux on
+    * a face.
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr element transformation
@@ -184,6 +198,8 @@ public:
     * @brief Evaluates normal numerical flux for the given states and normal.
     * Must be implemented in a derived class.
     *
+    * Used in HyperbolicFormIntegrator::AssembleFaceVector() for the convective
+    * term at the face.
     * @param[in] state1 state value at a point from the first element
     * (num_equations)
     * @param[in] state2 state value at a point from the second element
@@ -201,6 +217,8 @@ public:
     * @brief Evaluates Jacobian of the normal numerical flux for the given
     * states and normal. Optionally overloaded in a derived class.
     *
+    * Used in HyperbolicFormIntegrator::AssembleFaceGrad() for Jacobian
+    * of the convective term at the face.
     * @param[in] side indicates gradient w.r.t. the first (side = 1)
     * or second (side = 2) state
     * @param[in] state1 state value of the beginning of the interval
@@ -221,6 +239,7 @@ public:
     * the given end states in the second argument and for the given normal.
     * Optionally overloaded in a derived class.
     *
+    * Presently, not used. Reserved for future use.
     * @param[in] state1 state value of the beginning of the interval
     * (num_equations)
     * @param[in] state2 state value of the end of the interval
@@ -240,6 +259,7 @@ public:
     * interval between the given end states in the second argument and for the
     * given normal. Optionally overloaded in a derived class.
     *
+    * Presently, not used. Reserved for future use.
     * @param[in] side indicates gradient w.r.t. the first (side = 1)
     * or second (side = 2) state
     * @param[in] state1 state value of the beginning of the interval
