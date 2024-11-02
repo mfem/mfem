@@ -12,6 +12,9 @@
 // Internal header, included only by .cpp files.
 // Template function implementations.
 
+#ifndef MFEM_QUADINTERP_GRAD
+#define MFEM_QUADINTERP_GRAD
+
 #include "../quadinterpolator.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
@@ -29,6 +32,7 @@ namespace quadrature_interpolator
 
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
 static void Derivatives1D(const int NE,
+                          const real_t *b_,
                           const real_t *g_,
                           const real_t *j_,
                           const real_t *x_,
@@ -38,6 +42,7 @@ static void Derivatives1D(const int NE,
                           const int d1d,
                           const int q1d)
 {
+   MFEM_CONTRACT_VAR(b_);
    const auto g = Reshape(g_, q1d, d1d);
    const auto j = Reshape(j_, q1d, sdim, NE);
    const auto x = Reshape(x_, d1d, vdim, NE);
@@ -232,6 +237,7 @@ static void Derivatives3D(const int NE,
                           const real_t *j_,
                           const real_t *x_,
                           real_t *y_,
+                          const int sdim = 3,
                           const int vdim = 0,
                           const int d1d = 0,
                           const int q1d = 0)
@@ -370,4 +376,21 @@ static void Derivatives3D(const int NE,
 
 } // namespace internal
 
+/// @cond Suppress_Doxygen_warnings
+
+template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
+         int VDIM, int D1D, int Q1D, int NBZ>
+QuadratureInterpolator::GradKernelType
+QuadratureInterpolator::GradKernels::Kernel()
+{
+   if (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D, NBZ>; }
+   else if (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+/// @endcond
+
 } // namespace mfem
+
+#endif
