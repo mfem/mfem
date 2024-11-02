@@ -37,6 +37,17 @@
 //
 // Sample runs:
 //
+//   Free particle moving with constant velocity
+//      lorentz -p0 '1 1 1'
+//
+//   Particle accelerating in a constant electric field
+//      volta -m ../../data/inline-hex.mesh -dbcs '1 6' -dbcv '0 1'
+//      lorentz -er Volta-AMR-Parallel -x0 '0.5 0.5 0.9' -p0 '1 0 0'
+//
+//   Particle accelerating in a constant magnetic field
+//      tesla -m ../../data/inline-hex.mesh -ubbc '0 0 1'
+//      lorentz -br Tesla-AMR-Parallel -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.1' -tf 9
+//
 // ./volta -m bcc_16.mesh -dbcs 1 -cs '0 0 0 0.1 2e-11' -rs 2
 // ./tesla -m hex_prism_3.mesh -rs 2 -bm '0 0 -0.1 0 0 0.1 0.1 1e8'
 // ./lorentz -x0 '-0.5 0.1 0.0' -p0 '0 0 0' -q -10 -tf 8 -dt 1e-3 -rf 1e-6
@@ -60,48 +71,76 @@ using namespace mfem::common;
 using namespace mfem::electromagnetics;
 
 typedef DataCollection::FieldMapType fields_t;
-/*
-// Background Electric field
-static Vector e_dir({1.0, 0.0, 0.0});
-static real_t e_mag = 1.0;
-void background_e(const Vector &x, Vector &E)
-{
-   E = e_dir;
-   E *= e_mag;
-}
 
-// Background Electric field
-static Vector b_dir({0.0, 0.0, 1.0});
-static real_t b_mag = 10.0;
-void background_b(const Vector &x, Vector &B)
-{
-   B = b_dir;
-   B *= b_mag;
-}
-*/
 class BorisAlgorithm
 {
 private:
    real_t charge_;
    real_t mass_;
 
-   ParMesh *E_pmesh_;
+   ParMesh         *E_pmesh_;
    ParGridFunction *E_field_;
 
-   ParMesh *B_pmesh_;
+   ParMesh         *B_pmesh_;
    ParGridFunction *B_field_;
 
-   mutable Array<int> E_elem_id_;
-   mutable Array<IntegrationPoint> E_ip_;
-
-   mutable Array<int> B_elem_id_;
-   mutable Array<IntegrationPoint> B_ip_;
+   mutable Array<int>              elem_id_;
+   mutable Array<IntegrationPoint> ip_;
 
    mutable Vector E_;
    mutable Vector B_;
    mutable Vector pxB_;
    mutable Vector pm_;
    mutable Vector pp_;
+
+   // Returns true if a usable V has been found. If @a pgf is NULL, V = 0 is
+   // returned as a default value.
+   bool GetValue(ParMesh *pmesh, ParGridFunction *pgf, Vector q, Vector &V)
+   {
+      DenseMatrix point(q.GetData(), 3, 1);
+
+      int pt_found =
+         (pmesh != NULL) ? pmesh->FindPoints(point, elem_id_, ip_, false) : -1;
+
+      // We have a mesh but the point was not found. The path must be outside
+      // the domain of interest.
+      if (pmesh != NULL && pt_found <= 0) { return false; }
+
+      int pt_root = -1;
+
+      if (pt_found > 0 && elem_id_[0] >= 0 && pgf != NULL)
+      {
+         pt_root = pmesh->GetMyRank();
+
+         pgf->GetVectorValue(elem_id_[0], ip_[0], V);
+      }
+      else
+      {
+         pt_root = 0;
+         V = 0.0;
+      }
+
+      // Determine processor which found the field point
+      int glb_pt_root = -1;
+      MPI_Allreduce(&pt_root, &glb_pt_root, 1,
+                    MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+      // Send the field value to the root processor
+      if (pmesh != NULL && elem_id_[0] >= 0 && glb_pt_root != 0)
+      {
+         MPI_Send(V.GetData(), 3, MPITypeMap<real_t>::mpi_type,
+                  0, 1030, MPI_COMM_WORLD);
+      }
+
+      // Receive the field value on the root processor
+      if (Mpi::Root() && pmesh != NULL && glb_pt_root != 0)
+      {
+         MPI_Status status;
+         MPI_Recv(V.GetData(), 3, MPITypeMap<real_t>::mpi_type,
+                  glb_pt_root, 1030, MPI_COMM_WORLD, &status);
+      }
+      return true;
+   }
 
 public:
    BorisAlgorithm(ParGridFunction *E_gf,
@@ -112,83 +151,20 @@ public:
         B_field_(B_gf),
         E_(3), B_(3), pxB_(3), pm_(3), pp_(3)
    {
-      E_pmesh_ = E_field_->ParFESpace()->GetParMesh();
-      B_pmesh_ = B_field_->ParFESpace()->GetParMesh();
+      E_pmesh_ = (E_field_) ? E_field_->ParFESpace()->GetParMesh() : NULL;
+      B_pmesh_ = (B_field_) ? B_field_->ParFESpace()->GetParMesh() : NULL;
    }
 
    bool Step(Vector &q, Vector &p, real_t &t, real_t &dt)
    {
-      DenseMatrix point(q.GetData(), 3, 1);
+      // Locate current point in each mesh, evaluate the fields, and collect
+      // field values on the root processor.
+      if (!GetValue(E_pmesh_, E_field_, q, E_)) { return false; }
+      if (!GetValue(B_pmesh_, B_field_, q, B_)) { return false; }
 
-      int E_pt_found = (E_pmesh_ != NULL) ?
-                       E_pmesh_->FindPoints(point, E_elem_id_, E_ip_, false) : -1;
-
-      int B_pt_found = (B_pmesh_ != NULL) ?
-                       B_pmesh_->FindPoints(point, B_elem_id_, B_ip_, false) : -1;
-
-      if (E_pt_found <= 0 || B_pt_found <= 0) { return false; }
-
-      int E_pt_root = -1;
-
-      if (E_pt_found > 0 && E_elem_id_[0] >= 0 && E_field_ != NULL)
-      {
-         E_pt_root = E_pmesh_->GetMyRank();
-
-         E_field_->GetVectorValue(E_elem_id_[0], E_ip_[0], E_);
-      }
-      else
-      {
-         E_pt_root = 0;
-         E_ = 0.0;
-      }
-
-      // Determine processor which found the E field point
-      int glb_E_pt_root = -1;
-      MPI_Allreduce(&E_pt_root, &glb_E_pt_root, 1,
-                    MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-
-      if (E_elem_id_[0] >= 0)
-      {
-         MPI_Send(E_.GetData(), 3, MPITypeMap<real_t>::mpi_type,
-                  0, 1030, MPI_COMM_WORLD);
-      }
-
-      int B_pt_root = -1;
-
-      if (B_pt_found > 0 && B_elem_id_[0] >= 0 && B_field_ != NULL)
-      {
-         B_pt_root = B_pmesh_->GetMyRank();
-
-         B_field_->GetVectorValue(B_elem_id_[0], B_ip_[0], B_);
-      }
-      else
-      {
-         B_pt_root = 0;
-         B_ = 0.0;
-      }
-
-      // Determine processor which found the B field point
-      int glb_B_pt_root = -1;
-      MPI_Allreduce(&B_pt_root, &glb_B_pt_root, 1,
-                    MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-
-      if (B_elem_id_[0] >= 0)
-      {
-         MPI_Send(B_.GetData(), 3, MPITypeMap<real_t>::mpi_type,
-                  0, 1031, MPI_COMM_WORLD);
-      }
-
+      // Compute updated position and momentum using the Boris algorithm
       if (Mpi::Root())
       {
-         // Collect E and B from the processors which found them
-         MPI_Status E_status, B_status;
-
-         MPI_Recv(E_.GetData(), 3, MPITypeMap<real_t>::mpi_type,
-                  glb_E_pt_root, 1030, MPI_COMM_WORLD, &E_status);
-
-         MPI_Recv(B_.GetData(), 3, MPITypeMap<real_t>::mpi_type,
-                  glb_B_pt_root, 1031, MPI_COMM_WORLD, &B_status);
-
          // Compute half of the contribution from q E
          add(p, 0.5 * dt * charge_, E_, pm_);
 
@@ -201,7 +177,8 @@ public:
          pp_.Set(a1, pxB_);
 
          // ... along pm
-         const real_t a2 = 4.0 * mass_ * mass_ - dt * dt * charge_ * charge_ * B2;
+         const real_t a2 = 4.0 * mass_ * mass_ -
+                           dt * dt * charge_ * charge_ * B2;
          pp_.Add(a2, pm_);
 
          // ... along B
@@ -209,7 +186,8 @@ public:
          pp_.Add(a3, B_);
 
          // scale by common denominator
-         const real_t a4 = 4.0 * mass_ * mass_ + dt * dt * charge_ * charge_ * B2;
+         const real_t a4 = 4.0 * mass_ * mass_ +
+                           dt * dt * charge_ * charge_ * B2;
          pp_ /= a4;
 
          // Update the momentum
@@ -270,10 +248,10 @@ int main(int argc, char *argv[])
 
    real_t q = 1.0;
    real_t m = 1.0;
-   real_t dt = 1e-3;
+   real_t dt = 1e-2;
    real_t t_init = 0.0;
    real_t t_final = 1.0;
-   real_t r_factor = 1.0;
+   real_t r_factor = -1.0;
    Vector x_init;
    Vector p_init;
    int visport = 19916;
@@ -333,6 +311,10 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   if (r_factor <= 0.0)
+   {
+     r_factor = dt;
+   }
    if (Mpi::Root())
    {
       args.PrintOptions(cout);
@@ -372,6 +354,11 @@ int main(int argc, char *argv[])
    {
       p_init.SetSize(3); p_init = 0.0;
    }
+   if (Mpi::Root())
+   {
+      mfem::out << "Initial position: "; x_init.Print(mfem::out);
+      mfem::out << "Initial momentum: "; p_init.Print(mfem::out);
+   }
 
    BorisAlgorithm boris(E_gf, B_gf, q, m);
    Vector pos(x_init);
@@ -380,13 +367,16 @@ int main(int argc, char *argv[])
    ofstream ofs("Lorentz.dat");
    ofs.precision(14);
 
-   int nsteps = (int)ceil(t_final - t_init) / dt;
+   int nsteps = 1 + (int)ceil(t_final - t_init) / dt;
    DenseMatrix pos_data(3, nsteps);
    DenseMatrix mom_data(3, nsteps + 1);
-   mom_data(0, 0) = p_init(0);
-   mom_data(1, 0) = p_init(1);
-   mom_data(2, 0) = p_init(2);
+   mom_data.SetCol(0, p_init);
 
+   if (Mpi::Root())
+   {
+     mfem::out << "Maximum number of steps: " << nsteps << endl;
+   }
+   
    int step = -1;
    real_t t = t_init;
    do
@@ -399,13 +389,11 @@ int main(int argc, char *argv[])
              << '\n';
       }
       step++;
-      for (int d=0; d<3; d++)
-      {
-         pos_data(d, step) = pos[d];
-         mom_data(d, step + 1) = mom[d];
-      }
+
+      pos_data.SetCol(step, pos);
+      mom_data.SetCol(step + 1, mom);
    }
-   while (boris.Step(pos, mom, t, dt) && t <= t_final);
+   while (boris.Step(pos, mom, t, dt) && step < nsteps - 1);
 
    if (Mpi::Root() && (visit || visualization))
    {
@@ -415,13 +403,13 @@ int main(int argc, char *argv[])
       {
          trajectory.AddVertex(pos_data(0,i), pos_data(1,i), pos_data(2,i));
 
-         real_t dpx = r_factor * (mom_data(0, i + 1) - mom_data(0, i)) / (m * dt);
-         real_t dpy = r_factor * (mom_data(1, i + 1) - mom_data(1, i)) / (m * dt);
-         real_t dpz = r_factor * (mom_data(2, i + 1) - mom_data(2, i)) / (m * dt);
+         real_t dpx = (mom_data(0, i + 1) - mom_data(0, i)) / (m * dt);
+         real_t dpy = (mom_data(1, i + 1) - mom_data(1, i)) / (m * dt);
+         real_t dpz = (mom_data(2, i + 1) - mom_data(2, i)) / (m * dt);
 
-         trajectory.AddVertex(pos_data(0,i) + dpx,
-                              pos_data(1,i) + dpy,
-                              pos_data(2,i) + dpz);
+         trajectory.AddVertex(pos_data(0,i) + r_factor * dpx,
+                              pos_data(1,i) + r_factor * dpy,
+                              pos_data(2,i) + r_factor * dpz);
       }
 
       int v[4];
