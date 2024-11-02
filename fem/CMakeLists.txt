@@ -120,6 +120,14 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop/pa.cpp
+  tmop/assemble/h2d.cpp
+  tmop/assemble/h2d_c0.cpp
+  tmop/assemble/grad2d.cpp
+  tmop/assemble/h2s_c0.cpp
+  tmop/assemble/h3d.cpp
+  tmop/assemble/h3d_c0.cpp  
+  tmop/assemble/h3s.cpp
+  tmop/assemble/h3s_c0.cpp
   tmop/metrics/001.cpp
   tmop/metrics/002.cpp
   tmop/metrics/002.cpp
@@ -143,14 +151,6 @@ set(SRCS
   tmop/mult/p2_c0.cpp
   tmop/mult/p3.cpp
   tmop/mult/p3_c0.cpp
-  tmop/setup/h2d.cpp
-  tmop/setup/h2d_c0.cpp
-  tmop/setup/h2s.cpp
-  tmop/setup/h2s_c0.cpp
-  tmop/setup/h3d.cpp
-  tmop/setup/h3d_c0.cpp  
-  tmop/setup/h3s.cpp
-  tmop/setup/h3s_c0.cpp
   tmop/tools/da3.cpp
   tmop/tools/jp2.cpp
   tmop/tools/jp3.cpp
@@ -258,10 +258,10 @@ set(HDRS
   tintrules.hpp
   tmop.hpp
   tmop/pa.hpp
+  tmop/assemble/h2s.hpp
+  tmop/assemble/h3s.hpp
   tmop/mult/p2.hpp
   tmop/mult/p3.hpp
-  tmop/setup/h2s.hpp
-  tmop/setup/h3s.hpp
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp

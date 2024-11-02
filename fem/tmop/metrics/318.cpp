@@ -13,7 +13,7 @@
 
 #include "../pa.hpp"
 #include "../mult/p3.hpp"
-#include "../setup/h3s.hpp"
+#include "../assemble/h3s.hpp"
 
 namespace mfem
 {
