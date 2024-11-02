@@ -9,7 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../pa.hpp"
 #include "../../../tmop.hpp"
+#include "../../../kernel_dispatch.hpp"
 #include "../../../../general/forall.hpp"
 
 namespace mfem
@@ -71,6 +73,21 @@ void TMOP_AssembleDiagonalPA_C0_2D(const int NE,
    });
 }
 
+using kernel_t = decltype(&TMOP_AssembleDiagonalPA_C0_2D<>);
+
+MFEM_REGISTER_KERNELS(TMOPAssembleDiagonalCoefKernels, kernel_t, (int, int));
+
+template <int D, int Q>
+kernel_t TMOPAssembleDiagonalCoefKernels::Kernel()
+{
+   return TMOP_AssembleDiagonalPA_C0_2D<D, Q>;
+}
+
+kernel_t TMOPAssembleDiagonalCoefKernels::Fallback(int, int)
+{
+   return TMOP_AssembleDiagonalPA_C0_2D<>;
+}
+
 void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
 {
    constexpr int DIM = 2;
@@ -80,28 +97,10 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
    const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, NE);
    auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
 
-   decltype(&TMOP_AssembleDiagonalPA_C0_2D<>) ker =
-      TMOP_AssembleDiagonalPA_C0_2D;
+   const static auto specialized_kernels = []
+   { return KernelSpecializations<TMOPAssembleDiagonalCoefKernels>(); }();
 
-   if (d == 2 && q == 2) { ker = TMOP_AssembleDiagonalPA_C0_2D<2, 2>; }
-   if (d == 2 && q == 3) { ker = TMOP_AssembleDiagonalPA_C0_2D<2, 3>; }
-   if (d == 2 && q == 4) { ker = TMOP_AssembleDiagonalPA_C0_2D<2, 4>; }
-   if (d == 2 && q == 5) { ker = TMOP_AssembleDiagonalPA_C0_2D<2, 5>; }
-   if (d == 2 && q == 6) { ker = TMOP_AssembleDiagonalPA_C0_2D<2, 6>; }
-
-   if (d == 3 && q == 3) { ker = TMOP_AssembleDiagonalPA_C0_2D<3, 3>; }
-   if (d == 3 && q == 4) { ker = TMOP_AssembleDiagonalPA_C0_2D<3, 4>; }
-   if (d == 3 && q == 5) { ker = TMOP_AssembleDiagonalPA_C0_2D<3, 5>; }
-   if (d == 3 && q == 6) { ker = TMOP_AssembleDiagonalPA_C0_2D<3, 6>; }
-
-   if (d == 4 && q == 4) { ker = TMOP_AssembleDiagonalPA_C0_2D<4, 4>; }
-   if (d == 4 && q == 5) { ker = TMOP_AssembleDiagonalPA_C0_2D<4, 5>; }
-   if (d == 4 && q == 6) { ker = TMOP_AssembleDiagonalPA_C0_2D<4, 6>; }
-
-   if (d == 5 && q == 5) { ker = TMOP_AssembleDiagonalPA_C0_2D<5, 5>; }
-   if (d == 5 && q == 6) { ker = TMOP_AssembleDiagonalPA_C0_2D<5, 6>; }
-
-   ker(NE, B, H0, D, d, q, 4);
+   TMOPAssembleDiagonalCoefKernels::Run(d, q, NE, B, H0, D, d, q, 4);
 }
 
 } // namespace mfem

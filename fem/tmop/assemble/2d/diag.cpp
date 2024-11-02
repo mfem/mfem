@@ -9,7 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../pa.hpp"
 #include "../../../tmop.hpp"
+#include "../../../kernel_dispatch.hpp"
 #include "../../../../general/forall.hpp"
 #include "../../../../linalg/kernels.hpp"
 
@@ -167,6 +169,21 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
    });
 }
 
+using kernel_t = decltype(&TMOP_AssembleDiagonalPA_2D<>);
+
+MFEM_REGISTER_KERNELS(TMOPAssembleDiag2D, kernel_t, (int, int));
+
+template <int D, int Q>
+kernel_t TMOPAssembleDiag2D::Kernel()
+{
+   return TMOP_AssembleDiagonalPA_2D<D, Q>;
+}
+
+kernel_t TMOPAssembleDiag2D::Fallback(int, int)
+{
+   return TMOP_AssembleDiagonalPA_2D<>;
+}
+
 void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
 {
    const int NE = PA.ne;
@@ -184,27 +201,10 @@ void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
    const auto H = Reshape(h.Read(), DIM, DIM, DIM, DIM, q, q, NE);
    auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
 
-   decltype(&TMOP_AssembleDiagonalPA_2D<>) ker = TMOP_AssembleDiagonalPA_2D;
+   const static auto specialized_kernels = []
+   { return KernelSpecializations<TMOPAssembleDiag2D>(); }();
 
-   if (d == 2 && q == 2) { ker = TMOP_AssembleDiagonalPA_2D<2, 2>; }
-   if (d == 2 && q == 3) { ker = TMOP_AssembleDiagonalPA_2D<2, 3>; }
-   if (d == 2 && q == 4) { ker = TMOP_AssembleDiagonalPA_2D<2, 4>; }
-   if (d == 2 && q == 5) { ker = TMOP_AssembleDiagonalPA_2D<2, 5>; }
-   if (d == 2 && q == 6) { ker = TMOP_AssembleDiagonalPA_2D<2, 6>; }
-
-   if (d == 3 && q == 3) { ker = TMOP_AssembleDiagonalPA_2D<3, 3>; }
-   if (d == 3 && q == 4) { ker = TMOP_AssembleDiagonalPA_2D<3, 4>; }
-   if (d == 3 && q == 5) { ker = TMOP_AssembleDiagonalPA_2D<3, 5>; }
-   if (d == 3 && q == 6) { ker = TMOP_AssembleDiagonalPA_2D<3, 6>; }
-
-   if (d == 4 && q == 4) { ker = TMOP_AssembleDiagonalPA_2D<4, 4>; }
-   if (d == 4 && q == 5) { ker = TMOP_AssembleDiagonalPA_2D<4, 5>; }
-   if (d == 4 && q == 6) { ker = TMOP_AssembleDiagonalPA_2D<4, 6>; }
-
-   if (d == 5 && q == 5) { ker = TMOP_AssembleDiagonalPA_2D<5, 5>; }
-   if (d == 5 && q == 6) { ker = TMOP_AssembleDiagonalPA_2D<5, 6>; }
-
-   ker(NE, B, G, J, H, D, d, q, 4);
+   TMOPAssembleDiag2D::Run(d, q, NE, B, G, J, H, D, d, q, 4);
 }
 
 } // namespace mfem

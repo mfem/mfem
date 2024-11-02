@@ -9,8 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../pa.hpp"
 #include "../../../tmop.hpp"
 #include "../../../kernels.hpp"
+#include "../../../kernel_dispatch.hpp"
 #include "../../../../general/forall.hpp"
 #include "../../../../linalg/kernels.hpp"
 
@@ -158,6 +160,21 @@ void TMOP_SetupGradPA_C0_3D(const real_t lim_normal,
    });
 }
 
+using kernel_t = decltype(&TMOP_SetupGradPA_C0_3D<>);
+
+MFEM_REGISTER_KERNELS(TMOPAssembleGradCoef3D, kernel_t, (int, int));
+
+template <int D, int Q>
+kernel_t TMOPAssembleGradCoef3D::Kernel()
+{
+   return TMOP_SetupGradPA_C0_3D<D, Q>;
+}
+
+kernel_t TMOPAssembleGradCoef3D::Fallback(int, int)
+{
+   return TMOP_SetupGradPA_C0_3D<>;
+}
+
 void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 {
    constexpr int DIM = 3;
@@ -179,27 +196,11 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   decltype(&TMOP_SetupGradPA_C0_3D<>) ker = TMOP_SetupGradPA_C0_3D;
+   const static auto specialized_kernels = []
+   { return KernelSpecializations<TMOPAssembleGradCoef3D>(); }();
 
-   if (d == 2 && q == 2) { ker = TMOP_SetupGradPA_C0_3D<2, 2>; }
-   if (d == 2 && q == 3) { ker = TMOP_SetupGradPA_C0_3D<2, 3>; }
-   if (d == 2 && q == 4) { ker = TMOP_SetupGradPA_C0_3D<2, 4>; }
-   if (d == 2 && q == 5) { ker = TMOP_SetupGradPA_C0_3D<2, 5>; }
-   if (d == 2 && q == 6) { ker = TMOP_SetupGradPA_C0_3D<2, 6>; }
-
-   if (d == 3 && q == 3) { ker = TMOP_SetupGradPA_C0_3D<3, 3>; }
-   if (d == 3 && q == 4) { ker = TMOP_SetupGradPA_C0_3D<3, 4>; }
-   if (d == 3 && q == 5) { ker = TMOP_SetupGradPA_C0_3D<3, 5>; }
-   if (d == 3 && q == 6) { ker = TMOP_SetupGradPA_C0_3D<3, 6>; }
-
-   if (d == 4 && q == 4) { ker = TMOP_SetupGradPA_C0_3D<4, 4>; }
-   if (d == 4 && q == 5) { ker = TMOP_SetupGradPA_C0_3D<4, 5>; }
-   if (d == 4 && q == 6) { ker = TMOP_SetupGradPA_C0_3D<4, 6>; }
-
-   if (d == 5 && q == 5) { ker = TMOP_SetupGradPA_C0_3D<5, 5>; }
-   if (d == 5 && q == 6) { ker = TMOP_SetupGradPA_C0_3D<5, 6>; }
-
-   ker(ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X, H0, exp_lim, d, q, 4);
+   TMOPAssembleGradCoef3D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0,
+                               X, H0, exp_lim, d, q, 4);
 }
 
 } // namespace mfem
