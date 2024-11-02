@@ -18,24 +18,27 @@
 namespace mfem
 {
 
+template <typename T>
+using func_t = void (*)(T &);
+
+template <int MID, typename Kernel>
+void TMOPKernel(Kernel &);
+
 /// Abstract base class for the 2D metric TMOP PA kernels.
 struct TMOP_PA_Metric_2D
 {
    static constexpr int DIM = 2;
    using Args = kernels::InvariantsEvaluator2D::Buffers;
 
-   virtual MFEM_HOST_DEVICE void
-   EvalP(const real_t (&Jpt)[4], const real_t *w, real_t (&P)[4]) = 0;
-
-   constexpr operator int() const { return 0; }
-
-   operator std::string() const { return "TMOP_PA_Metric_2D"; }
+   virtual MFEM_HOST_DEVICE void EvalP(const real_t (&Jpt)[DIM * DIM],
+                                       const real_t *w,
+                                       real_t (&P)[DIM * DIM]) = 0;
 
    virtual MFEM_HOST_DEVICE void AssembleH(const int qx,
                                            const int qy,
                                            const int e,
                                            const real_t weight,
-                                           const real_t (&Jpt)[4],
+                                           const real_t (&Jpt)[DIM * DIM],
                                            const real_t *w,
                                            const DeviceTensor<7> &H) = 0;
 };

@@ -2012,7 +2012,7 @@ protected:
    friend class TMOPComboIntegrator;
    friend class TMOPAddMultPA2D;
    friend class TMOPAddMultPA3D;
-   friend class TMOPPASetupGrad2D;
+   friend class TMOPSetup2D;
    friend class TMOPSetupGradPA3D;
 
    TMOP_QualityMetric *h_metric;

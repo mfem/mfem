@@ -18,21 +18,19 @@
 namespace mfem
 {
 
-class TMOPPASetupGrad2D
+class TMOPSetup2D
 {
    const mfem::TMOP_Integrator *ti; // not owned
    const Vector &x;
 
 public:
-   TMOPPASetupGrad2D(const TMOP_Integrator *ti, const Vector &x): ti(ti), x(x)
-   {
-   }
+   TMOPSetup2D(const TMOP_Integrator *ti, const Vector &x): ti(ti), x(x) {}
 
    int Ndof() const { return ti->PA.maps->ndof; }
    int Nqpt() const { return ti->PA.maps->nqpt; }
 
    template <typename METRIC, int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-   static void Mult(TMOPPASetupGrad2D &ker)
+   static void Mult(TMOPSetup2D &ker)
    {
       const mfem::TMOP_Integrator *ti = ker.ti;
       constexpr int DIM = 2, NBZ = 1;
@@ -108,8 +106,5 @@ public:
       });
    }
 };
-
-template <int MID>
-void TMOPAssembleGradPA(TMOPPASetupGrad2D &);
 
 } // namespace mfem

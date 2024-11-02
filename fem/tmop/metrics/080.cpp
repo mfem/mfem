@@ -70,32 +70,48 @@ struct TMOP_PA_Metric_080 : TMOP_PA_Metric_2D
    }
 };
 
-using kernel_t = void (*)(TMOPPASetupGrad2D &);
 using metric_t = TMOP_PA_Metric_080;
+using mult_t = TMOPAddMultPA2D;
+using setup_t = TMOPSetup2D;
 
-MFEM_REGISTER_KERNELS(Setup080, kernel_t, (int, int));
+using setup = func_t<setup_t>;
+using mult = func_t<mult_t>;
+
+// TMOP PA Setup, metric: 080
+MFEM_REGISTER_KERNELS(S080, setup, (int, int));
 
 template <int D, int Q>
-kernel_t Setup080::Kernel()
+setup S080::Kernel()
 {
-   return TMOPPASetupGrad2D::Mult<metric_t, D, Q>;
+   return setup_t::Mult<metric_t, D, Q>;
 }
 
-kernel_t Setup080::Fallback(int, int)
-{
-   return TMOPPASetupGrad2D::Mult<metric_t>;
-}
+setup S080::Fallback(int, int) { return setup_t::Mult<metric_t>; }
 
 template <>
-void TMOPAssembleGradPA<80>(TMOPPASetupGrad2D &ker)
+void TMOPKernel<80>(setup_t &ker)
 {
-   const static auto specialized_kernels = [] { return TMOPAdd<Setup080>(); }();
-   Setup080::Run(ker.Ndof(), ker.Nqpt(), ker);
+   const static auto setup_kernels = [] { return TMOPAdd<S080>(); }();
+   S080::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 
-void TMOPAddMultPA_080(TMOPAddMultPA2D &ker)
+// TMOP PA Mult, metric: 080
+
+MFEM_REGISTER_KERNELS(K080, mult, (int, int));
+
+template <int D, int Q>
+mult K080::Kernel()
 {
-   TMOPKernelLaunch<metric_t>(ker);
+   return mult_t::Mult<metric_t, D, Q>;
+}
+
+mult K080::Fallback(int, int) { return mult_t::Mult<metric_t>; }
+
+template <>
+void TMOPKernel<80>(mult_t &ker)
+{
+   const static auto mult_kernels = [] { return TMOPAdd<K080>(); }();
+   K080::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 
 } // namespace mfem

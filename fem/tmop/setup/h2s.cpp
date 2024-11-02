@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../pa.hpp"
 #include "h2s.hpp"
 
 namespace mfem
@@ -17,15 +18,15 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &x) const
 {
    const int mid = metric->Id();
 
-   TMOPPASetupGrad2D ker(this, x);
+   TMOPSetup2D ker(this, x);
 
-   if (mid == 1) { return TMOPAssembleGradPA<1>(ker); }
-   if (mid == 2) { return TMOPAssembleGradPA<2>(ker); }
-   if (mid == 7) { return TMOPAssembleGradPA<7>(ker); }
-   if (mid == 56) { return TMOPAssembleGradPA<56>(ker); }
-   if (mid == 77) { return TMOPAssembleGradPA<77>(ker); }
-   if (mid == 80) { return TMOPAssembleGradPA<80>(ker); }
-   if (mid == 94) { return TMOPAssembleGradPA<94>(ker); }
+   if (mid == 1) { return TMOPKernel<1>(ker); }
+   if (mid == 2) { return TMOPKernel<2>(ker); }
+   if (mid == 7) { return TMOPKernel<7>(ker); }
+   if (mid == 56) { return TMOPKernel<56>(ker); }
+   if (mid == 77) { return TMOPKernel<77>(ker); }
+   if (mid == 80) { return TMOPKernel<80>(ker); }
+   if (mid == 94) { return TMOPKernel<94>(ker); }
 
    MFEM_ABORT("Unsupported TMOP metric " << mid);
 }
