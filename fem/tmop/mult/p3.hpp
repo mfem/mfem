@@ -60,7 +60,7 @@ public:
 
       const bool const_m0 = ti->PA.MC.Size() == 1;
       const auto MC = const_m0 ? Reshape(ti->PA.MC.Read(), 1, 1, 1, 1)
-                               : Reshape(ti->PA.MC.Read(), Q1D, Q1D, Q1D, NE);
+                      : Reshape(ti->PA.MC.Read(), Q1D, Q1D, Q1D, NE);
 
       mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
       {

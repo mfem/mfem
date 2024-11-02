@@ -31,7 +31,7 @@ void TMOP_AssembleDiagonalPA_3D(const int NE,
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-   // This kernel uses its own CUDA/ROCM limits: compile time values:
+      // This kernel uses its own CUDA/ROCM limits: compile time values:
 #if defined(__CUDA_ARCH__)
       constexpr int MAX_D1D = 6;
       constexpr int MAX_Q1D = 7;

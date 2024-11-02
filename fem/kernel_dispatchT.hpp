@@ -94,7 +94,7 @@ public:
    size_t operator()(std::tuple<KernelParameters...> value) const
    {
       return operator()<sizeof...(KernelParameters), KernelParameters...>(
-         value);
+                value);
    }
 };
 
@@ -111,13 +111,13 @@ template <typename... T> class KernelDispatchTableT
 
 template <typename Kernels, typename Signature, typename... Params>
 class KernelDispatchTableT<Kernels,
-                           Signature,
-                           internal::KernelTypeListT<Params...>>
+         Signature,
+         internal::KernelTypeListT<Params...>>
 {
    std::unordered_map<std::tuple<Params...>,
-                      Signature,
-                      KernelDispatchKeyHashT<Params...>>
-      table;
+       Signature,
+       KernelDispatchKeyHashT<Params...>>
+       table;
 
 public:
    /// @brief Run the kernel with the given dispatch parameters and arguments.
