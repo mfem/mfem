@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_KERNEL_DISPATCH_HPP
-#define MFEM_KERNEL_DISPATCH_HPP
+#ifndef MFEM_KERNEL_DISPATCH_T_HPP
+#define MFEM_KERNEL_DISPATCH_T_HPP
 
 #include "../config/config.hpp"
 #include "kernel_reporter.hpp"
@@ -18,68 +18,44 @@
 #include <tuple>
 #include <cstddef>
 
+#include "./tmop/tmop_pa.hpp"
+
 namespace mfem
 {
 
-// The MFEM_REGISTER_KERNELS macro registers kernels for runtime dispatch using
-// a dispatch map.
-//
-// This creates a dispatch table (a static member variable) named @a KernelName
-// containing function points of type @a KernelType. These are followed by one
-// or two sets of parenthesized argument types.
-//
-// The first set of argument types contains the types that are used to dispatch
-// to either specialized or fallback kernels. The second set of argument types
-// can be used to further specialize the kernel without participating in
-// dispatch (a canonical example is NBZ, determining the size of the thread
-// blocks; this is required to specialize kernels for optimal performance, but
-// is not relevant for dispatch).
-//
-// After calling this macro, the user must implement the Kernel and Fallback
-// static member functions, which return pointers to the appropriate kernel
-// functions depending on the parameters.
-//
-// Specialized functions can be registered using the static AddSpecialization
-// member function.
+template <typename... Ts>
+void printTypes()
+{
+   ((std::cout << "\033[33m" << typeid(Ts).name() << "\033[m" << std::endl),
+    ...);
+}
 
-#define MFEM_EXPAND(X) X // Workaround needed for MSVC compiler
+template <typename... Args>
+void printValues(Args &&...args)
+{
+   std::cout << "\033[32m";
+   (std::cout << ... << args) << std::endl;
+   std::cout << "\033[m";
+}
 
-#define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...)                \
-   MFEM_EXPAND(MFEM_EXPAND(MFEM_REGISTER_KERNELS_N(__VA_ARGS__, 2, 1, ))( \
-      KernelName, KernelType, __VA_ARGS__))
+using metric_t = decltype(mfem::TMOP_PA_Metric_001{});
 
-#define MFEM_REGISTER_KERNELS_N(_1, _2, N, ...) MFEM_REGISTER_KERNELS_##N
-
-// Expands a variable length macro parameter so that multiple variable length
-// parameters can be passed to the same macro.
 #define MFEM_PARAM_LIST(...) __VA_ARGS__
-
-// Version of MFEM_REGISTER_KERNELS without any "optional" (non-dispatch)
-// parameters.
-#define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, Params)       \
-   MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, (), Params)
-
-// Version of MFEM_REGISTER_KERNELS without any optional (non-dispatch)
-// parameters (e.g. NBZ).
-#define MFEM_REGISTER_KERNELS_2(KernelName, KernelType, Params, OptParams)     \
-   MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, OptParams,           \
-                          (MFEM_PARAM_LIST Params, MFEM_PARAM_LIST OptParams))
 
 // P1 are the parameters, P2 are the optional (non-dispatch parameters), and P3
 // is the concatenation of P1 and P2. We need to pass it as a separate argument
 // to avoid a trailing comma in the case that P2 is empty.
-#define MFEM_REGISTER_KERNELS_(KernelName, KernelType, P1, P2, P3)     \
+#define MFEM_REGISTER_KERNELS_T(KernelName, KernelType, P1)            \
    class KernelName : public KernelDispatchTable<                      \
                          KernelName, KernelType,                       \
-                         internal::KernelTypeList<MFEM_PARAM_LIST P1>, \
-                         internal::KernelTypeList<MFEM_PARAM_LIST P2>> \
+                         internal::KernelTypeList<MFEM_PARAM_LIST P1>> \
    {                                                                   \
    public:                                                             \
       const char *kernel_name = MFEM_KERNEL_NAME(KernelName);          \
       using KernelSignature = KernelType;                              \
-      template <MFEM_PARAM_LIST P3>                                    \
+      template <MFEM_PARAM_LIST P1>                                    \
       static KernelSignature Kernel();                                 \
-      static KernelSignature Fallback(MFEM_PARAM_LIST P1);             \
+      static KernelSignature Fallback(metric_t, int, int);             \
       static KernelName &Get()                                         \
       {                                                                \
          static KernelName table;                                      \
@@ -92,7 +68,7 @@ namespace mfem
 ///
 /// For example, packs containing int, bool, enum values, etc.
 template <typename... KernelParameters>
-struct KernelDispatchKeyHash
+struct KernelDispatchKeyHashT
 {
 private:
    template <int N>
@@ -124,27 +100,23 @@ public:
 
 namespace internal
 {
-template <typename... Types> struct KernelTypeList
+template <typename... Types> struct KernelTypeListT
 {
 };
 } // namespace internal
 
-template <typename... T> class KernelDispatchTable
+template <typename... T> class KernelDispatchTableT
 {
 };
 
-template <typename Kernels,
-          typename Signature,
-          typename... Params,
-          typename... OptParams>
-class KernelDispatchTable<Kernels,
-                          Signature,
-                          internal::KernelTypeList<Params...>,
-                          internal::KernelTypeList<OptParams...>>
+template <typename Kernels, typename Signature, typename... Params>
+class KernelDispatchTableT<Kernels,
+                           Signature,
+                           internal::KernelTypeListT<Params...>>
 {
    std::unordered_map<std::tuple<Params...>,
                       Signature,
-                      KernelDispatchKeyHash<Params...>>
+                      KernelDispatchKeyHashT<Params...>>
       table;
 
 public:
@@ -157,8 +129,7 @@ public:
    static void Run(Params... params, Args &&...args)
    {
       const auto &table = Kernels::Get().table;
-      const std::tuple<Params...> key = std::make_tuple(params...);
-      const auto it = table.find(key);
+      const auto it = table.find(std::tuple(params...));
       if (it != table.end()) { it->second(std::forward<Args>(args)...); }
       else
       {
@@ -168,30 +139,18 @@ public:
    }
 
    /// Register a specialized kernel for dispatch.
-   template <Params... PARAMS>
+   template <typename M, Params... PARAMS>
    struct Specialization
    {
-      // Version without optional parameters
       static void Add()
       {
-         std::tuple<Params...> param_tuple(PARAMS...);
+         std::tuple<Params...> param_tuple(M{}, PARAMS...);
          Kernels::Get().table[param_tuple] =
             Kernels::template Kernel<PARAMS...>();
-      };
-      // Version with optional parameters
-      template <OptParams... OPT_PARAMS>
-      struct Opt
-      {
-         static void Add()
-         {
-            std::tuple<Params...> param_tuple(PARAMS...);
-            Kernels::Get().table[param_tuple] =
-               Kernels::template Kernel<PARAMS..., OPT_PARAMS...>();
-         }
-      };
+      }
    };
 };
 
 } // namespace mfem
 
-#endif
+#endif // MFEM_KERNEL_DISPATCH_T_HPP
