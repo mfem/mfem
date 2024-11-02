@@ -3731,7 +3731,7 @@ public:
        @param[in]  vdim_  Vector dimension (number of components) in the domain
                           and range FE spaces.
    */
-   IdentityInterpolator(int vdim_ = 1) : vdim(vdim_), dofquad_fe(NULL) { }
+   IdentityInterpolator(int vdim_ = 1) : vdim(vdim_) { }
 
    void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                const FiniteElement &ran_fe,
@@ -3761,11 +3761,9 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
-   ~IdentityInterpolator() override { delete dofquad_fe; }
-
 private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
-   FiniteElement *dofquad_fe;
+   std::unique_ptr<FiniteElement> dofquad_fe;
 
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns

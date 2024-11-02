@@ -1824,7 +1824,7 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
    ne = trial_fes.GetNE();
 
    const int order = trial_el->GetOrder();
-   dofquad_fe = new H1_SegmentElement(order);
+   dofquad_fe.reset(new H1_SegmentElement(order));
    mfem::QuadratureFunctions1D qf1d;
    mfem::IntegrationRule closed_ir;
    closed_ir.SetSize(order + 1);
