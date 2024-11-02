@@ -319,10 +319,10 @@ public:
    void MoveDiagonalFirst();
 
    /// Returns reference to a_{ij}.
-   virtual real_t &Elem(int i, int j);
+   real_t &Elem(int i, int j) override;
 
    /// Returns constant reference to a_{ij}.
-   virtual const real_t &Elem(int i, int j) const;
+   const real_t &Elem(int i, int j) const override;
 
    /// Returns reference to A[i][j].
    real_t &operator()(int i, int j);
@@ -339,31 +339,31 @@ public:
    /// Produces a DenseMatrix from a SparseMatrix
    void ToDenseMatrix(DenseMatrix & B) const;
 
-   virtual MemoryClass GetMemoryClass() const
+   MemoryClass GetMemoryClass() const override
    {
       return Finalized() ?
              Device::GetDeviceMemoryClass() : Device::GetHostMemoryClass();
    }
 
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// y += A * x (default)  or  y += a * A * x
-   virtual void AddMult(const Vector &x, Vector &y,
-                        const real_t a = 1.0) const;
+   void AddMult(const Vector &x, Vector &y,
+                const real_t a = 1.0) const override;
 
    /// Multiply a vector with the transposed matrix. y = At * x
    /** If the matrix is modified, call ResetTranspose() and optionally
        EnsureMultTranspose() to make sure this method uses the correct updated
        transpose. */
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
    /// y += At * x (default)  or  y += a * At * x
    /** If the matrix is modified, call ResetTranspose() and optionally
        EnsureMultTranspose() to make sure this method uses the correct updated
        transpose. */
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const real_t a = 1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
 
    /** @brief Build and store internally the transpose of this matrix which will
        be used in the methods AddMultTranspose(), MultTranspose(), and
@@ -439,7 +439,7 @@ public:
    real_t GetRowNorml1(int irow) const;
 
    /// This virtual method is not supported: it always returns NULL.
-   virtual MatrixInverse *Inverse() const;
+   MatrixInverse *Inverse() const override;
 
    /// Eliminates a column from the transpose matrix.
    void EliminateRow(int row, const real_t sol, Vector &rhs);
@@ -512,7 +512,7 @@ public:
    /// If a row contains only one diag entry of zero, set it to 1.
    void SetDiagIdentity();
    /// If a row contains only zeros, set its diagonal to 1.
-   virtual void EliminateZeroRows(const real_t threshold = 1e-12);
+   void EliminateZeroRows(const real_t threshold = 1e-12) override;
 
    /// Gauss-Seidel forward and backward iterations over a vector x.
    void Gauss_Seidel_forw(const Vector &x, Vector &y) const;
@@ -543,7 +543,7 @@ public:
    /** This method should be called once, after the matrix has been initialized.
        Internally, this method converts the matrix from row-wise linked list
        (LIL) format into CSR (compressed sparse row) format. */
-   virtual void Finalize(int skip_zeros = 1) { Finalize(skip_zeros, false); }
+   void Finalize(int skip_zeros = 1) override { Finalize(skip_zeros, false); }
 
    /// A slightly more general version of the Finalize(int) method.
    void Finalize(int skip_zeros, bool fix_empty_rows);
@@ -626,7 +626,7 @@ public:
          when the matrix is finalized.
        @warning This method breaks the const-ness when the matrix is finalized
        because it gives write access to the #J and #A arrays. */
-   virtual int GetRow(const int row, Array<int> &cols, Vector &srow) const;
+   int GetRow(const int row, Array<int> &cols, Vector &srow) const override;
 
    void SetRow(const int row, const Array<int> &cols, const Vector &srow);
    void AddRow(const int row, const Array<int> &cols, const Vector &srow);
@@ -651,16 +651,16 @@ public:
 
    /// Prints matrix to stream out.
    /** @note The host in synchronized when the finalized matrix is on the device. */
-   void Print(std::ostream &out = mfem::out, int width_ = 4) const;
+   void Print(std::ostream &out = mfem::out, int width_ = 4) const override;
 
    /// Prints matrix in matlab format.
    /** @note The host in synchronized when the finalized matrix is on the device. */
-   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
+   void PrintMatlab(std::ostream &out = mfem::out) const override;
 
    /// Prints matrix as a SparseArray for importing into Mathematica.
    /** The resulting file can be read into Mathematica using an expression such
-       as: my_mat = Get["output_file_name"]
-       The Mathematica variable "my_mat" will then be assigned to a new
+       as: myMat = Get["output_file_name"]
+       The Mathematica variable "myMat" will then be assigned to a new
        SparseArray object containing the data from this MFEM SparseMatrix.
 
        @note Mathematica uses 1-based indexing so the MFEM row and column
@@ -692,7 +692,7 @@ public:
    void Symmetrize();
 
    /// Returns the number of the nonzero elements in the matrix
-   virtual int NumNonZeroElems() const;
+   int NumNonZeroElems() const override;
 
    real_t MaxNorm() const;
 

@@ -61,10 +61,10 @@ public:
    void SetProtocol(const std::string &protocol);
 
    /// Save the collection and a FMS blueprint root file
-   virtual void Save();
+   void Save() override;
 
    /// Load the collection based blueprint data
-   virtual void Load(int cycle = 0);
+   void Load(int cycle = 0) override;
 };
 
 } // namespace mfem
