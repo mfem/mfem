@@ -120,50 +120,37 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop/pa.cpp
+  tmop/metrics/001.cpp
+  tmop/metrics/002.cpp
+  tmop/metrics/002.cpp
+  tmop/metrics/007.cpp
+  tmop/metrics/056.cpp
+  tmop/metrics/077.cpp
+  tmop/metrics/080.cpp
+  tmop/metrics/094.cpp
+  tmop/metrics/302.cpp
+  tmop/metrics/303.cpp
+  tmop/metrics/315.cpp
+  tmop/metrics/318.cpp
+  tmop/metrics/321.cpp
+  tmop/metrics/332.cpp
+  tmop/metrics/338.cpp
   tmop/mult/h2m.cpp
   tmop/mult/h2m_c0.cpp
   tmop/mult/h3m.cpp
   tmop/mult/h3m_c0.cpp
   tmop/mult/p2.cpp
   tmop/mult/p2_c0.cpp
-  tmop/mult/p2_001.cpp
-  tmop/mult/p2_002.cpp
-  tmop/mult/p2_007.cpp
-  tmop/mult/p2_056.cpp
-  tmop/mult/p2_077.cpp
-  tmop/mult/p2_080.cpp
-  tmop/mult/p2_094.cpp
   tmop/mult/p3.cpp
   tmop/mult/p3_c0.cpp
-  tmop/mult/p3_302.cpp
-  tmop/mult/p3_303.cpp
-  tmop/mult/p3_315.cpp
-  tmop/mult/p3_318.cpp
-  tmop/mult/p3_321.cpp
-  tmop/mult/p3_332.cpp
-  tmop/mult/p3_338.cpp
   tmop/setup/h2d.cpp
   tmop/setup/h2d_c0.cpp
   tmop/setup/h2s.cpp
   tmop/setup/h2s_c0.cpp
-  tmop/setup/h2s_001.cpp
-  tmop/setup/h2s_002.cpp
-  tmop/setup/h2s_007.cpp
-  tmop/setup/h2s_056.cpp
-  tmop/setup/h2s_077.cpp
-  tmop/setup/h2s_080.cpp
-  tmop/setup/h2s_094.cpp
   tmop/setup/h3d.cpp
   tmop/setup/h3d_c0.cpp  
   tmop/setup/h3s.cpp
   tmop/setup/h3s_c0.cpp
-  tmop/setup/h3s_302.cpp
-  tmop/setup/h3s_303.cpp
-  tmop/setup/h3s_315.cpp
-  tmop/setup/h3s_318.cpp
-  tmop/setup/h3s_321.cpp
-  tmop/setup/h3s_332.cpp
-  tmop/setup/h3s_338.cpp
   tmop/tools/da3.cpp
   tmop/tools/jp2.cpp
   tmop/tools/jp3.cpp

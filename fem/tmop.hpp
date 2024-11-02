@@ -1458,8 +1458,8 @@ public:
       d1.SetSize(x.Size());
       real_t dist_squared = dist * dist;
       subtract(20.0 *
-               exp(10.0 * ((x.DistanceSquaredTo(x0) / dist_squared) - 1.0)) /
-               dist_squared,
+                  exp(10.0 * ((x.DistanceSquaredTo(x0) / dist_squared) - 1.0)) /
+                  dist_squared,
                x, x0, d1);
    }
 
@@ -2012,12 +2012,8 @@ protected:
    friend class TMOPComboIntegrator;
    friend class TMOPAddMultPA2D;
    friend class TMOPAddMultPA3D;
-   friend class TMOPSetupGradPA2D;
+   friend class TMOPPASetupGrad2D;
    friend class TMOPSetupGradPA3D;
-
-   template <typename METRIC, int T_D1D, int T_Q1D, int T_MAX>
-   friend void TMOPSetupGradPA2D_Kernel(const TMOP_Integrator *,
-                                        const Vector &);
 
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;       // not owned
@@ -2145,6 +2141,8 @@ protected:
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
    } PA;
+   int Ndof() const { return PA.maps->ndof; }
+   int Nqpt() const { return PA.maps->nqpt; }
 
    void ComputeNormalizationEnergies(const GridFunction &x,
                                      real_t &metric_energy,
@@ -2221,8 +2219,8 @@ protected:
    {
       if (IntegRules) { return IntegRules->Get(el.GetGeomType(), integ_order); }
       return (IntRule) ? *IntRule
-             /*     */
-             : IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 3);
+                       /*     */
+                       : IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 3);
    }
    const IntegrationRule &ActionIntegrationRule(const FiniteElement &el) const
    {

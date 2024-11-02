@@ -13,30 +13,19 @@
 
 namespace mfem
 {
-
-extern void TMOPAssembleGradPA_001(TMOPSetupGradPA2D &ker,
-                                   const TMOP_Integrator *ti,
-                                   const Vector &x);
-extern void TMOPAssembleGradPA_002(TMOPSetupGradPA2D &ker);
-extern void TMOPAssembleGradPA_007(TMOPSetupGradPA2D &ker);
-extern void TMOPAssembleGradPA_056(TMOPSetupGradPA2D &ker);
-extern void TMOPAssembleGradPA_077(TMOPSetupGradPA2D &ker);
-extern void TMOPAssembleGradPA_080(TMOPSetupGradPA2D &ker);
-extern void TMOPAssembleGradPA_094(TMOPSetupGradPA2D &ker);
-
 void TMOP_Integrator::AssembleGradPA_2D(const Vector &x) const
 {
    const int mid = metric->Id();
 
-   TMOPSetupGradPA2D ker(this, x);
+   TMOPPASetupGrad2D ker(this, x);
 
-   if (mid == 1) { return TMOPAssembleGradPA_001(ker, this, x); }
-   if (mid == 2) { return TMOPAssembleGradPA_002(ker); }
-   if (mid == 7) { return TMOPAssembleGradPA_007(ker); }
-   if (mid == 56) { return TMOPAssembleGradPA_056(ker); }
-   if (mid == 77) { return TMOPAssembleGradPA_077(ker); }
-   if (mid == 80) { return TMOPAssembleGradPA_080(ker); }
-   if (mid == 94) { return TMOPAssembleGradPA_094(ker); }
+   if (mid == 1) { return TMOPAssembleGradPA<1>(ker); }
+   if (mid == 2) { return TMOPAssembleGradPA<2>(ker); }
+   if (mid == 7) { return TMOPAssembleGradPA<7>(ker); }
+   if (mid == 56) { return TMOPAssembleGradPA<56>(ker); }
+   if (mid == 77) { return TMOPAssembleGradPA<77>(ker); }
+   if (mid == 80) { return TMOPAssembleGradPA<80>(ker); }
+   if (mid == 94) { return TMOPAssembleGradPA<94>(ker); }
 
    MFEM_ABORT("Unsupported TMOP metric " << mid);
 }
