@@ -20,13 +20,13 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &x) const
 
    TMOPSetup2D ker(this, x);
 
-   if (mid == 1) { return TMOPKernel<1>(ker); }
-   if (mid == 2) { return TMOPKernel<2>(ker); }
-   if (mid == 7) { return TMOPKernel<7>(ker); }
-   if (mid == 56) { return TMOPKernel<56>(ker); }
-   if (mid == 77) { return TMOPKernel<77>(ker); }
-   if (mid == 80) { return TMOPKernel<80>(ker); }
-   if (mid == 94) { return TMOPKernel<94>(ker); }
+   if (mid == 1) { return tmop::Kernel<1>(ker); }
+   if (mid == 2) { return tmop::Kernel<2>(ker); }
+   if (mid == 7) { return tmop::Kernel<7>(ker); }
+   if (mid == 56) { return tmop::Kernel<56>(ker); }
+   if (mid == 77) { return tmop::Kernel<77>(ker); }
+   if (mid == 80) { return tmop::Kernel<80>(ker); }
+   if (mid == 94) { return tmop::Kernel<94>(ker); }
 
    MFEM_ABORT("Unsupported TMOP metric " << mid);
 }

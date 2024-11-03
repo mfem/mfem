@@ -11,7 +11,6 @@
 
 #include "../../pa.hpp"
 #include "../../../tmop.hpp"
-#include "../../../kernel_dispatch.hpp"
 #include "../../../../general/forall.hpp"
 #include "../../../../linalg/kernels.hpp"
 
@@ -169,20 +168,7 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
    });
 }
 
-using kernel_t = decltype(&TMOP_AssembleDiagonalPA_2D<>);
-
-MFEM_REGISTER_KERNELS(TMOPAssembleDiag2D, kernel_t, (int, int));
-
-template <int D, int Q>
-kernel_t TMOPAssembleDiag2D::Kernel()
-{
-   return TMOP_AssembleDiagonalPA_2D<D, Q>;
-}
-
-kernel_t TMOPAssembleDiag2D::Fallback(int, int)
-{
-   return TMOP_AssembleDiagonalPA_2D<>;
-}
+TMOP_REGISTER_KERNELS(TMOPAssembleDiag2D, TMOP_AssembleDiagonalPA_2D);
 
 void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
 {
@@ -202,7 +188,7 @@ void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
    auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
 
    const static auto specialized_kernels = []
-   { return KernelSpecializations<TMOPAssembleDiag2D>(); }();
+   { return tmop::KernelSpecializations<TMOPAssembleDiag2D>(); }();
 
    TMOPAssembleDiag2D::Run(d, q, NE, B, G, J, H, D, d, q, 4);
 }

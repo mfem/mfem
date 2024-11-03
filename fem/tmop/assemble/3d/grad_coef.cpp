@@ -12,7 +12,6 @@
 #include "../../pa.hpp"
 #include "../../../tmop.hpp"
 #include "../../../kernels.hpp"
-#include "../../../kernel_dispatch.hpp"
 #include "../../../../general/forall.hpp"
 #include "../../../../linalg/kernels.hpp"
 
@@ -160,20 +159,7 @@ void TMOP_SetupGradPA_C0_3D(const real_t lim_normal,
    });
 }
 
-using kernel_t = decltype(&TMOP_SetupGradPA_C0_3D<>);
-
-MFEM_REGISTER_KERNELS(TMOPAssembleGradCoef3D, kernel_t, (int, int));
-
-template <int D, int Q>
-kernel_t TMOPAssembleGradCoef3D::Kernel()
-{
-   return TMOP_SetupGradPA_C0_3D<D, Q>;
-}
-
-kernel_t TMOPAssembleGradCoef3D::Fallback(int, int)
-{
-   return TMOP_SetupGradPA_C0_3D<>;
-}
+TMOP_REGISTER_KERNELS(TMOPAssembleGradCoef3D, TMOP_SetupGradPA_C0_3D);
 
 void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 {
@@ -197,7 +183,7 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
    const bool exp_lim = (el) ? true : false;
 
    const static auto specialized_kernels = []
-   { return KernelSpecializations<TMOPAssembleGradCoef3D>(); }();
+   { return tmop::KernelSpecializations<TMOPAssembleGradCoef3D>(); }();
 
    TMOPAssembleGradCoef3D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0,
                                X, H0, exp_lim, d, q, 4);

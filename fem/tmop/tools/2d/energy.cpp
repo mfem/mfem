@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../pa.hpp"
 #include "../../../tmop.hpp"
 #include "../../../kernels.hpp"
 #include "../../../../general/forall.hpp"
@@ -130,6 +131,8 @@ void TMOP_EnergyPA_2D(const real_t metric_normal,
    });
 }
 
+TMOP_REGISTER_KERNELS(TMOPEnergyPA2D, TMOP_EnergyPA_2D);
+
 real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
 {
    constexpr int DIM = 2;
@@ -160,27 +163,11 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
 
    auto E = Reshape(PA.E.Write(), q, q, NE);
 
-   decltype(&TMOP_EnergyPA_2D<>) ker = TMOP_EnergyPA_2D;
+   const static auto specialized_kernels = []
+   { return tmop::KernelSpecializations<TMOPEnergyPA2D>(); }();
 
-   if (d == 2 && q == 2) { ker = TMOP_EnergyPA_2D<2, 2>; }
-   if (d == 2 && q == 3) { ker = TMOP_EnergyPA_2D<2, 3>; }
-   if (d == 2 && q == 4) { ker = TMOP_EnergyPA_2D<2, 4>; }
-   if (d == 2 && q == 5) { ker = TMOP_EnergyPA_2D<2, 5>; }
-   if (d == 2 && q == 6) { ker = TMOP_EnergyPA_2D<2, 6>; }
-
-   if (d == 3 && q == 3) { ker = TMOP_EnergyPA_2D<3, 3>; }
-   if (d == 3 && q == 4) { ker = TMOP_EnergyPA_2D<3, 4>; }
-   if (d == 3 && q == 5) { ker = TMOP_EnergyPA_2D<3, 5>; }
-   if (d == 3 && q == 6) { ker = TMOP_EnergyPA_2D<3, 6>; }
-
-   if (d == 4 && q == 4) { ker = TMOP_EnergyPA_2D<4, 4>; }
-   if (d == 4 && q == 5) { ker = TMOP_EnergyPA_2D<4, 5>; }
-   if (d == 4 && q == 6) { ker = TMOP_EnergyPA_2D<4, 6>; }
-
-   if (d == 5 && q == 5) { ker = TMOP_EnergyPA_2D<5, 5>; }
-   if (d == 5 && q == 6) { ker = TMOP_EnergyPA_2D<5, 6>; }
-
-   ker(mn, w, const_m0, MC, mp, MId, NE, J, W, B, G, X, E, d, q, 4);
+   TMOPEnergyPA2D::Run(d, q, mn, w, const_m0, MC, mp, MId, NE, J, W, B, G, X, E,
+                       d, q, 4);
    return PA.E * PA.O;
 }
 

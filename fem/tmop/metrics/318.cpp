@@ -79,8 +79,8 @@ using metric_t = TMOP_PA_Metric_318;
 using mult_t = TMOPAddMultPA3D;
 using setup_t = TMOPSetupGradPA3D;
 
-using setup = func_t<setup_t>;
-using mult = func_t<mult_t>;
+using setup = tmop::func_t<setup_t>;
+using mult = tmop::func_t<mult_t>;
 
 // TMOP PA Setup, metric: 318
 MFEM_REGISTER_KERNELS(S318, setup, (int, int));
@@ -94,7 +94,7 @@ setup S318::Kernel()
 setup S318::Fallback(int, int) { return setup_t::Mult<metric_t>; }
 
 template <>
-void TMOPKernel<318>(setup_t &ker)
+void tmop::Kernel<318>(setup_t &ker)
 {
    const static auto setup_kernels = []
    { return KernelSpecializations<S318>(); }();
@@ -114,7 +114,7 @@ mult K318::Kernel()
 mult K318::Fallback(int, int) { return mult_t::Mult<metric_t>; }
 
 template <>
-void TMOPKernel<318>(mult_t &ker)
+void tmop::Kernel<318>(mult_t &ker)
 {
    const static auto mult_kernels = []
    { return KernelSpecializations<K318>(); }();

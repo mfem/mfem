@@ -12,17 +12,12 @@
 #ifndef MFEM_TMOP_PA_HPP
 #define MFEM_TMOP_PA_HPP
 
+#include "../kernel_dispatch.hpp"
 #include "../../config/config.hpp"
 #include "../../linalg/dinvariants.hpp"
 
 namespace mfem
 {
-
-template <typename T>
-using func_t = void (*)(T &);
-
-template <int MID, typename Kernel>
-void TMOPKernel(Kernel &);
 
 /// Abstract base class for the 2D metric TMOP PA kernels.
 struct TMOP_PA_Metric_2D
@@ -66,6 +61,27 @@ struct TMOP_PA_Metric_3D
              const DeviceTensor<5 + DIM> &H) const = 0;
 };
 
+namespace tmop
+{
+
+template <typename T>
+using func_t = void (*)(T &);
+
+template <int Metric, typename Ker>
+void Kernel(Ker &);
+
+#define TMOP_REGISTER_KERNELS(Name, Ker)                                \
+   using Ker##_t = decltype(&Ker<>);                                    \
+   MFEM_REGISTER_KERNELS(Name, Ker##_t, (int, int));                    \
+   template <int D, int Q> Ker##_t Name::Kernel() { return Ker<D, Q>; } \
+   Ker##_t Name::Fallback(int, int) { return Ker<>; }
+
+#define TMOP_REGISTER_KERNELS_1(Name, Ker)                    \
+   using Ker##_t = decltype(&Ker<>);                          \
+   MFEM_REGISTER_KERNELS(Name, Ker##_t, (int));               \
+   template <int Q> Ker##_t Name::Kernel() { return Ker<Q>; } \
+   Ker##_t Name::Fallback(int) { return Ker<>; }
+
 template <typename Kernel>
 int KernelSpecializations()
 {
@@ -88,6 +104,19 @@ int KernelSpecializations()
    Kernel::template Specialization<5, 6>::Add();
    return 0;
 }
+
+template <typename Kernel>
+int KernelSpecializations1()
+{
+   Kernel::template Specialization<2>::Add();
+   Kernel::template Specialization<3>::Add();
+   Kernel::template Specialization<4>::Add();
+   Kernel::template Specialization<5>::Add();
+   Kernel::template Specialization<6>::Add();
+   return 0;
+}
+
+} // namespace tmop
 
 } // namespace mfem
 

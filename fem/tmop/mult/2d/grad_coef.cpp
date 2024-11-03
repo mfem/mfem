@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../pa.hpp"
 #include "../../../tmop.hpp"
 #include "../../../kernels.hpp"
 #include "../../../../general/forall.hpp"
@@ -79,6 +80,8 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
    });
 }
 
+TMOP_REGISTER_KERNELS(TMOPMultGradCoefKernels, TMOP_AddMultGradPA_C0_2D);
+
 void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &R, Vector &C) const
 {
    constexpr int DIM = 2;
@@ -89,27 +92,10 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &R, Vector &C) const
    const auto X = Reshape(R.Read(), d, d, DIM, NE);
    auto Y = Reshape(C.ReadWrite(), d, d, DIM, NE);
 
-   decltype(&TMOP_AddMultGradPA_C0_2D<>) ker = TMOP_AddMultGradPA_C0_2D;
+   const static auto specialized_kernels = []
+   { return tmop::KernelSpecializations<TMOPMultGradCoefKernels>(); }();
 
-   if (d == 2 && q == 2) { ker = TMOP_AddMultGradPA_C0_2D<2, 2>; }
-   if (d == 2 && q == 3) { ker = TMOP_AddMultGradPA_C0_2D<2, 3>; }
-   if (d == 2 && q == 4) { ker = TMOP_AddMultGradPA_C0_2D<2, 4>; }
-   if (d == 2 && q == 5) { ker = TMOP_AddMultGradPA_C0_2D<2, 5>; }
-   if (d == 2 && q == 6) { ker = TMOP_AddMultGradPA_C0_2D<2, 6>; }
-
-   if (d == 3 && q == 3) { ker = TMOP_AddMultGradPA_C0_2D<3, 3>; }
-   if (d == 3 && q == 4) { ker = TMOP_AddMultGradPA_C0_2D<3, 4>; }
-   if (d == 3 && q == 5) { ker = TMOP_AddMultGradPA_C0_2D<3, 5>; }
-   if (d == 3 && q == 6) { ker = TMOP_AddMultGradPA_C0_2D<3, 6>; }
-
-   if (d == 4 && q == 4) { ker = TMOP_AddMultGradPA_C0_2D<4, 4>; }
-   if (d == 4 && q == 5) { ker = TMOP_AddMultGradPA_C0_2D<4, 5>; }
-   if (d == 4 && q == 6) { ker = TMOP_AddMultGradPA_C0_2D<4, 6>; }
-
-   if (d == 5 && q == 5) { ker = TMOP_AddMultGradPA_C0_2D<5, 5>; }
-   if (d == 5 && q == 6) { ker = TMOP_AddMultGradPA_C0_2D<5, 6>; }
-
-   ker(NE, B, H0, X, Y, d, q, 4);
+   TMOPMultGradCoefKernels::Run(d, q, NE, B, H0, X, Y, d, q, 4);
 }
 
 } // namespace mfem

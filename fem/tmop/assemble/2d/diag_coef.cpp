@@ -11,7 +11,6 @@
 
 #include "../../pa.hpp"
 #include "../../../tmop.hpp"
-#include "../../../kernel_dispatch.hpp"
 #include "../../../../general/forall.hpp"
 
 namespace mfem
@@ -73,20 +72,8 @@ void TMOP_AssembleDiagonalPA_C0_2D(const int NE,
    });
 }
 
-using kernel_t = decltype(&TMOP_AssembleDiagonalPA_C0_2D<>);
-
-MFEM_REGISTER_KERNELS(TMOPAssembleDiagonalCoefKernels, kernel_t, (int, int));
-
-template <int D, int Q>
-kernel_t TMOPAssembleDiagonalCoefKernels::Kernel()
-{
-   return TMOP_AssembleDiagonalPA_C0_2D<D, Q>;
-}
-
-kernel_t TMOPAssembleDiagonalCoefKernels::Fallback(int, int)
-{
-   return TMOP_AssembleDiagonalPA_C0_2D<>;
-}
+TMOP_REGISTER_KERNELS(TMOPAssembleDiagonalCoefKernels,
+                      TMOP_AssembleDiagonalPA_C0_2D);
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
 {
@@ -98,7 +85,7 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
    auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
 
    const static auto specialized_kernels = []
-   { return KernelSpecializations<TMOPAssembleDiagonalCoefKernels>(); }();
+   { return tmop::KernelSpecializations<TMOPAssembleDiagonalCoefKernels>(); }();
 
    TMOPAssembleDiagonalCoefKernels::Run(d, q, NE, B, H0, D, d, q, 4);
 }

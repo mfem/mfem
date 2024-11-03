@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../pa.hpp"
 #include "../../../tmop.hpp"
 #include "../../../kernels.hpp"
 #include "../../../../general/forall.hpp"
@@ -126,6 +127,8 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
    });
 }
 
+TMOP_REGISTER_KERNELS(TMOPMultCoefKernels, TMOP_AddMultPA_C0_2D);
+
 void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
 {
    constexpr int DIM = 2;
@@ -150,27 +153,11 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   decltype(&TMOP_AddMultPA_C0_2D<>) ker = TMOP_AddMultPA_C0_2D;
+   const static auto specialized_kernels = []
+   { return tmop::KernelSpecializations<TMOPMultCoefKernels>(); }();
 
-   if (d == 2 && q == 2) { ker = TMOP_AddMultPA_C0_2D<2, 2>; }
-   if (d == 2 && q == 3) { ker = TMOP_AddMultPA_C0_2D<2, 3>; }
-   if (d == 2 && q == 4) { ker = TMOP_AddMultPA_C0_2D<2, 4>; }
-   if (d == 2 && q == 5) { ker = TMOP_AddMultPA_C0_2D<2, 5>; }
-   if (d == 2 && q == 6) { ker = TMOP_AddMultPA_C0_2D<2, 6>; }
-
-   if (d == 3 && q == 3) { ker = TMOP_AddMultPA_C0_2D<3, 3>; }
-   if (d == 3 && q == 4) { ker = TMOP_AddMultPA_C0_2D<3, 4>; }
-   if (d == 3 && q == 5) { ker = TMOP_AddMultPA_C0_2D<3, 5>; }
-   if (d == 3 && q == 6) { ker = TMOP_AddMultPA_C0_2D<3, 6>; }
-
-   if (d == 4 && q == 4) { ker = TMOP_AddMultPA_C0_2D<4, 4>; }
-   if (d == 4 && q == 5) { ker = TMOP_AddMultPA_C0_2D<4, 5>; }
-   if (d == 4 && q == 6) { ker = TMOP_AddMultPA_C0_2D<4, 6>; }
-
-   if (d == 5 && q == 5) { ker = TMOP_AddMultPA_C0_2D<5, 5>; }
-   if (d == 5 && q == 6) { ker = TMOP_AddMultPA_C0_2D<5, 6>; }
-
-   ker(ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X, Y, exp_lim, d, q, 4);
+   TMOPMultCoefKernels::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X,
+                            Y, exp_lim, d, q, 4);
 }
 
 } // namespace mfem

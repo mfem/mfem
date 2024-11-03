@@ -66,8 +66,8 @@ using metric_t = TMOP_PA_Metric_002;
 using mult_t = TMOPAddMultPA2D;
 using setup_t = TMOPSetup2D;
 
-using setup = func_t<setup_t>;
-using mult = func_t<mult_t>;
+using setup = tmop::func_t<setup_t>;
+using mult = tmop::func_t<mult_t>;
 
 // TMOP PA Setup, metric: 002
 MFEM_REGISTER_KERNELS(S002, setup, (int, int));
@@ -81,7 +81,7 @@ setup S002::Kernel()
 setup S002::Fallback(int, int) { return setup_t::Mult<metric_t>; }
 
 template <>
-void TMOPKernel<2>(setup_t &ker)
+void tmop::Kernel<2>(setup_t &ker)
 {
    const static auto setup_kernels = []
    { return KernelSpecializations<S002>(); }();
@@ -101,7 +101,7 @@ mult K002::Kernel()
 mult K002::Fallback(int, int) { return mult_t::Mult<metric_t>; }
 
 template <>
-void TMOPKernel<2>(mult_t &ker)
+void tmop::Kernel<2>(mult_t &ker)
 {
    const static auto mult_kernels = []
    { return KernelSpecializations<K002>(); }();

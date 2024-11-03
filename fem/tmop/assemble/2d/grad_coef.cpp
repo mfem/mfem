@@ -138,20 +138,7 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
    });
 }
 
-using kernel_t = decltype(&TMOP_SetupGradPA_C0_2D<>);
-
-MFEM_REGISTER_KERNELS(TMOPAssembleGradCoef2D, kernel_t, (int, int));
-
-template <int D, int Q>
-kernel_t TMOPAssembleGradCoef2D::Kernel()
-{
-   return TMOP_SetupGradPA_C0_2D<D, Q>;
-}
-
-kernel_t TMOPAssembleGradCoef2D::Fallback(int, int)
-{
-   return TMOP_SetupGradPA_C0_2D<>;
-}
+TMOP_REGISTER_KERNELS(TMOPAssembleGradCoef2D, TMOP_SetupGradPA_C0_2D);
 
 void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
 {
@@ -175,7 +162,7 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
    const bool exp_lim = (el) ? true : false;
 
    const static auto specialized_kernels = []
-   { return KernelSpecializations<TMOPAssembleGradCoef2D>(); }();
+   { return tmop::KernelSpecializations<TMOPAssembleGradCoef2D>(); }();
 
    TMOPAssembleGradCoef2D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0,
                                X, H0, exp_lim, d, q, 4);

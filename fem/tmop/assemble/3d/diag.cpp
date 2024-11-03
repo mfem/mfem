@@ -225,20 +225,7 @@ void TMOP_AssembleDiagonalPA_3D(const int NE,
    });
 }
 
-using kernel_t = decltype(&TMOP_AssembleDiagonalPA_3D<>);
-
-MFEM_REGISTER_KERNELS(TMOPAssembleDiag3D, kernel_t, (int, int));
-
-template <int D, int Q>
-kernel_t TMOPAssembleDiag3D::Kernel()
-{
-   return TMOP_AssembleDiagonalPA_3D<D, Q>;
-}
-
-kernel_t TMOPAssembleDiag3D::Fallback(int, int)
-{
-   return TMOP_AssembleDiagonalPA_3D<>;
-}
+TMOP_REGISTER_KERNELS(TMOPAssembleDiag3D, TMOP_AssembleDiagonalPA_3D);
 
 void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
 {
@@ -252,7 +239,7 @@ void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
    auto D = Reshape(diagonal.ReadWrite(), d, d, d, DIM, NE);
 
    const static auto specialized_kernels = []
-   { return KernelSpecializations<TMOPAssembleDiag3D>(); }();
+   { return tmop::KernelSpecializations<TMOPAssembleDiag3D>(); }();
 
    TMOPAssembleDiag3D::Run(d, q, NE, B, G, J, H, D, d, q, 4);
 }
