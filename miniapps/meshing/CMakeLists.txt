@@ -143,6 +143,9 @@ if (MFEM_USE_MPI)
     )
     # Meshing miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)
+    if (HYPRE_USING_CUDA OR HYPRE_USING_HIP)
+      list(APPEND SKIP_TESTS pmesh-fitting)
+    endif()
 
     foreach(test ${PARALLEL_TESTS})
       if (test IN_LIST SKIP_TESTS)
