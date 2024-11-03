@@ -2,6 +2,7 @@
     // "editor.defaultFormatter": "chiehyu.vscode-astyle",
     "cmake.environment": {
         "MFEM_DEBUG": "1",
+        "MFEM_REPORT_KERNELS": "1"
         // "ASAN_OPTIONS": "detect_leaks=1",
         // "LSAN_OPTIONS":"suppressions=/Users/camierjs/.asan.sup"
     }
