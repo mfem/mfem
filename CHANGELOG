@@ -50,6 +50,10 @@ GPU computing
   or by explicitly calling `KernelReporter::Enable`. Users can then add
   specializations for these kernels to achieve higher performance.
 
+- Element assembly kernels have been added for low-order refined to
+  high-order transfer operators. New kernels can be offloaded as device
+  kernels. Example usage may be found in lor-transfer.cpp under miniapps/tools.
+
 Miscellaneous
 -------------
 - Refactored the `ARKStepSolver` class (ARKODE interface) to use
@@ -153,7 +157,7 @@ New and updated examples and miniapps
 
 - Added two new example codes: 38 and 39/39p described above. Substantially
   updated Example 18/18p.
-  
+
 - Added ODE solvers selection routines. This creates a uniformity across examples,
   miniapps and other executables in regard to ODE(time-integrator) selection.
 
@@ -162,7 +166,7 @@ New and updated examples and miniapps
 
 - Added ODEsolver/ODEsolver2 unit tests to verify order of convergence and
   read/write functionality.
-  
+
 Miscellaneous
 -------------
 - Updated the Doxygen documentation style, which now requires Doxygen version
