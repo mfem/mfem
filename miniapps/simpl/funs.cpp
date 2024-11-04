@@ -7,6 +7,10 @@ real_t safe_log(const real_t x)
 {
    return x<LOGMIN ? LOGMIN_VAL : std::log(x);
 }
+real_t safe_xlogx(const real_t x)
+{
+  return x < LOGMIN ? -LOGMIN*LOGMIN/2 : x*std::log(x);
+}
 
 real_t sigmoid(const real_t x)
 {
@@ -43,6 +47,34 @@ real_t der_simp(const real_t x, const real_t exponent, const real_t rho0)
    if (x < 0) { return 0.0; }
    else if (x > 1) { return exponent*(1.0 - rho0); }
    else { return exponent*(1.0-rho0)*std::pow(x, exponent-1.0); }
+}
+
+real_t GetMaxVal(const GridFunction &x)
+{
+   real_t result = x.Max();
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace*>(x.FESpace());
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &result, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                    pfes->GetComm());
+   }
+#endif
+   return result;
+}
+
+real_t GetMinVal(const GridFunction &x)
+{
+   real_t result = x.Min();
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace*>(x.FESpace());
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &result, 1, MFEM_MPI_REAL_T, MPI_MIN,
+                    pfes->GetComm());
+   }
+#endif
+   return result;
 }
 
 MappedGFCoefficient LegendreEntropy::GetForwardCoeff()

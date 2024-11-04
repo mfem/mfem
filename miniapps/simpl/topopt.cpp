@@ -182,7 +182,8 @@ DesignDensity::DesignDensity(
    const real_t min_vol, const real_t max_vol,
    LegendreEntropy *entropy)
    :fes_control(fes_control), tot_vol(tot_vol),
-    min_vol(min_vol), max_vol(max_vol), entropy(entropy)
+    min_vol(min_vol), max_vol(max_vol), entropy(entropy), solid_attr_id(0),
+    void_attr_id(0)
 {
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace * pfes_control = dynamic_cast<ParFiniteElementSpace*>
@@ -210,11 +211,10 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
    const real_t maxval = entropy->GetFiniteUpperBound();
    const real_t minval = entropy->GetFiniteLowerBound();
 
-   const real_t abs_step_size = std::fabs(step_size);
-   MappedGFCoefficient newx_cf(x, [&mu, maxval, minval,
-                                        abs_step_size](const real_t psi)
+   MappedGFCoefficient newx_cf(x, [&mu, maxval, minval, step_size]
+                               (const real_t psi)
    {
-      return std::max(minval, std::min(maxval, psi + mu*abs_step_size));
+      return std::max(minval, std::min(maxval, psi + step_size*mu));
    });
    MaskedCoefficient masked_newx_cf(newx_cf);
    ConstantCoefficient maxval_cf(maxval);
@@ -230,28 +230,13 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
    }
 
    GridFunctionCoefficient grad_cf(&grad);
-   real_t max_grad = zero->ComputeMaxError(grad_cf);
-   real_t mu_max(max_grad), mu_min(-max_grad);
-   // real_t mu_max(1e10), mu_min(-1e10);
-#ifdef MFEM_USE_MPI
-   const ParFiniteElementSpace *pfes = dynamic_cast<const ParFiniteElementSpace*>(grad.FESpace());
-   if (pfes)
-   {
-      MPI_Allreduce(MPI_IN_PLACE, &mu_max, 1, MFEM_MPI_REAL_T, MPI_MAX,
-                    pfes->GetComm());
-      MPI_Allreduce(MPI_IN_PLACE, &mu_min, 1, MFEM_MPI_REAL_T, MPI_MIN,
-                    pfes->GetComm());
-   }
-   // out << mu_max << ", " << mu_min << std::endl;
-#endif
-   // real_t mu_max(max_grad), mu_min(-max_grad);
+   real_t mu_max(GetMaxVal(grad)), mu_min(GetMinVal(grad));
    if (mu_max == mu_min)
    {
       mu_max = entropy->GetFiniteUpperBound();
       mu_min = entropy->GetFiniteLowerBound();
    }
    const real_t targ_vol = vol > max_vol ? max_vol : min_vol;
-
    for (int i=0; i< 200; i++)
    {
       mu = (mu_max+mu_min)*0.5;

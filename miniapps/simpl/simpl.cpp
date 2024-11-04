@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
                                     E, nu, ess_bdr_state, ess_bdr_filter,
                                     solid_attr, void_attr,
                                     ser_ref_levels, par_ref_levels));
-   filename << "-" << ser_ref_levels + par_ref_levels;
+   filename << "-" << ser_ref_levels + par_ref_levels << "-" << order_control;
    if (use_L2_stationarity)
    {
       filename << "-L2";
@@ -232,8 +232,6 @@ int main(int argc, char *argv[])
    PrimalEntropy entropy_primal;
    entropy.SetFiniteLowerBound(-max_latent);
    entropy.SetFiniteUpperBound(+max_latent);
-   entropy_primal.SetFiniteLowerBound(0.0);
-   entropy_primal.SetFiniteUpperBound(1.0);
    control_gf = entropy.forward((min_vol ? min_vol : max_vol)/tot_vol);
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
@@ -250,9 +248,9 @@ int main(int argc, char *argv[])
    filter.GetAdjLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(energy));
    if (prob == mfem::ForceInverter2)
    {
-      ForceInverterInitialDesign(control_gf, &entropy);
+      // ForceInverterInitialDesign(control_gf, &entropy);
    }
-   filter.Solve(filter_gf);
+      ForceInverterInitialDesign(control_gf, &entropy);
 
    // elasticity
    ElasticityProblem elasticity(fes_state, ess_bdr_state, lambda_simp_cf,

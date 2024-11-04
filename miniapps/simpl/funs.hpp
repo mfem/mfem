@@ -9,11 +9,15 @@ namespace mfem
 #define LOGMIN 2e-50
 #define LOGMIN_VAL -34.65735902799726547086160607290882840377500671801276270603400047
 real_t safe_log(const real_t x);
+real_t safe_xlogx(const real_t x);
 real_t sigmoid(const real_t x);
 real_t invsigmoid(const real_t x);
 real_t der_sigmoid(const real_t x);
 real_t simp(const real_t x, const real_t exponent, const real_t rho0);
 real_t der_simp(const real_t x, const real_t exponent, const real_t rho0);
+
+real_t GetMaxVal(const GridFunction &x);
+real_t GetMinVal(const GridFunction &x);
 
 class CompositeCoefficient : public Coefficient
 {
@@ -93,7 +97,7 @@ public:
    MappedPairedGFCoefficient(const GridFunction &gf, const GridFunction &other_gf,
                              fun_type fun)
       : GridFunctionCoefficient(&gf), fun(fun), other_gf(&other_gf),
-        other_gf_comp(1) {}
+        other_gf_comp(0) {}
 
    // Create only with function. Use SetGridFunction to set gridfunctions.
    // By default, the object takes the ownership.
@@ -111,7 +115,7 @@ public:
    }
 
    void SetOtherGridFunction(const GridFunction *new_other_gf,
-                             int new_other_comp=-1)
+                             int new_other_comp=0)
    {
       other_gf = new_other_gf;
       other_gf_comp=new_other_comp;
@@ -180,24 +184,24 @@ public:
        lower_bound(lower_bound), upper_bound(upper_bound),
        finite_lower_bound(finite_lower_bound),
        finite_upper_bound(finite_upper_bound) {}
-   MappedGFCoefficient GetForwardCoeff();
-   MappedGFCoefficient GetBackwardCoeff();
-   MappedGFCoefficient GetEntropyCoeff();
+   virtual MappedGFCoefficient GetForwardCoeff();
+   virtual MappedGFCoefficient GetBackwardCoeff();
+   virtual MappedGFCoefficient GetEntropyCoeff();
+   virtual MappedGFCoefficient GetForwardCoeff(const GridFunction &x);
+   virtual MappedGFCoefficient GetBackwardCoeff(const GridFunction &psi);
+   virtual MappedGFCoefficient GetEntropyCoeff(const GridFunction &x);
+   // Get Bregman divergence with primal variables
+   virtual MappedPairedGFCoefficient GetBregman(const GridFunction &x,
+                                                const GridFunction &y);
+   // Get Bregman divergence with dual variables
+   virtual MappedPairedGFCoefficient GetBregman_dual(const GridFunction &psi,
+                                                     const GridFunction &chi);
    real_t GetLowerBound() {return lower_bound;};
    real_t GetUpperBound() {return upper_bound;};
    real_t GetFiniteLowerBound() {return finite_lower_bound;};
    real_t GetFiniteUpperBound() {return finite_upper_bound;};
    void SetFiniteLowerBound(real_t new_lower_bound) { finite_lower_bound = new_lower_bound; };
    void SetFiniteUpperBound(real_t new_upper_bound) { finite_upper_bound = new_upper_bound;};
-   MappedGFCoefficient GetForwardCoeff(const GridFunction &x);
-   MappedGFCoefficient GetBackwardCoeff(const GridFunction &psi);
-   MappedGFCoefficient GetEntropyCoeff(const GridFunction &x);
-   // Get Bregman divergence with primal variables
-   MappedPairedGFCoefficient GetBregman(const GridFunction &x,
-                                        const GridFunction &y);
-   // Get Bregman divergence with dual variables
-   MappedPairedGFCoefficient GetBregman_dual(const GridFunction &psi,
-                                             const GridFunction &chi);
 };
 
 class PrimalEntropy : public LegendreEntropy
@@ -214,7 +218,7 @@ class FermiDiracEntropy : public LegendreEntropy
 {
 public:
    FermiDiracEntropy():LegendreEntropy(
-         [](const real_t x) {return x*safe_log(x)+(1.0-x)*safe_log(1.0 - x);},
+         [](const real_t x) {return safe_xlogx(x)+safe_xlogx(1.0-x);},
    invsigmoid, sigmoid, -mfem::infinity(), mfem::infinity(), -1e09, 1e09) {}
 };
 
