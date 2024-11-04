@@ -18,22 +18,37 @@ namespace mfem
 {
 
 void NativeBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
-                                  Vector &y, real_t alpha, real_t beta) const
+                                  Vector &y, real_t alpha, real_t beta,
+                                  Op op) const
 {
+   const bool tr = (op == Op::T);
+
    const int m = A.SizeI();
    const int n = A.SizeJ();
    const int n_mat = A.SizeK();
-   const int k = x.Size() / n / n_mat;
+   const int k = x.Size() / (tr ? m : n) / n_mat;
 
-   auto d_A = mfem::Reshape(A.Read(), m, n, n_mat);
-   auto d_x = mfem::Reshape(x.Read(), n, k, n_mat);
-   auto d_y = mfem::Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
+   auto d_A = Reshape(A.Read(), m, n, n_mat);
+   auto d_x = Reshape(x.Read(), (tr ? m : n), k, n_mat);
+   auto d_y = Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(),
+                      (tr ? n : m), k, n_mat);
 
-   mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
+   if (tr)
    {
-      kernels::AddMult(m, k, n, &d_A(0,0,i), &d_x(0,0,i), &d_y(0,0,i),
-                       alpha, beta);
-   });
+      mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
+      {
+         kernels::AddMultAtB(m, n, k, &d_A(0,0,i), &d_x(0,0,i), &d_y(0,0,i),
+                             alpha, beta);
+      });
+   }
+   else
+   {
+      mfem::forall(n_mat, [=] MFEM_HOST_DEVICE (int i)
+      {
+         kernels::AddMult(m, k, n, &d_A(0,0,i), &d_x(0,0,i), &d_y(0,0,i),
+                          alpha, beta);
+      });
+   }
 
    // Alternative approach, threading also over the second index. Which one is
    // better?
@@ -48,7 +63,85 @@ void NativeBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
 
 void NativeBatchedLinAlg::Invert(DenseTensor &A) const
 {
-   MFEM_ABORT("");
+   const int m = A.SizeI();
+   const int NE = A.SizeK();
+   DenseTensor LU = A;
+   Array<int> P(m*NE);
+
+   LUFactor(LU, P);
+
+   auto data_all = Reshape(LU.Read(), m, m, NE);
+   auto piv_all  = Reshape(P.Read(), m, NE);
+   auto inv_all  = Reshape(A.Write(), m, m, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      // A^{-1} = U^{-1} L^{-1} P
+      // X <- U^{-1} (set only the upper triangular part of X)
+      real_t *X          = &inv_all(0, 0, e);
+      real_t *x          = X;
+      const real_t *data = &data_all(0, 0, e);
+      const int *ipiv    = &piv_all(0, e);
+
+      for (int k = 0; k < m; k++)
+      {
+         const real_t minus_x_k = -(x[k] = 1.0 / data[k + k * m]);
+         for (int i = 0; i < k; i++)
+         {
+            x[i] = data[i + k * m] * minus_x_k;
+         }
+         for (int j = k - 1; j >= 0; j--)
+         {
+            const real_t x_j = (x[j] /= data[j + j * m]);
+            for (int i = 0; i < j; i++)
+            {
+               x[i] -= data[i + j * m] * x_j;
+            }
+         }
+         x += m;
+      }
+
+      // X <- X L^{-1} (use input only from the upper triangular part of X)
+      {
+         int k = m - 1;
+         for (int j = 0; j < k; j++)
+         {
+            const real_t minus_L_kj = -data[k + j * m];
+            for (int i = 0; i <= j; i++)
+            {
+               X[i + j * m] += X[i + k * m] * minus_L_kj;
+            }
+            for (int i = j + 1; i < m; i++)
+            {
+               X[i + j * m] = X[i + k * m] * minus_L_kj;
+            }
+         }
+      }
+      for (int k = m - 2; k >= 0; k--)
+      {
+         for (int j = 0; j < k; j++)
+         {
+            const real_t L_kj = data[k + j * m];
+            for (int i = 0; i < m; i++)
+            {
+               X[i + j * m] -= X[i + k * m] * L_kj;
+            }
+         }
+      }
+
+      // X <- X P
+      for (int k = m - 1; k >= 0; k--)
+      {
+         const int piv_k = ipiv[k];
+         if (k != piv_k)
+         {
+            for (int i = 0; i < m; i++)
+            {
+               kernels::internal::Swap(X[i + k * m], X[i + piv_k * m]);
+            }
+         }
+      }
+   });
 }
 
 void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
@@ -58,8 +151,8 @@ void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
    const int NE = A.SizeK();
    P.SetSize(m*NE);
 
-   auto data_all = mfem::Reshape(A.ReadWrite(), m, m, NE);
-   auto ipiv_all = mfem::Reshape(P.Write(), m, NE);
+   auto data_all = Reshape(A.ReadWrite(), m, m, NE);
+   auto ipiv_all = Reshape(P.Write(), m, NE);
    Array<bool> pivot_flag(1);
    pivot_flag[0] = true;
    bool *d_pivot_flag = pivot_flag.ReadWrite();
@@ -87,7 +180,7 @@ void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
                // swap rows i and piv in both L and U parts
                for (int j = 0; j < m; j++)
                {
-                  mfem::kernels::internal::Swap<real_t>(data_all(i,j,e), data_all(piv,j,e));
+                  kernels::internal::Swap<real_t>(data_all(i,j,e), data_all(piv,j,e));
                }
             }
          } // pivot end
@@ -124,9 +217,9 @@ void NativeBatchedLinAlg::LUSolve(const DenseTensor &LU, const Array<int> &P,
    const int n_mat = LU.SizeK();
    const int n_rhs = x.Size() / m / n_mat;
 
-   auto d_LU = mfem::Reshape(LU.Read(), m, m, n_mat);
-   auto d_P = mfem::Reshape(P.Read(), m, n_mat);
-   auto d_x = mfem::Reshape(x.Write(), m, n_rhs, n_mat);
+   auto d_LU = Reshape(LU.Read(), m, m, n_mat);
+   auto d_P = Reshape(P.Read(), m, n_mat);
+   auto d_x = Reshape(x.Write(), m, n_rhs, n_mat);
 
    mfem::forall(n_mat * n_rhs, [=] MFEM_HOST_DEVICE (int idx)
    {
