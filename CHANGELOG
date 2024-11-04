@@ -54,6 +54,10 @@ GPU computing
   or by explicitly calling `KernelReporter::Enable`. Users can then add
   specializations for these kernels to achieve higher performance.
 
+- Element assembly kernels have been added for low-order refined to
+  high-order transfer operators. New kernels can be offloaded as device
+  kernels. Example usage may be found in lor-transfer.cpp under miniapps/tools.
+
 Miscellaneous
 -------------
 - Added support for SUNDIALS v7. See the section "API changes" for some small
