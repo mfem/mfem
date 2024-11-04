@@ -184,8 +184,8 @@ public:
                         face degrees of freedom.
        @param[in]     a Scalar coefficient for addition.
    */
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const real_t a = 1.0) const override = 0;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override = 0;
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y ignoring the signs from DOF orientation. */

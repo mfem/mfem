@@ -3730,10 +3730,11 @@ static void ReadCubitBlocks(NetCDFReader & cubit_reader,
 
    size_t num_nodes_per_element;
 
+   int iblock = 1;
    for (int block_id : block_ids)
    {
       // Write variable name to buffer.
-      snprintf(string_buffer, buffer_size, "num_nod_per_el%d", block_id);
+      snprintf(string_buffer, buffer_size, "num_nod_per_el%d", iblock++);
 
       cubit_reader.ReadDimension(string_buffer, &num_nodes_per_element);
 
@@ -3779,12 +3780,13 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
    const int buffer_size = NC_MAX_NAME + 1;
    char string_buffer[buffer_size];
 
+   int ibdr = 1;
    for (int boundary_id : boundary_ids)
    {
       // 1. Extract number of elements/sides for boundary.
       size_t num_sides = 0;
 
-      snprintf(string_buffer, buffer_size, "num_side_ss%d", boundary_id);
+      snprintf(string_buffer, buffer_size, "num_side_ss%d", ibdr);
       cubit_reader.ReadDimension(string_buffer, &num_sides);
 
       // 2. Extract elements and sides on each boundary (1-indexed!)
@@ -3792,11 +3794,11 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
       vector<int> boundary_side_ids(num_sides);
 
       //
-      snprintf(string_buffer, buffer_size, "elem_ss%d", boundary_id);
+      snprintf(string_buffer, buffer_size, "elem_ss%d", ibdr);
       cubit_reader.ReadVariable(string_buffer, boundary_element_ids.data());
 
       //
-      snprintf(string_buffer, buffer_size,"side_ss%d", boundary_id);
+      snprintf(string_buffer, buffer_size,"side_ss%d", ibdr++);
       cubit_reader.ReadVariable(string_buffer, boundary_side_ids.data());
 
       // 3. Add to maps.
@@ -3836,6 +3838,7 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
    const int buffer_size = NC_MAX_NAME + 1;
    char string_buffer[buffer_size];
 
+   int iblock = 1;
    for (const int block_id : block_ids)
    {
       const CubitElement & block_element = cubit_blocks.GetBlockElement(block_id);
@@ -3848,7 +3851,7 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
       vector<int> node_ids_for_block(num_nodes_for_block);
 
       // Write variable name to buffer.
-      snprintf(string_buffer, buffer_size, "connect%d", block_id);
+      snprintf(string_buffer, buffer_size, "connect%d", iblock++);
 
       cubit_reader.ReadVariable(string_buffer, node_ids_for_block.data());
 

@@ -168,7 +168,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    bVarf_->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
    bVarf_->Assemble();
    bVarf_->SpMat() *= -1.0;
-   bVarf_->EliminateTrialDofs(ess_bdr, u_, gform);
+   bVarf_->EliminateTrialEssentialBC(ess_bdr, u_, gform);
    bVarf_->Finalize();
    B_.Reset(bVarf_->ParallelAssemble());
 
