@@ -205,16 +205,17 @@ DesignDensity::DesignDensity(
 void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
                                   const GridFunction &grad, real_t &mu, real_t &vol)
 {
-   x.Add(-step_size, grad);
+   const real_t abs_step_size = std::fabs(step_size);
+   x.Add(-abs_step_size, grad);
 
    mu = 0.0;
    const real_t maxval = entropy->GetFiniteUpperBound();
    const real_t minval = entropy->GetFiniteLowerBound();
 
-   MappedGFCoefficient newx_cf(x, [&mu, maxval, minval, step_size]
+   MappedGFCoefficient newx_cf(x, [&mu, maxval, minval, abs_step_size]
                                (const real_t psi)
    {
-      return std::max(minval, std::min(maxval, psi + step_size*mu));
+      return std::max(minval, std::min(maxval, psi + abs_step_size*mu));
    });
    MaskedCoefficient masked_newx_cf(newx_cf);
    ConstantCoefficient maxval_cf(maxval);
@@ -233,8 +234,16 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
    real_t mu_max(GetMaxVal(grad)), mu_min(GetMinVal(grad));
    if (mu_max == mu_min)
    {
-      mu_max = entropy->GetFiniteUpperBound();
-      mu_min = entropy->GetFiniteLowerBound();
+      // cannot change the volume using gradient
+      // include min/max of x
+      mu_max -= GetMinVal(x)/abs_step_size;
+      mu_min -= GetMaxVal(x)/abs_step_size;
+      if (mu_max==mu_min) // still the same -> initial constant design
+      {
+         // just use the max volume.
+         x = entropy->backward(max_vol / tot_vol);
+         return;
+      }
    }
    const real_t targ_vol = vol > max_vol ? max_vol : min_vol;
    for (int i=0; i< 200; i++)
