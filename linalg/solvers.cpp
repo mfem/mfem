@@ -264,7 +264,7 @@ void OperatorJacobiSmoother::SetOperator(const Operator &op)
       oper = &op;
       height = op.Height();
       width = op.Width();
-      MFEM_ASSERT(height == width, "not a square matrix!");
+      MFEM_VERIFY(height == width, "not a square matrix!");
       // ess_tdof_list is only used with BilinearForm
       ess_tdof_list = nullptr;
    }
@@ -305,8 +305,8 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 {
    // For empty MPI ranks, height may be 0:
    // MFEM_VERIFY(Height() > 0, "The diagonal hasn't been computed.");
-   MFEM_ASSERT(x.Size() == Width(), "invalid input vector");
-   MFEM_ASSERT(y.Size() == Height(), "invalid output vector");
+   MFEM_VERIFY(x.Size() == Width(), "invalid input vector");
+   MFEM_VERIFY(y.Size() == Height(), "invalid output vector");
 
    if (iterative_mode)
    {
@@ -592,7 +592,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    }
    initial_norm = nom0;
 
-   if (print_options.iterations | print_options.first_and_last)
+   if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << right << 0 << "  ||Br|| = "
                 << nom << (print_options.first_and_last ? " ..." : "") << '\n';
@@ -744,7 +744,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
    nom0 = nom = Dot(d, r);
    if (nom0 >= 0.0) { initial_norm = sqrt(nom0); }
-   MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
+   MFEM_VERIFY(IsFinite(nom), "nom = " << nom);
    if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
@@ -776,7 +776,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    oper->Mult(d, z);  // z = A d
    den = Dot(z, d);
-   MFEM_ASSERT(IsFinite(den), "den = " << den);
+   MFEM_VERIFY(IsFinite(den), "den = " << den);
    if (den <= 0.0)
    {
       if (Dot(d, d) > 0.0 && print_options.warnings)
@@ -811,7 +811,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          betanom = Dot(r, r);
       }
-      MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
+      MFEM_VERIFY(IsFinite(betanom), "betanom = " << betanom);
       if (betanom < 0.0)
       {
          if (print_options.warnings)
@@ -855,7 +855,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       oper->Mult(d, z);       //  z = A d
       den = Dot(d, z);
-      MFEM_ASSERT(IsFinite(den), "den = " << den);
+      MFEM_VERIFY(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
          if (Dot(d, d) > 0.0 && print_options.warnings)
@@ -1025,7 +1025,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       }
    }
    real_t beta = initial_norm = Norm(r);  // beta = ||r||
-   MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+   MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
 
@@ -1075,7 +1075,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          }
 
          H(i+1,i) = Norm(w);           // H(i+1,i) = ||w||
-         MFEM_ASSERT(IsFinite(H(i+1,i)), "Norm(w) = " << H(i+1,i));
+         MFEM_VERIFY(IsFinite(H(i+1,i)), "Norm(w) = " << H(i+1,i));
          if (v[i+1] == NULL) { v[i+1] = new Vector(n); }
          v[i+1]->Set(1.0/H(i+1,i), w); // v[i+1] = w / H(i+1,i)
 
@@ -1089,7 +1089,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
          const real_t resid = fabs(s(i+1));
-         MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+         MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
 
          if (resid <= final_norm)
          {
@@ -1128,7 +1128,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          subtract(b, r, r);
       }
       beta = Norm(r);         // beta = ||r||
-      MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+      MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
       if (beta <= final_norm)
       {
          final_norm = beta;
@@ -1185,7 +1185,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       r = b;
    }
    real_t beta = initial_norm = Norm(r);  // beta = ||r||
-   MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+   MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
 
@@ -1262,7 +1262,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
          const real_t resid = fabs(s(i+1));
-         MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+         MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
          if (print_options.iterations || (print_options.first_and_last &&
                                           resid <= final_norm))
          {
@@ -1303,7 +1303,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       oper->Mult(x, r);
       subtract(b,r,r);
       beta = Norm(r);
-      MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+      MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
       if (beta <= final_norm)
       {
          converged = true;
@@ -1400,7 +1400,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    rtilde = r;
 
    resid = initial_norm = Norm(r);
-   MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+   MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
    if (print_options.iterations || print_options.first_and_last)
    {
       mfem::out << "   Iteration : " << setw(3) << 0
@@ -1467,7 +1467,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       alpha = rho_1 / Dot(rtilde, v);
       add(r, -alpha, v, s); //  s = r - alpha * v
       resid = Norm(s);
-      MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+      MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
       if (resid < tol_goal)
       {
          x.Add(alpha, phat);  //  x = x + alpha * phat
@@ -1507,7 +1507,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 
       rho_2 = rho_1;
       resid = Norm(r);
-      MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
+      MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
       if (print_options.iterations)
       {
          mfem::out << "   ||r|| = " << resid << '\n';
@@ -1647,7 +1647,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       prec->Mult(v1, u1);
    }
    eta = beta = initial_norm = sqrt(Dot(*z, v1));
-   MFEM_ASSERT(IsFinite(eta), "eta = " << eta);
+   MFEM_VERIFY(IsFinite(eta), "eta = " << eta);
    gamma0 = gamma1 = 1.;
    sigma0 = sigma1 = 0.;
 
@@ -1675,7 +1675,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       }
       oper->Mult(*z, q);
       alpha = Dot(*z, q);
-      MFEM_ASSERT(IsFinite(alpha), "alpha = " << alpha);
+      MFEM_VERIFY(IsFinite(alpha), "alpha = " << alpha);
       if (it > 1) // (v0 == 0) for (it == 1)
       {
          q.Add(-beta, v0);
@@ -1694,7 +1694,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          prec->Mult(v0, q);
          beta = sqrt(Dot(v0, q));
       }
-      MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
+      MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
       rho1 = std::hypot(delta, beta);
 
       if (it == 1)
@@ -1720,7 +1720,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       sigma1 = beta/rho1;
 
       eta = -sigma1*eta;
-      MFEM_ASSERT(IsFinite(eta), "eta = " << eta);
+      MFEM_VERIFY(IsFinite(eta), "eta = " << eta);
 
       if (fabs(eta) <= norm_goal)
       {
@@ -1813,7 +1813,7 @@ void NewtonSolver::SetOperator(const Operator &op)
    oper = &op;
    height = op.Height();
    width = op.Width();
-   MFEM_ASSERT(height == width, "square Operator is required.");
+   MFEM_VERIFY(height == width, "square Operator is required.");
 
    r.SetSize(width);
    c.SetSize(width);
@@ -1821,8 +1821,8 @@ void NewtonSolver::SetOperator(const Operator &op)
 
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
 {
-   MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
-   MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
+   MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
+   MFEM_VERIFY(prec != NULL, "the Solver is not set (use SetSolver).");
 
    int it;
    real_t norm0, norm, norm_goal;
@@ -1854,7 +1854,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
    {
-      MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
+      MFEM_VERIFY(IsFinite(norm), "norm = " << norm);
       if (print_options.iterations)
       {
          mfem::out << "Newton iteration " << setw(2) << it
@@ -2048,7 +2048,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    norm_goal = std::max(rel_tol*norm, abs_tol);
    for (it = 0; true; it++)
    {
-      MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
+      MFEM_VERIFY(IsFinite(norm), "norm = " << norm);
       if (print_options.iterations)
       {
          mfem::out << "LBFGS iteration " <<  it
@@ -2310,14 +2310,14 @@ OptimizationProblem::OptimizationProblem(const int insize,
    : C(C_), D(D_), c_e(NULL), d_lo(NULL), d_hi(NULL), x_lo(NULL), x_hi(NULL),
      input_size(insize)
 {
-   if (C) { MFEM_ASSERT(C->Width() == input_size, "Wrong width of C."); }
-   if (D) { MFEM_ASSERT(D->Width() == input_size, "Wrong width of D."); }
+   if (C) { MFEM_VERIFY(C->Width() == input_size, "Wrong width of C."); }
+   if (D) { MFEM_VERIFY(D->Width() == input_size, "Wrong width of D."); }
 }
 
 void OptimizationProblem::SetEqualityConstraint(const Vector &c)
 {
-   MFEM_ASSERT(C, "The C operator is unspecified -- can't set constraints.");
-   MFEM_ASSERT(c.Size() == C->Height(), "Wrong size of the constraint.");
+   MFEM_VERIFY(C, "The C operator is unspecified -- can't set constraints.");
+   MFEM_VERIFY(c.Size() == C->Height(), "Wrong size of the constraint.");
 
    c_e = &c;
 }
@@ -2325,8 +2325,8 @@ void OptimizationProblem::SetEqualityConstraint(const Vector &c)
 void OptimizationProblem::SetInequalityConstraint(const Vector &dl,
                                                   const Vector &dh)
 {
-   MFEM_ASSERT(D, "The D operator is unspecified -- can't set constraints.");
-   MFEM_ASSERT(dl.Size() == D->Height() && dh.Size() == D->Height(),
+   MFEM_VERIFY(D, "The D operator is unspecified -- can't set constraints.");
+   MFEM_VERIFY(dl.Size() == D->Height() && dh.Size() == D->Height(),
                "Wrong size of the constraint.");
 
    d_lo = &dl; d_hi = &dh;
@@ -2334,7 +2334,7 @@ void OptimizationProblem::SetInequalityConstraint(const Vector &dl,
 
 void OptimizationProblem::SetSolutionBounds(const Vector &xl, const Vector &xh)
 {
-   MFEM_ASSERT(xl.Size() == input_size && xh.Size() == input_size,
+   MFEM_VERIFY(xl.Size() == input_size && xh.Size() == input_size,
                "Wrong size of the constraint.");
 
    x_lo = &xl; x_hi = &xh;
@@ -2355,8 +2355,8 @@ void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
       MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
                    "the l2 norm of (x - x_target).");
    }
-   MFEM_ASSERT(prob.GetC(), "Linear constraint is not set.");
-   MFEM_ASSERT(prob.GetC()->Height() == 1, "Solver expects scalar constraint.");
+   MFEM_VERIFY(prob.GetC(), "Linear constraint is not set.");
+   MFEM_VERIFY(prob.GetC()->Height() == 1, "Solver expects scalar constraint.");
 
    problem = &prob;
 }
@@ -2787,7 +2787,7 @@ void BlockILU::SetOperator(const Operator &op)
    }
    height = op.Height();
    width = op.Width();
-   MFEM_ASSERT(A->Finalized(), "Matrix must be finalized.");
+   MFEM_VERIFY(A->Finalized(), "Matrix must be finalized.");
    CreateBlockPattern(*A);
    Factorize();
 }
@@ -2998,7 +2998,7 @@ void BlockILU::Factorize()
 
 void BlockILU::Mult(const Vector &b, Vector &x) const
 {
-   MFEM_ASSERT(height > 0, "BlockILU(0) preconditioner is not constructed");
+   MFEM_VERIFY(height > 0, "BlockILU(0) preconditioner is not constructed");
    int nblockrows = Height()/block_size;
    y.SetSize(Height());
 
@@ -3293,7 +3293,7 @@ void KLUSolver::SetOperator(const Operator &op)
 {
    if (Numeric)
    {
-      MFEM_ASSERT(Symbolic != 0,
+      MFEM_VERIFY(Symbolic != 0,
                   "Had Numeric pointer in KLU, but not Symbolic");
       klu_free_symbolic(&Symbolic, &Common);
       Symbolic = 0;

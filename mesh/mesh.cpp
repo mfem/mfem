@@ -2210,7 +2210,7 @@ class GeckoProgress : public Gecko::Progress
    mutable StopWatch sw;
 public:
    GeckoProgress(real_t limit) : limit(limit) { sw.Start(); }
-   virtual bool quit() const { return limit > 0 && sw.UserTime() > limit; }
+   bool quit() const override { return limit > 0 && sw.UserTime() > limit; }
 };
 
 class GeckoVerboseProgress : public GeckoProgress
@@ -2221,18 +2221,18 @@ class GeckoVerboseProgress : public GeckoProgress
 public:
    GeckoVerboseProgress(real_t limit) : GeckoProgress(limit) {}
 
-   virtual void beginorder(const Graph* graph, Float cost) const
+   void beginorder(const Graph* graph, Float cost) const override
    { mfem::out << "Begin Gecko ordering, cost = " << cost << std::endl; }
-   virtual void endorder(const Graph* graph, Float cost) const
+   void endorder(const Graph* graph, Float cost) const override
    { mfem::out << "End ordering, cost = " << cost << std::endl; }
 
-   virtual void beginiter(const Graph* graph,
-                          uint iter, uint maxiter, uint window) const
+   void beginiter(const Graph* graph,
+                  uint iter, uint maxiter, uint window) const override
    {
       mfem::out << "Iteration " << iter << "/" << maxiter << ", window "
                 << window << std::flush;
    }
-   virtual void enditer(const Graph* graph, Float mincost, Float cost) const
+   void enditer(const Graph* graph, Float mincost, Float cost) const override
    { mfem::out << ", cost = " << cost << endl; }
 };
 
@@ -5112,6 +5112,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
          }
 
          Embedding &emb = CoarseFineTr.embeddings[el_fine];
+         emb.geom = geom;
          emb.parent = el_coarse;
          emb.matrix = offset + j;
          ++el_fine;
@@ -9000,6 +9001,9 @@ void Mesh::MoveNodes(const Vector &displacements)
    {
       MoveVertices(displacements);
    }
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::GetNodes(Vector &node_coord) const

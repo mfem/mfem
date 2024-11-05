@@ -80,7 +80,6 @@ constexpr real_t NL_DMAX = std::numeric_limits<real_t>::max();
 // Static variables for GLVis
 constexpr int GLVIZ_W = 1024;
 constexpr int GLVIZ_H = 1024;
-constexpr int  visport = 19916;
 constexpr char vishost[] = "localhost";
 
 // Context/Options for the solver
@@ -94,6 +93,8 @@ struct Opt
    int refine = 2;
    int niters = 8;
    int surface = 5;
+   // Socket to send visualization data
+   int visport = 19916;
    bool pa = true;
    bool vis = true;
    bool amr = false;
@@ -157,7 +158,7 @@ public:
    int Solve()
    {
       // Initialize GLVis server if 'visualization' is set
-      if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
+      if (opt.vis) { opt.vis = glvis.open(vishost, opt.visport) == 0; }
       // Send to GLVis the first mesh
       if (opt.vis) { Visualize(glvis, opt, mesh, GLVIZ_W, GLVIZ_H); }
       // Create and launch the surface solver
@@ -177,7 +178,7 @@ public:
       return 0;
    }
 
-   ~Surface()
+   ~Surface() override
    {
       if (opt.vis) { glvis.close(); }
       delete mesh; delete fec; delete fes;
@@ -449,7 +450,7 @@ public:
       ByNodes(Surface &S, Opt &opt): Solver(S, opt)
       { a.AddDomainIntegrator(new VectorDiffusionIntegrator(one)); }
 
-      bool Step()
+      bool Step() override
       {
          x = *S.fes->GetMesh()->GetNodes();
          bool converge = ParAXeqB();
@@ -487,7 +488,7 @@ public:
       ByVDim(Surface &S, Opt &opt): Solver(S, opt)
       { a.AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
-      bool Step()
+      bool Step() override
       {
          bool cvg[SDIM] {false};
          for (int c=0; c < SDIM; ++c)
@@ -514,7 +515,7 @@ struct Catenoid: public Surface
 {
    Catenoid(Opt &opt): Surface((opt.Tptr = Parametrization, opt)) { }
 
-   void Prefix()
+   void Prefix() override
    {
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
       Array<int> v2v(GetNV());
@@ -603,7 +604,7 @@ struct Hold: public Surface
 {
    Hold(Opt &opt): Surface((opt.Tptr = Parametrization, opt)) { }
 
-   void Prefix()
+   void Prefix() override
    {
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
       Array<int> v2v(GetNV());
@@ -771,7 +772,7 @@ struct Costa: public Surface
 {
    Costa(Opt &opt): Surface((opt.Tptr = Parametrization, opt), false) { }
 
-   void Prefix()
+   void Prefix() override
    {
       ALPHA[3] = opt.tau;
       const int nx = opt.nx, ny = opt.ny;
@@ -853,7 +854,7 @@ struct Costa: public Surface
       ALPHA[2] = std::max(p[2], ALPHA[2]);
    }
 
-   void Snap()
+   void Snap() override
    {
       Vector node(SDIM);
       MFEM_VERIFY(ALPHA[0] > 0.0,"");
@@ -917,7 +918,7 @@ struct FullPeach: public Surface
    FullPeach(Opt &opt):
       Surface((opt.niters = std::min(4, opt.niters), opt), NV, NE, 0) { }
 
-   void Prefix()
+   void Prefix() override
    {
       const real_t quad_v[NV][SDIM] =
       {
@@ -939,9 +940,9 @@ struct FullPeach: public Surface
       SetCurvature(opt.order, false, SDIM, Ordering::byNODES);
    }
 
-   void Snap() { SnapNodesToUnitSphere(); }
+   void Snap() override { SnapNodesToUnitSphere(); }
 
-   void BoundaryConditions()
+   void BoundaryConditions() override
    {
       Vector X(SDIM);
       Array<int> dofs;
@@ -1010,7 +1011,7 @@ struct QuarterPeach: public Surface
       p[2] = 1.0 - gamma;
    }
 
-   void Postfix()
+   void Postfix() override
    {
       for (int i = 0; i < GetNBE(); i++)
       {
@@ -1046,7 +1047,7 @@ struct SlottedSphere: public Surface
 {
    SlottedSphere(Opt &opt): Surface((opt.niters = 4, opt), 64, 40, 0) { }
 
-   void Prefix()
+   void Prefix() override
    {
       constexpr real_t delta = 0.15;
       constexpr int NV1D = 4;
@@ -1138,7 +1139,7 @@ struct SlottedSphere: public Surface
       FinalizeTopology();
    }
 
-   void Snap() { SnapNodesToUnitSphere(); }
+   void Snap() override { SnapNodesToUnitSphere(); }
 };
 
 static int Problem0(Opt &opt)
@@ -1250,7 +1251,7 @@ static int Problem1(Opt &opt)
    FunctionCoefficient u0_fc(u0);
    u.ProjectCoefficient(u0_fc);
    socketstream glvis;
-   if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
+   if (opt.vis) { opt.vis = glvis.open(vishost, opt.visport) == 0; }
    if (opt.vis) { Surface::Visualize(glvis, opt, &mesh, GLVIZ_W, GLVIZ_H, &u); }
    CGSolver cg;
    cg.SetRelTol(EPS);
@@ -1296,6 +1297,7 @@ int main(int argc, char *argv[])
    opt.sz = opt.id = 0;
    // Parse command-line options.
    OptionsParser args(argc, argv);
+   args.AddOption(&opt.visport, "-p", "--send-port", "Socket for GLVis.");
    args.AddOption(&opt.pb, "-p", "--problem", "Problem to solve.");
    args.AddOption(&opt.mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&opt.wait, "-w", "--wait", "-no-w", "--no-wait",

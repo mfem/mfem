@@ -30,7 +30,6 @@
 //    lsf_integral -ls 2 -m ../../data/inline-quad.mesh -rs 2 -o 3 -ao 3
 
 #include "mfem.hpp"
-#include "integ_algoim.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -183,57 +182,37 @@ int main(int argc, char *argv[])
 
 #ifdef MFEM_USE_ALGOIM
    real_t area=0.0;
-   DenseMatrix bmat; // gradients of the shape functions in isoparametric space
-   DenseMatrix pmat; // gradients of the shape functions in physical space
-   Vector inormal; // normal to the level set in isoparametric space
-   Vector tnormal; // normal to the level set in physical space
-   Vector lsfun; // level set function restricted to an element
-   DofTransformation *doftrans;
-   Array<int> vdofs;
+
+   AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,*ls_coeff,order);
+
+   IntegrationRule eir;
+   Vector sweights;
+
    for (int i=0; i<fespace.GetNE(); i++)
    {
-      const FiniteElement* el=fespace.GetFE(i);
-
       // get the element transformation
       trans = fespace.GetElementTransformation(i);
 
-      // extract the element vector from the level-set
-      doftrans = fespace.GetElementVDofs(i,vdofs);
-      x.GetSubVector(vdofs, lsfun);
-
-      // construct Algoim integration object
-      AlgoimIntegrationRule air(aorder, *el, *trans, lsfun);
-
-      // compute the volume contribution from the element
-      ir = air.GetVolumeIntegrationRule();
-      for (int j = 0; j < ir->GetNPoints(); j++)
+      air->GetVolumeIntegrationRule(*trans,eir);
+      for (int j = 0; j < eir.GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(j);
+         const IntegrationPoint &ip = eir.IntPoint(j);
          trans->SetIntPoint(&ip);
          vol += ip.weight * trans->Weight();
       }
 
       // compute the perimeter/area contribution from the element
-      bmat.SetSize(el->GetDof(),el->GetDim());
-      pmat.SetSize(el->GetDof(),el->GetDim());
-      inormal.SetSize(el->GetDim());
-      tnormal.SetSize(el->GetDim());
-
-      ir = air.GetSurfaceIntegrationRule();
-      for (int j = 0; j < ir->GetNPoints(); j++)
+      air->GetSurfaceIntegrationRule(*trans,eir);
+      air->GetSurfaceWeights(*trans,eir,sweights);
+      for (int j = 0; j < eir.GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(j);
+         const IntegrationPoint &ip = eir.IntPoint(j);
          trans->SetIntPoint(&ip);
-
-         el->CalcDShape(ip,bmat);
-         Mult(bmat, trans->AdjugateJacobian(), pmat);
-         // compute the normal to the LS in isoparametric space
-         bmat.MultTranspose(lsfun,inormal);
-         // compute the normal to the LS in physical space
-         pmat.MultTranspose(lsfun,tnormal);
-         area += ip.weight * tnormal.Norml2() / inormal.Norml2();
+         area += ip.weight * sweights(j) * trans->Weight();
       }
    }
+
+   delete air;
 
    if (exact_volume > 0)
    {

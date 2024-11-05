@@ -98,6 +98,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = 1;
    bool NURBS = true;
+   int visport = 19916;
    bool div_free = true;
 
    OptionsParser args(argc, argv);
@@ -116,6 +117,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -350,7 +352,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream u_sock(vishost, visport);
       u_sock.precision(8);
       u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;

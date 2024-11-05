@@ -64,7 +64,7 @@ public:
 
    void InitializeGLVis();
 
-   void DisplayToGLVis();
+   void DisplayToGLVis(int visport = 19916);
 
    const ParGridFunction & GetVectorPotential() { return *a_; }
 
