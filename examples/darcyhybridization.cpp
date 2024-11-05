@@ -31,6 +31,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    m_nlfi = NULL;
    own_m_nlfi_u = false;
    own_m_nlfi_p = false;
+   own_m_nlfi = false;
 
    bfin = false;
    bnl = false;
