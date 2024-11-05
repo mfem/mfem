@@ -1419,7 +1419,7 @@ void DenseMatrix::Diag(real_t c, int n)
    }
 }
 
-void DenseMatrix::Diag(real_t *diag, int n)
+void DenseMatrix::Diag(const real_t *diag, int n)
 {
    SetSize(n);
 
@@ -4435,6 +4435,57 @@ DenseTensor &DenseTensor::operator=(const DenseTensor &other)
    DenseTensor new_tensor(other);
    Swap(new_tensor);
    return *this;
+}
+
+DenseTensor &DenseTensor::operator+=(const real_t *m)
+{
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i = 0; i < s; i++)
+   {
+      tdata[i] += m[i];
+   }
+   return *this;
+}
+
+DenseTensor &DenseTensor::operator+=(const DenseTensor &m)
+{
+   MFEM_ASSERT(SizeI() == m.SizeI() && SizeJ() == m.SizeJ() &&
+               SizeK() == m.SizeK(),
+               "incompatible tensor sizes.");
+   return *this += m.Data();
+}
+
+DenseTensor &DenseTensor::operator-=(const DenseTensor &m)
+{
+   MFEM_ASSERT(SizeI() == m.SizeI() && SizeJ() == m.SizeJ() &&
+               SizeK() == m.SizeK(),
+               "incompatible tensor sizes.");
+
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i = 0; i < s; i++)
+   {
+      tdata[i] -= m.tdata[i];
+   }
+   return *this;
+}
+
+DenseTensor &DenseTensor::operator*=(real_t c)
+{
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i = 0; i < s; i++)
+   {
+      tdata[i] *= c;
+   }
+   return *this;
+}
+
+void DenseTensor::Neg()
+{
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i = 0; i < s; i++)
+   {
+      tdata[i] = -tdata[i];
+   }
 }
 
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)

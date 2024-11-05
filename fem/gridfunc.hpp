@@ -53,6 +53,11 @@ protected:
    void ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
                                 real_t &integral);
 
+   // Project the vector delta coefficient without scaling and return the
+   // (local) integral of the projection.
+   void ProjectVectorDeltaCoefficient(VectorDeltaCoefficient &vdelta_coeff,
+                                      real_t &integral);
+
    // Sum fluxes to vertices and count element contributions
    void SumFluxAndCount(BilinearFormIntegrator &blfi,
                         GridFunction &flux,
