@@ -339,6 +339,8 @@ public:
    void Diag(real_t c, int n);
    /// Creates n x n diagonal matrix with diagonal given by diag
    void Diag(real_t *diag, int n);
+   /// Creates a diagonal matrix with diagonal given by diag
+   void Diag(const Vector &diag) { Diag(diag.GetData(), diag.Size()); }
 
    /// (*this) = (*this)^t
    void Transpose();
