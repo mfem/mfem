@@ -67,6 +67,7 @@ enum Problem
 {
    SteadyDiffusion = 1,
    MFEMLogo,
+   DiffusionRing,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
@@ -142,7 +143,8 @@ int main(int argc, char *argv[])
    args.AddOption(&iproblem, "-p", "--problem",
                   "Problem to solve:\n\t\t"
                   "1=sine diffusion\n\t\t"
-                  "2=MFEM logo\n\t\t");
+                  "2=MFEM logo\n\t\t"
+                  "3=diffusion ring\n\t\t");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
@@ -213,6 +215,7 @@ int main(int argc, char *argv[])
    switch (problem)
    {
       case Problem::SteadyDiffusion:
+      case Problem::DiffusionRing:
          break;
       case Problem::MFEMLogo:
          bconv = true;
@@ -288,6 +291,7 @@ int main(int argc, char *argv[])
    {
       case Problem::SteadyDiffusion:
       case Problem::MFEMLogo:
+      case Problem::DiffusionRing:
          //free (zero Dirichlet)
          if (bc_neumann)
          {
@@ -1062,6 +1066,25 @@ MatFunc GetKFun(Problem prob, real_t k, real_t ks, real_t ka)
             }
          };
       }
+      case Problem::DiffusionRing:
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            const int ndim = x.Size();
+            Vector b(ndim);
+            b = 0.;
+
+            Vector dx(x);
+            dx -= .5;
+            const real_t r = hypot(dx(0), dx(1));
+            b(0) = (r>0.)?(-dx(1) / r):(1.);
+            b(1) = (r>0.)?(+dx(0) / r):(0.);
+
+            kappa.Diag(ks * k, ndim);
+            if (ks != 1.)
+            {
+               AddMult_a_VVt((1. - ks) * k, b, kappa);
+            }
+         };
    }
    return MatFunc();
 }
@@ -1157,7 +1180,25 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
             const real_t T = (logo[ih-1-iy][ix] != ' ')?(t_0):(0.);
             return T;
          };
+      case Problem::DiffusionRing:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            constexpr real_t r0 = 0.25;
+            constexpr real_t r1 = 0.35;
+            constexpr real_t theta0 = 11./12.;
 
+            Vector dx(x);
+            dx -= .5;
+            const real_t r = hypot(dx(0), dx(1));
+            const real_t theta = fabs(atan2(dx(1), dx(0)));
+
+            if (r > r0 && r < r1 && theta > theta0*M_PI)
+            {
+               return t_0;
+            }
+
+            return 0.;
+         };
    }
    return TFunc();
 }
@@ -1199,6 +1240,7 @@ VecTFunc GetQFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun,
             }
          };
       case Problem::MFEMLogo:
+      case Problem::DiffusionRing:
          return [=](const Vector &x, real_t, Vector &v)
          {
             const int vdim = x.Size();
@@ -1214,6 +1256,7 @@ VecFunc GetCFun(Problem prob, real_t c)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
+      case Problem::DiffusionRing:
          // null
          break;
       case Problem::MFEMLogo:
@@ -1259,6 +1302,7 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
    {
       case Problem::SteadyDiffusion:
       case Problem::MFEMLogo:
+      case Problem::DiffusionRing:
          return [=](const Vector &x, real_t) -> real_t
          {
             const real_t T = TFun(x, 0);
@@ -1274,6 +1318,7 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
    {
       case Problem::SteadyDiffusion:
       case Problem::MFEMLogo:
+      case Problem::DiffusionRing:
          //null
          break;
    }
@@ -1287,6 +1332,8 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
    {
       case Problem::SteadyDiffusion:
       case Problem::MFEMLogo:
+      case Problem::DiffusionRing:
+         //not anisotropic!
          static FunctionCoefficient ikappa([=](const Vector &x) -> real_t { return 1./k; });
          return new LinearDiffusionFlux(dim, &ikappa);
    }
