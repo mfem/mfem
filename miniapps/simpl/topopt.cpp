@@ -215,8 +215,8 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
                 min_latent(entropy->GetFiniteLowerBound());
          if (max_x > max_latent || min_x < min_latent)
          {
-            if (Mpi::Root()) {out << "Applying entropy regularization" << std::endl;}
-            *entropyPenalty = 1.0 - std::min(std::max(0.0, max_latent / max_x), std::max(min_latent / min_x, 0.0));
+            *entropyPenalty = 1.0 - std::min(std::max(0.0, max_latent / max_x),
+                                             std::max(min_latent / min_x, 0.0));
             x *= (1.0 - *entropyPenalty);
             *entropyPenalty /= step_size;
          }
@@ -242,8 +242,8 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
       return std::max(minval, std::min(maxval, psi + abs_step_size*mu));
    });
    MaskedCoefficient masked_newx_cf(newx_cf);
-   ConstantCoefficient maxval_cf(maxval);
-   ConstantCoefficient minval_cf(minval);
+   ConstantCoefficient maxval_cf(entropy->GetFiniteUpperBound());
+   ConstantCoefficient minval_cf(entropy->GetFiniteLowerBound());
    if (solid_attr_id) { masked_newx_cf.AddMasking(maxval_cf, solid_attr_id); }
    if (void_attr_id) { masked_newx_cf.AddMasking(minval_cf, void_attr_id); }
    CompositeCoefficient density_cf(masked_newx_cf, entropy->backward);
@@ -385,14 +385,12 @@ real_t DesignDensity::ComputeVolume(const GridFunction &x)
 DensityBasedTopOpt::DensityBasedTopOpt(
    DesignDensity &density, GridFunction &control_gf, GridFunction &grad_control,
    HelmholtzFilter &filter, GridFunction &filter_gf, GridFunction &grad_filter,
-   EllipticProblem &state_eq, GridFunction &state_gf,
-   bool enforce_volume_constraint)
+   EllipticProblem &state_eq, GridFunction &state_gf)
    :density(density), control_gf(control_gf), grad_control(grad_control),
     filter(filter), filter_gf(filter_gf), grad_filter(grad_filter),
     elasticity(state_eq), state_gf(state_gf),
     obj(state_eq.HasAdjoint() ? *state_eq.GetAdjLinearForm():
-        *state_eq.GetLinearForm()),
-    enforce_volume_constraint(enforce_volume_constraint)
+        *state_eq.GetLinearForm())
 {
    Array<int> empty(control_gf.FESpace()->GetMesh()->bdr_attributes.Max());
    empty = 0;
@@ -416,15 +414,7 @@ DensityBasedTopOpt::DensityBasedTopOpt(
 
 real_t DensityBasedTopOpt::Eval()
 {
-   if (enforce_volume_constraint)
-   {
-      current_volume = density.ApplyVolumeProjection(control_gf,
-                                                     density.hasEntropy());
-   }
-   else
-   {
-      current_volume = density.ComputeVolume(control_gf);
-   }
+   current_volume = density.ComputeVolume(control_gf);
    filter.Solve(filter_gf);
    elasticity.Solve(state_gf);
    obj.Assemble();
@@ -496,10 +486,6 @@ real_t ComputeKKT(const ParGridFunction &control_gf,
       dual_V += delta_dual / tot_vol;
       kkt.ProjectCoefficient(mismatch_grad);
       cur_mismatch = zero_gf.ComputeL1Error(mismatch_grad);
-      // if (Mpi::Root())
-      // {
-      //    out << dual_V << ", " << cur_mismatch << std::endl;
-      // }
       if (cur_mismatch < best_mismatch)
       {
          best_guess = dual_V;
@@ -513,7 +499,6 @@ real_t ComputeKKT(const ParGridFunction &control_gf,
    dual_V = best_guess;
    zero_gf.ComputeElementMaxErrors(mismatch_grad, kkt);
    real_t grad_res = zero_gf.ComputeL1Error(mismatch_grad);
-   if (Mpi::Root()) { out << dual_V << ", " << cur_mismatch << ", " << best_mismatch << ", " << dual_V << std::endl; }
    return grad_res + std::max(0.0, dual_V*vol_res / tot_vol);
 }
 

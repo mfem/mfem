@@ -216,14 +216,11 @@ private:
    real_t objval;
    real_t current_volume;
 
-   bool enforce_volume_constraint;
-
 public:
    DensityBasedTopOpt(DesignDensity &density, GridFunction &gf_control,
                       GridFunction &grad_control, HelmholtzFilter &filter,
                       GridFunction &gf_filter, GridFunction &grad_filter,
-                      EllipticProblem &state_eq, GridFunction &gf_state,
-                      bool enforce_volume_constraint = true);
+                      EllipticProblem &state_eq, GridFunction &gf_state);
 
    real_t GetCurrentVolume()
    {
