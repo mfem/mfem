@@ -1419,7 +1419,7 @@ void DenseMatrix::Diag(real_t c, int n)
    }
 }
 
-void DenseMatrix::Diag(real_t *diag, int n)
+void DenseMatrix::Diag(const real_t *diag, int n)
 {
    SetSize(n);
 
