@@ -1185,19 +1185,23 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun, real_t c)
          {
             constexpr real_t r0 = 0.25;
             constexpr real_t r1 = 0.35;
-            constexpr real_t theta0 = 11./12.;
+            constexpr real_t dr01 = 0.025;
+            constexpr real_t theta0 = 11./12. * M_PI;
+            constexpr real_t dtheta0 = 1./48. * M_PI;
 
             Vector dx(x);
             dx -= .5;
             const real_t r = hypot(dx(0), dx(1));
             const real_t theta = fabs(atan2(dx(1), dx(0)));
 
-            if (r > r0 && r < r1 && theta > theta0*M_PI)
+            if (r < r0 - dr01 || r > r1 + dr01 || theta < theta0 - dtheta0)
             {
-               return t_0;
+               return 0.;
             }
 
-            return 0.;
+            const real_t dr = min(r - r0 + dr01, r1 + dr01 - r) / dr01;
+            const real_t dth = (theta - theta0 + dtheta0) / dtheta0;
+            return min(1., dr) * min(1., dth) * t_0;
          };
    }
    return TFunc();
