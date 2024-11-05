@@ -18,9 +18,28 @@ real_t mfem::LinearDiffusionFlux::ComputeDualFlux(
    const Vector &, const DenseMatrix &flux, ElementTransformation &Tr,
    DenseMatrix &dualFlux) const
 {
-   const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
-   dualFlux.Set(ikappa, flux);
-   return ikappa;
+   if (coeff)
+   {
+      const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
+      dualFlux.Set(ikappa, flux);
+      return ikappa;
+   }
+   else if (vcoeff)
+   {
+      Vector ikappa(dim);
+      vcoeff->Eval(ikappa, Tr, Tr.GetIntPoint());
+      dualFlux = flux;
+      dualFlux.LeftScaling(ikappa);
+      return ikappa.Normlinf();
+   }
+   else if (mcoeff)
+   {
+      DenseMatrix ikappa(dim);
+      mcoeff->Eval(ikappa, Tr, Tr.GetIntPoint());
+      MultABt(flux, ikappa, dualFlux);
+      return ikappa.MaxMaxNorm();
+   }
+   return 0.;
 }
 
 real_t LinearDiffusionFlux::ComputeFlux(
@@ -32,12 +51,22 @@ real_t LinearDiffusionFlux::ComputeFlux(
 
 void LinearDiffusionFlux::ComputeDualFluxJacobian(
    const Vector &, const DenseMatrix &flux, ElementTransformation &Tr,
-   DenseTensor &J) const
+   DenseMatrix &J) const
 {
-   const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
-   for (int d = 0; d < dim; d++)
+   if (coeff)
    {
-      J(d)(0,0) = ikappa;
+      const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
+      J.Diag(ikappa, dim);
+   }
+   else if (vcoeff)
+   {
+      Vector ikappa(dim);
+      vcoeff->Eval(ikappa, Tr, Tr.GetIntPoint());
+      J.Diag(ikappa.GetData(), dim);
+   }
+   else if (mcoeff)
+   {
+      mcoeff->Eval(J, Tr, Tr.GetIntPoint());
    }
 }
 
@@ -149,7 +178,7 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    elmats(1,1)->SetSize(ndof_p);
    *elmats(1,1) = 0.0;
 
-   DenseTensor J(1, 1, sdim);
+   DenseMatrix J(sdim);
    Vector x(sdim), u(sdim), p(1);
    DenseMatrix mu(u.GetData(), 1, sdim);
 
@@ -184,13 +213,14 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
 
          fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J);
 
-         for (int d = 0; d < sdim; d++)
-            for (int j = 0; j < ndof_u; j++)
-               for (int i = 0; i < ndof_u; i++)
-               {
-                  (*elmats(0,0))(i+d*ndof_u, j+d*ndof_u)
-                  += w * J(0,0,d) * shape_u(i) * shape_u(j);
-               }
+         for (int d_j = 0; d_j < sdim; d_j++)
+            for (int d_i = 0; d_i < sdim; d_i++)
+               for (int j = 0; j < ndof_u; j++)
+                  for (int i = 0; i < ndof_u; i++)
+                  {
+                     (*elmats(0,0))(i+d_i*ndof_u, j+d_j*ndof_u)
+                     += w * J(d_i,d_j) * shape_u(i) * shape_u(j);
+                  }
       }
    }
    else
@@ -199,7 +229,7 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
       elmats(0,0)->SetSize(ndof_u);
       *elmats(0,0) = 0.0;
 
-      Vector vJ(J.Data(), sdim);
+      DenseMatrix vshapeJ_u(sdim, ndof_u);
 
       for (int q = 0; q < ir->Size(); q++)
       {
@@ -217,8 +247,8 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
 
          fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J);
 
-         vJ *= w;
-         AddMultADAt(vshape_u, vJ, *elmats(0,0));
+         MultABt(J, vshape_u, vshapeJ_u);
+         AddMult_a(w, vshape_u, vshapeJ_u, *elmats(0,0));
       }
    }
 }

@@ -81,7 +81,8 @@ VecFunc GetCFun(Problem prob, real_t c);
 TFunc GetFFun(Problem prob, real_t t_0, real_t a, const MatFunc &kFun,
               real_t c);
 FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoeff);
-MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim);
+MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, real_t ks, real_t ka,
+                                  int dim);
 
 int main(int argc, char *argv[])
 {
@@ -421,7 +422,7 @@ int main(int argc, char *argv[])
    else
    {
       //nonlinear diffusion
-      HeatFluxFun = GetHeatFluxFun(problem, k, dim);
+      HeatFluxFun = GetHeatFluxFun(problem, k, ks, ka, dim);
       if (dg)
       {
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
@@ -1330,16 +1331,19 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
    return NULL;
 }
 
-MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
+MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, real_t ks, real_t ka,
+                                  int dim)
 {
+   auto KFun = GetKFun(prob, k, ks, ka);
+
    switch (prob)
    {
       case Problem::SteadyDiffusion:
       case Problem::MFEMLogo:
       case Problem::DiffusionRing:
-         //not anisotropic!
-         static FunctionCoefficient ikappa([=](const Vector &x) -> real_t { return 1./k; });
-         return new LinearDiffusionFlux(dim, &ikappa);
+         static MatrixFunctionCoefficient kappa(dim, KFun);
+         static InverseMatrixCoefficient ikappa(kappa);
+         return new LinearDiffusionFlux(ikappa);
    }
 
    return NULL;

@@ -33,17 +33,27 @@ public:
 
    virtual void ComputeDualFluxJacobian(const Vector &, const DenseMatrix &flux,
                                         ElementTransformation &Tr,
-                                        DenseTensor &J) const
+                                        DenseMatrix &J) const
    { MFEM_ABORT("Not Implemented."); }
 };
 
 class LinearDiffusionFlux : public MixedFluxFunction
 {
    Coefficient *coeff;
+   VectorCoefficient *vcoeff;
+   MatrixCoefficient *mcoeff;
 
 public:
-   LinearDiffusionFlux(int dim, Coefficient *coeff)
-      : MixedFluxFunction(1, dim), coeff(coeff) { }
+   LinearDiffusionFlux(int dim, Coefficient &coeff)
+      : MixedFluxFunction(1, dim), coeff(&coeff), vcoeff(NULL), mcoeff(NULL) { }
+
+   LinearDiffusionFlux(VectorCoefficient &vcoeff)
+      : MixedFluxFunction(1, vcoeff.GetVDim()), coeff(NULL), vcoeff(&vcoeff),
+        mcoeff(NULL) { }
+
+   LinearDiffusionFlux(MatrixCoefficient &mcoeff)
+      : MixedFluxFunction(1, mcoeff.GetVDim()), coeff(NULL), vcoeff(NULL),
+        mcoeff(&mcoeff) { }
 
    real_t ComputeDualFlux(const Vector &, const DenseMatrix &flux,
                           ElementTransformation &Tr,
@@ -55,7 +65,7 @@ public:
 
    void ComputeDualFluxJacobian(const Vector &, const DenseMatrix &flux,
                                 ElementTransformation &Tr,
-                                DenseTensor &J) const override;
+                                DenseMatrix &J) const override;
 };
 
 class MixedConductionNLFIntegrator : public BlockNonlinearFormIntegrator

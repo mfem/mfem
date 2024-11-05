@@ -1371,7 +1371,7 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
       case Problem::SteadyBurgers:
       case Problem::NonsteadyBurgers:
          static FunctionCoefficient ikappa([=](const Vector &x) -> real_t { return 1./k; });
-         return new LinearDiffusionFlux(dim, &ikappa);
+         return new LinearDiffusionFlux(dim, ikappa);
    }
 
    return NULL;
