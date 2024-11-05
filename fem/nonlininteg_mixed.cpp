@@ -62,7 +62,7 @@ void LinearDiffusionFlux::ComputeDualFluxJacobian(
    {
       Vector ikappa(dim);
       vcoeff->Eval(ikappa, Tr, Tr.GetIntPoint());
-      J.Diag(ikappa.GetData(), dim);
+      J.Diag(ikappa);
    }
    else if (mcoeff)
    {
