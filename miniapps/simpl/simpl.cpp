@@ -250,7 +250,6 @@ int main(int argc, char *argv[])
    {
       // ForceInverterInitialDesign(control_gf, &entropy);
    }
-      ForceInverterInitialDesign(control_gf, &entropy);
 
    // elasticity
    ElasticityProblem elasticity(fes_state, ess_bdr_state, lambda_simp_cf,
