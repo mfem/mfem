@@ -27,6 +27,7 @@ int main(int argc, char *argv[])
    bool overwrite_paraview = false;
    real_t step_size = -1.0;
    real_t max_step_size = infinity();
+   real_t entropyPenalty = -1.0;
 
    real_t exponent = 3.0;
    real_t rho0 = 1e-06;
@@ -46,11 +47,6 @@ int main(int argc, char *argv[])
    // Stopping-criteria related
    int max_it = 300;
    int min_it = 10;
-   real_t tol_stationary_rel = 1e-04;
-   real_t tol_stationary_abs = 1e-04;
-   real_t eps_stationarity = 1;
-   real_t tol_obj_diff_rel = 5e-05;
-   real_t tol_obj_diff_abs = 5e-05;
    real_t tol_rel = 1e-05;
    real_t tol_abs = 1e-05;
    // backtracking related
@@ -105,10 +101,6 @@ int main(int argc, char *argv[])
                   "Tolerance for absolute KKT residual");
    args.AddOption(&KKT_type, "-kkt-type", "--kkt-type",
                   "KKT type: 1) Brendan, 2) Thomas");
-   args.AddOption(&tol_obj_diff_rel, "-rtol-obj", "--rel-tol-obj",
-                  "Tolerance for relative successive objective difference");
-   args.AddOption(&tol_obj_diff_abs, "-atol-obj", "--abs-tol-obj",
-                  "Tolerance for absolute successive objective difference");
    args.AddOption(&step_size, "-a0", "--init-step",
                   "Initial step size");
    args.AddOption(&use_bregman_backtrack, "-bb", "--bregman-backtrack", "-ab",
@@ -248,7 +240,7 @@ int main(int argc, char *argv[])
    filter.GetAdjLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(energy));
    if (prob == mfem::ForceInverter2)
    {
-      // ForceInverterInitialDesign(control_gf, &entropy);
+      ForceInverterInitialDesign(control_gf, &entropy);
    }
 
    // elasticity
@@ -352,7 +344,7 @@ int main(int argc, char *argv[])
    }
 
    real_t stationarity0, obj0,
-          stationarity, stationarity_error,
+          stationarity,
           curr_vol,
           objval(infinity()), old_objval(infinity()), succ_obj_diff(infinity());
    real_t kkt, kkt0(infinity());
@@ -369,6 +361,7 @@ int main(int argc, char *argv[])
    logger.Append("kkt", kkt);
    logger.Append("tot_reeval", tot_reeval);
    logger.Append("volume_correction", volume_correction);
+   logger.Append("penalty", entropyPenalty);
    logger.SaveWhenPrint(filename.str());
    std::unique_ptr<ParaViewDataCollection> paraview_dc;
    if (use_paraview)
@@ -382,7 +375,7 @@ int main(int argc, char *argv[])
          paraview_dc->SetDataFormat(VTKFormat::BINARY);
          paraview_dc->SetHighOrderOutput(true);
          // paraview_dc->RegisterField("displacement", &state_gf);
-         // paraview_dc->RegisterField("density", &density_gf);
+         paraview_dc->RegisterField("density", &control_gf);
          paraview_dc->RegisterField("filtered_density", &filter_gf);
       }
    }
@@ -407,11 +400,13 @@ int main(int argc, char *argv[])
          real_t psi_diffrho = -InnerProduct(MPI_COMM_WORLD,
                                             diff_density_form, control_old_gf);
          step_size = std::fabs(psi_diffrho / grad_diffrho);
+         // step_size = std::sqrt(step_size*step_size_old);
          if (Mpi::Root())
          {
             out << "   Step size = " << step_size
                 << " = | " << psi_diffrho << " / " << grad_diffrho << " |" << std::endl;
          }
+         step_size = std::sqrt(step_size * step_size_old);
          if (!isfinite(step_size))
          {
             break;
@@ -425,8 +420,9 @@ int main(int argc, char *argv[])
       for (num_reeval=0; num_reeval < max_it_backtrack; num_reeval++)
       {
          control_gf = control_old_gf;
+         entropyPenalty = -1.0;
          density.ProjectedStep(control_gf, step_size, grad_gf, volume_correction,
-                               curr_vol);
+                               curr_vol, &entropyPenalty);
          objval = optproblem.Eval();
          // kkt = zero_gf.ComputeL1Error(KKT_cf);
          // if (it_md > 1 && !use_L2_stationarity && (kkt < tol_rel*kkt0 || kkt < tol_abs))
@@ -498,7 +494,7 @@ int main(int argc, char *argv[])
       density_primal.ProjectedStep(control_eps_gf, 1.0, grad_gf, lambda_V, dummy2);
       stationarity = control_eps_gf.ComputeL2Error(density_cf);
       control_eps_gf = control_gf;
-      density.ProjectedStep(control_eps_gf, step_size, grad_gf, lambda_V, dummy2);
+      density.ProjectedStep(control_eps_gf, step_size > 0 ? step_size : 1.0, grad_gf, lambda_V, dummy2);
       kkt = zero_gf.ComputeL1Error(KKT_cf);
       // control_eps_gf = control_gf;
       // density.ProjectedStep(control_eps_gf, 1.0, grad_gf, lambda_V, dummy2);
@@ -510,7 +506,7 @@ int main(int argc, char *argv[])
 
       if (it_md == 0)
       {
-         stationarity0 = stationarity_error;
+         stationarity0 = stationarity;
          kkt0 = kkt;
       }
       logger.Print(true);

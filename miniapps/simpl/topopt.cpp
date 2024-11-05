@@ -203,14 +203,38 @@ DesignDensity::DesignDensity(
 }
 
 void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
-                                  const GridFunction &grad, real_t &mu, real_t &vol)
+                                  const GridFunction &grad, real_t &mu, real_t &vol, real_t *entropyPenalty)
 {
    const real_t abs_step_size = std::fabs(step_size);
+   if (entropyPenalty && *entropyPenalty != 0.0)
+   {
+      if (*entropyPenalty < 0)
+      {
+         real_t max_x(GetMaxVal(x)), min_x(GetMinVal(x));
+         real_t max_latent(entropy->GetFiniteUpperBound()),
+                min_latent(entropy->GetFiniteLowerBound());
+         if (max_x > max_latent || min_x < min_latent)
+         {
+            if (Mpi::Root()) {out << "Applying entropy regularization" << std::endl;}
+            *entropyPenalty = 1.0 - std::min(std::max(0.0, max_latent / max_x), std::max(min_latent / min_x, 0.0));
+            x *= (1.0 - *entropyPenalty);
+            *entropyPenalty /= step_size;
+         }
+         else
+         {
+            *entropyPenalty = 0.0;
+         }
+      }
+      else
+      {
+         x *= 1.0 - (*entropyPenalty) * step_size;
+      }
+   }
    x.Add(-abs_step_size, grad);
 
    mu = 0.0;
-   const real_t maxval = entropy->GetFiniteUpperBound();
-   const real_t minval = entropy->GetFiniteLowerBound();
+   const real_t maxval = entropy->GetUpperBound();
+   const real_t minval = entropy->GetLowerBound();
 
    MappedGFCoefficient newx_cf(x, [&mu, maxval, minval, abs_step_size]
                                (const real_t psi)
