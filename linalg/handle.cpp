@@ -62,7 +62,7 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
                                          HYPRE_BigInt *row_starts,
                                          SparseMatrix *diag)
 {
-   if (own_oper) { delete oper; }
+   if (own_ptr) { delete ptr; }
 
    switch (type_id)
    {
@@ -73,19 +73,19 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
          pSet(diag, false);
          return;
       case Operator::Hypre_ParCSR:
-         oper = new HypreParMatrix(comm, glob_size, row_starts, diag);
+         ptr = new HypreParMatrix(comm, glob_size, row_starts, diag);
          break;
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
          // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
-         oper = new PetscParMatrix(comm, glob_size, (PetscInt*)row_starts, diag,
-                                   type_id);
+         ptr = new PetscParMatrix(comm, glob_size, (PetscInt*)row_starts, diag,
+                                  type_id);
          break;
 #endif
       default: MFEM_ABORT(not_supported_msg << type_id);
    }
-   own_oper = true;
+   own_ptr = true;
 }
 
 void OperatorHandle::
@@ -93,7 +93,7 @@ MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_num_rows,
                          HYPRE_BigInt glob_num_cols, HYPRE_BigInt *row_starts,
                          HYPRE_BigInt *col_starts, SparseMatrix *diag)
 {
-   if (own_oper) { delete oper; }
+   if (own_ptr) { delete ptr; }
 
    switch (type_id)
    {
@@ -104,20 +104,20 @@ MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_num_rows,
          pSet(diag, false);
          return;
       case Operator::Hypre_ParCSR:
-         oper = new HypreParMatrix(comm, glob_num_rows, glob_num_cols,
-                                   row_starts, col_starts, diag);
+         ptr = new HypreParMatrix(comm, glob_num_rows, glob_num_cols,
+                                  row_starts, col_starts, diag);
          break;
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
          // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
-         oper = new PetscParMatrix(comm, glob_num_rows, glob_num_cols,
-                                   (PetscInt*)row_starts, (PetscInt*)col_starts, diag, type_id);
+         ptr = new PetscParMatrix(comm, glob_num_rows, glob_num_cols,
+                                  (PetscInt*)row_starts, (PetscInt*)col_starts, diag, type_id);
          break;
 #endif
       default: MFEM_ABORT(not_supported_msg << type_id);
    }
-   own_oper = true;
+   own_ptr = true;
 }
 #endif // MFEM_USE_MPI
 
@@ -202,25 +202,25 @@ void OperatorHandle::MakeRAP(OperatorHandle &Rt, OperatorHandle &A,
 
 void OperatorHandle::ConvertFrom(OperatorHandle &A)
 {
-   if (own_oper) { delete oper; }
+   if (own_ptr) { delete ptr; }
    if (Type() == A.Type() || Type() == Operator::ANY_TYPE)
    {
-      oper = A.Ptr();
-      own_oper = false;
+      ptr = A.Ptr();
+      own_ptr = false;
       return;
    }
-   oper = NULL;
+   ptr = NULL;
    switch (Type()) // target type id
    {
       case Operator::MFEM_SPARSEMAT:
       {
-         oper = A.Is<SparseMatrix>();
+         ptr = A.Is<SparseMatrix>();
          break;
       }
       case Operator::Hypre_ParCSR:
       {
 #ifdef MFEM_USE_MPI
-         oper = A.Is<HypreParMatrix>();
+         ptr = A.Is<HypreParMatrix>();
 #endif
          break;
       }
@@ -231,25 +231,25 @@ void OperatorHandle::ConvertFrom(OperatorHandle &A)
          {
             case Operator::Hypre_ParCSR:
 #ifdef MFEM_USE_PETSC
-               oper = new PetscParMatrix(A.As<HypreParMatrix>(), Type());
+               ptr = new PetscParMatrix(A.As<HypreParMatrix>(), Type());
 #endif
                break;
             default: break;
          }
 #ifdef MFEM_USE_PETSC
-         if (!oper)
+         if (!ptr)
          {
             PetscParMatrix *pA = A.Is<PetscParMatrix>();
-            if (pA->GetType() == Type()) { oper = pA; }
+            if (pA->GetType() == Type()) { ptr = pA; }
          }
 #endif
          break;
       }
       default: break;
    }
-   MFEM_VERIFY(oper != NULL, "conversion from type id = " << A.Type()
+   MFEM_VERIFY(ptr != NULL, "conversion from type id = " << A.Type()
                << " to type id = " << Type() << " is not supported");
-   own_oper = true;
+   own_ptr = true;
 }
 
 void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
