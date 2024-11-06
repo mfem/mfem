@@ -255,7 +255,8 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
    }
 
    GridFunctionCoefficient grad_cf(&grad);
-   real_t mu_max(GetMaxVal(grad)), mu_min(GetMinVal(grad));
+   real_t max_grad = zero->ComputeMaxError(grad_cf);
+   real_t mu_max(max_grad), mu_min(-max_grad);
    if (mu_max == mu_min)
    {
       // cannot change the volume using gradient

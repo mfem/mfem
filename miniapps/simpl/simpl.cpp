@@ -486,8 +486,6 @@ int main(int argc, char *argv[])
       density_gf.ProjectCoefficient(density_cf);
 
       optproblem.UpdateGradient();
-      avg_grad = InnerProduct(fes_control.GetComm(), grad_gf, dv)/tot_vol;
-
       real_t dummy2;
 
       control_eps_gf.ProjectCoefficient(density_cf);
