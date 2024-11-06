@@ -264,7 +264,9 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
       if (mu_max==mu_min) // still the same -> initial constant design
       {
          // just use the max volume.
+         
          x = entropy->forward(max_vol / tot_vol);
+         x.ProjectCoefficient(masked_newx_cf);
          return;
       }
    }
