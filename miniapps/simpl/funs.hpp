@@ -144,9 +144,10 @@ public:
       masking_coeff(0), masking_attr(0) {}
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
+      const int attr = T.Attribute;
       for (int i=0; i< masking_attr.Size(); i++)
       {
-         if (T.Attribute == masking_attr[i])
+         if (attr == masking_attr[i])
          {
             return masking_coeff[i]->Eval(T, ip);
          }
@@ -158,8 +159,6 @@ public:
       masking_coeff.Append(&coeff);
       masking_attr.Append(attr);
    }
-
-
 };
 
 // An entropy defined by Legendre function

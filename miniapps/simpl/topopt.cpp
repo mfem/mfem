@@ -254,9 +254,7 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
       return;
    }
 
-   GridFunctionCoefficient grad_cf(&grad);
-   real_t max_grad = zero->ComputeMaxError(grad_cf);
-   real_t mu_max(max_grad), mu_min(-max_grad);
+   real_t mu_max(GetMaxVal(grad)), mu_min(GetMinVal(grad));
    if (mu_max == mu_min)
    {
       // cannot change the volume using gradient
@@ -266,7 +264,7 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
       if (mu_max==mu_min) // still the same -> initial constant design
       {
          // just use the max volume.
-         x = entropy->backward(max_vol / tot_vol);
+         x = entropy->forward(max_vol / tot_vol);
          return;
       }
    }
