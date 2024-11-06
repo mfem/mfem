@@ -1,8 +1,6 @@
 #include "mfem.hpp"
 #include "topopt_problems.hpp"
 #include "logger.hpp"
-// #include <chrono>
-// #include <thread>
 
 using namespace mfem;
 
@@ -14,7 +12,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command-line options.
-   TopoptProblem prob = Cantilever2;
+   ThermalTopoptProblem prob = HeatSink2;
    int KKT_type = 1;
    int ser_ref_levels = 2;
    int par_ref_levels = 4;
@@ -33,8 +31,7 @@ int main(int argc, char *argv[])
    real_t rho0 = 1e-06;
    // problem dependent parmeters.
    // Set to -1 to use default value
-   real_t E = -1.0;
-   real_t nu = -1.0;
+   real_t kappa = -1.0;
    real_t r_min = -1.0;
    real_t max_vol = -1.0;
    real_t min_vol = -1.0;
@@ -81,10 +78,8 @@ int main(int argc, char *argv[])
                   "Penalty parameter for SIMP method");
    args.AddOption(&rho0, "-rho0", "--min-density",
                   "Minimum density for SIMP method");
-   args.AddOption(&E, "-E", "--youngs-modulus",
-                  "Young's modulus E");
-   args.AddOption(&nu, "-nu", "--poisson-ratio",
-                  "Poinsson ration nu");
+   args.AddOption(&kappa, "-K", "--diffusion-coeff",
+                  "Diffusion Coefficient K");
 
    args.AddOption(&max_latent, "-maxl", "--max-latent",
                   "Maximum value for the latent variable to prevent overflow");
@@ -134,13 +129,13 @@ int main(int argc, char *argv[])
    std::stringstream filename;
    filename << "SiMPL-" << (use_bregman_backtrack?"B-":"A-");
 
-   Array2D<int> ess_bdr_state;
+   Array<int> ess_bdr_state;
    Array<int> ess_bdr_filter;
    real_t tot_vol;
-   std::unique_ptr<ParMesh> mesh((ParMesh*)GetTopoptMesh(
+   std::unique_ptr<ParMesh> mesh((ParMesh*)GetThermalTopoptMesh(
                                     prob, filename,
                                     r_min, tot_vol, min_vol, max_vol,
-                                    E, nu, ess_bdr_state, ess_bdr_filter,
+                                    kappa, ess_bdr_state, ess_bdr_filter,
                                     solid_attr, void_attr,
                                     ser_ref_levels, par_ref_levels));
    filename << "-" << ser_ref_levels + par_ref_levels << "-" << order_control;
@@ -148,18 +143,10 @@ int main(int argc, char *argv[])
    {
       filename << "-L2";
    }
-   const real_t lambda = E*nu/((1+nu)*(1-2*nu));
-   const real_t mu = E/(2*(1+nu));
    const int dim = mesh->SpaceDimension();
    if (Mpi::Root())
    {
       args.PrintOptions(out);
-   }
-
-   if (Mpi::Root())
-   {
-      out << "   --lambda " << lambda << std::endl;
-      out << "   --mu " << mu << std::endl;
    }
 
    // Finite Element
@@ -169,7 +156,7 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace fes_control(mesh.get(), &fec_control);
    ParFiniteElementSpace fes_filter(mesh.get(), &fec_filter);
-   ParFiniteElementSpace fes_state(mesh.get(), &fec_state, dim);
+   ParFiniteElementSpace fes_state(mesh.get(), &fec_state);
 
    HYPRE_BigInt num_elem = mesh->GetGlobalNE();
    HYPRE_BigInt control_ndof = fes_control.GlobalTrueVSize();
@@ -215,8 +202,8 @@ int main(int argc, char *argv[])
    {
       return der_simp(x, exponent, rho0);
    });
-   ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
-   ProductCoefficient lambda_simp_cf(lambda, simp_cf), mu_simp_cf(mu, simp_cf);
+   ConstantCoefficient kappa_cf(kappa);
+   ProductCoefficient kappa_simp_cf(kappa_cf, simp_cf);
 
    if (Mpi::Root()) { out << "Creating problems ... " << std::flush; }
    // Density
@@ -235,23 +222,18 @@ int main(int argc, char *argv[])
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);
    filter.GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(density_cf));
    filter.SetBStationary(false);
-   StrainEnergyDensityCoefficient energy(lambda_cf, mu_cf, der_simp_cf, state_gf,
-                                         nullptr);
+   DiffusionEnergyDensityCoefficient energy(kappa_cf, der_simp_cf, state_gf,
+                                            nullptr);
    filter.GetAdjLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(energy));
-   if (prob == mfem::ForceInverter2)
-   {
-      ForceInverterInitialDesign(control_gf, &entropy);
-   }
 
    // elasticity
-   ElasticityProblem elasticity(fes_state, ess_bdr_state, lambda_simp_cf,
-                                mu_simp_cf, prob < 0);
-   elasticity.SetAStationary(false);
-   SetupTopoptProblem(prob, filter, elasticity, filter_gf, state_gf);
+   DiffusionProblem diffusion(fes_state, ess_bdr_state, kappa_simp_cf, prob < 0);
+   diffusion.SetAStationary(false);
+   SetupThermalTopoptProblem(prob, filter, diffusion, filter_gf, state_gf);
    DensityBasedTopOpt optproblem(density, control_gf, grad_gf,
                                  filter, filter_gf, grad_filter_gf,
-                                 elasticity, state_gf);
-   if (elasticity.HasAdjoint()) {energy.SetAdjState(optproblem.GetAdjState());}
+                                 diffusion, state_gf);
+   if (diffusion.HasAdjoint()) {energy.SetAdjState(optproblem.GetAdjState());}
    if (Mpi::Root()) { out << "done" << std::endl; }
 
    // Backtracking related stuffs
@@ -374,7 +356,6 @@ int main(int argc, char *argv[])
          paraview_dc->SetLevelsOfDetail(order_state);
          paraview_dc->SetDataFormat(VTKFormat::BINARY);
          paraview_dc->SetHighOrderOutput(true);
-         // paraview_dc->RegisterField("displacement", &state_gf);
          paraview_dc->RegisterField("density", &control_gf);
          paraview_dc->RegisterField("filtered_density", &filter_gf);
       }
