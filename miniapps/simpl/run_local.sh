@@ -41,8 +41,8 @@ mpirun -np 8 ./simpl -rs 8 -rp 0 -p 21 -vs 10 -atol 1e-05 -rtol 1e-05 -ab -L2 -k
 # mpirun -np 8 ./mma -rs 8 -rp 0 -p 21 -vs 10 -atol 1e-05 -rtol 1e-05
 mpirun -np 8 ./simpl -rs 8 -rp 0 -p 22 -vs 10 -atol 1e-05 -rtol 1e-05 -bb -L2 -kkt-type 1
 mpirun -np 8 ./simpl -rs 8 -rp 0 -p 22 -vs 10 -atol 1e-05 -rtol 1e-05 -ab -L2 -kkt-type 1 
-# mpirun -np 8 ./oc -rs 8 -rp 0 -p 22 -vs 10 -atol 1e-05 -rtol 1e-05
-# mpirun -np 8 ./mma -rs 8 -rp 0 -p 22 -vs 10 -atol 1e-05 -rtol 1e-05
+mpirun -np 8 ./oc -rs 8 -rp 0 -p 22 -vs 10 -atol 1e-05 -rtol 1e-05
+mpirun -np 8 ./mma -rs 8 -rp 0 -p 22 -vs 10 -atol 1e-05 -rtol 1e-05
 
 # Bridge
 mpirun -np 8 ./simpl -rs 4 -rp 4 -p 24 -vs 1 -bb -kkt-type 1
@@ -51,8 +51,8 @@ mpirun -np 8 ./simpl -rs 4 -rp 4 -p 24 -vs 1 -ab -kkt-type 1
 # Compliant Mechanism with no initial design
 sed -i '' 's/.*ForceInverterInitialDesign.*/      \/\/ ForceInverterInitialDesign\(control_gf, \&entropy\);/' simpl.cpp
 make simpl -j
-mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-08 -rtol 1e-08 -bb -kkt-type 1 -mini 20
-mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-08 -rtol 1e-08 -ab -kkt-type 1 -mini 20
+mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-03 -rtol 1e-08 -bb -kkt-type 1 -mini 30 -maxl 1e12
+mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-03 -rtol 1e-08 -ab -kkt-type 1 -mini 30 -maxl 1e12
 mv ParaView/SiMPL-A-ForceInverter2-8-0 ParaView/SiMPL-A-ForceInverter2-8-0-const
 mv SiMPL-A-ForceInverter2-8-0.csv SiMPL-A-ForceInverter2-8-0-const.csv
 mv ParaView/SiMPL-B-ForceInverter2-8-0 ParaView/SiMPL-B-ForceInverter2-8-0-const
@@ -62,7 +62,7 @@ mv SiMPL-B-ForceInverter2-8-0.csv SiMPL-B-ForceInverter2-8-0-const.csv
 sed -i '' 's/.*ForceInverterInitialDesign.*/      ForceInverterInitialDesign\(control_gf, \&entropy\);/' simpl.cpp
 sed -i '' 's/.*Vector domain_center.*/   Vector domain_center\(\{1.0,0.5\}\);/' topopt_problems.cpp
 make simpl -j
-mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-08 -rtol 1e-08 -bb -kkt-type 1 -mini 20
+mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-03 -rtol 1e-08 -bb -kkt-type 1 -mini 30 -maxl 1e12
 mv ParaView/SiMPL-B-ForceInverter2-8-0 ParaView/SiMPL-B-ForceInverter2-8-0-center
 mv SiMPL-B-ForceInverter2-8-0.csv SiMPL-B-ForceInverter2-8-0-center.csv
 
@@ -70,6 +70,6 @@ mv SiMPL-B-ForceInverter2-8-0.csv SiMPL-B-ForceInverter2-8-0-center.csv
 sed -i '' 's/.*ForceInverterInitialDesign.*/      ForceInverterInitialDesign\(control_gf, \&entropy\);/' simpl.cpp
 sed -i '' 's/.*Vector domain_center.*/   Vector domain_center\(\{1.0,0.0\}\);/' topopt_problems.cpp
 make simpl -j
-mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-08 -rtol 1e-08 -bb -kkt-type 1 -mini 20
+mpirun -np 8 ./simpl -rs 4 -rp 4 -p -21 -vs 1 -atol 1e-03 -rtol 1e-08 -bb -kkt-type 1 -mini 30 -maxl 1e12
 mv ParaView/SiMPL-B-ForceInverter2-8-0 ParaView/SiMPL-B-ForceInverter2-8-0-bottom
 mv SiMPL-B-ForceInverter2-8-0.csv SiMPL-B-ForceInverter2-8-0-bottom.csv

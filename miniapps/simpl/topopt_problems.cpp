@@ -448,6 +448,63 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
    return mesh;
 }
 
+Mesh * GetThermalTopoptMesh(ThermalTopoptProblem prob,
+                            std::stringstream &filename,
+                            real_t &r_min, real_t &tot_vol, real_t &min_vol, real_t &max_vol,
+                            real_t &kappa,
+                            Array<int> &ess_bdr_heat, Array<int> &ess_bdr_filter,
+                            int &solid_attr, int &void_attr,
+                            int ser_ref_levels, int par_ref_levels)
+{
+
+   Mesh *mesh;
+   switch (prob)
+   {
+      case HeatSink2:
+      {
+         filename << "HeatSink2";
+         if (r_min < 0) { r_min = 0.05; }
+         if (kappa < 0) { kappa = 1.0; }
+         mesh = new Mesh(Mesh::MakeCartesian2D(1, 2, Element::Type::QUADRILATERAL, false,
+                                               1.0, 2.0));
+         tot_vol = 0.0;
+         for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
+         if (min_vol < 0) { min_vol = 0.0; }
+         if (max_vol < 0) { max_vol = tot_vol*0.5; }
+         for (int i=0; i<ser_ref_levels; i++)
+         {
+            mesh->UniformRefinement();
+         }
+         if (par_ref_levels > -1)
+         {
+#ifdef MFEM_USE_MPI
+            Mesh * ser_mesh = mesh;
+            mesh = new ParMesh(MPI_COMM_WORLD, *ser_mesh);
+            ser_mesh->Clear();
+            delete ser_mesh;
+            for (int i=0; i<par_ref_levels; i++)
+            {
+               mesh->UniformRefinement();
+            }
+#else
+            MFEM_ABORT("MFEM is built without MPI but tried to use parallel refinement");
+#endif
+         }
+         int num_bdr_attr = 4;
+         MarkBoundaries(*mesh, ++num_bdr_attr, [](const Vector &x) { return x[1]>2-1e-10 && x[0]<0.25; });
+         ess_bdr_heat.SetSize(num_bdr_attr);
+         ess_bdr_heat = 0;
+         ess_bdr_heat[4] = 1;
+
+         ess_bdr_filter.SetSize(num_bdr_attr);
+         ess_bdr_filter = 0;
+         break;
+      }
+      default: MFEM_ABORT("Problem Undefined");
+   }
+   return mesh;
+}
+
 void SetupTopoptProblem(TopoptProblem prob,
                         HelmholtzFilter &filter, ElasticityProblem &elasticity,
                         GridFunction &filter_gf, GridFunction &state_gf)
@@ -637,4 +694,24 @@ void SetupTopoptProblem(TopoptProblem prob,
       default: MFEM_ABORT("Problem Undefined");
    }
 }
+
+void SetupThermalTopoptProblem(ThermalTopoptProblem prob,
+                               HelmholtzFilter &filter, DiffusionProblem &diffusion,
+                               GridFunction &filter_gf, GridFunction &state_gf)
+{
+   switch (prob)
+   {
+      case HeatSink2:
+      {
+         auto load = new ConstantCoefficient(1.0);
+         diffusion.MakeCoefficientOwner(load);
+         diffusion.GetLinearForm()->AddDomainIntegrator(
+            new DomainLFIntegrator(*load));
+         diffusion.MakeCoefficientOwner(load);
+         break;
+      }
+      default: MFEM_ABORT("Problem Undefined");
+   }
+}
+
 } // end of namespace

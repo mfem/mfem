@@ -26,6 +26,13 @@ enum TopoptProblem
    ForceInverter2=-21,
 };
 
+enum ThermalTopoptProblem
+{
+   // 2D
+   HeatSink2=21,
+
+};
+
 void MarkBoundaries(Mesh &mesh, int attr,
                     std::function<bool(const Vector &x)> marker);
 void MarkElements(Mesh &mesh, int attr,
@@ -38,14 +45,24 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
                      Array2D<int> &ess_bdr_displacement, Array<int> &ess_bdr_filter,
                      int &solid_attr, int &void_attr,
                      int ser_ref_levels, int par_ref_levels=-1);
+Mesh * GetThermalTopoptMesh(ThermalTopoptProblem prob, std::stringstream &filename,
+                            real_t &r_min, real_t &tot_vol, real_t &min_vol, real_t &max_vol,
+                            real_t &kappa,
+                            Array<int> &ess_bdr_heat, Array<int> &ess_bdr_filter,
+                            int &solid_attr, int &void_attr,
+                            int ser_ref_levels, int par_ref_levels=-1);
 
 // Right hand side. Force or adjoint problems
 void SetupTopoptProblem(TopoptProblem prob,
                         HelmholtzFilter &filter, ElasticityProblem &elasticity,
                         GridFunction &gf_filter, GridFunction &gf_state);
+void SetupThermalTopoptProblem(ThermalTopoptProblem prob,
+                               HelmholtzFilter &filter, DiffusionProblem &diffusion,
+                               GridFunction &filter_gf, GridFunction &state_gf);
 
 real_t DistanceToSegment(const Vector &p, const Vector &v, const Vector &w);
-void ForceInverterInitialDesign(GridFunction &x, LegendreEntropy *entropy=nullptr);
+void ForceInverterInitialDesign(GridFunction &x,
+                                LegendreEntropy *entropy=nullptr);
 
 } // end of namespace mfem
 #endif
