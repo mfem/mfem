@@ -31,22 +31,14 @@ protected:
    T *ptr{};
    bool own_ptr{};
 
-   template <typename PtrType>
-   void pSet(PtrType *A, bool own_A = true)
-   {
-      ptr = A;
-      own_ptr = own_A;
-   }
-
 public:
    /// Create a Handle
    Handle() { }
 
-   /// Create a Handle for the given PtrType pointer, @a A.
+   /// Create a Handle for the given pointer, @a A.
    /** The object ownership flag is set to the value of @a own_A.
        It is expected that @a A points to a valid object. */
-   template <typename PtrType>
-   explicit Handle(PtrType *A, bool own_A = true) { pSet(A, own_A); }
+   explicit Handle(T *A, bool own_A = true) { Reset(A, own_A); }
 
    /// Shallow copy. The ownership flag of the target is set to false.
    Handle(const Handle &other)
@@ -57,7 +49,7 @@ public:
    /// Shallow copy. The ownership flag of the target is set to false.
    Handle &operator=(const Handle &master)
    {
-      Clear(); ptr = master.ptr; own_ptr = false;
+      Reset(master.Ptr(), false);
       return *this;
    }
 
@@ -95,21 +87,16 @@ public:
    void SetOwner(bool own = true) { own_ptr = own; }
 
    /// Clear the Handle, deleting the held object (if owned)
-   void Clear()
-   {
-      if (own_ptr) { delete ptr; }
-      ptr = NULL;
-      own_ptr = false;
-   }
+   void Clear() { Reset(nullptr, false); }
 
-   /// Reset the Handle to the given PtrType pointer, @a A.
+   /// Reset the Handle to the given pointer, @a A.
    /** The object ownership flag is set to the value of @a own_A.
        It is expected that @a A points to a valid object. */
-   template <typename PtrType>
-   void Reset(PtrType *A, bool own_A = true)
+   void Reset(T *A, bool own_A = true)
    {
       if (own_ptr) { delete ptr; }
-      pSet(A, own_A);
+      ptr = A;
+      own_ptr = own_A;
    }
 };
 
@@ -131,13 +118,6 @@ protected:
 
    Operator::Type CheckType(Operator::Type tid);
 
-   template <typename OpType>
-   void pSet(OpType *A, bool own_A = true)
-   {
-      Handle::pSet(A, own_A);
-      type_id = A->GetType();
-   }
-
 public:
    /** @brief Create an OperatorHandle with type id = Operator::MFEM_SPARSEMAT
        without allocating the actual matrix. */
@@ -154,7 +134,7 @@ public:
 
        It is expected that @a A points to a valid object. */
    template <typename OpType>
-   explicit OperatorHandle(OpType *A, bool own_A = true) { pSet(A, own_A); }
+   explicit OperatorHandle(OpType *A, bool own_A = true) { Reset(A, own_A); }
 
    /// Shallow copy. The ownership flag of the target is set to false.
    OperatorHandle(const OperatorHandle &other)
@@ -192,8 +172,8 @@ public:
    template <typename OpType>
    void Reset(OpType *A, bool own_A = true)
    {
-      if (own_ptr) { delete ptr; }
-      pSet(A, own_A);
+      Handle::Reset(A, own_A);
+      type_id = A->GetType();
    }
 
 #ifdef MFEM_USE_MPI

@@ -62,30 +62,27 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_size,
                                          HYPRE_BigInt *row_starts,
                                          SparseMatrix *diag)
 {
-   if (own_ptr) { delete ptr; }
-
    switch (type_id)
    {
       case Operator::ANY_TYPE: // --> MFEM_SPARSEMAT
       case Operator::MFEM_SPARSEMAT:
          // As a parallel Operator, the SparseMatrix simply represents the local
          // Operator, without the need of any communication.
-         pSet(diag, false);
+         Reset(diag, false);
          return;
       case Operator::Hypre_ParCSR:
-         ptr = new HypreParMatrix(comm, glob_size, row_starts, diag);
+         Reset(new HypreParMatrix(comm, glob_size, row_starts, diag));
          break;
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
          // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
-         ptr = new PetscParMatrix(comm, glob_size, (PetscInt*)row_starts, diag,
-                                  type_id);
+         Reset(new PetscParMatrix(comm, glob_size, (PetscInt*)row_starts, diag,
+                                  type_id));
          break;
 #endif
       default: MFEM_ABORT(not_supported_msg << type_id);
    }
-   own_ptr = true;
 }
 
 void OperatorHandle::
@@ -93,31 +90,28 @@ MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_BigInt glob_num_rows,
                          HYPRE_BigInt glob_num_cols, HYPRE_BigInt *row_starts,
                          HYPRE_BigInt *col_starts, SparseMatrix *diag)
 {
-   if (own_ptr) { delete ptr; }
-
    switch (type_id)
    {
       case Operator::ANY_TYPE: // --> MFEM_SPARSEMAT
       case Operator::MFEM_SPARSEMAT:
          // As a parallel Operator, the SparseMatrix simply represents the local
          // Operator, without the need of any communication.
-         pSet(diag, false);
+         Reset(diag, false);
          return;
       case Operator::Hypre_ParCSR:
-         ptr = new HypreParMatrix(comm, glob_num_rows, glob_num_cols,
-                                  row_starts, col_starts, diag);
+         Reset(new HypreParMatrix(comm, glob_num_rows, glob_num_cols,
+                                  row_starts, col_starts, diag));
          break;
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
          // Assuming that PetscInt is the same size as HYPRE_Int, checked above.
-         ptr = new PetscParMatrix(comm, glob_num_rows, glob_num_cols,
-                                  (PetscInt*)row_starts, (PetscInt*)col_starts, diag, type_id);
+         Reset(new PetscParMatrix(comm, glob_num_rows, glob_num_cols,
+                                  (PetscInt*)row_starts, (PetscInt*)col_starts, diag, type_id));
          break;
 #endif
       default: MFEM_ABORT(not_supported_msg << type_id);
    }
-   own_ptr = true;
 }
 #endif // MFEM_USE_MPI
 
@@ -127,31 +121,31 @@ void OperatorHandle::MakePtAP(OperatorHandle &A, OperatorHandle &P)
    {
       MFEM_VERIFY(A.Type() == P.Type(), "type mismatch in A and P");
    }
-   Clear();
+
    switch (A.Type())
    {
       case Operator::ANY_TYPE:
-         pSet(new RAPOperator(*P.Ptr(), *A.Ptr(), *P.Ptr()));
+         Reset(new RAPOperator(*P.Ptr(), *A.Ptr(), *P.Ptr()));
          break;
       case Operator::MFEM_SPARSEMAT:
       {
          SparseMatrix *R  = mfem::Transpose(*P.As<SparseMatrix>());
          SparseMatrix *RA = mfem::Mult(*R, *A.As<SparseMatrix>());
          delete R;
-         pSet(mfem::Mult(*RA, *P.As<SparseMatrix>()));
+         Reset(mfem::Mult(*RA, *P.As<SparseMatrix>()));
          delete RA;
          break;
       }
 #ifdef MFEM_USE_MPI
       case Operator::Hypre_ParCSR:
-         pSet(mfem::RAP(A.As<HypreParMatrix>(), P.As<HypreParMatrix>()));
+         Reset(mfem::RAP(A.As<HypreParMatrix>(), P.As<HypreParMatrix>()));
          break;
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
       case Operator::PETSC_MATGENERIC:
       {
-         pSet(mfem::RAP(A.As<PetscParMatrix>(), P.As<PetscParMatrix>()));
+         Reset(mfem::RAP(A.As<PetscParMatrix>(), P.As<PetscParMatrix>()));
          break;
       }
 #endif
@@ -168,30 +162,30 @@ void OperatorHandle::MakeRAP(OperatorHandle &Rt, OperatorHandle &A,
       MFEM_VERIFY(A.Type() == Rt.Type(), "type mismatch in A and Rt");
       MFEM_VERIFY(A.Type() == P.Type(), "type mismatch in A and P");
    }
-   Clear();
+
    switch (A.Type())
    {
       case Operator::ANY_TYPE:
-         pSet(new RAPOperator(*Rt.Ptr(), *A.Ptr(), *P.Ptr()));
+         Reset(new RAPOperator(*Rt.Ptr(), *A.Ptr(), *P.Ptr()));
          break;
       case Operator::MFEM_SPARSEMAT:
       {
-         pSet(mfem::RAP(*Rt.As<SparseMatrix>(), *A.As<SparseMatrix>(),
-                        *P.As<SparseMatrix>()));
+         Reset(mfem::RAP(*Rt.As<SparseMatrix>(), *A.As<SparseMatrix>(),
+                         *P.As<SparseMatrix>()));
          break;
       }
 #ifdef MFEM_USE_MPI
       case Operator::Hypre_ParCSR:
-         pSet(mfem::RAP(Rt.As<HypreParMatrix>(), A.As<HypreParMatrix>(),
-                        P.As<HypreParMatrix>()));
+         Reset(mfem::RAP(Rt.As<HypreParMatrix>(), A.As<HypreParMatrix>(),
+                         P.As<HypreParMatrix>()));
          break;
 #ifdef MFEM_USE_PETSC
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
       case Operator::PETSC_MATGENERIC:
       {
-         pSet(mfem::RAP(Rt.As<PetscParMatrix>(), A.As<PetscParMatrix>(),
-                        P.As<PetscParMatrix>()));
+         Reset(mfem::RAP(Rt.As<PetscParMatrix>(), A.As<PetscParMatrix>(),
+                         P.As<PetscParMatrix>()));
          break;
       }
 #endif
@@ -255,7 +249,6 @@ void OperatorHandle::ConvertFrom(OperatorHandle &A)
 void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
                                        const Array<int> &ess_dof_list)
 {
-   Clear();
    switch (A.Type())
    {
       case Operator::ANY_TYPE:
@@ -277,13 +270,13 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
             sA->EliminateRowCol(ess_dof_list[i], *Ae, preserve_diag);
          }
          Ae->Finalize();
-         pSet(Ae);
+         Reset(Ae);
          break;
       }
       case Operator::Hypre_ParCSR:
       {
 #ifdef MFEM_USE_MPI
-         pSet(A.As<HypreParMatrix>()->EliminateRowsCols(ess_dof_list));
+         Reset(A.As<HypreParMatrix>()->EliminateRowsCols(ess_dof_list));
 #else
          MFEM_ABORT("type id = Hypre_ParCSR requires MFEM_USE_MPI");
 #endif
@@ -294,7 +287,7 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
       case Operator::PETSC_MATGENERIC:
       {
 #ifdef MFEM_USE_PETSC
-         pSet(A.As<PetscParMatrix>()->EliminateRowsCols(ess_dof_list));
+         Reset(A.As<PetscParMatrix>()->EliminateRowsCols(ess_dof_list));
 #else
          MFEM_ABORT("type id = Operator::PETSC_* requires MFEM_USE_PETSC");
 #endif
