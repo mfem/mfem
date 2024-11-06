@@ -186,6 +186,16 @@ public:
       type_id = CheckType(tid);
    }
 
+   /// Reset the OperatorHandle to the given OpType pointer, @a A.
+   /** The Operator ownership flag is set to the value of @a own_A.
+       It is expected that @a A points to a valid object. */
+   template <typename OpType>
+   void Reset(OpType *A, bool own_A = true)
+   {
+      if (own_ptr) { delete ptr; }
+      pSet(A, own_A);
+   }
+
 #ifdef MFEM_USE_MPI
    /** @brief Reset the OperatorHandle to hold a parallel square block-diagonal
        matrix using the currently set type id. */
