@@ -196,25 +196,23 @@ void OperatorHandle::MakeRAP(OperatorHandle &Rt, OperatorHandle &A,
 
 void OperatorHandle::ConvertFrom(OperatorHandle &A)
 {
-   if (own_ptr) { delete ptr; }
    if (Type() == A.Type() || Type() == Operator::ANY_TYPE)
    {
-      ptr = A.Ptr();
-      own_ptr = false;
+      Handle::operator=(A); // do not copy the type id
       return;
    }
-   ptr = NULL;
+
    switch (Type()) // target type id
    {
       case Operator::MFEM_SPARSEMAT:
       {
-         ptr = A.Is<SparseMatrix>();
+         Handle::Reset(A.Is<SparseMatrix>());
          break;
       }
       case Operator::Hypre_ParCSR:
       {
 #ifdef MFEM_USE_MPI
-         ptr = A.Is<HypreParMatrix>();
+         Handle::Reset(A.Is<HypreParMatrix>());
 #endif
          break;
       }
@@ -225,25 +223,25 @@ void OperatorHandle::ConvertFrom(OperatorHandle &A)
          {
             case Operator::Hypre_ParCSR:
 #ifdef MFEM_USE_PETSC
-               ptr = new PetscParMatrix(A.As<HypreParMatrix>(), Type());
+               Handle::Reset(new PetscParMatrix(A.As<HypreParMatrix>(), Type()));
 #endif
                break;
             default: break;
          }
 #ifdef MFEM_USE_PETSC
-         if (!ptr)
+         if (!Ptr())
          {
             PetscParMatrix *pA = A.Is<PetscParMatrix>();
-            if (pA->GetType() == Type()) { ptr = pA; }
+            if (pA->GetType() == Type()) { Handle::Reset(pA); }
          }
 #endif
          break;
       }
       default: break;
    }
-   MFEM_VERIFY(ptr != NULL, "conversion from type id = " << A.Type()
+
+   MFEM_VERIFY(Ptr() != NULL, "conversion from type id = " << A.Type()
                << " to type id = " << Type() << " is not supported");
-   own_ptr = true;
 }
 
 void OperatorHandle::EliminateRowsCols(OperatorHandle &A,

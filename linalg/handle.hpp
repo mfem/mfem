@@ -27,7 +27,6 @@ namespace mfem
 template<class T>
 class Handle
 {
-protected:
    T *ptr{};
    bool own_ptr{};
 
