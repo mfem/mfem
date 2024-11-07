@@ -203,10 +203,12 @@ miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
 miniapps/electromagnetics/maxwell
 miniapps/electromagnetics/joule
+miniapps/electromagnetics/lorentz
 miniapps/electromagnetics/Volta-AMR*
 miniapps/electromagnetics/Tesla-AMR*
 miniapps/electromagnetics/Maxwell-Parallel*
 miniapps/electromagnetics/Joule_*
+miniapps/electromagnetics/Lorentz*
 
 miniapps/gslib/field-diff
 miniapps/gslib/field-interp
