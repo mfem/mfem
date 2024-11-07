@@ -178,7 +178,7 @@ complex<double> L_cold_plasma(double omega,
    return val;
 }
 
-
+/*
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -230,8 +230,8 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
+*/
 
-/*
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -246,6 +246,7 @@ complex<double> S_cold_plasma(double omega,
                               double Rval,
                               double Lval)
 {
+   double kparallel_test = 18.0;
    complex<double> val(1.0, 0.0);
    complex<double> suscept_particle(0.0,0.0);
    double n = number[0];
@@ -259,7 +260,7 @@ complex<double> S_cold_plasma(double omega,
                  nu_ei(q, coul_log, m, Te, n)  :
                  nue;
    complex<double> collision_correction(1.0, nuei/omega);
-   double nparallel = (3e8*kparallel)/(omega);
+   double nparallel = (3e8*kparallel_test)/(omega);
    complex<double> comp_val(0.0,1.0);
    double FWcutoff1 = (-1.0*fabs(pow(nparallel,2.0)-Rval))/(0.1*pow(nparallel,2.0));
    double FWcutoff2 = (-1.0*fabs(pow(nparallel,2.0)-Lval))/(0.1*pow(nparallel,2.0));
@@ -289,8 +290,8 @@ complex<double> S_cold_plasma(double omega,
          else
          {
          suscept_particle = (-1.0 * w_p * w_p) / ((omega + w_c)*(omega - w_c)) 
-            +10*comp_val*exp(FWcutoff1)+10*comp_val*exp(FWcutoff2)
-            +10*comp_val*exp(LHres)+40*comp_val*exp(FWres);
+            +10.0*comp_val*exp(FWcutoff1)+10.0*comp_val*exp(FWcutoff2)
+            +10.0*comp_val*exp(LHres)+40.0*comp_val*exp(FWres);
          }
       }
       // SPARC Case 1: D-T (He3 Minority)
@@ -302,33 +303,33 @@ complex<double> S_cold_plasma(double omega,
          double kperpFW = 0.0;
          if (i == 1) {kperpFW = 47.617099;}
          else if (i == 3) {kperpFW = 72.12776;}
-         complex<double>  lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
+         complex<double>  lambda = pow(kperpFW*vth,2.0)/(2.0*pow(w_c,2.0));
 
          // n > 0:
-         complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
+         complex<double> Zp = Zfunction((omega - w_c)/(kparallel_test*vth));
 
          // n < 0:
-         complex<double> Zm = Zfunction((omega + w_c)/(kparallel*vth));
+         complex<double> Zm = Zfunction((omega + w_c)/(kparallel_test*vth));
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
-                                 2.0)/omega)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm);
+                                 2.0)/omega)*(0.5)*(1.0/(kparallel_test*vth))*(Zp+Zm);
       }
 
       // Second Harmonic:
       else if (i == 2)
       {
-         complex<double> lambda = pow(72.12776*vth,2.0)/(2*pow(w_c,2.0));
+         complex<double> lambda = pow(72.12776*vth,2.0)/(2.0*pow(w_c,2.0));
          // n > 0:
-         complex<double> Zp1 = Zfunction((omega - w_c)/(kparallel*vth));
-         complex<double> Zp2 = Zfunction((omega - 2*w_c)/(kparallel*vth));
+         complex<double> Zp1 = Zfunction((omega - w_c)/(kparallel_test*vth));
+         complex<double> Zp2 = Zfunction((omega - 2.0*w_c)/(kparallel_test*vth));
 
          // n < 0:
-         complex<double> Zm1 = Zfunction((omega + 2*w_c)/(kparallel*vth));
-         complex<double> Zm2 = Zfunction((omega + 2*w_c)/(kparallel*vth));
+         complex<double> Zm1 = Zfunction((omega + 2.0*w_c)/(kparallel_test*vth));
+         complex<double> Zm2 = Zfunction((omega + 2.0*w_c)/(kparallel_test*vth));
 
-         complex<double> first_harm = (pow(w_p,2.0)/omega)*(0.5)*(1.0/(kparallel*vth))*(Zp1+Zm1);
-         complex<double> second_harm = (pow(w_p,2.0)/omega)*lambda*(0.5)*(1.0/(kparallel*vth))*(Zp2+Zm2);
+         complex<double> first_harm = (pow(w_p,2.0)/omega)*(0.5)*(1.0/(kparallel_test*vth))*(Zp1+Zm1);
+         complex<double> second_harm = (pow(w_p,2.0)/omega)*lambda*(0.5)*(1.0/(kparallel_test*vth))*(Zp2+Zm2);
 
          // Total particle susceptibility contribution:
          suscept_particle = first_harm + second_harm;
@@ -337,8 +338,8 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -390,8 +391,8 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
+*/
 
-/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -406,6 +407,7 @@ complex<double> D_cold_plasma(double omega,
                               double Rval,
                               double Lval)
 {
+   double kparallel_test = 18.0;
    complex<double> val(0.0, 0.0);
    complex<double> suscept_particle(0.0,0.0);
    double n = number[0];
@@ -419,7 +421,7 @@ complex<double> D_cold_plasma(double omega,
                  nu_ei(q, coul_log, m, Te, n)  :
                  nue;
    complex<double> collision_correction(1.0, nuei/omega);
-   double nparallel = (3e8*kparallel)/(omega);
+   double nparallel = (3e8*kparallel_test)/(omega);
    complex<double> comp_val(0.0,1.0);
    double FWcutoff1 = (-1.0*fabs(pow(nparallel,2.0)-Rval))/(0.1*pow(nparallel,2.0));
    double FWcutoff2 = (-1.0*fabs(pow(nparallel,2.0)-Lval))/(0.1*pow(nparallel,2.0));
@@ -447,7 +449,7 @@ complex<double> D_cold_plasma(double omega,
          else
          {
             suscept_particle = ((w_p*w_p) / ((omega+w_c) * (omega-w_c)))*(w_c/omega)
-            -10*comp_val*exp(FWcutoff1)-10*comp_val*exp(FWcutoff2);            
+            -10.0*comp_val*exp(FWcutoff1)-10.0*comp_val*exp(FWcutoff2);            
          }
       }
       // SPARC Case 1: D-T (He3 Minority)
@@ -458,32 +460,32 @@ complex<double> D_cold_plasma(double omega,
          double kperpFW = 0.0;
          if (i == 1) {kperpFW = 47.617099;}
          else if (i == 3) {kperpFW = 72.12776;}
-         complex<double>  lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
+         complex<double>  lambda = pow(kperpFW*vth,2.0)/(2.0*pow(w_c,2.0));
 
          // n > 0:
-         complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
+         complex<double> Zp = Zfunction((omega - w_c)/(kparallel_test*vth));
 
          // n < 0:
-         complex<double> Zm = Zfunction((omega + w_c)/(kparallel*vth));
+         complex<double> Zm = Zfunction((omega + w_c)/(kparallel_test*vth));
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
-                                 2.0)/omega)*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm);
+                                 2.0)/omega)*(-0.5)*(1.0/(kparallel_test*vth))*(Zp-Zm);
       }
       // Second Harmonic:
       else if (i == 2)
       {
-         complex<double> lambda = pow(72.12776*vth,2.0)/(2*pow(w_c,2.0));
+         complex<double> lambda = pow(72.12776*vth,2.0)/(2.0*pow(w_c,2.0));
          // n > 0:
-         complex<double> Zp1 = Zfunction((omega - w_c)/(kparallel*vth));
-         complex<double> Zp2 = Zfunction((omega - 2*w_c)/(kparallel*vth));
+         complex<double> Zp1 = Zfunction((omega - w_c)/(kparallel_test*vth));
+         complex<double> Zp2 = Zfunction((omega - 2.0*w_c)/(kparallel_test*vth));
 
          // n < 0:
-         complex<double> Zm1 = Zfunction((omega + 2*w_c)/(kparallel*vth));
-         complex<double> Zm2 = Zfunction((omega + 2*w_c)/(kparallel*vth));
+         complex<double> Zm1 = Zfunction((omega + 2.0*w_c)/(kparallel_test*vth));
+         complex<double> Zm2 = Zfunction((omega + 2.0*w_c)/(kparallel_test*vth));
 
-         complex<double> first_harm = (pow(w_p,2.0)/omega)*(-0.5)*(1.0/(kparallel*vth))*(Zp1-Zm1);
-         complex<double> second_harm = (pow(w_p,2.0)/omega)*lambda*(-0.5)*(1.0/(kparallel*vth))*(Zp2-Zm2);
+         complex<double> first_harm = (pow(w_p,2.0)/omega)*(-0.5)*(1.0/(kparallel_test*vth))*(Zp1-Zm1);
+         complex<double> second_harm = (pow(w_p,2.0)/omega)*lambda*(-0.5)*(1.0/(kparallel_test*vth))*(Zp2-Zm2);
 
          // Total particle susceptibility contribution:
          suscept_particle = first_harm + second_harm;
@@ -492,8 +494,8 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -528,8 +530,8 @@ complex<double> P_cold_plasma(double omega,
    }
    return val;
 }
+*/
 
-/*
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -540,6 +542,7 @@ complex<double> P_cold_plasma(double omega,
                               double iontemp,
                               int nuprof)
 {
+   double kparallel_test = 18.0;
    complex<double> val(1.0, 0.0);
    complex<double> suscept_particle(0.0,0.0);
    double n = number[0];
@@ -565,15 +568,15 @@ complex<double> P_cold_plasma(double omega,
       if (i == 0)
       {
          complex<double> vth = vthermal(Te, m_eff);
-         complex<double> Z = Zfunction(omega/(kparallel*vth));
-         suscept_particle = (pow(w_p,2.0)/pow(kparallel*vth, 2.0))*(2*(1+(omega/(kparallel*vth))*Z))+complex<double>(0,nuei/omega);
+         complex<double> Z = Zfunction(omega/(kparallel_test*vth));
+         suscept_particle = (pow(w_p,2.0)/pow(kparallel_test*vth, 2.0))*(2.0*(1.0+(omega/(kparallel_test*vth))*Z))+complex<double>(0,nuei/omega);
       }
       else { suscept_particle = -1.0*(w_p * w_p) / (omega * omega); }
       val += suscept_particle;
    }
    return val;
 }
-*/
+
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 // Jim's old sheath impedance parameterization code for Kohno et al 2017
 double gabsANY(double x)

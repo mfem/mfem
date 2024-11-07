@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 //
 //   -----------------------------------------------------------------------
-//       Stix2D Miniapp: Cold Plasma Electromagnetic Simulation Code
+//       Stix3D Miniapp: Cold Plasma Electromagnetic Simulation Code
 //   -----------------------------------------------------------------------
 //
 //   Assumes that all sources and boundary conditions oscillate with the same
@@ -74,19 +74,19 @@
 //
 // (By default the sources and fields are all zero)
 //
-// Compile with: make stix2d
+// Compile with: make stix3d
 //
 // Sample runs:
-//   ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 1 -rs 0 -maxit 1 -f 1e6
+//   ./stix3d -rod '0 0 1 0 0 0.1' -o 3 -s 1 -rs 0 -maxit 1 -f 1e6
 //
 // Sample runs with partial assembly:
-//   ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 1 -rs 0 -maxit 1 -f 1e6 -pa
+//   ./stix3d -rod '0 0 1 0 0 0.1' -o 3 -s 1 -rs 0 -maxit 1 -f 1e6 -pa
 //
 // Device sample runs:
-//   ./stix2d -rod '0 0 1 0 0 0.1' -o 3 -s 1 -rs 0 -maxit 1 -f 1e6 -pa -d cuda
+//   ./stix3d -rod '0 0 1 0 0 0.1' -o 3 -s 1 -rs 0 -maxit 1 -f 1e6 -pa -d cuda
 //
 // Parallel sample runs:
-//   mpirun -np 4 ./stix2d -rod '0 0 1 0 0 0.1' -dbcs '1' -w Z -o 3 -s 1 -rs 0 -maxit 1 -f 1e6
+//   mpirun -np 4 ./stix3d -rod '0 0 1 0 0 0.1' -dbcs '1' -w Z -o 3 -s 1 -rs 0 -maxit 1 -f 1e6
 //
 
 #include "cold_plasma_dielectric_coefs.hpp"
@@ -945,7 +945,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                   "Neumann Boundary Condition (surface current) "
                   "Value 2 (v_x v_y v_z) or "
                   "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
-   args.AddOption(&num_elements, "-ne", "--num-elements",
+   args.AddOption(&num_elements, "-nume", "--num-elements",
                 "The number of mesh elements in x");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
@@ -1476,7 +1476,7 @@ if (dpp_def.Size() == 0)
              eqdsk->PrintInfo();
              if (logging > 0)
              {
-                eqdsk->DumpGnuPlotData("stix2d_eqdsk");
+                eqdsk->DumpGnuPlotData("stix3d_eqdsk");
              }
           }
        }
@@ -2040,7 +2040,7 @@ if (dpp_def.Size() == 0)
    }
 
    // Initialize VisIt visualization
-   VisItDataCollection visit_dc("STIX2D-AMR-Parallel", &pmesh);
+   VisItDataCollection visit_dc("STIX3D-AMR-Parallel", &pmesh);
 
    Array<ParComplexGridFunction*> auxFields;
 
@@ -2286,15 +2286,15 @@ void Update(ParFiniteElementSpace & H1FESpace,
 
 const char * banner[6] =
 {
-   R"(  _________ __   __       ________      ___)",
-   R"( /   _____//  |_|__|__  __\_____  \  __| _/)",
-   R"( \_____  \\   __\  \  \/  //  ____/ / __ | )",
-   R"( /        \|  | |  |>    </       \/ /_/ | )",
-   R"(/_______  /|__| |__/__/\_ \_______ \____ | )",
-   R"(        \/               \/       \/    \/ )"
+   R"(  _________ __   __        ________       ___)",
+   R"( /   _____//  |_|__|__  ___\_____  \   __| _/)",
+   R"( \_____  \\   __\  \  \/  /  _(__  <  / __ | )",
+   R"( /        \|  | |  |>    <  /       \/ /_/ | )",
+   R"(/_______  /|__| |__/__/\_ \/______  /\____ | )",
+   R"(        \/               \/       \/      \/ )"
 };
 
-// Print the stix2d ascii logo to the given ostream
+// Print the stix3d ascii logo to the given ostream
 void display_banner(ostream & os)
 {
    for (int i=0; i<6; i++)
@@ -3135,13 +3135,22 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    //double B = curve_params_(6); // Modified dipole: 0/pi/pi/0
 
    // Top Strap 1:
-   double zmin1t = 0.11792;
-   double zmax1t = 0.4325;
-   double phi1r = 0.0;
-   double phi1l = 0.08;
+   double mmax1 = (0.42984 - 0.4433) / ( -0.20004 + 0.257712);
+   double bmax1 = 0.4433 - mmax1*(-0.257712);
+   double mmin1 = (0.12209 - 0.13554) / ( -0.28256 + 0.34023);
+   double bmin1 = 0.13554 - mmin1*(-0.34023);
+   double zmin1 = mmin1*x[1]+bmin1;
+   double zmax1 = mmax1*x[1]+bmax1;
+
+   double nmax1 = (0.141755 - 0.3978) / (-0.264109 + 0.1953);
+   double cmax1 = 0.141755 - nmax1*(-0.264109);
+   double nmin1 = (0.15912 - 0.41574) / (-0.341 + 0.27219);
+   double cmin1 = 0.15912 - nmin1*(-0.341);
+   double phi1min = (z - cmin1)/nmin1 + 0.4;
+   double phi1max = (z - cmax1)/nmax1 + 0.4;
    if (r >= xmin && r <= xmax &&
-      z >= zmin1t && z <= zmax1t &&
-      x[1] >= phi1r && x[1] <= phi1l)
+      z >= zmin1 && z <= zmax1 &&
+      x[1] >= phi1min && x[1] <= phi1max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3168,16 +3177,27 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin1t;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin1;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
-   // Bottom Strap 1:
-   double zmin1b = -0.30925;
-   double zmax1b = 0.01211;
+   // Bottom Strap 5:
+   double mmax5 = (0.0206 - 0.0047) / ( -0.257 + 0.2);
+   double bmax5 = 0.0206 - mmax5*(-0.257);
+   double mmin5 = (-0.29051 + 0.306439) / ( -0.3402 + 0.28253);
+   double bmin5 = -0.29051 - mmin5*(-0.3402);
+   double zmin5 = mmin5*x[1]+bmin5;
+   double zmax5 = mmax5*x[1]+bmax5;
+
+   double nmax5 = (-0.281149 + 0.021702) / (-0.264077 + 0.1953579);
+   double cmax5 = -0.281149 - nmax5*(-0.264077);
+   double nmin5 = (-0.2599138 + 0.000466305) / (-0.340973 + 0.2722536);
+   double cmin5 = -0.2599138 - nmin5*(-0.340973);
+   double phi5min = (z - cmin5)/nmin5 + 0.4;
+   double phi5max = (z - cmax5)/nmax5 + 0.4;
    if (r >= xmin && r <= xmax &&
-       z >= zmin1b && z <= zmax1b &&
-       x[1] >= phi1r && x[1] <= phi1l)
+       z >= zmin5 && z <= zmax5 &&
+       x[1] >= phi5min && x[1] <= phi5max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3203,18 +3223,27 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax1b;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) + zmax5;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
    // Top Strap 2:
-   double zmin2t = 0.074;
-   double zmax2t = 0.39137;
-   double phi2r = 0.181;
-   double phi2l = 0.08+0.181;
+   double mmax2 = (0.4 - 0.38539) / ( -0.080414 + 0.021405);
+   double bmax2 = 0.4 - mmax2*(-0.080414);
+   double mmin2 = (0.09264 - 0.07803) / ( -0.16142 + 0.1024);
+   double bmin2 = 0.09264 - mmin2*(-0.16142);
+   double zmin2 = mmin2*x[1]+bmin2;
+   double zmax2 = mmax2*x[1]+bmax2;
+
+   double nmax2 = (0.097177 - 0.3531825) / (-0.08289 + 0.01541);
+   double cmax2 = 0.097177 - nmax2*(-0.08289);
+   double nmin2 = (0.11777 - 0.37377) / (-0.166083 + 0.098606);
+   double cmin2 = 0.11777 - nmin2*(-0.166083);
+   double phi2min = (z - cmin2)/nmin2 + 0.4;
+   double phi2max = (z - cmax2)/nmax2 + 0.4;
    if (r >= xmin && r <= xmax &&
-      z >= zmin2t && z <= zmax2t &&
-      x[1] >= phi2r && x[1] <= phi2l)
+      z >= zmin2 && z <= zmax2 &&
+      x[1] >= phi2min && x[1] <= phi2max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3241,16 +3270,27 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin2t;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin2;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
-   // Bottom Strap 2:
-   double zmin2b = -0.34802;
-   double zmax2b = -0.0283;
+   // Bottom Strap 6:
+   double mmax6 = (-0.02973 + 0.04518) / ( -0.08045 + 0.021445);
+   double bmax6 = -0.02973 - mmax6*(-0.08045);
+   double mmin6 = (-0.33823 + 0.35369) / ( -0.16143 + 0.102426);
+   double bmin6 = -0.33823 - mmin6*(-0.16143);
+   double zmin6 = mmin6*x[1]+bmin6;
+   double zmax6 = mmax6*x[1]+bmax6;
+
+   double nmax6 = (-0.328264 + 0.071308) / (-0.0828886 + 0.0154384);
+   double cmax6 = -0.328264 - nmax6*(-0.0828886);
+   double nmin6 = (-0.30647 + 0.049515) / (-0.166083 + 0.09863);
+   double cmin6 = -0.30647 - nmin6*(-0.16608);
+   double phi6min = (z - cmin6)/nmin6 + 0.4;
+   double phi6max = (z - cmax6)/nmax6 + 0.4;
    if (r >= xmin && r <= xmax &&
-       z >= zmin2b && z <= zmax2b &&
-       x[1] >= phi2r && x[1] <= phi2l)
+       z >= zmin6 && z <= zmax6 &&
+       x[1] >= phi6min && x[1] <= phi6max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3276,18 +3316,27 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax2b;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) + zmax6;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
    // Top Strap 3:
-   double zmin3t = 0.01818;
-   double zmax3t = 0.33835;
-   double phi3r = 0.181*2;
-   double phi3l = 0.08+0.181*2;
+   double mmax3 = (0.35369 - 0.33823) / ( 0.10242 - 0.161434);
+   double bmax3 = 0.35369 - mmax3*(0.10242);
+   double mmin3 = (0.045188 - 0.02973) / ( 0.021445 - 0.08045);
+   double bmin3 = 0.045188 - mmin3*(0.021445);
+   double zmin3 = mmin3*x[1]+bmin3;
+   double zmax3 = mmax3*x[1]+bmax3;
+
+   double nmax3 = (0.049515 - 0.30647) / (0.09863 - 0.16608);
+   double cmax3 = 0.049515 - nmax3*(0.09863);
+   double nmin3 = (0.071308 - 0.32826) / (0.0154384 - 0.08288);
+   double cmin3 = 0.071308 - nmin3*(0.0154384);
+   double phi3min = (z - cmin3)/nmin3 + 0.4;
+   double phi3max = (z - cmax3)/nmax3 + 0.4;
    if (r >= xmin && r <= xmax &&
-      z >= zmin3t && z <= zmax3t &&
-      x[1] >= phi3r && x[1] <= phi3l)
+      z >= zmin3 && z <= zmax3 &&
+      x[1] >= phi3min && x[1] <= phi3max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3314,16 +3363,27 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin3t;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin3;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
-   // Bottom Strap 3:
-   double zmin3b = -0.39616;
-   double zmax3b = -0.0791;
+   // Bottom Strap 7:
+   double mmax7 = (-0.078038 + 0.0926469) / ( 0.102418 - 0.161427);
+   double bmax7 = -0.078038 - mmax7*(0.102418);
+   double mmin7 = (-0.38539 + 0.4) / ( 0.0214 - 0.080414);
+   double bmin7 = -0.38539 - mmin7*(0.0214);
+   double zmin7 = mmin7*x[1]+bmin7;
+   double zmax7 = mmax7*x[1]+bmax7;
+
+   double nmax7 = (-0.3737786 + 0.11777) / (0.0986063 - 0.166083);
+   double cmax7 = -0.3737786 - nmax7*(0.0986063);
+   double nmin7 = (-0.3531825 + 0.097177) / (0.0154139 - 0.08289);
+   double cmin7 = -0.3531825 - nmin7*(0.0154139);
+   double phi7min = (z - cmin7)/nmin7 + 0.4;
+   double phi7max = (z - cmax7)/nmax7 + 0.4;
    if (r >= xmin && r <= xmax &&
-       z >= zmin3b && z <= zmax3b &&
-       x[1] >= phi3r && x[1] <= phi3l)
+       z >= zmin7 && z <= zmax7 &&
+       x[1] >= phi7min && x[1] <= phi7max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3349,18 +3409,27 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax3b;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) + zmax7;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
    // Top Strap 4:
-   double zmin4t = -0.02218;
-   double zmax4t = 0.29953;
-   double phi4r = 0.181*3;
-   double phi4l = 0.08+0.181*3;
+   double mmax4 = (0.30643 - 0.290512) / ( 0.282533 - 0.3402);
+   double bmax4 = 0.30643 - mmax4*(0.282533);
+   double mmin4 = (-0.0047 + 0.0206) / ( 0.2 - 0.25779);
+   double bmin4 = -0.0047 - mmin4*(0.2);
+   double zmin4 = mmin4*x[1]+bmin4;
+   double zmax4 = mmax4*x[1]+bmax4;
+
+   double nmax4 = (0.00046630 - 0.25991) / (0.2722536 - 0.34097);
+   double cmax4 = 0.00046630 - nmax4*(0.2722536);
+   double nmin4 = (0.021702 - 0.281149) / (0.1953579 - 0.264077);
+   double cmin4 = 0.021702 - nmin4*(0.1953579);
+   double phi4min = (z - cmin4)/nmin4 + 0.4;
+   double phi4max = (z - cmax4)/nmax4 + 0.4;
    if (r >= xmin && r <= xmax &&
-      z >= zmin4t && z <= zmax4t &&
-      x[1] >= phi4r && x[1] <= phi4l)
+      z >= zmin4 && z <= zmax4 &&
+      x[1] >= phi4min && x[1] <= phi4max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3387,16 +3456,27 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin4t;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin4;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
-   // Bottom Strap 4:
-   double zmin4b = -0.42963;
-   double zmax4b = -0.11485;
+   // Bottom Strap 8:
+   double mmax8 = (-0.122085 + 0.13554) / ( 0.28256 - 0.34023);
+   double bmax8 = -0.122085 - mmax8*(0.28256);
+   double mmin8 = (-0.42984 + 0.4433) / ( 0.2 - 0.257712);
+   double bmin8 = -0.42984 - mmin8*(0.2);
+   double zmin8 = mmin8*x[1]+bmin8;
+   double zmax8 = mmax8*x[1]+bmax8;
+
+   double nmax8 = (-0.415745 + 0.15912) / (0.2721959 - 0.34100496);
+   double cmax8 = -0.415745 - nmax8*(0.2721959);
+   double nmin8 = (-0.3978 + 0.1411755) / (0.1953 - 0.2641092);
+   double cmin8 = -0.3978 - nmin8*(0.1953);
+   double phi8min = (z - cmin8)/nmin8 + 0.4;
+   double phi8max = (z - cmax8)/nmax8 + 0.4;
    if (r >= xmin && r <= xmax &&
-       z >= zmin4b && z <= zmax4b &&
-       x[1] >= phi4r && x[1] <= phi4l)
+       z >= zmin8 && z <= zmax8 &&
+       x[1] >= phi8min && x[1] <= phi8max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3422,7 +3502,7 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax4b;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) + zmax8;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
@@ -3448,13 +3528,22 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
    double A = curve_params_(5); // Standard dipole: 0/pi/0/pi
 
    // Top Strap 1:
-   double zmin1t = 0.11792;
-   double zmax1t = 0.4325;
-   double phi1r = 0.0;
-   double phi1l = 0.08;
+   double mmax1 = (0.42984 - 0.4433) / ( -0.20004 + 0.257712);
+   double bmax1 = 0.4433 - mmax1*(-0.257712);
+   double mmin1 = (0.12209 - 0.13554) / ( -0.28256 + 0.34023);
+   double bmin1 = 0.13554 - mmin1*(-0.34023);
+   double zmin1 = mmin1*x[1]+bmin1;
+   double zmax1 = mmax1*x[1]+bmax1;
+
+   double nmax1 = (0.141755 - 0.3978) / (-0.264109 + 0.1953);
+   double cmax1 = 0.141755 - nmax1*(-0.264109);
+   double nmin1 = (0.15912 - 0.41574) / (-0.341 + 0.27219);
+   double cmin1 = 0.15912 - nmin1*(-0.341);
+   double phi1min = (z - cmin1)/nmin1 + 0.4;
+   double phi1max = (z - cmax1)/nmax1 + 0.4;
    if (r >= xmin && r <= xmax &&
-      z >= zmin1t && z <= zmax1t &&
-      x[2] >= phi1l && x[2] <= phi1r)
+      z >= zmin1 && z <= zmax1 &&
+      x[1] >= phi1min && x[1] <= phi1max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3481,16 +3570,27 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin1t;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin1;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
-   // Bottom Strap 1:
-   double zmin1b = -0.30925;
-   double zmax1b = 0.01211;
+   // Bottom Strap 5:
+   double mmax5 = (0.0206 - 0.0047) / ( -0.257 + 0.2);
+   double bmax5 = 0.0206 - mmax5*(-0.257);
+   double mmin5 = (-0.29051 + 0.306439) / ( -0.3402 + 0.28253);
+   double bmin5 = -0.29051 - mmin5*(-0.3402);
+   double zmin5 = mmin5*x[1]+bmin5;
+   double zmax5 = mmax5*x[1]+bmax5;
+
+   double nmax5 = (-0.281149 + 0.021702) / (-0.264077 + 0.1953579);
+   double cmax5 = -0.281149 - nmax5*(-0.264077);
+   double nmin5 = (-0.2599138 + 0.000466305) / (-0.340973 + 0.2722536);
+   double cmin5 = -0.2599138 - nmin5*(-0.340973);
+   double phi5min = (z - cmin5)/nmin5 + 0.4;
+   double phi5max = (z - cmax5)/nmax5 + 0.4;
    if (r >= xmin && r <= xmax &&
-            z >= zmin1b && z <= zmax1b &&
-            x[2] >= phi1l && x[2] <= phi1r)
+       z >= zmin5 && z <= zmax5 &&
+       x[1] >= phi5min && x[1] <= phi5max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3516,18 +3616,27 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax1b;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) + zmax5;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
    // Top Strap 2:
-   double zmin2t = 0.074;
-   double zmax2t = 0.39137;
-   double phi2r = 0.181;
-   double phi2l = 0.08+0.181;
+   double mmax2 = (0.4 - 0.38539) / ( -0.080414 + 0.021405);
+   double bmax2 = 0.4 - mmax2*(-0.080414);
+   double mmin2 = (0.09264 - 0.07803) / ( -0.16142 + 0.1024);
+   double bmin2 = 0.09264 - mmin2*(-0.16142);
+   double zmin2 = mmin2*x[1]+bmin2;
+   double zmax2 = mmax2*x[1]+bmax2;
+
+   double nmax2 = (0.097177 - 0.3531825) / (-0.08289 + 0.01541);
+   double cmax2 = 0.097177 - nmax2*(-0.08289);
+   double nmin2 = (0.11777 - 0.37377) / (-0.166083 + 0.098606);
+   double cmin2 = 0.11777 - nmin2*(-0.166083);
+   double phi2min = (z - cmin2)/nmin2 + 0.4;
+   double phi2max = (z - cmax2)/nmax2 + 0.4;
    if (r >= xmin && r <= xmax &&
-      z >= zmin2t && z <= zmax2t &&
-      x[2] >= phi2l && x[2] <= phi2r)
+      z >= zmin2 && z <= zmax2 &&
+      x[1] >= phi2min && x[1] <= phi2max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3554,16 +3663,27 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin2t;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin2;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
-   // Bottom Strap 2:
-   double zmin2b = -0.34802;
-   double zmax2b = -0.0283;
+   // Bottom Strap 6:
+   double mmax6 = (-0.02973 + 0.04518) / ( -0.08045 + 0.021445);
+   double bmax6 = -0.02973 - mmax6*(-0.08045);
+   double mmin6 = (-0.33823 + 0.35369) / ( -0.16143 + 0.102426);
+   double bmin6 = -0.33823 - mmin6*(-0.16143);
+   double zmin6 = mmin6*x[1]+bmin6;
+   double zmax6 = mmax6*x[1]+bmax6;
+
+   double nmax6 = (-0.328264 + 0.071308) / (-0.0828886 + 0.0154384);
+   double cmax6 = -0.328264 - nmax6*(-0.0828886);
+   double nmin6 = (-0.30647 + 0.049515) / (-0.166083 + 0.09863);
+   double cmin6 = -0.30647 - nmin6*(-0.16608);
+   double phi6min = (z - cmin6)/nmin6 + 0.4;
+   double phi6max = (z - cmax6)/nmax6 + 0.4;
    if (r >= xmin && r <= xmax &&
-            z >= zmin2b && z <= zmax2b &&
-            x[2] >= phi2l && x[2] <= phi2r)
+       z >= zmin6 && z <= zmax6 &&
+       x[1] >= phi6min && x[1] <= phi6max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3589,18 +3709,27 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax2b;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) + zmax6;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
    // Top Strap 3:
-   double zmin3t = 0.01818;
-   double zmax3t = 0.33835;
-   double phi3r = 0.181*2;
-   double phi3l = 0.08+0.181*2;
+   double mmax3 = (0.35369 - 0.33823) / ( 0.10242 - 0.161434);
+   double bmax3 = 0.35369 - mmax3*(0.10242);
+   double mmin3 = (0.045188 - 0.02973) / ( 0.021445 - 0.08045);
+   double bmin3 = 0.045188 - mmin3*(0.021445);
+   double zmin3 = mmin3*x[1]+bmin3;
+   double zmax3 = mmax3*x[1]+bmax3;
+
+   double nmax3 = (0.049515 - 0.30647) / (0.09863 - 0.16608);
+   double cmax3 = 0.049515 - nmax3*(0.09863);
+   double nmin3 = (0.071308 - 0.32826) / (0.0154384 - 0.08288);
+   double cmin3 = 0.071308 - nmin3*(0.0154384);
+   double phi3min = (z - cmin3)/nmin3 + 0.4;
+   double phi3max = (z - cmax3)/nmax3 + 0.4;
    if (r >= xmin && r <= xmax &&
-      z >= zmin3t && z <= zmax3t &&
-      x[2] >= phi3l && x[2] <= phi3r)
+      z >= zmin3 && z <= zmax3 &&
+      x[1] >= phi3min && x[1] <= phi3max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3627,16 +3756,27 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin3t;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin3;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
-   // Bottom Strap 3:
-   double zmin3b = -0.39616;
-   double zmax3b = -0.0791;
+   // Bottom Strap 7:
+   double mmax7 = (-0.078038 + 0.0926469) / ( 0.102418 - 0.161427);
+   double bmax7 = -0.078038 - mmax7*(0.102418);
+   double mmin7 = (-0.38539 + 0.4) / ( 0.0214 - 0.080414);
+   double bmin7 = -0.38539 - mmin7*(0.0214);
+   double zmin7 = mmin7*x[1]+bmin7;
+   double zmax7 = mmax7*x[1]+bmax7;
+
+   double nmax7 = (-0.3737786 + 0.11777) / (0.0986063 - 0.166083);
+   double cmax7 = -0.3737786 - nmax7*(0.0986063);
+   double nmin7 = (-0.3531825 + 0.097177) / (0.0154139 - 0.08289);
+   double cmin7 = -0.3531825 - nmin7*(0.0154139);
+   double phi7min = (z - cmin7)/nmin7 + 0.4;
+   double phi7max = (z - cmax7)/nmax7 + 0.4;
    if (r >= xmin && r <= xmax &&
-            z >= zmin3b && z <= zmax3b &&
-            x[2] >= phi3l && x[2] <= phi3r)
+       z >= zmin7 && z <= zmax7 &&
+       x[1] >= phi7min && x[1] <= phi7max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3662,18 +3802,27 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax3b;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) + zmax7;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
    // Top Strap 4:
-   double zmin4t = -0.02218;
-   double zmax4t = 0.29953;
-   double phi4r = 0.181*3;
-   double phi4l = 0.08+0.181*3;
+   double mmax4 = (0.30643 - 0.290512) / ( 0.282533 - 0.3402);
+   double bmax4 = 0.30643 - mmax4*(0.282533);
+   double mmin4 = (-0.0047 + 0.0206) / ( 0.2 - 0.25779);
+   double bmin4 = -0.0047 - mmin4*(0.2);
+   double zmin4 = mmin4*x[1]+bmin4;
+   double zmax4 = mmax4*x[1]+bmax4;
+
+   double nmax4 = (0.00046630 - 0.25991) / (0.2722536 - 0.34097);
+   double cmax4 = 0.00046630 - nmax4*(0.2722536);
+   double nmin4 = (0.021702 - 0.281149) / (0.1953579 - 0.264077);
+   double cmin4 = 0.021702 - nmin4*(0.1953579);
+   double phi4min = (z - cmin4)/nmin4 + 0.4;
+   double phi4max = (z - cmax4)/nmax4 + 0.4;
    if (r >= xmin && r <= xmax &&
-      z >= zmin4t && z <= zmax4t &&
-      x[2] >= phi4l && x[2] <= phi4r)
+      z >= zmin4 && z <= zmax4 &&
+      x[1] >= phi4min && x[1] <= phi4max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3700,16 +3849,27 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin4t;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0 - zmin4;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
-   // Bottom Strap 4:
-   double zmin4b = -0.42963;
-   double zmax4b = -0.11485;
+   // Bottom Strap 8:
+   double mmax8 = (-0.122085 + 0.13554) / ( 0.28256 - 0.34023);
+   double bmax8 = -0.122085 - mmax8*(0.28256);
+   double mmin8 = (-0.42984 + 0.4433) / ( 0.2 - 0.257712);
+   double bmin8 = -0.42984 - mmin8*(0.2);
+   double zmin8 = mmin8*x[1]+bmin8;
+   double zmax8 = mmax8*x[1]+bmax8;
+
+   double nmax8 = (-0.415745 + 0.15912) / (0.2721959 - 0.34100496);
+   double cmax8 = -0.415745 - nmax8*(0.2721959);
+   double nmin8 = (-0.3978 + 0.1411755) / (0.1953 - 0.2641092);
+   double cmin8 = -0.3978 - nmin8*(0.1953);
+   double phi8min = (z - cmin8)/nmin8 + 0.4;
+   double phi8max = (z - cmax8)/nmax8 + 0.4;
    if (r >= xmin && r <= xmax &&
-            z >= zmin4b && z <= zmax4b &&
-            x[2] >= phi4l && x[2] <= phi4r)
+       z >= zmin8 && z <= zmax8 &&
+       x[1] >= phi8min && x[1] <= phi8max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3735,7 +3895,7 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
          {
             double dlant = 0.325;
             double arc_len = -1.0*(z + (4*pow(b,2.0)*pow(z,3.0))/3.0 
-               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) - zmax4b;
+               - (16.0/5)*b*c*pow(z,5.0) + (16*pow(c,2.0)*pow(z,7.0))/7.0) + zmax8;
             j *= pow(cos((M_PI/dlant)*((arc_len+dlant) - dlant/2)),2.0);
          }
       }
