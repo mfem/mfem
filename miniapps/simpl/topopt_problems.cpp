@@ -85,6 +85,36 @@ void ForceInverterInitialDesign(GridFunction &x, LegendreEntropy *entropy)
    for (auto port:ports) { delete port; }
 }
 
+
+void ForceInverter3InitialDesign(GridFunction &x, LegendreEntropy *entropy)
+{
+   Array<Vector*> ports(0);
+   ports.Append(new Vector({0.0,0.0,0.0}));
+   ports.Append(new Vector({2.0,0.0,0.0}));
+   ports.Append(new Vector({0.0,1.0,1.0}));
+   Vector domain_center({1.0,0.5,0.5});
+
+
+   FunctionCoefficient dist([&domain_center, &ports](const Vector &x)
+   {
+      double d = infinity();
+      for (auto &port : ports) {d = std::min(d, DistanceToSegment(x, domain_center, *port));}
+      return d;
+   });
+   x.ProjectCoefficient(dist);
+   ConstantCoefficient zero_cf(0.0);
+   real_t max_d = x.ComputeMaxError(zero_cf);
+   for (auto &val : x) { val = (max_d - val) / max_d; }
+   if (entropy)
+   {
+      for (real_t &val : x)
+      {
+         val = entropy->forward(val);
+      }
+   }
+   for (auto port:ports) { delete port; }
+}
+
 Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
                      real_t &r_min, real_t &tot_vol, real_t &min_vol, real_t &max_vol,
                      real_t &E, real_t &nu,
@@ -443,6 +473,74 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          ess_bdr_filter[6] = 1;
          break;
       }
+
+      case ForceInverter3:
+      {
+         filename << "ForceInverter3";
+         if (r_min < 0) { r_min = 0.02; }
+         if (E < 0) { E = 1.0; }
+         if (nu < 0) { nu = 0.3; }
+         mesh = new Mesh(Mesh::MakeCartesian3D(2, 1, 1, Element::Type::HEXAHEDRON,
+                                               2.0, 1.0, 1.0));
+         tot_vol = 0.0;
+         for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
+         if (min_vol < 0) { min_vol = tot_vol*0.2; }
+         if (max_vol < 0) { max_vol = tot_vol*0.2; }
+         for (int i=0; i<ser_ref_levels; i++)
+         {
+            mesh->UniformRefinement();
+         }
+         if (par_ref_levels > -1)
+         {
+#ifdef MFEM_USE_MPI
+            Mesh * ser_mesh = mesh;
+            mesh = new ParMesh(MPI_COMM_WORLD, *ser_mesh);
+            ser_mesh->Clear();
+            delete ser_mesh;
+            for (int i=0; i<par_ref_levels; i++)
+            {
+               mesh->UniformRefinement();
+            }
+#else
+            MFEM_ABORT("MFEM is built without MPI but tried to use parallel refinement");
+#endif
+         }
+         int num_bdr_attr = 6;
+         MarkBoundaries(*mesh, ++num_bdr_attr,
+                        [](const Vector &x)
+         {
+            // Top right 5: Output port
+            return x[0] > 2.0 - 1e-09 && x[1] < std::pow(2,-5) && x[2] < std::pow(2,-5);
+         });
+         MarkBoundaries(*mesh, ++num_bdr_attr,
+                        [](const Vector &x)
+         {
+            // Top left 6: Input Port
+            return x[0] < 0.0 + 1e-09 && x[1] < std::pow(2,-5) && x[2] < std::pow(2,-5);
+         });
+         MarkBoundaries(*mesh, ++num_bdr_attr,
+                        [](const Vector &x)
+         {
+            // Bottom left 7: Fixed
+            return x[0] < 0.0 + 1e-09 && x[1] > 1.0 - std::pow(2,-5) &&
+                   x[2] > 1.0 - std::pow(2,-5);
+         });
+         ess_bdr_displacement.SetSize(4, num_bdr_attr);
+         ess_bdr_displacement = 0;
+         ess_bdr_displacement(3, 0) = 1; // bottom: z-roller
+         ess_bdr_displacement(2, 1) = 1; // front: y-roller
+         ess_bdr_displacement(0, 8) = 1;
+
+         ess_bdr_filter.SetSize(num_bdr_attr);
+         ess_bdr_filter = 0;
+         ess_bdr_filter[3] = -1;
+         ess_bdr_filter[5] = -1;
+         ess_bdr_filter[6] = 1;
+         ess_bdr_filter[7] = 1;
+         ess_bdr_filter[8] = 1;
+
+         break;
+      }
       default: MFEM_ABORT("Problem Undefined");
    }
    return mesh;
@@ -670,6 +768,43 @@ void SetupTopoptProblem(TopoptProblem prob,
 
          auto input_bdr = new Array<int>(7); *input_bdr = 0; (*input_bdr)[5] = 1;
          auto output_bdr = new Array<int>(7); *output_bdr = 0; (*output_bdr)[4] = 1;
+
+         elasticity.GetBilinearForm()->AddBdrFaceIntegrator(
+            new DirectionalHookesLawBdrIntegrator(k_in, d_in_cf), *input_bdr);
+         elasticity.GetBilinearForm()->AddBdrFaceIntegrator(
+            new DirectionalHookesLawBdrIntegrator(k_out, d_out_cf), *output_bdr);
+         elasticity.GetLinearForm()->AddBdrFaceIntegrator(
+            new VectorBoundaryLFIntegrator(*load), *input_bdr);
+         elasticity.GetAdjLinearForm()->AddBdrFaceIntegrator(
+            new VectorBoundaryLFIntegrator(*obj), *output_bdr);
+
+         elasticity.MakeVectorOwner(d_in);
+         elasticity.MakeVectorOwner(d_out);
+         elasticity.MakeVectorOwner(input_bdr);
+         elasticity.MakeVectorOwner(output_bdr);
+         elasticity.MakeCoefficientOwner(d_in_cf);
+         elasticity.MakeCoefficientOwner(d_out_cf);
+         elasticity.MakeCoefficientOwner(load);
+         elasticity.MakeCoefficientOwner(obj);
+
+         break;
+      }
+      case ForceInverter3:
+      {
+         real_t k_in(1), k_out(0.0005);
+
+         auto d_in = new Vector({1.0, 0.0, 0.0});
+         auto d_out = new Vector({-1.0, 0.0, 0.0});
+         auto d_in_cf = new VectorConstantCoefficient(*d_in);
+         auto d_out_cf = new VectorConstantCoefficient(*d_out);
+
+         auto load = new ScalarVectorProductCoefficient(1.0*std::pow(2.0, 8.0),
+                                                        *d_in_cf);
+         auto obj = new ScalarVectorProductCoefficient(-1.0*std::pow(2.0, 8.0),
+                                                       *d_out_cf);
+
+         auto input_bdr = new Array<int>(9); *input_bdr = 0; (*input_bdr)[6] = 1;
+         auto output_bdr = new Array<int>(9); *output_bdr = 0; (*output_bdr)[7] = 1;
 
          elasticity.GetBilinearForm()->AddBdrFaceIntegrator(
             new DirectionalHookesLawBdrIntegrator(k_in, d_in_cf), *input_bdr);

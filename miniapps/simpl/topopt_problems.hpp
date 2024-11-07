@@ -24,6 +24,9 @@ enum TopoptProblem
 
    // 2D Compliant mechanism
    ForceInverter2=-21,
+
+   // 3D Compliant mechanism
+   ForceInverter3=-31,
 };
 
 enum ThermalTopoptProblem
@@ -63,6 +66,7 @@ void SetupThermalTopoptProblem(ThermalTopoptProblem prob,
 real_t DistanceToSegment(const Vector &p, const Vector &v, const Vector &w);
 void ForceInverterInitialDesign(GridFunction &x,
                                 LegendreEntropy *entropy=nullptr);
+void ForceInverter3InitialDesign(GridFunction &x, LegendreEntropy *entropy=nullptr);
 
 } // end of namespace mfem
 #endif
