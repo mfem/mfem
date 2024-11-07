@@ -246,7 +246,7 @@ complex<double> S_cold_plasma(double omega,
                               double Rval,
                               double Lval)
 {
-   if (kparallel < 1.0){double kparallel = 18.0;} 
+   if (kparallel < 1.0){kparallel = 18.0;}
    complex<double> val(1.0, 0.0);
    complex<double> suscept_particle(0.0,0.0);
    double n = number[0];
@@ -407,7 +407,7 @@ complex<double> D_cold_plasma(double omega,
                               double Rval,
                               double Lval)
 {
-   if (kparallel < 1.0){double kparallel = 18.0;} 
+   if (kparallel < 1.0){kparallel = 18.0;} 
    complex<double> val(0.0, 0.0);
    complex<double> suscept_particle(0.0,0.0);
    double n = number[0];
@@ -542,7 +542,7 @@ complex<double> P_cold_plasma(double omega,
                               double iontemp,
                               int nuprof)
 {
-   if (kparallel < 1.0){double kparallel = 18.0;} 
+   if (kparallel < 1.0){kparallel = 18.0;} 
    complex<double> val(1.0, 0.0);
    complex<double> suscept_particle(0.0,0.0);
    double n = number[0];
