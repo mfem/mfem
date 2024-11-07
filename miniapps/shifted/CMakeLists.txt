@@ -13,14 +13,12 @@ if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
         sbm_solver.cpp
         marking.cpp
-        extrapolator.cpp
-        integ_algoim.cpp)
+        extrapolator.cpp)
   list(APPEND DIST_COMMON_HEADERS
         sbm_solver.hpp
         sbm_aux.hpp
         marking.hpp
-        extrapolator.hpp
-        integ_algoim.hpp)
+        extrapolator.hpp)
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
