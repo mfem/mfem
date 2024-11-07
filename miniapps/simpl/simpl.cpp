@@ -242,6 +242,10 @@ int main(int argc, char *argv[])
    {
       ForceInverterInitialDesign(control_gf, &entropy);
    }
+   if (prob == mfem::ForceInverter3)
+   {
+      ForceInverter3InitialDesign(control_gf, &entropy);
+   }
 
    // elasticity
    ElasticityProblem elasticity(fes_state, ess_bdr_state, lambda_simp_cf,
