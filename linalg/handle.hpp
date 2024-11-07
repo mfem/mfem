@@ -62,7 +62,7 @@ public:
    inline T &operator*() { return *ptr; }
 
    /// Access the underlying object.
-   const T &operator*() const { return *ptr; }
+   inline const T &operator*() const { return *ptr; }
 
    /// Return true if the Handle owns the held object.
    bool Owns() const { return own_ptr; }
