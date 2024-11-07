@@ -64,21 +64,6 @@ public:
    /// Access the underlying object.
    const T &operator*() const { return *ptr; }
 
-   /** @brief Return the pointer statically cast to a specified PtrType.
-       Similar to the method Get(). */
-   template <typename PtrType>
-   PtrType *As() const { return static_cast<PtrType*>(ptr); }
-
-   /// Return the pointer dynamically cast to a specified PtrType.
-   template <typename PtrType>
-   PtrType *Is() const { return dynamic_cast<PtrType*>(ptr); }
-
-   /// Return the pointer statically cast to a given PtrType.
-   /** Similar to the method As(), however the template type PtrType can be
-       derived automatically from the argument @a A. */
-   template <typename PtrType>
-   void Get(PtrType *&A) const { A = static_cast<PtrType*>(ptr); }
-
    /// Return true if the Handle owns the held object.
    bool Owns() const { return own_ptr; }
 
@@ -152,6 +137,21 @@ public:
    /// Get the currently set operator type id.
    Operator::Type Type() const { return type_id; }
 
+   /** @brief Return the Operator pointer statically cast to a specified OpType.
+       Similar to the method Get(). */
+   template <typename OpType>
+   OpType *As() const { return static_cast<OpType*>(Ptr()); }
+
+   /// Return the Operator pointer dynamically cast to a specified OpType.
+   template <typename OpType>
+   OpType *Is() const { return dynamic_cast<OpType*>(Ptr()); }
+
+   /// Return the Operator pointer statically cast to a given OpType.
+   /** Similar to the method As(), however the template type OpType can be
+       derived automatically from the argument @a A. */
+   template <typename OpType>
+   void Get(OpType *&A) const { A = static_cast<OpType*>(Ptr()); }
+
    /// Return true if the OperatorHandle owns the held Operator.
    bool OwnsOperator() const { return Owns(); }
 
@@ -166,7 +166,10 @@ public:
    }
 
    /// Reset the OperatorHandle to the given OpType pointer, @a A.
-   /** The Operator ownership flag is set to the value of @a own_A.
+   /** Presently, OpType can be SparseMatrix, HypreParMatrix, or PetscParMatrix.
+
+       The operator ownership flag is set to the value of @a own_A.
+
        It is expected that @a A points to a valid object. */
    template <typename OpType>
    void Reset(OpType *A, bool own_A = true)
