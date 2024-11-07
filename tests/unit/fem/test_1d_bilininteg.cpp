@@ -597,8 +597,26 @@ TEST_CASE("1D Bilinear Weak Derivative Integrator",
    }
 }
 
+void f_2(const Vector &x, Vector &f)
+{
+   f(0) = f(1) = 2.345 * x[0];
+}
+void v_2(const Vector &x, Vector &v)
+{
+   v(0) = v(1) = 1.231 * x[0] + 3.57;
+}
+void v_df_2(const Vector &x, Vector &r)
+{
+   r(0) = r(1) = v1(x) * df1(x);
+}
+void dv_df_2(const Vector &x, Vector &d)
+{
+   d(0) = d(1) = - dv1(x) * df1(x);
+}
+
 TEST_CASE("1D Bilinear Diffusion Integrator",
           "[DiffusionIntegrator]"
+          "[VectorDiffusionIntegrator]"
           "[BilinearFormIntegrator]"
           "[NonlinearFormIntegrator]")
 {
@@ -628,7 +646,7 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
 
    Vector tmp_h1(fespace_h1.GetNDofs());
 
-   SECTION("Without Coefficient")
+   SECTION("DiffusionIntegrator Without Coefficient")
    {
       BilinearForm blf(&fespace_h1);
       blf.AddDomainIntegrator(new DiffusionIntegrator());
@@ -638,6 +656,7 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
       LinearForm b(&fespace_h1);
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(df1_coef));
       b.Assemble();
+      // The left normal points inward.
       b[0] *=-1.0;
 
       blf.Mult(f_h1, tmp_h1); tmp_h1 -= b; g_h1 = 0.0;
@@ -645,7 +664,7 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
 
       REQUIRE( g_h1.ComputeL2Error(ddf1_coef) < tol );
    }
-   SECTION("With Coefficient")
+   SECTION("DiffusionIntegrator With Coefficient")
    {
       BilinearForm blf(&fespace_h1);
       blf.AddDomainIntegrator(new DiffusionIntegrator(v1_coef));
@@ -655,12 +674,62 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
       LinearForm b(&fespace_h1);
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(vdf1_coef));
       b.Assemble();
-      b[0] *=-1.0;
+      // The left normal points inward.
+      b[0] *= -1.0;
 
       blf.Mult(f_h1, tmp_h1); tmp_h1 -= b; g_h1 = 0.0;
       CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
 
       REQUIRE( g_h1.ComputeL2Error(dvdf1_coef) < tol );
+   }
+   SECTION("VectorDiffusionIntegrator With VectorCoefficient")
+   {
+      FiniteElementSpace fespace_h1_2(&mesh, &fec_h1, 2);
+      VectorFunctionCoefficient f_coef_2(2, f_2);
+      VectorFunctionCoefficient v_coeff_2(2, v_2);
+      VectorFunctionCoefficient v_df_coef_2(2, v_df_2);
+      VectorFunctionCoefficient dvdf_coef_2(2, dv_df_2);
+
+      BilinearForm B(&fespace_h1_2);
+      B.AddDomainIntegrator(new VectorDiffusionIntegrator(v_coeff_2));
+      B.Assemble();
+      B.Finalize();
+
+      // b: v grad(f).n.
+      LinearForm b(&fespace_h1_2);
+      b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(v_df_coef_2));
+      b.Assemble();
+      // The left normal points inward.
+      b[0] *= -1.0;
+      b[3] *= -1.0;
+
+      // tmp: grad(v grad(f)).
+      Vector tmp(b.Size());
+      GridFunction f_2(&fespace_h1_2); f_2.ProjectCoefficient(f_coef_2);
+      B.Mult(f_2, tmp);
+      // Check AssembleElementVector.
+      {
+         VectorDiffusionIntegrator vdi(v_coeff_2);
+         const FiniteElement &fe = *fespace_h1_2.GetFE(0);
+         Vector res(b.Size());
+         vdi.AssembleElementVector(fe, *mesh.GetElementTransformation(0),
+                                   f_2, res);
+         res -= tmp;
+         REQUIRE(res.Norml1() < tol);
+      }
+      tmp -= b;
+
+      Vector one(2); one = 1.0;
+      VectorConstantCoefficient coeff_one(one);
+      BilinearForm M(&fespace_h1_2);
+      M.AddDomainIntegrator(new VectorMassIntegrator(coeff_one));
+      M.Assemble();
+      M.Finalize();
+
+      GridFunction g(&fespace_h1_2); g = 0.0;
+      CG(M, tmp, g, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+      REQUIRE(g.ComputeL2Error(dvdf_coef_2) < tol);
    }
 }
 
