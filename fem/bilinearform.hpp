@@ -759,7 +759,7 @@ protected:
 
    /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
-   MixedBilinearFormExtension *ext;
+   std::unique_ptr<MixedBilinearFormExtension> ext;
 
    /** @brief Indicates the BilinearFormIntegrator%s stored in
        MixedBilinearForm#domain_integs, MixedBilinearForm#boundary_integs,

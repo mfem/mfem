@@ -1356,22 +1356,22 @@ void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
       case AssemblyLevel::LEGACY:
          break;
       case AssemblyLevel::FULL:
-         // ext = new FAMixedBilinearFormExtension(this);
+         // ext.reset(new FAMixedBilinearFormExtension(this));
          // Use the original BilinearForm implementation for now
          break;
       case AssemblyLevel::ELEMENT:
-         mfem_error("Element assembly not supported yet... stay tuned!");
-         // ext = new EAMixedBilinearFormExtension(this);
+         MFEM_ABORT("Element assembly not supported yet... stay tuned!");
+         // ext.reset(new EAMixedBilinearFormExtension(this));
          break;
       case AssemblyLevel::PARTIAL:
-         ext = new PAMixedBilinearFormExtension(this);
+         ext.reset(new PAMixedBilinearFormExtension(this));
          break;
       case AssemblyLevel::NONE:
-         mfem_error("Matrix-free action not supported yet... stay tuned!");
-         // ext = new MFMixedBilinearFormExtension(this);
+         MFEM_ABORT("Matrix-free action not supported yet... stay tuned!");
+         // ext.reset(new MFMixedBilinearFormExtension(this));
          break;
       default:
-         mfem_error("Unknown assembly level");
+         MFEM_ABORT("Unknown assembly level");
    }
 }
 
@@ -2384,16 +2384,16 @@ void DiscreteLinearOperator::SetAssemblyLevel(AssemblyLevel assembly_level)
          // Use the original implementation for now
          break;
       case AssemblyLevel::ELEMENT:
-         mfem_error("Element assembly not supported yet... stay tuned!");
+         MFEM_ABORT("Element assembly not supported yet... stay tuned!");
          break;
       case AssemblyLevel::PARTIAL:
-         ext = new PADiscreteLinearOperatorExtension(this);
+         ext.reset(new PADiscreteLinearOperatorExtension(this));
          break;
       case AssemblyLevel::NONE:
-         mfem_error("Matrix-free action not supported yet... stay tuned!");
+         MFEM_ABORT("Matrix-free action not supported yet... stay tuned!");
          break;
       default:
-         mfem_error("Unknown assembly level");
+         MFEM_ABORT("Unknown assembly level");
    }
 }
 
