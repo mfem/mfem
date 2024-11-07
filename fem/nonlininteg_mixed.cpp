@@ -51,22 +51,25 @@ real_t LinearDiffusionFlux::ComputeFlux(
 
 void LinearDiffusionFlux::ComputeDualFluxJacobian(
    const Vector &, const DenseMatrix &flux, ElementTransformation &Tr,
-   DenseMatrix &J) const
+   DenseMatrix &J_u, DenseMatrix &J_F) const
 {
+   J_u.SetSize(dim, 1);
+   J_u = 0.;
+
    if (coeff)
    {
       const real_t ikappa = coeff->Eval(Tr, Tr.GetIntPoint());
-      J.Diag(ikappa, dim);
+      J_F.Diag(ikappa, dim);
    }
    else if (vcoeff)
    {
       Vector ikappa(dim);
       vcoeff->Eval(ikappa, Tr, Tr.GetIntPoint());
-      J.Diag(ikappa);
+      J_F.Diag(ikappa);
    }
    else if (mcoeff)
    {
-      mcoeff->Eval(J, Tr, Tr.GetIntPoint());
+      mcoeff->Eval(J_F, Tr, Tr.GetIntPoint());
    }
 }
 
@@ -175,10 +178,18 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    shape_p.SetSize(ndof_p);
 
    //not used
-   elmats(1,1)->SetSize(ndof_p);
-   *elmats(1,1) = 0.0;
+   if (elmats(1,1))
+   {
+      elmats(1,1)->SetSize(ndof_p);
+      *elmats(1,1) = 0.0;
+   }
+   if (elmats(1,0))
+   {
+      elmats(1,0)->SetSize(ndof_p, ndof_u);
+      *elmats(1,0) = 0.0;
+   }
 
-   DenseMatrix J(sdim);
+   DenseMatrix J_u(sdim, 1), J_F(sdim);
    Vector x(sdim), u(sdim), p(1);
    DenseMatrix mu(u.GetData(), 1, sdim);
 
@@ -192,8 +203,16 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    if (fe_u.GetRangeType() == FiniteElement::SCALAR)
    {
       shape_u.SetSize(ndof_u);
-      elmats(0,0)->SetSize(ndof_u * sdim);
-      *elmats(0,0) = 0.0;
+      if (elmats(0,0))
+      {
+         elmats(0,0)->SetSize(ndof_u * sdim);
+         *elmats(0,0) = 0.0;
+      }
+      if (elmats(0,1))
+      {
+         elmats(0,1)->SetSize(ndof_u * sdim, ndof_p);
+         *elmats(0,1) = 0.0;
+      }
 
       DenseMatrix elfun_u_mat(elfun_u.GetData(), ndof_u, sdim);
 
@@ -207,29 +226,53 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
          fe_p.CalcShape(ip, shape_p);
 
          p(0) = elfun_p * shape_p;
-         real_t w = ip.weight * Tr.Weight();
-
          elfun_u_mat.MultTranspose(shape_u, u);
 
-         fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J);
+         fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J_u, J_F);
 
-         for (int d_j = 0; d_j < sdim; d_j++)
+         real_t w = ip.weight * Tr.Weight();
+
+         if (elmats(0,0))
+         {
+            for (int d_j = 0; d_j < sdim; d_j++)
+               for (int d_i = 0; d_i < sdim; d_i++)
+                  for (int j = 0; j < ndof_u; j++)
+                     for (int i = 0; i < ndof_u; i++)
+                     {
+                        (*elmats(0,0))(i+d_i*ndof_u, j+d_j*ndof_u)
+                        += w * J_F(d_i,d_j) * shape_u(i) * shape_u(j);
+                     }
+         }
+
+         if (elmats(0,1))
+         {
             for (int d_i = 0; d_i < sdim; d_i++)
-               for (int j = 0; j < ndof_u; j++)
+               for (int j = 0; j < ndof_p; j++)
                   for (int i = 0; i < ndof_u; i++)
                   {
-                     (*elmats(0,0))(i+d_i*ndof_u, j+d_j*ndof_u)
-                     += w * J(d_i,d_j) * shape_u(i) * shape_u(j);
+                     (*elmats(0,1))(i+d_i*ndof_u, j)
+                     += w * J_u(d_i,0) * shape_u(i) * shape_p(j);
                   }
+         }
       }
    }
    else
    {
       vshape_u.SetSize(ndof_u, sdim);
-      elmats(0,0)->SetSize(ndof_u);
-      *elmats(0,0) = 0.0;
+      if (elmats(0,0))
+      {
+         elmats(0,0)->SetSize(ndof_u);
+         *elmats(0,0) = 0.0;
+      }
+      if (elmats(0,1))
+      {
+         elmats(0,1)->SetSize(ndof_u, ndof_p);
+         *elmats(0,1) = 0.0;
+      }
 
       DenseMatrix vshapeJ_u(sdim, ndof_u);
+      Vector vshapeJu(ndof_u);
+      Vector J_uv(J_u.GetData(), sdim);
 
       for (int q = 0; q < ir->Size(); q++)
       {
@@ -241,14 +284,23 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
          fe_p.CalcShape(ip, shape_p);
 
          p(0) = elfun_p * shape_p;
-         real_t w = ip.weight * Tr.Weight();
-
          vshape_u.MultTranspose(elfun_u, u);
 
-         fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J);
+         fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J_u, J_F);
 
-         MultABt(J, vshape_u, vshapeJ_u);
-         AddMult_a(w, vshape_u, vshapeJ_u, *elmats(0,0));
+         real_t w = ip.weight * Tr.Weight();
+
+         if (elmats(0,0))
+         {
+            MultABt(J_F, vshape_u, vshapeJ_u);
+            AddMult_a(w, vshape_u, vshapeJ_u, *elmats(0,0));
+         }
+
+         if (elmats(0,1))
+         {
+            vshape_u.Mult(J_uv, vshapeJu);
+            AddMult_a_VWt(w, vshapeJu, shape_p, *elmats(0,1));
+         }
       }
    }
 }

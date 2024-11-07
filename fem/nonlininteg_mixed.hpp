@@ -31,9 +31,10 @@ public:
                                   ElementTransformation &Tr,
                                   DenseMatrix &dualFlux) const = 0;
 
-   virtual void ComputeDualFluxJacobian(const Vector &, const DenseMatrix &flux,
+   virtual void ComputeDualFluxJacobian(const Vector &state,
+                                        const DenseMatrix &flux,
                                         ElementTransformation &Tr,
-                                        DenseMatrix &J) const
+                                        DenseMatrix &J_u, DenseMatrix &J_F) const
    { MFEM_ABORT("Not Implemented."); }
 };
 
@@ -65,7 +66,7 @@ public:
 
    void ComputeDualFluxJacobian(const Vector &, const DenseMatrix &flux,
                                 ElementTransformation &Tr,
-                                DenseMatrix &J) const override;
+                                DenseMatrix &J_u, DenseMatrix &J_F) const override;
 };
 
 class MixedConductionNLFIntegrator : public BlockNonlinearFormIntegrator
