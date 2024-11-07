@@ -176,7 +176,8 @@ public:
       {
          std::tuple<Params...> param_tuple(PARAMS...);
          Kernels::Get().table[param_tuple] =
-            Kernels::template Kernel<PARAMS..., OptParams{}...>();
+            Kernels::template Kernel<PARAMS..., OptParams{}...,
+                                     OptParams{}...>();
       };
       // Version with optional parameters
       template <OptParams... OPT_PARAMS>
