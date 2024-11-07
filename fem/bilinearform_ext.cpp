@@ -867,17 +867,17 @@ void EABilinearFormExtension::Assemble()
 
    Vector ea_data_tmp;
 
-   auto add_with_markers = [&](const Vector &ea_1, Vector &ea_2, const int ne,
+   auto add_with_markers = [&](const Vector &ea_1, Vector &ea_2, const int ne_,
                                const Array<int> &markers, const Array<int> &attrs,
                                const bool add)
    {
-      const int sz = ea_1.Size() / ne;
+      const int sz = ea_1.Size() / ne_;
       const int *d_m = markers.Read();
       const int *d_a = attrs.Read();
-      const auto d_ea_1 = Reshape(ea_1.Read(), sz, ne);
-      auto d_ea_2 = Reshape(add ? ea_2.ReadWrite() : ea_2.Write(), sz, ne);
+      const auto d_ea_1 = Reshape(ea_1.Read(), sz, ne_);
+      auto d_ea_2 = Reshape(add ? ea_2.ReadWrite() : ea_2.Write(), sz, ne_);
 
-      mfem::forall(sz*ne, [=] MFEM_HOST_DEVICE (int idx)
+      mfem::forall(sz*ne_, [=] MFEM_HOST_DEVICE (int idx)
       {
          const int i = idx % sz;
          const int e = idx / sz;
