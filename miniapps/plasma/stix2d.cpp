@@ -1291,22 +1291,23 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       double lam0 = c0_ / freq;
-      double Bmag = BVec.Norml2();
+      double Bmag = 5.4; //BVec.Norml2();
       double kvecmag = kVec.Norml2();
+      double Rval = 0.0;
+      double Lval = 0.0;
 
       std::complex<double> S = S_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
-                                             res_lim);
+                                             Rval,Lval);
       std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> D = D_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
-                                             res_lim);
+                                             Rval,Lval);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, Ti, nuprof,
-                                             res_lim);
+                                             charges, masses, temps, Ti, nuprof);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -3166,15 +3167,16 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    double nue_ = 0;
    double nui_ = 0;
    double Ti_ = 0;
-   double res_lim_ = 0;
    double k_ = 18;
+   double Rval_ = 0.0;
+   double Lval_ = 0.0;
 
    S_ = S_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, res_lim_);
+                      nuprof_, Rval_, Lval_);
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, res_lim_);
+                      nuprof_, Rval_, Lval_);
    P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 
