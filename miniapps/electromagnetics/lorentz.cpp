@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
    }
    if (r_factor <= 0.0)
    {
-     r_factor = dt;
+      r_factor = dt;
    }
    if (Mpi::Root())
    {
@@ -374,9 +374,9 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-     mfem::out << "Maximum number of steps: " << nsteps << endl;
+      mfem::out << "Maximum number of steps: " << nsteps << endl;
    }
-   
+
    int step = -1;
    real_t t = t_init;
    do
