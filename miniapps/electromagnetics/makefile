@@ -90,7 +90,7 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-volta-test-par: volta-test-1 volta-test-2
+volta-test-par: volta-test-1 volta-test-2 volta-test-3
 volta-test-1: volta
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -dbcs 1 -dbcg -ds '0.0 0.0 0.0 0.2 8.0')
@@ -98,15 +98,29 @@ volta-test-2: volta
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -m ../../data/square-disc.mesh \
 	-dbcs '1 2 3 4 5 6 7 8' -dbcv '0 0 0 0 1 1 1 1')
-tesla-test-par: tesla
+volta-test-3: volta
+	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
+	-maxit 2 -m ../../data/inline-hex.mesh -dbcs '1 6' -dbcv '0 1')
+tesla-test-par: tesla-test-1 tesla-test-2
+tesla-test-1: tesla
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -cr '0 0 -0.2 0 0 0.2 0.2 0.4 1')
+tesla-test-2: tesla
+	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
+	-maxit 2 -m ../../data/inline-hex.mesh -ubbc '0 0 1')
 maxwell-test-par: maxwell
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-abcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5')
 joule-test-par: joule
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-m cylinder-hex.mesh -p rod -tf 3)
+lorentz-test-par: lorentz-test-1 lorentz-test-2
+lorentz-test-1: lorentz volta-test-3
+	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
+	-er Volta-AMR-Parallel -x0 '0.5 0.5 0.9' -p0 '1 0 0')
+lorentz-test-2: lorentz tesla-test-2
+	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
+	-er Tesla-AMR-Parallel -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.1' -tf 9)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
