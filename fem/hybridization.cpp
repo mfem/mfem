@@ -138,7 +138,7 @@ void Hybridization::ConstructC()
          Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                     mesh->bdr_attributes.Max() : 0);
          bdr_attr_marker = 0;
-         for (int k = 0; k < boundary_constraint_integs.size(); k++)
+         for (size_t k = 0; k < boundary_constraint_integs.size(); k++)
          {
             if (boundary_constraint_integs_marker[k] == NULL)
             {
@@ -179,7 +179,7 @@ void Hybridization::ConstructC()
             // but we can't dereference a NULL pointer, and we don't want to
             // actually make a fake element.
             fe2 = fe1;
-            for (int k = 0; k < boundary_constraint_integs.size(); k++)
+            for (size_t k = 0; k < boundary_constraint_integs.size(); k++)
             {
                if (boundary_constraint_integs_marker[k] &&
                    (*boundary_constraint_integs_marker[k])[bdr_attr-1] == 0) { continue; }
