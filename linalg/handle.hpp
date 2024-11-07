@@ -45,6 +45,9 @@ public:
    Handle(const Handle &other)
       : ptr(other.ptr), own_ptr(false) {  }
 
+   /// Default move constructor
+   Handle(Handle &&other) = default;
+
    virtual ~Handle() { if (own_ptr) { delete ptr; } }
 
    /// Shallow copy. The ownership flag of the target is set to false.
@@ -126,6 +129,9 @@ public:
    /// Shallow copy. The ownership flag of the target is set to false.
    OperatorHandle(const OperatorHandle &other)
       : Handle(other), type_id(other.type_id) {  }
+
+   /// Default move constructor
+   OperatorHandle(OperatorHandle &&other) = default;
 
    ~OperatorHandle() { }
 
