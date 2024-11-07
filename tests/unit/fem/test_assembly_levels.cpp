@@ -274,8 +274,10 @@ TEST_CASE("H(div) Element Assembly", "[AssemblyLevel][CUDA]")
    else if (problem == Problem::Diffusion) { integ.reset(new DivDivIntegrator); }
 
    const FiniteElement &fe = *fes.GetFE(0);
-   ElementTransformation &T = *mesh.GetElementTransformation(0);
-   integ->SetIntegrationRule(MassIntegrator::GetRule(fe, fe, T));
+   {
+      ElementTransformation &T = *mesh.GetElementTransformation(0);
+      integ->SetIntegrationRule(MassIntegrator::GetRule(fe, fe, T));
+   }
 
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement*>(&fe);
