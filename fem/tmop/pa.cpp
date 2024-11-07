@@ -56,7 +56,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
    MFEM_VERIFY(lim_func, "No TMOP_LimiterFunction specification!")
    MFEM_VERIFY(
       dynamic_cast<TMOP_QuadraticLimiter *>(lim_func) ||
-         dynamic_cast<TMOP_ExponentialLimiter *>(lim_func),
+      dynamic_cast<TMOP_ExponentialLimiter *>(lim_func),
       "Only TMOP_QuadraticLimiter and TMOP_ExponentialLimiter are supported");
 
    const FiniteElementSpace *fes = PA.fes;

@@ -1458,8 +1458,8 @@ public:
       d1.SetSize(x.Size());
       real_t dist_squared = dist * dist;
       subtract(20.0 *
-                  exp(10.0 * ((x.DistanceSquaredTo(x0) / dist_squared) - 1.0)) /
-                  dist_squared,
+               exp(10.0 * ((x.DistanceSquaredTo(x0) / dist_squared) - 1.0)) /
+               dist_squared,
                x, x0, d1);
    }
 
@@ -2219,8 +2219,8 @@ protected:
    {
       if (IntegRules) { return IntegRules->Get(el.GetGeomType(), integ_order); }
       return (IntRule) ? *IntRule
-                       /*     */
-                       : IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 3);
+             /*     */
+             : IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 3);
    }
    const IntegrationRule &ActionIntegrationRule(const FiniteElement &el) const
    {
