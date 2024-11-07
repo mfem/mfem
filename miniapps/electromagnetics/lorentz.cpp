@@ -374,7 +374,7 @@ int main(int argc, char *argv[])
    ofstream ofs("Lorentz.dat");
    ofs.precision(14);
 
-   int nsteps = 1 + (int)ceil(t_final - t_init) / dt;
+   int nsteps = 1 + (int)ceil((t_final - t_init) / dt);
    DenseMatrix pos_data(3, nsteps);
    DenseMatrix mom_data(3, nsteps + 1);
    mom_data.SetCol(0, p_init);
@@ -462,6 +462,10 @@ int main(int argc, char *argv[])
          VisualizeField(traj_sock, vishost, visport,
                         traj_time, "Trajectory", Wx, Wy, Ww, Wh);
       }
+   }
+   if (Mpi::Root())
+   {
+      mfem::out << "Number of steps taken: " << step << endl;
    }
 
    // Clean up
