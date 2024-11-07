@@ -756,7 +756,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
       rectPot_ = new ParGridFunction(H1FESpace_);
       *rectPot_ = 0.0;
-
+ 
       for (int i=0; i<sbcs_->Size(); i++)
       {
          ComplexCoefficientByAttr * sbc = (*sbcs_)[i];
@@ -1241,6 +1241,18 @@ CPDSolver::Solve()
 {
    if ( myid_ == 0 && logging_ > 0 ) { cout << "Running solver ... " << endl; }
 
+   // Set the current density
+   j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
+
+   if (logging_ > 0)
+   {
+      Vector zeroVec(3); zeroVec = 0.0;
+      VectorConstantCoefficient zeroVCoef(zeroVec);
+
+      double nrmj = j_->ComputeL2Error(zeroVCoef, zeroVCoef);
+      if (myid_ == 0) { cout << "norm of J: " << nrmj << endl; }
+   }
+
    double E_err = 1.0;
 
    if (dbcs_->Size() > 0)
@@ -1292,32 +1304,30 @@ CPDSolver::Solve()
       //e_->real() = 0.0;
       //e_->imag() = 0.0;
 
+      // An attempt to fix sheath BC
       if (phi_ != NULL)
       {
          double avgPhireal = avgPhi(phi_->real());
          double avgPhiimag = avgPhi(phi_->imag());
          //cout << avgPhireal << endl;
-
-         phi_->real() -= avgPhireal;
-         phi_->imag() -= avgPhiimag;
+         //phi_->real() -= avgPhireal;
+         //phi_->imag() -= avgPhiimag;
       }
-
+      
       if ( grad_ && phi_ != NULL)
       {
          grad_->Mult(phi_->real(), e_->real());
          grad_->Mult(phi_->imag(), e_->imag());
       }
-      //e_->real() *= 0.5;
-      //e_->imag() *= 0.5;
 
       // This is just the real part of k...
       if ( kOpr_ && phi_ != NULL)
-      {
+      {         
          kOpr_->AddMult(phi_->imag(), e_->real(), 1.0);
          kOpr_->AddMult(phi_->real(), e_->imag(), -1.0);
       }
       if ( kOpi_ && phi_ != NULL)
-      {
+      {         
          kOpi_->AddMult(phi_->imag(), e_->imag(), 1.0);
          kOpi_->AddMult(phi_->real(), e_->real(), 1.0);
       }
@@ -1534,35 +1544,37 @@ CPDSolver::Solve()
          break;
 #endif
 #ifdef MFEM_USE_MUMPS
-         case DMUMPS:
+      /*   
+      case DMUMPS:
+      {
+         if ( myid_ == 0 && logging_ > 0 )
          {
-            if ( myid_ == 0 && logging_ > 0 )
-            {
-               cout << "MUMPS (Real) Solver Requested" << endl;
-            }
-            ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-            HypreParMatrix * A1C = A1Z->GetSystemMatrix();
-            MUMPSSolver dmumps(MPI_COMM_WORLD);
-            dmumps.SetPrintLevel(1);
-            dmumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-            dmumps.SetOperator(*A1C);
-            dmumps.Mult(RHS, E);
-            delete A1C;
+            cout << "MUMPS (Real) Solver Requested" << endl;
          }
-         break;
-         case ZMUMPS:
+         ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+         HypreParMatrix * A1C = A1Z->GetSystemMatrix();
+         MUMPSSolver dmumps;
+         dmumps.SetPrintLevel(1);
+         dmumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+         dmumps.SetOperator(*A1C);
+         dmumps.Mult(RHS, E);
+         delete A1C;
+      }
+      break;
+      */
+      case ZMUMPS:
+      {
+         if ( myid_ == 0 && logging_ > 0 )
          {
-            if ( myid_ == 0 && logging_ > 0 )
-            {
-               cout << "MUMPS (Complex) Solver Requested" << endl;
-            }
-            ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-            ComplexMUMPSSolver zmumps;
-            zmumps.SetPrintLevel(1);
-            zmumps.SetOperator(*A1Z);
-            zmumps.Mult(RHS, E);
+            cout << "MUMPS (Complex) Solver Requested" << endl;
          }
-         break;
+         ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+         ComplexMUMPSSolver zmumps;
+         zmumps.SetPrintLevel(1);
+         zmumps.SetOperator(*A1Z);
+         zmumps.Mult(RHS, E);
+      }
+      break;
 #endif
 #ifdef MFEM_USE_STRUMPACK
          case STRUMPACK:
@@ -1878,7 +1890,7 @@ CPDSolver::Solve()
       */
 
       if (sbcs_->Size() <= 0) {break;}
-      //if (E_iter > 1){break;}
+      if (E_iter > 5){break;}
    }
    if (myid_ == 0)
    {
@@ -2040,11 +2052,12 @@ CPDSolver::WriteVisItFields(int it)
       {
          b_hat_->ProjectCoefficient(*BCoef_);
       }
-
+      /*
       if ( j_ )
       {
          j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
       }
+      */
       if ( u_ )
       {
          u_->ProjectCoefficient(uCoef_);
