@@ -117,10 +117,10 @@ joule-test-par: joule
 lorentz-test-par: lorentz-test-1 lorentz-test-2
 lorentz-test-1: lorentz volta-test-3
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
-	-er Volta-AMR-Parallel -x0 '0.5 0.5 0.9' -p0 '1 0 0')
+	-er Volta-AMR-Parallel -ec 2 -x0 '0.5 0.5 0.9' -p0 '1 0 0')
 lorentz-test-2: lorentz tesla-test-2
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
-	-er Tesla-AMR-Parallel -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.1' -tf 9)
+	-br Tesla-AMR-Parallel -bc 2 -x0 '0.1 0.5 0.1' -p0 '0 0.4 0.1' -tf 9)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
