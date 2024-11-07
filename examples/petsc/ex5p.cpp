@@ -59,6 +59,8 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
+   int ser_ref_levels = -1;
+   int par_ref_levels = 2;
    int order = 1;
    bool par_format = false;
    bool visualization = 1;
@@ -66,15 +68,22 @@ int main(int argc, char *argv[])
    bool use_nonoverlapping = false;
    bool local_bdr_spec = false;
    const char *petscrc_file = "";
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
                   "--serial-format",
                   "Format to use when saving the results for VisIt.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -103,7 +112,13 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-   // 2b. We initialize PETSc
+
+   // 2b. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
+   // 2c. We initialize PETSc
    if (use_petsc) { MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL); }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
@@ -117,9 +132,11 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      if (ser_ref_levels < 0)
+      {
+         ser_ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      }
+      for (int l = 0; l < ser_ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
@@ -131,7 +148,6 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -187,21 +203,26 @@ int main(int argc, char *argv[])
 
    // 9. Define the parallel grid function and parallel linear forms, solution
    //    vector and rhs.
-   BlockVector x(block_offsets), rhs(block_offsets);
-   BlockVector trueX(block_trueOffsets), trueRhs(block_trueOffsets);
+   MemoryType mt = device.GetMemoryType();
+   BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
+   BlockVector trueX(block_trueOffsets, mt), trueRhs(block_trueOffsets, mt);
 
    ParLinearForm *fform(new ParLinearForm);
    fform->Update(R_space, rhs.GetBlock(0), 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
    fform->Assemble();
+   fform->SyncAliasMemory(rhs);
    fform->ParallelAssemble(trueRhs.GetBlock(0));
+   trueRhs.GetBlock(0).SyncAliasMemory(trueRhs);
 
    ParLinearForm *gform(new ParLinearForm);
    gform->Update(W_space, rhs.GetBlock(1), 0);
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform->Assemble();
+   gform->SyncAliasMemory(rhs);
    gform->ParallelAssemble(trueRhs.GetBlock(1));
+   trueRhs.GetBlock(1).SyncAliasMemory(trueRhs);
 
    // 10. Assemble the finite element matrices for the Darcy operator
    //

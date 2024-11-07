@@ -133,10 +133,10 @@ public:
    real_t Trace() const;
 
    /// Returns reference to a_{ij}.
-   virtual real_t &Elem(int i, int j);
+   real_t &Elem(int i, int j) override;
 
    /// Returns constant reference to a_{ij}.
-   virtual const real_t &Elem(int i, int j) const;
+   const real_t &Elem(int i, int j) const override;
 
    /// Matrix vector multiplication.
    void Mult(const real_t *x, real_t *y) const;
@@ -148,7 +148,7 @@ public:
    void Mult(const Vector &x, real_t *y) const;
 
    /// Matrix vector multiplication.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const real_t *x, real_t *y) const;
@@ -160,17 +160,17 @@ public:
    void MultTranspose(const Vector &x, real_t *y) const;
 
    /// Multiply a vector with the transpose matrix.
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
    using Operator::Mult;
    using Operator::MultTranspose;
 
    /// y += a * A.x
-   virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
+   void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override;
 
    /// y += a * A^t x
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const real_t a = 1.0) const;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
 
    /// y += a * A.x
    void AddMult_a(real_t a, const Vector &x, Vector &y) const;
@@ -199,7 +199,7 @@ public:
    { return InnerProduct(x.GetData(), y.GetData()); }
 
    /// Returns a pointer to the inverse matrix.
-   virtual MatrixInverse *Inverse() const;
+   MatrixInverse *Inverse() const override;
 
    /// Replaces the current matrix with its inverse
    void Invert();
@@ -456,8 +456,9 @@ public:
    int CheckFinite() const { return mfem::CheckFinite(HostRead(), height*width); }
 
    /// Prints matrix to stream out.
-   virtual void Print(std::ostream &out = mfem::out, int width_ = 4) const;
-   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
+   void Print(std::ostream &out = mfem::out, int width_ = 4) const override;
+   void PrintMatlab(std::ostream &out = mfem::out) const override;
+   virtual void PrintMathematica(std::ostream &out = mfem::out) const;
    /// Prints the transpose matrix to stream out.
    virtual void PrintT(std::ostream &out = mfem::out, int width_ = 4) const;
 
@@ -692,11 +693,11 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   virtual bool Factor(int m, real_t TOL = 0.0);
+   bool Factor(int m, real_t TOL = 0.0) override;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
-   virtual real_t Det(int m) const;
+   real_t Det(int m) const override;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A X,
        for a matrix X of size (m x n). */
@@ -712,14 +713,14 @@ public:
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
-   virtual void Solve(int m, int n, real_t *X) const;
+   void Solve(int m, int n, real_t *X) const override;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- X A^{-1},
        for a matrix X of size (n x m). */
    void RightSolve(int m, int n, real_t *X) const;
 
    /// Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1}.
-   virtual void GetInverseMatrix(int m, real_t *X) const;
+   void GetInverseMatrix(int m, real_t *X) const override;
 
    /** Given an (n x m) matrix A21, compute X2 <- X2 - A21 X1, for matrices X1,
        and X2 of size (m x r) and (n x r), respectively. */
@@ -791,11 +792,11 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   virtual bool Factor(int m, real_t TOL = 0.0);
+   bool Factor(int m, real_t TOL = 0.0) override;
 
    /** Assuming LL^t = A factored data of size (m x m), compute |A|
        from the diagonal values of L */
-   virtual real_t Det(int m) const;
+   real_t Det(int m) const override;
 
    /** Assuming L.L^t = A factored data of size (m x m), compute X <- L X,
        for a matrix X of size (m x n). */
@@ -815,14 +816,14 @@ public:
 
    /** Assuming L.L^t = A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
-   virtual void Solve(int m, int n, real_t *X) const;
+   void Solve(int m, int n, real_t *X) const override;
 
    /** Assuming L.L^t = A factored data of size (m x m), compute X <- X A^{-1},
        for a matrix X of size (n x m). */
    void RightSolve(int m, int n, real_t *X) const;
 
    /// Assuming L.L^t = A factored data of size (m x m), compute X <- A^{-1}.
-   virtual void GetInverseMatrix(int m, real_t *X) const;
+   void GetInverseMatrix(int m, real_t *X) const override;
 
 };
 
@@ -859,13 +860,13 @@ public:
    /// Factor a new DenseMatrix of the same size
    void Factor(const DenseMatrix &mat);
 
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /// Matrix vector multiplication with the inverse of dense matrix.
    void Mult(const real_t *x, real_t *y) const;
 
    /// Matrix vector multiplication with the inverse of dense matrix.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Multiply the inverse matrix by another matrix: X = A^{-1} B.
    void Mult(const DenseMatrix &B, DenseMatrix &X) const;

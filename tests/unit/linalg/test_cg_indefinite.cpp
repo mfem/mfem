@@ -21,8 +21,8 @@ private:
 
 public:
    FakeSolver(Operator& op_) : Solver(op_.Height()), op(op_) { }
-   void SetOperator(const Operator &op_) { }
-   void Mult(const Vector& x, Vector& y) const { op.Mult(x, y); }
+   void SetOperator(const Operator &op_) override { }
+   void Mult(const Vector& x, Vector& y) const override { op.Mult(x, y); }
 };
 
 TEST_CASE("CGSolver", "[Indefinite]")

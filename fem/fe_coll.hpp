@@ -757,7 +757,7 @@ public:
       order, or VariableOrder (default). */
    explicit NURBS_HDivFECollection(int Order = VariableOrder, const int vdim = -1);
 
-   virtual void Reset() const override
+   void Reset() const override
    {
       SegmentFE->Reset();
       QuadrilateralFE->Reset();
@@ -765,11 +765,11 @@ public:
       ParallelepipedVFE->Reset();
    }
 
-   virtual void SetDim(const int dim) override;
+   void SetDim(const int dim) override;
 
    /** @brief Set the order and the name, based on the given @a Order: either a
        positive number for fixed order, or VariableOrder. */
-   virtual void SetOrder(int Order) const override;
+   void SetOrder(int Order) const override;
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -808,7 +808,7 @@ public:
    explicit NURBS_HCurlFECollection(int Order = VariableOrder,
                                     const int vdim = -1);
 
-   virtual void Reset() const override
+   void Reset() const override
    {
       SegmentFE->Reset();
       QuadrilateralFE->Reset();
@@ -816,11 +816,11 @@ public:
       ParallelepipedVFE->Reset();
    }
 
-   virtual void SetDim(const int dim) override;
+   void SetDim(const int dim) override;
 
    /** @brief Set the order and the name, based on the given @a Order: either a
        positive number for fixed order, or VariableOrder. */
-   virtual void SetOrder(int Order) const override;
+   void SetOrder(int Order) const override;
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
