@@ -20,6 +20,8 @@
 
 namespace mfem
 {
+namespace internal
+{
 
 /// Pointer to an object
 /** A general template wrapping the pointer to an object
@@ -83,6 +85,7 @@ public:
       own_ptr = own_A;
    }
 };
+};
 
 /// Pointer to an Operator of a specified type
 /** This class provides a common interface for global, matrix-type operators to
@@ -93,7 +96,7 @@ public:
       - PETSC parallel matrix assembled on each processor (PETSC_MATIS)
     See also Operator::Type.
 */
-class OperatorHandle : public Handle<Operator>
+class OperatorHandle : public internal::Handle<Operator>
 {
 protected:
    static const char not_supported_msg[];
