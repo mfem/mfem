@@ -10,6 +10,8 @@
 
 Version 4.7.1 (development)
 ===========================
+- Refactored ALGOIM cut integration rules. The interface is unified with
+  the interface for moment based cut integration rules.
 
 Discretization improvements
 ---------------------------
@@ -49,6 +51,10 @@ GPU computing
   the environment variable `MFEM_REPORT_KERNELS` to any value other than `NO`
   or by explicitly calling `KernelReporter::Enable`. Users can then add
   specializations for these kernels to achieve higher performance.
+
+- Element assembly kernels have been added for low-order refined to
+  high-order transfer operators. New kernels can be offloaded as device
+  kernels. Example usage may be found in lor-transfer.cpp under miniapps/tools.
 
 Miscellaneous
 -------------
@@ -153,6 +159,15 @@ New and updated examples and miniapps
 
 - Added two new example codes: 38 and 39/39p described above. Substantially
   updated Example 18/18p.
+
+- Added ODE solvers selection routines. This creates a uniformity across examples,
+  miniapps and other executables in regard to ODE(time-integrator) selection.
+
+- Added new mechanism for retrieving and setting state vectors in ODE solvers.
+  This is relevant for AB/AM and gen-alpha solvers.
+
+- Added ODEsolver/ODEsolver2 unit tests to verify order of convergence and
+  read/write functionality.
 
 Miscellaneous
 -------------

@@ -120,59 +120,46 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop/pa.cpp
-  tmop/mult/h2m.cpp
-  tmop/mult/h2m_c0.cpp
-  tmop/mult/h3m.cpp
-  tmop/mult/h3m_c0.cpp
-  tmop/mult/p2.cpp
-  tmop/mult/p2_c0.cpp
-  tmop/mult/p2_001.cpp
-  tmop/mult/p2_002.cpp
-  tmop/mult/p2_007.cpp
-  tmop/mult/p2_056.cpp
-  tmop/mult/p2_077.cpp
-  tmop/mult/p2_080.cpp
-  tmop/mult/p2_094.cpp
-  tmop/mult/p3.cpp
-  tmop/mult/p3_c0.cpp
-  tmop/mult/p3_302.cpp
-  tmop/mult/p3_303.cpp
-  tmop/mult/p3_315.cpp
-  tmop/mult/p3_318.cpp
-  tmop/mult/p3_321.cpp
-  tmop/mult/p3_332.cpp
-  tmop/mult/p3_338.cpp
-  tmop/setup/h2d.cpp
-  tmop/setup/h2d_c0.cpp
-  tmop/setup/h2s.cpp
-  tmop/setup/h2s_c0.cpp
-  tmop/setup/h2s_001.cpp
-  tmop/setup/h2s_002.cpp
-  tmop/setup/h2s_007.cpp
-  tmop/setup/h2s_056.cpp
-  tmop/setup/h2s_077.cpp
-  tmop/setup/h2s_080.cpp
-  tmop/setup/h2s_094.cpp
-  tmop/setup/h3d.cpp
-  tmop/setup/h3d_c0.cpp  
-  tmop/setup/h3s.cpp
-  tmop/setup/h3s_c0.cpp
-  tmop/setup/h3s_302.cpp
-  tmop/setup/h3s_303.cpp
-  tmop/setup/h3s_315.cpp
-  tmop/setup/h3s_318.cpp
-  tmop/setup/h3s_321.cpp
-  tmop/setup/h3s_332.cpp
-  tmop/setup/h3s_338.cpp
-  tmop/tools/da3.cpp
-  tmop/tools/jp2.cpp
-  tmop/tools/jp3.cpp
-  tmop/tools/tc2.cpp
-  tmop/tools/tc3.cpp
-  tmop/tools/w2.cpp
-  tmop/tools/w2_c0.cpp
-  tmop/tools/w3.cpp
-  tmop/tools/w3_c0.cpp
+  tmop/assemble/2d/diag_coef.cpp
+  tmop/assemble/2d/diag.cpp
+  tmop/assemble/2d/grad_coef.cpp
+  tmop/assemble/2d/grad.cpp
+  tmop/assemble/3d/diag_coef.cpp  
+  tmop/assemble/3d/diag.cpp
+  tmop/assemble/3d/grad_coef.cpp
+  tmop/assemble/3d/grad.cpp
+  tmop/metrics/001.cpp
+  tmop/metrics/002.cpp
+  tmop/metrics/002.cpp
+  tmop/metrics/007.cpp
+  tmop/metrics/056.cpp
+  tmop/metrics/077.cpp
+  tmop/metrics/080.cpp
+  tmop/metrics/094.cpp
+  tmop/metrics/302.cpp
+  tmop/metrics/303.cpp
+  tmop/metrics/315.cpp
+  tmop/metrics/318.cpp
+  tmop/metrics/321.cpp
+  tmop/metrics/332.cpp
+  tmop/metrics/338.cpp
+  tmop/mult/2d/grad_coef.cpp
+  tmop/mult/2d/grad.cpp
+  tmop/mult/2d/mult_coef.cpp
+  tmop/mult/2d/mult.cpp
+  tmop/mult/3d/grad_coef.cpp
+  tmop/mult/3d/grad.cpp
+  tmop/mult/3d/mult_coef.cpp
+  tmop/mult/3d/mult.cpp
+  tmop/tools/2d/det_jpr.cpp
+  tmop/tools/2d/energy_coef.cpp
+  tmop/tools/2d/energy.cpp
+  tmop/tools/2d/target.cpp
+  tmop/tools/3d/det_jpr.cpp
+  tmop/tools/3d/energy_coef.cpp
+  tmop/tools/3d/energy.cpp
+  tmop/tools/3d/discrete.cpp
+  tmop/tools/3d/target.cpp
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
@@ -271,10 +258,10 @@ set(HDRS
   tintrules.hpp
   tmop.hpp
   tmop/pa.hpp
-  tmop/mult/p2.hpp
-  tmop/mult/p3.hpp
-  tmop/setup/h2s.hpp
-  tmop/setup/h3s.hpp
+  tmop/assemble/2d/grad.hpp
+  tmop/assemble/3d/grad.hpp
+  tmop/mult/2d/mult.hpp
+  tmop/mult/3d/mult.hpp
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp

@@ -2012,12 +2012,8 @@ protected:
    friend class TMOPComboIntegrator;
    friend class TMOPAddMultPA2D;
    friend class TMOPAddMultPA3D;
-   friend class TMOPSetupGradPA2D;
+   friend class TMOPSetup2D;
    friend class TMOPSetupGradPA3D;
-
-   template <typename METRIC, int T_D1D, int T_Q1D, int T_MAX>
-   friend void TMOPSetupGradPA2D_Kernel(const TMOP_Integrator *,
-                                        const Vector &);
 
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;       // not owned
@@ -2145,6 +2141,8 @@ protected:
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
    } PA;
+   int Ndof() const { return PA.maps->ndof; }
+   int Nqpt() const { return PA.maps->nqpt; }
 
    void ComputeNormalizationEnergies(const GridFunction &x,
                                      real_t &metric_energy,
