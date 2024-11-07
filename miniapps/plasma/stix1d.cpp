@@ -235,14 +235,19 @@ int main(int argc, char *argv[])
    Vector temps;
    double nue = 0;
    double nui = 0;
+   double Ti = 0;
 
    PlasmaProfile::Type dpt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type tipt = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nept = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nipt = PlasmaProfile::CONSTANT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Vector dpp;
    Vector tpp;
+   Vector tipp;
+   tpp.SetSize(1);
+   tpp[0] = 0.0;
    Vector bpp;
    Vector nepp;
    Vector nipp;
@@ -564,20 +569,23 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       double lam0 = c0_ / freq;
-      double Bmag = BVec.Norml2();
-      std::complex<double> S = S_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof,
-                                             res_lim);
-      std::complex<double> P = P_cold_plasma(omega, nue, numbers,
-                                             charges, masses, temps, nuprof);
-      std::complex<double> D = D_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof,
-                                             res_lim);
+      double Bmag = 5.4; //BVec.Norml2();
+      double kvecmag = kVec.Norml2();
+      double Rval = 0.0;
+      double Lval = 0.0;
+
+      std::complex<double> S = S_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
+                                             charges, masses, temps, Ti, nuprof,
+                                             Rval,Lval);
+      std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, numbers,
+                                             charges, masses, temps, Ti, nuprof);
+      std::complex<double> D = D_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
+                                             charges, masses, temps, Ti, nuprof,
+                                             Rval,Lval);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof);
+                                             charges, masses, temps, Ti, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, nuprof,
-                                             res_lim);
+                                             charges, masses, temps, Ti, nuprof);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -727,6 +735,7 @@ int main(int argc, char *argv[])
    ParGridFunction density_gf;
    ParGridFunction nue_gf(&H1FESpace);
    ParGridFunction nui_gf(&H1FESpace);
+   ParGridFunction iontemp_gf(&H1FESpace);
 
    PlasmaProfile nueCoef(nept, nepp);
    nue_gf.ProjectCoefficient(nueCoef);
@@ -762,6 +771,8 @@ int main(int argc, char *argv[])
    BlockVector temperature(temperature_offsets);
 
    PlasmaProfile tempCoef(tpt, tpp);
+   PlasmaProfile TiCoef(tipt, tipp);
+   iontemp_gf.ProjectCoefficient(TiCoef);
    PlasmaProfile rhoCoef(dpt, dpp);
 
    for (int i=0; i<=numbers.Size(); i++)
@@ -776,6 +787,17 @@ int main(int argc, char *argv[])
       density_gf.ProjectCoefficient(rhoCoef);
    }
 
+   mfem::out << "Setting phase shift of ("
+             << complex<double>(kReVec[0],kImVec[0]) << ","
+             << complex<double>(kReVec[1],kImVec[1]) << ","
+             << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
+
+   VectorConstantCoefficient kReCoef(kReVec);
+   VectorConstantCoefficient kImCoef(kImVec);
+
+   ParGridFunction k_gf(&H1FESpace);
+   k_gf.ProjectCoefficient(kReCoef);
+
    if (Mpi::Root() && logging > 0)
    {
       cout << "Initializing more coefficients..." << endl;
@@ -788,19 +810,18 @@ int main(int argc, char *argv[])
    Coefficient * etaInvCoef = SetupRealAdmittanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
-   DielectricTensor epsilon_real(BField, nue_gf, nui_gf,
-                                 density, temperature,
-                                 L2FESpace, H1FESpace,
-                                 omega, charges, masses, nuprof, res_lim,
-                                 true);
-   DielectricTensor epsilon_imag(BField, nue_gf, nui_gf,
-                                 density, temperature,
-                                 L2FESpace, H1FESpace,
-                                 omega, charges, masses, nuprof, res_lim,
-                                 false);
-   SPDDielectricTensor epsilon_abs(BField, nue_gf, nui_gf,
-                                   density, temperature,
-                                   L2FESpace, H1FESpace,
+   DielectricTensor epsilon_real(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true);
+   DielectricTensor epsilon_imag(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false);
+   SPDDielectricTensor epsilon_abs(BField, k_gf, nue_gf, nui_gf, density, temperature,
+                                   iontemp_gf, L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof, res_lim);
    SheathImpedance z_r(BField, density, temperature,
                        L2FESpace, H1FESpace,
@@ -828,14 +849,6 @@ int main(int argc, char *argv[])
       EReCoef.SetPhaseShift(kVec);
       EImCoef.SetPhaseShift(kVec);
    }
-
-   mfem::out << "Setting phase shift of ("
-             << complex<double>(kReVec[0],kImVec[0]) << ","
-             << complex<double>(kReVec[1],kImVec[1]) << ","
-             << complex<double>(kReVec[2],kImVec[2]) << ")" << endl;
-
-   VectorConstantCoefficient kReCoef(kReVec);
-   VectorConstantCoefficient kImCoef(kImVec);
 
    tic_toc.Stop();
 
@@ -1335,15 +1348,21 @@ ColdPlasmaPlaneWave::ColdPlasmaPlaneWave(char type,
          break;
    }
 
-   double nue = 0;
-   double nui = 0;
+   double nue_ = 0;
+   double nui_ = 0;
+   double Ti_ = 0;
+   double k_ = 18;
+   double Rval_ = 0.0;
+   double Lval_ = 0.0;
 
-   S_ = S_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
-                      temps_, nuprof_, res_lim_);
-   D_ = D_cold_plasma(omega_, Bmag_, nue, nui, numbers_, charges_, masses_,
-                      temps_, nuprof_, res_lim_);
-   P_ = P_cold_plasma(omega_, nue, numbers_, charges_, masses_, temps_,
-                      nuprof_);
+   S_ = S_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
+                      temps_, Ti_,
+                      nuprof_, Rval_, Lval_);
+   D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
+                      temps_, Ti_,
+                      nuprof_, Rval_, Lval_);
+   P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
+                      temps_, Ti_, nuprof_);
 }
 
 void ColdPlasmaPlaneWave::Eval(Vector &V, ElementTransformation &T,
