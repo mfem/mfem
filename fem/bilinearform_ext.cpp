@@ -871,6 +871,7 @@ void EABilinearFormExtension::Assemble()
                                const Array<int> &markers, const Array<int> &attrs,
                                const bool add)
    {
+      if (ne_ == 0) { return; }
       const int sz = ea_1.Size() / ne_;
       const int *d_m = markers.Read();
       const int *d_a = attrs.Read();
