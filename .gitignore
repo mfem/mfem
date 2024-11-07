@@ -15,6 +15,9 @@
 CMakeCache.txt
 CMakeFiles/
 
+# Clangd server cache
+*.cache*
+
 # QtCreator/clangd folder
 .qtc_clangd
 

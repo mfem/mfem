@@ -136,11 +136,8 @@ Vector &Vector::operator=(const Vector &v)
 
 Vector &Vector::operator=(Vector &&v)
 {
-   data = std::move(v.data);
-   // Self-assignment-safe way to move v.size to size:
-   const auto size_tmp = v.size;
-   v.size = 0;
-   size = size_tmp;
+   v.Swap(*this);
+   if (this != &v) { v.Destroy(); }
    return *this;
 }
 
