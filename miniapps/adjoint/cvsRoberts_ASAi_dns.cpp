@@ -94,27 +94,27 @@ public:
    {}
 
    // Rate equation for forward problem
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    // Quadrature integration for G
-   virtual void QuadratureIntegration(const Vector &x, Vector &y) const;
+   void QuadratureIntegration(const Vector &x, Vector &y) const override;
 
    // Adjoint rate equation corresponding to d(lambda)/dt
-   virtual void AdjointRateMult(const Vector &y, Vector &yB,
-                                Vector &yBdot) const;
+   void AdjointRateMult(const Vector &y, Vector &yB,
+                        Vector &yBdot) const override;
 
    // Quadrature sensitivity equations corresponding to dG/dp
-   virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
-                                          Vector &qbdot) const;
+   void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
+                                  Vector &qbdot) const override;
 
    // Setup custom MFEM solvers using GMRES since the Jacobian matrix is not
    // symmetric
-   virtual int SUNImplicitSetupB(const real_t t, const Vector &y,
-                                 const Vector &yB, const Vector &fyB, int jokB,
-                                 int *jcurB, real_t gammaB);
+   int SUNImplicitSetupB(const real_t t, const Vector &y,
+                         const Vector &yB, const Vector &fyB, int jokB,
+                         int *jcurB, real_t gammaB) override;
 
    // Setup custom MFEM solve
-   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, real_t tol);
+   int SUNImplicitSolveB(Vector &x, const Vector &b, real_t tol) override;
 
    ~RobertsTDAOperator()
    {

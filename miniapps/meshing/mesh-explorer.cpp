@@ -265,6 +265,7 @@ int main (int argc, char *argv[])
 {
    int np = 0;
    const char *mesh_file = "../../data/beam-hex.mesh";
+   int visport = 19916;
    bool refine = true;
 
    OptionsParser args(argc, argv);
@@ -274,6 +275,7 @@ int main (int argc, char *argv[])
                   "Load mesh from multiple processors.");
    args.AddOption(&refine, "-ref", "--refinement", "-no-ref", "--no-refinement",
                   "Prepare the mesh for refinement or not.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -1114,7 +1116,6 @@ int main (int argc, char *argv[])
          }
 
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          if (sol_sock.is_open())
          {
@@ -1231,7 +1232,6 @@ int main (int argc, char *argv[])
          FunctionCoefficient coeff(f);
          level.ProjectCoefficient(coeff);
          char vishost[] = "localhost";
-         int  visport   = 19916;
          socketstream sol_sock(vishost, visport);
          if (sol_sock.is_open())
          {
