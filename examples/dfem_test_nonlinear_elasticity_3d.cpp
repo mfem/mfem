@@ -200,6 +200,7 @@ int test_nonlinear_elasticity_3d(std::string mesh_file,
    mfem::tuple argument_operators{Gradient{"displacement"}, Gradient{"coordinates"}, Weight{}};
    mfem::tuple output_operator{Gradient{"displacement"}};
 
+   // B^T D(B0*dudxi, B1*J, B2*w)
    ElementOperator op(elasticity_kernel, argument_operators, output_operator, ir);
 
    std::array solutions{FieldDescriptor{&h1fes, "displacement"}};

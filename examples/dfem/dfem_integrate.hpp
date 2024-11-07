@@ -17,7 +17,7 @@ void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
    auto G = dtq.G;
    // assuming the quadrature point residual has to "play nice with
    // the test function"
-   if constexpr (std::is_same_v<std::decay_t<output_t>, BareFieldOperator::Value>)
+   if constexpr (std::is_same_v<std::decay_t<output_t>, Value<>>)
    {
       const auto [num_qp, cdim, num_dof] = B.GetShape();
       const int vdim = output.vdim > 0 ? output.vdim : cdim ;
@@ -35,7 +35,7 @@ void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
       }
    }
    else if constexpr (
-      std::is_same_v<std::decay_t<output_t>, BareFieldOperator::Gradient>)
+      std::is_same_v<std::decay_t<output_t>, Gradient<>>)
    {
       const auto [num_qp, dim, num_dof] = G.GetShape();
       const int vdim = output.vdim;
@@ -67,7 +67,7 @@ void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
    //    }
    // }
    else if constexpr (
-      std::is_same_v<std::decay_t<output_t>, BareFieldOperator::None>)
+      std::is_same_v<std::decay_t<output_t>, None<>>)
    {
       const auto [vdim, dim, num_qp] = G.GetShape();
       auto cc = Reshape(&f(0, 0, 0), num_qp * vdim);
@@ -95,7 +95,7 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
    auto B = dtq.B;
    auto G = dtq.G;
 
-   if constexpr (std::is_same_v<std::decay_t<output_t>, BareFieldOperator::Value>)
+   if constexpr (is_value_fop<std::decay_t<output_t>>::value)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = output.vdim;
@@ -162,8 +162,7 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
          MFEM_SYNC_THREAD;
       }
    }
-   else if constexpr (
-      std::is_same_v<std::decay_t<output_t>, BareFieldOperator::Gradient>)
+   else if constexpr (is_gradient_fop<std::decay_t<output_t>>::value)
    {
       const auto [q1d, unused, d1d] = G.GetShape();
       const int vdim = output.vdim;
@@ -242,8 +241,7 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
          MFEM_SYNC_THREAD;
       }
    }
-   else if constexpr (
-      std::is_same_v<std::decay_t<output_t>, BareFieldOperator::None>)
+   else if constexpr (is_none_fop<std::decay_t<output_t>>::value)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
       auto fqp = Reshape(&f(0, 0, 0), output.size_on_qp, q1d, q1d, q1d);

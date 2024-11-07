@@ -3,11 +3,30 @@
 namespace mfem
 {
 
-template <typename func_t, typename input_t, typename output_t>
+template <typename... input_ts, size_t... Is>
+constexpr auto make_dependency_map_impl(mfem::tuple<input_ts...> inputs,
+                                        std::index_sequence<Is...>)
+{
+   auto make_dependency_tuple = [&](auto i)
+   {
+      return std::make_tuple((mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>
+                              (inputs).GetFieldId())...);
+   };
+
+   return std::make_tuple(make_dependency_tuple(std::integral_constant<size_t, Is> {})...);
+}
+
+template <typename... input_ts>
+constexpr auto make_dependency_map(mfem::tuple<input_ts...> inputs)
+{
+   return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
+}
+
+template <typename func_t, typename input_t, typename output_t, typename dependency_map_t>
 struct ElementOperator;
 
-template <typename func_t, typename... input_ts, typename... output_ts>
-struct ElementOperator<func_t, mfem::tuple<input_ts...>, mfem::tuple<output_ts...>>
+template <typename func_t, typename... input_ts, typename... output_ts, typename dependency_map_t>
+struct ElementOperator<func_t, mfem::tuple<input_ts...>, mfem::tuple<output_ts...>, dependency_map_t>
 {
    using entity_t = Entity::Element;
 
@@ -15,6 +34,8 @@ struct ElementOperator<func_t, mfem::tuple<input_ts...>, mfem::tuple<output_ts..
 
    mfem::tuple<input_ts...> inputs;
    mfem::tuple<output_ts...> outputs;
+
+   dependency_map_t dependency_map;
 
    using qf_param_ts = typename create_function_signature<
                        decltype(&func_t::operator())>::type::parameter_ts;
@@ -29,7 +50,8 @@ struct ElementOperator<func_t, mfem::tuple<input_ts...>, mfem::tuple<output_ts..
    ElementOperator(func_t qfunc,
                    mfem::tuple<input_ts...> inputs,
                    mfem::tuple<output_ts...> outputs)
-      : qfunc(qfunc), inputs(inputs), outputs(outputs)
+      : qfunc(qfunc), inputs(inputs), outputs(outputs),
+        dependency_map(make_dependency_map(inputs))
    {
       // Consistency checks
       if constexpr (num_outputs > 1)
@@ -50,7 +72,8 @@ struct ElementOperator<func_t, mfem::tuple<input_ts...>, mfem::tuple<output_ts..
 
 template <typename func_t, typename... input_ts, typename... output_ts>
 ElementOperator(func_t, mfem::tuple<input_ts...>, mfem::tuple<output_ts...>)
--> ElementOperator<func_t, mfem::tuple<input_ts...>, mfem::tuple<output_ts...>>;
+-> ElementOperator<func_t, mfem::tuple<input_ts...>, mfem::tuple<output_ts...>,
+decltype(make_dependency_map(std::declval<mfem::tuple<input_ts...>>()))>;
 
 // template <typename func_t, typename input_t, typename output_t>
 // struct BoundaryElementOperator : public

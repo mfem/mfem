@@ -18,8 +18,7 @@ void map_field_to_quadrature_data_tensor_product(
    auto B = dtq.B;
    auto G = dtq.G;
 
-   if constexpr (
-      std::is_same_v<std::decay_t<field_operator_t>, BareFieldOperator::Value>)
+   if constexpr (is_value_fop<std::decay_t<field_operator_t>>::value)
    {
       auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
@@ -83,7 +82,7 @@ void map_field_to_quadrature_data_tensor_product(
       }
    }
    else if constexpr (
-      std::is_same_v<std::decay_t<field_operator_t>, BareFieldOperator::Gradient>)
+      is_gradient_fop<std::decay_t<field_operator_t>>::value)
    {
       const auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
@@ -165,7 +164,7 @@ void map_field_to_quadrature_data_tensor_product(
    }
    // TODO: Create separate function for clarity
    else if constexpr (
-      std::is_same_v<std::decay_t<field_operator_t>, BareFieldOperator::Weight>)
+      std::is_same_v<std::decay_t<field_operator_t>, Weight>)
    {
       const int num_qp = integration_weights.GetShape()[0];
       // TODO: eeek
@@ -184,8 +183,7 @@ void map_field_to_quadrature_data_tensor_product(
       }
       MFEM_SYNC_THREAD;
    }
-   else if constexpr (
-      std::is_same_v<std::decay_t<field_operator_t>, BareFieldOperator::None>)
+   else if constexpr (is_none_fop<std::decay_t<field_operator_t>>::value)
    {
       const int q1d = B.GetShape()[0];
       auto field = Reshape(&field_e[0], input.size_on_qp, q1d * q1d * q1d);
@@ -210,7 +208,7 @@ void map_field_to_quadrature_data(
 {
    auto B = dtq.B;
    auto G = dtq.G;
-   if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::Value>)
+   if constexpr (is_value_fop<field_operator_t>::value)
    {
       auto [num_qp, dim, num_dof] = B.GetShape();
       const int vdim = input.vdim;
@@ -229,8 +227,7 @@ void map_field_to_quadrature_data(
          }
       }
    }
-   else if constexpr (
-      std::is_same_v<field_operator_t, BareFieldOperator::Gradient>)
+   else if constexpr (is_gradient_fop<field_operator_t>::value)
    {
       const auto [num_qp, dim, num_dof] = G.GetShape();
       const int vdim = input.vdim;
@@ -267,7 +264,7 @@ void map_field_to_quadrature_data(
    //    }
    // }
    // TODO: Create separate function for clarity
-   else if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::Weight>)
+   else if constexpr (std::is_same_v<field_operator_t, Weight>)
    {
       const int num_qp = integration_weights.GetShape()[0];
       auto f = Reshape(&field_qp[0], num_qp);
@@ -276,7 +273,7 @@ void map_field_to_quadrature_data(
          f(qp) = integration_weights(qp);
       }
    }
-   else if constexpr (std::is_same_v<field_operator_t, BareFieldOperator::None>)
+   else if constexpr (is_none_fop<field_operator_t>::value)
    {
       auto [num_qp, unused, num_dof] = B.GetShape();
       const int size_on_qp = input.size_on_qp;
@@ -295,33 +292,39 @@ void map_field_to_quadrature_data(
    }
 }
 
-template <typename T = NonTensorProduct, size_t num_kinputs, typename field_operator_ts, std::size_t... i>
+template <typename T = NonTensorProduct, typename field_operator_ts, size_t num_inputs, size_t num_fields>
 MFEM_HOST_DEVICE inline
 void map_fields_to_quadrature_data(
-   std::array<DeviceTensor<2>, num_kinputs> &fields_qp,
-   const std::array<DeviceTensor<1>, num_kinputs> &fields_e,
-   const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
+   std::array<DeviceTensor<2>, num_inputs> &fields_qp,
+   const std::array<DeviceTensor<1>, num_fields> &fields_e,
+   const std::array<DofToQuadMap, num_inputs> &dtqmaps,
+   const std::array<int, num_inputs> &input_to_field,
    const field_operator_ts &fops,
    const DeviceTensor<1, const double> &integration_weights,
-   const std::array<DeviceTensor<1>, 6> &scratch_mem,
-   std::index_sequence<i...>)
+   const std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
-   if constexpr (std::is_same_v<T, TensorProduct>)
+   for_constexpr<num_inputs>([&](auto i)
    {
-
-      (map_field_to_quadrature_data_tensor_product(fields_qp[i],
-                                                   dtqmaps[i], fields_e[i],
-                                                   mfem::get<i>(fops), integration_weights,
-                                                   scratch_mem),
-       ...);
-   }
-   else
-   {
-      (map_field_to_quadrature_data(fields_qp[i],
-                                    dtqmaps[i], fields_e[i],
-                                    mfem::get<i>(fops), integration_weights),
-       ...);
-   }
+      if constexpr (std::is_same_v<T, TensorProduct>)
+      {
+         map_field_to_quadrature_data_tensor_product(
+            fields_qp[i],
+            dtqmaps[i],
+            fields_e[input_to_field[i]],
+            mfem::get<i>(fops),
+            integration_weights,
+            scratch_mem);
+      }
+      else
+      {
+         map_field_to_quadrature_data(
+            fields_qp[i],
+            dtqmaps[i],
+            fields_e[i],
+            mfem::get<i>(fops),
+            integration_weights);
+      }
+   });
 }
 
 template <typename T, typename field_operator_t>
@@ -374,26 +377,27 @@ void map_fields_to_quadrature_data_conditional(
     ...);
 }
 
-template <typename T = NonTensorProduct, size_t num_kinputs, typename field_operator_ts, std::size_t... i>
+template <typename T = NonTensorProduct, size_t num_inputs, typename field_operator_ts>
 MFEM_HOST_DEVICE
 void map_direction_to_quadrature_data_conditional(
-   std::array<DeviceTensor<2>, num_kinputs> &directions_qp,
+   std::array<DeviceTensor<2>, num_inputs> &directions_qp,
    const DeviceTensor<1> &direction_e,
-   const std::array<DofToQuadMap, num_kinputs> &dtqmaps,
+   const std::array<DofToQuadMap, num_inputs> &dtqmaps,
    field_operator_ts fops,
    const DeviceTensor<1, const double> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
-   const std::array<bool, num_kinputs> &conditions,
-   std::index_sequence<i...>)
+   const std::array<bool, num_inputs> &conditions)
 {
-   (map_field_to_quadrature_data_conditional<T>(directions_qp[i],
-                                                direction_e,
-                                                dtqmaps[i],
-                                                mfem::get<i>(fops),
-                                                integration_weights,
-                                                scratch_mem,
-                                                conditions[i]),
-    ...);
+   for_constexpr<num_inputs>([&](auto i)
+   {
+      map_field_to_quadrature_data_conditional<T>(directions_qp[i],
+                                                  direction_e,
+                                                  dtqmaps[i],
+                                                  mfem::get<i>(fops),
+                                                  integration_weights,
+                                                  scratch_mem,
+                                                  conditions[i]);
+   });
 }
 
 }

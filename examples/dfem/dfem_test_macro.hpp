@@ -1,5 +1,5 @@
 #pragma once
-#include "dfem.hpp"
+#include "dfem_refactor.hpp"
 
 #define DFEM_TEST_MAIN(function)                                               \
    int main(int argc, char* argv[])                                            \

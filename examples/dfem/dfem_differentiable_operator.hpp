@@ -781,7 +781,6 @@ void DifferentiableOperator<kernels_tuple,
                   {
                      static_assert(always_false<autodiff_t>, "unknown autodiff type");
                   }
-                  // printf(">>>>> WARNING: AD DISABLED\n");
                }
             }
          }

@@ -1,7 +1,10 @@
 #pragma once
 #include "dfem_util.hpp"
+
+#ifdef MFEM_USE_ENZYME
 #include <enzyme/utils>
 #include <enzyme/enzyme>
+#endif
 
 namespace mfem
 {
@@ -57,12 +60,6 @@ void process_kf_arg(
          arg(j, i) = u((i * m) + j);
       }
    }
-   // assuming col major layout. translating to row major.
-   // i + N_i*j
-   // arg(0, 0) = u(0);
-   // arg(0, 1) = u(0 + 2 * 1);
-   // arg(1, 0) = u(1 + 2 * 0);
-   // arg(1, 1) = u(1 + 2 * 1);
 }
 
 template <typename arg_type>
@@ -177,6 +174,7 @@ void apply_kernel(
    process_kf_result(f_qp, mfem::get<0>(mfem::apply(kf, args)));
 }
 
+#ifdef MFEM_USE_ENZYME
 // Version for active function arguments only
 //
 // This is an Enzyme regression and can be removed in later versions.
@@ -250,5 +248,6 @@ void apply_kernel_fwddiff_enzyme(
    process_kf_result(f_qp,
                      mfem::get<0>(fwddiff_apply_enzyme(kf, args, shadow_args, mfem::tuple<> {})));
 }
+#endif // MFEM_USE_ENZYME
 
-}
+} // namespace mfem
