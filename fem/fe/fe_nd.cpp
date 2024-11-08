@@ -1904,9 +1904,9 @@ void ND_FuentesPyramidElement::calcBasis(const int p,
    Vector xy({x,y}), dmu(3);
    real_t mu, mu2;
 
-   if (std::fabs(1.0 - z) < 1e-8)
+   if (std::fabs(1.0 - z) < apex_tol)
    {
-      z = 1.0 - 1e-8;
+      z = 1.0 - apex_tol;
       y = 0.5 * (1.0 - z);
       x = 0.5 * (1.0 - z);
       xy(0) = x; xy(1) = y;
@@ -2170,9 +2170,9 @@ void ND_FuentesPyramidElement::calcCurlBasis(const int p,
 
    real_t mu, mu2;
 
-   if (std::fabs(1.0 - z) < 1e-8)
+   if (std::fabs(1.0 - z) < apex_tol)
    {
-      z = 1.0 - 1e-8;
+      z = 1.0 - apex_tol;
       y = 0.5 * (1.0 - z);
       x = 0.5 * (1.0 - z);
       xy(0) = x; xy(1) = y;
