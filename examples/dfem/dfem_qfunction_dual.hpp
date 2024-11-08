@@ -38,6 +38,7 @@ void process_kf_arg(
          arg(j, i).value = u((i * m) + j);
       }
    }
+   assert(false);
 }
 
 template <typename T>
@@ -158,6 +159,7 @@ void process_derivative_from_native_dual(
          r(i + n * j) = x(i, j).gradient;
       }
    }
+   assert(false);
 }
 
 template <typename T, int n>

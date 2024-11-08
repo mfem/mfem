@@ -23,7 +23,9 @@ void map_field_to_quadrature_data_tensor_product(
       auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
-      auto fqp = Reshape(&field_qp[0], vdim, q1d, q1d, q1d);
+#warning ROW
+      auto fqp = /*Row*/Reshape(&field_qp[0], vdim, q1d, q1d, q1d);
+      // auto fqp = RowReshape(&field_qp[0], q1d, q1d, q1d, vdim);
       auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
       auto s1 = Reshape(&scratch_mem[1](0), d1d, q1d, q1d);
 
@@ -75,6 +77,7 @@ void map_field_to_quadrature_data_tensor_product(
                      acc += s1(dz, qy, qx) * B(qz, 0, dz);
                   }
                   fqp(vd, qx, qy, qz) = acc;
+                  // fqp(qx, qy, qz, vd) = acc;
                }
             }
          }
@@ -88,8 +91,21 @@ void map_field_to_quadrature_data_tensor_product(
       const int vdim = input.vdim;
       const int dim = input.dim;
       const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
-      auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d, q1d);
-      // assert(false);
+#warning ROW
+      printf("\033[33mvdim:%d dim:%d q1d:%d\033[m\n",vdim,dim,q1d);
+      assert((vdim==3 || vdim==1) && dim==3 && q1d==3);
+      auto fqp = /*Row*/Reshape(&field_qp[0], vdim, dim, q1d, q1d, q1d);
+
+      // using t13 = internal::tensor<real_t, 1,3, 3,3,3>;
+      // using t33 = internal::tensor<real_t, 3,3, 3,3,3>;
+
+      auto fqp13 = internal::make_tensor<1,3, 3,3,3>(
+                      // [&](int v, int d, int x,int y,int z) { return fqp(v,d, x,y,z); });
+      [&](int v, int d, int x,int y,int z) { return fqp(z,y,x, d,v); });
+
+      auto fqp33 = internal::make_tensor<3,3, 3,3,3>(
+                      // [&](int v, int d, int x,int y,int z) { return fqp(v,d, x,y,z); });
+      [&](int v, int d, int x,int y,int z) { return fqp(z,y,x, d,v); });
 
       auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
       auto s1 = Reshape(&scratch_mem[1](0), d1d, d1d, q1d);
@@ -154,9 +170,42 @@ void map_field_to_quadrature_data_tensor_product(
                      uvw[1] += s3(dz, qy, qx) * B(qz, 0, dz);
                      uvw[2] += s4(dz, qy, qx) * G(qz, 0, dz);
                   }
+#if 0
                   fqp(vd, 0, qx, qy, qz) = uvw[0];
                   fqp(vd, 1, qx, qy, qz) = uvw[1];
                   fqp(vd, 2, qx, qy, qz) = uvw[2];
+#elif 1
+                  if (vdim==1)
+                  {
+                     // fqp13[vd][0][qx][qy][qz] = uvw[0];
+                     // fqp13[vd][1][qx][qy][qz] = uvw[1];
+                     // fqp13[vd][2][qx][qy][qz] = uvw[2];
+                     fqp13[qz][qy][qx][0][vd] = uvw[0];
+                     fqp13[qz][qy][qx][1][vd] = uvw[1];
+                     fqp13[qz][qy][qx][2][vd] = uvw[2];
+                  }
+                  if (vdim==3)
+                  {
+                     // fqp33[vd][0][qx][qy][qz] = uvw[0];
+                     // fqp33[vd][1][qx][qy][qz] = uvw[1];
+                     // fqp33[vd][2][qx][qy][qz] = uvw[2];
+                     fqp33[qz][qy][qx][0][vd] = uvw[0];
+                     fqp33[qz][qy][qx][1][vd] = uvw[1];
+                     fqp33[qz][qy][qx][2][vd] = uvw[2];
+                  }
+#elif 0
+                  fqp(0, vd, qx, qy, qz) = uvw[0];
+                  fqp(1, vd, qx, qy, qz) = uvw[1];
+                  fqp(2, vd, qx, qy, qz) = uvw[2];
+#elif 0
+                  fqp(qx, qy, qz, 0, vd) = uvw[0];
+                  fqp(qx, qy, qz, 1, vd) = uvw[1];
+                  fqp(qx, qy, qz, 2, vd) = uvw[2];
+#else
+                  fqp(qx, qy, qz, vd, 0) = uvw[0];
+                  fqp(qx, qy, qz, vd, 1) = uvw[1];
+                  fqp(qx, qy, qz, vd, 2) = uvw[2];
+#endif
                }
             }
          }

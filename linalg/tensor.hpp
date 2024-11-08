@@ -438,6 +438,32 @@ tensor<decltype(f(n1, n2, n3, n4)), n1, n2, n3, n4>
    return A;
 }
 
+MFEM_SUPPRESS_NVCC_HOSTDEVICE_WARNING
+template <int n1, int n2, int n3, int n4, int n5, typename lambda_type>
+MFEM_HOST_DEVICE auto make_tensor(lambda_type f) ->
+tensor<decltype(f(n1, n2, n3, n4, n5)), n1, n2, n3, n4, n5>
+{
+   using T = decltype(f(n1, n2, n3, n4, n5));
+   tensor<T, n1, n2, n3, n4, n5> A{};
+   for (int i = 0; i < n1; i++)
+   {
+      for (int j = 0; j < n2; j++)
+      {
+         for (int k = 0; k < n3; k++)
+         {
+            for (int l = 0; l < n4; l++)
+            {
+               for (int m = 0; m < n5; m++)
+               {
+                  A(i, j, k, l, m) = f(i, j, k, l, m);
+               }
+            }
+         }
+      }
+   }
+   return A;
+}
+
 template <typename T, int n1, int n2> MFEM_HOST_DEVICE
 tensor<T, n2> get_col(tensor<T, n1, n2> A, int j)
 {

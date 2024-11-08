@@ -58,44 +58,53 @@ void process_kf_arg(
 {
    std::cout << "\033[33m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
    std::cout << "process_kf_arg (" << n << "," << m << ")"<<std::endl;
+
+#if 0
+   memcpy(&arg.values, &u(0), n * m * sizeof(T));
+#elif 0
+   auto fqp33 = internal::make_tensor<3,3>(
+   [&](int v, int d) { return u(v,d); });
+#else
    for (int i = 0; i < m; i++)
    {
       for (int j = 0; j < n; j++)
       {
          arg(j, i) = u((i * m) + j);
          // arg(j, i) = u((j * m) + i);
-         std::cout << "\t[" << i << "," << j << "] = " << arg(j, i) << " ";
       }
-      std::cout << std::endl;
    }
+#endif
    /*
         [0,0] = 0.957128        [0,1] = 0.0516155       [0,2] = -0.0164545
         [1,0] = -0.0270275      [1,1] = 1.06699         [1,2] = 0.0722528
         [2,0] = 0.0232206       [2,1] = -0.00237819     [2,2] = 1.04765 */
-   /*for (int i = 0; i < m; i++)
+
+   for (int i = 0; i < m; i++)
    {
       for (int j = 0; j < n; j++)
       {
-         // assert(arg(j, i) == arg(i, j));
+         std::cout << "\t[" << i << "," << j << "] = " << arg(j, i) << " ";
       }
-   }*/
-   // assert(false);
+      std::cout << std::endl;
+   }
+   assert(false);
 }
 
 template <typename arg_type>
 MFEM_HOST_DEVICE
-void process_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
+void process_kf_arg(const /*Row*/DeviceTensor<2> &u, arg_type &arg, int qp)
 {
    std::cout << "\033[35m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
    std::cout << "(" << u.dims[0] << "," << u.dims[1] << "), qp: " << qp<<std::endl;
    const auto u_qp = Reshape(&u(0, qp), u.GetShape()[0]);
+   // const auto u_qp = Reshape(&u(qp, 0), u.GetShape()[0]);
    process_kf_arg(u_qp, arg);
 }
 
 template <size_t num_fields, typename kf_args, std::size_t... i>
 MFEM_HOST_DEVICE
 void process_kf_args(
-   const std::array<DeviceTensor<2>, num_fields> &u,
+   const std::array</*Row*/DeviceTensor<2>, num_fields> &u,
    kf_args &args,
    const int &qp,
    std::index_sequence<i...>)
