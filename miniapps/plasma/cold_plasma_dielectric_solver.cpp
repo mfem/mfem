@@ -779,7 +779,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    //                               const_cast<VectorCoefficient&>(eiCoef_));
 
    j_ = new ParComplexGridFunction(HDivFESpace_);
-   j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
+   *j_ = 0.0;
+   //j_->ProjectCoefficient(*jrCoef_, *jiCoef_);
 
    rhs_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
    rhs_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*rhsrCoef_),
@@ -2347,6 +2348,7 @@ CPDSolver::DisplayToGLVis()
                   *h_, "Magnetic Field (H)", Wx, Wy, Ww, Wh);
    Wx += offx;
    */
+   /*
    if ( j_ )
    {
       Wx = 0; Wy += offy; // next line
@@ -2366,15 +2368,16 @@ CPDSolver::DisplayToGLVis()
       {
          j_v_ = j_;
       }
-
+      */
       /*
       VisualizeField(*socks_["Jr"], vishost, visport,
                     j_v_->real(), "Current Density, Re(J)", Wx, Wy, Ww, Wh);
       Wx += offx;
       VisualizeField(*socks_["Ji"], vishost, visport,
                     j_v_->imag(), "Current Density, Im(J)", Wx, Wy, Ww, Wh);
-       */
+       
    }
+   */
    Wx = 0; Wy += offy; // next line
 
    if ( u_ )
