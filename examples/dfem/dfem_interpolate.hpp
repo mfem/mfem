@@ -89,6 +89,7 @@ void map_field_to_quadrature_data_tensor_product(
       const int dim = input.dim;
       const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
       auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d, q1d);
+      // assert(false);
 
       auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
       auto s1 = Reshape(&scratch_mem[1](0), d1d, d1d, q1d);

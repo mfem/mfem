@@ -23,6 +23,7 @@ void process_kf_arg(
    const DeviceTensor<1, T> &u,
    T &arg)
 {
+   std::cout << "\033[31m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
    arg = u(0);
 }
 
@@ -32,6 +33,7 @@ void process_kf_arg(
    const DeviceTensor<1, T> &u,
    internal::tensor<T> &arg)
 {
+   std::cout << "\033[31m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
    arg(0) = u(0);
 }
 
@@ -41,6 +43,7 @@ void process_kf_arg(
    const DeviceTensor<1> &u,
    internal::tensor<T, n> &arg)
 {
+   std::cout << "\033[32m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
    for (int i = 0; i < n; i++)
    {
       arg(i) = u(i);
@@ -53,19 +56,38 @@ void process_kf_arg(
    const DeviceTensor<1> &u,
    internal::tensor<T, n, m> &arg)
 {
+   std::cout << "\033[33m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
+   std::cout << "process_kf_arg (" << n << "," << m << ")"<<std::endl;
    for (int i = 0; i < m; i++)
    {
       for (int j = 0; j < n; j++)
       {
          arg(j, i) = u((i * m) + j);
+         // arg(j, i) = u((j * m) + i);
+         std::cout << "\t[" << i << "," << j << "] = " << arg(j, i) << " ";
       }
+      std::cout << std::endl;
    }
+   /*
+        [0,0] = 0.957128        [0,1] = 0.0516155       [0,2] = -0.0164545
+        [1,0] = -0.0270275      [1,1] = 1.06699         [1,2] = 0.0722528
+        [2,0] = 0.0232206       [2,1] = -0.00237819     [2,2] = 1.04765 */
+   /*for (int i = 0; i < m; i++)
+   {
+      for (int j = 0; j < n; j++)
+      {
+         // assert(arg(j, i) == arg(i, j));
+      }
+   }*/
+   // assert(false);
 }
 
 template <typename arg_type>
 MFEM_HOST_DEVICE
 void process_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
 {
+   std::cout << "\033[35m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
+   std::cout << "(" << u.dims[0] << "," << u.dims[1] << "), qp: " << qp<<std::endl;
    const auto u_qp = Reshape(&u(0, qp), u.GetShape()[0]);
    process_kf_arg(u_qp, arg);
 }
@@ -78,6 +100,7 @@ void process_kf_args(
    const int &qp,
    std::index_sequence<i...>)
 {
+   std::cout << "\n\033[35m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
    (process_kf_arg(u[i], mfem::get<i>(args), qp), ...);
 }
 
@@ -94,6 +117,7 @@ void process_kf_result(
    DeviceTensor<1, T> &r,
    const double &x)
 {
+   std::cout << "\n\033[31m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
    r(0) = x;
 }
 
@@ -103,6 +127,7 @@ void process_kf_result(
    DeviceTensor<1, T> &r,
    const internal::tensor<T> &x)
 {
+   std::cout << "\n\033[31m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
    r(0) = x(0);
 }
 
@@ -112,6 +137,8 @@ void process_kf_result(
    DeviceTensor<1, T> &r,
    const internal::tensor<T, n> &x)
 {
+   std::cout << "\n\033[32m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
+   std::cout << "process_kf_result"<<std::endl;
    for (size_t i = 0; i < n; i++)
    {
       r(i) = x(i);
@@ -124,13 +151,17 @@ void process_kf_result(
    DeviceTensor<1, T> &r,
    const internal::tensor<T, n, m> &x)
 {
+   std::cout << "\n\033[33m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
+   std::cout << "process_kf_result ("<<n<<","<<m<<")" <<std::endl;
    for (size_t i = 0; i < n; i++)
    {
       for (size_t j = 0; j < m; j++)
       {
          r(i + n * j) = x(i, j);
+         // r(j + n * i) = x(i, j);
       }
    }
+   assert(false);
 }
 
 template <typename T>
@@ -140,6 +171,7 @@ void process_kf_arg(
    const DeviceTensor<1> &v,
    double &arg)
 {
+   std::cout << "\n\033[31m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
    arg = u(0);
 }
 
@@ -150,13 +182,17 @@ void process_kf_arg(
    const DeviceTensor<1> &v,
    internal::tensor<double, n, m> &arg)
 {
+   std::cout << "\n\033[33m"<<__FILE__<<":"<<__LINE__<<"\033[m"<<std::endl;
+   std::cout << "process_kf_arg ("<<n<<","<<m<<")" ;
    for (int i = 0; i < m; i++)
    {
       for (int j = 0; j < n; j++)
       {
          arg(j, i) = u((i * m) + j);
+         // arg(j, i) = u((j * m) + i);
       }
    }
+   assert(false);
 }
 
 template <typename kernel_func_t, typename kernel_args_ts, size_t num_args>

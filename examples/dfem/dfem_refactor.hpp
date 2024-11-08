@@ -5,6 +5,7 @@
 #include "dfem_integrate.hpp"
 #include "dfem_qfunction.hpp"
 #include "dfem_qfunction_dual.hpp"
+#include "dfem_element_operator.hpp"
 
 namespace mfem
 {

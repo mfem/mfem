@@ -7,7 +7,7 @@
       Mpi::Init();                                                             \
                                                                                \
       const char* device_config = "cpu";                                       \
-      const char* mesh_file = "../data/ref-square.mesh";                       \
+      const char* mesh_file = "../data/fichera-q2.mesh";                       \
       int polynomial_order = 1;                                                \
       int ir_order = 2;                                                        \
       int refinements = 0;                                                     \

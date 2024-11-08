@@ -29,6 +29,8 @@ void process_kf_arg(
    const DeviceTensor<1> &u,
    internal::tensor<internal::dual<T, T>, n, m> &arg)
 {
+   assert(false);
+   std::cout << "\033[33m[process_kf_arg]\033[m" <<std::endl;
    for (int i = 0; i < m; i++)
    {
       for (int j = 0; j < n; j++)
@@ -79,6 +81,8 @@ void process_kf_arg(
    const DeviceTensor<1> &v,
    internal::tensor<internal::dual<T, T>, n, m> &arg)
 {
+   assert(false);
+   std::cout << "\033[33m[process_kf_arg]\033[m" <<std::endl;
    for (int i = 0; i < m; i++)
    {
       for (int j = 0; j < n; j++)
