@@ -9,6 +9,25 @@
 namespace mfem
 {
 
+template <typename... input_ts, size_t... Is>
+constexpr auto make_dependency_map_impl(mfem::tuple<input_ts...> inputs,
+                                        std::index_sequence<Is...>)
+{
+   auto make_dependency_tuple = [&](auto i)
+   {
+      return std::make_tuple((mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>
+                              (inputs).GetFieldId())...);
+   };
+
+   return std::make_tuple(make_dependency_tuple(std::integral_constant<size_t, Is> {})...);
+}
+
+template <typename... input_ts>
+constexpr auto make_dependency_map(mfem::tuple<input_ts...> inputs)
+{
+   return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
+}
+
 class DerivativeOperator : public Operator
 {
    using derivative_action_t =
