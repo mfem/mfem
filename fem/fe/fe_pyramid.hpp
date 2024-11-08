@@ -58,6 +58,9 @@ private:
    mutable DenseMatrix V_R_mtmp;
 #endif
 
+protected:
+   const real_t apex_tol = 1e-8;
+
 public:
    FuentesPyramid() = default;
 

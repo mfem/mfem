@@ -1243,12 +1243,12 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
    int o = 0;
 
    // Vertices
-   if (std::fabs(1.0 - z) < 1e-8)
+   if (std::fabs(1.0 - z) < apex_tol)
    {
       u[0] = u[1] = u[2] = u[3] = 0.25 * (1.0 - z);
       u[4] = z;
 
-      z = 1.0 - 1e-8;
+      z = 1.0 - apex_tol;
       y = 0.5 * (1.0 - z);
       x = 0.5 * (1.0 - z);
       xy(0) = x; xy(1) = y;
@@ -1439,7 +1439,7 @@ void H1_FuentesPyramidElement::calcGradBasis(const int p,
    int o = 0;
 
    // Vertices
-   if (std::fabs(1.0 - z) < 1e-8)
+   if (std::fabs(1.0 - z) < apex_tol)
    {
       du(0,0) = -0.5; du(0,1) = -0.5; du(0,2) = -0.75;
       du(1,0) =  0.5; du(1,1) = -0.5; du(1,2) = -0.25;
@@ -1447,7 +1447,7 @@ void H1_FuentesPyramidElement::calcGradBasis(const int p,
       du(3,0) = -0.5; du(3,1) =  0.5; du(3,2) = -0.25;
       du(4,0) =  0.0; du(4,1) =  0.0; du(4,2) =  1.0;
 
-      z = 1.0 - 1e-8;
+      z = 1.0 - apex_tol;
       y = 0.5 * (1.0 - z);
       x = 0.5 * (1.0 - z);
       xy(0) = x; xy(1) = y;

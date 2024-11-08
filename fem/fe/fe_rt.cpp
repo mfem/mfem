@@ -1521,9 +1521,9 @@ void RT_FuentesPyramidElement::calcBasis(const int p,
    Vector xy({x,y});
    real_t mu;
 
-   if (std::fabs(1.0 - z) < 1e-8)
+   if (std::fabs(1.0 - z) < apex_tol)
    {
-      z = 1.0 - 1e-8;
+      z = 1.0 - apex_tol;
       y = 0.5 * (1.0 - z);
       x = 0.5 * (1.0 - z);
       xy(0) = x; xy(1) = y;
@@ -1782,10 +1782,10 @@ void RT_FuentesPyramidElement::calcDivBasis(const int p,
    real_t mu;
 
    bool limz1 = false;
-   if (std::fabs(1.0 - z) < 1e-8)
+   if (std::fabs(1.0 - z) < apex_tol)
    {
       limz1 = true;
-      z = 1.0 - 1e-8;
+      z = 1.0 - apex_tol;
       y = 0.5 * (1.0 - z);
       x = 0.5 * (1.0 - z);
       xy(0) = x; xy(1) = y;
