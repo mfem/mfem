@@ -41,6 +41,8 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<3,8,9>();
 }
 
+void DiffusionIntegrator::Kernels::EnsureInitialized() { }
+
 namespace internal
 {
 

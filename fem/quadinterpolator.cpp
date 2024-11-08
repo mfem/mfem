@@ -52,6 +52,8 @@ QuadratureInterpolator::Kernels::Kernels()
    InitEvalKernels();
 }
 
+void QuadratureInterpolator::Kernels::EnsureInitialized() { }
+
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir):
 
