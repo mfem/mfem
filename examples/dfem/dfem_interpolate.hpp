@@ -8,7 +8,7 @@ namespace mfem
 template <typename field_operator_t>
 MFEM_HOST_DEVICE inline
 void map_field_to_quadrature_data_tensor_product(
-   DeviceTensor<2> &field_qp,
+   RowDeviceTensor<2> &field_qp,
    const DofToQuadMap &dtq,
    const DeviceTensor<1> &field_e,
    const field_operator_t &input,
@@ -23,9 +23,8 @@ void map_field_to_quadrature_data_tensor_product(
       auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
-#warning ROW
-      auto fqp = /*Row*/Reshape(&field_qp[0], vdim, q1d, q1d, q1d);
-      // auto fqp = RowReshape(&field_qp[0], q1d, q1d, q1d, vdim);
+      // #warning ROW
+      auto fqp = RowReshape(&field_qp[0], vdim, q1d, q1d, q1d);
       auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
       auto s1 = Reshape(&scratch_mem[1](0), d1d, q1d, q1d);
 
@@ -77,7 +76,6 @@ void map_field_to_quadrature_data_tensor_product(
                      acc += s1(dz, qy, qx) * B(qz, 0, dz);
                   }
                   fqp(vd, qx, qy, qz) = acc;
-                  // fqp(qx, qy, qz, vd) = acc;
                }
             }
          }
@@ -91,21 +89,10 @@ void map_field_to_quadrature_data_tensor_product(
       const int vdim = input.vdim;
       const int dim = input.dim;
       const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
-#warning ROW
+      // #warning ROW
       printf("\033[33mvdim:%d dim:%d q1d:%d\033[m\n",vdim,dim,q1d);
       assert((vdim==3 || vdim==1) && dim==3 && q1d==3);
-      auto fqp = /*Row*/Reshape(&field_qp[0], vdim, dim, q1d, q1d, q1d);
-
-      // using t13 = internal::tensor<real_t, 1,3, 3,3,3>;
-      // using t33 = internal::tensor<real_t, 3,3, 3,3,3>;
-
-      auto fqp13 = internal::make_tensor<1,3, 3,3,3>(
-                      // [&](int v, int d, int x,int y,int z) { return fqp(v,d, x,y,z); });
-      [&](int v, int d, int x,int y,int z) { return fqp(z,y,x, d,v); });
-
-      auto fqp33 = internal::make_tensor<3,3, 3,3,3>(
-                      // [&](int v, int d, int x,int y,int z) { return fqp(v,d, x,y,z); });
-      [&](int v, int d, int x,int y,int z) { return fqp(z,y,x, d,v); });
+      auto fqp = RowReshape(&field_qp[0], vdim, dim, q1d, q1d, q1d);
 
       auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
       auto s1 = Reshape(&scratch_mem[1](0), d1d, d1d, q1d);
@@ -170,42 +157,13 @@ void map_field_to_quadrature_data_tensor_product(
                      uvw[1] += s3(dz, qy, qx) * B(qz, 0, dz);
                      uvw[2] += s4(dz, qy, qx) * G(qz, 0, dz);
                   }
-#if 0
                   fqp(vd, 0, qx, qy, qz) = uvw[0];
                   fqp(vd, 1, qx, qy, qz) = uvw[1];
                   fqp(vd, 2, qx, qy, qz) = uvw[2];
-#elif 1
-                  if (vdim==1)
+                  if (qx==0 && qy==0 && qz==0)
                   {
-                     // fqp13[vd][0][qx][qy][qz] = uvw[0];
-                     // fqp13[vd][1][qx][qy][qz] = uvw[1];
-                     // fqp13[vd][2][qx][qy][qz] = uvw[2];
-                     fqp13[qz][qy][qx][0][vd] = uvw[0];
-                     fqp13[qz][qy][qx][1][vd] = uvw[1];
-                     fqp13[qz][qy][qx][2][vd] = uvw[2];
+                     printf("\033[31m[%f %f %f]\033[m\n", uvw[0],uvw[1],uvw[2]);
                   }
-                  if (vdim==3)
-                  {
-                     // fqp33[vd][0][qx][qy][qz] = uvw[0];
-                     // fqp33[vd][1][qx][qy][qz] = uvw[1];
-                     // fqp33[vd][2][qx][qy][qz] = uvw[2];
-                     fqp33[qz][qy][qx][0][vd] = uvw[0];
-                     fqp33[qz][qy][qx][1][vd] = uvw[1];
-                     fqp33[qz][qy][qx][2][vd] = uvw[2];
-                  }
-#elif 0
-                  fqp(0, vd, qx, qy, qz) = uvw[0];
-                  fqp(1, vd, qx, qy, qz) = uvw[1];
-                  fqp(2, vd, qx, qy, qz) = uvw[2];
-#elif 0
-                  fqp(qx, qy, qz, 0, vd) = uvw[0];
-                  fqp(qx, qy, qz, 1, vd) = uvw[1];
-                  fqp(qx, qy, qz, 2, vd) = uvw[2];
-#else
-                  fqp(qx, qy, qz, vd, 0) = uvw[0];
-                  fqp(qx, qy, qz, vd, 1) = uvw[1];
-                  fqp(qx, qy, qz, vd, 2) = uvw[2];
-#endif
                }
             }
          }
@@ -220,7 +178,9 @@ void map_field_to_quadrature_data_tensor_product(
       // TODO: eeek
       const int q1d = (int)floor(pow(num_qp, 1.0/input.dim) + 0.5);
       auto w = Reshape(&integration_weights[0], q1d, q1d, q1d);
-      auto f = Reshape(&field_qp[0], q1d, q1d, q1d);
+      // #warning ROW
+      auto f = RowReshape(&field_qp[0], q1d, q1d, q1d);
+      // assert(false);
       MFEM_FOREACH_THREAD(qx, x, q1d)
       {
          MFEM_FOREACH_THREAD(qy, y, q1d)
@@ -284,6 +244,7 @@ void map_field_to_quadrature_data(
       const auto field = Reshape(&field_e(0), num_dof, vdim);
 
       auto f = Reshape(&field_qp[0], vdim, dim, num_qp);
+      assert(false);
       for (int qp = 0; qp < num_qp; qp++)
       {
          for (int vd = 0; vd < vdim; vd++)
@@ -345,7 +306,7 @@ void map_field_to_quadrature_data(
 template <typename T = NonTensorProduct, typename field_operator_ts, size_t num_inputs, size_t num_fields>
 MFEM_HOST_DEVICE inline
 void map_fields_to_quadrature_data(
-   std::array<DeviceTensor<2>, num_inputs> &fields_qp,
+   std::array<RowDeviceTensor<2>, num_inputs> &fields_qp,
    const std::array<DeviceTensor<1>, num_fields> &fields_e,
    const std::array<DofToQuadMap, num_inputs> &dtqmaps,
    const std::array<int, num_inputs> &input_to_field,
@@ -380,7 +341,7 @@ void map_fields_to_quadrature_data(
 template <typename T, typename field_operator_t>
 MFEM_HOST_DEVICE
 void map_field_to_quadrature_data_conditional(
-   DeviceTensor<2> &field_qp,
+   RowDeviceTensor<2> &field_qp,
    const DeviceTensor<1> &field_e,
    const DofToQuadMap &dtqmap,
    field_operator_t &fop,
@@ -430,7 +391,7 @@ void map_fields_to_quadrature_data_conditional(
 template <typename T = NonTensorProduct, size_t num_inputs, typename field_operator_ts>
 MFEM_HOST_DEVICE
 void map_direction_to_quadrature_data_conditional(
-   std::array<DeviceTensor<2>, num_inputs> &directions_qp,
+   std::array<RowDeviceTensor<2>, num_inputs> &directions_qp,
    const DeviceTensor<1> &direction_e,
    const std::array<DofToQuadMap, num_inputs> &dtqmaps,
    field_operator_ts fops,

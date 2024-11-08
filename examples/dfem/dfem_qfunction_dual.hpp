@@ -5,6 +5,7 @@
 namespace mfem
 {
 
+///////////////////////////////////////////////////////////////////////////////
 MFEM_HOST_DEVICE
 template <typename T0, typename T1, typename T2>
 void process_kf_arg(const T0 &, const T1 &, T2 &)
@@ -13,6 +14,7 @@ void process_kf_arg(const T0 &, const T1 &, T2 &)
                  "process_kf_arg not implemented for arg type");
 }
 
+///////////////////////////////////////////////////////////////////////////////
 template <typename T>
 MFEM_HOST_DEVICE
 void process_kf_arg(
@@ -23,6 +25,7 @@ void process_kf_arg(
    arg = u(0);
 }
 
+///////////////////////////////////////////////////////////////////////////////
 template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
@@ -41,6 +44,7 @@ void process_kf_arg(
    assert(false);
 }
 
+///////////////////////////////////////////////////////////////////////////////
 template <typename T>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
@@ -50,6 +54,16 @@ void process_kf_arg(
    arg.value = u(0);
 }
 
+template <typename T>
+MFEM_HOST_DEVICE inline
+void process_kf_arg(
+   const RowDeviceTensor<1> &u,
+   internal::dual<T, T> &arg)
+{
+   arg.value = u(0);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 template <typename T>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
