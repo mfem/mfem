@@ -705,7 +705,7 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
       GridFunction f_2(&fespace_h1_2); f_2.ProjectCoefficient(f_coef_2);
       Vector tmp(b.Size());
       B.Mult(f_2, tmp);
-      // Check AssembleElementVector.
+      // Check AssembleElementVector (assumes 1-element mesh).
       {
          VectorDiffusionIntegrator vdi(v_coeff_2);
          const FiniteElement &fe = *fespace_h1_2.GetFE(0);
