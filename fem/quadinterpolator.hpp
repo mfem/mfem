@@ -159,7 +159,7 @@ public:
    MFEM_REGISTER_KERNELS(CollocatedGradKernels, CollocatedGradKernelType,
                          (int, QVectorLayout, bool, int, int), (int));
 
-   static struct Kernels { Kernels(); void EnsureInitialized() { } } kernels;
+   static struct Kernels { Kernels(); void EnsureInitialized(); } kernels;
 };
 
 }
