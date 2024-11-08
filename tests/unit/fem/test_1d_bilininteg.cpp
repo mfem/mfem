@@ -656,7 +656,6 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
       LinearForm b(&fespace_h1);
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(df1_coef));
       b.Assemble();
-      // The left normal points inward.
       b[0] *=-1.0;
 
       blf.Mult(f_h1, tmp_h1); tmp_h1 -= b; g_h1 = 0.0;
@@ -674,7 +673,6 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
       LinearForm b(&fespace_h1);
       b.AddBoundaryIntegrator(new BoundaryLFIntegrator(vdf1_coef));
       b.Assemble();
-      // The left normal points inward.
       b[0] *= -1.0;
 
       blf.Mult(f_h1, tmp_h1); tmp_h1 -= b; g_h1 = 0.0;
@@ -695,17 +693,17 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
       B.Assemble();
       B.Finalize();
 
-      // b: v grad(f).n.
+      // b_i = (v grad(f).n phi_i).
       LinearForm b(&fespace_h1_2);
       b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(v_df_coef_2));
       b.Assemble();
-      // The left normal points inward.
+      // The normal on the left is -1 (it's not part of the integrator).
       b[0] *= -1.0;
       b[3] *= -1.0;
 
-      // tmp: grad(v grad(f)).
-      Vector tmp(b.Size());
+      // tmp_i = (grad(v grad(f)) phi_i).
       GridFunction f_2(&fespace_h1_2); f_2.ProjectCoefficient(f_coef_2);
+      Vector tmp(b.Size());
       B.Mult(f_2, tmp);
       // Check AssembleElementVector.
       {
@@ -726,9 +724,11 @@ TEST_CASE("1D Bilinear Diffusion Integrator",
       M.Assemble();
       M.Finalize();
 
+      // g = grad(v grad(f)).
       GridFunction g(&fespace_h1_2); g = 0.0;
       CG(M, tmp, g, 0, 200, cg_rtol * cg_rtol, 0.0);
 
+      // Assumes grad^2(f) = 0.
       REQUIRE(g.ComputeL2Error(dvdf_coef_2) < tol);
    }
 }
