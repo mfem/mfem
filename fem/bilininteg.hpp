@@ -2156,7 +2156,7 @@ public:
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
-   static struct Kernels { Kernels(); void EnsureInitialized(); } kernels;
+   MFEM_EXPORT static struct Kernels { Kernels(); void EnsureInitialized(); } kernels;
 
 protected:
    Coefficient *Q;
@@ -2360,7 +2360,7 @@ public:
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
-   static struct Kernels { Kernels(); void EnsureInitialized(); } kernels;
+   MFEM_EXPORT static struct Kernels { Kernels(); void EnsureInitialized(); } kernels;
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
