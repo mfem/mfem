@@ -30,29 +30,28 @@ void InitEvalKernels();
 void InitDetKernels();
 template <bool P> void InitGradByNodesKernels();
 template <bool P> void InitGradByVDimKernels();
-}
-}
-
-QuadratureInterpolator::Kernels QuadratureInterpolator::kernels;
-QuadratureInterpolator::Kernels::Kernels()
+struct Kernels
 {
-   using namespace internal::quadrature_interpolator;
+   Kernels()
+   {
+      using namespace internal::quadrature_interpolator;
 
-   InitEvalByNodesKernels();
-   InitEvalByVDimKernels();
-   // Non-phys grad kernels
-   InitGradByNodesKernels<false>();
-   InitGradByVDimKernels<false>();
-   // Phys grad kernels
-   InitGradByNodesKernels<true>();
-   InitGradByVDimKernels<true>();
-   // Determinants
-   InitDetKernels();
-   // Non-tensor
-   InitEvalKernels();
+      InitEvalByNodesKernels();
+      InitEvalByVDimKernels();
+      // Non-phys grad kernels
+      InitGradByNodesKernels<false>();
+      InitGradByVDimKernels<false>();
+      // Phys grad kernels
+      InitGradByNodesKernels<true>();
+      InitGradByVDimKernels<true>();
+      // Determinants
+      InitDetKernels();
+      // Non-tensor
+      InitEvalKernels();
+   }
+};
 }
-
-void QuadratureInterpolator::Kernels::EnsureInitialized() { }
+}
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
                                                const IntegrationRule &ir):
@@ -63,7 +62,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
    q_layout(QVectorLayout::byNODES),
    use_tensor_products(UsesTensorBasis(fes))
 {
-   kernels.EnsureInitialized();
+   static internal::quadrature_interpolator::Kernels kernels;
 
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
