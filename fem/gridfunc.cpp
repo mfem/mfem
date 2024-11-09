@@ -2848,7 +2848,7 @@ real_t GridFunction::ComputeL2Error(
       }
    }
 
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return (error < 0.0) ? sqrt(-error) : sqrt(error);
 }
 
 real_t GridFunction::ComputeL2Error(
@@ -2888,8 +2888,7 @@ real_t GridFunction::ComputeL2Error(
          error += ip.weight * T->Weight() * (loc_errs(j) * loc_errs(j));
       }
    }
-
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return (error < 0.0) ? sqrt(-error) : sqrt(error);
 }
 
 real_t GridFunction::ComputeElementGradError(int ielem,
@@ -2927,7 +2926,7 @@ real_t GridFunction::ComputeElementGradError(int ielem,
       vec-=grad;
       error += ip.weight * Tr->Weight() * (vec * vec);
    }
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return (error < 0.0) ? sqrt(-error) : sqrt(error);
 }
 
 real_t GridFunction::ComputeGradError(VectorCoefficient *exgrad,
@@ -2967,7 +2966,7 @@ real_t GridFunction::ComputeGradError(VectorCoefficient *exgrad,
          error += ip.weight * Tr->Weight() * (vec * vec);
       }
    }
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return (error < 0.0) ? sqrt(-error) : sqrt(error);
 }
 
 real_t GridFunction::ComputeCurlError(VectorCoefficient *excurl,
@@ -3008,7 +3007,7 @@ real_t GridFunction::ComputeCurlError(VectorCoefficient *excurl,
       }
    }
 
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return (error < 0.0) ? sqrt(-error) : sqrt(error);
 }
 
 real_t GridFunction::ComputeDivError(
@@ -3044,7 +3043,7 @@ real_t GridFunction::ComputeDivError(
       }
    }
 
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return (error < 0.0) ? sqrt(-error) : sqrt(error);
 }
 
 real_t GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
@@ -3158,7 +3157,7 @@ real_t GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       }
    }
 
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return (error < 0.0) ? sqrt(-error) : sqrt(error);
 }
 
 real_t GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
@@ -3432,7 +3431,7 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
       // negative quadrature weights may cause the error to be negative
       if (error < 0.)
       {
-         error = -pow(-error, 1./p);
+         error = pow(-error, 1./p);
       }
       else
       {
@@ -3499,7 +3498,7 @@ void GridFunction::ComputeElementLpErrors(const real_t p, Coefficient &exsol,
          // negative quadrature weights may cause the error to be negative
          if (error[i] < 0.)
          {
-            error[i] = -pow(-error[i], 1./p);
+            error[i] = pow(-error[i], 1./p);
          }
          else
          {
@@ -3589,7 +3588,7 @@ real_t GridFunction::ComputeLpError(const real_t p, VectorCoefficient &exsol,
       // negative quadrature weights may cause the error to be negative
       if (error < 0.)
       {
-         error = -pow(-error, 1./p);
+         error = pow(-error, 1./p);
       }
       else
       {
@@ -3683,7 +3682,7 @@ void GridFunction::ComputeElementLpErrors(const real_t p,
          // negative quadrature weights may cause the error to be negative
          if (error[i] < 0.)
          {
-            error[i] = -pow(-error[i], 1./p);
+            error[i] = pow(-error[i], 1./p);
          }
          else
          {
@@ -4518,7 +4517,7 @@ real_t ComputeElementLpDistance(real_t p, int i,
       // Negative quadrature weights may cause the norm to be negative
       if (norm < 0.)
       {
-         norm = -pow(-norm, 1./p);
+         norm = pow(-norm, 1./p);
       }
       else
       {
