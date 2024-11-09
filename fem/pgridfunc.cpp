@@ -926,7 +926,7 @@ real_t ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       }
    }
 
-   error = (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   error = (error < 0.0) ? sqrt(-error) : sqrt(error);
    return GlobalLpNorm(2.0, error, pfes->GetComm());
 }
 
@@ -1231,7 +1231,7 @@ real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm)
       // negative quadrature weights may cause the error to be negative
       if (loc_norm < 0.0)
       {
-         loc_norm = -pow(-loc_norm, p);
+         loc_norm = pow(-loc_norm, p);
       }
       else
       {
@@ -1243,7 +1243,7 @@ real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm)
 
       if (glob_norm < 0.0)
       {
-         glob_norm = -pow(-glob_norm, 1.0/p);
+         glob_norm = pow(-glob_norm, 1.0/p);
       }
       else
       {
