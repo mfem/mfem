@@ -462,7 +462,7 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
           || face_list.GetMeshIdType(face.index) == NCMesh::NCList::MeshIdType::MASTER
          ) { continue; }
 
-      auto fn = FaceNodes{submesh.parent_->FindFaceNodes(face)};
+      FaceNodes fn{submesh.parent_->FindFaceNodes(face)};
       if (pnodes_new_elem.find(fn) != pnodes_new_elem.end()) { continue; }
 
       // TODO: Internal nc submesh can be constructed and solved on, but the
