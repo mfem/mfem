@@ -82,23 +82,27 @@ void GPUBlas::DisableAtomics()
 }
 
 void GPUBlasBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
-                                   Vector &y, real_t alpha, real_t beta) const
+                                   Vector &y, real_t alpha, real_t beta,
+                                   Op op) const
 {
-   const int m = A.SizeI();
-   const int n = A.SizeJ();
+   const bool tr = (op == Op::T);
+
+   const int m = tr ? A.SizeJ() : A.SizeI();
+   const int n = tr ? A.SizeI() : A.SizeJ();
    const int n_mat = A.SizeK();
    const int k = x.Size() / n / n_mat;
 
-   auto d_A = mfem::Reshape(A.Read(), m, n, n_mat);
-   auto d_x = mfem::Reshape(x.Read(), n, k, n_mat);
-   auto d_y = mfem::Reshape(beta == 0.0 ? y.Write() : y.ReadWrite(), m, k, n_mat);
+   auto d_A = A.Read();
+   auto d_x = x.Read(); // Shape: (n, k, n_mat)
+   auto d_y = beta == 0.0 ? y.Write() : y.ReadWrite(); // Shape (m, k, n_mat)
 
-   const auto op = MFEM_CU_or_HIP(BLAS_OP_N);
+   const auto op_A = tr ? MFEM_CU_or_HIP(BLAS_OP_T) : MFEM_CU_or_HIP(BLAS_OP_N);
+   const auto op_B = MFEM_CU_or_HIP(BLAS_OP_N);
 
    const blasStatus_t status = MFEM_GPUBLAS_PREFIX(gemmStridedBatched)(
-                                  GPUBlas::Handle(), op, op, m, k, n, &alpha,
-                                  d_A, m, m*n, d_x, n, n*k, &beta, d_y, m, m*k,
-                                  n_mat);
+                                  GPUBlas::Handle(), op_A, op_B, m, k, n,
+                                  &alpha, d_A, m, m*n, d_x, n, n*k, &beta, d_y,
+                                  m, m*k, n_mat);
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
 }
 

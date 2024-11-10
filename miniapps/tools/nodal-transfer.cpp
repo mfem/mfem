@@ -45,9 +45,8 @@ class TestCoeff : public Coefficient
 public:
    TestCoeff() {}
 
-   virtual
    real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
+               const IntegrationPoint &ip) override
    {
       if (T.GetSpaceDim()==3)
       {

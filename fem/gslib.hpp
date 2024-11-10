@@ -309,13 +309,6 @@ public:
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
 
-   // Bounding box meshes used internally by GSLIB.
-   // 0 - element-wise axis-aligned bounding box. NE_split_total elem per proc
-   // 1 - element-wise oriented     bounding box. NE_split_total elem per proc
-   // 2 - proc-wise local hash mesh.              Size based on setup parameters
-   // 3 - Global hash mesh.                       size based on setup parameters
-   virtual Mesh* GetBoundingBoxMesh(int type = 0);
-
    /** @name Methods to support a custom interpolation procedure.
        \brief The physical-space point that the user seeks to interpolate at
        could be located inside an element on another mpi rank.
