@@ -32,18 +32,18 @@ public:
       : ComplexOperator(A_Real, A_Imag, ownReal, ownImag, convention)
    { }
 
-   virtual DenseMatrix & real();
-   virtual DenseMatrix & imag();
+   DenseMatrix & real() override;
+   DenseMatrix & imag() override;
 
-   virtual const DenseMatrix & real() const;
-   virtual const DenseMatrix & imag() const;
+   const DenseMatrix & real() const override;
+   const DenseMatrix & imag() const override;
 
    /** Combine the blocks making up this complex operator into a single
        DenseMatrix. Note that this combined operator requires roughly
        twice the memory of the block structured operator. */
    DenseMatrix * GetSystemMatrix() const;
 
-   virtual Type GetType() const { return Complex_DenseMat; }
+   Type GetType() const override { return Complex_DenseMat; }
 
    ComplexDenseMatrix * ComputeInverse();
 
@@ -148,11 +148,11 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   virtual bool Factor(int m, real_t TOL = 0.0);
+   bool Factor(int m, real_t TOL = 0.0) override;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
-   virtual std::complex<real_t> Det(int m) const;
+   std::complex<real_t> Det(int m) const override;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A X,
        for a matrix X of size (m x n). */
@@ -170,14 +170,14 @@ public:
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
-   virtual void Solve(int m, int n, real_t *X_r, real_t *X_i) const;
+   void Solve(int m, int n, real_t *X_r, real_t *X_i) const override;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- X A^{-1},
        for a matrix X of size (n x m). */
    void RightSolve(int m, int n, real_t *X_r, real_t *X_i) const;
 
    /// Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1}.
-   virtual void GetInverseMatrix(int m, real_t *X_r, real_t * X_i) const;
+   void GetInverseMatrix(int m, real_t *X_r, real_t * X_i) const override;
 };
 
 
@@ -206,11 +206,11 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   virtual bool Factor(int m, real_t TOL = 0.0);
+   bool Factor(int m, real_t TOL = 0.0) override;
 
    /** Assuming LL^H = A factored data of size (m x m), compute |A|
        from the diagonal values of L */
-   virtual std::complex<real_t> Det(int m) const;
+   std::complex<real_t> Det(int m) const override;
 
    /** Assuming L.L^H = A factored data of size (m x m), compute X <- L X,
        for a matrix X of size (m x n). */
@@ -230,14 +230,14 @@ public:
 
    /** Assuming L.L^H = A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
-   virtual void Solve(int m, int n, real_t *X_r, real_t * X_i) const;
+   void Solve(int m, int n, real_t *X_r, real_t * X_i) const override;
 
    /** Assuming L.L^H = A factored data of size (m x m), compute X <- X A^{-1},
        for a matrix X of size (n x m). */
    void RightSolve(int m, int n, real_t *X_r, real_t *X_i) const;
 
    /// Assuming L.L^H = A factored data of size (m x m), compute X <- A^{-1}.
-   virtual void GetInverseMatrix(int m, real_t *X_r, real_t * X_i) const;
+   void GetInverseMatrix(int m, real_t *X_r, real_t * X_i) const override;
 
 };
 

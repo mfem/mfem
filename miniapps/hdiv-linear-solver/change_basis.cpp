@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "change_basis.hpp"
-#include "../../fem/qinterp/dispatch.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
 
@@ -105,17 +104,25 @@ ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes)
 void ChangeOfBasis_L2::Mult(const Vector &x, Vector &y) const
 {
    if (no_op) { y = x; return; }
-   using namespace internal::quadrature_interpolator;
    dof2quad.B.MakeRef(B_1d);
-   TensorValues<QVectorLayout::byVDIM>(ne, 1, dof2quad, x, y);
+   const int dim = dof2quad.FE->GetDim();
+   const int nd = dof2quad.ndof;
+   const int nq = dof2quad.nqpt;
+   QuadratureInterpolator::TensorEvalKernels::Run(
+      dim, QVectorLayout::byVDIM, 1, nd, nq, ne, dof2quad.B.Read(), x.Read(),
+      y.Write(), 1, nd, nq);
 }
 
 void ChangeOfBasis_L2::MultTranspose(const Vector &x, Vector &y) const
 {
    if (no_op) { y = x; return; }
-   using namespace internal::quadrature_interpolator;
    dof2quad.B.MakeRef(Bt_1d);
-   TensorValues<QVectorLayout::byVDIM>(ne, 1, dof2quad, x, y);
+   const int dim = dof2quad.FE->GetDim();
+   const int nd = dof2quad.ndof;
+   const int nq = dof2quad.nqpt;
+   QuadratureInterpolator::TensorEvalKernels::Run(
+      dim, QVectorLayout::byVDIM, 1, nd, nq, ne, dof2quad.B.Read(), x.Read(),
+      y.Write(), 1, nd, nq);
 }
 
 ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes)

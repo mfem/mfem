@@ -9,7 +9,7 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
-//    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.02 -s 13 -tf 9
+//    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.02 -s 23 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
@@ -117,7 +117,7 @@ private:
 public:
    AIR_prec(int blocksize_) : AIR_solver(NULL), blocksize(blocksize_) { }
 
-   void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    {
       width = op.Width();
       height = op.Height();
@@ -135,7 +135,7 @@ public:
       AIR_solver->SetMaxLevels(50);
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       // Scale the rhs by block inverse and solve system
       HypreParVector z_s;
@@ -144,7 +144,7 @@ public:
       AIR_solver->Mult(z_s, y);
    }
 
-   ~AIR_prec()
+   ~AIR_prec() override
    {
       delete AIR_solver;
    }
@@ -210,17 +210,17 @@ public:
       }
    }
 
-   void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    {
       linear_solver.SetOperator(op);
    }
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       linear_solver.Mult(x, y);
    }
 
-   ~DG_Solver()
+   ~DG_Solver() override
    {
       delete prec;
       delete A;
@@ -248,10 +248,10 @@ public:
    DG_FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
                    PrecType prec_type);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
+   void Mult(const Vector &x, Vector &y) const override;
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
 
-   virtual ~DG_FE_Evolution();
+   ~DG_FE_Evolution() override;
 };
 
 /** Abstract base class for evaluating the time-dependent operator in the ODE formulation.
@@ -411,12 +411,7 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
-                  "            11 - Backward Euler,\n\t"
-                  "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
-                  "            22 - Implicit Midpoint Method,\n\t"
-                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
+                  ODESolver::Types.c_str());
    args.AddOption(&scheme, "-sc", "--scheme",
                   "Finite Element scheme: 1 - Standard Discontinuous Galerkin method,\n\t"
                   "                       11 - Clip and Scale Limiter for continuous Galerkin discretization,\n\t"
@@ -492,9 +487,7 @@ int main(int argc, char *argv[])
       return 3;
    }
 
-   // 4. Define the ODE solver used for time integration. Several explicit
-   //    Runge-Kutta methods are available.
-   //    The CG Limiter is only implemented for explicit time-stepping methods.
+   // The CG Limiter is only implemented for explicit time-stepping methods.
    if (!DG && ode_solver_type > 10)
    {
       if (Mpi::Root())
@@ -513,31 +506,9 @@ int main(int argc, char *argv[])
       }
    }
 
-   ODESolver *ode_solver = NULL;
-   switch (ode_solver_type)
-   {
-      // Explicit methods
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(1.0); break;
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
-      case 6: ode_solver = new RK6Solver; break;
-      // Implicit (L-stable) methods
-      case 11: ode_solver = new BackwardEulerSolver; break;
-      case 12: ode_solver = new SDIRK23Solver(2); break;
-      case 13: ode_solver = new SDIRK33Solver; break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-         if (Mpi::Root())
-         {
-            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         }
-         delete mesh;
-         return 5;
-   }
+   // 4. Define the ODE solver used for time integration. Several explicit
+   //    Runge-Kutta methods are available.
+   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
@@ -897,7 +868,6 @@ int main(int argc, char *argv[])
    delete m;
    delete fes;
    delete pmesh;
-   delete ode_solver;
    delete pd;
    delete adv;
 #ifdef MFEM_USE_ADIOS2
