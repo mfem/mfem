@@ -1540,30 +1540,25 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
    }
 
    IntegrationRule SIR;
-   if (true)
+
+   if (Tr.GetDimension() == 1)
    {
-      if (sir == NULL && Tr.GetDimension() != 1)
-      {
-         Order++;
-         GetSurfaceIntegrationRule(Tr, SIR);
-         Order--;
-      }
-      else if ((sir->GetOrder() - 1) != ir.GetOrder() && Tr.GetDimension() != 1)
-      {
-         Order++;
-         GetSurfaceIntegrationRule(Tr, SIR);
-         Order--;
-      }
-      else if (Tr.GetDimension() != 1)
-      {
-         SIR = *sir;
-      }
-      else
-      {
-         Clear();
-         InitVolume(Order, *LvlSet, lsOrder, Tr);
-      }
+      Clear();
+      InitVolume(Order, *LvlSet, lsOrder, Tr);
    }
+   else if (sir == NULL)
+   {
+      Order++;
+      GetSurfaceIntegrationRule(Tr, SIR);
+      Order--;
+   }
+   else if (sir->GetOrder() - 1 != ir.GetOrder())
+   {
+      Order++;
+      GetSurfaceIntegrationRule(Tr, SIR);
+      Order--;
+   }
+   else { SIR = *sir; }
 
    if (Tr.GetDimension() == 1)
    {
