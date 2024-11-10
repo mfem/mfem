@@ -650,7 +650,7 @@ int main(int argc, char *argv[])
    cout << "============================================" << endl;
    cout << "Computed value of surface integral: " << surface.Sum() << endl;
    cout << "True value of surface integral:     " << Surface() << endl;
-   cout << "Absolute Error (Surface):            ";
+   cout << "Absolute Error (Surface):           ";
    cout << abs(surface.Sum() - Surface()) << endl;
    cout << "Relative Error (Surface):           ";
    cout << abs(surface.Sum() - Surface()) / Surface() << endl;
@@ -661,7 +661,7 @@ int main(int argc, char *argv[])
       cout << "--------------------------------------------" << endl;
       cout << "Computed value of volume integral:  " << volume.Sum() << endl;
       cout << "True value of volume integral:      " << Volume() << endl;
-      cout << "Absolute Error (Volume):             ";
+      cout << "Absolute Error (Volume):            ";
       cout << abs(volume.Sum() - Volume()) << endl;
       cout << "Relative Error (Volume):            ";
       cout << abs(volume.Sum() - Volume()) / Volume() << endl;
