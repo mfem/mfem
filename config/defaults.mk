@@ -533,8 +533,10 @@ ifdef GOTCHA_DIR
 endif
 
 # BLITZ library configuration
-BLITZ_DIR = @MFEM_DIR@/../blitz
+# BLITZ_DIR must be the custom installation folder (-DCMAKE_INSTALL_PREFIX).
+BLITZ_DIR = @MFEM_DIR@/../blitz/install
 BLITZ_OPT = -I$(BLITZ_DIR)/include
+# On intel machines, use /lib64 instead of /lib.
 BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
 
 # ALGOIM library configuration
