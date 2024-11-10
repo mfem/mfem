@@ -1021,7 +1021,7 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u,
       udot.AddElementVector(dofs, re);
    }
 
-   // add boundary condition (u - u_inflow) * b. 
+   // add boundary condition (u - u_inflow) * b.
    subtract(u, u_inflow, z);
    z *= b_lumped;
    udot += z;
@@ -1239,7 +1239,7 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
       y.AddElementVector(dofs, re);
    }
 
-   // add boundary condition (u - u_inflow) * b 
+   // add boundary condition (u - u_inflow) * b
    subtract(x, u_inflow, z);
    z *= b_lumped;
    y += z;
