@@ -7,9 +7,9 @@
       Mpi::Init();                                                             \
                                                                                \
       const char* device_config = "cpu";                                       \
-      const char* mesh_file = "../data/fichera-q2.mesh";                      \
-      int polynomial_order = 2;                                                \
-      int ir_order = 4;                                                        \
+      const char* mesh_file = "../data/fichera-q2.mesh";                       \
+      int polynomial_order = 1;                                                \
+      int ir_order = 2;                                                        \
       int refinements = 0;                                                     \
                                                                                \
       OptionsParser args(argc, argv);                                          \

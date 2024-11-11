@@ -88,11 +88,7 @@ void map_field_to_quadrature_data_tensor_product(
       const int vdim = input.vdim;
       const int dim = input.dim;
       const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
-#ifdef MFEM_ENZYME_ROW
       auto fqp = Reshape(&field_qp[0], dim, vdim, q1d, q1d, q1d);
-#else
-      auto fqp = Reshape(&field_qp[0], vdim, dim, q1d, q1d, q1d);
-#endif
       auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
       auto s1 = Reshape(&scratch_mem[1](0), d1d, d1d, q1d);
       auto s2 = Reshape(&scratch_mem[2](0), d1d, q1d, q1d);
@@ -156,15 +152,9 @@ void map_field_to_quadrature_data_tensor_product(
                      uvw[1] += s3(dz, qy, qx) * B(qz, 0, dz);
                      uvw[2] += s4(dz, qy, qx) * G(qz, 0, dz);
                   }
-#ifdef MFEM_ENZYME_ROW
                   fqp(0, vd, qx, qy, qz) = uvw[0];
                   fqp(1, vd, qx, qy, qz) = uvw[1];
                   fqp(2, vd, qx, qy, qz) = uvw[2];
-#else
-                  fqp(vd, 0, qx, qy, qz) = uvw[0];
-                  fqp(vd, 1, qx, qy, qz) = uvw[1];
-                  fqp(vd, 2, qx, qy, qz) = uvw[2];
-#endif
                }
             }
          }
@@ -243,7 +233,6 @@ void map_field_to_quadrature_data(
       const auto field = Reshape(&field_e(0), num_dof, vdim);
 
       auto f = Reshape(&field_qp[0], vdim, dim, num_qp);
-      assert(false);
       for (int qp = 0; qp < num_qp; qp++)
       {
          for (int vd = 0; vd < vdim; vd++)
@@ -305,7 +294,7 @@ void map_field_to_quadrature_data(
 template <typename T = NonTensorProduct, typename field_operator_ts, size_t num_inputs, size_t num_fields>
 MFEM_HOST_DEVICE inline
 void map_fields_to_quadrature_data(
-   std::array<DeviceTensor<2>, num_inputs> &row_fields_qp,
+   std::array<DeviceTensor<2>, num_inputs> &fields_qp,
    const std::array<DeviceTensor<1>, num_fields> &fields_e,
    const std::array<DofToQuadMap, num_inputs> &dtqmaps,
    const std::array<int, num_inputs> &input_to_field,
@@ -318,7 +307,7 @@ void map_fields_to_quadrature_data(
       if constexpr (std::is_same_v<T, TensorProduct>)
       {
          map_field_to_quadrature_data_tensor_product(
-            row_fields_qp[i],
+            fields_qp[i],
             dtqmaps[i],
             fields_e[input_to_field[i]],
             mfem::get<i>(fops),
@@ -328,7 +317,7 @@ void map_fields_to_quadrature_data(
       else
       {
          map_field_to_quadrature_data(
-            row_fields_qp[i],
+            fields_qp[i],
             dtqmaps[i],
             fields_e[i],
             mfem::get<i>(fops),

@@ -150,10 +150,8 @@ int test_diffusion_3d(
       print_vector(y);
       printf("y2: ");
       print_vector(y2);
-      printf("\033[31mdiff: ");
+      printf("diff: ");
       print_vector(diff);
-      printf("\033[m");
-      fflush(nullptr);
       return 1;
    }
 

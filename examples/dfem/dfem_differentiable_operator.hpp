@@ -497,7 +497,6 @@ void DifferentiableOperator<kernels_tuple,
                MFEM_FOREACH_THREAD(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
-
                   auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
                   auto r = Reshape(&residual_shmem(0, q), residual_size_on_qp);
                   apply_kernel(r, kernel.func, kernel_args, input_shmem, q);
@@ -753,7 +752,6 @@ void DifferentiableOperator<kernels_tuple,
                MFEM_FOREACH_THREAD(qz, z, q1d)
                {
                   const int q = qx + q1d * (qy + q1d * qz);
-
                   auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
                   auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
 

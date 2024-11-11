@@ -13,7 +13,6 @@ void map_quadrature_data_to_fields_impl(DeviceTensor<2, double> &y,
                                         const output_t &output,
                                         const DofToQuadMap &dtq)
 {
-   assert(false); // 🔥🔥🔥🔥
    auto B = dtq.B;
    auto G = dtq.G;
    // assuming the quadrature point residual has to "play nice with
@@ -93,7 +92,6 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
                                                const DofToQuadMap &dtq,
                                                std::array<DeviceTensor<1>, 6> &scratch_mem)
 {
-   // assert(false); // 🔥🔥🔥🔥 comes here after first qfunction
    auto B = dtq.B;
    auto G = dtq.G;
 
@@ -102,6 +100,7 @@ void map_quadrature_data_to_fields_tensor_impl(DeviceTensor<2, double> &y,
       const auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = output.vdim;
       const int test_dim = output.size_on_qp / vdim;
+
       auto fqp = Reshape(&f(0, 0, 0), vdim, test_dim, q1d, q1d, q1d);
       auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
 

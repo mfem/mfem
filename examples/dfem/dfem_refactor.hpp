@@ -5,7 +5,6 @@
 #include "dfem_integrate.hpp"
 #include "dfem_qfunction.hpp"
 #include "dfem_qfunction_dual.hpp"
-#include "dfem_element_operator.hpp"
 
 namespace mfem
 {
@@ -419,8 +418,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          // These functions don't copy, they simply create a `DeviceTensor` object
          // that points to correct chunks of the shared memory pool.
-         auto input_shmem = load_input_mem
-         (
+         auto input_shmem = load_input_mem(
             shmem,
             action_shmem_info.offsets[SharedMemory::Index::INPUT],
             action_shmem_info.input_sizes,
@@ -440,11 +438,8 @@ void DifferentiableOperator::AddDomainIntegrator(
          MFEM_SYNC_THREAD;
 
          // Fill row_input_shmem
-         map_fields_to_quadrature_data<TensorProduct>
-         (
-            input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs,
-            ir_weights,
-            scratch_mem);
+         map_fields_to_quadrature_data<TensorProduct>(
+            input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights, scratch_mem);
 
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {

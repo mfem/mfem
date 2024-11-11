@@ -1432,9 +1432,7 @@ DeviceTensor<2> load_residual_mem(
    const int &residual_size,
    const int &num_qp)
 {
-   return DeviceTensor<2>(reinterpret_cast<real_t *>(mem) + offset,
-                          residual_size,
-                          num_qp);
+   return DeviceTensor<2>(reinterpret_cast<real_t *>(mem) + offset, residual_size, num_qp);
 }
 
 template <size_t N>

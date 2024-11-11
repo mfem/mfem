@@ -41,14 +41,7 @@ void process_kf_arg(
    const DeviceTensor<1> &u,
    internal::tensor<T, n> &arg)
 {
-#ifdef MFEM_ENZYME_ROW
    memcpy(&arg.values, &u(0), n * sizeof(T));
-#else
-   for (int i = 0; i < n; i++)
-   {
-      arg(i) = u(i);
-   }
-#endif
 }
 
 template <typename T, int n, int m>
@@ -57,17 +50,7 @@ void process_kf_arg(
    const DeviceTensor<1> &u,
    internal::tensor<T, n, m> &arg)
 {
-#ifdef MFEM_ENZYME_ROW
    memcpy(&arg.values, &u(0), n * m * sizeof(T));
-#else
-   for (int i = 0; i < m; i++)
-   {
-      for (int j = 0; j < n; j++)
-      {
-         arg(j, i) = u((i * m) + j);
-      }
-   }
-#endif
 }
 
 template <typename arg_type>

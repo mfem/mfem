@@ -154,7 +154,6 @@ void process_derivative_from_native_dual(
          r(i + n * j) = x(i, j).gradient;
       }
    }
-   assert(false);
 }
 
 template <typename T, int n>

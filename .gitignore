@@ -28,7 +28,7 @@ CMakeFiles/
 /.cache/
 
 # Visual Studio Code settings
-/.vscode/
+.vscode
 
 # Generated files in main directory, config/ and docs/
 /deps.mk
