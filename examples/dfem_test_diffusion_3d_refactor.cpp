@@ -68,7 +68,6 @@ int test_diffusion_3d(
       {
          auto diffusion_mf_kernel =
             [] MFEM_HOST_DEVICE (
-               const dual<real_t, real_t> & u,
                const tensor<real_t, dim>& dudxi,
                const tensor<real_t, dim, dim>& J,
                const real_t& w)
@@ -80,7 +79,7 @@ int test_diffusion_3d(
          constexpr int Potential = 0;
          constexpr int Coordinates = 1;
 
-         auto input_operators = mfem::tuple{Value<Potential>{}, Gradient<Potential>{}, Gradient<Coordinates>{}, Weight{}};
+         auto input_operators = mfem::tuple{Gradient<Potential>{}, Gradient<Coordinates>{}, Weight{}};
          auto output_operator = mfem::tuple{Gradient<Potential>{}};
 
          auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
@@ -105,6 +104,80 @@ int test_diffusion_3d(
          dpotential = dop.GetDerivative(Potential, {&f1_g}, {mesh_nodes});
       }
       dpotential->Mult(x, y);
+   }
+
+   {
+      auto diffusion_setup_kernel =
+         [] MFEM_HOST_DEVICE (
+            const tensor<double, dim, dim>& J,
+            const double& w)
+      {
+         auto invJ = inv(J);
+         return mfem::tuple{invJ * transpose(invJ) * det(J) * w};
+      };
+
+      constexpr int Potential = 0;
+      constexpr int Coordinates = 1;
+      constexpr int QData = 2;
+
+      auto input_operators = mfem::tuple{Gradient<Coordinates>{}, Weight{}};
+      auto output_operator = mfem::tuple{None<QData>{}};
+
+      auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
+      auto parameters = std::vector{FieldDescriptor{Coordinates, &mesh_fes},
+                                    FieldDescriptor{QData, &qdata_space}};
+
+      DifferentiableOperator dop(solutions, parameters, mesh);
+      dop.AddDomainIntegrator(
+         diffusion_setup_kernel, input_operators, output_operator, ir);
+
+      dop.SetParameters({mesh_nodes, &qdata});
+      StopWatch sw;
+      sw.Start();
+      for (int i = 0; i < num_samples; i++)
+      {
+         dop.Mult(x, qdata);
+      }
+      sw.Stop();
+      printf("dfem pa setup: %fs\n", sw.RealTime() / num_samples);
+      qdata.HostRead();
+   }
+
+   // printf("qdata: ");
+   // print_vector(qdata);
+
+   {
+      auto diffusion_apply_kernel =
+         [] MFEM_HOST_DEVICE (
+            const tensor<real_t, dim>& dudxi,
+            const tensor<double, dim, dim>& qdata)
+      {
+         return mfem::tuple{dudxi * qdata};
+      };
+
+      constexpr int Potential = 0;
+      constexpr int QData = 1;
+
+      auto input_operators = mfem::tuple{Gradient<Potential>{}, None<QData>{}};
+      auto output_operator = mfem::tuple{Gradient<Potential>{}};
+
+      auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
+      auto parameters = std::vector{FieldDescriptor{QData, &qdata_space}};
+
+      DifferentiableOperator dop(solutions, parameters, mesh);
+      dop.AddDomainIntegrator(
+         diffusion_apply_kernel, input_operators, output_operator, ir);
+
+      dop.SetParameters({&qdata});
+      StopWatch sw;
+      sw.Start();
+      for (int i = 0; i < num_samples; i++)
+      {
+         dop.Mult(x, y);
+      }
+      sw.Stop();
+      printf("dfem pa apply: %fs\n", sw.RealTime() / num_samples);
+      y.HostRead();
    }
 
    // printf("y: ");

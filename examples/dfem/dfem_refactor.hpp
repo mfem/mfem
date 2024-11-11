@@ -1,11 +1,12 @@
 #pragma once
 
 #include <mfem.hpp>
+#include <utility>
 #include "dfem_interpolate.hpp"
 #include "dfem_integrate.hpp"
 #include "dfem_qfunction.hpp"
 #include "dfem_qfunction_dual.hpp"
-#include "dfem_element_operator.hpp"
+#include "examples/dfem/dfem_util.hpp"
 
 namespace mfem
 {
@@ -119,6 +120,8 @@ public:
          action(solutions_l, parameters_l, residual_l);
       }
       prolongation_transpose(residual_l, y);
+
+      y.SetSubVector(ess_tdof_list, 0.0);
    }
 
    template <
@@ -163,6 +166,8 @@ private:
    std::vector<FieldDescriptor> parameters;
    // solutions and parameters
    std::vector<FieldDescriptor> fields;
+
+   Array<int> ess_tdof_list;
 
    mutable std::vector<Vector> solutions_l;
    mutable std::vector<Vector> parameters_l;
@@ -214,7 +219,7 @@ template <
    typename func_t,
    typename... input_ts,
    typename... output_ts,
-   typename derivative_indices_t>
+   typename derivative_indices_t = std::make_index_sequence<0>>
 void DifferentiableOperator::AddDomainIntegrator(
    func_t qfunc,
    mfem::tuple<input_ts...> inputs,
@@ -380,7 +385,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    Vector shmem_cache(action_shmem_info.total_size);
 
-   print_shared_memory_info(action_shmem_info);
+   // print_shared_memory_info(action_shmem_info);
 
    action_callbacks.push_back(
       [=](std::vector<Vector> &solutions_l,
@@ -398,77 +403,30 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
       {
-         auto input_dtq_shmem = load_dtq_mem(
-            shmem,
-            action_shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
-            action_shmem_info.input_dtq_sizes,
-            input_dtq_maps);
-
-         auto output_dtq_shmem = load_dtq_mem(
-            shmem,
-            action_shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
-            action_shmem_info.output_dtq_sizes,
-            output_dtq_maps);
-
-         auto fields_shmem = load_field_mem(
-            shmem,
-            action_shmem_info.offsets[SharedMemory::Index::FIELD],
-            action_shmem_info.field_sizes,
-            wrapped_fields_e,
-            e);
-
-         // These functions don't copy, they simply create a `DeviceTensor` object
-         // that points to correct chunks of the shared memory pool.
-         auto input_shmem = load_input_mem(
-            shmem,
-            action_shmem_info.offsets[SharedMemory::Index::INPUT],
-            action_shmem_info.input_sizes,
-            num_qp);
-
-         auto residual_shmem = load_residual_mem(
-            shmem,
-            action_shmem_info.offsets[SharedMemory::Index::OUTPUT],
-            action_shmem_info.residual_size,
-            num_qp);
-
-         auto scratch_mem = load_scratch_mem(
-            shmem,
-            action_shmem_info.offsets[SharedMemory::Index::TEMP],
-            action_shmem_info.temp_sizes);
-
-         MFEM_SYNC_THREAD;
+         auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
+                                residual_shmem, scratch_shmem] =
+         unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
+                      wrapped_fields_e, num_qp, e);
 
          map_fields_to_quadrature_data<TensorProduct>(
             input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-            scratch_mem);
+            scratch_shmem);
 
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
-               {
-                  const int q = qx + q1d * (qy + q1d * qz);
-                  auto qf_args = decay_tuple<qf_param_ts> {};
-                  auto r = Reshape(&residual_shmem(0, q), residual_size_on_qp);
-                  apply_kernel(r, qfunc, qf_args, input_shmem, q);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         call_qfunction<TensorProduct, qf_param_ts>(
+            qfunc, input_shmem, residual_shmem,
+            residual_size_on_qp, num_qp, q1d);
 
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
          map_quadrature_data_to_fields<TensorProduct>(y, fhat,
                                                       mfem::get<0>(outputs),
                                                       output_dtq_shmem[hardcoded_output_idx],
-                                                      scratch_mem);
-
+                                                      scratch_shmem);
       }, num_entities, q1d, q1d, q1d, action_shmem_info.total_size, shmem_cache.ReadWrite());
 
       if constexpr (is_none_fop<decltype(output_fop)>::value)
       {
-         residual_e = residual_l;
+         residual_l = residual_e;
       }
       else
       {
@@ -515,7 +473,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       Vector shmem_cache(shmem_info.total_size);
 
-      print_shared_memory_info(shmem_info);
+      // print_shared_memory_info(shmem_info);
 
       Vector direction_e;
       Vector derivative_action_e(R->Height());
@@ -534,106 +492,30 @@ void DifferentiableOperator::AddDomainIntegrator(
          auto wrapped_direction_e = Reshape(direction_e.ReadWrite(), shmem_info.direction_size, num_entities);
          forall([=] MFEM_HOST_DEVICE (int e, double *shmem)
          {
-            auto input_dtq_shmem = load_dtq_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
-               shmem_info.input_dtq_sizes,
-               input_dtq_maps);
-
-            auto output_dtq_shmem = load_dtq_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
-               shmem_info.output_dtq_sizes,
-               output_dtq_maps);
-
-            auto fields_shmem = load_field_mem(
-               shmem,
-               action_shmem_info.offsets[SharedMemory::Index::FIELD],
-               action_shmem_info.field_sizes,
-               wrapped_fields_e,
-               e);
-
-            auto direction_shmem = load_direction_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::DIRECTION],
-               shmem_info.direction_size,
-               wrapped_direction_e,
-               e);
-
-            // These methods don't copy, they simply create a `DeviceTensor` object
-            // that points to correct chunks of the shared memory pool.
-            auto input_shmem = load_input_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::INPUT],
-               shmem_info.input_sizes,
-               num_qp);
-
-            auto shadow_shmem = load_input_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::SHADOW],
-               shmem_info.input_sizes,
-               num_qp);
-
-            auto residual_shmem = load_residual_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::OUTPUT],
-               shmem_info.residual_size,
-               num_qp);
-
-            auto scratch_mem = load_scratch_mem(
-               shmem,
-               shmem_info.offsets[SharedMemory::Index::TEMP],
-               shmem_info.temp_sizes);
+            auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
+                                   input_shmem, shadow_shmem, residual_shmem, scratch_shmem] =
+            unpack_shmem(shmem, shmem_info, input_dtq_maps,
+                         output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
 
             map_fields_to_quadrature_data<TensorProduct>(
                input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-               scratch_mem);
+               scratch_shmem);
 
             zero_all(shadow_shmem);
             map_direction_to_quadrature_data_conditional<TensorProduct>(
                shadow_shmem, direction_shmem, input_dtq_shmem, inputs, ir_weights,
-               scratch_mem, input_is_dependent);
+               scratch_shmem, input_is_dependent);
 
-            MFEM_FOREACH_THREAD(qx, x, q1d)
-            {
-               MFEM_FOREACH_THREAD(qy, y, q1d)
-               {
-                  MFEM_FOREACH_THREAD(qz, z, q1d)
-                  {
-                     const int q = qx + q1d * (qy + q1d * qz);
-                     auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
-                     auto kernel_args = decay_tuple<qf_param_ts> {};
-#ifdef MFEM_USE_ENZYME
-                     auto kernel_shadow_args = decay_tuple<qf_param_ts> {};
-                     apply_kernel_fwddiff_enzyme(
-                        r,
-                        qfunc,
-                        kernel_args,
-                        kernel_shadow_args,
-                        input_shmem,
-                        shadow_shmem,
-                        q);
-#else
-                     apply_kernel_native_dual(
-                        r,
-                        qfunc,
-                        kernel_args,
-                        input_shmem,
-                        shadow_shmem,
-                        q);
-#endif
-                  }
-               }
-            }
-            MFEM_SYNC_THREAD;
+            call_qfunction_derivative_action<TensorProduct, qf_param_ts>(
+               qfunc, input_shmem, shadow_shmem, residual_shmem,
+               da_size_on_qp, num_qp, q1d);
 
             auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
             auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
             map_quadrature_data_to_fields<TensorProduct>(y, fhat,
                                                          mfem::get<0>(outputs),
                                                          output_dtq_shmem[hardcoded_output_idx],
-                                                         scratch_mem);
-
+                                                         scratch_shmem);
          }, num_entities, q1d, q1d, q1d, shmem_info.total_size, shmem_cache.ReadWrite());
 
          R->MultTranspose(derivative_action_e, derivative_action_l);
