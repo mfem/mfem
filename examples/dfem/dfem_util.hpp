@@ -1425,35 +1425,16 @@ std::array<DeviceTensor<2>, N> load_input_mem(
    return f;
 }
 
-template <size_t N>
 MFEM_HOST_DEVICE inline
-std::array<RowDeviceTensor<2>, N> load_row_input_mem(
-   void *mem,
-   int offset,
-   const std::array<int, N> &sizes,
-   const int &num_qp)
-{
-   std::array<RowDeviceTensor<2>, N> f;
-   for (int i = 0; i < N; i++)
-   {
-      f[i] = RowDeviceTensor<2>(&reinterpret_cast<real_t *>(mem)[offset],
-                                sizes[i] / num_qp,
-                                num_qp);
-      offset += sizes[i];
-   }
-   return f;
-}
-
-MFEM_HOST_DEVICE inline
-RowDeviceTensor<2> load_residual_mem(
+DeviceTensor<2> load_residual_mem(
    void *mem,
    int offset,
    const int &residual_size,
    const int &num_qp)
 {
-   return RowDeviceTensor<2>(reinterpret_cast<real_t *>(mem) + offset,
-                             residual_size,
-                             num_qp);
+   return DeviceTensor<2>(reinterpret_cast<real_t *>(mem) + offset,
+                          residual_size,
+                          num_qp);
 }
 
 template <size_t N>
@@ -1490,21 +1471,6 @@ std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
 template <size_t N>
 MFEM_HOST_DEVICE inline
 void zero_all(std::array<DeviceTensor<2>, N> &v)
-{
-   for (size_t i = 0; i < N; i++)
-   {
-      int size = v[i].GetShape()[0] * v[i].GetShape()[1];
-      auto vi = Reshape(&v[i][0], size);
-      for (int j = 0; j < size; j++)
-      {
-         vi[j] = 0.0;
-      }
-   }
-}
-
-template <size_t N>
-MFEM_HOST_DEVICE inline
-void zero_row_all(std::array<RowDeviceTensor<2>, N> &v)
 {
    for (size_t i = 0; i < N; i++)
    {

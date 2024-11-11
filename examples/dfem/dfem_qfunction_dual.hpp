@@ -5,7 +5,6 @@
 namespace mfem
 {
 
-///////////////////////////////////////////////////////////////////////////////
 MFEM_HOST_DEVICE
 template <typename T0, typename T1, typename T2>
 void process_kf_arg(const T0 &, const T1 &, T2 &)
@@ -14,7 +13,6 @@ void process_kf_arg(const T0 &, const T1 &, T2 &)
                  "process_kf_arg not implemented for arg type");
 }
 
-///////////////////////////////////////////////////////////////////////////////
 template <typename T>
 MFEM_HOST_DEVICE
 void process_kf_arg(
@@ -25,15 +23,12 @@ void process_kf_arg(
    arg = u(0);
 }
 
-///////////////////////////////////////////////////////////////////////////////
 template <typename T, int n, int m>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
    const DeviceTensor<1> &u,
    internal::tensor<internal::dual<T, T>, n, m> &arg)
 {
-   assert(false);
-   std::cout << "\033[33m[process_kf_arg]\033[m" <<std::endl;
    for (int i = 0; i < m; i++)
    {
       for (int j = 0; j < n; j++)
@@ -41,10 +36,8 @@ void process_kf_arg(
          arg(j, i).value = u((i * m) + j);
       }
    }
-   assert(false);
 }
 
-///////////////////////////////////////////////////////////////////////////////
 template <typename T>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
@@ -54,16 +47,6 @@ void process_kf_arg(
    arg.value = u(0);
 }
 
-template <typename T>
-MFEM_HOST_DEVICE inline
-void process_kf_arg(
-   const RowDeviceTensor<1> &u,
-   internal::dual<T, T> &arg)
-{
-   arg.value = u(0);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 template <typename T>
 MFEM_HOST_DEVICE inline
 void process_kf_arg(
@@ -96,8 +79,6 @@ void process_kf_arg(
    const DeviceTensor<1> &v,
    internal::tensor<internal::dual<T, T>, n, m> &arg)
 {
-   assert(false);
-   std::cout << "\033[33m[process_kf_arg]\033[m" <<std::endl;
    for (int i = 0; i < m; i++)
    {
       for (int j = 0; j < n; j++)

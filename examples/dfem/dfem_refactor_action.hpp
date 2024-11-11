@@ -182,7 +182,10 @@ void DifferentiableOperator::instantiate_action(
             {
                MFEM_FOREACH_THREAD(qz, z, q1d)
                {
-                  const int q = qx + q1d * (qy + q1d * qz);
+                  // const int q = qx + q1d * (qy + q1d * qz); 
+                  const int q = qz + q1d * (qy + q1d * qx);      
+                  assert(false);     
+                         
                   auto qf_args = decay_tuple<typename element_operator_t::qf_param_ts> {};
                   auto r = Reshape(&residual_shmem(0, q), residual_size_on_qp);
                   apply_kernel(r, element_operator.qfunc, qf_args, input_shmem, q);

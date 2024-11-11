@@ -1,8 +1,6 @@
 #pragma once
 #include "dfem_refactor.hpp"
 
-// skewed-cube
-// fichera-q2
 #define DFEM_TEST_MAIN(function)                                               \
    int main(int argc, char* argv[])                                            \
    {                                                                           \
@@ -10,8 +8,8 @@
                                                                                \
       const char* device_config = "cpu";                                       \
       const char* mesh_file = "../data/fichera-q2.mesh";                      \
-      int polynomial_order = 1;                                                \
-      int ir_order = 2;                                                        \
+      int polynomial_order = 2;                                                \
+      int ir_order = 4;                                                        \
       int refinements = 0;                                                     \
                                                                                \
       OptionsParser args(argc, argv);                                          \

@@ -107,13 +107,8 @@ int test_diffusion_3d(
       dpotential->Mult(x, y);
    }
 
-   printf("y: ");
-   print_vector(y);
-   /*
-   y: [-0.0343058 -0.479602   0.274913  0.0612157 -0.3301   -0.190458  0.0184336 0.174255
-        0.202034   0.0427505 -0.147299 -0.589272   0.0933788 0.998617 -1.20744   0.0223034
-        1.18081   -0.357717  -0.0288514 0.371895  -1.43303  -0.0650527 1.39585  -1.01874
-        0.0410882 1.00432]*/
+   // printf("y: ");
+   // print_vector(y);
 
    Vector y2(h1fes.TrueVSize());
    {
@@ -144,8 +139,8 @@ int test_diffusion_3d(
       printf("mfem pa apply: %fs\n", sw.RealTime() / num_samples);
       y2.HostRead();
    }
-   printf("y2: ");
-   print_vector(y2);
+   // printf("y2: ");
+   // print_vector(y2);
 
    Vector diff(y2);
    diff -= y;

@@ -419,7 +419,8 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          // These functions don't copy, they simply create a `DeviceTensor` object
          // that points to correct chunks of the shared memory pool.
-         auto input_shmem = load_row_input_mem(
+         auto input_shmem = load_input_mem
+         (
             shmem,
             action_shmem_info.offsets[SharedMemory::Index::INPUT],
             action_shmem_info.input_sizes,
@@ -438,8 +439,11 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          MFEM_SYNC_THREAD;
 
-         map_fields_to_quadrature_data<TensorProduct>(
-            input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
+         // Fill row_input_shmem
+         map_fields_to_quadrature_data<TensorProduct>
+         (
+            input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs,
+            ir_weights,
             scratch_mem);
 
          MFEM_FOREACH_THREAD(qx, x, q1d)
@@ -450,7 +454,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                {
                   const int q = qx + q1d * (qy + q1d * qz);
                   auto qf_args = decay_tuple<qf_param_ts> {};
-                  auto r = RowReshape(&residual_shmem(0, q), residual_size_on_qp);
+                  auto r = Reshape(&residual_shmem(0, q), residual_size_on_qp);
                   apply_kernel(r, qfunc, qf_args, input_shmem, q);
                }
             }
@@ -562,13 +566,13 @@ void DifferentiableOperator::AddDomainIntegrator(
 
             // These methods don't copy, they simply create a `DeviceTensor` object
             // that points to correct chunks of the shared memory pool.
-            auto input_shmem = load_row_input_mem(
+            auto input_shmem = load_input_mem(
                shmem,
                shmem_info.offsets[SharedMemory::Index::INPUT],
                shmem_info.input_sizes,
                num_qp);
 
-            auto shadow_shmem = load_row_input_mem(
+            auto shadow_shmem = load_input_mem(
                shmem,
                shmem_info.offsets[SharedMemory::Index::SHADOW],
                shmem_info.input_sizes,
@@ -589,7 +593,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
                scratch_mem);
 
-            zero_row_all(shadow_shmem);
+            zero_all(shadow_shmem);
             map_direction_to_quadrature_data_conditional<TensorProduct>(
                shadow_shmem, direction_shmem, input_dtq_shmem, inputs, ir_weights,
                scratch_mem, input_is_dependent);
@@ -601,7 +605,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                   MFEM_FOREACH_THREAD(qz, z, q1d)
                   {
                      const int q = qx + q1d * (qy + q1d * qz);
-                     auto r = RowReshape(&residual_shmem(0, q), da_size_on_qp);
+                     auto r = Reshape(&residual_shmem(0, q), da_size_on_qp);
                      auto kernel_args = decay_tuple<qf_param_ts> {};
 #ifdef MFEM_USE_ENZYME
                      auto kernel_shadow_args = decay_tuple<qf_param_ts> {};
