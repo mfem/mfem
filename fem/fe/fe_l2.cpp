@@ -927,7 +927,7 @@ L2_FuentesPyramidElement::L2_FuentesPyramidElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::PYRAMID, ((p + 1)*(p + 1)*(p + 1)),
                         p, FunctionSpace::Uk)
 {
-   const double *op = poly1d.OpenPoints(p, VerifyOpen(btype));
+   const real_t *op = poly1d.OpenPoints(p, VerifyOpen(btype));
 
    // These basis functions are not independent on a closed set of
    // interpolation points when p >= 1. For this reason we force the points
@@ -1078,7 +1078,7 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::PYRAMID, (p + 1)*(p + 2)*(2*p + 3)/6,
                         p, FunctionSpace::Pk)
 {
-   const double *op = poly1d.OpenPoints(p, VerifyOpen(btype));
+   const real_t *op = poly1d.OpenPoints(p, VerifyOpen(btype));
 
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
@@ -1100,11 +1100,11 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
    for (int k = 0; k <= p; k++)
       for (int j = 0; j <= p - k; j++)
       {
-         double wjk = op[j] + op[k] + op[p-j-k];
+         const real_t wjk = op[j] + op[k] + op[p-j-k];
          for (int i = 0; i <= p - k; i++)
          {
-            double wik = op[i] + op[k] + op[p-i-k];
-            double w = wik * wjk * op[p-k];
+            const real_t wik = op[i] + op[k] + op[p-i-k];
+            const real_t w = wik * wjk * op[p-k];
             Nodes.IntPoint(o++).Set3(op[i] * (op[j] + op[p-j-k]) / w,
                                      op[j] * (op[j] + op[p-j-k]) / w,
                                      op[k] * op[p-k] / w);
@@ -1120,9 +1120,9 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
 
-      double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
-      double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
-      double z = ip.z;
+      const real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+      const real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+      const real_t z = ip.z;
 
       poly1d.CalcLegendre(p, x, shape_x.GetData());
       poly1d.CalcLegendre(p, y, shape_y.GetData());
@@ -1160,9 +1160,9 @@ void L2_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
    Vector u(dof);
 #endif
 
-   double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
-   double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
-   double z = ip.z;
+   const real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   const real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   const real_t z = ip.z;
 
    poly1d.CalcLegendre(p, x, shape_x.GetData());
    poly1d.CalcLegendre(p, y, shape_y.GetData());
@@ -1202,9 +1202,9 @@ void L2_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
    DenseMatrix du(dof, dim);
 #endif
 
-   double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
-   double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
-   double z = ip.z;
+   const real_t x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   const real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   const real_t z = ip.z;
 
    Poly_1D::CalcLegendre(p, x, shape_x.GetData(), dshape_x.GetData());
    Poly_1D::CalcLegendre(p, y, shape_y.GetData(), dshape_y.GetData());
