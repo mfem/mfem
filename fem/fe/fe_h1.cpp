@@ -1238,35 +1238,23 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
    real_t z = ip.z;
    Vector xy({x,y});
 
+   zmax = std::max(z, zmax);
+
    real_t mu;
 
    int o = 0;
 
    // Vertices
-   if (std::fabs(1.0 - z) < apex_tol)
-   {
-      u[0] = u[1] = u[2] = u[3] = 0.25 * (1.0 - z);
-      u[4] = z;
-
-      z = 1.0 - apex_tol;
-      y = 0.5 * (1.0 - z);
-      x = 0.5 * (1.0 - z);
-      xy(0) = x; xy(1) = y;
-   }
-   else
-   {
-      u[0] = lam1(x, y, z);
-      u[1] = lam2(x, y, z);
-      u[2] = lam3(x, y, z);
-      u[3] = lam4(x, y, z);
-      u[4] = lam5(x, y, z);
-   }
-   zmax = std::max(z, zmax);
+   u[0] = lam1(x, y, z);
+   u[1] = lam2(x, y, z);
+   u[2] = lam3(x, y, z);
+   u[3] = lam4(x, y, z);
+   u[4] = lam5(x, y, z);
 
    o += 5;
 
    // Mixed edges (base edges)
-   if (z < 1.0 && p >= 2)
+   if (CheckZ(z) && p >= 2)
    {
       // (a,b) = (1,2), c = 0
       phi_E(p, nu01(z, xy, 1), phi_i);
@@ -1329,7 +1317,7 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
    }
 
    // Quadrilateral face
-   if (z < 1.0 && p >= 2)
+   if (CheckZ(z) && p >= 2)
    {
       phi_Q(p, mu01(z, xy, 1), mu01(z, xy, 2), phi_ij);
       mu = mu0(z);
@@ -1353,7 +1341,7 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
    }
 
    // Triangular faces
-   if (z < 1.0 && p >= 3)
+   if (CheckZ(z) && p >= 3)
    {
       // (a,b) = (1,2), c = 0
       phi_T(p, nu012(z, xy, 1), phi_ij);
@@ -1395,7 +1383,7 @@ void H1_FuentesPyramidElement::calcBasis(const int p,
    }
 
    // Interior
-   if (z < 1.0 && p >= 2)
+   if (CheckZ(z) && p >= 2)
    {
       phi_Q(p, mu01(z, xy, 1), mu01(z, xy, 2), phi_ij);
       phi_E(p, mu01(z), phi_i);
@@ -1432,6 +1420,8 @@ void H1_FuentesPyramidElement::calcGradBasis(const int p,
    real_t z = ip.z;
    Vector xy({x,y});
 
+   zmax = std::max(z, zmax);
+
    real_t mu;
    Vector dmu(3);
    Vector dlam(3);
@@ -1439,38 +1429,21 @@ void H1_FuentesPyramidElement::calcGradBasis(const int p,
    int o = 0;
 
    // Vertices
-   if (std::fabs(1.0 - z) < apex_tol)
-   {
-      du(0,0) = -0.5; du(0,1) = -0.5; du(0,2) = -0.75;
-      du(1,0) =  0.5; du(1,1) = -0.5; du(1,2) = -0.25;
-      du(2,0) =  0.5; du(2,1) =  0.5; du(2,2) =  0.25;
-      du(3,0) = -0.5; du(3,1) =  0.5; du(3,2) = -0.25;
-      du(4,0) =  0.0; du(4,1) =  0.0; du(4,2) =  1.0;
-
-      z = 1.0 - apex_tol;
-      y = 0.5 * (1.0 - z);
-      x = 0.5 * (1.0 - z);
-      xy(0) = x; xy(1) = y;
-   }
-   else
-   {
-      dlam = grad_lam1(x, y, z);
-      for (int d=0; d<3; d++) { du(0, d) = dlam(d); }
-      dlam = grad_lam2(x, y, z);
-      for (int d=0; d<3; d++) { du(1, d) = dlam(d); }
-      dlam = grad_lam3(x, y, z);
-      for (int d=0; d<3; d++) { du(2, d) = dlam(d); }
-      dlam = grad_lam4(x, y, z);
-      for (int d=0; d<3; d++) { du(3, d) = dlam(d); }
-      dlam = grad_lam5(x, y, z);
-      for (int d=0; d<3; d++) { du(4, d) = dlam(d); }
-   }
-   zmax = std::max(z, zmax);
+   dlam = grad_lam1(x, y, z);
+   for (int d=0; d<3; d++) { du(0, d) = dlam(d); }
+   dlam = grad_lam2(x, y, z);
+   for (int d=0; d<3; d++) { du(1, d) = dlam(d); }
+   dlam = grad_lam3(x, y, z);
+   for (int d=0; d<3; d++) { du(2, d) = dlam(d); }
+   dlam = grad_lam4(x, y, z);
+   for (int d=0; d<3; d++) { du(3, d) = dlam(d); }
+   dlam = grad_lam5(x, y, z);
+   for (int d=0; d<3; d++) { du(4, d) = dlam(d); }
 
    o += 5;
 
    // Mixed edges (base edges)
-   if (z < 1.0 && p >= 2)
+   if (CheckZ(z) && p >= 2)
    {
       // (a,b) = (1,2), c = 0
       phi_E(p, nu01(z, xy, 1), grad_nu01(z, xy, 1), phi_i, dphi_i);
@@ -1552,7 +1525,7 @@ void H1_FuentesPyramidElement::calcGradBasis(const int p,
    }
 
    // Quadrilateral face
-   if (z < 1.0 && p >= 2)
+   if (CheckZ(z) && p >= 2)
    {
       phi_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
             mu01(z, xy, 2), grad_mu01(z, xy, 2), phi_ij, dphi_ij);
@@ -1576,7 +1549,7 @@ void H1_FuentesPyramidElement::calcGradBasis(const int p,
    }
 
    // Triangular faces
-   if (z < 1.0 && p >= 3)
+   if (CheckZ(z) && p >= 3)
    {
       // (a,b) = (1,2), c = 0
       phi_T(p, nu012(z, xy, 1), grad_nu012(z, xy, 1), phi_ij, dphi_ij);
@@ -1630,7 +1603,7 @@ void H1_FuentesPyramidElement::calcGradBasis(const int p,
    }
 
    // Interior
-   if (z < 1.0 && p >= 2)
+   if (CheckZ(z) && p >= 2)
    {
       phi_Q(p, mu01(z, xy, 1), grad_mu01(z, xy, 1),
             mu01(z, xy, 2), grad_mu01(z, xy, 2), phi_ij, dphi_ij);

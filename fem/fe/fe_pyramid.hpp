@@ -61,23 +61,24 @@ private:
 protected:
    static constexpr real_t one  = 1.0;
    static constexpr real_t zero = 0.0;
-
-   const real_t apex_tol = 1e-8;
+   static constexpr real_t apex_tol = 1e-8;
 
 public:
    FuentesPyramid() = default;
 
+   static bool CheckZ(real_t z) { return std::abs(z - 1.0) > apex_tol; }
+
    /// Pyramid "Affine" Coordinates
    static real_t lam1(real_t x, real_t y, real_t z)
-   { return (z < 1.0) ? (1.0 - x - z) * (1.0 - y - z) / (1.0 - z): 0.0; }
+   { return CheckZ(z) ? (1.0 - x - z) * (1.0 - y - z) / (1.0 - z): 0.0; }
    static real_t lam2(real_t x, real_t y, real_t z)
-   { return (z < 1.0) ? x * (1.0 - y - z) / (1.0 - z): 0.0; }
+   { return CheckZ(z) ? x * (1.0 - y - z) / (1.0 - z): 0.0; }
    static real_t lam3(real_t x, real_t y, real_t z)
-   { return (z < 1.0) ? x * y / (1.0 - z): 0.0; }
+   { return CheckZ(z) ? x * y / (1.0 - z): 0.0; }
    static real_t lam4(real_t x, real_t y, real_t z)
-   { return (z < 1.0) ? (1.0 - x - z) * y / (1.0 - z): 0.0; }
+   { return CheckZ(z) ? (1.0 - x - z) * y / (1.0 - z): 0.0; }
    static real_t lam5(real_t x, real_t y, real_t z)
-   { return z; }
+   { return CheckZ(z) ? z : 1.0; }
 
    /// Gradients of the "Affine" Coordinates
    static Vector grad_lam1(real_t x, real_t y, real_t z);
