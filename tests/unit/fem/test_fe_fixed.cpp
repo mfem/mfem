@@ -133,7 +133,7 @@ void CompareFE(const FiniteElement &fe1, const FiniteElement &fe2)
          fe2.CalcDivShape(ip, s2);
 
          s2 -= s1;
-         std::cout << "s2-s1\n"; s2.Print(std::cout);
+
          REQUIRE(s2.Norml2() == MFEM_Approx(0.));
       }
    }
@@ -142,7 +142,7 @@ void CompareFE(const FiniteElement &fe1, const FiniteElement &fe2)
 TEST_CASE("Fixed Order Finite Elements",
           "[LinearPyramidFiniteElement]"
           "[Nedelec1PyrFiniteElement]"
-          // "[Nedelec1PyrFiniteElement]"
+          // "[Nedelec2PyrFiniteElement]"
           "[RT0PyrFiniteElement]"
           "[P0PyrFiniteElement]")
 {
