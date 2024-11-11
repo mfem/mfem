@@ -1123,19 +1123,19 @@ H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
       for (int i = 1; i + j < p; i++)  // (1,2,4)
       {
          real_t w = cp[i] + cp[j] + cp[p-i-j];
-         Nodes.IntPoint(o++).Set3(1.0 - cp[j]/w, cp[i]/w, cp[j]/w);
+         Nodes.IntPoint(o++).Set3((cp[i] + cp[p-i-j])/w, cp[i]/w, cp[j]/w);
       }
    for (int j = 1; j < p; j++)
-      for (int i = 1; i + j < p; i++)  // (3,4,2)
+      for (int i = 1; i + j < p; i++)  // (2,3,4)
       {
          real_t w = cp[i] + cp[j] + cp[p-i-j];
-         Nodes.IntPoint(o++).Set3(cp[j]/w, 1.0 - cp[i]/w, cp[i]/w);
+         Nodes.IntPoint(o++).Set3(cp[p-i-j]/w, (cp[i] + cp[p-i-j])/w, cp[j]/w);
       }
    for (int j = 1; j < p; j++)
-      for (int i = 1; i + j < p; i++)  // (0,4,3)
+      for (int i = 1; i + j < p; i++)  // (3,0,4)
       {
          real_t w = cp[i] + cp[j] + cp[p-i-j];
-         Nodes.IntPoint(o++).Set3(cp[0], cp[j]/w, cp[i]/w);
+         Nodes.IntPoint(o++).Set3(cp[0], cp[p-i-j]/w, cp[j]/w);
       }
 
    // Points based on Fuentes' interior bubbles
