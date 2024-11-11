@@ -1109,12 +1109,12 @@ public:
    // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
-   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   { MFEM_ABORT("Not implemented"); }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) override;
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                  const real_t weight, DenseMatrix &A) const override
-   { MFEM_ABORT("Not implemented"); }
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D barrier Size (V) metric (polyconvex).
