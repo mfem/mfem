@@ -145,15 +145,15 @@ Vector FuentesPyramid::lam435_grad_lam435(real_t x, real_t y, real_t z)
 
 Vector FuentesPyramid::lam415_grad_lam415(real_t x, real_t y, real_t z)
 {
-   Vector lgl({x - 1.0, -y * z / (1.0 - z), z});
-   lgl *= (1.0 - x - z) / (1.0 - z);
+   Vector lgl({x - one, -y * z / (one - z), z});
+   lgl *= (one - x - z) / (one - z);
    return lgl;
 }
 
 Vector FuentesPyramid::lam145_grad_lam145(real_t x, real_t y, real_t z)
 {
-   Vector lgl({1.0 - x, y * z / (1.0 - z), -z});
-   lgl *= (1.0 - x - z) / (1.0 - z);
+   Vector lgl({one - x, y * z / (one - z), -z});
+   lgl *= (one - x - z) / (one - z);
    return lgl;
 }
 

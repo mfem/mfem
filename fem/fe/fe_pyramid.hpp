@@ -59,6 +59,9 @@ private:
 #endif
 
 protected:
+   static constexpr real_t one  = 1.0;
+   static constexpr real_t zero = 0.0;
+
    const real_t apex_tol = 1e-8;
 
 public:
