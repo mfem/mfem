@@ -36,7 +36,7 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
-//   Adapted analytic shape+orientation:
+//   Adapted analytic shape+orientation (AD):
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
 //
 //   Adapted analytic shape and/or size with hr-adaptivity:
@@ -59,7 +59,7 @@
 //   Adapted discrete size+aspect_ratio:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
-//   Adapted discrete size+orientation:
+//   Adapted discrete size+orientation (AD):
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -nor -ex
 //   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
@@ -73,6 +73,8 @@
 //
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   Blade shape (AD):
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 50 -ex -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
 //   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
 //   Blade shape with FD-based solver:
