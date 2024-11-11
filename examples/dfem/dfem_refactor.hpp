@@ -5,6 +5,7 @@
 #include "dfem_integrate.hpp"
 #include "dfem_qfunction.hpp"
 #include "dfem_qfunction_dual.hpp"
+#include "dfem_element_operator.hpp"
 
 namespace mfem
 {
@@ -437,7 +438,6 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          MFEM_SYNC_THREAD;
 
-         // Fill row_input_shmem
          map_fields_to_quadrature_data<TensorProduct>(
             input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
             scratch_mem);

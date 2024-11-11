@@ -23,7 +23,7 @@ void map_field_to_quadrature_data_tensor_product(
       auto [q1d, unused, d1d] = B.GetShape();
       const int vdim = input.vdim;
       const auto field = Reshape(&field_e[0], d1d, d1d, d1d, vdim);
-      auto fqp = Reshape(&field_qp[0], vdim, d1d, d1d, d1d);
+      auto fqp = Reshape(&field_qp[0], vdim, q1d, q1d, q1d);
       auto s0 = Reshape(&scratch_mem[0](0), d1d, d1d, q1d);
       auto s1 = Reshape(&scratch_mem[1](0), d1d, q1d, q1d);
 
