@@ -72,6 +72,8 @@ public:
        @param[out]  P  The evaluated 1st Piola-Kirchhoff stress tensor. */
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const = 0;
 
+   virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) { PW = 0.0;}
+
    /** @brief Evaluate the derivative of the 1st Piola-Kirchhoff stress tensor
        and assemble its contribution to the local gradient matrix 'A'.
        @param[in] Jpt     Represents the target->physical transformation
@@ -1143,7 +1145,7 @@ public:
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const;
+   virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) override;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const real_t weight, DenseMatrix &A) const override;

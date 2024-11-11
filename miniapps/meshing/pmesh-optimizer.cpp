@@ -60,7 +60,7 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
 //   Adapted discrete size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -nor -ex
 //   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
 //
@@ -107,6 +107,8 @@
 //   Kershaw transformation can be imposed using the transformation ('t') feature in the mesh-explorer miniapp.
 //   * mpirun - np 6 pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -qo 8 -ker -pa
 
+//    AD-based runs
+//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>

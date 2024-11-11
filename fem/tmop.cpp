@@ -55,7 +55,7 @@ void mult(const DenseMatrix * u, const std::vector<type> & M,
    mat[0] = u->Elem(0,0) * M[0] + u->Elem(0,1) * M[1];
    mat[1] = u->Elem(1,0) * M[0] + u->Elem(1,1) * M[1];
    mat[2] = u->Elem(0,0) * M[2] + u->Elem(0,1) * M[3];
-   mat[3] = u->Elem(1,0) * M[2] + u->Elem(1,1) * M[4];
+   mat[3] = u->Elem(1,0) * M[2] + u->Elem(1,1) * M[3];
 
 }
 
@@ -172,7 +172,6 @@ auto mu36_ad_w( const DenseMatrix * T, const std::vector<type> & W ) -> type
 
    return 1.0 / ( det_2D(A)) * fnorm;
 };
-
 
 void ADGrad(const DenseMatrix &Jpt,
             std::function<ADFType(const DenseMatrix *, std::vector<ADFType>&)> mu_ad,
@@ -996,9 +995,6 @@ void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
 // mu_85 = |T-T'|^2, where T'= |T|*I/sqrt(2)
 real_t TMOP_Metric_085::EvalW(const DenseMatrix &Jpt) const
 {
-   MFEM_VERIFY(Jtr != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
-
    DenseMatrix Id(2,2);
    DenseMatrix Mat(2,2);
    Mat = Jpt;
@@ -1800,7 +1796,7 @@ void TMOP_AMetric_036::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    return;
 }
 
-void TMOP_AMetric_036::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
+void TMOP_AMetric_036::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW)
 {
    ADGrad(*Jtr, mu36_ad_w<ADFType>, PW, &Jpt);
    return;
@@ -4046,6 +4042,23 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
          d_detW_dx += d_Winv_dx;
          AddMultVWt(shape, d_detW_dx, PMatO);
+
+         // dmu/dW:dW/dx_i
+         DenseMatrix PW(dim);
+         Vector dmudxw(dim);
+         metric->EvalPW(Jpt, PW);
+
+         for (int d = 0; d < dim; d++)
+         {
+            const DenseMatrix &dJtr_q = dJtr(q + d*nqp);
+            // dJtr_q.Print();
+            DenseMatrix Prod(dim);
+            Prod = 0.0;
+            MultAtB(PW, dJtr_q, Prod);
+            dmudxw(d) = Prod.Trace();
+         }
+         dmudxw *= weight_m;
+         AddMultVWt(shape, dmudxw, PMatO);
       }
 
       if (lim_coeff)
