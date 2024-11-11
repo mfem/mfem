@@ -1712,19 +1712,19 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
       for (int i = 0; i + j <= pm2; i++)
       {
          real_t w = top[i] + top[j] + top[pm2-i-j];
-         Nodes.IntPoint(o).Set3(1. - top[j]/w, top[i]/w, top[j]/w);
+         Nodes.IntPoint(o).Set3((top[i] + top[pm2-i-j])/w, top[i]/w, top[j]/w);
          dof2tk[o++] = 1;
-         Nodes.IntPoint(o).Set3(1. - top[j]/w, top[i]/w, top[j]/w);
+         Nodes.IntPoint(o).Set3((top[i] + top[pm2-i-j])/w, top[i]/w, top[j]/w);
          dof2tk[o++] = 3;
       }
    for (int j = 0; j <= pm2; j++)  // (2, 3, 4)
       for (int i = 0; i + j <= pm2; i++)
       {
          real_t w = top[i] + top[j] + top[pm2-i-j];
-         Nodes.IntPoint(o).Set3(1. - top[i]/w - top[j]/w, 1. - top[j]/w,
+         Nodes.IntPoint(o).Set3(top[pm2-i-j]/w, (top[i] + top[pm2-i-j])/w,
                                 top[j]/w);
          dof2tk[o++] = 6;
-         Nodes.IntPoint(o).Set3(1. - top[i]/w - top[j]/w, 1. - top[j]/w,
+         Nodes.IntPoint(o).Set3(top[pm2-i-j]/w, (top[i] + top[pm2-i-j])/w,
                                 top[j]/w);
          dof2tk[o++] = 4;
       }
@@ -1732,9 +1732,9 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
       for (int i = 0; i + j <= pm2; i++)
       {
          real_t w = top[i] + top[j] + top[pm2-i-j];
-         Nodes.IntPoint(o).Set3(0., 1. - top[i]/w - top[j]/w, top[j]/w);
+         Nodes.IntPoint(o).Set3(0., top[pm2-i-j]/w, top[j]/w);
          dof2tk[o++] = 7;
-         Nodes.IntPoint(o).Set3(0., 1. - top[i]/w - top[j]/w, top[j]/w);
+         Nodes.IntPoint(o).Set3(0., top[pm2-i-j]/w, top[j]/w);
          dof2tk[o++] = 5;
       }
 
