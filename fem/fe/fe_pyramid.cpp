@@ -20,30 +20,30 @@ using namespace std;
 
 Vector FuentesPyramid::grad_lam1(real_t x, real_t y, real_t z)
 {
-   return Vector({(z < 1.0) ? - (1.0 - y - z) / (1.0 - z) : -0.5,
-                  (z < 1.0) ? - (1.0 - x - z) / (1.0 - z) : -0.5,
-                  (z < 1.0) ? x * y / ((1.0 - z) * (1.0 - z)) - 1.0 : -0.75});
+   return Vector({CheckZ(z) ? - (1.0 - y - z) / (1.0 - z) : -0.5,
+                  CheckZ(z) ? - (1.0 - x - z) / (1.0 - z) : -0.5,
+                  CheckZ(z) ? x * y / ((1.0 - z) * (1.0 - z)) - 1.0 : -0.75});
 }
 
 Vector FuentesPyramid::grad_lam2(real_t x, real_t y, real_t z)
 {
-   return Vector({(z < 1.0) ? (1.0 - y - z) / (1.0 - z) : 0.5,
-                  (z < 1.0) ? - x / (1.0 - z) : -0.5,
-                  (z < 1.0) ? - x * y / ((1.0 - z) * (1.0 - z)) : -0.25});
+   return Vector({CheckZ(z) ? (1.0 - y - z) / (1.0 - z) : 0.5,
+                  CheckZ(z) ? - x / (1.0 - z) : -0.5,
+                  CheckZ(z) ? - x * y / ((1.0 - z) * (1.0 - z)) : -0.25});
 }
 
 Vector FuentesPyramid::grad_lam3(real_t x, real_t y, real_t z)
 {
-   return Vector({(z < 1.0) ? y / (1.0 - z) : 0.5,
-                  (z < 1.0) ? x / (1.0 - z) : 0.5,
-                  (z < 1.0) ? x * y / ((1.0 - z) * (1.0 - z)) : 0.25});
+   return Vector({CheckZ(z) ? y / (1.0 - z) : 0.5,
+                  CheckZ(z) ? x / (1.0 - z) : 0.5,
+                  CheckZ(z) ? x * y / ((1.0 - z) * (1.0 - z)) : 0.25});
 }
 
 Vector FuentesPyramid::grad_lam4(real_t x, real_t y, real_t z)
 {
-   return Vector({(z < 1.0) ? - y / (1.0 - z) : -0.5,
-                  (z < 1.0) ? (1.0 - x - z) / (1.0 - z) : 0.5,
-                  (z < 1.0) ? - x * y / ((1.0 - z) * (1.0 - z)) : -0.25});
+   return Vector({CheckZ(z) ? - y / (1.0 - z) : -0.5,
+                  CheckZ(z) ? (1.0 - x - z) / (1.0 - z) : 0.5,
+                  CheckZ(z) ? - x * y / ((1.0 - z) * (1.0 - z)) : -0.25});
 }
 
 Vector FuentesPyramid::grad_lam5(real_t x, real_t y, real_t z)
