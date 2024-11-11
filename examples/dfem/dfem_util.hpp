@@ -13,6 +13,8 @@
 #include <type_traits>
 #include "dfem_fieldoperator.hpp"
 #include "dfem_parametricspace.hpp"
+#include "fem/fe/fe_base.hpp"
+#include "general/backends.hpp"
 #include "linalg/dtensor.hpp"
 #include "tuple.hpp"
 #include "mesh/mesh.hpp"
@@ -22,6 +24,25 @@ using std::size_t;
 
 namespace mfem
 {
+
+template <typename... input_ts, size_t... Is>
+constexpr auto make_dependency_map_impl(mfem::tuple<input_ts...> inputs,
+                                        std::index_sequence<Is...>)
+{
+   auto make_dependency_tuple = [&](auto i)
+   {
+      return std::make_tuple((mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>
+                              (inputs).GetFieldId())...);
+   };
+
+   return std::make_tuple(make_dependency_tuple(std::integral_constant<size_t, Is> {})...);
+}
+
+template <typename... input_ts>
+constexpr auto make_dependency_map(mfem::tuple<input_ts...> inputs)
+{
+   return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
+}
 
 template<typename tuple_t>
 constexpr auto get_array_from_tuple(tuple_t&& tuple)
@@ -55,6 +76,9 @@ constexpr void for_constexpr(lambda&& f, std::integer_sequence<size_t, i ... >)
 {
    f(std::integral_constant< size_t, i > {} ...);
 }
+
+template <typename lambda>
+constexpr void for_constexpr(lambda&& f, std::integer_sequence<size_t>) {}
 
 template <int... n, typename lambda>
 constexpr void for_constexpr(lambda&& f)
@@ -895,10 +919,10 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    // {
    //    return GetVDim(f);
    // }
-   // else if constexpr (std::is_same_v<field_operator_t, None>)
-   // {
-   //    return GetVDim(f);
-   // }
+   else if constexpr (is_none_fop<field_operator_t>::value)
+   {
+      return GetVDim(f);
+   }
    // else if constexpr (std::is_same_v<field_operator_t, One>)
    // {
    //    return 1;
@@ -1452,6 +1476,145 @@ std::array<DeviceTensor<1>, 6> load_scratch_mem(
    return f;
 }
 
+template <typename shared_mem_info_t, size_t num_inputs, size_t num_outputs, size_t num_fields>
+MFEM_HOST_DEVICE inline
+auto unpack_shmem(
+   void *shmem,
+   const shared_mem_info_t &shmem_info,
+   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
+   const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
+   const std::array<DeviceTensor<2>, num_fields> &wrapped_fields_e,
+   const int &num_qp,
+   const int &e)
+{
+   auto input_dtq_shmem =
+      load_dtq_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
+         shmem_info.input_dtq_sizes,
+         input_dtq_maps);
+
+   auto output_dtq_shmem =
+      load_dtq_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
+         shmem_info.output_dtq_sizes,
+         output_dtq_maps);
+
+   auto fields_shmem =
+      load_field_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::FIELD],
+         shmem_info.field_sizes,
+         wrapped_fields_e,
+         e);
+
+   // These functions don't copy, they simply create a `DeviceTensor` object
+   // that points to correct chunks of the shared memory pool.
+   auto input_shmem =
+      load_input_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::INPUT],
+         shmem_info.input_sizes,
+         num_qp);
+
+   auto residual_shmem =
+      load_residual_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::OUTPUT],
+         shmem_info.residual_size,
+         num_qp);
+
+   auto scratch_mem =
+      load_scratch_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::TEMP],
+         shmem_info.temp_sizes);
+
+   MFEM_SYNC_THREAD;
+
+   return std::make_tuple(input_dtq_shmem, output_dtq_shmem, fields_shmem,
+                          input_shmem, residual_shmem, scratch_mem);
+}
+
+template <typename shared_mem_info_t, size_t num_inputs, size_t num_outputs, size_t num_fields>
+MFEM_HOST_DEVICE inline
+auto unpack_shmem(
+   void *shmem,
+   const shared_mem_info_t &shmem_info,
+   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
+   const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
+   const std::array<DeviceTensor<2>, num_fields> &wrapped_fields_e,
+   const DeviceTensor<2> &wrapped_direction_e,
+   const int &num_qp,
+   const int &e)
+{
+   auto input_dtq_shmem =
+      load_dtq_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
+         shmem_info.input_dtq_sizes,
+         input_dtq_maps);
+
+   auto output_dtq_shmem =
+      load_dtq_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
+         shmem_info.output_dtq_sizes,
+         output_dtq_maps);
+
+   auto fields_shmem =
+      load_field_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::FIELD],
+         shmem_info.field_sizes,
+         wrapped_fields_e,
+         e);
+
+   auto direction_shmem =
+      load_direction_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::DIRECTION],
+         shmem_info.direction_size,
+         wrapped_direction_e,
+         e);
+
+   // These methods don't copy, they simply create a `DeviceTensor` object
+   // that points to correct chunks of the shared memory pool.
+   auto input_shmem =
+      load_input_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::INPUT],
+         shmem_info.input_sizes,
+         num_qp);
+
+   auto shadow_shmem =
+      load_input_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::SHADOW],
+         shmem_info.input_sizes,
+         num_qp);
+
+   auto residual_shmem =
+      load_residual_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::OUTPUT],
+         shmem_info.residual_size,
+         num_qp);
+
+   auto scratch_mem =
+      load_scratch_mem(
+         shmem,
+         shmem_info.offsets[SharedMemory::Index::TEMP],
+         shmem_info.temp_sizes);
+
+   MFEM_SYNC_THREAD;
+
+   return std::make_tuple(input_dtq_shmem, output_dtq_shmem, fields_shmem,
+                          direction_shmem, input_shmem, shadow_shmem,
+                          residual_shmem, scratch_mem);
+}
+
 template <std::size_t... i>
 MFEM_HOST_DEVICE inline
 std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
@@ -1711,6 +1874,103 @@ std::array<DofToQuadMap, N> create_dtq_maps(
              fops, dtqmaps,
              to_field_map,
              std::make_index_sequence<N> {});
+}
+
+template <
+   typename T = NonTensorProduct,
+   typename qf_param_ts,
+   typename qfunc_t,
+   size_t num_fields>
+void call_qfunction(
+   qfunc_t qfunc,
+   const std::array<DeviceTensor<2>, num_fields> &input_shmem,
+   DeviceTensor<2> &residual_shmem,
+   const int &rs_qp,
+   const int &num_qp,
+   const int &q1d)
+{
+   if constexpr (std::is_same_v<T, NonTensorProduct>)
+   {
+   }
+   else if constexpr (std::is_same_v<T, TensorProduct>)
+   {
+      MFEM_FOREACH_THREAD(qx, x, q1d)
+      {
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         {
+            MFEM_FOREACH_THREAD(qz, z, q1d)
+            {
+               const int q = qx + q1d * (qy + q1d * qz);
+               auto qf_args = decay_tuple<qf_param_ts> {};
+               auto r = Reshape(&residual_shmem(0, q), rs_qp);
+               apply_kernel(r, qfunc, qf_args, input_shmem, q);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+   else
+   {
+      static_assert(always_false<T>, "type is not implemented");
+   }
+}
+
+template <
+   typename T = NonTensorProduct,
+   typename qf_param_ts,
+   typename qfunc_t,
+   size_t num_fields>
+void call_qfunction_derivative_action(
+   qfunc_t qfunc,
+   const std::array<DeviceTensor<2>, num_fields> &input_shmem,
+   const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
+   DeviceTensor<2> &residual_shmem,
+   const int &das_qp,
+   const int &num_qp,
+   const int &q1d)
+{
+   if constexpr (std::is_same_v<T, NonTensorProduct>)
+   {
+   }
+   else if constexpr (std::is_same_v<T, TensorProduct>)
+   {
+      MFEM_FOREACH_THREAD(qx, x, q1d)
+      {
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         {
+            MFEM_FOREACH_THREAD(qz, z, q1d)
+            {
+               const int q = qx + q1d * (qy + q1d * qz);
+               auto r = Reshape(&residual_shmem(0, q), das_qp);
+               auto kernel_args = decay_tuple<qf_param_ts> {};
+#ifdef MFEM_USE_ENZYME
+               auto kernel_shadow_args = decay_tuple<qf_param_ts> {};
+               apply_kernel_fwddiff_enzyme(
+                  r,
+                  qfunc,
+                  kernel_args,
+                  kernel_shadow_args,
+                  input_shmem,
+                  shadow_shmem,
+                  q);
+#else
+               apply_kernel_native_dual(
+                  r,
+                  qfunc,
+                  kernel_args,
+                  input_shmem,
+                  shadow_shmem,
+                  q);
+#endif
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+   else
+   {
+      static_assert(always_false<T>, "type is not implemented");
+   }
 }
 
 } // namespace mfem
