@@ -5194,8 +5194,9 @@ void Nedelec2PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
 {
    shape = 0.0;
 
-   const real_t x = ip.x, y = ip.y, z = ip.z/*, z2 = 2. * ip.z*/;
-   const real_t ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
+   const real_t one = 1.0;
+   const real_t x = ip.x, y = ip.y, z = ip.z;
+   const real_t ox = one - x - z, oy = one - y - z, oz = one - z;
    const real_t sq3 = sqrt(3.0);
    const real_t tol = 1e-6;
 
@@ -5239,7 +5240,7 @@ void Nedelec2PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
       return;
    }
 
-   const real_t ozi = 1.0 / oz;
+   const real_t ozi = one / oz;
 
    const real_t me0120[3] = {oy, 0., x * oy * ozi};
    const real_t me1120[3] = {(x - ox) * oy, 0., (x - ox) * x * oy * ozi};
@@ -5272,11 +5273,11 @@ void Nedelec2PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
                           };
 
    const real_t te03[3] = {-y * z * ozi, -x * z * ozi,
-                           x * y * (1. - 2. * z) * ozi * ozi
+                           x * y * (one - 2. * z) * ozi * ozi
                           };
    const real_t te13[3] = {y * z * (x * y - z * oz) * ozi * ozi,
                            x * z * (x * y - z * oz) * ozi * ozi,
-                           -x * y * (1. - 2. * z) * (x * y - z * oz)
+                           -x * y * (one - 2. * z) * (x * y - z * oz)
                            * ozi * ozi * ozi
                           };
 
@@ -5469,10 +5470,11 @@ void Nedelec2PyrFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
                                              DenseMatrix &curl_shape)
 const
 {
-   real_t x = ip.x, y = ip.y, z = ip.z, z2 = 2. * z;
-   real_t ox = 1. - x - z, oy = 1. - y - z, oz = 1. - z;
+   const real_t one = 1.0;
+   const real_t x = ip.x, y = ip.y, z = ip.z, z2 = 2. * z;
+   const real_t ox = one - x - z, oy = one - y - z, oz = one - z;
 
-   real_t tol = 1e-6;
+   const real_t tol = 1e-6;
 
    if (oz <= tol)
    {
@@ -5515,7 +5517,7 @@ const
       return;
    }
 
-   real_t ozi = 1. / oz;
+   real_t ozi = one / oz;
 
    curl_shape(0,0) = - x * ozi;
    curl_shape(0,1) = - 2. + y * ozi;
