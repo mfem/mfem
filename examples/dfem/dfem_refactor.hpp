@@ -439,7 +439,8 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          // Fill row_input_shmem
          map_fields_to_quadrature_data<TensorProduct>(
-            input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights, scratch_mem);
+            input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
+            scratch_mem);
 
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
