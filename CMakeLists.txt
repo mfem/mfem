@@ -620,6 +620,16 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
 set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
 set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
 
+set(INSTALL_INCLUDE_DIR include
+  CACHE PATH "Relative path for installing header files.")
+set(INSTALL_BIN_DIR bin
+  CACHE PATH "Relative path for installing the binaries.")
+set(INSTALL_LIB_DIR lib
+  CACHE PATH "Relative path for installing the library.")
+# other options: "share/mfem/cmake", "lib/mfem/cmake"
+set(INSTALL_CMAKE_DIR lib/cmake/mfem
+  CACHE PATH "Relative path for installing cmake config files.")
+
 set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH
     "The MFEM source directory" FORCE)
 set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
@@ -742,7 +752,11 @@ endif()
 # Create a target for all miniapps and, optionally, enable it.
 set(MFEM_ALL_MINIAPPS_TARGET_NAME miniapps)
 add_mfem_target(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_ENABLE_MINIAPPS})
-add_subdirectory(miniapps EXCLUDE_FROM_ALL)
+if (MFEM_ENABLE_MINIAPPS)
+  add_subdirectory(miniapps) #install miniapps if enabled
+else()
+  add_subdirectory(miniapps EXCLUDE_FROM_ALL)
+endif()
 
 # Target to build all executables, i.e. everything.
 add_custom_target(exec)
@@ -792,15 +806,6 @@ add_subdirectory(doc)
 #-------------------------------------------------------------------------------
 
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-set(INSTALL_INCLUDE_DIR include
-  CACHE PATH "Relative path for installing header files.")
-set(INSTALL_BIN_DIR bin
-  CACHE PATH "Relative path for installing the binaries.")
-set(INSTALL_LIB_DIR lib
-  CACHE PATH "Relative path for installing the library.")
-# other options: "share/mfem/cmake", "lib/mfem/cmake"
-set(INSTALL_CMAKE_DIR lib/cmake/mfem
-  CACHE PATH "Relative path for installing cmake config files.")
 
 target_include_directories(mfem BEFORE
   PUBLIC
@@ -825,7 +830,8 @@ foreach(Header mfem.hpp mfem-performance.hpp)
 endforeach()
 install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 
-# Install the headers; currently, the miniapps headers are excluded
+# Install the headers. Note that miniapp header installation is dictated from
+# its subdirectory
 install(DIRECTORY ${MFEM_SOURCE_DIRS}
   DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
   FILES_MATCHING PATTERN "*.hpp")
