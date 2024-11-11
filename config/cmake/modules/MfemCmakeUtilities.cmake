@@ -138,6 +138,8 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   # Actually add the executable
   mfem_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
       ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
+  install(TARGETS ${MFEM_EXE_NAME}
+          RUNTIME DESTINATION miniapps)
   add_dependencies(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_EXE_NAME})
   add_dependencies(${MFEM_EXE_NAME} ${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 
