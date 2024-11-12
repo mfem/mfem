@@ -39,6 +39,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    SetLocalNLSolver(LSsolveType::LBFGS);
    SetLocalNLPreconditioner(LPrecType::GMRES);
 
+   Af_lin_data = NULL;
    Ae_data = NULL;
    Bf_data = NULL;
    Be_data = NULL;
@@ -67,6 +68,7 @@ DarcyHybridization::~DarcyHybridization()
       { delete boundary_constraint_pot_nonlin_integs[k]; }
    }
 
+   delete[] Af_lin_data;
    delete[] Ae_data;
    delete[] Bf_data;
    delete[] Be_data;
@@ -1445,13 +1447,21 @@ void DarcyHybridization::Finalize()
          {
             InvertD();
          }
-         else if (!D_empty)
+         else
          {
-            std::swap(Df_data, Df_lin_data);
-            if (!Df_data)
+            std::swap(Af_data, Af_lin_data);
+            if (!Af_data)
             {
-               const int NE = fes->GetMesh()->GetNE();
-               Df_data = new real_t[Df_offsets[NE]]();
+               Af_data = new real_t[Af_offsets.Last()]();
+            }
+
+            if (!D_empty)
+            {
+               std::swap(Df_data, Df_lin_data);
+               if (!Df_data)
+               {
+                  Df_data = new real_t[Df_offsets.Last()]();
+               }
             }
          }
       }
@@ -1749,7 +1759,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    }
    else
    {
-      if (m_nlfi_u) { A = 0.; }
+      A = 0.;
       D = 0.;
    }
 
@@ -1758,6 +1768,11 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       DenseMatrix grad_A;
       m_nlfi_u->AssembleElementGrad(*fe_u, *Tr, u_l, grad_A);
       A += grad_A;
+   }
+   else
+   {
+      DenseMatrix A_lin(Af_lin_data + Af_offsets[el], a_dofs_size, a_dofs_size);
+      A += A_lin;
    }
 
    if (m_nlfi_p)
@@ -2186,6 +2201,11 @@ void DarcyHybridization::LocalNLOperator::AddMultA(const Vector &u_l,
       dh.m_nlfi_u->AssembleElementVector(*fe_u, *Tr, u_l, Au);
       bu += Au;
    }
+   else
+   {
+      DenseMatrix A(dh.Af_lin_data + dh.Af_offsets[el], a_dofs_size, a_dofs_size);
+      A.AddMult(u_l, bu);
+   }
 }
 
 void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
@@ -2255,6 +2275,11 @@ void DarcyHybridization::LocalNLOperator::AddGradA(const Vector &u_l,
       DenseMatrix grad_A;
       dh.m_nlfi_u->AssembleElementGrad(*fe_u, *Tr, u_l, grad_A);
       grad += grad_A;
+   }
+   else
+   {
+      DenseMatrix A(dh.Af_lin_data + dh.Af_offsets[el], a_dofs_size, a_dofs_size);
+      grad += A;
    }
 }
 

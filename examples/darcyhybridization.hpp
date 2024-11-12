@@ -72,7 +72,7 @@ private:
    } lsolve;
 
    Array<int> Ae_offsets;
-   real_t *Ae_data;
+   real_t *Af_lin_data, *Ae_data;
 
    Array<int> Bf_offsets, Be_offsets;
    real_t *Bf_data, *Be_data;
