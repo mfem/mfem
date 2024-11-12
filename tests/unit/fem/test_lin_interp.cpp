@@ -804,13 +804,13 @@ TEST_CASE("Product Linear Interpolators",
 
             GridFunction fg0(&fespace_h1p);
             fg0.ProjectCoefficient(fgCoef);
-            const real_t fgErr = fg0.ComputeL2Error(fgCoef);
+            const real_t fgErr = std::abs(fg0.ComputeL2Error(fgCoef));
             CAPTURE(fgErr);
 
             fg0 = 0.0;
             Opf0.Mult(g0,fg0);
 
-            REQUIRE( fg0.ComputeL2Error(fgCoef) < ratio * fgErr );
+            REQUIRE( std::abs(fg0.ComputeL2Error(fgCoef)) < ratio * fgErr );
          }
          if (dim > 1)
          {
@@ -829,13 +829,13 @@ TEST_CASE("Product Linear Interpolators",
 
                GridFunction Fg1(&fespace_ndp);
                Fg1.ProjectCoefficient(FgCoef);
-               const real_t FgErr = Fg1.ComputeL2Error(FgCoef);
+               const real_t FgErr = std::abs(Fg1.ComputeL2Error(FgCoef));
                CAPTURE(FgErr);
 
                Fg1 = 0.0;
                OpF1.Mult(g0,Fg1);
 
-               REQUIRE( Fg1.ComputeL2Error(FgCoef) < ratio * FgErr );
+               REQUIRE( std::abs(Fg1.ComputeL2Error(FgCoef)) < ratio * FgErr );
             }
          }
       }
@@ -861,13 +861,13 @@ TEST_CASE("Product Linear Interpolators",
 
                GridFunction fG1(&fespace_ndp);
                fG1.ProjectCoefficient(fGCoef);
-               const real_t fGErr = fG1.ComputeL2Error(fGCoef);
+               const real_t fGErr = std::abs(fG1.ComputeL2Error(fGCoef));
                CAPTURE(fGErr);
 
                fG1 = 0.0;
                Opf0.Mult(G1,fG1);
 
-               REQUIRE( fG1.ComputeL2Error(fGCoef) < ratio * fGErr );
+               REQUIRE( std::abs(fG1.ComputeL2Error(fGCoef)) < ratio * fGErr );
             }
             if (dim == 2)
             {
@@ -883,13 +883,13 @@ TEST_CASE("Product Linear Interpolators",
 
                   GridFunction FxG2(&fespace_l2p);
                   FxG2.ProjectCoefficient(FxGCoef);
-                  const real_t FxGErr = FxG2.ComputeL2Error(FxGCoef);
+                  const real_t FxGErr = std::abs(FxG2.ComputeL2Error(FxGCoef));
                   CAPTURE(FxGErr);
 
                   FxG2 = 0.0;
                   OpF1.Mult(G1,FxG2);
 
-                  REQUIRE( FxG2.ComputeL2Error(FxGCoef) < ratio * FxGErr );
+                  REQUIRE( std::abs(FxG2.ComputeL2Error(FxGCoef)) < ratio * FxGErr );
                }
             }
             else
@@ -906,13 +906,13 @@ TEST_CASE("Product Linear Interpolators",
 
                   GridFunction FxG2(&fespace_rtp);
                   FxG2.ProjectCoefficient(FxGCoef);
-                  const real_t FxGErr = FxG2.ComputeL2Error(FxGCoef);
+                  const real_t FxGErr = std::abs(FxG2.ComputeL2Error(FxGCoef));
                   CAPTURE(FxGErr);
 
                   FxG2 = 0.0;
                   OpF1.Mult(G1,FxG2);
 
-                  REQUIRE( FxG2.ComputeL2Error(FxGCoef) < ratio * FxGErr );
+                  REQUIRE( std::abs(FxG2.ComputeL2Error(FxGCoef)) < ratio * FxGErr );
                }
             }
             SECTION("Mapping to L2")
@@ -930,13 +930,13 @@ TEST_CASE("Product Linear Interpolators",
 
                GridFunction FG3(&fespace_l2p);
                FG3.ProjectCoefficient(FGCoef);
-               const real_t FGErr = FG3.ComputeL2Error(FGCoef);
+               const real_t FGErr = std::abs(FG3.ComputeL2Error(FGCoef));
                CAPTURE(FGErr);
 
                FG3 = 0.0;
                OpF2.Mult(G1,FG3);
 
-               REQUIRE( FG3.ComputeL2Error(FGCoef) < ratio * FGErr );
+               REQUIRE( std::abs(FG3.ComputeL2Error(FGCoef)) < ratio * FGErr );
             }
          }
          SECTION("Operators on HDiv for element type " + std::to_string(type))
@@ -959,13 +959,13 @@ TEST_CASE("Product Linear Interpolators",
 
                GridFunction FG3(&fespace_l2p);
                FG3.ProjectCoefficient(FGCoef);
-               const real_t FGErr = FG3.ComputeL2Error(FGCoef);
+               const real_t FGErr = std::abs(FG3.ComputeL2Error(FGCoef));
                CAPTURE(FGErr);
 
                FG3 = 0.0;
                OpF1.Mult(G2,FG3);
 
-               REQUIRE( FG3.ComputeL2Error(FGCoef) < ratio * FGErr );
+               REQUIRE( std::abs(FG3.ComputeL2Error(FGCoef)) < ratio * FGErr );
             }
          }
       }
