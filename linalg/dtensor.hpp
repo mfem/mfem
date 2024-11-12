@@ -13,6 +13,8 @@
 #define MFEM_DTENSOR
 
 #include <numeric>
+#include <array>
+#include <tuple>
 
 #include "../config/config.hpp"
 
