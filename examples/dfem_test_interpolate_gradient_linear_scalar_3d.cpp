@@ -1,6 +1,4 @@
-#include "dfem/dfem.hpp"
 #include "dfem/dfem_test_macro.hpp"
-#include "examples/dfem/dfem_parametricspace.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;

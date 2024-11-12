@@ -59,7 +59,6 @@ if (MFEM_USE_MPI)
     dfem_minimal_example.cpp
     dfem_test_diffusion_2d.cpp
     dfem_test_diffusion_3d.cpp
-    dfem_test_diffusion_3d_refactor.cpp
     dfem_test_ordering.cpp
     dfem_test_vector_diffusion.cpp
     dfem_test_elasticity.cpp
@@ -68,6 +67,7 @@ if (MFEM_USE_MPI)
     dfem_test_interpolate_linear_scalar.cpp
     dfem_test_interpolate_linear_scalar_3d.cpp
     dfem_test_interpolate_gradient_linear_scalar_3d.cpp
+    dfem_test_interpolate_gradient_linear_scalar.cpp
     dfem_test_mass_scalar_3d.cpp
     dfem_test_mass_scalar_2d.cpp
     dfem_test_interpolate_linear_vector.cpp
@@ -139,7 +139,6 @@ target_link_libraries(test_dfem ClangEnzymeFlags)
 target_link_libraries(dfem_laghos ClangEnzymeFlags)
 target_link_libraries(dfem_minimal_example ClangEnzymeFlags)
 target_link_libraries(dfem_test_diffusion_3d ClangEnzymeFlags)
-target_link_libraries(dfem_test_diffusion_3d_refactor ClangEnzymeFlags)
 target_link_libraries(dfem_test_nonlinear_diffusion_3d ClangEnzymeFlags)
 target_link_libraries(dfem_test_nonlinear_elasticity_3d ClangEnzymeFlags)
 

@@ -277,8 +277,22 @@ void DifferentiableOperator::AddDomainIntegrator(
    constexpr int hardcoded_output_idx = 0;
    const int test_space_field_idx = output_to_field[hardcoded_output_idx];
 
-   ElementDofOrdering element_dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::TENSOR;
+   bool use_sum_factorization = false;
+   auto entity_element_type =  mesh.GetElement(0)->GetType();
+   if (entity_element_type == Element::SEGMENT ||
+       entity_element_type == Element::QUADRILATERAL ||
+       entity_element_type == Element::HEXAHEDRON)
+   {
+      use_sum_factorization = true;
+   }
+
+   ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
+   DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
+   if (use_sum_factorization)
+   {
+      element_dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      doftoquad_mode = DofToQuad::Mode::TENSOR;
+   }
 
    const Operator *R = get_restriction<entity_t>(fields[test_space_field_idx],
                                                  element_dof_ordering);
@@ -381,11 +395,50 @@ void DifferentiableOperator::AddDomainIntegrator(
    auto action_shmem_info =
       get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
       (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
-       input_size_on_qp, residual_size_on_qp);
+       input_size_on_qp, residual_size_on_qp, element_dof_ordering);
 
    Vector shmem_cache(action_shmem_info.total_size);
 
-   // print_shared_memory_info(action_shmem_info);
+   print_shared_memory_info(action_shmem_info);
+
+   // Compute block sizes
+   int block_x, block_y, block_z;
+   if (mesh.Dimension() == 3)
+   {
+      if (use_sum_factorization)
+      {
+         block_x = q1d;
+         block_y = q1d;
+         block_z = q1d;
+      }
+      else
+      {
+         block_x = 1;
+         block_y = 1;
+         block_z = 1;
+      }
+   }
+   else if (mesh.Dimension() == 2)
+   {
+      if (use_sum_factorization)
+      {
+         block_x = q1d;
+         block_y = q1d;
+         block_z = 1;
+      }
+      else
+      {
+         block_x = 1;
+         block_y = 1;
+         block_z = 1;
+      }
+   }
+   else
+   {
+      block_x = 1;
+      block_y = 1;
+      block_z = 1;
+   }
 
    action_callbacks.push_back(
       [=](std::vector<Vector> &solutions_l,
@@ -408,21 +461,20 @@ void DifferentiableOperator::AddDomainIntegrator(
          unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
                       wrapped_fields_e, num_qp, e);
 
-         map_fields_to_quadrature_data<TensorProduct>(
+         map_fields_to_quadrature_data(
             input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-            scratch_shmem);
+            scratch_shmem, use_sum_factorization);
 
-         call_qfunction<TensorProduct, qf_param_ts>(
+         call_qfunction<qf_param_ts>(
             qfunc, input_shmem, residual_shmem,
-            residual_size_on_qp, num_qp, q1d);
+            residual_size_on_qp, num_qp, q1d, use_sum_factorization);
 
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-         map_quadrature_data_to_fields<TensorProduct>(y, fhat,
-                                                      mfem::get<0>(outputs),
-                                                      output_dtq_shmem[hardcoded_output_idx],
-                                                      scratch_shmem);
-      }, num_entities, q1d, q1d, q1d, action_shmem_info.total_size, shmem_cache.ReadWrite());
+         map_quadrature_data_to_fields(
+            y, fhat, mfem::get<0>(outputs), output_dtq_shmem[hardcoded_output_idx],
+            scratch_shmem, use_sum_factorization);
+      }, num_entities, block_x, block_y, block_z, action_shmem_info.total_size, shmem_cache.ReadWrite());
 
       if constexpr (is_none_fop<decltype(output_fop)>::value)
       {
@@ -469,7 +521,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       auto shmem_info =
          get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
          (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
-          input_size_on_qp, residual_size_on_qp, derivative_idx);
+          input_size_on_qp, residual_size_on_qp, element_dof_ordering, derivative_idx);
 
       Vector shmem_cache(shmem_info.total_size);
 
@@ -497,26 +549,25 @@ void DifferentiableOperator::AddDomainIntegrator(
             unpack_shmem(shmem, shmem_info, input_dtq_maps,
                          output_dtq_maps, wrapped_fields_e, wrapped_direction_e, num_qp, e);
 
-            map_fields_to_quadrature_data<TensorProduct>(
+            map_fields_to_quadrature_data(
                input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-               scratch_shmem);
+               scratch_shmem, use_sum_factorization);
 
             zero_all(shadow_shmem);
-            map_direction_to_quadrature_data_conditional<TensorProduct>(
+            map_direction_to_quadrature_data_conditional(
                shadow_shmem, direction_shmem, input_dtq_shmem, inputs, ir_weights,
-               scratch_shmem, input_is_dependent);
+               scratch_shmem, input_is_dependent, use_sum_factorization);
 
-            call_qfunction_derivative_action<TensorProduct, qf_param_ts>(
+            call_qfunction_derivative_action<qf_param_ts>(
                qfunc, input_shmem, shadow_shmem, residual_shmem,
-               da_size_on_qp, num_qp, q1d);
+               da_size_on_qp, num_qp, q1d, use_sum_factorization);
 
             auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
             auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-            map_quadrature_data_to_fields<TensorProduct>(y, fhat,
-                                                         mfem::get<0>(outputs),
-                                                         output_dtq_shmem[hardcoded_output_idx],
-                                                         scratch_shmem);
-         }, num_entities, q1d, q1d, q1d, shmem_info.total_size, shmem_cache.ReadWrite());
+            map_quadrature_data_to_fields(
+               y, fhat, mfem::get<0>(outputs), output_dtq_shmem[hardcoded_output_idx],
+               scratch_shmem, use_sum_factorization);
+         }, num_entities, block_x, block_y, block_z, shmem_info.total_size, shmem_cache.ReadWrite());
 
          R->MultTranspose(derivative_action_e, derivative_action_l);
       });

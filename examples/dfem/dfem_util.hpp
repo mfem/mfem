@@ -14,6 +14,7 @@
 #include "dfem_fieldoperator.hpp"
 #include "dfem_parametricspace.hpp"
 #include "fem/fe/fe_base.hpp"
+#include "fem/fespace.hpp"
 #include "general/backends.hpp"
 #include "linalg/dtensor.hpp"
 #include "tuple.hpp"
@@ -1133,6 +1134,7 @@ get_shmem_info(
    const int &num_qp,
    const std::vector<int> &input_size_on_qp,
    const int &residual_size_on_qp,
+   const ElementDofOrdering &dof_ordering,
    const int &derivative_idx = -1)
 {
    std::array<int, 8> offsets = {0};
@@ -1180,7 +1182,7 @@ get_shmem_info(
    {
       field_sizes[i] = get_restriction<entity_t>(
                           fields[i],
-                          ElementDofOrdering::LEXICOGRAPHIC)->Height() / num_entities;
+                          dof_ordering)->Height() / num_entities;
    }
    total_size += std::accumulate(
                     std::begin(field_sizes), std::end(field_sizes), 0);
@@ -1191,7 +1193,7 @@ get_shmem_info(
    {
       direction_size = get_restriction<entity_t>(
                           fields[derivative_idx],
-                          ElementDofOrdering::LEXICOGRAPHIC)->Height() / num_entities;
+                          dof_ordering)->Height() / num_entities;
       total_size += direction_size;
    }
 
@@ -1258,21 +1260,33 @@ void print_shared_memory_info(shmem_info_t &shmem_info)
    out << "Shared Memory Info\n"
        << "total size: " << shmem_info.total_size
        << " " << "(" << shmem_info.total_size * double(sizeof(double))/1024.0 << "kb)";
-   out << "\ninput dtq sizes: ";
+   out << "\ninput dtq sizes (B G): ";
    for (auto &i : shmem_info.input_dtq_sizes)
    {
-      for (auto &j : i)
+      out << "(";
+      for (int j = 0; j < 2; j++)
       {
-         out << j << " ";
+         out << i[j];
+         if (j < 1)
+         {
+            out << " ";
+         }
       }
+      out << ") ";
    }
-   out << "\noutput dtq sizes: ";
+   out << "\noutput dtq sizes (B G): ";
    for (auto &i : shmem_info.output_dtq_sizes)
    {
-      for (auto &j : i)
+      out << "(";
+      for (int j = 0; j < 2; j++)
       {
-         out << j << " ";
+         out << i[j];
+         if (j < 1)
+         {
+            out << " ";
+         }
       }
+      out << ") ";
    }
    out << "\nfield sizes: ";
    for (auto &i : shmem_info.field_sizes)
@@ -1316,7 +1330,6 @@ std::array<DofToQuadMap, N> load_dtq_mem(
    for (int i = 0; i < N; i++)
    {
       const auto [nqp_b, dim_b, ndof_b] = dtq[i].B.GetShape();
-
       const auto B = Reshape(&dtq[i].B[0], nqp_b, dim_b, ndof_b);
       auto mem_Bi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_b, dim_b,
                             ndof_b);
@@ -1326,7 +1339,10 @@ std::array<DofToQuadMap, N> load_dtq_mem(
          {
             MFEM_FOREACH_THREAD(d, y, ndof_b)
             {
-               mem_Bi(q, 0, d) = B(q, 0, d);
+               for (int b = 0; b < dim_b; b++)
+               {
+                  mem_Bi(q, b, d) = B(q, b, d);
+               }
             }
          }
       }
@@ -1342,7 +1358,10 @@ std::array<DofToQuadMap, N> load_dtq_mem(
          {
             MFEM_FOREACH_THREAD(d, y, ndof_g)
             {
-               mem_Gi(q, 0, d) = G(q, 0, d);
+               for (int b = 0; b < dim_g; b++)
+               {
+                  mem_Gi(q, b, d) = G(q, b, d);
+               }
             }
          }
       }
@@ -1804,10 +1823,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
              (!is_none_fop<decltype(fop)>::value))
          {
-            value_dim = dtq->FE->GetRangeDim() ?
-                        dtq->FE->GetRangeDim() :
-                        fop.vdim;
-
+            value_dim = dtq->FE->GetRangeDim() ? dtq->FE->GetRangeDim() : 1;
             grad_dim = dtq->FE->GetDim();
          }
 
@@ -1877,7 +1893,6 @@ std::array<DofToQuadMap, N> create_dtq_maps(
 }
 
 template <
-   typename T = NonTensorProduct,
    typename qf_param_ts,
    typename qfunc_t,
    size_t num_fields>
@@ -1887,12 +1902,10 @@ void call_qfunction(
    DeviceTensor<2> &residual_shmem,
    const int &rs_qp,
    const int &num_qp,
-   const int &q1d)
+   const int &q1d,
+   const bool &use_sum_factorization)
 {
-   if constexpr (std::is_same_v<T, NonTensorProduct>)
-   {
-   }
-   else if constexpr (std::is_same_v<T, TensorProduct>)
+   if (use_sum_factorization)
    {
       MFEM_FOREACH_THREAD(qx, x, q1d)
       {
@@ -1911,12 +1924,16 @@ void call_qfunction(
    }
    else
    {
-      static_assert(always_false<T>, "type is not implemented");
+      MFEM_FOREACH_THREAD(q, x, num_qp)
+      {
+         auto qf_args = decay_tuple<qf_param_ts> {};
+         auto r = Reshape(&residual_shmem(0, q), rs_qp);
+         apply_kernel(r, qfunc, qf_args, input_shmem, q);
+      }
    }
 }
 
 template <
-   typename T = NonTensorProduct,
    typename qf_param_ts,
    typename qfunc_t,
    size_t num_fields>
@@ -1927,12 +1944,10 @@ void call_qfunction_derivative_action(
    DeviceTensor<2> &residual_shmem,
    const int &das_qp,
    const int &num_qp,
-   const int &q1d)
+   const int &q1d,
+   const bool &use_sum_factorization)
 {
-   if constexpr (std::is_same_v<T, NonTensorProduct>)
-   {
-   }
-   else if constexpr (std::is_same_v<T, TensorProduct>)
+   if (use_sum_factorization)
    {
       MFEM_FOREACH_THREAD(qx, x, q1d)
       {
@@ -1969,7 +1984,31 @@ void call_qfunction_derivative_action(
    }
    else
    {
-      static_assert(always_false<T>, "type is not implemented");
+      MFEM_FOREACH_THREAD(q, x, num_qp)
+      {
+         auto r = Reshape(&residual_shmem(0, q), das_qp);
+         auto kernel_args = decay_tuple<qf_param_ts> {};
+#ifdef MFEM_USE_ENZYME
+         auto kernel_shadow_args = decay_tuple<qf_param_ts> {};
+         apply_kernel_fwddiff_enzyme(
+            r,
+            qfunc,
+            kernel_args,
+            kernel_shadow_args,
+            input_shmem,
+            shadow_shmem,
+            q);
+#else
+         apply_kernel_native_dual(
+            r,
+            qfunc,
+            kernel_args,
+            input_shmem,
+            shadow_shmem,
+            q);
+#endif
+      }
+      MFEM_SYNC_THREAD;
    }
 }
 

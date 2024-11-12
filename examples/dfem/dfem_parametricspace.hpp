@@ -9,6 +9,10 @@ class ParametricSpace
 {
 
 public:
+   /// spatial_dim is the dimension of the spatial domain (e.g. 2 for 2D)
+   /// local_size is the size of the data on a single quadrature point
+   /// element_size is the size of the data on an element divided by vdim
+   /// total_size is the size of the data for all elements
    ParametricSpace(int spatial_dim, int local_size, int element_size,
                    int total_size) :
       spatial_dim(spatial_dim),
@@ -18,6 +22,7 @@ public:
       identity(total_size)
    {
       dtq.ndof = (int)floor(pow(element_size, 1.0/spatial_dim) + 0.5);
+      // dtq.ndof = element_size;
       dtq.nqpt = dtq.ndof;
    }
 

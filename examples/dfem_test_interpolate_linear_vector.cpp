@@ -1,4 +1,3 @@
-#include "dfem/dfem.hpp"
 #include "dfem/dfem_test_macro.hpp"
 
 using namespace mfem;
@@ -28,26 +27,31 @@ int test_interpolate_linear_vector(std::string mesh_file, int refinements,
    const IntegrationRule &ir =
       IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder() + 1);
 
-   QuadratureSpace qspace(mesh, ir);
-   QuadratureFunction qf(&qspace, vdim);
-
    ParGridFunction f1_g(&h1fes);
 
-   auto kernel = [](const tensor<double, 2> &u)
+   // ParametricSpace qdata_space(dim, 1, ir.GetNPoints(),
+   //                             ir.GetNPoints() * mesh.GetNE());
+   ParametricSpace qdata_space(1, vdim, ir.GetNPoints(),
+                               vdim * ir.GetNPoints() * mesh.GetNE());
+
+   ParametricFunction qdata(qdata_space);
+
+   auto kernel = [] MFEM_HOST_DEVICE (const tensor<real_t, vdim> &u)
    {
       return mfem::tuple{u};
    };
 
-   mfem::tuple argument_operators = {Value{"potential"}};
-   mfem::tuple output_operator = {None{"potential"}};
+   constexpr int Potential = 0;
+   constexpr int Qdata = 1;
 
-   ElementOperator eop{kernel, argument_operators, output_operator};
-   auto ops = mfem::tuple{eop};
+   auto input_operators = mfem::tuple{Value<Potential>{}};
+   auto output_operator = mfem::tuple{None<Qdata>{}};
 
-   auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
-   auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
+   auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
+   auto parameters = std::vector{FieldDescriptor{Qdata, &qdata_space}};
 
-   DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+   DifferentiableOperator dop(solutions, parameters, mesh);
+   dop.AddDomainIntegrator(kernel, input_operators, output_operator, ir);
 
    auto f1 = [](const Vector &coords, Vector &u)
    {
@@ -60,11 +64,11 @@ int test_interpolate_linear_vector(std::string mesh_file, int refinements,
    VectorFunctionCoefficient f1_c(vdim, f1);
    f1_g.ProjectCoefficient(f1_c);
 
-   Vector x(f1_g), y(f1_g.Size());
-   dop.SetParameters({mesh_nodes});
-   dop.Mult(x, y);
+   Vector x(*f1_g.GetTrueDofs());
+   dop.SetParameters({&qdata});
+   dop.Mult(x, qdata);
 
-   Vector f_test(qf.Size());
+   Vector f_test(qdata.Size());
    for (int e = 0; e < mesh.GetNE(); e++)
    {
       ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -85,12 +89,12 @@ int test_interpolate_linear_vector(std::string mesh_file, int refinements,
    }
 
    Vector diff(f_test);
-   diff -= y;
-   if (diff.Norml2() > 1e-10)
+   diff -= qdata;
+   if (diff.Norml2() > 1e-12)
    {
       print_vector(diff);
       print_vector(f_test);
-      print_vector(y);
+      print_vector(qdata);
       return 1;
    }
 

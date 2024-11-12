@@ -1,8 +1,8 @@
-#include "dfem/dfem.hpp"
 #include "dfem/dfem_test_macro.hpp"
+#include "examples/dfem/dfem_parametricspace.hpp"
+#include "examples/dfem/dfem_util.hpp"
 
 using namespace mfem;
-using mfem::internal::tensor;
 
 int test_interpolate_linear_scalar(std::string mesh_file,
                                    int refinements,
@@ -30,22 +30,29 @@ int test_interpolate_linear_scalar(std::string mesh_file,
 
    ParGridFunction f1_g(&h1fes);
 
-   auto kernel = [](const double &u, const tensor<double, 2, 2> &J,
-                    const double &w)
+   // ParametricSpace qdata_space(dim, 1, ir.GetNPoints(),
+   //                             ir.GetNPoints() * mesh.GetNE());
+   ParametricSpace qdata_space(1, 1, ir.GetNPoints(),
+                               ir.GetNPoints() * mesh.GetNE());
+
+   ParametricFunction qdata(qdata_space);
+
+   auto kernel = [] MFEM_HOST_DEVICE (const double &u)
    {
       return mfem::tuple{u};
    };
 
-   mfem::tuple argument_operators = {Value{"potential"}, Gradient{"coordinates"}, Weight{}};
-   mfem::tuple output_operator = {None{"potential"}};
+   constexpr int Potential = 0;
+   constexpr int Qdata = 1;
 
-   ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = mfem::tuple{eop};
+   auto input_operators = mfem::tuple{Value<Potential>{}};
+   auto output_operator = mfem::tuple{None<Qdata>{}};
 
-   auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
-   auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
+   auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
+   auto parameters = std::vector{FieldDescriptor{Qdata, &qdata_space}};
 
-   DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+   DifferentiableOperator dop(solutions, parameters, mesh);
+   dop.AddDomainIntegrator(kernel, input_operators, output_operator, ir);
 
    auto f1 = [](const Vector &coords)
    {
@@ -57,12 +64,11 @@ int test_interpolate_linear_scalar(std::string mesh_file,
    FunctionCoefficient f1_c(f1);
    f1_g.ProjectCoefficient(f1_c);
 
-   Vector x(*f1_g.GetTrueDofs()), y(h1fes.TrueVSize());
-   dop.SetParameters({mesh_nodes});
-   dop.Mult(x, y);
+   Vector x(*f1_g.GetTrueDofs());
+   dop.SetParameters({&qdata});
+   dop.Mult(x, qdata);
 
-   Vector f_test(h1fes.GetElementRestriction(
-                    ElementDofOrdering::LEXICOGRAPHIC)->Height());
+   Vector f_test(ir.GetNPoints() * mesh.GetNE());
    for (int e = 0; e < mesh.GetNE(); e++)
    {
       ElementTransformation *T = mesh.GetElementTransformation(e);
@@ -70,18 +76,17 @@ int test_interpolate_linear_scalar(std::string mesh_file,
       {
          const IntegrationPoint &ip = ir.IntPoint(qp);
          T->SetIntPoint(&ip);
-
          f_test((e * ir.GetNPoints()) + qp) = f1_c.Eval(*T, ip);
       }
    }
 
    Vector diff(f_test);
-   diff -= y;
-   if (diff.Norml2() > 1e-10)
+   diff -= qdata;
+   if (diff.Norml2() > 1e-12)
    {
       print_vector(diff);
       print_vector(f_test);
-      print_vector(y);
+      print_vector(qdata);
       return 1;
    }
 
