@@ -833,18 +833,21 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
 
 TEST_CASE("Dispatch Map Specializations")
 {
+   // The kernel specializations are registered the first time the associated
+   // object is created (in the constructor of a static local variable in the
+   // object's constructor). We create a dummy objects here to ensure that the
+   // kernels are registered before testing.
+
+   MassIntegrator{};
    REQUIRE_FALSE(MassIntegrator::ApplyPAKernels::GetDispatchTable().empty());
    REQUIRE_FALSE(MassIntegrator::DiagonalPAKernels::GetDispatchTable().empty());
 
+   DiffusionIntegrator{};
    REQUIRE_FALSE(
       DiffusionIntegrator::ApplyPAKernels::GetDispatchTable().empty());
    REQUIRE_FALSE(
       DiffusionIntegrator::DiagonalPAKernels::GetDispatchTable().empty());
 
-   // The kernel specializations for QuadratureInterpolator are registered the
-   // first time a QuadratureInterpolator is created. We create a
-   // QuadratureInterpolator object here to ensure that they are registered
-   // before testing.
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
    H1_FECollection fec(1, mesh.Dimension());
    FiniteElementSpace fes(&mesh, &fec);

@@ -2156,7 +2156,7 @@ public:
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
-   MFEM_EXPORT static struct Kernels { Kernels(); void EnsureInitialized(); } kernels;
+   struct Kernels { Kernels(); };
 
 protected:
    Coefficient *Q;
@@ -2234,30 +2234,21 @@ private:
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator(const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL)
-   { kernels.EnsureInitialized(); }
+   DiffusionIntegrator(const IntegrationRule *ir = nullptr);
 
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL)
-   { kernels.EnsureInitialized(); }
+      : DiffusionIntegrator(ir) { Q = &q; }
 
    /// Construct a diffusion integrator with a vector coefficient q
    DiffusionIntegrator(VectorCoefficient &q,
                        const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(&q), MQ(NULL), maps(NULL), geom(NULL)
-   { kernels.EnsureInitialized(); }
+      : DiffusionIntegrator(ir) { VQ = &q; }
 
    /// Construct a diffusion integrator with a matrix coefficient q
    DiffusionIntegrator(MatrixCoefficient &q,
                        const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(NULL), MQ(&q), maps(NULL), geom(NULL)
-   { kernels.EnsureInitialized(); }
+      : DiffusionIntegrator(ir) { MQ = &q; }
 
    /** Given a particular Finite Element computes the element stiffness matrix
        elmat. */
@@ -2360,17 +2351,14 @@ public:
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
-   MFEM_EXPORT static struct Kernels { Kernels(); void EnsureInitialized(); } kernels;
+   struct Kernels { Kernels(); };
 
 public:
-   MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL)
-   { kernels.EnsureInitialized(); }
+   MassIntegrator(const IntegrationRule *ir = NULL);
 
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL)
-   { kernels.EnsureInitialized(); }
+      : MassIntegrator(ir) { Q = &q; }
 
    /** Given a particular Finite Element computes the element mass matrix
        elmat. */
