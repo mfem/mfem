@@ -738,7 +738,7 @@ TEST_CASE("Product Linear Interpolators",
           "[VectorInnerProductInterpolator]")
 {
    const int order_h1 = 1, order_nd = 2, order_rt = 1, n = 3;
-   const real_t ratio = 3.0;
+   const real_t ratio = 4.0;
 
    for (int type = (int)Element::SEGMENT;
         type <= (int)Element::PYRAMID; type++)
