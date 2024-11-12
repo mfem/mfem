@@ -304,6 +304,7 @@ int main(int argc, char *argv[])
 
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   std::unique_ptr<GridFunction> vis_x = x.ProlongateToMaxOrder();
    {
       ostringstream mesh_name, sol_name, order_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
@@ -317,7 +318,6 @@ int main(int argc, char *argv[])
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
 
-      std::unique_ptr<GridFunction> vis_x = x.ProlongateToMaxOrder();
       vis_x->Save(sol_ofs);
 
       ofstream order_ofs(order_name.str().c_str());
@@ -333,7 +333,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << x << flush;
+      sol_sock << "solution\n" << pmesh << *vis_x << flush;
    }
 
    // 17. Free the used memory.

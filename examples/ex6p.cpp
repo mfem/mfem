@@ -342,7 +342,15 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          sout << "parallel " << num_procs << " " << myid << "\n";
-         sout << "solution\n" << *pmesh << x << flush;
+         if (usePRefinement)
+         {
+            std::unique_ptr<GridFunction> vis_x = x.ProlongateToMaxOrder();
+            sout << "solution\n" << *pmesh << *vis_x << flush;
+         }
+         else
+         {
+            sout << "solution\n" << *pmesh << x << flush;
+         }
       }
 
       if (global_dofs >= max_dofs)

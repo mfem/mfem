@@ -275,12 +275,13 @@ int main(int argc, char *argv[])
 
    // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
+   std::unique_ptr<GridFunction> vis_x = x.ProlongateToMaxOrder();
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   vis_x->Save(sol_ofs);
    ofstream order_ofs("order.gf");
    order_ofs.precision(8);
    xo.Save(order_ofs);
@@ -292,7 +293,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << x << flush;
+      sol_sock << "solution\n" << mesh << *vis_x << flush;
    }
 
    // 15. Free the used memory.
