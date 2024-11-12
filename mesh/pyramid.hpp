@@ -75,7 +75,7 @@ public:
    virtual ~Pyramid() = default;
 };
 
-extern class LinearPyramidFiniteElement PyramidFE;
+extern MFEM_EXPORT class LinearPyramidFiniteElement PyramidFE;
 
 }
 
