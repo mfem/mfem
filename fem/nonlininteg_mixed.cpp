@@ -166,26 +166,37 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    const Array<const FiniteElement *> &el, ElementTransformation &Tr,
    const Array<const Vector *> &elfun, const Array2D<DenseMatrix *> &elmats)
 {
-   const int ndof_u = el[0]->GetDof();
-   const int ndof_p = el[1]->GetDof();
-   const int sdim = Tr.GetSpaceDim();
-
    const FiniteElement &fe_u = *el[0];
    const FiniteElement &fe_p = *el[1];
+   const int ndof_u = fe_u.GetDof();
+   const int ndof_p = fe_p.GetDof();
+   const int sdim = Tr.GetSpaceDim();
+   const int nvdof_u = ((fe_u.GetRangeType() == FiniteElement::SCALAR)?(sdim):
+                        (1)) * ndof_u;
+
    const Vector &elfun_u = *elfun[0];
    const Vector &elfun_p = *elfun[1];
 
    shape_p.SetSize(ndof_p);
 
-   //not used
    if (elmats(1,1))
    {
-      elmats(1,1)->SetSize(ndof_p);
+      //elmats(1,1)->SetSize(ndof_p); // not used
       *elmats(1,1) = 0.0;
+   }
+   if (elmats(0,0))
+   {
+      elmats(0,0)->SetSize(nvdof_u);
+      *elmats(0,0) = 0.0;
+   }
+   if (elmats(0,1))
+   {
+      elmats(0,1)->SetSize(nvdof_u, ndof_p);
+      *elmats(0,1) = 0.0;
    }
    if (elmats(1,0))
    {
-      elmats(1,0)->SetSize(ndof_p, ndof_u);
+      //elmats(1,0)->SetSize(ndof_p, nvdof_u); // not used
       *elmats(1,0) = 0.0;
    }
 
@@ -203,16 +214,6 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    if (fe_u.GetRangeType() == FiniteElement::SCALAR)
    {
       shape_u.SetSize(ndof_u);
-      if (elmats(0,0))
-      {
-         elmats(0,0)->SetSize(ndof_u * sdim);
-         *elmats(0,0) = 0.0;
-      }
-      if (elmats(0,1))
-      {
-         elmats(0,1)->SetSize(ndof_u * sdim, ndof_p);
-         *elmats(0,1) = 0.0;
-      }
 
       DenseMatrix elfun_u_mat(elfun_u.GetData(), ndof_u, sdim);
 
@@ -259,16 +260,6 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    else
    {
       vshape_u.SetSize(ndof_u, sdim);
-      if (elmats(0,0))
-      {
-         elmats(0,0)->SetSize(ndof_u);
-         *elmats(0,0) = 0.0;
-      }
-      if (elmats(0,1))
-      {
-         elmats(0,1)->SetSize(ndof_u, ndof_p);
-         *elmats(0,1) = 0.0;
-      }
 
       DenseMatrix vshapeJ_u(sdim, ndof_u);
       Vector vshapeJu(ndof_u);

@@ -2364,6 +2364,8 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    const Vector &u_l = x_l.GetBlock(0);
    const Vector &p_l = x_l.GetBlock(1);
 
+   grad_A.SetSize(a_dofs_size);
+   grad_D.SetSize(d_dofs_size);
 
    if (dh.m_nlfi)
    {
@@ -2378,9 +2380,7 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    }
    else
    {
-      grad_A.SetSize(a_dofs_size);
       grad_A = 0.;
-      grad_D.SetSize(d_dofs_size);
       grad_D = 0.;
    }
 
