@@ -218,7 +218,7 @@ void TestFDCalcDShape(FiniteElement* fe, ElementTransformation * T, int order)
 
    Vector pshape(dof);
    Vector mshape(dof);
-   Vector fd(dof);
+   Vector fd;
    DenseMatrix dshape( dof, dim );
    DenseMatrix fdshape( dof, dim );
 
