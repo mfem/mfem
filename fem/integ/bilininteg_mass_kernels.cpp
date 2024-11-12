@@ -39,6 +39,8 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<3,8,9>();
 }
 
+void MassIntegrator::Kernels::EnsureInitialized() { }
+
 namespace internal
 {
 
