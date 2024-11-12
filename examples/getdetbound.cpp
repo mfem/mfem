@@ -37,8 +37,9 @@ static IntegrationRule PermuteIR(const IntegrationRule *irule,
    return ir;
 }
 
-class GSLIBBound {
-   private:
+class GSLIBBound
+{
+private:
    int nr = 0;
    int mr = 0;
    int mrfac = 0;
@@ -192,7 +193,7 @@ double GSLIBBound::GetDetJBounds(Mesh *mesh,
       ElementTransformation *transf = mesh->GetElementTransformation(e);
       DenseMatrix Jac(fe->GetDim());
       const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
-                                    (fe);
+                                      (fe);
       const Array<int> &irordering = nfe->GetLexicographicOrdering();
       IntegrationRule ir2 = irordering.Size() ?
                             PermuteIR(&ir, irordering) :
@@ -238,7 +239,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
    args.AddOption(&nfac, "-nfac", "--seed", "Finite element polynomial degree");
-   args.AddOption(&nbrute, "-nh", "--seed", "Finite element polynomial degree");args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&nbrute, "-nh", "--seed", "Finite element polynomial degree");
+   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.ParseCheck();
 
    Mesh mesh(mesh_file);
@@ -274,7 +276,8 @@ int main(int argc, char *argv[])
 
    GSLIBBound detb(det_order+1, nfac);
    Vector qpmin, qpmax, elminmax, elmaxmin, elmin, elmax;
-   double minmaxdetj = detb.GetDetJBounds(&mesh, qpmin, qpmax, elminmax, elmaxmin, elmin, elmax);
+   double minmaxdetj = detb.GetDetJBounds(&mesh, qpmin, qpmax, elminmax, elmaxmin,
+                                          elmin, elmax);
 
    double brute_min_det = std::numeric_limits<double>::infinity();
    double brute_max_det = -std::numeric_limits<double>::infinity();
@@ -365,8 +368,10 @@ int main(int argc, char *argv[])
    mesh.Save("detJmesh.mesh");
    detgfpos.Save("detJpos.gf");
 
-   std::cout << "Minimum determinant detected by gslib vs brute force: " << qpmin.Min() << " " << brute_min_det << std::endl;
-   std::cout << "Maximum determinant detected by gslib vs brute force: " << qpmax.Max() << " " << brute_max_det << std::endl;
+   std::cout << "Minimum determinant detected by gslib vs brute force: " <<
+             qpmin.Min() << " " << brute_min_det << std::endl;
+   std::cout << "Maximum determinant detected by gslib vs brute force: " <<
+             qpmax.Max() << " " << brute_max_det << std::endl;
    std::cout << "The minimum determinant is at-least " << minmaxdetj << std::endl;
 
    return 0;

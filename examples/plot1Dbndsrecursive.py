@@ -33,7 +33,7 @@ def main():
 
     # Add arguments
     parser.add_argument('--N', type=int, help='Number of rows (N)', default=5)
-    parser.add_argument('--M', type=int, help='Number of columns (M)',default=10)
+    parser.add_argument('--M', type=int, help='Number of columns (M)',default=6)
     parser.add_argument('--O', type=int, help='output suffix', default=0)
 
     args = parser.parse_args()
@@ -64,10 +64,11 @@ def main():
     maxG = npdata[2,:]
     depth = npdata[3,:]
     depth_pos_indices = np.reshape((np.argwhere(depth > 0)), -1)
+    # print(pts)
 
     npts=1000
     rmin = pts[0]
-    rmax = pts[-1]
+    rmax = np.max(pts)
     upoly = np.zeros((npts))
     sample_locs = np.zeros(npts)
     mylagpoly = np.zeros((npts,N))
@@ -101,6 +102,8 @@ def main():
         nplots = int(len(pos_indices)/2)
         plt.figure(plotindex)
         plt.plot(sample_locs, upoly, 'k-', label='Solution')
+
+        plt.plot(sample_locs, upoly*0, 'k--', linewidth=1)
         deb_indices = np.reshape((np.argwhere(np.abs(depth) == d)), -1)
         print(d, np.min(maxG[deb_indices]))
         for i in range(nplots):
@@ -111,8 +114,8 @@ def main():
         nplots = int(len(neg_indices)/2)
         for i in range(nplots):
             ids = neg_indices[2*i:2*i+2]
-            plt.plot(pts[ids], minG[ids], color=colors[0],linestyle='-.',marker='o', markersize=ms,linewidth=1)
-            plt.plot(pts[ids], maxG[ids], color=colors[1],linestyle='-.',marker='o', markersize=ms,linewidth=1)
+            plt.plot(pts[ids], minG[ids], color=colors[0],linestyle='dotted',marker='o', markersize=ms,linewidth=1)
+            plt.plot(pts[ids], maxG[ids], color=colors[1],linestyle='dotted',marker='o', markersize=ms,linewidth=1)
         plt.savefig('rec_bnd_d='+str(d)+'_N='+str(N)+'_M='+str(M)+ "_out=" + str(O)+'.pdf',format='pdf',bbox_inches='tight')
         plotindex += 1
         plt.ylim([-0.3, 1.3])

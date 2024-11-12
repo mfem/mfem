@@ -28,8 +28,10 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
-   args.AddOption(&noise_min, "-nmin", "--nmin", "Finite element polynomial degree");
-   args.AddOption(&noise_max, "-nmax", "--nmax", "Finite element polynomial degree");
+   args.AddOption(&noise_min, "-nmin", "--nmin",
+                  "Finite element polynomial degree");
+   args.AddOption(&noise_max, "-nmax", "--nmax",
+                  "Finite element polynomial degree");
    args.AddOption(&seed, "-seed", "--seed", "Finite element polynomial degree");
    args.AddOption(&ntries, "-nt", "--seed", "Finite element polynomial degree");
    args.ParseCheck();
@@ -68,7 +70,7 @@ int main(int argc, char *argv[])
       const FiniteElement *fe = x->FESpace()->GetFE(0);
       const IntegrationRule ir = fe->GetNodes();
       ElementTransformation *transf = mesh.GetElementTransformation(0);
-         DenseMatrix Jac(fe->GetDim());
+      DenseMatrix Jac(fe->GetDim());
       bool nodaldetJ = true;
       if (n == 0)
       {

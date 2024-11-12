@@ -30,82 +30,9 @@
 // Jacobian matrix, which is done through an inner linear solver.
 //
 // Compile with: make pmesh-optimizer
-//
-// Sample runs:
-//   Adapted analytic shape:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
-//   Adapted analytic size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
-//   Adapted analytic shape+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
-//
-//   Adapted analytic shape and/or size with hr-adaptivity:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 9  -ni 50 -li 20 -hmid 55 -mid 7 -hr
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 10 -ni 50 -li 20 -hmid 55 -mid 7 -hr
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 11 -ni 50 -li 20 -hmid 58 -mid 7 -hr
-//
-//   Adapted discrete size:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
-//     (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
-//   Adapted discrete size NC mesh;
-//     mpirun -np 4 pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
-//   Adapted discrete size 3D with PA:
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
-//   Adapted discrete size 3D with PA on device (requires CUDA):
-//   * mpirun -n 4 pmesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
-//   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
-//   Adapted discrete size+aspect_ratio:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
-//   Adapted discrete size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
-//   Adapted discrete aspect ratio (3D):
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
-//
-//   Adaptive limiting:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
-//   Adaptive limiting through the L-BFGS solver:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
-//   Adaptive limiting through FD (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
-//
-//   Blade shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
-//     (requires CUDA):
-//   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
-//   Blade shape with FD-based solver:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
-//   Blade limited shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
-//   ICF shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 80 -bec -tid 2 -ni 25 -ls 3 -art 2 -qo 5
-//   ICF shape and initial size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
-//   ICF shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8
-//   ICF limited shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8 -lc 10
-//   ICF combo shape + size (rings, slow convergence):
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 1000 -bnd -qt 1 -qo 8 -cmb 1
-//   Mixed tet / cube / hex mesh with limiting:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -nor -lc 0.25
-//   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
-//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -mid 303 -tid 1 -ni 20 -li 500 -fix-bnd
-//   2D non-conforming shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -bnd -qt 1 -qo 8
-//
-//   2D untangling:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
-//   2D untangling with shifted barrier metric:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 50 -qo 4 -fd -vl 1 -btype 1
-//   3D untangling (the mesh is in the mfem/data GitHub repository):
-//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
-//   Shape optimization for a Kershaw transformed mesh using partial assembly:
-//   Mesh for Kershaw transformation must be a Cartesian mesh with nx % 6 = ny % 2 = nz % 2 = 0.
-//   Kershaw transformation can be imposed using the transformation ('t') feature in the mesh-explorer miniapp.
-//   * mpirun - np 6 pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -qo 8 -ker -pa
+// make pmesh-optimizer -j && mpirun -np 4 pmesh-optimizer -m aletangled.mesh -mid 4 -tid 1 -vl 2 -btype 1 -o 2 -fd -detb
+
+// make pmesh-optimizer -j && mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 100 -ls 2 -art 0 -bnd -qt 1 -qo 8 -vl 2 -detb
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -115,6 +42,45 @@
 
 using namespace mfem;
 using namespace std;
+
+double GetMeshMinDet(Mesh *mesh, int order, int type = 0)
+{
+   GridFunction *nodes = mesh->GetNodes();
+   FiniteElementSpace *fespace = nodes->FESpace();
+   double mindet = std::numeric_limits<double>::infinity();
+   IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+   IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
+   IntegrationRules IntRulesGL(0, Quadrature1D::GaussLegendre);
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe = fespace->GetFE(e);
+      ElementTransformation *transf = mesh->GetElementTransformation(e);
+      const int geom = fe->GetGeomType();
+      const int dim = fe->GetDim();
+      Vector loc(dim);
+      DenseMatrix Jac(fe->GetDim());
+      const IntegrationRule ir = type == 0 ? fe->GetNodes() :
+                                 type == 1 ? IntRulesGLL.Get(geom, order) :
+                                 type == 2 ? IntRulesCU.Get(geom, order) :
+                                 IntRulesGL.Get(geom, order);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         IntegrationPoint ip = ir.IntPoint(q);
+
+         transf->SetIntPoint(&ip);
+         transf->Transform(ip, loc);
+         Jac = transf->Jacobian();
+         mindet = std::min(mindet, Jac.Det());
+      }
+   }
+
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh = dynamic_cast<ParMesh *>(mesh);
+   MPI_Allreduce(MPI_IN_PLACE, &mindet, 1,  MPI_DOUBLE, MPI_MIN,
+                 pmesh->GetComm());
+#endif
+   return mindet;
+}
 
 int main (int argc, char *argv[])
 {
@@ -164,6 +130,7 @@ int main (int argc, char *argv[])
    int mesh_node_ordering = 0;
    int barrier_type       = 0;
    int worst_case_type    = 0;
+   bool det_bound          = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -320,6 +287,9 @@ int main (int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+   args.AddOption(&det_bound, "-detb", "--det-bound", "-no-detb",
+                  "--no-det-bound",
+                  "Enable bounds on mindet.");
 
    args.Parse();
    if (!args.Good())
@@ -1000,6 +970,39 @@ int main (int argc, char *argv[])
       min_detJ -= 0.01 * h0min_all;
    }
 
+   int order = pfespace->GetMaxElementOrder();
+   int n1D = 2*order+1;
+   int mr = n1D+1;
+   std::string filename = "../../scripts/bnddata_" + std::to_string(
+                             n1D) + "_" + std::to_string(mr) + ".txt";
+   auto fileExists = [](const std::string& filepath) -> bool
+   {
+      std::ifstream file(filepath);
+      return file.good();
+   };
+
+   PLBound plb;
+   if (fileExists(filename))
+   {
+      plb.Setup(filename);
+   }
+   else
+   {
+      plb.Setup(n1D, mr);
+   }
+
+   real_t minmindet, minmaxdet;
+   int converged, depthmax, tot_recursions;
+   plb.GetMeshValidity(pmesh, minmindet, minmaxdet, converged, depthmax,
+                       tot_recursions);
+   if (myid == 0)
+   {
+      std::cout << "The minimum determinant bound is between: " << minmaxdet << " " <<
+                minmindet << std::endl;
+   }
+
+   if (det_bound) { tmop_integ->SetBoundedDet(&plb); }
+
    // For HR tests, the energy is normalized by the number of elements.
    const real_t init_energy = a.GetParGridFunctionEnergy(x) /
                               (hradaptivity ? pmesh->GetGlobalNE() : 1);
@@ -1039,12 +1042,8 @@ int main (int argc, char *argv[])
       {
          const int nd = pfespace->GetBE(i)->GetDof();
          const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-         MFEM_VERIFY(!(dim == 2 && attr == 3),
-                     "Boundary attribute 3 must be used only for 3D meshes. "
-                     "Adjust the attributes (1/2/3/4 for fixed x/y/z/all "
-                     "components, rest for free nodes), or use -fix-bnd.");
-         if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
-         if (attr == 4) { n += nd * dim; }
+         if (attr == 1 || attr == 2 || (attr == 3 && dim ==3)) { n += nd; }
+         if (attr == 4 || (dim == 2 && attr == 3)) { n += nd * dim; }
       }
       Array<int> ess_vdofs(n);
       n = 0;
@@ -1063,12 +1062,12 @@ int main (int argc, char *argv[])
             for (int j = 0; j < nd; j++)
             { ess_vdofs[n++] = vdofs[j+nd]; }
          }
-         else if (attr == 3) // Fix z components.
+         else if (attr == 3 && dim == 3) // Fix z components.
          {
             for (int j = 0; j < nd; j++)
             { ess_vdofs[n++] = vdofs[j+2*nd]; }
          }
-         else if (attr == 4) // Fix all components.
+         else if (attr == 4 || (attr == 3 && dim == 2)) // Fix all components.
          {
             for (int j = 0; j < vdofs.Size(); j++)
             { ess_vdofs[n++] = vdofs[j]; }
@@ -1139,6 +1138,7 @@ int main (int argc, char *argv[])
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+   if (det_bound) { solver.SetBoundedDet(&plb); }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
    // Specify linear solver when we use a Newton-based solver.
@@ -1244,6 +1244,54 @@ int main (int argc, char *argv[])
               << "window_geometry "
               << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
               << "keys jRmclA" << endl;
+      }
+   }
+
+   plb.GetMeshValidity(pmesh, minmindet, minmaxdet, converged, depthmax,
+                       tot_recursions);
+   bool invalid = false;
+   if (minmindet < 0) { invalid = true; }
+   if (myid == 0)
+   {
+      if (converged == 0)
+      {
+         std::cout << "Mesh bounding hit max depth\n";
+      }
+      else if (minmindet < 0)
+      {
+         std::cout << "Mesh is invalid " << std::endl;
+      }
+   }
+   if (myid == 0)
+   {
+      std::cout << "The minimum determinant bound is between: " <<
+                minmaxdet << " " << minmindet << std::endl;
+   }
+   if (invalid)
+   {
+      double min_node_det = GetMeshMinDet(pmesh, mesh_poly_deg, 0);
+      double min_gll_det_1 = GetMeshMinDet(pmesh, mesh_poly_deg, 1);
+      double min_gll_det_2 = GetMeshMinDet(pmesh, 2*mesh_poly_deg, 1);
+      double min_gll_det_4 = GetMeshMinDet(pmesh, 4*mesh_poly_deg, 1);
+      double min_cu_det_1 = GetMeshMinDet(pmesh, 1*mesh_poly_deg, 2);
+      double min_cu_det_2 = GetMeshMinDet(pmesh, 2*mesh_poly_deg, 2);
+      double min_cu_det_4 = GetMeshMinDet(pmesh, 4*mesh_poly_deg, 2);
+      double min_gl_det_1 = GetMeshMinDet(pmesh, 1*mesh_poly_deg, 3);
+      double min_gl_det_2 = GetMeshMinDet(pmesh, 2*mesh_poly_deg, 3);
+      double min_gl_det_4 = GetMeshMinDet(pmesh, 4*mesh_poly_deg, 3);
+      if (myid == 0)
+      {
+         std::cout << "The minimum determinant at mesh nodes is: " << min_node_det <<
+                   std::endl;
+         std::cout << "The minimum determinant at GLL points is: " << min_gll_det_1 <<
+                   " " <<
+                   min_gll_det_2 << " " << min_gll_det_4 << " " << std::endl;
+         std::cout << "The minimum determinant at CU points is: " << min_cu_det_1 << " "
+                   <<
+                   min_cu_det_2 << " " << min_cu_det_4 << " " << std::endl;
+         std::cout << "The minimum determinant at GL points is: " << min_gl_det_1 << " "
+                   <<
+                   min_gl_det_2 << " " << min_gl_det_4 << " " << std::endl;
       }
    }
 

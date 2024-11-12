@@ -148,6 +148,8 @@ protected:
    mutable int surf_fit_adapt_count_limit = 10;
    mutable real_t surf_fit_weight_limit = 1e10;
    bool surf_fit_converge_error = false;
+   bool det_bound               = false;
+   PLBound *plb = nullptr;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    real_t *min_det_ptr = nullptr;
@@ -345,6 +347,8 @@ public:
       else { MFEM_ABORT("Invalid type"); }
    }
    void SetPreconditioner(Solver &pr) override { SetSolver(pr); }
+
+   void SetBoundedDet(PLBound *plb_) { plb = plb_; det_bound = true; };
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

@@ -4811,16 +4811,44 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
       real_t min_detT = ComputeMinDetT(x, fes);
-      real_t min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
       if (pfes)
       {
-         MPI_Allreduce(&min_detT, &min_detT_all, 1, MPITypeMap<real_t>::mpi_type,
-                       MPI_MIN,
+         MPI_Allreduce(MPI_IN_PLACE, &min_detT, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MIN,
                        pfes->GetComm());
       }
 #endif
-      if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
+      real_t minmindet, minmaxdet;
+      int converged, depthmax, tot_recursions;
+
+      if (plb)
+      {
+         plb->GetMeshValidity(x, fes, minmindet, minmaxdet, converged, depthmax,
+                              tot_recursions);
+         int myrank = 0;
+#ifdef MFEM_USE_MPI
+         if (pfes)
+         {
+            myrank = pfes->GetMyRank();
+            MPI_Allreduce(MPI_IN_PLACE, &minmindet, 1,
+                          MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                          pfes->GetComm());
+            MPI_Allreduce(MPI_IN_PLACE, &minmaxdet, 1,
+                          MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                          pfes->GetComm());
+            MPI_Allreduce(MPI_IN_PLACE, &converged, 1,  MPI_INT, MPI_MIN,
+                          pfes->GetComm());
+         }
+#endif
+         if (converged && myrank == 0)
+         {
+            mfem::out << "Min det is: " << min_detT << " " << minmindet << " " << minmaxdet
+                      << " " << converged << " k10info\n";
+            min_detT = minmindet;
+         }
+      }
+      if (wcuo) { wcuo->SetMinDetT(min_detT); }
    }
 
    real_t max_muT = ComputeUntanglerMaxMuBarrier(x, fes);

@@ -18,6 +18,49 @@
 using namespace mfem;
 using namespace std;
 
+// Type = 0 = Mesh nodes
+//        1 = GLL points
+//        2 = Closed Uniform
+//        3 = Gauss-Legendre
+double GetMeshMinDet(Mesh *mesh, int order, int type = 0)
+{
+   GridFunction *nodes = mesh->GetNodes();
+   FiniteElementSpace *fespace = nodes->FESpace();
+   double mindet = std::numeric_limits<double>::infinity();
+   IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+   IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
+   IntegrationRules IntRulesGL(0, Quadrature1D::GaussLegendre);
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe = fespace->GetFE(e);
+      ElementTransformation *transf = mesh->GetElementTransformation(e);
+      const int geom = fe->GetGeomType();
+      const int dim = fe->GetDim();
+      Vector loc(dim);
+      DenseMatrix Jac(fe->GetDim());
+      const IntegrationRule ir = type == 0 ? fe->GetNodes() :
+                                 type == 1 ? IntRulesGLL.Get(geom, order) :
+                                 type == 2 ? IntRulesCU.Get(geom, order) :
+                                 IntRulesGL.Get(geom, order);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         IntegrationPoint ip = ir.IntPoint(q);
+
+         transf->SetIntPoint(&ip);
+         transf->Transform(ip, loc);
+         Jac = transf->Jacobian();
+         mindet = std::min(mindet, Jac.Det());
+      }
+   }
+
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh = dynamic_cast<ParMesh *>(mesh);
+   MPI_Allreduce(MPI_IN_PLACE, &mindet, 1,  MPI_DOUBLE, MPI_MIN,
+                 pmesh->GetComm());
+#endif
+   return mindet;
+}
+
 static IntegrationRule PermuteIR(const IntegrationRule *irule,
                                  const Array<int> &perm)
 {
@@ -43,7 +86,7 @@ void ScaleNodes(const Vector &in, double a, double b, Vector &out)
    out.SetSize(in.Size());
    for (int i = 0; i < in.Size(); i++)
    {
-      out(i) = a + (b-a)*(out(i)-minv)/(maxv-minv);
+      out(i) = a + (b-a)*(in(i)-minv)/(maxv-minv);
    }
 }
 
@@ -84,9 +127,9 @@ IntegrationRule GetTensorProductRule(const Vector &ipx,
 }
 
 void GetTensorProductVector(const Vector &ipx,
-                           const Vector &ipy,
-                           Vector &ipxx,
-                           Vector &ipyy)
+                            const Vector &ipy,
+                            Vector &ipxx,
+                            Vector &ipyy)
 {
    int nx = ipx.Size();
    int ny = ipy.Size();
@@ -213,11 +256,13 @@ void GetRecursiveExtrema1D(int currentdepth,
    GetValuesAtIntegrationPoints(basis, solcoeff, ref_nodes_x, solint);
 
    Vector int_nodes_scaled_r = int_nodes;
-   ScaleNodes(int_nodes, ref_nodes_gll(0), ref_nodes_gll(nr-1), int_nodes_scaled_r);
+   ScaleNodes(int_nodes, ref_nodes_gll(0), ref_nodes_gll(nr-1),
+              int_nodes_scaled_r);
 
    bool scaling = ref_nodes_gll.Min() == 0 ? true : false;
    Vector qpmin, qpmax;
-   Get1DBounds(ref_nodes_gll, int_nodes, ref_nodes_wts, lbound, ubound, solint, qpmin, qpmax, scaling);
+   Get1DBounds(ref_nodes_gll, int_nodes, ref_nodes_wts, lbound, ubound, solint,
+               qpmin, qpmax, scaling);
 
    // Scale interval points for output
    Vector int_nodes_scaled_x = int_nodes_scaled_r;
@@ -227,7 +272,7 @@ void GetRecursiveExtrema1D(int currentdepth,
    double minmaxval = qpmax.Min();
 
    if (minminval > 0 || minmaxval < 0 || currentdepth == maxdepth)
-   // if definitely positive or negative or we have reached our recursion limit
+      // if definitely positive or negative or we have reached our recursion limit
    {
       for (int i = 0; i < nIntervals; i++)
       {
@@ -261,8 +306,20 @@ void GetRecursiveExtrema1D(int currentdepth,
       {
          intdepth.Append(-currentdepth); //negative depth to indicate recursion
          intdepth.Append(-currentdepth);
+         double lx = rxstart;
+         double rx = rxend;
+         double xc = rxstart - leftmin*(rxend-rxstart)/(rightmin-leftmin);
+         if (leftmin <= 0 && leftmax >= 0)
+         {
+            rx = xc;
+         }
+         else
+         {
+            lx = xc;
+         }
          GetRecursiveExtrema1D(currentdepth+1, maxdepth, solcoeff,
-                               ref_nodes_gll, ref_nodes_wts, int_nodes_scaled_r, lbound, ubound, basis, rxstart, rxend, intpts, intmin, intmax, intdepth);
+                               ref_nodes_gll, ref_nodes_wts, int_nodes_scaled_r, lbound, ubound, basis, lx, rx,
+                               intpts, intmin, intmax, intdepth);
       }
       else
       {
@@ -302,7 +359,8 @@ void Get2DBounds(const Vector &gllX,
       Vector solcoeff(coeff.GetData()+i*nr, nr);
       Vector intminrow(intminT.GetData()+i*mr, mr);
       Vector intmaxrow(intmaxT.GetData()+i*mr, mr);
-      Get1DBounds(gllX, intScaled, gllW, lbound, ubound, solcoeff, intminrow, intmaxrow, scaled);
+      Get1DBounds(gllX, intScaled, gllW, lbound, ubound, solcoeff, intminrow,
+                  intmaxrow, scaled);
    }
 
    // Compute a0 and a1 for each column of nodes
@@ -394,7 +452,6 @@ void GetRecursiveExtrema2D(int currentdepth,
    detgf.GetValues(elem, irulexy, solint);
 
    Vector qpmin, qpmax;
-   // solint = 2;
    Get2DBounds(gllX, intX, gllW, lbound, ubound, solint, qpmin, qpmax);
 
    Vector intX_scaled_x = intX;
@@ -407,7 +464,7 @@ void GetRecursiveExtrema2D(int currentdepth,
    GetTensorProductVector(intX_scaled_x, intX_scaled_y, qpxx, qpyy);
 
    if (minminval > 0 || minmaxval < 0 || currentdepth == maxdepth)
-   // if definitely positive or negative or we have reached our recursion limit
+      // if definitely positive or negative or we have reached our recursion limit
    {
       for (int j = 0; j < intX_scaled_y.Size()-1; j++)
       {
@@ -486,9 +543,9 @@ void GetRecursiveExtrema2D(int currentdepth,
          intmax.Append(p3max);
 
          if ((p0min <= 0 && p0max >= 0) ||
-            (p1min <= 0 && p1max >= 0) ||
-            (p2min <= 0 && p2max >= 0) ||
-            (p3min <= 0 && p3max >= 0))
+             (p1min <= 0 && p1max >= 0) ||
+             (p2min <= 0 && p2max >= 0) ||
+             (p3min <= 0 && p3max >= 0))
          {
             intdepth.Append(-currentdepth);
             intdepth.Append(-currentdepth);
@@ -510,10 +567,108 @@ void GetRecursiveExtrema2D(int currentdepth,
    }
 }
 
-void ReadCustomBounds(Vector &gll, Vector &interval, DenseMatrix &lbound, DenseMatrix &ubound, std::string filename)
+void GetRecursiveMinMaxBound2D(int currentdepth,
+                               const int maxdepth,
+                               const int elem,
+                               const GridFunction &detgf,
+                               const Vector &gllX,
+                               const Vector &intX,
+                               const Vector &gllW,
+                               const DenseMatrix &lbound,
+                               const DenseMatrix &ubound,
+                               double rx0, double rx1,
+                               double ry0, double ry1,
+                               double &minminvalg,
+                               double &minmaxvalg,
+                               int &converged)
+{
+   const int dim = 2;
+   const int nr = gllX.Size();
+   const int mr = intX.Size();
+   int det_order = detgf.FESpace()->GetElementOrder(elem);
+   int nIntervals = mr-1;
+
+   // Get IntegrationRule
+   Vector ref_nodes_x = gllX;
+   ScaleNodes(gllX, rx0, rx1, ref_nodes_x);
+   Vector ref_nodes_y = gllX;
+   ScaleNodes(gllX, ry0, ry1, ref_nodes_y);
+
+   IntegrationRule irulexy = GetTensorProductRule(ref_nodes_x, ref_nodes_y);
+
+   // Get GridFunction Values for the IntegrationRule and store in lexicographic
+   // ordering
+   Vector solint; // interpolated solution
+   detgf.GetValues(elem, irulexy, solint);
+
+   Vector qpmin, qpmax;
+   Get2DBounds(gllX, intX, gllW, lbound, ubound, solint, qpmin, qpmax);
+
+   Vector intX_scaled_x = intX;
+   Vector intX_scaled_y = intX;
+   double minminval = qpmin.Min();
+   double minmaxval = qpmax.Min();
+   ScaleNodes(intX, rx0, rx1, intX_scaled_x);
+   ScaleNodes(intX, ry0, ry1, intX_scaled_y);
+   Vector qpxx, qpyy;
+   GetTensorProductVector(intX_scaled_x, intX_scaled_y, qpxx, qpyy);
+
+   if (minminval > 0 || minmaxval < 0 || currentdepth == maxdepth)
+      // if definitely positive or negative or we have reached our recursion limit
+   {
+      if (minmaxval < minmaxvalg)
+      {
+         minmaxvalg = minmaxval;
+         minminvalg = minminval;
+      }
+      if (currentdepth == maxdepth)
+      {
+         converged = 0;
+      }
+      return;
+   }
+   for (int j = 0; j < nIntervals; j++)
+   {
+      double rystart = intX_scaled_y(j);
+      double ryend   = intX_scaled_y(j+1);
+      for (int i = 0; i < nIntervals; i++)
+      {
+         double rxstart = intX_scaled_x(i);
+         double rxend   = intX_scaled_x(i+1);
+
+         int bi = j*mr+i;
+         int ti = bi+mr;
+
+         // four corners of the interval in lexicographic ordering
+         double p0min = qpmin(bi);
+         double p0max = qpmax(bi);
+         double p1min = qpmin(bi+1);
+         double p1max = qpmax(bi+1);
+         double p2min = qpmin(ti);
+         double p2max = qpmax(ti);
+         double p3min = qpmin(ti+1);
+         double p3max = qpmax(ti+1);
+
+         if ((p0min <= 0 && p0max >= 0) ||
+             (p1min <= 0 && p1max >= 0) ||
+             (p2min <= 0 && p2max >= 0) ||
+             (p3min <= 0 && p3max >= 0))
+         {
+            GetRecursiveMinMaxBound2D(currentdepth+1, maxdepth, elem, detgf,
+                                      gllX, intX, gllW, lbound, ubound,
+                                      rxstart, rxend, rystart, ryend,
+                                      minminvalg, minmaxvalg, converged);
+         }
+      }
+   }
+}
+
+void ReadCustomBounds(Vector &gll, Vector &interval, DenseMatrix &lbound,
+                      DenseMatrix &ubound, std::string filename)
 {
    std::ifstream file(filename);
-   if (!file.is_open()) {
+   if (!file.is_open())
+   {
       MFEM_ABORT("File did not open\n");
    }
 
@@ -559,7 +714,6 @@ void ReadCustomBounds(Vector &gll, Vector &interval, DenseMatrix &lbound, DenseM
 }
 
 #ifdef MFEM_USE_GSLIB
-
 // Get Bounds on the nr basis functions at mr points in [0, 1]
 void GetGSLIBBasisBounds(int nr, int mr,
                          DenseMatrix &lbound,                         DenseMatrix &ubound)
@@ -582,19 +736,86 @@ void GetGSLIBBasisBounds(int nr, int mr,
    }
 }
 
-class GSLIBBound {
-   private:
+void GetGSLIBBasisBoundsMe(int nr, int mr,
+                           DenseMatrix &lbound,                         DenseMatrix &ubound)
+{
+   lbound.SetSize(nr, mr);
+   ubound.SetSize(nr, mr);
+
+   // Define lambda function for GetChebyshevNodes
+   auto GetChebyshevNodes2 = [](int n) -> Vector
+   {
+      MFEM_VERIFY(n > 2, "Invalid number of nodes");
+      Vector nodes(n);
+      nodes(0) = -1.0;
+      nodes(n - 1) = 1.0;
+      for (int i = 2; i < n; ++i)
+      {
+         nodes(i - 1) = -std::cos(M_PI * ((i - 1.0)*1.0 / (n - 1)));
+      }
+      return nodes;
+   };
+
+   Vector cheb = GetChebyshevNodes2(mr);
+   ScaleNodes(cheb, 0.0, 1.0, cheb);
+   TensorBasisElement tbe = TensorBasisElement(1, nr-1, BasisType::GaussLobatto,
+                                               TensorBasisElement::DofMapType::H1_DOF_MAP);
+   const Poly_1D::Basis basis1d = tbe.GetBasis1D();
+
+   // initialize
+   lbound = 0.0;
+   ubound = 0.0;
+
+   for (int i = 0; i < nr; i++)
+   {
+      for (int j = 0; j < mr; j++)
+      {
+         if ( (j == 0 && i == 0) || (j == mr-1 && i == nr-1) )
+         {
+            lbound(i, j) = 1.0;
+            ubound(i, j) = 1.0;
+         }
+      }
+   }
+
+   Vector bmv(nr), bpv(nr), bv(nr); // basis values
+   Vector bdmv(nr), bdpv(nr), bdv(nr); // basis derivative values
+   Vector vals(3);
+
+   for (int j = 1; j < mr-1; j++)
+   {
+      double x = cheb(j);
+      double xm = 0.5*(cheb(j-1)+cheb(j));
+      double xp = 0.5*(cheb(j)+cheb(j+1));
+      basis1d.Eval(xm, bmv, bdmv);
+      basis1d.Eval(xp, bpv, bdpv);
+      basis1d.Eval(x, bv);
+      double dm = x-xm;
+      double dp = x-xp;
+      for (int i = 0; i < nr; i++)
+      {
+         vals(0)  = bv(i);
+         vals(1) = bmv(i) +  dm*bdmv(i);
+         vals(2) = bpv(i) +  dp*bdpv(i);
+         lbound(i, j) = vals.Min();
+         ubound(i, j) = vals.Max();
+      }
+   }
+}
+
+class GSLIBBound
+{
+private:
    int nr = 0;
    int mr = 0;
-   int mrfac = 0;
    Vector data_r;
    Vector cheb;
    Vector cheb_mfem;
 
 public:
-   GSLIBBound(int nr_, int mrfac_) : mrfac(mrfac_)
+   GSLIBBound(int nr_, int mr_)
    {
-      SetupWorkArrays(nr, mrfac*nr);
+      SetupWorkArrays(nr_, mr_);
    }
 
    ~GSLIBBound() {};
@@ -616,17 +837,14 @@ public:
 
    // write setters for nr, mrfac and getters as well
    void Setnr(int nr_) { nr = nr_; }
-   void Setmrfac(int mrfac_) { mrfac = mrfac_; }
+   void Setmrfac(int mr_) { mr = mr_; }
    int Getnr() { return nr; }
    int Getmr() { return mr; }
-   int Getmrfac() { return mrfac; }
    const Vector &GetChebMFEM() { return cheb_mfem; }
 };
 
 void GSLIBBound::SetupWorkArrays(int nrnew, int mrnew)
 {
-   // MFEM_VERIFY(mrnew >= 2*nrnew,"mrnew must be at least 2*nrnew");
-
    if (nrnew != nr || mrnew != mr)
    {
       nr = nrnew;
@@ -643,16 +861,14 @@ void GSLIBBound::SetupWorkArrays(int nrnew, int mrnew)
 
 void GSLIBBound::GetBounds(Vector &vect, Vector &qpmin, Vector &qpmax, int dim)
 {
-   int order = std::pow(vect.Size(), 1.0/dim) -1;
-   int mrs = mrfac*(order+1);
-   int nqpts = std::pow(mrs, dim);
+   int nqpts = std::pow(mr, dim);
 
    qpmin.SetSize(nqpts);
    qpmax.SetSize(nqpts);
    qpmin = 0.0;
    qpmax = 0.0;
+   MFEM_VERIFY(std::pow(nr,dim) == vect.Size(), "Incompatible size.");
 
-   SetupWorkArrays(order+1, mrfac*(order+1));
    int wrksize = 2*mr;
    if (dim == 2)
    {
@@ -694,14 +910,23 @@ void GSLIBBound::GetBounds(Vector &vect, Vector &qpmin, Vector &qpmax, int dim)
       }
    }
    else if (dim == 2)
-   { // place this lexicographically
-      for (int j = 0; j < mrs; j++)
+   {
+      // place this lexicographically
+      for (int j = 0; j < mr; j++)
       {
-         for (int i = 0; i < mrs; i++)
+         for (int i = 0; i < mr; i++)
          {
-            qpmin(j*mrs+i) = work[2*(i*mrs+j)+0];
-            qpmax(j*mrs+i) = work[2*(i*mrs+j)+1];
+            qpmin(j*mr+i) = work[2*(i*mr+j)+0];
+            qpmax(j*mr+i) = work[2*(i*mr+j)+1];
          }
+      }
+   }
+   else if (dim == 3)
+   {
+      for (int j = 0; j < mr*mr*mr; j++)
+      {
+         qpmin(j) = work[2*j+0];
+         qpmax(j) = work[2*j+1];
       }
    }
 }
@@ -718,8 +943,7 @@ void GSLIBBound::GetGridFunctionBounds(GridFunction &gf,
    Vector vect;
    int nelem = mesh->GetNE();
    int maxorder = fespace->GetMaxElementOrder();
-   int mrs = mrfac*(maxorder+1);
-   int nqpel = dim == 1 ? mrs : (dim == 2 ? mrs*mrs : mrs*mrs*mrs);
+   int nqpel = dim == 1 ? mr : (dim == 2 ? mr*mr : mr*mr*mr);
    int nqpts = nelem*nqpel;
 
    elmin.SetSize(nelem);
@@ -741,7 +965,7 @@ void GSLIBBound::GetGridFunctionBounds(GridFunction &gf,
       fespace->GetElementDofs(e, dofs);
       gf.GetSubVector(dofs, vect);
       int order = fespace->GetOrder(e);
-      SetupWorkArrays(order+1, mrfac*(order+1));
+      MFEM_VERIFY(nr == order+1,"Incompatible nr set for GSLIBBound.");
       int wrksize = 2*mr;
       if (dim == 2)
       {
@@ -813,7 +1037,7 @@ double GSLIBBound::GetDetJBounds(Mesh *mesh,
       ElementTransformation *transf = mesh->GetElementTransformation(e);
       DenseMatrix Jac(fe->GetDim());
       const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
-                                    (fe);
+                                      (fe);
       const Array<int> &irordering = nfe->GetLexicographicOrdering();
       IntegrationRule ir2 = irordering.Size() ?
                             PermuteIR(&ir, irordering) :

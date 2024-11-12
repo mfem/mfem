@@ -14,6 +14,7 @@
 
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
+#include "pgridfunc.hpp"
 
 namespace mfem
 {
@@ -1806,6 +1807,7 @@ protected:
    Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
    DiscreteAdaptTC *discr_tc;
+   PLBound *plb = NULL;
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
@@ -2274,6 +2276,8 @@ public:
    /// across MPI ranks.
    void ComputeUntangleMetricQuantiles(const Vector &x,
                                        const FiniteElementSpace &fes);
+
+   void SetBoundedDet(PLBound *plb_) { plb = plb_;};
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

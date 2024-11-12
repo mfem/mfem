@@ -474,6 +474,27 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                   "This setup is not supported. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
    }
+   real_t min_det_bound = min_detT_in;
+   double minmindet, minmaxdet;
+   int converged, depthmax, tot_recursions;
+   if (det_bound)
+   {
+      plb->GetMeshValidity(x_out_loc, *fes, minmindet, minmaxdet, converged, depthmax,
+                           tot_recursions);
+#ifdef MFEM_USE_MPI
+      const ParNonlinearForm *p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
+      ParFiniteElementSpace *pfes = p_nlf->ParFESpace();
+      MPI_Allreduce(MPI_IN_PLACE, &minmindet, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                    pfes->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &minmaxdet, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                    pfes->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &converged, 1,  MPI_INT, MPI_MIN,
+                    pfes->GetComm());
+#endif
+      min_det_bound = minmindet;
+   }
 
    const bool have_b = (b.Size() == Height());
 
@@ -517,6 +538,32 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
             mfem::out << "Scale = " << scale << " Neg det(J) found.\n";
          }
          scale *= detJ_factor; continue;
+      }
+      if (untangling == false && det_bound)
+      {
+         plb->GetMeshValidity(x_out_loc, *fes, minmindet, minmaxdet, converged, depthmax,
+                              tot_recursions);
+#ifdef MFEM_USE_MPI
+         const ParNonlinearForm *p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
+         ParFiniteElementSpace *pfes = p_nlf->ParFESpace();
+         MPI_Allreduce(MPI_IN_PLACE, &minmindet, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                       pfes->GetComm());
+         MPI_Allreduce(MPI_IN_PLACE, &minmaxdet, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                       pfes->GetComm());
+         MPI_Allreduce(MPI_IN_PLACE, &converged, 1,  MPI_INT, MPI_MIN,
+                       pfes->GetComm());
+#endif
+         if (minmindet <= min_detJ_limit)
+         {
+            // No untangling, and detJ got negative (or small) -- no good.
+            if (print_options.iterations)
+            {
+               mfem::out << "Scale = " << scale << " Neg det(J) Bound found.\n";
+            }
+            scale *= detJ_factor; continue;
+         }
       }
       if (untangling == true && min_detT_out < *min_det_ptr)
       {

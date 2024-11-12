@@ -884,6 +884,109 @@ public:
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
 
+
+class PLBound
+{
+private:
+   int nr = 0;
+   int mr = 0;
+   Vector gllX, gllW, intX;
+   DenseMatrix lbound, ubound;
+
+private:
+   void ScaleNodes(const Vector &in, double a, double b, Vector &out) const;
+   IntegrationRule GetTensorProductRule(const Vector &ipx,
+                                        const Vector &ipy) const;
+   void GetTensorProductVector(const Vector &ipx,
+                               const Vector &ipy,
+                               Vector &ipxx,
+                               Vector &ipyy);
+   void ReadCustomBounds(Vector &gll, Vector &interval, DenseMatrix &lbound,
+                         DenseMatrix &ubound, std::string filename) const;
+
+   void SetupGSLIBBounds(const int n, const int m, DenseMatrix &lb,
+                         DenseMatrix &ub);
+
+public:
+   PLBound() {} // empty constructor
+
+   PLBound(std::string filename) // Read custom bounds from file
+   {
+      Setup(filename);
+   }
+
+   // Alternate constructor - Sets up bounds like GSLIB does.
+   // mr must be at-least 2*nr in most cases.
+   PLBound(int nr_, int mr_)
+   {
+      Setup(nr_, mr_);
+   }
+
+   void Setup(std::string filename)
+   {
+      ReadCustomBounds(gllX, intX, lbound, ubound, filename);
+      nr = gllX.Size();
+      mr = intX.Size();
+      gllW.SetSize(nr);
+      IntegrationRule irule(nr);
+      QuadratureFunctions1D::GaussLobatto(nr, &irule);
+      for (int i = 0; i < nr; i++)
+      {
+         gllW(i) = irule.IntPoint(i).weight;
+         gllX(i) = irule.IntPoint(i).x;
+      }
+      ScaleNodes(intX, gllX(0), gllX(nr-1), intX);
+   }
+
+   void Setup(int nr_, int mr_)
+   {
+      SetupGSLIBBounds(nr_, mr_, lbound, ubound);
+   }
+
+   void GetMeshValidity(Mesh *mesh, double &minmindet, double &minmaxdet,
+                        int &convergedg, int &depthmax, int &tot_recursion, int maxdepth=10);
+
+   void GetMeshValidity(const Vector &x,
+                        const FiniteElementSpace &fes, double &minmindet, double &minmaxdet,
+                        int &convergedg, int &depthmax, int &tot_recursion, int maxdepth=10);
+
+   void GetRecursiveMinMaxBound2D(int currentdepth,
+                                  const int maxdepth,
+                                  const int elem,
+                                  const GridFunction &detgf,
+                                  const Vector &gllX,
+                                  const Vector &intX,
+                                  const Vector &gllW,
+                                  const DenseMatrix &lbound,
+                                  const DenseMatrix &ubound,
+                                  double rx0, double rx1,
+                                  double ry0, double ry1,
+                                  double &minminvalg,
+                                  double &minmaxvalg,
+                                  int &converged,
+                                  int &depthmax,
+                                  int &tot_recursion);
+
+   void Get3DBounds(Vector &coeff, // nodal solution - lexicographic ordering
+                    Vector &intmin, Vector &intmax,
+                    bool scaled=true);
+
+   void Get2DBounds(Vector &coeff, // nodal solution - lexicographic ordering
+                    Vector &intmin, Vector &intmax,
+                    bool scaled=true);
+
+   void Get1DBounds(Vector &coeff,  // nodal coeff of solution
+                    Vector &intmin, Vector &intmax,
+                    bool scaled=true);
+
+   // Write getters for class members
+   const Vector &GetGLLX() { return gllX; }
+   const Vector &GetGLLW() { return gllW; }
+   const Vector &GetIntX() { return intX; }
+   const DenseMatrix &GetLBound() { return lbound; }
+   const DenseMatrix &GetUBound() { return ubound; }
+};
+
 } // namespace mfem
 
 #endif

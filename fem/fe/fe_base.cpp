@@ -2022,7 +2022,7 @@ void Poly_1D::Basis::ScaleIntegrated(bool scale_integrated_)
 
 Poly_1D::Basis::~Basis()
 {
-   delete auxiliary_basis;
+   if (auxiliary_basis != NULL) { delete auxiliary_basis; }
 }
 
 const int *Poly_1D::Binom(const int p)
