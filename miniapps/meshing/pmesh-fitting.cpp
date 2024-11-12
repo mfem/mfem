@@ -809,7 +809,7 @@ int main (int argc, char *argv[])
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
    solver.SetMinimumDeterminantThreshold(0.001*min_detJ);
-   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : 0);
    solver.SetOperator(a);
    Vector b(0);
    solver.Mult(b, x.GetTrueVector());
