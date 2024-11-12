@@ -26,11 +26,11 @@ else:
 
 failed = 0
 
-for filename in filenames:
+for i, filename in enumerate(filenames):
 	# Parsing reference file
 
 	print("----------------------------------------------------------------")
-	print("Case: " + filename)
+	print("Case " + str(i+1) + "/" + str(len(filenames)) + ": " + filename)
 
 	if not os.path.isfile(filename):
 		failed += 1
