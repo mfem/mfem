@@ -73,9 +73,9 @@ set(SRCS
   fe/fe_nd.cpp
   fe/fe_nurbs.cpp
   fe/fe_pos.cpp
+  fe/fe_pyramid.cpp
   fe/fe_rt.cpp
   fe/fe_ser.cpp
-  fe/fe_pyramid.cpp
   fe_coll.cpp
   fespace.cpp
   geom.cpp
@@ -181,9 +181,9 @@ set(HDRS
   fe/fe_nd.hpp
   fe/fe_nurbs.hpp
   fe/fe_pos.hpp
+  fe/fe_pyramid.hpp
   fe/fe_rt.hpp
   fe/fe_ser.hpp
-  fe/fe_pyramid.hpp
   fe_coll.hpp
   fem.hpp
   fespace.hpp
