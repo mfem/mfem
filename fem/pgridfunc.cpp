@@ -1229,20 +1229,15 @@ real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm)
 {
    real_t glob_norm;
 
+   // negative quadrature weights may cause the local norm to be negative
+   loc_norm = fabs(loc_norm);
+
    if (p < infinity())
    {
-      // negative quadrature weights may cause the error to be negative
-      if (loc_norm < 0.0)
-      {
-         loc_norm = pow(-loc_norm, p);
-      }
-      else
-      {
-         loc_norm = pow(loc_norm, p);
-      }
+      loc_norm = pow(loc_norm, p);
 
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                    comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, comm);
 
       if (glob_norm < 0.0)
       {
@@ -1255,8 +1250,8 @@ real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm)
    }
    else
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
-                    comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX, comm);
    }
 
    return glob_norm;

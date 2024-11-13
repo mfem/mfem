@@ -25,7 +25,14 @@
 namespace mfem
 {
 
-/// Compute a global Lp norm from the local Lp norms computed by each processor
+/// @brief Compute a global Lp norm from the local Lp norms computed by each processor
+///
+/// @note Quadratures with negative weights (as in some simplex integration
+///       rules in MFEM) can produce negative integrals even with
+///       non-negative integrands. To avoid returning negative norms this
+///       function uses the absolute values of the local norms.
+///       This may lead to results which are not entirely consistent with
+///       such integration rules.
 real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm);
 
 /// Class for parallel grid function
@@ -329,7 +336,17 @@ public:
                           pfes->GetComm());
    }
 
-   /// Returns the Face Jumps error for L2 elements
+   /// @brief Returns the Face Jumps error for L2 elements.
+   ///
+   /// The error can be weighted by a constant nu, by nu/h, or nu*p^2/h,
+   /// depending on the value of @a jump_scaling.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
    real_t ComputeDGFaceJumpError(Coefficient *exsol,
                                  Coefficient *ell_coeff,
                                  JumpScaling jump_scaling,
