@@ -56,6 +56,9 @@ GPU computing
   high-order transfer operators. New kernels can be offloaded as device
   kernels. Example usage may be found in lor-transfer.cpp under miniapps/tools.
 
+- Added support for GPU accelerated FindPointsGSLIB. Note that this will require
+  the users to switch from gslib v1.0.7 to v1.0.9.
+
 Miscellaneous
 -------------
 - Refactored the `ARKStepSolver` class (ARKODE interface) to use

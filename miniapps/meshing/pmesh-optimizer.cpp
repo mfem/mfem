@@ -50,6 +50,8 @@
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size NC mesh;
 //     mpirun -np 4 pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
+//   Adapted discrete size NC mesh (GPU+GSLIB);
+//   * make pmesh-optimizer -j && mpirun -np 4 pmesh-optimizer -m ../../data/amr-hex.mesh -o 2 -rs 1 -mid 321 -tid 5 -ni 50 -qo 6 -nor -vl 2 -ae 1 -d debug
 //   Adapted discrete size 3D with PA:
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
 //   Adapted discrete size 3D with PA on device (requires CUDA):
@@ -624,6 +626,10 @@ int main (int argc, char *argv[])
          }
          ConstructSizeGF(size);
          tc->SetParDiscreteTargetSize(size);
+         double minsize = size.Min();
+         MPI_Allreduce(MPI_IN_PLACE, &minsize, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                       MPI_COMM_WORLD);
+         tc->SetMinSizeForTargets(minsize);
          target_c = tc;
          break;
       }
