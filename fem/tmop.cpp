@@ -18,6 +18,9 @@
 
 namespace mfem
 {
+
+/* Some AD related declarations below ========================================*/
+
 /// MFEM native AD-type for first derivatives
 typedef internal::dual<real_t, real_t> ADFType;
 /// MFEM native AD-type for second derivatives
@@ -252,7 +255,7 @@ auto mu11_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
    add_2D(-1.0/omega, A,WRK,WRK2);
    auto fnorm =  fnorm2_2D(WRK2);
 
-   return 0.25 / ( alpha) * fnorm;
+   return 0.25 / (alpha) * fnorm;
 };
 
 template <typename type>
@@ -327,6 +330,7 @@ void ADHessian(const DenseMatrix &Jpt,
    }
    return;
 }
+/* Some AD related declarations above ========================================*/
 
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
 
@@ -1821,10 +1825,9 @@ real_t TMOP_AMetric_011::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
                "Requires a target Jacobian, use SetTargetJacobian().");
-
    int dim = Jpt.Size();
 
-   DenseMatrix Jpr(dim, dim);
+   DenseMatrix Jpr(dim);
    Mult(Jpt, *Jtr, Jpr);
 
    real_t alpha = Jpr.Det(),
