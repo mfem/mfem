@@ -28,6 +28,10 @@
 namespace gslib
 {
 #include "gslib.h"
+#ifndef GSLIB_RELEASE_VERSION //gslib v1.0.7
+#define GSLIB_RELEASE_VERSION 10007
+#endif
+
 extern "C" {
    struct hash_data_3
    {
@@ -259,8 +263,17 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
 
    if (dev_mode && tensor_product_only)
    {
+#if GSLIB_RELEASE_VERSION == 10007
+      if (!gpu_to_cpu_fallback)
+      {
+         MFEM_ABORT("Either update to gslib v1.0.9 or higher for GPU support "
+         "or use SetGPUtoCPUFallback to use host-functions. See "
+         "https://github.com/mfem/mfem/blob/master/INSTALL for instructions.");
+      }
+#else
       FindPointsOnDevice(point_pos, point_pos_ordering);
       return;
+#endif
    }
 
    auto pp = point_pos.HostRead();
@@ -327,17 +340,18 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    MapRefPosAndElemIndices();
 }
 
-static slong lfloor(double x) { return floor(x); }
+#if GSLIB_RELEASE_VERSION >= 10009
+slong lfloor(double x) { return floor(x); }
 
 // Local hash mesh index in 1D for a given point
-static ulong hash_index_aux(double low, double fac, ulong n, double x)
+ulong hash_index_aux(double low, double fac, ulong n, double x)
 {
    const slong i = lfloor((x - low) * fac);
    return i < 0 ? 0 : (n - 1 < (ulong)i ? n - 1 : (ulong)i);
 }
 
 // Local hash mesh index in 3D for a given point
-static ulong hash_index_3(const gslib::hash_data_3 *p, const double x[3])
+ulong hash_index_3(const gslib::hash_data_3 *p, const double x[3])
 {
    const ulong n = p->hash_n;
    return (hash_index_aux(p->bnd[2].min, p->fac[2], n, x[2]) * n +
@@ -347,17 +361,137 @@ static ulong hash_index_3(const gslib::hash_data_3 *p, const double x[3])
 }
 
 // Local hash mesh index in 2D for a given point
-static ulong hash_index_2(const gslib::hash_data_2 *p, const double x[2])
+ulong hash_index_2(const gslib::hash_data_2 *p, const double x[2])
 {
    const ulong n = p->hash_n;
    return (hash_index_aux(p->bnd[1].min, p->fac[1], n, x[1])) * n
           + hash_index_aux(p->bnd[0].min, p->fac[0], n, x[0]);
 }
 
+void FindPointsGSLIB::SetupDevice()
+{
+   auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
+   auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
+
+   DEV.newt_tol = dim == 2 ? findptsData2->local.tol : findptsData3->local.tol;
+   if (dim == 3)
+   {
+      DEV.hash3 = &findptsData3->hash;
+   }
+   else
+   {
+      DEV.hash2 = &findptsData2->hash;
+   }
+   DEV.cr = dim == 2 ? &findptsData2->cr : &findptsData3->cr;
+
+   gsl_mesh.UseDevice(true);
+
+   int n_box_ents = 3*dim + dim*dim;
+   DEV.bb.UseDevice(true); DEV.bb.SetSize(n_box_ents*NE_split_total);
+   auto p_bb = DEV.bb.HostWrite();
+
+   const int dim2 = dim*dim;
+   if (dim == 3)
+   {
+      for (int e = 0; e < NE_split_total; e++)
+      {
+         auto box = findptsData3->local.obb[e];
+         for (int d = 0; d < dim; d++)
+         {
+            p_bb[n_box_ents*e + d] = box.c0[d];
+            p_bb[n_box_ents*e + dim + d] = box.x[d].min;
+            p_bb[n_box_ents*e + 2*dim + d] = box.x[d].max;
+         }
+         for (int d = 0; d < dim2; ++d)
+         {
+            p_bb[n_box_ents*e + 3*dim + d] = box.A[d];
+         }
+      }
+   }
+   else
+   {
+      for (int e = 0; e < NE_split_total; e++)
+      {
+         auto box = findptsData2->local.obb[e];
+         for (int d = 0; d < dim; d++)
+         {
+            p_bb[n_box_ents*e + d] = box.c0[d];
+            p_bb[n_box_ents*e + dim + d] = box.x[d].min;
+            p_bb[n_box_ents*e + 2*dim + d] = box.x[d].max;
+         }
+         for (int d = 0; d < dim2; ++d)
+         {
+            p_bb[n_box_ents*e + 3*dim + d] = box.A[d];
+         }
+      }
+   }
+
+   DEV.loc_hash_min.UseDevice(true); DEV.loc_hash_min.SetSize(dim);
+   DEV.loc_hash_fac.UseDevice(true); DEV.loc_hash_fac.SetSize(dim);
+   if (dim == 2)
+   {
+      auto hash = findptsData2->local.hd;
+      auto p_loc_hash_min = DEV.loc_hash_min.HostWrite();
+      auto p_loc_hash_fac = DEV.loc_hash_fac.HostWrite();
+      for (int d = 0; d < dim; d++)
+      {
+         p_loc_hash_min[d] = hash.bnd[d].min;
+         p_loc_hash_fac[d] = hash.fac[d];
+      }
+      DEV.h_nx = hash.hash_n;
+   }
+   else
+   {
+      auto hash = findptsData3->local.hd;
+      auto p_loc_hash_min = DEV.loc_hash_min.HostWrite();
+      auto p_loc_hash_fac = DEV.loc_hash_fac.HostWrite();
+      for (int d = 0; d < dim; d++)
+      {
+         p_loc_hash_min[d] = hash.bnd[d].min;
+         p_loc_hash_fac[d] = hash.fac[d];
+      }
+      DEV.h_nx = hash.hash_n;
+   }
+
+   DEV.h_o_size = dim == 2 ?
+                  findptsData2->local.hd.offset[(int)std::pow(DEV.h_nx, dim)] :
+                  findptsData3->local.hd.offset[(int)std::pow(DEV.h_nx, dim)];
+
+   DEV.loc_hash_offset.SetSize(DEV.h_o_size);
+   auto p_ou_offset = DEV.loc_hash_offset.HostWrite();
+   for (int i = 0; i < DEV.h_o_size; i++)
+   {
+      p_ou_offset[i] = dim == 2 ? findptsData2->local.hd.offset[i] :
+                       findptsData3->local.hd.offset[i];
+   }
+
+   DEV.wtend.UseDevice(true);
+   DEV.wtend.SetSize(6*DEV.dof1d);
+   DEV.wtend.HostWrite();
+   DEV.wtend = dim == 2 ? findptsData2->local.fed.wtend[0] :
+               findptsData3->local.fed.wtend[0];
+
+   // Get gll points
+   DEV.gll1d.UseDevice(true);
+   DEV.gll1d.SetSize(DEV.dof1d);
+   DEV.gll1d.HostWrite();
+   DEV.gll1d = dim == 2 ? findptsData2->local.fed.z[0] :
+               findptsData3->local.fed.z[0];
+
+   DEV.lagcoeff.UseDevice(true);
+   DEV.lagcoeff.SetSize(DEV.dof1d);
+   DEV.lagcoeff.HostWrite();
+   DEV.lagcoeff = dim == 2 ? findptsData2->local.fed.lag_data[0] :
+                  findptsData3->local.fed.lag_data[0];
+
+   DEV.setup_device = true;
+}
+
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                                          int point_pos_ordering)
 {
    if (!DEV.setup_device) { SetupDevice(); }
+   DEV.find_device = true;
 
    const int id = gsl_comm->id,
              np = gsl_comm->np;
@@ -696,124 +830,256 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    MPI_Barrier(gsl_comm->c);
 }
 
-void FindPointsGSLIB::SetupDevice()
+struct evalSrcPt_t
 {
-   auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
-   auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
+   double r[3];
+   unsigned int index, proc, el;
+};
 
-   DEV.newt_tol = dim == 2 ? findptsData2->local.tol : findptsData3->local.tol;
-   if (dim == 3)
+struct evalOutPt_t
+{
+   double out;
+   unsigned int index, proc;
+};
+
+void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
+                                          Vector &field_out,
+                                          const int nel,
+                                          const int ncomp,
+                                          const int dof1Dsol,
+                                          const int ordering)
+{
+   field_out.UseDevice(true);
+   field_out.SetSize(points_cnt*ncomp);
+   field_out = default_interp_value;
+
+   DEV.dof1d_sol =  dof1Dsol;
+   DEV.gll1d_sol.UseDevice(true);  DEV.gll1d_sol.SetSize(dof1Dsol);
+   DEV.lagcoeff_sol.UseDevice(true); DEV.lagcoeff_sol.SetSize(dof1Dsol);
+   if (DEV.dof1d_sol != DEV.dof1d || !DEV.find_device)
    {
-      DEV.hash3 = &findptsData3->hash;
+      gslib::lobatto_nodes(DEV.gll1d_sol.HostWrite(), dof1Dsol);
+      gslib::gll_lag_setup(DEV.lagcoeff_sol.HostWrite(), dof1Dsol);
    }
    else
    {
-      DEV.hash2 = &findptsData2->hash;
+      DEV.gll1d_sol = DEV.gll1d.HostRead();
+      DEV.lagcoeff_sol = DEV.lagcoeff.HostRead();
    }
-   DEV.cr = dim == 2 ? &findptsData2->cr : &findptsData3->cr;
 
-   gsl_mesh.UseDevice(true);
+   field_out.HostReadWrite(); //Reads in default value from device
 
-   int n_box_ents = 3*dim + dim*dim;
-   DEV.bb.UseDevice(true); DEV.bb.SetSize(n_box_ents*NE_split_total);
-   auto p_bb = DEV.bb.HostWrite();
-
-   const int dim2 = dim*dim;
-   if (dim == 3)
+   struct gslib::array src, outpt;
+   int nlocal = 0;
+   /* weed out unfound points, send out */
+   Array<int> gsl_elem_temp;
+   Vector gsl_ref_temp;
+   Array<int> index_temp;
    {
-      for (int e = 0; e < NE_split_total; e++)
+      int index;
+      const unsigned int *code = gsl_code.GetData(), *proc = gsl_proc.GetData(),
+                          *el   = gsl_elem.GetData();
+      const double *r = gsl_ref.GetData();
+
+      int numSend = 0;
+
+      for (index = 0; index < points_cnt; ++index)
       {
-         auto box = findptsData3->local.obb[e];
+         numSend += (gsl_code[index] != CODE_NOT_FOUND &&
+                     gsl_proc[index] != gsl_comm->id);
+         nlocal += (gsl_code[index] != CODE_NOT_FOUND &&
+                    gsl_proc[index] == gsl_comm->id);
+      }
+
+      gsl_elem_temp.SetSize(nlocal);
+      gsl_elem_temp.HostWrite();
+
+      gsl_ref_temp.SetSize(nlocal*dim);
+      gsl_ref_temp.UseDevice(true);
+      gsl_ref_temp.HostWrite();
+
+      index_temp.SetSize(nlocal);
+
+      evalSrcPt_t *pt;
+      array_init(evalSrcPt_t, &src, numSend);
+      pt = (evalSrcPt_t *)src.ptr;
+
+      int ctr = 0;
+      for (index = 0; index < points_cnt; ++index)
+      {
+         if (*code != CODE_NOT_FOUND && *proc != gsl_comm->id)
+         {
+            for (int d = 0; d < dim; ++d)
+            {
+               pt->r[d] = r[d];
+            }
+            pt->index = index;
+            pt->proc = *proc;
+            pt->el = *el;
+            ++pt;
+         }
+         else if (*code != CODE_NOT_FOUND && *proc == gsl_comm->id)
+         {
+            gsl_elem_temp[ctr] = *el;
+            for (int d = 0; d < dim; ++d)
+            {
+               gsl_ref_temp(dim*ctr+d) = r[d];
+            }
+            index_temp[ctr] = index;
+
+            ctr++;
+         }
+         r += dim;
+         code++;
+         proc++;
+         el++;
+      }
+
+      src.n = pt - (evalSrcPt_t *)src.ptr;
+      sarray_transfer(evalSrcPt_t, &src, proc, 1, cr);
+   }
+
+   //evaluate points that are already local
+   {
+      Vector interp_vals(nlocal*ncomp);
+      interp_vals.UseDevice(true);
+
+      if (dim == 2)
+      {
+         InterpolateLocal2(field_in_evec,
+                           gsl_elem_temp,
+                           gsl_ref_temp,
+                           interp_vals,
+                           nlocal, ncomp,
+                           nel, dof1Dsol);
+      }
+      else
+      {
+         InterpolateLocal3(field_in_evec,
+                           gsl_elem_temp,
+                           gsl_ref_temp,
+                           interp_vals,
+                           nlocal, ncomp,
+                           nel, dof1Dsol);
+
+      }
+      MPI_Barrier(gsl_comm->c);
+
+      interp_vals.HostRead();
+
+      // now put these in correct positions
+      int interp_Offset = interp_vals.Size()/ncomp;
+      for (int i = 0; i < ncomp; i++)
+      {
+         for (int j = 0; j < nlocal; j++)
+         {
+            int pt_index = index_temp[j];
+            int idx = ordering == Ordering::byNODES ?
+                      pt_index + i*points_cnt :
+                      pt_index*ncomp + i;
+            field_out(idx) = AsConst(interp_vals)(j + interp_Offset*i);
+         }
+      }
+   }
+   MPI_Barrier(gsl_comm->c);
+
+   if (gsl_comm->np == 1)
+   {
+      array_free(&src);
+      return;
+   }
+
+   // evaluate points locally
+   {
+      int n = src.n;
+      const evalSrcPt_t *spt;
+      evalOutPt_t *opt;
+      spt = (evalSrcPt_t *)src.ptr;
+
+      // Copy to host vector
+      gsl_elem_temp.SetSize(n);
+      gsl_elem_temp.HostWrite();
+
+      gsl_ref_temp.SetSize(n*dim);
+      gsl_ref_temp.HostWrite();
+
+      spt = (evalSrcPt_t *)src.ptr;
+      //   opt = (evalOutPt_t *)outpt.ptr;
+      for (int i = 0; i < n; i++, ++spt)
+      {
+         gsl_elem_temp[i] = spt->el;
          for (int d = 0; d < dim; d++)
          {
-            p_bb[n_box_ents*e + d] = box.c0[d];
-            p_bb[n_box_ents*e + dim + d] = box.x[d].min;
-            p_bb[n_box_ents*e + 2*dim + d] = box.x[d].max;
-         }
-         for (int d = 0; d < dim2; ++d)
-         {
-            p_bb[n_box_ents*e + 3*dim + d] = box.A[d];
+            gsl_ref_temp(i*dim + d) = spt->r[d];
          }
       }
-   }
-   else
-   {
-      for (int e = 0; e < NE_split_total; e++)
+
+      Vector interp_vals(n*ncomp);
+      interp_vals.UseDevice(true);
+      if (dim == 2)
       {
-         auto box = findptsData2->local.obb[e];
-         for (int d = 0; d < dim; d++)
-         {
-            p_bb[n_box_ents*e + d] = box.c0[d];
-            p_bb[n_box_ents*e + dim + d] = box.x[d].min;
-            p_bb[n_box_ents*e + 2*dim + d] = box.x[d].max;
-         }
-         for (int d = 0; d < dim2; ++d)
-         {
-            p_bb[n_box_ents*e + 3*dim + d] = box.A[d];
-         }
+         InterpolateLocal2(field_in_evec,
+                           gsl_elem_temp,
+                           gsl_ref_temp,
+                           interp_vals, n, ncomp,
+                           nel, dof1Dsol);
       }
-   }
-
-   DEV.loc_hash_min.UseDevice(true); DEV.loc_hash_min.SetSize(dim);
-   DEV.loc_hash_fac.UseDevice(true); DEV.loc_hash_fac.SetSize(dim);
-   if (dim == 2)
-   {
-      auto hash = findptsData2->local.hd;
-      auto p_loc_hash_min = DEV.loc_hash_min.HostWrite();
-      auto p_loc_hash_fac = DEV.loc_hash_fac.HostWrite();
-      for (int d = 0; d < dim; d++)
+      else
       {
-         p_loc_hash_min[d] = hash.bnd[d].min;
-         p_loc_hash_fac[d] = hash.fac[d];
+         InterpolateLocal3(field_in_evec,
+                           gsl_elem_temp,
+                           gsl_ref_temp,
+                           interp_vals, n, ncomp,
+                           nel, dof1Dsol);
       }
-      DEV.h_nx = hash.hash_n;
-   }
-   else
-   {
-      auto hash = findptsData3->local.hd;
-      auto p_loc_hash_min = DEV.loc_hash_min.HostWrite();
-      auto p_loc_hash_fac = DEV.loc_hash_fac.HostWrite();
-      for (int d = 0; d < dim; d++)
+      MPI_Barrier(gsl_comm->c);
+      interp_vals.HostRead();
+
+      // Now the interpolated values need to be sent back component wise
+      int Offset = interp_vals.Size()/ncomp;
+      for (int i = 0; i < ncomp; i++)
       {
-         p_loc_hash_min[d] = hash.bnd[d].min;
-         p_loc_hash_fac[d] = hash.fac[d];
+         spt = (evalSrcPt_t *)src.ptr;
+         array_init(evalOutPt_t, &outpt, n);
+         outpt.n = n;
+         opt = (evalOutPt_t *)outpt.ptr;
+
+         for (int j = 0; j < n; j++)
+         {
+            opt->index = spt->index;
+            opt->proc = spt->proc;
+            opt->out = AsConst(interp_vals)(j + Offset*i);
+            spt++;
+            opt++;
+         }
+
+         sarray_transfer(struct evalOutPt_t, &outpt, proc, 1, cr);
+
+         opt = (evalOutPt_t *)outpt.ptr;
+         for (int index = 0; index < outpt.n; index++)
+         {
+            int idx = ordering == Ordering::byNODES ?
+                      opt->index + i*points_cnt :
+                      opt->index*ncomp + i;
+            field_out(idx) = opt->out;
+            ++opt;
+         }
+         array_free(&outpt);
       }
-      DEV.h_nx = hash.hash_n;
+      array_free(&src);
    }
-
-   DEV.h_o_size = dim == 2 ?
-                  findptsData2->local.hd.offset[(int)std::pow(DEV.h_nx, dim)] :
-                  findptsData3->local.hd.offset[(int)std::pow(DEV.h_nx, dim)];
-
-   DEV.loc_hash_offset.SetSize(DEV.h_o_size);
-   auto p_ou_offset = DEV.loc_hash_offset.HostWrite();
-   for (int i = 0; i < DEV.h_o_size; i++)
-   {
-      p_ou_offset[i] = dim == 2 ? findptsData2->local.hd.offset[i] :
-                       findptsData3->local.hd.offset[i];
-   }
-
-   DEV.wtend.UseDevice(true);
-   DEV.wtend.SetSize(6*DEV.dof1d);
-   DEV.wtend.HostWrite();
-   DEV.wtend = dim == 2 ? findptsData2->local.fed.wtend[0] :
-               findptsData3->local.fed.wtend[0];
-
-   // Get gll points
-   DEV.gll1d.UseDevice(true);
-   DEV.gll1d.SetSize(DEV.dof1d);
-   DEV.gll1d.HostWrite();
-   DEV.gll1d = dim == 2 ? findptsData2->local.fed.z[0] :
-               findptsData3->local.fed.z[0];
-
-   DEV.lagcoeff.UseDevice(true);
-   DEV.lagcoeff.SetSize(DEV.dof1d);
-   DEV.lagcoeff.HostWrite();
-   DEV.lagcoeff = dim == 2 ? findptsData2->local.fed.lag_data[0] :
-                  findptsData3->local.fed.lag_data[0];
-
-   DEV.setup_device = true;
+   //finished evaluating points received from other processors.
 }
+#else
+void FindPointsGSLIB::SetupDevice() {};
+void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
+                                         int point_pos_ordering) {};
+void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
+                                          Vector &field_out,
+                                          const int nel, const int ncomp,
+                                          const int dof1dsol,
+                                          const int ordering) {};
+#endif
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
                                  int point_pos_ordering, const double bb_t,
@@ -869,6 +1135,7 @@ void FindPointsGSLIB::FreeData()
    if (fec_map_lin) { delete fec_map_lin; fec_map_lin = NULL; }
    setupflag = false;
    DEV.setup_device = false;
+   DEV.find_device  = false;
    points_cnt = -1;
 }
 
@@ -1251,7 +1518,6 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
    }
 }
 
-
 void FindPointsGSLIB::MapRefPosAndElemIndices()
 {
    gsl_mfem_ref.SetSize(points_cnt*dim);
@@ -1429,247 +1695,6 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    }
 }
 
-struct evalSrcPt_t
-{
-   double r[3];
-   unsigned int index, proc, el;
-};
-
-struct evalOutPt_t
-{
-   double out;
-   unsigned int index, proc;
-};
-
-void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
-                                          Vector &field_out,
-                                          const int nel,
-                                          const int ncomp,
-                                          const int dof1Dsol,
-                                          const int ordering)
-{
-   field_out.UseDevice(true);
-   field_out.SetSize(points_cnt*ncomp);
-   field_out = default_interp_value;
-
-   DEV.dof1d_sol =  dof1Dsol;
-   DEV.gll1d_sol.UseDevice(true);  DEV.gll1d_sol.SetSize(dof1Dsol);
-   DEV.lagcoeff_sol.UseDevice(true); DEV.lagcoeff_sol.SetSize(dof1Dsol);
-   if (DEV.dof1d_sol != DEV.dof1d)
-   {
-      gslib::lobatto_nodes(DEV.gll1d_sol.HostWrite(), dof1Dsol);
-      gslib::gll_lag_setup(DEV.lagcoeff_sol.HostWrite(), dof1Dsol);
-   }
-   else
-   {
-      DEV.gll1d_sol = DEV.gll1d.HostRead();
-      DEV.lagcoeff_sol = DEV.lagcoeff.HostRead();
-   }
-
-   field_out.HostReadWrite(); //Reads in default value from device
-
-   struct gslib::array src, outpt;
-   int nlocal = 0;
-   /* weed out unfound points, send out */
-   Array<int> gsl_elem_temp;
-   Vector gsl_ref_temp;
-   Array<int> index_temp;
-   {
-      int index;
-      const unsigned int *code = gsl_code.GetData(), *proc = gsl_proc.GetData(),
-                          *el   = gsl_elem.GetData();
-      const double *r = gsl_ref.GetData();
-
-      int numSend = 0;
-
-      for (index = 0; index < points_cnt; ++index)
-      {
-         numSend += (gsl_code[index] != CODE_NOT_FOUND &&
-                     gsl_proc[index] != gsl_comm->id);
-         nlocal += (gsl_code[index] != CODE_NOT_FOUND &&
-                    gsl_proc[index] == gsl_comm->id);
-      }
-
-      gsl_elem_temp.SetSize(nlocal);
-      gsl_elem_temp.HostWrite();
-
-      gsl_ref_temp.SetSize(nlocal*dim);
-      gsl_ref_temp.UseDevice(true);
-      gsl_ref_temp.HostWrite();
-
-      index_temp.SetSize(nlocal);
-
-      evalSrcPt_t *pt;
-      array_init(evalSrcPt_t, &src, numSend);
-      pt = (evalSrcPt_t *)src.ptr;
-
-      int ctr = 0;
-      for (index = 0; index < points_cnt; ++index)
-      {
-         if (*code != CODE_NOT_FOUND && *proc != gsl_comm->id)
-         {
-            for (int d = 0; d < dim; ++d)
-            {
-               pt->r[d] = r[d];
-            }
-            pt->index = index;
-            pt->proc = *proc;
-            pt->el = *el;
-            ++pt;
-         }
-         else if (*code != CODE_NOT_FOUND && *proc == gsl_comm->id)
-         {
-            gsl_elem_temp[ctr] = *el;
-            for (int d = 0; d < dim; ++d)
-            {
-               gsl_ref_temp(dim*ctr+d) = r[d];
-            }
-            index_temp[ctr] = index;
-
-            ctr++;
-         }
-         r += dim;
-         code++;
-         proc++;
-         el++;
-      }
-
-      src.n = pt - (evalSrcPt_t *)src.ptr;
-      sarray_transfer(evalSrcPt_t, &src, proc, 1, cr);
-   }
-
-   //evaluate points that are already local
-   {
-      Vector interp_vals(nlocal*ncomp);
-      interp_vals.UseDevice(true);
-
-      if (dim == 2)
-      {
-         InterpolateLocal2(field_in_evec,
-                           gsl_elem_temp,
-                           gsl_ref_temp,
-                           interp_vals,
-                           nlocal, ncomp,
-                           nel, dof1Dsol);
-      }
-      else
-      {
-         InterpolateLocal3(field_in_evec,
-                           gsl_elem_temp,
-                           gsl_ref_temp,
-                           interp_vals,
-                           nlocal, ncomp,
-                           nel, dof1Dsol);
-
-      }
-      MPI_Barrier(gsl_comm->c);
-
-      interp_vals.HostRead();
-
-      // now put these in correct positions
-      int interp_Offset = interp_vals.Size()/ncomp;
-      for (int i = 0; i < ncomp; i++)
-      {
-         for (int j = 0; j < nlocal; j++)
-         {
-            int pt_index = index_temp[j];
-            int idx = ordering == Ordering::byNODES ?
-                      pt_index + i*points_cnt :
-                      pt_index*ncomp + i;
-            field_out(idx) = AsConst(interp_vals)(j + interp_Offset*i);
-         }
-      }
-   }
-   MPI_Barrier(gsl_comm->c);
-
-   if (gsl_comm->np == 1)
-   {
-      array_free(&src);
-      return;
-   }
-
-   // evaluate points locally
-   {
-      int n = src.n;
-      const evalSrcPt_t *spt;
-      evalOutPt_t *opt;
-      spt = (evalSrcPt_t *)src.ptr;
-
-      // Copy to host vector
-      gsl_elem_temp.SetSize(n);
-      gsl_elem_temp.HostWrite();
-
-      gsl_ref_temp.SetSize(n*dim);
-      gsl_ref_temp.HostWrite();
-
-      spt = (evalSrcPt_t *)src.ptr;
-      //   opt = (evalOutPt_t *)outpt.ptr;
-      for (int i = 0; i < n; i++, ++spt)
-      {
-         gsl_elem_temp[i] = spt->el;
-         for (int d = 0; d < dim; d++)
-         {
-            gsl_ref_temp(i*dim + d) = spt->r[d];
-         }
-      }
-
-      Vector interp_vals(n*ncomp);
-      interp_vals.UseDevice(true);
-      if (dim == 2)
-      {
-         InterpolateLocal2(field_in_evec,
-                           gsl_elem_temp,
-                           gsl_ref_temp,
-                           interp_vals, n, ncomp,
-                           nel, dof1Dsol);
-      }
-      else
-      {
-         InterpolateLocal3(field_in_evec,
-                           gsl_elem_temp,
-                           gsl_ref_temp,
-                           interp_vals, n, ncomp,
-                           nel, dof1Dsol);
-      }
-      MPI_Barrier(gsl_comm->c);
-      interp_vals.HostRead();
-
-      // Now the interpolated values need to be sent back component wise
-      int Offset = interp_vals.Size()/ncomp;
-      for (int i = 0; i < ncomp; i++)
-      {
-         spt = (evalSrcPt_t *)src.ptr;
-         array_init(evalOutPt_t, &outpt, n);
-         outpt.n = n;
-         opt = (evalOutPt_t *)outpt.ptr;
-
-         for (int j = 0; j < n; j++)
-         {
-            opt->index = spt->index;
-            opt->proc = spt->proc;
-            opt->out = AsConst(interp_vals)(j + Offset*i);
-            spt++;
-            opt++;
-         }
-
-         sarray_transfer(struct evalOutPt_t, &outpt, proc, 1, cr);
-
-         opt = (evalOutPt_t *)outpt.ptr;
-         for (int index = 0; index < outpt.n; index++)
-         {
-            int idx = ordering == Ordering::byNODES ?
-                      opt->index + i*points_cnt :
-                      opt->index*ncomp + i;
-            field_out(idx) = opt->out;
-            ++opt;
-         }
-         array_free(&outpt);
-      }
-      array_free(&src);
-   }
-   //finished evaluating points received from other processors.
-}
-
 void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                                   Vector &field_out)
 {
@@ -1692,6 +1717,14 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
    if (Device::IsEnabled() && field_in.UseDevice() && fec_h1 &&
        !field_in.FESpace()->IsVariableOrder() && tensor_product_only)
    {
+#if GSLIB_RELEASE_VERSION == 10007
+      if (!gpu_to_cpu_fallback)
+      {
+         MFEM_ABORT("Either update to gslib v1.0.9 or higher for GPU support "
+         "or use SetGPUtoCPUFallback to use host-functions. See "
+         "https://github.com/mfem/mfem/blob/master/INSTALL for instructions.");
+      }
+#else
       MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,
                   "basis not supported");
       Vector node_vals;
@@ -1708,6 +1741,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       InterpolateOnDevice(node_vals, field_out, NE_split_total, ncomp,
                           maxOrder+1, field_in.FESpace()->GetOrdering());
       return;
+#endif
    }
    field_in.HostRead();
    field_out.HostWrite();

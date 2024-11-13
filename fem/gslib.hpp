@@ -94,11 +94,14 @@ protected:
    // Tolerance to ignore points found beyond the mesh boundary.
    // i.e. if ||x*-x(r)||_2^2 > bdr_tol, we mark point as not found.
    double     bdr_tol;
+   // Use CPU functions for mesh/gridfunction on device for gslib1.0.7
+   bool       gpu_to_cpu_fallback = false;
 
    // Device specific data used for FindPoints
    struct
    {
       bool setup_device = false;
+      bool find_device  = false;
       int local_hash_size, dof1d, dof1d_sol, h_o_size, h_nx;
       double newt_tol; // Tolerance specified during setup for Newton solve
       struct gslib::crystal *cr;
@@ -283,6 +286,10 @@ public:
    {
       bdr_tol = bdr_tol_;
    }
+
+   /// Enable/Disable use of CPU functions for GPU data if the gslib version
+   /// is older.
+   virtual void SetGPUtoCPUFallback(bool mode) { gpu_to_cpu_fallback = mode; }
 
    /** Cleans up memory allocated internally by gslib.
        Note that in parallel, this must be called before MPI_Finalize(), as it

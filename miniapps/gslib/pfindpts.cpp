@@ -365,6 +365,9 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(pmesh);
    finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
+   // Enable GPU to CPU fallback for GPUData only if you must use an older
+   // version of GSLIB.
+   // finder.SetGPUtoCPUFallback(true);
    finder.FindPoints(vxyz, point_ordering);
 
    Array<unsigned int> code_out1    = finder.GetCode();
