@@ -565,10 +565,8 @@ protected:
     rule.
 
     @param [in] Tr ElementTransformation of the current element
-    @param [in] sir corresponding IntegrationRule on surface
     */
-   void ComputeVolumeWeights1D(ElementTransformation& Tr,
-                               const IntegrationRule* sir);
+   void ComputeVolumeWeights1D(ElementTransformation& Tr);
 
    /**
     @brief Compute 2D quadrature weights
