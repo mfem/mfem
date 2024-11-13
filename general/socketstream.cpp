@@ -9,6 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef _WIN32
+// Turn off CRT deprecation warnings for strerror (VS 2013)
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "socketstream.hpp"
 
 #include <cstring>      // memset, memcpy, strerror
