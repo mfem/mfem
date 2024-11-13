@@ -772,6 +772,14 @@ protected:
    /// Entries are not owned.
    Array<Array<int>*> boundary_integs_marker;
 
+   /// Interior face integrators.
+   Array<BilinearFormIntegrator*> interior_face_integs;
+
+   /// Boundary face integrators.
+   Array<BilinearFormIntegrator*> boundary_face_integs;
+   /// Entries are not owned.
+   Array<Array<int>*> boundary_face_integs_marker;
+
    /// Trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> trace_face_integs;
 
@@ -848,14 +856,36 @@ public:
    /** This will segfault if the usual sparse mat is not defined
        like when static condensation is being used or AllocMat() has
        not yet been called. */
-   const SparseMatrix &SpMat() const { return *mat; }
+   const SparseMatrix &SpMat() const
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
+   }
 
    /// Returns a reference to the sparse matrix:  $ M $
-   SparseMatrix &SpMat() { return *mat; }
+   SparseMatrix &SpMat()
+   {
+      MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
+      return *mat;
+   }
 
    /**  @brief Nullifies the internal matrix $ M $ and returns a pointer
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
+
+   /// Returns a const reference to the sparse matrix of eliminated b.c.:  $ M_e $
+   const SparseMatrix &SpMatElim() const
+   {
+      MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
+      return *mat_e;
+   }
+
+   /// Returns a reference to the sparse matrix of eliminated b.c.:  $ M_e $
+   SparseMatrix &SpMatElim()
+   {
+      MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
+      return *mat_e;
+   }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
@@ -870,6 +900,16 @@ public:
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator * bfi,
                               Array<int> &bdr_marker);
+
+   /// Adds an interior face integrator. Assumes ownership of @a bfi.
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Adds a boundary face integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Adds a boundary face integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+                             Array<int> &bdr_marker);
 
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
@@ -900,6 +940,16 @@ public:
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBBFI_Marker() { return &boundary_integs_marker; }
+
+   /// Access all integrators added with AddInteriorFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetFBFI() { return &interior_face_integs; }
+
+   /// Access all integrators added with AddBdrFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetBFBFI() { return &boundary_face_integs; }
+   /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBFBFI_Marker() { return &boundary_face_integs_marker; }
 
    /// Access all integrators added with AddTraceFaceIntegrator().
    Array<BilinearFormIntegrator*> *GetTFBFI() { return &trace_face_integs; }
@@ -966,6 +1016,13 @@ public:
    /** @note The boundary attribute markers of the integrators are ignored. */
    void ComputeBdrTraceFaceMatrix(int i, DenseMatrix &elmat) const;
 
+   /// Compute the face matrix of the given face element
+   void ComputeFaceMatrix(int i, DenseMatrix &elmat) const;
+
+   /// Compute the boundary face matrix of the given boundary element
+   /** @note The boundary attribute markers of the integrators are ignored. */
+   void ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const;
+
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
        added to the system matrix. The flag @a skip_zeros skips the zero
@@ -1006,24 +1063,61 @@ public:
                                  Array<int> &test_vdofs,
                                  int skip_zeros = 1);
 
-   /// Eliminate essential boundary DOFs from the columns of the system.
+   /// Eliminate essential boundary trial DOFs from the system.
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
-       the essential part of the boundary.  All entries in the columns will be
-       set to 0.0 through elimination.*/
-   void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
-                           const Vector &sol, Vector &rhs);
+       the essential part of the boundary. */
+   void EliminateTrialEssentialBC(const Array<int> &bdr_attr_is_ess,
+                                  const Vector &sol, Vector &rhs);
 
-   /// Eliminate the list of DOFs from the columns of the system.
-   /** @a marked_vdofs is the of colunm numbers that will be eliminated.  All
-       entries in the columns will be set to 0.0 through elimination.*/
+   /// Eliminate essential boundary trial DOFs from the system matrix.
+   /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
+       the essential part of the boundary. */
+   void EliminateTrialEssentialBC(const Array<int> &bdr_attr_is_ess);
+
+   /// (DEPRECATED) Eliminate essential boundary trial DOFs from the system.
+   /** @see EliminateTrialEssentialBC() */
+   MFEM_DEPRECATED void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
+                                           const Vector &sol, Vector &rhs)
+   { EliminateTrialEssentialBC(bdr_attr_is_ess, sol, rhs); }
+
+   /// Eliminate the given trial @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
+   /** In this case the eliminations are applied to the internal $ M $
+       and @a rhs without storing the elimination matrix $ M_e $. */
+   void EliminateTrialVDofs(const Array<int> &vdofs, const Vector &sol,
+                            Vector &rhs);
+
+   /// Eliminate the given trial @a vdofs, storing the eliminated part internally in $ M_e $.
+   /** This method works in conjunction with EliminateTrialVDofsInRHS() and allows
+       elimination of boundary conditions in multiple right-hand sides. In this
+       method, @a vdofs is a list of DOFs. */
+   void EliminateTrialVDofs(const Array<int> &vdofs);
+
+   /** @brief Use the stored eliminated part of the matrix (see
+       EliminateTrialVDofs(const Array<int> &)) to modify the r.h.s.
+       @a b; @a vdofs is a list of DOFs (non-directional, i.e. >= 0). */
+   void EliminateTrialVDofsInRHS(const Array<int> &vdofs, const Vector &x,
+                                 Vector &b);
+
+   /** @brief Similar to
+      EliminateTrialVDofs(const Array<int> &, const Vector &, Vector &)
+      but here @a ess_dofs is a marker (boolean) array on all vector-dofs
+      (@a ess_dofs[i] < 0 is true). */
    void EliminateEssentialBCFromTrialDofs(const Array<int> &marked_vdofs,
                                           const Vector &sol, Vector &rhs);
 
-   /// Eliminate essential boundary DOFs from the rows of the system.
+   /// Eliminate essential boundary test DOFs from the system matrix.
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
-       the essential part of the boundary.  All entries in the rows will be
-       set to 0.0 through elimination.*/
-   virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
+       the essential part of the boundary. */
+   void EliminateTestEssentialBC(const Array<int> &bdr_attr_is_ess);
+
+   /// (DEPRECATED) Eliminate essential boundary test DOFs from the system.
+   /** @see EliminateTestEssentialBC() */
+   MFEM_DEPRECATED virtual void EliminateTestDofs(const Array<int>
+                                                  &bdr_attr_is_ess)
+   { EliminateTestEssentialBC(bdr_attr_is_ess); }
+
+   /// Eliminate the given test @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
+   void EliminateTestVDofs(const Array<int> &vdofs);
 
    /** @brief Return in @a A that is column-constrained.
 

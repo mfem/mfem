@@ -838,6 +838,16 @@ inline void hypre_forall(int N, lambda &&body)
 #endif
 }
 
+// Return the most general MemoryClass that can be used with mfem::hypre_forall
+// kernels. The returned MemoryClass is the same as the one returned by
+// GerHypreMemoryClass() except when hypre is configured to use UVM, in which
+// case this function returns MemoryClass::HOST or MemoryClass::DEVICE depending
+// on the result of HypreUsingGPU().
+inline MemoryClass GetHypreForallMemoryClass()
+{
+   return HypreUsingGPU() ? MemoryClass::DEVICE : MemoryClass::HOST;
+}
+
 #endif // MFEM_USE_MPI
 
 } // namespace mfem

@@ -19,6 +19,8 @@
 #include "qfunction.hpp"
 #include <memory>
 
+#include "kernel_dispatch.hpp"
+
 namespace mfem
 {
 
@@ -154,6 +156,13 @@ public:
 
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &trial_fe2,
+                                   const FiniteElement &test_fe2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
@@ -330,6 +339,13 @@ public:
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &el1,
                            const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 
@@ -2126,6 +2142,22 @@ public:
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
 {
+public:
+
+   using ApplyKernelType = void(*)(const int, const bool, const Array<real_t>&,
+                                   const Array<real_t>&, const Array<real_t>&,
+                                   const Array<real_t>&,
+                                   const Vector&, const Vector&,
+                                   Vector&, const int, const int);
+
+   using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
+                                      const Array<real_t>&, const Vector&, Vector&,
+                                      const int, const int);
+
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
+   static struct Kernels { Kernels(); } kernels;
+
 protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
@@ -2286,6 +2318,13 @@ public:
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
    Coefficient *GetCoefficient() const { return Q; }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+   }
 };
 
 /** Class for local mass matrix assembling $a(u,v) := (Q u, v)$ */
@@ -2304,6 +2343,20 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+
+public:
+
+   using ApplyKernelType = void(*)(const int, const Array<real_t>&,
+                                   const Array<real_t>&, const Vector&,
+                                   const Vector&, Vector&, const int, const int);
+
+   using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
+                                       const Vector&, Vector&, const int,
+                                       const int);
+
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
+   static struct Kernels { Kernels(); } kernels;
 
 public:
    MassIntegrator(const IntegrationRule *ir = NULL)
@@ -2350,6 +2403,13 @@ public:
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+   }
 };
 
 /** Mass integrator $(u, v)$ restricted to the boundary of a domain */
@@ -3186,6 +3246,7 @@ protected:
 
 private:
    Vector shape1, shape2;
+   Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
 
 public:
    /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
@@ -3203,6 +3264,13 @@ public:
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &el1,
                            const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 
@@ -3654,14 +3722,37 @@ private:
     the range space. Otherwise, a dof projection matrix is constructed. */
 class IdentityInterpolator : public DiscreteInterpolator
 {
+protected:
+   const int vdim;
+
 public:
-   IdentityInterpolator(): dofquad_fe(NULL) { }
+   /** @brief Construct an identity interpolator.
+
+       @param[in]  vdim_  Vector dimension (number of components) in the domain
+                          and range FE spaces.
+   */
+   IdentityInterpolator(int vdim_ = 1) : vdim(vdim_) { }
 
    void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                const FiniteElement &ran_fe,
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override
-   { ran_fe.Project(dom_fe, Trans, elmat); }
+   {
+      if (vdim == 1)
+      {
+         ran_fe.Project(dom_fe, Trans, elmat);
+         return;
+      }
+      DenseMatrix elmat_block;
+      ran_fe.Project(dom_fe, Trans, elmat_block);
+      elmat.SetSize(vdim*elmat_block.Height(), vdim*elmat_block.Width());
+      elmat = 0_r;
+      for (int i = 0; i < vdim; i++)
+      {
+         elmat.SetSubMatrix(i*elmat_block.Height(), i*elmat_block.Width(),
+                            elmat_block);
+      }
+   }
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &trial_fes,
@@ -3670,17 +3761,25 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
-   virtual ~IdentityInterpolator() { delete dofquad_fe; }
-
 private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
-   FiniteElement *dofquad_fe;
+   std::unique_ptr<FiniteElement> dofquad_fe;
 
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
    int dim, ne, o_dofs1D, c_dofs1D;
 
    Vector pa_data;
+};
+
+
+/** @brief Class identical to IdentityInterpolator with the exception that it
+    requires the vector dimension (number of components) to be specified during
+    construction. */
+class VectorIdentityInterpolator : public IdentityInterpolator
+{
+public:
+   VectorIdentityInterpolator(int vdim_) : IdentityInterpolator(vdim_) { }
 };
 
 

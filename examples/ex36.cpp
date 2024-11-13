@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
          MixedBilinearForm a10(&H1fes,&L2fes);
          a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
          a10.Assemble();
-         a10.EliminateTrialDofs(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
+         a10.EliminateTrialEssentialBC(ess_bdr, x.GetBlock(0), rhs.GetBlock(1));
          a10.Finalize();
          SparseMatrix &A10 = a10.SpMat();
 
