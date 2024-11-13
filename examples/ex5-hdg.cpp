@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool dg = false;
    bool hybridization = false;
+   bool reduction = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
@@ -81,6 +82,8 @@ int main(int argc, char *argv[])
                   "--no-discontinuous", "Enable DG elements for fluxes.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
+   args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
+                  "--no-reduction", "Enable reduction of DG flux.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -265,6 +268,10 @@ int main(int argc, char *argv[])
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
    }
+   else if (reduction && dg)
+   {
+      darcy->EnableFluxReduction();
+   }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
@@ -310,7 +317,7 @@ int main(int argc, char *argv[])
    real_t rtol(1.e-6);
    real_t atol(1.e-10);
 
-   if (hybridization)
+   if (hybridization || (reduction && dg))
    {
       // 10. Construct the preconditioner
       GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
