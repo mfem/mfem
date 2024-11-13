@@ -73,6 +73,87 @@ void LinearDiffusionFlux::ComputeDualFluxJacobian(
    }
 }
 
+real_t mfem::FunctionDiffusionFlux::ComputeDualFlux(
+   const Vector &u, const DenseMatrix &flux, ElementTransformation &Tr,
+   DenseMatrix &dualFlux) const
+{
+   Vector x(3);
+   Tr.Transform(Tr.GetIntPoint(), x);
+
+   if (func)
+   {
+      const real_t ikappa = func(x, u(0));
+      dualFlux.Set(ikappa, flux);
+      return ikappa;
+   }
+   else if (func_vec)
+   {
+      Vector ikappa(dim);
+      func_vec(x, u(0), ikappa);
+      dualFlux = flux;
+      dualFlux.LeftScaling(ikappa);
+      return ikappa.Normlinf();
+   }
+   else if (func_mat)
+   {
+      DenseMatrix ikappa(dim);
+      func_mat(x, u(0), ikappa);
+      MultABt(flux, ikappa, dualFlux);
+      return ikappa.MaxMaxNorm();
+   }
+   return 0.;
+}
+
+real_t FunctionDiffusionFlux::ComputeFlux(
+   const Vector &, ElementTransformation &, DenseMatrix &flux) const
+{
+   flux = 0.;
+   return 0.;
+}
+
+void FunctionDiffusionFlux::ComputeDualFluxJacobian(
+   const Vector &u, const DenseMatrix &flux, ElementTransformation &Tr,
+   DenseMatrix &J_u, DenseMatrix &J_F) const
+{
+   Vector x(3);
+   Tr.Transform(Tr.GetIntPoint(), x);
+
+   J_u.SetSize(dim, 1);
+
+   if (func)
+   {
+      const real_t ikappa = func(x, u(0));
+      J_F.Diag(ikappa, dim);
+
+      const real_t dikappa = dfunc(x, u(0));
+      for (int i = 0; i < dim; i++)
+      {
+         J_u(i,0) = dikappa * flux(0,i);
+      }
+   }
+   else if (func_vec)
+   {
+      Vector ikappa(dim);
+      func_vec(x, u(0), ikappa);
+      J_F.Diag(ikappa);
+
+      Vector dikappa(dim);
+      dfunc_vec(x, u(0), dikappa);
+      for (int i = 0; i < dim; i++)
+      {
+         J_u(i,0) = dikappa(i) * flux(0,i);
+      }
+   }
+   else if (func_mat)
+   {
+      func_mat(x, u(0), J_F);
+
+      DenseMatrix dikappa(dim);
+      dfunc_mat(x, u(0), dikappa);
+      MultABt(dikappa, flux, J_u);
+   }
+}
+
 void MixedConductionNLFIntegrator::AssembleElementVector(
    const Array<const FiniteElement*> &el, ElementTransformation &Tr,
    const Array<const Vector*> &elfun, const Array<Vector*> &elvect)

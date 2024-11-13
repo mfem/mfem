@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "hyperbolic.hpp"
+#include <functional>
 
 namespace mfem
 {
@@ -65,6 +66,42 @@ public:
                       DenseMatrix &flux) const override;
 
    void ComputeDualFluxJacobian(const Vector &, const DenseMatrix &flux,
+                                ElementTransformation &Tr,
+                                DenseMatrix &J_u, DenseMatrix &J_F) const override;
+};
+
+class FunctionDiffusionFlux : public MixedFluxFunction
+{
+   typedef std::function<real_t(const Vector &x, real_t u)> Func;
+   typedef std::function<void(const Vector &x, real_t u, Vector &)> VFunc;
+   typedef std::function<void(const Vector &x, real_t u, DenseMatrix &)> MFunc;
+
+   Func func, dfunc;
+   VFunc func_vec, dfunc_vec;
+   MFunc func_mat, dfunc_mat;
+
+public:
+   FunctionDiffusionFlux(int dim, Func f, Func df)
+      : MixedFluxFunction(1, dim), func(std::move(f)),
+        dfunc(std::move(df)) { }
+
+   FunctionDiffusionFlux(int dim, VFunc f, VFunc df)
+      : MixedFluxFunction(1, dim), func_vec(std::move(f)),
+        dfunc_vec(std::move(df)) { }
+
+   FunctionDiffusionFlux(int dim, MFunc f, MFunc df)
+      : MixedFluxFunction(1, dim), func_mat(std::move(f)),
+        dfunc_mat(std::move(df)) { }
+
+   real_t ComputeDualFlux(const Vector &u, const DenseMatrix &flux,
+                          ElementTransformation &Tr,
+                          DenseMatrix &dualFlux) const override;
+
+   real_t ComputeFlux(const Vector &,
+                      ElementTransformation &,
+                      DenseMatrix &flux) const override;
+
+   void ComputeDualFluxJacobian(const Vector &u, const DenseMatrix &flux,
                                 ElementTransformation &Tr,
                                 DenseMatrix &J_u, DenseMatrix &J_F) const override;
 };
