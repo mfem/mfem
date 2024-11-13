@@ -266,8 +266,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       if (!gpu_to_cpu_fallback)
       {
          MFEM_ABORT("Either update to gslib v1.0.9 for GPU support "
-         "or use SetGPUtoCPUFallback to use host-functions. See "
-         "https://github.com/mfem/mfem/blob/master/INSTALL for instructions.");
+                    "or use SetGPUtoCPUFallback to use host-functions. See "
+                    "https://github.com/mfem/mfem/blob/master/INSTALL for instructions.");
       }
 #else
       FindPointsOnDevice(point_pos, point_pos_ordering);
@@ -1720,8 +1720,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       if (!gpu_to_cpu_fallback)
       {
          MFEM_ABORT("Either update to gslib v1.0.9 for GPU support "
-         "or use SetGPUtoCPUFallback to use host-functions. See "
-         "https://github.com/mfem/mfem/blob/master/INSTALL for instructions.");
+                    "or use SetGPUtoCPUFallback to use host-functions. See "
+                    "https://github.com/mfem/mfem/blob/master/INSTALL for instructions.");
       }
 #else
       MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,
