@@ -914,19 +914,22 @@ real_t ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
             err_val(j) -= (exsol->Eval(*transf, eip) - (shape * el_dofs));
          }
       }
+      real_t face_error = 0.0;
       transf = face_elem_transf;
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
          real_t nu = jump_scaling.Eval(h, p);
-         error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
-                                      transf->Weight() *
-                                      err_val(j) * err_val(j));
+         face_error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
+                                           transf->Weight() *
+                                           err_val(j) * err_val(j));
       }
+      // negative quadrature weights may cause the error to be negative
+      error += fabs(face_error);
    }
 
-   error = (error < 0.0) ? sqrt(-error) : sqrt(error);
+   error = sqrt(error);
    return GlobalLpNorm(2.0, error, pfes->GetComm());
 }
 
