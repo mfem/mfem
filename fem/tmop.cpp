@@ -78,7 +78,7 @@ template <typename type>
 void mult_aTa_2D(const DenseMatrix * in,
                  std::vector<type>& out )
 {
-   out.resize(in->Size());
+   out.resize(in->Size()*in->Size());
    out[0] = in->Elem(0,0)*in->Elem(0,0);
    out[1] = in->Elem(0,0)*in->Elem(0,1) + in->Elem(1,0)*in->Elem(1,1);
    out[2] = in->Elem(0,0)*in->Elem(0,1) + in->Elem(1,0)*in->Elem(1,1);
