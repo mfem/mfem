@@ -31,7 +31,6 @@ namespace gslib
 #ifndef GSLIB_RELEASE_VERSION //gslib v1.0.7
 #define GSLIB_RELEASE_VERSION 10007
 #endif
-
 extern "C" {
    struct hash_data_3
    {
@@ -266,7 +265,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
 #if GSLIB_RELEASE_VERSION == 10007
       if (!gpu_to_cpu_fallback)
       {
-         MFEM_ABORT("Either update to gslib v1.0.9 or higher for GPU support "
+         MFEM_ABORT("Either update to gslib v1.0.9 for GPU support "
          "or use SetGPUtoCPUFallback to use host-functions. See "
          "https://github.com/mfem/mfem/blob/master/INSTALL for instructions.");
       }
@@ -1720,7 +1719,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 #if GSLIB_RELEASE_VERSION == 10007
       if (!gpu_to_cpu_fallback)
       {
-         MFEM_ABORT("Either update to gslib v1.0.9 or higher for GPU support "
+         MFEM_ABORT("Either update to gslib v1.0.9 for GPU support "
          "or use SetGPUtoCPUFallback to use host-functions. See "
          "https://github.com/mfem/mfem/blob/master/INSTALL for instructions.");
       }
