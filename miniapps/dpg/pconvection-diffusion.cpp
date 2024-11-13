@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
    {
       if (myid == 0)
       {
-         args.PrintUsage(mfem::out);
+         args.PrintUsage(std::cout);
       }
       return 1;
    }
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      args.PrintOptions(mfem::out);
+      args.PrintOptions(std::cout);
    }
 
    mesh.EnsureNCMesh(true);
@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
                 << "    Dofs    |" ;
       if (exact_known)
       {
-         mfem::out << "  L2 Error  |"
+         std::cout << "  L2 Error  |"
                    << "  Rate  |";
       }
       std::cout << "  Residual  |"
