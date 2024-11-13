@@ -14,9 +14,20 @@
 
 #ifdef MFEM_USE_GSLIB
 
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+#include "gslib.h"
+#ifndef GSLIB_RELEASE_VERSION //gslib v1.0.7
+#define GSLIB_RELEASE_VERSION 10007
+#endif
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic pop
+#endif
 namespace mfem
 {
-
+#if GSLIB_RELEASE_VERSION >= 10009
 #define CODE_INTERNAL 0
 #define CODE_BORDER 1
 #define CODE_NOT_FOUND 2
@@ -148,7 +159,14 @@ void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
 #undef CODE_INTERNAL
 #undef CODE_BORDER
 #undef CODE_NOT_FOUND
-
+#else
+void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
+                                        Array<int> &gsl_elem_dev_l,
+                                        Vector &gsl_ref_l,
+                                        Vector &field_out,
+                                        int npt, int ncomp,
+                                        int nel, int dof1Dsol) {};
+#endif
 } // namespace mfem
 
 #endif //ifdef MFEM_USE_GSLIB
