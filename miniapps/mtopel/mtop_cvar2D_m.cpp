@@ -738,6 +738,130 @@ public:
        return rez;
     }
 
+    double EvalApproxGradientSamplingMem(mfem::Vector& grad, double alpha, double gamma,int dnsampl)
+    {
+
+       int myrank=ppmesh->GetMyRank();
+       MPI_Comm comm=ppmesh->GetComm();
+
+
+       std::vector<int> ind;
+       std::vector<int> frq;//frequency of the indices
+       int nsampl;
+       if(myrank==0){
+           std::map<int,int> ind_sampl;
+           //do the sampling
+           //construct discrete distribution
+           std::discrete_distribution<int> d(dualq.begin(),dualq.end());
+           for(int i=0;i<dnsampl;i++){
+               int vv=d(generator);
+               auto it=ind_sampl.find(vv);
+               if(it==ind_sampl.end()){
+                   ind_sampl[vv]=1;
+               }else{
+                   it->second=it->second+1;
+               }
+
+               it=ind_sampl.find(aind[vv]);
+               if(it==ind_sampl.end()){
+                   ind_sampl[aind[vv]]=1;
+               }else{
+                   it->second=it->second+1;
+               }
+
+           }
+
+           for(auto it=ind_sampl.begin();it!=ind_sampl.end();it++){
+               ind.push_back(it->first);
+               frq.push_back(it->second);
+           }
+
+           nsampl=ind.size();
+       }
+
+       //communicate the samples
+       MPI_Bcast(&nsampl,1,MPI_INT,0,comm);
+       if(myrank!=0){
+           ind.resize(nsampl);
+           frq.resize(nsampl);
+       }
+       MPI_Bcast(ind.data(), nsampl, MPI_INT, 0, comm);
+       MPI_Bcast(frq.data(), nsampl, MPI_INT, 0, comm);
+
+
+       //compute the objective and the gradients
+       std::vector<double> vals; vals.resize(nsampl);
+       grad=0.0;
+       mfem::Vector cgrad(grad.Size()); cgrad=0.0;
+       //std::vector<mfem::Vector> grads;
+
+       double rez=0.0;
+       double nfa=0.0;
+       for(int i=0;i<nsampl;i++){
+           //generate sample
+           vals[i]=Compliance(vsupp[ind[i]],thresholds[ind[i]],cgrad);
+           rez=rez+vals[i]*frq[i];
+           nfa=nfa+frq[i];
+           //grads.push_back(cgrad);
+       }
+       rez=rez/nfa;
+       if(myrank==0){
+           std::cout<<"rez="<<rez<<" nsampl="<<nsampl<<std::endl;
+       }
+
+       //generate qnew
+       //find t
+       double t;
+       if(myrank==0){
+           //t=adsampl::Find_t(primp,dualq,alpha,gamma,vals,ind, 1e-12,100);
+           t=adsampl::Find_t_bisection(primp,dualq,alpha,gamma,vals,ind, 1e-12,1000);
+       }
+       //communicate t from 0 to all
+       MPI_Bcast(&t,1,MPI_DOUBLE,0,ppmesh->GetComm());
+
+       std::vector<double> w; w.resize(nsampl);
+       double tmp;
+       for(size_t i=0;i<ind.size();i++){
+           tmp=adsampl::inv_sigmoid(dualq[ind[i]],primp[ind[i]],alpha);
+           tmp=tmp+gamma*vals[i]-t;
+           w[i]=adsampl::sigmoid(tmp,primp[ind[i]],alpha);
+       }
+
+       if(myrank==0){
+           std::cout<<"w= ";
+           for(size_t i=0;i<frq.size();i++){
+               std::cout<<" "<<w[i];
+           }
+           std::cout<<std::endl;
+           std::cout<<"frq= ";
+           for(size_t i=0;i<frq.size();i++){
+               std::cout<<" "<<frq[i];
+           }
+           std::cout<<std::endl;
+       }
+
+       rez=0.0;
+       for(size_t i=0;i<ind.size();i++){
+           double lw=frq[i]*w[i]/dualq[ind[i]];
+           //recompute cgrad
+           vals[i]=Compliance(vsupp[ind[i]],thresholds[ind[i]],cgrad);
+           grad.Add(lw,cgrad);
+           rez=rez+lw*vals[i];
+           //copy w to q
+           dualq[ind[i]]=w[i];
+       }
+
+
+       rez=rez/nfa;
+       grad*=(gamma/nfa);
+
+
+       if(myrank==0){
+           std::cout<<"rez="<<rez<<" t="<<t<<std::endl;
+       }
+
+       return rez;
+    }
 
 private:
     mfem::YoungModulus E;
@@ -1052,12 +1176,13 @@ int main(int argc, char *argv[])
           vobj->SetProjection(0.3,8.0);
           alco->SetDensity(vdens,0.7,8.0,1.0);
 
-          cpl=alco->Compliance(ograd);
+          //cpl=alco->Compliance(ograd);
           //cpl=alco->MeanCompl(ograd);
           //cpl=alco->EGDUpdate(ograd,0.001);
 
           //cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
           //cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.001,20);
+          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.001,20);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
