@@ -463,6 +463,15 @@ public:
             }
         }
 
+
+       int myrank=ppmesh->GetMyRank();
+       if(myrank==0){
+           for(int i=0;i<vsupp.size();i++){
+               std::cout<<vsupp[i]<<" "<<asupp[i]<<" a="<<aind[i]<<std::endl;
+           }
+       }
+
+
     }
 
 
@@ -862,6 +871,7 @@ public:
            std::discrete_distribution<int> d(dualq.begin(),dualq.end());
            for(int i=0;i<dnsampl;i++){
                int vv=d(generator);
+               vv=i;
                auto it=ind_sampl.find(vv);
                if(it==ind_sampl.end()){
                    ind_sampl[vv]=1;
@@ -1299,7 +1309,7 @@ int main(int argc, char *argv[])
 
           //cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
           //cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.001,20);
-          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.1,190*4);
+          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.1,4);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
