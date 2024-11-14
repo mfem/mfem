@@ -855,7 +855,6 @@ const IntegrationRule &GradientIntegrator::GetRule(const FiniteElement
 }
 
 
-/// Construct a diffusion integrator with coefficient Q = 1
 DiffusionIntegrator::DiffusionIntegrator(const IntegrationRule *ir)
    : BilinearFormIntegrator(ir),
      Q(nullptr), VQ(nullptr), MQ(nullptr), maps(nullptr), geom(nullptr)
@@ -863,7 +862,6 @@ DiffusionIntegrator::DiffusionIntegrator(const IntegrationRule *ir)
    static Kernels kernels;
 }
 
-/// Construct a diffusion integrator with a scalar coefficient q
 DiffusionIntegrator::DiffusionIntegrator(Coefficient &q,
                                          const IntegrationRule *ir)
    : DiffusionIntegrator(ir)
@@ -871,7 +869,6 @@ DiffusionIntegrator::DiffusionIntegrator(Coefficient &q,
    Q = &q;
 }
 
-/// Construct a diffusion integrator with a vector coefficient q
 DiffusionIntegrator::DiffusionIntegrator(VectorCoefficient &q,
                                          const IntegrationRule *ir)
    : DiffusionIntegrator(ir)
@@ -879,7 +876,6 @@ DiffusionIntegrator::DiffusionIntegrator(VectorCoefficient &q,
    VQ = &q;
 }
 
-/// Construct a diffusion integrator with a matrix coefficient q
 DiffusionIntegrator::DiffusionIntegrator(MatrixCoefficient &q,
                                          const IntegrationRule *ir)
    : DiffusionIntegrator(ir)
@@ -1348,7 +1344,6 @@ MassIntegrator::MassIntegrator(const IntegrationRule *ir)
    static Kernels kernels;
 }
 
-/// Construct a mass integrator with coefficient q
 MassIntegrator::MassIntegrator(Coefficient &q, const IntegrationRule *ir)
    : MassIntegrator(ir)
 {
