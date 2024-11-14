@@ -166,6 +166,7 @@ double Find_t_bisection(const std::vector<double>& p,
         }
     }
 
+    /*
     for(size_t i=0;i<p.size();i++){
         std::cout<<" "<<p[i];
     }
@@ -182,6 +183,7 @@ double Find_t_bisection(const std::vector<double>& p,
         std::cout<<" "<<ind[i];
     }
     std::cout<<std::endl;
+    */
 
 
     std::cout<<"cval="<<cval<<std::endl;
