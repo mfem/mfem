@@ -195,10 +195,12 @@ double Find_t_bisection(const std::vector<double>& p,
         }
     }
 
+    /*
     for(size_t i=0;i<g.size();i++){
         std::cout<<" "<<g[i];
     }
     std::cout<<std::endl;
+    */
 
     double fmin=gamma*f[0];
     double fmax=gamma*f[0];
@@ -254,7 +256,7 @@ double Find_t_bisection(const std::vector<double>& p,
             ff=ff+sigmoid(g[i]-tt,p[ind[i]],alpha);
         }
 
-        std::cout<<"tt="<<tt<<" ff="<<ff<<std::endl;
+        //std::cout<<"tt="<<tt<<" ff="<<ff<<std::endl;
 
         if(ff<0.0){fmin=ff; tmin=tt;}
         else{fmax=ff; tmax=tt;}
@@ -405,6 +407,92 @@ public:
         dualq.clear();
         thresholds.clear();
     }
+
+    void SetCases2(double eta=0.5)
+    {
+        std::bitset<20> bset;
+        std::bitset<20> aset;
+
+        for(int i=0;i<20;i++){
+            for(int j=(i+1);j<20;j++){
+                        for(int p=0;p<20;p++){bset[p]=true; aset[p]=true;}
+                        bset[i]=false;
+                        aset[19-i]=false;
+                        bset[j]=false;
+                        aset[19-j]=false;
+                        vsupp.push_back(bset);
+                        asupp.push_back(aset);
+                        thresholds.push_back(eta);
+                        dualq.push_back(0.1);
+            }
+        }
+
+        primp.resize(dualq.size());
+        //normalize
+        double sum=0.0;
+        for(size_t i=0;i<dualq.size();i++){sum=sum+dualq[i];}
+        for(size_t i=0;i<dualq.size();i++){
+            dualq[i]=dualq[i]/sum;
+            primp[i]=dualq[i];
+        }
+
+        aind.resize(asupp.size());
+        for(size_t i=0;i<asupp.size();i++){
+            for(size_t j=0;j<vsupp.size();j++){
+                if(asupp[i]==vsupp[j]){
+                    aind[i]=j;
+                    break;
+                }
+            }
+        }
+
+    }
+
+
+    void SetCases3(double eta=0.5)
+    {
+        std::bitset<20> bset;
+        std::bitset<20> aset;
+
+        for(int i=0;i<20;i++){
+            for(int j=(i+1);j<20;j++){
+                for(int k=(j+1);k<20;k++){
+                        for(int p=0;p<20;p++){bset[p]=true; aset[p]=true;}
+                        bset[i]=false;
+                        aset[19-i]=false;
+                        bset[j]=false;
+                        aset[19-j]=false;
+                        bset[k]=false;
+                        aset[19-k]=false;
+                        vsupp.push_back(bset);
+                        asupp.push_back(aset);
+                        thresholds.push_back(eta);
+                        dualq.push_back(0.1);
+                }
+            }
+        }
+
+        primp.resize(dualq.size());
+        //normalize
+        double sum=0.0;
+        for(size_t i=0;i<dualq.size();i++){sum=sum+dualq[i];}
+        for(size_t i=0;i<dualq.size();i++){
+            dualq[i]=dualq[i]/sum;
+            primp[i]=dualq[i];
+        }
+
+        aind.resize(asupp.size());
+        for(size_t i=0;i<asupp.size();i++){
+            for(size_t j=0;j<vsupp.size();j++){
+                if(asupp[i]==vsupp[j]){
+                    aind[i]=j;
+                    break;
+                }
+            }
+        }
+
+    }
+
 
     //sets the simulation cases and the associated probabilities
     void SetCases(double eta=0.5)
@@ -808,7 +896,7 @@ public:
        }
        rez=rez/nfa;
        if(myrank==0){
-           std::cout<<"rez="<<rez<<" nsampl="<<nsampl<<std::endl;
+           std::cout<<"rez="<<rez<<" nsampl="<<nsampl<<" q_size="<<dualq.size()<<std::endl;
        }
 
        //generate qnew
@@ -829,6 +917,7 @@ public:
            w[i]=adsampl::sigmoid(tmp,primp[ind[i]],alpha);
        }
 
+       /*
        if(myrank==0){
            std::cout<<"w= ";
            for(size_t i=0;i<frq.size();i++){
@@ -841,6 +930,7 @@ public:
            }
            std::cout<<std::endl;
        }
+       */
 
        rez=0.0;
        for(size_t i=0;i<ind.size();i++){
@@ -1054,7 +1144,7 @@ int main(int argc, char *argv[])
    AlcoaBracket* alco=new AlcoaBracket(&pmesh,1);
    alco->SetDesignFES(pgdens.ParFESpace());
    alco->SetDensity(vdens);
-   alco->SetCases(0.7);
+   alco->SetCases2(0.7);
 
    //mfem::ParGridFunction disp;
    //alco->GetSol(4,1,1,1,disp);
@@ -1184,7 +1274,7 @@ int main(int argc, char *argv[])
 
           //cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
           //cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.001,20);
-          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.001,2000);
+          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.001,190*4);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
