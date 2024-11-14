@@ -364,11 +364,6 @@ public:
     double ComplianceH(std::bitset<20>& supp, double eta, mfem::Vector& grad)
     {
 
-        int myrank=ppmesh->GetMyRank();
-        if(myrank==0){
-            std::cout<<supp<<std::endl;
-        }
-
         E.SetProjParam(eta,8.0);
         //set all bc
         esolv->DelDispBC();
@@ -1314,13 +1309,13 @@ int main(int argc, char *argv[])
           vobj->SetProjection(0.3,8.0);
           alco->SetDensity(vdens,0.7,8.0,1.0);
 
-          //cpl=alco->Compliance(ograd);
+          cpl=alco->Compliance(ograd);
           //cpl=alco->MeanCompl(ograd);
           //cpl=alco->EGDUpdate(ograd,0.001);
 
           //cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
           //cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.001,20);
-          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.1,4);
+          //cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.1,4);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
