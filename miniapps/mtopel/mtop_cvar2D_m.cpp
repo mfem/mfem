@@ -353,7 +353,7 @@ public:
         for(int j=0;j<20;j++){
             if(supp[j]==true){esolv->AddDispBC(3+j,4,0.0);}
         }
-        esolv->AddSurfLoad(1,1.00,1.00,0.0);
+        esolv->AddSurfLoad(1,1.00,0.00,0.0);
         esolv->FSolve();
         esolv->GetSol(sol);
         cobj->Grad(sol,grad);
