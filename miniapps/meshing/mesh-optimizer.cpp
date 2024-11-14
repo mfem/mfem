@@ -51,14 +51,13 @@
 //   Adapted discrete size NC mesh;
 //     mesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size 3D with PA:
-//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
+//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
 //   Adapted discrete size 3D with PA on device (requires CUDA):
 //   * mesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
 //   Adapted discrete size+orientation:
 //      mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
 //   Adapted discrete aspect ratio (3D):
