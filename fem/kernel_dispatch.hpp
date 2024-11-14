@@ -78,9 +78,9 @@ namespace mfem
       const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                  \
       using KernelSignature = KernelType;                                      \
       template <MFEM_PARAM_LIST P3>                                            \
-      static KernelSignature Kernel();                                         \
-      static KernelSignature Fallback(MFEM_PARAM_LIST P1);                     \
-      static KernelName &Get()                                                 \
+      static MFEM_EXPORT KernelSignature Kernel();                             \
+      static MFEM_EXPORT KernelSignature Fallback(MFEM_PARAM_LIST P1);         \
+      static MFEM_EXPORT KernelName &Get()                                     \
       { static KernelName table; return table;}                                \
    }
 
