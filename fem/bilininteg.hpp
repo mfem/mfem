@@ -2234,7 +2234,12 @@ private:
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator(const IntegrationRule *ir = nullptr);
+   DiffusionIntegrator(const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Q(nullptr), VQ(nullptr), MQ(nullptr), maps(nullptr), geom(nullptr)
+   {
+      static Kernels kernels;
+   }
 
    /// Construct a diffusion integrator with a scalar coefficient q
    DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr)
@@ -2354,7 +2359,11 @@ public:
    struct Kernels { Kernels(); };
 
 public:
-   MassIntegrator(const IntegrationRule *ir = NULL);
+   MassIntegrator(const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir), Q(nullptr), maps(nullptr), geom(nullptr)
+   {
+      static Kernels kernels;
+   }
 
    /// Construct a mass integrator with coefficient q
    MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
