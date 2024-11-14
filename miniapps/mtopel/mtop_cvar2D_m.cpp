@@ -342,6 +342,11 @@ public:
 
     double Compliance(std::bitset<20>& supp, double eta, mfem::Vector& grad)
     {
+        int myrank=ppmesh->GetMyRank();
+        if(myrank==0){
+            std::cout<<supp<<std::endl;
+        }
+
         E.SetProjParam(eta,8.0);
         //set all bc
         esolv->DelDispBC();
@@ -358,6 +363,12 @@ public:
 
     double ComplianceH(std::bitset<20>& supp, double eta, mfem::Vector& grad)
     {
+
+        int myrank=ppmesh->GetMyRank();
+        if(myrank==0){
+            std::cout<<supp<<std::endl;
+        }
+
         E.SetProjParam(eta,8.0);
         //set all bc
         esolv->DelDispBC();
