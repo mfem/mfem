@@ -351,10 +351,27 @@ public:
         esolv->AddSurfLoad(1,0.00,1.00,0.0);
         esolv->FSolve();
         esolv->GetSol(sol);
-
         cobj->Grad(sol,grad);
+
         return cobj->Eval(sol);
     }
+
+    double ComplianceH(std::bitset<20>& supp, double eta, mfem::Vector& grad)
+    {
+        E.SetProjParam(eta,8.0);
+        //set all bc
+        esolv->DelDispBC();
+        for(int j=0;j<20;j++){
+            if(supp[j]==true){esolv->AddDispBC(3+j,4,0.0);}
+        }
+        esolv->AddSurfLoad(1,1.00,0.00,0.0);
+        esolv->FSolve();
+        esolv->GetSol(sol);
+        cobj->Grad(sol,grad);
+
+        return cobj->Eval(sol);
+    }
+
 
     double Compliance(mfem::Vector& grad, double eta=0.5)
     {
@@ -892,6 +909,9 @@ public:
            vals[i]=Compliance(vsupp[ind[i]],thresholds[ind[i]],cgrad);
            rez=rez+vals[i]*frq[i];
            nfa=nfa+frq[i];
+
+           vals[i]=ComplianceH(vsupp[ind[i]],thresholds[ind[i]],cgrad);
+           rez=rez+vals[i]*frq[i];
            //grads.push_back(cgrad);
        }
        rez=rez/nfa;
@@ -939,6 +959,11 @@ public:
            vals[i]=Compliance(vsupp[ind[i]],thresholds[ind[i]],cgrad);
            grad.Add(lw,cgrad);
            rez=rez+lw*vals[i];
+
+           vals[i]=ComplianceH(vsupp[ind[i]],thresholds[ind[i]],cgrad);
+           grad.Add(lw,cgrad);
+           rez=rez+lw*vals[i];
+
            //copy w to q
            dualq[ind[i]]=w[i];
        }
