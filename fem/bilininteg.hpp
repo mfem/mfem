@@ -2234,26 +2234,16 @@ private:
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator(const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(nullptr), VQ(nullptr), MQ(nullptr), maps(nullptr), geom(nullptr)
-   {
-      static Kernels kernels;
-   }
+   DiffusionIntegrator(const IntegrationRule *ir = nullptr);
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr)
-      : DiffusionIntegrator(ir) { Q = &q; }
+   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr);
 
    /// Construct a diffusion integrator with a vector coefficient q
-   DiffusionIntegrator(VectorCoefficient &q,
-                       const IntegrationRule *ir = nullptr)
-      : DiffusionIntegrator(ir) { VQ = &q; }
+   DiffusionIntegrator(VectorCoefficient &q, const IntegrationRule *ir = nullptr);
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator(MatrixCoefficient &q,
-                       const IntegrationRule *ir = nullptr)
-      : DiffusionIntegrator(ir) { MQ = &q; }
+   DiffusionIntegrator(MatrixCoefficient &q, const IntegrationRule *ir = nullptr);
 
    /** Given a particular Finite Element computes the element stiffness matrix
        elmat. */
@@ -2359,15 +2349,10 @@ public:
    struct Kernels { Kernels(); };
 
 public:
-   MassIntegrator(const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir), Q(nullptr), maps(nullptr), geom(nullptr)
-   {
-      static Kernels kernels;
-   }
+   MassIntegrator(const IntegrationRule *ir = nullptr);
 
    /// Construct a mass integrator with coefficient q
-   MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : MassIntegrator(ir) { Q = &q; }
+   MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL);
 
    /** Given a particular Finite Element computes the element mass matrix
        elmat. */
