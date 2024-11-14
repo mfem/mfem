@@ -1198,7 +1198,7 @@ int main(int argc, char *argv[])
        vdens=1.0;
        tot_vol=vobj->Eval(vdens);
    }
-   double max_vol=0.5*tot_vol;
+   double max_vol=0.25*tot_vol;
    if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
 
    //intermediate volume
@@ -1274,7 +1274,7 @@ int main(int argc, char *argv[])
 
           //cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
           //cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.001,20);
-          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.01,190*4);
+          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.1,190*4);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
