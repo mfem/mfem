@@ -16,6 +16,7 @@ namespace mfem
 
 // PA Diffusion Integrator
 
+DiffusionIntegrator::Kernels DiffusionIntegrator::kernels;
 DiffusionIntegrator::Kernels::Kernels()
 {
    // 2D
@@ -39,6 +40,8 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<3,7,8>();
    DiffusionIntegrator::AddSpecialization<3,8,9>();
 }
+
+void DiffusionIntegrator::Kernels::EnsureInitialized() { }
 
 namespace internal
 {
