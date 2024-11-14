@@ -430,6 +430,10 @@ public:
    */
    virtual void ProjectDiscCoefficient(VectorCoefficient &coeff, AvgType type);
 
+   /** @brief Return a GridFunction with the values of this, prolongated to the
+       maximum order of all elements in the mesh. */
+   std::unique_ptr<GridFunction> ProlongateToMaxOrder() const;
+
 protected:
    /** @brief Accumulates (depending on @a type) the values of @a coeff at all
        shared vdofs and counts in how many zones each vdof appears. */
@@ -690,6 +694,8 @@ public:
 
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
    virtual void Update();
+
+   void UpdatePRef();
 
    /** Return update counter, similar to Mesh::GetSequence(). Used to
        check if it is up to date with the space. */

@@ -2098,8 +2098,6 @@ PRefinementTransferOperator::PRefinementTransferOperator(
    isvar_order = lFESpace_.IsVariableOrder() || hFESpace_.IsVariableOrder();
 }
 
-PRefinementTransferOperator::~PRefinementTransferOperator() {}
-
 void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 {
    Mesh* mesh = hFESpace.GetMesh();
@@ -2548,12 +2546,6 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
    });
 }
 } // namespace TransferKernels
-
-
-TensorProductPRefinementTransferOperator::
-~TensorProductPRefinementTransferOperator()
-{
-}
 
 void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
                                                     Vector& y) const
