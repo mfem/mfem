@@ -40,7 +40,6 @@ list(APPEND ALL_EXE_SRCS
   ex30.cpp
   ex31.cpp
   ex33.cpp
-  proyectodosvolumenes.cpp
   )
 
 if (MFEM_USE_MPI)
