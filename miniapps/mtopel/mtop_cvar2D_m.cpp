@@ -353,7 +353,7 @@ public:
         for(int j=0;j<20;j++){
             if(supp[j]==true){esolv->AddDispBC(3+j,4,0.0);}
         }
-        esolv->AddSurfLoad(1,1.00,0.00,0.0);
+        esolv->AddSurfLoad(1,1.00,1.00,0.0);
         esolv->FSolve();
         esolv->GetSol(sol);
         cobj->Grad(sol,grad);
@@ -877,7 +877,7 @@ public:
            std::discrete_distribution<int> d(dualq.begin(),dualq.end());
            for(int i=0;i<dnsampl;i++){
                int vv=d(generator);
-               vv=i;
+
                auto it=ind_sampl.find(vv);
                if(it==ind_sampl.end()){
                    ind_sampl[vv]=1;
@@ -1309,13 +1309,13 @@ int main(int argc, char *argv[])
           vobj->SetProjection(0.3,8.0);
           alco->SetDensity(vdens,0.7,8.0,1.0);
 
-          cpl=alco->Compliance(ograd);
+          //cpl=alco->Compliance(ograd);
           //cpl=alco->MeanCompl(ograd);
           //cpl=alco->EGDUpdate(ograd,0.001);
 
           //cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
           //cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.001,20);
-          //cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.1,4);
+          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.1,190*4);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
