@@ -4435,6 +4435,10 @@ Mesh::Mesh( const NURBSExtension& ext )
          }
       }
    }
+   else
+   {
+      MFEM_ABORT("NURBS mesh has no patches.");
+   }
    FinalizeMesh();
 }
 
