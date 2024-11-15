@@ -1039,6 +1039,7 @@ int main(int argc, char *argv[])
    int tot_iter = 100;
    int max_it = 51;
    int print_level = 1;
+   double alpha=0.75;
    bool visualization = false;
    const char *petscrc_file = "";
    int restart=0;
@@ -1091,6 +1092,10 @@ int main(int argc, char *argv[])
                      "-rstr",
                      "--restart",
                      "Restart the optimization from previous design.");
+   args.AddOption(&alpha,
+                  "-a",
+                  "--alpha",
+                  "CVaR alpha");
    args.Parse();
    if (!args.Good())
    {
@@ -1310,7 +1315,7 @@ int main(int argc, char *argv[])
 
           //cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
           //cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.001,20);
-          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.90,0.1,190*4);
+          cpl=alco->EvalApproxGradientSamplingMem(ograd,alpha,0.1,190*4);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
