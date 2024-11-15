@@ -23,6 +23,10 @@
 #include "amgxsolver.hpp"
 #ifdef MFEM_USE_AMGX
 
+#ifdef MFEM_USE_MPI
+#include "../general/communication.hpp"
+#endif
+
 namespace mfem
 {
 

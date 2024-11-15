@@ -103,29 +103,32 @@ ParMesh& ParMesh::operator=(ParMesh &&mesh)
    return *this;
 }
 
-ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
+ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
                  int part_method)
    : glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
 {
-   int *partitioning = NULL;
-   Array<bool> activeBdrElem;
-
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
+   Array<int> partitioning;
+   Array<bool> activeBdrElem;
+
+   if (partitioning_)
+   {
+      partitioning.MakeRef(const_cast<int *>(partitioning_), mesh.GetNE(),
+                           false);
+   }
+
    if (mesh.Nonconforming())
    {
-      if (partitioning_)
+      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning_);
+
+      if (!partitioning_)
       {
-         partitioning = partitioning_;
-      }
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
-      if (!partitioning)
-      {
-         partitioning = new int[mesh.GetNE()];
+         partitioning.SetSize(mesh.GetNE());
          for (int i = 0; i < mesh.GetNE(); i++)
          {
             partitioning[i] = pncmesh->InitialPartition(i);
@@ -145,6 +148,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
 
+      // Copy attribute and bdr_attribute names
+      mesh.attribute_sets.Copy(attribute_sets);
+      mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
+
       GenerateNCFaceInfo();
    }
    else // mesh.Conforming()
@@ -154,13 +161,14 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       ncmesh = pncmesh = NULL;
 
-      if (partitioning_)
+      if (!partitioning_)
       {
-         partitioning = partitioning_;
-      }
-      else
-      {
-         partitioning = mesh.GeneratePartitioning(NRanks, part_method);
+         // Mesh::GeneratePartitioning always uses new[] to allocate the,
+         // partitioning, so we need to tell the memory manager to free it with
+         // delete[] (even if a different host memory type has been selected).
+         constexpr MemoryType mt = MemoryType::HOST;
+         partitioning.MakeRef(mesh.GeneratePartitioning(NRanks, part_method),
+                              mesh.GetNE(), mt, true);
       }
 
       // re-enumerate the partitions to better map to actual processor
@@ -180,6 +188,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
+
+      // Copy attribute and bdr_attribute names
+      mesh.attribute_sets.Copy(attribute_sets);
+      mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
 
       NumOfEdges = NumOfFaces = 0;
 
@@ -248,9 +260,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // build svert_lvert mapping
       BuildSharedVertMapping(nsvert, vert_element, vert_global_local);
       delete vert_element;
-
-      SetMeshGen();
-      meshgen = mesh.meshgen; // copy the global 'meshgen'
    }
 
    if (mesh.NURBSext)
@@ -299,11 +308,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // set meaningful values to 'vertices' even though we have Nodes,
       // for compatibility (e.g., Mesh::GetVertex())
       SetVerticesFromNodes(Nodes);
-   }
-
-   if (partitioning != partitioning_)
-   {
-      delete [] partitioning;
    }
 
    have_face_nbr_data = false;
@@ -725,7 +729,7 @@ void ParMesh::BuildVertexGroup(int ngroups, const Table &vert_element)
 }
 
 void ParMesh::BuildSharedFaceElems(int ntri_faces, int nquad_faces,
-                                   const Mesh& mesh, int *partitioning,
+                                   const Mesh& mesh, const int *partitioning,
                                    const STable3D *faces_tbl,
                                    const Array<int> &face_group,
                                    const Array<int> &vert_global_local)
@@ -1519,6 +1523,7 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
 void ParMesh::Finalize(bool refine, bool fix_orientation)
 {
    const int meshgen_save = meshgen; // Mesh::Finalize() may call SetMeshGen()
+   // 'mesh_geoms' is local, so there's no need to save and restore it.
 
    Mesh::Finalize(refine, fix_orientation);
 
@@ -3918,6 +3923,10 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
 
+   // Copy attribute and bdr_attribute names
+   attribute_sets.Copy(pmesh2->attribute_sets);
+   bdr_attribute_sets.Copy(pmesh2->bdr_attribute_sets);
+
    // now swap the meshes, the second mesh will become the old coarse mesh
    // and this mesh will be the new fine mesh
    Mesh::Swap(*pmesh2, false);
@@ -3976,6 +3985,10 @@ bool ParMesh::NonconformingDerefinement(Array<real_t> &elem_error,
    attributes.Copy(mesh2->attributes);
    bdr_attributes.Copy(mesh2->bdr_attributes);
 
+   // Copy attribute and bdr_attribute names
+   attribute_sets.Copy(mesh2->attribute_sets);
+   bdr_attribute_sets.Copy(mesh2->bdr_attribute_sets);
+
    Mesh::Swap(*mesh2, false);
    delete mesh2;
 
@@ -4026,6 +4039,10 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
 
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
+
+   // Copy attribute and bdr_attribute names
+   attribute_sets.Copy(pmesh2->attribute_sets);
+   bdr_attribute_sets.Copy(pmesh2->bdr_attribute_sets);
 
    Mesh::Swap(*pmesh2, false);
    delete pmesh2;
@@ -4787,7 +4804,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
 
    if (NURBSext)
    {
-      Printer(os, comments); // does not print shared boundary
+      Printer(os, "", comments); // does not print shared boundary
       return;
    }
 
@@ -4825,7 +4842,10 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
       }
    }
 
-   os << "MFEM mesh v1.0\n";
+   const bool set_names = attribute_sets.SetsExist() ||
+                          bdr_attribute_sets.SetsExist();
+
+   os << (!set_names ? "MFEM mesh v1.0\n" : "MFEM mesh v1.3\n");
 
    if (!comments.empty()) { os << '\n' << comments << '\n'; }
 
@@ -4846,6 +4866,12 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    for (int i = 0; i < NumOfElements; i++)
    {
       PrintElement(elements[i], os);
+   }
+
+   if (set_names)
+   {
+      os << "\nattribute_sets\n";
+      attribute_sets.Print(os);
    }
 
    int num_bdr_elems = NumOfBdrElements;
@@ -4876,6 +4902,13 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
          PrintElement(faces[(*s2l_face)[i]], os);
       }
    }
+
+   if (set_names)
+   {
+      os << "\nbdr_attribute_sets\n";
+      bdr_attribute_sets.Print(os);
+   }
+
    os << "\nvertices\n" << NumOfVertices << '\n';
    if (Nodes == NULL)
    {
@@ -4895,6 +4928,11 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    {
       os << "\nnodes\n";
       Nodes->Save(os);
+   }
+
+   if (set_names)
+   {
+      os << "\nmfem_mesh_end" << endl;
    }
 }
 
@@ -5245,7 +5283,7 @@ void ParMesh::PrintAsSerial(std::ostream &os, const std::string &comments) const
    Mesh serialmesh = GetSerialMesh(save_rank);
    if (MyRank == save_rank)
    {
-      serialmesh.Printer(os, comments);
+      serialmesh.Printer(os, "", comments);
    }
    MPI_Barrier(MyComm);
 }
@@ -6284,11 +6322,11 @@ void ParMesh::ParPrint(ostream &os, const std::string &comments) const
    if (Nonconforming())
    {
       // the NC mesh format works both in serial and in parallel
-      Printer(os, comments);
+      Printer(os, "", comments);
       return;
    }
 
-   // Write out serial mesh.  Tell serial mesh to deliniate the end of it's
+   // Write out serial mesh.  Tell serial mesh to delineate the end of its
    // output with 'mfem_serial_mesh_end' instead of 'mfem_mesh_end', as we will
    // be adding additional parallel mesh information.
    Printer(os, "mfem_serial_mesh_end", comments);
@@ -6305,6 +6343,7 @@ void ParMesh::ParPrint(ostream &os, const std::string &comments) const
    {
       os << "total_shared_faces " << sface_lface.Size() << '\n';
    }
+   os << "\n# group 0 has no shared entities\n";
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       {

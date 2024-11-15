@@ -63,9 +63,9 @@
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
 #endif
 
-// 'double' atomicAdd implementation for previous versions of CUDA
+// 'double' and 'float' atomicAdd implementation for previous versions of CUDA
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
-MFEM_DEVICE inline real_t atomicAdd(real_t *add, real_t val)
+MFEM_DEVICE inline mfem::real_t atomicAdd(mfem::real_t *add, mfem::real_t val)
 {
    unsigned long long int *ptr = (unsigned long long int *) add;
    unsigned long long int old = *ptr, reg;

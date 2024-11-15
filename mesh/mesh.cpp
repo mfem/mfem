@@ -20,9 +20,10 @@
 #include "../general/tic_toc.hpp"
 #include "../general/gecko.hpp"
 #include "../general/kdtree.hpp"
+#include "../general/sets.hpp"
 #include "../fem/quadinterpolator.hpp"
 
-#include <iostream>
+// headers already included by mesh.hpp: <iostream>, <array>, <map>, <memory>
 #include <sstream>
 #include <fstream>
 #include <limits>
@@ -465,7 +466,8 @@ void Mesh::GetBdrElementTransformation(int i,
          {
             for (int j = 0; j < n; j++)
             {
-               pm(k,j) = nodes(vdofs[n*k+j]);
+               int idx = vdofs[n*k+j];
+               pm(k,j) = nodes((idx<0)? -1-idx:idx);
             }
          }
          ElTr->SetFE(bdr_el);
@@ -1338,7 +1340,7 @@ Mesh::FaceInformation::operator Mesh::FaceInfo() const
    return res;
 }
 
-std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info)
+std::ostream &operator<<(std::ostream &os, const Mesh::FaceInformation& info)
 {
    os << "face topology=";
    switch (info.topology)
@@ -2208,7 +2210,7 @@ class GeckoProgress : public Gecko::Progress
    mutable StopWatch sw;
 public:
    GeckoProgress(real_t limit) : limit(limit) { sw.Start(); }
-   virtual bool quit() const { return limit > 0 && sw.UserTime() > limit; }
+   bool quit() const override { return limit > 0 && sw.UserTime() > limit; }
 };
 
 class GeckoVerboseProgress : public GeckoProgress
@@ -2219,18 +2221,18 @@ class GeckoVerboseProgress : public GeckoProgress
 public:
    GeckoVerboseProgress(real_t limit) : GeckoProgress(limit) {}
 
-   virtual void beginorder(const Graph* graph, Float cost) const
+   void beginorder(const Graph* graph, Float cost) const override
    { mfem::out << "Begin Gecko ordering, cost = " << cost << std::endl; }
-   virtual void endorder(const Graph* graph, Float cost) const
+   void endorder(const Graph* graph, Float cost) const override
    { mfem::out << "End ordering, cost = " << cost << std::endl; }
 
-   virtual void beginiter(const Graph* graph,
-                          uint iter, uint maxiter, uint window) const
+   void beginiter(const Graph* graph,
+                  uint iter, uint maxiter, uint window) const override
    {
       mfem::out << "Iteration " << iter << "/" << maxiter << ", window "
                 << window << std::flush;
    }
-   virtual void enditer(const Graph* graph, Float mincost, Float cost) const
+   void enditer(const Graph* graph, Float mincost, Float cost) const override
    { mfem::out << ", cost = " << cost << endl; }
 };
 
@@ -3023,7 +3025,7 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
 
-   if (NumOfBdrElements == 0)
+   if (!HasBoundaryElements())
    {
       GetElementToFaceTable();
       GenerateFaces();
@@ -3065,7 +3067,7 @@ void Mesh::FinalizeWedgeMesh(int generate_edges, int refine,
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
 
-   if (NumOfBdrElements == 0)
+   if (!HasBoundaryElements())
    {
       GetElementToFaceTable();
       GenerateFaces();
@@ -3102,7 +3104,7 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
    GetElementToFaceTable();
    GenerateFaces();
 
-   if (NumOfBdrElements == 0)
+   if (!HasBoundaryElements())
    {
       GenerateBoundaryElements();
    }
@@ -3175,7 +3177,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    {
       GetElementToFaceTable();
       GenerateFaces();
-      if (NumOfBdrElements == 0 && generate_bdr)
+      if (!HasBoundaryElements() && generate_bdr)
       {
          GenerateBoundaryElements();
          GetElementToFaceTable(); // update be_to_face
@@ -3195,7 +3197,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
       if (Dim == 2)
       {
          GenerateFaces(); // 'Faces' in 2D refers to the edges
-         if (NumOfBdrElements == 0 && generate_bdr)
+         if (!HasBoundaryElements() && generate_bdr)
          {
             GenerateBoundaryElements();
          }
@@ -3209,7 +3211,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    if (Dim == 1)
    {
       GenerateFaces();
-      if (NumOfBdrElements == 0 && generate_bdr)
+      if (!HasBoundaryElements() && generate_bdr)
       {
          // be_to_face will be set inside GenerateBoundaryElements
          GenerateBoundaryElements();
@@ -4084,6 +4086,7 @@ void Mesh::Make1D(int n, real_t sx)
 }
 
 Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
+  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    Dim = mesh.Dim;
    spaceDim = mesh.spaceDim;
@@ -4156,6 +4159,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Copy the attributes and bdr_attributes
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
+
+   // Copy attribute and bdr_attribute names
+   mesh.attribute_sets.Copy(attribute_sets);
+   mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
 
    // Deep copy the NURBSExtension.
 #ifdef MFEM_USE_MPI
@@ -4300,6 +4307,7 @@ Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
 
 Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
            bool fix_orientation)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    // Initialization as in the default constructor
    SetEmpty();
@@ -4318,6 +4326,7 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
 
 Mesh::Mesh(std::istream &input, int generate_edges, int refine,
            bool fix_orientation)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    SetEmpty();
    Load(input, generate_edges, refine, fix_orientation);
@@ -4353,6 +4362,7 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
            int *boundary_indices, Geometry::Type boundary_type,
            int *boundary_attributes, int num_boundary_elements,
            int dimension, int space_dimension)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    if (space_dimension == -1)
    {
@@ -4536,6 +4546,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    int mfem_version = 0;
    if (mesh_type == "MFEM mesh v1.0") { mfem_version = 10; } // serial
    else if (mesh_type == "MFEM mesh v1.2") { mfem_version = 12; } // parallel
+   else if (mesh_type == "MFEM mesh v1.3") { mfem_version = 13; } // attr sets
 
    // MFEM nonconforming mesh format
    // (NOTE: previous v1.1 is now under this branch for backward compatibility)
@@ -4549,7 +4560,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       // section in the stream. A user provided parse tag can also be provided
       // via the arguments. For example, if this is called from parallel mesh
       // object, it can indicate to read until parallel mesh section begins.
-      if (mfem_version == 12 && parse_tag.empty())
+      if (mfem_version >= 12 && parse_tag.empty())
       {
          parse_tag = "mfem_mesh_end";
       }
@@ -4707,7 +4718,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 
    // If a parse tag was supplied, keep reading the stream until the tag is
    // encountered.
-   if (mfem_version == 12)
+   if (mfem_version >= 12)
    {
       string line;
       do
@@ -4737,6 +4748,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 }
 
 Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    int      i, j, ie, ib, iv, *v, nv;
    Element *el;
@@ -4879,6 +4891,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 }
 
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
+   : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    Array<int> ref_factors(orig_mesh->GetNE());
    ref_factors = ref_factor;
@@ -5099,6 +5112,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
          }
 
          Embedding &emb = CoarseFineTr.embeddings[el_fine];
+         emb.geom = geom;
          emb.parent = el_coarse;
          emb.matrix = offset + j;
          ++el_fine;
@@ -6198,6 +6212,12 @@ const FiniteElementSpace *Mesh::GetNodalFESpace() const
 
 void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
+   if (order <= 0)
+   {
+      delete Nodes;
+      Nodes = nullptr;
+      return;
+   }
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
@@ -7113,17 +7133,15 @@ Table *Mesh::GetEdgeVertexTable() const
 
 Table *Mesh::GetVertexToElementTable()
 {
-   int i, j, nv, *v;
-
    Table *vert_elem = new Table;
 
    vert_elem->MakeI(NumOfVertices);
 
-   for (i = 0; i < NumOfElements; i++)
+   for (int i = 0; i < NumOfElements; i++)
    {
-      nv = elements[i]->GetNVertices();
-      v  = elements[i]->GetVertices();
-      for (j = 0; j < nv; j++)
+      const int nv = elements[i]->GetNVertices();
+      const int *v = elements[i]->GetVertices();
+      for (int j = 0; j < nv; j++)
       {
          vert_elem->AddAColumnInRow(v[j]);
       }
@@ -7131,11 +7149,11 @@ Table *Mesh::GetVertexToElementTable()
 
    vert_elem->MakeJ();
 
-   for (i = 0; i < NumOfElements; i++)
+   for (int i = 0; i < NumOfElements; i++)
    {
-      nv = elements[i]->GetNVertices();
-      v  = elements[i]->GetVertices();
-      for (j = 0; j < nv; j++)
+      const int nv = elements[i]->GetNVertices();
+      const int *v = elements[i]->GetVertices();
+      for (int j = 0; j < nv; j++)
       {
          vert_elem->AddConnection(v[j], i);
       }
@@ -7144,6 +7162,39 @@ Table *Mesh::GetVertexToElementTable()
    vert_elem->ShiftUpI();
 
    return vert_elem;
+}
+
+Table *Mesh::GetVertexToBdrElementTable()
+{
+   Table *vert_bdr_elem = new Table;
+
+   vert_bdr_elem->MakeI(NumOfVertices);
+
+   for (int i = 0; i < NumOfBdrElements; i++)
+   {
+      const int nv = boundary[i]->GetNVertices();
+      const int *v = boundary[i]->GetVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         vert_bdr_elem->AddAColumnInRow(v[j]);
+      }
+   }
+
+   vert_bdr_elem->MakeJ();
+
+   for (int i = 0; i < NumOfBdrElements; i++)
+   {
+      const int nv = boundary[i]->GetNVertices();
+      const int *v = boundary[i]->GetVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         vert_bdr_elem->AddConnection(v[j], i);
+      }
+   }
+
+   vert_bdr_elem->ShiftUpI();
+
+   return vert_bdr_elem;
 }
 
 Table *Mesh::GetFaceToElementTable() const
@@ -7293,6 +7344,12 @@ void Mesh::GetBdrElementAdjacentElement2(
    }
    el   = fi.Elem1No;
    info = fi.Elem1Inf + ori;
+}
+
+void Mesh::SetAttribute(int i, int attr)
+{
+  elements[i]->SetAttribute(attr);
+  if (ncmesh) ncmesh->SetAttribute(i, attr);
 }
 
 Element::Type Mesh::GetElementType(int i) const
@@ -8950,6 +9007,9 @@ void Mesh::MoveNodes(const Vector &displacements)
    {
       MoveVertices(displacements);
    }
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::GetNodes(Vector &node_coord) const
@@ -10349,6 +10409,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh_)
 }
 
 Mesh::Mesh(const NCMesh &ncmesh_)
+  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    Init();
    InitTables();
@@ -11332,8 +11393,16 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    }
 
    // serial/parallel conforming mesh format
-   os << (section_delimiter.empty()
-          ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
+   const bool set_names = attribute_sets.SetsExist() ||
+     bdr_attribute_sets.SetsExist();
+   os << (!set_names && section_delimiter.empty()
+          ? "MFEM mesh v1.0\n" :
+	  (!set_names ? "MFEM mesh v1.2\n" : "MFEM mesh v1.3\n"));
+
+   if (set_names && section_delimiter.empty())
+   {
+      section_delimiter = "mfem_mesh_end";
+   }
 
    // optional
    if (!comments.empty()) { os << '\n' << comments << '\n'; }
@@ -11358,10 +11427,22 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
       PrintElement(elements[i], os);
    }
 
+   if (set_names)
+   {
+     os << "\nattribute_sets\n";
+     attribute_sets.Print(os);
+   }
+
    os << "\nboundary\n" << NumOfBdrElements << '\n';
    for (i = 0; i < NumOfBdrElements; i++)
    {
       PrintElement(boundary[i], os);
+   }
+
+   if (set_names)
+   {
+     os << "\nbdr_attribute_sets\n";
+     bdr_attribute_sets.Print(os);
    }
 
    os << "\nvertices\n" << NumOfVertices << '\n';
@@ -11387,7 +11468,8 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
 
    if (!section_delimiter.empty())
    {
-      os << section_delimiter << endl; // only with format v1.2
+      os << '\n'
+         << section_delimiter << endl; // only with formats v1.2 and above
    }
 }
 
@@ -13264,6 +13346,880 @@ void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J,
          ori(3) = std::acos(0.5*(rot.Trace()-1.0));
       }
    }
+}
+
+
+MeshPart::EntityHelper::EntityHelper(
+   int dim_, const Array<int> (&entity_to_vertex_)[Geometry::NumGeom])
+   : dim(dim_),
+     entity_to_vertex(entity_to_vertex_)
+{
+   int geom_offset = 0;
+   for (int g = Geometry::DimStart[dim]; g < Geometry::DimStart[dim+1]; g++)
+   {
+      geom_offsets[g] = geom_offset;
+      geom_offset += entity_to_vertex[g].Size()/Geometry::NumVerts[g];
+   }
+   geom_offsets[Geometry::DimStart[dim+1]] = geom_offset;
+   num_entities = geom_offset;
+}
+
+MeshPart::Entity MeshPart::EntityHelper::FindEntity(int bytype_entity_id)
+{
+   // Find the 'geom' that corresponds to 'bytype_entity_id'
+   int geom = Geometry::DimStart[dim];
+   while (geom_offsets[geom+1] <= bytype_entity_id) { geom++; }
+   MFEM_ASSERT(geom < Geometry::NumGeom, "internal error");
+   MFEM_ASSERT(Geometry::Dimension[geom] == dim, "internal error");
+   const int nv = Geometry::NumVerts[geom];
+   const int geom_elem_id = bytype_entity_id - geom_offsets[geom];
+   const int *v = &entity_to_vertex[geom][nv*geom_elem_id];
+   return { geom, nv, v };
+}
+
+void MeshPart::Print(std::ostream &os) const
+{
+   os << "MFEM mesh v1.2\n";
+
+   // optional
+   os <<
+      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "# POINT       = 0\n"
+      "# SEGMENT     = 1\n"
+      "# TRIANGLE    = 2\n"
+      "# SQUARE      = 3\n"
+      "# TETRAHEDRON = 4\n"
+      "# CUBE        = 5\n"
+      "# PRISM       = 6\n"
+      "# PYRAMID     = 7\n"
+      "#\n";
+
+   const int dim = dimension;
+   os << "\ndimension\n" << dim;
+
+   os << "\n\nelements\n" << num_elements << '\n';
+   {
+      const bool have_element_map = (element_map.Size() == num_elements);
+      MFEM_ASSERT(have_element_map || element_map.Size() == 0,
+                  "invalid MeshPart state");
+      EntityHelper elem_helper(dim, entity_to_vertex);
+      MFEM_ASSERT(elem_helper.num_entities == num_elements,
+                  "invalid MeshPart state");
+      for (int nat_elem_id = 0; nat_elem_id < num_elements; nat_elem_id++)
+      {
+         const int bytype_elem_id = have_element_map ?
+                                    element_map[nat_elem_id] : nat_elem_id;
+         const Entity ent = elem_helper.FindEntity(bytype_elem_id);
+         // Print the element
+         os << attributes[nat_elem_id] << ' ' << ent.geom;
+         for (int i = 0; i < ent.num_verts; i++)
+         {
+            os << ' ' << ent.verts[i];
+         }
+         os << '\n';
+      }
+   }
+
+   os << "\nboundary\n" << num_bdr_elements << '\n';
+   {
+      const bool have_boundary_map = (boundary_map.Size() == num_bdr_elements);
+      MFEM_ASSERT(have_boundary_map || boundary_map.Size() == 0,
+                  "invalid MeshPart state");
+      EntityHelper bdr_helper(dim-1, entity_to_vertex);
+      MFEM_ASSERT(bdr_helper.num_entities == num_bdr_elements,
+                  "invalid MeshPart state");
+      for (int nat_bdr_id = 0; nat_bdr_id < num_bdr_elements; nat_bdr_id++)
+      {
+         const int bytype_bdr_id = have_boundary_map ?
+                                   boundary_map[nat_bdr_id] : nat_bdr_id;
+         const Entity ent = bdr_helper.FindEntity(bytype_bdr_id);
+         // Print the boundary element
+         os << bdr_attributes[nat_bdr_id] << ' ' << ent.geom;
+         for (int i = 0; i < ent.num_verts; i++)
+         {
+            os << ' ' << ent.verts[i];
+         }
+         os << '\n';
+      }
+   }
+
+   os << "\nvertices\n" << num_vertices << '\n';
+   if (!nodes)
+   {
+      const int sdim = space_dimension;
+      os << sdim << '\n';
+      for (int i = 0; i < num_vertices; i++)
+      {
+         os << vertex_coordinates[i*sdim];
+         for (int d = 1; d < sdim; d++)
+         {
+            os << ' ' << vertex_coordinates[i*sdim+d];
+         }
+         os << '\n';
+      }
+   }
+   else
+   {
+      os << "\nnodes\n";
+      nodes->Save(os);
+   }
+
+   os << "\nmfem_serial_mesh_end\n";
+
+   // Start: GroupTopology::Save
+   const int num_groups = my_groups.Size();
+   os << "\ncommunication_groups\n";
+   os << "number_of_groups " << num_groups << "\n\n";
+
+   os << "# number of entities in each group, followed by ranks in group\n";
+   for (int group_id = 0; group_id < num_groups; ++group_id)
+   {
+      const int group_size = my_groups.RowSize(group_id);
+      const int *group_ptr = my_groups.GetRow(group_id);
+      os << group_size;
+      for (int group_member_index = 0; group_member_index < group_size;
+           ++group_member_index)
+      {
+         os << ' ' << group_ptr[group_member_index];
+      }
+      os << '\n';
+   }
+   // End: GroupTopology::Save
+
+   const Table &g2v  = group_shared_entity_to_vertex[Geometry::POINT];
+   const Table &g2ev = group_shared_entity_to_vertex[Geometry::SEGMENT];
+   const Table &g2tv = group_shared_entity_to_vertex[Geometry::TRIANGLE];
+   const Table &g2qv = group_shared_entity_to_vertex[Geometry::SQUARE];
+
+   MFEM_VERIFY(g2v.RowSize(0) == 0, "internal erroor");
+   os << "\ntotal_shared_vertices " << g2v.Size_of_connections() << '\n';
+   if (dimension >= 2)
+   {
+      MFEM_VERIFY(g2ev.RowSize(0) == 0, "internal erroor");
+      os << "total_shared_edges " << g2ev.Size_of_connections()/2 << '\n';
+   }
+   if (dimension >= 3)
+   {
+      MFEM_VERIFY(g2tv.RowSize(0) == 0, "internal erroor");
+      MFEM_VERIFY(g2qv.RowSize(0) == 0, "internal erroor");
+      const int total_shared_faces =
+         g2tv.Size_of_connections()/3 + g2qv.Size_of_connections()/4;
+      os << "total_shared_faces " << total_shared_faces << '\n';
+   }
+   os << "\n# group 0 has no shared entities\n";
+   for (int gr = 1; gr < num_groups; gr++)
+   {
+      {
+         const int  nv = g2v.RowSize(gr);
+         const int *sv = g2v.GetRow(gr);
+         os << "\n# group " << gr << "\nshared_vertices " << nv << '\n';
+         for (int i = 0; i < nv; i++)
+         {
+            os << sv[i] << '\n';
+         }
+      }
+      if (dimension >= 2)
+      {
+         const int  ne = g2ev.RowSize(gr)/2;
+         const int *se = g2ev.GetRow(gr);
+         os << "\nshared_edges " << ne << '\n';
+         for (int i = 0; i < ne; i++)
+         {
+            const int *v = se + 2*i;
+            os << v[0] << ' ' << v[1] << '\n';
+         }
+      }
+      if (dimension >= 3)
+      {
+         const int  nt = g2tv.RowSize(gr)/3;
+         const int *st = g2tv.GetRow(gr);
+         const int  nq = g2qv.RowSize(gr)/4;
+         const int *sq = g2qv.GetRow(gr);
+         os << "\nshared_faces " << nt+nq << '\n';
+         for (int i = 0; i < nt; i++)
+         {
+            os << Geometry::TRIANGLE;
+            const int *v = st + 3*i;
+            for (int j = 0; j < 3; j++) { os << ' ' << v[j]; }
+            os << '\n';
+         }
+         for (int i = 0; i < nq; i++)
+         {
+            os << Geometry::SQUARE;
+            const int *v = sq + 4*i;
+            for (int j = 0; j < 4; j++) { os << ' ' << v[j]; }
+            os << '\n';
+         }
+      }
+   }
+
+   // Write out section end tag for mesh.
+   os << "\nmfem_mesh_end" << endl;
+}
+
+Mesh &MeshPart::GetMesh()
+{
+   if (mesh) { return *mesh; }
+
+   mesh.reset(new Mesh(dimension,
+                       num_vertices,
+                       num_elements,
+                       num_bdr_elements,
+                       space_dimension));
+
+   // Add elements
+   {
+      const bool have_element_map = (element_map.Size() == num_elements);
+      MFEM_ASSERT(have_element_map || element_map.Size() == 0,
+                  "invalid MeshPart state");
+      EntityHelper elem_helper(dimension, entity_to_vertex);
+      MFEM_ASSERT(elem_helper.num_entities == num_elements,
+                  "invalid MeshPart state");
+      const bool have_tet_refine_flags = (tet_refine_flags.Size() > 0);
+      for (int nat_elem_id = 0; nat_elem_id < num_elements; nat_elem_id++)
+      {
+         const int bytype_elem_id = have_element_map ?
+                                    element_map[nat_elem_id] : nat_elem_id;
+         const Entity ent = elem_helper.FindEntity(bytype_elem_id);
+         Element *el = mesh->NewElement(ent.geom);
+         el->SetVertices(ent.verts);
+         el->SetAttribute(attributes[nat_elem_id]);
+         if (ent.geom == Geometry::TETRAHEDRON && have_tet_refine_flags)
+         {
+            constexpr int geom_tet = Geometry::TETRAHEDRON;
+            const int tet_id = (ent.verts - entity_to_vertex[geom_tet])/4;
+            const int ref_flag = tet_refine_flags[tet_id];
+            static_cast<Tetrahedron*>(el)->SetRefinementFlag(ref_flag);
+         }
+         mesh->AddElement(el);
+      }
+   }
+
+   // Add boundary elements
+   {
+      const bool have_boundary_map = (boundary_map.Size() == num_bdr_elements);
+      MFEM_ASSERT(have_boundary_map || boundary_map.Size() == 0,
+                  "invalid MeshPart state");
+      EntityHelper bdr_helper(dimension-1, entity_to_vertex);
+      MFEM_ASSERT(bdr_helper.num_entities == num_bdr_elements,
+                  "invalid MeshPart state");
+      for (int nat_bdr_id = 0; nat_bdr_id < num_bdr_elements; nat_bdr_id++)
+      {
+         const int bytype_bdr_id = have_boundary_map ?
+                                   boundary_map[nat_bdr_id] : nat_bdr_id;
+         const Entity ent = bdr_helper.FindEntity(bytype_bdr_id);
+         Element *bdr = mesh->NewElement(ent.geom);
+         bdr->SetVertices(ent.verts);
+         bdr->SetAttribute(bdr_attributes[nat_bdr_id]);
+         mesh->AddBdrElement(bdr);
+      }
+   }
+
+   // Add vertices
+   if (vertex_coordinates.Size() == space_dimension*num_vertices)
+   {
+      MFEM_ASSERT(!nodes, "invalid MeshPart state");
+      for (int vert_id = 0; vert_id < num_vertices; vert_id++)
+      {
+         mesh->AddVertex(vertex_coordinates + space_dimension*vert_id);
+      }
+   }
+   else
+   {
+      MFEM_ASSERT(vertex_coordinates.Size() == 0, "invalid MeshPart state");
+      for (int vert_id = 0; vert_id < num_vertices; vert_id++)
+      {
+         mesh->AddVertex(0., 0., 0.);
+      }
+      // 'mesh.Nodes' cannot be set here -- they can be set later, if needed
+   }
+
+   mesh->FinalizeTopology(/* generate_bdr: */ false);
+
+   return *mesh;
+}
+
+
+MeshPartitioner::MeshPartitioner(Mesh &mesh_,
+                                 int num_parts_,
+                                 const int *partitioning_,
+                                 int part_method)
+   : mesh(mesh_)
+{
+   if (partitioning_)
+   {
+      partitioning.MakeRef(const_cast<int *>(partitioning_), mesh.GetNE(),
+                           false);
+   }
+   else
+   {
+      // Mesh::GeneratePartitioning always uses new[] to allocate the,
+      // partitioning, so we need to tell the memory manager to free it with
+      // delete[] (even if a different host memory type has been selected).
+      constexpr MemoryType mt = MemoryType::HOST;
+      partitioning.MakeRef(mesh.GeneratePartitioning(num_parts_, part_method),
+                           mesh.GetNE(), mt, true);
+   }
+
+   Transpose(partitioning, part_to_element, num_parts_);
+   // Note: the element ids in each row of 'part_to_element' are sorted.
+
+   const int dim = mesh.Dimension();
+   if (dim >= 2)
+   {
+      Transpose(mesh.ElementToEdgeTable(), edge_to_element, mesh.GetNEdges());
+   }
+
+   Array<int> boundary_to_part(mesh.GetNBE());
+   // Same logic as in ParMesh::BuildLocalBoundary
+   if (dim >= 3)
+   {
+      for (int i = 0; i < boundary_to_part.Size(); i++)
+      {
+         int face, o, el1, el2;
+         mesh.GetBdrElementFace(i, &face, &o);
+         mesh.GetFaceElements(face, &el1, &el2);
+         boundary_to_part[i] =
+            partitioning[(o % 2 == 0 || el2 < 0) ? el1 : el2];
+      }
+   }
+   else if (dim == 2)
+   {
+      for (int i = 0; i < boundary_to_part.Size(); i++)
+      {
+         int edge = mesh.GetBdrElementFaceIndex(i);
+         int el1 = edge_to_element.GetRow(edge)[0];
+         boundary_to_part[i] = partitioning[el1];
+      }
+   }
+   else if (dim == 1)
+   {
+      for (int i = 0; i < boundary_to_part.Size(); i++)
+      {
+         int vert = mesh.GetBdrElementFaceIndex(i);
+         int el1, el2;
+         mesh.GetFaceElements(vert, &el1, &el2);
+         boundary_to_part[i] = partitioning[el1];
+      }
+   }
+   Transpose(boundary_to_part, part_to_boundary, num_parts_);
+   // Note: the boundary element ids in each row of 'part_to_boundary' are
+   // sorted.
+   boundary_to_part.DeleteAll();
+
+   Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
+   vertex_to_element.Swap(*vert_element);
+   delete vert_element;
+}
+
+void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
+{
+   const int num_parts = part_to_element.Size();
+
+   MFEM_VERIFY(0 <= part_id && part_id < num_parts,
+               "invalid part_id = " << part_id
+               << ", num_parts = " << num_parts);
+
+   const int dim = mesh.Dimension();
+   const int sdim = mesh.SpaceDimension();
+   const int num_elems = part_to_element.RowSize(part_id);
+   const int *elem_list = part_to_element.GetRow(part_id); // sorted
+   const int num_bdr_elems = part_to_boundary.RowSize(part_id);
+   const int *bdr_elem_list = part_to_boundary.GetRow(part_id); // sorted
+
+   // Initialize 'mesh_part'
+   mesh_part.dimension = dim;
+   mesh_part.space_dimension = sdim;
+   mesh_part.num_vertices = 0;
+   mesh_part.num_elements = num_elems;
+   mesh_part.num_bdr_elements = num_bdr_elems;
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      mesh_part.entity_to_vertex[g].SetSize(0); // can reuse Array allocation
+   }
+   mesh_part.tet_refine_flags.SetSize(0);
+   mesh_part.element_map.SetSize(0); // 0 or 'num_elements', if needed
+   mesh_part.boundary_map.SetSize(0); // 0 or 'num_bdr_elements', if needed
+   mesh_part.attributes.SetSize(num_elems);
+   mesh_part.bdr_attributes.SetSize(num_bdr_elems);
+   mesh_part.vertex_coordinates.SetSize(0);
+
+   mesh_part.num_parts = num_parts;
+   mesh_part.my_part_id = part_id;
+   mesh_part.my_groups.Clear();
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      mesh_part.group_shared_entity_to_vertex[g].Clear();
+   }
+   mesh_part.nodes.reset(nullptr);
+   mesh_part.nodal_fes.reset(nullptr);
+   mesh_part.mesh.reset(nullptr);
+
+   // Initialize:
+   // - 'mesh_part.entity_to_vertex' for the elements (boundary elements are
+   //   set later); vertex ids are global at this point - they will be mapped to
+   //   local ids later
+   // - 'mesh_part.attributes'
+   // - 'mesh_part.tet_refine_flags' if needed
+   int geom_marker = 0, num_geom = 0;
+   for (int i = 0; i < num_elems; i++)
+   {
+      const Element *elem = mesh.GetElement(elem_list[i]);
+      const int geom = elem->GetGeometryType();
+      const int nv = Geometry::NumVerts[geom];
+      const int *v = elem->GetVertices();
+      MFEM_VERIFY(numeric_limits<int>::max() - nv >=
+                  mesh_part.entity_to_vertex[geom].Size(),
+                  "overflow in 'entity_to_vertex[geom]', geom: "
+                  << Geometry::Name[geom]);
+      mesh_part.entity_to_vertex[geom].Append(v, nv);
+      mesh_part.attributes[i] = elem->GetAttribute();
+      if (geom == Geometry::TETRAHEDRON)
+      {
+         // Create 'mesh_part.tet_refine_flags' but only if we find at least one
+         // non-zero flag in a tetrahedron.
+         const Tetrahedron *tet = static_cast<const Tetrahedron*>(elem);
+         const int ref_flag = tet->GetRefinementFlag();
+         if (mesh_part.tet_refine_flags.Size() == 0)
+         {
+            if (ref_flag)
+            {
+               // This is the first time we encounter non-zero 'ref_flag'
+               const int num_tets = mesh_part.entity_to_vertex[geom].Size()/nv;
+               mesh_part.tet_refine_flags.SetSize(num_tets, 0);
+               mesh_part.tet_refine_flags.Last() = ref_flag;
+            }
+         }
+         else
+         {
+            mesh_part.tet_refine_flags.Append(ref_flag);
+         }
+      }
+      if ((geom_marker & (1 << geom)) == 0)
+      {
+         geom_marker |= (1 << geom);
+         num_geom++;
+      }
+   }
+   MFEM_ASSERT(mesh_part.tet_refine_flags.Size() == 0 ||
+               mesh_part.tet_refine_flags.Size() ==
+               mesh_part.entity_to_vertex[Geometry::TETRAHEDRON].Size()/4,
+               "internal error");
+   // Initialize 'mesh_part.element_map' if needed
+   if (num_geom > 1)
+   {
+      int offsets[Geometry::NumGeom];
+      int offset = 0;
+      for (int g = Geometry::DimStart[dim]; g < Geometry::DimStart[dim+1]; g++)
+      {
+         offsets[g] = offset;
+         offset += mesh_part.entity_to_vertex[g].Size()/Geometry::NumVerts[g];
+      }
+      mesh_part.element_map.SetSize(num_elems);
+      for (int i = 0; i < num_elems; i++)
+      {
+         const int geom = mesh.GetElementGeometry(elem_list[i]);
+         mesh_part.element_map[i] = offsets[geom]++;
+      }
+   }
+
+   // Initialize:
+   // - 'mesh_part.entity_to_vertex' for the boundary elements; vertex ids are
+   //   global at this point - they will be mapped to local ids later
+   // - 'mesh_part.bdr_attributes'
+   geom_marker = 0; num_geom = 0;
+   for (int i = 0; i < num_bdr_elems; i++)
+   {
+      const Element *bdr_elem = mesh.GetBdrElement(bdr_elem_list[i]);
+      const int geom = bdr_elem->GetGeometryType();
+      const int nv = Geometry::NumVerts[geom];
+      const int *v = bdr_elem->GetVertices();
+      MFEM_VERIFY(numeric_limits<int>::max() - nv >=
+                  mesh_part.entity_to_vertex[geom].Size(),
+                  "overflow in 'entity_to_vertex[geom]', geom: "
+                  << Geometry::Name[geom]);
+      mesh_part.entity_to_vertex[geom].Append(v, nv);
+      mesh_part.bdr_attributes[i] = bdr_elem->GetAttribute();
+      if ((geom_marker & (1 << geom)) == 0)
+      {
+         geom_marker |= (1 << geom);
+         num_geom++;
+      }
+   }
+   // Initialize 'mesh_part.boundary_map' if needed
+   if (num_geom > 1)
+   {
+      int offsets[Geometry::NumGeom];
+      int offset = 0;
+      for (int g = Geometry::DimStart[dim-1]; g < Geometry::DimStart[dim]; g++)
+      {
+         offsets[g] = offset;
+         offset += mesh_part.entity_to_vertex[g].Size()/Geometry::NumVerts[g];
+      }
+      mesh_part.boundary_map.SetSize(num_bdr_elems);
+      for (int i = 0; i < num_bdr_elems; i++)
+      {
+         const int geom = mesh.GetBdrElementGeometry(bdr_elem_list[i]);
+         mesh_part.boundary_map[i] = offsets[geom]++;
+      }
+   }
+
+   // Create the vertex id map, 'vertex_loc_to_glob', which maps local ids to
+   // global ones; the map is sorted, preserving the global ordering.
+   Array<int> vertex_loc_to_glob;
+   {
+      std::unordered_set<int> vertex_set;
+      for (int i = 0; i < num_elems; i++)
+      {
+         const Element *elem = mesh.GetElement(elem_list[i]);
+         const int geom = elem->GetGeometryType();
+         const int nv = Geometry::NumVerts[geom];
+         const int *v = elem->GetVertices();
+         vertex_set.insert(v, v + nv);
+      }
+      vertex_loc_to_glob.SetSize(vertex_set.size());
+      std::copy(vertex_set.begin(), vertex_set.end(), // src
+                vertex_loc_to_glob.begin());          // dest
+   }
+   vertex_loc_to_glob.Sort();
+
+   // Initialize 'mesh_part.num_vertices'
+   mesh_part.num_vertices = vertex_loc_to_glob.Size();
+
+   // Update the vertex ids in the arrays 'mesh_part.entity_to_vertex' from
+   // global to local.
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      Array<int> &vert_array = mesh_part.entity_to_vertex[g];
+      for (int i = 0; i < vert_array.Size(); i++)
+      {
+         const int glob_id = vert_array[i];
+         const int loc_id = vertex_loc_to_glob.FindSorted(glob_id);
+         MFEM_ASSERT(loc_id >= 0, "internal error: global vertex id not found");
+         vert_array[i] = loc_id;
+      }
+   }
+
+   // Initialize one of 'mesh_part.vertex_coordinates' or 'mesh_part.nodes'
+   if (!mesh.GetNodes())
+   {
+      MFEM_VERIFY(numeric_limits<int>::max()/sdim >= vertex_loc_to_glob.Size(),
+                  "overflow in 'vertex_coordinates', num_vertices = "
+                  << vertex_loc_to_glob.Size() << ", sdim = " << sdim);
+      mesh_part.vertex_coordinates.SetSize(sdim*vertex_loc_to_glob.Size());
+      for (int i = 0; i < vertex_loc_to_glob.Size(); i++)
+      {
+         const real_t *coord = mesh.GetVertex(vertex_loc_to_glob[i]);
+         for (int d = 0; d < sdim; d++)
+         {
+            mesh_part.vertex_coordinates[i*sdim+d] = coord[d];
+         }
+      }
+   }
+   else
+   {
+      const GridFunction &glob_nodes = *mesh.GetNodes();
+      mesh_part.nodal_fes = ExtractFESpace(mesh_part, *glob_nodes.FESpace());
+      // Initialized 'mesh_part.mesh'.
+      // Note: the nodes of 'mesh_part.mesh' are not set.
+
+      mesh_part.nodes = ExtractGridFunction(mesh_part, glob_nodes,
+                                            *mesh_part.nodal_fes);
+
+      // Attach the 'mesh_part.nodes' to the 'mesh_part.mesh'.
+      mesh_part.mesh->NewNodes(*mesh_part.nodes, /* make_owner: */ false);
+      // Note: the vertices of 'mesh_part.mesh' are not set.
+   }
+
+   // Begin constructing the "neighbor" groups, i.e. the groups that contain
+   // 'part_id'.
+   ListOfIntegerSets groups;
+   {
+      // the first group is the local one
+      IntegerSet group;
+      group.Recreate(1, &part_id);
+      groups.Insert(group);
+   }
+
+   // 'shared_faces' : shared face id -> (global_face_id, group_id)
+   // Note: 'shared_faces' will be sorted by 'global_face_id'.
+   Array<Pair<int,int>> shared_faces;
+
+   // Add "neighbor" groups defined by faces
+   // Construct 'shared_faces'.
+   if (dim >= 3)
+   {
+      std::unordered_set<int> face_set;
+      // Construct 'face_set'
+      const Table &elem_to_face = mesh.ElementToFaceTable();
+      for (int loc_elem_id = 0; loc_elem_id < num_elems; loc_elem_id++)
+      {
+         const int glob_elem_id = elem_list[loc_elem_id];
+         const int nfaces = elem_to_face.RowSize(glob_elem_id);
+         const int *faces = elem_to_face.GetRow(glob_elem_id);
+         face_set.insert(faces, faces + nfaces);
+      }
+      // Construct 'shared_faces'; add "neighbor" groups defined by faces.
+      IntegerSet group;
+      for (int glob_face_id : face_set)
+      {
+         int el[2];
+         mesh.GetFaceElements(glob_face_id, &el[0], &el[1]);
+         if (el[1] < 0) { continue; }
+         el[0] = partitioning[el[0]];
+         el[1] = partitioning[el[1]];
+         MFEM_ASSERT(el[0] == part_id || el[1] == part_id, "internal error");
+         if (el[0] != part_id || el[1] != part_id)
+         {
+            group.Recreate(2, el);
+            const int group_id = groups.Insert(group);
+            shared_faces.Append(Pair<int,int>(glob_face_id, group_id));
+         }
+      }
+      shared_faces.Sort(); // sort the shared faces by 'glob_face_id'
+   }
+
+   // 'shared_edges' : shared edge id -> (global_edge_id, group_id)
+   // Note: 'shared_edges' will be sorted by 'global_edge_id'.
+   Array<Pair<int,int>> shared_edges;
+
+   // Add "neighbor" groups defined by edges.
+   // Construct 'shared_edges'.
+   if (dim >= 2)
+   {
+      std::unordered_set<int> edge_set;
+      // Construct 'edge_set'
+      const Table &elem_to_edge = mesh.ElementToEdgeTable();
+      for (int loc_elem_id = 0; loc_elem_id < num_elems; loc_elem_id++)
+      {
+         const int glob_elem_id = elem_list[loc_elem_id];
+         const int nedges = elem_to_edge.RowSize(glob_elem_id);
+         const int *edges = elem_to_edge.GetRow(glob_elem_id);
+         edge_set.insert(edges, edges + nedges);
+      }
+      // Construct 'shared_edges'; add "neighbor" groups defined by edges.
+      IntegerSet group;
+      for (int glob_edge_id : edge_set)
+      {
+         const int nelem = edge_to_element.RowSize(glob_edge_id);
+         const int *elem = edge_to_element.GetRow(glob_edge_id);
+         Array<int> &gr = group; // reference to the 'group' internal Array
+         gr.SetSize(nelem);
+         for (int j = 0; j < nelem; j++)
+         {
+            gr[j] = partitioning[elem[j]];
+         }
+         gr.Sort();
+         gr.Unique();
+         MFEM_ASSERT(gr.FindSorted(part_id) >= 0, "internal error");
+         if (group.Size() > 1)
+         {
+            const int group_id = groups.Insert(group);
+            shared_edges.Append(Pair<int,int>(glob_edge_id, group_id));
+         }
+      }
+      shared_edges.Sort(); // sort the shared edges by 'glob_edge_id'
+   }
+
+   // 'shared_verts' : shared vertex id -> (global_vertex_id, group_id)
+   // Note: 'shared_verts' will be sorted by 'global_vertex_id'.
+   Array<Pair<int,int>> shared_verts;
+
+   // Add "neighbor" groups defined by vertices.
+   // Construct 'shared_verts'.
+   {
+      IntegerSet group;
+      for (int i = 0; i < vertex_loc_to_glob.Size(); i++)
+      {
+         // 'vertex_to_element' maps global vertex ids to global element ids
+         const int glob_vertex_id = vertex_loc_to_glob[i];
+         const int nelem = vertex_to_element.RowSize(glob_vertex_id);
+         const int *elem = vertex_to_element.GetRow(glob_vertex_id);
+         Array<int> &gr = group; // reference to the 'group' internal Array
+         gr.SetSize(nelem);
+         for (int j = 0; j < nelem; j++)
+         {
+            gr[j] = partitioning[elem[j]];
+         }
+         gr.Sort();
+         gr.Unique();
+         MFEM_ASSERT(gr.FindSorted(part_id) >= 0, "internal error");
+         if (group.Size() > 1)
+         {
+            const int group_id = groups.Insert(group);
+            shared_verts.Append(Pair<int,int>(glob_vertex_id, group_id));
+         }
+      }
+   }
+
+   // Done constructing the "neighbor" groups in 'groups'.
+   const int num_groups = groups.Size();
+
+   // Define 'mesh_part.my_groups'
+   groups.AsTable(mesh_part.my_groups);
+
+   // Construct 'mesh_part.group_shared_entity_to_vertex[Geometry::POINT]'
+   Table &group__shared_vertex_to_vertex =
+      mesh_part.group_shared_entity_to_vertex[Geometry::POINT];
+   group__shared_vertex_to_vertex.MakeI(num_groups);
+   for (int sv = 0; sv < shared_verts.Size(); sv++)
+   {
+      const int group_id = shared_verts[sv].two;
+      group__shared_vertex_to_vertex.AddAColumnInRow(group_id);
+   }
+   group__shared_vertex_to_vertex.MakeJ();
+   for (int sv = 0; sv < shared_verts.Size(); sv++)
+   {
+      const int glob_vertex_id = shared_verts[sv].one;
+      const int group_id       = shared_verts[sv].two;
+      const int loc_vertex_id = vertex_loc_to_glob.FindSorted(glob_vertex_id);
+      MFEM_ASSERT(loc_vertex_id >= 0, "internal error");
+      group__shared_vertex_to_vertex.AddConnection(group_id, loc_vertex_id);
+   }
+   group__shared_vertex_to_vertex.ShiftUpI();
+
+   // Construct 'mesh_part.group_shared_entity_to_vertex[Geometry::SEGMENT]'
+   if (dim >= 2)
+   {
+      Table &group__shared_edge_to_vertex =
+         mesh_part.group_shared_entity_to_vertex[Geometry::SEGMENT];
+      group__shared_edge_to_vertex.MakeI(num_groups);
+      for (int se = 0; se < shared_edges.Size(); se++)
+      {
+         const int group_id = shared_edges[se].two;
+         group__shared_edge_to_vertex.AddColumnsInRow(group_id, 2);
+      }
+      group__shared_edge_to_vertex.MakeJ();
+      const Table &edge_to_vertex = *mesh.GetEdgeVertexTable();
+      for (int se = 0; se < shared_edges.Size(); se++)
+      {
+         const int glob_edge_id = shared_edges[se].one;
+         const int group_id     = shared_edges[se].two;
+         const int *v = edge_to_vertex.GetRow(glob_edge_id);
+         for (int i = 0; i < 2; i++)
+         {
+            const int loc_vertex_id = vertex_loc_to_glob.FindSorted(v[i]);
+            MFEM_ASSERT(loc_vertex_id >= 0, "internal error");
+            group__shared_edge_to_vertex.AddConnection(group_id, loc_vertex_id);
+         }
+      }
+      group__shared_edge_to_vertex.ShiftUpI();
+   }
+
+   // Construct 'mesh_part.group_shared_entity_to_vertex[Geometry::TRIANGLE]'
+   // and 'mesh_part.group_shared_entity_to_vertex[Geometry::SQUARE]'.
+   if (dim >= 3)
+   {
+      Table &group__shared_tria_to_vertex =
+         mesh_part.group_shared_entity_to_vertex[Geometry::TRIANGLE];
+      Table &group__shared_quad_to_vertex =
+         mesh_part.group_shared_entity_to_vertex[Geometry::SQUARE];
+      Array<int> vertex_ids;
+      group__shared_tria_to_vertex.MakeI(num_groups);
+      group__shared_quad_to_vertex.MakeI(num_groups);
+      for (int sf = 0; sf < shared_faces.Size(); sf++)
+      {
+         const int glob_face_id = shared_faces[sf].one;
+         const int group_id     = shared_faces[sf].two;
+         const int geom         = mesh.GetFaceGeometry(glob_face_id);
+         mesh_part.group_shared_entity_to_vertex[geom].
+         AddColumnsInRow(group_id, Geometry::NumVerts[geom]);
+      }
+      group__shared_tria_to_vertex.MakeJ();
+      group__shared_quad_to_vertex.MakeJ();
+      for (int sf = 0; sf < shared_faces.Size(); sf++)
+      {
+         const int glob_face_id = shared_faces[sf].one;
+         const int group_id     = shared_faces[sf].two;
+         const int geom         = mesh.GetFaceGeometry(glob_face_id);
+         mesh.GetFaceVertices(glob_face_id, vertex_ids);
+         // Rotate shared triangles that have an adjacent tetrahedron with a
+         // nonzero refinement flag.
+         // See also ParMesh::BuildSharedFaceElems.
+         if (geom == Geometry::TRIANGLE)
+         {
+            int glob_el_id[2];
+            mesh.GetFaceElements(glob_face_id, &glob_el_id[0], &glob_el_id[1]);
+            int side = 0;
+            const Element *el = mesh.GetElement(glob_el_id[0]);
+            const Tetrahedron *tet = nullptr;
+            if (el->GetGeometryType() == Geometry::TETRAHEDRON)
+            {
+               tet = static_cast<const Tetrahedron*>(el);
+            }
+            else
+            {
+               side = 1;
+               el = mesh.GetElement(glob_el_id[1]);
+               if (el->GetGeometryType() == Geometry::TETRAHEDRON)
+               {
+                  tet = static_cast<const Tetrahedron*>(el);
+               }
+            }
+            if (tet && tet->GetRefinementFlag())
+            {
+               // mark the shared face for refinement by reorienting
+               // it according to the refinement flag in the tetrahedron
+               // to which this shared face belongs to.
+               int info[2];
+               mesh.GetFaceInfos(glob_face_id, &info[0], &info[1]);
+               tet->GetMarkedFace(info[side]/64, &vertex_ids[0]);
+            }
+         }
+         for (int i = 0; i < vertex_ids.Size(); i++)
+         {
+            const int glob_id = vertex_ids[i];
+            const int loc_id = vertex_loc_to_glob.FindSorted(glob_id);
+            MFEM_ASSERT(loc_id >= 0, "internal error");
+            vertex_ids[i] = loc_id;
+         }
+         mesh_part.group_shared_entity_to_vertex[geom].
+         AddConnections(group_id, vertex_ids, vertex_ids.Size());
+      }
+      group__shared_tria_to_vertex.ShiftUpI();
+      group__shared_quad_to_vertex.ShiftUpI();
+   }
+}
+
+std::unique_ptr<FiniteElementSpace>
+MeshPartitioner::ExtractFESpace(MeshPart &mesh_part,
+                                const FiniteElementSpace &global_fespace) const
+{
+   mesh_part.GetMesh(); // initialize 'mesh_part.mesh'
+   // Note: the nodes of 'mesh_part.mesh' are not set by GetMesh() unless they
+   // were already constructed, e.g. by ExtractPart().
+
+   return std::unique_ptr<FiniteElementSpace>(
+             new FiniteElementSpace(mesh_part.mesh.get(),
+                                    global_fespace.FEColl(),
+                                    global_fespace.GetVDim(),
+                                    global_fespace.GetOrdering()));
+}
+
+std::unique_ptr<GridFunction>
+MeshPartitioner::ExtractGridFunction(const MeshPart &mesh_part,
+                                     const GridFunction &global_gf,
+                                     FiniteElementSpace &local_fespace) const
+{
+   std::unique_ptr<GridFunction> local_gf(new GridFunction(&local_fespace));
+
+   // Transfer data from 'global_gf' to 'local_gf'.
+   Array<int> gvdofs, lvdofs;
+   Vector loc_vals;
+   const int part_id = mesh_part.my_part_id;
+   const int num_elems = part_to_element.RowSize(part_id);
+   const int *elem_list = part_to_element.GetRow(part_id); // sorted
+   for (int loc_elem_id = 0; loc_elem_id < num_elems; loc_elem_id++)
+   {
+      const int glob_elem_id = elem_list[loc_elem_id];
+      auto glob_dt = global_gf.FESpace()->GetElementVDofs(glob_elem_id, gvdofs);
+      global_gf.GetSubVector(gvdofs, loc_vals);
+      if (glob_dt) { glob_dt->InvTransformPrimal(loc_vals); }
+      auto local_dt = local_fespace.GetElementVDofs(loc_elem_id, lvdofs);
+      if (local_dt) { local_dt->TransformPrimal(loc_vals); }
+      local_gf->SetSubVector(lvdofs, loc_vals);
+   }
+   return local_gf;
 }
 
 

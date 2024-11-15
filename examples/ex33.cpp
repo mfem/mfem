@@ -19,8 +19,11 @@
 //    ex33 -m ../data/amr-quad.mesh -ver -alpha 2.6 -o 2 -r 2
 //    ex33 -m ../data/inline-hex.mesh -ver -alpha 0.3 -o 2 -r 1
 //
-//  Note: the analytic solution to this problem is u = ∏_{i=0}^{dim-1} sin(π x_i)
-//        for all alpha.
+//  Note: The manufactured solution used in this problem is
+//
+//            u = ∏_{i=0}^{dim-1} sin(π x_i) ,
+//
+//        regardless of the value of alpha.
 //
 // Description:
 //
@@ -114,7 +117,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verification, "-ver", "--verification", "-no-ver",
                   "--no-verification",
-                  "Use sinusoidal function (f) for analytic comparison.");
+                  "Use sinusoidal function (f) for manufactured "
+                  "solution test.");
    args.Parse();
    if (!args.Good())
    {
@@ -163,7 +167,7 @@ int main(int argc, char *argv[])
    // 5. Define a finite element space on the mesh.
    H1_FECollection fec(order, dim);
    FiniteElementSpace fespace(&mesh, &fec);
-   cout << "Number of finite element unknowns: "
+   cout << "Number of degrees of freedom: "
         << fespace.GetTrueVSize() << endl;
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -379,29 +383,29 @@ int main(int argc, char *argv[])
       FunctionCoefficient sol(solution);
       real_t l2_error = u.ComputeL2Error(sol);
 
-      string analytic_solution,expected_mesh;
+      string manufactured_solution,expected_mesh;
       switch (dim)
       {
          case 1:
-            analytic_solution = "sin(π x)";
+            manufactured_solution = "sin(π x)";
             expected_mesh = "inline_segment.mesh";
             break;
          case 2:
-            analytic_solution = "sin(π x) sin(π y)";
+            manufactured_solution = "sin(π x) sin(π y)";
             expected_mesh = "inline_quad.mesh";
             break;
          default:
-            analytic_solution = "sin(π x) sin(π y) sin(π z)";
+            manufactured_solution = "sin(π x) sin(π y) sin(π z)";
             expected_mesh = "inline_hex.mesh";
             break;
       }
 
       mfem::out << "\n" << string(80,'=')
                 << "\n\nSolution Verification in "<< dim << "D \n\n"
-                << "Analytic solution : " << analytic_solution << "\n"
-                << "Expected mesh     : " << expected_mesh <<"\n"
-                << "Your mesh         : " << mesh_file << "\n"
-                << "L2 error          : " << l2_error << "\n\n"
+                << "Manufactured solution : " << manufactured_solution << "\n"
+                << "Expected mesh         : " << expected_mesh <<"\n"
+                << "Your mesh             : " << mesh_file << "\n"
+                << "L2 error              : " << l2_error << "\n\n"
                 << string(80,'=') << endl;
    }
 

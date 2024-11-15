@@ -40,6 +40,7 @@ private:
 public:
    /// Creates a new (stopped) StopWatch object.
    StopWatch();
+   StopWatch(const StopWatch &);
 
    /// Clear the elapsed time on the stopwatch and restart it if it's running.
    void Clear();

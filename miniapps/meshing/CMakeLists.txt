@@ -40,7 +40,7 @@ add_mfem_miniapp(klein-bottle
 add_mfem_miniapp(mesh-explorer
   MAIN mesh-explorer.cpp
   ${MFEM_MINIAPPS_COMMON_HEADERS}
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem-common)
 
 add_mfem_miniapp(mobius-strip
   MAIN mobius-strip.cpp
@@ -57,13 +57,13 @@ add_mfem_miniapp(extruder
 add_mfem_miniapp(mesh-optimizer
   MAIN mesh-optimizer.cpp
   ${MFEM_MINIAPPS_COMMON_HEADERS}
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem-common)
 add_dependencies(mesh-optimizer copy_miniapps_meshing_data)
 
 add_mfem_miniapp(mesh-quality
   MAIN mesh-quality.cpp
   ${MFEM_MINIAPPS_COMMON_HEADERS}
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem-common)
 
 add_mfem_miniapp(minimal-surface
   MAIN minimal-surface.cpp
@@ -114,19 +114,19 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(pmesh-optimizer
     MAIN pmesh-optimizer.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
   add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
 
   add_mfem_miniapp(pmesh-fitting
     MAIN pmesh-fitting.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
   add_dependencies(pmesh-fitting copy_miniapps_meshing_data)
 
   add_mfem_miniapp(fit-node-position
     MAIN fit-node-position.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
   add_dependencies(fit-node-position copy_miniapps_meshing_data)
 
   add_mfem_miniapp(pminimal-surface
@@ -143,6 +143,9 @@ if (MFEM_USE_MPI)
     )
     # Meshing miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)
+    if (HYPRE_USING_CUDA OR HYPRE_USING_HIP)
+      list(APPEND SKIP_TESTS pmesh-fitting)
+    endif()
 
     foreach(test ${PARALLEL_TESTS})
       if (test IN_LIST SKIP_TESTS)

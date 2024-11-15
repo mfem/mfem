@@ -241,7 +241,7 @@ protected:
    void BuildVertexGroup(int ngroups, const Table& vert_element);
 
    void BuildSharedFaceElems(int ntri_faces, int nquad_faces,
-                             const Mesh &mesh, int *partitioning,
+                             const Mesh &mesh, const int *partitioning,
                              const STable3D *faces_tbl,
                              const Array<int> &face_group,
                              const Array<int> &vert_global_local);
@@ -343,7 +343,7 @@ public:
        meshes and quick space-filling curve equipartitioning for nonconforming
        meshes (elements of nonconforming meshes should ideally be ordered as a
        sequence of face-neighbors). */
-   ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_ = NULL,
+   ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_ = nullptr,
            int part_method = 1);
 
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
@@ -437,8 +437,6 @@ public:
    Table            send_face_nbr_vertices;
 
    ParNCMesh* pncmesh;
-
-   int *partitioning_cache = nullptr;
 
    int GetNGroups() const { return gtopo.NGroups(); }
 
@@ -645,6 +643,9 @@ public:
        Similarly, if type==Interior, only the true interior faces (including
        shared faces) are counted excluding all master non-conforming faces. */
    int GetNFbyType(FaceType type) const override;
+
+   void GenerateBoundaryElements() override
+   { MFEM_ABORT("Generation of boundary elements works properly only on serial meshes."); }
 
    /// See the remarks for the serial version in mesh.hpp
    MFEM_DEPRECATED void ReorientTetMesh() override;

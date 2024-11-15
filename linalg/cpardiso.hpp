@@ -99,7 +99,7 @@ private:
 
    // CSR data structure for the copy data of the local CSR matrix
    int *csr_rowptr = nullptr;
-   double *reordered_csr_nzval = nullptr;
+   real_t *reordered_csr_nzval = nullptr;
    int *reordered_csr_colind = nullptr;
 
    // Internal solver memory pointer pt,
@@ -116,7 +116,7 @@ private:
 
    // Dummy variables
    mutable int idum;
-   mutable double ddum;
+   mutable real_t ddum;
 };
 } // namespace mfem
 

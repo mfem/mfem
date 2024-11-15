@@ -12,8 +12,10 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/dpg/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 # Include defaults.mk to get XLINKER
 DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk

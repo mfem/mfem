@@ -123,8 +123,8 @@ public:
 
    // Override base Dense class implementation for creating new vectors
    // with same executor and size as self
-   virtual std::unique_ptr<gko::matrix::Dense<real_t>>
-                                                    create_with_same_config() const override
+   std::unique_ptr<gko::matrix::Dense<real_t>>
+                                            create_with_same_config() const override
    {
       Vector *mfem_vec = new Vector(
          this->get_size()[0],
@@ -145,10 +145,10 @@ public:
    // with same executor and type as self, but with a different size.
    // This function will create "one large VectorWrapper" of size
    // size[0] * size[1], since MFEM Vectors only have one dimension.
-   virtual std::unique_ptr<gko::matrix::Dense<real_t>> create_with_type_of_impl(
-                                                       std::shared_ptr<const gko::Executor> exec,
-                                                       const gko::dim<2> &size,
-                                                       gko::size_type stride) const override
+   std::unique_ptr<gko::matrix::Dense<real_t>> create_with_type_of_impl(
+                                               std::shared_ptr<const gko::Executor> exec,
+                                               const gko::dim<2> &size,
+                                               gko::size_type stride) const override
    {
       // Only stride of 1 is allowed for VectorWrapper type
       if (stride > 1)
@@ -175,10 +175,10 @@ public:
 
    // Override base Dense class implementation for creating new sub-vectors
    // from a larger vector.
-   virtual std::unique_ptr<gko::matrix::Dense<real_t>> create_submatrix_impl(
-                                                       const gko::span &rows,
-                                                       const gko::span &columns,
-                                                       const gko::size_type stride) override
+   std::unique_ptr<gko::matrix::Dense<real_t>> create_submatrix_impl(
+                                               const gko::span &rows,
+                                               const gko::span &columns,
+                                               const gko::size_type stride) override
    {
 
       gko::size_type num_rows = rows.end - rows.begin;
@@ -607,12 +607,12 @@ public:
     * a Ginkgo solver, get the LinOpFactory  pointer through @p GetFactory()
     * and pass to the Ginkgo solver constructor.
     */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /**
     * Apply the preconditioner to input vector @p x, with out @p y.
     */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /**
     * Return a pointer to the LinOpFactory that will generate the preconditioner
@@ -702,13 +702,13 @@ public:
     * to use its data directly.  If the Operator is not a matrix,
     * create an OperatorWrapper for it and store.
     */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /**
     * Solve the linear system <tt>Ax=y</tt>. Dependent on the information
     * provided by derived classes one of Ginkgo's linear solvers is chosen.
     */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /**
     * Return whether this GinkgoIterativeSolver object will use
@@ -1351,7 +1351,7 @@ public:
     * this function overrides the base class in order to give an
     * error if SetOperator() is called for this class.
     */
-   virtual void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    {
       MFEM_ABORT("Ginkgo::MFEMPreconditioner must be constructed "
                  "with the MFEM Operator that it will wrap as an argument;\n"

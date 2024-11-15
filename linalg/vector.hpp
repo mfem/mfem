@@ -432,6 +432,13 @@ public:
    /// Prints vector to stream out in HYPRE_Vector format.
    void Print_HYPRE(std::ostream &out) const;
 
+   /// Prints vector as a List for importing into Mathematica.
+   /** The resulting file can be read into Mathematica using an expression such
+       as: myVec = Get["output_file_name"]
+       The Mathematica variable "myVec" will then be assigned to a new
+       List object containing the data from this MFEM Vector. */
+   void PrintMathematica(std::ostream &out = mfem::out) const;
+
    /// Print the Vector size and hash of its data.
    /** This is a compact text representation of the Vector contents that can be
        used to compare vectors from different runs without the need to save the
@@ -716,13 +723,7 @@ inline real_t InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 {
    real_t loc_prod = x * y;
    real_t glb_prod;
-#ifdef MFEM_USE_SINGLE
-   MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_FLOAT, MPI_SUM, comm);
-#elif defined MFEM_USE_DOUBLE
-   MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   MPI_Allreduce(&loc_prod, &glb_prod, 1, MFEM_MPI_REAL_T, MPI_SUM, comm);
    return glb_prod;
 }
 #endif

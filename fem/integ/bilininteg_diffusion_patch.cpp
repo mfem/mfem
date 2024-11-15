@@ -563,7 +563,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    cdofs.SetSize(maxw[0], maxw[1], maxw[2]);
 
    // Compute sparsity of the sparse matrix
-   smati = new int[ndof+1];
+   smati = Memory<int>(ndof+1);
    smati[0] = 0;
 
    for (int dof_j=0; dof_j<ndof; ++dof_j)
@@ -586,8 +586,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
       nnz += ndd;
    }
 
-   smatj = new int[nnz];
-   smata = new real_t[nnz];
+   smatj = Memory<int>(nnz);
+   smata = Memory<real_t>(nnz);
 
    for (int i=0; i<nnz; ++i)
    {
@@ -973,7 +973,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    cdofs.SetSize(maxw[0], maxw[1], maxw[2]);
 
    // Compute sparsity of the sparse matrix
-   smati = new int[ndof+1];
+   smati = Memory<int>(ndof+1);
    smati[0] = 0;
 
    for (int dof_j=0; dof_j<ndof; ++dof_j)
@@ -996,8 +996,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
       nnz += ndd;
    }
 
-   smatj = new int[nnz];
-   smata = new real_t[nnz];
+   smatj = Memory<int>(nnz);
+   smata = Memory<real_t>(nnz);
 
    for (int i=0; i<nnz; ++i)
    {

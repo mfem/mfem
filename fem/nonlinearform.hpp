@@ -35,6 +35,10 @@ protected:
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
 
+   /** @brief Indicates the NonlinearFormIntegrator%s stored in #dnfi, #bnfi,
+       #fnfi, and #bfnfi are not owned by this NonlinearForm. */
+   bool extern_bfs;
+
    /// Set of Domain Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> dnfi; // owned
    Array<Array<int>*>              dnfi_marker; // not owned
@@ -77,7 +81,7 @@ public:
        number of true degrees of freedom, i.e. f->GetTrueVSize(). */
    NonlinearForm(FiniteElementSpace *f)
       : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::LEGACY),
-        ext(NULL), fes(f), Grad(NULL), cGrad(NULL),
+        ext(NULL), fes(f), extern_bfs(0), Grad(NULL), cGrad(NULL),
         sequence(f->GetSequence()), P(f->GetProlongationMatrix()),
         cP(dynamic_cast<const SparseMatrix*>(P))
    { }
@@ -200,7 +204,7 @@ public:
 
        Both the input and the output vectors, @a x and @a y, must be true-dof
        vectors, i.e. their size must be fes->GetTrueVSize(). */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Compute the gradient Operator of the NonlinearForm corresponding
        to the state @a x. */
@@ -213,7 +217,7 @@ public:
        In general, @a x may have non-homogeneous essential boundary values.
 
        The state @a x must be a true-dof vector. */
-   virtual Operator &GetGradient(const Vector &x) const;
+   Operator &GetGradient(const Vector &x) const override;
 
    /// Update the NonlinearForm to propagate updates of the associated FE space.
    /** After calling this method, the essential boundary conditions need to be
@@ -229,10 +233,13 @@ public:
    virtual void Setup();
 
    /// Get the finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const { return P; }
+   const Operator *GetProlongation() const override { return P; }
    /// Get the finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return fes->GetRestrictionMatrix(); }
+
+   /// Indicate that integrators are not owned by the NonlinearForm
+   void UseExternalIntegrators() { extern_bfs = 1; }
 
    /** @brief Destroy the NonlinearForm including the owned
        NonlinearFormIntegrator%s and gradient Operator. */
@@ -363,11 +370,11 @@ public:
 
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.
-   virtual Operator &GetGradient(const Vector &x) const;
+   Operator &GetGradient(const Vector &x) const override;
 
    /// Destructor.
    virtual ~BlockNonlinearForm();

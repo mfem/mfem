@@ -14,14 +14,14 @@
 // Compile with: make convection-diffusion
 //
 // sample runs
-// convection-diffusion -m ../../data/star.mesh -o 2 -ref 2 -theta 0.0 -eps 1e-1 -beta '2 3'
-// convection-diffusion -m ../../data/beam-hex.mesh -o 2 -ref 2 -theta 0.0 -eps 1e0 -beta '1 0 2'
-// convection-diffusion -m ../../data/inline-tri.mesh -o 3 -ref 2 -theta 0.0 -eps 1e-2 -beta '4 2' -sc
+//  convection-diffusion -m ../../data/star.mesh -o 2 -ref 2 -theta 0.0 -eps 1e-1 -beta '2 3'
+//  convection-diffusion -m ../../data/beam-hex.mesh -o 2 -ref 2 -theta 0.0 -eps 1e0 -beta '1 0 2'
+//  convection-diffusion -m ../../data/inline-tri.mesh -o 3 -ref 2 -theta 0.0 -eps 1e-2 -beta '4 2' -sc
 
 // AMR runs
-// convection-diffusion  -o 3 -ref 5 -prob 1 -eps 1e-1 -theta 0.75
-// convection-diffusion  -o 2 -ref 9 -prob 1 -eps 1e-2 -theta 0.75
-// convection-diffusion  -o 3 -ref 9 -prob 1 -eps 1e-3 -theta 0.75 -sc
+//  convection-diffusion -o 3 -ref 5 -prob 1 -eps 1e-1 -theta 0.75
+//  convection-diffusion -o 2 -ref 9 -prob 1 -eps 1e-2 -theta 0.75
+//  convection-diffusion -o 3 -ref 9 -prob 1 -eps 1e-3 -theta 0.75 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -102,6 +102,7 @@ int main(int argc, char *argv[])
    int iprob = 0;
    real_t theta = 0.0;
    bool static_cond = false;
+   int visport = 19916;
    epsilon = 1e0;
 
    OptionsParser args(argc, argv);
@@ -126,6 +127,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -412,7 +414,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
          VisualizeField(u_out,vishost, visport, u_gf,
                         "Numerical u", 0,0, 500, 500, keys);
          VisualizeField(sigma_out,vishost, visport, sigma_gf,

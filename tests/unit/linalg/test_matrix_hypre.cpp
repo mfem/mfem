@@ -185,35 +185,21 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       HypreParMatrix *Aabs = new HypreParMatrix(*A);
 
       hypre_ParCSRMatrix * AparCSR = *Aabs;
+      Aabs->HypreReadWrite();
 
       int nnzd = AparCSR->diag->num_nonzeros;
-#if !defined(HYPRE_USING_GPU)
-      for (int j = 0; j < nnzd; j++)
-      {
-         AparCSR->diag->data[j] = fabs(AparCSR->diag->data[j]);
-      }
-#else
-      Aabs->HypreReadWrite();
       real_t *d_diag_data = AparCSR->diag->data;
-      MFEM_GPU_FORALL(i, nnzd,
+      mfem::hypre_forall(nnzd, [=] MFEM_HOST_DEVICE (int i)
       {
          d_diag_data[i] = fabs(d_diag_data[i]);
       });
-#endif
 
       int nnzoffd = AparCSR->offd->num_nonzeros;
-#if !defined(HYPRE_USING_GPU)
-      for (int j = 0; j < nnzoffd; j++)
-      {
-         AparCSR->offd->data[j] = fabs(AparCSR->offd->data[j]);
-      }
-#else
       real_t *d_offd_data = AparCSR->offd->data;
-      MFEM_GPU_FORALL(i, nnzoffd,
+      mfem::hypre_forall(nnzoffd, [=] MFEM_HOST_DEVICE (int i)
       {
          d_offd_data[i] = fabs(d_offd_data[i]);
       });
-#endif
 
       Vector X0(n), X1(n);
       Vector Y0(m), Y1(m);
@@ -224,7 +210,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       A->AbsMult(3.4,X0,-2.3,Y0);
       Aabs->Mult(3.4,X0,-2.3,Y1);
 
-      Y1 -=Y0;
+      Y1 -= Y0;
       double error = Y1.Norml2();
 
       mfem::out << "Testing AbsMult:   order: " << order
@@ -240,7 +226,7 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
       X1.Randomize(1);
       A->AbsMultTranspose(3.4,Y0,-2.3,X0);
       Aabs->MultTranspose(3.4,Y0,-2.3,X1);
-      X1 -=X0;
+      X1 -= X0;
 
       error = X1.Norml1();
       mfem::out << "Testing AbsMultT:  order: " << order

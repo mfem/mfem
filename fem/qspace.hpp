@@ -215,6 +215,10 @@ public:
    /// quadrature point, oriented relative to "element 1".
    int GetPermutedIndex(int idx, int iq) const override;
 
+   /// @brief Get the face index (in the standard Mesh numbering) associated
+   /// with face @a idx in the FaceQuadratureSpace.
+   int GetMeshFaceIndex(int idx) const { return face_indices[idx]; }
+
    /// @brief Returns the index associated with the face described by @a T.
    ///
    /// The index may differ from the mesh face or boundary element index

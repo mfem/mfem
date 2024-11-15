@@ -9,6 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_RUNNER
+#include "mfem.hpp"
+#include "run_unit_tests.hpp"
+
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -17,9 +21,6 @@
 #include <list>
 #include <fstream>
 #include <iostream>
-
-#include "mfem.hpp"
-#include "unit_tests.hpp"
 #include "miniapps/meshing/mesh-optimizer.hpp"
 
 #if defined(MFEM_TMOP_MPI) && !defined(MFEM_USE_MPI)
@@ -134,7 +135,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    REQUIRE(order > 0);
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fes(pmesh, &fec, dim);
-   ParGridFunction x0(&fes), x(&fes);
+   ParGridFunction x0(&fes), x(&fes), x0_before_jitter(&fes);
    pmesh->SetNodalGridFunction(&x);
 
    Vector h0(fes.GetNDofs());
@@ -154,6 +155,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
       }
    }
    const real_t small_phys_size = pow(volume, 1.0 / dim) / 100.0;
+
+   // When the target is GIVEN_SHAPE_AND_SIZE, we want to call tc->SetNodes()
+   // with something other than x0 (otherwise all metrics would be 0).
+   x0_before_jitter = x;
 
    ParGridFunction rdm(&fes);
    rdm.Randomize(seed);
@@ -249,6 +254,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
          target_c = tc;
          break;
       }
+      case 8: // fully specified through the initial mesh, 2D or 3D.
+      {
+         target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE; break;
+      }
       default:
       {
          if (id == 0) { cout << "Unknown target_id: " << target_id << endl; }
@@ -266,7 +275,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       target_c = new TargetConstructor(target_t);
    }
 #endif
-   target_c->SetNodes(x0);
+   target_c->SetNodes(x0_before_jitter);
 
    // Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = nullptr;
@@ -752,10 +761,13 @@ public:
 // id: MPI rank, nr: launch all non-regression tests
 static void tmop_tests(int id = 0, bool all = false)
 {
-#if defined(MFEM_TMOP_MPI) && defined(HYPRE_USING_GPU)
-   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-        << "is NOT supported with the GPU version of hypre.\n\n";
-   return;
+#if defined(MFEM_TMOP_MPI)
+   if (HypreUsingGPU())
+   {
+      cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+           << "is NOT supported with the GPU version of hypre.\n\n";
+      return;
+   }
 #endif
 
    const real_t jitter = 1./(M_PI*M_PI);
@@ -769,6 +781,19 @@ static void tmop_tests(int id = 0, bool all = false)
           MESH("../../data/star.mesh").REFINE(1).JI(jitter).
           POR({1,2}).QOR({2,3}).
           TID({3}).MID({2})).Run(id,all);
+
+   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_2D_KERNEL").
+          MESH("../../data/star.mesh").REFINE(1).JI(jitter).
+          NORMALIZATION(true).
+          POR({1,2}).QOR({2,3}).
+          TID({8}).MID({94}).LS({3})).Run(id,all);
+
+   Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_3D_KERNEL").
+          MESH("../../data/toroid-hex.mesh").
+          LIMITING(M_PI).LIMIT_TYPE(1).REFINE(1).JI(jitter).
+          NORMALIZATION(true).
+          POR({2}).QOR({4}).
+          TID({8}).MID({338}).LS({3})).Run(id,all);
 
    Launch(Launch::Args("TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL").
           MESH("../../miniapps/meshing/cube.mesh").REFINE(1).JI(jitter).
@@ -912,34 +937,41 @@ static void tmop_tests(int id = 0, bool all = false)
           TID({5}).MID({2})).Run(id,true);
 }
 
-#if defined(MFEM_TMOP_MPI)
-#ifndef MFEM_TMOP_DEVICE
+#ifdef MFEM_TMOP_MPI
 TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
 {
    tmop_tests(Mpi::WorldRank(), launch_all_non_regression_tests);
 }
 #else
-TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
-{
-   Device device;
-   device.Configure(MFEM_TMOP_DEVICE);
-   device.Print();
-   tmop_tests(Mpi::WorldRank(), launch_all_non_regression_tests);
-}
-#endif
-#else
-#ifndef MFEM_TMOP_DEVICE
 TEST_CASE("tmop_pa", "[TMOP_PA]")
 {
    tmop_tests(0, launch_all_non_regression_tests);
 }
-#else
-TEST_CASE("tmop_pa", "[TMOP_PA]")
+#endif
+
+int main(int argc, char *argv[])
 {
-   Device device;
-   device.Configure(MFEM_TMOP_DEVICE);
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe TMOP unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
+#ifdef MFEM_TMOP_MPI
+   mfem::Mpi::Init();
+   mfem::Hypre::Init();
+#endif
+#ifdef MFEM_TMOP_DEVICE
+   Device device(MFEM_TMOP_DEVICE);
+#else
+   Device device("cpu"); // make sure hypre runs on CPU, if possible
+#endif
    device.Print();
-   tmop_tests(0, launch_all_non_regression_tests);
+
+#ifdef MFEM_TMOP_MPI
+   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
+#else
+   // Exclude parallel tests.
+   return RunCatchSession(argc, argv, {"~[Parallel]"});
+#endif
 }
-#endif
-#endif
