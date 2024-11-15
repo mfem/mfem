@@ -1121,10 +1121,12 @@ int main(int argc, char *argv[])
    mfem::Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    {
+       /*
        mfem::Vector vert;
        mesh.GetVertices(vert);
        vert*=0.01;
        mesh.SetVertices(vert);
+       */
        mfem::Vector xmin(dim), xmax(dim);
        mesh.GetBoundingBox(xmin,xmax);
        if(myrank==0){
