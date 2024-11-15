@@ -20,38 +20,26 @@ namespace mfem
 {
 
 /// A set of integers
-class IntegerSet
+class IntegerSet : public Array<int>
 {
-private:
-   Array<int> me;
-
 public:
-   /// Create an empty set.
-   IntegerSet() { }
-
-   /// Create a copy of set 's'.
-   IntegerSet(IntegerSet &s);
+   using Array<int>::Array; ///< Inherit all Array constructors.
+   // MSVC fails to recognize that rule of zero applies after using base class
+   // constructors.
+   IntegerSet() = default; ///< Default construct and empty set.
+   IntegerSet(const IntegerSet &) = default; ///< Copy constructor.
+   IntegerSet(IntegerSet &&) = default; ///< Move constructor.
+   IntegerSet& operator=(const IntegerSet &) = default; ///< Copy assignment.
+   IntegerSet& operator=(IntegerSet &&) = default; ///< Move assignment.
 
    /// Create an integer set from C-array 'p' of 'n' integers.
    IntegerSet(const int n, const int *p) { Recreate(n, p); }
 
-   /// Return the size of the set.
-   int Size() { return me.Size(); }
-
-   /// Return a reference to the sorted array of all the set entries.
-   operator Array<int>& () { return me; }
-
    /// Return the value of the lowest element of the set.
-   int PickElement() { return me[0]; }
+   int PickElement() const { return data[0]; }
 
    /// Return the value of a random element of the set.
-   int PickRandomElement();
-
-   /// Create a copy of set 's'.
-   IntegerSet& operator=(const IntegerSet &s);
-
-   /// Return 1 if the sets are equal and 0 otherwise.
-   int operator==(IntegerSet &s);
+   int PickRandomElement() const;
 
    /** @brief Create an integer set from C-array 'p' of 'n' integers.
        Overwrites any existing set data. */
@@ -67,25 +55,25 @@ private:
 public:
 
    /// Return the number of integer sets in the list.
-   int Size() { return TheList.Size(); }
+   int Size() const { return TheList.Size(); }
 
    /// Return the value of the first element of the ith set.
-   int PickElementInSet(int i) { return TheList[i]->PickElement(); }
+   int PickElementInSet(int i) const { return TheList[i]->PickElement(); }
 
    /// Return a random value from the ith set in the list.
-   int PickRandomElementInSet(int i) { return TheList[i]->PickRandomElement(); }
+   int PickRandomElementInSet(int i) const { return TheList[i]->PickRandomElement(); }
 
    /** @brief Check to see if set 's' is in the list. If not append it to the
        end of the list. Returns the index of the list where set 's' can be
        found. */
-   int Insert(IntegerSet &s);
+   int Insert(const IntegerSet &s);
 
    /** Return the index of the list where set 's' can be found. Returns -1 if
        not found. */
-   int Lookup(IntegerSet &s);
+   int Lookup(const IntegerSet &s) const;
 
    /// Write the list of sets into table 't'.
-   void AsTable(Table &t);
+   void AsTable(Table &t) const;
 
    ~ListOfIntegerSets();
 };
