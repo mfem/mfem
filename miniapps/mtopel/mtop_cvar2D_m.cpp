@@ -1310,7 +1310,7 @@ int main(int argc, char *argv[])
 
           //cpl=alco->EvalApproxGradientFullSampling(ograd,0.90,0.01);
           //cpl=alco->EvalApproxGradientSampling(ograd,0.90,0.001,20);
-          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.975,0.1,190*4);
+          cpl=alco->EvalApproxGradientSamplingMem(ograd,0.99,0.1,190*4);
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
 
