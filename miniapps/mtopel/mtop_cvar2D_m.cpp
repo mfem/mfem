@@ -404,7 +404,7 @@ public:
 
         E.SetDens(&pdens);
         E.SetProjParam(eta,beta);
-        E.SetEMaxMin(1e-6,1.0);
+        E.SetEMaxMin(1e-1,1.0);
         E.SetPenal(pen);
 
         cobj->SetE(&E);
