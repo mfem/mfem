@@ -2074,6 +2074,7 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
    }
 
    m21EpsInv_->Mult(d, *rhs1_);
+   // print rhs1_ to check for NANS
    rhs1_->SyncAlias();
 
    if (sbcs_->Size() > 0)
@@ -2091,10 +2092,11 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
 
    m1_->FormLinearSystem(sbc_nd_tdofs_, e, *rhs1_, M1, E, RHS1);
 
- 
+   
    bool minres = true;
    if (minres)
    {
+
      HypreDiagScale diag_r(M1.As<ComplexHypreParMatrix>()->real());
      Operator * diag_i = &diag_r;
 
@@ -2102,24 +2104,16 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
      diag.SetDiagonalBlock(0, &diag_r);
      diag.SetDiagonalBlock(1, diag_i);
      diag.owns_blocks = 0;
-
-     if (myid_ == 0){cout << "test  1" << endl;}
+     
 
      MINRESSolver minres(HCurlFESpace_->GetComm());
-     if (myid_ == 0){cout << "test  2" << endl;}
      minres.SetPreconditioner(diag);
-     if (myid_ == 0){cout << "test  3" << endl;}
      minres.SetOperator(*M1.Ptr());
-     if (myid_ == 0){cout << "test  4" << endl;}
      minres.SetRelTol(solOpts_.relTol);
-     if (myid_ == 0){cout << "test  5" << endl;}
      minres.SetMaxIter(solOpts_.maxIter);
-     if (myid_ == 0){cout << "test  6" << endl;}
      minres.SetPrintLevel(solOpts_.printLvl+1);
-     if (myid_ == 0){cout << "test  7" << endl;}
 
      minres.Mult(RHS1, E);
-     if (myid_ == 0){cout << "test  8" << endl;}
    }
    else
    {
@@ -2133,7 +2127,7 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
 
      gmres.Mult(RHS1, E);
    }
-
+   
 /*
 #ifdef MFEM_USE_MUMPS
    {

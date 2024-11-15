@@ -3584,6 +3584,8 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double b = 0.415;
    double c = 0.15;
 
+   double ant_shift = 1.7;
+
    // Configurations:
    double A = curve_params_(5); // Standard dipole: 0/pi/0/pi
    //double B = curve_params_(6); // Modified dipole: 0/pi/pi/0
@@ -3600,8 +3602,8 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double cmax1 = 0.141755 - nmax1*(-0.264109);
    double nmin1 = (0.15912 - 0.41574) / (-0.341 + 0.27219);
    double cmin1 = 0.15912 - nmin1*(-0.341);
-   double phi1min = (z - cmin1)/nmin1 + 0.4;
-   double phi1max = (z - cmax1)/nmax1 + 0.4;
+   double phi1min = (z - cmin1)/nmin1 + ant_shift;
+   double phi1max = (z - cmax1)/nmax1 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin1 && z <= zmax1 &&
       x[1] >= phi1min && x[1] <= phi1max)
@@ -3647,8 +3649,8 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double cmax5 = -0.281149 - nmax5*(-0.264077);
    double nmin5 = (-0.2599138 + 0.000466305) / (-0.340973 + 0.2722536);
    double cmin5 = -0.2599138 - nmin5*(-0.340973);
-   double phi5min = (z - cmin5)/nmin5 + 0.4;
-   double phi5max = (z - cmax5)/nmax5 + 0.4;
+   double phi5min = (z - cmin5)/nmin5 + ant_shift;
+   double phi5max = (z - cmax5)/nmax5 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin5 && z <= zmax5 &&
        x[1] >= phi5min && x[1] <= phi5max)
@@ -3693,8 +3695,8 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double cmax2 = 0.097177 - nmax2*(-0.08289);
    double nmin2 = (0.11777 - 0.37377) / (-0.166083 + 0.098606);
    double cmin2 = 0.11777 - nmin2*(-0.166083);
-   double phi2min = (z - cmin2)/nmin2 + 0.4;
-   double phi2max = (z - cmax2)/nmax2 + 0.4;
+   double phi2min = (z - cmin2)/nmin2 + ant_shift;
+   double phi2max = (z - cmax2)/nmax2 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin2 && z <= zmax2 &&
       x[1] >= phi2min && x[1] <= phi2max)
@@ -3740,8 +3742,8 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double cmax6 = -0.328264 - nmax6*(-0.0828886);
    double nmin6 = (-0.30647 + 0.049515) / (-0.166083 + 0.09863);
    double cmin6 = -0.30647 - nmin6*(-0.16608);
-   double phi6min = (z - cmin6)/nmin6 + 0.4;
-   double phi6max = (z - cmax6)/nmax6 + 0.4;
+   double phi6min = (z - cmin6)/nmin6 + ant_shift;
+   double phi6max = (z - cmax6)/nmax6 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin6 && z <= zmax6 &&
        x[1] >= phi6min && x[1] <= phi6max)
@@ -3786,8 +3788,8 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double cmax3 = 0.049515 - nmax3*(0.09863);
    double nmin3 = (0.071308 - 0.32826) / (0.0154384 - 0.08288);
    double cmin3 = 0.071308 - nmin3*(0.0154384);
-   double phi3min = (z - cmin3)/nmin3 + 0.4;
-   double phi3max = (z - cmax3)/nmax3 + 0.4;
+   double phi3min = (z - cmin3)/nmin3 + ant_shift;
+   double phi3max = (z - cmax3)/nmax3 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin3 && z <= zmax3 &&
       x[1] >= phi3min && x[1] <= phi3max)
@@ -3833,8 +3835,8 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double cmax7 = -0.3737786 - nmax7*(0.0986063);
    double nmin7 = (-0.3531825 + 0.097177) / (0.0154139 - 0.08289);
    double cmin7 = -0.3531825 - nmin7*(0.0154139);
-   double phi7min = (z - cmin7)/nmin7 + 0.4;
-   double phi7max = (z - cmax7)/nmax7 + 0.4;
+   double phi7min = (z - cmin7)/nmin7 + ant_shift;
+   double phi7max = (z - cmax7)/nmax7 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin7 && z <= zmax7 &&
        x[1] >= phi7min && x[1] <= phi7max)
@@ -3879,8 +3881,8 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double cmax4 = 0.00046630 - nmax4*(0.2722536);
    double nmin4 = (0.021702 - 0.281149) / (0.1953579 - 0.264077);
    double cmin4 = 0.021702 - nmin4*(0.1953579);
-   double phi4min = (z - cmin4)/nmin4 + 0.4;
-   double phi4max = (z - cmax4)/nmax4 + 0.4;
+   double phi4min = (z - cmin4)/nmin4 + ant_shift;
+   double phi4max = (z - cmax4)/nmax4 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin4 && z <= zmax4 &&
       x[1] >= phi4min && x[1] <= phi4max)
@@ -3926,8 +3928,8 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double cmax8 = -0.415745 - nmax8*(0.2721959);
    double nmin8 = (-0.3978 + 0.1411755) / (0.1953 - 0.2641092);
    double cmin8 = -0.3978 - nmin8*(0.1953);
-   double phi8min = (z - cmin8)/nmin8 + 0.4;
-   double phi8max = (z - cmax8)/nmax8 + 0.4;
+   double phi8min = (z - cmin8)/nmin8 + ant_shift;
+   double phi8max = (z - cmax8)/nmax8 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin8 && z <= zmax8 &&
        x[1] >= phi8min && x[1] <= phi8max)
@@ -3978,6 +3980,8 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
    double b = 0.415;
    double c = 0.15;
 
+   double ant_shift = 1.7;
+
    // Configurations:
    double A = curve_params_(5); // Standard dipole: 0/pi/0/pi
 
@@ -3993,8 +3997,8 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
    double cmax1 = 0.141755 - nmax1*(-0.264109);
    double nmin1 = (0.15912 - 0.41574) / (-0.341 + 0.27219);
    double cmin1 = 0.15912 - nmin1*(-0.341);
-   double phi1min = (z - cmin1)/nmin1 + 0.4;
-   double phi1max = (z - cmax1)/nmax1 + 0.4;
+   double phi1min = (z - cmin1)/nmin1 + ant_shift;
+   double phi1max = (z - cmax1)/nmax1 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin1 && z <= zmax1 &&
       x[1] >= phi1min && x[1] <= phi1max)
@@ -4040,8 +4044,8 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
    double cmax5 = -0.281149 - nmax5*(-0.264077);
    double nmin5 = (-0.2599138 + 0.000466305) / (-0.340973 + 0.2722536);
    double cmin5 = -0.2599138 - nmin5*(-0.340973);
-   double phi5min = (z - cmin5)/nmin5 + 0.4;
-   double phi5max = (z - cmax5)/nmax5 + 0.4;
+   double phi5min = (z - cmin5)/nmin5 + ant_shift;
+   double phi5max = (z - cmax5)/nmax5 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin5 && z <= zmax5 &&
        x[1] >= phi5min && x[1] <= phi5max)
@@ -4086,8 +4090,8 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
    double cmax2 = 0.097177 - nmax2*(-0.08289);
    double nmin2 = (0.11777 - 0.37377) / (-0.166083 + 0.098606);
    double cmin2 = 0.11777 - nmin2*(-0.166083);
-   double phi2min = (z - cmin2)/nmin2 + 0.4;
-   double phi2max = (z - cmax2)/nmax2 + 0.4;
+   double phi2min = (z - cmin2)/nmin2 + ant_shift;
+   double phi2max = (z - cmax2)/nmax2 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin2 && z <= zmax2 &&
       x[1] >= phi2min && x[1] <= phi2max)
@@ -4133,8 +4137,8 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
    double cmax6 = -0.328264 - nmax6*(-0.0828886);
    double nmin6 = (-0.30647 + 0.049515) / (-0.166083 + 0.09863);
    double cmin6 = -0.30647 - nmin6*(-0.16608);
-   double phi6min = (z - cmin6)/nmin6 + 0.4;
-   double phi6max = (z - cmax6)/nmax6 + 0.4;
+   double phi6min = (z - cmin6)/nmin6 + ant_shift;
+   double phi6max = (z - cmax6)/nmax6 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin6 && z <= zmax6 &&
        x[1] >= phi6min && x[1] <= phi6max)
@@ -4179,8 +4183,8 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
    double cmax3 = 0.049515 - nmax3*(0.09863);
    double nmin3 = (0.071308 - 0.32826) / (0.0154384 - 0.08288);
    double cmin3 = 0.071308 - nmin3*(0.0154384);
-   double phi3min = (z - cmin3)/nmin3 + 0.4;
-   double phi3max = (z - cmax3)/nmax3 + 0.4;
+   double phi3min = (z - cmin3)/nmin3 + ant_shift;
+   double phi3max = (z - cmax3)/nmax3 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin3 && z <= zmax3 &&
       x[1] >= phi3min && x[1] <= phi3max)
@@ -4226,8 +4230,8 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
    double cmax7 = -0.3737786 - nmax7*(0.0986063);
    double nmin7 = (-0.3531825 + 0.097177) / (0.0154139 - 0.08289);
    double cmin7 = -0.3531825 - nmin7*(0.0154139);
-   double phi7min = (z - cmin7)/nmin7 + 0.4;
-   double phi7max = (z - cmax7)/nmax7 + 0.4;
+   double phi7min = (z - cmin7)/nmin7 + ant_shift;
+   double phi7max = (z - cmax7)/nmax7 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin7 && z <= zmax7 &&
        x[1] >= phi7min && x[1] <= phi7max)
@@ -4272,8 +4276,8 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
    double cmax4 = 0.00046630 - nmax4*(0.2722536);
    double nmin4 = (0.021702 - 0.281149) / (0.1953579 - 0.264077);
    double cmin4 = 0.021702 - nmin4*(0.1953579);
-   double phi4min = (z - cmin4)/nmin4 + 0.4;
-   double phi4max = (z - cmax4)/nmax4 + 0.4;
+   double phi4min = (z - cmin4)/nmin4 + ant_shift;
+   double phi4max = (z - cmax4)/nmax4 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin4 && z <= zmax4 &&
       x[1] >= phi4min && x[1] <= phi4max)
@@ -4319,8 +4323,8 @@ void curve_current_source_v3_i(const Vector &x, Vector &j)
    double cmax8 = -0.415745 - nmax8*(0.2721959);
    double nmin8 = (-0.3978 + 0.1411755) / (0.1953 - 0.2641092);
    double cmin8 = -0.3978 - nmin8*(0.1953);
-   double phi8min = (z - cmin8)/nmin8 + 0.4;
-   double phi8max = (z - cmax8)/nmax8 + 0.4;
+   double phi8min = (z - cmin8)/nmin8 + ant_shift;
+   double phi8max = (z - cmax8)/nmax8 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin8 && z <= zmax8 &&
        x[1] >= phi8min && x[1] <= phi8max)
