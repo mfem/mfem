@@ -185,7 +185,7 @@ void NativeBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
             }
          } // pivot end
 
-         if (abs(data_all(i,i,e)) <= tol)
+         if (std::abs(data_all(i,i,e)) <= tol)
          {
             d_pivot_flag[0] = false;
          }
