@@ -465,12 +465,14 @@ public:
         }
 
 
+       /*
        int myrank=ppmesh->GetMyRank();
        if(myrank==0){
            for(int i=0;i<vsupp.size();i++){
                std::cout<<vsupp[i]<<" "<<asupp[i]<<" a="<<aind[i]<<std::endl;
            }
        }
+       */
 
 
     }
