@@ -48,40 +48,32 @@ KnotVector::KnotVector(int order, int NCP)
 KnotVector::KnotVector(int order, const Vector& intervals,
                        const Array<int>& continuity )
 {
+   // NOTE: This may need to be generalized to support periodicity
+   // in the future.
    MFEM_ASSERT(continuity.Size() == (intervals.Size() + 1),
                "Incompatible sizes of continuity and intervals.");
    Order = order;
    NumOfElements = intervals.Size();
    const int num_knots = Order * continuity.Size() - continuity.Sum();
+   // Some continuities may still be invalid; this assert only avoids
+   // passing a negative num_knots to Vector::SetSize().
+   MFEM_ASSERT(num_knots >= 0, "Invalid continuity vector for order.");
    NumOfControlPoints = num_knots - Order - 1;
    knot.SetSize(num_knots);
    real_t accum = 0.0;
    int iknot = 0;
-   for (int i = 0; i < intervals.Size(); ++i)
+   for (int i = 0; i < continuity.Size(); ++i)
    {
-      const int multiplicity = max(1, Order - continuity[i]);
+      const int multiplicity = Order - continuity[i];
+      MFEM_ASSERT(multiplicity >= 1 && multiplicity <= Order + 1,
+                  "Invalid knot multiplicity for order.");
       for (int j = 0; j < multiplicity; ++j)
       {
          knot[iknot] = accum;
          ++iknot;
       }
-      accum += intervals[i];
+      if (i < intervals.Size()) { accum += intervals[i]; }
    }
-   if (intervals.Size() < continuity.Size())
-   {
-      const int multiplicity = max(1, Order - continuity[continuity.Size() - 1]);
-      for (int j = 0; j < multiplicity; ++j)
-      {
-         knot[iknot] = accum;
-         ++iknot;
-      }
-   }
-   else
-   {
-      MFEM_ABORT("The periodic case is not handled right now in "
-                 "KnotVector::KnotVector");
-   }
-
 }
 
 KnotVector &KnotVector::operator=(const KnotVector &kv)

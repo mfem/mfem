@@ -71,7 +71,7 @@ public:
        The intervals refer to spans between unique knot values (not counting
        zero-size intervals at repeated knots), and the continuity values should
        be >= -1 (discontinuous) and <= order-1 (maximally-smooth for the given
-       polynomial degree).
+       polynomial degree). Periodicity is not supported.
    */
    KnotVector(int order, const Vector& intervals,
               const Array<int>& continuity );
