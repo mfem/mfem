@@ -14,7 +14,6 @@
 namespace mfem
 {
 
-MassIntegrator::Kernels MassIntegrator::kernels;
 MassIntegrator::Kernels::Kernels()
 {
    // 2D
@@ -38,8 +37,6 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<3,7,8>();
    MassIntegrator::AddSpecialization<3,8,9>();
 }
-
-void MassIntegrator::Kernels::EnsureInitialized() { }
 
 namespace internal
 {
