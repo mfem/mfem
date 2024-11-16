@@ -455,6 +455,8 @@ public:
          add(elvect, SIntRule->IntPoint(ip).weight * val, shape, elvect);
       }
    }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /**
@@ -524,6 +526,8 @@ public:
          add(elvect, CIntRule->IntPoint(ip).weight * val, shape, elvect);
       }
    }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 int main(int argc, char *argv[])
