@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #ifdef _WIN32
-// Turn off CRT deprecation warnings for strerror (VS 2013)
+// Turn off CRT deprecation warnings for strerror
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
