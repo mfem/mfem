@@ -78,7 +78,7 @@ template <typename type>
 void mult_aTa_2D(const DenseMatrix * in,
                  std::vector<type>& out )
 {
-   out.resize(in->Size()*in->Size());
+   out.resize(in->TotalSize());
    out[0] = in->Elem(0,0)*in->Elem(0,0);
    out[1] = in->Elem(0,0)*in->Elem(0,1) + in->Elem(1,0)*in->Elem(1,1);
    out[2] = in->Elem(0,0)*in->Elem(0,1) + in->Elem(1,0)*in->Elem(1,1);
@@ -232,6 +232,68 @@ auto mu36_ad_w( const DenseMatrix * T, const std::vector<type> & W ) -> type
    return 1.0 / ( det_2D(A)) * fnorm;
 };
 
+template <typename type>
+auto mu51_ad( const DenseMatrix * W, const std::vector<type> & T ) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   // if (l1_A > 0.0) { l1_A = std::sqrt(l1_A); }
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   // if (l2_A > 0.0) { l2_A = std::sqrt(l2_A); }
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+   auto ups_A = l1_A*l2_A*sin_A;
+
+   auto l1_W = sqrt(W->Elem(0,0)*W->Elem(0,0) + W->Elem(1,0)*W->Elem(1,0));
+   // if (l1_W > 0.0) { l1_W = std::sqrt(l1_W); }
+   auto l2_W = sqrt(W->Elem(0,1)*W->Elem(0,1) + W->Elem(1,1)*W->Elem(1,1));
+   // if (l2_W > 0.0) { l2_W = std::sqrt(l2_W); }
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W->Elem(0,0)*W->Elem(1,1) - W->Elem(1,0)*W->Elem(0,1);
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W->Elem(0,0)*W->Elem(0,1) + W->Elem(1,0)*W->Elem(1,1))/prod_W;
+   auto ups_W = l1_W*l2_W*sin_W;
+
+   return (0.5 * (ups_A / ups_W + ups_W / ups_A) - cos_A*cos_W - sin_A*sin_W ) /
+          (sin_A*sin_W);
+};
+
+
+template <typename type>
+auto mu51_ad_w( const DenseMatrix * T, const std::vector<type> & W ) -> type
+{
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   // if (l1_A > 0.0) { l1_A = std::sqrt(l1_A); }
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   // if (l2_A > 0.0) { l2_A = std::sqrt(l2_A); }
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+   auto ups_A = l1_A*l2_A*sin_A;
+
+   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
+   // if (l1_W > 0.0) { l1_W = std::sqrt(l1_W); }
+   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
+   // if (l2_W > 0.0) { l2_W = std::sqrt(l2_W); }
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W[0]*W[3] - W[1]*W[2];
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
+   auto ups_W = l1_W*l2_W*sin_W;
+
+   return (0.5 * (ups_A / ups_W + ups_W / ups_A) - cos_A*cos_W - sin_A*sin_W ) /
+          (sin_A*sin_W);
+};
+
 // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
 template <typename type>
 auto mu11_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
@@ -285,7 +347,7 @@ void ADGrad(const DenseMatrix &Jpt,
             DenseMatrix &P, const DenseMatrix * Wmat = nullptr)
 {
    int dim = Jpt.Height();
-   int matsize = dim*dim;
+   int matsize = Jpt.TotalSize();
 
    std::vector<ADFType> adinp(matsize);
 
@@ -1944,6 +2006,63 @@ void TMOP_AMetric_036::AssembleH(const DenseMatrix &Jpt,
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
 
    ADHessian(Jpt, mu36_ad<ADSType>, H, Jtr);
+
+   this->DefaultAssembleH(H,DS,weight,A);
+}
+
+real_t TMOP_AMetric_051::EvalW(const DenseMatrix &Jpt) const
+{
+   int dim = Jpt.Size();
+   DenseMatrix Jpr(dim, dim);
+   Mult(Jpt, *Jtr, Jpr); // T*W = A
+
+   Vector col1, col2;
+   Jpr.GetColumn(0, col1);
+   Jpr.GetColumn(1, col2);
+   double l1_Jpr = col1.Norml2(),
+          l2_Jpr = col2.Norml2();
+   real_t norm_prod = l1_Jpr*l2_Jpr;
+   const real_t cos_Jpr = (col1 * col2) / norm_prod,
+                sin_Jpr = fabs(Jpr.Det()) / norm_prod;
+   double ups_Jpr = norm_prod*sin_Jpr;
+
+   Jtr->GetColumn(0, col1);
+   Jtr->GetColumn(1, col2);
+   double l1_Jtr = col1.Norml2(),
+          l2_Jtr = col2.Norml2();
+   norm_prod = l1_Jtr*l2_Jtr;
+   const real_t cos_Jtr = (col1 * col2) / norm_prod,
+                sin_Jtr = fabs(Jtr->Det()) / norm_prod;
+   double ups_Jtr = norm_prod*sin_Jtr;
+
+   double v1 = 0.5 * (ups_Jpr / ups_Jtr + ups_Jtr / ups_Jpr);
+   double v2 = cos_Jpr*cos_Jtr + sin_Jpr*sin_Jtr;
+   double v3 = sin_Jpr*sin_Jtr;
+
+   return (v1 - v2 ) / (v3);
+}
+
+void TMOP_AMetric_051::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(Jpt, mu51_ad<ADFType>, P, Jtr);
+   return;
+}
+
+void TMOP_AMetric_051::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW)
+{
+   ADGrad(*Jtr, mu51_ad_w<ADFType>, PW, &Jpt);
+   return;
+}
+
+void TMOP_AMetric_051::AssembleH(const DenseMatrix &Jpt,
+                                 const DenseMatrix &DS,
+                                 const real_t weight,
+                                 DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+
+   ADHessian(Jpt, mu51_ad<ADSType>, H, Jtr);
 
    this->DefaultAssembleH(H,DS,weight,A);
 }
@@ -4140,7 +4259,6 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       metric->EvalP(Jpt, P);
 
       if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
-
       P *= weight_m;
       AddMultABt(DS, P, PMatO); // w_q det(W) dmu/dx : dA/dx Winv
 
@@ -4172,10 +4290,11 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
             d_Winv_dx(d) = work2.Trace(); // Tr[dmu/dT : AWinv*dw/dx*Winv]
          }
          d_Winv_dx *= -weight_m; // Include (-) factor as well
-
          d_detW_dx += d_Winv_dx;
+
          AddMultVWt(shape, d_detW_dx, PMatO);
 
+         // For mu(T,W) we also need w_q dmu/dW:dW/dx det(W)
          // dmu/dW:dW/dx_i
          DenseMatrix PW(dim);
          Vector dmudxw(dim);
