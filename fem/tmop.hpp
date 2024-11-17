@@ -72,6 +72,7 @@ public:
        @param[out]  P  The evaluated 1st Piola-Kirchhoff stress tensor. */
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const = 0;
 
+   /** Compute dmu/dW */
    virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) { PW = 0.0;}
 
    /** @brief Evaluate the derivative of the 1st Piola-Kirchhoff stress tensor
@@ -1141,6 +1142,24 @@ protected:
 
 public:
    // (1/alpha) | A - W |^2
+   real_t EvalW(const DenseMatrix &Jpt) const override;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) override;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const real_t weight, DenseMatrix &A) const override;
+};
+
+class TMOP_AMetric_051 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<real_t> ie;
+
+public:
+   // [ 0.5 * (ups_A / ups_W + ups_W / ups_A) - cos( phi_A - phi_W ) ] / (sin phi_A * sin phi_W)
+   // ups = l_1 l_2 sin(phi)
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;

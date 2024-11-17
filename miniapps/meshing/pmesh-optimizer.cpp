@@ -503,6 +503,7 @@ int main (int argc, char *argv[])
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
+      case 51: metric = new TMOP_AMetric_051; break;
       case 107: metric = new TMOP_AMetric_107a; break;
       case 126: metric = new TMOP_AMetric_126(0.9); break;
       default:
