@@ -192,7 +192,6 @@ int main (int argc, char *argv[])
 
    Device device(devopt);
    if (myid == 0) { device.Print();}
-   bool cpu_mode = (strcmp(devopt,"cpu")==0);
 
    MFEM_VERIFY(surface_fit_const > 0.0,
                "This miniapp is for surface fitting only. See (p)mesh-optimizer"
@@ -870,8 +869,6 @@ int main (int argc, char *argv[])
       cout << "The strain energy decreased by: "
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
-
-   int nel_glob = pmesh->GetGlobalNE();
 
    if (surface_fit_const > 0.0)
    {

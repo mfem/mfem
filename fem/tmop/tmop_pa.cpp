@@ -66,15 +66,14 @@ void TMOP_Integrator::AssemblePA_Limiting()
                "Only TMOP_QuadraticLimiter and TMOP_ExponentialLimiter are supported");
 
    const FiniteElementSpace *fes = PA.fes;
-   const int NE = PA.ne;
-   if (NE == 0) { return; }  // Quick return for empty processors
+   if (PA.ne == 0) { return; }  // Quick return for empty processors
    const IntegrationRule &ir = *PA.ir;
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
    // H0 for lim_coeff, (dim x dim) Q-vector
    PA.H0.UseDevice(true);
-   PA.H0.SetSize(PA.dim * PA.dim * PA.nq * NE, mt);
+   PA.H0.SetSize(PA.dim * PA.dim * PA.nq * PA.ne, mt);
 
    // lim_coeff -> PA.C0 (Q-vector)
    PA.C0.UseDevice(true);
@@ -89,7 +88,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
    {
       PA.C0.SetSize(PA.nq * PA.ne, Device::GetMemoryType());
       auto C0 = Reshape(PA.C0.HostWrite(), PA.nq, PA.ne);
-      for (int e = 0; e < NE; ++e)
+      for (int e = 0; e < PA.ne; ++e)
       {
          ElementTransformation& T = *fes->GetElementTransformation(e);
          for (int q = 0; q < ir.GetNPoints(); ++q)
@@ -111,7 +110,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
    const FiniteElementSpace *limfes = (lim_dist) ? lim_dist->FESpace() : fes;
    const FiniteElement &lim_fe = *limfes->GetFE(0);
    PA.maps_lim = &lim_fe.GetDofToQuad(ir, DofToQuad::TENSOR);
-   PA.LD.SetSize(NE*lim_fe.GetDof(), Device::GetMemoryType());
+   PA.LD.SetSize(PA.ne*lim_fe.GetDof(), Device::GetMemoryType());
    PA.LD.UseDevice(true);
    if (lim_dist)
    {
@@ -147,10 +146,11 @@ void TMOP_Integrator::AssemblePA_Fitting()
    // Return immediately if surface fitting is not enabled
    if (surf_fit_coeff == nullptr) { return; }
    MFEM_VERIFY(PA.enabled, "AssemblePA_Fitting but PA is not enabled!");
+   MFEM_VERIFY(!surf_fit_pos, "Only level-set based fitting is currently "
+               "supprted on device.");
    MFEM_VERIFY(surf_fit_gf, "No surface fitting function specification!");
 
-   const int NE = PA.ne;
-   if (NE == 0) { return; }  // Quick return for empty processors
+   if (PA.ne == 0) { return; }  // Quick return for empty processors
    const FiniteElementSpace *fes_fit = surf_fit_gf->FESpace();
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
@@ -181,14 +181,6 @@ void TMOP_Integrator::AssemblePA_Fitting()
    for (int i = 0; i < surf_fit_marker->Size(); i++)
    {
       temp2[i] = (*surf_fit_marker)[i] ? 1.0 : 0.0;
-      // if ((*surf_fit_marker)[i] == true)
-      // {
-      //    temp2[i] = 1.0;
-      // }
-      // else
-      // {
-      //    temp2[i] = 0.0;
-      // }
    }
    PA.SFM.SetSize(n1_R->Height(), Device::GetMemoryType());
    PA.SFM.UseDevice(true);
@@ -196,7 +188,7 @@ void TMOP_Integrator::AssemblePA_Fitting()
 
    // Make list of elements that have atleast one dof marked for fitting
    PA.SFEList.SetSize(0);
-   for (int el_id = 0; el_id < NE; el_id++)
+   for (int el_id = 0; el_id < PA.ne; el_id++)
    {
       Array<int> dofs, vdofs;
       fes_fit->GetElementVDofs(el_id, vdofs);
@@ -247,22 +239,22 @@ void TMOP_Integrator::AssemblePA_Fitting()
       const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
       auto geom = fes_fit->GetMesh()->GetGeometricFactors(ir,
                                                           GeometricFactors::JACOBIANS);
-      int nelem = fes_fit->GetMesh()->GetNE();
 
       constexpr QVectorLayout L = QVectorLayout::byNODES;
+      constexpr bool grad_phys = true;
       using CGK = QuadratureInterpolator::CollocatedGradKernels;
       const int nd = maps.ndof;
 
-      //Gradient using Collocated Derivatives
+      // Gradient using Collocated Derivatives
       PA.SFG.SetSize(dim*PA.SFV.Size(), Device::GetMemoryType());
       PA.SFG.UseDevice(true);
-      CGK::Run(dim, L, true, 1, nd, nelem, maps.G.Read(),
+      CGK::Run(dim, L, grad_phys, 1, nd, PA.ne, maps.G.Read(),
                geom->J.Read(), PA.SFV.Read(), PA.SFG.Write(), dim, 1, nd);
 
-      //Hessian using Collocated Derivatives
+      // Hessian using Collocated Derivatives
       PA.SFH.SetSize(dim*dim*PA.SFV.Size(), Device::GetMemoryType());
       PA.SFH.UseDevice(true);
-      CGK::Run(dim, L, true, dim, nd, nelem, maps.G.Read(),
+      CGK::Run(dim, L, grad_phys, dim, nd, PA.ne, maps.G.Read(),
                geom->J.Read(), PA.SFG.Read(), PA.SFH.Write(), dim, dim, nd);
    }
 
@@ -402,7 +394,6 @@ void TMOP_Integrator::UpdateSurfaceFittingPA(const Vector &x_loc)
       const Array<int> &irordering = nfe->GetLexicographicOrdering();
       IntegrationRule ir = PermuteIR(&irnodes, irordering);
 
-      int nelem = fes_fit->GetMesh()->GetNE();
       const DofToQuad maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
 
       const Operator *R_nodes = PA.fes->GetElementRestriction(ordering);
@@ -420,37 +411,20 @@ void TMOP_Integrator::UpdateSurfaceFittingPA(const Vector &x_loc)
 
       const int nd = maps.ndof;
       // Compute Jacobians since mesh might not know about coordinate change
-      CGK::Run(PA.dim, L, false, PA.dim, nd, nelem, maps.G.Read(), nullptr,
+      CGK::Run(PA.dim, L, false, PA.dim, nd, PA.ne, maps.G.Read(), nullptr,
                xelem.Read(), Jacobians.Write(), PA.dim, PA.dim, nd);
 
-      if (PA.dim == 2)
-      {
-         constexpr bool grad_phys = true;
-         const int sdim = 2; // spatial dimension = 2
-         const int vdim = 1; // level-set field is a scalar function
+      constexpr bool grad_phys = true;
+      const int vdim = 1;
+      int sdim = 2;
+      if (PA.dim == 3) { sdim = 3; }
+      CGK::Run(sdim, L, grad_phys, vdim, nd, PA.ne, maps.G.Read(),
+               Jacobians.Read(), PA.SFV.Read(), PA.SFG.Write(),
+               sdim, vdim, nd);
 
-         CGK::Run(sdim, L, grad_phys, vdim, nd, nelem, maps.G.Read(),
-                  Jacobians.Read(), PA.SFV.Read(), PA.SFG.Write(),
-                  sdim, vdim, nd);
-
-         CGK::Run(sdim, L, grad_phys, 2*vdim, nd, nelem, maps.G.Read(),
-                  Jacobians.Read(), PA.SFG.Read(), PA.SFH.Write(),
-                  sdim, 2*vdim, nd);
-      }
-      if (PA.dim == 3)
-      {
-         constexpr bool grad_phys = true;
-         const int sdim = 3; // spatial dimension = 3
-         const int vdim = 1; // level-set field is a scalar function
-
-         CGK::Run(sdim, L, grad_phys, vdim, nd, nelem, maps.G.Read(),
-                  Jacobians.Read(), PA.SFV.Read(), PA.SFG.Write(),
-                  sdim, vdim, nd);
-
-         CGK::Run(sdim, L, grad_phys, 3*vdim, nd, nelem, maps.G.Read(),
-                  Jacobians.Read(), PA.SFG.Read(), PA.SFH.Write(),
-                  sdim, 3*vdim, nd);
-      }
+      CGK::Run(sdim, L, grad_phys, sdim*vdim, nd, PA.ne, maps.G.Read(),
+               Jacobians.Read(), PA.SFG.Read(), PA.SFH.Write(),
+               sdim, sdim*vdim, nd);
    }
 
    ConstantCoefficient* cS = dynamic_cast<ConstantCoefficient*>(surf_fit_coeff);
