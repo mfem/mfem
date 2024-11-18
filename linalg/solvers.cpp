@@ -2570,7 +2570,7 @@ struct WeightMinHeap
       for (; pos > 0 && w[c[(pos-1)/2]] > val; pos = (pos-1)/2)
       {
          c[pos] = c[(pos-1)/2];
-         loc[c[(pos-1)/2]] = pos;
+         loc[c[(pos-1)/2]] = static_cast<int>(pos);
       }
       return pos;
    }
@@ -2587,7 +2587,7 @@ struct WeightMinHeap
          if (w[c[tgt]] < val)
          {
             c[pos] = c[tgt];
-            loc[c[tgt]] = pos;
+            loc[c[tgt]] = static_cast<int>(pos);
             pos = tgt;
          }
          else
@@ -2605,7 +2605,7 @@ struct WeightMinHeap
       size_t pos = c.size()-1;
       pos = percolate_up(pos, val);
       c[pos] = i;
-      loc[i] = pos;
+      loc[i] = static_cast<int>(pos);
    }
 
    int pop()
@@ -2620,7 +2620,7 @@ struct WeightMinHeap
       size_t pos = 0;
       pos = percolate_down(pos, val);
       c[pos] = j;
-      loc[j] = pos;
+      loc[j] = static_cast<int>(pos);
       return static_cast<int>(i);
    }
 
@@ -2631,7 +2631,7 @@ struct WeightMinHeap
       pos = percolate_up(pos, val);
       pos = percolate_down(pos, val);
       c[pos] = i;
-      loc[i] = pos;
+      loc[i] = static_cast<int>(pos);
    }
 
    bool picked(size_t i)
