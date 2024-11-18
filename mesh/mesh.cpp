@@ -5629,7 +5629,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    std::vector<int> v2v(GetNV());
    for (size_t i = 0; i < v2v.size(); i++)
    {
-      v2v[i] = i;
+      v2v[i] = static_cast<int>(i);
    }
    for (const auto &r2p : replica2primary)
    {
