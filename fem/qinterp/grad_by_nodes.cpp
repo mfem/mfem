@@ -9,209 +9,92 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "dispatch.hpp"
+#include "../quadinterpolator.hpp"
 #include "grad.hpp"
 
 namespace mfem
 {
-
 namespace internal
 {
-
 namespace quadrature_interpolator
 {
 
-// Tensor-product evaluation of quadrature point derivatives: dispatch function.
-// Instantiation for the case QVectorLayout::byNODES.
-template<>
-void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
-                                               const int vdim,
-                                               const DofToQuad &maps,
-                                               const Vector &e_vec,
-                                               Vector &q_der)
+template <bool P>
+void InitGradByNodesKernels()
 {
-   if (NE == 0) { return; }
-   const int dim = maps.FE->GetDim();
-   const int D1D = maps.ndof;
-   const int Q1D = maps.nqpt;
-   const real_t *B = maps.B.Read();
-   const real_t *G = maps.G.Read();
-   const real_t *J = nullptr; // not used in DERIVATIVES (non-GRAD_PHYS) mode
-   const real_t *X = e_vec.Read();
-   real_t *Y = q_der.Write();
+   using k = QuadratureInterpolator::GradKernels;
+   constexpr auto L = QVectorLayout::byNODES;
+   // 2D
+   k::Specialization<2,L,P,1,3,3>::template Opt<16>::Add();
+   k::Specialization<2,L,P,1,3,4>::template Opt<16>::Add();
+   k::Specialization<2,L,P,1,4,3>::template Opt<16>::Add();
+   k::Specialization<2,L,P,1,4,4>::template Opt<16>::Add();
 
-   constexpr QVectorLayout L = QVectorLayout::byNODES;
-   constexpr bool P = false; // GRAD_PHYS
+   k::Specialization<2,L,P,2,2,2>::template Opt<16>::Add();
+   k::Specialization<2,L,P,2,2,3>::template Opt<8>::Add();
+   k::Specialization<2,L,P,2,2,4>::template Opt<4>::Add();
+   k::Specialization<2,L,P,2,2,5>::template Opt<4>::Add();
+   k::Specialization<2,L,P,2,2,6>::template Opt<2>::Add();
 
-   const int id = (vdim<<8) | (D1D<<4) | Q1D;
+   k::Specialization<2,L,P,2,3,3>::template Opt<2>::Add();
+   k::Specialization<2,L,P,2,3,4>::template Opt<4>::Add();
+   k::Specialization<2,L,P,2,4,3>::template Opt<4>::Add();
+   k::Specialization<2,L,P,2,3,6>::template Opt<2>::Add();
 
-   if (dim == 1)
-   {
-      return Derivatives1D<L,P>(NE,G,J,X,Y,dim,vdim,D1D,Q1D);
-   }
-   if (dim == 2)
-   {
-      switch (id)
-      {
-         case 0x133: return Derivatives2D<L,P,1,3,3,16>(NE,B,G,J,X,Y);
-         case 0x134: return Derivatives2D<L,P,1,3,4,16>(NE,B,G,J,X,Y);
-         case 0x143: return Derivatives2D<L,P,1,4,3,16>(NE,B,G,J,X,Y);
-         case 0x144: return Derivatives2D<L,P,1,4,4,16>(NE,B,G,J,X,Y);
+   k::Specialization<2,L,P,2,4,4>::template Opt<2>::Add();
+   k::Specialization<2,L,P,2,4,5>::template Opt<2>::Add();
+   k::Specialization<2,L,P,2,4,6>::template Opt<2>::Add();
+   k::Specialization<2,L,P,2,4,7>::template Opt<2>::Add();
 
-         case 0x222: return Derivatives2D<L,P,2,2,2,16>(NE,B,G,J,X,Y);
-         case 0x223: return Derivatives2D<L,P,2,2,3,8>(NE,B,G,J,X,Y);
-         case 0x224: return Derivatives2D<L,P,2,2,4,4>(NE,B,G,J,X,Y);
-         case 0x225: return Derivatives2D<L,P,2,2,5,4>(NE,B,G,J,X,Y);
-         case 0x226: return Derivatives2D<L,P,2,2,6,2>(NE,B,G,J,X,Y);
+   k::Specialization<2,L,P,2,5,6>::template Opt<2>::Add();
+   // 3D
+   k::Specialization<3,L,P,1,2,4>::Add();
+   k::Specialization<3,L,P,1,3,3>::Add();
+   k::Specialization<3,L,P,1,3,4>::Add();
+   k::Specialization<3,L,P,1,3,6>::Add();
+   k::Specialization<3,L,P,1,4,4>::Add();
+   k::Specialization<3,L,P,1,4,8>::Add();
 
-         case 0x233: return Derivatives2D<L,P,2,3,3,2>(NE,B,G,J,X,Y);
-         case 0x234: return Derivatives2D<L,P,2,3,4,4>(NE,B,G,J,X,Y);
-         case 0x243: return Derivatives2D<L,P,2,4,3,4>(NE,B,G,J,X,Y);
-         case 0x236: return Derivatives2D<L,P,2,3,6,2>(NE,B,G,J,X,Y);
+   k::Specialization<3,L,P,3,2,3>::Add();
+   k::Specialization<3,L,P,3,2,4>::Add();
+   k::Specialization<3,L,P,3,2,5>::Add();
+   k::Specialization<3,L,P,3,2,6>::Add();
 
-         case 0x244: return Derivatives2D<L,P,2,4,4,2>(NE,B,G,J,X,Y);
-         case 0x245: return Derivatives2D<L,P,2,4,5,2>(NE,B,G,J,X,Y);
-         case 0x246: return Derivatives2D<L,P,2,4,6,2>(NE,B,G,J,X,Y);
-         case 0x247: return Derivatives2D<L,P,2,4,7,2>(NE,B,G,J,X,Y);
+   k::Specialization<3,L,P,3,3,3>::Add();
+   k::Specialization<3,L,P,3,3,4>::Add();
+   k::Specialization<3,L,P,3,3,5>::Add();
+   k::Specialization<3,L,P,3,3,6>::Add();
+   k::Specialization<3,L,P,3,4,4>::Add();
+   k::Specialization<3,L,P,3,4,6>::Add();
+   k::Specialization<3,L,P,3,4,7>::Add();
+   k::Specialization<3,L,P,3,4,8>::Add();
 
-         case 0x256: return Derivatives2D<L,P,2,5,6,2>(NE,B,G,J,X,Y);
-         default:
-         {
-            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
-            const int MQ = DeviceDofQuadLimits::Get().MAX_Q1D;
-            if (D1D > MD || Q1D > MQ)
-            {
-               MFEM_ABORT("");
-            }
-            Derivatives2D<L,P>(NE,B,G,J,X,Y,dim,vdim,D1D,Q1D);
-            return;
-         }
-      }
-   }
-   if (dim == 3)
-   {
-      switch (id)
-      {
-         case 0x124: return Derivatives3D<L,P,1,2,4>(NE,B,G,J,X,Y);
-         case 0x133: return Derivatives3D<L,P,1,3,3>(NE,B,G,J,X,Y);
-         case 0x134: return Derivatives3D<L,P,1,3,4>(NE,B,G,J,X,Y);
-         case 0x136: return Derivatives3D<L,P,1,3,6>(NE,B,G,J,X,Y);
-         case 0x144: return Derivatives3D<L,P,1,4,4>(NE,B,G,J,X,Y);
-         case 0x148: return Derivatives3D<L,P,1,4,8>(NE,B,G,J,X,Y);
+   using k2 = QuadratureInterpolator::CollocatedGradKernels;
 
-         case 0x323: return Derivatives3D<L,P,3,2,3>(NE,B,G,J,X,Y);
-         case 0x324: return Derivatives3D<L,P,3,2,4>(NE,B,G,J,X,Y);
-         case 0x325: return Derivatives3D<L,P,3,2,5>(NE,B,G,J,X,Y);
-         case 0x326: return Derivatives3D<L,P,3,2,6>(NE,B,G,J,X,Y);
+   // 2D
+   k2::Specialization<2,L,P,1,2>::template Opt<16>::Add();
+   k2::Specialization<2,L,P,1,3>::template Opt<16>::Add();
+   k2::Specialization<2,L,P,1,4>::template Opt<16>::Add();
+   k2::Specialization<2,L,P,2,2>::template Opt<16>::Add();
+   k2::Specialization<2,L,P,2,3>::template Opt<4>::Add();
+   k2::Specialization<2,L,P,2,4>::template Opt<2>::Add();
 
-         case 0x333: return Derivatives3D<L,P,3,3,3>(NE,B,G,J,X,Y);
-         case 0x334: return Derivatives3D<L,P,3,3,4>(NE,B,G,J,X,Y);
-         case 0x335: return Derivatives3D<L,P,3,3,5>(NE,B,G,J,X,Y);
-         case 0x336: return Derivatives3D<L,P,3,3,6>(NE,B,G,J,X,Y);
-         case 0x344: return Derivatives3D<L,P,3,4,4>(NE,B,G,J,X,Y);
-         case 0x346: return Derivatives3D<L,P,3,4,6>(NE,B,G,J,X,Y);
-         case 0x347: return Derivatives3D<L,P,3,4,7>(NE,B,G,J,X,Y);
-         case 0x348: return Derivatives3D<L,P,3,4,8>(NE,B,G,J,X,Y);
-         default:
-         {
-            const int MD = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
-            const int MQ = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
-            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
-                        << " are not supported!");
-            MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
-                        << MQ << " 1D points are not supported!");
-            Derivatives3D<L,P>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
-            return;
-         }
-      }
-   }
-   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-   MFEM_ABORT("Kernel not supported yet");
+   k2::Specialization<3,L,P,1,2>::Add();
+   k2::Specialization<3,L,P,1,3>::Add();
+   k2::Specialization<3,L,P,1,4>::Add();
+
+   k2::Specialization<3,L,P,2,2>::Add();
+   k2::Specialization<3,L,P,2,3>::Add();
+   k2::Specialization<3,L,P,2,4>::Add();
+
+   k2::Specialization<3,L,P,3,2>::Add();
+   k2::Specialization<3,L,P,3,3>::Add();
+   k2::Specialization<3,L,P,3,4>::Add();
 }
 
-template<>
-void CollocatedTensorDerivatives<QVectorLayout::byNODES>(const int NE,
-                                                         const int vdim,
-                                                         const DofToQuad &maps,
-                                                         const Vector &e_vec,
-                                                         Vector &q_der)
-{
-   if (NE == 0) { return; }
-   MFEM_VERIFY(maps.mode == DofToQuad::Mode::TENSOR,
-               "CollocatedTensorDerivatives only supports tensor-product"
-               " elements.");
-   const int dim = maps.FE->GetDim();
-   const int D1D = maps.ndof;
-   const real_t *G = maps.G.Read();
-   const real_t *J = nullptr; // not used in DERIVATIVES (non-GRAD_PHYS) mode
-   const real_t *X = e_vec.Read();
-   real_t *Y = q_der.Write();
-
-   constexpr QVectorLayout L = QVectorLayout::byNODES;
-   constexpr bool P = false; // GRAD_PHYS
-
-   const int id = (vdim<<4) | D1D;
-
-   if (dim == 1)
-   {
-      return CollocatedDerivatives1D<L,P>(NE,G,J,X,Y,dim,vdim,D1D);
-   }
-   if (dim == 2)
-   {
-      switch (id)
-      {
-         case 0x12: return CollocatedDerivatives2D<L,P,1,2,16>(NE,G,J,X,Y);
-         case 0x13: return CollocatedDerivatives2D<L,P,1,3,16>(NE,G,J,X,Y);
-         case 0x14: return CollocatedDerivatives2D<L,P,1,4,16>(NE,G,J,X,Y);
-
-         case 0x22: return CollocatedDerivatives2D<L,P,2,2,16>(NE,G,J,X,Y);
-         case 0x23: return CollocatedDerivatives2D<L,P,2,3,4>(NE,G,J,X,Y);
-         case 0x24: return CollocatedDerivatives2D<L,P,2,4,2>(NE,G,J,X,Y);
-
-         default:
-         {
-            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
-            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
-                        << " are not supported!");
-            CollocatedDerivatives2D<L,P>(NE,G,J,X,Y,dim,vdim,D1D);
-            return;
-         }
-      }
-   }
-   if (dim == 3)
-   {
-      switch (id)
-      {
-         case 0x12: return CollocatedDerivatives3D<L,P,1,2>(NE,G,J,X,Y);
-         case 0x13: return CollocatedDerivatives3D<L,P,1,3>(NE,G,J,X,Y);
-         case 0x14: return CollocatedDerivatives3D<L,P,1,4>(NE,G,J,X,Y);
-
-
-         case 0x22: return CollocatedDerivatives3D<L,P,2,2>(NE,G,J,X,Y);
-         case 0x23: return CollocatedDerivatives3D<L,P,2,3>(NE,G,J,X,Y);
-         case 0x24: return CollocatedDerivatives3D<L,P,2,4>(NE,G,J,X,Y);
-
-
-         case 0x32: return CollocatedDerivatives3D<L,P,3,2>(NE,G,J,X,Y);
-         case 0x33: return CollocatedDerivatives3D<L,P,3,3>(NE,G,J,X,Y);
-         case 0x34: return CollocatedDerivatives3D<L,P,3,4>(NE,G,J,X,Y);
-
-         default:
-         {
-            const int MD = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
-            MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
-                        << " are not supported!");
-            CollocatedDerivatives3D<L,P>(NE,G,J,X,Y,vdim,D1D);
-            return;
-         }
-      }
-   }
-   mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;
-   MFEM_ABORT("Kernel not supported yet");
-}
+template void InitGradByNodesKernels<true>();
+template void InitGradByNodesKernels<false>();
 
 } // namespace quadrature_interpolator
-
 } // namespace internal
-
 } // namespace mfem

@@ -23,6 +23,28 @@ namespace mfem
 {
 
 /**
+ * @brief Which type of FiniteElementCollection to use
+ */
+enum class FECType
+{
+   H1,
+   ND,
+   RT,
+   L2
+};
+
+/**
+ * @brief Create a FiniteElementCollection
+ *
+ * @param fectype the type of FEC to create
+ * @param p The polynomial order
+ * @param dim The dimension
+ * @return FiniteElementCollection*
+ */
+FiniteElementCollection *create_fec(FECType fectype, int p, int dim);
+
+
+/**
  * @brief Helper function for performing an H1 Poisson solve on a serial mesh,
  * with homogeneous essential boundary conditions. Optionally can disable a
  * boundary.
@@ -98,8 +120,32 @@ Mesh OrientedTriFaceMesh(int orientation, bool add_extbdr = false);
  */
 Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0);
 
-#ifdef MFEM_USE_MPI
 
+
+/**
+ * @brief Helper to refine a single element attached to a boundary attribute
+ *
+ * @param mesh Mesh to refine
+ * @param vattr Volume attribute to check for elements
+ * @param battr Boundary attribute refined element should be attached to
+ * @param backwards Whether to iterate over the faces in reverse order
+ */
+void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr,
+                                 bool backwards = true);
+
+/**
+ * @brief Helper to refine a single element not attached to a boundary
+ *
+ * @param mesh Mesh to refine
+ * @param vattr Volume attribute to check for elements
+ * @param battr Boundary attribute refined element should not be attached to
+ * @param backwards Whether to iterate over the elements in reverse order
+ */
+void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr,
+                                   bool backwards = true);
+
+
+#ifdef MFEM_USE_MPI
 
 /**
  * @brief Test GetVectorValue on face neighbor elements for nonconforming meshes

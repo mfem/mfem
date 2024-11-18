@@ -16,7 +16,6 @@
 #include "../quadinterpolator.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
-#include "../qinterp/dispatch.hpp"
 #include "../qinterp/grad.hpp"
 
 namespace mfem
@@ -251,18 +250,20 @@ void TMOP_Integrator::AssemblePA_Fitting()
       int nelem = fes_fit->GetMesh()->GetNE();
 
       constexpr QVectorLayout L = QVectorLayout::byNODES;
+      using CGK = QuadratureInterpolator::CollocatedGradKernels;
+      const int nd = maps.ndof;
 
       //Gradient using Collocated Derivatives
       PA.SFG.SetSize(dim*PA.SFV.Size(), Device::GetMemoryType());
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem, 1,
-                                                                            maps, *geom, PA.SFV, PA.SFG);
       PA.SFG.UseDevice(true);
+      CGK::Run(dim, L, true, 1, nd, nelem, maps.G.Read(),
+               geom->J.Read(), PA.SFV.Read(), PA.SFG.Write(), dim, 1, nd);
 
       //Hessian using Collocated Derivatives
       PA.SFH.SetSize(dim*dim*PA.SFV.Size(), Device::GetMemoryType());
-      internal::quadrature_interpolator::CollocatedTensorPhysDerivatives<L>(nelem,
-                                                                            dim, maps, *geom, PA.SFG, PA.SFH);
       PA.SFH.UseDevice(true);
+      CGK::Run(dim, L, true, dim, nd, nelem, maps.G.Read(),
+               geom->J.Read(), PA.SFG.Read(), PA.SFH.Write(), dim, dim, nd);
    }
 
    // "Partial" E-vector of '1' for surface fitting.
@@ -415,35 +416,40 @@ void TMOP_Integrator::UpdateSurfaceFittingPA(const Vector &x_loc)
       Jacobians.UseDevice(true);
       constexpr QVectorLayout L = QVectorLayout::byNODES;
 
+      using CGK = QuadratureInterpolator::CollocatedGradKernels;
+
+      const int nd = maps.ndof;
       // Compute Jacobians since mesh might not know about coordinate change
-      internal::quadrature_interpolator::CollocatedTensorDerivatives<L>(nelem, PA.dim,
-                                                                        maps, xelem, Jacobians);
+      CGK::Run(PA.dim, L, false, PA.dim, nd, nelem, maps.G.Read(), nullptr,
+               xelem.Read(), Jacobians.Write(), PA.dim, PA.dim, nd);
+
       if (PA.dim == 2)
       {
          constexpr bool grad_phys = true;
          const int sdim = 2; // spatial dimension = 2
-         const int vdim = 1; // level-set field is a scalar function, so vdim = 1
+         const int vdim = 1; // level-set field is a scalar function
 
-         internal::quadrature_interpolator::CollocatedDerivatives2D<L, grad_phys>
-         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFV.Read(),PA.SFG.Write(),sdim,vdim,
-          maps.ndof);
+         CGK::Run(sdim, L, grad_phys, vdim, nd, nelem, maps.G.Read(),
+                  Jacobians.Read(), PA.SFV.Read(), PA.SFG.Write(),
+                  sdim, vdim, nd);
 
-         internal::quadrature_interpolator::CollocatedDerivatives2D<L, grad_phys>
-         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFG.Read(),PA.SFH.Write(),sdim,vdim*2,
-          maps.ndof);
+         CGK::Run(sdim, L, grad_phys, 2*vdim, nd, nelem, maps.G.Read(),
+                  Jacobians.Read(), PA.SFG.Read(), PA.SFH.Write(),
+                  sdim, 2*vdim, nd);
       }
       if (PA.dim == 3)
       {
          constexpr bool grad_phys = true;
-         const int vdim = 1; // level-set field is a scalar function, so vdim = 1
+         const int sdim = 3; // spatial dimension = 3
+         const int vdim = 1; // level-set field is a scalar function
 
-         internal::quadrature_interpolator::CollocatedDerivatives3D<L, grad_phys>
-         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFV.Read(),PA.SFG.Write(),vdim,
-          maps.ndof);
+         CGK::Run(sdim, L, grad_phys, vdim, nd, nelem, maps.G.Read(),
+                  Jacobians.Read(), PA.SFV.Read(), PA.SFG.Write(),
+                  sdim, vdim, nd);
 
-         internal::quadrature_interpolator::CollocatedDerivatives3D<L, grad_phys>
-         (nelem,maps.G.Read(),Jacobians.Read(),PA.SFG.Read(),PA.SFH.Write(),vdim*3,
-          maps.ndof);
+         CGK::Run(sdim, L, grad_phys, 3*vdim, nd, nelem, maps.G.Read(),
+                  Jacobians.Read(), PA.SFG.Read(), PA.SFH.Write(),
+                  sdim, 3*vdim, nd);
       }
    }
 
