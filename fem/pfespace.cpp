@@ -1984,7 +1984,7 @@ struct PMatrixRow
 
    void write(std::ostream &os, real_t sign) const
    {
-      bin_io::write<int>(os, elems.size());
+      bin_io::write<int>(os, static_cast<int>(elems.size()));
       for (unsigned i = 0; i < elems.size(); i++)
       {
          const PMatrixElement &e = elems[i];
