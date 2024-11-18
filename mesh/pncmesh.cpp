@@ -2870,7 +2870,7 @@ void ParNCMesh::RebalanceDofMessage::SetElements(const Array<int> &elems,
 
 static void write_dofs(std::ostream &os, const std::vector<int> &dofs)
 {
-   write<int>(os, dofs.size());
+   write<int>(os, static_cast<int>(dofs.size()));
    // TODO: we should compress the ints, mostly they are contiguous ranges
    os.write((const char*) dofs.data(), dofs.size() * sizeof(int));
 }
