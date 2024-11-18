@@ -50,21 +50,21 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_Fit_3D,
                real_t Xh[3];
                real_t H_data[9];
                DeviceMatrix H(H_data,3,3);
-               for (int i = 0; i < DIM; i++)
+               for (int j = 0; j < DIM; j++)
                {
-                  Xh[i] = R(qx,qy,qz,i,e);
-                  for (int j = 0; j < DIM; j++)
+                  Xh[j] = R(qx,qy,qz,j,e);
+                  for (int k = 0; k < DIM; k++)
                   {
-                     H(i,j) = H0(i,j,qx,qy,qz,e);
+                     H(j,k) = H0(j,k,qx,qy,qz,e);
                   }
                }
 
                real_t p2[3];
                kernels::Mult(3,3,H_data,Xh,p2);
 
-               for (int i = 0; i < DIM; i++)
+               for (int j = 0; j < DIM; j++)
                {
-                  Y(qx,qy,qz,i,e) += p2[i];
+                  Y(qx,qy,qz,j,e) += p2[j];
                }
             }
          }
