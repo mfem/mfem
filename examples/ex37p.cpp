@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
    int ref_levels = 5;
    int order = 2;
    real_t alpha = 1.0;
+   real_t growth = 2;
    real_t epsilon = 0.01;
    real_t vol_fraction = 0.5;
    int max_it = 1e3;
@@ -156,6 +157,8 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&alpha, "-alpha", "--alpha-step-length",
                   "Step length for gradient descent.");
+   args.AddOption(&growth, "-growth", "--alpha-growth-rate",
+                  "Growth rate of step length for gradient descent.");
    args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
                   "Length scale for ρ.");
    args.AddOption(&max_it, "-mi", "--max-it",
@@ -357,7 +360,7 @@ int main(int argc, char *argv[])
    // 11. Iterate:
    for (int k = 1; k <= max_it; k++)
    {
-      if (k > 1) { alpha *= ((real_t) k) / ((real_t) k-1); }
+      if (k > 1) { alpha = std::pow((real_t) k,growth); }
 
       if (myid == 0)
       {
