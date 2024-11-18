@@ -30,7 +30,7 @@
 using namespace mfem;
 using namespace std;
 
-int ftype = 2;
+int ftype = 1;
 
 double trueSolFunc(const Vector & x)
 {
