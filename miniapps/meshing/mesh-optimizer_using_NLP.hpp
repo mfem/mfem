@@ -31,7 +31,7 @@ public:
 private:
 };
 
-class Error_QoI : public QoIBaseCoefficient 
+class Error_QoI : public QoIBaseCoefficient
 {
 public:
   Error_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution)
@@ -214,12 +214,12 @@ public:
 
         fec = new H1_FECollection(order_,dim);
         temp_fes_ = new ParFiniteElementSpace(pmesh,fec);
-        coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim); 
+        coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
 
         solgf_.SetSpace(temp_fes_);
 
         dQdu_ = new mfem::ParLinearForm(temp_fes_);
-        dQdx_ = new mfem::ParLinearForm(coord_fes_); 
+        dQdx_ = new mfem::ParLinearForm(coord_fes_);
     }
 
     ~QuantityOfInterest()
@@ -272,9 +272,9 @@ public:
         pmesh->GetNodes(X0_);
 
         fec = new H1_FECollection(order_,dim);
-        coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim); 
+        coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
 
-        dQdx_ = new mfem::ParLinearForm(coord_fes_); 
+        dQdx_ = new mfem::ParLinearForm(coord_fes_);
     }
 
     ~NodeAwareTMOPQuality()
@@ -315,7 +315,7 @@ public:
 
         fec = new H1_FECollection(order_,dim);
         temp_fes_ = new ParFiniteElementSpace(pmesh,fec);
-        coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);  
+        coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
 
         sol.SetSize(temp_fes_->GetTrueVSize()); sol=0.0;
         rhs.SetSize(temp_fes_->GetTrueVSize()); rhs=0.0;
@@ -368,7 +368,7 @@ public:
     }
 
     void UpdateMesh(mfem::Vector const &U);
-    
+
     double Eval_QoI();
 
     void Eval_QoI_Grad();
@@ -440,11 +440,8 @@ private:
 
     mfem::Array<int> ess_tdof_list_;
 
-    mfem::Coefficient * QCoef_ = nullptr;   
+    mfem::Coefficient * QCoef_ = nullptr;
 };
-
-
-
 
 }
 

@@ -989,7 +989,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
       }
       if (ittt > 198)
       {
-         printf("Warning: Maximum number of iterations reached in subsolv.\n");
+         // printf("Warning: Maximum number of iterations reached in subsolv.\n");
       }
       epsi = 0.1 * epsi;
    }
@@ -1168,16 +1168,16 @@ void MMA::Update(int iter, const real_t* dfdx,
       }
    }
 
-   for (int i=0; i<nVar; i++)
-   {
-      mfem::out<<" "<<low[i];
-   }
-   mfem::out<<std::endl;
-   for (int i=0; i<nVar; i++)
-   {
-      mfem::out<<" "<<upp[i];
-   }
-   mfem::out<<std::endl;
+   // for (int i=0; i<nVar; i++)
+   // {
+   //    mfem::out<<" "<<low[i];
+   // }
+   // mfem::out<<std::endl;
+   // for (int i=0; i<nVar; i++)
+   // {
+   //    mfem::out<<" "<<upp[i];
+   // }
+   // mfem::out<<std::endl;
 
    mSubProblem->Update(dfdx,gx,dgdx,xmin,xmax,xval);
    // Update design variables
