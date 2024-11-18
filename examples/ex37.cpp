@@ -55,53 +55,6 @@
 using namespace std;
 using namespace mfem;
 
-/**
- * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
- *        ∫_Ω ρ dx = θ vol(Ω) as follows:
- *
- *        1. Compute the root of the R → R function
- *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
- *        2. Set ψ ← ψ + c.
- *
- * @param psi a GridFunction to be updated
- * @param target_volume θ vol(Ω)
- * @param tol Newton iteration tolerance
- * @param max_its Newton maximum iteration number
- * @return real_t Final volume, ∫_Ω sigmoid(ψ)
- */
-real_t proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
-            int max_its=10)
-{
-   MappedGridFunctionCoefficient sigmoid_psi(&psi, sigmoid);
-   MappedGridFunctionCoefficient der_sigmoid_psi(&psi, der_sigmoid);
-
-   LinearForm int_sigmoid_psi(psi.FESpace());
-   int_sigmoid_psi.AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
-   LinearForm int_der_sigmoid_psi(psi.FESpace());
-   int_der_sigmoid_psi.AddDomainIntegrator(new DomainLFIntegrator(
-                                              der_sigmoid_psi));
-   bool done = false;
-   for (int k=0; k<max_its; k++) // Newton iteration
-   {
-      int_sigmoid_psi.Assemble(); // Recompute f(c) with updated ψ
-      const real_t f = int_sigmoid_psi.Sum() - target_volume;
-
-      int_der_sigmoid_psi.Assemble(); // Recompute df(c) with updated ψ
-      const real_t df = int_der_sigmoid_psi.Sum();
-
-      const real_t dc = -f/df;
-      psi += dc;
-      if (abs(dc) < tol) { done = true; break; }
-   }
-   if (!done)
-   {
-      mfem_warning("Projection reached maximum iteration without converging. "
-                   "Result may not be accurate.");
-   }
-   int_sigmoid_psi.Assemble();
-   return int_sigmoid_psi.Sum();
-}
-
 /*
  * ---------------------------------------------------------------
  *                      ALGORITHM PREAMBLE

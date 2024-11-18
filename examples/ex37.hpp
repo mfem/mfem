@@ -372,6 +372,79 @@ public:
 };
 
 
+/**
+ * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
+ *        ∫_Ω ρ dx = θ vol(Ω) as follows:
+ *
+ *        1. Compute the root of the R → R function
+ *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+ *        2. Set ψ ← ψ + c.
+ *
+ * @param psi a GridFunction to be updated
+ * @param target_volume θ vol(Ω)
+ * @param tol Newton iteration tolerance
+ * @param max_its Newton maximum iteration number
+ * @return real_t Final volume, ∫_Ω sigmoid(ψ)
+ */
+real_t proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
+            int max_its=10)
+{
+   MappedGridFunctionCoefficient sigmoid_psi(&psi, sigmoid);
+   MappedGridFunctionCoefficient der_sigmoid_psi(&psi, der_sigmoid);
+   ParGridFunction *par_psi = dynamic_cast<ParGridFunction*>(&psi);
+   std::unique_ptr<LinearForm> int_sigmoid_psi, int_der_sigmoid_psi;
+#ifdef MFEM_USE_MPI
+   if (par_psi)
+   {
+      int_sigmoid_psi.reset(new ParLinearForm(par_psi->ParFESpace()));
+      int_der_sigmoid_psi.reset(new ParLinearForm(par_psi->ParFESpace()));
+   }
+   else
+   {
+      int_sigmoid_psi.reset(new LinearForm(psi.FESpace()));
+      int_der_sigmoid_psi.reset(new LinearForm(psi.FESpace()));
+   }
+#else
+   int_sigmoid_psi.reset(new LinearForm(psi.FESpace()));
+   int_der_sigmoid_psi.reset(new LinearForm(psi.FESpace()));
+#endif
+   int_sigmoid_psi->AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
+   int_der_sigmoid_psi->AddDomainIntegrator(new DomainLFIntegrator(
+                                               der_sigmoid_psi));
+   bool done = false;
+   for (int k=0; k<max_its; k++) // Newton iteration
+   {
+      int_sigmoid_psi->Assemble(); // Recompute f(c) with updated ψ
+      real_t f = int_sigmoid_psi->Sum();
+#ifdef MFEM_USE_MPI
+      MPI_Allreduce(MPI_IN_PLACE, &f, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, MPI_COMM_WORLD);
+#endif
+      f -= target_volume;
+      int_der_sigmoid_psi->Assemble(); // Recompute df(c) with updated ψ
+      real_t df = int_der_sigmoid_psi->Sum();
+#ifdef MFEM_USE_MPI
+      MPI_Allreduce(MPI_IN_PLACE, &df, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, MPI_COMM_WORLD);
+#endif
+      const real_t dc = -f/df;
+      psi += dc;
+      if (abs(dc) < tol) { done = true; break; }
+   }
+   if (!done)
+   {
+      mfem_warning("Projection reached maximum iteration without converging. "
+                   "Result may not be accurate.");
+   }
+   int_sigmoid_psi->Assemble();
+   real_t material_volume = int_sigmoid_psi->Sum();
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(MPI_IN_PLACE, &material_volume, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+#endif
+   return material_volume;
+}
+
 // Poisson solver
 
 DiffusionSolver::DiffusionSolver(Mesh * mesh_, int order_,
