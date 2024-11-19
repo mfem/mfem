@@ -4898,8 +4898,7 @@ void PLBound::ReadCustomBounds(Vector &gll, Vector &interval,
 // Set scaled to true if gllX is in [0,1] and false if it is in [-1,1]
 // intX is automatically scaled based on gllX.min and gllX.max.
 void PLBound::Get1DBounds(Vector &coeff,
-                          Vector &intmin, Vector &intmax,
-                          bool scaled)
+                          Vector &intmin, Vector &intmax)
 {
    int nr = gllX.Size();
    int mr = intX.Size();
@@ -4907,9 +4906,7 @@ void PLBound::Get1DBounds(Vector &coeff,
                "Invalid bounds matrix");
    MFEM_VERIFY(ubound.Height() == nr && ubound.Width() == mr,
                "Invalid bounds matrix");
-
-   Vector intScaled = intX;
-   ScaleNodes(intX, gllX(0), gllX(nr-1), intScaled);
+   bool scaled = true; // i.e. gllx is in [0,1];
 
    intmin.SetSize(mr);
    intmax.SetSize(mr);
@@ -4958,8 +4955,7 @@ void PLBound::Get1DBounds(Vector &coeff,
 }
 
 void PLBound::Get2DBounds(Vector &coeff,
-                          Vector &intmin, Vector &intmax,
-                          bool scaled)
+                          Vector &intmin, Vector &intmax)
 {
    int nr = gllX.Size();
    int mr = intX.Size();
@@ -4967,6 +4963,7 @@ void PLBound::Get2DBounds(Vector &coeff,
                "Invalid bounds matrix");
    MFEM_VERIFY(ubound.Height() == nr && ubound.Width() == mr,
                "Invalid bounds matrix");
+   bool scaled = true;
 
    intmin.SetSize(mr*mr);
    intmax.SetSize(mr*mr);
@@ -4979,7 +4976,7 @@ void PLBound::Get2DBounds(Vector &coeff,
       Vector solcoeff(coeff.GetData()+i*nr, nr);
       Vector intminrow(intminT.GetData()+i*mr, mr);
       Vector intmaxrow(intmaxT.GetData()+i*mr, mr);
-      Get1DBounds(solcoeff, intminrow, intmaxrow, scaled);
+      Get1DBounds(solcoeff, intminrow, intmaxrow);
    }
 
    // Compute a0 and a1 for each column of nodes
@@ -5034,8 +5031,7 @@ void PLBound::Get2DBounds(Vector &coeff,
 }
 
 void PLBound::Get3DBounds(Vector &coeff,
-                          Vector &intmin, Vector &intmax,
-                          bool scaled)
+                          Vector &intmin, Vector &intmax)
 {
    int nr = gllX.Size();
    int mr = intX.Size();
@@ -5046,6 +5042,7 @@ void PLBound::Get3DBounds(Vector &coeff,
                "Invalid bounds matrix");
    MFEM_VERIFY(ubound.Height() == nr && ubound.Width() == mr,
                "Invalid bounds matrix");
+   bool scaled = true;
 
    intmin.SetSize(mr3);
    intmax.SetSize(mr3);
@@ -5058,7 +5055,7 @@ void PLBound::Get3DBounds(Vector &coeff,
       Vector solcoeff(coeff.GetData()+i*nr2, nr2);
       Vector intminrow(intminT.GetData()+i*mr2, mr2);
       Vector intmaxrow(intmaxT.GetData()+i*mr2, mr2);
-      Get2DBounds(solcoeff, intminrow, intmaxrow, scaled);
+      Get2DBounds(solcoeff, intminrow, intmaxrow);
    }
 
    // Compute a0 and a1 for each tower of nodes
@@ -5124,11 +5121,24 @@ void PLBound::ScaleNodes(const Vector &in, double a, double b,
    }
 }
 
-void PLBound::SetupGSLIBBounds(int nr, int mr, DenseMatrix &lbound,
-                               DenseMatrix &ubound)
+// Used for GL points that do not include end-point
+void PLBound::ScaleNodesGL(const Vector &in, double a, double b,
+                           Vector &out) const
+{
+   double maxv = 1.0;
+   double minv = 0.0;
+   out.SetSize(in.Size());
+   for (int i = 0; i < in.Size(); i++)
+   {
+      out(i) = a + (b-a)*(in(i)-minv)/(maxv-minv);
+   }
+}
+
+void PLBound::SetupGSLIBBounds(int nr, int mr)
 {
    lbound.SetSize(nr, mr);
    ubound.SetSize(nr, mr);
+   gll = true;
 
    auto GetChebyshevNodes = [](int n) -> Vector
    {
@@ -5145,10 +5155,7 @@ void PLBound::SetupGSLIBBounds(int nr, int mr, DenseMatrix &lbound,
 
    intX = GetChebyshevNodes(mr);
    ScaleNodes(intX, 0.0, 1.0, intX);
-   TensorBasisElement *tbe = new TensorBasisElement(1, nr-1,
-                                                    BasisType::GaussLobatto,
-                                                    TensorBasisElement::DofMapType::H1_DOF_MAP);
-   const Poly_1D::Basis basis1d = tbe->GetBasis1D();
+   Poly_1D::Basis &basis1d(poly1d.GetBasis(nr-1, BasisType::GaussLobatto));
 
    // initialize
    lbound = 0.0;
@@ -5171,6 +5178,7 @@ void PLBound::SetupGSLIBBounds(int nr, int mr, DenseMatrix &lbound,
    Vector bdmv(nr), bdpv(nr), bdv(nr); // basis derivative values
    Vector vals(3);
 
+   double eps = 1e-5;
    for (int j = 1; j < mr-1; j++)
    {
       double x = intX(j);
@@ -5186,8 +5194,8 @@ void PLBound::SetupGSLIBBounds(int nr, int mr, DenseMatrix &lbound,
          vals(0)  = bv(i);
          vals(1) = bmv(i) +  dm*bdmv(i);
          vals(2) = bpv(i) +  dp*bdpv(i);
-         lbound(i, j) = vals.Min();
-         ubound(i, j) = vals.Max();
+         lbound(i, j) = vals.Min()-eps;
+         ubound(i, j) = vals.Max()+eps;
       }
    }
 
@@ -5200,7 +5208,69 @@ void PLBound::SetupGSLIBBounds(int nr, int mr, DenseMatrix &lbound,
       gllW(i) = irule.IntPoint(i).weight;
       gllX(i) = irule.IntPoint(i).x;
    }
-   delete tbe;
+}
+
+void PLBound::SetupGLBounds(int nr, int mr)
+{
+   lbound.SetSize(nr, mr);
+   ubound.SetSize(nr, mr);
+   gll = false;
+
+   auto GetChebyshevNodes = [](int n) -> Vector
+   {
+      MFEM_VERIFY(n > 2, "Invalid number of nodes");
+      Vector nodes(n);
+      nodes(0) = -1.0;
+      nodes(n - 1) = 1.0;
+      for (int i = 2; i < n; ++i)
+      {
+         nodes(i - 1) = -std::cos(M_PI * ((i - 1.0)*1.0 / (n - 1)));
+      }
+      return nodes;
+   };
+
+   intX = GetChebyshevNodes(mr);
+   ScaleNodes(intX, 0.0, 1.0, intX);
+   Poly_1D::Basis &basis1d(poly1d.GetBasis(nr-1, BasisType::GaussLegendre));
+
+   // initialize
+   lbound = 0.0;
+   ubound = 0.0;
+
+   Vector bmv(nr), bpv(nr), bv(nr); // basis values
+   Vector bdmv(nr), bdpv(nr), bdv(nr); // basis derivative values
+   Vector vals(3);
+   double eps = 1e-5;
+
+   for (int j = 0; j < mr; j++)
+   {
+      double x = intX(j);
+      double xm = j == 0 ? x : 0.5*(intX(j-1)+intX(j));
+      double xp = j == mr-1 ? x : 0.5*(intX(j)+intX(j+1));
+      basis1d.Eval(xm, bmv, bdmv);
+      basis1d.Eval(xp, bpv, bdpv);
+      basis1d.Eval(x, bv);
+      double dm = x-xm;
+      double dp = x-xp;
+      for (int i = 0; i < nr; i++)
+      {
+         vals(0)  = bv(i);
+         vals(1) =  j == 0 ? vals(0) : bmv(i) +  dm*bdmv(i);
+         vals(2) =  j == mr-1 ? vals(0) : bpv(i) +  dp*bdpv(i);
+         lbound(i, j) = vals.Min()-eps;
+         ubound(i, j) = vals.Max()+eps;
+      }
+   }
+
+   gllX.SetSize(nr);
+   gllW.SetSize(nr);
+   IntegrationRule irule(nr);
+   QuadratureFunctions1D::GaussLegendre(nr, &irule);
+   for (int i = 0; i < nr; i++)
+   {
+      gllW(i) = irule.IntPoint(i).weight;
+      gllX(i) = irule.IntPoint(i).x;
+   }
 }
 
 IntegrationRule PLBound::GetTensorProductRule(const Vector &ipx,

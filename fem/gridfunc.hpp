@@ -892,9 +892,11 @@ private:
    int mr = 0;
    Vector gllX, gllW, intX;
    DenseMatrix lbound, ubound;
+   bool gll = false;
 
 private:
    void ScaleNodes(const Vector &in, double a, double b, Vector &out) const;
+   void ScaleNodesGL(const Vector &in, double a, double b, Vector &out) const;
    IntegrationRule GetTensorProductRule(const Vector &ipx,
                                         const Vector &ipy) const;
    void GetTensorProductVector(const Vector &ipx,
@@ -904,8 +906,9 @@ private:
    void ReadCustomBounds(Vector &gll, Vector &interval, DenseMatrix &lbound,
                          DenseMatrix &ubound, std::string filename) const;
 
-   void SetupGSLIBBounds(const int n, const int m, DenseMatrix &lb,
-                         DenseMatrix &ub);
+   void SetupGSLIBBounds(const int n, const int m);
+
+   void SetupGLBounds(const int n, const int m);
 
 public:
    PLBound() {} // empty constructor
@@ -917,9 +920,9 @@ public:
 
    // Alternate constructor - Sets up bounds like GSLIB does.
    // mr must be at-least 2*nr in most cases.
-   PLBound(int nr_, int mr_)
+   PLBound(int nr_, int mr_, bool gll_)
    {
-      Setup(nr_, mr_);
+      Setup(nr_, mr_, gll_);
    }
 
    void Setup(std::string filename)
@@ -935,12 +938,20 @@ public:
          gllW(i) = irule.IntPoint(i).weight;
          gllX(i) = irule.IntPoint(i).x;
       }
-      ScaleNodes(intX, gllX(0), gllX(nr-1), intX);
+      MFEM_VERIFY(gllX.Min() >= 0 && gllX.Max() <= 1, "Nodal points must be in [0,1] for GLL and (0, 1) for GL");
+      ScaleNodes(intX, 0.0, 1.0, intX);
    }
 
-   void Setup(int nr_, int mr_)
+   void Setup(int nr_, int mr_, bool gll)
    {
-      SetupGSLIBBounds(nr_, mr_, lbound, ubound);
+        if (gll)
+        {
+            SetupGSLIBBounds(nr_, mr_);
+        }
+        else
+        {
+            SetupGLBounds(nr_, mr_);
+        }
    }
 
    void GetMeshValidity(Mesh *mesh, double &minmindet, double &minmaxdet,
@@ -968,16 +979,13 @@ public:
                                   int &tot_recursion);
 
    void Get3DBounds(Vector &coeff, // nodal solution - lexicographic ordering
-                    Vector &intmin, Vector &intmax,
-                    bool scaled=true);
+                    Vector &intmin, Vector &intmax);
 
    void Get2DBounds(Vector &coeff, // nodal solution - lexicographic ordering
-                    Vector &intmin, Vector &intmax,
-                    bool scaled=true);
+                    Vector &intmin, Vector &intmax);
 
    void Get1DBounds(Vector &coeff,  // nodal coeff of solution
-                    Vector &intmin, Vector &intmax,
-                    bool scaled=true);
+                    Vector &intmin, Vector &intmax);
 
    // Write getters for class members
    const Vector &GetGLLX() { return gllX; }
