@@ -267,7 +267,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       {
          MFEM_ABORT("Either update to gslib v1.0.9 for GPU support "
                     "or use SetGPUtoCPUFallback to use host-functions. See "
-                    "https://github.com/mfem/mfem/blob/master/INSTALL for instructions.");
+                    "INSTALL for instructions to update GSLIB.");
       }
 #else
       FindPointsOnDevice(point_pos, point_pos_ordering);
@@ -1721,7 +1721,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       {
          MFEM_ABORT("Either update to gslib v1.0.9 for GPU support "
                     "or use SetGPUtoCPUFallback to use host-functions. See "
-                    "https://github.com/mfem/mfem/blob/master/INSTALL for instructions.");
+                    "INSTALL for instructions to update GSLIB");
       }
 #else
       MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,
@@ -2168,6 +2168,125 @@ void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
 
       array_free(outpt);
       delete outpt;
+   }
+}
+
+void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb)
+{
+   MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
+   auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
+   auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
+   int nve   = dim == 2 ? 4 : 8;
+   int nel = NE_split_total;
+
+   aabb.SetSize(dim*nve*nel);
+   if (dim == 3)
+   {
+      for (int e = 0; e < nel; e++)
+      {
+         auto box = findptsData3->local.obb[e];
+         Vector minn(dim), maxx(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            minn[d] = box.x[d].min;
+            maxx[d] = box.x[d].max;
+         }
+         int c = 0;
+         aabb(e*nve*dim + c++) = minn[0]; /* first vertex - x */
+         aabb(e*nve*dim + c++) = minn[1]; /* y */
+         aabb(e*nve*dim + c++) = minn[2]; /* z */
+         aabb(e*nve*dim + c++) = maxx[0]; /* second vertex - x */
+         aabb(e*nve*dim + c++) = minn[1]; /* . */
+         aabb(e*nve*dim + c++) = minn[2]; /* . */
+         aabb(e*nve*dim + c++) = maxx[0];
+         aabb(e*nve*dim + c++) = maxx[1];
+         aabb(e*nve*dim + c++) = minn[2];
+         aabb(e*nve*dim + c++) = minn[0];
+         aabb(e*nve*dim + c++) = maxx[1];
+         aabb(e*nve*dim + c++) = minn[2];
+         aabb(e*nve*dim + c++) = minn[0];
+         aabb(e*nve*dim + c++) = minn[1];
+         aabb(e*nve*dim + c++) = maxx[2];
+         aabb(e*nve*dim + c++) = maxx[0];
+         aabb(e*nve*dim + c++) = minn[1];
+         aabb(e*nve*dim + c++) = maxx[2];
+         aabb(e*nve*dim + c++) = maxx[0];
+         aabb(e*nve*dim + c++) = maxx[1];
+         aabb(e*nve*dim + c++) = maxx[2];
+         aabb(e*nve*dim + c++) = minn[0];
+         aabb(e*nve*dim + c++) = maxx[1];
+         aabb(e*nve*dim + c++) = maxx[2];
+      }
+   }
+   else // dim = 2
+   {
+      for (int e = 0; e < nel; e++)
+      {
+         auto box = findptsData2->local.obb[e];
+         Vector minn(dim), maxx(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            minn[d] = box.x[d].min;
+            maxx[d] = box.x[d].max;
+         }
+         aabb(e*nve*dim + 0) = minn[0]; /* first vertex - x */
+         aabb(e*nve*dim + 1) = minn[1]; /* y */
+         aabb(e*nve*dim + 2) = maxx[0]; /* second vertex - x */
+         aabb(e*nve*dim + 3) = minn[1]; /* . */
+         aabb(e*nve*dim + 4) = maxx[0]; /* . */
+         aabb(e*nve*dim + 5) = maxx[1];
+         aabb(e*nve*dim + 6) = minn[0];
+         aabb(e*nve*dim + 7) = maxx[1];
+      }
+   }
+}
+
+void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC)
+{
+   MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
+   auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
+   auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
+   int nel = NE_split_total;
+
+   obbA.SetSize(dim, dim, nel);
+   obbC.SetSize(dim*nel);
+   if (dim == 3)
+   {
+      for (int e = 0; e < nel; e++)
+      {
+         auto box = findptsData3->local.obb[e];
+         double *Ad = obbA.GetData(e);
+         for (int d = 0; d < dim; d++)
+         {
+            obbC(e*dim + d) = box.c0[d];
+         }
+         for (int i = 0; i < dim; i++)
+         {
+            for (int j = 0; j < dim; j++)
+            {
+               Ad[i*dim + j] = box.A[i + j*dim]; // GSLIB uses row-major storage
+            }
+         }
+      }
+   }
+   else // dim = 2
+   {
+      for (int e = 0; e < nel; e++)
+      {
+         auto box = findptsData2->local.obb[e];
+         double *Ad = obbA.GetData(e);
+         for (int d = 0; d < dim; d++)
+         {
+            obbC(e*dim + d) = box.c0[d];
+         }
+         for (int i = 0; i < dim; i++)
+         {
+            for (int j = 0; j < dim; j++)
+            {
+               Ad[i*dim + j] = box.A[i + j*dim]; // GSLIB uses row-major storage
+            }
+         }
+      }
    }
 }
 
