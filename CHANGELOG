@@ -20,6 +20,8 @@ Discretization improvements
 
 - Added support for boundary constraints to the hybridization class.
 
+- Added support for external boundary submeshes with nonconformal mesh adaptation.
+
 Meshing improvements
 --------------------
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
@@ -58,6 +60,9 @@ GPU computing
 
 Miscellaneous
 -------------
+- Added support for SUNDIALS v7. See the section "API changes" for some small
+  changes related to this new version.
+
 - Refactored the `ARKStepSolver` class (ARKODE interface) to use
   `TimeDependentOperator::Mult` only when the associated ODE operator is
   expressed in explicit form (i.e., `TimeDependentOperator::isExplicit()`),
@@ -73,6 +78,18 @@ Miscellaneous
 API changes
 -----------
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
+
+- API change: support for SUNDIALS v7:
+  * the SUNDIALS types `realtype` and `booleantype` are no longer defined by v7
+    and therefore MFEM now uses the new type names `sunrealtype` and
+    `sunbooleantype`, respectively, which MFEM defines when using SUNDIALS < v6
+    where these types were not defined.
+  * The SUNDIALS macro `SUNLS_SUCCESS` and some other `*_SUCCESS` macros were
+    removed and replaced by `SUN_SUCCESS` in v7, so to avoid tedious checks for
+    SUNDIALS versions, MFEM now defines and uses the constant `SUN_SUCCESS` when
+    using SUNDIALS < v7.
+  * The constants `SUN_PREC_*`, introduced by SUNDIALS v6 are now introduced by
+    MFEM when using SUNDIALS < v6 to avoid tedious version checks.
 
 
 Version 4.7, released on May 7, 2024
