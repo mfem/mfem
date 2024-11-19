@@ -437,17 +437,23 @@ public:
    /// @brief Returns a GridFunction on MPI rank @a save_rank that does not have
    /// any duplication of vertices/nodes at processor boundaries.
    ///
-   /// The @a serial_mesh is obtained using ParMesh::GetSerialMesh(save_rank).
-   /// Note that the @a save_rank must be the same as that used in
-   /// ParMesh::GetSerialMesh.
+   /// The @a serial_mesh is obtained using ParMesh::GetSerialMesh. Note that
+   /// the @a save_rank must be the same as that used in ParMesh::GetSerialMesh.
+   ///
+   /// @note The returned GridFunction will own the newly created
+   /// FiniteElementCollection and FiniteElementSpace objects.
    GridFunction GetSerialGridFunction(int save_rank, Mesh &serial_mesh) const;
 
    /// @brief Returns a GridFunction on MPI rank @a save_rank that does not have
    /// any duplication of vertices/nodes at processor boundaries.
    ///
    /// The given @a serial_fes must be defined on the mesh returned by
-   /// ParMesh::GetSerialMesh(save_rank). Ownership of @a serial_fes is not
-   /// assumed.
+   /// ParMesh::GetSerialMesh (with @a save_rank ranks), for example using the
+   /// space belonging to the GridFunction obtained from @ref
+   /// ParGridFunction::GetSerialGridFunction(int,Mesh &) const.
+   ///
+   /// @note The returned GridFunction does not assume ownership of @a
+   /// serial_fes.
    GridFunction GetSerialGridFunction(
       int save_rank, FiniteElementSpace &serial_fes) const;
 
