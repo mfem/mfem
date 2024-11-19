@@ -98,15 +98,31 @@ void QuadratureSpace::ConstructOffsets()
 {
    const int num_elem = mesh.GetNE();
    offsets.SetSize(num_elem + 1);
-   int offset = 0;
-   for (int i = 0; i < num_elem; i++)
+
+   if (mesh.GetNumGeometries(mesh.Dimension()) == 1)
    {
-      offsets[i] = offset;
-      int geom = mesh.GetElementBaseGeometry(i);
-      MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule.");
-      offset += int_rule[geom]->GetNPoints();
+      Array<Geometry::Type> geoms;
+      mesh.GetGeometries(mesh.Dimension(), geoms);
+      const int ir_size = int_rule[geoms[0]]->GetNPoints();
+      auto d_offsets = offsets.Write();
+      mfem::forall(num_elem + 1, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_offsets[i] = i*ir_size;
+      });
    }
-   offsets[num_elem] = size = offset;
+   else
+   {
+      int offset = 0;
+      for (int i = 0; i < num_elem; i++)
+      {
+         offsets[i] = offset;
+         const Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+         MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule.");
+         offset += int_rule[geom]->GetNPoints();
+      }
+      offsets[num_elem] = offset;
+   }
+   size = offsets.Last();
 }
 
 void QuadratureSpace::Construct()
