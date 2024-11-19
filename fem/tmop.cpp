@@ -79,24 +79,24 @@ void mult_2D(const std::vector<type> &u, const std::vector<type> &M,
 // compute A^tA
 template <typename type>
 void mult_aTa_2D(const DenseMatrix *in,
-                 std::vector<type> &out)
+                 std::vector<type> &outm)
 {
-   out.resize(in->TotalSize());
-   out[0] = in->Elem(0,0)*in->Elem(0,0);
-   out[1] = in->Elem(0,0)*in->Elem(0,1) + in->Elem(1,0)*in->Elem(1,1);
-   out[2] = in->Elem(0,0)*in->Elem(0,1) + in->Elem(1,0)*in->Elem(1,1);
-   out[3] = in->Elem(1,1)*in->Elem(1,1);
+   outm.resize(in->TotalSize());
+   outm[0] = in->Elem(0,0)*in->Elem(0,0);
+   outm[1] = in->Elem(0,0)*in->Elem(0,1) + in->Elem(1,0)*in->Elem(1,1);
+   outm[2] = in->Elem(0,0)*in->Elem(0,1) + in->Elem(1,0)*in->Elem(1,1);
+   outm[3] = in->Elem(1,1)*in->Elem(1,1);
 }
 
 template <typename type>
 void mult_aTa_2D(const std::vector<type> &in,
-                 std::vector<type> &out)
+                 std::vector<type> &outm)
 {
-   out.resize(in.size());
-   out[0] = in[0]*in[0];
-   out[1] = in[0]*in[2] + in[1]*in[3];
-   out[2] = in[0]*in[2] + in[1]*in[3];
-   out[3] = in[3]*in[3];
+   outm.resize(in.size());
+   outm[0] = in[0]*in[0];
+   outm[1] = in[0]*in[2] + in[1]*in[3];
+   outm[2] = in[0]*in[2] + in[1]*in[3];
+   outm[3] = in[3]*in[3];
 }
 
 template <typename scalartype, typename type>
@@ -124,24 +124,24 @@ void add_2D(const scalartype &scalar, const std::vector<type> &u,
 
 template <typename type>
 void adjoint_2D(const std::vector<type> &in,
-                std::vector<type> &out)
+                std::vector<type> &outm)
 {
-   out.resize(in.size());
-   out[0] = in[3];
-   out[1] = -in[1];
-   out[2] = -in[2];
-   out[3] = in[0];
+   outm.resize(in.size());
+   outm[0] = in[3];
+   outm[1] = -in[1];
+   outm[2] = -in[2];
+   outm[3] = in[0];
 }
 
 template <typename type>
 void transpose_2D(const std::vector<type> &in,
-                  std::vector<type> &out)
+                  std::vector<type> &outm)
 {
-   out.resize(in.size());
-   out[0] = in[0];
-   out[1] = in[2];
-   out[2] = in[1];
-   out[3] = in[3];
+   outm.resize(in.size());
+   outm[0] = in[0];
+   outm[1] = in[2];
+   outm[2] = in[1];
+   outm[3] = in[3];
 }
 
 /* Metric definitions */
