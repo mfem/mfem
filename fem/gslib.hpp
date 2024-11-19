@@ -350,6 +350,25 @@ public:
                                              const int ordering,
                                              Vector &field_out) const;
    ///@}
+
+   /// Return the axis-aligned bounding boxes (AABB) computed during \ref Setup.
+   /// The size of the returned vector is (nel x nverts x dim), where nel is the
+   /// number of elements (after splitting for simplcies), nverts is number of
+   /// vertices (4 in 2D, 8 in 3D), and dim is the spatial dimension.
+   void GetAxisAlignedBoundingBoxes(Vector &aabb);
+
+   /// Return the oriented bounding boxes (OBB) computed during \ref Setup.
+   /// Each OBB is represented using the inverse transformation (A^{-1}) and
+   /// its center (\vec{x}_c), such that a point \vec{x} is inside the OBB if:
+   ///                  -1 <= A^{-1}(\vec{x}-\vec{x}_c) <= 1.
+   /// The inverse transformation is returned in a DenseTensor of
+   /// size (dim x dim x nel), and the OBB centers are returned in a vector of
+   /// size (nel x dim).
+   /// Note that the OBB vertices can be obtained in physical-space using:
+   ///                \vec{x}_i = A*\vec{r}_i+\vec{x}_c,
+   /// where \vec{r}_i are the coordinates of the vertices of the unit-cube in
+   /// the reference space [-1, 1]^D.
+   void GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC);
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
