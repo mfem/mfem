@@ -146,6 +146,31 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
    delete perm_mat_tr;
 }
 
+void FiniteElementSpace::SetProlongation(const SparseMatrix& p)
+{
+   if (!cP)
+   {
+      cP = std::unique_ptr<SparseMatrix>(new SparseMatrix(p));
+   }
+   else
+   {
+      *cP = p;
+   }
+   cP_is_set = true;
+}
+
+void FiniteElementSpace::SetRestriction(const SparseMatrix& r)
+{
+   if (!cR)
+   {
+      cR = std::unique_ptr<SparseMatrix>(new SparseMatrix(r));
+   }
+   else
+   {
+      *cR = r;
+   }
+}
+
 void FiniteElementSpace::SetElementOrder(int i, int p)
 {
    MFEM_VERIFY(mesh_sequence == mesh->GetSequence(),

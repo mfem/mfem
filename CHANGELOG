@@ -75,6 +75,11 @@ Miscellaneous
 
 - Added support for custom interpolation procedure in FindPointsGSLIB.
 
+- `FiniteElementSpace` has new methods to directly set prolongation and
+  restriction operators to arbitrary sparse matrices.
+
+- There are new convenience constructors for NURBS patches and knot vectors.
+
 API changes
 -----------
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
