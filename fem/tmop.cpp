@@ -19,13 +19,16 @@
 namespace mfem
 {
 
-/* Some AD related declarations below ========================================*/
+/* AD related definitions below ========================================*/
 
 /// MFEM native AD-type for first derivatives
 typedef internal::dual<real_t, real_t> ADFType;
 /// MFEM native AD-type for second derivatives
 typedef internal::dual<ADFType, ADFType> ADSType;
 
+/*
+Functions for 2x2 DenseMatrix cast as std::vector<type>, assuming column-major storage
+*/
 template <typename type>
 auto fnorm2_2D(std::vector<type> &u) -> type
 {
@@ -51,7 +54,7 @@ void mult_2D(const std::vector<type> &u, const DenseMatrix * M,
 }
 
 template <typename type>
-void mult_2D(const DenseMatrix * u, const std::vector<type> &M,
+void mult_2D(const DenseMatrix *u, const std::vector<type> &M,
              std::vector<type> &mat)
 {
    mat.resize(M.size());
@@ -75,7 +78,7 @@ void mult_2D(const std::vector<type> &u, const std::vector<type> &M,
 
 // compute A^tA
 template <typename type>
-void mult_aTa_2D(const DenseMatrix * in,
+void mult_aTa_2D(const DenseMatrix *in,
                  std::vector<type> &out)
 {
    out.resize(in->TotalSize());
@@ -141,14 +144,9 @@ void transpose_2D(const std::vector<type> &in,
    out[3] = in[3];
 }
 
+/* Metric definitions */
 template <typename type>
-auto mu2_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
-{
-   return (fnorm2_2D(T))/(2.0*det_2D(T)) - 1.0;
-};
-
-template <typename type>
-auto mu85_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
+auto mu85_ad( const DenseMatrix *W,  std::vector<type> &T) -> type
 {
    auto fnorm = sqrt(fnorm2_2D(T));
    return T[1]*T[1] + T[2]*T[2] +
@@ -157,7 +155,7 @@ auto mu85_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
 };
 
 template <typename type>
-auto mu98_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
+auto mu98_ad( const DenseMatrix *W,  std::vector<type> &T) -> type
 {
    MFEM_VERIFY(W != NULL,
                "Requires a target Jacobian, use SetTargetJacobian().");
@@ -171,179 +169,11 @@ auto mu98_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
    return fnorm2_2D(Mat)/W->Det();
 };
 
-template <typename type>
-auto mu107a_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
-{
-   MFEM_VERIFY(W != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
 
-   std::vector<type> A;   // T*W = A
-   std::vector<type> Mat;  // A-W
-   mult_2D(T,W,A);
-
-   auto alpha = det_2D(A);
-   auto aw = sqrt(fnorm2_2D(A))/W->FNorm();
-
-   add_2D(-1.0*aw, A, W, Mat);
-   return (0.5/alpha)*fnorm2_2D(Mat);
-};
-
-template <typename type>
-auto mu014a_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
-{
-   MFEM_VERIFY(W != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
-
-   std::vector<type> A;   // T*W = A
-   mult_2D(T,W,A);
-
-   auto sqalpha = sqrt(det_2D(A));
-   real_t sqomega = pow(W->Det(), 0.5);
-
-   return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.0);
-};
-
-template <typename type>
-auto mu36_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
-{
-   MFEM_VERIFY(W != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
-
-   std::vector<type> A;   // T*W = A
-   std::vector<type> AminusW;  // A-W
-
-   mult_2D(T,W,A);
-   add_2D(-1.0, A,W,AminusW);
-   auto fnorm =  fnorm2_2D(AminusW);
-
-   return 1.0 / ( det_2D(A)) * fnorm;
-};
-
-template <typename type>
-auto mu36_ad_w( const DenseMatrix * T, const std::vector<type> &W) -> type
-{
-   std::vector<type> A;   // T*W = A
-   std::vector<type> AminusW;  // A-W
-
-   mult_2D(T,W,A);
-   add_2D(-1.0, A,W,AminusW);
-   auto fnorm =  fnorm2_2D(AminusW);
-
-   return 1.0 / ( det_2D(A)) * fnorm;
-};
-
-template <typename type>
-auto mu50_ad( const DenseMatrix * W, const std::vector<type> &T) -> type
-{
-   MFEM_VERIFY(W != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
-
-   std::vector<type> A;
-   mult_2D(T,W,A);
-   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
-   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
-   auto prod_A = l1_A*l2_A;
-   auto det_A = A[0]*A[3] - A[1]*A[2];
-   auto sin_A = det_A/prod_A;
-   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
-
-   auto l1_W = sqrt(W->Elem(0,0)*W->Elem(0,0) + W->Elem(1,0)*W->Elem(1,0));
-   auto l2_W = sqrt(W->Elem(0,1)*W->Elem(0,1) + W->Elem(1,1)*W->Elem(1,1));
-   auto prod_W = l1_W*l2_W;
-   auto det_W = W->Elem(0,0)*W->Elem(1,1) - W->Elem(1,0)*W->Elem(0,1);
-   auto sin_W = det_W/prod_W;
-   auto cos_W = (W->Elem(0,0)*W->Elem(0,1) + W->Elem(1,0)*W->Elem(1,1))/prod_W;
-
-   return (1.0 - cos_A*cos_W - sin_A*sin_W)/(sin_A*sin_W);
-};
-
-template <typename type>
-auto mu50_ad_w( const DenseMatrix * T, const std::vector<type> &W) -> type
-{
-   std::vector<type> A;
-   mult_2D(T,W,A);
-   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
-   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
-   auto prod_A = l1_A*l2_A;
-   auto det_A = A[0]*A[3] - A[1]*A[2];
-   auto sin_A = det_A/prod_A;
-   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
-
-   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
-   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
-   auto prod_W = l1_W*l2_W;
-   auto det_W = W[0]*W[3] - W[1]*W[2];
-   auto sin_W = det_W/prod_W;
-   auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
-
-   return (1.0 - cos_A*cos_W - sin_A*sin_W)/(sin_A*sin_W);
-};
-
-template <typename type>
-auto mu51_ad( const DenseMatrix * W, const std::vector<type> &T) -> type
-{
-   MFEM_VERIFY(W != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
-
-   std::vector<type> A;
-   mult_2D(T,W,A);
-   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
-   // if (l1_A > 0.0) { l1_A = std::sqrt(l1_A); }
-   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
-   // if (l2_A > 0.0) { l2_A = std::sqrt(l2_A); }
-   auto prod_A = l1_A*l2_A;
-   auto det_A = A[0]*A[3] - A[1]*A[2];
-   auto sin_A = det_A/prod_A;
-   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
-   auto ups_A = l1_A*l2_A*sin_A;
-
-   auto l1_W = sqrt(W->Elem(0,0)*W->Elem(0,0) + W->Elem(1,0)*W->Elem(1,0));
-   // if (l1_W > 0.0) { l1_W = std::sqrt(l1_W); }
-   auto l2_W = sqrt(W->Elem(0,1)*W->Elem(0,1) + W->Elem(1,1)*W->Elem(1,1));
-   // if (l2_W > 0.0) { l2_W = std::sqrt(l2_W); }
-   auto prod_W = l1_W*l2_W;
-   auto det_W = W->Elem(0,0)*W->Elem(1,1) - W->Elem(1,0)*W->Elem(0,1);
-   auto sin_W = det_W/prod_W;
-   auto cos_W = (W->Elem(0,0)*W->Elem(0,1) + W->Elem(1,0)*W->Elem(1,1))/prod_W;
-   auto ups_W = l1_W*l2_W*sin_W;
-
-   return (0.5 * (ups_A / ups_W + ups_W / ups_A) - cos_A*cos_W - sin_A*sin_W) /
-          (sin_A*sin_W);
-};
-
-
-template <typename type>
-auto mu51_ad_w( const DenseMatrix * T, const std::vector<type> &W) -> type
-{
-   std::vector<type> A;
-   mult_2D(T,W,A);
-   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
-   // if (l1_A > 0.0) { l1_A = std::sqrt(l1_A); }
-   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
-   // if (l2_A > 0.0) { l2_A = std::sqrt(l2_A); }
-   auto prod_A = l1_A*l2_A;
-   auto det_A = A[0]*A[3] - A[1]*A[2];
-   auto sin_A = det_A/prod_A;
-   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
-   auto ups_A = l1_A*l2_A*sin_A;
-
-   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
-   // if (l1_W > 0.0) { l1_W = std::sqrt(l1_W); }
-   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
-   // if (l2_W > 0.0) { l2_W = std::sqrt(l2_W); }
-   auto prod_W = l1_W*l2_W;
-   auto det_W = W[0]*W[3] - W[1]*W[2];
-   auto sin_W = det_W/prod_W;
-   auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
-   auto ups_W = l1_W*l2_W*sin_W;
-
-   return (0.5 * (ups_A / ups_W + ups_W / ups_A) - cos_A*cos_W - sin_A*sin_W) /
-          (sin_A*sin_W);
-};
 
 // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
 template <typename type>
-auto mu11_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
+auto nu011( const DenseMatrix *W,  std::vector<type> &T) -> type
 {
    MFEM_VERIFY(W != NULL,
                "Requires a target Jacobian, use SetTargetJacobian().");
@@ -352,6 +182,7 @@ auto mu11_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
    std::vector<type> AdjA,AdjAt, WtW, WRK, WRK2;
 
    mult_2D(T,W,A);
+   // We assume that both A and W are nonsingular.
 
    auto alpha = det_2D(A);
    auto omega = W->Elem(0,0)*W->Elem(1,1) - W->Elem(0,1)*W->Elem(1,0);
@@ -368,7 +199,7 @@ auto mu11_ad( const DenseMatrix * W,  std::vector<type> &T) -> type
 };
 
 template <typename type>
-auto mu11_ad_w( const DenseMatrix * T, const std::vector<type> &W) -> type
+auto nu011_w( const DenseMatrix *T, const std::vector<type> &W) -> type
 {
 
    std::vector<type> A;   // T*W = A
@@ -388,6 +219,172 @@ auto mu11_ad_w( const DenseMatrix * T, const std::vector<type> &W) -> type
 
    return 0.25 / ( alpha) * fnorm;
 };
+
+template <typename type>
+auto nu014a( const DenseMatrix *W,  std::vector<type> &T) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   std::vector<type> A;   // T*W = A
+   mult_2D(T,W,A);
+
+   auto sqalpha = sqrt(det_2D(A));
+   real_t sqomega = pow(W->Det(), 0.5);
+
+   return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.0);
+};
+
+
+template <typename type>
+auto nu036( const DenseMatrix *W,  std::vector<type> &T) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   std::vector<type> A;   // T*W = A
+   std::vector<type> AminusW;  // A-W
+
+   mult_2D(T,W,A);
+   add_2D(-1.0,A,W,AminusW);
+   auto fnorm =  fnorm2_2D(AminusW);
+
+   return 1.0 / (det_2D(A)) * fnorm;
+};
+
+template <typename type>
+auto nu036_w( const DenseMatrix *T, const std::vector<type> &W) -> type
+{
+   std::vector<type> A;   // T*W = A
+   std::vector<type> AminusW;  // A-W
+
+   mult_2D(T,W,A);
+   add_2D(-1.0,A,W,AminusW);
+   auto fnorm =  fnorm2_2D(AminusW);
+
+   return 1.0 / (det_2D(A)) * fnorm;
+};
+
+template <typename type>
+auto nu050( const DenseMatrix *W, const std::vector<type> &T) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+   // We assume that both A and W are nonsingular.
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+
+   auto l1_W = sqrt(W->Elem(0,0)*W->Elem(0,0) + W->Elem(1,0)*W->Elem(1,0));
+   auto l2_W = sqrt(W->Elem(0,1)*W->Elem(0,1) + W->Elem(1,1)*W->Elem(1,1));
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W->Elem(0,0)*W->Elem(1,1) - W->Elem(1,0)*W->Elem(0,1);
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W->Elem(0,0)*W->Elem(0,1) + W->Elem(1,0)*W->Elem(1,1))/prod_W;
+
+   return (1.0 - cos_A*cos_W - sin_A*sin_W)/(sin_A*sin_W);
+};
+
+template <typename type>
+auto nu050_w( const DenseMatrix *T, const std::vector<type> &W) -> type
+{
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   // We assume that both A and W are nonsingular.
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+
+   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
+   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W[0]*W[3] - W[1]*W[2];
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
+
+   return (1.0 - cos_A*cos_W - sin_A*sin_W)/(sin_A*sin_W);
+};
+
+template <typename type>
+auto nu051( const DenseMatrix *W, const std::vector<type> &T) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   // We assume that both A and W are nonsingular.
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+   auto ups_A = l1_A*l2_A*sin_A;
+
+   auto l1_W = sqrt(W->Elem(0,0)*W->Elem(0,0) + W->Elem(1,0)*W->Elem(1,0));
+   auto l2_W = sqrt(W->Elem(0,1)*W->Elem(0,1) + W->Elem(1,1)*W->Elem(1,1));
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W->Elem(0,0)*W->Elem(1,1) - W->Elem(1,0)*W->Elem(0,1);
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W->Elem(0,0)*W->Elem(0,1) + W->Elem(1,0)*W->Elem(1,1))/prod_W;
+   auto ups_W = l1_W*l2_W*sin_W;
+
+   return (0.5 * (ups_A / ups_W + ups_W / ups_A) - cos_A*cos_W - sin_A*sin_W) /
+          (sin_A*sin_W);
+};
+
+template <typename type>
+auto nu051_w( const DenseMatrix *T, const std::vector<type> &W) -> type
+{
+   std::vector<type> A;
+   mult_2D(T,W,A);
+   // We assume that both A and W are nonsingular.
+   auto l1_A = sqrt(A[0]*A[0] + A[1]*A[1]);
+   auto l2_A = sqrt(A[2]*A[2] + A[3]*A[3]);
+   auto prod_A = l1_A*l2_A;
+   auto det_A = A[0]*A[3] - A[1]*A[2];
+   auto sin_A = det_A/prod_A;
+   auto cos_A = (A[0]*A[2] + A[1]*A[3])/prod_A;
+   auto ups_A = l1_A*l2_A*sin_A;
+
+   auto l1_W = sqrt(W[0]*W[0] + W[1]*W[1]);
+   auto l2_W = sqrt(W[2]*W[2] + W[3]*W[3]);
+   auto prod_W = l1_W*l2_W;
+   auto det_W = W[0]*W[3] - W[1]*W[2];
+   auto sin_W = det_W/prod_W;
+   auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
+   auto ups_W = l1_W*l2_W*sin_W;
+
+   return (0.5 * (ups_A / ups_W + ups_W / ups_A) - cos_A*cos_W - sin_A*sin_W) /
+          (sin_A*sin_W);
+};
+
+template <typename type>
+auto nu107a( const DenseMatrix *W,  std::vector<type> &T) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   std::vector<type> A;   // T*W = A
+   std::vector<type> Mat;  // A-W
+   mult_2D(T,W,A);
+
+   auto alpha = det_2D(A);
+   auto aw = sqrt(fnorm2_2D(A))/W->FNorm();
+
+   add_2D(-aw, A, W, Mat);
+   return (0.5/alpha)*fnorm2_2D(Mat);
+};
+
 
 // Given mu(X,Y), compute dmu/dX, where Y is an optional parameter.
 void ADGrad(std::function<ADFType(const DenseMatrix *, std::vector<ADFType>&)>
@@ -444,7 +441,7 @@ void ADHessian(
    }
    return;
 }
-/* Some AD related declarations above ========================================*/
+/* end AD related definitions ========================================*/
 
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
 
@@ -1943,13 +1940,13 @@ real_t TMOP_AMetric_011::EvalW(const DenseMatrix &Jpt) const
 
 void TMOP_AMetric_011::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ADGrad(mu11_ad<ADFType>, P, Jpt, Jtr);
+   ADGrad(nu011<ADFType>, P, Jpt, Jtr);
    return;
 }
 
 void TMOP_AMetric_011::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
 {
-   ADGrad(mu11_ad_w<ADFType>, PW, *Jtr, &Jpt);
+   ADGrad(nu011_w<ADFType>, PW, *Jtr, &Jpt);
    return;
 }
 
@@ -1960,7 +1957,7 @@ void TMOP_AMetric_011::AssembleH(const DenseMatrix &Jpt,
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
-   ADHessian(mu11_ad<ADSType>, H, Jpt, Jtr);
+   ADHessian(nu011<ADSType>, H, Jpt, Jtr);
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
@@ -1983,7 +1980,7 @@ real_t TMOP_AMetric_014a::EvalW(const DenseMatrix &Jpt) const
 
 void TMOP_AMetric_014a::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ADGrad(mu014a_ad<ADFType>, P, Jpt, Jtr);
+   ADGrad(nu014a<ADFType>, P, Jpt, Jtr);
    return;
 }
 
@@ -1994,7 +1991,7 @@ void TMOP_AMetric_014a::AssembleH(const DenseMatrix &Jpt,
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
-   ADHessian(mu014a_ad<ADSType>, H, Jpt, Jtr);
+   ADHessian(nu014a<ADSType>, H, Jpt, Jtr);
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
@@ -2016,13 +2013,13 @@ real_t TMOP_AMetric_036::EvalW(const DenseMatrix &Jpt) const
 
 void TMOP_AMetric_036::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ADGrad(mu36_ad<ADFType>, P, Jpt, Jtr);
+   ADGrad(nu036<ADFType>, P, Jpt, Jtr);
    return;
 }
 
 void TMOP_AMetric_036::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
 {
-   ADGrad(mu36_ad_w<ADFType>, PW, *Jtr, &Jpt);
+   ADGrad(nu036_w<ADFType>, PW, *Jtr, &Jpt);
    return;
 }
 
@@ -2033,7 +2030,7 @@ void TMOP_AMetric_036::AssembleH(const DenseMatrix &Jpt,
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
-   ADHessian(mu36_ad<ADSType>, H, Jpt, Jtr);
+   ADHessian(nu036<ADSType>, H, Jpt, Jtr);
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
@@ -2065,13 +2062,13 @@ real_t TMOP_AMetric_050::EvalW(const DenseMatrix &Jpt) const
 
 void TMOP_AMetric_050::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ADGrad(mu50_ad<ADFType>, P, Jpt, Jtr);
+   ADGrad(nu050<ADFType>, P, Jpt, Jtr);
    return;
 }
 
 void TMOP_AMetric_050::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
 {
-   ADGrad(mu50_ad_w<ADFType>, PW, *Jtr, &Jpt);
+   ADGrad(nu050_w<ADFType>, PW, *Jtr, &Jpt);
    return;
 }
 
@@ -2082,7 +2079,7 @@ void TMOP_AMetric_050::AssembleH(const DenseMatrix &Jpt,
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
-   ADHessian(mu50_ad<ADSType>, H, Jpt, Jtr);
+   ADHessian(nu050<ADSType>, H, Jpt, Jtr);
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
@@ -2120,13 +2117,13 @@ real_t TMOP_AMetric_051::EvalW(const DenseMatrix &Jpt) const
 
 void TMOP_AMetric_051::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ADGrad(mu51_ad<ADFType>, P, Jpt, Jtr);
+   ADGrad(nu051<ADFType>, P, Jpt, Jtr);
    return;
 }
 
 void TMOP_AMetric_051::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
 {
-   ADGrad(mu51_ad_w<ADFType>, PW, *Jtr, &Jpt);
+   ADGrad(nu051_w<ADFType>, PW, *Jtr, &Jpt);
    return;
 }
 
@@ -2137,7 +2134,7 @@ void TMOP_AMetric_051::AssembleH(const DenseMatrix &Jpt,
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
-   ADHessian(mu51_ad<ADSType>, H, Jpt, Jtr);
+   ADHessian(nu051<ADSType>, H, Jpt, Jtr);
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
@@ -2163,7 +2160,7 @@ real_t TMOP_AMetric_107a::EvalW(const DenseMatrix &Jpt) const
 
 void TMOP_AMetric_107a::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ADGrad(mu107a_ad<ADFType>, P, Jpt, Jtr);
+   ADGrad(nu107a<ADFType>, P, Jpt, Jtr);
    return;
 }
 
@@ -2174,7 +2171,7 @@ void TMOP_AMetric_107a::AssembleH(const DenseMatrix &Jpt,
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
-   ADHessian(mu107a_ad<ADSType>, H, Jpt, Jtr);
+   ADHessian(nu107a<ADSType>, H, Jpt, Jtr);
    this->DefaultAssembleH(H,DS,weight,A);
 }
 

@@ -1140,7 +1140,7 @@ public:
                   const real_t weight, DenseMatrix &A) const override;
 };
 
-/// 2D Skew metric.
+/// 2D barrier Skew (Q) metric.
 class TMOP_AMetric_050 : public TMOP_QualityMetric
 {
 protected:
@@ -1158,7 +1158,7 @@ public:
                   const real_t weight, DenseMatrix &A) const override;
 };
 
-/// 2D VQ metric.
+/// 2D barrier Size+Skew (VQ) metric.
 class TMOP_AMetric_051 : public TMOP_QualityMetric
 {
 protected:
@@ -1212,7 +1212,7 @@ public:
 };
 
 /// 2D barrier Shape+Skew (SQ) metric.
-/// \gamma is not recommended to be in (0, 0.9) as a pure skew metric has poor
+/// \gamma is recommended to be in (0, 0.9) as a pure skew metric has poor
 /// convergence properties.
 class TMOP_AMetric_049 : public TMOP_Combo_QualityMetric
 {
