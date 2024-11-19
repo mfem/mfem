@@ -54,6 +54,13 @@ TEST_CASE("ParGridFunction in Serial", "[ParGridFunction][Parallel]")
       par_to_ser_mesh.Save("parallel_in_serial.mesh");
    }
 
+   {
+      FiniteElementSpace &fes = *x_par_to_ser.FESpace();
+      GridFunction x_par_to_ser_2 = px.GetSerialGridFunction(save_rank, fes);
+      x_par_to_ser_2 -= x_par_to_ser;
+      REQUIRE(x_par_to_ser_2.Normlinf() == MFEM_Approx(0.0));
+   }
+
    // Save the mesh and then load the saved mesh and gridfunction, and check
    // the L2 error on all ranks.
    px.SaveAsSerial("parallel_in_serial.gf", 16, save_rank);
