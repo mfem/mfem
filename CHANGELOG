@@ -20,6 +20,8 @@ Discretization improvements
 
 - Added support for boundary constraints to the hybridization class.
 
+- Added support for external boundary submeshes with nonconformal mesh adaptation.
+
 Meshing improvements
 --------------------
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
