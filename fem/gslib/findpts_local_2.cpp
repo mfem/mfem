@@ -195,7 +195,7 @@ get_edge(const double *elx[2], const double *wtend, int ei,
       edge.dxdn[d] = workspace + (2 + d) * pN; //dxdn and dydn at DOFs along edge
    }
 
-   const int mask = 1u << (ei / 2);
+   const int mask = 1u << ei;
    if ((side_init & mask) == 0)
    {
       if (j < pN)

@@ -188,7 +188,7 @@ protected:
                           Vector &gsl_dist_l,
                           Array<int> &gsl_newton_dev_l,
                           int npt);
-   void FindPointsSurfLocal32(Vector &point_pos,
+   void FindPointsSurfLocal32(const Vector &point_pos,
                               int point_pos_ordering,
                               Array<unsigned int> &gsl_code_dev_l,
                               Array<unsigned int> &gsl_elem_dev_l,
@@ -357,7 +357,10 @@ public:
    /// element boundary (1), or not found (2).
    virtual const Array<unsigned int> &GetCode() const { return gsl_code; }
    /// Return element number for each point found by FindPoints.
-   virtual const Array<unsigned int> &GetElem() const { return gsl_mfem_elem; }
+   virtual const Array<unsigned int> &GetElem() const
+   {
+      return gsl_mfem_elem.Size() ? gsl_mfem_elem : gsl_elem;
+   }
    /// Return MPI rank on which each point was found by FindPoints.
    virtual const Array<unsigned int> &GetProc() const { return gsl_proc; }
    /// Return reference coordinates for each point found by FindPoints.

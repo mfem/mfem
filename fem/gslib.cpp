@@ -277,7 +277,7 @@ void FindPointsGSLIB::SetupSurf(Mesh &m, const double bb_t,
    setupSW.Clear();
    setupSW.Start();
 
-   SetupSplitMeshesSurf();  // A call to set NE_split_total, _index, _map arrays, NOT PRODUCTION READY
+   NE_split_total = mesh->GetNE();
 
    setupSW.Stop();
    setup_split_time = setupSW.RealTime();
@@ -477,7 +477,7 @@ void FindPointsGSLIB::FindPointsSurf( const Vector &point_pos,
    // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for
    // both simplices and quads. Also sets code to 1 for points found on element
    // faces/edges.
-   MapRefPosAndElemIndicesSurf();
+   // MapRefPosAndElemIndicesSurf();
 
    setupSW.Stop();
    findpts_mapelemrst_time = setupSW.RealTime();
@@ -1636,10 +1636,6 @@ Mesh* FindPointsGSLIB::GetGSLIBMesh()
 void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
                                               int point_pos_ordering )
 {
-   point_pos.HostRead();
-   Vector point_pos_copy = point_pos;  // true copy of point_pos
-   point_pos_copy.UseDevice(true);
-   point_pos_copy.HostReadWrite();
    MemoryType mt = point_pos.GetMemory().GetMemoryType();
 
    SW2.Clear();
@@ -1666,7 +1662,7 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
    }
    else
    {
-      FindPointsSurfLocal32(point_pos_copy,
+      FindPointsSurfLocal32(point_pos,
                             point_pos_ordering,
                             gsl_code,
                             gsl_elem,
@@ -1678,13 +1674,19 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
 
    gsl_ref.HostReadWrite();
    gsl_dist.HostReadWrite();
+   gsl_code.HostReadWrite();
+   gsl_elem.HostReadWrite();
    point_pos.HostRead();
-   DEV.info.HostReadWrite();
+   gsl_proc.HostWrite();
    gsl_newton.HostReadWrite();
 
-   gsl_code.HostReadWrite();
-   gsl_proc.HostReadWrite();
-   gsl_elem.HostReadWrite();
+   gsl_mfem_ref.SetSize(points_cnt*dim);
+   gsl_mfem_ref = gsl_ref.HostRead();
+   gsl_mfem_ref += 1.;  // map  [-1, 1] to [0, 2] to [0, 1]
+   gsl_mfem_ref *= 0.5;
+   // tolerance for point to be marked as on element edge/face
+   double btol = 1e-12; // must match MapRefPosAndElemIndices
+
 
    const int myid = gsl_comm->id;
    for (int i=0; i<points_cnt; i++)
@@ -1695,8 +1697,26 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
    const int id = gsl_comm->id,
              np = gsl_comm->np;
 
+   int notfound = 0;
    if (np==1)
    {
+      for (int index = 0; index < points_cnt; index++)
+      {
+         if (gsl_code[index] == CODE_NOT_FOUND)
+         {
+            continue;
+         }
+         IntegrationPoint ip;
+         ip.Set3(gsl_mfem_ref.GetData() + index*dim);
+         const int elem = gsl_elem[index];
+         // const int mesh_elem = split_element_map[elem];
+         const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
+         const Geometry::Type gt = fe->GetGeomType();
+         if (gt == Geometry::SQUARE || gt == Geometry::SEGMENT)
+         {
+            gsl_code[index] = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+         }
+      }
       return;
    }
 
@@ -1890,19 +1910,36 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
       gsl_dist_l  .HostRead();
       gsl_code_l  .HostRead();
       gsl_elem_l  .HostRead();
-      gsl_newton_l.HostRead();
-      DEV.info    .HostRead();
+      // gsl_newton_l.HostRead();
 
       // unpack arrays into opt
       for (int point=0; point<n; ++point)
       {
-         opt[point].code  = gsl_code_l[point];
-         opt[point].el    = gsl_elem_l[point];
-         opt[point].dist2 = gsl_dist_l(point);
-         for (int d=0; d<dim; ++d)
+         opt[point].code = AsConst(gsl_code_l)[point];
+         if (opt[point].code == CODE_NOT_FOUND)
          {
-            opt[point].r[d] = gsl_ref_l(dim*point + d);
+            continue;
          }
+         opt[point].el   = AsConst(gsl_elem_l)[point];
+         opt[point].dist2 = AsConst(gsl_dist_l)[point];
+         for (int d = 0; d < dim; ++d)
+         {
+            opt[point].r[d] = AsConst(gsl_ref_l)[dim * point + d];
+         }
+         IntegrationPoint ip;
+         ip.Set3(&opt[point].r[0]);
+         const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(opt[point].el);
+         const Geometry::Type gt = fe->GetGeomType();
+         if (gt == Geometry::SQUARE || gt == Geometry::SEGMENT)
+         {
+            opt[point].code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+         }
+         // opt[point].el    = gsl_elem_l[point];
+         // opt[point].dist2 = gsl_dist_l(point);
+         // for (int d=0; d<dim; ++d)
+         // {
+         //    opt[point].r[d] = gsl_ref_l(dim*point + d);
+         // }
          opt->newton = gsl_newton_l[point];
       }
       array_free(&src_pt);
@@ -1920,10 +1957,6 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
       sarray_transfer(struct outPt_t, &out_pt, proc, 1, DEV.cr);
    }
    MPI_Barrier(gsl_comm->c);
-
-   gsl_code.HostReadWrite();
-   gsl_elem.HostReadWrite();
-   gsl_proc.HostReadWrite();
 
    // /* merge remote results with user data */
    int npt_found_on_other_proc = 0;
@@ -1950,11 +1983,29 @@ void FindPointsGSLIB::FindPointsSurfOnDevice( const Vector &point_pos,
             gsl_proc[index] = opt->proc;
             gsl_elem[index] = opt->el;
             gsl_code[index] = opt->code;
-            gsl_newton[index] = opt->newton;
          }
       }
       array_free(&out_pt);
    }
+
+   // Set code for local points
+   for (int index = 0; index < points_cnt; index++)
+   {
+      if (gsl_code[index] == CODE_NOT_FOUND || gsl_proc[index] != id)
+      {
+         continue;
+      }
+      IntegrationPoint ip;
+      ip.Set3(gsl_mfem_ref.GetData() + index*dim);
+      const int elem = gsl_elem[index];
+      const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(elem);
+      const Geometry::Type gt = fe->GetGeomType();
+      if (gt == Geometry::SQUARE || gt == Geometry::SEGMENT)
+      {
+         gsl_code[index] = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+      }
+   }
+
    MPI_Barrier(gsl_comm->c);
 }
 
@@ -3154,16 +3205,6 @@ void FindPointsGSLIB::GetNodalValuesSurf(const GridFunction *gf_in,
       fes->GetElementVDofs(ie, vdofs);    // get non-lexi dof IDs
       nodes->GetSubVector(vdofs, posV);   // posV is used to assign data to pos
       /* At this stage, we have the node coordinates stored in pos DenseMatrix */
-
-      // We also get the reference element positions for debugging reasons
-      DenseMatrix pos_ref(ir.GetNPoints(), dim);
-      for (int i=0; i<ir.GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         pos_ref(i,0) = ip.x;
-         if (dim == 2) { pos_ref(i,1) = ip.y; }
-         if (dim == 3) { pos_ref(i,2) = ip.z; }
-      }
 
       for (int j=0; j<dof_cnt_split; j++)   // lexicographic dof ID j
       {

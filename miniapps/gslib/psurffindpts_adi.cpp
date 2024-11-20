@@ -195,7 +195,7 @@ int main (int argc, char *argv[])
    if (strcmp(mesh_file,"NULL")!=0)
    {
       mesh = new Mesh(mesh_file, 1, 1, false);
-      for (int lev=0; lev<rs_levels; lev++)
+      for (int lev=0; lev<rs_levels+rp_levels; lev++)
       {
          mesh->UniformRefinement();
       }
@@ -338,6 +338,7 @@ int main (int argc, char *argv[])
    // -----------FindPointsSetup----------------
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.SetupSurf(psubmesh);
+   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
 
    double meshvol = ComputeMeshArea(&psubmesh);
    MPI_Allreduce(MPI_IN_PLACE, &meshvol, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -413,8 +414,8 @@ int main (int argc, char *argv[])
    // -----------FindPointsSetup----------------
 
    // const int vdim   = sm_fes->GetVDim();
-   // int nel_sm = sm_fes->GetNE();
-   int nel_sm = 1.0;
+   int nel_sm = submesh->GetNE();
+   // int nel_sm = 1000;
    Vector point_pos(npt*vdim*nel_sm);
    Vector field_exact(nel_sm*npt*ncomp);
    int npt_per_proc = point_pos.Size()/vdim;

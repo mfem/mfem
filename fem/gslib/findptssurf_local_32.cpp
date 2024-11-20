@@ -725,7 +725,6 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
    const int p_NEL = p_NE*nel; // total nos. points in all elements
    MFEM_VERIFY(MD1<=pMax, "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
-   std::cout << std::setprecision(9);
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -1273,7 +1272,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
    });
 }
 
-void FindPointsGSLIB::FindPointsSurfLocal32(Vector &point_pos,
+void FindPointsGSLIB::FindPointsSurfLocal32(const Vector &point_pos,
                                             int point_pos_ordering,
                                             Array<unsigned int> &code,
                                             Array<unsigned int> &elem,
@@ -1282,20 +1281,6 @@ void FindPointsGSLIB::FindPointsSurfLocal32(Vector &point_pos,
                                             Array<int> &newton,
                                             int npt)
 {
-   point_pos.HostReadWrite();
-   gsl_mesh.HostReadWrite();
-   DEV.o_wtend.HostReadWrite();
-   DEV.o_c.HostReadWrite();
-   DEV.o_A.HostReadWrite();
-   DEV.o_min.HostReadWrite();
-   DEV.o_max.HostReadWrite();
-   DEV.o_hashMin.HostReadWrite();
-   DEV.o_hashFac.HostReadWrite();
-   DEV.ou_offset.HostReadWrite();
-   DEV.gll1d.HostReadWrite();
-   DEV.lagcoeff.HostReadWrite();
-   DEV.info.HostReadWrite();
-
    double dist_tol = 1e-14;
 
    if (npt == 0)
