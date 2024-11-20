@@ -14,7 +14,6 @@
 namespace mfem
 {
 
-MassIntegrator::Kernels MassIntegrator::kernels;
 MassIntegrator::Kernels::Kernels()
 {
    // 2D
