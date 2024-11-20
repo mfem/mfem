@@ -288,6 +288,8 @@ int main(int argc, char *argv[])
    }
    FilterSolver->SetEssentialBoundary(ess_bdr_filter);
    FilterSolver->SetupFEM();
+   FilterSolver->AssembleBoundary();
+   FilterSolver->AssembleDiffusionBilinear();
 
    BilinearForm mass(&control_fes);
    mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
