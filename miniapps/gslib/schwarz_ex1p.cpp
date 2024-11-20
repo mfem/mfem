@@ -192,6 +192,10 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
+   for (int i = 0; i < pmesh->GetNE(); i++)
+   {
+      pmesh->SetAttribute(i,color+1);
+   }
    delete mesh;
 
    // Define a finite element space on the mesh. Here we use continuous
@@ -429,6 +433,13 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x << flush;
    }
+
+   std::cout << myid << " " << color << " " << pmesh->GetNE() << " k10info\n";
+   VisItDataCollection dc("schwarz"+std::to_string(color), pmesh);
+   dc.SetFormat(DataCollection::SERIAL_FORMAT);
+   dc.RegisterField("solution", &x);
+   dc.Save();
+
 
    // 15. Free the used memory.
    finder.FreeData();

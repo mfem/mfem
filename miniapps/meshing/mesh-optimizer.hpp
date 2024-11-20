@@ -113,6 +113,16 @@ real_t material_indicator_2d(const Vector &x)
    return wgt;
 }
 
+real_t material_indicator_2d_sharp(const Vector &x)
+{
+   real_t xc = x(0)+(0.05), yc = x(1)+(0.05);
+   real_t alpha = 200;
+   real_t r0 = 0.7;
+   real_t val = std::atan(alpha*(std::sqrt(xc*xc+yc*yc)-r0));
+   // std::cout << x(0) << " " << x(1) << " " << val << " k10info\n";
+   return val;
+}
+
 real_t discrete_ori_2d(const Vector &x)
 {
    return M_PI * x(1) * (1.0 - x(1)) * cos(2 * M_PI * x(0));

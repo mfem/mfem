@@ -107,6 +107,7 @@
 //   Kershaw transformation can be imposed using the transformation ('t') feature in the mesh-explorer miniapp.
 //   * mpirun - np 6 pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -qo 8 -ker -pa
 
+//   make pmesh-optimizer -j4 && mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -ae 1
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -337,6 +338,8 @@ int main (int argc, char *argv[])
    }
    Device device(devopt);
    if (myid == 0) { device.Print();}
+   bool visit = true;
+
 
    // 3. Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -378,6 +381,9 @@ int main (int argc, char *argv[])
    //    changing x automatically changes the shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
+
+   VisItDataCollection dc("pmeshopt", pmesh);
+   dc.SetFormat(DataCollection::SERIAL_FORMAT);
 
    // 8. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
@@ -588,6 +594,8 @@ int main (int argc, char *argv[])
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), ori(&ind_fes);
    ParGridFunction aspr3d(&ind_fesv);
+   ParGridFunction disc(&ind_fes);
+   ParGridFunction disccopy(disc);
 
    const AssemblyLevel al =
       pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY;
@@ -629,11 +637,11 @@ int main (int argc, char *argv[])
       }
       case 6: // material indicator 2D
       {
-         ParGridFunction d_x(&ind_fes), d_y(&ind_fes), disc(&ind_fes);
+         ParGridFunction d_x(&ind_fes), d_y(&ind_fes);
 
          target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE;
          DiscreteAdaptTC *tc = new DiscreteAdaptTC(target_t);
-         FunctionCoefficient mat_coeff(material_indicator_2d);
+         FunctionCoefficient mat_coeff(material_indicator_2d_sharp);
          disc.ProjectCoefficient(mat_coeff);
          if (adapt_eval == 0)
          {
@@ -647,6 +655,28 @@ int main (int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
+         if (visualization)
+         {
+            socketstream sock;
+            if (myid == 0)
+            {
+               sock.open("localhost", 19916);
+               sock << "solution\n";
+            }
+            pmesh->PrintAsOne(sock);
+            disc.SaveAsOne(sock);
+            if (myid == 0)
+            {
+               sock << "window_title 'Displacements'\n"
+                  << "window_geometry "
+                  << 0 << " " << 600 << " " << 600 << " " << 600 << "\n"
+                  << "keys jRmclA" << endl;
+            }
+         }
+
+         disccopy = disc;
+         dc.RegisterField("solution", &disccopy);
+
          // Diffuse the interface
          DiffuseField(disc,2);
 
@@ -672,6 +702,10 @@ int main (int argc, char *argv[])
          const real_t eps = 0.01;
          const real_t aspr_ratio = 20.0;
          const real_t size_ratio = 40.0;
+
+         dc.RegisterField("size", &size);
+         dc.SetCycle(1);
+         dc.SetTime(1.0);
 
          for (int i = 0; i < size.Size(); i++)
          {
@@ -728,6 +762,7 @@ int main (int argc, char *argv[])
          tc->SetParDiscreteTargetSize(size);
          tc->SetParDiscreteTargetAspectRatio(aspr);
          target_c = tc;
+         dc.Save();
          break;
       }
       case 7: // Discrete aspect ratio 3D
@@ -1246,6 +1281,34 @@ int main (int argc, char *argv[])
               << "keys jRmclA" << endl;
       }
    }
+
+   FunctionCoefficient mat_coeff(material_indicator_2d_sharp);
+   disc.ProjectCoefficient(mat_coeff);
+   if (visualization)
+   {
+      socketstream sock;
+      if (myid == 0)
+      {
+         sock.open("localhost", 19916);
+         sock << "solution\n";
+      }
+      pmesh->PrintAsOne(sock);
+      disc.SaveAsOne(sock);
+      if (myid == 0)
+      {
+         sock << "window_title 'Displacements'\n"
+            << "window_geometry "
+            << 600 << " " << 600 << " " << 600 << " " << 600 << "\n"
+            << "keys jRmclA" << endl;
+      }
+   }
+
+   DiscreteAdaptTC *tc = dynamic_cast<DiscreteAdaptTC *>(target_c);
+   tc->GetDiscreteTargetSpec(size, 0);
+
+   dc.SetCycle(2);
+   dc.SetTime(2.0);
+   dc.Save();
 
    delete S;
    delete S_prec;

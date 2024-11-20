@@ -225,7 +225,7 @@ static MFEM_HOST_DEVICE inline findptsElementGEdge_t get_edge(
 
    const int jj = jidx%pN;
    const int dd = jidx/pN;
-   const int mask = 8u<<(ei/2);  // adi: why this specific mask?
+   const int mask = 1u << ei;
    if ((side_init&mask) == 0)
    {
       /* As j runs from 0 to 3*pN - 1
@@ -351,7 +351,6 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
       {
          out->tr = p->tr;
       }
-      out->tr = std::min(out->tr, 0.5);
       return false;
    }
    else   // if the iteration in not good
@@ -809,7 +808,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      {
                         fpt->dist2 = DBL_MAX;
                         fpt->dist2p = 0;
-                        fpt->tr = 0.25;
+                        fpt->tr = 1.0;
                      }
                      if (j<sDIM)
                      {
@@ -844,8 +843,9 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                         if (j==0)
                         {
                            fpt->dist2 = DBL_MAX;
-                           for (int ir=0; ir<D1D;
-                                ++ir)    // loop through all r-th dof data obtained from seed_j
+                           // for (int ir=D1D/2; ir<D1D/2+1; ++ir)
+                           for (int ir=0; ir<D1D; ++ir)
+                           // loop through all r-th dof data obtained from seed_j
                            {
                               if (dist2_temp[ir] < fpt->dist2)
                               {
@@ -857,9 +857,15 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                               }
                            }
                         }
+
                      }
                      MFEM_SYNC_THREAD;
                   } //seed done
+                  // std::cout << " Step: " << -1 <<
+                  //           " xyz: " << x_i[0] << " " << x_i[1] << " " << x_i[2] <<
+                  //           " el: " << el <<
+                  //           " fpt->r: " << fpt->r[0] << " " <<  fpt->r[1] << " " << fpt->r[2] <<
+                  //           " fpt->dist2: " << fpt->dist2 << " k10-seed\n";
 
                   MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
@@ -871,7 +877,7 @@ static void FindPointsSurfLocal32D_Kernel(const int npt,
                      {
                         tmp->dist2  = DBL_MAX;
                         tmp->dist2p = 0;
-                        tmp->tr     = 1;
+                        tmp->tr     = 1.0; //0.25;
                         tmp->flags   = 0;
                         tmp->r[0]   = fpt->r[0];
                         tmp->r[1]   = fpt->r[1];

@@ -60,6 +60,17 @@ void F_exact(const Vector &p, Vector &F)
    }
 }
 
+double ComputeMeshArea(Mesh *mesh)
+{
+   double area = 0.0;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      area += mesh->GetElementVolume(i);
+   }
+   // MPI_Allreduce(MPI_IN_PLACE, &area, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
+   return area;
+}
+
 int main (int argc, char *argv[])
 {
    std::remove("out");
@@ -328,6 +339,11 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.SetupSurf(psubmesh);
 
+   double meshvol = ComputeMeshArea(&psubmesh);
+   MPI_Allreduce(MPI_IN_PLACE, &meshvol, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   double meshabbvol = 0.0;
+   double meshobbvol = 0.0;
+
    Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
    if (visit)
    {
@@ -335,6 +351,10 @@ int main (int argc, char *argv[])
       mesh_obb  = finder.GetBoundingBoxMeshSurf(1);  // Oriented bounding box
       mesh_lhbb = finder.GetBoundingBoxMeshSurf(2);  // Local Hash bounding box
       mesh_ghbb = finder.GetBoundingBoxMeshSurf(3);  // Global Hash bounding box
+      if (mesh_abb && myid == 0) {
+         meshabbvol = ComputeMeshArea(mesh_abb);
+         meshobbvol = ComputeMeshArea(mesh_obb);
+      }
       if (myid==0)
       {
          VisItDataCollection dc0("findersurfabb", mesh_abb);
@@ -384,10 +404,17 @@ int main (int argc, char *argv[])
       }
    }
    MPI_Barrier(MPI_COMM_WORLD);
+
+   if (myid == 0)
+   {
+      std::cout << "Mesh, AABB, OBB areas: " << meshvol << " " <<
+      meshabbvol << " " << meshobbvol << std::endl;
+   }
    // -----------FindPointsSetup----------------
 
    // const int vdim   = sm_fes->GetVDim();
-   int nel_sm = submesh->GetNE();
+   // int nel_sm = sm_fes->GetNE();
+   int nel_sm = 1.0;
    Vector point_pos(npt*vdim*nel_sm);
    Vector field_exact(nel_sm*npt*ncomp);
    int npt_per_proc = point_pos.Size()/vdim;
@@ -406,8 +433,8 @@ int main (int argc, char *argv[])
 
       Vector pos_ref1(npt);
       Vector pos_ref2(npt);
-      pos_ref1.Randomize((myid+1)*17.0);
-      pos_ref2.Randomize((myid+1)*53.0);
+      pos_ref1.Randomize(0.0);
+      pos_ref2.Randomize(0.0);
       for (int j=0; j<npt; j++)
       {
          IntegrationPoint ip;
@@ -428,11 +455,19 @@ int main (int argc, char *argv[])
             }
          }
          Vector pos_i(vdim);
+         transf->SetIntPoint(&ip);
          transf->Transform(ip, pos_i);
          for (int d=0; d<vdim; d++)
          {
             point_pos(nel_sm*npt*d + i*npt + j) = pos_i(d);
          }
+         // point_pos(0) = 5.07731534;// 0.289066938 -0.934150366
+         // point_pos(1) = 0.0;
+         // point_pos(2) = 0.0;
+         // point_pos(0) = 0.451419;
+         // point_pos(1) = 2.21173;
+         // point_pos(2) =  0;
+         // point_pos ordering is bynodes so be careful
       }
    }
 
@@ -539,13 +574,14 @@ int main (int argc, char *argv[])
             err = gf_ordering == Ordering::byNODES ?
                   fabs(exact_val(j) - field_out[i + j*npt_per_proc]) :
                   fabs(exact_val(j) - field_out[i*ncomp + j]);
-            if (err > 1e-10)
-            {
-               std::cout << std::setprecision(10) << pos(0) << " " << pos(1) << " "
-                         << exact_val(0) << " " << " "
-                         << field_out[i + j*npt_per_proc] << " " <<
-                         err << " k10info\n";
-            }
+            // if (err > 1e-10)
+            // {
+            //    std::cout << std::setprecision(10) << pos(0) << " " << pos(1) << " "
+            //              << exact_val(0) << " " << " "
+            //              << field_out[i + j*npt_per_proc] << " " <<
+            //              err << " k10info\n";
+
+            // }
             max_err  = std::max(max_err, err);
             max_dist = std::max(max_dist, dist_p_out(i));
 
@@ -654,13 +690,14 @@ int main (int argc, char *argv[])
            << std::endl;
    }
 
+
+
    // finder.FreeData();
    delete submesh, mesh;
    // // delete fec;
 
    // // cout << "Just before FreeData" << endl;
    // // finder.FreeData();
-
 
 
    return 0;

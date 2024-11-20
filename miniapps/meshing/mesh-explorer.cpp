@@ -54,8 +54,8 @@ void transformation(const Vector &p, Vector &v)
    }
    else if (p.Size() == 2)
    {
-      v(0) = p(0) + s*p(1);
-      v(1) = p(1) + s*p(0);
+      v(0) = p(0) + s*p(1)*p(1);
+      v(1) = 2.0*p(1) + 3*s*p(0)*p(0)*p(0);
    }
    else
    {

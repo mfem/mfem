@@ -407,6 +407,8 @@ public:
 
    virtual Mesh* GetBoundingBoxMeshSurf(int type = 0);
 
+   virtual Mesh* GetGSLIBMesh();
+
    void SetGPUCode(int code_) { gpu_code = code_; }
 
    virtual const Array<int> &GetNewtonIters() const { return gsl_newton; }
@@ -416,67 +418,67 @@ public:
     overlapping grids.
     The parameters in this class are the same as FindPointsGSLIB with the
     difference of additional inputs required to account for more than 1 mesh. */
-//class OversetFindPointsGSLIB : public FindPointsGSLIB
-//{
-//protected:
-//   bool overset;
-//   unsigned int u_meshid;
-//   Vector distfint; // Used to store nodal vals of grid func. passed to findpts
+class OversetFindPointsGSLIB : public FindPointsGSLIB
+{
+protected:
+  bool overset;
+  unsigned int u_meshid;
+  Vector distfint; // Used to store nodal vals of grid func. passed to findpts
 
-//public:
-//   OversetFindPointsGSLIB() : FindPointsGSLIB(),
-//      overset(true) { }
+public:
+  OversetFindPointsGSLIB() : FindPointsGSLIB(),
+     overset(true) { }
 
-//#ifdef MFEM_USE_MPI
-//   OversetFindPointsGSLIB(MPI_Comm comm_) : FindPointsGSLIB(comm_),
-//      overset(true) { }
-//#endif
+#ifdef MFEM_USE_MPI
+  OversetFindPointsGSLIB(MPI_Comm comm_) : FindPointsGSLIB(comm_),
+     overset(true) { }
+#endif
 
-//   /** Initializes the internal mesh in gslib, by sending the positions of the
-//       Gauss-Lobatto nodes of the input Mesh object @a m.
-//       Note: not tested with periodic meshes (L2).
-//       Note: the input mesh @a m must have Nodes set.
+  /** Initializes the internal mesh in gslib, by sending the positions of the
+      Gauss-Lobatto nodes of the input Mesh object @a m.
+      Note: not tested with periodic meshes (L2).
+      Note: the input mesh @a m must have Nodes set.
 
-//       @param[in] m         Input mesh.
-//       @param[in] meshid    A unique # for each overlapping mesh. This id is
-//                            used to make sure that points being searched are not
-//                            looked for in the mesh that they belong to.
-//       @param[in] gfmax     (Optional) GridFunction in H1 that is used as a
-//                            discriminator when one point is located in multiple
-//                            meshes. The mesh that maximizes gfmax is chosen.
-//                            For example, using the distance field based on the
-//                            overlapping boundaries is helpful for convergence
-//                            during Schwarz iterations.
-//       @param[in] bb_t      (Optional) Relative size of bounding box around
-//                            each element.
-//       @param[in] newt_tol  (Optional) Newton tolerance for the gslib
-//                            search methods.
-//       @param[in] npt_max   (Optional) Number of points for simultaneous
-//                            iteration. This alters performance and
-//                            memory footprint.*/
-//   void Setup(Mesh &m, const int meshid, GridFunction *gfmax = NULL,
-//              const double bb_t = 0.1, const double newt_tol = 1.0e-12,
-//              const int npt_max = 256);
+      @param[in] m         Input mesh.
+      @param[in] meshid    A unique # for each overlapping mesh. This id is
+                           used to make sure that points being searched are not
+                           looked for in the mesh that they belong to.
+      @param[in] gfmax     (Optional) GridFunction in H1 that is used as a
+                           discriminator when one point is located in multiple
+                           meshes. The mesh that maximizes gfmax is chosen.
+                           For example, using the distance field based on the
+                           overlapping boundaries is helpful for convergence
+                           during Schwarz iterations.
+      @param[in] bb_t      (Optional) Relative size of bounding box around
+                           each element.
+      @param[in] newt_tol  (Optional) Newton tolerance for the gslib
+                           search methods.
+      @param[in] npt_max   (Optional) Number of points for simultaneous
+                           iteration. This alters performance and
+                           memory footprint.*/
+  void Setup(Mesh &m, const int meshid, GridFunction *gfmax = NULL,
+             const double bb_t = 0.1, const double newt_tol = 1.0e-12,
+             const int npt_max = 256);
 
-//   /** Searches positions given in physical space by @a point_pos. All output
-//       Arrays and Vectors are expected to have the correct size.
+  /** Searches positions given in physical space by @a point_pos. All output
+      Arrays and Vectors are expected to have the correct size.
 
-//       @param[in]  point_pos           Positions to be found.
-//       @param[in]  point_id            Index of the mesh that the point belongs
-//                                       to (corresponding to @a meshid in Setup).
-//       @param[in]  point_pos_ordering  Ordering of the points:
-//                                       byNodes: (XXX...,YYY...,ZZZ) or
-//                                       byVDim: (XYZ,XYZ,....XYZ) */
-//   void FindPoints(const Vector &point_pos,
-//                   Array<unsigned int> &point_id,
-//                   int point_pos_ordering = Ordering::byNODES);
+      @param[in]  point_pos           Positions to be found.
+      @param[in]  point_id            Index of the mesh that the point belongs
+                                      to (corresponding to @a meshid in Setup).
+      @param[in]  point_pos_ordering  Ordering of the points:
+                                      byNodes: (XXX...,YYY...,ZZZ) or
+                                      byVDim: (XYZ,XYZ,....XYZ) */
+  void FindPoints(const Vector &point_pos,
+                  Array<unsigned int> &point_id,
+                  int point_pos_ordering = Ordering::byNODES);
 
-//   /** Search positions and interpolate */
-//   void Interpolate(const Vector &point_pos, Array<unsigned int> &point_id,
-//                    const GridFunction &field_in, Vector &field_out,
-//                    int point_pos_ordering = Ordering::byNODES);
-//   using FindPointsGSLIB::Interpolate;
-//};
+  /** Search positions and interpolate */
+  void Interpolate(const Vector &point_pos, Array<unsigned int> &point_id,
+                   const GridFunction &field_in, Vector &field_out,
+                   int point_pos_ordering = Ordering::byNODES);
+  using FindPointsGSLIB::Interpolate;
+};
 
 } // namespace mfem
 

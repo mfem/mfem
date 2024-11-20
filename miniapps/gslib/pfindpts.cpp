@@ -54,6 +54,10 @@
 // tets
 // make pfindpts -j && mpirun -np 5 pfindpts -d debug -rs 0 -mo 3 -o 3 -ji 0.0 -nc 2 -eo 2 -po 1 -gfo 1 -et 1 -vis -dim 3
 
+// Single element for plotting AABB and OBB
+// make pfindpts -j && mpirun -np 1 pfindpts -nx 1 -rs 0 -dim 3 -smooth 4 -vis -visit -o 3
+
+// make pfindpts -j && mpirun -np 1 pfindpts -m spiral_3D_p9.mesh -rs 2 -mo 9 -o 9 -eo 1 -visit
 #include "mfem.hpp"
 #include "general/forall.hpp"
 #include "../common/mfem-common.hpp"
@@ -76,6 +80,52 @@ void F_exact(const Vector &p, Vector &F)
 {
    F(0) = field_func(p);
    for (int i = 1; i < F.Size(); i++) { F(i) = (i+1)*F(0); }
+}
+
+void skewandstretch(const Vector &x, Vector &y)
+{
+   const double xv = x(0);
+   const double yv = x(1);
+   const int dim = x.Size();
+   const double zv = dim == 3 ? x(2) : 0.0;
+   if (dim == 2)
+   {
+      double xnew = xv + 1.25*yv*yv;
+      double ynew = yv;
+      // Rotate 15 degrees about (1,0)
+      double theta = 15.0;
+      double c = cos(theta*M_PI/180.0);
+      double s = sin(theta*M_PI/180.0);
+      y(0) = c*xnew - s*ynew;
+      y(1) = s*xnew + c*ynew;
+      // y(0) = xnew;
+      // y(1) = ynew;
+
+   }
+   else if (dim == 3)
+   {
+      double xnew = xv + 1.25*yv*yv;
+      double ynew = yv;
+      double znew = zv + 1.25*yv;
+      // Rotate 15 degrees about (1,0)
+      double theta = 15.0;
+      double c = cos(theta*M_PI/180.0);
+      double s = sin(theta*M_PI/180.0);
+      y(0) = c*xnew - s*ynew;
+      y(1) = s*xnew + c*ynew;
+      y(2) = znew;
+   }
+}
+
+double ComputeMeshArea(Mesh *mesh)
+{
+   double area = 0.0;
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      area += mesh->GetElementVolume(i);
+   }
+   // MPI_Allreduce(MPI_IN_PLACE, &area, 1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
+   return area;
 }
 
 int main (int argc, char *argv[])
@@ -268,11 +318,16 @@ int main (int argc, char *argv[])
    }
 
    // Kershaw transformation
-   if (smooth > 0)
+   if (smooth > 0 && smooth <= 3)
    {
       // 1 leads to a linear transformation, 2 cubic, and 3 5th order.
       common::KershawTransformation kershawT(pmesh.Dimension(), 0.3, 0.3, smooth);
       pmesh.Transform(kershawT);
+   }
+   else if (smooth == 4)
+   {
+      VectorFunctionCoefficient FF(dim, skewandstretch);
+      pmesh.Transform(FF);
    }
    if (myid == 0) { cout << "Kershaw transformation done." << endl; }
 
@@ -423,7 +478,7 @@ int main (int argc, char *argv[])
    Vector interp_vals(pts_cnt*vec_dim);
 
    FindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Setup(pmesh);
+   finder.Setup(pmesh, 0.1);
    finder.SetGPUCode(gpucode);
    finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    finder.FindPoints(vxyz, point_ordering);
@@ -623,14 +678,35 @@ int main (int argc, char *argv[])
    }
 
 
-   Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb;
+   double meshvol = ComputeMeshArea(&pmesh);
+   MPI_Allreduce(MPI_IN_PLACE, &meshvol, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   double meshabbvol = 0.0;
+   double meshobbvol = 0.0;
+
+   Mesh *mesh_abb, *mesh_obb, *mesh_lhbb, *mesh_ghbb, *mesh_gslib;
    if (visit)
    {
       mesh_abb = finder.GetBoundingBoxMesh(0);
       mesh_obb = finder.GetBoundingBoxMesh(1);
       mesh_lhbb = finder.GetBoundingBoxMesh(2);
       mesh_ghbb = finder.GetBoundingBoxMesh(3);
+      if (mesh_abb) {
+         meshabbvol = ComputeMeshArea(mesh_abb);
+         meshobbvol = ComputeMeshArea(mesh_obb);
+      }
+      mesh_gslib = finder.GetGSLIBMesh();
    }
+
+   if (myid == 0)
+   {
+      std::cout << "Mesh, AABB, OBB areas: " << meshvol << " " << meshabbvol << " " << meshobbvol << std::endl;
+   }
+   if (myid == 0)
+   {
+      ofstream mesh_ofs("perturbed.mesh");
+      mesh_gslib->Print(mesh_ofs);
+   }
+
 
    if (visit && myid == 0)
    {
