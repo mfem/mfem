@@ -17,20 +17,7 @@ namespace mfem
 DarcyReduction::DarcyReduction(FiniteElementSpace *fes_u_,
                                FiniteElementSpace *fes_p_, bool bsym_)
    : fes_u(fes_u_), fes_p(fes_p_), bsym(bsym_)
-{
-   m_nlfi_u = NULL;
-   m_nlfi_p = NULL;
-   own_m_nlfi_u = false;
-   own_m_nlfi_p = false;
-
-   Af_data = NULL;
-   Bf_data = NULL;
-   Bf_face_data = NULL;
-   D_data = NULL;
-   D_face_data = NULL;
-
-   S = NULL;
-}
+{ }
 
 DarcyReduction::~DarcyReduction()
 {
@@ -318,8 +305,6 @@ DarcyFluxReduction::DarcyFluxReduction(FiniteElementSpace *fes_u,
    : DarcyReduction(fes_u, fes_p, bsym)
 {
    width = height = fes_p->GetVSize();
-
-   Af_ipiv = NULL;
 }
 
 DarcyFluxReduction::~DarcyFluxReduction()
@@ -664,10 +649,6 @@ DarcyPotentialReduction::DarcyPotentialReduction(FiniteElementSpace *fes_u,
    : DarcyReduction(fes_u, fes_p, bsym)
 {
    width = height = fes_u->GetVSize();
-
-   Ae_data = NULL;
-   Be_data = NULL;
-   D_ipiv = NULL;
 }
 
 DarcyPotentialReduction::~DarcyPotentialReduction()

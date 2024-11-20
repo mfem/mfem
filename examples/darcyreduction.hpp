@@ -25,21 +25,21 @@ class DarcyReduction : public Operator
 {
 protected:
    FiniteElementSpace *fes_u, *fes_p;
-   NonlinearFormIntegrator *m_nlfi_u, *m_nlfi_p;
-   bool own_m_nlfi_u, own_m_nlfi_p;
+   NonlinearFormIntegrator *m_nlfi_u{}, *m_nlfi_p{};
+   bool own_m_nlfi_u{}, own_m_nlfi_p{};
 
    Array<int> Af_offsets, Af_f_offsets;
-   real_t *Af_data;
+   real_t *Af_data{};
 
    Array<int> Bf_offsets, Bf_face_offsets;
-   real_t *Bf_data, *Bf_face_data;
+   real_t *Bf_data{}, *Bf_face_data{};
 
    Array<int> D_offsets, D_f_offsets, D_face_offsets;
-   real_t *D_data, *D_face_data;
+   real_t *D_data{}, *D_face_data{};
 
-   bool bsym;
+   bool bsym{};
 
-   SparseMatrix *S;
+   SparseMatrix *S{};
 
    void InitA();
    void InitBD();
@@ -102,7 +102,7 @@ public:
 
 class DarcyFluxReduction : public DarcyReduction
 {
-   int *Af_ipiv;
+   int *Af_ipiv{};
 
    void ComputeS() override;
 
@@ -129,12 +129,12 @@ class DarcyPotentialReduction : public DarcyReduction
    Array<int> hat_offsets, hat_dofs_marker;
 
    Array<int> Ae_offsets;
-   real_t *Ae_data;
+   real_t *Ae_data{};
 
    Array<int> Be_offsets;
-   real_t *Be_data;
+   real_t *Be_data{};
 
-   int *D_ipiv;
+   int *D_ipiv{};
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;

@@ -38,12 +38,12 @@ public:
 
 private:
    FiniteElementSpace *fes_p;
-   BilinearFormIntegrator *c_bfi_p;
-   NonlinearFormIntegrator *c_nlfi_p;
-   NonlinearFormIntegrator *m_nlfi_u, *m_nlfi_p;
-   bool own_m_nlfi_u, own_m_nlfi_p;
-   BlockNonlinearFormIntegrator *m_nlfi;
-   bool own_m_nlfi;
+   BilinearFormIntegrator *c_bfi_p{};
+   NonlinearFormIntegrator *c_nlfi_p{};
+   NonlinearFormIntegrator *m_nlfi_u{}, *m_nlfi_p{};
+   bool own_m_nlfi_u{}, own_m_nlfi_p{};
+   BlockNonlinearFormIntegrator *m_nlfi{};
+   bool own_m_nlfi{};
 
    /// Set of constraint boundary face integrators to be applied.
    Array<BilinearFormIntegrator*>  boundary_constraint_pot_integs;
@@ -51,9 +51,9 @@ private:
    Array<NonlinearFormIntegrator*> boundary_constraint_pot_nonlin_integs;
    Array<Array<int>*>              boundary_constraint_pot_nonlin_integs_marker;
    /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
-   int extern_bdr_constr_pot_integs;
+   int extern_bdr_constr_pot_integs{};
 
-   bool bsym, bnl, bfin;
+   bool bsym{}, bnl{}, bfin{};
    DiagonalPolicy diag_policy{DIAG_ONE};
 
    struct
@@ -73,27 +73,27 @@ private:
    } lsolve;
 
    Array<int> Ae_offsets;
-   real_t *Af_lin_data, *Ae_data;
+   real_t *Af_lin_data{}, *Ae_data{};
 
    Array<int> Bf_offsets, Be_offsets;
-   real_t *Bf_data, *Be_data;
+   real_t *Bf_data{}, *Be_data{};
 
    Array<int> Df_offsets, Df_f_offsets;
-   mutable real_t *Df_data, *Df_lin_data;
-   mutable int *Df_ipiv;
-   bool D_empty;
+   mutable real_t *Df_data{}, *Df_lin_data{};
+   mutable int *Df_ipiv{};
+   bool D_empty{true};
 
    Array<int> Ct_offsets;
-   real_t *Ct_data;
+   real_t *Ct_data{};
 
    mutable Array<int> E_offsets;
-   mutable real_t *E_data;
+   mutable real_t *E_data{};
 
    Array<int> &G_offsets{E_offsets};
-   mutable real_t *G_data;
+   mutable real_t *G_data{};
 
    mutable Array<int> H_offsets;
-   mutable real_t *H_data;
+   mutable real_t *H_data{};
 
    mutable Array<int> darcy_offsets;
    mutable BlockVector darcy_rhs;

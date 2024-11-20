@@ -24,33 +24,8 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    : Hybridization(fes_u_, fes_c_), Operator(c_fes->GetVSize()),
      fes_p(fes_p_), bsym(bsymmetrize)
 {
-   c_bfi_p = NULL;
-   c_nlfi_p = NULL;
-   m_nlfi_u = NULL;
-   m_nlfi_p = NULL;
-   m_nlfi = NULL;
-   own_m_nlfi_u = false;
-   own_m_nlfi_p = false;
-   own_m_nlfi = false;
-
-   bfin = false;
-   bnl = false;
-
    SetLocalNLSolver(LSsolveType::LBFGS);
    SetLocalNLPreconditioner(LPrecType::GMRES);
-
-   Af_lin_data = NULL;
-   Ae_data = NULL;
-   Bf_data = NULL;
-   Be_data = NULL;
-   Df_data = NULL;
-   Df_lin_data = NULL;
-   Df_ipiv = NULL;
-   D_empty = true;
-   Ct_data = NULL;
-   E_data = NULL;
-   G_data = NULL;
-   H_data = NULL;
 }
 
 DarcyHybridization::~DarcyHybridization()

@@ -29,21 +29,21 @@ class DarcyForm : public Operator
 
    bool bsym;
 
-   BilinearForm *M_u, *M_p;
-   NonlinearForm *Mnl_u, *Mnl_p;
-   MixedBilinearForm *B;
-   BlockNonlinearForm *Mnl;
+   BilinearForm *M_u{}, *M_p{};
+   NonlinearForm *Mnl_u{}, *Mnl_p{};
+   MixedBilinearForm *B{};
+   BlockNonlinearForm *Mnl{};
 
    OperatorHandle pM_u, pM_p, pB, pBt, pM;
    mutable OperatorHandle pG;
 
    /// The assembly level of the form (full, partial, etc.)
-   AssemblyLevel assembly;
+   AssemblyLevel assembly{AssemblyLevel::LEGACY};
 
-   BlockOperator *block_op;
+   BlockOperator *block_op{};
 
-   DarcyReduction *reduction; ///< Owned.
-   DarcyHybridization *hybridization; ///< Owned.
+   DarcyReduction *reduction{}; ///< Owned.
+   DarcyHybridization *hybridization{}; ///< Owned.
 
    void EnableReduction(const Array<int> &ess_flux_tdof_list,
                         DarcyReduction *reduction);

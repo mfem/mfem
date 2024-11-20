@@ -25,20 +25,6 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
    offsets.PartialSum();
 
    width = height = offsets.Last();
-
-   M_u = NULL;
-   M_p = NULL;
-   Mnl_u = NULL;
-   Mnl_p = NULL;
-   B = NULL;
-   Mnl = NULL;
-
-   assembly = AssemblyLevel::LEGACY;
-
-   block_op = NULL;
-
-   reduction = NULL;
-   hybridization = NULL;
 }
 
 BilinearForm* DarcyForm::GetFluxMassForm()
