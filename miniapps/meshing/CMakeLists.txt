@@ -111,11 +111,32 @@ endif()
 
 # Parallel apps.
 if (MFEM_USE_MPI)
+
+  list(APPEND PARMESHING_COMMON_SOURCES
+    mesh-optimizer_using_NLP.cpp
+    MMA.cpp)
+  list(APPEND PARMESHING_COMMON_HEADERS
+    mesh-optimizer_using_NLP.hpp
+    MMA.hpp)
+
+  convert_filenames_to_full_paths(PARMESHING_COMMON_SOURCES)
+  convert_filenames_to_full_paths(PARMESHING_COMMON_HEADERS)
+
+  set(PARMESHING_COMMON_FILES
+	  EXTRA_SOURCES ${PARMESHING_COMMON_SOURCES} 
+	  EXTRA_HEADERS ${PARMESHING_COMMON_HEADERS})
+
   add_mfem_miniapp(pmesh-optimizer
     MAIN pmesh-optimizer.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
   add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
+
+  add_mfem_miniapp(pmesh-optimizer_NLP
+    MAIN pmesh-optimizer_NLP.cpp
+    ${PARMESHING_COMMON_FILES}
+    LIBRARIES mfem mfem-common)
+  add_dependencies(pmesh-optimizer_NLP copy_miniapps_meshing_data)
 
   add_mfem_miniapp(pmesh-fitting
     MAIN pmesh-fitting.cpp
