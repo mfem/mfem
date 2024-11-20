@@ -54,6 +54,7 @@ private:
    int extern_bdr_constr_pot_integs;
 
    bool bsym, bnl, bfin;
+   DiagonalPolicy diag_policy{DIAG_ONE};
 
    struct
    {
@@ -219,6 +220,11 @@ public:
                       FiniteElementSpace *fes_c, bool bsymmetrize = true);
    /// Destructor
    ~DarcyHybridization();
+
+   void SetDiagonalPolicy(const DiagonalPolicy diag_policy_)
+   { diag_policy = diag_policy_; }
+
+   DiagonalPolicy GetDiagonalPolicy() const { return diag_policy; }
 
    void SetLocalNLSolver(LSsolveType type, int iters = 1000, real_t rtol = 1e-6,
                          real_t atol = 0., int print_lvl = -1)

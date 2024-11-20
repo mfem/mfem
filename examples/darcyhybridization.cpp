@@ -999,6 +999,15 @@ void DarcyHybridization::ComputeH()
    }
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+   if (diag_policy == DIAG_ONE)
+   {
+      // Complete the diagonal by ones
+      for (int i = 0; i < H->Size(); i++)
+      {
+         if (!H->RowIsEmpty(i)) { continue; }
+         H->Set(i, i, 1.);
+      }
+   }
    H->Finalize();
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Hb->Finalize();
