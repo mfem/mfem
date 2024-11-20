@@ -2241,15 +2241,18 @@ void FindPointsGSLIB::GetAxisAlignedBoundingBoxes(Vector &aabb)
    }
 }
 
-void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC)
+void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
+                                               Vector &obbV)
 {
    MFEM_VERIFY(setupflag, "Call FindPointsGSLIB::Setup method first");
    auto *findptsData3 = (gslib::findpts_data_3 *)this->fdataD;
    auto *findptsData2 = (gslib::findpts_data_2 *)this->fdataD;
+   int nve   = dim == 2 ? 4 : 8;
    int nel = NE_split_total;
 
    obbA.SetSize(dim, dim, nel);
    obbC.SetSize(dim*nel);
+   obbV.SetSize(dim*nve*nel);
    if (dim == 3)
    {
       for (int e = 0; e < nel; e++)
@@ -2267,6 +2270,45 @@ void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC)
                Ad[i*dim + j] = box.A[i + j*dim]; // GSLIB uses row-major storage
             }
          }
+
+         DenseMatrix Amat = obbA(e);
+         Amat.Invert();
+         Vector center(obbC.GetData() + e*dim, dim);
+
+         Vector v1(dim);
+         Vector temp;
+         v1(0) = -1.0; v1(1) = -1.0; v1(2) = -1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 0, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
+         v1(0) = 1.0; v1(1) = -1.0; v1(2) = -1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 3, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
+         v1(0) = 1.0; v1(1) = 1.0; v1(2) = -1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 6, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
+         v1(0) = -1.0; v1(1) = 1.0; v1(2) = -1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 9, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
+         v1(0) = -1.0; v1(1) = -1.0; v1(2) = 1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 12, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
+         v1(0) = 1.0; v1(1) = -1.0; v1(2) = 1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 15, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
+         v1(0) = 1.0; v1(1) = 1.0; v1(2) = 1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 18, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
+         v1(0) = -1.0; v1(1) = 1.0; v1(2) = 1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 21, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
       }
    }
    else // dim = 2
@@ -2286,6 +2328,29 @@ void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC)
                Ad[i*dim + j] = box.A[i + j*dim]; // GSLIB uses row-major storage
             }
          }
+
+         DenseMatrix Amat = obbA(e);
+         Amat.Invert();
+         Vector center(obbC.GetData() + e*dim, dim);
+
+         Vector v1(dim);
+         Vector temp;
+         v1(0) = -1.0; v1(1) = -1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 0, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
+         v1(0) = 1.0; v1(1) = -1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 2, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
+         v1(0) = 1.0; v1(1) = 1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 4, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
+         v1(0) = -1.0; v1(1) = 1.0;
+         temp.SetDataAndSize(obbV.GetData() + e*nve*dim + 6, dim);
+         Amat.Mult(v1, temp);
+         temp += center;
       }
    }
 }
