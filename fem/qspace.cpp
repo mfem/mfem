@@ -94,6 +94,13 @@ void QuadratureSpaceBase::Integrate(VectorCoefficient &coeff,
    qf.Integrate(integrals);
 }
 
+struct OffsetConstructionHelper {
+   int *d_offsets;
+   int ir_size;
+
+   void MFEM_HOST_DEVICE operator()(int i) const { d_offsets[i] = i * ir_size; }
+};
+
 void QuadratureSpace::ConstructOffsets()
 {
    const int num_elem = mesh.GetNE();
@@ -103,12 +110,12 @@ void QuadratureSpace::ConstructOffsets()
    {
       Array<Geometry::Type> geoms;
       mesh.GetGeometries(mesh.Dimension(), geoms);
-      const int ir_size = int_rule[geoms[0]]->GetNPoints();
-      auto d_offsets = offsets.Write();
-      mfem::forall(num_elem + 1, [=] MFEM_HOST_DEVICE (int i)
-      {
-         d_offsets[i] = i*ir_size;
-      });
+      // can't use a lambda function because of a CUDA limitation: ConstructOffsets must be public
+      // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#device-lambda-restrictions
+      OffsetConstructionHelper func;
+      func.d_offsets = offsets.Write();
+      func.ir_size = int_rule[geoms[0]]->GetNPoints();
+      mfem::forall(num_elem + 1, func);
    }
    else
    {
