@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -191,6 +191,48 @@ bool HiopOptimizationProblem::get_vecdistrib_info(size_type global_n,
    // Returning false means that Hiop runs in non-distributed mode.
    return false;
 #endif
+}
+
+void HiopOptimizationProblem::solution_callback(hiop::hiopSolveStatus status,
+                                                hiop::size_type n,
+                                                const double *x,
+                                                const double *z_L,
+                                                const double *z_U,
+                                                hiop::size_type m,
+                                                const double *g,
+                                                const double *lambda,
+                                                double obj_value)
+{
+   auto hp = dynamic_cast<const HiOpProblem *>(&problem);
+   if (!hp) { return; }
+   hp->SolutionCallback(status, n, x, z_L, z_U, m, g, lambda, obj_value);
+}
+
+bool HiopOptimizationProblem::iterate_callback(int iter,
+                                               double obj_value,
+                                               double logbar_obj_value,
+                                               int n,
+                                               const double *x,
+                                               const double *z_L,
+                                               const double *z_U,
+                                               int m_ineq,
+                                               const double *s,
+                                               int m,
+                                               const double *g,
+                                               const double *lambda,
+                                               double inf_pr,
+                                               double inf_du,
+                                               double onenorm_pr_,
+                                               double mu,
+                                               double alpha_du,
+                                               double alpha_pr,
+                                               int ls_trials)
+{
+   auto hp = dynamic_cast<const HiOpProblem *>(&problem);
+   if (!hp) { return true; }
+   return hp->IterateCallback(iter, obj_value, logbar_obj_value, n, x, z_L, z_U,
+                              m_ineq, s, m, g, lambda, inf_pr, inf_du,
+                              onenorm_pr_, mu, alpha_du, alpha_pr, ls_trials);
 }
 
 void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)

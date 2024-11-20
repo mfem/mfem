@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -32,7 +32,7 @@ groups_serial=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1,2,3}[0-9].cpp"'
+   "ex{,[1-9]}[0-9].cpp"'
 #   "ex1.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -58,6 +58,10 @@ groups_serial=(
    "HiOp examples:"
    "examples/hiop"
    "ex9.cpp"'
+'"moonolith"
+   "Moonolith examples:"
+   "examples/moonolith"
+   "ex1.cpp"'
 '"pumi"
    "PUMI examples:"
    "examples/pumi"
@@ -66,25 +70,38 @@ groups_serial=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp mesh-quality.cpp
+    polar-nc.cpp reflector.cpp shaper.cpp trimmer.cpp twist.cpp
     mesh-optimizer.cpp minimal-surface.cpp"'
 '"adjoint"
    "Adjoint miniapps:"
    "miniapps/adjoint"
    "cvsRoberts_ASAi_dns.cpp"'
+'"autodiff"
+   "Autodiff miniapps:"
+   "miniapps/autodiff"
+   "seq_example.cpp seq_test.cpp"' # 'seq_test.cpp' has no sample runs
+'"dpg"
+   "DPG miniapps:"
+   "miniapps/dpg"
+   "{acoustics,convection-diffusion,diffusion,maxwell}.cpp"'
 '"gslib"
    "GSLIB miniapps:"
    "miniapps/gslib"
    "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp "'
+# todo: miniapps/mtop
 '"nurbs"
    "NURBS miniapps:"
    "miniapps/nurbs"
    "nurbs_ex1.cpp"'
+# todo: add other nurbs miniapps
+# todo: miniapps/solvers (serial)
 '"tools"
    "Tools miniapps:"
    "miniapps/tools"
    "convert-dc.cpp display-basis.cpp get-values.cpp load-dc.cpp
     lor-transfer.cpp"'
+# todo: add other tools miniapps
 '"toys"
    "Toys miniapps:"
    "miniapps/toys"
@@ -100,7 +117,7 @@ groups_parallel=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1,2,3}[0-9]p.cpp"'
+   "ex{,[1-9]}[0-9]p.cpp"'
 #   "ex1p.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -126,6 +143,10 @@ groups_parallel=(
    "HiOp examples:"
    "examples/hiop"
    "ex9p.cpp"'
+'"moonolith"
+   "Moonolith examples:"
+   "examples/moonolith"
+   "ex{1,2}p.cpp"'
 '"pumi"
    "PUMI examples:"
    "examples/pumi"
@@ -138,24 +159,41 @@ groups_parallel=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "pmesh-optimizer.cpp pmesh-fitting.cpp pminimal-surface.cpp"'
+   "pmesh-optimizer.cpp pmesh-fitting.cpp pminimal-surface.cpp
+    fit-node-position.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
    "joule.cpp"'
-#   "{volta,tesla,joule}.cpp"' # todo: multiline sample runs
+#   "{joule,maxwell,tesla,volta}.cpp"' # todo: multiline sample runs
 '"adjoint"
    "Adjoint miniapps:"
    "miniapps/adjoint"
    "adjoint_advection_diffusion.cpp"'
+'"autodiff"
+   "Autodiff miniapps:"
+   "miniapps/autodiff"
+   "par_example.cpp"'
+'"dpg"
+   "DPG miniapps:"
+   "miniapps/dpg"
+   "p{acoustics,convection-diffusion,diffusion,maxwell}.cpp"'
 '"gslib"
    "GSLIB miniapps:"
    "miniapps/gslib"
    "pfindpts.cpp schwarz_ex1p.cpp"'
+'"hdiv-linear-solver"
+   "H(div) linear solver miniapps:"
+   "miniapps/hdiv-linear-solver"
+   "grad_div.cpp darcy.cpp"'
+# 'miniapps/hooke/hooke.cpp' has no sample runs
+# todo: miniapps/mtop
+# todo: miniapps/multidomain
 '"navier"
    "Navier miniapps:"
    "miniapps/navier"
    "navier_cht.cpp"'
+# todo: add other navier miniapps
 '"nurbs"
    "NURBS miniapps:"
    "miniapps/nurbs"
@@ -164,14 +202,18 @@ groups_parallel=(
    "Shifted miniapps:"
    "miniapps/shifted"
    "distance.cpp"'
+# todo: add other shifted miniapps
 '"solvers"
    "Solvers miniapps:"
    "miniapps/solvers"
    "block-solvers.cpp"'
+# todo: add other solvers miniapps
+# todo: miniapps/spde
 '"tools"
    "Tools miniapps:"
    "miniapps/tools"
-   "convert-cd.cpp get-values.cpp load-dc.cpp"'
+   "convert-dc.cpp get-values.cpp load-dc.cpp"'
+# todo: add other tools miniapps
 '"convergence"
    "Convergence tests:"
    "tests/convergence"
@@ -186,7 +228,7 @@ groups_all=(
 '"examples"
    "Examples:"
    "examples"
-   "ex\"{,1,2,3}[0-9]\"{,p}.cpp"'
+   "ex\"{,[1-9]}[0-9]\"{,p}.cpp"'
 '"sundials"
    "SUNDIALS examples:"
    "examples/sundials"
@@ -215,10 +257,14 @@ groups_all=(
    "HiOp examples:"
    "examples/hiop"
    "ex9.cpp ex9p.cpp"'
+'"moonolith"
+   "Moonolith examples:"
+   "examples/moonolith"
+   "ex1.cpp ex{1,2}p.cpp"'
 '"pumi"
    "PUMI examples:"
    "examples/pumi"
-   "ex1.cpp ex1p.cpp ex2.cpp ex6p.cpp"'
+   "ex1.cpp ex2.cpp ex1p.cpp ex6p.cpp"'
 '"superlu"
    "Superlu examples:"
    "examples/superlu"
@@ -226,43 +272,67 @@ groups_all=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
-    {,p}mesh-optimizer.cpp pmesh-fitting.cpp {,p}minimal-surface.cpp"'
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp mesh-quality.cpp
+    polar-nc.cpp reflector.cpp shaper.cpp trimmer.cpp twist.cpp
+    {,p}mesh-optimizer.cpp pmesh-fitting.cpp {,p}minimal-surface.cpp
+    fit-node-position.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
    "joule.cpp"'
-#   "{volta,tesla,joule}.cpp"' # todo: multiline sample runs
+#   "{joule,maxwell,tesla,volta}.cpp"' # todo: multiline sample runs
 '"adjoint"
    "Adjoint miniapps:"
    "miniapps/adjoint"
-   "adjoint_advection_diffusion.cpp cvsRoberts_ASAi_dns.cpp"'
+   "cvsRoberts_ASAi_dns.cpp adjoint_advection_diffusion.cpp"'
+'"autodiff"
+   "Autodiff miniapps:"
+   "miniapps/autodiff"
+   "seq_example.cpp seq_test.cpp par_example.cpp"'
+# 'seq_test.cpp' has no sample runs
+'"dpg"
+   "DPG miniapps:"
+   "miniapps/dpg"
+   "{,p}{acoustics,convection-diffusion,diffusion,maxwell}.cpp"'
 '"gslib"
    "GSLIB miniapps:"
    "miniapps/gslib"
    "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp pfindpts.cpp
     schwarz_ex1p.cpp"'
+'"hdiv-linear-solver"
+   "H(div) linear solver miniapps:"
+   "miniapps/hdiv-linear-solver"
+   "grad_div.cpp darcy.cpp"'
+# 'miniapps/hooke/hooke.cpp' has no sample runs
+# todo: miniapps/mtop
+# todo: miniapps/multidomain
 '"navier"
    "Navier miniapps:"
    "miniapps/navier"
    "navier_cht.cpp"'
+# todo: add other navier miniapps
 '"nurbs"
    "NURBS miniapps:"
    "miniapps/nurbs"
    "nurbs_ex1.cpp nurbs_ex1p.cpp nurbs_ex11p.cpp"'
+# todo: add other nurbs miniapps
 '"shifted"
    "Shifted miniapps:"
    "miniapps/shifted"
    "distance.cpp"'
+# todo: add other shifted miniapps
 '"solvers"
    "Solvers miniapps:"
    "miniapps/solvers"
    "block-solvers.cpp"'
+# todo: add other solvers miniapps
+# todo: miniapps/spde
 '"tools"
    "Tools miniapps:"
    "miniapps/tools"
    "convert-dc.cpp display-basis.cpp get-values.cpp load-dc.cpp
     lor-transfer.cpp"'
+# todo: add other tools miniapps
 '"toys"
    "Toys miniapps:"
    "miniapps/toys"
@@ -315,7 +385,7 @@ function extract_sample_runs()
    sruns=`grep -v "^//.*  mpirun .* ${app}" "${src}" |
           grep "^//.*  ${app}" |
           sed -e "s/.*  ${app}/${vg_app}/g"`
-   runs="${sruns}${pruns}"
+   runs="${sruns}"$'\n'"${pruns}"
    if [ "$skip_gen_meshes" == "yes" ]; then
       runs=`printf "%s" "$runs" | grep -v ".* -m .*\.gen"`
    fi
@@ -386,7 +456,7 @@ function help_message()
       mfem_config [${mfem_config}]
          Set MFEM configuration options
       make [${make}], mpiexec [${mpiexec}], mpiexec_np [${mpiexec_np}]
-         Their values can also set using the respective uppercase environment
+         Their values can also be set using the respective uppercase environment
          variable
       mfem_build_dir [${mfem_build_dir}]
          Same as '-d': set this variable to something different from <mfem_dir>

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_TIC_TOC
 
 #include "../config/config.hpp"
+#include <memory>
 
 #ifndef MFEM_TIMER_TYPE
 #ifndef _WIN32
@@ -34,10 +35,12 @@ class StopWatch;
 class StopWatch
 {
 private:
-   internal::StopWatch *M;
+   std::unique_ptr<internal::StopWatch> M; ///< Pointer to implementation.
 
 public:
+   /// Creates a new (stopped) StopWatch object.
    StopWatch();
+   StopWatch(const StopWatch &);
 
    /// Clear the elapsed time on the stopwatch and restart it if it's running.
    void Clear();
@@ -48,20 +51,26 @@ public:
    /// Stop the stopwatch.
    void Stop();
 
+   /// @brief Clears and restarts the stopwatch. Equivalent to Clear() followed by
+   /// Start().
+   void Restart();
+
    /// Return the time resolution available to the stopwatch.
    double Resolution();
 
-   /** Return the number of real seconds elapsed since the stopwatch was
-       started. */
+   /// @brief Return the number of real seconds elapsed since the stopwatch was
+   /// started.
    double RealTime();
 
-   /** Return the number of user seconds elapsed since the stopwatch was
-       started. */
+   /// @brief Return the number of user seconds elapsed since the stopwatch was
+   /// started.
    double UserTime();
 
-   /** Return the number of system seconds elapsed since the stopwatch was
-       started. */
+   /// @brief Return the number of system seconds elapsed since the stopwatch
+   /// was started.
    double SystTime();
+
+   /// Default destructor.
    ~StopWatch();
 };
 

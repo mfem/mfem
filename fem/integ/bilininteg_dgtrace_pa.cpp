@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,13 +21,13 @@ namespace mfem
 // PA DG Trace Integrator
 static void PADGTraceSetup2D(const int Q1D,
                              const int NF,
-                             const Array<double> &w,
+                             const Array<real_t> &w,
                              const Vector &det,
                              const Vector &nor,
                              const Vector &rho,
                              const Vector &vel,
-                             const double alpha,
-                             const double beta,
+                             const real_t alpha,
+                             const real_t beta,
                              Vector &op)
 {
    const int VDIM = 2;
@@ -48,12 +48,12 @@ static void PADGTraceSetup2D(const int Q1D,
       const int f = tid / Q1D;
       const int q = tid % Q1D;
       {
-         const double r = const_r ? R(0,0) : R(q,f);
-         const double v0 = const_v ? V(0,0,0) : V(0,q,f);
-         const double v1 = const_v ? V(1,0,0) : V(1,q,f);
-         const double dot = n(q,0,f) * v0 + n(q,1,f) * v1;
-         const double abs = dot > 0.0 ? dot : -dot;
-         const double w = W[q]*r*d(q,f);
+         const real_t r = const_r ? R(0,0) : R(q,f);
+         const real_t v0 = const_v ? V(0,0,0) : V(0,q,f);
+         const real_t v1 = const_v ? V(1,0,0) : V(1,q,f);
+         const real_t dot = n(q,0,f) * v0 + n(q,1,f) * v1;
+         const real_t abs = dot > 0_r ? dot : -dot;
+         const real_t w = W[q]*r*d(q,f);
          qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
          qd(q,1,0,f) = w*( alpha/2 * dot - beta * abs );
          qd(q,0,1,f) = w*(-alpha/2 * dot - beta * abs );
@@ -64,13 +64,13 @@ static void PADGTraceSetup2D(const int Q1D,
 
 static void PADGTraceSetup3D(const int Q1D,
                              const int NF,
-                             const Array<double> &w,
+                             const Array<real_t> &w,
                              const Vector &det,
                              const Vector &nor,
                              const Vector &rho,
                              const Vector &vel,
-                             const double alpha,
-                             const double beta,
+                             const real_t alpha,
+                             const real_t beta,
                              Vector &op)
 {
    const int VDIM = 3;
@@ -93,14 +93,14 @@ static void PADGTraceSetup3D(const int Q1D,
       int q1 = tid % Q1D;
       {
          {
-            const double r = const_r ? R(0,0,0) : R(q1,q2,f);
-            const double v0 = const_v ? V(0,0,0,0) : V(0,q1,q2,f);
-            const double v1 = const_v ? V(1,0,0,0) : V(1,q1,q2,f);
-            const double v2 = const_v ? V(2,0,0,0) : V(2,q1,q2,f);
-            const double dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 +
+            const real_t r = const_r ? R(0,0,0) : R(q1,q2,f);
+            const real_t v0 = const_v ? V(0,0,0,0) : V(0,q1,q2,f);
+            const real_t v1 = const_v ? V(1,0,0,0) : V(1,q1,q2,f);
+            const real_t v2 = const_v ? V(2,0,0,0) : V(2,q1,q2,f);
+            const real_t dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 +
                                n(q1,q2,2,f) * v2;
-            const double abs = dot > 0.0 ? dot : -dot;
-            const double w = W[q1+q2*Q1D]*r*d(q1,q2,f);
+            const real_t abs = dot > 0.0 ? dot : -dot;
+            const real_t w = W[q1+q2*Q1D]*r*d(q1,q2,f);
             qd(q1,q2,0,0,f) = w*( alpha/2 * dot + beta * abs );
             qd(q1,q2,1,0,f) = w*( alpha/2 * dot - beta * abs );
             qd(q1,q2,0,1,f) = w*(-alpha/2 * dot - beta * abs );
@@ -114,13 +114,13 @@ static void PADGTraceSetup(const int dim,
                            const int D1D,
                            const int Q1D,
                            const int NF,
-                           const Array<double> &W,
+                           const Array<real_t> &W,
                            const Vector &det,
                            const Vector &nor,
                            const Vector &rho,
                            const Vector &u,
-                           const double alpha,
-                           const double beta,
+                           const real_t alpha,
+                           const real_t beta,
                            Vector &op)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGTraceSetup"); }
@@ -207,7 +207,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
             T.SetAllIntPoints(&ir->IntPoint(q));
             const IntegrationPoint &eip1 = T.GetElement1IntPoint();
             const IntegrationPoint &eip2 = T.GetElement2IntPoint();
-            double rq;
+            real_t rq;
 
             if (face.IsBoundary())
             {
@@ -215,7 +215,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
             }
             else
             {
-               double udotn = 0.0;
+               real_t udotn = 0.0;
                for (int d=0; d<dim; ++d)
                {
                   udotn += C_vel(d,iq,f_ind)*n(iq,d,f_ind);
@@ -247,8 +247,8 @@ void DGTraceIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace& fes)
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGTraceApply2D(const int NF,
-                      const Array<double> &b,
-                      const Array<double> &bt,
+                      const Array<real_t> &b,
+                      const Array<real_t> &bt,
                       const Vector &op_,
                       const Vector &x_,
                       Vector &y_,
@@ -258,8 +258,8 @@ void PADGTraceApply2D(const int NF,
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto op = Reshape(op_.Read(), Q1D, 2, 2, NF);
@@ -272,10 +272,10 @@ void PADGTraceApply2D(const int NF,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      double u0[max_D1D][VDIM];
-      double u1[max_D1D][VDIM];
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t u0[max_D1D][VDIM];
+      real_t u1[max_D1D][VDIM];
       for (int d = 0; d < D1D; d++)
       {
          for (int c = 0; c < VDIM; c++)
@@ -284,8 +284,8 @@ void PADGTraceApply2D(const int NF,
             u1[d][c] = x(d,c,1,f);
          }
       }
-      double Bu0[max_Q1D][VDIM];
-      double Bu1[max_Q1D][VDIM];
+      real_t Bu0[max_Q1D][VDIM];
+      real_t Bu1[max_Q1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
@@ -295,7 +295,7 @@ void PADGTraceApply2D(const int NF,
          }
          for (int d = 0; d < D1D; ++d)
          {
-            const double b = B(q,d);
+            const real_t b = B(q,d);
             for (int c = 0; c < VDIM; c++)
             {
                Bu0[q][c] += b*u0[d][c];
@@ -303,7 +303,7 @@ void PADGTraceApply2D(const int NF,
             }
          }
       }
-      double DBu[max_Q1D][VDIM];
+      real_t DBu[max_Q1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
@@ -311,7 +311,7 @@ void PADGTraceApply2D(const int NF,
             DBu[q][c] = op(q,0,0,f)*Bu0[q][c] + op(q,1,0,f)*Bu1[q][c];
          }
       }
-      double BDBu[max_D1D][VDIM];
+      real_t BDBu[max_D1D][VDIM];
       for (int d = 0; d < D1D; ++d)
       {
          for (int c = 0; c < VDIM; c++)
@@ -320,7 +320,7 @@ void PADGTraceApply2D(const int NF,
          }
          for (int q = 0; q < Q1D; ++q)
          {
-            const double b = Bt(d,q);
+            const real_t b = Bt(d,q);
             for (int c = 0; c < VDIM; c++)
             {
                BDBu[d][c] += b*DBu[q][c];
@@ -338,8 +338,8 @@ void PADGTraceApply2D(const int NF,
 // PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGTraceApply3D(const int NF,
-                      const Array<double> &b,
-                      const Array<double> &bt,
+                      const Array<real_t> &b,
+                      const Array<real_t> &bt,
                       const Vector &op_,
                       const Vector &x_,
                       Vector &y_,
@@ -349,8 +349,8 @@ void PADGTraceApply3D(const int NF,
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, 2, NF);
@@ -363,10 +363,10 @@ void PADGTraceApply3D(const int NF,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      double u0[max_D1D][max_D1D][VDIM];
-      double u1[max_D1D][max_D1D][VDIM];
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t u0[max_D1D][max_D1D][VDIM];
+      real_t u1[max_D1D][max_D1D][VDIM];
       for (int d1 = 0; d1 < D1D; d1++)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -378,8 +378,8 @@ void PADGTraceApply3D(const int NF,
             }
          }
       }
-      double Bu0[max_Q1D][max_D1D][VDIM];
-      double Bu1[max_Q1D][max_D1D][VDIM];
+      real_t Bu0[max_Q1D][max_D1D][VDIM];
+      real_t Bu1[max_Q1D][max_D1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -391,7 +391,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int d1 = 0; d1 < D1D; ++d1)
             {
-               const double b = B(q,d1);
+               const real_t b = B(q,d1);
                for (int c = 0; c < VDIM; c++)
                {
                   Bu0[q][d2][c] += b*u0[d1][d2][c];
@@ -400,8 +400,8 @@ void PADGTraceApply3D(const int NF,
             }
          }
       }
-      double BBu0[max_Q1D][max_Q1D][VDIM];
-      double BBu1[max_Q1D][max_Q1D][VDIM];
+      real_t BBu0[max_Q1D][max_Q1D][VDIM];
+      real_t BBu1[max_Q1D][max_Q1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < Q1D; q2++)
@@ -413,7 +413,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int d2 = 0; d2 < D1D; ++d2)
             {
-               const double b = B(q2,d2);
+               const real_t b = B(q2,d2);
                for (int c = 0; c < VDIM; c++)
                {
                   BBu0[q1][q2][c] += b*Bu0[q1][d2][c];
@@ -422,7 +422,7 @@ void PADGTraceApply3D(const int NF,
             }
          }
       }
-      double DBBu[max_Q1D][max_Q1D][VDIM];
+      real_t DBBu[max_Q1D][max_Q1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < Q1D; q2++)
@@ -434,7 +434,7 @@ void PADGTraceApply3D(const int NF,
             }
          }
       }
-      double BDBBu[max_Q1D][max_D1D][VDIM];
+      real_t BDBBu[max_Q1D][max_D1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -445,7 +445,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const double b = Bt(d2,q2);
+               const real_t b = Bt(d2,q2);
                for (int c = 0; c < VDIM; c++)
                {
                   BDBBu[q1][d2][c] += b*DBBu[q1][q2][c];
@@ -453,7 +453,7 @@ void PADGTraceApply3D(const int NF,
             }
          }
       }
-      double BBDBBu[max_D1D][max_D1D][VDIM];
+      real_t BBDBBu[max_D1D][max_D1D][VDIM];
       for (int d1 = 0; d1 < D1D; ++d1)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -464,7 +464,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int q1 = 0; q1 < Q1D; ++q1)
             {
-               const double b = Bt(d1,q1);
+               const real_t b = Bt(d1,q1);
                for (int c = 0; c < VDIM; c++)
                {
                   BBDBBu[d1][d2][c] += b*BDBBu[q1][d2][c];
@@ -483,8 +483,8 @@ void PADGTraceApply3D(const int NF,
 // Optimized PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
 void SmemPADGTraceApply3D(const int NF,
-                          const Array<double> &b,
-                          const Array<double> &bt,
+                          const Array<real_t> &b,
+                          const Array<real_t> &bt,
                           const Vector &op_,
                           const Vector &x_,
                           Vector &y_,
@@ -494,8 +494,8 @@ void SmemPADGTraceApply3D(const int NF,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, 2, NF);
@@ -509,10 +509,10 @@ void SmemPADGTraceApply3D(const int NF,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      MFEM_SHARED double u0[NBZ][max_D1D][max_D1D];
-      MFEM_SHARED double u1[NBZ][max_D1D][max_D1D];
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      MFEM_SHARED real_t u0[NBZ][max_D1D][max_D1D];
+      MFEM_SHARED real_t u1[NBZ][max_D1D][max_D1D];
       MFEM_FOREACH_THREAD(d1,x,D1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
@@ -522,17 +522,17 @@ void SmemPADGTraceApply3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double Bu0[NBZ][max_Q1D][max_D1D];
-      MFEM_SHARED double Bu1[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t Bu0[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t Bu1[NBZ][max_Q1D][max_D1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            double Bu0_ = 0.0;
-            double Bu1_ = 0.0;
+            real_t Bu0_ = 0.0;
+            real_t Bu1_ = 0.0;
             for (int d1 = 0; d1 < D1D; ++d1)
             {
-               const double b = B(q1,d1);
+               const real_t b = B(q1,d1);
                Bu0_ += b*u0[tidz][d1][d2];
                Bu1_ += b*u1[tidz][d1][d2];
             }
@@ -541,17 +541,17 @@ void SmemPADGTraceApply3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double BBu0[NBZ][max_Q1D][max_Q1D];
-      MFEM_SHARED double BBu1[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t BBu0[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t BBu1[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            double BBu0_ = 0.0;
-            double BBu1_ = 0.0;
+            real_t BBu0_ = 0.0;
+            real_t BBu1_ = 0.0;
             for (int d2 = 0; d2 < D1D; ++d2)
             {
-               const double b = B(q2,d2);
+               const real_t b = B(q2,d2);
                BBu0_ += b*Bu0[tidz][q1][d2];
                BBu1_ += b*Bu1[tidz][q1][d2];
             }
@@ -560,7 +560,7 @@ void SmemPADGTraceApply3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double DBBu[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t DBBu[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
@@ -570,15 +570,15 @@ void SmemPADGTraceApply3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double BDBBu[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t BDBBu[NBZ][max_Q1D][max_D1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            double BDBBu_ = 0.0;
+            real_t BDBBu_ = 0.0;
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const double b = Bt(d2,q2);
+               const real_t b = Bt(d2,q2);
                BDBBu_ += b*DBBu[tidz][q1][q2];
             }
             BDBBu[tidz][q1][d2] = BDBBu_;
@@ -589,10 +589,10 @@ void SmemPADGTraceApply3D(const int NF,
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            double BBDBBu_ = 0.0;
+            real_t BBDBBu_ = 0.0;
             for (int q1 = 0; q1 < Q1D; ++q1)
             {
-               const double b = Bt(d1,q1);
+               const real_t b = Bt(d1,q1);
                BBDBBu_ += b*BDBBu[tidz][q1][d2];
             }
             y(d1,d2,0,f) +=  BBDBBu_;
@@ -606,8 +606,8 @@ static void PADGTraceApply(const int dim,
                            const int D1D,
                            const int Q1D,
                            const int NF,
-                           const Array<double> &B,
-                           const Array<double> &Bt,
+                           const Array<real_t> &B,
+                           const Array<real_t> &Bt,
                            const Vector &op,
                            const Vector &x,
                            Vector &y)
@@ -648,8 +648,8 @@ static void PADGTraceApply(const int dim,
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGTraceApplyTranspose2D(const int NF,
-                               const Array<double> &b,
-                               const Array<double> &bt,
+                               const Array<real_t> &b,
+                               const Array<real_t> &bt,
                                const Vector &op_,
                                const Vector &x_,
                                Vector &y_,
@@ -659,8 +659,8 @@ void PADGTraceApplyTranspose2D(const int NF,
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto op = Reshape(op_.Read(), Q1D, 2, 2, NF);
@@ -673,10 +673,10 @@ void PADGTraceApplyTranspose2D(const int NF,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      double u0[max_D1D][VDIM];
-      double u1[max_D1D][VDIM];
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t u0[max_D1D][VDIM];
+      real_t u1[max_D1D][VDIM];
       for (int d = 0; d < D1D; d++)
       {
          for (int c = 0; c < VDIM; c++)
@@ -685,8 +685,8 @@ void PADGTraceApplyTranspose2D(const int NF,
             u1[d][c] = x(d,c,1,f);
          }
       }
-      double Bu0[max_Q1D][VDIM];
-      double Bu1[max_Q1D][VDIM];
+      real_t Bu0[max_Q1D][VDIM];
+      real_t Bu1[max_Q1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
@@ -696,7 +696,7 @@ void PADGTraceApplyTranspose2D(const int NF,
          }
          for (int d = 0; d < D1D; ++d)
          {
-            const double b = B(q,d);
+            const real_t b = B(q,d);
             for (int c = 0; c < VDIM; c++)
             {
                Bu0[q][c] += b*u0[d][c];
@@ -704,8 +704,8 @@ void PADGTraceApplyTranspose2D(const int NF,
             }
          }
       }
-      double DBu0[max_Q1D][VDIM];
-      double DBu1[max_Q1D][VDIM];
+      real_t DBu0[max_Q1D][VDIM];
+      real_t DBu1[max_Q1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
@@ -714,8 +714,8 @@ void PADGTraceApplyTranspose2D(const int NF,
             DBu1[q][c] = op(q,1,0,f)*Bu0[q][c] + op(q,1,1,f)*Bu1[q][c];
          }
       }
-      double BDBu0[max_D1D][VDIM];
-      double BDBu1[max_D1D][VDIM];
+      real_t BDBu0[max_D1D][VDIM];
+      real_t BDBu1[max_D1D][VDIM];
       for (int d = 0; d < D1D; ++d)
       {
          for (int c = 0; c < VDIM; c++)
@@ -725,7 +725,7 @@ void PADGTraceApplyTranspose2D(const int NF,
          }
          for (int q = 0; q < Q1D; ++q)
          {
-            const double b = Bt(d,q);
+            const real_t b = Bt(d,q);
             for (int c = 0; c < VDIM; c++)
             {
                BDBu0[d][c] += b*DBu0[q][c];
@@ -744,8 +744,8 @@ void PADGTraceApplyTranspose2D(const int NF,
 // PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGTraceApplyTranspose3D(const int NF,
-                               const Array<double> &b,
-                               const Array<double> &bt,
+                               const Array<real_t> &b,
+                               const Array<real_t> &bt,
                                const Vector &op_,
                                const Vector &x_,
                                Vector &y_,
@@ -755,8 +755,8 @@ void PADGTraceApplyTranspose3D(const int NF,
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, 2, NF);
@@ -769,10 +769,10 @@ void PADGTraceApplyTranspose3D(const int NF,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      double u0[max_D1D][max_D1D][VDIM];
-      double u1[max_D1D][max_D1D][VDIM];
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t u0[max_D1D][max_D1D][VDIM];
+      real_t u1[max_D1D][max_D1D][VDIM];
       for (int d1 = 0; d1 < D1D; d1++)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -784,8 +784,8 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-      double Bu0[max_Q1D][max_D1D][VDIM];
-      double Bu1[max_Q1D][max_D1D][VDIM];
+      real_t Bu0[max_Q1D][max_D1D][VDIM];
+      real_t Bu1[max_Q1D][max_D1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int d2 = 0; d2 < D1D; ++d2)
@@ -797,7 +797,7 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
             for (int d1 = 0; d1 < D1D; ++d1)
             {
-               const double b = B(q1,d1);
+               const real_t b = B(q1,d1);
                for (int c = 0; c < VDIM; c++)
                {
                   Bu0[q1][d2][c] += b*u0[d1][d2][c];
@@ -806,8 +806,8 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-      double BBu0[max_Q1D][max_Q1D][VDIM];
-      double BBu1[max_Q1D][max_Q1D][VDIM];
+      real_t BBu0[max_Q1D][max_Q1D][VDIM];
+      real_t BBu1[max_Q1D][max_Q1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < Q1D; ++q2)
@@ -819,7 +819,7 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
             for (int d2 = 0; d2 < D1D; ++d2)
             {
-               const double b = B(q2,d2);
+               const real_t b = B(q2,d2);
                for (int c = 0; c < VDIM; c++)
                {
                   BBu0[q1][q2][c] += b*Bu0[q1][d2][c];
@@ -828,16 +828,16 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-      double DBu0[max_Q1D][max_Q1D][VDIM];
-      double DBu1[max_Q1D][max_Q1D][VDIM];
+      real_t DBu0[max_Q1D][max_Q1D][VDIM];
+      real_t DBu1[max_Q1D][max_Q1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < Q1D; ++q2)
          {
-            const double D00 = op(q1,q2,0,0,f);
-            const double D01 = op(q1,q2,0,1,f);
-            const double D10 = op(q1,q2,1,0,f);
-            const double D11 = op(q1,q2,1,1,f);
+            const real_t D00 = op(q1,q2,0,0,f);
+            const real_t D01 = op(q1,q2,0,1,f);
+            const real_t D10 = op(q1,q2,1,0,f);
+            const real_t D11 = op(q1,q2,1,1,f);
             for (int c = 0; c < VDIM; c++)
             {
                DBu0[q1][q2][c] = D00*BBu0[q1][q2][c] + D01*BBu1[q1][q2][c];
@@ -845,8 +845,8 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-      double BDBu0[max_D1D][max_Q1D][VDIM];
-      double BDBu1[max_D1D][max_Q1D][VDIM];
+      real_t BDBu0[max_D1D][max_Q1D][VDIM];
+      real_t BDBu1[max_D1D][max_Q1D][VDIM];
       for (int d1 = 0; d1 < D1D; ++d1)
       {
          for (int q2 = 0; q2 < Q1D; ++q2)
@@ -858,7 +858,7 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
             for (int q1 = 0; q1 < Q1D; ++q1)
             {
-               const double b = Bt(d1,q1);
+               const real_t b = Bt(d1,q1);
                for (int c = 0; c < VDIM; c++)
                {
                   BDBu0[d1][q2][c] += b*DBu0[q1][q2][c];
@@ -867,8 +867,8 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-      double BBDBu0[max_D1D][max_D1D][VDIM];
-      double BBDBu1[max_D1D][max_D1D][VDIM];
+      real_t BBDBu0[max_D1D][max_D1D][VDIM];
+      real_t BBDBu1[max_D1D][max_D1D][VDIM];
       for (int d1 = 0; d1 < D1D; ++d1)
       {
          for (int d2 = 0; d2 < D1D; ++d2)
@@ -880,7 +880,7 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const double b = Bt(d2,q2);
+               const real_t b = Bt(d2,q2);
                for (int c = 0; c < VDIM; c++)
                {
                   BBDBu0[d1][d2][c] += b*BDBu0[d1][q2][c];
@@ -900,8 +900,8 @@ void PADGTraceApplyTranspose3D(const int NF,
 // Optimized PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
 void SmemPADGTraceApplyTranspose3D(const int NF,
-                                   const Array<double> &b,
-                                   const Array<double> &bt,
+                                   const Array<real_t> &b,
+                                   const Array<real_t> &bt,
                                    const Vector &op_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -911,8 +911,8 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto Bt = Reshape(bt.Read(), D1D, Q1D);
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, 2, NF);
@@ -926,10 +926,10 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      MFEM_SHARED double u0[NBZ][max_D1D][max_D1D];
-      MFEM_SHARED double u1[NBZ][max_D1D][max_D1D];
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      MFEM_SHARED real_t u0[NBZ][max_D1D][max_D1D];
+      MFEM_SHARED real_t u1[NBZ][max_D1D][max_D1D];
       MFEM_FOREACH_THREAD(d1,x,D1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
@@ -939,17 +939,17 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double Bu0[NBZ][max_Q1D][max_D1D];
-      MFEM_SHARED double Bu1[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t Bu0[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t Bu1[NBZ][max_Q1D][max_D1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            double Bu0_ = 0.0;
-            double Bu1_ = 0.0;
+            real_t Bu0_ = 0.0;
+            real_t Bu1_ = 0.0;
             for (int d1 = 0; d1 < D1D; ++d1)
             {
-               const double b = B(q1,d1);
+               const real_t b = B(q1,d1);
                Bu0_ += b*u0[tidz][d1][d2];
                Bu1_ += b*u1[tidz][d1][d2];
             }
@@ -958,17 +958,17 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double BBu0[NBZ][max_Q1D][max_Q1D];
-      MFEM_SHARED double BBu1[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t BBu0[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t BBu1[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            double BBu0_ = 0.0;
-            double BBu1_ = 0.0;
+            real_t BBu0_ = 0.0;
+            real_t BBu1_ = 0.0;
             for (int d2 = 0; d2 < D1D; ++d2)
             {
-               const double b = B(q2,d2);
+               const real_t b = B(q2,d2);
                BBu0_ += b*Bu0[tidz][q1][d2];
                BBu1_ += b*Bu1[tidz][q1][d2];
             }
@@ -977,34 +977,34 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double DBBu0[NBZ][max_Q1D][max_Q1D];
-      MFEM_SHARED double DBBu1[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t DBBu0[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t DBBu1[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            const double D00 = op(q1,q2,0,0,f);
-            const double D01 = op(q1,q2,0,1,f);
-            const double D10 = op(q1,q2,1,0,f);
-            const double D11 = op(q1,q2,1,1,f);
-            const double u0q = BBu0[tidz][q1][q2];
-            const double u1q = BBu1[tidz][q1][q2];
+            const real_t D00 = op(q1,q2,0,0,f);
+            const real_t D01 = op(q1,q2,0,1,f);
+            const real_t D10 = op(q1,q2,1,0,f);
+            const real_t D11 = op(q1,q2,1,1,f);
+            const real_t u0q = BBu0[tidz][q1][q2];
+            const real_t u1q = BBu1[tidz][q1][q2];
             DBBu0[tidz][q1][q2] = D00*u0q + D01*u1q;
             DBBu1[tidz][q1][q2] = D10*u0q + D11*u1q;
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED double BDBBu0[NBZ][max_Q1D][max_D1D];
-      MFEM_SHARED double BDBBu1[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t BDBBu0[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t BDBBu1[NBZ][max_Q1D][max_D1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            double BDBBu0_ = 0.0;
-            double BDBBu1_ = 0.0;
+            real_t BDBBu0_ = 0.0;
+            real_t BDBBu1_ = 0.0;
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const double b = Bt(d2,q2);
+               const real_t b = Bt(d2,q2);
                BDBBu0_ += b*DBBu0[tidz][q1][q2];
                BDBBu1_ += b*DBBu1[tidz][q1][q2];
             }
@@ -1017,11 +1017,11 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            double BBDBBu0_ = 0.0;
-            double BBDBBu1_ = 0.0;
+            real_t BBDBBu0_ = 0.0;
+            real_t BBDBBu1_ = 0.0;
             for (int q1 = 0; q1 < Q1D; ++q1)
             {
-               const double b = Bt(d1,q1);
+               const real_t b = Bt(d1,q1);
                BBDBBu0_ += b*BDBBu0[tidz][q1][d2];
                BBDBBu1_ += b*BDBBu1[tidz][q1][d2];
             }
@@ -1036,8 +1036,8 @@ static void PADGTraceApplyTranspose(const int dim,
                                     const int D1D,
                                     const int Q1D,
                                     const int NF,
-                                    const Array<double> &B,
-                                    const Array<double> &Bt,
+                                    const Array<real_t> &B,
+                                    const Array<real_t> &Bt,
                                     const Vector &op,
                                     const Vector &x,
                                     Vector &y)

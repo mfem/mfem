@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,7 +17,7 @@ namespace mfem
 {
 
 static void EADGTraceAssemble1DInt(const int NF,
-                                   const Array<double> &basis,
+                                   const Array<real_t> &basis,
                                    const Vector &padata,
                                    Vector &eadata_int,
                                    Vector &eadata_ext,
@@ -28,7 +28,7 @@ static void EADGTraceAssemble1DInt(const int NF,
    auto A_ext = Reshape(eadata_ext.ReadWrite(), 2, NF);
    mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
-      double val_int0, val_int1, val_ext01, val_ext10;
+      real_t val_int0, val_int1, val_ext01, val_ext10;
       val_int0  = D(0, 0, f);
       val_ext10 = D(1, 0, f);
       val_ext01 = D(0, 1, f);
@@ -51,7 +51,7 @@ static void EADGTraceAssemble1DInt(const int NF,
 }
 
 static void EADGTraceAssemble1DBdr(const int NF,
-                                   const Array<double> &basis,
+                                   const Array<real_t> &basis,
                                    const Vector &padata,
                                    Vector &eadata_bdr,
                                    const bool add)
@@ -73,7 +73,7 @@ static void EADGTraceAssemble1DBdr(const int NF,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EADGTraceAssemble2DInt(const int NF,
-                                   const Array<double> &basis,
+                                   const Array<real_t> &basis,
                                    const Vector &padata,
                                    Vector &eadata_int,
                                    Vector &eadata_ext,
@@ -83,8 +83,8 @@ static void EADGTraceAssemble2DInt(const int NF,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, 2, 2, NF);
    auto A_int = Reshape(eadata_int.ReadWrite(), D1D, D1D, 2, NF);
@@ -97,10 +97,10 @@ static void EADGTraceAssemble2DInt(const int NF,
       {
          MFEM_FOREACH_THREAD(j1,y,D1D)
          {
-            double val_int0 = 0.0;
-            double val_int1 = 0.0;
-            double val_ext01 = 0.0;
-            double val_ext10 = 0.0;
+            real_t val_int0 = 0.0;
+            real_t val_int1 = 0.0;
+            real_t val_ext01 = 0.0;
+            real_t val_ext10 = 0.0;
             for (int k1 = 0; k1 < Q1D; ++k1)
             {
                val_int0  += B(k1,i1) * B(k1,j1) * D(k1, 0, 0, f);
@@ -129,7 +129,7 @@ static void EADGTraceAssemble2DInt(const int NF,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EADGTraceAssemble2DBdr(const int NF,
-                                   const Array<double> &basis,
+                                   const Array<real_t> &basis,
                                    const Vector &padata,
                                    Vector &eadata_bdr,
                                    const bool add,
@@ -138,8 +138,8 @@ static void EADGTraceAssemble2DBdr(const int NF,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr.ReadWrite(), D1D, D1D, NF);
@@ -151,7 +151,7 @@ static void EADGTraceAssemble2DBdr(const int NF,
       {
          MFEM_FOREACH_THREAD(j1,y,D1D)
          {
-            double val_bdr = 0.0;
+            real_t val_bdr = 0.0;
             for (int k1 = 0; k1 < Q1D; ++k1)
             {
                val_bdr  += B(k1,i1) * B(k1,j1) * D(k1, 0, 0, f);
@@ -171,7 +171,7 @@ static void EADGTraceAssemble2DBdr(const int NF,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EADGTraceAssemble3DInt(const int NF,
-                                   const Array<double> &basis,
+                                   const Array<real_t> &basis,
                                    const Vector &padata,
                                    Vector &eadata_int,
                                    Vector &eadata_ext,
@@ -181,8 +181,8 @@ static void EADGTraceAssemble3DInt(const int NF,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, 2, NF);
    auto A_int = Reshape(eadata_int.ReadWrite(), D1D, D1D, D1D, D1D, 2, NF);
@@ -191,9 +191,9 @@ static void EADGTraceAssemble3DInt(const int NF,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_B[MQ1][MD1];
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_B[MQ1][MD1];
       for (int d = 0; d < D1D; d++)
       {
          for (int q = 0; q < Q1D; q++)
@@ -201,7 +201,7 @@ static void EADGTraceAssemble3DInt(const int NF,
             r_B[q][d] = B(q,d);
          }
       }
-      MFEM_SHARED double s_D[MQ1][MQ1][2][2];
+      MFEM_SHARED real_t s_D[MQ1][MQ1][2][2];
       for (int i=0; i < 2; i++)
       {
          for (int j=0; j < 2; j++)
@@ -224,10 +224,10 @@ static void EADGTraceAssemble3DInt(const int NF,
             {
                for (int j2 = 0; j2 < D1D; ++j2)
                {
-                  double val_int0 = 0.0;
-                  double val_int1 = 0.0;
-                  double val_ext01 = 0.0;
-                  double val_ext10 = 0.0;
+                  real_t val_int0 = 0.0;
+                  real_t val_int1 = 0.0;
+                  real_t val_ext01 = 0.0;
+                  real_t val_ext10 = 0.0;
                   for (int k1 = 0; k1 < Q1D; ++k1)
                   {
                      for (int k2 = 0; k2 < Q1D; ++k2)
@@ -269,7 +269,7 @@ static void EADGTraceAssemble3DInt(const int NF,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EADGTraceAssemble3DBdr(const int NF,
-                                   const Array<double> &basis,
+                                   const Array<real_t> &basis,
                                    const Vector &padata,
                                    Vector &eadata_bdr,
                                    const bool add,
@@ -278,8 +278,8 @@ static void EADGTraceAssemble3DBdr(const int NF,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr.ReadWrite(), D1D, D1D, D1D, D1D, NF);
@@ -287,9 +287,9 @@ static void EADGTraceAssemble3DBdr(const int NF,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_B[MQ1][MD1];
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_B[MQ1][MD1];
       for (int d = 0; d < D1D; d++)
       {
          for (int q = 0; q < Q1D; q++)
@@ -297,7 +297,7 @@ static void EADGTraceAssemble3DBdr(const int NF,
             r_B[q][d] = B(q,d);
          }
       }
-      MFEM_SHARED double s_D[MQ1][MQ1][2][2];
+      MFEM_SHARED real_t s_D[MQ1][MQ1][2][2];
       for (int i=0; i < 2; i++)
       {
          for (int j=0; j < 2; j++)
@@ -320,7 +320,7 @@ static void EADGTraceAssemble3DBdr(const int NF,
             {
                for (int j2 = 0; j2 < D1D; ++j2)
                {
-                  double val_bdr = 0.0;
+                  real_t val_bdr = 0.0;
                   for (int k1 = 0; k1 < Q1D; ++k1)
                   {
                      for (int k2 = 0; k2 < Q1D; ++k2)
@@ -353,7 +353,7 @@ void DGTraceIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
    SetupPA(fes, FaceType::Interior);
    nf = fes.GetNFbyType(FaceType::Interior);
    if (nf==0) { return; }
-   const Array<double> &B = maps->B;
+   const Array<real_t> &B = maps->B;
    if (dim == 1)
    {
       return EADGTraceAssemble1DInt(nf,B,pa_data,ea_data_int,ea_data_ext,add);
@@ -431,7 +431,7 @@ void DGTraceIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
    SetupPA(fes, FaceType::Boundary);
    nf = fes.GetNFbyType(FaceType::Boundary);
    if (nf==0) { return; }
-   const Array<double> &B = maps->B;
+   const Array<real_t> &B = maps->B;
    if (dim == 1)
    {
       return EADGTraceAssemble1DBdr(nf,B,pa_data,ea_data_bdr,add);

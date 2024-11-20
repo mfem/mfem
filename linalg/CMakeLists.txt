@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -11,6 +11,11 @@
 
 list(APPEND SRCS
   auxiliary.cpp
+  batched/batched.cpp
+  batched/gpu_blas.cpp
+  batched/magma.cpp
+  batched/native.cpp
+  batched/solver.cpp
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
@@ -31,6 +36,11 @@ list(APPEND SRCS
 
 list(APPEND HDRS
   auxiliary.hpp
+  batched/batched.hpp
+  batched/gpu_blas.hpp
+  batched/magma.hpp
+  batched/native.hpp
+  batched/solver.hpp
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
@@ -44,6 +54,7 @@ list(APPEND HDRS
   handle.hpp
   invariants.hpp
   kernels.hpp
+  lapack.hpp
   linalg.hpp
   matrix.hpp
   mdvector.hpp

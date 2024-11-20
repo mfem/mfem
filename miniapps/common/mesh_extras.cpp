@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -142,11 +142,11 @@ MergeMeshNodes(Mesh * mesh, int logging)
    int dim  = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
 
-   double h_min, h_max, k_min, k_max;
+   real_t h_min, h_max, k_min, k_max;
    mesh->GetCharacteristics(h_min, h_max, k_min, k_max);
 
    // Set tolerance for merging vertices
-   double tol = 1.0e-8 * h_min;
+   real_t tol = 1.0e-8 * h_min;
 
    if ( logging > 0 )
       cout << "Euler Number of Initial Mesh:  "
@@ -240,13 +240,13 @@ void KershawTransformation::Eval(Vector &V, ElementTransformation &T,
    V = 0.0;
    Vector pos(dim);
    T.Transform(ip, pos);
-   double x = pos(0), y = pos(1), z = dim == 3 ? pos(2) : 0;
-   double X, Y, Z;
+   real_t x = pos(0), y = pos(1), z = dim == 3 ? pos(2) : 0;
+   real_t X, Y, Z;
 
    X = x;
 
    int layer = x*6.0;
-   double lambda = (x-layer/6.0)*6;
+   real_t lambda = (x-layer/6.0)*6;
 
    // The x-range is split in 6 layers going from left-to-left, left-to-right,
    // right-to-left (2 layers), left-to-right and right-to-right yz-faces.

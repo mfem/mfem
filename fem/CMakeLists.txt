@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,6 +18,7 @@ set(SRCS
   integ/bilininteg_convection_pa.cpp
   integ/bilininteg_convection_ea.cpp
   integ/bilininteg_curlcurl_pa.cpp
+  integ/bilininteg_dgdiffusion_pa.cpp
   integ/bilininteg_dgtrace_pa.cpp
   integ/bilininteg_dgtrace_ea.cpp
   integ/bilininteg_diffusion_mf.cpp
@@ -25,6 +26,8 @@ set(SRCS
   integ/bilininteg_diffusion_ea.cpp
   integ/bilininteg_diffusion_patch.cpp
   integ/bilininteg_divdiv_pa.cpp
+  integ/bilininteg_elasticity_ea.cpp
+  integ/bilininteg_elasticity_pa.cpp
   integ/bilininteg_gradient_pa.cpp
   integ/bilininteg_interp_pa.cpp
   integ/bilininteg_mass_mf.cpp
@@ -41,6 +44,7 @@ set(SRCS
   integ/bilininteg_vectorfediv_pa.cpp
   integ/bilininteg_vectorfemass_pa.cpp
   integ/bilininteg_diffusion_kernels.cpp
+  integ/bilininteg_elasticity_kernels.cpp
   integ/bilininteg_hcurl_kernels.cpp
   integ/bilininteg_hdiv_kernels.cpp
   integ/bilininteg_hcurlhdiv_kernels.cpp
@@ -77,6 +81,7 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
+  intrules_cut.cpp
   ceed/interface/basis.cpp
   ceed/interface/restriction.cpp
   ceed/interface/operator.cpp
@@ -88,6 +93,7 @@ set(SRCS
   ceed/solvers/algebraic.cpp
   ceed/solvers/full-assembly.cpp
   ceed/solvers/solvers-atpmg.cpp
+  kdtree.cpp
   linearform.cpp
   linearform_ext.cpp
   lininteg.cpp
@@ -95,9 +101,6 @@ set(SRCS
   lor/lor_ads.cpp
   lor/lor_ams.cpp
   lor/lor_batched.cpp
-  lor/lor_h1.cpp
-  lor/lor_nd.cpp
-  lor/lor_rt.cpp
   mdgridfunc.hpp
   multigrid.cpp
   nonlinearform.cpp
@@ -110,12 +113,11 @@ set(SRCS
   qinterp/eval_by_vdim.cpp
   qinterp/grad_by_nodes.cpp
   qinterp/grad_by_vdim.cpp
-  qinterp/grad_phys_by_nodes.cpp
-  qinterp/grad_phys_by_vdim.cpp
   qspace.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
   restriction.cpp
+  normal_deriv_restriction.cpp
   staticcond.cpp
   tmop.cpp
   tmop/tmop_pa.cpp
@@ -148,6 +150,7 @@ set(SRCS
   tmop_amr.cpp
   gslib.cpp
   transfer.cpp
+  hyperbolic.cpp
   )
 
 set(HDRS
@@ -155,6 +158,7 @@ set(HDRS
   bilinearform_ext.hpp
   bilininteg.hpp
   integ/bilininteg_diffusion_kernels.hpp
+  integ/bilininteg_elasticity_kernels.hpp
   integ/bilininteg_hcurl_kernels.hpp
   integ/bilininteg_hdiv_kernels.hpp
   integ/bilininteg_hcurlhdiv_kernels.hpp
@@ -186,6 +190,10 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
+  intrules_cut.hpp
+  kernel_dispatch.hpp
+  kernel_reporter.hpp
+  kernels.hpp
   ceed/interface/basis.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp
@@ -200,6 +208,7 @@ set(HDRS
   ceed/solvers/algebraic.hpp
   ceed/solvers/full-assembly.hpp
   ceed/solvers/solvers-atpmg.hpp
+  kdtree.hpp
   linearform.hpp
   linearform_ext.hpp
   lininteg.hpp
@@ -216,13 +225,13 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   qfunction.hpp
-  qinterp/dispatch.hpp
   qinterp/eval.hpp
   qinterp/grad.hpp
   qspace.hpp
   quadinterpolator.hpp
   quadinterpolator_face.hpp
   restriction.hpp
+  normal_deriv_restriction.hpp
   fespacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp
@@ -239,6 +248,7 @@ set(HDRS
   tmop_amr.hpp
   gslib.hpp
   transfer.hpp
+  hyperbolic.hpp
   )
 
 if (MFEM_USE_SIDRE)

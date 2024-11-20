@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,9 +21,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
                            const int NE,
                            const int ncomp,
                            const int sizeidx,
-                           const double input_min_size,
+                           const real_t input_min_size,
                            const DenseMatrix &w_,
-                           const Array<double> &b_,
+                           const Array<real_t> &b_,
                            const Vector &x_,
                            const Vector &nc_reduce,
                            DenseTensor &j_,
@@ -41,11 +41,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, ncomp, NE);
    auto J = Reshape(j_.Write(), DIM,DIM, Q1D,Q1D,Q1D, NE);
 
-   const double infinity = std::numeric_limits<double>::infinity();
+   const real_t infinity = std::numeric_limits<real_t>::infinity();
    MFEM_VERIFY(sizeidx == 0,"");
    MFEM_VERIFY(MFEM_CUDA_BLOCKS==256,"");
 
-   const double *nc_red = nc_reduce.Read();
+   const real_t *nc_red = nc_reduce.Read();
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -55,9 +55,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-      MFEM_SHARED double sB[MQ1*MD1];
-      MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
-      MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
+      MFEM_SHARED real_t sB[MQ1*MD1];
+      MFEM_SHARED real_t sm0[MDQ*MDQ*MDQ];
+      MFEM_SHARED real_t sm1[MDQ*MDQ*MDQ];
 
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,b,sB);
 
@@ -69,10 +69,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
 
       kernels::internal::LoadX(e,D1D,sizeidx,X,DDD);
 
-      double min;
-      MFEM_SHARED double min_size[MFEM_CUDA_BLOCKS];
-      DeviceTensor<3,double> M((double*)(min_size),D1D,D1D,D1D);
-      const DeviceTensor<3,const double> D((double*)(DDD+sizeidx),D1D,D1D,D1D);
+      real_t min;
+      MFEM_SHARED real_t min_size[MFEM_CUDA_BLOCKS];
+      DeviceTensor<3,real_t> M((real_t*)(min_size),D1D,D1D,D1D);
+      const DeviceTensor<3,const real_t> D((real_t*)(DDD+sizeidx),D1D,D1D,D1D);
       MFEM_FOREACH_THREAD(t,x,MFEM_CUDA_BLOCKS) { min_size[t] = infinity; }
       MFEM_SYNC_THREAD;
       MFEM_FOREACH_THREAD(dz,z,D1D)
@@ -108,11 +108,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
          {
             MFEM_FOREACH_THREAD(qz,z,Q1D)
             {
-               double T;
+               real_t T;
                kernels::internal::PullEval(qx,qy,qz,QQQ,T);
-               const double shape_par_vals = T;
-               const double size = fmax(shape_par_vals, min) / nc_red[e];
-               const double alpha = std::pow(size, 1.0/DIM);
+               const real_t shape_par_vals = T;
+               const real_t size = fmax(shape_par_vals, min) / nc_red[e];
+               const real_t alpha = std::pow(size, 1.0/DIM);
                for (int i = 0; i < DIM; i++)
                {
                   for (int j = 0; j < DIM; j++)
@@ -160,10 +160,10 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(fe.GetGeomType());
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
-   const Array<double> &B = maps.B;
+   const Array<real_t> &B = maps.B;
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
-   const double input_min_size = lim_min_size;
+   const real_t input_min_size = lim_min_size;
 
    Vector nc_size_red(NE, Device::GetDeviceMemoryType());
    nc_size_red.HostWrite();

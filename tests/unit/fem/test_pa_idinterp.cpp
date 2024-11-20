@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,7 +15,7 @@
 
 using namespace mfem;
 
-double compare_pa_id_assembly(int dim, int num_elements, int order,
+real_t compare_pa_id_assembly(int dim, int num_elements, int order,
                               bool transpose)
 {
    Mesh mesh;
@@ -32,9 +32,9 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
          // Transform mesh vertices to test without alignment with coordinate axes.
          for (int i=0; i<mesh.GetNV(); ++i)
          {
-            double *v = mesh.GetVertex(i);
-            const double yscale = 1.0 + v[1];
-            const double zscale = 1.0 + v[2];
+            real_t *v = mesh.GetVertex(i);
+            const real_t yscale = 1.0 + v[1];
+            const real_t zscale = 1.0 + v[2];
             v[0] *= zscale;
             v[1] *= zscale;
             v[2] *= yscale;
@@ -100,7 +100,7 @@ double compare_pa_id_assembly(int dim, int num_elements, int order,
    }
 
    pa_y -= assembled_y;
-   double error = pa_y.Norml2() / assembled_y.Norml2();
+   real_t error = pa_y.Norml2() / assembled_y.Norml2();
    INFO("dim " << dim << " ne " << num_elements << " order " << order
         << (transpose ? " T:" : ":") << " error in PA identity: " << error);
 
@@ -117,6 +117,6 @@ TEST_CASE("PAIdentityInterp", "[CUDA]")
    auto dim = GENERATE(2, 3);
    auto num_elements = GENERATE(0, 1, 2, 3, 4);
 
-   double error = compare_pa_id_assembly(dim, num_elements, order, transpose);
+   real_t error = compare_pa_id_assembly(dim, num_elements, order, transpose);
    REQUIRE(error == MFEM_Approx(0.0, 1.0e-14));
 }

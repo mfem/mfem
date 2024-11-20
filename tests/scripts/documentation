@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -60,7 +60,7 @@ if [ -s "$test_name.err" ]; then
 To correct this error, make sure that the Doxygen comments in the code use
 correct syntax.
 
-See the Doxygen documentation for specific syntax (e.g. @a, @brief, \f[, etc.),
+See the Doxygen documentation for specific syntax (e.g. @a, @brief, etc.),
 and the 'makefile' and 'CodeDocumentation.conf.in' files in the 'doc/' directory
 for additional details.
 

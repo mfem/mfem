@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,6 +14,8 @@ if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc|ppc64" OR (APPLE AND "${CMAKE_OSX_ARC
    set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=native" "-mtune=native")
 elseif (APPLE AND ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
    set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=apple-m1")
+elseif (${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
+   set(MFEM_PERF_CXX_ARCH_FLAGS "-march=rv64gc")
 else()
    set(MFEM_PERF_CXX_ARCH_FLAGS "-march=native")
 endif()
