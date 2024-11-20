@@ -861,17 +861,17 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          }
       }
 
-      HYPRE_Int *i_diag = new HYPRE_Int[ldof+1];
-      HYPRE_Int *j_diag = new HYPRE_Int[ltdof];
-      real_t    *d_diag = new real_t[ltdof];
+      HYPRE_Int *i_diag = Memory<HYPRE_Int>(ldof+1);
+      HYPRE_Int *j_diag = Memory<HYPRE_Int>(ltdof);
+      real_t    *d_diag = Memory<real_t>(ltdof);
       int diag_counter;
 
-      HYPRE_Int *i_offd = new HYPRE_Int[ldof+1];
-      HYPRE_Int *j_offd = new HYPRE_Int[nnz_offd];
-      real_t    *d_offd = new real_t[nnz_offd];
+      HYPRE_Int *i_offd = Memory<HYPRE_Int>(ldof+1);
+      HYPRE_Int *j_offd = Memory<HYPRE_Int>(nnz_offd);
+      real_t    *d_offd = Memory<real_t>(nnz_offd);
       int offd_counter;
 
-      HYPRE_BigInt *cmap   = new HYPRE_BigInt[ldof-ltdof];
+      HYPRE_BigInt *cmap   = Memory<HYPRE_BigInt>(ldof-ltdof);
 
       HYPRE_BigInt *col_starts = GetTrueDofOffsets();
       HYPRE_BigInt *row_starts = GetDofOffsets();

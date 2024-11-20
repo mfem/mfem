@@ -1,7 +1,9 @@
 //                                MFEM Example 9
 //                             SUNDIALS Modification
 //
-// Compile with: make ex9
+// Compile with:
+//    make ex9              (GNU make)
+//    make sundials_ex9     (CMake)
 //
 // Sample runs:
 //    ex9 -m ../../data/periodic-segment.mesh -p 0 -r 2 -s 7 -dt 0.005

@@ -131,7 +131,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
       }
 
 #ifdef MFEM_USE_LAPACK
-      DenseMatrixSVD svd(Am,false,true);
+      DenseMatrixSVD svd(Am,'N','A');
       svd.Eval(Am);
       DenseMatrix &v = svd.RightSingularvectors();
       v.GetRow(k,w);
@@ -346,7 +346,7 @@ void ComputePartialFractionApproximation(real_t & alpha,
    }
    else
    {
-      if (abs(alpha - 0.5) > eps && print_warning)
+      if (abs(alpha - 0.5) > eps)
       {
          alpha = 0.5;
       }
@@ -368,6 +368,8 @@ void ComputePartialFractionApproximation(real_t & alpha,
 
 
    return;
+#else
+   MFEM_CONTRACT_VAR(print_warning);
 #endif
 
    Vector x(npoints);

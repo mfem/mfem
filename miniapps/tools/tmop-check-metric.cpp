@@ -101,6 +101,18 @@ int main(int argc, char *argv[])
    }
 
    const int dim = (metric_id < 300) ? 2 : 3;
+   Mesh *mesh;
+   if (dim == 2)
+   {
+      mesh = new Mesh(Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL));
+   }
+   else
+   {
+      mesh = new Mesh(Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON));
+   }
+   H1_FECollection fec(2, dim);
+   FiniteElementSpace fespace(mesh, &fec, dim);
+
    DenseMatrix T(dim);
    Vector T_vec(T.GetData(), dim * dim);
 
@@ -112,6 +124,10 @@ int main(int argc, char *argv[])
       // Increase probability of det(T) > 0.
       T(0, 0) += T_vec.Max();
       if (T.Det() <= 0.0) { continue; }
+
+      const DenseMatrix &Wideal = Geometries.GetGeomToPerfGeomJac(fespace.GetFE(
+                                                                     0)->GetGeomType());
+      metric->SetTargetJacobian(Wideal);
 
       const real_t i_form = metric->EvalW(T),
                    m_form = metric->EvalWMatrixForm(T);
@@ -131,17 +147,6 @@ int main(int argc, char *argv[])
    cout << "--- EvalW:     " << bad_cnt << " errors out of "
         << valid_cnt << " comparisons with det(T) > 0.\n";
 
-   Mesh *mesh;
-   if (dim == 2)
-   {
-      mesh = new Mesh(Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL));
-   }
-   else
-   {
-      mesh = new Mesh(Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON));
-   }
-   H1_FECollection fec(2, dim);
-   FiniteElementSpace fespace(mesh, &fec, dim);
    NonlinearForm a(&fespace);
    mesh->SetNodalFESpace(&fespace);
    GridFunction x(&fespace);

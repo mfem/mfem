@@ -77,10 +77,10 @@ public:
       : IterativeSolver(comm_) { pprec = &ppc; iprec = &ipc; }
 #endif
 
-   virtual void SetOperator(const Operator &op)
+   void SetOperator(const Operator &op) override
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void SetPreconditioner(Solver &pc)
+   void SetPreconditioner(Solver &pc) override
    { if (Mpi::Root()) { MFEM_WARNING("SetPreconditioner has no effect on BPCGSolver.\n"); } }
 
    virtual void SetIncompletePreconditioner(const Operator &ipc)
@@ -89,7 +89,7 @@ public:
    virtual void SetParticularPreconditioner(const Operator &ppc)
    { pprec = &ppc; }
 
-   virtual void Mult(const Vector &b, Vector &x) const;
+   void Mult(const Vector &b, Vector &x) const override;
 };
 
 /// Bramble-Pasciak Solver for Darcy equation.
@@ -101,7 +101,7 @@ public:
     us to implement modified versions of CG iterations, that rely on efficient
     applications of the required transformations.
 
-    We offer a mass preconditioner based on a rescalling of the diagonal of the
+    We offer a mass preconditioner based on a rescaling of the diagonal of the
     element mass matrices M_T.
 
     We consider Q_T := alpha * lambda_min * D_T, where D_T := diag(M_T), and
@@ -118,7 +118,7 @@ public:
 
     2. J. Bramble and J. Pasciak.  A Preconditioning Technique for Indefinite
        Systems Resulting From Mixed Approximations of Elliptic Problems,
-       Mathematics of Computation, 50:1–17, 1988. */
+       Mathematics of Computation, 50:1-17, 1988. */
 class BramblePasciakSolver : public DarcySolver
 {
    mutable bool use_bpcg;
@@ -161,10 +161,10 @@ public:
    static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf,
                                                       real_t alpha = 0.5);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void SetOperator(const Operator &op) { }
+   void Mult(const Vector &x, Vector &y) const override;
+   void SetOperator(const Operator &op) override { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
-   virtual int GetNumIterations() const { return solver_->GetNumIterations(); }
+   int GetNumIterations() const override { return solver_->GetNumIterations(); }
 };
 
 } // namespace blocksolvers

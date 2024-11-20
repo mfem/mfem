@@ -31,7 +31,7 @@ SubMesh SubMesh::CreateFromBoundary(const Mesh &parent,
 SubMesh::SubMesh(const Mesh &parent, From from,
                  Array<int> attributes) : parent_(parent), from_(from), attributes_(attributes)
 {
-   if (Nonconforming())
+   if (parent.Nonconforming())
    {
       MFEM_ABORT("SubMesh does not support non-conforming meshes");
    }
@@ -192,8 +192,6 @@ SubMesh::SubMesh(const Mesh &parent, From from,
    SetAttributes();
    Finalize();
 }
-
-SubMesh::~SubMesh() {}
 
 void SubMesh::Transfer(const GridFunction &src, GridFunction &dst)
 {

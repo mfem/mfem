@@ -33,7 +33,7 @@ public:
    ShiftedFunctionCoefficient(real_t constant_)
       : constant(constant_), constantcoefficient(true) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       if (constantcoefficient) { return constant; }
 
@@ -59,8 +59,8 @@ public:
       : VectorCoefficient(dim), Function(std::move(F)) { }
 
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       Vector D(vdim);
       D = 0.;
@@ -93,7 +93,7 @@ protected:
    real_t alpha;
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;     // include element cut by true boundary
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -124,10 +124,10 @@ public:
         cut_marker(cut_marker_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
    virtual ~SBM2DirichletIntegrator() { }
 };
@@ -156,7 +156,7 @@ protected:
    real_t alpha;              // Nitsche parameter
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;     // include element cut by true boundary
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -186,16 +186,16 @@ public:
         par_shared_face_count(0),
         ls_cut_marker(ls_cut_marker_) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el1,
-                                       const FiniteElement &el2,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el1,
+                               const FiniteElement &el2,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
 };
 
 
@@ -217,7 +217,7 @@ protected:
    ShiftedVectorFunctionCoefficient *vN; // Normal function coefficient
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // Marker indicating whether element is inside,
-   //cut, or outside the domain.
+   // cut, or outside the domain.
    bool include_cut_cell;
    int nterms;                // Number of terms in addition to the gradient
    // term from Taylor expansion that should be included. (0 by default).
@@ -248,10 +248,10 @@ public:
         cut_marker(cut_marker_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
-                                   DenseMatrix &elmat);
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 
    bool GetTrimFlag() const { return include_cut_cell; }
 
@@ -309,16 +309,16 @@ public:
          par_shared_face_count(0),
          ls_cut_marker(ls_cut_marker_) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el1,
-                                       const FiniteElement &el2,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el1,
+                               const FiniteElement &el2,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
    bool GetTrimFlag() const { return include_cut_cell; }
 };
 

@@ -1,5 +1,5 @@
 #include "mesh-optimizer_using_NLP.hpp"
-
+#include "mfem.hpp"
 
 #ifdef MFEM_USE_PETSC
 #include "petsc.h"
@@ -656,7 +656,7 @@ void Diffusion_Solver::ASolve( mfem::Vector & rhs )
     ::mfem::ParLinearForm RHS_sensitivity(coord_fes_);
     RHS_sensitivity.AddDomainIntegrator(new ThermalHeatSourceShapeSensitivityIntegrator(*QCoef_, adj_sol));
     RHS_sensitivity.Assemble();
- 
+
     *dQdx_ = 0.0;
     dQdx_->Add(-1.0, LHS_sensitivity);
     dQdx_->Add( 1.0, RHS_sensitivity);

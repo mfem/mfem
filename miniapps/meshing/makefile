@@ -12,11 +12,10 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/meshing/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 # Include defaults.mk to get XLINKER
 DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
@@ -28,7 +27,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
 	mesh-quality
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
+               pmesh-optimizer_NLP
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -59,11 +59,24 @@ all: $(MINIAPPS)
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
+# Rule for building pmesh-optimizer_NLP
+pmesh-optimizer_NLP: pmesh-optimizer_NLP.o mesh-optimizer_using_NLP.o \
+        $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -o pmesh-optimizer_NLP pmesh-optimizer_NLP.o\
+        mesh-optimizer_using_NLP.o $(MFEM_LIBS)
+
+mesh-optimizer_using_NLP.o: mesh-optimizer_using_NLP.cpp \
+    mesh-optimizer_using_NLP.hpp
+	$(MFEM_CXX) $(MFEM_FLAGS) -c mesh-optimizer_using_NLP.cpp
+
+pmesh-optimizer_NLP.o: pmesh-optimizer_NLP.cpp mesh-optimizer_using_NLP.cpp
+	$(MFEM_CXX) $(MFEM_FLAGS) -c pmesh-optimizer_NLP.cpp
+
 # Rules to copy the *.mesh files - needed for running the sample runs when
 # building out-of-source:
 ifneq ($(SRC),)
 MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh icf.mesh\
-jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh 
+jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 mesh-optimizer pmesh-optimizer pmesh-fitting fit-node-position: | $(MESH_FILES)
@@ -123,7 +136,7 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
+	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh*
 	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh reflected.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh
 	@rm -f optimized* perturbed* polar-nc.mesh

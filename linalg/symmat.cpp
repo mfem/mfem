@@ -58,6 +58,20 @@ DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(real_t c)
    return *this;
 }
 
+DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(const DenseSymmetricMatrix
+                                                      &m)
+{
+   SetSize(m.height);
+
+   const int hw = m.GetStoredSize();
+   for (int i = 0; i < hw; i++)
+   {
+      data[i] = m.data[i];
+   }
+
+   return *this;
+}
+
 real_t &DenseSymmetricMatrix::Elem(int i, int j)
 {
    return (*this)(i,j);
@@ -87,11 +101,6 @@ MatrixInverse *DenseSymmetricMatrix::Inverse() const
 {
    mfem_error("DenseSymmetricMatrix::Inverse() not implemented!");
    return nullptr;
-}
-
-void DenseSymmetricMatrix::Print (std::ostream & os, int width_) const
-{
-   mfem_error("DenseSymmetricMatrix::Print() not implemented!");
 }
 
 DenseSymmetricMatrix::~DenseSymmetricMatrix()

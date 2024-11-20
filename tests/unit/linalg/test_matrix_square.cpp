@@ -233,7 +233,7 @@ TEST_CASE("HypreParMatrixBlocksSquare",
       blockOper.SetBlock(1, 0, B);
       blockOper.SetBlock(1, 1, MW, 3.14);
 
-      Array2D<HypreParMatrix*> hBlocks(2,2);
+      Array2D<const HypreParMatrix*> hBlocks(2,2);
       hBlocks = NULL;
       hBlocks(0, 0) = MR;
       hBlocks(0, 1) = BT;
@@ -254,8 +254,10 @@ TEST_CASE("HypreParMatrixBlocksSquare",
       yH = 0.0;
 
       MR->GetDiag(yBR);
+      yBR.SyncAliasMemory(yB);
       MW->GetDiag(yBW);
       yBW *= 3.14;
+      yBW.SyncAliasMemory(yB);
       H->GetDiag(yH);
 
       yH -= yB;

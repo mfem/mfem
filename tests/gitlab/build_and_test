@@ -144,6 +144,11 @@ then
     echo "Removing existing configuration"
     make distclean
 
+    # Add -O2 flag for debug builds to speed up the tests.
+    sed -e 's/^\(DEBUG_FLAGS =.*\)$/\1 -O2/g' config/defaults.mk > \
+        config/defaults.mk.new
+    mv -f config/defaults.mk.new config/defaults.mk
+
     echo "Installing dependencies."
     command -v python > /dev/null && python_cmd=python || python_cmd=python3
     $python_cmd tests/uberenv/uberenv.py --spec="${spec}" "${upstream_opt}" \

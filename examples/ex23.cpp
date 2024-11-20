@@ -44,7 +44,7 @@ protected:
    BilinearForm *M;
    BilinearForm *K;
 
-   SparseMatrix Mmat, Kmat, Kmat0;
+   SparseMatrix Mmat, Kmat;
    SparseMatrix *T; // T = M + dt K
    real_t current_dt;
 
@@ -61,20 +61,20 @@ public:
    WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr, real_t speed);
 
    using SecondOrderTimeDependentOperator::Mult;
-   virtual void Mult(const Vector &u, const Vector &du_dt,
-                     Vector &d2udt2) const;
+   void Mult(const Vector &u, const Vector &du_dt,
+             Vector &d2udt2) const override;
 
    /** Solve the Backward-Euler equation:
        d2udt2 = f(u + fac0*d2udt2,dudt + fac1*d2udt2, t),
        for the unknown d2udt2. */
    using SecondOrderTimeDependentOperator::ImplicitSolve;
-   virtual void ImplicitSolve(const real_t fac0, const real_t fac1,
-                              const Vector &u, const Vector &dudt, Vector &d2udt2);
+   void ImplicitSolve(const real_t fac0, const real_t fac1,
+                      const Vector &u, const Vector &dudt, Vector &d2udt2) override;
 
    ///
    void SetParameters(const Vector &u);
 
-   virtual ~WaveOperator();
+   ~WaveOperator() override;
 };
 
 
@@ -83,25 +83,24 @@ WaveOperator::WaveOperator(FiniteElementSpace &f,
    : SecondOrderTimeDependentOperator(f.GetTrueVSize(), (real_t) 0.0),
      fespace(f), M(NULL), K(NULL), T(NULL), current_dt(0.0), z(height)
 {
-   const real_t rel_tol = 1e-8;
-
-   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-
+   // Assemble Laplace matrix
    c2 = new ConstantCoefficient(speed*speed);
-
    K = new BilinearForm(&fespace);
    K->AddDomainIntegrator(new DiffusionIntegrator(*c2));
    K->Assemble();
 
-   Array<int> dummy;
-   K->FormSystemMatrix(dummy, Kmat0);
-   K->FormSystemMatrix(ess_tdof_list, Kmat);
-
+   // Assemble Mass matrix
    M = new BilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble();
+
+   // Apply Bcs
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   K->FormSystemMatrix(ess_tdof_list, Kmat);
    M->FormSystemMatrix(ess_tdof_list, Mmat);
 
+   // Configure preconditioner
+   const real_t rel_tol = 1e-8;
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
@@ -110,14 +109,13 @@ WaveOperator::WaveOperator(FiniteElementSpace &f,
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mmat);
 
+   // Configure solver
    T_solver.iterative_mode = false;
    T_solver.SetRelTol(rel_tol);
    T_solver.SetAbsTol(0.0);
    T_solver.SetMaxIter(100);
    T_solver.SetPrintLevel(0);
    T_solver.SetPreconditioner(T_prec);
-
-   T = NULL;
 }
 
 void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
@@ -126,9 +124,11 @@ void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
    // Compute:
    //    d2udt2 = M^{-1}*-K(u)
    // for d2udt2
-   Kmat.Mult(u, z);
+   K->FullMult(u, z);
    z.Neg(); // z = -z
+   z.SetSubVector(ess_tdof_list, 0.0);
    M_solver.Mult(z, d2udt2);
+   d2udt2.SetSubVector(ess_tdof_list, 0.0);
 }
 
 void WaveOperator::ImplicitSolve(const real_t fac0, const real_t fac1,
@@ -142,14 +142,11 @@ void WaveOperator::ImplicitSolve(const real_t fac0, const real_t fac1,
       T = Add(1.0, Mmat, fac0, Kmat);
       T_solver.SetOperator(*T);
    }
-   Kmat0.Mult(u, z);
+   K->FullMult(u, z);
    z.Neg();
-
-   for (int i = 0; i < ess_tdof_list.Size(); i++)
-   {
-      z[ess_tdof_list[i]] = 0.0;
-   }
+   z.SetSubVector(ess_tdof_list, 0.0);
    T_solver.Mult(z, d2udt2);
+   d2udt2.SetSubVector(ess_tdof_list, 0.0);
 }
 
 void WaveOperator::SetParameters(const Vector &u)
@@ -204,9 +201,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
-                  "\t   11 - Average Acceleration, 12 - Linear Acceleration\n"
-                  "\t   13 - CentralDifference, 14 - FoxGoodwin");
+                  SecondOrderODESolver::Types.c_str());
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -241,32 +236,7 @@ int main(int argc, char *argv[])
 
    // 3. Define the ODE solver used for time integration. Several second order
    //    time integrators are available.
-   SecondOrderODESolver *ode_solver;
-   switch (ode_solver_type)
-   {
-      // Implicit methods
-      case 0: ode_solver = new GeneralizedAlpha2Solver(0.0); break;
-      case 1: ode_solver = new GeneralizedAlpha2Solver(0.1); break;
-      case 2: ode_solver = new GeneralizedAlpha2Solver(0.2); break;
-      case 3: ode_solver = new GeneralizedAlpha2Solver(0.3); break;
-      case 4: ode_solver = new GeneralizedAlpha2Solver(0.4); break;
-      case 5: ode_solver = new GeneralizedAlpha2Solver(0.5); break;
-      case 6: ode_solver = new GeneralizedAlpha2Solver(0.6); break;
-      case 7: ode_solver = new GeneralizedAlpha2Solver(0.7); break;
-      case 8: ode_solver = new GeneralizedAlpha2Solver(0.8); break;
-      case 9: ode_solver = new GeneralizedAlpha2Solver(0.9); break;
-      case 10: ode_solver = new GeneralizedAlpha2Solver(1.0); break;
-
-      case 11: ode_solver = new AverageAccelerationSolver(); break;
-      case 12: ode_solver = new LinearAccelerationSolver(); break;
-      case 13: ode_solver = new CentralDifferenceSolver(); break;
-      case 14: ode_solver = new FoxGoodwinSolver(); break;
-
-      default:
-         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
-         return 3;
-   }
+   SecondOrderODESolver *ode_solver= SecondOrderODESolver::Select(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -314,7 +284,6 @@ int main(int argc, char *argv[])
          ess_bdr = 0;
       }
    }
-
    WaveOperator oper(fespace, ess_bdr, speed);
 
    u_gf.SetFromTrueDofs(u);

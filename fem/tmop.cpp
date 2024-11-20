@@ -14,11 +14,360 @@
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
+#include "../linalg/dual.hpp"
 
 namespace mfem
 {
 
+/* Some AD related declarations below ========================================*/
+
+/// MFEM native AD-type for first derivatives
+typedef internal::dual<real_t, real_t> ADFType;
+/// MFEM native AD-type for second derivatives
+typedef internal::dual<ADFType, ADFType> ADSType;
+
+template <typename type>
+auto fnorm2_2D(std::vector<type>& u) -> type
+{
+   return u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3];
+}
+
+template <typename type>
+auto det_2D(std::vector<type>& u) -> type
+{
+   return u[0]*u[3] - u[1]*u[2];
+}
+
+template <typename type>
+void mult_2D(const std::vector<type>& u, const DenseMatrix * M,
+             std::vector<type>& mat )
+{
+   mat.resize(u.size());
+
+   mat[0] = u[0]*M->Elem(0,0) + u[2]*M->Elem(1,0);
+   mat[1] = u[1]*M->Elem(0,0) + u[3]*M->Elem(1,0);
+   mat[2] = u[0]*M->Elem(0,1) + u[2]*M->Elem(1,1);
+   mat[3] = u[1]*M->Elem(0,1) + u[3]*M->Elem(1,1);
+}
+
+template <typename type>
+void mult_2D(const DenseMatrix * u, const std::vector<type> & M,
+             std::vector<type>& mat )
+{
+   mat.resize(M.size());
+   mat[0] = u->Elem(0,0) * M[0] + u->Elem(0,1) * M[1];
+   mat[1] = u->Elem(1,0) * M[0] + u->Elem(1,1) * M[1];
+   mat[2] = u->Elem(0,0) * M[2] + u->Elem(0,1) * M[3];
+   mat[3] = u->Elem(1,0) * M[2] + u->Elem(1,1) * M[3];
+}
+
+template <typename type>
+void mult_2D(const std::vector<type>& u, const std::vector<type>& M,
+             std::vector<type>& mat )
+{
+   mat.resize(u.size());
+
+   mat[0] = u[0]*M[0] + u[2]*M[1];
+   mat[1] = u[1]*M[0] + u[3]*M[1];
+   mat[2] = u[0]*M[2] + u[2]*M[3];
+   mat[3] = u[1]*M[2] + u[3]*M[3];
+}
+
+// compute A^tA
+template <typename type>
+void mult_aTa_2D(const DenseMatrix * in,
+                 std::vector<type>& out )
+{
+   out.resize(in->Size()*in->Size());
+   out[0] = in->Elem(0,0)*in->Elem(0,0);
+   out[1] = in->Elem(0,0)*in->Elem(0,1) + in->Elem(1,0)*in->Elem(1,1);
+   out[2] = in->Elem(0,0)*in->Elem(0,1) + in->Elem(1,0)*in->Elem(1,1);
+   out[3] = in->Elem(1,1)*in->Elem(1,1);
+}
+
+template <typename type>
+void mult_aTa_2D(const std::vector<type>& in,
+                 std::vector<type>& out )
+{
+   out.resize(in.size());
+   out[0] = in[0]*in[0];
+   out[1] = in[0]*in[2] + in[1]*in[3];
+   out[2] = in[0]*in[2] + in[1]*in[3];
+   out[3] = in[3]*in[3];
+}
+
+template <typename scalartype, typename type>
+void add_2D(const scalartype & scalar, const std::vector<type>& u,
+            const DenseMatrix * M, std::vector<type>& mat )
+{
+   mat.resize(u.size());
+   mat[0] = u[0] + scalar * M->Elem(0,0);
+   mat[1] = u[1] + scalar * M->Elem(1,0);
+   mat[2] = u[2] + scalar * M->Elem(0,1);
+   mat[3] = u[3] + scalar * M->Elem(1,1);
+}
+
+template <typename scalartype, typename type>
+void add_2D(const scalartype & scalar, const std::vector<type> & u,
+            const std::vector<type> & M,
+            std::vector<type>& mat )
+{
+   mat.resize(M.size());
+   mat[0] = u[0] + scalar * M[0];
+   mat[1] = u[1] + scalar * M[1];
+   mat[2] = u[2] + scalar * M[2];
+   mat[3] = u[3] + scalar * M[3];
+}
+
+template <typename type>
+void adjoint_2D(const std::vector<type> & in,
+                std::vector<type>& out )
+{
+   out.resize(in.size());
+   out[0] = in[3];
+   out[1] = -in[1];
+   out[2] = -in[2];
+   out[3] = in[0];
+}
+
+template <typename type>
+void transpose_2D(const std::vector<type> & in,
+                  std::vector<type>& out )
+{
+   out.resize(in.size());
+   out[0] = in[0];
+   out[1] = in[2];
+   out[2] = in[1];
+   out[3] = in[3];
+}
+
+template <typename type>
+auto mu2_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   return (fnorm2_2D(T))/(2.0*det_2D(T)) - 1.0;
+};
+
+template <typename type>
+auto mu85_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   auto fnorm = sqrt(fnorm2_2D(T));
+   return T[1]*T[1] + T[2]*T[2] +
+          (T[0] - fnorm/sqrt(2))*(T[0] - fnorm/sqrt(2)) +
+          (T[3] - fnorm/sqrt(2))*(T[3] - fnorm/sqrt(2));
+};
+
+template <typename type>
+auto mu98_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Id(2,2); Id = 0.0;
+   Id(0,0) = 1; Id(1,1) = 1;
+
+   std::vector<type> Mat;
+   add_2D(-1.0, T,&Id,Mat);
+
+   return fnorm2_2D(Mat)/W->Det();
+};
+
+template <typename type>
+auto mu107a_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   std::vector<type> A;   // T*W = A
+   std::vector<type> Mat;  // A-W
+   mult_2D(T,W,A);
+
+   auto alpha = det_2D(A);
+   auto aw = sqrt(fnorm2_2D(A))/W->FNorm();
+
+   add_2D(-1.0*aw, A, W, Mat);
+   return (0.5/alpha)*fnorm2_2D(Mat);
+};
+
+template <typename type>
+auto mu014a_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   std::vector<type> A;   // T*W = A
+   mult_2D(T,W,A);
+
+   auto sqalpha = sqrt(det_2D(A));
+   real_t sqomega = pow(W->Det(), 0.5);
+
+   return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.0);
+};
+
+template <typename type>
+auto mu36_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   std::vector<type> A;   // T*W = A
+   std::vector<type> AminusW;  // A-W
+
+   mult_2D(T,W,A);
+   add_2D(-1.0, A,W,AminusW);
+   auto fnorm =  fnorm2_2D(AminusW);
+
+   return 1.0 / ( det_2D(A)) * fnorm;
+};
+
+template <typename type>
+auto mu36_ad_w( const DenseMatrix * T, const std::vector<type> & W ) -> type
+{
+   std::vector<type> A;   // T*W = A
+   std::vector<type> AminusW;  // A-W
+
+   mult_2D(T,W,A);
+   add_2D(-1.0, A,W,AminusW);
+   auto fnorm =  fnorm2_2D(AminusW);
+
+   return 1.0 / ( det_2D(A)) * fnorm;
+};
+
+// (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
+template <typename type>
+auto mu11_ad( const DenseMatrix * W,  std::vector<type>& T ) -> type
+{
+   MFEM_VERIFY(W != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   std::vector<type> A;   // T*W = A
+   std::vector<type> AdjA,AdjAt, WtW, WRK, WRK2;
+
+   mult_2D(T,W,A);
+
+   auto alpha = det_2D(A);
+   auto omega = W->Elem(0,0)*W->Elem(1,1) - W->Elem(0,1)*W->Elem(1,0);
+   adjoint_2D(A, AdjA);
+   transpose_2D(AdjA, AdjAt);
+
+   mult_aTa_2D(W, WtW);
+   mult_2D(AdjAt, WtW, WRK);
+
+   add_2D(-1.0/omega, A,WRK,WRK2);
+   auto fnorm =  fnorm2_2D(WRK2);
+
+   return 0.25 / (alpha) * fnorm;
+};
+
+template <typename type>
+auto mu11_ad_w( const DenseMatrix * T, const std::vector<type> & W ) -> type
+{
+
+   std::vector<type> A;   // T*W = A
+   std::vector<type> AdjA,AdjAt, WtW, WRK, WRK2;
+   mult_2D(T,W,A);
+
+   auto alpha = det_2D(A);
+   auto omega = W[0]*W[3] - W[1]*W[2];
+   adjoint_2D(A, AdjA);
+   transpose_2D(AdjA, AdjAt);
+
+   mult_aTa_2D(W, WtW);
+   mult_2D(AdjAt, WtW, WRK);
+
+   add_2D(-1.0/omega, A,WRK,WRK2);
+   auto fnorm =  fnorm2_2D(WRK2);
+
+   return 0.25 / ( alpha) * fnorm;
+};
+
+void ADGrad(const DenseMatrix &Jpt,
+            std::function<ADFType(const DenseMatrix *, std::vector<ADFType>&)> mu_ad,
+            DenseMatrix &P, const DenseMatrix * Wmat = nullptr)
+{
+   int dim = Jpt.Height();
+   int matsize = dim*dim;
+
+   std::vector<ADFType> adinp(matsize);
+
+   for (int i=0; i<matsize; i++) { adinp[i] = ADFType{Jpt.GetData()[i], 0.0}; }
+
+   for (int i=0; i<matsize; i++)
+   {
+      adinp[i] = ADFType{Jpt.GetData()[i], 1.0};
+      ADFType rez = mu_ad(Wmat,adinp);
+      P.GetData()[i] = rez.gradient;
+      adinp[i] = ADFType{Jpt.GetData()[i], 0.0};
+   }
+}
+
+void ADHessian(const DenseMatrix &Jpt,
+               std::function<ADSType(const DenseMatrix *, std::vector<ADSType>&)> mu_ad,
+               DenseTensor &H, const DenseMatrix * Wmat = nullptr)
+{
+   int dim = Jpt.Height();
+   const int matsize = dim*dim;
+
+   //use forward-forward mode
+   std::vector<ADSType> aduu(matsize);
+   for (int ii = 0; ii < matsize; ii++)
+   {
+      aduu[ii].value = ADFType{Jpt.GetData()[ii], 0.0};
+      aduu[ii].gradient = ADFType{0.0, 0.0};
+   }
+
+   for (int ii = 0; ii < matsize; ii++)
+   {
+      aduu[ii].value = ADFType{Jpt.GetData()[ii], 1.0};
+      for (int jj = 0; jj < (ii + 1); jj++)
+      {
+         aduu[jj].gradient = ADFType{1.0, 0.0};
+         ADSType rez = mu_ad(Wmat,aduu);
+         H(ii).GetData()[jj] = rez.gradient.gradient;
+         H(jj).GetData()[ii] = rez.gradient.gradient;
+         aduu[jj].gradient = ADFType{0.0, 0.0};
+      }
+      aduu[ii].value = ADFType{Jpt.GetData()[ii], 0.0};
+   }
+   return;
+}
+/* Some AD related declarations above ========================================*/
+
 // Target-matrix optimization paradigm (TMOP) mesh quality metrics.
+
+void TMOP_QualityMetric::DefaultAssembleH(const DenseTensor &H,
+                                          const DenseMatrix &DS,
+                                          const real_t weight,
+                                          DenseMatrix &A) const
+{
+   const int dof = DS.Height(), dim = DS.Width();
+
+   // The first two go over the rows and cols of dP_dJ where P = dW_dJ.
+   for (int r = 0; r < dim; r++)
+   {
+      for (int c = 0; c < dim; c++)
+      {
+         DenseMatrix Hrc = H(r+c*dim);
+
+         // Compute each entry of d(Prc)_dJ.
+         for (int rr = 0; rr < dim; rr++)
+         {
+            for (int cc = 0; cc < dim; cc++)
+            {
+               const double entry_rr_cc = Hrc(rr, cc);
+
+               for (int i = 0; i < dof; i++)
+               {
+                  for (int j = 0; j < dof; j++)
+                  {
+                     A(i+r*dof, j+rr*dof) +=
+                        weight * DS(i, c) * DS(j, cc) * entry_rr_cc;
+                  }
+               }
+            }
+         }
+      }
+   }
+}
 
 real_t TMOP_Combo_QualityMetric::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
@@ -754,9 +1103,6 @@ void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
 // mu_85 = |T-T'|^2, where T'= |T|*I/sqrt(2)
 real_t TMOP_Metric_085::EvalW(const DenseMatrix &Jpt) const
 {
-   MFEM_VERIFY(Jtr != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
-
    DenseMatrix Id(2,2);
    DenseMatrix Mat(2,2);
    Mat = Jpt;
@@ -767,6 +1113,25 @@ real_t TMOP_Metric_085::EvalW(const DenseMatrix &Jpt) const
 
    Mat.Add(-1.,Id);
    return Mat.FNorm2();
+}
+
+void TMOP_Metric_085::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(Jpt, mu85_ad<ADFType>, P);
+   return;
+}
+
+void TMOP_Metric_085::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const real_t weight,
+                                DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+
+   ADHessian(Jpt, mu85_ad<ADSType>, H);
+
+   this->DefaultAssembleH(H,DS,weight,A);
 }
 
 // mu_98 = 1/(tau)|T-I|^2
@@ -784,6 +1149,25 @@ real_t TMOP_Metric_098::EvalW(const DenseMatrix &Jpt) const
    Mat = Jpt;
    Mat.Add(-1,Id);
    return Mat.FNorm2()/Jtr->Det();
+}
+
+void TMOP_Metric_098::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(Jpt, mu98_ad<ADFType>, P, Jtr);
+   return;
+}
+
+void TMOP_Metric_098::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const real_t weight,
+                                DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+
+   ADHessian(Jpt, mu98_ad<ADSType>, H, Jtr);
+
+   this->DefaultAssembleH(H,DS,weight,A);
 }
 
 real_t TMOP_Metric_211::EvalW(const DenseMatrix &Jpt) const
@@ -1441,10 +1825,9 @@ real_t TMOP_AMetric_011::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
                "Requires a target Jacobian, use SetTargetJacobian().");
-
    int dim = Jpt.Size();
 
-   DenseMatrix Jpr(dim, dim);
+   DenseMatrix Jpr(dim);
    Mult(Jpt, *Jtr, Jpr);
 
    real_t alpha = Jpr.Det(),
@@ -1463,6 +1846,32 @@ real_t TMOP_AMetric_011::EvalW(const DenseMatrix &Jpt) const
    return (0.25/alpha)*WRK.FNorm2();
 }
 
+void TMOP_AMetric_011::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(Jpt, mu11_ad<ADFType>, P, Jtr);
+   return;
+}
+
+void TMOP_AMetric_011::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW)
+{
+   ADGrad(*Jtr, mu11_ad_w<ADFType>, PW, &Jpt);
+   return;
+}
+
+void TMOP_AMetric_011::AssembleH(const DenseMatrix &Jpt,
+                                 const DenseMatrix &DS,
+                                 const real_t weight,
+                                 DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+
+   ADHessian(Jpt, mu11_ad<ADSType>, H, Jtr);
+
+   this->DefaultAssembleH(H,DS,weight,A);
+}
+
+
 real_t TMOP_AMetric_014a::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
@@ -1479,6 +1888,25 @@ real_t TMOP_AMetric_014a::EvalW(const DenseMatrix &Jpt) const
    return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.);
 }
 
+void TMOP_AMetric_014a::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(Jpt, mu014a_ad<ADFType>, P, Jtr);
+   return;
+}
+
+void TMOP_AMetric_014a::AssembleH(const DenseMatrix &Jpt,
+                                  const DenseMatrix &DS,
+                                  const real_t weight,
+                                  DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+
+   ADHessian(Jpt, mu014a_ad<ADSType>, H, Jtr);
+
+   this->DefaultAssembleH(H,DS,weight,A);
+}
+
 real_t TMOP_AMetric_036::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
@@ -1493,6 +1921,31 @@ real_t TMOP_AMetric_036::EvalW(const DenseMatrix &Jpt) const
    Jpr -= *Jtr; // A-W
 
    return (1./alpha)*(Jpr.FNorm2()); //(1/alpha)*(|A-W|^2)
+}
+
+void TMOP_AMetric_036::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(Jpt, mu36_ad<ADFType>, P, Jtr);
+   return;
+}
+
+void TMOP_AMetric_036::EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW)
+{
+   ADGrad(*Jtr, mu36_ad_w<ADFType>, PW, &Jpt);
+   return;
+}
+
+void TMOP_AMetric_036::AssembleH(const DenseMatrix &Jpt,
+                                 const DenseMatrix &DS,
+                                 const real_t weight,
+                                 DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+
+   ADHessian(Jpt, mu36_ad<ADSType>, H, Jtr);
+
+   this->DefaultAssembleH(H,DS,weight,A);
 }
 
 real_t TMOP_AMetric_107a::EvalW(const DenseMatrix &Jpt) const
@@ -1515,6 +1968,24 @@ real_t TMOP_AMetric_107a::EvalW(const DenseMatrix &Jpt) const
    return (0.5/alpha)*Jpr.FNorm2();
 }
 
+void TMOP_AMetric_107a::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(Jpt, mu107a_ad<ADFType>, P, Jtr);
+   return;
+}
+
+void TMOP_AMetric_107a::AssembleH(const DenseMatrix &Jpt,
+                                  const DenseMatrix &DS,
+                                  const real_t weight,
+                                  DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+
+   ADHessian(Jpt, mu107a_ad<ADSType>, H, Jtr);
+
+   this->DefaultAssembleH(H,DS,weight,A);
+}
 
 void TargetConstructor::ComputeAvgVolume() const
 {
@@ -2949,6 +3420,15 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    MFEM_VERIFY(surf_fit_pos == NULL,
                "Using both fitting approaches is not supported.");
 
+   const int dim = s0.FESpace()->GetMesh()->Dimension();
+   Mesh *mesh = s0.FESpace()->GetMesh();
+   MFEM_VERIFY(mesh->GetNodes()->Size() == dim*s0.Size(),
+               "Mesh and level-set polynomial order must be the same.");
+   const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
+                                (s0.FESpace()->FEColl());
+   MFEM_VERIFY(fec, "Only H1_FECollection is supported for the surface fitting "
+               "grid function.");
+
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
    surf_fit_gf->CountElementsPerVDof(surf_fit_dof_count);
@@ -2987,11 +3467,23 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
 void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            const Array<bool> &smarker,
                                            Coefficient &coeff,
-                                           AdaptivityEvaluator &ae)
+                                           AdaptivityEvaluator &ae,
+                                           AdaptivityEvaluator *aegrad,
+                                           AdaptivityEvaluator *aehess)
 {
    // To have both we must duplicate the markers.
    MFEM_VERIFY(surf_fit_pos == NULL,
                "Using both fitting approaches is not supported.");
+
+   const int dim = s0.FESpace()->GetMesh()->Dimension();
+   ParMesh *pmesh = s0.ParFESpace()->GetParMesh();
+   MFEM_VERIFY(pmesh->GetNodes()->Size() == dim*s0.Size(),
+               "Mesh and level-set polynomial order must be the same.");
+   const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
+                                (s0.FESpace()->FEColl());
+   MFEM_VERIFY(fec, "Only H1_FECollection is supported for the surface fitting "
+               "grid function.");
+
 
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
@@ -3000,11 +3492,80 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
 
-   surf_fit_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
-                                 *s0.ParFESpace());
+   surf_fit_eval->SetParMetaInfo(*pmesh, *s0.ParFESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
-   surf_fit_gf_bg = false;
+
+   if (!aegrad) { return; }
+
+   MFEM_VERIFY(aehess, "AdaptivityEvaluator for Hessians must be provided too.");
+
+   ParFiniteElementSpace *fes = s0.ParFESpace();
+
+   // FE space for gradients.
+   delete surf_fit_grad;
+   H1_FECollection *fec_grad = new H1_FECollection(fec->GetOrder(), dim,
+                                                   fec->GetBasisType());
+   ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace(pmesh, fec_grad,
+                                                               dim);
+   // Initial gradients.
+   surf_fit_grad = new GridFunction(fes_grad);
+   surf_fit_grad->MakeOwner(fec_grad);
+   for (int d = 0; d < dim; d++)
+   {
+      ParGridFunction surf_fit_grad_comp(fes, surf_fit_grad->GetData()+d*s0.Size());
+      s0.GetDerivative(1, d, surf_fit_grad_comp);
+   }
+   surf_fit_eval_grad = aegrad;
+   surf_fit_eval_grad->SetParMetaInfo(*pmesh, *fes_grad);
+   surf_fit_eval_grad->SetInitialField(*pmesh->GetNodes(), *surf_fit_grad);
+
+   // FE space for Hessians.
+   delete surf_fit_hess;
+   H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(), dim,
+                                                   fec->GetBasisType());
+   ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace(pmesh, fec_hess,
+                                                               dim*dim);
+   // Initial Hessians.
+   surf_fit_hess = new GridFunction(fes_hess);
+   surf_fit_hess->MakeOwner(fec_hess);
+   int id = 0;
+   for (int d = 0; d < dim; d++)
+   {
+      for (int idir = 0; idir < dim; idir++)
+      {
+         ParGridFunction surf_fit_grad_comp(fes,
+                                            surf_fit_grad->GetData()+d*s0.Size());
+         ParGridFunction surf_fit_hess_comp(fes,
+                                            surf_fit_hess->GetData()+id*s0.Size());
+         surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
+         id++;
+      }
+   }
+   surf_fit_eval_hess = aehess;
+   surf_fit_eval_hess->SetParMetaInfo(*pmesh, *fes_hess);
+   surf_fit_eval_hess->SetInitialField(*pmesh->GetNodes(), *surf_fit_hess);
+
+   // Store DOF indices that are marked for fitting. Used to reduce work for
+   // transferring information between source/background and current mesh.
+   surf_fit_marker_dof_index.SetSize(0);
+#ifdef MFEM_USE_GSLIB
+   if (dynamic_cast<InterpolatorFP *>(surf_fit_eval) &&
+       dynamic_cast<InterpolatorFP *>(surf_fit_eval_grad) &&
+       dynamic_cast<InterpolatorFP *>(surf_fit_eval_hess))
+   {
+      for (int i = 0; i < surf_fit_marker->Size(); i++)
+      {
+         if ((*surf_fit_marker)[i] == true)
+         {
+            surf_fit_marker_dof_index.Append(i);
+         }
+      }
+   }
+#endif
+
+   *surf_fit_grad = 0.0;
+   *surf_fit_hess = 0.0;
 }
 
 void TMOP_Integrator::EnableSurfaceFittingFromSource(
@@ -3022,16 +3583,17 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    // Setup for level set function
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
-   *surf_fit_gf = 0.0;
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
 
-   surf_fit_gf_bg = true;
    surf_fit_eval->SetParMetaInfo(*s_bg.ParFESpace()->GetParMesh(),
                                  *s_bg.ParFESpace());
    surf_fit_eval->SetInitialField
    (*s_bg.FESpace()->GetMesh()->GetNodes(), s_bg);
+   GridFunction *nodes = s0.FESpace()->GetMesh()->GetNodes();
+   surf_fit_eval->ComputeAtNewPosition(*nodes, *surf_fit_gf,
+                                       nodes->FESpace()->GetOrdering());
 
    // Setup for gradient on background mesh
    MFEM_VERIFY(s_bg_grad.ParFESpace()->GetOrdering() ==
@@ -3041,11 +3603,11 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    delete surf_fit_grad;
    surf_fit_grad = new GridFunction(s0_grad);
    *surf_fit_grad = 0.0;
-   surf_fit_eval_bg_grad = &age;
-   surf_fit_eval_bg_hess = &ahe;
-   surf_fit_eval_bg_grad->SetParMetaInfo(*s_bg_grad.ParFESpace()->GetParMesh(),
-                                         *s_bg_grad.ParFESpace());
-   surf_fit_eval_bg_grad->SetInitialField
+   surf_fit_eval_grad = &age;
+   surf_fit_eval_hess = &ahe;
+   surf_fit_eval_grad->SetParMetaInfo(*s_bg_grad.ParFESpace()->GetParMesh(),
+                                      *s_bg_grad.ParFESpace());
+   surf_fit_eval_grad->SetInitialField
    (*s_bg_grad.FESpace()->GetMesh()->GetNodes(), s_bg_grad);
 
    // Setup for Hessian on background mesh
@@ -3056,9 +3618,9 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    delete surf_fit_hess;
    surf_fit_hess = new GridFunction(s0_hess);
    *surf_fit_hess = 0.0;
-   surf_fit_eval_bg_hess->SetParMetaInfo(*s_bg_hess.ParFESpace()->GetParMesh(),
-                                         *s_bg_hess.ParFESpace());
-   surf_fit_eval_bg_hess->SetInitialField
+   surf_fit_eval_hess->SetParMetaInfo(*s_bg_hess.ParFESpace()->GetParMesh(),
+                                      *s_bg_hess.ParFESpace());
+   surf_fit_eval_hess->SetInitialField
    (*s_bg_hess.FESpace()->GetMesh()->GetNodes(), s_bg_hess);
 
    // Count number of zones that share each of the DOFs
@@ -3299,11 +3861,12 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
          const IntegrationPoint &ip_s = ir_s->IntPoint(s);
          Tpr->SetIntPoint(&ip_s);
+         double w = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                    1.0 / surf_fit_dof_count[scalar_dof_id];
 
          if (surf_fit_gf)
          {
-            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                      sigma_e(s) * sigma_e(s);
+            energy += w * sigma_e(s) * sigma_e(s);
          }
          if (surf_fit_pos)
          {
@@ -3314,8 +3877,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                pos(d) = PMatI(s, d);
                pos_target(d) = (*surf_fit_pos)(vdofs[d*dof + s]);
             }
-            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                      surf_fit_limiter->Eval(pos, pos_target, 1.0);
+            energy += w * surf_fit_limiter->Eval(pos, pos_target, 1.0);
          }
       }
    }
@@ -3613,6 +4175,22 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
          d_detW_dx += d_Winv_dx;
          AddMultVWt(shape, d_detW_dx, PMatO);
+
+         // dmu/dW:dW/dx_i
+         DenseMatrix PW(dim);
+         Vector dmudxw(dim);
+         metric->EvalPW(Jpt, PW);
+         DenseMatrix Prod(dim);
+
+         for (int d = 0; d < dim; d++)
+         {
+            const DenseMatrix &dJtr_q = dJtr(q + d*nqp);
+            Prod = 0.0;
+            MultAtB(PW, dJtr_q, Prod); // dmu/dW:dW/dx_i
+            dmudxw(d) = Prod.Trace();
+         }
+         dmudxw *= weight_m;
+         AddMultVWt(shape, dmudxw, PMatO);
       }
 
       if (lim_coeff)
@@ -3863,7 +4441,7 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
 
    Vector sigma_e(dof_s);
    DenseMatrix surf_fit_grad_e(dof_s, dim);
-   if (surf_fit_gf || surf_fit_gf_bg)
+   if (surf_fit_gf)
    {
       surf_fit_gf->GetSubVector(vdofs, sigma_e);
 
@@ -3871,7 +4449,7 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
       // The FE coefficients of the gradient go in surf_fit_grad_e.
       Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
       DenseMatrix grad_phys; // This will be (dof x dim, dof).
-      if (surf_fit_gf_bg)
+      if (surf_fit_grad)
       {
          surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
          surf_fit_grad->GetSubVector(dofs, grad_ptr);
@@ -3945,7 +4523,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
    Vector sigma_e(dof_s);
    DenseMatrix surf_fit_grad_e(dof_s, dim);
    DenseMatrix surf_fit_hess_e(dof_s, dim*dim);
-   if (surf_fit_gf || surf_fit_gf_bg)
+   if (surf_fit_gf)
    {
       surf_fit_gf->GetSubVector(vdofs, sigma_e);
 
@@ -3953,7 +4531,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       // The FE coefficients of the gradient go in surf_fit_grad_e.
       Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
       DenseMatrix grad_phys; // This will be (dof x dim, dof).
-      if (surf_fit_gf_bg)
+      if (surf_fit_grad)
       {
          surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
          surf_fit_grad->GetSubVector(dofs, grad_ptr);
@@ -3967,7 +4545,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       // Project the Hessian of sigma in the same space.
       // The FE coefficients of the Hessian go in surf_fit_hess_e.
       Vector hess_ptr(surf_fit_hess_e.GetData(), dof_s*dim*dim);
-      if (surf_fit_gf_bg)
+      if (surf_fit_hess)
       {
          surf_fit_hess->FESpace()->GetElementVDofs(el_id, dofs);
          surf_fit_hess->GetSubVector(dofs, hess_ptr);
@@ -3994,7 +4572,7 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       Tpr.SetIntPoint(&ip);
       real_t w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip);
 
-      if (surf_fit_gf || surf_fit_gf_bg)
+      if (surf_fit_gf)
       {
          Vector gg_ptr(surf_fit_hess_s.GetData(), dim * dim);
          surf_fit_hess_e.GetRow(s, gg_ptr);
@@ -4376,6 +4954,130 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    dx = detv_avg_min / dxscale;
 }
 
+void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
+                                                         int new_x_ordering)
+{
+   if (!surf_fit_gf) { return; }
+
+   if (surf_fit_marker_dof_index.Size())
+   {
+      // Interpolate information only at DOFs marked for fitting.
+      const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
+      const int cnt = surf_fit_marker_dof_index.Size();
+      const int total_cnt = new_x.Size()/dim;
+      Vector new_x_sorted(cnt*dim);
+      if (new_x_ordering == 0)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            for (int i = 0; i < cnt; i++)
+            {
+               int dof_index = surf_fit_marker_dof_index[i];
+               new_x_sorted(i + d*cnt) = new_x(dof_index + d*total_cnt);
+            }
+         }
+      }
+      else
+      {
+         for (int i = 0; i < cnt; i++)
+         {
+            int dof_index = surf_fit_marker_dof_index[i];
+            for (int d = 0; d < dim; d++)
+            {
+               new_x_sorted(d + i*dim) = new_x(d + dof_index*dim);
+            }
+         }
+      }
+
+      // Interpolate values of the LS.
+      Vector surf_fit_gf_int, surf_fit_grad_int, surf_fit_hess_int;
+      surf_fit_eval->ComputeAtNewPosition(new_x_sorted, surf_fit_gf_int,
+                                          new_x_ordering);
+      for (int i = 0; i < cnt; i++)
+      {
+         int dof_index = surf_fit_marker_dof_index[i];
+         (*surf_fit_gf)[dof_index] = surf_fit_gf_int(i);
+      }
+
+      // Interpolate gradients of the LS.
+      surf_fit_eval_grad->ComputeAtNewPosition(new_x_sorted, surf_fit_grad_int,
+                                               new_x_ordering);
+      // Assumes surf_fit_grad and surf_fit_gf share the same space
+      const int grad_dim = surf_fit_grad->VectorDim();
+      const int grad_cnt = surf_fit_grad->Size()/grad_dim;
+      if (surf_fit_grad->FESpace()->GetOrdering() == Ordering::byNODES)
+      {
+         for (int d = 0; d < grad_dim; d++)
+         {
+            for (int i = 0; i < cnt; i++)
+            {
+               int dof_index = surf_fit_marker_dof_index[i];
+               (*surf_fit_grad)[dof_index + d*grad_cnt] =
+                  surf_fit_grad_int(i + d*cnt);
+            }
+         }
+      }
+      else
+      {
+         for (int i = 0; i < cnt; i++)
+         {
+            int dof_index = surf_fit_marker_dof_index[i];
+            for (int d = 0; d < grad_dim; d++)
+            {
+               (*surf_fit_grad)[dof_index*grad_dim + d] =
+                  surf_fit_grad_int(i*grad_dim + d);
+            }
+         }
+      }
+
+      // Interpolate Hessians of the LS.
+      surf_fit_eval_hess->ComputeAtNewPosition(new_x_sorted, surf_fit_hess_int,
+                                               new_x_ordering);
+      // Assumes surf_fit_hess and surf_fit_gf share the same space
+      const int hess_dim = surf_fit_hess->VectorDim();
+      const int hess_cnt = surf_fit_hess->Size()/hess_dim;
+      if (surf_fit_hess->FESpace()->GetOrdering() == Ordering::byNODES)
+      {
+         for (int d = 0; d < hess_dim; d++)
+         {
+            for (int i = 0; i < cnt; i++)
+            {
+               int dof_index = surf_fit_marker_dof_index[i];
+               (*surf_fit_hess)[dof_index + d*hess_cnt] =
+                  surf_fit_hess_int(i + d*cnt);
+            }
+         }
+      }
+      else
+      {
+         for (int i = 0; i < cnt; i++)
+         {
+            int dof_index = surf_fit_marker_dof_index[i];
+            for (int d = 0; d < hess_dim; d++)
+            {
+               (*surf_fit_hess)[dof_index*hess_dim + d] =
+                  surf_fit_hess_int(i*hess_dim + d);
+            }
+         }
+      }
+
+   }
+   else
+   {
+      surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
+      if (surf_fit_eval_grad)
+      {
+         surf_fit_eval_grad->ComputeAtNewPosition(new_x, *surf_fit_grad,
+                                                  new_x_ordering);
+      }
+      if (surf_fit_eval_hess)
+      {
+         surf_fit_eval_hess->ComputeAtNewPosition(new_x, *surf_fit_hess,
+                                                  new_x_ordering);
+      }
+   }
+}
+
 void TMOP_Integrator::
 UpdateAfterMeshPositionChange(const Vector &x_new,
                               const FiniteElementSpace &x_fes)
@@ -4406,112 +5108,11 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
       adapt_lim_eval->ComputeAtNewPosition(x_new, *adapt_lim_gf, ordering);
    }
 
-   // Update surf_fit_gf if surface fitting is enabled.
+   // Update surf_fit_gf (and optionally its gradients) if surface
+   // fitting is enabled.
    if (surf_fit_gf)
    {
-      if (surf_fit_gf_bg)
-      {
-         // Interpolate information for only DOFs marked for fitting.
-         const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
-         const int cnt = surf_fit_marker_dof_index.Size();
-         const int total_cnt = x_new.Size()/dim;
-         Vector new_x_sorted(cnt*dim);
-         if (ordering == 0)
-         {
-            for (int d = 0; d < dim; d++)
-            {
-               for (int i = 0; i < cnt; i++)
-               {
-                  int dof_index = surf_fit_marker_dof_index[i];
-                  new_x_sorted(i + d*cnt) = x_new(dof_index + d*total_cnt);
-               }
-            }
-         }
-         else
-         {
-            for (int i = 0; i < cnt; i++)
-            {
-               int dof_index = surf_fit_marker_dof_index[i];
-               for (int d = 0; d < dim; d++)
-               {
-                  new_x_sorted(d + i*dim) = x_new(d + dof_index*dim);
-               }
-            }
-         }
-
-         Vector surf_fit_gf_int, surf_fit_grad_int, surf_fit_hess_int;
-         surf_fit_eval->ComputeAtNewPosition(
-            new_x_sorted, surf_fit_gf_int, ordering);
-         for (int i = 0; i < cnt; i++)
-         {
-            int dof_index = surf_fit_marker_dof_index[i];
-            (*surf_fit_gf)[dof_index] = surf_fit_gf_int(i);
-         }
-
-         surf_fit_eval_bg_grad->ComputeAtNewPosition(
-            new_x_sorted, surf_fit_grad_int, ordering);
-         // Assumes surf_fit_grad and surf_fit_gf share the same space
-         const int grad_dim = surf_fit_grad->VectorDim();
-         const int grad_cnt = surf_fit_grad->Size()/grad_dim;
-         if (surf_fit_grad->FESpace()->GetOrdering() == Ordering::byNODES)
-         {
-            for (int d = 0; d < grad_dim; d++)
-            {
-               for (int i = 0; i < cnt; i++)
-               {
-                  int dof_index = surf_fit_marker_dof_index[i];
-                  (*surf_fit_grad)[dof_index + d*grad_cnt] =
-                     surf_fit_grad_int(i + d*cnt);
-               }
-            }
-         }
-         else
-         {
-            for (int i = 0; i < cnt; i++)
-            {
-               int dof_index = surf_fit_marker_dof_index[i];
-               for (int d = 0; d < grad_dim; d++)
-               {
-                  (*surf_fit_grad)[dof_index*dim + d] =
-                     surf_fit_grad_int(i*dim + d);
-               }
-            }
-         }
-
-         surf_fit_eval_bg_hess->ComputeAtNewPosition(
-            new_x_sorted, surf_fit_hess_int, ordering);
-         // Assumes surf_fit_hess and surf_fit_gf share the same space
-         const int hess_dim = surf_fit_hess->VectorDim();
-         const int hess_cnt = surf_fit_hess->Size()/hess_dim;
-         if (surf_fit_hess->FESpace()->GetOrdering() == Ordering::byNODES)
-         {
-            for (int d = 0; d < hess_dim; d++)
-            {
-               for (int i = 0; i < cnt; i++)
-               {
-                  int dof_index = surf_fit_marker_dof_index[i];
-                  (*surf_fit_hess)[dof_index + d*hess_cnt] =
-                     surf_fit_hess_int(i + d*cnt);
-               }
-            }
-         }
-         else
-         {
-            for (int i = 0; i < cnt; i++)
-            {
-               int dof_index = surf_fit_marker_dof_index[i];
-               for (int d = 0; d < hess_dim; d++)
-               {
-                  (*surf_fit_hess)[dof_index*dim + d] =
-                     surf_fit_hess_int(i*dim + d);
-               }
-            }
-         }
-      }
-      else
-      {
-         surf_fit_eval->ComputeAtNewPosition(x_new, *surf_fit_gf, ordering);
-      }
+      RemapSurfaceFittingLevelSetAtNodes(x_new, ordering);
    }
 }
 

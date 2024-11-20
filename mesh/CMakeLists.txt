@@ -10,7 +10,10 @@
 # CONTRIBUTING.md for details.
 
 set(SRCS
+  attribute_sets.cpp
   element.cpp
+  exodus_writer.cpp
+  face_nbr_geom.cpp
   gmsh.cpp
   hexahedron.cpp
   mesh.cpp
@@ -34,7 +37,9 @@ set(SRCS
   )
 
 set(HDRS
+  attribute_sets.hpp
   element.hpp
+  face_nbr_geom.hpp
   gmsh.hpp
   hexahedron.hpp
   mesh.hpp

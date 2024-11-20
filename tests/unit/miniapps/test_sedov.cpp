@@ -9,16 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_RUNNER
+#include "mfem.hpp"
+#include "run_unit_tests.hpp"
+
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #include <cmath>
 #endif
 
-#include "unit_tests.hpp"
 #include <unordered_map>
 #include <cstring>
-
-#include "mfem.hpp"
 #include "general/forall.hpp"
 #include "linalg/kernels.hpp"
 
@@ -921,7 +922,7 @@ public:
       gVecH1.SetSize(h1sz);
    }
 
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
 
       l2restrict->Mult(x, gVecL2);
@@ -931,7 +932,7 @@ public:
       h1restrict->MultTranspose(gVecH1, y);
    }
 
-   void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    {
       h1restrict->Mult(x, gVecH1);
       kForceMultTranspose(dim, D1D, Q1D, L1D, H1D, nzones,
@@ -1070,7 +1071,7 @@ public:
       pabf.FormSystemMatrix(mfem::Array<int>(), massOperator);
    }
 
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       // FIXME: why is 'x' being modified here (through 'X')?
       Vector X;
@@ -1093,10 +1094,10 @@ public:
                                               diag);
    }
 
-   const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return FESpace.GetProlongationMatrix(); }
 
-   const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return FESpace.GetRestrictionMatrix(); }
 
    void SetEssentialTrueDofs(Array<int> &dofs)
@@ -1141,7 +1142,7 @@ public:
       diag.SetSize(P->Width());
       P->MultTranspose(d, diag);
    }
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       const int N = x.Size();
       auto d_diag = diag.Read();
@@ -1149,7 +1150,7 @@ public:
       auto d_y = y.Write();
       mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { d_y[i] = d_x[i] / d_diag[i]; });
    }
-   void SetOperator(const Operator&) { }
+   void SetOperator(const Operator&) override { }
 };
 
 struct TimingData
@@ -1293,8 +1294,8 @@ void ComputeRho0DetJ0AndVolume(const int dim,
 
 class TaylorCoefficient : public Coefficient
 {
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    {
       Vector x(2);
       T.Transform(ip, x);
@@ -1735,14 +1736,14 @@ public:
       CG_EMass.SetPrintLevel(-1);
    }
 
-   ~LagrangianHydroOperator()
+   ~LagrangianHydroOperator() override
    {
       delete EMassPA;
       delete VMassPA;
       delete ForcePA;
    }
 
-   virtual void Mult(const Vector &S, Vector &dS_dt) const
+   void Mult(const Vector &S, Vector &dS_dt) const override
    {
       UpdateMesh(S);
       Vector* sptr = const_cast<Vector*>(&S);
@@ -1757,7 +1758,7 @@ public:
       quad_data_is_current = false;
    }
 
-   MemoryClass GetMemoryClass() const  { return Device::GetDeviceMemoryClass(); }
+   MemoryClass GetMemoryClass() const override  { return Device::GetDeviceMemoryClass(); }
 
    void SolveVelocity(const Vector &S, Vector &dS_dt) const
    {
@@ -2180,43 +2181,50 @@ static void sedov_tests(int myid)
 
 }
 
-#if defined(MFEM_SEDOV_MPI)
-#ifndef MFEM_SEDOV_DEVICE
+#ifdef MFEM_SEDOV_MPI
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
    sedov_tests(Mpi::WorldRank());
 }
 #else
-TEST_CASE("Sedov", "[Sedov], [Parallel]")
+TEST_CASE("Sedov", "[Sedov]")
 {
-#if defined(HYPRE_USING_GPU) && defined(MFEM_DEBUG)
-   if (!strcmp(MFEM_SEDOV_DEVICE,"debug"))
+   sedov_tests(0);
+}
+#endif
+
+int main(int argc, char *argv[])
+{
+#ifdef MFEM_USE_SINGLE
+   std::cout << "\nThe Sedov unit tests are not supported in single"
+             " precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
+#ifdef MFEM_SEDOV_MPI
+   mfem::Mpi::Init();
+   mfem::Hypre::Init();
+#endif
+#ifdef MFEM_SEDOV_DEVICE
+   Device device(MFEM_SEDOV_DEVICE);
+#else
+   Device device("cpu"); // make sure hypre runs on CPU, if possible
+#endif
+   device.Print();
+
+#if defined(MFEM_SEDOV_MPI) && defined(MFEM_DEBUG) && defined(MFEM_SEDOV_DEVICE)
+   if (HypreUsingGPU() && !strcmp(MFEM_SEDOV_DEVICE, "debug"))
    {
       cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
            << "is NOT supported with the GPU version of hypre.\n\n";
-      return;
+      return MFEM_SKIP_RETURN_VALUE;
    }
 #endif
 
-   Device device;
-   device.Configure(MFEM_SEDOV_DEVICE);
-   device.Print();
-   sedov_tests(Mpi::WorldRank());
-}
-#endif
+#ifdef MFEM_SEDOV_MPI
+   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
 #else
-#ifndef MFEM_SEDOV_DEVICE
-TEST_CASE("Sedov", "[Sedov]")
-{
-   sedov_tests(0);
-}
-#else
-TEST_CASE("Sedov", "[Sedov]")
-{
-   Device device;
-   device.Configure(MFEM_SEDOV_DEVICE);
-   device.Print();
-   sedov_tests(0);
-}
+   // Exclude parallel tests.
+   return RunCatchSession(argc, argv, {"~[Parallel]"});
 #endif
-#endif
+}

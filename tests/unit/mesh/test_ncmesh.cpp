@@ -290,9 +290,8 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
          MPI_Allreduce(&nc_diag_lsum, &nc_diag_gsum, 1,
                        MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
 
-         real_t error = fabs(diag_gsum - nc_diag_gsum);
-         CAPTURE(order, error);
-         REQUIRE(error == MFEM_Approx(0.0, EPS));
+         CAPTURE(order, diag_gsum, nc_diag_gsum);
+         REQUIRE(nc_diag_gsum == MFEM_Approx(diag_gsum));
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
@@ -1055,7 +1054,7 @@ TEST_CASE("InteriorBoundaryReferenceCubes", "[Parallel], [NCMesh]")
       }
       if (Mpi::WorldSize() > 0)
       {
-         // Make sure on rank 1 there is a parent face with only ghost child
+         // Make sure on rank 1 there is a parent face with only ghost child
          // faces. This can cause issues with higher order dofs being
          // uncontrolled.
          partition[refined_elem == 0 ? modified_smesh.GetNE() - 1 : 0] = 0;
@@ -2811,5 +2810,83 @@ TEST_CASE("RP=I", "[NCMesh]")
       }
    }
 }
+
+
+TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
+{
+   auto test_project_H1 = [](Mesh &mesh, int order, double coef)
+   {
+      MFEM_ASSERT(std::abs(coef) > 0,
+                  "Non zero coef value required for meaningful test.");
+      H1_FECollection fe_collection(order, mesh.SpaceDimension());
+      FiniteElementSpace fe_space(&mesh, &fe_collection);
+      GridFunction x(&fe_space);
+      x = -coef;
+      ConstantCoefficient c(coef);
+
+      // Check projecting on the internal face sets essential dof.
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 0;
+      ess_bdr.Last() = 1; // internal boundary
+      x.ProjectBdrCoefficient(c, ess_bdr);
+
+      Array<int> ess_vdofs_list, ess_vdofs_marker;
+      fe_space.GetEssentialVDofs(ess_bdr, ess_vdofs_marker);
+      fe_space.MarkerToList(ess_vdofs_marker, ess_vdofs_list);
+      for (auto ess_dof : ess_vdofs_list)
+      {
+         CHECK(x[ess_dof] == Approx(coef).epsilon(1e-8));
+      }
+
+      int iess = 0;
+      for (int i = 0; i < x.Size(); i++)
+      {
+         if (iess < ess_vdofs_list.Size() && i == ess_vdofs_list[iess])
+         {
+            iess++;
+            continue;
+         }
+         CHECK(x[i] == Approx(-coef).epsilon(1e-8));
+      }
+
+   };
+
+   auto OneSidedNCRefine = [](Mesh &mesh)
+   {
+      // Pick one element attached to the new boundary attribute and refine.
+      const auto interface_attr = mesh.bdr_attributes.Max();
+      Array<int> el_to_ref;
+      for (int nbe = 0; nbe < mesh.GetNBE(); nbe++)
+      {
+         if (mesh.GetBdrAttribute(nbe) == interface_attr)
+         {
+            int f, o, e1, e2;
+            mesh.GetBdrElementFace(nbe, &f, &o);
+            mesh.GetFaceElements(f, &e1, &e2);
+            el_to_ref.Append(e1);
+         }
+      }
+      mesh.GeneralRefinement(el_to_ref);
+      return;
+   };
+
+   SECTION("Hex")
+   {
+      auto smesh = DividingPlaneMesh(false, true);
+      smesh.EnsureNCMesh(true);
+      OneSidedNCRefine(smesh);
+      test_project_H1(smesh, 2, 0.25);
+   }
+
+   SECTION("Tet")
+   {
+      auto smesh = DividingPlaneMesh(true, true);
+      smesh.EnsureNCMesh(true);
+      OneSidedNCRefine(smesh);
+      test_project_H1(smesh, 3, 0.25);
+   }
+}
+
+
 
 } // namespace mfem

@@ -61,14 +61,14 @@ public:
     * op: the Operator to be inserted.
     * c: optional scalar multiple for this block.
     */
-   void SetDiagonalBlock(int iblock, const Operator *op, real_t c = 1.0);
+   void SetDiagonalBlock(int iblock, Operator *op, real_t c = 1.0);
    //! Add a block op in the block-entry (iblock, jblock).
    /**
     * irow, icol: The block will be inserted in location (irow, icol).
     * op: the Operator to be inserted.
     * c: optional scalar multiple for this block.
     */
-   void SetBlock(int iRow, int iCol, const Operator *op, real_t c = 1.0);
+   void SetBlock(int iRow, int iCol, Operator *op, real_t c = 1.0);
 
    //! Return the number of row blocks
    int NumRowBlocks() const { return nRowBlocks; }
@@ -78,6 +78,9 @@ public:
    //! Check if block (i,j) is a zero block
    int IsZeroBlock(int i, int j) const { return (op(i,j)==NULL) ? 1 : 0; }
    //! Return a reference to block i,j
+   Operator & GetBlock(int i, int j)
+   { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
+   //! Return a reference to block i,j (const version)
    const Operator & GetBlock(int i, int j) const
    { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
    //! Return the coefficient for block i,j
@@ -97,10 +100,10 @@ public:
    const Array<int> & ColOffsets() const { return col_offsets; }
 
    /// Operator application
-   virtual void Mult (const Vector & x, Vector & y) const;
+   void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
+   void MultTranspose (const Vector & x, Vector & y) const override;
 
    ~BlockOperator();
 
@@ -120,7 +123,7 @@ private:
    //! Column offsets for the starting position of each block
    Array<int> col_offsets;
    //! 2D array that stores each block of the operator.
-   Array2D<const Operator *> op;
+   Array2D<Operator *> op;
    //! 2D array that stores a coefficient for each block of the operator.
    Array2D<real_t> coef;
 
@@ -136,7 +139,7 @@ private:
  *
  * Usage:
  * - Use the constructors to define the block structure
- * - Use SetDiagonalBlock to fill the BlockOperator
+ * - Use SetDiagonalBlock to fill the BlockDiagonalPreconditioner
  * - Use the method Mult and MultTranspose to apply the operator to a vector.
  *
  * If a block is not set, it is assumed to be an identity block.
@@ -154,7 +157,7 @@ public:
     */
    void SetDiagonalBlock(int iblock, Operator *op);
    //! This method is present since required by the abstract base class Solver
-   virtual void SetOperator(const Operator &op) { }
+   void SetOperator(const Operator &op) override { }
 
    //! Return the number of blocks
    int NumBlocks() const { return nBlocks; }
@@ -174,10 +177,10 @@ public:
    const Array<int> & Offsets() const { return offsets; }
 
    /// Operator application
-   virtual void Mult (const Vector & x, Vector & y) const;
+   void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
+   void MultTranspose (const Vector & x, Vector & y) const override;
 
    ~BlockDiagonalPreconditioner();
 
@@ -206,7 +209,7 @@ private:
  *
  * Usage:
  * - Use the constructors to define the block structure
- * - Use SetBlock() to fill the BlockOperator
+ * - Use SetBlock() to fill the BlockLowerTriangularOperator
  * - Diagonal blocks of the preconditioner should approximate the inverses of
  *   the diagonal block of the matrix
  * - Off-diagonal blocks of the preconditioner should match/approximate those of
@@ -220,7 +223,7 @@ private:
 class BlockLowerTriangularPreconditioner : public Solver
 {
 public:
-   //! Constructor for BlockLowerTriangularPreconditioners with the same
+   //! Constructor for BlockLowerTriangularPreconditioner%s with the same
    //! block-structure for rows and columns.
    /**
     *  @param offsets  Offsets that mark the start of each row/column block
@@ -244,7 +247,7 @@ public:
     */
    void SetBlock(int iRow, int iCol, Operator *op);
    //! This method is present since required by the abstract base class Solver
-   virtual void SetOperator(const Operator &op) { }
+   void SetOperator(const Operator &op) override { }
 
    //! Return the number of blocks
    int NumBlocks() const { return nBlocks; }
@@ -257,10 +260,10 @@ public:
    Array<int> & Offsets() { return offsets; }
 
    /// Operator application
-   virtual void Mult (const Vector & x, Vector & y) const;
+   void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
+   void MultTranspose (const Vector & x, Vector & y) const override;
 
    ~BlockLowerTriangularPreconditioner();
 
