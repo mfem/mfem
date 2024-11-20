@@ -988,7 +988,7 @@ int main (int argc, char *argv[])
    }
    else
    {
-      plb.Setup(n1D, mr);
+      plb.Setup(n1D, mr, true);
    }
 
    real_t minmindet, minmaxdet;

@@ -4843,7 +4843,7 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
 #endif
          if (converged && myrank == 0)
          {
-            mfem::out << "Min det is: " << min_detT << " " << minmindet << " " << minmaxdet
+            mfem::out << "Min det at quadrature points and bounds are: " << min_detT << " " << minmindet << " " << minmaxdet
                       << " " << converged << " k10info\n";
             min_detT = minmindet;
          }
