@@ -98,7 +98,10 @@ struct OffsetConstructionHelper {
    int *d_offsets;
    int ir_size;
 
-   void MFEM_HOST_DEVICE operator()(int i) const { d_offsets[i] = i * ir_size; }
+   void MFEM_HOST_DEVICE operator()(int i) const
+   {
+      d_offsets[i] = i * ir_size;
+   }
 };
 
 void QuadratureSpace::ConstructOffsets()
@@ -116,6 +119,8 @@ void QuadratureSpace::ConstructOffsets()
       func.d_offsets = offsets.Write();
       func.ir_size = int_rule[geoms[0]]->GetNPoints();
       mfem::forall(num_elem + 1, func);
+      // all array functions don't automatically guarantee host access
+      offsets.Read(false);
    }
    else
    {
