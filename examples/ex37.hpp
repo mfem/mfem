@@ -231,9 +231,11 @@ private:
    FiniteElementCollection * fec = nullptr;
    FiniteElementSpace * fes = nullptr;
    Array<int> ess_bdr;
+   Array<int> ess_tdof_list;
    Array<int> neumann_bdr;
    GridFunction * u = nullptr;
    LinearForm * b = nullptr;
+   BilinearForm * a = nullptr;
    bool parallel;
 #ifdef MFEM_USE_MPI
    ParMesh * pmesh = nullptr;
@@ -267,6 +269,8 @@ public:
    void ResetFEM();
    void SetupFEM();
 
+   void AssembleBoundary();
+   void AssembleDiffusionBilinear();
    void Solve();
    GridFunction * GetFEMSolution();
    LinearForm * GetLinearForm() {return b;}
@@ -495,12 +499,8 @@ void DiffusionSolver::SetupFEM()
    }
 }
 
-void DiffusionSolver::Solve()
+void DiffusionSolver::AssembleBoundary()
 {
-   OperatorPtr A;
-   Vector B, X;
-   Array<int> ess_tdof_list;
-
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
@@ -513,7 +513,35 @@ void DiffusionSolver::Solve()
 #else
    fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
 #endif
-   *u=0.0;
+}
+
+void DiffusionSolver::AssembleDiffusionBilinear()
+{
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      a = new ParBilinearForm(pfes);
+   }
+   else
+   {
+      a = new BilinearForm(fes);
+   }
+#else
+   a = new BilinearForm(fes);
+#endif
+   a->AddDomainIntegrator(new DiffusionIntegrator(*diffcf));
+   if (masscf)
+   {
+      a->AddDomainIntegrator(new MassIntegrator(*masscf));
+   }
+   a->Assemble();
+}
+
+void DiffusionSolver::Solve()
+{
+   OperatorPtr A;
+   Vector B, X;
+
    if (b)
    {
       delete b;
@@ -548,26 +576,7 @@ void DiffusionSolver::Solve()
 
    b->Assemble();
 
-   BilinearForm * a = nullptr;
-
-#ifdef MFEM_USE_MPI
-   if (parallel)
-   {
-      a = new ParBilinearForm(pfes);
-   }
-   else
-   {
-      a = new BilinearForm(fes);
-   }
-#else
-   a = new BilinearForm(fes);
-#endif
-   a->AddDomainIntegrator(new DiffusionIntegrator(*diffcf));
-   if (masscf)
-   {
-      a->AddDomainIntegrator(new MassIntegrator(*masscf));
-   }
-   a->Assemble();
+   *u=0.0;
    if (essbdr_cf)
    {
       u->ProjectBdrCoefficient(*essbdr_cf,ess_bdr);
@@ -601,7 +610,6 @@ void DiffusionSolver::Solve()
    delete M;
    delete cg;
    a->RecoverFEMSolution(X, *b, *u);
-   delete a;
 }
 
 GridFunction * DiffusionSolver::GetFEMSolution()
