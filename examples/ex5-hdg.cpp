@@ -164,11 +164,6 @@ int main(int argc, char *argv[])
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
    const Array<int> &block_offsets = darcy->GetOffsets();
-   /*(3); // number of variables + 1
-   block_offsets[0] = 0;
-   block_offsets[1] = R_space->GetVSize();
-   block_offsets[2] = W_space->GetVSize();
-   block_offsets.PartialSum();*/
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -225,8 +220,6 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
-   //BilinearForm *mVarf(new BilinearForm(R_space));
-   //MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
    BilinearForm *mVarf = darcy->GetFluxMassForm();
    MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
    BilinearForm *mtVarf = (dg)?(darcy->GetPotentialMassForm()):(NULL);
@@ -242,17 +235,12 @@ int main(int argc, char *argv[])
    else
    {
       mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(kcoeff));
-      //mVarf->AddBdrFaceIntegrator(new NormalTraceJumpIntegrator(kcoeff), bdr_is_ess);
       bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
    }
 
    //set hybridization / assembly level
 
    Array<int> ess_flux_tdofs_list;
-   /*Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
-   bdr_is_ess = 0;
-   bdr_is_ess[3] = -1;
-   R_space->GetEssentialTrueDofs(bdr_is_ess, ess_flux_tdofs_list);*/
 
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
@@ -276,36 +264,10 @@ int main(int argc, char *argv[])
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    darcy->Assemble();
-   //if (!pa) { darcy->Finalize(); }
-
-   //BlockOperator darcyOp(block_offsets);
-
-   //TransposeOperator *Bt = NULL;
-
-   /*if (pa)
-   {
-      Bt = new TransposeOperator(bVarf);
-
-      darcyOp.SetBlock(0,0, mVarf);
-      darcyOp.SetBlock(0,1, Bt, -1.0);
-      darcyOp.SetBlock(1,0, bVarf, -1.0);
-   }
-   else
-   {
-      SparseMatrix &M(mVarf->SpMat());
-      SparseMatrix &B(bVarf->SpMat());
-      B *= -1.;
-      Bt = new TransposeOperator(&B);
-
-      darcyOp.SetBlock(0,0, &M);
-      darcyOp.SetBlock(0,1, Bt);
-      darcyOp.SetBlock(1,0, &B);
-   }*/
 
    OperatorHandle pDarcyOp;
    Vector X, B;
    x = 0.;
-   //darcy->FormSystemMatrix(ess_flux_tdofs_list, pDarcyOp);
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
                            pDarcyOp, X, B);
 
@@ -461,7 +423,6 @@ int main(int argc, char *argv[])
       delete invM;
       delete invS;
       delete S;
-      //delete Bt;
       delete MinvBt;
    }
 
@@ -538,8 +499,6 @@ int main(int argc, char *argv[])
    // 17. Free the used memory.
    delete fform;
    delete gform;
-   //delete mVarf;
-   //delete bVarf;
    delete darcy;
    delete W_space;
    delete R_space;
