@@ -94,7 +94,8 @@ void QuadratureSpaceBase::Integrate(VectorCoefficient &coeff,
    qf.Integrate(integrals);
 }
 
-struct OffsetConstructionHelper {
+struct OffsetConstructionHelper
+{
    int *d_offsets;
    int ir_size;
 
