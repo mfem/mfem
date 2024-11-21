@@ -75,6 +75,8 @@ enum Problem
    KovasznayFlow,
    SteadyBurgers,
    NonsteadyBurgers,
+   SteadyLinearKappa,
+   NonsteadyLinearKappa,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
@@ -147,7 +149,9 @@ int main(int argc, char *argv[])
                   "4=nonsteady adv-diff\n\t\t"
                   "5=Kovasznay flow\n\t\t"
                   "6=steady Burgers\n\t\t"
-                  "7=nonsteady Burgers\n\t\t");
+                  "7=nonsteady Burgers\n\t\t"
+                  "8=steady linear kappa\n\t\t"
+                  "9=nonsteady linear kappa\n\t\t");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
@@ -224,6 +228,11 @@ int main(int argc, char *argv[])
       case Problem::SteadyBurgers:
          bnlconv = true;
          break;
+      case Problem::NonsteadyLinearKappa:
+         btime = true;
+      case Problem::SteadyLinearKappa:
+         bnldiff = true;
+         break;
       default:
          cerr << "Unknown problem" << endl;
          return 1;
@@ -297,6 +306,8 @@ int main(int argc, char *argv[])
       case Problem::SteadyAdvectionDiffusion:
       case Problem::SteadyBurgers:
       case Problem::NonsteadyBurgers:
+      case Problem::SteadyLinearKappa:
+      case Problem::NonsteadyLinearKappa:
          //free (zero Dirichlet)
          if (bc_neumann)
          {
@@ -1086,6 +1097,16 @@ TFunc GetTFun(Problem prob, real_t t_0, real_t k, real_t c)
             const real_t u = ut * ux * uy;
             return u;
          };
+      case Problem::SteadyLinearKappa:
+      case Problem::NonsteadyLinearKappa:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            const real_t ux = x(0) * tanh((1.-x(0))/k);
+            const real_t uy = x(1) * tanh((1.-x(1))/k);
+            const real_t ut = (prob == Problem::SteadyLinearKappa)?(1.):(exp(t) - 1.);
+            const real_t u = ut * ux * uy;
+            return u;
+         };
    }
    return TFunc();
 }
@@ -1193,6 +1214,26 @@ VecTFunc GetQFun(Problem prob, real_t t_0, real_t k, real_t c)
             v(0) = -k * u_x;
             v(1) = -k * u_y;
          };
+      case Problem::SteadyLinearKappa:
+      case Problem::NonsteadyLinearKappa:
+         return [=](const Vector &x, real_t t, Vector &v)
+         {
+            v.SetSize(x.Size());
+            const real_t argx = (1. - x(0)) / k;
+            const real_t argy = (1. - x(1)) / k;
+            const real_t ux = x(0) * tanh(argx);
+            const real_t uy = x(1) * tanh(argy);
+            const real_t ut = (prob == Problem::SteadyBurgers)?(1.):(exp(t) - 1.);
+            const real_t u = ut * ux * uy;
+            const real_t chx = cosh(argx);
+            const real_t chy = cosh(argy);
+            const real_t u_x = (x(0) == 0.)?(0.):
+                               (u / x(0) - ut * uy * x(0) / (k * chx*chx));
+            const real_t u_y = (x(1) == 0.)?(0.):
+                               (u / x(1) - ut * ux * x(1) / (k * chy*chy));
+            v(0) = -(k + u) * u_x;
+            v(1) = -(k + u) * u_y;
+         };
    }
    return VecTFunc();
 }
@@ -1204,6 +1245,8 @@ VecFunc GetCFun(Problem prob, real_t c)
       case Problem::SteadyDiffusion:
       case Problem::SteadyBurgers:
       case Problem::NonsteadyBurgers:
+      case Problem::SteadyLinearKappa:
+      case Problem::NonsteadyLinearKappa:
          // null
          break;
       case Problem::SteadyAdvectionDiffusion:
@@ -1335,6 +1378,27 @@ TFunc GetFFun(Problem prob, real_t t_0, real_t k, real_t c)
             const real_t f = divq + divF + ft;
             return -f;
          };
+      case Problem::SteadyLinearKappa:
+      case Problem::NonsteadyLinearKappa:
+         return [=](const Vector &x, real_t t) -> real_t
+         {
+            const real_t argx = (1. - x(0)) / k;
+            const real_t argy = (1. - x(1)) / k;
+            const real_t ux = x(0) * tanh(argx);
+            const real_t uy = x(1) * tanh(argy);
+            const real_t chx = cosh(argx);
+            const real_t chy = cosh(argy);
+            const real_t ut = (prob == Problem::SteadyLinearKappa)?(1.):(exp(t) - 1.);
+            const real_t u = ut * ux * uy;
+            const real_t u_x = (x(0) != 0.)?(u / x(0) - ut * uy * x(0) / (k * chx*chx)):(0.);
+            const real_t u_y = (x(1) != 0.)?(u / x(1) - ut * ux * x(1) / (k * chy*chy)):(0.);
+            const real_t u_xx = -2. * (u + k * ut * uy) / (k*k * chx*chx);
+            const real_t u_yy = -2. * (u + k * ut * ux) / (k*k * chy*chy);
+            const real_t divq = -(u_x*u_x + u_y*u_y + (k + u)*u_xx + (k + u)*u_yy);
+            const real_t ft = ((prob == Problem::SteadyLinearKappa)?(0.):(exp(t)  * ux * uy));
+            const real_t f = divq + ft;
+            return -f;
+         };
    }
    return TFunc();
 }
@@ -1344,6 +1408,8 @@ FluxFunction* GetFluxFun(Problem prob, VectorCoefficient &ccoef)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
+      case Problem::SteadyLinearKappa:
+      case Problem::NonsteadyLinearKappa:
          //null
          break;
       case Problem::SteadyAdvectionDiffusion:
@@ -1372,6 +1438,19 @@ MixedFluxFunction* GetHeatFluxFun(Problem prob, real_t k, int dim)
       case Problem::NonsteadyBurgers:
          static FunctionCoefficient ikappa([=](const Vector &x) -> real_t { return 1./k; });
          return new LinearDiffusionFlux(dim, ikappa);
+      case Problem::SteadyLinearKappa:
+      case Problem::NonsteadyLinearKappa:
+      {
+         auto ikappa = [=](const Vector &x, real_t T) -> real_t
+         {
+            return 1./(k+T);
+         };
+         auto dikappa = [=](const Vector &x, real_t T) -> real_t
+         {
+            return -1./((k+T)*(k+T));
+         };
+         return new FunctionDiffusionFlux(dim, ikappa, dikappa);
+      }
    }
 
    return NULL;
