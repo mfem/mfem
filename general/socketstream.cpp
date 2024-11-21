@@ -30,13 +30,13 @@
 #include <ws2tcpip.h>
 #ifdef _MSC_VER
 typedef int ssize_t;
+typedef int socklen_t;
 // Link with ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")
 #endif
 #endif
 
 #ifdef MFEM_USE_GNUTLS
-#include <cstdlib>  // getenv
 #ifndef MFEM_USE_GNUTLS_X509
 #include <gnutls/openpgp.h>
 #endif
@@ -147,7 +147,7 @@ int socketbuf::open(const char hostname[], int port)
 #endif
 
       if (connect(socket_descriptor, rp->ai_addr,
-                  static_cast<int>(rp->ai_addrlen)) < 0)
+                  static_cast<socklen_t>(rp->ai_addrlen)) < 0)
       {
          closesocket(socket_descriptor);
          socket_descriptor = -2;

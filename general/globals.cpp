@@ -20,6 +20,10 @@
 #include <sstream>
 #include <iomanip>
 
+#ifdef MFEM_USE_GNUTLS
+#include <cstdlib>  // getenv
+#endif
+
 namespace mfem
 {
 
