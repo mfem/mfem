@@ -12,36 +12,34 @@
 #include "submesh.hpp"
 #include "submesh_utils.hpp"
 #include "../../fem/gridfunc.hpp"
+#include "../ncmesh.hpp"
+#include "ncsubmesh.hpp"
 
 namespace mfem
 {
 
 SubMesh SubMesh::CreateFromDomain(const Mesh &parent,
-                                  Array<int> domain_attributes)
+                                  const Array<int> &domain_attributes)
 {
    return SubMesh(parent, From::Domain, domain_attributes);
 }
 
 SubMesh SubMesh::CreateFromBoundary(const Mesh &parent,
-                                    Array<int> boundary_attributes)
+                                    const Array<int> &boundary_attributes)
 {
    return SubMesh(parent, From::Boundary, boundary_attributes);
 }
 
 SubMesh::SubMesh(const Mesh &parent, From from,
-                 Array<int> attributes) : parent_(parent), from_(from), attributes_(attributes)
+                 const Array<int> &attributes) : parent_(&parent), from_(from),
+   attributes_(attributes)
 {
-   if (parent.Nonconforming())
-   {
-      MFEM_ABORT("SubMesh does not support non-conforming meshes");
-   }
-
    if (from == From::Domain)
    {
       InitMesh(parent.Dimension(), parent.SpaceDimension(), 0, 0, 0);
 
       std::tie(parent_vertex_ids_,
-               parent_element_ids_) = SubMeshUtils::AddElementsToMesh(parent_, *this,
+               parent_element_ids_) = SubMeshUtils::AddElementsToMesh(parent, *this,
                                                                       attributes_);
    }
    else if (from == From::Boundary)
@@ -49,39 +47,83 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       InitMesh(parent.Dimension() - 1, parent.SpaceDimension(), 0, 0, 0);
 
       std::tie(parent_vertex_ids_,
-               parent_element_ids_) = SubMeshUtils::AddElementsToMesh(parent_, *this,
+               parent_element_ids_) = SubMeshUtils::AddElementsToMesh(parent, *this,
                                                                       attributes_, true);
    }
 
-   FinalizeTopology(true);
+   parent_to_submesh_vertex_ids_.SetSize(parent.GetNV());
+   parent_to_submesh_vertex_ids_ = -1;
+   for (int i = 0; i < parent_vertex_ids_.Size(); i++)
+   {
+      parent_to_submesh_vertex_ids_[parent_vertex_ids_[i]] = i;
+   }
+
+   parent_to_submesh_element_ids_.SetSize(from == From::Boundary ? parent.GetNBE()
+                                          : parent.GetNE());
+   parent_to_submesh_element_ids_ = -1;
+   for (int i = 0; i < parent_element_ids_.Size(); i++)
+   {
+      parent_to_submesh_element_ids_[parent_element_ids_[i]] = i;
+   }
+
+   FinalizeTopology(false);
+
+   if (parent.Nonconforming())
+   {
+      ncmesh = new NCSubMesh(*this, *parent.ncmesh, from, attributes);
+      ncsubmesh_ = dynamic_cast<NCSubMesh*>(ncmesh);
+      InitFromNCMesh(*ncsubmesh_);
+      ncsubmesh_->OnMeshUpdated(this);
+
+      // Update the submesh to parent vertex mapping, ncsubmesh_ reordered the
+      // vertices so the map to parent is no longer valid.
+      parent_to_submesh_vertex_ids_ = -1;
+      for (int i = 0; i < parent_vertex_ids_.Size(); i++)
+      {
+         // vertex -> node -> parent node -> parent vertex
+         auto node = ncsubmesh_->vertex_nodeId[i];
+         auto parent_node = ncsubmesh_->parent_node_ids_[node];
+         auto parent_vertex = parent.ncmesh->GetNodeVertex(parent_node);
+         parent_vertex_ids_[i] = parent_vertex;
+         parent_to_submesh_vertex_ids_[parent_vertex] = i;
+      }
+      GenerateNCFaceInfo();
+      SetAttributes();
+   }
+
+   DSTable v2v(parent_->GetNV());
+   parent_->GetVertexToVertexTable(v2v);
+   for (int i = 0; i < NumOfEdges; i++)
+   {
+      Array<int> lv;
+      GetEdgeVertices(i, lv);
+
+      // Find vertices/edge in parent mesh
+      int parent_edge_id = v2v(parent_vertex_ids_[lv[0]],
+                               parent_vertex_ids_[lv[1]]);
+      parent_edge_ids_.Append(parent_edge_id);
+   }
+
+   parent_to_submesh_edge_ids_.SetSize(parent.GetNEdges());
+   parent_to_submesh_edge_ids_ = -1;
+   for (int i = 0; i < parent_edge_ids_.Size(); i++)
+   {
+      parent_to_submesh_edge_ids_[parent_edge_ids_[i]] = i;
+   }
 
    if (Dim == 3)
    {
       parent_face_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
                                                     parent_element_ids_);
 
-      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
-      int max_bdr_attr = parent.bdr_attributes.Max();
-
-      for (int i = 0; i < NumOfBdrElements; i++)
+      parent_to_submesh_face_ids_.SetSize(parent.GetNFaces());
+      parent_to_submesh_face_ids_ = -1;
+      for (int i = 0; i < parent_face_ids_.Size(); i++)
       {
-         int pbeid = parent_face_to_be[parent_face_ids_[GetBdrElementFaceIndex(i)]];
-         if (pbeid != -1)
-         {
-            int attr = parent.GetBdrElement(pbeid)->GetAttribute();
-            GetBdrElement(i)->SetAttribute(attr);
-         }
-         else
-         {
-            // This case happens when a domain is extracted, but the root parent
-            // mesh didn't have a boundary element on the surface that defined
-            // it's boundary. It still creates a valid mesh, so we allow it.
-            GetBdrElement(i)->SetAttribute(max_bdr_attr + 1);
-         }
+         parent_to_submesh_face_ids_[parent_face_ids_[i]] = i;
       }
 
       parent_face_ori_.SetSize(NumOfFaces);
-
       for (int i = 0; i < NumOfFaces; i++)
       {
          Array<int> sub_vert;
@@ -95,7 +137,6 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
          Array<int> par_vert;
          parent.GetFaceVertices(parent_face_ids_[i], par_vert);
-
          if (par_vert.Size() == 3)
          {
             parent_face_ori_[i] = GetTriOrientation(par_vert, sub_par_vert);
@@ -112,6 +153,14 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       {
          parent_edge_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
                                                        parent_element_ids_);
+
+         parent_to_submesh_edge_ids_.SetSize(parent.GetNEdges());
+         parent_to_submesh_edge_ids_ = -1;
+         for (int i = 0; i < parent_edge_ids_.Size(); i++)
+         {
+            parent_to_submesh_edge_ids_[parent_edge_ids_[i]] = i;
+         }
+
          Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
          int max_bdr_attr = parent.bdr_attributes.Max();
 
@@ -125,9 +174,10 @@ SubMesh::SubMesh(const Mesh &parent, From from,
             }
             else
             {
-               // This case happens when a domain is extracted, but the root parent
-               // mesh didn't have a boundary element on the surface that defined
-               // it's boundary. It still creates a valid mesh, so we allow it.
+               // This case happens when a domain is extracted, but the root
+               // parent mesh didn't have a boundary element on the surface that
+               // defined it's boundary. It still creates a valid mesh, so we
+               // allow it.
                GetBdrElement(i)->SetAttribute(max_bdr_attr + 1);
             }
          }
@@ -172,6 +222,19 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       }
    }
 
+   SubMeshUtils::AddBoundaryElements(*this);
+
+   if (Dim > 1)
+   {
+      delete el_to_edge;
+      el_to_edge = new Table;
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+   }
+   if (Dim > 2)
+   {
+      GetElementToFaceTable();
+   }
+
    // If the parent Mesh has nodes and therefore is defined on a higher order
    // geometry, we define this SubMesh as a curved Mesh and transfer the
    // GridFunction from the parent Mesh to the SubMesh.
@@ -195,8 +258,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
 void SubMesh::Transfer(const GridFunction &src, GridFunction &dst)
 {
-   TransferMap map(src, dst);
-   map.Transfer(src, dst);
+   CreateTransferMap(src, dst).Transfer(src, dst);
 }
 
 TransferMap SubMesh::CreateTransferMap(const GridFunction &src,
