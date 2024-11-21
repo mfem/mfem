@@ -38,7 +38,7 @@ TEST_CASE("Array entry sorting", "[Array]")
 {
    int ContigData[6] = {6, 5, 4, 3, 2, 1};
    Array<int> a(ContigData, 6);
-   Array<int> b({1, 2, 3, 3, 2, 1});
+   Array<int> b{1, 2, 3, 3, 2, 1};
 
    a.Sort();
    b.Sort();
@@ -58,7 +58,7 @@ TEST_CASE("Array entry strict sorting", "[Array]")
 {
    int ContigData[6] = {6, 1, 4, 1, 2, 1};
    Array<int> a(ContigData, 6);
-   Array<int> b({1, 2, 3, 3, 2, 1});
+   Array<int> b{1, 2, 3, 3, 2, 1};
 
    a.Sort();
    b.Sort();

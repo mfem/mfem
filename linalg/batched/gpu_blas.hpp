@@ -57,7 +57,8 @@ class GPUBlasBatchedLinAlg : public BatchedLinAlgBase
 {
 public:
    void AddMult(const DenseTensor &A, const Vector &x, Vector &y,
-                real_t alpha = 1.0, real_t beta = 1.0) const override;
+                real_t alpha = 1.0, real_t beta = 1.0,
+                Op op = Op::N) const override;
    void Invert(DenseTensor &A) const override;
    void LUFactor(DenseTensor &A, Array<int> &P) const override;
    void LUSolve(const DenseTensor &LU, const Array<int> &P,
