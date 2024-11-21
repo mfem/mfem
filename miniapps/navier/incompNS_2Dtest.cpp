@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 
    // Create the flow solver.
    IncompressibleNavierSolver flowsolver(pmesh, vOrder, pOrder, tOrder, kin_vis);
-   flowsolver.EnablePA(false);
+   flowsolver.EnablePA(true);
 
    // // Set the initial condition.
    // ParGridFunction *u_ic = flowsolver.GetCurrentVelocity();
