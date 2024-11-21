@@ -2033,6 +2033,18 @@ int Mesh::AddBdrElement(Element *elem)
    return NumOfBdrElements++;
 }
 
+void Mesh::AddBdrElements(Array<Element *> &bdr_elems,
+                          const Array<int> &new_be_to_face)
+{
+   boundary.Reserve(boundary.Size() + bdr_elems.Size());
+   MFEM_ASSERT(bdr_elems.Size() == new_be_to_face.Size(), "wrong size");
+   for (int i = 0; i < bdr_elems.Size(); i++)
+   {
+      AddBdrElement(bdr_elems[i]);
+   }
+   be_to_face.Append(new_be_to_face);
+}
+
 int Mesh::AddBdrSegment(int v1, int v2, int attr)
 {
    CheckEnlarge(boundary, NumOfBdrElements);
@@ -7346,6 +7358,12 @@ void Mesh::GetBdrElementAdjacentElement2(
    info = fi.Elem1Inf + ori;
 }
 
+void Mesh::SetAttribute(int i, int attr)
+{
+  elements[i]->SetAttribute(attr);
+  if (ncmesh) ncmesh->SetAttribute(i, attr);
+}
+
 Element::Type Mesh::GetElementType(int i) const
 {
    return elements[i]->GetType();
@@ -7672,7 +7690,6 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
 void Mesh::GenerateFaces()
 {
    int nfaces = GetNumFaces();
-
    for (auto &f : faces)
    {
       FreeElement(f);
