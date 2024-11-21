@@ -28,10 +28,12 @@ CMakeFiles/
 /build/
 
 # vscode settings
-# /.vscode/
+/.vscode/
 
 # Metal objects and libraries
+general/metal.*
 *.metallib
+*.metal
 *.mlb
 
 # Generated files in main directory, config/ and docs/
