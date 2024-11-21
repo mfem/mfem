@@ -45,11 +45,11 @@ constexpr auto make_dependency_map(mfem::tuple<input_ts...> inputs)
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
 
-template<typename tuple_t>
-constexpr auto get_array_from_tuple(tuple_t&& tuple)
+template<typename... Ts>
+constexpr auto to_array(const std::tuple<Ts...>& tuple)
 {
-   constexpr auto get_array = [](auto&& ... x) { return std::array{std::forward<decltype(x)>(x) ... }; };
-   return std::apply(get_array, std::forward<tuple_t>(tuple));
+   constexpr auto get_array = [](const Ts&... x) { return std::array{ x... }; };
+   return std::apply(get_array, tuple);
 }
 
 namespace detail
@@ -273,6 +273,22 @@ constexpr std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
    return unique_count;
 }
 
+template <typename T, size_t N>
+auto get_marked_entries(
+   const std::array<T, N> &a,
+   const std::array<bool, N> &marker)
+{
+   std::vector<T> r;
+   for (int i = 0; i < N; i++)
+   {
+      if (marker[i])
+      {
+         r.push_back(a[i]);
+      }
+   }
+   return r;
+}
+
 template <typename... Ts>
 constexpr auto filter_fields(const std::tuple<Ts...>& t)
 {
@@ -369,6 +385,60 @@ void forall(func_t f,
       MFEM_ABORT("no compute backend available");
    }
 }
+
+class FDJacobian : public Operator
+{
+public:
+   FDJacobian(const Operator &op, const Vector &x) :
+      Operator(op.Height(), op.Width()),
+      op(op),
+      x(x)
+   {
+      f.SetSize(Height());
+      xpev.SetSize(Width());
+      op.Mult(x, f);
+      xnorm = x.Norml2();
+   }
+
+   void Mult(const Vector &v, Vector &y) const override
+   {
+      x.HostRead();
+
+      // See [1] for choice of eps.
+      //
+      // [1] Woodward, C.S., Gardner, D.J. and Evans, K.J., 2015. On the use of
+      // finite difference matrix-vector products in Newton-Krylov solvers for
+      // implicit climate dynamics with spectral elements. Procedia Computer
+      // Science, 51, pp.2036-2045.
+      real_t eps = lambda * (lambda + xnorm / v.Norml2());
+
+      for (int i = 0; i < x.Size(); i++)
+      {
+         xpev(i) = x(i) + eps * v(i);
+      }
+
+      // y = f(x + eps * v)
+      op.Mult(xpev, y);
+
+      // y = (f(x + eps * v) - f(x)) / eps
+      for (int i = 0; i < f.Size(); i++)
+      {
+         y(i) = (y(i) - f(i)) / eps;
+      }
+   }
+
+   virtual MemoryClass GetMemoryClass() const override
+   {
+      return Device::GetDeviceMemoryClass();
+   }
+
+private:
+   const Operator &op;
+   Vector x, f;
+   mutable Vector xpev;
+   real_t lambda = 1.0e-6;
+   real_t xnorm;
+};
 
 template <typename entity_t>
 GeometricFactorMaps GetGeometricFactorMaps(Mesh &mesh,
@@ -924,10 +994,10 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    {
       return GetVDim(f);
    }
-   // else if constexpr (std::is_same_v<field_operator_t, One>)
-   // {
-   //    return 1;
-   // }
+   else if constexpr (is_one_fop<field_operator_t>::value)
+   {
+      return 1;
+   }
    else
    {
       MFEM_ABORT("can't get size on quadrature point for field descriptor");
@@ -1014,9 +1084,9 @@ create_descriptors_to_fields_map(
    {
       int i;
 
-      if constexpr (std::is_same_v<decltype(fop), Weight&>)
+      if constexpr (std::is_same_v<std::decay_t<decltype(fop)>, Weight>)
       {
-         // TODO: stealing dimension from the first field
+         // TODO-bug: stealing dimension from the first field
          fop.dim = GetDimension<Entity::Element>(fields[0]);
          fop.vdim = 1;
          fop.size_on_qp = 1;
@@ -1045,7 +1115,7 @@ create_descriptors_to_fields_map(
       }
       else
       {
-         MFEM_ABORT("can't find field for label: " << fop.GetFieldId());
+         MFEM_ABORT("can't find field for id: " << fop.GetFieldId());
       }
    };
 
@@ -1341,7 +1411,8 @@ std::array<DofToQuadMap, N> load_dtq_mem(
             {
                for (int b = 0; b < dim_b; b++)
                {
-                  mem_Bi(q, b, d) = B(q, b, d);
+                  auto v = B(q, b, d);
+                  mem_Bi(q, b, d) = v;
                }
             }
          }
@@ -1843,10 +1914,6 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       }
       else if constexpr (std::is_same_v<decltype(fop), Weight>)
       {
-         // no op
-         // this is handled at runtime by the first condition
-         // to_field_map[idx] == -1.
-         // has to exist at compile time for completeness
          return DofToQuadMap
          {
             DeviceTensor<3, const double>(nullptr, 1, 1, 1),
@@ -1854,7 +1921,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             -1
          };
       }
-      else if constexpr (is_none_fop<decltype(fop)>::value)
+      else if constexpr (is_none_fop<decltype(fop)>::value ||
+                         is_one_fop<decltype(fop)>::value)
       {
          auto [dtq, value_dim, grad_dim] = g(idx);
          return DofToQuadMap
@@ -1876,20 +1944,19 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
    };
 }
 
-
 template <
    typename entity_t,
    typename field_operator_ts,
-   size_t N = mfem::tuple_size<field_operator_ts>::value>
-std::array<DofToQuadMap, N> create_dtq_maps(
+   size_t num_fields>
+std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
    std::vector<const DofToQuad*> dtqmaps,
-   const std::array<int, N> &to_field_map)
+   const std::array<int, num_fields> &to_field_map)
 {
    return create_dtq_maps_impl<entity_t>(
              fops, dtqmaps,
              to_field_map,
-             std::make_index_sequence<N> {});
+             std::make_index_sequence<num_fields> {});
 }
 
 template <
@@ -1957,14 +2024,14 @@ void call_qfunction_derivative_action(
             {
                const int q = qx + q1d * (qy + q1d * qz);
                auto r = Reshape(&residual_shmem(0, q), das_qp);
-               auto kernel_args = decay_tuple<qf_param_ts> {};
+               auto qf_args = decay_tuple<qf_param_ts> {};
 #ifdef MFEM_USE_ENZYME
-               auto kernel_shadow_args = decay_tuple<qf_param_ts> {};
+               auto qf_shadow_args = decay_tuple<qf_param_ts> {};
                apply_kernel_fwddiff_enzyme(
                   r,
                   qfunc,
-                  kernel_args,
-                  kernel_shadow_args,
+                  qf_args,
+                  qf_shadow_args,
                   input_shmem,
                   shadow_shmem,
                   q);
@@ -1972,7 +2039,7 @@ void call_qfunction_derivative_action(
                apply_kernel_native_dual(
                   r,
                   qfunc,
-                  kernel_args,
+                  qf_args,
                   input_shmem,
                   shadow_shmem,
                   q);
@@ -1987,14 +2054,14 @@ void call_qfunction_derivative_action(
       MFEM_FOREACH_THREAD(q, x, num_qp)
       {
          auto r = Reshape(&residual_shmem(0, q), das_qp);
-         auto kernel_args = decay_tuple<qf_param_ts> {};
+         auto qf_args = decay_tuple<qf_param_ts> {};
 #ifdef MFEM_USE_ENZYME
-         auto kernel_shadow_args = decay_tuple<qf_param_ts> {};
+         auto qf_shadow_args = decay_tuple<qf_param_ts> {};
          apply_kernel_fwddiff_enzyme(
             r,
             qfunc,
-            kernel_args,
-            kernel_shadow_args,
+            qf_args,
+            qf_shadow_args,
             input_shmem,
             shadow_shmem,
             q);
@@ -2002,7 +2069,7 @@ void call_qfunction_derivative_action(
          apply_kernel_native_dual(
             r,
             qfunc,
-            kernel_args,
+            qf_args,
             input_shmem,
             shadow_shmem,
             q);

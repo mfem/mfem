@@ -109,6 +109,25 @@ struct is_gradient_fop<Gradient<FIELD_ID>>
    static const bool value = true;
 };
 
+template <int FIELD_ID = -1>
+class One : public FieldOperator<FIELD_ID>
+{
+public:
+   constexpr One() : FieldOperator<FIELD_ID>() {};
+};
+
+template< typename T >
+struct is_one_fop
+{
+   static const bool value = false;
+};
+
+template <int FIELD_ID>
+struct is_one_fop<One<FIELD_ID>>
+{
+   static const bool value = true;
+};
+
 // class FieldOperator
 // {
 // public:

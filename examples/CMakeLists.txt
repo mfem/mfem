@@ -72,6 +72,7 @@ if (MFEM_USE_MPI)
     dfem_test_mass_scalar_2d.cpp
     dfem_test_interpolate_linear_vector.cpp
     dfem_test_interpolate_linear_vector_3d.cpp
+    dfem_test_objective.cpp
     ex0p.cpp
     ex1p.cpp
     ex2p.cpp
@@ -141,6 +142,7 @@ target_link_libraries(dfem_minimal_example ClangEnzymeFlags)
 target_link_libraries(dfem_test_diffusion_3d ClangEnzymeFlags)
 target_link_libraries(dfem_test_nonlinear_diffusion_3d ClangEnzymeFlags)
 target_link_libraries(dfem_test_nonlinear_elasticity_3d ClangEnzymeFlags)
+target_link_libraries(dfem_test_objective ClangEnzymeFlags)
 
 # Add a test for each example
 if (MFEM_ENABLE_TESTING)

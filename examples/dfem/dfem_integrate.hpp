@@ -56,17 +56,17 @@ void map_quadrature_data_to_fields_impl(
          }
       }
    }
-   // else if constexpr (std::is_same_v<std::decay_t<output_t>, One>)
-   // {
-   //    // This is the "integral over all quadrature points type" applying
-   //    // B = 1 s.t. B^T * C \in R^1.
-   //    const auto [a, b, num_qp] = B.GetShape();
-   //    auto cc = Reshape(&c(0, 0, 0), num_qp);
-   //    for (int i = 0; i < num_qp; i++)
-   //    {
-   //       y(0, 0) += cc(i);
-   //    }
-   // }
+   else if constexpr (is_one_fop<std::decay_t<output_t>>::value)
+   {
+      // This is the "integral over all quadrature points type" applying
+      // B = 1 s.t. B^T * C \in R^1.
+      const auto [num_qp, unused, unused1] = B.GetShape();
+      auto cc = Reshape(&f(0, 0, 0), num_qp);
+      for (int i = 0; i < num_qp; i++)
+      {
+         y(0, 0) += cc(i);
+      }
+   }
    else if constexpr (is_none_fop<std::decay_t<output_t>>::value)
    {
       const auto [num_qp, unused, num_dof] = B.GetShape();
