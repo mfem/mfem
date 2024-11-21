@@ -1868,6 +1868,9 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
    MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTspecAtIndex.");
+   MFEM_VERIFY(ndof ==
+               tspec_.FESpace()->GetMesh()->GetNodes()->FESpace()->GetNDofs(),
+               "Discrete target and mesh must use same FECollection.");
 
    const auto tspec__d = tspec_.Read();
    auto tspec_d = tspec.ReadWrite();
@@ -1926,6 +1929,9 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
+   MFEM_VERIFY(ndof ==
+               tspec_.FESpace()->GetMesh()->GetNodes()->FESpace()->GetNDofs(),
+               "Discrete target and mesh must use same FECollection.");
 
    ncomp += vdim;
 
@@ -1950,7 +1956,10 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
-   MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTargetSpec.");
+   MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTspecAtIndex.");
+   MFEM_VERIFY(ndof ==
+               tspec_.FESpace()->GetMesh()->GetNodes()->FESpace()->GetNDofs(),
+               "Discrete target and mesh must use same FECollection.");
 
    const auto tspec__d = tspec_.Read();
    auto tspec_d = tspec.ReadWrite();
@@ -2813,6 +2822,13 @@ DiscreteAdaptTC::~DiscreteAdaptTC()
 void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
                                             const FiniteElementSpace &f)
 {
+   const char *mesh_fe_name = m.GetNodes()->FESpace()->FEColl()->Name();
+   const char *field_fe_name = f.FEColl()->Name();
+   MFEM_VERIFY(&m == f.GetMesh(),
+               "The mesh and discrete field for remap must use the same mesh");
+   MFEM_VERIFY(strcmp(mesh_fe_name,field_fe_name)==0,
+               "The mesh and discrete field for remap must use the same "
+               "FECollection");
    delete fes;
    delete mesh;
    mesh = new Mesh(m, true);
@@ -2824,6 +2840,13 @@ void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
 void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
                                          const ParFiniteElementSpace &f)
 {
+   const char *mesh_fe_name = m.GetNodes()->FESpace()->FEColl()->Name();
+   const char *field_fe_name = f.FEColl()->Name();
+   MFEM_VERIFY(&m == f.GetMesh(),
+               "The mesh and discrete field must use the same mesh");
+   MFEM_VERIFY(strcmp(mesh_fe_name,field_fe_name)==0,
+               "The mesh and discrete field for remap must use the same "
+               "FECollection");
    delete pfes;
    delete pmesh;
    pmesh = new ParMesh(m, true);
@@ -2982,7 +3005,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
                "Positions on a mesh without Nodes is not supported.");
    MFEM_VERIFY(pos.FESpace()->GetOrdering() ==
                pos.FESpace()->GetMesh()->GetNodes()->FESpace()->GetOrdering(),
-               "Incompatible ordering of spaces!");
+               "Incompatible ordering of spaces!")
 
    surf_fit_pos     = &pos;
    pos.CountElementsPerVDof(surf_fit_dof_count);
