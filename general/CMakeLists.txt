@@ -20,6 +20,7 @@ list(APPEND SRCS
   hash.cpp
   isockstream.cpp
   mem_manager.cpp
+  metal.cpp
   occa.cpp
   optparser.cpp
   osockstream.cpp
@@ -50,6 +51,8 @@ list(APPEND HDRS
   kdtree.hpp
   mem_alloc.hpp
   mem_manager.hpp
+  metal.hpp
+  metal.h
   occa.hpp
   forall.hpp
   optparser.hpp

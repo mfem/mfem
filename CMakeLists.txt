@@ -712,6 +712,30 @@ endif()
 set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
 
 #-------------------------------------------------------------------------------
+# Metal
+#-------------------------------------------------------------------------------
+if (MFEM_USE_METAL)
+  message(STATUS "[🤘METAL🤘] PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
+  message(STATUS "[🤘METAL🤘] PROJECT_BINARY_DIR: ${PROJECT_BINARY_DIR}")
+  message(STATUS "[🤘METAL🤘] CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
+  
+  set(mfem_metal_src "${PROJECT_SOURCE_DIR}/general/metal.metal")
+  set(mfem_metal_lib "${PROJECT_BINARY_DIR}/mfem.mlb")
+  message(STATUS "[🤘METAL🤘] mfem_metal_lib: 🎯🎯🎯 ${mfem_metal_lib} 🎯🎯🎯")
+
+  add_custom_command( 
+      OUTPUT ${mfem_metal_lib} 
+      DEPENDS ${mfem_metal_src}
+      COMMAND /usr/bin/xcrun -sdk macosx metal -O3 -o ${mfem_metal_lib} ${mfem_metal_src} 
+  )
+
+  install(FILES ${PROJECT_BINARY_DIR}/mfem.mlb DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+  add_custom_target(MFEM_METAL_LIB ALL DEPENDS ${mfem_metal_lib})  
+  add_dependencies(mfem MFEM_METAL_LIB)
+endif(MFEM_USE_METAL)
+
+#-------------------------------------------------------------------------------
 # Examples, miniapps, benchmarks and testing
 #-------------------------------------------------------------------------------
 

@@ -22,6 +22,9 @@
 #include <string>
 #include <map>
 
+#define DBG_COLOR ::debug::kHotPink
+#include "general/debug.hpp"
+
 namespace mfem
 {
 
@@ -48,7 +51,8 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
    Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
    Backend::CEED_HIP, Backend::RAJA_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
    Backend::OCCA_OMP, Backend::RAJA_OMP, Backend::OMP,
-   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
+   Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU,
+   Backend::METAL, Backend::CPU
 };
 
 // Backend names listed by priority, high to low:
@@ -57,7 +61,8 @@ static const char *backend_name[Backend::NUM_BACKENDS] =
    "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
    "ceed-hip", "raja-hip", "hip", "debug",
    "occa-omp", "raja-omp", "omp",
-   "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
+   "ceed-cpu", "occa-cpu", "raja-cpu", "metal",
+   "cpu"
 };
 
 } // namespace mfem::internal
@@ -182,6 +187,8 @@ Device::~Device()
 
 void Device::Configure(const std::string &device, const int device_id)
 {
+   dbg();
+
    // If a device was configured via the environment, skip the configuration,
    // and avoid the 'singleton_device' to destroy the mm.
    if (device_env)
@@ -197,7 +204,7 @@ void Device::Configure(const std::string &device, const int device_id)
       bmap[internal::backend_name[i]] = internal::backend_list[i];
    }
    std::string::size_type beg = 0, end, option;
-   while (1)
+   while (true)
    {
       end = device.find(',', beg);
       end = (end != std::string::npos) ? end : device.size();
@@ -206,7 +213,7 @@ void Device::Configure(const std::string &device, const int device_id)
       if (option==std::string::npos) // No option
       {
          const std::string backend = bname;
-         std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
+         auto it = bmap.find(backend);
          MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
          Get().MarkBackend(it->second);
       }
@@ -215,7 +222,7 @@ void Device::Configure(const std::string &device, const int device_id)
          const std::string backend = bname.substr(0, option);
          const std::string boption = bname.substr(option+1);
          Get().device_option = strdup(boption.c_str());
-         std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
+         auto it = bmap.find(backend);
          MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
          Get().MarkBackend(it->second);
       }
@@ -410,6 +417,15 @@ static void CudaDeviceSetup(const int dev, int &ngpu)
 #endif
 }
 
+static void MetalDeviceSetup(const int dev, int &ngpu)
+{
+   dbg();
+   MFEM_CONTRACT_VAR(dev);
+   MFEM_CONTRACT_VAR(ngpu);
+   auto metal = MTL::CreateSystemDefaultDevice();
+   dbg("Running on {}", metal->name()->utf8String());
+}
+
 static void HipDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_HIP
@@ -511,6 +527,7 @@ static void CeedDeviceSetup(const char* ceed_spec)
 
 void Device::Setup(const int device_id)
 {
+   dbg();
    MFEM_VERIFY(ngpu == -1, "the mfem::Device is already configured!");
 
    ngpu = 0;
@@ -543,6 +560,7 @@ void Device::Setup(const int device_id)
                "Only one CEED backend can be enabled at a time!");
 #endif
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
+   if (Allows(Backend::METAL)) { MetalDeviceSetup(dev, ngpu); }
    if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
    if (Allows(Backend::RAJA_CUDA) || Allows(Backend::RAJA_HIP))
    { RajaDeviceSetup(dev, ngpu); }

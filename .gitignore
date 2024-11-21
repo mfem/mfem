@@ -27,6 +27,13 @@ CMakeFiles/
 # Typical build directory
 /build/
 
+# vscode settings
+# /.vscode/
+
+# Metal objects and libraries
+*.metallib
+*.mlb
+
 # Generated files in main directory, config/ and docs/
 /deps.mk
 config/_config.hpp
@@ -120,6 +127,8 @@ examples/cond_j.*
 examples/cond_mesh.*
 examples/port_mesh.*
 examples/port_mode.*
+
+# examples/metal-*
 
 examples/euler-*
 

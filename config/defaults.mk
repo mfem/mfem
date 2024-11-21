@@ -41,6 +41,19 @@ INSTALL = /usr/bin/install
 STATIC = YES
 SHARED = NO
 
+# METAL configuration options
+METAL_CXX = clang++
+ifeq (YES,$(MFEM_USE_METAL))
+   BASE_FLAGS = -std=c++17
+   # specific options for development, should be reverted to -O3 for release
+   OPTIM_FLAGS = -Wall -O2 -g $(BASE_FLAGS) 
+   # the header file Metal.hpp should be in the root directory
+   # MFEM_TPLFLAGS += -Imetal-cpp
+endif
+METAL_FLAGS = -fno-objc-arc
+METAL_LIBS = -framework Metal -framework MetalKit -framework Cocoa\
+ -framework Foundation -framework CoreGraphics -L/opt/homebrew/lib -lfmt
+
 # CUDA configuration options
 #
 # If you set MFEM_USE_ENZYME=YES, CUDA_CXX has to be configured to use cuda with

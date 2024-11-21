@@ -152,7 +152,8 @@ Vector &Vector::operator=(real_t value)
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = Write(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = value; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = value; },
+   "linalg_vector_eq_c", "c", value, y);
    return *this;
 }
 
@@ -161,7 +162,8 @@ Vector &Vector::operator*=(real_t c)
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= c; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= c; },
+   "linalg_vector_mul_eq_c", "*=c", c, y);
    return *this;
 }
 
@@ -171,9 +173,10 @@ Vector &Vector::operator*=(const Vector &v)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int N = size;
+   const auto x = v.Read(use_dev);
    auto y = ReadWrite(use_dev);
-   auto x = v.Read(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= x[i]; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= x[i]; },
+   "linalg_vector_mul_eq_x", "*=x", x, y);
    return *this;
 }
 
@@ -183,7 +186,8 @@ Vector &Vector::operator/=(real_t c)
    const int N = size;
    const real_t m = 1.0/c;
    auto y = ReadWrite(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= m; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= m; },
+   "linalg_vector_div_eq_c", "*=c", m, y);
    return *this;
 }
 
@@ -193,9 +197,10 @@ Vector &Vector::operator/=(const Vector &v)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int N = size;
+   const auto x = v.Read(use_dev);
    auto y = ReadWrite(use_dev);
-   auto x = v.Read(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] /= x[i]; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] /= x[i]; },
+   "linalg_vector_div_eq_x", "/=x", x, y);
    return *this;
 }
 
@@ -204,7 +209,8 @@ Vector &Vector::operator-=(real_t c)
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] -= c; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] -= c; },
+   "linalg_vector_sub_eq_c", "-=c", c, y);
    return *this;
 }
 
@@ -214,9 +220,10 @@ Vector &Vector::operator-=(const Vector &v)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int N = size;
+   const auto x = v.Read(use_dev);
    auto y = ReadWrite(use_dev);
-   auto x = v.Read(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] -= x[i]; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] -= x[i]; },
+   "linalg_vector_seq_x", "-=x", x, y);
    return *this;
 }
 
@@ -225,7 +232,8 @@ Vector &Vector::operator+=(real_t c)
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += c; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += c; },
+   "linalg_vector_add_eq_c", "+=c", c, y);
    return *this;
 }
 
@@ -235,9 +243,10 @@ Vector &Vector::operator+=(const Vector &v)
 
    const bool use_dev = UseDevice() || v.UseDevice();
    const int N = size;
+   const auto x = v.Read(use_dev);
    auto y = ReadWrite(use_dev);
-   auto x = v.Read(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += x[i]; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += x[i]; },
+   "linalg_vector_add_eq_x", "+=x", x, y);
    return *this;
 }
 
@@ -249,9 +258,10 @@ Vector &Vector::Add(const real_t a, const Vector &Va)
    {
       const int N = size;
       const bool use_dev = UseDevice() || Va.UseDevice();
+      const auto x = Va.Read(use_dev);
       auto y = ReadWrite(use_dev);
-      auto x = Va.Read(use_dev);
-      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += a * x[i]; });
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += a * x[i]; },
+      "linalg_vector_add_eq_ax", "+=a*x", a, x, y);
    }
    return *this;
 }
@@ -264,7 +274,8 @@ Vector &Vector::Set(const real_t a, const Vector &Va)
    const int N = size;
    auto x = Va.Read(use_dev);
    auto y = Write(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = a * x[i]; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = a * x[i]; },
+   "linalg_vector_set_ax", "a*x", a, x, y);
    return *this;
 }
 
@@ -299,7 +310,8 @@ void Vector::Neg()
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = -y[i]; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = -y[i]; },
+   "linalg_vector_neg", "(0-y)", y, y);
 }
 
 void Vector::Reciprocal()
@@ -307,7 +319,8 @@ void Vector::Reciprocal()
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = 1.0/y[i]; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = 1.0/y[i]; },
+   "linalg_vector_reciprocal", "1/y", y, y);
 }
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
@@ -319,10 +332,11 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
    const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
    const int N = v.size;
    // Note: get read access first, in case v is the same as v1/v2.
-   auto x1 = v1.Read(use_dev);
-   auto x2 = v2.Read(use_dev);
+   const auto x1 = v1.Read(use_dev);
+   const auto x2 = v2.Read(use_dev);
    auto y = v.Write(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = x1[i] + x2[i]; });
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = x1[i] + x2[i]; },
+   "linalg_vector_add_x_y", "x+y", x1, x2, y);
 #else
    #pragma omp parallel for
    for (int i = 0; i < v.size; i++)
@@ -351,13 +365,14 @@ void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v)
       const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
       const int N = v.size;
       // Note: get read access first, in case v is the same as v1/v2.
-      auto d_x = v1.Read(use_dev);
-      auto d_y = v2.Read(use_dev);
+      const auto d_x = v1.Read(use_dev);
+      const auto d_y = v2.Read(use_dev);
       auto d_z = v.Write(use_dev);
       mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
       {
          d_z[i] = d_x[i] + alpha * d_y[i];
-      });
+      },
+      "linalg_vector_axpy", "x+a*y", d_x, alpha, d_y, d_z);
 #else
       const real_t *v1p = v1.data, *v2p = v2.data;
       real_t *vp = v.data;
@@ -390,13 +405,14 @@ void add(const real_t a, const Vector &x, const Vector &y, Vector &z)
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
-      auto xd = x.Read(use_dev);
-      auto yd = y.Read(use_dev);
+      const auto xd = x.Read(use_dev);
+      const auto yd = y.Read(use_dev);
       auto zd = z.Write(use_dev);
       mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
       {
          zd[i] = a * (xd[i] + yd[i]);
-      });
+      },
+      "linalg_vector_a_xpy", "a*(x+y)", a, xd, yd, zd);
 #else
       const real_t *xp = x.data;
       const real_t *yp = y.data;
@@ -445,13 +461,14 @@ void add(const real_t a, const Vector &x,
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
-      auto xd = x.Read(use_dev);
-      auto yd = y.Read(use_dev);
+      const auto xd = x.Read(use_dev);
+      const auto yd = y.Read(use_dev);
       auto zd = z.Write(use_dev);
       mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
       {
          zd[i] = a * xd[i] + b * yd[i];
-      });
+      },
+      "linalg_vector_ax_plus_by", "a*x + b*y", a, xd, b, yd, zd);
 #else
       const real_t *xp = x.data;
       const real_t *yp = y.data;
@@ -475,13 +492,14 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
    const int N = x.size;
    // Note: get read access first, in case z is the same as x/y.
-   auto xd = x.Read(use_dev);
-   auto yd = y.Read(use_dev);
+   const auto xd = x.Read(use_dev);
+   const auto yd = y.Read(use_dev);
    auto zd = z.Write(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
    {
       zd[i] = xd[i] - yd[i];
-   });
+   },
+   "linalg_vector_subtract", "x-y", xd, yd, zd);
 #else
    const real_t *xp = x.data;
    const real_t *yp = y.data;
@@ -514,13 +532,14 @@ void subtract(const real_t a, const Vector &x, const Vector &y, Vector &z)
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
       const int N = x.size;
       // Note: get read access first, in case z is the same as x/y.
-      auto xd = x.Read(use_dev);
-      auto yd = y.Read(use_dev);
+      const auto xd = x.Read(use_dev);
+      const auto yd = y.Read(use_dev);
       auto zd = z.Write(use_dev);
       mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
       {
          zd[i] = a * (xd[i] - yd[i]);
-      });
+      },
+      "linalg_vector_subtract_a", "=a*(x-y)", a, xd, yd, zd);
 #else
       const real_t *xp = x.data;
       const real_t *yp = y.data;

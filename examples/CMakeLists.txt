@@ -249,3 +249,8 @@ endif()
 if(MFEM_USE_MOONOLITH)
   add_subdirectory(moonolith)
 endif()
+
+# Include the examples/metal directory if Metal is enabled.
+if (MFEM_USE_METAL)
+  add_subdirectory(metal)
+endif()

@@ -51,6 +51,14 @@
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#ifdef MFEM_USE_METAL
+#include "metal.hpp"
+#endif
+
+#define DBG_COLOR ::debug::kYellow
+#include "general/debug.hpp"
+
+
 // Internal debug option, useful for tracking some memory manager operations.
 // #define MFEM_TRACK_MEM_MANAGER
 
@@ -186,13 +194,22 @@ struct Alias
 };
 
 /// Maps for the Memory and the Alias classes
-typedef std::unordered_map<const void*, Memory> MemoryMap;
-typedef std::unordered_map<const void*, Alias> AliasMap;
+using MemoryMap = std::unordered_map<const void *, Memory>;
+using AliasMap = std::unordered_map<const void *, Alias>;
+
+/// Buffer class that holds the Metal buffer
+#ifdef MFEM_USE_METAL
+using Buffer = MTL::Buffer*;
+using BufferMap = std::unordered_map<const void *, Buffer>;
+#endif
 
 struct Maps
 {
    MemoryMap memories;
    AliasMap aliases;
+#ifdef MFEM_USE_METAL
+   BufferMap buffers;
+#endif
 };
 
 } // namespace mfem::internal
@@ -468,18 +485,21 @@ public:
    {
 #ifdef MFEM_USE_CUDA
       CuMemAllocHostPinned(ptr, bytes);
-#endif
-#ifdef MFEM_USE_HIP
+#elif MFEM_USE_HIP
       HipMemAllocHostPinned(ptr, bytes);
+#else
+      MFEM_CONTRACT_VAR(ptr);
+      MFEM_CONTRACT_VAR(bytes);
 #endif
    }
    void Dealloc(void *ptr) override
    {
 #ifdef MFEM_USE_CUDA
       CuMemFreeHostPinned(ptr);
-#endif
-#ifdef MFEM_USE_HIP
+#elif MFEM_USE_HIP
       HipMemFreeHostPinned(ptr);
+#else
+      MFEM_CONTRACT_VAR(ptr);
 #endif
    }
 };
@@ -565,6 +585,42 @@ public:
    void *DtoH(void *dst, const void *src, size_t bytes) override
    { return std::memcpy(dst, src, bytes); }
 };
+
+#ifdef MFEM_USE_METAL
+/// The METAL device memory space
+class MetalDeviceMemorySpace: public DeviceMemorySpace
+{
+   MTL::Device *device;
+public:
+   MetalDeviceMemorySpace(): DeviceMemorySpace(),
+      device(MTL::CreateSystemDefaultDevice()) { }
+   ~MetalDeviceMemorySpace() { device->autorelease(); }
+   void Alloc(Memory &base) override
+   {
+      constexpr auto options = MTL::ResourceStorageModeManaged;
+      auto mtl_buffer = device->newBuffer(base.bytes, options);
+      base.d_ptr = mtl_buffer->contents();
+      maps->buffers[base.d_ptr] = mtl_buffer;
+   }
+   void Dealloc(Memory &) override { }
+   void *HtoD(void *dst, const void *src, size_t bytes) override
+   {
+      // dbg("src: {} dst: {} bytes: {}", src, dst, bytes);
+      // could inform the GPU that the data is ready
+      return std::memcpy(dst, src, bytes);
+   }
+   void *DtoD(void* dst, const void* src, size_t bytes) override
+   {
+      // dbg("src: {} dst: {} bytes: {}", src, dst, bytes);
+      return std::memcpy(dst, src, bytes);
+   }
+   void *DtoH(void *dst, const void *src, size_t bytes) override
+   {
+      // dbg("src: {} dst: {} bytes: {}", src, dst, bytes);
+      return std::memcpy(dst, src, bytes);
+   }
+};
+#endif // MFEM_USE_METAL
 
 #ifdef MFEM_USE_UMPIRE
 class UmpireMemorySpace
@@ -782,6 +838,8 @@ private:
             return new CudaDeviceMemorySpace();
 #elif defined(MFEM_USE_HIP)
             return new HipDeviceMemorySpace();
+#elif defined(MFEM_USE_METAL)
+            return new MetalDeviceMemorySpace();
 #else
             MFEM_ABORT("No device memory controller!");
             break;
@@ -1501,6 +1559,21 @@ void *MemoryManager::GetDevicePtr(const void *h_ptr, size_t bytes,
    ctrl->Host(h_mt)->Protect(mem, bytes);
    return mem.d_ptr;
 }
+
+#ifdef MFEM_USE_METAL
+const MTL::Buffer *MemoryManager::GetDeviceBfr(void *d_ptr)
+{
+   MFEM_VERIFY(d_ptr, "cannot get device buffer for NULL device pointer");
+   MFEM_VERIFY(maps->buffers.find(d_ptr) != maps->buffers.end(),
+               "device buffer not found");
+   return maps->buffers.at(d_ptr);
+}
+
+const MTL::Buffer *MemoryManager::GetDeviceBfr(const void *d_ptr)
+{
+   return GetDeviceBfr(const_cast<void*>(d_ptr));
+}
+#endif
 
 void *MemoryManager::GetAliasDevicePtr(const void *alias_ptr, size_t bytes,
                                        bool copy)

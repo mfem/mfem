@@ -19,16 +19,16 @@
 // #define MFEM_VERSION_STRING "@MFEM_VERSION_STRING@"
 
 // MFEM version type, see the MFEM_VERSION_TYPE_* constants below.
-#define MFEM_VERSION_TYPE ((MFEM_VERSION)%2)
+#define MFEM_VERSION_TYPE ((MFEM_VERSION) % 2)
 
 // MFEM version type constants.
 #define MFEM_VERSION_TYPE_RELEASE 0
 #define MFEM_VERSION_TYPE_DEVELOPMENT 1
 
 // Separate MFEM version numbers for major, minor, and patch.
-#define MFEM_VERSION_MAJOR ((MFEM_VERSION)/10000)
-#define MFEM_VERSION_MINOR (((MFEM_VERSION)/100)%100)
-#define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
+#define MFEM_VERSION_MAJOR ((MFEM_VERSION) / 10000)
+#define MFEM_VERSION_MINOR (((MFEM_VERSION) / 100) % 100)
+#define MFEM_VERSION_PATCH ((MFEM_VERSION) % 100)
 
 // The absolute path of the MFEM source prefix.
 // #define MFEM_SOURCE_DIR "@MFEM_SOURCE_DIR@"
@@ -156,6 +156,9 @@
 // Enable MFEM functionality based on the GSLIB library.
 // #define MFEM_USE_GSLIB
 
+// Build the Darwin GPU/Metal-enabled version of the MFEM library.
+// #define MFEM_USE_METAL
+
 // Build the NVIDIA GPU/CUDA-enabled version of the MFEM library.
 // Requires a CUDA compiler (nvcc).
 // #define MFEM_USE_CUDA
@@ -210,4 +213,4 @@
 // Enable the Enzyme LLVM plugin
 // #define MFEM_USE_ENZYME
 
-#endif // MFEM_CONFIG_HEADER
+#endif  // MFEM_CONFIG_HEADER

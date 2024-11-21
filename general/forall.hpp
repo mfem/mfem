@@ -753,6 +753,35 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
 template<typename lambda>
 inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
 
+// forall with METAL backend
+template<typename lambda, typename ...Args>
+inline void forall(int N, lambda &&body, const char* kernel_name,
+                   [[maybe_unused]] const char*kernel_ops,
+                   Args... args)
+{
+   if (Device::Allows(mfem::Backend::METAL))
+   {
+      return metal::Kernel_1D(N, kernel_name, kernel_ops, args...);
+   }
+
+   ForallWrap<1>(true, N, body, body);
+}
+
+// forall_switch with METAL backend
+template<typename lambda, typename ...Args>
+inline void forall_switch(bool use_dev, int N, lambda &&body,
+                          const char* kernel_name,
+                          [[maybe_unused]] const char*kernel_ops,
+                          Args... args)
+{
+   if (use_dev && Device::Allows(mfem::Backend::METAL))
+   {
+      return metal::Kernel_1D(N, kernel_name, kernel_ops, args...);
+   }
+
+   ForallWrap<1>(use_dev, N, body);
+}
+
 template<typename lambda>
 inline void forall_switch(bool use_dev, int N, lambda &&body)
 {

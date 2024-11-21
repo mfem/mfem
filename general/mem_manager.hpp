@@ -19,6 +19,10 @@
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
 
+#ifdef MFEM_USE_METAL
+#include "metal.h"
+#endif
+
 #ifdef MFEM_USE_MPI
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
@@ -854,6 +858,12 @@ public:
    /// Prints all aliases known by the memory manager
    /// returning the number of printed pointers
    int PrintAliases(std::ostream &out = mfem::out);
+
+#ifdef MFEM_USE_METAL
+   /// Return the corresponding device buffer of d_ptr.
+   static const MTL::Buffer *GetDeviceBfr(void *d_ptr);
+   static const MTL::Buffer *GetDeviceBfr(const void *d_ptr);
+#endif
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }

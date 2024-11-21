@@ -26,6 +26,7 @@ MFEM makefile targets:
    make parallel
    make debug
    make pdebug
+   make metal
    make cuda
    make hip
    make pcuda
@@ -62,6 +63,8 @@ make debug
    A shortcut to configure and build the serial debug version of the library.
 make pdebug
    A shortcut to configure and build the parallel debug version of the library.
+make metal
+   A shortcut to configure and build the serial GPU/Metal optimized version of the library.
 make cuda
    A shortcut to configure and build the serial GPU/CUDA optimized version of the library.
 make pcuda
@@ -177,7 +180,7 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda hip pcuda phip cudebug hipdebug pcudebug phipdebug hpc style
+ metal cuda hip pcuda phip cudebug hipdebug pcudebug phipdebug hpc style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -234,11 +237,17 @@ else
 endif
 
 # Default configuration
-ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP),NONO)
+ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_HIP)$(MFEM_USE_METAL),NONONO)
    MFEM_CXX ?= $(HOST_CXX)
    MFEM_HOST_CXX ?= $(MFEM_CXX)
    XCOMPILER = $(CXX_XCOMPILER)
    XLINKER   = $(CXX_XLINKER)
+endif
+
+ifeq ($(MFEM_USE_METAL),YES)
+   MFEM_CXX ?= $(METAL_CXX)
+   CXXFLAGS += $(METAL_FLAGS)
+   ALL_LIBS += $(METAL_LIBS)
 endif
 
 ifeq ($(MFEM_USE_CUDA),YES)
@@ -307,7 +316,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP METAL
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
@@ -352,7 +361,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_SUITESPARSE MFEM_USE_GINKGO MFEM_USE_SUPERLU MFEM_USE_SUPERLU5\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_SLEPC MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_FMS MFEM_USE_CONDUIT\
- MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
+ MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_METAL MFEM_USE_CUDA MFEM_USE_HIP\
  MFEM_USE_OCCA MFEM_USE_MOONOLITH MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE\
  MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO MFEM_USE_AMGX\
  MFEM_USE_MAGMA MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
@@ -445,7 +454,7 @@ OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
 	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
-	deprecation-warnings
+	deprecation-warnings metal
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -496,9 +505,9 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
-serial debug cuda hip cudebug hipdebug:           M_MPI=NO
+serial debug cuda hip cudebug hipdebug metal:     M_MPI=NO
 parallel pdebug pcuda pcudebug phip phipdebug:    M_MPI=YES
-serial parallel cuda pcuda hip phip:              M_DBG=NO
+serial parallel cuda pcuda hip phip metal:        M_DBG=NO
 debug pdebug cudebug pcudebug hipdebug phipdebug: M_DBG=YES
 cuda pcuda cudebug pcudebug:                      M_CUDA=YES
 hip phip hipdebug phipdebug:                      M_HIP=YES
@@ -506,6 +515,11 @@ hip phip hipdebug phipdebug:                      M_HIP=YES
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
 	   $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
+
+metal metaldebug:
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	   MFEM_USE_METAL=YES $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 cuda pcuda cudebug pcudebug:
@@ -733,6 +747,7 @@ status info:
 	$(info MFEM_USE_PUMI          = $(MFEM_USE_PUMI))
 	$(info MFEM_USE_HIOP          = $(MFEM_USE_HIOP))
 	$(info MFEM_USE_GSLIB         = $(MFEM_USE_GSLIB))
+	$(info MFEM_USE_METAL         = $(MFEM_USE_METAL))
 	$(info MFEM_USE_CUDA          = $(MFEM_USE_CUDA))
 	$(info MFEM_USE_HIP           = $(MFEM_USE_HIP))
 	$(info MFEM_USE_RAJA          = $(MFEM_USE_RAJA))

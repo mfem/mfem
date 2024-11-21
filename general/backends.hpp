@@ -31,6 +31,10 @@
 #include "occa.hpp"
 #endif
 
+#ifdef MFEM_USE_METAL
+#include "metal.hpp"
+#endif
+
 #ifdef MFEM_USE_RAJA
 // The following two definitions suppress CUB and THRUST deprecation warnings
 // about requiring c++14 with c++11 deprecated but still supported (to be

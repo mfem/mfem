@@ -73,7 +73,8 @@ struct Backend
           (using separate host/device memory pools and host <-> device
           transfers) without any GPU hardware. As 'DEBUG' is sometimes used
           as a macro, `_DEVICE` has been added to avoid conflicts. */
-      DEBUG_DEVICE = 1 << 14
+      METAL = 1 << 14,
+      DEBUG_DEVICE = 1 << 15
    };
 
    /** @brief Additional useful constants. For example, the *_MASK constants can
@@ -81,7 +82,7 @@ struct Backend
    enum
    {
       /// Number of backends: from (1 << 0) to (1 << (NUM_BACKENDS-1)).
-      NUM_BACKENDS = 15,
+      NUM_BACKENDS = 16,
 
       /// Biwise-OR of all CPU backends
       CPU_MASK = CPU | RAJA_CPU | OCCA_CPU | CEED_CPU,
@@ -94,7 +95,7 @@ struct Backend
       /// Bitwise-OR of all CEED backends
       CEED_MASK = CEED_CPU | CEED_CUDA | CEED_HIP,
       /// Biwise-OR of all device backends
-      DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG_DEVICE,
+      DEVICE_MASK = CUDA_MASK | HIP_MASK | METAL | DEBUG_DEVICE,
 
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA | RAJA_HIP,
@@ -145,7 +146,7 @@ private:
    /// Current Device MemoryClass
    MemoryClass device_mem_class = MemoryClass::HOST;
 
-   char *device_option = NULL;
+   char *device_option = nullptr;
    Device(Device const&);
    void operator=(Device const&);
    static Device& Get() { return device_singleton; }
