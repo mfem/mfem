@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
       B.Mult(x, LSres);
       LSres -= *trueF;
       matSinv->Mult(LSres, tmp);
-      double res = sqrt(InnerProduct(LSres, tmp));
+      real_t res = sqrt(InnerProduct(LSres, tmp));
       if (myid == 0)
       {
          cout << "\n|| B0*x0 + Bhat*xhat - F ||_{S^-1} = " << res << endl;

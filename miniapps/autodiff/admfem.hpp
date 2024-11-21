@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -223,7 +223,7 @@ private:
    TFunctor<ad::ADFloatType, const Vector, ad::ADVectorType,
             vector_size, state_size, param_size> tf;
 
-   TFunctor<double,const mfem::Vector, mfem::Vector,
+   TFunctor<real_t,const mfem::Vector, mfem::Vector,
             vector_size, state_size, param_size> rf;
 
 };
@@ -245,7 +245,7 @@ public:
 
    /// Evaluates a function for arguments vparam and uu. The evaluation is
    /// based on the operator() in the user provided functor TFunctor.
-   double Eval(const mfem::Vector &vparam, mfem::Vector &uu)
+   real_t Eval(const mfem::Vector &vparam, mfem::Vector &uu)
    {
       return rf(vparam,uu);
    }
@@ -320,7 +320,7 @@ public:
 
 #ifdef MFEM_USE_ADFORWARD
    // use forward-forward mode
-   typedef codi::RealForwardGen<double>    ADFType;
+   typedef codi::RealForwardGen<real_t>    ADFType;
    typedef TAutoDiffVector<ADFType>        ADFVector;
    typedef TAutoDiffDenseMatrix<ADFType>   ADFDenseMatrix;
 
@@ -329,7 +329,7 @@ public:
    typedef TAutoDiffDenseMatrix<ADSType>   ADSDenseMatrix;
 #else
    //use mixed forward and reverse mode
-   typedef codi::RealForwardGen<double>    ADFType;
+   typedef codi::RealForwardGen<real_t>    ADFType;
    typedef TAutoDiffVector<ADFType>        ADFVector;
    typedef TAutoDiffDenseMatrix<ADFType>   ADFDenseMatrix;
 
@@ -418,7 +418,7 @@ public:
 #endif
    }
 private:
-   TFunctor<double, const mfem::Vector,
+   TFunctor<real_t, const mfem::Vector,
             mfem::Vector, state_size, param_size> rf;
 
    TFunctor<ad::ADFloatType, const mfem::Vector,
@@ -438,7 +438,7 @@ namespace mfem
 namespace ad
 {
 /// MFEM native forward AD-type
-typedef internal::dual<double, double> ADFloatType;
+typedef internal::dual<real_t, real_t> ADFloatType;
 /// Vector type for AD-type numbers
 typedef TAutoDiffVector<ADFloatType> ADVectorType;
 /// Matrix type for AD-type numbers
@@ -532,7 +532,7 @@ class QVectorFuncAutoDiff
 {
 private:
    /// MFEM native forward AD-type
-   typedef internal::dual<double, double> ADFType;
+   typedef internal::dual<real_t, real_t> ADFType;
    /// Vector type for AD-type numbers
    typedef TAutoDiffVector<ADFType> ADFVector;
    /// Matrix type for AD-type numbers
@@ -580,7 +580,7 @@ private:
       tf(vparam, uu, rr);
    }
 
-   TFunctor<double, const Vector, Vector,
+   TFunctor<real_t, const Vector, Vector,
             vector_size, state_size, param_size> func;
 
    TFunctor<ADFType, const Vector, ADFVector,
@@ -617,7 +617,7 @@ class QFunctionAutoDiff
 {
 private:
    /// MFEM native AD-type for first derivatives
-   typedef internal::dual<double, double> ADFType;
+   typedef internal::dual<real_t, real_t> ADFType;
    /// Vector type for AD-numbers(first derivatives)
    typedef TAutoDiffVector<ADFType> ADFVector;
    /// Matrix type for AD-numbers(first derivatives)
@@ -632,7 +632,7 @@ private:
 public:
    /// Evaluates a function for arguments vparam and uu. The evaluation is
    /// based on the operator() in the user provided functor TFunctor.
-   double Eval(const Vector &vparam, Vector &uu)
+   real_t Eval(const Vector &vparam, Vector &uu)
    {
       return tf(vparam,uu);
    }
@@ -699,7 +699,7 @@ public:
    }
 
 private:
-   TFunctor<double, const Vector, Vector, state_size, param_size> tf;
+   TFunctor<real_t, const Vector, Vector, state_size, param_size> tf;
    TFunctor<ADFType, const Vector, ADFVector, state_size, param_size> ff;
    TFunctor<ADSType, const Vector, ADSVector, state_size, param_size> sf;
 

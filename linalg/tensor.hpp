@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -150,7 +150,7 @@ struct tensor<T, n0, n1, n2, n3, n4>
 struct zero
 {
    /** @brief `zero` is implicitly convertible to double with value 0.0 */
-   MFEM_HOST_DEVICE operator double() { return 0.0; }
+   MFEM_HOST_DEVICE operator real_t() { return 0.0; }
 
    /** @brief `zero` is implicitly convertible to a tensor of any shape */
    template <typename T, int... n>
@@ -1285,9 +1285,9 @@ tensor<T, n, n> dev(const tensor<T, n, n>& A)
  * @return I_dim
  */
 template <int dim>
-MFEM_HOST_DEVICE tensor<double, dim, dim> Identity()
+MFEM_HOST_DEVICE tensor<real_t, dim, dim> Identity()
 {
-   tensor<double, dim, dim> I{};
+   tensor<real_t, dim, dim> I{};
    for (int i = 0; i < dim; i++)
    {
       for (int j = 0; j < dim; j++)
@@ -1344,7 +1344,7 @@ T det(const tensor<T, 3, 3>& A)
  * @return Whether the square rank 2 tensor (matrix) is symmetric
  */
 template <int n> MFEM_HOST_DEVICE
-bool is_symmetric(tensor<double, n, n> A, double abs_tolerance = 1.0e-8)
+bool is_symmetric(tensor<real_t, n, n> A, real_t abs_tolerance = 1.0e-8)
 {
    for (int i = 0; i < n; ++i)
    {
@@ -1368,7 +1368,7 @@ bool is_symmetric(tensor<double, n, n> A, double abs_tolerance = 1.0e-8)
  * @return Whether the matrix is positive definite
  */
 inline MFEM_HOST_DEVICE
-bool is_symmetric_and_positive_definite(tensor<double, 2, 2> A)
+bool is_symmetric_and_positive_definite(tensor<real_t, 2, 2> A)
 {
    if (!is_symmetric(A))
    {
@@ -1386,7 +1386,7 @@ bool is_symmetric_and_positive_definite(tensor<double, 2, 2> A)
 }
 /// @overload
 inline MFEM_HOST_DEVICE
-bool is_symmetric_and_positive_definite(tensor<double, 3, 3> A)
+bool is_symmetric_and_positive_definite(tensor<real_t, 3, 3> A)
 {
    if (!is_symmetric(A))
    {
@@ -1413,7 +1413,7 @@ bool is_symmetric_and_positive_definite(tensor<double, 3, 3> A)
 template <typename T, int n> MFEM_HOST_DEVICE
 tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
 {
-   auto abs  = [](double x) { return (x < 0) ? -x : x; };
+   auto abs  = [](real_t x) { return (x < 0) ? -x : x; };
    auto swap_vector = [](tensor<T, n>& x, tensor<T, n>& y)
    {
       auto tmp = x;
@@ -1428,12 +1428,12 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
    };
 
 
-   tensor<double, n> x{};
+   tensor<real_t, n> x{};
 
    for (int i = 0; i < n; i++)
    {
       // Search for maximum in this column
-      double max_val = abs(A[i][i]);
+      real_t max_val = abs(A[i][i]);
 
       int max_row = i;
       for (int j = i + 1; j < n; j++)
@@ -1451,7 +1451,7 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
       // zero entries below in this column
       for (int j = i + 1; j < n; j++)
       {
-         double c = -A[j][i] / A[i][i];
+         real_t c = -A[j][i] / A[i][i];
          A[j] += c * A[i];
          b[j] += c * b[i];
          A[j][i] = 0;
@@ -1476,11 +1476,11 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
  * @param[in] A The matrix to invert
  * @note Uses a shortcut for inverting a 2-by-2 matrix
  */
-inline MFEM_HOST_DEVICE tensor<double, 2, 2> inv(const tensor<double, 2, 2>& A)
+inline MFEM_HOST_DEVICE tensor<real_t, 2, 2> inv(const tensor<real_t, 2, 2>& A)
 {
-   double inv_detA(1.0 / det(A));
+   real_t inv_detA(1.0 / det(A));
 
-   tensor<double, 2, 2> invA{};
+   tensor<real_t, 2, 2> invA{};
 
    invA[0][0] = A[1][1] * inv_detA;
    invA[0][1] = -A[0][1] * inv_detA;
@@ -1494,11 +1494,11 @@ inline MFEM_HOST_DEVICE tensor<double, 2, 2> inv(const tensor<double, 2, 2>& A)
  * @overload
  * @note Uses a shortcut for inverting a 3-by-3 matrix
  */
-inline MFEM_HOST_DEVICE tensor<double, 3, 3> inv(const tensor<double, 3, 3>& A)
+inline MFEM_HOST_DEVICE tensor<real_t, 3, 3> inv(const tensor<real_t, 3, 3>& A)
 {
-   double inv_detA(1.0 / det(A));
+   real_t inv_detA(1.0 / det(A));
 
-   tensor<double, 3, 3> invA{};
+   tensor<real_t, 3, 3> invA{};
 
    invA[0][0] = (A[1][1] * A[2][2] - A[1][2] * A[2][1]) * inv_detA;
    invA[0][1] = (A[0][2] * A[2][1] - A[0][1] * A[2][2]) * inv_detA;
@@ -1520,7 +1520,7 @@ inline MFEM_HOST_DEVICE tensor<double, 3, 3> inv(const tensor<double, 3, 3>& A)
 template <typename T, int n> MFEM_HOST_DEVICE
 tensor<T, n, n> inv(const tensor<T, n, n>& A)
 {
-   auto abs  = [](double x) { return (x < 0) ? -x : x; };
+   auto abs  = [](real_t x) { return (x < 0) ? -x : x; };
    auto swap = [](tensor<T, n>& x, tensor<T, n>& y)
    {
       auto tmp = x;
@@ -1528,12 +1528,12 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
       y        = tmp;
    };
 
-   tensor<double, n, n> B = Identity<n>();
+   tensor<real_t, n, n> B = Identity<n>();
 
    for (int i = 0; i < n; i++)
    {
       // Search for maximum in this column
-      double max_val = abs(A[i][i]);
+      real_t max_val = abs(A[i][i]);
 
       int max_row = i;
       for (int j = i + 1; j < n; j++)
@@ -1553,7 +1553,7 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
       {
          if (A[j][i] != 0.0)
          {
-            double c = -A[j][i] / A[i][i];
+            real_t c = -A[j][i] / A[i][i];
             A[j] += c * A[i];
             B[j] += c * B[i];
             A[j][i] = 0;
@@ -1631,7 +1631,7 @@ std::ostream& operator<<(std::ostream& os, const tensor<T, n...>& A)
  * @param[in] A The tensor to "chop"
  */
 template <int n> MFEM_HOST_DEVICE
-tensor<double, n> chop(const tensor<double, n>& A)
+tensor<real_t, n> chop(const tensor<real_t, n>& A)
 {
    auto copy = A;
    for (int i = 0; i < n; i++)
@@ -1646,7 +1646,7 @@ tensor<double, n> chop(const tensor<double, n>& A)
 
 /// @overload
 template <int m, int n> MFEM_HOST_DEVICE
-tensor<double, m, n> chop(const tensor<double, m, n>& A)
+tensor<real_t, m, n> chop(const tensor<real_t, m, n>& A)
 {
    auto copy = A;
    for (int i = 0; i < m; i++)
@@ -1669,27 +1669,27 @@ template <typename T1, typename T2>
 struct outer_prod;
 
 template <int... m, int... n>
-struct outer_prod<tensor<double, m...>, tensor<double, n...>>
+struct outer_prod<tensor<real_t, m...>, tensor<real_t, n...>>
 {
-   using type = tensor<double, m..., n...>;
+   using type = tensor<real_t, m..., n...>;
 };
 
 template <int... n>
-struct outer_prod<double, tensor<double, n...>>
+struct outer_prod<real_t, tensor<real_t, n...>>
 {
-   using type = tensor<double, n...>;
+   using type = tensor<real_t, n...>;
 };
 
 template <int... n>
-struct outer_prod<tensor<double, n...>, double>
+struct outer_prod<tensor<real_t, n...>, real_t>
 {
-   using type = tensor<double, n...>;
+   using type = tensor<real_t, n...>;
 };
 
 template <>
-struct outer_prod<double, double>
+struct outer_prod<real_t, real_t>
 {
-   using type = tensor<double>;
+   using type = tensor<real_t>;
 };
 
 template <typename T>
@@ -1719,7 +1719,7 @@ using outer_product_t = typename detail::outer_prod<T1, T2>::type;
  * @brief Retrieves the gradient component of a double (which is nothing)
  * @return The sentinel, @see zero
  */
-inline MFEM_HOST_DEVICE zero get_gradient(double /* arg */) { return zero{}; }
+inline MFEM_HOST_DEVICE zero get_gradient(real_t /* arg */) { return zero{}; }
 
 /**
  * @brief get the gradient of type `tensor` (note: since its stored type is not a dual
@@ -1727,7 +1727,7 @@ inline MFEM_HOST_DEVICE zero get_gradient(double /* arg */) { return zero{}; }
  * @return The sentinel, @see zero
  */
 template <int... n>
-MFEM_HOST_DEVICE zero get_gradient(const tensor<double, n...>& /* arg */)
+MFEM_HOST_DEVICE zero get_gradient(const tensor<real_t, n...>& /* arg */)
 {
    return zero{};
 }
@@ -1764,16 +1764,16 @@ MFEM_HOST_DEVICE zero chain_rule(const T /* df_dx */,
  * @overload
  * @note for a scalar-valued function of a scalar, the chain rule is just multiplication
  */
-inline MFEM_HOST_DEVICE double chain_rule(const double df_dx,
-                                          const double dx) { return df_dx * dx; }
+inline MFEM_HOST_DEVICE real_t chain_rule(const real_t df_dx,
+                                          const real_t dx) { return df_dx * dx; }
 
 /**
  * @overload
  * @note for a tensor-valued function of a scalar, the chain rule is just scalar multiplication
  */
 template <int... n>
-MFEM_HOST_DEVICE auto chain_rule(const tensor<double, n...>& df_dx,
-                                 const double dx) ->
+MFEM_HOST_DEVICE auto chain_rule(const tensor<real_t, n...>& df_dx,
+                                 const real_t dx) ->
 decltype(df_dx * dx)
 {
    return df_dx * dx;
@@ -1802,9 +1802,9 @@ struct isotropic_tensor<T, m, m>
 };
 
 template <int m>
-MFEM_HOST_DEVICE constexpr isotropic_tensor<double, m, m> IsotropicIdentity()
+MFEM_HOST_DEVICE constexpr isotropic_tensor<real_t, m, m> IsotropicIdentity()
 {
-   return isotropic_tensor<double, m, m> {1.0};
+   return isotropic_tensor<real_t, m, m> {1.0};
 }
 
 template <typename S, typename T, int m> MFEM_HOST_DEVICE constexpr
@@ -1998,13 +1998,13 @@ struct isotropic_tensor<T, m, m, m, m>
 };
 
 template <int m> MFEM_HOST_DEVICE constexpr
-auto SymmetricIdentity() -> isotropic_tensor<double, m, m, m, m>
+auto SymmetricIdentity() -> isotropic_tensor<real_t, m, m, m, m>
 {
    return {0.0, 1.0, 0.0};
 }
 
 template <int m>MFEM_HOST_DEVICE constexpr
-auto AntisymmetricIdentity() -> isotropic_tensor<double, m, m, m, m>
+auto AntisymmetricIdentity() -> isotropic_tensor<real_t, m, m, m, m>
 {
    return {0.0, 0.0, 1.0};
 }

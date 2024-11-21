@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -52,6 +52,11 @@ enum TopologicalSupport { kParticles, kOctetTruss };
 
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_SINGLE
+   cout << "This miniapp is not supported in single precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    // 0. Initialize MPI.
    Mpi::Init(argc, argv);
    Hypre::Init();
@@ -63,22 +68,22 @@ int main(int argc, char *argv[])
    int num_parallel_refs = 3;
    int number_of_particles = 3;
    int topological_support = TopologicalSupport::kOctetTruss;
-   double nu = 2.0;
-   double tau = 0.08;
-   double l1 = 0.02;
-   double l2 = 0.02;
-   double l3 = 0.02;
-   double e1 = 0;
-   double e2 = 0;
-   double e3 = 0;
-   double pl1 = 1.0;
-   double pl2 = 1.0;
-   double pl3 = 1.0;
-   double uniform_min = 0.0;
-   double uniform_max = 1.0;
-   double offset = 0.0;
-   double scale = 0.01;
-   double level_set_threshold = 0.0;
+   real_t nu = 2.0;
+   real_t tau = 0.08;
+   real_t l1 = 0.02;
+   real_t l2 = 0.02;
+   real_t l3 = 0.02;
+   real_t e1 = 0;
+   real_t e2 = 0;
+   real_t e3 = 0;
+   real_t pl1 = 1.0;
+   real_t pl2 = 1.0;
+   real_t pl3 = 1.0;
+   real_t uniform_min = 0.0;
+   real_t uniform_max = 1.0;
+   real_t offset = 0.0;
+   real_t scale = 0.01;
+   real_t level_set_threshold = 0.0;
    bool paraview_export = true;
    bool glvis_export = true;
    bool uniform_rf = false;
@@ -195,8 +200,8 @@ int main(int argc, char *argv[])
       else if (topological_support == TopologicalSupport::kParticles)
       {
          // Create the same random particles on all processors.
-         std::vector<double> random_positions(3 * number_of_particles);
-         std::vector<double> random_rotations(9 * number_of_particles);
+         std::vector<real_t> random_positions(3 * number_of_particles);
+         std::vector<real_t> random_rotations(9 * number_of_particles);
          if (Mpi::Root())
          {
             // Generate random positions and rotations. We generate them on the root
@@ -207,10 +212,10 @@ int main(int argc, char *argv[])
          }
 
          // Broadcast the random positions and rotations to all processes.
-         MPI_Bcast(random_positions.data(), 3 * number_of_particles, MPI_DOUBLE, 0,
-                   MPI_COMM_WORLD);
-         MPI_Bcast(random_rotations.data(), 9 * number_of_particles, MPI_DOUBLE, 0,
-                   MPI_COMM_WORLD);
+         MPI_Bcast(random_positions.data(), 3 * number_of_particles,
+                   MPITypeMap<real_t>::mpi_type, 0, MPI_COMM_WORLD);
+         MPI_Bcast(random_rotations.data(), 9 * number_of_particles,
+                   MPITypeMap<real_t>::mpi_type, 0, MPI_COMM_WORLD);
 
          mdm = new ParticleTopology(pl1, pl2, pl3, random_positions,
                                     random_rotations);

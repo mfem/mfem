@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -35,7 +35,7 @@ protected:
    Array<int> dof_offsets;
    Array<int> tdof_offsets;
 
-   /// Block matrix \f$ M \f$ to be associated with the real/imag Block bilinear form. Owned.
+   /// Block matrix $ M $ to be associated with the real/imag Block bilinear form. Owned.
    BlockMatrix *mat_r = nullptr;
    BlockMatrix *mat_i = nullptr;
    ComplexOperator * mat = nullptr;
@@ -45,9 +45,9 @@ protected:
    BlockVector * y_i = nullptr;
    Vector * y = nullptr;
 
-   /** @brief Block Matrix \f$ M_e \f$ used to store the eliminations
+   /** @brief Block Matrix $ M_e $ used to store the eliminations
         from the b.c.  Owned.
-       \f$ M + M_e = M_{original} \f$ */
+       $ M + M_e = M_{original} $ */
    BlockMatrix *mat_e_r = nullptr;
    BlockMatrix *mat_e_i = nullptr;
 
@@ -69,7 +69,7 @@ protected:
    Array2D<Array<BilinearFormIntegrator * > * > test_integs_r;
    Array2D<Array<BilinearFormIntegrator * > * > test_integs_i;
 
-   /// Set of Liniear Froem Integrators to be applied.
+   /// Set of LinearForm Integrators to be applied.
    Array<Array<LinearFormIntegrator * > * > lfis_r;
    Array<Array<LinearFormIntegrator * > * > lfis_i;
 
@@ -154,27 +154,27 @@ public:
    ///  Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);
 
-   /// Returns a reference to the BlockMatrix:  \f$ M_r \f$
+   /// Returns a reference to the BlockMatrix:  $ M_r $
    BlockMatrix &BlockMat_r()
    {
       MFEM_VERIFY(mat_r, "mat_r is NULL and can't be dereferenced");
       return *mat_r;
    }
-   /// Returns a reference to the BlockMatrix:  \f$ M_i \f$
+   /// Returns a reference to the BlockMatrix:  $ M_i $
    BlockMatrix &BlockMat_i()
    {
       MFEM_VERIFY(mat_i, "mat_i is NULL and can't be dereferenced");
       return *mat_i;
    }
 
-   /// Returns a reference to the BlockMatrix of eliminated b.c.: \f$ M_e_r \f$
+   /// Returns a reference to the BlockMatrix of eliminated b.c.: $ M_e_r $
    BlockMatrix &BlockMatElim_r()
    {
       MFEM_VERIFY(mat_e_r, "mat_e is NULL and can't be dereferenced");
       return *mat_e_r;
    }
 
-   /// Returns a reference to the BlockMatrix of eliminated b.c.: \f$ M_e_i \f$
+   /// Returns a reference to the BlockMatrix of eliminated b.c.: $ M_e_i $
    BlockMatrix &BlockMatElim_i()
    {
       MFEM_VERIFY(mat_e_i, "mat_e is NULL and can't be dereferenced");

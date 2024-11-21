@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -104,10 +104,10 @@ private:
    std::unique_ptr<const ParFiniteElementSpace> root_fes_;
 
    /// Pointer to the supplemental FiniteElementCollection used with root_fes_.
-   /// This is only used if this TransferMap represents a SubMesh to
-   /// SubMesh transfer where the root requires a different type of collection
-   /// than the SubMesh objects. For example, when the subpaces are L2 on
-   /// boundaries of the parent mesh and the root space can be RT.
+   /// This is only used if this TransferMap represents a SubMesh to SubMesh
+   /// transfer where the root requires a different type of collection than the
+   /// SubMesh objects. For example, when the subpaces are L2 on boundaries of
+   /// the parent mesh and the root space can be RT.
    std::unique_ptr<const FiniteElementCollection> root_fec_;
 
    const GroupCommunicator *root_gc_ = nullptr;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -335,6 +335,8 @@ public:
 
    iterator begin() { return iterator(Base::begin()); }
    iterator end() { return iterator(); }
+   const_iterator begin() const { return const_iterator(Base::cbegin()); }
+   const_iterator end() const { return const_iterator(); }
 
    const_iterator cbegin() const { return const_iterator(Base::cbegin()); }
    const_iterator cend() const { return const_iterator(); }
@@ -506,14 +508,14 @@ public:
    /// Add a sequence of doubles for hashing, given as a c-array.
    /** Before hashing the sequence is encoded so that the result is independent
        of endianness. */
-   HashFunction &AppendDoubles(const double *doubles, size_t num_doubles)
+   HashFunction &AppendDoubles(const real_t *doubles, size_t num_doubles)
    { return EncodeAndHashDoubles(doubles, doubles + num_doubles); }
 
    /// Add a sequence of doubles for hashing, given as a fixed-size c-array.
    /** Before hashing the sequence is encoded so that the result is independent
        of endianness. */
    template <size_t num_doubles>
-   HashFunction &AppendDoubles(const double (&doubles)[num_doubles])
+   HashFunction &AppendDoubles(const real_t (&doubles)[num_doubles])
    { return EncodeAndHashDoubles(doubles, doubles + num_doubles); }
 
    /// Add a sequence of doubles for hashing, given as a container.
@@ -988,7 +990,7 @@ HashFunction &HashFunction::EncodeAndHashDoubles(double_const_iter begin,
    // For hashing, a double is encoded in little endian byte-order.
 
    static_assert(
-      std::is_same<decltype(*begin), const double &>::value,
+      std::is_same<decltype(*begin), const real_t &>::value,
       "invalid iterator type");
 
    // Skip encoding if hashing is not available:

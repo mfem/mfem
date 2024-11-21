@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,11 +22,12 @@ namespace mfem
 TEST_CASE("HypreILU and HypreFGMRES wrappers",
           "[Parallel], [HypreILU], [HypreFGMRES]")
 {
-#ifdef HYPRE_USING_GPU
-   mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-             << "is NOT supported with the GPU version of hypre.\n\n";
-   return;
-#endif
+   if (HypreUsingGPU())
+   {
+      mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+                << "is NOT supported with the GPU version of hypre.\n\n";
+      return;
+   }
 
    // Build a small diffusion problem to test the solver and preconditioner
    int rank;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -91,51 +91,53 @@ void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
 
 TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 {
-   for (int dimension = 2; dimension < 4; ++dimension)
+   const int dimension = GENERATE(2, 3);
+   const int order = GENERATE(1, 2, 3, 4);
+   const int ne = 3;
+
+   CAPTURE(dimension, order);
+
+   Mesh mesh;
+   if (dimension == 2)
    {
-      for (int ne = 1; ne < 3; ++ne)
-      {
-         const int n_elements = pow(ne, dimension);
-         CAPTURE(dimension, n_elements);
-         for (int order = 1; order < 5; ++order)
-         {
-            Mesh mesh;
-            if (dimension == 2)
-            {
-               mesh = Mesh::MakeCartesian2D(
-                         ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
-            }
-            else
-            {
-               mesh = Mesh::MakeCartesian3D(
-                         ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
-            }
-            FiniteElementCollection *h1_fec = new H1_FECollection(order, dimension);
-            FiniteElementSpace h1_fespace(&mesh, h1_fec);
-            BilinearForm paform(&h1_fespace);
-            ConstantCoefficient one(1.0);
-            paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-            paform.AddDomainIntegrator(new MassIntegrator(one));
-            paform.Assemble();
-            Vector pa_diag(h1_fespace.GetVSize());
-            paform.AssembleDiagonal(pa_diag);
-
-            BilinearForm faform(&h1_fespace);
-            faform.AddDomainIntegrator(new MassIntegrator(one));
-            faform.Assemble();
-            faform.Finalize();
-            Vector assembly_diag(h1_fespace.GetVSize());
-            faform.SpMat().GetDiag(assembly_diag);
-
-            assembly_diag -= pa_diag;
-            double error = assembly_diag.Norml2();
-            CAPTURE(order, error);
-            REQUIRE(assembly_diag.Norml2() < 1.e-12);
-
-            delete h1_fec;
-         }
-      }
+      mesh = Mesh::MakeCartesian2D(
+                ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
    }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(
+                ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   }
+
+   for (int i = 0; i < mesh.GetNE(); ++i)
+   {
+      mesh.SetAttribute(i, i%2 + 1);
+   }
+   mesh.SetAttributes();
+
+   Array<int> bdr(mesh.attributes.Size());
+   bdr[0] = 0;
+   bdr[1] = 1;
+
+   H1_FECollection h1_fec(order, dimension);
+   FiniteElementSpace h1_fespace(&mesh, &h1_fec);
+   BilinearForm paform(&h1_fespace);
+   ConstantCoefficient one(1.0);
+   paform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   paform.AddDomainIntegrator(new MassIntegrator(one), bdr);
+   paform.Assemble();
+   Vector pa_diag(h1_fespace.GetVSize());
+   paform.AssembleDiagonal(pa_diag);
+
+   BilinearForm faform(&h1_fespace);
+   faform.AddDomainIntegrator(new MassIntegrator(one), bdr);
+   faform.Assemble();
+   faform.Finalize();
+   Vector assembly_diag(h1_fespace.GetVSize());
+   faform.SpMat().GetDiag(assembly_diag);
+
+   assembly_diag -= pa_diag;
+   REQUIRE(assembly_diag.Normlinf() == MFEM_Approx(0.0));
 }
 
 TEST_CASE("Mass Boundary Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
@@ -155,17 +157,20 @@ TEST_CASE("Mass Boundary Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 
    FunctionCoefficient coeff(coeffFunction);
 
+   Array<int> bdr(mesh.bdr_attributes.Size());
+   for (int i = 0; i < bdr.Size(); ++i) { bdr[i] = i%2; }
+
    Vector diag_fa(fes.GetTrueVSize()), diag_pa(fes.GetTrueVSize());
 
    BilinearForm blf_fa(&fes);
-   blf_fa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_fa.AddBoundaryIntegrator(new MassIntegrator(coeff), bdr);
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.SpMat().GetDiag(diag_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_pa.AddBoundaryIntegrator(new MassIntegrator(coeff), bdr);
    blf_pa.Assemble();
    blf_pa.AssembleDiagonal(diag_pa);
 

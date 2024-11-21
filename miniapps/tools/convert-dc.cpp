@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,12 +30,11 @@
 //
 // Compile with: make convert-dc
 //
-// Serial sample runs:
-//    convert-dc -s ../../examples/Example5 -st visit -o Example5_Conduit -ot json
+// Serial sample run (requires MFEM_USE_CONDUIT=YES):
+//  > convert-dc -s ../../examples/Example5 -st visit -o Example5_Conduit -ot json
 //
-// Parallel sample runs:
-//    mpirun -np 4 convert-dc -s ../../examples/Example5-Parallel -st visit
-//                            -o Example5-Parallel_Conduit -ot json
+// Parallel sample run (requires MFEM_USE_CONDUIT=YES):
+//  > mpirun -np 4 convert-dc -s ../../examples/Example5-Parallel -st visit -o Example5-Parallel_Conduit -ot json
 
 #include "mfem.hpp"
 

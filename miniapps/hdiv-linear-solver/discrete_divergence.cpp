@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -85,7 +85,7 @@ void EliminateColumns(HypreParMatrix &D, const Array<int> &ess_dofs)
       const auto I = diag->i;
       const auto J = diag->j;
       auto data = diag->data;
-      MFEM_HYPRE_FORALL(i, nrows_diag,
+      mfem::hypre_forall(nrows_diag, [=] MFEM_HOST_DEVICE (int i)
       {
          for (int jj=I[i]; jj<I[i+1]; ++jj)
          {
@@ -109,7 +109,7 @@ void EliminateColumns(HypreParMatrix &D, const Array<int> &ess_dofs)
       const auto I = offd->i;
       const auto J = offd->j;
       auto data = offd->data;
-      MFEM_HYPRE_FORALL(i, nrows_offd,
+      mfem::hypre_forall(nrows_offd, [=] MFEM_HOST_DEVICE (int i)
       {
          for (int jj=I[i]; jj<I[i+1]; ++jj)
          {
@@ -213,24 +213,25 @@ HypreParMatrix *FormDiscreteDivergenceMatrix(ParFiniteElementSpace &fes_rt,
    auto J = D_local.WriteJ();
    auto V = D_local.WriteData();
 
+   const int two_dim = 2*dim;
+
    // Loop over L2 DOFs
-   MFEM_FORALL(i, n_l2,
+   MFEM_FORALL(ii, n_l2*2*dim,
    {
+      const int k = ii % (two_dim);
+      const int i = ii / (two_dim);
       const int i_loc = i%nvol_per_el;
       const int i_el = i/nvol_per_el;
 
-      for (int k = 0; k < 2*dim; ++k)
-      {
-         const int sjv_loc = e2f(k, i_loc);
-         const int jv_loc = (sjv_loc >= 0) ? sjv_loc : -1 - sjv_loc;
-         const int sgn1 = (sjv_loc >= 0) ? 1 : -1;
-         const int sj = gather_rt(jv_loc, i_el);
-         const int j = (sj >= 0) ? sj : -1 - sj;
-         const int sgn2 = (sj >= 0) ? 1 : -1;
+      const int sjv_loc = e2f(k, i_loc);
+      const int jv_loc = (sjv_loc >= 0) ? sjv_loc : -1 - sjv_loc;
+      const int sgn1 = (sjv_loc >= 0) ? 1 : -1;
+      const int sj = gather_rt(jv_loc, i_el);
+      const int j = (sj >= 0) ? sj : -1 - sj;
+      const int sgn2 = (sj >= 0) ? 1 : -1;
 
-         J[k + 2*dim*i] = j;
-         V[k + 2*dim*i] = sgn1*sgn2;
-      }
+      J[k + 2*dim*i] = j;
+      V[k + 2*dim*i] = sgn1*sgn2;
    });
 
    // Create a block diagonal parallel matrix

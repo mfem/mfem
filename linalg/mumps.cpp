@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
+#include "../general/communication.hpp"
 
 #ifdef MFEM_USE_MUMPS
 #ifdef MFEM_USE_MPI
@@ -90,7 +91,11 @@ MUMPSSolver::~MUMPSSolver()
    if (id)
    {
       id->job = -2;
+#ifdef MFEM_USE_SINGLE
+      smumps_c(id);
+#else
       dmumps_c(id);
+#endif
       delete id;
    }
 }
@@ -146,11 +151,11 @@ void MUMPSSolver::SetOperator(const Operator &op)
    // Fill in I and J arrays for
    // COO format in 1-based indexing
    k = 0;
-   double *data;
+   real_t *data;
    if (mat_type)
    {
       MUMPS_INT8 l = 0;
-      data = new double[nnz];
+      data = new real_t[nnz];
       for (int i = 0; i < n_loc; i++)
       {
          for (HYPRE_Int j = Iptr[i]; j < Iptr[i + 1]; j++)
@@ -191,10 +196,18 @@ void MUMPSSolver::SetOperator(const Operator &op)
       if (id)
       {
          id->job = -2;
+#ifdef MFEM_USE_SINGLE
+         smumps_c(id);
+#else
          dmumps_c(id);
+#endif
          delete id;
       }
+#ifdef MFEM_USE_SINGLE
+      id = new SMUMPS_STRUC_C;
+#else
       id = new DMUMPS_STRUC_C;
+#endif
       id->sym = mat_type;
 
       // C to Fortran communicator
@@ -205,7 +218,11 @@ void MUMPSSolver::SetOperator(const Operator &op)
 
       // MUMPS init
       id->job = -1;
+#ifdef MFEM_USE_SINGLE
+      smumps_c(id);
+#else
       dmumps_c(id);
+#endif
 
       // Set MUMPS default parameters
       SetParameters();
@@ -218,7 +235,11 @@ void MUMPSSolver::SetOperator(const Operator &op)
 
       // MUMPS analysis
       id->job = 1;
+#ifdef MFEM_USE_SINGLE
+      smumps_c(id);
+#else
       dmumps_c(id);
+#endif
    }
    else
    {
@@ -233,7 +254,11 @@ void MUMPSSolver::SetOperator(const Operator &op)
       const int mem_relax_lim = 200;
       while (true)
       {
+#ifdef MFEM_USE_SINGLE
+         smumps_c(id);
+#else
          dmumps_c(id);
+#endif
          if (id->MUMPS_INFOG(1) < 0)
          {
             if (id->MUMPS_INFOG(1) == -8 || id->MUMPS_INFOG(1) == -9)
@@ -309,15 +334,15 @@ void MUMPSSolver::InitRhsSol(int nrhs) const
 #if MFEM_MUMPS_VERSION >= 530
       delete [] rhs_loc;
       delete [] sol_loc;
-      rhs_loc = (nrhs > 1) ? new double[nrhs * id->lrhs_loc] : nullptr;
-      sol_loc = new double[nrhs * id->lsol_loc];
+      rhs_loc = (nrhs > 1) ? new real_t[nrhs * id->lrhs_loc] : nullptr;
+      sol_loc = new real_t[nrhs * id->lsol_loc];
       id->rhs_loc = rhs_loc;
       id->sol_loc = sol_loc;
 #else
       if (myid == 0)
       {
          delete rhs_glob;
-         rhs_glob = new double[nrhs * id->lrhs];
+         rhs_glob = new real_t[nrhs * id->lrhs];
          id->rhs = rhs_glob;
       }
 #endif
@@ -360,7 +385,11 @@ void MUMPSSolver::ArrayMult(const Array<const Vector *> &X,
 
    // MUMPS solve
    id->job = 3;
+#ifdef MFEM_USE_SINGLE
+   smumps_c(id);
+#else
    dmumps_c(id);
+#endif
 
    RedistributeSol(id->isol_loc, id->sol_loc, id->lsol_loc, Y);
 #else
@@ -368,20 +397,26 @@ void MUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    {
       MFEM_ASSERT(X[i], "Missing Vector in MUMPSSolver::Mult!");
       X[i]->HostRead();
-      MPI_Gatherv(X[i]->GetData(), X[i]->Size(), MPI_DOUBLE,
-                  id->rhs + i * id->lrhs, recv_counts, displs, MPI_DOUBLE, 0, comm);
+      MPI_Gatherv(X[i]->GetData(), X[i]->Size(), MPITypeMap<real_t>::mpi_type,
+                  id->rhs + i * id->lrhs, recv_counts, displs, MPITypeMap<real_t>::mpi_type, 0,
+                  comm);
    }
 
    // MUMPS solve
    id->job = 3;
+#ifdef MFEM_USE_SINGLE
+   smumps_c(id);
+#else
    dmumps_c(id);
+#endif
 
    for (int i = 0; i < id->nrhs; i++)
    {
       MFEM_ASSERT(Y[i], "Missing Vector in MUMPSSolver::Mult!");
       Y[i]->HostWrite();
-      MPI_Scatterv(id->rhs + i * id->lrhs, recv_counts, displs, MPI_DOUBLE,
-                   Y[i]->GetData(), Y[i]->Size(), MPI_DOUBLE, 0, comm);
+      MPI_Scatterv(id->rhs + i * id->lrhs, recv_counts, displs,
+                   MPITypeMap<real_t>::mpi_type,
+                   Y[i]->GetData(), Y[i]->Size(), MPITypeMap<real_t>::mpi_type, 0, comm);
    }
 #endif
 }
@@ -537,7 +572,7 @@ int MUMPSSolver::GetRowRank(int i, const Array<int> &row_starts_) const
    return std::distance(row_starts_.begin(), up) - 1;
 }
 
-void MUMPSSolver::RedistributeSol(const int *rmap, const double *x,
+void MUMPSSolver::RedistributeSol(const int *rmap, const real_t *x,
                                   const int lx_loc, Array<Vector *> &Y) const
 {
    int *send_count = new int[numProcs]();
@@ -565,9 +600,9 @@ void MUMPSSolver::RedistributeSol(const int *rmap, const double *x,
    }
 
    int *sendbuf_index = new int[sbuff_size];
-   double *sendbuf_values = new double[sbuff_size];
+   real_t *sendbuf_values = new real_t[sbuff_size];
    int *recvbuf_index = new int[rbuff_size];
-   double *recvbuf_values = new double[rbuff_size];
+   real_t *recvbuf_values = new real_t[rbuff_size];
    int *soffs = new int[numProcs]();
 
    for (int i = 0; i < lx_loc; i++)
@@ -608,8 +643,9 @@ void MUMPSSolver::RedistributeSol(const int *rmap, const double *x,
          }
       }
 
-      MPI_Alltoallv(sendbuf_values, send_count, send_displ, MPI_DOUBLE,
-                    recvbuf_values, recv_count, recv_displ, MPI_DOUBLE, comm);
+      MPI_Alltoallv(sendbuf_values, send_count, send_displ,
+                    MPITypeMap<real_t>::mpi_type,
+                    recvbuf_values, recv_count, recv_displ, MPITypeMap<real_t>::mpi_type, comm);
 
       // Unpack recv buffer
       for (int i = 0; i < rbuff_size; i++)

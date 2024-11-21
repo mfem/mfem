@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,12 +21,12 @@ add_mfem_miniapp(toy_mandel
 add_mfem_miniapp(toy_rubik
     MAIN rubik.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
 add_mfem_miniapp(toy_snake
     MAIN snake.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
 add_mfem_miniapp(toy_lissajous
     MAIN lissajous.cpp LIBRARIES mfem)

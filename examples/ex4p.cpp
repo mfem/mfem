@@ -54,7 +54,7 @@ using namespace mfem;
 // Exact solution, F, and r.h.s., f. See below for implementation.
 void F_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 
 int main(int argc, char *argv[])
 {
@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
 
    // 15. Compute and print the L^2 norm of the error.
    {
-      double error = x.ComputeL2Error(F);
+      real_t error = x.ComputeL2Error(F);
       if (myid == 0)
       {
          cout << "\n|| F_h - F ||_{L^2} = " << error << '\n' << endl;
@@ -311,9 +311,9 @@ void F_exact(const Vector &p, Vector &F)
 {
    int dim = p.Size();
 
-   double x = p(0);
-   double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0; // Uncomment if F is changed to depend on z
+   real_t x = p(0);
+   real_t y = p(1);
+   // real_t z = (dim == 3) ? p(2) : 0.0; // Uncomment if F is changed to depend on z
 
    F(0) = cos(kappa*x)*sin(kappa*y);
    F(1) = cos(kappa*y)*sin(kappa*x);
@@ -328,11 +328,11 @@ void f_exact(const Vector &p, Vector &f)
 {
    int dim = p.Size();
 
-   double x = p(0);
-   double y = p(1);
-   // double z = (dim == 3) ? p(2) : 0.0; // Uncomment if f is changed to depend on z
+   real_t x = p(0);
+   real_t y = p(1);
+   // real_t z = (dim == 3) ? p(2) : 0.0; // Uncomment if f is changed to depend on z
 
-   double temp = 1 + 2*kappa*kappa;
+   real_t temp = 1 + 2*kappa*kappa;
 
    f(0) = temp*cos(kappa*x)*sin(kappa*y);
    f(1) = temp*cos(kappa*y)*sin(kappa*x);

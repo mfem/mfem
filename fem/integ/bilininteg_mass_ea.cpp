@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,7 +18,7 @@ namespace mfem
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EAMassAssemble1D(const int NE,
-                             const Array<double> &basis,
+                             const Array<real_t> &basis,
                              const Vector &padata,
                              Vector &eadata,
                              const bool add,
@@ -27,18 +27,18 @@ static void EAMassAssemble1D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
-   auto M = Reshape(eadata.ReadWrite(), D1D, D1D, NE);
+   auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(), D1D, D1D, NE);
    mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_Bi[MQ1];
-      double r_Bj[MQ1];
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_Bi[MQ1];
+      real_t r_Bj[MQ1];
       for (int q = 0; q < Q1D; q++)
       {
          r_Bi[q] = B(q,MFEM_THREAD_ID(x));
@@ -48,7 +48,7 @@ static void EAMassAssemble1D(const int NE,
       {
          MFEM_FOREACH_THREAD(j1,y,D1D)
          {
-            double val = 0.0;
+            real_t val = 0.0;
             for (int k1 = 0; k1 < Q1D; ++k1)
             {
                val += r_Bi[k1] * r_Bj[k1] * D(k1, e);
@@ -68,7 +68,7 @@ static void EAMassAssemble1D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EAMassAssemble2D(const int NE,
-                             const Array<double> &basis,
+                             const Array<real_t> &basis,
                              const Vector &padata,
                              Vector &eadata,
                              const bool add,
@@ -77,18 +77,19 @@ static void EAMassAssemble2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
-   auto M = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, NE);
+   auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(), D1D, D1D, D1D, D1D,
+                    NE);
    mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double r_B[MQ1][MD1];
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_B[MQ1][MD1];
       for (int d = 0; d < D1D; d++)
       {
          for (int q = 0; q < Q1D; q++)
@@ -96,7 +97,7 @@ static void EAMassAssemble2D(const int NE,
             r_B[q][d] = B(q,d);
          }
       }
-      MFEM_SHARED double s_D[MQ1][MQ1];
+      MFEM_SHARED real_t s_D[MQ1][MQ1];
       MFEM_FOREACH_THREAD(k1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(k2,y,Q1D)
@@ -113,7 +114,7 @@ static void EAMassAssemble2D(const int NE,
             {
                for (int j2 = 0; j2 < D1D; ++j2)
                {
-                  double val = 0.0;
+                  real_t val = 0.0;
                   for (int k1 = 0; k1 < Q1D; ++k1)
                   {
                      for (int k2 = 0; k2 < Q1D; ++k2)
@@ -140,7 +141,7 @@ static void EAMassAssemble2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EAMassAssemble3D(const int NE,
-                             const Array<double> &basis,
+                             const Array<real_t> &basis,
                              const Vector &padata,
                              Vector &eadata,
                              const bool add,
@@ -149,17 +150,18 @@ static void EAMassAssemble3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
-   auto M = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
+   auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(), D1D, D1D, D1D, D1D,
+                    D1D, D1D, NE);
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int DQ = T_D1D * T_Q1D;
 
       // For quadratic and lower it's better to use registers but for higher-order you start to
@@ -170,9 +172,9 @@ static void EAMassAssemble3D(const int NE,
       constexpr int MD1s = USE_REG ? 1 : MD1;
       constexpr int MQ1s = USE_REG ? 1 : MQ1;
 
-      MFEM_SHARED double s_B[MQ1s][MD1s];
-      double r_B[MQ1r][MD1r];
-      double (*l_B)[MD1] = nullptr;
+      MFEM_SHARED real_t s_B[MQ1s][MD1s];
+      real_t r_B[MQ1r][MD1r];
+      real_t (*l_B)[MD1] = nullptr;
       if (USE_REG)
       {
          for (int d = 0; d < D1D; d++)
@@ -182,7 +184,7 @@ static void EAMassAssemble3D(const int NE,
                r_B[q][d] = B(q,d);
             }
          }
-         l_B = (double (*)[MD1])r_B;
+         l_B = (real_t (*)[MD1])r_B;
       }
       else
       {
@@ -196,10 +198,10 @@ static void EAMassAssemble3D(const int NE,
                }
             }
          }
-         l_B = (double (*)[MD1])s_B;
+         l_B = (real_t (*)[MD1])s_B;
       }
 
-      MFEM_SHARED double s_D[MQ1][MQ1][MQ1];
+      MFEM_SHARED real_t s_D[MQ1][MQ1][MQ1];
       MFEM_FOREACH_THREAD(k1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(k2,y,Q1D)
@@ -223,7 +225,7 @@ static void EAMassAssemble3D(const int NE,
                   {
                      for (int j3 = 0; j3 < D1D; ++j3)
                      {
-                        double val = 0.0;
+                        real_t val = 0.0;
                         for (int k1 = 0; k1 < Q1D; ++k1)
                         {
                            for (int k2 = 0; k2 < Q1D; ++k2)
@@ -260,7 +262,7 @@ void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
 {
    AssemblePA(fes);
    ne = fes.GetMesh()->GetNE();
-   const Array<double> &B = maps->B;
+   const Array<real_t> &B = maps->B;
    if (dim == 1)
    {
       switch ((dofs1D << 4 ) | quad1D)
