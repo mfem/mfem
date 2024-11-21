@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -83,7 +83,7 @@ void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
    }
 }
 
-double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
+real_t NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
    if (ext)
    {
@@ -97,12 +97,37 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    const FiniteElement *fe;
    ElementTransformation *T;
    DofTransformation *doftrans;
-   double energy = 0.0;
+   Mesh *mesh = fes->GetMesh();
+   real_t energy = 0.0;
 
    if (dnfi.Size())
    {
+      // Which attributes need to be processed?
+      Array<int> attr_marker(mesh->attributes.Size() ?
+                             mesh->attributes.Max() : 0);
+      attr_marker = 0;
+      for (int k = 0; k < dnfi.Size(); k++)
+      {
+         if (dnfi_marker[k] == NULL)
+         {
+            attr_marker = 1;
+            break;
+         }
+         Array<int> &marker = *dnfi_marker[k];
+         MFEM_ASSERT(marker.Size() == attr_marker.Size(),
+                     "invalid marker for domain integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < attr_marker.Size(); i++)
+         {
+            attr_marker[i] |= marker[i];
+         }
+      }
+
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         const int attr = mesh->GetAttribute(i);
+         if (attr_marker[attr-1] == 0) { continue; }
+
          fe = fes->GetFE(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
@@ -110,9 +135,56 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
          if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < dnfi.Size(); k++)
          {
+            if (dnfi_marker[k] &&
+                (*dnfi_marker[k])[attr-1] == 0) { continue; }
+
             energy += dnfi[k]->GetElementEnergy(*fe, *T, el_x);
          }
       }
+   }
+
+   if (bnfi.Size())
+   {
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bnfi.Size(); k++)
+      {
+         if (bnfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bnfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < fes->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         fe = fes->GetBE(i);
+         doftrans = fes->GetBdrElementVDofs(i, vdofs);
+         T = fes->GetBdrElementTransformation(i);
+         x.GetSubVector(vdofs, el_x);
+         if (doftrans) {doftrans->InvTransformPrimal(el_x); }
+         for (int k = 0; k < bnfi.Size(); k++)
+         {
+            if (bnfi_marker[k] &&
+                (*bnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+            energy += bnfi[k]->GetElementEnergy(*fe, *T, el_x);
+         }
+      }
+
    }
 
    if (fnfi.Size())
@@ -175,8 +247,32 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (dnfi.Size())
    {
+      // Which attributes need to be processed?
+      Array<int> attr_marker(mesh->attributes.Size() ?
+                             mesh->attributes.Max() : 0);
+      attr_marker = 0;
+      for (int k = 0; k < dnfi.Size(); k++)
+      {
+         if (dnfi_marker[k] == NULL)
+         {
+            attr_marker = 1;
+            break;
+         }
+         Array<int> &marker = *dnfi_marker[k];
+         MFEM_ASSERT(marker.Size() == attr_marker.Size(),
+                     "invalid marker for domain integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < attr_marker.Size(); i++)
+         {
+            attr_marker[i] |= marker[i];
+         }
+      }
+
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         const int attr = mesh->GetAttribute(i);
+         if (attr_marker[attr-1] == 0) { continue; }
+
          fe = fes->GetFE(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
@@ -184,7 +280,55 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < dnfi.Size(); k++)
          {
+            if (dnfi_marker[k] &&
+                (*dnfi_marker[k])[attr-1] == 0) { continue; }
+
             dnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
+            if (doftrans) {doftrans->TransformDual(el_y); }
+            py.AddElementVector(vdofs, el_y);
+         }
+      }
+   }
+
+   if (bnfi.Size())
+   {
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bnfi.Size(); k++)
+      {
+         if (bnfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bnfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < fes->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         fe = fes->GetBE(i);
+         doftrans = fes->GetBdrElementVDofs(i, vdofs);
+         T = fes->GetBdrElementTransformation(i);
+         px.GetSubVector(vdofs, el_x);
+         if (doftrans) {doftrans->InvTransformPrimal(el_x); }
+         for (int k = 0; k < bnfi.Size(); k++)
+         {
+            if (bnfi_marker[k] &&
+                (*bnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+            bnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
             if (doftrans) {doftrans->TransformDual(el_y); }
             py.AddElementVector(vdofs, el_y);
          }
@@ -322,8 +466,32 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
 
    if (dnfi.Size())
    {
+      // Which attributes need to be processed?
+      Array<int> attr_marker(mesh->attributes.Size() ?
+                             mesh->attributes.Max() : 0);
+      attr_marker = 0;
+      for (int k = 0; k < dnfi.Size(); k++)
+      {
+         if (dnfi_marker[k] == NULL)
+         {
+            attr_marker = 1;
+            break;
+         }
+         Array<int> &marker = *dnfi_marker[k];
+         MFEM_ASSERT(marker.Size() == attr_marker.Size(),
+                     "invalid marker for domain integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < attr_marker.Size(); i++)
+         {
+            attr_marker[i] |= marker[i];
+         }
+      }
+
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         const int attr = mesh->GetAttribute(i);
+         if (attr_marker[attr-1] == 0) { continue; }
+
          fe = fes->GetFE(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
@@ -331,10 +499,58 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
          if (doftrans) {doftrans->InvTransformPrimal(el_x); }
          for (int k = 0; k < dnfi.Size(); k++)
          {
+            if (dnfi_marker[k] &&
+                (*dnfi_marker[k])[attr-1] == 0) { continue; }
+
             dnfi[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
             if (doftrans) { doftrans->TransformDual(elmat); }
             Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
             // Grad->AddSubMatrix(vdofs, vdofs, elmat, 1);
+         }
+      }
+   }
+
+   if (bnfi.Size())
+   {
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bnfi.Size(); k++)
+      {
+         if (bnfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bnfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < fes->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         fe = fes->GetBE(i);
+         doftrans = fes->GetBdrElementVDofs(i, vdofs);
+         T = fes->GetBdrElementTransformation(i);
+         px.GetSubVector(vdofs, el_x);
+         if (doftrans) {doftrans->InvTransformPrimal(el_x); }
+         for (int k = 0; k < bnfi.Size(); k++)
+         {
+            if (bnfi_marker[k] &&
+                (*bnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+            bnfi[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
+            if (doftrans) { doftrans->TransformDual(elmat); }
+            Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
          }
       }
    }
@@ -471,9 +687,13 @@ NonlinearForm::~NonlinearForm()
 {
    delete cGrad;
    delete Grad;
-   for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
-   for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
-   for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
+   if (!extern_bfs)
+   {
+      for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
+      for (int i = 0; i <  bnfi.Size(); i++) { delete  bnfi[i]; }
+      for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
+      for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
+   }
    delete ext;
 }
 
@@ -561,13 +781,6 @@ BlockNonlinearForm::BlockNonlinearForm(Array<FiniteElementSpace *> &f) :
    SetSpaces(f);
 }
 
-void BlockNonlinearForm::AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nfi,
-                                              Array<int> &bdr_attr_marker)
-{
-   bfnfi.Append(nfi);
-   bfnfi_marker.Append(&bdr_attr_marker);
-}
-
 void BlockNonlinearForm::SetEssentialBC(
    const Array<Array<int> *> &bdr_attr_is_ess, Array<Vector *> &rhs)
 {
@@ -584,7 +797,7 @@ void BlockNonlinearForm::SetEssentialBC(
    }
 }
 
-double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
+real_t BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
 {
    Array<Array<int> *> vdofs(fes.Size());
    Array<Vector *> el_x(fes.Size());
@@ -592,7 +805,8 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
    Array<const FiniteElement *> fe(fes.Size());
    ElementTransformation *T;
    DofTransformation *doftrans;
-   double energy = 0.0;
+   Mesh *mesh = fes[0]->GetMesh();
+   real_t energy = 0.0;
 
    for (int i=0; i<fes.Size(); ++i)
    {
@@ -601,8 +815,33 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
    }
 
    if (dnfi.Size())
+   {
+      // Which attributes need to be processed?
+      Array<int> attr_marker(mesh->attributes.Size() ?
+                             mesh->attributes.Max() : 0);
+      attr_marker = 0;
+      for (int k = 0; k < dnfi.Size(); k++)
+      {
+         if (dnfi_marker[k] == NULL)
+         {
+            attr_marker = 1;
+            break;
+         }
+         Array<int> &marker = *dnfi_marker[k];
+         MFEM_ASSERT(marker.Size() == attr_marker.Size(),
+                     "invalid marker for domain integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < attr_marker.Size(); i++)
+         {
+            attr_marker[i] |= marker[i];
+         }
+      }
+
       for (int i = 0; i < fes[0]->GetNE(); ++i)
       {
+         const int attr = mesh->GetAttribute(i);
+         if (attr_marker[attr-1] == 0) { continue; }
+
          T = fes[0]->GetElementTransformation(i);
          for (int s=0; s<fes.Size(); ++s)
          {
@@ -614,9 +853,60 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
 
          for (int k = 0; k < dnfi.Size(); ++k)
          {
+            if (dnfi_marker[k] &&
+                (*dnfi_marker[k])[attr-1] == 0) { continue; }
+
             energy += dnfi[k]->GetElementEnergy(fe, *T, el_x_const);
          }
       }
+   }
+
+   if (bnfi.Size())
+   {
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bnfi.Size(); k++)
+      {
+         if (bnfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bnfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         T = fes[0]->GetBdrElementTransformation(i);
+         for (int s = 0; s < fes.Size(); ++s)
+         {
+            fe[s] = fes[s]->GetBE(i);
+            doftrans = fes[s]->GetBdrElementVDofs(i, *(vdofs[s]));
+            bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+            if (doftrans) {doftrans->InvTransformPrimal(*el_x[s]); }
+         }
+
+         for (int k = 0; k < bnfi.Size(); k++)
+         {
+            if (bnfi_marker[k] &&
+                (*bnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+            energy += bnfi[k]->GetElementEnergy(fe, *T, el_x_const);
+         }
+      }
+   }
 
    // free the allocated memory
    for (int i = 0; i < fes.Size(); ++i)
@@ -638,7 +928,7 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
    return energy;
 }
 
-double BlockNonlinearForm::GetEnergy(const Vector &x) const
+real_t BlockNonlinearForm::GetEnergy(const Vector &x) const
 {
    xs.Update(const_cast<Vector&>(x), block_offsets);
    return GetEnergyBlocked(xs);
@@ -656,6 +946,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
    Array<const FiniteElement *> fe2(fes.Size());
    ElementTransformation *T;
    Array<DofTransformation *> doftrans(fes.Size()); doftrans = nullptr;
+   Mesh *mesh = fes[0]->GetMesh();
 
    by.UseDevice(true);
    by = 0.0;
@@ -670,8 +961,32 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
    if (dnfi.Size())
    {
+      // Which attributes need to be processed?
+      Array<int> attr_marker(mesh->attributes.Size() ?
+                             mesh->attributes.Max() : 0);
+      attr_marker = 0;
+      for (int k = 0; k < dnfi.Size(); k++)
+      {
+         if (dnfi_marker[k] == NULL)
+         {
+            attr_marker = 1;
+            break;
+         }
+         Array<int> &marker = *dnfi_marker[k];
+         MFEM_ASSERT(marker.Size() == attr_marker.Size(),
+                     "invalid marker for domain integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < attr_marker.Size(); i++)
+         {
+            attr_marker[i] |= marker[i];
+         }
+      }
+
       for (int i = 0; i < fes[0]->GetNE(); ++i)
       {
+         const int attr = mesh->GetAttribute(i);
+         if (attr_marker[attr-1] == 0) { continue; }
+
          T = fes[0]->GetElementTransformation(i);
          for (int s = 0; s < fes.Size(); ++s)
          {
@@ -683,6 +998,9 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
          for (int k = 0; k < dnfi.Size(); ++k)
          {
+            if (dnfi_marker[k] &&
+                (*dnfi_marker[k])[attr-1] == 0) { continue; }
+
             dnfi[k]->AssembleElementVector(fe, *T,
                                            el_x_const, el_y);
 
@@ -696,9 +1014,63 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       }
    }
 
+   if (bnfi.Size())
+   {
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bnfi.Size(); k++)
+      {
+         if (bnfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bnfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         T = fes[0]->GetBdrElementTransformation(i);
+         for (int s = 0; s < fes.Size(); ++s)
+         {
+            doftrans[s] = fes[s]->GetBdrElementVDofs(i, *(vdofs[s]));
+            fe[s] = fes[s]->GetBE(i);
+            bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+            if (doftrans[s]) {doftrans[s]->InvTransformPrimal(*el_x[s]); }
+         }
+
+         for (int k = 0; k < bnfi.Size(); k++)
+         {
+            if (bnfi_marker[k] &&
+                (*bnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+            bnfi[k]->AssembleElementVector(fe, *T, el_x_const, el_y);
+
+            for (int s=0; s<fes.Size(); ++s)
+            {
+               if (el_y[s]->Size() == 0) { continue; }
+               if (doftrans[s]) {doftrans[s]->TransformDual(*el_y[s]); }
+               by.GetBlock(s).AddElementVector(*(vdofs[s]), *el_y[s]);
+            }
+         }
+      }
+   }
+
+
    if (fnfi.Size())
    {
-      Mesh *mesh = fes[0]->GetMesh();
       FaceElementTransformations *tr;
 
       for (int i = 0; i < mesh->GetNumFaces(); ++i)
@@ -736,8 +1108,8 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
    if (bfnfi.Size())
    {
-      Mesh *mesh = fes[0]->GetMesh();
       FaceElementTransformations *tr;
+
       // Which boundary attributes need to be processed?
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
@@ -858,6 +1230,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
    Array<const FiniteElement *>fe2(fes.Size());
    ElementTransformation * T;
    Array<DofTransformation *> doftrans(fes.Size()); doftrans = nullptr;
+   Mesh *mesh = fes[0]->GetMesh();
 
    for (int i=0; i<fes.Size(); ++i)
    {
@@ -888,8 +1261,32 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
 
    if (dnfi.Size())
    {
+      // Which attributes need to be processed?
+      Array<int> attr_marker(mesh->attributes.Size() ?
+                             mesh->attributes.Max() : 0);
+      attr_marker = 0;
+      for (int k = 0; k < dnfi.Size(); k++)
+      {
+         if (dnfi_marker[k] == NULL)
+         {
+            attr_marker = 1;
+            break;
+         }
+         Array<int> &marker = *dnfi_marker[k];
+         MFEM_ASSERT(marker.Size() == attr_marker.Size(),
+                     "invalid marker for domain integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < attr_marker.Size(); i++)
+         {
+            attr_marker[i] |= marker[i];
+         }
+      }
+
       for (int i = 0; i < fes[0]->GetNE(); ++i)
       {
+         const int attr = mesh->GetAttribute(i);
+         if (attr_marker[attr-1] == 0) { continue; }
+
          T = fes[0]->GetElementTransformation(i);
          for (int s = 0; s < fes.Size(); ++s)
          {
@@ -901,7 +1298,71 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
 
          for (int k = 0; k < dnfi.Size(); ++k)
          {
+            if (dnfi_marker[k] &&
+                (*dnfi_marker[k])[attr-1] == 0) { continue; }
+
             dnfi[k]->AssembleElementGrad(fe, *T, el_x_const, elmats);
+
+            for (int j=0; j<fes.Size(); ++j)
+            {
+               for (int l=0; l<fes.Size(); ++l)
+               {
+                  if (elmats(j,l)->Height() == 0) { continue; }
+                  if (doftrans[j] || doftrans[l])
+                  {
+                     TransformDual(doftrans[j], doftrans[l], *elmats(j,l));
+                  }
+                  Grads(j,l)->AddSubMatrix(*vdofs[j], *vdofs[l],
+                                           *elmats(j,l), skip_zeros);
+               }
+            }
+         }
+      }
+   }
+
+   if (bnfi.Size())
+   {
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bnfi.Size(); k++)
+      {
+         if (bnfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bnfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < mesh->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         T = fes[0]->GetBdrElementTransformation(i);
+         for (int s = 0; s < fes.Size(); ++s)
+         {
+            fe[s] = fes[s]->GetBE(i);
+            doftrans[s] = fes[s]->GetBdrElementVDofs(i, *(vdofs[s]));
+            bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+            if (doftrans[s]) {doftrans[s]->InvTransformPrimal(*el_x[s]); }
+         }
+
+         for (int k = 0; k < bnfi.Size(); k++)
+         {
+            if (bnfi_marker[k] &&
+                (*bnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+            bnfi[k]->AssembleElementGrad(fe, *T, el_x_const, elmats);
 
             for (int j=0; j<fes.Size(); ++j)
             {
@@ -923,7 +1384,6 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
    if (fnfi.Size())
    {
       FaceElementTransformations *tr;
-      Mesh *mesh = fes[0]->GetMesh();
 
       for (int i = 0; i < mesh->GetNumFaces(); ++i)
       {
@@ -960,7 +1420,6 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
    if (bfnfi.Size())
    {
       FaceElementTransformations *tr;
-      Mesh *mesh = fes[0]->GetMesh();
 
       // Which boundary attributes need to be processed?
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
@@ -1112,6 +1571,11 @@ BlockNonlinearForm::~BlockNonlinearForm()
    for (int i = 0; i < dnfi.Size(); ++i)
    {
       delete dnfi[i];
+   }
+
+   for (int i = 0; i < bnfi.Size(); ++i)
+   {
+      delete bnfi[i];
    }
 
    for (int i = 0; i < fnfi.Size(); ++i)

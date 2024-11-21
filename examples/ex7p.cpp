@@ -28,8 +28,8 @@ using namespace std;
 using namespace mfem;
 
 // Exact solution and r.h.s., see below for implementation.
-double analytic_solution(const Vector &x);
-double analytic_rhs(const Vector &x);
+real_t analytic_solution(const Vector &x);
+real_t analytic_rhs(const Vector &x);
 void SnapNodes(Mesh &mesh);
 
 int main(int argc, char *argv[])
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 
    if (elem_type == 0) // inscribed octahedron
    {
-      const double tri_v[6][3] =
+      const real_t tri_v[6][3] =
       {
          { 1,  0,  0}, { 0,  1,  0}, {-1,  0,  0},
          { 0, -1,  0}, { 0,  0,  1}, { 0,  0, -1}
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
    }
    else // inscribed cube
    {
-      const double quad_v[8][3] =
+      const real_t quad_v[8][3] =
       {
          {-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
          {-1, -1, +1}, {+1, -1, +1}, {+1, +1, +1}, {-1, +1, +1}
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
    delete b;
 
    // 12. Compute and print the L^2 norm of the error.
-   double error = x.ComputeL2Error(sol_coef);
+   real_t error = x.ComputeL2Error(sol_coef);
    if (myid == 0)
    {
       cout << "\nL2 norm of error: " << error << endl;
@@ -323,15 +323,15 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double analytic_solution(const Vector &x)
+real_t analytic_solution(const Vector &x)
 {
-   double l2 = x(0)*x(0) + x(1)*x(1) + x(2)*x(2);
+   real_t l2 = x(0)*x(0) + x(1)*x(1) + x(2)*x(2);
    return x(0)*x(1)/l2;
 }
 
-double analytic_rhs(const Vector &x)
+real_t analytic_rhs(const Vector &x)
 {
-   double l2 = x(0)*x(0) + x(1)*x(1) + x(2)*x(2);
+   real_t l2 = x(0)*x(0) + x(1)*x(1) + x(2)*x(2);
    return 7*x(0)*x(1)/l2;
 }
 

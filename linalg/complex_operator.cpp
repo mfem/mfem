@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -204,8 +204,8 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    const int     *J_r = (A_r)?A_r->GetJ():NULL;
    const int     *J_i = (A_i)?A_i->GetJ():NULL;
 
-   const double  *D_r = (A_r)?A_r->GetData():NULL;
-   const double  *D_i = (A_i)?A_i->GetData():NULL;
+   const real_t  *D_r = (A_r)?A_r->GetData():NULL;
+   const real_t  *D_i = (A_i)?A_i->GetData():NULL;
 
    const int    nnz_r = (I_r)?I_r[nrows]:0;
    const int    nnz_i = (I_i)?I_i[nrows]:0;
@@ -213,9 +213,9 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
 
    int    *I = Memory<int>(this->Height()+1);
    int    *J = Memory<int>(nnz);
-   double *D = Memory<double>(nnz);
+   real_t *D = Memory<real_t>(nnz);
 
-   const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
+   const real_t factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
    I[0] = 0;
    I[nrows] = nnz_r + nnz_i;
@@ -308,8 +308,8 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
    const int * Ap =
       mat->real().HostReadI(); // assuming real and imag have the same sparsity
    const int * Ai = mat->real().HostReadJ();
-   const double * Ax = mat->real().HostReadData();
-   const double * Az = mat->imag().HostReadData();
+   const real_t * Ax = mat->real().HostReadData();
+   const real_t * Az = mat->imag().HostReadData();
 
    if (!use_long_ints)
    {
@@ -384,8 +384,8 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
    x.HostReadWrite();
 
    int n = b.Size()/2;
-   double * datax = x.GetData();
-   double * datab = b.GetData();
+   real_t * datax = x.GetData();
+   real_t * datab = b.GetData();
 
    // For the Block Symmetric case data the imaginary part
    // has to be scaled by -1
@@ -439,8 +439,8 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    b.HostRead();
    x.HostReadWrite();
    int n = b.Size()/2;
-   double * datax = x.GetData();
-   double * datab = b.GetData();
+   real_t * datax = x.GetData();
+   real_t * datab = b.GetData();
 
    ComplexOperator::Convention conv = mat->GetConvention();
    Vector bimag;
@@ -629,8 +629,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    const int * diag_r_J = (A_r) ? diag_r.GetJ() : NULL;
    const int * diag_i_J = (A_i) ? diag_i.GetJ() : NULL;
 
-   const double * diag_r_D = (A_r) ? diag_r.GetData() : NULL;
-   const double * diag_i_D = (A_i) ? diag_i.GetData() : NULL;
+   const real_t * diag_r_D = (A_r) ? diag_r.GetData() : NULL;
+   const real_t * diag_i_D = (A_i) ? diag_i.GetData() : NULL;
 
    int diag_r_nnz = (diag_r_I) ? diag_r_I[nrows] : 0;
    int diag_i_nnz = (diag_i_I) ? diag_i_I[nrows] : 0;
@@ -643,8 +643,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    const int * offd_r_J = (A_r) ? offd_r.GetJ() : NULL;
    const int * offd_i_J = (A_i) ? offd_i.GetJ() : NULL;
 
-   const double * offd_r_D = (A_r) ? offd_r.GetData() : NULL;
-   const double * offd_i_D = (A_i) ? offd_i.GetData() : NULL;
+   const real_t * offd_r_D = (A_r) ? offd_r.GetData() : NULL;
+   const real_t * offd_i_D = (A_i) ? offd_i.GetData() : NULL;
 
    int offd_r_nnz = (offd_r_I) ? offd_r_I[nrows] : 0;
    int offd_i_nnz = (offd_i_I) ? offd_i_I[nrows] : 0;
@@ -653,16 +653,16 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    // Allocate CSR arrays for the combined matrix
    HYPRE_Int * diag_I = mfem_hypre_CTAlloc_host(HYPRE_Int, 2 * nrows + 1);
    HYPRE_Int * diag_J = mfem_hypre_CTAlloc_host(HYPRE_Int, diag_nnz);
-   double    * diag_D = mfem_hypre_CTAlloc_host(double, diag_nnz);
+   real_t    * diag_D = mfem_hypre_CTAlloc_host(real_t, diag_nnz);
 
    HYPRE_Int * offd_I = mfem_hypre_CTAlloc_host(HYPRE_Int, 2 * nrows + 1);
    HYPRE_Int * offd_J = mfem_hypre_CTAlloc_host(HYPRE_Int, offd_nnz);
-   double    * offd_D = mfem_hypre_CTAlloc_host(double, offd_nnz);
+   real_t    * offd_D = mfem_hypre_CTAlloc_host(real_t, offd_nnz);
    HYPRE_BigInt * cmap = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
                                                  2 * num_cols_offd);
 
    // Fill the CSR arrays for the diagonal portion of the matrix
-   const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
+   const real_t factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
    diag_I[0] = 0;
    diag_I[nrows] = diag_r_nnz + diag_i_nnz;

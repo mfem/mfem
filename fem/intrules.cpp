@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,6 +36,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
    ny = iry.GetNPoints();
    SetSize(nx * ny);
    SetPointIndices();
+   Order = std::min(irx.GetOrder(), iry.GetOrder());
 
    for (j = 0; j < ny; j++)
    {
@@ -60,6 +61,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
    const int nz = irz.GetNPoints();
    SetSize(nx*ny*nz);
    SetPointIndices();
+   Order = std::min({irx.GetOrder(), iry.GetOrder(), irz.GetOrder()});
 
    for (int iz = 0; iz < nz; ++iz)
    {
@@ -81,7 +83,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
    }
 }
 
-const Array<double> &IntegrationRule::GetWeights() const
+const Array<real_t> &IntegrationRule::GetWeights() const
 {
    if (weights.Size() != GetNPoints())
    {
@@ -125,13 +127,14 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
    np /= f;
    SetSize(np);
    SetPointIndices();
+   Order = 2*s + 1;
 
    int pt = 0;
    for (int i = 0; i <= s; i++)
    {
-      double weight;
+      real_t weight;
 
-      weight = pow(2., -2*s)*pow(static_cast<double>(d + n - 2*i),
+      weight = pow(2., -2*s)*pow(static_cast<real_t>(d + n - 2*i),
                                  d)/fact(i)/fact(d + n - i);
       if (i%2)
       {
@@ -146,11 +149,11 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
       {
          IntegrationPoint &ip = IntPoint(pt++);
          ip.weight = weight;
-         ip.x = double(2*beta[0] + 1)/(d + n - 2*i);
-         ip.y = double(2*beta[1] + 1)/(d + n - 2*i);
+         ip.x = real_t(2*beta[0] + 1)/(d + n - 2*i);
+         ip.y = real_t(2*beta[1] + 1)/(d + n - 2*i);
          if (n == 3)
          {
-            ip.z = double(2*beta[2] + 1)/(d + n - 2*i);
+            ip.z = real_t(2*beta[2] + 1)/(d + n - 2*i);
          }
 
          int j = 0;
@@ -181,9 +184,10 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
    const int ne = kv.GetNE();
 
    IntegrationRule *kvir = new IntegrationRule(ne * np);
+   kvir->SetOrder(GetOrder());
 
-   double x0 = kv[0];
-   double x1 = x0;
+   real_t x0 = kv[0];
+   real_t x1 = x0;
 
    int id = 0;
    for (int e=0; e<ne; ++e)
@@ -208,11 +212,11 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
          }
       }
 
-      const double s = x1 - x0;
+      const real_t s = x1 - x0;
 
       for (int j=0; j<this->GetNPoints(); ++j)
       {
-         const double x = x0 + (s * (*this)[j].x);
+         const real_t x = x0 + (s * (*this)[j].x);
          (*kvir)[(e * np) + j].Set1w(x, (*this)[j].weight);
       }
    }
@@ -399,9 +403,9 @@ public:
       if (k >= (n+1)/2) { mpfr_swap(z, p1); }
    }
 
-   double GetPoint() const { return mpfr_get_d(z, rnd); }
-   double GetSymmPoint() const { return mpfr_get_d(p1, rnd); }
-   double GetWeight() const { return mpfr_get_d(w, rnd); }
+   real_t GetPoint() const { return mpfr_get_d(z, rnd); }
+   real_t GetSymmPoint() const { return mpfr_get_d(p1, rnd); }
+   real_t GetWeight() const { return mpfr_get_d(w, rnd); }
 
    const mpfr_t &GetHPPoint() const { return z; }
    const mpfr_t &GetHPSymmPoint() const { return p1; }
@@ -421,6 +425,7 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
    ir->SetPointIndices();
+   ir->SetOrder(2*np - 1);
 
    switch (np)
    {
@@ -445,16 +450,16 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 
    for (int i = 1; i <= m; i++)
    {
-      double z = cos(M_PI * (i - 0.25) / (n + 0.5));
-      double pp, p1, dz, xi = 0.;
+      real_t z = cos(M_PI * (i - 0.25) / (n + 0.5));
+      real_t pp, p1, dz, xi = 0.;
       bool done = false;
       while (1)
       {
-         double p2 = 1;
+         real_t p2 = 1;
          p1 = z;
          for (int j = 2; j <= n; j++)
          {
-            double p3 = p2;
+            real_t p3 = p2;
             p2 = p1;
             p1 = ((2 * j - 1) * z * p2 - (j - 1) * p3) / j;
          }
@@ -464,7 +469,14 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
          if (done) { break; }
 
          dz = p1/pp;
-         if (fabs(dz) < 1e-16)
+#ifdef MFEM_USE_SINGLE
+         if (std::abs(dz) < 1e-7)
+#elif defined MFEM_USE_DOUBLE
+         if (std::abs(dz) < 1e-16)
+#else
+         MFEM_ABORT("Floating point type undefined");
+         if (std::abs(dz) < 1e-16)
+#endif
          {
             done = true;
             // map the new point (z-dz) to (0,1):
@@ -527,9 +539,11 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
    if ( np == 1 )
    {
       ir->IntPoint(0).Set1w(0.5, 1.0);
+      ir->SetOrder(1);
    }
    else
    {
+      ir->SetOrder(2*np - 3);
 
 #ifndef MFEM_USE_MPFR
 
@@ -544,13 +558,13 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
       {
          // initial guess is the corresponding Chebyshev point, x_i:
          //    x_i = -cos(\pi * (i / (np-1)))
-         double x_i = std::sin(M_PI * ((double)(i)/(np-1) - 0.5));
-         double z_i = 0., p_l;
+         real_t x_i = std::sin(M_PI * ((real_t)(i)/(np-1) - 0.5));
+         real_t z_i = 0., p_l;
          bool done = false;
          for (int iter = 0 ; true ; ++iter)
          {
             // build Legendre polynomials, up to P_{np}(x_i)
-            double p_lm1 = 1.0;
+            real_t p_lm1 = 1.0;
             p_l = x_i;
 
             for (int l = 1 ; l < (np-1) ; ++l)
@@ -558,7 +572,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
                // The Legendre polynomials can be built by recursion:
                // x * P_l(x) = 1/(2*l+1)*[ (l+1)*P_{l+1}(x) + l*P_{l-1} ], i.e.
                // P_{l+1}(x) = [ (2*l+1)*x*P_l(x) - l*P_{l-1} ]/(l+1)
-               double p_lp1 = ( (2*l + 1)*x_i*p_l - l*p_lm1)/(l + 1);
+               real_t p_lp1 = ( (2*l + 1)*x_i*p_l - l*p_lm1)/(l + 1);
 
                p_lm1 = p_l;
                p_l = p_lp1;
@@ -576,8 +590,15 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
             // therefore, deriv = np * (np-1) * p_l;
 
             // compute dx = resid/deriv
-            double dx = (x_i*p_l - p_lm1) / (np*p_l);
+            real_t dx = (x_i*p_l - p_lm1) / (np*p_l);
+#ifdef MFEM_USE_SINGLE
+            if (std::abs(dx) < 1e-7)
+#elif defined MFEM_USE_DOUBLE
             if (std::abs(dx) < 1e-16)
+#else
+            MFEM_ABORT("Floating point type undefined");
+            if (std::abs(dx) < 1e-16)
+#endif
             {
                done = true;
                // Map the point to the interval [0,1]
@@ -594,7 +615,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
          IntegrationPoint &ip = ir->IntPoint(i);
          ip.x = z_i;
          // w_i = (2/[ n*(n-1)*[P_{n-1}(x_i)]^2 ]) / 2
-         ip.weight = (double)(1.0 / (np*(np-1)*p_l*p_l));
+         ip.weight = (real_t)(1.0 / (np*(np-1)*p_l*p_l));
 
          // set the symmetric point
          IntegrationPoint &symm_ip = ir->IntPoint(np-1-i);
@@ -624,12 +645,13 @@ void QuadratureFunctions1D::OpenUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
    ir->SetPointIndices();
+   ir->SetOrder(np - 1 + np%2);
 
    // The Newton-Cotes quadrature is based on weights that integrate exactly the
    // interpolatory polynomial through the equally spaced quadrature points.
    for (int i = 0; i < np ; ++i)
    {
-      ir->IntPoint(i).x = double(i+1) / double(np + 1);
+      ir->IntPoint(i).x = real_t(i+1) / real_t(np + 1);
    }
 
    CalculateUniformWeights(ir, Quadrature1D::OpenUniform);
@@ -640,6 +662,7 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
 {
    ir->SetSize(np);
    ir->SetPointIndices();
+   ir->SetOrder(np - 1 + np%2);
    if ( np == 1 ) // allow this case as "closed"
    {
       ir->IntPoint(0).Set1w(0.5, 1.0);
@@ -648,7 +671,7 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
 
    for (int i = 0; i < np ; ++i)
    {
-      ir->IntPoint(i).x = double(i) / (np-1);
+      ir->IntPoint(i).x = real_t(i) / (np-1);
    }
 
    CalculateUniformWeights(ir, Quadrature1D::ClosedUniform);
@@ -658,11 +681,12 @@ void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
    ir->SetPointIndices();
+   ir->SetOrder(np - 1 + np%2);
 
    // Open half points: the centers of np uniform intervals
    for (int i = 0; i < np ; ++i)
    {
-      ir->IntPoint(i).x = double(2*i+1) / (2*np);
+      ir->IntPoint(i).x = real_t(2*i+1) / (2*np);
    }
 
    CalculateUniformWeights(ir, Quadrature1D::OpenHalfUniform);
@@ -674,6 +698,7 @@ void QuadratureFunctions1D::ClosedGL(const int np, IntegrationRule* ir)
    ir->SetPointIndices();
    ir->IntPoint(0).x = 0.0;
    ir->IntPoint(np-1).x = 1.0;
+   ir->SetOrder(np - 1 + np%2); // Is this the correct order?
 
    if ( np > 2 )
    {
@@ -689,7 +714,7 @@ void QuadratureFunctions1D::ClosedGL(const int np, IntegrationRule* ir)
    CalculateUniformWeights(ir, Quadrature1D::ClosedGL);
 }
 
-void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
+void QuadratureFunctions1D::GivePolyPoints(const int np, real_t *pts,
                                            const int type)
 {
    IntegrationRule ir(np);
@@ -726,7 +751,7 @@ void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
          ClosedGL(np, &ir);
          break;
       }
-      default:
+      case Quadrature1D::Invalid:
       {
          MFEM_ABORT("Asking for an unknown type of 1D Quadrature points, "
                     "type = " << type);
@@ -820,7 +845,10 @@ void QuadratureFunctions1D::CalculateUniformWeights(IntegrationRule *ir,
          hinv = p+1;
          ihoffset = 1;
          break;
-      default:
+      case Quadrature1D::GaussLegendre:
+      case Quadrature1D::GaussLobatto:
+      case Quadrature1D::ClosedGL:
+      case Quadrature1D::Invalid:
          MFEM_ABORT("invalid Quadrature1D type: " << type);
    }
    // set w0 = (-1)^p*(p!)/(hinv^p)
@@ -903,6 +931,7 @@ int Quadrature1D::CheckClosed(int type)
    {
       case GaussLobatto:
       case ClosedUniform:
+      case ClosedGL:
          return type;
       default:
          return Invalid;
@@ -929,10 +958,10 @@ IntegrationRules IntRules(0, Quadrature1D::GaussLegendre);
 
 IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 
-IntegrationRules::IntegrationRules(int Ref, int type_):
-   quad_type(type_)
+IntegrationRules::IntegrationRules(int ref, int type)
+   : quad_type(type)
 {
-   refined = Ref;
+   refined = ref;
 
    if (refined < 0) { own_rules = 0; return; }
 
@@ -964,11 +993,19 @@ IntegrationRules::IntegrationRules(int Ref, int type_):
 
    CubeIntRules.SetSize(32, h_mt);
    CubeIntRules = NULL;
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   IntRuleLocks.SetSize(Geometry::NUM_GEOMETRIES, h_mt);
+   for (int i = 0; i < Geometry::NUM_GEOMETRIES; i++)
+   {
+      omp_init_lock(&IntRuleLocks[i]);
+   }
+#endif
 }
 
 const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
 {
-   Array<IntegrationRule *> *ir_array;
+   Array<IntegrationRule *> *ir_array = NULL;
 
    switch (GeomType)
    {
@@ -980,9 +1017,9 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
-      default:
-         mfem_error("IntegrationRules::Get(...) : Unknown geometry type!");
-         ir_array = NULL;
+      case Geometry::INVALID:
+      case Geometry::NUM_GEOMETRIES:
+         MFEM_ABORT("Unknown type of reference element!");
    }
 
    if (Order < 0)
@@ -990,32 +1027,35 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       Order = 0;
    }
 
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_set_lock(&IntRuleLocks[GeomType]);
+#endif
+
    if (!HaveIntRule(*ir_array, Order))
    {
-#ifdef MFEM_USE_LEGACY_OPENMP
-      #pragma omp critical
-#endif
+      IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
+#ifdef MFEM_DEBUG
+      int RealOrder = Order;
+      while (RealOrder+1 < ir_array->Size() && (*ir_array)[RealOrder+1] == ir)
       {
-         if (!HaveIntRule(*ir_array, Order))
-         {
-            IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
-            int RealOrder = Order;
-            while (RealOrder+1 < ir_array->Size() &&
-                   (*ir_array)[RealOrder+1] == ir)
-            {
-               RealOrder++;
-            }
-            ir->SetOrder(RealOrder);
-         }
+         RealOrder++;
       }
+      MFEM_VERIFY(RealOrder == ir->GetOrder(), "internal error");
+#else
+      MFEM_CONTRACT_VAR(ir);
+#endif
    }
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_unset_lock(&IntRuleLocks[GeomType]);
+#endif
 
    return *(*ir_array)[Order];
 }
 
 void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
 {
-   Array<IntegrationRule *> *ir_array;
+   Array<IntegrationRule *> *ir_array = NULL;
 
    switch (GeomType)
    {
@@ -1027,10 +1067,14 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
-      default:
-         mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
-         ir_array = NULL;
+      case Geometry::INVALID:
+      case Geometry::NUM_GEOMETRIES:
+         MFEM_ABORT("Unknown type of reference element!");
    }
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_set_lock(&IntRuleLocks[GeomType]);
+#endif
 
    if (HaveIntRule(*ir_array, Order))
    {
@@ -1040,16 +1084,19 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
    AllocIntRule(*ir_array, Order);
 
    (*ir_array)[Order] = &IntRule;
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_unset_lock(&IntRuleLocks[GeomType]);
+#endif
 }
 
-void IntegrationRules::DeleteIntRuleArray(Array<IntegrationRule *> &ir_array)
+void IntegrationRules::DeleteIntRuleArray(
+   Array<IntegrationRule *> &ir_array) const
 {
-   int i;
-   IntegrationRule *ir = NULL;
-
    // Many of the intrules have multiple contiguous copies in the ir_array
    // so we have to be careful to not delete them twice.
-   for (i = 0; i < ir_array.Size(); i++)
+   IntegrationRule *ir = NULL;
+   for (int i = 0; i < ir_array.Size(); i++)
    {
       if (ir_array[i] != NULL && ir_array[i] != ir)
       {
@@ -1061,6 +1108,13 @@ void IntegrationRules::DeleteIntRuleArray(Array<IntegrationRule *> &ir_array)
 
 IntegrationRules::~IntegrationRules()
 {
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   for (int i = 0; i < Geometry::NUM_GEOMETRIES; i++)
+   {
+      omp_destroy_lock(&IntRuleLocks[i]);
+   }
+#endif
+
    if (!own_rules) { return; }
 
    DeleteIntRuleArray(PointIntRules);
@@ -1095,10 +1149,11 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
          return PrismIntegrationRule(Order);
       case Geometry::PYRAMID:
          return PyramidIntegrationRule(Order);
-      default:
-         mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
-         return NULL;
+      case Geometry::INVALID:
+      case Geometry::NUM_GEOMETRIES:
+         MFEM_ABORT("Unknown type of reference element!");
    }
+   return NULL;
 }
 
 
@@ -1107,13 +1162,14 @@ IntegrationRule *IntegrationRules::PointIntegrationRule(int Order)
 {
    if (Order > 1)
    {
-      mfem_error("Point Integration Rule of Order > 1 not defined");
+      MFEM_ABORT("Point Integration Rule of Order > 1 not defined");
       return NULL;
    }
 
    IntegrationRule *ir = new IntegrationRule(1);
    ir->IntPoint(0).x = .0;
    ir->IntPoint(0).weight = 1.;
+   ir->SetOrder(1);
 
    PointIntRules[1] = PointIntRules[0] = ir;
 
@@ -1169,7 +1225,7 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
          QuadratureFunctions1D::OpenHalfUniform(n, ir);
          break;
       }
-      default:
+      case Quadrature1D::Invalid:
       {
          MFEM_ABORT("unknown Quadrature1D type: " << quad_type);
       }
@@ -1178,6 +1234,7 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
    {
       // Effectively passing memory management to SegmentIntegrationRules
       IntegrationRule *refined_ir = new IntegrationRule(2*n);
+      refined_ir->SetOrder(ir->GetOrder());
       for (int j = 0; j < n; j++)
       {
          refined_ir->IntPoint(j).x = ir->IntPoint(j).x/2.0;
@@ -1202,16 +1259,18 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
    // assuming that orders <= 25 are pre-allocated
    switch (Order)
    {
-      case 0:  // 1 point - 0 degree
+      case 0:  // 1 point - degree 1
       case 1:
          ir = new IntegrationRule(1);
          ir->AddTriMidPoint(0, 0.5);
+         ir->SetOrder(1);
          TriangleIntRules[0] = TriangleIntRules[1] = ir;
          return ir;
 
       case 2:  // 3 point - 2 degree
          ir = new IntegrationRule(3);
          ir->AddTriPoints3(0, 1./6., 1./6.);
+         ir->SetOrder(2);
          TriangleIntRules[2] = ir;
          // interior points
          return ir;
@@ -1220,6 +1279,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir = new IntegrationRule(4);
          ir->AddTriMidPoint(0, -0.28125); // -9./32.
          ir->AddTriPoints3(1, 0.2, 25./96.);
+         ir->SetOrder(3);
          TriangleIntRules[3] = ir;
          return ir;
 
@@ -1227,6 +1287,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir = new IntegrationRule(6);
          ir->AddTriPoints3(0, 0.091576213509770743460, 0.054975871827660933819);
          ir->AddTriPoints3(3, 0.44594849091596488632, 0.11169079483900573285);
+         ir->SetOrder(4);
          TriangleIntRules[4] = ir;
          return ir;
 
@@ -1235,6 +1296,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriMidPoint(0, 0.1125);
          ir->AddTriPoints3(1, 0.10128650732345633880, 0.062969590272413576298);
          ir->AddTriPoints3(4, 0.47014206410511508977, 0.066197076394253090369);
+         ir->SetOrder(5);
          TriangleIntRules[5] = ir;
          return ir;
 
@@ -1244,6 +1306,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints3(3, 0.24928674517091042129, 0.058393137863189683013);
          ir->AddTriPoints6(6, 0.053145049844816947353, 0.31035245103378440542,
                            0.041425537809186787597);
+         ir->SetOrder(6);
          TriangleIntRules[6] = ir;
          return ir;
 
@@ -1258,6 +1321,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                             0.30472650086816719592, 0.028775042784981585738);
          ir->AddTriPoints3R(9, 0.51584233435359177926, 0.27771616697639178257,
                             0.20644149867001643817, 0.067493187009802774463);
+         ir->SetOrder(7);
          TriangleIntRules[7] = ir;
          return ir;
 
@@ -1273,6 +1337,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints6(10, 0.008394777409957605337213834539296,
                            0.263112829634638113421785786284643,
                            0.0136151570872174971324223450369544);
+         ir->SetOrder(8);
          TriangleIntRules[8] = ir;
          return ir;
 
@@ -1290,6 +1355,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints6(13, 0.0368384120547362836348175987833851,
                            0.2219629891607656956751025276931919,
                            0.0216417696886446886446886446886446);
+         ir->SetOrder(9);
          TriangleIntRules[9] = ir;
          return ir;
 
@@ -1309,6 +1375,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints6(19, 0.0095408154002994575801528096228873,
                            0.0668032510122002657735402127620247,
                            4.71083348186641172996373548344341E-03);
+         ir->SetOrder(10);
          TriangleIntRules[10] = ir;
          return ir;
 
@@ -1331,6 +1398,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints6(22, 0.0448416775891304433090523914688007,
                            0.2772206675282791551488214673424523,
                            0.0205281577146442833208261574536469);
+         ir->SetOrder(11);
          TriangleIntRules[11] = ir;
          return ir;
 
@@ -1347,6 +1415,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                            1.11783866011515E-02);
          ir->AddTriPoints6(27, 2.57340505483300E-02, 1.16251915907597E-01,
                            8.65811555432950E-03);
+         ir->SetOrder(12);
          TriangleIntRules[12] = ir;
          return ir;
 
@@ -1374,6 +1443,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints6(31, 0.0897330604516053590796290561145196,
                            0.2723110556841851025078181617634414,
                            0.0182757511120486476280967518782978);
+         ir->SetOrder(13);
          TriangleIntRules[13] = ir;
          return ir;
 
@@ -1393,6 +1463,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                            7.21815405676700E-03);
          ir->AddTriPoints6(36, 1.26833093287200E-03, 1.18974497696957E-01,
                            2.50511441925050E-03);
+         ir->SetOrder(14);
          TriangleIntRules[14] = ir;
          return ir;
 
@@ -1416,6 +1487,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                            0.012803670460631195);
          ir->AddTriPoints6(48, 0.1684044181246992, 0.281835668099084562,
                            0.016544097765822835);
+         ir->SetOrder(15);
          TriangleIntRules[15] = ir;
          return ir;
 
@@ -1443,6 +1515,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                             9.14639838501250E-03);
          ir->AddTriPoints6 (55, 1.46631822248280E-02, 8.07113136795640E-02,
                             3.33281600208250E-03);
+         ir->SetOrder(17);
          TriangleIntRules[16] = TriangleIntRules[17] = ir;
          return ir;
 
@@ -1474,6 +1547,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                             0.0051292818680995);
          ir->AddTriPoints6 (67, 0.065494628082938, 0.010161119296278,
                             0.001899964427651);
+         ir->SetOrder(19);
          TriangleIntRules[18] = TriangleIntRules[19] = ir;
          return ir;
 
@@ -1508,6 +1582,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                            0.009336472951467735);
          ir->AddTriPoints6(79, 0.140710844943938733,   0.323170566536257485,
                            0.01140911202919763);
+         ir->SetOrder(20);
          TriangleIntRules[20] = ir;
          return ir;
 
@@ -1559,6 +1634,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                            0.00707722325261307);
          ir->AddTriPoints6(120, 0.191771865867325067,   0.325618122595983752,
                            0.007440689780584005);
+         ir->SetOrder(25);
          TriangleIntRules[21] =
             TriangleIntRules[22] =
                TriangleIntRules[23] =
@@ -1609,6 +1685,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
       case 1:
          ir = new IntegrationRule(1);
          ir->AddTetMidPoint(0, 1./6.);
+         ir->SetOrder(1);
          TetrahedronIntRules[0] = TetrahedronIntRules[1] = ir;
          return ir;
 
@@ -1616,6 +1693,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          ir = new IntegrationRule(4);
          // ir->AddTetPoints4(0, 0.13819660112501051518, 1./24.);
          ir->AddTetPoints4b(0, 0.58541019662496845446, 1./24.);
+         ir->SetOrder(2);
          TetrahedronIntRules[2] = ir;
          return ir;
 
@@ -1623,6 +1701,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          ir = new IntegrationRule(5);
          ir->AddTetMidPoint(0, -2./15.);
          ir->AddTetPoints4b(1, 0.5, 0.075);
+         ir->SetOrder(3);
          TetrahedronIntRules[3] = ir;
          return ir;
 
@@ -1631,6 +1710,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          ir->AddTetPoints4(0, 1./14., 343./45000.);
          ir->AddTetMidPoint(4, -74./5625.);
          ir->AddTetPoints6(5, 0.10059642383320079500, 28./1125.);
+         ir->SetOrder(4);
          TetrahedronIntRules[4] = ir;
          return ir;
 
@@ -1641,6 +1721,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          ir->AddTetPoints4(6, 0.092735250310891226402, 0.012248840519393658257);
          ir->AddTetPoints4b(10, 0.067342242210098170608,
                             0.018781320953002641800);
+         ir->SetOrder(5);
          TetrahedronIntRules[5] = ir;
          return ir;
 
@@ -1654,6 +1735,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
                             9.2261969239424536825E-03);
          ir->AddTetPoints12(12, 0.063661001875017525299, 0.26967233145831580803,
                             8.0357142857142857143E-03);
+         ir->SetOrder(6);
          TetrahedronIntRules[6] = ir;
          return ir;
 
@@ -1667,6 +1749,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          ir->AddTetPoints4b(15, 2.3825066607381275412E-03,
                             4.8914252630734993858E-03);
          ir->AddTetPoints12(19, 0.1, 0.2, 0.027557319223985890653);
+         ir->SetOrder(7);
          TetrahedronIntRules[7] = ir;
          return ir;
 
@@ -1684,6 +1767,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
                             5.7044858086819185068E-03);
          ir->AddTetPoints4(38, 0.20682993161067320408, 0.014250305822866901248);
          ir->AddTetMidPoint(42, -0.020500188658639915841);
+         ir->SetOrder(8);
          TetrahedronIntRules[8] = ir;
          return ir;
 
@@ -1714,11 +1798,12 @@ IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
    int npts = irc.GetNPoints();
    AllocIntRule(PyramidIntRules, Order);
    PyramidIntRules[Order] = new IntegrationRule(npts);
+   PyramidIntRules[Order]->SetOrder(Order); // FIXME: see comment above
 
    for (int k=0; k<npts; k++)
    {
-      const IntegrationPoint & ipc = irc.IntPoint(k);
-      IntegrationPoint & ipp = PyramidIntRules[Order]->IntPoint(k);
+      const IntegrationPoint &ipc = irc.IntPoint(k);
+      IntegrationPoint &ipp = PyramidIntRules[Order]->IntPoint(k);
       ipp.x = ipc.x * (1.0 - ipc.z);
       ipp.y = ipc.y * (1.0 - ipc.z);
       ipp.z = ipc.z;
@@ -1730,21 +1815,27 @@ IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
 // Integration rules for reference prism
 IntegrationRule *IntegrationRules::PrismIntegrationRule(int Order)
 {
-   const IntegrationRule & irt = Get(Geometry::TRIANGLE, Order);
-   const IntegrationRule & irs = Get(Geometry::SEGMENT, Order);
+   const IntegrationRule &irt = Get(Geometry::TRIANGLE, Order);
+   const IntegrationRule &irs = Get(Geometry::SEGMENT, Order);
    int nt = irt.GetNPoints();
    int ns = irs.GetNPoints();
    AllocIntRule(PrismIntRules, Order);
    PrismIntRules[Order] = new IntegrationRule(nt * ns);
+   PrismIntRules[Order]->SetOrder(std::min(irt.GetOrder(), irs.GetOrder()));
+   while (Order < std::min(irt.GetOrder(), irs.GetOrder()))
+   {
+      AllocIntRule(PrismIntRules, ++Order);
+      PrismIntRules[Order] = PrismIntRules[Order-1];
+   }
 
    for (int ks=0; ks<ns; ks++)
    {
-      const IntegrationPoint & ips = irs.IntPoint(ks);
+      const IntegrationPoint &ips = irs.IntPoint(ks);
       for (int kt=0; kt<nt; kt++)
       {
          int kp = ks * nt + kt;
-         const IntegrationPoint & ipt = irt.IntPoint(kt);
-         IntegrationPoint & ipp = PrismIntRules[Order]->IntPoint(kp);
+         const IntegrationPoint &ipt = irt.IntPoint(kt);
+         IntegrationPoint &ipp = PrismIntRules[Order]->IntPoint(kp);
          ipp.x = ipt.x;
          ipp.y = ipt.y;
          ipp.z = ips.x;
@@ -1792,7 +1883,7 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
    MFEM_VERIFY(kv.Size() == dim, "");
 
    int np = 1;
-   std::vector<std::vector<double>> el(dim);
+   std::vector<std::vector<real_t>> el(dim);
 
    std::vector<int> npd;
    npd.assign(3, 0);
@@ -1801,8 +1892,8 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
    {
       const int order = kv[d]->GetOrder();
 
-      const double kv0 = (*kv[d])[order + ijk[d]];
-      const double kv1 = (*kv[d])[order + ijk[d] + 1];
+      const real_t kv0 = (*kv[d])[order + ijk[d]];
+      const real_t kv1 = (*kv[d])[order + ijk[d] + 1];
 
       const bool rightEnd = (order + ijk[d] + 1) == (kv[d]->Size() - 1);
 
@@ -1811,7 +1902,7 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
          const IntegrationPoint& ip = (*patchRules1D(patch,d))[i];
          if (kv0 <= ip.x && (ip.x < kv1 || rightEnd))
          {
-            const double x = (ip.x - kv0) / (kv1 - kv0);
+            const real_t x = (ip.x - kv0) / (kv1 - kv0);
             el[d].push_back(x);
             el[d].push_back(ip.weight);
          }
@@ -1949,8 +2040,8 @@ void NURBSMeshRules::Finalize(Mesh const& mesh)
             bool found = false;
             while (!found)
             {
-               const double kv0 = (*pkv[d])[order + ijk_d];
-               const double kv1 = (*pkv[d])[order + ijk_d + 1];
+               const real_t kv0 = (*pkv[d])[order + ijk_d];
+               const real_t kv1 = (*pkv[d])[order + ijk_d + 1];
 
                const bool rightEnd = (order + ijk_d + 1) == (pkv[d]->Size() - 1);
 

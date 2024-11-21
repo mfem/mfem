@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,6 +18,8 @@
 
 namespace mfem
 {
+
+// PA Mass Integrator
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
@@ -77,8 +79,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               const double detJ = J(qx,qy,e);
-               const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+               const real_t detJ = J(qx,qy,e);
+               const real_t coeff = const_c ? C(0,0,0) : C(qx,qy,e);
                v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
             }
          }
@@ -103,8 +105,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
             {
                MFEM_FOREACH_THREAD(qz,z,Q1D)
                {
-                  const double detJ = J(qx,qy,qz,e);
-                  const double coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
+                  const real_t detJ = J(qx,qy,qz,e);
+                  const real_t coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
                   v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * (by_val ? detJ : 1.0/detJ);
                }
             }
@@ -128,7 +130,7 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
 
    int map_type = el.GetMapType();
    dim = el.GetDim(); // Dimension of the boundary element, *not* the mesh
-   ne = fes.GetMesh()->GetNBE();
+   ne = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
    nq = ir->GetNPoints();
    face_geom = mesh->GetFaceGeometricFactors(*ir, GeometricFactors::DETERMINANTS,
                                              FaceType::Boundary, mt);
@@ -155,8 +157,8 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double detJ = J(qx,e);
-            const double coeff = const_c ? C(0,0) : C(qx,e);
+            const real_t detJ = J(qx,e);
+            const real_t coeff = const_c ? C(0,0) : C(qx,e);
             v(qx,e) =  W(qx) * coeff * (by_val ? detJ : 1.0/detJ);
          }
       });
@@ -174,8 +176,8 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
          {
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               const double detJ = J(qx,qy,e);
-               const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
+               const real_t detJ = J(qx,qy,e);
+               const real_t coeff = const_c ? C(0,0,0) : C(qx,qy,e);
                v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
             }
          }
@@ -195,8 +197,8 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      internal::PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data,
-                                       diag);
+      DiagonalPAKernels::Run(dim, dofs1D, quad1D, ne, maps->B, pa_data,
+                             diag, dofs1D, quad1D);
    }
 }
 
@@ -208,8 +210,26 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      internal::PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x,
-                            y);
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &Bt = maps->Bt;
+      const Vector &D = pa_data;
+#ifdef MFEM_USE_OCCA
+      if (DeviceCanUseOcca())
+      {
+         if (dim == 2)
+         {
+            return internal::OccaPAMassApply2D(D1D,Q1D,ne,B,Bt,D,x,y);
+         }
+         if (dim == 3)
+         {
+            return internal::OccaPAMassApply3D(D1D,Q1D,ne,B,Bt,D,x,y);
+         }
+         MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
+      }
+#endif // MFEM_USE_OCCA
+      ApplyPAKernels::Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
    }
 }
 

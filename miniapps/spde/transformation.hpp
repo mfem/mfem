@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,15 +41,15 @@ class UniformGRFTransformer : public GFTransformer
 {
 public:
    UniformGRFTransformer() = default;
-   UniformGRFTransformer(double min, double max) : min_(min), max_(max) {}
+   UniformGRFTransformer(real_t min, real_t max) : min_(min), max_(max) {}
    ~UniformGRFTransformer() override = default;
    /// Transforms a GridFunction representing a Gaussian random field to a
    /// uniform random field between a and b.
    void Transform(ParGridFunction &x) const override;
 
 private:
-   double min_ = 0.0;
-   double max_ = 1.0;
+   real_t min_ = 0.0;
+   real_t max_ = 1.0;
 };
 
 /// Adds an constant offset to a grid function, i.e. u(x) = u(x) + offset.
@@ -57,13 +57,13 @@ class OffsetTransformer : public GFTransformer
 {
 public:
    OffsetTransformer() = default;
-   explicit OffsetTransformer(double offset) : offset_(offset) {}
+   explicit OffsetTransformer(real_t offset) : offset_(offset) {}
    ~OffsetTransformer() override = default;
    /// Offsets a grid function by an constant offset.
    void Transform(ParGridFunction &x) const override;
 
 private:
-   double offset_ = 0.0;
+   real_t offset_ = 0.0;
 };
 
 /// Transforms a grid function by scaling it by a constant factor.
@@ -71,13 +71,13 @@ class ScaleTransformer : public GFTransformer
 {
 public:
    ScaleTransformer() = default;
-   explicit ScaleTransformer(double scale) : scale_(scale) {}
+   explicit ScaleTransformer(real_t scale) : scale_(scale) {}
    ~ScaleTransformer() override = default;
    /// Scales a grid function by an constant factor.
    void Transform(ParGridFunction &x) const override;
 
 private:
-   double scale_ = 1.0;
+   real_t scale_ = 1.0;
 };
 
 /// Level Set Transformer, 1 for u(x) >= threshold, 0 otherwise.
@@ -85,13 +85,13 @@ class LevelSetTransformer : public GFTransformer
 {
 public:
    LevelSetTransformer() = default;
-   explicit LevelSetTransformer(double threshold) : threshold_(threshold) {}
+   explicit LevelSetTransformer(real_t threshold) : threshold_(threshold) {}
    ~LevelSetTransformer() override = default;
    /// Applies a level set to the GridFunction.
    void Transform(ParGridFunction &x) const override;
 
 private:
-   double threshold_ = 0.0;
+   real_t threshold_ = 0.0;
 };
 
 }  // namespace spde

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -30,14 +30,36 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(multidomain
     MAIN multidomain.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
   add_dependencies(multidomain copy_miniapps_multidomain_data)
 
-  # Add parallel tests.
+  add_mfem_miniapp(multidomain_nd
+    MAIN multidomain_nd.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
+  add_dependencies(multidomain_nd copy_miniapps_multidomain_data)
+  
+  add_mfem_miniapp(multidomain_rt
+    MAIN multidomain_rt.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
+  add_dependencies(multidomain_rt copy_miniapps_multidomain_data)
+  
+# Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     add_test(NAME multidomain_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS} $<TARGET_FILE:multidomain> -no-vis -tf 0.001
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME multidomain_nd_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:multidomain_nd> -no-vis -tf 0.001
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME multidomain_rt_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:multidomain_rt> -no-vis -tf 0.001
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()

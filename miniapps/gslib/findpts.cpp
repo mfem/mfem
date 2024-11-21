@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -347,8 +347,7 @@ int main (int argc, char *argv[])
       {
          if ((double) rand() / RAND_MAX < 0.5)
          {
-            int element_order = sc_fes.GetElementOrder(e);
-            sc_fes.SetElementOrder(e, element_order + 1);
+            sc_fes.SetElementOrder(e, order + 1);
          }
       }
       sc_fes.Update(false);

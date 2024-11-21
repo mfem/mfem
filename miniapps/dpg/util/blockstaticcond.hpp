@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,7 @@ namespace mfem
 
 /** @brief Class that performs static condensation of interior dofs for
     multiple FE spaces. This class is used in class DPGWeakFrom.
-    It is suitable for systems resulting from the descritization of multiple
+    It is suitable for systems resulting from the discretization of multiple
     FE spaces. It eliminates the dofs associated with the interior of the elements
     and returns the reduced system which contains only the interfacial dofs.
     The ordering of the dofs in the matrix is implied by the ordering given by the

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,6 +22,10 @@
 #include "../config/config.hpp"
 #include "amgxsolver.hpp"
 #ifdef MFEM_USE_AMGX
+
+#ifdef MFEM_USE_MPI
+#include "../general/communication.hpp"
+#endif
 
 namespace mfem
 {
@@ -445,9 +449,9 @@ void AmgXSolver::GatherArray(const Array<double> &inArr, Array<double> &outArr,
       }
    }
 
-   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPI_DOUBLE,
+   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPITypeMap<real_t>::mpi_type,
                outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
-               MPI_DOUBLE, 0, mpiTeamComm);
+               MPITypeMap<real_t>::mpi_type, 0, mpiTeamComm);
 }
 
 void AmgXSolver::GatherArray(const Vector &inArr, Vector &outArr,
@@ -473,9 +477,9 @@ void AmgXSolver::GatherArray(const Vector &inArr, Vector &outArr,
       }
    }
 
-   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPI_DOUBLE,
+   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPITypeMap<real_t>::mpi_type,
                outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
-               MPI_DOUBLE, 0, mpiTeamComm);
+               MPITypeMap<real_t>::mpi_type, 0, mpiTeamComm);
 }
 
 void AmgXSolver::GatherArray(const Array<int> &inArr, Array<int> &outArr,
@@ -556,9 +560,9 @@ void AmgXSolver::GatherArray(const Vector &inArr, Vector &outArr,
       Adisp[i] = Adisp[i-1] + Apart[i-1];
    }
 
-   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPI_DOUBLE,
+   MPI_Gatherv(inArr.HostRead(), inArr.Size(), MPITypeMap<real_t>::mpi_type,
                outArr.HostWrite(), Apart.HostRead(), Adisp.HostRead(),
-               MPI_DOUBLE, 0, mpiTeamComm);
+               MPITypeMap<real_t>::mpi_type, 0, mpiTeamComm);
 }
 
 void AmgXSolver::ScatterArray(const Vector &inArr, Vector &outArr,
@@ -566,8 +570,8 @@ void AmgXSolver::ScatterArray(const Vector &inArr, Vector &outArr,
                               Array<int> &Apart, Array<int> &Adisp) const
 {
    MPI_Scatterv(inArr.HostRead(),Apart.HostRead(),Adisp.HostRead(),
-                MPI_DOUBLE,outArr.HostWrite(),outArr.Size(),
-                MPI_DOUBLE, 0, mpiTeamComm);
+                MPITypeMap<real_t>::mpi_type,outArr.HostWrite(),outArr.Size(),
+                MPITypeMap<real_t>::mpi_type, 0, mpiTeamComm);
 }
 #endif
 
