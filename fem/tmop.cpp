@@ -3005,7 +3005,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
                "Positions on a mesh without Nodes is not supported.");
    MFEM_VERIFY(pos.FESpace()->GetOrdering() ==
                pos.FESpace()->GetMesh()->GetNodes()->FESpace()->GetOrdering(),
-               "Incompatible ordering of spaces!")
+               "Incompatible ordering of spaces!");
 
    surf_fit_pos     = &pos;
    pos.CountElementsPerVDof(surf_fit_dof_count);
