@@ -17,7 +17,7 @@ llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
 # x86_64-linux-gnu-ubuntu-20.04     13.0.0  
 # x86_64-linux-gnu-ubuntu-22.04     17.0.6
 # macOS                             17.0.6
-llvm.toolchain(llvm_version = "13.0.0", stdlib = {"linux-x86_64": "stdc++"}) # libc++ / stdc++
+llvm.toolchain(llvm_version = "17.0.6", stdlib = {"linux-x86_64": "stdc++"}) # libc++ / stdc++
     
 use_repo(llvm, "llvm_toolchain")
 register_toolchains("@llvm_toolchain//:all")
