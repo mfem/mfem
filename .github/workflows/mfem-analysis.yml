@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -34,67 +34,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.11.0
-      with:
-        access_token: ${{ github.token }}
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.12.1
+        with:
+          access_token: ${{ github.token }}
 
-    - name: checkout MFEM
-      uses: actions/checkout@v3
-      with:
-        path: mfem
+      - name: checkout MFEM
+        uses: actions/checkout@v4
+        with:
+          path: mfem
 
-    - name: Get MPI (Linux)
-      run: |
-        sudo apt-get install mpich libmpich-dev
+      - name: Get MPI (Linux)
+        run: |
+          sudo apt-get install mpich libmpich-dev
 
-    - name: Cache Hypre Install
-      id: hypre-cache
-      uses: actions/cache@v3
-      with:
-        path: ${{ env.HYPRE_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v2.2
+      - name: Cache Hypre Install
+        id: hypre-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.HYPRE_TOP_DIR }}
+          key: ${{ runner.os }}-build-${{ env.HYPRE_TOP_DIR }}-v2.5
 
-    - name: Get Hypre
-      if: steps.hypre-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-hypre@v2.4
-      with:
-        archive: ${{ env.HYPRE_ARCHIVE }}
-        dir: ${{ env.HYPRE_TOP_DIR }}
-        target: int32
+      - name: Get Hypre
+        if: steps.hypre-cache.outputs.cache-hit != 'true'
+        uses: mfem/github-actions/build-hypre@v2.5
+        with:
+          archive: ${{ env.HYPRE_ARCHIVE }}
+          dir: ${{ env.HYPRE_TOP_DIR }}
+          target: int32
 
-    - name: Cache Metis Install
-      id: metis-cache
-      uses: actions/cache@v3
-      with:
-        path: ${{ env.METIS_TOP_DIR }}
-        key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.2
+      - name: Cache Metis Install
+        id: metis-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.METIS_TOP_DIR }}
+          key: ${{ runner.os }}-build-${{ env.METIS_TOP_DIR }}-v2.5
 
-    - name: Install Metis
-      if: steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@v2.4
-      with:
-        archive: ${{ env.METIS_ARCHIVE }}
-        dir: ${{ env.METIS_TOP_DIR }}
+      - name: Install Metis
+        if: steps.metis-cache.outputs.cache-hit != 'true'
+        uses: mfem/github-actions/build-metis@v2.5
+        with:
+          archive: ${{ env.METIS_ARCHIVE }}
+          dir: ${{ env.METIS_TOP_DIR }}
 
-    # MFEM build and test
-    - name: build-mfem
-      uses: mfem/github-actions/build-mfem@v2.4
-      with:
-        os: ${{ runner.os }}
-        target: opt
-        codecov: NO
-        mpi: par
-        build-system: make
-        hypre-dir: ${{ env.HYPRE_TOP_DIR }}
-        metis-dir: ${{ env.METIS_TOP_DIR }}
-        mfem-dir: mfem
+      # MFEM build and test
+      - name: build-mfem
+        uses: mfem/github-actions/build-mfem@v2.5
+        with:
+          os: ${{ runner.os }}
+          target: opt
+          codecov: NO
+          mpi: par
+          build-system: make
+          hypre-dir: ${{ env.HYPRE_TOP_DIR }}
+          metis-dir: ${{ env.METIS_TOP_DIR }}
+          mfem-dir: mfem
 
-    - name: test (no clean)
-      run: |
-        cd mfem && make test-noclean
+      - name: test (no clean)
+        run: |
+          cd mfem && make test-noclean
 
-    - name: gitignore
-      run: |
-        cd mfem/tests/scripts
-        ./runtest gitignore
+      - name: gitignore
+        run: |
+          cd mfem/tests/scripts
+          ./runtest gitignore

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,32 +21,32 @@ using namespace mfem;
 
 namespace testhelper_osc
 {
-double SmoothSolutionX(const mfem::Vector& x)
+real_t SmoothSolutionX(const mfem::Vector& x)
 {
    return x(0);
 }
 
-double SmoothSolutionY(const mfem::Vector& x)
+real_t SmoothSolutionY(const mfem::Vector& x)
 {
    return x(1);
 }
 
-double SmoothSolutionZ(const mfem::Vector& x)
+real_t SmoothSolutionZ(const mfem::Vector& x)
 {
    return x(2);
 }
 
-double NonsmoothSolutionX(const mfem::Vector& x)
+real_t NonsmoothSolutionX(const mfem::Vector& x)
 {
    return std::abs(x(0)-0.5);
 }
 
-double NonsmoothSolutionY(const mfem::Vector& x)
+real_t NonsmoothSolutionY(const mfem::Vector& x)
 {
    return std::abs(x(1)-0.5);
 }
 
-double NonsmoothSolutionZ(const mfem::Vector& x)
+real_t NonsmoothSolutionZ(const mfem::Vector& x)
 {
    return std::abs(x(2)-0.5);
 }
@@ -76,7 +76,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
 
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc == MFEM_Approx(0.0));
    }
@@ -87,7 +87,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
 
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc == MFEM_Approx(0.0));
    }
@@ -99,7 +99,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc <= 1e-3);
    }
@@ -111,7 +111,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh",
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc <= 1e-3);
    }
@@ -127,7 +127,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
    const auto max_it = GENERATE(1, 2, 4);
 
    // Manually construct embedded mesh
-   std::array<double, 4*3> vertices =
+   std::array<real_t, 4*3> vertices =
    {
       0.0,0.0,0.0,
       0.0,1.0,0.0,
@@ -189,7 +189,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
 
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc == MFEM_Approx(0.0));
    }
@@ -200,7 +200,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
 
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc == MFEM_Approx(0.0));
    }
@@ -212,7 +212,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc <= 1e-3);
    }
@@ -224,7 +224,7 @@ TEST_CASE("Data Oscillation on 2D NCMesh embedded in 3D",
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc <= 1e-3);
    }
@@ -257,7 +257,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
 
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc == MFEM_Approx(0.0));
    }
@@ -268,7 +268,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
 
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc == MFEM_Approx(0.0));
    }
@@ -279,7 +279,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
 
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc == MFEM_Approx(0.0));
    }
@@ -291,7 +291,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc <= 1e-3);
    }
@@ -303,7 +303,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc <= 1e-3);
    }
@@ -315,7 +315,7 @@ TEST_CASE("Data Oscillation on 3D NCMesh",
       CoefficientRefiner coeffrefiner(u_analytic,order);
       coeffrefiner.SetThreshold(1e-3);
       coeffrefiner.PreprocessMesh(*pmesh, max_it);
-      double osc = coeffrefiner.GetOsc();
+      real_t osc = coeffrefiner.GetOsc();
 
       REQUIRE(osc <= 1e-3);
    }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,8 +18,8 @@ namespace mfem
 
 template<int T_D1D = 0, int T_Q1D = 0> static
 void BFLFEvalAssemble2D(const int nbe, const int d, const int q,
-                        const int *markers, const double *b,
-                        const double *weights, const Vector &coeff, double *y)
+                        const int *markers, const real_t *b,
+                        const real_t *weights, const Vector &coeff, real_t *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, nbe);
@@ -33,17 +33,17 @@ void BFLFEvalAssemble2D(const int nbe, const int d, const int q,
    {
       if (M(e) == 0) { return; } // ignore (in a lambda return acts as continue)
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      double QQ[Q];
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t QQ[Q];
 
       for (int qx = 0; qx < q; ++qx)
       {
-         const double coeff_val = const_coeff ? C(0,0) : C(qx,e);
+         const real_t coeff_val = const_coeff ? C(0,0) : C(qx,e);
          QQ[qx] = W(qx) * coeff_val;
       }
       for (int dx = 0; dx < d; ++dx)
       {
-         double u = 0;
+         real_t u = 0;
          for (int qx = 0; qx < q; ++qx) { u += QQ[qx] * B(qx,dx); }
          Y(dx,e) += u;
       }
@@ -52,8 +52,8 @@ void BFLFEvalAssemble2D(const int nbe, const int d, const int q,
 
 template<int T_D1D = 0, int T_Q1D = 0> static
 void BFLFEvalAssemble3D(const int nbe, const int d, const int q,
-                        const int *markers, const double *b,
-                        const double *weights, const Vector &coeff, double *y)
+                        const int *markers, const real_t *b,
+                        const real_t *weights, const Vector &coeff, real_t *y)
 {
    const auto F = coeff.Read();
    const auto M = Reshape(markers, nbe);
@@ -67,12 +67,12 @@ void BFLFEvalAssemble3D(const int nbe, const int d, const int q,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
-      MFEM_SHARED double sBt[Q*D];
-      MFEM_SHARED double sQQ[Q*Q];
-      MFEM_SHARED double sQD[Q*D];
+      MFEM_SHARED real_t sBt[Q*D];
+      MFEM_SHARED real_t sQQ[Q*Q];
+      MFEM_SHARED real_t sQD[Q*D];
 
       const DeviceMatrix Bt(sBt, d, q);
       kernels::internal::LoadB<D,Q>(d, q, B, sBt);
@@ -84,7 +84,7 @@ void BFLFEvalAssemble3D(const int nbe, const int d, const int q,
       {
          MFEM_FOREACH_THREAD(y,y,q)
          {
-            const double coeff_val = const_coeff ? C(0,0,0) : C(x,y,e);
+            const real_t coeff_val = const_coeff ? C(0,0,0) : C(x,y,e);
             QQ(y,x) = W(x,y) * coeff_val;
          }
       }
@@ -93,7 +93,7 @@ void BFLFEvalAssemble3D(const int nbe, const int d, const int q,
       {
          MFEM_FOREACH_THREAD(dx,x,d)
          {
-            double u = 0.0;
+            real_t u = 0.0;
             for (int qx = 0; qx < q; ++qx) { u += QQ(qy,qx) * Bt(dx,qx); }
             QD(qy,dx) = u;
          }
@@ -103,7 +103,7 @@ void BFLFEvalAssemble3D(const int nbe, const int d, const int q,
       {
          MFEM_FOREACH_THREAD(dx,x,d)
          {
-            double u = 0.0;
+            real_t u = 0.0;
             for (int qy = 0; qy < q; ++qy) { u += QD(qy,dx) * Bt(dy,qy); }
             Y(dx,dy,e) += u;
          }
@@ -155,9 +155,9 @@ static void BFLFEvalAssemble(const FiniteElementSpace &fes,
 
    const int nbe = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
    const int *M = markers.Read();
-   const double *B = maps.B.Read();
-   const double *W = ir.GetWeights().Read();
-   double *Y = y.ReadWrite();
+   const real_t *B = maps.B.Read();
+   const real_t *W = ir.GetWeights().Read();
+   real_t *Y = y.ReadWrite();
    ker(nbe, d, q, M, B, W, coeff, Y);
 }
 

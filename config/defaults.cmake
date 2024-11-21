@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -22,6 +22,8 @@ endif()
 option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" OFF)
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
+set(MFEM_PRECISION "double" CACHE STRING
+    "Floating-point precision to use: single, or double")
 option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
 option(MFEM_USE_ZLIB "Enable zlib for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
@@ -38,6 +40,7 @@ option(MFEM_USE_MUMPS "Enable MUMPS usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_AMGX "Enable AmgX usage" OFF)
+option(MFEM_USE_MAGMA "Enable MAGMA usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_GSLIB "Enable GSLIB usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
@@ -66,6 +69,7 @@ option(MFEM_USE_ADFORWARD "Enable forward mode for AD" OFF)
 option(MFEM_USE_CODIPACK "Enable automatic differentiation (AD) using CoDiPack" OFF)
 option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
 option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
+option(MFEM_USE_TRIBOL "Enable Tribol" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
 
 # Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
@@ -107,12 +111,7 @@ set(HYPRE_DIR "${MFEM_DIR}/../hypre/src/hypre" CACHE PATH
 # If hypre was compiled to depend on BLAS and LAPACK:
 # set(HYPRE_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
 #     "Packages that HYPRE depends on.")
-if (MFEM_USE_CUDA)
-   # This is only necessary when hypre is built with cuda:
-   set(HYPRE_REQUIRED_LIBRARIES "-lcusparse" "-lcurand" CACHE STRING
-       "Libraries that HYPRE depends on.")
-endif()
-# HIP dependency for HYPRE is handled in FindHYPRE.cmake.
+# CUDA and HIP dependencies for HYPRE are handled in FindHYPRE.cmake.
 
 set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library.")
 
@@ -158,7 +157,8 @@ set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
 # STRUMPACK may also depend on "OpenMP", depending on how it was compiled.
 # Starting with v2.2.0 of STRUMPACK, ParMETIS and Scotch are optional.
 set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
-    "ScaLAPACK" "Scotch/ptscotch/ptscotcherr/scotch/scotcherr" CACHE STRING
+    "Scotch/ptscotch/ptscotcherr/scotch/scotcherr"
+    "ScaLAPACK" "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by STRUMPACK.")
 # If the MPI package does not find all required Fortran libraries:
 # set(STRUMPACK_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
@@ -184,6 +184,10 @@ set(ScaLAPACK_TARGET_NAMES scalapack)
 set(Ginkgo_DIR "${MFEM_DIR}/../ginkgo" CACHE PATH "Path to the Ginkgo library.")
 
 set(AMGX_DIR "${MFEM_DIR}/../amgx" CACHE PATH "Path to AmgX")
+
+set(MAGMA_DIR "${MFEM_DIR}/../magma" CACHE PATH "Path to MAGMA")
+set(MAGMA_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
+    "Additional packages required by MAGMA.")
 
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 
@@ -215,8 +219,15 @@ set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
 
 set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
-set(Axom_REQUIRED_PACKAGES "Conduit/relay/blueprint" CACHE STRING
-    "Additional packages required by Axom.")
+if (MFEM_USE_SIDRE)
+    if (MFEM_USE_MPI)
+        set(Axom_REQUIRED_PACKAGES "Conduit/blueprint/blueprint_mpi/relay/relay_mpi" CACHE STRING
+            "Additional packages required by Axom.")
+    elseif()
+        set(Axom_REQUIRED_PACKAGES "Conduit/blueprint/relay" CACHE STRING
+            "Additional packages required by Axom.")
+    endif()
+endif()
 
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
     "Directory where PUMI is installed")
@@ -252,6 +263,10 @@ set(PARELAG_INCLUDE_DIRS "${PARELAG_DIR}/src;${PARELAG_DIR}/build/src" CACHE
     STRING "Path to ParELAG headers.")
 set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
     "The ParELAG library.")
+
+set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
+set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/slam/slic" CACHE STRING
+    "Additional packages required by Tribol")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

@@ -1,4 +1,4 @@
-# Mini-App: Gaussian Random Fields of Matérn Covariance for Imperfect Materials
+# Miniapp: Gaussian Random Fields of Matérn Covariance for Imperfect Materials
 
 This miniapp implements the SPDE method [1] for generating Gaussian random
 fields of Matérn covariance. We use the resulting random field to model

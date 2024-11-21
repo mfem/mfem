@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -141,8 +141,8 @@ public:
     * and could be replaced by an abstract base class for the material including
     * virtual function calls.
     */
-   std::function<void(const int, const Array<double> &, const Array<double> &,
-                      const Array<double> &, const Vector &, const Vector &,
+   std::function<void(const int, const Array<real_t> &, const Array<real_t> &,
+                      const Array<real_t> &, const Vector &, const Vector &,
                       const Vector &, Vector &)>
    element_apply_kernel_wrapper;
 
@@ -151,8 +151,8 @@ public:
     *
     *  K(U) dX = dR(U)/dU dX
     */
-   std::function<void(const int, const Array<double> &, const Array<double> &,
-                      const Array<double> &, const Vector &, const Vector &,
+   std::function<void(const int, const Array<real_t> &, const Array<real_t> &,
+                      const Array<real_t> &, const Vector &, const Vector &,
                       const Vector &, Vector &, const Vector &)>
    element_apply_gradient_kernel_wrapper;
 
@@ -161,8 +161,8 @@ public:
     *
     * Ke_ii(U) = dRe_ii(U)/dU
     */
-   std::function<void(const int, const Array<double> &, const Array<double> &,
-                      const Array<double> &, const Vector &, const Vector &,
+   std::function<void(const int, const Array<real_t> &, const Array<real_t> &,
+                      const Array<real_t> &, const Vector &, const Vector &,
                       const Vector &, Vector &)>
    element_kernel_assemble_diagonal_wrapper;
 
@@ -184,8 +184,8 @@ public:
       }
 
       element_apply_kernel_wrapper =
-         [=](const int ne, const Array<double> &B_, const Array<double> &G_,
-             const Array<double> &W_, const Vector &Jacobian_,
+         [=](const int ne, const Array<real_t> &B_, const Array<real_t> &G_,
+             const Array<real_t> &W_, const Vector &Jacobian_,
              const Vector &detJ_, const Vector &X_, Vector &Y_)
       {
          const int id = (d1d_ << 4) | q1d_;
@@ -213,8 +213,8 @@ public:
       };
 
       element_apply_gradient_kernel_wrapper =
-         [=](const int ne, const Array<double> &B_, const Array<double> &G_,
-             const Array<double> &W_, const Vector &Jacobian_,
+         [=](const int ne, const Array<real_t> &B_, const Array<real_t> &G_,
+             const Array<real_t> &W_, const Vector &Jacobian_,
              const Vector &detJ_, const Vector &dU_, Vector &dF_,
              const Vector &U_)
       {
@@ -242,8 +242,8 @@ public:
       };
 
       element_kernel_assemble_diagonal_wrapper =
-         [=](const int ne, const Array<double> &B_, const Array<double> &G_,
-             const Array<double> &W_, const Vector &Jacobian_,
+         [=](const int ne, const Array<real_t> &B_, const Array<real_t> &G_,
+             const Array<real_t> &W_, const Vector &Jacobian_,
              const Vector &detJ_, const Vector &X_, Vector &Y_)
       {
          const int id = (d1d_ << 4) | q1d_;

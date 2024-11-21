@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "gslib.hpp"
+#include "geom.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
@@ -36,7 +37,7 @@ FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL),
      fec_map_lin(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
-     dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
+     dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
    mesh_split.SetSize(4);
@@ -66,6 +67,7 @@ FindPointsGSLIB::FindPointsGSLIB()
 
 FindPointsGSLIB::~FindPointsGSLIB()
 {
+   comm_free(gsl_comm);
    delete gsl_comm;
    delete cr;
    for (int i = 0; i < 4; i++)
@@ -83,7 +85,7 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    : mesh(NULL),
      fec_map_lin(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
-     dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
+     dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
    mesh_split.SetSize(4);
@@ -157,7 +159,11 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    {
       unsigned nr[2] = { dof1D, dof1D };
       unsigned mr[2] = { 2*dof1D, 2*dof1D };
-      double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(pts_cnt) };
+      double * const elx[2] =
+      {
+         pts_cnt == 0 ? nullptr : &gsl_mesh(0),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt)
+      };
       fdata2D = findpts_setup_2(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                 pts_cnt, pts_cnt, npt_max, newt_tol);
    }
@@ -166,7 +172,11 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
       unsigned nr[3] = { dof1D, dof1D, dof1D };
       unsigned mr[3] = { 2*dof1D, 2*dof1D, 2*dof1D };
       double * const elx[3] =
-      { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
+      {
+         pts_cnt == 0 ? nullptr : &gsl_mesh(0),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(2*pts_cnt)
+      };
       fdata3D = findpts_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                 pts_cnt, pts_cnt, npt_max, newt_tol);
    }
@@ -238,7 +248,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    }
 
    // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for
-   // both simplices and quads.
+   // both simplices and quads. Also sets code to 1 for points found on element
+   // faces/edges.
    MapRefPosAndElemIndices();
 }
 
@@ -296,6 +307,7 @@ void FindPointsGSLIB::FreeData()
    }
    if (fec_map_lin) { delete fec_map_lin; fec_map_lin = NULL; }
    setupflag = false;
+   points_cnt = -1;
 }
 
 void FindPointsGSLIB::SetupSplitMeshes()
@@ -681,6 +693,9 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    int nptorig = points_cnt,
        npt = points_cnt;
 
+   // tolerance for point to be marked as on element edge/face
+   double btol = 1e-12;
+
    GridFunction *gf_rst_map_temp = NULL;
    int nptsend = 0;
 
@@ -694,7 +709,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 
    // Pack data to send via crystal router
    struct gslib::array *outpt = new gslib::array;
-   struct out_pt { double r[3]; uint index, el, proc; };
+   struct out_pt { double r[3]; uint index, el, proc, code; };
    struct out_pt *pt;
    array_init(struct out_pt, outpt, nptsend);
    outpt->n=nptsend;
@@ -712,12 +727,12 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       pt->index = index;
       pt->proc  = gsl_proc[index];
       pt->el    = gsl_elem[index];
+      pt->code  = gsl_code[index];
       ++pt;
    }
 
    // Transfer data to target MPI ranks
    sarray_transfer(struct out_pt, outpt, proc, 1, cr);
-
    // Map received points
    npt = outpt->n;
    pt = (struct out_pt *)outpt->ptr;
@@ -731,7 +746,13 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       const Geometry::Type gt = fe->GetGeomType();
       pt->el = mesh_elem;
 
-      if (gt == Geometry::SQUARE || gt == Geometry::CUBE) { ++pt; continue; }
+      if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
+      {
+         // check if it is on element boundary
+         pt->code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+         ++pt;
+         continue;
+      }
       else if (gt == Geometry::TRIANGLE)
       {
          gf_rst_map_temp = gf_rst_map[0];
@@ -758,6 +779,10 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       {
          pt->r[d] = mfem_ref(d);
       }
+
+      // check if point is on element boundary
+      ip.Set3(&pt->r[0]);
+      pt->code = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
       ++pt;
    }
 
@@ -774,6 +799,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
       {
          gsl_mfem_ref(d + pt->index*dim) = pt->r[d];
       }
+      gsl_code[pt->index] = pt->code;
       ++pt;
    }
    array_free(outpt);
@@ -784,12 +810,22 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    {
       if (gsl_code[index] != 2 && gsl_proc[index] == gsl_comm->id)
       {
+
+         IntegrationPoint ip;
+         Vector mfem_ref(gsl_mfem_ref.GetData()+index*dim, dim);
+         ip.Set2(mfem_ref.GetData());
+         if (dim == 3) { ip.z = mfem_ref(2); }
+
          const int elem = gsl_elem[index];
          const int mesh_elem = split_element_map[elem];
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(mesh_elem);
          const Geometry::Type gt = fe->GetGeomType();
          gsl_mfem_elem[index] = mesh_elem;
-         if (gt == Geometry::SQUARE || gt == Geometry::CUBE) { continue; }
+         if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
+         {
+            gsl_code[index] = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
+            continue;
+         }
          else if (gt == Geometry::TRIANGLE)
          {
             gf_rst_map_temp = gf_rst_map[0];
@@ -808,11 +844,12 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
          }
 
          int local_elem = split_element_index[elem];
-         IntegrationPoint ip;
-         Vector mfem_ref(gsl_mfem_ref.GetData()+index*dim, dim);
+         gf_rst_map_temp->GetVectorValue(local_elem, ip, mfem_ref);
+
+         // Check if the point is on element boundary
          ip.Set2(mfem_ref.GetData());
          if (dim == 3) { ip.z = mfem_ref(2); }
-         gf_rst_map_temp->GetVectorValue(local_elem, ip, mfem_ref);
+         gsl_code[index]  = Geometry::CheckPoint(gt, ip, -btol) ? 0 : 1;
       }
    }
 }
@@ -861,7 +898,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       int gf_order_h1 = std::max(gf_order, 1); // H1 should be at least order 1
       H1_FECollection fec(gf_order_h1, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
-      FiniteElementSpace fes(mesh, &fec, ncomp);
+      FiniteElementSpace fes(mesh, &fec, ncomp,
+                             field_in.FESpace()->GetOrdering());
       GridFunction field_in_h1(&fes);
 
       if (avgtype == AvgType::ARITHMETIC)
@@ -891,7 +929,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       {
          for (int i = 0; i < indl2.Size(); i++)
          {
-            int idx = field_in.FESpace()->GetOrdering() == Ordering::byNODES ?
+            int idx = field_in_h1.FESpace()->GetOrdering() == Ordering::byNODES?
                       indl2[i] + j*points_cnt:
                       indl2[i]*ncomp + j;
             field_out(idx) = field_out_l2(idx);
@@ -1132,6 +1170,120 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
    } // parallel
 }
 
+void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
+   Array<unsigned int> &recv_elem, Vector &recv_ref,
+   Array<unsigned int> &recv_code)
+{
+   MFEM_VERIFY(points_cnt >= 0,
+               "Invalid size. Please make sure to call FindPoints method "
+               "before calling this function.");
+
+   // Pack data to send via crystal router
+   struct gslib::array *outpt = new gslib::array;
+
+   struct out_pt { double rst[3]; uint index, elem, proc, code; };
+   struct out_pt *pt;
+   array_init(struct out_pt, outpt, points_cnt);
+   outpt->n=points_cnt;
+   pt = (struct out_pt *)outpt->ptr;
+
+   for (int index = 0; index < points_cnt; index++)
+   {
+      pt->index = index;
+      pt->elem = gsl_mfem_elem[index];
+      pt->proc  = gsl_proc[index];
+      pt->code = gsl_code[index];
+      for (int d = 0; d < dim; ++d)
+      {
+         pt->rst[d]= gsl_mfem_ref(index*dim + d);
+      }
+      ++pt;
+   }
+
+   // Transfer data to target MPI ranks
+   sarray_transfer(struct out_pt, outpt, proc, 1, cr);
+
+   // Store received data
+   const int points_recv = outpt->n;
+   recv_proc.SetSize(points_recv);
+   recv_elem.SetSize(points_recv);
+   recv_index.SetSize(points_recv);
+   recv_code.SetSize(points_recv);
+   recv_ref.SetSize(points_recv*dim);
+
+   pt = (struct out_pt *)outpt->ptr;
+   for (int index = 0; index < points_recv; index++)
+   {
+      recv_index[index] = pt->index;
+      recv_elem[index] = pt->elem;
+      recv_proc[index] = pt->proc;
+      recv_code[index] = pt->code;
+      for (int d = 0; d < dim; ++d)
+      {
+         recv_ref(index*dim + d)= pt->rst[d];
+      }
+      ++pt;
+   }
+
+   array_free(outpt);
+   delete outpt;
+}
+
+void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
+                                                   const int vdim,
+                                                   const int ordering,
+                                                   Vector &field_out) const
+{
+   const int points_recv = recv_index.Size();;
+   MFEM_VERIFY(points_recv == 0 ||
+               int_vals.Size() % points_recv == 0,
+               "Incompatible size. Please return interpolated values"
+               "corresponding to points received using"
+               "SendCoordinatesToOwningProcessors.");
+   field_out.SetSize(points_cnt*vdim);
+
+   for (int v = 0; v < vdim; v++)
+   {
+      // Pack data to send via crystal router
+      struct gslib::array *outpt = new gslib::array;
+      struct out_pt { double val; uint index, proc; };
+      struct out_pt *pt;
+      array_init(struct out_pt, outpt, points_recv);
+      outpt->n=points_recv;
+      pt = (struct out_pt *)outpt->ptr;
+      for (int index = 0; index < points_recv; index++)
+      {
+         pt->index = recv_index[index];
+         pt->proc  = recv_proc[index];
+         pt->val = ordering == Ordering::byNODES ?
+                   int_vals(index + v*points_recv) :
+                   int_vals(index*vdim + v);
+         ++pt;
+      }
+
+      // Transfer data to target MPI ranks
+      sarray_transfer(struct out_pt, outpt, proc, 1, cr);
+
+      // Store received data
+      MFEM_VERIFY(outpt->n == points_cnt, "Incompatible size. Number of points "
+                  "received does not match the number of points originally "
+                  "found using FindPoints.");
+
+      pt = (struct out_pt *)outpt->ptr;
+      for (int index = 0; index < points_cnt; index++)
+      {
+         int idx = ordering == Ordering::byNODES ?
+                   pt->index + v*points_cnt :
+                   pt->index*vdim + v;
+         field_out(idx) = pt->val;
+         ++pt;
+      }
+
+      array_free(outpt);
+      delete outpt;
+   }
+}
+
 void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
                                    GridFunction *gfmax,
                                    const double bb_t, const double newt_tol,
@@ -1201,7 +1353,11 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    {
       unsigned nr[2] = { dof1D, dof1D };
       unsigned mr[2] = { 2*dof1D, 2*dof1D };
-      double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(pts_cnt) };
+      double * const elx[2] =
+      {
+         pts_cnt == 0 ? nullptr : &gsl_mesh(0),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt)
+      };
       fdata2D = findptsms_setup_2(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                   pts_cnt, pts_cnt, npt_max, newt_tol,
                                   &u_meshid, &distfint(0));
@@ -1211,7 +1367,11 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
       unsigned nr[3] = { dof1D, dof1D, dof1D };
       unsigned mr[3] = { 2*dof1D, 2*dof1D, 2*dof1D };
       double * const elx[3] =
-      { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
+      {
+         pts_cnt == 0 ? nullptr : &gsl_mesh(0),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(2*pts_cnt)
+      };
       fdata3D = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                   pts_cnt, pts_cnt, npt_max, newt_tol,
                                   &u_meshid, &distfint(0));
@@ -1308,6 +1468,85 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
    Interpolate(field_in, field_out);
 }
 
+GSOPGSLIB::GSOPGSLIB(Array<long long> &ids)
+{
+   gsl_comm = new gslib::comm;
+   cr       = new gslib::crystal;
+#ifdef MFEM_USE_MPI
+   int initialized;
+   MPI_Initialized(&initialized);
+   if (!initialized) { MPI_Init(NULL, NULL); }
+   MPI_Comm comm = MPI_COMM_WORLD;
+   comm_init(gsl_comm, comm);
+#else
+   comm_init(gsl_comm, 0);
+#endif
+   crystal_init(cr, gsl_comm);
+   UpdateIdentifiers(ids);
+}
+
+#ifdef MFEM_USE_MPI
+GSOPGSLIB::GSOPGSLIB(MPI_Comm comm_, Array<long long> &ids)
+   : cr(NULL), gsl_comm(NULL)
+{
+   gsl_comm = new gslib::comm;
+   cr      = new gslib::crystal;
+   comm_init(gsl_comm, comm_);
+   crystal_init(cr, gsl_comm);
+   UpdateIdentifiers(ids);
+}
+#endif
+
+GSOPGSLIB::~GSOPGSLIB()
+{
+   crystal_free(cr);
+   gslib_gs_free(gsl_data);
+   comm_free(gsl_comm);
+   delete gsl_comm;
+   delete cr;
+}
+
+void GSOPGSLIB::UpdateIdentifiers(const Array<long long> &ids)
+{
+   long long minval = ids.Min();
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(MPI_IN_PLACE, &minval, 1, MPI_LONG_LONG_INT,
+                 MPI_MIN, gsl_comm->c);
+#endif
+   MFEM_VERIFY(minval >= 0, "Unique identifier cannot be negative.");
+   if (gsl_data != NULL) { gslib_gs_free(gsl_data); }
+   num_ids = ids.Size();
+   gsl_data = gslib_gs_setup(ids.GetData(),
+                             ids.Size(),
+                             gsl_comm, 0,
+                             gslib::gs_crystal_router, 0);
+}
+
+void GSOPGSLIB::GS(Vector &senddata, GSOp op)
+{
+   MFEM_VERIFY(senddata.Size() == num_ids,
+               "Incompatible setup and GOP operation.");
+   if (op == GSOp::ADD)
+   {
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_add,0,gsl_data,0);
+   }
+   else if (op == GSOp::MUL)
+   {
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_mul,0,gsl_data,0);
+   }
+   else if (op == GSOp::MAX)
+   {
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_max,0,gsl_data,0);
+   }
+   else if (op == GSOp::MIN)
+   {
+      gslib_gs(senddata.GetData(),gslib::gs_double,gslib::gs_min,0,gsl_data,0);
+   }
+   else
+   {
+      MFEM_ABORT("Invalid GSOp operation.");
+   }
+}
 
 } // namespace mfem
 

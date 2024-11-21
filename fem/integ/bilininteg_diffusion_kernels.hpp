@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #ifndef MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 #define MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 
+#include "../kernel_dispatch.hpp"
 #include "../../config/config.hpp"
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
@@ -31,17 +32,17 @@ void PADiffusionSetup(const int dim,
                       const int Q1D,
                       const int coeffDim,
                       const int NE,
-                      const Array<double> &W,
+                      const Array<real_t> &W,
                       const Vector &J,
                       const Vector &C,
                       Vector &D);
 
-// PA Diffusion Assemble 2D kernel
+// PA Diffusion Assemble 2D f
 template<int T_SDIM>
 void PADiffusionSetup2D(const int Q1D,
                         const int coeffDim,
                         const int NE,
-                        const Array<double> &w,
+                        const Array<real_t> &w,
                         const Vector &j,
                         const Vector &c,
                         Vector &d);
@@ -50,7 +51,7 @@ void PADiffusionSetup2D(const int Q1D,
 void PADiffusionSetup3D(const int Q1D,
                         const int coeffDim,
                         const int NE,
-                        const Array<double> &w,
+                        const Array<real_t> &w,
                         const Vector &j,
                         const Vector &c,
                         Vector &d);
@@ -60,7 +61,7 @@ void PADiffusionSetup3D(const int Q1D,
 void OccaPADiffusionSetup2D(const int D1D,
                             const int Q1D,
                             const int NE,
-                            const Array<double> &W,
+                            const Array<real_t> &W,
                             const Vector &J,
                             const Vector &C,
                             Vector &op);
@@ -69,7 +70,7 @@ void OccaPADiffusionSetup2D(const int D1D,
 void OccaPADiffusionSetup3D(const int D1D,
                             const int Q1D,
                             const int NE,
-                            const Array<double> &W,
+                            const Array<real_t> &W,
                             const Vector &J,
                             const Vector &C,
                             Vector &op);
@@ -80,8 +81,8 @@ void PADiffusionAssembleDiagonal(const int dim,
                                  const int Q1D,
                                  const int NE,
                                  const bool symm,
-                                 const Array<double> &B,
-                                 const Array<double> &G,
+                                 const Array<real_t> &B,
+                                 const Array<real_t> &G,
                                  const Vector &D,
                                  Vector &Y);
 
@@ -89,8 +90,8 @@ void PADiffusionAssembleDiagonal(const int dim,
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionDiagonal2D(const int NE,
                                   const bool symmetric,
-                                  const Array<double> &b,
-                                  const Array<double> &g,
+                                  const Array<real_t> &b,
+                                  const Array<real_t> &g,
                                   const Vector &d,
                                   Vector &y,
                                   const int d1d = 0,
@@ -98,8 +99,8 @@ inline void PADiffusionDiagonal2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    // note the different shape for D, if this is a symmetric matrix we only
@@ -110,12 +111,12 @@ inline void PADiffusionDiagonal2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       // gradphi \cdot Q \gradphi has four terms
-      double QD0[MQ1][MD1];
-      double QD1[MQ1][MD1];
-      double QD2[MQ1][MD1];
+      real_t QD0[MQ1][MD1];
+      real_t QD1[MQ1][MD1];
+      real_t QD2[MQ1][MD1];
       for (int qx = 0; qx < Q1D; ++qx)
       {
          for (int dy = 0; dy < D1D; ++dy)
@@ -126,10 +127,10 @@ inline void PADiffusionDiagonal2D(const int NE,
             for (int qy = 0; qy < Q1D; ++qy)
             {
                const int q = qx + qy * Q1D;
-               const double D00 = D(q,0,e);
-               const double D10 = D(q,1,e);
-               const double D01 = symmetric ? D10 : D(q,2,e);
-               const double D11 = symmetric ? D(q,2,e) : D(q,3,e);
+               const real_t D00 = D(q,0,e);
+               const real_t D10 = D(q,1,e);
+               const real_t D01 = symmetric ? D10 : D(q,2,e);
+               const real_t D11 = symmetric ? D(q,2,e) : D(q,3,e);
                QD0[qx][dy] += B(qy, dy) * B(qy, dy) * D00;
                QD1[qx][dy] += B(qy, dy) * G(qy, dy) * (D01 + D10);
                QD2[qx][dy] += G(qy, dy) * G(qy, dy) * D11;
@@ -149,6 +150,21 @@ inline void PADiffusionDiagonal2D(const int NE,
          }
       }
    });
+}
+
+namespace diffusion
+{
+constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+constexpr int D11(int x) { return (11 - x)/2; }
+constexpr int D10(int x) { return (10 - x)/2; }
+constexpr int NBZApply(int D1D)
+{
+   return ipow(2, D11(D1D) >= 0 ? D11(D1D) : 0);
+}
+constexpr int NBZDiagonal(int D1D)
+{
+   return ipow(2, D10(D1D) >= 0 ? D10(D1D) : 0);
+}
 }
 
 // Shared memory PA Diffusion Diagonal 2D kernel
@@ -243,8 +259,8 @@ void SmemPADiffusionDiagonal2D_element(const int e,
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionDiagonal3D(const int NE,
                                   const bool symmetric,
-                                  const Array<double> &b,
-                                  const Array<double> &g,
+                                  const Array<real_t> &b,
+                                  const Array<real_t> &g,
                                   const Vector &d,
                                   Vector &y,
                                   const int d1d = 0,
@@ -253,10 +269,10 @@ inline void PADiffusionDiagonal3D(const int NE,
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
+   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
+   MFEM_VERIFY(D1D <= max_d1d, "");
+   MFEM_VERIFY(Q1D <= max_q1d, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto Q = Reshape(d.Read(), Q1D*Q1D*Q1D, symmetric ? 6 : 9, NE);
@@ -265,10 +281,10 @@ inline void PADiffusionDiagonal3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      double QQD[MQ1][MQ1][MD1];
-      double QDD[MQ1][MD1][MD1];
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t QQD[MQ1][MQ1][MD1];
+      real_t QDD[MQ1][MD1][MD1];
       for (int i = 0; i < DIM; ++i)
       {
          for (int j = 0; j < DIM; ++j)
@@ -288,11 +304,11 @@ inline void PADiffusionDiagonal3D(const int NE,
                                          3 - (3-i)*(2-i)/2 + j:
                                          3 - (3-j)*(2-j)/2 + i;
                         const int k = symmetric ? ksym : (i*DIM) + j;
-                        const double O = Q(q,k,e);
-                        const double Bz = B(qz,dz);
-                        const double Gz = G(qz,dz);
-                        const double L = i==2 ? Gz : Bz;
-                        const double R = j==2 ? Gz : Bz;
+                        const real_t O = Q(q,k,e);
+                        const real_t Bz = B(qz,dz);
+                        const real_t Gz = G(qz,dz);
+                        const real_t L = i==2 ? Gz : Bz;
+                        const real_t R = j==2 ? Gz : Bz;
                         QQD[qx][qy][dz] += L * O * R;
                      }
                   }
@@ -308,10 +324,10 @@ inline void PADiffusionDiagonal3D(const int NE,
                      QDD[qx][dy][dz] = 0.0;
                      for (int qy = 0; qy < Q1D; ++qy)
                      {
-                        const double By = B(qy,dy);
-                        const double Gy = G(qy,dy);
-                        const double L = i==1 ? Gy : By;
-                        const double R = j==1 ? Gy : By;
+                        const real_t By = B(qy,dy);
+                        const real_t Gy = G(qy,dy);
+                        const real_t L = i==1 ? Gy : By;
+                        const real_t R = j==1 ? Gy : By;
                         QDD[qx][dy][dz] += L * QQD[qx][qy][dz] * R;
                      }
                   }
@@ -326,10 +342,10 @@ inline void PADiffusionDiagonal3D(const int NE,
                   {
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
-                        const double Bx = B(qx,dx);
-                        const double Gx = G(qx,dx);
-                        const double L = i==0 ? Gx : Bx;
-                        const double R = j==0 ? Gx : Bx;
+                        const real_t Bx = B(qx,dx);
+                        const real_t Gx = G(qx,dx);
+                        const real_t L = i==0 ? Gx : Bx;
+                        const real_t R = j==0 ? Gx : Bx;
                         Y(dx, dy, dz, e) += L * QDD[qx][dy][dz] * R;
                      }
                   }
@@ -454,10 +470,10 @@ void PADiffusionApply(const int dim,
                       const int Q1D,
                       const int NE,
                       const bool symm,
-                      const Array<double> &B,
-                      const Array<double> &G,
-                      const Array<double> &Bt,
-                      const Array<double> &Gt,
+                      const Array<real_t> &B,
+                      const Array<real_t> &G,
+                      const Array<real_t> &Bt,
+                      const Array<real_t> &Gt,
                       const Vector &D,
                       const Vector &X,
                       Vector &Y);
@@ -467,10 +483,10 @@ void PADiffusionApply(const int dim,
 void OccaPADiffusionApply2D(const int D1D,
                             const int Q1D,
                             const int NE,
-                            const Array<double> &B,
-                            const Array<double> &G,
-                            const Array<double> &Bt,
-                            const Array<double> &Gt,
+                            const Array<real_t> &B,
+                            const Array<real_t> &G,
+                            const Array<real_t> &Bt,
+                            const Array<real_t> &Gt,
                             const Vector &D,
                             const Vector &X,
                             Vector &Y);
@@ -479,10 +495,10 @@ void OccaPADiffusionApply2D(const int D1D,
 void OccaPADiffusionApply3D(const int D1D,
                             const int Q1D,
                             const int NE,
-                            const Array<double> &B,
-                            const Array<double> &G,
-                            const Array<double> &Bt,
-                            const Array<double> &Gt,
+                            const Array<real_t> &B,
+                            const Array<real_t> &G,
+                            const Array<real_t> &Bt,
+                            const Array<real_t> &Gt,
                             const Vector &D,
                             const Vector &X,
                             Vector &Y);
@@ -492,10 +508,10 @@ void OccaPADiffusionApply3D(const int D1D,
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApply2D(const int NE,
                                const bool symmetric,
-                               const Array<double> &b_,
-                               const Array<double> &g_,
-                               const Array<double> &bt_,
-                               const Array<double> &gt_,
+                               const Array<real_t> &b_,
+                               const Array<real_t> &g_,
+                               const Array<real_t> &bt_,
+                               const Array<real_t> &gt_,
                                const Vector &d_,
                                const Vector &x_,
                                Vector &y_,
@@ -504,8 +520,8 @@ inline void PADiffusionApply2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b_.Read(), Q1D, D1D);
    auto G = Reshape(g_.Read(), Q1D, D1D);
    auto Bt = Reshape(bt_.Read(), D1D, Q1D);
@@ -518,10 +534,10 @@ inline void PADiffusionApply2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double grad[max_Q1D][max_Q1D][2];
+      real_t grad[max_Q1D][max_Q1D][2];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -532,7 +548,7 @@ inline void PADiffusionApply2D(const int NE,
       }
       for (int dy = 0; dy < D1D; ++dy)
       {
-         double gradX[max_Q1D][2];
+         real_t gradX[max_Q1D][2];
          for (int qx = 0; qx < Q1D; ++qx)
          {
             gradX[qx][0] = 0.0;
@@ -540,7 +556,7 @@ inline void PADiffusionApply2D(const int NE,
          }
          for (int dx = 0; dx < D1D; ++dx)
          {
-            const double s = X(dx,dy,e);
+            const real_t s = X(dx,dy,e);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] += s * B(qx,dx);
@@ -549,8 +565,8 @@ inline void PADiffusionApply2D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            const double wy  = B(qy,dy);
-            const double wDy = G(qy,dy);
+            const real_t wy  = B(qy,dy);
+            const real_t wDy = G(qy,dy);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                grad[qy][qx][0] += gradX[qx][1] * wy;
@@ -565,13 +581,13 @@ inline void PADiffusionApply2D(const int NE,
          {
             const int q = qx + qy * Q1D;
 
-            const double O11 = D(q,0,e);
-            const double O21 = D(q,1,e);
-            const double O12 = symmetric ? O21 : D(q,2,e);
-            const double O22 = symmetric ? D(q,2,e) : D(q,3,e);
+            const real_t O11 = D(q,0,e);
+            const real_t O21 = D(q,1,e);
+            const real_t O12 = symmetric ? O21 : D(q,2,e);
+            const real_t O22 = symmetric ? D(q,2,e) : D(q,3,e);
 
-            const double gradX = grad[qy][qx][0];
-            const double gradY = grad[qy][qx][1];
+            const real_t gradX = grad[qy][qx][0];
+            const real_t gradY = grad[qy][qx][1];
 
             grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
             grad[qy][qx][1] = (O21 * gradX) + (O22 * gradY);
@@ -579,7 +595,7 @@ inline void PADiffusionApply2D(const int NE,
       }
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double gradX[max_D1D][2];
+         real_t gradX[max_D1D][2];
          for (int dx = 0; dx < D1D; ++dx)
          {
             gradX[dx][0] = 0;
@@ -587,20 +603,20 @@ inline void PADiffusionApply2D(const int NE,
          }
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const double gX = grad[qy][qx][0];
-            const double gY = grad[qy][qx][1];
+            const real_t gX = grad[qy][qx][0];
+            const real_t gY = grad[qy][qx][1];
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double wx  = Bt(dx,qx);
-               const double wDx = Gt(dx,qx);
+               const real_t wx  = Bt(dx,qx);
+               const real_t wDx = Gt(dx,qx);
                gradX[dx][0] += gX * wDx;
                gradX[dx][1] += gY * wx;
             }
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            const double wy  = Bt(dy,qy);
-            const double wDy = Gt(dy,qy);
+            const real_t wy  = Bt(dy,qy);
+            const real_t wDy = Gt(dy,qy);
             for (int dx = 0; dx < D1D; ++dx)
             {
                Y(dx,dy,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
@@ -762,10 +778,10 @@ void SmemPADiffusionApply2D_element(const int e,
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApply3D(const int NE,
                                const bool symmetric,
-                               const Array<double> &b,
-                               const Array<double> &g,
-                               const Array<double> &bt,
-                               const Array<double> &gt,
+                               const Array<real_t> &b,
+                               const Array<real_t> &g,
+                               const Array<real_t> &bt,
+                               const Array<real_t> &gt,
                                const Vector &d_,
                                const Vector &x_,
                                Vector &y_,
@@ -788,9 +804,9 @@ inline void PADiffusionApply3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
-      double grad[max_Q1D][max_Q1D][max_Q1D][3];
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t grad[max_Q1D][max_Q1D][max_Q1D][3];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -805,7 +821,7 @@ inline void PADiffusionApply3D(const int NE,
       }
       for (int dz = 0; dz < D1D; ++dz)
       {
-         double gradXY[max_Q1D][max_Q1D][3];
+         real_t gradXY[max_Q1D][max_Q1D][3];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -817,7 +833,7 @@ inline void PADiffusionApply3D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            double gradX[max_Q1D][2];
+            real_t gradX[max_Q1D][2];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] = 0.0;
@@ -825,7 +841,7 @@ inline void PADiffusionApply3D(const int NE,
             }
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const double s = X(dx,dy,dz,e);
+               const real_t s = X(dx,dy,dz,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx][0] += s * B(qx,dx);
@@ -834,12 +850,12 @@ inline void PADiffusionApply3D(const int NE,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double wy  = B(qy,dy);
-               const double wDy = G(qy,dy);
+               const real_t wy  = B(qy,dy);
+               const real_t wDy = G(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double wx  = gradX[qx][0];
-                  const double wDx = gradX[qx][1];
+                  const real_t wx  = gradX[qx][0];
+                  const real_t wDx = gradX[qx][1];
                   gradXY[qy][qx][0] += wDx * wy;
                   gradXY[qy][qx][1] += wx  * wDy;
                   gradXY[qy][qx][2] += wx  * wy;
@@ -848,8 +864,8 @@ inline void PADiffusionApply3D(const int NE,
          }
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            const double wz  = B(qz,dz);
-            const double wDz = G(qz,dz);
+            const real_t wz  = B(qz,dz);
+            const real_t wDz = G(qz,dz);
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -869,18 +885,18 @@ inline void PADiffusionApply3D(const int NE,
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const int q = qx + (qy + qz * Q1D) * Q1D;
-               const double O11 = D(q,0,e);
-               const double O12 = D(q,1,e);
-               const double O13 = D(q,2,e);
-               const double O21 = symmetric ? O12 : D(q,3,e);
-               const double O22 = symmetric ? D(q,3,e) : D(q,4,e);
-               const double O23 = symmetric ? D(q,4,e) : D(q,5,e);
-               const double O31 = symmetric ? O13 : D(q,6,e);
-               const double O32 = symmetric ? O23 : D(q,7,e);
-               const double O33 = symmetric ? D(q,5,e) : D(q,8,e);
-               const double gradX = grad[qz][qy][qx][0];
-               const double gradY = grad[qz][qy][qx][1];
-               const double gradZ = grad[qz][qy][qx][2];
+               const real_t O11 = D(q,0,e);
+               const real_t O12 = D(q,1,e);
+               const real_t O13 = D(q,2,e);
+               const real_t O21 = symmetric ? O12 : D(q,3,e);
+               const real_t O22 = symmetric ? D(q,3,e) : D(q,4,e);
+               const real_t O23 = symmetric ? D(q,4,e) : D(q,5,e);
+               const real_t O31 = symmetric ? O13 : D(q,6,e);
+               const real_t O32 = symmetric ? O23 : D(q,7,e);
+               const real_t O33 = symmetric ? D(q,5,e) : D(q,8,e);
+               const real_t gradX = grad[qz][qy][qx][0];
+               const real_t gradY = grad[qz][qy][qx][1];
+               const real_t gradZ = grad[qz][qy][qx][2];
                grad[qz][qy][qx][0] = (O11*gradX)+(O12*gradY)+(O13*gradZ);
                grad[qz][qy][qx][1] = (O21*gradX)+(O22*gradY)+(O23*gradZ);
                grad[qz][qy][qx][2] = (O31*gradX)+(O32*gradY)+(O33*gradZ);
@@ -889,7 +905,7 @@ inline void PADiffusionApply3D(const int NE,
       }
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double gradXY[max_D1D][max_D1D][3];
+         real_t gradXY[max_D1D][max_D1D][3];
          for (int dy = 0; dy < D1D; ++dy)
          {
             for (int dx = 0; dx < D1D; ++dx)
@@ -901,7 +917,7 @@ inline void PADiffusionApply3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double gradX[max_D1D][3];
+            real_t gradX[max_D1D][3];
             for (int dx = 0; dx < D1D; ++dx)
             {
                gradX[dx][0] = 0;
@@ -910,13 +926,13 @@ inline void PADiffusionApply3D(const int NE,
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double gX = grad[qz][qy][qx][0];
-               const double gY = grad[qz][qy][qx][1];
-               const double gZ = grad[qz][qy][qx][2];
+               const real_t gX = grad[qz][qy][qx][0];
+               const real_t gY = grad[qz][qy][qx][1];
+               const real_t gZ = grad[qz][qy][qx][2];
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const double wx  = Bt(dx,qx);
-                  const double wDx = Gt(dx,qx);
+                  const real_t wx  = Bt(dx,qx);
+                  const real_t wDx = Gt(dx,qx);
                   gradX[dx][0] += gX * wDx;
                   gradX[dx][1] += gY * wx;
                   gradX[dx][2] += gZ * wx;
@@ -924,8 +940,8 @@ inline void PADiffusionApply3D(const int NE,
             }
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const double wy  = Bt(dy,qy);
-               const double wDy = Gt(dy,qy);
+               const real_t wy  = Bt(dy,qy);
+               const real_t wDy = Gt(dy,qy);
                for (int dx = 0; dx < D1D; ++dx)
                {
                   gradXY[dy][dx][0] += gradX[dx][0] * wy;
@@ -936,8 +952,8 @@ inline void PADiffusionApply3D(const int NE,
          }
          for (int dz = 0; dz < D1D; ++dz)
          {
-            const double wz  = Bt(dz,qz);
-            const double wDz = Gt(dz,qz);
+            const real_t wz  = Bt(dz,qz);
+            const real_t wDz = Gt(dz,qz);
             for (int dy = 0; dy < D1D; ++dy)
             {
                for (int dx = 0; dx < D1D; ++dx)
@@ -1166,6 +1182,44 @@ void SmemPADiffusionApply3D_element(const int e,
 }
 
 } // namespace internal
+
+namespace
+{
+using ApplyKernelType = DiffusionIntegrator::ApplyKernelType;
+using DiagonalKernelType = DiffusionIntegrator::DiagonalKernelType;
+}
+
+template<int DIM, int T_D1D, int T_Q1D>
+ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Kernel()
+{
+   if (DIM == 2) { return internal::SmemPADiffusionApply2D<T_D1D,T_Q1D>; }
+   else if (DIM == 3) { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+inline
+ApplyKernelType DiffusionIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 2) { return internal::PADiffusionApply2D; }
+   else if (DIM == 3) { return internal::PADiffusionApply3D; }
+   else { MFEM_ABORT(""); }
+}
+
+template<int DIM, int D1D, int Q1D>
+DiagonalKernelType DiffusionIntegrator::DiagonalPAKernels::Kernel()
+{
+   if (DIM == 2) { return internal::SmemPADiffusionDiagonal2D<D1D,Q1D>; }
+   else if (DIM == 3) { return internal::SmemPADiffusionDiagonal3D<D1D, Q1D>; }
+   else { MFEM_ABORT(""); }
+}
+
+inline DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 2) { return internal::PADiffusionDiagonal2D; }
+   else if (DIM == 3) { return internal::PADiffusionDiagonal3D; }
+   else { MFEM_ABORT(""); }
+}
 
 } // namespace mfem
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,9 +19,9 @@ namespace mfem
 // PA Divergence Assemble 2D kernel
 static void PADivergenceSetup2D(const int Q1D,
                                 const int NE,
-                                const Array<double> &w,
+                                const Array<real_t> &w,
                                 const Vector &j,
-                                const double COEFF,
+                                const real_t COEFF,
                                 Vector &op)
 {
    const int NQ = Q1D*Q1D;
@@ -33,10 +33,10 @@ static void PADivergenceSetup2D(const int Q1D,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(q,0,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J21 = J(q,1,0,e);
-         const double J22 = J(q,1,1,e);
+         const real_t J11 = J(q,0,0,e);
+         const real_t J12 = J(q,0,1,e);
+         const real_t J21 = J(q,1,0,e);
+         const real_t J22 = J(q,1,1,e);
          // Store wq * Q * adj(J)
          y(q,0,0,e) = W[q] * COEFF *  J22; // 1,1
          y(q,0,1,e) = W[q] * COEFF * -J12; // 1,2
@@ -49,9 +49,9 @@ static void PADivergenceSetup2D(const int Q1D,
 // PA Divergence Assemble 3D kernel
 static void PADivergenceSetup3D(const int Q1D,
                                 const int NE,
-                                const Array<double> &w,
+                                const Array<real_t> &w,
                                 const Vector &j,
-                                const double COEFF,
+                                const real_t COEFF,
                                 Vector &op)
 {
    const int NQ = Q1D*Q1D*Q1D;
@@ -62,26 +62,26 @@ static void PADivergenceSetup3D(const int Q1D,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const double J11 = J(q,0,0,e);
-         const double J21 = J(q,1,0,e);
-         const double J31 = J(q,2,0,e);
-         const double J12 = J(q,0,1,e);
-         const double J22 = J(q,1,1,e);
-         const double J32 = J(q,2,1,e);
-         const double J13 = J(q,0,2,e);
-         const double J23 = J(q,1,2,e);
-         const double J33 = J(q,2,2,e);
-         const double cw  = W[q] * COEFF;
+         const real_t J11 = J(q,0,0,e);
+         const real_t J21 = J(q,1,0,e);
+         const real_t J31 = J(q,2,0,e);
+         const real_t J12 = J(q,0,1,e);
+         const real_t J22 = J(q,1,1,e);
+         const real_t J32 = J(q,2,1,e);
+         const real_t J13 = J(q,0,2,e);
+         const real_t J23 = J(q,1,2,e);
+         const real_t J33 = J(q,2,2,e);
+         const real_t cw  = W[q] * COEFF;
          // adj(J)
-         const double A11 = (J22 * J33) - (J23 * J32);
-         const double A12 = (J32 * J13) - (J12 * J33);
-         const double A13 = (J12 * J23) - (J22 * J13);
-         const double A21 = (J31 * J23) - (J21 * J33);
-         const double A22 = (J11 * J33) - (J13 * J31);
-         const double A23 = (J21 * J13) - (J11 * J23);
-         const double A31 = (J21 * J32) - (J31 * J22);
-         const double A32 = (J31 * J12) - (J11 * J32);
-         const double A33 = (J11 * J22) - (J12 * J21);
+         const real_t A11 = (J22 * J33) - (J23 * J32);
+         const real_t A12 = (J32 * J13) - (J12 * J33);
+         const real_t A13 = (J12 * J23) - (J22 * J13);
+         const real_t A21 = (J31 * J23) - (J21 * J33);
+         const real_t A22 = (J11 * J33) - (J13 * J31);
+         const real_t A23 = (J21 * J13) - (J11 * J23);
+         const real_t A31 = (J21 * J32) - (J31 * J22);
+         const real_t A32 = (J31 * J12) - (J11 * J32);
+         const real_t A33 = (J11 * J22) - (J12 * J21);
          // Store wq * Q * adj(J)
          y(q,0,0,e) = cw * A11; // 1,1
          y(q,0,1,e) = cw * A12; // 1,2
@@ -101,9 +101,9 @@ static void PADivergenceSetup(const int dim,
                               const int TE_D1D,
                               const int Q1D,
                               const int NE,
-                              const Array<double> &W,
+                              const Array<real_t> &W,
                               const Vector &J,
-                              const double COEFF,
+                              const real_t COEFF,
                               Vector &op)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADivergenceSetup"); }
@@ -143,7 +143,7 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_ASSERT(quad1D == test_maps->nqpt,
                "PA requires test and trial space to have same number of quadrature points!");
    pa_data.SetSize(nq * dimsToStore * ne, Device::GetMemoryType());
-   double coeff = 1.0;
+   real_t coeff = 1.0;
    if (Q)
    {
       ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient*>(Q);
@@ -157,9 +157,9 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 // PA Divergence Apply 2D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PADivergenceApply2D(const int NE,
-                                const Array<double> &b,
-                                const Array<double> &g,
-                                const Array<double> &bt,
+                                const Array<real_t> &b,
+                                const Array<real_t> &g,
+                                const Array<real_t> &bt,
                                 const Vector &op_,
                                 const Vector &x_,
                                 Vector &y_,
@@ -170,9 +170,9 @@ static void PADivergenceApply2D(const int NE,
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, TR_D1D);
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
@@ -186,11 +186,11 @@ static void PADivergenceApply2D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = 2;
       // the following variables are evaluated at compile time
-      constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double grad[max_Q1D][max_Q1D][VDIM];
-      double div[max_Q1D][max_Q1D];
+      real_t grad[max_Q1D][max_Q1D][VDIM];
+      real_t div[max_Q1D][max_Q1D];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -211,7 +211,7 @@ static void PADivergenceApply2D(const int NE,
          }
          for (int dy = 0; dy < TR_D1D; ++dy)
          {
-            double gradX[max_Q1D][VDIM];
+            real_t gradX[max_Q1D][VDIM];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] = 0.0;
@@ -219,7 +219,7 @@ static void PADivergenceApply2D(const int NE,
             }
             for (int dx = 0; dx < TR_D1D; ++dx)
             {
-               const double s = x(dx,dy,c,e);
+               const real_t s = x(dx,dy,c,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx][0] += s * G(qx,dx);
@@ -228,8 +228,8 @@ static void PADivergenceApply2D(const int NE,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double wy  = B(qy,dy);
-               const double wDy = G(qy,dy);
+               const real_t wy  = B(qy,dy);
+               const real_t wDy = G(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   grad[qy][qx][0] += gradX[qx][0] * wy;
@@ -243,8 +243,8 @@ static void PADivergenceApply2D(const int NE,
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const int q = qx + qy * Q1D;
-               const double gradX = grad[qy][qx][0];
-               const double gradY = grad[qy][qx][1];
+               const real_t gradX = grad[qy][qx][0];
+               const real_t gradY = grad[qy][qx][1];
 
                div[qy][qx] += gradX*op(q,0,c,e) + gradY*op(q,1,c,e);
             }
@@ -253,7 +253,7 @@ static void PADivergenceApply2D(const int NE,
       // We've now calculated div = reshape(div phi * op) * u
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         double opX[max_TE_D1D];
+         real_t opX[max_TE_D1D];
          for (int dx = 0; dx < TE_D1D; ++dx)
          {
             opX[dx] = 0.0;
@@ -278,9 +278,9 @@ static void PADivergenceApply2D(const int NE,
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0,
          const int T_NBZ = 0>
 static void SmemPADivergenceApply2D(const int NE,
-                                    const Array<double> &b_,
-                                    const Array<double> &g_,
-                                    const Array<double> &bt_,
+                                    const Array<real_t> &b_,
+                                    const Array<real_t> &g_,
+                                    const Array<real_t> &bt_,
                                     const Vector &op_,
                                     const Vector &x_,
                                     Vector &y_,
@@ -295,9 +295,9 @@ static void SmemPADivergenceApply2D(const int NE,
 // PA Divergence Apply 2D kernel transpose
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PADivergenceApplyTranspose2D(const int NE,
-                                         const Array<double> &bt,
-                                         const Array<double> &gt,
-                                         const Array<double> &b,
+                                         const Array<real_t> &bt,
+                                         const Array<real_t> &gt,
+                                         const Array<real_t> &b,
                                          const Vector &op_,
                                          const Vector &x_,
                                          Vector &y_,
@@ -308,9 +308,9 @@ static void PADivergenceApplyTranspose2D(const int NE,
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);
    auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);
    auto B  = Reshape(b.Read(), Q1D, TE_D1D);
@@ -324,11 +324,11 @@ static void PADivergenceApplyTranspose2D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = 2;
       // the following variables are evaluated at compile time
-      constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double quadTest[max_Q1D][max_Q1D];
-      double grad[max_Q1D][max_Q1D][VDIM];
+      real_t quadTest[max_Q1D][max_Q1D];
+      real_t grad[max_Q1D][max_Q1D][VDIM];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -338,14 +338,14 @@ static void PADivergenceApplyTranspose2D(const int NE,
       }
       for (int dy = 0; dy < TE_D1D; ++dy)
       {
-         double quadTestX[max_Q1D];
+         real_t quadTestX[max_Q1D];
          for (int qx = 0; qx < Q1D; ++qx)
          {
             quadTestX[qx] = 0.0;
          }
          for (int dx = 0; dx < TE_D1D; ++dx)
          {
-            const double s = x(dx,dy,e);
+            const real_t s = x(dx,dy,e);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                quadTestX[qx] += s * B(qx,dx);
@@ -353,7 +353,7 @@ static void PADivergenceApplyTranspose2D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            const double wy = B(qy,dy);
+            const real_t wy = B(qy,dy);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                quadTest[qy][qx] += quadTestX[qx] * wy;
@@ -375,7 +375,7 @@ static void PADivergenceApplyTranspose2D(const int NE,
          // We've now calculated op_c^T * x
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double gradX[max_TR_D1D][VDIM];
+            real_t gradX[max_TR_D1D][VDIM];
             for (int dx = 0; dx < TR_D1D; ++dx)
             {
                gradX[dx][0] = 0.0;
@@ -383,20 +383,20 @@ static void PADivergenceApplyTranspose2D(const int NE,
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const double gX = grad[qy][qx][0];
-               const double gY = grad[qy][qx][1];
+               const real_t gX = grad[qy][qx][0];
+               const real_t gY = grad[qy][qx][1];
                for (int dx = 0; dx < TR_D1D; ++dx)
                {
-                  const double wx  = Bt(dx,qx);
-                  const double wDx = Gt(dx,qx);
+                  const real_t wx  = Bt(dx,qx);
+                  const real_t wDx = Gt(dx,qx);
                   gradX[dx][0] += gX * wDx;
                   gradX[dx][1] += gY * wx;
                }
             }
             for (int dy = 0; dy < TR_D1D; ++dy)
             {
-               const double wy  = Bt(dy,qy);
-               const double wDy = Gt(dy,qy);
+               const real_t wy  = Bt(dy,qy);
+               const real_t wDy = Gt(dy,qy);
                for (int dx = 0; dx < TR_D1D; ++dx)
                {
                   y(dx,dy,c,e) += ((gradX[dx][0] * wy) + (gradX[dx][1] * wDy));
@@ -411,9 +411,9 @@ static void PADivergenceApplyTranspose2D(const int NE,
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PADivergenceApply3D(const int NE,
-                                const Array<double> &b,
-                                const Array<double> &g,
-                                const Array<double> &bt,
+                                const Array<real_t> &b,
+                                const Array<real_t> &g,
+                                const Array<real_t> &bt,
                                 const Vector &op_,
                                 const Vector &x_,
                                 Vector &y_,
@@ -424,9 +424,9 @@ static void PADivergenceApply3D(const int NE,
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, TR_D1D);
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
@@ -440,11 +440,11 @@ static void PADivergenceApply3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = 3;
       // the following variables are evaluated at compile time
-      constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double grad[max_Q1D][max_Q1D][max_Q1D][VDIM];
-      double div[max_Q1D][max_Q1D][max_Q1D];
+      real_t grad[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      real_t div[max_Q1D][max_Q1D][max_Q1D];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -472,7 +472,7 @@ static void PADivergenceApply3D(const int NE,
          }
          for (int dz = 0; dz < TR_D1D; ++dz)
          {
-            double gradXY[max_Q1D][max_Q1D][VDIM];
+            real_t gradXY[max_Q1D][max_Q1D][VDIM];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -484,7 +484,7 @@ static void PADivergenceApply3D(const int NE,
             }
             for (int dy = 0; dy < TR_D1D; ++dy)
             {
-               double gradX[max_Q1D][VDIM];
+               real_t gradX[max_Q1D][VDIM];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx][0] = 0.0;
@@ -493,7 +493,7 @@ static void PADivergenceApply3D(const int NE,
                }
                for (int dx = 0; dx < TR_D1D; ++dx)
                {
-                  const double s = x(dx,dy,dz,c,e);
+                  const real_t s = x(dx,dy,dz,c,e);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      gradX[qx][0] += s * G(qx,dx);
@@ -503,8 +503,8 @@ static void PADivergenceApply3D(const int NE,
                }
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const double wy  = B(qy,dy);
-                  const double wDy = G(qy,dy);
+                  const real_t wy  = B(qy,dy);
+                  const real_t wDy = G(qy,dy);
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      gradXY[qy][qx][0] += gradX[qx][0] * wy;
@@ -515,8 +515,8 @@ static void PADivergenceApply3D(const int NE,
             }
             for (int qz = 0; qz < Q1D; ++qz)
             {
-               const double wz  = B(qz,dz);
-               const double wDz = G(qz,dz);
+               const real_t wz  = B(qz,dz);
+               const real_t wDz = G(qz,dz);
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   for (int qx = 0; qx < Q1D; ++qx)
@@ -536,9 +536,9 @@ static void PADivergenceApply3D(const int NE,
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   const int q = qx + (qy + qz * Q1D) * Q1D;
-                  const double gradX = grad[qz][qy][qx][0];
-                  const double gradY = grad[qz][qy][qx][1];
-                  const double gradZ = grad[qz][qy][qx][2];
+                  const real_t gradX = grad[qz][qy][qx][0];
+                  const real_t gradY = grad[qz][qy][qx][1];
+                  const real_t gradZ = grad[qz][qy][qx][2];
 
                   div[qz][qy][qx] += gradX*op(q,0,c,e) + gradY*op(q,1,c,e) + gradZ*op(q,2,c,e);
 
@@ -549,7 +549,7 @@ static void PADivergenceApply3D(const int NE,
       // We've now calculated div = reshape(div phi * op) * u
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double opXY[max_TE_D1D][max_TE_D1D];
+         real_t opXY[max_TE_D1D][max_TE_D1D];
          for (int dy = 0; dy < TE_D1D; ++dy)
          {
             for (int dx = 0; dx < TE_D1D; ++dx)
@@ -559,7 +559,7 @@ static void PADivergenceApply3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double opX[max_TE_D1D];
+            real_t opX[max_TE_D1D];
             for (int dx = 0; dx < TE_D1D; ++dx)
             {
                opX[dx] = 0.0;
@@ -594,9 +594,9 @@ static void PADivergenceApply3D(const int NE,
 // PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PADivergenceApplyTranspose3D(const int NE,
-                                         const Array<double> &bt,
-                                         const Array<double> &gt,
-                                         const Array<double> &b,
+                                         const Array<real_t> &bt,
+                                         const Array<real_t> &gt,
+                                         const Array<real_t> &b,
                                          const Vector &op_,
                                          const Vector &x_,
                                          Vector &y_,
@@ -607,9 +607,9 @@ static void PADivergenceApplyTranspose3D(const int NE,
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);
    auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);
    auto B  = Reshape(b.Read(), Q1D, TE_D1D);
@@ -623,11 +623,11 @@ static void PADivergenceApplyTranspose3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = 3;
       // the following variables are evaluated at compile time
-      constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      double quadTest[max_Q1D][max_Q1D][max_Q1D];
-      double grad[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      real_t quadTest[max_Q1D][max_Q1D][max_Q1D];
+      real_t grad[max_Q1D][max_Q1D][max_Q1D][VDIM];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -640,7 +640,7 @@ static void PADivergenceApplyTranspose3D(const int NE,
       }
       for (int dz = 0; dz < TE_D1D; ++dz)
       {
-         double quadTestXY[max_Q1D][max_Q1D];
+         real_t quadTestXY[max_Q1D][max_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -650,14 +650,14 @@ static void PADivergenceApplyTranspose3D(const int NE,
          }
          for (int dy = 0; dy < TE_D1D; ++dy)
          {
-            double quadTestX[max_Q1D];
+            real_t quadTestX[max_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                quadTestX[qx] = 0.0;
             }
             for (int dx = 0; dx < TE_D1D; ++dx)
             {
-               const double s = x(dx,dy,dz,e);
+               const real_t s = x(dx,dy,dz,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   quadTestX[qx] += s * B(qx,dx);
@@ -665,7 +665,7 @@ static void PADivergenceApplyTranspose3D(const int NE,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const double wy  = B(qy,dy);
+               const real_t wy  = B(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   quadTestXY[qy][qx] += quadTestX[qx] * wy;
@@ -674,7 +674,7 @@ static void PADivergenceApplyTranspose3D(const int NE,
          }
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            const double wz  = B(qz,dz);
+            const real_t wz  = B(qz,dz);
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -703,7 +703,7 @@ static void PADivergenceApplyTranspose3D(const int NE,
          // We've now calculated op_c^T * x
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            double gradXY[max_TR_D1D][max_TR_D1D][VDIM];
+            real_t gradXY[max_TR_D1D][max_TR_D1D][VDIM];
             for (int dy = 0; dy < TR_D1D; ++dy)
             {
                for (int dx = 0; dx < TR_D1D; ++dx)
@@ -715,7 +715,7 @@ static void PADivergenceApplyTranspose3D(const int NE,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double gradX[max_TR_D1D][VDIM];
+               real_t gradX[max_TR_D1D][VDIM];
                for (int dx = 0; dx < TR_D1D; ++dx)
                {
                   gradX[dx][0] = 0.0;
@@ -724,13 +724,13 @@ static void PADivergenceApplyTranspose3D(const int NE,
                }
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double gX = grad[qz][qy][qx][0];
-                  const double gY = grad[qz][qy][qx][1];
-                  const double gZ = grad[qz][qy][qx][2];
+                  const real_t gX = grad[qz][qy][qx][0];
+                  const real_t gY = grad[qz][qy][qx][1];
+                  const real_t gZ = grad[qz][qy][qx][2];
                   for (int dx = 0; dx < TR_D1D; ++dx)
                   {
-                     const double wx  = Bt(dx,qx);
-                     const double wDx = Gt(dx,qx);
+                     const real_t wx  = Bt(dx,qx);
+                     const real_t wDx = Gt(dx,qx);
                      gradX[dx][0] += gX * wDx;
                      gradX[dx][1] += gY * wx;
                      gradX[dx][2] += gZ * wx;
@@ -738,8 +738,8 @@ static void PADivergenceApplyTranspose3D(const int NE,
                }
                for (int dy = 0; dy < TR_D1D; ++dy)
                {
-                  const double wy  = Bt(dy,qy);
-                  const double wDy = Gt(dy,qy);
+                  const real_t wy  = Bt(dy,qy);
+                  const real_t wDy = Gt(dy,qy);
                   for (int dx = 0; dx < TR_D1D; ++dx)
                   {
                      gradXY[dy][dx][0] += gradX[dx][0] * wy;
@@ -750,8 +750,8 @@ static void PADivergenceApplyTranspose3D(const int NE,
             }
             for (int dz = 0; dz < TR_D1D; ++dz)
             {
-               const double wz  = Bt(dz,qz);
-               const double wDz = Gt(dz,qz);
+               const real_t wz  = Bt(dz,qz);
+               const real_t wDz = Gt(dz,qz);
                for (int dy = 0; dy < TR_D1D; ++dy)
                {
                   for (int dx = 0; dx < TR_D1D; ++dx)
@@ -772,9 +772,9 @@ static void PADivergenceApplyTranspose3D(const int NE,
 // Shared memory PA Vector Divergence Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void SmemPADivergenceApply3D(const int NE,
-                                    const Array<double> &b_,
-                                    const Array<double> &g_,
-                                    const Array<double> &bt_,
+                                    const Array<real_t> &b_,
+                                    const Array<real_t> &g_,
+                                    const Array<real_t> &bt_,
                                     const Vector &q_,
                                     const Vector &x_,
                                     Vector &y_,
@@ -786,9 +786,9 @@ static void SmemPADivergenceApply3D(const int NE,
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    auto b = Reshape(b_.Read(), Q1D, TR_D1D);
    auto g = Reshape(g_.Read(), Q1D, TR_D1D);
@@ -804,29 +804,29 @@ static void SmemPADivergenceApply3D(const int NE,
       const int D1DR = T_TR_D1D ? T_TR_D1D : tr_d1d;
       const int D1DE = T_TE_D1D ? T_TE_D1D : te_d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1R = T_TR_D1D ? T_TR_D1D : MAX_D1D;
-      constexpr int MD1E = T_TE_D1D ? T_TE_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1R = T_TR_D1D ? T_TR_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MD1E = T_TE_D1D ? T_TE_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MD1 = MD1E > MD1R ? MD1E : MD1R;
       constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
-      MFEM_SHARED double sBG[2][MQ1*MD1];
-      double (*B)[MD1] = (double (*)[MD1]) (sBG+0);
-      double (*G)[MD1] = (double (*)[MD1]) (sBG+1);
-      double (*Bt)[MQ1] = (double (*)[MQ1]) (sBG+0);
-      MFEM_SHARED double sm0[3][MDQ*MDQ*MDQ];
-      MFEM_SHARED double sm1[3][MDQ*MDQ*MDQ];
-      double (*X)[MD1][MD1]    = (double (*)[MD1][MD1]) (sm0+2);
-      double (*DDQ0)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+0);
-      double (*DDQ1)[MD1][MQ1] = (double (*)[MD1][MQ1]) (sm0+1);
-      double (*DQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+0);
-      double (*DQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+1);
-      double (*DQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm1+2);
-      double (*QQQ0)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+0);
-      double (*QQQ1)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+1);
-      double (*QQQ2)[MQ1][MQ1] = (double (*)[MQ1][MQ1]) (sm0+2);
-      double (*QQD0)[MQ1][MD1] = (double (*)[MQ1][MD1]) (sm1+0);
-      double (*QDD0)[MD1][MD1] = (double (*)[MD1][MD1]) (sm0+0);
-      MFEM_SHARED double div[MQ1][MQ1][MQ1];
+      MFEM_SHARED real_t sBG[2][MQ1*MD1];
+      real_t (*B)[MD1] = (real_t (*)[MD1]) (sBG+0);
+      real_t (*G)[MD1] = (real_t (*)[MD1]) (sBG+1);
+      real_t (*Bt)[MQ1] = (real_t (*)[MQ1]) (sBG+0);
+      MFEM_SHARED real_t sm0[3][MDQ*MDQ*MDQ];
+      MFEM_SHARED real_t sm1[3][MDQ*MDQ*MDQ];
+      real_t (*X)[MD1][MD1]    = (real_t (*)[MD1][MD1]) (sm0+2);
+      real_t (*DDQ0)[MD1][MQ1] = (real_t (*)[MD1][MQ1]) (sm0+0);
+      real_t (*DDQ1)[MD1][MQ1] = (real_t (*)[MD1][MQ1]) (sm0+1);
+      real_t (*DQQ0)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm1+0);
+      real_t (*DQQ1)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm1+1);
+      real_t (*DQQ2)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm1+2);
+      real_t (*QQQ0)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+0);
+      real_t (*QQQ1)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+1);
+      real_t (*QQQ2)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+2);
+      real_t (*QQD0)[MQ1][MD1] = (real_t (*)[MQ1][MD1]) (sm1+0);
+      real_t (*QDD0)[MD1][MD1] = (real_t (*)[MD1][MD1]) (sm0+0);
+      MFEM_SHARED real_t div[MQ1][MQ1][MQ1];
 
       if (tidz == 0)
       {
@@ -884,11 +884,11 @@ static void SmemPADivergenceApply3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  double u = 0.0;
-                  double v = 0.0;
+                  real_t u = 0.0;
+                  real_t v = 0.0;
                   for (int dx = 0; dx < D1DR; ++dx)
                   {
-                     const double coord = X[dz][dy][dx];
+                     const real_t coord = X[dz][dy][dx];
                      u += coord * B[qx][dx];
                      v += coord * G[qx][dx];
                   }
@@ -904,9 +904,9 @@ static void SmemPADivergenceApply3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
+                  real_t u = 0.0;
+                  real_t v = 0.0;
+                  real_t w = 0.0;
                   for (int dy = 0; dy < D1DR; ++dy)
                   {
                      u += DDQ1[dz][dy][qx] * B[qy][dy];
@@ -926,9 +926,9 @@ static void SmemPADivergenceApply3D(const int NE,
             {
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  double u = 0.0;
-                  double v = 0.0;
-                  double w = 0.0;
+                  real_t u = 0.0;
+                  real_t v = 0.0;
+                  real_t w = 0.0;
                   for (int dz = 0; dz < D1DR; ++dz)
                   {
                      u += DQQ0[dz][qy][qx] * B[qz][dz];
@@ -949,9 +949,9 @@ static void SmemPADivergenceApply3D(const int NE,
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
                   const int q = qx + (qy + qz * Q1D) * Q1D;
-                  const double gX = QQQ0[qz][qy][qx];
-                  const double gY = QQQ1[qz][qy][qx];
-                  const double gZ = QQQ2[qz][qy][qx];
+                  const real_t gX = QQQ0[qz][qy][qx];
+                  const real_t gY = QQQ1[qz][qy][qx];
+                  const real_t gZ = QQQ2[qz][qy][qx];
                   div[qz][qy][qx] += gX*Q(q,0,c,e) + gY*Q(q,1,c,e) + gZ*Q(q,2,c,e);
                }
             }
@@ -977,7 +977,7 @@ static void SmemPADivergenceApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1DE)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   u += div[qz][qy][qx] * Bt[dx][qx];
@@ -993,7 +993,7 @@ static void SmemPADivergenceApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1DE)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   u += QQD0[qz][qy][dx] * Bt[dy][qy];
@@ -1009,7 +1009,7 @@ static void SmemPADivergenceApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1DE)
             {
-               double u = 0.0;
+               real_t u = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u += QDD0[qz][dy][dx] * Bt[dz][qz];
@@ -1026,9 +1026,9 @@ static void PADivergenceApply(const int dim,
                               const int TE_D1D,
                               const int Q1D,
                               const int NE,
-                              const Array<double> &B,
-                              const Array<double> &G,
-                              const Array<double> &Bt,
+                              const Array<real_t> &B,
+                              const Array<real_t> &G,
+                              const Array<real_t> &Bt,
                               const Vector &op,
                               const Vector &x,
                               Vector &y,

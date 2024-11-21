@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -73,6 +73,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_AMGX
       "MFEM_USE_AMGX\n"
 #endif
+#ifdef MFEM_USE_MAGMA
+      "MFEM_USE_MAGMA\n"
+#endif
 #ifdef MFEM_USE_CEED
       "MFEM_USE_CEED\n"
 #endif
@@ -81,6 +84,9 @@ const char *GetConfigStr()
 #endif
 #ifdef MFEM_USE_CUDA
       "MFEM_USE_CUDA\n"
+#endif
+#ifdef MFEM_USE_DOUBLE
+      "MFEM_USE_DOUBLE\n"
 #endif
 #ifdef MFEM_USE_EXCEPTIONS
       "MFEM_USE_EXCEPTIONS\n"
@@ -127,6 +133,9 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_MPI
       "MFEM_USE_MPI\n"
 #endif
+#ifdef MFEM_USE_MUMPS
+      "MFEM_USE_MUMPS\n"
+#endif
 #ifdef MFEM_USE_NETCDF
       "MFEM_USE_NETCDF\n"
 #endif
@@ -153,6 +162,9 @@ const char *GetConfigStr()
 #endif
 #ifdef MFEM_USE_SIMD
       "MFEM_USE_SIMD\n"
+#endif
+#ifdef MFEM_USE_SINGLE
+      "MFEM_USE_SINGLE\n"
 #endif
 #ifdef MFEM_USE_SLEPC
       "MFEM_USE_SLEPC\n"

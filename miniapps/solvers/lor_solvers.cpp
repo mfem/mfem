@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,6 +57,9 @@
 //    lor_solvers -m ../../data/amr-quad.mesh -fe n
 //    lor_solvers -m ../../data/amr-quad.mesh -fe r
 //    lor_solvers -m ../../data/amr-quad.mesh -fe l
+//    lor_solvers -m ../../data/star-surf.mesh -fe h
+//    lor_solvers -m ../../data/star-surf.mesh -fe n
+//    lor_solvers -m ../../data/star-surf.mesh -fe r
 //
 // Device sample runs:
 //    lor_solvers -fe h -d cuda
@@ -107,15 +110,18 @@ int main(int argc, char *argv[])
    else if (string(fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
 
-   double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
+   real_t kappa = (order+1)*(order+1); // Penalty used for DG discretizations
 
    Mesh mesh(mesh_file, 1, 1);
-   int dim = mesh.Dimension();
-   MFEM_VERIFY(dim == 2 || dim == 3, "Spatial dimension must be 2 or 3.");
+   const int dim = mesh.Dimension();
+   const int sdim = mesh.SpaceDimension();
+   MFEM_VERIFY(dim == 2 || dim == 3, "Mesh dimension must be 2 or 3.");
+   MFEM_VERIFY(!L2 || dim == sdim, "DG surface meshes not supported.");
    for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
 
    FunctionCoefficient f_coeff(f(1.0)), u_coeff(u);
-   VectorFunctionCoefficient f_vec_coeff(dim, f_vec(RT)), u_vec_coeff(dim, u_vec);
+   VectorFunctionCoefficient f_vec_coeff(sdim, f_vec(RT)),
+                             u_vec_coeff(sdim, u_vec);
 
    int b1 = BasisType::GaussLobatto, b2 = BasisType::IntegratedGLL;
    unique_ptr<FiniteElementCollection> fec;
@@ -149,8 +155,9 @@ int main(int argc, char *argv[])
       a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(-1.0, kappa));
       a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(-1.0, kappa));
    }
-   // TODO: L2 diffusion not implemented with partial assembly
-   if (!L2) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   // Partial assembly not currently supported for DG or for surface meshes with
+   // vector finite elements (ND or RT).
+   if (!L2 && (H1 || sdim == dim)) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    a.Assemble();
 
    LinearForm b(&fes);
@@ -188,9 +195,12 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X, b, x);
 
-   double er =
-      (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
-   cout << "L2 error: " << er << endl;
+   if (sdim == dim)
+   {
+      real_t er =
+         (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
+      cout << "L2 error: " << er << endl;
+   }
 
    if (visualization)
    {

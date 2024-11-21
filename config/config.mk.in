@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,6 +18,8 @@ MFEM_GIT_STRING        = @MFEM_GIT_STRING@
 MFEM_USE_MPI           = @MFEM_USE_MPI@
 MFEM_USE_METIS         = @MFEM_USE_METIS@
 MFEM_USE_METIS_5       = @MFEM_USE_METIS_5@
+MFEM_USE_DOUBLE        = @MFEM_USE_DOUBLE@
+MFEM_USE_SINGLE        = @MFEM_USE_SINGLE@
 MFEM_DEBUG             = @MFEM_DEBUG@
 MFEM_USE_EXCEPTIONS    = @MFEM_USE_EXCEPTIONS@
 MFEM_USE_ZLIB          = @MFEM_USE_ZLIB@
@@ -36,6 +38,7 @@ MFEM_USE_MUMPS         = @MFEM_USE_MUMPS@
 MFEM_USE_STRUMPACK     = @MFEM_USE_STRUMPACK@
 MFEM_USE_GINKGO        = @MFEM_USE_GINKGO@
 MFEM_USE_AMGX          = @MFEM_USE_AMGX@
+MFEM_USE_MAGMA         = @MFEM_USE_MAGMA@
 MFEM_USE_GNUTLS        = @MFEM_USE_GNUTLS@
 MFEM_USE_NETCDF        = @MFEM_USE_NETCDF@
 MFEM_USE_PETSC         = @MFEM_USE_PETSC@
@@ -64,6 +67,7 @@ MFEM_USE_ADFORWARD     = @MFEM_USE_ADFORWARD@
 MFEM_USE_CODIPACK      = @MFEM_USE_CODIPACK@
 MFEM_USE_BENCHMARK     = @MFEM_USE_BENCHMARK@
 MFEM_USE_PARELAG       = @MFEM_USE_PARELAG@
+MFEM_USE_TRIBOL        = @MFEM_USE_TRIBOL@
 MFEM_USE_ENZYME        = @MFEM_USE_ENZYME@
 
 # Compiler, compile options, and link options

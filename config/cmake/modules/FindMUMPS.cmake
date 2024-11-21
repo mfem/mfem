@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -16,12 +16,22 @@
 #   - MUMPS_VERSION
 
 include(MfemCmakeUtilities)
+
+# Toggle which precision of MUMPS to use depending on the precision of MFEM.
+if (MFEM_USE_DOUBLE)
+  set(_mumps_header dmumps_c.h)
+  set(_mumps_lib dmumps)
+elseif(MFEM_USE_SINGLE)
+  set(_mumps_header smumps_c.h)
+  set(_mumps_lib smumps)
+endif()
+
 mfem_find_package(MUMPS MUMPS MUMPS_DIR
-  "include" dmumps_c.h "lib" dmumps
+  "include" ${_mumps_header} "lib" ${_mumps_lib}
   "Paths to headers required by MUMPS."
   "Libraries required by MUMPS."
-  ADD_COMPONENT mumps_common "include" dmumps_c.h "lib" mumps_common
-  ADD_COMPONENT pord "include" dmumps_c.h "lib" pord)
+  ADD_COMPONENT mumps_common "include" ${_mumps_header} "lib" mumps_common
+  ADD_COMPONENT pord "include" ${_mumps_header} "lib" pord)
 
 if (MUMPS_FOUND AND (NOT MUMPS_VERSION))
   try_run(MUMPS_VERSION_RUN_RESULT MUMPS_VERSION_COMPILE_RESULT
