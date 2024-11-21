@@ -950,6 +950,10 @@ public:
        without the need to save the whole matrix. */
    void PrintHash(std::ostream &out) const;
 
+   /// @brief Return the Frobenius norm of the matrix (or 0 if the underlying
+   /// hypre matrix is NULL)
+   real_t FNorm() const;
+
    /// Calls hypre's destroy function
    virtual ~HypreParMatrix() { Destroy(); }
 

@@ -340,7 +340,10 @@ if (MFEM_USE_SUNDIALS)
   if (MFEM_USE_HIP)
     list(APPEND SUNDIALS_COMPONENTS NVector_Hip)
   endif()
-  find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
+  # The Core component was added in SUNDIALS v7, so we treat it as optional in
+  # order to support older versions.
+  find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS}
+    OPTIONAL_COMPONENTS Core)
 endif()
 
 # SuperLU_DIST can only be enabled in parallel

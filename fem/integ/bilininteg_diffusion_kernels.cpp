@@ -17,7 +17,6 @@ namespace mfem
 
 // PA Diffusion Integrator
 
-DiffusionIntegrator::Kernels DiffusionIntegrator::kernels;
 DiffusionIntegrator::Kernels::Kernels()
 {
    // 2D

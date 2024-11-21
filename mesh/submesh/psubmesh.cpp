@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <algorithm>
 #include "psubmesh.hpp"
+#include "pncsubmesh.hpp"
 #include "submesh_utils.hpp"
 #include "../segment.hpp"
 
@@ -24,33 +25,29 @@ namespace mfem
 {
 
 ParSubMesh ParSubMesh::CreateFromDomain(const ParMesh &parent,
-                                        Array<int> &domain_attributes)
+                                        const Array<int> &domain_attributes)
 {
    return ParSubMesh(parent, SubMesh::From::Domain, domain_attributes);
 }
 
 ParSubMesh ParSubMesh::CreateFromBoundary(const ParMesh &parent,
-                                          Array<int> &boundary_attributes)
+                                          const Array<int> &boundary_attributes)
 {
    return ParSubMesh(parent, SubMesh::From::Boundary, boundary_attributes);
 }
 
 ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
-                       Array<int> &attributes) : parent_(parent), from_(from), attributes_(attributes)
+                       const Array<int> &attributes) : parent_(parent), from_(from),
+   attributes_(attributes)
 {
-   if (Nonconforming())
-   {
-      MFEM_ABORT("SubMesh does not support non-conforming meshes");
-   }
-
    MyComm = parent.GetComm();
    NRanks = parent.GetNRanks();
    MyRank = parent.GetMyRank();
 
-   // This violation of const-ness may be justified in this instance because
-   // the exchange of face neighbor information only establishes or updates
-   // derived information without altering the primary mesh information,
-   // i.e., the topology, geometry, or region attributes.
+   // This violation of const-ness may be justified in this instance because the
+   // exchange of face neighbor information only establishes or updates derived
+   // information without altering the primary mesh information, i.e., the
+   // topology, geometry, or region attributes.
    const_cast<ParMesh&>(parent).ExchangeFaceNbrData();
 
    if (from == SubMesh::From::Domain)
@@ -70,16 +67,48 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
                                                                       attributes_, true);
    }
 
-   // Don't let boundary elements get generated automatically. This would
-   // generate boundary elements on each rank locally, which is topologically
-   // wrong for the distributed SubMesh.
-   FinalizeTopology(false);
-
    parent_to_submesh_vertex_ids_.SetSize(parent_.GetNV());
    parent_to_submesh_vertex_ids_ = -1;
    for (int i = 0; i < parent_vertex_ids_.Size(); i++)
    {
       parent_to_submesh_vertex_ids_[parent_vertex_ids_[i]] = i;
+   }
+
+   parent_to_submesh_element_ids_.SetSize(from == From::Boundary ? parent.GetNBE()
+                                          : parent.GetNE());
+   parent_to_submesh_element_ids_ = -1;
+   for (int i = 0; i < parent_element_ids_.Size(); i++)
+   {
+      parent_to_submesh_element_ids_[parent_element_ids_[i]] = i;
+   }
+
+   // Don't let boundary elements get generated automatically. This would
+   // generate boundary elements on each rank locally, which is topologically
+   // wrong for the distributed SubMesh.
+   FinalizeTopology(false);
+
+   if (parent.Nonconforming())
+   {
+      pncmesh = new ParNCSubMesh(*this, *parent.pncmesh, from, attributes);
+      pncsubmesh_ = dynamic_cast<ParNCSubMesh*>(pncmesh);
+      ncmesh = pncmesh;
+      InitFromNCMesh(*pncmesh);
+      pncmesh->OnMeshUpdated(this);
+
+      // Update the submesh to parent vertex mapping, NCSubMesh reordered the
+      // vertices so the map to parent is no longer valid.
+      parent_to_submesh_vertex_ids_ = -1;
+      for (int i = 0; i < parent_vertex_ids_.Size(); i++)
+      {
+         // vertex -> node -> parent node -> parent vertex
+         auto node = pncsubmesh_->vertex_nodeId[i];
+         auto parent_node = pncsubmesh_->parent_node_ids_[node];
+         auto parent_vertex = parent.pncmesh->GetNodeVertex(parent_node);
+         parent_vertex_ids_[i] = parent_vertex;
+         parent_to_submesh_vertex_ids_[parent_vertex] = i;
+      }
+      GenerateNCFaceInfo();
+      SetAttributes();
    }
 
    DSTable v2v(parent_.GetNV());
@@ -115,7 +144,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
 
       parent_face_ori_.SetSize(NumOfFaces);
-
       for (int i = 0; i < NumOfFaces; i++)
       {
          Array<int> sub_vert;
@@ -191,7 +219,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    // Every rank containing elements of the ParSubMesh attributes now has a
    // local ParSubMesh. We have to connect the local meshes and assign global
    // boundaries correctly.
-
    Array<int> rhvtx;
    FindSharedVerticesRanks(rhvtx);
    AppendSharedVerticesGroups(groups, rhvtx);
@@ -206,6 +233,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       FindSharedFacesRanks(rht, rhq);
       AppendSharedFacesGroups(groups, rht, rhq);
    }
+
 
    // Build the group communication topology
    gtopo.SetComm(MyComm);
@@ -239,113 +267,17 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    ExchangeFaceNbrData();
 
-   // Add boundaries
+   SubMeshUtils::AddBoundaryElements(*this,
+                                     (from == SubMesh::From::Domain)
+                                     ? FindGhostBoundaryElementAttributes()
+                                     : std::unordered_map<int,int> {});
+
+   if (Dim > 1)
    {
-      const int num_codim_1 = [this]()
-      {
-         if (Dim == 1) { return NumOfVertices; }
-         else if (Dim == 2) { return NumOfEdges; }
-         else if (Dim == 3) { return NumOfFaces; }
-         else { MFEM_ABORT("Invalid dimension."); return -1; }
-      }();
-
-      if (Dim == 3)
-      {
-         // In 3D we check for `bel_to_edge`. It shouldn't have been set
-         // previously.
-         delete bel_to_edge;
-         bel_to_edge = nullptr;
-      }
-
-      NumOfBdrElements = 0;
-      for (int i = 0; i < num_codim_1; i++)
-      {
-         if (GetFaceInformation(i).IsBoundary())
-         {
-            NumOfBdrElements++;
-         }
-      }
-
-      boundary.SetSize(NumOfBdrElements);
-      be_to_face.SetSize(NumOfBdrElements);
-      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
-      int max_bdr_attr = parent.bdr_attributes.Max();
-
-      for (int i = 0, j = 0; i < num_codim_1; i++)
-      {
-         if (GetFaceInformation(i).IsBoundary())
-         {
-            boundary[j] = faces[i]->Duplicate(this);
-            be_to_face[j] = i;
-
-            if (from == SubMesh::From::Domain && Dim >= 2)
-            {
-               int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
-                           parent_face_to_be[parent_edge_ids_[i]];
-               if (pbeid != -1)
-               {
-                  boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
-               }
-               else
-               {
-                  boundary[j]->SetAttribute(max_bdr_attr + 1);
-               }
-            }
-            else
-            {
-               boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
-            }
-            ++j;
-         }
-      }
-
-      if (from == SubMesh::From::Domain && Dim >= 2)
-      {
-         // Search for and count interior boundary elements
-         int InteriorBdrElems = 0;
-         for (int i=0; i<parent.GetNBE(); i++)
-         {
-            const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
-            const int submeshFaceIdx =
-               Dim == 3 ?
-               parent_to_submesh_face_ids_[parentFaceIdx] :
-               parent_to_submesh_edge_ids_[parentFaceIdx];
-
-            if (submeshFaceIdx == -1) { continue; }
-            if (GetFaceInformation(submeshFaceIdx).IsBoundary()) { continue; }
-
-            InteriorBdrElems++;
-         }
-
-         if (InteriorBdrElems > 0)
-         {
-            const int OldNumOfBdrElements = NumOfBdrElements;
-            NumOfBdrElements += InteriorBdrElems;
-            boundary.SetSize(NumOfBdrElements);
-            be_to_face.SetSize(NumOfBdrElements);
-
-            // Search for and transfer interior boundary elements
-            for (int i=0, j = OldNumOfBdrElements; i<parent.GetNBE(); i++)
-            {
-               const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
-               const int submeshFaceIdx =
-                  parent_to_submesh_face_ids_[parentFaceIdx];
-
-               if (submeshFaceIdx == -1) { continue; }
-               if (GetFaceInformation(submeshFaceIdx).IsBoundary())
-               { continue; }
-
-               boundary[j] = faces[submeshFaceIdx]->Duplicate(this);
-               be_to_face[j] = submeshFaceIdx;
-               boundary[j]->SetAttribute(parent.GetBdrAttribute(i));
-
-               ++j;
-            }
-         }
-      }
+      if (!el_to_edge) { el_to_edge = new Table; }
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
    }
-
-   if (Dim == 3)
+   if (Dim > 2)
    {
       GetElementToFaceTable();
    }
@@ -376,84 +308,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
       Transfer(*pn, *n);
    }
-
-   if (Dim > 1)
-   {
-      if (!el_to_edge) { el_to_edge = new Table; }
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
-   }
-
-   if (Dim > 1 && from == SubMesh::From::Domain)
-   {
-      // Order 0 Raviart-Thomas space will have precisely 1 DoF per face.
-      // We can use this DoF to communicate boundary attribute numbers.
-      RT_FECollection fec_rt(0, Dim);
-      ParFiniteElementSpace parent_fes_rt(const_cast<ParMesh*>(&parent),
-                                          &fec_rt);
-
-      ParGridFunction parent_bdr_attr_gf(&parent_fes_rt);
-      parent_bdr_attr_gf = 0.0;
-
-      Array<int> vdofs;
-      DofTransformation doftrans;
-      int dof, faceIdx;
-      real_t sign, w;
-
-      // Copy boundary attribute numbers into local portion of a parallel
-      // grid function
-      parent_bdr_attr_gf.HostReadWrite(); // not modifying all entries
-      for (int i=0; i<parent.GetNBE(); i++)
-      {
-         faceIdx = parent.GetBdrElementFaceIndex(i);
-         const FaceInformation &faceInfo = parent.GetFaceInformation(faceIdx);
-         parent_fes_rt.GetBdrElementDofs(i, vdofs, doftrans);
-         dof = ParFiniteElementSpace::DecodeDof(vdofs[0], sign);
-
-         // Shared interior boundary elements are not duplicated across
-         // processor boundaries but ParGridFunction::ParallelAverage will
-         // assume both processors contribute to the averaged DoF value. So,
-         // we multiply shared boundary values by 2 so that the average
-         // produces the desired value.
-         w = faceInfo.IsShared() ? 2.0 : 1.0;
-
-         // The DoF sign is needed to ensure that non-shared interior
-         // boundary values sum properly rather than canceling.
-         parent_bdr_attr_gf[dof] = sign * w * parent.GetBdrAttribute(i);
-      }
-
-      Vector parent_bdr_attr(parent_fes_rt.GetTrueVSize());
-
-      // Compute the average of the attribute numbers
-      parent_bdr_attr_gf.ParallelAverage(parent_bdr_attr);
-      // Distribute boundary attributes to neighboring processors
-      parent_bdr_attr_gf.Distribute(parent_bdr_attr);
-
-      ParFiniteElementSpace submesh_fes_rt(this,
-                                           &fec_rt);
-
-      ParGridFunction submesh_bdr_attr_gf(&submesh_fes_rt);
-
-      // Transfer the averaged boundary attribute values to the submesh
-      auto transfer_map = ParSubMesh::CreateTransferMap(parent_bdr_attr_gf,
-                                                        submesh_bdr_attr_gf);
-      transfer_map.Transfer(parent_bdr_attr_gf, submesh_bdr_attr_gf);
-
-      // Extract the boundary attribute numbers from the local portion
-      // of the ParGridFunction and set the corresponding boundary element
-      // attributes.
-      int attr;
-      for (int i=0; i<NumOfBdrElements; i++)
-      {
-         submesh_fes_rt.GetBdrElementDofs(i, vdofs, doftrans);
-         dof = ParFiniteElementSpace::DecodeDof(vdofs[0], sign);
-         attr = (int)std::round(std::abs(submesh_bdr_attr_gf[dof]));
-         if (attr != 0)
-         {
-            SetBdrAttribute(i, attr);
-         }
-      }
-   }
-
    SetAttributes();
    Finalize();
 }
@@ -494,6 +348,7 @@ void ParSubMesh::FindSharedVerticesRanks(Array<int> &rhvtx)
       }
    }
 
+
    // Compute the sum on the root rank and broadcast the result to all ranks.
    svert_comm.Reduce(rhvtx, GroupCommunicator::Sum);
    svert_comm.Bcast<int>(rhvtx, 0);
@@ -511,8 +366,8 @@ void ParSubMesh::FindSharedEdgesRanks(Array<int> &rhe)
    rhe.SetSize(nsedges);
    rhe = 0;
 
-   // On each rank of the group, locally determine if the shared edge is in
-   // the SubMesh.
+   // On each rank of the group, locally determine if the shared edge is in the
+   // SubMesh.
    for (int g = 1, se = 0; g < parent_.GetNGroups(); g++)
    {
       const int group_sz = parent_.gtopo.GetGroupSize(g);
@@ -528,8 +383,7 @@ void ParSubMesh::FindSharedEdgesRanks(Array<int> &rhe)
 
       for (int ge = 0; ge < parent_.GroupNEdges(g); ge++, se++)
       {
-         int ple, o;
-         parent_.GroupEdge(g, ge, ple, o);
+         int ple = parent_.GroupEdge(g, ge);
          int submesh_edge_id = parent_to_submesh_edge_ids_[ple];
          if (submesh_edge_id != -1)
          {
@@ -538,6 +392,7 @@ void ParSubMesh::FindSharedEdgesRanks(Array<int> &rhe)
       }
    }
 
+
    // Compute the sum on the root rank and broadcast the result to all ranks.
    sedge_comm.Reduce(rhe, GroupCommunicator::Sum);
    sedge_comm.Bcast<int>(rhe, 0);
@@ -545,50 +400,21 @@ void ParSubMesh::FindSharedEdgesRanks(Array<int> &rhe)
 
 void ParSubMesh::FindSharedFacesRanks(Array<int>& rht, Array<int> &rhq)
 {
-   GroupCommunicator squad_comm(parent_.gtopo);
-   parent_.GetSharedQuadCommunicator(squad_comm);
-
-   int nsquad = squad_comm.GroupLDofTable().Size_of_connections();
-
-   rhq.SetSize(nsquad);
-   rhq = 0;
-
-   for (int g = 1, sq = 0; g < parent_.GetNGroups(); g++)
-   {
-      for (int gq = 0; gq < parent_.GroupNQuadrilaterals(g); gq++, sq++)
-      {
-         // Group size of a shared face is always 2
-
-         int plq, o;
-         parent_.GroupQuadrilateral(g, gq, plq, o);
-         int submesh_face_id = parent_to_submesh_face_ids_[plq];
-         if (submesh_face_id != -1)
-         {
-            rhq[sq] = 1;
-         }
-      }
-   }
-
-   // Compute the sum on the root rank and broadcast the result to all ranks.
-   squad_comm.Reduce(rhq, GroupCommunicator::Sum);
-   squad_comm.Bcast<int>(rhq, 0);
-
    GroupCommunicator stria_comm(parent_.gtopo);
    parent_.GetSharedTriCommunicator(stria_comm);
-
    int nstria = stria_comm.GroupLDofTable().Size_of_connections();
-
    rht.SetSize(nstria);
    rht = 0;
 
    for (int g = 1, st = 0; g < parent_.GetNGroups(); g++)
    {
+      MFEM_ASSERT(parent_.gtopo.GetGroupSize(g) == 2
+                  || parent_.GroupNTriangles(g) == 0,
+                  parent_.gtopo.GetGroupSize(g) << ' ' << parent_.GroupNTriangles(g));
       for (int gt = 0; gt < parent_.GroupNTriangles(g); gt++, st++)
       {
          // Group size of a shared face is always 2
-
-         int plt, o;
-         parent_.GroupTriangle(g, gt, plt, o);
+         int plt = parent_.GroupTriangle(g, gt);
          int submesh_face_id = parent_to_submesh_face_ids_[plt];
          if (submesh_face_id != -1)
          {
@@ -600,6 +426,33 @@ void ParSubMesh::FindSharedFacesRanks(Array<int>& rht, Array<int> &rhq)
    // Compute the sum on the root rank and broadcast the result to all ranks.
    stria_comm.Reduce(rht, GroupCommunicator::Sum);
    stria_comm.Bcast<int>(rht, 0);
+
+   GroupCommunicator squad_comm(parent_.gtopo);
+   parent_.GetSharedQuadCommunicator(squad_comm);
+   int nsquad = squad_comm.GroupLDofTable().Size_of_connections();
+   rhq.SetSize(nsquad);
+   rhq = 0;
+
+   for (int g = 1, sq = 0; g < parent_.GetNGroups(); g++)
+   {
+      MFEM_ASSERT(parent_.gtopo.GetGroupSize(g) == 2
+                  || parent_.GroupNQuadrilaterals(g) == 0,
+                  parent_.gtopo.GetGroupSize(g) << ' ' << parent_.GroupNQuadrilaterals(g));
+      for (int gq = 0; gq < parent_.GroupNQuadrilaterals(g); gq++, sq++)
+      {
+         // Group size of a shared face is always 2
+         int plq = parent_.GroupQuadrilateral(g, gq);
+         int submesh_face_id = parent_to_submesh_face_ids_[plq];
+         if (submesh_face_id != -1)
+         {
+            rhq[sq] = 1;
+         }
+      }
+   }
+
+   // Compute the sum on the root rank and broadcast the result to all ranks.
+   squad_comm.Reduce(rhq, GroupCommunicator::Sum);
+   squad_comm.Bcast<int>(rhq, 0);
 }
 
 
@@ -608,6 +461,7 @@ void ParSubMesh::AppendSharedVerticesGroups(ListOfIntegerSets &groups,
 {
    IntegerSet group;
 
+   // g = 0 corresponds to the singleton group of each rank alone.
    for (int g = 1, sv = 0; g < parent_.GetNGroups(); g++)
    {
       const int group_sz = parent_.gtopo.GetGroupSize(g);
@@ -679,8 +533,7 @@ void ParSubMesh::AppendSharedEdgesGroups(ListOfIntegerSets &groups,
 
       for (int ge = 0; ge < parent_.GroupNEdges(g); ge++, se++)
       {
-         int ple, o;
-         parent_.GroupEdge(g, ge, ple, o);
+         int ple = parent_.GroupEdge(g, ge);
          int submesh_edge = parent_to_submesh_edge_ids_[ple];
 
          // Reusing the `rhe` array as shared edge to group array.
@@ -729,8 +582,7 @@ void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
          const int group_sz = parent_.gtopo.GetGroupSize(g);
          MFEM_ASSERT(group_sz == 2, "internal error");
 
-         int plq, o;
-         parent_.GroupQuadrilateral(g, gq, plq, o);
+         int plq = parent_.GroupQuadrilateral(g, gq);
          int submesh_face_id = parent_to_submesh_face_ids_[plq];
 
          // Reusing the `rhq` array as shared face to group array.
@@ -743,8 +595,8 @@ void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
          {
             // shared face is present on this rank and others
 
-            // There can only be two ranks in this group sharing faces. Add
-            // all ranks to a new communication group.
+            // There can only be two ranks in this group sharing faces. Add all
+            // ranks to a new communication group.
             Array<int> &ranks = quad_group;
             ranks.SetSize(0);
             ranks.Append(parent_.gtopo.GetNeighborRank(group_lproc[0]));
@@ -770,8 +622,7 @@ void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
          const int group_sz = parent_.gtopo.GetGroupSize(g);
          MFEM_ASSERT(group_sz == 2, "internal error");
 
-         int plt, o;
-         parent_.GroupTriangle(g, gt, plt, o);
+         int plt = parent_.GroupTriangle(g, gt);
          int submesh_face_id = parent_to_submesh_face_ids_[plt];
 
          // Reusing the `rht` array as shared face to group array.
@@ -784,8 +635,8 @@ void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
          {
             // shared face is present on this rank and others
 
-            // There can only be two ranks in this group sharing faces. Add
-            // all ranks to a new communication group.
+            // There can only be two ranks in this group sharing faces. Add all
+            // ranks to a new communication group.
             Array<int> &ranks = tria_group;
             ranks.SetSize(0);
             ranks.Append(parent_.gtopo.GetNeighborRank(group_lproc[0]));
@@ -802,96 +653,46 @@ void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
    }
 }
 
-void ParSubMesh::BuildVertexGroup(int ngroups, const Array<int>& rhvtx,
-                                  int& nsverts)
+void BuildGroup(Table &group, int ngroups, const Array<int>& rh, int &ns)
 {
-   group_svert.MakeI(ngroups);
-   for (int i = 0; i < rhvtx.Size(); i++)
+   group.MakeI(ngroups);
+   for (int i = 0; i < rh.Size(); i++)
    {
-      if (rhvtx[i] >= 0)
+      if (rh[i] >= 0)
       {
-         group_svert.AddAColumnInRow(rhvtx[i]);
+         group.AddAColumnInRow(rh[i]);
       }
    }
 
-   group_svert.MakeJ();
-   nsverts = 0;
-   for (int i = 0; i < rhvtx.Size(); i++)
+   group.MakeJ();
+   ns = 0;
+   for (int i = 0; i < rh.Size(); i++)
    {
-      if (rhvtx[i] >= 0)
+      if (rh[i] >= 0)
       {
-         group_svert.AddConnection(rhvtx[i], nsverts++);
+         group.AddConnection(rh[i], ns++);
       }
    }
-   group_svert.ShiftUpI();
+   group.ShiftUpI();
+}
+
+void ParSubMesh::BuildVertexGroup(int ngroups, const Array<int>& rhvtx,
+                                  int& nsverts)
+{
+   BuildGroup(group_svert, ngroups, rhvtx, nsverts);
 }
 
 void ParSubMesh::BuildEdgeGroup(int ngroups, const Array<int>& rhe,
                                 int& nsedges)
 {
-   group_sedge.MakeI(ngroups);
-   for (int i = 0; i < rhe.Size(); i++)
-   {
-      if (rhe[i] >= 0)
-      {
-         group_sedge.AddAColumnInRow(rhe[i]);
-      }
-   }
-
-   group_sedge.MakeJ();
-   nsedges = 0;
-   for (int i = 0; i < rhe.Size(); i++)
-   {
-      if (rhe[i] >= 0)
-      {
-         group_sedge.AddConnection(rhe[i], nsedges++);
-      }
-   }
-   group_sedge.ShiftUpI();
+   BuildGroup(group_sedge, ngroups, rhe, nsedges);
 }
 
 void ParSubMesh::BuildFaceGroup(int ngroups, const Array<int>& rht,
                                 int& nstrias, const Array<int>& rhq, int& nsquads)
 {
-   group_squad.MakeI(ngroups);
-   for (int i = 0; i < rhq.Size(); i++)
-   {
-      if (rhq[i] >= 0)
-      {
-         group_squad.AddAColumnInRow(rhq[i]);
-      }
-   }
-
-   group_squad.MakeJ();
-   nsquads = 0;
-   for (int i = 0; i < rhq.Size(); i++)
-   {
-      if (rhq[i] >= 0)
-      {
-         group_squad.AddConnection(rhq[i], nsquads++);
-      }
-   }
-   group_squad.ShiftUpI();
-
-   group_stria.MakeI(ngroups);
-   for (int i = 0; i < rht.Size(); i++)
-   {
-      if (rht[i] >= 0)
-      {
-         group_stria.AddAColumnInRow(rht[i]);
-      }
-   }
-
-   group_stria.MakeJ();
-   nstrias = 0;
-   for (int i = 0; i < rht.Size(); i++)
-   {
-      if (rht[i] >= 0)
-      {
-         group_stria.AddConnection(rht[i], nstrias++);
-      }
-   }
-   group_stria.ShiftUpI();
+   BuildGroup(group_squad, ngroups, rhq, nsquads);
+   BuildGroup(group_stria, ngroups, rht, nstrias);
 }
 
 void ParSubMesh::BuildSharedVerticesMapping(const int nsverts,
@@ -943,8 +744,8 @@ void ParSubMesh::BuildSharedEdgesMapping(const int sedges_ct,
             int v0 = parent_to_submesh_vertex_ids_[vert[(1-o)/2]];
             int v1 = parent_to_submesh_vertex_ids_[vert[(1+o)/2]];
 
-            // The orienation of the shared edge relative to the local edge
-            // will be determined by whether v0 < v1 or v1 < v0
+            // The orienation of the shared edge relative to the local edge will
+            // be determined by whether v0 < v1 or v1 < v0
             shared_edges.Append(new Segment(v0, v1, 1));
             sedge_ledge.Append(submesh_edge_id);
          }
@@ -960,9 +761,8 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
    shared_quads.Reserve(nsquads);
    sface_lface.Reserve(nstrias + nsquads);
 
-   // sface_lface should list the triangular shared faces first
-   // followed by the quadrilateral shared faces.
-
+   // sface_lface should list the triangular shared faces first followed by the
+   // quadrilateral shared faces.
    for (int g = 1, st = 0; g < parent_.GetNGroups(); g++)
    {
       for (int gt = 0; gt < parent_.GroupNTriangles(g); gt++, st++)
@@ -1028,7 +828,7 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
             int v2 = vert[2];
             int v3 = vert[3];
 
-            // See Mesh::GetQuadOrientation for info on interpretting "o"
+            // See Mesh::GetQuadOrientation for info on interpreting "o"
             switch (o)
             {
                case 1:
@@ -1057,10 +857,254 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
    }
 }
 
+std::unordered_map<int, int>
+ParSubMesh::FindGhostBoundaryElementAttributes() const
+{
+   // Loop over shared faces in the parent mesh, find their attributes if they
+   // exist, and map to local faces in the submesh.
+   std::unordered_map<int,int> lface_boundary_attribute;
+   const auto &face_to_be = parent_.GetFaceToBdrElMap();
+   if (Dim == 3)
+   {
+      GroupCommunicator squad_comm(parent_.gtopo);
+      parent_.GetSharedQuadCommunicator(squad_comm);
+      int nsquad = squad_comm.GroupLDofTable().Size_of_connections();
+
+      GroupCommunicator stria_comm(parent_.gtopo);
+      parent_.GetSharedTriCommunicator(stria_comm);
+      int nstria = stria_comm.GroupLDofTable().Size_of_connections();
+
+      Array<int> stba(nstria), sqba(nsquad);
+      Array<int> parent_ltface(nstria), parent_lqface(nsquad);
+      stba = 0; sqba = 0;
+      parent_ltface = -1; parent_lqface = -1;
+      for (int g = 1, st = 0; g < parent_.GetNGroups(); g++)
+      {
+         for (int gt = 0; gt < parent_.GroupNTriangles(g); gt++, st++)
+         {
+            // Group size of a shared face is always 2
+            int plt = parent_.GroupTriangle(g, gt);
+            auto pbe = face_to_be[plt];
+            if (pbe >= 0)
+            {
+               stba[st] = parent_.GetBdrAttribute(pbe);
+            }
+            parent_ltface[st] = plt;
+         }
+      }
+      for (int g = 1, sq = 0; g < parent_.GetNGroups(); g++)
+      {
+         for (int gq = 0; gq < parent_.GroupNQuadrilaterals(g); gq++, sq++)
+         {
+            // Group size of a shared face is always 2
+            int plq = parent_.GroupQuadrilateral(g, gq);
+            auto pbe = face_to_be[plq];
+            if (pbe >= 0)
+            {
+               sqba[sq] = parent_.GetBdrAttribute(pbe);
+            }
+            parent_lqface[sq] = plq;
+         }
+      }
+#ifdef MFEM_DEBUG
+      auto pre_stba = stba;
+      auto pre_sqba = sqba;
+#endif
+      stria_comm.Reduce(stba, GroupCommunicator::Sum);
+      stria_comm.Bcast<int>(stba, 0);
+      squad_comm.Reduce(sqba, GroupCommunicator::Sum);
+      squad_comm.Bcast<int>(sqba, 0);
+#ifdef MFEM_DEBUG
+      {
+         Array<int> fail_indices;
+         fail_indices.Reserve(stba.Size());
+         for (int i = 0; i < stba.Size(); i++)
+            if (pre_stba[i] != 0 && pre_stba[i] != stba[i])
+            {
+               fail_indices.Append(i);
+            }
+         MFEM_ASSERT(fail_indices.Size() == 0, [&]()
+         {
+            std::stringstream msg;
+            msg << "More than one rank found attribute on shared tri face: ";
+            for (auto x : fail_indices)
+            {
+               msg << x << ' ';
+            }
+            return msg.str();
+         }());
+      }
+
+      {
+         Array<int> fail_indices;
+         fail_indices.Reserve(sqba.Size());
+         for (int i = 0; i < sqba.Size(); i++)
+            if (pre_sqba[i] != 0 && pre_sqba[i] != sqba[i])
+            {
+               fail_indices.Append(i);
+            }
+         MFEM_ASSERT(fail_indices.Size() == 0, [&]()
+         {
+            std::stringstream msg;
+            msg << "More than one rank found attribute on shared quad face: ";
+            for (auto x : fail_indices)
+            {
+               msg << x << ' ';
+            }
+            return msg.str();
+         }());
+      }
+#endif
+      int nghost = 0;
+      for (auto x : stba)
+         if (x > 0) { ++nghost; }
+
+      for (auto x : sqba)
+         if (x > 0) { ++nghost; }
+
+      lface_boundary_attribute.reserve(nghost);
+      for (int i = 0; i < stba.Size(); i++)
+         if (stba[i] > 0)
+         {
+            MFEM_ASSERT(parent_ltface[i] > -1, i);
+            lface_boundary_attribute[parent_ltface[i]] = stba[i];
+         }
+      for (int i = 0; i < sqba.Size(); i++)
+         if (sqba[i] > 0)
+         {
+            MFEM_ASSERT(parent_lqface[i] > -1, i);
+            lface_boundary_attribute[parent_lqface[i]] = sqba[i];
+         }
+   }
+   else if (Dim == 2)
+   {
+      GroupCommunicator sedge_comm(parent_.gtopo);
+      parent_.GetSharedEdgeCommunicator(sedge_comm);
+      int nsedge = sedge_comm.GroupLDofTable().Size_of_connections();
+
+      Array<int> seba(nsedge), parent_ledge(nsedge);
+      seba = 0; parent_ledge = -1;
+      for (int g = 1, se = 0; g < parent_.GetNGroups(); g++)
+      {
+         for (int ge = 0; ge < parent_.GroupNEdges(g); ge++, se++)
+         {
+            // Group size of a shared edge is always 2
+            int ple = parent_.GroupEdge(g, ge);
+            auto pbe = face_to_be[ple];
+            if (pbe >= 0)
+            {
+               seba[se] = parent_.GetBdrAttribute(pbe);
+            }
+            parent_ledge[se] = ple;
+         }
+      }
+
+#ifdef MFEM_DEBUG
+      auto pre_seba = seba;
+#endif
+      sedge_comm.Reduce(seba, GroupCommunicator::Sum);
+      sedge_comm.Bcast<int>(seba, 0);
+#ifdef MFEM_DEBUG
+      {
+         Array<int> fail_indices;
+         fail_indices.Reserve(seba.Size());
+         for (int i = 0; i < seba.Size(); i++)
+            if (pre_seba[i] != 0 && pre_seba[i] != seba[i])
+            {
+               fail_indices.Append(i);
+            }
+         MFEM_ASSERT(fail_indices.Size() == 0, [&]()
+         {
+            std::stringstream msg;
+            msg << "More than one rank found attribute on shared edge: ";
+            for (auto x : fail_indices)
+            {
+               msg << x << ' ';
+            }
+            return msg.str();
+         }());
+      }
+#endif
+      int nghost = 0;
+      for (auto x : seba)
+         if (x > 0) { ++nghost; }
+
+      lface_boundary_attribute.reserve(nghost);
+      for (int i = 0; i < seba.Size(); i++)
+         if (seba[i] > 0)
+         {
+            MFEM_ASSERT(parent_ledge[i] > -1, i);
+            lface_boundary_attribute[parent_ledge[i]] = seba[i];
+         }
+   }
+   else if (Dim == 1)
+   {
+      GroupCommunicator svert_comm(parent_.gtopo);
+      parent_.GetSharedVertexCommunicator(svert_comm);
+      int nsvtx = svert_comm.GroupLDofTable().Size_of_connections();
+
+      Array<int> svba(nsvtx), parent_lvtx(nsvtx);
+      svba = 0; parent_lvtx = -1;
+      for (int g = 1, sv = 0; g < parent_.GetNGroups(); g++)
+      {
+         for (int gv = 0; gv < parent_.GroupNVertices(g); gv++, sv++)
+         {
+            // Group size of a shared vertex is always 2
+            int plv = parent_.GroupVertex(g, gv);
+            auto pbe = face_to_be[plv];
+            if (pbe >= 0)
+            {
+               svba[sv] = parent_.GetBdrAttribute(pbe);
+            }
+            parent_lvtx[sv] = plv;
+         }
+      }
+
+#ifdef MFEM_DEBUG
+      auto pre_svba = svba;
+#endif
+      svert_comm.Reduce(svba, GroupCommunicator::Sum);
+      svert_comm.Bcast<int>(svba, 0);
+#ifdef MFEM_DEBUG
+      {
+         Array<int> fail_indices;
+         fail_indices.Reserve(svba.Size());
+         for (int i = 0; i < svba.Size(); i++)
+            if (pre_svba[i] != 0 && pre_svba[i] != svba[i])
+            {
+               fail_indices.Append(i);
+            }
+         MFEM_ASSERT(fail_indices.Size() == 0, [&]()
+         {
+            std::stringstream msg;
+            msg << "More than one rank found attribute on shared vertex: ";
+            for (auto x : fail_indices)
+            {
+               msg << x << ' ';
+            }
+            return msg.str();
+         }());
+      }
+#endif
+      int nghost = 0;
+      for (auto x : svba)
+         if (x > 0) { ++nghost; }
+
+      lface_boundary_attribute.reserve(nghost);
+      for (int i = 0; i < svba.Size(); i++)
+         if (svba[i] > 0)
+         {
+            MFEM_ASSERT(parent_lvtx[i] > -1, i);
+            lface_boundary_attribute[parent_lvtx[i]] = svba[i];
+         }
+   }
+   return lface_boundary_attribute;
+}
+
+
 void ParSubMesh::Transfer(const ParGridFunction &src, ParGridFunction &dst)
 {
-   ParTransferMap map(src, dst);
-   map.Transfer(src, dst);
+   CreateTransferMap(src, dst).Transfer(src, dst);
 }
 
 ParTransferMap ParSubMesh::CreateTransferMap(const ParGridFunction &src,
