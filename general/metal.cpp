@@ -239,8 +239,8 @@ void printAST(const node_t& node, int depth = 0)
 {
    if (!node) { return; }
 
-   for (int i = 0; i < depth; ++i) { std::cout << "  "; }
-   std::cout << node->c << std::endl;
+   for (int i = 0; i < depth; ++i) { mfem::out << "  "; }
+   mfem::out << node->c << std::endl;
 
    printAST(node->left, depth + 1);
    printAST(node->right, depth + 1);
