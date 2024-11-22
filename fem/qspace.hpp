@@ -30,13 +30,16 @@ protected:
    Mesh &mesh; ///< The underlying mesh.
    int order; ///< The order of integration rule.
    int size; ///< Total number of quadrature points.
+   int ne; ///< Actual number of entities
    mutable Vector weights; ///< Integration weights.
    mutable long nodes_sequence = 0; ///< Nodes counter for cache invalidation.
 
-   /// @brief Entity quadrature point offset array, of size num_entities + 1.
+   /// @brief Entity quadrature point offset array. Supports a constant
+   /// compression scheme for meshes which have a single geometry type. When
+   /// compressed, will have a single value. The true offset can be computed as
+   /// i * offsets[0], where i is the entity index. Otherwise has size
+   /// num_entities + 1.
    ///
-   /// The quadrature point values for entity i are stored in the indices between
-   /// offsets[i] and offsets[i+1].
    Array<int> offsets;
    /// The quadrature rules used for each geometry type.
    const IntegrationRule *int_rule[Geometry::NumGeom];
@@ -57,6 +60,15 @@ protected:
 
    /// Compute the integration weights.
    void ConstructWeights() const;
+
+   /// Gets the offset for a given entity @a idx.
+   ///
+   /// The quadrature point values for entity i are stored in the indices
+   /// between Offset(i) and Offset(i+1)
+   int Offset(int idx) const
+   {
+      return (offsets.Size() == 1) ? (idx * offsets[0]) : offsets[idx];
+   }
 
 public:
    /// Return the total number of quadrature points.
