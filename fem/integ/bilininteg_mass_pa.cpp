@@ -60,57 +60,22 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
-
-   if (dim==1) { MFEM_ABORT("Not supported yet... stay tuned!"); }
-   if (dim==2)
    {
       const int NE = ne;
-      const int Q1D = quad1D;
+      const int NQ = nq;
       const bool const_c = coeff.Size() == 1;
       const bool by_val = map_type == FiniteElement::VALUE;
-      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
-      const auto J = Reshape(geom->detJ.Read(), Q1D,Q1D,NE);
-      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
-                     Reshape(coeff.Read(), Q1D,Q1D,NE);
-      auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
-      mfem::forall_2D(NE,Q1D,Q1D, [=] MFEM_HOST_DEVICE (int e)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               const real_t detJ = J(qx,qy,e);
-               const real_t coeff = const_c ? C(0,0,0) : C(qx,qy,e);
-               v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
-            }
-         }
-      });
-   }
-   if (dim==3)
-   {
-      const int NE = ne;
-      const int Q1D = quad1D;
-      const bool const_c = coeff.Size() == 1;
-      const bool by_val = map_type == FiniteElement::VALUE;
-      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D,Q1D);
-      const auto J = Reshape(geom->detJ.Read(), Q1D,Q1D,Q1D,NE);
-      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1,1) :
-                     Reshape(coeff.Read(), Q1D,Q1D,Q1D,NE);
-      auto v = Reshape(pa_data.Write(), Q1D,Q1D,Q1D,NE);
-      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               MFEM_FOREACH_THREAD(qz,z,Q1D)
-               {
-                  const real_t detJ = J(qx,qy,qz,e);
-                  const real_t coeff = const_c ? C(0,0,0,0) : C(qx,qy,qz,e);
-                  v(qx,qy,qz,e) = W(qx,qy,qz) * coeff * (by_val ? detJ : 1.0/detJ);
-               }
-            }
-         }
+      const auto W = Reshape(ir->GetWeights().Read(), NQ);
+      const auto J = Reshape(geom->detJ.Read(), NQ, NE);
+      const auto C =
+          const_c ? Reshape(coeff.Read(), 1, 1) : Reshape(coeff.Read(), NQ, NE);
+      auto v = Reshape(pa_data.Write(), NQ, NE);
+      mfem::forall(NE * NQ, [=] MFEM_HOST_DEVICE(int idx) {
+         int e = idx / NQ;
+         int q = idx % NQ;
+         const real_t detJ = J(q, e);
+         const real_t coeff = const_c ? C(0, 0) : C(q, e);
+         v(q, e) = W(q) * coeff * (by_val ? detJ : 1.0 / detJ);
       });
    }
 }
@@ -143,49 +108,23 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    const int NE = ne;
+   const int NQ = nq;
    const int Q1D = quad1D;
    const bool const_c = coeff.Size() == 1;
    const bool by_val = map_type == FiniteElement::VALUE;
-   if (dim==1)
    {
-      const auto W = Reshape(ir->GetWeights().Read(), Q1D);
-      const auto J = Reshape(face_geom->detJ.Read(), Q1D, NE);
-      const auto C = const_c ? Reshape(coeff.Read(), 1, 1) :
-                     Reshape(coeff.Read(), Q1D, NE);
-      auto v = Reshape(pa_data.Write(), Q1D, NE);
-      mfem::forall_2D(NE, Q1D, 1, [=] MFEM_HOST_DEVICE (int e)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            const real_t detJ = J(qx,e);
-            const real_t coeff = const_c ? C(0,0) : C(qx,e);
-            v(qx,e) =  W(qx) * coeff * (by_val ? detJ : 1.0/detJ);
-         }
+      const auto W = Reshape(ir->GetWeights().Read(), NQ);
+      const auto J = Reshape(face_geom->detJ.Read(), NQ, NE);
+      const auto C = const_c ? Reshape(coeff.Read(), 1, 1)
+                             : Reshape(coeff.Read(), NQ, NE);
+      auto v = Reshape(pa_data.Write(), NQ, NE);
+      mfem::forall(NE * NQ, [=] MFEM_HOST_DEVICE(int idx) {
+         int e = idx / NQ;
+         int q = idx % NQ;
+         const real_t detJ = J(q, e);
+         const real_t coeff = const_c ? C(0, 0) : C(q, e);
+         v(q, e) = W(q) * coeff * (by_val ? detJ : 1.0 / detJ);
       });
-   }
-   else if (dim==2)
-   {
-      const auto W = Reshape(ir->GetWeights().Read(), Q1D,Q1D);
-      const auto J = Reshape(face_geom->detJ.Read(), Q1D,Q1D,NE);
-      const auto C = const_c ? Reshape(coeff.Read(), 1,1,1) :
-                     Reshape(coeff.Read(), Q1D,Q1D,NE);
-      auto v = Reshape(pa_data.Write(), Q1D,Q1D, NE);
-      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
-      {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qy,y,Q1D)
-            {
-               const real_t detJ = J(qx,qy,e);
-               const real_t coeff = const_c ? C(0,0,0) : C(qx,qy,e);
-               v(qx,qy,e) =  W(qx,qy) * coeff * (by_val ? detJ : 1.0/detJ);
-            }
-         }
-      });
-   }
-   else
-   {
-      MFEM_ABORT("Not supported.");
    }
 }
 
