@@ -2318,8 +2318,8 @@ OptimizationProblem::OptimizationProblem(const int insize,
 
 void OptimizationProblem::SetEqualityConstraint(const Vector &c)
 {
-   MFEM_VERIFY(C, "The C operator is unspecified -- can't set constraints.");
-   MFEM_VERIFY(c.Size() == C->Height(), "Wrong size of the constraint.");
+   // MFEM_VERIFY(C, "The C operator is unspecified -- can't set constraints.");
+   // MFEM_VERIFY(c.Size() == C->Height(), "Wrong size of the constraint.");
 
    c_e = &c;
 }
@@ -2344,6 +2344,8 @@ void OptimizationProblem::SetSolutionBounds(const Vector &xl, const Vector &xh)
 
 int OptimizationProblem::GetNumConstraints() const
 {
+   return 1;               //Mathias hardcoded to one constraint ->fix
+
    int m = 0;
    if (C) { m += C->Height(); }
    if (D) { m += D->Height(); }

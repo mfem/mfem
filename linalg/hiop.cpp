@@ -62,13 +62,13 @@ bool HiopOptimizationProblem::get_cons_info(const size_type &m,
    MFEM_ASSERT(m == m_total, "Global constraint size mismatch.");
 
    int csize = 0;
-   if (problem.GetC())
-   {
+   // if (problem.GetC())
+   // {
       csize = problem.GetEqualityVec()->Size();
       const int s = csize * sizeof(double);
       std::memcpy(clow, problem.GetEqualityVec()->GetData(), s);
       std::memcpy(cupp, problem.GetEqualityVec()->GetData(), s);
-   }
+   //}
    if (problem.GetD())
    {
       const int s = problem.GetInequalityVec_Lo()->Size() * sizeof(double);
@@ -123,15 +123,18 @@ bool HiopOptimizationProblem::eval_cons(const size_type &n, const size_type &m,
    if (num_cons == 0) { return true; }
 
    if (new_x) { constr_info_is_current = false; }
+   Vector x_vec(ntdofs_loc), constr_vec(num_cons);;
    Vector x_vec(ntdofs_loc);
    x_vec = x;
    problem.new_x = new_x;
    UpdateConstrValsGrads(x_vec);
+   problem.CalcConstraint(x_vec,constr_vec);
 
    for (int c = 0; c < num_cons; c++)
    {
-      MFEM_ASSERT(idx_cons[c] < m_total, "Constraint index is out of bounds.");
-      cons[c] = constr_vals(idx_cons[c]);
+      cons[c] = constr_vec[c];
+      // MFEM_ASSERT(idx_cons[c] < m_total, "Constraint index is out of bounds.");
+      // cons[c] = constr_vals(idx_cons[c]);
    }
 
    return true;
@@ -151,10 +154,12 @@ bool HiopOptimizationProblem::eval_Jac_cons(const size_type &n,
    if (num_cons == 0) { return true; }
 
    if (new_x) { constr_info_is_current = false; }
+   Vector x_vec(ntdofs_loc), gradf_vec(ntdofs_loc);
    Vector x_vec(ntdofs_loc);
    x_vec = x;
    problem.new_x = new_x;
-   UpdateConstrValsGrads(x_vec);
+   //UpdateConstrValsGrads(x_vec);
+      problem.CalcConstraintGrad(x_vec, gradf_vec);
 
    for (int c = 0; c < num_cons; c++)
    {
@@ -162,7 +167,8 @@ bool HiopOptimizationProblem::eval_Jac_cons(const size_type &n,
       for (int j = 0; j < ntdofs_loc; j++)
       {
          // The matrix is stored by rows.
-         Jac[c * ntdofs_loc + j] = constr_grads(idx_cons[c], j);
+         Jac[c * ntdofs_loc + j] = gradf_vec[j];
+         //Jac[c * ntdofs_loc + j] = constr_grads(idx_cons[c], j);
       }
    }
 
