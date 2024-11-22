@@ -203,6 +203,7 @@ void FaceQuadratureSpace::ConstructOffsets()
 {
    face_indices.SetSize(num_faces);
    offsets.SetSize(num_faces + 1);
+   ne = num_faces;
    int offset = 0;
    int f_idx = 0;
    for (int i = 0; i < mesh.GetNumFacesWithGhost(); i++)
