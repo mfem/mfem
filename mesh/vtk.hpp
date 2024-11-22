@@ -13,6 +13,7 @@
 #define MFEM_VTK
 
 #include <cstdint>
+#include <string>
 
 #include "../fem/geom.hpp"
 #include "../general/binaryio.hpp"
@@ -184,6 +185,10 @@ void WriteBinaryOrASCII<float>(std::ostream &os, std::vector<char> &buf,
 /// @sa WriteVTKEncodedCompressed.
 void WriteBase64WithSizeAndClear(std::ostream &os, std::vector<char> &buf,
                                  int compression_level);
+
+/// @brief Returns a string defining the component labels for vector-valued data
+/// arrays for use in XML VTU files.
+std::string VTKComponentLabels(int vdim);
 
 } // namespace mfem
 

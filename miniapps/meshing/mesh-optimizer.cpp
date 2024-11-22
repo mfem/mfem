@@ -51,14 +51,13 @@
 //   Adapted discrete size NC mesh;
 //     mesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size 3D with PA:
-//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
+//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
 //   Adapted discrete size 3D with PA on device (requires CUDA):
 //   * mesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
 //   Adapted discrete size+orientation:
 //      mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
 //   Adapted discrete aspect ratio (3D):
@@ -67,7 +66,7 @@
 //   Adaptive limiting:
 //     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
-//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
 //   Adaptive limiting through FD (requires GSLIB):
 //   * mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
@@ -1109,8 +1108,8 @@ int main(int argc, char *argv[])
    }
    // Level of output.
    IterativeSolver::PrintLevel newton_print;
-   if (verbosity_level > 0)
-   { newton_print.Errors().Warnings().Iterations(); }
+   if (verbosity_level > 0) { newton_print.Errors().Warnings().Iterations(); }
+   else { newton_print.Errors().Warnings(); }
    solver.SetPrintLevel(newton_print);
    // hr-adaptivity solver.
    // If hr-adaptivity is disabled, r-adaptivity is done once using the

@@ -4807,19 +4807,15 @@ const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
 #ifdef MFEM_USE_MPI
 ParNURBSExtension::ParNURBSExtension(const ParNURBSExtension &orig)
    : NURBSExtension(orig),
-     partitioning(orig.partitioning ? new int[orig.GetGNE()] : NULL),
+     partitioning(orig.partitioning),
      gtopo(orig.gtopo),
      ldof_group(orig.ldof_group)
 {
-   // Copy the partitioning, if not NULL
-   if (partitioning)
-   {
-      std::memcpy(partitioning, orig.partitioning, orig.GetGNE()*sizeof(int));
-   }
 }
 
 ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
-                                     int *part, const Array<bool> &active_bel)
+                                     const int *partitioning_,
+                                     const Array<bool> &active_bel)
    : gtopo(comm)
 {
    if (parent->NumOfActiveElems < parent->NumOfElements)
@@ -4857,11 +4853,11 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
    CountElements();
    CountBdrElements();
 
-   // copy 'part' to 'partitioning'
-   partitioning = new int[GetGNE()];
+   // copy 'partitioning_' to 'partitioning'
+   partitioning.SetSize(GetGNE());
    for (int i = 0; i < GetGNE(); i++)
    {
-      partitioning[i] = part[i];
+      partitioning[i] = partitioning_[i];
    }
    SetActive(partitioning, active_bel);
 
@@ -4951,8 +4947,6 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    MFEM_VERIFY(!parent->HavePatches(), "");
 
    delete parent;
-
-   partitioning = NULL;
 
    MFEM_VERIFY(par_parent->partitioning,
                "parent ParNURBSExtension has no partitioning!");

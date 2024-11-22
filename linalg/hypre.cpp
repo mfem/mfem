@@ -87,6 +87,9 @@ void Hypre::SetDefaultOptions()
 #elif defined(HYPRE_USING_HIP)
    // Use rocSPARSE instead of hypre's SpGEMM for performance reasons (default)
    // HYPRE_SetSpGemmUseCusparse(1);
+
+   // Use hypre's SpMV instead of rocSPARSE for performance reasons.
+   HYPRE_SetSpMVUseVendor(0);
 #endif
 #endif
 
@@ -206,6 +209,24 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_VectorData(x_loc) = data_;
    _SetDataAndSize_();
    own_ParVector = 1;
+}
+
+HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
+                               Vector &base, int offset, HYPRE_BigInt *col)
+   : HypreParVector(comm, glob_size, nullptr, col, false)
+{
+   MFEM_ASSERT(CanShallowCopy(base.GetMemory(), GetHypreMemoryClass()),
+               "the MemoryTypes of 'base' are incompatible with Hypre!");
+   MFEM_ASSERT(offset + size <= base.Size(),
+               "the size of 'base' is too small!");
+
+   data.Delete();
+   data.MakeAlias(base.GetMemory(), offset, size);
+   hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
+   hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
+#ifdef HYPRE_USING_GPU
+   hypre_VectorMemoryLocation(x_loc) = GetHypreMemoryLocation();
+#endif
 }
 
 // Call the move constructor on the "compatible" temp vector
@@ -1577,14 +1598,12 @@ void HypreParMatrix::GetDiag(Vector &diag) const
 {
    const int size = Height();
    diag.SetSize(size);
-   auto hypre_ml = GetHypreMemoryLocation();
    // Avoid using GetHypreMemoryClass() since it may be MemoryClass::MANAGED and
    // that may not play well with the memory types used by 'diag'.
-   MemoryClass hypre_mc = (hypre_ml == HYPRE_MEMORY_HOST) ?
-                          MemoryClass::HOST : MemoryClass::DEVICE;
+   MemoryClass hypre_mc = GetHypreForallMemoryClass();
    real_t *diag_hd = diag.GetMemory().Write(hypre_mc, size);
 #if MFEM_HYPRE_VERSION >= 21800
-   MFEM_VERIFY(A->diag->memory_location == hypre_ml,
+   MFEM_VERIFY(A->diag->memory_location == GetHypreMemoryLocation(),
                "unexpected HypreParMatrix memory location!");
 #endif
    const HYPRE_Int *A_diag_i = A->diag->i;
@@ -2491,7 +2510,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
 
    const int n_ess_dofs = ess_dofs.Size();
    const auto ess_dofs_d = ess_dofs.GetMemory().Read(
-                              GetHypreMemoryClass(), n_ess_dofs);
+                              GetHypreForallMemoryClass(), n_ess_dofs);
 
    // Start communication to figure out which columns need to be eliminated in
    // the off-diagonal block
@@ -2773,6 +2792,33 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
    hf.AppendInts(A->col_map_offd, A->offd->num_cols);
    os << "col map offd hash : " << hf.GetHash() << '\n';
 }
+
+real_t HypreParMatrix::FNorm() const
+{
+   real_t norm_fro = 0.0;
+   if (A != NULL)
+#if MFEM_HYPRE_VERSION >= 21900
+   {
+      const int ierr = hypre_ParCSRMatrixNormFro(A, &norm_fro);
+      MFEM_VERIFY(ierr == 0, "");
+   }
+#else
+   {
+      // HYPRE_USING_GPU is not defined for
+      // MFEM_HYPRE_VERSION < 22100 and so here it is
+      // guaranteed that the matrix is in "host" memory
+      Vector Avec_diag(A->diag->data, A->diag->num_nonzeros);
+      real_t normsqr_fro = InnerProduct(Avec_diag, Avec_diag);
+      Vector Avec_offd(A->offd->data, A->offd->num_nonzeros);
+      normsqr_fro += InnerProduct(Avec_offd, Avec_offd);
+      MPI_Allreduce(MPI_IN_PLACE, &normsqr_fro, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, hypre_ParCSRMatrixComm(A));
+      norm_fro = sqrt(normsqr_fro);
+   }
+#endif
+   return norm_fro;
+}
+
 
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
 {

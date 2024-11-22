@@ -37,7 +37,7 @@ FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL),
      fec_map_lin(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
-     dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
+     dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
    mesh_split.SetSize(4);
@@ -85,7 +85,7 @@ FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    : mesh(NULL),
      fec_map_lin(NULL),
      fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
-     dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
+     dim(-1), points_cnt(-1), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
    mesh_split.SetSize(4);
@@ -307,6 +307,7 @@ void FindPointsGSLIB::FreeData()
    }
    if (fec_map_lin) { delete fec_map_lin; fec_map_lin = NULL; }
    setupflag = false;
+   points_cnt = -1;
 }
 
 void FindPointsGSLIB::SetupSplitMeshes()
@@ -897,7 +898,8 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       int gf_order_h1 = std::max(gf_order, 1); // H1 should be at least order 1
       H1_FECollection fec(gf_order_h1, dim);
       const int ncomp = field_in.FESpace()->GetVDim();
-      FiniteElementSpace fes(mesh, &fec, ncomp);
+      FiniteElementSpace fes(mesh, &fec, ncomp,
+                             field_in.FESpace()->GetOrdering());
       GridFunction field_in_h1(&fes);
 
       if (avgtype == AvgType::ARITHMETIC)
@@ -927,7 +929,7 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
       {
          for (int i = 0; i < indl2.Size(); i++)
          {
-            int idx = field_in.FESpace()->GetOrdering() == Ordering::byNODES ?
+            int idx = field_in_h1.FESpace()->GetOrdering() == Ordering::byNODES?
                       indl2[i] + j*points_cnt:
                       indl2[i]*ncomp + j;
             field_out(idx) = field_out_l2(idx);
@@ -1172,7 +1174,7 @@ void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
    Array<unsigned int> &recv_elem, Vector &recv_ref,
    Array<unsigned int> &recv_code)
 {
-   MFEM_VERIFY(points_cnt,
+   MFEM_VERIFY(points_cnt >= 0,
                "Invalid size. Please make sure to call FindPoints method "
                "before calling this function.");
 
