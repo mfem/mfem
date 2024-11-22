@@ -38,7 +38,7 @@ if (MFEM_USE_GSLIB)
 
   add_mfem_miniapp(findpts
     MAIN findpts.cpp
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
   add_mfem_miniapp(field-interp
     MAIN field-interp.cpp

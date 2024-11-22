@@ -333,6 +333,37 @@ void Set(const int height, const int width,
    }
 }
 
+/** @brief Matrix-matrix multiplication: A = alpha * B * C + beta * A, where the
+    matrices A, B and C are of sizes @a Aheight x @a Awidth, @a Aheight x @a
+    Bwidth and @a Bwidth x @a Awidth, respectively. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void AddMult(const int Aheight, const int Awidth, const int Bwidth,
+             const TB *Bdata, const TC *Cdata, TA *Adata, const TB alpha,
+             const TA beta)
+{
+   const int ah_x_aw = Aheight * Awidth;
+   if (beta == 0.0)
+   {
+      for (int i = 0; i < ah_x_aw; i++) { Adata[i] = 0.0; }
+   }
+   else if (beta != 1.0)
+   {
+      for (int i = 0; i < ah_x_aw; i++) { Adata[i] *= beta; }
+   }
+   for (int j = 0; j < Awidth; j++)
+   {
+      for (int k = 0; k < Bwidth; k++)
+      {
+         const real_t val = alpha * Cdata[k+j*Bwidth];
+         for (int i = 0; i < Aheight; i++)
+         {
+            Adata[i+j*Aheight] += val * Bdata[i+k*Aheight];
+         }
+      }
+   }
+}
+
 /** @brief Matrix-matrix multiplication: A = B * C, where the matrices A, B and
     C are of sizes @a Aheight x @a Awidth, @a Aheight x @a Bwidth and @a Bwidth
     x @a Awidth, respectively. */
@@ -341,18 +372,7 @@ MFEM_HOST_DEVICE inline
 void Mult(const int Aheight, const int Awidth, const int Bwidth,
           const TB *Bdata, const TC *Cdata, TA *Adata)
 {
-   const int ah_x_aw = Aheight * Awidth;
-   for (int i = 0; i < ah_x_aw; i++) { Adata[i] = 0.0; }
-   for (int j = 0; j < Awidth; j++)
-   {
-      for (int k = 0; k < Bwidth; k++)
-      {
-         for (int i = 0; i < Aheight; i++)
-         {
-            Adata[i+j*Aheight] += Bdata[i+k*Aheight] * Cdata[k+j*Bwidth];
-         }
-      }
-   }
+   AddMult(Aheight, Awidth, Bwidth, Bdata, Cdata, Adata, TB(1.0), TA(0.0));
 }
 
 /** @brief Multiply a matrix of size @a Aheight x @a Awidth and data @a Adata
@@ -382,6 +402,43 @@ void MultABt(const int Aheight, const int Awidth, const int Bheight,
    }
 }
 
+/** @brief Compute C = alpha*At*B + beta*C.
+
+    Multiply the transpose of a matrix of size @a Aheight x @a Awidth and data
+    @a Adata with a matrix of size @a Aheight x @a Bwidth and data @a Bdata. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void AddMultAtB(const int Aheight, const int Awidth, const int Bwidth,
+                const TA *Adata, const TB *Bdata, TC *Cdata, const TB alpha,
+                const TA beta)
+{
+   const int aw_x_bw = Awidth * Bwidth;
+
+   if (beta == 0.0)
+   {
+      for (int i = 0; i < aw_x_bw; i++) { Cdata[i] = 0.0; }
+   }
+   else if (beta != 1.0)
+   {
+      for (int i = 0; i < aw_x_bw; i++) { Cdata[i] *= beta; }
+   }
+
+   TC *c = Cdata;
+   for (int i = 0; i < Bwidth; ++i)
+   {
+      for (int j = 0; j < Awidth; ++j)
+      {
+         TC val = 0.0;
+         for (int k = 0; k < Aheight; ++k)
+         {
+            val += alpha * Adata[j * Aheight + k] * Bdata[i * Aheight + k];
+         }
+         *c += val;
+         c++;
+      }
+   }
+}
+
 /** @brief Multiply the transpose of a matrix of size @a Aheight x @a Awidth
     and data @a Adata with a matrix of size @a Aheight x @a Bwidth and data @a
     Bdata: At * B. Return the result in a matrix with data @a AtBdata. */
@@ -390,20 +447,7 @@ MFEM_HOST_DEVICE inline
 void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
              const TA *Adata, const TB *Bdata, TC *AtBdata)
 {
-   TC *c = AtBdata;
-   for (int i = 0; i < Bwidth; ++i)
-   {
-      for (int j = 0; j < Awidth; ++j)
-      {
-         TC val = 0.0;
-         for (int k = 0; k < Aheight; ++k)
-         {
-            val += Adata[j * Aheight + k] * Bdata[i * Aheight + k];
-         }
-         *c = val;
-         c++;
-      }
-   }
+   AddMultAtB(Aheight, Awidth, Bwidth, Adata, Bdata, AtBdata, TB(1.0), TA(0.0));
 }
 
 /// Given a matrix of size 2x1, 3x1, or 3x2, compute the left inverse.

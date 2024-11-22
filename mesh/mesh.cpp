@@ -2033,6 +2033,18 @@ int Mesh::AddBdrElement(Element *elem)
    return NumOfBdrElements++;
 }
 
+void Mesh::AddBdrElements(Array<Element *> &bdr_elems,
+                          const Array<int> &new_be_to_face)
+{
+   boundary.Reserve(boundary.Size() + bdr_elems.Size());
+   MFEM_ASSERT(bdr_elems.Size() == new_be_to_face.Size(), "wrong size");
+   for (int i = 0; i < bdr_elems.Size(); i++)
+   {
+      AddBdrElement(bdr_elems[i]);
+   }
+   be_to_face.Append(new_be_to_face);
+}
+
 int Mesh::AddBdrSegment(int v1, int v2, int attr)
 {
    CheckEnlarge(boundary, NumOfBdrElements);
@@ -2210,7 +2222,7 @@ class GeckoProgress : public Gecko::Progress
    mutable StopWatch sw;
 public:
    GeckoProgress(real_t limit) : limit(limit) { sw.Start(); }
-   virtual bool quit() const { return limit > 0 && sw.UserTime() > limit; }
+   bool quit() const override { return limit > 0 && sw.UserTime() > limit; }
 };
 
 class GeckoVerboseProgress : public GeckoProgress
@@ -2221,18 +2233,18 @@ class GeckoVerboseProgress : public GeckoProgress
 public:
    GeckoVerboseProgress(real_t limit) : GeckoProgress(limit) {}
 
-   virtual void beginorder(const Graph* graph, Float cost) const
+   void beginorder(const Graph* graph, Float cost) const override
    { mfem::out << "Begin Gecko ordering, cost = " << cost << std::endl; }
-   virtual void endorder(const Graph* graph, Float cost) const
+   void endorder(const Graph* graph, Float cost) const override
    { mfem::out << "End ordering, cost = " << cost << std::endl; }
 
-   virtual void beginiter(const Graph* graph,
-                          uint iter, uint maxiter, uint window) const
+   void beginiter(const Graph* graph,
+                  uint iter, uint maxiter, uint window) const override
    {
       mfem::out << "Iteration " << iter << "/" << maxiter << ", window "
                 << window << std::flush;
    }
-   virtual void enditer(const Graph* graph, Float mincost, Float cost) const
+   void enditer(const Graph* graph, Float mincost, Float cost) const override
    { mfem::out << ", cost = " << cost << endl; }
 };
 
@@ -5112,6 +5124,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
          }
 
          Embedding &emb = CoarseFineTr.embeddings[el_fine];
+         emb.geom = geom;
          emb.parent = el_coarse;
          emb.matrix = offset + j;
          ++el_fine;
@@ -7345,6 +7358,12 @@ void Mesh::GetBdrElementAdjacentElement2(
    info = fi.Elem1Inf + ori;
 }
 
+void Mesh::SetAttribute(int i, int attr)
+{
+  elements[i]->SetAttribute(attr);
+  if (ncmesh) ncmesh->SetAttribute(i, attr);
+}
+
 Element::Type Mesh::GetElementType(int i) const
 {
    return elements[i]->GetType();
@@ -7671,7 +7690,6 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
 void Mesh::GenerateFaces()
 {
    int nfaces = GetNumFaces();
-
    for (auto &f : faces)
    {
       FreeElement(f);
@@ -9000,6 +9018,9 @@ void Mesh::MoveNodes(const Vector &displacements)
    {
       MoveVertices(displacements);
    }
+
+   // Invalidate the old geometric factors
+   NodesUpdated();
 }
 
 void Mesh::GetNodes(Vector &node_coord) const
@@ -13632,22 +13653,23 @@ Mesh &MeshPart::GetMesh()
 
 MeshPartitioner::MeshPartitioner(Mesh &mesh_,
                                  int num_parts_,
-                                 int *partitioning_,
+                                 const int *partitioning_,
                                  int part_method)
    : mesh(mesh_)
 {
    if (partitioning_)
    {
-      partitioning.MakeRef(partitioning_, mesh.GetNE(), false);
+      partitioning.MakeRef(const_cast<int *>(partitioning_), mesh.GetNE(),
+                           false);
    }
    else
    {
-      partitioning_ = mesh.GeneratePartitioning(num_parts_, part_method);
       // Mesh::GeneratePartitioning always uses new[] to allocate the,
       // partitioning, so we need to tell the memory manager to free it with
       // delete[] (even if a different host memory type has been selected).
-      const MemoryType mt = MemoryType::HOST;
-      partitioning.MakeRef(partitioning_, mesh.GetNE(), mt, true);
+      constexpr MemoryType mt = MemoryType::HOST;
+      partitioning.MakeRef(mesh.GeneratePartitioning(num_parts_, part_method),
+                           mesh.GetNE(), mt, true);
    }
 
    Transpose(partitioning, part_to_element, num_parts_);

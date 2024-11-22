@@ -18,6 +18,7 @@
 #include "matrix.hpp"
 #include "densemat.hpp"
 #include "lapack.hpp"
+#include "batched/batched.hpp"
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
@@ -2268,6 +2269,35 @@ void DenseMatrix::PrintMatlab(std::ostream &os) const
    os.flags(old_flags);
 }
 
+void DenseMatrix::PrintMathematica(std::ostream &os) const
+{
+   ios::fmtflags old_fmt = os.flags();
+   os.setf(ios::scientific);
+   std::streamsize old_prec = os.precision(14);
+
+   os << "(* Read file into Mathematica using: "
+      << "myMat = Get[\"this_file_name\"] *)\n";
+   os << "{\n";
+
+   for (int i = 0; i < height; i++)
+   {
+      os << "{\n";
+      for (int j = 0; j < width; j++)
+      {
+         os << "Internal`StringToMReal[\"" << (*this)(i,j) << "\"]";
+         if (j < width - 1) { os << ','; }
+         os << '\n';
+      }
+      os << '}';
+      if (i < height - 1) { os << ','; }
+      os << '\n';
+   }
+   os << "}\n";
+
+   os.precision(old_prec);
+   os.flags(old_fmt);
+}
+
 void DenseMatrix::PrintT(std::ostream &os, int width_) const
 {
    // save current output flags
@@ -4382,86 +4412,12 @@ DenseTensor &DenseTensor::operator=(real_t c)
 
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
 {
-   const int m = Mlu.SizeI();
-   const int NE = Mlu.SizeK();
-   P.SetSize(m*NE);
-
-   auto data_all = mfem::Reshape(Mlu.ReadWrite(), m, m, NE);
-   auto ipiv_all = mfem::Reshape(P.Write(), m, NE);
-   Array<bool> pivot_flag(1);
-   pivot_flag[0] = true;
-   bool *d_pivot_flag = pivot_flag.ReadWrite();
-
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
-   {
-      for (int i = 0; i < m; i++)
-      {
-         // pivoting
-         {
-            int piv = i;
-            real_t a = fabs(data_all(piv,i,e));
-            for (int j = i+1; j < m; j++)
-            {
-               const real_t b = fabs(data_all(j,i,e));
-               if (b > a)
-               {
-                  a = b;
-                  piv = j;
-               }
-            }
-            ipiv_all(i,e) = piv;
-            if (piv != i)
-            {
-               // swap rows i and piv in both L and U parts
-               for (int j = 0; j < m; j++)
-               {
-                  mfem::kernels::internal::Swap<real_t>(data_all(i,j,e), data_all(piv,j,e));
-               }
-            }
-         } // pivot end
-
-         if (abs(data_all(i,i,e)) <= TOL)
-         {
-            d_pivot_flag[0] = false;
-         }
-
-         const real_t a_ii_inv = 1.0 / data_all(i,i,e);
-         for (int j = i+1; j < m; j++)
-         {
-            data_all(j,i,e) *= a_ii_inv;
-         }
-
-         for (int k = i+1; k < m; k++)
-         {
-            const real_t a_ik = data_all(i,k,e);
-            for (int j = i+1; j < m; j++)
-            {
-               data_all(j,k,e) -= a_ik * data_all(j,i,e);
-            }
-         }
-
-      } // m loop
-
-   });
-
-   MFEM_ASSERT(pivot_flag.HostRead()[0], "Batch LU factorization failed \n");
+   BatchedLinAlg::LUFactor(Mlu, P);
 }
 
 void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
 {
-
-   const int m = Mlu.SizeI();
-   const int NE = Mlu.SizeK();
-
-   auto data_all = mfem::Reshape(Mlu.Read(), m, m, NE);
-   auto piv_all = mfem::Reshape(P.Read(), m, NE);
-   auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
-
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
-   {
-      kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
-   });
-
+   BatchedLinAlg::LUSolve(Mlu, P, X);
 }
 
 } // namespace mfem

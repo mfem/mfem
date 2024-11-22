@@ -58,7 +58,7 @@ public:
       }
    }
 
-   virtual ~DiffusionMultigrid()
+   ~DiffusionMultigrid() override
    {
       delete amg;
    }

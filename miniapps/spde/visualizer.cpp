@@ -36,10 +36,9 @@ void Visualizer::ExportToParaView()
    paraview_dc.Save();
 }
 
-void Visualizer::SendToGLVis() const
+void Visualizer::SendToGLVis(int visport) const
 {
    std::string vishost{"localhost"};
-   int visport = 19916;
    int num_procs = Mpi::WorldSize();
    int process_rank = Mpi::WorldRank();
    socketstream uout;

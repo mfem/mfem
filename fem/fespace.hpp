@@ -265,7 +265,10 @@ protected:
    mutable Table *bdr_elem_fos; // bdr face orientations by bdr element index
    mutable Table *face_dof; // owned; in var-order space contains variant 0 DOFs
 
-   Array<int> dof_elem_array, dof_ldof_array;
+   mutable Array<int> dof_elem_array;
+   mutable Array<int> dof_ldof_array;
+   mutable Array<int> dof_bdr_elem_array;
+   mutable Array<int> dof_bdr_ldof_array;
 
    NURBSExtension *NURBSext;
    /** array of NURBS extension for H(div) and H(curl) vector elements.
@@ -338,6 +341,14 @@ protected:
    void BuildElementToDofTable() const;
    void BuildBdrElementToDofTable() const;
    void BuildFaceToDofTable() const;
+
+   /** @brief Initialize internal data that enables the use of the methods
+    GetElementForDof() and GetLocalDofForDof(). */
+   void BuildDofToArrays_() const;
+
+   /** @brief Initialize internal data that enables the use of the methods
+      GetBdrElementForDof() and GetBdrLocalDofForDof(). */
+   void BuildDofToBdrArrays() const;
 
    /** @brief  Generates partial face_dof table for a NURBS space.
 
@@ -458,7 +469,7 @@ protected:
       DerefinementOperator(const FiniteElementSpace *f_fes,
                            const FiniteElementSpace *c_fes,
                            BilinearFormIntegrator *mass_integ);
-      virtual void Mult(const Vector &x, Vector &y) const;
+      void Mult(const Vector &x, Vector &y) const override;
       virtual ~DerefinementOperator();
    };
 
@@ -591,7 +602,8 @@ public:
    /// Returns true if the space contains elements of varying polynomial orders.
    bool IsVariableOrder() const { return elem_order.Size(); }
 
-   /// The returned SparseMatrix is owned by the FiniteElementSpace.
+   /// The returned SparseMatrix is owned by the FiniteElementSpace. The method
+   /// returns nullptr if the matrix is identity.
    const SparseMatrix *GetConformingProlongation() const;
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
@@ -604,7 +616,8 @@ public:
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetHpConformingRestriction() const;
 
-   /// The returned Operator is owned by the FiniteElementSpace.
+   /// The returned Operator is owned by the FiniteElementSpace. The method
+   /// returns nullptr if the prolongation matrix is identity.
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
 
@@ -655,7 +668,10 @@ public:
    const ElementRestrictionOperator *GetElementRestriction(
       ElementDofOrdering e_ordering) const;
 
-   /// Return an Operator that converts L-vectors to E-vectors on each face.
+   /** @brief Return an Operator that converts L-vectors to E-vectors on each
+       face. */
+   /** @warning only meshes with tensor-product elements are currently
+       supported. */
    virtual const FaceRestriction *GetFaceRestriction(
       ElementDofOrdering f_ordering, FaceType,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
@@ -1160,18 +1176,21 @@ public:
    const Table &GetFaceToDofTable() const
    { if (!face_dof) { BuildFaceToDofTable(); } return *face_dof; }
 
-   /** @brief Initialize internal data that enables the use of the methods
-       GetElementForDof() and GetLocalDofForDof(). */
-   void BuildDofToArrays();
+   /// Deprecated. This function is not required to be called by the user.
+   MFEM_DEPRECATED void BuildDofToArrays() const { BuildDofToArrays_(); }
 
-   /// Return the index of the first element that contains dof @a i.
-   /** This method can be called only after setup is performed using the method
-       BuildDofToArrays(). */
-   int GetElementForDof(int i) const { return dof_elem_array[i]; }
-   /// Return the local dof index in the first element that contains dof @a i.
-   /** This method can be called only after setup is performed using the method
-       BuildDofToArrays(). */
-   int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
+   /// Return the index of the first element that contains ldof index @a i.
+   int GetElementForDof(int i) const { BuildDofToArrays_(); return dof_elem_array[i]; }
+
+   /// Return the dof index within the element from GetElementForDof() for ldof index @a i.
+   int GetLocalDofForDof(int i) const { BuildDofToArrays_(); return dof_ldof_array[i]; }
+
+   /// Return the index of the first boundary element that contains ldof index @a i.
+   int GetBdrElementForDof(int i) const { BuildDofToBdrArrays(); return dof_bdr_elem_array[i]; }
+
+   /// Return the dof index within the boundary element from GetBdrElementForDof() for ldof index @a i.
+   int GetBdrLocalDofForDof(int i) const { BuildDofToBdrArrays(); return dof_bdr_ldof_array[i]; }
+
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th element in the mesh object.

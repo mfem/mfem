@@ -16,7 +16,7 @@
 setup:
   tags:
     - shell
-    - quartz
+    - ruby
   stage: setup
   variables:
     GIT_STRATEGY: none

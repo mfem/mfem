@@ -30,6 +30,7 @@
 #include <iostream>
 #include <array>
 #include <map>
+#include <vector>
 #include <memory>
 
 namespace mfem
@@ -49,6 +50,13 @@ enum class FaceType : bool {Interior, Boundary};
 #ifdef MFEM_USE_MPI
 class ParMesh;
 class ParNCMesh;
+#endif
+
+#ifdef MFEM_USE_NETCDF
+namespace cubit
+{
+class CubitBlock;
+}
 #endif
 
 /// Mesh data type
@@ -341,6 +349,29 @@ protected:
 #ifdef MFEM_USE_NETCDF
    /// @brief Load a mesh from a Genesis file.
    void ReadCubit(const std::string &filename, int &curved, int &read_gf);
+
+   /// @brief Called internally in ReadCubit. This method creates the vertices.
+   void BuildCubitVertices(const std::vector<int> & unique_vertex_ids,
+                           const std::vector<double> & coordx, const std::vector<double> & coordy,
+                           const std::vector<double> & coordz);
+
+   /// @brief Called internally in ReadCubit. This method builds the mesh elements.
+   void BuildCubitElements(const int num_elements,
+                           const cubit::CubitBlock * blocks,
+                           const std::vector<int> & block_ids,
+                           const std::map<int, std::vector<int>> & element_ids_for_block_id,
+                           const std::map<int, std::vector<int>> & node_ids_for_element_id,
+                           const std::map<int, int> & cubit_to_mfem_vertex_map);
+
+   /// @brief Called internally in ReadCubit. This method adds the mesh boundary elements.
+   void BuildCubitBoundaries(
+      const cubit::CubitBlock * blocks,
+      const std::vector<int> & boundary_ids,
+      const std::map<int, std::vector<int>> & element_ids_for_boundary_id,
+      const std::map<int, std::vector<std::vector<int>>> & node_ids_for_boundary_id,
+      const std::map<int, std::vector<int>> & side_ids_for_boundary_id,
+      const std::map<int, int> & block_id_for_element_id,
+      const std::map<int, int> & cubit_to_mfem_vertex_map);
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
@@ -962,6 +993,17 @@ public:
    /// @note Ownership of @a elem will pass to the Mesh object
    int AddBdrElement(Element *elem);
 
+   /**
+    * @brief Add an array of boundary elements to the mesh, along with map from
+    * the elements to their faces
+    * @param[in] bdr_elems The set of boundary element pointers, ownership of
+    * the pointers will be transferred to the Mesh object
+    * @param[in] be_to_face The map from the boundary element index to the face
+    * index
+    */
+   void AddBdrElements(Array<Element *> &bdr_elems,
+                       const Array<int> &be_to_face);
+
    int AddBdrSegment(int v1, int v2, int attr = 1);
    int AddBdrSegment(const int *vi, int attr = 1);
 
@@ -1070,6 +1112,15 @@ public:
    /** Remove boundary elements that lie in the interior of the mesh, i.e. that
        have two adjacent faces in 3D, or edges in 2D. */
    void RemoveInternalBoundaries();
+
+   /**
+    * @brief Clear the boundary element to edge map.
+    */
+   void DeleteBoundaryElementToEdge()
+   {
+      delete bel_to_edge;
+      bel_to_edge = nullptr;
+   }
 
    /// @}
 
@@ -1335,7 +1386,7 @@ public:
    int GetAttribute(int i) const { return elements[i]->GetAttribute(); }
 
    /// Set the attribute of element i.
-   void SetAttribute(int i, int attr) { elements[i]->SetAttribute(attr); }
+   void SetAttribute(int i, int attr);
 
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }
@@ -2452,9 +2503,6 @@ public:
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
    /// @todo This method needs a proper description
-   void MesquiteSmooth(const int mesquite_option = 0);
-
-   /// @todo This method needs a proper description
    void CheckDisplacements(const Vector &displacements, real_t &tmax);
 
    /// @}
@@ -2736,8 +2784,8 @@ public:
                                 Mesh::GeneratePartitioning() when the provided
                                 input partitioning is NULL.
    */
-   MeshPartitioner(Mesh &mesh_, int num_parts_, int *partitioning_ = NULL,
-                   int part_method = 1);
+   MeshPartitioner(Mesh &mesh_, int num_parts_,
+                   const int *partitioning_ = nullptr, int part_method = 1);
 
    /** @brief Construct a MeshPart corresponding to the given @a part_id.
 
@@ -2912,8 +2960,8 @@ public:
    NodeExtrudeCoefficient(const int dim, const int n_, const real_t s_);
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    virtual ~NodeExtrudeCoefficient() { }
 };
 

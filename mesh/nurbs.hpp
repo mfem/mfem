@@ -895,7 +895,7 @@ class ParNURBSExtension : public NURBSExtension
 {
 private:
    /// Partitioning of the global elements by MPI rank
-   int *partitioning;
+   mfem::Array<int> partitioning;
 
    /// Construct and return a table of DOFs for each global element.
    Table *GetGlobalElementDofTable();
@@ -905,9 +905,10 @@ private:
 
    /** @brief Set active global elements and boundary elements based on MPI
        ranks in @a partition and the array @a active_bel. */
-   void SetActive(const int *partition, const Array<bool> &active_bel);
+   void SetActive(const int *partitioning_, const Array<bool> &active_bel);
+
    /// Set up GroupTopology @a gtopo for MPI communication.
-   void BuildGroups(const int *partition, const Table &elem_dof);
+   void BuildGroups(const int *partitioning_, const Table &elem_dof);
 
 public:
    GroupTopology gtopo;
@@ -918,11 +919,12 @@ public:
    ParNURBSExtension(const ParNURBSExtension &orig);
 
    /** @brief Constructor for an MPI communicator @a comm, a global
-       NURBSExtension @a parent, a partitioning @a part of the global elements
-       by MPI rank, and a marker @a active_bel of active global boundary
-       elements on this rank. The partitioning is deep-copied and will not be
-       deleted by this object. */
-   ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent, int *part,
+       NURBSExtension @a parent, a partitioning @a partitioning_ of the global
+       elements by MPI rank, and a marker @a active_bel of active global
+       boundary elements on this rank. The partitioning is deep-copied and will
+       not be deleted by this object. */
+   ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
+                     const int *partitioning_,
                      const Array<bool> &active_bel);
 
    /** @brief Create a parallel version of @a parent with partitioning as in
@@ -930,8 +932,6 @@ public:
        The @a parent can be either a local NURBSExtension or a global one. */
    ParNURBSExtension(NURBSExtension *parent,
                      const ParNURBSExtension *par_parent);
-
-   virtual ~ParNURBSExtension() { delete [] partitioning; }
 };
 #endif
 
