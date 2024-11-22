@@ -1425,14 +1425,17 @@ void DarcyHybridization::Finalize()
       {
          if (!m_nlfi_u && !m_nlfi)
          {
+            lop_type = LocalOpType::PotNL;
             InvertA();
          }
-         if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
+         else if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
          {
+            lop_type = LocalOpType::FluxNL;
             InvertD();
          }
          else
          {
+            lop_type = LocalOpType::FullNL;
             std::swap(Af_data, Af_lin_data);
             if (!Af_data)
             {
@@ -1544,22 +1547,17 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
 
    LocalNLOperator *lop;
 
-   enum class LocalOpType { FluxNL, PotNL, FullNL } ltype;
-
-   if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
+   switch (lop_type)
    {
-      lop = new LocalFluxNLOperator(*this, el, bp_l, x_l, faces);
-      ltype = LocalOpType::FluxNL;
-   }
-   else if (!m_nlfi_u && !m_nlfi)
-   {
-      lop = new LocalPotNLOperator(*this, el, bu_l, x_l, faces);
-      ltype = LocalOpType::PotNL;
-   }
-   else
-   {
-      lop = new LocalNLOperator(*this, el, x_l, faces);
-      ltype = LocalOpType::FullNL;
+      case LocalOpType::FluxNL:
+         lop = new LocalFluxNLOperator(*this, el, bp_l, x_l, faces);
+         break;
+      case LocalOpType::PotNL:
+         lop = new LocalPotNLOperator(*this, el, bu_l, x_l, faces);
+         break;
+      case LocalOpType::FullNL:
+         lop = new LocalNLOperator(*this, el, x_l, faces);
+         break;
    }
 
    //solve the local system
@@ -1610,7 +1608,7 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    lsolver->SetAbsTol(lsolve.atol);
    lsolver->SetPrintLevel(lsolve.print_lvl);
 
-   switch (ltype)
+   switch (lop_type)
    {
       case LocalOpType::FluxNL:
       {

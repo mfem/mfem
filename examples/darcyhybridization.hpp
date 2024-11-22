@@ -112,6 +112,9 @@ private:
       void Mult(const Vector &x, Vector &y) const override;
    };
 
+   enum class LocalOpType { FluxNL, PotNL, FullNL };
+   LocalOpType lop_type{LocalOpType::FullNL};
+
    friend class LocalNLOperator;
    class LocalNLOperator : public Operator
    {
