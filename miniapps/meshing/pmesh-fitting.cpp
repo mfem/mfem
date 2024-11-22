@@ -37,11 +37,11 @@
 //    mpirun -np 4 pmesh-fitting -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5
 //    mpirun -np 4 pmesh-fitting -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -vl 1 -sfc 1e4 -rtol 1e-5
 //  Surface fitting with weight adaptation and termination based on fitting error:
-//    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -vl 2 -sfc 10 -rtol 1e-20 -sfa 10.0 -sft 1e-5 -no-resid
+//    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -vl 2 -sfc 10 -rtol 1e-20 -sfa 10.0 -sft 1e-5 -no-resid -ni 40
 //  Surface fitting with weight adaptation, limit on max weight, and convergence based on residual.
 //  * mpirun -np 4 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -mid 2 -tid 4 -vl 2 -sfc 10 -rtol 1e-10 -sfa 10.0 -sft 1e-5 -bgamriter 3 -sbgmesh -ae 1 -marking -slstype 3 -resid -sfcmax 10000 -mod-bndr-attr
 //  Surface fitting to Fischer-Tropsch reactor like domain (requires GSLIB):
-//  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -no-resid -bgamriter 5 -dist -mod-bndr-attr
+//  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -li 20 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -no-resid -bgamriter 5 -dist -mod-bndr-attr -ni 50
 
 #include "mesh-fitting.hpp"
 
@@ -809,7 +809,7 @@ int main (int argc, char *argv[])
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(0.0);
    solver.SetMinimumDeterminantThreshold(0.001*min_detJ);
-   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : 0);
    solver.SetOperator(a);
    Vector b(0);
    solver.Mult(b, x.GetTrueVector());

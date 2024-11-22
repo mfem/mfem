@@ -1919,7 +1919,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
        print_options.first_and_last)
    {
       mfem::out << "Newton: Number of iterations: " << final_iter << '\n'
-                << "   ||r|| = " << final_norm << '\n';
+                << "   ||r|| = " << final_norm
+                << ",  ||r||/||r_0|| = " << final_norm/norm0 << '\n';
    }
    if (!converged && (print_options.summary || print_options.warnings))
    {
@@ -2141,7 +2142,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
        print_options.first_and_last)
    {
       mfem::out << "LBFGS: Number of iterations: " << final_iter << '\n'
-                << "   ||r|| = " << final_norm << '\n';
+                << "   ||r|| = " << final_norm
+                << ",  ||r||/||r_0|| = " << final_norm/norm0 << '\n';
    }
    if (print_options.summary || (!converged && print_options.warnings))
    {
