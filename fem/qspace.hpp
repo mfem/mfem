@@ -78,7 +78,7 @@ public:
    int GetOrder() const { return order; }
 
    /// Return the number of entities.
-   int GetNE() const { return offsets.Size() - 1; }
+   int GetNE() const { return ne; }
 
    /// Returns the mesh.
    inline Mesh *GetMesh() const { return &mesh; }
