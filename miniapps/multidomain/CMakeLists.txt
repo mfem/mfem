@@ -30,7 +30,7 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(multidomain
     MAIN multidomain.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
   add_dependencies(multidomain copy_miniapps_multidomain_data)
 
   add_mfem_miniapp(multidomain_nd

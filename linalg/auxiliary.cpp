@@ -338,7 +338,7 @@ public:
       }
    }
 
-   void Mult(const Vector& x, Vector& y) const
+   void Mult(const Vector& x, Vector& y) const override
    {
       amg_->Mult(x, y);
 
@@ -349,9 +349,9 @@ public:
       }
    }
 
-   void SetOperator(const Operator&) { }
+   void SetOperator(const Operator&) override { }
 
-   ~ZeroWrapAMG()
+   ~ZeroWrapAMG() override
    {
       delete amg_;
    }

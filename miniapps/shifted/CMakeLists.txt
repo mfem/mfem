@@ -13,14 +13,12 @@ if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
         sbm_solver.cpp
         marking.cpp
-        extrapolator.cpp
-        integ_algoim.cpp)
+        extrapolator.cpp)
   list(APPEND DIST_COMMON_HEADERS
         sbm_solver.hpp
         sbm_aux.hpp
         marking.hpp
-        extrapolator.hpp
-        integ_algoim.hpp)
+        extrapolator.hpp)
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -32,22 +30,22 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(distance
     MAIN distance.cpp
     ${DIST_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
   add_mfem_miniapp(diffusion
     MAIN diffusion.cpp
     ${DIST_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
   add_mfem_miniapp(extrapolate
     MAIN extrapolate.cpp
     ${DIST_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
   add_mfem_miniapp(lsf_integral
     MAIN lsf_integral.cpp
     ${DIST_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS

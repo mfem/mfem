@@ -273,7 +273,13 @@ Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
              installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
              the configuration makefile (config.mk) in $(PREFIX)/share/mfem.
-   INSTALL - Specify the install program, e.g /usr/bin/install
+   INSTALL - Specify the install program, default = /usr/bin/install
+   INSTALL_DEF_PERM - Specify the default install permissions. This affects
+                      headers and configuration makefiles, default = 644
+   INSTALL_BIN_PERM - Specify the install permissions for binaries. This only
+                      affects the shared version of the library, default = 755
+   INSTALL_DIR_PERM - Specify the install permissions for directories and,
+                      on macOS/BSD, for symlinks as well, default = 755
 
 MFEM library features/options (GNU make)
 ----------------------------------------
@@ -388,6 +394,11 @@ MFEM_USE_AMGX = YES/NO
    Allows the user to use SparseMatrices and HypreParMatrices to solve linear
    systems with the routines from the AmgX library.
 
+MFEM_USE_MAGMA = YES/NO
+   Enable MFEM functionality based on the MAGMA high-performance linear algebra
+   library. The MAGMA library provides a BLAS/LAPACK interface, with
+   implementations that have been optimized for Nvidia and AMD GPUs.
+
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
    GnuTLS_* classes, based on the GnuTLS library. This option may be useful in
@@ -491,10 +502,14 @@ MFEM_USE_CODIPACK = YES/NO
 MFEM_USE_ALGOIM = YES/NO
   Enable the usage of Algoim - a collection of high-order accurate numerical
   methods and C++ algorithms for working with implicitly-defined geometry and
-  level set methods. The Algoim library requires the Blitz++ library. The MFEM
-  provides interface to Algoim v1. Thus, to check out the specific state use:
+  level set methods, see https://algoim.github.io. MFEM provides interface to
+  Algoim v1. To check out the specific Algoim state use:
+  https://github.com/algoim/algoim
   git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a
-  https://algoim.github.io
+  The Algoim library requires the Blitz++ library. To use the latest state of
+  Blitz++ that has been tested with MFEM, use:
+  https://github.com/blitzpp/blitz
+  git checkout f24a250a43dff88c31ad92916da828b7ea9a98b7
 
 MFEM_USE_ADFORWARD = YES/NO
   Enable forward mode for AD packages. This option is valid
@@ -698,6 +713,11 @@ The specific libraries and their options are:
   URL: https://github.com/NVIDIA/AMGX
   Options: AMGX_OPT, AMGX_LIB.
   Versions: AmgX >= 2.1, older versions may work too.
+
+- MAGMA (optional), used with MFEM_USE_MAGMA = YES.
+  URL: https://icl.utk.edu/magma/
+  Options: MAGMA_OPT, MAGMA_LIB
+  Versions: MAGMA >= 2.8.0
 
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
