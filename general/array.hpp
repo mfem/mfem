@@ -286,7 +286,7 @@ public:
    void Unique()
    {
       T* end = std::unique((T*)data, data + size);
-      SetSize(end - data);
+      SetSize((int)(end - data));
    }
 
    /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
@@ -901,7 +901,7 @@ inline int Array<T>::FindSorted(const T &el) const
    const T *begin = data, *end = begin + size;
    const T* first = std::lower_bound(begin, end, el);
    if (first == end || !(*first == el)) { return  -1; }
-   return first - begin;
+   return (int)(first - begin);
 }
 
 template <class T>
