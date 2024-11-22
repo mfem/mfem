@@ -214,16 +214,16 @@ public:
 inline void QuadratureFunction::GetValues(
    int idx, Vector &values)
 {
-   const int s_offset = qspace->offsets[idx];
-   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   const int s_offset = qspace->Offset(idx);
+   const int sl_size = qspace->Offset(idx + 1) - s_offset;
    values.MakeRef(*this, vdim*s_offset, vdim*sl_size);
 }
 
 inline void QuadratureFunction::GetValues(
    int idx, Vector &values) const
 {
-   const int s_offset = qspace->offsets[idx];
-   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   const int s_offset = qspace->Offset(idx);
+   const int sl_size = qspace->Offset(idx + 1) - s_offset;
    values.SetSize(vdim*sl_size);
    values.HostWrite();
    const real_t *q = HostRead() + vdim*s_offset;
@@ -236,14 +236,14 @@ inline void QuadratureFunction::GetValues(
 inline void QuadratureFunction::GetValues(
    int idx, const int ip_num, Vector &values)
 {
-   const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
+   const int s_offset = qspace->Offset(idx) * vdim + ip_num * vdim;
    values.MakeRef(*this, s_offset, vdim);
 }
 
 inline void QuadratureFunction::GetValues(
    int idx, const int ip_num, Vector &values) const
 {
-   const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
+   const int s_offset = qspace->Offset(idx) * vdim + ip_num * vdim;
    values.SetSize(vdim);
    values.HostWrite();
    const real_t *q = HostRead() + s_offset;
@@ -256,8 +256,8 @@ inline void QuadratureFunction::GetValues(
 inline void QuadratureFunction::GetValues(
    int idx, DenseMatrix &values)
 {
-   const int s_offset = qspace->offsets[idx];
-   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   const int s_offset = qspace->Offset(idx);
+   const int sl_size = qspace->Offset(idx + 1) - s_offset;
    // Make the values matrix memory an alias of the quadrature function memory
    Memory<real_t> &values_mem = values.GetMemory();
    values_mem.Delete();
@@ -268,8 +268,8 @@ inline void QuadratureFunction::GetValues(
 inline void QuadratureFunction::GetValues(
    int idx, DenseMatrix &values) const
 {
-   const int s_offset = qspace->offsets[idx];
-   const int sl_size = qspace->offsets[idx+1] - s_offset;
+   const int s_offset = qspace->Offset(idx);
+   const int sl_size = qspace->Offset(idx + 1) - s_offset;
    values.SetSize(vdim, sl_size);
    values.HostWrite();
    const real_t *q = HostRead() + vdim*s_offset;
