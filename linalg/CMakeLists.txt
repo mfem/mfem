@@ -24,7 +24,7 @@ list(APPEND SRCS
   constraints.cpp
   densemat.cpp
   symmat.cpp
-  handle.cpp
+  op_handle.cpp
   matrix.cpp
   ode.cpp
   operator.cpp
@@ -51,7 +51,7 @@ list(APPEND HDRS
   dinvariants.hpp
   symmat.hpp
   dtensor.hpp
-  handle.hpp
+  op_handle.hpp
   invariants.hpp
   kernels.hpp
   lapack.hpp
