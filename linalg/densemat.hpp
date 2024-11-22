@@ -1150,17 +1150,9 @@ public:
    void NewMemoryAndSize(const Memory<real_t> &mem, int i, int j, int k,
                          bool own_mem)
    {
-      tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
       nk = k;
-      if (own_mem)
-      {
-         tdata = mem;
-      }
-      else
-      {
-         tdata.MakeAlias(mem, 0, i*j*k);
-      }
+      tdata.NewMemoryAndSize(mem, i*j*k, own_mem);
    }
 
    /// Sets the tensor elements equal to constant c
