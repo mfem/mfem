@@ -1358,6 +1358,46 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
+int FiniteElementSpace::GetVectorDim() const
+{
+   const FiniteElement *fe;
+   if (!GetNE())
+   {
+      static const Geometry::Type geoms[3] =
+      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
+      fe = FEColl()->FiniteElementForGeometry(geoms[GetMesh()->Dimension()-1]);
+   }
+   else
+   {
+      fe = GetFE(0);
+   }
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return GetVDim();
+   }
+   return GetVDim()*std::max(GetMesh()->SpaceDimension(), fe->GetRangeDim());
+}
+
+int FiniteElementSpace::GetCurlDim() const
+{
+   const FiniteElement *fe;
+   if (!GetNE())
+   {
+      static const Geometry::Type geoms[3] =
+      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
+      fe = FEColl()->FiniteElementForGeometry(geoms[GetMesh()->Dimension()-1]);
+   }
+   else
+   {
+      fe = GetFE(0);
+   }
+   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return 2 * GetMesh()->SpaceDimension() - 3;
+   }
+   return GetVDim()*fe->GetCurlDim();
+}
+
 const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {

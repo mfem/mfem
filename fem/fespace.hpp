@@ -427,6 +427,7 @@ protected:
    /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
+
    /// GridFunction interpolation operator applicable after mesh refinement.
    class RefinementOperator : public Operator
    {
@@ -747,6 +748,13 @@ public:
    int GetNConformingDofs() const;
 
    int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
+
+   /// Return the dimension of an vector in the space, including if elements
+   /// are vector-valued
+   int GetVectorDim() const;
+
+   /// Return dimension of curl
+   int GetCurlDim() const;
 
    /// Return the ordering method.
    inline Ordering::Type GetOrdering() const { return ordering; }
