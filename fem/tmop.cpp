@@ -1868,9 +1868,6 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
    MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTspecAtIndex.");
-   MFEM_VERIFY(ndof ==
-               tspec_.FESpace()->GetMesh()->GetNodes()->FESpace()->GetNDofs(),
-               "Discrete target and mesh must use same FECollection.");
 
    const auto tspec__d = tspec_.Read();
    auto tspec_d = tspec.ReadWrite();
@@ -1929,10 +1926,6 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
-   MFEM_VERIFY(ndof ==
-               tspec_.FESpace()->GetMesh()->GetNodes()->FESpace()->GetNDofs(),
-               "Discrete target and mesh must use same FECollection.");
-
    ncomp += vdim;
 
    // need to append data to tspec
@@ -1957,9 +1950,6 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
    MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTspecAtIndex.");
-   MFEM_VERIFY(ndof ==
-               tspec_.FESpace()->GetMesh()->GetNodes()->FESpace()->GetNDofs(),
-               "Discrete target and mesh must use same FECollection.");
 
    const auto tspec__d = tspec_.Read();
    auto tspec_d = tspec.ReadWrite();
@@ -2824,11 +2814,6 @@ void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
 {
    const char *mesh_fe_name = m.GetNodes()->FESpace()->FEColl()->Name();
    const char *field_fe_name = f.FEColl()->Name();
-   MFEM_VERIFY(&m == f.GetMesh(),
-               "The mesh and discrete field for remap must use the same mesh");
-   MFEM_VERIFY(strcmp(mesh_fe_name,field_fe_name)==0,
-               "The mesh and discrete field for remap must use the same "
-               "FECollection");
    delete fes;
    delete mesh;
    mesh = new Mesh(m, true);
@@ -2842,11 +2827,6 @@ void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
 {
    const char *mesh_fe_name = m.GetNodes()->FESpace()->FEColl()->Name();
    const char *field_fe_name = f.FEColl()->Name();
-   MFEM_VERIFY(&m == f.GetMesh(),
-               "The mesh and discrete field must use the same mesh");
-   MFEM_VERIFY(strcmp(mesh_fe_name,field_fe_name)==0,
-               "The mesh and discrete field for remap must use the same "
-               "FECollection");
    delete pfes;
    delete pmesh;
    pmesh = new ParMesh(m, true);
