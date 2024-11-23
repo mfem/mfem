@@ -443,7 +443,8 @@ void InterpolatorFP::GetFESpaceNodalLocation(const Mesh *m,
             gf_xyz(d*n_gf_pts + q) = x*shape; // order by nodes
          }
       }
-      if (vdim == 1 || fes->GetOrdering() == 0) // ordering by nodes
+      if (vdim == 1 ||
+          fes->GetOrdering() == 0) // ordering by nodes
       {
          fes->GetElementDofs(e, dofs);
          for (int d = 0; d < dim; d++)
@@ -457,7 +458,12 @@ void InterpolatorFP::GetFESpaceNodalLocation(const Mesh *m,
             }
          }
       }
-      else // vector field and ordering by vdim
+      else if (vdim == mesh->SpaceDimension())
+      {
+         fes->GetElementVDofs(e, dofs);
+         fes_nodes.SetSubVector(dofs, gf_xyz);
+      }
+      else // vector field, ordered by vdim, and vdim != mesh space dim
       {
          MFEM_ABORT("Cannot support vector field ordered by vdim in InterpolatorFP currently.");
       }
