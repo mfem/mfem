@@ -611,7 +611,8 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
          stable across processors.
    */
    // Build an inverse (and consecutive) map.
-   Array<FaceNodes> new_elem_to_parent_face_nodes(pnodes_new_elem.size());
+   Array<FaceNodes> new_elem_to_parent_face_nodes(static_cast<int>
+                                                  (pnodes_new_elem.size()));
    for (const auto &kv : pnodes_new_elem)
    {
       new_elem_to_parent_face_nodes[kv.second] = kv.first;
