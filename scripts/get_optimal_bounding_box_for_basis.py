@@ -3,23 +3,24 @@ import matplotlib.pyplot as plt
 from scipy import stats, optimize
 from scipy.special import legendre
 import argparse
+from matplotlib.backends.backend_pdf import PdfPages
 
 def lobatto_nodes(N):
 	roots = legendre(N-1).deriv().roots
 	x = np.concatenate(([-1], roots, [1]))
-	return x
+	return np.sort(x)
 
 def chebyshev_nodes(N):
 	return [-np.cos(np.pi*i/(N-1)) for i in range(N)]
 
 def legendre_nodes(N):
 	[x, _] = np.polynomial.legendre.leggauss(N)
-	return x
+	return np.sort(x)
 
 def legendre_nodes_with_endpoints(N):
 	[x, _] = np.polynomial.legendre.leggauss(N-2)
 	x = np.concatenate(([-1], x, [1]))
-	return x
+	return np.sort(x)
 
 def get_piecewise_linear_bound(xi, f, xx):
 	return np.interp(xx, xi, f)
@@ -71,17 +72,17 @@ def optimize_and_write(xs, xb, sname, bname, nsamp=1000, plot=False):
 	    ups.append(np.poly1d(np.polyfit(xs, u, p)))
 
 
-	if plot:
-		xx = np.linspace(-1, 1, nsamp)
-		upx = np.zeros((N, nsamp))
-		for i in range(N):
-			upx[i,:] = ups[i](xx)
+	xx = np.linspace(-1, 1, nsamp)
+	upx = np.zeros((N, nsamp))
+	for i in range(N):
+		upx[i,:] = ups[i](xx)
 
 
 	blow = np.zeros((N,M))
 	bhigh = np.zeros((N,M))
 
-	plt.figure()
+	pdf_pages = PdfPages(f"bnddata_spts_{sname}_{N}_bpts_{bname}_{M}.pdf")
+
 	funtotal = 0
 	for i in range(N):
 		[z, fun] = optimize_bbox_onebasis_upper(ups[i], xb, nsamp=nsamp)
@@ -92,28 +93,26 @@ def optimize_and_write(xs, xb, sname, bname, nsamp=1000, plot=False):
 		funtotal += fun
 		blow[i,:] = -z
 
-		if plot:
-			plt.subplot(1, N, i+1)
-			plt.plot(xx, upx[i,:], 'k-')
-			plt.plot(xb, bhigh[i,:], 'r.')
-			plt.plot(xx, get_piecewise_linear_bound(xb, bhigh[i,:], xx), 'r-')
-			plt.plot(xb, blow[i,:], 'b.')
-			plt.plot(xx, get_piecewise_linear_bound(xb, blow[i,:], xx), 'b-')
+		plt.figure()
+		plt.plot(xx, upx[i,:], 'k-')
+		plt.plot(xb, bhigh[i,:], 'r.')
+		plt.plot(xx, get_piecewise_linear_bound(xb, bhigh[i,:], xx), 'r-')
+		plt.plot(xb, blow[i,:], 'b.')
+		plt.plot(xx, get_piecewise_linear_bound(xb, blow[i,:], xx), 'b-')
+		pdf_pages.savefig()
+		plt.close()
+	pdf_pages.close()
 
 
 	filename = f"bnddata_spts_{sname}_{N}_bpts_{bname}_{M}.txt"
 	np.savetxt(filename, [N], fmt="%d", newline="\n")
 	with open(filename, "a") as f:
-	    np.savetxt(f, xs, fmt="%f", newline="\n")
-	    np.savetxt(f, [M], fmt="%d", newline="\n")
-	    np.savetxt(f, xb, fmt="%f", newline="\n")
-	    for i in range(N):
-	        np.savetxt(f, blow[i,:], fmt="%f", newline="\n")
-	        np.savetxt(f, bhigh[i,:], fmt="%f", newline="\n")
-
-
-	if plot:
-		plt.show()
+		np.savetxt(f, xs, fmt="%.15f", newline="\n")
+		np.savetxt(f, [M], fmt="%d", newline="\n")
+		np.savetxt(f, xb, fmt="%.15f", newline="\n")
+		for i in range(N):
+			np.savetxt(f, blow[i,:], fmt="%.15f", newline="\n")
+			np.savetxt(f, bhigh[i,:], fmt="%.15f", newline="\n")
 
 def main():
 	# Initialize the parser
@@ -127,24 +126,25 @@ def main():
 
 	N = args.N
 	M = args.M
+	nsamp = 1000
 
 
 	xs = lobatto_nodes(N)
 	xb = lobatto_nodes(M)
-	optimize_and_write(xs, xb, 'lobatto', 'lobatto')
+	optimize_and_write(xs, xb, 'lobatto', 'lobatto', nsamp)
 	xb = chebyshev_nodes(M)
-	optimize_and_write(xs, xb, 'lobatto', 'chebyshev')
+	optimize_and_write(xs, xb, 'lobatto', 'chebyshev', nsamp)
 	xb = legendre_nodes_with_endpoints(M)
-	optimize_and_write(xs, xb, 'lobatto', 'legendre')
+	optimize_and_write(xs, xb, 'lobatto', 'legendre', nsamp)
 
 
 	xs = legendre_nodes(N)
 	xb = lobatto_nodes(M)
-	optimize_and_write(xs, xb, 'legendre', 'lobatto')
+	optimize_and_write(xs, xb, 'legendre', 'lobatto', nsamp)
 	xb = chebyshev_nodes(M)
-	optimize_and_write(xs, xb, 'legendre', 'chebyshev')
+	optimize_and_write(xs, xb, 'legendre', 'chebyshev', nsamp)
 	xb = legendre_nodes_with_endpoints(M)
-	optimize_and_write(xs, xb, 'legendre', 'legendre')
+	optimize_and_write(xs, xb, 'legendre', 'legendre', nsamp)
 
 # Entry point of the script
 if __name__ == "__main__":
