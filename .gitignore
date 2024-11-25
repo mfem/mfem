@@ -372,6 +372,7 @@ miniapps/simpl/simpl_heat
 miniapps/simpl/filter_test
 miniapps/simpl/elasticity_test
 miniapps/simpl/diffusion_test
+miniapps/simpl/oc_org
 
 **/compile_commands.json
 

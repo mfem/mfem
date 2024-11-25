@@ -44,7 +44,10 @@ int main(int argc, char *argv[])
    // Stopping-criteria related
    int max_it = 300;
    int min_it = 10;
+   real_t tol_stationary_rel = 1e-04;
+   real_t tol_stationary_abs = 1e-04;
    real_t eps_stationarity = 1;
+   bool use_bregman_stationary = true;
    real_t tol_obj_diff_rel = 5e-05;
    real_t tol_obj_diff_abs = 5e-05;
    real_t tol_rel = 1e-05;
@@ -107,6 +110,9 @@ int main(int argc, char *argv[])
    args.AddOption(&use_bregman_backtrack, "-bb", "--bregman-backtrack", "-ab",
                   "--armijo-backtrack",
                   "Option to choose Bregman backtracking algorithm or Armijo backtracking algorithm");
+   args.AddOption(&use_bregman_stationary, "-bs", "--bregman-stationarity", "-L2",
+                  "--L2-stationarity",
+                  "Option to choose Bregman stationarity or L2 stationarity for stopping criteria");
 
    // visualization related options
    args.AddOption(&use_glvis, "-vis", "--visualization", "-no-vis",
@@ -141,7 +147,9 @@ int main(int argc, char *argv[])
                                     E, nu, ess_bdr_state, ess_bdr_filter,
                                     solid_attr, void_attr,
                                     ser_ref_levels, par_ref_levels));
-   min_vol = max_vol;
+   real_t tot_vol_1 = mesh->GetGlobalNE();
+   real_t max_vol_1 = tot_vol_1*(max_vol/tot_vol);
+   real_t min_vol_1 = tot_vol_1*(min_vol/tot_vol);
    filename << "-" << ser_ref_levels + par_ref_levels;
    const real_t lambda = E*nu/((1+nu)*(1-2*nu));
    const real_t mu = E/(2*(1+nu));
@@ -215,16 +223,12 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root()) { out << "Creating problems ... " << std::flush; }
    // Density
-   ShannonEntropy entropy;
-   PrimalEntropy entropy_primal;
-   entropy.SetFiniteLowerBound(-max_latent);
-   entropy_primal.SetFiniteLowerBound(0.0);
-   entropy_primal.SetFiniteUpperBound(1.0);
+   PrimalEntropy entropy;
+   entropy.SetFiniteLowerBound(0.0);
+   entropy.SetFiniteUpperBound(1.0);
    control_gf = entropy.forward((min_vol ? min_vol : max_vol)/tot_vol);
    MappedGFCoefficient density_cf = entropy.GetBackwardCoeff(control_gf);
    DesignDensity density(fes_control, tot_vol, min_vol, max_vol, &entropy);
-   DesignDensity density_primal(fes_control, tot_vol, min_vol, max_vol,
-                                &entropy_primal);
    density.SetVoidAttr(void_attr);
    density.SetSolidAttr(solid_attr);
    // Filter
@@ -255,8 +259,10 @@ int main(int argc, char *argv[])
    // Backtracking related stuffs
    MappedPairedGFCoefficient bregman_diff_old
       = entropy.GetBregman_dual(control_old_gf, control_gf);
+   MappedPairedGFCoefficient bregman_diff_eps
+      = entropy.GetBregman_dual(control_eps_gf, control_gf);
    MappedPairedGFCoefficient primal_diff_eps
-      = entropy_primal.GetBregman_dual(control_eps_gf, density_gf);
+      = entropy.GetBregman_dual(control_eps_gf, density_gf);
    MappedPairedGFCoefficient diff_density_cf(
       control_gf, control_old_gf, [&entropy](const real_t x, const real_t y)
    {
@@ -298,9 +304,9 @@ int main(int argc, char *argv[])
           curr_vol,
           objval(infinity()), old_objval(infinity()), succ_obj_diff(infinity());
    int tot_reeval(0), num_reeval(0);
-   int it_md;
+   int it_oc;
    TableLogger logger;
-   logger.Append("it", it_md);
+   logger.Append("it", it_oc);
    logger.Append("volume", curr_vol);
    logger.Append("obj", objval);
    logger.Append("step-size", step_size);
@@ -328,75 +334,90 @@ int main(int argc, char *argv[])
    real_t volume_correction;
    ParGridFunction dual_B(&fes_control);
    real_t dual_V;
-   step_size = 0.5;
-   ParGridFunction log_grad_gf(&fes_control);
-   log_grad_gf = 0.0;
-   MappedPairedGFCoefficient x_cf(
-      control_old_gf, log_grad_gf,
-      [](const real_t x, const real_t g)
-      {
-         const real_t x_primal = std::exp(x);
-         const real_t upper = std::min(x_primal + 0.2, 1.0);
-         const real_t lower = std::max(x_primal - 0.2, 0.0);
-         return safe_log(std::max(lower, std::min(upper, x_primal*std::sqrt(g))));
-      });
-   for (it_md = 0; it_md<max_it; it_md++)
+   ParGridFunction lower(&fes_control), upper(&fes_control);
+   real_t max_ch=0.1;
+   // optproblem.Eval();
+   // optproblem.UpdateGradient();
+   // const real_t obj_scale = grad_gf.ComputeMaxError(zero_cf);
+   grad_gf = 0.0;
+   optproblem.Eval();
+   optproblem.UpdateGradient();
+   curr_vol = density.ComputeVolume(control_gf);
+   for (it_oc = 0; it_oc<max_it; it_oc++)
    {
-      if (Mpi::Root()) { out << "Mirror Descent Step " << it_md << std::endl; }
+      if (Mpi::Root()) { out << "OC Step " << it_oc << std::endl; }
       control_old_gf = control_gf;
       old_objval = objval;
-      
-      control_gf.ProjectCoefficient(x_cf);
-      log_grad_gf = 0.0;
-      density.ProjectedStep(control_gf, -1.0, log_grad_gf, volume_correction,
-                            curr_vol);
+      real_t l1(0.0), l2(1e9);
+      while ((l2-l1)/(l1+l2) > 1e-07)
+      {
+         const real_t lmid = (l1+l2)*0.5;
+         for(int i=0; i<control_gf.Size(); i++)
+         {
+            control_gf[i] = std::max(0.0, std::max(control_old_gf[i]-max_ch, std::min(1.0, std::min(control_old_gf[i]+max_ch, control_old_gf[i]*std::sqrt(-grad_gf[i]/lmid)))));
+         }
+         curr_vol = density.ComputeVolume(control_gf);
+         // if (Mpi::Root())
+         // {
+         //    out << max_vol << ", " << curr_vol << ", " << lmid << std::endl;
+         // }
+         if (curr_vol > max_vol)
+         {
+            l1 = lmid;
+         }
+         else
+         {
+            l2 = lmid;
+         }
+      }
+      curr_vol = density.ComputeVolume(control_gf);
       objval = optproblem.Eval();
       succ_obj_diff = old_objval - objval;
       grad_old_gf = grad_gf;
+
       density_gf.ProjectCoefficient(density_cf);
 
       optproblem.UpdateGradient();
       avg_grad = InnerProduct(fes_control.GetComm(), grad_gf, dv)/tot_vol;
-      log_grad_gf = grad_gf;
-      for (real_t &v : log_grad_gf){v = -safe_log(-v);}
 
       real_t dummy1, dummy2;
-      control_eps_gf.ProjectCoefficient(density_cf);
-      density_primal.ProjectedStep(control_eps_gf, 1.0, grad_gf, dummy1, dummy2);
-      // stationarity = std::sqrt(zero_gf.ComputeL1Error(primal_diff_eps));
+      control_eps_gf = control_gf;
+      density.ProjectedStep(control_eps_gf, 1.0, grad_gf, dummy1, dummy2);
+      // stationarity = std::sqrt(zero_gf.ComputeL1Error(bregman_diff_eps));
       stationarity = control_eps_gf.ComputeL2Error(density_cf);
+
 
       logger.Print(true);
       if (Mpi::Root())
       {
          out << "--------------------------------------------" << std::endl;
       }
-      if (it_md % vis_steps == 0)
+      if (it_oc % vis_steps == 0)
       {
          if (use_glvis) { glvis->Update(); }
          if (use_paraview && !(paraview_dc->Error()))
          {
             if (!overwrite_paraview)
             {
-               paraview_dc->SetCycle(it_md);
-               paraview_dc->SetTime(it_md);
+               paraview_dc->SetCycle(it_oc);
+               paraview_dc->SetTime(it_oc);
             }
             paraview_dc->Save();
          }
          else {use_paraview = false;}
       }
-      if (it_md == 0)
+      if (it_oc == 0)
       {
          stationarity0 = stationarity;
       }
       if ((stationarity < tol_rel*stationarity0) || (stationarity < tol_abs))
       {
-         if (it_md > min_it) { break; }
+         if (it_oc > min_it) { break; }
       }
    }
    if (Mpi::Root())
    {
-      out << filename.str() << " terminated after " << it_md
+      out << filename.str() << " terminated after " << it_oc
           << " with " << tot_reeval << " re-eval" << std::endl;
    }
    if (use_glvis)
@@ -407,8 +428,8 @@ int main(int argc, char *argv[])
    {
       if (!overwrite_paraview)
       {
-         paraview_dc->SetCycle(it_md);
-         paraview_dc->SetTime(it_md);
+         paraview_dc->SetCycle(it_oc);
+         paraview_dc->SetTime(it_oc);
       }
       paraview_dc->Save();
    }
