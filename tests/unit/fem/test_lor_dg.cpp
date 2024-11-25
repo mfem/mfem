@@ -12,6 +12,7 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 #include "../linalg/test_same_matrices.hpp"
+//#include "lor_dg_impl.hpp"
 
 using namespace mfem;
 
@@ -307,12 +308,13 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
 {
    const int order = 5;
    const auto mesh_fname = GENERATE(
-                              "../../data/star-q3.mesh"
-                              // "../../data/star-surf.mesh",
+                              //"../../data/star-q3.mesh"
+                               //"../../data/star-surf.mesh",
                               // "../../data/fichera-q3.mesh"
+                              "../../data/inline-quad.mesh"
                            );
    // const bool add_diffusion = GENERATE(true, false);
-   const bool add_diffusion = false;
+   const bool add_diffusion = true;
    Mesh mesh = Mesh::LoadFromFile(mesh_fname);
 
    DG_FECollection fec(order, mesh.Dimension(), BasisType::GaussLobatto);
@@ -324,14 +326,12 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
    GridFunction gf1(&h1fes), gf2(&h1fes);
    gf1.Randomize(1);
    gf2.Randomize(2);
-
    GridFunctionCoefficient mass_coeff(&gf1);
    GridFunctionCoefficient diff_coeff(&gf2);
 
    ConstantCoefficient one(1.0);
    constexpr int sigma = -1.0;
    const int kappa = (order + 1) * (order + 1);
-
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
    if (add_diffusion)
@@ -340,21 +340,18 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
       a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
       a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    }
-
    Array<int> ess_dofs; // Empty
    LORDiscretization lor(fespace);
    lor.AssembleSystem(a, ess_dofs);
    SparseMatrix &A1 = lor.GetAssembledMatrix();
-
    FiniteElementSpace &fes_lor = lor.GetFESpace();
    Mesh &mesh_lor = *fes_lor.GetMesh();
-
    BilinearForm a_lor(&fes_lor);
    if (add_diffusion)
    {
-      a.AddBdrFaceIntegrator(new DG_LOR_DiffusionPreconditioner(
+      a_lor.AddBdrFaceIntegrator(new DG_LOR_DiffusionPreconditioner(
                                 mesh_lor, order, kappa));
-      a.AddInteriorFaceIntegrator(new DG_LOR_DiffusionPreconditioner(
+      a_lor.AddInteriorFaceIntegrator(new DG_LOR_DiffusionPreconditioner(
                                      mesh_lor, order, kappa));
    }
    a_lor.AddDomainIntegrator(new DG_LOR_MassPreconditioner(
@@ -362,8 +359,14 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
    a_lor.Assemble();
    a_lor.Finalize();
    SparseMatrix &A2 = a_lor.SpMat();
-
+   {
+      std::ofstream outfile1("A2.txt");
+      A2.PrintMatlab(outfile1);
+      std::ofstream outfile2("A1.txt");
+      A1.PrintMatlab(outfile2);
+   }
    TestSameMatrices(A1, A2);
+
 
    if (!add_diffusion)
    {
