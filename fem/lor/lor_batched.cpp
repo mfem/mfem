@@ -14,6 +14,7 @@
 #include "../../general/forall.hpp"
 #include <climits>
 #include "../pbilinearform.hpp"
+#include "../../fem/fe/face_map_utils.hpp"
 
 // Specializations
 #include "lor_h1.hpp"
@@ -367,15 +368,19 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
    const int nel_ho = fes_ho.GetNE();
    const int nnz_per_row = sparse_ij.Size()/ndof_per_el/nel_ho;
-
+   const int num_rows = nel_ho*ndof_per_el;
+   const int p = fes_ho.GetMaxElementOrder();
+   const int nnz = num_rows*nnz_per_row;
    auto I = A.WriteI();
+   
+   //std::cout << "nnz per row " << nnz_per_row << std::endl; 
 
-   mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE (int i)
-   {
-      I[i] = i;
-   });
+   //mfem::forall(num_rows+ 1, [=] MFEM_HOST_DEVICE (int i)
+   //{
+   //   I[i] = nnz_per_row*i;
+   //});
 
-   const int nnz = nvdof;
+   //const int nnz = num_rows*nnz_per_row;
 
    EnsureCapacity(A.GetMemoryJ(), nnz);
    EnsureCapacity(A.GetMemoryData(), nnz);
@@ -385,13 +390,110 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    auto J = A.WriteJ();
    auto AV = A.WriteData();
 
-   mfem::forall(nnz, [=] MFEM_HOST_DEVICE (int i)
+
+   Vector neighbor_info_init(nel_ho*4*3);
+   auto neighbor_info_arr = Reshape(neighbor_info_init.Write(),nel_ho, 4, 3);
+
+   int num_faces = fes_ho.GetMesh()->GetNumFaces();
+   int global_border_counter = 0;
+   for (int f = 0; f<num_faces; ++f)
+   {
+      Mesh::FaceInformation face = fes_ho.GetMesh()->GetFaceInformation(f);
+      int i = face.element[0].index;
+      int k = face.element[0].local_face_id;
+      if (face.IsBoundary())
+      {
+         neighbor_info_arr(i,k,0) = -1;
+         neighbor_info_arr(i,k,1)= -1;
+         neighbor_info_arr(i,k,2)= -1;
+         global_border_counter = global_border_counter + (p+1);
+      }
+      else
+      {
+         int j = face.element[1].index;
+         int l = face.element[1].local_face_id;
+         neighbor_info_arr(i,k,0) = j;
+         neighbor_info_arr(i,k,1)= face.element[1].orientation;
+         neighbor_info_arr(i,k,2)= l;
+         neighbor_info_arr(j,l,0) = i;
+         neighbor_info_arr(j,l,1) = face.element[0].orientation;
+         neighbor_info_arr(j,l,2) = k;
+      }
+   }
+   Vector actual_nnz_per_row(num_rows);
+   //auto actual_nnz_per_row =  actual_nnz_per_row_init.Write();
+   //Vector I(num_rows+1);
+   //auto nnz_so_far =  nnz_so_far_init.Write();
+   I[0] = 0;
+   for(int i=0; i<num_rows; ++i){
+      int loc_border_counter = 0;
+      const int iel_ho = i / ndof_per_el;
+      const int iloc = i % ndof_per_el;
+      const int local_x = iloc % (p+1);
+      const int local_y = iloc/(p+1);
+      for (int j = 1; j < nnz_per_row; ++j){
+         bool boundary = (local_x == 0 && j == 4) || (local_x == p && j == 2) || (local_y == 0 && j == 1) || (local_y == p && j == 3);
+         if (boundary){
+            int neighbor_idx = neighbor_info_arr(iel_ho, j-1, 0);
+            if (neighbor_idx == -1)
+            {
+               loc_border_counter = loc_border_counter + 1;
+            }
+         }
+      }
+      I[i+1] = I[i] + (nnz_per_row - loc_border_counter);
+      std::cout << "loc_border_counter" << loc_border_counter << std::endl;
+
+      actual_nnz_per_row[i] = nnz_per_row - loc_border_counter;
+   }
+
+   mfem::forall(num_rows, [=] MFEM_HOST_DEVICE (int i)
    {
       const int iel_ho = i / ndof_per_el;
       const int iloc = i % ndof_per_el;
-      J[i] = i;
-      AV[i] = V(0, iloc, iel_ho);
+      const int local_x = iloc % (p+1);
+      const int local_y = iloc/(p+1);
+      int nnz_per_current_row = actual_nnz_per_row[i];
+      int nnz_so_far_current = I[i];
+      AV[nnz_so_far_current] = V(0, iloc, iel_ho);
+      J[nnz_so_far_current] = i;
+      int k = 1;
+      for (int j = 1; j < nnz_per_row; ++j)
+      {   
+         bool boundary = (local_x == 0 && j == 4) || (local_x == p && j == 2) || (local_y == 0 && j == 1) || (local_y == p && j == 3);
+         if (boundary)
+         {
+            int neighbor_idx = neighbor_info_arr(iel_ho, j-1, 0);
+            int neighbor_face = neighbor_info_arr(iel_ho, j-1, 2);
+            int neighbor_orientation = neighbor_info_arr(iel_ho, j-1, 1);
+            if (neighbor_idx != -1)
+            {
+               int x_n; int y_n;
+               if (j == 4 || j == 2){
+                  internal::FaceIdxToVolIdx2D(local_y, p+1, j-1, neighbor_face, 1, x_n, y_n);
+               }
+               else{
+                  internal::FaceIdxToVolIdx2D(local_x, p+1, j-1, neighbor_face, 1, x_n, y_n);
+               }
+               int neighbor_loc_idx = x_n + (p+1)*y_n;
+               int neighbor_lor_entry = neighbor_idx*ndof_per_el + neighbor_loc_idx;
+               J[nnz_so_far_current + k] = neighbor_lor_entry;
+               AV[nnz_so_far_current + k] = V(j, iloc, iel_ho);
+               k = k+1;
+            }
+         }
+         else
+         {
+            if (j == 4){J[nnz_so_far_current + k] = i - 1;}
+            if (j == 2){J[nnz_so_far_current + k] = i + 1;}
+            if (j == 1){J[nnz_so_far_current + k] = i - (p+1);}
+            if (j == 3){J[nnz_so_far_current + k] = i + (p+1);}
+            AV[nnz_so_far_current + k] = V(j, iloc, iel_ho);
+            k = k+1;
+         }
+      }
    });
+   I[num_rows] = nnz - global_border_counter;
 }
 
 void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
