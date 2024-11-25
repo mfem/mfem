@@ -33,6 +33,7 @@ set(SRCS
   vtk.cpp
   wedge.cpp
   submesh/submesh.cpp
+  submesh/ncsubmesh.cpp
   submesh/submesh_utils.cpp
   submesh/transfermap.cpp
   )
@@ -59,6 +60,7 @@ set(HDRS
   vertex.hpp
   vtk.hpp
   wedge.hpp
+  submesh/ncsubmesh.hpp
   submesh/submesh.hpp
   submesh/submesh_utils.hpp
   submesh/transfer_category.hpp
@@ -69,15 +71,17 @@ if (MFEM_USE_MPI)
   list(APPEND SRCS
     pmesh.cpp
     pncmesh.cpp
-    submesh/ptransfermap.cpp
-    submesh/psubmesh.cpp)
+    submesh/pncsubmesh.cpp
+    submesh/psubmesh.cpp
+    submesh/ptransfermap.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
     pmesh.hpp
     pncmesh.hpp
-    submesh/ptransfermap.hpp
-    submesh/psubmesh.hpp)
+    submesh/pncsubmesh.hpp
+    submesh/psubmesh.hpp
+    submesh/ptransfermap.hpp)
 endif()
 
 if (MFEM_USE_PUMI)
