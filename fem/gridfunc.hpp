@@ -892,7 +892,9 @@ private:
    int mr = 0;
    Vector gllX, gllW, intX;
    DenseMatrix lbound, ubound;
-   bool gll = false;
+   int mesh_node_type = 1; //0=GL, 1 = Gauss Lobatto
+   int sample_interval_point_type = 2; // 2 = chebyshev, 0 = GL+endpts, 1 = GLL
+   double read_eps = 0.0;
 
 private:
    void ScaleNodes(const Vector &in, double a, double b, Vector &out) const;
@@ -910,6 +912,9 @@ private:
 
    void SetupGLBounds(const int n, const int m);
 
+   void SetupBounds(const int n, const int m,
+                    int nodetype = 1, int intptype = 2);
+
 public:
    PLBound() {} // empty constructor
 
@@ -920,14 +925,17 @@ public:
 
    // Alternate constructor - Sets up bounds like GSLIB does.
    // mr must be at-least 2*nr in most cases.
-   PLBound(int nr_, int mr_, bool gll_)
+   PLBound(int nr_, int mr_, int nodetype = 1, int intptype = -1)
    {
-      Setup(nr_, mr_, gll_);
+      Setup(nr_, mr_, nodetype, intptype);
    }
 
-   void Setup(std::string filename)
+   void Setup(std::string filename, double read_eps_ = 0.0)
    {
+      read_eps = read_eps_;
       ReadCustomBounds(gllX, intX, lbound, ubound, filename);
+      ScaleNodes(gllX, 0.0, 1.0, gllX);
+      ScaleNodes(intX, 0.0, 1.0, intX);
       nr = gllX.Size();
       mr = intX.Size();
       gllW.SetSize(nr);
@@ -939,18 +947,26 @@ public:
          gllX(i) = irule.IntPoint(i).x;
       }
       MFEM_VERIFY(gllX.Min() >= 0 && gllX.Max() <= 1, "Nodal points must be in [0,1] for GLL and (0, 1) for GL");
-      ScaleNodes(intX, 0.0, 1.0, intX);
    }
 
-   void Setup(int nr_, int mr_, bool gll)
+   void Setup2(int nr_, int mr_, int nodetype = 1, int intptype = -1)
    {
-        if (gll)
+        SetupBounds(nr_, mr_, nodetype, intptype);
+   }
+
+   void Setup(int nr_, int mr_, int nodetype = 1, int intptype = -1)
+   {
+        if (nodetype == 1 && intptype == -1)
         {
             SetupGSLIBBounds(nr_, mr_);
         }
-        else
+        else if (nodetype == 0 && intptype == -1)
         {
             SetupGLBounds(nr_, mr_);
+        }
+        else
+        {
+            SetupBounds(nr_, mr_, nodetype, intptype);
         }
    }
 

@@ -4,7 +4,6 @@ from scipy import stats, optimize
 import argparse
 
 
-
 def getLobattoPoints(i):
 	if i == 0:
 		return [0.0]
@@ -40,183 +39,290 @@ def getLobattoPoints(i):
 def ChebyshevPoints(n):
 	return [-np.cos(np.pi*i/(n-1)) for i in range(n)]
 
-# Interpolation/interval points are defined on x \in [-1, 1]
-# Nodal interpolation points (e.g., P5 Legendre points)
-# xs = np.array([-0.93246951, -0.66120939, -0.23861919, 0.23861919, 0.66120939, 0.93246951])
-# Interval boundary points (arbitrary)
-# xb = [-1.0, -0.85, -0.5, -0.2, 0.1, 0.4, 0.7, 1.0]
-
-
 def quad_area(x1,y1,x2,y2,x3,y3,x4,y4):
 	return np.abs((x1*y2 - y1*x2) + (x2*y3 - y2*x3) + (x3*y4 - y3*x4) + (x4*y1 - y4*x1))
 
+def vars_from_z(z):
+	xi = z[:M-2]
+	bhigh = z[M-2:M-2 + N*M]
+	blow = z[M-2 + N*M:]
 
-def optimize_bbox(up, xl, xr, nsamp=100, tol=1e-12):
-	assert xr > xl
-	# First transform to local variable xi \in [0,1]
-	upx = lambda x : up((xr - xl)*x + xl)
+	bhigh = np.reshape(bhigh, (N, M))
+	blow = np.reshape(blow, (N, M))
 
-	# Start first with optimizing on many discrete points
-	nsamp = 100
-	xs = np.linspace(0, 1, nsamp)
-	dx = 1.0/nsamp
-	us = upx(xs)
+	return [xi, bhigh, blow]
 
-	'''
-	Optimization problem (discrete convex hull):
-	Find two lines:
-		f = a*xi+b
-		g = c*xi+d,
-	minimizing the functional (bounding box area):
-		quad_area(0, d, 1, c+d, 1, a+b, 0, b)
-	such that:
-		us - f < 0 \forall xi
-		us - g > 0 \forall xi
+def xb_from_xi(xi):
+	return np.array([-1] + list(xi) + [1])
 
-	'''
-	# Initial guess: take LSQ gradient and offset it
-	m, b, _, _, _ = stats.linregress(xs, us)
-	a = c = m
-	b = np.max(us - m*xs)
-	d = np.min(us - m*xs)
-	f = a*xs + b
-	g = c*xs + d
+def get_piecewise_linear_bound(xi, f, xx):
+	if len(xi) != len(f):
+		xib = xb_from_xi(xi)
+		return np.interp(xx, xib, f)
+	else:
+		return np.interp(xx, xi, f)
 
-	z0 = np.array([a,b,c,d])
+def expand_z(z, z0len):
+	if z0len == 1:
+		return z
+	elif z0len % 2 == 0:
+		return np.array(list(z) + list(-z[::-1]))
+	else:
+		return np.array(list(z) + [0] + list(-z[::-1]))
+
+
+def optimize_bbox_all(ups, xb_initial, nsamp=1000, tol=1e-12, fixpoints=False):
+	z0 = xb_initial[1:-1]
+
+	z0len = len(z0)
+
+	if z0len == 1:
+		pass
+	else:
+		z0 = z0[:z0len//2]
+
+
 	def obj(z):
-		a, b, c, d = z
-		return quad_area(0, d, 1, c+d, 1, a+b, 0, b)
+		xi = expand_z(z, z0len)
+		xib = xb_from_xi(xi)
 
-	def constraint1(z):
-		a, b, c, d = z
-		# us - f < 0 -> f - us > 0
-		return (a*xs + b) - us
+		totalfun = 0
+		for i in range(N):
+			# Optimize upper bound
+			[_, fun] = optimize_bbox_onebasis_upper(ups[i], xib, nsamp=nsamp)
+			totalfun += fun
 
-	def constraint2(z):
-		a, b, c, d = z
-		# us - g > 0
-		return us - (c*xs + d)
+			# Optimize lower bound
+			[_, fun] = optimize_bbox_onebasis_upper(-ups[i], xib, nsamp=nsamp)
+			totalfun += fun
 
-	con1 = {'type': 'ineq', 'fun': constraint1}
-	con2 = {'type': 'ineq', 'fun': constraint2}
+		return totalfun
 
-	result = optimize.minimize(obj, z0, constraints=[con1, con2])
-	a,b,c,d = result.x
+	# Constrain so nodal points are increasing
+	cons = []
+	for i in range(M-2):
+		def con(z, i=i):
+			xi = expand_z(z, z0len)
+			if i == 0:
+				val = xi[i] + 1
+			elif i == M-3:
+				val = 1 - xi[i]
+			else:
+				val = xi[i] - xi[i-1]
 
-	# Now take discrete convex hull and offset it to bound continuous polynomial.
-	# This assumes that the discrete optimization was performed with sufficient resolution
-	# such that the convex hull shape (i.e., bounding line slope) would not change much between
-	# discrete and continuous optimization. We find continuous minima of (f - u) and (u - g) and
-	# offset the intercepts (b and d) to account for negative values.
-
-	obj_high = lambda x: (a*x + b) - upx(x)
-	# Search one discrete sampling interval around discrete minimum
-	x0 = xs[np.argmin(obj_high(xs))]
-	bounds = [max(-tol, x0 - dx), min(x0 + dx, 1+tol)]
-	result = optimize.minimize_scalar(obj_high, method='bounded', bounds=bounds)
-	# Necessary around 0/1 since bounds appear to be non-inclusive
-	offset = min(0, min(obj_high(result.x), obj_high(x0)))
-	b = b - offset + tol
-
-	obj_low = lambda x: upx(x) - (c*x + d)
-	x0 = xs[np.argmin(obj_low(xs))]
-	# Search one discrete sampling interval around discrete minimum
-	bounds = [max(-tol, x0 - dx), min(x0 + dx, 1+tol)]
-	result = optimize.minimize_scalar(obj_low, method='bounded', bounds=bounds)
-	# Necessary around 0/1 since bounds appear to be non-inclusive
-	offset = min(0, min(obj_low(result.x), obj_low(x0)))
-	d = d + offset - tol
-
-	return [a,b,c,d]
-
-def main():
-    # Initialize the parser
-    parser = argparse.ArgumentParser(description="A script that processes some arguments")
-
-    # Add arguments
-    parser.add_argument('--N', type=int, help='Number of rows (N)', required=True)
-    parser.add_argument('--M', type=int, help='Number of columns (M)', required=True)
+			return val
+		cons.append({'type': 'ineq', 'fun': con})
 
 
-    args = parser.parse_args()
+	result = optimize.minimize(obj, z0, constraints=cons)
+	z = expand_z(result.x, z0len)
 
-    N = args.N
-    M = args.M
+	return [z, result.fun]
 
-    xs = getLobattoPoints(N-1)
-    xb = ChebyshevPoints(M)
+def optimize_bbox_onebasis_upper(up, xb, nsamp=1000, tol=1e-12):
+	xx = np.linspace(-1, 1, nsamp)
+	upx = up(xx)
 
-    p = N-1
-    xvis = np.linspace(-1, 1, 100)
+	z0 = np.ones(M)*np.max(upx)
 
-    # Store bounding points
-    b_low = np.zeros((N, M))
-    b_high = np.zeros((N, M))
+	def obj(z):
+		pz = 2
+		cost = np.mean(np.maximum(0, con(z))**pz)**(1.0/pz)
+		return cost
 
-    # Loop over basis functions
+	def con(z):
+		f = get_piecewise_linear_bound(xb, z, xx)
+		return f - upx
+
+	cons = []
+	cons.append({'type': 'ineq', 'fun': con})
+
+	result = optimize.minimize(obj, z0, method='SLSQP', constraints=cons)
+
+	return [result.x, result.fun]
+
+
+# Initialize the parser
+parser = argparse.ArgumentParser(description="A script that processes some arguments")
+
+# Add arguments
+parser.add_argument('--N', type=int, help='Number of rows (N)', required=True)
+parser.add_argument('--M', type=int, help='Number of columns (M)', required=True)
+
+args = parser.parse_args()
+
+N = args.N
+M = args.M
+
+
+# N = 3
+# M = 4
+
+xs = getLobattoPoints(N-1)
+# xb = ChebyshevPoints(M)
+# print(xb)
+
+p = N-1
+
+# Loop over basis functions
+ups = []
+for i in range(N):
+    # Set solution to nodal interpolating basis function
+    u = np.zeros(N)
+    u[i] = 1.0
+    ups.append(np.poly1d(np.polyfit(xs, u, p)))
+
+
+nsamp = 1000
+xx = np.linspace(-1, 1, nsamp)
+upx = np.zeros((N, nsamp))
+for i in range(N):
+	upx[i,:] = ups[i](xx)
+
+
+
+xb = ChebyshevPoints(M)
+blow = np.zeros((N,M))
+bhigh = np.zeros((N,M))
+
+plt.figure()
+funtotal = 0
+for i in range(N):
+	plt.subplot(1, N, i+1)
+	plt.plot(xx, upx[i,:], 'k-')
+	[z, fun] = optimize_bbox_onebasis_upper(ups[i], xb, nsamp=nsamp)
+	funtotal += fun
+	bhigh[i,:] = z
+
+	[z, fun] = optimize_bbox_onebasis_upper(-ups[i], xb, nsamp=nsamp)
+	funtotal += fun
+	blow[i,:] = -z
+
+	plt.plot(xb, bhigh[i,:], 'r.')
+	plt.plot(xx, get_piecewise_linear_bound(xb, bhigh[i,:], xx), 'r-')
+	plt.plot(xb, blow[i,:], 'b.')
+	plt.plot(xx, get_piecewise_linear_bound(xb, blow[i,:], xx), 'b-')
+print(funtotal)
+print(xb)
+
+
+filename = f"bnddata_{N}_{M}_chebyshev.txt"
+np.savetxt(filename, [N], fmt="%d", newline="\n")
+with open(filename, "a") as f:
+    np.savetxt(f, xs, fmt="%f", newline="\n")
+    np.savetxt(f, [M], fmt="%d", newline="\n")
+    np.savetxt(f, xb, fmt="%f", newline="\n")
     for i in range(N):
-        plt.figure(i)
-        # Set solution to nodal interpolating basis function
-        u = np.zeros(N)
-        u[i] = 1.0
-        up = np.poly1d(np.polyfit(xs, u, p))
-
-        plt.plot(xvis, up(xvis), 'k-')
-
-        # Loop over intervals and store bounding coefficient values (from both sides)
-        # for this basis function
-        bvals = np.zeros((M-1, 4))
-        for j in range(M-1):
-            xl = xb[j]
-            xr = xb[j+1]
-            bvals[j,:] = optimize_bbox(up, xl, xr) # a,b,c,d coeffs
-
-        # Make C0 continuous and store to global array
-        b_low[i, 0] = bvals[0, 3]
-        b_high[i, 0] = bvals[0, 1]
-        for j in range(1, M-1):
-            b_low[i, j]  = min(bvals[j-1, 2] + bvals[j-1, 3], bvals[j, 3])
-            b_high[i, j] = max(bvals[j-1, 0] + bvals[j-1, 1], bvals[j, 1])
-        b_low[i, -1] = bvals[-1, 2] + bvals[-1, 3]
-        b_high[i, -1] = bvals[-1, 0] + bvals[-1, 1]
+        np.savetxt(f, blow[i,:], fmt="%f", newline="\n")
+        np.savetxt(f, bhigh[i,:], fmt="%f", newline="\n")
 
 
-        plt.plot(xb, b_low[i,:], 'b--')
-        plt.plot(xb, b_high[i,:], 'r--')
+funtotal = None
+for it in range(1):
+	[xi, fun] = optimize_bbox_all(ups, xb, nsamp=nsamp, fixpoints=False)
+	if funtotal is None:
+		funtotal = fun
+	xb = xb_from_xi(xi)
+	print(it, fun/funtotal)
+blow = np.zeros((N,M))
+bhigh = np.zeros((N,M))
 
-    plt.show()
+funtotal = 0
+plt.figure()
+for i in range(N):
+	plt.subplot(1, N, i+1)
+	plt.plot(xx, upx[i,:], 'k-')
+	[z, fun] = optimize_bbox_onebasis_upper(ups[i], xb, nsamp=nsamp)
+	funtotal += fun
+	bhigh[i,:] = z
 
-    # Print out data
-    print('Nodal interpolating points:')
-    print(N)
-    print(', '.join(map(str, xs)))
-    print()
+	[z, fun] = optimize_bbox_onebasis_upper(-ups[i], xb, nsamp=nsamp)
+	funtotal += fun
+	blow[i,:] = -z
+	plt.plot(xb, bhigh[i,:], 'r.')
+	plt.plot(xx, get_piecewise_linear_bound(xb, bhigh[i,:], xx), 'r-')
+	plt.plot(xb, blow[i,:], 'b.')
+	plt.plot(xx, get_piecewise_linear_bound(xb, blow[i,:], xx), 'b-')
+# print(funtotal)
+# print(xb)
 
-    print('Bounding interval points:')
-    print(M)
-    print(', '.join(map(str, xb)))
-    print()
-
+filename = f"bnddata_{N}_{M}_opt.txt"
+np.savetxt(filename, [N], fmt="%d", newline="\n")
+with open(filename, "a") as f:
+    np.savetxt(f, xs, fmt="%f", newline="\n")
+    np.savetxt(f, [M], fmt="%d", newline="\n")
+    np.savetxt(f, xb, fmt="%f", newline="\n")
     for i in range(N):
-        print(f'Lower bounding point values for basis function {i}:')
-        print(', '.join(map(str, b_low[i,:])))
-        print(f'Upper bounding point values for basis function {i}:')
-        print(', '.join(map(str, b_high[i,:])))
-        print()
+		# blow[i,1:-1] -= 1e-3
+		# bhigh[i,1:-1] += 1e-3
+        np.savetxt(f, blow[i,:], fmt="%f", newline="\n")
+        np.savetxt(f, bhigh[i,:], fmt="%f", newline="\n")
 
-    # plt.show()
-    filename = f"bnddata_{N}_{M}.txt"
-    np.savetxt(filename, [N], fmt="%d", newline="\n")
-    with open(filename, "a") as f:
-        np.savetxt(f, xs, fmt="%f", newline="\n")
-        np.savetxt(f, [M], fmt="%d", newline="\n")
-        np.savetxt(f, xb, fmt="%f", newline="\n")
-        for i in range(N):
-            np.savetxt(f, b_low[i,:], fmt="%f", newline="\n")
-            np.savetxt(f, b_high[i,:], fmt="%f", newline="\n")
+# plt.show()
+
+# # Loop over basis functions
+# for i in range(N):
+#     plt.figure(i)
+#     # Set solution to nodal interpolating basis function
+#     u = np.zeros(N)
+#     u[i] = 1.0
+#     up = np.poly1d(np.polyfit(xs, u, p))
+
+#     plt.plot(xvis, up(xvis), 'k-')
+
+#     # Loop over intervals and store bounding coefficient values (from both sides)
+#     # for this basis function
+#     bvals = np.zeros((M-1, 4))
+#     for j in range(M-1):
+#         xl = xb[j]
+#         xr = xb[j+1]
+#         bvals[j,:] = optimize_bbox(up, xl, xr) # a,b,c,d coeffs
+
+#     # Make C0 continuous and store to global array
+#     b_low[i, 0] = bvals[0, 3]
+#     b_high[i, 0] = bvals[0, 1]
+#     for j in range(1, M-1):
+#         b_low[i, j]  = min(bvals[j-1, 2] + bvals[j-1, 3], bvals[j, 3])
+#         b_high[i, j] = max(bvals[j-1, 0] + bvals[j-1, 1], bvals[j, 1])
+#     b_low[i, -1] = bvals[-1, 2] + bvals[-1, 3]
+#     b_high[i, -1] = bvals[-1, 0] + bvals[-1, 1]
 
 
-# Entry point of the script
-if __name__ == "__main__":
-    main()
+#     plt.plot(xb, b_low[i,:], 'b--')
+#     plt.plot(xb, b_high[i,:], 'r--')
 
+# plt.show()
+
+# # Print out data
+# print('Nodal interpolating points:')
+# print(N)
+# print(', '.join(map(str, xs)))
+# print()
+
+# print('Bounding interval points:')
+# print(M)
+# print(', '.join(map(str, xb)))
+# print()
+
+# for i in range(N):
+#     print(f'Lower bounding point values for basis function {i}:')
+#     print(', '.join(map(str, b_low[i,:])))
+#     print(f'Upper bounding point values for basis function {i}:')
+#     print(', '.join(map(str, b_high[i,:])))
+#     print()
+
+# # plt.show()
+# filename = f"bnddata_{N}_{M}.txt"
+# np.savetxt(filename, [N], fmt="%d", newline="\n")
+# with open(filename, "a") as f:
+#     np.savetxt(f, xs, fmt="%f", newline="\n")
+#     np.savetxt(f, [M], fmt="%d", newline="\n")
+#     np.savetxt(f, xb, fmt="%f", newline="\n")
+#     for i in range(N):
+#         np.savetxt(f, b_low[i,:], fmt="%f", newline="\n")
+#         np.savetxt(f, b_high[i,:], fmt="%f", newline="\n")
+
+
+# # Entry point of the script
+# if __name__ == "__main__":
+#     main()

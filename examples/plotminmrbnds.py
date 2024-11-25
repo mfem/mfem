@@ -21,15 +21,28 @@ def lagrange_poly(gll, i, xi):
     return num/den
 
 
-def plot_lower_and_upper_bounds(nr, mr, npts, gll, intx, lbound, ubound, gllbool):
+def plot_lower_and_upper_bounds(nr, mr, npts, gll, intx, lbound, ubound, nodep, intp):
     rmin = 0.0
     rmax = 1.0
     sample_locs = np.zeros(npts)
     basis = np.zeros((npts))
     lower = np.zeros((npts))
     upper = np.zeros((npts))
-    glstring = "GLL" if gllbool == True else "GL"
-    pdf_pages = PdfPages('minmr_PL_'+glstring+'_N='+str(nr)+'_M='+str(mr)+'.pdf')
+
+    fname = "minmr_PL_"
+    if (nodep == 0):
+        fname += "GL" + str(nr)
+    else:
+        fname += "GLL" + str(nr)
+    istring = ""
+    if (intp == -1):
+        istring = "_Cheb" + str(mr)
+    elif (intp == 0):
+        istring = "_GL" + str(mr)
+    elif (intp == 1):
+        istring = "_GLL" + str(mr)
+    glstring = fname + istring
+    pdf_pages = PdfPages(glstring+'.pdf')
     # print('minmr_PL_='+glstring+'_N='+str(nr)+'_M='+str(mr)+'.pdf')
     for i in range(nr):
         for j in range(npts):
@@ -50,10 +63,14 @@ def plot_lower_and_upper_bounds(nr, mr, npts, gll, intx, lbound, ubound, gllbool
     pdf_pages.close()
 
 
-def plot_and_save_data(nr_in, gll):
-    fname = "minmr_PL_" + "GLL_" + str(nr_in) + ".txt"
-    if gll != True:
-        fname = "minmr_PL_" + "GL_" + str(nr_in) + ".txt"
+def plot_and_save_data(nr_in, nodep, intp):
+    fname = "minmr_PL_"
+    if (nodep == 0):
+        fname += "GL_"
+    else:
+        fname += "GLL_"
+    fname +=str(nr_in) + "_Int_" + str(intp) + ".txt"
+
     data = np.loadtxt(fname)
     nr = int(data[0])
     assert nr == nr_in, "NR mismatch"
@@ -78,7 +95,7 @@ def plot_and_save_data(nr_in, gll):
     ubound = np.reshape(ubound, (nr, mr))
     # print(lbound)
     # exit
-    plot_lower_and_upper_bounds(nr, mr, nbrute, gllx, intx, lbound, ubound, gll)
+    plot_lower_and_upper_bounds(nr, mr, nbrute, gllx, intx, lbound, ubound, nodep, intp)
 
 
 
@@ -88,16 +105,19 @@ def main():
 
     # Add arguments
     parser.add_argument('--NMAX', type=int, help='Number of rows (N)', default=15)
+    parser.add_argument('--NMIN', type=int, help='Number of rows (N)', default=5)
+    parser.add_argument('--nodep', type=int, help='node type', default=1)
+    parser.add_argument('--intp', type=int, help='intp type', default=-1)
 
     args = parser.parse_args()
 
     nmax = args.NMAX
+    intp = args.intp
+    nodep = args.nodep
 
     # loop from 3 to NMAX
-    for nr in range(2, nmax):  # Add 1 to include nmax
-        plot_and_save_data(nr, True)
-    for nr in range(2, nmax):  # Add 1 to include nmax
-        plot_and_save_data(nr, False)
+    for nr in range(3, nmax+1):  # Add 1 to include nmax
+        plot_and_save_data(nr, nodep, intp)
 
 
 
