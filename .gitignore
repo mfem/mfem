@@ -365,6 +365,15 @@ miniapps/simpl/ParaView*
 miniapps/simpl/**/SiMPL-*
 miniapps/simpl/**/OC-*
 miniapps/simpl/**/MMA-*
+miniapps/simpl/oc
+miniapps/simpl/mma
+miniapps/simpl/simpl
+miniapps/simpl/simpl_heat
+miniapps/simpl/filter_test
+miniapps/simpl/elasticity_test
+miniapps/simpl/diffusion_test
+
+**/compile_commands.json
 
 miniapps/hdiv-linear-solver/darcy
 miniapps/hdiv-linear-solver/grad_div
