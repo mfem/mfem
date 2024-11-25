@@ -15,6 +15,21 @@ if (MFEM_USE_MPI)
     EXTRA_SOURCES linear_solver.cpp topopt.cpp topopt_problems.cpp funs.cpp logger.cpp
     EXTRA_HEADERS linear_solver.hpp topopt.hpp topopt_problems.hpp funs.hpp logger.hpp
     LIBRARIES mfem)
+  add_mfem_miniapp(oc
+    MAIN oc.cpp
+    EXTRA_SOURCES linear_solver.cpp topopt.cpp topopt_problems.cpp funs.cpp logger.cpp
+    EXTRA_HEADERS linear_solver.hpp topopt.hpp topopt_problems.hpp funs.hpp logger.hpp
+    LIBRARIES mfem)
+  add_mfem_miniapp(oc_org
+    MAIN oc_org.cpp
+    EXTRA_SOURCES linear_solver.cpp topopt.cpp topopt_problems.cpp funs.cpp logger.cpp
+    EXTRA_HEADERS linear_solver.hpp topopt.hpp topopt_problems.hpp funs.hpp logger.hpp
+    LIBRARIES mfem)
+  add_mfem_miniapp(mma
+    MAIN mma.cpp
+    EXTRA_SOURCES linear_solver.cpp topopt.cpp topopt_problems.cpp funs.cpp logger.cpp
+    EXTRA_HEADERS linear_solver.hpp topopt.hpp topopt_problems.hpp funs.hpp logger.hpp
+    LIBRARIES mfem)
   add_mfem_miniapp(filter_test
     MAIN filter_test.cpp
     EXTRA_SOURCES linear_solver.cpp topopt.cpp topopt_problems.cpp funs.cpp
