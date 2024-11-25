@@ -51,7 +51,7 @@ void LinearFormExtension::Assemble()
       {
          // scan the attributes to set the markers to 0 or 1
          const int NE = fes.GetNE();
-         const auto attr = attributes.Read();
+         const auto attr = attributes->Read();
          const auto dimk = domain_integs_marker_k->Read();
          auto markers_w = markers.Write();
          mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
@@ -125,8 +125,7 @@ void LinearFormExtension::Update()
       //markers.UseDevice(true);
 
       // Gather the attributes on the host from all the elements
-      attributes.SetSize(NE);
-      for (int i = 0; i < NE; ++i) { attributes[i] = mesh.GetAttribute(i); }
+      attributes = &mesh.GetElementAttributes();
 
       elem_restrict_lex = fes.GetElementRestriction(ordering);
       MFEM_VERIFY(elem_restrict_lex, "Element restriction not available");

@@ -106,6 +106,9 @@ protected:
    Array<Element *> boundary;
    Array<Element *> faces;
 
+   /// internal cache for element attributes
+   mutable Array<int> elem_attrs_cache;
+
    /** @brief This structure stores the low level information necessary to
        interpret the configuration of elements on a specific face. This
        information can be accessed using methods like GetFaceElements(),
@@ -2209,6 +2212,18 @@ public:
        @note Unlike the similarly named protected method UpdateNodes() this
        method does not modify the nodes. */
    void NodesUpdated() { DeleteGeometricFactors(); }
+
+   /// Returns the attributes for all elements in this mesh.
+   /// The returned array points to an internal object that may be invalidated
+   /// by mesh operations such as refinement or any element attributes are
+   /// modified. Since not all such modifications can be tracked by the Mesh
+   /// class (e.g. if a user calls GetElement() then changes the element
+   /// attribute directly), one needs to account for such changes by calling the
+   /// method ElementAttributesUpdated().
+   const Array<int>& GetElementAttributes() const;
+
+   /// Marks that element attribute data has been updated
+   void ElementAttributesUpdated();
 
    /// @}
 

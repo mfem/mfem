@@ -919,6 +919,27 @@ const FaceGeometricFactors* Mesh::GetFaceGeometricFactors(
    return gf;
 }
 
+const Array<int>& Mesh::GetElementAttributes() const
+{
+   if (elem_attrs_cache.Size() != GetNE())
+   {
+      // re-compute cache
+      elem_attrs_cache.SetSize(GetNE());
+      elem_attrs_cache.HostWrite();
+      for (int i = 0; i < GetNE(); ++i)
+      {
+         elem_attrs_cache[i] = GetAttribute(i);
+      }
+   }
+   return elem_attrs_cache;
+}
+
+void Mesh::ElementAttributesUpdated()
+{
+   // set size to 0 so re-computations can potentially avoid a new allocation
+   elem_attrs_cache.SetSize(0);
+}
+
 void Mesh::DeleteGeometricFactors()
 {
    for (int i = 0; i < geom_factors.Size(); i++)
@@ -1833,11 +1854,12 @@ void Mesh::SetAttributes()
       MFEM_WARNING("Non-positive attributes on the boundary!");
    }
 
-   attribs.SetSize(GetNE());
-   for (int i = 0; i < attribs.Size(); i++)
-   {
-      attribs[i] = GetAttribute(i);
-   }
+   // assume that attributes have been modified
+   ElementAttributesUpdated();
+
+   // since we're already reading all the attributes, might as well just update the cache
+   attribs = GetElementAttributes();
+
    attribs.Sort();
    attribs.Unique();
    attribs.Copy(attributes);
@@ -4436,6 +4458,9 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       Nodes = mesh.Nodes;
       own_nodes = 0;
    }
+
+   // copy attribute caches
+   elem_attrs_cache = mesh.elem_attrs_cache;
 }
 
 Mesh::Mesh(Mesh &&mesh) : Mesh()
@@ -7619,6 +7644,12 @@ void Mesh::GetBdrElementAdjacentElement2(
 void Mesh::SetAttribute(int i, int attr)
 {
   elements[i]->SetAttribute(attr);
+  if (elem_attrs_cache.Size() == GetNE())
+  {
+     // update the existing cache instead of deleting it
+     elem_attrs_cache.HostWrite();
+     elem_attrs_cache[i] = attr;
+  }
   if (ncmesh) ncmesh->SetAttribute(i, attr);
 }
 
@@ -10744,6 +10775,9 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
       mfem::Swap(nodes_sequence, other.nodes_sequence);
       mfem::Swap(last_operation, other.last_operation);
    }
+
+   // copy attribute caches
+   mfem::Swap(elem_attrs_cache, other.elem_attrs_cache);
 }
 
 void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
