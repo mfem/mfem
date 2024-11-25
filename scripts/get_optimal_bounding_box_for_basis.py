@@ -48,36 +48,26 @@ def optimize_bbox_onebasis_upper(up, xb, nsamp=1000, tol=1e-6):
 	z = result.x
 
 	# Take discrete bounding box and offset it by -min(f(x) - u(x)) to ensure continuous bounds preservation
-	def obj2(x):
+	z -= find_minima(xb, z, up)
+
+	return [z + tol, result.fun]
+
+def find_minima(xb, z, up):
+	def obj(x):
 		f = get_piecewise_linear_bound(xb, z, x)
 		return f - up(x)
 
-	def con1(x):
-		return x + 1
+	nopts = int(1e6)
+	xx = np.linspace(-1, 1, nopts)
 
-	def con2(x):
-		return 1 - x
+	for i in range(2):
+		minidx = np.argmin(obj(xx))
+		xl = xx[max(0, minidx - 1)]
+		xr = xx[min(nopts-1, minidx+1)]
 
-	cons = []
-	cons.append({'type': 'ineq', 'fun': con1})
-	cons.append({'type': 'ineq', 'fun': con2})
+		xx = np.linspace(xl, xr, nopts)
 
-	newxx = np.linspace(-1, 1, int(1e6))
-	x0 = newxx[np.argmin(obj2(newxx))]
-	for i in range(5):
-		off = optimize.minimize(obj2, x0, method='SLSQP', constraints=cons, tol=1e-12)
-		if obj2(x0) < obj2(off.x):
-			z -= obj2(x0)
-			break
-		else:
-			z -= obj2(off.x)
-			x0 = off.x
-
-	off2 = optimize.minimize(obj2, off.x, method='SLSQP', constraints=cons, tol=1e-12)
-	if obj2(off2.x) < -tol:
-		print('Failed to find continuously bounds preserving offset.', obj2(off2.x), off.x, off2.x)
-
-	return [z + tol, result.fun]
+	return np.min(obj(xx))
 
 def optimize_and_write(xs, xb, sname, bname, nsamp=1000, plot=False):
 	N = len(xs)
