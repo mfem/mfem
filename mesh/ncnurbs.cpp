@@ -568,7 +568,6 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
 
    MFEM_VERIFY(nfpairs > 0 || !is3D, "");
    int midPrev = -1;
-   int pfcnt = 0;
    int orientation = 0;
    for (int q=start; q<nfpairs; ++q)
    {
@@ -618,8 +617,6 @@ void NURBSExtension::ProcessFacePairs(int start, int midStart,
          orientation = ori;
 
          midPrev = mid;
-
-         pfcnt++;
       }  // next parent face
 
       slaveFaces.push_back(childFace);
@@ -1155,8 +1152,8 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
       }
 
       // Set dimensions for a single mesh edge.
-      int sne1 = (mnf1 - n1 + 1) / n1;
-      int sne2 = (mnf2 - n2 + 1) / n2;
+      const int sne1 = (mnf1 - n1 + 1) / n1;
+      const int sne2 = (mnf2 - n2 + 1) / n2;
 
       MFEM_ASSERT(sne1 * n1 == mnf1 - n1 + 1, "");
       MFEM_ASSERT(sne2 * n2 == mnf2 - n2 + 1, "");
@@ -1254,7 +1251,10 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                   MFEM_VERIFY(sm == nf1 && sn == nf2, "TODO: remove this?");
 
                   const int q = j + (k * onf1);
-                  consistent = ConsistentlySetEntry(fos + q, mdof(os1 + sj, os2 + sk));
+                  if (!ConsistentlySetEntry(fos + q, mdof(os1 + sj, os2 + sk)))
+                  {
+                     consistent = false;
+                  }
                }
 
             // Set entries on edges of this face, if they are interior to the master face.
@@ -1371,8 +1371,11 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                      m2 = os2 + nf2 - 1 - j;
                   }
 
-                  consistent = ConsistentlySetEntry(reverse ? edofs[nf_e - 1 - j] : edofs[j],
-                                                    mdof(m1, m2));
+                  if (!ConsistentlySetEntry(reverse ? edofs[nf_e - 1 - j]
+                                            : edofs[j], mdof(m1, m2)))
+                  {
+                     consistent = false;
+                  }
                }
             }  // eidx
 
@@ -1404,8 +1407,10 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                      m2 = os2 + nf2;
                   }
 
-                  consistent = ConsistentlySetEntry(v_offsets[v],
-                                                    mdof(m1, m2));
+                  if (!ConsistentlySetEntry(v_offsets[v], mdof(m1, m2)))
+                  {
+                     consistent = false;
+                  }
                }
             }  // vidx
          }
@@ -1505,7 +1510,12 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                for (int j=0; j<nf1; ++j)
                {
                   const int q = j + (k * nf1);
-                  consistent = ConsistentlySetEntry(fos + perm[q], mdof(os1 + j, os2 + k));
+
+                  if (!ConsistentlySetEntry(fos + perm[q],
+                                            mdof(os1 + j, os2 + k)))
+                  {
+                     consistent = false;
+                  }
                }
 
             // Set entries on edges of this face, if they are interior to the master face.
@@ -1605,8 +1615,11 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                      m2 = os2 + nf2 - 1 - j;
                   }
 
-                  consistent = ConsistentlySetEntry(reverse ? edofs[nf_e - 1 - j] : edofs[j],
-                                                    mdof(m1, m2));
+                  if (!ConsistentlySetEntry(reverse ? edofs[nf_e - 1 - j]
+                                            : edofs[j], mdof(m1, m2)))
+                  {
+                     consistent = false;
+                  }
                }
             }  // eidx
 
@@ -1638,8 +1651,10 @@ void NURBSPatchMap::SetMasterFaces(bool dof)
                      m2 = os2 + nf2;
                   }
 
-                  consistent = ConsistentlySetEntry(v_offsets[v],
-                                                    mdof(m1, m2));
+                  if (!ConsistentlySetEntry(v_offsets[v], mdof(m1, m2)))
+                  {
+                     consistent = false;
+                  }
                }
             }  // vidx
          }
@@ -1867,6 +1882,8 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
          if (i > 0)
          {
+            // TODO: change the comments. The usage of "knot" is wrong.
+
             // In the case of only 1 element in the 1-direction, it is assumed that
             // the 2-direction has more than 1 element, so there are knots (0, ki2)
             // and (1, ki2) for 0 < ki2 < n2. This will result in n1 = 0, which
@@ -1955,7 +1972,7 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
          {
             for (int j=0; j<2; ++j)
             {
-               ev[j] = v2k(parentOffset[parent],3 + ((i + j) % 4));
+               ev[j] = v2k(parentOffset[parent], 3 + ((i + j) % 4));
             }
 
             const bool reverse = (ev[1] < ev[0]);
@@ -2029,12 +2046,32 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
       MFEM_VERIFY(n1set * n2set >= parentOffset[parent + 1] - parentOffset[parent],
                   "");
 
+      std::array<int, 2> rf;
+      if (ref_factors.Size() == 3)
+      {
+         rf[0] = ref_factors[0];  // TODO: map the 3D entries of ref_factors to the 2 dimensions of this face
+         rf[1] = ref_factors[0];  // TODO: map the 3D entries of ref_factors to the 2 dimensions of this face
+      }
+      else
+      {
+         for (int i=0; i<2; ++i)
+         {
+            rf[i] = 1;
+         }
+      }
+
       bool allset = true;
       bool hasSlaveFaces = false;
       bool hasAuxFace = false;
       for (int i=0; i<=n1; ++i)
          for (int j=0; j<=n2; ++j)
          {
+            const bool origGrid = (i % rf[0] == 0) && (j % rf[1] == 0);
+            if (!origGrid)
+            {
+               continue;
+            }
+
             if (gridVertex(i,j) < 0)
             {
                allset = false;
@@ -2045,16 +2082,27 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
             }
          }
 
+      const int d0 = rf[0];
+      const int d1 = rf[1];
+
       // Loop over child faces and set facePairs, as well as auxiliary faces as needed.
       // TODO: just loop over (r1min, r1max) and (r2min, r2max)?
-      for (int i=0; i<n1; ++i)
-         for (int j=0; j<n2; ++j)
+      const int n1orig = n1 / d0;
+      const int n2orig = n2 / d1;
+
+      MFEM_VERIFY(d0 * n1orig == n1 && d1 * n2orig == n2, "");
+
+      for (int ii=0; ii<n1orig; ++ii)
+         for (int jj=0; jj<n2orig; ++jj)
          {
+            const int i = ii * d0;
+            const int j = jj * d1;
+
             std::vector<int> cv(4);
-            cv[0] = gridVertex(i,j);
-            cv[1] = gridVertex(i+1,j);
-            cv[2] = gridVertex(i+1,j+1);
-            cv[3] = gridVertex(i,j+1);
+            cv[0] = gridVertex(i, j);
+            cv[1] = gridVertex(i + d0, j);
+            cv[2] = gridVertex(i + d0, j + d1);
+            cv[3] = gridVertex(i, j + d1);
 
             const auto cvmin = std::min_element(cv.begin(), cv.end());
             const int idmin = std::distance(cv.begin(), cvmin);
@@ -2076,7 +2124,7 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                // ori gives the orientation and index of cv matching the first vertex of childFace.
 
                facePairs.emplace_back(FacePairInfo{cv[0], childFace, parentFace, ori,
-                  {i, j}, {1, 1}});
+                  {i, j}, {d0, d1}});
             }
             else
             {
@@ -2101,8 +2149,8 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
                   auxFace.ki0[0] = i;
                   auxFace.ki0[1] = j;
-                  auxFace.ki1[0] = i + 1;
-                  auxFace.ki1[1] = j + 1;
+                  auxFace.ki1[0] = i + d0;
+                  auxFace.ki1[1] = j + d1;
 
                   auxFaces.push_back(auxFace);
                }
@@ -2134,16 +2182,22 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
             int firstEdge = -1;
 
-            for (int e_i=0; e_i<ne; ++e_i)  // edges in direction `dir`
+            const int de = d0;  // TODO: set this correctly for the direction of the edge.
+            const int ne_orig = ne / de;
+            MFEM_VERIFY(de * ne_orig == ne, "");
+
+            for (int e_orig=0; e_orig<ne_orig; ++e_orig)  // edges in direction `dir`
             {
+               const int e_i = de * e_orig;
+
                // For both directions, side s=0 has increasing indices and
                // s=1 has decreasing indices.
 
                const int i0 = e_i;
-               const int i1 = e_i + 1;
+               const int i1 = e_i + de;
 
-               const int e_idx = reverse ? ne - e_i - 1 :
-                                 e_i;  // Edge index with respect to the master edge.
+               // Edge index with respect to the master edge.
+               const int e_idx = reverse ? ne - e_i - de : e_i;
 
                Array<int> cv(2);
                if (dir == 1)
@@ -2170,15 +2224,15 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
                if (tvprev == -1)
                {
-                  tvprev = (i0 == 0 ||
-                            i0 == ne) ? cv[1] : cv[0];  // Top-vertex interior to the master edge
                   kiprev = (i0 == 0 || i0 == ne) ? i1 : i0;
+                  // Top-vertex interior to the master edge
+                  tvprev = (i0 == 0 || i0 == ne) ? cv[1] : cv[0];
                }
                else if (e_i < ne - 1)  // Don't set to the endpoint
                {
                   kiprev = (tvprev == cv[0]) ? i1 : i0;
-                  tvprev = (tvprev == cv[0]) ? cv[1] :
-                           cv[0];  // Next interior vertex along the master edge
+                  // Next interior vertex along the master edge
+                  tvprev = (tvprev == cv[0]) ? cv[1] : cv[0];
                }
 
                if (!lagTV)
@@ -2206,8 +2260,8 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                   }
                }
 
-               const int tv = (e_idx == ne - 1) ? -1 : tv_int;
-               const int tvki = (e_idx == ne - 1) ? -1 : (reverse ? ne - ki : ki);
+               const int tv = (e_idx == ne - de) ? -1 : tv_int;
+               const int tvki = (e_idx == ne - de) ? -1 : (reverse ? ne - ki : ki);
 
                if (tv == -1)
                {
@@ -2364,6 +2418,8 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
       // Auxiliary edges in first and second directions
       for (int d=0; d<2; ++d)
       {
+         const int de = d0;  // TODO: set this correctly for the direction of the edge.
+
          // TODO: interchange i- and s- loops?
          for (int i=0; i<3; ++i)
          {
@@ -2446,8 +2502,8 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                   continue;
                }
 
-               const int tv = i == 0 ? cv[1] :
-                              cv[0];  // Top-vertex interior to the master edge.
+               // Top-vertex interior to the master edge.
+               const int tv = i == 0 ? cv[1] : cv[0];
                const int tvki_f = i == 0 ? ki[1] : ki[0];  // Knot index w.r.t. face
                const int tvki = reverse ? n_d - tvki_f : tvki_f;  // Knot index w.r.t. edge
 
@@ -2484,11 +2540,11 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
 
                   // TODO: ne is identical to n_d.
                   const int ne = d == 0 ? n1 : n2;
-                  const int e_idx_i = i == 0 ? 0 : ne - 1;
-                  const int e_idx = reverse ? ne - 1 - e_idx_i : e_idx_i;
+                  const int e_idx_i = i == 0 ? 0 : ne - de;
+                  const int e_idx = reverse ? ne - de - e_idx_i : e_idx_i;
 
-                  const EdgePairInfo ep_e((e_idx == ne - 1) ? -1 : tv,
-                                          (e_idx == ne - 1) ? -1 : tvki,
+                  const EdgePairInfo ep_e((e_idx == ne - de) ? -1 : tv,
+                                          (e_idx == ne - de) ? -1 : tvki,
                                           -1 - auxv2e[childPair], parentEdge);
 
                   const bool unset = !edgePairs[edgePairOS[parentEdge] + e_idx].isSet;
@@ -2519,11 +2575,11 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
                   // TODO: ne is identical to n_d.
                   const int ne = d == 0 ? n1 : n2;
 
-                  const int e_idx_i = i == 0 ? 0 : ne - 1;
-                  const int e_idx = reverse ? ne - 1 - e_idx_i : e_idx_i;
+                  const int e_idx_i = i == 0 ? 0 : ne - de;
+                  const int e_idx = reverse ? ne - de - e_idx_i : e_idx_i;
 
-                  const int tv_e = (e_idx == ne - 1) ? -1 : tv;
-                  const int tv_ki = (e_idx == ne - 1) ? -1 : tvki;  // TODO: better naming
+                  const int tv_e = (e_idx == ne - de) ? -1 : tv;
+                  const int tv_ki = (e_idx == ne - de) ? -1 : tvki;  // TODO: better naming
 
                   const EdgePairInfo ep_e(tv_e, tv_ki, childEdge, parentEdge);
 

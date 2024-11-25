@@ -332,6 +332,8 @@ public:
       return vertex_to_knot;
    }
 
+   void RefineVertexToKnot(Array<int> const& rf);
+
    // coarse/fine transforms
 
    /** Remember the current layer of leaf elements before the mesh is refined.
