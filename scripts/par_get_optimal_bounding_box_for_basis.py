@@ -9,12 +9,12 @@ def run_dum(N, M):
 
 def main():
     # Define the range of values for N and M
-    N_values = range(5, 6)
+    N_values = range(3, 10)
 
     # Create a list of tasks
     tasks = []
     for N in N_values:
-        for M in range(N , 20):  # M ranges from N+1 to 30
+        for M in range(N , 25):  # M ranges from N+1 to 30
             tasks.append((N, M))
 
     # Use ThreadPoolExecutor to run tasks in parallel

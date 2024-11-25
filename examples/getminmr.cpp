@@ -1,6 +1,8 @@
 // Sample runs:
 // 2D
 // make getminmr -j && mpirun -np 1 getminmr -nr 15
+// plot using python3 plotminmrbndscomp.py
+//                    plotminmrbnds.py
 
 
 #include "mfem.hpp"
@@ -41,43 +43,82 @@ double GetPLValue(const Vector &x, const Vector &y, double xv)
    return yv;
 }
 
-bool ArePLBoundsGood(int nbrute, int nr, int mr, bool gll, bool print)
+bool ArePLBoundsGood(int nbrute, int nr, int mr, int nodetype, int intptype, bool print, Vector &errors)
 {
    PLBound plb;
-   plb.Setup(nr, mr, gll);
+   std::string fname = "../scripts/bnddata_spts_";
+   if (nodetype == 1)
+   {
+      fname += "lobatto_" + std::to_string(nr);
+   }
+   else if (nodetype == 0)
+   {
+      fname += "legendre_" + std::to_string(nr);
+   }
+   else
+   {
+      std::cout << "Invalid nodetype\n";
+      MFEM_ABORT(" ");
+   }
+   // intp = 0,1,2 - we use default bounds
+   // 3,4,5 we use optimized bounds
+   double read_eps = 0.0;
+   if (intptype == 3)
+   {
+      fname += "_bpts_legendre_" + std::to_string(mr)+ ".txt";
+      plb.Setup(fname, read_eps);
+   }
+   else if (intptype == 4)
+   {
+      fname += "_bpts_lobatto_" + std::to_string(mr)+ ".txt";
+      plb.Setup(fname, read_eps);
+   }
+   else if (intptype == 5)
+   {
+      fname += "_bpts_chebyshev_" + std::to_string(mr)+ ".txt";
+      plb.Setup(fname, read_eps);
+   }
+   else if (intptype == 6)
+   {
+      fname += "_bpts_opt_" + std::to_string(mr)+ ".txt";
+      plb.Setup(fname, read_eps);
+   }
+   else
+   {
+      plb.Setup2(nr, mr, nodetype, intptype);
+   }
    const Vector gllX = plb.GetGLLX();
    const Vector intX = plb.GetIntX();
    const DenseMatrix lbound = plb.GetLBound();
    const DenseMatrix ubound = plb.GetUBound();
-   Poly_1D::Basis &basis1d(poly1d.GetBasis(nr-1, gll ?
-                                                 BasisType::GaussLobatto :
-                                                 BasisType::GaussLegendre));
+   // gllX.Print();
+   // intX.Print();
+   MFEM_VERIFY(nodetype <= 1, "Only GL (0) or GLL (1) nodes supported\n");
+   Poly_1D::Basis &basis1d(poly1d.GetBasis(nr-1, nodetype == 0 ?
+                                                 BasisType::GaussLegendre :
+                                                 BasisType::GaussLobatto));
 
    Vector bv(nr); //basis value
+   int error_type = 2; // 0 - area, 1 - Linf, 2 - L2
+   errors.SetSize(3);
+   errors = 0.0;
+   Vector opterror(nr);
+   opterror = 0.0;
 
    Vector lb_i, ub_i; // lower piecewise bound
    for (int j = 0; j < nbrute; j++)
    {
       double xv = (j)*1.0/(nbrute-1.0); //[0,1]
       bv = 0.0;
-      if (gll)
+      basis1d.Eval(xv, bv);
+      double h = 1.0/(nbrute-1.0);
+      if (j == 0)
       {
-         if (j == 0)
-         {
-            bv(0) = 1.0;
-         }
-         else if (j  == nbrute-1)
-         {
-            bv(nr-1) = 1.0;
-         }
-         else
-         {
-            basis1d.Eval(xv, bv);
-         }
+         xv = 0.0;
       }
-      else
+      else if (j == nbrute-1)
       {
-         basis1d.Eval(xv, bv);
+         xv = 1.0;
       }
       for (int i = 0; i < nr; i++) //ith basis
       {
@@ -86,20 +127,48 @@ bool ArePLBoundsGood(int nbrute, int nr, int mr, bool gll, bool print)
          ubound.GetRow(i, ub_i);
          double lb_xv = GetPLValue(intX, lb_i, xv);
          double ub_xv = GetPLValue(intX, ub_i, xv);
-         if (lb_xv > bv_xv || ub_xv < bv_xv)
+         if (j != 0 && j != nbrute-1)
          {
-            // std::cout << i << " "<< j << " " << xv << " " << bv_xv << " " <<
-            // lb_xv << " " << ub_xv << std::endl;
-            // MFEM_ABORT(" ");
-            return false;
+            if ( lb_xv > bv_xv || ub_xv < bv_xv)
+            {
+               std::cout << setprecision(14);
+               std::cout << j << " " << i << " " << xv << " " <<
+               bv_xv << " " << lb_xv << " " << ub_xv << " intervalpt,basis(0index),xv,basisval,lowerboundval,upperboundval\n";
+               errors = -1.0;
+               return false;
+            }
+         }
+
+         errors(1) = std::max(errors(1), ub_xv-bv_xv);
+         errors(1) = std::max(errors(1), bv_xv-lb_xv);
+
+         errors(2) += std::pow(ub_xv-bv_xv, 2.0) + std::pow(bv_xv-lb_xv, 2.0);
+         opterror(i) += std::pow(ub_xv-bv_xv, 2.0) + std::pow(bv_xv-lb_xv, 2.0);
+         if (j == 0 || j == nbrute-1)
+         {
+            errors(0) += 0.5*h*(ub_xv-lb_xv);
+         }
+         else
+         {
+            errors(0) += h*(ub_xv-lb_xv);
          }
       }
    }
+   errors *= 1.0/nbrute;
+   errors(2) = std::sqrt(errors(2));
+
+   //  optimized bound use this
+   for (int i = 0; i < nr; i++)
+   {
+      opterror(i) = std::sqrt(opterror(i)/nbrute);
+   }
+   errors(2) = opterror.Sum();
+
 
    if (print)
    {
       std::ostringstream filename;
-      filename << "minmr_PL_" << (gll ? "GLL_" : "GL_") << std::to_string(nr)
+      filename << "minmr_PL_" << (nodetype == 1 ? "GLL_" : "GL_") << std::to_string(nr) << "_Int_" << std::to_string(intptype)
                   << ".txt";
       ofstream myfile;
       myfile.open(filename.str());
@@ -142,19 +211,15 @@ int main(int argc, char *argv[])
 
    // 1. Parse command line options.
    int nrmax = 10;
-   int mr = 8;
    int nbrute = 100000;
-   int seed = 5;
-   int outsuffix = 0;
-   string mesh_file = "semi-invert.mesh";
+   int nodetype = 1;
+   int nrmin = 3;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&nrmax, "-nr", "--nr", "Finite element polynomial degree");
-   args.AddOption(&mr, "-mr", "--mr", "Finite element polynomial degree");
+   args.AddOption(&nrmax, "-nrmax", "--nrmax", "Finite element polynomial degree");
    args.AddOption(&nbrute, "-nh", "--nh", "Finite element polynomial degree");
-   args.AddOption(&seed, "-seed", "--seed", "Seed");
-   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&outsuffix, "-out", "--out", "out suffix");
+   args.AddOption(&nodetype, "-ntype", "--ntype", "0 = GL, 1 = GLL");
+   args.AddOption(&nrmin, "-nrmin", "--nrmin", "Finite element polynomial degree");
 
    args.Parse();
    if (!args.Good())
@@ -164,52 +229,140 @@ int main(int argc, char *argv[])
    }
    if (myid == 0) { args.PrintOptions(cout); }
 
-   // const int dim = pmesh->Dimension();
    if (myid == 0)
    {
       std::cout << "The max function order is: " << nrmax-1 << std::endl;
    }
 
-   Array<int> nrvals, minmr_GLL, minmr_GL;
+   Array<Array<int>*> minmra;
+   minmra.SetSize(7);
+   Array<int> nrva;
+   double area;
+   Vector errors;
 
-   for (int i = 2; i < nrmax+1; i++)
+   for (int kk = 0; kk < minmra.Size(); kk++)
    {
-      int nr = i;
-      nrvals.Append(nr);
-      for (int j = i+1; j < 4*i; j++)
+      Array<int> nrvals, minmr;
+      int inttype = kk;
+      for (int i = nrmin; i < nrmax+1; i++)
       {
-         int mr = j;
-         bool bounds_good = ArePLBoundsGood(nbrute, nr, mr, true, true);
-         if (bounds_good)
+         int nr = i;
+         nrvals.Append(nr);
+         if (kk == 0) { nrva.Append(nr); }
+         for (int j = i; j < 4*i; j++)
          {
-            std::cout << mr << " points good for " << nr << " GLL points" << std::endl;
-            minmr_GLL.Append(mr);
-            break;
+            int mr = j;
+            bool bounds_good = ArePLBoundsGood(nbrute, nr, mr, nodetype, inttype, true, errors);
+            if (bounds_good)
+            {
+               std::cout << mr << " points good for " << nr << " GLL points" << std::endl;
+               minmr.Append(mr);
+               break;
+            }
+            if ( j == 4*i-1) {
+               std::cout << "Could not find any useful points for nr=" << i << std::endl;
+               minmr.Append(-1);
+            }
          }
+         minmra[kk] = new Array<int>();
+         minmra[kk]->Append(minmr);
       }
 
-      for (int j = i+1; j < 4*i; j++)
+      std::string nt = nodetype == 0 ? "N_{GL}" : "N_{GLL}";
+      std::string itp = (inttype == 2 || inttype == 5)  ? "M_{Cheb}" :
+                        (inttype == 0 || inttype == 3) ? "M_{GL+End}" :
+                        (inttype == 1 || inttype == 4)  ? "M_{GLL}" : "M_{opt}";
+      std::cout << std::setw(15) << std::left << nt
+                     << std::setw(15) << std::left << std::fixed << std::setprecision(2) << itp << std::endl;
+
+      for (int i = 0; i < nrvals.Size() ;i++)
       {
-         int mr = j;
-         bool bounds_good = ArePLBoundsGood(nbrute, nr, mr, false, true);
-         if (bounds_good)
+         std::cout << std::setw(15) << std::left << nrvals[i]
+                     << std::setw(15) << std::left << std::fixed << std::setprecision(2) << minmr[i] << std::endl;
+
+      }
+   }
+
+   std::string nt = nodetype == 0 ? "N_{GL}" : "N_{GLL}";
+   std::cout << std::setw(15) << std::left << nt
+                  << std::setw(15) << std::left << std::fixed << "M_{GL+End}"
+                  << std::setw(15) << std::left << std::fixed << "M_{GLL}"
+                  << std::setw(15) << std::left << std::fixed << "M_{Cheb}"
+                  << std::setw(15) << std::left << std::fixed << "M_{OPT,GL+End}"
+                  << std::setw(15) << std::left << std::fixed << "M_{OPT,GLL}"
+                  << std::setw(15) << std::left << std::fixed << "M_{OPT,Cheb}"
+                  << std::setw(15) << std::left << std::fixed << "M_{OPT}"
+                  << std::endl;
+   for (int i = 0; i < nrva.Size() ;i++)
+   {
+      std::cout << std::setw(15) << std::left << nrva[i]
+                  << std::setw(15) << std::left << std::fixed << std::setprecision(2) << (*minmra[0])[i];
+      for (int j = 1; j < minmra.Size(); j++)
+      {
+         std::cout << std::setw(15) << std::left << std::fixed << std::setprecision(2) << (*minmra[j])[i];
+      }
+      std::cout << std::endl;
+   }
+   // MFEM_ABORT(" ");
+
+   Array<Array<int>*> compactcom;
+   Array<double> compactcomerror1;
+   Array<double> compactcomerror2;
+   Array<double> compactcomerror3;
+
+   // Get compactness of bounds from the minimum computed MR to max MR for that N.
+   for (int i = 0; i < nrva.Size(); i++)
+   {
+      int nr = nrva[i];
+      Array<int> mra(3);
+      mra[0] = (*minmra[0])[i];
+      mra[1] = (*minmra[1])[i];
+      mra[2] = (*minmra[2])[i];
+      int mrmax = mra.Max();
+      for (int kk = 0; kk < 7; kk++)
+      {
+         int inttype = kk;
+         int mrme = (*minmra[kk])[i];
+         if (mrme == -1) { continue; }
+         for (int j = mrme; j < std::min(39,mrmax+1+2); j++)
          {
-            std::cout << mr << " points good for " << nr << " GL points" << std::endl;
-            minmr_GL.Append(mr);
-            break;
+            int mr = j;
+            bool good =  ArePLBoundsGood(nbrute, nr, mr, nodetype, inttype, false, errors);
+            // MFEM_VERIFY(good, "Bounds not good. Something seriously wrong!");
+            compactcom.Append(new Array<int>());
+            int ns = compactcom.Size();
+            compactcom[ns-1]->Append(nr);
+            compactcom[ns-1]->Append(mr);
+            compactcom[ns-1]->Append(kk);
+            compactcomerror1.Append(errors(0));
+            compactcomerror2.Append(errors(1));
+            compactcomerror3.Append(errors(2));
          }
       }
    }
 
-   std::cout << std::setw(15) << std::left << "N"
-                  << std::setw(15) << std::left << std::fixed << std::setprecision(2) << "M(GLL)"
-                  << std::setw(15) << std::left << std::fixed << std::setprecision(2) << "M(GL)" << std::endl;
-   for (int i = 0; i < nrvals.Size() ;i++)
-   {
-      std::cout << std::setw(15) << std::left << nrvals[i]
-                  << std::setw(15) << std::left << std::fixed << std::setprecision(2) << minmr_GLL[i]
-                  << std::setw(15) << std::left << std::fixed << std::setprecision(2) << minmr_GL[i] << std::endl;
+   std::setprecision(12);
 
+   std::ostringstream filename;
+   filename << "minmr_bnd_comp.txt";
+   ofstream myfile;
+   myfile.open(filename.str());
+
+   for (int i = 0; i < compactcom.Size(); i++)
+   {
+      myfile << (*compactcom[i])[0] << " " << std::endl;
+      myfile << (*compactcom[i])[1] << " " << std::endl;
+      myfile << (*compactcom[i])[2] << " " << std::endl;
+      myfile << std::setprecision(12) << compactcomerror1[i] << std::endl;
+      myfile << std::setprecision(12) << compactcomerror2[i] << std::endl;
+      myfile << std::setprecision(12) << compactcomerror3[i] << std::endl;
+      std::cout << (*compactcom[i])[0] << " " <<
+                   (*compactcom[i])[1] << " " <<
+                   (*compactcom[i])[2] << " " <<
+                  std::setprecision(12) <<
+                   compactcomerror1[i] << " " <<
+                   compactcomerror2[i] << " " <<
+                   compactcomerror3[i] << " " <<  " k10info\n";
    }
 
    return 0;

@@ -4850,6 +4850,7 @@ void PLBound::GetMeshValidity(const Vector &x,
 void PLBound::ReadCustomBounds(Vector &gll, Vector &interval,
                                DenseMatrix &lbound, DenseMatrix &ubound, std::string filename) const
 {
+   // std::cout << " Reading " << filename << std::endl;
    std::ifstream file(filename);
    if (!file.is_open())
    {
@@ -4885,12 +4886,12 @@ void PLBound::ReadCustomBounds(Vector &gll, Vector &interval,
       for (int j = 0; j < m; j++)
       {
          file >> val;
-         lbound(i,j) = val;
+         lbound(i,j) = val-read_eps;
       }
       for (int j = 0; j < m; j++)
       {
          file >> val;
-         ubound(i,j) = val;
+         ubound(i,j) = val+read_eps;
       }
    }
 }
@@ -5138,7 +5139,6 @@ void PLBound::SetupGSLIBBounds(int nr, int mr)
 {
    lbound.SetSize(nr, mr);
    ubound.SetSize(nr, mr);
-   gll = true;
 
    auto GetChebyshevNodes = [](int n) -> Vector
    {
@@ -5214,7 +5214,6 @@ void PLBound::SetupGLBounds(int nr, int mr)
 {
    lbound.SetSize(nr, mr);
    ubound.SetSize(nr, mr);
-   gll = false;
 
    auto GetChebyshevNodes = [](int n) -> Vector
    {
@@ -5270,6 +5269,136 @@ void PLBound::SetupGLBounds(int nr, int mr)
    {
       gllW(i) = irule.IntPoint(i).weight;
       gllX(i) = irule.IntPoint(i).x;
+   }
+}
+
+void PLBound::SetupBounds(int nr, int mr, int nodetype, int intptype)
+{
+   lbound.SetSize(nr, mr);
+   ubound.SetSize(nr, mr);
+   // std::cout << nr << " " << mr << " k10nr-mr\n";
+
+   if (intptype == 2)
+   {
+      auto GetChebyshevNodes = [](int n) -> Vector
+      {
+         // MFEM_VERIFY(n > 2, "Invalid number of nodes");
+         Vector nodes(n);
+         nodes(0) = -1.0;
+         nodes(n - 1) = 1.0;
+         for (int i = 2; i < n; ++i)
+         {
+            nodes(i - 1) = -std::cos(M_PI * ((i - 1.0)*1.0 / (n - 1)));
+         }
+         return nodes;
+      };
+
+      intX = GetChebyshevNodes(mr);
+      ScaleNodes(intX, 0.0, 1.0, intX);
+   }
+   else if (intptype == 0)
+   {
+      Poly_1D::Basis &bdum(poly1d.GetBasis(mr-3, 0));
+      intX.SetSize(mr);
+      const Vector &b_nodes = bdum.GetNodes();
+      intX(0) = 0.0;
+      for (int i = 0; i < mr-2; i++)
+      {
+         intX(i+1) = b_nodes(i);
+      }
+      intX(mr-1) = 1.0;
+      ScaleNodes(intX, 0.0, 1.0, intX);
+   }
+   else if (intptype == 1)
+   {
+      Poly_1D::Basis &bdum(poly1d.GetBasis(mr-1, 1));
+      intX.SetSize(mr);
+      const Vector &b_nodes = bdum.GetNodes();
+      intX = b_nodes;
+      ScaleNodes(intX, 0.0, 1.0, intX);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported interval points. Use -1, 0 or 1\n");
+   }
+
+
+   MFEM_VERIFY(nodetype <= 1, "Basis type not supported. Use GLL or GL.");
+   Poly_1D::Basis &basis1d(poly1d.GetBasis(nr-1, nodetype));
+   // std::cout << "Nodes: " << std::endl;
+   // basis1d.GetNodes().Print();
+
+   // initialize
+   lbound = 0.0;
+   ubound = 0.0;
+
+   Vector bmv(nr), bpv(nr), bv(nr); // basis values
+   Vector bdmv(nr), bdpv(nr), bdv(nr); // basis derivative values
+   Vector vals(3);
+   double eps = 1e-5;
+   // std::cout << nr << " " << mr << " " << intX.Size() << " " << " k10c\n";
+
+   for (int j = 0; j < mr; j++)
+   {
+      double x = intX(j);
+      double xm = x;
+      if (j != 0)
+      {
+         xm = 0.5*(intX(j-1)+intX(j));
+      }
+
+      double xp = x;
+      if (j != mr-1)
+      {
+         xp = 0.5*(intX(j)+intX(j+1));
+      }
+      basis1d.Eval(xm, bmv, bdmv);
+      basis1d.Eval(xp, bpv, bdpv);
+      basis1d.Eval(x, bv);
+      double dm = x-xm;
+      double dp = x-xp;
+      for (int i = 0; i < nr; i++)
+      {
+         if (j == 0)
+         {
+            vals = bv(i);
+         }
+         else if (j == mr-1)
+         {
+            vals = bv(i);
+         }
+         else
+         {
+            vals(0)  = bv(i);
+            vals(1) =  bmv(i) +  dm*bdmv(i);
+            vals(2) =  bpv(i) +  dp*bdpv(i);
+         }
+         lbound(i, j) = vals.Min()-eps;
+         ubound(i, j) = vals.Max()+eps;
+      }
+   }
+
+   gllX.SetSize(nr);
+   gllW.SetSize(nr);
+   IntegrationRule irule(nr);
+   if (nodetype == 0)
+   {
+      QuadratureFunctions1D::GaussLegendre(nr, &irule);
+      for (int i = 0; i < nr; i++)
+      {
+         gllW(i) = irule.IntPoint(i).weight;
+         gllX(i) = irule.IntPoint(i).x;
+      }
+   }
+   else if (nodetype == 1)
+   {
+      QuadratureFunctions1D::GaussLobatto(nr, &irule);
+      for (int i = 0; i < nr; i++)
+      {
+         gllW(i) = irule.IntPoint(i).weight;
+         gllX(i) = irule.IntPoint(i).x;
+      }
+
    }
 }
 

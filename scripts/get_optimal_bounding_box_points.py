@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import optimize
 import argparse
-from get_optimal_bounding_box_for_basis import * 
+from get_optimal_bounding_box_for_basis import *
 
 
 def xb_from_xi(xi):
@@ -85,7 +85,7 @@ def main():
 	N = args.N
 	M = args.M
 
-	nsamp = 1000
+	nsamp = 10000
 	p = N-1
 
 	xs = lobatto_nodes(N)
@@ -94,11 +94,11 @@ def main():
 	xb = xb_from_xi(xi)
 	optimize_and_write(xs, xb, 'lobatto', 'opt', nsamp)
 
-	xs = legendre_nodes(N)
-	xb = legendre_nodes_with_endpoints(M)
-	[xi, fun] = optimize_bbox_all(xs, xb, nsamp=nsamp)
-	xb = xb_from_xi(xi)
-	optimize_and_write(xs, xb, 'legendre', 'opt', nsamp)
+	# xs = legendre_nodes(N)
+	# xb = legendre_nodes_with_endpoints(M)
+	# [xi, fun] = optimize_bbox_all(xs, xb, nsamp=nsamp)
+	# xb = xb_from_xi(xi)
+	# optimize_and_write(xs, xb, 'legendre', 'opt', nsamp)
 
 # Entry point of the script
 if __name__ == "__main__":
