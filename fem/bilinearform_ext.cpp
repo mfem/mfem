@@ -265,11 +265,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
       // Gather the attributes on the host from all the elements
       const Mesh &mesh = *trial_fes->GetMesh();
-      elem_attributes.SetSize(mesh.GetNE());
-      for (int i = 0; i < mesh.GetNE(); ++i)
-      {
-         elem_attributes[i] = mesh.GetAttribute(i);
-      }
+      elem_attributes = &mesh.GetElementAttributes();
    }
 
    // Construct face restriction operators only if the bilinear form has
@@ -449,7 +445,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
          for (int i = 0; i < iSz; ++i)
          {
             assemble_diagonal_with_markers(*integrators[i], elem_markers[i],
-                                           elem_attributes, localY);
+                                           *elem_attributes, localY);
          }
          const ElementRestriction* H1elem_restrict =
             dynamic_cast<const ElementRestriction*>(elem_restrict);
@@ -475,7 +471,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       for (int i = 0; i < iSz; ++i)
       {
          assemble_diagonal_with_markers(*integrators[i], elem_markers[i],
-                                        elem_attributes, y);
+                                        *elem_attributes, y);
       }
    }
 
@@ -575,7 +571,7 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          for (int i = 0; i < iSz; ++i)
          {
             AddMultWithMarkers(*integrators[i], localX, elem_markers[i],
-                               elem_attributes, false, localY);
+                               *elem_attributes, false, localY);
          }
          elem_restrict->MultTranspose(localY, y);
       }
@@ -705,7 +701,7 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
-         AddMultWithMarkers(*integrators[i], localX, elem_markers[i], elem_attributes,
+         AddMultWithMarkers(*integrators[i], localX, elem_markers[i], *elem_attributes,
                             true, localY);
       }
       elem_restrict->MultTranspose(localY, y);

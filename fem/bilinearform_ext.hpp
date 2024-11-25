@@ -69,7 +69,8 @@ class PABilinearFormExtension : public BilinearFormExtension
 protected:
    const FiniteElementSpace *trial_fes, *test_fes; // Not owned
    /// Attributes of all mesh elements.
-   Array<int> elem_attributes, bdr_attributes;
+   const Array<int> *elem_attributes; // Not owned
+   Array<int> bdr_attributes;
    mutable Vector tmp_evec; // Work array
    mutable Vector localX, localY;
    mutable Vector int_face_X, int_face_Y;
