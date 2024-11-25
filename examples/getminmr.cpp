@@ -78,6 +78,11 @@ bool ArePLBoundsGood(int nbrute, int nr, int mr, int nodetype, int intptype, boo
       fname += "_bpts_chebyshev_" + std::to_string(mr)+ ".txt";
       plb.Setup(fname, read_eps);
    }
+   else if (intptype == 6)
+   {
+      fname += "_bpts_opt_" + std::to_string(mr)+ ".txt";
+      plb.Setup(fname, read_eps);
+   }
    else
    {
       plb.Setup2(nr, mr, nodetype, intptype);
@@ -230,7 +235,7 @@ int main(int argc, char *argv[])
    }
 
    Array<Array<int>*> minmra;
-   minmra.SetSize(6);
+   minmra.SetSize(7);
    Array<int> nrva;
    double area;
    Vector errors;
@@ -286,6 +291,7 @@ int main(int argc, char *argv[])
                   << std::setw(15) << std::left << std::fixed << "M_{OPT,GL+End}"
                   << std::setw(15) << std::left << std::fixed << "M_{OPT,GLL}"
                   << std::setw(15) << std::left << std::fixed << "M_{OPT,Cheb}"
+                  << std::setw(15) << std::left << std::fixed << "M_{OPT}"
                   << std::endl;
    for (int i = 0; i < nrva.Size() ;i++)
    {
@@ -313,7 +319,7 @@ int main(int argc, char *argv[])
       mra[1] = (*minmra[1])[i];
       mra[2] = (*minmra[2])[i];
       int mrmax = mra.Max();
-      for (int kk = 0; kk < 6; kk++)
+      for (int kk = 0; kk < 7; kk++)
       {
          int inttype = kk;
          int mrme = (*minmra[kk])[i];
