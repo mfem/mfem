@@ -19,7 +19,7 @@ namespace mfem
 
 template <int ORDER, int SDIM>
 void BatchedLOR_DG::Assemble2D()
-{  
+{
    const int nel_ho = fes_ho.GetNE();
    IntegrationRule ir_pp2;
    QuadratureFunctions1D::GaussLobatto(ORDER+2, &ir_pp2);
@@ -32,15 +32,16 @@ void BatchedLOR_DG::Assemble2D()
                    : Reshape(c1.Read(), nd1d, nd1d, nel_ho);
    const bool const_dq = c2.Size() == 1;
    const auto DQ = const_dq
-                    ? Reshape(c2.Read(), 1, 1, 1)
-                    : Reshape(c2.Read(), nd1d, nd1d, nel_ho);
+                   ? Reshape(c2.Read(), 1, 1, 1)
+                   : Reshape(c2.Read(), nd1d, nd1d, nel_ho);
 
    const auto W = Reshape(ir.GetWeights().Read(), nd1d, nd1d);
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nel_ho);
 
-   auto geom = fes_ho.GetMesh()->GetGeometricFactors(ir, GeometricFactors::DETERMINANTS);
+   auto geom = fes_ho.GetMesh()->GetGeometricFactors(ir,
+                                                     GeometricFactors::DETERMINANTS);
 
    //const FiniteElementCollection fes_coll = fes_ho.FEColl();
 
@@ -56,7 +57,8 @@ void BatchedLOR_DG::Assemble2D()
             const real_t dq = const_dq ? DQ(0,0,0) : DQ(ix, iy, iel_ho);
             if (ix == 0)
             {
-               V(4, ix, iy, iel_ho) = -dq*(ORDER*ORDER) * W(ix, iy) * (ir_pp2[iy+1].x - ir_pp2[iy].x); 
+               V(4, ix, iy, iel_ho) = -dq*(ORDER*ORDER) * W(ix,
+                                                            iy) * (ir_pp2[iy+1].x - ir_pp2[iy].x);
             }
             else
             {
@@ -64,7 +66,8 @@ void BatchedLOR_DG::Assemble2D()
             }
             if (ix == ORDER)
             {
-               V(2, ix, iy, iel_ho) = -dq*(ORDER*ORDER) * W(ix, iy) * (ir_pp2[iy+1].x - ir_pp2[iy].x);
+               V(2, ix, iy, iel_ho) = -dq*(ORDER*ORDER) * W(ix,
+                                                            iy) * (ir_pp2[iy+1].x - ir_pp2[iy].x);
             }
             else
             {
@@ -72,22 +75,24 @@ void BatchedLOR_DG::Assemble2D()
             }
             if (iy == 0)
             {
-               V(1, ix, iy, iel_ho) = -dq*(ORDER*ORDER) * W(ix, iy) * (ir_pp2[ix+1].x - ir_pp2[ix].x); 
+               V(1, ix, iy, iel_ho) = -dq*(ORDER*ORDER) * W(ix,
+                                                            iy) * (ir_pp2[ix+1].x - ir_pp2[ix].x);
             }
             else
             {
-               V(1, ix, iy, iel_ho) = -dq*W(ix, iy)/(ir[iy].x - ir[iy-1].x); 
+               V(1, ix, iy, iel_ho) = -dq*W(ix, iy)/(ir[iy].x - ir[iy-1].x);
             }
             if (iy == ORDER)
             {
-               V(3, ix, iy, iel_ho) = -dq*(ORDER*ORDER) * W(ix, iy) * (ir_pp2[ix+1].x - ir_pp2[ix].x); 
+               V(3, ix, iy, iel_ho) = -dq*(ORDER*ORDER) * W(ix,
+                                                            iy) * (ir_pp2[ix+1].x - ir_pp2[ix].x);
             }
             else
             {
-               V(3, ix, iy, iel_ho) = -dq*W(ix, iy)/(ir[iy+1].x - ir[iy].x); 
+               V(3, ix, iy, iel_ho) = -dq*W(ix, iy)/(ir[iy+1].x - ir[iy].x);
             }
             for (int i = 1; i < 5; ++i)
-            {          
+            {
                V(0, ix, iy, iel_ho) -= V(i, ix, iy, iel_ho);
             }
             V(0, ix, iy, iel_ho) += mq * detJ(ix, iy, iel_ho) * W(ix, iy);

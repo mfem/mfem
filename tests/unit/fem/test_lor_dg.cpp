@@ -309,7 +309,7 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
    const int order = 5;
    const auto mesh_fname = GENERATE(
                               //"../../data/star-q3.mesh"
-                               //"../../data/star-surf.mesh",
+                              //"../../data/star-surf.mesh",
                               // "../../data/fichera-q3.mesh"
                               "../../data/inline-quad.mesh"
                            );
@@ -350,9 +350,9 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
    if (add_diffusion)
    {
       a_lor.AddBdrFaceIntegrator(new DG_LOR_DiffusionPreconditioner(
-                                mesh_lor, order, kappa));
+                                    mesh_lor, order, kappa));
       a_lor.AddInteriorFaceIntegrator(new DG_LOR_DiffusionPreconditioner(
-                                     mesh_lor, order, kappa));
+                                         mesh_lor, order, kappa));
    }
    a_lor.AddDomainIntegrator(new DG_LOR_MassPreconditioner(
                                 mesh, mesh_lor, order, &mass_coeff));

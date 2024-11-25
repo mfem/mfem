@@ -372,8 +372,8 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    const int p = fes_ho.GetMaxElementOrder();
    const int nnz = num_rows*nnz_per_row;
    auto I = A.WriteI();
-   
-   //std::cout << "nnz per row " << nnz_per_row << std::endl; 
+
+   //mfem::out << "nnz per row " << nnz_per_row << std::endl;
 
    //mfem::forall(num_rows+ 1, [=] MFEM_HOST_DEVICE (int i)
    //{
@@ -425,15 +425,19 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    //Vector I(num_rows+1);
    //auto nnz_so_far =  nnz_so_far_init.Write();
    I[0] = 0;
-   for(int i=0; i<num_rows; ++i){
+   for (int i=0; i<num_rows; ++i)
+   {
       int loc_border_counter = 0;
       const int iel_ho = i / ndof_per_el;
       const int iloc = i % ndof_per_el;
       const int local_x = iloc % (p+1);
       const int local_y = iloc/(p+1);
-      for (int j = 1; j < nnz_per_row; ++j){
-         bool boundary = (local_x == 0 && j == 4) || (local_x == p && j == 2) || (local_y == 0 && j == 1) || (local_y == p && j == 3);
-         if (boundary){
+      for (int j = 1; j < nnz_per_row; ++j)
+      {
+         bool boundary = (local_x == 0 && j == 4) || (local_x == p && j == 2) ||
+                         (local_y == 0 && j == 1) || (local_y == p && j == 3);
+         if (boundary)
+         {
             int neighbor_idx = neighbor_info_arr(iel_ho, j-1, 0);
             if (neighbor_idx == -1)
             {
@@ -442,7 +446,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
          }
       }
       I[i+1] = I[i] + (nnz_per_row - loc_border_counter);
-      std::cout << "loc_border_counter" << loc_border_counter << std::endl;
+      mfem::out << "loc_border_counter" << loc_border_counter << std::endl;
 
       actual_nnz_per_row[i] = nnz_per_row - loc_border_counter;
    }
@@ -459,8 +463,9 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       J[nnz_so_far_current] = i;
       int k = 1;
       for (int j = 1; j < nnz_per_row; ++j)
-      {   
-         bool boundary = (local_x == 0 && j == 4) || (local_x == p && j == 2) || (local_y == 0 && j == 1) || (local_y == p && j == 3);
+      {
+         bool boundary = (local_x == 0 && j == 4) || (local_x == p && j == 2) ||
+                         (local_y == 0 && j == 1) || (local_y == p && j == 3);
          if (boundary)
          {
             int neighbor_idx = neighbor_info_arr(iel_ho, j-1, 0);
@@ -469,10 +474,12 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
             if (neighbor_idx != -1)
             {
                int x_n; int y_n;
-               if (j == 4 || j == 2){
+               if (j == 4 || j == 2)
+               {
                   internal::FaceIdxToVolIdx2D(local_y, p+1, j-1, neighbor_face, 1, x_n, y_n);
                }
-               else{
+               else
+               {
                   internal::FaceIdxToVolIdx2D(local_x, p+1, j-1, neighbor_face, 1, x_n, y_n);
                }
                int neighbor_loc_idx = x_n + (p+1)*y_n;
@@ -484,10 +491,10 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
          }
          else
          {
-            if (j == 4){J[nnz_so_far_current + k] = i - 1;}
-            if (j == 2){J[nnz_so_far_current + k] = i + 1;}
-            if (j == 1){J[nnz_so_far_current + k] = i - (p+1);}
-            if (j == 3){J[nnz_so_far_current + k] = i + (p+1);}
+            if (j == 4) {J[nnz_so_far_current + k] = i - 1;}
+            if (j == 2) {J[nnz_so_far_current + k] = i + 1;}
+            if (j == 1) {J[nnz_so_far_current + k] = i - (p+1);}
+            if (j == 3) {J[nnz_so_far_current + k] = i + (p+1);}
             AV[nnz_so_far_current + k] = V(j, iloc, iel_ho);
             k = k+1;
          }
