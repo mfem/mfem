@@ -86,6 +86,7 @@ private:
    int solid_attr_id;
    LegendreEntropy *entropy;
    std::unique_ptr<GridFunction> zero;
+   bool limited_change = false;
 
 public:
    DesignDensity(FiniteElementSpace &fes_control, const real_t tot_vol,
@@ -101,8 +102,11 @@ public:
       void_attr_id = attr;
    }
 
+   void LimitedChange(bool flag=true){ limited_change=flag; }
+
    void ProjectedStep(GridFunction &x, const real_t step_size,
-                      const GridFunction &grad, real_t &mu, real_t &vol, real_t *entropyPenalty=nullptr);
+                      const GridFunction &grad, real_t &mu, real_t &vol,
+                      real_t *entropyPenalty=nullptr);
 
    real_t ApplyVolumeProjection(GridFunction &x, bool use_entropy);
    real_t ComputeVolume(const GridFunction &x);

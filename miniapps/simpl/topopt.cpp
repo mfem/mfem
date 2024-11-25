@@ -230,7 +230,22 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
          x *= 1.0 - (*entropyPenalty) * step_size;
       }
    }
-   x.Add(-abs_step_size, grad);
+
+   if (limited_change)
+   {
+      MappedPairedGFCoefficient x_cf(x, grad, [abs_step_size, this](const real_t x,
+                                                                    const real_t g)
+      {
+         const real_t upper = std::min(0.0, this->entropy->forward(this->entropy->backward(x)+0.1));
+         const real_t lower = std::max(-infinity(), this->entropy->forward(this->entropy->backward(x)-0.1));
+         return std::max(lower, std::min(upper, x - abs_step_size*g));
+      });
+      x.ProjectCoefficient(x_cf);
+   }
+   else
+   {
+      x.Add(-abs_step_size, grad);
+   }
 
    mu = 0.0;
    const real_t maxval = entropy->GetUpperBound();
@@ -264,7 +279,7 @@ void DesignDensity::ProjectedStep(GridFunction &x, const real_t step_size,
       if (mu_max==mu_min) // still the same -> initial constant design
       {
          // just use the max volume.
-         
+
          x = entropy->forward(max_vol / tot_vol);
          x.ProjectCoefficient(masked_newx_cf);
          return;
