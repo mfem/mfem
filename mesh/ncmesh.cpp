@@ -4623,6 +4623,27 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
    }
 }
 
+// TODO: this is for 3D. A 2D version is also needed.
+void NCMesh::RefineVertexToKnot(Array<int> const& rf)
+{
+   // Note that entries 1 and 2 of vertex_to_knot are (k1, k2), which are knot
+   // span (element) indices in the two dimensions of a patch face. When refining
+   // with factors rf, we simply scale these indices by the corresponding factors=
+   // from rf.
+
+   // TODO: find the directions for a particular parent face and get the
+   // corresponding factors from rf. For now, rf[0] is used, assuming the same
+   // factor in all directions.
+
+   for (int i=0; i<vertex_to_knot.NumRows(); ++i)
+   {
+      const int d0 = 0;  // TODO: find the first direction for this parent face
+      const int d1 = 0;  // TODO: find the first direction for this parent face
+      vertex_to_knot(i,1) *= rf[d0];
+      vertex_to_knot(i,2) *= rf[d1];
+   }
+}
+
 void NCMesh::MarkCoarseLevel()
 {
    coarse_elements.SetSize(leaf_elements.Size());

@@ -4639,7 +4639,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    }
    else if (mesh_type == "MFEM NURBS NC-patch mesh v1.0")
    {
-     ReadNURBSMesh(input, curved, read_gf, false, true);  // TODO: spacing option.
+     ReadNURBSMesh(input, curved, read_gf, true, true);  // Spacing is required
    }
    else if (mesh_type == "MFEM NURBS mesh v1.1")
    {
@@ -4750,6 +4750,15 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       MFEM_VERIFY(ident == "mfem_mesh_end",
                   "invalid mesh: end of file tag not found");
    }
+
+   if (NURBSext && NURBSext->Nonconforming())
+     {
+       string ident;
+       skip_comment_lines(input, '#');
+       input >> ident;
+       if (ident == "patch_cp")
+	 NURBSext->ReadPatchCP(input);
+     }
 
    // Finalize(...) should be called after this, if needed.
 }
@@ -5765,13 +5774,18 @@ void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol)
    {
       NURBSext->UniformRefinement(rf);
    }
+   else if (NURBSext->Nonconforming())
+   {
+     NURBSext->FullyCoarsen();
+     last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+     NURBSext->UniformRefinement(rf);
+   }
    else
    {
-      NURBSext->Coarsen(cf, tol);
+     NURBSext->Coarsen(cf, tol);
 
-      last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
-      sequence++;
-
+     last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+     sequence++;
       UpdateNURBS();
 
       NURBSext->ConvertToPatches(*Nodes);

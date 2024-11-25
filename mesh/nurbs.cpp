@@ -250,6 +250,11 @@ void KnotVector::Flip()
       knot(Order + i) = apb - knot(NumOfControlPoints - i);
       knot(NumOfControlPoints - i) = tmp;
    }
+
+   if (spacing)
+   {
+      spacing->Flip();
+   }
 }
 
 void KnotVector::Print(std::ostream &os) const
@@ -639,6 +644,27 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
    }
 }
 
+KnotVector* KnotVector::FullyCoarsen()
+{
+   KnotVector *kvc = new KnotVector(Order, Order + 1);
+   MFEM_VERIFY(kvc->Size() == 2 * (Order + 1), "");
+   for (int i=0; i<Order+1; ++i)
+   {
+      (*kvc)[i] = 0.0;
+      (*kvc)[i + Order + 1] = 1.0;
+   }
+
+   kvc->GetElements();
+   if (spacing)
+   {
+      kvc->spacing = spacing->Clone();
+      kvc->spacing->SetSize(1);
+      kvc->spacing->ScaleParameters(GetNE());
+   }
+
+   return kvc;
+}
+
 void NURBSPatch::init(int dim)
 {
    Dim = dim;
@@ -934,7 +960,7 @@ int NURBSPatch::SetLoopDirection(int dir)
    return -1;
 }
 
-void NURBSPatch::UniformRefinement(Array<int> const& rf)
+void NURBSPatch::UniformRefinement(Array<int> const& rf, int multiplicity)
 {
    Vector newknots;
    for (int dir = 0; dir < kv.Size(); dir++)
@@ -942,7 +968,10 @@ void NURBSPatch::UniformRefinement(Array<int> const& rf)
       if (rf[dir] != 1)
       {
          kv[dir]->Refinement(newknots, rf[dir]);
-         KnotInsert(dir, newknots);
+         for (int i=0; i<multiplicity; ++i)
+         {
+            KnotInsert(dir, newknots);
+         }
       }
    }
 }
@@ -962,6 +991,7 @@ void NURBSPatch::Coarsen(Array<int> const& cf, real_t tol)
       {
          const int ne_fine = kv[dir]->GetNE();
          KnotRemove(dir, kv[dir]->GetFineKnots(cf[dir]), tol);
+
          kv[dir]->coarse = true;
          kv[dir]->GetElements();
 
@@ -1260,9 +1290,9 @@ int NURBSPatch::KnotRemove(int dir, real_t knot, int ntimes, real_t tol)
       }
       else
       {
-         const real_t a_i = (knot - oldkv[i]) / (oldkv[i+p+1] - oldkv[i]);
+         const real_t a_i = (knot - oldkv[i]) / (oldkv[i+p+1] - oldkv[i]);  // TODO: + t
          for (int ll = 0; ll < size; ll++)
-            diff[ll] = oldp.slice(i,ll) - (a_i * temp(ii+1, ll))
+            diff[ll] = oldp.slice(i,ll) - (a_i * temp(ii+1, ll))  // TODO: ii + t + 1
                        - ((1.0 - a_i) * temp(ii-1, ll));
       }
 
@@ -1922,6 +1952,40 @@ void NURBSPatch::SetKnotVectorsCoarse(bool c)
    }
 }
 
+void NURBSPatch::FullyCoarsen(const Array2D<double> & cp, int ncp1D)
+{
+   // Remove interior knots
+   Array<const KnotVector *> kvc(kv.Size());
+   origNE.SetSize(kv.Size());
+   for (int dir = 0; dir < kv.Size(); dir++)
+   {
+      origNE[dir] = kv[dir]->GetNE();
+      kvc[dir] = kv[dir]->FullyCoarsen();
+   }
+
+   // Copy CP
+
+   NURBSPatch *newpatch = new NURBSPatch(kvc, Dim);
+   NURBSPatch &newp = *newpatch;
+
+   // TODO: this is only for 3D.
+   MFEM_VERIFY(Dim == 4, "");
+
+   for (int i=0; i<ncp1D; ++i)
+      for (int j=0; j<ncp1D; ++j)
+         for (int k=0; k<ncp1D; ++k)
+         {
+            const int dof = i + (ncp1D * (j + (ncp1D * k)));
+            for (int l=0; l<Dim - 1; ++l)
+            {
+               newp(i,j,k,l) = cp(dof, l);
+               newp(i,j,k,Dim-1) = 1.0;  // Assuming unit weights
+            }
+         }
+
+   swap(newpatch);
+}
+
 NURBSExtension::NURBSExtension(const NURBSExtension &orig)
    : mOrder(orig.mOrder), mOrders(orig.mOrders),
      NumOfKnotVectors(orig.NumOfKnotVectors),
@@ -2017,9 +2081,23 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing, bool nc)
 
       if (spacing)  // Read spacing formulas for knotvectors
       {
-         input >> ws >> ident; // 'spacing'
+         input >> ws >> ident; // 'spacing' or 'refinements'
+
+         if (ident == "refinements")
+         {
+            ref_factors.SetSize(Dimension());
+            for (int i=0; i<Dimension(); ++i)
+            {
+               input >> ref_factors[i];
+            }
+
+            input >> ws >> ident; // 'spacing'
+         }
+
+
          MFEM_VERIFY(ident == "spacing",
                      "Spacing formula section missing from NURBS mesh file");
+
          int numSpacing = 0;
          input >> numSpacing;
          for (int j = 0; j < numSpacing; j++)
@@ -2426,9 +2504,20 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
          knotVectors[i]->Print(os);
       }
 
+      if (ref_factors.Size() > 0)
+      {
+         os << "\nrefinements\n";
+         for (int i=0; i<ref_factors.Size(); ++i)
+         {
+            os << ref_factors[i];
+            if (i == ref_factors.Size() - 1) { os << '\n'; }
+            else { os << ' '; }
+         }
+      }
+
+      os << "\nspacing\n" << kvSpacing.Size() << '\n';
       if (kvSpacing.Size() > 0)
       {
-         os << "\nspacing\n" << kvSpacing.Size() << '\n';
          for (auto kv : kvSpacing)
          {
             os << kv << " ";
@@ -2946,25 +3035,26 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
    {
       // First side
       patchTopo->GetEdgeVertices(edges[i], edgevert);
+      const int ks = KnotSign(edges[i]);
       if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[1])
       {
-         kvdir[0] = 1;
+         kvdir[0] = ks;
       }
 
       if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[0])
       {
-         kvdir[0] = -1;
+         kvdir[0] = -ks;
       }
 
       // Second side
-      if (edgevert[0] == patchvert[1]  && edgevert[1] == patchvert[2])
+      if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[3])
       {
-         kvdir[1] = 1;
+         kvdir[1] = ks;
       }
 
-      if (edgevert[0] == patchvert[2]  && edgevert[1] == patchvert[1])
+      if (edgevert[0] == patchvert[3]  && edgevert[1] == patchvert[0])
       {
-         kvdir[1] = -1;
+         kvdir[1] = -ks;
       }
    }
 
@@ -2974,15 +3064,16 @@ void NURBSExtension::CheckKVDirection(int p, Array <int> &kvdir)
       for (int i = 0; i < edges.Size(); i++)
       {
          patchTopo->GetEdgeVertices(edges[i], edgevert);
+         const int ks = KnotSign(edges[i]);
 
          if (edgevert[0] == patchvert[0]  && edgevert[1] == patchvert[4])
          {
-            kvdir[2] = 1;
+            kvdir[2] = ks;
          }
 
          if (edgevert[0] == patchvert[4]  && edgevert[1] == patchvert[0])
          {
-            kvdir[2] = -1;
+            kvdir[2] = -ks;
          }
       }
    }
@@ -3030,10 +3121,8 @@ void NURBSExtension::CreateComprehensiveKV()
          // Indices in unique and comprehensive sets of the KnotVector
          int iun = edges[e[d]];
          int icomp = Dimension()*p+d;
-
          knotVectorsCompr[icomp] = new KnotVector(*(KnotVec(iun)));
-
-         if (kvdir[d] == -1) {knotVectorsCompr[icomp]->Flip();}
+         if (kvdir[d] == -1) { knotVectorsCompr[icomp]->Flip(); }
       }
    }
 
@@ -3072,10 +3161,10 @@ void NURBSExtension::UpdateUniqueKV()
       patchTopo->GetElementEdges(p, edges, orient);
       CheckKVDirection(p, kvdir);
 
-      for ( int d = 0; d < Dimension(); d++)
+      for (int d = 0; d < Dimension(); d++)
       {
          bool flip = false;
-         if (kvdir[d] == -1) {flip = true;}
+         if (kvdir[d] == -1) { flip = true; }
 
          // Indices in unique and comprehensive sets of the KnotVector
          int iun = edges[e[d]];
@@ -3086,7 +3175,10 @@ void NURBSExtension::UpdateUniqueKV()
          int o2 = knotVectorsCompr[icomp]->GetOrder();
          int diffo = abs(o1 - o2);
 
-         if (diffo)
+         int ne1 = KnotVec(iun)->GetNE();
+         int ne2 = knotVectorsCompr[icomp]->GetNE();
+
+         if (diffo || ne1 != ne2)
          {
             // Update reduced set of knotvectors
             *(KnotVec(iun)) = *(knotVectorsCompr[icomp]);
@@ -3336,6 +3428,9 @@ void NURBSExtension::GenerateOffsets()
       slaveFaces.clear();
       slaveFaceNE1.clear();
       slaveFaceNE2.clear();
+      slaveFaceI.clear();
+      slaveFaceJ.clear();
+      slaveFaceOri.clear();
       masterEdgeToId.clear();
       masterFaceToId.clear();
 
@@ -4773,11 +4868,60 @@ NURBSExtension* NURBSExtension::GetCurlExtension(int component)
    return new NURBSExtension(this, newOrders, Mode::H_CURL);
 }
 
+void NURBSExtension::RefineKnotIndices(Array<int> const& rf)
+{
+   for (auto auxEdge : auxEdges)
+   {
+      const int f = rf[0];  // TODO: select the right direction for this edge
+      for (int i=0; i<2; ++i)
+      {
+         auxEdge.ki[i] *= f;
+      }
+   }
+
+   for (auto auxFace : auxFaces)
+   {
+      // TODO: select the right directions for the face
+      const int f0 = rf[0];
+      const int f1 = rf[1];
+
+      for (int i=0; i<2; ++i)
+      {
+         auxFace.ki0[i] *= f0;
+         auxFace.ki1[i] *= f1;
+      }
+   }
+}
+
 void NURBSExtension::UniformRefinement(Array<int> const& rf)
 {
+   ref_factors = rf;
+
+   const int maxOrder = mOrders.Max();
+
    for (int p = 0; p < patches.Size(); p++)
    {
-      patches[p]->UniformRefinement(rf);
+      if (p < npatch && nonconforming)
+      {
+         Array<int> prf(rf);
+         MFEM_VERIFY(prf.Size() == patches[p]->origNE.Size(), "");
+         for (int i=0; i<prf.Size(); ++i)
+         {
+            prf[i] *= patches[p]->origNE[i];
+         }
+
+         patches[p]->UniformRefinement(prf, maxOrder);
+      }
+      else
+      {
+         patches[p]->UniformRefinement(rf, nonconforming ? maxOrder : 1);
+      }
+   }
+
+   if (nonconforming)
+   {
+      patchTopo->ncmesh->RefineVertexToKnot(rf);
+      RefineKnotIndices(rf);
    }
 }
 
@@ -4803,6 +4947,43 @@ void NURBSExtension::Coarsen(Array<int> const& cf, real_t tol)
    }
 }
 
+void NURBSExtension::FullyCoarsen()
+{
+   // First, mark all knot vectors on all patches as not coarse. This prevents
+   // coarsening the same knot vector twice.
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      patches[p]->SetKnotVectorsCoarse(false);
+   }
+
+   //MFEM_VERIFY(mOrder >= 1, "Constant order required for ReadPatchCP");
+   const int maxOrder = mOrders.Max();
+
+   // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single element,
+   // and the number of control points in each dimension is
+   // 2*(maxOrder + 1) - maxOrder - 1
+   const int ncp1D = maxOrder + 1;
+   const int ncp = pow(ncp1D, Dimension());
+
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      if (p < npatch)
+      {
+         // Use data from patchCP
+         Array2D<double> pcp(ncp, Dimension());
+         for (int i=0; i<ncp; ++i)
+         {
+            for (int j=0; j<Dimension(); ++j)
+            {
+               pcp(i, j) = patchCP(p, i, j);
+            }
+         }
+
+         patches[p]->FullyCoarsen(pcp, ncp1D);
+      }
+   }
+}
+
 void NURBSExtension::Coarsen(int cf, real_t tol)
 {
    Array<int> cf_array(Dimension());
@@ -4817,6 +4998,7 @@ void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
    {
       Array<int> pf;
       patch->GetCoarseningFactors(pf);
+
       if (f.Size() == 0)
       {
          f = pf; // Initialize
@@ -4826,9 +5008,15 @@ void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
          MFEM_VERIFY(f.Size() == pf.Size(), "");
          for (int i=0; i<f.Size(); ++i)
          {
-            MFEM_VERIFY(f[i] == pf[i] || f[i] == 1 || pf[i] == 1,
-                        "Inconsistent patch coarsening factors");
-            if (f[i] == 1 && pf[i] != 1)
+            /*
+                  MFEM_VERIFY(f[i] == pf[i] || f[i] == 1 || pf[i] == 1,
+                              "Inconsistent patch coarsening factors");
+                  if (f[i] == 1 && pf[i] != 1)
+                  {
+                     f[i] = pf[i];
+                  }
+            */
+            if ((f[i] == 1 && pf[i] != 1) || (pf[i] < f[i] && pf[i] != 1))
             {
                f[i] = pf[i];
             }
@@ -5317,6 +5505,32 @@ int NURBSExtension::GetEntityDofs(int entity, int index, Array<int> &dofs) const
       default:
          MFEM_ABORT("TODO: entity type not yet supported in GetEntityDofs");
          return 0;
+   }
+}
+
+void NURBSExtension::ReadPatchCP(std::istream &input)
+{
+   input >> npatch;
+
+   //MFEM_VERIFY(mOrder >= 1, "Constant order required for ReadPatchCP");
+   const int maxOrder = mOrders.Max();
+
+   // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single element, and
+   // the number of control points in each dimension is
+   // 2*(maxOrder + 1) - maxOrder - 1
+   const int ncp1D = maxOrder + 1;
+   const int ncp = pow(ncp1D, Dimension());
+
+   patchCP.SetSize(npatch, ncp, Dimension());
+   for (int p=0; p<npatch; ++p)
+   {
+      for (int i=0; i<ncp; ++i)
+      {
+         for (int j=0; j<Dimension(); ++j)
+         {
+            input >> patchCP(p, i, j);
+         }
+      }
    }
 }
 

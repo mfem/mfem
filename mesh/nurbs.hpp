@@ -186,6 +186,8 @@ public:
    /// Const access function to knot @a i.
    const real_t &operator[](int i) const { return knot(i); }
 
+   KnotVector* FullyCoarsen();
+
    /// Function to define the distribution of knots for any number of knot spans.
    std::shared_ptr<SpacingFunction> spacing;
 
@@ -319,7 +321,7 @@ public:
                      for all dimensions. If an array, factors can be specified
                      for each dimension. */
    void UniformRefinement(int rf = 2);
-   void UniformRefinement(Array<int> const& rf);
+   void UniformRefinement(Array<int> const& rf, int multiplicity = 1);
 
    /** @brief Coarsen with optional coarsening factor @a cf which divides the
        number of elements in each dimension. Nonuniform spacing functions may be
@@ -338,6 +340,10 @@ public:
 
    /// Marks the KnotVector in each dimension as coarse.
    void SetKnotVectorsCoarse(bool c);
+
+   void FullyCoarsen(const Array2D<double> & cp, int ncp1D);
+
+   Array<int> origNE;
 
    /// Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
@@ -502,6 +508,7 @@ protected:
    {
       int parent;  /// Signed parent edge index
       int v[2];    /// Vertex indices
+      // TODO: these are element indices, not knot indices.
       int ki[2];   /// Knot indices of vertices in parent edge
    };
 
@@ -510,6 +517,7 @@ protected:
       int parent;  /// Parent face index
       int ori;  /// Orientation with respect to parent face
       int v[4];  /// Vertex indices
+      // TODO: these are element indices, not knot indices.
       int ki0[2];  /// Lower knot indices in parent face
       int ki1[2];  /// Upper knot indices in parent face
    };
@@ -557,6 +565,8 @@ protected:
 
    std::map<std::pair<int, int>, int> v2e;
 
+   Array<int> ref_factors;
+
    /// Table of DOFs for each element (el_dof) or boundary element (bel_dof).
    Table *el_dof, *bel_dof;
 
@@ -579,6 +589,7 @@ protected:
 
    /// Return the unsigned index of the KnotVector for edge @a edge.
    inline int KnotInd(int edge) const;
+   inline int KnotSign(int edge) const;
 
    std::set<int> masterEdges, masterFaces;
    std::vector<int> slaveEdges, slaveFaces, slaveFaceNE1, slaveFaceNE2,
@@ -593,6 +604,8 @@ protected:
 
    bool nonconforming = false;
    std::map<int,int> e2nce;
+
+   void RefineKnotIndices(Array<int> const& rf);
 
    /// Access function for the KnotVector associated with edge @a edge.
    /// @note The returned object should NOT be deleted by the caller.
@@ -978,7 +991,6 @@ public:
        non-nested spacing functions. */
    void GetCoarseningFactors(Array<int> & f) const;
 
-
    /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
 
@@ -997,6 +1009,9 @@ public:
 
    bool Conforming() const { return patchTopo->Conforming(); }
 
+   // TODO: remove this?
+   bool Nonconforming() const { return nonconforming; }
+
    NCMesh *GetNCMesh() const { return patchTopo->ncmesh; }
 
    // TODO: this function is not used. Should it be kept?
@@ -1007,6 +1022,13 @@ public:
    void GetAuxFaceVertices(int auxFace, Array<int> &verts) const;
 
    void GetAuxFaceEdges(int auxFace, Array<int> &edges) const;
+
+   void ReadPatchCP(std::istream &input);
+
+   int npatch;
+   Array3D<double> patchCP;
+
+   void FullyCoarsen();
 };
 
 
@@ -1269,6 +1291,12 @@ inline int NURBSExtension::KnotInd(int edge) const
 {
    int kv = edge_to_knot[edge];
    return (kv >= 0) ? kv : (-1-kv);
+}
+
+inline int NURBSExtension::KnotSign(int edge) const
+{
+   int kv = edge_to_knot[edge];
+   return (kv >= 0) ? 1 : -1;
 }
 
 inline KnotVector *NURBSExtension::KnotVec(int edge)
