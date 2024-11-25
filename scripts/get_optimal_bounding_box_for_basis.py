@@ -25,7 +25,7 @@ def legendre_nodes_with_endpoints(N):
 def get_piecewise_linear_bound(xi, f, xx):
 	return np.interp(xx, xi, f)
 
-def optimize_bbox_onebasis_upper(up, xb, nsamp=1000, tol=1e-12):
+def optimize_bbox_onebasis_upper(up, xb, nsamp=1000, tol=1e-6):
 	xx = np.linspace(-1, 1, nsamp)
 	upx = up(xx)
 
@@ -52,9 +52,24 @@ def optimize_bbox_onebasis_upper(up, xb, nsamp=1000, tol=1e-12):
 		f = get_piecewise_linear_bound(xb, z, x)
 		return f - up(x)
 
-	x0 = xx[np.argmin(con(z))]
-	off = optimize.minimize_scalar(obj2, x0, method='bounded', bounds=[-1, 1], tol=1e-15)
+	def con1(x):
+		return x + 1
+
+	def con2(x):
+		return 1 - x
+
+	cons = []
+	cons.append({'type': 'ineq', 'fun': con1})
+	cons.append({'type': 'ineq', 'fun': con2})
+
+	newxx = np.linspace(-1, 1, int(1e6))
+	x0 = newxx[np.argmin(obj2(newxx))]
+	off = optimize.minimize(obj2, x0, method='SLSQP', constraints=cons, tol=1e-12)
 	z -= obj2(off.x)
+
+	off2 = optimize.minimize(obj2, off.x, method='SLSQP', constraints=cons, tol=1e-12)
+	if obj2(off2.x) < -tol:
+		print('Failed to find continuously bounds preserving offset.', obj2(off2.x), off.x, off2.x)
 
 	return [z + tol, result.fun]
 
