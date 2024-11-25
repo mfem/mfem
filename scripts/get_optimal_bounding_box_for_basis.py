@@ -64,8 +64,14 @@ def optimize_bbox_onebasis_upper(up, xb, nsamp=1000, tol=1e-6):
 
 	newxx = np.linspace(-1, 1, int(1e6))
 	x0 = newxx[np.argmin(obj2(newxx))]
-	off = optimize.minimize(obj2, x0, method='SLSQP', constraints=cons, tol=1e-12)
-	z -= obj2(off.x)
+	for i in range(5):
+		off = optimize.minimize(obj2, x0, method='SLSQP', constraints=cons, tol=1e-12)
+		if obj2(x0) < obj2(off.x):
+			z -= obj2(x0)
+			break
+		else:
+			z -= obj2(off.x)
+			x0 = off.x
 
 	off2 = optimize.minimize(obj2, off.x, method='SLSQP', constraints=cons, tol=1e-12)
 	if obj2(off2.x) < -tol:
