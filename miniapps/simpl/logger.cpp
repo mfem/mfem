@@ -1,7 +1,7 @@
 #include "logger.hpp"
 
 TableLogger::TableLogger(std::ostream &os)
-   : os(os), w(10), var_name_printed(false), isRoot(true)
+   : os(os), w(14), var_name_printed(false), isRoot(true)
 {
 #ifdef MFEM_USE_MPI
    isRoot = mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
@@ -30,16 +30,17 @@ void TableLogger::Print(bool print_varname)
       {
          for (auto &name : names)
          {
-            os << std::setw(w) << name << "\t";
+            os << std::setw(w) << std::setfill(' ') << name << ",\t";
          }
          os << "\b\b";
-         os << "\n";
+         os << std::endl;
          if (!var_name_printed && file && file->is_open())
          {
             for (auto &name : names)
             {
-               *file << std::setw(w) << name << "\t";
+               *file << std::setw(w) << std::setfill(' ') << name << ",\t";
             }
+            *file << "\b\b";
             *file << std::endl;
          }
          var_name_printed = true;
@@ -54,8 +55,8 @@ void TableLogger::Print(bool print_varname)
                os << std::setw(w) << *data_double[i_double] << ",\t";
                if (file && file->is_open())
                {
-                  *file << std::setprecision(8) << std::scientific
-                        << *data_double[i_double] << ",\t";
+                  *file << std::setprecision(8) << std::scientific << std::setw(w) 
+                        << std::setfill(' ') << *data_double[i_double] << ",\t";
                }
                i_double++;
                break;
@@ -65,7 +66,7 @@ void TableLogger::Print(bool print_varname)
                os << std::setw(w) << *data_int[i_int] << ",\t";
                if (file && file->is_open())
                {
-                  *file << *data_int[i_int] << ",\t";
+                  *file << std::setw(w) << std::setfill(' ') << *data_int[i_int] << ",\t";
                }
                i_int++;
                break;
@@ -80,6 +81,7 @@ void TableLogger::Print(bool print_varname)
       os << std::endl;
       if (file)
       {
+         *file << "\b\b"; // remove the last ,\t
          *file << std::endl;
       }
    }
