@@ -186,23 +186,23 @@ public:
 
    /** Attach a new socket descriptor to the socketbuf. Returns the old socket
        descriptor which is NOT closed. */
-   virtual int attach(int sd);
+   int attach(int sd) override;
 
-   virtual int open(const char hostname[], int port);
+   int open(const char hostname[], int port) override;
 
-   virtual int close();
+   int close() override;
 
 protected:
-   virtual int sync();
+   int sync() override;
 
-   virtual int_type underflow();
+   int_type underflow() override;
 
    // Same as in the base class:
    // virtual int_type overflow(int_type c = traits_type::eof());
 
-   virtual std::streamsize xsgetn(char_type *s__, std::streamsize n__);
+   std::streamsize xsgetn(char_type *s__, std::streamsize n__) override;
 
-   virtual std::streamsize xsputn(const char_type *s__, std::streamsize n__);
+   std::streamsize xsputn(const char_type *s__, std::streamsize n__) override;
 };
 
 #endif // MFEM_USE_GNUTLS

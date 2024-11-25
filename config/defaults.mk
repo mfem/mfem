@@ -289,6 +289,13 @@ endif
 ifeq ($(MFEM_USE_HIP),YES)
    SUNDIALS_LIB += -lsundials_nvechip
 endif
+SUNDIALS_CORE_PAT = $(subst\
+ @MFEM_DIR@,$(MFEM_DIR),$(SUNDIALS_DIR))/lib*/libsundials_core.*
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   ifneq ($(wildcard $(SUNDIALS_CORE_PAT)),)
+      SUNDIALS_LIB += -lsundials_core
+   endif
+endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
 
@@ -533,8 +540,10 @@ ifdef GOTCHA_DIR
 endif
 
 # BLITZ library configuration
-BLITZ_DIR = @MFEM_DIR@/../blitz
+# BLITZ_DIR must be the custom installation folder (-DCMAKE_INSTALL_PREFIX).
+BLITZ_DIR = @MFEM_DIR@/../blitz/install
 BLITZ_OPT = -I$(BLITZ_DIR)/include
+# On intel machines, use /lib64 instead of /lib.
 BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
 
 # ALGOIM library configuration
