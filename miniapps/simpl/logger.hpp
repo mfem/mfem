@@ -24,7 +24,7 @@ protected:
    // Whether the variable name row has been printed or not
    bool var_name_printed;
    bool isRoot; // true if serial or root in parallel
-   std::unique_ptr<std::ofstream> file;
+   std::unique_ptr<std::fstream> file;
 
 private:
 public:

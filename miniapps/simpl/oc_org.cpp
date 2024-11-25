@@ -336,38 +336,37 @@ int main(int argc, char *argv[])
    real_t dual_V;
    ParGridFunction lower(&fes_control), upper(&fes_control);
    real_t max_ch=0.1;
-   // optproblem.Eval();
-   // optproblem.UpdateGradient();
-   // const real_t obj_scale = grad_gf.ComputeMaxError(zero_cf);
    grad_gf = 0.0;
-   optproblem.Eval();
-   optproblem.UpdateGradient();
    curr_vol = density.ComputeVolume(control_gf);
    for (it_oc = 0; it_oc<max_it; it_oc++)
    {
       if (Mpi::Root()) { out << "OC Step " << it_oc << std::endl; }
       control_old_gf = control_gf;
       old_objval = objval;
+      objval = optproblem.Eval();
       real_t l1(0.0), l2(1e9);
-      while ((l2-l1)/(l1+l2) > 1e-07)
+      if (it_oc > 0)
       {
-         const real_t lmid = (l1+l2)*0.5;
-         for(int i=0; i<control_gf.Size(); i++)
+
+         while ((l2-l1)/(l1+l2) > 1e-08)
          {
-            control_gf[i] = std::max(0.0, std::max(control_old_gf[i]-max_ch, std::min(1.0, std::min(control_old_gf[i]+max_ch, control_old_gf[i]*std::sqrt(-grad_gf[i]/lmid)))));
-         }
-         curr_vol = density.ComputeVolume(control_gf);
-         // if (Mpi::Root())
-         // {
-         //    out << max_vol << ", " << curr_vol << ", " << lmid << std::endl;
-         // }
-         if (curr_vol > max_vol)
-         {
-            l1 = lmid;
-         }
-         else
-         {
-            l2 = lmid;
+            const real_t lmid = (l1+l2)*0.5;
+            for (int i=0; i<control_gf.Size(); i++)
+            {
+               control_gf[i] = std::max(0.0, std::max(control_old_gf[i]-max_ch, std::min(1.0,
+                                                                                         std::min(control_old_gf[i]+max_ch, control_old_gf[i]*std::sqrt(std::max(0.0,
+                                                                                               -grad_gf[i])/lmid)))));
+               // control_gf[i] = std::max(0.0, std::min(1.0, control_old_gf[i]*std::sqrt(std::max(0.0,-grad_gf[i])/lmid)));
+            }
+            curr_vol = density.ComputeVolume(control_gf);
+            if (curr_vol > max_vol)
+            {
+               l1 = lmid;
+            }
+            else
+            {
+               l2 = lmid;
+            }
          }
       }
       curr_vol = density.ComputeVolume(control_gf);

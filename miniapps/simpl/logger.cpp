@@ -36,37 +36,37 @@ void TableLogger::Print(bool print_varname)
          os << std::endl;
          if (!var_name_printed && file && file->is_open())
          {
-            for (auto &name : names)
+            for (int i=0; i<names.size() - 1; i++)
             {
-               *file << std::setw(w) << std::setfill(' ') << name << ",\t";
+               *file << std::setw(w) << std::setfill(' ') << names[i] << ",\t";
             }
-            *file << "\b\b";
-            *file << std::endl;
+            *file << std::setw(w) << std::setfill(' ') << names.back() << std::endl;
          }
          var_name_printed = true;
       }
-      int i_double(0), i_int(0);
-      for (auto d : data_order)
+      int i(0), i_double(0), i_int(0);
+      for (int i=0; i<data_order.size(); i++)
       {
+         auto d = data_order[i];
          switch (d)
          {
             case dtype::DOUBLE:
             {
-               os << std::setw(w) << *data_double[i_double] << ",\t";
+               os << std::setw(w) << *data_double[i_double];
                if (file && file->is_open())
                {
                   *file << std::setprecision(8) << std::scientific << std::setw(w) 
-                        << std::setfill(' ') << *data_double[i_double] << ",\t";
+                        << std::setfill(' ') << *data_double[i_double];
                }
                i_double++;
                break;
             }
             case dtype::INT:
             {
-               os << std::setw(w) << *data_int[i_int] << ",\t";
+               os << std::setw(w) << *data_int[i_int];
                if (file && file->is_open())
                {
-                  *file << std::setw(w) << std::setfill(' ') << *data_int[i_int] << ",\t";
+                  *file << std::setw(w) << std::setfill(' ') << *data_int[i_int];
                }
                i_int++;
                break;
@@ -76,12 +76,15 @@ void TableLogger::Print(bool print_varname)
                MFEM_ABORT("Unknown data type. See, TableLogger::dtype");
             }
          }
+         if (i < data_order.size() - 1)
+         {
+            os << ",\t";
+            *file << ",\t";
+         }
       }
-      os << "\b\b"; // remove the last ,\t
       os << std::endl;
       if (file)
       {
-         *file << "\b\b"; // remove the last ,\t
          *file << std::endl;
       }
    }
@@ -92,7 +95,7 @@ void TableLogger::SaveWhenPrint(std::string filename, std::ios::openmode mode)
    if (isRoot)
    {
       filename = filename.append(".csv");
-      file.reset(new std::ofstream);
+      file.reset(new std::fstream);
       file->open(filename, mode);
       if (!file->is_open())
       {
