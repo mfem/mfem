@@ -25,6 +25,7 @@ else:
 	filenames = [ path + name for name in filenames ]
 
 failed = 0
+skipped = 0
 
 for i, filename in enumerate(filenames):
 	# Parsing reference file
@@ -136,6 +137,7 @@ for i, filename in enumerate(filenames):
 				fail = True
 		else:
 			print(bcolors.HEADER + "SKIPPING: "+ bcolors.RESET + command_line + " → incompatible preconditioner")
+			skipped += 1
 	
 	if fail:
 		print(bcolors.FAIL + "FAIL: " + bcolors.RESET + command_line, flush=True)
@@ -143,7 +145,11 @@ for i, filename in enumerate(filenames):
 		failed += 1
 
 print("----------------------------------------------------------------")
-if failed == 0:
-	print(bcolors.OKGREEN + "SUCCESS: " + bcolors.RESET + "all tests finished succesfully!")
+if skipped > 0:
+	skipped_str = " (" + str(skipped) + " / " + str(len(filenames)) + " skipped)"
 else:
-	print(bcolors.FAIL + "FAIL: " + bcolors.RESET + str(failed) + " / " + str(len(filenames)) + " tests failed!")
+	skipped_str = ""
+if failed == 0:
+	print(bcolors.OKGREEN + "SUCCESS: " + bcolors.RESET + "all tests finished succesfully!" + skipped_str)
+else:
+	print(bcolors.FAIL + "FAIL: " + bcolors.RESET + str(failed) + " / " + str(len(filenames)) + " tests failed!" + skipped_str)
