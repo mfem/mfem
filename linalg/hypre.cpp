@@ -5355,8 +5355,8 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
    int ns_down = 0, ns_up = 0, ns_coarse; // init to suppress gcc warnings
    if (distanceR > 0)
    {
-      ns_down = prerelax.length();
-      ns_up = postrelax.length();
+      ns_down = static_cast<int>(prerelax.length());
+      ns_up = static_cast<int>(postrelax.length());
       ns_coarse = 1;
 
       // Array to store relaxation scheme and pass to Hypre
