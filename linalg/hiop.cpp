@@ -123,8 +123,7 @@ bool HiopOptimizationProblem::eval_cons(const size_type &n, const size_type &m,
    if (num_cons == 0) { return true; }
 
    if (new_x) { constr_info_is_current = false; }
-   Vector x_vec(ntdofs_loc), constr_vec(num_cons);;
-   Vector x_vec(ntdofs_loc);
+   Vector x_vec(ntdofs_loc), constr_vec(num_cons);
    x_vec = x;
    problem.new_x = new_x;
    UpdateConstrValsGrads(x_vec);
@@ -155,7 +154,6 @@ bool HiopOptimizationProblem::eval_Jac_cons(const size_type &n,
 
    if (new_x) { constr_info_is_current = false; }
    Vector x_vec(ntdofs_loc), gradf_vec(ntdofs_loc);
-   Vector x_vec(ntdofs_loc);
    x_vec = x;
    problem.new_x = new_x;
    //UpdateConstrValsGrads(x_vec);
