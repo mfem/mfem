@@ -64,7 +64,7 @@ public:
    ArraysByName(ArraysByName &&src) noexcept = default;
 
    /// Return the number of named arrays in the container
-   int Size() const { return data.size(); }
+   int Size() const { return static_cast<int>(data.size()); }
 
    /// Return an STL set of strings giving the names of the arrays
    inline std::set<std::string> GetNames() const;
