@@ -74,6 +74,7 @@ private:
 
    Array<int> Ae_offsets;
    real_t *Af_lin_data{}, *Ae_data{};
+   bool A_empty{true};
 
    Array<int> Bf_offsets, Be_offsets;
    real_t *Bf_data{}, *Be_data{};

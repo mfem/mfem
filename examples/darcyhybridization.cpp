@@ -320,6 +320,8 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    MFEM_ASSERT(Ae_el_data == Ae_data + Ae_offsets[el+1], "Internal error");
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+
+   A_empty = false;
 }
 
 void DarcyHybridization::AssemblePotMassMatrix(int el, const DenseMatrix &D)
@@ -1437,10 +1439,13 @@ void DarcyHybridization::Finalize()
       else
       {
          lop_type = LocalOpType::FullNL;
-         std::swap(Af_data, Af_lin_data);
-         if (!Af_data)
+         if (!A_empty)
          {
-            Af_data = new real_t[Af_offsets.Last()]();
+            std::swap(Af_data, Af_lin_data);
+            if (!Af_data)
+            {
+               Af_data = new real_t[Af_offsets.Last()]();
+            }
          }
 
          if (!D_empty)
@@ -1748,7 +1753,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       m_nlfi_u->AssembleElementGrad(*fe_u, *Tr, u_l, grad_A);
       A += grad_A;
    }
-   else
+   else if (!A_empty)
    {
       DenseMatrix A_lin(Af_lin_data + Af_offsets[el], a_dofs_size, a_dofs_size);
       A += A_lin;
@@ -2089,6 +2094,7 @@ void DarcyHybridization::Reset()
    Hybridization::Reset();
    bfin = false;
 
+   A_empty = true;
    memset(Bf_data, 0, Bf_offsets.Last() * sizeof(real_t));
    if (Df_data)
    {
@@ -2179,7 +2185,7 @@ void DarcyHybridization::LocalNLOperator::AddMultA(const Vector &u_l,
       dh.m_nlfi_u->AssembleElementVector(*fe_u, *Tr, u_l, Au);
       bu += Au;
    }
-   else
+   else if (!dh.A_empty)
    {
       DenseMatrix A(dh.Af_lin_data + dh.Af_offsets[el], a_dofs_size, a_dofs_size);
       A.AddMult(u_l, bu);
@@ -2254,7 +2260,7 @@ void DarcyHybridization::LocalNLOperator::AddGradA(const Vector &u_l,
       dh.m_nlfi_u->AssembleElementGrad(*fe_u, *Tr, u_l, grad_A);
       grad += grad_A;
    }
-   else
+   else if (!dh.A_empty)
    {
       DenseMatrix A(dh.Af_lin_data + dh.Af_offsets[el], a_dofs_size, a_dofs_size);
       grad += A;
