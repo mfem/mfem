@@ -331,7 +331,8 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
 
    ConstantCoefficient one(1.0);
    constexpr int sigma = -1.0;
-   const int kappa = (order + 1) * (order + 1);
+   const int eta = 1e4;
+   const int kappa = eta * (order + 1) * (order + 1);
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
    if (add_diffusion)
@@ -350,9 +351,9 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
    if (add_diffusion)
    {
       a_lor.AddBdrFaceIntegrator(new DG_LOR_DiffusionPreconditioner(
-                                    mesh_lor, order, kappa));
+                                    mesh_lor, order, eta));
       a_lor.AddInteriorFaceIntegrator(new DG_LOR_DiffusionPreconditioner(
-                                         mesh_lor, order, kappa));
+                                         mesh_lor, order, eta));
    }
    a_lor.AddDomainIntegrator(new DG_LOR_MassPreconditioner(
                                 mesh, mesh_lor, order, &mass_coeff));
