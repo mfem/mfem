@@ -54,6 +54,10 @@
 
 #include <functional>
 
+#define MFEM_SUNDIALS_VERSION \
+   (SUNDIALS_VERSION_MAJOR*10000 + SUNDIALS_VERSION_MINOR*100 + \
+    SUNDIALS_VERSION_PATCH)
+
 #if (SUNDIALS_VERSION_MAJOR < 6)
 
 /// (DEPRECATED) Map SUNDIALS version >= 6 datatypes and constants to
@@ -68,13 +72,30 @@ constexpr ARKODE_ERKTableID ARKODE_FEHLBERG_13_7_8 = FEHLBERG_13_7_8;
 /// arbitrary type for more compact backwards compatibility
 using SUNContext = void*;
 
+/// 'sunrealtype' was first introduced in v6.0.0
+typedef realtype sunrealtype;
+/// 'sunbooleantype' was first introduced in v6.0.0
+typedef booleantype sunbooleantype;
+
+/// New constant names introduced in v6.0.0
+enum { SUN_PREC_NONE, SUN_PREC_LEFT, SUN_PREC_RIGHT, SUN_PREC_BOTH };
+
 // KIN_ORTH_MGS was introduced in SUNDIALS v6; here, we define it just so that
 // it can be used as the default option in the second parameter of
 // KINSolver::EnableAndersonAcc -- the actual value of the parameter will be
 // ignored when using SUNDIALS < v6.
 #define KIN_ORTH_MGS 0
 
-#endif // SUNDIALS_VERSION_MAJOR < 6
+#endif // #if SUNDIALS_VERSION_MAJOR < 6
+
+#if (SUNDIALS_VERSION_MAJOR < 7)
+
+/** @brief The enum constant SUN_SUCCESS was added in v7 as a replacement of
+    various *_SUCCESS macros that were removed in v7. */
+enum { SUN_SUCCESS = 0 };
+
+#endif // #if SUNDIALS_VERSION_MAJOR < 7
+
 
 namespace mfem
 {
@@ -244,7 +265,14 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// Returns the MPI communicator for the internal N_Vector x.
-   inline MPI_Comm GetComm() const { return *static_cast<MPI_Comm*>(N_VGetCommunicator(x)); }
+   inline MPI_Comm GetComm() const
+   {
+#if SUNDIALS_VERSION_MAJOR < 7
+      return *static_cast<MPI_Comm*>(N_VGetCommunicator(x));
+#else
+      return N_VGetCommunicator(x);
+#endif
+   }
 
    /// Returns the MPI global length for the internal N_Vector x.
    inline long GlobalSize() const { return N_VGetLength(x); }
@@ -396,24 +424,26 @@ protected:
    int root_components; /// Number of components in gout
 
    /// Wrapper to compute the ODE rhs function.
-   static int RHS(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
+   static int RHS(sunrealtype t, const N_Vector y, N_Vector ydot,
+                  void *user_data);
 
    /// Setup the linear system $ A x = b $.
-   static int LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
-                          booleantype jok, booleantype *jcur,
-                          realtype gamma, void *user_data, N_Vector tmp1,
+   static int LinSysSetup(sunrealtype t, N_Vector y, N_Vector fy, SUNMatrix A,
+                          sunbooleantype jok, sunbooleantype *jcur,
+                          sunrealtype gamma, void *user_data, N_Vector tmp1,
                           N_Vector tmp2, N_Vector tmp3);
 
    /// Solve the linear system $ A x = b $.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
-                          N_Vector b, realtype tol);
+                          N_Vector b, sunrealtype tol);
 
    /// Prototype to define root finding for CVODE
-   static int root(realtype t, N_Vector y, realtype *gout, void *user_data);
+   static int root(sunrealtype t, N_Vector y, sunrealtype *gout,
+                   void *user_data);
 
    /// Typedef for root finding functions
-   typedef std::function<int(realtype t, Vector y, Vector gout, CVODESolver *)>
-   RootFunction;
+   typedef std::function<int(sunrealtype t, Vector y, Vector gout,
+                             CVODESolver *)> RootFunction;
 
    /// A class member to facilitate pointing to a user-specified root function
    RootFunction root_func;
@@ -421,7 +451,8 @@ protected:
    /// Typedef declaration for error weight functions
    typedef std::function<int(Vector y, Vector w, CVODESolver*)> EWTFunction;
 
-   /// A class member to facilitate pointing to a user-specified error weight function
+   /** @brief A class member to facilitate pointing to a user-specified error
+       weight function */
    EWTFunction ewt_func;
 
 public:
@@ -455,7 +486,7 @@ public:
        @note If this method is called a second time with a different problem
        size, then any non-default user-set options will be lost and will need
        to be set again. */
-   void Init(TimeDependentOperator &f_);
+   void Init(TimeDependentOperator &f_) override;
 
    /// Integrate the ODE with CVODE using the specified step mode.
    /** @param[in,out] x  On output, the solution vector at the requested output
@@ -531,14 +562,15 @@ protected:
    int indexB; ///< backward problem index
 
    /// Wrapper to compute the ODE RHS Quadrature function.
-   static int RHSQ(realtype t, const N_Vector y, N_Vector qdot, void *user_data);
+   static int RHSQ(sunrealtype t, const N_Vector y, N_Vector qdot,
+                   void *user_data);
 
    /// Wrapper to compute the ODE RHS backward function.
-   static int RHSB(realtype t, N_Vector y,
+   static int RHSB(sunrealtype t, N_Vector y,
                    N_Vector yB, N_Vector yBdot, void *user_dataB);
 
    /// Wrapper to compute the ODE RHS Backwards Quadrature function.
-   static int RHSQB(realtype t, N_Vector y, N_Vector yB,
+   static int RHSQB(sunrealtype t, N_Vector y, N_Vector yB,
                     N_Vector qBdot, void *user_dataB);
 
    /// Error control function
@@ -654,15 +686,15 @@ public:
    void SetSVtolerancesB(double reltol, Vector abstol);
 
    /// Setup the linear system A x = b
-   static int LinSysSetupB(realtype t, N_Vector y, N_Vector yB, N_Vector fyB,
+   static int LinSysSetupB(sunrealtype t, N_Vector y, N_Vector yB, N_Vector fyB,
                            SUNMatrix A,
-                           booleantype jok, booleantype *jcur,
-                           realtype gamma, void *user_data, N_Vector tmp1,
+                           sunbooleantype jok, sunbooleantype *jcur,
+                           sunrealtype gamma, void *user_data, N_Vector tmp1,
                            N_Vector tmp2, N_Vector tmp3);
 
    /// Solve the linear system A x = b
    static int LinSysSolveB(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
-                           N_Vector b, realtype tol);
+                           N_Vector b, sunrealtype tol);
 
 
    /// Destroy the associated CVODES memory and SUNDIALS objects.
@@ -695,33 +727,35 @@ protected:
        RHS1 is explicit RHS and RHS2 the implicit RHS for IMEX integration. When
        purely implicit or explicit only RHS1 is used. */
    ///@{
-   static int RHS1(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
-   static int RHS2(realtype t, const N_Vector y, N_Vector ydot, void *user_data);
+   static int RHS1(sunrealtype t, const N_Vector y, N_Vector ydot,
+                   void *user_data);
+   static int RHS2(sunrealtype t, const N_Vector y, N_Vector ydot,
+                   void *user_data);
    ///@}
 
    /// Setup the linear system $ A x = b $.
-   static int LinSysSetup(realtype t, N_Vector y, N_Vector fy, SUNMatrix A,
-                          SUNMatrix M, booleantype jok, booleantype *jcur,
-                          realtype gamma, void *user_data, N_Vector tmp1,
+   static int LinSysSetup(sunrealtype t, N_Vector y, N_Vector fy, SUNMatrix A,
+                          SUNMatrix M, sunbooleantype jok, sunbooleantype *jcur,
+                          sunrealtype gamma, void *user_data, N_Vector tmp1,
                           N_Vector tmp2, N_Vector tmp3);
 
    /// Solve the linear system $ A x = b $.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix A, N_Vector x,
-                          N_Vector b, realtype tol);
+                          N_Vector b, sunrealtype tol);
 
    /// Setup the linear system $ M x = b $.
-   static int MassSysSetup(realtype t, SUNMatrix M, void *user_data,
+   static int MassSysSetup(sunrealtype t, SUNMatrix M, void *user_data,
                            N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
 
    /// Solve the linear system $ M x = b $.
    static int MassSysSolve(SUNLinearSolver LS, SUNMatrix M, N_Vector x,
-                           N_Vector b, realtype tol);
+                           N_Vector b, sunrealtype tol);
 
    /// Compute the matrix-vector product $ v = M x $.
    static int MassMult1(SUNMatrix M, N_Vector x, N_Vector v);
 
    /// Compute the matrix-vector product $v = M_t x $ at time t.
-   static int MassMult2(N_Vector x, N_Vector v, realtype t,
+   static int MassMult2(N_Vector x, N_Vector v, sunrealtype t,
                         void* mtimes_data);
 
 public:
@@ -757,7 +791,7 @@ public:
        @note If this method is called a second time with a different problem
        size, then any non-default user-set options will be lost and will need
        to be set again. */
-   void Init(TimeDependentOperator &f_);
+   void Init(TimeDependentOperator &f_) override;
 
    /// Integrate the ODE with ARKode using the specified step mode.
    /**
@@ -871,7 +905,7 @@ protected:
 
    /// Wrapper to compute the Jacobian-vector product $ J(u) v = Jv $.
    static int GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
-                           booleantype *new_u, void *user_data);
+                           sunbooleantype *new_u, void *user_data);
 
    /// Setup the linear system $ J u = b $.
    static int LinSysSetup(N_Vector u, N_Vector fu, SUNMatrix J,
@@ -879,7 +913,7 @@ protected:
 
    /// Solve the linear system $ J u = b $.
    static int LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector u,
-                          N_Vector b, realtype tol);
+                          N_Vector b, sunrealtype tol);
 
    /// Setup the preconditioner.
    static int PrecSetup(N_Vector uu,
