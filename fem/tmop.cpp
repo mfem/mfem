@@ -2910,7 +2910,7 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
 {
    const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
    const char* mesh_fe_name =
-       z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
+      z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
    MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
                "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
@@ -2932,7 +2932,7 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
 {
    const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
    const char* mesh_fe_name =
-       z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
+      z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
    MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
                "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
