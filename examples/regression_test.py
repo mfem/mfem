@@ -63,22 +63,25 @@ for i, filename in enumerate(filenames):
 	ny = int(get_ref_param(filename, '--ncells-y'))
 	kappa = float(get_ref_param(filename, '--kappa', "1"))
 	hdg = int(get_ref_param(filename, '--hdg_scheme', "1"))
-	nls = int(get_ref_param(filename, '--nonlinear-solver', "1"))
+	nls = int(get_ref_param(filename, '--nonlinear-solver', "0"))
 
 	ref_out = subprocess.getoutput("grep '|| t_h - t_ex || / || t_ex || = ' "+filename+"  | cut -d '=' -f 2-")
 	ref_L2_t = float(ref_out.split()[0])
 	ref_out = subprocess.getoutput("grep '|| q_h - q_ex || / || q_ex || = ' "+filename+"  | cut -d '=' -f 2-")
 	ref_L2_q = float(ref_out.split()[0])
 	solver = "GMRES"
-	if (nonlin or nonlin_diff) and hb:
-		if nls == 1:
+	if (nonlin or nonlin_diff):
+		if nls == 1 or (hb and nls == 0):
 			solver = "LBFGS"
 		elif nls == 2:
 			solver = "LBB"
 		elif nls == 3:
 			solver = "Newton"
 	ref_out = subprocess.getoutput("grep '"+solver+"+' "+filename+"  | cut -d '+' -f 2-")
-	precond_ref = ref_out.split()[0]
+	if(len(ref_out) > 0):
+		precond_ref = ref_out.split()[0]
+	else:
+		precond_ref = ""
 
 	# Run test case
 	command_line = "./ex5-nguyen -no-vis"
@@ -106,7 +109,7 @@ for i, filename in enumerate(filenames):
 		command_line += ' -k ' + str(kappa)
 	if hdg != 1:
 		command_line += ' -hdg ' + str(hdg)
-	if nls != 1:
+	if nls != 0:
 		command_line += ' -nls ' + str(nls)
 
 	cmd_out = subprocess.getoutput(command_line)

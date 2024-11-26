@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
    bool nonlinear_conv = false;
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
-   int solver_type = (int)DarcyOperator::SolverType::LBFGS;
+   int solver_type = (int)DarcyOperator::SolverType::Default;
    bool pa = false;
    const char *device_config = "cpu";
    bool mfem = false;
@@ -254,11 +254,6 @@ int main(int argc, char *argv[])
    {
       cerr << "Nonlinear convection can only work in the nonlinear regime" << endl;
       return 1;
-   }
-
-   if (nonlinear && !hybridization)
-   {
-      cerr << "Warning: A linear solver is used" << endl;
    }
 
    if (btime && nt <= 0)

@@ -269,6 +269,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
             IterativeSolver *lin_solver = NULL;
             switch (solver_type)
             {
+               case SolverType::Default:
                case SolverType::LBFGS:
                   prec = NULL;
                   solver = new LBFGSSolver();
@@ -351,118 +352,187 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       }
       else
       {
-         // Construct the operators for preconditioner
-         //
-         //                 P = [ diag(M)         0         ]
-         //                     [  0       B diag(M)^-1 B^T ]
-         //
-         //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
-         //     temperature Schur Complement
          SparseMatrix *MinvBt = NULL;
-         Vector Md(offsets[1] - offsets[0]);
 
-         const Array<int> &block_offsets = darcy->GetOffsets();
-         auto *darcyPrec = new BlockDiagonalPreconditioner(block_offsets);
-         prec = darcyPrec;
-         darcyPrec->owns_blocks = true;
-         Solver *invM, *invS;
-
-         if (pa)
+         if ((Mqnl || Mtnl || Mnl) && solver_type != SolverType::Default)
          {
-            Mq->AssembleDiagonal(Md);
-            auto Md_host = Md.HostRead();
-            Vector invMd(Mq->Height());
-            for (int i=0; i<Mq->Height(); ++i)
+            IterativeSolver *lin_solver = NULL;
+            switch (solver_type)
             {
-               invMd(i) = 1.0 / Md_host[i];
+               case SolverType::Default:
+               case SolverType::LBFGS:
+                  prec = NULL;
+                  solver = new LBFGSSolver();
+                  solver_str = "LBFGS";
+                  break;
+               case SolverType::LBB:
+                  prec = NULL;
+                  solver = new LBBSolver();
+                  solver_str = "LBB";
+                  break;
+               case SolverType::Newton:
+                  lin_solver = new GMRESSolver();
+                  lin_solver->SetAbsTol(atol);
+                  lin_solver->SetRelTol(rtol * 1e-2);
+                  lin_solver->SetMaxIter(maxIter);
+                  lin_solver->SetPrintLevel(0);
+                  prec = lin_solver;
+                  prec_str = "GMRES";
+                  solver = new NewtonSolver();
+                  solver_str = "Newton";
+                  break;
+               case SolverType::KINSol:
+#ifdef MFEM_USE_SUNDIALS
+                  lin_solver = new GMRESSolver();
+                  lin_solver->SetAbsTol(atol);
+                  lin_solver->SetRelTol(rtol * 1e-2);
+                  lin_solver->SetMaxIter(maxIter);
+                  lin_solver->SetPrintLevel(0);
+                  prec = lin_solver;
+                  prec_str = "GMRES";
+                  solver = new KINSolver(KIN_PICARD);
+                  static_cast<KINSolver*>(solver)->EnableAndersonAcc(10);
+                  solver_str = "KINSol";
+#else
+                  MFEM_ABORT("Sundials not installed!");
+#endif
+                  break;
             }
 
-            Vector BMBt_diag(B->Height());
-            B->AssembleDiagonal_ADAt(invMd, BMBt_diag);
-
-            Array<int> ess_tdof_list;  // empty
-
-            invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
-            invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+            if (prec)
+            {
+               if (ess_flux_tdofs_list.Size() > 0)
+               {
+                  MFEM_ABORT("Gradient is not implemented with essential DOFs!");
+               }
+               solver->SetOperator(*darcy);
+            }
+            else
+            {
+               solver->SetOperator(*op);
+            }
          }
          else
          {
-            // get diagonal
-            if (Mq)
+            if (Mqnl || Mtnl || Mnl)
             {
-               const SparseMatrix &Mqm(Mq->SpMat());
-               Mqm.GetDiag(Md);
-               invM = new DSmoother(Mqm);
-            }
-            else if (Mqnl)
-            {
-               const SparseMatrix &Mqm = static_cast<SparseMatrix&>(
-                                            Mqnl->GetGradient(x.GetBlock(0)));
-               Mqm.GetDiag(Md);
-               invM = new DSmoother(Mqm);
-            }
-            else if (Mnl)
-            {
-               BlockOperator &bop = static_cast<BlockOperator&>(
-                                       Mnl->GetGradient(x));
-
-               const SparseMatrix &Mqm = static_cast<SparseMatrix&>(
-                                            bop.GetBlock(0,0));
-
-               Mqm.GetDiag(Md);
-               invM = new DSmoother(Mqm);
+               std::cerr << "A linear solver is used for a non-linear problem!" << std::endl;
             }
 
-            Md.HostReadWrite();
+            // Construct the operators for preconditioner
+            //
+            //                 P = [ diag(M)         0         ]
+            //                     [  0       B diag(M)^-1 B^T ]
+            //
+            //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
+            //     temperature Schur Complement
 
-            const SparseMatrix &Bm(B->SpMat());
-            MinvBt = Transpose(Bm);
+            Vector Md(offsets[1] - offsets[0]);
 
-            for (int i = 0; i < Md.Size(); i++)
+            const Array<int> &block_offsets = darcy->GetOffsets();
+            auto *darcyPrec = new BlockDiagonalPreconditioner(block_offsets);
+            prec = darcyPrec;
+            darcyPrec->owns_blocks = true;
+            Solver *invM, *invS;
+
+            if (pa)
             {
-               MinvBt->ScaleRow(i, 1./Md(i));
-            }
+               Mq->AssembleDiagonal(Md);
+               auto Md_host = Md.HostRead();
+               Vector invMd(Mq->Height());
+               for (int i=0; i<Mq->Height(); ++i)
+               {
+                  invMd(i) = 1.0 / Md_host[i];
+               }
 
-            S = mfem::Mult(Bm, *MinvBt);
+               Vector BMBt_diag(B->Height());
+               B->AssembleDiagonal_ADAt(invMd, BMBt_diag);
 
-            if (Mt)
-            {
-               const SparseMatrix &Mtm(Mt->SpMat());
-               SparseMatrix *Snew = Add(Mtm, *S);
-               delete S;
-               S = Snew;
+               Array<int> ess_tdof_list;  // empty
+
+               invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
+               invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
             }
-            else if (Mtnl)
+            else
             {
-               const SparseMatrix &grad = static_cast<SparseMatrix&>(
-                                             Mtnl->GetGradient(x.GetBlock(1)));
-               SparseMatrix *Snew = Add(grad, *S);
-               delete S;
-               S = Snew;
-            }
+               // get diagonal
+               if (Mq)
+               {
+                  const SparseMatrix &Mqm(Mq->SpMat());
+                  Mqm.GetDiag(Md);
+                  invM = new DSmoother(Mqm);
+               }
+               else if (Mqnl)
+               {
+                  const SparseMatrix &Mqm = static_cast<SparseMatrix&>(
+                                               Mqnl->GetGradient(x.GetBlock(0)));
+                  Mqm.GetDiag(Md);
+                  invM = new DSmoother(Mqm);
+               }
+               else if (Mnl)
+               {
+                  BlockOperator &bop = static_cast<BlockOperator&>(
+                                          Mnl->GetGradient(x));
+
+                  const SparseMatrix &Mqm = static_cast<SparseMatrix&>(
+                                               bop.GetBlock(0,0));
+
+                  Mqm.GetDiag(Md);
+                  invM = new DSmoother(Mqm);
+               }
+
+               Md.HostReadWrite();
+
+               const SparseMatrix &Bm(B->SpMat());
+               MinvBt = Transpose(Bm);
+
+               for (int i = 0; i < Md.Size(); i++)
+               {
+                  MinvBt->ScaleRow(i, 1./Md(i));
+               }
+
+               S = mfem::Mult(Bm, *MinvBt);
+
+               if (Mt)
+               {
+                  const SparseMatrix &Mtm(Mt->SpMat());
+                  SparseMatrix *Snew = Add(Mtm, *S);
+                  delete S;
+                  S = Snew;
+               }
+               else if (Mtnl)
+               {
+                  const SparseMatrix &grad = static_cast<SparseMatrix&>(
+                                                Mtnl->GetGradient(x.GetBlock(1)));
+                  SparseMatrix *Snew = Add(grad, *S);
+                  delete S;
+                  S = Snew;
+               }
 
 #ifndef MFEM_USE_SUITESPARSE
-            invS = new GSSmoother(*S);
-            prec_str = "GS";
+               invS = new GSSmoother(*S);
+               prec_str = "GS";
 #else
-            invS = new UMFPackSolver(*S);
-            prec_str = "UMFPack";
+               invS = new UMFPackSolver(*S);
+               prec_str = "UMFPack";
 #endif
+            }
+
+            invM->iterative_mode = false;
+            invS->iterative_mode = false;
+
+            darcyPrec->SetDiagonalBlock(0, invM);
+            darcyPrec->SetDiagonalBlock(1, invS);
+
+            solver = new GMRESSolver();
+            solver_str = "GMRES";
+            solver->SetOperator(*op);
          }
 
-         invM->iterative_mode = false;
-         invS->iterative_mode = false;
-
-         darcyPrec->SetDiagonalBlock(0, invM);
-         darcyPrec->SetDiagonalBlock(1, invS);
-
-         solver = new GMRESSolver();
-         solver_str = "GMRES";
          solver->SetAbsTol(atol);
          solver->SetRelTol(rtol);
          solver->SetMaxIter(maxIter);
-         solver->SetOperator(*op);
-         solver->SetPreconditioner(*prec);
+         if (prec) { solver->SetPreconditioner(*prec); }
          solver->SetPrintLevel((btime_u || btime_p)?0:1);
          solver->iterative_mode = true;
 

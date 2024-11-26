@@ -24,7 +24,8 @@ class DarcyOperator : public TimeDependentOperator
 public:
    enum class SolverType
    {
-      LBFGS = 1,
+      Default = 0,
+      LBFGS,
       LBB,
       Newton,
       KINSol,
