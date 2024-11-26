@@ -69,9 +69,7 @@ public:
                              Vector &new_field,
                              int new_nodes_ordering = Ordering::byNODES) override;
 
-   void GetFESpaceNodalLocation(const Vector mesh_nodes,
-                                const int mesh_nodes_ordering,
-                                Vector &fes_nodes);
+   void GetFESpaceNodalLocation(const Vector mesh_nodes, Vector &fes_nodes);
 
    const FindPointsGSLIB *GetFindPointsGSLIB() const
    {

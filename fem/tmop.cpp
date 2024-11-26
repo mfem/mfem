@@ -2812,8 +2812,6 @@ DiscreteAdaptTC::~DiscreteAdaptTC()
 void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
                                             const FiniteElementSpace &f)
 {
-   const char *mesh_fe_name = m.GetNodes()->FESpace()->FEColl()->Name();
-   const char *field_fe_name = f.FEColl()->Name();
    delete fes;
    delete mesh;
    mesh = new Mesh(m, true);
@@ -2825,8 +2823,6 @@ void AdaptivityEvaluator::SetSerialMetaInfo(const Mesh &m,
 void AdaptivityEvaluator::SetParMetaInfo(const ParMesh &m,
                                          const ParFiniteElementSpace &f)
 {
-   const char *mesh_fe_name = m.GetNodes()->FESpace()->FEColl()->Name();
-   const char *field_fe_name = f.FEColl()->Name();
    delete pfes;
    delete pmesh;
    pmesh = new ParMesh(m, true);
@@ -2912,6 +2908,11 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
 {
+   const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
+   const char* mesh_fe_name =
+       z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
+   MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
+               "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
    delete adapt_lim_gf;
    adapt_lim_gf   = new GridFunction(z0);
@@ -2929,6 +2930,11 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
 {
+   const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
+   const char* mesh_fe_name =
+       z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
+   MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
+               "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
    adapt_lim_pgf0 = &z0;
    delete adapt_lim_gf;
