@@ -2857,6 +2857,7 @@ void TMOP_Integrator::ReleasePADeviceMemory(bool copy_to_host)
    {
       PA.H.GetMemory().DeleteDevice(copy_to_host);
       PA.H0.GetMemory().DeleteDevice(copy_to_host);
+      PA.SFH0.GetMemory().DeleteDevice(copy_to_host);
       if (!copy_to_host && !PA.Jtr.GetMemory().HostIsValid())
       {
          PA.Jtr_needs_update = true;
@@ -3037,12 +3038,15 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                                    fec->GetBasisType());
    ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace(pmesh, fec_grad,
                                                                dim);
+
    // Initial gradients.
    surf_fit_grad = new GridFunction(fes_grad);
    surf_fit_grad->MakeOwner(fec_grad);
+   surf_fit_grad->HostReadWrite();
    for (int d = 0; d < dim; d++)
    {
       ParGridFunction surf_fit_grad_comp(fes, surf_fit_grad->GetData()+d*s0.Size());
+      surf_fit_grad_comp.UseDevice(false);
       s0.GetDerivative(1, d, surf_fit_grad_comp);
    }
    surf_fit_eval_grad = aegrad;
@@ -3058,6 +3062,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    // Initial Hessians.
    surf_fit_hess = new GridFunction(fes_hess);
    surf_fit_hess->MakeOwner(fec_hess);
+   surf_fit_hess->HostReadWrite();
    int id = 0;
    for (int d = 0; d < dim; d++)
    {
@@ -3067,6 +3072,8 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                             surf_fit_grad->GetData()+d*s0.Size());
          ParGridFunction surf_fit_hess_comp(fes,
                                             surf_fit_hess->GetData()+id*s0.Size());
+         surf_fit_grad_comp.UseDevice(false);
+         surf_fit_hess_comp.UseDevice(false);
          surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
          id++;
       }
@@ -3112,6 +3119,8 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    // Setup for level set function
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
+   *surf_fit_gf = 0.0;
+   surf_fit_gf->HostRead();
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
@@ -3132,6 +3141,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    delete surf_fit_grad;
    surf_fit_grad = new GridFunction(s0_grad);
    *surf_fit_grad = 0.0;
+   surf_fit_grad->HostRead();
    surf_fit_eval_grad = &age;
    surf_fit_eval_hess = &ahe;
    surf_fit_eval_grad->SetParMetaInfo(*s_bg_grad.ParFESpace()->GetParMesh(),
@@ -3147,6 +3157,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    delete surf_fit_hess;
    surf_fit_hess = new GridFunction(s0_hess);
    *surf_fit_hess = 0.0;
+   surf_fit_hess->HostRead();
    surf_fit_eval_hess->SetParMetaInfo(*s_bg_hess.ParFESpace()->GetParMesh(),
                                       *s_bg_hess.ParFESpace());
    surf_fit_eval_hess->SetInitialField
@@ -3171,6 +3182,10 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
                                               real_t &err_avg, real_t &err_max)
 {
    MFEM_VERIFY(surf_fit_marker, "Surface fitting has not been enabled.");
+   if (surf_fit_gf)
+   {
+      surf_fit_gf->HostReadWrite();
+   }
 
    const FiniteElementSpace *fes =
       (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
@@ -3410,7 +3425,6 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          }
       }
    }
-
    delete Tpr;
    return energy;
 }
@@ -4322,6 +4336,7 @@ void TMOP_Integrator::UpdateSurfaceFittingWeight(real_t factor)
       auto cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
       MFEM_VERIFY(cf, "Dynamic weight works only with a ConstantCoefficient.");
       cf->constant *= factor;
+      if (PA.enabled) { PA.SFC = cf->constant; }
    }
 }
 
@@ -4479,6 +4494,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       const int cnt = surf_fit_marker_dof_index.Size();
       const int total_cnt = new_x.Size()/dim;
       Vector new_x_sorted(cnt*dim);
+      new_x.HostRead();
       if (new_x_ordering == 0)
       {
          for (int d = 0; d < dim; d++)
@@ -4501,6 +4517,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
             }
          }
       }
+      surf_fit_gf->HostWrite();
 
       // Interpolate values of the LS.
       Vector surf_fit_gf_int, surf_fit_grad_int, surf_fit_hess_int;
@@ -4515,6 +4532,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       // Interpolate gradients of the LS.
       surf_fit_eval_grad->ComputeAtNewPosition(new_x_sorted, surf_fit_grad_int,
                                                new_x_ordering);
+      surf_fit_grad->HostWrite();
       // Assumes surf_fit_grad and surf_fit_gf share the same space
       const int grad_dim = surf_fit_grad->VectorDim();
       const int grad_cnt = surf_fit_grad->Size()/grad_dim;
@@ -4546,6 +4564,7 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       // Interpolate Hessians of the LS.
       surf_fit_eval_hess->ComputeAtNewPosition(new_x_sorted, surf_fit_hess_int,
                                                new_x_ordering);
+      surf_fit_hess->HostWrite();
       // Assumes surf_fit_hess and surf_fit_gf share the same space
       const int hess_dim = surf_fit_hess->VectorDim();
       const int hess_cnt = surf_fit_hess->Size()/hess_dim;
@@ -4573,7 +4592,6 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
             }
          }
       }
-
    }
    else
    {
@@ -4596,8 +4614,6 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
                               const FiniteElementSpace &x_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
-
-   if (PA.enabled) { UpdateCoefficientsPA(x_new); }
 
    Ordering::Type ordering = x_fes.GetOrdering();
 
@@ -4627,6 +4643,8 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
    {
       RemapSurfaceFittingLevelSetAtNodes(x_new, ordering);
    }
+
+   if (PA.enabled) { UpdateCoefficientsPA(x_new); }
 }
 
 void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)

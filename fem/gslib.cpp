@@ -186,6 +186,7 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
 void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                                  int point_pos_ordering)
 {
+   auto pp = point_pos.HostRead();
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
    points_cnt = point_pos.Size() / dim;
    gsl_code.SetSize(points_cnt);
@@ -200,12 +201,12 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       {
          if (point_pos_ordering == Ordering::byNODES)
          {
-            xv_base[d] = point_pos.GetData() + d*points_cnt;
+            xv_base[d] = pp + d*points_cnt;
             xv_stride[d] = sizeof(double);
          }
          else
          {
-            xv_base[d] = point_pos.GetData() + d;
+            xv_base[d] = pp + d;
             xv_stride[d] = dim*sizeof(double);
          }
       }
@@ -857,6 +858,8 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                                   Vector &field_out)
 {
+   field_in.HostRead();
+   field_out.HostWrite();
    const int  gf_order   = field_in.FESpace()->GetMaxElementOrder(),
               mesh_order = mesh->GetNodalFESpace()->GetMaxElementOrder();
 
@@ -951,6 +954,7 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
       ind_fes.Update(false);
    }
    GridFunction field_in_scalar(&ind_fes);
+   field_in_scalar.UseDevice(false);
    Vector node_vals;
 
    const int ncomp      = field_in.FESpace()->GetVDim(),
@@ -960,6 +964,7 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
 
    field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
+   field_out.HostReadWrite();
 
    for (int i = 0; i < ncomp; i++)
    {
@@ -1019,6 +1024,7 @@ void FindPointsGSLIB::InterpolateGeneral(const GridFunction &field_in,
 
    field_out.SetSize(points_cnt*ncomp);
    field_out = default_interp_value;
+   field_out.HostReadWrite();
 
    if (gsl_comm->np == 1) // serial
    {
