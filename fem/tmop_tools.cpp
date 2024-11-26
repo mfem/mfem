@@ -397,7 +397,7 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
    if (fes_m)
    {
       Vector mapped_nodes;
-      GetFESpaceNodalLocation(new_nodes, new_nodes_ordering, mapped_nodes);
+      GetFESpaceNodalLocation(new_nodes, mapped_nodes);
       finder->Interpolate(mapped_nodes, field0_gf, new_field,
                           fes_m->GetOrdering());
    }
@@ -408,7 +408,6 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
 }
 
 void InterpolatorFP::GetFESpaceNodalLocation(const Vector mesh_nodes,
-                                             const int mesh_node_ordering,
                                              Vector &fes_nodes)
 {
    MFEM_VERIFY(fes_m, "InterpolatorFP: fes_m is not set.");
