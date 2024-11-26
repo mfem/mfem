@@ -3507,6 +3507,127 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 }
 
+void ParFiniteElementSpace::GetTrueUpdateOperator(OperatorHandle &T)
+{
+   bool need_P_old = false;
+   std::unique_ptr<HypreParMatrix> P_old;
+
+   T.Clear();  // preserves T.Type()
+
+   switch (mesh->GetLastOperation())
+   {
+      case Mesh::REFINE:
+      {
+         if (T.Type() == Operator::Hypre_ParCSR)
+         {
+            SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+            need_P_old = true;
+         }
+         break;
+      }
+
+      case Mesh::DEREFINE:
+      {
+         if (T.Type() == Operator::Hypre_ParCSR)
+         {
+            need_P_old = true;
+         }
+         break;
+      }
+
+      case Mesh::REBALANCE:
+      {
+         if (T.Type() == Operator::Hypre_ParCSR)
+         {
+            need_P_old = true;
+         }
+         break;
+      }
+
+      default:
+         break;
+   }
+   if (need_P_old)
+   {
+      // Save P as P_old:
+      P_old.reset(Dof_TrueDof_Matrix()); // make sure P is constructed
+      P_old->CopyRowStarts();
+      P_old->CopyColStarts();
+      P = nullptr;
+   }
+
+   Update(true);
+
+   if (NURBSext)   // NURBS spaces are not supported yet!
+   {
+      return;
+   }
+
+   switch (mesh->GetLastOperation())
+   {
+      case Mesh::REFINE:
+      {
+         if (T.Type() == Operator::Hypre_ParCSR)
+         {
+            SparseMatrix *Tsm = Th.Is<SparseMatrix>();
+            MFEM_VERIFY(Tsm != nullptr,
+                        "invalid update (refine) operator type!");
+            // Form the product: R_new . Tsm . P_old:
+            SparseMatrix *R_T = mfem::Mult(*GetRestrictionMatrix(), *Tsm);
+            T.Reset(P_old->LeftDiagMult(*R_T, GetTrueDofOffsets()));
+            delete R_T;
+         }
+         break;
+      }
+
+      case Mesh::DEREFINE:
+      {
+         if (T.Type() == Operator::Hypre_ParCSR)
+         {
+            // Th is one of:
+            // 1. HypreParMatrix, Thm, when Nonconforming() == false,
+            // 2. TripleProductOperator, P_new . R_new . Thm, where Thm is
+            //    HypreParMatrix when Nonconforming() == true.
+            // In both cases, form the product: R_new . Thm . P_old
+            const HypreParMatrix *Thm = Th.Is<HypreParMatrix>();
+            if (Thm == nullptr)
+            {
+               TripleProductOperator *Ttpo = Th.Is<TripleProductOperator>();
+               MFEM_VERIFY(Ttpo != nullptr,
+                           "invalid update (derefine) operator type!");
+               Thm = dynamic_cast<const HypreParMatrix*>(Ttpo->GetC());
+            }
+            MFEM_VERIFY(Thm != nullptr,
+                        "invalid update (derefine) operator type!");
+            HypreParMatrix *R_T = Thm->LeftDiagMult(*GetRestrictionMatrix(),
+                                                    GetTrueDofOffsets());
+            T.Reset(ParMult(R_T, P_old.get(), true));
+            delete R_T;
+         }
+         break;
+      }
+
+      case Mesh::REBALANCE:
+      {
+         if (T.Type() == Operator::Hypre_ParCSR)
+         {
+            HypreParMatrix *Thm = Th.Is<HypreParMatrix>();
+            MFEM_VERIFY(Thm != nullptr,
+                        "invalid update (rebalance) operator type!");
+            // Form the product: R_new . Thm . P_old:
+            HypreParMatrix *R_T = Thm->LeftDiagMult(*GetRestrictionMatrix(),
+                                                    GetTrueDofOffsets());
+            T.Reset(ParMult(R_T, P_old.get(), true));
+            delete R_T;
+         }
+         break;
+      }
+
+      default:
+         break;
+   }
+}
+
 void ParFiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
 {
    ParMesh *new_pmesh = dynamic_cast<ParMesh*>(new_mesh);

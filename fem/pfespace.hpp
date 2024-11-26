@@ -428,6 +428,33 @@ public:
       old_dof_offsets.DeleteAll();
    }
 
+   /** @brief Return the true-dof to true-dof update operator corresponding to
+       the last Mesh::Operation. */
+   /** This method is similar to the GetUpdateOperator() methods, however the
+       returned operator works on T-dof (true-dof) vectors instead of L-dof
+       vectors (i.e. ParGridFunction-sized vectors).
+
+       @param[in,out]  T  On input, the type of @a T is used as input to request
+                          a given type of Operator::Type; currently only
+                          Operator::Hypre_ParCSR is supported. On output, @a T
+                          holds a pointer to the requested Operator and @a T
+                          owns the pointer. The returned Operator is constructed
+                          to be independent of the ParFiniteElementSpace, i.e.
+                          modifying or destroying the ParFiniteElementSpace will
+                          not invalidate the returned Operator. If an error is
+                          encountered (e.g. the requested type is not supported)
+                          the object @a T is cleared (stores the NULL pointer).
+
+      This method first calls SetUpdateOperatorType() with a type appropriate
+      for the requested @a T.Type() and then calls Update(bool) with the
+      parameter @a want_transform set to true.
+
+      @note After each Mesh::Operation, the method Update(bool) should not be
+      called before this method.
+
+      @note This method does not support NURBS spaces yet. */
+   void GetTrueUpdateOperator(OperatorHandle &T);
+
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
    void PrintPartitionStats();
