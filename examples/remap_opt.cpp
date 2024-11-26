@@ -37,11 +37,6 @@ int main(int argc, char *argv[])
                   "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-#ifdef MFEM_USE_CEED
-   args.AddOption(&algebraic_ceed, "-a", "--algebraic",
-                  "-no-a", "--no-algebraic",
-                  "Use algebraic Ceed solver");
-#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -77,7 +72,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(100./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -90,7 +85,7 @@ int main(int argc, char *argv[])
    mfem::ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
@@ -115,14 +110,43 @@ int main(int argc, char *argv[])
       delete obj;
    }
 
+   double tvol=0.0;
+
    {
       VolConstr* g=new VolConstr(pfes,0.0);
-      std::cout<<g->Eval(tgf.GetTrueVector())<<" "<<std::endl;
+      tvol=g->Eval(tgf.GetTrueVector());
+      std::cout<<tvol<<" "<<std::endl;
       g->Test();
       delete g;
    }
 
+   mfem::Vector u_max; u_max.SetSize(tgf.Size()); u_max=1.0;
+   mfem::Vector u_min; u_min.SetSize(tgf.Size()); u_min=0.0;
+   tvol=M_PI*0.30*0.30;
 
+
+   MDSolver* md=new MDSolver(pfes,tvol,tgf,u_min,u_max);
+
+
+   md->Optimize(1000,100.0);
+
+   {
+       mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
+       paraview_dc.SetPrefixPath("ParaView");
+       paraview_dc.SetLevelsOfDetail(order);
+       paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
+       paraview_dc.SetHighOrderOutput(true);
+       paraview_dc.SetCycle(0);
+       paraview_dc.SetTime(0.0);
+
+       paraview_dc.RegisterField("design",&tgf);
+       paraview_dc.RegisterField("TFG",&(md->GetTFG()));
+       paraview_dc.RegisterField("CFG",&(md->GetCFG()));
+
+       paraview_dc.Save();
+   }
+
+   delete md;
 
 
    return 0;

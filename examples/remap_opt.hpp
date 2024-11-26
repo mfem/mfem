@@ -6,7 +6,7 @@
 class SphCoefficient:public mfem::Coefficient
 {
 public:
-    SphCoefficient(mfem::real_t r_=1.0):r(r_)
+    SphCoefficient(mfem::real_t r_=0.30):r(r_)
     {
 
     }
@@ -25,7 +25,12 @@ public:
         tmpv.SetSize(T.GetSpaceDim());
         T.Transform(ip,tmpv);
 
+        for(int i=0;i<tmpv.Size();i++){
+            tmpv[i]-=0.40;
+        }
+
         mfem::real_t rez=tmpv.Norml2();
+
 
         if(rez<r){return 1.0;}
         else{return 0.0;}
@@ -214,10 +219,10 @@ public:
          mfem::real_t vol_,
          mfem::ParGridFunction& trg,
          mfem::Vector& u_min_,
-         mfem::Vector& u_max_):cfg(pfes),tfg(pfes)
+         mfem::Vector& u_max_):cfg(&pfes),tfg(&pfes)
     {
-       tfg=u_min_; u_max=tfg.GetTrueVector(); 
-       tfg=u_min_; u_min=tfg.GetTrueVector():
+       tfg=u_max_; tfg.GetTrueDofs(u_max);
+       tfg=u_min_; tfg.GetTrueDofs(u_min);
 
        vol=vol_;
        obj=new L2Objective(pfes,trg);
@@ -226,7 +231,7 @@ public:
 
        //initialize the current solution
        for(int i=0;i<cfg.Size();i++){
-        cfg[i]=0.5*(u_min[i]+u_max[i]);
+        cfg[i]=0.5*(u_min_[i]+u_max_[i]);
        }
     }
 
@@ -236,8 +241,80 @@ public:
         delete con;
     }
 
-    void Optimize(double alpha, double rho)
+    mfem::ParGridFunction& GetTFG(){return tfg;}
+    mfem::ParGridFunction& GetCFG(){return cfg;}
+
+    void SetFinal(mfem::ParGridFunction& gf)
     {
+        gf.SetFromTrueDofs(cfg.GetTrueVector());
+    }
+
+    void Optimize(double alpha, double rho,int max_iter=100)
+    {
+
+        mfem::Vector x; x.SetSize(u_max.Size()); cfg.GetTrueDofs(x);
+        mfem::Vector p; p.SetSize(x.Size()); p=0.0;
+        //initialize the current solution
+        for(int i=0;i<x.Size();i++){
+            //p[i]=std::log((x[i]-u_min[i])/(u_max[i]-x[i]));
+            x[i]=(u_min[i]+u_max[i]*std::exp(p[i]))/(1.0+std::exp(p[i]));
+        }
+
+        mfem::real_t epsp=obj->Eval(x);
+        mfem::real_t epsc=con->Eval(x);
+        mfem::real_t epso; epso=epsp;
+
+        if(cfg.ParFESpace()->GetMyRank()==0){
+            std::cout<<" epsp="<<epsp<<" epsc="<<epsc<<std::endl;
+        }
+
+        mfem::real_t lambda=0.0;
+
+        mfem::Vector go,gp;
+        go.SetSize(x.Size());
+        gp.SetSize(x.Size());
+
+        bool flag=true;
+
+        int it=0;
+        while(flag){
+            //evaluate the gradients
+            obj->Mult(x,go);
+
+
+            con->Mult(x,gp);
+            go.Add(lambda,gp);
+            go.Add(rho*epsc,gp);
+
+            //update p
+            p.Add(-alpha,go);
+            //update x
+            for(int i=0;i<x.Size();i++){
+                x[i]=(u_min[i]+u_max[i]*std::exp(p[i]))/(1.0+std::exp(p[i]));
+            }
+            //evaluate the objective and the contraint
+            epsp=obj->Eval(x);
+            epsc=con->Eval(x);
+            //update lambda
+            lambda=lambda+rho*epsc;
+
+            if(cfg.ParFESpace()->GetMyRank()==0){
+                std::cout<<" epsp="<<epsp<<" epsc="<<epsc<<" lambda="<<lambda<<std::endl;
+            }
+
+            if(fabs(epsc)<1e-10){
+                if(fabs(epsp-epso)<1e-10){
+                    flag=false;
+                }
+            }
+            epso=epsp;
+            it++;
+            if(it>max_iter){ flag=false;}
+        }
+
+        cfg.SetFromTrueDofs(x);
+        tfg.SetFromTrueDofs(p);
+
 
     }
 

@@ -102,6 +102,7 @@ ifeq ($(MFEM_USE_MPI),YES)
 ex18p: $(SRC)ex18.hpp
 ex33p: $(SRC)ex33.hpp
 ex37p: $(SRC)ex37.hpp
+remap_opt: $(SRC)remap_opt.hpp
 endif
 
 MFEM_TESTS = EXAMPLES
