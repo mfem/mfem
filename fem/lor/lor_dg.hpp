@@ -21,6 +21,7 @@ namespace mfem
 // classes BatchedLORAssembly and BatchedLORKernel .
 class BatchedLOR_DG : BatchedLORKernel
 {
+   real_t kappa;
 public:
    template <int ORDER, int SDIM> void Assemble2D();
    template <int ORDER> void Assemble3D();
@@ -33,6 +34,16 @@ public:
    {
       ProjectLORCoefficient<MassIntegrator>(a, c1);
       ProjectLORCoefficient<DiffusionIntegrator>(a, c2);
+
+      auto *integ = GetInteriorFaceIntegrator<DGDiffusionIntegrator>(a);
+      if (integ)
+      {
+         kappa = integ->GetPenaltyParameter();
+      }
+      else
+      {
+         kappa = 0.0;
+      }
    }
 };
 
