@@ -148,6 +148,12 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
 
 void FiniteElementSpace::SetProlongation(const SparseMatrix& p)
 {
+#ifdef MFEM_USE_MPI
+   MFEM_VERIFY(dynamic_cast<const ParFiniteElementSpace*>(this) == NULL,
+               "Attempting to set serial prolongation operator for "
+               "parallel finite element space.");
+#endif
+
    if (!cP)
    {
       cP = std::unique_ptr<SparseMatrix>(new SparseMatrix(p));
@@ -161,6 +167,12 @@ void FiniteElementSpace::SetProlongation(const SparseMatrix& p)
 
 void FiniteElementSpace::SetRestriction(const SparseMatrix& r)
 {
+#ifdef MFEM_USE_MPI
+   MFEM_VERIFY(dynamic_cast<const ParFiniteElementSpace*>(this) == NULL,
+               "Attempting to set serial restriction operator for "
+               "parallel finite element space.");
+#endif
+
    if (!cR)
    {
       cR = std::unique_ptr<SparseMatrix>(new SparseMatrix(r));
