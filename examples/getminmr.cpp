@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
          int nr = i;
          nrvals.Append(nr);
          if (kk == 0) { nrva.Append(nr); }
-         for (int j = i; j < 4*i; j++)
+         for (int j = (kk > 2 ? 3 : i); j < 4*i; j++)
          {
             int mr = j;
             bool bounds_good = ArePLBoundsGood(nbrute, nr, mr, nodetype, inttype, true, errors);

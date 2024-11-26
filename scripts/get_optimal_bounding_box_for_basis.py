@@ -149,13 +149,13 @@ def main():
 	optimize_and_write(xs, xb, 'lobatto', 'legendre', nsamp)
 
 
-	xs = legendre_nodes(N)
-	xb = lobatto_nodes(M)
-	optimize_and_write(xs, xb, 'legendre', 'lobatto', nsamp)
-	xb = chebyshev_nodes(M)
-	optimize_and_write(xs, xb, 'legendre', 'chebyshev', nsamp)
-	xb = legendre_nodes_with_endpoints(M)
-	optimize_and_write(xs, xb, 'legendre', 'legendre', nsamp)
+	# xs = legendre_nodes(N)
+	# xb = lobatto_nodes(M)
+	# optimize_and_write(xs, xb, 'legendre', 'lobatto', nsamp)
+	# xb = chebyshev_nodes(M)
+	# optimize_and_write(xs, xb, 'legendre', 'chebyshev', nsamp)
+	# xb = legendre_nodes_with_endpoints(M)
+	# optimize_and_write(xs, xb, 'legendre', 'legendre', nsamp)
 
 # Entry point of the script
 if __name__ == "__main__":

@@ -85,7 +85,7 @@ def main():
 	N = args.N
 	M = args.M
 
-	nsamp = 10000
+	nsamp = 1000
 	p = N-1
 
 	xs = lobatto_nodes(N)
