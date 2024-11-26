@@ -31,11 +31,11 @@ for i, filename in enumerate(filenames):
 	# Parsing reference file
 
 	print("----------------------------------------------------------------")
-	print("Case " + str(i+1) + "/" + str(len(filenames)) + ": " + filename)
+	print(f"Case {i+1}/{len(filenames)}: {filename}")
 
 	if not os.path.isfile(filename):
 		failed += 1
-		print(bcolors.WARN + "NOT FOUND" + bcolors.RESET)
+		print(f"{bcolors.WARN}NOT FOUND{bcolors.RESET}")
 		continue
 
 	def get_ref_option(file, option):
@@ -86,10 +86,10 @@ for i, filename in enumerate(filenames):
 
 	# Run test case
 	command_line = "./ex5-nguyen -no-vis"
-	command_line += " -nx " + str(nx)
-	command_line += " -ny " + str(ny)
-	command_line += " -p " + str(problem)
-	command_line += " -o " + str(order)
+	command_line += f" -nx {nx}"
+	command_line += f" -ny {ny}"
+	command_line += f" -p {problem}"
+	command_line += f" -o {order}"
 	if dg:
 		command_line += ' -dg'
 	if bcn:
@@ -107,11 +107,11 @@ for i, filename in enumerate(filenames):
 	if nonlin_diff:
 		command_line += ' -nld'
 	if kappa != 1.:
-		command_line += ' -k ' + str(kappa)
+		command_line += f' -k {kappa}'
 	if hdg != 1:
-		command_line += ' -hdg ' + str(hdg)
+		command_line += f' -hdg {hdg}'
 	if nls != 0:
-		command_line += ' -nls ' + str(nls)
+		command_line += f' -nls {nls}'
 
 	cmd_out = subprocess.getoutput(command_line)
 	split_cmd_out = cmd_out.splitlines()
@@ -132,24 +132,24 @@ for i, filename in enumerate(filenames):
 	if not fail:
 		if precond_test == precond_ref:
 			if abs(ref_L2_t - test_L2_t) < tol and abs(ref_L2_q - test_L2_q) < tol:
-				print(bcolors.OKGREEN + "SUCCESS: " + bcolors.RESET + command_line, flush=True)
+				print(f"{bcolors.OKGREEN}SUCCESS:{bcolors.RESET} {command_line}", flush=True)
 			else:
 				fail = True
 		else:
-			print(bcolors.HEADER + "SKIPPING: "+ bcolors.RESET + command_line + " → incompatible preconditioner")
+			print(f"{bcolors.HEADER}SKIPPING:{bcolors.RESET} {command_line} → incompatible preconditioner")
 			skipped += 1
 	
 	if fail:
-		print(bcolors.FAIL + "FAIL: " + bcolors.RESET + command_line, flush=True)
+		print(f"{bcolors.FAIL}FAIL:{bcolors.RESET} {command_line}", flush=True)
 		print(cmd_out)
 		failed += 1
 
 print("----------------------------------------------------------------")
 if skipped > 0:
-	skipped_str = " (" + str(skipped) + " / " + str(len(filenames)) + " skipped)"
+	skipped_str = f" ({skipped} / {len(filenames)} skipped)"
 else:
 	skipped_str = ""
 if failed == 0:
-	print(bcolors.OKGREEN + "SUCCESS: " + bcolors.RESET + "all tests finished succesfully!" + skipped_str)
+	print(f"{bcolors.OKGREEN}SUCCESS:{bcolors.RESET} all tests finished succesfully!" + skipped_str)
 else:
-	print(bcolors.FAIL + "FAIL: " + bcolors.RESET + str(failed) + " / " + str(len(filenames)) + " tests failed!" + skipped_str)
+	print(f"{bcolors.FAIL}FAIL:{bcolors.RESET} {failed} / {len(filenames)} tests failed!" + skipped_str)
