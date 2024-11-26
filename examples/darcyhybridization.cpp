@@ -721,9 +721,8 @@ void DarcyHybridization::ConstructC()
 
 void DarcyHybridization::AllocD() const
 {
-   const int NE = fes_p->GetNE();
-   Df_data = new real_t[Df_offsets[NE]]();//init by zeros
-   Df_ipiv = new int[Df_f_offsets[NE]];
+   Df_data = new real_t[Df_offsets.Last()]();//init by zeros
+   Df_ipiv = new int[Df_f_offsets.Last()];
 }
 
 void DarcyHybridization::AllocEG() const
@@ -1126,15 +1125,13 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
 
    if (H) { return *H; }
 
-   const int NE = fes->GetNE();
-
    if (!Df_data) { AllocD(); }// D is resetted in ConstructGrad()
    if (!E_data || !G_data) { AllocEG(); }// E and G are rewritten
    if (!H_data) { AllocH(); }
    else if (c_nlfi_p)
    {
       // H is resetted here for additive double side integration
-      memset(H_data, 0, H_offsets[NE] * sizeof(real_t));
+      memset(H_data, 0, H_offsets.Last() * sizeof(real_t));
    }
 
    Vector y;//dummy
@@ -1419,45 +1416,45 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
 
 void DarcyHybridization::Finalize()
 {
-   if (!bfin)
-   {
-      if (bnl)
-      {
-         if (!m_nlfi_u && !m_nlfi)
-         {
-            lop_type = LocalOpType::PotNL;
-            InvertA();
-         }
-         else if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
-         {
-            lop_type = LocalOpType::FluxNL;
-            InvertD();
-         }
-         else
-         {
-            lop_type = LocalOpType::FullNL;
-            std::swap(Af_data, Af_lin_data);
-            if (!Af_data)
-            {
-               Af_data = new real_t[Af_offsets.Last()]();
-            }
+   if (bfin) { return; }
 
-            if (!D_empty)
-            {
-               std::swap(Df_data, Df_lin_data);
-               if (!Df_data)
-               {
-                  Df_data = new real_t[Df_offsets.Last()]();
-               }
-            }
-         }
+   if (!bnl)
+   {
+      ComputeH();
+   }
+   else
+   {
+      if (!m_nlfi_u && !m_nlfi)
+      {
+         lop_type = LocalOpType::PotNL;
+         InvertA();
+      }
+      else if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
+      {
+         lop_type = LocalOpType::FluxNL;
+         InvertD();
       }
       else
       {
-         ComputeH();
+         lop_type = LocalOpType::FullNL;
+         std::swap(Af_data, Af_lin_data);
+         if (!Af_data)
+         {
+            Af_data = new real_t[Af_offsets.Last()]();
+         }
+
+         if (!D_empty)
+         {
+            std::swap(Df_data, Df_lin_data);
+            if (!Df_data)
+            {
+               Df_data = new real_t[Df_offsets.Last()]();
+            }
+         }
       }
-      bfin = true;
    }
+
+   bfin = true;
 }
 
 void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
@@ -2092,15 +2089,14 @@ void DarcyHybridization::Reset()
    Hybridization::Reset();
    bfin = false;
 
-   const int NE = fes->GetMesh()->GetNE();
-   memset(Bf_data, 0, Bf_offsets[NE] * sizeof(real_t));
+   memset(Bf_data, 0, Bf_offsets.Last() * sizeof(real_t));
    if (Df_data)
    {
-      memset(Df_data, 0, Df_offsets[NE] * sizeof(real_t));
+      memset(Df_data, 0, Df_offsets.Last() * sizeof(real_t));
       D_empty = true;
    }
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   memset(Be_data, 0, Be_offsets[NE] * sizeof(real_t));
+   memset(Be_data, 0, Be_offsets.Last() * sizeof(real_t));
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
