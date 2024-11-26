@@ -1,0 +1,49 @@
+Options used:
+   --mesh 
+   --ncells-x 12
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --order 1
+   --no-discontinuous
+   --centered
+   --problem 8
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 0.3
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-convection
+   --nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 3
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+***********************************************************
+dim(V) = 1200
+dim(W) = 576
+dim(V+W) = 1776
+***********************************************************
+Assembly took 0.0117374s.
+Preconditioner took 2.0087e-05s.
+Newton iteration  0 : ||r|| = 0.0657917
+Newton iteration  1 : ||r|| = 0.166832, ||r||/||r_0|| = 2.53576
+Newton iteration  2 : ||r|| = 0.00286612, ||r||/||r_0|| = 0.0435636
+Newton iteration  3 : ||r|| = 7.05137e-07, ||r||/||r_0|| = 1.07177e-05
+Newton iteration  4 : ||r|| = 9.96487e-11, ||r||/||r_0|| = 1.51461e-09
+Newton+GMRES converged in 4 iterations with a residual norm of 9.96487e-11.
+solver took 0.774034s.
+|| q_h - q_ex || / || q_ex || = 0.516971
+|| t_h - t_ex || / || t_ex || = 0.000155554
