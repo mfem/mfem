@@ -993,6 +993,17 @@ public:
    /// @note Ownership of @a elem will pass to the Mesh object
    int AddBdrElement(Element *elem);
 
+   /**
+    * @brief Add an array of boundary elements to the mesh, along with map from
+    * the elements to their faces
+    * @param[in] bdr_elems The set of boundary element pointers, ownership of
+    * the pointers will be transferred to the Mesh object
+    * @param[in] be_to_face The map from the boundary element index to the face
+    * index
+    */
+   void AddBdrElements(Array<Element *> &bdr_elems,
+                       const Array<int> &be_to_face);
+
    int AddBdrSegment(int v1, int v2, int attr = 1);
    int AddBdrSegment(const int *vi, int attr = 1);
 
@@ -1101,6 +1112,15 @@ public:
    /** Remove boundary elements that lie in the interior of the mesh, i.e. that
        have two adjacent faces in 3D, or edges in 2D. */
    void RemoveInternalBoundaries();
+
+   /**
+    * @brief Clear the boundary element to edge map.
+    */
+   void DeleteBoundaryElementToEdge()
+   {
+      delete bel_to_edge;
+      bel_to_edge = nullptr;
+   }
 
    /// @}
 
@@ -1366,7 +1386,7 @@ public:
    int GetAttribute(int i) const { return elements[i]->GetAttribute(); }
 
    /// Set the attribute of element i.
-   void SetAttribute(int i, int attr) { elements[i]->SetAttribute(attr); }
+   void SetAttribute(int i, int attr);
 
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }
