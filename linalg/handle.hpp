@@ -49,6 +49,9 @@ public:
    /// Default move constructor
    Handle(Handle &&other) = default;
 
+   /// Move conversion from the standard unique pointer
+   Handle(std::unique_ptr<T> &&other) { Reset(other.release()); }
+
    virtual ~Handle() { if (own_ptr) { delete ptr; } }
 
    /// Shallow copy. The ownership flag of the target is set to false.
