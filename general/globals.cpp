@@ -9,12 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef _WIN32
+// Turn off CRT deprecation warnings for getenv
+#define _CRT_SECURE_NO_WARNINGS
+#endif
 
 #include "../config/config.hpp"
 #include "globals.hpp"
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <cstdlib>  // getenv
 
 namespace mfem
 {
@@ -71,4 +76,8 @@ void SetGlobalMPI_Comm(MPI_Comm comm)
 
 #endif
 
+const char* getenv(const char* name)
+{
+   return ::getenv(name);
+}
 }
