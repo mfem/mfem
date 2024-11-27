@@ -20,6 +20,21 @@
 namespace mfem
 {
 
+template <typename T>
+std::shared_ptr<T> Owning(T *t) { return std::shared_ptr<T>(t); }
+
+template <typename T>
+std::shared_ptr<T> NonOwning(T *t)
+{
+   return std::shared_ptr<T>(t, [](T*) {});
+}
+
+template <typename T>
+std::shared_ptr<T> OptionallyOwning(T *t, bool own)
+{
+   return own ? Owning(t) : NonOwning(t);
+}
+
 /** @brief Auxiliary class Hybridization, used to implement BilinearForm
     hybridization.
 
@@ -69,10 +84,10 @@ protected:
    std::unique_ptr<class HybridizationExtension> ext;
    /// The constraint integrator.
    std::unique_ptr<BilinearFormIntegrator> c_bfi;
-   /// The constraint boundary face integrators
-   std::vector<std::unique_ptr<BilinearFormIntegrator>> boundary_constraint_integs;
-   /// Boundary markers for constraint face integrators
-   std::vector<Array<int>*> boundary_constraint_integs_marker;
+   /// The constraint boundary face integrators.
+   std::vector<std::shared_ptr<BilinearFormIntegrator>> boundary_constraint_integs;
+   /// Boundary markers for constraint face integrators.
+   std::vector<Array<int>> boundary_constraint_integs_marker;
    /// The constraint matrix.
    std::unique_ptr<SparseMatrix> Ct;
    /// The Schur complement system for the Lagrange multiplier.
@@ -128,30 +143,40 @@ public:
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ)
    { c_bfi.reset(c_integ); }
 
-   /** Add the boundary face integrator that will be used to construct the
-       constraint matrix C. The Hybridization object assumes ownership of the
-       integrator, i.e. it will delete the integrator when destroyed. */
-   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ)
+   /// @brief Add a boundary face integrator that will be used to construct the
+   /// constraint matrix C.
+   ///
+   /// The integrator will apply to the boundaries specified using the marker
+   /// array @a bdr_marker. If @a bdr_marker is empty (its default value) then
+   /// the integrator will be applied on all boundaries.
+   void AddBdrConstraintIntegrator(
+      const std::shared_ptr<BilinearFormIntegrator> &c_integ,
+      const Array<int> &bdr_marker = Array<int>())
    {
-      boundary_constraint_integs.emplace_back(c_integ);
-      boundary_constraint_integs_marker.push_back(nullptr);
+      boundary_constraint_integs.push_back(c_integ);
+      boundary_constraint_integs_marker.push_back(bdr_marker);
    }
+
+   /// @brief Add the boundary face integrator that will be used to construct
+   /// the constraint matrix C.
+   ///
+   /// The Hybridization object assumes ownership of the integrator, i.e. it
+   /// will delete the integrator when destroyed.
+   ///
+   /// @sa AddBdrConstraintIntegrator().
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
-                                   Array<int> &bdr_marker)
+                                   const Array<int> &bdr_marker = Array<int>())
    {
-      boundary_constraint_integs.emplace_back(c_integ);
-      boundary_constraint_integs_marker.push_back(&bdr_marker);
+      AddBdrConstraintIntegrator(Owning(c_integ), bdr_marker);
    }
 
-   /// Access all integrators added with AddBdrConstraintIntegrator().
-   BilinearFormIntegrator& GetBdrConstraintIntegrator(int i)
-   { return *boundary_constraint_integs[i]; }
+   /// Access the integrators added with AddBdrConstraintIntegrator().
+   const std::vector<std::shared_ptr<BilinearFormIntegrator>>
+   &GetBdrConstraintIntegrators() const { return boundary_constraint_integs; }
 
-   /// Access all boundary markers added with AddBdrConstraintIntegrator().
-   /** If no marker was specified when the integrator was added, the
-       corresponding pointer (to Array<int>) will be NULL. */
-   Array<int>* GetBdrConstraintIntegratorMarker(int i)
-   { return boundary_constraint_integs_marker[i]; }
+   /// Access the boundary markers added with AddBdrConstraintIntegrator().
+   const std::vector<Array<int>> &GetBdrConstraintIntegratorMarker() const
+   { return boundary_constraint_integs_marker; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_tdof_list);

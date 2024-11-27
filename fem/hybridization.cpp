@@ -140,12 +140,12 @@ void Hybridization::ConstructC()
          bdr_attr_marker = 0;
          for (size_t k = 0; k < boundary_constraint_integs.size(); k++)
          {
-            if (boundary_constraint_integs_marker[k] == NULL)
+            if (boundary_constraint_integs_marker[k].IsEmpty())
             {
                bdr_attr_marker = 1;
                break;
             }
-            Array<int> &bdr_marker = *boundary_constraint_integs_marker[k];
+            Array<int> &bdr_marker = boundary_constraint_integs_marker[k];
             MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                         "invalid boundary marker for boundary face integrator #"
                         << k << ", counting from zero");
@@ -181,8 +181,8 @@ void Hybridization::ConstructC()
             fe2 = fe1;
             for (size_t k = 0; k < boundary_constraint_integs.size(); k++)
             {
-               if (boundary_constraint_integs_marker[k] &&
-                   (*boundary_constraint_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (boundary_constraint_integs_marker[k].Size() &&
+                   boundary_constraint_integs_marker[k][bdr_attr-1] == 0) { continue; }
 
                boundary_constraint_integs[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr,
                                                                  elmat);
