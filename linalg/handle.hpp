@@ -17,6 +17,7 @@
 #ifdef MFEM_USE_MPI
 #include "hypre.hpp"
 #endif
+#include <memory>
 
 namespace mfem
 {
@@ -86,6 +87,27 @@ public:
       if (own_ptr) { delete ptr; }
       ptr = A;
       own_ptr = own_A;
+   }
+
+   /// Conversion to the standard unique pointer
+   operator std::unique_ptr<T>()
+   {
+      MFEM_ASSERT(Owns(), "Cannot convert non-owned pointer to unique_ptr!");
+      SetOwner(false);
+      return std::unique_ptr<T>(Ptr());
+   }
+
+   /// Conversion to the standard shared pointer
+   /** @note Ownership is transferred to the returned pointer */
+   operator std::shared_ptr<T>()
+   {
+      if (Owns())
+      {
+         SetOwner(false);
+         return std::shared_ptr<T>(Ptr());
+      }
+      else
+         return std::shared_ptr<T>(Ptr(), [](T*) {});
    }
 };
 };
