@@ -366,11 +366,8 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    }
 
 #ifdef MFEM_USE_MPI
-   if (pfes)
-   {
-      finder = new FindPointsGSLIB(pfes->GetComm());
-   }
-   else { finder = new FindPointsGSLIB(); }
+   if (pfes) { finder = new FindPointsGSLIB(pfes->GetComm()); }
+   else      { finder = new FindPointsGSLIB(); }
 #else
    finder = new FindPointsGSLIB();
 #endif
@@ -379,13 +376,12 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    field0_gf.SetSpace(f);
    field0_gf = init_field;
 
-
    bool map_req = init_nodes.Size()/ m->Dimension() !=
                   field0_gf.Size()/f->GetVDim();
    if (map_req)
    {
-      if (fes_m) { delete fes_m; }
-      fes_m = new FiniteElementSpace(m, f->FEColl(), m->SpaceDimension());
+      delete fes_field_nodes;
+      fes_field_nodes = new FiniteElementSpace(m, f->FEColl(), m->Dimension());
    }
 }
 
@@ -394,12 +390,12 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
                                           int new_nodes_ordering)
 {
    // Get physical node locations corresponding to field0_gf
-   if (fes_m)
+   if (fes_field_nodes)
    {
       Vector mapped_nodes;
-      GetFESpaceNodalLocation(new_nodes, mapped_nodes);
+      GetFieldNodesPosition(new_nodes, mapped_nodes);
       finder->Interpolate(mapped_nodes, field0_gf, new_field,
-                          fes_m->GetOrdering());
+                          fes_field_nodes->GetOrdering());
    }
    else
    {
@@ -407,18 +403,19 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
    }
 }
 
-void InterpolatorFP::GetFESpaceNodalLocation(const Vector mesh_nodes,
-                                             Vector &fes_nodes)
+void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
+                                           Vector &nodes_pos) const
 {
-   MFEM_VERIFY(fes_m, "InterpolatorFP: fes_m is not set.");
-   Mesh *m = fes_m->GetMesh();
-   const int nelem     = fes_m->GetNE();
-   const int n_f_nodes = fes_m->GetNDofs();
+   MFEM_VERIFY(fes_field_nodes, "InterpolatorFP: fes_field_nodes is not set.");
+
+   Mesh *m = fes_field_nodes->GetMesh();
+   const int nelem     = fes_field_nodes->GetNE();
+   const int n_f_nodes = fes_field_nodes->GetNDofs();
    const int dim       = m->Dimension();
    if (nelem == 0) { return; }
    Array<int> dofs;
    Vector e_xyz;
-   fes_nodes.SetSize(n_f_nodes*dim);
+   nodes_pos.SetSize(n_f_nodes*dim);
    const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
 
    for (int e = 0; e < nelem; e++)
@@ -429,9 +426,8 @@ void InterpolatorFP::GetFESpaceNodalLocation(const Vector mesh_nodes,
       const FiniteElement *mfe = mesh_fes->GetFE(e);
       Vector shape(n_mdofs);
 
-      const FiniteElement *fe  = fes_m->GetFE(e);
-      const IntegrationRule ir = fe->GetNodes();
-      const int n_gf_pts       = ir.GetNPoints();
+      auto ir = fes_field_nodes->GetFE(e)->GetNodes();
+      const int n_gf_pts = ir.GetNPoints();
       Vector gf_xyz(n_gf_pts*dim);
       for (int q = 0; q < n_gf_pts; q++)
       {
@@ -443,8 +439,8 @@ void InterpolatorFP::GetFESpaceNodalLocation(const Vector mesh_nodes,
             gf_xyz(d*n_gf_pts + q) = x*shape; // order by nodes
          }
       }
-      fes_m->GetElementVDofs(e, dofs);
-      fes_nodes.SetSubVector(dofs, gf_xyz);
+      fes_field_nodes->GetElementVDofs(e, dofs);
+      nodes_pos.SetSubVector(dofs, gf_xyz);
    }
 }
 

@@ -582,8 +582,8 @@ int main (int argc, char *argv[])
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    HRHessianCoefficient *hr_adapt_coeff = NULL;
-   int ind_fec_order = target_id >= 5 && target_id <= 8 ?
-                       mesh_poly_deg+1 : mesh_poly_deg;
+   int ind_fec_order = (target_id >= 5 && target_id <= 8) ?
+                       mesh_poly_deg + 1 : mesh_poly_deg;
    H1_FECollection ind_fec(ind_fec_order, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);

@@ -58,9 +58,14 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-   FiniteElementSpace *fes_m; // space for nodes corresponding to field0_gf
+    // FE space for the nodes of the solution GridFunction.
+   FiniteElementSpace *fes_field_nodes;
+
+   void GetFieldNodesPosition(const Vector &mesh_nodes,
+                              Vector &nodes_pos) const;
+
 public:
-   InterpolatorFP() : finder(NULL), fes_m(NULL) { }
+   InterpolatorFP() : finder(NULL), fes_field_nodes(NULL) { }
 
    void SetInitialField(const Vector &init_nodes,
                         const Vector &init_field) override;
@@ -68,8 +73,6 @@ public:
    void ComputeAtNewPosition(const Vector &new_nodes,
                              Vector &new_field,
                              int new_nodes_ordering = Ordering::byNODES) override;
-
-   void GetFESpaceNodalLocation(const Vector mesh_nodes, Vector &fes_nodes);
 
    const FindPointsGSLIB *GetFindPointsGSLIB() const
    {
@@ -80,7 +83,7 @@ public:
    {
       finder->FreeData();
       delete finder;
-      if (fes_m) { delete fes_m; }
+      delete fes_field_nodes;
    }
 };
 #endif
