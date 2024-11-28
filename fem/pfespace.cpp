@@ -3573,9 +3573,9 @@ void ParFiniteElementSpace::GetTrueUpdateOperator(OperatorHandle &T)
             MFEM_VERIFY(Tsm != nullptr,
                         "invalid update (refine) operator type!");
             // Form the product: R_new . Tsm . P_old:
-            SparseMatrix *R_T = mfem::Mult(*GetRestrictionMatrix(), *Tsm);
+            std::unique_ptr<SparseMatrix> R_T(
+               mfem::Mult(*GetRestrictionMatrix(), *Tsm));
             T.Reset(P_old->LeftDiagMult(*R_T, GetTrueDofOffsets()));
-            delete R_T;
          }
          break;
       }
@@ -3599,10 +3599,9 @@ void ParFiniteElementSpace::GetTrueUpdateOperator(OperatorHandle &T)
             }
             MFEM_VERIFY(Thm != nullptr,
                         "invalid update (derefine) operator type!");
-            HypreParMatrix *R_T = Thm->LeftDiagMult(*GetRestrictionMatrix(),
-                                                    GetTrueDofOffsets());
-            T.Reset(ParMult(R_T, P_old.get(), true));
-            delete R_T;
+            std::unique_ptr<HypreParMatrix> R_T(
+               Thm->LeftDiagMult(*GetRestrictionMatrix(), GetTrueDofOffsets()));
+            T.Reset(ParMult(R_T.get(), P_old.get(), true));
          }
          break;
       }
@@ -3615,10 +3614,9 @@ void ParFiniteElementSpace::GetTrueUpdateOperator(OperatorHandle &T)
             MFEM_VERIFY(Thm != nullptr,
                         "invalid update (rebalance) operator type!");
             // Form the product: R_new . Thm . P_old:
-            HypreParMatrix *R_T = Thm->LeftDiagMult(*GetRestrictionMatrix(),
-                                                    GetTrueDofOffsets());
-            T.Reset(ParMult(R_T, P_old.get(), true));
-            delete R_T;
+            std::unique_ptr<HypreParMatrix> R_T(
+               Thm->LeftDiagMult(*GetRestrictionMatrix(), GetTrueDofOffsets()));
+            T.Reset(ParMult(R_T.get(), P_old.get(), true));
          }
          break;
       }
