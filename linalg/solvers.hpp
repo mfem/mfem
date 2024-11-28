@@ -853,6 +853,8 @@ protected:
    const Operator *C, *D;
    const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
 
+   int numConstraints;
+
    /// Implementations of CalcObjective() and CalcObjectiveGrad() can use this
    /// method to check if the argument Vector x has been changed after the last
    /// call to CalcObjective() or CalcObjectiveGrad().
@@ -870,9 +872,10 @@ public:
    /// The result grad is expected to enter with the correct size.
    virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
    { MFEM_ABORT("The objective gradient is not implemented."); }
-      virtual void CalcConstraint(const Vector &x, Vector &constVal) const
+   virtual void CalcConstraint(const int constNumber, const Vector &x, Vector &constVal) const
    { MFEM_ABORT("The constraint  is not implemented."); }
-   virtual void CalcConstraintGrad(const Vector &x, Vector &grad) const
+
+   virtual void CalcConstraintGrad(const int constNumber, const Vector &x, Vector &grad) const
    { MFEM_ABORT("The constraint gradient is not implemented."); }
 
    void SetEqualityConstraint(const Vector &c);

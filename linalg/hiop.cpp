@@ -127,11 +127,12 @@ bool HiopOptimizationProblem::eval_cons(const size_type &n, const size_type &m,
    x_vec = x;
    problem.new_x = new_x;
    UpdateConstrValsGrads(x_vec);
-   problem.CalcConstraint(x_vec,constr_vec);
 
    for (int c = 0; c < num_cons; c++)
    {
+      problem.CalcConstraint(c, x_vec,constr_vec);
       cons[c] = constr_vec[c];
+
       // MFEM_ASSERT(idx_cons[c] < m_total, "Constraint index is out of bounds.");
       // cons[c] = constr_vals(idx_cons[c]);
    }
@@ -157,10 +158,10 @@ bool HiopOptimizationProblem::eval_Jac_cons(const size_type &n,
    x_vec = x;
    problem.new_x = new_x;
    //UpdateConstrValsGrads(x_vec);
-      problem.CalcConstraintGrad(x_vec, gradf_vec);
 
    for (int c = 0; c < num_cons; c++)
    {
+      problem.CalcConstraintGrad(c, x_vec, gradf_vec);
       MFEM_ASSERT(idx_cons[c] < m_total, "Constraint index is out of bounds.");
       for (int j = 0; j < ntdofs_loc; j++)
       {
