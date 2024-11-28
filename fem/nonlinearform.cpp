@@ -1393,6 +1393,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
       for (int i = 0; i < mesh->GetNumFaces(); ++i)
       {
          tr = mesh->GetInteriorFaceTransformations(i);
+         if (!tr) { continue; }
 
          for (int s=0; s < fes.Size(); ++s)
          {
