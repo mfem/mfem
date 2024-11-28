@@ -376,9 +376,10 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    field0_gf.SetSpace(f);
    field0_gf = init_field;
 
-   bool map_req = init_nodes.Size()/ m->Dimension() !=
-                  field0_gf.Size()/f->GetVDim();
-   if (map_req)
+   // Check if the mesh nodes and the field nodes coincide.
+   const bool nodes_mismatch = init_nodes.Size() / m->Dimension() !=
+                               field0_gf.Size()  / f->GetVDim();
+   if (nodes_mismatch)
    {
       delete fes_field_nodes;
       fes_field_nodes = new FiniteElementSpace(m, f->FEColl(), m->Dimension());
