@@ -557,7 +557,7 @@ int main(int argc, char *argv[])
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    HRHessianCoefficient *hr_adapt_coeff = NULL;
-   int ind_fec_order = (target_id >= 5 && target_id <= 8) ?
+   int ind_fec_order = (target_id >= 5 && target_id <= 8 && !fdscheme) ?
                        mesh_poly_deg + 1 : mesh_poly_deg;
    H1_FECollection ind_fec(ind_fec_order, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
@@ -695,6 +695,7 @@ int main(int argc, char *argv[])
          DiffuseField(aspr, 2);
 
          tc->SetSerialDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          tc->SetSerialDiscreteTargetAspectRatio(aspr);
          target_c = tc;
          break;
@@ -742,6 +743,7 @@ int main(int argc, char *argv[])
          ConstantCoefficient size_coeff(0.1*0.1);
          size.ProjectCoefficient(size_coeff);
          tc->SetSerialDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
