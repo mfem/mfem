@@ -2697,15 +2697,17 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
    Jtrcomp.Clear();
 }
 
-void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
-                                                         const real_t dx,
-                                                         bool reuse_flag,
-                                                         int x_ordering)
+void DiscreteAdaptTC::
+UpdateGradientTargetSpecification(const Vector &x, real_t dx,
+                                  bool reuse_flag, int x_ordering)
 {
    if (reuse_flag && good_tspec_grad) { return; }
 
    const int dim = tspec_fesv->GetFE(0)->GetDim(),
              cnt = x.Size()/dim;
+
+   MFEM_VERIFY(tspec_fesv->GetVSize() / ncomp == cnt,
+               "FD with discrete adaptivity assume mesh_order = field_order.");
 
    tspec_pert1h.SetSize(x.Size()*ncomp);
 
@@ -2733,15 +2735,17 @@ void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
 }
 
 void DiscreteAdaptTC::
-UpdateHessianTargetSpecification(const Vector &x,real_t dx,
+UpdateHessianTargetSpecification(const Vector &x, real_t dx,
                                  bool reuse_flag, int x_ordering)
 {
-
    if (reuse_flag && good_tspec_hess) { return; }
 
    const int dim    = tspec_fesv->GetFE(0)->GetDim(),
              cnt    = x.Size()/dim,
              totmix = 1+2*(dim-2);
+
+   MFEM_VERIFY(tspec_fesv->GetVSize() / ncomp == cnt,
+               "FD with discrete adaptivity assume mesh_order = field_order.");
 
    tspec_pert2h.SetSize(cnt*dim*ncomp);
    tspec_pertmix.SetSize(cnt*totmix*ncomp);
