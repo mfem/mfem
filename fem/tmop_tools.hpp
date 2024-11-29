@@ -58,7 +58,7 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-    // FE space for the nodes of the solution GridFunction.
+   // FE space for the nodes of the solution GridFunction.
    FiniteElementSpace *fes_field_nodes;
 
    void GetFieldNodesPosition(const Vector &mesh_nodes,
