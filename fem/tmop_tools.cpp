@@ -181,7 +181,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
    // Trim the overshoots and undershoots.
    new_field.HostReadWrite();
-   for (int i = 0; i < s; i++)
+   for (int i = 0; i < new_field.Size(); i++)
    {
       if (new_field(i) < glob_minv) { new_field(i) = glob_minv; }
       if (new_field(i) > glob_maxv) { new_field(i) = glob_maxv; }
