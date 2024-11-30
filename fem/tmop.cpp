@@ -3336,6 +3336,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
+      if (Tpr) { Tpr->SetIntPoint(&ip); }
 
       metric->SetTargetJacobian(Jtr(i));
       CalcInverse(Jtr(i), Jrt);
@@ -3487,11 +3488,15 @@ real_t TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
          Mult(Jpr, Jrt, Jpt);
 
          real_t val = metric_normal * h_metric->EvalW(Jpt);
-         if (metric_coeff) { val *= metric_coeff->Eval(*Tpr, ip); }
+         if (metric_coeff)
+         {
+            Tpr->SetIntPoint(&ip);
+            val *= metric_coeff->Eval(*Tpr, ip);
+         }
 
          el_energy += weight * val;
-         delete Tpr;
       }
+      delete Tpr;
       energy += el_energy;
    }
    energy /= NEsplit;
@@ -3546,7 +3551,11 @@ real_t TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
       Mult(Jpr, Jrt, Jpt);
 
       real_t val = metric_normal * h_metric->EvalW(Jpt);
-      if (metric_coeff) { val *= metric_coeff->Eval(*Tpr, ip); }
+      if (metric_coeff)
+      {
+         Tpr->SetIntPoint(&ip);
+         val *= metric_coeff->Eval(*Tpr, ip);
+      }
 
       energy += weight * val;
    }
@@ -3657,6 +3666,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    for (int q = 0; q < nqp; q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q);
+      if (Tpr) { Tpr->SetIntPoint(&ip); }
       metric->SetTargetJacobian(Jtr(q));
       CalcInverse(Jtr(q), Jrt);
       weights(q) = (integ_over_target) ? ip.weight * Jtr(q).Det() : ip.weight;

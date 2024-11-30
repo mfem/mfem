@@ -304,9 +304,14 @@ public:
    /// Return the i-th singular value (decreasing order) of NxN matrix, N=1,2,3.
    real_t CalcSingularvalue(const int i) const;
 
-   /** Return the eigenvalues (in increasing order) and eigenvectors of a
+   /** @brief Return the eigenvalues (in increasing order) and eigenvectors of a
        2x2 or 3x3 symmetric matrix. */
    void CalcEigenvalues(real_t *lambda, real_t *vec) const;
+
+   /** @brief Return the Euclidean, $\ell_2$, condition number of the matrix,
+       $\kappa = \sigma_{max}/\sigma_{min}$. Only small matrices are supported,
+       MxN with 1 <= N <= M <= 3. */
+   real_t CalcConditionNumber() const;
 
    void GetRow(int r, Vector &row) const;
    void GetColumn(int c, Vector &col) const;

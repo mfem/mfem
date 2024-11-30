@@ -1329,6 +1329,20 @@ void DenseMatrix::CalcEigenvalues(real_t *lambda, real_t *vec) const
    }
 }
 
+real_t DenseMatrix::CalcConditionNumber() const
+{
+   if (width == 1) { return 1_r; }
+   if (width == 2 && height > 2)
+   {
+      real_t AtA_data[4], e_val[2], e_vec[4];
+      DenseMatrix AtA(AtA_data, 2, 2);
+      MultAtB(*this, *this, AtA);
+      AtA.CalcEigenvalues(e_val, e_vec);
+      return std::sqrt(e_val[1]/e_val[0]);
+   }
+   return CalcSingularvalue(0)/CalcSingularvalue(width-1);
+}
+
 void DenseMatrix::GetRow(int r, Vector &row) const
 {
    int m = Height();

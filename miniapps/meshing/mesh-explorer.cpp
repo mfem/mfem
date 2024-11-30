@@ -353,15 +353,6 @@ int main (int argc, char *argv[])
             cout << ' ' << mesh->attributes[i];
          }
          cout << endl;
-         cout << "mesh curvature     : ";
-         if (mesh->GetNodalFESpace() != NULL)
-         {
-            cout << mesh->GetNodalFESpace()->FEColl()->Name() << endl;
-         }
-         else
-         {
-            cout << "NONE" << endl;
-         }
       }
       print_char = 0;
       cout << endl;
@@ -377,8 +368,10 @@ int main (int argc, char *argv[])
            "b) View boundary\n"
            "B) View boundary partitioning\n"
            "e) View elements\n"
-           "h) View element sizes, h\n"
-           "k) View element ratios, kappa\n"
+           "h) View element sizes, h, computed at element centers\n"
+           "H) View element sizes, h, computed as a high-order field\n"
+           "k) View element ratios, kappa, computed at element centers\n"
+           "K) View element ratios, kappa, computed as high-order field\n"
            "J) View scaled Jacobian\n"
            "l) Plot a function\n"
            "x) Print sub-element stats\n"
@@ -702,9 +695,8 @@ int main (int argc, char *argv[])
                T->SetIntPoint(&ir.IntPoint(j));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
 
-               real_t det_J = J.Det();
-               real_t kappa =
-                  J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1);
+               real_t det_J = J.Weight();
+               real_t kappa = J.CalcConditionNumber();
 
                min_det_J_z = std::min(min_det_J_z, det_J);
                max_det_J_z = std::max(max_det_J_z, det_J);
@@ -834,13 +826,15 @@ int main (int argc, char *argv[])
 
       // These are most of the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
-          mk == 'k' || mk == 'J' || mk == 'p' || mk == 'B' || mk == 'P')
+          mk == 'k' || mk == 'J' || mk == 'p' || mk == 'B' || mk == 'P' ||
+          mk == 'H' || mk == 'K')
       {
          FiniteElementSpace *bdr_attr_fespace = NULL;
          FiniteElementSpace *attr_fespace =
             new FiniteElementSpace(mesh, attr_fec);
          GridFunction bdr_attr;
          GridFunction attr(attr_fespace);
+         GridFunction ho_func; // high-order function to display, if non-empty
 
          if (mk == 'm')
          {
@@ -918,45 +912,56 @@ int main (int argc, char *argv[])
             }
          }
 
-         if (mk == 'h')
+         if (mk == 'h' || mk == 'H')
          {
-            DenseMatrix J(dim);
-            real_t h_min, h_max;
-            h_min = infinity();
-            h_max = -h_min;
-            for (int i = 0; i < mesh->GetNE(); i++)
+            int h_type = 0;
+            int ho_func_order = 0;
+            if (mk == 'H')
             {
-               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-               ElementTransformation *T = mesh->GetElementTransformation(i);
-               T->SetIntPoint(&Geometries.GetCenter(geom));
-               Geometries.JacToPerfJac(geom, T->Jacobian(), J);
-
-               attr(i) = J.Det();
-               if (attr(i) < 0.0)
-               {
-                  attr(i) = -pow(-attr(i), 1.0/real_t(dim));
-               }
-               else
-               {
-                  attr(i) = pow(attr(i), 1.0/real_t(dim));
-               }
-               h_min = min(h_min, attr(i));
-               h_max = max(h_max, attr(i));
+               cout <<
+                    "enter mesh size type:\n"
+                    "0) det(J)^(1/dim) or weight(J)^(1/dim)\n"
+                    "1) h_min = minimal singular value of J\n"
+                    "2) h_max = maximal singular value of J\n"
+                    "--> " << flush;
+               cin >> h_type;
+               cout << "enter FE order for mesh size approximation --> "
+                    << flush;
+               cin >> ho_func_order;
+               ho_func_order = std::max(ho_func_order, 0);
             }
-            cout << "h_min = " << h_min << ", h_max = " << h_max << endl;
+            auto *ho_fec = new L2_FECollection(
+               ho_func_order, mesh->Dimension(), BasisType::GaussLobatto);
+            auto *ho_fes = new FiniteElementSpace(mesh, ho_fec);
+            ho_func.SetSpace(ho_fes);
+            ho_func.MakeOwner(ho_fec);
+            MeshSizeCoefficient h_coeff(h_type);
+            ho_func.ProjectCoefficient(h_coeff);
+            cout << "h range : " << ho_func.Min() << ' ' << ho_func.Max()
+                 << endl;
          }
 
-         if (mk == 'k')
+         if (mk == 'k' || mk == 'K')
          {
-            DenseMatrix J(dim);
-            for (int i = 0; i < mesh->GetNE(); i++)
+            int ho_func_order = 0;
+            if (mk == 'K')
             {
-               Geometry::Type geom = mesh->GetElementBaseGeometry(i);
-               ElementTransformation *T = mesh->GetElementTransformation(i);
-               T->SetIntPoint(&Geometries.GetCenter(geom));
-               Geometries.JacToPerfJac(geom, T->Jacobian(), J);
-               attr(i) = J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1);
+               cout << "enter FE order for aspect ratio approximation --> "
+                    << flush;
+               cin >> ho_func_order;
+               ho_func_order = std::max(ho_func_order, 0);
             }
+            auto *ho_fec = new L2_FECollection(
+               ho_func_order, mesh->Dimension(), BasisType::GaussLobatto);
+            auto *ho_fes = new FiniteElementSpace(mesh, ho_fec);
+            ho_func.SetSpace(ho_fes);
+            ho_func.MakeOwner(ho_fec);
+            auto kappa_eval = [&](const DenseMatrix &J) -> real_t
+            {
+               return J.CalcConditionNumber();
+            };
+            JacobianFunctionCoefficient kappa_coeff(kappa_eval, true);
+            ho_func.ProjectCoefficient(kappa_coeff);
          }
 
          if (mk == 'J')
@@ -1143,7 +1148,7 @@ int main (int argc, char *argv[])
                      mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
                   }
                }
-               attr.Save(sol_sock);
+               sol_sock << (ho_func.Size() ? ho_func : attr);
                sol_sock << "RjlmAb***********";
                if (mk == 'v')
                {
@@ -1187,7 +1192,7 @@ int main (int argc, char *argv[])
                }
                if (mk != 'b' && mk != 'B')
                {
-                  attr.Save(sol_sock);
+                  sol_sock << (ho_func.Size() ? ho_func : attr);
                   sol_sock << "maaA";
                   if (mk == 'v')
                   {
@@ -1215,17 +1220,33 @@ int main (int argc, char *argv[])
          // Project and plot the function 'f'
          int p;
          FiniteElementCollection *fec = NULL;
-         cout << "Enter projection space order: " << flush;
+         cout << "Enter projection space order (<= 0 for DG): " << flush;
          cin >> p;
          if (p >= 1)
          {
+            cout << "Using H1 space of order " << p << " (Gauss-Lobatto nodes)"
+                 << endl;
             fec = new H1_FECollection(p, mesh->Dimension(),
                                       BasisType::GaussLobatto);
          }
          else
          {
-            fec = new DG_FECollection(-p, mesh->Dimension(),
-                                      BasisType::GaussLegendre);
+            cout << "Using DG space of order " << (-p) << endl;
+            cout <<
+                 "Enter DG Basis type:\n"
+                 "0) Gauss-Legendre\n"
+                 "1) Gauss-Lobatto\n"
+                 "2) Positive (Bernstein)\n"
+                 "--> " << flush;
+            int bt;
+            cin >> bt;
+            switch (bt)
+            {
+               case 1:  bt = BasisType::GaussLobatto; break;
+               case 2:  bt = BasisType::Positive; break;
+               default: bt = BasisType::GaussLegendre;
+            }
+            fec = new DG_FECollection(-p, mesh->Dimension(), bt);
          }
          FiniteElementSpace fes(mesh, fec);
          GridFunction level(&fes);

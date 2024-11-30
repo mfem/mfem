@@ -193,9 +193,9 @@ Geometry::Geometry()
    GeomCenter[PRISM].y = 1.0 / 3.0;
    GeomCenter[PRISM].z = 0.5;
 
-   GeomCenter[PYRAMID].x = 0.375;
-   GeomCenter[PYRAMID].y = 0.375;
-   GeomCenter[PYRAMID].z = 0.25;
+   GeomCenter[PYRAMID].x = 0.4;
+   GeomCenter[PYRAMID].y = 0.4;
+   GeomCenter[PYRAMID].z = 0.2;
 
    GeomToPerfGeomJac[POINT]       = NULL;
    GeomToPerfGeomJac[SEGMENT]     = new DenseMatrix(1);

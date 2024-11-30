@@ -1733,6 +1733,14 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
    {
       TetDofOrd[i] = NULL;
    }
+   for (int i = 0; i < 48; i++)
+   {
+      HexDofOrd[i] = NULL;
+   }
+   for (int i = 0; i < 12; i++)
+   {
+      PriDofOrd[i] = NULL;
+   }
 
    H1_dof[Geometry::POINT] = 1;
    H1_Elements[Geometry::POINT] = new PointFiniteElement;
@@ -1979,6 +1987,57 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
                }
             }
          }
+
+         const int HexDof = H1_dof[Geometry::CUBE];
+         if (HexDof > 0)
+         {
+            // Only orientations 0 and 1 will be defined!
+            HexDofOrd[0] = new int[2*HexDof];
+            for (int i = 1; i < 2; i++)
+            {
+               HexDofOrd[i] = HexDofOrd[i-1] + HexDof;
+            }
+            for (int iz = 0; iz < pm1; iz++)
+            {
+               for (int iy = 0; iy < pm1; iy++)
+               {
+                  for (int ix = 0; ix < pm1; ix++)
+                  {
+                     const int o0 = ix + pm1*(iy + pm1*iz);
+                     const int o1 = iy + pm1*(ix + pm1*iz);
+                     HexDofOrd[0][o0] = o0;
+                     HexDofOrd[1][o0] = o1;
+                  }
+               }
+            }
+         }
+
+         const int PriDof = H1_dof[Geometry::PRISM];
+         if (PriDof > 0)
+         {
+            // Only orientations 0 and 1 will be defined!
+            PriDofOrd[0] = new int[2*PriDof];
+            for (int i = 1; i < 2; i++)
+            {
+               PriDofOrd[i] = PriDofOrd[i-1] + PriDof;
+            }
+            for (int iz = 0; iz < pm1; iz++)
+            {
+               for (int iy = 0; iy < pm2; iy++)
+               {
+                  for (int ix = 0; ix + iy < pm2; ix++)
+                  {
+                     int t0 = TriDof - ((pm1 - iy)*(pm2 - iy))/2 + ix;
+                     int k = pm3 - iy - ix;
+                     int t1 = TriDof - ((pm1-iy)*(pm2-iy))/2 + k;  // (1,0,2)
+                     int o0 = t0 + TriDof*iz;
+                     int o1 = t1 + TriDof*iz;
+                     PriDofOrd[0][o0] = o0;
+                     PriDofOrd[1][o0] = o1;
+                  }
+               }
+            }
+         }
       }
    }
 }
@@ -2017,6 +2076,14 @@ const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    else if (GeomType == Geometry::TETRAHEDRON)
    {
       return TetDofOrd[Or%24];
+   }
+   else if (GeomType == Geometry::CUBE)
+   {
+      return HexDofOrd[Or%48];
+   }
+   else if (GeomType == Geometry::PRISM)
+   {
+      return PriDofOrd[Or%12];
    }
    return NULL;
 }
@@ -2067,10 +2134,12 @@ const int *H1_FECollection::GetDofMap(Geometry::Type GeomType, int p) const
 
 H1_FECollection::~H1_FECollection()
 {
-   delete [] SegDofOrd[0];
-   delete [] TriDofOrd[0];
-   delete [] QuadDofOrd[0];
+   delete [] PriDofOrd[0];
+   delete [] HexDofOrd[0];
    delete [] TetDofOrd[0];
+   delete [] QuadDofOrd[0];
+   delete [] TriDofOrd[0];
+   delete [] SegDofOrd[0];
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       delete H1_Elements[g];

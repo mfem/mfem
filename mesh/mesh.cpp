@@ -221,8 +221,7 @@ void Mesh::GetCharacteristics(real_t &h_min, real_t &h_max,
    {
       GetElementJacobian(i, J);
       h = pow(fabs(J.Weight()), 1.0/real_t(dim));
-      kappa = (dim == sdim) ?
-              J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1) : -1.0;
+      kappa = J.CalcConditionNumber();
       if (Vh) { (*Vh)(i) = h; }
       if (Vk) { (*Vk)(i) = kappa; }
 
@@ -329,6 +328,15 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &os)
          << "h_max              : " << h_max << '\n'
          << "kappa_min          : " << kappa_min << '\n'
          << "kappa_max          : " << kappa_max << '\n';
+   }
+   os << "Mesh curvature     : ";
+   if (GetNodalFESpace() != NULL)
+   {
+      os << GetNodalFESpace()->FEColl()->Name() << '\n';
+   }
+   else
+   {
+      os << "NONE\n";
    }
    os << '\n' << std::flush;
 }
@@ -2907,7 +2915,6 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
    if (old_elem_vert) // have elements with 2 or more dofs
    {
       // matters when the 'fec' is
-      // (this code is executed only for triangles/tets)
       // - Pk on triangles, k >= 4
       // - Qk on quads,     k >= 3
       // - Pk on tets,      k >= 5
@@ -2937,6 +2944,12 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
             case Geometry::TETRAHEDRON:
                new_or = GetTetOrientation(old_v, new_v);
                break;
+            case Geometry::CUBE:
+               new_or = GetHexOrientation(old_v, new_v);
+               break;
+            case Geometry::PRISM:
+               new_or = GetPrismOrientation(old_v, new_v);
+               break;
             default:
                new_or = 0;
                MFEM_ABORT(Geometry::Name[geom] << " elements (" << fec->Name()
@@ -2946,8 +2959,9 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
          dof_ord = fec->DofOrderForOrientation(geom, new_or);
          MFEM_VERIFY(dof_ord != NULL,
                      "FE collection '" << fec->Name()
-                     << "' does not define reordering for "
-                     << Geometry::Name[geom] << " elements!");
+                     << "' does not define reordering for orientation "
+                     << new_or << " on " << Geometry::Name[geom]
+                     << " elements!");
          fes->GetElementInteriorDofs(i, old_dofs);
          new_dofs.SetSize(old_dofs.Size());
          for (int j = 0; j < new_dofs.Size(); j++)
@@ -3269,8 +3283,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    const bool curved = (Nodes != NULL);
    const bool may_change_topology =
       ( refine && (Dim > 1 && (meshgen & 1)) ) ||
-      ( check_orientation && fix_orientation &&
-        (Dim == 2 || (Dim == 3 && (meshgen & 1))) );
+      ( check_orientation && fix_orientation );
 
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;
@@ -4802,12 +4815,12 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    // Finalize(...) should be called after this, if needed.
 }
 
-Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
+Mesh::Mesh(const Mesh * const mesh_array[], int num_pieces)
  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    int      i, j, ie, ib, iv, *v, nv;
    Element *el;
-   Mesh    *m;
+   const Mesh *m;
 
    SetEmpty();
 
@@ -4927,10 +4940,10 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
    FinalizeTopology();
 
    // copy the nodes (curvilinear meshes)
-   GridFunction *g = mesh_array[0]->GetNodes();
+   const GridFunction *g = mesh_array[0]->GetNodes();
    if (g)
    {
-      Array<GridFunction *> gf_array(num_pieces);
+      Array<const GridFunction *> gf_array(num_pieces);
       for (i = 0; i < num_pieces; i++)
       {
          gf_array[i] = mesh_array[i]->GetNodes();
@@ -6447,7 +6460,11 @@ int Mesh::CheckElementOrientation(bool fix_it)
                   wo++;
                   if (fix_it)
                   {
-                     // how?
+                     // on the reference element the following is a linear
+                     // transformation that has det(J) = -1
+                     mfem::Swap(vi[0], vi[1]);
+                     mfem::Swap(vi[3], vi[4]);
+                     fo++;
                   }
                }
                break;
@@ -6460,7 +6477,10 @@ int Mesh::CheckElementOrientation(bool fix_it)
                   wo++;
                   if (fix_it)
                   {
-                     // how?
+                     // on the reference element the following is a linear
+                     // transformation that has det(J) = -1
+                     mfem::Swap(vi[1], vi[3]);
+                     fo++;
                   }
                }
                break;
@@ -6473,7 +6493,11 @@ int Mesh::CheckElementOrientation(bool fix_it)
                   wo++;
                   if (fix_it)
                   {
-                     // how?
+                     // on the reference element the following is a linear
+                     // transformation that has det(J) = -1
+                     mfem::Swap(vi[1], vi[3]);
+                     mfem::Swap(vi[5], vi[7]);
+                     fo++;
                   }
                }
                break;
@@ -6797,6 +6821,76 @@ int Mesh::GetTetOrientation(const int *base, const int *test)
 #endif
 
    return orient;
+}
+
+int Mesh::GetHexOrientation(const int *base, const int *test)
+{
+   // static method
+
+   // The hex orientations can be defined by permuting (x,y,z), which gives 6
+   // choices, followed by optional reflections about the planes x,y,z=1/2,
+   // which give 8 choices, for a total of 48 permutations.
+   const int hex_perm[2][8] =
+   {
+      { 0, 1, 2, 3, 4, 5, 6, 7 }, // 0: identity
+      { 0, 3, 2, 1, 4, 7, 6, 5 }  // 1: (x,y,z) -> (y,x,z), inverse of itself
+   };
+
+   for (int o = 0; o < 2; o++)
+   {
+      // check if test[hex_perm[o][j]] == base[j], for all j = 1,...,8
+      bool match = true;
+      for (int j = 0; j < 8; j++)
+      {
+         if (test[hex_perm[o][j]] != base[j])
+         {
+            match = false;
+            break;
+         }
+      }
+      if (match) { return o; }
+   }
+
+   MFEM_ABORT("unsupported orientation:\n\tbase: " << base[0] << ' ' << base[1]
+              << ' ' << base[2] << ' ' << base[3] << ' ' << base[4] << ' '
+              << base[5] << ' ' << base[6] << ' ' << base[7] << "\n\ttest: "
+              << test[0] << ' ' << test[1] << ' ' << test[2] << ' ' << test[3]
+              << ' ' << test[4] << ' ' << test[5] << ' ' << test[6] << ' '
+              << test[7]);
+}
+
+int Mesh::GetPrismOrientation(const int *base, const int *test)
+{
+   // static method
+
+   // The prism orientations can be defined by the 6 triangle orientations in
+   // the xy-plane, followed by an optional reflection about the plane z=1/2,
+   // which gives 2 choices, for a total of 12 permutations.
+   const int pri_perm[2][6] =
+   {
+      { 0, 1, 2, 3, 4, 5 }, // 0: identity
+      { 1, 0, 2, 4, 3, 5 }  // 1: (x,y,z) -> (1-x-y,y,z), inverse of itself
+   };
+
+   for (int o = 0; o < 2; o++)
+   {
+      // check if test[pri_perm[o][j]] == base[j], for all j = 1,...,6
+      bool match = true;
+      for (int j = 0; j < 6; j++)
+      {
+         if (test[pri_perm[o][j]] != base[j])
+         {
+            match = false;
+            break;
+         }
+      }
+      if (match) { return o; }
+   }
+
+   MFEM_ABORT("unsupported orientation:\n\tbase: " << base[0] << ' ' << base[1]
+              << ' ' << base[2] << ' ' << base[3] << ' ' << base[4] << ' '
+              << base[5] << "\n\ttest: " << test[0] << ' ' << test[1] << ' '
+              << test[2] << ' ' << test[3] << ' ' << test[4] << ' ' << test[5]);
 }
 
 int Mesh::CheckBdrElementOrientation(bool fix_it)
@@ -13147,6 +13241,512 @@ void Mesh::RemoveInternalBoundaries()
    attribs.Unique();
    bdr_attributes.DeleteAll();
    attribs.Copy(bdr_attributes);
+}
+
+int Mesh::FindDuplicateVertices(int action,
+                                Array<int> &v2v,
+                                int &num_new_vertices,
+                                real_t abs_tol,
+                                real_t tol_mult) const
+{
+   const int verbosity_level = 0; // 0 or 1
+
+   if (abs_tol < 0) { return 1; }
+   if (tol_mult < 2) { return 2; }
+   if (action < 0 || action > 3) { return 3; }
+
+   const real_t real_tol = [&]()
+   {
+      if (abs_tol == 0_r) { return 0_r; }
+      int expon;
+      std::frexp(abs_tol, &expon);
+      return tol_mult*std::ldexp(1_r, expon);
+   }();
+
+   const real_t real_shift = abs_tol;
+   // const real_t real_shift = real_tol/tol_mult; // alternative; not tested
+
+   auto my_floor = [&](real_t val) -> real_t
+   {
+      if (real_tol == 0_r) { return val; }
+      real_t flr = real_tol*floor(val/real_tol);
+      if (!IsFinite(flr)) { flr = val; }
+      return flr;
+   };
+
+   auto hash_combine = [](std::size_t &seed, std::size_t h) -> void
+   {
+      // According to
+      // https://www.boost.org/doc/libs/1_85_0/libs/container_hash/doc/html/hash.html#notes_hash_combine
+      // the initial boost::hash_combine implementation used:
+      seed ^= h + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+   };
+
+   auto vertex_hash = [&](const Vertex &v) -> std::size_t
+   {
+      constexpr std::hash<real_t> hash_real;
+      std::size_t seed = 0;
+      hash_combine(seed, hash_real(v(0)));
+      hash_combine(seed, hash_real(v(1)));
+      hash_combine(seed, hash_real(v(2)));
+      return seed;
+   };
+
+   auto vertex_equal = [](const Vertex &a, const Vertex &b) -> bool
+   {
+      return a(0) == b(0) && a(1) == b(1) && a(2) == b(2);
+   };
+
+   // v2v is input when action == 3, so it is resized later.
+   if (action != 3)
+   {
+      v2v.SetSize(GetNV());
+   }
+
+   // construct vertex to active vertex map, v2av, and its inverse, av2v
+   Array<int> &v2av = v2v;
+   Array<int> av2v;
+   if (action == 1)
+   {
+      // the vertex subset is defined by the vertices of boundary elements
+      v2av = -1;
+      Array<int> bev;
+      for (int i = 0; i < GetNBE(); i++)
+      {
+         GetBdrElement(i)->GetVertices(bev);
+         for (int j = 0; j < bev.Size(); j++)
+         {
+            const int vj = bev[j];
+            if (v2av[vj] == -1)
+            {
+               v2av[vj] = av2v.Size();
+               av2v.Append(vj);
+            }
+         }
+      }
+   }
+   else if (action == 2)
+   {
+      // the vertex subset is defined by the vertices of boundary face elements
+      v2av = -1;
+      Array<int> fv;
+      const int num_faces = GetNumFaces(); // (dim-1) - dimensional entries
+      for (int i = 0; i < num_faces; i++)
+      {
+         // skip interior faces
+         if (faces_info[i].Elem2No >= 0) { continue; }
+         GetFace(i)->GetVertices(fv);
+         for (int j = 0; j < fv.Size(); j++)
+         {
+            const int vj = fv[j];
+            if (v2av[vj] == -1)
+            {
+               v2av[vj] = av2v.Size();
+               av2v.Append(vj);
+            }
+         }
+      }
+   }
+   else if (action == 3)
+   {
+      // v2v defines av2v. copy v2v to av2v while checking for invalid input:
+      av2v.SetSize(v2v.Size());
+      for (int ai = 0; ai < av2v.Size(); ai++)
+      {
+         const int i = v2v[ai]; // vertex 'i' is active vertex 'ai'
+         if (i < 0 || i >= GetNV()) { return 4; } // error: index out of range
+         av2v[ai] = i;
+      }
+      // define v2av:
+      v2v.SetSize(GetNV());
+      v2av = -1;
+      for (int ai = 0; ai < av2v.Size(); ai++)
+      {
+         const int i = av2v[ai]; // vertex 'i' is active vertex 'ai'
+         if (v2av[i] >= 0) { return 5; } // error: duplicate indices found
+         v2av[i] = ai;
+      }
+   }
+   const int num_active_vert = (action == 0) ? v2v.Size() : av2v.Size();
+   if (verbosity_level >= 1)
+   {
+      mfem::out << "number of all vertices:    " << v2v.Size() << endl;
+      mfem::out << "number of active vertices: " << num_active_vert << endl;
+   }
+
+   std::unordered_map<Vertex,int,decltype(vertex_hash),
+       decltype(vertex_equal)> av_map(0, vertex_hash, vertex_equal);
+   // av_map.max_load_factor(2.0f);  // slows down things a bit
+   Array<int> av2cube(num_active_vert);
+   const int sdim = SpaceDimension();
+   for (int i = 0; i < num_active_vert; i++)
+   {
+      Vertex v(0_r, 0_r, 0_r);
+      const int vi = (action == 0) ? i : av2v[i];
+      v.SetCoords(sdim, GetVertex(vi));
+      for (int j = 0; j < sdim; j++)
+      {
+         v(j) = my_floor(v(j));
+      }
+      auto res = av_map.emplace(v, (int)av_map.size());
+      if (!res.second)
+      {
+         av2cube[i] = res.first->second;
+      }
+      else
+      {
+         av2cube[i] = (int)av_map.size()-1;
+      }
+   }
+   if (verbosity_level >= 1)
+   {
+      auto num_buckets = av_map.bucket_count();
+      mfem::out << "av_map.size()         = " << av_map.size() << endl;
+      mfem::out << "av_map.bucket_count() = " << num_buckets << endl;
+      mfem::out << "av_map.load_factor()  = " << av_map.load_factor() << endl;
+      std::size_t max_bucket_size = 0, num_buckets_other_sizes = 0;
+      const int N = 9;
+      std::size_t num_buckets_by_size[N] = {};
+      for (std::size_t i = 0; i < num_buckets; i++)
+      {
+         auto bucket_size = av_map.bucket_size(i);
+         if (bucket_size < N) { num_buckets_by_size[bucket_size]++; }
+         else { num_buckets_other_sizes++; }
+         max_bucket_size = std::max(max_bucket_size, bucket_size);
+      }
+      mfem::out << "max bucket size   = " << max_bucket_size << endl;
+      mfem::out << "num buckets by size:" << endl;
+      for (int s = 0; s < N; s++)
+      {
+         auto nb = num_buckets_by_size[s];
+         mfem::out << "size " << s << " = " << nb
+                   << '\t' << real_t(nb)/num_buckets*100 << '%' << endl;
+      }
+      mfem::out << "rest   = " << num_buckets_other_sizes << '\t'
+                << real_t(num_buckets_other_sizes)/num_buckets*100 << '%'
+                << endl;
+   }
+   Table cube2av;
+   // Note: the column (av) indices in each row (cube) of cube2av are sorted.
+   Transpose(av2cube, cube2av, (int)av_map.size());
+   if (verbosity_level >= 1)
+   {
+      // print 'cube2av' stats
+      mfem::out << "number of cubes: " << cube2av.Size() << endl;
+      mfem::out << "average number of active vertices / cube: "
+                << real_t(num_active_vert)/cube2av.Size() << endl;
+      int max_cube_size = 0;
+      for (int c = 0; c < cube2av.Size(); c++)
+      {
+         max_cube_size = std::max(max_cube_size, cube2av.RowSize(c));
+      }
+      mfem::out << "maximum number of active vertices / cube: "
+                << max_cube_size << endl;
+   }
+
+   // some statistics variabes
+   int num_dist_evals = 0;
+   real_t max_dist_sq = 0_r;
+
+   // store info about duplicates in av2av: av2av[i] != i means active
+   // vertex i is duplicate of active vertex av2av[i]
+   Array<int> av2av(num_active_vert);
+   // initialize av2av with identity
+   for (int i = 0; i < av2av.Size(); i++)
+   {
+      av2av[i] = i;
+   }
+   // loop over the active vertices
+   Vector vi_p(sdim);
+   for (int i = 0; i < num_active_vert; i++)
+   {
+      const int vi = (action == 0) ? i : av2v[i];
+      vi_p = GetVertex(vi);
+      // 1. find the min index i_p such that the distance from active
+      //    vertex i_p to active vertex i is <= abs_tol
+      int i_p = i;
+      // 1.1. check the cube containg vi_p, i.e. active vertex i
+      int cube = av2cube[i];
+      int cube_size = cube2av.RowSize(cube);
+      const int *cube_avs = cube2av.GetRow(cube);
+      for (int j = 0; true; j++)
+      {
+         const int av_j = cube_avs[j];
+         if (av_j >= i_p) { break; }
+         const int vj = (action == 0) ? av_j : av2v[av_j];
+         const real_t dist_sq = vi_p.DistanceSquaredTo(GetVertex(vj));
+         num_dist_evals++;
+         if (dist_sq <= abs_tol*abs_tol)
+         {
+            max_dist_sq = std::fmax(max_dist_sq, dist_sq);
+            i_p = av_j;
+            break;
+         }
+      }
+      // 1.2. check other adjacent cubes, if needed
+      int shift[3] = { 0, 0, 0 };
+      Vertex vi_v(0_r, 0_r, 0_r);
+      for (int j = 0; j < sdim; j++)
+      {
+         vi_v(j) = my_floor(vi_p(j));
+         if (vi_v(j) != my_floor(vi_p(j)-real_shift))
+         {
+            shift[j] = -1;
+         }
+         if (vi_v(j) != my_floor(vi_p(j)+real_shift))
+         {
+            MFEM_VERIFY(shift[j] == 0, "internal error");
+            shift[j] = +1;
+         }
+      }
+      // loop over the adjacent cubes -- there are up to 7 of those that
+      // may need to be checked
+      for (int cb = 1; cb < 8; cb++)
+      {
+         const int c[3] = { cb%2, (cb/2)%2, cb/4 };
+         int sh[3];
+         bool skip = false;
+         for (int j = 0; j < 3; j++)
+         {
+            if (c[j] != 0 && shift[j] == 0) { skip = true; break; }
+            sh[j] = (c[j] == 0) ? 0 : shift[j];
+         }
+         if (skip) { continue; }
+         for (int j = 0; j < sdim; j++)
+         {
+            vi_v(j) = my_floor(vi_p(j)+sh[j]*real_shift);
+         }
+         auto av_map_iter = av_map.find(vi_v);
+         if (av_map_iter == av_map.end()) { continue; }
+         cube = av_map_iter->second;
+         cube_size = cube2av.RowSize(cube);
+         cube_avs = cube2av.GetRow(cube);
+         for (int j = 0; j < cube_size; j++)
+         {
+            const int av_j = cube_avs[j];
+            if (av_j >= i_p) { break; }
+            const int vj = (action == 0) ? av_j : av2v[av_j];
+            const real_t dist_sq = vi_p.DistanceSquaredTo(GetVertex(vj));
+            num_dist_evals++;
+            if (dist_sq <= abs_tol*abs_tol)
+            {
+               max_dist_sq = std::fmax(max_dist_sq, dist_sq);
+               i_p = av_j;
+               break;
+            }
+         }
+      }
+      // 2. i_p is set; if i_p != i, i.e. i_p < i, update av2av to say that i
+      //    is duplicate of i_p
+      if (i_p != i)
+      {
+         av2av[i] = i_p;
+      }
+   }
+   int ret_code = 0;
+   int num_unresolved = 0;
+   for (int i = 0; i < av2av.Size(); i++)
+   {
+      const int p = av2av[i];
+      if (i != p && p != av2av[p]) { num_unresolved++; }
+   }
+   if (num_unresolved != 0)
+   {
+      ret_code = 10; // warning: transitive duplicates found
+   }
+   // using v2av (which is a ref to v2v), av2av and av2v, construct v2v
+   int num_new_vert = 0;
+   for (int i = 0; i < v2v.Size(); i++)
+   {
+      if (action != 0 && v2v[i] < 0) // 'i' is not an active vertex
+      {
+         v2v[i] = num_new_vert++;
+      }
+      else
+      {
+         // vertex 'i' is active vertex 'ai'
+         const int ai = (action == 0) ? i : v2v[i];
+         if (av2av[ai] == ai) // 'ai' is not a duplicate
+         {
+            v2v[i] = num_new_vert++;
+         }
+         else
+         {
+            // vertex 'i' is active vertex 'ai' which is a duplicate; we
+            // will assign it a new vertex id later when all non-duplicate
+            // vertices have been assigned a new vertex id
+            v2v[i] = -1;
+         }
+      }
+   }
+   // assign new vertex ids to duplicate active vertices
+   for (int ai = 0; ai < num_active_vert; ai++)
+   {
+      const int ai_p = av2av[ai]; // by construction, we have: ai_p <= ai
+      if (ai_p != ai)
+      {
+         // active vertex 'ai' is a duplicate of active vertex 'ai_p'
+         // active vertex 'ai' is vertex 'i'
+         const int i = (action == 0) ? ai : av2v[ai];
+         // active vertex 'ai_p' is vertex 'i_p'
+         const int i_p = (action == 0) ? ai_p : av2v[ai_p];
+         // since ai_p < ai, i_p has already been assigned a new vertex id in
+         // v2v -- we assign the same new vertex id to 'i':
+         v2v[i] = v2v[i_p];
+      }
+   }
+
+   num_new_vertices = num_new_vert;
+
+   if (verbosity_level >= 1)
+   {
+      mfem::out << "num removed duplicate vertices: "
+                << GetNV()-num_new_vert << endl;
+      mfem::out << "num distance evals: " << num_dist_evals << endl;
+      mfem::out << "max measured distance between duplicate vertices: "
+                << std::sqrt(max_dist_sq) << endl;
+   }
+
+   return ret_code;
+}
+
+int Mesh::ApplyVertexMap(const Array<int> &v2v, int num_new_vertices)
+{
+   Array<int> ev;
+   auto have_repetitions = [&](const int *v, int nv) -> bool
+   {
+      ev.SetSize(nv);
+      ev.CopyFrom(v);
+      ev.Sort();
+      // return true if there are repetitions
+      return std::adjacent_find(ev.begin(), ev.end()) != ev.end();
+   };
+
+   Mesh mesh_new(Dimension(), num_new_vertices, GetNE(), GetNBE(),
+                 SpaceDimension());
+   // Add elements with reassigned vertex indices
+   for (int i = 0; i < GetNE(); i++)
+   {
+      Element *el = GetElement(i)->Duplicate(&mesh_new);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+      mesh_new.AddElement(el);
+      if (have_repetitions(v, nv))
+      {
+         return 1;
+      }
+   }
+   // Add boundary elements with reassigned vertex indices
+   for (int i = 0; i < GetNBE(); i++)
+   {
+      Element *el = GetBdrElement(i)->Duplicate(&mesh_new);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+      mesh_new.AddBdrElement(el);
+      if (have_repetitions(v, nv))
+      {
+         return 1;
+      }
+   }
+   // New vertex coordinates are averages of the original ones.
+   for (int i = 0; i < num_new_vertices; i++)
+   {
+      mesh_new.AddVertex(0_r, 0_r, 0_r);
+   }
+   const int sdim = SpaceDimension();
+   Array<int> new_vertex_counter(num_new_vertices);
+   new_vertex_counter = 0;
+   for (int i = 0; i < GetNV(); i++)
+   {
+      const real_t *vtx_orig = GetVertex(i);
+      real_t *vtx_new = mesh_new.GetVertex(v2v[i]);
+      for (int j = 0; j < sdim; j++)
+      {
+         vtx_new[j] += vtx_orig[j];
+      }
+      new_vertex_counter[v2v[i]]++;
+   }
+   for (int i = 0; i < num_new_vertices; i++)
+   {
+      int vtx_count = new_vertex_counter[i];
+      if (vtx_count == 0) { continue; }
+      real_t *vtx_new = mesh_new.GetVertex(i);
+      for (int j = 0; j < sdim; j++)
+      {
+         vtx_new[j] /= vtx_count;
+      }
+   }
+   new_vertex_counter.DeleteAll();
+   mesh_new.FinalizeTopology(/* generate_bdr: */ false);
+   if (Nodes)
+   {
+      FiniteElementCollection *nodal_fec_new =
+         FiniteElementCollection::New(Nodes->FESpace()->FEColl()->Name());
+      FiniteElementSpace *nodal_fes_new =
+         new FiniteElementSpace(&mesh_new, nodal_fec_new, sdim,
+                                Nodes->FESpace()->GetOrdering());
+      if (Nodes->FESpace()->IsVariableOrder())
+      {
+         for (int i = 0; i < GetNE(); i++)
+         {
+            auto p = Nodes->FESpace()->GetElementOrder(i);
+            nodal_fes_new->SetElementOrder(i, p);
+         }
+         nodal_fes_new->Update(false);
+      }
+      GridFunction *nodes_new = new GridFunction(nodal_fes_new);
+      // give ownership of nodal_fec_new and nodal_fes_new to nodes_new:
+      nodes_new->MakeOwner(nodal_fec_new);
+      // the new mesh_nodes are averages of the old ones
+      Array<int> new_vdof_counter(nodes_new->Size());
+      new_vdof_counter = 0;
+      *nodes_new = 0_r;
+      Array<int> vdofs;
+      Vector loc_nodes;
+      for (int i = 0; i < GetNE(); i++)
+      {
+         Nodes->FESpace()->GetElementVDofs(i, vdofs);
+         Nodes->GetSubVector(vdofs, loc_nodes);
+         nodal_fes_new->GetElementVDofs(i, vdofs);
+         // Verify that the number of vdofs on this element in the original and
+         // in the new meshes is the same.
+         MFEM_VERIFY(loc_nodes.Size() == vdofs.Size(), "internal error");
+         nodes_new->AddElementVector(vdofs, loc_nodes);
+         for (int j = 0; j < vdofs.Size(); j++)
+         {
+            new_vdof_counter[vdofs[j]]++;
+         }
+      }
+      for (int i = 0; i < new_vdof_counter.Size(); i++)
+      {
+         const int vd_count = new_vdof_counter[i];
+         if (vd_count > 0)
+         {
+            (*nodes_new)[i] /= vd_count;
+         }
+      }
+      new_vdof_counter.DeleteAll();
+      const Operator *Pconf = nodal_fes_new->GetProlongationMatrix();
+      if (Pconf)
+      {
+         const SparseMatrix *Rconf = nodal_fes_new->GetRestrictionMatrix();
+         Vector t_nodes_new(Rconf->Height());
+         Rconf->Mult(*nodes_new, t_nodes_new);
+         Pconf->Mult(t_nodes_new, *nodes_new);
+      }
+      mesh_new.NewNodes(*nodes_new, true);
+   }
+   Swap(mesh_new, true);
+
+   return 0;
 }
 
 void Mesh::FreeElement(Element *E)

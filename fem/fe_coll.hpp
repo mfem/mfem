@@ -264,6 +264,7 @@ protected:
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
    int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8], *TetDofOrd[24];
+   int *HexDofOrd[48], *PriDofOrd[12];
 
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
