@@ -38,6 +38,18 @@ MFEM makefile targets:
    make style
    make tags
    make hooks
+	make jit
+	make pjit
+	make cujit
+	make pcujit
+	make hipjit
+	make phipjit
+	make jitdebug
+	make pjitdebug
+	make cujitdebug
+	make pcujitdebug
+	make hipjitdebug
+	make phipjitdebug
 
 Examples:
 
@@ -78,6 +90,30 @@ make hipdebug
    A shortcut to configure and build the serial GPU/HIP debug version of the library.
 make phipdebug
    A shortcut to configure and build the parallel GPU/HIP debug version of the library.
+make jit
+   A shortcut to configure and build the JIT serial optimized version of the library.
+make pjit
+   A shortcut to configure and build the JIT parallel optimized version of the library.
+make cujit
+   A shortcut to configure and build the JIT serial GPU/CUDA optimized version of the library.
+make pcujit
+   A shortcut to configure and build the JIT parallel GPU/CUDA optimized version of the library.
+make hipjit
+   A shortcut to configure and build the JIT serial GPU/HIP optimized version of the library.
+make phipjit
+   A shortcut to configure and build the JIT parallel GPU/HIP optimized version of the library.
+make jitdebug
+   A shortcut to configure and build the JIT serial debug version of the library.
+make pjitdebug
+   A shortcut to configure and build the JIT parallel debug version of the library.
+make cujitdebug
+   A shortcut to configure and build the JIT serial GPU/CUDA debug version of the library.
+make pcujitdebug
+   A shortcut to configure and build the JIT parallel GPU/CUDA debug version of the library.
+make hipjitdebug
+   A shortcut to configure and build the JIT serial GPU/HIP debug version of the library.
+make phipjitdebug
+   A shortcut to configure and build the JIT parallel GPU/HIP debug version of the library.
 make test
    Verify the build by checking the results from running all examples, miniapps,
    and tests.
@@ -177,7 +213,9 @@ $(call mfem-info, BLD       = $(BLD))
 
 # Include $(CONFIG_MK) unless some of the $(SKIP_INCLUDE_TARGETS) are given
 SKIP_INCLUDE_TARGETS = help config clean distclean serial parallel debug pdebug\
- cuda hip pcuda phip cudebug hipdebug pcudebug phipdebug hpc style
+ cuda hip pcuda phip cudebug hipdebug pcudebug phipdebug \
+ jit pjit cujit pcujit hipjit phipjit jitdebug pjitdebug \
+ cujitdebug pcujitdebug hipjitdebug phipjitdebug hpc style
 HAVE_SKIP_INCLUDE_TARGET = $(filter $(SKIP_INCLUDE_TARGETS),$(MAKECMDGOALS))
 ifeq (,$(HAVE_SKIP_INCLUDE_TARGET))
    $(call mfem-info, Including $(CONFIG_MK))
@@ -203,6 +241,7 @@ MFEM_SHARED ?= $(SHARED)
 MFEM_SHARED_BUILD = $(MFEM_SHARED)
 
 # Internal shortcuts
+override jit = $(if $(MFEM_USE_JIT:YES=),,YES)
 override static = $(if $(MFEM_STATIC:YES=),,YES)
 override shared = $(if $(MFEM_SHARED:YES=),,YES)
 
@@ -307,7 +346,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP JIT
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
@@ -357,7 +396,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO MFEM_USE_AMGX\
  MFEM_USE_MAGMA MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
  MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_TRIBOL MFEM_USE_ALGOIM MFEM_USE_ENZYME\
- MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE
+ MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE MFEM_USE_JIT
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -401,6 +440,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    endif
    # Allow changing the PREFIX during install with: make install PREFIX=<dir>
    PREFIX := $(MFEM_PREFIX)
+   PREFIX_BIN   := $(PREFIX)/bin
    PREFIX_INC   := $(PREFIX)/include
    PREFIX_LIB   := $(PREFIX)/lib
    PREFIX_SHARE := $(PREFIX)/share/mfem
@@ -429,7 +469,8 @@ DIRS = general linalg linalg/simd linalg/batched mesh mesh/submesh fem \
        fem/ceed/interface fem/ceed/integrators/mass \
        fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
        fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
-       fem/qinterp fem/integ fem/tmop
+       fem/qinterp fem/integ fem/tmop \
+		 general/jit
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -441,11 +482,18 @@ endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
+# general/jit/parser.cpp is handled differently, as it is an executable
+# required before the compilation of the declared JIT source files
+ifeq ($(MFEM_USE_JIT),YES)
+ALL_OBJECT_FILES := $(OBJECT_FILES)
+OBJECT_FILES = $(filter-out $(BLD)general/jit/parser.o, $(ALL_OBJECT_FILES))
+endif
 OKL_DIRS = fem
 
 .PHONY: lib all clean distclean install config status info deps serial parallel	\
-	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
-	deprecation-warnings
+	debug pdebug cuda hip pcuda cudebug pcudebug jit pjit cujit pcujit hipjit \
+	phipjit jitdebug pjitdebug cujitdebug pcujitdebug hipjitdebug phipjitdebughpc \
+	style check test unittest deprecation-warnings
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -455,15 +503,65 @@ OKL_DIRS = fem
 %:	%.cpp
 
 # Default rule.
-lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) $(if $(jit),$(BLD)mjit)
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(CONFIG_FILE_DEF)
 
 # Rules for compiling all source files.
+ifneq ($(MFEM_USE_JIT),YES)
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+else
+# JIT compilation rules
+# Files that will be preprocessed
+JIT_SOURCE_FILES = \
+	$(SRC)fem/integ/bilininteg_diffusion_kernels.cpp \
+	$(SRC)fem/integ/bilininteg_mass_kernels.cpp
+
+# Filter out objects that will be compiled through the mjit parser
+JIT_OBJECT_FILES = $(JIT_SOURCE_FILES:$(SRC)%.cpp=$(BLD)%.o)
+# Filter out objects that will require specific MAKEFILE definitions
+OPT_OBJECT_FILES = $(BLD)general/jit/jit.o
+STD_OBJECT_FILES = $(filter-out $(JIT_OBJECT_FILES) $(OPT_OBJECT_FILES), $(OBJECT_FILES))
+
+# MFEM's MJIT parser embedded definitions
+MJIT_PARSER_DEFINES  = -DMFEM_CXX="\"$(MFEM_CXX)\""
+MJIT_PARSER_DEFINES += -DMFEM_EXT_LIBS="\"$(MFEM_EXT_LIBS)\""
+MJIT_PARSER_DEFINES += -DMFEM_LINK_FLAGS="\"$(MFEM_LINK_FLAGS)\""
+# We don't need out of source compilation's MFEM_CONFIG_FILE which can lead to
+# unhandled double quotes with nvcc compiler. Once installed, JIT compilation
+# will use $(MFEM_INSTALL_DIR)/config/_config.hpp.
+MJIT_PARSER_DEFINES += -DMFEM_BUILD_FLAGS="\"$(MFEM_PICFLAG) $(MFEM_CPPFLAGS) \
+$(MFEM_CXXFLAGS) $(MFEM_TPLFLAGS)\""
+$(BLD)mjit: $(SRC)general/jit/parser.cpp $(CONFIG_MK) $(SRC)makefile $(SRC)general/jit/jit.hpp
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MJIT_PARSER_DEFINES) $(<) -o $(@)
+
+# MFEM's MJIT runtime embedded definitions 
+MJIT_RUNTIME_DEFINES  = -DMFEM_AR="\"$(AR)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_SO_EXT="\"$(SO_EXT)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_XLINKER="\"$(XLINKER)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_SO_PREFIX="\"$(SO_PREFIX)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_SO_POSTFIX="\"$(SO_POSTFIX)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_BUILD_DIR="\"$(MFEM_SOURCE_DIR)\""
+MJIT_RUNTIME_DEFINES += -DMFEM_INSTALL_BACKUP="\"$(INSTALL_BACKUP)\""
+$(OPT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(SRC)%.hpp $(SRC)makefile $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(MJIT_RUNTIME_DEFINES) -c $(<) -o $(@)
+
+$(STD_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+
+MJIT_BUILD_FLAGS  = $(MFEM_BUILD_FLAGS)
+MJIT_BUILD_FLAGS += $(if $(MFEM_USE_CUDA:YES=),-x c++)
+MJIT_BUILD_FLAGS += -I$(SRC)$(@D) -DMFEM_JIT_INC_PATH="\"$(@D)\""
+$(JIT_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) $(BLD)mjit $(SRC)makefile
+	@$(eval MJIT_TMP=$(realpath $(shell mktemp)))
+	@$(BLD)./mjit $(<) -o $(MJIT_TMP)
+	@echo $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(*).jit -o $(@)
+	@$(MFEM_CXX) $(MJIT_BUILD_FLAGS) -c $(MJIT_TMP) -o $(@)
+	@rm $(MJIT_TMP)
+endif # MFEM_USE_JIT
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -496,33 +594,43 @@ $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
-serial debug cuda hip cudebug hipdebug:           M_MPI=NO
-parallel pdebug pcuda pcudebug phip phipdebug:    M_MPI=YES
-serial parallel cuda pcuda hip phip:              M_DBG=NO
-debug pdebug cudebug pcudebug hipdebug phipdebug: M_DBG=YES
-cuda pcuda cudebug pcudebug:                      M_CUDA=YES
-hip phip hipdebug phipdebug:                      M_HIP=YES
+serial debug cuda hip cudebug hipdebug:                              M_MPI=NO
+jit cujit hipjit jitdebug cujitdebug hipjitdebug:                    M_MPI=NO
+parallel pdebug pcuda pcudebug phip phipdebug:                       M_MPI=YES
+pjit pcujit phipjit pjitdebug pcujitdebug phipjitdebug:              M_MPI=YES
+serial parallel cuda pcuda hip phip:                                 M_DBG=NO
+jit pjit cujit pcujit hipjit phipjit:                                M_DBG=NO
+debug pdebug cudebug pcudebug hipdebug phipdebug:                    M_DBG=YES
+jitdebug pjitdebug cujitdebug pcujitdebug hipjitdebug phipjitdebug:  M_DBG=YES
+cuda pcuda cudebug pcudebug cujit pcujit cujitdebug pcujitdebug:     M_CUDA=YES
+hip phip hipdebug phipdebug hipjit phipjit hipjitdebug phipjitdebug: M_HIP=YES
 
 serial parallel debug pdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
-	   $(MAKEOVERRIDES_SAVE)
+		$(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 cuda pcuda cudebug pcudebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
-	   MFEM_USE_CUDA=$(M_CUDA) $(MAKEOVERRIDES_SAVE)
+		MFEM_USE_CUDA=$(M_CUDA) $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 hip phip hipdebug phipdebug:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
-	MFEM_USE_HIP=$(M_HIP) $(MAKEOVERRIDES_SAVE)
+		MFEM_USE_HIP=$(M_HIP) $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
+
+jit pjit cujit pcujit hipjit phipjit jitdebug pjitdebug cujitdebug pcujitdebug hipjitdebug phipjitdebug:
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	MFEM_USE_CUDA=$(if $(M_CUDA),YES,NO) MEM_USE_HIP=$(if $(M_HIP),YES,NO) \
+	MFEM_USE_JIT=YES $(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 # Build with MPI and all Device backends enabled (requires OCCA and RAJA)
 hpc:
 	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=YES MFEM_USE_CUDA=YES \
-	  MFEM_USE_OPENMP=YES MFEM_USE_OCCA=YES MFEM_USE_RAJA=YES \
-	  $(MAKEOVERRIDES_SAVE)
+		MFEM_USE_OPENMP=YES MFEM_USE_OCCA=YES MFEM_USE_RAJA=YES \
+		$(MAKEOVERRIDES_SAVE)
 	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 deps:
@@ -578,7 +686,7 @@ $(ALL_CLEAN_SUBDIRS):
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*.o))
 	rm -f $(addprefix $(BLD),$(foreach d,$(DIRS),$(d)/*~))
-	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk)
+	rm -rf $(addprefix $(BLD),*~ libmfem.* deps.mk mjit mjit.dSYM)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
@@ -607,6 +715,10 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    ( umask $(INSTALLMASK) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT) )
 
 install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+#install mjit binary
+	$(if $(jit),mkdir -p $(PREFIX_BIN))
+	$(if $(jit),$(INSTALL) -m 750 $(BLD)mjit $(PREFIX_BIN))
+
 	$(MKINSTALLDIR) $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALLDEF) $(BLD)libmfem.a $(PREFIX_LIB))
@@ -629,6 +741,9 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
 	   $(INSTALLDEF) $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
 	done
+# install JIT header
+	$(if $(jit),mkdir -p $(PREFIX_INC)/mfem/general/jit)
+	$(if $(jit),$(INSTALL) -m 640 $(SRC)general/jit/jit.hpp $(PREFIX_INC)/mfem/general/jit)
 # install *.okl files
 	for dir in $(OKL_DIRS); do \
 	   ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
@@ -740,6 +855,7 @@ status info:
 	$(info MFEM_USE_CALIPER       = $(MFEM_USE_CALIPER))
 	$(info MFEM_USE_ALGOIM        = $(MFEM_USE_ALGOIM))
 	$(info MFEM_USE_CEED          = $(MFEM_USE_CEED))
+	$(info MFEM_USE_JIT           = $(MFEM_USE_JIT))
 	$(info MFEM_USE_UMPIRE        = $(MFEM_USE_UMPIRE))
 	$(info MFEM_USE_SIMD          = $(MFEM_USE_SIMD))
 	$(info MFEM_USE_ADIOS2        = $(MFEM_USE_ADIOS2))
@@ -788,7 +904,7 @@ FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
 FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
-COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
+COUT_CERR_EXCLUDE = '^general/error\.[ch]pp' '^general/globals\.[ch]pp' '^general/jit/parser\.cpp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\

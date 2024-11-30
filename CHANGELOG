@@ -335,6 +335,9 @@ Miscellaneous
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
+- Add support for just-in-time (JIT) compilation for diffusion and mass partially
+  assembled kernels.
+
 
 Version 4.5.2, released on March 23, 2023
 =========================================

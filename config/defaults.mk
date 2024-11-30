@@ -72,10 +72,13 @@ ifneq ($(NOTMAC),)
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
+   SO_PREFIX = $(XLINKER)--whole-archive
+   SO_POSTFIX = $(XLINKER)--no-whole-archive
    BUILD_SOFLAGS = -shared $(XLINKER)-soname,libmfem.$(SO_VER)
    BUILD_RPATH = $(XLINKER)-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)
    INSTALL_RPATH = $(XLINKER)-rpath,@MFEM_LIB_DIR@
+   INSTALL_BACKUP = --backup=none
 else
    # Silence "has no symbols" warnings on Mac OS X
    AR      = ar
@@ -84,6 +87,8 @@ else
    PICFLAG = $(XCOMPILER)-fPIC
    SO_EXT  = dylib
    SO_VER  = $(MFEM_VERSION_STRING).dylib
+   SO_PREFIX = -all_load
+   SO_POSTFIX =
    MAKE_SOFLAGS = $(XLINKER)-dylib,-install_name,$(1)/libmfem.$(SO_VER),\
       -compatibility_version,$(MFEM_VERSION_STRING),\
       -current_version,$(MFEM_VERSION_STRING),\
@@ -92,6 +97,7 @@ else
    BUILD_RPATH = $(XLINKER)-undefined,dynamic_lookup
    INSTALL_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(MFEM_LIB_DIR)))
    INSTALL_RPATH = $(XLINKER)-undefined,dynamic_lookup
+   INSTALL_BACKUP =
    # Silence unused command line argument warnings when generating dependencies
    # with mpicxx and clang
    DEP_FLAGS := -Wno-unused-command-line-argument $(DEP_FLAGS)
@@ -160,6 +166,7 @@ MFEM_USE_HIP           = NO
 MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
+MFEM_USE_JIT           = NO
 MFEM_USE_CALIPER       = NO
 MFEM_USE_ALGOIM        = NO
 MFEM_USE_UMPIRE        = NO
@@ -524,6 +531,14 @@ HIP_LIB = -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib -lhipsparse -lhipblas
 OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+
+# JIT configuration, requires MFEM_SHARED compilation
+JIT_OPT =
+JIT_LIB = -ldl
+ifeq ($(MFEM_USE_JIT),YES)
+    STATIC = NO
+    SHARED = YES
+endif
 
 # CALIPER library configuration
 CALIPER_DIR = @MFEM_DIR@/../caliper

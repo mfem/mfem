@@ -22,6 +22,10 @@
 #include "globals.hpp"
 #include <mpi.h>
 
+#ifdef MFEM_USE_JIT
+#include "jit/jit.hpp"
+#endif
+
 namespace mfem
 {
 
@@ -100,13 +104,27 @@ private:
    /// Initialize the Mpi singleton.
    static Mpi &Singleton()
    {
+      MFEM_VERIFY(!IsInitialized(), "MPI already initialized!")
+#ifndef MFEM_USE_JIT
+      MPI_Init(argc, argv);
+#else
+      JIT::Init(argc, argv);
+#endif
+      // The "mpi" object below needs to be created after MPI_Init() for some
+      // MPI implementations
       static Mpi mpi;
       return mpi;
    }
-   /// Finalize MPI.
-   ~Mpi() { Finalize(); }
-   /// Prevent direct construction of objects of this class.
-   Mpi() {}
+   /// Finalize MPI
+   ~Mpi()
+   {
+#ifdef MFEM_USE_JIT
+      JIT::Finalize();
+#endif
+      Finalize();
+   }
+   /// Prevent direct construction of objects of this class
+   Mpi() { }
 };
 
 /** @brief A simple convenience class based on the Mpi singleton class above.

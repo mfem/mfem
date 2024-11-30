@@ -165,8 +165,9 @@ set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
 set(CMAKE_MODULE_PATH ${MFEM_CMAKE_PATH}/cmake/modules)
 
-# Load MFEM CMake utilities.
+# Load MFEM/MJIT CMake utilities.
 include(MfemCmakeUtilities)
+include(MjitCmakeUtilities)
 
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
@@ -204,6 +205,11 @@ if (CMAKE_BUILD_TYPE MATCHES "Debug|debug|DEBUG")
   set(MFEM_DEBUG ON)
 else()
   set(MFEM_DEBUG OFF)
+endif()
+
+if (MFEM_USE_JIT)
+    message(STATUS "MFEM: MFEM_USE_JIT depends on BUILD_SHARED_LIBS")
+    set(BUILD_SHARED_LIBS ON CACHE BOOL "Set when MFEM_USE_JIT is set" FORCE)
 endif()
 
 # Shared build on Windows
@@ -309,6 +315,12 @@ endif()
 if (MFEM_USE_ZLIB)
   find_package(ZLIB REQUIRED)
 endif()
+
+# JIT
+if (MFEM_USE_JIT)
+    set(JIT_FOUND TRUE)
+    set(JIT_LIBRARIES "-ldl")
+endif(MFEM_USE_JIT)
 
 # Backtrace with libunwind
 if (MFEM_USE_LIBUNWIND)
@@ -569,7 +581,7 @@ set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CALIPER CODIPACK
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
-    ALGOIM ENZYME)
+    ALGOIM ENZYME JIT)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -613,6 +625,12 @@ if (MFEM_USE_CUDA)
   set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CUDA)
 endif()
 
+if (MFEM_USE_JIT)
+    set_mjit_sources_dependencies(MJIT_SOURCES JITSRCS)
+else()
+    list(APPEND SOURCES ${JITSRCS})
+endif()
+
 add_subdirectory(config)
 set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
@@ -629,7 +647,8 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
     "The MFEM install directory" FORCE)
 
 # Declaring the library
-mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+mfem_add_library(mfem ${SOURCES} ${MJIT_SOURCES} ${HEADERS} ${MASTER_HEADERS})
+
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 if (MINGW)
@@ -911,3 +930,7 @@ install(EXPORT ${PROJECT_NAME_UC}Targets
 #-------------------------------------------------------------------------------
 
 mfem_export_mk_files()
+
+if (MFEM_USE_JIT)
+    mfem_mjit_configure()
+endif (MFEM_USE_JIT)
