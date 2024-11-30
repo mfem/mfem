@@ -2236,13 +2236,8 @@ public:
    void ScaleSubdomains (real_t sf);
    void ScaleElements (real_t sf);
 
-   void Transform(void (*f)(const Vector&, Vector&));
+   void Transform(std::function<void(const Vector&, Vector&)> f);
    void Transform(VectorCoefficient &deformation);
-   void Transform(std::function<void(const Vector&, Vector&)> f)
-   {
-      VectorFunctionCoefficient F(spaceDim, f);
-      Transform(F);
-   }
 
    /** @brief This function should be called after the mesh node coordinates
        have been updated externally, e.g. by modifying the internal nodal

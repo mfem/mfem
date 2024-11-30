@@ -858,6 +858,16 @@ const int *CubicFECollection::DofOrderForOrientation(Geometry::Type GeomType,
       };
       return sq_ind[Or];
    }
+   else if (GeomType == Geometry::CUBE)
+   {
+      // Note: only orientations 0 and 1 are supported!
+      static int hex_ord[2][8] =
+      {
+         {0, 1, 2, 3, 4, 5, 6, 7}, // orientation 0 = identity
+         {0, 3, 2, 1, 4, 7, 6, 5}  // orientation 1 = (x,y,z) -> (y,x,z)
+      };
+      return (0 <= Or && Or < 2) ? hex_ord[Or] : NULL;
+   }
 
    return NULL;
 }
