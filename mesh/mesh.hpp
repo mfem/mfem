@@ -1289,7 +1289,7 @@ public:
    /// @ref mfem_Mesh_named_ctors "Named mesh constructors".
    /// @{
 
-   /// Deprecated: see @a MakeCartesian3D.
+   /// Deprecated: see @a MakeCartesian3D().
    MFEM_DEPRECATED
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         real_t sx = 1.0, real_t sy = 1.0, real_t sz = 1.0,
@@ -1300,7 +1300,7 @@ public:
       Finalize(true); // refine = true
    }
 
-   /// Deprecated: see @a MakeCartesian2D.
+   /// Deprecated: see @a MakeCartesian2D().
    MFEM_DEPRECATED
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
         real_t sx = 1.0, real_t sy = 1.0, bool sfc_ordering = true)
@@ -1310,7 +1310,7 @@ public:
       Finalize(true); // refine = true
    }
 
-   /// Deprecated: see @a MakeCartesian1D.
+   /// Deprecated: see @a MakeCartesian1D().
    MFEM_DEPRECATED
    explicit Mesh(int n, real_t sx = 1.0)
       : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
@@ -1319,7 +1319,7 @@ public:
       // Finalize(); // reminder: not needed
    }
 
-   /// Deprecated: see @a MakeRefined.
+   /// Deprecated: see @a MakeRefined().
    MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
@@ -1531,7 +1531,7 @@ public:
    /// Returns the type of boundary element i.
    Element::Type GetBdrElementType(int i) const;
 
-   /// Deprecated in favor of Mesh::GetFaceGeometry
+   /// Deprecated in favor of Mesh::GetFaceGeometry()
    MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const
    { return GetFaceGeometry(Face); }
 
@@ -1550,7 +1550,7 @@ public:
       return boundary[i]->GetGeometryType();
    }
 
-   /// Deprecated in favor of Mesh::GetFaceGeometry
+   /// Deprecated in favor of Mesh::GetFaceGeometry()
    MFEM_DEPRECATED Geometry::Type GetFaceBaseGeometry(int i) const
    { return GetFaceGeometry(i); }
 
@@ -1677,9 +1677,9 @@ public:
        @warning This only differs from GetBdrElementAdjacentElement by returning
        the face info with inverted orientation. It does @b not return
        information corresponding to a second adjacent face. This function is
-       deprecated, use Geometry::GetInverseOrientation, Mesh::EncodeFaceInfo,
-       Mesh::DecodeFaceInfoOrientation, and Mesh::DecodeFaceInfoLocalIndex
-       instead.
+       deprecated, use Geometry::GetInverseOrientation(),
+       Mesh::EncodeFaceInfo(), Mesh::DecodeFaceInfoOrientation(), and
+       Mesh::DecodeFaceInfoLocalIndex() instead.
 
        @sa GetBdrElementAdjacentElement() */
    MFEM_DEPRECATED
