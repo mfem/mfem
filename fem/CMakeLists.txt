@@ -101,6 +101,7 @@ set(SRCS
   lor/lor_ads.cpp
   lor/lor_ams.cpp
   lor/lor_batched.cpp
+  mdgridfunc.hpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp

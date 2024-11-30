@@ -57,6 +57,7 @@ list(APPEND HDRS
   lapack.hpp
   linalg.hpp
   matrix.hpp
+  mdvector.hpp
   ode.hpp
   operator.hpp
   solvers.hpp

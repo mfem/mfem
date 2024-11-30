@@ -169,6 +169,7 @@ class Memory
 protected:
    friend class MemoryManager;
    friend void MemoryPrintFlags(unsigned flags);
+   template<typename mfem_type, int N, typename L> friend class MDSpan;
 
    enum FlagMask: unsigned
    {
