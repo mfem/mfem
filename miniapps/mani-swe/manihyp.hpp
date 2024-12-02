@@ -39,7 +39,7 @@ public:
     * @param state  Current state value
     * @param phys_state Current Physical state value
     */
-   void convertElemState(ElementTransformation &el,
+   void convertElemState(ElementTransformation &Tr,
                          const int nrScalar, const int nrVector,
                          const Vector &state, Vector &phys_state);
 
@@ -55,22 +55,19 @@ public:
     * where J1, n1 are Jacobian and normal vector from one element,
     * and n2 is the normal vector from another element.
     *
-    * That is,
-    *     stateL
-    *
-    * @param el 
-    * @param nrScalar 
-    * @param nrVector 
-    * @param stateL 
-    * @param stateR 
-    * @param normalL 
-    * @param normalR 
-    * @param stateL_L 
-    * @param stateR_L 
-    * @param stateL_R 
-    * @param stateR_R 
+    * @param Tr Interface transformation
+    * @param nrScalar The number of scalar states
+    * @param nrVector The number of vector states
+    * @param stateL Input left state
+    * @param stateR Input right state
+    * @param normalL **outward** normal from the left element
+    * @param normalR **inward** normal from the right element
+    * @param stateL_L **left** state in the __left__ coordinate system
+    * @param stateR_L **right** state in the __left__ coordinate system
+    * @param stateL_R **left** state in the __right__ coordinate system
+    * @param stateR_R **right** state in the __right__ coordinate system
     */
-   void convertFaceState(FaceElementTransformations &el,
+   void convertFaceState(FaceElementTransformations &Tr,
                          const int nrScalar, const int nrVector,
                          const Vector &stateL, const Vector &stateR,
                          Vector &normalL, Vector &normalR,
@@ -87,6 +84,7 @@ private:
    ManifoldCoord &coord;
    int nrScalar;
    int nrVector;
+   mutable Vector phys_state;
 protected:
 public:
 
@@ -101,6 +99,8 @@ public:
       nrVector = (org_flux.num_equations - nrScalar)/coord.sdim;
    }
 
+   real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                      DenseMatrix &flux) const override final;
 };
 
 class ManifoldHyperbolicFormIntegrator : public NonlinearFormIntegrator

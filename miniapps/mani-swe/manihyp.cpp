@@ -20,7 +20,7 @@ void CalcOrtho(const DenseMatrix &faceJ, const DenseMatrix &elemJ, Vector &n)
    n *= std::sqrt((tangent*tangent)/(n*n));
 }
 
-void ManifoldCoord::convertElemState(ElementTransformation &el,
+void ManifoldCoord::convertElemState(ElementTransformation &Tr,
                                      const int nrScalar, const int nrVector,
                                      const Vector &state, Vector &phys_state)
 {
@@ -28,13 +28,13 @@ void ManifoldCoord::convertElemState(ElementTransformation &el,
    {
       phys_state[i] = state[i];
    }
-   const DenseMatrix &J = el.Jacobian();
+   const DenseMatrix &J = Tr.Jacobian();
    mani_vec_state.UseExternalData(state.GetData()+nrScalar, dim, nrVector);
    phys_vec_state.UseExternalData(phys_state.GetData()+nrScalar, sdim, nrVector);
    Mult(J, mani_vec_state, phys_vec_state);
 }
 
-void ManifoldCoord::convertFaceState(FaceElementTransformations &el,
+void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
                                      const int nrScalar, const int nrVector,
                                      const Vector &stateL, const Vector &stateR,
                                      Vector &normalL, Vector &normalR,
@@ -42,11 +42,12 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &el,
                                      Vector &stateL_R, Vector &stateR_R)
 {
    // face Jacobian
-   const DenseMatrix fJ = el.Jacobian();
+   const DenseMatrix fJ = Tr.Jacobian();
 
    // element Jacobians
-   const DenseMatrix &J1 = el.Elem1->Jacobian();
-   const DenseMatrix &J2 = el.Elem2->Jacobian();
+   // TODO: Handle boundary (Tr.Elem2==nullptr)
+   const DenseMatrix &J1 = Tr.Elem1->Jacobian();
+   const DenseMatrix &J2 = Tr.Elem2->Jacobian();
 
    normal_comp.SetSize(nrVector);
 
@@ -85,6 +86,14 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &el,
       const real_t normal_comp = phys_vec*normalR;
       phys_vec.Add(-normal_comp, normalR).Add(normal_comp, normalL);
    }
+}
+
+real_t ManifoldFlux::ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                                 DenseMatrix &flux) const
+{
+   phys_state.SetSize(nrScalar + coord.sdim*nrVector);
+   coord.convertElemState(Tr, nrScalar, nrVector, state, phys_state);
+   return org_flux.ComputeFlux(phys_state, Tr, flux);
 }
 
 } // end of namespace mfem
