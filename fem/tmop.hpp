@@ -1212,7 +1212,7 @@ public:
 };
 
 /// 2D barrier Shape+Skew (SQ) metric.
-/// \gamma is recommended to be in (0, 0.9) as a pure skew metric has poor
+/// gamma is recommended to be in (0, 0.9) as a pure skew metric has poor
 /// convergence properties.
 class TMOP_AMetric_049 : public TMOP_Combo_QualityMetric
 {
