@@ -159,6 +159,7 @@ static T *GetInteriorFaceIntegrator(BilinearForm &a)
    return GetIntegrator<T>(a.GetFBFI());
 }
 
+IntegrationRule GetLobattoIntRule(FiniteElementSpace &fes, int nd1d);
 IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes);
 
 template <typename INTEGRATOR>
