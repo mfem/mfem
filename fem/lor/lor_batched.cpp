@@ -78,12 +78,14 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    Mesh &mesh_ho = *fes_ho.GetMesh();
    mesh_ho.EnsureNodes();
 
+   const bool dg = fes_ho.IsDGSpace();
+
    // Get nodal points at the LOR vertices
    const int dim = mesh_ho.Dimension();
    const int sdim = mesh_ho.SpaceDimension();
    const int nel_ho = mesh_ho.GetNE();
    const int order = fes_ho.GetMaxElementOrder();
-   const int nd1d = order + 1;
+   const int nd1d = dg ? order + 2 : order + 1;
    const int ndof_per_el = static_cast<int>(pow(nd1d, dim));
 
    const GridFunction *nodal_gf = mesh_ho.GetNodes();
@@ -95,7 +97,7 @@ void BatchedLORAssembly::FormLORVertexCoordinates(FiniteElementSpace &fes_ho,
    Vector nodal_evec(nodal_restriction->Height());
    nodal_restriction->Mult(*nodal_gf, nodal_evec);
 
-   IntegrationRule ir = GetCollocatedIntRule(fes_ho);
+   const IntegrationRule ir = GetLobattoIntRule(fes_ho, nd1d);
 
    // Map from nodal E-vector to Q-vector at the LOR vertex points
    X_vert.SetSize(sdim*ndof_per_el*nel_ho);
@@ -656,12 +658,17 @@ BatchedLORAssembly::BatchedLORAssembly(FiniteElementSpace &fes_ho_)
    FormLORVertexCoordinates(fes_ho, X_vert);
 }
 
-IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes)
+IntegrationRule GetLobattoIntRule(FiniteElementSpace &fes, int nd1d)
 {
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    const Geometry::Type geom = fes.GetMesh()->GetTypicalElementGeometry();
    const int nd1d = fes.GetMaxElementOrder() + 1;
    return irs.Get(geom, 2*nd1d - 3);
+}
+
+IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes)
+{
+   return GetLobattoIntRule(fes, fes.GetMaxElementOrder() + 1);
 }
 
 } // namespace mfem

@@ -43,8 +43,8 @@ void BatchedLOR_DG::Assemble2D()
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nel_ho);
 
-   auto geom = fes_ho.GetMesh()->GetGeometricFactors(ir,
-                                                     GeometricFactors::DETERMINANTS);
+   auto geom = fes_ho.GetMesh()->GetGeometricFactors(
+                  ir, GeometricFactors::DETERMINANTS);
 
    //const FiniteElementCollection fes_coll = fes_ho.FEColl();
 
