@@ -189,7 +189,7 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
 
 real_t FluxFunction::ComputeFluxDotN(const Vector &U,
                                      const Vector &normal,
-                                     FaceElementTransformations &Tr,
+                                     ElementTransformation &Tr,
                                      Vector &FUdotN) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -208,8 +208,8 @@ real_t RusanovFlux::Eval(const Vector &state1, const Vector &state2,
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
 #endif
-   const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
-   const real_t speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
+   const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, *Tr.Elem1, fluxN1);
+   const real_t speed2 = fluxFunction.ComputeFluxDotN(state2, nor, *Tr.Elem2, fluxN2);
    // NOTE: nor in general is not a unit normal
    const real_t maxE = std::max(speed1, speed2);
    // here, std::sqrt(nor*nor) is multiplied to match the scale with fluxN
@@ -274,7 +274,7 @@ real_t ShallowWaterFlux::ComputeFlux(const Vector &U,
 
 real_t ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
                                          const Vector &normal,
-                                         FaceElementTransformations &Tr,
+                                         ElementTransformation &Tr,
                                          Vector &FUdotN) const
 {
    const real_t height = U(0);
@@ -348,7 +348,7 @@ real_t EulerFlux::ComputeFlux(const Vector &U,
 
 real_t EulerFlux::ComputeFluxDotN(const Vector &x,
                                   const Vector &normal,
-                                  FaceElementTransformations &Tr,
+                                  ElementTransformation &Tr,
                                   Vector &FUdotN) const
 {
    // 1. Get states

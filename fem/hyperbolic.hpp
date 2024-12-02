@@ -92,7 +92,7 @@ public:
     * @return real_t maximum (normal) characteristic velocity
     */
    virtual real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
-                                  FaceElementTransformations &Tr,
+                                  ElementTransformation &Tr,
                                   Vector &fluxDotN) const;
 
    /**
@@ -375,7 +375,7 @@ public:
     * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
    real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
-                          FaceElementTransformations &Tr,
+                          ElementTransformation &Tr,
                           Vector &fluxN) const override;
 };
 
@@ -418,7 +418,7 @@ public:
     * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
     */
    real_t ComputeFluxDotN(const Vector &x, const Vector &normal,
-                          FaceElementTransformations &Tr,
+                          ElementTransformation &Tr,
                           Vector &fluxN) const override;
 };
 
