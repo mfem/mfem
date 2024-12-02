@@ -3661,26 +3661,64 @@ void NetCDFReader::ReadVariable(const char * name, double * data)
 void NetCDFReader::BuildBlockIDToNameMap(const vector<int> & blk_ids,
                                          unordered_map<int, string> & ids_to_names)
 {
-   int varid;
+   int varid_block_names;
 
    // Find the variable ID for "eb_names" which stores element block names
-   _netcdf_status = nc_inq_varid(_netcdf_descriptor, "eb_names", &varid);
+   _netcdf_status = nc_inq_varid(_netcdf_descriptor, "eb_names", &varid_block_names);
+   CheckForNetCDFError();
+   MFEM_ASSERT(_netcdf_status != NC_ENOTVAR, "The 'eb_names' variable was not found!");
+
+   // Determine the type of eb_names. At some point Exodus changed it
+   nc_type var_type;
+   _netcdf_status = nc_inq_vartype(_netcdf_descriptor, varid_block_names, &var_type);
    CheckForNetCDFError();
 
-   // Iterate over the block IDs and retrieve the corresponding block names
-   size_t start[1], count[1];
-   count[0] = 1;
-   char block_name[NC_MAX_NAME + 1]; // Buffer to hold block name temporarily
-
-   for (size_t i = 0; i < blk_ids.size(); i++)
+   if (var_type == NC_STRING)
    {
-      start[0] = i;
-      _netcdf_status = nc_get_vara_text(_netcdf_descriptor, varid, start, count, block_name);
+      vector<char *> block_names(blk_ids.size());
+      _netcdf_status = nc_get_var_string(_netcdf_descriptor, varid_block_names, block_names.data());
       CheckForNetCDFError();
-      MFEM_ASSERT(std::memchr(block_name, '\0', NC_MAX_NAME) != nullptr, "We should have found a null-terminator");
+      for (size_t i = 0; i < blk_ids.size(); ++i)
+         ids_to_names[blk_ids[i]] = block_names[i] ? block_names[i] : "";
 
-      // Store the block ID and name in the map
-      ids_to_names[blk_ids[i]] = std::string(block_name);
+      _netcdf_status = nc_free_string(blk_ids.size(), block_names.data());
+      CheckForNetCDFError();
+   }
+   else if (var_type == NC_CHAR)
+   {
+      int dimids_names[2], names_ndim;
+      size_t num_names, name_len;
+
+      _netcdf_status = nc_inq_varndims(_netcdf_descriptor, varid_block_names, &names_ndim);
+      CheckForNetCDFError();
+      MFEM_ASSERT(names_ndim == 2, "This variable should have two dimensions");
+
+      _netcdf_status = nc_inq_vardimid(_netcdf_descriptor, varid_block_names, dimids_names);
+      CheckForNetCDFError();
+
+      _netcdf_status = nc_inq_dimlen(_netcdf_descriptor, dimids_names[0], &num_names);
+      CheckForNetCDFError();
+      MFEM_ASSERT(num_names == blk_ids.size(), "The block id and block name lengths should match");
+      // Check the maximum string length
+      _netcdf_status = nc_inq_dimlen(_netcdf_descriptor, dimids_names[1], &name_len);
+      CheckForNetCDFError();
+
+      // Read the block names
+      vector<char> block_names(blk_ids.size() * name_len);
+      _netcdf_status = nc_get_var_text(_netcdf_descriptor, varid_block_names, block_names.data());
+      CheckForNetCDFError();
+
+      for (size_t i = 0; i < blk_ids.size(); ++i)
+      {
+         string name(&block_names[i * name_len], name_len);
+         // remove trailing whitespace
+         name.erase(name.find_last_not_of(" \t\n\r") + 1);
+         ids_to_names[blk_ids[i]] = name;
+      }
+   }
+   else
+   {
+      mfem_error("Unexpected element block names type");
    }
 }
 
