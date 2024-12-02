@@ -1,8 +1,4 @@
 #include "dfem/dfem_test_macro.hpp"
-#include "fem/bilinearform.hpp"
-#include "linalg/hypre.hpp"
-#include "linalg/operator.hpp"
-#include "miniapps/autodiff/tadvector.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -11,7 +7,7 @@ int test_diffusion_3d(
    std::string mesh_file, int refinements, int polynomial_order)
 {
    constexpr int num_samples = 1;
-   constexpr int dim = 3;
+   constexpr int dim = 2;
    Mesh mesh_serial = Mesh(mesh_file);
    MFEM_ASSERT(mesh_serial.Dimension() == dim, "incorrect mesh dimension");
 
@@ -67,48 +63,73 @@ int test_diffusion_3d(
    FunctionCoefficient f1_c(f1);
    f1_g.ProjectCoefficient(f1_c);
 
-   std::shared_ptr<DerivativeOperator> dfdu;
+   std::unique_ptr<DerivativeOperator> dfdu;
 
    Vector x(f1_g), y(h1fes.GetTrueVSize());
    {
+      auto diffusion_mf_kernel =
+         [] MFEM_HOST_DEVICE (
+            const tensor<real_t, dim>& dudxi,
+            const tensor<real_t, dim, dim>& J,
+            const real_t& w)
       {
-         auto diffusion_mf_kernel =
-            [] MFEM_HOST_DEVICE (
-               const tensor<real_t, dim>& dudxi,
-               const tensor<real_t, dim, dim>& J,
-               const real_t& w)
+         auto invJ = inv(J);
+         tensor<real_t, dim, dim> C{0.0};
+         C(0, 0) = 2.0;
+         C(1, 0) = 3.0;
+         C(1, 1) = 4.0;
+         if (dim == 3)
          {
-            auto invJ = inv(J);
-            return mfem::tuple{dudxi * invJ * transpose(invJ) * det(J) * w};
-         };
-
-         constexpr int Potential = 0;
-         constexpr int Coordinates = 1;
-
-         auto input_operators = mfem::tuple{Gradient<Potential>{}, Gradient<Coordinates>{}, Weight{}};
-         auto output_operator = mfem::tuple{Gradient<Potential>{}};
-
-         auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
-         auto parameters = std::vector{FieldDescriptor{Coordinates, &mesh_fes}};
-
-         DifferentiableOperator dop(solutions, parameters, mesh);
-         auto derivatives = std::integer_sequence<size_t, Potential> {};
-         dop.AddDomainIntegrator(
-            diffusion_mf_kernel, input_operators, output_operator, ir, derivatives);
-
-         dop.SetParameters({mesh_nodes});
-         StopWatch sw;
-         sw.Start();
-         for (int i = 0; i < num_samples; i++)
-         {
-            dop.Mult(x, y);
+            C(2, 2) = 1.0;
          }
-         sw.Stop();
-         printf("dfem mf:       %fs\n", sw.RealTime() / num_samples);
-         y.HostRead();
+         return mfem::tuple{(C * (dudxi * invJ)) * transpose(invJ) * det(J) * w};
+      };
 
-         dfdu = dop.GetDerivative(Potential, {&f1_g}, {mesh_nodes});
+      constexpr int Potential = 0;
+      constexpr int Coordinates = 1;
+
+      auto input_operators = mfem::tuple{Gradient<Potential>{}, Gradient<Coordinates>{}, Weight{}};
+      auto output_operator = mfem::tuple{Gradient<Potential>{}};
+
+      auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
+      auto parameters = std::vector{FieldDescriptor{Coordinates, &mesh_fes}};
+
+      DifferentiableOperator dop(solutions, parameters, mesh);
+      auto derivatives = std::integer_sequence<size_t, Potential> {};
+      dop.AddDomainIntegrator(
+         diffusion_mf_kernel, input_operators, output_operator, ir, derivatives);
+
+      dop.SetParameters({mesh_nodes});
+      StopWatch sw;
+      sw.Start();
+      for (int i = 0; i < num_samples; i++)
+      {
+         dop.Mult(x, y);
       }
+      sw.Stop();
+      printf("dfem mf:       %fs\n", sw.RealTime() / num_samples);
+      y.HostRead();
+
+      dfdu = dop.GetDerivative(Potential, {&f1_g}, {mesh_nodes});
+
+      sw.Start();
+      for (int i = 0; i < num_samples; i++)
+      {
+         dop.Mult(x, y);
+      }
+      sw.Stop();
+      printf("dfem mf JVP:       %fs\n", sw.RealTime() / num_samples);
+
+      sw.Start();
+      for (int i = 0; i < num_samples; i++)
+      {
+         dfdu->MultTranspose(x, y);
+      }
+      sw.Stop();
+      printf("dfem mf VJP:       %fs\n", sw.RealTime() / num_samples);
+
+      // printf("dfem dfdu^T * x:\n");
+      // print_vector(y);
    }
 
    // {
@@ -234,8 +255,17 @@ int test_diffusion_3d(
    // }
 
    {
+      DenseMatrix m(dim);
+      m(0, 0) = 2.0;
+      m(1, 0) = 3.0;
+      m(1, 1) = 4.0;
+      if (dim == 3)
+      {
+         m(2, 2) = 1.0;
+      }
+      MatrixConstantCoefficient matrix_coeff(m);
       ParBilinearForm a(&h1fes);
-      auto diff_integ = new DiffusionIntegrator;
+      auto diff_integ = new DiffusionIntegrator(matrix_coeff);
       diff_integ->SetIntRule(&ir);
       a.AddDomainIntegrator(diff_integ);
 
@@ -244,18 +274,9 @@ int test_diffusion_3d(
       a.Finalize();
       Array<int> empty;
       a.FormSystemMatrix(empty, A);
-      // out << "mfem mat\n";
-      // A->PrintMatlab(out);
-
-      HypreParMatrix K;
-      dfdu->Assemble(K);
-      // out << "dfem mat:\n";
-      // K.PrintMatlab(out);
-
-      Vector ones(K.Height());
-      ones = 1.0;
-      SumOperator(A.As<Operator>(), 1.0, &K, -1.0, false, false).Mult(ones, y);
-      out << "|A-K|_l1 = " << y.Sum() << "\n";
+      A->MultTranspose(x, y);
+      // out << "mfem A^T * x transpose\n";
+      // print_vector(y);
    }
 
    // Test linearization here as well

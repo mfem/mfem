@@ -1163,20 +1163,20 @@ std::vector<int> get_input_size_on_qp(
    return {mfem::get<i>(inputs).size_on_qp...};
 }
 
-namespace SharedMemory
+struct SharedMemory
 {
-enum Index
-{
-   INPUT_DTQ,
-   OUTPUT_DTQ,
-   FIELD,
-   DIRECTION,
-   INPUT,
-   SHADOW,
-   OUTPUT,
-   TEMP
+   enum Index
+   {
+      INPUT_DTQ,
+      OUTPUT_DTQ,
+      FIELD,
+      DIRECTION,
+      INPUT,
+      SHADOW,
+      OUTPUT,
+      TEMP
+   };
 };
-}
 
 template <size_t num_fields, size_t num_inputs, size_t num_outputs>
 struct SharedMemoryInfo
@@ -1722,7 +1722,7 @@ std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
 
 template <size_t N>
 MFEM_HOST_DEVICE inline
-void zero_all(std::array<DeviceTensor<2>, N> &v)
+void set_zero(std::array<DeviceTensor<2>, N> &v)
 {
    for (size_t i = 0; i < N; i++)
    {
@@ -1732,6 +1732,51 @@ void zero_all(std::array<DeviceTensor<2>, N> &v)
       {
          vi[j] = 0.0;
       }
+   }
+}
+
+template <size_t n>
+MFEM_HOST_DEVICE inline
+void set_zero(DeviceTensor<n> &u)
+{
+   int s = 1;
+   for (int i = 0; i < n; i++)
+   {
+      s *= u.GetShape()[i];
+   }
+   auto ui = Reshape(&u[0], s);
+   for (int j = 0; j < s; j++)
+   {
+      ui[j] = 0.0;
+   }
+}
+
+
+template <int n>
+MFEM_HOST_DEVICE inline
+void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
+{
+   int s = 1;
+   for (int i = 0; i < n; i++)
+   {
+      s *= u.GetShape()[i];
+   }
+   auto ui = Reshape(&u[0], s);
+   auto vi = Reshape(&v[0], s);
+   for (int j = 0; j < s; j++)
+   {
+      vi[j] = u[j];
+   }
+}
+
+template <int n, size_t m>
+MFEM_HOST_DEVICE inline
+void copy(std::array<DeviceTensor<n>, m> &u,
+          std::array<DeviceTensor<n>, m> &v)
+{
+   for (int i = 0; i < m; i++)
+   {
+      copy(u[i], v[i]);
    }
 }
 
@@ -2027,22 +2072,10 @@ void call_qfunction_derivative_action(
                auto qf_args = decay_tuple<qf_param_ts> {};
 #ifdef MFEM_USE_ENZYME
                auto qf_shadow_args = decay_tuple<qf_param_ts> {};
-               apply_kernel_fwddiff_enzyme(
-                  r,
-                  qfunc,
-                  qf_args,
-                  qf_shadow_args,
-                  input_shmem,
-                  shadow_shmem,
-                  q);
+               apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
+                                           shadow_shmem, q);
 #else
-               apply_kernel_native_dual(
-                  r,
-                  qfunc,
-                  qf_args,
-                  input_shmem,
-                  shadow_shmem,
-                  q);
+               apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
 #endif
             }
          }
@@ -2057,22 +2090,10 @@ void call_qfunction_derivative_action(
          auto qf_args = decay_tuple<qf_param_ts> {};
 #ifdef MFEM_USE_ENZYME
          auto qf_shadow_args = decay_tuple<qf_param_ts> {};
-         apply_kernel_fwddiff_enzyme(
-            r,
-            qfunc,
-            qf_args,
-            qf_shadow_args,
-            input_shmem,
-            shadow_shmem,
-            q);
+         apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
+                                     shadow_shmem, q);
 #else
-         apply_kernel_native_dual(
-            r,
-            qfunc,
-            qf_args,
-            input_shmem,
-            shadow_shmem,
-            q);
+         apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
 #endif
       }
       MFEM_SYNC_THREAD;

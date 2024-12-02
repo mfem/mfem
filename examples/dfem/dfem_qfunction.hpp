@@ -70,15 +70,17 @@ void process_kf_arg(const DeviceTensor<2> &u, arg_type &arg, int qp)
    process_kf_arg(u_qp, arg);
 }
 
-template <size_t num_fields, typename kf_args, std::size_t... i>
+template <size_t num_fields, typename kf_args>
 MFEM_HOST_DEVICE
 void process_kf_args(
    const std::array<DeviceTensor<2>, num_fields> &u,
    kf_args &args,
-   const int &qp,
-   std::index_sequence<i...>)
+   const int &qp)
 {
-   (process_kf_arg(u[i], mfem::get<i>(args), qp), ...);
+   for_constexpr<mfem::tuple_size<kf_args>::value>([&](auto i)
+   {
+      process_kf_arg(u[i], mfem::get<i>(args), qp);
+   });
 }
 
 template <typename T0, typename T1> inline
@@ -168,8 +170,7 @@ void apply_kernel(
    const std::array<DeviceTensor<2>, num_args> &u,
    int qp)
 {
-   process_kf_args(u, args, qp,
-                   std::make_index_sequence<mfem::tuple_size<kernel_args_ts>::value> {});
+   process_kf_args(u, args, qp);
 
    process_kf_result(f_qp, mfem::get<0>(mfem::apply(kf, args)));
 }
@@ -239,11 +240,9 @@ void apply_kernel_fwddiff_enzyme(
    const std::array<DeviceTensor<2>, num_args> &v,
    int qp_idx)
 {
-   process_kf_args(u, args, qp_idx,
-                   std::make_index_sequence<mfem::tuple_size<kernel_arg_ts>::value> {});
+   process_kf_args(u, args, qp_idx);
 
-   process_kf_args(v, shadow_args, qp_idx,
-                   std::make_index_sequence<mfem::tuple_size<kernel_arg_ts>::value> {});
+   process_kf_args(v, shadow_args, qp_idx);
 
    process_kf_result(f_qp,
                      mfem::get<0>(fwddiff_apply_enzyme(kf, args, shadow_args, mfem::tuple<> {})));
