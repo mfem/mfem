@@ -3,99 +3,88 @@
 namespace mfem
 {
 
-Mesh *sphericalMesh(const double r, Element::Type element_type, int order,
-                    const int level_serial, const int level_parallel, bool parallel)
+void CalcOrtho(const DenseMatrix &faceJ, const DenseMatrix &elemJ, Vector &n)
 {
-   parallel = parallel || level_parallel > 0;
-#ifndef MFEM_USE_MPI
-   if (parallel) {mfem_error("Parallel MFEM is not built but parallel flag is on.")}
-#endif
+   const int sdim = faceJ.Height();
+   const int dim = elemJ.Width();
+   MFEM_ASSERT(sdim == 3 && dim == 2, "Only supports 2D manifold in 3D");
 
-   VectorFunctionCoefficient sphere_cf(3, [r](const Vector &x,
-   Vector &new_x) {new_x = x; new_x *= r/x.Norml2();});
-   int Nvert = 8, Nelem = 6;
-   if (element_type == Element::Type::TRIANGLE)
-   {
-      Nvert = 6;
-      Nelem = 8;
-   }
-   Mesh *mesh = new Mesh(2, Nvert, Nelem, 0, 3);
+   Vector tangent(faceJ.GetData(), sdim);
+   Vector normal1(elemJ.GetData(), sdim);
+   Vector normal2(elemJ.GetData()+sdim, sdim);
 
-   switch (element_type)
-   {
-      case Element::Type::TRIANGLE:
-      {
-         const real_t tri_v[6][3] =
-         {
-            { 1,  0,  0}, { 0,  1,  0}, {-1,  0,  0},
-            { 0, -1,  0}, { 0,  0,  1}, { 0,  0, -1}
-         };
-         const int tri_e[8][3] =
-         {
-            {0, 1, 4}, {1, 2, 4}, {2, 3, 4}, {3, 0, 4},
-            {1, 0, 5}, {2, 1, 5}, {3, 2, 5}, {0, 3, 5}
-         };
+   Vector surfaceNormal(sdim);
+   normal1.cross3D(normal2, surfaceNormal);
 
-         for (int j = 0; j < Nvert; j++)
-         {
-            mesh->AddVertex(tri_v[j]);
-         }
-         for (int j = 0; j < Nelem; j++)
-         {
-            int attribute = j + 1;
-            mesh->AddTriangle(tri_e[j], attribute);
-         }
-         mesh->FinalizeTriMesh(1, 1, true);
-         break;
-      }
-      case Element::Type::QUADRILATERAL:
-      {
-         const real_t quad_v[8][3] =
-         {
-            {-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
-            {-1, -1, +1}, {+1, -1, +1}, {+1, +1, +1}, {-1, +1, +1}
-         };
-         const int quad_e[6][4] =
-         {
-            {3, 2, 1, 0}, {0, 1, 5, 4}, {1, 2, 6, 5},
-            {2, 3, 7, 6}, {3, 0, 4, 7}, {4, 5, 6, 7}
-         };
-
-         for (int j = 0; j < Nvert; j++)
-         {
-            mesh->AddVertex(quad_v[j]);
-         }
-         for (int j = 0; j < Nelem; j++)
-         {
-            int attribute = j + 1;
-            mesh->AddQuad(quad_e[j], attribute);
-         }
-         mesh->FinalizeQuadMesh(1, 1, true);
-         break;
-      }
-      default:
-         mfem_error("Only triangle and quadrilateral are supported.");
-   }
-   mesh->SetCurvature(order, false, 3);
-   mesh->GetNodes()->ProjectCoefficient(sphere_cf);
-
-   for (int i=0; i<level_serial; i++)
-   {
-      mesh->UniformRefinement();
-      mesh->GetNodes()->ProjectCoefficient(sphere_cf);
-   }
-   if (!parallel) { return mesh; }
-
-#ifdef MFEM_USE_MPI
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-   for (int i=0; i<level_parallel; i++)
-   {
-      pmesh->UniformRefinement();
-      pmesh->GetNodes()->ProjectCoefficient(sphere_cf);
-   }
-   return pmesh;
-#endif
-
+   tangent.cross3D(surfaceNormal, n);
+   n *= std::sqrt((tangent*tangent)/(n*n));
 }
+
+void ManifoldCoord::convertElemState(ElementTransformation &el,
+                                     const int nrScalar, const int nrVector,
+                                     const Vector &state, Vector &phys_state)
+{
+   for (int i=0; i<nrScalar; i++)
+   {
+      phys_state[i] = state[i];
+   }
+   const DenseMatrix &J = el.Jacobian();
+   mani_vec_state.UseExternalData(state.GetData()+nrScalar, dim, nrVector);
+   phys_vec_state.UseExternalData(phys_state.GetData()+nrScalar, sdim, nrVector);
+   Mult(J, mani_vec_state, phys_vec_state);
+}
+
+void ManifoldCoord::convertFaceState(FaceElementTransformations &el,
+                                     const int nrScalar, const int nrVector,
+                                     const Vector &stateL, const Vector &stateR,
+                                     Vector &normalL, Vector &normalR,
+                                     Vector &stateL_L, Vector &stateR_L,
+                                     Vector &stateL_R, Vector &stateR_R)
+{
+   // face Jacobian
+   const DenseMatrix fJ = el.Jacobian();
+
+   // element Jacobians
+   const DenseMatrix &J1 = el.Elem1->Jacobian();
+   const DenseMatrix &J2 = el.Elem2->Jacobian();
+
+   normal_comp.SetSize(nrVector);
+
+   // Compute interface normal vectors at each element
+   CalcOrtho(fJ, J1, normalL);
+   CalcOrtho(fJ, J2, normalR);
+   real_t tangent_norm = std::sqrt(normalL*normalL);
+
+   // copy scalar states
+   for (int i=0; i<nrScalar; i++)
+   {
+      stateL_R[i] = stateL[i];
+      stateR_L[i] = stateR[i];
+   }
+
+   // Convert Left element vector states to physical states
+   mani_vec_state.UseExternalData(stateL.GetData() + nrScalar, dim, nrVector);
+   phys_vec_state.UseExternalData(stateL_R.GetData() + nrScalar, sdim, nrVector);
+   Mult(J1, mani_vec_state, phys_vec_state);
+   stateL_L = stateL_R; // Left to Left done
+   for (int i=0; i<nrVector; i++)
+   {
+      phys_vec_state.GetColumnReference(i, phys_vec);
+      const real_t normal_comp = phys_vec*normalL/tangent_norm;
+      phys_vec.Add(-normal_comp, normalL).Add(normal_comp, normalR);
+   }
+
+   // Convert Right element vector states to physical states
+   mani_vec_state.UseExternalData(stateR.GetData() + nrScalar, dim, nrVector);
+   phys_vec_state.UseExternalData(stateR_L.GetData() + nrScalar, sdim, nrVector);
+   Mult(J2, mani_vec_state, phys_vec_state);
+   stateR_R = stateR_L;
+   for (int i=0; i<nrVector; i++)
+   {
+      phys_vec_state.GetColumnReference(i, phys_vec);
+      const real_t normal_comp = phys_vec*normalR;
+      phys_vec.Add(-normal_comp, normalR).Add(normal_comp, normalL);
+   }
+}
+
 } // end of namespace mfem
