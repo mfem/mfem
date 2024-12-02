@@ -32,6 +32,7 @@ private:
 protected:
 public:
    ManifoldCoord(const int dim, const int sdim):dim(dim), sdim(sdim) {}
+
    /**
     * @brief Convert manifold state to physical state
     *
@@ -99,6 +100,14 @@ public:
       nrVector = (org_flux.num_equations - nrScalar)/coord.sdim;
    }
 
+   /**
+    * @brief Compute physical flux from manifold state
+    *
+    * @param state manifold state
+    * @param Tr local element transformation
+    * @param flux physical state
+    * @return maximum characteristic speed
+    */
    real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override final;
 };
