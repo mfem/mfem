@@ -112,6 +112,21 @@ public:
                       DenseMatrix &flux) const override final;
 };
 
+
+class ManifoldNumericalFlux : public RiemannSolver
+{
+   // attributes
+private:
+protected:
+public:
+
+   // methods
+private:
+protected:
+public:
+
+};
+
 class ManifoldHyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
    // attributes
