@@ -52,13 +52,18 @@ int main(int argc, char *argv[])
    const int sdim = pmesh->SpaceDimension();
    const int num_equations = dim + 1;
    const int phys_num_equations = sdim + 1;
+   ShallowWaterFlux swe_phys(sdim);
+   ManifoldCoord coord(dim, sdim);
+   ManifoldFlux swe_mani(swe_phys, coord, 1);
+   ManifoldRusanovFlux rusanovFlux(swe_mani);
 
    pmesh->SetCurvature(order);
    UniformSpherRefinement(*pmesh, refinement_level);
 
    DG_FECollection dg_fec(order, dim);
    // FE Space for state
-   ParFiniteElementSpace vfes(pmesh.get(), &dg_fec, num_equations, Ordering::byNODES);
+   ParFiniteElementSpace vfes(pmesh.get(), &dg_fec, num_equations,
+                              Ordering::byNODES);
    // FE space for manifold vector
    ParFiniteElementSpace dfes(pmesh.get(), &dg_fec, dim, Ordering::byNODES);
    // FE space for physical vector
@@ -76,6 +81,20 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient u0_phys(phys_num_equations, gaussian_initial);
    ManifoldStateCoefficient u0_mani(u0_phys, 1, 1, dim);
    u.ProjectCoefficient(u0_mani);
+   DenseMatrix flux(phys_num_equations, sdim);
+   Vector state;
+   for (int i=0; i<pmesh->GetNE(); i++)
+   {
+      const FiniteElement *el = vfes.GetFE(i);
+      ElementTransformation *Tr = pmesh->GetElementTransformation(i);
+      const IntegrationRule &ir = IntRules.Get(Tr->GetGeometryType(), order*2+3);
+      for (int j=0; j<ir.GetNPoints(); j++)
+      {
+         u.GetVectorValue(i, ir.IntPoint(j), state);
+         swe_mani.ComputeFlux(state, *Tr, flux);
+         // flux.Print();
+      }
+   }
 
    bool visualization = true;
    if (visualization)
@@ -86,7 +105,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << mom 
+      sol_sock << "solution\n" << *pmesh << mom
                << "keys 'mj'"
                << std::flush;
    }
