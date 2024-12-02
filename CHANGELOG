@@ -20,6 +20,8 @@ Discretization improvements
 
 - Added support for boundary constraints to the hybridization class.
 
+- Added support for external boundary submeshes with nonconformal mesh adaptation.
+
 Meshing improvements
 --------------------
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
@@ -72,6 +74,11 @@ Miscellaneous
   associated ODE operator.
 
 - Added support for custom interpolation procedure in FindPointsGSLIB.
+
+- `FiniteElementSpace` has new methods to directly set prolongation and
+  restriction operators to arbitrary sparse matrices.
+
+- There are new convenience constructors for NURBS patches and knot vectors.
 
 API changes
 -----------
