@@ -86,10 +86,9 @@ private:
    int nrScalar;
    int nrVector;
    mutable Vector phys_state;
-   mutable Vector phys_stateL_L, phys_stateL_R, phys_stateR_L, phys_stateR_R;
-   mutable Vector normalL, normalR;
 protected:
 public:
+   const int sdim;
 
    // methods
 private:
@@ -97,16 +96,10 @@ protected:
 public:
    ManifoldFlux(FluxFunction &flux, ManifoldCoord &coord, int nrScalar)
       : FluxFunction(flux.num_equations, flux.dim), org_flux(flux),
-        coord(coord), nrScalar(nrScalar)
+        coord(coord), nrScalar(nrScalar), sdim(coord.sdim)
    {
-      nrVector = (org_flux.num_equations - nrScalar)/coord.sdim;
-      phys_state.SetSize(nrScalar + nrVector*coord.sdim);
-      phys_stateL_L.SetSize(nrScalar + nrVector*coord.sdim);
-      phys_stateR_L.SetSize(nrScalar + nrVector*coord.sdim);
-      phys_stateL_R.SetSize(nrScalar + nrVector*coord.sdim);
-      phys_stateR_R.SetSize(nrScalar + nrVector*coord.sdim);
-      normalL.SetSize(coord.sdim);
-      normalR.SetSize(coord.sdim);
+      nrVector = (org_flux.num_equations - nrScalar)/sdim;
+      phys_state.SetSize(nrScalar + nrVector*sdim);
    }
 
    /**
@@ -119,9 +112,13 @@ public:
     */
    real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override final;
-   real_t ComputeNormalFluxes(const Vector &stateL, const Vector &stateR,
+   real_t ComputeNormalFluxes(const Vector &stateL,
+                              const Vector &stateR,
                               FaceElementTransformations &Tr,
+                              Vector &normalL, Vector &normalR,
+                              Vector &stateL_L, Vector &stateR_L,
                               Vector &fluxL_L, Vector &fluxR_L,
+                              Vector &stateL_R, Vector &stateR_R,
                               Vector &fluxL_R, Vector &fluxR_R) const;
 };
 
@@ -130,8 +127,11 @@ class ManifoldNumericalFlux : public RiemannSolver
 {
    // attributes
 private:
-   const ManifoldFlux &maniflux;
 protected:
+   const ManifoldFlux &maniflux;
+   mutable Vector fluxL_L, fluxR_L, fluxL_R, fluxR_R;
+   mutable Vector stateL_L, stateR_L, stateL_R, stateR_R;
+   mutable Vector normalL, normalR;
 public:
 
    // methods
@@ -139,14 +139,64 @@ private:
 protected:
 public:
    ManifoldNumericalFlux(const ManifoldFlux &flux):RiemannSolver(flux),
-      maniflux(flux) {}
+      maniflux(flux)
+   {
+      fluxL_L.SetSize(maniflux.num_equations);
+      fluxR_L.SetSize(maniflux.num_equations);
+      fluxL_R.SetSize(maniflux.num_equations);
+      fluxR_R.SetSize(maniflux.num_equations);
+      stateL_L.SetSize(maniflux.num_equations);
+      stateR_L.SetSize(maniflux.num_equations);
+      stateL_R.SetSize(maniflux.num_equations);
+      stateR_R.SetSize(maniflux.num_equations);
+      normalL.SetSize(maniflux.sdim);
+      normalR.SetSize(maniflux.sdim);
+   }
    real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
                Vector &flux) const final { MFEM_ABORT("Use the other Eval function") };
    virtual real_t Eval(const Vector &stateL, const Vector &stateR,
+                       FaceElementTransformations &Tr,
                        const Vector &fluxLN, const Vector &fluxRN,
                        const real_t max_char_speed, Vector &hatFL, Vector &hatFR) const = 0;
 
+};
+
+class ManifoldRusanovFlux : public ManifoldNumericalFlux
+{
+   // attributes
+private:
+protected:
+public:
+
+   // methods
+private:
+protected:
+public:
+   ManifoldRusanovFlux(const ManifoldFlux &flux):ManifoldNumericalFlux(flux) {}
+   virtual real_t Eval(const Vector &stateL, const Vector &stateR,
+                       FaceElementTransformations &Tr,
+                       const Vector &fluxLN, const Vector &fluxRN,
+                       const real_t max_char_speed, Vector &hatFL, Vector &hatFR) const override
+   {
+#ifdef MFEM_THREAD_SAFE
+      Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
+#endif
+      const real_t maxE = maniflux.ComputeNormalFluxes(stateL, stateR, Tr,
+                                                       normalL, normalR,
+                                                       stateL_L, stateR_L, fluxL_L, fluxR_L,
+                                                       stateL_R, stateR_R, fluxL_R, fluxR_R);
+      // here, std::sqrt(nor*nor) is multiplied to match the scale with fluxN
+      const real_t scaledMaxE = maxE*std::sqrt(normalL*normalL);
+      for (int i=0; i<maniflux.num_equations; i++)
+      {
+         hatFL[i] = 0.5*(scaledMaxE*(stateL_L[i] - stateR_L[i]) +
+                         (fluxL_L[i] + fluxR_L[i]));
+         hatFR[i] = 0.5*(scaledMaxE*(stateL_R[i] - stateR_R[i]) +
+                         (fluxL_R[i] + fluxR_R[i]));
+      }
+      return maxE;
+   }
 };
 
 class ManifoldHyperbolicFormIntegrator : public NonlinearFormIntegrator
