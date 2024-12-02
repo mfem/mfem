@@ -12,7 +12,7 @@
 if (MFEM_USE_MPI)
   add_mfem_miniapp(test_sphere
     MAIN test_sphere.cpp
-    EXTRA_SOURCES
-    EXTRA_HEADERS
+    EXTRA_SOURCES manihyp.cpp
+    EXTRA_HEADERS manihyp.hpp
     LIBRARIES mfem)
 endif()

@@ -96,4 +96,29 @@ real_t ManifoldFlux::ComputeFlux(const Vector &state, ElementTransformation &Tr,
    return org_flux.ComputeFlux(phys_state, Tr, flux);
 }
 
+real_t ManifoldFlux::ComputeNormalFluxes(const Vector &stateL,
+                                         const Vector &stateR,
+                                         FaceElementTransformations &Tr,
+                                         Vector &fluxL_L, Vector &fluxR_L,
+                                         Vector &fluxL_R, Vector &fluxR_R) const
+{
+   coord.convertFaceState(Tr, nrScalar, nrVector,
+                          stateL, stateR,
+                          normalL, normalR,
+                          phys_stateL_L, phys_stateR_L,
+                          phys_stateL_R, phys_stateR_R);
+   real_t mcs = -mfem::infinity();
+   ElementTransformation *Tr1 = Tr.Elem1;
+   ElementTransformation *Tr2 = Tr.Elem2 ? Tr.Elem2 : Tr.Elem1;
+   mcs = std::max(mcs, org_flux.ComputeFluxDotN(
+                     phys_stateL_L, normalL, *Tr1, fluxL_L));
+   mcs = std::max(mcs, org_flux.ComputeFluxDotN(
+                     phys_stateR_L, normalL, *Tr1, fluxR_L));
+   mcs = std::max(mcs, org_flux.ComputeFluxDotN(
+                     phys_stateL_R, normalR, *Tr2, fluxL_R));
+   mcs = std::max(mcs, org_flux.ComputeFluxDotN(
+                     phys_stateR_R, normalR, *Tr2, fluxR_R));
+   return mcs;
+}
+
 } // end of namespace mfem

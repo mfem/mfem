@@ -1,4 +1,5 @@
 #include "mfem.hpp"
+#include "manihyp.hpp"
 
 using namespace mfem;
 void sphere(const Vector &x, Vector &y)
@@ -20,6 +21,14 @@ int main(int argc, char *argv[])
    Mesh mesh("./data/icosahedron.mesh");
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+
+   const int dim = mesh.Dimension();
+   const int sdim = mesh.SpaceDimension();
+   const int num_equations = dim + 1;
+
+   ShallowWaterFlux swe_flux(sdim);
+   ManifoldCoord coord(dim, sdim);
+   ManifoldFlux maniflux(swe_flux, coord, 1);
 
    pmesh.SetCurvature(order);
    ParGridFunction &x = static_cast<ParGridFunction&>(*pmesh.GetNodes());

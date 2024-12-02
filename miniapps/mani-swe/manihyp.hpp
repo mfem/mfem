@@ -86,6 +86,8 @@ private:
    int nrScalar;
    int nrVector;
    mutable Vector phys_state;
+   mutable Vector phys_stateL_L, phys_stateL_R, phys_stateR_L, phys_stateR_R;
+   mutable Vector normalL, normalR;
 protected:
 public:
 
@@ -98,6 +100,13 @@ public:
         coord(coord), nrScalar(nrScalar)
    {
       nrVector = (org_flux.num_equations - nrScalar)/coord.sdim;
+      phys_state.SetSize(nrScalar + nrVector*coord.sdim);
+      phys_stateL_L.SetSize(nrScalar + nrVector*coord.sdim);
+      phys_stateR_L.SetSize(nrScalar + nrVector*coord.sdim);
+      phys_stateL_R.SetSize(nrScalar + nrVector*coord.sdim);
+      phys_stateR_R.SetSize(nrScalar + nrVector*coord.sdim);
+      normalL.SetSize(coord.sdim);
+      normalR.SetSize(coord.sdim);
    }
 
    /**
@@ -110,6 +119,10 @@ public:
     */
    real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override final;
+   real_t ComputeNormalFluxes(const Vector &stateL, const Vector &stateR,
+                              FaceElementTransformations &Tr,
+                              Vector &fluxL_L, Vector &fluxR_L,
+                              Vector &fluxL_R, Vector &fluxR_R) const;
 };
 
 
@@ -117,6 +130,7 @@ class ManifoldNumericalFlux : public RiemannSolver
 {
    // attributes
 private:
+   const ManifoldFlux &maniflux;
 protected:
 public:
 
@@ -124,6 +138,14 @@ public:
 private:
 protected:
 public:
+   ManifoldNumericalFlux(const ManifoldFlux &flux):RiemannSolver(flux),
+      maniflux(flux) {}
+   real_t Eval(const Vector &state1, const Vector &state2,
+               const Vector &nor, FaceElementTransformations &Tr,
+               Vector &flux) const final { MFEM_ABORT("Use the other Eval function") };
+   virtual real_t Eval(const Vector &stateL, const Vector &stateR,
+                       const Vector &fluxLN, const Vector &fluxRN,
+                       const real_t max_char_speed, Vector &hatFL, Vector &hatFR) const = 0;
 
 };
 
