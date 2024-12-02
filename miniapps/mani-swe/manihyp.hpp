@@ -230,4 +230,73 @@ public:
 
 };
 
+class ManifoldStateCoefficient : public VectorCoefficient
+{
+   // attributes
+private:
+   VectorCoefficient &phys_cf;
+   Vector phys_state;
+   DenseMatrix mani_vecs, phys_vecs;
+   const int nrScalar, nrVector, dim, sdim;
+protected:
+public:
+
+   // methods
+private:
+protected:
+public:
+   ManifoldStateCoefficient(VectorCoefficient &phys_cf,
+                            const int nrScalar, const int nrVector, const int dim)
+      :VectorCoefficient(nrScalar + nrVector*dim), phys_cf(phys_cf),
+       phys_state(phys_cf.GetVDim()), nrScalar(nrScalar), nrVector(nrVector), dim(dim),
+       sdim((phys_cf.GetVDim()-nrScalar)/nrVector)
+   {}
+   virtual void Eval(Vector &mani_state, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      phys_cf.Eval(phys_state, T, ip);
+      for (int i=0; i<nrScalar; i++)
+      {
+         mani_state[i] = phys_state[i];
+      }
+      const DenseMatrix& invJ = T.InverseJacobian();
+      mani_vecs.UseExternalData(mani_state.GetData() + nrScalar, dim, nrVector);
+      phys_vecs.UseExternalData(phys_state.GetData() + nrScalar, sdim, nrVector);
+      Mult(invJ, phys_vecs, mani_vecs);
+   }
+
+};
+
+class ManifoldPhysVectorCoefficient : public VectorCoefficient
+{
+   // attributes
+private:
+   GridFunction &gf;
+   const int vid, dim, sdim;
+   Vector val;
+   Vector val_view;
+protected:
+public:
+
+   // methods
+private:
+protected:
+public:
+   ManifoldPhysVectorCoefficient(GridFunction &gf,
+                                 const int vid, const int dim, const int sdim)
+      :VectorCoefficient(sdim), gf(gf), vid(vid), dim(dim), sdim(sdim)
+   {
+      val.SetSize(gf.VectorDim());
+   }
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      gf.GetVectorValue(T, ip, val);
+      val_view.SetDataAndSize(val.GetData() + vid, dim);
+      T.Jacobian().Mult(val_view, V);
+   }
+
+};
+
+
 } // end of namespace mfem
