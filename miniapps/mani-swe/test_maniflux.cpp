@@ -24,16 +24,25 @@ int main(int argc, char *argv[])
 
    const int dim = mesh.Dimension();
    const int sdim = mesh.SpaceDimension();
+   const int num_equations = dim + 1;
+   const int phys_num_equations = sdim + 1;
 
    pmesh.SetCurvature(order);
    ParGridFunction &x = static_cast<ParGridFunction&>(*pmesh.GetNodes());
    VectorFunctionCoefficient sphere_cf(3, sphere);
    x.ProjectCoefficient(sphere_cf);
-   for(int i=0; i<refinement_level; i++)
+   for (int i=0; i<refinement_level; i++)
    {
       pmesh.UniformRefinement();
       x.ProjectCoefficient(sphere_cf);
    }
+
+   L2_FECollection dg_fec(order, dim);
+   ParFiniteElementSpace vfes(&pmesh, &dg_fec, num_equations, Ordering::byNODES);
+   ParFiniteElementSpace sfes(&pmesh, &dg_fec);
+   ParFiniteElementSpace dfes(&pmesh, &dg_fec, dim);
+   ParGridFunction u(&vfes);
+
 
    bool visualization = true;
    if (visualization)
@@ -44,7 +53,7 @@ int main(int argc, char *argv[])
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << x
-         << "keys 'mj'"
-         << std::flush;
+               << "keys 'mj'"
+               << std::flush;
    }
 }

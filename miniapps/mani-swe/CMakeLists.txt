@@ -15,4 +15,9 @@ if (MFEM_USE_MPI)
     EXTRA_SOURCES manihyp.cpp
     EXTRA_HEADERS manihyp.hpp
     LIBRARIES mfem)
+  add_mfem_miniapp(test_maniflux
+    MAIN test_maniflux.cpp
+    EXTRA_SOURCES manihyp.cpp
+    EXTRA_HEADERS manihyp.hpp
+    LIBRARIES mfem)
 endif()

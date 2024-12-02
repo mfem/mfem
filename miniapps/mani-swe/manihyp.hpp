@@ -42,7 +42,7 @@ public:
     */
    void convertElemState(ElementTransformation &Tr,
                          const int nrScalar, const int nrVector,
-                         const Vector &state, Vector &phys_state);
+                         const Vector &state, Vector &phys_state) const;
 
    /**
     * @brief Convert left and right states to physical states
@@ -73,7 +73,7 @@ public:
                          const Vector &stateL, const Vector &stateR,
                          Vector &normalL, Vector &normalR,
                          Vector &stateL_L, Vector &stateR_L,
-                         Vector &stateL_R, Vector &stateR_R);
+                         Vector &stateL_R, Vector &stateR_R) const;
 
 };
 
@@ -82,7 +82,7 @@ class ManifoldFlux : public FluxFunction
    // attributes
 private:
    FluxFunction &org_flux;
-   ManifoldCoord &coord;
+   const ManifoldCoord &coord;
    int nrScalar;
    int nrVector;
    mutable Vector phys_state;
@@ -101,6 +101,8 @@ public:
       nrVector = (org_flux.num_equations - nrScalar)/sdim;
       phys_state.SetSize(nrScalar + nrVector*sdim);
    }
+
+   const ManifoldCoord &GetCoordinate() const {return coord;}
 
    /**
     * @brief Compute physical flux from manifold state
@@ -160,6 +162,9 @@ public:
                        const Vector &fluxLN, const Vector &fluxRN,
                        const real_t max_char_speed, Vector &hatFL, Vector &hatFR) const = 0;
 
+   const ManifoldFlux &GetManifoldFluxFunction() const {return maniflux;}
+   const ManifoldCoord &GetCoordinate() const {return maniflux.GetCoordinate();}
+
 };
 
 class ManifoldRusanovFlux : public ManifoldNumericalFlux
@@ -204,12 +209,24 @@ class ManifoldHyperbolicFormIntegrator : public NonlinearFormIntegrator
    // attributes
 private:
 protected:
+   const ManifoldNumericalFlux &numFlux;
+   const ManifoldFlux &maniFlux;
+   const ManifoldCoord &coord;
 public:
 
    // methods
 private:
 protected:
 public:
+   ManifoldHyperbolicFormIntegrator(const ManifoldNumericalFlux &flux)
+      :numFlux(flux), maniFlux(flux.GetManifoldFluxFunction()),
+       coord(maniFlux.GetCoordinate())
+   {}
+
+   void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override;
+   void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
+                           FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect) override;
 
 };
 

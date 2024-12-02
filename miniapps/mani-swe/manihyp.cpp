@@ -22,7 +22,7 @@ void CalcOrtho(const DenseMatrix &faceJ, const DenseMatrix &elemJ, Vector &n)
 
 void ManifoldCoord::convertElemState(ElementTransformation &Tr,
                                      const int nrScalar, const int nrVector,
-                                     const Vector &state, Vector &phys_state)
+                                     const Vector &state, Vector &phys_state) const
 {
    for (int i=0; i<nrScalar; i++)
    {
@@ -39,7 +39,7 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
                                      const Vector &stateL, const Vector &stateR,
                                      Vector &normalL, Vector &normalR,
                                      Vector &stateL_L, Vector &stateR_L,
-                                     Vector &stateL_R, Vector &stateR_R)
+                                     Vector &stateL_R, Vector &stateR_R) const
 {
    // face Jacobian
    const DenseMatrix fJ = Tr.Jacobian();
