@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import argparse
 from scipy.optimize import root
+import sys
+from scipy.optimize import minimize_scalar, minimize, fsolve,  least_squares
 
 #python3 roots_gll.py  --N 5
 
@@ -81,9 +83,9 @@ def remove_duplicates2(roots, threshold=1e-6):
             unique_roots.append(roots[i])
     return unique_roots
 
-def plot_functions(L, dL, d2L, x_nodes, x_symbolic, x_values, N, lower, upper, int_points, piecewise=False, suffix='', lower2=None, upper2=None, int_points2=None, int_points3=None):
+def plot_functions(L, dL, d2L, x_nodes, x_symbolic, x_values, N, lower, upper, int_points, piecewise=False, suffix='', lower2=None, upper2=None, int_points2=None, int_points3=None, zeros=None):
     # Plot the Lagrange basis functions, their first derivatives, and their second derivatives
-    pdf_pages = PdfPages('ProvableBounds'+suffix+'_'+str(N)+'_'+str(len(int_points[0,:]))+'.pdf')
+    pdf_pages = PdfPages('ProvableBounds'+suffix+'_N='+str(N)+'_M='+str(len(int_points[0,:]))+'.pdf')
     plt.figure(figsize=(18, 5))
 
     # Plot the Lagrange basis functions
@@ -128,29 +130,29 @@ def plot_functions(L, dL, d2L, x_nodes, x_symbolic, x_values, N, lower, upper, i
     pdf_pages.savefig()
     plt.close()
 
-    for i, (Li, dLi, d2Li) in enumerate(zip(L, dL, d2L)):
-        plt.figure()
-        # Plot the Lagrange basis function
-        Li_func = lambdify(x_symbolic, Li, 'numpy')
-        plt.plot(x_values, Li_func(x_values), label=f'L{i}')
-        dLi_func = lambdify(x_symbolic, dLi, 'numpy')
-        dLi_vals = dLi_func(x_values)
-        dLi_vals = dLi_vals/np.max(np.abs(dLi_vals))
-        plt.plot(x_values, dLi_vals, label=f"L'{i}")
-        d2Li_func = lambdify(x_symbolic, d2Li, 'numpy')
-        d2Li_vals = d2Li_func(x_values)
-        d2Li_vals = d2Li_vals/np.max(np.abs(d2Li_vals))
-        plt.plot(x_values, d2Li_vals, label=f"L''{i}")
-        plt.xlabel('x')
-        # plt.ylabel('L(x)')
-        plt.plot(x_nodes, 0*x_nodes, 'ko-')
-        plt.legend()
-        plt.grid(True)
+    # for i, (Li, dLi, d2Li) in enumerate(zip(L, dL, d2L)):
+    #     plt.figure()
+    #     # Plot the Lagrange basis function
+    #     Li_func = lambdify(x_symbolic, Li, 'numpy')
+    #     plt.plot(x_values, Li_func(x_values), label=f'L{i}')
+    #     dLi_func = lambdify(x_symbolic, dLi, 'numpy')
+    #     dLi_vals = dLi_func(x_values)
+    #     dLi_vals = dLi_vals/np.max(np.abs(dLi_vals))
+    #     plt.plot(x_values, dLi_vals, label=f"L'{i}")
+    #     d2Li_func = lambdify(x_symbolic, d2Li, 'numpy')
+    #     d2Li_vals = d2Li_func(x_values)
+    #     d2Li_vals = d2Li_vals/np.max(np.abs(d2Li_vals))
+    #     plt.plot(x_values, d2Li_vals, label=f"L''{i}")
+    #     plt.xlabel('x')
+    #     # plt.ylabel('L(x)')
+    #     plt.plot(x_nodes, 0*x_nodes, 'ko-')
+    #     plt.legend()
+    #     plt.grid(True)
 
-        plt.tight_layout()
-        pdf_pages.savefig()
-        plt.close()
-        # plt.show()
+    #     plt.tight_layout()
+    #     pdf_pages.savefig()
+    #     plt.close()
+    #     # plt.show()
 
     # plot piecewise bases
     ms = 1.0
@@ -160,17 +162,19 @@ def plot_functions(L, dL, d2L, x_nodes, x_symbolic, x_values, N, lower, upper, i
             # Plot the Lagrange basis function
             Li_func = lambdify(x_symbolic, Li, 'numpy')
             plt.plot(x_values, Li_func(x_values), label=f'L{i}')
-            plt.plot(int_points[i,:], lower[i, :], 'rx-', linewidth=0.5, markersize=ms)
-            plt.plot(int_points[i,:], upper[i, :], 'bx-', linewidth=0.5, markersize=ms)
+            plt.plot(int_points[i,:], lower[i, :], 'rx-', linewidth=1.5, markersize=ms,label='Lower bound')
+            plt.plot(int_points[i,:], upper[i, :], 'bx-', linewidth=1.5, markersize=ms,label='Upper bound')
             if lower2 is not None:
-                plt.plot(int_points2[i,:], lower2[i, :], 'ro--', linewidth=0.5, markersize=ms)
-                plt.plot(int_points2[i,:], upper2[i, :], 'bo--', linewidth=0.5, markersize=ms)
+                plt.plot(int_points2[i,:], lower2[i, :], 'ro--', linewidth=1.5, markersize=ms,label='Lower bound')
+                plt.plot(int_points2[i,:], upper2[i, :], 'bo--', linewidth=1.5, markersize=ms,label='Upper bound')
             plt.xlabel('x')
             # plt.ylabel('L(x)')
-            plt.plot(x_nodes, 0*x_nodes, 'ko-',markerfacecolor='none')
-            plt.plot(int_points[i,:], 0*int_points[i,:], 'kx-')
+            plt.plot(x_nodes, 0*x_nodes, 'ko-',markerfacecolor='none',label='GLL')
+            plt.plot(int_points[i,:], 0*int_points[i,:], 'kx',label='Interval points')
             if int_points3 is not None:
                 plt.plot(int_points3[i,:], 0*int_points3[i,:], 'ks-',markerfacecolor='none')
+            if zeros is not None:
+                plt.plot(zeros[i,:], 0*zeros[i,:], 'ms',markerfacecolor='none',label='zeros')
             plt.legend()
             plt.grid(True)
             plt.tight_layout()
@@ -239,6 +243,28 @@ def find_intersection(x1,y1,m1,x2,y2,m2):
     y = m1 * (x - x1) + y1
 
     return (x, y)
+
+def plot_roots_grouping(x_nodes, zeros, suffix=''):
+    N = len(x_nodes)
+    pdf_pages = PdfPages('RootGroups'+suffix+'_'+str(N)+'.pdf')
+    plt.figure()
+    plt.plot(x_nodes, 0*x_nodes,'ko-')
+    plt.title(f'N={N}')
+    for i in range(N-3):
+        zero = np.sort(zeros[:,i])
+        zerov = np.ones(np.shape(zero))
+        # zerov += i
+        plt.plot(zero,zerov,marker='o',markersize=3)
+
+
+    plt.xlabel('x')
+    plt.xticks(x_nodes, rotation=90)
+    plt.yticks([])
+    plt.grid(True)
+    plt.tight_layout()
+    pdf_pages.savefig()
+    plt.close()
+    pdf_pages.close()
 
 # get bounds of a function assuming f" changes sign once in the interval.
 # xpp gives location of f"=0
@@ -346,6 +372,205 @@ def get_combined_pl_bounds(xint, yint, xnew, upper=True):
             print(xv,y2,ymid,jprev,jnext,'k10getbounds4')
     return ynew
 
+# line from x_l that is tangent to the curve between x_c and x_r is:
+# x_l + dLi(x_t)*(x-x_l), where x_c <= x_t <= x_r
+# thus, dline_r = y_line_r - y_r = x_l + dLi(x_t)*(x_r-x_l) - y_r
+# thus, dline_c = y_line_x_c - y_r = x_l + dLi(x_t)*(x_c-x_l) - y_r
+# objective = dline_r^2
+# constraint #1 dline_r > 0. so penalty = min(0, 100*dline_r)
+# constraint #2 dline_c > 0. so penalty = min(0, 100*dline_c)
+def convex_concave_objective1(x_t, Li, dLi, x_l, x_r, x_c):
+    # Compute slope at x_t
+    m = dLi(x_t)
+    # Compute y1
+    dline = m * (x_r - x_l) + Li(x_l) - Li(x_r)
+    return dline*dline
+    # Check inequality at xc
+    # dline_c = m * (x_c - x_l) + Li(x_l)
+    # dline_r = m * (x_r - x_l) + Li(x_l)
+    # penalty = y1*y1 + min(0, 100*dline_r) + min(0, 100*dline_c)
+    # return penalty
+
+# def constraint_r(x_t, Li, dLi, x_l, x_r, x_c):
+#     m = dLi(x_t)
+#     dline_r = m * (x_r - x_l) + Li(x_l) - Li(x_r)
+#     return dline_r  # Must be > 0
+
+# def constraint_c(x_t, Li, dLi, x_l, x_r, x_c):
+#     m = dLi(x_t)
+#     dline_c = m * (x_c - x_l) + Li(x_l) - Li(x_c)
+#     return dline_c  # Must be > 0
+
+# def constraint_t(x_t, Li, dLi, x_l, x_r, x_c):
+#     m = dLi(x_t)
+#     dline_t = m * (x_t - x_l) + Li(x_l) - Li(x_t)
+#     return dline_t  # Must be > 0
+
+# Find the line that goes through x_l, Li(x_l) and is tangent to curve at x_t.
+def equation_to_solve(x_t, x_l, Li, dLi):
+    return Li(x_l) - (Li(x_t) + dLi(x_t) * (x_l - x_t))
+
+# bound Li polynomial between x0 and x1. Assumes that d2Li=0 exactly once in
+# this interval
+def get_poly_convex_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, x_c,ith,jth):
+    fpp = d2Li(x_l)
+    lower_l = 0.0
+    upper_l = 0.0
+    lower_r = 0.0
+    upper_r = 0.0
+    dL_l = dLi(x_l)
+    dL_r = dLi(x_r)
+    y_l = Li(x_l) #function value at x_l
+    y_r = Li(x_r) #function value at x_r
+    y_cp = Li(x_c) #function value at d2Li = 0
+    # if (ith == 1):
+    #     print(x_l, x_c, x_r, fpp, "k100")
+    if fpp > 0: #first convex then concave
+        #best case scenario is that the line connecting the two endpoints
+        #is sufficient
+        y_c_u = y_l + (y_r-y_l)*(x_c-x_l)/(x_r-x_l)
+        if (y_r-y_l)/(x_r-x_l) <  dL_r and y_c_u > y_cp:
+            upper_l = y_l
+            upper_r = y_r
+        else:
+            upper_c1 = y_r + dL_r*(x_l-x_r) #line tangent from right end point
+            length1 = upper_c1 - y_l
+
+            #find the line that would go from left end point to the right
+            #and be tangent to the curve somewhere between x_c and x_r
+            x_guess = (x_c+x_r) / 2.0
+            bounds = (x_c, x_r)
+            result = least_squares(equation_to_solve, x_guess, args=(x_l, Li, dLi), bounds=bounds, xtol=1e-10)
+            x_t = result.x[0]
+
+            #check constraint
+            dline_r =  Li(x_l) + dLi(x_t) * (x_r - x_l) - Li(x_r)
+            dline_c =  Li(x_l) + dLi(x_t) * (x_c - x_l) - Li(x_c)
+
+            if (x_t >= x_c and x_t <= x_r and dline_r >= 0 and dline_c >= 0):
+                #candidate
+                upper_c2 = y_l + dLi(x_t)*(x_r-x_l)
+                length2 = upper_c2 - y_r
+                if (length2 < length1 and length2 >= 0):
+                    upper_l = y_l
+                    upper_r = upper_c2
+                else:
+                    upper_l = upper_c1
+                    upper_r = y_r
+            else:
+                upper_l = upper_c1
+                upper_r = y_r
+
+        # do lower bounds now
+        # easy case is that the end points can be connected
+        if (y_r-y_l)/(x_r-x_l) < dL_l and y_c_u < y_cp:
+            lower_l = y_l
+            lower_r = y_r
+        else:
+            #candidate 1 - start at x_l and tangent at x_l
+            lower_c1 = y_l + dL_l*(x_r-x_l)
+            length1 = y_r - lower_c1
+
+            # candidate 2
+            # starts at right and tangent somewhere between x_C and x_l
+            x_guess = (x_l+x_c) / 2.0
+            bounds = (x_l, x_c)
+            result = least_squares(equation_to_solve, x_guess, args=(x_r, Li, dLi), bounds=bounds, xtol=1e-10)
+            x_t = result.x[0]
+            dline_r =  Li(x_r) + dLi(x_t) * (x_l - x_r) - Li(x_l)
+            dline_c =  Li(x_r) + dLi(x_t) * (x_c - x_r) - Li(x_c)
+
+            if (x_t >= x_l and x_t <= x_c and dline_r <= 0 and dline_c <= 0):
+                #candidate
+                lower_c2 = y_r + dLi(x_t)*(x_l-x_r)
+                length2 = y_l - lower_c2
+                if (length2 < length1 and length2 >= 0):
+                    lower_l = lower_c2
+                    lower_r = y_r
+                elif (length1 >= 0):
+                    lower_l = y_l
+                    lower_r = lower_c1
+                else:
+                    sys.exit("Negative lengths")
+            else:
+                lower_l = y_l
+                lower_r = lower_c1
+
+    else: #first concave then convex case
+        y_c_u = y_l + (y_r-y_l)*(x_c-x_l)/(x_r-x_l)
+        if (y_r-y_l)/(x_r-x_l) > dL_l and y_c_u > y_cp:
+            upper_l = y_l
+            upper_r = y_r
+        else:
+            #we compare two lines
+            #first is starts at x_l and is tangent at x_l
+            upper_c1 = y_l + dL_l*(x_r-x_l)
+            length1 = upper_c1 - y_r
+
+            #second starts at x_r and is tangent at x_t somewhere in between x_l and x_c
+            x_guess = (x_l+x_c) / 2.0
+            bounds = (x_l, x_c)
+            result = least_squares(equation_to_solve, x_guess, args=(x_r, Li, dLi), bounds=bounds, xtol=1e-10)
+            x_t = result.x[0]
+            # if (ith == 4 and jth == 1):
+            #     print(x_t, "k102")
+            #check constraint
+            dline_r =  Li(x_r) + dLi(x_t) * (x_l - x_r) - Li(x_l)
+            dline_c =  Li(x_r) + dLi(x_t) * (x_c - x_r) - Li(x_c)
+            if (x_t >= x_l and x_t <= x_c and dline_r >= 0 and dline_c >= 0):
+                    #candidate
+                upper_c2 = y_r + dLi(x_t)*(x_l-x_r)
+                length2 = upper_c2 - y_l
+                if (length2 < length1):
+                    upper_l = upper_c2
+                    upper_r = y_r
+                else:
+                    upper_l = y_l
+                    upper_r = upper_c1
+            else:
+                upper_l = y_l
+                upper_r = upper_c1
+
+        #best case scenario is that the line connecting the two endpoints
+        #is sufficient
+        y_c_u = y_l + (y_r-y_l)*(x_c-x_l)/(x_r-x_l)
+        if (y_r-y_l)/(x_r-x_l) >  dL_r and y_c_u < y_cp:
+            lower_l = y_l
+            lower_r = y_r
+        else:
+            lower_c1 = y_r + dL_r*(x_l-x_r) #line tangent from right end point
+            length1 = y_l - lower_c1
+
+            #find the line that would go from left end point to the right
+            #and be tangent to the curve somewhere between x_c and x_r
+            x_guess = (x_c+x_r) / 2.0
+            bounds = (x_c, x_r)
+            result = least_squares(equation_to_solve, x_guess, args=(x_l, Li, dLi), bounds=bounds, xtol=1e-10)
+            x_t = result.x[0]
+
+            #check constraint
+            dline_r =  Li(x_l) + dLi(x_t) * (x_r - x_l) - Li(x_r)
+            dline_c =  Li(x_l) + dLi(x_t) * (x_c - x_l) - Li(x_c)
+
+            if (x_t >= x_c and x_t <= x_r and dline_r <= 0 and dline_c <= 0):
+                #candidate
+                lower_c2 = y_l + dLi(x_t)*(x_r-x_l)
+                length2 = y_r-lower_c2
+                if (length2 < length1 and length2 >= 0):
+                    lower_l = y_l
+                    lower_r = lower_c2
+                elif (length1 >= 0):
+                    lower_l = lower_c1
+                    upper_r = y_r
+                else:
+                    sys.exit("Negative lengths")
+            else:
+                lower_l = lower_c1
+                upper_r = y_r
+
+    return (lower_l, upper_l, lower_r, upper_r)
+
+
 
 def main():
     # Number of GLL points
@@ -398,95 +623,68 @@ def main():
         # int_points[i,:] = ChebyshevPoints(2*nr)
         lower[i,:],upper[i,:] = find_pl_bounds(x_nodes, L, dL, x, i, int_points[i,:])
 
-    plot_functions(L, dL, d2L, x_nodes, x, x_values, N,
-                   lower, upper, int_points, False)
+    # plot_functions(L, dL, d2L, x_nodes, x, x_values, N,
+    #                lower, upper, int_points, False)
 
-    # there are nr-3 intervals where f" changes sign.
-    # we will use 5 points per interval. 2 end points, 1 point for f"=0,
-    # and 1 point to the left or right based on where the tangents intersect.
-    # 1 of the tangent intersection points will come from the other bound.
-    # total points = 4*(nr-3) + 1 = 4*nr-11
 
-    nintp = 4*nr-11
+    # plot how roots are grouped
+    zeros = np.array(zeros)
+    plot_roots_grouping(x_nodes,zeros)
+
+    # validate zeros
+    roots_dist_threshold = 0.04
+    for i in range(nr-4):
+        zmax = np.max(zeros[:,i])
+        zmin_next = np.min(zeros[:,i+1])
+        if not zmin_next > zmax+roots_dist_threshold:
+            print(i,zmax,zmin_next)
+            sys.exit("Roots overlap")
+    print("Roots validated")
+
+    # generate interval points
     nzeros = nr-3
     nintervals = nr-2
+    nintp = nr-2
+    x_intp = np.zeros(nintp)
+    x_intp[0] = -1.0
+    x_intp[-1] = 1.0
+    for i in range(1,nr-3):
+        z1 = np.max(zeros[:,i-1])
+        z2 = np.min(zeros[:,i])
+        x_intp[i] = 0.5*(z1+z2)
 
-    xnew = np.zeros((nr, nintp))
-    nupper = np.zeros((nr, nintp))
-    nlower = np.zeros((nr, nintp))
-    # compute M_{min}
-    xnew[:,:] = -100
+    # compute bounds on the interval points
+    nupper = array = np.full((nr,nintp), -10000.0)
+    nlower = array = np.full((nr,nintp), 10000.0)
+    xnewall = np.zeros((nr, nintp))
     for i in range(nr):
-        xnew[i,0] = -1.0
-        xnew[i,nintp-1] = 1.0
-
-        zero_intp = np.zeros(nr-2)
-        zero_intp[0] = -1.0
-        zero_intp[nr-3] = 1.0
-        for j in range(1,nr-3):
-            zero_intp[j] = 0.5*(zeros[i][j-1]+zeros[i][j])
-
+        xnewall[i,:] = x_intp
         Li = L[i]
         dLi = dL[i]
         d2Li = d2L[i]
-        # print(zero_intp)
-
+        Li_func = lambdify(x, Li, 'numpy')
+        dLi_func = lambdify(x, dLi, 'numpy')
+        d2Li_func = lambdify(x, d2Li, 'numpy')
         for j in range(nr-3):
-            zstart = zero_intp[j]
-            zend = zero_intp[j+1]
-            zzero = zeros[i][j]
-            xint, yuint, ylint = get_fun_ub(x_nodes, Li, dLi, d2Li, x, zstart, zend, zzero)
-            # print(xint)
-            # print(yint)
-            xnew[i,4*j:4*j+5] = xint
-            nupper[i,4*j:4*j+5] = yuint
-            nlower[i,4*j:4*j+5] = ylint
+            x0 = x_intp[j]
+            x1 = x_intp[j+1]
+            xz = zeros[i,j]
+            lower_l, upper_l, lower_r, upper_r = get_poly_convex_concave_bounds(x_nodes, Li_func, dLi_func, d2Li_func, x0, x1, xz,i,j)
+            # if (i == 4 and j == 1):
+                # print(lower_l, upper_l, lower_r, upper_r, "k10check")
+            if j == 0:
+                nlower[i, j] = lower_l
+                nlower[i, j+1] = lower_r
+                nupper[i, j] = upper_l
+                nupper[i, j+1] = upper_r
+            else:
+                nlower[i, j] = min(lower_l, nlower[i, j])
+                nlower[i, j+1] = min(lower_r, nlower[i, j+1])
+                nupper[i, j] = max(upper_l, nupper[i, j])
+                nupper[i, j+1] = max(upper_r, nupper[i, j+1])
 
     plot_functions(L, dL, d2L, x_nodes, x, x_values, N,
-                   nlower, nupper, xnew, True, 'bounds')
-
-    xtar = ChebyshevPoints(M)
-    # now we can combine all the bounds
-    xtemp = np.sort(np.unique(xnew[:,:]))
-    # insert the target set of points
-    xtemp = np.sort(np.unique(np.concatenate((xtemp, xtar))))
-    x_temp = remove_duplicates2(xtemp, 1e-12)
-    xnew2 = np.zeros((nr, len(xtemp)))
-    nlower2 = np.zeros((nr, len(xtemp)))
-    nupper2 = np.zeros((nr, len(xtemp)))
-    for i in range(nr):
-        nlower2[i,:] = np.interp(xtemp, xnew[i,:], nlower[i,:])
-        nupper2[i,:] = np.interp(xtemp, xnew[i,:], nupper[i,:])
-        xnew2[i,:] = xtemp
-
-    plot_functions(L, dL, d2L, x_nodes, x, x_values, N,
-                   nlower2, nupper2, xnew2, True, 'boundssample')
-
-    # now we decimate unneeded points
-    mr = len(xtar)
-    xnew3 = np.zeros((nr, mr))
-    nlower3 = np.zeros((nr, mr))
-    nupper3 = np.zeros((nr, mr))
-
-    print(xtemp)
-    print(xtar)
-
-
-    for i in range(nr):
-        # print(i,"++++++++++++++++++++++")
-        nlower3[i,:] = get_combined_pl_bounds(xnew2[i,:], nlower2[i,:], xtar, False)
-        nupper3[i,:] = get_combined_pl_bounds(xnew2[i,:], nupper2[i,:], xtar, True)
-        xnew3[i,:] = xtar
-        # if (i == 1):
-            # input("Press Enter to continue...")
-
-    plot_functions(L, dL, d2L, x_nodes, x, x_values, N,
-                   nlower3, nupper3, xnew3, True, 'combined', nlower2, nupper2, xnew2, xnew)
-
-
-
-
-
+                   nlower, nupper, xnewall, True, '', None, None, None, None, zeros)
 
 if __name__=="__main__":
     main()
