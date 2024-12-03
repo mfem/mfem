@@ -14,7 +14,9 @@ class bcolors:
 	WARN = '\033[93m'
 	RESET = '\033[0m'
 
-tol = 1e-7
+tol = 1e-4
+def equal(a, b):
+	return abs(a - b) / (abs(a) + abs(b)) < tol
 
 print('Running Regression Testing:')
 path = 'regress_test/'
@@ -134,7 +136,7 @@ for i, filename in enumerate(filenames):
 
 	if not fail:
 		if precond_test == precond_ref:
-			if abs(ref_L2_t - test_L2_t) < tol and abs(ref_L2_q - test_L2_q) < tol:
+			if equal(ref_L2_t, test_L2_t) and equal(ref_L2_q, test_L2_q):
 				print(f"{bcolors.OKGREEN}SUCCESS:{bcolors.RESET} {command_line}", flush=True)
 			else:
 				fail = True

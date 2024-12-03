@@ -14,7 +14,14 @@ Options used:
    --kappa 1
    --velocity 1
    --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
    --no-hybridization
+   --no-nonlinear
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
    --no-partial-assembly
    --device cpu
    --no-mfem
@@ -29,21 +36,21 @@ dim(V) = 3280
 dim(W) = 1600
 dim(V+W) = 4880
 ***********************************************************
-Assembly took 0.299048s.
-Preconditioner took 0.0565306s.
+Assembly took 0.465953s.
+Preconditioner took 0.0730967s.
    Pass :  1   Iteration :   0  ||B r|| = 1.8759
    Pass :  1   Iteration :   1  ||B r|| = 1.87404
    Pass :  1   Iteration :   2  ||B r|| = 0.10605
-   Pass :  1   Iteration :   3  ||B r|| = 0.0890948
-   Pass :  1   Iteration :   4  ||B r|| = 0.00999939
-   Pass :  1   Iteration :   5  ||B r|| = 0.00420423
-   Pass :  1   Iteration :   6  ||B r|| = 0.00113567
+   Pass :  1   Iteration :   3  ||B r|| = 0.0890947
+   Pass :  1   Iteration :   4  ||B r|| = 0.00999938
+   Pass :  1   Iteration :   5  ||B r|| = 0.00420422
+   Pass :  1   Iteration :   6  ||B r|| = 0.00113566
    Pass :  1   Iteration :   7  ||B r|| = 0.00016919
-   Pass :  1   Iteration :   8  ||B r|| = 8.64628e-05
-   Pass :  1   Iteration :   9  ||B r|| = 5.74552e-06
-   Pass :  1   Iteration :  10  ||B r|| = 5.21261e-06
-   Pass :  1   Iteration :  11  ||B r|| = 2.97737e-07
-GMRES+UMFPack converged in 11 iterations with a residual norm of 2.97737e-07.
-GMRES solver took 0.0610223s.
-|| q_h - q_ex || / || q_ex || = 4.12688e-07
-|| t_h - t_ex || / || t_ex || = 1.10739e-07
+   Pass :  1   Iteration :   8  ||B r|| = 8.64586e-05
+   Pass :  1   Iteration :   9  ||B r|| = 5.74549e-06
+   Pass :  1   Iteration :  10  ||B r|| = 5.21245e-06
+   Pass :  1   Iteration :  11  ||B r|| = 2.97692e-07
+GMRES+UMFPack converged in 11 iterations with a residual norm of 2.97692e-07.
+solver took 0.0546204s.
+|| q_h - q_ex || / || q_ex || = 4.12091e-07
+|| t_h - t_ex || / || t_ex || = 1.10557e-07

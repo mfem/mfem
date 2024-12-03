@@ -263,7 +263,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
          {
             darcy->GetHybridization()->SetLocalNLSolver(
                DarcyHybridization::LSsolveType::Newton,
-               maxIter, rtol * 1e-2, atol, -1);
+               maxIter, rtol * 1e-3, atol, -1);
             lsolver_str = "Newton";
 
             IterativeSolver *lin_solver = NULL;
