@@ -3687,7 +3687,7 @@ void NetCDFReader::BuildBlockIDToNameMap(const vector<int> & blk_ids,
 
       _netcdf_status = nc_inq_dimlen(_netcdf_descriptor, dimids_names[0], &num_names);
       CheckForNetCDFError();
-      MFEM_ASSERT(num_names == blk_ids.size(), "The block id and block name lengths should match");
+      MFEM_ASSERT(num_names == blk_ids.size(), "The block id and block name lengths don't match");
       // Check the maximum string length
       _netcdf_status = nc_inq_dimlen(_netcdf_descriptor, dimids_names[1], &name_len);
       CheckForNetCDFError();
