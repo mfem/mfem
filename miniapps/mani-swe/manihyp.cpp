@@ -4,8 +4,7 @@ namespace mfem
 {
 void sphere(const Vector &x, Vector &y, const real_t r)
 {
-   y = x;
-   y *= r/std::sqrt(y*y);
+   y = x; y *= r/std::sqrt(y*y);
 }
 
 void CalcOrtho(const DenseMatrix &faceJ, const DenseMatrix &elemJ, Vector &n)
@@ -126,6 +125,121 @@ real_t ManifoldFlux::ComputeNormalFluxes(const Vector &stateL,
    mcs = std::max(mcs, org_flux.ComputeFluxDotN(
                      stateR_R, normalR, *Tr2, fluxR_R));
    return mcs;
+}
+
+ManifoldHyperbolicFormIntegrator::ManifoldHyperbolicFormIntegrator(
+   const ManifoldNumericalFlux &flux, const IntegrationRule *ir)
+   :numFlux(flux), maniFlux(flux.GetManifoldFluxFunction()),
+    coord(maniFlux.GetCoordinate()), intrule(ir)
+{
+   switch (maniFlux.dim)
+   {
+      case 2:
+      {
+         hess_map.SetSize(4);
+         hess_map[0] = 0;
+         hess_map[1] = 1;
+         hess_map[2] = 1;
+         hess_map[3] = 2;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Only support 2D manifold");
+      }
+   }
+}
+
+void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
+   const FiniteElement &el, ElementTransformation &Tr,
+   const Vector &elfun, Vector &elvect)
+{
+   const int dof = el.GetDof();
+   const int dim = el.GetDim();
+   const int sdim = Tr.GetSpaceDim();
+   const int nrScalar = maniFlux.GetNumScalars();
+   const int nrVector = (maniFlux.num_equations - nrScalar)/sdim;
+
+   // TODO: handle MFEM_THREAD_SAFE.
+   // Since we are only using MPI for parallel,
+   // we do not have to worry about this for now
+   shape.SetSize(dof);
+   dshape.SetSize(dof, dim);
+   hess_shape.SetSize(dof, dim*(dim+1)/2);
+   Hess.SetSize(dim*(dim+1)/2);
+
+   const int vdim = elfun.Size();
+   elvect.SetSize(vdim * dof);
+   state.SetSize(vdim);
+   phys_state.SetSize(maniFlux.num_equations);
+   phys_flux.SetSize(maniFlux.num_equations, sdim);
+   const IntegrationRule &ir = intrule ? *intrule : GetRule(el, el, Tr);
+
+   const int num_equations = elfun.Size() / dof;
+   const DenseMatrix elfun_mat(elfun.GetData(), dof, num_equations);
+   DenseMatrix elvec_mat(elvect.GetData(), dof, num_equations);
+
+   const FiniteElementSpace * nodal_fes = Tr.mesh->GetNodalFESpace();
+   const FiniteElement &nodal_el = *nodal_fes->GetFE(Tr.ElementNo);
+   const GridFunction * nodes = Tr.mesh->GetNodes();
+
+
+   const DenseMatrix elfun_scalars(elfun.GetData(), dof, nrScalar);
+   const DenseMatrix elfun_vectors(elfun.GetData() + dof*nrScalar, dof*dim,
+                                   nrVector);
+   DenseMatrix elmat_scalars(elvect.GetData(), dof, nrScalar);
+   DenseTensor elmat_vectors(elvect.GetData() + dof*nrScalar, dof, dim, nrVector);
+   Vector mani_scalars(state.GetData(), nrScalar);
+   Vector phys_scalars(phys_state.GetData(), nrScalar);
+   DenseMatrix mani_vec(state.GetData() + nrScalar, dim, nrVector);
+   DenseMatrix phys_vec(phys_state.GetData() + nrScalar, sdim, nrVector);
+
+   for (int i=0; i<ir.GetNPoints(); i++)
+   {
+      Tr.SetIntPoint(&ir.IntPoint(i));
+
+      // local mapping information
+      const DenseMatrix &J = Tr.Jacobian();
+      const DenseMatrix &adjJ = Tr.AdjugateJacobian();
+      nodal_el.CalcHessian(Tr.GetIntPoint(), hess_shape);
+      nodes->GetVectorValue(Tr.ElementNo, Tr.GetIntPoint(), x_nodes);
+      hess_shape.MultTranspose(x_nodes, Hess);
+      Hess *= Tr.Weight();
+
+      // basis information
+      el.CalcShape(Tr.GetIntPoint(), shape);
+      el.CalcDShape(Tr.GetIntPoint(), dshape);
+      Mult(dshape, adjJ, gshape);
+
+      // state at current quadrature points
+      elfun_mat.MultTranspose(shape, state);
+      // Convert manifold state to a physical state
+      // NOTE: Not sure whether this is actually needed
+      // because ComputeFlux will handle this to evaluate the flux.
+      phys_scalars = mani_scalars;
+      Mult(J, mani_vec, phys_vec);
+
+      // compute flux and update max_char_speed
+      max_char_speed = std::max(max_char_speed,
+                                maniFlux.ComputeFlux(state, Tr, phys_flux));
+
+      // Integrate
+   }
+}
+
+void ManifoldHyperbolicFormIntegrator::AssembleFaceVector(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
+{
+}
+
+const IntegrationRule &ManifoldHyperbolicFormIntegrator::GetRule(
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Trans)
+{
+   int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ();
+   return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
 } // end of namespace mfem

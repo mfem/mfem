@@ -113,8 +113,17 @@ public:
     * @param flux physical state
     * @return maximum characteristic speed
     */
+
    real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override final;
+
+   real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
+                          ElementTransformation &Tr,
+                          Vector &fluxDotN) const override final
+   {
+      MFEM_ABORT("Use ComputeNormalFluxes.");
+   }
+
    real_t ComputeNormalFluxes(const Vector &stateL,
                               const Vector &stateR,
                               FaceElementTransformations &Tr,
@@ -123,6 +132,8 @@ public:
                               Vector &fluxL_L, Vector &fluxR_L,
                               Vector &stateL_R, Vector &stateR_R,
                               Vector &fluxL_R, Vector &fluxR_R) const;
+
+   int GetNumScalars() const { return nrScalar; }
 };
 
 
@@ -213,21 +224,51 @@ protected:
    const ManifoldNumericalFlux &numFlux;
    const ManifoldFlux &maniFlux;
    const ManifoldCoord &coord;
+   real_t max_char_speed=0.0;
+   Vector state, phys_state;
+   Vector stateL, stateR;
+   Vector shape;
+   // DenseMatrix adjJ;
+   DenseMatrix dshape;
+   DenseMatrix gshape;
+   DenseMatrix hess_shape;
+   Vector Hess;
+   Vector x_nodes;
+   DenseMatrix phys_flux;
+   const IntegrationRule *intrule;
+   Array<int> hess_map;
 public:
 
    // methods
 private:
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
 protected:
 public:
-   ManifoldHyperbolicFormIntegrator(const ManifoldNumericalFlux &flux)
-      :numFlux(flux), maniFlux(flux.GetManifoldFluxFunction()),
-       coord(maniFlux.GetCoordinate())
-   {}
+   /**
+    * @brief Integrator of (F(u), grad v) - <\hat{F}(u), [v]> with given numerical flux.
+    * numerical flux both implements F(u) and numerical flux \hat{F}(u).
+    *
+    * @param flux Numerical flux
+    * @param ir Optionally chosen integration rule
+    */
+   ManifoldHyperbolicFormIntegrator(const ManifoldNumericalFlux &flux,
+                                    const IntegrationRule *ir=nullptr);
 
+   // Compute (F(u), grad v)
    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
                               const Vector &elfun, Vector &elvect) override;
+
+   // Compute -<\hat{F}(u), [v]> with given numerical flux
    void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
                            FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect) override;
+   // Get maximum characteristic speed for each processor.
+   // For parallel assembly, you need to use MPI_Allreduce to synchronize.
+   real_t GetMaxCharSpeed() { return max_char_speed; }
+
+   // Set max_char_speed to 0
+   void ResetMaxCharSpeed() { max_char_speed=0.0;}
 
 };
 
