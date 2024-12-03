@@ -21,11 +21,15 @@ template <int ORDER, int SDIM>
 void BatchedLOR_DG::Assemble2D()
 {
    const int nel_ho = fes_ho.GetNE();
+
+   const int pp1 = ORDER + 1;
+   const int pp2 = ORDER + 2;
+
    IntegrationRule ir_pp1;
-   QuadratureFunctions1D::GaussLobatto(ORDER+1, &ir_pp1);
+   QuadratureFunctions1D::GaussLobatto(pp1, &ir_pp1);
    IntegrationRule ir_pp2;
-   QuadratureFunctions1D::GaussLobatto(ORDER+2, &ir_pp2);
-   static constexpr int nd1d = ORDER + 1;
+   QuadratureFunctions1D::GaussLobatto(pp2, &ir_pp2);
+   static constexpr int nd1d = pp1;
    static constexpr int ndof_per_el = nd1d*nd1d;
    static constexpr int nnz_per_row = 5;
    const bool const_mq = c1.Size() == 1;
@@ -39,6 +43,8 @@ void BatchedLOR_DG::Assemble2D()
 
    const auto w_1d = ir_pp1.GetWeights().Read();
    const auto W = Reshape(ir.GetWeights().Read(), nd1d, nd1d);
+
+   const auto X = Reshape(X_vert.Read(), pp2, pp2, nel_ho);
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nel_ho);
@@ -58,6 +64,29 @@ void BatchedLOR_DG::Assemble2D()
          {
             const real_t mq = const_mq ? MQ(0,0,0) : MQ(ix, iy, iel_ho);
             const real_t dq = const_dq ? DQ(0,0,0) : DQ(ix, iy, iel_ho);
+
+            for (int n_idx = 0; n_idx < 2; ++n_idx)
+            {
+               for (int e_i = 0; e_i < 2; ++e_i)
+               {
+                  const int v_idx = e_i + n_idx*2 + 1;
+
+                  const int i_0 = (n_idx == 0) ? ix + e_i : ix;
+                  const int j_0 = (n_idx == 1) ? iy + e_i : iy;
+
+                  const int i_1 = (n_idx == 0) ? ix + e_i : ix + 1;
+                  const int j_1 = (n_idx == 1) ? iy + e_i : iy + 1;
+
+                  const bool bdr = (n_idx == 0) ? (j_0 == 0 || j_0 == pp1)
+                                   : (i_0 == 0 || i_0 == pp1);
+
+                  const real_t h_face = 0.0; // from X_vert
+                  const real_t h_el = 0.0; // from X_vert
+
+                  // ... V(v_idx, ix, iy, iel_ho) = ....
+               }
+            }
+
             if (ix == 0)
             {
                V(4, ix, iy, iel_ho) = -dq*kappa * w_1d[iy] * (ir_pp2[iy+1].x - ir_pp2[iy].x);
