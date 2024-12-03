@@ -27,7 +27,6 @@ using namespace std;
 
 const int KnotVector::MaxOrder = 10;
 
-
 KnotVector::KnotVector(istream &input)
 {
    input >> Order >> NumOfControlPoints;
@@ -196,7 +195,7 @@ void KnotVector::Refinement(Vector &newknots, int rf) const
          }
       }
 
-      MFEM_VERIFY(j == NumOfElements + 1, "");
+      MFEM_VERIFY(j == NumOfElements + 1, "Incorrect number of knot spans");
 
       real_t s0 = 0.0;
 
@@ -1968,20 +1967,37 @@ void NURBSPatch::FullyCoarsen(const Array2D<double> & cp, int ncp1D)
    NURBSPatch *newpatch = new NURBSPatch(kvc, Dim);
    NURBSPatch &newp = *newpatch;
 
-   // TODO: this is only for 3D.
-   MFEM_VERIFY(Dim == 4, "");
-
-   for (int i=0; i<ncp1D; ++i)
-      for (int j=0; j<ncp1D; ++j)
-         for (int k=0; k<ncp1D; ++k)
+   if (Dim == 4)  // 3D
+   {
+      for (int i=0; i<ncp1D; ++i)
+         for (int j=0; j<ncp1D; ++j)
+            for (int k=0; k<ncp1D; ++k)
+            {
+               const int dof = i + (ncp1D * (j + (ncp1D * k)));
+               for (int l = 0; l < Dim - 1; ++l)
+               {
+                  newp(i,j,k,l) = cp(dof, l);
+                  newp(i,j,k,Dim-1) = 1.0;  // Assuming unit weights
+               }
+            }
+   }
+   else if (Dim == 3)  // 2D
+   {
+      for (int i=0; i<ncp1D; ++i)
+         for (int j=0; j<ncp1D; ++j)
          {
-            const int dof = i + (ncp1D * (j + (ncp1D * k)));
+            const int dof = i + (ncp1D * j);
             for (int l=0; l<Dim - 1; ++l)
             {
-               newp(i,j,k,l) = cp(dof, l);
-               newp(i,j,k,Dim-1) = 1.0;  // Assuming unit weights
+               newp(i,j,l) = cp(dof, l);
+               newp(i,j,Dim-1) = 1.0;  // Assuming unit weights
             }
          }
+   }
+   else
+   {
+      MFEM_ABORT("Dimension not supported in FullyCoarsen");
+   }
 
    swap(newpatch);
 }
@@ -2484,15 +2500,18 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
       }
    }
 
-   const int version = kvSpacing.Size() > 0 ? 11 : 10;  // v1.0 or v1.1
+   bool writeSpacing = false;
    if (patchTopo->ncmesh)
    {
-      // TODO: include version?
+      // Writing MFEM NURBS NC-patch mesh v1.0
       patchTopo->ncmesh->Print(os, comments, true);
       patchTopo->PrintTopoEdges(os, edge_to_knot, true);
+      writeSpacing = true;
    }
    else
    {
+      const int version = kvSpacing.Size() > 0 ? 11 : 10;  // v1.0 or v1.1
+      if (version == 11) { writeSpacing = true; }
       patchTopo->PrintTopo(os, edge_to_knot, version, comments);
    }
 
@@ -2515,9 +2534,10 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
          }
       }
 
-      os << "\nspacing\n" << kvSpacing.Size() << '\n';
-      if (kvSpacing.Size() > 0)
+      if (writeSpacing)
       {
+         os << "\nspacing\n" << kvSpacing.Size() << '\n';
+
          for (auto kv : kvSpacing)
          {
             os << kv << " ";

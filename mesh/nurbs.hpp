@@ -1155,6 +1155,9 @@ public:
    /// Constructor for an object associated with NURBSExtension @a ext.
    NURBSPatchMap(const NURBSExtension *ext) { Ext = ext; }
 
+   // TODO: this is the number of control points - 1, not the number of elements!
+   // Only in the first-order case does it happen to coincide with the number of elements.
+
    /// Return the number of elements in the first direction.
    inline int nx() const { return I + 1; }
    /// Return the number of elements in the second direction (2D or 3D).
