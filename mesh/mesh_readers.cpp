@@ -3518,7 +3518,8 @@ public:
    void ReadDimension(const char * name, size_t *dimension);
 
    /// Build the map from block ID to block name
-   void BuildBlockIDToNameMap(const vector<int> & blk_ids, unordered_map<int, string> & ids_to_names);
+   void BuildBlockIDToNameMap(const vector<int> & blk_ids,
+                              unordered_map<int, string> & ids_to_names);
 
 protected:
    /// Called internally. Calls HandleNetCDFError if _netcdf_status is not "NC_NOERR".
@@ -3664,13 +3665,16 @@ void NetCDFReader::BuildBlockIDToNameMap(const vector<int> & blk_ids,
    int varid_block_names;
 
    // Find the variable ID for "eb_names" which stores element block names
-   _netcdf_status = nc_inq_varid(_netcdf_descriptor, "eb_names", &varid_block_names);
+   _netcdf_status = nc_inq_varid(_netcdf_descriptor, "eb_names",
+                                 &varid_block_names);
    CheckForNetCDFError();
-   MFEM_ASSERT(_netcdf_status != NC_ENOTVAR, "The 'eb_names' variable was not found!");
+   MFEM_ASSERT(_netcdf_status != NC_ENOTVAR,
+               "The 'eb_names' variable was not found!");
 
    // Get type of eb_names
    nc_type var_type;
-   _netcdf_status = nc_inq_vartype(_netcdf_descriptor, varid_block_names, &var_type);
+   _netcdf_status = nc_inq_vartype(_netcdf_descriptor, varid_block_names,
+                                   &var_type);
    CheckForNetCDFError();
 
    if (var_type == NC_CHAR)
@@ -3678,23 +3682,27 @@ void NetCDFReader::BuildBlockIDToNameMap(const vector<int> & blk_ids,
       int dimids_names[2], names_ndim;
       size_t num_names, name_len;
 
-      _netcdf_status = nc_inq_varndims(_netcdf_descriptor, varid_block_names, &names_ndim);
+      _netcdf_status = nc_inq_varndims(_netcdf_descriptor, varid_block_names,
+                                       &names_ndim);
       CheckForNetCDFError();
       MFEM_ASSERT(names_ndim == 2, "This variable should have two dimensions");
 
-      _netcdf_status = nc_inq_vardimid(_netcdf_descriptor, varid_block_names, dimids_names);
+      _netcdf_status = nc_inq_vardimid(_netcdf_descriptor, varid_block_names,
+                                       dimids_names);
       CheckForNetCDFError();
 
       _netcdf_status = nc_inq_dimlen(_netcdf_descriptor, dimids_names[0], &num_names);
       CheckForNetCDFError();
-      MFEM_ASSERT(num_names == blk_ids.size(), "The block id and block name lengths don't match");
+      MFEM_ASSERT(num_names == blk_ids.size(),
+                  "The block id and block name lengths don't match");
       // Check the maximum string length
       _netcdf_status = nc_inq_dimlen(_netcdf_descriptor, dimids_names[1], &name_len);
       CheckForNetCDFError();
 
       // Read the block names
       vector<char> block_names(blk_ids.size() * name_len);
-      _netcdf_status = nc_get_var_text(_netcdf_descriptor, varid_block_names, block_names.data());
+      _netcdf_status = nc_get_var_text(_netcdf_descriptor, varid_block_names,
+                                       block_names.data());
       CheckForNetCDFError();
 
       for (size_t i = 0; i < blk_ids.size(); ++i)
