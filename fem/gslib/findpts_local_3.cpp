@@ -496,7 +496,7 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsPt *out,
          out->r[d] = p->oldr[d];
       }
       out->flags = p->flags >> 7;
-      out->dist2p = -DBL_MAX;
+      out->dist2p = -std::numeric_limits<double>::max();
       if (pred < dist2*tol)
       {
          out->flags |= CONVERGED_FLAG;
@@ -984,7 +984,7 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[3],
                                     const int j,
                                     const int pN) // assumes j < pN
 {
-   dist2[j] = DBL_MAX;
+   dist2[j] = std::numeric_limits<double>::max();
 
    double zr = z[j];
    for (int l = 0; l < pN; ++l)
@@ -1127,7 +1127,7 @@ static void FindPointsLocal3DKernel(const int npt,
       const unsigned int *elp = hash.offset+hash.offset[hi],
                           *const ele = hash.offset+hash.offset[hi+1];
       *code_i = CODE_NOT_FOUND;
-      *dist2_i = DBL_MAX;
+      *dist2_i = std::numeric_limits<double>::max();
 
       for (; elp != ele; ++elp)
       {
@@ -1186,7 +1186,7 @@ static void FindPointsLocal3DKernel(const int npt,
                MFEM_SYNC_THREAD;
                MFEM_FOREACH_THREAD(j,x,1)
                {
-                  fpt->dist2 = DBL_MAX;
+                  fpt->dist2 = std::numeric_limits<double>::max();
                   fpt->dist2p = 0;
                   fpt->tr = 1;
                   face_edge_init = 0;
@@ -1214,7 +1214,7 @@ static void FindPointsLocal3DKernel(const int npt,
 
                   MFEM_FOREACH_THREAD(j,x,1)
                   {
-                     fpt->dist2 = DBL_MAX;
+                     fpt->dist2 = std::numeric_limits<double>::max();
                      for (int jj = 0; jj < D1D; ++jj)
                      {
                         if (dist2_temp[jj] < fpt->dist2)
@@ -1232,7 +1232,7 @@ static void FindPointsLocal3DKernel(const int npt,
 
                MFEM_FOREACH_THREAD(j,x,1)
                {
-                  tmp->dist2 = DBL_MAX;
+                  tmp->dist2 = std::numeric_limits<double>::max();
                   tmp->dist2p = 0;
                   tmp->tr = 1;
                   tmp->flags = 0; // we do newton_vol regardless of seed.

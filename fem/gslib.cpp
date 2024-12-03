@@ -561,7 +561,9 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       return;
    }
 
+#ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
+#endif
    /* send unfound and border points to global hash cells */
    struct gslib::array hash_pt, src_pt, out_pt;
 
@@ -610,7 +612,9 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       hash_pt.n = pt - (struct srcPt_t *)hash_pt.ptr;
       sarray_transfer(struct srcPt_t, &hash_pt, proc, 1, DEV.cr);
    }
+#ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
+#endif
 
    /* look up points in hash cells, route to possible procs */
    {
@@ -661,7 +665,9 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
       sarray_transfer_ext(struct srcPt_t, &src_pt, proc, sizeof(uint), DEV.cr);
    }
+#ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
+#endif
 
    /* look for other procs' points, send back */
    {
@@ -763,7 +769,9 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
 
       sarray_transfer(struct outPt_t, &out_pt, proc, 1, DEV.cr);
    }
+#ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
+#endif
 
    /* merge remote results with user data */
    // For points found on other procs, we set gsl_mfem_elem, gsl_mfem_ref,
@@ -825,8 +833,6 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       gsl_code[index] = setcode==CODE_BORDER && gsl_dist(index)>bdr_tol ?
                         CODE_NOT_FOUND : setcode;
    }
-
-   MPI_Barrier(gsl_comm->c);
 }
 
 struct evalSrcPt_t
@@ -962,7 +968,9 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
                            nel, dof1Dsol);
 
       }
+#ifdef MFEM_USE_MPI
       MPI_Barrier(gsl_comm->c);
+#endif
 
       interp_vals.HostRead();
 
@@ -980,7 +988,9 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
          }
       }
    }
+#ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
+#endif
 
    if (gsl_comm->np == 1)
    {
@@ -1031,7 +1041,9 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
                            interp_vals, n, ncomp,
                            nel, dof1Dsol);
       }
+#ifdef MFEM_USE_MPI
       MPI_Barrier(gsl_comm->c);
+#endif
       interp_vals.HostRead();
 
       // Now the interpolated values need to be sent back component wise

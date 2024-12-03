@@ -27,7 +27,7 @@
 // Compile with: make pfindpts
 //
 // Sample runs:
-//    mpirun -np 2 pfindpts -m ../../data/rt-2d-p4-tri.mesh -o 4
+//    mpirun -np 2 pfindpts -m ../../data/rt-2d-p4-tri.mesh -o 8 -mo 4
 //    mpirun -np 2 pfindpts -m ../../data/inline-tri.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -po 1
@@ -37,7 +37,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/inline-wedge.mesh -o 3
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -o 2
-//    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
+//    mpirun -np 2 pfindpts -m ../../data/rt-2d-q3.mesh -o 8 -mo 4 -ft 2
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -ft 1 -sr0
 //    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2
 //    mpirun -np 2 pfindpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr
