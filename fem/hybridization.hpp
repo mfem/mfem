@@ -160,14 +160,15 @@ public:
    /// @brief Add the boundary face integrator that will be used to construct
    /// the constraint matrix C.
    ///
-   /// The Hybridization object assumes ownership of the integrator, i.e. it
-   /// will delete the integrator when destroyed.
+   /// If @a own is true (its default value), then the Hybridization object
+   /// assumes ownership of the integrator.
    ///
    /// @sa AddBdrConstraintIntegrator().
    void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
-                                   const Array<int> &bdr_marker = Array<int>())
+                                   const Array<int> &bdr_marker = Array<int>(),
+                                   bool own = true)
    {
-      AddBdrConstraintIntegrator(Owning(c_integ), bdr_marker);
+      AddBdrConstraintIntegrator(OptionallyOwning(c_integ, own), bdr_marker);
    }
 
    /// Access the integrators added with AddBdrConstraintIntegrator().
