@@ -1073,6 +1073,8 @@ public:
        @param[in] fix_orientation
                           If true, fix the orientation of inverted mesh elements
                           by permuting their vertices.
+       @param[in] allow_bad_orientation  TODO: is this necessary?
+                          If true, allow inverted elements.
 
        Before calling this method, call FinalizeTopology() and ensure that the
        Mesh vertices or nodes are set. */
