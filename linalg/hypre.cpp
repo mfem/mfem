@@ -32,25 +32,24 @@ bool Hypre::configure_runtime_policy_from_mfem = true;
 void Hypre::Init()
 {
    Hypre &hypre = Instance();
-   if (hypre.state == State::NONE)
-   {
-      // initialize Hypre
 #if MFEM_HYPRE_VERSION >= 22900
-      if (!HYPRE_Initialized())
-      {
-         HYPRE_Init();
-      }
-#elif MFEM_HYPRE_VERSION >= 21900
-      // potential problematic edge case if user manually called HYPRE_Init with
-      // HYPRE 2.19.0 to 2.28.0. Unfortunately there's no way to check in these
-      // versions if this is the case.
+   if (!HYPRE_Initialized())
+   {
       HYPRE_Init();
-#endif
-
-      // Global hypre options that we set by default
       hypre.SetDefaultOptions();
-      hypre.state = State::INITIALIZED;
    }
+   else if (hypre.state != State::INITIALIZED)
+   {
+      hypre.SetDefaultOptions();
+   }
+#else
+   if (hypre.state != State::INITIALIZED)
+   {
+      HYPRE_Init();
+      hypre.SetDefaultOptions();
+   }
+#endif
+   hypre.state = State::INITIALIZED;
 }
 
 void Hypre::InitDevice()
@@ -79,13 +78,20 @@ void Hypre::InitDevice()
 void Hypre::Finalize()
 {
    Hypre &hypre = Instance();
-   if (hypre.state == State::INITIALIZED)
+#if MFEM_HYPRE_VERSION >= 22900
+   if (HYPRE_Initialized())
+   {
+      HYPRE_Finalize();
+   }
+#else
+   if (hypre.state != State::UNINITIALIZED)
    {
 #if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Finalize();
 #endif
-      hypre.state = State::FINALIZED;
    }
+#endif
+   hypre.state = State::UNINITIALIZED;
 }
 
 void Hypre::SetDefaultOptions()

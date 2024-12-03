@@ -68,9 +68,10 @@ class Hypre
 public:
    /// @brief Initialize hypre by calling HYPRE_Init() and set default options.
    /// After calling Hypre::Init(), hypre will be finalized automatically at
-   /// program exit.
+   /// program exit. May be re-initialized after finalize.
    ///
-   /// Calling HYPRE_Finalize() manually is not compatible with this class.
+   /// Calling HYPRE_Init() or HYPRE_Finalize() manually is only supported for
+   /// HYPRE 2.29.0+
    static void Init();
 
    /// @brief Configure HYPRE's compute and memory policy.
@@ -94,6 +95,9 @@ public:
    ///
    /// Multiple calls to Hypre::Finalize() have no effect. This function can be
    /// called manually to more precisely control when hypre is finalized.
+   ///
+   /// Calling HYPRE_Init() or HYPRE_Finalize() manually is only supported for
+   /// HYPRE 2.29.0+
    static void Finalize();
 
    /// @brief Use MFEM's device policy to configure HYPRE's device policy, true
@@ -126,10 +130,10 @@ private:
       return hypre;
    }
 
-   enum class State { NONE, INITIALIZED, FINALIZED };
+   enum class State { UNINITIALIZED, INITIALIZED };
 
    /// Tracks whether Hypre was initialized or finalized by this class.
-   State state = State::NONE;
+   State state = State::UNINITIALIZED;
 };
 
 
