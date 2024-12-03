@@ -895,6 +895,9 @@ public:
 
    ///@}
 
+   /// Construct a Mesh from a NURBSExtension
+   explicit Mesh( const NURBSExtension& ext );
+
    /** @anchor mfem_Mesh_construction
        @name Methods for piecewise Mesh construction.
 

@@ -78,9 +78,9 @@ namespace mfem
       const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                  \
       using KernelSignature = KernelType;                                      \
       template <MFEM_PARAM_LIST P3>                                            \
-      static KernelSignature Kernel();                                         \
-      static KernelSignature Fallback(MFEM_PARAM_LIST P1);                     \
-      static KernelName &Get()                                                 \
+      static MFEM_EXPORT KernelSignature Kernel();                             \
+      static MFEM_EXPORT KernelSignature Fallback(MFEM_PARAM_LIST P1);         \
+      static MFEM_EXPORT KernelName &Get()                                     \
       { static KernelName table; return table;}                                \
    }
 
@@ -126,9 +126,9 @@ class KernelDispatchTable<Kernels,
          internal::KernelTypeList<Params...>,
          internal::KernelTypeList<OptParams...>>
 {
-   std::unordered_map<std::tuple<Params...>,
-       Signature,
-       KernelDispatchKeyHash<Params...>> table;
+   using TableType = std::unordered_map<std::tuple<Params...>,
+         Signature, KernelDispatchKeyHash<Params...>>;
+   TableType table;
 
 public:
    /// @brief Run the kernel with the given dispatch parameters and arguments.
@@ -176,6 +176,12 @@ public:
          }
       };
    };
+
+   /// Return the dispatch map table
+   static const TableType &GetDispatchTable()
+   {
+      return Kernels::Get().table;
+   }
 };
 
 }

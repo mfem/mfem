@@ -14,15 +14,23 @@
 
 using namespace mfem;
 
-TEST_CASE("Array init-list construction", "[Array]")
+TEST_CASE("Array init-list and C-style array constructors", "[Array]")
 {
    int ContigData[6] = {6, 5, 4, 3, 2, 1};
+   // Pointer and size construcor
    Array<int> a(ContigData, 6);
-   Array<int> b{6, 5, 4, 3, 2, 1};
+   // Braced-list constructor
+   Array<int> b({6, 5, 4, 3, 2, 1});
+   // Statically sized C-style array constructor
+   Array<int> c(ContigData);
+   // Convertible type constructor
+   Array<int> d({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
 
    for (int i = 0; i < a.Size(); i++)
    {
       REQUIRE(a[i] == b[i]);
+      REQUIRE(a[i] == c[i]);
+      REQUIRE(a[i] == d[i]);
    }
 }
 
