@@ -2,11 +2,6 @@
 #include "manihyp.hpp"
 
 using namespace mfem;
-void sphere(const Vector &x, Vector &y)
-{
-   y = x;
-   y /= y.Norml2();
-}
 
 void gaussian_initial(const Vector &x, Vector &u)
 {
@@ -21,7 +16,7 @@ void gaussian_initial(const Vector &x, Vector &u)
 void UniformSpherRefinement(ParMesh &pmesh, int ref_level)
 {
    ParGridFunction &x = static_cast<ParGridFunction&>(*pmesh.GetNodes());
-   VectorFunctionCoefficient sphere_cf(3, sphere);
+   VectorFunctionCoefficient sphere_cf(3, [](const Vector& x, Vector &y){sphere(x,y,1.0);});
    x.ProjectCoefficient(sphere_cf);
    for (int i=0; i<ref_level; i++)
    {
@@ -92,7 +87,6 @@ int main(int argc, char *argv[])
       {
          u.GetVectorValue(i, ir.IntPoint(j), state);
          swe_mani.ComputeFlux(state, *Tr, flux);
-         // flux.Print();
       }
    }
 

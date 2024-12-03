@@ -2,11 +2,7 @@
 #include "manihyp.hpp"
 
 using namespace mfem;
-void sphere(const Vector &x, Vector &y)
-{
-   y = x;
-   y /= y.Norml2();
-}
+
 
 int main(int argc, char *argv[])
 {
@@ -30,7 +26,9 @@ int main(int argc, char *argv[])
 
    pmesh->SetCurvature(order);
    ParGridFunction &x = static_cast<ParGridFunction&>(*pmesh->GetNodes());
-   VectorFunctionCoefficient sphere_cf(3, sphere);
+   const real_t radius = 1.0;
+
+   VectorFunctionCoefficient sphere_cf(3, [radius](const Vector &x, Vector &y){sphere(x,y,radius);});
    x.ProjectCoefficient(sphere_cf);
    for (int i=0; i<refinement_level; i++)
    {

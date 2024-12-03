@@ -2,6 +2,11 @@
 
 namespace mfem
 {
+void sphere(const Vector &x, Vector &y, const real_t r)
+{
+   y = x;
+   y *= r/std::sqrt(y*y);
+}
 
 void CalcOrtho(const DenseMatrix &faceJ, const DenseMatrix &elemJ, Vector &n)
 {
@@ -45,9 +50,8 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
    const DenseMatrix fJ = Tr.Jacobian();
 
    // element Jacobians
-   // TODO: Handle boundary (Tr.Elem2==nullptr)
    const DenseMatrix &J1 = Tr.Elem1->Jacobian();
-   const DenseMatrix &J2 = Tr.Elem2->Jacobian();
+   const DenseMatrix &J2 = Tr.Elem2 ? Tr.Elem2->Jacobian() : Tr.Elem1->Jacobian();
 
    normal_comp.SetSize(nrVector);
 

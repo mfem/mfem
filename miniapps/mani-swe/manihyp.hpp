@@ -3,6 +3,7 @@
 namespace mfem
 {
 
+void sphere(const Vector &x, Vector &y, const real_t r=1.0);
 
 /**
  * @brief Extract orthogornal vector from B not belonging to A.
