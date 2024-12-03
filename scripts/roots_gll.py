@@ -11,13 +11,17 @@ from scipy.optimize import minimize_scalar, minimize, fsolve,  least_squares
 #python3 roots_gll.py  --N 5
 
 def ChebyshevPoints(n):
-	return [-np.cos(np.pi*i/(n-1)) for i in range(n)]
+	return np.sort([-np.cos(np.pi*i/(n-1)) for i in range(n)])
 
 def gll_points(N):
     # Compute the GLL points
     roots = legendre(N-1).deriv().roots
     gll_points = np.concatenate(([-1], roots, [1]))
-    return gll_points
+    return np.sort(gll_points)
+
+def gl_points(N):
+    points, weights = np.polynomial.legendre.leggauss(N)
+    return np.sort(points)
 
 def lagrange_interpolants(x_nodes):
     # Construct the Lagrange interpolants using symbolic computation
@@ -83,9 +87,9 @@ def remove_duplicates2(roots, threshold=1e-6):
             unique_roots.append(roots[i])
     return unique_roots
 
-def plot_functions(L, dL, d2L, x_nodes, x_symbolic, x_values, N, lower, upper, int_points, piecewise=False, suffix='', lower2=None, upper2=None, int_points2=None, int_points3=None, zeros=None):
+def plot_functions(L, dL, d2L, x_nodes, x_symbolic, x_values, N, lower, upper, int_points, piecewise=False, suffix='', zeros=None):
     # Plot the Lagrange basis functions, their first derivatives, and their second derivatives
-    pdf_pages = PdfPages('ProvableBounds'+suffix+'_N='+str(N)+'_M='+str(len(int_points[0,:]))+'.pdf')
+    pdf_pages = PdfPages('ProvableBounds'+suffix+'N='+str(N)+'_M='+str(len(int_points[0,:]))+'.pdf')
     plt.figure(figsize=(18, 5))
 
     # Plot the Lagrange basis functions
@@ -130,6 +134,20 @@ def plot_functions(L, dL, d2L, x_nodes, x_symbolic, x_values, N, lower, upper, i
     pdf_pages.savefig()
     plt.close()
 
+    # plot zero groupings
+    if zeros is not None:
+        plt.figure()
+        plt.plot(x_nodes, 0*x_nodes,'ko-')
+        plt.title(f'N={N}')
+        for i in range(N-3):
+            zero = np.sort(zeros[:,i])
+            zerov = np.ones(np.shape(zero))
+            # zerov += i
+            plt.plot(zero,zerov,marker='o',markersize=3)
+        plt.tight_layout()
+        pdf_pages.savefig()
+        plt.close()
+
     # for i, (Li, dLi, d2Li) in enumerate(zip(L, dL, d2L)):
     #     plt.figure()
     #     # Plot the Lagrange basis function
@@ -164,15 +182,10 @@ def plot_functions(L, dL, d2L, x_nodes, x_symbolic, x_values, N, lower, upper, i
             plt.plot(x_values, Li_func(x_values), label=f'L{i}')
             plt.plot(int_points[i,:], lower[i, :], 'rx-', linewidth=1.5, markersize=ms,label='Lower bound')
             plt.plot(int_points[i,:], upper[i, :], 'bx-', linewidth=1.5, markersize=ms,label='Upper bound')
-            if lower2 is not None:
-                plt.plot(int_points2[i,:], lower2[i, :], 'ro--', linewidth=1.5, markersize=ms,label='Lower bound')
-                plt.plot(int_points2[i,:], upper2[i, :], 'bo--', linewidth=1.5, markersize=ms,label='Upper bound')
             plt.xlabel('x')
             # plt.ylabel('L(x)')
             plt.plot(x_nodes, 0*x_nodes, 'ko-',markerfacecolor='none',label='GLL')
             plt.plot(int_points[i,:], 0*int_points[i,:], 'kx',label='Interval points')
-            if int_points3 is not None:
-                plt.plot(int_points3[i,:], 0*int_points3[i,:], 'ks-',markerfacecolor='none')
             if zeros is not None:
                 plt.plot(zeros[i,:], 0*zeros[i,:], 'ms',markerfacecolor='none',label='zeros')
             plt.legend()
@@ -191,7 +204,12 @@ def evaluate_at_point(L, dL, x_symbolic, a, i):
     dLi_value = dLi_func(a)
     return Li_value, dLi_value
 
-def find_pl_bounds(x_nodes, L, dL, x, bi, int_points):
+#gslib approach for bounds
+# x_nodes are nodes, L - basis function evaluation, dL - derivative evaluation
+# x is the symbolic x,
+#bi = basis index
+# int_points = interval points location [-1,1]
+def find_gslib_pl_bounds(x_nodes, L, dL, x, bi, int_points):
     nr = len(x_nodes)
     mr = len(int_points)
     upper = np.zeros(mr)
@@ -225,8 +243,8 @@ def find_pl_bounds(x_nodes, L, dL, x, bi, int_points):
         dm = xv-xmv
         dp = xv-xpv
 
-        lower[i] = min(bv, bmv + dm*dmv, bpv+dp*dpv) - 1e-5
-        upper[i] = max(bv, bmv + dm*dmv, bpv+dp*dpv) + 1e-5
+        lower[i] = min(bv, bmv + dm*dmv, bpv+dp*dpv)
+        upper[i] = max(bv, bmv + dm*dmv, bpv+dp*dpv)
 
     return lower, upper
 
@@ -333,7 +351,7 @@ def get_combined_pl_bounds(xint, yint, xnew, upper=True):
         # find the previous point in xint
         jnext = -1
         for j in range(len(xint)):
-            if abs(xint[j]-xv) < 1e-10:
+            if abs(xint[j]-xv) < 1e-14:
                 jnext = j
                 break
 
@@ -423,16 +441,18 @@ def get_poly_convex_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, x_c,ith,jth
     y_l = Li(x_l) #function value at x_l
     y_r = Li(x_r) #function value at x_r
     y_cp = Li(x_c) #function value at d2Li = 0
-    # if (ith == 1):
-    #     print(x_l, x_c, x_r, fpp, "k100")
+    # print(x_l,x_r,x_c,"k100")
     if fpp > 0: #first convex then concave
         #best case scenario is that the line connecting the two endpoints
         #is sufficient
         y_c_u = y_l + (y_r-y_l)*(x_c-x_l)/(x_r-x_l)
+        # print(y_c_u, y_cp,(y_r-y_l)/(x_r-x_l),dL_r,"k101")
         if (y_r-y_l)/(x_r-x_l) <  dL_r and y_c_u > y_cp:
+            # print( "k102")
             upper_l = y_l
             upper_r = y_r
         else:
+            # print("k103")
             upper_c1 = y_r + dL_r*(x_l-x_r) #line tangent from right end point
             length1 = upper_c1 - y_l
 
@@ -440,7 +460,7 @@ def get_poly_convex_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, x_c,ith,jth
             #and be tangent to the curve somewhere between x_c and x_r
             x_guess = (x_c+x_r) / 2.0
             bounds = (x_c, x_r)
-            result = least_squares(equation_to_solve, x_guess, args=(x_l, Li, dLi), bounds=bounds, xtol=1e-10)
+            result = least_squares(equation_to_solve, x_guess, args=(x_l, Li, dLi), bounds=bounds, xtol=1e-14, ftol=1e-14, gtol=1e-14)
             x_t = result.x[0]
 
             #check constraint
@@ -448,18 +468,26 @@ def get_poly_convex_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, x_c,ith,jth
             dline_c =  Li(x_l) + dLi(x_t) * (x_c - x_l) - Li(x_c)
 
             if (x_t >= x_c and x_t <= x_r and dline_r >= 0 and dline_c >= 0):
+                # print("k104")
                 #candidate
                 upper_c2 = y_l + dLi(x_t)*(x_r-x_l)
                 length2 = upper_c2 - y_r
                 if (length2 < length1 and length2 >= 0):
+                    # print("k105")
                     upper_l = y_l
                     upper_r = upper_c2
                 else:
+                    # print("k106")
+                    print(ith,jth,"k101-upper-1")
                     upper_l = upper_c1
                     upper_r = y_r
             else:
+                # yline_x_c = Li(x_l) + dLi(x_t) * (x_c - x_l)
+                # print(result)
+                # print(ith,jth,x_l,x_c,x_r,x_t,dline_r,dline_c,Li(x_c),yline_x_c,"k102")
                 upper_l = upper_c1
                 upper_r = y_r
+                print(ith,jth,"k102-upper-1")
 
         # do lower bounds now
         # easy case is that the end points can be connected
@@ -475,7 +503,7 @@ def get_poly_convex_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, x_c,ith,jth
             # starts at right and tangent somewhere between x_C and x_l
             x_guess = (x_l+x_c) / 2.0
             bounds = (x_l, x_c)
-            result = least_squares(equation_to_solve, x_guess, args=(x_r, Li, dLi), bounds=bounds, xtol=1e-10)
+            result = least_squares(equation_to_solve, x_guess, args=(x_r, Li, dLi), bounds=bounds, xtol=1e-14, ftol=1e-14, gtol=1e-14)
             x_t = result.x[0]
             dline_r =  Li(x_r) + dLi(x_t) * (x_l - x_r) - Li(x_l)
             dline_c =  Li(x_r) + dLi(x_t) * (x_c - x_r) - Li(x_c)
@@ -488,11 +516,13 @@ def get_poly_convex_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, x_c,ith,jth
                     lower_l = lower_c2
                     lower_r = y_r
                 elif (length1 >= 0):
+                    print(ith,jth,"k101-lower-1")
                     lower_l = y_l
                     lower_r = lower_c1
                 else:
                     sys.exit("Negative lengths")
             else:
+                print(ith,jth,"k101-lower-2")
                 lower_l = y_l
                 lower_r = lower_c1
 
@@ -510,7 +540,7 @@ def get_poly_convex_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, x_c,ith,jth
             #second starts at x_r and is tangent at x_t somewhere in between x_l and x_c
             x_guess = (x_l+x_c) / 2.0
             bounds = (x_l, x_c)
-            result = least_squares(equation_to_solve, x_guess, args=(x_r, Li, dLi), bounds=bounds, xtol=1e-10)
+            result = least_squares(equation_to_solve, x_guess, args=(x_r, Li, dLi), bounds=bounds, xtol=1e-14, ftol=1e-14, gtol=1e-14)
             x_t = result.x[0]
             # if (ith == 4 and jth == 1):
             #     print(x_t, "k102")
@@ -527,9 +557,11 @@ def get_poly_convex_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, x_c,ith,jth
                 else:
                     upper_l = y_l
                     upper_r = upper_c1
+                    print(ith,jth,"k101-upper-3")
             else:
                 upper_l = y_l
                 upper_r = upper_c1
+                print(ith,jth,x_l,x_c,x_r,x_t,dline_r,dline_c,"k101-upper-4")
 
         #best case scenario is that the line connecting the two endpoints
         #is sufficient
@@ -545,7 +577,7 @@ def get_poly_convex_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, x_c,ith,jth
             #and be tangent to the curve somewhere between x_c and x_r
             x_guess = (x_c+x_r) / 2.0
             bounds = (x_c, x_r)
-            result = least_squares(equation_to_solve, x_guess, args=(x_l, Li, dLi), bounds=bounds, xtol=1e-10)
+            result = least_squares(equation_to_solve, x_guess, args=(x_l, Li, dLi), bounds=bounds, xtol=1e-14, ftol=1e-14, gtol=1e-14)
             x_t = result.x[0]
 
             #check constraint
@@ -562,30 +594,85 @@ def get_poly_convex_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, x_c,ith,jth
                 elif (length1 >= 0):
                     lower_l = lower_c1
                     upper_r = y_r
+                    print(ith,jth,"k101-lower-3")
                 else:
                     sys.exit("Negative lengths")
             else:
                 lower_l = lower_c1
                 upper_r = y_r
+                print(ith,jth,"k101-lower-4")
+
+    return (lower_l, upper_l, lower_r, upper_r)
+
+def get_convex_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, ith,jth):
+    lower_l = 0.0
+    upper_l = 0.0
+    lower_r = 0.0
+    upper_r = 0.0
+    dL_l = dLi(x_l)
+    dL_r = dLi(x_r)
+    y_l = Li(x_l) #function value at x_l
+    y_r = Li(x_r) #function value at x_r
+    upper_l = y_l
+    upper_r = y_r
+
+    x_t = 0.5*(x_l+x_r)
+    lower_l = Li(x_t) + dLi(x_t)*(x_l-x_t)
+    lower_r = Li(x_t) + dLi(x_t)*(x_r-x_t)
+
+    return (lower_l, upper_l, lower_r, upper_r)
+
+def get_concave_bounds(x_nodes, Li, dLi, d2Li, x_l, x_r, ith,jth):
+    lower_l = 0.0
+    upper_l = 0.0
+    lower_r = 0.0
+    upper_r = 0.0
+    dL_l = dLi(x_l)
+    dL_r = dLi(x_r)
+    y_l = Li(x_l) #function value at x_l
+    y_r = Li(x_r) #function value at x_r
+    lower_l = y_l
+    lower_r = y_r
+
+    x_t = 0.5*(x_l+x_r)
+    upper_l = Li(x_t) + dLi(x_t)*(x_l-x_t)
+    upper_r = Li(x_t) + dLi(x_t)*(x_r-x_t)
 
     return (lower_l, upper_l, lower_r, upper_r)
 
 
 
+#finds roots of polynomial
+#also gets PL-bounds
+#M < 0, we use automated bounds with M = N-2 by grouping the zeros of second
+#       derivative of Lagrange interpolants
+# otherwise we take M points. The distribution of interval points depends on
+# the argument inttype = 0 (GL), 1 (GLL), 2 (Chebyshev), 3 (for zeros of f"" based distribution)
+# similarly node type = 0 (GL), 1 (GLL [default])
 def main():
     # Number of GLL points
     parser = argparse.ArgumentParser(description="A script that processes some arguments")
 
     # Add arguments
-    parser.add_argument('--N', type=int, help='Number of rows (N)', required=True)
-    parser.add_argument('--M', type=int, help='Number of rows (N)', required=True)
+    parser.add_argument('--N', type=int, help='Number of mesh nodes', required=True)
+    parser.add_argument('--M', type=int, help='Number of interval points', default=-1)
+    parser.add_argument('--itype', type=int, help='Interval point type', default=2)
+    parser.add_argument('--ntype', type=int, help='Node type', default=1)
     args = parser.parse_args()
     N = args.N
     M = args.M
+    IType = args.itype
+    NType = args.ntype
     # print(N)
 
     # Step 1: Define the GLL points
-    x_nodes = gll_points(N)
+    x_nodes = None
+    if NType == 0:
+        x_nodes = gl_points(N)
+        print("GL Nodes")
+    else:
+        x_nodes = gll_points(N)
+        print("GLL Nodes")
     # print(x_nodes)
 
     # Step 2: Construct the Lagrange interpolants
@@ -597,67 +684,78 @@ def main():
 
     # Step 4: Find the zeros of the second derivative
     # zeros = find_zeros(d2L, x)
-    zeros = find_zeros(d2L, x, x_nodes)
-
-    x_values = np.linspace(-1, 1, 100000)
-
-    # Print the zeros
-    print("Zeros of the second derivative of each Lagrange interpolant:")
-    for i, z in enumerate(zeros):
-        print(f"Lagrange interpolant {i}: {z}")
 
     # Step 5: Plot the functions
     x_values = np.linspace(-1, 1, 1000)
 
-    nr = len(x_nodes)
-    mr = nr-1
-    # mr = 2*nr
-
-    lower = np.zeros((nr,mr))
-    upper = np.zeros((nr,mr))
-    int_points = np.zeros((nr,mr))
-
-    for i in range(nr):
-        # print(i)
-        int_points[i,:] = np.concatenate(([-1], zeros[i], [1]))
-        # int_points[i,:] = ChebyshevPoints(2*nr)
-        lower[i,:],upper[i,:] = find_pl_bounds(x_nodes, L, dL, x, i, int_points[i,:])
-
-    # plot_functions(L, dL, d2L, x_nodes, x, x_values, N,
-    #                lower, upper, int_points, False)
-
-
-    # plot how roots are grouped
+    zeros = find_zeros(d2L, x, x_nodes)
     zeros = np.array(zeros)
-    plot_roots_grouping(x_nodes,zeros)
+    x_intp = None
+    if M < 0:
+        print("Computing interval points based on the zeros.")
+        M = N-2
+        IType = 3
 
-    # validate zeros
-    roots_dist_threshold = 0.04
-    for i in range(nr-4):
-        zmax = np.max(zeros[:,i])
-        zmin_next = np.min(zeros[:,i+1])
-        if not zmin_next > zmax+roots_dist_threshold:
-            print(i,zmax,zmin_next)
-            sys.exit("Roots overlap")
-    print("Roots validated")
+        # Print the zeros
+        print("Zeros of the second derivative of each Lagrange interpolant:")
+        for i in range(N-3):
+            print(f"Lagrange interpolant {i}: {zeros[i,:]}")
 
-    # generate interval points
-    nzeros = nr-3
-    nintervals = nr-2
-    nintp = nr-2
-    x_intp = np.zeros(nintp)
-    x_intp[0] = -1.0
-    x_intp[-1] = 1.0
-    for i in range(1,nr-3):
-        z1 = np.max(zeros[:,i-1])
-        z2 = np.min(zeros[:,i])
-        x_intp[i] = 0.5*(z1+z2)
+        # validate zeros
+        roots_dist_threshold = 0.04
+        for i in range(N-4):
+            zmax = np.max(zeros[:,i])
+            zmin_next = np.min(zeros[:,i+1])
+            if not zmin_next > zmax+roots_dist_threshold:
+                print(i,zmax,zmin_next)
+                sys.exit("Roots overlap")
+        print("Roots validated")
+
+        # generate interval points
+        x_intp = np.zeros(M)
+        x_intp[0] = -1.0
+        x_intp[-1] = 1.0
+        for i in range(1,N-3):
+            z1 = np.max(zeros[:,i-1])
+            z2 = np.min(zeros[:,i])
+            x_intp[i] = 0.5*(z1+z2)
+    else:
+        if (IType == 0):
+            x_intp = np.sort(np.concatenate(([-1], gl_points(M-2), [1])))
+            print("GL+end points as interval points.")
+        elif (IType == 1):
+            x_intp = gll_points(M)
+            print("GLL points as interval points.")
+        elif (IType == 2):
+            x_intp = np.array(ChebyshevPoints(M))
+            print("Chebyshev points as interval points.")
+        print(x_intp)
+        #validate that there is at-most 1 zero in each interval for each basis function
+        for i in range(M-1):
+            x0 = x_intp[i]
+            x1 = x_intp[i+1]
+            # print(i,x0,x1)
+            nzeros = np.sum((zeros > x0) & (zeros < x1),axis=1)
+            # print(nzeros)
+            if np.max(nzeros) > 1:
+                print(i,x0,x1)
+                print(zeros)
+                sys.exit("Not a valid point set. Increase M")
+
+        # sys.exit("M < 0 only supported yet")
+
 
     # compute bounds on the interval points
-    nupper = array = np.full((nr,nintp), -10000.0)
-    nlower = array = np.full((nr,nintp), 10000.0)
-    xnewall = np.zeros((nr, nintp))
-    for i in range(nr):
+    nupper = array = np.full((N,M), -10000.0)
+    nlower = array = np.full((N,M), 10000.0)
+    xnewall = np.zeros((N, M))
+    for i in range(N):
+        xnewall[i,:] = x_intp
+
+    plot_functions(L, dL, d2L, x_nodes, x, x_values, N,
+                   nlower*0.0, nupper*0.0, xnewall, True, '', zeros)
+
+    for i in range(N):
         xnewall[i,:] = x_intp
         Li = L[i]
         dLi = dL[i]
@@ -665,13 +763,26 @@ def main():
         Li_func = lambdify(x, Li, 'numpy')
         dLi_func = lambdify(x, dLi, 'numpy')
         d2Li_func = lambdify(x, d2Li, 'numpy')
-        for j in range(nr-3):
+        for j in range(M-1):
             x0 = x_intp[j]
             x1 = x_intp[j+1]
-            xz = zeros[i,j]
-            lower_l, upper_l, lower_r, upper_r = get_poly_convex_concave_bounds(x_nodes, Li_func, dLi_func, d2Li_func, x0, x1, xz,i,j)
-            # if (i == 4 and j == 1):
-                # print(lower_l, upper_l, lower_r, upper_r, "k10check")
+            nzeros = np.sum((zeros[i,:] > x0) & (zeros[i,:] < x1))
+            # print(i,j,nzeros)
+            if nzeros == 0:
+                fpp = d2Li_func(0.5*(x0+x1))
+                # if (i == 0 and j == 0):
+                    # print(i,j,fpp,"k102")
+                if (fpp > 0):
+                    lower_l, upper_l, lower_r, upper_r = get_convex_bounds(x_nodes, Li_func, dLi_func, d2Li_func, x0, x1, i,j)
+                elif (fpp < 0):
+                    lower_l, upper_l, lower_r, upper_r = get_concave_bounds(x_nodes, Li_func, dLi_func, d2Li_func, x0, x1, i,j)
+                else:
+                    sys.exit("Accidentally hit d2f = 0")
+            else:
+                mask = (zeros[i,:] > x0) & (zeros[i,:] < x1)
+                xz = zeros[i,mask]
+                lower_l, upper_l, lower_r, upper_r = get_poly_convex_concave_bounds(x_nodes, Li_func, dLi_func, d2Li_func, x0, x1, xz,i,j)
+
             if j == 0:
                 nlower[i, j] = lower_l
                 nlower[i, j+1] = lower_r
@@ -683,8 +794,47 @@ def main():
                 nupper[i, j] = max(upper_l, nupper[i, j])
                 nupper[i, j+1] = max(upper_r, nupper[i, j+1])
 
+    if (NType == 0):
+        prefix = "GL_"
+    else:
+        prefix = "GLL_"
+
+    if (IType == 0):
+        prefix = prefix + "GL_"
+    elif (IType == 1):
+        prefix = prefix + "GLL_"
+    elif (IType == 2):
+        prefix = prefix + "Cheb_"
+    elif (IType == 3):
+        prefix = prefix + "Roots_"
     plot_functions(L, dL, d2L, x_nodes, x, x_values, N,
-                   nlower, nupper, xnewall, True, '', None, None, None, None, zeros)
+                   nlower, nupper, xnewall, True, prefix, zeros)
+
+
+    #validate bounds
+    npts = 1000000
+    x_values = np.linspace(-1, 1, npts)
+    delmax = 0
+    for i in range(N):
+        Li = L[i]
+        Li_func = lambdify(x, Li, 'numpy')
+        for j in range(npts):
+            xv = x_values[j]
+            yl = np.interp(xv, x_intp, nlower[i,:])
+            yu = np.interp(xv, x_intp, nupper[i,:])
+            yv = Li_func(xv)
+            if (yv < yl):
+                delmax = max(delmax,yl-yv)
+                # print(i,j,xv,yl,yu,yv,yl-yv,yv-yu)
+            elif  (yv > yu):
+                delmax = max(delmax,yv-yu)
+                # sys.exit("Piecewise linear bounds no good")
+
+    print("PL Bounds violate constraints at-most by: ",delmax)
+    sys.exit("Piecewise linear bounds are good")
+
+
+
 
 if __name__=="__main__":
     main()
