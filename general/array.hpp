@@ -23,6 +23,7 @@
 #include <cstring>
 #include <algorithm>
 #include <type_traits>
+#include <initializer_list>
 
 namespace mfem
 {
@@ -88,24 +89,14 @@ public:
    template <typename CT>
    inline Array(const Array<CT> &src);
 
-   /// Deep copy from a braced init-list of convertible type
+   /// Construct an Array from a C-style array of static length
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
 
-   /**
-    * @brief Construct a new Array object from an initializer list.
-    *
-    * @param init_list List of entities to construct from.
-    */
-   Array(const std::initializer_list<T> &init_list)
-      : Array(static_cast<int>(init_list.size()))
-   {
-      auto * it = GetData();
-      for (auto value : init_list)
-      {
-         *it++ = value;
-      }
-   }
+   /// Construct an Array from a braced initializer list of convertible type
+   template <typename CT, typename std::enable_if<
+                std::is_convertible<CT,T>::value,bool>::type = true>
+   explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
    inline Array(Array<T> &&src) { Swap(src, *this); }
@@ -308,7 +299,7 @@ public:
    void PartialSum();
 
    /// Return the sum of all the array entries using the '+'' operator for class 'T'.
-   T Sum();
+   T Sum() const;
 
    /// Set all entries of the array to the provided constant.
    inline void operator=(const T &a);
@@ -701,10 +692,18 @@ inline Array<T>::Array(const Array<CT> &src)
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }
 
+template <typename T>
+template <typename CT, typename std::enable_if<
+             std::is_convertible<CT,T>::value,bool>::type>
+inline Array<T>::Array(std::initializer_list<CT> values) : Array(values.size())
+{
+   std::copy(values.begin(), values.end(), begin());
+}
+
 template <typename T> template <typename CT, int N>
 inline Array<T>::Array(const CT (&values)[N]) : Array(N)
 {
-   for (int i = 0; i < size; i++) { (*this)[i] = T(values[i]); }
+   std::copy(values, values + N, begin());
 }
 
 template <class T>

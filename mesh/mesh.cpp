@@ -4414,6 +4414,49 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    FinalizeTopology();
 }
 
+Mesh::Mesh( const NURBSExtension& ext )
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
+{
+   SetEmpty();
+   /// make an internal copy of the NURBSExtension
+   NURBSext = new NURBSExtension( ext );
+
+   Dim              = NURBSext->Dimension();
+   NumOfVertices    = NURBSext->GetNV();
+   NumOfElements    = NURBSext->GetNE();
+   NumOfBdrElements = NURBSext->GetNBE();
+
+   NURBSext->GetElementTopo(elements);
+   NURBSext->GetBdrElementTopo(boundary);
+
+   vertices.SetSize(NumOfVertices);
+   if (NURBSext->HavePatches())
+   {
+      NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
+      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
+                                                       Ordering::byVDIM);
+      Nodes = new GridFunction(fes);
+      Nodes->MakeOwner(fec);
+      NURBSext->SetCoordsFromPatches(*Nodes);
+      own_nodes = 1;
+      spaceDim = Nodes->VectorDim();
+      for (int i = 0; i < spaceDim; i++)
+      {
+         Vector vert_val;
+         Nodes->GetNodalValues(vert_val, i+1);
+         for (int j = 0; j < NumOfVertices; j++)
+         {
+            vertices[j](i) = vert_val(j);
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("NURBS mesh has no patches.");
+   }
+   FinalizeMesh();
+}
+
 Element *Mesh::NewElement(int geom)
 {
    switch (geom)
