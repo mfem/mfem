@@ -84,7 +84,7 @@ for i, filename in enumerate(filenames):
 	else:
 		precond_ref = ""
 
-	# Run test case
+	# Construct the command line
 	command_line = "./ex5-nguyen -no-vis"
 	command_line += f" -nx {nx}"
 	command_line += f" -ny {ny}"
@@ -113,16 +113,19 @@ for i, filename in enumerate(filenames):
 	if nls != 0:
 		command_line += f' -nls {nls}'
 
+	print(f"RUNNING: {command_line}", end='\r', flush=True)
+
+	# Run test case
 	cmd_out = subprocess.getoutput(command_line)
-	split_cmd_out = cmd_out.splitlines()
-	indx_t = split_cmd_out[-1].find('= ')
-	indx_q = split_cmd_out[-2].find('= ')
-	precond_test_idx_s = split_cmd_out[-4].find('+')
-	precond_test_idx_e = split_cmd_out[-4].find(' ')
 
+	# Process the result
 	fail = False
-
 	try:
+		split_cmd_out = cmd_out.splitlines()
+		indx_t = split_cmd_out[-1].find('= ')
+		indx_q = split_cmd_out[-2].find('= ')
+		precond_test_idx_s = split_cmd_out[-4].find('+')
+		precond_test_idx_e = split_cmd_out[-4].find(' ')
 		test_L2_t = float(split_cmd_out[-1][indx_t+2::])
 		test_L2_q = float(split_cmd_out[-2][indx_q+2::])
 		precond_test = split_cmd_out[-4][precond_test_idx_s+1:precond_test_idx_e]
@@ -140,7 +143,7 @@ for i, filename in enumerate(filenames):
 			skipped += 1
 	
 	if fail:
-		print(f"{bcolors.FAIL}FAIL:{bcolors.RESET} {command_line}", flush=True)
+		print(f"{bcolors.FAIL}FAILING:{bcolors.RESET} {command_line}", flush=True)
 		print(cmd_out)
 		failed += 1
 
