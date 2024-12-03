@@ -3668,23 +3668,12 @@ void NetCDFReader::BuildBlockIDToNameMap(const vector<int> & blk_ids,
    CheckForNetCDFError();
    MFEM_ASSERT(_netcdf_status != NC_ENOTVAR, "The 'eb_names' variable was not found!");
 
-   // Determine the type of eb_names. At some point Exodus changed it
+   // Get type of eb_names
    nc_type var_type;
    _netcdf_status = nc_inq_vartype(_netcdf_descriptor, varid_block_names, &var_type);
    CheckForNetCDFError();
 
-   if (var_type == NC_STRING)
-   {
-      vector<char *> block_names(blk_ids.size());
-      _netcdf_status = nc_get_var_string(_netcdf_descriptor, varid_block_names, block_names.data());
-      CheckForNetCDFError();
-      for (size_t i = 0; i < blk_ids.size(); ++i)
-         ids_to_names[blk_ids[i]] = block_names[i] ? block_names[i] : "";
-
-      _netcdf_status = nc_free_string(blk_ids.size(), block_names.data());
-      CheckForNetCDFError();
-   }
-   else if (var_type == NC_CHAR)
+   if (var_type == NC_CHAR)
    {
       int dimids_names[2], names_ndim;
       size_t num_names, name_len;
@@ -3711,8 +3700,8 @@ void NetCDFReader::BuildBlockIDToNameMap(const vector<int> & blk_ids,
       for (size_t i = 0; i < blk_ids.size(); ++i)
       {
          string name(&block_names[i * name_len], name_len);
-         // remove trailing whitespace
-         name.erase(name.find_last_not_of(" \t\n\r") + 1);
+         // shorten string
+         name.resize(name.find('\0'));
          ids_to_names[blk_ids[i]] = name;
       }
    }
