@@ -1735,11 +1735,16 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       Array<const FiniteElement*> fe_arr({fe_u, fe_p});
       Array<const Vector*> x_arr({&u_l, &p_l});
       Array2D<DenseMatrix*> grad_arr(2,2);
-      grad_arr(0,0) = &A;
+      DenseMatrix grad_A, grad_D;
+      grad_arr(0,0) = &grad_A;
       grad_arr(1,0) = NULL;
       grad_arr(0,1) = NULL;
-      grad_arr(1,1) = &D;
+      grad_arr(1,1) = &grad_D;
       m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
+      if (grad_A.Height() != 0) { A = grad_A; }
+      else { A = 0.; }
+      if (grad_D.Height() != 0) { D = grad_D; }
+      else { D = 0.; }
    }
    else
    {
@@ -2359,8 +2364,8 @@ void DarcyHybridization::LocalNLOperator::Mult(const Vector &x, Vector &y) const
       Array<const Vector*> x_arr({&u_l, &p_l});
       Array<Vector*> y_arr({&Au, &Dp});
       dh.m_nlfi->AssembleElementVector(fe_arr, *Tr, x_arr, y_arr);
-      bu += Au;
-      bp += Dp;
+      if (Au.Size() != 0) { bu += Au; }
+      if (Dp.Size() != 0) { bp += Dp; }
    }
 }
 
@@ -2373,9 +2378,6 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    const Vector &u_l = x_l.GetBlock(0);
    const Vector &p_l = x_l.GetBlock(1);
 
-   grad_A.SetSize(a_dofs_size);
-   grad_D.SetSize(d_dofs_size);
-
    if (dh.m_nlfi)
    {
       Array<const FiniteElement*> fe_arr({fe_u, fe_p});
@@ -2386,9 +2388,21 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
       grad_arr(0,1) = NULL;
       grad_arr(1,1) = &grad_D;
       dh.m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
+      if (grad_A.Height() == 0)
+      {
+         grad_A.SetSize(a_dofs_size);
+         grad_A = 0.;
+      }
+      if (grad_D.Height() == 0)
+      {
+         grad_D.SetSize(d_dofs_size);
+         grad_D = 0.;
+      }
    }
    else
    {
+      grad_A.SetSize(a_dofs_size);
+      grad_D.SetSize(d_dofs_size);
       grad_A = 0.;
       grad_D = 0.;
    }

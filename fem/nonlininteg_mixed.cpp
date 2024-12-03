@@ -167,13 +167,10 @@ void MixedConductionNLFIntegrator::AssembleElementVector(
    const Vector &elfun_u = *elfun[0];
    const Vector &elfun_p = *elfun[1];
    Vector &elvect_u = *elvect[0];
-   Vector &elvect_p = *elvect[1];
 
    shape_p.SetSize(ndof_p);
 
-   //not used
-   elvect_p.SetSize(ndof_p);
-   elvect_p = 0.0;
+   if (elvect[1]) { elvect[1]->SetSize(0); } // not used
 
    Vector x(sdim), u(sdim), F(sdim), p(1);
    DenseMatrix mu(u.GetData(), 1, sdim), mF(F.GetData(), 1, sdim);
@@ -260,11 +257,7 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
 
    shape_p.SetSize(ndof_p);
 
-   if (elmats(1,1))
-   {
-      //elmats(1,1)->SetSize(ndof_p); // not used
-      *elmats(1,1) = 0.0;
-   }
+   if (elmats(1,1)) { elmats(1,1)->SetSize(0); } // not used
    if (elmats(0,0))
    {
       elmats(0,0)->SetSize(nvdof_u);
@@ -275,11 +268,7 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
       elmats(0,1)->SetSize(nvdof_u, ndof_p);
       *elmats(0,1) = 0.0;
    }
-   if (elmats(1,0))
-   {
-      //elmats(1,0)->SetSize(ndof_p, nvdof_u); // not used
-      *elmats(1,0) = 0.0;
-   }
+   if (elmats(1,0)) { elmats(1,0)->SetSize(0); } // not used
 
    DenseMatrix J_u(sdim, 1), J_F(sdim);
    Vector x(sdim), u(sdim), p(1);
