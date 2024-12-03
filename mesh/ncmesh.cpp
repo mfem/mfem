@@ -4806,10 +4806,18 @@ void NCMesh::RefineVertexToKnot(Array<int> const& rf)
 
    for (int i=0; i<vertex_to_knot.NumRows(); ++i)
    {
-      const int d0 = 0;  // TODO: find the first direction for this parent face
-      const int d1 = 0;  // TODO: find the first direction for this parent face
-      vertex_to_knot(i,1) *= rf[d0];
-      vertex_to_knot(i,2) *= rf[d1];
+      if (Dim == 3)
+      {
+         const int d0 = 0;  // TODO: find the first direction for this parent face
+         const int d1 = 0;  // TODO: find the first direction for this parent face
+         vertex_to_knot(i,1) *= rf[d0];
+         vertex_to_knot(i,2) *= rf[d1];
+      }
+      else // 2D
+      {
+         const int d = 0;  // TODO: find the direction for this parent edge
+         vertex_to_knot(i,1) *= rf[d];
+      }
    }
 }
 
