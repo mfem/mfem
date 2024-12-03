@@ -28,6 +28,7 @@ L2_SegmentElement::L2_SegmentElement(const int p, const int btype)
 #ifndef MFEM_THREAD_SAFE
    shape_x.SetSize(p + 1);
    dshape_x.SetDataAndSize(NULL, p + 1);
+   d2shape_x.SetSize(p+1);
 #endif
 
    for (int i = 0; i <= p; i++)
@@ -53,6 +54,24 @@ void L2_SegmentElement::CalcDShape(const IntegrationPoint &ip,
 #endif
    basis1d.ScaleIntegrated(map_type == VALUE);
    basis1d.Eval(ip.x, shape_x, dshape_x);
+}
+void L2_SegmentElement::CalcHessian(const IntegrationPoint &ip,
+                                    DenseMatrix &Hessian) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p+1), dshape_x(p+1), d2shape_x(p+1);
+#endif
+
+   basis1d.Eval(ip.x, shape_x, dshape_x, d2shape_x);
+
+   Hessian(0,0) = d2shape_x(0);
+   Hessian(1,0) = d2shape_x(p);
+   for (int i = 1; i < p; i++)
+   {
+      Hessian(i+1,0) = d2shape_x(i);
+   }
 }
 
 void L2_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
@@ -89,6 +108,8 @@ L2_QuadrilateralElement::L2_QuadrilateralElement(const int p, const int btype)
    shape_y.SetSize(p + 1);
    dshape_x.SetSize(p + 1);
    dshape_y.SetSize(p + 1);
+   d2shape_x.SetSize(p + 1);
+   d2shape_y.SetSize(p + 1);
 #endif
 
    for (int o = 0, j = 0; j <= p; j++)
@@ -137,6 +158,30 @@ void L2_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
          dshape(o,0) = dshape_x(i)* shape_y(j);
          dshape(o,1) =  shape_x(i)*dshape_y(j);  o++;
       }
+}
+
+void L2_QuadrilateralElement::CalcHessian(const IntegrationPoint &ip,
+                                          DenseMatrix &Hessian) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1),
+          d2shape_x(p+1), d2shape_y(p+1);
+#endif
+
+   basis1d.Eval(ip.x, shape_x, dshape_x, d2shape_x);
+   basis1d.Eval(ip.y, shape_y, dshape_y, d2shape_y);
+
+   for (int o = 0, j = 0; j <= p; j++)
+   {
+      for (int i = 0; i <= p; i++)
+      {
+         Hessian(dof_map[o],0) = d2shape_x(i)*  shape_y(j);
+         Hessian(dof_map[o],1) =  dshape_x(i)* dshape_y(j);
+         Hessian(dof_map[o],2) =   shape_x(i)*d2shape_y(j);  o++;
+      }
+   }
 }
 
 void L2_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
@@ -307,6 +352,9 @@ L2_HexahedronElement::L2_HexahedronElement(const int p, const int btype)
    dshape_x.SetSize(p + 1);
    dshape_y.SetSize(p + 1);
    dshape_z.SetSize(p + 1);
+   d2shape_x.SetSize(p + 1);
+   d2shape_y.SetSize(p + 1);
+   d2shape_z.SetSize(p + 1);
 #endif
 
    for (int o = 0, k = 0; k <= p; k++)
@@ -361,6 +409,35 @@ void L2_HexahedronElement::CalcDShape(const IntegrationPoint &ip,
             dshape(o,0) = dshape_x(i)* shape_y(j)* shape_z(k);
             dshape(o,1) =  shape_x(i)*dshape_y(j)* shape_z(k);
             dshape(o,2) =  shape_x(i)* shape_y(j)*dshape_z(k);  o++;
+         }
+}
+
+void L2_HexahedronElement::CalcHessian(const IntegrationPoint &ip,
+                                       DenseMatrix &Hessian) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p+1),  shape_y(p+1),  shape_z(p+1);
+   Vector dshape_x(p+1), dshape_y(p+1), dshape_z(p+1);
+   Vector d2shape_x(p+1), d2shape_y(p+1), d2shape_z(p+1);
+#endif
+
+   basis1d.Eval(ip.x, shape_x, dshape_x, d2shape_x);
+   basis1d.Eval(ip.y, shape_y, dshape_y, d2shape_y);
+   basis1d.Eval(ip.z, shape_z, dshape_z, d2shape_z);
+
+   for (int o = 0, k = 0; k <= p; k++)
+      for (int j = 0; j <= p; j++)
+         for (int i = 0; i <= p; i++)
+         {
+            Hessian(dof_map[o],0) = d2shape_x(i)*  shape_y(j)*  shape_z(k);
+            Hessian(dof_map[o],1) =  dshape_x(i)* dshape_y(j)*  shape_z(k);
+            Hessian(dof_map[o],2) =  dshape_x(i)*  shape_y(j)* dshape_z(k);
+            Hessian(dof_map[o],3) =   shape_x(i)*d2shape_y(j)*  shape_z(k);
+            Hessian(dof_map[o],4) =   shape_x(i)* dshape_y(j)* dshape_z(k);
+            Hessian(dof_map[o],5) =   shape_x(i)*  shape_y(j)*d2shape_z(k);
+            o++;
          }
 }
 
@@ -580,8 +657,12 @@ L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
    dshape_x.SetSize(p + 1);
    dshape_y.SetSize(p + 1);
    dshape_l.SetSize(p + 1);
+   ddshape_x.SetSize(p + 1);
+   ddshape_y.SetSize(p + 1);
+   ddshape_l.SetSize(p + 1);
    u.SetSize(dof);
    du.SetSize(dof, dim);
+   ddu.SetSize(dof, (dim * (dim + 1)) / 2 );
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
 #endif
@@ -663,6 +744,38 @@ void L2_TriangleElement::CalcDShape(const IntegrationPoint &ip,
    Ti.Mult(du, dshape);
 }
 
+void L2_TriangleElement::CalcHessian(const IntegrationPoint &ip,
+                                     DenseMatrix &ddshape) const
+{
+   const int p = order;
+#ifdef MFEM_THREAD_SAFE
+   Vector   shape_x(p + 1),   shape_y(p + 1),   shape_l(p + 1);
+   Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_l(p + 1);
+   Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_l(p + 1);
+   DenseMatrix ddu(dof, dim);
+#endif
+
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y, ddshape_y);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l, dshape_l, ddshape_l);
+
+   for (int o = 0, j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)
+      {
+         int k = p - i - j;
+         // u_xx, u_xy, u_yy
+         ddu(o,0) = ((ddshape_x(i) * shape_l(k)) - 2. * (dshape_x(i) * dshape_l(k)) +
+                     (shape_x(i) * ddshape_l(k))) * shape_y(j);
+         ddu(o,1) = (((shape_x(i) * ddshape_l(k)) - dshape_x(i) * dshape_l(k)) * shape_y(
+                        j)) + (((dshape_x(i) * shape_l(k)) - (shape_x(i) * dshape_l(k))) * dshape_y(j));
+         ddu(o,2) = ((ddshape_y(j) * shape_l(k)) - 2. * (dshape_y(j) * dshape_l(k)) +
+                     (shape_y(j) * ddshape_l(k))) * shape_x(i);
+         o++;
+      }
+
+   Ti.Mult(ddu, ddshape);
+}
+
 void L2_TriangleElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    switch (vertex)
@@ -707,8 +820,13 @@ L2_TetrahedronElement::L2_TetrahedronElement(const int p, const int btype)
    dshape_y.SetSize(p + 1);
    dshape_z.SetSize(p + 1);
    dshape_l.SetSize(p + 1);
+   ddshape_x.SetSize(p + 1);
+   ddshape_y.SetSize(p + 1);
+   ddshape_z.SetSize(p + 1);
+   ddshape_l.SetSize(p + 1);
    u.SetSize(dof);
    du.SetSize(dof, dim);
+   ddu.SetSize(dof, (dim * (dim + 1)) / 2);
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_l(p + 1);
 #endif
@@ -798,6 +916,52 @@ void L2_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
          }
 
    Ti.Mult(du, dshape);
+}
+
+void L2_TetrahedronElement::CalcHessian(const IntegrationPoint &ip,
+                                        DenseMatrix &ddshape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector   shape_x(p + 1),   shape_y(p + 1),   shape_z(p + 1),   shape_l(p + 1);
+   Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_z(p + 1),  dshape_l(p + 1);
+   Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_z(p + 1), ddshape_l(p + 1);
+   DenseMatrix ddu(dof, ((dim + 1) * dim) / 2);
+#endif
+
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y, ddshape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z, dshape_z, ddshape_z);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l, dshape_l, ddshape_l);
+
+   for (int o = 0, k = 0; k <= p; k++)
+      for (int j = 0; j + k <= p; j++)
+         for (int i = 0; i + j + k <= p; i++)
+         {
+            // u_xx, u_xy, u_xz, u_yy, u_yz, u_zz
+            int l = p - i - j - k;
+            ddu(o,0) = ((ddshape_x(i) * shape_l(l)) - 2. * (dshape_x(i) * dshape_l(l)) +
+                        (shape_x(i) * ddshape_l(l))) * shape_y(j) * shape_z(k);
+            ddu(o,1) = ((dshape_y(j) * ((dshape_x(i) * shape_l(l)) -
+                                        (shape_x(i) * dshape_l(l)))) +
+                        (shape_y(j) * ((ddshape_l(l) * shape_x(i)) -
+                                       (dshape_x(i) * dshape_l(l)))))* shape_z(k);
+            ddu(o,2) = ((dshape_z(k) * ((dshape_x(i) * shape_l(l)) -
+                                        (shape_x(i) * dshape_l(l)))) +
+                        (shape_z(k) * ((ddshape_l(l) * shape_x(i)) -
+                                       (dshape_x(i) * dshape_l(l)))))* shape_y(j);
+            ddu(o,3) = ((ddshape_y(j) * shape_l(l)) - 2. * (dshape_y(j) * dshape_l(l)) +
+                        (shape_y(j) * ddshape_l(l))) * shape_x(i) * shape_z(k);
+            ddu(o,4) = ((dshape_z(k) * ((dshape_y(j) * shape_l(l)) -
+                                        (shape_y(j)*dshape_l(l))) ) +
+                        (shape_z(k)* ((ddshape_l(l)*shape_y(j)) -
+                                      (dshape_y(j) * dshape_l(l)) ) ) )* shape_x(i);
+            ddu(o,5) = ((ddshape_z(k) * shape_l(l)) - 2. * (dshape_z(k) * dshape_l(l)) +
+                        (shape_z(k) * ddshape_l(l))) * shape_y(j) * shape_x(i);
+            o++;
+         }
+   Ti.Mult(ddu, ddshape);
 }
 
 void L2_TetrahedronElement::ProjectDelta(int vertex, Vector &dofs) const

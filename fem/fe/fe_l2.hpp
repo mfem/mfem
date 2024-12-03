@@ -22,7 +22,7 @@ class L2_SegmentElement : public NodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, dshape_x;
+   mutable Vector shape_x, dshape_x, d2shape_x;
 #endif
 
 public:
@@ -31,6 +31,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 
    virtual void GetLocalRestriction(ElementTransformation &Trans,
@@ -45,7 +47,7 @@ class L2_QuadrilateralElement : public NodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, dshape_x, dshape_y;
+   mutable Vector shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
 #endif
 
 public:
@@ -55,6 +57,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
    virtual void ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
@@ -79,7 +83,8 @@ class L2_HexahedronElement : public NodalTensorFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
+   mutable Vector shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z,
+           d2shape_x, d2shape_y, d2shape_z;
 #endif
 
 public:
@@ -89,6 +94,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 
    virtual void GetLocalRestriction(ElementTransformation &Trans,
@@ -110,7 +117,8 @@ class L2_TriangleElement : public NodalFiniteElement
 private:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
-   mutable DenseMatrix du;
+   mutable Vector ddshape_x, ddshape_y, ddshape_l;
+   mutable DenseMatrix du, ddu;
 #endif
    DenseMatrixInverse Ti;
 
@@ -121,6 +129,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &ddshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
    virtual void ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
@@ -141,7 +151,8 @@ private:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_z, dshape_l, u;
-   mutable DenseMatrix du;
+   mutable Vector ddshape_x, ddshape_y, ddshape_z, ddshape_l;
+   mutable DenseMatrix du, ddu;
 #endif
    DenseMatrixInverse Ti;
 
@@ -152,6 +163,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &ddshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
 
    virtual void GetLocalRestriction(ElementTransformation &Trans,
