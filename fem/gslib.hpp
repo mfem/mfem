@@ -359,8 +359,8 @@ public:
 
    /// Return the oriented bounding boxes (OBB) computed during \ref Setup.
    /// Each OBB is represented using the inverse transformation (A^{-1}) and
-   /// its center (\vec{x}_c), such that a point \vec{x} is inside the OBB if:
-   ///                  -1 <= A^{-1}(\vec{x}-\vec{x}_c) <= 1.
+   /// its center (x_c), such that a point x is inside the OBB if:
+   ///                  -1 <= A^{-1}(x-x_c) <= 1.
    /// The inverse transformation is returned in \p obbA, a DenseTensor of
    /// size (dim x dim x nel), and the OBB centers are returned in \p obbC,
    /// a vector of size (nel x dim). The vertices of the OBBs are returned in
