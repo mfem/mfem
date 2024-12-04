@@ -1585,7 +1585,7 @@ const real_t ND_FuentesPyramidElement::tk[27] =
 {
    1., 0., 0.,   0., 1., 0.,  0., 0., 1.,
    -1., 0., 1.,  -1.,-1., 1.,  0.,-1., 1.,
-   -1., 0., 0.,   0.,-1., 0., M_SQRT1_2,M_SQRT1_2,M_SQRT2
+   -1., 0., 0.,   0.,-1., 0., -M_SQRT1_2,-M_SQRT1_2,M_SQRT2
 };
 
 ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
