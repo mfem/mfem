@@ -40,7 +40,7 @@ Array<int> findMinTracePermutation(const DenseMatrix &A)
          col_in_path[c_cur] = true;
          const int r = perm[c_cur];
          real_t delta = inf;
-         int c_next;
+         int c_next = -1;
          for (int c = 0; c < C; ++c)
          {
             if (!col_in_path[c])
