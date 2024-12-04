@@ -319,9 +319,11 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
       // points approach the apex of a pyramid the derivatives in the x and y
       // directions become infinite. Therefore, we need to scale the finite
       // difference error estimate by the following z-dependent factor. The
-      // added factor of 2 is due to the fact that most H(curl) basis functions
-      // on a pyramid are build from 2 or 3 pieces added together.
-      real_t pyr_fac = pyr ? (2.0 * std::pow(1.0/(1.0-pt.z), 3)) : 1.0;
+      // truncation error involves the third derivative of the Legendre
+      // polynomial which adds three factors of 1/(1-z). Some of the basis
+      // functions are constructed using first derivatives of Legendre
+      // polynomials which adds one additional factor of 1/(1-z).
+      real_t pyr_fac = pyr ? std::pow(1.0/(1.0-pt.z), 4) : 1.0;
 
       // Determine the maximum difference between the two derivative
       // calculations
