@@ -431,6 +431,7 @@ void DifferentiableOperator::AddDomainIntegrator(
       };
    }
 
+   const int dimension = mesh.Dimension();
    const int num_elements = GetNumEntities<Entity::Element>(mesh);
    const int num_entities = GetNumEntities<entity_t>(mesh);
    const int num_qp = integration_rule.GetNPoints();
@@ -458,7 +459,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                           integration_rule,
                           doftoquad_mode));
    }
-   const int q1d = (int)floor(pow(num_qp, 1.0/mesh.Dimension()) + 0.5);
+   const int q1d = (int)floor(pow(num_qp, 1.0/dimension) + 0.5);
 
    residual_e.SetSize(output_e_size);
 
@@ -490,7 +491,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    // Compute block sizes
    int block_x, block_y, block_z;
-   if (mesh.Dimension() == 3)
+   if (dimension == 3)
    {
       if (use_sum_factorization)
       {
@@ -505,7 +506,7 @@ void DifferentiableOperator::AddDomainIntegrator(
          block_z = 1;
       }
    }
-   else if (mesh.Dimension() == 2)
+   else if (dimension == 2)
    {
       if (use_sum_factorization)
       {
@@ -529,8 +530,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    action_callbacks.push_back(
       [=, restriction_callback = this->restriction_callback]
-      (std::vector<Vector>
-       &solutions_l,
+      (std::vector<Vector> &solutions_l,
        const std::vector<Vector> &parameters_l,
        Vector &residual_l) mutable
    {
@@ -552,17 +552,17 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          map_fields_to_quadrature_data(
             input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-            scratch_shmem, use_sum_factorization);
+            scratch_shmem, dimension, use_sum_factorization);
 
          call_qfunction<qf_param_ts>(
             qfunc, input_shmem, residual_shmem,
-            residual_size_on_qp, num_qp, q1d, use_sum_factorization);
+            residual_size_on_qp, num_qp, q1d, dimension, use_sum_factorization);
 
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
          map_quadrature_data_to_fields(
             y, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
-            scratch_shmem, use_sum_factorization);
+            scratch_shmem, dimension, use_sum_factorization);
       }, num_entities, block_x, block_y, block_z, action_shmem_info.total_size, shmem_cache.ReadWrite());
       output_restriction_transpose(residual_e, residual_l);
    });
@@ -610,22 +610,22 @@ void DifferentiableOperator::AddDomainIntegrator(
 
             map_fields_to_quadrature_data(
                input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-               scratch_shmem, use_sum_factorization);
+               scratch_shmem, dimension, use_sum_factorization);
 
             set_zero(shadow_shmem);
             map_direction_to_quadrature_data_conditional(
                shadow_shmem, direction_shmem, input_dtq_shmem, inputs, ir_weights,
-               scratch_shmem, input_is_dependent, use_sum_factorization);
+               scratch_shmem, input_is_dependent, dimension, use_sum_factorization);
 
             call_qfunction_derivative_action<qf_param_ts>(
                qfunc, input_shmem, shadow_shmem, residual_shmem,
-               da_size_on_qp, num_qp, q1d, use_sum_factorization);
+               da_size_on_qp, num_qp, q1d, dimension, use_sum_factorization);
 
             auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
             auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
             map_quadrature_data_to_fields(
                y, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
-               scratch_shmem, use_sum_factorization);
+               scratch_shmem, dimension, use_sum_factorization);
          }, num_entities, block_x, block_y, block_z, shmem_info.total_size, shmem_cache.ReadWrite());
          output_restriction_transpose(derivative_action_e, derivative_action_l);
       });
@@ -773,7 +773,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
                map_quadrature_data_to_fields(
                   y, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
-                  scratch_shmem, use_sum_factorization);
+                  scratch_shmem, dimension, use_sum_factorization);
             }
             output_restriction_transpose(derivative_action_e, derivative_action_l);
          });
@@ -786,7 +786,8 @@ void DifferentiableOperator::AddDomainIntegrator(
    {
       if (use_sum_factorization)
       {
-         MFEM_ABORT("assembly not working with tensor product elements right now");
+         MFEM_WARNING("assembling derivatives is not implemented with tensor product elements right now");
+         return;
       }
 
       auto shmem_info =
@@ -829,6 +830,12 @@ void DifferentiableOperator::AddDomainIntegrator(
          assemble_derivative_vector_callbacks[derivative_idx].push_back(
             [=](std::vector<Vector> &fields_e, Vector &derivative_l) mutable
          {
+            if (use_sum_factorization)
+            {
+               MFEM_WARNING("assembling derivatives is not implemented with tensor product elements right now");
+               return;
+            }
+
             Vector direction_e(assembled_vector_sizes[derivative_idx]);
             Vector ve(assembled_vector_sizes[derivative_idx]);
 
@@ -932,6 +939,12 @@ void DifferentiableOperator::AddDomainIntegrator(
             [=, fields = this->fields, ess_tdof_list = this->ess_tdof_list]
             (std::vector<Vector> &fields_e, HypreParMatrix &A) mutable
          {
+            if (use_sum_factorization)
+            {
+               MFEM_WARNING("assembling derivatives is not implemented with tensor product elements right now");
+               return;
+            }
+
             Vector direction_e(get_restriction<entity_t>(fields[derivative_idx],
                                                          element_dof_ordering)->Height());
 
@@ -1048,7 +1061,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                      auto bvtfhat = Reshape(&A_e(0, 0, J, j, e), num_test_dof, test_vdim);
                      map_quadrature_data_to_fields(
                         bvtfhat, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
-                        scratch_shmem, use_sum_factorization);
+                        scratch_shmem, dimension, use_sum_factorization);
                   }
                }
             }

@@ -39,9 +39,22 @@ int test_diffusion_3d(
    printf("#nqp = %d\n", ir.GetNPoints());
    printf("#q1d = %d\n", (int)floor(pow(ir.GetNPoints(), 1.0/dim) + 0.5));
 
-   ParametricSpace qdata_space(1, dim * dim, ir.GetNPoints(),
-                               dim * dim * ir.GetNPoints() * mesh.GetNE());
-   ParametricFunction qdata(qdata_space);
+   std::shared_ptr<ParametricSpace> qdata_space;
+   if (mesh.GetElement(0)->GetType() == Element::QUADRILATERAL ||
+       mesh.GetElement(0)->GetType() == Element::HEXAHEDRON)
+   {
+      qdata_space =
+         std::make_shared<ParametricSpace>(
+            dim, dim * dim, ir.GetNPoints(), dim * dim * ir.GetNPoints() * mesh.GetNE());
+   }
+   else
+   {
+      qdata_space =
+         std::make_shared<ParametricSpace>(
+            1, dim * dim, ir.GetNPoints(), dim * dim * ir.GetNPoints() * mesh.GetNE());
+   }
+
+   ParametricFunction qdata(*qdata_space);
 
    ParGridFunction f1_g(&h1fes);
    ParGridFunction rho_g(&h1fes);
@@ -71,7 +84,7 @@ int test_diffusion_3d(
          [] MFEM_HOST_DEVICE (
             const tensor<real_t, dim>& dudxi,
             const tensor<real_t, dim, dim>& J,
-            const real_t& w)
+            const real_t& w) -> mfem::tuple<tensor<real_t, dim>>
       {
          auto invJ = inv(J);
          tensor<real_t, dim, dim> C{0.0};
@@ -110,7 +123,7 @@ int test_diffusion_3d(
       printf("dfem mf:       %fs\n", sw.RealTime() / num_samples);
       y.HostRead();
 
-      dfdu = dop.GetDerivative(Potential, {&f1_g}, {mesh_nodes});
+      // dfdu = dop.GetDerivative(Potential, {&f1_g}, {mesh_nodes});
 
       sw.Start();
       for (int i = 0; i < num_samples; i++)
@@ -120,140 +133,104 @@ int test_diffusion_3d(
       sw.Stop();
       printf("dfem mf JVP:       %fs\n", sw.RealTime() / num_samples);
 
-      sw.Start();
-      for (int i = 0; i < num_samples; i++)
-      {
-         dfdu->MultTranspose(x, y);
-      }
-      sw.Stop();
-      printf("dfem mf VJP:       %fs\n", sw.RealTime() / num_samples);
+      // sw.Start();
+      // for (int i = 0; i < num_samples; i++)
+      // {
+      //    dfdu->MultTranspose(x, y);
+      // }
+      // sw.Stop();
+      // printf("dfem mf VJP:       %fs\n", sw.RealTime() / num_samples);
 
       // printf("dfem dfdu^T * x:\n");
       // print_vector(y);
    }
 
-   // {
-   //    auto diffusion_setup_kernel =
-   //       [] MFEM_HOST_DEVICE (
-   //          const tensor<double, dim, dim>& J,
-   //          const double& w)
-   //    {
-   //       auto invJ = inv(J);
-   //       return mfem::tuple{invJ * transpose(invJ) * det(J) * w};
-   //    };
+   {
+      auto diffusion_setup_kernel =
+         [] MFEM_HOST_DEVICE (
+            const tensor<double, dim, dim>& J,
+            const double& w)
+      {
+         auto invJ = inv(J);
+         tensor<real_t, dim, dim> C{0.0};
+         C(0, 0) = 2.0;
+         C(1, 0) = 3.0;
+         C(1, 1) = 4.0;
+         if (dim == 3)
+         {
+            C(2, 2) = 1.0;
+         }
+         return mfem::tuple{C * invJ * transpose(invJ) * det(J) * w};
+      };
 
-   //    constexpr int Potential = 0;
-   //    constexpr int Coordinates = 1;
-   //    constexpr int QData = 2;
+      constexpr int Potential = 0;
+      constexpr int Coordinates = 1;
+      constexpr int QData = 2;
 
-   //    auto input_operators = mfem::tuple{Gradient<Coordinates>{}, Weight{}};
-   //    auto output_operator = mfem::tuple{None<QData>{}};
+      auto input_operators = mfem::tuple{Gradient<Coordinates>{}, Weight{}};
+      auto output_operator = mfem::tuple{None<QData>{}};
 
-   //    auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
-   //    auto parameters = std::vector{FieldDescriptor{Coordinates, &mesh_fes},
-   //                                  FieldDescriptor{QData, &qdata_space}};
+      auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
+      auto parameters = std::vector{FieldDescriptor{Coordinates, &mesh_fes},
+                                    FieldDescriptor{QData, qdata_space.get()}};
 
-   //    DifferentiableOperator dop(solutions, parameters, mesh);
-   //    dop.AddDomainIntegrator(
-   //       diffusion_setup_kernel, input_operators, output_operator, ir);
+      DifferentiableOperator dop(solutions, parameters, mesh);
+      dop.AddDomainIntegrator(
+         diffusion_setup_kernel, input_operators, output_operator, ir);
 
-   //    dop.SetParameters({mesh_nodes, &qdata});
-   //    StopWatch sw;
-   //    sw.Start();
-   //    for (int i = 0; i < num_samples; i++)
-   //    {
-   //       dop.Mult(x, qdata);
-   //    }
-   //    sw.Stop();
-   //    printf("dfem pa setup: %fs\n", sw.RealTime() / num_samples);
-   //    qdata.HostRead();
-   // }
+      dop.SetParameters({mesh_nodes, &qdata});
+      StopWatch sw;
+      sw.Start();
+      for (int i = 0; i < num_samples; i++)
+      {
+         dop.Mult(x, qdata);
+      }
+      sw.Stop();
+      printf("dfem pa setup: %fs\n", sw.RealTime() / num_samples);
+      qdata.HostRead();
+   }
 
-   // // printf("qdata: ");
-   // // print_vector(qdata);
+   // printf("qdata: ");
+   // print_vector(qdata);
 
-   // {
-   //    auto diffusion_apply_kernel =
-   //       [] MFEM_HOST_DEVICE (
-   //          const tensor<real_t, dim>& dudxi,
-   //          const tensor<double, dim, dim>& qdata)
-   //    {
-   //       return mfem::tuple{dudxi * qdata};
-   //    };
+   {
+      auto diffusion_apply_kernel =
+         [] MFEM_HOST_DEVICE (
+            const tensor<real_t, dim>& dudxi,
+            const tensor<double, dim, dim>& qdata)
+      {
+         return mfem::tuple{qdata * dudxi};
+      };
 
-   //    constexpr int Potential = 0;
-   //    constexpr int QData = 1;
+      constexpr int Potential = 0;
+      constexpr int QData = 1;
 
-   //    auto input_operators = mfem::tuple{Gradient<Potential>{}, None<QData>{}};
-   //    auto output_operator = mfem::tuple{Gradient<Potential>{}};
+      auto input_operators = mfem::tuple{Gradient<Potential>{}, None<QData>{}};
+      auto output_operator = mfem::tuple{Gradient<Potential>{}};
 
-   //    auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
-   //    auto parameters = std::vector{FieldDescriptor{QData, &qdata_space}};
+      auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
+      auto parameters = std::vector{FieldDescriptor{QData, qdata_space.get()}};
 
-   //    DifferentiableOperator dop(solutions, parameters, mesh);
-   //    dop.AddDomainIntegrator(
-   //       diffusion_apply_kernel, input_operators, output_operator, ir);
+      DifferentiableOperator dop(solutions, parameters, mesh);
+      dop.AddDomainIntegrator(
+         diffusion_apply_kernel, input_operators, output_operator, ir);
 
-   //    dop.SetParameters({&qdata});
-   //    StopWatch sw;
-   //    sw.Start();
-   //    for (int i = 0; i < num_samples; i++)
-   //    {
-   //       dop.Mult(x, y);
-   //    }
-   //    sw.Stop();
-   //    printf("dfem pa apply: %fs\n", sw.RealTime() / num_samples);
-   //    y.HostRead();
-   // }
+      dop.SetParameters({&qdata});
+      StopWatch sw;
+      sw.Start();
+      for (int i = 0; i < num_samples; i++)
+      {
+         dop.Mult(x, y);
+      }
+      sw.Stop();
+      printf("dfem pa apply: %fs\n", sw.RealTime() / num_samples);
+      y.HostRead();
+   }
 
-   // // printf("y: ");
-   // // print_vector(y);
+   // printf("y: ");
+   // print_vector(y);
 
-   // Vector y2(h1fes.TrueVSize());
-   // {
-   //    ParBilinearForm a(&h1fes);
-   //    auto diff_integ = new DiffusionIntegrator;
-   //    diff_integ->SetIntRule(&ir);
-   //    a.AddDomainIntegrator(diff_integ);
-   //    // a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-
-   //    OperatorPtr A;
-   //    StopWatch sw;
-   //    sw.Start();
-   //    a.Assemble();
-   //    a.Finalize();
-   //    Array<int> empty;
-   //    a.FormSystemMatrix(empty, A);
-   //    sw.Stop();
-   //    printf("mfem pa setup: %fs\n", sw.RealTime());
-
-   //    sw.Clear();
-   //    sw.Start();
-   //    y2 = 0.0;
-   //    for (int i = 0; i < num_samples; i++)
-   //    {
-   //       A->Mult(x, y2);
-   //    }
-   //    sw.Stop();
-   //    printf("mfem pa apply: %fs\n", sw.RealTime() / num_samples);
-   //    y2.HostRead();
-   // }
-   // printf("y2: ");
-   // print_vector(y2);
-
-   // Vector diff(y2);
-   // diff -= y;
-   // if (diff.Norml2() > 1e-12)
-   // {
-   //    printf("y: ");
-   //    print_vector(y);
-   //    printf("y2: ");
-   //    print_vector(y2);
-   //    printf("diff: ");
-   //    print_vector(diff);
-   //    // return 1;
-   // }
-
+   Vector y2(h1fes.TrueVSize());
    {
       DenseMatrix m(dim);
       m(0, 0) = 2.0;
@@ -268,16 +245,71 @@ int test_diffusion_3d(
       auto diff_integ = new DiffusionIntegrator(matrix_coeff);
       diff_integ->SetIntRule(&ir);
       a.AddDomainIntegrator(diff_integ);
+      if (mesh.GetElement(0)->GetType() == Element::QUADRILATERAL ||
+          mesh.GetElement(0)->GetType() == Element::HEXAHEDRON)
+      {
+         // a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
 
       OperatorPtr A;
+      StopWatch sw;
+      sw.Start();
       a.Assemble();
       a.Finalize();
       Array<int> empty;
       a.FormSystemMatrix(empty, A);
-      A->MultTranspose(x, y);
-      // out << "mfem A^T * x transpose\n";
-      // print_vector(y);
+      sw.Stop();
+      printf("mfem pa setup: %fs\n", sw.RealTime());
+
+      sw.Clear();
+      sw.Start();
+      y2 = 0.0;
+      for (int i = 0; i < num_samples; i++)
+      {
+         A->Mult(x, y2);
+      }
+      sw.Stop();
+      printf("mfem pa apply: %fs\n", sw.RealTime() / num_samples);
+      y2.HostRead();
    }
+
+   Vector diff(y2);
+   diff -= y;
+   if (diff.Norml2() > 1e-12)
+   {
+      printf("y: ");
+      print_vector(y);
+      printf("y2: ");
+      print_vector(y2);
+      printf("diff: ");
+      print_vector(diff);
+      return 1;
+   }
+
+   // {
+   //    DenseMatrix m(dim);
+   //    m(0, 0) = 2.0;
+   //    m(1, 0) = 3.0;
+   //    m(1, 1) = 4.0;
+   //    if (dim == 3)
+   //    {
+   //       m(2, 2) = 1.0;
+   //    }
+   //    MatrixConstantCoefficient matrix_coeff(m);
+   //    ParBilinearForm a(&h1fes);
+   //    auto diff_integ = new DiffusionIntegrator(matrix_coeff);
+   //    diff_integ->SetIntRule(&ir);
+   //    a.AddDomainIntegrator(diff_integ);
+
+   //    OperatorPtr A;
+   //    a.Assemble();
+   //    a.Finalize();
+   //    Array<int> empty;
+   //    a.FormSystemMatrix(empty, A);
+   //    A->MultTranspose(x, y);
+   //    // out << "mfem A^T * x transpose\n";
+   //    // print_vector(y);
+   // }
 
    // Test linearization here as well
    // auto dFdu = dop.GetDerivativeWrt<0>({&f1_g}, {mesh_nodes});

@@ -2015,20 +2015,37 @@ void call_qfunction(
    const int &rs_qp,
    const int &num_qp,
    const int &q1d,
+   const int &dimension,
    const bool &use_sum_factorization)
 {
    if (use_sum_factorization)
    {
-      MFEM_FOREACH_THREAD(qx, x, q1d)
+      if (dimension == 2)
       {
-         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qz, z, q1d)
+            MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               const int q = qx + q1d * (qy + q1d * qz);
+               const int q = qx + q1d * qy;
                auto qf_args = decay_tuple<qf_param_ts> {};
                auto r = Reshape(&residual_shmem(0, q), rs_qp);
                apply_kernel(r, qfunc, qf_args, input_shmem, q);
+            }
+         }
+      }
+      else if (dimension == 3)
+      {
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD(qz, z, q1d)
+               {
+                  const int q = qx + q1d * (qy + q1d * qz);
+                  auto qf_args = decay_tuple<qf_param_ts> {};
+                  auto r = Reshape(&residual_shmem(0, q), rs_qp);
+                  apply_kernel(r, qfunc, qf_args, input_shmem, q);
+               }
             }
          }
       }
@@ -2057,17 +2074,18 @@ void call_qfunction_derivative_action(
    const int &das_qp,
    const int &num_qp,
    const int &q1d,
+   const int &dimension,
    const bool &use_sum_factorization)
 {
    if (use_sum_factorization)
    {
-      MFEM_FOREACH_THREAD(qx, x, q1d)
+      if (dimension == 2)
       {
-         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            MFEM_FOREACH_THREAD(qz, z, q1d)
+            MFEM_FOREACH_THREAD(qy, y, q1d)
             {
-               const int q = qx + q1d * (qy + q1d * qz);
+               const int q = qx + q1d * qy;
                auto r = Reshape(&residual_shmem(0, q), das_qp);
                auto qf_args = decay_tuple<qf_param_ts> {};
 #ifdef MFEM_USE_ENZYME
@@ -2077,6 +2095,28 @@ void call_qfunction_derivative_action(
 #else
                apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
 #endif
+            }
+         }
+      }
+      else if (dimension == 3)
+      {
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            MFEM_FOREACH_THREAD(qy, y, q1d)
+            {
+               MFEM_FOREACH_THREAD(qz, z, q1d)
+               {
+                  const int q = qx + q1d * (qy + q1d * qz);
+                  auto r = Reshape(&residual_shmem(0, q), das_qp);
+                  auto qf_args = decay_tuple<qf_param_ts> {};
+#ifdef MFEM_USE_ENZYME
+                  auto qf_shadow_args = decay_tuple<qf_param_ts> {};
+                  apply_kernel_fwddiff_enzyme(r, qfunc, qf_args, qf_shadow_args, input_shmem,
+                                              shadow_shmem, q);
+#else
+                  apply_kernel_native_dual(r, qfunc, qf_args, input_shmem, shadow_shmem, q);
+#endif
+               }
             }
          }
       }

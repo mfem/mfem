@@ -30,11 +30,22 @@ int test_interpolate_gradient_linear_scalar(std::string mesh_file,
 
    ParGridFunction f1_g(&h1fes);
 
-   // ParametricSpace qdata_space(dim, 1, ir.GetNPoints(),
-   //                             ir.GetNPoints() * mesh.GetNE());
-   ParametricSpace qdata_space(1, dim, ir.GetNPoints(),
-                               dim * ir.GetNPoints() * mesh.GetNE());
-   ParametricFunction qdata(qdata_space);
+   std::shared_ptr<ParametricSpace> qdata_space;
+   if (mesh.GetElement(0)->GetType() == Element::QUADRILATERAL ||
+       mesh.GetElement(0)->GetType() == Element::HEXAHEDRON)
+   {
+      qdata_space =
+         std::make_shared<ParametricSpace>(
+            dim, dim, ir.GetNPoints(), dim * ir.GetNPoints() * mesh.GetNE());
+   }
+   else
+   {
+      qdata_space =
+         std::make_shared<ParametricSpace>(
+            1, dim, ir.GetNPoints(), dim * ir.GetNPoints() * mesh.GetNE());
+   }
+
+   ParametricFunction qdata(*qdata_space);
 
    auto kernel_2d = [] MFEM_HOST_DEVICE (
                        const tensor<real_t, 2> &dudxi,
@@ -65,7 +76,7 @@ int test_interpolate_gradient_linear_scalar(std::string mesh_file,
 
    auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
    auto parameters = std::vector{FieldDescriptor{Coordinates, &mesh_fes},
-                                 FieldDescriptor{Qdata, &qdata_space}};
+                                 FieldDescriptor{Qdata, qdata_space.get()}};
 
    DifferentiableOperator dop(solutions, parameters, mesh);
    if (dim == 2)

@@ -1,6 +1,8 @@
 #include "dfem/dfem_test_macro.hpp"
 #include "examples/dfem/dfem_parametricspace.hpp"
 #include "examples/dfem/dfem_util.hpp"
+#include "fem/geom.hpp"
+#include <memory>
 
 using namespace mfem;
 
@@ -30,12 +32,22 @@ int test_interpolate_linear_scalar(std::string mesh_file,
 
    ParGridFunction f1_g(&h1fes);
 
-   // ParametricSpace qdata_space(dim, 1, ir.GetNPoints(),
-   //                             ir.GetNPoints() * mesh.GetNE());
-   ParametricSpace qdata_space(1, 1, ir.GetNPoints(),
-                               ir.GetNPoints() * mesh.GetNE());
+   std::shared_ptr<ParametricSpace> qdata_space;
+   if (mesh.GetElement(0)->GetType() == Element::QUADRILATERAL ||
+       mesh.GetElement(0)->GetType() == Element::HEXAHEDRON)
+   {
+      qdata_space =
+         std::make_shared<ParametricSpace>(
+            dim, 1, ir.GetNPoints(), ir.GetNPoints() * mesh.GetNE());
+   }
+   else
+   {
+      qdata_space =
+         std::make_shared<ParametricSpace>(
+            1, 1, ir.GetNPoints(), ir.GetNPoints() * mesh.GetNE());
+   }
 
-   ParametricFunction qdata(qdata_space);
+   ParametricFunction qdata(*qdata_space);
 
    auto kernel = [] MFEM_HOST_DEVICE (const double &u)
    {
@@ -45,11 +57,11 @@ int test_interpolate_linear_scalar(std::string mesh_file,
    constexpr int Potential = 0;
    constexpr int Qdata = 1;
 
-   auto input_operators = mfem::tuple{Value<Potential>{}};
-   auto output_operator = mfem::tuple{None<Qdata>{}};
+   auto input_operators = mfem::tuple {Value<Potential> {}};
+   auto output_operator = mfem::tuple {None<Qdata> {}};
 
-   auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
-   auto parameters = std::vector{FieldDescriptor{Qdata, &qdata_space}};
+   auto solutions = std::vector {FieldDescriptor{Potential, &h1fes}};
+   auto parameters = std::vector {FieldDescriptor{Qdata, qdata_space.get()}};
 
    DifferentiableOperator dop(solutions, parameters, mesh);
    dop.AddDomainIntegrator(kernel, input_operators, output_operator, ir);
