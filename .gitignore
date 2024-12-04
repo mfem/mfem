@@ -319,8 +319,6 @@ miniapps/shifted/ParaViewExtrapolate
 miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf
-miniapps/shifted/distance.mesh
-miniapps/shifted/distance.gf
 miniapps/shifted/ParaViewDiffusion
 miniapps/shifted/lsf_integral
 
