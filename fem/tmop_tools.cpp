@@ -939,6 +939,343 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    return min_detT_all;
 }
 
+void TMOP_MMA::Mult(Vector &x)
+{
+   int it;
+   real_t norm0, norm, norm_goal;
+   double  conDummy = -0.1;
+   Vector  congradDummy(x.Size());
+   congradDummy = 1.0;
+   MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
+   ProcessNewState(x);
+   Vector xcopy = x;
+
+   Vector xxmin = x;
+   Vector xxmax = x;
+   xxmin -= dlower;
+   xxmax += dupper;
+
+   // r = F(x)-b
+   oper->Mult(x, r);
+   r *= -1.0;
+   Update(0, r, &conDummy, congradDummy.GetData(), xxmin, xxmax, xcopy);
+   TMOPNewtonSolver::c = xcopy;
+   TMOPNewtonSolver::c -= x;
+   // TMOPNewtonSolver::c = r;
+   // TMOPNewtonSolver::c *= 0.5;
+   // c = r;
+   norm0 = norm = initial_norm = Norm(r);
+   if (print_options.first_and_last && !print_options.iterations)
+   {
+      mfem::out << "TMOP-MMA iteration " << std::setw(2) << 0
+                << " : ||r|| = " << norm << "...\n";
+   }
+   norm_goal = std::max(rel_tol*norm, abs_tol);
+
+   for (it = 0; it < max_iter; it++)
+   {
+      MFEM_VERIFY(IsFinite(norm), "norm = " << norm);
+      if (print_options.iterations)
+      {
+         mfem::out << "LBFGS iteration " <<  it
+                   << " : ||r|| = " << norm;
+         if (it > 0)
+         {
+            mfem::out << ", ||r||/||r_0|| = " << norm/norm0;
+         }
+         mfem::out << '\n';
+      }
+
+      if (norm <= norm_goal)
+      {
+         converged = true;
+         break;
+      }
+
+      if (it >= max_iter)
+      {
+         converged = false;
+         break;
+      }
+
+      Vector b(0);
+      const real_t c_scale = ComputeScalingFactor2(x, b);
+
+      if (c_scale == 0.0)
+      {
+         converged = false;
+         break;
+      }
+      add(x, -c_scale, TMOPNewtonSolver::c, x); // x_{k+1} = x_k - c_scale*c
+
+      ProcessNewState(x);
+
+      oper->Mult(x, r);
+      r *= -1.0;
+      xcopy = x;
+      Update(0, r, &conDummy, congradDummy.GetData(), xxmin, xxmax, xcopy);
+      TMOPNewtonSolver::c = xcopy;
+      TMOPNewtonSolver::c -= x;
+      // TMOPNewtonSolver::c = r;
+      // TMOPNewtonSolver::c *= 0.5;
+   }
+
+   final_iter = it;
+   final_norm = norm;
+
+   if (print_options.summary || (!converged && print_options.warnings) ||
+       print_options.first_and_last)
+   {
+      mfem::out << "TMOP MMA: Number of iterations: " << final_iter << '\n'
+                << "   ||r|| = " << final_norm << '\n';
+   }
+   if (print_options.summary || (!converged && print_options.warnings))
+   {
+      mfem::out << "TMOP MMA: No convergence!\n";
+   }
+}
+
+real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
+                                       const Vector &b) const
+{
+   const FiniteElementSpace *fes = NULL;
+   real_t energy_in = 0.0;
+#ifdef MFEM_USE_MPI
+   const ParNonlinearForm *p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
+   MFEM_VERIFY(!(parallel && p_nlf == NULL), "Invalid Operator subclass.");
+   if (parallel)
+   {
+      fes = p_nlf->FESpace();
+      energy_in = p_nlf->GetEnergy(x);
+   }
+#endif
+   const bool serial = !parallel;
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   MFEM_VERIFY(!(serial && nlf == NULL), "Invalid Operator subclass.");
+   if (serial)
+   {
+      fes = nlf->FESpace();
+      energy_in = nlf->GetEnergy(x);
+   }
+
+   // Get the local prolongation of the solution vector.
+   Vector x_out_loc(fes->GetVSize(),
+                    (temp_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : temp_mt);
+   if (serial)
+   {
+      const SparseMatrix *cP = fes->GetConformingProlongation();
+      if (!cP) { x_out_loc = x; }
+      else     { cP->Mult(x, x_out_loc); }
+   }
+#ifdef MFEM_USE_MPI
+   else
+   {
+      fes->GetProlongationMatrix()->Mult(x, x_out_loc);
+   }
+#endif
+
+   real_t scale = 1.0;
+   // bool fitting = IsSurfaceFittingEnabled();
+   // real_t init_fit_avg_err, init_fit_max_err = 0.0;
+   // if (fitting && surf_fit_converge_error)
+   // {
+   //    GetSurfaceFittingError(x_out_loc, init_fit_avg_err, init_fit_max_err);
+   //    // Check for convergence
+   //    if (init_fit_max_err < surf_fit_max_err_limit)
+   //    {
+   //       if (print_options.iterations)
+   //       {
+   //          mfem::out << "TMOPNewtonSolver converged "
+   //                    "based on the surface fitting error.\n";
+   //       }
+   //       scale = 0.0;
+   //       return scale;
+   //    }
+   // }
+
+   // if (surf_fit_adapt_count >= surf_fit_adapt_count_limit)
+   // {
+   //    if (print_options.iterations)
+   //    {
+   //       mfem::out << "TMOPNewtonSolver terminated "
+   //                 "based on max number of times surface fitting weight can"
+   //                 "be increased. \n";
+   //    }
+   //    scale = 0.0;
+   //    return scale;
+   // }
+
+   // Check if the starting mesh (given by x) is inverted. Note that x hasn't
+   // been modified by the Newton update yet.
+   const real_t min_detT_in = ComputeMinDet(x_out_loc, *fes);
+   // const bool untangling = (min_detT_in <= 0.0) ? true : false;
+   const bool untangling = false;
+   // const real_t untangle_factor = 1.5;
+   // if (untangling)
+   // {
+   //    // Needed for the line search below. The untangling metrics see this
+   //    // reference to detect deteriorations.
+   //    MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
+   //                " intermediate mesh is invalid. Contact TMOP Developers.");
+   //    MFEM_VERIFY(min_detJ_limit == 0.0,
+   //                "This setup is not supported. Contact TMOP Developers.");
+   //    *min_det_ptr = untangle_factor * min_detT_in;
+   // }
+
+   const bool have_b = (b.Size() == Height());
+
+   Vector x_out(x.Size());
+   bool x_out_ok = false;
+   real_t energy_out = 0.0, min_detT_out;
+   const real_t norm_in = Norm(r);
+   // real_t avg_fit_err, max_fit_err = 0.0;
+
+   const real_t detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
+   compute_metric_quantile_flag = false;
+   // TODO:
+   // - Customized line search for worst-quality optimization.
+   // - What is the Newton exit criterion for worst-quality optimization?
+
+   // Perform the line search.
+   for (int i = 0; i < 12; i++)
+   {
+      // avg_fit_err = 0.0;
+      // max_fit_err = 0.0;
+
+      // Update the mesh and get the L-vector in x_out_loc.
+      add(x, -scale, TMOPNewtonSolver::c, x_out);
+      if (serial)
+      {
+         const SparseMatrix *cP = fes->GetConformingProlongation();
+         if (!cP) { x_out_loc = x_out; }
+         else     { cP->Mult(x_out, x_out_loc); }
+      }
+#ifdef MFEM_USE_MPI
+      else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
+#endif
+
+      // Check the changes in detJ.
+      min_detT_out = ComputeMinDet(x_out_loc, *fes);
+      if (untangling == false && min_detT_out <= min_detJ_limit)
+      {
+         // No untangling, and detJ got negative (or small) -- no good.
+         if (print_options.iterations)
+         {
+            mfem::out << "Scale = " << scale << " Neg det(J) found.\n";
+         }
+         scale *= detJ_factor; continue;
+      }
+      // if (untangling == true && min_detT_out < *min_det_ptr)
+      // {
+      //    // Untangling, and detJ got even more negative -- no good.
+      //    if (print_options.iterations)
+      //    {
+      //       mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n";
+      //    }
+      //    scale *= detJ_factor; continue;
+      // }
+
+      // Skip the energy and residual checks when we're untangling. The
+      // untangling metrics change their denominators, which can affect the
+      // energy and residual, so their increase/decrease is not relevant.
+      if (untangling) { x_out_ok = true; break; }
+
+      // Check the changes in total energy.
+      ProcessNewState(x_out);
+
+      // Ensure sufficient decrease in fitting error if we are trying to
+      // converge based on error.
+
+      // if (fitting && surf_fit_converge_error)
+      // {
+      //    GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
+      //    if (max_fit_err >= 1.2*init_fit_max_err)
+      //    {
+      //       if (print_options.iterations)
+      //       {
+      //          mfem::out << "Scale = " << scale << " Surf fit err increased.\n";
+      //       }
+      //       scale *= 0.5; continue;
+      //    }
+      // }
+
+      if (serial)
+      {
+         energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
+      }
+#ifdef MFEM_USE_MPI
+      else
+      {
+         energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
+      }
+#endif
+      if (energy_out > energy_in + 0.0*fabs(energy_in) ||
+          std::isnan(energy_out) != 0)
+      {
+         if (print_options.iterations)
+         {
+            mfem::out << "Scale = " << scale << " Increasing energy: "
+                      << energy_in << " --> " << energy_out << '\n';
+         }
+         scale *= 0.5; continue;
+      }
+
+      // Check the changes in the Newton residual.
+      oper->Mult(x_out, r);
+      if (have_b) { r -= b; }
+      real_t norm_out = Norm(r);
+
+      if (norm_out > 1.2*norm_in)
+      {
+         if (print_options.iterations)
+         {
+            mfem::out << "Scale = " << scale << " Norm increased: "
+                      << norm_in << " --> " << norm_out << '\n';
+         }
+         scale *= 0.5; continue;
+      }
+      else { x_out_ok = true; break; }
+   } // end line search
+
+   // if (untangling)
+   // {
+   //    // Update the global min detJ. Untangling metrics see this min_det_ptr.
+   //    if (min_detT_out > 0.0)
+   //    {
+   //       *min_det_ptr = 0.0;
+   //       if (print_options.summary || print_options.iterations ||
+   //           print_options.first_and_last)
+   //       { mfem::out << "The mesh has been untangled at the used points!\n"; }
+   //    }
+   //    else { *min_det_ptr = untangle_factor * min_detT_out; }
+   // }
+
+   if (print_options.summary || print_options.iterations ||
+       print_options.first_and_last)
+   {
+      if (untangling)
+      {
+         mfem::out << "Min det(T) change: "
+                   << min_detT_in << " -> " << min_detT_out
+                   << " with " << scale << " scaling.\n";
+      }
+      else
+      {
+         mfem::out << "Energy decrease: "
+                   << energy_in << " --> " << energy_out << " or "
+                   << (energy_in - energy_out) / energy_in * 100.0
+                   << "% with " << scale << " scaling.\n";
+      }
+   }
+
+   if (x_out_ok == false) { scale = 0.0; }
+
+   if (surf_fit_scale_factor > 0.0) { surf_fit_coeff_update = true; }
+   compute_metric_quantile_flag = true;
+
+   return scale;
+}
+
 #ifdef MFEM_USE_MPI
 // Metric values are visualized by creating an L2 finite element functions and
 // computing the metric values at the nodes.

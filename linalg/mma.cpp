@@ -1189,5 +1189,4 @@ void MMA::Update(int iter, const real_t* dfdx,
    }
 }
 
-
 }

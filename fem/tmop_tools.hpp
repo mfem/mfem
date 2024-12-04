@@ -16,6 +16,7 @@
 #include "pbilinearform.hpp"
 #include "tmop.hpp"
 #include "gslib.hpp"
+#include "../linalg/mma.hpp"
 
 namespace mfem
 {
@@ -345,6 +346,43 @@ public:
       else { MFEM_ABORT("Invalid type"); }
    }
    void SetPreconditioner(Solver &pr) override { SetSolver(pr); }
+};
+
+class TMOP_MMA : public MMA, public TMOPNewtonSolver
+{
+protected:
+   // const Operator *oper;
+   // int height; ///< Dimension of the output / number of rows in the matrix.
+   // int width;  ///< Dimension of the input / number of columns in the matrix.
+   // mutable Vector r, c;
+   // /// Limit for the number of iterations the solver is allowed to do
+   // int max_iter;
+   mutable double dlower = 1e-8,
+                  dupper = 1e-8;
+
+public:
+   TMOP_MMA(int nVar, int nCon, real_t *xval, const IntegrationRule &irule) :
+      MMA(nVar, nCon, xval), TMOPNewtonSolver(irule) {}
+
+#ifdef MFEM_USE_MPI
+   TMOP_MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval,
+            const IntegrationRule &irule) :
+      MMA(comm_, nVar, nCon, xval), TMOPNewtonSolver(comm_, irule) {}
+#endif
+
+   using TMOPNewtonSolver::SetOperator;
+   // void SetOperator(const Operator &op);
+
+   using TMOPNewtonSolver::Mult;
+   void Mult(Vector &x);
+
+
+   real_t ComputeScalingFactor2(const Vector &x, const Vector &b) const;
+
+   // void SetMaxIter(int max_it) { max_iter = max_it; }
+
+   void SetLowerBound(const double dlower_) { dlower = dlower_; }
+   void SetUpperBound(const double dupper_) { dupper = dupper_; }
 };
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,

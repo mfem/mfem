@@ -63,7 +63,7 @@ lib-common:
 pmesh-optimizer_NLP: pmesh-optimizer_NLP.o mesh-optimizer_using_NLP.o \
         $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -o pmesh-optimizer_NLP pmesh-optimizer_NLP.o\
-        mesh-optimizer_using_NLP.o $(MFEM_LIBS)
+        mesh-optimizer_using_NLP.o $(COMMON_LIB) $(MFEM_LIBS)
 
 mesh-optimizer_using_NLP.o: mesh-optimizer_using_NLP.cpp \
     mesh-optimizer_using_NLP.hpp
