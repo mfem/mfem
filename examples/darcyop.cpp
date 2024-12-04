@@ -112,10 +112,9 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
 
 DarcyOperator::~DarcyOperator()
 {
+   delete prec;
    delete solver;
    delete monitor;
-   delete prec;
-   delete S;
    delete Mt0;
    delete Mq0;
    delete idtcoeff;
@@ -244,17 +243,15 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       constexpr real_t rtol(1.e-6);
       constexpr real_t atol(1.e-10);
 
-      bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
-
       // We do not want to initialize any new forms here, only obtain
       // the existing ones, so we const cast the DarcyForm
       const DarcyForm *cdarcy = const_cast<const DarcyForm*>(darcy);
 
-      const BilinearForm *Mq = cdarcy->GetFluxMassForm();
+      //const BilinearForm *Mq = cdarcy->GetFluxMassForm();
       const NonlinearForm *Mqnl = cdarcy->GetFluxMassNonlinearForm();
       const BlockNonlinearForm *Mnl = cdarcy->GetBlockNonlinearForm();
-      const MixedBilinearForm *B = cdarcy->GetFluxDivForm();
-      const BilinearForm *Mt = cdarcy->GetPotentialMassForm();
+      //const MixedBilinearForm *B = cdarcy->GetFluxDivForm();
+      //const BilinearForm *Mt = cdarcy->GetPotentialMassForm();
       const NonlinearForm *Mtnl = cdarcy->GetPotentialMassNonlinearForm();
 
       if (trace_space)
@@ -352,8 +349,6 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       }
       else
       {
-         SparseMatrix *MinvBt = NULL;
-
          if ((Mqnl || Mtnl || Mnl) && solver_type != SolverType::Default)
          {
             IterativeSolver *lin_solver = NULL;
@@ -419,121 +414,8 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                std::cerr << "A linear solver is used for a non-linear problem!" << std::endl;
             }
 
-            // Construct the operators for preconditioner
-            //
-            //                 P = [ diag(M)         0         ]
-            //                     [  0       B diag(M)^-1 B^T ]
-            //
-            //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
-            //     temperature Schur Complement
-
-            Vector Md(offsets[1] - offsets[0]);
-
-            const Array<int> &block_offsets = darcy->GetOffsets();
-            auto *darcyPrec = new BlockDiagonalPreconditioner(block_offsets);
-            prec = darcyPrec;
-            darcyPrec->owns_blocks = true;
-            Solver *invM, *invS;
-
-            if (pa)
-            {
-               Mq->AssembleDiagonal(Md);
-               auto Md_host = Md.HostRead();
-               Vector invMd(Mq->Height());
-               for (int i=0; i<Mq->Height(); ++i)
-               {
-                  invMd(i) = 1.0 / Md_host[i];
-               }
-
-               Vector BMBt_diag(B->Height());
-               B->AssembleDiagonal_ADAt(invMd, BMBt_diag);
-
-               Array<int> ess_tdof_list;  // empty
-
-               invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
-               invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
-            }
-            else
-            {
-               BlockOperator *bop = NULL;
-
-               // get diagonal
-               if (Mq)
-               {
-                  const SparseMatrix &Mqm(Mq->SpMat());
-                  Mqm.GetDiag(Md);
-                  invM = new DSmoother(Mqm);
-               }
-               else if (Mqnl)
-               {
-                  const SparseMatrix &Mqm = static_cast<SparseMatrix&>(
-                                               Mqnl->GetGradient(x.GetBlock(0)));
-                  Mqm.GetDiag(Md);
-                  invM = new DSmoother(Mqm);
-               }
-               else if (Mnl)
-               {
-                  bop = static_cast<BlockOperator*>(&Mnl->GetGradient(x));
-
-                  const SparseMatrix &Mqm = static_cast<SparseMatrix&>(bop->GetBlock(0,0));
-
-                  Mqm.GetDiag(Md);
-                  invM = new DSmoother(Mqm);
-               }
-
-               Md.HostReadWrite();
-
-               const SparseMatrix &Bm(B->SpMat());
-               MinvBt = Transpose(Bm);
-
-               for (int i = 0; i < Md.Size(); i++)
-               {
-                  MinvBt->ScaleRow(i, 1./Md(i));
-               }
-
-               S = mfem::Mult(Bm, *MinvBt);
-               delete MinvBt;
-
-               if (Mt)
-               {
-                  const SparseMatrix &Mtm(Mt->SpMat());
-                  SparseMatrix *Snew = Add(Mtm, *S);
-                  delete S;
-                  S = Snew;
-               }
-               else if (Mtnl)
-               {
-                  const SparseMatrix &Mtm = static_cast<SparseMatrix&>(
-                                               Mtnl->GetGradient(x.GetBlock(1)));
-                  SparseMatrix *Snew = Add(Mtm, *S);
-                  delete S;
-                  S = Snew;
-               }
-               if (Mnl)
-               {
-                  const SparseMatrix &Mtm = static_cast<SparseMatrix&>(bop->GetBlock(1,1));
-                  if(Mtm.NumNonZeroElems() > 0)
-                  {
-                     SparseMatrix *Snew = Add(Mtm, *S);
-                     delete S;
-                     S = Snew;
-                  }
-               }
-
-#ifndef MFEM_USE_SUITESPARSE
-               invS = new GSSmoother(*S);
-               prec_str = "GS";
-#else
-               invS = new UMFPackSolver(*S);
-               prec_str = "UMFPack";
-#endif
-            }
-
-            invM->iterative_mode = false;
-            invS->iterative_mode = false;
-
-            darcyPrec->SetDiagonalBlock(0, invM);
-            darcyPrec->SetDiagonalBlock(1, invS);
+            prec = new SchurPreconditioner(darcy);
+            prec_str = static_cast<SchurPreconditioner*>(prec)->GetString();
 
             solver = new GMRESSolver();
             solver_str = "GMRES";
@@ -582,6 +464,160 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
    dx_v -= x_v;
    dx_v *= idt;
+}
+
+
+DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_,
+                                                        bool nonlinear_)
+   : Solver(darcy_->Height()), darcy(darcy_), nonlinear(nonlinear_)
+{
+   if (!nonlinear)
+   {
+      Vector x(Width());
+      x = 0.;
+      Construct(x);
+   }
+
+#ifndef MFEM_USE_SUITESPARSE
+   prec_str = "GS";
+#else
+   prec_str = "UMFPack";
+#endif
+}
+
+DarcyOperator::SchurPreconditioner::~SchurPreconditioner()
+{
+   delete darcyPrec;
+   delete S;
+}
+
+void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
+
+{
+   const Array<int> &block_offsets = darcy->GetOffsets();
+   BlockVector x(x_v.GetData(), block_offsets);
+
+   // Construct the operators for preconditioner
+   //
+   //                 P = [ diag(M)         0         ]
+   //                     [  0       B diag(M)^-1 B^T ]
+   //
+   //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
+   //     temperature Schur Complement
+
+   const bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
+
+   const BilinearForm *Mq = darcy->GetFluxMassForm();
+   const NonlinearForm *Mqnl = darcy->GetFluxMassNonlinearForm();
+   const BlockNonlinearForm *Mnl = darcy->GetBlockNonlinearForm();
+   const MixedBilinearForm *B = darcy->GetFluxDivForm();
+   const BilinearForm *Mt = darcy->GetPotentialMassForm();
+   const NonlinearForm *Mtnl = darcy->GetPotentialMassNonlinearForm();
+
+   Vector Md(block_offsets[1] - block_offsets[0]);
+   delete darcyPrec;
+   darcyPrec = new BlockDiagonalPreconditioner(block_offsets);
+   darcyPrec->owns_blocks = true;
+   Solver *invM, *invS;
+
+   if (pa)
+   {
+      Mq->AssembleDiagonal(Md);
+      auto Md_host = Md.HostRead();
+      Vector invMd(Mq->Height());
+      for (int i=0; i<Mq->Height(); ++i)
+      {
+         invMd(i) = 1.0 / Md_host[i];
+      }
+
+      Vector BMBt_diag(B->Height());
+      B->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+
+      Array<int> ess_tdof_list;  // empty
+
+      invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
+      invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+   }
+   else
+   {
+      BlockOperator *bop = NULL;
+
+      // get diagonal
+      if (Mq)
+      {
+         const SparseMatrix &Mqm(Mq->SpMat());
+         Mqm.GetDiag(Md);
+         invM = new DSmoother(Mqm);
+      }
+      else if (Mqnl)
+      {
+         const SparseMatrix &Mqm = static_cast<SparseMatrix&>(
+                                      Mqnl->GetGradient(x.GetBlock(0)));
+         Mqm.GetDiag(Md);
+         invM = new DSmoother(Mqm);
+      }
+      else if (Mnl)
+      {
+         bop = static_cast<BlockOperator*>(&Mnl->GetGradient(x));
+
+         const SparseMatrix &Mqm = static_cast<SparseMatrix&>(bop->GetBlock(0,0));
+
+         Mqm.GetDiag(Md);
+         invM = new DSmoother(Mqm);
+      }
+
+      Md.HostReadWrite();
+
+      const SparseMatrix &Bm(B->SpMat());
+      SparseMatrix *MinvBt = Transpose(Bm);
+
+      for (int i = 0; i < Md.Size(); i++)
+      {
+         MinvBt->ScaleRow(i, 1./Md(i));
+      }
+
+      delete S;
+      S = mfem::Mult(Bm, *MinvBt);
+      delete MinvBt;
+
+      if (Mt)
+      {
+         const SparseMatrix &Mtm(Mt->SpMat());
+         SparseMatrix *Snew = Add(Mtm, *S);
+         delete S;
+         S = Snew;
+      }
+      else if (Mtnl)
+      {
+         const SparseMatrix &Mtm = static_cast<SparseMatrix&>(
+                                      Mtnl->GetGradient(x.GetBlock(1)));
+         SparseMatrix *Snew = Add(Mtm, *S);
+         delete S;
+         S = Snew;
+      }
+      if (Mnl)
+      {
+         const SparseMatrix &Mtm = static_cast<SparseMatrix&>(bop->GetBlock(1,1));
+         if (Mtm.NumNonZeroElems() > 0)
+         {
+            SparseMatrix *Snew = Add(Mtm, *S);
+            delete S;
+            S = Snew;
+         }
+      }
+
+#ifndef MFEM_USE_SUITESPARSE
+      invS = new GSSmoother(*S);
+#else
+      invS = new UMFPackSolver(*S);
+#endif
+   }
+
+   invM->iterative_mode = false;
+   invS->iterative_mode = false;
+
+   darcyPrec->SetDiagonalBlock(0, invM);
+   darcyPrec->SetDiagonalBlock(1, invS);
 }
 
 DarcyOperator::IterativeGLVis::IterativeGLVis(DarcyOperator *p_, int step_)

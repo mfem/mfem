@@ -53,7 +53,37 @@ private:
    const char *solver_str{};
    IterativeSolverMonitor *monitor{};
    int monitor_step{-1};
-   SparseMatrix *S{};
+
+   class SchurPreconditioner : public Solver
+   {
+      const DarcyForm *darcy;
+      bool nonlinear;
+
+      const char *prec_str;
+      mutable BlockDiagonalPreconditioner *darcyPrec{};
+      mutable SparseMatrix *S{};
+      mutable bool reconstruct{};
+
+      void Construct(const Vector &x) const;
+
+   public:
+      SchurPreconditioner(const DarcyForm *darcy, bool nonlinear = false);
+      ~SchurPreconditioner();
+
+      const char *GetString() const { return prec_str; }
+
+      void SetOperator(const Operator &op) override { reconstruct = true; }
+
+      void Mult(const Vector &x, Vector &y) const override
+      {
+         if (nonlinear && reconstruct)
+         {
+            Construct(x);
+            reconstruct = false;
+         }
+         darcyPrec->Mult(x,y);
+      }
+   };
 
    class IterativeGLVis : public IterativeSolverMonitor
    {
