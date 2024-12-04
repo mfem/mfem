@@ -102,5 +102,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f diffusion.mesh diffusion.gf distance.mesh distance.gf
+	@rm -f diffusion.mesh diffusion.gf
 	@rm -rf ParaViewDistance ParaViewDiffusion ParaViewExtrapolate ParaViewLSF
