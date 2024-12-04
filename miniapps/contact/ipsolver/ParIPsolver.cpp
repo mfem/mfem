@@ -9,7 +9,7 @@ using namespace std;
 using namespace mfem;
 
 
-ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblem * problem_) 
+ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_) 
                      : problem(problem_)
 {
    OptTol  = 1.e-2;

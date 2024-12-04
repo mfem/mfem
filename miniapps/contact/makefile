@@ -27,7 +27,7 @@ CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = contact nlcontact
+PAR_MINIAPPS = contact 
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)

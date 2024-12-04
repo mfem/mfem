@@ -1,54 +1,24 @@
 //                               Parallel contact example
-// mpirun -np 4 ./contact -ls 2 -sr 1 -testno 4
-// CG iteration numbers            = 105 114 116 115 113 109 113 108 107 114 206 236 268 435 987
+// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 4 -nsteps 10 -omaxit 20 -nonlin
+// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 4 -nsteps 10 -omaxit 20 -lin
 
-// mpirun -np 4 ./contact -ls 2 -sr 0 -testno 5
-// CG iteration numbers            = 106 116 116 116 115 113 107 107 128 131 531 1437 1318
+// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 5 -nsteps 10 -omaxit 20 -nonlin
+// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 5 -nsteps 10 -omaxit 20 -lin
 
-// mpirun -np 4 ./contact -ls 2 -sr 0 -testno 6
-// CG iteration numbers            = 18 18 18 18 18 17 17 21 22 46 52 53
+// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 6 -nsteps 10 -omaxit 20 -nonlin
+// mpirun -np 8  ./contact -ls 6 -sr 0 -testno 6 -nsteps 10 -omaxit 20 -lin
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include "ipsolver/ParIPsolver.hpp"
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <string>
-#include <errno.h>
+
 using namespace std;
 using namespace mfem;
-
-bool create_directories_if_not_exist(const std::string& path) {
-    mode_t mode = 0755;  // Permissions for the directories
-    size_t pos = 0;
-    std::string dir;
-
-    while ((pos = path.find_first_of('/', pos)) != std::string::npos) {
-        dir = path.substr(0, pos++);  // Get parent directory
-        if (dir.empty()) continue;    // Skip the root path "/"
-        if (mkdir(dir.c_str(), mode) && errno != EEXIST) {
-            std::cerr << "Error creating directory " << dir << ": " << strerror(errno) << std::endl;
-            return false;
-        }
-    }
-    
-    if (mkdir(path.c_str(), mode) && errno != EEXIST) {
-        std::cerr << "Error creating directory " << path << ": " << strerror(errno) << std::endl;
-        return false;
-    }
-    
-    return true;
-}
 
 void OutputData(ostringstream & file_name, double E0, double Ef, int dofs, int constr, int optit, const Array<int> & iters)
 {
    file_name << ".csv";
-
-   std::string directory = file_name.str().substr(0, file_name.str().find_last_of('/'));
-   // Create directories if they do not exist
-   MFEM_VERIFY(create_directories_if_not_exist(directory), "Cannot create file path"); 
-
-
    std::ofstream outputfile(file_name.str().c_str());
    if (!outputfile.is_open()) 
    {
@@ -82,7 +52,7 @@ void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, 
    outputfile << "Global number of dofs           = " << dofs << endl;
    outputfile << "Global number of constraints    = " << constr << endl;
    outputfile << "TimeStep, OptimizerIterations" << endl;
-   for (int i = 0; i< iters.size(); i++)
+   for (int i = 0; i < iters.size(); i++)
    {
       outputfile << i+1 <<","<< iters[i].Size() << endl;
    }
@@ -103,6 +73,7 @@ void OutputFinalData(ostringstream & file_name, double E0, double Ef, int dofs, 
    std::cout << " Data has been written to " << file_name.str().c_str() << endl;
 }
 
+
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -110,11 +81,8 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    Hypre::Init();
 
-   int order = 1;
    int sref = 1;
    int pref = 0;
-   Array<int> attr;
-   Array<int> m_attr;
    bool visualization = true;
    bool paraview = false;
    double linsolverrtol = 1e-10;
@@ -130,6 +98,8 @@ int main(int argc, char *argv[])
    bool outputfiles = false;
    bool doublepass = false;
    bool dynamicsolver = false;
+   bool nonlinear = false;
+   bool qp = true;
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&testNo, "-testno", "--test-number",
@@ -144,8 +114,10 @@ int main(int argc, char *argv[])
                   "5: ironing problem"
                   "51: ironing problem extended"
                   "6: nested spheres problem");
-   args.AddOption(&attr, "-at", "--attributes-surf",
-                  "Attributes of boundary faces on contact surface for mesh 2.");
+   args.AddOption(&nonlinear, "-nonlin", "--nonlinear", "-lin",
+                  "--linear", "Choice between linear and non-linear Elasticiy model.");          
+   args.AddOption(&qp, "-qp", "--quadratic", "-no-qp",
+                  "--non-quadratic", "Enable/disable quadratic approximation of the non-linear elasticity operator.");                              
    args.AddOption(&sref, "-sr", "--serial-refinements",
                   "Number of uniform refinements.");                  
    args.AddOption(&nsteps, "-nsteps", "--nsteps",
@@ -299,25 +271,10 @@ int main(int argc, char *argv[])
       ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
       ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
    }
-
-   StopWatch chrono;
-   chrono.Clear();
-   chrono.Start();
-
-   ElasticityOperator * prob = new ElasticityOperator(pmesh,
-                                                      ess_bdr_attr,ess_bdr_attr_comp,
-                                                      order,false);
-
-   chrono.Stop();
-   if (myid == 0)
-   {
-      mfem::out << "--------------------------------------------" << endl;
-      mfem::out << "Elasticity problem constructor: " << chrono.RealTime() << " sec" << endl;
-      mfem::out << "--------------------------------------------" << endl;
-   }
    
-   Vector E(prob->GetMesh()->attributes.Max());
-   Vector nu(prob->GetMesh()->attributes.Max());
+  
+   Vector E(pmesh->attributes.Max());
+   Vector nu(pmesh->attributes.Max());
 
    if (testNo == -1 )
    {
@@ -332,11 +289,13 @@ int main(int argc, char *argv[])
    else
    {
       E[0] = 1.0;  E[1] = 1e3;
-      nu[0] = 0.499;  nu[1] = 0.0;
+      nu[0] = 0.45;  nu[1] = 0.0;
    }
 
-   prob->SetParameters(E,nu);
 
+   ElasticityOperator * prob = new ElasticityOperator(pmesh,
+                                                      ess_bdr_attr,ess_bdr_attr_comp,
+                                                      E,nu,nonlinear);
 
    int dim = pmesh->Dimension();
    Vector ess_values(dim);
@@ -387,6 +346,7 @@ int main(int argc, char *argv[])
       }
       else
       {
+         // ess_values[2] = 1.0/1.4/nsteps;
          ess_values[2] = 1.0/1.4/nsteps;
          // ess_values[0] = -2.0/nsteps;
       }
@@ -407,6 +367,8 @@ int main(int argc, char *argv[])
    }
 
    ParFiniteElementSpace * fes = prob->GetFESpace();
+   Array<int> ess_tdof_list = prob->GetEssentialDofs();
+   
    int gndofs = fes->GlobalTrueVSize();
    if (myid == 0)
    {
@@ -420,6 +382,9 @@ int main(int argc, char *argv[])
    ParMesh pmesh_copy(*pmesh);
    ParFiniteElementSpace fes_copy(*fes,pmesh_copy);
    ParGridFunction xcopy_gf(&fes_copy); xcopy_gf = 0.0;
+
+
+   ParGridFunction xBC(fes); xBC = 0.0;
    
    if (paraview)
    {
@@ -451,12 +416,17 @@ int main(int argc, char *argv[])
    pmesh->GetNodes(new_coords);
    pmesh->GetNodes(ref_coords);
    
-   Vector xref(x_gf.GetTrueVector().Size());
+   // deviation from the reference configuration
+   Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
+   Vector xrefbc(x_gf.GetTrueVector().Size()); xrefbc = 0.0;
+
 
    double p = 20.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
    int total_steps = nsteps + msteps;
+   Vector DCvals;
+   
    for (int i = 0; i<total_steps; i++)
    {
       if (testNo == 6)
@@ -477,6 +447,7 @@ int main(int argc, char *argv[])
          {
             // ess_values[2] = -2.0/1.4*(i+1)/nsteps;
             ess_values[2] = 1.0/1.4*(i+1)/nsteps;
+            // ess_values[2] = 0.0;
          }
          else
          {
@@ -499,48 +470,55 @@ int main(int argc, char *argv[])
          ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
          prob->SetDisplacementDirichletData(ess_values, ess_bdr);
       }
+      else if (testNo == -1)
+      {
+         ess_values = 0.0;
+         essbdr_attr = 2;
+         ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+         ess_values[0] = 0.1/nsteps*(i+1);
+         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      }
 
+      prob->FormLinearSystem();
       x_gf.SetTrueVector();
-      xref.Set(1.0, x_gf.GetTrueVector());
-      
-      chrono.Clear();
-      chrono.Start();
-      ParContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass);
-      
+     
+      // xref will also satisfy the essential boundary conditions and the nonessential
+      // dofs will be equal to the solution at the previous time step (if it exists)
+      // or zero  
+      // xref will be used to set the reference/expansion point used for the QPOptContactProblem
+      // and also used as the initial point for the IP solver 
+      if (i == 0)
+      {
+         // xref.Set(1.0, *x_gf.GetTrueDofs());      
+         xref = 0.0;
+         xrefbc = 0.0;
+      }
+      else
+      {
+         xref.Set(1.0, *x_gf.GetTrueDofs());      
+         xrefbc.Set(1.0, *x_gf.GetTrueDofs());      
+      }
+
+      // set essential dofs with respect
+      // to a deformation relative to the "frame" or 
+      // the reference configuration given by the original mesh
+      // xBC is a grid function that satisfies the essential boundary conditions
+      xBC = 0.0;
+      VectorConstantCoefficient xBC_cf(ess_values);
+      xBC.ProjectBdrCoefficient(xBC_cf, ess_bdr);
+      xBC.SetTrueVector();      
+      xBC.GetTrueDofs()->GetSubVector(ess_tdof_list, DCvals);
+      xrefbc.SetSubVector(ess_tdof_list, DCvals);
+   
+      OptContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc,qp);
+
       bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
 
       int gncols = (compute_dof_projections) ? contact.GetRestrictionToContactDofs()->GetGlobalNumCols() : -1;
-      chrono.Stop();
-      if (myid == 0)
-      {
-         mfem::out << "--------------------------------------------" << endl;
-         mfem::out << "Contact problem constructor: " << chrono.RealTime() << " sec" << endl;
-         mfem::out << "--------------------------------------------" << endl;
-      }
       
-      chrono.Clear();
-      chrono.Start();
-      QPOptParContactProblem qpopt(&contact,xref);
-      chrono.Stop();
-      if (myid == 0)
-      {
-         mfem::out << "--------------------------------------------" << endl;
-         mfem::out << "QPContact problem constructor: " << chrono.RealTime() << " sec" << endl;
-         mfem::out << "--------------------------------------------" << endl;
-      }
-
       int numconstr = contact.GetGlobalNumConstraints();
-      chrono.Clear();
-      chrono.Start();
-      ParInteriorPointSolver optimizer(&qpopt);
+      ParInteriorPointSolver optimizer(&contact);
       if (dynamicsolver) optimizer.EnableDynamicSolverChoice();
-      chrono.Stop();
-      if (myid == 0)
-      {
-         mfem::out << "--------------------------------------------" << endl;
-         mfem::out << "Optimizer constructor: " << chrono.RealTime() << " sec" << endl;
-         mfem::out << "--------------------------------------------" << endl;
-      }
 
       optimizer.SetTol(optimizer_tol);
       optimizer.SetMaxIter(optimizer_maxit);
@@ -548,39 +526,24 @@ int main(int argc, char *argv[])
       optimizer.SetLinearSolveRelTol(linsolverrtol);
       optimizer.SetLinearSolveAbsTol(linsolveratol);
       optimizer.SetLinearSolveRelaxType(relax_type);
+
       if (elast)
       {
          optimizer.SetElasticityOptions(prob->GetFESpace());
       }
 
       x_gf.SetTrueVector();
-      // Vector x0 = x_gf.GetTrueVector();
       int ndofs = prob->GetFESpace()->GetTrueVSize();
       Vector x0(ndofs); x0 = 0.0;
+      x0.Set(1.0, xrefbc);
       Vector xf(ndofs); xf = 0.0;
-      
-      chrono.Clear();
-      chrono.Start();
 
       optimizer.Mult(x0, xf);
 
-      chrono.Stop();
-      if (myid == 0)
-      {
-         mfem::out << "--------------------------------------------" << endl;
-         mfem::out << "Optimizer mult: " << chrono.RealTime() << " sec" << endl;
-         mfem::out << "--------------------------------------------" << endl;
-      }
-
-      // Vector xf_copy(xf);
-      // xf_copy+=x0;
       double Einitial = contact.E(x0);
       double Efinal = contact.E(xf);
-      // double Efinal = contact.E(xf_copy);
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
       Array<double> & DMaxMinRatios  = optimizer.GetDMaxMinRatios();
-      Array<double> & JtDJMaxMinRatios  = optimizer.GetJtDJMaxMinRatios();
-      Array<double> & ADiagMaxMinRatios  = optimizer.GetAdiagMaxMinRatios();
       CGiter.push_back(CGiterations);
       int gndofs = prob->GetGlobalNumDofs();
       if (Mpi::Root())
@@ -610,18 +573,6 @@ int main(int argc, char *argv[])
                std::cout << " " << DMaxMinRatios[i] << " |";
             }
             std::cout << std::endl;
-            mfem::out << " JtDJ Max / Min Ratios           = " ;
-            for (int i = 0; i < JtDJMaxMinRatios.Size(); ++i) 
-            {
-               std::cout << " " << JtDJMaxMinRatios[i] << " |";
-            }
-            std::cout << std::endl;
-            mfem::out << " ADiag Max / Min Ratios          = " ;
-            for (int i = 0; i < ADiagMaxMinRatios.Size(); ++i) 
-            {
-               std::cout << " " << ADiagMaxMinRatios[i] << " |";
-            }
-            std::cout << std::endl;
             std::cout.copyfmt(oldState);
 
          }
@@ -643,6 +594,7 @@ int main(int argc, char *argv[])
       add(ref_coords,x_gf,new_coords);
       pmesh_copy.SetNodes(new_coords);
       xcopy_gf = x_gf;
+      xcopy_gf.SetTrueVector();
       if (paraview)
       {
          paraview_dc->SetCycle(i+1);
@@ -652,22 +604,22 @@ int main(int argc, char *argv[])
 
       if (visualization)
       {
-         sol_sock << "parallel " << num_procs << " " << myid << "\n"
-                  << "solution\n" << pmesh_copy << x_gf << flush;
+        sol_sock << "parallel " << num_procs << " " << myid << "\n"
+                 << "solution\n" << pmesh_copy << x_gf << flush;
       
-         if (i == total_steps - 1)
-         {
-            pmesh->MoveNodes(x_gf);
-            char vishost[] = "localhost";
-            int  visport   = 19916;
-            socketstream sol_sock1(vishost, visport);
-            sol_sock1 << "parallel " << num_procs << " " << myid << "\n";
-            sol_sock1.precision(8);
-            sol_sock1 << "solution\n" << *pmesh << x_gf << flush;
-         }
+        if (i == total_steps - 1)
+        {
+           pmesh->MoveNodes(x_gf);
+           char vishost[] = "localhost";
+           int  visport   = 19916;
+           socketstream sol_sock1(vishost, visport);
+           sol_sock1 << "parallel " << num_procs << " " << myid << "\n";
+           sol_sock1.precision(8);
+           sol_sock1 << "solution\n" << *pmesh << x_gf << flush;
+        }
       }
       if (i == total_steps-1) break;
-      prob->UpdateStep();
+      prob->UpdateRHS();
    }
 
    delete prob;
