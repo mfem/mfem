@@ -541,7 +541,11 @@ protected: // implementation
    private:
       real_t scale;  ///< Scale from struct Refinement, default 0.5
       bool scaleSet; ///< Indicates whether scale is set and cannot be changed
+#ifdef MFEM_USE_DOUBLE
       static constexpr real_t scaleTol = 1.0e-8; ///< Scale comparison tolerance
+#else
+      static constexpr real_t scaleTol = 1.0e-5; ///< Scale comparison tolerance
+#endif
    };
 
    /** Similarly to nodes, faces can be accessed by hashing their four vertex

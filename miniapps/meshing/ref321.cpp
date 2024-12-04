@@ -53,7 +53,7 @@ void FindChildren(const Mesh & mesh, int elem, Array<int> & children)
 }
 
 // Refine 3:1 via 2 refinements with scalings 2/3 and 1/2.
-void Refine31(Mesh & mesh, int elem, int type)
+void Refine31(Mesh & mesh, int elem, char type)
 {
    Array<Refinement> refs;  // Refinement is defined in ncmesh.hpp
    refs.Append(Refinement(elem, type, 2.0 / 3.0));

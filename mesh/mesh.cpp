@@ -10655,7 +10655,7 @@ void Mesh::GeneralRefinement(const Array<int> &el_to_refine, int nonconforming,
    Array<Refinement> refinements(el_to_refine.Size());
    for (int i = 0; i < el_to_refine.Size(); i++)
    {
-     refinements[i] = Refinement(el_to_refine[i]);
+      refinements[i] = Refinement(el_to_refine[i]);
    }
    GeneralRefinement(refinements, nonconforming, nc_limit);
 }
@@ -10723,7 +10723,7 @@ void Mesh::RefineAtVertex(const Vertex& vert, real_t eps, int nonconforming)
       }
       if (refine)
       {
-	refs.Append(Refinement(i));
+	 refs.Append(Refinement(i));
       }
    }
    GeneralRefinement(refs, nonconforming);
@@ -10738,7 +10738,7 @@ bool Mesh::RefineByError(const Array<real_t> &elem_error, real_t threshold,
    {
       if (elem_error[i] > threshold)
       {
-	refs.Append(Refinement(i));
+	 refs.Append(Refinement(i));
       }
    }
    if (ReduceInt(refs.Size()))
