@@ -185,13 +185,6 @@ int main(int argc, char *argv[])
    x.SetVector(u_gf,0);
    x.SetVector(p_gf,dof_offsets[1]);
 
-   // Vector B(tdof_offsets.Last());
-   // B.SetVector(B_v,0);
-   // B.SetVector(B_q,tdof_offsets[1]);
-   // Vector X(tdof_offsets.Last());
-   // X.SetVector(X_v,0);
-   // X.SetVector(X_q,tdof_offsets[1]);
-
    OperatorPtr Ah;
    Vector B,X;
    bform.Assemble();
@@ -200,12 +193,20 @@ int main(int argc, char *argv[])
    BlockOperator * A = Ah.As<BlockOperator>();
 
    BlockDiagonalPreconditioner prec(tdof_offsets);
-   HypreBoomerAMG amg_v((HypreParMatrix&)A->GetBlock(0,0));
+   HypreParMatrix A00 = (HypreParMatrix&)A->GetBlock(0,0);
+   HypreParMatrix A01 = (HypreParMatrix&)A->GetBlock(0,1);
+   HypreBoomerAMG amg_v(A00);
    amg_v.SetSystemsOptions(dim);
-
-   HypreBoomerAMG amg_p(Mpq);
-
    prec.SetDiagonalBlock(0,&amg_v);
+
+   HypreParVector A00_diag(MPI_COMM_WORLD, A00.GetGlobalNumRows(),
+                                 A00.GetRowStarts());
+   A00.GetDiag(A00_diag);
+   HypreParMatrix S_tmp(A01);
+   S_tmp.InvScaleRows(A00_diag);
+   HypreParMatrix *S = ParMult(A01.Transpose(), &S_tmp, true);
+   HypreBoomerAMG amg_p(*S);
+   // HypreBoomerAMG amg_p(Mpq);
    prec.SetDiagonalBlock(1,&amg_p);
 
    MINRESSolver solver(MPI_COMM_WORLD);
@@ -215,7 +216,6 @@ int main(int argc, char *argv[])
    solver.SetPreconditioner(prec);
    solver.SetOperator(*A);
    solver.Mult(B, X);
-
 
    BlockVector Xb(X.GetData(),tdof_offsets);
    u_gf.SetFromTrueDofs(Xb.GetBlock(0));
