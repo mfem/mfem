@@ -19,7 +19,6 @@ namespace mfem
 {
 
 const char vishost[] = "localhost";
-const int  visport   = 19916;
 int wsize            = 350; // glvis window size
 
 AdvectionOper::AdvectionOper(Array<bool> &zones, ParBilinearForm &Mbf,
@@ -165,7 +164,8 @@ void AdvectionOper::ComputeBounds(const ParFiniteElementSpace &pfes,
 void Extrapolator::Extrapolate(Coefficient &level_set,
                                const ParGridFunction &input,
                                const real_t time_period,
-                               ParGridFunction &xtrap)
+                               ParGridFunction &xtrap,
+                               int visport)
 {
    ParMesh &pmesh = *input.ParFESpace()->GetParMesh();
    const int order = input.ParFESpace()->GetOrder(0),
@@ -445,7 +445,7 @@ void Extrapolator::ComputeLocalErrors(Coefficient &level_set,
 
 void Extrapolator::TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
                             real_t t_final, real_t dt,
-                            int vis_x_pos, std::string vis_name)
+                            int vis_x_pos, std::string vis_name, int visport)
 {
    socketstream sock;
 

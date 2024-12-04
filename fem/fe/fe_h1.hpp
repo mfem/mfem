@@ -29,12 +29,12 @@ private:
 public:
    /// Construct the H1_SegmentElement of order @a p and BasisType @a btype
    H1_SegmentElement(const int p, const int btype = BasisType::GaussLobatto);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void CalcHessian(const IntegrationPoint &ip,
-                            DenseMatrix &Hessian) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &Hessian) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -50,12 +50,12 @@ public:
    /// Construct the H1_QuadrilateralElement of order @a p and BasisType @a btype
    H1_QuadrilateralElement(const int p,
                            const int btype = BasisType::GaussLobatto);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void CalcHessian(const IntegrationPoint &ip,
-                            DenseMatrix &Hessian) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &Hessian) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -71,12 +71,12 @@ private:
 public:
    /// Construct the H1_HexahedronElement of order @a p and BasisType @a btype
    H1_HexahedronElement(const int p, const int btype = BasisType::GaussLobatto);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void CalcHessian(const IntegrationPoint &ip,
-                            DenseMatrix &Hessian) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &Hessian) const override;
+   void ProjectDelta(int vertex, Vector &dofs) const override;
 };
 
 
@@ -94,11 +94,11 @@ private:
 public:
    /// Construct the H1_TriangleElement of order @a p and BasisType @a btype
    H1_TriangleElement(const int p, const int btype = BasisType::GaussLobatto);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void CalcHessian(const IntegrationPoint &ip,
-                            DenseMatrix &ddshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &ddshape) const override;
 };
 
 
@@ -118,11 +118,11 @@ public:
    /// Construct the H1_TetrahedronElement of order @a p and BasisType @a btype
    H1_TetrahedronElement(const int p,
                          const int btype = BasisType::GaussLobatto);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void CalcHessian(const IntegrationPoint &ip,
-                            DenseMatrix &ddshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &ddshape) const override;
 };
 
 
@@ -144,9 +144,9 @@ public:
    /// Construct the H1_WedgeElement of order @a p and BasisType @a btype
    H1_WedgeElement(const int p,
                    const int btype = BasisType::GaussLobatto);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 };
 
 class H1_FuentesPyramidElement
