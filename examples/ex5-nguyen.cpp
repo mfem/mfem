@@ -398,10 +398,10 @@ int main(int argc, char *argv[])
                          (darcy->GetFluxMassNonlinearForm()):(NULL);
    BlockNonlinearForm *Mnl = (bnldiff)?(darcy->GetBlockNonlinearForm()):(NULL);
    MixedBilinearForm *B = darcy->GetFluxDivForm();
-   BilinearForm *Mt = (!nonlinear && ((dg && td > 0.) || bconv || btime))?
-                      (darcy->GetPotentialMassForm()):(NULL);
-   NonlinearForm *Mtnl = (nonlinear && ((dg && td > 0.) || bconv || bnlconv ||
-                                        btime))?
+   BilinearForm *Mt = (!nonlinear && ((dg && (!Mnl || hybridization) && td > 0.) ||
+                                      bconv || btime))?(darcy->GetPotentialMassForm()):(NULL);
+   NonlinearForm *Mtnl = (nonlinear && ((dg && (!Mnl || hybridization) &&
+                                         td > 0.) || bconv || bnlconv || btime))?
                          (darcy->GetPotentialMassNonlinearForm()):(NULL);
    FluxFunction *FluxFun = NULL;
    RiemannSolver *FluxSolver = NULL;
@@ -409,7 +409,7 @@ int main(int argc, char *argv[])
 
    //diffusion
 
-   if (!bnldiff)
+   if (!Mnl)
    {
       //linear diffusion
       if (dg)
@@ -442,6 +442,14 @@ int main(int argc, char *argv[])
       if (dg)
       {
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
+         if (td > 0. && !hybridization)
+         {
+            //note the sign must be negative due to symmetrization
+            Mnl->AddInteriorFaceIntegrator(new MixedConductionNLFIntegrator(
+                                              *HeatFluxFun, -td));
+            Mnl->AddBdrFaceIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun, -td),
+                                      bdr_is_neumann);
+         }
       }
       else
       {
@@ -450,7 +458,7 @@ int main(int argc, char *argv[])
    }
 
    //diffusion stabilization
-   if (dg)
+   if (dg && (!Mnl || hybridization))
    {
       if (bnldiff)
       {

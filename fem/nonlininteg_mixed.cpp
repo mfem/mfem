@@ -240,6 +240,149 @@ void MixedConductionNLFIntegrator::AssembleElementVector(
    }
 }
 
+void MixedConductionNLFIntegrator::AssembleFaceVector(
+   const Array<const FiniteElement *> &el1,
+   const Array<const FiniteElement *> &el2,
+   FaceElementTransformations &Trans, const Array<const Vector *> &elfun,
+   const Array<Vector *> &elvect)
+{
+   const FiniteElement &el1_u = *el1[0];
+   const FiniteElement &el2_u = *el2[0];
+   const FiniteElement &el1_p = *el1[1];
+   const FiniteElement &el2_p = *el2[1];
+   const int dim = el1_p.GetDim();
+   const int ndof1_u = el1_u.GetDof();
+   const int ndof2_u = (Trans.Elem2No >= 0)?(el2_u.GetDof()):(0);
+   const int ndof1_p = el1_p.GetDof();
+   const int ndof2_p = (Trans.Elem2No >= 0)?(el2_p.GetDof()):(0);
+
+   DenseMatrix J_u, J_F;
+   DenseMatrixInverse J_Fi;
+   Vector nor(dim), nh(dim), ni(dim);
+
+   shape1.SetSize(ndof1_p);
+   shape2.SetSize(ndof2_p);
+
+   const Vector elfun1_u(const_cast<Vector&>(*elfun[0]), 0, ndof1_u * dim);
+   const Vector elfun2_u(const_cast<Vector&>(*elfun[0]), ndof1_u * dim,
+                         ndof2_u * dim);
+   DenseMatrix u1(1, dim), u2(1, dim);
+   u1 = 0.;
+   u2 = 0.;
+
+   const Vector elfun1_p(const_cast<Vector&>(*elfun[1]), 0, ndof1_p);
+   const Vector elfun2_p(const_cast<Vector&>(*elfun[1]), ndof1_p, ndof2_p);
+   Vector p1(1), p2(1);
+
+   const int ndofs_u = (ndof1_u + ndof2_u) * dim;
+   Vector &elvect_u = *elvect[0];
+   elvect_u.SetSize(ndofs_u);
+   elvect_u = 0.0;
+
+   const int ndofs_p = ndof1_p + ndof2_p;
+   Vector &elvect_p = *elvect[1];
+   elvect_p.SetSize(ndofs_p);
+   elvect_p = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      int order;
+      if (ndof2_p)
+      {
+         order = 2*std::max(el1_p.GetOrder(), el2_p.GetOrder());
+      }
+      else
+      {
+         order = 2*el1_p.GetOrder();
+      }
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   // assemble: alpha < {h^{-1} Q} [u],[v] >
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      el1_p.CalcPhysShape(*Trans.Elem1, shape1);
+      real_t w = ip.weight/Trans.Elem1->Weight();
+      if (ndof2_p)
+      {
+         w /= 2;
+      }
+
+      p1(0) = shape1 * elfun1_p;
+
+      nh.Set(w, nor);
+      fluxFunction.ComputeDualFluxJacobian(p1, u1, Trans, J_u, J_F);
+      J_Fi.Factor(J_F);
+      J_Fi.Mult(nh, ni);
+
+      real_t wq = ni * nor;
+      // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
+      // independent of Loc1 and always gives the size of element 1 in
+      // direction perpendicular to the face. Indeed, for linear transformation
+      //     |nor|=measure(face)/measure(ref. face),
+      //   det(J1)=measure(element)/measure(ref. element),
+      // and the ratios measure(ref. element)/measure(ref. face) are
+      // compatible for all element/face pairs.
+      // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
+      // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+      // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
+
+      if (ndof2_p)
+      {
+         el2_p.CalcPhysShape(*Trans.Elem2, shape2);
+         w = ip.weight/2/Trans.Elem2->Weight();
+
+         p2(0) = shape2 * elfun2_p;
+
+         nh.Set(w, nor);
+         fluxFunction.ComputeDualFluxJacobian(p2, u2, Trans, J_u, J_F);
+         J_Fi.Factor(J_F);
+         J_Fi.Mult(nh, ni);
+         wq += ni * nor;
+      }
+
+      wq *= 0.5 * beta;
+
+      for (int i = 0; i < ndof1_p; i++)
+      {
+         elvect_p(i) += wq * shape1(i) * p1(0);
+      }
+      if (ndof2_p)
+      {
+         for (int i = 0; i < ndof1_p; i++)
+         {
+            elvect_p(i) -= wq * shape1(i) * p2(0);
+         }
+         for (int i = 0; i < ndof2_p; i++)
+         {
+            elvect_p(ndof1_p + i) -= wq * shape2(i) * p1(0);
+            elvect_p(ndof1_p + i) += wq * shape2(i) * p2(0);
+         }
+      }
+   }
+}
+
 void MixedConductionNLFIntegrator::AssembleElementGrad(
    const Array<const FiniteElement *> &el, ElementTransformation &Tr,
    const Array<const Vector *> &elfun, const Array2D<DenseMatrix *> &elmats)
@@ -366,4 +509,165 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    }
 }
 
+void MixedConductionNLFIntegrator::AssembleFaceGrad(
+   const Array<const FiniteElement *> &el1,
+   const Array<const FiniteElement *> &el2,
+   FaceElementTransformations &Trans, const Array<const Vector *> &elfun,
+   const Array2D<DenseMatrix *> &elmats)
+{
+   constexpr real_t beta = 0.5;
+
+   const FiniteElement &el1_u = *el1[0];
+   const FiniteElement &el2_u = *el2[0];
+   const FiniteElement &el1_p = *el1[1];
+   const FiniteElement &el2_p = *el2[1];
+   const int dim = el1_p.GetDim();
+   const int ndof1_u = el1_u.GetDof();
+   const int ndof2_u = (Trans.Elem2No >= 0)?(el2_u.GetDof()):(0);
+   const int ndof1_p = el1_p.GetDof();
+   const int ndof2_p = (Trans.Elem2No >= 0)?(el2_p.GetDof()):(0);
+
+   DenseMatrix J_u, J_F;
+   DenseMatrixInverse J_Fi;
+   Vector nor(dim), nh(dim), ni(dim);
+
+   shape1.SetSize(ndof1_p);
+   shape2.SetSize(ndof2_p);
+
+   const Vector elfun1_u(const_cast<Vector&>(*elfun[0]), 0, ndof1_u * dim);
+   const Vector elfun2_u(const_cast<Vector&>(*elfun[0]), ndof1_u * dim,
+                         ndof2_u * dim);
+   DenseMatrix u1(1, dim), u2(1, dim);
+   u1 = 0.;
+   u2 = 0.;
+
+   const Vector elfun1_p(const_cast<Vector&>(*elfun[1]), 0, ndof1_p);
+   const Vector elfun2_p(const_cast<Vector&>(*elfun[1]), ndof1_p, ndof2_p);
+   Vector p1(1), p2(1);
+
+   // not used
+   if (elmats(0,0)) { elmats(0,0)->SetSize(0); }
+   if (elmats(1,0)) { elmats(1,0)->SetSize(0); }
+   if (elmats(0,1)) { elmats(0,1)->SetSize(0); }
+
+   const int ndofs_p = ndof1_p + ndof2_p;
+   DenseMatrix &elmat_p = *elmats(1,1);
+   elmat_p.SetSize(ndofs_p);
+   elmat_p = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      int order;
+      if (ndof2_p)
+      {
+         order = 2*std::max(el1_p.GetOrder(), el2_p.GetOrder());
+      }
+      else
+      {
+         order = 2*el1_p.GetOrder();
+      }
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   // assemble: alpha < {h^{-1} Q} [u],[v] >
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      el1_p.CalcPhysShape(*Trans.Elem1, shape1);
+      real_t w = ip.weight/Trans.Elem1->Weight();
+      if (ndof2_p)
+      {
+         w /= 2;
+      }
+
+      p1(0) = shape1 * elfun1_p;
+
+      nh.Set(w, nor);
+      fluxFunction.ComputeDualFluxJacobian(p1, u1, Trans, J_u, J_F);
+      J_Fi.Factor(J_F);
+      J_Fi.Mult(nh, ni);
+
+      real_t wq = ni * nor;
+      // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
+      // independent of Loc1 and always gives the size of element 1 in
+      // direction perpendicular to the face. Indeed, for linear transformation
+      //     |nor|=measure(face)/measure(ref. face),
+      //   det(J1)=measure(element)/measure(ref. element),
+      // and the ratios measure(ref. element)/measure(ref. face) are
+      // compatible for all element/face pairs.
+      // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
+      // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+      // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
+
+      if (ndof2_p)
+      {
+         el2_p.CalcPhysShape(*Trans.Elem2, shape2);
+         w = ip.weight/2/Trans.Elem2->Weight();
+
+         p2(0) = shape2 * elfun2_p;
+
+         nh.Set(w, nor);
+         fluxFunction.ComputeDualFluxJacobian(p2, u2, Trans, J_u, J_F);
+         J_Fi.Factor(J_F);
+         J_Fi.Mult(nh, ni);
+         wq += ni * nor;
+      }
+
+      wq *= 0.5 * beta;
+
+      // only assemble the lower triangular part
+      for (int i = 0; i < ndof1_p; i++)
+      {
+         const real_t wsi = wq * shape1(i);
+         for (int j = 0; j <= i; j++)
+         {
+            elmat_p(i, j) += wsi * shape1(j);
+         }
+      }
+      if (ndof2_p)
+      {
+         for (int i = 0; i < ndof2_p; i++)
+         {
+            const int i2 = ndof1_p + i;
+            const real_t wsi = wq * shape2(i);
+            for (int j = 0; j < ndof1_p; j++)
+            {
+               elmat_p(i2, j) -= wsi * shape1(j);
+            }
+            for (int j = 0; j <= i; j++)
+            {
+               elmat_p(i2, ndof1_p + j) += wsi * shape2(j);
+            }
+         }
+      }
+
+   }
+
+   // complete the upper triangular part
+   for (int i = 0; i < ndofs_p; i++)
+      for (int j = 0; j < i; j++)
+      {
+         elmat_p(j,i) = elmat_p(i,j);
+      }
+}
 }

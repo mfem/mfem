@@ -109,26 +109,41 @@ public:
 class MixedConductionNLFIntegrator : public BlockNonlinearFormIntegrator
 {
    const MixedFluxFunction &fluxFunction;
-
-   DenseMatrix vshape_u;
-   Vector shape_u, shape_p;
+   real_t beta;
    const IntegrationRule *IntRule;
 
+   DenseMatrix vshape_u;
+   Vector shape_u, shape_p, shape1, shape2;
+
 public:
+   /// Construct integrator with $\beta = a$.
    MixedConductionNLFIntegrator(
       const MixedFluxFunction &fluxFunction,
+      real_t a = 0.5,
       const IntegrationRule *ir = NULL)
-      : fluxFunction(fluxFunction), IntRule(ir) { }
+      : fluxFunction(fluxFunction), beta(a), IntRule(ir) { }
 
    void AssembleElementVector(const Array<const FiniteElement*> &el,
                               ElementTransformation &Tr,
                               const Array<const Vector*> &elfun,
                               const Array<Vector*> &elvect) override;
 
+   void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                           const Array<const FiniteElement *> &el2,
+                           FaceElementTransformations &Tr,
+                           const Array<const Vector *> &elfun,
+                           const Array<Vector *> &elvect) override;
+
    void AssembleElementGrad(const Array<const FiniteElement*> &el,
                             ElementTransformation &Tr,
                             const Array<const Vector *> &elfun,
-                            const Array2D<DenseMatrix *> &elmats);
+                            const Array2D<DenseMatrix *> &elmats) override;
+
+   void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
+                         const Array<const FiniteElement *>&el2,
+                         FaceElementTransformations &Tr,
+                         const Array<const Vector *> &elfun,
+                         const Array2D<DenseMatrix *> &elmats) override;
 };
 
 }

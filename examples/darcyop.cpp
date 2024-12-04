@@ -455,6 +455,8 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
             }
             else
             {
+               BlockOperator *bop = NULL;
+
                // get diagonal
                if (Mq)
                {
@@ -471,11 +473,9 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                }
                else if (Mnl)
                {
-                  BlockOperator &bop = static_cast<BlockOperator&>(
-                                          Mnl->GetGradient(x));
+                  bop = static_cast<BlockOperator*>(&Mnl->GetGradient(x));
 
-                  const SparseMatrix &Mqm = static_cast<SparseMatrix&>(
-                                               bop.GetBlock(0,0));
+                  const SparseMatrix &Mqm = static_cast<SparseMatrix&>(bop->GetBlock(0,0));
 
                   Mqm.GetDiag(Md);
                   invM = new DSmoother(Mqm);
@@ -492,6 +492,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                }
 
                S = mfem::Mult(Bm, *MinvBt);
+               delete MinvBt;
 
                if (Mt)
                {
@@ -502,11 +503,21 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                }
                else if (Mtnl)
                {
-                  const SparseMatrix &grad = static_cast<SparseMatrix&>(
-                                                Mtnl->GetGradient(x.GetBlock(1)));
-                  SparseMatrix *Snew = Add(grad, *S);
+                  const SparseMatrix &Mtm = static_cast<SparseMatrix&>(
+                                               Mtnl->GetGradient(x.GetBlock(1)));
+                  SparseMatrix *Snew = Add(Mtm, *S);
                   delete S;
                   S = Snew;
+               }
+               if (Mnl)
+               {
+                  const SparseMatrix &Mtm = static_cast<SparseMatrix&>(bop->GetBlock(1,1));
+                  if(Mtm.NumNonZeroElems() > 0)
+                  {
+                     SparseMatrix *Snew = Add(Mtm, *S);
+                     delete S;
+                     S = Snew;
+                  }
                }
 
 #ifndef MFEM_USE_SUITESPARSE
@@ -535,8 +546,6 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
          if (prec) { solver->SetPreconditioner(*prec); }
          solver->SetPrintLevel((btime_u || btime_p)?0:1);
          solver->iterative_mode = true;
-
-         delete MinvBt;
       }
 
       chrono.Stop();
