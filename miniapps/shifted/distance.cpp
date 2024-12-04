@@ -115,7 +115,6 @@ real_t sphere_ls(const Vector &x)
    const real_t r = sqrt(xc*xc + yc*yc + zc*zc);
 
    return (r >= radius) ? -1.0 : 1.0;
-   //return xc >= 0.0 ? -1.0 : 1.0;
 }
 
 real_t exact_dist_sphere(const Vector &x)
@@ -202,238 +201,6 @@ void DGyroid(const mfem::Vector &xx, mfem::Vector &vals)
    vals*=pp;
 }
 
-void GetElementEdgeLengths(const ParMesh & pmesh, int elem, Vector & length)
-{
-   Array<int> edges, cor, vert;
-   pmesh.GetElementEdges(elem, edges, cor);
-
-   length.SetSize(edges.Size());
-   length = 0.0;
-
-   for (int i=0; i<edges.Size(); ++i)
-   {
-      pmesh.GetEdgeVertices(edges[i], vert);
-
-      const real_t *v0 = pmesh.GetVertex(vert[0]);
-      const real_t *v1 = pmesh.GetVertex(vert[1]);
-
-      const int spaceDim = pmesh.SpaceDimension();
-
-      for (int k = 0; k < spaceDim; k++)
-      {
-         length[i] += (v0[k]-v1[k])*(v0[k]-v1[k]);
-      }
-
-      length[i] = sqrt(length[i]);
-   }
-}
-
-real_t GetMinimumElementEdgeLength(const ParMesh & pmesh, int elem)
-{
-   Vector lengths;
-   GetElementEdgeLengths(pmesh, elem, lengths);
-   return lengths.Min();
-}
-
-real_t GetMaximumElementEdgeLength(const ParMesh & pmesh, int elem)
-{
-   Vector lengths;
-   GetElementEdgeLengths(pmesh, elem, lengths);
-   return lengths.Max();
-}
-
-void RefineUsingDistance(const ParGridFunction & dist_s,
-                         const ParGridFunction & dist_v, int iter)
-{
-   ParMesh *pmesh = dist_v.ParFESpace()->GetParMesh();
-   const int dim = pmesh->Dimension();
-
-   constexpr bool use_scalar = true;
-
-   constexpr real_t relTol = 0.1;
-   constexpr real_t a = 0.25;  // Refinement scaling, <= 0.5
-
-   real_t maxDist = 0.1;
-
-   Array<Refinement> refs;  // Refinement is defined in ncmesh.hpp
-   Array<real_t> refDist;
-
-   for (int el=0; el<pmesh->GetNE(); ++el)
-   {
-      IntegrationPoint ip;
-      std::vector<Vector> v(8);
-
-      Vector center;
-      pmesh->GetElementCenter(el, center);
-
-      cout << el << ": center (" << center[0] << ", " << center[1] << ")" << endl;
-
-      bool minInit = false;
-      real_t elMinDist, elMaxDist;
-
-      real_t elAvgDist = 0.0;
-
-      int id = 0;
-      for (int i=0; i<2; ++i)
-      {
-         const real_t xh = i;
-         for (int j=0; j<2; ++j)
-         {
-            const real_t yh = j;
-
-            ip.Set2(xh, yh);
-            dist_v.GetVectorValue(el, ip, v[id]);
-
-            const real_t vs = dist_s.GetValue(el, ip);
-
-            cout << el << ": v at (" << i << ", " << j << ") = (" << v[id][0]
-                 << ", " << v[id][1] << ")" << " nrm " << v[id].Norml2()
-                 << ", scalar dist " << vs << endl;
-
-            MFEM_ASSERT(minInit == (id > 0), ""); // TODO: eliminate minInit?
-
-            const real_t dist = use_scalar ? vs : v[id].Norml2();
-
-            if (!minInit)
-            {
-               elMinDist = dist;
-               elMaxDist = elMinDist;
-               minInit = true;
-            }
-            else
-            {
-               elMinDist = std::min(elMinDist, dist);
-               elMaxDist = std::max(elMaxDist, dist);
-            }
-
-            elAvgDist += dist;
-
-            id++;
-
-            /*
-            for (int k=0; k<2; ++k)
-            {
-              const real_t zh = k;
-
-              ip.Set3(xh, yh, zh);
-              dist_v.GetVectorValue(el, ip, v);
-
-              cout << "v " << v.Norml2() << endl;
-            }
-                 */
-         }
-      }
-
-      if (elMinDist > maxDist)
-      {
-         continue;   // Do not refine elements sufficiently far away.
-      }
-
-      elAvgDist /= (real_t) id;
-
-      // Decide the type of refinement, based on distances.
-
-      if (dim == 2)
-      {
-         const real_t iTol = 1.0e-6 * elMaxDist;
-         const bool intersection = v[0] * v[3] < -iTol || v[1] * v[2] < -iTol;
-
-         //const real_t minLength = GetMinimumElementEdgeLength(*pmesh, el);
-         const real_t maxLength = GetMaximumElementEdgeLength(*pmesh, el);
-
-         // Do not refine an element more than the element's diameter away from the zero set.
-         if (elMinDist > 0.5*maxLength)
-         {
-            continue;
-         }
-
-         if (intersection)
-         {
-            // This element intersects the zero set. In this case, simply do
-            // uniform isotropic refinement.
-            refs.Append(Refinement(el, Refinement::XY));
-            refDist.Append(elAvgDist);
-         }
-         else
-         {
-            // Find the vertex or edge closest to the zero set.
-            std::set<int> closeVertices;
-            for (int i=0; i<4; ++i)
-            {
-               const real_t dist_i = v[i].Norml2();
-               const real_t relDist_i = (dist_i - elMinDist) / elMaxDist;
-               if (relDist_i < relTol)
-               {
-                  closeVertices.insert(i);
-               }
-            }
-
-            const int numCloseVertices = closeVertices.size();
-            MFEM_VERIFY(numCloseVertices == 1 || numCloseVertices == 2, "");
-
-            if (numCloseVertices == 1)
-            {
-               // Refine close to the vertex.
-               const int idx = *closeVertices.begin();
-               const int ix = idx / 2;
-               const int iy = idx - (2 * ix);
-
-               const real_t sx = ix == 0 ? a : 1.0 - a;
-               const real_t sy = iy == 0 ? a : 1.0 - a;
-
-               refs.Append(Refinement(el, {{Refinement::X, sx},
-                  {Refinement::Y, sy}
-               }));
-               refDist.Append(elAvgDist);
-            }
-            else
-            {
-               // Refine close to the edge.
-               int vij[2][2];
-               int cnt = 0;
-               for (auto idx : closeVertices)
-               {
-                  const int ix = idx / 2;
-                  const int iy = idx - (2 * ix);
-
-                  vij[cnt][0] = ix;
-                  vij[cnt][1] = iy;
-                  cnt++;
-               }
-
-               const bool xedge = vij[0][0] != vij[1][0];
-               const auto type = xedge ? Refinement::Y : Refinement::X;
-
-               real_t scale = 0.5;
-
-               if (xedge)
-               {
-                  scale = vij[0][1] == 0 ? a : 1.0 - a;
-               }
-               else
-               {
-                  scale = vij[0][0] == 0 ? a : 1.0 - a;
-               }
-
-               refs.Append(Refinement(el, type, scale));
-            }
-         }
-      }
-      else
-      {
-         MFEM_ABORT("TODO");
-      }
-   }
-
-   pmesh->GeneralRefinement(refs);
-
-   pmesh->SetScaledNCMesh();
-
-   ofstream mesh_ofs("refined" + std::to_string(iter) +".mesh");
-   mesh_ofs.precision(8);
-   pmesh->ParPrint(mesh_ofs);
-}
-
 int main(int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -447,7 +214,6 @@ int main(int argc, char *argv[])
    int problem = 1;
    int rs_levels = 2;
    int order = 2;
-   int amr_iter = 0;
    real_t t_param = 1.0;
    const char *device_config = "cpu";
    int visport = 19916;
@@ -473,8 +239,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&amr_iter, "-amr", "--amr-iter",
-                  "Number of adaptive mesh refinement iterations.");
    args.AddOption(&t_param, "-t", "--t-param",
                   "Diffusion time step (scaled internally scaled by dx*dx).");
    args.AddOption(&device_config, "-d", "--device",
@@ -504,8 +268,6 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
 
-   mesh.EnsureNCMesh();
-
    // MPI distribution.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
@@ -514,7 +276,7 @@ int main(int argc, char *argv[])
    int smooth_steps;
    if (problem == 0)
    {
-      ls_coeff = new DeltaCoefficient(0.5, 0.5, 1000.0);
+      ls_coeff = new DeltaCoefficient(0.5, -0.5, 1000.0);
       smooth_steps = 0;
    }
    else if (problem == 1)
@@ -581,7 +343,7 @@ int main(int argc, char *argv[])
       filter.Filter(*ls_coeff, filt_gf);
    }
    else { filt_gf.ProjectCoefficient(*ls_coeff); }
-   //delete ls_coeff;
+   delete ls_coeff;
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
    dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
@@ -621,14 +383,6 @@ int main(int argc, char *argv[])
    dacol.SetCycle(1);
    dacol.Save();
 
-   // Save the mesh and the solution.
-   ofstream mesh_ofs("distance.mesh");
-   mesh_ofs.precision(8);
-   pmesh.PrintAsOne(mesh_ofs);
-   ofstream sol_ofs("distance.gf");
-   sol_ofs.precision(8);
-   distance_s.SaveAsOne(sol_ofs);
-
    ConstantCoefficient zero(0.0);
    const real_t s_norm  = distance_s.ComputeL2Error(zero),
                 v_norm  = distance_v.ComputeL2Error(zero);
@@ -657,33 +411,6 @@ int main(int argc, char *argv[])
          cout << "Local  L1 error:   " << error_l1_loc << endl
               << "Local  Linf error: " << error_li_loc << endl;
       }
-   }
-
-   for (int iter = 0; iter < amr_iter; ++iter)
-   {
-      RefineUsingDistance(distance_s, distance_v, iter);
-      pfes_s.Update();
-      pfes_v.Update();
-      distance_s.Update();
-      distance_v.Update();
-      filt_gf.Update();
-
-      {
-         // Save the mesh and the solution.
-         ofstream mesh_ofs_i("distance" + std::to_string(iter) + ".mesh");
-         mesh_ofs_i.precision(8);
-         pmesh.PrintAsOne(mesh_ofs_i);
-         ofstream sol_ofs_i("distance" + std::to_string(iter) + ".gf");
-         sol_ofs_i.precision(8);
-         distance_v.SaveAsOne(sol_ofs_i);
-      }
-
-      if (problem == 0) { filt_gf.ProjectCoefficient(*ls_coeff); }
-
-      //dist_solver->ComputeVectorDistance(ls_filt_coeff, distance_v);
-
-      // TODO: solve again for distance on refined mesh? Or is interpolation after refinement
-      // good enough?
    }
 
    delete dist_solver;
