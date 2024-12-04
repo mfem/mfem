@@ -47,9 +47,9 @@ void ConjugationProduct(const mfem::DenseMatrix &A, const mfem::DenseMatrix &B, 
   mfem::Mult(A, CBt, D);
 }
 
- LFNodeCoordinateSensitivityIntegrator::LFNodeCoordinateSensitivityIntegrator(mfem::Coefficient &Q, int Index1, int Index2,
+ LFNodeCoordinateSensitivityIntegrator::LFNodeCoordinateSensitivityIntegrator( int Index1, int Index2,
     int IntegrationOrder)
-  : Q_(&Q), Index1_(Index1), Index2_(Index2), IntegrationOrder_(IntegrationOrder)
+  : Index1_(Index1), Index2_(Index2), IntegrationOrder_(IntegrationOrder)
 {}
 
 void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T,
@@ -67,6 +67,8 @@ void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const mfem::F
   mfem::Vector IxBTvec(dof * dim);
   mfem::Vector IxN_vec(dof * dim);
   mfem::Vector N(dof);
+  mfem::DenseMatrix graduDerivxB(dof, dim);
+  mfem::Vector graduDerivxBvec(dof * dim);
 
   // output vector
   elvect.SetSize(dim * dof);
@@ -102,20 +104,25 @@ void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const mfem::F
     mfem::DenseMatrix Jinv = T.InverseJacobian();
     mfem::Mult(dN, Jinv, B);
 
+    // term 1
+    mfem::Mult(B, QoI_->gradTimesexplicitSolutionGradientDerivative(T, ip), graduDerivxB);
+    Vectorize(graduDerivxB, graduDerivxBvec);
+    elvect.Add( -1.0 * w , graduDerivxBvec);
+
     // term 2
     mfem::Mult(B, I, IxB);
     Vectorize(IxB, IxBTvec);
-    elvect.Add( w * QoI_->Eval(T, ip) * Q_->Eval(T, ip), IxBTvec);
+    elvect.Add( w * QoI_->Eval(T, ip), IxBTvec);
 
     // term 3
     Mult(matN, QoI_->explicitShapeDerivative(T, ip), NxPhix);
     Vectorize(NxPhix, IxN_vec);
-    elvect.Add(w * Q_->Eval(T, ip), IxN_vec);
+    elvect.Add(w , IxN_vec);
   }
 }
 
-LFErrorIntegrator::LFErrorIntegrator(mfem::Coefficient &Q, int IntegrationOrder)
-  : Q_(&Q), IntegrationOrder_(IntegrationOrder)
+LFErrorIntegrator::LFErrorIntegrator( int IntegrationOrder)
+  : IntegrationOrder_(IntegrationOrder)
 {}
 
 void LFErrorIntegrator::AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T,
@@ -150,12 +157,12 @@ void LFErrorIntegrator::AssembleRHSElementVect(const mfem::FiniteElement &el, mf
     double w = ip.weight * T.Weight();
 
     el.CalcShape(ip, N);
-    elvect.Add(w * QoI_->Eval(T, ip) * Q_->Eval(T, ip), N);
+    elvect.Add(w  * QoI_->Eval(T, ip), N);
   }
 }
 
-LFErrorDerivativeIntegrator::LFErrorDerivativeIntegrator(mfem::Coefficient &Q, int IntegrationOrder)
-  : Q_(&Q), IntegrationOrder_(IntegrationOrder)
+LFErrorDerivativeIntegrator::LFErrorDerivativeIntegrator( int IntegrationOrder)
+  : IntegrationOrder_(IntegrationOrder)
 {}
 
 void LFErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T,
@@ -163,10 +170,15 @@ void LFErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::FiniteEleme
 {
   // grab sizes
   int dof = el.GetDof();
-  //int dim = el.GetDim();
+  int dim = el.GetDim();
 
   // initialize storage
   mfem::Vector N(dof);
+  mfem::DenseMatrix dN(dof, dim);
+  mfem::DenseMatrix B(dof, dim);
+  mfem::DenseMatrix BT(dim, dof);
+  mfem::Vector DQdgradxdNdxvec(dof);
+  mfem::DenseMatrix DQdgradxdNdx(1, dof);
 
   // output vector
   elvect.SetSize( dof);
@@ -189,11 +201,173 @@ void LFErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::FiniteEleme
     // evaluate gaussian integration weight
     double w = ip.weight * T.Weight();
 
+    el.CalcDShape(ip, dN);
+    el.CalcShape(ip, N);
+    // get inverse jacobian
+    mfem::DenseMatrix Jinv = T.InverseJacobian();
+    mfem::Mult(dN, Jinv, B);
+
+    // term 1
+    const mfem::DenseMatrix & SolGradDeriv = QoI_->explicitSolutionGradientDerivative(T, ip);
+
+    BT.Transpose(B);
+
+    mfem::Mult(SolGradDeriv, BT, DQdgradxdNdx);
+    Vectorize(DQdgradxdNdx, DQdgradxdNdxvec);
+    elvect.Add(w , DQdgradxdNdxvec);
+
+    //term 2
     const mfem::DenseMatrix & derivVal = QoI_->explicitSolutionDerivative(T, ip);
     double val = derivVal.Elem(0,0);
 
+    elvect.Add(w  * val, N);
+  }
+}
+
+LFErrorDerivativeIntegrator_2::LFErrorDerivativeIntegrator_2( ParFiniteElementSpace * fespace, Array<int> count,int IntegrationOrder)
+  : fespace_(fespace), count_(count), IntegrationOrder_(IntegrationOrder)
+{}
+
+void LFErrorDerivativeIntegrator_2::AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T,
+    mfem::Vector &elvect)
+{
+  // grab sizes
+  int dof = el.GetDof();
+  int dim = el.GetDim();
+
+  int integrationOrder = 2 * el.GetOrder() + 2;
+  if (IntegrationOrder_ != INT_MAX) {
+    integrationOrder = IntegrationOrder_;
+  }
+
+  // set integration rule
+  const mfem::IntegrationRule *ir = &mfem::IntRules.Get(el.GetGeomType(), integrationOrder);
+
+  // initialize storage
+  mfem::Vector N(dof);
+  mfem::Vector shape(dof);
+  mfem::DenseMatrix dN(dof, dim);
+  mfem::DenseMatrix B(dof, dim);
+  mfem::DenseMatrix BT(dim, dof);
+  mfem::Vector DQdgradxdNdxvec(dof);
+  mfem::DenseMatrix DQdgradxdNdx(1, dof);
+
+  mfem::DenseMatrix SumdNdxatNodes(dof, dof*dim); SumdNdxatNodes = 0.0;
+
+  //-----------------------------------------------------------------------------------
+
+  const mfem::IntegrationRule *ir_p = &el.GetNodes();
+  int fnd = ir_p->GetNPoints();
+  //flux.SetSize( fnd * spaceDim );
+
+  DenseMatrix dshape(dof,dim), invdfdx(dim, dim);
+
+  int EleNo = T.ElementNo;
+
+  Array<int> fdofs; 
+  fespace_->GetElementVDofs(EleNo, fdofs);
+
+  for (int i = 0; i < fnd; i++)
+  {
+      const IntegrationPoint &ip = ir_p->IntPoint(i);
+      el.CalcDShape(ip, dshape);
+      el.CalcShape(ip, shape);
+      // dshape.MultTranspose(u, vec);
+
+      T.SetIntPoint (&ip);
+      CalcInverse(T.Jacobian(), invdfdx);
+      mfem::Mult(dshape, invdfdx, B);
+      //invdfdx.MultTranspose(vec, vecdxt);
+
+      std::cout<<"dshape H | W: "<<dshape.Height()<<" | "<<dshape.Width()<<std::endl;
+      std::cout<<"B H | W: "<<B.Height()<<" | "<<B.Width()<<std::endl;
+      std::cout<<"shape S: "<<shape.Size()<< std::endl;
+      std::cout<<"count: "<<count_[fdofs[i]]<< std::endl;
+
+    //  B.Print();
+    //  SumdNdxatNodes.Print();
+
+      for( int jj = 0; jj < dof; jj++)
+      {
+
+        // deveide here by node weights  // FIXME
+        SumdNdxatNodes(jj,i) = B(jj,0) / count_[fdofs[i]];
+        SumdNdxatNodes(jj,dof+i) = B(jj,1) / count_[fdofs[i]];
+
+        // SumdNdxatNodes(jj,i) = B(jj,0) / 4.0;
+        // SumdNdxatNodes(jj,dof+i) = B(jj,1) / 4.0;
+      }
+
+      // shape.Print();
+
+  }
+
+  // SumdNdxatNodes.Print();
+
+   //mfem_error("stop in LFErrorDerivativeIntegrator_2");
+
+
+
+
+
+  //-----------------------------------------------------------------------------------
+
+
+
+  // output vector
+  elvect.SetSize( dof);
+  elvect = 0.0;
+
+  // loop over integration points
+  for (int i = 0; i < ir->GetNPoints(); i++) {
+    // set current integration point
+    const ::mfem::IntegrationPoint &ip = ir->IntPoint(i);
+    T.SetIntPoint(&ip);
+
+    // evaluate gaussian integration weight
+    double w = ip.weight * T.Weight();
+
+    el.CalcDShape(ip, dN);
     el.CalcShape(ip, N);
-    elvect.Add(w * QoI_->Eval(T, ip) * val, N);
+    // get inverse jacobian
+    mfem::DenseMatrix Jinv = T.InverseJacobian();
+    mfem::Mult(dN, Jinv, B);
+
+    // term 1
+    const mfem::DenseMatrix & SolGradDeriv = QoI_->explicitSolutionGradientDerivative(T, ip);
+
+    BT.Transpose(B);
+
+    mfem::Mult(SolGradDeriv, BT, DQdgradxdNdx);
+    Vectorize(DQdgradxdNdx, DQdgradxdNdxvec);
+    elvect.Add(w , DQdgradxdNdxvec);
+
+    //term 2
+    mfem::DenseMatrix Nhelper(dof*dim, dim); Nhelper = 0.0;
+    mfem::DenseMatrix NtimesSumdNdx(dof, dim); NtimesSumdNdx = 0.0;
+    mfem::DenseMatrix NtimesSumdNdxT(dim, dof); NtimesSumdNdxT = 0.0;
+
+      for( int jj = 0; jj < dof; jj++)
+      {
+        Nhelper(jj,0) =     N(jj);
+        Nhelper(dof+jj,1) = N(jj);
+      }
+
+    mfem::Mult(SumdNdxatNodes, Nhelper, NtimesSumdNdx);
+
+
+    NtimesSumdNdxT.Transpose(NtimesSumdNdx);
+    mfem::Mult(SolGradDeriv, NtimesSumdNdxT, DQdgradxdNdx);
+    Vectorize(DQdgradxdNdx, DQdgradxdNdxvec);
+    elvect.Add(-1.0*w , DQdgradxdNdxvec);
+
+
+
+    //term 2
+    // const mfem::DenseMatrix & derivVal = QoI_->explicitSolutionDerivative(T, ip);
+    // double val = derivVal.Elem(0,0);
+
+    // elvect.Add(w  * val, N);
   }
 }
 
@@ -392,19 +566,33 @@ double QuantityOfInterest::EvalQoI()
 
   ::mfem::ParGridFunction oneGridFunction = ::mfem::ParGridFunction(temp_fes_);
   oneGridFunction = 1.0;
+  ConstantCoefficient one(1.0);
+  BilinearFormIntegrator *integ = nullptr;
+  ParGridFunction flux(coord_fes_);
 
-  ::mfem::ConstantCoefficient oneCoeff(1.0);
-
-  std::shared_ptr<QoIBaseCoefficient> ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_);
+  switch (qoiType_) {
+  case 0:
+     if( trueSolution_ == nullptr ){ mfem_error("true solution not set.");}
+     ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_);
+     break;
+  case 1:
+    if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
+    ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_);
+    break;
+  case 2:
+    integ = new DiffusionIntegrator(one);
+    solgf_.ComputeFlux(*integ, flux, false);
+    trueSolutionGrad_ = new mfem::VectorGridFunctionCoefficient( &flux);
+    ErrorCoefficient_ = std::make_shared<ZZError_QoI>(&solgf_, trueSolutionGrad_);
+    break;
+  default:
+    std::cout << "Unknown Error Coeff: " << qoiType_ << std::endl;
+  }
 
   ::mfem::ParGridFunction ErrorGF = ::mfem::ParGridFunction(temp_fes_);
-  ::mfem::ParGridFunction TGF = ::mfem::ParGridFunction(temp_fes_);
-  ErrorGF.ProjectCoefficient(*ErrorCoefficient_.get());
-  TGF.ProjectCoefficient(*trueSolution_);
-
 
   ::mfem::ParLinearForm scalarErrorForm(temp_fes_);
-  LFErrorIntegrator *lfi = new LFErrorIntegrator(oneCoeff);
+  LFErrorIntegrator *lfi = new LFErrorIntegrator;
   lfi->SetQoI(ErrorCoefficient_);
   lfi->SetIntRule(&mfem::IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
   scalarErrorForm.AddDomainIntegrator(lfi);
@@ -417,33 +605,102 @@ void QuantityOfInterest::EvalQoIGrad()
 {
   this->UpdateMesh(designVar);
 
-  ::mfem::ConstantCoefficient oneCoeff(1.0);
+  ConstantCoefficient one(1.0);
+  BilinearFormIntegrator *integ = nullptr;
+  ParGridFunction flux(coord_fes_);
 
-  std::shared_ptr<QoIBaseCoefficient> ErrorCoefficient = std::make_shared<Error_QoI>(&solgf_, trueSolution_);
+  switch (qoiType_) {
+    case 0:
+      if( trueSolution_ == nullptr ){ mfem_error("true solution not set.");}
+      ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_);
+      break;
+    case 1:
+      if( trueSolutionGrad_ == nullptr ){ mfem_error("true solution not set.");}
+      ErrorCoefficient_ = std::make_shared<H1Error_QoI>(&solgf_, trueSolutionGrad_);
+      break;
+    case 2:
+      integ = new DiffusionIntegrator(one);
+      solgf_.ComputeFlux(*integ, flux, false);
+      trueSolutionGrad_ = new mfem::VectorGridFunctionCoefficient( &flux);
+      ErrorCoefficient_ = std::make_shared<ZZError_QoI>(&solgf_, trueSolutionGrad_);
+      break;
+    default:
+      std::cout << "Unknown Error Coeff: " << qoiType_ << std::endl;
+   }
 
-  // evaluate grad wrt temp
+  if(qoiType_ == QoIType::ZZ_ERROR)
   {
-  ::mfem::ParLinearForm T_gradForm(temp_fes_);
-  LFErrorDerivativeIntegrator *lfi = new LFErrorDerivativeIntegrator(oneCoeff);
-  lfi->SetQoI(ErrorCoefficient);
-  lfi->SetIntRule(&mfem::IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
-  T_gradForm.AddDomainIntegrator(lfi);
-  T_gradForm.Assemble();
-  *dQdu_ = 0.0;
-  dQdu_->Add( 1.0, T_gradForm);
+    // evaluate grad wrt temp
+    {
+        int nfe = temp_fes_->GetNE();
+
+        
+        Array<int> fdofs;
+        DofTransformation *fdoftrans;
+        Array<int> count(solgf_.Size()); count = 0;
+
+        for (int i = 0; i < nfe; i++)
+        {
+          fdoftrans = temp_fes_->GetElementVDofs(i, fdofs);
+          FiniteElementSpace::AdjustVDofs(fdofs);
+
+          for (int j = 0; j < fdofs.Size(); j++)
+          {
+            count[fdofs[j]]++;
+          }
+        }
+
+      ::mfem::ParLinearForm T_gradForm(temp_fes_);
+      LFErrorDerivativeIntegrator_2 *lfi = new LFErrorDerivativeIntegrator_2(temp_fes_, count);
+      lfi->SetQoI(ErrorCoefficient_);
+      lfi->SetIntRule(&mfem::IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      T_gradForm.AddDomainIntegrator(lfi);
+      T_gradForm.Assemble();
+      *dQdu_ = 0.0;
+      dQdu_->Add( 1.0, T_gradForm);
+
+      //solgf_.ComputeFlux(*integ, flux, false);
+    }
+      // evaluate grad wrt coord
+    {
+      LFNodeCoordinateSensitivityIntegrator *lfi = new LFNodeCoordinateSensitivityIntegrator;
+      lfi->SetQoI(ErrorCoefficient_);
+      lfi->SetIntRule(&mfem::IntRules.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+
+      ::mfem::ParLinearForm ud_gradForm(coord_fes_);
+      ud_gradForm.AddDomainIntegrator(lfi);
+      ud_gradForm.Assemble();
+      *dQdx_ = 0.0;
+      dQdx_->Add(1.0, ud_gradForm);
+    }
+
   }
-
-  // evaluate grad wrt coord
+  else
   {
-    LFNodeCoordinateSensitivityIntegrator *lfi = new LFNodeCoordinateSensitivityIntegrator(oneCoeff);
-    lfi->SetQoI(ErrorCoefficient);
-    lfi->SetIntRule(&mfem::IntRules.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+    // evaluate grad wrt temp
+    {
+      ::mfem::ParLinearForm T_gradForm(temp_fes_);
+      LFErrorDerivativeIntegrator *lfi = new LFErrorDerivativeIntegrator;
+      lfi->SetQoI(ErrorCoefficient_);
+      lfi->SetIntRule(&mfem::IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      T_gradForm.AddDomainIntegrator(lfi);
+      T_gradForm.Assemble();
+      *dQdu_ = 0.0;
+      dQdu_->Add( 1.0, T_gradForm);
+    }
 
-    ::mfem::ParLinearForm ud_gradForm(coord_fes_);
-    ud_gradForm.AddDomainIntegrator(lfi);
-    ud_gradForm.Assemble();
-    *dQdx_ = 0.0;
-    dQdx_->Add(1.0, ud_gradForm);
+    // evaluate grad wrt coord
+    {
+      LFNodeCoordinateSensitivityIntegrator *lfi = new LFNodeCoordinateSensitivityIntegrator;
+      lfi->SetQoI(ErrorCoefficient_);
+      lfi->SetIntRule(&mfem::IntRules.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+
+      ::mfem::ParLinearForm ud_gradForm(coord_fes_);
+      ud_gradForm.AddDomainIntegrator(lfi);
+      ud_gradForm.Assemble();
+      *dQdx_ = 0.0;
+      dQdx_->Add(1.0, ud_gradForm);
+    }
   }
 }
 
@@ -451,7 +708,7 @@ double NodeAwareTMOPQuality::EvalQoI()
 {
   this->UpdateMesh(designVar);
 
-  ::mfem::Vector Xi = X0_;
+  ::mfem::Vector Xi(X0_.Size()); Xi = X0_;
   Xi += designVar;
 
   int targetId = 1;
@@ -516,7 +773,7 @@ void NodeAwareTMOPQuality::EvalQoIGrad()
 {
   this->UpdateMesh(designVar);
 
-  ::mfem::Vector Xi = X0_;
+  ::mfem::ParGridFunction Xi(coord_fes_); Xi = X0_;
   Xi += designVar;
 
   int targetId = 1;
@@ -574,7 +831,15 @@ void NodeAwareTMOPQuality::EvalQoIGrad()
 
   *dQdx_ = 0.0;
 
-  a.Mult (Xi, *dQdx_);
+  Xi.SetTrueVector();
+  mfem::Vector& trueXi = Xi.GetTrueVector();
+  ::mfem::ParGridFunction dQdx_GF(coord_fes_);
+  dQdx_GF.SetTrueVector();
+  mfem::Vector& truedQdx_GF = dQdx_GF.GetTrueVector();
+
+  a.Mult(trueXi, truedQdx_GF);
+
+  coord_fes_->GetRestrictionTransposeOperator()->Mult(truedQdx_GF, *dQdx_ );
 }
 
 void Diffusion_Solver::FSolve()
