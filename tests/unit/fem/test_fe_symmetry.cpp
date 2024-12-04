@@ -22,7 +22,8 @@ Array<int> findMinTracePermutation(const DenseMatrix &A)
    MFEM_VERIFY(R <= C, "Matrix must have at least as many columns as rows");
 
    Array<int> perm(C + 1); perm = -1;
-   Vector potR(R), potC(C + 1);
+   Vector potR(R); potR = 0.0;
+   Vector potC(C + 1); potC = 0.0;
 
    const real_t inf = std::numeric_limits<real_t>::max();
 
@@ -33,7 +34,7 @@ Array<int> findMinTracePermutation(const DenseMatrix &A)
 
       Vector min_to(C + 1); min_to = inf;
       Array<int> prv_col(C + 1); prv_col = -1;
-      Array<bool> col_in_path(C + 1);
+      Array<bool> col_in_path(C + 1); col_in_path = false;
 
       while (perm[c_cur] != -1)
       {
