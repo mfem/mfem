@@ -416,6 +416,8 @@ public:
       void SetRelTol(real_t p_rtol_) override;
       void SetAbsTol(real_t p_atol_) override;
 
+      ~L2ProjectionH1Space();
+
    protected:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();

@@ -1236,7 +1236,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
    precon.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
 
    TransposeOperator* RT = new TransposeOperator(R.get());
-   RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), false, false));
+   RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), true, false));
 
    SetupPCG();
 }
@@ -1292,7 +1292,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
    ML_inv_ea.SetSize(ndof_lor);
    ML_inv_ea = 0.0;
 
-   BilinearForm pMho(pfes_ho_scalar);
+   ParBilinearForm pMho(pfes_ho_scalar);
    pMho.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    pMho.AddDomainIntegrator(new MassIntegrator);
    pMho.Assemble();
@@ -1338,8 +1338,8 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
          GetTDofs(*pfes_lor_scalar, ML_inv_ea, RML_inv);
          ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
                                                         RML_inv));
-         M_LH.reset(new TripleProductOperator(Pt_lor, M_LH_local_op, P_ho, false,
-                                              false, false));
+         M_LH.reset(new TripleProductOperator(Pt_lor, M_LH_local_op, P_ho, true,
+                                              true, false));
 
          Vector RM_H(pfes_ho_scalar->GetTrueVSize());
          GetTDofsTranspose(*pfes_ho_scalar, M_H, RM_H);
@@ -1349,7 +1349,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
       {
          ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
                                                         ML_inv_ea));
-         M_LH.reset(new ProductOperator(M_LH_local_op, P_ho, false, false));
+         M_LH.reset(new ProductOperator(M_LH_local_op, P_ho, true, false));
 
          Vector RM_H(pfes_ho_scalar->GetTrueVSize());
          GetTDofsTranspose(*pfes_ho_scalar, M_H, RM_H);
@@ -1362,7 +1362,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
          GetTDofsTranspose(*pfes_lor_scalar, ML_inv_ea, RML_inv);
          ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar, pfes_lor_scalar,
                                                         RML_inv));
-         M_LH.reset(new ProductOperator(Pt_lor, M_LH_local_op, false, false));
+         M_LH.reset(new ProductOperator(Pt_lor, M_LH_local_op, true, true));
          R.reset(new ProductOperator(ML_inv_vea.get(), M_LH.get(), false,
                                      false));
 
@@ -1381,7 +1381,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
                                false));
 
    TransposeOperator* RT = new TransposeOperator(R.get());
-   RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), false, false));
+   RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), true, false));
 
    SetupPCG();
 }
@@ -1859,6 +1859,21 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
 
    return R_local;
 }
+
+L2ProjectionGridTransfer::L2ProjectionH1Space::~L2ProjectionH1Space()
+{
+
+  delete M_LH_local_op;
+
+#ifdef MFEM_USE_MPI
+  delete pfes_ho_scalar;
+  delete pfes_lor_scalar;
+#else
+  delete fes_ho_scalar;
+  delete fes_lor_scalar;
+#endif
+}
+
 
 L2ProjectionGridTransfer::H1SpaceMixedMassOperator::H1SpaceMixedMassOperator(
    const FiniteElementSpace* fes_ho_, const FiniteElementSpace* fes_lor_,
