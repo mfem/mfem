@@ -2815,7 +2815,6 @@ TEST_CASE("RP=I", "[NCMesh]")
    }
 }
 
-
 TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
 {
    auto test_project_H1 = [](Mesh &mesh, int order, double coef)
@@ -2890,7 +2889,5 @@ TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
       test_project_H1(smesh, 3, 0.25);
    }
 }
-
-
 
 } // namespace mfem
