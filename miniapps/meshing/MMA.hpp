@@ -161,7 +161,7 @@ public:
         PetscInt nn;
         VecGetSize(pv,&nn);
 
-        mma=new MMA(nn, m, pv, ap, cp, dp);
+        mma=new ::MMA(nn, m, pv, ap, cp, dp);
 
         delete [] ap;
         delete [] cp;
@@ -223,7 +223,7 @@ public:
         VecRestoreArray(xval,&data);
     }
 private:
-    MMA* mma;
+    ::MMA* mma;
     int num_con;
     MPI_Comm comm;
 
