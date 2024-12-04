@@ -12,6 +12,9 @@
 #include "tmop_tools.hpp"
 #include "nonlinearform.hpp"
 #include "pnonlinearform.hpp"
+#include "nonlinearform.hpp"
+#include "linearform.hpp"
+#include "plinearform.hpp"
 #include "../general/osockstream.hpp"
 
 namespace mfem
@@ -439,7 +442,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          if (print_options.iterations)
          {
-            mfem::out << "TMOPNewtonSolver converged "
+            out << "TMOPNewtonSolver converged "
                       "based on the surface fitting error.\n";
          }
          scale = 0.0;
@@ -451,7 +454,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    {
       if (print_options.iterations)
       {
-         mfem::out << "TMOPNewtonSolver terminated "
+         out << "TMOPNewtonSolver terminated "
                    "based on max number of times surface fitting weight can"
                    "be increased. \n";
       }
@@ -514,7 +517,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          // No untangling, and detJ got negative (or small) -- no good.
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " Neg det(J) found.\n";
+            out << "Scale = " << scale << " Neg det(J) found.\n";
          }
          scale *= detJ_factor; continue;
       }
@@ -523,7 +526,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          // Untangling, and detJ got even more negative -- no good.
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n";
+            out << "Scale = " << scale << " Neg det(J) decreased.\n";
          }
          scale *= detJ_factor; continue;
       }
@@ -545,7 +548,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          {
             if (print_options.iterations)
             {
-               mfem::out << "Scale = " << scale << " Surf fit err increased.\n";
+               out << "Scale = " << scale << " Surf fit err increased.\n";
             }
             scale *= 0.5; continue;
          }
@@ -566,7 +569,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " Increasing energy: "
+            out << "Scale = " << scale << " Increasing energy: "
                       << energy_in << " --> " << energy_out << '\n';
          }
          scale *= 0.5; continue;
@@ -581,7 +584,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " Norm increased: "
+            out << "Scale = " << scale << " Norm increased: "
                       << norm_in << " --> " << norm_out << '\n';
          }
          scale *= 0.5; continue;
@@ -597,7 +600,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          *min_det_ptr = 0.0;
          if (print_options.summary || print_options.iterations ||
              print_options.first_and_last)
-         { mfem::out << "The mesh has been untangled at the used points!\n"; }
+         { out << "The mesh has been untangled at the used points!\n"; }
       }
       else { *min_det_ptr = untangle_factor * min_detT_out; }
    }
@@ -607,13 +610,13 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    {
       if (untangling)
       {
-         mfem::out << "Min det(T) change: "
+         out << "Min det(T) change: "
                    << min_detT_in << " -> " << min_detT_out
                    << " with " << scale << " scaling.\n";
       }
       else
       {
-         mfem::out << "Energy decrease: "
+         out << "Energy decrease: "
                    << energy_in << " --> " << energy_out << " or "
                    << (energy_in - energy_out) / energy_in * 100.0
                    << "% with " << scale << " scaling.\n";
@@ -855,10 +858,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 
       if (print_options.iterations)
       {
-         mfem::out << "Avg/Max surface fitting error: " <<
+         out << "Avg/Max surface fitting error: " <<
                    surf_fit_avg_err << " " <<
                    surf_fit_max_err << "\n";
-         mfem::out << "Min/Max surface fitting weight: " <<
+         out << "Min/Max surface fitting weight: " <<
                    fitweights.Min() << " " << fitweights.Max() << "\n";
       }
 
@@ -886,6 +889,37 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       surf_fit_avg_err_prvs = surf_fit_avg_err;
       surf_fit_coeff_update = false;
    }
+}
+
+Vector TMOPNewtonSolver::GetProlongedVector(const Vector &x) const
+{
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+
+   Vector x_loc;
+   const FiniteElementSpace *x_fes = nullptr;
+   if (parallel)
+   {
+#ifdef MFEM_USE_MPI
+      const ParNonlinearForm *pnlf =
+         dynamic_cast<const ParNonlinearForm *>(oper);
+
+      x_fes = pnlf->ParFESpace();
+      x_loc.SetSize(x_fes->GetVSize());
+      x_fes->GetProlongationMatrix()->Mult(x, x_loc);
+#endif
+   }
+   else
+   {
+      x_fes = nlf->FESpace();
+      const Operator *P = nlf->GetProlongation();
+      if (P)
+      {
+         x_loc.SetSize(P->Height());
+         P->Mult(x,x_loc);
+      }
+      else { x_loc = x; }
+   }
+   return x_loc;
 }
 
 real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
@@ -947,77 +981,127 @@ void TMOP_MMA::Mult(Vector &x)
    Vector  congradDummy(x.Size());
    congradDummy = 1.0;
    MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
+   MFEM_VERIFY(true_dofs.Size(), "Set TMOP_MMA true dofs to limit displacement");
+   MFEM_VERIFY((qoi && ds) || (!ds && !qoi), "Either set both QoI and DS or neither");
    ProcessNewState(x);
-   Vector xcopy = x;
+   Vector dx(x.Size());
+   dx = 0.0;
+   double deps = 1e-6;
 
-   Vector xxmin = x;
-   Vector xxmax = x;
-   xxmin -= dlower;
-   xxmax += dupper;
-
-   // r = F(x)-b
-   oper->Mult(x, r);
-   r *= -1.0;
-   Update(0, r, &conDummy, congradDummy.GetData(), xxmin, xxmax, xcopy);
-   TMOPNewtonSolver::c = xcopy;
-   TMOPNewtonSolver::c -= x;
-   // TMOPNewtonSolver::c = r;
-   // TMOPNewtonSolver::c *= 0.5;
-   // c = r;
-   norm0 = norm = initial_norm = Norm(r);
-   if (print_options.first_and_last && !print_options.iterations)
+   Vector xxmin = dx;
+   Vector xxmax = dx;
+   xxmin -= dlower; // dlower = 0.1
+   xxmax += dupper; // dupper = 0.1
+   for (int i = 0; i < true_dofs.Size(); i++)
    {
-      mfem::out << "TMOP-MMA iteration " << std::setw(2) << 0
-                << " : ||r|| = " << norm << "...\n";
+      if (true_dofs[i] == 1.0)
+      {
+         xxmin[i] = -deps;
+         xxmax[i] = deps;
+      }
    }
-   norm_goal = std::max(rel_tol*norm, abs_tol);
+   Vector xorig = x;
+   oper->Mult(x, r);
+
+   ParLinearForm * dQdu = NULL;
+   ParLinearForm * dQdxExpl = NULL;
+   ParLinearForm * dQdxImpl = NULL;
+   ParFiniteElementSpace *pfespace = NULL;
+   Vector ldx;
+   // Update(0, r, &conDummy, congradDummy.GetData(), xxmin, xxmax, dx);
+   // TMOPNewtonSolver::c = dx;
+   // norm0 = norm = initial_norm = Norm(r);
+   // if (print_options.first_and_last && !print_options.iterations)
+   // {
+      // out << "TMOP-MMA iteration " << std::setw(2) << 0
+               //  << " : ||r|| = " << norm << "...\n";
+   // }
+   // norm_goal = std::max(rel_tol*norm, abs_tol);
 
    for (it = 0; it < max_iter; it++)
    {
-      MFEM_VERIFY(IsFinite(norm), "norm = " << norm);
-      if (print_options.iterations)
+      oper->Mult(x, r);
+      if (qoi)
       {
-         mfem::out << "LBFGS iteration " <<  it
+         // std::cout << "Including qoi\n";
+         ldx = GetProlongedVector(dx);
+         ds->SetDesign(ldx);
+         ds->FSolve();
+         ParGridFunction & discretSol = ds->GetSolution();
+         qoi->SetDesign(ldx);
+         qoi->SetDiscreteSol( discretSol );
+         qoi->EvalQoIGrad();
+         dQdu = qoi->GetDQDu();
+         dQdxExpl = qoi->GetDQDx();
+         ds->ASolve( *dQdu );
+         dQdxImpl = ds->GetImplicitDqDx();
+         const ParNonlinearForm *pnlf =
+            dynamic_cast<const ParNonlinearForm *>(oper);
+         MFEM_VERIFY(pnlf != NULL, "Invalid Operator subclass.");
+         pfespace = pnlf->ParFESpace();
+
+         ParLinearForm dQdx(pfespace); dQdx = 0.0;
+         dQdx.Add(weight, *dQdxExpl);
+         dQdx.Add(weight, *dQdxImpl);
+         HypreParVector *truedQdx = dQdx.ParallelAssemble();
+         r += *truedQdx;
+      }
+      norm = Norm(r);
+      if (it == 0) { norm0 = norm; }
+      MFEM_VERIFY(IsFinite(norm), "norm = " << norm);
+      if (print_options.first_and_last || print_options.iterations)
+      {
+         out << "TMOP-MMA iteration " <<  it
                    << " : ||r|| = " << norm;
          if (it > 0)
          {
-            mfem::out << ", ||r||/||r_0|| = " << norm/norm0;
+            out << ", ||r||/||r_0|| = " << norm/norm0;
          }
-         mfem::out << '\n';
+         out << '\n';
       }
 
-      if (norm <= norm_goal)
       {
-         converged = true;
-         break;
+         xxmin=dx; xxmin-=dlower;
+         xxmax=dx; xxmax+=dupper;
+         for(int li=0;li<true_dofs.Size();li++){
+         if( true_dofs[li] ==1.0)
+         {
+            xxmin[li] = -deps;
+            xxmax[li] = deps;
+         }
+         }
       }
-
-      if (it >= max_iter)
-      {
-         converged = false;
-         break;
-      }
+      Vector dx_old = dx;
+      Update(it, r, &conDummy, congradDummy.GetData(), xxmin, xxmax, dx);
+      TMOPNewtonSolver::c = dx;
+      TMOPNewtonSolver::c -= dx_old;
 
       Vector b(0);
-      const real_t c_scale = ComputeScalingFactor2(x, b);
+      const real_t c_scale = ComputeScalingFactor2(x, b); // x = x_{current}
 
       if (c_scale == 0.0)
       {
          converged = false;
          break;
       }
-      add(x, -c_scale, TMOPNewtonSolver::c, x); // x_{k+1} = x_k - c_scale*c
+      add(x, c_scale, TMOPNewtonSolver::c, x);
+      // x_new = x_current + c_scale*dx_{current}
+      // dx = xorig; // x at 0th iteration
+      // dx -= x;    // dx = x_0 - x_current
 
       ProcessNewState(x);
 
-      oper->Mult(x, r);
-      r *= -1.0;
-      xcopy = x;
-      Update(0, r, &conDummy, congradDummy.GetData(), xxmin, xxmax, xcopy);
-      TMOPNewtonSolver::c = xcopy;
-      TMOPNewtonSolver::c -= x;
-      // TMOPNewtonSolver::c = r;
-      // TMOPNewtonSolver::c *= 0.5;
+      // oper->Mult(x, r); // gradient of TMOP objective
+
+      // r1 Thing 1, r += weight_1*r1
+      // r2 Thing 2, r += weight_1*r2
+
+      // Vector dx_old = dx;
+      // Update(it, r, &conDummy, congradDummy.GetData(), xxmin, xxmax, dx);
+      // TMOPNewtonSolver::c = dx;
+      // TMOPNewtonSolver::c -= dx_old;
+      // c = dx_{current} = dx_{cumulative} - dx_{cumulative_old}
+      norm = Norm(r);
    }
 
    final_iter = it;
@@ -1026,12 +1110,12 @@ void TMOP_MMA::Mult(Vector &x)
    if (print_options.summary || (!converged && print_options.warnings) ||
        print_options.first_and_last)
    {
-      mfem::out << "TMOP MMA: Number of iterations: " << final_iter << '\n'
+      out << "TMOP MMA: Number of iterations: " << final_iter << '\n'
                 << "   ||r|| = " << final_norm << '\n';
    }
    if (print_options.summary || (!converged && print_options.warnings))
    {
-      mfem::out << "TMOP MMA: No convergence!\n";
+      out << "TMOP MMA: No convergence!\n";
    }
 }
 
@@ -1039,7 +1123,12 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
                                        const Vector &b) const
 {
    const FiniteElementSpace *fes = NULL;
+   ParLinearForm * dQdu = NULL;
+   ParLinearForm * dQdxExpl = NULL;
+   ParLinearForm * dQdxImpl = NULL;
+   ParFiniteElementSpace *pfespace = NULL;
    real_t energy_in = 0.0;
+   Vector x_out_loc = x;
 #ifdef MFEM_USE_MPI
    const ParNonlinearForm *p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
    MFEM_VERIFY(!(parallel && p_nlf == NULL), "Invalid Operator subclass.");
@@ -1054,105 +1143,62 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
    MFEM_VERIFY(!(serial && nlf == NULL), "Invalid Operator subclass.");
    if (serial)
    {
+      MFEM_ABORT("not supported in serial yet.");
       fes = nlf->FESpace();
       energy_in = nlf->GetEnergy(x);
    }
 
-   // Get the local prolongation of the solution vector.
-   Vector x_out_loc(fes->GetVSize(),
-                    (temp_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : temp_mt);
-   if (serial)
-   {
-      const SparseMatrix *cP = fes->GetConformingProlongation();
-      if (!cP) { x_out_loc = x; }
-      else     { cP->Mult(x, x_out_loc); }
-   }
-#ifdef MFEM_USE_MPI
-   else
-   {
-      fes->GetProlongationMatrix()->Mult(x, x_out_loc);
-   }
-#endif
-
    real_t scale = 1.0;
-   // bool fitting = IsSurfaceFittingEnabled();
-   // real_t init_fit_avg_err, init_fit_max_err = 0.0;
-   // if (fitting && surf_fit_converge_error)
-   // {
-   //    GetSurfaceFittingError(x_out_loc, init_fit_avg_err, init_fit_max_err);
-   //    // Check for convergence
-   //    if (init_fit_max_err < surf_fit_max_err_limit)
-   //    {
-   //       if (print_options.iterations)
-   //       {
-   //          mfem::out << "TMOPNewtonSolver converged "
-   //                    "based on the surface fitting error.\n";
-   //       }
-   //       scale = 0.0;
-   //       return scale;
-   //    }
-   // }
-
-   // if (surf_fit_adapt_count >= surf_fit_adapt_count_limit)
-   // {
-   //    if (print_options.iterations)
-   //    {
-   //       mfem::out << "TMOPNewtonSolver terminated "
-   //                 "based on max number of times surface fitting weight can"
-   //                 "be increased. \n";
-   //    }
-   //    scale = 0.0;
-   //    return scale;
-   // }
 
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
+
+   x_out_loc = GetProlongedVector(x);
    const real_t min_detT_in = ComputeMinDet(x_out_loc, *fes);
-   // const bool untangling = (min_detT_in <= 0.0) ? true : false;
+   MFEM_VERIFY(min_detT_in > 0, "Inverted meshes not supported yet\n");
    const bool untangling = false;
-   // const real_t untangle_factor = 1.5;
-   // if (untangling)
-   // {
-   //    // Needed for the line search below. The untangling metrics see this
-   //    // reference to detect deteriorations.
-   //    MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
-   //                " intermediate mesh is invalid. Contact TMOP Developers.");
-   //    MFEM_VERIFY(min_detJ_limit == 0.0,
-   //                "This setup is not supported. Contact TMOP Developers.");
-   //    *min_det_ptr = untangle_factor * min_detT_in;
-   // }
 
    const bool have_b = (b.Size() == Height());
 
    Vector x_out(x.Size());
    bool x_out_ok = false;
    real_t energy_out = 0.0, min_detT_out;
+   if (qoi)
+   {
+      ds->SetDesignVarFromUpdatedLocations(x_out_loc);
+      ds->FSolve();
+      ParGridFunction & discretSol = ds->GetSolution();
+      qoi->SetDesignVarFromUpdatedLocations(x_out_loc);
+      qoi->SetDiscreteSol( discretSol );
+      energy_in += weight*qoi->EvalQoI();
+
+      qoi->EvalQoIGrad();
+      dQdu = qoi->GetDQDu();
+      dQdxExpl = qoi->GetDQDx();
+      ds->ASolve( *dQdu );
+      dQdxImpl = ds->GetImplicitDqDx();
+      const ParNonlinearForm *pnlf =
+         dynamic_cast<const ParNonlinearForm *>(oper);
+      MFEM_VERIFY(pnlf != NULL, "Invalid Operator subclass.");
+      pfespace = pnlf->ParFESpace();
+
+      ParLinearForm dQdx(pfespace); dQdx = 0.0;
+      dQdx.Add(weight, *dQdxExpl);
+      dQdx.Add(weight, *dQdxImpl);
+      HypreParVector *truedQdx = dQdx.ParallelAssemble();
+      r += *truedQdx;
+   }
    const real_t norm_in = Norm(r);
-   // real_t avg_fit_err, max_fit_err = 0.0;
 
    const real_t detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
    compute_metric_quantile_flag = false;
-   // TODO:
-   // - Customized line search for worst-quality optimization.
-   // - What is the Newton exit criterion for worst-quality optimization?
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
    {
-      // avg_fit_err = 0.0;
-      // max_fit_err = 0.0;
-
       // Update the mesh and get the L-vector in x_out_loc.
-      add(x, -scale, TMOPNewtonSolver::c, x_out);
-      if (serial)
-      {
-         const SparseMatrix *cP = fes->GetConformingProlongation();
-         if (!cP) { x_out_loc = x_out; }
-         else     { cP->Mult(x_out, x_out_loc); }
-      }
-#ifdef MFEM_USE_MPI
-      else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
-#endif
+      add(x, scale, TMOPNewtonSolver::c, x_out);
+      x_out_loc = GetProlongedVector(x_out);
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc, *fes);
@@ -1161,19 +1207,10 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
          // No untangling, and detJ got negative (or small) -- no good.
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " Neg det(J) found.\n";
+            out << "Scale = " << scale << " Neg det(J) found.\n";
          }
          scale *= detJ_factor; continue;
       }
-      // if (untangling == true && min_detT_out < *min_det_ptr)
-      // {
-      //    // Untangling, and detJ got even more negative -- no good.
-      //    if (print_options.iterations)
-      //    {
-      //       mfem::out << "Scale = " << scale << " Neg det(J) decreased.\n";
-      //    }
-      //    scale *= detJ_factor; continue;
-      // }
 
       // Skip the energy and residual checks when we're untangling. The
       // untangling metrics change their denominators, which can affect the
@@ -1186,19 +1223,7 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
       // Ensure sufficient decrease in fitting error if we are trying to
       // converge based on error.
 
-      // if (fitting && surf_fit_converge_error)
-      // {
-      //    GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
-      //    if (max_fit_err >= 1.2*init_fit_max_err)
-      //    {
-      //       if (print_options.iterations)
-      //       {
-      //          mfem::out << "Scale = " << scale << " Surf fit err increased.\n";
-      //       }
-      //       scale *= 0.5; continue;
-      //    }
-      // }
-
+      HypreParVector *truedQdx;
       if (serial)
       {
          energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
@@ -1207,29 +1232,59 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
       else
       {
          energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
+         if (qoi)
+         {
+            ds->SetDesignVarFromUpdatedLocations(x_out_loc);
+            ds->FSolve();
+            ParGridFunction & discretSol = ds->GetSolution();
+            qoi->SetDesignVarFromUpdatedLocations(x_out_loc);
+            qoi->SetDiscreteSol( discretSol );
+            energy_out += weight*qoi->EvalQoI();
+
+            qoi->EvalQoIGrad();
+            dQdu = qoi->GetDQDu();
+            dQdxExpl = qoi->GetDQDx();
+            ds->ASolve( *dQdu );
+            dQdxImpl = ds->GetImplicitDqDx();
+            const ParNonlinearForm *pnlf =
+               dynamic_cast<const ParNonlinearForm *>(oper);
+            MFEM_VERIFY(pnlf != NULL, "Invalid Operator subclass.");
+            pfespace = pnlf->ParFESpace();
+
+            ParLinearForm dQdx(pfespace); dQdx = 0.0;
+            dQdx.Add(weight, *dQdxExpl);
+            dQdx.Add(weight, *dQdxImpl);
+            truedQdx = dQdx.ParallelAssemble();
+         }
       }
 #endif
-      if (energy_out > energy_in + 0.0*fabs(energy_in) ||
+      if (energy_out > energy_in + 0.1*fabs(energy_in) ||
           std::isnan(energy_out) != 0)
       {
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " Increasing energy: "
+            out << "Scale = " << scale << " Increasing energy: "
                       << energy_in << " --> " << energy_out << '\n';
          }
-         scale *= 0.5; continue;
+         scale *= 0.1; continue;
       }
+      // x_out_ok = true;
+      // break;
 
       // Check the changes in the Newton residual.
       oper->Mult(x_out, r);
       if (have_b) { r -= b; }
+      if (qoi)
+      {
+         r += *truedQdx;
+      }
       real_t norm_out = Norm(r);
 
       if (norm_out > 1.2*norm_in)
       {
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " Norm increased: "
+            out << "Scale = " << scale << " Norm increased: "
                       << norm_in << " --> " << norm_out << '\n';
          }
          scale *= 0.5; continue;
@@ -1237,31 +1292,19 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
       else { x_out_ok = true; break; }
    } // end line search
 
-   // if (untangling)
-   // {
-   //    // Update the global min detJ. Untangling metrics see this min_det_ptr.
-   //    if (min_detT_out > 0.0)
-   //    {
-   //       *min_det_ptr = 0.0;
-   //       if (print_options.summary || print_options.iterations ||
-   //           print_options.first_and_last)
-   //       { mfem::out << "The mesh has been untangled at the used points!\n"; }
-   //    }
-   //    else { *min_det_ptr = untangle_factor * min_detT_out; }
-   // }
 
    if (print_options.summary || print_options.iterations ||
        print_options.first_and_last)
    {
       if (untangling)
       {
-         mfem::out << "Min det(T) change: "
+         out << "Min det(T) change: "
                    << min_detT_in << " -> " << min_detT_out
                    << " with " << scale << " scaling.\n";
       }
       else
       {
-         mfem::out << "Energy decrease: "
+         out << "Energy decrease: "
                    << energy_in << " --> " << energy_out << " or "
                    << (energy_in - energy_out) / energy_in * 100.0
                    << "% with " << scale << " scaling.\n";

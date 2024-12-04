@@ -14,9 +14,12 @@
 
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
+#include "linearform.hpp"
+#include "plinearform.hpp"
 #include "tmop.hpp"
 #include "gslib.hpp"
 #include "../linalg/mma.hpp"
+#include "tmop_ad_err.hpp"
 
 namespace mfem
 {
@@ -229,6 +232,7 @@ public:
    /// Update (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
    void ProcessNewState(const Vector &x) const override;
+   Vector GetProlongedVector(const Vector &x) const;
 
    /** @name Methods for adaptive surface fitting.
        \brief These methods control the behavior of the weight and the
@@ -348,6 +352,15 @@ public:
    void SetPreconditioner(Solver &pr) override { SetSolver(pr); }
 };
 
+void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
+                       const TargetConstructor &tc, Mesh &pmesh,
+                       char *title, int position);
+#ifdef MFEM_USE_MPI
+void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
+                       const TargetConstructor &tc, ParMesh &pmesh,
+                       char *title, int position);
+#endif
+
 class TMOP_MMA : public MMA, public TMOPNewtonSolver
 {
 protected:
@@ -359,6 +372,10 @@ protected:
    // int max_iter;
    mutable double dlower = 1e-8,
                   dupper = 1e-8;
+   Vector true_dofs;
+   QuantityOfInterest *qoi = nullptr;
+   Diffusion_Solver *ds = nullptr;
+   double weight = 1.0;
 
 public:
    TMOP_MMA(int nVar, int nCon, real_t *xval, const IntegrationRule &irule) :
@@ -383,16 +400,12 @@ public:
 
    void SetLowerBound(const double dlower_) { dlower = dlower_; }
    void SetUpperBound(const double dupper_) { dupper = dupper_; }
-};
 
-void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
-                       const TargetConstructor &tc, Mesh &pmesh,
-                       char *title, int position);
-#ifdef MFEM_USE_MPI
-void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
-                       const TargetConstructor &tc, ParMesh &pmesh,
-                       char *title, int position);
-#endif
+   void SetTrueDofs(Vector &tvec) { true_dofs = tvec; }
+   void SetQuantityOfInterest(QuantityOfInterest *qoi_) { qoi = qoi_; }
+   void SetDiffusionSolver(Diffusion_Solver *ds_) { ds = ds_; }
+   void SetQoIWeight(double w) { weight = w; }
+};
 
 }
 
