@@ -502,10 +502,14 @@ MFEM_USE_CODIPACK = YES/NO
 MFEM_USE_ALGOIM = YES/NO
   Enable the usage of Algoim - a collection of high-order accurate numerical
   methods and C++ algorithms for working with implicitly-defined geometry and
-  level set methods. The Algoim library requires the Blitz++ library. The MFEM
-  provides interface to Algoim v1. Thus, to check out the specific state use:
+  level set methods, see https://algoim.github.io. MFEM provides interface to
+  Algoim v1. To check out the specific Algoim state use:
+  https://github.com/algoim/algoim
   git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a
-  https://algoim.github.io
+  The Algoim library requires the Blitz++ library. To use the latest state of
+  Blitz++ that has been tested with MFEM, use:
+  https://github.com/blitzpp/blitz
+  git checkout f24a250a43dff88c31ad92916da828b7ea9a98b7
 
 MFEM_USE_ADFORWARD = YES/NO
   Enable forward mode for AD packages. This option is valid

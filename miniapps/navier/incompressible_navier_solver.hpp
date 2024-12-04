@@ -23,6 +23,7 @@ namespace incompressible_navier
 using VecFuncT = void(const Vector &x, real_t t, Vector &u);
 using ScalarFuncT = real_t(const Vector &x, real_t t);
 
+//Coefficient which computed contribution of Eq(18)
 class UnitVectorGridFunctionCoeff : public VectorCoefficient
 {
 public:
@@ -47,6 +48,7 @@ public:
    GridFunction *gridfunc_ = nullptr;
 };
 
+//Coefficient which computed contribution of Eq(21)
 class PrevVelVectorGridFunctionCoeff : public VectorCoefficient
 {
 public:
@@ -75,6 +77,7 @@ public:
    real_t dt_;
 };
 
+//Coefficient which computed contribution of Eq(20)
 class NonLinTermVectorGridFunctionCoeff : public VectorCoefficient
 {
 public:
@@ -154,11 +157,23 @@ public:
    /// Initialize forms, solvers and preconditioners.
    void Setup(real_t dt);
 
+   void Setup_velocity(real_t dt);
+
+   void Setup_auxiliary(real_t dt);
+
+   void Setup_pressure(real_t dt);
+
    /// Compute solution at the next time step t+dt.
    /**
     * This method can
     */
-   void Step(real_t &time, real_t dt, int cur_step, bool provisional = false);
+   void Step(real_t &time, real_t dt, int cur_step);
+
+   void Step_velocity(real_t &time, real_t dt, int cur_step);
+
+   void Step_auxiliary(real_t &time, real_t dt, int cur_step);
+
+   void Step_pressure(real_t &time, real_t dt, int cur_step);
 
    /// Return a pointer to the provisional velocity ParGridFunction.
    ParGridFunction *GetProvisionalVelocity() { return velGF[1]; }
