@@ -170,8 +170,7 @@ public:
                Vector &flux) const final { MFEM_ABORT("Use the other Eval function") };
    virtual real_t Eval(const Vector &stateL, const Vector &stateR,
                        FaceElementTransformations &Tr,
-                       const Vector &fluxLN, const Vector &fluxRN,
-                       const real_t max_char_speed, Vector &hatFL, Vector &hatFR) const = 0;
+                       Vector &hatFL, Vector &hatFR) const = 0;
 
    const ManifoldFlux &GetManifoldFluxFunction() const {return maniflux;}
    const ManifoldCoord &GetCoordinate() const {return maniflux.GetCoordinate();}
@@ -192,8 +191,7 @@ public:
    ManifoldRusanovFlux(const ManifoldFlux &flux):ManifoldNumericalFlux(flux) {}
    virtual real_t Eval(const Vector &stateL, const Vector &stateR,
                        FaceElementTransformations &Tr,
-                       const Vector &fluxLN, const Vector &fluxRN,
-                       const real_t max_char_speed, Vector &hatFL, Vector &hatFR) const override
+                       Vector &hatFL, Vector &hatFR) const override
    {
 #ifdef MFEM_THREAD_SAFE
       Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
@@ -226,7 +224,11 @@ protected:
    real_t max_char_speed=0.0;
    Vector state, phys_state;
    Vector stateL, stateR;
+   Vector phys_stateL, phys_stateR;
+   Vector phys_hatFL, phys_hatFR;
+   Vector hatFL, hatFR;
    Vector shape;
+   Vector shape1, shape2;
    // DenseMatrix adjJ;
    DenseMatrix dshape;
    DenseMatrix gshape, vector_gshape;
@@ -245,7 +247,10 @@ public:
 private:
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
+   const IntegrationRule &GetRule(const FiniteElement &el1,
+                                  const FiniteElement &el2,
+                                  const FaceElementTransformations &Trans);
 protected:
 public:
    /**

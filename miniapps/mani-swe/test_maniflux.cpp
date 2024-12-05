@@ -93,6 +93,11 @@ int main(int argc, char *argv[])
       u.GetElementDofValues(i, state);
       hypintg.AssembleElementVector(*el, *Tr, state, divflux);
    }
+   ParNonlinearForm hyp(&vfes);
+   hyp.AddDomainIntegrator(&hypintg);
+   hyp.AddInteriorFaceIntegrator(&hypintg);
+   hyp.UseExternalIntegrators();
+   hyp.Mult(u, u);
 
 
    bool visualization = true;

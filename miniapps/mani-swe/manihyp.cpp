@@ -161,7 +161,7 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
    const int sdim = Tr.GetSpaceDim();
    const int nrScalar = maniFlux.GetNumScalars();
    const int nrVector = (maniFlux.num_equations - nrScalar)/sdim;
-   const int vdim = elfun.Size();
+   const int vdim = elfun.Size()/dof;
    MFEM_ASSERT((vdim - nrScalar) / dim == nrVector,
                "The number of equations and vector dimension disagree");
 
@@ -284,15 +284,111 @@ void ManifoldHyperbolicFormIntegrator::AssembleFaceVector(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
 {
+   // current elements' the number of degrees of freedom
+   // does not consider the number of equations
+   const int dof1 = el1.GetDof();
+   const int dof2 = el2.GetDof();
+   const int dim = el1.GetDim();
+   const int sdim = Tr.GetSpaceDim();
+   const int nrScalar = maniFlux.GetNumScalars();
+   const int nrVector = (maniFlux.num_equations - nrScalar)/sdim;
+   const int vdim = elfun.Size()/(dof1 + dof2);
+
+#ifdef MFEM_THREAD_SAFE
+   // Local storage for element integration
+
+   // shape function value at an integration point - first elem
+   Vector shape1(dof1);
+   // shape function value at an integration point - second elem
+   Vector shape2(dof2);
+   // normal vector (usually not a unit vector)
+   Vector nor(el1.GetDim());
+   // state value at an integration point - first elem
+   Vector state1(num_equations);
+   // state value at an integration point - second elem
+   Vector state2(num_equations);
+   // hat(F)(u,x)
+   Vector fluxN(num_equations);
+#else
+   shape1.SetSize(dof1);
+   shape2.SetSize(dof2);
+   stateL.SetSize(vdim);
+   stateR.SetSize(vdim);
+   phys_hatFL.SetSize(maniFlux.num_equations);
+   phys_hatFR.SetSize(maniFlux.num_equations);
+   hatFL.SetSize(vdim);
+   hatFR.SetSize(vdim);
+#endif
+   DenseMatrix phys_hatFL_vectors(phys_hatFL.GetData() + nrScalar, sdim, nrVector);
+   DenseMatrix phys_hatFR_vectors(phys_hatFR.GetData() + nrScalar, sdim, nrVector);
+   DenseMatrix hatFL_vectors(hatFL.GetData() + nrScalar, dim, nrVector);
+   DenseMatrix hatFR_vectors(hatFR.GetData() + nrScalar, dim, nrVector);
+
+   elvect.SetSize((dof1 + dof2) * vdim);
+   elvect = 0.0;
+
+   const DenseMatrix elfun1_mat(elfun.GetData(), dof1, vdim);
+   const DenseMatrix elfun2_mat(elfun.GetData() + dof1 * vdim, dof2,
+                                vdim);
+
+   DenseMatrix elvect1_mat(elvect.GetData(), dof1, vdim);
+   DenseMatrix elvect2_mat(elvect.GetData() + dof1 * vdim, dof2,
+                           vdim);
+
+   // Obtain integration rule. If integration is rule is given, then use it.
+   // Otherwise, get (2*p + IntOrderOffset) order integration rule
+   const IntegrationRule *ir = intrule ? intrule : &GetRule(el1, el2, Tr);
+   // loop over integration points
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
+
+      // Calculate basis functions on both elements at the face
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+      el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+
+      // Interpolate elfun at the point
+      elfun1_mat.MultTranspose(shape1, stateL);
+      elfun2_mat.MultTranspose(shape2, stateR);
+
+      // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
+      // Compute hat(F) using evaluated quantities
+      const real_t speed = numFlux.Eval(stateL, stateR, Tr, phys_hatFL, phys_hatFR);
+      for(int j=0; j<nrScalar; j++)
+      {
+         hatFL[j] = phys_hatFL[j];
+         hatFR[j] = phys_hatFR[j];
+      }
+      MultAtB(Tr.Elem1->Jacobian(), phys_hatFL_vectors, hatFL_vectors);
+      MultAtB(Tr.Elem2->Jacobian(), phys_hatFR_vectors, hatFR_vectors);
+
+      // Update the global max char speed
+      max_char_speed = std::max(speed, max_char_speed);
+
+      // pre-multiply integration weight to flux
+      AddMult_a_VWt(-ip.weight, shape1, hatFL, elvect1_mat);
+      AddMult_a_VWt(+ip.weight, shape2, hatFR, elvect2_mat);
+   }
 }
 
 const IntegrationRule &ManifoldHyperbolicFormIntegrator::GetRule(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
-   ElementTransformation &Trans)
+   const ElementTransformation &Trans)
 {
    int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ();
    return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
+const IntegrationRule &ManifoldHyperbolicFormIntegrator::GetRule(
+   const FiniteElement &el1,
+   const FiniteElement &el2,
+   const FaceElementTransformations &Trans)
+{
+   int order = el1.GetOrder() + el2.GetOrder() + Trans.OrderJ();
+   return IntRules.Get(Trans.GetGeometryType(), order);
 }
 
 } // end of namespace mfem
