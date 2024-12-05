@@ -70,13 +70,13 @@ void ManifoldVectorMassIntegrator::AssembleElementMatrix
       MultAtB(J, J, JtJ);
 
       w = Trans.Weight() * ip.weight;
-      AddMult_a_VVt(w, shape, elmat_comp);
+      MultVVt(shape, elmat_comp);
       for (int col=0; col<dim; col++)
       {
          for (int row=0; row<dim; row++)
          {
             elmat_comp_weighted = elmat_comp;
-            elmat_comp_weighted *= JtJ(row, col);
+            elmat_comp_weighted *= w*JtJ(row, col);
             elmat.AddSubMatrix(nd*row, nd*col, elmat_comp_weighted);
          }
       }
@@ -113,7 +113,7 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
    // Compute interface normal vectors at each element
    CalcOrtho(fJ, J1, normalL);
    CalcOrtho(fJ, J2, normalR);
-   real_t tangent_norm = std::sqrt(normalL*normalL);
+   real_t tangent_norm_squared = normalL*normalL;
 
    // copy scalar states
    for (int i=0; i<nrScalar; i++)
@@ -130,7 +130,7 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
    for (int i=0; i<nrVector; i++)
    {
       phys_vec_state.GetColumnReference(i, phys_vec);
-      const real_t normal_comp = phys_vec*normalL/tangent_norm;
+      const real_t normal_comp = phys_vec*normalL/tangent_norm_squared;
       phys_vec.Add(-normal_comp, normalL).Add(normal_comp, normalR);
    }
 
@@ -142,7 +142,7 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
    for (int i=0; i<nrVector; i++)
    {
       phys_vec_state.GetColumnReference(i, phys_vec);
-      const real_t normal_comp = phys_vec*normalR;
+      const real_t normal_comp = phys_vec*normalR/tangent_norm_squared;
       phys_vec.Add(-normal_comp, normalR).Add(normal_comp, normalL);
    }
 }
@@ -169,9 +169,10 @@ real_t ManifoldFlux::ComputeNormalFluxes(const Vector &stateL,
                           normalL, normalR,
                           stateL_L, stateR_L,
                           stateL_R, stateR_R);
-   real_t mcs = -mfem::infinity();
    ElementTransformation *Tr1 = Tr.Elem1;
    ElementTransformation *Tr2 = Tr.Elem2 ? Tr.Elem2 : Tr.Elem1;
+
+   real_t mcs = -mfem::infinity();
    mcs = std::max(mcs, org_flux.ComputeFluxDotN(
                      stateL_L, normalL, *Tr1, fluxL_L));
    mcs = std::max(mcs, org_flux.ComputeFluxDotN(
@@ -286,7 +287,7 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
          for (int d2=0; d2<dim; d2++)
             for (int sd=0; sd<sdim; sd++)
             {
-               HessMat(sd, d1, d2) = Hess(hess_map[d1*dim + d2], sd);
+               HessMat(sd, d1, d2) = Hess(hess_map[d2*dim + d1], sd);
             }
 
       // basis information
@@ -460,21 +461,25 @@ ManifoldDGHyperbolicConservationLaws::ManifoldDGHyperbolicConservationLaws(
      z(vfes.GetTrueVSize())
 {
    ComputeInvMass();
-#ifndef MFEM_USE_MPI
-   nonlinearForm.reset(new NonlinearForm(&vfes));
-#else
+#ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pvfes = dynamic_cast<ParFiniteElementSpace *>(&vfes);
    if (pvfes)
    {
       parallel = true;
       comm = pvfes->GetComm();
+   }
+#endif
+
+   if (parallel)
+   {
+#ifdef MFEM_USE_MPI
       nonlinearForm.reset(new ParNonlinearForm(pvfes));
+#endif
    }
    else
    {
       nonlinearForm.reset(new NonlinearForm(&vfes));
    }
-#endif
    nonlinearForm->AddDomainIntegrator(&formIntegrator);
    nonlinearForm->AddInteriorFaceIntegrator(&formIntegrator);
    nonlinearForm->UseExternalIntegrators();
@@ -522,9 +527,9 @@ void ManifoldDGHyperbolicConservationLaws::Mult(const Vector &x,
    for (int i=0; i<vfes.GetNE(); i++)
    {
       int dof = vfes.GetFE(i)->GetDof();
+      vfes.GetElementVDofs(i, vdofs);
 
       // Scalar mass inversion
-      vfes.GetElementVDofs(i, vdofs);
       vdofs_scalars.MakeRef(vdofs.GetData(), nrScalar*dof, false);
       z.GetSubVector(vdofs_scalars, zval);
       current_zmat.UseExternalData(zval.GetData(), dof, nrScalar);
@@ -533,7 +538,7 @@ void ManifoldDGHyperbolicConservationLaws::Mult(const Vector &x,
       y.SetSubVector(vdofs_scalars, current_ymat.GetData());
 
       // Vector mass inversion
-      vdofs_scalars.MakeRef(vdofs.GetData() + nrScalar*dof, nrVector*dof*dim, false);
+      vdofs_vectors.MakeRef(vdofs.GetData() + nrScalar*dof, nrVector*dof*dim, false);
       z.GetSubVector(vdofs_vectors, zval);
       current_zmat.UseExternalData(zval.GetData(), dof*dim, nrVector);
       current_ymat.SetSize(dof*dim, nrVector);
