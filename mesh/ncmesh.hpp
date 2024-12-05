@@ -794,10 +794,8 @@ protected:
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
 
-   /** @brief Refine the element @a elem with the refinement @a ref_type
-       (c.f. Refinement::enum) and scale in each direction. */
-   void RefineElement(int elem, char ref_type, real_t scale_x = 0.5,
-                      real_t scale_y = 0.5, real_t scale_z = 0.5);
+   /// Refine the element @a elem with the refinement type @a ref_type.
+   void RefineElement(int elem, char ref_type);
 
    /// Refine one element with type and scale specified by @a ref.
    void RefineElement(const Refinement & ref);
