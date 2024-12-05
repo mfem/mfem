@@ -77,19 +77,20 @@ private:
    int dimU, dimM, dimC;
    Vector ml;
    HypreParMatrix * NegId = nullptr;
-   Vector xref;
-   Vector xrefbc;
-
    HypreParMatrix * Kref=nullptr;
    Vector grad_ref;
    real_t energy_ref;
-   bool qp;
 
    ParMesh * pmesh = nullptr;
    std::set<int> mortar_attrs;
    std::set<int> nonmortar_attrs;
-   bool doublepass = false;
    ParGridFunction * coords = nullptr;
+   bool doublepass = false;
+
+   Vector xref;
+   Vector xrefbc;
+   bool qp;
+
    void ComputeGapJacobian();
    Vector gapv;
    // Jacobian of gap

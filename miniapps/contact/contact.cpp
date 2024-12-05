@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
    bool paraview = false;
    double linsolverrtol = 1e-10;
    double linsolveratol = 1e-12;
-   int relax_type = 8;
+   int relax_type = 88;
    double optimizer_tol = 1e-6;
    int optimizer_maxit = 20;
    int linsolver = 2; // PCG  - AMG

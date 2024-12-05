@@ -3,7 +3,7 @@
 
 ElasticityOperator::ElasticityOperator(ParMesh * pmesh_, Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_,
                        const Vector & E, const Vector & nu, bool nonlinear_)
-:pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_), ess_bdr_attr_comp(ess_bdr_attr_comp_), nonlinear(nonlinear_)
+: nonlinear(nonlinear_), pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_), ess_bdr_attr_comp(ess_bdr_attr_comp_) 
 {
    comm = pmesh->GetComm();
    SetParameters(E,nu);
@@ -232,17 +232,17 @@ void OptContactProblem::ComputeGapJacobian()
 {
    if (J) delete J;
    Vector gap1;
-   HypreParMatrix * J1 = SetupTribol(pmesh,coords,problem->GetEssentialDofs(),
+   const HypreParMatrix * J1 = SetupTribol(pmesh,coords,problem->GetEssentialDofs(),
                                      mortar_attrs, nonmortar_attrs,gap1);
    if (doublepass)
    {
       Vector gap2;
-      HypreParMatrix * J2 = SetupTribol(pmesh,coords,problem->GetEssentialDofs(),
+      const HypreParMatrix * J2 = SetupTribol(pmesh,coords,problem->GetEssentialDofs(),
                                        nonmortar_attrs, mortar_attrs, gap2);
       gapv.SetSize(gap1.Size()+gap2.Size());
       gapv.SetVector(gap1,0);
       gapv.SetVector(gap2,gap1.Size());
-      Array2D<HypreParMatrix *> A_array(2,1);
+      Array2D<const HypreParMatrix *> A_array(2,1);
       A_array(0,0) = J1;
       A_array(1,0) = J2;
       J = HypreParMatrixFromBlocks(A_array);
@@ -253,7 +253,7 @@ void OptContactProblem::ComputeGapJacobian()
    {
       gapv.SetSize(gap1.Size());
       gapv.SetVector(gap1,0);
-      J = J1;
+      J = const_cast<HypreParMatrix *>(J1);
    }
 
    constraints_starts.SetSize(2);
