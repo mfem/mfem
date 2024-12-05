@@ -1,5 +1,6 @@
 #include "mfem.hpp"
 #include "manihyp.hpp"
+#include <cmath>
 
 using namespace mfem;
 
@@ -16,7 +17,7 @@ void gaussian_initial(const Vector &x, Vector &u)
 void UniformSpherRefinement(ParMesh &pmesh, int ref_level)
 {
    ParGridFunction &x = static_cast<ParGridFunction&>(*pmesh.GetNodes());
-   VectorFunctionCoefficient sphere_cf(3, [](const Vector& x, Vector &y){sphere(x,y,1.0);});
+   VectorFunctionCoefficient sphere_cf(3, [](const Vector& x, Vector &y) {sphere(x,y,1.0);});
    x.ProjectCoefficient(sphere_cf);
    for (int i=0; i<ref_level; i++)
    {
@@ -52,10 +53,10 @@ int main(int argc, char *argv[])
    ManifoldCoord coord(dim, sdim);
    ManifoldFlux swe_mani(swe_phys, coord, 1);
    ManifoldRusanovFlux rusanovFlux(swe_mani);
-   ManifoldHyperbolicFormIntegrator hypintg(rusanovFlux);
+   ManifoldHyperbolicFormIntegrator swe_integ(rusanovFlux);
 
    pmesh->SetCurvature(order);
-   for(int i=0; i<refinement_level; i++)
+   for (int i=0; i<refinement_level; i++)
    {
       pmesh->UniformRefinement();
    }
@@ -82,23 +83,10 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient u0_phys(phys_num_equations, gaussian_initial);
    ManifoldStateCoefficient u0_mani(u0_phys, 1, 1, dim);
    u.ProjectCoefficient(u0_mani);
-   DenseMatrix flux(phys_num_equations, sdim);
-   Vector state;
-   Vector divflux;
-   for (int i=0; i<pmesh->GetNE(); i++)
-   {
-      const FiniteElement *el = vfes.GetFE(i);
-      ElementTransformation *Tr = pmesh->GetElementTransformation(i);
-      const IntegrationRule &ir = IntRules.Get(Tr->GetGeometryType(), order*2+3);
-      u.GetElementDofValues(i, state);
-      hypintg.AssembleElementVector(*el, *Tr, state, divflux);
-   }
-   ParNonlinearForm hyp(&vfes);
-   hyp.AddDomainIntegrator(&hypintg);
-   hyp.AddInteriorFaceIntegrator(&hypintg);
-   hyp.UseExternalIntegrators();
-   hyp.Mult(u, u);
 
+   ManifoldDGHyperbolicConservationLaws swe(vfes, swe_integ, 1);
+   Vector z(vfes.GetTrueVSize());
+   swe.Mult(u, z);
 
    bool visualization = true;
    if (visualization)

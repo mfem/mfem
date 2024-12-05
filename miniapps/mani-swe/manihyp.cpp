@@ -39,6 +39,61 @@ void ManifoldCoord::convertElemState(ElementTransformation &Tr,
    Mult(J, mani_vec_state, phys_vec_state);
 }
 
+void ManifoldVectorMassIntegrator::AssembleElementMatrix
+( const FiniteElement &el, ElementTransformation &Trans,
+  DenseMatrix &elmat )
+{
+   int nd = el.GetDof();
+   dim = el.GetDim();
+   sdim = Trans.GetSpaceDim();
+   real_t w;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+#endif
+   elmat.SetSize(nd*dim);
+   elmat_comp.SetSize(nd);
+   elmat_comp_weighted.SetSize(nd);
+   JtJ.SetSize(dim);
+   shape.SetSize(nd);
+
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Trans.SetIntPoint (&ip);
+
+      el.CalcPhysShape(Trans, shape);
+      const DenseMatrix &J = Trans.Jacobian();
+      MultAtB(J, J, JtJ);
+
+      w = Trans.Weight() * ip.weight;
+      AddMult_a_VVt(w, shape, elmat_comp);
+      for (int col=0; col<dim; col++)
+      {
+         for (int row=0; row<dim; row++)
+         {
+            elmat_comp_weighted = elmat_comp;
+            elmat_comp_weighted *= JtJ(row, col);
+            elmat.AddSubMatrix(nd*row, nd*col, elmat_comp_weighted);
+         }
+      }
+   }
+}
+
+const IntegrationRule &ManifoldVectorMassIntegrator::GetRule(
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Trans)
+{
+   const int order = trial_fe.GetOrder() + trial_fe.GetOrder() + Trans.OrderW() +
+                     Trans.OrderJ()*2;
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
+
 void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
                                      const int nrScalar, const int nrVector,
                                      const Vector &stateL, const Vector &stateR,
@@ -356,7 +411,7 @@ void ManifoldHyperbolicFormIntegrator::AssembleFaceVector(
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
       // Compute hat(F) using evaluated quantities
       const real_t speed = numFlux.Eval(stateL, stateR, Tr, phys_hatFL, phys_hatFR);
-      for(int j=0; j<nrScalar; j++)
+      for (int j=0; j<nrScalar; j++)
       {
          hatFL[j] = phys_hatFL[j];
          hatFR[j] = phys_hatFR[j];
@@ -389,6 +444,109 @@ const IntegrationRule &ManifoldHyperbolicFormIntegrator::GetRule(
 {
    int order = el1.GetOrder() + el2.GetOrder() + Trans.OrderJ();
    return IntRules.Get(Trans.GetGeometryType(), order);
+}
+
+ManifoldDGHyperbolicConservationLaws::ManifoldDGHyperbolicConservationLaws(
+   FiniteElementSpace &vfes,
+   ManifoldHyperbolicFormIntegrator &formIntegrator,
+   const int nrScalar)
+   : TimeDependentOperator(vfes.GetTrueVSize()),
+     vfes(vfes),
+     dim(vfes.GetMesh()->Dimension()),
+     sdim(vfes.GetMesh()->SpaceDimension()),
+     nrScalar(nrScalar),
+     nrVector((vfes.GetVDim()-nrScalar)/dim),
+     formIntegrator(formIntegrator),
+     z(vfes.GetTrueVSize())
+{
+   ComputeInvMass();
+#ifndef MFEM_USE_MPI
+   nonlinearForm.reset(new NonlinearForm(&vfes));
+#else
+   ParFiniteElementSpace *pvfes = dynamic_cast<ParFiniteElementSpace *>(&vfes);
+   if (pvfes)
+   {
+      parallel = true;
+      comm = pvfes->GetComm();
+      nonlinearForm.reset(new ParNonlinearForm(pvfes));
+   }
+   else
+   {
+      nonlinearForm.reset(new NonlinearForm(&vfes));
+   }
+#endif
+   nonlinearForm->AddDomainIntegrator(&formIntegrator);
+   nonlinearForm->AddInteriorFaceIntegrator(&formIntegrator);
+   nonlinearForm->UseExternalIntegrators();
+}
+
+void ManifoldDGHyperbolicConservationLaws::ComputeInvMass()
+{
+   InverseIntegrator inv_mass(new MassIntegrator());
+   InverseIntegrator inv_vec_mass(new ManifoldVectorMassIntegrator());
+
+   invmass.resize(vfes.GetNE());
+   invmass_vec.resize(vfes.GetNE());
+   for (int i=0; i<vfes.GetNE(); i++)
+   {
+      int dof = vfes.GetFE(i)->GetDof();
+      invmass[i].SetSize(dof);
+      inv_mass.AssembleElementMatrix(*vfes.GetFE(i),
+                                     *vfes.GetElementTransformation(i),
+                                     invmass[i]);
+      invmass[i].SetSize(dim*dof);
+      inv_vec_mass.AssembleElementMatrix(*vfes.GetFE(i),
+                                         *vfes.GetElementTransformation(i),
+                                         invmass_vec[i]);
+   }
+}
+
+void ManifoldDGHyperbolicConservationLaws::Mult(const Vector &x,
+                                                Vector &y) const
+{
+   // 0. Reset wavespeed computation before operator application.
+   formIntegrator.ResetMaxCharSpeed();
+   // 1. Apply Nonlinear form to obtain an auxiliary result
+   //         z = - <F̂(u_h,n), [[v]]>_e
+   //    If weak-divergence is not preassembled, we also have weak-divergence
+   //         z = - <F̂(u_h,n), [[v]]>_e + (F(u_h), ∇v)
+   nonlinearForm->Mult(x, z);
+   // Apply block inverse mass
+   Vector zval; // z_loc, dof*num_eq
+
+   DenseMatrix current_zmat; // view of element auxiliary result, dof x num_eq
+   DenseMatrix current_ymat; // view of element result, dof x num_eq
+   Array<int> vdofs;
+   Array<int> vdofs_scalars;
+   Array<int> vdofs_vectors;
+   for (int i=0; i<vfes.GetNE(); i++)
+   {
+      int dof = vfes.GetFE(i)->GetDof();
+
+      // Scalar mass inversion
+      vfes.GetElementVDofs(i, vdofs);
+      vdofs_scalars.MakeRef(vdofs.GetData(), nrScalar*dof, false);
+      z.GetSubVector(vdofs_scalars, zval);
+      current_zmat.UseExternalData(zval.GetData(), dof, nrScalar);
+      current_ymat.SetSize(dof, nrScalar);
+      mfem::Mult(invmass[i], current_zmat, current_ymat);
+      y.SetSubVector(vdofs_scalars, current_ymat.GetData());
+
+      // Vector mass inversion
+      vdofs_scalars.MakeRef(vdofs.GetData() + nrScalar*dof, nrVector*dof*dim, false);
+      z.GetSubVector(vdofs_vectors, zval);
+      current_zmat.UseExternalData(zval.GetData(), dof*dim, nrVector);
+      current_ymat.SetSize(dof*dim, nrVector);
+      mfem::Mult(invmass_vec[i], current_zmat, current_ymat);
+      y.SetSubVector(vdofs_vectors, current_ymat.GetData());
+   }
+   max_char_speed = formIntegrator.GetMaxCharSpeed();
+   if (parallel)
+   {
+#ifdef MFEM_USE_MPI
+      MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1, MFEM_MPI_REAL_T, MPI_MAX, comm);
+#endif
+   }
 }
 
 } // end of namespace mfem

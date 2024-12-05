@@ -213,6 +213,34 @@ public:
    }
 };
 
+class ManifoldVectorMassIntegrator : public BilinearFormIntegrator
+{
+protected:
+#ifndef MFEM_THREAD_SAFE
+   Vector shape, te_shape;
+   DenseMatrix elmat_comp, elmat_comp_weighted;
+   DenseMatrix JtJ;
+#endif
+   // PA extension
+   const FiniteElementSpace *fespace;
+   int dim, sdim, ne, nq;
+
+public:
+   ManifoldVectorMassIntegrator(const IntegrationRule *ir = NULL)
+      : BilinearFormIntegrator(ir) { }
+
+   /** Given a particular Finite Element computes the element mass matrix
+       elmat. */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
+
+};
+
 class ManifoldHyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
    // attributes
@@ -344,6 +372,59 @@ public:
       val_view.SetDataAndSize(val.GetData() + vid, dim);
       T.Jacobian().Mult(val_view, V);
    }
+
+};
+
+class ManifoldDGHyperbolicConservationLaws : public TimeDependentOperator
+{
+private:
+   const int dim, sdim, nrScalar, nrVector;
+   FiniteElementSpace &vfes; // vector finite element space
+   // Element integration form. Should contain ComputeFlux
+   ManifoldHyperbolicFormIntegrator &formIntegrator;
+   // Base Nonlinear Form
+   std::unique_ptr<NonlinearForm> nonlinearForm;
+   // element-wise inverse mass matrix
+   std::vector<DenseMatrix> invmass; // local scalar inverse mass
+   std::vector<DenseMatrix> invmass_vec; // local scalar inverse mass
+   std::vector<DenseMatrix> weakdiv; // local weak divergence (trial space ByDim)
+   // global maximum characteristic speed. Updated by form integrators
+   mutable real_t max_char_speed;
+   // auxiliary variable used in Mult
+   mutable Vector z;
+
+   // Compute element-wise inverse mass matrix
+   void ComputeInvMass();
+   // Compute element-wise weak-divergence matrix
+   void ComputeWeakDivergence();
+   bool parallel = false;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif
+public:
+   /**
+    * @brief Construct a new DGHyperbolicConservationLaws object
+    *
+    * @param vfes_ vector finite element space. Only tested for DG [Pₚ]ⁿ
+    * @param formIntegrator_ integrator (F(u,x), grad v)
+    * @param preassembleWeakDivergence preassemble weak divergence for faster
+    *                                  assembly
+    */
+   ManifoldDGHyperbolicConservationLaws(
+      FiniteElementSpace &vfes,
+      ManifoldHyperbolicFormIntegrator &formIntegrator,
+      const int nrScalar);
+   /**
+    * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
+    *
+    * @param x current solution vector
+    * @param y resulting dual vector to be used in an EXPLICIT solver
+    */
+   void Mult(const Vector &x, Vector &y) const override;
+   // get global maximum characteristic speed to be used in CFL condition
+   // where max_char_speed is updated during Mult.
+   real_t GetMaxCharSpeed() { return max_char_speed; }
+   void Update();
 
 };
 
