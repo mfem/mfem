@@ -1863,8 +1863,6 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
 L2ProjectionGridTransfer::L2ProjectionH1Space::~L2ProjectionH1Space()
 {
 
-   delete M_LH_local_op;
-
 #ifdef MFEM_USE_MPI
    delete pfes_ho_scalar;
    delete pfes_lor_scalar;
