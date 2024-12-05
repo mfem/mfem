@@ -582,7 +582,9 @@ int main (int argc, char *argv[])
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    HRHessianCoefficient *hr_adapt_coeff = NULL;
-   H1_FECollection ind_fec(mesh_poly_deg, dim);
+   int ind_fec_order = (target_id >= 5 && target_id <= 8 && !fdscheme) ?
+                       1 : mesh_poly_deg;
+   H1_FECollection ind_fec(ind_fec_order, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), ori(&ind_fes);
@@ -623,6 +625,7 @@ int main (int argc, char *argv[])
          }
          ConstructSizeGF(size);
          tc->SetParDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          target_c = tc;
          break;
       }
@@ -725,6 +728,7 @@ int main (int argc, char *argv[])
          DiffuseField(aspr, 2);
 
          tc->SetParDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          tc->SetParDiscreteTargetAspectRatio(aspr);
          target_c = tc;
          break;
@@ -771,6 +775,7 @@ int main (int argc, char *argv[])
          ConstantCoefficient size_coeff(0.1*0.1);
          size.ProjectCoefficient(size_coeff);
          tc->SetParDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
