@@ -140,7 +140,7 @@ void ElasticityOperator::UpdateEssentialBC(Array<int> & ess_bdr_attr_, Array<int
    SetEssentialBC();
 }
 
-const real_t ElasticityOperator::GetEnergy(const Vector & u) const
+real_t ElasticityOperator::GetEnergy(const Vector & u) const
 {
    if (nonlinear)
    {
@@ -160,7 +160,7 @@ const real_t ElasticityOperator::GetEnergy(const Vector & u) const
    }
 }
 
-const void ElasticityOperator::GetGradient(const Vector & u, Vector & gradE) const
+void ElasticityOperator::GetGradient(const Vector & u, Vector & gradE) const
 {
    if (nonlinear)
    {
@@ -196,6 +196,7 @@ ElasticityOperator::~ElasticityOperator()
    delete fes;
    delete fec;
    if (K) delete K;
+   if (material_model) delete material_model;
 }
 
 
@@ -229,6 +230,7 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
 
 void OptContactProblem::ComputeGapJacobian()
 {
+   if (J) delete J;
    Vector gap1;
    HypreParMatrix * J1 = SetupTribol(pmesh,coords,problem->GetEssentialDofs(),
                                      mortar_attrs, nonmortar_attrs,gap1);
@@ -316,7 +318,7 @@ HypreParMatrix * OptContactProblem::GetRestrictionToInteriorDofs()
       int hJt = Jt->Height();
       SparseMatrix mergedJt;
       Jt->MergeDiagAndOffd(mergedJt);
-
+      delete Jt;
       Array<int> zerorows;
       for (int i = 0; i<hJt; i++)
       {
@@ -357,7 +359,7 @@ HypreParMatrix * OptContactProblem::GetRestrictionToInteriorDofs()
       HypreParMatrix * P_it = new HypreParMatrix(comm, nrows_i, glob_nrows_i,
                                  glob_ncols_i, Pit.GetI(), Pit.GetJ(),
                                  Pit.GetData(), rows_i,cols_i); 
-      
+      // HypreStealOwnership(*P_it, Pit);
       Pnc = P_it->Transpose();
       delete P_it;
    }
@@ -377,7 +379,7 @@ HypreParMatrix * OptContactProblem::GetRestrictionToContactDofs()
       int hJt = Jt->Height();
       SparseMatrix mergedJt;
       Jt->MergeDiagAndOffd(mergedJt);
-
+      delete Jt;
       Array<int> nonzerorows;
       for (int i = 0; i<hJt; i++)
       {
@@ -418,7 +420,7 @@ HypreParMatrix * OptContactProblem::GetRestrictionToContactDofs()
       HypreParMatrix * P_ct = new HypreParMatrix(comm, nrows_c, glob_nrows_c,
                                                 glob_ncols_c, Pct.GetI(), Pct.GetJ(),
                                                 Pct.GetData(), rows_c,cols_c); 
-
+      // HypreStealOwnership(*P_ct, Pct);
       Pc = P_ct->Transpose();
       delete P_ct;                         
    }
@@ -502,7 +504,10 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
 
 OptContactProblem::~OptContactProblem()
 {
-
+   delete J;
+   delete Pc;
+   delete Pnc;
+   delete NegId;
 }
 
 HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords, 
@@ -560,7 +565,8 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
    
    HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
-   Mfull->EliminateCols(ess_tdofs);
+   HypreParMatrix * Me = Mfull->EliminateCols(ess_tdofs);
+   delete Me;
 
    int h = Mfull->Height();
    SparseMatrix merged;
@@ -606,6 +612,7 @@ HypreParMatrix * SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
    HypreParMatrix * M = new HypreParMatrix(Mfull->GetComm(), nrows, glob_nrows,
                           glob_ncols, reduced_merged->GetI(), reduced_merged->GetJ(),
                           reduced_merged->GetData(), rows,cols); 
+   // HypreStealOwnership(*M, *reduced_merged);
    delete reduced_merged;                          
 
    Vector gap_full;

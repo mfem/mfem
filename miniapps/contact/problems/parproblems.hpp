@@ -50,17 +50,17 @@ public:
 
    ParFiniteElementSpace * GetFESpace() const { return fes; }
    const FiniteElementCollection * GetFECol() const { return fec; }
-   const int GetNumDofs() const { return ndofs; }
-   const int GetNumTDofs() const { return ntdofs; }
-   const int GetGlobalNumDofs() const { return gndofs; }
+   int GetNumDofs() const { return ndofs; }
+   int GetNumTDofs() const { return ntdofs; }
+   int GetGlobalNumDofs() const { return gndofs; }
    const HypreParMatrix * GetOperator() const { return K; }  
    const Vector & GetRHS() const { return B; }
 
    const ParGridFunction & GetDisplacementGridFunction() const { return x; }
    const Array<int> & GetEssentialDofs() const { return ess_tdof_list; }
 
-   const real_t GetEnergy(const Vector & u) const;
-   const void GetGradient(const Vector & u, Vector & gradE) const;
+   real_t GetEnergy(const Vector & u) const;
+   void GetGradient(const Vector & u, Vector & gradE) const;
    HypreParMatrix * GetHessian(const Vector & u);
    bool IsNonlinear() { return nonlinear; }
 

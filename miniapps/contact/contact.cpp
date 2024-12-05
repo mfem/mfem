@@ -234,17 +234,17 @@ int main(int argc, char *argv[])
          break;
    }
 
-   Mesh * mesh = new Mesh(mesh_file,1);
+   Mesh mesh(mesh_file,1);
    for (int i = 0; i<sref; i++)
    {
-      mesh->UniformRefinement();
+      mesh.UniformRefinement();
    }
 
-   ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
-
+   ParMesh pmesh(MPI_COMM_WORLD,mesh);
+   mesh.Clear();
    for (int i = 0; i<pref; i++)
    {
-      pmesh->UniformRefinement();
+      pmesh.UniformRefinement();
    }
 
    Array<int> ess_bdr_attr;
@@ -273,8 +273,8 @@ int main(int argc, char *argv[])
    }
    
   
-   Vector E(pmesh->attributes.Max());
-   Vector nu(pmesh->attributes.Max());
+   Vector E(pmesh.attributes.Max());
+   Vector nu(pmesh.attributes.Max());
 
    if (testNo == -1 )
    {
@@ -293,14 +293,12 @@ int main(int argc, char *argv[])
    }
 
 
-   ElasticityOperator * prob = new ElasticityOperator(pmesh,
-                                                      ess_bdr_attr,ess_bdr_attr_comp,
-                                                      E,nu,nonlinear);
+   ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E,nu,nonlinear);
 
-   int dim = pmesh->Dimension();
+   int dim = pmesh.Dimension();
    Vector ess_values(dim);
    int essbdr_attr;
-   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
 
    ess_values = 0.0;
 
@@ -315,7 +313,7 @@ int main(int argc, char *argv[])
       ess_bdr[1] = 1;
       ess_bdr[3] = 1;
       ess_bdr[4] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      prob.SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
       mortar_attr.insert(6);
@@ -329,10 +327,10 @@ int main(int argc, char *argv[])
       ess_bdr = 0;
       ess_bdr[3] = 1;
       ess_bdr[4] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      prob.SetDisplacementDirichletData(ess_values, ess_bdr);
       ess_bdr = 0;
       ess_bdr[2] = 1;
-      // prob->SetNeumanData(0,3,-2.0);
+      // prob.SetNeumanData(0,3,-2.0);
       mortar_attr.insert(6);
       mortar_attr.insert(9);
       nonmortar_attr.insert(7);
@@ -366,8 +364,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   ParFiniteElementSpace * fes = prob->GetFESpace();
-   Array<int> ess_tdof_list = prob->GetEssentialDofs();
+   ParFiniteElementSpace * fes = prob.GetFESpace();
+   Array<int> ess_tdof_list = prob.GetEssentialDofs();
    
    int gndofs = fes->GlobalTrueVSize();
    if (myid == 0)
@@ -379,7 +377,7 @@ int main(int argc, char *argv[])
    ParGridFunction x_gf(fes); x_gf = 0.0;
    ParGridFunction xnew(fes); xnew = 0.0;
    ParaViewDataCollection * paraview_dc = nullptr;
-   ParMesh pmesh_copy(*pmesh);
+   ParMesh pmesh_copy(pmesh);
    ParFiniteElementSpace fes_copy(*fes,pmesh_copy);
    ParGridFunction xcopy_gf(&fes_copy); xcopy_gf = 0.0;
 
@@ -411,10 +409,10 @@ int main(int argc, char *argv[])
       sol_sock.open(vishost, visport);
       sol_sock.precision(8);
    }
-   ParGridFunction ref_coords(prob->GetFESpace()); 
-   ParGridFunction new_coords(prob->GetFESpace()); 
-   pmesh->GetNodes(new_coords);
-   pmesh->GetNodes(ref_coords);
+   ParGridFunction ref_coords(prob.GetFESpace()); 
+   ParGridFunction new_coords(prob.GetFESpace()); 
+   pmesh.GetNodes(new_coords);
+   pmesh.GetNodes(ref_coords);
    
    // deviation from the reference configuration
    Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
@@ -434,7 +432,7 @@ int main(int argc, char *argv[])
          ess_bdr = 0;
          ess_bdr[2] = 1;
          f.constant = -p*(i+1)/nsteps;
-         prob->SetNeumanPressureData(f,ess_bdr);
+         prob.SetNeumanPressureData(f,ess_bdr);
       }
       else if (testNo == 4 || testNo == 40 || testNo == 5 || testNo == 51 || testNo == 43 || testNo == 44)
       {
@@ -456,7 +454,7 @@ int main(int argc, char *argv[])
             ess_values[0] = -8.0/1.4*(i+1-nsteps)/msteps;
             ess_values[2] = 1.0/1.4;
          }
-         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+         prob.SetDisplacementDirichletData(ess_values, ess_bdr);
       }
       else if (testNo == 41)
       {
@@ -464,11 +462,11 @@ int main(int argc, char *argv[])
          ess_values[0] = 1.0/1.4*nsteps*(i+1);
          essbdr_attr =  2;
          ess_bdr[essbdr_attr-1] = 1;
-         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+         prob.SetDisplacementDirichletData(ess_values, ess_bdr);
          essbdr_attr = 6;
          ess_values = 0.0; 
          ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+         prob.SetDisplacementDirichletData(ess_values, ess_bdr);
       }
       else if (testNo == -1)
       {
@@ -476,10 +474,10 @@ int main(int argc, char *argv[])
          essbdr_attr = 2;
          ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
          ess_values[0] = 0.1/nsteps*(i+1);
-         prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+         prob.SetDisplacementDirichletData(ess_values, ess_bdr);
       }
 
-      prob->FormLinearSystem();
+      prob.FormLinearSystem();
       x_gf.SetTrueVector();
      
       // xref will also satisfy the essential boundary conditions and the nonessential
@@ -495,8 +493,8 @@ int main(int argc, char *argv[])
       }
       else
       {
-         xref.Set(1.0, *x_gf.GetTrueDofs());      
-         xrefbc.Set(1.0, *x_gf.GetTrueDofs());      
+         x_gf.GetTrueDofs(xref);      
+         x_gf.GetTrueDofs(xrefbc);      
       }
 
       // set essential dofs with respect
@@ -506,11 +504,12 @@ int main(int argc, char *argv[])
       xBC = 0.0;
       VectorConstantCoefficient xBC_cf(ess_values);
       xBC.ProjectBdrCoefficient(xBC_cf, ess_bdr);
-      xBC.SetTrueVector();      
-      xBC.GetTrueDofs()->GetSubVector(ess_tdof_list, DCvals);
+      Vector xBCtrue;
+      xBC.GetTrueDofs(xBCtrue);      
+      xBCtrue.GetSubVector(ess_tdof_list, DCvals);
       xrefbc.SetSubVector(ess_tdof_list, DCvals);
    
-      OptContactProblem contact(prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc,qp);
+      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc,qp);
 
       bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
 
@@ -529,11 +528,11 @@ int main(int argc, char *argv[])
 
       if (elast)
       {
-         optimizer.SetElasticityOptions(prob->GetFESpace());
+         optimizer.SetElasticityOptions(prob.GetFESpace());
       }
 
       x_gf.SetTrueVector();
-      int ndofs = prob->GetFESpace()->GetTrueVSize();
+      int ndofs = prob.GetFESpace()->GetTrueVSize();
       Vector x0(ndofs); x0 = 0.0;
       x0.Set(1.0, xrefbc);
       Vector xf(ndofs); xf = 0.0;
@@ -545,7 +544,7 @@ int main(int argc, char *argv[])
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
       Array<double> & DMaxMinRatios  = optimizer.GetDMaxMinRatios();
       CGiter.push_back(CGiterations);
-      int gndofs = prob->GetGlobalNumDofs();
+      int gndofs = prob.GetGlobalNumDofs();
       if (Mpi::Root())
       {
          mfem::out << endl;
@@ -609,21 +608,19 @@ int main(int argc, char *argv[])
       
         if (i == total_steps - 1)
         {
-           pmesh->MoveNodes(x_gf);
+           pmesh.MoveNodes(x_gf);
            char vishost[] = "localhost";
            int  visport   = 19916;
            socketstream sol_sock1(vishost, visport);
            sol_sock1 << "parallel " << num_procs << " " << myid << "\n";
            sol_sock1.precision(8);
-           sol_sock1 << "solution\n" << *pmesh << x_gf << flush;
+           sol_sock1 << "solution\n" << pmesh << x_gf << flush;
         }
       }
       if (i == total_steps-1) break;
-      prob->UpdateRHS();
+      prob.UpdateRHS();
    }
 
-   delete prob;
-   delete pmesh;
-   delete mesh;
+   if (paraview_dc) delete paraview_dc;
    return 0;
 }
