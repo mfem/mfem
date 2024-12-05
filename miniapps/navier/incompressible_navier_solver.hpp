@@ -9,67 +9,60 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_INCOMP_NAVIER_SOLVER_HPP
-#define MFEM_INCOMP_NAVIER_SOLVER_HPP
+#pragma once
 
 #define INCOMP_NAVIER_VERSION 0.1
 
 #include "mfem.hpp"
 
-namespace mfem
+namespace mfem::incompressible_navier
 {
-namespace incompressible_navier
-{
+
 using VecFuncT = void(const Vector &x, real_t t, Vector &u);
 using ScalarFuncT = real_t(const Vector &x, real_t t);
 
-//Coefficient which computed contribution of Eq(18)
+// Coefficient which computed contribution of Eq(18)
 class UnitVectorGridFunctionCoeff : public VectorCoefficient
 {
 public:
-   UnitVectorGridFunctionCoeff( int dim)
-      : VectorCoefficient(dim*dim)
-   { }
+   UnitVectorGridFunctionCoeff(int dim): VectorCoefficient(dim * dim) {}
 
-   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       real_t coeffVal = gridfunc_->GetValue(T, ip);
 
-      V.SetSize(vdim); V = 0.0;                           // FIXME
+      V.SetSize(vdim);
+      V = 0.0; // FIXME
       V[0] = coeffVal;
       V[3] = coeffVal;
    }
 
-   void SetGridFunction( GridFunction * gridfunc )
-   {
-      gridfunc_ = gridfunc;
-   }
+   void SetGridFunction(GridFunction *gridfunc) { gridfunc_ = gridfunc; }
 
    GridFunction *gridfunc_ = nullptr;
 };
 
-//Coefficient which computed contribution of Eq(21)
+// Coefficient which computed contribution of Eq(21)
 class PrevVelVectorGridFunctionCoeff : public VectorCoefficient
 {
 public:
-   PrevVelVectorGridFunctionCoeff( int dim)
-      : VectorCoefficient(dim)
-   { }
+   PrevVelVectorGridFunctionCoeff(int dim): VectorCoefficient(dim) {}
 
    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
    {
       V.SetSize(vdim);
       gridFuncCoeff->Eval(V, T, ip);
 
-      V *= 1.0/dt_;
+      V *= 1.0 / dt_;
    }
 
-   void SetGridFunction( GridFunction * gridfunc, real_t dt )
+   void SetGridFunction(GridFunction *gridfunc, real_t dt)
    {
       gridfunc_ = gridfunc;
       dt_ = dt;
       delete gridFuncCoeff;
-      gridFuncCoeff = new VectorGridFunctionCoefficient( gridfunc );
+      gridFuncCoeff = new VectorGridFunctionCoefficient(gridfunc);
    }
 
    GridFunction *gridfunc_ = nullptr;
@@ -77,13 +70,11 @@ public:
    real_t dt_;
 };
 
-//Coefficient which computed contribution of Eq(20)
+// Coefficient which computed contribution of Eq(20)
 class NonLinTermVectorGridFunctionCoeff : public VectorCoefficient
 {
 public:
-   NonLinTermVectorGridFunctionCoeff( int dim)
-      : VectorCoefficient(dim)
-   { }
+   NonLinTermVectorGridFunctionCoeff(int dim): VectorCoefficient(dim) {}
 
    void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
    {
@@ -95,16 +86,16 @@ public:
 
       gridfunc_->GetVectorGradient(T, vecGrad);
 
-      vecGrad.MultTranspose( val, V );
+      vecGrad.MultTranspose(val, V);
 
       V *= -1.0;
    }
 
-   void SetGridFunction( ParGridFunction * gridfunc )
+   void SetGridFunction(ParGridFunction *gridfunc)
    {
       delete gridFuncCoeff;
       gridfunc_ = gridfunc;
-      gridFuncCoeff = new VectorGridFunctionCoefficient( gridfunc );
+      gridFuncCoeff = new VectorGridFunctionCoefficient(gridfunc);
    }
 
    VectorGridFunctionCoefficient *gridFuncCoeff = nullptr;
@@ -115,9 +106,10 @@ public:
 class VelDirichletBC_T
 {
 public:
-   VelDirichletBC_T(Array<int> attr, VectorCoefficient *coeff)
-      : attr(attr), coeff(coeff)
-   {}
+   VelDirichletBC_T(Array<int> attr, VectorCoefficient *coeff):
+      attr(attr), coeff(coeff)
+   {
+   }
 
    VelDirichletBC_T(VelDirichletBC_T &&obj)
    {
@@ -151,8 +143,8 @@ public:
     * The ParMesh @a mesh can be a linear or curved parallel mesh. The @a order
     * of the finite element spaces is
     */
-   IncompressibleNavierSolver(ParMesh *mesh, int velorder, int porder, int tOrder,
-                              real_t kin_vis);
+   IncompressibleNavierSolver(ParMesh *mesh, int velorder, int porder,
+                              int tOrder, real_t kin_vis);
 
    /// Initialize forms, solvers and preconditioners.
    void Setup(real_t dt);
@@ -167,7 +159,7 @@ public:
    /**
     * This method can
     */
-   void Step(real_t &time, real_t dt, int cur_step);
+   void Step(real_t &time, real_t dt, int cur_step, bool vis_step);
 
    void Step_velocity(real_t &time, real_t dt, int cur_step);
 
@@ -185,8 +177,7 @@ public:
    ParGridFunction *GetCurrentPressure() { return pGF[0]; }
 
    /// Return a pointer to the current pressure ParGridFunction.
-   ParGridFunction *GetCurrentPsi() { return &psiGF ; }
-
+   ParGridFunction *GetCurrentPsi() { return &psiGF; }
 
    /// Add a Dirichlet boundary condition to the velocity field.
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
@@ -206,10 +197,6 @@ public:
    void EnableNI(bool ni) { numerical_integ = ni; }
 
    /// Print timing summary of the solving routine.
-   /**
-    * The summary shows the timing in seconds in the first row of
-    *
-    */
    void PrintTimingData();
 
    ~IncompressibleNavierSolver();
@@ -217,21 +204,14 @@ public:
    /// Rotate entries in the time step and solution history arrays.
    void UpdateTimestepHistory(real_t dt);
 
-
    /// Compute CFL
    real_t ComputeCFL(ParGridFunction &u, real_t dt);
 
 protected:
-
    /// Eliminate essential BCs in an Operator and apply to RHS.
-   void EliminateRHS(Operator &A,
-                     ConstrainedOperator &constrainedA,
-                     const Array<int> &ess_tdof_list,
-                     Vector &x,
-                     Vector &b,
-                     Vector &X,
-                     Vector &B,
-                     int copy_interior = 0);
+   void EliminateRHS(Operator &A, ConstrainedOperator &constrainedA,
+                     const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                     Vector &X, Vector &B, int copy_interior = 0);
 
    /// Enable/disable debug output.
    bool debug = false;
@@ -249,13 +229,13 @@ protected:
    ParMesh *pmesh = nullptr;
 
    /// The order of the velocity and pressure space.
-   int velorder;
-   int porder;
-   int torder;
+   const int velorder;
+   const int porder;
+   const int torder;
 
    /// Kinematic viscosity (dimensionless).
-   real_t kin_vis;
-   Coefficient * kinvisCoeff = nullptr;
+   const real_t kin_vis;
+   Coefficient *kinvisCoeff = nullptr;
 
    Coefficient *dtCoeff = nullptr;
 
@@ -283,21 +263,24 @@ protected:
    ParBilinearForm *psiBForm = nullptr; // diffusion
    ParBilinearForm *pBForm = nullptr;   // mass
 
-   ParLinearForm *velLForm = nullptr;   // vLF + vLFGrad + vLF
-   ParLinearForm *psiLForm = nullptr;   // LFGrad
-   ParLinearForm *pLForm = nullptr;     // LF
+   ParLinearForm *velLForm = nullptr; // vLF + vLFGrad + vLF
+   ParLinearForm *psiLForm = nullptr; // LFGrad
+   ParLinearForm *pLForm = nullptr;   // LF
 
-   std::vector<ParGridFunction*> velGF;
-   std::vector<ParGridFunction*> pGF;
+   // current (0) and provisional (1) velocity
+   std::vector<ParGridFunction *> velGF;
+
+   // current (0) pressure ParGridFunction.
+   std::vector<ParGridFunction *> pGF;
    ParGridFunction psiGF;
 
    ParGridFunction DvGF, divVelGF, pRHS;
-   VectorGridFunctionCoefficient * DvelCoeff = nullptr;
-   DivergenceGridFunctionCoefficient * divVelCoeff = nullptr;
-   GridFunctionCoefficient * pRHSCoeff = nullptr;
-   UnitVectorGridFunctionCoeff * pUnitVectorCoeff = nullptr;
-   NonLinTermVectorGridFunctionCoeff * nonlinTermCoeff = nullptr;
-   PrevVelVectorGridFunctionCoeff * prevVelLoadCoeff = nullptr;
+   VectorGridFunctionCoefficient *DvelCoeff = nullptr;
+   DivergenceGridFunctionCoefficient *divVelCoeff = nullptr;
+   GridFunctionCoefficient *pRHSCoeff = nullptr;
+   UnitVectorGridFunctionCoeff *pUnitVectorCoeff = nullptr;
+   NonLinTermVectorGridFunctionCoeff *nonlinTermCoeff = nullptr;
+   PrevVelVectorGridFunctionCoeff *prevVelLoadCoeff = nullptr;
 
    OperatorHandle vOp;
    OperatorHandle psiOp;
@@ -334,18 +317,15 @@ protected:
    int pl_amg = 0;
 
 #if defined(MFEM_USE_DOUBLE)
-   real_t rtol_psolve = 1e-10;
-   real_t rtol_psisolve = 1e-10;
+   real_t rtol_psolve = 1e-12;
+   real_t rtol_psisolve = 1e-12;
    real_t rtol_velsolve = 1e-12;
 #elif defined(MFEM_USE_SINGLE)
    real_t rtol_psolve = 1e-9;
    real_t rtol_psisolve = 1e-5;
    real_t rtol_velsolve = 1e-7;
 #else
-#error "Only single and double precision are supported!"
-   real_t rtol_psolve = 1e-12;
-   real_t rtol_psisolve = 1e-6;
-   real_t rtol_velsolve = 1e-8;
+   #error "Only single and double precision are supported!"
 #endif
 
    // Iteration counts.
@@ -353,11 +333,6 @@ protected:
 
    // Residuals.
    real_t res_vsolve = 0.0, res_psolve = 0.0, res_psisolve = 0.0;
-
 };
 
-} // namespace incompressible_navier
-
-} // namespace mfem
-
-#endif
+} // namespace mfem::incompressible_navier

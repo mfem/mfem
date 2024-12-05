@@ -11,11 +11,9 @@
 
 if (MFEM_USE_MPI)
   list(APPEND NAVIER_COMMON_SOURCES
-      navier_solver.cpp
-      incompressible_navier_solver.cpp)
+      navier_solver.cpp)
   list(APPEND NAVIER_COMMON_HEADERS
-      navier_solver.hpp
-      incompressible_navier_solver.hpp)
+      navier_solver.hpp)
 
   convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
   convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
@@ -56,7 +54,11 @@ if (MFEM_USE_MPI)
 
   add_mfem_miniapp(incompNS_2Dtest
     MAIN incompNS_2Dtest.cpp
-    ${NAVIER_COMMON_FILES}
+    EXTRA_SOURCES incompressible_navier_solver.cpp
+                  incompressible_navier_tests.cpp
+    EXTRA_HEADERS incompressible_navier_solver.hpp
+                  incompressible_navier_nvtx.hpp
+    EXTRA_DEFINES MFEM_USE_CMAKE_TESTS
     LIBRARIES mfem)
 
   add_mfem_miniapp(navier_turbchan
