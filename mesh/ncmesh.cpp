@@ -1111,27 +1111,40 @@ void NCMesh::SetNodeScale(int p0, int p1, real_t scale)
    if (node) { node->SetScale(GetScale(scale, p0 > p1)); }
 }
 
-void NCMesh::RefineElement(const Refinement & ref)
+void NCMesh::RefineElement(int elem, char ref_type)
 {
-   RefineElement(ref.index, ref.GetType(), ref.s[0], ref.s[1], ref.s[2]);
+   RefineElement(Refinement(elem, ref_type));
 }
 
-void NCMesh::RefineElement(int elem, char ref_type, real_t scale_x,
-                           real_t scale_y, real_t scale_z)
+void NCMesh::RefineElement(const Refinement & ref)
 {
+   const int elem = ref.index;
+   char ref_type = ref.GetType();
+   const real_t scale_x = ref.s[0];
+   const real_t scale_y = ref.s[1];
+   const real_t scale_z = ref.s[2];
+
    if (!ref_type) { return; }
 
    // handle elements that may have been (force-) refined already
    Element &el = elements[elem];
    if (el.ref_type)
    {
-      char remaining = ref_type & ~el.ref_type;
-
-      // do the remaining splits on the children
-      for (int i = 0; i < MaxElemChildren; i++)
+      const char remaining = ref_type & ~el.ref_type;
+      if (remaining)
       {
-         if (el.child[i] >= 0) RefineElement(el.child[i], remaining,
-                                                scale_x, scale_y, scale_z);
+         // do the remaining splits on the children
+         for (int i = 0; i < MaxElemChildren; i++)
+         {
+            if (el.child[i] >= 0)
+            {
+               Refinement child_ref(el.child[i], remaining);
+               child_ref.s[0] = scale_x;
+               child_ref.s[1] = scale_y;
+               child_ref.s[2] = scale_z;
+               RefineElement(child_ref);
+            }
+         }
       }
       return;
    }
