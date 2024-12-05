@@ -228,6 +228,10 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    }
 }
 
+
+
+
+
 void OptContactProblem::ComputeGapJacobian()
 {
    if (J) delete J;
@@ -259,6 +263,10 @@ void OptContactProblem::ComputeGapJacobian()
    constraints_starts.SetSize(2);
    constraints_starts[0] = J->RowPart()[0];
    constraints_starts[1] = J->RowPart()[1];
+
+   dof_starts.SetSize(2);
+   dof_starts[0] = J->ColPart()[0];
+   dof_starts[1] = J->ColPart()[1];
 }
 
 
@@ -453,7 +461,6 @@ real_t OptContactProblem::E(const Vector & d)
 {
    if (problem->IsNonlinear() && qp)
    {
-      // TO DO: compute QP approximation of E
       // (d - xref)^T [ 1/2 K * (d - xref) + gradEQP] + EQP
       double energy = 0.0;
       Vector dx(dimU); dx = 0.0;

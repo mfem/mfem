@@ -102,7 +102,7 @@ private:
    // Restriction operator to the non-contact dofs
    HypreParMatrix * Pnc = nullptr;
    Array<int> constraints_starts;
-
+   Array<int> dof_starts;
 public:
    OptContactProblem(ElasticityOperator * problem_, 
                      const std::set<int> & mortar_attrs_, 
@@ -117,8 +117,10 @@ public:
    Vector & Getml() {return ml;}
    MPI_Comm GetComm() {return comm ;}
    int * GetConstraintsStarts() {return constraints_starts.GetData();} 
-   int GetGlobalNumConstraints() {return J->GetGlobalNumRows();}
+   HYPRE_BigInt GetGlobalNumConstraints() {return J->GetGlobalNumRows();}
 
+   HYPRE_BigInt GetGlobalNumDofs() {return J->GetGlobalNumCols(); }
+   int * GetDofStarts() {return dof_starts.GetData();}
    ElasticityOperator * GetElasticityOperator() {return problem;}
 
    HypreParMatrix * Duuf(const BlockVector &);
