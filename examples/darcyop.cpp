@@ -16,6 +16,92 @@
 namespace mfem
 {
 
+void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
+                                               int iters)
+{
+   IterativeSolver *lin_solver = NULL;
+   switch (solver_type)
+   {
+      case SolverType::Default:
+      case SolverType::LBFGS:
+         prec = NULL;
+         solver = new LBFGSSolver();
+         solver_str = "LBFGS";
+         break;
+      case SolverType::LBB:
+         prec = NULL;
+         solver = new LBBSolver();
+         solver_str = "LBB";
+         break;
+      case SolverType::Newton:
+         lin_solver = new GMRESSolver();
+         prec_str = "GMRES";
+         solver = new NewtonSolver();
+         solver_str = "Newton";
+         break;
+      case SolverType::KINSol:
+#ifdef MFEM_USE_SUNDIALS
+         lin_solver = new GMRESSolver();
+         prec_str = "GMRES";
+         solver = new KINSolver(KIN_PICARD);
+         static_cast<KINSolver*>(solver)->EnableAndersonAcc(10);
+         solver_str = "KINSol";
+#else
+         MFEM_ABORT("Sundials not installed!");
+#endif
+         break;
+   }
+
+   if (lin_solver)
+   {
+      lin_solver->SetAbsTol(atol);
+      lin_solver->SetRelTol(rtol * 1e-2);
+      lin_solver->SetMaxIter(iters);
+      lin_solver->SetPrintLevel(0);
+      prec = lin_solver;
+   }
+
+   solver->SetAbsTol(atol);
+   solver->SetRelTol(rtol);
+   solver->SetMaxIter(iters);
+   if (prec) { solver->SetPreconditioner(*prec); }
+   solver->SetPrintLevel((btime_u || btime_p)?0:1);
+   solver->iterative_mode = true;
+}
+
+void DarcyOperator::SetupLinearSolver(real_t rtol, real_t atol, int iters)
+{
+   if (darcy->GetHybridization())
+   {
+      prec = new GSSmoother();
+      prec_str = "GS";
+   }
+   else if (darcy->GetReduction())
+   {
+#ifndef MFEM_USE_SUITESPARSE
+      prec = new GSSmoother();
+      prec_str = "GS";
+#else
+      prec = new UMFPackSolver();
+      prec_str = "UMFPack";
+#endif
+   }
+   else
+   {
+      prec = new SchurPreconditioner(darcy);
+      prec_str = static_cast<SchurPreconditioner*>(prec)->GetString();
+   }
+
+   solver = new GMRESSolver();
+   solver_str = "GMRES";
+   solver->SetAbsTol(atol);
+   solver->SetRelTol(rtol);
+   solver->SetMaxIter(iters);
+   if (prec) { solver->SetPreconditioner(*prec); }
+   solver->SetPrintLevel((btime_u || btime_p)?0:1);
+   solver->iterative_mode = true;
+}
+
 DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
                              DarcyForm *darcy_, LinearForm *g_, LinearForm *f_, LinearForm *h_,
                              const Array<Coefficient*> &coeffs_, SolverType stype_, bool btime_u_,
@@ -254,7 +340,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       //const BilinearForm *Mt = cdarcy->GetPotentialMassForm();
       const NonlinearForm *Mtnl = cdarcy->GetPotentialMassNonlinearForm();
 
-      if (trace_space)
+      if (trace_space) //hybridization
       {
          if (Mqnl || Mtnl || Mnl)
          {
@@ -263,55 +349,12 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                maxIter, rtol * 1e-3, atol, -1);
             lsolver_str = "Newton";
 
-            IterativeSolver *lin_solver = NULL;
-            switch (solver_type)
-            {
-               case SolverType::Default:
-               case SolverType::LBFGS:
-                  prec = NULL;
-                  solver = new LBFGSSolver();
-                  solver_str = "LBFGS";
-                  break;
-               case SolverType::LBB:
-                  prec = NULL;
-                  solver = new LBBSolver();
-                  solver_str = "LBB";
-                  break;
-               case SolverType::Newton:
-                  lin_solver = new GMRESSolver();
-                  lin_solver->SetAbsTol(atol);
-                  lin_solver->SetRelTol(rtol * 1e-2);
-                  lin_solver->SetMaxIter(maxIter);
-                  lin_solver->SetPrintLevel(0);
-                  prec = lin_solver;
-                  prec_str = "GMRES";
-                  solver = new NewtonSolver();
-                  solver_str = "Newton";
-                  break;
-               case SolverType::KINSol:
-#ifdef MFEM_USE_SUNDIALS
-                  lin_solver = new GMRESSolver();
-                  lin_solver->SetAbsTol(atol);
-                  lin_solver->SetRelTol(rtol * 1e-2);
-                  lin_solver->SetMaxIter(maxIter);
-                  lin_solver->SetPrintLevel(0);
-                  prec = lin_solver;
-                  prec_str = "GMRES";
-                  solver = new KINSolver(KIN_PICARD);
-                  static_cast<KINSolver*>(solver)->EnableAndersonAcc(10);
-                  solver_str = "KINSol";
-#else
-                  MFEM_ABORT("Sundials not installed!");
-#endif
-                  break;
-            }
+            SetupNonlinearSolver(rtol, atol, maxIter);
          }
          else
          {
-            prec = new GSSmoother(static_cast<SparseMatrix&>(*op));
-            prec_str = "GS";
-            solver = new GMRESSolver();
-            solver_str = "GMRES";
+            SetupLinearSolver(rtol, atol, maxIter);
+
             if (monitor_step >= 0)
             {
                monitor = new IterativeGLVis(this, monitor_step);
@@ -319,80 +362,19 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
             }
          }
 
-         solver->SetAbsTol(atol);
-         solver->SetRelTol(rtol);
-         solver->SetMaxIter(maxIter);
          solver->SetOperator(*op);
-         if (prec) { solver->SetPreconditioner(*prec); }
-         solver->SetPrintLevel((btime_u || btime_p)?0:1);
       }
-      else if (darcy->GetReduction())
+      else if (darcy->GetReduction()) //reduction
       {
-         SparseMatrix &R = *op.As<SparseMatrix>();
-#ifndef MFEM_USE_SUITESPARSE
-         prec = new GSSmoother(R);
-         prec_str = "GS";
-#else
-         prec = new UMFPackSolver(R);
-         prec_str = "UMFPack";
-#endif
+         SetupLinearSolver(rtol, atol, maxIter);
 
-         solver = new GMRESSolver();
-         solver_str = "GMRES";
-         solver->SetAbsTol(atol);
-         solver->SetRelTol(rtol);
-         solver->SetMaxIter(maxIter);
          solver->SetOperator(*op);
-         solver->SetPreconditioner(*prec);
-         solver->SetPrintLevel((btime_u || btime_p)?0:1);
-         solver->iterative_mode = true;
       }
-      else
+      else //mixed
       {
          if ((Mqnl || Mtnl || Mnl) && solver_type != SolverType::Default)
          {
-            IterativeSolver *lin_solver = NULL;
-            switch (solver_type)
-            {
-               case SolverType::Default:
-               case SolverType::LBFGS:
-                  prec = NULL;
-                  solver = new LBFGSSolver();
-                  solver_str = "LBFGS";
-                  break;
-               case SolverType::LBB:
-                  prec = NULL;
-                  solver = new LBBSolver();
-                  solver_str = "LBB";
-                  break;
-               case SolverType::Newton:
-                  lin_solver = new GMRESSolver();
-                  lin_solver->SetAbsTol(atol);
-                  lin_solver->SetRelTol(rtol * 1e-2);
-                  lin_solver->SetMaxIter(maxIter);
-                  lin_solver->SetPrintLevel(0);
-                  prec = lin_solver;
-                  prec_str = "GMRES";
-                  solver = new NewtonSolver();
-                  solver_str = "Newton";
-                  break;
-               case SolverType::KINSol:
-#ifdef MFEM_USE_SUNDIALS
-                  lin_solver = new GMRESSolver();
-                  lin_solver->SetAbsTol(atol);
-                  lin_solver->SetRelTol(rtol * 1e-2);
-                  lin_solver->SetMaxIter(maxIter);
-                  lin_solver->SetPrintLevel(0);
-                  prec = lin_solver;
-                  prec_str = "GMRES";
-                  solver = new KINSolver(KIN_PICARD);
-                  static_cast<KINSolver*>(solver)->EnableAndersonAcc(10);
-                  solver_str = "KINSol";
-#else
-                  MFEM_ABORT("Sundials not installed!");
-#endif
-                  break;
-            }
+            SetupNonlinearSolver(rtol, atol, maxIter);
 
             if (prec)
             {
@@ -414,20 +396,10 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
                std::cerr << "A linear solver is used for a non-linear problem!" << std::endl;
             }
 
-            prec = new SchurPreconditioner(darcy);
-            prec_str = static_cast<SchurPreconditioner*>(prec)->GetString();
+            SetupLinearSolver(rtol, atol, maxIter);
 
-            solver = new GMRESSolver();
-            solver_str = "GMRES";
             solver->SetOperator(*op);
          }
-
-         solver->SetAbsTol(atol);
-         solver->SetRelTol(rtol);
-         solver->SetMaxIter(maxIter);
-         if (prec) { solver->SetPreconditioner(*prec); }
-         solver->SetPrintLevel((btime_u || btime_p)?0:1);
-         solver->iterative_mode = true;
       }
 
       chrono.Stop();

@@ -97,6 +97,9 @@ private:
                            bool final) override;
    };
 
+   void SetupNonlinearSolver(real_t rtol, real_t atol, int iters);
+   void SetupLinearSolver(real_t rtol, real_t atol, int iters);
+
 public:
    DarcyOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
                  LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
