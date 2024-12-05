@@ -1,6 +1,6 @@
 // Sample runs:
 // 2D
-// make getminmr -j && mpirun -np 1 getminmr -nr 15
+//  make getminmr -j && ./getminmr -nrmax 7 -nrmin 3
 // plot using python3 plotminmrbndscomp.py
 //                    plotminmrbnds.py
 
@@ -43,7 +43,7 @@ double GetPLValue(const Vector &x, const Vector &y, double xv)
    return yv;
 }
 
-bool ArePLBoundsGood(int nbrute, int nr, int mr, int nodetype, int intptype, bool print, Vector &errors)
+bool ArePLBoundsGood(int nbrute, int nr, int mr, int nodetype, int intptype, bool print, Vector &errors, Vector &dxvals)
 {
    PLBound plb;
    std::string fname = "../scripts/bnddata_spts_";
@@ -104,6 +104,23 @@ bool ArePLBoundsGood(int nbrute, int nr, int mr, int nodetype, int intptype, boo
    errors = 0.0;
    Vector opterror(nr);
    opterror = 0.0;
+
+   dxvals.SetSize(3); // holds min/max/avg dx between interval points
+   const Vector &intx = plb.GetIntX();
+   dxvals(0) = std::numeric_limits<float>::max();
+   dxvals(1) = -std::numeric_limits<float>::max();
+   dxvals(2) = 0.0;
+   for (int i = 0; i < intx.Size()-1; i++)
+   {
+      double x0 = intx(i);
+      double x1 = intx(i+1);
+      double dx = x1-x0;
+      dxvals(0) = std::min(dxvals(0), dx);
+      dxvals(1) = std::max(dxvals(1), dx);
+      dxvals(2) += dx;
+   }
+   dxvals(2) *= 1.0/(intx.Size()-1);
+
 
    Vector lb_i, ub_i; // lower piecewise bound
    for (int j = 0; j < nbrute; j++)
@@ -239,6 +256,7 @@ int main(int argc, char *argv[])
    Array<int> nrva;
    double area;
    Vector errors;
+   Vector dxv;
 
    for (int kk = 0; kk < minmra.Size(); kk++)
    {
@@ -252,7 +270,7 @@ int main(int argc, char *argv[])
          for (int j = (kk > 2 ? 3 : i); j < 4*i; j++)
          {
             int mr = j;
-            bool bounds_good = ArePLBoundsGood(nbrute, nr, mr, nodetype, inttype, true, errors);
+            bool bounds_good = ArePLBoundsGood(nbrute, nr, mr, nodetype, inttype, true, errors, dxv);
             if (bounds_good)
             {
                std::cout << mr << " points good for " << nr << " GLL points" << std::endl;
@@ -305,10 +323,13 @@ int main(int argc, char *argv[])
    }
    // MFEM_ABORT(" ");
 
-   Array<Array<int>*> compactcom;
-   Array<double> compactcomerror1;
-   Array<double> compactcomerror2;
-   Array<double> compactcomerror3;
+   Array<Array<int>*> info_nmk;
+   Array<double> info_error1;
+   Array<double> info_error2;
+   Array<double> info_error3;
+   Array<double> info_size1;
+   Array<double> info_size2;
+   Array<double> info_size3;
 
    // Get compactness of bounds from the minimum computed MR to max MR for that N.
    for (int i = 0; i < nrva.Size(); i++)
@@ -324,19 +345,23 @@ int main(int argc, char *argv[])
          int inttype = kk;
          int mrme = (*minmra[kk])[i];
          if (mrme == -1) { continue; }
-         for (int j = mrme; j < std::min(39,mrmax+1+2); j++)
+         // for (int j = mrme; j < std::min(39,mrmax+1+2); j++)
+         for (int j = mrme; j < std::min(20,20); j++)
          {
             int mr = j;
-            bool good =  ArePLBoundsGood(nbrute, nr, mr, nodetype, inttype, false, errors);
+            bool good =  ArePLBoundsGood(nbrute, nr, mr, nodetype, inttype, false, errors, dxv);
             // MFEM_VERIFY(good, "Bounds not good. Something seriously wrong!");
-            compactcom.Append(new Array<int>());
-            int ns = compactcom.Size();
-            compactcom[ns-1]->Append(nr);
-            compactcom[ns-1]->Append(mr);
-            compactcom[ns-1]->Append(kk);
-            compactcomerror1.Append(errors(0));
-            compactcomerror2.Append(errors(1));
-            compactcomerror3.Append(errors(2));
+            info_nmk.Append(new Array<int>());
+            int ns = info_nmk.Size();
+            info_nmk[ns-1]->Append(nr);
+            info_nmk[ns-1]->Append(mr);
+            info_nmk[ns-1]->Append(kk);
+            info_error1.Append(errors(0));
+            info_error2.Append(errors(1));
+            info_error3.Append(errors(2));
+            info_size1.Append(dxv(0));
+            info_size2.Append(dxv(1));
+            info_size3.Append(dxv(2));
          }
       }
    }
@@ -348,21 +373,24 @@ int main(int argc, char *argv[])
    ofstream myfile;
    myfile.open(filename.str());
 
-   for (int i = 0; i < compactcom.Size(); i++)
+   for (int i = 0; i < info_nmk.Size(); i++)
    {
-      myfile << (*compactcom[i])[0] << " " << std::endl;
-      myfile << (*compactcom[i])[1] << " " << std::endl;
-      myfile << (*compactcom[i])[2] << " " << std::endl;
-      myfile << std::setprecision(12) << compactcomerror1[i] << std::endl;
-      myfile << std::setprecision(12) << compactcomerror2[i] << std::endl;
-      myfile << std::setprecision(12) << compactcomerror3[i] << std::endl;
-      std::cout << (*compactcom[i])[0] << " " <<
-                   (*compactcom[i])[1] << " " <<
-                   (*compactcom[i])[2] << " " <<
+      myfile << (*info_nmk[i])[0] << " " << std::endl;
+      myfile << (*info_nmk[i])[1] << " " << std::endl;
+      myfile << (*info_nmk[i])[2] << " " << std::endl;
+      myfile << std::setprecision(12) << info_error1[i] << std::endl;
+      myfile << std::setprecision(12) << info_error2[i] << std::endl;
+      myfile << std::setprecision(12) << info_error3[i] << std::endl;
+      myfile << std::setprecision(12) << info_size1[i] << std::endl;
+      myfile << std::setprecision(12) << info_size2[i] << std::endl;
+      myfile << std::setprecision(12) << info_size3[i] << std::endl;
+      std::cout << (*info_nmk[i])[0] << " " <<
+                   (*info_nmk[i])[1] << " " <<
+                   (*info_nmk[i])[2] << " " <<
                   std::setprecision(12) <<
-                   compactcomerror1[i] << " " <<
-                   compactcomerror2[i] << " " <<
-                   compactcomerror3[i] << " " <<  " k10info\n";
+                   info_error1[i] << " " <<
+                   info_error2[i] << " " <<
+                   info_error3[i] << " " <<  " k10info\n";
    }
 
    return 0;

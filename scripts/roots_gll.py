@@ -9,6 +9,7 @@ import sys
 from scipy.optimize import minimize_scalar, minimize, fsolve,  least_squares
 
 #python3 roots_gll.py  --N 5
+# python3 roots_gll.py --N 6 --ntype 1 --M 8 --itype 0
 
 def ChebyshevPoints(n):
 	return np.sort([-np.cos(np.pi*i/(n-1)) for i in range(n)])
@@ -743,7 +744,6 @@ def main():
                 sys.exit("Not a valid point set. Increase M")
 
         # sys.exit("M < 0 only supported yet")
-
 
     # compute bounds on the interval points
     nupper = array = np.full((N,M), -10000.0)
