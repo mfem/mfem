@@ -1111,6 +1111,11 @@ void NCMesh::SetNodeScale(int p0, int p1, real_t scale)
    if (node) { node->SetScale(GetScale(scale, p0 > p1)); }
 }
 
+void NCMesh::RefineElement(const Refinement & ref)
+{
+   RefineElement(ref.index, ref.GetType(), ref.s[0], ref.s[1], ref.s[2]);
+}
+
 void NCMesh::RefineElement(int elem, char ref_type, real_t scale_x,
                            real_t scale_y, real_t scale_z)
 {
@@ -1938,7 +1943,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       ref_stack.DeleteLast();
 
       int size = ref_stack.Size();
-      RefineElement(ref.index, ref.GetType(), ref.s[0], ref.s[1], ref.s[2]);
+      RefineElement(ref);
       nforced += ref_stack.Size() - size;
    }
 
