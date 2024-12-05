@@ -104,6 +104,9 @@ public:
    /// Change the size of the DenseMatrix to s x s.
    void SetSize(int s) { SetSize(s, s); }
 
+   /// Change the size while keeping the data
+   void Resize(int h, int w);
+
    /// Change the size of the DenseMatrix to h x w.
    void SetSize(int h, int w);
 

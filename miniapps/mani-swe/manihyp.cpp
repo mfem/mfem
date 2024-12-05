@@ -179,12 +179,14 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
    shape.SetSize(dof);
    dshape.SetSize(dof, dim);
    gshape.SetSize(dof, sdim);
-   vector_gshape.SetSize(dof*dim, sdim);
+   vector_gshape.SetSize(sdim*sdim, dof);
    hess_shape.SetSize(dof, dim*(dim+1)/2);
    Hess.SetSize(dim*(dim+1)/2, sdim);
    HessMat.SetSize(sdim, dim, dim);
    gradJ.SetSize(sdim, sdim);
    Vector gshape_i;
+   Vector gradJ_vectorview;
+   DenseMatrix gshape_J(sdim, dof);
 
    elvect.SetSize(vdim * dof); elvect=0.0;
    state.SetSize(vdim);
@@ -208,7 +210,8 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
    const DenseMatrix elfun_vectors(elfun.GetData() + dof*nrScalar, dof*dim,
                                    nrVector);
    DenseMatrix elmat_scalars(elvect.GetData(), dof, nrScalar);
-   DenseTensor elmat_vectors(elvect.GetData() + dof*nrScalar, dof, dim, nrVector);
+   DenseMatrix elmat_vectors(elvect.GetData() + dof*nrScalar, dof*dim, nrVector);
+   DenseMatrix elmat_vectors_comp(dof, nrVector);
    Vector mani_scalars(state.GetData(), nrScalar);
    Vector phys_scalars(phys_state.GetData(), nrScalar);
    DenseMatrix mani_vec(state.GetData() + nrScalar, dim, nrVector);
@@ -255,10 +258,25 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
       phys_flux.GetSubMatrix(nrScalar, maniFlux.num_equations, 0, sdim,
                              phys_flux_vectors);
       phys_flux_vectors.Transpose();
+      phys_flux_vectors.Resize(sdim*sdim, nrVector);
+      gshape.Transpose();
       for (int d=0; d<dim; d++)
       {
+         gradJ.Resize(sdim,sdim);
          Mult(HessMat(d), adjJ, gradJ);
+         gradJ_vectorview.SetDataAndSize(gradJ.GetData(), sdim*sdim);
+         MultVWt(gradJ_vectorview, shape, vector_gshape);
+         for (int sd=0; sd<sdim; sd++)
+         {
+            gshape_J = gshape;
+            gshape_J *= J(sd, d);
+            vector_gshape.AddSubMatrix(sd*dim, 0, gshape_J);
+         }
+         vector_gshape *= ip.weight;
+         MultAtB(vector_gshape, phys_flux_vectors, elmat_vectors_comp);
+         elmat_vectors.AddSubMatrix(dof*d, 0, elmat_vectors_comp);
       }
+      gshape.Transpose();
    }
 }
 

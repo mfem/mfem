@@ -92,6 +92,13 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    }
 }
 
+void DenseMatrix::Resize(int h, int w)
+{
+   MFEM_ASSERT(h*w != height*width, "New size (" << h << " x " << w << ") is incompatible with the original size (" << height << " x " << width ").");
+   height = h;
+   width = w;
+}
+
 void DenseMatrix::SetSize(int h, int w)
 {
    MFEM_ASSERT(h >= 0 && w >= 0,
