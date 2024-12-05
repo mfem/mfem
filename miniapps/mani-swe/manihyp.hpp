@@ -89,7 +89,6 @@ private:
    mutable Vector phys_state;
 protected:
 public:
-   const int sdim;
 
    // methods
 private:
@@ -97,10 +96,10 @@ protected:
 public:
    ManifoldFlux(FluxFunction &flux, ManifoldCoord &coord, int nrScalar)
       : FluxFunction(flux.num_equations, flux.dim), org_flux(flux),
-        coord(coord), nrScalar(nrScalar), sdim(coord.sdim)
+        coord(coord), nrScalar(nrScalar)
    {
-      nrVector = (org_flux.num_equations - nrScalar)/sdim;
-      phys_state.SetSize(nrScalar + nrVector*sdim);
+      nrVector = (org_flux.num_equations - nrScalar)/coord.sdim;
+      phys_state.SetSize(nrScalar + nrVector*coord.sdim);
    }
 
    const ManifoldCoord &GetCoordinate() const {return coord;}
@@ -163,8 +162,8 @@ public:
       stateR_L.SetSize(maniflux.num_equations);
       stateL_R.SetSize(maniflux.num_equations);
       stateR_R.SetSize(maniflux.num_equations);
-      normalL.SetSize(maniflux.sdim);
-      normalR.SetSize(maniflux.sdim);
+      normalL.SetSize(maniflux.GetCoordinate().sdim);
+      normalR.SetSize(maniflux.GetCoordinate().sdim);
    }
    real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
@@ -230,11 +229,14 @@ protected:
    Vector shape;
    // DenseMatrix adjJ;
    DenseMatrix dshape;
-   DenseMatrix gshape;
+   DenseMatrix gshape, vector_gshape;
    DenseMatrix hess_shape;
-   Vector Hess;
+   DenseMatrix Hess;
+   DenseTensor HessMat;
+   DenseMatrix gradJ;
    Vector x_nodes;
    DenseMatrix phys_flux;
+   DenseMatrix phys_flux_scalars, phys_flux_vectors;
    const IntegrationRule *intrule;
    Array<int> hess_map;
 public:

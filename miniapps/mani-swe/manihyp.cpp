@@ -2,6 +2,7 @@
 
 namespace mfem
 {
+
 void sphere(const Vector &x, Vector &y, const real_t r)
 {
    y = x; y *= r/std::sqrt(y*y);
@@ -132,7 +133,7 @@ ManifoldHyperbolicFormIntegrator::ManifoldHyperbolicFormIntegrator(
    :numFlux(flux), maniFlux(flux.GetManifoldFluxFunction()),
     coord(maniFlux.GetCoordinate()), intrule(ir)
 {
-   switch (maniFlux.dim)
+   switch (maniFlux.GetCoordinate().dim)
    {
       case 2:
       {
@@ -154,26 +155,44 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
    const FiniteElement &el, ElementTransformation &Tr,
    const Vector &elfun, Vector &elvect)
 {
+   // element info
    const int dof = el.GetDof();
    const int dim = el.GetDim();
    const int sdim = Tr.GetSpaceDim();
    const int nrScalar = maniFlux.GetNumScalars();
    const int nrVector = (maniFlux.num_equations - nrScalar)/sdim;
+   const int vdim = elfun.Size();
+   MFEM_ASSERT((vdim - nrScalar) / dim == nrVector,
+               "The number of equations and vector dimension disagree");
+
+   //TODO: Consider ordering of basis..
+   // J1 (phi1, phi2, ...), J2 (phi1, phi2, ...) or
+   // (J1, J2) phi1, (J1, J2) phi2, ... ?
+   MFEM_ASSERT(nrVector == 1, "More than one vector is not yet supported.")
+
+
+   // Local basis function info
 
    // TODO: handle MFEM_THREAD_SAFE.
    // Since we are only using MPI for parallel,
    // we do not have to worry about this for now
    shape.SetSize(dof);
    dshape.SetSize(dof, dim);
+   gshape.SetSize(dof, sdim);
+   vector_gshape.SetSize(dof*dim, sdim);
    hess_shape.SetSize(dof, dim*(dim+1)/2);
-   Hess.SetSize(dim*(dim+1)/2);
+   Hess.SetSize(dim*(dim+1)/2, sdim);
+   HessMat.SetSize(sdim, dim, dim);
+   gradJ.SetSize(sdim, sdim);
+   Vector gshape_i;
 
-   const int vdim = elfun.Size();
-   elvect.SetSize(vdim * dof);
+   elvect.SetSize(vdim * dof); elvect=0.0;
    state.SetSize(vdim);
    phys_state.SetSize(maniFlux.num_equations);
    phys_flux.SetSize(maniFlux.num_equations, sdim);
+   Vector phys_flux_vector_vectorview(phys_flux.GetData(), sdim*sdim);
    const IntegrationRule &ir = intrule ? *intrule : GetRule(el, el, Tr);
+
 
    const int num_equations = elfun.Size() / dof;
    const DenseMatrix elfun_mat(elfun.GetData(), dof, num_equations);
@@ -182,7 +201,8 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
    const FiniteElementSpace * nodal_fes = Tr.mesh->GetNodalFESpace();
    const FiniteElement &nodal_el = *nodal_fes->GetFE(Tr.ElementNo);
    const GridFunction * nodes = Tr.mesh->GetNodes();
-
+   nodes->GetElementDofValues(Tr.ElementNo, x_nodes);
+   DenseMatrix x_nodes_mat(x_nodes.GetData(), dof, sdim);
 
    const DenseMatrix elfun_scalars(elfun.GetData(), dof, nrScalar);
    const DenseMatrix elfun_vectors(elfun.GetData() + dof*nrScalar, dof*dim,
@@ -196,19 +216,24 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
 
    for (int i=0; i<ir.GetNPoints(); i++)
    {
-      Tr.SetIntPoint(&ir.IntPoint(i));
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
 
       // local mapping information
       const DenseMatrix &J = Tr.Jacobian();
       const DenseMatrix &adjJ = Tr.AdjugateJacobian();
-      nodal_el.CalcHessian(Tr.GetIntPoint(), hess_shape);
-      nodes->GetVectorValue(Tr.ElementNo, Tr.GetIntPoint(), x_nodes);
-      hess_shape.MultTranspose(x_nodes, Hess);
-      Hess *= Tr.Weight();
+      nodal_el.CalcHessian(ip, hess_shape);
+      MultAtB(hess_shape, x_nodes_mat, Hess);
+      for (int d1=0; d1<dim; d1++)
+         for (int d2=0; d2<dim; d2++)
+            for (int sd=0; sd<sdim; sd++)
+            {
+               HessMat(sd, d1, d2) = Hess(hess_map[d1*dim + d2], sd);
+            }
 
       // basis information
-      el.CalcShape(Tr.GetIntPoint(), shape);
-      el.CalcDShape(Tr.GetIntPoint(), dshape);
+      el.CalcShape(ip, shape);
+      el.CalcDShape(ip, dshape);
       Mult(dshape, adjJ, gshape);
 
       // state at current quadrature points
@@ -224,6 +249,16 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
                                 maniFlux.ComputeFlux(state, Tr, phys_flux));
 
       // Integrate
+      phys_flux.GetSubMatrix(0, nrScalar, 0, sdim, phys_flux_scalars);
+      AddMult_a_ABt(ip.weight, gshape, phys_flux_scalars, elmat_scalars);
+
+      phys_flux.GetSubMatrix(nrScalar, maniFlux.num_equations, 0, sdim,
+                             phys_flux_vectors);
+      phys_flux_vectors.Transpose();
+      for (int d=0; d<dim; d++)
+      {
+         Mult(HessMat(d), adjJ, gradJ);
+      }
    }
 }
 

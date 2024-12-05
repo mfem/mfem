@@ -5,12 +5,12 @@ using namespace mfem;
 
 void gaussian_initial(const Vector &x, Vector &u)
 {
-   const real_t theta = std::acos(x[2]/std::sqrt(x*x));
-   const real_t hmin = 10;
+   const real_t theta = std::acos(x[2]/std::sqrt(x*x)); const real_t hmin = 10;
    const real_t hmax = 20;
    const real_t sigma = 0.2;
    u = 0.0;
-   u[0] = hmin + (hmax - hmin)*std::exp(-theta*theta/(2*sigma*sigma));
+   // u[0] = hmin + (hmax - hmin)*std::exp(-theta*theta/(2*sigma*sigma));
+   u[0] = hmax;
 }
 
 void UniformSpherRefinement(ParMesh &pmesh, int ref_level)
@@ -38,7 +38,8 @@ int main(int argc, char *argv[])
    Hypre::Init();
    std::unique_ptr<ParMesh> pmesh;
    {
-      Mesh mesh("./data/icosahedron.mesh");
+      Mesh mesh("./data/periodic-square-3d.mesh");
+      mesh.UniformRefinement();
       pmesh.reset(new ParMesh(MPI_COMM_WORLD, mesh));
       mesh.Clear();
    }
@@ -51,9 +52,14 @@ int main(int argc, char *argv[])
    ManifoldCoord coord(dim, sdim);
    ManifoldFlux swe_mani(swe_phys, coord, 1);
    ManifoldRusanovFlux rusanovFlux(swe_mani);
+   ManifoldHyperbolicFormIntegrator hypintg(rusanovFlux);
 
    pmesh->SetCurvature(order);
-   UniformSpherRefinement(*pmesh, refinement_level);
+   for(int i=0; i<refinement_level; i++)
+   {
+      pmesh->UniformRefinement();
+   }
+   // UniformSpherRefinement(*pmesh, refinement_level);
 
    DG_FECollection dg_fec(order, dim);
    // FE Space for state
@@ -78,17 +84,16 @@ int main(int argc, char *argv[])
    u.ProjectCoefficient(u0_mani);
    DenseMatrix flux(phys_num_equations, sdim);
    Vector state;
+   Vector divflux;
    for (int i=0; i<pmesh->GetNE(); i++)
    {
       const FiniteElement *el = vfes.GetFE(i);
       ElementTransformation *Tr = pmesh->GetElementTransformation(i);
       const IntegrationRule &ir = IntRules.Get(Tr->GetGeometryType(), order*2+3);
-      for (int j=0; j<ir.GetNPoints(); j++)
-      {
-         u.GetVectorValue(i, ir.IntPoint(j), state);
-         swe_mani.ComputeFlux(state, *Tr, flux);
-      }
+      u.GetElementDofValues(i, state);
+      hypintg.AssembleElementVector(*el, *Tr, state, divflux);
    }
+
 
    bool visualization = true;
    if (visualization)
