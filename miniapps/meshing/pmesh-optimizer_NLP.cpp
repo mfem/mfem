@@ -18,6 +18,7 @@
 // to solve the proble,
 //
 // Compile with: make pmesh-optimizer_NLP
+// mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 100 -ft 2
 
 
 #include "mfem.hpp"
@@ -31,7 +32,7 @@
 using namespace mfem;
 using namespace std;
 
-int ftype = 2;
+int ftype = 1;
 double kw = 20.0;
 double alphaw = 5;
 
@@ -236,6 +237,8 @@ int main (int argc, char *argv[])
                   "max node movement");
    args.AddOption(&max_it, "-ni", "--newton-oter",
                   "number of iters");
+   args.AddOption(&ftype, "-ft", "--ftype",
+                  "function type");
     args.Parse();
    if (!args.Good())
    {
