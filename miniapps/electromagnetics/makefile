@@ -25,7 +25,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = volta tesla maxwell joule
+PAR_MINIAPPS = volta tesla maxwell joule bfieldadvect
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -53,8 +53,9 @@ all: $(MINIAPPS)
 # Rules for building the miniapps
 %: $(SRC)%.cpp %_solver.o $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c bfield_remhos.cpp
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $@_solver.o $(COMMON_LIB) \
-	  $(MFEM_LIBS)
+	  $(MFEM_LIBS) bfield_remhos.o
 
 # Rules for compiling miniapp dependencies
 $(addsuffix _solver.o,$(MINIAPPS)): \
