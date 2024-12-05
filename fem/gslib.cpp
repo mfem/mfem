@@ -55,7 +55,7 @@ FindPointsGSLIB::FindPointsGSLIB()
    gsl_comm = new gslib::comm;
    cr       = new gslib::crystal;
 #ifdef MFEM_USE_MPI
-   int initialized;
+   int initialized = 0;
    MPI_Initialized(&initialized);
    if (!initialized) { MPI_Init(NULL, NULL); }
    MPI_Comm comm = MPI_COMM_WORLD;
