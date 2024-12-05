@@ -11,10 +11,10 @@
 
 #include "fem.hpp"
 #include <cmath>
+#include "intrules.hpp"
 
 namespace mfem
 {
-
 void LinearFormIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)
@@ -45,7 +45,8 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule* ir = GetIntegrationRule(&el, &Tr);
+
    if (ir == NULL)
    {
       // ir = &IntRules.Get(el.GetGeomType(),
@@ -86,7 +87,7 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule* ir = GetIntegrationRule(&el, &Tr);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
@@ -278,7 +279,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof * vdim);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule* ir = GetIntegrationRule(&el, &Tr);
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();
@@ -337,7 +338,7 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof*(vdim/sdim));
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule* ir = GetIntegrationRule(&el, &Tr);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
@@ -463,7 +464,7 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule* ir = GetIntegrationRule(&el, &Tr);
    if (ir == NULL)
    {
       // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
@@ -512,7 +513,7 @@ void VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule* ir = GetIntegrationRule(&el, &Tr);
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();
@@ -558,7 +559,7 @@ void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = IntRule;
+   const IntegrationRule* ir = GetIntegrationRule(&el, &Tr);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
