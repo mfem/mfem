@@ -19,7 +19,7 @@
 //
 // Compile with: make pmesh-optimizer_NLP
 // mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 100 -ft 2 -w1 5e1 -w2 1e-2
-// mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 2e-4 -ni 200 -ft 1 --qtype 3 -w1 5e6 -w2 1e-1
+// mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 2e-3 -ni 200 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2
 
 
 #include "mfem.hpp"
@@ -256,8 +256,8 @@ int main (int argc, char *argv[])
 
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =false;
-  bool dQdxFD =true;
-  bool BreakAfterFirstIt = true ;
+  bool dQdxFD =false;
+  bool BreakAfterFirstIt = false;
 
   ParMesh *PMesh = nullptr;
 
