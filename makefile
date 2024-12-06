@@ -391,7 +391,7 @@ MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
-   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT
+   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT GSLIB_OPT
 endif
 
 # If we have 'install' target, export variables used by config/makefile
@@ -429,7 +429,7 @@ DIRS = general linalg linalg/simd linalg/batched mesh mesh/submesh fem \
        fem/ceed/interface fem/ceed/integrators/mass \
        fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
        fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
-       fem/qinterp fem/integ fem/tmop
+       fem/qinterp fem/integ fem/tmop fem/gslib
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
