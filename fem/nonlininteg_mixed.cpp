@@ -515,8 +515,6 @@ void MixedConductionNLFIntegrator::AssembleFaceGrad(
    FaceElementTransformations &Trans, const Array<const Vector *> &elfun,
    const Array2D<DenseMatrix *> &elmats)
 {
-   constexpr real_t beta = 0.5;
-
    const FiniteElement &el1_u = *el1[0];
    const FiniteElement &el2_u = *el2[0];
    const FiniteElement &el1_p = *el1[1];
