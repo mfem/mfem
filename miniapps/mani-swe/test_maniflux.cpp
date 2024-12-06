@@ -13,9 +13,9 @@ void gaussian_initial(const Vector &x, Vector &u)
    // u = 0.0;
    // u[0] = hmin + (hmax - hmin)*std::exp(-theta*theta/(2*sigma*sigma));
 
-   const real_t hmin = 20;
-   const real_t hmax = 20;
-   const real_t sigma = 2;
+   const real_t hmin = 1;
+   const real_t hmax = 2;
+   const real_t sigma = 0.2;
    const real_t r2 = x[0]*x[0] + x[1]*x[1];
    u = 0.0;
    u[0] = hmin + (hmax - hmin)*std::exp(-r2/(2*sigma*sigma));

@@ -44,7 +44,7 @@ void ManifoldVectorMassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
   DenseMatrix &elmat )
 {
-   int nd = el.GetDof();
+   int dof = el.GetDof();
    dim = el.GetDim();
    sdim = Trans.GetSpaceDim();
    real_t w;
@@ -52,11 +52,11 @@ void ManifoldVectorMassIntegrator::AssembleElementMatrix
 #ifdef MFEM_THREAD_SAFE
    Vector shape;
 #endif
-   elmat.SetSize(nd*dim);
-   elmat_comp.SetSize(nd);
-   elmat_comp_weighted.SetSize(nd);
+   elmat.SetSize(dof*dim);
+   elmat_comp.SetSize(dof);
+   elmat_comp_weighted.SetSize(dof);
    JtJ.SetSize(dim);
-   shape.SetSize(nd);
+   shape.SetSize(dof);
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, Trans);
 
@@ -78,7 +78,7 @@ void ManifoldVectorMassIntegrator::AssembleElementMatrix
          {
             elmat_comp_weighted = elmat_comp;
             elmat_comp_weighted *= w*JtJ(row, col);
-            elmat.AddSubMatrix(nd*row, nd*col, elmat_comp_weighted);
+            elmat.AddSubMatrix(dof*row, dof*col, elmat_comp_weighted);
          }
       }
    }
@@ -146,8 +146,6 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
       const real_t normal_comp = phys_vec*normalR/(tangent_norm*tangent_norm);
       phys_vec.Add(-normal_comp, normalR).Add(normal_comp, normalL);
    }
-   out << stateR_R.DistanceTo(stateR_L) << std::endl;
-   out << stateL_R.DistanceTo(stateL_L) << std::endl;
 }
 
 real_t ManifoldFlux::ComputeFlux(const Vector &state, ElementTransformation &Tr,
@@ -243,7 +241,7 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
    shape.SetSize(dof);
    dshape.SetSize(dof, dim);
    gshape.SetSize(dof, sdim);
-   vector_gshape.SetSize(sdim*sdim, dof);
+   vector_gshape.SetSize(dof, sdim*sdim);
    Hess.SetSize(dim*(dim+1)/2, sdim);
    HessMat.SetSize(sdim, dim, dim);
    gradJ.SetSize(sdim, sdim);
@@ -251,7 +249,7 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
    hess_shape.SetSize(node_dof, dim*(dim+1)/2);
    Vector gshape_i;
    Vector gradJ_vectorview;
-   DenseMatrix gshape_J(sdim, dof);
+   DenseMatrix gshape_J(dof, sdim);
 
    elvect.SetSize(vdim * dof); elvect=0.0;
    state.SetSize(vdim);
@@ -286,6 +284,7 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
       const DenseMatrix &J = Tr.Jacobian();
       const DenseMatrix &adjJ = Tr.AdjugateJacobian();
       nodal_el.CalcHessian(ip, hess_shape);
+      MultAtB(hess_shape, x_nodes_mat, Hess);
       for (int d1=0; d1<dim; d1++)
          for (int d2=0; d2<dim; d2++)
             for (int sd=0; sd<sdim; sd++)
@@ -318,25 +317,24 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
                              phys_flux_vectors);
       phys_flux_vectors.Transpose();
       phys_flux_vectors.Resize(sdim*sdim, nrVector);
-      gshape.Transpose();
       for (int d=0; d<dim; d++)
       {
-         gradJ.Resize(sdim,sdim);
+         gradJ.Resize(sdim, sdim);
          Mult(HessMat(d), adjJ, gradJ);
          gradJ_vectorview.SetDataAndSize(gradJ.GetData(), sdim*sdim);
-         MultVWt(gradJ_vectorview, shape, vector_gshape);
+         MultVWt(shape, gradJ_vectorview, vector_gshape);
          for (int sd=0; sd<sdim; sd++)
          {
             gshape_J = gshape;
             gshape_J *= J(sd, d);
-            vector_gshape.AddSubMatrix(sd*dim, 0, gshape_J);
+            vector_gshape.AddSubMatrix(0, sd*sdim, gshape_J);
          }
          vector_gshape *= ip.weight;
-         MultAtB(vector_gshape, phys_flux_vectors, elmat_vectors_comp);
+         Mult(vector_gshape, phys_flux_vectors, elmat_vectors_comp);
          elmat_vectors.AddSubMatrix(dof*d, 0, elmat_vectors_comp);
       }
-      gshape.Transpose();
    }
+   // elvect = 0.0;
 }
 
 void ManifoldHyperbolicFormIntegrator::AssembleFaceVector(
@@ -352,6 +350,8 @@ void ManifoldHyperbolicFormIntegrator::AssembleFaceVector(
    const int nrScalar = maniFlux.GetNumScalars();
    const int nrVector = (maniFlux.num_equations - nrScalar)/sdim;
    const int vdim = elfun.Size()/(dof1 + dof2);
+   ElementTransformation *T1 = Tr.Elem1;
+   ElementTransformation *T2 = Tr.Elem2 ? Tr.Elem2 : Tr.Elem1;
 
 #ifdef MFEM_THREAD_SAFE
    // Local storage for element integration
@@ -405,8 +405,8 @@ void ManifoldHyperbolicFormIntegrator::AssembleFaceVector(
       Tr.SetAllIntPoints(&ip); // set face and element int. points
 
       // Calculate basis functions on both elements at the face
-      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
-      el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+      el1.CalcShape(T1->GetIntPoint(), shape1);
+      el2.CalcShape(T2->GetIntPoint(), shape2);
 
       // Interpolate elfun at the point
       elfun1_mat.MultTranspose(shape1, stateL);
@@ -414,19 +414,21 @@ void ManifoldHyperbolicFormIntegrator::AssembleFaceVector(
 
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
       // Compute hat(F) using evaluated quantities
-      max_char_speed = std::max(max_char_speed, numFlux.Eval(stateL, stateR, Tr, phys_hatFL, phys_hatFR));
+      max_char_speed = std::max(max_char_speed,
+                                numFlux.Eval(stateL, stateR, Tr, phys_hatFL, phys_hatFR));
       for (int j=0; j<nrScalar; j++)
       {
          hatFL[j] = phys_hatFL[j];
          hatFR[j] = phys_hatFR[j];
       }
-      MultAtB(Tr.Elem1->Jacobian(), phys_hatFL_vectors, hatFL_vectors);
-      MultAtB(Tr.Elem2->Jacobian(), phys_hatFR_vectors, hatFR_vectors);
+      MultAtB(T1->Jacobian(), phys_hatFL_vectors, hatFL_vectors);
+      MultAtB(T2->Jacobian(), phys_hatFR_vectors, hatFR_vectors);
 
       // pre-multiply integration weight to flux
       AddMult_a_VWt(-ip.weight, shape1, hatFL, elvect1_mat);
       AddMult_a_VWt(+ip.weight, shape2, hatFR, elvect2_mat);
    }
+   out << elvect.Normlinf() << std::endl;
 }
 
 const IntegrationRule &ManifoldHyperbolicFormIntegrator::GetRule(
