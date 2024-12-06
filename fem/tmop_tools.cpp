@@ -977,7 +977,7 @@ void TMOP_MMA::Mult(Vector &x)
 {
    int it;
    real_t norm0, norm, norm_goal;
-   double  conDummy = -0.1;
+   Vector conDummy(1);  conDummy= -0.1; 
    Vector  congradDummy(x.Size());
    congradDummy = 1.0;
    MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
@@ -1072,7 +1072,7 @@ void TMOP_MMA::Mult(Vector &x)
          }
       }
       Vector dx_old = dx;
-      Update(it, r, &conDummy, congradDummy.GetData(), xxmin, xxmax, dx);
+      Update(it, r, conDummy, congradDummy, xxmin,xxmax, dx);
       TMOPNewtonSolver::c = dx;
       TMOPNewtonSolver::c -= dx_old;
 

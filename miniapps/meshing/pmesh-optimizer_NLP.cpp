@@ -436,7 +436,7 @@ int main (int argc, char *argv[])
 #endif
     // mfem::NativeMMA* mma = nullptr;
   TMOP_MMA *tmma = new TMOP_MMA(MPI_COMM_WORLD, trueOptvar.Size(), 0,
-                                 trueOptvar.GetData(), ir);
+                                 trueOptvar, ir);
   {
 #ifdef MFEM_USE_PETSC
     double a=0.0;

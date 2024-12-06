@@ -361,7 +361,7 @@ void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
                        char *title, int position);
 #endif
 
-class TMOP_MMA : public MMA, public TMOPNewtonSolver
+class TMOP_MMA : public MMAOpt, public TMOPNewtonSolver
 {
 protected:
    // const Operator *oper;
@@ -378,13 +378,13 @@ protected:
    double weight = 1.0;
 
 public:
-   TMOP_MMA(int nVar, int nCon, real_t *xval, const IntegrationRule &irule) :
-      MMA(nVar, nCon, xval), TMOPNewtonSolver(irule) {}
+   TMOP_MMA(int nVar, int nCon, Vector xval, const IntegrationRule &irule) :
+      MMAOpt(nVar, nCon, xval), TMOPNewtonSolver(irule) {}
 
 #ifdef MFEM_USE_MPI
-   TMOP_MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval,
+   TMOP_MMA(MPI_Comm comm_, int nVar, int nCon, Vector xval,
             const IntegrationRule &irule) :
-      MMA(comm_, nVar, nCon, xval), TMOPNewtonSolver(comm_, irule) {}
+      MMAOpt(comm_, nVar, nCon, xval), TMOPNewtonSolver(comm_, irule) {}
 #endif
 
    using TMOPNewtonSolver::SetOperator;
