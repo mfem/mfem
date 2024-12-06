@@ -347,7 +347,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
             darcy->GetHybridization()->SetLocalNLSolver(
                DarcyHybridization::LSsolveType::Newton,
                maxIter, rtol * 1e-3, atol, -1);
-            lsolver_str = "Newton";
+            lsolver_str = "Newton+GMRES";
 
             SetupNonlinearSolver(rtol, atol, maxIter);
          }
@@ -418,8 +418,8 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    chrono.Stop();
 
    std::cout << solver_str;
-   if (prec_str) { std::cout << "+" << prec_str; }
-   if (lsolver_str) { std::cout << "+" << lsolver_str; }
+   if (!prec_str.empty()) { std::cout << "+" << prec_str; }
+   if (!lsolver_str.empty()) { std::cout << "/" << lsolver_str; }
    if (solver->GetConverged())
    {
       std::cout << " converged in " << solver->GetNumIterations()

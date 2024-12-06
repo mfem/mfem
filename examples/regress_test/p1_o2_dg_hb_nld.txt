@@ -117,7 +117,7 @@ LBFGS iteration 75 : ||r|| = 1.95442e-06, ||r||/||r_0|| = 1.33336e-06
 LBFGS iteration 76 : ||r|| = 1.92397e-06, ||r||/||r_0|| = 1.31259e-06
 LBFGS iteration 77 : ||r|| = 5.23791e-06, ||r||/||r_0|| = 3.57346e-06
 LBFGS iteration 78 : ||r|| = 9.14721e-07, ||r||/||r_0|| = 6.2405e-07
-LBFGS+Newton converged in 78 iterations with a residual norm of 9.14721e-07.
+LBFGS/Newton+GMRES converged in 78 iterations with a residual norm of 9.14721e-07.
 solver took 3.87662s.
 || q_h - q_ex || / || q_ex || = 0.000247125
 || t_h - t_ex || / || t_ex || = 0.000241701

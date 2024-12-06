@@ -68,23 +68,14 @@ for i, filename in enumerate(filenames):
 	hdg = int(get_ref_param(filename, '--hdg_scheme', "1"))
 	nls = int(get_ref_param(filename, '--nonlinear-solver', "0"))
 
-	ref_out = subprocess.getoutput("grep '|| t_h - t_ex || / || t_ex || = ' "+filename+"  | cut -d '=' -f 2-")
-	ref_L2_t = float(ref_out.split()[0])
-	ref_out = subprocess.getoutput("grep '|| q_h - q_ex || / || q_ex || = ' "+filename+"  | cut -d '=' -f 2-")
-	ref_L2_q = float(ref_out.split()[0])
-	solver = "GMRES"
-	if (nonlin or nonlin_diff):
-		if nls == 1 or (hb and nls == 0):
-			solver = "LBFGS"
-		elif nls == 2:
-			solver = "LBB"
-		elif nls == 3:
-			solver = "Newton"
-	ref_out = subprocess.getoutput("grep '"+solver+"+' "+filename+"  | cut -d '+' -f 2-")
-	if(len(ref_out) > 0):
-		precond_ref = ref_out.split()[0]
-	else:
-		precond_ref = ""
+	file = open(filename, "r")
+	ref_out = file.readlines()
+	ref_L2_t_idx = ref_out[-1].find('= ')
+	ref_L2_q_idx = ref_out[-2].find('= ')
+	ref_L2_t = float(ref_out[-1][ref_L2_t_idx+2::])
+	ref_L2_q = float(ref_out[-2][ref_L2_q_idx+2::])
+	ref_solver_idx = ref_out[-4].find(' ')
+	ref_solver = ref_out[-4][:ref_solver_idx]
 
 	# Construct the command line
 	command_line = "./ex5-nguyen -no-vis"
@@ -119,23 +110,22 @@ for i, filename in enumerate(filenames):
 
 	# Run test case
 	cmd_out = subprocess.getoutput(command_line)
+	split_cmd_out = cmd_out.splitlines()
 
 	# Process the result
 	fail = False
 	try:
-		split_cmd_out = cmd_out.splitlines()
-		indx_t = split_cmd_out[-1].find('= ')
-		indx_q = split_cmd_out[-2].find('= ')
-		precond_test_idx_s = split_cmd_out[-4].find('+')
-		precond_test_idx_e = split_cmd_out[-4].find(' ')
-		test_L2_t = float(split_cmd_out[-1][indx_t+2::])
-		test_L2_q = float(split_cmd_out[-2][indx_q+2::])
-		precond_test = split_cmd_out[-4][precond_test_idx_s+1:precond_test_idx_e]
+		test_L2_t_idx = split_cmd_out[-1].find('= ')
+		test_L2_q_idx = split_cmd_out[-2].find('= ')
+		test_L2_t = float(split_cmd_out[-1][test_L2_t_idx+2::])
+		test_L2_q = float(split_cmd_out[-2][test_L2_q_idx+2::])
+		test_solver_idx = split_cmd_out[-4].find(' ')
+		test_solver = split_cmd_out[-4][:test_solver_idx]
 	except:
 		fail = True
 
 	if not fail:
-		if precond_test == precond_ref:
+		if test_solver == ref_solver:
 			if equal(ref_L2_t, test_L2_t) and equal(ref_L2_q, test_L2_q):
 				print(f"{bcolors.OKGREEN}SUCCESS:{bcolors.RESET} {command_line}", flush=True)
 			else:

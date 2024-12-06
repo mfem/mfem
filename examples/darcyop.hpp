@@ -46,11 +46,11 @@ private:
    Coefficient *idtcoeff{};
    BilinearForm *Mt0{}, *Mq0{};
 
-   const char *lsolver_str{};
+   std::string lsolver_str;
    Solver *prec{};
-   const char *prec_str{};
+   std::string prec_str;
    IterativeSolver *solver{};
-   const char *solver_str{};
+   std::string solver_str;
    IterativeSolverMonitor *monitor{};
    int monitor_step{-1};
 
