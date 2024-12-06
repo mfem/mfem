@@ -18,7 +18,8 @@
 // to solve the proble,
 //
 // Compile with: make pmesh-optimizer_NLP
-// mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 100 -ft 2
+// mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 100 -ft 2 -w1 5e1 -w2 1e-2
+// mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 2e-4 -ni 200 -ft 1 --qtype 3 -w1 5e6 -w2 1e-1
 
 
 #include "mfem.hpp"
@@ -33,7 +34,7 @@ using namespace mfem;
 using namespace std;
 
 int ftype = 1;
-double kw = 20.0;
+double kw = 5.0;
 double alphaw = 5;
 
 double trueSolFunc(const Vector & x)
@@ -191,7 +192,7 @@ int main (int argc, char *argv[])
    MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
 #endif
 
-  enum QoIType qoiType= QoIType::H1_ERROR;
+  int qoitype = static_cast<int>(QoIType::H1_ERROR);
   bool perturbMesh = false;
   double epsilon =  0.006;
   int ser_refinement_ = 1;
@@ -239,7 +240,13 @@ int main (int argc, char *argv[])
                   "number of iters");
    args.AddOption(&ftype, "-ft", "--ftype",
                   "function type");
-    args.Parse();
+   args.AddOption(&qoitype, "-qoit", "--qtype",
+                  "Quantity of interest type");
+   args.AddOption(&weight_1, "-w1", "--weight1",
+                  "Quantity of interest weight");
+   args.AddOption(&weight_2, "-w2", "--weight2",
+                  "Mesh quality weight type");
+   args.Parse();
    if (!args.Good())
    {
       if (myid == 0) { args.PrintUsage(cout); }
@@ -247,6 +254,7 @@ int main (int argc, char *argv[])
    }
    if (myid == 0) { args.PrintOptions(cout); }
 
+  enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =false;
   bool dQdxFD =false;
   bool BreakAfterFirstIt = false ;
@@ -422,7 +430,7 @@ int main (int argc, char *argv[])
 
   const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
-  ::MMA* mma = nullptr;
+  mfem::MMAOpt* mma = nullptr;
     // mfem::NativeMMA* mma = nullptr;
   TMOP_MMA *tmma = new TMOP_MMA(MPI_COMM_WORLD, trueOptvar.Size(), 0,
                                  trueOptvar.GetData(), ir);
@@ -433,9 +441,29 @@ int main (int argc, char *argv[])
     double d=0.0;
     mma=new mfem::NativeMMA(MPI_COMM_WORLD,1, objgrad,&a,&c,&d);
 #else
-    mma=new MMA(MPI_COMM_WORLD, trueOptvar.Size(), 0, trueOptvar);
+    mma=new mfem::MMAOpt(MPI_COMM_WORLD, trueOptvar.Size(), 0, trueOptvar);
 #endif
   }
+
+if (myid == 0) {
+  switch (qoiType) {
+  case 0:
+     std::cout<<" L2 Error"<<std::endl;
+     break;
+  case 1:
+  std::cout<<" H1 Error"<<std::endl;
+    break;
+  case 2:
+  std::cout<<" ZZ Error"<<std::endl;
+    break;
+  case 3:
+  std::cout<<" Evg Error"<<std::endl;;
+    break;
+  default:
+    std::cout << "Unknown Error Coeff: " << qoiType << std::endl;
+  }
+}
+
 
   Diffusion_Solver solver(PMesh, essentialBC, 1);
   QuantityOfInterest QoIEvaluator(PMesh, qoiType, 1);
@@ -504,6 +532,15 @@ int main (int argc, char *argv[])
       socketstream vis;
       common::VisualizeField(vis, "localhost", 19916, x0,
                               "Displacements", 400, 400, 300, 300, "jRmclA");
+
+      ParaViewDataCollection paraview_dc("NativeMeshOptimizer", PMesh);
+      paraview_dc.SetLevelsOfDetail(1);
+      paraview_dc.SetDataFormat(VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetTime(1.0);
+      //paraview_dc.RegisterField("Solution",&x_gf);
+      paraview_dc.Save();
     }
 
     {
@@ -673,8 +710,6 @@ int main (int argc, char *argv[])
       paraview_dc.RegisterField("Solution",&x_gf);
       paraview_dc.Save();
 
-      double  conDummy = -0.1;
-
       double localGradNormSquared = std::pow(objgrad.Norml2(), 2);
       double globGradNorm;
   #ifdef MFEM_USE_MPI
@@ -687,11 +722,12 @@ int main (int argc, char *argv[])
       std:cout<<"Iter: "<<i<<" obj: "<<val<<" with: "<<ObjVal<<" | "<<meshQualityVal<<" objGrad_Norm: "<<globGradNorm<<std::endl;
     }
 
-
   #ifdef MFEM_USE_PETSC
+      double  conDummy = -0.1;
       mma->Update(trueOptvar,objgrad,&conDummy,&volgrad,xxmin,xxmax);
   #else
-      mma->Update(i, objgrad, &conDummy, volgrad.GetData(), xxmin,xxmax, trueOptvar.GetData());
+      mfem:Vector conDummy(1);  conDummy= -0.1; 
+      mma->Update(i, objgrad, conDummy, volgrad, xxmin,xxmax, trueOptvar);
   #endif
 
       gridfuncOptVar.SetFromTrueVector();

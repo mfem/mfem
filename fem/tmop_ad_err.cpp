@@ -42,9 +42,8 @@ void ConjugationProduct(const DenseMatrix &A, const DenseMatrix &B, const DenseM
   Mult(A, CBt, D);
 }
 
- LFNodeCoordinateSensitivityIntegrator::LFNodeCoordinateSensitivityIntegrator( int Index1, int Index2,
-    int IntegrationOrder)
-  : Index1_(Index1), Index2_(Index2), IntegrationOrder_(IntegrationOrder)
+LFNodeCoordinateSensitivityIntegrator::LFNodeCoordinateSensitivityIntegrator( int IntegrationOrder)
+  : IntegrationOrder_(IntegrationOrder)
 {}
 
 void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const FiniteElement &el, ElementTransformation &T,
@@ -113,6 +112,107 @@ void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const FiniteE
     Mult(matN, QoI_->explicitShapeDerivative(T, ip), NxPhix);
     Vectorize(NxPhix, IxN_vec);
     elvect.Add(w , IxN_vec);
+  }
+}
+
+LFAvgErrorNodeCoordinateSensitivityIntegrator::LFAvgErrorNodeCoordinateSensitivityIntegrator(
+  mfem::ParGridFunction * solutionField, GridFunctionCoefficient * elementVol, int IntegrationOrder)
+  : solutionField_(solutionField), elementVol_(elementVol), IntegrationOrder_(IntegrationOrder)
+{}
+
+void LFAvgErrorNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T,
+    mfem::Vector &elvect)
+{
+  // grab sizes
+  int dof = el.GetDof();
+  int dim = el.GetDim();
+
+  // initialize storage
+  mfem::DenseMatrix dN(dof, dim);
+  mfem::DenseMatrix NxPhix(dof, dim);
+  mfem::DenseMatrix B(dof, dim);
+  mfem::DenseMatrix IxB(dof, dim);
+  mfem::Vector IxBTvec(dof * dim);
+  mfem::Vector IxN_vec(dof * dim);
+  mfem::Vector N(dof);
+  mfem::DenseMatrix graduDerivxB(dof, dim);
+  mfem::Vector graduDerivxBvec(dof * dim);
+  mfem::Vector shapeSum(dim * dof); shapeSum = 0.0;
+
+  // output vector
+  elvect.SetSize(dim * dof);
+  elvect = 0.0;
+
+  int integrationOrder = 2 * el.GetOrder() + 2;
+  if (IntegrationOrder_ != INT_MAX) {
+    integrationOrder = IntegrationOrder_;
+  }
+
+  // set integration rule
+  const mfem::IntegrationRule *ir = &mfem::IntRules.Get(el.GetGeomType(), integrationOrder);
+
+  // identity tensor
+  mfem::DenseMatrix I;
+  IdentityMatrix(dim, I);
+
+  for (int i = 0; i < ir->GetNPoints(); i++)
+  {
+      const ::mfem::IntegrationPoint &ip = ir->IntPoint(i);
+      T.SetIntPoint(&ip);
+
+      double solVal = solutionField_->GetValue( T, ip );
+      solVal = solVal-1.0;
+
+      el.CalcDShape(ip, dN);
+
+      // get inverse jacobian
+      mfem::DenseMatrix Jinv = T.InverseJacobian();
+      mfem::Mult(dN, Jinv, B);
+
+      double vol = elementVol_->Eval( T, ip );
+
+      // evaluate gaussian integration weight
+      double w = ip.weight * T.Weight();
+      mfem::Mult(B, I, IxB);
+      Vectorize(IxB, IxBTvec);      
+      shapeSum.Add( w * solVal / (vol*vol), IxBTvec);
+  }
+
+  // loop over integration points
+  for (int i = 0; i < ir->GetNPoints(); i++) {
+    // set current integration point
+    const ::mfem::IntegrationPoint &ip = ir->IntPoint(i);
+    T.SetIntPoint(&ip);
+
+    // evaluate gaussian integration weight
+    double w = ip.weight * T.Weight();
+
+    // evaluate shape function derivative
+    el.CalcDShape(ip, dN);
+
+    // get inverse jacobian
+    mfem::DenseMatrix Jinv = T.InverseJacobian();
+    mfem::Mult(dN, Jinv, B);
+
+    // term 1
+    // mfem::Mult(B, QoI_->gradTimesexplicitSolutionGradientDerivative(el,T, ip), graduDerivxB);
+    // Vectorize(graduDerivxB, graduDerivxBvec);
+    // elvect.Add( -1.0 * w , graduDerivxBvec);
+
+    // term 2
+    mfem::Mult(B, I, IxB);
+    Vectorize(IxB, IxBTvec);
+    elvect.Add( w * QoI_->Eval(T, ip), IxBTvec);
+
+    const mfem::DenseMatrix & derivVal = QoI_->explicitSolutionDerivative(T, ip);
+    double val = derivVal.Elem(0,0);
+
+    elvect.Add( -1.0*w *val, shapeSum);
+
+    // term 3
+    // Mult(matN, QoI_->explicitShapeDerivative(el,T, ip), NxPhix);
+    // Vectorize(NxPhix, IxN_vec);
+    // elvect.Add(w , IxN_vec);
   }
 }
 
@@ -265,11 +365,11 @@ void LFErrorDerivativeIntegrator_2::AssembleRHSElementVect(const FiniteElement &
   for (int i = 0; i < fnd; i++)
   {
       const IntegrationPoint &ip = ir_p->IntPoint(i);
+      T.SetIntPoint (&ip);
       el.CalcDShape(ip, dshape);
       el.CalcShape(ip, shape);
       // dshape.MultTranspose(u, vec);
 
-      T.SetIntPoint (&ip);
       CalcInverse(T.Jacobian(), invdfdx);
       Mult(dshape, invdfdx, B);
       //invdfdx.MultTranspose(vec, vecdxt);
@@ -363,6 +463,70 @@ void LFErrorDerivativeIntegrator_2::AssembleRHSElementVect(const FiniteElement &
     // double val = derivVal.Elem(0,0);
 
     // elvect.Add(w  * val, N);
+  }
+}
+
+LFAverageErrorDerivativeIntegrator::LFAverageErrorDerivativeIntegrator( ParFiniteElementSpace * fespace, GridFunctionCoefficient * elementVol,int IntegrationOrder)
+  : fespace_(fespace), elementVol_(elementVol), IntegrationOrder_(IntegrationOrder)
+{}
+
+void LFAverageErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T,
+    mfem::Vector &elvect)
+{
+  // grab sizes
+  int dof = el.GetDof();
+  int dim = el.GetDim();
+
+  int integrationOrder = 2 * el.GetOrder() + 2;
+  if (IntegrationOrder_ != INT_MAX) {
+    integrationOrder = IntegrationOrder_;
+  }
+
+  // set integration rule
+  const mfem::IntegrationRule *ir = &mfem::IntRules.Get(el.GetGeomType(), integrationOrder);
+
+  // initialize storage
+  mfem::Vector N(dof);
+  mfem::Vector shape(dof);
+  mfem::Vector shapeSum(dof); shapeSum = 0.0;
+
+  for (int i = 0; i < ir->GetNPoints(); i++)
+  {
+      const ::mfem::IntegrationPoint &ip = ir->IntPoint(i);
+      T.SetIntPoint(&ip);
+
+      // evaluate gaussian integration weight
+      double w = ip.weight * T.Weight();
+      el.CalcShape(ip, shape);
+
+      double vol = elementVol_->Eval( T, ip );
+
+      shapeSum.Add(w*vol, shape);
+  }
+
+  //-----------------------------------------------------------------------------------
+
+  // output vector
+  elvect.SetSize( dof);
+  elvect = 0.0;
+
+  // loop over integration points
+  for (int i = 0; i < ir->GetNPoints(); i++) {
+    // set current integration point
+    const ::mfem::IntegrationPoint &ip = ir->IntPoint(i);
+    T.SetIntPoint(&ip);
+
+    // evaluate gaussian integration weight
+    double w = ip.weight * T.Weight();
+
+    el.CalcShape(ip, N);
+
+    // term 2
+    const mfem::DenseMatrix & derivVal = QoI_->explicitSolutionDerivative( T, ip);
+    double val = derivVal.Elem(0,0);
+
+    elvect.Add(w * val, N);
+    elvect.Add(-1.0*w * val, shapeSum);
   }
 }
 
@@ -556,6 +720,29 @@ double QuantityOfInterest::EvalQoI()
   BilinearFormIntegrator *integ = nullptr;
   ParGridFunction flux(coord_fes_);
 
+  //------------------------------------------
+
+  mfem::L2_FECollection fecGF_0(0, pmesh->Dimension(), mfem::BasisType::GaussLobatto);
+  mfem::ParFiniteElementSpace fesGF_0(pmesh, &fecGF_0, 1);
+  mfem::GridFunctionCoefficient tL2Coeff(&solgf_);
+  mfem::ConstantCoefficient tConstCoeff(1.0);
+
+  mfem::ParLinearForm b(&fesGF_0);
+  b.AddDomainIntegrator(new mfem::DomainLFIntegrator(tL2Coeff, 4, 6));
+  b.Assemble();
+  mfem::ParLinearForm b_Vol(&fesGF_0);
+  b_Vol.AddDomainIntegrator(new mfem::DomainLFIntegrator(tConstCoeff, 4, 6));
+  b_Vol.Assemble();
+
+  for(uint Ik =0; Ik<b_Vol.Size(); Ik++)
+  {
+    b[Ik] = b[Ik] / b_Vol[Ik];
+  }
+
+  mfem::HypreParVector* assembledVector(b.ParallelAssemble());
+  mfem::ParGridFunction b_GF(b.ParFESpace(), assembledVector);
+  GridFunctionCoefficient L2Field(&b_GF);
+
   switch (qoiType_) {
   case 0:
      if( trueSolution_ == nullptr ){ mfem_error("true solution not set.");}
@@ -570,6 +757,9 @@ double QuantityOfInterest::EvalQoI()
     solgf_.ComputeFlux(*integ, flux, false);
     trueSolutionGrad_ = new VectorGridFunctionCoefficient( &flux);
     ErrorCoefficient_ = std::make_shared<ZZError_QoI>(&solgf_, trueSolutionGrad_);
+    break;
+  case 3:
+    ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field);
     break;
   default:
     std::cout << "Unknown Error Coeff: " << qoiType_ << std::endl;
@@ -595,6 +785,32 @@ void QuantityOfInterest::EvalQoIGrad()
   BilinearFormIntegrator *integ = nullptr;
   ParGridFunction flux(coord_fes_);
 
+     //------------------------------------------
+
+  mfem::L2_FECollection fecGF_0(0, pmesh->Dimension(), mfem::BasisType::GaussLobatto);
+  mfem::ParFiniteElementSpace fesGF_0(pmesh, &fecGF_0, 1);
+  mfem::GridFunctionCoefficient tL2Coeff(&solgf_);
+  mfem::ConstantCoefficient tConstCoeff(1.0);
+
+  mfem::ParLinearForm b(&fesGF_0);
+  b.AddDomainIntegrator(new mfem::DomainLFIntegrator(tL2Coeff, 4, 6));
+  b.Assemble();
+  mfem::ParLinearForm b_Vol(&fesGF_0);
+  b_Vol.AddDomainIntegrator(new mfem::DomainLFIntegrator(tConstCoeff, 4, 6));
+  b_Vol.Assemble();
+
+  for(uint Ik =0; Ik<b_Vol.Size(); Ik++)
+  {
+    b[Ik] = b[Ik] / b_Vol[Ik];
+  }
+
+  mfem::HypreParVector* assembledVector(b.ParallelAssemble());
+  mfem::ParGridFunction b_GF(b.ParFESpace(), assembledVector);
+  mfem::HypreParVector* assembledVector_2(b_Vol.ParallelAssemble());
+  mfem::ParGridFunction bVol_GF(b.ParFESpace(), assembledVector_2);
+  GridFunctionCoefficient L2Field(&b_GF);
+  GridFunctionCoefficient L2VolField(&bVol_GF);
+
   switch (qoiType_) {
     case 0:
       if( trueSolution_ == nullptr ){ mfem_error("true solution not set.");}
@@ -609,6 +825,9 @@ void QuantityOfInterest::EvalQoIGrad()
       solgf_.ComputeFlux(*integ, flux, false);
       trueSolutionGrad_ = new VectorGridFunctionCoefficient( &flux);
       ErrorCoefficient_ = std::make_shared<ZZError_QoI>(&solgf_, trueSolutionGrad_);
+      break;
+    case 3:
+      ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field);
       break;
     default:
       std::cout << "Unknown Error Coeff: " << qoiType_ << std::endl;
@@ -660,6 +879,31 @@ void QuantityOfInterest::EvalQoIGrad()
       dQdx_->Add(1.0, ud_gradForm);
     }
 
+  }
+  else if(qoiType_ == QoIType::AVG_ERROR)
+  {
+    {
+      ::mfem::ParLinearForm T_gradForm(temp_fes_);
+      LFAverageErrorDerivativeIntegrator *lfi = new LFAverageErrorDerivativeIntegrator(temp_fes_, &L2VolField);
+      lfi->SetQoI(ErrorCoefficient_);
+      lfi->SetIntRule(&mfem::IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      T_gradForm.AddDomainIntegrator(lfi);
+      T_gradForm.Assemble();
+      *dQdu_ = 0.0;
+      dQdu_->Add( 1.0, T_gradForm);
+    }
+      // evaluate grad wrt coord
+    {
+      LFAvgErrorNodeCoordinateSensitivityIntegrator *lfi = new LFAvgErrorNodeCoordinateSensitivityIntegrator(&solgf_, &L2VolField);
+      lfi->SetQoI(ErrorCoefficient_);
+      lfi->SetIntRule(&mfem::IntRules.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+
+      ::mfem::ParLinearForm ud_gradForm(coord_fes_);
+      ud_gradForm.AddDomainIntegrator(lfi);
+      ud_gradForm.Assemble();
+      *dQdx_ = 0.0;
+      dQdx_->Add(1.0, ud_gradForm);
+    }
   }
   else
   {

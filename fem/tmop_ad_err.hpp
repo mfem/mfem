@@ -7,8 +7,10 @@
 #include "plinearform.hpp"
 #include "nonlinearform.hpp"
 #include "pnonlinearform.hpp"
+#include "pgridfunc.hpp"
+#include "pfespace.hpp"
 // #include "tmop.hpp"
-#include "gslib.hpp"
+//#include "gslib.hpp"
 #include "../linalg/mma.hpp"
 
 namespace mfem{
@@ -25,7 +27,8 @@ enum QoIType
 {
   L2_ERROR,
   H1_ERROR,
-  ZZ_ERROR
+  ZZ_ERROR,
+  AVG_ERROR
 };
 
 class QoIBaseCoefficient : public mfem::Coefficient {
@@ -320,73 +323,102 @@ private:
   mfem::DenseMatrix dUXdtheta_dGradU;
 };
 
-//   const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip);
-// private:
+class AvgError_QoI : public QoIBaseCoefficient {
+public:
+  AvgError_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution)
+    : solutionField_(solutionField), trueSolution_(trueSolution)
+  {};
 
-//   mfem::ParGridFunction * solutionField_;
-//   mfem::Coefficient * trueSolution_;
+  ~AvgError_QoI() {};
 
-//   int Dim_ = 2;
+  double Eval( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  {
+    double fieldVal = solutionField_->GetValue( T, ip );
+    double trueVal = trueSolution_->Eval( T, ip );
 
-//   double theta = 0.0;
-//   mfem::DenseMatrix dtheta_dX;
-//   mfem::DenseMatrix dtheta_dU;
-//   mfem::DenseMatrix dtheta_dGradU;
-// };
+    double squaredError = std::pow( fieldVal-trueVal, 2.0);
 
-// class ExplicitPhysicsAware_QoI : public QoIBaseCoefficient {
-// public:
-//   ExplicitPhysicsAware_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * trueSolution)
-//     : solutionField_(solutionField), trueSolution_(trueSolution)
-//   {};
+    return squaredError;
+  };
 
-//   ~ExplicitPhysicsAware_QoI() {};
+  const mfem::DenseMatrix &explicitSolutionDerivative( mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip)
+  {
+    dtheta_dU.SetSize(1);
 
-//   double Eval(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip);
+    double val = 2.0* (solutionField_->GetValue( T, ip ) - trueSolution_->Eval( T, ip ));
 
-//   const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip)
-//   {
-//     dtheta_dU.SetSize(1);
+    double & matVal = dtheta_dU.Elem(0,0);
+    matVal = val;
+    return dtheta_dU;
+  };
 
-//     double val = 2.0* (solutionField_->GetValue( T, ip ) - trueSolution_->Eval( T, ip ));
+  const mfem::DenseMatrix &explicitSolutionGradientDerivative( mfem::ElementTransformation & /*T*/,
+      const mfem::IntegrationPoint & /*ip*/)
+  {
+    dtheta_dGradU.SetSize(1, Dim_);
+    dtheta_dGradU = 0.0;
 
-//     double & matVal = dtheta_dU.Elem(0,0);
-//     matVal = val;
-//     return dtheta_dU;
-//   };
+    return dtheta_dGradU;
+  };
 
-//   const mfem::DenseMatrix &explicitSolutionGradientDerivative(mfem::ElementTransformation & /*T*/,
-//       const mfem::IntegrationPoint & /*ip*/)
-//   {
-//     return dtheta_dGradU;
-//   };
+  const mfem::DenseMatrix &explicitShapeDerivative( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  {
+    dtheta_dX.SetSize(1, Dim_);
+    dtheta_dX = 0.0;
 
-//   const mfem::DenseMatrix &explicitShapeDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip);
-// private:
+    return dtheta_dX;
+  };
 
-//   mfem::ParGridFunction * solutionField_;
-//   mfem::Coefficient * trueSolution_;
+  virtual const mfem::DenseMatrix &gradTimesexplicitSolutionGradientDerivative( mfem::ElementTransformation &T,
+      const mfem::IntegrationPoint &ip)
+  {
+    dtheta_dX.SetSize(Dim_, Dim_);
+    dtheta_dX = 0.0;
 
-//   int Dim_ = 2;
+    return dtheta_dX;
+  };
 
-//   double theta = 0.0;
-//   mfem::DenseMatrix dtheta_dX;
-//   mfem::DenseMatrix dtheta_dU;
-//   mfem::DenseMatrix dtheta_dGradU;
-// };
+private:
+
+  mfem::ParGridFunction * solutionField_;
+  mfem::Coefficient * trueSolution_;
+
+  int Dim_ = 2;
+
+  double theta = 0.0;
+  mfem::DenseMatrix dtheta_dX;
+  mfem::DenseMatrix dtheta_dU;
+  mfem::DenseMatrix dtheta_dGradU;
+};
+
 
 class LFNodeCoordinateSensitivityIntegrator : public mfem::LinearFormIntegrator {
 public:
-  LFNodeCoordinateSensitivityIntegrator(int Index1 = INT_MAX, int Index2 = INT_MAX,
-                                        int IntegrationOrder = INT_MAX);
+  LFNodeCoordinateSensitivityIntegrator( int IntegrationOrder = INT_MAX);
   ~LFNodeCoordinateSensitivityIntegrator() {};
   void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
   void SetQoI(std::shared_ptr<QoIBaseCoefficient> QoI) { QoI_ = QoI; };
 private:
   std::shared_ptr<QoIBaseCoefficient> QoIFactoryFunction(const int dim);
 
-  const int Index1_;
-  const int Index2_;
+  const int IntegrationOrder_;
+
+  std::shared_ptr<QoIBaseCoefficient> QoI_ = nullptr;
+};
+
+class LFAvgErrorNodeCoordinateSensitivityIntegrator : public mfem::LinearFormIntegrator {
+public:
+  LFAvgErrorNodeCoordinateSensitivityIntegrator(
+     mfem::ParGridFunction * solutionField, GridFunctionCoefficient * elementVol,
+     int IntegrationOrder = INT_MAX);
+  ~LFAvgErrorNodeCoordinateSensitivityIntegrator() {};
+  void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
+  void SetQoI(std::shared_ptr<QoIBaseCoefficient> QoI) { QoI_ = QoI; };
+private:
+  std::shared_ptr<QoIBaseCoefficient> QoIFactoryFunction(const int dim);
+
+  mfem::ParGridFunction * solutionField_ = nullptr;
+  GridFunctionCoefficient * elementVol_ = nullptr;
   const int IntegrationOrder_;
 
   std::shared_ptr<QoIBaseCoefficient> QoI_ = nullptr;
@@ -433,6 +465,23 @@ private:
   Array<int> count_;
   const int IntegrationOrder_;
 
+  std::shared_ptr<QoIBaseCoefficient> QoI_ = nullptr;
+};
+
+class LFAverageErrorDerivativeIntegrator : public mfem::LinearFormIntegrator {
+public:
+  LFAverageErrorDerivativeIntegrator( ParFiniteElementSpace * fespace, GridFunctionCoefficient * elementVol, int IntegrationOrder = INT_MAX);
+  ~LFAverageErrorDerivativeIntegrator() {};
+  void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
+  void SetQoI(std::shared_ptr<QoIBaseCoefficient> QoI) { QoI_ = QoI; };
+private:
+  std::shared_ptr<QoIBaseCoefficient> QoIFactoryFunction(const int dim);
+
+  ParFiniteElementSpace * fespace_ = nullptr;
+  Array<int> count_;
+  const int IntegrationOrder_;
+
+  GridFunctionCoefficient * elementVol_ = nullptr;
   std::shared_ptr<QoIBaseCoefficient> QoI_ = nullptr;
 };
 

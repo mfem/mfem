@@ -3,6 +3,8 @@
 #include <iostream>
 #include <math.h>
 
+#ifdef MFEM_USE_PETSC
+
 /* -----------------------------------------------------------------------------
 Authors: Niels Aage
  Copyright (C) 2013-2019,
@@ -989,3 +991,5 @@ PetscInt MMA::Min(PetscInt d1, PetscInt d2) { return d1 < d2 ? d1 : d2; }
 PetscInt MMA::Max(PetscInt d1, PetscInt d2) { return d1 > d2 ? d1 : d2; }
 
 PetscScalar MMA::Abs(PetscScalar d1) { return d1 > 0 ? d1 : -1.0 * d1; }
+
+#endif
