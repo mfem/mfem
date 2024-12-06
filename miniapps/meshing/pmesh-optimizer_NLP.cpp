@@ -34,8 +34,8 @@ using namespace mfem;
 using namespace std;
 
 int ftype = 1;
-double kw = 5.0;
-double alphaw = 5;
+double kw = 10.0;
+double alphaw = 50;
 
 double trueSolFunc(const Vector & x)
 {
@@ -194,12 +194,12 @@ int main (int argc, char *argv[])
 
   int qoitype = static_cast<int>(QoIType::H1_ERROR);
   bool perturbMesh = false;
-  double epsilon =  0.006;
-  int ser_refinement_ = 1;
+  double epsilon_pert =  0.006;
+  int ser_refinement_ = 2;
   int mesh_node_ordering = 0;
   int max_it = 100;
-  double max_ch=0.001; //max design change
-  double weight_1 = 5e1; //1e7; // 5e2;
+  double max_ch=0.002; //max design change
+  double weight_1 = 1e4; //1e7; // 5e2;
   double weight_2 = 1e-2;
   int metric_id   = 2;
   int target_id   = 1;
@@ -256,15 +256,15 @@ int main (int argc, char *argv[])
 
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =false;
-  bool dQdxFD =false;
-  bool BreakAfterFirstIt = false ;
+  bool dQdxFD =true;
+  bool BreakAfterFirstIt = true ;
 
   ParMesh *PMesh = nullptr;
 
   {
     // Create mesh
     double Lx = 1.0;    double Ly = 1.0;
-    int NX = 40;         int NY = 40;
+    int NX = 20;         int NY = 20;
     Mesh des_mesh = Mesh::MakeCartesian2D(NX, NY, Element::QUADRILATERAL, true, Lx, Ly);
 
     if(perturbMesh)
@@ -273,8 +273,8 @@ int main (int argc, char *argv[])
       for (int i = 0; i < tNumVertices; ++i) {
         double * Coords = des_mesh.GetVertex(i);
         if (Coords[ 0 ] != 0.0 && Coords[ 0 ] != 1.0 && Coords[ 1 ] != 0.0 && Coords[ 1 ] != 1.0) {
-          Coords[ 0 ] = Coords[ 0 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon);
-          Coords[ 1 ] = Coords[ 1 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon);
+          Coords[ 0 ] = Coords[ 0 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
+          Coords[ 1 ] = Coords[ 1 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
         }
       }
     }
@@ -431,6 +431,9 @@ int main (int argc, char *argv[])
   const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
   mfem::MMAOpt* mma = nullptr;
+#ifdef MFEM_USE_PETSC
+  mfem::NativeMMA* mmaPetsc = nullptr;
+#endif
     // mfem::NativeMMA* mma = nullptr;
   TMOP_MMA *tmma = new TMOP_MMA(MPI_COMM_WORLD, trueOptvar.Size(), 0,
                                  trueOptvar.GetData(), ir);
@@ -439,7 +442,7 @@ int main (int argc, char *argv[])
     double a=0.0;
     double c=1000.0;
     double d=0.0;
-    mma=new mfem::NativeMMA(MPI_COMM_WORLD,1, objgrad,&a,&c,&d);
+    mmaPetsc=new mfem::NativeMMA(MPI_COMM_WORLD,1, objgrad,&a,&c,&d);
 #else
     mma=new mfem::MMAOpt(MPI_COMM_WORLD, trueOptvar.Size(), 0, trueOptvar);
 #endif
@@ -609,6 +612,7 @@ if (myid == 0) {
           QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD1.SetDiscreteSol( discretSol );
+          QoIEvaluator_FD1.SetNodes(x0);
 
           double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
 
@@ -619,6 +623,7 @@ if (myid == 0) {
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD2.SetDiscreteSol( discretSol );
+          QoIEvaluator_FD2.SetNodes(x0);
 
           double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
 
@@ -640,7 +645,7 @@ if (myid == 0) {
 
       if(dQdxFD)
       {
-        double epsilon = 1e-10;
+        double epsilon = 1e-8;
         mfem::ParGridFunction tFD_sens(pfespace); tFD_sens = 0.0;
         for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
         {
@@ -652,6 +657,7 @@ if (myid == 0) {
           QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD1.SetDiscreteSol( discretSol );
+          QoIEvaluator_FD1.SetNodes(x0);
 
           double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
 
@@ -662,6 +668,7 @@ if (myid == 0) {
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD2.SetDiscreteSol( discretSol );
+          QoIEvaluator_FD2.SetNodes(x0);
 
           double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
 
@@ -724,7 +731,7 @@ if (myid == 0) {
 
   #ifdef MFEM_USE_PETSC
       double  conDummy = -0.1;
-      mma->Update(trueOptvar,objgrad,&conDummy,&volgrad,xxmin,xxmax);
+      mmaPetsc->Update(trueOptvar,objgrad,&conDummy,&volgrad,xxmin,xxmax);
   #else
       mfem:Vector conDummy(1);  conDummy= -0.1; 
       mma->Update(i, objgrad, conDummy, volgrad, xxmin,xxmax, trueOptvar);

@@ -540,6 +540,7 @@ public:
     void setTrueSolCoeff( mfem::Coefficient * trueSolution ){ trueSolution_ = trueSolution; };
     void setTrueSolGradCoeff( mfem::VectorCoefficient * trueSolutionGrad ){ trueSolutionGrad_ = trueSolutionGrad; };
     void SetDesign( mfem::Vector & design){ designVar = design; };
+    void SetNodes( mfem::Vector & coords){ X0_ = coords; };
     void SetDesignVarFromUpdatedLocations( mfem::Vector & design)
     {
         designVar = design;
