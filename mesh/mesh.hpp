@@ -703,7 +703,10 @@ public:
 
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
-       copy the data and will not delete the pointer.
+       copy the data and will not delete the pointer. Note that this array needs
+       to have three components (x,y,z) for the vertex coordinates regardless
+       of @a dimension and @a space_dimension; the extra components (e.g. the z
+       component for a mesh in 2D) should be initialized to zero.
 
        The data from the other arrays is copied into the internal Mesh data
        structures.
