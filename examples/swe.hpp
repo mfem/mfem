@@ -305,7 +305,6 @@ Mesh SWEMesh(const int problem)
       case 3:
       {
          Mesh mesh("../data/periodic-square.mesh");
-         mesh.Transform([](const Vector &x, Vector &y) {y = x; y *= 10; });
          return mesh;
          break;
       }
@@ -333,9 +332,9 @@ VectorFunctionCoefficient SWEInitialCondition(const int problem,
       case 2:
          return VectorFunctionCoefficient(3, [](const Vector &x, Vector &y)
          {
-            const real_t hmin = 10.0;
-            const real_t hmax = 20.0;
-            const real_t sigma = 2.0;
+            const real_t hmin = 1.0;
+            const real_t hmax = 2.0;
+            const real_t sigma = 0.2;
             y = 0.0;
             y[0]= hmin + (hmax - hmin) * std::exp(-(x*x)/(2*sigma*sigma));
          });

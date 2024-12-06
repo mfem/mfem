@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
-   real_t t_final = 10.0;
+   real_t t_final = 1.5;
    real_t dt = -0.01;
    real_t cfl = 0.3;
    bool visualization = true;
@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
       height_sock << "parallel " << numProcs << " " << myRank << "\n";
       height_sock << "solution\n" << pmesh << height;
       height_sock << "window_title 'height, t = 0'\n";
-      height_sock << "autoscale off\n valuerange 8 25\n";
+      height_sock << "autoscale off\n valuerange 0.5 2.5\n";
       height_sock << "view 0 0\n";  // view from top
       height_sock << "keys jlm\n";  // turn off perspective and light, show mesh
       height_sock << flush;
@@ -245,6 +245,7 @@ int main(int argc, char *argv[])
       mom_sock << "parallel " << numProcs << " " << myRank << "\n";
       mom_sock << "solution\n" << pmesh << mom;
       mom_sock << "window_title 'mom, t = 0'\n";
+      mom_sock << "autoscale off\n valuerange 0.0 0.5\n";
       mom_sock << "view 0 0\n";  // view from top
       mom_sock << "keys jlm\n";  // turn off perspective and light, show mesh
       mom_sock << flush;
