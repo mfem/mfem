@@ -31,7 +31,9 @@ private:
    const AssemblyLevel al;
    MemoryType opt_mt = MemoryType::DEFAULT;
 
-   void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
+   void ComputeAtNewPositionScalar(const Vector &new_mesh_nodes,
+                                   Vector &new_field);
+
 public:
    AdvectorCG(AssemblyLevel al = AssemblyLevel::LEGACY,
               real_t timestep_scale = 0.5)
@@ -41,9 +43,13 @@ public:
    void SetInitialField(const Vector &init_nodes,
                         const Vector &init_field) override;
 
-   void ComputeAtNewPosition(const Vector &new_nodes,
+   /// Perform advection-based remap.
+   /// Source: field0, of the fes/pfes FE space, defined on nodes0.
+   /// Result: new_field, of the FE same space, defined on new_mesh_nodes.
+   /// Assumes that nodes0 and new_mesh_nodes have the same topology.
+   void ComputeAtNewPosition(const Vector &new_mesh_nodes,
                              Vector &new_field,
-                             int new_nodes_ordering = Ordering::byNODES) override;
+                             int nodes_ordering = Ordering::byNODES) override;
 
    /// Set the memory type used for large memory allocations. This memory type
    /// is used when constructing the AdvectorCGOper but currently only for the
@@ -70,9 +76,14 @@ public:
    void SetInitialField(const Vector &init_nodes,
                         const Vector &init_field) override;
 
-   void ComputeAtNewPosition(const Vector &new_nodes,
+   /// Perform interpolation-based remap.
+   /// Source: field0, of the fes/pfes FE space, defined on nodes0.
+   /// Result: new_field, whose node positions are given by new_field_nodes.
+   /// This function does not care what is the FE space of new_field, nor
+   /// what is the underlying mesh of new_field.
+   void ComputeAtNewPosition(const Vector &new_field_nodes,
                              Vector &new_field,
-                             int new_nodes_ordering = Ordering::byNODES) override;
+                             int nodes_ordering = Ordering::byNODES) override;
 
    const FindPointsGSLIB *GetFindPointsGSLIB() const
    {

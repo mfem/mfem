@@ -26,10 +26,13 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
    field0 = init_field;
 }
 
-void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
+void AdvectorCG::ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                       Vector &new_field,
-                                      int new_nodes_ordering)
+                                      int nodes_ordering)
 {
+   MFEM_VERIFY(nodes0.Size() == new_mesh_nodes.Size(),
+               "AdvectorCG assumes fixed mesh topology!");
+
    FiniteElementSpace *space = fes;
 #ifdef MFEM_USE_MPI
    if (pfes) { space = pfes; }
@@ -37,8 +40,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    int fes_ordering = space->GetOrdering(),
        ncomp = space->GetVDim();
 
-   // TODO: Implement for AMR meshes.
-   const int pnt_cnt = field0.Size() / ncomp;
+   const int dof_cnt = field0.Size() / ncomp;
 
    new_field = field0;
    Vector new_field_temp;
@@ -46,20 +48,20 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    {
       if (fes_ordering == Ordering::byNODES)
       {
-         new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+         new_field_temp.MakeRef(new_field, i*dof_cnt, dof_cnt);
       }
       else
       {
-         new_field_temp.SetSize(pnt_cnt);
-         for (int j = 0; j < pnt_cnt; j++)
+         new_field_temp.SetSize(dof_cnt);
+         for (int j = 0; j < dof_cnt; j++)
          {
             new_field_temp(j) = new_field(i + j*ncomp);
          }
       }
-      ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+      ComputeAtNewPositionScalar(new_mesh_nodes, new_field_temp);
       if (fes_ordering == Ordering::byVDIM)
       {
-         for (int j = 0; j < pnt_cnt; j++)
+         for (int j = 0; j < dof_cnt; j++)
          {
             new_field(i + j*ncomp) = new_field_temp(j);
          }
@@ -67,10 +69,10 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    }
 
    field0 = new_field;
-   nodes0 = new_nodes;
+   nodes0 = new_mesh_nodes;
 }
 
-void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
+void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_mesh_nodes,
                                             Vector &new_field)
 {
    Mesh *m = mesh;
@@ -87,7 +89,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
    // Velocity of the positions.
    GridFunction u(mesh_nodes->FESpace());
-   subtract(new_nodes, nodes0, u);
+   subtract(new_mesh_nodes, nodes0, u);
 
    // Define a scalar FE space for the solution, and the advection operator.
    TimeDependentOperator *oper = NULL;
@@ -386,21 +388,21 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    }
 }
 
-void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
+void InterpolatorFP::ComputeAtNewPosition(const Vector &new_field_nodes,
                                           Vector &new_field,
-                                          int new_nodes_ordering)
+                                          int nodes_ordering)
 {
    // Get physical node locations corresponding to field0_gf
    if (fes_field_nodes)
    {
       Vector mapped_nodes;
-      GetFieldNodesPosition(new_nodes, mapped_nodes);
+      GetFieldNodesPosition(new_field_nodes, mapped_nodes);
       finder->Interpolate(mapped_nodes, field0_gf, new_field,
                           fes_field_nodes->GetOrdering());
    }
    else
    {
-      finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
+      finder->Interpolate(new_field_nodes, field0_gf, new_field, nodes_ordering);
    }
 }
 
