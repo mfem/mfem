@@ -1331,7 +1331,7 @@ public:
 
    virtual void ComputeAtNewPosition(const Vector &new_nodes,
                                      Vector &new_field,
-                                     int new_nodes_ordering = Ordering::byNODES) = 0;
+                                     int nodes_ordering = Ordering::byNODES) = 0;
 
    void ClearGeometricFactors();
 };
