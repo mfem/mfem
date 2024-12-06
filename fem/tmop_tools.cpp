@@ -118,7 +118,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
       h_min = std::min(h_min, m->GetElementSize(i));
    }
    real_t v_max = 0.0;
-   const int s = new_field.Size();
+   const int s  = u.Size()/m->Dimension();
 
    u.HostReadWrite();
    for (int i = 0; i < s; i++)
@@ -181,7 +181,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
    // Trim the overshoots and undershoots.
    new_field.HostReadWrite();
-   for (int i = 0; i < s; i++)
+   for (int i = 0; i < new_field.Size(); i++)
    {
       if (new_field(i) < glob_minv) { new_field(i) = glob_minv; }
       if (new_field(i) > glob_maxv) { new_field(i) = glob_maxv; }
@@ -348,8 +348,10 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 {
    nodes0 = init_nodes;
    Mesh *m = mesh;
+   FiniteElementSpace *f = fes;
 #ifdef MFEM_USE_MPI
    if (pmesh) { m = pmesh; }
+   if (pfes)  { f = pfes; }
 #endif
    m->SetNodes(nodes0);
 
@@ -363,14 +365,9 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
       delete finder;
    }
 
-   FiniteElementSpace *f = fes;
 #ifdef MFEM_USE_MPI
-   if (pfes)
-   {
-      f = pfes;
-      finder = new FindPointsGSLIB(pfes->GetComm());
-   }
-   else { finder = new FindPointsGSLIB(); }
+   if (pfes) { finder = new FindPointsGSLIB(pfes->GetComm()); }
+   else      { finder = new FindPointsGSLIB(); }
 #else
    finder = new FindPointsGSLIB();
 #endif
@@ -378,13 +375,74 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 
    field0_gf.SetSpace(f);
    field0_gf = init_field;
+
+   // Check if the mesh nodes and the field nodes coincide.
+   const bool nodes_mismatch = init_nodes.Size() / m->Dimension() !=
+                               field0_gf.Size()  / f->GetVDim();
+   if (nodes_mismatch)
+   {
+      delete fes_field_nodes;
+      fes_field_nodes = new FiniteElementSpace(m, f->FEColl(), m->Dimension());
+   }
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
                                           Vector &new_field,
                                           int new_nodes_ordering)
 {
-   finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
+   // Get physical node locations corresponding to field0_gf
+   if (fes_field_nodes)
+   {
+      Vector mapped_nodes;
+      GetFieldNodesPosition(new_nodes, mapped_nodes);
+      finder->Interpolate(mapped_nodes, field0_gf, new_field,
+                          fes_field_nodes->GetOrdering());
+   }
+   else
+   {
+      finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
+   }
+}
+
+void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
+                                           Vector &nodes_pos) const
+{
+   MFEM_VERIFY(fes_field_nodes, "InterpolatorFP: fes_field_nodes is not set.");
+
+   Mesh *m = fes_field_nodes->GetMesh();
+   const int nelem     = fes_field_nodes->GetNE();
+   const int n_f_nodes = fes_field_nodes->GetNDofs();
+   const int dim       = m->Dimension();
+   if (nelem == 0) { return; }
+   Array<int> dofs;
+   Vector e_xyz;
+   nodes_pos.SetSize(n_f_nodes*dim);
+   const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
+
+   for (int e = 0; e < nelem; e++)
+   {
+      mesh_fes->GetElementVDofs(e, dofs);
+      int n_mdofs = dofs.Size()/dim;
+      mesh_nodes.GetSubVector(dofs, e_xyz); //e_xyz is ordered by nodes here
+      const FiniteElement *mfe = mesh_fes->GetFE(e);
+      Vector shape(n_mdofs);
+
+      auto ir = fes_field_nodes->GetFE(e)->GetNodes();
+      const int n_gf_pts = ir.GetNPoints();
+      Vector gf_xyz(n_gf_pts*dim);
+      for (int q = 0; q < n_gf_pts; q++)
+      {
+         IntegrationPoint ip = ir.IntPoint(q);
+         mfe->CalcShape(ip, shape);
+         for (int d = 0; d < dim; d++)
+         {
+            Vector x(e_xyz.GetData() + d*n_mdofs, n_mdofs);
+            gf_xyz(d*n_gf_pts + q) = x*shape; // order by nodes
+         }
+      }
+      fes_field_nodes->GetElementVDofs(e, dofs);
+      nodes_pos.SetSubVector(dofs, gf_xyz);
+   }
 }
 
 #endif
