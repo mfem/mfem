@@ -52,13 +52,9 @@ int main(int argc, char *argv[])
                   "Mesh refinement level");
    args.ParseCheck();
 
-   Hypre::Init();
    std::unique_ptr<ParMesh> pmesh;
    {
       Mesh mesh("./data/periodic-square-3d.mesh");
-      mesh.Transform([](const Vector &x, Vector &y){ y = x; y[0] *= 10; y[1] *= 10;});
-      mesh.UniformRefinement();
-      mesh.SetCurvature(order);
       pmesh.reset(new ParMesh(MPI_COMM_WORLD, mesh));
       mesh.Clear();
       for (int i=0; i<refinement_level; i++)

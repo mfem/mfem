@@ -221,6 +221,11 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
    MFEM_ASSERT((vdim - nrScalar) / dim == nrVector,
                "The number of equations and vector dimension disagree");
 
+   const FiniteElementSpace * nodal_fes = Tr.mesh->GetNodalFESpace();
+   const FiniteElement &nodal_el = *nodal_fes->GetFE(Tr.ElementNo);
+   const GridFunction * nodes = Tr.mesh->GetNodes();
+   const int node_dof = nodal_el.GetDof();
+
    //TODO: Consider ordering of basis..
    // J1 (phi1, phi2, ...), J2 (phi1, phi2, ...) or
    // (J1, J2) phi1, (J1, J2) phi2, ... ?
@@ -236,10 +241,11 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
    dshape.SetSize(dof, dim);
    gshape.SetSize(dof, sdim);
    vector_gshape.SetSize(sdim*sdim, dof);
-   hess_shape.SetSize(dof, dim*(dim+1)/2);
    Hess.SetSize(dim*(dim+1)/2, sdim);
    HessMat.SetSize(sdim, dim, dim);
    gradJ.SetSize(sdim, sdim);
+   nodes->GetElementDofValues(Tr.ElementNo, x_nodes);
+   hess_shape.SetSize(node_dof, dim*(dim+1)/2);
    Vector gshape_i;
    Vector gradJ_vectorview;
    DenseMatrix gshape_J(sdim, dof);
@@ -255,12 +261,7 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
    const int num_equations = elfun.Size() / dof;
    const DenseMatrix elfun_mat(elfun.GetData(), dof, num_equations);
    DenseMatrix elvec_mat(elvect.GetData(), dof, num_equations);
-
-   const FiniteElementSpace * nodal_fes = Tr.mesh->GetNodalFESpace();
-   const FiniteElement &nodal_el = *nodal_fes->GetFE(Tr.ElementNo);
-   const GridFunction * nodes = Tr.mesh->GetNodes();
-   nodes->GetElementDofValues(Tr.ElementNo, x_nodes);
-   DenseMatrix x_nodes_mat(x_nodes.GetData(), dof, sdim);
+   DenseMatrix x_nodes_mat(x_nodes.GetData(), node_dof, sdim);
 
    const DenseMatrix elfun_scalars(elfun.GetData(), dof, nrScalar);
    const DenseMatrix elfun_vectors(elfun.GetData() + dof*nrScalar, dof*dim,
@@ -281,7 +282,9 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
       // local mapping information
       const DenseMatrix &J = Tr.Jacobian();
       const DenseMatrix &adjJ = Tr.AdjugateJacobian();
+      out << "hi " << std::endl;
       nodal_el.CalcHessian(ip, hess_shape);
+      out << "bye " << std::endl;
       MultAtB(hess_shape, x_nodes_mat, Hess);
       for (int d1=0; d1<dim; d1++)
          for (int d2=0; d2<dim; d2++)
