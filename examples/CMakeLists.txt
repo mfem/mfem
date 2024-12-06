@@ -89,6 +89,7 @@ if (MFEM_USE_MPI)
     ex37p.cpp
     ex39p.cpp
     ex40p.cpp
+    swe.cpp
   )
 endif()
 
