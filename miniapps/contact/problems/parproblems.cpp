@@ -318,7 +318,6 @@ HypreParMatrix * OptContactProblem::GetRestrictionToInteriorDofs()
       int hJt = Jt->Height();
       SparseMatrix mergedJt;
       Jt->MergeDiagAndOffd(mergedJt);
-      delete Jt;
       Array<int> zerorows;
       for (int i = 0; i<hJt; i++)
       {
@@ -355,7 +354,6 @@ HypreParMatrix * OptContactProblem::GetRestrictionToInteriorDofs()
       int glob_nrows_i;
       int glob_ncols_i = vfes->GlobalTrueVSize();
       MPI_Allreduce(&nrows_i, &glob_nrows_i,1,MPI_INT,MPI_SUM,comm);
-
       HypreParMatrix * P_it = new HypreParMatrix(comm, nrows_i, glob_nrows_i,
                                  glob_ncols_i, Pit.GetI(), Pit.GetJ(),
                                  Pit.GetData(), rows_i,cols_i); 
@@ -379,7 +377,6 @@ HypreParMatrix * OptContactProblem::GetRestrictionToContactDofs()
       int hJt = Jt->Height();
       SparseMatrix mergedJt;
       Jt->MergeDiagAndOffd(mergedJt);
-      delete Jt;
       Array<int> nonzerorows;
       for (int i = 0; i<hJt; i++)
       {
@@ -388,7 +385,6 @@ HypreParMatrix * OptContactProblem::GetRestrictionToContactDofs()
             nonzerorows.Append(i);
          }
       }
-
       int hc = nonzerorows.Size();
       SparseMatrix Pct(hc,vfes->GlobalTrueVSize());
 
@@ -505,6 +501,7 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
 OptContactProblem::~OptContactProblem()
 {
    delete J;
+   delete Jt;
    delete Pc;
    delete Pnc;
    delete NegId;
