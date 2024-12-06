@@ -203,7 +203,7 @@ class FaceQuadratureInterpolator;
     @par
     %Vector dofs do not represent a specific index space the way the three
     previous types of dofs do. Rather they are related to modifications of
-    these other index spaces to accomodate multiple copies of the underlying
+    these other index spaces to accommodate multiple copies of the underlying
     function spaces.
     @par
     When using @b vdofs, i.e. when @b vdim != 1, the FiniteElementSpace only
@@ -426,7 +426,6 @@ protected:
 
    /// Replicate 'mat' in the vector dimension, according to vdim ordering mode.
    void MakeVDimMatrix(SparseMatrix &mat) const;
-
 
    /// GridFunction interpolation operator applicable after mesh refinement.
    class RefinementOperator : public Operator
@@ -730,7 +729,9 @@ public:
    /// Returns the polynomial degree of the i'th face finite element
    int GetFaceOrder(int face, int variant = 0) const;
 
-   /// Returns vector dimension.
+   /// Returns the vector dimension of the finite element space.
+   /** Since the finite elements could be vector-valued, this may not be the
+       dimension of an actual vector in the space; see GetVectorDim(). */
    inline int GetVDim() const { return vdim; }
 
    /// @brief Returns number of degrees of freedom.
@@ -749,11 +750,12 @@ public:
 
    int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
 
-   /// Return the dimension of an vector in the space, including if elements
-   /// are vector-valued
+   /// Return the dimension of a vector in the space
+   /** This accounts for cases where the finite elements are vector-valued. 
+       If the finite elements are FiniteElement::SCALAR, this equals GetVDim(). */
    int GetVectorDim() const;
 
-   /// Return dimension of curl
+   /// Return the dimension of the curl of a GridFunction defined on this space.
    int GetCurlDim() const;
 
    /// Return the ordering method.
