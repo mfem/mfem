@@ -51,7 +51,7 @@
 //   Adapted discrete size NC mesh;
 //     mpirun -np 4 pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size NC mesh (GPU+GSLIB);
-//   * make pmesh-optimizer -j && mpirun -np 4 pmesh-optimizer -m ../../data/amr-hex.mesh -o 2 -rs 1 -mid 321 -tid 5 -ni 50 -qo 6 -nor -vl 2 -ae 1 -d debug
+//   * mpirun -np 4 pmesh-optimizer -m ../../data/amr-hex.mesh -o 2 -rs 1 -mid 321 -tid 5 -fix-bnd -ni 50 -qo 6 -nor -vl 2 -ae 1 -d debug
 //   Adapted discrete size 3D with PA:
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
 //   Adapted discrete size 3D with PA on device (requires CUDA):
