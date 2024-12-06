@@ -47,7 +47,7 @@ private:
    BilinearForm *Mt0{}, *Mq0{};
 
    std::string lsolver_str;
-   Solver *prec{};
+   Solver *prec{}, *lin_prec{};
    std::string prec_str;
    IterativeSolver *solver{};
    std::string solver_str;

@@ -54,6 +54,14 @@ void mfem::DarcyOperator::SetupNonlinearSolver(real_t rtol, real_t atol,
 
    if (lin_solver)
    {
+      if (!darcy->GetHybridization())
+      {
+         lin_prec = new SchurPreconditioner(darcy, true);
+         lin_solver->SetPreconditioner(*lin_prec);
+         prec_str += "+";
+         prec_str += static_cast<SchurPreconditioner*>(lin_prec)->GetString();
+      }
+
       lin_solver->SetAbsTol(atol);
       lin_solver->SetRelTol(rtol * 1e-2);
       lin_solver->SetMaxIter(iters);
@@ -198,6 +206,7 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
 
 DarcyOperator::~DarcyOperator()
 {
+   delete lin_prec;
    delete prec;
    delete solver;
    delete monitor;

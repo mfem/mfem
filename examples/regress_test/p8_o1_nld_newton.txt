@@ -36,14 +36,23 @@ dim(V) = 1200
 dim(W) = 576
 dim(V+W) = 1776
 ***********************************************************
-Assembly took 0.0117374s.
-Preconditioner took 2.0087e-05s.
+Assembly took 0.0179914s.
+Preconditioner took 2.4964e-05s.
 Newton iteration  0 : ||r|| = 0.0657917
-Newton iteration  1 : ||r|| = 0.166832, ||r||/||r_0|| = 2.53576
-Newton iteration  2 : ||r|| = 0.00286612, ||r||/||r_0|| = 0.0435636
-Newton iteration  3 : ||r|| = 7.05137e-07, ||r||/||r_0|| = 1.07177e-05
-Newton iteration  4 : ||r|| = 9.96487e-11, ||r||/||r_0|| = 1.51461e-09
-Newton+GMRES converged in 4 iterations with a residual norm of 9.96487e-11.
-solver took 0.774034s.
+Newton iteration  1 : ||r|| = 0.162134, ||r||/||r_0|| = 2.46435
+Newton iteration  2 : ||r|| = 0.0739696, ||r||/||r_0|| = 1.1243
+Newton iteration  3 : ||r|| = 0.0035442, ||r||/||r_0|| = 0.0538701
+Newton iteration  4 : ||r|| = 0.000501871, ||r||/||r_0|| = 0.00762818
+Newton iteration  5 : ||r|| = 7.14907e-05, ||r||/||r_0|| = 0.00108662
+Newton iteration  6 : ||r|| = 1.91013e-05, ||r||/||r_0|| = 0.00029033
+Newton iteration  7 : ||r|| = 7.98764e-06, ||r||/||r_0|| = 0.000121408
+Newton iteration  8 : ||r|| = 3.50387e-06, ||r||/||r_0|| = 5.3257e-05
+Newton iteration  9 : ||r|| = 1.55031e-06, ||r||/||r_0|| = 2.35639e-05
+Newton iteration 10 : ||r|| = 6.90711e-07, ||r||/||r_0|| = 1.04985e-05
+Newton iteration 11 : ||r|| = 3.0961e-07, ||r||/||r_0|| = 4.70591e-06
+Newton iteration 12 : ||r|| = 1.39525e-07, ||r||/||r_0|| = 2.12071e-06
+Newton iteration 13 : ||r|| = 6.31766e-08, ||r||/||r_0|| = 9.60252e-07
+Newton+GMRES+UMFPack converged in 13 iterations with a residual norm of 6.31766e-08.
+solver took 0.393613s.
 || q_h - q_ex || / || q_ex || = 0.516971
-|| t_h - t_ex || / || t_ex || = 0.000155554
+|| t_h - t_ex || / || t_ex || = 0.00015555
