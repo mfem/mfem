@@ -13,7 +13,7 @@ void gaussian_initial(const Vector &x, Vector &u)
    // u = 0.0;
    // u[0] = hmin + (hmax - hmin)*std::exp(-theta*theta/(2*sigma*sigma));
 
-   const real_t hmin = 10;
+   const real_t hmin = 20;
    const real_t hmax = 20;
    const real_t sigma = 2;
    const real_t r2 = x[0]*x[0] + x[1]*x[1];
@@ -123,7 +123,6 @@ int main(int argc, char *argv[])
       Vector z(vfes.GetTrueVSize());
       swe.Mult(u,z);
    }
-   real_t dt = cfl * hmin / swe.GetMaxCharSpeed() / (2 * order + 1);
 
    socketstream height_sock, mom_x_sock, mom_y_sock;
    if (visualization)
@@ -180,22 +179,29 @@ int main(int argc, char *argv[])
    }
 
    real_t t = 0.0;
+   real_t dt; // dt will be computed using CFL condition
    swe.SetTime(t);
    ode_solver->Init(swe);
    bool done = false;
 
    for (int ti = 0; !done; ti++)
    {
+      // CFL condition
+      dt = cfl * hmin / swe.GetMaxCharSpeed() / real_t(2*order+1);
+      // Adjust dt so that t + dt <= tF
       real_t dt_real = std::min(dt, tF - t);
       if (Mpi::Root())
       {
          out << "time step: " << ti << ", time: " << t << std::endl;
          out << "\tMaxChar: " << swe.GetMaxCharSpeed() << std::endl;
       }
-      dt = cfl * hmin / swe.GetMaxCharSpeed() / real_t(2*order+1);
-      ode_solver->Step(u, t, dt);
+
+      // ODE step
+      ode_solver->Step(u, t, dt_real);
       done = (t >= tF - 1e-8 * dt);
 
+
+      // Visualize
       mom.ProjectCoefficient(mom_cf);
       if (height_sock.is_open() && height_sock.good())
       {

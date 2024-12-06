@@ -13,10 +13,11 @@ void CalcOrtho(const DenseMatrix &faceJ, const DenseMatrix &elemJ, Vector &n)
    const int sdim = faceJ.Height();
    const int dim = elemJ.Width();
    MFEM_ASSERT(sdim == 3 && dim == 2, "Only supports 2D manifold in 3D");
+   MFEM_ASSERT(faceJ.Width() == 1, "FaceJ is not a vector");
 
    Vector tangent(faceJ.GetData(), sdim);
    Vector normal1(elemJ.GetData(), sdim);
-   Vector normal2(elemJ.GetData()+sdim, sdim);
+   Vector normal2(elemJ.GetData() + sdim, sdim);
 
    Vector surfaceNormal(sdim);
    normal1.cross3D(normal2, surfaceNormal);
@@ -113,7 +114,7 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
    // Compute interface normal vectors at each element
    CalcOrtho(fJ, J1, normalL);
    CalcOrtho(fJ, J2, normalR);
-   real_t tangent_norm_squared = normalL*normalL;
+   real_t tangent_norm = Tr.Weight();
 
    // copy scalar states
    for (int i=0; i<nrScalar; i++)
@@ -130,7 +131,7 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
    for (int i=0; i<nrVector; i++)
    {
       phys_vec_state.GetColumnReference(i, phys_vec);
-      const real_t normal_comp = phys_vec*normalL/tangent_norm_squared;
+      const real_t normal_comp = phys_vec*normalL/(tangent_norm*tangent_norm);
       phys_vec.Add(-normal_comp, normalL).Add(normal_comp, normalR);
    }
 
@@ -142,9 +143,11 @@ void ManifoldCoord::convertFaceState(FaceElementTransformations &Tr,
    for (int i=0; i<nrVector; i++)
    {
       phys_vec_state.GetColumnReference(i, phys_vec);
-      const real_t normal_comp = phys_vec*normalR/tangent_norm_squared;
+      const real_t normal_comp = phys_vec*normalR/(tangent_norm*tangent_norm);
       phys_vec.Add(-normal_comp, normalR).Add(normal_comp, normalL);
    }
+   out << stateR_R.DistanceTo(stateR_L) << std::endl;
+   out << stateL_R.DistanceTo(stateL_L) << std::endl;
 }
 
 real_t ManifoldFlux::ComputeFlux(const Vector &state, ElementTransformation &Tr,
