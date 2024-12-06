@@ -253,7 +253,7 @@ real_t ShallowWaterFlux::ComputeFlux(const Vector &U,
 
    const real_t energy = 0.5 * g * (height * height);
 
-   MFEM_ASSERT(height >= 0, "Negative Height");
+   MFEM_ASSERT(height >= 0, "Negative Height: " << height);
 
    for (int d = 0; d < dim; d++)
    {
@@ -282,7 +282,7 @@ real_t ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
 
    const real_t energy = 0.5 * g * (height * height);
 
-   MFEM_ASSERT(height >= 0, "Negative Height");
+   MFEM_ASSERT(height >= 0, "Negative Height: " << height);
    FUdotN(0) = h_vel * normal;
    const real_t normal_vel = FUdotN(0) / height;
    for (int i = 0; i < dim; i++)

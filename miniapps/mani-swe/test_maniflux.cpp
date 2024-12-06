@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParMesh> pmesh;
    {
       Mesh mesh("./data/periodic-square-3d.mesh");
+      mesh.SetCurvature(order, true);
       pmesh.reset(new ParMesh(MPI_COMM_WORLD, mesh));
       mesh.Clear();
       for (int i=0; i<refinement_level; i++)
@@ -119,6 +120,7 @@ int main(int argc, char *argv[])
       Vector z(vfes.GetTrueVSize());
       swe.Mult(u,z);
    }
+   out << "Mult done" << std::endl;
    real_t dt = cfl * hmin / swe.GetMaxCharSpeed() / (2 * order + 1);
 
    socketstream height_sock, mom_sock;

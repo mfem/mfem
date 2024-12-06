@@ -94,7 +94,9 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
 
 void DenseMatrix::Resize(int h, int w)
 {
-   MFEM_ASSERT(h*w != height*width, "New size (" << h << " x " << w << ") is incompatible with the original size (" << height << " x " << width ").");
+   MFEM_ASSERT(h*w == height*width,
+               "New size (" << h << " x " << w << ") is incompatible with the original size ("
+               << height << " x " << width << ").");
    height = h;
    width = w;
 }
@@ -1290,8 +1292,8 @@ int DenseMatrix::Rank(real_t tol) const
 
 real_t DenseMatrix::CalcSingularvalue(const int i) const
 {
-   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
-               "The matrix must be square and sized 1, 2, or 3 to compute the"
+   MFEM_ASSERT(Height() >= Width() && Height() > 0 && Height() < 4,
+               "The matrix must be tall and sized 1, 2, or 3 to compute the"
                " singular values."
                << "  Height() = " << Height()
                << ", Width() = " << Width());
@@ -1299,18 +1301,28 @@ real_t DenseMatrix::CalcSingularvalue(const int i) const
    const int n = Height();
    const real_t *d = data;
 
-   if (n == 1)
+   if (Height() == Width())
    {
-      return d[0];
-   }
-   else if (n == 2)
-   {
-      return kernels::CalcSingularvalue<2>(d,i);
+      if (n == 1)
+      {
+         return d[0];
+      }
+      else if (n == 2)
+      {
+         return kernels::CalcSingularvalue<2>(d,i);
+      }
+      else
+      {
+         return kernels::CalcSingularvalue<3>(d,i);
+      }
    }
    else
    {
-      return kernels::CalcSingularvalue<3>(d,i);
+      DenseMatrix AtA(Width());
+      MultAtB(*this, *this, AtA);
+      return std::sqrt(AtA.CalcSingularvalue(i));
    }
+
 }
 
 void DenseMatrix::CalcEigenvalues(real_t *lambda, real_t *vec) const

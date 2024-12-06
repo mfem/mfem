@@ -282,10 +282,7 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
       // local mapping information
       const DenseMatrix &J = Tr.Jacobian();
       const DenseMatrix &adjJ = Tr.AdjugateJacobian();
-      out << "hi " << std::endl;
       nodal_el.CalcHessian(ip, hess_shape);
-      out << "bye " << std::endl;
-      MultAtB(hess_shape, x_nodes_mat, Hess);
       for (int d1=0; d1<dim; d1++)
          for (int d2=0; d2<dim; d2++)
             for (int sd=0; sd<sdim; sd++)
@@ -502,7 +499,7 @@ void ManifoldDGHyperbolicConservationLaws::ComputeInvMass()
       inv_mass.AssembleElementMatrix(*vfes.GetFE(i),
                                      *vfes.GetElementTransformation(i),
                                      invmass[i]);
-      invmass[i].SetSize(dim*dof);
+      invmass_vec[i].SetSize(dim*dof);
       inv_vec_mass.AssembleElementMatrix(*vfes.GetFE(i),
                                          *vfes.GetElementTransformation(i),
                                          invmass_vec[i]);
@@ -512,12 +509,14 @@ void ManifoldDGHyperbolicConservationLaws::ComputeInvMass()
 void ManifoldDGHyperbolicConservationLaws::Mult(const Vector &x,
                                                 Vector &y) const
 {
+   out << "ManifoldDGHyperbolicConservationLaws::Mult" << std::endl;
    // 0. Reset wavespeed computation before operator application.
    formIntegrator.ResetMaxCharSpeed();
    // 1. Apply Nonlinear form to obtain an auxiliary result
    //         z = - <F̂(u_h,n), [[v]]>_e
    //    If weak-divergence is not preassembled, we also have weak-divergence
    //         z = - <F̂(u_h,n), [[v]]>_e + (F(u_h), ∇v)
+   out << "nonlinform->Mult" << std::endl;
    nonlinearForm->Mult(x, z);
    // Apply block inverse mass
    Vector zval; // z_loc, dof*num_eq

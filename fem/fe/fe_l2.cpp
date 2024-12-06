@@ -177,9 +177,9 @@ void L2_QuadrilateralElement::CalcHessian(const IntegrationPoint &ip,
    {
       for (int i = 0; i <= p; i++)
       {
-         Hessian(dof_map[o],0) = d2shape_x(i)*  shape_y(j);
-         Hessian(dof_map[o],1) =  dshape_x(i)* dshape_y(j);
-         Hessian(dof_map[o],2) =   shape_x(i)*d2shape_y(j);  o++;
+         Hessian(o,0) = d2shape_x(i)*  shape_y(j);
+         Hessian(o,1) =  dshape_x(i)* dshape_y(j);
+         Hessian(o,2) =   shape_x(i)*d2shape_y(j);  o++;
       }
    }
 }
@@ -431,12 +431,12 @@ void L2_HexahedronElement::CalcHessian(const IntegrationPoint &ip,
       for (int j = 0; j <= p; j++)
          for (int i = 0; i <= p; i++)
          {
-            Hessian(dof_map[o],0) = d2shape_x(i)*  shape_y(j)*  shape_z(k);
-            Hessian(dof_map[o],1) =  dshape_x(i)* dshape_y(j)*  shape_z(k);
-            Hessian(dof_map[o],2) =  dshape_x(i)*  shape_y(j)* dshape_z(k);
-            Hessian(dof_map[o],3) =   shape_x(i)*d2shape_y(j)*  shape_z(k);
-            Hessian(dof_map[o],4) =   shape_x(i)* dshape_y(j)* dshape_z(k);
-            Hessian(dof_map[o],5) =   shape_x(i)*  shape_y(j)*d2shape_z(k);
+            Hessian(o,0) = d2shape_x(i)*  shape_y(j)*  shape_z(k);
+            Hessian(o,1) =  dshape_x(i)* dshape_y(j)*  shape_z(k);
+            Hessian(o,2) =  dshape_x(i)*  shape_y(j)* dshape_z(k);
+            Hessian(o,3) =   shape_x(i)*d2shape_y(j)*  shape_z(k);
+            Hessian(o,4) =   shape_x(i)* dshape_y(j)* dshape_z(k);
+            Hessian(o,5) =   shape_x(i)*  shape_y(j)*d2shape_z(k);
             o++;
          }
 }
