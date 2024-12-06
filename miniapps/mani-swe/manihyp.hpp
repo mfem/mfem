@@ -200,6 +200,9 @@ public:
                                                        normalL, normalR,
                                                        stateL_L, stateR_L, fluxL_L, fluxR_L,
                                                        stateL_R, stateR_R, fluxL_R, fluxR_R);
+      normalL.Print();
+      normalR.Print();
+      out << std::sqrt(normalL*normalR) << ", " << Tr.Weight() << std::endl;
       // here, std::sqrt(nor*nor) is multiplied to match the scale with fluxN
       const real_t scaledMaxE = maxE*std::sqrt(normalL*normalL);
       for (int i=0; i<maniflux.num_equations; i++)

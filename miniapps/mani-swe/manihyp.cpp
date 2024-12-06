@@ -411,7 +411,7 @@ void ManifoldHyperbolicFormIntegrator::AssembleFaceVector(
 
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
       // Compute hat(F) using evaluated quantities
-      const real_t speed = numFlux.Eval(stateL, stateR, Tr, phys_hatFL, phys_hatFR);
+      max_char_speed = std::max(max_char_speed, numFlux.Eval(stateL, stateR, Tr, phys_hatFL, phys_hatFR));
       for (int j=0; j<nrScalar; j++)
       {
          hatFL[j] = phys_hatFL[j];
@@ -419,9 +419,6 @@ void ManifoldHyperbolicFormIntegrator::AssembleFaceVector(
       }
       MultAtB(Tr.Elem1->Jacobian(), phys_hatFL_vectors, hatFL_vectors);
       MultAtB(Tr.Elem2->Jacobian(), phys_hatFR_vectors, hatFR_vectors);
-
-      // Update the global max char speed
-      max_char_speed = std::max(speed, max_char_speed);
 
       // pre-multiply integration weight to flux
       AddMult_a_VWt(-ip.weight, shape1, hatFL, elvect1_mat);
@@ -509,14 +506,12 @@ void ManifoldDGHyperbolicConservationLaws::ComputeInvMass()
 void ManifoldDGHyperbolicConservationLaws::Mult(const Vector &x,
                                                 Vector &y) const
 {
-   out << "ManifoldDGHyperbolicConservationLaws::Mult" << std::endl;
    // 0. Reset wavespeed computation before operator application.
    formIntegrator.ResetMaxCharSpeed();
    // 1. Apply Nonlinear form to obtain an auxiliary result
    //         z = - <F̂(u_h,n), [[v]]>_e
    //    If weak-divergence is not preassembled, we also have weak-divergence
    //         z = - <F̂(u_h,n), [[v]]>_e + (F(u_h), ∇v)
-   out << "nonlinform->Mult" << std::endl;
    nonlinearForm->Mult(x, z);
    // Apply block inverse mass
    Vector zval; // z_loc, dof*num_eq
