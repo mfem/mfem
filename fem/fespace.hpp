@@ -751,7 +751,7 @@ public:
    int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
 
    /// Return the dimension of a vector in the space
-   /** This accounts for cases where the finite elements are vector-valued. 
+   /** This accounts for cases where the finite elements are vector-valued.
        If the finite elements are FiniteElement::SCALAR, this equals GetVDim(). */
    int GetVectorDim() const;
 
