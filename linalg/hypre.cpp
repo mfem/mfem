@@ -29,15 +29,15 @@ namespace mfem
 
 bool Hypre::configure_runtime_policy_from_mfem = true;
 
-Hypre::Hypre()
+void Hypre::Init()
 {
-#if MFEM_HYPRE_VERSION >= 21900
-   // Initializing hypre
-   HYPRE_Init();
-#endif
-
-   // Global hypre options that we set by default
-   SetDefaultOptions();
+   Hypre &hypre = Instance();
+   if (hypre.state != State::INITIALIZED)
+   {
+      HYPRE_Init();
+      hypre.SetDefaultOptions();
+   }
+   hypre.state = State::INITIALIZED;
 }
 
 void Hypre::InitDevice()
@@ -66,13 +66,13 @@ void Hypre::InitDevice()
 void Hypre::Finalize()
 {
    Hypre &hypre = Instance();
-   if (!hypre.finalized)
+   if (hypre.state != State::UNINITIALIZED)
    {
 #if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Finalize();
 #endif
-      hypre.finalized = true;
    }
+   hypre.state = State::UNINITIALIZED;
 }
 
 void Hypre::SetDefaultOptions()
