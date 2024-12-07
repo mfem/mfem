@@ -324,45 +324,12 @@ void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
 
 int GridFunction::VectorDim() const
 {
-   const FiniteElement *fe;
-   if (!fes->GetNE())
-   {
-      static const Geometry::Type geoms[3] =
-      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fes->FEColl()->
-           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
-   }
-   else
-   {
-      fe = fes->GetFE(0);
-   }
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return fes->GetVDim();
-   }
-   return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
-                                  fe->GetRangeDim());
+   return fes->GetVectorDim();
 }
 
 int GridFunction::CurlDim() const
 {
-   const FiniteElement *fe;
-   if (!fes->GetNE())
-   {
-      static const Geometry::Type geoms[3] =
-      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fes->FEColl()->
-           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
-   }
-   else
-   {
-      fe = fes->GetFE(0);
-   }
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return 2 * fes->GetMesh()->SpaceDimension() - 3;
-   }
-   return fes->GetVDim()*fe->GetCurlDim();
+   return fes->GetCurlDim();
 }
 
 void GridFunction::GetTrueDofs(Vector &tv) const
