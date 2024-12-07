@@ -49,6 +49,7 @@ set(MFEM_USE_SIDRE @MFEM_USE_SIDRE@)
 set(MFEM_USE_FMS @MFEM_USE_FMS@)
 set(MFEM_USE_CONDUIT @MFEM_USE_CONDUIT@)
 set(MFEM_USE_PUMI @MFEM_USE_PUMI@)
+set(MFEM_USE_HIP @MFEM_USE_HIP@)
 set(MFEM_USE_CUDA @MFEM_USE_CUDA@)
 set(MFEM_USE_OCCA @MFEM_USE_OCCA@)
 set(MFEM_USE_RAJA @MFEM_USE_RAJA@)
@@ -81,6 +82,26 @@ endforeach (dir "${MFEM_INCLUDE_DIRS}")
 set_and_check(MFEM_LIBRARY_DIR "@PACKAGE_LIB_INSTALL_DIR@")
 
 check_required_components(MFEM)
+
+include(CMakeFindDependencyMacro)
+
+if (MFEM_USE_CUDA)
+  # required for projects linking to MFEM+CUDA, even if they don't use CUDA directly
+  find_dependency(CUDAToolkit)
+endif (MFEM_USE_CUDA)
+
+if (MFEM_USE_HIP)
+  # hip/rocm uses the modern MFEM way of linking to targets, need to find dependencies
+  find_dependency(HIP)
+  find_dependency(HIPBLAS)
+  find_dependency(HIPSPARSE)
+  if (MFEM_USE_MPI)
+    # assume HYPRE uses HIP
+    # alternatively could check HYPRE_USING_HIP
+    find_dependency(rocsparse)
+    find_dependency(rocrand)
+  endif (MFEM_USE_MPI)
+endif (MFEM_USE_HIP)
 
 if (NOT TARGET mfem)
   include(${CMAKE_CURRENT_LIST_DIR}/MFEMTargets.cmake)
