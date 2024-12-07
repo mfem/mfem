@@ -28,7 +28,9 @@ enum QoIType
   L2_ERROR,
   H1_ERROR,
   ZZ_ERROR,
-  AVG_ERROR
+  AVG_ERROR,
+  ENERGY,
+  GZZ_ERROR
 };
 
 class QoIBaseCoefficient : public mfem::Coefficient {
@@ -382,6 +384,72 @@ private:
 
   mfem::ParGridFunction * solutionField_;
   mfem::Coefficient * trueSolution_;
+
+  int Dim_ = 2;
+
+  double theta = 0.0;
+  mfem::DenseMatrix dtheta_dX;
+  mfem::DenseMatrix dtheta_dU;
+  mfem::DenseMatrix dtheta_dGradU;
+};
+
+class Energy_QoI : public QoIBaseCoefficient {
+public:
+  Energy_QoI(mfem::ParGridFunction * solutionField, mfem::Coefficient * force)
+    : solutionField_(solutionField), force_(force)
+  {};
+
+  ~Energy_QoI() {};
+
+  double Eval( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  {
+    double fieldVal = solutionField_->GetValue( T, ip );
+    double Val = force_->Eval( T, ip );
+
+    double energy = - fieldVal*Val;
+    return energy;
+  };
+
+  const mfem::DenseMatrix &explicitSolutionDerivative( mfem::ElementTransformation & T, const mfem::IntegrationPoint & ip)
+  {
+    dtheta_dU.SetSize(1);
+
+    double Val = force_->Eval( T, ip );
+    double & matVal = dtheta_dU.Elem(0,0);
+    matVal = -Val;
+    return dtheta_dU;
+  };
+
+  const mfem::DenseMatrix &explicitSolutionGradientDerivative( mfem::ElementTransformation & /*T*/,
+      const mfem::IntegrationPoint & /*ip*/)
+  {
+    dtheta_dGradU.SetSize(1, Dim_);
+    dtheta_dGradU = 0.0;
+
+    return dtheta_dGradU;
+  };
+
+  const mfem::DenseMatrix &explicitShapeDerivative( mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
+  {
+    dtheta_dX.SetSize(1, Dim_);
+    dtheta_dX = 0.0;
+
+    return dtheta_dX;
+  };
+
+  virtual const mfem::DenseMatrix &gradTimesexplicitSolutionGradientDerivative( mfem::ElementTransformation &T,
+      const mfem::IntegrationPoint &ip)
+  {
+    dtheta_dX.SetSize(Dim_, Dim_);
+    dtheta_dX = 0.0;
+
+    return dtheta_dX;
+  };
+
+private:
+
+  mfem::ParGridFunction * solutionField_;
+  mfem::Coefficient * force_;
 
   int Dim_ = 2;
 

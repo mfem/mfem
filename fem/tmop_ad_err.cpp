@@ -761,6 +761,10 @@ double QuantityOfInterest::EvalQoI()
   case 3:
     ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field);
     break;
+  case 4:
+      if( trueSolution_ == nullptr ){ mfem_error("force coeff.");}
+      ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_);
+      break;
   default:
     std::cout << "Unknown Error Coeff: " << qoiType_ << std::endl;
   }
@@ -828,6 +832,10 @@ void QuantityOfInterest::EvalQoIGrad()
       break;
     case 3:
       ErrorCoefficient_ = std::make_shared<AvgError_QoI>(&solgf_, &L2Field);
+      break;
+    case 4:
+      if( trueSolution_ == nullptr ){ mfem_error("force coeff.");}
+      ErrorCoefficient_ = std::make_shared<Error_QoI>(&solgf_, trueSolution_);
       break;
     default:
       std::cout << "Unknown Error Coeff: " << qoiType_ << std::endl;

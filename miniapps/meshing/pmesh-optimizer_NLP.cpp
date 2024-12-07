@@ -20,6 +20,7 @@
 // Compile with: make pmesh-optimizer_NLP
 // mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 100 -ft 2 -w1 5e1 -w2 1e-2
 // mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 2e-3 -ni 200 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2
+// WIP mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 2e-3 -ni 200 -ft 2 --qtype 4 -w1 1e-4 -w2 1e-2
 
 
 #include "mfem.hpp"
@@ -462,6 +463,9 @@ if (myid == 0) {
   case 3:
   std::cout<<" Evg Error"<<std::endl;;
     break;
+  case 4:
+  std::cout<<" Energy"<<std::endl;;
+    break;
   default:
     std::cout << "Unknown Error Coeff: " << qoiType << std::endl;
   }
@@ -476,7 +480,8 @@ if (myid == 0) {
   solver.SetManufacturedSolution(QCoef);
   Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
   VectorCoefficient *trueSolutionGrad = new VectorFunctionCoefficient(spatialDimension,trueSolGradFunc);
-  QoIEvaluator.setTrueSolCoeff(  trueSolution );
+  QoIEvaluator.setTrueSolCoeff( trueSolution );
+  if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
   QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
   x_gf.ProjectCoefficient(*trueSolution);
 
@@ -501,7 +506,7 @@ if (myid == 0) {
     {
       Array<int> ess_bdr(PMesh->bdr_attributes.Max());
       ess_bdr = 1;
-      a.SetEssentialBC(ess_bdr);
+      //a.SetEssentialBC(ess_bdr);
     }
     double init_energy = a.GetParGridFunctionEnergy(x);
     IterativeSolver::PrintLevel newton_print;
@@ -609,6 +614,7 @@ if (myid == 0) {
 
           QuantityOfInterest QoIEvaluator_FD1(PMesh, qoiType, 1);
           QoIEvaluator_FD1.setTrueSolCoeff(  trueSolution );
+          if(qoiType == QoIType::ENERGY){QoIEvaluator_FD1.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD1.SetDiscreteSol( discretSol );
@@ -620,6 +626,7 @@ if (myid == 0) {
 
           QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
           QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
+          if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD2.SetDiscreteSol( discretSol );
@@ -654,6 +661,7 @@ if (myid == 0) {
 
           QuantityOfInterest QoIEvaluator_FD1(PMesh, qoiType, 1);
           QoIEvaluator_FD1.setTrueSolCoeff(  trueSolution );
+          if(qoiType == QoIType::ENERGY){QoIEvaluator_FD1.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD1.SetDiscreteSol( discretSol );
@@ -665,6 +673,7 @@ if (myid == 0) {
 
           QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
           QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
+          if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD2.SetDiscreteSol( discretSol );
