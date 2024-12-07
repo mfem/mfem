@@ -83,6 +83,8 @@ protected:
     double linSolveAbsTol = 1e-12;
     double linSolveRelTol = 1e-6;
     int relax_type = 8;
+
+    MPI_Comm comm;
 public:
     ParInteriorPointSolver(OptContactProblem*);
     double MaxStepSize(Vector& , Vector& , Vector& , double);

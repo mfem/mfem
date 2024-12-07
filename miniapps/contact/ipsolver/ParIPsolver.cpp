@@ -54,9 +54,11 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
    dimM = problem->GetDimM();
    dimC = problem->GetDimC();
 
-   MPI_Allreduce(&dimU,&gdimU,1,MPI_INT,MPI_SUM,problem->GetComm());
-   MPI_Allreduce(&dimM,&gdimM,1,MPI_INT,MPI_SUM,problem->GetComm());
-   MPI_Allreduce(&dimC,&gdimC,1,MPI_INT,MPI_SUM,problem->GetComm());
+   comm = problem->GetComm();
+
+   MPI_Allreduce(&dimU,&gdimU,1,MPI_INT,MPI_SUM,comm);
+   MPI_Allreduce(&dimM,&gdimM,1,MPI_INT,MPI_SUM,comm);
+   MPI_Allreduce(&dimC,&gdimC,1,MPI_INT,MPI_SUM,comm);
 
    ckSoc.SetSize(dimC);
 
@@ -360,6 +362,11 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    Hum = problem->Dumf(x);
    Hmu = problem->Dmuf(x);
    Hmm = problem->Dmmf(x);
+   
+   delete JuT;
+   delete JmT;
+   Ju = problem->Duc(x); JuT = Ju->Transpose();
+   Jm = problem->Dmc(x); JmT = Jm->Transpose();
 
    Vector DiagLogBar(dimM); DiagLogBar = 0.0;
    for(int ii = 0; ii < dimM; ii++)
@@ -395,15 +402,11 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       diagStream.close();
    } 
 
-   
-   int gsize = problem->GetGlobalNumConstraints();
-   int * rows = problem->GetConstraintsStarts();
-
    delete Wmm;
-   if(Hmm != nullptr)
+   if(Hmm)
    {
       SparseMatrix * Ds = new SparseMatrix(DiagLogBar);
-      HypreParMatrix * D = new HypreParMatrix(problem->GetComm(), gsize, rows, Ds);
+      HypreParMatrix * D = new HypreParMatrix(comm, problem->GetGlobalNumConstraints(), problem->GetConstraintsStarts(), Ds);
       HypreStealOwnership(*D,*Ds);
       delete Ds;
       Wmm = ParAdd(Hmm,D);
@@ -412,7 +415,7 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    else
    {
       SparseMatrix * Ds = new SparseMatrix(DiagLogBar);
-      Wmm = new HypreParMatrix(problem->GetComm(), gsize, rows, Ds);
+      Wmm = new HypreParMatrix(comm, problem->GetGlobalNumConstraints(), problem->GetConstraintsStarts(), Ds);
       HypreStealOwnership(*Wmm,*Ds);
       delete Ds;
    }
@@ -420,10 +423,10 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    Vector deltaDiagVec(dimU);
    deltaDiagVec = delta;
    delete Wuu;
-   if (Huu != nullptr)
+   if (Huu)
    {
       SparseMatrix * Duus = new SparseMatrix(deltaDiagVec);
-      HypreParMatrix * Duu = new HypreParMatrix(problem->GetComm(), problem->GetGlobalNumDofs(), problem->GetDofStarts(), Duus);
+      HypreParMatrix * Duu = new HypreParMatrix(comm, problem->GetGlobalNumDofs(), problem->GetDofStarts(), Duus);
       HypreStealOwnership(*Duu, *Duus);
       delete Duus;
       Wuu = ParAdd(Huu, Duu);
@@ -432,17 +435,13 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    else
    {
       SparseMatrix * DuuS = new SparseMatrix(deltaDiagVec);
-      Wuu = new HypreParMatrix(problem->GetComm(), problem->GetGlobalNumDofs(), problem->GetDofStarts(), DuuS);
+      Wuu = new HypreParMatrix(comm, problem->GetGlobalNumDofs(), problem->GetDofStarts(), DuuS);
       HypreStealOwnership(*Wuu, *DuuS);
       delete DuuS;
    }
    
    
    
-   delete JuT;
-   delete JmT;
-   Ju = problem->Duc(x); JuT = Ju->Transpose();
-   Jm = problem->Dmc(x); JmT = Jm->Transpose();
 
    //         IP-Newton system matrix
    //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
@@ -452,11 +451,14 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    //    Ak = [[K    0     Jᵀ ]   [u]    [bᵤ]
    //          [0    D    -I  ]   [m]  = [bₘ]      
    //          [J   -I     0  ]]  [λ]  = [bₗ ]
-
    Ak.SetBlock(0, 0, Wuu);                         Ak.SetBlock(0, 2, JuT);
                            Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
-   if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
+   if (Hum)
+   {
+      Ak.SetBlock(0, 1, Hum);
+      Ak.SetBlock(1, 0, Hmu);
+   }
 }
 
 // perturbed KKT system solve
@@ -508,11 +510,11 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             if(!A.IsZeroBlock(ii, jj))
             {
                ABlockMatrix(ii, jj) = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(ii, jj)));
-	         }
-	         else
-	         {
-	            ABlockMatrix(ii, jj) = nullptr;
-	         }
+	    }
+	    else
+	    {
+	       ABlockMatrix(ii, jj) = nullptr;
+	    }
          }  
       }
       
