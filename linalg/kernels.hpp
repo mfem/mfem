@@ -543,7 +543,7 @@ MFEM_HOST_DEVICE static inline
 void GetScalingFactor(const real_t &d_max, real_t &mult)
 {
    int d_exp;
-   if (d_max > 0.)
+   if (d_max > 0_r)
    {
       mult = frexp(d_max, &d_exp);
       if (d_exp == std::numeric_limits<real_t>::max_exponent)
@@ -554,7 +554,7 @@ void GetScalingFactor(const real_t &d_max, real_t &mult)
    }
    else
    {
-      mult = 1.;
+      mult = 1_r;
    }
    // mult = 2^d_exp is such that d_max/mult is in [0.5,1) or in other words
    // d_max is in the interval [0.5,1)*mult
