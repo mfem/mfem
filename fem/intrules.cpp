@@ -1794,7 +1794,7 @@ IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
    // rule for a cube which seems to be adequate for now. When we
    // implement high order finite elements for pyramids we should
    // revisit this and see if we can improve upon it.
-   const IntegrationRule &irc = Get(Geometry::CUBE, Order);
+   const IntegrationRule &irc = Get(Geometry::CUBE, Order + 2);
    int npts = irc.GetNPoints();
    AllocIntRule(PyramidIntRules, Order);
    PyramidIntRules[Order] = new IntegrationRule(npts);
@@ -1807,7 +1807,7 @@ IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
       ipp.x = ipc.x * (1.0 - ipc.z);
       ipp.y = ipc.y * (1.0 - ipc.z);
       ipp.z = ipc.z;
-      ipp.weight = ipc.weight / 3.0;
+      ipp.weight = ipc.weight * pow(1.0 - ipc.z, 2);
    }
    return PyramidIntRules[Order];
 }
