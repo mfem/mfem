@@ -383,37 +383,42 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
                                field0_gf.Size()  / f->GetVDim();
    if (nodes_mismatch)
    {
-      delete fes_field_nodes;
-      fes_field_nodes = new FiniteElementSpace(m, f->FEColl(), m->Dimension());
+      delete fes_new_field;
+      fes_new_field = new FiniteElementSpace(m, f->FEColl(), m->Dimension());
    }
 }
 
-void InterpolatorFP::ComputeAtNewPosition(const Vector &new_field_nodes,
+void InterpolatorFP::SetNewFieldFESpace(const FiniteElementSpace &fes)
+{
+   fes_new_field = &fes;
+}
+
+void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                           Vector &new_field,
                                           int nodes_ordering)
 {
    // Get physical node locations corresponding to field0_gf
-   if (fes_field_nodes)
+   if (fes_new_field)
    {
       Vector mapped_nodes;
-      GetFieldNodesPosition(new_field_nodes, mapped_nodes);
+      GetFieldNodesPosition(new_mesh_nodes, mapped_nodes);
       finder->Interpolate(mapped_nodes, field0_gf, new_field,
-                          fes_field_nodes->GetOrdering());
+                          fes_new_field->GetOrdering());
    }
    else
    {
-      finder->Interpolate(new_field_nodes, field0_gf, new_field, nodes_ordering);
+      finder->Interpolate(new_mesh_nodes, field0_gf, new_field, nodes_ordering);
    }
 }
 
 void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
                                            Vector &nodes_pos) const
 {
-   MFEM_VERIFY(fes_field_nodes, "InterpolatorFP: fes_field_nodes is not set.");
+   MFEM_VERIFY(fes_new_field, "InterpolatorFP: fes_field_nodes is not set.");
 
-   Mesh *m = fes_field_nodes->GetMesh();
-   const int nelem     = fes_field_nodes->GetNE();
-   const int n_f_nodes = fes_field_nodes->GetNDofs();
+   Mesh *m = fes_new_field->GetMesh();
+   const int nelem     = fes_new_field->GetNE();
+   const int n_f_nodes = fes_new_field->GetNDofs();
    const int dim       = m->Dimension();
    if (nelem == 0) { return; }
    Array<int> dofs;
@@ -429,7 +434,7 @@ void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
       const FiniteElement *mfe = mesh_fes->GetFE(e);
       Vector shape(n_mdofs);
 
-      auto ir = fes_field_nodes->GetFE(e)->GetNodes();
+      auto ir = fes_new_field->GetFE(e)->GetNodes();
       const int n_gf_pts = ir.GetNPoints();
       Vector gf_xyz(n_gf_pts*dim);
       for (int q = 0; q < n_gf_pts; q++)
@@ -442,7 +447,7 @@ void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
             gf_xyz(d*n_gf_pts + q) = x*shape; // order by nodes
          }
       }
-      fes_field_nodes->GetElementVDofs(e, dofs);
+      fes_new_field->GetElementVDofs(e, dofs);
       nodes_pos.SetSubVector(dofs, gf_xyz);
    }
 }

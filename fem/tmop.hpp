@@ -1325,11 +1325,19 @@ public:
                        const ParFiniteElementSpace &f);
 #endif
 
-   // TODO use GridFunctions to make clear it's on the ldofs?
+   // TODO use GridFunctions to make clear it's on the ldofs? Then do we
+   // need the SetMetaInfo at all -- the space and mesh can be extracted?
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field) = 0;
 
-   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+   /** @brief Perform field transfer between the original and a new mesh. The
+              source mesh and field are given by SetInitialField().
+
+       @param[in]  new_mesh_nodes  Mesh node positions of the new mesh (ldofs).
+                                   It is assumed that this is the field's mesh.
+       @param[out] new_field       Result of the transfer (ldofs).
+       @param[in]  nodes_ordering  Ordering of new_mesh_nodes.      */
+   virtual void ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                      Vector &new_field,
                                      int nodes_ordering = Ordering::byNODES) = 0;
 

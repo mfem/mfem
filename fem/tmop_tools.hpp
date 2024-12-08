@@ -43,10 +43,9 @@ public:
    void SetInitialField(const Vector &init_nodes,
                         const Vector &init_field) override;
 
-   /// Perform advection-based remap.
-   /// Source: field0, of the fes/pfes FE space, defined on nodes0.
-   /// Result: new_field, of the FE same space, defined on new_mesh_nodes.
-   /// Assumes that nodes0 and new_mesh_nodes have the same topology.
+   /// Perform advection-based remap. Assumptions:
+   /// nodes0 and new_mesh_nodes have the same topology;
+   /// new_field is of the same FE space as field0.
    void ComputeAtNewPosition(const Vector &new_mesh_nodes,
                              Vector &new_field,
                              int nodes_ordering = Ordering::byNODES) override;
@@ -64,24 +63,27 @@ private:
    Vector nodes0;
    GridFunction field0_gf;
    FindPointsGSLIB *finder;
-   // FE space for the nodes of the solution GridFunction.
-   FiniteElementSpace *fes_field_nodes;
+   // FE space for the nodes of the solution GridFunction, not owned.
+   const FiniteElementSpace *fes_new_field;
 
    void GetFieldNodesPosition(const Vector &mesh_nodes,
                               Vector &nodes_pos) const;
 
 public:
-   InterpolatorFP() : finder(NULL), fes_field_nodes(NULL) { }
+   InterpolatorFP() : finder(NULL), fes_new_field(NULL) { }
 
    void SetInitialField(const Vector &init_nodes,
                         const Vector &init_field) override;
 
+   /// Must be called when the FE space of the final field is different than
+   /// the FE space of the initial field. This also includes the case when
+   /// the initial and final fields are on different meshes.
+   void SetNewFieldFESpace(const FiniteElementSpace &fes);
+
    /// Perform interpolation-based remap.
-   /// Source: field0, of the fes/pfes FE space, defined on nodes0.
-   /// Result: new_field, whose DOF node positions are given by new_field_nodes.
-   /// This function does not care what is the FE space of new_field, nor
-   /// what is the underlying mesh of new_field.
-   void ComputeAtNewPosition(const Vector &new_field_nodes,
+   /// Assumptions when SetNewFieldFESpace() has not been called:
+   /// new_field is of the same FE space and mesh as field0.
+   void ComputeAtNewPosition(const Vector &new_mesh_nodes,
                              Vector &new_field,
                              int nodes_ordering = Ordering::byNODES) override;
 
@@ -94,7 +96,7 @@ public:
    {
       finder->FreeData();
       delete finder;
-      delete fes_field_nodes;
+      delete fes_new_field;
    }
 };
 #endif
