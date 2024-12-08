@@ -182,6 +182,11 @@ public:
                                         FaceElementTransformations &Trans,
                                         DenseMatrix &elmat);
 
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat);
 
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
@@ -198,6 +203,30 @@ public:
                            const FiniteElement &el2,
                            FaceElementTransformations &Tr,
                            const Vector &elfun, Vector &elvect) override;
+
+   /// @brief Perform the local action of the NonlinearFormIntegrator resulting
+   /// from an HDG face integral term.
+   /// @note The default implementation in the base class is general but not
+   /// efficient.
+   /// @note The HDGFaceType::FACE term is split in two to provide the single-side
+   /// contribution, which does not take into account the possible asymmetry
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun, const Vector &elfun,
+                              Vector &elvect) override;
+
+   /// @brief Perform the local action of the gradient of the NonlinearFormIntegrator
+   /// resulting from an HDG face integral term.
+   /// @note The HDGFaceType::FACE term is split in two to provide the single-side
+   /// contribution, which does not take into account the possible asymmetry
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const FiniteElement &fe,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun, const Vector &elfun,
+                            DenseMatrix &elmat) override;
 
    void AssembleElementGrad(const FiniteElement &el,
                             ElementTransformation &Tr,
@@ -469,6 +498,12 @@ public:
                            const FiniteElement &test_fe2,
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
+
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat);
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace& fes) override;
@@ -3286,6 +3321,126 @@ private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
 };
 
+/** Integrator for the DG form:
+    $$
+      \alpha \langle (u \cdot n) \{v\},[w] \rangle,
+    $$
+    where $v$ and $w$ are the trial and test variables, respectively, and $\rho$/$u$ are
+    given scalar/vector coefficients. $\{v\}$ represents the average value of $v$ on
+    the face and $[v]$ is the jump such that $\{v\}=(v_++v_-)/2$ and $[v]=(v_+-v_-)$ for the
+    face with $+$ and $-$ sides. For boundary elements, $v_-=0$. The vector coefficient,
+    $u$, is assumed to be continuous across the faces and when given the scalar coefficient.
+
+    The corresponding HDG stabilization is then
+    $$\begin{align}
+        \langle \{\tau\} v_\pm, w_\pm \rangle, & -\langle \tau_\mp \lambda,          w_\pm \rangle,\\
+        \langle \{\tau\} v_\pm, \mu   \rangle, & -\langle (\tau_+ + \tau_-) \lambda, \mu   \rangle,
+    \end{align}$$
+    where $\tau_\pm = |\alpha (u \cdot n)| \pm \alpha (u \cdot n)$
+    and $\lambda$, $\mu$ are the trial and test trace functions, respectively.
+    */
+class HDGConvectionCenteredIntegrator : public DGTraceIntegrator
+{
+   Vector tr_shape, shape1, shape2;
+
+public:
+   HDGConvectionCenteredIntegrator(VectorCoefficient &u_, real_t a = 1.)
+      : DGTraceIntegrator(u_, a, 0.) { }
+
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat);
+};
+
+/** Integrator for the DG form:
+    $$
+      \alpha \langle (u \cdot n) \{v\},[w] \rangle + \beta \langle |u \cdot n| [v],[w] \rangle,
+    $$
+    where $v$ and $w$ are the trial and test variables, respectively, and $\rho$/$u$ are
+    given scalar/vector coefficients. $\{v\}$ represents the average value of $v$ on
+    the face and $[v]$ is the jump such that $\{v\}=(v_++v_-)/2$ and $[v]=(v_+-v_-)$ for the
+    face with $+$ and $-$ sides. For boundary elements, $v_-=0$. The vector coefficient,
+    $u$, is assumed to be continuous across the faces and when given the scalar coefficient.
+
+    The corresponding HDG stabilization is then
+    $$\begin{align}
+        \langle \tau_\pm v_\pm, w_\pm \rangle, & -\langle \tau_\mp \lambda,          w_\pm \rangle,\\
+        \langle \tau_\pm v_\pm, \mu   \rangle, & -\langle (\tau_+ + \tau_-) \lambda, \mu   \rangle,
+    \end{align}$$
+    where $\tau_\pm = (\beta |u \cdot n| \pm 1/2 \alpha (u \cdot n))$
+    and $\lambda$, $\mu$ are the trial and test trace functions, respectively.
+    */
+class HDGConvectionUpwindedIntegrator : public DGTraceIntegrator
+{
+   Vector tr_shape, shape1, shape2;
+
+public:
+   /// Construct integrator with $\beta = \alpha/2$.
+   HDGConvectionUpwindedIntegrator(VectorCoefficient &u_, real_t a = 1.)
+      : DGTraceIntegrator(u_, a) { }
+
+   HDGConvectionUpwindedIntegrator(VectorCoefficient &u_, real_t a, real_t b)
+      : DGTraceIntegrator(u_, a, b) { }
+
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat);
+};
+
+/** Integrator for the DG form:
+    $$
+      \alpha \langle \rho_u \{v\},[w \cdot n] \rangle
+      + \beta \langle \rho_u (u \cdot n) / |u \cdot n| [v],[w \cdot n] \rangle,
+    $$
+    where $v$ and $w$ are the trial and test variables, respectively, and $\rho$/$u$ are
+    given scalar/vector coefficients. $\{v\}$ represents the average value of $v$ on
+    the face and $[v]$ is the jump such that $\{v\}=(v_1+v_2)/2$ and $[v]=(v_1-v_2)$ for the
+    face between elements $1$ and $2$. For boundary elements, $v_2=0$. The vector
+    coefficient, $u$, is assumed to be continuous across the faces and when given
+    the scalar coefficient, $\rho$, is assumed to be discontinuous. The integrator
+    uses the upwind value of $\rho$, denoted by $\rho_u$, which is value from the side into
+    which the vector coefficient, $u$, points.
+    */
+class DGNormalTraceIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *rho;
+   VectorCoefficient *u;
+   real_t alpha, beta;
+
+private:
+   Vector shape1, shape2;
+   Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
+
+public:
+   /// Construct integrator with $\rho = 1$, $\beta = 0$.
+   DGNormalTraceIntegrator(real_t a)
+   { rho = NULL; u = NULL; alpha = a; beta = 0.; }
+
+   /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
+   DGNormalTraceIntegrator(VectorCoefficient &u_, real_t a)
+   { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
+
+   /// Construct integrator with $\rho = 1$.
+   DGNormalTraceIntegrator(VectorCoefficient &u_, real_t a, real_t b)
+   { rho = NULL; u = &u_; alpha = a; beta = b; }
+
+   DGNormalTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
+                           real_t a, real_t b)
+   { rho = &rho_; u = &u_; alpha = a; beta = b; }
+
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &trial_fe2,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat) override;
+};
+
 // Alias for @a DGTraceIntegrator.
 using ConservativeDGTraceIntegrator = DGTraceIntegrator;
 
@@ -3371,6 +3526,74 @@ public:
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
+};
+
+/** Integrator for the H/LDG diffusion stabilization term
+    The LDG stabilization takes the form
+    $$
+        1/2 \beta \langle \{h^{-1} Q\} [v], [w] \rangle
+    $$
+    where $Q$ is a scalar or matrix diffusion coefficient and $v$, $w$ are the trial
+    and test functions, respectively.
+
+    The corresponding HDG stabilization is then
+    $$\begin{align}
+        \langle \tau_\pm v_\pm, w_\pm \rangle, & -\langle \tau_\pm \lambda,          w_\pm \rangle,\\
+        \langle \tau_\pm v_\pm, \mu   \rangle, & -\langle (\tau_+ + \tau_-) \lambda, \mu   \rangle,
+    \end{align}$$
+    where $\tau_\pm = (\beta \pm 1/2 \alpha (u \cdot n) / |u \cdot n|) \{h^{-1} Q\}$
+    and $\lambda$, $\mu$ are the trial and test trace functions, respectively. The vector
+    coefficient $u$ is assumed continuous across the faces. */
+class HDGDiffusionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   VectorCoefficient *u;
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+   real_t alpha, beta;
+
+   // these are not thread-safe!
+   Vector tr_shape, shape1, shape2, vu, nor, nh, ni;
+   DenseMatrix mq;
+
+public:
+   /// Construct integrator with $\alpha=0$ and $\beta = a$.
+   HDGDiffusionIntegrator(const real_t a = 0.5)
+      : u(NULL), Q(NULL), MQ(NULL), alpha(0.), beta(a) { }
+
+   /// Construct integrator with $\alpha=0$ and $\beta = a$.
+   HDGDiffusionIntegrator(Coefficient &q, const real_t a = 0.5)
+      : u(NULL), Q(&q), MQ(NULL), alpha(0.), beta(a) { }
+
+   /// Construct integrator with $\alpha=0$ and $\beta = a$.
+   HDGDiffusionIntegrator(MatrixCoefficient &q, const real_t a = 0.5)
+      : u(NULL), Q(NULL), MQ(&q), alpha(0.), beta(a) { }
+
+   /// Construct integrator with $\beta = \alpha/2$.
+   HDGDiffusionIntegrator(VectorCoefficient &u_, const real_t a = 0.5)
+      : u(&u_), Q(NULL), MQ(NULL), alpha(a), beta(0.5*a) { }
+
+   /// Construct integrator with $\beta = \alpha/2$.
+   HDGDiffusionIntegrator(VectorCoefficient &u_, Coefficient &q,
+                          const real_t a = 0.5)
+      : u(&u_), Q(&q), MQ(NULL), alpha(a), beta(0.5*a) { }
+
+   /// Construct integrator with $\beta = \alpha/2$.
+   HDGDiffusionIntegrator(VectorCoefficient &u_, MatrixCoefficient &q,
+                          const real_t a = 0.5)
+      : u(&u_), Q(NULL), MQ(&q), alpha(a), beta(0.5*a) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   virtual void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                                      const FiniteElement &el1,
+                                      const FiniteElement &el2,
+                                      FaceElementTransformations &Trans,
+                                      DenseMatrix &elmat);
 };
 
 /** Integrator for the "BR2" diffusion stabilization term
@@ -3563,7 +3786,7 @@ public:
 
 /** Integrator for the form:$ \langle v, [w \cdot n] \rangle $ over all faces (the interface) where
     the trial variable $v$ is defined on the interface and the test variable $w$ is
-    in an $H(div)$-conforming space. */
+    in an $H(div)$-conforming space or in a DG space. */
 class NormalTraceJumpIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -3578,6 +3801,25 @@ public:
                            const FiniteElement &test_fe2,
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
+};
+
+/** Integrator for the form:$ \langle v, [w \times n] \rangle $ over all faces (the interface) where
+    the trial variable $v$ is defined on the interface and the test variable $w$ is
+    in an $H(curl)$-conforming space. */
+class TangentTraceJumpIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, hat_tau, shape1_n, shape2_n;
+   DenseMatrix shape1, shape2;
+
+public:
+   TangentTraceJumpIntegrator() { }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
 };
 
 /** Integrator for the DPG form:$ \langle v, w \rangle $ over a face (the interface) where

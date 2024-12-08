@@ -104,7 +104,7 @@ public:
    /// Constructor
    Hybridization(FiniteElementSpace *fespace, FiniteElementSpace *c_fespace);
    /// Destructor
-   ~Hybridization();
+   virtual ~Hybridization();
 
    /** Set the integrator that will be used to construct the constraint matrix
        C. The Hybridization object assumes ownership of the integrator, i.e. it
@@ -140,16 +140,16 @@ public:
    void UseExternalBdrConstraintIntegrators() { extern_bdr_constr_integs = true; }
 
    /// Prepare the Hybridization object for assembly.
-   void Init(const Array<int> &ess_tdof_list);
+   virtual void Init(const Array<int> &ess_tdof_list);
 
    /// Assemble the element matrix A into the hybridized system matrix.
-   void AssembleMatrix(int el, const DenseMatrix &A);
+   virtual void AssembleMatrix(int el, const DenseMatrix &A);
 
    /// Assemble the boundary element matrix A into the hybridized system matrix.
-   void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
+   virtual void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
 
    /// Finalize the construction of the hybridized matrix.
-   void Finalize();
+   virtual void Finalize();
 
    /// Return the serial hybridized matrix.
    SparseMatrix &GetMatrix() { return *H; }
@@ -168,13 +168,13 @@ public:
 
    /** Perform the reduction of the given r.h.s. vector, b, to a r.h.s vector,
        b_r, for the hybridized system. */
-   void ReduceRHS(const Vector &b, Vector &b_r) const;
+   virtual void ReduceRHS(const Vector &b, Vector &b_r) const;
 
    /** Reconstruct the solution of the original system, sol, from solution of
        the hybridized system, sol_r, and the original r.h.s. vector, b.
        It is assumed that the vector sol has the right essential b.c. */
-   void ComputeSolution(const Vector &b, const Vector &sol_r,
-                        Vector &sol) const;
+   virtual void ComputeSolution(const Vector &b, const Vector &sol_r,
+                                Vector &sol) const;
 
    /** @brief Destroy the current hybridization matrix while preserving the
        computed constraint matrix and the set of essential true dofs. After
@@ -182,7 +182,13 @@ public:
        and Finalize(). The Mesh and FiniteElementSpace objects are assumed to be
        un-modified. If that is not the case, a new Hybridization object must be
        created. */
-   void Reset();
+   virtual void Reset();
+
+   /// Return the constraint FE space associated with the Hybridization.
+   FiniteElementSpace *ConstraintFESpace() { return c_fes; }
+
+   /// Read-only access to the associated constraint FE space.
+   const FiniteElementSpace *ConstraintFESpace() const { return c_fes; }
 };
 
 }
