@@ -66,9 +66,6 @@ private:
    // FE space for the nodes of the solution GridFunction, not owned.
    const FiniteElementSpace *fes_new_field;
 
-   void GetFieldNodesPosition(const Vector &mesh_nodes,
-                              Vector &nodes_pos) const;
-
 public:
    InterpolatorFP() : finder(NULL), fes_new_field(NULL) { }
 
@@ -78,7 +75,10 @@ public:
    /// Must be called when the FE space of the final field is different than
    /// the FE space of the initial field. This also includes the case when
    /// the initial and final fields are on different meshes.
-   void SetNewFieldFESpace(const FiniteElementSpace &fes);
+   void SetNewFieldFESpace(const FiniteElementSpace &fes)
+   {
+      fes_new_field = &fes;
+   }
 
    /// Perform interpolation-based remap.
    /// Assumptions when SetNewFieldFESpace() has not been called:

@@ -388,67 +388,25 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    }
 }
 
-void InterpolatorFP::SetNewFieldFESpace(const FiniteElementSpace &fes)
-{
-   fes_new_field = &fes;
-}
-
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                           Vector &new_field,
                                           int nodes_ordering)
 {
-   // Get physical node locations corresponding to field0_gf
-   if (fes_new_field)
+   const FiniteElementSpace *fes_sltn =
+       (fes_new_field) ? fes_new_field : field0_gf.FESpace();
+   const int dim = fes_sltn->GetMesh()->Dimension();
+
+   std::cout << new_mesh_nodes.Size() / dim << " " << fes_sltn->GetNDofs() << std::endl;
+   if (new_mesh_nodes.Size() / dim != fes_sltn->GetNDofs())
    {
+      // The nodes of the FE space don't coincide with the mesh nodes.
       Vector mapped_nodes;
-      GetFieldNodesPosition(new_mesh_nodes, mapped_nodes);
-      finder->Interpolate(mapped_nodes, field0_gf, new_field,
-                          fes_new_field->GetOrdering());
+      fes_sltn->GetNodePositions(new_mesh_nodes, mapped_nodes);
+      finder->Interpolate(mapped_nodes, field0_gf, new_field);
    }
    else
    {
       finder->Interpolate(new_mesh_nodes, field0_gf, new_field, nodes_ordering);
-   }
-}
-
-void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
-                                           Vector &nodes_pos) const
-{
-   MFEM_VERIFY(fes_new_field, "InterpolatorFP: fes_field_nodes is not set.");
-
-   Mesh *m = fes_new_field->GetMesh();
-   const int nelem     = fes_new_field->GetNE();
-   const int n_f_nodes = fes_new_field->GetNDofs();
-   const int dim       = m->Dimension();
-   if (nelem == 0) { return; }
-   Array<int> dofs;
-   Vector e_xyz;
-   nodes_pos.SetSize(n_f_nodes*dim);
-   const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
-
-   for (int e = 0; e < nelem; e++)
-   {
-      mesh_fes->GetElementVDofs(e, dofs);
-      int n_mdofs = dofs.Size()/dim;
-      mesh_nodes.GetSubVector(dofs, e_xyz); //e_xyz is ordered by nodes here
-      const FiniteElement *mfe = mesh_fes->GetFE(e);
-      Vector shape(n_mdofs);
-
-      auto ir = fes_new_field->GetFE(e)->GetNodes();
-      const int n_gf_pts = ir.GetNPoints();
-      Vector gf_xyz(n_gf_pts*dim);
-      for (int q = 0; q < n_gf_pts; q++)
-      {
-         IntegrationPoint ip = ir.IntPoint(q);
-         mfe->CalcShape(ip, shape);
-         for (int d = 0; d < dim; d++)
-         {
-            Vector x(e_xyz.GetData() + d*n_mdofs, n_mdofs);
-            gf_xyz(d*n_gf_pts + q) = x*shape; // order by nodes
-         }
-      }
-      fes_new_field->GetElementVDofs(e, dofs);
-      nodes_pos.SetSubVector(dofs, gf_xyz);
    }
 }
 
