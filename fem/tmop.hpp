@@ -1314,8 +1314,8 @@ public:
    }
    virtual ~AdaptivityEvaluator();
 
-   /** Specifies the Mesh and FiniteElementSpace of the solution that will
-       be evaluated. The given mesh will be copied into the internal object. */
+   /// Specifies the Mesh and FiniteElementSpace of the solution that will
+   /// be evaluated. The given mesh will be copied into the internal object.
    void SetSerialMetaInfo(const Mesh &m,
                           const FiniteElementSpace &f);
 
@@ -1330,6 +1330,10 @@ public:
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field) = 0;
 
+   /// Called when the FE space of the final field is different than
+   /// the FE space of the initial field.
+   virtual void SetNewFieldFESpace(const FiniteElementSpace &fes) = 0;
+
    /** @brief Perform field transfer between the original and a new mesh. The
               source mesh and field are given by SetInitialField().
 
@@ -1340,6 +1344,16 @@ public:
    virtual void ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                      Vector &new_field,
                                      int nodes_ordering = Ordering::byNODES) = 0;
+
+   /** @brief Using the source mesh and field given by SetInitialField(),
+              compute corresponding values at specified physical positions.
+
+       @param[in]  positions   Physical positions to compute values.
+       @param[out] values      Computed field values.
+       @param[in]  p_ordering  Ordering of the positions Vector.     */
+   virtual void ComputeAtGivenPositions(const Vector &positions,
+                                        Vector &values,
+                                        int p_ordering = Ordering::byNODES) = 0;
 
    void ClearGeometricFactors();
 };

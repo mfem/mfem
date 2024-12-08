@@ -43,12 +43,24 @@ public:
    void SetInitialField(const Vector &init_nodes,
                         const Vector &init_field) override;
 
+   void SetNewFieldFESpace(const FiniteElementSpace &fes) override
+   {
+      MFEM_ABORT("Not supported by AdvectorCG.");
+   }
+
    /// Perform advection-based remap. Assumptions:
    /// nodes0 and new_mesh_nodes have the same topology;
    /// new_field is of the same FE space as field0.
    void ComputeAtNewPosition(const Vector &new_mesh_nodes,
                              Vector &new_field,
                              int nodes_ordering = Ordering::byNODES) override;
+
+   void ComputeAtGivenPositions(const Vector &positions,
+                                Vector &values,
+                                int p_ordering = Ordering::byNODES) override
+   {
+      MFEM_ABORT("Not supported by AdvectorCG.");
+   }
 
    /// Set the memory type used for large memory allocations. This memory type
    /// is used when constructing the AdvectorCGOper but currently only for the
@@ -75,7 +87,7 @@ public:
    /// Must be called when the FE space of the final field is different than
    /// the FE space of the initial field. This also includes the case when
    /// the initial and final fields are on different meshes.
-   void SetNewFieldFESpace(const FiniteElementSpace &fes)
+   virtual void SetNewFieldFESpace(const FiniteElementSpace &fes) override
    {
       fes_new_field = &fes;
    }
@@ -87,6 +99,11 @@ public:
                              Vector &new_field,
                              int nodes_ordering = Ordering::byNODES) override;
 
+   /// Direct interpolation of field0_gf at the given positions.
+   void ComputeAtGivenPositions(const Vector &positions,
+                                Vector &values,
+                                int p_ordering = Ordering::byNODES) override;
+
    const FindPointsGSLIB *GetFindPointsGSLIB() const
    {
       return finder;
@@ -96,7 +113,6 @@ public:
    {
       finder->FreeData();
       delete finder;
-      delete fes_new_field;
    }
 };
 #endif

@@ -389,14 +389,12 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
-                                          Vector &new_field,
-                                          int nodes_ordering)
+                                          Vector &new_field, int nodes_ordering)
 {
    const FiniteElementSpace *fes_sltn =
        (fes_new_field) ? fes_new_field : field0_gf.FESpace();
    const int dim = fes_sltn->GetMesh()->Dimension();
 
-   std::cout << new_mesh_nodes.Size() / dim << " " << fes_sltn->GetNDofs() << std::endl;
    if (new_mesh_nodes.Size() / dim != fes_sltn->GetNDofs())
    {
       // The nodes of the FE space don't coincide with the mesh nodes.
@@ -408,6 +406,12 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
    {
       finder->Interpolate(new_mesh_nodes, field0_gf, new_field, nodes_ordering);
    }
+}
+
+void InterpolatorFP::ComputeAtGivenPositions(const Vector &positions,
+                                             Vector &values, int p_ordering)
+{
+   finder->Interpolate(positions, field0_gf, values, p_ordering);
 }
 
 #endif
