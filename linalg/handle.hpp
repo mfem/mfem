@@ -17,9 +17,103 @@
 #ifdef MFEM_USE_MPI
 #include "hypre.hpp"
 #endif
+#include <memory>
 
 namespace mfem
 {
+namespace internal
+{
+
+/// Pointer to an object
+/** A general template wrapping the pointer to an object
+    and optionally taking its ownership. */
+template<class T>
+class Handle
+{
+   T *ptr{};
+   bool own_ptr{};
+
+public:
+   /// Create a Handle
+   Handle() { }
+
+   /// Create a Handle for the given pointer, @a A.
+   /** The object ownership flag is set to the value of @a own_A.
+       It is expected that @a A points to a valid object. */
+   explicit Handle(T *A, bool own_A = true) { Reset(A, own_A); }
+
+   /// Shallow copy. The ownership flag of the target is set to false.
+   Handle(const Handle &other)
+      : ptr(other.ptr), own_ptr(false) {  }
+
+   /// Default move constructor
+   Handle(Handle &&other) = default;
+
+   /// Move conversion from the standard unique pointer
+   Handle(std::unique_ptr<T> &&other) { Reset(other.release()); }
+
+   virtual ~Handle() { if (own_ptr) { delete ptr; } }
+
+   /// Shallow copy. The ownership flag of the target is set to false.
+   Handle &operator=(const Handle &master)
+   {
+      Reset(master.Ptr(), false);
+      return *this;
+   }
+
+   /// Access the underlying object pointer.
+   inline T *Ptr() const { return ptr; }
+
+   /// Support the use of -> to call methods of the underlying object.
+   inline T *operator->() const { return ptr; }
+
+   /// Access the underlying object.
+   inline T &operator*() { return *ptr; }
+
+   /// Access the underlying object.
+   inline const T &operator*() const { return *ptr; }
+
+   /// Return true if the Handle owns the held object.
+   bool Owns() const { return own_ptr; }
+
+   /// Set the ownership flag for the held object.
+   void SetOwner(bool own = true) { own_ptr = own; }
+
+   /// Clear the Handle, deleting the held object (if owned)
+   void Clear() { Reset(nullptr, false); }
+
+   /// Reset the Handle to the given pointer, @a A.
+   /** The object ownership flag is set to the value of @a own_A.
+       It is expected that @a A points to a valid object. */
+   void Reset(T *A, bool own_A = true)
+   {
+      if (own_ptr) { delete ptr; }
+      ptr = A;
+      own_ptr = own_A;
+   }
+
+   /// Conversion to the standard unique pointer
+   operator std::unique_ptr<T>()
+   {
+      MFEM_ASSERT(Owns(), "Cannot convert non-owned pointer to unique_ptr!");
+      SetOwner(false);
+      return std::unique_ptr<T>(Ptr());
+   }
+
+   /// Conversion to the standard shared pointer
+   /** @note Ownership is transferred to the returned pointer */
+   operator std::shared_ptr<T>()
+   {
+      if (Owns())
+      {
+         SetOwner(false);
+         return std::shared_ptr<T>(Ptr());
+      }
+      else
+         return std::shared_ptr<T>(Ptr(), [](T*) {});
+   }
+};
+};
 
 /// Pointer to an Operator of a specified type
 /** This class provides a common interface for global, matrix-type operators to
@@ -30,35 +124,23 @@ namespace mfem
       - PETSC parallel matrix assembled on each processor (PETSC_MATIS)
     See also Operator::Type.
 */
-class OperatorHandle
+class OperatorHandle : public internal::Handle<Operator>
 {
 protected:
    static const char not_supported_msg[];
 
-   Operator      *oper;
    Operator::Type type_id;
-   bool           own_oper;
 
    Operator::Type CheckType(Operator::Type tid);
-
-   template <typename OpType>
-   void pSet(OpType *A, bool own_A = true)
-   {
-      oper = A;
-      type_id = A->GetType();
-      own_oper = own_A;
-   }
 
 public:
    /** @brief Create an OperatorHandle with type id = Operator::MFEM_SPARSEMAT
        without allocating the actual matrix. */
-   OperatorHandle()
-      : oper(NULL), type_id(Operator::MFEM_SPARSEMAT), own_oper(false) { }
+   OperatorHandle() : type_id(Operator::MFEM_SPARSEMAT) { }
 
    /** @brief Create a OperatorHandle with a specified type id, @a tid, without
        allocating the actual matrix. */
-   explicit OperatorHandle(Operator::Type tid)
-      : oper(NULL), type_id(CheckType(tid)), own_oper(false) { }
+   explicit OperatorHandle(Operator::Type tid) : type_id(CheckType(tid)) { }
 
    /// Create an OperatorHandle for the given OpType pointer, @a A.
    /** Presently, OpType can be SparseMatrix, HypreParMatrix, or PetscParMatrix.
@@ -67,33 +149,24 @@ public:
 
        It is expected that @a A points to a valid object. */
    template <typename OpType>
-   explicit OperatorHandle(OpType *A, bool own_A = true) { pSet(A, own_A); }
+   explicit OperatorHandle(OpType *A, bool own_A = true) { Reset(A, own_A); }
 
    /// Shallow copy. The ownership flag of the target is set to false.
-   OperatorHandle(const OperatorHandle &other) :
-      oper(other.oper), type_id(other.type_id), own_oper(false)
-   {  }
+   OperatorHandle(const OperatorHandle &other)
+      : Handle(other), type_id(other.type_id) {  }
 
-   ~OperatorHandle() { if (own_oper) { delete oper; } }
+   /// Default move constructor
+   OperatorHandle(OperatorHandle &&other) = default;
+
+   ~OperatorHandle() { }
 
    /// Shallow copy. The ownership flag of the target is set to false.
    OperatorHandle &operator=(const OperatorHandle &master)
    {
-      Clear(); oper = master.oper; type_id = master.type_id; own_oper = false;
+      Handle::operator=(master);
+      type_id = master.type_id;
       return *this;
    }
-
-   /// Access the underlying Operator pointer.
-   Operator *Ptr() const { return oper; }
-
-   /// Support the use of -> to call methods of the underlying Operator.
-   Operator *operator->() const { return oper; }
-
-   /// Access the underlying Operator.
-   Operator &operator*() { return *oper; }
-
-   /// Access the underlying Operator.
-   const Operator &operator*() const { return *oper; }
 
    /// Get the currently set operator type id.
    Operator::Type Type() const { return type_id; }
@@ -101,32 +174,23 @@ public:
    /** @brief Return the Operator pointer statically cast to a specified OpType.
        Similar to the method Get(). */
    template <typename OpType>
-   OpType *As() const { return static_cast<OpType*>(oper); }
+   OpType *As() const { return static_cast<OpType*>(Ptr()); }
 
    /// Return the Operator pointer dynamically cast to a specified OpType.
    template <typename OpType>
-   OpType *Is() const { return dynamic_cast<OpType*>(oper); }
+   OpType *Is() const { return dynamic_cast<OpType*>(Ptr()); }
 
    /// Return the Operator pointer statically cast to a given OpType.
    /** Similar to the method As(), however the template type OpType can be
        derived automatically from the argument @a A. */
    template <typename OpType>
-   void Get(OpType *&A) const { A = static_cast<OpType*>(oper); }
+   void Get(OpType *&A) const { A = static_cast<OpType*>(Ptr()); }
 
    /// Return true if the OperatorHandle owns the held Operator.
-   bool OwnsOperator() const { return own_oper; }
+   bool OwnsOperator() const { return Owns(); }
 
    /// Set the ownership flag for the held Operator.
-   void SetOperatorOwner(bool own = true) { own_oper = own; }
-
-   /** @brief Clear the OperatorHandle, deleting the held Operator (if owned),
-       while leaving the type id unchanged. */
-   void Clear()
-   {
-      if (own_oper) { delete oper; }
-      oper = NULL;
-      own_oper = false;
-   }
+   void SetOperatorOwner(bool own = true) { SetOwner(own); }
 
    /// Invoke Clear() and set a new type id.
    void SetType(Operator::Type tid)
@@ -144,8 +208,8 @@ public:
    template <typename OpType>
    void Reset(OpType *A, bool own_A = true)
    {
-      if (own_oper) { delete oper; }
-      pSet(A, own_A);
+      Handle::Reset(A, own_A);
+      type_id = A->GetType();
    }
 
 #ifdef MFEM_USE_MPI
