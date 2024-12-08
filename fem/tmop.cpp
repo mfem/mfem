@@ -3122,17 +3122,23 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    MFEM_ABORT("Surface fitting from source requires GSLIB!");
 #endif
 
+   auto ae_ifp  = dynamic_cast<InterpolatorFP *>(&ae),
+        age_ifp = dynamic_cast<InterpolatorFP *>(&age),
+        ahe_ifp = dynamic_cast<InterpolatorFP *>(&ahe);
+   MFEM_VERIFY(ae_ifp && age_ifp && ahe_ifp,
+               "Fitting through background grids requires InterpolatorFP.");
+
    // Setup for level set function
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
-
    surf_fit_eval->SetParMetaInfo(*s_bg.ParFESpace()->GetParMesh(),
                                  *s_bg.ParFESpace());
    surf_fit_eval->SetInitialField
    (*s_bg.FESpace()->GetMesh()->GetNodes(), s_bg);
+   ae_ifp->SetNewFieldFESpace(*surf_fit_gf->FESpace());
    GridFunction *nodes = s0.FESpace()->GetMesh()->GetNodes();
    surf_fit_eval->ComputeAtNewPosition(*nodes, *surf_fit_gf,
                                        nodes->FESpace()->GetOrdering());
@@ -3151,6 +3157,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
                                       *s_bg_grad.ParFESpace());
    surf_fit_eval_grad->SetInitialField
    (*s_bg_grad.FESpace()->GetMesh()->GetNodes(), s_bg_grad);
+   age_ifp->SetNewFieldFESpace(*surf_fit_grad->FESpace());
 
    // Setup for Hessian on background mesh
    MFEM_VERIFY(s_bg_hess.ParFESpace()->GetOrdering() ==
@@ -3164,6 +3171,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
                                       *s_bg_hess.ParFESpace());
    surf_fit_eval_hess->SetInitialField
    (*s_bg_hess.FESpace()->GetMesh()->GetNodes(), s_bg_hess);
+   ahe_ifp->SetNewFieldFESpace(*surf_fit_hess->FESpace());
 
    // Count number of zones that share each of the DOFs
    s0.CountElementsPerVDof(surf_fit_dof_count);
