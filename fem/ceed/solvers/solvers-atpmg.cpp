@@ -676,6 +676,9 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
          ierr = CeedOperatorSetField(coper, fieldname, er_input[i], basis_input[i],
                                      if_vector[i]); PCeedChk(ierr);
       }
+      ierr = CeedVectorDestroy(&if_vector[i]); PCeedChk(ierr);
+      ierr = CeedElemRestrictionDestroy(&er_input[i]); PCeedChk(ierr);
+      ierr = CeedBasisDestroy(&basis_input[i]); PCeedChk(ierr);
    }
    for (int i = 0; i < numoutputfields; ++i)
    {
@@ -691,6 +694,9 @@ int CeedATPMGOperator(CeedOperator oper, int order_reduction,
          ierr = CeedOperatorSetField(coper, fieldname, er_output[i], basis_output[i],
                                      of_vector[i]); PCeedChk(ierr);
       }
+      ierr = CeedVectorDestroy(&of_vector[i]); PCeedChk(ierr);
+      ierr = CeedElemRestrictionDestroy(&er_output[i]); PCeedChk(ierr);
+      ierr = CeedBasisDestroy(&basis_output[i]); PCeedChk(ierr);
    }
    delete [] er_input;
    delete [] er_output;
