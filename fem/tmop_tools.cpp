@@ -417,6 +417,7 @@ void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
    Array<int> dofs;
    Vector e_xyz;
    nodes_pos.SetSize(n_f_nodes*dim);
+   nodes_pos.UseDevice(mesh_nodes.UseDevice());
    const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
 
    for (int e = 0; e < nelem; e++)
