@@ -3835,18 +3835,18 @@ void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
 }
 
 void FiniteElementSpace::GetNodePositions(const Vector &mesh_nodes,
-                                          Vector &fes_nodes,
+                                          Vector &fes_node_pos,
                                           int fes_nodes_ordering) const
 {
    Mesh *m = GetMesh();
    const int NE = m->GetNE();
 
-   if (NE == 0) { fes_nodes.SetSize(0); return; }
+   if (NE == 0) { fes_node_pos.SetSize(0); return; }
 
    const int dim   = m->Dimension();
    Array<int> dofs;
    Vector e_xyz;
-   fes_nodes.SetSize(GetNDofs() * dim);
+   fes_node_pos.SetSize(GetNDofs() * dim);
    const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
    FiniteElementSpace vector_fes(m, FEColl(), dim, fes_nodes_ordering);
 
@@ -3871,7 +3871,7 @@ void FiniteElementSpace::GetNodePositions(const Vector &mesh_nodes,
 
       // reuse/resize dofs.
       vector_fes.GetElementVDofs(e, dofs);
-      fes_nodes.SetSubVector(dofs, gf_xyz);
+      fes_node_pos.SetSubVector(dofs, gf_xyz);
    }
 }
 

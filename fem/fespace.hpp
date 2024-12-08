@@ -1374,7 +1374,7 @@ public:
        mesh of the FE space, i.e, same size as this->GetMesh()->GetNodes().
        The computation is done using FiniteElement::GetNodes() to obtain the
        reference DOF positions of each finite element. */
-   void GetNodePositions(const Vector &mesh_nodes, Vector &fes_nodes,
+   void GetNodePositions(const Vector &mesh_nodes, Vector &fes_node_pos,
                          int fes_nodes_ordering = Ordering::byNODES) const;
 
    /// Save finite element space to output stream @a out.
