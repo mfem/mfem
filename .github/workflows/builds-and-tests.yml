@@ -92,6 +92,7 @@ jobs:
             build-system: cmake
             hypre-target: int32
             precision: fp64
+            config-opts: '-DCMAKE_INSTALL_PREFIX=../cmake-install'
             # This option can be set to pass additional configuration options to
             # the MFEM configuration command.
             # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
