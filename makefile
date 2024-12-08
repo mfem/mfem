@@ -626,8 +626,10 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	$(INSTALLDEF) $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
-	   ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
-	   $(INSTALLDEF) $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	   if ls $(SRC)$$dir/*.hpp > /dev/null 2>&1; then \
+	      ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
+	      $(INSTALLDEF) $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	   fi; \
 	done
 # install *.okl files
 	for dir in $(OKL_DIRS); do \
