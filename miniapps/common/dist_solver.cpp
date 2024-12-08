@@ -56,7 +56,7 @@ real_t AvgElementSize(ParMesh &pmesh)
    MPI_Allreduce(&loc_area, &glob_area, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, pmesh.GetComm());
    const int glob_zones = pmesh.GetGlobalNE();
-   switch (pmesh.GetElementBaseGeometry(0))
+   switch (pmesh.GetTypicalElementGeometry())
    {
       case Geometry::SEGMENT:
          dx = glob_area / glob_zones; break;

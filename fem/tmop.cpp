@@ -1578,7 +1578,7 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
                "mixed meshes are not supported");
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const int sdim = fes.GetVDim();
    const int nvdofs = sdim*fe.GetDof();
    MFEM_VERIFY(!UsesPhysicalCoordinates() ||
@@ -2703,7 +2703,7 @@ UpdateGradientTargetSpecification(const Vector &x, real_t dx,
 {
    if (reuse_flag && good_tspec_grad) { return; }
 
-   const int dim = tspec_fesv->GetFE(0)->GetDim(),
+   const int dim = tspec_fesv->GetTypicalFE()->GetDim(),
              cnt = x.Size()/dim;
 
    MFEM_VERIFY(tspec_fesv->GetVSize() / ncomp == cnt,
@@ -2740,7 +2740,7 @@ UpdateHessianTargetSpecification(const Vector &x, real_t dx,
 {
    if (reuse_flag && good_tspec_hess) { return; }
 
-   const int dim    = tspec_fesv->GetFE(0)->GetDim(),
+   const int dim    = tspec_fesv->GetTypicalFE()->GetDim(),
              cnt    = x.Size()/dim,
              totmix = 1+2*(dim-2);
 
@@ -4449,7 +4449,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 void TMOP_Integrator::ComputeMinJac(const Vector &x,
                                     const FiniteElementSpace &fes)
 {
-   const FiniteElement *fe = fes.GetFE(0);
+   const FiniteElement *fe = fes.GetTypicalFE();
    const IntegrationRule &ir = EnergyIntegrationRule(*fe);
    const int NE = fes.GetMesh()->GetNE(), dim = fe->GetDim(),
              dof = fe->GetDof(), nsp = ir.GetNPoints();

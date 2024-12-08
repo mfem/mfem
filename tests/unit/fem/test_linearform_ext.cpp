@@ -89,7 +89,7 @@ struct LinearFormExtTest
       dim(mesh.Dimension()), vdim(vdim), ordering(ordering),
       problem(problem), p(p), q(GetQOrder(qtype, p)), fec(p, dim),
       vfes(&mesh, &fec, vdim, ordering),
-      geom_type(vfes.GetFE(0)->GetGeomType()),
+      geom_type(mesh.GetTypicalElementGeometry()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)), ir(&IntRules.Get(geom_type, q)),
       elem_marker(), vdim_vec(vdim), vdim_dim_vec(vdim*dim),

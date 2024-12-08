@@ -109,8 +109,8 @@ public:
          }
 
          // intialize the bounding box
-         const FiniteElement* el=space->GetFE(0);
-         trans = space->GetElementTransformation(0);
+         const FiniteElement* el = space->GetTypicalFE();
+         trans = mesh->GetTypicalElementTransformation();
          ir=&(el->GetNodes());
          space->GetElementVDofs(0,vdofs);
          elco.SetSize(dim,ir->GetNPoints());

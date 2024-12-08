@@ -157,7 +157,7 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    Mesh orig_mesh(mesh_fname, 1, 1);
    Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
 
-   Geometry::Type orig_geom = orig_mesh.GetElementBaseGeometry(0);
+   Geometry::Type orig_geom = orig_mesh.GetTypicalElementGeometry();
    int factor;
    switch (orig_geom)
    {

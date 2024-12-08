@@ -1184,17 +1184,17 @@ enum {NORM, AREA};
 static real_t qf(const int order, const int ker, Mesh &m,
                  FiniteElementSpace &fes, GridFunction &u)
 {
-   const Geometry::Type type = m.GetElementBaseGeometry(0);
+   const Geometry::Type type = m.GetTypicalElementGeometry();
    const IntegrationRule &ir(IntRules.Get(type, order));
    const QuadratureInterpolator *qi(fes.GetQuadratureInterpolator(ir));
 
    const int NE(m.GetNE());
-   const int ND(fes.GetFE(0)->GetDof());
+   const int ND(fes.GetTypicalFE()->GetDof());
    const int NQ(ir.GetNPoints());
    const int flags = GeometricFactors::JACOBIANS|GeometricFactors::DETERMINANTS;
    const GeometricFactors *geom = m.GetGeometricFactors(ir, flags);
 
-   const int D1D = fes.GetFE(0)->GetOrder() + 1;
+   const int D1D = fes.GetTypicalFE()->GetOrder() + 1;
    const int Q1D = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
    MFEM_VERIFY(ND == D1D*D1D, "");
    MFEM_VERIFY(NQ == Q1D*Q1D, "");

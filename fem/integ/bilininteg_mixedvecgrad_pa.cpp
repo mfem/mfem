@@ -666,8 +666,8 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
 {
    // Assumes tensor-product elements, with a vector test space and H^1 trial space.
    Mesh *mesh = trial_fes.GetMesh();
-   const FiniteElement *trial_fel = trial_fes.GetFE(0);
-   const FiniteElement *test_fel = test_fes.GetFE(0);
+   const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
+   const FiniteElement *test_fel = test_fes.GetTypicalFE();
 
    const NodalTensorFiniteElement *trial_el =
       dynamic_cast<const NodalTensorFiniteElement*>(trial_fel);
@@ -679,7 +679,7 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
 
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
-                                                     *mesh->GetElementTransformation(0));
+                                                     *mesh->GetTypicalElementTransformation());
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
