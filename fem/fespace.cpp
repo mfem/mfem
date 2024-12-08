@@ -3834,6 +3834,47 @@ void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
    mesh = new_mesh;
 }
 
+void FiniteElementSpace::GetNodePositions(const Vector &mesh_nodes,
+                                          Vector &fes_nodes,
+                                          int fes_nodes_ordering) const
+{
+   Mesh *m = GetMesh();
+   const int NE = m->GetNE();
+
+   if (NE == 0) { fes_nodes.SetSize(0); return; }
+
+   const int dim   = m->Dimension();
+   Array<int> dofs;
+   Vector e_xyz;
+   fes_nodes.SetSize(GetNDofs() * dim);
+   const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
+   FiniteElementSpace vector_fes(m, FEColl(), dim, fes_nodes_ordering);
+
+   for (int e = 0; e < NE; e++)
+   {
+      mesh_fes->GetElementVDofs(e, dofs);
+      const int mdof_cnt = dofs.Size() / dim;
+      mesh_nodes.GetSubVector(dofs, e_xyz); //e_xyz is ordered by nodes here
+
+      auto ir = GetFE(e)->GetNodes();
+      const int fdof_cnt = ir.GetNPoints();
+      Vector mesh_shape(mdof_cnt), gf_xyz(fdof_cnt * dim);
+      for (int q = 0; q < fdof_cnt; q++)
+      {
+         mesh_fes->GetFE(e)->CalcShape(ir.IntPoint(q), mesh_shape);
+         for (int d = 0; d < dim; d++)
+         {
+            Vector x(e_xyz.GetData() + d*mdof_cnt, mdof_cnt);
+            gf_xyz(d*fdof_cnt + q) = x * mesh_shape; // order by nodes
+         }
+      }
+
+      // reuse/resize dofs.
+      vector_fes.GetElementVDofs(e, dofs);
+      fes_nodes.SetSubVector(dofs, gf_xyz);
+   }
+}
+
 void FiniteElementSpace::Save(std::ostream &os) const
 {
    int fes_format = 90; // the original format, v0.9

@@ -78,7 +78,7 @@ public:
 
    /// Perform interpolation-based remap.
    /// Source: field0, of the fes/pfes FE space, defined on nodes0.
-   /// Result: new_field, whose node positions are given by new_field_nodes.
+   /// Result: new_field, whose DOF node positions are given by new_field_nodes.
    /// This function does not care what is the FE space of new_field, nor
    /// what is the underlying mesh of new_field.
    void ComputeAtNewPosition(const Vector &new_field_nodes,
