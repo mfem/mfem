@@ -3843,7 +3843,7 @@ void FiniteElementSpace::GetNodePositions(const Vector &mesh_nodes,
 
    if (NE == 0) { fes_node_pos.SetSize(0); return; }
 
-   const int dim   = m->Dimension();
+   const int dim = m->Dimension();
    Array<int> dofs;
    Vector e_xyz;
    fes_node_pos.SetSize(GetNDofs() * dim);
