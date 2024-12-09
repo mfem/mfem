@@ -641,6 +641,12 @@ public:
        error if '*this' is finalized and 'B' has larger sparsity pattern. */
    SparseMatrix &operator+=(const SparseMatrix &B);
 
+   /** @brief Add the sparse sub-matrix 'B' to '*this' with the row offset 'ioff'
+       and column offset 'joff'. This operation will cause an error
+       if '*this' is finalized and 'B' has larger sparsity pattern. */
+   void AddSubSparseMatrix(const real_t a, const SparseMatrix &B, int ioff=0,
+                           int joff=0);
+
    /** @brief Add the sparse matrix 'B' scaled by the scalar 'a' into '*this'.
        Only entries in the sparsity pattern of '*this' are added. */
    void Add(const real_t a, const SparseMatrix &B);
