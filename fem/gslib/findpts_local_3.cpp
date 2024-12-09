@@ -450,9 +450,9 @@ static MFEM_HOST_DEVICE inline findptsElemPt get_pt(const double *elx[3],
 
 /* Check reduction in objective against prediction, and adjust trust region
    radius (p->tr) accordingly. May reject the prior step, returning 1; otherwise
-   returns 0 sets out->dist2, out->index, out->x, out->oldr in any event,
-   leaving out->r, out->dr, out->flags to be set when returning 0 */
-static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsPt *out,
+   returns 0 sets res->dist2, res->index, res->x, res->oldr in any event,
+   leaving res->r, res->dr, res->flags to be set when returning 0 */
+static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsPt *res,
                                                  const double resid[3],
                                                  const findptsPt *p,
                                                  const double tol)
@@ -462,21 +462,21 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsPt *out,
    const double pred = p->dist2p;
    for (int d = 0; d < 3; ++d)
    {
-      out->x[d] = p->x[d];
-      out->oldr[d] = p->r[d];
+      res->x[d] = p->x[d];
+      res->oldr[d] = p->r[d];
    }
-   out->dist2 = dist2;
+   res->dist2 = dist2;
    if (decr >= 0.01*pred)
    {
       if (decr >= 0.9*pred)
       {
          // very good iteration
-         out->tr = p->tr*2;
+         res->tr = p->tr*2;
       }
       else
       {
          // good iteration
-         out->tr = p->tr;
+         res->tr = p->tr;
       }
       return false;
    }
@@ -489,17 +489,17 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsPt *out,
       double v0 = fabs(p->r[0]-p->oldr[0]);
       double v1 = fabs(p->r[1]-p->oldr[1]);
       double v2 = fabs(p->r[2]-p->oldr[2]);
-      out->tr = (v1 > v2 ? (v0 > v1 ? v0 : v1) : (v0 > v2 ? v0 : v2)) / 4;
-      out->dist2 = p->dist2;
+      res->tr = (v1 > v2 ? (v0 > v1 ? v0 : v1) : (v0 > v2 ? v0 : v2)) / 4;
+      res->dist2 = p->dist2;
       for (int d = 0; d < 3; ++d)
       {
-         out->r[d] = p->oldr[d];
+         res->r[d] = p->oldr[d];
       }
-      out->flags = p->flags >> 7;
-      out->dist2p = -std::numeric_limits<double>::max();
+      res->flags = p->flags >> 7;
+      res->dist2p = -std::numeric_limits<double>::max();
       if (pred < dist2*tol)
       {
-         out->flags |= CONVERGED_FLAG;
+         res->flags |= CONVERGED_FLAG;
       }
       return true;
    }
@@ -507,7 +507,7 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsPt *out,
 
 /* minimize 0.5||x* - x(r)||^2_2 using gradient-descent, with
    |dr| <= tr and |r0+dr|<=1*/
-static MFEM_HOST_DEVICE void newton_vol(findptsPt *const out,
+static MFEM_HOST_DEVICE void newton_vol(findptsPt *const res,
                                         const double jac[9],
                                         const double resid[3],
                                         const findptsPt *const p,
@@ -575,15 +575,15 @@ newton_vol_face :
    {
       const int fi = face_index(flags);
       const int dn = fi >> 1, d1 = plus_1_mod_3(dn), d2 = plus_2_mod_3(dn);
-      double drc[2], fac = 1;
+      double drc[2], facc = 1;
       int new_flags = 0;
-      double res[3], y[2], JtJ[3];
-      res[0] = resid[0]-(jac[0]*dr[0]+jac[1]*dr[1]+jac[2]*dr[2]);
-      res[1] = resid[1]-(jac[3]*dr[0]+jac[4]*dr[1]+jac[5]*dr[2]);
-      res[2] = resid[2]-(jac[6]*dr[0]+jac[7]*dr[1]+jac[8]*dr[2]);
+      double ress[3], y[2], JtJ[3];
+      ress[0] = resid[0]-(jac[0]*dr[0]+jac[1]*dr[1]+jac[2]*dr[2]);
+      ress[1] = resid[1]-(jac[3]*dr[0]+jac[4]*dr[1]+jac[5]*dr[2]);
+      ress[2] = resid[2]-(jac[6]*dr[0]+jac[7]*dr[1]+jac[8]*dr[2]);
       /* y = J_u^T res */
-      y[0] = jac[d1]*res[0]+jac[3+d1]*res[1]+jac[6+d1]*res[2];
-      y[1] = jac[d2]*res[0]+jac[3+d2]*res[1]+jac[6+d2]*res[2];
+      y[0] = jac[d1]*ress[0]+jac[3+d1]*ress[1]+jac[6+d1]*ress[2];
+      y[1] = jac[d2]*ress[0]+jac[3+d2]*ress[1]+jac[6+d2]*ress[2];
       /* JtJ = J_u^T J_u */
       JtJ[0] = jac[d1]*jac[d1]+jac[3+d1]*jac[3+d1] +
                jac[6+d1]*jac[6 +d1];
@@ -613,7 +613,7 @@ newton_vol_face :
 }
       CHECK_CONSTRAINT(drc[0], d1);
       CHECK_CONSTRAINT(drc[1], d2);
-      dr[d1] += fac*drc[0], dr[d2] += fac*drc[1];
+      dr[d1] += facc*drc[0], dr[d2] += facc*drc[1];
       if (new_flags == 0)
       {
          goto newton_vol_fin;
@@ -625,21 +625,21 @@ newton_vol_edge :
    {
       const int ei = edge_index(flags);
       const int de = ei >> 2;
-      double fac = 1;
+      double facc = 1;
       int new_flags = 0;
-      double res[3], y, JtJ, drc;
-      res[0] = resid[0]-(jac[0]*dr[0]+jac[1]*dr[1]+jac[2]*dr[2]);
-      res[1] = resid[1]-(jac[3]*dr[0]+jac[4]*dr[1]+jac[5]*dr[2]);
-      res[2] = resid[2]-(jac[6]*dr[0]+jac[7]*dr[1]+jac[8]*dr[2]);
+      double ress[3], y, JtJ, drc;
+      ress[0] = resid[0]-(jac[0]*dr[0]+jac[1]*dr[1]+jac[2]*dr[2]);
+      ress[1] = resid[1]-(jac[3]*dr[0]+jac[4]*dr[1]+jac[5]*dr[2]);
+      ress[2] = resid[2]-(jac[6]*dr[0]+jac[7]*dr[1]+jac[8]*dr[2]);
       /* y = J_u^T res */
-      y = jac[de]*res[0]+jac[3+de]*res[1]+jac[6+de]*res[2];
+      y = jac[de]*ress[0]+jac[3+de]*ress[1]+jac[6+de]*ress[2];
       /* JtJ = J_u^T J_u */
       JtJ = jac[de]*jac[de]+jac[3+de]*jac[3+de] +
             jac[6+de]*jac[6+de];
       drc = y / JtJ;
       CHECK_CONSTRAINT(drc, de);
 #undef CHECK_CONSTRAINT
-      dr[de] += fac*drc;
+      dr[de] += facc*drc;
       flags |= new_flags;
       goto newton_vol_relax;
    }
@@ -648,24 +648,24 @@ newton_vol_edge :
 newton_vol_relax :
    {
       const int old_flags = flags;
-      double res[3], y[3];
+      double ress[3], y[3];
       /* res := res_0-J dr */
-      res[0] = resid[0]-(jac[0]*dr[0]+jac[1]*dr[1]+jac[2]*dr[2]);
-      res[1] = resid[1]-(jac[3]*dr[0]+jac[4]*dr[1]+jac[5]*dr[2]);
-      res[2] = resid[2]-(jac[6]*dr[0]+jac[7]*dr[1]+jac[8]*dr[2]);
+      ress[0] = resid[0]-(jac[0]*dr[0]+jac[1]*dr[1]+jac[2]*dr[2]);
+      ress[1] = resid[1]-(jac[3]*dr[0]+jac[4]*dr[1]+jac[5]*dr[2]);
+      ress[2] = resid[2]-(jac[6]*dr[0]+jac[7]*dr[1]+jac[8]*dr[2]);
       /* y := J^T res */
-      y[0] = jac[0]*res[0]+jac[3]*res[1]+jac[6]*res[2];
-      y[1] = jac[1]*res[0]+jac[4]*res[1]+jac[7]*res[2];
-      y[2] = jac[2]*res[0]+jac[5]*res[1]+jac[8]*res[2];
-      for (int d = 0; d < 3; ++d)
+      y[0] = jac[0]*ress[0]+jac[3]*ress[1]+jac[6]*ress[2];
+      y[1] = jac[1]*ress[0]+jac[4]*ress[1]+jac[7]*ress[2];
+      y[2] = jac[2]*ress[0]+jac[5]*ress[1]+jac[8]*ress[2];
+      for (int dd = 0; dd < 3; ++dd)
       {
-         int f = flags >> (2*d) & 3u;
+         int f = flags >> (2*dd) & 3u;
          if (f)
          {
-            dr[d] = bnd[2*d+(f-1)]-r0[d];
-            if (dr[d]*y[d] < 0)
+            dr[dd] = bnd[2*dd+(f-1)]-r0[dd];
+            if (dr[dd]*y[dd] < 0)
             {
-               flags &= ~(3u << (2*d));
+               flags &= ~(3u << (2*dd));
             }
          }
       }
@@ -695,20 +695,20 @@ newton_vol_fin:
                                     jac[5]*dr[2]);
       const double res2 = resid[2]-(jac[6]*dr[0]+jac[7]*dr[1] +
                                     jac[8]*dr[2]);
-      out->dist2p = resid[0]*resid[0]+resid[1]*resid[1] +
+      res->dist2p = resid[0]*resid[0]+resid[1]*resid[1] +
                     resid[2]*resid[2] -
                     (res0*res0+res1*res1+res2*res2);
    }
-   for (int d = 0; d < 3; ++d)
+   for (int dd = 0; dd < 3; ++dd)
    {
-      int f = flags >> (2*d) & 3u;
-      out->r[d] = f == 0 ? r0[d]+dr[d] : (f == 1 ? -1 : 1);
+      int f = flags >> (2*dd) & 3u;
+      res->r[dd] = f == 0 ? r0[dd]+dr[dd] : (f == 1 ? -1 : 1);
    }
-   out->flags = flags | (p->flags << 7);
+   res->flags = flags | (p->flags << 7);
 }
 
 // Full Newton solve on the face. One of r/s/t is constrained.
-static MFEM_HOST_DEVICE void newton_face(findptsPt *const out,
+static MFEM_HOST_DEVICE void newton_face(findptsPt *const res,
                                          const double jac[9],
                                          const double rhes[3],
                                          const double resid[3],
@@ -877,22 +877,21 @@ newton_face_constrained:
       }
    }
 newton_face_fin:
-   out->dist2p = -2*v;
+   res->dist2p = -2*v;
    dr[0] = r[0]-p->r[d1];
    dr[1] = r[1]-p->r[d2];
    if (fabs(dr[0])+fabs(dr[1]) < tol)
    {
       new_flags |= CONVERGED_FLAG;
    }
-   out->r[dn] = p->r[dn];
-   out->r[d1] = r[0];
-   out->r[d2] = r[1];
-   out->flags = new_flags | (p->flags << 7);
+   res->r[dn] = p->r[dn];
+   res->r[d1] = r[0];
+   res->r[d2] = r[1];
+   res->flags = new_flags | (p->flags << 7);
 }
 
 // Full Newton solve on the edge. Two of r/s/t are constrained.
-static MFEM_HOST_DEVICE inline void newton_edge(findptsPt *const
-                                                out,
+static MFEM_HOST_DEVICE inline void newton_edge(findptsPt *const res,
                                                 const double jac[9],
                                                 const double rhes,
                                                 const double resid[3],
@@ -968,11 +967,11 @@ newton_edge_fin:
    {
       new_flags |= CONVERGED_FLAG;
    }
-   out->r[de] = nr;
-   out->r[dn1] = p->r[dn1];
-   out->r[dn2] = p->r[dn2];
-   out->dist2p = -v;
-   out->flags = flags | new_flags | (p->flags << 7);
+   res->r[de] = nr;
+   res->r[dn1] = p->r[dn1];
+   res->r[dn2] = p->r[dn2];
+   res->dist2p = -v;
+   res->flags = flags | new_flags | (p->flags << 7);
 }
 
 // Find closest mesh node to the sought point.

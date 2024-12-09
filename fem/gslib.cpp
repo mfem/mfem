@@ -586,7 +586,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
       array_init(struct srcPt_t, &hash_pt, points_cnt);
       pt = (struct srcPt_t *)hash_pt.ptr;
 
-      double x[dim];
+      auto x = new double[dim];
       for (index = 0; index < points_cnt; ++index)
       {
          if (gsl_code[index] != CODE_INTERNAL)
@@ -609,6 +609,7 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
             ++pt;
          }
       }
+      delete[] x;
       hash_pt.n = pt - (struct srcPt_t *)hash_pt.ptr;
       sarray_transfer(struct srcPt_t, &hash_pt, proc, 1, DEV.cr);
    }
