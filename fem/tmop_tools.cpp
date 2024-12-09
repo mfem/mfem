@@ -401,15 +401,15 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
       return;
    }
 
-   const FiniteElementSpace *fes_sltn =
+   const FiniteElementSpace *fes_field =
       (fes_new_field) ? fes_new_field : field0_gf.FESpace();
-   const int dim = fes_sltn->GetMesh()->Dimension();
+   const int dim = fes_field->GetMesh()->Dimension();
 
-   if (new_mesh_nodes.Size() / dim != fes_sltn->GetNDofs())
+   if (new_mesh_nodes.Size() / dim != fes_field->GetNDofs())
    {
       // The nodes of the FE space don't coincide with the mesh nodes.
       Vector mapped_nodes;
-      fes_sltn->GetNodePositions(new_mesh_nodes, mapped_nodes);
+      fes_field->GetNodePositions(new_mesh_nodes, mapped_nodes);
       finder->Interpolate(mapped_nodes, field0_gf, new_field);
    }
    else
