@@ -343,9 +343,9 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[2],
 
 /* Check reduction in objective against prediction, and adjust trust region
    radius (p->tr) accordingly. May reject the prior step, returning 1; otherwise
-   returns 0 sets out->dist2, out->index, out->x, out->oldr in any event,
-   leaving out->r, out->dr, out->flags to be set when returning 0 */
-static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
+   returns 0 sets res->dist2, res->index, res->x, res->oldr in any event,
+   leaving res->r, res->dr, res->flags to be set when returning 0 */
+static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *res,
                                                  const double resid[2],
                                                  const findptsElementPoint_t *p,
                                                  const double tol)
@@ -355,21 +355,21 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
    const double pred = p->dist2p;
    for (int d = 0; d < 2; ++d)
    {
-      out->x[d] = p->x[d];
-      out->oldr[d] = p->r[d];
+      res->x[d] = p->x[d];
+      res->oldr[d] = p->r[d];
    }
-   out->dist2 = dist2;
+   res->dist2 = dist2;
    if (decr >= 0.01 * pred)
    {
       if (decr >= 0.9 * pred)
       {
          // very good iteration
-         out->tr = p->tr * 2;
+         res->tr = p->tr * 2;
       }
       else
       {
          // good iteration
-         out->tr = p->tr;
+         res->tr = p->tr;
       }
       return false;
    }
@@ -381,17 +381,17 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
          which is why we divide by 4 below */
       double v0 = fabs(p->r[0] - p->oldr[0]);
       double v1 = fabs(p->r[1] - p->oldr[1]);
-      out->tr = (v0 > v1 ? v0 : v1)/4;
-      out->dist2 = p->dist2;
+      res->tr = (v0 > v1 ? v0 : v1)/4;
+      res->dist2 = p->dist2;
       for (int d = 0; d < 2; ++d)
       {
-         out->r[d] = p->oldr[d];
+         res->r[d] = p->oldr[d];
       }
-      out->flags = p->flags >> 5;
-      out->dist2p = -std::numeric_limits<double>::max();
+      res->flags = p->flags >> 5;
+      res->dist2p = -std::numeric_limits<double>::max();
       if (pred < dist2 * tol)
       {
-         out->flags |= CONVERGED_FLAG;
+         res->flags |= CONVERGED_FLAG;
       }
       return true;
    }
@@ -399,7 +399,7 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
 
 /* Minimize 0.5||x* - x(r)||^2_2 using gradient-descent, with
    |dr| <= tr and |r0+dr|<=1*/
-static MFEM_HOST_DEVICE void newton_area(findptsElementPoint_t *const out,
+static MFEM_HOST_DEVICE void newton_area(findptsElementPoint_t *const res,
                                          const double jac[4],
                                          const double resid[2],
                                          const findptsElementPoint_t *const p,
@@ -468,13 +468,13 @@ newton_area_edge :
    {
       const int ei = edge_index(flags);
       const int dn = ei>>1, de = plus_1_mod_2(dn);
-      double fac = 1;
+      double facc = 1;
       int new_flags = 0;
-      double res[2], y, JtJ, drc;
-      res[0] = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]),
-               res[1] = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
+      double ress[2], y, JtJ, drc;
+      ress[0] = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]),
+               ress[1] = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
       /* y = J_u^T res */
-      y = jac[de] * res[0] + jac[2+de] * res[1];
+      y = jac[de] * ress[0] + jac[2+de] * ress[1];
       /* JtJ = J_u^T J_u */
       JtJ = jac[de] * jac[de] + jac[2+de] * jac[2+de];
       drc = y / JtJ;
@@ -486,25 +486,25 @@ newton_area_edge :
             if (nr < lb)
             {
                double f = (lb-rz)/drc;
-               if (f < fac)
+               if (f < facc)
                {
-                  fac=f;
+                  facc=f;
                   new_flags = 1u<<(2*de);
                }
             }
             else
             {
                double f = (ub-rz)/drc;
-               if (f < fac)
+               if (f < facc)
                {
-                  fac=f;
+                  facc=f;
                   new_flags = 2u<<(2*de);
                }
             }
          }
       }
 
-      dr[de] += fac * drc;
+      dr[de] += facc * drc;
       flags |= new_flags;
       goto newton_area_relax;
    }
@@ -513,22 +513,22 @@ newton_area_edge :
 newton_area_relax :
    {
       const int old_flags = flags;
-      double res[2], y[2];
+      double ress[2], y[2];
       /* res := res_0 - J dr */
-      res[0] = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]);
-      res[1] = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
+      ress[0] = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]);
+      ress[1] = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
       /* y := J^T res */
-      y[0] = jac[0] * res[0] + jac[2] * res[1];
-      y[1] = jac[1] * res[0] + jac[3] * res[1];
-      for (int d = 0; d < 2; ++d)
+      y[0] = jac[0] * ress[0] + jac[2] * ress[1];
+      y[1] = jac[1] * ress[0] + jac[3] * ress[1];
+      for (int dd = 0; dd < 2; ++dd)
       {
-         int f = flags >> (2 * d) & 3u;
+         int f = flags >> (2 * dd) & 3u;
          if (f)
          {
-            dr[d] = bnd[2 * d + (f - 1)] - r0[d];
-            if (dr[d] * y[d] < 0)
+            dr[dd] = bnd[2 * dd + (f - 1)] - r0[dd];
+            if (dr[dd] * y[dd] < 0)
             {
-               flags &= ~(3u << (2 * d));
+               flags &= ~(3u << (2 * dd));
             }
          }
       }
@@ -552,20 +552,19 @@ newton_area_fin:
    {
       const double res0 = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]);
       const double res1 = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
-      out->dist2p = resid[0] * resid[0] + resid[1] * resid[1] -
+      res->dist2p = resid[0] * resid[0] + resid[1] * resid[1] -
                     (res0 * res0 + res1 * res1);
    }
-   for (int d = 0; d < 2; ++d)
+   for (int dd = 0; dd < 2; ++dd)
    {
-      int f = flags >> (2 * d) & 3u;
-      out->r[d] = f == 0 ? r0[d] + dr[d] : (f == 1 ? -1 : 1);
+      int f = flags >> (2 * dd) & 3u;
+      res->r[dd] = f == 0 ? r0[dd] + dr[dd] : (f == 1 ? -1 : 1);
    }
-   out->flags = flags | (p->flags << 5);
+   res->flags = flags | (p->flags << 5);
 }
 
 // Full Newton solve on the face. One of r/s/t is constrained.
-static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const
-                                                out,
+static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const res,
                                                 const double jac[4],
                                                 const double rhes,
                                                 const double resid[2],
@@ -630,10 +629,10 @@ newton_edge_fin:
    {
       new_flags |= CONVERGED_FLAG;
    }
-   out->r[de] = nr;
-   out->r[dn]=p->r[dn];
-   out->dist2p = -v;
-   out->flags = flags | new_flags | (p->flags << 5);
+   res->r[de] = nr;
+   res->r[dn]=p->r[dn];
+   res->dist2p = -v;
+   res->flags = flags | new_flags | (p->flags << 5);
 }
 
 // Find closest mesh node to the sought point.
