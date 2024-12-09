@@ -341,7 +341,7 @@ protected:
    void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
                         bool &finalize_topo, const std::string &xml_prefix="");
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
-                      bool spacing=false);
+                      bool spacing=false, bool nc=false);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
 
@@ -474,6 +474,9 @@ protected:
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);
 
+   void LoadNonconformingPatchTopo(std::istream &input,
+                                   Array<int> &edge_to_knot);
+
    void UpdateNURBS();
 
    /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
@@ -487,6 +490,9 @@ protected:
    void PrintTopo(std::ostream &os, const Array<int> &e_to_k,
                   const int version,
                   const std::string &comment = "") const;
+
+   void PrintTopoEdges(std::ostream &out, const Array<int> &e_to_k,
+                       bool vmap=false) const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &,
@@ -727,13 +733,15 @@ public:
        generated. See also @a Mesh::LoadFromFile. See @a Mesh::Finalize for the
        meaning of @a refine. */
    explicit Mesh(const std::string &filename, int generate_edges = 0,
-                 int refine = 1, bool fix_orientation = true);
+                 int refine = 1, bool fix_orientation = true,
+                 bool allow_bad_orientation = false);
 
    /** Creates mesh by reading data stream in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
    explicit Mesh(std::istream &input, int generate_edges = 0, int refine = 1,
-                 bool fix_orientation = true);
+                 bool fix_orientation = true,
+                 bool allow_bad_orientation = false);
 
    /// Create a disjoint mesh from the given mesh array
    ///
@@ -747,10 +755,11 @@ public:
    /// \see mfem::ifgzstream() for on-the-fly decompression of compressed ascii
    /// inputs.
    virtual void Load(std::istream &input, int generate_edges = 0,
-                     int refine = 1, bool fix_orientation = true)
+                     int refine = 1, bool fix_orientation = true,
+                     bool allow_bad_orientation = false)
    {
       Loader(input, generate_edges);
-      Finalize(refine, fix_orientation);
+      Finalize(refine, fix_orientation, allow_bad_orientation);
    }
 
    /// Swaps internal data with another mesh. By default, non-geometry members
@@ -1037,7 +1046,8 @@ public:
                         bool fix_orientation = true);
    /// Finalize the construction of any type of Mesh.
    /** This method calls FinalizeTopology() and Finalize(). */
-   void FinalizeMesh(int refine = 0, bool fix_orientation = true);
+   void FinalizeMesh(int refine = 0, bool fix_orientation = true,
+                     bool allow_bad_orientation = false);
 
    ///@}
 
@@ -1066,10 +1076,13 @@ public:
        @param[in] fix_orientation
                           If true, fix the orientation of inverted mesh elements
                           by permuting their vertices.
+       @param[in] allow_bad_orientation  TODO: is this necessary?
+                          If true, allow inverted elements.
 
        Before calling this method, call FinalizeTopology() and ensure that the
        Mesh vertices or nodes are set. */
-   virtual void Finalize(bool refine = false, bool fix_orientation = false);
+   virtual void Finalize(bool refine = false, bool fix_orientation = false,
+                         bool allow_bad_orientation = false);
 
    /// @brief Determine the sets of unique attribute values in domain and
    /// boundary elements.
@@ -2284,8 +2297,8 @@ public:
        (default) or nonconforming. */
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
-   bool Conforming() const { return ncmesh == NULL; }
-   bool Nonconforming() const { return ncmesh != NULL; }
+   bool Conforming() const;
+   bool Nonconforming() const { return !Conforming(); }
 
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
