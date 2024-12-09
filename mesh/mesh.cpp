@@ -3408,9 +3408,9 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          ind[0] = VTX(x  , y  , z  );
          ind[1] = VTX(x+1, y  , z  );
          ind[2] = VTX(x+1, y+1, z  );
-         ind[3] = VTX(x  , y+1, z  );
-         ind[4] = VTX(x  , y  , z+1);
-         ind[5] = VTX(x+1, y  , z+1);
+         ind[3] = VTX(x, y+1, z  );
+         ind[4] = VTX(x, y, z+1);
+         ind[5] = VTX(x+1, y, z+1);
          ind[6] = VTX(x+1, y+1, z+1);
          ind[7] = VTX(x  , y+1, z+1);
          // *INDENT-ON*
@@ -3430,9 +3430,9 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
                ind[0] = VTX(x  , y  , z  );
                ind[1] = VTX(x+1, y  , z  );
                ind[2] = VTX(x+1, y+1, z  );
-               ind[3] = VTX(x  , y+1, z  );
-               ind[4] = VTX(x  , y  , z+1);
-               ind[5] = VTX(x+1, y  , z+1);
+               ind[3] = VTX(x, y+1, z  );
+               ind[4] = VTX(x, y, z+1);
+               ind[5] = VTX(x+1, y, z+1);
                ind[6] = VTX(x+1, y+1, z+1);
                ind[7] = VTX(  x, y+1, z+1);
                // *INDENT-ON*
@@ -3595,6 +3595,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    }
 
 #undef VTX
+#undef VTXP
 
 #if 0
    ofstream test_stream("debug.mesh");
@@ -9804,6 +9805,10 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             tet->Init(oedge+e[3], oedge+e[7], oedge+e[4],
                       oface+qf0, attr);
 #endif
+            // Tetrahedral elements may be new to this mesh so ensure that
+            // the relevant flags are switched on
+            mesh_geoms |= (1 << Geometry::TETRAHEDRON);
+            meshgen |= 1;
          }
          break;
 
