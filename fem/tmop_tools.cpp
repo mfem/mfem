@@ -402,7 +402,7 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
    }
 
    const FiniteElementSpace *fes_sltn =
-       (fes_new_field) ? fes_new_field : field0_gf.FESpace();
+      (fes_new_field) ? fes_new_field : field0_gf.FESpace();
    const int dim = fes_sltn->GetMesh()->Dimension();
 
    if (new_mesh_nodes.Size() / dim != fes_sltn->GetNDofs())
