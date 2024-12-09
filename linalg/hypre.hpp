@@ -121,7 +121,7 @@ private:
    ~Hypre() { Finalize(); }
 
    /// Set the default hypre global options (mostly GPU-relevant).
-   void SetDefaultOptions();
+   static void SetDefaultOptions();
 
    /// Create and return the Hypre singleton object.
    static Hypre &Instance()
@@ -133,7 +133,7 @@ private:
    enum class State { UNINITIALIZED, INITIALIZED };
 
    /// Tracks whether Hypre was initialized or finalized by this class.
-   State state = State::UNINITIALIZED;
+   static State state;
 };
 
 
