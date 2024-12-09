@@ -34,7 +34,7 @@
       hipError_t err = (x); \
       if (err != hipSuccess) \
       { \
-         mfem_hip_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
+        ::mfem::mfem_hip_error(err, #x, _MFEM_FUNC_NAME, __FILE__, __LINE__); \
       } \
    } \
    while (0)
