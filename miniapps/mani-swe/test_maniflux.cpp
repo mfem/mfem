@@ -41,12 +41,12 @@ int main(int argc, char *argv[])
    const int myRank = Mpi::WorldRank();
    Hypre::Init();
 
-   int order = 5;
+   int order = 3;
    int refinement_level = 4;
    bool visualization = true;
-   bool paraview = true;
-   real_t cfl = 0.01;
-   real_t tF = 10.0;
+   bool paraview = false;
+   real_t cfl = 0.3;
+   real_t tF = 1.5;
 
    OptionsParser args(argc, argv);
    args.AddOption(&refinement_level, "-r", "--refine",
@@ -62,6 +62,17 @@ int main(int argc, char *argv[])
       for (int i=0; i<refinement_level; i++)
       {
          pmesh->UniformRefinement();
+      }
+   }
+   std::unique_ptr<ParMesh> pmesh_visual;
+   {
+      Mesh mesh("./data/periodic-square-2d.mesh");
+      mesh.SetCurvature(order, true);
+      pmesh_visual.reset(new ParMesh(MPI_COMM_WORLD, mesh));
+      mesh.Clear();
+      for (int i=0; i<refinement_level; i++)
+      {
+         pmesh_visual->UniformRefinement();
       }
    }
    {
@@ -104,6 +115,7 @@ int main(int argc, char *argv[])
    ParGridFunction mom(&sfes);
    ParGridFunction mom_x(&fes, mom.GetData() + 0*fes.GetTrueVSize());
    ParGridFunction mom_y(&fes, mom.GetData() + 1*fes.GetTrueVSize());
+   ParGridFunction mom_z(&fes, mom.GetData() + 2*fes.GetTrueVSize());
    ManifoldPhysVectorCoefficient mom_cf(u, 1, dim, sdim);
 
    VectorFunctionCoefficient u0_phys(phys_num_equations, gaussian_initial);
@@ -124,7 +136,7 @@ int main(int argc, char *argv[])
       swe.Mult(u,z);
    }
 
-   socketstream height_sock, mom_x_sock, mom_y_sock;
+   socketstream height_sock, mom_x_sock, mom_y_sock, mom_z_sock;
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -134,42 +146,55 @@ int main(int argc, char *argv[])
       height_sock.precision(8);
       // Plot height
       height_sock << "parallel " << numProcs << " " << myRank << "\n";
-      height_sock << "solution\n" << *pmesh << height;
+      height_sock << "solution\n" << *pmesh_visual << height;
       height_sock << "window_title 'momentum, t = 0'\n";
       height_sock << "view 0 0\n";  // view from top
+      height_sock << "autoscale off\n valuerange 0.5 2.5\n";
       height_sock << "keys jm\n";  // turn off perspective and light, show mesh
       height_sock << std::flush;
       MPI_Barrier(MPI_COMM_WORLD);
 
-      MPI_Barrier(MPI_COMM_WORLD);
-      mom.ProjectCoefficient(mom_cf);
-      mom_x_sock.open(vishost, visport);
-      mom_x_sock.precision(8);
-      // Plot magnitude of vector-valued momentum
-      mom_x_sock << "parallel " << numProcs << " " << myRank << "\n";
-      mom_x_sock << "solution\n" << *pmesh << mom_x;
-      mom_x_sock << "window_title 'momentum_x, t = 0'\n";
-      mom_x_sock << "view 0 0\n";  // view from top
-      mom_x_sock << "keys jm\n";  // turn off perspective and light, show mesh
-      mom_x_sock << std::flush;
-      MPI_Barrier(MPI_COMM_WORLD);
-
-      MPI_Barrier(MPI_COMM_WORLD);
-      mom_y_sock.open(vishost, visport);
-      mom_y_sock.precision(8);
-      // Plot magnitude of vector-valued momentum
-      mom_y_sock << "parallel " << numProcs << " " << myRank << "\n";
-      mom_y_sock << "solution\n" << *pmesh << mom_y;
-      mom_y_sock << "window_title 'momentum_y, t = 0'\n";
-      mom_y_sock << "view 0 0\n";  // view from top
-      mom_y_sock << "keys jm\n";  // turn off perspective and light, show mesh
-      mom_y_sock << std::flush;
-      MPI_Barrier(MPI_COMM_WORLD);
+      // MPI_Barrier(MPI_COMM_WORLD);
+      // mom.ProjectCoefficient(mom_cf);
+      // mom_x_sock.open(vishost, visport);
+      // mom_x_sock.precision(8);
+      // // Plot magnitude of vector-valued momentum
+      // mom_x_sock << "parallel " << numProcs << " " << myRank << "\n";
+      // mom_x_sock << "solution\n" << *pmesh << mom_x;
+      // mom_x_sock << "window_title 'momentum_x, t = 0'\n";
+      // mom_x_sock << "view 0 0\n";  // view from top
+      // mom_x_sock << "keys jm\n";  // turn off perspective and light, show mesh
+      // mom_x_sock << std::flush;
+      // MPI_Barrier(MPI_COMM_WORLD);
+      //
+      // MPI_Barrier(MPI_COMM_WORLD);
+      // mom_y_sock.open(vishost, visport);
+      // mom_y_sock.precision(8);
+      // // Plot magnitude of vector-valued momentum
+      // mom_y_sock << "parallel " << numProcs << " " << myRank << "\n";
+      // mom_y_sock << "solution\n" << *pmesh << mom_y;
+      // mom_y_sock << "window_title 'momentum_y, t = 0'\n";
+      // mom_y_sock << "view 0 0\n";  // view from top
+      // mom_y_sock << "keys jm\n";  // turn off perspective and light, show mesh
+      // mom_y_sock << std::flush;
+      // MPI_Barrier(MPI_COMM_WORLD);
+      //
+      // MPI_Barrier(MPI_COMM_WORLD);
+      // mom_z_sock.open(vishost, visport);
+      // mom_z_sock.precision(8);
+      // // Plot magnitude of vector-valued momentum
+      // mom_z_sock << "parallel " << numProcs << " " << myRank << "\n";
+      // mom_z_sock << "solution\n" << *pmesh << mom_z;
+      // mom_z_sock << "window_title 'momentum_z, t = 0'\n";
+      // mom_z_sock << "view 0 0\n";  // view from top
+      // mom_z_sock << "keys jm\n";  // turn off perspective and light, show mesh
+      // mom_z_sock << std::flush;
+      // MPI_Barrier(MPI_COMM_WORLD);
    }
    std::unique_ptr<ParaViewDataCollection> dacol;
    if (paraview)
    {
-      dacol.reset(new ParaViewDataCollection("ParaViewSWE", pmesh.get()));
+      dacol.reset(new ParaViewDataCollection("ParaViewSWE", pmesh_visual.get()));
       dacol->SetLevelsOfDetail(order);
       dacol->RegisterField("Height", &height);
       dacol->RegisterField("Momentum", &mom);
@@ -202,25 +227,31 @@ int main(int argc, char *argv[])
 
 
       // Visualize
-      mom.ProjectCoefficient(mom_cf);
+      // mom.ProjectCoefficient(mom_cf);
       if (height_sock.is_open() && height_sock.good())
       {
          height_sock << "parallel " << numProcs << " " << myRank << "\n";
-         height_sock << "solution\n" << *pmesh << height;
+         height_sock << "solution\n" << *pmesh_visual << height;
          height_sock << "window_title 'height, t = " << t << "'\n";
       }
-      if (mom_x_sock.is_open() && mom_x_sock.good())
-      {
-         mom_x_sock << "parallel " << numProcs << " " << myRank << "\n";
-         mom_x_sock << "solution\n" << *pmesh << mom_x;
-         mom_x_sock << "window_title 'momentum_x, t = " << t << "'\n";
-      }
-      if (mom_y_sock.is_open() && mom_y_sock.good())
-      {
-         mom_y_sock << "parallel " << numProcs << " " << myRank << "\n";
-         mom_y_sock << "solution\n" << *pmesh << mom_y;
-         mom_y_sock << "window_title 'momentum_y, t = " << t << "'\n";
-      }
+      // if (mom_x_sock.is_open() && mom_x_sock.good())
+      // {
+      //    mom_x_sock << "parallel " << numProcs << " " << myRank << "\n";
+      //    mom_x_sock << "solution\n" << *pmesh << mom_x;
+      //    mom_x_sock << "window_title 'momentum_x, t = " << t << "'\n";
+      // }
+      // if (mom_y_sock.is_open() && mom_y_sock.good())
+      // {
+      //    mom_y_sock << "parallel " << numProcs << " " << myRank << "\n";
+      //    mom_y_sock << "solution\n" << *pmesh << mom_y;
+      //    mom_y_sock << "window_title 'momentum_y, t = " << t << "'\n";
+      // }
+      // if (mom_z_sock.is_open() && mom_z_sock.good())
+      // {
+      //    mom_z_sock << "parallel " << numProcs << " " << myRank << "\n";
+      //    mom_z_sock << "solution\n" << *pmesh << mom_z;
+      //    mom_z_sock << "window_title 'momentum_z, t = " << t << "'\n";
+      // }
       if (dacol)
       {
          dacol->SetTime(t);

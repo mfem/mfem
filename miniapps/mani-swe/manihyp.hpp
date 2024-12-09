@@ -259,9 +259,8 @@ protected:
    Vector shape1, shape2;
    // DenseMatrix adjJ;
    DenseMatrix dshape;
-   DenseMatrix gshape, vector_gshape;
+   DenseMatrix gshape, vector_gshape, vector_gshape_comp;
    DenseMatrix hess_shape;
-   DenseMatrix Hess;
    DenseTensor HessMat;
    DenseMatrix gradJ;
    Vector x_nodes;
@@ -269,16 +268,37 @@ protected:
    DenseMatrix phys_flux_scalars, phys_flux_vectors;
    const IntegrationRule *intrule;
    Array<int> hess_map;
+   DG_FECollection dg_fec;
 public:
 
    // methods
 private:
-   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
-                                         const FiniteElement &test_fe,
-                                         const ElementTransformation &Trans);
+   const int GetElementIntegratioOrder(ElementTransformation &Trans,
+                                       const int order)
+   {
+      return Trans.OrderJ()+Trans.OrderW()+order;
+   }
+
+   const int GetFaceIntegratioOrder(FaceElementTransformations &Trans,
+                                    const int orderL, const int orderR)
+   {
+      return std::max(Trans.Elem1->OrderJ(),
+                      Trans.Elem2->Order())+Trans.OrderW() + std::max(orderL, orderR);
+   }
    const IntegrationRule &GetRule(const FiniteElement &el1,
-                                  const FiniteElement &el2,
-                                  const FaceElementTransformations &Trans);
+                                  const FiniteElement &el2, FaceElementTransformations &Tr)
+   {
+      return IntRules.Get(Tr.GetGeometryType(),
+                          el1.GetOrder() + el2.GetOrder() + Tr.Elem1->OrderJ() + Tr.Elem2->OrderJ() +
+                          Tr.OrderW());
+   }
+   const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                  const FiniteElement &test_fe, ElementTransformation &Trans)
+   {
+      const int order = trial_fe.GetOrder() + trial_fe.GetOrder() + Trans.OrderW() +
+                        Trans.OrderJ()*2;
+      return IntRules.Get(trial_fe.GetGeomType(), order);
+   }
 protected:
 public:
    /**

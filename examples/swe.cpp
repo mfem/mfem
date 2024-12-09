@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
    real_t dt = -0.01;
    real_t cfl = 0.3;
    bool visualization = true;
-   bool preassembleWeakDiv = true;
+   bool preassembleWeakDiv = false;
    int vis_steps = 50;
 
    int precision = 8;

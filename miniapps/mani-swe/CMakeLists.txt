@@ -25,5 +25,10 @@ if (MFEM_USE_MPI)
     EXTRA_SOURCES manihyp.cpp
     EXTRA_HEADERS manihyp.hpp
     LIBRARIES mfem)
+  add_mfem_miniapp(test_integrator
+    MAIN test_integrator.cpp
+    EXTRA_SOURCES manihyp.cpp
+    EXTRA_HEADERS manihyp.hpp
+    LIBRARIES mfem)
 endif()
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

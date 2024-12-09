@@ -1462,9 +1462,7 @@ void DenseMatrix::Transpose()
       for (i = 0; i < Height(); i++)
          for (j = i+1; j < Width(); j++)
          {
-            t = (*this)(i,j);
-            (*this)(i,j) = (*this)(j,i);
-            (*this)(j,i) = t;
+            std::swap((*this)(j,i), (*this)(i,j));
          }
    }
    else
@@ -3311,6 +3309,8 @@ void AddMult_a_VWt(const real_t a, const Vector &v, const Vector &w,
 #ifdef MFEM_DEBUG
    if (VWt.Height() != m || VWt.Width() != n)
    {
+      out << "Expected VWt size: " << m << " x " << n << std::endl;  
+      out << "Provided VWt size: " << VWt.Height() << " x " << VWt.Width() << std::endl;  
       mfem_error("AddMult_a_VWt(...): dimension mismatch");
    }
 #endif
