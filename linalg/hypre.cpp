@@ -28,16 +28,23 @@ namespace mfem
 {
 
 bool Hypre::configure_runtime_policy_from_mfem = true;
+Hypre::State Hypre::state = Hypre::State::UNINITIALIZED;
 
 void Hypre::Init()
 {
-   Hypre &hypre = Instance();
-   if (hypre.state != State::INITIALIZED)
+   if (state != State::INITIALIZED)
    {
+#if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Init();
-      hypre.SetDefaultOptions();
+#endif
+      SetDefaultOptions();
+      // Apply the setting of 'configure_runtime_policy_from_mfem' according to
+      // the current configuration of the mfem::Device (HYPRE >= 2.31.0):
+      InitDevice();
+      // Create the singleton Hypre object AFTER initializing HYPRE:
+      Instance();
    }
-   hypre.state = State::INITIALIZED;
+   state = State::INITIALIZED;
 }
 
 void Hypre::InitDevice()
@@ -48,6 +55,8 @@ void Hypre::InitDevice()
 #if defined(HYPRE_USING_GPU) && (MFEM_HYPRE_VERSION >= 23100)
    if (configure_runtime_policy_from_mfem)
    {
+      MFEM_VERIFY(HYPRE_Initialized(), "HYPRE must be initialized before"
+                  " calling Hypre::InitDevice()");
       if (Device::Allows(Backend::DEVICE_MASK & ~Backend::DEBUG_DEVICE))
       {
          HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
@@ -65,14 +74,13 @@ void Hypre::InitDevice()
 
 void Hypre::Finalize()
 {
-   Hypre &hypre = Instance();
-   if (hypre.state != State::UNINITIALIZED)
+   if (state != State::UNINITIALIZED)
    {
 #if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Finalize();
 #endif
    }
-   hypre.state = State::UNINITIALIZED;
+   state = State::UNINITIALIZED;
 }
 
 void Hypre::SetDefaultOptions()
