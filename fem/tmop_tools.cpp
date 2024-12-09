@@ -391,6 +391,16 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                           Vector &new_field, int nodes_ordering)
 {
+   // TODO - this is here only to prevent breaking user codes. To be removed.
+   // If the meshes are different, one has to call SetNewFieldFESpace().
+   // If only some positions are interpolated, use ComputeAtGivenPositions().
+   if (fes_new_field == nullptr && new_mesh_nodes.Size() != nodes0.Size())
+   {
+      MFEM_WARNING("Deprecated -- use ComputeAtGivenPositions() instead!");
+      ComputeAtGivenPositions(new_mesh_nodes, new_field, nodes_ordering);
+      return;
+   }
+
    const FiniteElementSpace *fes_sltn =
        (fes_new_field) ? fes_new_field : field0_gf.FESpace();
    const int dim = fes_sltn->GetMesh()->Dimension();
