@@ -47,6 +47,8 @@ list(APPEND HDRS
   zstr.hpp
   hash.hpp
   isockstream.hpp
+  mdarray.hpp
+  mdspan.hpp
   kdtree.hpp
   mem_alloc.hpp
   mem_manager.hpp
