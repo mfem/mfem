@@ -471,8 +471,8 @@ newton_area_edge :
       double facc = 1;
       int new_flags = 0;
       double ress[2], y, JtJ, drc;
-      ress[0] = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]),
-               ress[1] = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
+      ress[0] = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]);
+      ress[1] = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
       /* y = J_u^T res */
       y = jac[de] * ress[0] + jac[2+de] * ress[1];
       /* JtJ = J_u^T J_u */
@@ -564,7 +564,8 @@ newton_area_fin:
 }
 
 // Full Newton solve on the face. One of r/s/t is constrained.
-static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const res,
+static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const
+                                                res,
                                                 const double jac[4],
                                                 const double rhes,
                                                 const double resid[2],
