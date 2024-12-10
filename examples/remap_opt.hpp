@@ -329,5 +329,169 @@ private:
 };
 
 
+namespace mfem{
+
+namespace Opt{
+
+class Functional:public Operator
+{
+public:
+
+    Functional(int s):Operator(s)
+    {
+
+    }
+
+    virtual
+    ~Functional();
+
+    /// Evaluate the functional for a given set of values.
+    /// For FEM fields the expectation is that x is the set
+    /// of true DOFs.
+    virtual
+    real_t Eval(const Vector& x)=0;
+
+    /// Evaluate the gradient of the functional for a
+    /// given set of values stored in vector x. For FEM
+    /// fields the expectation is that x is the set of
+    /// true DOFs.
+    virtual
+    void CalcGrad(const Vector&x, Vector& grad) const =0;
+
+
+    /// The mult method inherited from Operator calls
+    /// CalcGrad and allows the functional to be used with
+    /// MFEM linear and non-linear solvers.
+    virtual
+    void Mult(const Vector& x, Vector& y) const override
+    {
+        CalcGrad(x,y);
+    }
+
+    /// Evaluate the product of the Hessian of the functional,
+    /// for parameter set stored in x, with vector y (rpimal space) and
+    /// the result is stored in vector r (dual space).
+    virtual
+    void HessianMult(const Vector &x, const Vector& y, Vector& r)
+    {
+        mfem_error("Opt::Functional::HessianMult() is not overridden!");
+    }
+
+    /// Evaluate the product of the transpose Hessian of the functional,
+    /// for parameter set stored in x, with vector y (dual space) and
+    /// the result is stored in vector r (primal space).
+    virtual
+    void HessianMultTranspose(const Vector &x, const Vector& y, Vector& r)
+    {
+        mfem_error("Opt::Functional::HessianMult() is not overridden!");
+    }
+
+private:
+
+};
+
+
+class OptimizationProblem:public Functional
+{
+public:
+    enum ConstrType{EQUALITY, INEQUALITY};
+
+    OptimizationProblem(int s=0, int num_eq=0, int num_ineq=0):Functional(s)
+    {
+        EqConstr.resize(num_eq);
+        InConstr.resize(num_ineq);
+    }
+
+    virtual
+    int GetNumConstr(ConstrType ctyp){
+        if(ctyp==EQUALITY){
+            return EqConstr.size();
+        }else
+        if(ctyp==INEQUALITY)
+        {
+            return InConstr.size();
+        }else{ return 0;}
+
+    };
+
+
+    void SetConstr(int i, std::shared_ptr<Functional> fun,ConstrType ctyp=EQUALITY)
+    {
+        if(ctyp==EQUALITY)
+        {
+            EqConstr[i]=fun;
+        }else
+        if(ctyp==INEQUALITY)
+        {
+            InConstr[i]=fun;
+        }
+    }
+
+    virtual
+    std::shared_ptr<Functional> GetConstr(int i, ConstrType ctyp=EQUALITY)
+    {
+        if(ctyp==EQUALITY)
+        {
+            return EqConstr[i];
+        }else
+        if(ctyp==INEQUALITY)
+        {
+            return InConstr[i];
+        }
+    }
+
+    virtual
+    void CalcConstrGrad(int i, ConstrType ctyp, const Vector&x, Vector& grad)
+    {
+        if(ctyp==EQUALITY){
+            EqConstr[i]->CalcGrad(x,grad);
+        }else
+        if(ctyp==INEQUALITY)
+        {
+            InConstr[i]->CalcGrad(x,grad);
+        }
+    }
+
+
+    virtual
+    void ConstrHessianMult(int i, ConstrType ctyp, const Vector &x, const Vector& y, Vector& r)
+    {
+        if(ctyp==EQUALITY){
+            EqConstr[i]->HessianMult(x,y,r);
+        }else
+        if(ctyp==INEQUALITY)
+        {
+            InConstr[i]->HessianMult(x,y,r);
+        }
+    }
+
+    virtual
+    void ConstrHessianMultTranspose(int i, ConstrType ctyp,
+                                    const Vector &x, const Vector& y, Vector& r)
+    {
+        if(ctyp==EQUALITY){
+            EqConstr[i]->HessianMultTranspose(x,y,r);
+        }else
+        if(ctyp==INEQUALITY)
+        {
+            InConstr[i]->HessianMultTranspose(x,y,r);
+        }
+    }
+
+    virtual
+    ~OptimizationProblem();
+
+private:
+
+    std::vector< std::shared_ptr<Functional> > EqConstr;
+    std::vector< std::shared_ptr<Functional> > InConstr;
+
+};
+
+}
+
+
+}
+
 
 #endif
