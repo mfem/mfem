@@ -391,7 +391,7 @@ MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
-   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT
+   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT GSLIB_OPT
 endif
 
 # If we have 'install' target, export variables used by config/makefile
@@ -429,7 +429,7 @@ DIRS = general linalg linalg/simd linalg/batched mesh mesh/submesh fem \
        fem/ceed/interface fem/ceed/integrators/mass \
        fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
        fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
-       fem/qinterp fem/integ fem/tmop
+       fem/qinterp fem/integ fem/tmop fem/gslib
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -626,8 +626,10 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	$(INSTALLDEF) $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
-	   ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
-	   $(INSTALLDEF) $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	   if ls $(SRC)$$dir/*.hpp > /dev/null 2>&1; then \
+	      ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
+	      $(INSTALLDEF) $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	   fi; \
 	done
 # install *.okl files
 	for dir in $(OKL_DIRS); do \
