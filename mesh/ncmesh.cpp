@@ -537,6 +537,13 @@ void Refinement::SetScale(const ScaledType &r)
    }
 }
 
+void Refinement::SetScaleForType(const real_t *scale)
+{
+   for (int i=0; i<3; ++i)
+      if (s[i] > real_t{0})
+         s[i] = scale[i];
+}
+
 Refinement::Refinement(int index)
    : index(index)
 {
@@ -1139,9 +1146,7 @@ void NCMesh::RefineElement(const Refinement & ref)
             if (el.child[i] >= 0)
             {
                Refinement child_ref(el.child[i], remaining);
-               child_ref.s[0] = scale_x;
-               child_ref.s[1] = scale_y;
-               child_ref.s[2] = scale_z;
+               child_ref.SetScaleForType(ref.s);
                RefineElement(child_ref);
             }
          }
@@ -3786,6 +3791,7 @@ void NCMesh::TraverseEdge(int vn0, int vn1, real_t t0, real_t t1, int flags,
 
    // recurse deeper
    const real_t scale = GetScale(nd.GetScale(), vn0 > vn1);
+
    const real_t tmid = ((1.0 - scale) * t0) + (scale * t1);
    TraverseEdge(vn0, mid, t0, tmid, flags, level+1, matrix_map);
    TraverseEdge(mid, vn1, tmid, t1, flags, level+1, matrix_map);
