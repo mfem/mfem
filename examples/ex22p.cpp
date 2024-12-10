@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system.
    ParComplexLinearForm b(fespace, conv);
-   b.Vector::operator=(0.0);
+   b = 0.0;
 
    // 10. Define the solution vector u as a parallel complex finite element grid
    //     function corresponding to fespace. Initialize u with initial guess of
