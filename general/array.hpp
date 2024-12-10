@@ -104,8 +104,11 @@ public:
    /// Destructor
    inline ~Array() { data.Delete(); }
 
-   /// Assignment operator: deep copy from 'src'.
+   /// Copy assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
+
+   /// Move assignment operator
+   Array<T> &operator=(Array<T> &&src) { Swap(src, *this); return *this; }
 
    /// Assignment operator (deep copy) from @a src, an Array of convertible type.
    template <typename CT>
@@ -225,6 +228,15 @@ public:
 
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
+
+   /// Reset the Array to use the given external Memory @a mem and size @a s.
+   /** If @a own_mem is false, the Array will not own any of the pointers of
+       @a mem.
+
+       Note that when @a own_mem is true, the @a mem object can be destroyed
+       immediately by the caller but `mem.Delete()` should NOT be called since
+       the Array object takes ownership of all pointers owned by @a mem. */
+   inline void NewMemoryAndSize(const Memory<T> &mem, int s, bool own_mem);
 
    /**
     * @brief Permute the array using the provided indices. Sorts the indices
@@ -663,9 +675,9 @@ protected:
 template <class T>
 inline void Swap(T &a, T &b)
 {
-   T c = a;
-   a = b;
-   b = c;
+   T c = std::move(a);
+   a = std::move(b);
+   b = std::move(c);
 }
 
 template <class T>
@@ -961,6 +973,22 @@ inline void Array<T>::MakeRef(const Array &master)
    data.Delete();
    size = master.size;
    data.MakeAlias(master.GetMemory(), 0, size);
+}
+
+template <class T>
+inline void Array<T>::NewMemoryAndSize(
+   const Memory<T> &mem, int s, bool own_mem)
+{
+   data.Delete();
+   size = s;
+   if (own_mem)
+   {
+      data = mem;
+   }
+   else
+   {
+      data.MakeAlias(mem, 0, s);
+   }
 }
 
 template <class T>
