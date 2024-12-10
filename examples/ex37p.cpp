@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
    real_t epsilon = 0.01;
    real_t vol_fraction = 0.5;
    int max_it = 1e3;
-   real_t itol = 1e-1;
+   real_t itol = 1e-2;
    real_t ntol = 1e-4;
    real_t rho_min = 1e-6;
    real_t lambda = 1.0;
