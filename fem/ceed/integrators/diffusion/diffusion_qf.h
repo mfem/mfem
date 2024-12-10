@@ -8,7 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
+#include <ceed/types.h>
 
 /// A structure used to pass additional data to f_build_diff and f_apply_diff
 struct DiffusionContext { CeedInt dim, space_dim, vdim; CeedScalar coeff; };
@@ -85,7 +85,7 @@ CEED_QFUNCTION(f_build_diff_const)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 /// libCEED Q-function for building quadrature data for a diffusion operator
@@ -161,7 +161,7 @@ CEED_QFUNCTION(f_build_diff_quad)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 /// libCEED Q-function for applying a diff operator
@@ -241,7 +241,7 @@ CEED_QFUNCTION(f_apply_diff)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 /// libCEED Q-function for applying a diff operator
@@ -394,7 +394,7 @@ CEED_QFUNCTION(f_apply_diff_mf_const)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
 
 CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
@@ -549,5 +549,5 @@ CEED_QFUNCTION(f_apply_diff_mf_quad)(void *ctx, CeedInt Q,
          }
          break;
    }
-   return 0;
+   return CEED_ERROR_SUCCESS;
 }
