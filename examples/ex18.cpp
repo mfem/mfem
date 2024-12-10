@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
    // 6. Set up the nonlinear form with euler flux and numerical flux
    EulerFlux flux(dim, specific_heat_ratio);
 
-   unique_ptr<RiemannSolver> rsolver;
+   unique_ptr<NumericalFlux> rsolver;
    switch (rsolver_type)
    {
       case 1: rsolver.reset(new RusanovFlux(flux)); break;

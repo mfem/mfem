@@ -19,7 +19,7 @@ namespace mfem
 {
 
 // This file contains general hyperbolic conservation element/face form
-// integrators. HyperbolicFormIntegrator and RiemannSolver are defined.
+// integrators. HyperbolicFormIntegrator and NumericalFlux are defined.
 //
 // HyperbolicFormIntegrator is a NonlinearFormIntegrator that implements
 // element weak divergence and interface flux
@@ -27,8 +27,8 @@ namespace mfem
 //     ∫_T F(u):∇v,   -∫_e F̂(u)⋅n[v]
 //
 // Here, T is an element, e is an edge, n normal and [⋅] is jump. This form
-// integrator is coupled with RiemannSolver that implements the numerical flux
-// F̂. For RiemannSolver, the Rusanov flux, also known as local Lax-Friedrichs
+// integrator is coupled with NumericalFlux that implements the numerical flux
+// F̂. For NumericalFlux, the Rusanov flux, also known as local Lax-Friedrichs
 // flux, or Godunov flux are provided.
 //
 // To implement a specific hyperbolic conservation laws, users can create
@@ -85,7 +85,7 @@ public:
     * @brief Compute normal flux. Optionally overloaded in a derived class to
     * avoid creating a full dense matrix for flux.
     *
-    * Used in RiemannSolver for evaluation of the normal flux on a face.
+    * Used in NumericalFlux for evaluation of the normal flux on a face.
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
@@ -128,7 +128,7 @@ public:
     * second state (@a state2), while n is the normal and F(u) is the flux as
     * defined in ComputeFlux().
     *
-    * Used in RiemannSolver::Average() and RiemannSolver::AverageGrad() for
+    * Used in NumericalFlux::Average() and NumericalFlux::AverageGrad() for
     * evaluation of the average normal flux on a face.
     * @param[in] state1 state of the beginning of the interval (num_equations)
     * @param[in] state2 state of the end of the interval (num_equations)
@@ -163,7 +163,7 @@ public:
     * @brief Compute normal flux Jacobian. Optionally overloaded in a derived
     * class to avoid creating a full dense tensor for Jacobian.
     *
-    * Used in RiemannSolver for evaluation of Jacobian of the normal flux on
+    * Used in NumericalFlux for evaluation of Jacobian of the normal flux on
     * a face.
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] normal normal vector, see mfem::CalcOrtho() (dim)
@@ -188,10 +188,10 @@ private:
  * conservation laws on a face with states, fluxes and characteristic speed
  *
  */
-class RiemannSolver
+class NumericalFlux
 {
 public:
-   RiemannSolver(const FluxFunction &fluxFunction)
+   NumericalFlux(const FluxFunction &fluxFunction)
       : fluxFunction(fluxFunction) { }
 
    /**
@@ -276,7 +276,7 @@ public:
                             DenseMatrix &grad) const
    { MFEM_ABORT("Not implemented."); }
 
-   virtual ~RiemannSolver() = default;
+   virtual ~NumericalFlux() = default;
 
    /// @brief Get flux function F
    /// @return constant reference to the flux function.
@@ -285,6 +285,9 @@ public:
 protected:
    const FluxFunction &fluxFunction;
 };
+
+/// @deprecated Use NumericalFlux instead.
+MFEM_DEPRECATED typedef NumericalFlux RiemannSolver;
 
 /**
  * @brief Abstract hyperbolic form integrator, (F(u, x), ∇v) and
@@ -296,7 +299,7 @@ class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 private:
    // The maximum characteristic speed, updated during element/face vector assembly
    real_t max_char_speed;
-   const RiemannSolver &rsolver;   // Numerical flux that maps F(u±,x) to F̂
+   const NumericalFlux &rsolver;   // Numerical flux that maps F(u±,x) to F̂
    const FluxFunction &fluxFunction;
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
    const real_t sign;
@@ -327,7 +330,7 @@ public:
     * @param[in] sign sign of the convection term
     */
    HyperbolicFormIntegrator(
-      const RiemannSolver &rsolver,
+      const NumericalFlux &rsolver,
       const int IntOrderOffset = 0,
       const real_t sign = 1.);
 
@@ -375,7 +378,7 @@ public:
 
    /**
     * @brief Implements <-F̂(u⁻,u⁺,x) n, [v]> with abstract F̂ computed by
-    * RiemannSolver::Eval() of the numerical flux object
+    * NumericalFlux::Eval() of the numerical flux object
     *
     * @param[in] el1 finite element of the first element
     * @param[in] el2 finite element of the second element
@@ -390,7 +393,7 @@ public:
 
    /**
     * @brief Implements <-Ĵ(u⁻,u⁺,x) n, [v]> with abstract Ĵ computed by
-    * RiemannSolver::Grad() of the numerical flux object
+    * NumericalFlux::Grad() of the numerical flux object
     *
     * @param[in] el1 finite element of the first element
     * @param[in] el2 finite element of the second element
@@ -411,11 +414,11 @@ public:
  * where λ is the maximum characteristic velocity
  * @note The implementation assumes monotonous F(u,x) in u
  */
-class RusanovFlux : public RiemannSolver
+class RusanovFlux : public NumericalFlux
 {
 public:
    RusanovFlux(const FluxFunction &fluxFunction)
-      : RiemannSolver(fluxFunction)
+      : NumericalFlux(fluxFunction)
    {
 #ifndef MFEM_THREAD_SAFE
       fluxN1.SetSize(fluxFunction.num_equations);
@@ -523,11 +526,11 @@ protected:
  *    F̂ n = max F(u)n    for u⁻ > u⁺, u ∈ [u⁺,u⁻]
  * @note The implementation assumes monotonous F(u,x) in u
  */
-class GodunovFlux : public RiemannSolver
+class GodunovFlux : public NumericalFlux
 {
 public:
    GodunovFlux(const FluxFunction &fluxFunction)
-      : RiemannSolver(fluxFunction)
+      : NumericalFlux(fluxFunction)
    {
 #ifndef MFEM_THREAD_SAFE
       fluxN1.SetSize(fluxFunction.num_equations);
