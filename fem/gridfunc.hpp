@@ -500,7 +500,7 @@ public:
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              const Array<int> &bdr_attr);
 
-   /// @brief Returns ||exsol - u_h||_L2 for vector H1 or L2 elements
+   /// @brief Returns ||exsol - u_h||_L2 for scalar or vector H1 or L2 elements
    ///
    /// The @a elems input variable expects a list of markers:
    /// an elem marker equal to 1 will compute the L2 error on that element
@@ -544,7 +544,7 @@ public:
                                  const Array<int> *elems = NULL) const
    { return GridFunction::ComputeLpError(2.0, exsol, NULL, irs, elems); }
 
-   /// @brief Returns ||u_ex - u_h||_L2 for ND or RT elements
+   /// @brief Returns ||u_ex - u_h||_L2 for vector fields
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -557,6 +557,12 @@ public:
                                  const Array<int> *elems = NULL) const;
 
    /// @brief Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
+   ///
+   /// @note This function only computes the error of the gradient in the
+   ///       interior of the elements. In the context of discontinuous
+   ///       Galerkin (DG) methods it may also be desirable to compute the
+   ///       error in the jumps across element interfaces using
+   ///       ComputeDGFaceJumpError().
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -729,7 +735,7 @@ public:
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, irs); }
 
-   /// @brief Returns ||u_ex - u_h||_Lp for ND or RT elements
+   /// @brief Returns ||u_ex - u_h||_Lp for vector fields
    ///
    /// When given a vector weight, compute the pointwise (scalar) error as the
    /// dot product of the vector error with the vector weight. Otherwise, the
@@ -746,7 +752,7 @@ public:
                                  VectorCoefficient *v_weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
 
-   /// @brief Returns ||u_ex - u_h||_Lp elementwise for ND or RT elements
+   /// @brief Returns ||u_ex - u_h||_Lp elementwise for vector fields
    ///
    /// Compute the Lp error in each element of the mesh and store the results in
    /// the Vector @ error. The result should be of length number of elements,
