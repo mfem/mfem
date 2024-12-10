@@ -525,7 +525,10 @@ endif()
 
 # Enzyme
 if (MFEM_USE_ENZYME)
-   find_package(ENZYME REQUIRED)
+    find_package(Enzyme REQUIRED HINTS ${ENZYME_DIR})
+    message(STATUS "Enzyme found in ${ENZYME_DIR}.")
+    set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
+    set(ENZYME_FOUND 1)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -632,6 +635,11 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
+
+if (MFEM_USE_ENZYME)
+  target_link_libraries(mfem PUBLIC ClangEnzymeFlags)
+endif()
+
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
