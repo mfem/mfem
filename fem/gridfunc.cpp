@@ -2932,7 +2932,7 @@ real_t GridFunction::ComputeElementGradError(int ielem,
       vec-=grad;
       error += ip.weight * Tr->Weight() * (vec * vec);
    }
-   return (error < 0.0) ? sqrt(-error) : sqrt(error);
+   return sqrt(fabs(error));
 }
 
 real_t GridFunction::ComputeGradError(VectorCoefficient *exgrad,
