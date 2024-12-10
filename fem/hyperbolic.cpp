@@ -19,7 +19,7 @@ namespace mfem
 {
 
 HyperbolicFormIntegrator::HyperbolicFormIntegrator(
-   const RiemannSolver &rsolver,
+   const NumericalFlux &rsolver,
    const int IntOrderOffset,
    real_t sign)
    : NonlinearFormIntegrator(),
