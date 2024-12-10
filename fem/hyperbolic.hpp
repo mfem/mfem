@@ -69,8 +69,8 @@ public:
     * @brief Compute flux. Must be implemented in a derived class.
     *
     * Used in HyperbolicFormIntegrator::AssembleElementVector() for evaluation
-    * of the convective flux in an element and in the default implementation
-    * of ComputeFluxDotN().
+    * of ∫_T F(u):∇v and in the default implementation of ComputeFluxDotN()
+    * for evaluation of F(u)⋅n.
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
     * @param[out] flux flux from the given element at the current
