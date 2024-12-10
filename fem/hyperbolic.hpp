@@ -381,7 +381,7 @@ public:
     * @param[in] el2 finite element of the second element
     * @param[in] Tr face element transformations
     * @param[in] elfun local coefficient of basis from both elements
-    * @param[out] elvect evaluated dual vector <-F̂(u,x) n, [v]>
+    * @param[out] elvect evaluated dual vector <-F̂(u⁻,u⁺,x) n, [v]>
     */
    void AssembleFaceVector(const FiniteElement &el1,
                            const FiniteElement &el2,
