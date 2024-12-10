@@ -24,7 +24,7 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line)
 {
    mfem::err << "\n\nCUDA error: (" << expr << ") failed with error:\n --> "
-             << cudaGetErrorString(err)
+             << cudaGetErrorString(err) << " [code: " << (int)err << ']'
              << "\n ... in function: " << func
              << "\n ... in file: " << file << ':' << line << '\n';
    mfem_error();
