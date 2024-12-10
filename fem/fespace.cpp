@@ -2694,7 +2694,7 @@ void FiniteElementSpace::Construct()
       else
       {
          // the simple case: all faces are of the same geometry and order
-         uni_fdof = fec->GetNumDof(mesh->GetFaceGeometry(0), order);
+         uni_fdof = fec->GetNumDof(mesh->GetTypicalFaceGeometry(), order);
          nfdofs = mesh->GetNFaces() * uni_fdof;
          var_face_dofs.Clear(); // ensure any old var_face_dof table is dumped.
       }
@@ -3374,7 +3374,7 @@ void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
    }
    else
    {
-      auto geom = mesh->GetFaceGeometry(0);
+      auto geom = mesh->GetTypicalFaceGeometry();
       nf = fec->GetNumDof(geom, fec->GetOrder());
       base = i*nf;
    }
@@ -3439,6 +3439,16 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    }
 
    return FE;
+}
+
+const FiniteElement *FiniteElementSpace::GetTypicalFE() const
+{
+   if (mesh->GetNE() > 0) { return GetFE(0); }
+
+   Geometry::Type geom = mesh->GetTypicalElementGeometry();
+   const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+   MFEM_VERIFY(fe != nullptr, "Could not determine a typical FE!");
+   return fe;
 }
 
 const FiniteElement *FiniteElementSpace::GetBE(int i) const
@@ -3516,7 +3526,12 @@ const FiniteElement *FiniteElementSpace::GetEdgeElement(int i,
 const FiniteElement *FiniteElementSpace::GetTraceElement(
    int i, Geometry::Type geom_type) const
 {
-   return fec->TraceFiniteElementForGeometry(geom_type);
+   return fec->GetTraceFE(geom_type, GetElementOrder(i));
+}
+
+const FiniteElement *FiniteElementSpace::GetTypicalTraceElement() const
+{
+   return fec->TraceFiniteElementForGeometry(mesh->GetTypicalFaceGeometry());
 }
 
 FiniteElementSpace::~FiniteElementSpace()

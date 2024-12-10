@@ -24,7 +24,7 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
      fec(fes_orig.GetMaxElementOrder(),
          fes_orig.GetMesh()->Dimension(),
          btype,
-         fes_orig.GetFE(0)->GetMapType()),
+         fes_orig.GetTypicalFE()->GetMapType()),
      fes(fes_orig.GetMesh(), &fec)
 {
    MFEM_VERIFY(fes.IsDGSpace(), "Space must be DG.");
@@ -42,7 +42,9 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
    {
       // original basis to solver basis
       const auto mode = DofToQuad::TENSOR;
-      d2q = &fes_orig.GetFE(0)->GetDofToQuad(fes.GetFE(0)->GetNodes(), mode);
+      const FiniteElement &fe_orig = *fes_orig.GetTypicalFE();
+      const FiniteElement &fe = *fes.GetTypicalFE();
+      d2q = &fe_orig.GetDofToQuad(fe.GetNodes(), mode);
 
       int n = d2q->ndof;
       Array<real_t> B_inv = d2q->B; // deep copy

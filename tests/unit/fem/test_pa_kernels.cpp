@@ -588,7 +588,7 @@ static void test_pa_integrator()
    // Don't use a special integration rule if q_order_inc == 0
    const bool use_ir = q_order_inc > 0;
    const IntegrationRule *ir =
-      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
+      use_ir ? &IntRules.Get(mesh.GetTypicalElementGeometry(), q_order) : nullptr;
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
@@ -745,7 +745,7 @@ void test_dg_diffusion(FES &fes)
    const real_t kappa = 10.0;
 
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = irs.Get(fes.GetMesh()->GetFaceGeometry(0),
+   const IntegrationRule &ir = irs.Get(fes.GetMesh()->GetTypicalFaceGeometry(),
                                        2*fes.GetMaxElementOrder());
 
    BLF_t blf_fa(&fes);
