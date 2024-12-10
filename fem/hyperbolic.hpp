@@ -414,7 +414,7 @@ public:
 /**
  * @brief Rusanov flux, also known as local Lax-Friedrichs,
  *    F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
- * where λ = max(F(u⁺,x)n, F(u⁻,x)n).
+ * where λ = max(|F(u⁺,x)n|, |F(u⁻,x)n|).
  * @note This construction assumes monotonous F(u,x) in u,
  * implying λ is the maximum characteristic velocity.
  */
@@ -441,7 +441,7 @@ public:
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
     * @param[out] flux F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
-    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    * @return max(|F(u⁺,x)n|, |F(u⁻,x)n|)
     */
    real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
@@ -485,7 +485,7 @@ public:
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
     * @param[out] flux ½(F̄(u⁻,u⁺,x)n + F(u⁻,x)n) - ¼λ(u⁺ - u⁻)
-    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    * @return max(|F(u⁺,x)n|, |F(u⁻,x)n|)
     */
    real_t Average(const Vector &state1, const Vector &state2,
                   const Vector &nor, FaceElementTransformations &Tr,
@@ -554,7 +554,7 @@ public:
     * @param[in] Tr face element transformation
     * @param[out] flux F̂ n = min(F(u⁻)n, F(u⁺,x)n)    for u⁻ ≤ u⁺
     *               or F̂ n = max(F(u⁻)n, F(u⁺,x)n)    for u⁻ > u⁺
-    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    * @return max(|F(u⁺,x)n|, |F(u⁻,x)n|)
     */
    real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
@@ -599,7 +599,7 @@ public:
     * @param[in] Tr face element transformation
     * @param[out] flux F̂ n = min(F(u⁻)n, F̄(u⁺,x)n)    for u⁻ ≤ u⁺
     *               or F̂ n = max(F(u⁻)n, F̄(u⁺,x)n)    for u⁻ > u⁺
-    * @return max(F(u⁺,x)n, F(u⁻,x)n)
+    * @return max(|F(u⁺,x)n|, |F(u⁻,x)n|)
     */
    real_t Average(const Vector &state1, const Vector &state2,
                   const Vector &nor, FaceElementTransformations &Tr,
