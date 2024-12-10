@@ -3512,14 +3512,7 @@ void GridFunction::ComputeElementLpErrors(const real_t p, Coefficient &exsol,
       if (p < infinity())
       {
          // negative quadrature weights may cause the error to be negative
-         if (error[i] < 0.)
-         {
-            error[i] = pow(-error[i], 1./p);
-         }
-         else
-         {
-            error[i] = pow(error[i], 1./p);
-         }
+         error[i] = pow(fabs(error[i]), 1./p);
       }
    }
 }
@@ -3694,14 +3687,7 @@ void GridFunction::ComputeElementLpErrors(const real_t p,
       if (p < infinity())
       {
          // negative quadrature weights may cause the error to be negative
-         if (error[i] < 0.)
-         {
-            error[i] = pow(-error[i], 1./p);
-         }
-         else
-         {
-            error[i] = pow(error[i], 1./p);
-         }
+         error[i] = pow(fabs(error[i]), 1./p);
       }
    }
 }
@@ -4528,14 +4514,7 @@ real_t ComputeElementLpDistance(real_t p, int i,
    if (p < infinity())
    {
       // Negative quadrature weights may cause the norm to be negative
-      if (norm < 0.)
-      {
-         norm = pow(-norm, 1./p);
-      }
-      else
-      {
-         norm = pow(norm, 1./p);
-      }
+      norm = pow(fabs(norm), 1./p);
    }
 
    return norm;
