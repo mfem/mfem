@@ -29,20 +29,39 @@
 namespace mfem
 {
 
-/** Represents the index of an element to refine, plus a refinement type. The
-    refinement type is needed for anisotropic refinement of quads and hexes.
-    Bits 0,1 and 2 of 'ref_type' specify whether the element should be split in
-    the X, Y and Z directions, respectively (Z is ignored for quads). */
+/** Represents the index of an element to refine, plus a refinement type.
+    The refinement type is needed for anisotropic refinement of quads and hexes.
+    Bits 0,1 and 2 of 'ref_type' specify whether the element should be split
+    in the X, Y and Z directions, respectively (Z is ignored for quads). The
+    refinement spacing or scale in each direction is a number in (0,1), with the
+    default 0.5 meaning bisection. This linear scale parameter defines the
+    position of the refinement between the beginning (0) and end (1) of the
+    reference element in each direction. */
 struct Refinement
 {
-   enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
    int index; ///< Mesh element number
-   char ref_type; ///< refinement XYZ bit mask (7 = full isotropic)
-
+   enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
+   using ScaledType = std::pair<char, real_t>;
+   real_t s[3];  /// Refinement scale in each dimension
    Refinement() = default;
-
-   Refinement(int index, int type = Refinement::XYZ)
-      : index(index), ref_type(type) {}
+   /// Refinement type XYZ, with scale 0.5.
+   Refinement(int index);
+   /// Default case of empty list @a refs is XYZ with scale 0.5.
+   Refinement(int index, const std::initializer_list<ScaledType> &refs);
+   /// Refine element with a single type and scale in all dimensions.
+   Refinement(int index, char type, real_t scale = 0.5);
+   /// Return the type as char.
+   char GetType() const;
+   /// Set the element, type, and scale.
+   void Set(int element, char type,
+            real_t scale = 0.5);  /// Uses @a scale in all dimensions
+   /// Set the type and scale, assuming the element is already set.
+   void SetType(char type,
+                real_t scale = 0.5);  /// Uses @a scale in all dimensions
+   /// Set the scale in the directions for the currently set type.
+   void SetScaleForType(const real_t *scale);
+private :
+   void SetScale(const ScaledType &ref);
 };
 
 /// Defines the position of a fine element within a coarse element.
@@ -522,7 +541,8 @@ protected: // implementation
       char vert_refc, edge_refc;
       int vert_index, edge_index;
 
-      Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}
+      Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1),
+         scale(0.5), scaleSet(false) {}
       ~Node();
 
       bool HasVertex() const { return vert_refc > 0; }
@@ -531,6 +551,18 @@ protected: // implementation
       // decrease vertex/edge ref count, return false if Node should be deleted
       bool UnrefVertex() { --vert_refc; return vert_refc || edge_refc; }
       bool UnrefEdge()   { --edge_refc; return vert_refc || edge_refc; }
+
+      real_t GetScale() const { return scale; }
+      void SetScale(real_t s, bool overwrite = false);
+
+   private:
+      real_t scale;  ///< Scale from struct Refinement, default 0.5
+      bool scaleSet; ///< Indicates whether scale is set and cannot be changed
+#ifdef MFEM_USE_DOUBLE
+      static constexpr real_t scaleTol = 1.0e-8; ///< Scale comparison tolerance
+#else
+      static constexpr real_t scaleTol = 1.0e-5; ///< Scale comparison tolerance
+#endif
    };
 
    /** Similarly to nodes, faces can be accessed by hashing their four vertex
@@ -586,6 +618,9 @@ protected: // implementation
    // primary data
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
+
+   bool using_scaling = false; // Whether Node::scale is being used
+
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 public:
@@ -756,17 +791,24 @@ protected:
    Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
    HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)
+   Array<real_t> reparent_scale;  ///< scale associated with reparents (tmp)
 
    Table derefinements; ///< possible derefinements, see GetDerefinementTable
 
-   /** Refine the element @a elem with the refinement @a ref_type (c.f.
-       Refinement::enum) */
+
+   /// Refine the element @a elem with the refinement type @a ref_type.
    void RefineElement(int elem, char ref_type);
+
+   /// Refine one element with type and scale specified by @a ref.
+   void RefineElement(const Refinement & ref);
 
    /// Derefine the element @a elem, does nothing on leaf elements.
    void DerefineElement(int elem);
 
-   // Add an Element @a el to the NCMesh, optimized to reuse freed elements.
+   /// Helper function to set scale for a node with parents @a p0, @a p1.
+   void SetNodeScale(int p0, int p1, real_t scale);
+
+   /// Add an Element @a el to the NCMesh, optimized to reuse freed elements.
    int AddElement(const Element &el)
    {
       if (free_element_ids.Size())
@@ -824,11 +866,12 @@ protected:
     * @param n2 The second node defining the face
     * @param n3 The third node defining the face
     * @param n4 The fourth node defining the face
+    * @param s returns the scale of the split
     * @param mid optional return of the edge mid points.
     * @return int 0 -- no split, 1 -- "vertical" split, 2 -- "horizontal" split
     */
-   int QuadFaceSplitType(int n1, int n2, int n3, int n4, int mid[5]
-                         = NULL /*optional output of mid-edge nodes*/) const;
+   int QuadFaceSplitType(int n1, int n2, int n3, int n4, real_t & s,
+                         int mid[5] = NULL /*optional output of mid-edge nodes*/) const;
 
    /**
     * @brief Given a tri face defined by three vertices, establish whether the
@@ -886,7 +929,8 @@ protected:
     */
    inline bool QuadFaceIsMaster(int n1, int n2, int n3, int n4) const
    {
-      return QuadFaceSplitType(n1, n2, n3, n4) != 0;
+      real_t s;
+      return QuadFaceSplitType(n1, n2, n3, n4, s) != 0;
    }
 
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
@@ -903,7 +947,7 @@ protected:
    void CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
                      int en1, int en2, int en3, int en4, int midf);
 
-   void ReparentNode(int node, int new_p1, int new_p2);
+   void ReparentNode(int node, int new_p1, int new_p2, real_t scale);
 
    int FindMidEdgeNode(int node1, int node2) const;
    int GetMidEdgeNode(int node1, int node2);
@@ -1039,12 +1083,12 @@ protected:
       Point(real_t x, real_t y, real_t z)
       { dim = 3; coord[0] = x; coord[1] = y; coord[2] = z; }
 
-      Point(const Point& p0, const Point& p1)
+      Point(const Point& p0, const Point& p1, real_t s = 0.5)
       {
          dim = p0.dim;
          for (int i = 0; i < dim; i++)
          {
-            coord[i] = (p0.coord[i] + p1.coord[i]) * 0.5;
+            coord[i] = ((1.0 - s) * p0.coord[i]) + (s * p1.coord[i]);
          }
       }
 
@@ -1172,6 +1216,10 @@ protected:
    // utility
 
    int GetEdgeMaster(int node) const;
+
+   /// Return directed scale in (0,1).
+   inline real_t GetScale(real_t s, bool reverse) const
+   { return reverse ? 1.0 - s : s; }
 
    /**
     * @brief Return the number of splits of this edge that have occurred in the
