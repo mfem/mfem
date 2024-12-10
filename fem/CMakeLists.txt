@@ -119,32 +119,47 @@ set(SRCS
   normal_deriv_restriction.cpp
   staticcond.cpp
   tmop.cpp
-  tmop/tmop_pa.cpp
-  tmop/tmop_pa_da3.cpp
-  tmop/tmop_pa_h2d.cpp
-  tmop/tmop_pa_h2d_c0.cpp
-  tmop/tmop_pa_h2m.cpp
-  tmop/tmop_pa_h2m_c0.cpp
-  tmop/tmop_pa_h2s.cpp
-  tmop/tmop_pa_h2s_c0.cpp
-  tmop/tmop_pa_h3d.cpp
-  tmop/tmop_pa_h3d_c0.cpp
-  tmop/tmop_pa_h3m.cpp
-  tmop/tmop_pa_h3m_c0.cpp
-  tmop/tmop_pa_h3s.cpp
-  tmop/tmop_pa_h3s_c0.cpp
-  tmop/tmop_pa_jp2.cpp
-  tmop/tmop_pa_jp3.cpp
-  tmop/tmop_pa_p2.cpp
-  tmop/tmop_pa_p2_c0.cpp
-  tmop/tmop_pa_p3.cpp
-  tmop/tmop_pa_p3_c0.cpp
-  tmop/tmop_pa_tc2.cpp
-  tmop/tmop_pa_tc3.cpp
-  tmop/tmop_pa_w2.cpp
-  tmop/tmop_pa_w2_c0.cpp
-  tmop/tmop_pa_w3.cpp
-  tmop/tmop_pa_w3_c0.cpp
+  tmop/pa.cpp
+  tmop/assemble/2d/diag_coef.cpp
+  tmop/assemble/2d/diag.cpp
+  tmop/assemble/2d/grad_coef.cpp
+  tmop/assemble/2d/grad.cpp
+  tmop/assemble/3d/diag_coef.cpp  
+  tmop/assemble/3d/diag.cpp
+  tmop/assemble/3d/grad_coef.cpp
+  tmop/assemble/3d/grad.cpp
+  tmop/metrics/001.cpp
+  tmop/metrics/002.cpp
+  tmop/metrics/002.cpp
+  tmop/metrics/007.cpp
+  tmop/metrics/056.cpp
+  tmop/metrics/077.cpp
+  tmop/metrics/080.cpp
+  tmop/metrics/094.cpp
+  tmop/metrics/302.cpp
+  tmop/metrics/303.cpp
+  tmop/metrics/315.cpp
+  tmop/metrics/318.cpp
+  tmop/metrics/321.cpp
+  tmop/metrics/332.cpp
+  tmop/metrics/338.cpp
+  tmop/mult/2d/grad_coef.cpp
+  tmop/mult/2d/grad.cpp
+  tmop/mult/2d/mult_coef.cpp
+  tmop/mult/2d/mult.cpp
+  tmop/mult/3d/grad_coef.cpp
+  tmop/mult/3d/grad.cpp
+  tmop/mult/3d/mult_coef.cpp
+  tmop/mult/3d/mult.cpp
+  tmop/tools/2d/det_jpr.cpp
+  tmop/tools/2d/energy_coef.cpp
+  tmop/tools/2d/energy.cpp
+  tmop/tools/2d/target.cpp
+  tmop/tools/3d/det_jpr.cpp
+  tmop/tools/3d/energy_coef.cpp
+  tmop/tools/3d/energy.cpp
+  tmop/tools/3d/discrete.cpp
+  tmop/tools/3d/target.cpp
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
@@ -242,7 +257,11 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
-  tmop/tmop_pa.hpp
+  tmop/pa.hpp
+  tmop/assemble/2d/grad.hpp
+  tmop/assemble/3d/grad.hpp
+  tmop/mult/2d/mult.hpp
+  tmop/mult/3d/mult.hpp
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp
