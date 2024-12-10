@@ -1239,14 +1239,7 @@ real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm)
       MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type,
                     MPI_SUM, comm);
 
-      if (glob_norm < 0.0)
-      {
-         glob_norm = pow(-glob_norm, 1.0/p);
-      }
-      else
-      {
-         glob_norm = pow(glob_norm, 1.0/p);
-      }
+      glob_norm = pow(fabs(glob_norm), 1.0/p);
    }
    else
    {
