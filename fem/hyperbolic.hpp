@@ -66,7 +66,7 @@ public:
    virtual ~FluxFunction() {}
 
    /**
-    * @brief Compute flux. Must be implemented in a derived class.
+    * @brief Compute flux F(u, x). Must be implemented in a derived class.
     *
     * Used in HyperbolicFormIntegrator::AssembleElementVector() for evaluation
     * of ∫_T F(u):∇v and in the default implementation of ComputeFluxDotN()
