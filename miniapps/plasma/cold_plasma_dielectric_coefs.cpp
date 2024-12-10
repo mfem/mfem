@@ -2124,8 +2124,11 @@ double PlasmaProfile::EvalByType(Type type,
       break;
       case POLOIDAL_H_MODE_DEN:
       {
-         double r = cyl_ ? rz_[0] : xyz_[0];
-         double z = cyl_ ? rz_[1] : xyz_[1];
+         //double r = cyl_ ? rz_[0] : xyz_[0];
+         //double z = cyl_ ? rz_[1] : xyz_[1];
+
+         double r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+         double z = xyz_[1];
 
          double x_tok_data[2];
          Vector xTokVec(x_tok_data, 2);
@@ -2254,6 +2257,7 @@ double PlasmaProfile::EvalByType(Type type,
          double te2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
                                            -1.0) + pmin2;
          double Te = (te1 + te2)*1e3;
+         if (Te < 1.0){Te = 1.0;}
 
          return Te;
       }
@@ -2282,17 +2286,29 @@ double PlasmaProfile::EvalByType(Type type,
          double norm_sqrt_psi = 1.0;
          if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
 
+         double pmin1 = params[0];
+         double pmax1 = params[1];
+         double lam1 = params[2];
+         double n1 = params[3];
+         
+         double pmin2 = params[4];
+         double pmax2 = params[5];
+         double lam2 = params[6];
+         double n2 = params[7];
+         /*
          double pmin1 = 1e11;
          double pmax1 = (4.339e20 - 2e20);
          double lam1 = 0.46;
          double n1 = 0.89;
+         */
          double ne1 = (pmax1 - pmin1)* pow(cosh(pow((sqrt(val) / lam1), n1)),
                                            -1.0) + pmin1;
-
+         /*
          double pmin2 = 3.20449e19 - 5.9e19;
          double pmax2 = 2e20;
          double lam2 = 0.97;
          double n2 = 70.0;
+         */
          double ne2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
                                            -1.0) + pmin2;
          double pval = ne1 + ne2;
