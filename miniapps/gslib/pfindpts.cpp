@@ -390,7 +390,7 @@ int main (int argc, char *argv[])
    Vector rst = finder.GetReferencePosition();
 
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
-   double err = 0.0, max_err = 0.0, max_dist = 0.0;
+   double error = 0.0, max_error = 0.0, max_dist = 0.0;
 
    Vector pos(dim);
    for (int j = 0; j < vec_dim; j++)
@@ -412,10 +412,10 @@ int main (int argc, char *argv[])
             }
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
-            err = gf_ordering == Ordering::byNODES ?
+            error = gf_ordering == Ordering::byNODES ?
                   fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
                   fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
-            max_err  = std::max(max_err, err);
+            max_error  = std::max(max_error, error);
             max_dist = std::max(max_dist, dist_p_out(i));
             if (code_out[i] == 1 && j == 0) { face_pts++; }
          }
@@ -430,11 +430,11 @@ int main (int argc, char *argv[])
    MPI_Allreduce(MPI_IN_PLACE, &face_pts, 1, MPI_INT, MPI_SUM, pfespace.GetComm());
    MPI_Allreduce(MPI_IN_PLACE, &not_found, 1, MPI_INT, MPI_SUM,
                  pfespace.GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &max_err, 1, MPI_DOUBLE, MPI_MAX,
+   MPI_Allreduce(MPI_IN_PLACE, &max_error, 1, MPI_DOUBLE, MPI_MAX,
                  pfespace.GetComm());
    MPI_Allreduce(MPI_IN_PLACE, &max_dist, 1, MPI_DOUBLE, MPI_MAX,
                  pfespace.GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &err, 1, MPI_DOUBLE, MPI_SUM, pfespace.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &error, 1, MPI_DOUBLE, MPI_SUM, pfespace.GetComm());
 
 
    if (myid == 0)
@@ -447,7 +447,7 @@ int main (int argc, char *argv[])
            << "\nFound on other tasks: " << found_away
            << "\nPoints not found:     " << not_found
            << "\nPoints on faces:      " << face_pts
-           << "\nMax interp error:     " << max_err
+           << "\nMax interp error:     " << max_error
            << "\nMax dist (of found):  " << max_dist
            << endl;
    }
