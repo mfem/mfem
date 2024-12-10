@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
-      }      
+      }
    }
 
 
@@ -131,19 +131,19 @@ int main(int argc, char *argv[])
    md->Optimize(1000,100.0);
 
    {
-       mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
-       paraview_dc.SetPrefixPath("ParaView");
-       paraview_dc.SetLevelsOfDetail(order);
-       paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
-       paraview_dc.SetHighOrderOutput(true);
-       paraview_dc.SetCycle(0);
-       paraview_dc.SetTime(0.0);
+      mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
+      paraview_dc.SetPrefixPath("ParaView");
+      paraview_dc.SetLevelsOfDetail(order);
+      paraview_dc.SetDataFormat(mfem::VTKFormat::BINARY);
+      paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetCycle(0);
+      paraview_dc.SetTime(0.0);
 
-       paraview_dc.RegisterField("design",&tgf);
-       paraview_dc.RegisterField("TFG",&(md->GetTFG()));
-       paraview_dc.RegisterField("CFG",&(md->GetCFG()));
+      paraview_dc.RegisterField("design",&tgf);
+      paraview_dc.RegisterField("TFG",&(md->GetTFG()));
+      paraview_dc.RegisterField("CFG",&(md->GetCFG()));
 
-       paraview_dc.Save();
+      paraview_dc.Save();
    }
 
    delete md;
