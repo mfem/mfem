@@ -24,9 +24,9 @@ namespace mfem
 // HyperbolicFormIntegrator is a NonlinearFormIntegrator that implements
 // element weak divergence and interface flux
 //
-//     ∫_T F(u):∇v,   -∫_e F̂(u)⋅n[v]
+//     ∫_K F(u):∇v,   -∫_f F̂(u)⋅n[v]
 //
-// Here, T is an element, e is an edge, n normal and [⋅] is jump. This form
+// Here, K is an element, f is a face, n normal and [⋅] is jump. This form
 // integrator is coupled with NumericalFlux that implements the numerical flux
 // F̂. For NumericalFlux, the Rusanov flux, also known as local Lax-Friedrichs
 // flux, or Godunov flux are provided.
@@ -69,7 +69,7 @@ public:
     * @brief Compute flux F(u, x). Must be implemented in a derived class.
     *
     * Used in HyperbolicFormIntegrator::AssembleElementVector() for evaluation
-    * of ∫_T F(u):∇v and in the default implementation of ComputeFluxDotN()
+    * of (F(u), ∇v) and in the default implementation of ComputeFluxDotN()
     * for evaluation of F(u)⋅n.
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] Tr element transformation
@@ -82,8 +82,8 @@ public:
    virtual real_t ComputeFlux(const Vector &state, ElementTransformation &Tr,
                               DenseMatrix &flux) const = 0;
    /**
-    * @brief Compute normal flux. Optionally overloaded in a derived class to
-    * avoid creating a full dense matrix for flux.
+    * @brief Compute normal flux F(u, x)⋅n. Optionally overloaded in a derived
+    * class to avoid creating a full dense matrix for flux.
     *
     * Used in NumericalFlux for evaluation of the normal flux on a face.
     * @param[in] state state at the current integration point (num_equations)
@@ -144,8 +144,8 @@ public:
                                      Vector &fluxDotN) const;
 
    /**
-    * @brief Compute flux Jacobian. Optionally overloaded in a derived class
-    * when Jacobian is necessary (e.g. Newton iteration, flux limiter)
+    * @brief Compute flux Jacobian J(u, x). Optionally overloaded in a derived
+    * class when Jacobian is necessary (e.g. Newton iteration, flux limiter)
     *
     * Used in HyperbolicFormIntegrator::AssembleElementGrad() for evaluation of
     * Jacobian of the flux in an element and in the default implementation of
@@ -160,8 +160,8 @@ public:
    { MFEM_ABORT("Not Implemented."); }
 
    /**
-    * @brief Compute normal flux Jacobian. Optionally overloaded in a derived
-    * class to avoid creating a full dense tensor for Jacobian.
+    * @brief Compute normal flux Jacobian J(u, x)⋅n. Optionally overloaded in
+    * a derived class to avoid creating a full dense tensor for Jacobian.
     *
     * Used in NumericalFlux for evaluation of Jacobian of the normal flux on
     * a face.
@@ -198,8 +198,8 @@ public:
     * @brief Evaluates normal numerical flux for the given states and normal.
     * Must be implemented in a derived class.
     *
-    * Used in HyperbolicFormIntegrator::AssembleFaceVector() for the convective
-    * term at the face.
+    * Used in HyperbolicFormIntegrator::AssembleFaceVector() for evaluation of
+    * <F̂(u⁻,u⁺,x) n, [v]> term at the face.
     * @param[in] state1 state value at a point from the first element
     * (num_equations)
     * @param[in] state2 state value at a point from the second element
@@ -218,7 +218,7 @@ public:
     * states and normal. Optionally overloaded in a derived class.
     *
     * Used in HyperbolicFormIntegrator::AssembleFaceGrad() for Jacobian
-    * of the convective term at the face.
+    * of the term <F̂(u⁻,u⁺,x) n, [v]> at the face.
     * @param[in] side indicates gradient w.r.t. the first (side = 1)
     * or second (side = 2) state
     * @param[in] state1 state value of the beginning of the interval
@@ -290,9 +290,12 @@ protected:
 MFEM_DEPRECATED typedef NumericalFlux RiemannSolver;
 
 /**
- * @brief Abstract hyperbolic form integrator, (F(u, x), ∇v) and
- * (F̂(u⁻,u⁺,x) n, [v])
+ * @brief Abstract hyperbolic form integrator, assembling (F(u, x), ∇v) and
+ * <F̂(u⁻,u⁺,x) n, [v]> terms for scalar finite elements.
  *
+ * This form integrator is coupled with a NumericalFlux that implements the
+ * numerical flux F̂ at the faces. The flux F is obtained from the FluxFunction
+ * assigned to the aforementioned NumericalFlux.
  */
 class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
@@ -399,7 +402,7 @@ public:
     * @param[in] el2 finite element of the second element
     * @param[in] Tr face element transformations
     * @param[in] elfun local coefficient of basis from both elements
-    * @param[out] elmat evaluated Jacobian matrix <-Ĵ(u,x) n, [v]>
+    * @param[out] elmat evaluated Jacobian matrix <-Ĵ(u⁻,u⁺,x) n, [v]>
     */
    void AssembleFaceGrad(const FiniteElement &el1,
                          const FiniteElement &el2,
