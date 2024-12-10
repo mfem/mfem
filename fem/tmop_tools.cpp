@@ -377,15 +377,6 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 
    field0_gf.SetSpace(f);
    field0_gf = init_field;
-
-   // Check if the mesh nodes and the field nodes coincide.
-   const bool nodes_mismatch = init_nodes.Size() / m->Dimension() !=
-                               field0_gf.Size()  / f->GetVDim();
-   if (nodes_mismatch)
-   {
-      delete fes_new_field;
-      fes_new_field = new FiniteElementSpace(m, f->FEColl(), m->Dimension());
-   }
 }
 
 void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
