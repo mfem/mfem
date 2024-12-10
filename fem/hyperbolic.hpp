@@ -374,7 +374,7 @@ public:
                             const Vector &elfun, DenseMatrix &grad) override;
 
    /**
-    * @brief Implements <-F̂(u,x) n, [v]> with abstract F̂ computed by
+    * @brief Implements <-F̂(u⁻,u⁺,x) n, [v]> with abstract F̂ computed by
     * RiemannSolver::Eval() of the numerical flux object
     *
     * @param[in] el1 finite element of the first element
