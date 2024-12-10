@@ -58,6 +58,8 @@ struct Refinement
    /// Set the type and scale, assuming the element is already set.
    void SetType(char type,
                 real_t scale = 0.5);  /// Uses @a scale in all dimensions
+   /// Set the scale in the directions for the currently set type.
+   void SetScaleForType(const real_t *scale);
 private :
    void SetScale(const ScaledType &ref);
 };
