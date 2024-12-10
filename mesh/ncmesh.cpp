@@ -3084,13 +3084,13 @@ struct MatrixMap
    int GetIndex(const NCMesh::PointMatrix &pm)
    {
       int &index = map[pm];
-      if (!index) { index = map.size(); }
+      if (!index) { index = static_cast<int>(map.size()); }
       return index - 1;
    }
 
    void ExportMatrices(Array<DenseMatrix*> &point_matrices) const
    {
-      point_matrices.SetSize(map.size());
+      point_matrices.SetSize(static_cast<int>(map.size()));
       for (const auto &pair : map)
       {
          DenseMatrix* mat = new DenseMatrix();
@@ -4813,7 +4813,7 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
    if (!el.ref_type)
    {
       int &matrix = map[ref_path];
-      if (!matrix) { matrix = map.size(); }
+      if (!matrix) { matrix = static_cast<int>(map.size()); }
 
       Embedding &emb = transforms.embeddings[el.index];
       emb.parent = coarse_index;
@@ -4876,7 +4876,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms() const
             const PointMatrix &identity = GetGeomIdentity(geom);
 
             transforms.point_matrices[g]
-            .SetSize(Dim, identity.np, path_map[g].size());
+            .SetSize(Dim, identity.np, static_cast<int>(path_map[g].size()));
 
             // calculate the point matrices
             RefPathMap::iterator it;
@@ -4912,7 +4912,7 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
          if (code)
          {
             int &matrix = mat_no[emb.geom][code];
-            if (!matrix) { matrix = mat_no[emb.geom].size(); }
+            if (!matrix) { matrix = static_cast<int>(mat_no[emb.geom].size()); }
 
             emb.matrix = matrix - 1;
          }
@@ -4926,7 +4926,7 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
             const PointMatrix &identity = GetGeomIdentity(geom);
 
             transforms.point_matrices[geom]
-            .SetSize(Dim, identity.np, mat_no[geom].size());
+            .SetSize(Dim, identity.np, static_cast<int>(mat_no[geom].size()));
 
             // calculate point matrices
             for (auto it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
@@ -6529,9 +6529,9 @@ long NCMesh::NCList::MemoryUsage() const
    {
       for (int j = 0; j < point_matrices[i].Size(); i++)
       {
-         pm_size += point_matrices[i][j]->MemoryUsage();
+         pm_size += static_cast<int>(point_matrices[i][j]->MemoryUsage());
       }
-      pm_size += point_matrices[i].MemoryUsage();
+      pm_size += static_cast<int>(point_matrices[i].MemoryUsage());
    }
 
    return conforming.MemoryUsage() +

@@ -434,12 +434,28 @@ public:
    /// be used for ASCII output.
    void Save(const char *fname, int precision=16) const override;
 
-   /// Returns a GridFunction on MPI rank @a save_rank that does not have any
-   /// duplication of vertices/nodes at processor boundaries.
-   /// serial_mesh is obtained using ParMesh::GetSerialMesh(save_rank).
-   /// Note that the @ save_rank argument must match for the
-   /// ParMesh::GetSerialMesh and GetSerialGridFunction method.
+   /// @brief Returns a GridFunction on MPI rank @a save_rank that does not have
+   /// any duplication of vertices/nodes at processor boundaries.
+   ///
+   /// The @a serial_mesh is obtained using ParMesh::GetSerialMesh. Note that
+   /// the @a save_rank must be the same as that used in ParMesh::GetSerialMesh.
+   ///
+   /// @note The returned GridFunction will own the newly created
+   /// FiniteElementCollection and FiniteElementSpace objects.
    GridFunction GetSerialGridFunction(int save_rank, Mesh &serial_mesh) const;
+
+   /// @brief Returns a GridFunction on MPI rank @a save_rank that does not have
+   /// any duplication of vertices/nodes at processor boundaries.
+   ///
+   /// The given @a serial_fes must be defined on the mesh returned by
+   /// ParMesh::GetSerialMesh (with @a save_rank ranks), for example using the
+   /// space belonging to the GridFunction obtained from @ref
+   /// ParGridFunction::GetSerialGridFunction(int,Mesh &) const.
+   ///
+   /// @note The returned GridFunction does not assume ownership of @a
+   /// serial_fes.
+   GridFunction GetSerialGridFunction(
+      int save_rank, FiniteElementSpace &serial_fes) const;
 
    /// Write the serial GridFunction a single file (written using MPI rank 0).
    /// The given @a precision will be used for ASCII output.
