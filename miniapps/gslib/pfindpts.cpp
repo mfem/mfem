@@ -413,8 +413,8 @@ int main (int argc, char *argv[])
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
             error = gf_ordering == Ordering::byNODES ?
-                  fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
-                  fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
+                    fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                    fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
             max_error  = std::max(max_error, error);
             max_dist = std::max(max_dist, dist_p_out(i));
             if (code_out[i] == 1 && j == 0) { face_pts++; }
