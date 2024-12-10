@@ -1,13 +1,13 @@
 """
 https://registry.bazel.build
-https://github.com/bazel-contrib/toolchains_llvm/releases
-https://github.com/bazel-contrib/toolchains_llvm/blob/master/toolchain/internal/llvm_distributions.bzl
 """
 module(name = "mfem", version = "0.1")
 
-bazel_dep(name = "rules_cc", version = "0.0.10")
+bazel_dep(name = "rules_cc", version = "0.0.16")
 
-bazel_dep(name = "toolchains_llvm", version = "1.1.2")
+# https://github.com/bazel-contrib/toolchains_llvm/releases
+# https://github.com/bazel-contrib/toolchains_llvm/blob/master/toolchain/internal/llvm_distributions.bzl
+bazel_dep(name = "toolchains_llvm", version = "1.2.0")
 git_override(
     module_name = "toolchains_llvm",
     commit = "e0ffa169a2572e9f35a52de60fe746831d1e2a0a",
@@ -21,6 +21,9 @@ llvm.toolchain(llvm_version = "17.0.6", stdlib = {"linux-x86_64": "stdc++"}) # l
     
 use_repo(llvm, "llvm_toolchain")
 register_toolchains("@llvm_toolchain//:all")
+
+# https://github.com/bazelbuild/bazel-skylib/releases
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
 
 # External dependencies
 external = use_extension("//config/bazel:external.bzl", "external")

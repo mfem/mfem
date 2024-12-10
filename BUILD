@@ -13,12 +13,13 @@ load("//config/bazel:settings.bzl", "mode", "precision", "print_mode")
 # FLAG: Serial/Parallel MODE ##################################################
 string_flag(
     name = "mode",
+    values = ["serial", "parallel"],
     build_setting_default = "serial",
 )
 
-mode(name = "serial")
+# mode(name = "serial")
 
-mode(name = "parallel")
+# mode(name = "parallel")
 
 config_setting(
     name = "serial_build",
