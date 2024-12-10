@@ -31,6 +31,172 @@ void CutIntegrationRules::SetLevelSetProjectionOrder(int order)
    lsOrder = order;
 }
 
+#ifdef MFEM_USE_ALGOIM
+void AlgoimIntegrationRules::GetSurfaceIntegrationRule(ElementTransformation
+                                                       &Tr,
+                                                       IntegrationRule &result)
+{
+   GenerateLSVector(Tr,LvlSet);
+
+   const int dim=pe->GetDim();
+   int np1d=CutIntegrationRules::Order/2+1;
+   if (dim==2)
+   {
+      LevelSet2D ls(pe,lsvec);
+      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<real_t,2>(0.0,1.0),
+                                  2, -1, np1d);
+      result.SetSize(q.nodes.size());
+      result.SetOrder(CutIntegrationRules::Order);
+      for (size_t i=0; i<q.nodes.size(); i++)
+      {
+         IntegrationPoint& ip=result.IntPoint(i);
+         ip.Set2w(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].w);
+      }
+   }
+   else
+   {
+      LevelSet3D ls(pe,lsvec);
+      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<real_t,3>(0.0,1.0),
+                                  3, -1, np1d);
+
+      result.SetSize(q.nodes.size());
+      result.SetOrder(CutIntegrationRules::Order);
+      for (size_t i=0; i<q.nodes.size(); i++)
+      {
+         IntegrationPoint& ip=result.IntPoint(i);
+         ip.Set(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].x(2),q.nodes[i].w);
+      }
+   }
+
+}
+
+void AlgoimIntegrationRules::GetVolumeIntegrationRule(ElementTransformation &Tr,
+                                                      IntegrationRule &result,
+                                                      const IntegrationRule *sir)
+{
+   GenerateLSVector(Tr,LvlSet);
+
+   const int dim=pe->GetDim();
+   int np1d=CutIntegrationRules::Order/2+1;
+   if (dim==2)
+   {
+      LevelSet2D ls(pe,lsvec);
+      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<real_t,2>(0.0,1.0),
+                                  -1, -1, np1d);
+      result.SetSize(q.nodes.size());
+      result.SetOrder(CutIntegrationRules::Order);
+      for (size_t i=0; i<q.nodes.size(); i++)
+      {
+         IntegrationPoint& ip=result.IntPoint(i);
+         ip.Set2w(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].w);
+      }
+   }
+   else
+   {
+      LevelSet3D ls(pe,lsvec);
+      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<real_t,3>(0.0,1.0),
+                                  -1, -1, np1d);
+
+      result.SetSize(q.nodes.size());
+      result.SetOrder(CutIntegrationRules::Order);
+      for (size_t i=0; i<q.nodes.size(); i++)
+      {
+         IntegrationPoint& ip=result.IntPoint(i);
+         ip.Set(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].x(2),q.nodes[i].w);
+      }
+   }
+
+}
+
+void AlgoimIntegrationRules::GetSurfaceWeights(ElementTransformation &Tr,
+                                               const IntegrationRule &sir,
+                                               Vector &weights)
+{
+   GenerateLSVector(Tr,LvlSet);
+
+   DenseMatrix bmat; // gradients of the shape functions in isoparametric space
+   DenseMatrix pmat; // gradients of the shape functions in physical space
+   Vector inormal; // normal to the level set in isoparametric space
+   Vector tnormal; // normal to the level set in physical space
+   bmat.SetSize(pe->GetDof(),pe->GetDim());
+   pmat.SetSize(pe->GetDof(),pe->GetDim());
+   inormal.SetSize(pe->GetDim());
+   tnormal.SetSize(pe->GetDim());
+
+   weights.SetSize(sir.GetNPoints());
+
+   for (int j = 0; j < sir.GetNPoints(); j++)
+   {
+      const IntegrationPoint &ip = sir.IntPoint(j);
+      Tr.SetIntPoint(&ip);
+      pe->CalcDShape(ip,bmat);
+      Mult(bmat, Tr.InverseJacobian(), pmat);
+      // compute the normal to the LS in isoparametric space
+      bmat.MultTranspose(lsvec,inormal);
+      // compute the normal to the LS in physical space
+      pmat.MultTranspose(lsvec,tnormal);
+      weights[j]= tnormal.Norml2() / inormal.Norml2();
+   }
+
+}
+
+void AlgoimIntegrationRules::GenerateLSVector(ElementTransformation &Tr,
+                                              Coefficient* lvlset)
+{
+   //check if the coefficient is already projected
+   if (currentElementNo==Tr.ElementNo)
+   {
+      if (currentLvlSet==lvlset)
+      {
+         if (currentGeometry==Tr.GetGeometryType())
+         {
+            return;
+         }
+      }
+   }
+
+   currentElementNo=Tr.ElementNo;
+
+   if (currentGeometry!=Tr.GetGeometryType())
+   {
+      delete le;
+      delete pe;
+      currentGeometry=Tr.GetGeometryType();
+      if (Tr.GetGeometryType()==Geometry::Type::SQUARE)
+      {
+         pe=new H1Pos_QuadrilateralElement(lsOrder);
+         le=new H1_QuadrilateralElement(lsOrder);
+      }
+      else if (Tr.GetGeometryType()==Geometry::Type::CUBE)
+      {
+         pe=new H1Pos_HexahedronElement(lsOrder);
+         le=new H1_HexahedronElement(lsOrder);
+      }
+      else
+      {
+         MFEM_ABORT("Currently MFEM + Algoim supports only quads and hexes.");
+      }
+
+      T.SetSize(pe->GetDof());
+      pe->Project(*le,Tr,T);
+      //The transformation matrix depends only on the geometry for change of basis
+   }
+
+   currentLvlSet=lvlset;
+   const IntegrationRule &ir=le->GetNodes();
+   lsvec.SetSize(ir.GetNPoints());
+   lsfun.SetSize(ir.GetNPoints());
+   for (int i=0; i<ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      lsfun(i)=lvlset->Eval(Tr,ip);
+   }
+   T.Mult(lsfun,lsvec);
+}
+
+#endif
+
 #ifdef MFEM_USE_LAPACK
 
 void MomentFittingIntRules::InitSurface(int order, Coefficient& levelset,
@@ -175,6 +341,7 @@ void MomentFittingIntRules::ComputeFaceWeights(ElementTransformation& Tr)
          local_mesh.GetElementTransformation(0, &faceTrafo);
 
          // The 3D face integrals are computed as 2D volumetric integrals.
+         // The 2D face integrals are computed as 1D volumetric integrals.
          MomentFittingIntRules FaceRules(Order, *LvlSet, lsOrder);
          IntegrationRule FaceRule;
          FaceRules.GetVolumeIntegrationRule(faceTrafo, FaceRule);
@@ -254,8 +421,56 @@ void MomentFittingIntRules::ComputeSurfaceWeights1D(ElementTransformation& Tr)
    }
 }
 
-void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr,
-                                                   const IntegrationRule* sir)
+double bisect(ElementTransformation &Tr, Coefficient *LvlSet)
+{
+   IntegrationPoint intp;
+
+   IntegrationPoint ip0;
+   ip0.x = 0.;
+   IntegrationPoint ip1;
+   ip1.x = 1.;
+   Tr.SetIntPoint(&ip0);
+   if (LvlSet->Eval(Tr, ip0) * LvlSet->Eval(Tr, ip1) < 0.)
+   {
+      IntegrationPoint ip2;
+      ip2.x = .5;
+      while (LvlSet->Eval(Tr, ip2) > 1e-12
+             || LvlSet->Eval(Tr, ip2) < -1e-12)
+      {
+         if (LvlSet->Eval(Tr, ip0) * LvlSet->Eval(Tr, ip2) < 0.)
+         {
+            ip1.x = ip2.x;
+         }
+         else
+         {
+            ip0.x = ip2.x;
+         }
+
+         ip2.x = (ip1.x + ip0.x) / 2.;
+      }
+      intp.x = ip2.x;
+      intp.weight = 1. / Tr.Weight();
+   }
+   else if (LvlSet->Eval(Tr, ip0) > 0. && LvlSet->Eval(Tr, ip1) <= 1e-12)
+   {
+      intp.x = 1.;
+      intp.weight = 1. / Tr.Weight();
+   }
+   else if (LvlSet->Eval(Tr, ip1) > 0. && LvlSet->Eval(Tr, ip0) <= 1e-12)
+   {
+      intp.x = 0.;
+      intp.weight = 1. / Tr.Weight();
+   }
+   else
+   {
+      intp.x = .5;
+      intp.weight = 0.;
+   }
+
+   return intp.x;
+}
+
+void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr)
 {
    IntegrationRules irs(0, Quadrature1D::GaussLegendre);
    IntegrationRule ir2 = irs.Get(Geometry::SEGMENT, ir.GetOrder());
@@ -271,7 +486,7 @@ void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr,
       real_t length;
       if (LvlSet->Eval(Tr, ip0) > 0.)
       {
-         length = sir->IntPoint(0).x;
+         length = bisect(Tr, LvlSet);
          for (int ip = 0; ip < ir.GetNPoints(); ip++)
          {
             IntegrationPoint &intp = ir.IntPoint(ip);
@@ -281,11 +496,11 @@ void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr,
       }
       else
       {
-         length = 1. - sir->IntPoint(0).x;
+         length = 1. - bisect(Tr, LvlSet);
          for (int ip = 0; ip < ir.GetNPoints(); ip++)
          {
             IntegrationPoint &intp = ir.IntPoint(ip);
-            intp.x = sir->IntPoint(ip).x + ir2.IntPoint(ip).x * length;
+            intp.x = bisect(Tr, LvlSet) + ir2.IntPoint(ip).x * length;
             intp.weight = ir2.IntPoint(ip).weight * length;
          }
       }
@@ -1491,26 +1706,29 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
    }
 
    IntegrationRule SIR;
-   if (sir == NULL)
-   {
-      Order++;
-      GetSurfaceIntegrationRule(Tr, SIR);
-      Order--;
-   }
-   else if ((sir->GetOrder() - 1) != ir.GetOrder())
-   {
-      Order++;
-      GetSurfaceIntegrationRule(Tr, SIR);
-      Order--;
-   }
-   else
-   {
-      SIR = *sir;
-   }
 
    if (Tr.GetDimension() == 1)
    {
-      ComputeVolumeWeights1D(Tr, &SIR);
+      Clear();
+      InitVolume(Order, *LvlSet, lsOrder, Tr);
+   }
+   else if (sir == NULL)
+   {
+      Order++;
+      GetSurfaceIntegrationRule(Tr, SIR);
+      Order--;
+   }
+   else if (sir->GetOrder() - 1 != ir.GetOrder())
+   {
+      Order++;
+      GetSurfaceIntegrationRule(Tr, SIR);
+      Order--;
+   }
+   else { SIR = *sir; }
+
+   if (Tr.GetDimension() == 1)
+   {
+      ComputeVolumeWeights1D(Tr);
    }
    else if (Tr.GetDimension() == 2)
    {

@@ -68,7 +68,7 @@
 #include <fstream>
 #include <iostream>
 
-using namespace std;
+
 using namespace mfem;
 using namespace mfem::common;
 
@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(std::cout);
       return 1;
    }
 
@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
       beta[0] = 1.;
    }
 
-   args.PrintOptions(cout);
+   args.PrintOptions(std::cout);
 
    // Define spaces
    enum TrialSpace
@@ -292,8 +292,8 @@ int main(int argc, char *argv[])
              << "  L2 Error  |"
              << "  Rate  |"
              << "  Residual  |"
-             << "  Rate  |" << endl;
-   std::cout << std::string(64,'-') << endl;
+             << "  Rate  |" << std::endl;
+   std::cout << std::string(64,'-') << std::endl;
 
    if (static_cond) { a->EnableStaticCondensation(); }
    for (int it = 0; it<=ref; it++)
@@ -625,8 +625,8 @@ void setup_test_norm_coeffs(GridFunction & c1_gf, GridFunction & c2_gf)
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       real_t volume = mesh->GetElementVolume(i);
-      real_t c1 = min(epsilon/volume, (real_t) 1.);
-      real_t c2 = min(1./epsilon, 1./volume);
+      real_t c1 = std::min(epsilon/volume, (real_t) 1.);
+      real_t c2 = std::min(1./epsilon, 1./volume);
       fes->GetElementDofs(i,vdofs);
       c1_gf.SetSubVector(vdofs,c1);
       c2_gf.SetSubVector(vdofs,c2);
