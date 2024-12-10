@@ -71,7 +71,7 @@ real_t integrand(const Vector& X)
    switch (itype)
    {
       case IntegrationType::Volumetric1D:
-         return 1.;
+         return pow(X(0), 2.);
       case IntegrationType::Surface2D:
          return 3. * pow(X(0), 2.) - pow(X(1), 2.);
       case IntegrationType::Volumetric2D:
@@ -91,7 +91,7 @@ real_t Surface()
    switch (itype)
    {
       case IntegrationType::Volumetric1D:
-         return 1.;
+         return .3025;
       case IntegrationType::Surface2D:
          return 2. * M_PI;
       case IntegrationType::Volumetric2D:
@@ -111,7 +111,7 @@ real_t Volume()
    switch (itype)
    {
       case IntegrationType::Volumetric1D:
-         return .55;
+         return pow(.55, 3.) / 3.;
       case IntegrationType::Surface2D:
          return NAN;
       case IntegrationType::Volumetric2D:
@@ -455,6 +455,8 @@ public:
          add(elvect, SIntRule->IntPoint(ip).weight * val, shape, elvect);
       }
    }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /**
@@ -524,6 +526,8 @@ public:
          add(elvect, CIntRule->IntPoint(ip).weight * val, shape, elvect);
       }
    }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 int main(int argc, char *argv[])
@@ -674,7 +678,7 @@ int main(int argc, char *argv[])
       cout << "Number of div free basis functions: " << nbasis << endl;
       cout << "Number of quadrature points:        " << ir.GetNPoints() << endl;
    }
-   cout << scientific << setprecision(2);
+   cout << scientific << setprecision(10);
    cout << "============================================" << endl;
    cout << "Computed value of surface integral: " << surface.Sum() << endl;
    cout << "True value of surface integral:     " << Surface() << endl;
