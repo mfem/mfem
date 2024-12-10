@@ -288,7 +288,7 @@ protected:
 
 /**
  * @brief Abstract hyperbolic form integrator, (F(u, x), ∇v) and
- * (F̂(u±, x) n, [v])
+ * (F̂(u⁻,u⁺,x) n, [v])
  *
  */
 class HyperbolicFormIntegrator : public NonlinearFormIntegrator
