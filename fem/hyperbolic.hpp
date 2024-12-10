@@ -389,7 +389,7 @@ public:
                            const Vector &elfun, Vector &elvect) override;
 
    /**
-    * @brief Implements <-Ĵ(u,x) n, [v]> with abstract Ĵ computed by
+    * @brief Implements <-Ĵ(u⁻,u⁺,x) n, [v]> with abstract Ĵ computed by
     * RiemannSolver::Grad() of the numerical flux object
     *
     * @param[in] el1 finite element of the first element
