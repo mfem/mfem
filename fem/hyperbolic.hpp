@@ -414,8 +414,9 @@ public:
 /**
  * @brief Rusanov flux, also known as local Lax-Friedrichs,
  *    F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
- * where λ is the maximum characteristic velocity
- * @note The implementation assumes monotonous F(u,x) in u
+ * where λ = max(F(u⁺,x)n, F(u⁻,x)n).
+ * @note This construction assumes monotonous F(u,x) in u,
+ * implying λ is the maximum characteristic velocity.
  */
 class RusanovFlux : public NumericalFlux
 {
