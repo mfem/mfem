@@ -21,7 +21,7 @@ template <int ORDER, int SDIM>
 void BatchedLOR_DG::Assemble2D()
 {
    const int nel_ho = fes_ho.GetNE();
-
+   const int p = ORDER;
    const int pp1 = ORDER + 1;
    const int pp2 = ORDER + 2;
 
@@ -44,7 +44,7 @@ void BatchedLOR_DG::Assemble2D()
    const auto w_1d = ir_pp1.GetWeights().Read();
    const auto W = Reshape(ir.GetWeights().Read(), nd1d, nd1d);
 
-   const auto X = Reshape(X_vert.Read(), pp2, pp2, nel_ho);
+   const auto X = Reshape(X_vert.Read(), 2, pp2, pp2, nel_ho);
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nel_ho);
@@ -64,7 +64,6 @@ void BatchedLOR_DG::Assemble2D()
          {
             const real_t mq = const_mq ? MQ(0,0,0) : MQ(ix, iy, iel_ho);
             const real_t dq = const_dq ? DQ(0,0,0) : DQ(ix, iy, iel_ho);
-
             for (int n_idx = 0; n_idx < 2; ++n_idx)
             {
                for (int e_i = 0; e_i < 2; ++e_i)
@@ -77,19 +76,29 @@ void BatchedLOR_DG::Assemble2D()
                   const int i_1 = (n_idx == 0) ? ix + e_i : ix + 1;
                   const int j_1 = (n_idx == 1) ? iy + e_i : iy + 1;
 
-                  const bool bdr = (n_idx == 0) ? (j_0 == 0 || j_0 == pp1)
-                                   : (i_0 == 0 || i_0 == pp1);
+                  const bool bdr = (n_idx == 0) ? (i_0 == 0 || i_0 == pp1)
+                                   : (j_0 == 0 || j_0 == pp1);
 
-                  const real_t h_face = 0.0; // from X_vert
-                  const real_t h_el = 0.0; // from X_vert
-
-                  // ... V(v_idx, ix, iy, iel_ho) = ....
+                  const real_t h_face =1.0;
+                  const real_t h_el = 1.0; // from X_vert
+                  const real_t h = h_face/h_el;
+                  const int w_idx = (n_idx == 0) ? ix : iy;
+                  const int int_idx = (n_idx == 0) ? i_0 : j_0;
+                  if (bdr){
+                     V(v_idx, ix, iy, iel_ho) = -dq*kappa * w_1d[w_idx] * detJ(ix, iy,iel_ho)/h;
+                  }
+                  else{
+                     V(v_idx, ix, iy, iel_ho) = -dq * w_1d[w_idx] / (ir_pp1[int_idx].x - ir_pp1[int_idx-1].x);
+                  }
                }
             }
-
+            /*
+            const real_t h_face = 1.0;
+            const real_t h_el = 1.0; // from X_vert
+            const real_t h = h_face/h_el;
             if (ix == 0)
             {
-               V(4, ix, iy, iel_ho) = -dq*kappa * w_1d[iy] * (ir_pp2[iy+1].x - ir_pp2[iy].x);
+               V(4, ix, iy, iel_ho) = -dq*kappa * w_1d[iy] * detJ(ix, iy,iel_ho)/h;
             }
             else
             {
@@ -97,7 +106,7 @@ void BatchedLOR_DG::Assemble2D()
             }
             if (ix == ORDER)
             {
-               V(2, ix, iy, iel_ho) = -dq*kappa * w_1d[iy] * (ir_pp2[iy+1].x - ir_pp2[iy].x);
+               V(2, ix, iy, iel_ho) = -dq*kappa * w_1d[iy] * detJ(ix, iy,iel_ho)/h;
             }
             else
             {
@@ -105,7 +114,7 @@ void BatchedLOR_DG::Assemble2D()
             }
             if (iy == 0)
             {
-               V(1, ix, iy, iel_ho) = -dq*kappa * w_1d[ix] * (ir_pp2[ix+1].x - ir_pp2[ix].x);
+               V(1, ix, iy, iel_ho) = -dq*kappa * w_1d[ix] * detJ(ix, iy,iel_ho)/h;
             }
             else
             {
@@ -113,13 +122,13 @@ void BatchedLOR_DG::Assemble2D()
             }
             if (iy == ORDER)
             {
-               V(3, ix, iy, iel_ho) = -dq*kappa * w_1d[ix] * (ir_pp2[ix+1].x - ir_pp2[ix].x);
+               V(3, ix, iy, iel_ho) = -dq*kappa * w_1d[ix] * detJ(ix, iy,iel_ho)/h;
             }
             else
             {
                V(3, ix, iy, iel_ho) = -dq*w_1d[ix]/(ir[iy+1].x - ir[iy].x);
             }
-
+            */
             for (int i = 1; i < 5; ++i)
             {
                V(0, ix, iy, iel_ho) -= V(i, ix, iy, iel_ho);
