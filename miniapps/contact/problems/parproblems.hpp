@@ -162,6 +162,9 @@ public:
    double E(const Vector & d);
    void DdE(const Vector & d, Vector & gradE);
    HypreParMatrix * DddE(const Vector & d);
+   
+   void SetBoundConstraints(const Vector & dl_, const Vector & eps_);
+   
    ~OptContactProblem();
 };
 

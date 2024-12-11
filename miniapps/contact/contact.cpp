@@ -99,6 +99,7 @@ int main(int argc, char *argv[])
    bool doublepass = false;
    bool dynamicsolver = false;
    bool nonlinear = false;
+   bool bound_constraints = true;
    bool qp = true;
    bool monitor = false;
    // 1. Parse command-line options.
@@ -153,6 +154,9 @@ int main(int argc, char *argv[])
    args.AddOption(&dynamicsolver, "-dynamic-solver", "--dynamic-solver", "-no-dynamic-solver",
                   "--no-dynamic-solver",
                   "Enable or disable dynamic choice between AMG and two-level solver.");                  
+   args.AddOption(&bound_constraints, "-bound-constraints", "--bound-constraints", "-no-bound-constraints",
+		   "--no-bound-constraints",
+		   "Enable or disable displacement bound constraints -eps <= d - dl <= eps");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -422,6 +426,18 @@ int main(int argc, char *argv[])
    Vector xref(x_gf.GetTrueVector().Size()); xref = 0.0;
    Vector xrefbc(x_gf.GetTrueVector().Size()); xrefbc = 0.0;
 
+   // bound constraints
+   // - eps <= x - xl <= eps
+   // warning: eps_i = 0 will guarantee that LICQ is violated and
+   // issues with the optimizer
+   // eps_min > 0 ensures that this issue will not occur
+   Vector xl(xref.Size()); xl = 0.0;
+   Vector eps(xref.Size()); eps = 0.0;
+   Vector dx(xref.Size()); dx = 0.0;
+   double eps_min = 1.e-4;
+
+
+
 
    double p = 20.0;
    ConstantCoefficient f(p);
@@ -514,6 +530,31 @@ int main(int argc, char *argv[])
       xrefbc.SetSubVector(ess_tdof_list, DCvals);
    
       OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc,qp);
+      
+      if (testNo == 6 || testNo == 61)
+      {
+	 if( i > int(total_steps / 2) && bound_constraints)
+	 {
+            eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), MPI_COMM_WORLD));  
+	    // update eps and set parameters
+            for (int j = 0; j < eps.Size(); j++)
+	    {
+	       eps(j) = max(eps_min, eps(j));
+	    }
+	    xl.Set(1.0, xrefbc);
+	    contact.SetBoundConstraints(xl, eps);
+	 }
+	 else if( i > 0)
+	 {
+	    for (int j = 0; j < eps.Size(); j++)
+	    {
+               eps(j) = max(eps(j), abs(dx(j)));
+	    }
+	 }
+      }
+
+
+
 
       bool compute_dof_projections = (linsolver == 3 || linsolver == 6 || linsolver == 7) ? true : false;
 
@@ -547,6 +588,10 @@ int main(int argc, char *argv[])
       Vector xf(ndofs); xf = 0.0;
 
       optimizer.Mult(x0, xf);
+      dx.Set(1.0, xf);
+      dx.Add(-1.0, x0);
+
+
 
       double Einitial = contact.E(x0);
       double Efinal = contact.E(xf);

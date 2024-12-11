@@ -319,7 +319,7 @@ HypreParMatrix * OptContactProblem::Dmmf(const BlockVector & x)
 
 HypreParMatrix * OptContactProblem::Duc(const BlockVector & x)
 {
-   Array2D<HypreParMatrix *> dcduBlockMatrix(3, 1);
+   Array2D<const HypreParMatrix *> dcduBlockMatrix(3, 1);
    dcduBlockMatrix(0, 0) = J;
    dcduBlockMatrix(1, 0) = Iu;
    dcduBlockMatrix(2, 0) = negIu;
@@ -562,6 +562,14 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
    {
       return problem->GetHessian(d);
    }
+}
+
+void OptContactProblem::SetBoundConstraints(const Vector & dl_, const Vector & eps_)
+{
+   MFEM_VERIFY(dl_.Size() == dimU, "constraint vector dl is not of the correct size");
+   MFEM_VERIFY(eps_.Size() == dimU, "constraint vector eps is not the correct size");
+   dl.Set(1.0, dl_);
+   eps.Set(1.0, eps_);
 }
 
 OptContactProblem::~OptContactProblem()

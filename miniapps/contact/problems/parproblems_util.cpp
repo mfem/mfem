@@ -117,12 +117,27 @@ void ParAdd(const BlockOperator & A, const BlockOperator & B, BlockOperator & C)
 
 GeneralSolutionMonitor::GeneralSolutionMonitor(ParFiniteElementSpace * fes_, HypreParMatrix * A, Vector & B, int output_rate_) : fes(fes_), output_rate(output_rate_)
 {
-   MUMPSSolver mumps(MPI_COMM_WORLD);
-   mumps.SetPrintLevel(0);
-   mumps.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
-   mumps.SetOperator(*A);
-   Vector X(B.Size());
-   mumps.Mult(B,X);
+   Solver * directsolver;
+#ifdef MFEM_USE_MUMPS
+   directsolver = new MUMPSSolver(MPI_COMM_WORLD);
+   auto dsolver = dynamic_cast<MUMPSSolver *>(directsolver);
+   dsolver->SetPrintLevel(0);
+   dsolver->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+#else
+#ifdef MFEM_USE_MKL_CPARDISO
+   directsolver = new CPardisoSolver(MPI_COMM_WORLD);
+   auto dsolver = dynamic_cast<CPardisoSolver *>(directsolver);
+   dsolver->SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
+#else
+   MFEM_VERIFY(false, "GeneralSolution monitor will not work unless mfem is built with MUMPS or MKL");
+#endif
+#endif
+   
+   Vector X(B.Size()); X = 0.0;
+   directsolver->SetOperator(*A);
+   directsolver->Mult(B, X);
+   delete directsolver;
+   
    true_gf = new ParGridFunction(fes);
    error_gf = new ParGridFunction(fes);
    true_gf->SetFromTrueDofs(X);

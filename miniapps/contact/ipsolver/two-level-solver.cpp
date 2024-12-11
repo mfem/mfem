@@ -73,12 +73,14 @@ void TwoLevelAMGSolver::InitCoarseSolver()
     Mcoarse = new MUMPSSolver(comm);
     auto M = dynamic_cast<MUMPSSolver *>(Mcoarse);
     M->SetPrintLevel(0);
-    M->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+    M->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
     M->SetOperator(*Ac);
 #else
 #ifdef MFEM_USE_MKL_CPARDISO
     Mcoarse = new CPardisoSolver(comm);
-    Mcoarse->SetOperator(*Ac);
+    auto M = dynamic_cast<CPardisoSolver *>(Mcoarse);
+    M->SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
+    M->SetOperator(*Ac);
 #else
     MFEM_VERIFY(false, "TwoLevelSolver will only work for an mfem build that uses mumps or mkl_cpardiso");
 #endif

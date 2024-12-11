@@ -524,15 +524,16 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 #ifdef MFEM_USE_MUMPS
       MUMPSSolver ASolver(*Ah);;
       ASolver.SetPrintLevel(0);
-      ASolver.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      ASolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
       ASolver.Mult(b, Xhat);
 #else 
 #ifdef MFEM_USE_MKL_CPARDISO
       CPardisoSolver ASolver(MPI_COMM_WORLD);
       ASolver.SetOperator(*Ah);
+      ASolver.SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
       ASolver.Mult(b, Xhat);
 #else
-  	   MFEM_VERIFY(false, "linSolver 0 will not work unless compiled with MUMPS or MKL");
+      MFEM_VERIFY(false, "linSolver 0 will not work unless compiled with MUMPS or MKL");
 #endif
 #endif
 
@@ -592,15 +593,16 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       {
          // setup the solver for the reduced linear system
 #ifdef MFEM_USE_MUMPS
-	      MUMPSSolver AreducedSolver(*Areduced);   
-         AreducedSolver.SetPrintLevel(0);
-         AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
-	      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+    MUMPSSolver AreducedSolver(*Areduced);   
+    AreducedSolver.SetPrintLevel(0);
+    AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+    AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
 #else 
 #ifdef MFEM_USE_MKL_CPARDISO
-         CPardisoSolver AreducedSolver(MPI_COMM_WORLD);
-	      AreducedSolver.SetOperator(*Areduced);
-	      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+    CPardisoSolver AreducedSolver(MPI_COMM_WORLD);
+    AreducedSolver.SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
+    AreducedSolver.SetOperator(*Areduced);
+    AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
 #else
          MFEM_VERIFY(false, "linSolver 1 will not work unless compiled with MUMPS or MKL");
 #endif
