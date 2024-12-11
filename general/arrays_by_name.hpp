@@ -279,8 +279,9 @@ void ArraysByName<T>::Load(std::istream &in)
          ArrayName = ArrayLine.substr(0,q1-1);
       }
 
-      // Ignore the remainder of the line which may contain explanatory comments
-      data[ArrayName].Load(in, 0);
+      std::istringstream iss(ArrayLine.substr(q1 + 1));
+
+      data[ArrayName].Load(iss, 0);
    }
 
 }
