@@ -1127,7 +1127,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
 
-   if (IsVariableOrder())
+   if (IsVariableOrderH1())
    {
       GetEssentialTrueDofsVar(bdr_attr_is_ess, ess_dofs, true_ess_dofs,
                               component);
@@ -3455,16 +3455,13 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
          }
          if (entity == 1)  // Edge case
          {
-            MFEM_VERIFY(idof0 == numVert * nv, "");
+            MFEM_ASSERT(idof0 == numVert * nv, "");
          }
-
-         if (dofs.Size() == idof0) { continue; }
-
-         constexpr int vd = 0;  // First vector dimension only
 
          const int maxOrder = entity == 1 ? edge_max_order[idx] :
                               face_max_order[idx];
 
+         constexpr int vd = 0;  // First vector dimension only
          for (int i=idof0; i<dofs.Size(); ++i)
          {
             const int dof_i = dofs[i];
@@ -3487,7 +3484,7 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
 // space, corresponding to true DOFs on edges and faces.
 void ParFiniteElementSpace
 ::SetRestrictionMatrixEdgesFaces(int vdim_factor, int dof_stride,
-                                 int tdof_stride,
+                                 int tdof_stride, const Array<int> &dof_tdof,
                                  const Array<HYPRE_BigInt> &dof_offs)
 {
    MFEM_VERIFY(IsVariableOrder(), "");
@@ -3498,7 +3495,7 @@ void ParFiniteElementSpace
    int prevEntity = -1;
    int prevIndex = -1;
    int tdi = -1;
-   Array<int> ldofs;
+   Array<int> ldofs, tdofs;
    DenseMatrix I;
 
    for (int tdof=0; tdof<ntdofs; ++tdof)
@@ -3533,7 +3530,6 @@ void ParFiniteElementSpace
          const FiniteElement *feL = fec->FiniteElementForGeometry(geom);
 
          int tdofOrder = -1;
-         Array<int> tdofs, itdofs;
          if (entity == 1)
          {
             tdofOrder = GetEdgeOrder(index, 0);
@@ -3584,11 +3580,22 @@ void ParFiniteElementSpace
          feT->GetTransferMatrix(*feL, T, I);
       }
 
-      const int ios = edge ? 2 : 4;
+      // Interior DOFs start at index idof0
+      int idof0 = tdofs.Size();
+      const int ibl = entity == 1 ? nvdofs : nvdofs +
+                      nedofs;  // Interior DOF index lower bound
+      for (int i=0; i<tdofs.Size(); ++i)
+      {
+         if (tdofs[i] >= ibl)
+         {
+            idof0 = i;
+            break;
+         }
+      }
 
       for (int ldi=0; ldi<ldofs.Size(); ++ldi)
       {
-         const real_t value = I(tdi + ios, ldi);
+         const real_t value = I(tdi + idof0, ldi);
          if (std::abs(value) > 1e-12)
          {
             const int ldof = all2local[ldofs[ldi]];
@@ -3611,6 +3618,7 @@ int ParFiniteElementSpace
                                        bool partial)
 {
    const bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
+   const bool H1var = IsVariableOrderH1();
 
 #ifdef MFEM_PMATRIX_STATS
    n_msgs_sent = n_msgs_recv = 0;
@@ -3819,7 +3827,7 @@ int ParFiniteElementSpace
    HYPRE_BigInt my_tdof_offset =
       tdof_offs[HYPRE_AssumedPartitionCheck() ? 0 : MyRank];
 
-   if (R_ && !IsVariableOrder())
+   if (R_ && !H1var)
    {
       // initialize the restriction matrix (also parallel but block-diagonal)
       *R_ = new SparseMatrix(num_true_dofs*vdim, ndofs*vdim);
@@ -3861,7 +3869,7 @@ int ParFiniteElementSpace
             const int vdof = dof*vdim_factor + vd*dof_stride;
             const int vtdof = tdof*vdim_factor + vd*tdof_stride;
 
-            if (R_ && !variableOrder) { (*R_)->Add(vtdof, vdof, 1.0); }
+            if (R_ && !H1var) { (*R_)->Add(vtdof, vdof, 1.0); }
             if (dof_tdof) { (*dof_tdof)[vdof] = vtdof; }
          }
          ++tdof;
@@ -3875,7 +3883,7 @@ int ParFiniteElementSpace
    n_msgs_sent += send_msg.back().size();
 #endif
 
-   if (R_ && !IsVariableOrder()) { (*R_)->Finalize(); }
+   if (R_ && !H1var) { (*R_)->Finalize(); }
 
    // *** STEP 4: main loop ***
 
@@ -3999,65 +4007,53 @@ int ParFiniteElementSpace
 
    const int allnedofs = nedofs;
 
-   // TODO: isn't this necessary even in the serial FiniteElementSpace?
-   // See FiniteElementSpace::BuildConformingInterpolation()
-   SetVarOrderLocalDofs();
-
-   const int ldof_stride = bynodes ? ndofs : 1;
-
+   if (H1var)
    {
-      // recalculate global offsets
-      HYPRE_BigInt loc_sizes[1] = { ndofs*vdim };
-      Array<HYPRE_BigInt>* offsets[1] = { &dof_offs };
-      pmesh->GenerateOffsets(1, loc_sizes, offsets); // calls MPI_Scan, MPI_Bcast
-   }
+      // TODO: isn't this necessary even in the serial FiniteElementSpace?
+      // See FiniteElementSpace::BuildConformingInterpolation()
+      SetVarOrderLocalDofs();
 
-   // Extract only the rows of pmatrix corresponding to local DOFs, as given by all2local.
+      const int ldof_stride = bynodes ? ndofs : 1;
 
-   // TODO: make this more efficient by avoiding copies.
-   if (IsVariableOrder())
-   {
-      std::vector<PMatrixRow> pmatrix_new(ndofs);
-
-      int dofnew = -1;
-      bool validMap = true;
-      for (int i=0; i<all2local.Size(); ++i)
       {
-         if (all2local[i] >= 0)
-         {
-            if (all2local[i] - dofnew != 1)
-            {
-               validMap = false;
-            }
-
-            dofnew = all2local[i];
-
-            pmatrix_new[all2local[i]] = pmatrix[i];
-         }
+         // recalculate global offsets
+         HYPRE_BigInt loc_sizes[1] = { ndofs*vdim };
+         Array<HYPRE_BigInt>* offsets[1] = { &dof_offs };
+         pmesh->GenerateOffsets(1, loc_sizes, offsets);
       }
 
-      MFEM_VERIFY(validMap && dofnew == ndofs - 1, "");
+      // Extract only the rows of pmatrix corresponding to local DOFs, as given
+      // by all2local.
+      std::vector<PMatrixRow> pmatrix_new(ndofs);
+      {
+         int dofnew = -1;
+         bool validMap = true;
+         for (int i=0; i<all2local.Size(); ++i)
+         {
+            if (all2local[i] >= 0)
+            {
+               if (all2local[i] - dofnew != 1)
+               {
+                  validMap = false;
+               }
+
+               dofnew = all2local[i];
+
+               pmatrix_new[all2local[i]] = pmatrix[i];
+            }
+         }
+         MFEM_VERIFY(validMap && dofnew == ndofs - 1, "");
+      }
 
       if (P_)
       {
          *P_ = MakeVDimHypreMatrix(pmatrix_new, ndofs, num_true_dofs,
                                    dof_offs, tdof_offs);
       }
-   }
-   else if (P_)
-   {
-      *P_ = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
-                                dof_offs, tdof_offs);
-   }
 
-   if (IsVariableOrder())
-   {
       // Note that tdof2ldof is set only for edges and faces containing interior
       // true DOFs.
       MFEM_VERIFY(R_ && nedofs == lnedofs, "");
-      nedofs = allnedofs;
-      SetTDOF2LDOFinfo(num_true_dofs, vdim_factor, dof_stride, allnedofs);
-      nedofs = lnedofs;
 
       *R_ = new SparseMatrix(num_true_dofs*vdim, ndofs*vdim);
 
@@ -4075,12 +4071,16 @@ int ParFiniteElementSpace
       }
 
       // Set edge and face rows
+      nedofs = allnedofs;
+      SetTDOF2LDOFinfo(num_true_dofs, vdim_factor, dof_stride, allnedofs);
+
       Array<HYPRE_BigInt> all_dof_offs(NRanks);
       MPI_Allgather(&dof_offs[0], 1, HYPRE_MPI_BIG_INT, all_dof_offs.GetData(),
                     1, HYPRE_MPI_BIG_INT, MyComm);
 
       SetRestrictionMatrixEdgesFaces(vdim_factor, ldof_stride, tdof_stride,
-                                     all_dof_offs);
+                                     *dof_tdof, all_dof_offs);
+      nedofs = lnedofs;
 
       // Set element rows
       // For element interiors, all DOFs are T-dofs and local L-dofs.
@@ -4165,6 +4165,11 @@ int ParFiniteElementSpace
 
       loc_var_edge_orders.SetSize(0);
       loc_var_face_orders.SetSize(0);
+   }
+   else if (P_)
+   {
+      *P_ = MakeVDimHypreMatrix(pmatrix, ndofs, num_true_dofs,
+                                dof_offs, tdof_offs);
    }
 
    // clean up possible remaining messages in the queue to avoid receiving
