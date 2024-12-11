@@ -521,22 +521,24 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       HypreParMatrix * Ah = HypreParMatrixFromBlocks(ABlockMatrix);   
 
       /* direct solve of the 3x3 IP-Newton linear system */
+      Solver * ASolver;
 #ifdef MFEM_USE_MUMPS
-      MUMPSSolver ASolver(*Ah);;
-      ASolver.SetPrintLevel(0);
-      ASolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
-      ASolver.Mult(b, Xhat);
+      ASolver = new MUMPSSolver(MPI_COMM_WORLD);
+      auto AmSolver = dynamic_cast<MUMPSSolver *>(ASolver);
+      AmSolver->SetPrintLevel(0);
+      AmSolver->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
 #else 
 #ifdef MFEM_USE_MKL_CPARDISO
-      CPardisoSolver ASolver(MPI_COMM_WORLD);
-      ASolver.SetOperator(*Ah);
-      ASolver.SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
-      ASolver.Mult(b, Xhat);
+      ASolver = new CPardisoSolver(MPI_COMM_WORLD);
+      auto AcSolver = dynamic_cast<CPardisoSolver *>(ASolver);
+      AcSolver->SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
 #else
       MFEM_VERIFY(false, "linSolver 0 will not work unless compiled with MUMPS or MKL");
 #endif
 #endif
-
+      ASolver->SetOperator(*Ah);
+      ASolver->Mult(b, Xhat);
+      delete ASolver;
       delete Ah;
    }
    else if(dynamiclinSolver >= 1)
@@ -592,21 +594,24 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       if(dynamiclinSolver == 1) 
       {
          // setup the solver for the reduced linear system
+	 Solver * AreducedSolver;
 #ifdef MFEM_USE_MUMPS
-    MUMPSSolver AreducedSolver(*Areduced);   
-    AreducedSolver.SetPrintLevel(0);
-    AreducedSolver.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
-    AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+	 AreducedSolver = new MUMPSSolver(MPI_COMM_WORLD);
+	 auto ArSolver = dynamic_cast<MUMPSSolver *>(AreducedSolver);
+         ArSolver->SetPrintLevel(0);
+         ArSolver->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
 #else 
 #ifdef MFEM_USE_MKL_CPARDISO
-    CPardisoSolver AreducedSolver(MPI_COMM_WORLD);
-    AreducedSolver.SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
-    AreducedSolver.SetOperator(*Areduced);
-    AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+	 AreducedSolver = new CPardisoSolver(MPI_COMM_WORLD);
+	 auto ArSolver = dynamic_cast<CPardisoSolver *>(AreducedSolver);
+         ArSolver->SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
 #else
          MFEM_VERIFY(false, "linSolver 1 will not work unless compiled with MUMPS or MKL");
 #endif
 #endif
+         AreducedSolver->SetOperator(*Areduced);
+         AreducedSolver->Mult(breduced, Xhat.GetBlock(0));
+	 delete AreducedSolver;
       }
       // PCG-AMG solver on the reduced system
       else if (dynamiclinSolver == 2 || dynamiclinSolver == 5)
