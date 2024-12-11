@@ -271,12 +271,8 @@ int main(int argc, char *argv[])
       a.Assemble();
 
       OperatorPtr A;
-      //Vector B, X;
       Vector B;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
-      ofstream ofb("B" + std::to_string(myid));
-      B.Print(ofb);
 
       // 13. Solve the linear system A X = B.
       //     * With full assembly, use the BoomerAMG preconditioner from hypre.
@@ -313,9 +309,6 @@ int main(int argc, char *argv[])
       //     local finite element solution on each processor.
       a.RecoverFEMSolution(X, b, x);
    }
-
-   ofstream ofx("X" + std::to_string(myid));
-   X.Print(ofx);
 
    if (projectSolution)
    {
