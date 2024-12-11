@@ -267,7 +267,7 @@ protected:
        to be of the default order (fec->GetOrder()). */
    Array<char> elem_order;
 
-   int nvdofs, nedofs, nfdofs, nbdofs;
+   int nvdofs, nedofs, nfdofs, nbdofs, lnedofs, lnfdofs;
    int uni_fdof; ///< # of single face DOFs if all faces uniform; -1 otherwise
    int *bdofs; ///< internal DOFs of elements if mixed/var-order; NULL otherwise
 
@@ -276,6 +276,10 @@ protected:
    Table var_edge_dofs;
    Table var_face_dofs; ///< NOTE: also used for spaces with mixed faces
 
+   // Temporary data for condensing all DOFs to local DOFs.
+   Table loc_var_edge_dofs, loc_var_face_dofs;
+   Array<int> all2local;
+
    /// Bit-mask representing a set of orders needed by an edge/face.
    typedef std::uint64_t VarOrderBits;
    static constexpr int MaxVarOrder = 8*sizeof(VarOrderBits) - 1;
@@ -283,6 +287,10 @@ protected:
    /** Additional data for the var_*_dofs tables: individual variant orders
        (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
+   Array<char> loc_var_edge_orders, loc_var_face_orders;
+   Array<char> ghost_edge_orders, ghost_face_orders;
+
+   mutable Array<int> edge_max_order, face_max_order;
 
    /// Marker arrays for ghost master entities to be skipped in conforming
    /// interpolation constraints.
@@ -376,6 +384,10 @@ protected:
    void BuildBdrElementToDofTable() const;
    void BuildFaceToDofTable() const;
 
+   void GetEssentialBdrEdgesFaces(const Array<int> &bdr_attr_is_ess,
+                                  std::set<int> & edges,
+                                  std::set<int> & faces) const;
+
    /** @brief Initialize internal data that enables the use of the methods
     GetElementForDof() and GetLocalDofForDof(). */
    void BuildDofToArrays_() const;
@@ -390,6 +402,8 @@ protected:
        boundary. */
    void BuildNURBSFaceToDofTable() const;
 
+   void SetVarOrderLocalDofs();
+
    /// Return the minimum order (least significant bit set) in the bit mask.
    static int MinOrder(VarOrderBits bits);
 
@@ -400,6 +414,8 @@ protected:
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(
       Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
+      Array<VarOrderBits> &edge_elem_orders,
+      Array<VarOrderBits> &face_elem_orders,
       Array<bool> &skip_edges, Array<bool> &skip_faces,
       const Array<VarOrderElemInfo> * pref_data=nullptr) const;
 

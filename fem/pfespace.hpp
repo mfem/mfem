@@ -55,6 +55,16 @@ private:
 
    Array<VarOrderDofInfo> var_edge_dofmap, var_face_dofmap;
 
+   struct TdofLdofInfo
+   {
+      bool set;
+      int maxOrder;
+      bool isEdge;
+      int idx;
+   };
+
+   Array<TdofLdofInfo> tdof2ldof;
+
    /// The group of each local dof.
    Array<int> ldof_group;
 
@@ -88,6 +98,7 @@ private:
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
+
    /// Optimized action-only restriction operator for conforming meshes. Owned.
    mutable Operator *Rconf;
 
@@ -112,6 +123,13 @@ private:
    void ParInit(ParMesh *pm);
 
    void CommunicateGhostOrder(Array<VarOrderElemInfo> & pref_data);
+
+   void SetTDOF2LDOFinfo(int ntdofs, int vdim_factor, int dof_stride,
+                         int allnedofs);
+
+   void SetRestrictionMatrixEdgesFaces(int vdim_factor, int dof_stride,
+                                       int tdof_stride,
+                                       const Array<HYPRE_BigInt> &dof_offs);
 
    void SetVarDofMaps();
    void SetVarDofMap(const Table & dofs, Array<VarOrderDofInfo> & dmap);
@@ -202,7 +220,7 @@ private:
                                             Array<HYPRE_BigInt> &dof_offs,
                                             Array<HYPRE_BigInt> &tdof_offs,
                                             Array<int> *dof_tdof,
-                                            bool partial = false) const;
+                                            bool partial = false);
 
    /** Calculate a GridFunction migration matrix after mesh load balancing.
        The result is a parallel permutation matrix that can be used to update
@@ -398,6 +416,12 @@ public:
    void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                              Array<int> &ess_tdof_list,
                              int component = -1) const override;
+
+   void GetEssentialTrueDofsVar(const Array<int>
+                                &bdr_attr_is_ess,
+                                const Array<int> &ess_dofs,
+                                Array<int> &true_ess_dofs,
+                                int component) const;
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */

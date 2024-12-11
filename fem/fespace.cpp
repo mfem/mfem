@@ -360,34 +360,34 @@ void FiniteElementSpace::BuildElementToDofTable() const
    Table *el_fos = (mesh->Dimension() > 2) ? (new Table) : NULL;
    Array<int> dofs;
    Array<int> F, Fo;
-   el_dof -> MakeI (mesh -> GetNE());
-   if (el_fos) { el_fos -> MakeI (mesh -> GetNE()); }
-   for (int i = 0; i < mesh -> GetNE(); i++)
+   el_dof->MakeI(mesh->GetNE());
+   if (el_fos) { el_fos->MakeI(mesh->GetNE()); }
+   for (int i = 0; i < mesh->GetNE(); i++)
    {
-      GetElementDofs (i, dofs);
-      el_dof -> AddColumnsInRow (i, dofs.Size());
+      GetElementDofs(i, dofs);
+      el_dof->AddColumnsInRow(i, dofs.Size());
 
       if (el_fos)
       {
          mesh->GetElementFaces(i, F, Fo);
-         el_fos -> AddColumnsInRow (i, Fo.Size());
+         el_fos->AddColumnsInRow(i, Fo.Size());
       }
    }
-   el_dof -> MakeJ();
-   if (el_fos) { el_fos -> MakeJ(); }
-   for (int i = 0; i < mesh -> GetNE(); i++)
+   el_dof->MakeJ();
+   if (el_fos) { el_fos->MakeJ(); }
+   for (int i = 0; i < mesh->GetNE(); i++)
    {
-      GetElementDofs (i, dofs);
-      el_dof -> AddConnections (i, (int *)dofs, dofs.Size());
+      GetElementDofs(i, dofs);
+      el_dof->AddConnections(i, (int *)dofs, dofs.Size());
 
       if (el_fos)
       {
          mesh->GetElementFaces(i, F, Fo);
-         el_fos -> AddConnections (i, (int *)Fo, Fo.Size());
+         el_fos->AddConnections(i, (int *)Fo, Fo.Size());
       }
    }
-   el_dof -> ShiftUpI();
-   if (el_fos) { el_fos -> ShiftUpI(); }
+   el_dof->ShiftUpI();
+   if (el_fos) { el_fos->ShiftUpI(); }
    elem_dof = el_dof;
    elem_fos = el_fos;
 }
@@ -843,15 +843,15 @@ void FiniteElementSpace::AddDependencies(
 {
    for (int i = skipfirst; i < slave_dofs.Size(); i++)
    {
-      int sdof = slave_dofs[i];
+      const int sdof = slave_dofs[i];
       if (!deps.RowSize(sdof)) // not processed yet
       {
          for (int j = 0; j < master_dofs.Size(); j++)
          {
-            real_t coef = I(i, j);
+            const real_t coef = I(i, j);
             if (std::abs(coef) > 1e-12)
             {
-               int mdof = master_dofs[j];
+               const int mdof = master_dofs[j];
                if (mdof != sdof && mdof != (-1-sdof))
                {
                   deps.Add(sdof, mdof, coef);
@@ -1028,7 +1028,7 @@ void FiniteElementSpace::VariableOrderMinimumRule(SparseMatrix & deps) const
    for (int entity = 1; entity < mesh->Dimension(); entity++)
    {
       const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
-      int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
+      const int num_ent = (entity == 1) ? mesh->GetNEdges() : mesh->GetNFaces();
       MFEM_ASSERT(ent_dofs.Size() >= num_ent+1, "");
 
       // add constraints within edges/faces holding multiple DOF sets
@@ -1047,14 +1047,14 @@ void FiniteElementSpace::VariableOrderMinimumRule(SparseMatrix & deps) const
          }
 
          // get lowest order variant DOFs and FE
-         int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
+         const int p = GetEntityDofs(entity, i, master_dofs, geom, 0);
          const auto *master_fe = fec->GetFE(geom, p);
          if (!master_fe) { break; }
 
          // constrain all higher order DOFs: interpolate lowest order function
          for (int variant = 1; ; variant++)
          {
-            int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
+            const int q = GetEntityDofs(entity, i, slave_dofs, geom, variant);
             if (q < 0) { break; }
 
             const auto *slave_fe = fec->GetFE(geom, q);
@@ -2627,12 +2627,14 @@ void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
    bool mixed_elements = (mesh->GetNumGeometries(dim) > 1);
    bool mixed_faces = (dim > 2 && mesh->GetNumGeometries(2) > 1);
 
-   Array<VarOrderBits> edge_orders, face_orders;
+   Array<VarOrderBits> edge_orders, face_orders, edge_elem_orders,
+         face_elem_orders;
+
    if (IsVariableOrder())
    {
       // for variable order spaces, calculate orders of edges and faces
-      CalcEdgeFaceVarOrders(edge_orders, face_orders, skip_edge, skip_face,
-                            pref_data);
+      CalcEdgeFaceVarOrders(edge_orders, face_orders, edge_elem_orders,
+                            face_elem_orders, skip_edge, skip_face, pref_data);
    }
    else if (mixed_faces)
    {
@@ -2653,6 +2655,13 @@ void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
       if (IsVariableOrder())
       {
          nedofs = MakeDofTable(1, edge_orders, var_edge_dofs, &var_edge_orders);
+         MakeDofTable(1, edge_elem_orders, loc_var_edge_dofs,
+                      &loc_var_edge_orders);
+         // Set lnedofs from the last row of loc_var_edge_dofs
+         Array<int> lastRow;
+         loc_var_edge_dofs.GetRow(loc_var_edge_dofs.Size() - 1, lastRow);
+         MFEM_ASSERT(lastRow.Size() == 1, "");
+         lnedofs = lastRow[0];
       }
       else
       {
@@ -2671,6 +2680,17 @@ void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
          nfdofs = MakeDofTable(2, face_orders, var_face_dofs,
                                IsVariableOrder() ? &var_face_orders : NULL);
          uni_fdof = -1;
+
+         if (IsVariableOrder())
+         {
+            MakeDofTable(2, face_elem_orders, loc_var_face_dofs,
+                         &loc_var_face_orders);
+            // Set lnfdofs from the last row of loc_var_face_dofs
+            Array<int> lastRow;
+            loc_var_face_dofs.GetRow(loc_var_face_dofs.Size() - 1, lastRow);
+            MFEM_ASSERT(lastRow.Size() == 1, "");
+            lnfdofs = lastRow[0];
+         }
       }
       else
       {
@@ -2721,6 +2741,110 @@ void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
    // later.
 }
 
+void DofMapHelper(int entity, const Table & var_ent_dofs,
+                  const Table & loc_var_ent_dofs,
+                  const Array<char> & var_ent_orders,
+                  const Array<char> & loc_var_ent_orders,
+                  Array<int> & all2local, int & ndof_all, int & ndof_loc)
+{
+   const int osall0 = var_ent_dofs.GetI()[entity];
+   const int osall1 = var_ent_dofs.GetI()[entity + 1];
+
+   const int osloc0 = loc_var_ent_dofs.GetI()[entity];
+   const int osloc1 = loc_var_ent_dofs.GetI()[entity + 1];
+
+   const int nall = osall1 - osall0;
+   const int nloc = osloc1 - osloc0;
+
+   // loc_var_ent_orders must be a subset of var_ent_orders
+   int j = osall0;
+   for (int i=osloc0; i<osloc1; ++i)  // Loop over local variants
+   {
+      const int order = loc_var_ent_orders[i];
+      // Find the variant in var_ent_orders with the same order
+      int na = var_ent_dofs.GetJ()[j + 1] - var_ent_dofs.GetJ()[j];
+      while (var_ent_orders[j] != order && j < osall1 - 1)
+      {
+         const int order_j = var_ent_orders[j];
+         j++;
+         ndof_all += na;
+         na = var_ent_dofs.GetJ()[j + 1] - var_ent_dofs.GetJ()[j];
+      }
+
+      MFEM_ASSERT(var_ent_orders[j] == order, "");
+
+      const int n = loc_var_ent_dofs.GetJ()[i + 1] - loc_var_ent_dofs.GetJ()[i];
+
+      MFEM_ASSERT(n == na &&
+                  n == var_ent_dofs.GetJ()[j + 1] - var_ent_dofs.GetJ()[j], "");
+
+      for (int k=0; k<n; ++k) { all2local[ndof_all + k] = ndof_loc + k; }
+
+      ndof_loc += n;
+      ndof_all += na;
+      j++;
+   }
+
+   // Reach the end of all variants for ndof_all
+   while (j < osall1)
+   {
+      const int na = var_ent_dofs.GetJ()[j + 1] - var_ent_dofs.GetJ()[j];
+      ndof_all += na;
+      j++;
+   }
+}
+
+void FiniteElementSpace::SetVarOrderLocalDofs()
+{
+   if (!IsVariableOrder()) { return; }
+
+   // Set a map from all DOFs to local DOFs
+   all2local.SetSize(ndofs);
+   all2local = -1;
+
+   // Vertex DOFs simply have the identity mapping
+   for (int i=0; i<nvdofs; ++i)
+   {
+      all2local[i] = i;
+   }
+
+   // Redefine local edge DOFs
+   int ndof_all = nvdofs;
+   int ndof_loc = nvdofs;
+   if (mesh->GetNEdges())
+   {
+      for (int edge=0; edge<mesh->GetNEdges(); ++edge)
+      {
+         DofMapHelper(edge, var_edge_dofs, loc_var_edge_dofs, var_edge_orders,
+                      loc_var_edge_orders, all2local, ndof_all, ndof_loc);
+      }
+
+      MFEM_ASSERT(ndof_loc - nvdofs == lnedofs, "");
+      nedofs = lnedofs;
+   }
+
+   // Redefine local face DOFs
+   if (mesh->GetNFaces())
+   {
+      for (int face=0; face<mesh->GetNFaces(); ++face)
+      {
+         DofMapHelper(face, var_face_dofs, loc_var_face_dofs, var_face_orders,
+                      loc_var_face_orders, all2local, ndof_all, ndof_loc);
+      }
+
+      MFEM_ASSERT(ndof_loc - nvdofs - lnedofs == lnfdofs, "");
+      nfdofs = lnfdofs;
+   }
+
+   // The remaining DOFs simply have the identity mapping
+   for (int i=ndof_all; i<ndofs; ++i)
+   {
+      all2local[i] = ndof_loc + i - ndof_all;
+   }
+
+   ndofs = nvdofs + nedofs + nfdofs + nbdofs;
+}
+
 int FiniteElementSpace::MinOrder(VarOrderBits bits)
 {
    MFEM_ASSERT(bits != 0, "invalid bit mask");
@@ -2748,6 +2872,7 @@ void FiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
 
 void FiniteElementSpace::CalcEdgeFaceVarOrders(
    Array<VarOrderBits> &edge_orders, Array<VarOrderBits> &face_orders,
+   Array<VarOrderBits> &edge_elem_orders, Array<VarOrderBits> &face_elem_orders,
    Array<bool> &skip_edges, Array<bool> &skip_faces,
    const Array<VarOrderElemInfo> * pref_data) const
 {
@@ -2758,6 +2883,18 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
    const int baseOrder = fec->GetOrder();
 
    ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders, pref_data);
+
+   edge_elem_orders.SetSize(mesh->GetNEdges());
+   face_elem_orders.SetSize(mesh->GetNFaces());
+
+   edge_elem_orders = 0;
+   face_elem_orders = 0;
+
+   edge_max_order.SetSize(mesh->ncmesh->GetNEdges());
+   face_max_order.SetSize(mesh->ncmesh->GetNFaces());
+
+   edge_max_order = -1;
+   face_max_order = -1;
 
    // Calculate initial edge/face orders, as required by incident elements.
    // For each edge/face we accumulate in a bit-mask the orders of elements
@@ -2773,6 +2910,12 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
       for (int j = 0; j < E.Size(); j++)
       {
          edge_orders[E[j]] |= mask;
+         edge_elem_orders[E[j]] |= mask;
+
+         if (order > edge_max_order[E[j]])
+         {
+            edge_max_order[E[j]] = order;
+         }
       }
 
       if (mesh->Dimension() > 2)
@@ -2781,6 +2924,12 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
          for (int j = 0; j < F.Size(); j++)
          {
             face_orders[F[j]] |= mask;
+            face_elem_orders[F[j]] |= mask;
+
+            if (order > face_max_order[F[j]])
+            {
+               face_max_order[F[j]] = order;
+            }
          }
       }
    }
@@ -3022,7 +3171,7 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
       {
          if (bits & 1)
          {
-            int dofs = fec->GetNumDof(geom, order);
+            const int dofs = fec->GetNumDof(geom, order);
             list.Append(Connection(i, total_dofs));
             total_dofs += dofs;
             if (i < nonGhost) { total_dofs_nonghost += dofs; }
@@ -3060,6 +3209,11 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
 {
    if (!IsVariableOrder()) { return fec->GetOrder(); }
 
+   if (edge >= var_edge_dofs.Size())
+   {
+      return ghost_edge_orders[edge - var_edge_dofs.Size()];
+   }
+
    const int* beg = var_edge_dofs.GetRow(edge);
    const int* end = var_edge_dofs.GetRow(edge + 1);
    if (variant >= end - beg) { return -1; } // past last variant
@@ -3074,6 +3228,11 @@ int FiniteElementSpace::GetFaceOrder(int face, int variant) const
       // face order can be different from fec->GetOrder()
       Geometry::Type geom = mesh->GetFaceGeometry(face);
       return fec->FiniteElementForGeometry(geom)->GetOrder();
+   }
+
+   if (face >= var_face_dofs.Size())
+   {
+      return ghost_face_orders[face - var_face_dofs.Size()];
    }
 
    const int* beg = var_face_dofs.GetRow(face);
@@ -3118,13 +3277,13 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
 
    Array<int> V, E, Eo, F, Fo; // TODO: LocalArray
 
-   int dim = mesh->Dimension();
-   auto geom = mesh->GetElementGeometry(elem);
-   int order = GetElementOrderImpl(elem);
+   const int dim = mesh->Dimension();
+   const auto geom = mesh->GetElementGeometry(elem);
+   const int order = GetElementOrderImpl(elem);
 
-   int nv = fec->GetNumDof(Geometry::POINT, order);
-   int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, order) : 0;
-   int nb = (dim > 0) ? fec->GetNumDof(geom, order) : 0;
+   const int nv = fec->GetNumDof(Geometry::POINT, order);
+   const int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, order) : 0;
+   const int nb = (dim > 0) ? fec->GetNumDof(geom, order) : 0;
 
    if (nv) { mesh->GetElementVertices(elem, V); }
    if (ne) { mesh->GetElementEdges(elem, E, Eo); }
@@ -4051,6 +4210,55 @@ void FiniteElementSpace::Save(std::ostream &os) const
 
 std::shared_ptr<const PRefinementTransferOperator>
 FiniteElementSpace::GetPrefUpdateOperator() { return PTh; }
+
+void FiniteElementSpace
+::GetEssentialBdrEdgesFaces(const Array<int> &bdr_attr_is_ess,
+                            std::set<int> & edges, std::set<int> & faces) const
+{
+   const int dim = mesh->Dimension();
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+
+   for (int i = 0; i < GetNBE(); i++)
+   {
+      if (bdr_attr_is_ess[GetBdrAttribute(i)-1])
+      {
+         int f, o;
+         mesh->GetBdrElementFace(i, &f, &o);
+
+         if (dim == 3)
+         {
+            faces.insert(f);
+            Array<int> edges_i, cor;
+            mesh->GetBdrElementEdges(i, edges_i, cor);
+            for (auto edge : edges_i)
+            {
+               edges.insert(edge);
+            }
+         }
+         else
+         {
+            edges.insert(f);
+         }
+      }
+   }
+
+   if (Nonconforming())
+   {
+      Array<int> bdr_verts, bdr_edges, bdr_faces;
+      mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges,
+                                       bdr_faces);
+
+      for (auto e : bdr_edges)
+      {
+         edges.insert(e);
+      }
+
+      for (auto f : bdr_faces)
+      {
+         faces.insert(f);
+      }
+   }
+}
 
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 {
