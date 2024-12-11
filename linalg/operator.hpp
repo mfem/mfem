@@ -969,9 +969,9 @@ public:
 
    MemoryClass GetMemoryClass() const override { return mem_class; }
 
-   const Operator *GetA() const { return A; }
-   const Operator *GetB() const { return B; }
-   const Operator *GetC() const { return C; }
+   const Operator &GetA() const { return *A; }
+   const Operator &GetB() const { return *B; }
+   const Operator &GetC() const { return *C; }
 
    void Mult(const Vector &x, Vector &y) const override
    { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); }

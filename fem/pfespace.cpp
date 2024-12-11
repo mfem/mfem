@@ -3595,7 +3595,7 @@ void ParFiniteElementSpace::GetTrueUpdateOperator(OperatorHandle &T)
                TripleProductOperator *Ttpo = Th.Is<TripleProductOperator>();
                MFEM_VERIFY(Ttpo != nullptr,
                            "invalid update (derefine) operator type!");
-               Thm = dynamic_cast<const HypreParMatrix*>(Ttpo->GetC());
+               Thm = dynamic_cast<const HypreParMatrix*>(&Ttpo->GetC());
             }
             MFEM_VERIFY(Thm != nullptr,
                         "invalid update (derefine) operator type!");
