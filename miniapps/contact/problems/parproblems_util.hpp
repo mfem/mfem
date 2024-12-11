@@ -21,3 +21,30 @@ void ComputeTdofs(MPI_Comm comm, int mytoffs, std::vector<int> & tdofs);
 // where P = [P₁ P₂ ⋅⋅⋅ Pₙ] 
 void RAP(const HypreParMatrix & A, const BlockOperator & P, BlockOperator & C);
 void ParAdd(const BlockOperator & A, const BlockOperator & B, BlockOperator & C);
+
+class GeneralSolutionMonitor : public IterativeSolverMonitor
+{
+public:
+   GeneralSolutionMonitor(ParFiniteElementSpace * fes_, HypreParMatrix * A, Vector & B, int output_rate);
+
+   void MonitorResidual(int it, real_t norm, const Vector &r, bool final) override;
+   void MonitorSolution(int it, real_t norm, const Vector &x, bool final) override;
+
+   ~GeneralSolutionMonitor()
+   {
+      delete pgf;
+      delete error_gf;
+      delete true_gf;
+      delete paraview_dc;
+   }
+private:
+
+    ParFiniteElementSpace * fes = nullptr;
+    ParGridFunction * true_gf = nullptr;
+    ParGridFunction * error_gf = nullptr;
+    ParGridFunction * pgf = nullptr;
+    ParaViewDataCollection * paraview_dc = nullptr;
+    int counter = 0;
+    int output_rate;
+};
+

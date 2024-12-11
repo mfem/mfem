@@ -502,7 +502,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    // Direct solver (default)
    if(dynamiclinSolver == 0)
    {
-      Array2D<HypreParMatrix *> ABlockMatrix(3,3);
+      Array2D<const HypreParMatrix *> ABlockMatrix(3,3);
       for(int ii = 0; ii < 3; ii++)
       {
          for(int jj = 0; jj < 3; jj++)
@@ -635,6 +635,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          if (dynamiclinSolver == 2) 
          {
             AreducedSolver = new CGSolver(MPI_COMM_WORLD);
+            // AreducedSolver = new SLISolver(MPI_COMM_WORLD);
          }
          else
          {
@@ -644,6 +645,11 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          AreducedSolver->SetMaxIter(50000);
          AreducedSolver->SetPrintLevel(3);
          AreducedSolver->SetOperator(*Areduced);
+         GeneralSolutionMonitor * sol_monitor = nullptr;
+         if (monitor)
+         {
+            AreducedSolver->SetMonitor(*sol_monitor);
+         }
          AreducedSolver->SetPreconditioner(amg);
          chrono.Clear();
          chrono.Start();
@@ -658,6 +664,12 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          AreducedSolver->Mult(breduced, Xhat.GetBlock(0));
          chrono.Stop();
          n = AreducedSolver->GetNumIterations();
+         if (monitor) 
+         {  
+            delete sol_monitor; 
+            mfem::out << "Program paused. Press enter to continue...\n";
+            cin.get();
+         }
          if (iAmRoot)
          {
             mfem::out << "CG Mult total time     = " << chrono.RealTime() << endl;
@@ -668,7 +680,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             delete AreducedSolver;
             AreducedSolver = new GMRESSolver(MPI_COMM_WORLD);
             AreducedSolver->SetRelTol(linSolveRelTol);
-            AreducedSolver->SetMaxIter(50000);
+            AreducedSolver->SetMaxIter(500);
             AreducedSolver->SetPrintLevel(3);
             AreducedSolver->SetOperator(*Areduced);
             AreducedSolver->SetPreconditioner(amg);
@@ -704,16 +716,30 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          HypreParMatrix * Pb = problem->GetRestrictionToContactDofs();
          TwoLevelAMGSolver prec(*Areduced, *Pb);
          prec.SetAMGRelaxType(relax_type);
-         GMRESSolver AreducedSolver(MPI_COMM_WORLD);
+         CGSolver AreducedSolver(MPI_COMM_WORLD);
+         // SLISolver AreducedSolver(MPI_COMM_WORLD);
+         GeneralSolutionMonitor * sol_monitor = nullptr;
+         if (monitor)
+         {
+            sol_monitor = new GeneralSolutionMonitor(problem->GetElasticityOperator()->GetFESpace(),  Areduced, breduced,1);
+            AreducedSolver.SetMonitor(*sol_monitor);
+         }    
          AreducedSolver.SetRelTol(linSolveRelTol);
-         AreducedSolver.SetMaxIter(50000);
+         AreducedSolver.SetMaxIter(500);
          AreducedSolver.SetPrintLevel(3);
          AreducedSolver.SetOperator(*Areduced);
          AreducedSolver.SetPreconditioner(prec);
          chrono.Clear();
          chrono.Start();
+         Xhat.GetBlock(0).Randomize();
          AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          chrono.Stop();
+         if (monitor) 
+         {  
+            delete sol_monitor;
+            mfem::out << "Program paused. Press enter to continue...\n"; 
+            cin.get();
+         }
          int n = AreducedSolver.GetNumIterations();
          if (iAmRoot)
          {
@@ -735,55 +761,11 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
          cgnum_iterations.Append(n);
       }
-      else if (dynamiclinSolver == 7) // Two level
-      {
-         // if (iAmRoot)
-         // {
-         //    std::cout << "\n" << std::string(50,'-') << endl;
-         //    mfem::out << std::string(20,' ') << "PCG SOLVER" << endl;
-         //    std::cout << std::string(50,'-') << endl;
-         // } 
-         // HypreParMatrix * Pc = problem->GetRestrictionToContactDofs();
-         // HypreParMatrix * Pi = problem->GetRestrictionToInteriorDofs();
-         // TwoLevelContactSolver prec(*Huuloc, *JuTDJu, *Pi, *Pc);
-         // prec.SetAMGRelaxType(relax_type);
-         // CGSolver AreducedSolver(MPI_COMM_WORLD);
-         // AreducedSolver.SetRelTol(linSolveRelTol);
-         // AreducedSolver.SetMaxIter(50000);
-         // AreducedSolver.SetPrintLevel(3);
-         // AreducedSolver.SetOperator(*Areduced);
-         // AreducedSolver.SetPreconditioner(prec);
-         // chrono.Clear();
-         // chrono.Start();
-         // AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-         // chrono.Stop();
-         // int n = AreducedSolver.GetNumIterations();
-         // if (iAmRoot)
-         // {
-         //    mfem::out << "CG Mult total time     = " << chrono.RealTime() << endl;
-         //    mfem::out << "CG Mult time/iteration = " << chrono.RealTime()/n << endl;
-         // }
-         // if (iAmRoot)
-         // {
-         //    std::cout << std::string(50,'-') << "\n" << endl;
-         //    if (!AreducedSolver.GetConverged())
-         //    {
-         //       if (iAmRoot)
-         //       {
-         //          mfem::out << "CG interagtions = "; 
-         //          cgnum_iterations.Print(mfem::out, cgnum_iterations.Size());
-         //       }
-         //    }
-         // }
-         // MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
-         // cgnum_iterations.Append(n);
-      }
-      // BlockDiagonalPrecoditioner [amg(Aᵢᵢ) 0; 0 A⁻¹ⱼⱼ]
       else // if linsolver == 3 or 4
       {
          // Extract interior and contact dofs
-         HypreParMatrix * Pi = problem->GetRestrictionToInteriorDofs();
          HypreParMatrix * Pb = problem->GetRestrictionToContactDofs();
+         HypreParMatrix * Pi = problem->GetRestrictionToInteriorDofs();
 
          HypreParMatrix * PitAPi = RAP(Areduced, Pi);
          HypreParMatrix * PbtAPb = RAP(Areduced, Pb);

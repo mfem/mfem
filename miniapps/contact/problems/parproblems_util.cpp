@@ -113,3 +113,49 @@ void ParAdd(const BlockOperator & A, const BlockOperator & B, BlockOperator & C)
       }
    }
 }
+
+
+GeneralSolutionMonitor::GeneralSolutionMonitor(ParFiniteElementSpace * fes_, HypreParMatrix * A, Vector & B, int output_rate_) : fes(fes_), output_rate(output_rate_)
+{
+   MUMPSSolver mumps(MPI_COMM_WORLD);
+   mumps.SetPrintLevel(0);
+   mumps.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+   mumps.SetOperator(*A);
+   Vector X(B.Size());
+   mumps.Mult(B,X);
+   true_gf = new ParGridFunction(fes);
+   error_gf = new ParGridFunction(fes);
+   true_gf->SetFromTrueDofs(X);
+   std::ostringstream paraview_file_name;
+   paraview_file_name << "QPContact-Monitor";
+   ParMesh * pmesh = fes->GetParMesh();
+   pgf = new ParGridFunction(fes);
+   paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), pmesh);
+   paraview_dc->SetPrefixPath("ParaView");
+   paraview_dc->SetLevelsOfDetail(1);
+   paraview_dc->SetDataFormat(VTKFormat::BINARY);
+   paraview_dc->SetHighOrderOutput(true);
+   paraview_dc->RegisterField("u", pgf);
+   paraview_dc->RegisterField("true_u", true_gf);
+   paraview_dc->RegisterField("error", error_gf);
+   mfem::out << "GeneralSolutionMonitor" << endl;
+}
+
+void GeneralSolutionMonitor::MonitorResidual(int it, real_t norm,
+                                             const Vector &r, bool final)
+{
+
+}
+
+void GeneralSolutionMonitor::MonitorSolution(int it, real_t norm, const Vector &x, bool final)
+{
+   if (it%output_rate == 0 || final)
+   {
+      mfem::out << "GeneralSolutionMonitor::Saving iteration: " << it << endl;
+      pgf->SetFromTrueDofs(x);
+      add(1.0, *true_gf, -1.0, *pgf, *error_gf);
+      paraview_dc->SetCycle(counter++);
+      paraview_dc->SetTime(double(it));
+      paraview_dc->Save();
+   }
+}

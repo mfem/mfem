@@ -574,6 +574,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
    {
       oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
+      Monitor(0,r.Norml2(),r,x,false);
    }
    else
    {
@@ -623,6 +624,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
       oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
+      Monitor(i,nom,r,x,false);
 
       if (prec)
       {
@@ -633,6 +635,8 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
       {
          nom = sqrt(Dot(r, r));
       }
+
+
 
       cf = nom/nomold;
       nomold = nom;

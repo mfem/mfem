@@ -82,8 +82,8 @@ protected:
     int dynamiclinSolver=0;
     double linSolveAbsTol = 1e-12;
     double linSolveRelTol = 1e-6;
-    int relax_type = 8;
-
+    int relax_type = 88;
+    bool monitor = false;
     MPI_Comm comm;
 public:
     ParInteriorPointSolver(OptContactProblem*);
@@ -125,6 +125,8 @@ public:
     void EnableDynamicSolverChoice() { dynamicsolver = true;}
     void DisableDynamicSolverChoice() { dynamicsolver = false;}
     bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat, const Vector &l, const BlockVector & b, const double & delta);
+    void EnableMonitor() { monitor = true;}
+    void DisableMonitor() { monitor = false;}
     virtual ~ParInteriorPointSolver();
 };
 

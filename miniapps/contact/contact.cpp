@@ -100,6 +100,7 @@ int main(int argc, char *argv[])
    bool dynamicsolver = false;
    bool nonlinear = false;
    bool qp = true;
+   bool monitor = false;
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&testNo, "-testno", "--test-number",
@@ -160,7 +161,10 @@ int main(int argc, char *argv[])
                   "Enable or disable ParaView visualization.");
    args.AddOption(&outputfiles, "-out", "--output", "-no-out",
                   "--no-ouput",
-                  "Enable or disable ouput to files.");                  
+                  "Enable or disable ouput to files.");          
+   args.AddOption(&monitor, "-monitor", "--monitor", "-no-monitor",
+                  "--no-monitor",
+                  "Enable or disable internal solution monitoring with paraview.");                                  
    args.Parse();
    if (!args.Good())
    {
@@ -517,6 +521,11 @@ int main(int argc, char *argv[])
       
       int numconstr = contact.GetGlobalNumConstraints();
       ParInteriorPointSolver optimizer(&contact);
+      if (monitor)
+      {
+         optimizer.EnableMonitor();
+      }
+
       if (dynamicsolver) optimizer.EnableDynamicSolverChoice();
 
       optimizer.SetTol(optimizer_tol);
