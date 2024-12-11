@@ -75,7 +75,7 @@ public:
     * @param[in] Tr element transformation
     * @param[out] flux flux from the given element at the current
     * integration point (num_equations, dim)
-    * @return real_t maximum characteristic speed
+    * @return real_t maximum characteristic speed |dF(u,x)/du|
     *
     * @note One can put assertion in here to detect non-physical solution
     */
@@ -91,7 +91,7 @@ public:
     * @param[in] Tr face transformation
     * @param[out] fluxDotN normal flux from the given element at the current
     * integration point (num_equations)
-    * @return real_t maximum (normal) characteristic velocity
+    * @return real_t maximum (normal) characteristic speed |dF(u,x)/du⋅n|
     */
    virtual real_t ComputeFluxDotN(const Vector &state, const Vector &normal,
                                   FaceElementTransformations &Tr,
@@ -112,7 +112,8 @@ public:
     * @param[in] Tr element transformation
     * @param[out] flux_ average flux from the given element at the current
     * integration point (num_equations, dim)
-    * @return real_t maximum characteristic speed over the interval
+    * @return real_t maximum characteristic speed |dF(u,x)/du| over
+    * the interval [u1,u2]
     */
    virtual real_t ComputeAvgFlux(const Vector &state1, const Vector &state2,
                                  ElementTransformation &Tr,
@@ -136,7 +137,8 @@ public:
     * @param[in] Tr face transformation
     * @param[out] fluxDotN average normal flux from the given element at the
     * current integration point (num_equations)
-    * @return real_t maximum (normal) characteristic velocity over the interval
+    * @return real_t maximum (normal) characteristic speed |dF(u,x)/du⋅n|
+    * over the interval [u1,u2]
     */
    virtual real_t ComputeAvgFluxDotN(const Vector &state1, const Vector &state2,
                                      const Vector &normal,
@@ -211,7 +213,7 @@ public:
     * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
     * @param[out] flux numerical flux (num_equations)
-    * @return real_t maximum characteristic speed
+    * @return real_t maximum characteristic speed |dF(u,x)/du⋅n|
     */
    virtual real_t Eval(const Vector &state1, const Vector &state2,
                        const Vector &nor, FaceElementTransformations &Tr,
@@ -251,7 +253,7 @@ public:
     * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
     * @param[out] flux numerical flux (num_equations)
-    * @return real_t maximum characteristic speed
+    * @return real_t maximum characteristic speed |dF(u,x)/du⋅n|
     */
    virtual real_t Average(const Vector &state1, const Vector &state2,
                           const Vector &nor, FaceElementTransformations &Tr,
@@ -418,9 +420,9 @@ public:
 /**
  * @brief Rusanov flux, also known as local Lax-Friedrichs,
  *    F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
- * where λ = max(|F(u⁺,x)n|, |F(u⁻,x)n|).
- * @note This construction assumes monotonous F(u,x) in u,
- * implying λ is the maximum characteristic velocity.
+ * where λ = max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|).
+ * @note This construction assumes monotonous |dF(u,x)/du⋅n| in u,
+ * implying λ is the maximum characteristic speed.
  */
 class RusanovFlux : public NumericalFlux
 {
@@ -442,7 +444,7 @@ public:
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
     * @param[out] flux F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
-    * @return max(|F(u⁺,x)n|, |F(u⁻,x)n|)
+    * @return max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|)
     */
    real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
@@ -486,7 +488,7 @@ public:
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
     * @param[out] flux ½(F̄(u⁻,u⁺,x)n + F(u⁻,x)n) - ¼λ(u⁺ - u⁻)
-    * @return max(|F(u⁺,x)n|, |F(u⁻,x)n|)
+    * @return max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|)
     */
    real_t Average(const Vector &state1, const Vector &state2,
                   const Vector &nor, FaceElementTransformations &Tr,
@@ -552,7 +554,7 @@ public:
     * @param[in] Tr face element transformation
     * @param[out] flux F̂ n = min(F(u⁻)n, F(u⁺,x)n)    for u⁻ ≤ u⁺
     *               or F̂ n = max(F(u⁻)n, F(u⁺,x)n)    for u⁻ > u⁺
-    * @return max(|F(u⁺,x)n|, |F(u⁻,x)n|)
+    * @return max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|)
     */
    real_t Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
@@ -597,7 +599,7 @@ public:
     * @param[in] Tr face element transformation
     * @param[out] flux F̂ n = min(F(u⁻)n, F̄(u⁺,x)n)    for u⁻ ≤ u⁺
     *               or F̂ n = max(F(u⁻)n, F̄(u⁺,x)n)    for u⁻ > u⁺
-    * @return max(|F(u⁺,x)n|, |F(u⁻,x)n|)
+    * @return max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|)
     */
    real_t Average(const Vector &state1, const Vector &state2,
                   const Vector &nor, FaceElementTransformations &Tr,
