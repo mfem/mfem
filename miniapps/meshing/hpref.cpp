@@ -33,6 +33,8 @@ int DetRand(int & seed)
    return int(std::abs(1.0e5 * sin(seed * 1.1234 * M_PI)));
 }
 
+void f_exact(const Vector &x, Vector &f);
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
@@ -52,6 +54,7 @@ int main(int argc, char *argv[])
    int numIter = 0;
    int dim = 2;
    bool deterministic = true;
+   bool projectSolution = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -78,6 +81,10 @@ int main(int argc, char *argv[])
    args.AddOption(&deterministic, "-det", "--deterministic", "-not-det",
                   "--not-deterministic",
                   "Whether to use deterministic random refinements");
+   args.AddOption(&projectSolution, "-proj", "--project-solution", "-no-proj",
+                  "--no-project",
+                  "Whether to project a coefficient to solution");
+
    args.Parse();
    if (!args.Good())
    {
@@ -147,7 +154,9 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
       delete_fec = true;
    }
-   ParFiniteElementSpace fespace(&pmesh, fec);
+
+   const int fespaceDim = projectSolution ? dim : 1;
+   ParFiniteElementSpace fespace(&pmesh, fec, fespaceDim);
 
    // 7. Iteratively perform h- and p-refinements.
 
@@ -198,95 +207,132 @@ int main(int argc, char *argv[])
            << "\nMaximum order " << maxP << "\n";
    }
 
-   // 8. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
-   //    (Dirichlet) and converting them to a list of true dofs.
-   Array<int> ess_tdof_list;
-   if (pmesh.bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-
-   // 9. Set up the parallel linear form b(.) which corresponds to the
-   //    right-hand side of the FEM linear system, which in this case is
-   //    (1,phi_i) where phi_i are the basis functions in fespace.
-   ParLinearForm b(&fespace);
-   ConstantCoefficient one(1.0);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
-   b.Assemble();
-
-   // 10. Define the solution vector x as a parallel finite element grid
-   //     function corresponding to fespace. Initialize x with initial guess of
-   //     zero, which satisfies the boundary conditions.
    ParGridFunction x(&fespace);
-   x = 0.0;
+   Vector X;
 
-   // 11. Set up the parallel bilinear form a(.,.) on the finite element space
-   //     corresponding to the Laplacian operator -Delta, by adding the
-   //     diffusion domain integrator.
-   ParBilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   if (fa)
+   VectorFunctionCoefficient veccoef(dim, f_exact);
+
+   if (projectSolution)
    {
-      a.SetAssemblyLevel(AssemblyLevel::FULL);
-      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
-      // when Device::IsEnabled() returns true). This makes the results
-      // bit-for-bit deterministic at the cost of somewhat longer run time.
-      a.EnableSparseMatrixSorting(Device::IsEnabled());
-   }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      x.ProjectCoefficient(veccoef);
 
-   // 12. Assemble the parallel bilinear form and the corresponding linear
-   //     system, applying any necessary transformations such as: parallel
-   //     assembly, eliminating boundary conditions, applying conforming
-   //     constraints for non-conforming AMR, static condensation, etc.
-   if (static_cond) { a.EnableStaticCondensation(); }
-   a.Assemble();
+      X.SetSize(fespace.GetTrueVSize());
 
-   OperatorPtr A;
-   Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
-
-   // 13. Solve the linear system A X = B.
-   //     * With full assembly, use the BoomerAMG preconditioner from hypre.
-   //     * With partial assembly, use Jacobi smoothing, for now.
-   Solver *prec = NULL;
-   if (pa)
-   {
-      if (UsesTensorBasis(fespace))
-      {
-         if (algebraic_ceed)
-         {
-            prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
-         }
-         else
-         {
-            prec = new OperatorJacobiSmoother(a, ess_tdof_list);
-         }
-      }
+      fespace.GetRestrictionMatrix()->Mult(x, X);
+      fespace.GetProlongationMatrix()->Mult(X, x);
    }
    else
    {
-      prec = new HypreBoomerAMG;
+      // 8. Determine the list of true (i.e. parallel conforming) essential
+      //    boundary dofs. In this example, the boundary conditions are defined
+      //    by marking all the boundary attributes from the mesh as essential
+      //    (Dirichlet) and converting them to a list of true dofs.
+      Array<int> ess_tdof_list;
+      if (pmesh.bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
+      // 9. Set up the parallel linear form b(.) which corresponds to the
+      //    right-hand side of the FEM linear system, which in this case is
+      //    (1,phi_i) where phi_i are the basis functions in fespace.
+      ParLinearForm b(&fespace);
+      ConstantCoefficient one(1.0);
+      b.AddDomainIntegrator(new DomainLFIntegrator(one));
+      b.Assemble();
+
+      // 10. Define the solution vector x as a parallel finite element grid
+      //     function corresponding to fespace. Initialize x with initial guess of
+      //     zero, which satisfies the boundary conditions.
+      x = 0.0;
+
+      // 11. Set up the parallel bilinear form a(.,.) on the finite element space
+      //     corresponding to the Laplacian operator -Delta, by adding the
+      //     diffusion domain integrator.
+      ParBilinearForm a(&fespace);
+      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      if (fa)
+      {
+         a.SetAssemblyLevel(AssemblyLevel::FULL);
+         // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+         // when Device::IsEnabled() returns true). This makes the results
+         // bit-for-bit deterministic at the cost of somewhat longer run time.
+         a.EnableSparseMatrixSorting(Device::IsEnabled());
+      }
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+
+      // 12. Assemble the parallel bilinear form and the corresponding linear
+      //     system, applying any necessary transformations such as: parallel
+      //     assembly, eliminating boundary conditions, applying conforming
+      //     constraints for non-conforming AMR, static condensation, etc.
+      if (static_cond) { a.EnableStaticCondensation(); }
+      a.Assemble();
+
+      OperatorPtr A;
+      //Vector B, X;
+      Vector B;
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+      ofstream ofb("B" + std::to_string(myid));
+      B.Print(ofb);
+
+      // 13. Solve the linear system A X = B.
+      //     * With full assembly, use the BoomerAMG preconditioner from hypre.
+      //     * With partial assembly, use Jacobi smoothing, for now.
+      Solver *prec = NULL;
+      if (pa)
+      {
+         if (UsesTensorBasis(fespace))
+         {
+            if (algebraic_ceed)
+            {
+               prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
+            }
+            else
+            {
+               prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+            }
+         }
+      }
+      else
+      {
+         prec = new HypreBoomerAMG;
+      }
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      if (prec) { cg.SetPreconditioner(*prec); }
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete prec;
+
+      // 14. Recover the parallel grid function corresponding to X. This is the
+      //     local finite element solution on each processor.
+      a.RecoverFEMSolution(X, b, x);
    }
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
-   if (prec) { cg.SetPreconditioner(*prec); }
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
-   delete prec;
 
-   // 14. Recover the parallel grid function corresponding to X. This is the
-   //     local finite element solution on each processor.
-   a.RecoverFEMSolution(X, b, x);
+   ofstream ofx("X" + std::to_string(myid));
+   X.Print(ofx);
 
-   const real_t h1error = CheckH1Continuity(x);
-   MFEM_VERIFY(h1error < 1.0e-15, "H1 continuity is not satisfied");
+   if (projectSolution)
+   {
+      // Compute and print the L^2 norm of the error.
+      const real_t error = x.ComputeL2Error(veccoef);
+      if (myid == 0)
+      {
+         cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;
+      }
+   }
+
+   if (fespaceDim == 1)
+   {
+      const real_t h1error = CheckH1Continuity(x);
+      cout << myid << ": h1 err " << h1error << endl;
+      MFEM_VERIFY(h1error < 1.0e-12, "H1 continuity is not satisfied");
+   }
 
    L2_FECollection fecL2(0, dim);
    ParFiniteElementSpace l2fespace(&pmesh, &fecL2);
@@ -429,4 +475,23 @@ real_t CheckH1Continuity(ParGridFunction & x)
    }
 
    return errorMax;
+}
+
+void f_exact(const Vector &x, Vector &f)
+{
+   constexpr real_t freq = 1.0;
+   constexpr real_t kappa = freq * M_PI;
+
+   if (x.Size() == 3)
+   {
+      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (1. + kappa * kappa) * sin(kappa * x(2));
+      f(2) = (1. + kappa * kappa) * sin(kappa * x(0));
+   }
+   else
+   {
+      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (1. + kappa * kappa) * sin(kappa * x(0));
+      if (x.Size() == 3) { f(2) = 0.0; }
+   }
 }

@@ -287,7 +287,7 @@ const
       // Choose fe to be of the order whose number of DOFs matches dofs.Size(),
       // in the variable order case.
       const int ndofs = pfes->IsVariableOrder() ? dofs.Size() : 0;
-      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no, ndofs);
+      const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no, fes_vdim * ndofs);
 
       if (fes_vdim > 1)
       {
