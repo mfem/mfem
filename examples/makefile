@@ -155,6 +155,8 @@ ex27p-test-par: ex27p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-dg)
 ex37-test-seq: ex37
 	@$(call mfem-test,$<,, Serial example,-mi 3)
+ex39-test-seq: ex39
+	@$(call mfem-test,$<,, Serial example,-m ../data/compass.mesh)
 ex37p-test-par: ex37p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-mi 3)
 # Testing: optional tests
