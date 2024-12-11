@@ -4036,7 +4036,7 @@ int ParFiniteElementSpace
          }
       }
 
-      MFEM_ASSERT(validMap && dofnew == ndofs - 1, "");
+      MFEM_VERIFY(validMap && dofnew == ndofs - 1, "");
 
       if (P_)
       {
