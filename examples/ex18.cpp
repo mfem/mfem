@@ -181,9 +181,7 @@ int main(int argc, char *argv[])
    switch (rsolver_type)
    {
       case 1: rsolver.reset(new RusanovFlux(flux)); break;
-      case 2: rsolver.reset(new GodunovFlux(flux));
-         cout << "Warning: Godunov flux is implemented only component-wise." << endl;
-         break;
+      case 2: rsolver.reset(new GodunovFlux(flux)); break;
       default:
          cout << "Unknown Riemann solver type: " << rsolver_type << '\n';
          return 3;
