@@ -2137,8 +2137,8 @@ double PlasmaProfile::EvalByType(Type type,
          double psiRZ = 0.0;
          psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
 
-         double psiRZ_center = -2.75633;
-         double psiRZ_edge = -0.387576;
+         double psiRZ_center = eqdsk_->GetPsiCenter();
+         double psiRZ_edge = eqdsk_->GetPsiBdry();
 
          double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
 
@@ -2216,8 +2216,8 @@ double PlasmaProfile::EvalByType(Type type,
          double psiRZ = 0.0;
          psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
 
-         double psiRZ_center = -2.75633;
-         double psiRZ_edge = -0.387576;
+         double psiRZ_center = eqdsk_->GetPsiCenter();
+         double psiRZ_edge = eqdsk_->GetPsiBdry();
 
          double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
 
@@ -2243,19 +2243,34 @@ double PlasmaProfile::EvalByType(Type type,
          }
          */
 
+         double pmin1 = params[0];
+         double pmax1 = params[1];
+         double lam1 = params[2];
+         double n1 = params[3];
+         
+         double pmin2 = params[4];
+         double pmax2 = params[5];
+         double lam2 = params[6];
+         double n2 = params[7];
+
+         /*
          double pmin1 = 1.0;
          double pmax1 = 17.8;
          double lam1 = 0.36;
          double n1 = 1.08;
+         */
          double te1 = (pmax1 - pmin1)* pow(cosh(pow((sqrt(val) / lam1), n1)),
                                            -1.0) + pmin1;
 
+         /*
          double pmin2 = -2.4;
          double pmax2 = 1.0;
          double lam2 = 0.978;
          double n2 = 90.0;
+         */
          double te2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
                                            -1.0) + pmin2;
+          
          double Te = (te1 + te2)*1e3;
          if (Te < 1.0){Te = 1.0;}
 
@@ -2274,8 +2289,8 @@ double PlasmaProfile::EvalByType(Type type,
          double psiRZ = 0.0;
          psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
 
-         double psiRZ_center = -2.75633;
-         double psiRZ_edge = -0.387576;
+         double psiRZ_center = eqdsk_->GetPsiCenter();
+         double psiRZ_edge = eqdsk_->GetPsiBdry();
 
          double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
 
@@ -2290,7 +2305,7 @@ double PlasmaProfile::EvalByType(Type type,
          double pmax1 = params[1];
          double lam1 = params[2];
          double n1 = params[3];
-         
+
          double pmin2 = params[4];
          double pmax2 = params[5];
          double lam2 = params[6];
@@ -2339,8 +2354,8 @@ double PlasmaProfile::EvalByType(Type type,
          double psiRZ = 0.0;
          psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
 
-         double psiRZ_center = -2.75633;
-         double psiRZ_edge = -0.387576;
+         double psiRZ_center = eqdsk_->GetPsiCenter();
+         double psiRZ_edge = eqdsk_->GetPsiBdry();
 
          double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
 
@@ -2735,6 +2750,8 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          double b_pol_data[2];
          Vector b_pol(b_pol_data, 2); b_pol = 0.0;
          double b_tor = 0.0;
+         double coros = p_[0];
+         double fluxfactor = 1.0;
 
          if (!cyl_)
          {
@@ -2744,9 +2761,10 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
 
             eqdsk_->InterpBPolRZ(xTokVec, b_pol);
             b_tor = eqdsk_->InterpBTorRZ(xTokVec);
+            if (coros != 0) {fluxfactor = 2.0*M_PI;}
 
-            V[0] = b_pol[0];
-            V[1] = b_pol[1];
+            V[0] = b_pol[0] / fluxfactor;
+            V[1] = b_pol[1] / fluxfactor;
             V[2] = b_tor;
          }
          else
@@ -2756,14 +2774,15 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
 
             eqdsk_->InterpBPolRZ(rz_, b_pol);
             b_tor = eqdsk_->InterpBTorRZ(rz_);
+            if (coros != 0) {fluxfactor = 2.0*M_PI;}
             // b_tor = 1.0;
-            V[0] = b_pol[0] * cosphi - b_tor * sinphi;
-            V[1] = b_pol[0] * sinphi + b_tor * cosphi;
+            V[0] = (b_pol[0] / fluxfactor) * cosphi - b_tor * sinphi;
+            V[1] = (b_pol[0] / fluxfactor) * sinphi + b_tor * cosphi;
             // V[0] = -sinphi;
             // V[1] = cosphi;
             // V[0] = rz_[0];
             // V[1] = rz_[0];
-            V[2] = b_pol[1];
+            V[2] = (b_pol[1] / fluxfactor);
          }
 
          if (unit_)

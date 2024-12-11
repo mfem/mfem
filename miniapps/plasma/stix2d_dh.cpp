@@ -572,7 +572,7 @@ void record_cmd_line(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
 {
-   MPI::Init(argc, argv);
+   Mpi::Init(argc, argv);
    if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
    display_banner(mfem::out);

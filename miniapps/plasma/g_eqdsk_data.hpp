@@ -40,6 +40,9 @@ public:
    double GetRMin() const { return RLEFT_; }
    double GetZMid() const { return ZMID_; }
 
+   double GetPsiCenter() const {return SIMAG_; }
+   double GetPsiBdry() const {return SIBRY_; }
+
    std::vector<double> & GetPsi() { return PSIRZ_ ;}
    // std::vector<double> & GetBTor() { return BTOR_; }
 
