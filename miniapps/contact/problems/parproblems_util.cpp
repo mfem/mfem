@@ -129,7 +129,7 @@ GeneralSolutionMonitor::GeneralSolutionMonitor(ParFiniteElementSpace * fes_, Hyp
    auto dsolver = dynamic_cast<CPardisoSolver *>(directsolver);
    dsolver->SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
 #else
-   MFEM_VERIFY(false, "GeneralSolution monitor will not work unless mfem is built with MUMPS or MKL");
+   MFEM_ABORT("This solver choice requires compiling with MUMPS or MKL");
 #endif
 #endif
    

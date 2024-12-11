@@ -531,26 +531,23 @@ int main(int argc, char *argv[])
    
       OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc,qp);
       
-      if (testNo == 6 || testNo == 61)
+      if( i > int(total_steps / 2) && bound_constraints)
       {
-	 if( i > int(total_steps / 2) && bound_constraints)
-	 {
-            eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), MPI_COMM_WORLD));  
-	    // update eps and set parameters
-            for (int j = 0; j < eps.Size(); j++)
-	    {
-	       eps(j) = max(eps_min, eps(j));
-	    }
-	    xl.Set(1.0, xrefbc);
-	    contact.SetBoundConstraints(xl, eps);
-	 }
-	 else if( i > 0)
-	 {
-	    for (int j = 0; j < eps.Size(); j++)
-	    {
-               eps(j) = max(eps(j), abs(dx(j)));
-	    }
-	 }
+         eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), MPI_COMM_WORLD));  
+         // update eps and set parameters
+         for (int j = 0; j < eps.Size(); j++)
+         {
+            eps(j) = max(eps_min, eps(j));
+         }
+         xl.Set(1.0, xrefbc);
+         contact.SetBoundConstraints(xl, eps);
+      }
+      else if( i > 0)
+      {
+         for (int j = 0; j < eps.Size(); j++)
+         {
+            eps(j) = max(eps(j), abs(dx(j)));
+         }
       }
 
 

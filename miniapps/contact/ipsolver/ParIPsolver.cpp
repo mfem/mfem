@@ -203,10 +203,6 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          // A-3. Check convergence of the barrier subproblem
          printOptimalityError = true;
          Eeval = E(xk, lk, zlk, mu_k, printOptimalityError);
-         if(iAmRoot)
-         {
-            cout << "E = " << Eeval << endl;
-         }
          if(Eeval < kEps * mu_k)
          {
             if(iAmRoot)
@@ -338,6 +334,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
             cout << "attempting feasibility restoration with theta = " << thx0 << endl;
             cout << "no feasibility restoration implemented, exiting now \n";
          }
+	 MFEM_ABORT("");
          break;
       }
       if(jOpt + 1 == max_iter && iAmRoot) 
@@ -533,7 +530,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       auto AcSolver = dynamic_cast<CPardisoSolver *>(ASolver);
       AcSolver->SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
 #else
-      MFEM_VERIFY(false, "linSolver 0 will not work unless compiled with MUMPS or MKL");
+      MFEM_ABORT("This solver choice requires compiling with MUMPS or MKL");
 #endif
 #endif
       ASolver->SetOperator(*Ah);
@@ -606,7 +603,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 	 auto ArSolver = dynamic_cast<CPardisoSolver *>(AreducedSolver);
          ArSolver->SetMatrixType(CPardisoSolver::MatType::REAL_NONSYMMETRIC);
 #else
-         MFEM_VERIFY(false, "linSolver 1 will not work unless compiled with MUMPS or MKL");
+         MFEM_ABORT("This solver choice requires compiling with MUMPS or MKL");
 #endif
 #endif
          AreducedSolver->SetOperator(*Areduced);
@@ -711,7 +708,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          cgnum_iterations.Append(n);
          delete AreducedSolver;
       }
-#ifdef MFEM_USE_MUMPS
+//#ifdef MFEM_USE_MUMPS
       else if (dynamiclinSolver == 6) // Two level
       {
          if (iAmRoot)
@@ -812,19 +809,30 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             amg_i.SetSystemsOptions(3,false);
             amg_i.SetRelaxType(relax_type);
             amg_i.SetOperator(*PitAPi);
-            MUMPSSolver mumps_b(MPI_COMM_WORLD);
-            mumps_b.SetPrintLevel(0);
-            mumps_b.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
-            mumps_b.SetOperator(*PbtAPb);
-
-
+            
+	    Solver * Bsolver;
+#ifdef MFEM_USE_MUMPS
+	    Bsolver = new MUMPSSolver(MPI_COMM_WORLD);
+	    auto Bmsolver = dynamic_cast<MUMPSSolver *>(Bsolver);
+            Bmsolver->SetPrintLevel(0);
+            Bmsolver->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+#else
+#ifdef MFEM_USE_MKL_CPARDISO
+	    Bsolver = new CPardisoSolver(MPI_COMM_WORLD);
+#else
+            MFEM_ABORT("This solver choice requires compiling with MUMPS or MKL");
+#endif
+#endif
+	    Bsolver->SetOperator(*PbtAPb);
+	    
+	    
             // BlockDiagonalPreconditioner prec(blkoffs);
             BlockTriangularSymmetricPreconditioner prec(blkoffs);
             prec.SetOperator(blkA);
             prec.SetDiagonalBlock(0,&amg_i);
             prec.SetBlock(0,1,PitAPb);
             prec.SetBlock(1,0,PbtAPi);
-            prec.SetDiagonalBlock(1,&mumps_b);
+	    prec.SetDiagonalBlock(1, Bsolver);
 
             CGSolver BlockSolver(MPI_COMM_WORLD);
             BlockSolver.SetRelTol(linSolveRelTol);
@@ -847,18 +855,30 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             // recover original ordering for the solution;
             Xhat.GetBlock(0) += PiX;
             Xhat.GetBlock(0) += PbX;
+	    delete Bsolver;
          }
          else
          {
-            MUMPSSolver * mumps_b = new MUMPSSolver(MPI_COMM_WORLD);
-            mumps_b->SetPrintLevel(0);
-            mumps_b->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
-            mumps_b->SetOperator(*PbtAPb);
+            Solver * Bsolver;
+#ifdef MFEM_USE_MUMPS            
+            Bsolver = new MUMPSSolver(MPI_COMM_WORLD);
+	    auto Bmsolver = dynamic_cast<MUMPSSolver *>(Bsolver);
+            Bmsolver->SetPrintLevel(0);
+            Bmsolver->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+#else
+#ifdef MFEM_USE_MKL_CPARDISO
+	    Bsolver = new CPardisoSolver(MPI_COMM_WORLD);
+#else
+            MFEM_ABORT("This solver choice requires compiling with MUMPS or MKL");
+#endif
+#endif
+	    Bsolver->SetOperator(*PbtAPb);
             // (Aᵢᵢ - Aᵢⱼ A⁻¹ⱼⱼ Aⱼᵢ) xᵢ = bᵢ - Aᵢⱼ A⁻¹ⱼⱼ bⱼ
-            TripleProductOperator * S = new TripleProductOperator(PitAPb, mumps_b, PbtAPi,true,true,true); // Aᵢⱼ A⁻¹ⱼⱼ Aⱼᵢ
+            TripleProductOperator * S = new TripleProductOperator(PitAPb, Bsolver, PbtAPi, true, true, true); // Aᵢⱼ A⁻¹ⱼⱼ Aⱼᵢ
+	
             SumOperator SumOp(PitAPi,1.0,S,-1.0,true,true); // Aᵢᵢ - Aᵢⱼ A⁻¹ⱼⱼ Aⱼᵢ
 
-            Vector Yj(bb.Size()); mumps_b->Mult(bb,Yj); // A⁻¹ⱼⱼ bⱼ
+            Vector Yj(bb.Size()); Bsolver->Mult(bb, Yj);//mumps_b->Mult(bb,Yj); // A⁻¹ⱼⱼ bⱼ
             Vector Yi(bi.Size()); PitAPb->Mult(Yj,Yi); //Aᵢⱼ A⁻¹ⱼⱼ bⱼ
             bi -= Yi; // bᵢ - Aᵢⱼ A⁻¹ⱼⱼ bⱼ
 
@@ -880,7 +900,8 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             Vector Yb(bb.Size());
             PbtAPi->Mult(Xi,Yb);
             bb -= Yb;
-            mumps_b->Mult(bb,Xb);
+            Bsolver->Mult(bb, Xb);
+	    //mumps_b->Mult(bb,Xb);
 
             Vector PiX(Xhat.GetBlock(0).Size());
             Vector PbX(Xhat.GetBlock(0).Size());
@@ -892,12 +913,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             Xhat.GetBlock(0) += PbX;
          }
       }
-#else
-      else
-      {
-         MFEM_ABORT("This solver choice requires compiling with MUMPS");
-      }
-#endif      
       // now propagate solved uhat to obtain mhat and lhat
       // xm = Ju xu - bl
       Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
@@ -1150,6 +1165,7 @@ bool ParInteriorPointSolver::CurvatureTest(const BlockOperator & A, const BlockV
 double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl, double mu, bool printEeval)
 {
    double E1, E2, E3;
+   double optimalityError;
    double sc, sd;
    BlockVector gradL(block_offsetsx); gradL = 0.0; // stationarity grad L = grad f + J^T l - z
    Vector cx(dimC); cx = 0.0;     // feasibility c = c(x)
@@ -1174,14 +1190,16 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
    ll1 = GlobalLpNorm(1, l.Norml1(), MPI_COMM_WORLD);
    sc = max(sMax, zl1 / (double(gdimM)) ) / sMax;
    sd = max(sMax, (ll1 + zl1) / (double(gdimC + gdimM))) / sMax;
+   optimalityError = max(max(E1 / sd, E2), E3 / sc);
    if(iAmRoot && printEeval)
    {
       cout << "evaluating optimality error for mu = " << mu << endl;
-      cout << "stationarity measure = "    << E1 / sd << endl;
+      cout << "(scaled) stationarity measure = "    << E1 / sd << endl;
       cout << "feasibility measure  = "    << E2      << endl;
-      cout << "complimentarity measure = " << E3 / sc << endl;
+      cout << "(scaled) complimentarity measure = " << E3 / sc << endl;
+      cout << "optimality error = " << optimalityError << endl;
    }
-   return max(max(E1 / sd, E2), E3 / sc);
+   return optimalityError;
 }
 
 double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl, bool printEeval)
