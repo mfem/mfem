@@ -1039,7 +1039,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
       for (int zquad = 0; zquad<2; ++zquad)
       {
          // Reduced quadrature in z
-         const int nwz = rid(zquad,2,patch)[jdz].size();
+         const int nwz = static_cast<int>(rid(zquad,2,patch)[jdz].size());
          for (int irz=0; irz < nwz; ++irz)
          {
             const int qz = rid(zquad,2,patch)[jdz][irz] + minD[2][jdz];
@@ -1062,7 +1062,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
             for (int yquad = 0; yquad<2; ++yquad)
             {
                // Reduced quadrature in y
-               const int nwy = rid(yquad,1,patch)[jdy].size();
+               const int nwy = static_cast<int>(rid(yquad,1,patch)[jdy].size());
                for (int iry=0; iry < nwy; ++iry)
                {
                   const int qy = rid(yquad,1,patch)[jdy][iry] + minD[1][jdy];
@@ -1082,7 +1082,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                   // Reduced quadrature in x
                   for (int xquad=0; xquad<2; ++xquad)
                   {
-                     const int nwx = rid(xquad,0,patch)[jdx].size();
+                     const int nwx = static_cast<int>(rid(xquad,0,patch)[jdx].size());
                      for (int irx=0; irx < nwx; ++irx)
                      {
                         const int qx = rid(xquad,0,patch)[jdx][irx] + minD[0][jdx];
@@ -1117,7 +1117,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                   }
 
                   // 00 terms
-                  const int nw = rid(0,0,patch)[jdx].size();
+                  const int nw = static_cast<int>(rid(0,0,patch)[jdx].size());
                   for (int irx=0; irx < nw; ++irx)
                   {
                      const int qx = rid(0,0,patch)[jdx][irx] + minD[0][jdx];
@@ -1140,7 +1140,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                   }
 
                   // 11 terms
-                  const int nw11 = rid(1,0,patch)[jdx].size();
+                  const int nw11 = static_cast<int>(rid(1,0,patch)[jdx].size());
 
                   for (int irx=0; irx < nw11; ++irx)
                   {

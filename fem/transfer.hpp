@@ -472,16 +472,16 @@ public:
       Operator *M_LH_local_op;
 
       // Scalar finite element spaces for stored Tdof-to-and-from-LDof maps.
-      FiniteElementSpace* fes_ho_scalar;
-      FiniteElementSpace* fes_lor_scalar;
+      std::unique_ptr<FiniteElementSpace> fes_ho_scalar;
+      std::unique_ptr<FiniteElementSpace> fes_lor_scalar;
       // Element Assembled mixed mass
       Vector M_LH_ea;
       // Element Assembled lumped M_L inverse built via EA. Stores diagonal as a Ldof vector.
       Vector ML_inv_ea;
 
 #ifdef MFEM_USE_MPI
-      ParFiniteElementSpace* pfes_ho_scalar;
-      ParFiniteElementSpace* pfes_lor_scalar;
+      std::unique_ptr<ParFiniteElementSpace> pfes_ho_scalar;
+      std::unique_ptr<ParFiniteElementSpace> pfes_lor_scalar;
       Vector RML_inv;
 #endif
 
