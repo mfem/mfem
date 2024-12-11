@@ -191,6 +191,10 @@ private:
 class NumericalFlux
 {
 public:
+   /**
+    * @brief Constructor for a flux function
+    * @param fluxFunction flux function F(u,x)
+    */
    NumericalFlux(const FluxFunction &fluxFunction)
       : fluxFunction(fluxFunction) { }
 
@@ -421,14 +425,11 @@ public:
 class RusanovFlux : public NumericalFlux
 {
 public:
-   RusanovFlux(const FluxFunction &fluxFunction)
-      : NumericalFlux(fluxFunction)
-   {
-#ifndef MFEM_THREAD_SAFE
-      fluxN1.SetSize(fluxFunction.num_equations);
-      fluxN2.SetSize(fluxFunction.num_equations);
-#endif
-   }
+   /**
+    * @brief Constructor for a flux function
+    * @param fluxFunction flux function F(u,x)
+    */
+   RusanovFlux(const FluxFunction &fluxFunction);
 
    /**
     * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n
@@ -533,14 +534,11 @@ protected:
 class GodunovFlux : public NumericalFlux
 {
 public:
-   GodunovFlux(const FluxFunction &fluxFunction)
-      : NumericalFlux(fluxFunction)
-   {
-#ifndef MFEM_THREAD_SAFE
-      fluxN1.SetSize(fluxFunction.num_equations);
-      fluxN2.SetSize(fluxFunction.num_equations);
-#endif
-   }
+   /**
+    * @brief Constructor for a flux function
+    * @param fluxFunction flux function F(u,x)
+    */
+   GodunovFlux(const FluxFunction &fluxFunction);
 
    /**
     * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n

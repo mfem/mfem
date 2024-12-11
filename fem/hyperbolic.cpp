@@ -438,6 +438,15 @@ void FluxFunction::ComputeFluxJacobianDotN(const Vector &U,
    }
 }
 
+RusanovFlux::RusanovFlux(const FluxFunction &fluxFunction)
+   : NumericalFlux(fluxFunction)
+{
+#ifndef MFEM_THREAD_SAFE
+   fluxN1.SetSize(fluxFunction.num_equations);
+   fluxN2.SetSize(fluxFunction.num_equations);
+#endif
+}
+
 real_t RusanovFlux::Eval(const Vector &state1, const Vector &state2,
                          const Vector &nor, FaceElementTransformations &Tr,
                          Vector &flux) const
@@ -592,6 +601,17 @@ void RusanovFlux::AverageGrad(int side, const Vector &state1,
       }
    }
 }
+
+GodunovFlux::GodunovFlux(const FluxFunction &fluxFunction)
+   : NumericalFlux(fluxFunction)
+{
+#ifndef MFEM_THREAD_SAFE
+   fluxN1.SetSize(fluxFunction.num_equations);
+   fluxN2.SetSize(fluxFunction.num_equations);
+#endif
+   if (fluxFunction.dim > 1)
+      MFEM_WARNING("Godunov flux is implemented only component-wise.")
+   }
 
 real_t GodunovFlux::Eval(const Vector &state1, const Vector &state2,
                          const Vector &nor, FaceElementTransformations &Tr,
