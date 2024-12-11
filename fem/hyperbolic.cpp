@@ -19,12 +19,12 @@ namespace mfem
 {
 
 HyperbolicFormIntegrator::HyperbolicFormIntegrator(
-   const NumericalFlux &rsolver,
+   const NumericalFlux &numFlux,
    const int IntOrderOffset,
    real_t sign)
    : NonlinearFormIntegrator(),
-     rsolver(rsolver),
-     fluxFunction(rsolver.GetFluxFunction()),
+     numFlux(numFlux),
+     fluxFunction(numFlux.GetFluxFunction()),
      IntOrderOffset(IntOrderOffset),
      sign(sign),
      num_equations(fluxFunction.num_equations)
@@ -250,7 +250,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       }
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
       // Compute hat(F) using evaluated quantities
-      const real_t speed = rsolver.Eval(state1, state2, nor, Tr, fluxN);
+      const real_t speed = numFlux.Eval(state1, state2, nor, Tr, fluxN);
 
       // Update the global max char speed
       max_char_speed = std::max(speed, max_char_speed);
@@ -335,7 +335,7 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
       // Trial side 1
 
       // Compute hat(J) using evaluated quantities
-      rsolver.Grad(1, state1, state2, nor, Tr, JDotN);
+      numFlux.Grad(1, state1, state2, nor, Tr, JDotN);
 
       const int ioff = fluxFunction.num_equations * dof1;
 
@@ -363,7 +363,7 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
       // Trial side 2
 
       // Compute hat(J) using evaluated quantities
-      rsolver.Grad(2, state1, state2, nor, Tr, JDotN);
+      numFlux.Grad(2, state1, state2, nor, Tr, JDotN);
 
       const int joff = ioff;
 

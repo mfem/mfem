@@ -308,7 +308,7 @@ class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 private:
    // The maximum characteristic speed, updated during element/face vector assembly
    real_t max_char_speed;
-   const NumericalFlux &rsolver;   // Numerical flux that maps F(u±,x) to F̂
+   const NumericalFlux &numFlux;   // Numerical flux that maps F(u±,x) to F̂
    const FluxFunction &fluxFunction;
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
    const real_t sign;
@@ -334,12 +334,12 @@ public:
    /**
     * @brief Construct a new Hyperbolic Form Integrator object
     *
-    * @param[in] rsolver numerical flux
+    * @param[in] numFlux numerical flux
     * @param[in] IntOrderOffset integration order offset
     * @param[in] sign sign of the convection term
     */
    HyperbolicFormIntegrator(
-      const NumericalFlux &rsolver,
+      const NumericalFlux &numFlux,
       const int IntOrderOffset = 0,
       const real_t sign = 1.);
 
