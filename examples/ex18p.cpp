@@ -75,6 +75,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 1;
    int order = 3;
+   int rsolver_type = 1;
    int ode_solver_type = 4;
    real_t t_final = 2.0;
    real_t dt = -0.01;
@@ -98,6 +99,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the parallel mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&rsolver_type, "-rs", "--riemann-solver",
+                  "Riemann solver: 1 - Rusanov, 2 - Godunov.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::ExplicitTypes.c_str());
    args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
@@ -201,10 +204,20 @@ int main(int argc, char *argv[])
 
    // 6. Set up the nonlinear form with euler flux and numerical flux
    EulerFlux flux(dim, specific_heat_ratio);
-   RusanovFlux numericalFlux(flux);
+
+   unique_ptr<NumericalFlux> rsolver;
+   switch (rsolver_type)
+   {
+      case 1: rsolver.reset(new RusanovFlux(flux)); break;
+      case 2: rsolver.reset(new GodunovFlux(flux)); break;
+      default:
+         cout << "Unknown Riemann solver type: " << rsolver_type << '\n';
+         return 3;
+   }
+
    DGHyperbolicConservationLaws euler(
       vfes, std::unique_ptr<HyperbolicFormIntegrator>(
-         new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)),
+         new HyperbolicFormIntegrator(*rsolver, IntOrderOffset)),
       preassembleWeakDiv);
 
    // 7. Visualize momentum with its magnitude
