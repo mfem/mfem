@@ -272,7 +272,8 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
       max_char_speed = std::max(max_char_speed, maniFlux.ComputeFlux(state, Tr,
                                                                      phys_flux));
       phys_flux.GetSubMatrix(0, nrScalar, 0, sdim, phys_flux_scalars);
-      AddMult_a_ABt(ip.weight*Tr.Weight(), gshape, phys_flux_scalars, divflux_scalars);
+      AddMult_a_ABt(ip.weight*Tr.Weight(), gshape, phys_flux_scalars,
+                    divflux_scalars);
 
       // prepare physical vector flux for integration
       phys_flux.GetSubMatrix(nrScalar, maniFlux.num_equations, 0, sdim,
@@ -290,7 +291,8 @@ void ManifoldHyperbolicFormIntegrator::AssembleElementVector(
          vector_gshape_comp.Resize(dof, sdim*sdim);
          vector_gshape.SetSubMatrix(dof*d, 0, vector_gshape_comp);
       }
-      AddMult_a(ip.weight*Tr.Weight(), vector_gshape, phys_flux_vectors, divflux_vectors);
+      AddMult_a(ip.weight*Tr.Weight(), vector_gshape, phys_flux_vectors,
+                divflux_vectors);
       phys_flux_vectors.Resize(sdim*nrVector, sdim);
    }
 }
@@ -419,7 +421,15 @@ void ManifoldDGHyperbolicConservationLaws::Mult(const Vector &x,
    //         z = - <F̂(u_h,n), [[v]]>_e
    //    If weak-divergence is not preassembled, we also have weak-divergence
    //         z = - <F̂(u_h,n), [[v]]>_e + (F(u_h), ∇v)
-   nonlinearForm->Mult(x, z);
+   if (force)
+   {
+      force->Assemble();
+      nonlinearForm->AddMult(x,z);
+   }
+   else
+   {
+      nonlinearForm->Mult(x, z);
+   }
    // Apply block inverse mass
    Vector zval; // z_loc, dof*num_eq
 

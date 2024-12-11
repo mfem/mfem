@@ -14,6 +14,55 @@ void gaussian_initial(const Vector &x, Vector &u)
    u[0] = hmin + (hmax - hmin)*std::exp(-theta*theta/(2*sigma*sigma));
 }
 
+inline int sgn(const real_t x){ return x >= 0 ? 1 : -1; }
+
+void williamsTest1(const Vector &x, Vector &u)
+{
+   const real_t meter = 1.0 / 6.37122e6;
+   const real_t hour = 1;
+   const real_t second = hour / 3600.0;
+   const real_t R = 6.37122e6 * meter;
+   const real_t omega = 7.292e-05 / second;
+   const real_t g = 9.80616 * meter / second / second;
+   const real_t H = 1e4 * meter;
+
+   const real_t latitude = std::acos(x[2] / std::sqrt(x*x));
+   const real_t longitude = std::acos(x[0] / std::sqrt(x[0]*x[0] + x[1]*x[1]))*sgn(x[1]);
+
+   // const real_t u0 = 2*meter / second;
+   // const real_t h0 = 1e4 * meter;
+   // const real_t dh = 100 * meter;
+   //
+   // u[0] = h0 + dh * std::pow(std::cos(latitude), 2.0) * std::cos(longitude);
+   // u[1] =      u0 * std::pow(std::cos(latitude), 2.0) * std::cos(longitude);
+   // u[2] =      u0 * std::pow(std::cos(latitude), 2.0) * std::sin(longitude);
+   // u[3] =      u0 * std::pow(std::cos(latitude), 1.0) * std::sin(latitude);
+
+   const real_t lat_m = M_PI / 9.0;
+   const real_t h0 = 2000 * meter;
+   const real_t dh = 200 * meter;
+   const real_t rad2degree = 180 * M_1_PI;
+   u = 0.0;
+   u[0] = h0 + (std::fabs(latitude) < lat_m ? dh*std::exp(-latitude*latitude/(lat_m*lat_m*(lat_m*lat_m - latitude*latitude)*rad2degree*rad2degree)) : 0.0);
+   // const real_t lat0 = M_PI / 7.0;
+   // const real_t lat1 = M_PI / 2.0 - lat0;
+   // const real_t lat2 = M_PI / 4.0;
+   //
+   // const real_t lat = M_PI / 2.0 - theta;
+   //
+   // const real_t hpert = 120.0 * meter;
+   // const real_t alpha = 1.0 / 3.0;
+   // const real_t beta = 1.0 / 15.0;
+   //
+   // const real_t umax = 80.0 * meter / second;
+   // const real_t en = std::exp(-4.0 / std::pow(lat1-lat0, 2.0));
+   // bool jet = (lat0 <= lat) && (lat <= lat1);
+   // const real_t u_jet = umax / en * std::exp(1.0 / (lat - lat0) / (lat - lat1));
+   //
+   // const real_t dtheta = M_PI/100;
+   // real_t theta2 = 0.0;
+}
+
 class SphericalHeight : public VectorCoefficient
 {
 private:
@@ -54,13 +103,21 @@ int main(int argc, char *argv[])
    const int myRank = Mpi::WorldRank();
    Hypre::Init();
 
+   const real_t meter = 1.0 / 6.37122e6;
+   const real_t hour = 1;
+   const real_t second = hour / 3600.0;
+   const real_t R = 6.37122e6 * meter;
+   const real_t omega = 7.292e-05 / second;
+   const real_t g = 9.80616 * meter / second;
+   const real_t H = 1e4 * meter;
+
    int order = 3;
    int refinement_level = 4;
-   int vis_step = 50;
+   int vis_step = 1;
    bool visualization = true;
    bool paraview = true;
-   real_t cfl = 0.3;
-   real_t tF = 1.5;
+   real_t cfl = 0.2;
+   real_t tF = 360*hour;
 
    OptionsParser args(argc, argv);
    args.AddOption(&refinement_level, "-r", "--refine",
@@ -91,7 +148,7 @@ int main(int argc, char *argv[])
    const int phys_num_equations = sdim + 1;
 
    ManifoldCoord coord(dim, sdim);
-   ShallowWaterFlux swe_phys(sdim);
+   ShallowWaterFlux swe_phys(sdim, g);
    ManifoldFlux swe_mani(swe_phys, coord, 1);
    ManifoldRusanovFlux rusanovFlux(swe_mani);
    ManifoldHyperbolicFormIntegrator swe_integ(rusanovFlux);
@@ -121,11 +178,13 @@ int main(int argc, char *argv[])
    ManifoldPhysVectorCoefficient mom_cf(u, 1, dim, sdim);
    SphericalHeight deform_cf(height);
 
-   VectorFunctionCoefficient u0_phys(phys_num_equations, gaussian_initial);
+   VectorFunctionCoefficient u0_phys(phys_num_equations, williamsTest1);
    ManifoldStateCoefficient u0_mani(u0_phys, 1, 1, dim);
    u.ProjectCoefficient(u0_mani);
 
    ManifoldDGHyperbolicConservationLaws swe(vfes, swe_integ, 1);
+   CoriolisForce force(mom_cf, omega);
+   swe.AddForce(new VectorDomainLFIntegrator(force));
    swe.SetTime(0.0);
    real_t hmin=infinity();
    {
@@ -153,7 +212,7 @@ int main(int argc, char *argv[])
       height_sock << "solution\n" << *pmesh_visualize << height;
       height_sock << "window_title 'momentum, t = 0'\n";
       height_sock << "view 0 0\n";  // view from top
-      height_sock << "autoscale off\n valuerange 0.5 2.5\n";
+      // height_sock << "autoscale off\n valuerange 0.5 2.5\n";
       height_sock << "keys jm\n";  // turn off perspective and light, show mesh
       height_sock << std::flush;
       MPI_Barrier(MPI_COMM_WORLD);
@@ -198,7 +257,9 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParaViewDataCollection> dacol;
    if (paraview)
    {
-      dacol.reset(new ParaViewDataCollection("ParaViewSWE", pmesh.get()));
+      std::stringstream paraviewname;
+      paraviewname << "ParaViewSWE_" << refinement_level;
+      dacol.reset(new ParaViewDataCollection(paraviewname.str().c_str(), pmesh.get()));
       dacol->SetLevelsOfDetail(order);
       dacol->RegisterField("Height", &height);
       dacol->RegisterField("Momentum", &mom);
@@ -231,7 +292,7 @@ int main(int argc, char *argv[])
 
 
       // Visualize
-      if (ti % vis_step == 0)
+      if (ti % vis_step == 0 || done)
       {
          mom.ProjectCoefficient(mom_cf);
          if (height_sock.is_open() && height_sock.good())

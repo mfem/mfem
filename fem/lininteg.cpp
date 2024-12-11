@@ -274,6 +274,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    real_t val,cf;
 
    shape.SetSize(dof);       // vector of size dof
+   Qvec.SetSize(vdim);
 
    elvect.SetSize(dof * vdim);
    elvect = 0.0;

@@ -174,7 +174,6 @@ public:
 
    const ManifoldFlux &GetManifoldFluxFunction() const {return maniflux;}
    const ManifoldCoord &GetCoordinate() const {return maniflux.GetCoordinate();}
-
 };
 
 class ManifoldRusanovFlux : public ManifoldNumericalFlux
@@ -395,6 +394,42 @@ public:
 
 };
 
+
+class CoriolisForce : public VectorCoefficient
+{
+private:
+   const real_t omega; // Coriolis parameter
+   ManifoldPhysVectorCoefficient &mom_cf;
+   Vector mom; // local momentum
+   Vector normal; // surface normal
+   Vector x;
+   Vector V_phys;
+   Vector V_mani;
+public:
+   CoriolisForce(ManifoldPhysVectorCoefficient &mom_cf,
+                 const real_t omega):VectorCoefficient(3), omega(omega), mom_cf(mom_cf),
+      mom(mom_cf.GetVDim()), normal(mom_cf.GetVDim()), x(mom_cf.GetVDim()),
+      V_phys(mom_cf.GetVDim()), V_mani(mom_cf.GetVDim()-1)
+   {
+      MFEM_ASSERT(mom_cf.GetVDim() == 3, "Momentum should be 3D");
+   }
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      V = 0.0;
+      T.Transform(T.GetIntPoint(), x);
+      const real_t theta = std::acos(x[2] / std::sqrt(x*x));
+      const real_t f = 2*omega*std::sin(theta);
+      mom_cf.Eval(mom, T, ip);
+      CalcOrtho(T.Jacobian(), normal);
+      normal /= std::sqrt(normal*normal);
+      normal.cross3D(mom, V_phys);
+      V_mani.SetData(V.GetData() + 1);
+      T.Jacobian().MultTranspose(V_phys, V_mani);
+      V_mani *= f;
+   }
+};
+
 class ManifoldDGHyperbolicConservationLaws : public TimeDependentOperator
 {
 private:
@@ -404,6 +439,7 @@ private:
    ManifoldHyperbolicFormIntegrator &formIntegrator;
    // Base Nonlinear Form
    std::unique_ptr<NonlinearForm> nonlinearForm;
+   std::unique_ptr<LinearForm> force;
    // element-wise inverse mass matrix
    std::vector<DenseMatrix> invmass; // local scalar inverse mass
    std::vector<DenseMatrix> invmass_vec; // local scalar inverse mass
@@ -445,7 +481,28 @@ public:
    // where max_char_speed is updated during Mult.
    real_t GetMaxCharSpeed() { return max_char_speed; }
    void Update();
-
+   void AddForce(LinearFormIntegrator *lfdi)
+   {
+      if (force)
+      {
+         force->AddDomainIntegrator(lfdi);
+      }
+      else
+      {
+         if (parallel)
+         {
+#ifdef MFEM_USE_MPI
+            ParFiniteElementSpace *pvfes = static_cast<ParFiniteElementSpace*>(&vfes);
+            force.reset(new ParLinearForm(pvfes, z.GetData()));
+#endif
+         }
+         else
+         {
+            force.reset(new LinearForm(&vfes, z.GetData()));
+         }
+         force->AddDomainIntegrator(lfdi);
+      }
+   }
 };
 
 
