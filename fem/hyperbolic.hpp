@@ -29,7 +29,7 @@ namespace mfem
 // Here, K is an element, f is a face, n normal and [⋅] is jump. This form
 // integrator is coupled with NumericalFlux that implements the numerical flux
 // F̂. For NumericalFlux, the Rusanov flux, also known as local Lax-Friedrichs
-// flux, or Godunov flux are provided.
+// flux, or component-wise Godunov flux are provided.
 //
 // To implement a specific hyperbolic conservation laws, users can create
 // derived classes from FluxFunction with overloaded ComputeFlux. One can
