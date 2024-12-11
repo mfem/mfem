@@ -1191,7 +1191,6 @@ void ParFiniteElementSpace::GetEssentialTrueDofsVar(const Array<int>
 
    const bool bynodes = (ordering == Ordering::byNODES);
    const int vdim_factor = bynodes ? 1 : vdim;
-   const int dof_stride = bynodes ? ndofs : 1;
    const int num_true_dofs = R->NumRows() / vdim;
    const int tdof_stride = bynodes ? num_true_dofs : 1;
 

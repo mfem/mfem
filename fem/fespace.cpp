@@ -2790,9 +2790,6 @@ void DofMapHelper(int entity, const Table & var_ent_dofs,
    const int osloc0 = loc_var_ent_dofs.GetI()[entity];
    const int osloc1 = loc_var_ent_dofs.GetI()[entity + 1];
 
-   const int nall = osall1 - osall0;
-   const int nloc = osloc1 - osloc0;
-
    // loc_var_ent_orders must be a subset of var_ent_orders
    int j = osall0;
    for (int i=osloc0; i<osloc1; ++i)  // Loop over local variants
@@ -2802,7 +2799,6 @@ void DofMapHelper(int entity, const Table & var_ent_dofs,
       int na = var_ent_dofs.GetJ()[j + 1] - var_ent_dofs.GetJ()[j];
       while (var_ent_orders[j] != order && j < osall1 - 1)
       {
-         const int order_j = var_ent_orders[j];
          j++;
          ndof_all += na;
          na = var_ent_dofs.GetJ()[j + 1] - var_ent_dofs.GetJ()[j];
