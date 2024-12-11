@@ -401,7 +401,7 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
       H1_FECollection fe_coll(1, pmesh.Dimension());
       ParFiniteElementSpace fespace(&pmesh, &fe_coll);
 
-      REQUIRE(fespace.GlobalTrueVSize() == 27);
+      REQUIRE(fespace.GlobalTrueVSize() == 27);  // 3^3
 
       // Convert to variable order space by p-refinement
       for (int i = 0; i < pmesh.GetNE(); i++)
@@ -411,7 +411,7 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
       fespace.Update(false);
 
       // DOFs for vertices + edges + faces + elements = 27 + 54 + 36 + 8 = 125
-      REQUIRE(fespace.GlobalTrueVSize() == 125);
+      REQUIRE(fespace.GlobalTrueVSize() == 125);  // 5^3
 
       int rank;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);

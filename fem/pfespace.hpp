@@ -98,7 +98,6 @@ private:
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
-
    /// Optimized action-only restriction operator for conforming meshes. Owned.
    mutable Operator *Rconf;
 
@@ -129,6 +128,7 @@ private:
 
    void SetRestrictionMatrixEdgesFaces(int vdim_factor, int dof_stride,
                                        int tdof_stride,
+                                       const Array<int> &dof_tdof,
                                        const Array<HYPRE_BigInt> &dof_offs);
 
    void SetVarDofMaps();

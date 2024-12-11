@@ -410,6 +410,13 @@ protected:
    /// Return element order: internal version of GetElementOrder without checks.
    int GetElementOrderImpl(int i) const;
 
+   /// Returns true if the space is H1 and has variable-order elements.
+   bool IsVariableOrderH1() const
+   {
+      return variableOrder &&
+             dynamic_cast<const H1_FECollection*>(fec);
+   }
+
    /** In a variable order space, calculate a bitmask of polynomial orders that
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(
