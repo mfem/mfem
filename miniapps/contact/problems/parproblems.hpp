@@ -75,6 +75,7 @@ private:
    ParFiniteElementSpace * vfes = nullptr;
    int dim;
    int dimU, dimM, dimC;
+   int dimG;
    Vector ml;
    HypreParMatrix * NegId = nullptr;
    HypreParMatrix * Kref=nullptr;
@@ -101,7 +102,26 @@ private:
    HypreParMatrix * Pc = nullptr;
    // Restriction operator to the non-contact dofs
    HypreParMatrix * Pnc = nullptr;
-   Array<int> constraints_starts;
+   Array<HYPRE_BigInt> constraints_starts;
+   Array<HYPRE_BigInt> dof_starts;
+
+
+   // with additional constraints
+   //         [ g ]
+   // g_new = [ eps + (d - dl) ]
+   //         [ eps - (d - dl) ]
+   // there are additional components to the Jacobian
+   //         [ J ] 
+   // J_new = [ I ]
+   //         [-I ]      
+   HypreParMatrix * Iu = nullptr;
+   HypreParMatrix * negIu = nullptr;
+
+   HypreParMatrix * dcdu = nullptr;
+
+   Vector dl;
+   Vector eps;
+   Array<int> block_offsetsg;
 
 public:
    OptContactProblem(ElasticityOperator * problem_, 
@@ -116,9 +136,11 @@ public:
    int GetDimC() {return dimC;}
    Vector & Getml() {return ml;}
    MPI_Comm GetComm() {return comm ;}
-   int * GetConstraintsStarts() {return constraints_starts.GetData();} 
-   int GetGlobalNumConstraints() {return J->GetGlobalNumRows();}
+   HYPRE_BigInt * GetConstraintsStarts() {return constraints_starts.GetData();} 
+   HYPRE_BigInt GetGlobalNumConstraints() {return J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();}
 
+   HYPRE_BigInt * GetDofStarts() {return dof_starts.GetData();}
+   HYPRE_BigInt GetGlobalNumDofs() {return J->GetGlobalNumCols(); }
    ElasticityOperator * GetElasticityOperator() {return problem;}
 
    HypreParMatrix * Duuf(const BlockVector &);
@@ -133,6 +155,7 @@ public:
    HypreParMatrix * GetRestrictionToContactDofs(); 
 
    void c(const BlockVector &, Vector &);
+   void g(const Vector &, Vector &);
    double CalcObjective(const BlockVector &);
    void CalcObjectiveGrad(const BlockVector &, BlockVector &);
 

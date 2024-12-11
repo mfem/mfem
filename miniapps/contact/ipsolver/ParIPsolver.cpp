@@ -41,13 +41,24 @@ ParInteriorPointSolver::ParInteriorPointSolver(OptContactProblem * problem_)
 
    kEps   = 1.e1;
 
+   alphaCurvatureTest = 1.e-11;
+   deltaRegLast = 0.0;
+   deltaRegMin = 1.e-20;
+   deltaRegMax = 1.e40;
+   deltaReg0 = 1.e-4;
+   kRegMinus = 1. / 3.;
+   kRegBarPlus = 1.e2;
+   kRegPlus = 8.;
+   
    dimU = problem->GetDimU();
    dimM = problem->GetDimM();
    dimC = problem->GetDimC();
 
-   MPI_Allreduce(&dimU,&gdimU,1,MPI_INT,MPI_SUM,problem->GetComm());
-   MPI_Allreduce(&dimM,&gdimM,1,MPI_INT,MPI_SUM,problem->GetComm());
-   MPI_Allreduce(&dimC,&gdimC,1,MPI_INT,MPI_SUM,problem->GetComm());
+   comm = problem->GetComm();
+
+   MPI_Allreduce(&dimU,&gdimU,1,MPI_INT,MPI_SUM,comm);
+   MPI_Allreduce(&dimM,&gdimM,1,MPI_INT,MPI_SUM,comm);
+   MPI_Allreduce(&dimC,&gdimC,1,MPI_INT,MPI_SUM,comm);
 
    ckSoc.SetSize(dimC);
 
@@ -221,9 +232,61 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          cout << "\n** A-4. IP-Newton solve **\n";
       }
       zlhat = 0.0; Xhatuml = 0.0;
-      // why do we have Xhatuml ....???
-      // TO DO: remove Xhatuml in favor of passing Xhat
-      IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, false); 
+      
+      
+      bool passedCTest = false; 
+      IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, false); 
+      if (!passedCTest)
+      {
+         cout << "curvature test failed\n";
+         double deltaReg = 0.0;
+	 int maxCTests = 30;
+
+	 // choose appropriate initial inertia regularization
+         if (deltaRegLast < deltaRegMin)
+	 {
+	    deltaReg = deltaReg0;       
+	 }
+	 else
+	 {
+	    // try a potentially smaller regularization value than the one that worked last time
+	    deltaReg = fmax(deltaRegMin, kRegMinus * deltaRegLast); 
+	 }
+         // solve with regularization 
+	 zlhat = 0.0; Xhatuml = 0.0;
+         IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, false, deltaReg);
+
+         for (int numCTests = 0; numCTests < maxCTests; numCTests++)
+         {
+	    if (iAmRoot)
+	    {
+	       cout << "deltaReg = " << deltaReg << endl;
+	    }
+	    if (passedCTest)
+	    {
+	       deltaRegLast = deltaReg;
+	       break;
+	    }
+	    else
+	    {
+	       if (deltaRegLast < deltaRegMin)
+	       {
+	          if (iAmRoot)
+		  {
+		     cout << "delta *= " << kRegBarPlus << "\n";
+		  }
+		  deltaReg *= kRegBarPlus; 
+	       }
+	       else
+	       {
+	          deltaReg *= kRegPlus;
+	       }
+	    }
+            // solve with regularization 
+	    zlhat = 0.0; Xhatuml = 0.0;
+            IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, false, deltaReg);
+	 }
+      }
 
       // assign data stack, X = (u, m, l, zl)
       Xk = 0.0;
@@ -290,7 +353,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
 }
 
 void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &zl, 
-                                             BlockOperator &Ak)
+                                             BlockOperator &Ak, double delta)
 {
    // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we 
    //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
@@ -299,11 +362,16 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    Hum = problem->Dumf(x);
    Hmu = problem->Dmuf(x);
    Hmm = problem->Dmmf(x);
+   
+   delete JuT;
+   delete JmT;
+   Ju = problem->Duc(x); JuT = Ju->Transpose();
+   Jm = problem->Dmc(x); JmT = Jm->Transpose();
 
    Vector DiagLogBar(dimM); DiagLogBar = 0.0;
    for(int ii = 0; ii < dimM; ii++)
    {
-      DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii));
+      DiagLogBar(ii) = zl(ii) / (x(ii+dimU) - ml(ii)) + delta;
    }
 
    double dmax = (DiagLogBar.Size() > 0) ? DiagLogBar.Max() : -infinity();
@@ -312,12 +380,6 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    MPI_Allreduce(MPI_IN_PLACE, &dmax,1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
    MPI_Allreduce(MPI_IN_PLACE, &dmin,1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 
-   // if (iAmRoot)
-   // {
-   //    mfem::out << "\n D max = " << dmax << endl;
-   //    mfem::out << " D min = " << dmin << endl;
-   //    mfem::out << " Ratio = " << dmax/dmin << endl;
-   // }
    dynamiclinSolver = linSolver;
    if (dynamicsolver && linSolver == 2 && dmax/dmin > 5e6)
    {
@@ -340,15 +402,11 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       diagStream.close();
    } 
 
-   
-   int gsize = problem->GetGlobalNumConstraints();
-   int * rows = problem->GetConstraintsStarts();
-
    delete Wmm;
-   if(Hmm != nullptr)
+   if(Hmm)
    {
       SparseMatrix * Ds = new SparseMatrix(DiagLogBar);
-      HypreParMatrix * D = new HypreParMatrix(problem->GetComm(), gsize, rows, Ds);
+      HypreParMatrix * D = new HypreParMatrix(comm, problem->GetGlobalNumConstraints(), problem->GetConstraintsStarts(), Ds);
       HypreStealOwnership(*D,*Ds);
       delete Ds;
       Wmm = ParAdd(Hmm,D);
@@ -357,14 +415,33 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    else
    {
       SparseMatrix * Ds = new SparseMatrix(DiagLogBar);
-      Wmm = new HypreParMatrix(problem->GetComm(), gsize, rows, Ds);
+      Wmm = new HypreParMatrix(comm, problem->GetGlobalNumConstraints(), problem->GetConstraintsStarts(), Ds);
       HypreStealOwnership(*Wmm,*Ds);
       delete Ds;
    }
-   delete JuT;
-   delete JmT;
-   Ju = problem->Duc(x); JuT = Ju->Transpose();
-   Jm = problem->Dmc(x); JmT = Jm->Transpose();
+   
+   Vector deltaDiagVec(dimU);
+   deltaDiagVec = delta;
+   delete Wuu;
+   if (Huu)
+   {
+      SparseMatrix * Duus = new SparseMatrix(deltaDiagVec);
+      HypreParMatrix * Duu = new HypreParMatrix(comm, problem->GetGlobalNumDofs(), problem->GetDofStarts(), Duus);
+      HypreStealOwnership(*Duu, *Duus);
+      delete Duus;
+      Wuu = ParAdd(Huu, Duu);
+      delete Duu; 
+   }
+   else
+   {
+      SparseMatrix * DuuS = new SparseMatrix(deltaDiagVec);
+      Wuu = new HypreParMatrix(comm, problem->GetGlobalNumDofs(), problem->GetDofStarts(), DuuS);
+      HypreStealOwnership(*Wuu, *DuuS);
+      delete DuuS;
+   }
+   
+   
+   
 
    //         IP-Newton system matrix
    //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
@@ -374,16 +451,19 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    //    Ak = [[K    0     Jᵀ ]   [u]    [bᵤ]
    //          [0    D    -I  ]   [m]  = [bₘ]      
    //          [J   -I     0  ]]  [λ]  = [bₗ ]
-
-   Ak.SetBlock(0, 0, Huu);                         Ak.SetBlock(0, 2, JuT);
+   Ak.SetBlock(0, 0, Wuu);                         Ak.SetBlock(0, 2, JuT);
                            Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
-   if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
+   if (Hum)
+   {
+      Ak.SetBlock(0, 1, Hum);
+      Ak.SetBlock(1, 0, Hmu);
+   }
 }
 
 // perturbed KKT system solve
 // determine the search direction
-void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, Vector &zlhat, BlockVector &Xhat, double mu, bool socSolve)
+void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCTest, double mu, bool socSolve, double delta)
 {
    StopWatch chrono;
    chrono.Clear();
@@ -430,11 +510,11 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             if(!A.IsZeroBlock(ii, jj))
             {
                ABlockMatrix(ii, jj) = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(ii, jj)));
-	         }
-	         else
-	         {
-	            ABlockMatrix(ii, jj) = nullptr;
-	         }
+	    }
+	    else
+	    {
+	       ABlockMatrix(ii, jj) = nullptr;
+	    }
          }  
       }
       
@@ -842,6 +922,9 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       delete Areduced;
    }
 
+   passedCTest = CurvatureTest(A, Xhat, l, b, delta);
+
+
    /* backsolve to determine zlhat */
    for(int ii = 0; ii < dimM; ii++)
    {
@@ -969,17 +1052,17 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
          // A-5.5: Initialize the second-order correction
          if((!(thx0 < thxtrial)) && i == 0)
          {
-            if (iAmRoot)
-            {
-               cout << "second order correction\n";
-            }
-            problem->c(xtrial, ckSoc);
-            problem->c(x0, ck0);
-            ckSoc.Add(alphaMax, ck0);
-            // A-5.6 Compute the second-order correction.
-            IPNewtonSolve(x0, l0, z0, zhatsoc, Xhatumlsoc, mu, true);
-            mhatsoc.Set(1.0, Xhatumlsoc.GetBlock(1));
-            //WARNING: not complete but currently solver isn't entering this region
+            //if (iAmRoot)
+            //{
+            //   cout << "second order correction\n";
+            //}
+            //problem->c(xtrial, ckSoc);
+            //problem->c(x0, ck0);
+            //ckSoc.Add(alphaMax, ck0);
+            //// A-5.6 Compute the second-order correction.
+            //IPNewtonSolve(x0, l0, z0, zhatsoc, Xhatumlsoc, mu, true);
+            //mhatsoc.Set(1.0, Xhatumlsoc.GetBlock(1));
+            ////WARNING: not complete but currently solver isn't entering this region
          }
       }
       else
@@ -1027,6 +1110,53 @@ void ParInteriorPointSolver::filterCheck(double th, double ph)
       }
    }
 }
+
+
+
+
+// curvature test
+// dk^T Wk dk + max{ -(lk + lhat)^T ck, 0.0} >= alpha * dk^T dk
+// see "An Inertia-Free Filter Line-search Algorithm for
+// Large-scale Nonlinear Programming" by Nai-Yuan Chiang and
+// Victor M Zavala, Computational Optimization and Applications (2016)
+bool ParInteriorPointSolver::CurvatureTest(const BlockOperator & A, const BlockVector & Xhat, const Vector & l, const BlockVector & b, const double & delta)
+{
+   Vector lplus(l.Size());
+   lplus.Set(1.0, l);
+   lplus.Add(1.0, Xhat.GetBlock(2));
+   
+
+   double dWd = 0.0;
+   double dd = 0.0;
+   for (int i = 0; i < 2; i++)
+   {
+      for (int j = 0; j < 2; j++)
+      {
+         if (!A.IsZeroBlock(i, j))
+	 {
+	    Vector temp(A.GetBlock(i, j).Height()); temp = 0.0;
+	    A.GetBlock(i, j).Mult(Xhat.GetBlock(j), temp);
+	    dWd += InnerProduct(MPI_COMM_WORLD, Xhat.GetBlock(i), temp);
+	 }
+      }
+      dd += InnerProduct(MPI_COMM_WORLD, Xhat.GetBlock(i), Xhat.GetBlock(i));
+   }
+   double lplusTck = -1.0 * InnerProduct(MPI_COMM_WORLD, lplus, b.GetBlock(2));
+ 
+   //if (iAmRoot)
+   //{ 
+   //   cout << "d^T W d + max{-(l+)^T c, 0} = " << dWd + fmax(-lplusTck, 0.0) << endl;
+   //   cout << "d^T d = " << dd << endl;
+   //   cout << "d^T W d / d^T d = " << dWd / dd << endl;
+   //}
+   bool passed = (dWd + fmax(-lplusTck, 0.0) >= alphaCurvatureTest * dd) ? true : false;
+   return passed;
+}
+
+
+
+
+
 
 double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vector &zl, double mu, bool printEeval)
 {
@@ -1183,5 +1313,6 @@ ParInteriorPointSolver::~ParInteriorPointSolver()
 {
    delete JuT;
    delete JmT;
+   delete Wuu;
    delete Wmm;
 }

@@ -43,11 +43,24 @@ protected:
     HypreParMatrix * Hum = nullptr;
     HypreParMatrix * Hmu = nullptr;
     HypreParMatrix * Hmm = nullptr;
+    HypreParMatrix * Wuu = nullptr;
     HypreParMatrix * Wmm = nullptr;
     HypreParMatrix * Ju = nullptr;
     HypreParMatrix * Jm = nullptr;
     HypreParMatrix * JuT = nullptr;
     HypreParMatrix * JmT = nullptr;
+
+
+    double alphaCurvatureTest;
+    double deltaRegLast;
+    double deltaRegMin;
+    double deltaRegMax;
+    double deltaReg0;
+
+    double kRegMinus;
+    double kRegBarPlus;
+    double kRegPlus;
+
 
     Array<int> cgnum_iterations;
     Array<double> dmaxmin_ratio;
@@ -70,14 +83,16 @@ protected:
     double linSolveAbsTol = 1e-12;
     double linSolveRelTol = 1e-6;
     int relax_type = 8;
+
+    MPI_Comm comm;
 public:
     ParInteriorPointSolver(OptContactProblem*);
     double MaxStepSize(Vector& , Vector& , Vector& , double);
     double MaxStepSize(Vector& , Vector& , double);
     void Mult(const BlockVector& , BlockVector&);
     void Mult(const Vector&, Vector &); 
-    void FormIPNewtonMat(BlockVector& , Vector& , Vector& , BlockOperator &);
-    void IPNewtonSolve(BlockVector& , Vector& , Vector& , Vector&, BlockVector& , double, bool);
+    void FormIPNewtonMat(BlockVector& , Vector& , Vector& , BlockOperator &, double delta = 0.0);
+    void IPNewtonSolve(BlockVector& , Vector& , Vector& , Vector&, BlockVector& , bool &, double, bool, double delta = 0.0);
     void lineSearch(BlockVector& , BlockVector& , double);
     void projectZ(const Vector & , Vector &, double);
     void filterCheck(double, double);
@@ -90,7 +105,6 @@ public:
     Array<double> & GetAdiagMaxMinRatios() {return Adiag_ratio;}
     Array<int> & GetCGNoContactIterNumbers() {return cgnum_iterations_nocontact;}
     int GetNumIterations() {return iter;}
-    // TO DO: include Hessian of Lagrangian
     double theta(const BlockVector &);
     double phi(const BlockVector &, double);
     void Dxphi(const BlockVector &, double, BlockVector &);
@@ -110,6 +124,7 @@ public:
     }
     void EnableDynamicSolverChoice() { dynamicsolver = true;}
     void DisableDynamicSolverChoice() { dynamicsolver = false;}
+    bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat, const Vector &l, const BlockVector & b, const double & delta);
     virtual ~ParInteriorPointSolver();
 };
 
