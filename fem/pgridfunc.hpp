@@ -25,7 +25,17 @@
 namespace mfem
 {
 
-/// @brief Compute a global Lp norm from the local Lp norms computed by each processor
+/// @brief Compute a global Lp norm from the local Lp norms computed by each
+///        processor
+///
+/// @param[in] p         Real value indicating the exponent of the $L^p$ norm.
+///                      To avoid domain errors p should have a positive
+///                      value, either finite or infinite.
+/// @param[in] loc_norm  Local $L^p$ norm as computed separately on each
+///                      processor.
+/// @param[in] comm      MPI Communicator
+///
+/// @return              Global $L^p$ norm distributed to each processor
 ///
 /// @note Quadratures with negative weights (as in some simplex integration
 ///       rules in MFEM) can produce negative integrals even with
@@ -338,8 +348,20 @@ public:
 
    /// @brief Returns the Face Jumps error for L2 elements.
    ///
-   /// The error can be weighted by a constant nu, by nu/h, or nu*p^2/h,
-   /// depending on the value of @a jump_scaling.
+   /// Computes:
+   ///   $$\sqrt{\sum_{faces} \int_f js[f] ell[f] (2 u_{ex} - u_1 - u_2)^2}$$
+   ///
+   /// Where js[f] is the jump_scaling evaluated on the face f and ell is the
+   /// average of ell_coef evaluated in the two elements sharing the face f.
+   ///
+   /// @param[in] exsol         Pointer to a Coefficient object reproducing the
+   ///                          anticipated values of the scalar field, u_ex.
+   /// @param[in] ell_coeff     Pointer to a Coefficient object used to compute
+   ///                          the averaged value ell in the above integral.
+   /// @param[in] jump_scaling  Can be configured to provide scaling by
+   ///                          nu, nu/h, or nu*p^2/h
+   /// @param[in] irs           Optional pointer to a custom integration rule
+   ///                          e.g. higher order than the default rule.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
