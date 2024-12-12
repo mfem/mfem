@@ -43,11 +43,11 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
 
 real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
-   dbg("x: {}",x*x);
+   // dbg("x: {}",x*x);
    real_t energy = 0.0;
 
    elemR->Mult(x, xe);
-   dbg("xe: {}",xe*xe);
+   // dbg("xe: {}",xe*xe);
 
    for (int i = 0; i < dnfi.Size(); i++)
    {

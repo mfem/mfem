@@ -1592,12 +1592,12 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
    // const Array<int> *dof_map = nullptr;
 
    dbg("UsesPhysicalCoordinates:{}",UsesPhysicalCoordinates());
-   {
+   /*{
       assert(sdim==2); assert(dim==2);
       assert(Jtr.TotalSize() == 2*2*NQ*NE);
       Vector jtr(Jtr.HostReadWrite(), 2* 2*NQ*NE);
       dbg("Jtr:{}",jtr*jtr);
-   }
+   }*/
 
    /*if (UsesPhysicalCoordinates())
    {
@@ -1643,15 +1643,19 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
             dbg("elfun_nat:{}",elfun_nat*elfun_nat);
          }
       }*/
+
+#warning 🔥
       J.UseExternalData(Jtr(e*NQ).Data(), sdim, dim, NQ);
       ComputeElementTargets(e, fe, ir, elfun_nat, J);
-      // Vector j(J.HostReadWrite(), sdim* dim*NQ);
-      // dbg("j:{}",j*j);
+      // Jtr.Read();
+
+      Vector j(J.HostReadWrite(), sdim* dim*NQ);
+      dbg("\x1B[32m j:{}",j*j);
    }
 
    // const auto J = Reshape(J.Read(), 2, 2, Q1D, Q1D, NE);
-   // Vector jtr(Jtr.HostReadWrite(), 2* 2* NQ* NE);
-   // dbg("Jtr:{}",jtr*jtr);
+   Vector jtr(Jtr.HostReadWrite(), 2* 2* NQ* NE);
+   dbg("\x1B[32m Jtr:{}",jtr*jtr);
 }
 
 bool TargetConstructor::ContainsVolumeInfo() const
@@ -2090,7 +2094,7 @@ void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
    dbg("\x1B[33m tspec:{} {}",tspec*tspec, tspec.Norml2());
    if (reuse_flag && good_tspec) { return; }
 
-   dbg("new_x:{} {} reuse_flag:{}",new_x*new_x, new_x.Norml2(), reuse_flag);
+   dbg("new_x:{}",new_x*new_x);
 
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
    adapt_eval->ComputeAtNewPosition(new_x, tspec, new_x_ordering);
@@ -2188,7 +2192,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
              nqp = ir.GetNPoints();
    Jtrcomp.SetSize(dim, dim, 4*nqp);
 
-   // dbg("tspec:{} {}",tspec*tspec, tspec.Norml2());
+   dbg("tspec:{} {}",tspec*tspec, tspec.Norml2());
    FiniteElementSpace *src_fes = tspec_fesv;
 
    switch (target_type)
@@ -2208,9 +2212,9 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
          // tspec.UseDevice(true);
-         // tspec.HostRead();
+         tspec.HostRead();
          tspec.GetSubVector(dofs, tspec_vals);
-         // dbg("tspec_vals:{} {}",tspec_vals*tspec_vals, tspec_vals.Norml2());
+         dbg("tspec_vals:{} {}",tspec_vals*tspec_vals, tspec_vals.Norml2());
          if (tspec_refine.NumCols() > 0) // Refinement
          {
             MFEM_VERIFY(amr_el >= 0, " Target being constructed for an AMR element.");

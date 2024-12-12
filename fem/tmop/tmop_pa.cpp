@@ -376,7 +376,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
 {
-   dbg("xe:{} lim_coeff:{}", xe*xe, fmt::ptr(lim_coeff));
+   // dbg("xe:{} lim_coeff:{}", xe*xe, fmt::ptr(lim_coeff));
    // This method must be called after AssemblePA().
 
    real_t energy = 0.0;
@@ -389,9 +389,9 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
    if (PA.dim == 2)
    {
       energy = GetLocalStateEnergyPA_2D(xe);
-      dbg("energy: {}", energy);
+      // dbg("energy: {}", energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
-      dbg("energy: {}", energy);
+      // dbg("energy: {}", energy);
    }
 
    if (PA.dim == 3)
@@ -400,7 +400,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
    }
 
-   dbg("energy: {}", energy);
+   // dbg("energy: {}", energy);
    return energy;
 }
 

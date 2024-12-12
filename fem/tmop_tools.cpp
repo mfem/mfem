@@ -49,14 +49,18 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    new_field = field0;
    dbg("new_field: {}",new_field*new_field);
    Vector new_field_temp;
+   new_field_temp =  new_field;
+   assert(false);
    for (int i = 0; i < ncomp; i++)
    {
       if (fes_ordering == Ordering::byNODES)
       {
+         assert(false);
          new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
       }
       else
       {
+         assert(false);
          new_field_temp.SetSize(pnt_cnt);
          for (int j = 0; j < pnt_cnt; j++)
          {
@@ -70,13 +74,14 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       // dbg("new_field_temp: {}",new_field_temp*new_field_temp);
       dbg("new_field: {}",new_field*new_field);
 
-      if (fes_ordering == Ordering::byVDIM)
+      /*if (fes_ordering == Ordering::byVDIM)
       {
+         assert(false);
          for (int j = 0; j < pnt_cnt; j++)
          {
             new_field(i + j*ncomp) = new_field_temp(j);
          }
-      }
+      }*/
    }
 
    field0 = new_field;
@@ -376,6 +381,7 @@ void ParAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
 void InterpolatorFP::SetInitialField(const Vector &init_nodes,
                                      const Vector &init_field)
 {
+   dbg();
    nodes0 = init_nodes;
    Mesh *m = mesh;
    FiniteElementSpace *f = fes;
@@ -383,6 +389,7 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    if (pmesh) { m = pmesh; }
    if (pfes)  { f = pfes; }
 #endif
+   nodes0.HostReadWrite();
    m->SetNodes(nodes0);
 
    const real_t rel_bbox_el = 0.1;
@@ -420,23 +427,35 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
                                           Vector &new_field,
                                           int new_nodes_ordering)
 {
+   dbg("\x1B[32m new_nodes:{}",new_nodes*new_nodes);
+   new_field.HostReadWrite();
+
    // Get physical node locations corresponding to field0_gf
    if (fes_field_nodes)
    {
       Vector mapped_nodes;
       GetFieldNodesPosition(new_nodes, mapped_nodes);
+#warning 🔥 gslib
+      mapped_nodes.HostReadWrite();
+      field0_gf.HostReadWrite();
+      new_field.HostReadWrite();
+      // finder->SetGPUtoCPUFallback(true);
+
       finder->Interpolate(mapped_nodes, field0_gf, new_field,
                           fes_field_nodes->GetOrdering());
    }
    else
    {
+      assert(false);
       finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
    }
+   dbg("\x1B[32m  new_field:{}",new_field*new_field);
 }
 
 void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
                                            Vector &nodes_pos) const
 {
+   dbg();
    MFEM_VERIFY(fes_field_nodes, "InterpolatorFP: fes_field_nodes is not set.");
 
    Mesh *m = fes_field_nodes->GetMesh();
@@ -446,8 +465,15 @@ void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
    if (nelem == 0) { return; }
    Array<int> dofs;
    Vector e_xyz;
+
+#warning 🔥
+   dbg("\x1B[37m mesh_nodes:{}",mesh_nodes*mesh_nodes);
+   mesh_nodes.HostRead();
+
    nodes_pos.SetSize(n_f_nodes*dim);
    nodes_pos.UseDevice(mesh_nodes.UseDevice());
+   nodes_pos.HostReadWrite();
+
    const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
 
    for (int e = 0; e < nelem; e++)
@@ -474,6 +500,8 @@ void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
       fes_field_nodes->GetElementVDofs(e, dofs);
       nodes_pos.SetSubVector(dofs, gf_xyz);
    }
+   nodes_pos.Read();
+   dbg("\x1B[37m nodes_pos:{}",nodes_pos*nodes_pos);
 }
 
 #endif
@@ -519,13 +547,14 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       fes->GetProlongationMatrix()->Mult(x, x_out_loc);
    }
 #endif
-   dbg("\x1B[34m x_out_loc: {}", x_out_loc*x_out_loc); //
+   dbg("\x1B[31m x_out_loc: {}", x_out_loc*x_out_loc); //
 
    real_t scale = 1.0;
    bool fitting = IsSurfaceFittingEnabled();
    real_t init_fit_avg_err, init_fit_max_err = 0.0;
    if (fitting && surf_fit_converge_error)
    {
+      assert(false);
       GetSurfaceFittingError(x_out_loc, init_fit_avg_err, init_fit_max_err);
       // Check for convergence
       if (init_fit_max_err < surf_fit_max_err_limit)
@@ -651,7 +680,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          }
       }
 
-      dbg("Serial:{}", serial);
+      // dbg("Serial:{}", serial);
       if (serial)
       {
          energy_out = nlf->GetGridFunctionEnergy(x_out_loc);

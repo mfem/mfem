@@ -102,7 +102,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   dbg("Q1D:{}",Q1D);
+   // dbg("Q1D:{}",Q1D);
    const auto MC = const_m0 ?
                    Reshape(mc_.Read(), 1, 1, 1) :
                    Reshape(mc_.Read(), Q1D, Q1D, NE);
@@ -115,7 +115,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
 
    const real_t *metric_data = metric_param.Read();
-   dbg("metric_data_0:{} metric_data_1:{}", metric_data[0], metric_data[1]);
+   // dbg("metric_data_0:{} metric_data_1:{}", metric_data[0], metric_data[1]);
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -206,16 +206,16 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
    {
       mp.HostReadWrite();
       m->GetWeights(mp);
-      dbg("mp:{}",mp.Size());
-      dbg("mp0:{} mp1:{}",mp[0],mp[1]);
+      // dbg("mp:{}",mp.Size());
+      // dbg("mp0:{} mp1:{}",mp[0],mp[1]);
    }
 
-   dbg("mn:{}", mn);
-   dbg("MC:{}", MC*MC);
+   // dbg("mn:{}", mn);
+   // dbg("MC:{}", MC*MC);
 
-   dbg("X:{}", X*X);
-   dbg("O:{}", O*O);
-   dbg("E:{}", E*E);
+   // dbg("X:{}", X*X);
+   // dbg("O:{}", O*O);
+   // dbg("E:{}", E*E);
 
    MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,MC,mp,M,N,J,W,B,G,X,O,E);
 }
