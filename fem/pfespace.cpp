@@ -1069,7 +1069,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 }
 
 void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
-					     int component) const
+                                             int component) const
 {
    FiniteElementSpace::GetExteriorVDofs(ext_dofs, component);
 
@@ -1079,7 +1079,7 @@ void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
 }
 
 void ParFiniteElementSpace::GetExteriorTrueDofs(Array<int> &ext_tdof_list,
-						int component) const
+                                                int component) const
 {
    Array<int> ext_dofs, true_ext_dofs;
 

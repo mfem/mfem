@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    fespace.GetExteriorTrueDofs(ess_tdof_list);
-   
+
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
