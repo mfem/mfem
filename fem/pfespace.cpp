@@ -3428,7 +3428,7 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
 
          // Get the lowest order variant DOFs and FE
          Array<int> dofs;
-         GetEntityDofs(entity, idx, dofs, geom, 0);
+         const int order0 = GetEntityDofs(entity, idx, dofs, geom, 0);
 
          int numVert = 2;  // Edge case
          if (entity == 2)  // Face case
@@ -3440,18 +3440,7 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
          }
 
          // Interior DOFs start at index idof0
-         int idof0 = dofs.Size();
-         const int ibl = entity == 1 ? nvdofs : nvdofs +
-                         nedofs;  // Interior DOF index lower bound
-         for (int i=0; i<dofs.Size(); ++i)
-         {
-            if (dofs[i] >= ibl)
-            {
-               idof0 = i;
-               break;
-            }
-         }
-
+         const int idof0 = GetNumBorderDofs(geom, order0);
          const int maxOrder = entity == 1 ? edge_max_order[idx] :
                               face_max_order[idx];
 
@@ -3489,6 +3478,7 @@ void ParFiniteElementSpace
    int prevEntity = -1;
    int prevIndex = -1;
    int tdi = -1;
+   int idof0 = -1;
    Array<int> ldofs, tdofs;
    DenseMatrix I;
 
@@ -3555,6 +3545,9 @@ void ParFiniteElementSpace
 
          MFEM_VERIFY(tdofs.Size() > 0 && ldofs.Size() > 0, "");
 
+         // Interior DOFs start at index idof0
+         idof0 = GetNumBorderDofs(geom, tdofOrder);
+
          feT = fec->GetFE(geom, tdofOrder);
          feL = fec->GetFE(geom, maxOrder);
 
@@ -3572,19 +3565,6 @@ void ParFiniteElementSpace
          // Interpolate T-dofs of order tdofOrder from L-dofs of order maxOrder
          T.SetIdentityTransformation(geom);
          feT->GetTransferMatrix(*feL, T, I);
-      }
-
-      // Interior DOFs start at index idof0
-      int idof0 = tdofs.Size();
-      const int ibl = entity == 1 ? nvdofs : nvdofs +
-                      nedofs;  // Interior DOF index lower bound
-      for (int i=0; i<tdofs.Size(); ++i)
-      {
-         if (tdofs[i] >= ibl)
-         {
-            idof0 = i;
-            break;
-         }
       }
 
       for (int ldi=0; ldi<ldofs.Size(); ++ldi)
@@ -3999,10 +3979,9 @@ int ParFiniteElementSpace
 #endif
    }
 
-   const int allnedofs = nedofs;
-
    if (H1var)
    {
+      const int allnedofs = nedofs;
       // TODO: isn't this necessary even in the serial FiniteElementSpace?
       // See FiniteElementSpace::BuildConformingInterpolation()
       SetVarOrderLocalDofs();
