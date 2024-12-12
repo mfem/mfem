@@ -473,9 +473,6 @@ void RusanovFlux::Grad(int side, const Vector &state1, const Vector &state2,
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
-   DenseMatrix JDotN(fluxFunction.num_equations);
-#else
-   JDotN.SetSize(fluxFunction.num_equations);
 #endif
 
    const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
@@ -486,26 +483,22 @@ void RusanovFlux::Grad(int side, const Vector &state1, const Vector &state2,
    // here, nor.Norml2() is multiplied to match the scale with fluxN
    const real_t scaledMaxE = maxE * nor.Norml2();
 
-   grad = 0.;
-
    if (side == 1)
    {
-      fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, JDotN);
+      fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, grad);
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
-         // Only diagonal terms of J are considered
-         grad(i,i) = 0.5 * (JDotN(i,i) + scaledMaxE);
+         grad(i,i) += 0.5 * scaledMaxE;
       }
    }
    else
    {
-      fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, JDotN);
+      fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, grad);
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
-         // Only diagonal terms of J are considered
-         grad(i,i) = 0.5 * (JDotN(i,i) - scaledMaxE);
+         grad(i,i) -= 0.5 * scaledMaxE;
       }
    }
 }
