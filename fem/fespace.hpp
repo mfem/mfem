@@ -1246,6 +1246,18 @@ public:
        marked as essential. */
    void GetBoundaryTrueDofs(Array<int> &boundary_dofs, int component = -1);
 
+   /** @brief Mark degrees of freedom associated with exterior faces of the
+       mesh. For spaces with 'vdim' > 1, the 'component' parameter can be used
+       to restricts the marked vDOFs to the specified component. */
+   virtual void GetExteriorVDofs(Array<int> &exterior_vdofs,
+				 int component = -1) const;
+
+   /** @brief Get a list of all true dofs on the exterior of the mesh,
+       @a exterior_dofs. For spaces with 'vdim' > 1, the 'component' parameter
+       can be used to restricts the marked tDOFs to the specified component. */
+   virtual void GetExteriorTrueDofs(Array<int> &exterior_dofs,
+				    int component = -1) const;
+
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);
 
