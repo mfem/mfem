@@ -1486,6 +1486,26 @@ Array<int> Mesh::GetFaceToBdrElMap() const
    return face_to_be;
 }
 
+void Mesh::GetExteriorFaceMarker(Array<int> & face_marker) const
+{
+   if (face_marker.Size() < faces_info.Size())
+   {
+      face_marker.SetSize(faces_info.Size());
+   }
+
+   for (int f = 0; f < faces_info.Size(); f++)
+   {
+      if (faces_info[f].Elem2No < 0)
+      {
+         face_marker[f] = 1;
+      }
+      else
+      {
+         face_marker[f] = 0;
+      }
+   }
+}
+
 void Mesh::Init()
 {
    // in order of declaration:
