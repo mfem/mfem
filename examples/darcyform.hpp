@@ -46,6 +46,18 @@ class DarcyForm : public Operator
    DarcyReduction *reduction{}; ///< Owned.
    DarcyHybridization *hybridization{}; ///< Owned.
 
+   friend class Gradient;
+   class Gradient : public Operator
+   {
+      const DarcyForm &p;
+      const Operator &G;
+   public:
+      Gradient(const DarcyForm &p, const Vector &x)
+         : Operator(p.Width()), p(p), G(p.Mnl->GetGradient(x)) { }
+
+      void Mult(const Vector &x, Vector &y) const override;
+   };
+
    void EnableReduction(const Array<int> &ess_flux_tdof_list,
                         DarcyReduction *reduction);
 
@@ -219,9 +231,6 @@ public:
 
    /// Operator application
    void Mult (const Vector & x, Vector & y) const override;
-
-   /// Action of the transpose operator
-   void MultTranspose (const Vector & x, Vector & y) const override;
 
    /// Evaluate the gradient operator at the point @a x.
    Operator &GetGradient(const Vector &x) const override;

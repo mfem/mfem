@@ -444,10 +444,9 @@ int main(int argc, char *argv[])
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
          if (td > 0. && !hybridization)
          {
-            //note the sign must be negative due to symmetrization
             Mnl->AddInteriorFaceIntegrator(new MixedConductionNLFIntegrator(
-                                              *HeatFluxFun, -td));
-            Mnl->AddBdrFaceIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun, -td),
+                                              *HeatFluxFun, td));
+            Mnl->AddBdrFaceIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun, td),
                                       bdr_is_neumann);
          }
       }

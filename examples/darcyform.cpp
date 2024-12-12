@@ -570,7 +570,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 
       if (Mnl && pM.Ptr())
       {
-         A.Reset(new SumOperator(block_op, 1., pM.Ptr(), 1., false, false));
+         A.Reset(this, false);
       }
       else
       {
@@ -694,7 +694,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    {
       if (Mnl && pM.Ptr())
       {
-         A.Reset(new SumOperator(block_op, 1., pM.Ptr(), 1., false, false));
+         A.Reset(this, false);
       }
       else
       {
@@ -780,13 +780,20 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 void DarcyForm::Mult(const Vector &x, Vector &y) const
 {
    block_op->Mult(x, y);
-   if (pM.Ptr()) { pM->AddMult(x, y); }
-}
-
-void DarcyForm::MultTranspose(const Vector &x, Vector &y) const
-{
-   block_op->MultTranspose(x, y);
-   if (pM.Ptr()) { pM->AddMultTranspose(x, y); }
+   if (pM.Ptr())
+   {
+      if (bsym)
+      {
+         BlockVector ynl(offsets);
+         pM->Mult(x, ynl);
+         ynl.GetBlock(1).Neg();
+         y += ynl;
+      }
+      else
+      {
+         pM->AddMult(x, y);
+      }
+   }
 }
 
 Operator &DarcyForm::GetGradient(const Vector &x) const
@@ -830,9 +837,32 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
       if (!Mnl) { return *block_grad; }
    }
 
-   pG.Reset(new SumOperator((block_grad)?(block_grad):(block_op), 1.,
-                            &Mnl->GetGradient(x), 1., false, false));
+   pG.Reset(new Gradient(*this, x));
    return *pG.Ptr();
+}
+
+void DarcyForm::Gradient::Mult(const Vector &x, Vector &y) const
+{
+   if (p.block_grad)
+   {
+      p.block_grad->Mult(x, y);
+   }
+   else
+   {
+      p.block_op->Mult(x, y);
+   }
+
+   if (p.bsym)
+   {
+      BlockVector ynl(p.offsets);
+      G.Mult(x, ynl);
+      ynl.GetBlock(1).Neg();
+      y += ynl;
+   }
+   else
+   {
+      G.AddMult(x, y);
+   }
 }
 
 void DarcyForm::Update()

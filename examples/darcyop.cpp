@@ -581,7 +581,7 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
          const SparseMatrix &Mtm = static_cast<SparseMatrix&>(bop->GetBlock(1,1));
          if (Mtm.NumNonZeroElems() > 0)
          {
-            SparseMatrix *Snew = Add(-1., Mtm, 1., *S);
+            SparseMatrix *Snew = Add(Mtm, *S);
             delete S;
             S = Snew;
          }
