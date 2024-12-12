@@ -100,6 +100,7 @@ if (MFEM_USE_HIP)
     # alternatively could check HYPRE_USING_HIP
     find_dependency(rocsparse)
     find_dependency(rocrand)
+    find_dependency(rocsolver)
   endif (MFEM_USE_MPI)
 endif (MFEM_USE_HIP)
 
