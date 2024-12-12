@@ -6678,6 +6678,68 @@ void ParMesh::GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const
    }
 }
 
+void ParMesh::GetExteriorFaceMarker(Array<int> & face_marker) const
+{
+   Array<int> nc_shared_faces;
+   const Array<int>* s2l_face;
+   if (!pncmesh)
+   {
+      s2l_face = ((Dim == 1) ? &svert_lvert :
+                  ((Dim == 2) ? &sedge_ledge : &sface_lface));
+   }
+   else
+   {
+      s2l_face = &nc_shared_faces;
+      if (Dim >= 2)
+      {
+         // get a list of all shared non-ghost faces
+         const NCMesh::NCList& sfaces =
+            (Dim == 3) ? pncmesh->GetSharedFaces() : pncmesh->GetSharedEdges();
+         const int nfaces = GetNumFaces();
+         for (int i = 0; i < sfaces.conforming.Size(); i++)
+         {
+            int index = sfaces.conforming[i].index;
+            if (index < nfaces) { nc_shared_faces.Append(index); }
+         }
+         for (int i = 0; i < sfaces.masters.Size(); i++)
+         {
+            if (Dim == 2 && WantSkipSharedMaster(sfaces.masters[i])) { continue; }
+            int index = sfaces.masters[i].index;
+            if (index < nfaces) { nc_shared_faces.Append(index); }
+         }
+         for (int i = 0; i < sfaces.slaves.Size(); i++)
+         {
+            int index = sfaces.slaves[i].index;
+            if (index < nfaces) { nc_shared_faces.Append(index); }
+         }
+      }
+   }
+
+   Array<bool> shared_face_marker(faces_info.Size());
+   shared_face_marker = false;
+   for (auto sf : *s2l_face)
+   {
+      shared_face_marker[sf] = true;
+   }
+
+   if (face_marker.Size() < faces_info.Size())
+   {
+      face_marker.SetSize(faces_info.Size());
+   }
+
+   for (int f = 0; f < faces_info.Size(); f++)
+   {
+      if (faces_info[f].Elem2No < 0 && !shared_face_marker[f])
+      {
+         face_marker[f] = 1;
+      }
+      else
+      {
+         face_marker[f] = 0;
+      }
+   }
+}
+
 void ParMesh::Swap(ParMesh &other)
 {
    Mesh::Swap(other, true);

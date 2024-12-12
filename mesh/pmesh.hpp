@@ -423,6 +423,9 @@ public:
    /// AMR meshes are supported.
    void GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const;
 
+   /// @brief Populate a marker array identifying exterior faces
+   void GetExteriorFaceMarker(Array<int> & face_marker) const override;
+
    GroupTopology gtopo;
 
    // Face-neighbor elements and vertices
