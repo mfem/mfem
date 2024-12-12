@@ -791,9 +791,47 @@ void DarcyForm::MultTranspose(const Vector &x, Vector &y) const
 
 Operator &DarcyForm::GetGradient(const Vector &x) const
 {
-   if (!Mnl) { return *block_op; }
+   const BlockVector bx(const_cast<Vector&>(x), offsets);
 
-   pG.Reset(new SumOperator(block_op, 1., &Mnl->GetGradient(x), 1., false, false));
+   if (!Mnl && !Mnl_u && !Mnl_p) { return *block_op; }
+
+   if (Mnl_u || Mnl_p)
+   {
+      if (!block_grad)
+      {
+         block_grad = new BlockOperator(offsets);
+      }
+
+      if (M_u)
+      {
+         block_grad->SetDiagonalBlock(0, M_u);
+      }
+      else if (Mnl_u)
+      {
+         block_grad->SetDiagonalBlock(0, &Mnl_u->GetGradient(bx.GetBlock(0)));
+      }
+
+      if (M_p)
+      {
+         block_grad->SetDiagonalBlock(1, M_p, (bsym)?(-1.):(+1.));
+      }
+      else if (Mnl_p)
+      {
+         block_grad->SetDiagonalBlock(1, &Mnl_p->GetGradient(bx.GetBlock(1)),
+                                      (bsym)?(-1.):(+1.));
+      }
+
+      if (B)
+      {
+         block_grad->SetBlock(0, 1, pBt.Ptr(), (bsym)?(-1.):(+1.));
+         block_grad->SetBlock(1, 0, B);
+      }
+
+      if (!Mnl) { return *block_grad; }
+   }
+
+   pG.Reset(new SumOperator((block_grad)?(block_grad):(block_op), 1.,
+                            &Mnl->GetGradient(x), 1., false, false));
    return *pG.Ptr();
 }
 
@@ -814,14 +852,15 @@ void DarcyForm::Update()
 
 DarcyForm::~DarcyForm()
 {
-   if (M_u) { delete M_u; }
-   if (M_p) { delete M_p; }
-   if (Mnl_u) { delete Mnl_u; }
-   if (Mnl_p) { delete Mnl_p; }
-   if (B) { delete B; }
-   if (Mnl) { delete Mnl; }
+   delete M_u;
+   delete M_p;
+   delete Mnl_u;
+   delete Mnl_p;
+   delete B;
+   delete Mnl;
 
    delete block_op;
+   delete block_grad;
 
    delete reduction;
    delete hybridization;

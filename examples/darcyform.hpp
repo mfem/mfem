@@ -41,6 +41,7 @@ class DarcyForm : public Operator
    AssemblyLevel assembly{AssemblyLevel::LEGACY};
 
    BlockOperator *block_op{};
+   mutable BlockOperator *block_grad{};
 
    DarcyReduction *reduction{}; ///< Owned.
    DarcyHybridization *hybridization{}; ///< Owned.
