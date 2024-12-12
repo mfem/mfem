@@ -50,13 +50,12 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    dbg("new_field: {}",new_field*new_field);
    Vector new_field_temp;
    new_field_temp =  new_field;
-   assert(false);
+
    for (int i = 0; i < ncomp; i++)
    {
       if (fes_ordering == Ordering::byNODES)
       {
-         assert(false);
-         new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+         new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt); // 🔥🔥🔥🔥
       }
       else
       {
@@ -74,14 +73,14 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
       // dbg("new_field_temp: {}",new_field_temp*new_field_temp);
       dbg("new_field: {}",new_field*new_field);
 
-      /*if (fes_ordering == Ordering::byVDIM)
+      if (fes_ordering == Ordering::byVDIM)
       {
          assert(false);
          for (int j = 0; j < pnt_cnt; j++)
          {
             new_field(i + j*ncomp) = new_field_temp(j);
          }
-      }*/
+      }
    }
 
    field0 = new_field;
@@ -446,7 +445,6 @@ void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
    }
    else
    {
-      assert(false);
       finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
    }
    dbg("\x1B[32m  new_field:{}",new_field*new_field);

@@ -1649,8 +1649,8 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
       ComputeElementTargets(e, fe, ir, elfun_nat, J);
       // Jtr.Read();
 
-      Vector j(J.HostReadWrite(), sdim* dim*NQ);
-      dbg("\x1B[32m j:{}",j*j);
+      // Vector j(J.HostReadWrite(), sdim* dim*NQ);
+      // dbg("\x1B[32m j:{}",j*j);
    }
 
    // const auto J = Reshape(J.Read(), 2, 2, Q1D, Q1D, NE);
@@ -1677,7 +1677,7 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                               const Vector &elfun,
                                               DenseTensor &Jtr) const
 {
-   dbg("e_id:{} target_type:{}",e_id, static_cast<uint32_t>(target_type));
+   // dbg("e_id:{} target_type:{}",e_id, static_cast<uint32_t>(target_type));
    MFEM_CONTRACT_VAR(elfun);
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
@@ -2192,7 +2192,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
              nqp = ir.GetNPoints();
    Jtrcomp.SetSize(dim, dim, 4*nqp);
 
-   dbg("tspec:{} {}",tspec*tspec, tspec.Norml2());
+   // dbg("tspec:{} {}",tspec*tspec, tspec.Norml2());
    FiniteElementSpace *src_fes = tspec_fesv;
 
    switch (target_type)
@@ -2214,7 +2214,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          // tspec.UseDevice(true);
          tspec.HostRead();
          tspec.GetSubVector(dofs, tspec_vals);
-         dbg("tspec_vals:{} {}",tspec_vals*tspec_vals, tspec_vals.Norml2());
+         // dbg("tspec_vals:{} {}",tspec_vals*tspec_vals, tspec_vals.Norml2());
          if (tspec_refine.NumCols() > 0) // Refinement
          {
             MFEM_VERIFY(amr_el >= 0, " Target being constructed for an AMR element.");
