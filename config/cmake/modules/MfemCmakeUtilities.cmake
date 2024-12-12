@@ -993,9 +993,9 @@ function(mfem_export_mk_files)
     "${PROJECT_BINARY_DIR}/config/test.mk" COPYONLY)
 
   # Update variables for the install-tree version of 'config.mk'
-  set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include")
-  set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
-  set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/share/mfem/test.mk")
+  set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/${INSTALL_INCLUDE_DIR}")
+  set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}")
+  set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/${INSTALL_SHARE_DIR}/mfem/test.mk")
   set(MFEM_CONFIG_EXTRA "")
 
   # Create the install-tree version of 'config.mk'
@@ -1005,8 +1005,9 @@ function(mfem_export_mk_files)
 
   # Install rules for 'config.mk' and 'test.mk'
   install(FILES ${PROJECT_SOURCE_DIR}/config/test.mk
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/)
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/${INSTALL_SHARE_DIR}/mfem/)
   install(FILES ${PROJECT_BINARY_DIR}/config/config-install.mk
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/ RENAME config.mk)
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/${INSTALL_SHARE_DIR}/mfem/
+    RENAME config.mk)
 
 endfunction()

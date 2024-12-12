@@ -629,15 +629,6 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
 	   $(INSTALLDEF) $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
 	done
-# install miniapp common libraries and headers if built
-	if ls $(BLD)miniapps/common/libmfem-common.* &> /dev/null; then \
-	   $(if $(static),$(INSTALLDEF) $(BLD)miniapps/common/libmfem-common.a $(PREFIX_LIB) &&) \
-	   $(if $(shared),$(INSTALLDEF) $(BLD)miniapps/common/libmfem-common.$(SO_VER) $(PREFIX_LIB) \
-	      && chmod $(INSTALL_BIN_PERM) $(PREFIX_LIB)/libmfem-common.$(SO_VER) \
-	      && ln -sf libmfem-common.$(SO_VER) $(PREFIX_LIB)/libmfem-common.$(SO_EXT) &&) \
-	   $(MKINSTALLDIR) $(PREFIX_INC)/mfem/miniapps/common && \
-	   $(INSTALLDEF) $(SRC)miniapps/common/*.hpp $(PREFIX_INC)/mfem/miniapps/common; \
-	fi
 # install *.okl files
 	for dir in $(OKL_DIRS); do \
 	   ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \

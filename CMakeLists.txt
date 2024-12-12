@@ -615,20 +615,37 @@ set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
   ${PROJECT_SOURCE_DIR}/mfem-performance.hpp)
 
-set(_lib_path "${CMAKE_INSTALL_PREFIX}/lib")
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
-set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
-set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
-
-set(INSTALL_INCLUDE_DIR include
-  CACHE PATH "Relative path for installing header files.")
-set(INSTALL_BIN_DIR bin
-  CACHE PATH "Relative path for installing the binaries.")
-set(INSTALL_LIB_DIR lib
-  CACHE PATH "Relative path for installing the library.")
+# Installation options
+set(MFEM_USE_GNUINSTALLDIRS OFF
+  CACHE BOOL "Enable to use the GNUInstallDirs CMake module.")
+if (NOT ${MFEM_USE_GNUINSTALLDIRS})
+  set(INSTALL_INCLUDE_DIR include
+    CACHE PATH "Relative path for installing header files.")
+  set(INSTALL_BIN_DIR bin
+    CACHE PATH "Relative path for installing the binaries.")
+  set(INSTALL_LIB_DIR lib
+    CACHE PATH "Relative path for installing the library.")
+  set(INSTALL_SHARE_DIR share
+    CACHE PATH "Relative path for installing shared data.")
+else()
+  include(GNUInstallDirs)
+  set(INSTALL_INCLUDE_DIR ${CMAKE_INSTALL_INCLUDEDIR}
+    CACHE PATH "Relative path for installing header files.")
+  set(INSTALL_BIN_DIR ${CMAKE_INSTALL_BINDIR}
+    CACHE PATH "Relative path for installing the binaries.")
+  set(INSTALL_LIB_DIR ${CMAKE_INSTALL_LIBDIR}
+    CACHE PATH "Relative path for installing the library.")
+  set(INSTALL_SHARE_DIR ${CMAKE_INSTALL_DATAROOTDIR}
+    CACHE PATH "Relative path for installing shared data.")
+endif()
 # other options: "share/mfem/cmake", "lib/mfem/cmake"
 set(INSTALL_CMAKE_DIR lib/cmake/mfem
   CACHE PATH "Relative path for installing cmake config files.")
+
+set(_lib_path "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
+set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
+set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
 
 set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH
     "The MFEM source directory" FORCE)
