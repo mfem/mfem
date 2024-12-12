@@ -367,6 +367,15 @@ public:
                              Array<int> &ess_tdof_list,
                              int component = -1) const override;
 
+   /// Determine the external degrees of freedom
+   void GetExteriorVDofs(Array<int> &ext_dofs,
+                          int component = -1) const override;
+
+   /** Get a list of external true dofs, ext_tdof_list, corresponding to the
+       face on the exterior of the mesh. */
+   void GetExteriorTrueDofs(Array<int> &ext_tdof_list,
+                             int component = -1) const override;
+
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */
    int GetLocalTDofNumber(int ldof) const;

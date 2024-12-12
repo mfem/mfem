@@ -1068,6 +1068,54 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
+void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
+					     int component) const
+{
+   FiniteElementSpace::GetExteriorVDofs(ext_dofs, component);
+
+   // Make sure that processors without boundary elements mark
+   // their boundary dofs (if they have any).
+   Synchronize(ext_dofs);
+}
+
+void ParFiniteElementSpace::GetExteriorTrueDofs(Array<int> &ext_tdof_list,
+						int component) const
+{
+   Array<int> ext_dofs, true_ext_dofs;
+
+   GetExteriorVDofs(ext_dofs, component);
+   GetRestrictionMatrix()->BooleanMult(ext_dofs, true_ext_dofs);
+
+#ifdef MFEM_DEBUG
+   // Verify that in boolean arithmetic: P^T ext_dofs = R ext_dofs.
+   Array<int> true_ext_dofs2(true_ext_dofs.Size());
+   auto Pt = std::unique_ptr<HypreParMatrix>(Dof_TrueDof_Matrix()->Transpose());
+
+   const int *ext_dofs_data = ext_dofs.HostRead();
+   Pt->BooleanMult(1, ext_dofs_data, 0, true_ext_dofs2);
+   int counter = 0;
+   const int *ted = true_ext_dofs.HostRead();
+   std::string error_msg = "failed dof: ";
+   for (int i = 0; i < true_ext_dofs.Size(); i++)
+   {
+      if (bool(ted[i]) != bool(true_ext_dofs2[i]))
+      {
+         error_msg += std::to_string(i) += "(R ";
+         error_msg += std::to_string(bool(ted[i])) += " P^T ";
+         error_msg += std::to_string(bool(true_ext_dofs2[i])) += ") ";
+         ++counter;
+      }
+   }
+   MFEM_ASSERT(R->Height() == P->Width(), "!");
+   MFEM_ASSERT(R->Width() == P->Height(), "!");
+   MFEM_ASSERT(R->Width() == ext_dofs.Size(), "!");
+   MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
+               << ", rank = " << MyRank << ", " << error_msg);
+#endif
+
+   MarkerToList(true_ext_dofs, ext_tdof_list);
+}
+
 int ParFiniteElementSpace::GetLocalTDofNumber(int ldof) const
 {
    if (Nonconforming())
