@@ -89,6 +89,22 @@ inline double nu_art(double x)
    return (1e14*exp(-x/0.1));
 }
 
+std::complex<double> first_harm_kinetic_S(std::complex<double> w_c, std::complex<double> w_p, 
+                                          std::complex<double> vth, double omega,
+                                                   double kparallel);
+
+std::complex<double> second_harm_kinetic_S(std::complex<double> w_c, std::complex<double> w_p, 
+                                           std::complex<double> vth, double omega,
+                                                   double kparallel, double kperp);
+
+std::complex<double> first_harm_kinetic_D(std::complex<double> w_c, std::complex<double> w_p, 
+                                          std::complex<double> vth, double omega,
+                                                   double kparallel);
+
+std::complex<double> second_harm_kinetic_D(std::complex<double> w_c, std::complex<double> w_p, 
+                                           std::complex<double> vth, double omega,
+                                                   double kparallel, double kperp);
+
 void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag,
                            double nue, double nui,
                            const Vector & number,
@@ -801,7 +817,8 @@ public:
               POLOIDAL_H_MODE_TEMP   = 11,
               POLOIDAL_CORE          = 12,
               POLOIDAL_SOL           = 13,
-              POLOIDAL_MIN_TEMP      = 14
+              POLOIDAL_MIN_TEMP      = 14,
+              RHO_CORE               = 15
              };
 
 private:
@@ -821,7 +838,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[15] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 1, 8, 8, 5, 2};
+   const int np_[16] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 1, 8, 8, 5, 2, 4};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section

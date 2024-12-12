@@ -25,6 +25,61 @@ complex<double> Zfunction(complex<double> xi)
    return complex<double>(0,1)*sqrt(M_PI)*Faddeeva::w(xi);
 }
 
+complex<double> first_harm_kinetic_S(complex<double> w_c, complex<double> w_p, 
+                                     complex<double> vth, double omega,
+                                                   double kparallel)
+{
+   // n > 0:
+   complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
+
+   // n < 0:
+   complex<double> Zm = Zfunction((omega + w_c)/(kparallel*vth));
+
+   return ((pow(w_p,2.0)/omega)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm));
+}
+
+complex<double> second_harm_kinetic_S(complex<double> w_c, complex<double> w_p, 
+                                      complex<double> vth, double omega,
+                                                   double kparallel, double kperp)
+{
+   complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
+   // n > 0:
+   complex<double> Zp = Zfunction((omega - 2.0*w_c)/(kparallel*vth));
+
+   // n < 0:
+   complex<double> Zm = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
+   
+   return ((pow(w_p,2.0)/omega)*lambda*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm));
+}
+
+complex<double> first_harm_kinetic_D(complex<double> w_c, complex<double> w_p, 
+                                     complex<double> vth, double omega,
+                                                   double kparallel)
+{
+   // n > 0:
+   complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
+
+   // n < 0:
+   complex<double> Zm = Zfunction((omega + w_c)/(kparallel*vth));
+
+   return ((pow(w_p,2.0)/omega)*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm));
+
+}
+
+complex<double> second_harm_kinetic_D(complex<double> w_c, complex<double> w_p, 
+                                     complex<double> vth, double omega,
+                                                   double kparallel, double kperp)
+{
+   std::complex<double> lambda = pow(kperp*vth,2.0)/(2.0*pow(w_c,2.0));
+   // n > 0:
+   std::complex<double> Zp = Zfunction((omega - 2.0*w_c)/(kparallel*vth));
+
+   // n < 0:
+   std::complex<double> Zm = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
+   
+   return ((pow(w_p,2.0)/omega)*lambda*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm));
+}
+
 void StixCoefs_cold_plasma(Vector &V,
                            double omega,
                            double Bmag,
@@ -294,42 +349,11 @@ complex<double> S_cold_plasma(double omega,
             +10.0*comp_val*exp(LHres)+40.0*comp_val*exp(FWres);
          }
       }
-      // SPARC Case 1: D-T (He3 Minority)
-      // First Harmonic:
-      
-      else if (i == 1 || i == 3)
+      else
       {
-         // Z function:
-         double kperpFW = 0.0;
-         if (i == 1) {kperpFW = 47.617099;}
-         else if (i == 3) {kperpFW = 72.12776;}
-         complex<double>  lambda = pow(kperpFW*vth,2.0)/(2.0*pow(w_c,2.0));
-
-         // n > 0:
-         complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
-
-         // n < 0:
-         complex<double> Zm = Zfunction((omega + w_c)/(kparallel*vth));
-
-         // Total particle susceptibility contribution:
-         suscept_particle = (pow(w_p,
-                                 2.0)/omega)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm);
-      }
-
-      // Second Harmonic:
-      else if (i == 2)
-      {
-         complex<double> lambda = pow(72.12776*vth,2.0)/(2.0*pow(w_c,2.0));
-         // n > 0:
-         complex<double> Zp1 = Zfunction((omega - w_c)/(kparallel*vth));
-         complex<double> Zp2 = Zfunction((omega - 2.0*w_c)/(kparallel*vth));
-
-         // n < 0:
-         complex<double> Zm1 = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
-         complex<double> Zm2 = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
-
-         complex<double> first_harm = (pow(w_p,2.0)/omega)*(0.5)*(1.0/(kparallel*vth))*(Zp1+Zm1);
-         complex<double> second_harm = (pow(w_p,2.0)/omega)*lambda*(0.5)*(1.0/(kparallel*vth))*(Zp2+Zm2);
+         double kperp = 72.12776;
+         complex<double> first_harm = first_harm_kinetic_S(w_c, w_p, vth, omega, kparallel);
+         complex<double> second_harm = second_harm_kinetic_S(w_c, w_p, vth, omega, kparallel,kperp);
 
          // Total particle susceptibility contribution:
          suscept_particle = first_harm + second_harm;
@@ -452,40 +476,11 @@ complex<double> D_cold_plasma(double omega,
             -10.0*comp_val*exp(FWcutoff1)-10.0*comp_val*exp(FWcutoff2);            
          }
       }
-      // SPARC Case 1: D-T (He3 Minority)
-      // First Harmonic:
-      else if (i == 1 || i == 3)
+      else
       {
-         // Z function:
-         double kperpFW = 0.0;
-         if (i == 1) {kperpFW = 47.617099;}
-         else if (i == 3) {kperpFW = 72.12776;}
-         complex<double>  lambda = pow(kperpFW*vth,2.0)/(2.0*pow(w_c,2.0));
-
-         // n > 0:
-         complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
-
-         // n < 0:
-         complex<double> Zm = Zfunction((omega + w_c)/(kparallel*vth));
-
-         // Total particle susceptibility contribution:
-         suscept_particle = (pow(w_p,
-                                 2.0)/omega)*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm);
-      }
-      // Second Harmonic:
-      else if (i == 2)
-      {
-         complex<double> lambda = pow(72.12776*vth,2.0)/(2.0*pow(w_c,2.0));
-         // n > 0:
-         complex<double> Zp1 = Zfunction((omega - w_c)/(kparallel*vth));
-         complex<double> Zp2 = Zfunction((omega - 2.0*w_c)/(kparallel*vth));
-
-         // n < 0:
-         complex<double> Zm1 = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
-         complex<double> Zm2 = Zfunction((omega + 2.0*w_c)/(kparallel*vth));
-
-         complex<double> first_harm = (pow(w_p,2.0)/omega)*(-0.5)*(1.0/(kparallel*vth))*(Zp1-Zm1);
-         complex<double> second_harm = (pow(w_p,2.0)/omega)*lambda*(-0.5)*(1.0/(kparallel*vth))*(Zp2-Zm2);
+         double kperp = 72.12776;
+         complex<double> first_harm = first_harm_kinetic_D(w_c, w_p, vth, omega, kparallel);
+         complex<double> second_harm = second_harm_kinetic_D(w_c, w_p, vth, omega, kparallel,kperp);
 
          // Total particle susceptibility contribution:
          suscept_particle = first_harm + second_harm;
@@ -2326,19 +2321,19 @@ double PlasmaProfile::EvalByType(Type type,
          */
          double ne2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
                                            -1.0) + pmin2;
-         double pval = ne1 + ne2;
+         //double pval = ne1 + ne2;
 
-         /*
-         double pmax = params[0];
-         double pmin = params[1];
-         double nuee = 1.0;
-         double nuei = 1.5;
+         
+         double pmax = 2.15e20;
+         double pmin = 2.1e19;
+         double nuee = 2.3;
+         double nuei = 0.6;
          double pval = pmin;
          if (val < 1.0 && bool_limits == 1)
          {
             pval = (pmax - pmin)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin;
          }
-         */
+         
          return pval;
       }
       break;
@@ -2473,6 +2468,39 @@ double PlasmaProfile::EvalByType(Type type,
 
          return temp*exp(-pow(r-sincfunc, 2.0)/width) - 0.3*temp*pow(z,
                                                                      2.0)*exp(-pow(r-sincfunc, 2.0)/width);
+      }
+      break;
+      case RHO_CORE:
+      {
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r; xTokVec[1] = z;
+
+         double psiRZ = 0.0;
+         psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+
+         double psiRZ_center = eqdsk_->GetPsiCenter();
+         double psiRZ_edge = eqdsk_->GetPsiBdry();
+
+         int bool_limits = 0;
+
+         if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
+
+         double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+         
+         double pmax = params[0];
+         double pmin = params[1];
+         double nuei = params[2];
+         double nuee = params[3];
+         double pval = pmin;
+         if (val < 1.0 && bool_limits == 1)
+         {
+            pval = (pmax - pmin)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin;
+         }
+         return pval;
       }
       break;
       default:
