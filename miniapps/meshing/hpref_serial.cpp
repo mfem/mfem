@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
       a.Assemble();
 
       OperatorPtr A;
-      Vector B, X;
+      Vector B;
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
       // 11. Solve the linear system A X = B.
