@@ -68,7 +68,9 @@ void BatchedLOR_DG::Assemble2D()
             {
                for (int e_i = 0; e_i < 2; ++e_i)
                {
-                  const int v_idx = e_i + n_idx*2 + 1;
+                  static int lex_map[] = {4, 2, 1, 3};
+                  const int v_idx_lex = e_i + n_idx*2;
+                  const int v_idx = lex_map[v_idx_lex];
 
                   const int i_0 = (n_idx == 0) ? ix + e_i : ix;
                   const int j_0 = (n_idx == 1) ? iy + e_i : iy;
@@ -82,13 +84,16 @@ void BatchedLOR_DG::Assemble2D()
                   const real_t h_face =1.0;
                   const real_t h_el = 1.0; // from X_vert
                   const real_t h = h_face/h_el;
-                  const int w_idx = (n_idx == 0) ? ix : iy;
+                  const int w_idx = (n_idx == 0) ? iy : ix;
                   const int int_idx = (n_idx == 0) ? i_0 : j_0;
-                  if (bdr){
-                     V(v_idx, ix, iy, iel_ho) = -dq*kappa * w_1d[w_idx] * detJ(ix, iy,iel_ho)/h;
+                  if (bdr)
+                  {
+                     V(v_idx, ix, iy, iel_ho) = -dq * kappa * w_1d[w_idx] * detJ(ix, iy,iel_ho)/h;
                   }
-                  else{
-                     V(v_idx, ix, iy, iel_ho) = -dq * w_1d[w_idx] / (ir_pp1[int_idx].x - ir_pp1[int_idx-1].x);
+                  else
+                  {
+                     V(v_idx, ix, iy, iel_ho) = -dq * w_1d[w_idx] / (ir_pp1[int_idx].x -
+                                                                     ir_pp1[int_idx-1].x);
                   }
                }
             }
