@@ -20,6 +20,7 @@
 
 #include <vector>
 #include <map>
+#include <memory>
 
 namespace mfem
 {
@@ -286,8 +287,7 @@ public:
    /// Returns a rule for the element.
    IntegrationRule &GetElementRule(const int elem, const int patch,
                                    const int *ijk,
-                                   Array<const KnotVector*> const& kv,
-                                   bool & deleteRule) const;
+                                   Array<const KnotVector*> const& kv) const;
 
    /// Add a rule to be used for individual elements. Returns the rule index.
    std::size_t AddElementRule(IntegrationRule *ir_element)
@@ -360,6 +360,13 @@ private:
 
    std::vector<Array3D<int>> pointToElem;
    std::vector<std::vector<Array<int>>> patchRules1D_KnotSpan;
+
+#ifndef MFEM_THREAD_SAFE
+   // This is a temporary quadrature rule for integrating over the
+   // current element in an assembly loop. It may be modified when
+   // moving to a new element, and is therefore not thread-safe.
+   mutable IntegrationRule temporaryElementRule;
+#endif
 
    const int npatches;
    const int dim;
