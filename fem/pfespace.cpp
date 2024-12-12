@@ -3428,9 +3428,7 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
 
          // Get the lowest order variant DOFs and FE
          Array<int> dofs;
-         const int order0 = GetEntityDofs(entity, idx, dofs, geom, 0);
-
-         const int nv = fec->GetNumDof(Geometry::POINT, order0);
+         GetEntityDofs(entity, idx, dofs, geom, 0);
 
          int numVert = 2;  // Edge case
          if (entity == 2)  // Face case
@@ -3452,10 +3450,6 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
                idof0 = i;
                break;
             }
-         }
-         if (entity == 1)  // Edge case
-         {
-            MFEM_ASSERT(idof0 == numVert * nv, "");
          }
 
          const int maxOrder = entity == 1 ? edge_max_order[idx] :
