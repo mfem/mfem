@@ -114,11 +114,15 @@
 #include <fstream>
 #include "mesh-optimizer.hpp"
 
+#define NVTX_COLOR ::gpu::nvtx::color_names::kYellow
+#include "general/nvtx.hpp"
+
 using namespace mfem;
 using namespace std;
 
 int main (int argc, char *argv[])
 {
+   NVTX_MARK_FUNCTION;
    // 0. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int myid = Mpi::WorldRank();

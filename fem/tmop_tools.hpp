@@ -29,7 +29,7 @@ private:
    Vector field0;
    const real_t dt_scale;
    const AssemblyLevel al;
-   MemoryType opt_mt = MemoryType::DEFAULT;
+   MemoryType opt_mt = MemoryType::PRESERVE;//DEFAULT;
 
    void ComputeAtNewPositionScalar(const Vector &new_nodes, Vector &new_field);
 public:

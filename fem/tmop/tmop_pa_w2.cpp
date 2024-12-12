@@ -16,6 +16,9 @@
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
 
+#define NVTX_COLOR ::gpu::nvtx::color_names::kLightSkyBlue
+#include "general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -99,6 +102,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   dbg("Q1D:{}",Q1D);
    const auto MC = const_m0 ?
                    Reshape(mc_.Read(), 1, 1, 1) :
                    Reshape(mc_.Read(), Q1D, Q1D, NE);
@@ -111,6 +115,7 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
 
    const real_t *metric_data = metric_param.Read();
+   dbg("metric_data_0:{} metric_data_1:{}", metric_data[0], metric_data[1]);
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -140,6 +145,13 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
             const real_t m_coef = const_m0 ? MC(0,0,0) : MC(qx,qy,e);
             const real_t weight = metric_normal * m_coef * W(qx,qy) * detJtr;
 
+            // dbg("\x1B[31m detJtr:{}", detJtr); // 🔥
+
+            // dbg("\x1B[32m m_coef:{}", m_coef);
+            // dbg("\x1B[33m metric_normal:{}", metric_normal);
+            // dbg("\x1B[34m W:{}", W(qx,qy));
+            // dbg("\x1B[35m weight:{}", weight);
+
             // Jrt = Jtr^{-1}
             real_t Jrt[4];
             kernels::CalcInverse<2>(Jtr, Jrt);
@@ -151,6 +163,8 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
             // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
             real_t Jpt[4];
             kernels::Mult(2,2,2,Jpr,Jrt,Jpt);
+            // dbg("e:{} qx:{} qy:{} Jpt:{} {} {} {}", e, qx, qy, //
+            //     Jpt[0], Jpt[1], Jpt[2], Jpt[3]);
 
             // metric->EvalW(Jpt);
             const real_t EvalW =
@@ -160,11 +174,13 @@ MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_2D,
                mid == 77 ? EvalW_077(Jpt) :
                mid == 80 ? EvalW_080(Jpt, metric_data) :
                mid == 94 ? EvalW_094(Jpt, metric_data) : 0.0;
-
+            assert(mid==94);
             E(qx,qy,e) = weight * EvalW;
          }
       }
    });
+   // dbg("ones:{}", ones*ones);
+   // dbg("energy:{}", energy*energy);
    return energy * ones;
 }
 
@@ -184,11 +200,22 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   Array<real_t> mp;
+   Array<real_t> mp(2, Device::GetDeviceMemoryType());
+   // Array<real_t> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
    {
+      mp.HostReadWrite();
       m->GetWeights(mp);
+      dbg("mp:{}",mp.Size());
+      dbg("mp0:{} mp1:{}",mp[0],mp[1]);
    }
+
+   dbg("mn:{}", mn);
+   dbg("MC:{}", MC*MC);
+
+   dbg("X:{}", X*X);
+   dbg("O:{}", O*O);
+   dbg("E:{}", E*E);
 
    MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,MC,mp,M,N,J,W,B,G,X,O,E);
 }

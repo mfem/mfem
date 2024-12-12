@@ -14,6 +14,9 @@
 #include "pnonlinearform.hpp"
 #include "../general/osockstream.hpp"
 
+#define NVTX_COLOR ::gpu::nvtx::color_names::kCyan
+#include "general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -30,17 +33,21 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
                                       Vector &new_field,
                                       int new_nodes_ordering)
 {
+   dbg("new_nodes: {}",new_nodes*new_nodes);
+   dbg("field0: {}",field0*field0);
    FiniteElementSpace *space = fes;
 #ifdef MFEM_USE_MPI
    if (pfes) { space = pfes; }
 #endif
    int fes_ordering = space->GetOrdering(),
        ncomp = space->GetVDim();
+   dbg("fes_ordering:{}",fes_ordering);
 
    // TODO: Implement for AMR meshes.
    const int pnt_cnt = field0.Size() / ncomp;
 
    new_field = field0;
+   dbg("new_field: {}",new_field*new_field);
    Vector new_field_temp;
    for (int i = 0; i < ncomp; i++)
    {
@@ -56,7 +63,13 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
             new_field_temp(j) = new_field(i + j*ncomp);
          }
       }
+      dbg("new_nodes: {}",new_nodes*new_nodes);
+      dbg("new_field_temp: {}",new_field_temp*new_field_temp);
+      dbg("new_field: {}",new_field*new_field);
       ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+      // dbg("new_field_temp: {}",new_field_temp*new_field_temp);
+      dbg("new_field: {}",new_field*new_field);
+
       if (fes_ordering == Ordering::byVDIM)
       {
          for (int j = 0; j < pnt_cnt; j++)
@@ -67,12 +80,15 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    }
 
    field0 = new_field;
+   dbg("field0: {}",field0*field0);
    nodes0 = new_nodes;
+   dbg("nodes0: {}",nodes0*nodes0);
 }
 
 void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
                                             Vector &new_field)
 {
+   dbg();
    Mesh *m = mesh;
 #ifdef MFEM_USE_MPI
    if (pmesh) { m = pmesh; }
@@ -84,6 +100,8 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    GridFunction *mesh_nodes = m->GetNodes();
    *mesh_nodes = nodes0;
    real_t minv = new_field.Min(), maxv = new_field.Max();
+   dbg("\x1B[32m minv:{}",minv);
+   dbg("\x1B[32m maxv:{}",minv);
 
    // Velocity of the positions.
    GridFunction u(mesh_nodes->FESpace());
@@ -117,9 +135,11 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    {
       h_min = std::min(h_min, m->GetElementSize(i));
    }
+   dbg("\x1B[32m h_min:{}",h_min);
    real_t v_max = 0.0;
    const int s  = u.Size()/m->Dimension();
 
+   dbg("\x1B[32m u:{}",u*u);
    u.HostReadWrite();
    for (int i = 0; i < s; i++)
    {
@@ -130,6 +150,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
       }
       v_max = std::max(v_max, vel);
    }
+   dbg("\x1B[32m v_max:{}",v_max);
 
 #ifdef MFEM_USE_MPI
    if (pfes)
@@ -141,6 +162,8 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
                     pfes->GetComm());
    }
 #endif
+   dbg("\x1B[32m h_min:{}",h_min);
+   dbg("\x1B[32m v_max:{}",v_max);
 
    if (v_max == 0.0) // No need to change the field.
    {
@@ -154,7 +177,9 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
    v_max = std::sqrt(v_max);
    real_t dt = dt_scale * h_min / v_max;
+   dbg("\x1B[32m dt:{}",dt);
 
+   dbg("\x1B[32m new_field:{}",new_field*new_field);
    real_t t = 0.0;
    bool last_step = false;
    while (!last_step)
@@ -166,6 +191,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
       }
       ode_solver.Step(new_field, t, dt);
    }
+   dbg("\x1B[32m new_field:{}",new_field*new_field);
 
    real_t glob_minv = minv,
           glob_maxv = maxv;
@@ -178,6 +204,8 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
                     pfes->GetComm());
    }
 #endif
+   dbg("\x1B[32m glob_minv:{}",glob_minv);
+   dbg("\x1B[32m glob_maxv:{}",glob_maxv);
 
    // Trim the overshoots and undershoots.
    new_field.HostReadWrite();
@@ -186,6 +214,8 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
       if (new_field(i) < glob_minv) { new_field(i) = glob_minv; }
       if (new_field(i) > glob_maxv) { new_field(i) = glob_maxv; }
    }
+   new_field.Read(); // 🔥🔥🔥🔥
+   // dbg("\x1B[32m new_field:{}",new_field*new_field);
 
    delete oper;
    delete fess;
@@ -451,6 +481,8 @@ void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
 real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                                               const Vector &b) const
 {
+   NVTX_MARK_FUNCTION;
+   dbg("x:{} b:{}", x*x, b*b);
    const FiniteElementSpace *fes = NULL;
    real_t energy_in = 0.0;
 #ifdef MFEM_USE_MPI
@@ -470,6 +502,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       fes = nlf->FESpace();
       energy_in = nlf->GetEnergy(x);
    }
+   dbg("\x1B[33m energy_in: {}", energy_in); // ✅
 
    // Get the local prolongation of the solution vector.
    Vector x_out_loc(fes->GetVSize(),
@@ -486,6 +519,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       fes->GetProlongationMatrix()->Mult(x, x_out_loc);
    }
 #endif
+   dbg("\x1B[34m x_out_loc: {}", x_out_loc*x_out_loc); //
 
    real_t scale = 1.0;
    bool fitting = IsSurfaceFittingEnabled();
@@ -521,6 +555,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    // Check if the starting mesh (given by x) is inverted. Note that x hasn't
    // been modified by the Newton update yet.
    const real_t min_detT_in = ComputeMinDet(x_out_loc, *fes);
+   dbg("\x1B[33m min_detT_in: {}", min_detT_in); // ✅
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const real_t untangle_factor = 1.5;
    if (untangling)
@@ -551,6 +586,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    // Perform the line search.
    for (int i = 0; i < 12; i++)
    {
+      dbg("i:{}", i);
       avg_fit_err = 0.0;
       max_fit_err = 0.0;
 
@@ -565,9 +601,12 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #ifdef MFEM_USE_MPI
       else { fes->GetProlongationMatrix()->Mult(x_out, x_out_loc); }
 #endif
+      dbg("\x1B[34m x_out_loc: {}", x_out_loc*x_out_loc); //
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc, *fes);
+      dbg("\x1B[33m min_detT_out: {}", min_detT_out); //
+
       if (untangling == false && min_detT_out <= min_detJ_limit)
       {
          // No untangling, and detJ got negative (or small) -- no good.
@@ -594,11 +633,13 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in total energy.
       ProcessNewState(x_out);
+      dbg("\x1B[33m x_out: {}", x_out*x_out); //
 
       // Ensure sufficient decrease in fitting error if we are trying to
       // converge based on error.
       if (fitting && surf_fit_converge_error)
       {
+         dbg("fitting");
          GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
          if (max_fit_err >= 1.2*init_fit_max_err)
          {
@@ -610,6 +651,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          }
       }
 
+      dbg("Serial:{}", serial);
       if (serial)
       {
          energy_out = nlf->GetGridFunctionEnergy(x_out_loc);
@@ -620,6 +662,10 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          energy_out = p_nlf->GetParGridFunctionEnergy(x_out_loc);
       }
 #endif
+      dbg("energy_out: {}", energy_out);
+      // assert(AlmostEq(energy_out, 0.7791684091777566) && "❌❌❌❌");
+      // assert(false && "✅✅✅✅");
+
       if (energy_out > energy_in + 0.2*fabs(energy_in) ||
           std::isnan(energy_out) != 0)
       {

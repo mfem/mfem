@@ -15,6 +15,9 @@
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
 
+#define NVTX_COLOR ::gpu::nvtx::color_names::kMoccasin
+#include "general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -1565,6 +1568,8 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
    const Vector &xe,
    DenseTensor &Jtr) const
 {
+   dbg("xe:{} {}",xe*xe, xe.Norml2());
+
    // Fallback to the 1-element method, ComputeElementTargets()
 
    // When UsesPhysicalCoordinates() == true, we assume 'xe' uses
@@ -1584,8 +1589,17 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
    MFEM_VERIFY(!UsesPhysicalCoordinates() ||
                xe.Size() == NE*nvdofs, "invalid input Vector 'xe'!");
    const int NQ = ir.GetNPoints();
-   const Array<int> *dof_map = nullptr;
-   if (UsesPhysicalCoordinates())
+   // const Array<int> *dof_map = nullptr;
+
+   dbg("UsesPhysicalCoordinates:{}",UsesPhysicalCoordinates());
+   {
+      assert(sdim==2); assert(dim==2);
+      assert(Jtr.TotalSize() == 2*2*NQ*NE);
+      Vector jtr(Jtr.HostReadWrite(), 2* 2*NQ*NE);
+      dbg("Jtr:{}",jtr*jtr);
+   }
+
+   /*if (UsesPhysicalCoordinates())
    {
       const TensorBasisElement *tfe =
          dynamic_cast<const TensorBasisElement *>(&fe);
@@ -1594,23 +1608,25 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
          dof_map = &tfe->GetDofMap();
          if (dof_map->Size() == 0) { dof_map = nullptr; }
       }
-   }
+   }*/
 
    Vector elfun_lex, elfun_nat;
    DenseTensor J;
    xe.HostRead();
-   Jtr.HostWrite();
-   if (UsesPhysicalCoordinates() && dof_map != nullptr)
+   Jtr.HostReadWrite();
+   /*if (UsesPhysicalCoordinates() && dof_map != nullptr)
    {
       elfun_nat.SetSize(nvdofs);
-   }
+   }*/
    for (int e = 0; e < NE; e++)
    {
-      if (UsesPhysicalCoordinates())
+      /*if (UsesPhysicalCoordinates())
       {
+         assert(false);
          if (!dof_map)
          {
             elfun_nat.SetDataAndSize(xe.GetData()+e*nvdofs, nvdofs);
+            dbg("elfun_nat!:{}",elfun_nat*elfun_nat);
          }
          else
          {
@@ -1624,11 +1640,18 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
                      elfun_lex[i_lex+d*ndofs];
                }
             }
+            dbg("elfun_nat:{}",elfun_nat*elfun_nat);
          }
-      }
+      }*/
       J.UseExternalData(Jtr(e*NQ).Data(), sdim, dim, NQ);
       ComputeElementTargets(e, fe, ir, elfun_nat, J);
+      // Vector j(J.HostReadWrite(), sdim* dim*NQ);
+      // dbg("j:{}",j*j);
    }
+
+   // const auto J = Reshape(J.Read(), 2, 2, Q1D, Q1D, NE);
+   // Vector jtr(Jtr.HostReadWrite(), 2* 2* NQ* NE);
+   // dbg("Jtr:{}",jtr*jtr);
 }
 
 bool TargetConstructor::ContainsVolumeInfo() const
@@ -1650,6 +1673,7 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                               const Vector &elfun,
                                               DenseTensor &Jtr) const
 {
+   dbg("e_id:{} target_type:{}",e_id, static_cast<uint32_t>(target_type));
    MFEM_CONTRACT_VAR(elfun);
    MFEM_ASSERT(target_type == IDEAL_SHAPE_UNIT_SIZE || nodes != NULL, "");
 
@@ -1744,6 +1768,7 @@ void AnalyticAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                             const Vector &elfun,
                                             DenseTensor &Jtr) const
 {
+   dbg("e_id:{} target_type:{}",e_id, static_cast<uint32_t>(target_type));
    DenseMatrix point_mat;
    point_mat.UseExternalData(elfun.GetData(), fe.GetDof(), fe.GetDim());
 
@@ -1822,6 +1847,7 @@ static inline void device_copy(real_t *d_dest, const real_t *d_src, int size)
 #ifdef MFEM_USE_MPI
 void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
 {
+   dbg();
    MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
@@ -1847,6 +1873,7 @@ void DiscreteAdaptTC::FinalizeParDiscreteTargetSpec(const ParGridFunction &t)
 
 void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
 {
+   dbg();
    ptspec_fesv->Update();
    if (tspec_fesv)
    {
@@ -1865,6 +1892,7 @@ void DiscreteAdaptTC::ParUpdateAfterMeshTopologyChange()
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const ParGridFunction &tspec_)
 {
+   dbg();
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
    MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTspecAtIndex.");
@@ -1924,6 +1952,7 @@ void DiscreteAdaptTC::SetParDiscreteTargetSpec(const ParGridFunction &tspec_)
 
 void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
+   dbg();
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
    ncomp += vdim;
@@ -1947,6 +1976,7 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 
 void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
+   dbg();
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
    MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTspecAtIndex.");
@@ -2000,6 +2030,7 @@ void DiscreteAdaptTC::SetSerialDiscreteTargetOrientation(const GridFunction &o)
 
 void DiscreteAdaptTC::FinalizeSerialDiscreteTargetSpec(const GridFunction &t)
 {
+   dbg();
    MFEM_VERIFY(adapt_eval, "SetAdaptivityEvaluator() has not been called!")
    MFEM_VERIFY(ncomp > 0, "No target specifications have been set!");
 
@@ -2026,7 +2057,7 @@ void DiscreteAdaptTC::GetDiscreteTargetSpec(GridFunction &tspec_, int idx)
              vdim = tspec_.FESpace()->GetVDim();
    MFEM_VERIFY(ndof == tspec.Size()/ncomp,
                "Inconsistency in GetSerialDiscreteTargetSpec.");
-
+   assert(false);
    for (int i = 0; i < ndof*vdim; i++)
    {
       tspec_(i) = tspec(i + idx*ndof);
@@ -2035,6 +2066,7 @@ void DiscreteAdaptTC::GetDiscreteTargetSpec(GridFunction &tspec_, int idx)
 
 void DiscreteAdaptTC::UpdateAfterMeshTopologyChange()
 {
+   dbg();
    tspec_fesv->Update();
    tspec_gf->Update();
    tspec.SetDataAndSize(tspec_gf->GetData(), tspec_gf->Size());
@@ -2054,19 +2086,25 @@ void DiscreteAdaptTC::UpdateTargetSpecification(const Vector &new_x,
                                                 bool reuse_flag,
                                                 int new_x_ordering)
 {
+   dbg();
+   dbg("\x1B[33m tspec:{} {}",tspec*tspec, tspec.Norml2());
    if (reuse_flag && good_tspec) { return; }
+
+   dbg("new_x:{} {} reuse_flag:{}",new_x*new_x, new_x.Norml2(), reuse_flag);
 
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
    adapt_eval->ComputeAtNewPosition(new_x, tspec, new_x_ordering);
    tspec_sav = tspec;
 
    good_tspec = reuse_flag;
+   dbg("\x1B[33m tspec:{} {}",tspec*tspec, tspec.Norml2());
 }
 
 void DiscreteAdaptTC::UpdateTargetSpecification(Vector &new_x,
                                                 Vector &IntData,
                                                 int new_x_ordering)
 {
+   dbg();
    adapt_eval->ComputeAtNewPosition(new_x, IntData, new_x_ordering);
 }
 
@@ -2075,6 +2113,7 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                                       int dofidx, int dir,
                                                       const Vector &IntData)
 {
+   dbg();
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
 
    Array<int> dofs;
@@ -2090,11 +2129,13 @@ void DiscreteAdaptTC::UpdateTargetSpecificationAtNode(const FiniteElement &el,
 void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
                                                        int dofidx)
 {
+   dbg();
    MFEM_VERIFY(tspec.Size() > 0, "Target specification is not set!");
 
    Array<int> dofs;
    tspec_fesv->GetElementDofs(T.ElementNo, dofs);
    const int cnt = tspec.Size()/ncomp;
+   assert(false);
    for (int i = 0; i < ncomp; i++)
    {
       tspec(dofs[dofidx] + i*cnt) = tspec_sav(dofs[dofidx] + i*cnt);
@@ -2104,6 +2145,7 @@ void DiscreteAdaptTC::RestoreTargetSpecificationAtNode(ElementTransformation &T,
 void DiscreteAdaptTC::SetTspecFromIntRule(int e_id,
                                           const IntegrationRule &intrule)
 {
+   dbg();
    switch (target_type)
    {
       case IDEAL_SHAPE_GIVEN_SIZE:
@@ -2140,11 +2182,13 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                                             const Vector &elfun,
                                             DenseTensor &Jtr) const
 {
+   // dbg("e_id:{} target_type:{}",e_id, static_cast<uint32_t>(target_type));
    MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");
    const int dim = fe.GetDim(),
              nqp = ir.GetNPoints();
    Jtrcomp.SetSize(dim, dim, 4*nqp);
 
+   // dbg("tspec:{} {}",tspec*tspec, tspec.Norml2());
    FiniteElementSpace *src_fes = tspec_fesv;
 
    switch (target_type)
@@ -2163,8 +2207,10 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
          Array<int> dofs;
          DenseMatrix D_rho(dim), Q_phi(dim), R_theta(dim);
          tspec_fesv->GetElementVDofs(e_id, dofs);
-         tspec.UseDevice(true);
+         // tspec.UseDevice(true);
+         // tspec.HostRead();
          tspec.GetSubVector(dofs, tspec_vals);
+         // dbg("tspec_vals:{} {}",tspec_vals*tspec_vals, tspec_vals.Norml2());
          if (tspec_refine.NumCols() > 0) // Refinement
          {
             MFEM_VERIFY(amr_el >= 0, " Target being constructed for an AMR element.");
@@ -2701,6 +2747,7 @@ void DiscreteAdaptTC::
 UpdateGradientTargetSpecification(const Vector &x, real_t dx,
                                   bool reuse_flag, int x_ordering)
 {
+   dbg();
    if (reuse_flag && good_tspec_grad) { return; }
 
    const int dim = tspec_fesv->GetFE(0)->GetDim(),
@@ -2738,6 +2785,7 @@ void DiscreteAdaptTC::
 UpdateHessianTargetSpecification(const Vector &x, real_t dx,
                                  bool reuse_flag, int x_ordering)
 {
+   dbg();
    if (reuse_flag && good_tspec_hess) { return; }
 
    const int dim    = tspec_fesv->GetFE(0)->GetDim(),

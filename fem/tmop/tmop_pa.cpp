@@ -17,6 +17,10 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 
+#define NVTX_COLOR ::gpu::nvtx::color_names::kYellow
+#include "general/nvtx.hpp"
+
+
 namespace mfem
 {
 
@@ -126,12 +130,14 @@ void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
                                                  const Vector &xe,
                                                  DenseTensor &Jtr) const
 {
+   dbg("xe:{}", xe.Norml2());
    MFEM_VERIFY(Jtr.SizeI() == Jtr.SizeJ() && Jtr.SizeI() > 1, "");
    const int dim = Jtr.SizeI();
    bool done = false;
    if (dim == 2) { done = ComputeAllElementTargets<2>(fes, ir, xe, Jtr); }
    if (dim == 3) { done = ComputeAllElementTargets<3>(fes, ir, xe, Jtr); }
 
+   dbg("done:{}", done);
    if (!done) { ComputeAllElementTargets_Fallback(fes, ir, xe, Jtr); }
 }
 
@@ -140,6 +146,7 @@ void AnalyticAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &fes,
                                                const Vector &xe,
                                                DenseTensor &Jtr) const
 {
+   dbg();
    ComputeAllElementTargets_Fallback(fes, ir, xe, Jtr);
 }
 
@@ -166,6 +173,7 @@ void AnalyticAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &fes,
 //                                    Jtr(i) *= R_theta        (orientation)
 void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 {
+   dbg("xe:{}",xe.Norml2());
    PA.Jtr_needs_update = false;
    PA.Jtr_debug_grad = false;
    const FiniteElementSpace *fes = PA.fes;
@@ -174,16 +182,23 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
    // Compute PA.Jtr for all elements
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
+
+   const int NE = PA.ne;
+   const int Q1D = PA.maps->nqpt;
+   DenseTensor &J = PA.Jtr;
+   Vector j(J.HostReadWrite(), 2* 2* Q1D* Q1D* NE);
+   dbg("j:{}",j*j);
 }
 
 void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
 {
+   x_loc.HostRead();
    // Both are constant or not specified.
    if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
 
    // Coefficients are always evaluated on the CPU for now.
-   PA.MC.HostWrite();
-   PA.C0.HostWrite();
+   PA.MC.HostReadWrite();
+   PA.C0.HostReadWrite();
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
@@ -361,6 +376,7 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
 {
+   dbg("xe:{} lim_coeff:{}", xe*xe, fmt::ptr(lim_coeff));
    // This method must be called after AssemblePA().
 
    real_t energy = 0.0;
@@ -373,7 +389,9 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
    if (PA.dim == 2)
    {
       energy = GetLocalStateEnergyPA_2D(xe);
+      dbg("energy: {}", energy);
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
+      dbg("energy: {}", energy);
    }
 
    if (PA.dim == 3)
@@ -382,6 +400,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
       if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
    }
 
+   dbg("energy: {}", energy);
    return energy;
 }
 

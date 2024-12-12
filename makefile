@@ -473,6 +473,10 @@ $(MINIAPP_USE_COMMON): miniapps/common
 $(EM_DIRS) $(TEST_DIRS): lib
 	$(MAKE) -C $(BLD)$(@)
 
+.PHONY: mesh-optimizer
+mesh-optimizer: lib
+	$(MAKE) -C miniapps/meshing mesh-optimizer -j 10
+
 .PHONY: doc
 doc:
 	$(MAKE) -C $(BLD)$(@)

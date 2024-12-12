@@ -15,6 +15,9 @@
 #include "nonlinearform.hpp"
 #include "ceed/interface/util.hpp"
 
+#define NVTX_COLOR ::gpu::nvtx::color_names::kLime
+#include "general/nvtx.hpp"
+
 namespace mfem
 {
 
@@ -40,13 +43,17 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
 
 real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
+   dbg("x: {}",x*x);
    real_t energy = 0.0;
 
    elemR->Mult(x, xe);
+   dbg("xe: {}",xe*xe);
+
    for (int i = 0; i < dnfi.Size(); i++)
    {
       energy += dnfi[i]->GetLocalStateEnergyPA(xe);
    }
+   dbg("energy: {}",energy);
    return energy;
 }
 
