@@ -26,8 +26,8 @@ Discretization improvements
 
 - Added average fluxes to `RiemannSolver` and `FluxFunction`.
 
-- Added Godunov flux (`GodunovFlux`) and added it as an option to examples 18
-  and 18p.
+- Added Godunov flux for scalar equations (`ScalarGodunovFlux`) and added it as
+  an option to examples 18 and 18p.
 
 Meshing improvements
 --------------------

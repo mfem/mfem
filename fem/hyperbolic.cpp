@@ -595,7 +595,7 @@ void RusanovFlux::AverageGrad(int side, const Vector &state1,
    }
 }
 
-GodunovFlux::GodunovFlux(const FluxFunction &fluxFunction)
+ScalarGodunovFlux::ScalarGodunovFlux(const FluxFunction &fluxFunction)
    : NumericalFlux(fluxFunction)
 {
 #ifndef MFEM_THREAD_SAFE
@@ -606,9 +606,9 @@ GodunovFlux::GodunovFlux(const FluxFunction &fluxFunction)
       MFEM_WARNING("Godunov flux is implemented only component-wise.")
    }
 
-real_t GodunovFlux::Eval(const Vector &state1, const Vector &state2,
-                         const Vector &nor, FaceElementTransformations &Tr,
-                         Vector &flux) const
+real_t ScalarGodunovFlux::Eval(const Vector &state1, const Vector &state2,
+                               const Vector &nor, FaceElementTransformations &Tr,
+                               Vector &flux) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
@@ -631,9 +631,10 @@ real_t GodunovFlux::Eval(const Vector &state1, const Vector &state2,
    return std::max(speed1, speed2);
 }
 
-void GodunovFlux::Grad(int side, const Vector &state1, const Vector &state2,
-                       const Vector &nor, FaceElementTransformations &Tr,
-                       DenseMatrix &grad) const
+void ScalarGodunovFlux::Grad(int side, const Vector &state1,
+                             const Vector &state2,
+                             const Vector &nor, FaceElementTransformations &Tr,
+                             DenseMatrix &grad) const
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix JDotN(fluxFunction.num_equations);
@@ -665,9 +666,9 @@ void GodunovFlux::Grad(int side, const Vector &state1, const Vector &state2,
    }
 }
 
-real_t GodunovFlux::Average(const Vector &state1, const Vector &state2,
-                            const Vector &nor, FaceElementTransformations &Tr,
-                            Vector &flux) const
+real_t ScalarGodunovFlux::Average(const Vector &state1, const Vector &state2,
+                                  const Vector &nor, FaceElementTransformations &Tr,
+                                  Vector &flux) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
@@ -691,10 +692,10 @@ real_t GodunovFlux::Average(const Vector &state1, const Vector &state2,
    return std::max(speed1, speed2);
 }
 
-void GodunovFlux::AverageGrad(int side, const Vector &state1,
-                              const Vector &state2,
-                              const Vector &nor, FaceElementTransformations &Tr,
-                              DenseMatrix &grad) const
+void ScalarGodunovFlux::AverageGrad(int side, const Vector &state1,
+                                    const Vector &state2,
+                                    const Vector &nor, FaceElementTransformations &Tr,
+                                    DenseMatrix &grad) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);

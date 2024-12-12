@@ -526,23 +526,26 @@ protected:
 };
 
 /**
- * @brief Godunov flux, a special case of Engquist-Osher flux,
+ * @brief Godunov flux for scalar equations
+ *
+ * Godunov flux for scalar equations, a special case of Engquist-Osher flux,
+ * is defined as follows:
  *    F̂ n = min F(u)n    for u⁻ ≤ u⁺, u ∈ [u⁻,u⁺]
  *    F̂ n = max F(u)n    for u⁻ > u⁺, u ∈ [u⁺,u⁻]
  * @note The implementation assumes monotonous F(u,x) in u
+ * @note Systems of equations are treated component-wise
  */
-class GodunovFlux : public NumericalFlux
+class ScalarGodunovFlux : public NumericalFlux
 {
 public:
    /**
     * @brief Constructor for a flux function
     * @param fluxFunction flux function F(u,x)
     */
-   GodunovFlux(const FluxFunction &fluxFunction);
+   ScalarGodunovFlux(const FluxFunction &fluxFunction);
 
    /**
     * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n
-    * @note Systems of equations are treated component-wise
     *
     * @param[in] state1 state value (u⁻) at a point from the first element
     * (num_equations)
@@ -562,8 +565,6 @@ public:
     * @brief  Jacobian of normal numerical flux F̂(u⁻,u⁺,x) n
     * @note The Jacobian of flux J n is required to be implemented in
     * FluxFunction::ComputeFluxJacobianDotN()
-    * @note Only the diagonal terms of the J n are considered, i.e., systems
-    * are treated as a set of independent equations
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
     * @param[in] state1 state value (u⁻) of the beginning of the interval
@@ -587,7 +588,6 @@ public:
     * second argument of the flux F̂(u⁻,u,x) n
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN()
-    * @note Systems of equations are treated component-wise
     *
     * @param[in] state1 state value (u⁻) of the beginning of the interval
     * (num_equations)
@@ -609,8 +609,6 @@ public:
     * @note The average normal flux F̄ n is required to be implemented in
     * FluxFunction::ComputeAvgFluxDotN() and the Jacobian of flux J n in
     * FluxFunction::ComputeFluxJacobianDotN()
-    * @note Only the diagonal terms of the J n are considered, i.e., systems
-    * are treated as a set of independent equations
     *
     * @param[in] side gradient w.r.t the first (u⁻) or second argument (u⁺)
     * @param[in] state1 state value (u⁻) of the beginning of the interval
