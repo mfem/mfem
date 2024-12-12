@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
    switch (num_flux_type)
    {
       case 1: num_flux.reset(new RusanovFlux(flux)); break;
-      case 2: num_flux.reset(new GodunovFlux(flux)); break;
+      case 2: num_flux.reset(new ScalarGodunovFlux(flux)); break;
       default:
          cout << "Unknown numerical flux type: " << num_flux_type << '\n';
          return 3;
