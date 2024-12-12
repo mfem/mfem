@@ -2321,9 +2321,9 @@ double PlasmaProfile::EvalByType(Type type,
          */
          double ne2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
                                            -1.0) + pmin2;
-         //double pval = ne1 + ne2;
+         double pval = ne1 + ne2;
 
-         
+         /*
          double pmax = 2.15e20;
          double pmin = 2.1e19;
          double nuee = 2.3;
@@ -2333,6 +2333,7 @@ double PlasmaProfile::EvalByType(Type type,
          {
             pval = (pmax - pmin)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin;
          }
+         */
          
          return pval;
       }
