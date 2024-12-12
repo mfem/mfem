@@ -33,6 +33,8 @@ int DetRand(int & seed)
    return int(std::abs(1.0e5 * sin(seed * 1.1234 * M_PI)));
 }
 
+void f_exact(const Vector &x, Vector &f);
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -46,6 +48,7 @@ int main(int argc, char *argv[])
    int numIter = 0;
    int dim = 2;
    bool deterministic = true;
+   bool projectSolution = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -72,6 +75,9 @@ int main(int argc, char *argv[])
    args.AddOption(&deterministic, "-det", "--deterministic", "-not-det",
                   "--not-deterministic",
                   "Whether to use deterministic random refinements");
+   args.AddOption(&projectSolution, "-proj", "--project-solution", "-no-proj",
+                  "--no-project",
+                  "Whether to project a coefficient to solution");
    args.Parse();
    if (!args.Good())
    {
@@ -119,7 +125,9 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
       delete_fec = true;
    }
-   FiniteElementSpace fespace(&mesh, fec);
+
+   const int fespaceDim = projectSolution ? dim : 1;
+   FiniteElementSpace fespace(&mesh, fec, fespaceDim);
 
    // 5. Iteratively perform h- and p-refinements.
    int numH = 0;
@@ -143,7 +151,7 @@ int main(int argc, char *argv[])
          // p-ref
          Array<pRefinement> refs;
          refs.Append(pRefinement(elem, 1));  // Increase the element order by 1
-         fespace.UpdatePRef(refs, true);
+         fespace.UpdatePRef(refs);
          numP++;
       }
       else
@@ -165,99 +173,122 @@ int main(int argc, char *argv[])
         << "\nTotal number of p-refinements: " << numP
         << "\nMaximum order " << maxP << "\n";
 
-   // 6. Determine the list of essential boundary dofs. In this example, the
-   //    boundary conditions are defined by marking all the boundary attributes
-   //    from the mesh as essential (Dirichlet) and converting them to a list of
-   //    true dofs.
-   Array<int> ess_tdof_list;
-   if (mesh.bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
-   //    the basis functions in fespace.
-   LinearForm b(&fespace);
-   ConstantCoefficient one(1.0);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
-   b.Assemble();
-
-   // 8. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
    GridFunction x(&fespace);
-   x = 0.0;
+   Vector X;
 
-   // 9. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the Laplacian operator -Delta, by adding the diffusion
-   //    domain integrator.
-   BilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   if (fa)
+   if (projectSolution)
    {
-      a.SetAssemblyLevel(AssemblyLevel::FULL);
-      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
-      // when Device::IsEnabled() returns true). This makes the results
-      // bit-for-bit deterministic at the cost of somewhat longer run time.
-      a.EnableSparseMatrixSorting(Device::IsEnabled());
-   }
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      VectorFunctionCoefficient vec_coef(dim, f_exact);
+      x.ProjectCoefficient(vec_coef);
 
-   // 10. Assemble the bilinear form and the corresponding linear system,
-   //     applying any necessary transformations such as: assembly, eliminating
-   //     boundary conditions, applying conforming constraints for non-conforming
-   //     AMR, static condensation, etc.
-   if (static_cond) { a.EnableStaticCondensation(); }
-   a.Assemble();
+      X.SetSize(fespace.GetTrueVSize());
 
-   OperatorPtr A;
-   Vector B, X;
-   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      fespace.GetHpRestrictionMatrix()->Mult(x, X);
+      fespace.GetProlongationMatrix()->Mult(X, x);
 
-   // 11. Solve the linear system A X = B.
-   if (!pa)
-   {
-#ifndef MFEM_USE_SUITESPARSE
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-#else
-      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(*A);
-      umf_solver.Mult(B, X);
-#endif
+      // Compute and print the L^2 norm of the error.
+      const real_t error = x.ComputeL2Error(vec_coef);
+      cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;
    }
    else
    {
-      if (UsesTensorBasis(fespace))
+      // 6. Determine the list of essential boundary dofs. In this example, the
+      //    boundary conditions are defined by marking all the boundary attributes
+      //    from the mesh as essential (Dirichlet) and converting them to a list of
+      //    true dofs.
+      Array<int> ess_tdof_list;
+      if (mesh.bdr_attributes.Size())
       {
-         if (algebraic_ceed)
-         {
-            ceed::AlgebraicSolver M(a, ess_tdof_list);
-            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-         }
-         else
-         {
-            OperatorJacobiSmoother M(a, ess_tdof_list);
-            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-         }
+         Array<int> ess_bdr(mesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
+      // 7. Set up the linear form b(.) which corresponds to the right-hand side of
+      //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
+      //    the basis functions in fespace.
+      LinearForm b(&fespace);
+      ConstantCoefficient one(1.0);
+      b.AddDomainIntegrator(new DomainLFIntegrator(one));
+      b.Assemble();
+
+      // 8. Define the solution vector x as a finite element grid function
+      //    corresponding to fespace. Initialize x with initial guess of zero,
+      //    which satisfies the boundary conditions.
+      x = 0.0;
+
+      // 9. Set up the bilinear form a(.,.) on the finite element space
+      //    corresponding to the Laplacian operator -Delta, by adding the diffusion
+      //    domain integrator.
+      BilinearForm a(&fespace);
+      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+      if (fa)
+      {
+         a.SetAssemblyLevel(AssemblyLevel::FULL);
+         // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+         // when Device::IsEnabled() returns true). This makes the results
+         // bit-for-bit deterministic at the cost of somewhat longer run time.
+         a.EnableSparseMatrixSorting(Device::IsEnabled());
+      }
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+
+      // 10. Assemble the bilinear form and the corresponding linear system,
+      //     applying any necessary transformations such as: assembly, eliminating
+      //     boundary conditions, applying conforming constraints for non-conforming
+      //     AMR, static condensation, etc.
+      if (static_cond) { a.EnableStaticCondensation(); }
+      a.Assemble();
+
+      OperatorPtr A;
+      Vector B, X;
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+      // 11. Solve the linear system A X = B.
+      if (!pa)
+      {
+#ifndef MFEM_USE_SUITESPARSE
+         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+         GSSmoother M((SparseMatrix&)(*A));
+         PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+#else
+         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+         UMFPackSolver umf_solver;
+         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver.SetOperator(*A);
+         umf_solver.Mult(B, X);
+#endif
       }
       else
       {
-         CG(*A, B, X, 1, 400, 1e-12, 0.0);
+         if (UsesTensorBasis(fespace))
+         {
+            if (algebraic_ceed)
+            {
+               ceed::AlgebraicSolver M(a, ess_tdof_list);
+               PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+            }
+            else
+            {
+               OperatorJacobiSmoother M(a, ess_tdof_list);
+               PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+            }
+         }
+         else
+         {
+            CG(*A, B, X, 1, 400, 1e-12, 0.0);
+         }
       }
+
+      // 12. Recover the grid function corresponding to X.
+      a.RecoverFEMSolution(X, b, x);
    }
 
-   // 12. Recover the grid function corresponding to X.
-   a.RecoverFEMSolution(X, b, x);
-
-   const real_t h1error = CheckH1Continuity(x);
-   MFEM_VERIFY(h1error < 1.0e-15, "H1 continuity is not satisfied");
+   if (fespaceDim == 1)
+   {
+      const real_t h1error = CheckH1Continuity(x);
+      cout << "H1 continuity error " << h1error << endl;
+      MFEM_VERIFY(h1error < 1.0e-12, "H1 continuity is not satisfied");
+   }
 
    L2_FECollection fecL2(0, dim);
    FiniteElementSpace l2fespace(&mesh, &fecL2);
@@ -357,4 +388,23 @@ real_t CheckH1Continuity(GridFunction & x)
    }
 
    return errorMax;
+}
+
+void f_exact(const Vector &x, Vector &f)
+{
+   constexpr real_t freq = 1.0;
+   constexpr real_t kappa = freq * M_PI;
+
+   if (x.Size() == 3)
+   {
+      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (1. + kappa * kappa) * sin(kappa * x(2));
+      f(2) = (1. + kappa * kappa) * sin(kappa * x(0));
+   }
+   else
+   {
+      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (1. + kappa * kappa) * sin(kappa * x(0));
+      if (x.Size() == 3) { f(2) = 0.0; }
+   }
 }

@@ -1151,7 +1151,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       {
          Geometry::Type master_geom = master.Geom();
 
-         int p = GetEntityDofs(entity, master.index, master_dofs, master_geom);
+         const int p = GetEntityDofs(entity, master.index, master_dofs,
+                                     master_geom);
          if (!master_dofs.Size()) { continue; }
 
          const FiniteElement *master_fe = fec->GetFE(master_geom, p);
@@ -1202,15 +1203,15 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             int nvar = GetNVariants(entity, master.index);
             if (nvar > 1)
             {
-               int q = GetEntityDofs(entity, master.index, highest_dofs,
-                                     master_geom, nvar-1);
+               const int q = GetEntityDofs(entity, master.index, highest_dofs,
+                                           master_geom, nvar-1);
                const auto *highest_fe = fec->GetFE(master_geom, q);
 
                T.SetIdentityTransformation(master_geom);
                master_fe->GetTransferMatrix(*highest_fe, T, I);
 
                // add dependencies only for the inner dofs
-               int skip = GetNumBorderDofs(master_geom, p);
+               const int skip = GetNumBorderDofs(master_geom, p);
                AddDependencies(inv_deps, highest_dofs, master_dofs, I, skip);
             }
          }
@@ -1255,8 +1256,10 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       cR.reset(new SparseMatrix(cR_I, cR_J, cR_A, n_true_dofs, ndofs));
    }
 
-   // In var. order spaces, create the restriction matrix cR_hp which is similar
-   // to cR, but has interpolation in the extra master edge/face DOFs.
+   // In variable-order spaces, create the restriction matrix cR_hp, which is
+   // similar to cR but has interpolation of the master edge/face DOFs of
+   // maximum order per edge/face, since the maximum order is on an adjacent
+   // element (e.g. where projection would be computed).
    if (IsVariableOrder())
    {
       cR_hp.reset(new SparseMatrix(n_true_dofs, ndofs));
@@ -1272,7 +1275,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    Array<int> cols;
    Vector srow;
 
-   // put identity in the prolongation matrix for true DOFs, initialize cR_hp
+   // Put identity in the prolongation matrix for true DOFs, and set cR_hp
    for (int i = 0, true_dof = 0; i < ndofs; i++)
    {
       if (!deps.RowSize(i)) // true dof
@@ -2648,11 +2651,11 @@ void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
    nvdofs = nedofs = nfdofs = nbdofs = 0;
    bdofs = NULL;
 
-   cP = NULL;
-   cR = NULL;
-   cR_hp = NULL;
+   cP.reset();
+   cR.reset();
+   cR_hp.reset();
    cP_is_set = false;
-   R_transpose = NULL;
+   R_transpose.reset();
    // 'Th' is initialized/destroyed before this method is called.
 
    int dim = mesh->Dimension();

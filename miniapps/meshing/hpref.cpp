@@ -210,16 +210,22 @@ int main(int argc, char *argv[])
    ParGridFunction x(&fespace);
    Vector X;
 
-   VectorFunctionCoefficient veccoef(dim, f_exact);
-
    if (projectSolution)
    {
-      x.ProjectCoefficient(veccoef);
+      VectorFunctionCoefficient vec_coef(dim, f_exact);
+      x.ProjectCoefficient(vec_coef);
 
       X.SetSize(fespace.GetTrueVSize());
 
       fespace.GetRestrictionMatrix()->Mult(x, X);
       fespace.GetProlongationMatrix()->Mult(X, x);
+
+      // Compute and print the L^2 norm of the error.
+      const real_t error = x.ComputeL2Error(vec_coef);
+      if (myid == 0)
+      {
+         cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;
+      }
    }
    else
    {
@@ -310,20 +316,10 @@ int main(int argc, char *argv[])
       a.RecoverFEMSolution(X, b, x);
    }
 
-   if (projectSolution)
-   {
-      // Compute and print the L^2 norm of the error.
-      const real_t error = x.ComputeL2Error(veccoef);
-      if (myid == 0)
-      {
-         cout << "\n|| E_h - E ||_{L^2} = " << error << '\n' << endl;
-      }
-   }
-
    if (fespaceDim == 1)
    {
       const real_t h1error = CheckH1Continuity(x);
-      cout << myid << ": h1 err " << h1error << endl;
+      cout << myid << ": H1 continuity error " << h1error << endl;
       MFEM_VERIFY(h1error < 1.0e-12, "H1 continuity is not satisfied");
    }
 
