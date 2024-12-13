@@ -1495,7 +1495,9 @@ void Mesh::GetExteriorFaceMarker(Array<int> & face_marker) const
 
    for (int f = 0; f < faces_info.Size(); f++)
    {
-      if (faces_info[f].Elem2No < 0)
+      if (faces_info[f].NCFace == -1 &&
+          faces_info[f].Elem2No < 0 &&
+          faces_info[f].Elem2Inf < 0 )
       {
          face_marker[f] = 1;
       }
