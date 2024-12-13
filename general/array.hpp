@@ -99,7 +99,7 @@ public:
    explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
-   inline Array(Array<T> &&src) { Swap(src, *this); }
+   inline Array(Array<T> &&src) : Array() { Swap(src, *this); }
 
    /// Destructor
    inline ~Array() { data.Delete(); }
