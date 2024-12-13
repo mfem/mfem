@@ -75,7 +75,6 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 0;
    int par_ref_levels = 1;
    int order = 3;
-   int num_flux_type = 1;
    int ode_solver_type = 4;
    real_t t_final = 2.0;
    real_t dt = -0.01;
@@ -99,8 +98,6 @@ int main(int argc, char *argv[])
                   "Number of times to refine the parallel mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
-   args.AddOption(&num_flux_type, "-nf", "--numerical-flux",
-                  "Numerical flux: 1 - Rusanov, 2 - Godunov (component-wise).");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::ExplicitTypes.c_str());
    args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
@@ -204,20 +201,10 @@ int main(int argc, char *argv[])
 
    // 6. Set up the nonlinear form with euler flux and numerical flux
    EulerFlux flux(dim, specific_heat_ratio);
-
-   unique_ptr<NumericalFlux> num_flux;
-   switch (num_flux_type)
-   {
-      case 1: num_flux.reset(new RusanovFlux(flux)); break;
-      case 2: num_flux.reset(new ScalarGodunovFlux(flux)); break;
-      default:
-         cout << "Unknown numerical flux type: " << num_flux_type << '\n';
-         return 3;
-   }
-
+   RusanovFlux numericalFlux(flux);
    DGHyperbolicConservationLaws euler(
       vfes, std::unique_ptr<HyperbolicFormIntegrator>(
-         new HyperbolicFormIntegrator(*num_flux, IntOrderOffset)),
+         new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)),
       preassembleWeakDiv);
 
    // 7. Visualize momentum with its magnitude
