@@ -469,7 +469,7 @@ protected:
       DerefinementOperator(const FiniteElementSpace *f_fes,
                            const FiniteElementSpace *c_fes,
                            BilinearFormIntegrator *mass_integ);
-      virtual void Mult(const Vector &x, Vector &y) const;
+      void Mult(const Vector &x, Vector &y) const override;
       virtual ~DerefinementOperator();
    };
 
@@ -586,6 +586,14 @@ public:
 
    bool Conforming() const { return mesh->Conforming() && cP == NULL; }
    bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
+
+   /** Set the prolongation operator of the space to an arbitrary sparse matrix,
+       creating a copy of the argument. */
+   void SetProlongation(const SparseMatrix& p);
+
+   /** Set the restriction operator of the space to an arbitrary sparse matrix,
+       creating a copy of the argument. */
+   void SetRestriction(const SparseMatrix& r);
 
    /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->GetOrder(). Once

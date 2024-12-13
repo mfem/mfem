@@ -741,7 +741,7 @@ void ParNCMesh::ElementNeighborProcessors(int elem, Array<int> &ranks)
 template<class T>
 static void set_to_array(const std::set<T> &set, Array<T> &array)
 {
-   array.Reserve(set.size());
+   array.Reserve(static_cast<int>(set.size()));
    array.SetSize(0);
    for (auto x : set)
    {
@@ -842,7 +842,7 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    }
 
    // create ParMesh groups, and the map (ncmesh_group -> pmesh_group)
-   Array<int> group_map(groups.size());
+   Array<int> group_map(static_cast<int>(groups.size()));
    {
       group_map = 0;
       IntegerSet iset;
@@ -851,7 +851,7 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
       {
          if (groups[i].size() > 1 || !i) // skip singleton groups
          {
-            iset.Recreate(groups[i].size(), groups[i].data());
+            iset.Recreate(static_cast<int>(groups[i].size()), groups[i].data());
             group_map[i] = int_groups.Insert(iset);
          }
       }
@@ -1052,7 +1052,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       for (int k = 0; k < gi.nv; k++)
       {
          int &v = vert_map[elem->node[k]];
-         if (!v) { v = vert_map.size(); }
+         if (!v) { v = static_cast<int>(vert_map.size()); }
          fne->GetVertices()[k] = v-1;
       }
 
@@ -1068,7 +1068,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
    // create vertices in 'face_nbr_vertices'
    {
-      pmesh.face_nbr_vertices.SetSize(vert_map.size());
+      pmesh.face_nbr_vertices.SetSize(static_cast<int>(vert_map.size()));
       if (coordinates.Size())
       {
          tmp_vertex = new TmpVertex[nodes.NumIds()]; // TODO: something cheaper?
@@ -2231,7 +2231,7 @@ void ParNCMesh::SendRebalanceDofs(int old_ndofs,
    {
       RebalanceDofMessage &msg = it->second;
       msg.dofs.clear();
-      int ne = msg.elem_ids.size();
+      int ne = static_cast<int>(msg.elem_ids.size());
       if (ne)
       {
          msg.dofs.reserve(old_element_dofs.RowSize(msg.elem_ids[0]) * ne * vdim);
@@ -2261,8 +2261,8 @@ void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs)
    for (it = recv_rebalance_dofs.begin(); it != recv_rebalance_dofs.end(); ++it)
    {
       RebalanceDofMessage &msg = it->second;
-      ne += msg.elem_ids.size();
-      nd += msg.dofs.size();
+      ne += static_cast<int>(msg.elem_ids.size());
+      nd += static_cast<int>(msg.dofs.size());
    }
 
    elements.SetSize(ne);
@@ -2480,7 +2480,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
    if (!shared_edges.masters.Size() &&
        !shared_faces.masters.Size()) { return; }
 
-   Array<bool> contains_rank(groups.size());
+   Array<bool> contains_rank(static_cast<int>(groups.size()));
    for (unsigned i = 0; i < groups.size(); i++)
    {
       contains_rank[i] = GroupContains(i, rank);
@@ -2795,7 +2795,7 @@ void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode(int)
    std::ostringstream ostream;
 
    Array<int> tmp_elements;
-   tmp_elements.MakeRef(elements.data(), elements.size());
+   tmp_elements.MakeRef(elements.data(), static_cast<int>(elements.size()));
 
    ElementSet eset(pncmesh, RefTypes);
    eset.Encode(tmp_elements);
@@ -2812,7 +2812,7 @@ void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode(int)
       element_index[decoded[i]] = i;
    }
 
-   write<int>(ostream, values.size());
+   write<int>(ostream, static_cast<int>(values.size()));
    MFEM_ASSERT(elements.size() == values.size(), "");
 
    for (unsigned i = 0; i < values.size(); i++)
@@ -2870,7 +2870,7 @@ void ParNCMesh::RebalanceDofMessage::SetElements(const Array<int> &elems,
 
 static void write_dofs(std::ostream &os, const std::vector<int> &dofs)
 {
-   write<int>(os, dofs.size());
+   write<int>(os, static_cast<int>(dofs.size()));
    // TODO: we should compress the ints, mostly they are contiguous ranges
    os.write((const char*) dofs.data(), dofs.size() * sizeof(int));
 }

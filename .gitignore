@@ -8,12 +8,16 @@
 
 # Object and library files
 *.o
+*.o.tmp
 /libmfem.*
 /miniapps/common/libmfem-common.*
 
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/
+
+# Clangd server cache
+*.cache*
 
 # Backup files
 *~
