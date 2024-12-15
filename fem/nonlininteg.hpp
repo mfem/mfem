@@ -204,6 +204,8 @@ public:
 class BlockNonlinearFormIntegrator
 {
 public:
+   using HDGFaceType = NonlinearFormIntegrator::HDGFaceType;
+
    /// Compute the local energy
    virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,
@@ -232,6 +234,26 @@ public:
                                  FaceElementTransformations &Tr,
                                  const Array<const Vector *> &elfun,
                                  const Array2D<DenseMatrix *> &elmats);
+
+   /// @brief Perform the local action of the BlockNonlinearFormIntegrator
+   /// resulting from an HDG face integral term.
+   virtual void AssembleHDGFaceVector(int type,
+                                      const FiniteElement &trace_face_fe,
+                                      const Array<const FiniteElement *>&el,
+                                      FaceElementTransformations &Tr,
+                                      const Vector &trfun,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<Vector *> &elvect);
+
+   /// @brief Perform the local action of the gradient of
+   /// BlockNonlinearFormIntegrator resulting from an HDG face integral term.
+   virtual void AssembleHDGFaceGrad(int type,
+                                    const FiniteElement &trace_face_fe,
+                                    const Array<const FiniteElement *>&el,
+                                    FaceElementTransformations &Tr,
+                                    const Vector &trfun,
+                                    const Array<const Vector *> &elfun,
+                                    const Array2D<DenseMatrix *> &elmats);
 
    virtual ~BlockNonlinearFormIntegrator() { }
 };

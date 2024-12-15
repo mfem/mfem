@@ -113,7 +113,7 @@ class MixedConductionNLFIntegrator : public BlockNonlinearFormIntegrator
    const IntegrationRule *IntRule;
 
    DenseMatrix vshape_u;
-   Vector shape_u, shape_p, shape1, shape2;
+   Vector shape_u, shape_p, shape1, shape2, shape_tr;
 
 public:
    /// Construct integrator with $\beta = a$.
@@ -144,6 +144,14 @@ public:
                          FaceElementTransformations &Tr,
                          const Array<const Vector *> &elfun,
                          const Array2D<DenseMatrix *> &elmats) override;
+
+   void AssembleHDGFaceVector(int type,
+                              const FiniteElement &trace_face_fe,
+                              const Array<const FiniteElement *>&el,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun,
+                              const Array<const Vector *> &elfun,
+                              const Array<Vector *> &elvect) override;
 };
 
 }

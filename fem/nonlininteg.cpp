@@ -174,6 +174,28 @@ void BlockNonlinearFormIntegrator::AssembleFaceGrad(
               " is not overloaded!");
 }
 
+void BlockNonlinearFormIntegrator::AssembleHDGFaceVector(
+   int type, const FiniteElement &trace_face_fe,
+   const Array<const FiniteElement *> &el,
+   FaceElementTransformations &Tr,
+   const Vector &trfun, const Array<const Vector *> &elfun,
+   const Array<Vector *> &elvect)
+{
+   mfem_error("BlockNonlinearFormIntegrator::AssembleHDGFaceVector"
+              " is not overloaded!");
+}
+
+void BlockNonlinearFormIntegrator::AssembleHDGFaceGrad(
+   int type, const FiniteElement &trace_face_fe,
+   const Array<const FiniteElement *> &el,
+   FaceElementTransformations &Tr,
+   const Vector &trfun, const Array<const Vector *> &elfun,
+   const Array2D<DenseMatrix *> &elmats)
+{
+   mfem_error("BlockNonlinearFormIntegrator::AssembleHDGFaceGrad"
+              " is not overloaded!");
+}
+
 real_t BlockNonlinearFormIntegrator::GetElementEnergy(
    const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,
