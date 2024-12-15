@@ -618,31 +618,30 @@ set(MASTER_HEADERS
 # Installation options
 set(MFEM_USE_GNUINSTALLDIRS OFF
   CACHE BOOL "Enable to use the GNUInstallDirs CMake module.")
-if (NOT ${MFEM_USE_GNUINSTALLDIRS})
-  set(INSTALL_INCLUDE_DIR include
-    CACHE PATH "Relative path for installing header files.")
-  set(INSTALL_BIN_DIR bin
-    CACHE PATH "Relative path for installing the binaries.")
-  set(INSTALL_LIB_DIR lib
-    CACHE PATH "Relative path for installing the library.")
-  set(INSTALL_SHARE_DIR share
-    CACHE PATH "Relative path for installing shared data.")
-else()
+set(install_include_dir_default include)
+set(install_bin_dir_default bin)
+set(install_lib_dir_default lib)
+set(install_share_dir_default share)
+if (MFEM_USE_GNUINSTALLDIRS)
   include(GNUInstallDirs)
-  set(INSTALL_INCLUDE_DIR ${CMAKE_INSTALL_INCLUDEDIR}
-    CACHE PATH "Relative path for installing header files.")
-  set(INSTALL_BIN_DIR ${CMAKE_INSTALL_BINDIR}
-    CACHE PATH "Relative path for installing the binaries.")
-  set(INSTALL_LIB_DIR ${CMAKE_INSTALL_LIBDIR}
-    CACHE PATH "Relative path for installing the library.")
-  set(INSTALL_SHARE_DIR ${CMAKE_INSTALL_DATAROOTDIR}
-    CACHE PATH "Relative path for installing shared data.")
+  set(install_include_dir_default "${CMAKE_INSTALL_INCLUDEDIR}")
+  set(install_bin_dir_default "${CMAKE_INSTALL_BINDIR}")
+  set(install_lib_dir_default "${CMAKE_INSTALL_LIBDIR}")
+  set(install_share_dir_default "${CMAKE_INSTALL_DATAROOTDIR}")
 endif()
+mfem_cache_path(INSTALL_INCLUDE_DIR "${install_include_dir_default}"
+  "Relative or absolute path for installing header files.")
+mfem_cache_path(INSTALL_BIN_DIR "${install_bin_dir_default}"
+  "Relative or absolute path for installing the binaries.")
+mfem_cache_path(INSTALL_LIB_DIR ${install_lib_dir_default}
+  "Relative or absolute path for installing the library.")
+mfem_cache_path(INSTALL_SHARE_DIR "${install_share_dir_default}"
+  "Relative or absolute path for installing shared data.")
 # other options: "share/mfem/cmake", "lib/mfem/cmake"
-set(INSTALL_CMAKE_DIR lib/cmake/mfem
-  CACHE PATH "Relative path for installing cmake config files.")
+mfem_cache_path(INSTALL_CMAKE_DIR ${INSTALL_LIB_DIR}/cmake/mfem
+  "Relative or absolute path for installing cmake config files.")
 
-set(_lib_path "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}")
+mfem_path_to_fullpath("${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}" _lib_path)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
 set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
 set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")

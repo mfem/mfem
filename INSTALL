@@ -971,7 +971,11 @@ or
 Note that running all the tests may take a while.
 
 Installation prefix can be configured by setting the standard CMake variable
-CMAKE_INSTALL_PREFIX. To install the library, use
+CMAKE_INSTALL_PREFIX; for fine-tuning the installation directories the following
+variables can be used: INSTALL_INCLUDE_DIR, INSTALL_LIB_DIR, INSTALL_BIN_DIR,
+INSTALL_SHARE_DIR, and INSTALL_CMAKE_DIR; alternatively, fine-tuning can be done
+by setting MFEM_USE_GNUINSTALLDIRS=ON to use the CMake module GNUInstallDirs.
+To install the library, use
 
    make install
 or
