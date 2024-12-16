@@ -35,7 +35,7 @@ namespace mfem
 ///                      processor.
 /// @param[in] comm      MPI Communicator
 ///
-/// @return              Global $L^p$ norm distributed to each processor
+/// @return              Global $L^p$ norm, returned on every processor
 ///
 /// @note Quadratures with negative weights (as in some simplex integration
 ///       rules in MFEM) can produce negative integrals even with
