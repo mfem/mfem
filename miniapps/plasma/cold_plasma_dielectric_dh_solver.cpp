@@ -2041,9 +2041,9 @@ CPDSolverDH::Solve()
 
    if (myid_ == 0)
    {
-      cout << "Global Dissipation: " << global_diss << endl; 
-      cout << "Core Dissipation: " << core_diss << endl; 
-      cout << "SOL Dissipation: " << sol_diss << endl; 
+      cout << "Global Dissipation: " << global_diss << " W" << endl; 
+      cout << "Core Dissipation: " << core_diss << " W" << endl; 
+      cout << "SOL Dissipation: " << sol_diss << " W" << endl; 
       cout << " Solve done." << endl;
    }
 }
