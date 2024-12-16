@@ -533,10 +533,30 @@ void map_direction_to_quadrature_data_conditional(
 {
    for_constexpr<num_inputs>([&](auto i)
    {
-      map_field_to_quadrature_data_conditional(
-         directions_qp[i], direction_e, dtqmaps[i], mfem::get<i>(fops),
-         integration_weights, scratch_mem, conditions[i], dimension,
-         use_sum_factorization);
+      if (conditions[i])
+      {
+         if (use_sum_factorization)
+         {
+            if (dimension == 2)
+            {
+               map_field_to_quadrature_data_tensor_product_2d(
+                  directions_qp[i], dtqmaps[i], direction_e, mfem::get<i>(fops),
+                  integration_weights, scratch_mem);
+            }
+            else if (dimension == 3)
+            {
+               map_field_to_quadrature_data_tensor_product_3d(
+                  directions_qp[i], dtqmaps[i], direction_e, mfem::get<i>(fops),
+                  integration_weights, scratch_mem);
+            }
+         }
+         else
+         {
+            map_field_to_quadrature_data(
+               directions_qp[i], dtqmaps[i], direction_e, mfem::get<i>(fops),
+               integration_weights);
+         }
+      }
    });
 }
 

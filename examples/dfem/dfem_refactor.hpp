@@ -188,7 +188,7 @@ public:
       typename... output_ts,
       typename derivative_indices_t>
    void AddDomainIntegrator(
-      func_t qfunc,
+      func_t &qfunc,
       mfem::tuple<input_ts...> inputs,
       mfem::tuple<output_ts...> outputs,
       const IntegrationRule &integration_rule,
@@ -196,7 +196,7 @@ public:
 
    void SetParameters(std::vector<Vector *> p) const;
 
-   std::unique_ptr<DerivativeOperator> GetDerivative(
+   std::shared_ptr<DerivativeOperator> GetDerivative(
       size_t derivative_idx,
       std::vector<Vector *> solutions_l,
       std::vector<Vector *> parameters_l)
@@ -205,7 +205,7 @@ public:
                   derivative_action_callbacks.end(),
                   "no derivative action has been found for index " << derivative_idx);
 
-      return std::make_unique<DerivativeOperator>(
+      return std::make_shared<DerivativeOperator>(
                 GetTrueVSize(fields[derivative_idx]),
                 width,
                 derivative_action_callbacks[derivative_idx],
@@ -292,16 +292,16 @@ DifferentiableOperator::DifferentiableOperator(
 }
 
 template <
-   typename func_t,
+   typename qfunc_t,
    typename... input_ts,
    typename... output_ts,
    typename derivative_indices_t = std::make_index_sequence<0>>
 void DifferentiableOperator::AddDomainIntegrator(
-   func_t qfunc,
+   qfunc_t &qfunc,
    mfem::tuple<input_ts...> inputs,
    mfem::tuple<output_ts...> outputs,
    const IntegrationRule &integration_rule,
-   const derivative_indices_t derivative_indices)
+   derivative_indices_t derivative_indices)
 {
    using entity_t = Entity::Element;
 
@@ -311,16 +311,15 @@ void DifferentiableOperator::AddDomainIntegrator(
    static constexpr size_t num_outputs =
       mfem::tuple_size<decltype(outputs)>::value;
 
-   using qf_param_ts = typename create_function_signature<
-                       decltype(&func_t::operator())>::type::parameter_ts;
-
-   using qf_output_t = typename create_function_signature<
-                       decltype(&func_t::operator())>::type::return_t;
+   using qf_signature =
+      typename create_function_signature<decltype(&qfunc_t::operator())>::type;
+   using qf_param_ts = typename qf_signature::parameter_ts;
+   using qf_output_t = typename qf_signature::return_t;
 
    // Consistency checks
    if constexpr (num_outputs > 1)
    {
-      static_assert(always_false<func_t>,
+      static_assert(always_false<qfunc_t>,
                     "more than one output per quadrature functions is not supported right now");
    }
 
@@ -340,15 +339,10 @@ void DifferentiableOperator::AddDomainIntegrator(
    constexpr auto dependency_map = make_dependency_map(mfem::tuple<input_ts...> {});
 
    // Create the action callback
-   auto input_to_field = create_descriptors_to_fields_map<entity_t>(
-                            fields,
-                            inputs,
-                            std::make_index_sequence<num_inputs> {});
-
-   auto output_to_field = create_descriptors_to_fields_map<entity_t>(
-                             fields,
-                             outputs,
-                             std::make_index_sequence<num_outputs> {});
+   auto input_to_field =
+      create_descriptors_to_fields_map<entity_t>(fields, inputs);
+   auto output_to_field =
+      create_descriptors_to_fields_map<entity_t>(fields, outputs);
 
    constexpr int hardcoded_zero_idx = 0;
    const int test_space_field_idx = output_to_field[hardcoded_zero_idx];
@@ -487,7 +481,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    Vector shmem_cache(action_shmem_info.total_size);
 
-   print_shared_memory_info(action_shmem_info);
+   // print_shared_memory_info(action_shmem_info);
 
    // Compute block sizes
    int block_x, block_y, block_z;
@@ -612,7 +606,9 @@ void DifferentiableOperator::AddDomainIntegrator(
                input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
                scratch_shmem, dimension, use_sum_factorization);
 
+            // TODO: Probably redundant
             set_zero(shadow_shmem);
+
             map_direction_to_quadrature_data_conditional(
                shadow_shmem, direction_shmem, input_dtq_shmem, inputs, ir_weights,
                scratch_shmem, input_is_dependent, dimension, use_sum_factorization);

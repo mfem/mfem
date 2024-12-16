@@ -9,6 +9,12 @@
 namespace mfem
 {
 
+template <typename func_t, typename... arg_ts>
+inline auto qfunction_wrapper(const func_t &f, arg_ts &&...args)
+{
+   return f(args...);
+}
+
 template <typename T0, typename T1>
 MFEM_HOST_DEVICE
 void process_kf_arg(const T0 &, T1 &)
@@ -161,61 +167,63 @@ void process_kf_arg(
    }
 }
 
-template <typename kernel_func_t, typename kernel_args_ts, size_t num_args>
+template <typename qfunc_t, typename args_ts, size_t num_args>
 MFEM_HOST_DEVICE inline
 void apply_kernel(
    DeviceTensor<1, double> &f_qp,
-   const kernel_func_t &kf,
-   kernel_args_ts &args,
+   const qfunc_t &qfunc,
+   args_ts &args,
    const std::array<DeviceTensor<2>, num_args> &u,
    int qp)
 {
    process_kf_args(u, args, qp);
-
-   process_kf_result(f_qp, mfem::get<0>(mfem::apply(kf, args)));
+   process_kf_result(f_qp, mfem::get<0>(mfem::apply(qfunc, args)));
 }
 
 #ifdef MFEM_USE_ENZYME
 // Version for active function arguments only
 //
 // This is an Enzyme regression and can be removed in later versions.
-template <typename kernel_t, typename arg_ts, std::size_t... Is,
+template <typename qfunc_t, typename arg_ts, std::size_t... Is,
           typename inactive_arg_ts>
 MFEM_HOST_DEVICE inline
-auto fwddiff_apply_enzyme_indexed(kernel_t kernel, arg_ts &&args,
+auto fwddiff_apply_enzyme_indexed(qfunc_t &qfunc, arg_ts &&args,
                                   arg_ts &&shadow_args,
                                   std::index_sequence<Is...>,
                                   inactive_arg_ts &&inactive_args,
                                   std::index_sequence<>)
 {
-   using kf_return_t = typename create_function_signature<
-                       decltype(&kernel_t::operator())>::type::return_t;
-   return __enzyme_fwddiff<kf_return_t>(
-             +kernel, enzyme_dup, &mfem::get<Is>(args)..., enzyme_interleave,
+   using qf_return_t = typename create_function_signature<
+                       decltype(&qfunc_t::operator())>::type::return_t;
+   return __enzyme_fwddiff<qf_return_t>(
+             qfunction_wrapper<qfunc_t, decltype(mfem::get<Is>(args))...>, enzyme_const,
+             (void *)&qfunc, enzyme_dup, &mfem::get<Is>(args)..., enzyme_interleave,
              &mfem::get<Is>(shadow_args)...);
 }
 
 // Interleave function arguments for enzyme
-template <typename kernel_t, typename arg_ts, std::size_t... Is,
+template <typename qfunc_t, typename arg_ts, std::size_t... Is,
           typename inactive_arg_ts, std::size_t... Js>
 MFEM_HOST_DEVICE inline
-auto fwddiff_apply_enzyme_indexed(kernel_t kernel, arg_ts &&args,
+auto fwddiff_apply_enzyme_indexed(qfunc_t &qfunc, arg_ts &&args,
                                   arg_ts &&shadow_args,
                                   std::index_sequence<Is...>,
                                   inactive_arg_ts &&inactive_args,
                                   std::index_sequence<Js...>)
 {
-   using kf_return_t = typename create_function_signature<
-                       decltype(&kernel_t::operator())>::type::return_t;
-   return __enzyme_fwddiff<kf_return_t>(
-             +kernel, enzyme_dup, &std::get<Is>(args)..., enzyme_const,
-             &mfem::get<Js>(inactive_args)..., enzyme_interleave,
+   using qf_return_t = typename create_function_signature<
+                       decltype(&qfunc_t::operator())>::type::return_t;
+   return __enzyme_fwddiff<qf_return_t>(
+             qfunction_wrapper<qfunc_t, decltype(mfem::get<Is>(args))...,
+             decltype(mfem::get<Js>(inactive_args))...>,
+             enzyme_const, (void *)&qfunc, enzyme_dup, &mfem::get<Is>(args)...,
+             enzyme_const, &mfem::get<Js>(inactive_args)..., enzyme_interleave,
              &mfem::get<Is>(shadow_args)...);
 }
 
-template <typename kernel_t, typename arg_ts, typename inactive_arg_ts>
+template <typename qfunc_t, typename arg_ts, typename inactive_arg_ts>
 MFEM_HOST_DEVICE inline
-auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args,
+auto fwddiff_apply_enzyme(qfunc_t &qfunc, arg_ts &&args,
                           arg_ts &&shadow_args,
                           inactive_arg_ts &&inactive_args)
 {
@@ -225,27 +233,25 @@ auto fwddiff_apply_enzyme(kernel_t kernel, arg_ts &&args,
    auto inactive_arg_indices = std::make_index_sequence<
                                mfem::tuple_size<std::remove_reference_t<inactive_arg_ts>>::value> {};
 
-   return fwddiff_apply_enzyme_indexed(kernel, args, shadow_args, arg_indices,
+   return fwddiff_apply_enzyme_indexed(qfunc, args, shadow_args, arg_indices,
                                        inactive_args, inactive_arg_indices);
 }
 
-template <typename kf_t, typename kernel_arg_ts, size_t num_args>
+template <typename qfunc_t, typename arg_ts, size_t num_args>
 MFEM_HOST_DEVICE inline
 void apply_kernel_fwddiff_enzyme(
    DeviceTensor<1, double> &f_qp,
-   const kf_t &kf,
-   kernel_arg_ts &args,
-   kernel_arg_ts &shadow_args,
+   qfunc_t &qfunc,
+   arg_ts &args,
+   arg_ts &shadow_args,
    const std::array<DeviceTensor<2>, num_args> &u,
    const std::array<DeviceTensor<2>, num_args> &v,
    int qp_idx)
 {
    process_kf_args(u, args, qp_idx);
-
    process_kf_args(v, shadow_args, qp_idx);
-
    process_kf_result(f_qp,
-                     mfem::get<0>(fwddiff_apply_enzyme(kf, args, shadow_args, mfem::tuple<> {})));
+                     mfem::get<0>(fwddiff_apply_enzyme(qfunc, args, shadow_args, mfem::tuple<> {})));
 }
 #endif // MFEM_USE_ENZYME
 

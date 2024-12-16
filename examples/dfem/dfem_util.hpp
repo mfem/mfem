@@ -75,7 +75,7 @@ constexpr void for_constexpr(lambda&& f, std::integer_sequence<size_t, n...>,
 template <typename lambda, size_t... i>
 constexpr void for_constexpr(lambda&& f, std::integer_sequence<size_t, i ... >)
 {
-   f(std::integral_constant< size_t, i > {} ...);
+   (f(std::integral_constant<size_t, i> {}), ...);
 }
 
 template <typename lambda>
@@ -211,8 +211,16 @@ struct FunctionSignature<output_t(input_ts...)>
 
 template <class T> struct create_function_signature;
 
+// Specialization for member functions (lambdas)
 template <typename output_t, typename T, typename... input_ts>
 struct create_function_signature<output_t (T::*)(input_ts...) const>
+{
+   using type = FunctionSignature<output_t(input_ts...)>;
+};
+
+// Specialization for function pointers
+template <typename output_t, typename... input_ts>
+struct create_function_signature<output_t (*)(input_ts...)>
 {
    using type = FunctionSignature<output_t(input_ts...)>;
 };
@@ -1056,12 +1064,11 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 //    return (it - fields.begin());
 // }
 
-template <typename entity_t, typename field_operator_ts, std::size_t... idx>
+template <typename entity_t, typename field_operator_ts>
 std::array<int, mfem::tuple_size<field_operator_ts>::value>
 create_descriptors_to_fields_map(
    const std::vector<FieldDescriptor> &fields,
-   field_operator_ts &fops,
-   std::index_sequence<idx...>)
+   field_operator_ts &fops)
 {
    std::array<int, mfem::tuple_size<field_operator_ts>::value> map;
 
@@ -1119,7 +1126,10 @@ create_descriptors_to_fields_map(
       }
    };
 
-   (f(mfem::get<idx>(fops), map[idx]), ...);
+   for_constexpr<mfem::tuple_size<field_operator_ts>::value>([&](auto idx)
+   {
+      f(mfem::get<idx>(fops), map[idx]);
+   });
 
    return map;
 }
@@ -2009,7 +2019,7 @@ template <
    typename qfunc_t,
    size_t num_fields>
 void call_qfunction(
-   qfunc_t qfunc,
+   qfunc_t &qfunc,
    const std::array<DeviceTensor<2>, num_fields> &input_shmem,
    DeviceTensor<2> &residual_shmem,
    const int &rs_qp,
@@ -2067,7 +2077,7 @@ template <
    typename qfunc_t,
    size_t num_fields>
 void call_qfunction_derivative_action(
-   qfunc_t qfunc,
+   qfunc_t &qfunc,
    const std::array<DeviceTensor<2>, num_fields> &input_shmem,
    const std::array<DeviceTensor<2>, num_fields> &shadow_shmem,
    DeviceTensor<2> &residual_shmem,
