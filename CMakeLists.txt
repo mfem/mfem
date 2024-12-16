@@ -615,27 +615,20 @@ set(MASTER_HEADERS
   ${PROJECT_SOURCE_DIR}/mfem.hpp
   ${PROJECT_SOURCE_DIR}/mfem-performance.hpp)
 
-# Installation options
-set(MFEM_USE_GNUINSTALLDIRS OFF
-  CACHE BOOL "Enable to use the GNUInstallDirs CMake module.")
-set(install_include_dir_default include)
-set(install_bin_dir_default bin)
-set(install_lib_dir_default lib)
-set(install_share_dir_default share)
-if (MFEM_USE_GNUINSTALLDIRS)
-  include(GNUInstallDirs)
-  set(install_include_dir_default "${CMAKE_INSTALL_INCLUDEDIR}")
-  set(install_bin_dir_default "${CMAKE_INSTALL_BINDIR}")
-  set(install_lib_dir_default "${CMAKE_INSTALL_LIBDIR}")
-  set(install_share_dir_default "${CMAKE_INSTALL_DATAROOTDIR}")
+# Installation options (we use GNUInstallDirs but prefer lib by default)
+set(MFEM_USE_GNUINSTALLDIRS OFF CACHE BOOL
+  "Use CMAKE_INSTALL_LIBDIR as defined by the GNUInstallDirs CMake module.")
+if (NOT MFEM_USE_GNUINSTALLDIRS)
+  mfem_cache_path(CMAKE_INSTALL_LIBDIR "lib" "Object code libraries (lib)")
 endif()
-mfem_cache_path(INSTALL_INCLUDE_DIR "${install_include_dir_default}"
+include(GNUInstallDirs)
+mfem_cache_path(INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_INCLUDEDIR}"
   "Relative or absolute path for installing header files.")
-mfem_cache_path(INSTALL_BIN_DIR "${install_bin_dir_default}"
+mfem_cache_path(INSTALL_BIN_DIR "${CMAKE_INSTALL_BINDIR}"
   "Relative or absolute path for installing the binaries.")
-mfem_cache_path(INSTALL_LIB_DIR "${install_lib_dir_default}"
+mfem_cache_path(INSTALL_LIB_DIR "${CMAKE_INSTALL_LIBDIR}"
   "Relative or absolute path for installing the library.")
-mfem_cache_path(INSTALL_SHARE_DIR "${install_share_dir_default}"
+mfem_cache_path(INSTALL_SHARE_DIR "${CMAKE_INSTALL_DATAROOTDIR}"
   "Relative or absolute path for installing shared data.")
 # other options: "share/mfem/cmake", "lib/mfem/cmake"
 mfem_cache_path(INSTALL_CMAKE_DIR "${INSTALL_LIB_DIR}/cmake/mfem"
@@ -646,10 +639,9 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
 set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
 set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
 
-set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH
-    "The MFEM source directory" FORCE)
-set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
-    "The MFEM install directory" FORCE)
+# Variables used when generating _config.hpp, and config.mk
+set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
