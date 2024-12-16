@@ -638,7 +638,7 @@ mfem_cache_path(INSTALL_LIB_DIR "${install_lib_dir_default}"
 mfem_cache_path(INSTALL_SHARE_DIR "${install_share_dir_default}"
   "Relative or absolute path for installing shared data.")
 # other options: "share/mfem/cmake", "lib/mfem/cmake"
-mfem_cache_path(INSTALL_CMAKE_DIR ${INSTALL_LIB_DIR}/cmake/mfem
+mfem_cache_path(INSTALL_CMAKE_DIR "${INSTALL_LIB_DIR}/cmake/mfem"
   "Relative or absolute path for installing cmake config files.")
 
 mfem_path_to_fullpath("${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}" _lib_path)
@@ -846,8 +846,7 @@ foreach(Header mfem.hpp mfem-performance.hpp)
 endforeach()
 install(FILES ${MASTER_HEADERS} DESTINATION ${INSTALL_INCLUDE_DIR}/mfem)
 
-# Install the headers. Note that miniapp header installation is dictated from
-# its subdirectory
+# Install the headers (except common miniapp which is installed from its subdir)
 install(DIRECTORY ${MFEM_SOURCE_DIRS}
   DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
   FILES_MATCHING PATTERN "*.hpp")
