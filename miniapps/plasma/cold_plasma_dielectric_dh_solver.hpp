@@ -341,6 +341,10 @@ public:
 
    double GetGlobalDissipation() const;
 
+   double GetCoreDissipation() const;
+
+   double GetSOLDissipation() const;
+
    double GetSheathDissipation() const;
 
    void RegisterVisItFields(VisItDataCollection & visit_dc);
@@ -651,6 +655,10 @@ private:
    ParBilinearForm * m3_;
    ParBilinearForm * m4r_;
    ParBilinearForm * m4i_;
+   ParBilinearForm * m4cr_;
+   ParBilinearForm * m4ci_;
+   ParBilinearForm * m4solr_;
+   ParBilinearForm * m4soli_;
 
    ParDiscreteGradOperator * grad_; // For Computing E from phi
    ParDiscreteCurlOperator * curl_; // For Computing D from H
@@ -702,14 +710,26 @@ private:
    HypreParMatrix * M3_;
    HypreParMatrix * M4r_;
    HypreParMatrix * M4i_;
+   HypreParMatrix * M4cr_;
+   HypreParMatrix * M4ci_;
+   HypreParMatrix * M4solr_;
+   HypreParMatrix * M4soli_;
    HypreParVector * PHIr_; 
    HypreParVector * PHIi_; 
    mutable HypreParVector * RHSr1_;
    mutable HypreParVector * RHSi1_;
    mutable HypreParVector * RHSr2_;
    mutable HypreParVector * RHSi2_;
+   mutable HypreParVector * RHSr3_;
+   mutable HypreParVector * RHSi3_;
+   mutable HypreParVector * RHSr4_;
+   mutable HypreParVector * RHSi4_;
    mutable HypreParVector * TMPr2_;
    mutable HypreParVector * TMPi2_;
+   mutable HypreParVector * TMPr3_;
+   mutable HypreParVector * TMPi3_;
+   mutable HypreParVector * TMPr4_;
+   mutable HypreParVector * TMPi4_;
    HypreParVector * Er_; 
    HypreParVector * Ei_;  
 
@@ -798,6 +818,9 @@ private:
    Array<int> sbc_bdr_marker_;
    Array<int> non_sbc_h1_tdofs_;
    Array<int> sbc_nd_tdofs_;
+
+   Array<int> core_attr_marker_;
+   Array<int> sol_attr_marker_;
 
    VisItDataCollection * visit_dc_;
 

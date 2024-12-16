@@ -489,16 +489,32 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      M3_(NULL),
      m4r_(NULL),
      m4i_(NULL),
+     m4cr_(NULL),
+     m4ci_(NULL),
+     m4solr_(NULL),
+     m4soli_(NULL),
      M4r_(NULL),
      M4i_(NULL),
+     M4cr_(NULL),
+     M4ci_(NULL),
+     M4solr_(NULL),
+     M4soli_(NULL),
      PHIr_(NULL),
      PHIi_(NULL),
      RHSr1_(NULL),
      RHSi1_(NULL),
      RHSr2_(NULL),
      RHSi2_(NULL),
+     RHSr3_(NULL),
+     RHSi3_(NULL),
+     RHSr4_(NULL),
+     RHSi4_(NULL),
      TMPr2_(NULL),
      TMPi2_(NULL),
+     TMPr3_(NULL),
+     TMPi3_(NULL),
+     TMPr4_(NULL),
+     TMPi4_(NULL),
      Er_(NULL),
      Ei_(NULL),
      // m12EpsRe_(NULL),
@@ -933,15 +949,45 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    m21EpsInv_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsInvReCoef_),
                                    new VectorFEMassIntegrator(*epsInvImCoef_));
 
+   // For global power dissipation
    m4r_ = new ParBilinearForm(HCurlFESpace_);
    m4r_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_));
    m4i_ = new ParBilinearForm(HCurlFESpace_);
    m4i_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_));
 
+   // For Core power dissipation
+   core_attr_marker_.SetSize(pmesh.attributes.Max());
+   core_attr_marker_ = 0;
+   core_attr_marker_[3] = 1;
+
+   sol_attr_marker_.SetSize(pmesh.attributes.Max());
+   sol_attr_marker_ = 0;
+   sol_attr_marker_[2] = 1;
+
+   // Core power dissipation
+   m4cr_ = new ParBilinearForm(HCurlFESpace_);
+   m4cr_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_),core_attr_marker_);
+   m4ci_ = new ParBilinearForm(HCurlFESpace_);
+   m4ci_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_),core_attr_marker_);
+
+   // SOL power dissipation
+   m4solr_ = new ParBilinearForm(HCurlFESpace_);
+   m4solr_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_),sol_attr_marker_);
+   m4soli_ = new ParBilinearForm(HCurlFESpace_);
+   m4soli_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_),sol_attr_marker_);
+
    RHSr2_ = new HypreParVector(HCurlFESpace_);
    RHSi2_ = new HypreParVector(HCurlFESpace_);
+   RHSr3_ = new HypreParVector(HCurlFESpace_);
+   RHSi3_ = new HypreParVector(HCurlFESpace_);
+   RHSr4_ = new HypreParVector(HCurlFESpace_);
+   RHSi4_ = new HypreParVector(HCurlFESpace_);
    TMPr2_ = new HypreParVector(HCurlFESpace_);
    TMPi2_ = new HypreParVector(HCurlFESpace_);
+   TMPr3_ = new HypreParVector(HCurlFESpace_);
+   TMPi3_ = new HypreParVector(HCurlFESpace_);
+   TMPr4_ = new HypreParVector(HCurlFESpace_);
+   TMPi4_ = new HypreParVector(HCurlFESpace_);
 
    Er_ = new HypreParVector(HCurlFESpace_);
    Ei_ = new HypreParVector(HCurlFESpace_);
@@ -1268,16 +1314,32 @@ CPDSolverDH::~CPDSolverDH()
    delete M3_;
    delete m4r_;
    delete m4i_;
+   delete m4cr_;
+   delete m4ci_;
+   delete m4solr_;
+   delete m4soli_;
    delete M4r_;
    delete M4i_;
+   delete M4cr_;
+   delete M4ci_;
+   delete M4solr_;
+   delete M4soli_;
    delete PHIr_;
    delete PHIi_;
    delete RHSr1_;
    delete RHSi1_;
    delete RHSr2_;
    delete RHSi2_;
+   delete RHSr3_;
+   delete RHSi3_;
+   delete RHSr4_;
+   delete RHSi4_;
    delete TMPr2_;
    delete TMPi2_;
+   delete TMPr3_;
+   delete TMPi3_;
+   delete TMPr4_;
+   delete TMPi4_;
    delete Er_;
    delete Ei_;
    delete sheathPowCoef_;
@@ -1498,6 +1560,16 @@ CPDSolverDH::Assemble()
    m4i_->Assemble();
    m4i_->Finalize();
 
+   m4cr_->Assemble();
+   m4cr_->Finalize();
+   m4ci_->Assemble();
+   m4ci_->Finalize();
+
+   m4solr_->Assemble();
+   m4solr_->Finalize();
+   m4soli_->Assemble();
+   m4soli_->Finalize();
+
    if ( myid_ == 0 && logging_ > 0 )
    { cout << "  Source term..." << flush; }
    tic_toc.Clear();
@@ -1646,6 +1718,10 @@ CPDSolverDH::Update()
    m21EpsInv_->Update();
    m4r_->Update();
    m4i_->Update();
+   m4cr_->Update();
+   m4ci_->Update();
+   m4solr_->Update();
+   m4soli_->Update();
    //RHSr2_->Update();
    //RHSi2_->Update(); 
    //TMPr2_->Update();
@@ -1951,14 +2027,23 @@ CPDSolverDH::Solve()
 
    Er_ = e_->real().ParallelProject();
    Ei_ = e_->imag().ParallelProject();
+
    M4r_ = m4r_->ParallelAssemble();
    M4i_ = m4i_->ParallelAssemble();
+   M4cr_ = m4cr_->ParallelAssemble();
+   M4ci_ = m4ci_->ParallelAssemble();
+   M4solr_ = m4solr_->ParallelAssemble();
+   M4soli_ = m4soli_->ParallelAssemble();
 
    double global_diss = GetGlobalDissipation();
+   double core_diss = GetCoreDissipation();
+   double sol_diss = GetSOLDissipation();
 
    if (myid_ == 0)
    {
       cout << "Global Dissipation: " << global_diss << endl; 
+      cout << "Core Dissipation: " << core_diss << endl; 
+      cout << "SOL Dissipation: " << sol_diss << endl; 
       cout << " Solve done." << endl;
    }
 }
@@ -2277,6 +2362,48 @@ CPDSolverDH::GetGlobalDissipation() const
 
    return 0.25*global_diss;
 }
+
+double
+CPDSolverDH::GetCoreDissipation() const
+{
+   double core_diss = 0.0;
+
+   // Real suscept*E :
+   M4cr_->Mult(*Er_,*RHSr3_);
+   M4ci_->Mult(*Ei_,*TMPr3_);
+   *RHSr3_ -= *TMPr3_;
+
+   // Image suscept*E :
+   M4cr_->Mult(*Ei_,*RHSi3_);
+   M4ci_->Mult(*Er_,*TMPi3_);
+   *RHSi3_ += *TMPi3_;
+
+   core_diss = InnerProduct(*Er_,*RHSr3_) + InnerProduct(*Ei_,*RHSi3_);
+
+   return 0.25*core_diss;
+}
+
+double
+CPDSolverDH::GetSOLDissipation() const
+{
+   double sol_diss = 0.0;
+
+   // Real suscept*E :
+   M4solr_->Mult(*Er_,*RHSr4_);
+   M4soli_->Mult(*Ei_,*TMPr4_);
+   *RHSr4_ -= *TMPr4_;
+
+   // Image suscept*E :
+   M4solr_->Mult(*Ei_,*RHSi4_);
+   M4soli_->Mult(*Er_,*TMPi4_);
+   *RHSi4_ += *TMPi4_;
+
+   sol_diss = InnerProduct(*Er_,*RHSr4_) + InnerProduct(*Ei_,*RHSi4_);
+
+   return 0.25*sol_diss;
+}
+
+
 
 double
 CPDSolverDH::GetSheathDissipation() const
