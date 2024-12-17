@@ -32,6 +32,7 @@ DarcyHybridization::~DarcyHybridization()
 {
    delete c_bfi_p;
    delete c_nlfi_p;
+   delete c_nlfi;
    if (own_m_nlfi_u) { delete m_nlfi_u; }
    if (own_m_nlfi_p) { delete m_nlfi_p; }
    if (own_m_nlfi) { delete m_nlfi; }
@@ -41,6 +42,8 @@ DarcyHybridization::~DarcyHybridization()
       { delete boundary_constraint_pot_integs[k]; }
       for (int k=0; k < boundary_constraint_pot_nonlin_integs.Size(); k++)
       { delete boundary_constraint_pot_nonlin_integs[k]; }
+      for (int k=0; k < boundary_constraint_nonlin_integs.Size(); k++)
+      { delete boundary_constraint_nonlin_integs[k]; }
    }
 
    delete[] Af_lin_data;
@@ -67,6 +70,8 @@ void DarcyHybridization::SetConstraintIntegrators(
    c_bfi_p = c_pot_integ;
    delete c_nlfi_p;
    c_nlfi_p = NULL;
+   delete c_nlfi;
+   c_nlfi = NULL;
 
    bnl = false;
 }
@@ -80,6 +85,23 @@ void DarcyHybridization::SetConstraintIntegrators(
    c_bfi_p = NULL;
    delete c_nlfi_p;
    c_nlfi_p = c_pot_integ;
+   delete c_nlfi;
+   c_nlfi = NULL;
+
+   bnl = true;
+}
+
+void DarcyHybridization::SetConstraintIntegrators(
+   BilinearFormIntegrator *c_flux_integ, BlockNonlinearFormIntegrator *c_integ)
+{
+   delete c_bfi;
+   c_bfi = c_flux_integ;
+   delete c_bfi_p;
+   c_bfi_p = NULL;
+   delete c_nlfi_p;
+   c_nlfi_p = NULL;
+   delete c_nlfi;
+   c_nlfi = c_integ;
 
    bnl = true;
 }
@@ -1130,7 +1152,7 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
    if (!Df_data) { AllocD(); }// D is resetted in ConstructGrad()
    if (!E_data || !G_data) { AllocEG(); }// E and G are rewritten
    if (!H_data) { AllocH(); }
-   else if (c_nlfi_p)
+   else if (c_nlfi_p || c_nlfi)
    {
       // H is resetted here for additive double side integration
       memset(H_data, 0, H_offsets.Last() * sizeof(real_t));
@@ -1354,43 +1376,99 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
          else
          {
             //nonlinear
-            Vector GpHx_l;
-            int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
-                       | NonlinearFormIntegrator::HDGFaceType::FACE;
-            if (FTr->Elem2No >= 0)
+            if (c_nlfi_p)
             {
-               //interior
-               if (c_nlfi_p)
+               Vector GpHx_l;
+               int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                          | NonlinearFormIntegrator::HDGFaceType::FACE;
+
+               if (!(FTr->GetConfigurationMask() & FaceElementTransformations::HAVE_ELEM1))
                {
+                  FTr = fes->GetMesh()->GetFaceElementTransformations(faces[f]);
+               }
+
+               if (FTr->Elem2No >= 0)
+               {
+                  //interior
                   if (FTr->Elem1No != el) { type |= 1; }
 
                   c_nlfi_p->AssembleHDGFaceVector(type,
                                                   *c_fes->GetFaceElement(faces[f]),
                                                   *fes_p->GetFE(el),
-                                                  *fes->GetMesh()->GetInteriorFaceTransformations(faces[f]),
+                                                  *FTr,
                                                   x_f, p_l, GpHx_l);
 
                   y_l += GpHx_l;
                }
-            }
-            else
-            {
-               //boundary
-
-               const int bdr_attr = fes->GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
-
-               for (int i = 0; i < boundary_constraint_pot_nonlin_integs.Size(); i++)
+               else
                {
-                  if (boundary_constraint_pot_nonlin_integs_marker[i]
-                      && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+                  //boundary
+                  const int bdr_attr = fes->GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
 
-                  boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                                  *c_fes->GetFaceElement(faces[f]),
-                                                                                  *fes_p->GetFE(el),
-                                                                                  *fes->GetMesh()->GetFaceElementTransformations(faces[f]),
-                                                                                  x_f, p_l, GpHx_l);
+                  for (int i = 0; i < boundary_constraint_pot_nonlin_integs.Size(); i++)
+                  {
+                     if (boundary_constraint_pot_nonlin_integs_marker[i]
+                         && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
-                  y_l += GpHx_l;
+                     boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
+                                                                                     *c_fes->GetFaceElement(faces[f]),
+                                                                                     *fes_p->GetFE(el),
+                                                                                     *FTr,
+                                                                                     x_f, p_l, GpHx_l);
+
+                     y_l += GpHx_l;
+                  }
+               }
+            }
+
+            if (c_nlfi)
+            {
+               Vector GpHx_l;
+               const FiniteElement *fe_u = fes->GetFE(el);
+               const FiniteElement *fe_p = fes_p->GetFE(el);
+               Array<const FiniteElement*> fe_arr({fe_u, fe_p});
+               Array<const Vector*> x_arr({&u_l, &p_l});
+               Array<Vector*> y_arr((Vector*[]) {NULL, NULL, &GpHx_l});
+
+               int type = BlockNonlinearFormIntegrator::HDGFaceType::CONSTR
+                          | BlockNonlinearFormIntegrator::HDGFaceType::FACE;
+
+               if (!(FTr->GetConfigurationMask() & FaceElementTransformations::HAVE_ELEM1))
+               {
+                  FTr = fes->GetMesh()->GetFaceElementTransformations(faces[f]);
+               }
+
+               if (FTr->Elem2No >= 0)
+               {
+                  //interior
+                  if (FTr->Elem1No != el) { type |= 1; }
+
+                  c_nlfi->AssembleHDGFaceVector(type,
+                                                *c_fes->GetFaceElement(faces[f]),
+                                                fe_arr,
+                                                *FTr,
+                                                x_f, x_arr, y_arr);
+
+                  if (GpHx_l.Size() > 0) { y_l += GpHx_l; }
+               }
+               else
+               {
+                  //boundary
+                  const int bdr_attr = fes->GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
+
+                  for (int i = 0; i < boundary_constraint_nonlin_integs.Size(); i++)
+                  {
+                     if (boundary_constraint_nonlin_integs_marker[i]
+                         && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+                     boundary_constraint_nonlin_integs[i]->AssembleHDGFaceVector(type,
+                                                                                 *c_fes->GetFaceElement(faces[f]),
+                                                                                 fe_arr,
+                                                                                 *FTr,
+                                                                                 x_f, x_arr, y_arr);
+
+                     if (GpHx_l.Size() > 0) { y_l += GpHx_l; }
+                  }
                }
             }
          }
@@ -1426,12 +1504,12 @@ void DarcyHybridization::Finalize()
    }
    else
    {
-      if (!m_nlfi_u && !m_nlfi)
+      if (!m_nlfi_u && !m_nlfi && !c_nlfi)
       {
          lop_type = LocalOpType::PotNL;
          InvertA();
       }
-      else if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi)
+      else if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi && !c_nlfi)
       {
          lop_type = LocalOpType::FluxNL;
          InvertD();
@@ -1808,6 +1886,38 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       }
    }
 
+   if (c_nlfi)
+   {
+      //bp += E x
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         FaceElementTransformations *FTr = fes->GetMesh()->GetFaceElementTransformations(
+                                              faces[f], 0);
+
+         const Vector &x_f = x_l.GetBlock(f);
+
+         if (FTr->Elem2No >= 0)
+         {
+            //interior
+            AssembleHDGGrad(el, faces[f], *c_nlfi, x_f, u_l, p_l);
+         }
+         else
+         {
+            //boundary
+            const int bdr_attr = fes->GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
+
+            for (int i = 0; i < boundary_constraint_nonlin_integs.Size(); i++)
+            {
+               if (boundary_constraint_nonlin_integs_marker[i]
+                   && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+               AssembleHDGGrad(el, faces[f], *boundary_constraint_nonlin_integs[i], x_f,
+                               u_l, p_l);
+            }
+         }
+      }
+   }
+
    if (m_nlfi_u || m_nlfi)
    {
       // Decompose A
@@ -1829,8 +1939,9 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    LU_S.Factor(d_dofs_size);
 }
 
-void DarcyHybridization::AssembleHDGGrad(int el, int f,
-                                         NonlinearFormIntegrator &nlfi, const Vector &x_f, const Vector &p_l) const
+void DarcyHybridization::AssembleHDGGrad(
+   int el, int f, NonlinearFormIntegrator &nlfi,
+   const Vector &x_f, const Vector &p_l) const
 {
    const FiniteElement *fe_c = c_fes->GetFaceElement(f);
    const FiniteElement *fe_p = fes_p->GetFE(el);
@@ -1872,6 +1983,63 @@ void DarcyHybridization::AssembleHDGGrad(int el, int f,
    DenseMatrix elmat_H;
    elmat_H.CopyMN(elmat, c_dofs_size, c_dofs_size, d_dofs_size, d_dofs_size);
    H_f += elmat_H;
+}
+
+void DarcyHybridization::AssembleHDGGrad(
+   int el, int f, BlockNonlinearFormIntegrator &nlfi,
+   const Vector &x_f, const Vector &u_l, const Vector &p_l) const
+{
+   const FiniteElement *fe_c = c_fes->GetFaceElement(f);
+   const FiniteElement *fe_u = fes->GetFE(el);
+   const FiniteElement *fe_p = fes_p->GetFE(el);
+   const Array<FiniteElement*> el_arr({fe_u, fe_p});
+   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+   const int c_dofs_size = x_f.Size();
+   const Array<const Vector*> x_arr({&u_l, &p_l});
+
+   FaceElementTransformations *FTr =
+      fes->GetMesh()->GetFaceElementTransformations(f);
+
+   int type = NonlinearFormIntegrator::HDGFaceType::ELEM
+              | NonlinearFormIntegrator::HDGFaceType::TRACE
+              | NonlinearFormIntegrator::HDGFaceType::CONSTR
+              | NonlinearFormIntegrator::HDGFaceType::FACE;
+
+   if (FTr->Elem1No != el) { type |= 1; }
+
+   Array2D<DenseMatrix*> elmats;
+   DenseMatrix elmat_A, elmat_D, elmat_E, elmat_G, elmat_H;
+   elmats = NULL;
+   elmats(0,0) = &elmat_A;
+   elmats(1,1) = &elmat_D;
+   elmats(1,2) = &elmat_E;
+   elmats(2,1) = &elmat_G;
+   elmats(2,2) = &elmat_H;
+
+   nlfi.AssembleHDGFaceGrad(type, *fe_c, el_arr, *FTr, x_f, x_arr, elmats);
+
+   // assemble A element matrices
+   DenseMatrix A(Af_data + Af_offsets[el], a_dofs_size, a_dofs_size);
+   if (elmat_A.Height() != 0) { A += elmat_A; }
+
+   // assemble D element matrices
+   DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+   if (elmat_D.Height() != 0) { D += elmat_D; }
+
+   // assemble E constraint
+   const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
+   DenseMatrix E_f(E_data + E_offsets[f] + E_off, d_dofs_size, c_dofs_size);
+   if (elmat_E.Height() != 0) { E_f += elmat_E; }
+
+   // assemble G constraint
+   const int G_off = E_off;
+   DenseMatrix G_f(G_data + G_offsets[f] + G_off, c_dofs_size, d_dofs_size);
+   if (elmat_G.Height() != 0) { G_f += elmat_G; }
+
+   // assemble H matrix
+   DenseMatrix H_f(H_data + H_offsets[f], c_dofs_size, c_dofs_size);
+   if (elmat_H.Height() != 0) { H_f += elmat_H; }
 }
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
@@ -2181,6 +2349,72 @@ DarcyHybridization::LocalNLOperator::~LocalNLOperator()
    }
 }
 
+void DarcyHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
+                                                       const Vector &p_l, Vector &bu, Vector &bp) const
+{
+   if (dh.m_nlfi)
+   {
+      //element contribution
+      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
+      Array<const Vector*> x_arr({&u_l, &p_l});
+      Array<Vector*> y_arr({&Au, &Dp});
+
+      dh.m_nlfi->AssembleElementVector(fe_arr, *Tr, x_arr, y_arr);
+      if (Au.Size() != 0) { bu += Au; }
+      if (Dp.Size() != 0) { bp += Dp; }
+   }
+
+   if (dh.c_nlfi)
+   {
+      //face contribution
+      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
+      Array<const Vector*> x_arr({&u_l, &p_l});
+      Array<Vector*> y_arr({&Au, &Dp, (Vector*)NULL});
+
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         FaceElementTransformations *FTr = FTrs[f];
+
+         int type = BlockNonlinearFormIntegrator::HDGFaceType::ELEM
+                    | BlockNonlinearFormIntegrator::HDGFaceType::TRACE;
+
+         const Vector &trp_f = trps.GetBlock(f);
+
+         if (FTr->Elem2No >=0)
+         {
+            //interior
+            if (FTr->Elem1No != el) { type |= 1; }
+
+            dh.c_nlfi->AssembleHDGFaceVector(type, *dh.c_fes->GetFaceElement(faces[f]),
+                                             fe_arr, *FTr, trp_f, x_arr, y_arr);
+
+            if (Au.Size() != 0) { bu += Au; }
+            if (Dp.Size() != 0) { bp += Dp; }
+         }
+         else
+         {
+            //boundary
+            const int bdr_attr = dh.fes->GetMesh()->GetBdrAttribute(dh.f_2_b[faces[f]]);
+
+            for (int i = 0; i < dh.boundary_constraint_nonlin_integs.Size(); i++)
+            {
+               if (dh.boundary_constraint_nonlin_integs_marker[i]
+                   && (*dh.boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+               dh.boundary_constraint_nonlin_integs[i]->AssembleHDGFaceVector(type,
+                                                                              *dh.c_fes->GetFaceElement(faces[f]),
+                                                                              fe_arr,
+                                                                              *FTr,
+                                                                              trp_f, x_arr, y_arr);
+
+               if (Au.Size() != 0) { bu += Au; }
+               if (Dp.Size() != 0) { bp += Dp; }
+            }
+         }
+      }
+   }
+}
+
 void DarcyHybridization::LocalNLOperator::AddMultA(const Vector &u_l,
                                                    Vector &bu) const
 {
@@ -2249,6 +2483,78 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
                                                                                   *fe_p, *FTr, trp_f, p_l, DpEx);
 
                bp += DpEx;
+            }
+         }
+      }
+   }
+}
+
+void DarcyHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
+                                                       const Vector &p_l, DenseMatrix &gA, DenseMatrix &gD) const
+{
+   if (dh.m_nlfi)
+   {
+      //element contribution
+      DenseMatrix gA, gD;
+      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
+      Array<const Vector*> x_arr({&u_l, &p_l});
+      Array2D<DenseMatrix*> grad_arr(2,2);
+      grad_arr = NULL;
+      grad_arr(0,0) = &gA;
+      grad_arr(1,1) = &gD;
+      dh.m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
+      if (gA.Height() != 0) { grad_A += gA; }
+      if (gD.Height() != 0) { grad_D += gD; }
+   }
+
+   if (dh.c_nlfi)
+   {
+      //face contribution
+      DenseMatrix gA, gD;
+      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
+      Array<const Vector*> x_arr({&u_l, &p_l});
+      Array2D<DenseMatrix*> grad_arr(3,3);
+      grad_arr = NULL;
+      grad_arr(0,0) = &gA;
+      grad_arr(1,1) = &gD;
+
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         FaceElementTransformations *FTr = FTrs[f];
+
+         int type = BlockNonlinearFormIntegrator::HDGFaceType::ELEM;
+
+         const Vector &trp_f = trps.GetBlock(f);
+
+         if (FTr->Elem2No >= 0)
+         {
+            //interior
+            if (FTr->Elem1No != el) { type |= 1; }
+
+            dh.c_nlfi->AssembleHDGFaceGrad(type, *dh.c_fes->GetFaceElement(faces[f]),
+                                           fe_arr, *FTr, trp_f, x_arr, grad_arr);
+
+            if (gA.Height() != 0) { grad_A += gA; }
+            if (gD.Height() != 0) { grad_D += gD; }
+         }
+         else
+         {
+            //boundary
+            const int bdr_attr = dh.fes->GetMesh()->GetBdrAttribute(dh.f_2_b[faces[f]]);
+
+            for (int i = 0; i < dh.boundary_constraint_nonlin_integs.Size(); i++)
+            {
+               if (dh.boundary_constraint_nonlin_integs_marker[i]
+                   && (*dh.boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+               dh.boundary_constraint_nonlin_integs[i]->AssembleHDGFaceGrad(type,
+                                                                            *dh.c_fes->GetFaceElement(faces[f]),
+                                                                            fe_arr,
+                                                                            *FTr,
+                                                                            trp_f, x_arr, grad_arr);
+
+               if (gA.Height() != 0) { grad_A += gA; }
+               if (gD.Height() != 0) { grad_D += gD; }
             }
          }
       }
@@ -2357,16 +2663,8 @@ void DarcyHybridization::LocalNLOperator::Mult(const Vector &x, Vector &y) const
    AddMultDE(p_l, bp);
 
    //bu += A u_l - B^T p_l
-   //bp += B u_l + D p_l
-   if (dh.m_nlfi)
-   {
-      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
-      Array<const Vector*> x_arr({&u_l, &p_l});
-      Array<Vector*> y_arr({&Au, &Dp});
-      dh.m_nlfi->AssembleElementVector(fe_arr, *Tr, x_arr, y_arr);
-      if (Au.Size() != 0) { bu += Au; }
-      if (Dp.Size() != 0) { bp += Dp; }
-   }
+   //bp += B u_l + D p_l + E x_f
+   AddMultBlock(u_l, p_l, bu, bp);
 }
 
 Operator &DarcyHybridization::LocalNLOperator::GetGradient(
@@ -2378,34 +2676,13 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    const Vector &u_l = x_l.GetBlock(0);
    const Vector &p_l = x_l.GetBlock(1);
 
-   if (dh.m_nlfi)
-   {
-      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
-      Array<const Vector*> x_arr({&u_l, &p_l});
-      Array2D<DenseMatrix*> grad_arr(2,2);
-      grad_arr(0,0) = &grad_A;
-      grad_arr(1,0) = NULL;
-      grad_arr(0,1) = NULL;
-      grad_arr(1,1) = &grad_D;
-      dh.m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
-      if (grad_A.Height() == 0)
-      {
-         grad_A.SetSize(a_dofs_size);
-         grad_A = 0.;
-      }
-      if (grad_D.Height() == 0)
-      {
-         grad_D.SetSize(d_dofs_size);
-         grad_D = 0.;
-      }
-   }
-   else
-   {
-      grad_A.SetSize(a_dofs_size);
-      grad_D.SetSize(d_dofs_size);
-      grad_A = 0.;
-      grad_D = 0.;
-   }
+   grad_A.SetSize(a_dofs_size);
+   grad_D.SetSize(d_dofs_size);
+   grad_A = 0.;
+   grad_D = 0.;
+
+   //block
+   AddGradBlock(u_l, p_l, grad_A, grad_D);
 
    //A
    AddGradA(u_l, grad_A);

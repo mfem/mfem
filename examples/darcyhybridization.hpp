@@ -40,6 +40,7 @@ private:
    FiniteElementSpace *fes_p;
    BilinearFormIntegrator *c_bfi_p{};
    NonlinearFormIntegrator *c_nlfi_p{};
+   BlockNonlinearFormIntegrator *c_nlfi{};
    NonlinearFormIntegrator *m_nlfi_u{}, *m_nlfi_p{};
    bool own_m_nlfi_u{}, own_m_nlfi_p{};
    BlockNonlinearFormIntegrator *m_nlfi{};
@@ -50,6 +51,8 @@ private:
    Array<Array<int>*>              boundary_constraint_pot_integs_marker;
    Array<NonlinearFormIntegrator*> boundary_constraint_pot_nonlin_integs;
    Array<Array<int>*>              boundary_constraint_pot_nonlin_integs_marker;
+   Array<BlockNonlinearFormIntegrator*> boundary_constraint_nonlin_integs;
+   Array<Array<int>*>                   boundary_constraint_nonlin_integs_marker;
    /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
    int extern_bdr_constr_pot_integs{};
 
@@ -137,8 +140,12 @@ private:
       mutable DenseMatrix grad_A, grad_D;
       mutable BlockOperator grad;
 
+      void AddMultBlock(const Vector &u_l, const Vector &p_l, Vector &bu,
+                        Vector &bp) const;
       void AddMultA(const Vector &u_l, Vector &bu) const;
       void AddMultDE(const Vector &p_l, Vector &bp) const;
+      void AddGradBlock(const Vector &u_l, const Vector &p_l, DenseMatrix &gA,
+                        DenseMatrix &gD) const;
       void AddGradA(const Vector &u_l, DenseMatrix &gA) const;
       void AddGradDE(const Vector &p_l, DenseMatrix &gD) const;
 
@@ -217,6 +224,8 @@ private:
                       const Vector &p_l) const;
    void AssembleHDGGrad(int el, int f, NonlinearFormIntegrator &nlfi,
                         const Vector &x_f, const Vector &p_l) const;
+   void AssembleHDGGrad(int el, int f, BlockNonlinearFormIntegrator &nlfi,
+                        const Vector &x_f, const Vector &u_l, const Vector &p_l) const;
 
 public:
    /// Constructor
@@ -262,6 +271,12 @@ public:
        will delete the integrator when destroyed. */
    void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
                                  NonlinearFormIntegrator *c_pot_integ);
+
+   /** Set the integrator that will be used to construct the constraint matrix
+       C. The Hybridization object assumes ownership of the integrator, i.e. it
+       will delete the integrator when destroyed. */
+   void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
+                                 BlockNonlinearFormIntegrator *c_integ);
 
    void SetFluxMassNonlinearIntegrator(NonlinearFormIntegrator *flux_integ,
                                        bool own = true);
@@ -343,6 +358,27 @@ public:
    /** If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetPotBCNLFI_Marker() { return &boundary_constraint_pot_nonlin_integs_marker; }
+
+   void AddBdrConstraintIntegrator(BlockNonlinearFormIntegrator *c_integ)
+   {
+      boundary_constraint_nonlin_integs.Append(c_integ);
+      boundary_constraint_nonlin_integs_marker.Append(
+         NULL); // NULL marker means apply everywhere
+   }
+   void AddBdrConstraintIntegrator(BlockNonlinearFormIntegrator *c_integ,
+                                   Array<int> &bdr_marker)
+   {
+      boundary_constraint_nonlin_integs.Append(c_integ);
+      boundary_constraint_nonlin_integs_marker.Append(&bdr_marker);
+   }
+
+   /// Access all integrators added with AddBdrConstraintIntegrator().
+   Array<BlockNonlinearFormIntegrator*> *GetBCNLFI() { return &boundary_constraint_nonlin_integs; }
+
+   /// Access all boundary markers added with AddPotConstraintIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBCNLFI_Marker() { return &boundary_constraint_nonlin_integs_marker; }
 
    void UseExternalBdrConstraintIntegrators() = delete;
 

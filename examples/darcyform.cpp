@@ -214,6 +214,21 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       }
       hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
    }
+   else if (Mnl)
+   {
+      BlockNonlinearFormIntegrator *constr_integ = NULL;
+      auto fnlfi = Mnl->GetInteriorFaceIntegrators();
+      if (fnlfi.Size())
+      {
+         SumBlockNLFIntegrator *snlfi = new SumBlockNLFIntegrator(false);
+         for (BlockNonlinearFormIntegrator *nlfi : fnlfi)
+         {
+            snlfi->AddIntegrator(nlfi);
+         }
+         constr_integ = snlfi;
+      }
+      hybridization->SetConstraintIntegrators(constr_flux_integ, constr_integ);
+   }
    else
    {
       hybridization->SetConstraintIntegrators(constr_flux_integ,
@@ -320,6 +335,26 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
          else
          {
             hybridization->AddBdrPotConstraintIntegrator(nlfi);
+         }
+      }
+   }
+   else if (Mnl)
+   {
+      auto bfnlfi = Mnl->GetBdrFaceIntegrators();
+      auto bfnlfi_marker = Mnl->GetBdrFaceIntegratorsMarkers();
+      hybridization->UseExternalBdrPotConstraintIntegrators();
+
+      for (int i = 0; i < bfnlfi.Size(); i++)
+      {
+         BlockNonlinearFormIntegrator *nlfi = bfnlfi[i];
+         Array<int> *nlfi_marker = bfnlfi_marker[i];
+         if (nlfi_marker)
+         {
+            hybridization->AddBdrConstraintIntegrator(nlfi, *nlfi_marker);
+         }
+         else
+         {
+            hybridization->AddBdrConstraintIntegrator(nlfi);
          }
       }
    }
