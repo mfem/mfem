@@ -636,8 +636,12 @@ mfem_cache_path(INSTALL_CMAKE_DIR "${INSTALL_LIB_DIR}/cmake/mfem"
 
 mfem_path_to_fullpath("${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}" _lib_path)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
-set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
-set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
+if(NOT DEFINED CMAKE_INSTALL_RPATH)
+  set(CMAKE_INSTALL_RPATH "${_lib_path}")
+endif()
+if(NOT DEFINED CMAKE_INSTALL_NAME_DIR)
+  set(CMAKE_INSTALL_NAME_DIR "${_lib_path}")
+endif()
 
 # Variables used when generating _config.hpp, and config.mk
 set(MFEM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
