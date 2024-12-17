@@ -602,6 +602,73 @@ public:
    virtual ~SumNLFIntegrator();
 };
 
+/// Integrator defining a sum of multiple block non-linear Integrators.
+class SumBlockNLFIntegrator : public BlockNonlinearFormIntegrator
+{
+private:
+   int own_integrators;
+   mutable Array2D<DenseMatrix*> elem_mat;
+   mutable Array<Vector*> elem_vect;
+   Array<BlockNonlinearFormIntegrator*> integrators;
+
+   static void AllocBlock(const Array<Vector*> &b, Array<Vector*> &a);
+   static void AllocBlock(const Array2D<DenseMatrix*> &b,
+                          Array2D<DenseMatrix*> &a);
+   static void AddBlock(const Array<Vector*> &b, const Array<Vector*> &a);
+   static void AddBlock(const Array2D<DenseMatrix*> &b,
+                        const Array2D<DenseMatrix*> &a);
+
+public:
+   SumBlockNLFIntegrator(int own_integs = 1) { own_integrators = own_integs; }
+
+   void AddIntegrator(BlockNonlinearFormIntegrator *integ)
+   { integrators.Append(integ); }
+
+   virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
+                                   ElementTransformation &Tr,
+                                   const Array<const Vector *>&elfun) override;
+
+   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
+                                      ElementTransformation &Tr,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<Vector *> &elvec) override;
+
+   virtual void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                                   const Array<const FiniteElement *> &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Array<const Vector *> &elfun,
+                                   const Array<Vector *> &elvect) override;
+
+   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
+                                    ElementTransformation &Tr,
+                                    const Array<const Vector *> &elfun,
+                                    const Array2D<DenseMatrix *> &elmats) override;
+
+   virtual void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
+                                 const Array<const FiniteElement *>&el2,
+                                 FaceElementTransformations &Tr,
+                                 const Array<const Vector *> &elfun,
+                                 const Array2D<DenseMatrix *> &elmats) override;
+
+   virtual void AssembleHDGFaceVector(int type,
+                                      const FiniteElement &trace_face_fe,
+                                      const Array<const FiniteElement *>&el,
+                                      FaceElementTransformations &Tr,
+                                      const Vector &trfun,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<Vector *> &elvect) override;
+
+   virtual void AssembleHDGFaceGrad(int type,
+                                    const FiniteElement &trace_face_fe,
+                                    const Array<const FiniteElement *>&el,
+                                    FaceElementTransformations &Tr,
+                                    const Vector &trfun,
+                                    const Array<const Vector *> &elfun,
+                                    const Array2D<DenseMatrix *> &elmats) override;
+
+   virtual ~SumBlockNLFIntegrator();
+};
+
 }
 
 #endif
