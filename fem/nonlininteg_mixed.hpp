@@ -152,6 +152,14 @@ public:
                               const Vector &trfun,
                               const Array<const Vector *> &elfun,
                               const Array<Vector *> &elvect) override;
+
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const Array<const FiniteElement *>&el,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun,
+                            const Array<const Vector *> &elfun,
+                            const Array2D<DenseMatrix *> &elmats) override;
 };
 
 }

@@ -706,25 +706,23 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
    shape_p.SetSize(ndof_p);
 
    Vector *elvect_u{}, *elvect_p{}, *elvect_tr{};
-   int idx = 0;
    if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
    {
-      elvect_u = elvect[idx++];
+      elvect_u = elvect[0];
       if (elvect_u)
       {
-         elvect_u->SetSize(ndof_u * dim);
-         *elvect_u = 0.;
+         elvect_u->SetSize(0);//not used
       }
-      elvect_p = elvect[idx++];
+      elvect_p = elvect[1];
       if (elvect_p)
       {
          elvect_p->SetSize(ndof_p);
          *elvect_p = 0.;
       }
    }
-   if (type & (HDGFaceType::TRACE | HDGFaceType::FACE))
+   if (type & (HDGFaceType::CONSTR | HDGFaceType::FACE))
    {
-      elvect_tr = elvect[idx++];
+      elvect_tr = elvect[2];
       if (elvect_tr)
       {
          elvect_tr->SetSize(ndof_tr);
@@ -748,13 +746,10 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
 
-      // Access the neighboring elements' integration points
-      // Note: eip2 will only contain valid data if Elem2 exists
-      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
-      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
-
       if (dim == 1)
       {
+         // Access the neighboring element's integration point
+         const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
          nor(0) = 2*eip1.x - 1.0;
       }
       else
@@ -765,6 +760,7 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
       trace_el.CalcShape(ip, shape_tr);
       const real_t tr = trfun * shape_tr;
 
+      real_t un;
       /*if (u)
       {
          u->Eval(vu, *Trans.Elem1, eip1);
@@ -772,8 +768,9 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
       }
       else
       {*/
-      const real_t un = 0.0;
+      un = 0.0;
       //}
+      if (type & 1) { un *= -1.; }
 
       el_p.CalcPhysShape(*Trans.Elem1, shape_p);
       real_t w = ip.weight / Elem->Weight();
@@ -809,54 +806,207 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
          b = beta;
       }
 
-      if (type & 1)
+      w = wq * (b+a);
+      if (w == 0.) { continue; }
+
+      if (elvect_p)
       {
-         w = wq * (b-a);
+         real_t wp = 0.;
+         if (type & HDGFaceType::ELEM) { wp += p(0); }
+         if (type & HDGFaceType::TRACE) { wp -= tr; }
+
+         // assemble the element vector
+         elvect_p->Add(w * wp, shape_p);
+      }
+
+      if (elvect_tr)
+      {
+         real_t wtr = 0.;
+         if (type & HDGFaceType::CONSTR) { wtr += p(0); }
+         if (type & HDGFaceType::FACE) { wtr -= tr; }
+
+         // assemble the trace vector
+         elvect_tr->Add(w * wtr, shape_tr);
+      }
+   }
+}
+
+void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
+   int type, const FiniteElement &trace_el,
+   const Array<const FiniteElement *> &el,
+   FaceElementTransformations &Trans,
+   const Vector &trfun, const Array<const Vector *> &elfun,
+   const Array2D<DenseMatrix *> &elmats)
+{
+   MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
+
+   if (Trans.Elem2No < 0) { type &= ~1; }
+   ElementTransformation *Elem = (type & 1)?(Trans.Elem2):(Trans.Elem1);
+
+   const FiniteElement &el_u = *el[0];
+   const FiniteElement &el_p = *el[1];
+   const Vector &elfun_p = *elfun[1];
+
+   const int dim = el_p.GetDim();
+   const int ndof_tr = trace_el.GetDof();
+   const int ndof_u = el_p.GetDof();
+   const int ndof_p = el_p.GetDof();
+
+   DenseMatrix J_u, J_F;
+   DenseMatrixInverse J_Fi;
+
+   DenseMatrix u(1, dim);
+   u = 0.;
+
+   Vector p(1);
+   real_t a, b;
+
+   Vector vu(dim), nor(dim), nh(dim), ni(dim);
+
+   shape_tr.SetSize(ndof_tr);
+   shape_u.SetSize(ndof_u);
+   shape_p.SetSize(ndof_p);
+
+   DenseMatrix *elmat_A{}, *elmat_D{}, *elmat_E{}, *elmat_G{}, *elmat_H{};
+   if (type & (HDGFaceType::ELEM))
+   {
+      elmat_A = elmats(0,0);
+      if (elmat_A)
+      {
+         elmat_A->SetSize(0);//not used
+      }
+      elmat_D = elmats(1,1);
+      if (elmat_D)
+      {
+         elmat_D->SetSize(ndof_p);
+         *elmat_D = 0.;
+      }
+   }
+   if (type & (HDGFaceType::TRACE))
+   {
+      elmat_E = elmats(1,2);
+      if (elmat_E)
+      {
+         elmat_E->SetSize(ndof_p, ndof_tr);
+         *elmat_E = 0.;
+      }
+   }
+   if (type & (HDGFaceType::CONSTR))
+   {
+      elmat_G = elmats(2,1);
+      if (elmat_G)
+      {
+         elmat_G->SetSize(ndof_tr, ndof_p);
+         *elmat_G = 0.;
+      }
+   }
+   if (type & (HDGFaceType::FACE))
+   {
+      elmat_H = elmats(2,2);
+      if (elmat_H)
+      {
+         elmat_H->SetSize(ndof_tr);
+         *elmat_H = 0.;
+      }
+   }
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      const int order = 2 * (el_u.GetOrder(), el_p.GetOrder());
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   // assemble: alpha < {h^{-1} Q} [u],[v] >
+   for (int q = 0; q < ir->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      if (dim == 1)
+      {
+         // Access the neighboring element's integration point
+         const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+         nor(0) = 2*eip1.x - 1.0;
       }
       else
       {
-         w = wq * (b+a);
-      }
-      if (w != 0.0 && elvect_p)
-      {
-         if (type & NonlinearFormIntegrator::HDGFaceType::ELEM)
-         {
-            // assemble the element vector
-            for (int i = 0; i < ndof_p; i++)
-            {
-               (*elvect_p)(i) += w * shape_p(i) * p(0);
-            }
-         }
-
-         if (type & NonlinearFormIntegrator::HDGFaceType::TRACE)
-         {
-            // assemble the constraint vector
-            for (int i = 0; i < ndof_p; i++)
-            {
-               (*elvect_p)(i) -= w * shape_p(i) * tr;
-            }
-         }
+         CalcOrtho(Trans.Jacobian(), nor);
       }
 
-      if (w != 0.0 && elvect_tr)
-      {
-         if (type & NonlinearFormIntegrator::HDGFaceType::CONSTR)
-         {
-            // assemble the trace vectors
-            for (int i = 0; i < ndof_tr; i++)
-            {
-               (*elvect_tr)(i) -= w * shape_tr(i) * p(0);
-            }
-         }
+      trace_el.CalcShape(ip, shape_tr);
 
-         if (type & NonlinearFormIntegrator::HDGFaceType::FACE)
-         {
-            // assemble the trace vector
-            for (int i = 0; i < ndof_tr; i++)
-            {
-               (*elvect_tr)(i) -= w * shape_tr(i) * tr;
-            }
-         }
+      real_t un;
+      /*if (u)
+      {
+         u->Eval(vu, *Trans.Elem1, eip1);
+         un = vu * nor;
+      }
+      else
+      {*/
+      un = 0.0;
+      //}
+      if (type & 1) { un *= -1.; }
+
+      el_p.CalcPhysShape(*Trans.Elem1, shape_p);
+      real_t w = ip.weight / Elem->Weight();
+
+      p(0) = elfun_p * shape_p;
+
+      nh.Set(w, nor);
+      fluxFunction.ComputeDualFluxJacobian(p, u, Trans, J_u, J_F);
+      J_Fi.Factor(J_F);
+      J_Fi.Mult(nh, ni);
+
+      real_t wq = ni * nor;
+      // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
+      // independent of Loc1 and always gives the size of element 1 in
+      // direction perpendicular to the face. Indeed, for linear transformation
+      //     |nor|=measure(face)/measure(ref. face),
+      //   det(J1)=measure(element)/measure(ref. element),
+      // and the ratios measure(ref. element)/measure(ref. face) are
+      // compatible for all element/face pairs.
+      // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
+      // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+      // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
+
+      /*if (un != 0.)
+      {
+         un /= fabs(un);
+         a = 0.5 * alpha * un;
+         b = beta * fabs(un);
+      }
+      else*/
+      {
+         a = 0.0;
+         b = beta;
+      }
+
+      w = wq * (b+a);
+      if (w == 0.) { continue; }
+
+      if (elmat_D)
+      {
+         // assemble the element matrix
+         AddMult_a_VVt(+w, shape_p, *elmat_D);
+      }
+      if (elmat_E)
+      {
+         // assemble the trace matrix
+         AddMult_a_VWt(-w, shape_p, shape_tr, *elmat_E);
+      }
+      if (elmat_G)
+      {
+         // assemble the constraint matrix
+         AddMult_a_VWt(+w, shape_tr, shape_p, *elmat_G);
+      }
+      if (elmat_H)
+      {
+         // assemble the face matrix
+         AddMult_a_VVt(-w, shape_tr, *elmat_H);
       }
    }
 }
