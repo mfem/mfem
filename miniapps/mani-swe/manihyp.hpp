@@ -239,6 +239,33 @@ public:
                                          ElementTransformation &Trans);
 
 };
+class ManifoldVectorGradientIntegrator : public BilinearFormIntegrator
+{
+protected:
+#ifndef MFEM_THREAD_SAFE
+   Vector shape, te_shape;
+   DenseMatrix elmat_comp, elmat_comp_weighted;
+   DenseMatrix JtJ;
+#endif
+   // PA extension
+   const FiniteElementSpace *fespace;
+   int dim, sdim, ne, nq;
+
+public:
+   ManifoldVectorGradientIntegrator(const IntegrationRule *ir = NULL)
+      : BilinearFormIntegrator(ir) { }
+
+   /** Given a particular Finite Element computes the element mass matrix
+       elmat. */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans);
+
+};
 
 class ManifoldHyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
@@ -441,9 +468,11 @@ private:
    std::unique_ptr<NonlinearForm> nonlinearForm;
    std::unique_ptr<LinearForm> force;
    // element-wise inverse mass matrix
+   int int_offset;
    std::vector<DenseMatrix> invmass; // local scalar inverse mass
    std::vector<DenseMatrix> invmass_vec; // local scalar inverse mass
-   std::vector<DenseMatrix> weakdiv; // local weak divergence (trial space ByDim)
+   std::vector<DenseMatrix> weakdiv; // local weak divergence
+   std::vector<DenseMatrix> weakdiv_vec; // local weak divergence
    // global maximum characteristic speed. Updated by form integrators
    mutable real_t max_char_speed;
    // auxiliary variable used in Mult
@@ -469,7 +498,8 @@ public:
    ManifoldDGHyperbolicConservationLaws(
       FiniteElementSpace &vfes,
       ManifoldHyperbolicFormIntegrator &formIntegrator,
-      const int nrScalar);
+      const int nrScalar,
+      const int order_offset=3);
    /**
     * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
     *

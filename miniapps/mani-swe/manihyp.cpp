@@ -146,6 +146,21 @@ void ManifoldVectorMassIntegrator::AssembleElementMatrix(
    }
 }
 
+void ManifoldVectorGradientIntegrator::AssembleElementMatrix(
+   const FiniteElement &el,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+}
+
+const IntegrationRule &ManifoldVectorGradientIntegrator::GetRule(
+   const FiniteElement &trial_fe,
+   const FiniteElement &test_fe,
+   ElementTransformation &Trans)
+{
+   return IntRules.Get(Trans.GetGeometryType(),
+                       trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderJ()*2 + Trans.OrderW());
+}
 
 
 
@@ -356,7 +371,7 @@ void ManifoldHyperbolicFormIntegrator::AssembleFaceVector(
 ManifoldDGHyperbolicConservationLaws::ManifoldDGHyperbolicConservationLaws(
    FiniteElementSpace &vfes,
    ManifoldHyperbolicFormIntegrator &formIntegrator,
-   const int nrScalar)
+   const int nrScalar, const int int_offset)
    : TimeDependentOperator(vfes.GetTrueVSize()),
      vfes(vfes),
      dim(vfes.GetMesh()->Dimension()),
@@ -364,9 +379,11 @@ ManifoldDGHyperbolicConservationLaws::ManifoldDGHyperbolicConservationLaws(
      nrScalar(nrScalar),
      nrVector((vfes.GetVDim()-nrScalar)/dim),
      formIntegrator(formIntegrator),
-     z(vfes.GetTrueVSize())
+     z(vfes.GetTrueVSize()),
+     int_offset(int_offset)
 {
    ComputeInvMass();
+   // ComputeWeakDivergence();
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pvfes = dynamic_cast<ParFiniteElementSpace *>(&vfes);
    if (pvfes)
@@ -409,6 +426,35 @@ void ManifoldDGHyperbolicConservationLaws::ComputeInvMass()
       inv_vec_mass.AssembleElementMatrix(*vfes.GetFE(i),
                                          *vfes.GetElementTransformation(i),
                                          invmass_vec[i]);
+   }
+}
+
+void ManifoldDGHyperbolicConservationLaws::ComputeWeakDivergence()
+{
+   TransposeIntegrator div(new GradientIntegrator());
+   TransposeIntegrator div_vec(new ManifoldVectorGradientIntegrator());
+
+   weakdiv.resize(vfes.GetNE());
+   weakdiv_vec.resize(vfes.GetNE());
+   DG_FECollection dg_fec(0, dim, BasisType::GaussLegendre);
+   for (int i=0; i<vfes.GetNE(); i++)
+   {
+      int dof = vfes.GetFE(i)->GetDof();
+      const FiniteElement * fe = dg_fec.GetFE(vfes.GetElementTransformation(
+                                                 i)->GetGeometryType(),
+                                              vfes.GetOrder(i) + int_offset);
+
+      weakdiv[i].SetSize(dof, sdim*fe->GetNodes().GetNPoints());
+      div.SetIntegrationRule(fe->GetNodes());
+      div.AssembleElementMatrix2(*vfes.GetFE(i), *fe,
+                                 *vfes.GetElementTransformation(i),
+                                 weakdiv[i]);
+
+      weakdiv_vec[i].SetSize(dim*dof, sdim*sdim*fe->GetNodes().GetNPoints());
+      div_vec.SetIntegrationRule(fe->GetNodes());
+      div_vec.AssembleElementMatrix2(*vfes.GetFE(i), *fe,
+                                     *vfes.GetElementTransformation(i),
+                                     weakdiv_vec[i]);
    }
 }
 

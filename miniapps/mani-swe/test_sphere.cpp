@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
 
    int order = 3;
    int refinement_level = 4;
-   int vis_step = 1;
+   int vis_step = 50;
    bool visualization = true;
    bool paraview = true;
    real_t cfl = 0.2;
@@ -178,13 +178,13 @@ int main(int argc, char *argv[])
    ManifoldPhysVectorCoefficient mom_cf(u, 1, dim, sdim);
    SphericalHeight deform_cf(height);
 
-   VectorFunctionCoefficient u0_phys(phys_num_equations, williamsTest1);
+   VectorFunctionCoefficient u0_phys(phys_num_equations, gaussian_initial);
    ManifoldStateCoefficient u0_mani(u0_phys, 1, 1, dim);
    u.ProjectCoefficient(u0_mani);
 
    ManifoldDGHyperbolicConservationLaws swe(vfes, swe_integ, 1);
    CoriolisForce force(mom_cf, omega);
-   swe.AddForce(new VectorDomainLFIntegrator(force));
+   // swe.AddForce(new VectorDomainLFIntegrator(force));
    swe.SetTime(0.0);
    real_t hmin=infinity();
    {
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
    if (paraview)
    {
       std::stringstream paraviewname;
-      paraviewname << "ParaViewSWE_" << refinement_level;
+      paraviewname << "ParaViewSWE_WO_Coriolis_" << refinement_level;
       dacol.reset(new ParaViewDataCollection(paraviewname.str().c_str(), pmesh.get()));
       dacol->SetLevelsOfDetail(order);
       dacol->RegisterField("Height", &height);

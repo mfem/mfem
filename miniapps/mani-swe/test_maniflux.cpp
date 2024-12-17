@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
    int order = 3;
    int refinement_level = 4;
    bool visualization = true;
-   bool paraview = false;
+   bool paraview = true;
    real_t cfl = 0.3;
    real_t tF = 1.5;
 
