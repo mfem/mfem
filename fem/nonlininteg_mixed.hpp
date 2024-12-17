@@ -109,19 +109,28 @@ public:
 class MixedConductionNLFIntegrator : public BlockNonlinearFormIntegrator
 {
    const MixedFluxFunction &fluxFunction;
-   real_t beta;
+   VectorCoefficient *v;
+   real_t alpha, beta;
    const IntegrationRule *IntRule;
 
    DenseMatrix vshape_u;
    Vector shape_u, shape_p, shape1, shape2, shape_tr;
 
 public:
-   /// Construct integrator with $\beta = a$.
+   /// Construct integrator with $\alpha = 0$ and $\beta = a$.
    MixedConductionNLFIntegrator(
       const MixedFluxFunction &fluxFunction,
       real_t a = 0.5,
       const IntegrationRule *ir = NULL)
-      : fluxFunction(fluxFunction), beta(a), IntRule(ir) { }
+      : fluxFunction(fluxFunction), v(NULL), alpha(0.), beta(a), IntRule(ir) { }
+
+   /// Construct integrator with $\alpha = a$ and $\beta = a/2$.
+   MixedConductionNLFIntegrator(
+      const MixedFluxFunction &fluxFunction,
+      VectorCoefficient &v_,
+      real_t a = 0.5,
+      const IntegrationRule *ir = NULL)
+      : fluxFunction(fluxFunction), v(&v_), alpha(a), beta(0.5*a), IntRule(ir) { }
 
    void AssembleElementVector(const Array<const FiniteElement*> &el,
                               ElementTransformation &Tr,

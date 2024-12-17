@@ -4799,9 +4799,9 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
 
       trace_el.CalcShape(ip, tr_shape);
 
-      if (u)
+      if (v)
       {
-         u->Eval(vu, *Trans.Elem1, eip1);
+         v->Eval(vu, *Trans.Elem1, eip1);
          un = vu * nor;
       }
       else

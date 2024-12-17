@@ -3559,7 +3559,7 @@ private:
 class HDGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
-   VectorCoefficient *u;
+   VectorCoefficient *v;
    Coefficient *Q;
    MatrixCoefficient *MQ;
    real_t alpha, beta;
@@ -3569,31 +3569,31 @@ protected:
    DenseMatrix mq;
 
 public:
-   /// Construct integrator with $\alpha=0$ and $\beta = a$.
+   /// Construct integrator with $\alpha = 0$ and $\beta = a$.
    HDGDiffusionIntegrator(const real_t a = 0.5)
-      : u(NULL), Q(NULL), MQ(NULL), alpha(0.), beta(a) { }
+      : v(NULL), Q(NULL), MQ(NULL), alpha(0.), beta(a) { }
 
-   /// Construct integrator with $\alpha=0$ and $\beta = a$.
+   /// Construct integrator with $\alpha = 0$ and $\beta = a$.
    HDGDiffusionIntegrator(Coefficient &q, const real_t a = 0.5)
-      : u(NULL), Q(&q), MQ(NULL), alpha(0.), beta(a) { }
+      : v(NULL), Q(&q), MQ(NULL), alpha(0.), beta(a) { }
 
-   /// Construct integrator with $\alpha=0$ and $\beta = a$.
+   /// Construct integrator with $\alpha = 0$ and $\beta = a$.
    HDGDiffusionIntegrator(MatrixCoefficient &q, const real_t a = 0.5)
-      : u(NULL), Q(NULL), MQ(&q), alpha(0.), beta(a) { }
+      : v(NULL), Q(NULL), MQ(&q), alpha(0.), beta(a) { }
 
-   /// Construct integrator with $\beta = \alpha/2$.
-   HDGDiffusionIntegrator(VectorCoefficient &u_, const real_t a = 0.5)
-      : u(&u_), Q(NULL), MQ(NULL), alpha(a), beta(0.5*a) { }
+   /// Construct integrator with $\alpha = a$ and $\beta = a/2$.
+   HDGDiffusionIntegrator(VectorCoefficient &v_, const real_t a = 0.5)
+      : v(&v_), Q(NULL), MQ(NULL), alpha(a), beta(0.5*a) { }
 
-   /// Construct integrator with $\beta = \alpha/2$.
-   HDGDiffusionIntegrator(VectorCoefficient &u_, Coefficient &q,
+   /// Construct integrator with $\alpha = a$ and $\beta = a/2$.
+   HDGDiffusionIntegrator(VectorCoefficient &v_, Coefficient &q,
                           const real_t a = 0.5)
-      : u(&u_), Q(&q), MQ(NULL), alpha(a), beta(0.5*a) { }
+      : v(&v_), Q(&q), MQ(NULL), alpha(a), beta(0.5*a) { }
 
-   /// Construct integrator with $\beta = \alpha/2$.
-   HDGDiffusionIntegrator(VectorCoefficient &u_, MatrixCoefficient &q,
+   /// Construct integrator with $\alpha = a$ and $\beta = a/2$.
+   HDGDiffusionIntegrator(VectorCoefficient &v_, MatrixCoefficient &q,
                           const real_t a = 0.5)
-      : u(&u_), Q(NULL), MQ(&q), alpha(a), beta(0.5*a) { }
+      : v(&v_), Q(NULL), MQ(&q), alpha(a), beta(0.5*a) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,

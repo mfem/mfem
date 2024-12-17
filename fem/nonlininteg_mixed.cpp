@@ -308,10 +308,8 @@ void MixedConductionNLFIntegrator::AssembleFaceVector(
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
 
-      // Access the neighboring elements' integration points
-      // Note: eip2 will only contain valid data if Elem2 exists
+      // Access the neighboring element's integration point
       const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
-      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
       if (dim == 1)
       {
@@ -577,10 +575,8 @@ void MixedConductionNLFIntegrator::AssembleFaceGrad(
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
 
-      // Access the neighboring elements' integration points
-      // Note: eip2 will only contain valid data if Elem2 exists
+      // Access the neighboring element's integration point
       const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
-      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
 
       if (dim == 1)
       {
@@ -746,10 +742,11 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
 
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+
       if (dim == 1)
       {
-         // Access the neighboring element's integration point
-         const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
          nor(0) = 2*eip1.x - 1.0;
       }
       else
@@ -761,15 +758,15 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
       const real_t tr = trfun * shape_tr;
 
       real_t un;
-      /*if (u)
+      if (v)
       {
-         u->Eval(vu, *Trans.Elem1, eip1);
+         v->Eval(vu, *Trans.Elem1, eip1);
          un = vu * nor;
       }
       else
-      {*/
-      un = 0.0;
-      //}
+      {
+         un = 0.0;
+      }
       if (type & 1) { un *= -1.; }
 
       el_p.CalcPhysShape(*Trans.Elem1, shape_p);
@@ -926,10 +923,11 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       // Set the integration point in the face and the neighboring elements
       Trans.SetAllIntPoints(&ip);
 
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+
       if (dim == 1)
       {
-         // Access the neighboring element's integration point
-         const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
          nor(0) = 2*eip1.x - 1.0;
       }
       else
@@ -940,15 +938,15 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       trace_el.CalcShape(ip, shape_tr);
 
       real_t un;
-      /*if (u)
+      if (v)
       {
-         u->Eval(vu, *Trans.Elem1, eip1);
+         v->Eval(vu, *Trans.Elem1, eip1);
          un = vu * nor;
       }
       else
-      {*/
-      un = 0.0;
-      //}
+      {
+         un = 0.0;
+      }
       if (type & 1) { un *= -1.; }
 
       el_p.CalcPhysShape(*Trans.Elem1, shape_p);
@@ -973,13 +971,13 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       // for any tetrahedron vol(tet)=(1/3)*height*area(base).
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
-      /*if (un != 0.)
+      if (un != 0.)
       {
          un /= fabs(un);
          a = 0.5 * alpha * un;
          b = beta * fabs(un);
       }
-      else*/
+      else
       {
          a = 0.0;
          b = beta;

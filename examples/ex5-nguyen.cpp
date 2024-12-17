@@ -442,7 +442,14 @@ int main(int argc, char *argv[])
       if (dg)
       {
          Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(*HeatFluxFun));
-         if (td > 0.)
+         if (upwinded && td > 0. && !hybridization)
+         {
+            Mnl->AddInteriorFaceIntegrator(new MixedConductionNLFIntegrator(
+                                              *HeatFluxFun, ccoeff, td));
+            Mnl->AddBdrFaceIntegrator(new MixedConductionNLFIntegrator(
+                                         *HeatFluxFun, ccoeff, td), bdr_is_neumann);
+         }
+         else if (!upwinded && td > 0.)
          {
             Mnl->AddInteriorFaceIntegrator(new MixedConductionNLFIntegrator(
                                               *HeatFluxFun, td));
