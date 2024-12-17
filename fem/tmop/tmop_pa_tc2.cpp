@@ -17,7 +17,7 @@
 #include "../../linalg/kernels.hpp"
 
 #define NVTX_COLOR ::gpu::nvtx::color_names::kTomato
-#include "general/nvtx.hpp"
+#include "../../general/nvtx.hpp"
 
 using namespace mfem;
 

@@ -15,7 +15,7 @@
 #include "../general/osockstream.hpp"
 
 #define NVTX_COLOR ::gpu::nvtx::color_names::kCyan
-#include "general/nvtx.hpp"
+#include "../general/nvtx.hpp"
 
 namespace mfem
 {

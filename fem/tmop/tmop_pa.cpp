@@ -18,7 +18,7 @@
 #include "../../linalg/kernels.hpp"
 
 #define NVTX_COLOR ::gpu::nvtx::color_names::kYellow
-#include "general/nvtx.hpp"
+#include "../../general/nvtx.hpp"
 
 
 namespace mfem

@@ -16,7 +16,7 @@
 #include "ceed/interface/util.hpp"
 
 #define NVTX_COLOR ::gpu::nvtx::color_names::kLime
-#include "general/nvtx.hpp"
+#include "../general/nvtx.hpp"
 
 namespace mfem
 {

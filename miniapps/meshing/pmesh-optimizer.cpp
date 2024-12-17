@@ -115,7 +115,7 @@
 #include "mesh-optimizer.hpp"
 
 #define NVTX_COLOR ::gpu::nvtx::color_names::kYellow
-#include "general/nvtx.hpp"
+#include "../../general/nvtx.hpp"
 
 using namespace mfem;
 using namespace std;
