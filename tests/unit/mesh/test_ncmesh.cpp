@@ -131,11 +131,18 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
                             Refinement::YZ,
                             Refinement::XYZ);
 
+   const real_t scale = GENERATE(0.5, 0.25);  // Only affects hex mesh so far
+
+   if (scale != 0.5 && std::strcmp(mesh_fname, "../../data/ref-cube.mesh") != 0)
+   {
+      return;
+   }
+
    Mesh mesh(mesh_fname, 1, 1);
    mesh.EnsureNCMesh(true);
    real_t original_volume = mesh.GetElementVolume(0);
    Array<Refinement> ref(1);
-   ref[0].ref_type = ref_type; ref[0].index = 0;
+   ref[0].Set(0, ref_type, scale);
 
    mesh.GeneralRefinement(ref, 1);
    real_t summed_volume = 0.0;
@@ -160,7 +167,7 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
    mesh.EnsureNCMesh(true);
    real_t original_volume = mesh.GetElementVolume(0);
    Array<Refinement> ref(1);
-   ref[0].ref_type = ref_type; ref[0].index = 0;
+   ref[0].Set(0, ref_type);
 
    mesh.GeneralRefinement(ref, 1);
 
@@ -297,7 +304,7 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
    }
 } // test case
 
-TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
+TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
 {
    auto exact_soln = [](const Vector& x)
    {
@@ -317,12 +324,9 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
       {
          // Start the test with two tetrahedra attached by triangle.
          auto single_edge_refine = Array<Refinement>(1);
-         single_edge_refine[0].index = 0;
-         single_edge_refine[0].ref_type = Refinement::X;
-
+         single_edge_refine[0].Set(0, Refinement::X);
          smesh.GeneralRefinement(single_edge_refine, 0); // conformal
       }
-
 
       REQUIRE(smesh.GetNE() == 2);
       smesh.EnsureNCMesh(true);
@@ -474,8 +478,7 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
    {
       Mesh smesh("../../data/ref-tetrahedron.mesh");
       Array<Refinement> aniso_ref(1);
-      aniso_ref[0].index = 0;
-      aniso_ref[0].ref_type = Refinement::X;
+      aniso_ref[0].Set(0, Refinement::X);
       smesh.GeneralRefinement(aniso_ref);
       smesh.UniformRefinement();
       smesh.EnsureNCMesh(true);
@@ -1719,15 +1722,14 @@ TEST_CASE("ReferenceCubeInternalBoundaries", "[NCMesh]")
    Array<Refinement> refs(1);
    for (auto ref : {0,1})
    {
-      refs[0].index = ref;
-
       auto ssmesh = Mesh(smesh);
 
       CAPTURE(ref_type);
 
       // Now NC refine one of the attached elements, this should result in 2
       // internal boundary elements.
-      refs[0].ref_type = ref_type;
+      refs[0].index = ref;
+      refs[0].SetType(ref_type);
 
       ssmesh.GeneralRefinement(refs);
 
@@ -1832,7 +1834,7 @@ TEST_CASE("RefinedCubesInternalBoundaries", "[NCMesh]")
    {
       if (smesh.GetAttribute(n) == 2)
       {
-         refs.Append(Refinement{n, Refinement::XYZ});
+         refs.Append(Refinement{n});
       }
    }
 
@@ -1937,8 +1939,7 @@ TEST_CASE("ReferenceTetInternalBoundaries", "[NCMesh]")
    // internal boundary elements.
    for (int ref : {0, 1})
    {
-      refs[0].index = ref;
-      refs[0].ref_type = Refinement::XYZ;
+      refs[0].Set(ref, Refinement::XYZ);
       auto ssmesh = Mesh(smesh);
       ssmesh.GeneralRefinement(refs);
 
@@ -2046,7 +2047,7 @@ TEST_CASE("RefinedTetsInternalBoundaries", "[NCMesh]")
    {
       if (smesh.GetAttribute(n) == 2)
       {
-         refs.Append(Refinement{n, Refinement::XYZ});
+         refs.Append(Refinement{n});
       }
    }
 
@@ -2099,12 +2100,15 @@ TEST_CASE("PoissonOnReferenceCubeNC", "[NCMesh]")
                                  Refinement::XY, Refinement::XZ, Refinement::YZ,
                                  Refinement::XYZ));
    CAPTURE(ref_type);
+
+   const real_t scale = GENERATE(0.5, 0.25);
+   CAPTURE(scale);
+
    Array<Refinement> refs(1);
    for (auto refined_elem : {0}) // The left or the right element
    {
       auto ssmesh = Mesh(smesh);
-      refs[0].index = refined_elem;
-      refs[0].ref_type = ref_type;
+      refs[0].Set(refined_elem, ref_type, scale);
 
       ssmesh.GeneralRefinement(refs);
       ssmesh.FinalizeTopology();
@@ -2764,10 +2768,11 @@ TEST_CASE("RP=I", "[NCMesh]")
       // Split the hex into a pair, then isotropically refine one of them.
       Mesh mesh("../../data/ref-cube.mesh");
       Array<Refinement> refinements(1);
-      refinements[0].index = 0;
-      refinements[0].ref_type = Refinement::X;
+      refinements[0].Set(0, Refinement::X);
+
       mesh.GeneralRefinement(refinements);
-      refinements[0].ref_type = Refinement::XYZ;
+      refinements[0].SetType(Refinement::XYZ);
+
       mesh.GeneralRefinement(refinements);
       SECTION("ND")
       {
@@ -2790,11 +2795,10 @@ TEST_CASE("RP=I", "[NCMesh]")
       // Split the hex into a pair, then isotropically refine one of them.
       Mesh mesh("../../data/ref-tetrahedron.mesh");
       Array<Refinement> refinements(1);
-      refinements[0].index = 0;
-      refinements[0].ref_type = Refinement::X;
+      refinements[0].Set(0, Refinement::X);
       mesh.GeneralRefinement(refinements);
       mesh.EnsureNCMesh(true);
-      refinements[0].ref_type = Refinement::XYZ;
+      refinements[0].SetType(Refinement::XYZ);
       mesh.GeneralRefinement(refinements);
       SECTION("ND")
       {
