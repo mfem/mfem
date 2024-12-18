@@ -20,7 +20,7 @@ CMakeFiles/
 *.cache*
 
 #vscode  settings
-# /.vscode/
+/.vscode/
 
 # Backup files
 *~
