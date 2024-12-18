@@ -27,6 +27,11 @@ Meshing improvements
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
   are also supported.
 
+- Added support for nonuniform anisotropic (nonconforming) mesh refinement with
+  arbitrary spacing in each direction, for quadrilateral (2D) and hexahedral
+  (3D) meshes. This enables in particular 3:1 refinement, as demonstrated in the
+  new meshing miniapp ref321.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
