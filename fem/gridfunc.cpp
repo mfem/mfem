@@ -2456,7 +2456,6 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
    if (fes->GetNURBSext() == NULL)
    {
-
       int i;
       Array<int> vdofs;
       Vector vals;
@@ -2474,9 +2473,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
          }
          SetSubVector(vdofs, vals);
       }
-
    }
-
    else
    {
       // Define and assemble linear form
