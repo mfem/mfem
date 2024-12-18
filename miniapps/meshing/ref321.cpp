@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//   ------------------------------------------------------------------------
-//   3:1 Refinement Miniapp: perform 3:1 refinements of a mesh.
-//   ------------------------------------------------------------------------
+//      -----------------------------------------------------------------
+//      3:1 Refinement Miniapp:  Perform 3:1 anisotropic mesh refinements
+//      -----------------------------------------------------------------
 //
 // This miniapp performs random 3:1 refinements of a quadrilateral or hexahedral
 // mesh. A diffusion equation is solved in an H1 finite element space defined on
@@ -19,9 +19,9 @@
 //
 // Compile with: make ref321
 //
-// Sample runs:  ref321 -mm -dim 2 -o 2 -iter 100
-//               ref321 -mm -dim 3 -o 2 -iter 100
-//               ref321 -m ../../data/star.mesh -o 2 -iter 100
+// Sample runs:  ref321 -mm -dim 2 -o 2 -r 100
+//               ref321 -mm -dim 3 -o 2 -r 100
+//               ref321 -m ../../data/star.mesh -o 2 -r 100
 
 #include "mfem.hpp"
 #include <fstream>
@@ -42,7 +42,7 @@ void FindChildren(const Mesh & mesh, int elem, Array<int> & children)
    // Note that row `elem` of the table constructed by cf.MakeCoarseToFineTable
    // is an alternative to this global loop, but constructing the table is also
    // a global operation with global storage.
-   for (int i=0; i<mesh.GetNE(); ++i)
+   for (int i = 0; i < mesh.GetNE(); i++)
    {
       const int p = cf.embeddings[i].parent;
       if (p == elem)
@@ -55,7 +55,7 @@ void FindChildren(const Mesh & mesh, int elem, Array<int> & children)
 // Refine 3:1 via 2 refinements with scalings 2/3 and 1/2.
 void Refine31(Mesh & mesh, int elem, char type)
 {
-   Array<Refinement> refs;  // Refinement is defined in ncmesh.hpp
+   Array<Refinement> refs; // Refinement is defined in ncmesh.hpp
    refs.Append(Refinement(elem, type, 2.0 / 3.0));
    mesh.GeneralRefinement(refs);
 
@@ -67,7 +67,7 @@ void Refine31(Mesh & mesh, int elem, char type)
    const int elem1 = children[0];
 
    refs.SetSize(0);
-   refs.Append(Refinement(elem1, type));  // Default scaling of 0.5
+   refs.Append(Refinement(elem1, type)); // Default scaling of 0.5
    mesh.GeneralRefinement(refs);
 }
 
@@ -83,7 +83,7 @@ int MyRand(int & s)
 void TestAnisoRefRandom(int iter, int dim, Mesh & mesh)
 {
    int seed = 0;
-   for (int i=0; i<iter; ++i)
+   for (int i = 0; i < iter; i++)
    {
       const int elem = MyRand(seed) % mesh.GetNE();
       const int t = MyRand(seed) % dim;
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool visualization = true;
    bool makeMesh = false;
-   int numIter = 1;
+   int num_refs = 1;
    int tdim = 2;  // Mesh dimension
 
    OptionsParser args(argc, argv);
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
    args.AddOption(&makeMesh, "-mm", "--make-mesh", "-no-mm",
                   "--no-make-mesh", "Create Cartesian mesh");
    args.AddOption(&tdim, "-dim", "--dimension", "Dimension for Cartesian mesh");
-   args.AddOption(&numIter, "-iter", "--niter", "Number of refinements");
+   args.AddOption(&num_refs, "-r", "--refs", "Number of 3:1 refinements");
    args.Parse();
    if (!args.Good())
    {
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
 
    // 3. Randomly perform 3:1 refinements in the mesh.
-   TestAnisoRefRandom(numIter, tdim, mesh);
+   TestAnisoRefRandom(num_refs, tdim, mesh);
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order.
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(h1err < 1.0e-8, "");
 
    // 7. Save the refined mesh and the solution. This output can be viewed later
-   //     using GLVis: "glvis -m ref321.mesh -g sol.gf".
+   //    using GLVis: "glvis -m ref321.mesh -g sol.gf".
    ofstream mesh_ofs("ref321.mesh");
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
@@ -217,8 +217,8 @@ real_t CheckH1Continuity(GridFunction & x)
 
    const int dim = mesh->Dimension();
 
-   // Following the example of KellyErrorEstimator::ComputeEstimates(),
-   // we loop over interior faces and then shared faces.
+   // Following the example of KellyErrorEstimator::ComputeEstimates(), we loop
+   // over interior faces and then shared faces.
 
    // Compute error contribution from local interior faces
    real_t errorMax = 0.0;
@@ -236,9 +236,9 @@ real_t CheckH1Continuity(GridFunction & x)
          auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * faceOrder);
          const auto nip = int_rule.GetNPoints();
 
-         // Convention
-         // * Conforming face: Face side with smaller element id handles
-         // the integration
+         // Convention:
+         // * Conforming face: Face side with smaller element id handles the
+         //   integration
          // * Non-conforming face: The slave handles the integration.
          // See FaceInfo documentation for details.
          bool isNCSlave    = FT->Elem2No >= 0 && NCFace >= 0;
