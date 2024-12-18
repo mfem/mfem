@@ -120,14 +120,14 @@ set(SRCS
   staticcond.cpp
   tmop.cpp
   tmop/pa.cpp
-  tmop/assemble/2d/diag_coef.cpp
-  tmop/assemble/2d/diag.cpp
-  tmop/assemble/2d/grad_coef.cpp
-  tmop/assemble/2d/grad.cpp
-  tmop/assemble/3d/diag_coef.cpp  
-  tmop/assemble/3d/diag.cpp
-  tmop/assemble/3d/grad_coef.cpp
-  tmop/assemble/3d/grad.cpp
+  tmop/assemble/diag2_coef.cpp
+  tmop/assemble/diag2.cpp
+  tmop/assemble/grad2_coef.cpp
+  tmop/assemble/grad2.cpp
+  tmop/assemble/diag3_coef.cpp  
+  tmop/assemble/diag3.cpp
+  tmop/assemble/grad3_coef.cpp
+  tmop/assemble/grad3.cpp
   tmop/metrics/001.cpp
   tmop/metrics/002.cpp
   tmop/metrics/002.cpp
@@ -143,23 +143,23 @@ set(SRCS
   tmop/metrics/321.cpp
   tmop/metrics/332.cpp
   tmop/metrics/338.cpp
-  tmop/mult/2d/grad_coef.cpp
-  tmop/mult/2d/grad.cpp
-  tmop/mult/2d/mult_coef.cpp
-  tmop/mult/2d/mult.cpp
-  tmop/mult/3d/grad_coef.cpp
-  tmop/mult/3d/grad.cpp
-  tmop/mult/3d/mult_coef.cpp
-  tmop/mult/3d/mult.cpp
-  tmop/tools/2d/det_jpr.cpp
-  tmop/tools/2d/energy_coef.cpp
-  tmop/tools/2d/energy.cpp
-  tmop/tools/2d/target.cpp
-  tmop/tools/3d/det_jpr.cpp
-  tmop/tools/3d/energy_coef.cpp
-  tmop/tools/3d/energy.cpp
-  tmop/tools/3d/discrete.cpp
-  tmop/tools/3d/target.cpp
+  tmop/mult/grad2_coef.cpp
+  tmop/mult/grad2.cpp
+  tmop/mult/mult2_coef.cpp
+  tmop/mult/mult2.cpp
+  tmop/mult/grad3_coef.cpp
+  tmop/mult/grad3.cpp
+  tmop/mult/mult3_coef.cpp
+  tmop/mult/mult3.cpp
+  tmop/tools/det2_jpr.cpp
+  tmop/tools/energy2_coef.cpp
+  tmop/tools/energy2.cpp
+  tmop/tools/target2.cpp
+  tmop/tools/det3_jpr.cpp
+  tmop/tools/energy3_coef.cpp
+  tmop/tools/energy3.cpp
+  tmop/tools/discrete3.cpp
+  tmop/tools/target3.cpp
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
@@ -258,10 +258,10 @@ set(HDRS
   tintrules.hpp
   tmop.hpp
   tmop/pa.hpp
-  tmop/assemble/2d/grad.hpp
-  tmop/assemble/3d/grad.hpp
-  tmop/mult/2d/mult.hpp
-  tmop/mult/3d/mult.hpp
+  tmop/assemble/grad2.hpp
+  tmop/assemble/grad2.hpp
+  tmop/mult/mult2.hpp
+  tmop/mult/mult3.hpp
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp
