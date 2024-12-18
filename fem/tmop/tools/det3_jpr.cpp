@@ -9,19 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-<<<<<<<< HEAD:fem/tmop/tools/3d/det_jpr.cpp
-#include "../../../tmop.hpp"
-#include "../../../tmop_tools.hpp"
-#include "../../../kernels.hpp"
-#include "../../../../general/forall.hpp"
-#include "../../../../linalg/kernels.hpp"
-========
 #include "../../tmop.hpp"
 #include "../../tmop_tools.hpp"
 #include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
->>>>>>>> main:fem/tmop/tools/det3_jpr.cpp
 
 namespace mfem
 {

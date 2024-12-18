@@ -9,17 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-<<<<<<<< HEAD:fem/tmop/assemble/3d/grad.hpp
-#include "../../../tmop.hpp"
-#include "../../../kernels.hpp"
-#include "../../../../general/forall.hpp"
-#include "../../../../linalg/kernels.hpp"
-========
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
->>>>>>>> main:fem/tmop/assemble/grad3.hpp
 
 namespace mfem
 {

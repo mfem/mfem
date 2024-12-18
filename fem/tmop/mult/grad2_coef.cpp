@@ -9,19 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-<<<<<<<< HEAD:fem/tmop/mult/2d/grad_coef.cpp
-#include "../../pa.hpp"
-#include "../../../tmop.hpp"
-#include "../../../kernels.hpp"
-#include "../../../../general/forall.hpp"
-#include "../../../../linalg/kernels.hpp"
-========
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
->>>>>>>> main:fem/tmop/mult/grad2_coef.cpp
 
 namespace mfem
 {

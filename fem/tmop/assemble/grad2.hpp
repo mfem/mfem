@@ -10,17 +10,10 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-<<<<<<<< HEAD:fem/tmop/assemble/2d/grad.hpp
-#include "../../../tmop.hpp"
-#include "../../../kernels.hpp"
-#include "../../../../general/forall.hpp"
-#include "../../../../linalg/kernels.hpp"
-========
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
->>>>>>>> main:fem/tmop/assemble/grad2.hpp
 
 namespace mfem
 {

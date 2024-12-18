@@ -9,15 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-<<<<<<<< HEAD:fem/tmop/assemble/2d/diag_coef.cpp
-#include "../../pa.hpp"
-#include "../../../tmop.hpp"
-#include "../../../../general/forall.hpp"
-========
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../../general/forall.hpp"
->>>>>>>> main:fem/tmop/assemble/diag2_coef.cpp
 
 namespace mfem
 {

@@ -9,21 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-<<<<<<<< HEAD:fem/tmop/tools/2d/energy.cpp
-#include "../../pa.hpp"
-#include "../../../tmop.hpp"
-#include "../../../kernels.hpp"
-#include "../../../../general/forall.hpp"
-#include "../../../../linalg/kernels.hpp"
-#include "../../../../linalg/dinvariants.hpp"
-========
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 #include "../../../linalg/dinvariants.hpp"
->>>>>>>> main:fem/tmop/tools/energy2.cpp
 
 namespace mfem
 {

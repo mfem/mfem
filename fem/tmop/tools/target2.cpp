@@ -9,21 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-<<<<<<<< HEAD:fem/tmop/tools/2d/target.cpp
-#include "../../pa.hpp"
-#include "../../../tmop.hpp"
-#include "../../../kernels.hpp"
-#include "../../../gridfunc.hpp"
-#include "../../../../general/forall.hpp"
-#include "../../../../linalg/kernels.hpp"
-========
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../gridfunc.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
->>>>>>>> main:fem/tmop/tools/target2.cpp
 
 using namespace mfem;
 
@@ -142,7 +133,6 @@ bool TargetConstructor::ComputeAllElementTargets<2>(
 
    switch (target_type)
    {
-<<<<<<<< HEAD:fem/tmop/tools/2d/target.cpp
    case IDEAL_SHAPE_UNIT_SIZE: // Jtr(i) = Wideal;
    {
       const static auto specialized_kernels = []
@@ -169,34 +159,6 @@ bool TargetConstructor::ComputeAllElementTargets<2>(
    }
    case GIVEN_SHAPE_AND_SIZE: return false;
    default:                   return false;
-========
-      case IDEAL_SHAPE_UNIT_SIZE: // Jtr(i) = Wideal;
-      {
-         const static auto specialized_kernels = []
-         { return tmop::KernelSpecializations1<TMOPTcIdealShapeUnitSize2D>(); }();
-         TMOPTcIdealShapeUnitSize2D::Run(q, NE, W, J, q);
-         return true;
-      }
-      case IDEAL_SHAPE_EQUAL_SIZE: return false;
-      case IDEAL_SHAPE_GIVEN_SIZE:
-      {
-         MFEM_VERIFY(nodes, "");
-         const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-         const Operator *R = fes.GetElementRestriction(ordering);
-         Vector x(R->Height(), Device::GetDeviceMemoryType());
-         x.UseDevice(true);
-         R->Mult(*nodes, x);
-         MFEM_ASSERT(nodes->FESpace()->GetVDim() == 2, "");
-         const auto X = Reshape(x.Read(), d, d, DIM, NE);
-         const static auto specialized_kernels = []
-         { return tmop::KernelSpecializations<TMOPTcIdealShapeGivenSize2D>(); }();
-
-         TMOPTcIdealShapeGivenSize2D::Run(d, q, NE, detW, B, G, W, X, J, d, q, 4);
-         return true;
-      }
-      case GIVEN_SHAPE_AND_SIZE: return false;
-      default:                   return false;
->>>>>>>> main:fem/tmop/tools/target2.cpp
    }
    return false;
 }
