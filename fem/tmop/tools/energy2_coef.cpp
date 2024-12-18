@@ -124,7 +124,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
    MFEM_VERIFY(PA.maps_lim->nqpt == q, "");
 
    const auto C0 = const_c0 ? Reshape(PA.C0.Read(), 1, 1, 1)
-                            : Reshape(PA.C0.Read(), q, q, NE);
+                   : Reshape(PA.C0.Read(), q, q, NE);
    const auto LD = Reshape(PA.LD.Read(), d, d, NE);
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
    const auto B = Reshape(PA.maps->B.Read(), q, d);

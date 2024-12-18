@@ -55,16 +55,16 @@ struct TMOP_PA_Metric_338 : TMOP_PA_Metric_3D
       real_t *dI3b = Jrt, *ddI3b = Jpr;
       // w0 H_302 + w1 H_318
       kernels::InvariantsEvaluator3D ie(Args()
-                                           .J(Jpt)
-                                           .B(B)
-                                           .dI1b(dI1b)
-                                           .ddI1b(ddI1b)
-                                           .dI2(dI2)
-                                           .dI2b(dI2b)
-                                           .ddI2(ddI2)
-                                           .ddI2b(ddI2b)
-                                           .dI3b(dI3b)
-                                           .ddI3b(ddI3b));
+                                        .J(Jpt)
+                                        .B(B)
+                                        .dI1b(dI1b)
+                                        .ddI1b(ddI1b)
+                                        .dI2(dI2)
+                                        .dI2b(dI2b)
+                                        .ddI2(ddI2)
+                                        .ddI2b(ddI2b)
+                                        .dI3b(dI3b)
+                                        .ddI3b(ddI3b));
       real_t sign_detJ;
       const real_t c1 = weight / 9.;
       const real_t I1b = ie.Get_I1b();
@@ -90,7 +90,7 @@ struct TMOP_PA_Metric_338 : TMOP_PA_Metric_3D
                   const real_t dp_318 =
                      weight * (I3b - 1.0 / (I3b * I3b * I3b)) * ddi3b(r, c) +
                      weight * (1.0 + 3.0 / (I3b * I3b * I3b * I3b)) *
-                        di3b(r, c) * di3b(i, j);
+                     di3b(r, c) * di3b(i, j);
                   H(r, c, i, j, qx, qy, qz, e) =
                      w[0] * c1 * dp_302 + w[1] * dp_318;
                }

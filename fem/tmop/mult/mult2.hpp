@@ -61,7 +61,7 @@ public:
       const Vector &mc_ = ti->PA.MC;
       const bool const_m0 = mc_.Size() == 1;
       const auto MC = const_m0 ? Reshape(mc_.Read(), 1, 1, 1)
-                               : Reshape(mc_.Read(), Q1D, Q1D, NE);
+                      : Reshape(mc_.Read(), Q1D, Q1D, NE);
 
       mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
       {
