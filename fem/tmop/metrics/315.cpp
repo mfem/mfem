@@ -12,8 +12,8 @@
 #include "../../kernel_dispatch.hpp"
 
 #include "../pa.hpp"
-#include "../mult/3d/mult.hpp"
-#include "../assemble/3d/grad.hpp"
+#include "../mult/mult3.hpp"
+#include "../assemble/grad3.hpp"
 
 namespace mfem
 {

@@ -8,12 +8,21 @@
 #     add_link_options(-fsanitize=address)
 # endif()
 
-set(CXX /opt/homebrew/opt/llvm/bin/clang++)
 
+## MFEM specific settings #####################################################
 set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-find_package(fmt CONFIG REQUIRED)
-add_link_options(-L/opt/homebrew/opt/fmt/lib -lfmt)
+## Linux, Darwin specific settings ############################################
+if (${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux")
+    # include_directories(/usr/include)
+elseif(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Darwin")
+    set(CXX /opt/homebrew/opt/llvm/bin/clang++)
+    include_directories(/opt/homebrew/include)
+    find_package(fmt CONFIG REQUIRED)
+    add_link_options(-L/opt/homebrew/opt/fmt/lib -lfmt)
+else()
+   message(FATAL_ERROR "Unsupported system")
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
