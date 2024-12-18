@@ -67,7 +67,7 @@ struct TMOP_PA_Metric_318 : TMOP_PA_Metric_3D
                   const real_t dp =
                      weight * (I3b - 1.0 / (I3b * I3b * I3b)) * ddi3b(r, c) +
                      weight * (1.0 + 3.0 / (I3b * I3b * I3b * I3b)) *
-                        di3b(r, c) * di3b(i, j);
+                     di3b(r, c) * di3b(i, j);
                   H(r, c, i, j, qx, qy, qz, e) = dp;
                }
             }

@@ -60,8 +60,8 @@ struct TMOP_PA_Metric_094 : TMOP_PA_Metric_2D
                   H(r, c, i, j, qx, qy, e) =
                      w[0] * 0.5 * weight * ddi1b(r, c) +
                      w[1] *
-                        (weight * (0.5 - 0.5 / (I2b * I2b)) * ddi2b(r, c) +
-                         weight / (I2b * I2b * I2b) * di2b(r, c) * di2b(i, j));
+                     (weight * (0.5 - 0.5 / (I2b * I2b)) * ddi2b(r, c) +
+                      weight / (I2b * I2b * I2b) * di2b(r, c) * di2b(i, j));
                }
             }
          }

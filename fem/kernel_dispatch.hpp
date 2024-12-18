@@ -118,7 +118,7 @@ public:
    size_t operator()(std::tuple<KernelParameters...> value) const
    {
       return operator()<sizeof...(KernelParameters), KernelParameters...>(
-         value);
+                value);
    }
 };
 
@@ -138,13 +138,13 @@ template <typename Kernels,
           typename... Params,
           typename... OptParams>
 class KernelDispatchTable<Kernels,
-                          Signature,
-                          internal::KernelTypeList<Params...>,
-                          internal::KernelTypeList<OptParams...>>
+         Signature,
+         internal::KernelTypeList<Params...>,
+         internal::KernelTypeList<OptParams...>>
 {
    using TableType = std::unordered_map<std::tuple<Params...>,
-                                        Signature,
-                                        KernelDispatchKeyHash<Params...>>;
+         Signature,
+         KernelDispatchKeyHash<Params...>>;
    TableType table;
 
 public:

@@ -124,7 +124,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
                                                DenseTensor &Jtr) const
 {
    MFEM_VERIFY(target_type == IDEAL_SHAPE_GIVEN_SIZE ||
-                  target_type == GIVEN_SHAPE_AND_SIZE,
+               target_type == GIVEN_SHAPE_AND_SIZE,
                "");
 
    MFEM_VERIFY(tspec_fesv, "No target specifications have been set.");
