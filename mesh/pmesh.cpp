@@ -3763,7 +3763,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 #endif
                         need_refinement = 1;
                         middle[ii] = NumOfVertices++;
-                        for (int c = 0; c < 2; c++)
+                        for (int c = 0; c < spaceDim; c++)
                         {
                            V(c) = 0.5 * (vertices[v[0]](c) + vertices[v[1]](c));
                         }
