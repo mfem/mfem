@@ -347,7 +347,7 @@ int main(int argc, char *argv[])
    {
       b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(f));
    }
-   b.Vector::operator=(0.0);
+   b = 0.0;
    b.Assemble();
 
    // 11. Define the solution vector x as a complex finite element grid function
