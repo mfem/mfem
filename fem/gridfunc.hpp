@@ -897,18 +897,88 @@ public:
                                        const IntegrationRule *irs[] = NULL
                                       ) const;
 
+   /// @brief Returns ||u_ex - u_h||_L1 elementwise for H1 or L2 elements
+   ///
+   /// Compute the $L^1$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// VALUE.
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^1$ errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL1Errors(Coefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(1.0, exsol, error, NULL, irs); }
 
+   /// @brief Returns ||u_ex - u_h||_L2 elementwise for H1 or L2 elements
+   ///
+   /// Compute the $L^2$ error in each element of the mesh and store the results
+   /// in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// VALUE.
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^2$ errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL2Errors(Coefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(2.0, exsol, error, NULL, irs); }
 
+   /// @brief Returns Max|u_ex - u_h| elementwise for H1 or L2 elements
+   ///
+   /// Compute the $L^\infty$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// VALUE.
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^\infty$
+   ///                       errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementMaxErrors(Coefficient &exsol,
                                         Vector &error,
                                         const IntegrationRule *irs[] = NULL
@@ -954,9 +1024,17 @@ public:
 
    /// @brief Returns ||u_ex - u_h||_Lp elementwise for vector fields
    ///
-   /// Compute the Lp error in each element of the mesh and store the results in
-   /// the Vector @ error. The result should be of length number of elements,
+   /// Compute the $L^p$ error in each element of the mesh and store the results
+   /// in the Vector @ error. The result should be of length number of elements,
    /// for example an L2 GridFunction of order zero using map type VALUE.
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} w |scalar\_error|^p)^{1/p}$$
+   ///
+   /// Where
+   ///    $$scalar\_error = |v\_weight \cdot (u_{ex} - u_h)|$$
+   /// or
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
    ///
    /// @param[in] p          Real value indicating the exponent of the $L^p$
    ///                       norm. To avoid domain errors p should have a
@@ -984,18 +1062,109 @@ public:
                                        const IntegrationRule *irs[] = NULL
                                       ) const;
 
+   /// @brief Returns ||u_ex - u_h||_L1 elementwise for vector fields
+   ///
+   /// Compute the $L^1$ error in each element of the mesh and store the
+   /// results in the Vector @ error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// VALUE.
+   ///
+   /// Computes:
+   ///    $$\int_{elem} |scalar\_error|$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^1$ errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL1Errors(VectorCoefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(1.0, exsol, error, NULL, NULL, irs); }
 
+   /// @brief Returns ||u_ex - u_h||_L2 elementwise for vector fields
+   ///
+   /// Compute the $L^2$ error in each element of the mesh and store the
+   /// results in the Vector @ error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// VALUE.
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} |scalar\_error|^2)^{1/2}$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^2$ errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL2Errors(VectorCoefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(2.0, exsol, error, NULL, NULL, irs); }
 
+   /// @brief Returns Max|u_ex - u_h| elementwise for vector fields
+   ///
+   /// Compute the $L^\infty$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// VALUE.
+   ///
+   /// Computes:
+   ///    $$max_{elem} |scalar\_error|$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^\infty$
+   ///                       errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
+   ///
+   /// @note Computes the max length of the difference vector not the
+   ///       component-wise maximum difference of the vector fields.
    virtual void ComputeElementMaxErrors(VectorCoefficient &exsol,
                                         Vector &error,
                                         const IntegrationRule *irs[] = NULL
