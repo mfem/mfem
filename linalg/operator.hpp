@@ -13,6 +13,7 @@
 #define MFEM_OPERATOR
 
 #include "vector.hpp"
+#include "../general/handle.hpp"
 
 namespace mfem
 {
@@ -869,43 +870,42 @@ public:
 /// General linear combination operator: x -> a A(x) + b B(x).
 class SumOperator : public Operator
 {
-   const Operator *A, *B;
+   Handle<const Operator> A, B;
    const real_t alpha, beta;
-   bool ownA, ownB;
    mutable Vector z;
 
 public:
-   SumOperator(
-      const Operator *A, const real_t alpha,
-      const Operator *B, const real_t beta,
-      bool ownA, bool ownB);
+   SumOperator(Handle<const Operator> A_, const real_t alpha,
+               Handle<const Operator> B_, const real_t beta);
+
+   SumOperator(const Operator *A_, const real_t alpha,
+               const Operator *B_, const real_t beta,
+               bool own_A, bool own_B);
 
    void Mult(const Vector &x, Vector &y) const override
    { z.SetSize(A->Height()); A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
 
    void MultTranspose(const Vector &x, Vector &y) const override
    { z.SetSize(A->Width()); A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
-
-   virtual ~SumOperator();
 };
 
 /// General product operator: x -> (A*B)(x) = A(B(x)).
 class ProductOperator : public Operator
 {
-   const Operator *A, *B;
-   bool ownA, ownB;
+   Handle<const Operator> A, B;
    mutable Vector z;
 
 public:
-   ProductOperator(const Operator *A, const Operator *B, bool ownA, bool ownB);
+   ProductOperator(Handle<const Operator> A_, Handle<const Operator> B_);
+
+   ProductOperator(const Operator *A_, const Operator *B_,
+                   bool own_A, bool own_B);
 
    void Mult(const Vector &x, Vector &y) const override
    { B->Mult(x, z); A->Mult(z, y); }
 
    void MultTranspose(const Vector &x, Vector &y) const override
    { A->MultTranspose(x, z); B->MultTranspose(z, y); }
-
-   virtual ~ProductOperator();
 };
 
 
@@ -956,16 +956,19 @@ public:
 /// General triple product operator x -> A*B*C*x, with ownership of the factors.
 class TripleProductOperator : public Operator
 {
-   const Operator *A;
-   const Operator *B;
-   const Operator *C;
-   bool ownA, ownB, ownC;
+   Handle<const Operator> A;
+   Handle<const Operator> B;
+   Handle<const Operator> C;
    mutable Vector t1, t2;
    MemoryClass mem_class;
 
 public:
-   TripleProductOperator(const Operator *A, const Operator *B,
-                         const Operator *C, bool ownA, bool ownB, bool ownC);
+   TripleProductOperator(Handle<const Operator> A_, Handle<const Operator> B_,
+                         Handle<const Operator> C_);
+
+   TripleProductOperator(
+      const Operator *A_, const Operator *B_, const Operator *C_,
+      bool own_A, bool own_B, bool own_C);
 
    MemoryClass GetMemoryClass() const override { return mem_class; }
 
@@ -974,8 +977,6 @@ public:
 
    void MultTranspose(const Vector &x, Vector &y) const override
    { A->MultTranspose(x, t2); B->MultTranspose(t2, t1); C->MultTranspose(t1, y); }
-
-   virtual ~TripleProductOperator();
 };
 
 

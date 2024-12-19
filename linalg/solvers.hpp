@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 #include "densemat.hpp"
-#include "handle.hpp"
+#include "op_handle.hpp"
 #include <memory>
 
 #ifdef MFEM_USE_MPI

@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_HANDLE_HPP
-#define MFEM_HANDLE_HPP
+#ifndef MFEM_OP_HANDLE_HPP
+#define MFEM_OP_HANDLE_HPP
 
 #include "../config/config.hpp"
 #include "operator.hpp"

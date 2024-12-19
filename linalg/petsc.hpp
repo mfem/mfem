@@ -21,7 +21,7 @@
 
 #include <limits>
 
-#include "handle.hpp"
+#include "op_handle.hpp"
 #include "hypre.hpp"
 #include "ode.hpp"
 #include "../general/mem_manager.hpp"
