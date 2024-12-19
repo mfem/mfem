@@ -2135,7 +2135,14 @@ public:
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(const FiniteElement* trial_fe,
+                                                    const FiniteElement* test_fe,
+                                                    const ElementTransformation* trans) const override
+   {
+      return &GetRule(*trial_fe, *test_fe, *trans);
+   }
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \nabla u, \nabla v)$ where $Q$
@@ -2314,6 +2321,13 @@ public:
    {
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+   }
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(const FiniteElement* trial_fe,
+                                                    const FiniteElement* test_fe,
+                                                    const ElementTransformation* trans) const override
+   {
+      return &GetRule(*trial_fe, *test_fe);
    }
 };
 
