@@ -544,6 +544,16 @@ protected:
    /// Returns the orientation of "test" relative to "base"
    static int GetTetOrientation(const int *base, const int *test);
 
+   /// Returns the orientation of "test" relative to "base"
+   /** @warning For now, only a minimal set of orientations is supported - the
+       method with generate an MFEM error for unsupported orientations. */
+   static int GetHexOrientation(const int *base, const int *test);
+
+   /// Returns the orientation of "test" relative to "base"
+   /** @warning For now, only a minimal set of orientations is supported - the
+       method with generate an MFEM error for unsupported orientations. */
+   static int GetPrismOrientation(const int *base, const int *test);
+
    static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
                                         const DSTable &v_to_v,
                                         Table &el_to_edge);
@@ -693,7 +703,10 @@ public:
 
    /// Construct a Mesh from the given primary data.
    /** The array @a vertices is used as external data, i.e. the Mesh does not
-       copy the data and will not delete the pointer.
+       copy the data and will not delete the pointer. Note that this array needs
+       to have three components (x,y,z) for the vertex coordinates regardless
+       of @a dimension and @a space_dimension; the extra components (e.g. the z
+       component for a mesh in 2D) should be initialized to zero.
 
        The data from the other arrays is copied into the internal Mesh data
        structures.
@@ -738,7 +751,7 @@ public:
    /// Create a disjoint mesh from the given mesh array
    ///
    /// @note Data is copied from the meshes in @a mesh_array.
-   Mesh(Mesh *mesh_array[], int num_pieces);
+   Mesh(const Mesh * const mesh_array[], int num_pieces);
 
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
@@ -892,6 +905,15 @@ public:
        @note The resulting mesh uses a discontinuous nodal function, see
        SetCurvature() for further details. */
    static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
+
+   /// Create a disjoint mesh from the given meshes
+   static Mesh MakeUnion(const Mesh * const meshes[], int num_meshes)
+   { return Mesh(meshes, num_meshes); }
+
+   /// Create a disjoint mesh from the given meshes
+   template <int num_meshes>
+   static Mesh MakeUnion(const Mesh * const (&meshes)[num_meshes])
+   { return Mesh(meshes, num_meshes); }
 
    ///@}
 
@@ -1080,8 +1102,10 @@ public:
    virtual void SetAttributes();
 
    /// Check (and optionally attempt to fix) the orientation of the elements
-   /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
-                          elements: triangles, quads, and tets.
+   /** @param[in] fix_it  If `true`, attempt to fix the orientations of the
+                          elements: this operation will succeed only when the
+                          determinant of the Jacobian does not change its sign
+                          throughout the element.
        @return The number of elements with wrong orientation.
 
        @note For meshes with nodes (e.g. high-order or periodic meshes), fixing
@@ -1115,6 +1139,101 @@ public:
    /** Remove boundary elements that lie in the interior of the mesh, i.e. that
        have two adjacent faces in 3D, or edges in 2D. */
    void RemoveInternalBoundaries();
+
+   /// Helper method to set the internal vertex coordinates from the mesh nodes.
+   void SetVerticesFromNodes() { if (Nodes) { SetVerticesFromNodes(Nodes); } }
+
+   /** @brief Find duplicate vertices, in a subset of all vertices, based on
+       their physical location. */
+   /** Here, we call the vertices in the subset that will be searched for
+       duplicates, active vertices.
+       @param[in] action
+          The following action codes are valid:
+            - 0: Find duplicates among all vertices in the mesh.
+            - 1: Find duplicates among the boundary vertices in the mesh. For
+              this action, vertices are considered to be boundary if they are
+              used by at least one boundary element.
+            - 2: Find duplicates among the boundary vertices in the mesh. For
+              this action, vertices are considered to be boundary if they are
+              used by at least one boundary-face element, i.e. face that has
+              exactly one adjacent mesh element.
+            - 3: The input parameter @a v2v defines the set of active vertices,
+              i.e. the set of vertices that will be searched for duplicates. See
+              the description of @a v2v for details.
+       @param[in,out] v2v
+          This parameter is input parameter only when @a action is 3. In this
+          case, its size must be the number of active vertices and `v2v[ai]`
+          must be the vertex index for active vertex `ai`. The entries contained
+          in @a v2v must be in the range [0,GetNV()) and there can be no
+          repeated entries. At exit, this parameter defines a map from the
+          current vertex indices to new vertex indices where duplicates have
+          been removed. In case of an error, this parameter may remain
+          unmodified, see the description of the return values.
+       @param[out] num_new_vertices
+          Set to the number of new vertices, i.e. the largest entity in @a v2v
+          plus 1. In case of an error, this parameter may remain unmodified, see
+          the description of the return values.
+       @param[in] abs_tol
+          Absolute distance below which active vertices will be considered
+          duplicates, must be >= 0.
+       @param[in] tol_mult
+          Tolerance multiplier, must be >= 2; larger values may speed up the
+          algorithm, so the default value is set to 16; however, for large
+          @a abs_tol (close to the minimum distance between non-duplicate
+          vertices) smaller values of @a tol_mult may be faster.
+       @returns
+          One of the following status codes is returned:
+            - 0: Success: no warnings or errors.
+            - 1: Error: invalid (negative) value for @a abs_tol; @a v2v and
+              @a num_new_vertices are not modified.
+            - 2: Error: invalid (less than 2) value for @a tol_mult; @a v2v and
+              @a num_new_vertices are not modified.
+            - 3: Error: invalid @a action parameter; @a v2v and
+              @a num_new_vertices are not modified.
+            - 4: Error: @a action is 3 and @a v2v contains an index outside the
+              valid range [0,GetNV()); @a v2v and @a num_new_vertices are not
+              modified.
+            - 5: Error: @a action is 3 and @a v2v contains repeated indices;
+              @a v2v is modified and @a num_new_vertices is not modified.
+            - 10: Warning: transitive duplicates were found which means that
+              there are vertices a, b, and c such that dist(a,b) <= abs_tol,
+              dist(b,c) <= abs_tol, however dist(a,c) > abs_tol. In such cases,
+              vertices a and c are marked as duplicates even though they do not
+              meet the @a abs_tol requirement. Typically, this warning can be
+              resolved by increasing @a abs_tol. Both output parameters, @a v2v
+              and @a num_new_vertices are set as in the case of success.
+
+       On success, the output parameters @a v2v and @a num_new_vertices can be
+       used directly as input for the method ApplyVertexMap() to remove the
+       duplicate vertices from the mesh connecting topologically disconnected
+       pieces.
+
+       @note This method uses the internal vertex coordinates to search for
+       duplicates, so for meshes with nodes, it maybe necessary to call the
+       method SetVerticesFromNodes() before calling this method. */
+   int FindDuplicateVertices(int action,
+                             Array<int> &v2v,
+                             int &num_new_vertices,
+                             real_t abs_tol,
+                             real_t tol_mult = 16) const;
+
+   /// Apply the @a v2v map to re-enumerate the mesh vertices.
+   /** @param[in] v2v
+          The size of this array must be GetNV(). The entries `v2v[i]` must be
+          in the range [0, @a num_new_verices). The map can add new (unused)
+          vertices, combine multiple existing vertices into a single vertex
+          (e.g. removing duplicate vertices or introducing periodicity), or
+          simply permute the existing vertices.
+       @param[in] num_new_vertices
+          The number of vertices in the new mesh. Entries in @a v2v are expected
+          to be in the range [0, @a num_new_vertices).
+       @returns
+          One of the following status codes is returned:
+            - 0: Success.
+            - 1: The mapping @a v2v is invalid: if the mapping is applied as
+              given it will result in mesh elements or boundary elements with
+              repeated vertex indices which is not allowed. */
+   int ApplyVertexMap(const Array<int> &v2v, int num_new_vertices);
 
    /**
     * @brief Clear the boundary element to edge map.
@@ -1173,7 +1292,7 @@ public:
    /// @ref mfem_Mesh_named_ctors "Named mesh constructors".
    /// @{
 
-   /// Deprecated: see @a MakeCartesian3D.
+   /// Deprecated: see @a MakeCartesian3D().
    MFEM_DEPRECATED
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         real_t sx = 1.0, real_t sy = 1.0, real_t sz = 1.0,
@@ -1184,7 +1303,7 @@ public:
       Finalize(true); // refine = true
    }
 
-   /// Deprecated: see @a MakeCartesian2D.
+   /// Deprecated: see @a MakeCartesian2D().
    MFEM_DEPRECATED
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
         real_t sx = 1.0, real_t sy = 1.0, bool sfc_ordering = true)
@@ -1194,7 +1313,7 @@ public:
       Finalize(true); // refine = true
    }
 
-   /// Deprecated: see @a MakeCartesian1D.
+   /// Deprecated: see @a MakeCartesian1D().
    MFEM_DEPRECATED
    explicit Mesh(int n, real_t sx = 1.0)
       : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
@@ -1203,7 +1322,7 @@ public:
       // Finalize(); // reminder: not needed
    }
 
-   /// Deprecated: see @a MakeRefined.
+   /// Deprecated: see @a MakeRefined().
    MFEM_DEPRECATED
    Mesh(Mesh *orig_mesh, int ref_factor, int ref_type);
 
@@ -1415,7 +1534,7 @@ public:
    /// Returns the type of boundary element i.
    Element::Type GetBdrElementType(int i) const;
 
-   /// Deprecated in favor of Mesh::GetFaceGeometry
+   /// Deprecated in favor of Mesh::GetFaceGeometry()
    MFEM_DEPRECATED Geometry::Type GetFaceGeometryType(int Face) const
    { return GetFaceGeometry(Face); }
 
@@ -1434,7 +1553,7 @@ public:
       return boundary[i]->GetGeometryType();
    }
 
-   /// Deprecated in favor of Mesh::GetFaceGeometry
+   /// Deprecated in favor of Mesh::GetFaceGeometry()
    MFEM_DEPRECATED Geometry::Type GetFaceBaseGeometry(int i) const
    { return GetFaceGeometry(i); }
 
@@ -1561,9 +1680,9 @@ public:
        @warning This only differs from GetBdrElementAdjacentElement by returning
        the face info with inverted orientation. It does @b not return
        information corresponding to a second adjacent face. This function is
-       deprecated, use Geometry::GetInverseOrientation, Mesh::EncodeFaceInfo,
-       Mesh::DecodeFaceInfoOrientation, and Mesh::DecodeFaceInfoLocalIndex
-       instead.
+       deprecated, use Geometry::GetInverseOrientation(),
+       Mesh::EncodeFaceInfo(), Mesh::DecodeFaceInfoOrientation(), and
+       Mesh::DecodeFaceInfoLocalIndex() instead.
 
        @sa GetBdrElementAdjacentElement() */
    MFEM_DEPRECATED
@@ -2120,7 +2239,7 @@ public:
    void ScaleSubdomains (real_t sf);
    void ScaleElements (real_t sf);
 
-   void Transform(void (*f)(const Vector&, Vector&));
+   void Transform(std::function<void(const Vector&, Vector&)> f);
    void Transform(VectorCoefficient &deformation);
 
    /** @brief This function should be called after the mesh node coordinates
