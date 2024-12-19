@@ -2069,6 +2069,9 @@ public:
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
+   /// @brief Populate a marker array identifying exterior faces
+   virtual void GetExteriorFaceMarker(Array<int> & face_marker) const;
+
    /// @}
 
    /// @name Methods related to mesh partitioning

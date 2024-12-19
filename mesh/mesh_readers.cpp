@@ -2837,10 +2837,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    }
 
    this->RemoveUnusedVertices();
-   if (periodic)
-   {
-      this->RemoveInternalBoundaries();
-   }
    this->FinalizeTopology();
 
    // If a high order coordinate field was created project it onto the mesh
