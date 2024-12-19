@@ -834,8 +834,8 @@ public:
    /// @param[in] p         Real value indicating the exponent of the $L^p$
    ///                      norm. To avoid domain errors p should have a
    ///                      positive value, either finite or infinite.
-   /// @param[in] exsol     Coefficient object reproducing the anticipated
-   ///                      values of the scalar field, u_ex.
+   /// @param[in] exsol     VectorCoefficient object reproducing the anticipated
+   ///                      values of the vector field, u_ex.
    /// @param[in] weight    Optional pointer to a Coefficient object reproducing
    ///                      a weighting function, w.
    /// @param[in] v_weight  Optional pointer to a VectorCoefficient object
@@ -863,8 +863,8 @@ public:
    /// @param[in] p          Real value indicating the exponent of the $L^p$
    ///                       norm. To avoid domain errors p should have a
    ///                       positive value, either finite or infinite.
-   /// @param[in] exsol      Coefficient object reproducing the anticipated
-   ///                       values of the scalar field, u_ex.
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
    /// @param[in,out] error  Vector to contain the element-wise $L^p$ errors
    /// @param[in] weight     Optional pointer to a Coefficient object
    ///                       reproducing a weighting function, w.
