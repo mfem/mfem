@@ -138,8 +138,8 @@ void ConvectionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                          Device::GetDeviceMemoryType() : pa_mt;
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &Trans = *fes.GetElementTransformation(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
+   ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Trans);
    if (DeviceCanUseCeed())
    {

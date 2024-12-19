@@ -1033,8 +1033,8 @@ void GradientInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 {
    // Assumes tensor-product elements, with a vector test space and H^1 trial space.
    Mesh *mesh = trial_fes.GetMesh();
-   const FiniteElement *trial_fel = trial_fes.GetFE(0);
-   const FiniteElement *test_fel = test_fes.GetFE(0);
+   const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
+   const FiniteElement *test_fel = test_fes.GetTypicalFE();
 
    const NodalTensorFiniteElement *trial_el =
       dynamic_cast<const NodalTensorFiniteElement*>(trial_fel);
@@ -1800,8 +1800,8 @@ void IdentityInterpolator::AssemblePA(const FiniteElementSpace &trial_fes,
 {
    // Assumes tensor-product elements, with a vector test space and H^1 trial space.
    Mesh *mesh = trial_fes.GetMesh();
-   const FiniteElement *trial_fel = trial_fes.GetFE(0);
-   const FiniteElement *test_fel = test_fes.GetFE(0);
+   const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
+   const FiniteElement *test_fel = test_fes.GetTypicalFE();
 
    const NodalTensorFiniteElement *trial_el =
       dynamic_cast<const NodalTensorFiniteElement*>(trial_fel);

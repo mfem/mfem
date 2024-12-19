@@ -93,8 +93,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
    if (DeviceCanUseCeed())
    {

@@ -23,8 +23,8 @@ void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
    if (IntRule == nullptr)
    {
       // This is where it's assumed that all elements are the same.
-      const auto &T = *fes.GetElementTransformation(0);
-      int quad_order = 2 * T.OrderGrad(fes.GetFE(0));
+      const auto &T = *fes.GetMesh()->GetTypicalElementTransformation();
+      int quad_order = 2 * T.OrderGrad(fes.GetTypicalFE());
       IntRule = &IntRules.Get(T.GetGeometryType(), quad_order);
    }
 
@@ -46,14 +46,14 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh &mesh = *fespace->GetMesh();
    MFEM_VERIFY(fespace->GetVDim() == mesh.Dimension(), "");
    vdim = fespace->GetVDim();
-   ndofs = fespace->GetFE(0)->GetDof();
+   ndofs = fespace->GetTypicalFE()->GetDof();
 
    SetUpQuadratureSpaceAndCoefficients(fes);
 
    auto ordering = GetEVectorOrdering(*fespace);
    auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
                DofToQuad::LEXICOGRAPHIC_FULL;
-   maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, mode);
+   maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
    geom = mesh.GetGeometricFactors(*IntRule, GeometricFactors::JACOBIANS);
 }
 
@@ -95,7 +95,7 @@ void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
                DofToQuad::LEXICOGRAPHIC_FULL;
    geom = fes.GetMesh()->GetGeometricFactors(*IntRule,
                                              GeometricFactors::JACOBIANS);
-   maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, mode);
+   maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
 }
 
 void ElasticityComponentIntegrator::AddMultPA(const Vector &x, Vector &y) const

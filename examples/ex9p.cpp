@@ -145,7 +145,7 @@ public:
         linear_solver(M.GetComm()),
         dt(-1.0)
    {
-      int block_size = fes.GetFE(0)->GetDof();
+      int block_size = fes.GetTypicalFE()->GetDof();
       if (prec_type == PrecType::ILU)
       {
          prec = new BlockILU(block_size,
