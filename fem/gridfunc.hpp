@@ -723,18 +723,116 @@ public:
       return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
+   /// @brief Returns ||u_ex - u_h||_L1 for H1 or L2 elements
+   ///
+   /// Computes:
+   ///    $$\sum_{elems} \int_{elem} |u_{ex} - u_h|$$
+   ///
+   /// @param[in] exsol   Coefficient object reproducing the anticipated values
+   ///                    of the scalar field, u_ex.
+   /// @param[in] irs     Optional pointer to a custom integration rule
+   ///                    e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeW11Error internally. See the ComputeW11Error
+   ///       documentation for generalizations of this error computation.
+   ///
+   /// @warning While this function is nominally equivalent to ComputeLpError,
+   ///          with appropriate arguments, the returned errors may differ
+   ///          noticeably because ComputeLpError uses a higher order
+   ///          integration rule by default.
+   MFEM_DEPRECATED
    virtual real_t ComputeL1Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeW11Error(*exsol, NULL, 1, NULL, irs); }
 
+   /// @brief Returns ||u_ex - u_h||_L1 for H1 or L2 elements
+   ///
+   /// Computes:
+   ///    $$\sum_{elems} \int_{elem} |u_{ex} - u_h|$$
+   ///
+   /// @param[in] exsol   Coefficient object reproducing the anticipated values
+   ///                    of the scalar field, u_ex.
+   /// @param[in] irs     Optional pointer to a custom integration rule
+   ///                    e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
    virtual real_t ComputeL1Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
+   /// @brief Returns $W^1_1$ norm (or portions thereof) for H1 or L2 elements
+   ///
+   /// Computes for norm_type == 1 the $L^1$ norm of $u$:
+   ///    $$(\sum_{elems} \int_{elem} |u_{ex} - u_h|$$
+   ///
+   /// Computes for norm_type == 2 the $L^1$ semi-norm of $\nabla u$:
+   ///    $$(\sum_{elems} \int_{elem} |du_{ex} - \nabla u_h|$$
+   ///
+   /// Computes for norm_type == 3 the $W^1_1$ norm of $u$:
+   ///    $$(\sum_{elems} \int_{elem} |u_{ex} - u_h| + |du_{ex} - \nabla u_h|$$
+   ///
+   /// @param[in] exsol     Coefficient object reproducing the anticipated
+   ///                      values of the scalar field, u_ex.
+   /// @param[in] exgrad    VectorCoefficient object reproducing the anticipated
+   ///                      values of the gradient of the scalar field, du_ex.
+   /// @param[in] norm_type Integer value of 1, 2, or 3 indicating the type of
+   ///                      norm to compute (see above).
+   /// @param[in] elems     Optional pointer to a marker array, with a length
+   ///                      equal to the number of local elements, indicating
+   ///                      which elements to integrate over. Only those
+   ///                      elements corresponding to non-zero entries in
+   ///                      @a elems will contribute to the computed $W^1_1$
+   ///                      error.
+   /// @param[in] irs       Optional pointer to a custom integration rule
+   ///                      e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
    virtual real_t ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                   int norm_type, const Array<int> *elems = NULL,
                                   const IntegrationRule *irs[] = NULL) const;
 
+   /// @brief Returns ||u_ex - u_h||_L1 for vector fields
+   ///
+   /// Computes:
+   ///    $$\sum_{elems} \int_{elem} |scalar\_error|$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol     VectorCoefficient object reproducing the anticipated
+   ///                      values of the vector field, u_ex.
+   /// @param[in] irs       Optional pointer to a custom integration rule
+   ///                      e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
    virtual real_t ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
