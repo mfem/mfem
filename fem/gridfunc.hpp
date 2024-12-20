@@ -502,7 +502,7 @@ public:
 
    /// @brief Returns ||exsol - u_h||_L2 for scalar or vector H1 or L2 elements
    ///
-   /// @param [in] exsol  Pointer to an array of scalar Coefficient objects,
+   /// @param[in] exsol   Pointer to an array of scalar Coefficient objects,
    ///                    one for each component of the vector field.
    /// @param[in] irs     Optional pointer to a custom integration rule
    ///                    e.g. higher order than the default rule.
