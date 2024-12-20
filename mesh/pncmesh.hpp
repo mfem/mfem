@@ -63,6 +63,8 @@ class FiniteElementSpace;
  */
 class ParNCMesh : public NCMesh
 {
+protected:
+   ParNCMesh() = default;
 public:
    /// Construct by partitioning a serial NCMesh.
    /** SFC partitioning is used by default. A user-specified partition can be
@@ -252,6 +254,7 @@ public:
 protected: // interface for ParMesh
 
    friend class ParMesh;
+   friend class ParSubMesh;
 
    /** For compatibility with conforming code in ParMesh and ParFESpace.
        Initializes shared structures in ParMesh: gtopo, shared_*, group_s*,
@@ -438,7 +441,7 @@ protected: // implementation
       std::vector<int> elements;
       std::vector<ValueType> values;
 
-      int Size() const { return elements.size(); }
+      int Size() const { return static_cast<int>(elements.size()); }
       void Reserve(int size) { elements.reserve(size); values.reserve(size); }
 
       void Add(int elem, ValueType val)
