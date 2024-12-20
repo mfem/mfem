@@ -693,17 +693,62 @@ public:
                                  Coefficient *ell_coef, real_t Nu,
                                  int norm_type) const;
 
-   /// Returns the error measured in H1-norm for H1 elements or in "broken"
-   /// H1-norm for L2 elements
+   /// @brief Returns the error measured in H1-norm for H1 or L2 elements
+   ///
+   /// Computes the norm using the $L^2$ norms of the function and its gradient
+   ///    $$\sqrt{norm\_u^2 + norm\_du\^2}$$
+   /// Where
+   ///    $$norm\_u = \|u_{ex} - u_h}\|_{L^2}$$
+   /// and
+   ///    $$norm\_du = \|du_{ex} - \nabla u_h}\|_{L^2}$$
+   ///
+   /// @param[in] exsol   Coefficient object reproducing the anticipated values
+   ///                    of the scalar field, u_ex.
+   /// @param[in] exgrad  VectorCoefficient object reproducing the anticipated
+   ///                    values of the gradient of the scalar field, du_ex.
+   /// @param[in] irs     Optional pointer to a custom integration rule
+   ///                    e.g. higher order than the default rule.
+   ///
+   /// @note For L2 elements this returns what could be called a "broken"
+   ///       H1-norm.
    virtual real_t ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns the error measured in H(div)-norm for RT elements
+   /// @brief Returns the error measured in H(div)-norm for RT elements
+   ///
+   /// Computes the norm using the $L^2$ norms of the function and its
+   /// divergence
+   ///    $$\sqrt{norm\_u^2 + norm\_du\^2}$$
+   /// Where
+   ///    $$norm\_u = \|u_{ex} - u_h}\|_{L^2}$$
+   /// and
+   ///    $$norm\_du = \|du_{ex} - \nabla\cdot u_h}\|_{L^2}$$
+   ///
+   /// @param[in] exsol  VectorCoefficient object reproducing the anticipated
+   ///                   values of the vector field, u_ex.
+   /// @param[in] exdiv  VectorCoefficient object reproducing the anticipated
+   ///                   values of the divergence of the vector field, du_ex.
+   /// @param[in] irs    Optional pointer to a custom integration rule
+   ///                   e.g. higher order than the default rule.
    virtual real_t ComputeHDivError(VectorCoefficient *exsol,
                                    Coefficient *exdiv,
                                    const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns the error measured in H(curl)-norm for ND elements
+   /// @brief Returns the error measured in H(curl)-norm for ND elements
+   ///
+   /// Computes the norm using the $L^2$ norms of the function and its curl
+   ///    $$\sqrt{norm\_u^2 + norm\_du\^2}$$
+   /// Where
+   ///    $$norm\_u = \|u_{ex} - u_h}\|_{L^2}$$
+   /// and
+   ///    $$norm\_du = \|du_{ex} - \nabla\times u_h}\|_{L^2}$$
+   ///
+   /// @param[in] exsol   VectorCoefficient object reproducing the anticipated
+   ///                    values of the vector field, u_ex.
+   /// @param[in] excurl  VectorCoefficient object reproducing the anticipated
+   ///                    values of the curl of the vector field, du_ex.
+   /// @param[in] irs     Optional pointer to a custom integration rule
+   ///                    e.g. higher order than the default rule.
    virtual real_t ComputeHCurlError(VectorCoefficient *exsol,
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const;
