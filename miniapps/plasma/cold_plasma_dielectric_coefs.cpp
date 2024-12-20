@@ -344,9 +344,10 @@ complex<double> S_cold_plasma(double omega,
          }
          else
          {
+         double scale = 1.0;
          suscept_particle = (-1.0 * w_p * w_p) / ((omega + w_c)*(omega - w_c)) 
-            +10.0*comp_val*exp(FWcutoff1)+10.0*comp_val*exp(FWcutoff2)
-            +10.0*comp_val*exp(LHres)+40.0*comp_val*exp(FWres);
+            +scale*10.0*comp_val*exp(FWcutoff1)+scale*10.0*comp_val*exp(FWcutoff2)
+            +scale*10.0*comp_val*exp(LHres)+scale*40.0*comp_val*exp(FWres);
          }
       }
       else
@@ -472,8 +473,9 @@ complex<double> D_cold_plasma(double omega,
          }
          else
          {
+            double scale = 1.0;
             suscept_particle = ((w_p*w_p) / ((omega+w_c) * (omega-w_c)))*(w_c/omega)
-            -10.0*comp_val*exp(FWcutoff1)-10.0*comp_val*exp(FWcutoff2);            
+            -scale*10.0*comp_val*exp(FWcutoff1)-scale*10.0*comp_val*exp(FWcutoff2);            
          }
       }
       else
@@ -1730,9 +1732,21 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
 
+   // Epsilon
+   //this->addParallelComp(realPart_ ?  P.real() : P.imag(), epsilon);
+   //this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
+   //this->addPerpSkewComp(realPart_ ? -D.imag() : D.real(), epsilon);
+
+   this->addParallelComp(realPart_ ?  P.imag(): -P.real() + 1.0, suscept);
+   this->addPerpDiagComp(realPart_ ?  S.imag(): -S.real() + 1.0, suscept);
+   this->addPerpSkewComp(realPart_ ?  D.real(): D.imag(), suscept);
+
+   /*
+   //old code:
    this->addParallelComp(realPart_ ?  P.real() - 1.0: P.imag(), suscept);
    this->addPerpDiagComp(realPart_ ?  S.real() - 1.0: S.imag(), suscept);
-   this->addPerpSkewComp(realPart_ ? -D.imag(): D.real(), suscept);
+   this->addPerpSkewComp(realPart_ ? -D.imag()      : D.real(), suscept);
+   */
    suscept *= omega_*epsilon0_;
 }
 
@@ -2119,11 +2133,11 @@ double PlasmaProfile::EvalByType(Type type,
       break;
       case POLOIDAL_H_MODE_DEN:
       {
-         //double r = cyl_ ? rz_[0] : xyz_[0];
-         //double z = cyl_ ? rz_[1] : xyz_[1];
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
 
-         double r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
-         double z = xyz_[1];
+         //double r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+         //double z = xyz_[1];
 
          double x_tok_data[2];
          Vector xTokVec(x_tok_data, 2);
@@ -2141,12 +2155,7 @@ double PlasmaProfile::EvalByType(Type type,
 
          if (z >= -1.183 && z <= 1.19) {bool_limits = 1;}
 
-         double norm_sqrt_psi = 1.0;
-         if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
-
-         // FLOOR DENSITY:
-         double ne = 1e12;
-
+         /*
          // CORE DENSITY:
          double Coreden = 4.2e20;
          double LCFSden = 8.4e19;
@@ -2186,17 +2195,52 @@ double PlasmaProfile::EvalByType(Type type,
                ne = FRden*exp(-(tempr-2.445)/sl3);
                if (ne < 1e12) {ne = 1e12;}
             }
+         }
+         */
 
-            /*
-            // Test param:
-            double pmin1 = 1e12;
-            double lam1 = 2.408;
-            double n1 = 190;
-            ne = (LCFSden - pmin1)* pow(cosh(pow((tempr / lam1), n1)), -1.0) + pmin1;
-            */
+         // FLOOR DENSITY:
+         double pval = 1e12;
+
+         // Core:
+         double pmin1 = params[0];
+         double pmax1 = params[1];
+         double lam1 = params[2];
+         double n1 = params[3];
+
+         double pmin2 = params[4];
+         double pmax2 = params[5];
+         double lam2 = params[6];
+         double n2 = params[7];
+
+         double LCFS_den = params[8];
+         double sl1 = 0.015;
+         double sl2 = 0.006;
+         double sl3 = 0.006;
+
+         double ne1 = (pmax1 - pmin1)* pow(cosh(pow((sqrt(val) / lam1), n1)),
+                                           -1.0) + pmin1;
+         double ne2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
+                                           -1.0) + pmin2;
+         if (val <= 1.0)
+         {
+            if (ne1+ne2 < LCFS_den){pval = LCFS_den;}
+            else {pval = ne1 + ne2;} 
+         }
+         // SOL:
+         else
+         {
+            if (val > 1.0 && sqrt(val) <= 1.0178)
+            {
+               pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
+            }
+            else 
+            {
+               pval = (LCFS_den*exp(-(1.0178 - 1.0)/sl1))*exp(-(sqrt(val) - 1.0178)/sl2);
+               if (pval < 1e12){pval = 1e12;}
+            }
          }
 
-         return ne;
+         return pval;
       }
       break;
       case POLOIDAL_H_MODE_TEMP:
@@ -2223,8 +2267,8 @@ double PlasmaProfile::EvalByType(Type type,
          double norm_sqrt_psi = 1.0;
          if (val < 1 && bool_limits == 1) {norm_sqrt_psi = sqrt(val);}
 
-         // FLOOR TEMP:
-         //double  Te = 100;
+         // FLOOR/SOL TEMP:
+         double Te = 100;
 
          // CORE TEMP:
          /*
@@ -2248,26 +2292,17 @@ double PlasmaProfile::EvalByType(Type type,
          double lam2 = params[6];
          double n2 = params[7];
 
-         /*
-         double pmin1 = 1.0;
-         double pmax1 = 17.8;
-         double lam1 = 0.36;
-         double n1 = 1.08;
-         */
          double te1 = (pmax1 - pmin1)* pow(cosh(pow((sqrt(val) / lam1), n1)),
                                            -1.0) + pmin1;
 
-         /*
-         double pmin2 = -2.4;
-         double pmax2 = 1.0;
-         double lam2 = 0.978;
-         double n2 = 90.0;
-         */
          double te2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
                                            -1.0) + pmin2;
-          
-         double Te = (te1 + te2)*1e3;
-         if (Te < 1.0){Te = 1.0;}
+         
+         if (val < 1.0 && bool_limits == 1)
+         {
+            if ((te1 + te2)*1e3 < 100.0){Te = 100.0;}
+            else {Te = (te1 + te2)*1e3; }
+         }
 
          return Te;
       }
