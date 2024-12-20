@@ -2216,6 +2216,17 @@ double PlasmaProfile::EvalByType(Type type,
          double sl1 = 0.015;
          double sl2 = 0.006;
          double sl3 = 0.006;
+         double case_type = params[9];
+
+         // Original PRD: (case_type will be taken as 0)
+         double psi_Olim = 1.0178;
+
+         // H8:
+         if (case_type == 1){psi_Olim = 1.1159;}
+         // H12:
+         if (case_type == 2){psi_Olim = 1.1088;}
+         // L12:
+         if (case_type == 3){psi_Olim = 1.0979;}
 
          double ne1 = (pmax1 - pmin1)* pow(cosh(pow((sqrt(val) / lam1), n1)),
                                            -1.0) + pmin1;
@@ -2229,13 +2240,14 @@ double PlasmaProfile::EvalByType(Type type,
          // SOL:
          else
          {
-            if (val > 1.0 && sqrt(val) <= 1.0178)
+            if (val > 1.0 && sqrt(val) <= psi_Olim)
             {
                pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
+               if (pval < 1e12){pval = 1e12;}
             }
             else 
             {
-               pval = (LCFS_den*exp(-(1.0178 - 1.0)/sl1))*exp(-(sqrt(val) - 1.0178)/sl2);
+               pval = (LCFS_den*exp(-(psi_Olim - 1.0)/sl1))*exp(-(sqrt(val) - psi_Olim)/sl2);
                if (pval < 1e12){pval = 1e12;}
             }
          }
@@ -2402,6 +2414,7 @@ double PlasmaProfile::EvalByType(Type type,
          double sl1 = params[2];
          double sl2 = params[3];
          double sl3 = params[4];
+         double case_type = params[5];
 
          // FLOOR VALUE:
          double pval = pmin;
@@ -2458,7 +2471,6 @@ double PlasmaProfile::EvalByType(Type type,
                if (pval < 1e14){pval = 1e14;}
             }
          }
-         */
           // LFS:
             double rho = sqrt(pow(r,2.0)+pow(z,2.0));
             if ( rho > 1.925)
@@ -2478,6 +2490,28 @@ double PlasmaProfile::EvalByType(Type type,
                pval = pmax*exp(-(sqrt(val) - 1.0)/sl3);
                if (pval < 1e12){pval = 1e12;}
             }
+         */
+
+         // Original PRD: (case_type will be taken as 0)
+         double psi_Olim = 1.0178;
+
+         // H8:
+         if (case_type == 1){psi_Olim = 1.1159;}
+         // H12:
+         if (case_type == 2){psi_Olim = 1.1088;}
+         // L12:
+         if (case_type == 3){psi_Olim = 1.0979;}
+         if (val > 1.0 && sqrt(val) <= psi_Olim)
+         {
+            pval = pmax*exp(-(sqrt(val) - 1.0)/sl1);
+            if (pval < 1e12){pval = 1e12;}
+         }
+         else 
+         {
+            pval = (pmax*exp(-(psi_Olim - 1.0)/sl1))*exp(-(sqrt(val) - psi_Olim)/sl2);
+            if (pval < 1e12){pval = 1e12;}
+         }
+
          }
             
          return pval;
@@ -2531,10 +2565,12 @@ double PlasmaProfile::EvalByType(Type type,
          double pmin = params[1];
          double nuei = params[2];
          double nuee = params[3];
-         double pval = pmin;
+         double LCFS_den = params[4];
+         double pval = LCFS_den;
          if (val < 1.0 && bool_limits == 1)
          {
             pval = (pmax - pmin)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin;
+            if (pval < LCFS_den){pval = LCFS_den;}
          }
          return pval;
       }
