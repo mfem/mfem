@@ -708,15 +708,64 @@ public:
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const;
 
+   /// @brief Returns Max|u_ex - u_h| error for H1 or L2 elements
+   ///
+   /// Compute the $L^\infty$ error across the entire domain.
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
    virtual real_t ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
+   /// @brief Returns Max|u_ex - u_h| error for scalar or vector fields
+   ///
+   /// Compute the $L^\infty$ error across the entire domain.
+   ///
+   /// Computes:
+   ///    $$max_{elems} (max_{elem} |scalar\_error|)$$
+   ///
+   /// Where
+   ///    $$scalar\_error = max_{d=0\ldots vdim}|u_{ex}[d] - u_h[d]|
+   ///
+   /// @param[in] exsol  Pointer to an array of scalar Coefficient objects,
+   ///                   one for each component of the vector field.
+   /// @param[in] irs    Optional pointer to a custom integration rule
+   ///                   e.g. higher order than the default rule.
+   ///
+   /// @note This implementation of the max error of a vector field computes
+   ///       the max norm over vector components rather than the magnitude of
+   ///       the vector.
    virtual real_t ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const;
 
+   /// @brief Returns Max|u_ex - u_h| error for vector fields
+   ///
+   /// Compute the $L^\infty$ error across the entire domain.
+   ///
+   /// Computes:
+   ///    $$max_{elems} (max_{elem} |scalar\_error|)$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
+   ///
+   /// @note Computes the maximum magnitude of the difference vector not the
+   ///       component-wise maximum difference of the vector fields.
    virtual real_t ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
@@ -969,13 +1018,6 @@ public:
    /// @param[in] irs        Optional pointer to a custom integration rule
    ///                       e.g. higher order than the default rule.
    ///
-   /// @note Quadratures with negative weights (as in some simplex integration
-   ///       rules in MFEM) can produce negative integrals even with
-   ///       non-negative integrands. To avoid returning negative errors this
-   ///       function uses the absolute values of the element-wise integrals.
-   ///       This may lead to results which are not entirely consistent with
-   ///       such integration rules.
-   ///
    /// @note Uses ComputeElementLpError internally. See the
    ///       ComputeElementLpError documentation for generalizations of this
    ///       error computation.
@@ -1152,18 +1194,11 @@ public:
    /// @param[in] irs        Optional pointer to a custom integration rule
    ///                       e.g. higher order than the default rule.
    ///
-   /// @note Quadratures with negative weights (as in some simplex integration
-   ///       rules in MFEM) can produce negative integrals even with
-   ///       non-negative integrands. To avoid returning negative errors this
-   ///       function uses the absolute values of the element-wise integrals.
-   ///       This may lead to results which are not entirely consistent with
-   ///       such integration rules.
-   ///
    /// @note Uses ComputeElementLpError internally. See the
    ///       ComputeElementLpError documentation for generalizations of this
    ///       error computation.
    ///
-   /// @note Computes the max length of the difference vector not the
+   /// @note Computes the maximum magnitude of the difference vector not the
    ///       component-wise maximum difference of the vector fields.
    virtual void ComputeElementMaxErrors(VectorCoefficient &exsol,
                                         Vector &error,
