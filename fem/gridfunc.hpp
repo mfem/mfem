@@ -642,7 +642,7 @@ public:
    /// @brief Returns the Face Jumps error for L2 elements.
    ///
    /// Computes:
-   ///   $$\sqrt{\sum_{faces}\int_f js[f] ell[f]
+   ///   $$\sqrt{\sum_{f\in faces}\int_f js(f) ell(f)
    ///                                   (2 u_{ex} - u_1 - u_2)^2}$$
    ///
    /// Where js[f] is the jump_scaling evaluated on the face f and ell is the
@@ -677,6 +677,12 @@ public:
    ///       function uses the absolute values of the element-wise integrals.
    ///       This may lead to results which are not entirely consistent with
    ///       such integration rules.
+   ///
+   /// @deprecated See @ref ComputeDGFaceJumpError(Coefficient *exsol,
+   ///                                      Coefficient *ell_coeff,
+   ///                                      class JumpScaling jump_scaling,
+   ///                                      const IntegrationRule *irs[]) const
+   ///             for the preferred implementation.
    MFEM_DEPRECATED
    real_t ComputeDGFaceJumpError(Coefficient *exsol,
                                  Coefficient *ell_coeff,
@@ -696,11 +702,11 @@ public:
    /// @brief Returns the error measured in H1-norm for H1 or L2 elements
    ///
    /// Computes the norm using the $L^2$ norms of the function and its gradient
-   ///    $$\sqrt{norm\_u^2 + norm\_du\^2}$$
+   ///    $$\sqrt{norm\_u^2 + norm\_du^2}$$
    /// Where
-   ///    $$norm\_u = \|u_{ex} - u_h}\|_{L^2}$$
+   ///    $$norm\_u = \|u_{ex} - u_h\|_{L^2}$$
    /// and
-   ///    $$norm\_du = \|du_{ex} - \nabla u_h}\|_{L^2}$$
+   ///    $$norm\_du = \|du_{ex} - \nabla u_h\|_{L^2}$$
    ///
    /// @param[in] exsol   Coefficient object reproducing the anticipated values
    ///                    of the scalar field, u_ex.
@@ -718,11 +724,11 @@ public:
    ///
    /// Computes the norm using the $L^2$ norms of the function and its
    /// divergence
-   ///    $$\sqrt{norm\_u^2 + norm\_du\^2}$$
+   ///    $$\sqrt{norm\_u^2 + norm\_du^2}$$
    /// Where
-   ///    $$norm\_u = \|u_{ex} - u_h}\|_{L^2}$$
+   ///    $$norm\_u = \|u_{ex} - u_h\|_{L^2}$$
    /// and
-   ///    $$norm\_du = \|du_{ex} - \nabla\cdot u_h}\|_{L^2}$$
+   ///    $$norm\_du = \|du_{ex} - \nabla\cdot u_h\|_{L^2}$$
    ///
    /// @param[in] exsol  VectorCoefficient object reproducing the anticipated
    ///                   values of the vector field, u_ex.
@@ -737,11 +743,11 @@ public:
    /// @brief Returns the error measured in H(curl)-norm for ND elements
    ///
    /// Computes the norm using the $L^2$ norms of the function and its curl
-   ///    $$\sqrt{norm\_u^2 + norm\_du\^2}$$
+   ///    $$\sqrt{norm\_u^2 + norm\_du^2}$$
    /// Where
-   ///    $$norm\_u = \|u_{ex} - u_h}\|_{L^2}$$
+   ///    $$norm\_u = \|u_{ex} - u_h\|_{L^2}$$
    /// and
-   ///    $$norm\_du = \|du_{ex} - \nabla\times u_h}\|_{L^2}$$
+   ///    $$norm\_du = \|du_{ex} - \nabla\times u_h\|_{L^2}$$
    ///
    /// @param[in] exsol   VectorCoefficient object reproducing the anticipated
    ///                    values of the vector field, u_ex.
@@ -778,7 +784,7 @@ public:
    ///    $$max_{elems} (max_{elem} |scalar\_error|)$$
    ///
    /// Where
-   ///    $$scalar\_error = max_{d=0\ldots vdim}|u_{ex}[d] - u_h[d]|
+   ///    $$scalar\_error = max_{d=0\ldots vdim}|u_{ex}[d] - u_h[d]|$$
    ///
    /// @param[in] exsol  Pointer to an array of scalar Coefficient objects,
    ///                   one for each component of the vector field.
@@ -834,17 +840,11 @@ public:
    ///       This may lead to results which are not entirely consistent with
    ///       such integration rules.
    ///
-   /// @note Uses ComputeW11Error internally. See the ComputeW11Error
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
    ///       documentation for generalizations of this error computation.
-   ///
-   /// @warning While this function is nominally equivalent to ComputeLpError,
-   ///          with appropriate arguments, the returned errors may differ
-   ///          noticeably because ComputeLpError uses a higher order
-   ///          integration rule by default.
-   MFEM_DEPRECATED
-   virtual real_t ComputeL1Error(Coefficient *exsol[],
+   virtual real_t ComputeL1Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
-   { return ComputeW11Error(*exsol, NULL, 1, NULL, irs); }
+   { return ComputeLpError(1.0, exsol, NULL, irs); }
 
    /// @brief Returns ||u_ex - u_h||_L1 for H1 or L2 elements
    ///
@@ -863,11 +863,21 @@ public:
    ///       This may lead to results which are not entirely consistent with
    ///       such integration rules.
    ///
-   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   /// @note Uses ComputeW11Error internally. See the ComputeW11Error
    ///       documentation for generalizations of this error computation.
-   virtual real_t ComputeL1Error(Coefficient &exsol,
+   ///
+   /// @warning While this function is nominally equivalent to ComputeLpError,
+   ///          with appropriate arguments, the returned errors may differ
+   ///          noticeably because ComputeLpError uses a higher order
+   ///          integration rule by default.
+   ///
+   /// @deprecated See @ref ComputeL1Error(Coefficient &exsol,
+   ///                              const IntegrationRule *irs[]) const
+   ///             for the preferred implementation.
+   MFEM_DEPRECATED
+   virtual real_t ComputeL1Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const
-   { return ComputeLpError(1.0, exsol, NULL, irs); }
+   { return ComputeW11Error(*exsol, NULL, 1, NULL, irs); }
 
    /// @brief Returns $W^1_1$ norm (or portions thereof) for H1 or L2 elements
    ///
@@ -934,7 +944,7 @@ public:
    /// @brief Returns ||u_ex - u_h||_Lp for H1 or L2 elements
    ///
    /// Computes:
-   ///    $$(\sum_{elems} \int_{elem} w |u_{ex} - u_h|^p)^{1/p}$$
+   ///    $$(\sum_{elems} \int_{elem} w \, |u_{ex} - u_h|^p)^{1/p}$$
    ///
    /// @param[in] p       Real value indicating the exponent of the $L^p$ norm.
    ///                    To avoid domain errors p should have a positive value,
@@ -966,7 +976,11 @@ public:
    ///
    /// Compute the Lp error in each element of the mesh and store the results in
    /// the Vector @a error. The result should be of length number of elements,
-   /// for example an L2 GridFunction of order zero using map type VALUE.
+   /// for example an L2 GridFunction of order zero using map type @ref
+   /// FiniteElement::MapType::VALUE "VALUE".
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} w \, |u_{ex} - u_h|^p)^{1/p}$$
    ///
    /// @param[in] p          Real value indicating the exponent of the $L^p$
    ///                       norm. To avoid domain errors p should have a
@@ -996,7 +1010,7 @@ public:
    /// Compute the $L^1$ error in each element of the mesh and store the
    /// results in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// VALUE.
+   /// @ref FiniteElement::MapType::VALUE "VALUE".
    ///
    /// @param[in] exsol      Coefficient object reproducing the anticipated
    ///                       values of the scalar field, u_ex.
@@ -1025,7 +1039,10 @@ public:
    /// Compute the $L^2$ error in each element of the mesh and store the results
    /// in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// VALUE.
+   /// @ref FiniteElement::MapType::VALUE "VALUE".
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} |u_{ex} - u_h|^2)^{1/2}$$
    ///
    /// @param[in] exsol      Coefficient object reproducing the anticipated
    ///                       values of the scalar field, u_ex.
@@ -1054,7 +1071,7 @@ public:
    /// Compute the $L^\infty$ error in each element of the mesh and store the
    /// results in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// VALUE.
+   /// @ref FiniteElement::MapType::VALUE "VALUE".
    ///
    /// @param[in] exsol      Coefficient object reproducing the anticipated
    ///                       values of the scalar field, u_ex.
@@ -1079,7 +1096,7 @@ public:
    /// scalar error is the l_2 norm of the vector error.
    ///
    /// Computes:
-   ///    $$(\sum_{elems} \int_{elem} w |scalar\_error|^p)^{1/p}$$
+   ///    $$(\sum_{elems} \int_{elem} w \, |scalar\_error|^p)^{1/p}$$
    ///
    /// Where
    ///    $$scalar\_error = |v\_weight \cdot (u_{ex} - u_h)|$$
@@ -1104,6 +1121,8 @@ public:
    ///       function uses the absolute values of the element-wise integrals.
    ///       This may lead to results which are not entirely consistent with
    ///       such integration rules.
+   ///
+   /// @anchor CmpVecLpErr
    virtual real_t ComputeLpError(const real_t p, VectorCoefficient &exsol,
                                  Coefficient *weight = NULL,
                                  VectorCoefficient *v_weight = NULL,
@@ -1112,11 +1131,12 @@ public:
    /// @brief Returns ||u_ex - u_h||_Lp elementwise for vector fields
    ///
    /// Compute the $L^p$ error in each element of the mesh and store the results
-   /// in the Vector @ error. The result should be of length number of elements,
-   /// for example an L2 GridFunction of order zero using map type VALUE.
+   /// in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref FiniteElement::MapType::VALUE "VALUE".
    ///
    /// Computes:
-   ///    $$(\int_{elem} w |scalar\_error|^p)^{1/p}$$
+   ///    $$(\int_{elem} w \, |scalar\_error|^p)^{1/p}$$
    ///
    /// Where
    ///    $$scalar\_error = |v\_weight \cdot (u_{ex} - u_h)|$$
@@ -1152,9 +1172,9 @@ public:
    /// @brief Returns ||u_ex - u_h||_L1 elementwise for vector fields
    ///
    /// Compute the $L^1$ error in each element of the mesh and store the
-   /// results in the Vector @ error. The result should be of length number of
+   /// results in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// VALUE.
+   /// @ref FiniteElement::MapType::VALUE "VALUE".
    ///
    /// Computes:
    ///    $$\int_{elem} |scalar\_error|$$
@@ -1187,9 +1207,9 @@ public:
    /// @brief Returns ||u_ex - u_h||_L2 elementwise for vector fields
    ///
    /// Compute the $L^2$ error in each element of the mesh and store the
-   /// results in the Vector @ error. The result should be of length number of
+   /// results in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// VALUE.
+   /// @ref FiniteElement::MapType::VALUE "VALUE".
    ///
    /// Computes:
    ///    $$(\int_{elem} |scalar\_error|^2)^{1/2}$$
@@ -1224,7 +1244,7 @@ public:
    /// Compute the $L^\infty$ error in each element of the mesh and store the
    /// results in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// VALUE.
+   /// @ref FiniteElement::MapType::VALUE "VALUE".
    ///
    /// Computes:
    ///    $$max_{elem} |scalar\_error|$$
