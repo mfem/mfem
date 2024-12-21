@@ -933,13 +933,6 @@ real_t ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    return GlobalLpNorm(2.0, error, pfes->GetComm());
 }
 
-real_t ParGridFunction::ComputeL1Error(Coefficient *exsol[],
-                                       const IntegrationRule *irs[]) const
-{
-   return GlobalLpNorm(1.0, GridFunction::ComputeL1Error(exsol, irs),
-                       pfes->GetComm());
-}
-
 void ParGridFunction::Save(std::ostream &os) const
 {
    real_t *data_  = const_cast<real_t*>(HostRead());

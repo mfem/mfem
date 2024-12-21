@@ -298,7 +298,15 @@ public:
    ///             for the preferred implementation.
    MFEM_DEPRECATED
    real_t ComputeL1Error(Coefficient *exsol[],
-                         const IntegrationRule *irs[] = NULL) const override;
+                         const IntegrationRule *irs[] = NULL) const override
+   {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignore "-Wdeprecated"
+      real_t err = GlobalLpNorm(1.0, GridFunction::ComputeL1Error(exsol, irs),
+                                pfes->GetComm());
+#pragma GCC diagnostic pop
+      return err;
+   }
 
    /// @brief Returns ||u_ex - u_h||_L1 in parallel for scalar fields
    ///
