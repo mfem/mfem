@@ -1010,7 +1010,7 @@ public:
    /// Compute the $L^1$ error in each element of the mesh and store the
    /// results in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// @ref FiniteElement::MapType::VALUE "VALUE".
+   /// @ref map_type_value "VALUE".
    ///
    /// @param[in] exsol      Coefficient object reproducing the anticipated
    ///                       values of the scalar field, u_ex.
@@ -1039,7 +1039,7 @@ public:
    /// Compute the $L^2$ error in each element of the mesh and store the results
    /// in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// @ref FiniteElement::MapType::VALUE "VALUE".
+   /// @ref map_type_value "VALUE".
    ///
    /// Computes:
    ///    $$(\int_{elem} |u_{ex} - u_h|^2)^{1/2}$$
@@ -1071,7 +1071,7 @@ public:
    /// Compute the $L^\infty$ error in each element of the mesh and store the
    /// results in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// @ref FiniteElement::MapType::VALUE "VALUE".
+   /// @ref map_type_value "VALUE".
    ///
    /// @param[in] exsol      Coefficient object reproducing the anticipated
    ///                       values of the scalar field, u_ex.
@@ -1133,7 +1133,7 @@ public:
    /// Compute the $L^p$ error in each element of the mesh and store the results
    /// in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// @ref FiniteElement::MapType::VALUE "VALUE".
+   /// @ref map_type_value "VALUE".
    ///
    /// Computes:
    ///    $$(\int_{elem} w \, |scalar\_error|^p)^{1/p}$$
@@ -1174,7 +1174,7 @@ public:
    /// Compute the $L^1$ error in each element of the mesh and store the
    /// results in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// @ref FiniteElement::MapType::VALUE "VALUE".
+   /// @ref map_type_value "VALUE".
    ///
    /// Computes:
    ///    $$\int_{elem} |scalar\_error|$$
@@ -1209,7 +1209,7 @@ public:
    /// Compute the $L^2$ error in each element of the mesh and store the
    /// results in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// @ref FiniteElement::MapType::VALUE "VALUE".
+   /// @ref map_type_value "VALUE".
    ///
    /// Computes:
    ///    $$(\int_{elem} |scalar\_error|^2)^{1/2}$$
@@ -1244,7 +1244,7 @@ public:
    /// Compute the $L^\infty$ error in each element of the mesh and store the
    /// results in the Vector @a error. The result should be of length number of
    /// elements, for example an L2 GridFunction of order zero using map type
-   /// @ref FiniteElement::MapType::VALUE "VALUE".
+   /// @ref map_type_value "VALUE".
    ///
    /// Computes:
    ///    $$max_{elem} |scalar\_error|$$
