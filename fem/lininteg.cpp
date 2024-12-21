@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
 
 #include "fem.hpp"
 #include <cmath>
@@ -59,7 +58,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      double val = Tr.Weight() * Q.Eval(Tr, ip);
+      real_t val = Tr.Weight() * Q.Eval(Tr, ip);
 
       el.CalcPhysShape(Tr, shape);
 
@@ -145,7 +144,7 @@ void BoundaryLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      double val = Tr.Weight() * Q.Eval(Tr, ip);
+      real_t val = Tr.Weight() * Q.Eval(Tr, ip);
 
       el.CalcShape(ip, shape);
 
@@ -179,7 +178,7 @@ void BoundaryLFIntegrator::AssembleRHSElementVect(
       // Access the neighboring element's integration point
       const IntegrationPoint &eip = Tr.GetElement1IntPoint();
 
-      double val = Tr.Face->Weight() * ip.weight * Q.Eval(*Tr.Face, ip);
+      real_t val = Tr.Face->Weight() * ip.weight * Q.Eval(*Tr.Face, ip);
 
       el.CalcShape(eip, shape);
 
@@ -272,7 +271,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    int vdim = Q.GetVDim();
    int dof  = el.GetDof();
 
-   double val,cf;
+   real_t val,cf;
 
    shape.SetSize(dof);       // vector of size dof
 
@@ -293,7 +292,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
       Tr.SetIntPoint (&ip);
       val = Tr.Weight();
 
-      el.CalcShape(ip, shape);
+      el.CalcPhysShape(Tr, shape);
       Q.Eval (Qvec, Tr, ip);
 
       for (int k = 0; k < vdim; k++)
@@ -396,8 +395,8 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Q.Eval(vec, Tr, ip);
       Tr.SetIntPoint (&ip);
+      Q.Eval(vec, Tr, ip);
       vec *= Tr.Weight() * ip.weight;
       el.CalcShape(ip, shape);
       for (int k = 0; k < vdim; k++)
@@ -456,7 +455,7 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
 {
    int dof = el.GetDof();
    int spaceDim = Tr.GetSpaceDim();
-   int vdim = std::max(spaceDim, el.GetVDim());
+   int vdim = std::max(spaceDim, el.GetRangeDim());
 
    vshape.SetSize(dof,vdim);
    vec.SetSize(vdim);
@@ -571,7 +570,7 @@ void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      double val = Tr.Weight() * Q.Eval(Tr, ip);
+      real_t val = Tr.Weight() * Q.Eval(Tr, ip);
       el.CalcPhysDivShape(Tr, divshape);
 
       add(elvect, ip.weight * val, divshape, elvect);
@@ -641,7 +640,7 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
       el.CalcShape(ip, shape);
 
-      double val = ip.weight;
+      real_t val = ip.weight;
       if (F)
       {
          Tr.SetIntPoint (&ip);
@@ -652,12 +651,45 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void VectorFEBoundaryNormalLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   int dim = el.GetDim()+1;
+   int dof = el.GetDof();
+   Vector nor(dim), Fvec(dim);
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = 2 * el.GetOrder() + Tr.OrderW();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint(&ip);
+      CalcOrtho(Tr.Jacobian(), nor);
+      F.Eval(Fvec, Tr, ip);
+      real_t val = ip.weight * (Fvec*nor) / Tr.Weight();
+
+      el.CalcShape(ip, shape);
+
+      elvect.Add(val, shape);
+   }
+}
+
 void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    int dof = el.GetDof();
    int dim = el.GetDim();
-   int vdim = el.GetVDim();
+   int vdim = el.GetRangeDim();
    DenseMatrix vshape(dof, vdim);
    Vector f_loc(3);
    Vector f_hat(2);
@@ -700,7 +732,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
          f_hat(1) = f_loc(2);
       }
 
-      Swap<double>(f_hat(0), f_hat(1));
+      Swap<real_t>(f_hat(0), f_hat(1));
       f_hat(0) = -f_hat(0);
       f_hat *= ip.weight;
 
@@ -721,7 +753,7 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {
    int dim, ndof, order;
-   double un, w, vu_data[3], nor_data[3];
+   real_t un, w, vu_data[3], nor_data[3];
 
    dim  = el.GetDim();
    ndof = el.GetDof();
@@ -785,7 +817,7 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
 {
    int dim, ndof;
    bool kappa_is_nonzero = (kappa != 0.);
-   double w;
+   real_t w;
 
    dim = el.GetDim();
    ndof = el.GetDof();
@@ -938,9 +970,9 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
          CalcOrtho(Tr.Jacobian(), nor);
       }
 
-      double wL, wM, jcoef;
+      real_t wL, wM, jcoef;
       {
-         const double w = ip.weight / Tr.Elem1->Weight();
+         const real_t w = ip.weight / Tr.Elem1->Weight();
          wL = w * lambda->Eval(*Tr.Elem1, eip);
          wM = w * mu->Eval(*Tr.Elem1, eip);
          jcoef = kappa * (wL + 2.0*wM) * (nor*nor);
@@ -986,12 +1018,12 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       //   jcoef * u_dir(im) * shape(idof)
 
       wM *= alpha;
-      const double t1 = alpha * wL * (u_dir*nor);
+      const real_t t1 = alpha * wL * (u_dir*nor);
       for (int im = 0, i = 0; im < dim; ++im)
       {
-         const double t2 = wM * u_dir(im);
-         const double t3 = wM * nor(im);
-         const double tj = jcoef * u_dir(im);
+         const real_t t2 = wM * u_dir(im);
+         const real_t t3 = wM * nor(im);
+         const real_t tj = jcoef * u_dir(im);
          for (int idof = 0; idof < ndofs; ++idof, ++i)
          {
             elvect(i) += (t1*dshape_ps(idof,im) + t2*dshape_dn(idof) +
@@ -1059,7 +1091,7 @@ void VectorQuadratureLFIntegrator::AssembleRHSElementVect(
    {
       const IntegrationPoint &ip = ir->IntPoint(q);
       Tr.SetIntPoint(&ip);
-      const double w = Tr.Weight() * ip.weight;
+      const real_t w = Tr.Weight() * ip.weight;
       vqfc.Eval(temp, Tr, ip);
       fe.CalcShape(ip, shape);
       for (int ind = 0; ind < vdim; ind++)
@@ -1089,8 +1121,8 @@ void QuadratureLFIntegrator::AssembleRHSElementVect(const FiniteElement &fe,
    {
       const IntegrationPoint &ip = ir->IntPoint(q);
       Tr.SetIntPoint (&ip);
-      const double w = Tr.Weight() * ip.weight;
-      double temp = qfc.Eval(Tr, ip);
+      const real_t w = Tr.Weight() * ip.weight;
+      real_t temp = qfc.Eval(Tr, ip);
       fe.CalcShape(ip, shape);
       shape *= (w * temp);
       elvect += shape;

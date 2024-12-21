@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,11 +12,13 @@
 #include "qfunction.hpp"
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_face.hpp"
+#include "../general/forall.hpp"
+#include "../mesh/pmesh.hpp"
 
 namespace mfem
 {
 
-QuadratureFunction &QuadratureFunction::operator=(double value)
+QuadratureFunction &QuadratureFunction::operator=(real_t value)
 {
    Vector::operator=(value);
    return *this;
@@ -115,7 +117,8 @@ std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)
 }
 
 void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
-                                 int compression_level) const
+                                 int compression_level,
+                                 const std::string &field_name) const
 {
    os << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
    if (compression_level != 0)
@@ -129,11 +132,9 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
    std::vector<char> buf;
 
-   Mesh &mesh = *qspace->GetMesh();
-
-   int np = qspace->GetSize();
-   int ne = mesh.GetNE();
-   int sdim = mesh.SpaceDimension();
+   const int np = qspace->GetSize();
+   const int ne = qspace->GetNE();
+   const int sdim = qspace->GetMesh()->SpaceDimension();
 
    // For quadrature functions, each point is a vertex cell, so number of cells
    // is equal to number of points
@@ -148,7 +149,7 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    Vector pt(sdim);
    for (int i = 0; i < ne; i++)
    {
-      ElementTransformation &T = *mesh.GetElementTransformation(i);
+      ElementTransformation &T = *qspace->GetTransformation(i);
       const IntegrationRule &ir = GetIntRule(i);
       for (int j = 0; j < ir.Size(); j++)
       {
@@ -205,8 +206,10 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    os << "</Cells>\n";
 
    os << "<PointData>\n";
-   os << "<DataArray type=\"" << type_str << "\" Name=\"u\" format=\""
-      << fmt_str << "\" NumberOfComponents=\"" << vdim << "\">\n";
+   os << "<DataArray type=\"" << type_str << "\" Name=\"" << field_name
+      << "\" format=\"" << fmt_str << "\" NumberOfComponents=\"" << vdim << "\" "
+      << VTKComponentLabels(vdim) << " "
+      << ">\n";
    for (int i = 0; i < ne; i++)
    {
       DenseMatrix vals;
@@ -233,10 +236,54 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
 }
 
 void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
-                                 int compression_level) const
+                                 int compression_level,
+                                 const std::string &field_name) const
 {
    std::ofstream f(filename + ".vtu");
-   SaveVTU(f, format, compression_level);
+   SaveVTU(f, format, compression_level, field_name);
+}
+
+static real_t ReduceReal(const Mesh *mesh, real_t value)
+{
+#ifdef MFEM_USE_MPI
+   if (auto *pmesh = dynamic_cast<const ParMesh*>(mesh))
+   {
+      MPI_Comm comm = pmesh->GetComm();
+      MPI_Allreduce(MPI_IN_PLACE, &value, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, comm);
+   }
+#endif
+   return value;
+}
+
+real_t QuadratureFunction::Integrate() const
+{
+   MFEM_VERIFY(vdim == 1, "Only scalar functions are supported.")
+   const real_t local_integral = InnerProduct(*this, qspace->GetWeights());
+   return ReduceReal(qspace->GetMesh(), local_integral);
+}
+
+void QuadratureFunction::Integrate(Vector &integrals) const
+{
+   integrals.SetSize(vdim);
+
+   const Vector &weights = qspace->GetWeights();
+   QuadratureFunction component(qspace);
+   const int N = component.Size();
+   const int VDIM = vdim; // avoid capturing 'this' in lambda body
+   const real_t *d_v = Read();
+
+   for (int vd = 0; vd < vdim; ++vd)
+   {
+      // Extract the component 'vd' into component.
+      real_t *d_c = component.Write();
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_c[i] = d_v[vd + i*VDIM];
+      });
+      integrals[vd] = ReduceReal(qspace->GetMesh(),
+                                 InnerProduct(component, weights));
+   }
 }
 
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,7 +33,7 @@ void NURBS1DFiniteElement::CalcShape(const IntegrationPoint &ip,
 {
    kv[0]->CalcShape(shape, ijk[0], ip.x);
 
-   double sum = 0.0;
+   real_t sum = 0.0;
    for (int i = 0; i <= order; i++)
    {
       sum += (shape(i) *= weights(i));
@@ -50,7 +50,7 @@ void NURBS1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    kv[0]->CalcShape (shape_x, ijk[0], ip.x);
    kv[0]->CalcDShape(grad,    ijk[0], ip.x);
 
-   double sum = 0.0, dsum = 0.0;
+   real_t sum = 0.0, dsum = 0.0;
    for (int i = 0; i <= order; i++)
    {
       sum  += (shape_x(i) *= weights(i));
@@ -71,7 +71,7 @@ void NURBS1DFiniteElement::CalcHessian (const IntegrationPoint &ip,
    kv[0]->CalcDShape(grad,     ijk[0], ip.x);
    kv[0]->CalcD2Shape(hess,    ijk[0], ip.x);
 
-   double sum = 0.0, dsum = 0.0, d2sum = 0.0;
+   real_t sum = 0.0, dsum = 0.0, d2sum = 0.0;
    for (int i = 0; i <= order; i++)
    {
       sum   += (shape_x(i) *= weights(i));
@@ -109,10 +109,10 @@ void NURBS2DFiniteElement::CalcShape(const IntegrationPoint &ip,
    kv[0]->CalcShape(shape_x, ijk[0], ip.x);
    kv[1]->CalcShape(shape_y, ijk[1], ip.y);
 
-   double sum = 0.0;
+   real_t sum = 0.0;
    for (int o = 0, j = 0; j <= orders[1]; j++)
    {
-      const double sy = shape_y(j);
+      const real_t sy = shape_y(j);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
          sum += ( shape(o) = shape_x(i)*sy*weights(o) );
@@ -125,7 +125,7 @@ void NURBS2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-   double sum, dsum[2];
+   real_t sum, dsum[2];
 
    kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
@@ -136,7 +136,7 @@ void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    sum = dsum[0] = dsum[1] = 0.0;
    for (int o = 0, j = 0; j <= orders[1]; j++)
    {
-      const double sy = shape_y(j), dsy = dshape_y(j);
+      const real_t sy = shape_y(j), dsy = dshape_y(j);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
          sum += ( u(o) = shape_x(i)*sy*weights(o) );
@@ -160,7 +160,7 @@ void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
                                         DenseMatrix &hessian) const
 {
-   double sum, dsum[2], d2sum[3];
+   real_t sum, dsum[2], d2sum[3];
 
    kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
@@ -175,10 +175,10 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
    d2sum[0] = d2sum[1] = d2sum[2] = 0.0;
    for (int o = 0, j = 0; j <= orders[1]; j++)
    {
-      const double sy = shape_y(j), dsy = dshape_y(j), d2sy = d2shape_y(j);
+      const real_t sy = shape_y(j), dsy = dshape_y(j), d2sy = d2shape_y(j);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
-         const double sx = shape_x(i), dsx = dshape_x(i), d2sx = d2shape_x(i);
+         const real_t sx = shape_x(i), dsx = dshape_x(i), d2sx = d2shape_x(i);
          sum += ( u(o) = sx*sy*weights(o) );
 
          dsum[0] += ( du(o,0) = dsx*sy*weights(o) );
@@ -247,13 +247,13 @@ void NURBS3DFiniteElement::CalcShape(const IntegrationPoint &ip,
    kv[1]->CalcShape(shape_y, ijk[1], ip.y);
    kv[2]->CalcShape(shape_z, ijk[2], ip.z);
 
-   double sum = 0.0;
+   real_t sum = 0.0;
    for (int o = 0, k = 0; k <= orders[2]; k++)
    {
-      const double sz = shape_z(k);
+      const real_t sz = shape_z(k);
       for (int j = 0; j <= orders[1]; j++)
       {
-         const double sy_sz = shape_y(j)*sz;
+         const real_t sy_sz = shape_y(j)*sz;
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             sum += ( shape(o) = shape_x(i)*sy_sz*weights(o) );
@@ -267,7 +267,7 @@ void NURBS3DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-   double sum, dsum[3];
+   real_t sum, dsum[3];
 
    kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
@@ -280,12 +280,12 @@ void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    sum = dsum[0] = dsum[1] = dsum[2] = 0.0;
    for (int o = 0, k = 0; k <= orders[2]; k++)
    {
-      const double sz = shape_z(k), dsz = dshape_z(k);
+      const real_t sz = shape_z(k), dsz = dshape_z(k);
       for (int j = 0; j <= orders[1]; j++)
       {
-         const double  sy_sz  =  shape_y(j)* sz;
-         const double dsy_sz  = dshape_y(j)* sz;
-         const double  sy_dsz =  shape_y(j)*dsz;
+         const real_t  sy_sz  =  shape_y(j)* sz;
+         const real_t dsy_sz  = dshape_y(j)* sz;
+         const real_t  sy_dsz =  shape_y(j)*dsz;
          for (int i = 0; i <= orders[0]; i++, o++)
          {
             sum += ( u(o) = shape_x(i)*sy_sz*weights(o) );
@@ -313,7 +313,7 @@ void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
                                         DenseMatrix &hessian) const
 {
-   double sum, dsum[3], d2sum[6];
+   real_t sum, dsum[3], d2sum[6];
 
    kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
@@ -332,13 +332,13 @@ void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
 
    for (int o = 0, k = 0; k <= orders[2]; k++)
    {
-      const double sz = shape_z(k), dsz = dshape_z(k), d2sz = d2shape_z(k);
+      const real_t sz = shape_z(k), dsz = dshape_z(k), d2sz = d2shape_z(k);
       for (int j = 0; j <= orders[1]; j++)
       {
-         const double sy = shape_y(j), dsy = dshape_y(j), d2sy = d2shape_y(j);
+         const real_t sy = shape_y(j), dsy = dshape_y(j), d2sy = d2shape_y(j);
          for (int i = 0; i <= orders[0]; i++, o++)
          {
-            const double sx = shape_x(i), dsx = dshape_x(i), d2sx = d2shape_x(i);
+            const real_t sx = shape_x(i), dsx = dshape_x(i), d2sx = d2shape_x(i);
             sum += ( u(o) = sx*sy*sz*weights(o) );
 
             dsum[0] += ( du(o,0) = dsx*sy*sz*weights(o) );
@@ -398,8 +398,621 @@ void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
       hessian(o,5) = hessian(o,5)*sum
                      - 2*du(o,1)*sum*dsum[1]
                      + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[5]);
-
    }
+}
+
+
+void NURBS_HDiv2DFiniteElement::SetOrder() const
+{
+   orders[0] = kv[0]->GetOrder();
+   orders[1] = kv[1]->GetOrder();
+
+   if (kv1[0]) { delete kv1[0]; }
+   if (kv1[1]) { delete kv1[1]; }
+
+   kv1[0] = kv[0]->DegreeElevate(1);
+   kv1[1] = kv[1]->DegreeElevate(1);
+
+   shape_x.SetSize(orders[0]+1);
+   shape_y.SetSize(orders[1]+1);
+
+   dshape_x.SetSize(orders[0]+1);
+   dshape_y.SetSize(orders[1]+1);
+
+   d2shape_x.SetSize(orders[0]+1);
+   d2shape_y.SetSize(orders[1]+1);
+
+   shape1_x.SetSize(orders[0]+2);
+   shape1_y.SetSize(orders[1]+2);
+
+   dshape1_x.SetSize(orders[0]+2);
+   dshape1_y.SetSize(orders[1]+2);
+
+   d2shape1_x.SetSize(orders[0]+2);
+   d2shape1_y.SetSize(orders[1]+2);
+
+   order = max(orders[0]+1, orders[1]+1);
+   dof = (orders[0] + 2)*(orders[1] + 1)
+         + (orders[1] + 1)*(orders[1] + 2);
+   u.SetSize(dof);
+   du.SetSize(dof);
+   weights.SetSize(dof);
+}
+
+void NURBS_HDiv2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                           DenseMatrix &shape) const
+{
+   kv[0]->CalcShape(shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape(shape_y, ijk[1], ip.y);
+
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+
+   int o = 0;
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      const real_t sy = shape_y(j);
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         shape(o,0) = shape1_x(i)*sy;
+         shape(o,1) = 0.0;
+      }
+   }
+
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      const real_t sy1 = shape1_y(j);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         shape(o,0) = 0.0;
+         shape(o,1) = shape_x(i)*sy1;
+      }
+   }
+}
+
+void NURBS_HDiv2DFiniteElement::CalcVShape(ElementTransformation &Trans,
+                                           DenseMatrix &shape) const
+{
+   CalcVShape(Trans.GetIntPoint(), shape);
+   const DenseMatrix & J = Trans.Jacobian();
+   MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
+               "NURBS_HDiv2DFiniteElement cannot be embedded in "
+               "3 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      real_t sx = shape(i, 0);
+      real_t sy = shape(i, 1);
+      shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
+      shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
+   }
+   shape *= (1.0 / Trans.Weight());
+}
+
+void NURBS_HDiv2DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
+                                             Vector &divshape) const
+{
+   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+
+   kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
+   kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
+
+   int o = 0;
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      const real_t sy = shape_y(j);
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         divshape(o) = dshape1_x(i)*sy;
+      }
+   }
+
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      const real_t dsy1 = dshape1_y(j);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         divshape(o) = shape_x(i)*dsy1;
+      }
+   }
+}
+
+NURBS_HDiv2DFiniteElement::~NURBS_HDiv2DFiniteElement()
+{
+   if (kv1[0]) { delete kv1[0]; }
+   if (kv1[1]) { delete kv1[1]; }
+}
+
+
+void NURBS_HDiv3DFiniteElement::SetOrder() const
+{
+   orders[0] = kv[0]->GetOrder();
+   orders[1] = kv[1]->GetOrder();
+   orders[2] = kv[2]->GetOrder();
+
+   if (kv1[0]) { delete kv1[0]; }
+   if (kv1[1]) { delete kv1[1]; }
+   if (kv1[2]) { delete kv1[2]; }
+
+   kv1[0] = kv[0]->DegreeElevate(1);
+   kv1[1] = kv[1]->DegreeElevate(1);
+   kv1[2] = kv[2]->DegreeElevate(1);
+
+   shape_x.SetSize(orders[0]+1);
+   shape_y.SetSize(orders[1]+1);
+   shape_z.SetSize(orders[2]+1);
+
+   dshape_x.SetSize(orders[0]+1);
+   dshape_y.SetSize(orders[1]+1);
+   dshape_z.SetSize(orders[2]+1);
+
+   d2shape_x.SetSize(orders[0]+1);
+   d2shape_y.SetSize(orders[1]+1);
+   d2shape_z.SetSize(orders[2]+1);
+
+   shape1_x.SetSize(orders[0]+2);
+   shape1_y.SetSize(orders[1]+2);
+   shape1_z.SetSize(orders[2]+2);
+
+   dshape1_x.SetSize(orders[0]+2);
+   dshape1_y.SetSize(orders[1]+2);
+   dshape1_z.SetSize(orders[2]+2);
+
+   d2shape1_x.SetSize(orders[0]+2);
+   d2shape1_y.SetSize(orders[1]+2);
+   d2shape1_z.SetSize(orders[2]+2);
+
+   order = max(orders[0]+1, max( orders[1]+1, orders[2]+1));
+   dof = (orders[0] + 2)*(orders[1] + 1)*(orders[2] + 1) +
+         (orders[0] + 1)*(orders[1] + 2)*(orders[2] + 1) +
+         (orders[0] + 1)*(orders[1] + 1)*(orders[2] + 2);
+   u.SetSize(dof);
+   du.SetSize(dof);
+   weights.SetSize(dof);
+}
+
+void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                           DenseMatrix &shape) const
+{
+   kv[0]->CalcShape(shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape(shape_y, ijk[1], ip.y);
+   kv[2]->CalcShape(shape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
+
+   shape = 0.0;
+   int o = 0;
+   for (int k = 0; k <= orders[2]; k++)
+   {
+      const real_t sz = shape_z(k);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t sy_sz = shape_y(j)*sz;
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            shape(o,0) = shape1_x(i)*sy_sz;
+         }
+      }
+   }
+
+   for (int  k = 0; k <= orders[2]; k++)
+   {
+      const real_t sz = shape_z(k);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t sy1_sz = shape1_y(j)*sz;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            shape(o,1) = shape_x(i)*sy1_sz;
+         }
+      }
+   }
+
+   for (int  k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t sz1 = shape1_z(k);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t sy_sz1 = shape_y(j)*sz1;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            shape(o,2) = shape_x(i)*sy_sz1;
+         }
+      }
+   }
+}
+
+void NURBS_HDiv3DFiniteElement::CalcVShape(ElementTransformation &Trans,
+                                           DenseMatrix &shape) const
+{
+   CalcVShape(Trans.GetIntPoint(), shape);
+   const DenseMatrix & J = Trans.Jacobian();
+   MFEM_ASSERT(J.Width() == 3 && J.Height() == 3,
+               "RT_R2D_FiniteElement cannot be embedded in "
+               "3 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      real_t sx = shape(i, 0);
+      real_t sy = shape(i, 1);
+      real_t sz = shape(i, 2);
+      shape(i, 0) = sx * J(0, 0) + sy * J(0, 1) + sz * J(0, 2);
+      shape(i, 1) = sx * J(1, 0) + sy * J(1, 1) + sz * J(1, 2);
+      shape(i, 2) = sx * J(2, 0) + sy * J(2, 1) + sz * J(2, 2);
+   }
+   shape *= (1.0 / Trans.Weight());
+}
+
+void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
+                                             Vector &divshape) const
+{
+   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+   kv[2]->CalcShape ( shape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
+   kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
+   kv1[2]->CalcDShape(dshape1_z, ijk[2], ip.z);
+
+   int o = 0;
+   for (int  k = 0; k <= orders[2]; k++)
+   {
+      const real_t sz = shape_z(k);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t sy_sz = shape_y(j)*sz;
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            divshape(o) = dshape1_x(i)*sy_sz;
+         }
+      }
+   }
+
+   for (int  k = 0; k <= orders[2]; k++)
+   {
+      const real_t sz = shape_z(k);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t dy1_sz = dshape1_y(j)*sz;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            divshape(o) = shape_x(i)*dy1_sz;
+         }
+      }
+   }
+
+   for (int  k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t dz1 = dshape1_z(k);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t sy_dz1 = shape_y(j)*dz1;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            divshape(o) = shape_x(i)*sy_dz1;
+         }
+      }
+   }
+}
+
+NURBS_HDiv3DFiniteElement::~NURBS_HDiv3DFiniteElement()
+{
+   if (kv1[0]) { delete kv1[0]; }
+   if (kv1[1]) { delete kv1[1]; }
+   if (kv1[2]) { delete kv1[2]; }
+}
+
+void NURBS_HCurl2DFiniteElement::SetOrder() const
+{
+   orders[0] = kv[0]->GetOrder();
+   orders[1] = kv[1]->GetOrder();
+
+   if (kv1[0]) { delete kv1[0]; }
+   if (kv1[1]) { delete kv1[1]; }
+
+   kv1[0] = kv[0]->DegreeElevate(1);
+   kv1[1] = kv[1]->DegreeElevate(1);
+
+   shape_x.SetSize(orders[0]+1);
+   shape_y.SetSize(orders[1]+1);
+
+   dshape_x.SetSize(orders[0]+1);
+   dshape_y.SetSize(orders[1]+1);
+
+   d2shape_x.SetSize(orders[0]+1);
+   d2shape_y.SetSize(orders[1]+1);
+
+   shape1_x.SetSize(orders[0]+2);
+   shape1_y.SetSize(orders[1]+2);
+
+   dshape1_x.SetSize(orders[0]+2);
+   dshape1_y.SetSize(orders[1]+2);
+
+   d2shape1_x.SetSize(orders[0]+2);
+   d2shape1_y.SetSize(orders[1]+2);
+
+   order = max(orders[0]+1, orders[1]+1);
+   dof = (orders[0] + 1)*(orders[1] + 2)
+         + (orders[1] + 2)*(orders[1] + 1);
+   u.SetSize(dof);
+   du.SetSize(dof);
+   weights.SetSize(dof);
+}
+
+void NURBS_HCurl2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                            DenseMatrix &shape) const
+{
+   kv[0]->CalcShape(shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape(shape_y, ijk[1], ip.y);
+
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+
+   int o = 0;
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      const real_t sy1 = shape1_y(j);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         shape(o,0) = shape_x(i)*sy1;
+         shape(o,1) = 0.0;
+      }
+   }
+
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      const real_t sy = shape_y(j);
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         shape(o,0) = 0.0;
+         shape(o,1) = shape1_x(i)*sy;
+      }
+   }
+}
+
+void NURBS_HCurl2DFiniteElement::CalcVShape(ElementTransformation &Trans,
+                                            DenseMatrix &shape) const
+{
+   CalcVShape(Trans.GetIntPoint(), shape);
+   const DenseMatrix & JI = Trans.InverseJacobian();
+   MFEM_ASSERT(JI.Width() == 2 && JI.Height() == 2,
+               "NURBS_HCurl2DFiniteElement cannot be embedded in "
+               "3 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      real_t sx = shape(i, 0);
+      real_t sy = shape(i, 1);
+      shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
+      shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
+   }
+}
+
+void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
+                                               DenseMatrix &curl_shape) const
+{
+   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+
+   kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
+   kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
+
+   int o = 0;
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      const real_t dsy1 = dshape1_y(j);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         curl_shape(o,0) = -shape_x(i)*dsy1;
+      }
+   }
+
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      const real_t sy = shape_y(j);
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         curl_shape(o,0) = dshape1_x(i)*sy;
+      }
+   }
+}
+
+NURBS_HCurl2DFiniteElement::~NURBS_HCurl2DFiniteElement()
+{
+   if (kv1[0]) { delete kv1[0]; }
+   if (kv1[1]) { delete kv1[1]; }
+}
+
+
+void NURBS_HCurl3DFiniteElement::SetOrder() const
+{
+   orders[0] = kv[0]->GetOrder();
+   orders[1] = kv[1]->GetOrder();
+   orders[2] = kv[2]->GetOrder();
+
+   if (kv1[0]) { delete kv1[0]; }
+   if (kv1[1]) { delete kv1[1]; }
+   if (kv1[2]) { delete kv1[2]; }
+
+   kv1[0] = kv[0]->DegreeElevate(1);
+   kv1[1] = kv[1]->DegreeElevate(1);
+   kv1[2] = kv[2]->DegreeElevate(1);
+
+   shape_x.SetSize(orders[0]+1);
+   shape_y.SetSize(orders[1]+1);
+   shape_z.SetSize(orders[2]+1);
+
+   dshape_x.SetSize(orders[0]+1);
+   dshape_y.SetSize(orders[1]+1);
+   dshape_z.SetSize(orders[2]+1);
+
+   d2shape_x.SetSize(orders[0]+1);
+   d2shape_y.SetSize(orders[1]+1);
+   d2shape_z.SetSize(orders[2]+1);
+
+   shape1_x.SetSize(orders[0]+2);
+   shape1_y.SetSize(orders[1]+2);
+   shape1_z.SetSize(orders[2]+2);
+
+   dshape1_x.SetSize(orders[0]+2);
+   dshape1_y.SetSize(orders[1]+2);
+   dshape1_z.SetSize(orders[2]+2);
+
+   d2shape1_x.SetSize(orders[0]+2);
+   d2shape1_y.SetSize(orders[1]+2);
+   d2shape1_z.SetSize(orders[2]+2);
+
+   order = max(orders[0]+1, max( orders[1]+1, orders[2]+1));
+   dof = (orders[0] + 1)*(orders[1] + 2)*(orders[2] + 2) +
+         (orders[0] + 2)*(orders[1] + 1)*(orders[2] + 2) +
+         (orders[0] + 2)*(orders[1] + 2)*(orders[2] + 1);
+   u.SetSize(dof);
+   du.SetSize(dof);
+   weights.SetSize(dof);
+}
+
+void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
+                                            DenseMatrix &shape) const
+{
+   kv[0]->CalcShape(shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape(shape_y, ijk[1], ip.y);
+   kv[2]->CalcShape(shape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
+
+   shape = 0.0;
+   int o = 0;
+   for (int  k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t sz1 = shape1_z(k);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t sy1_sz1 = shape1_y(j)*sz1;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            shape(o,0) = shape_x(i)*sy1_sz1;
+         }
+      }
+   }
+
+   for (int  k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t sz1 = shape1_z(k);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t sy_sz1 = shape_y(j)*sz1;
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            shape(o,1) = shape1_x(i)*sy_sz1;
+         }
+      }
+   }
+
+   for (int  k = 0; k <= orders[2]; k++)
+   {
+      const real_t sz = shape_z(k);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t sy1_sz = shape1_y(j)*sz;
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            shape(o,2) = shape1_x(i)*sy1_sz;
+         }
+      }
+   }
+}
+
+void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
+                                            DenseMatrix &shape) const
+{
+   CalcVShape(Trans.GetIntPoint(), shape);
+   const DenseMatrix & JI = Trans.InverseJacobian();
+   MFEM_ASSERT(JI.Width() == 3 && JI.Height() == 3,
+               "NURBS_HCurl3DFiniteElement must be in a"
+               "3 dimensional spaces");
+   for (int i=0; i<dof; i++)
+   {
+      real_t sx = shape(i, 0);
+      real_t sy = shape(i, 1);
+      real_t sz = shape(i, 2);
+      shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0) + sz * JI(2, 0);
+      shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1) + sz * JI(2, 1);
+      shape(i, 2) = sx * JI(0, 2) + sy * JI(1, 2) + sz * JI(2, 2);
+   }
+}
+
+void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
+                                               DenseMatrix &curl_shape) const
+{
+   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+   kv[2]->CalcShape ( shape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
+
+   kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
+   kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
+   kv1[2]->CalcDShape(dshape1_z, ijk[2], ip.z);
+
+   int o = 0;
+   for (int  k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t sz1 = shape1_z(k), dsz1 = dshape1_z(k);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t sy1_dsz1 = shape1_y(j)*dsz1,
+                      dsy1_sz1 = dshape1_y(j)*sz1;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            curl_shape(o,0) = 0.0;
+            curl_shape(o,1) =  shape_x(i)*sy1_dsz1;
+            curl_shape(o,2) = -shape_x(i)*dsy1_sz1;
+         }
+      }
+   }
+
+   for (int  k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t sz1 = shape1_z(k), dsz1 = dshape1_z(k);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t sy_dsz1 = shape_y(j)*dsz1,
+                      sy_sz1 = shape_y(j)*sz1;
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            curl_shape(o,0) = -shape1_x(i)*sy_dsz1;
+            curl_shape(o,1) = 0.0;
+            curl_shape(o,2) = dshape1_x(i)*sy_sz1;
+         }
+      }
+   }
+
+   for (int  k = 0; k <= orders[2]; k++)
+   {
+      const real_t sz = shape_z(k);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t sy1_sz = shape1_y(j)*sz,
+                      dsy1_sz = dshape1_y(j)*sz;
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            curl_shape(o,0) = shape1_x(i)*dsy1_sz;
+            curl_shape(o,1) = -dshape1_x(i)*sy1_sz;
+            curl_shape(o,2) = 0.0;
+         }
+      }
+   }
+}
+
+NURBS_HCurl3DFiniteElement::~NURBS_HCurl3DFiniteElement()
+{
+   if (kv1[0]) { delete kv1[0]; }
+   if (kv1[1]) { delete kv1[1]; }
+   if (kv1[2]) { delete kv1[2]; }
 }
 
 }

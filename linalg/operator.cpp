@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,7 +48,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    }
 }
 
-void Operator::AddMult(const Vector &x, Vector &y, const double a) const
+void Operator::AddMult(const Vector &x, Vector &y, const real_t a) const
 {
    mfem::Vector z(y.Size());
    Mult(x, z);
@@ -56,7 +56,7 @@ void Operator::AddMult(const Vector &x, Vector &y, const double a) const
 }
 
 void Operator::AddMultTranspose(const Vector &x, Vector &y,
-                                const double a) const
+                                const real_t a) const
 {
    mfem::Vector z(y.Size());
    MultTranspose(x, z);
@@ -88,7 +88,7 @@ void Operator::ArrayMultTranspose(const Array<const Vector *> &X,
 }
 
 void Operator::ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
-                            const double a) const
+                            const real_t a) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::AddMult!");
@@ -100,7 +100,7 @@ void Operator::ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
 }
 
 void Operator::ArrayAddMultTranspose(const Array<const Vector *> &X,
-                                     Array<Vector *> &Y, const double a) const
+                                     Array<Vector *> &Y, const real_t a) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::AddMultTranspose!");
@@ -295,14 +295,14 @@ void TimeDependentOperator::Mult(const Vector &, Vector &) const
    mfem_error("TimeDependentOperator::Mult() is not overridden!");
 }
 
-void TimeDependentOperator::ImplicitSolve(const double, const Vector &,
+void TimeDependentOperator::ImplicitSolve(const real_t, const Vector &,
                                           Vector &)
 {
    mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
 }
 
 Operator &TimeDependentOperator::GetImplicitGradient(
-   const Vector &, const Vector &, double) const
+   const Vector &, const Vector &, real_t) const
 {
    mfem_error("TimeDependentOperator::GetImplicitGradient() is "
               "not overridden!");
@@ -318,13 +318,13 @@ Operator &TimeDependentOperator::GetExplicitGradient(const Vector &) const
 
 int TimeDependentOperator::SUNImplicitSetup(const Vector &,
                                             const Vector &,
-                                            int, int *, double)
+                                            int, int *, real_t)
 {
    mfem_error("TimeDependentOperator::SUNImplicitSetup() is not overridden!");
    return (-1);
 }
 
-int TimeDependentOperator::SUNImplicitSolve(const Vector &, Vector &, double)
+int TimeDependentOperator::SUNImplicitSolve(const Vector &, Vector &, real_t)
 {
    mfem_error("TimeDependentOperator::SUNImplicitSolve() is not overridden!");
    return (-1);
@@ -336,7 +336,7 @@ int TimeDependentOperator::SUNMassSetup()
    return (-1);
 }
 
-int TimeDependentOperator::SUNMassSolve(const Vector &, Vector &, double)
+int TimeDependentOperator::SUNMassSolve(const Vector &, Vector &, real_t)
 {
    mfem_error("TimeDependentOperator::SUNMassSolve() is not overridden!");
    return (-1);
@@ -356,8 +356,8 @@ void SecondOrderTimeDependentOperator::Mult(const Vector &x,
    mfem_error("SecondOrderTimeDependentOperator::Mult() is not overridden!");
 }
 
-void SecondOrderTimeDependentOperator::ImplicitSolve(const double dt0,
-                                                     const double dt1,
+void SecondOrderTimeDependentOperator::ImplicitSolve(const real_t dt0,
+                                                     const real_t dt1,
                                                      const Vector &x,
                                                      const Vector &dxdt,
                                                      Vector &k)
@@ -365,6 +365,44 @@ void SecondOrderTimeDependentOperator::ImplicitSolve(const double dt0,
    mfem_error("SecondOrderTimeDependentOperator::ImplicitSolve() is not overridden!");
 }
 
+SumOperator::SumOperator(const Operator *A, const real_t alpha,
+                         const Operator *B, const real_t beta,
+                         bool ownA, bool ownB)
+   : Operator(A->Height(), A->Width()),
+     A(A), B(B), alpha(alpha), beta(beta), ownA(ownA), ownB(ownB),
+     z(A->Height())
+{
+   MFEM_VERIFY(A->Width() == B->Width(),
+               "incompatible Operators: different widths\n"
+               << "A->Width() = " << A->Width()
+               << ", B->Width() = " << B->Width() );
+   MFEM_VERIFY(A->Height() == B->Height(),
+               "incompatible Operators: different heights\n"
+               << "A->Height() = " << A->Height()
+               << ", B->Height() = " << B->Height() );
+
+   {
+      const Solver* SolverA = dynamic_cast<const Solver*>(A);
+      const Solver* SolverB = dynamic_cast<const Solver*>(B);
+      if (SolverA)
+      {
+         MFEM_VERIFY(!(SolverA->iterative_mode),
+                     "Operator A of a SumOperator should not be in iterative mode");
+      }
+      if (SolverB)
+      {
+         MFEM_VERIFY(!(SolverB->iterative_mode),
+                     "Operator B of a SumOperator should not be in iterative mode");
+      }
+   }
+
+}
+
+SumOperator::~SumOperator()
+{
+   if (ownA) { delete A; }
+   if (ownB) { delete B; }
+}
 
 ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                                  bool ownA, bool ownB)
@@ -481,7 +519,8 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    MemoryType mem_type = GetMemoryType(mem_class);
    list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);
-   // typically z and w are large vectors, so store them on the device
+   // typically z and w are large vectors, so use the device (GPU) to perform
+   // operations on them
    z.SetSize(height, mem_type); z.UseDevice(true);
    w.SetSize(height, mem_type); w.UseDevice(true);
 }
@@ -544,12 +583,20 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 }
 
-void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
+void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
+                                          const bool transpose) const
 {
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
-      A->Mult(x, y);
+      if (transpose)
+      {
+         A->MultTranspose(x, y);
+      }
+      else
+      {
+         A->Mult(x, y);
+      }
       return;
    }
 
@@ -560,7 +607,14 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    auto d_z = z.ReadWrite();
    mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i) { d_z[idx[i]] = 0.0; });
 
-   A->Mult(z, y);
+   if (transpose)
+   {
+      A->MultTranspose(z, y);
+   }
+   else
+   {
+      A->Mult(z, y);
+   }
 
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of y
@@ -589,6 +643,25 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
          mfem_error("ConstrainedOperator::Mult #2");
          break;
    }
+}
+
+void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
+{
+   constexpr bool transpose = false;
+   ConstrainedMult(x, y, transpose);
+}
+
+void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
+{
+   constexpr bool transpose = true;
+   ConstrainedMult(x, y, transpose);
+}
+
+void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
+                                  const real_t a) const
+{
+   Mult(x, w);
+   y.Add(a, w);
 }
 
 RectangularConstrainedOperator::RectangularConstrainedOperator(
@@ -625,9 +698,7 @@ void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
       d_w[id] = d_x[id];
    });
 
-   // A.AddMult(w, b, -1.0); // if available to all Operators
-   A->Mult(w, z);
-   b -= z;
+   A->AddMult(w, b, -1.0);
 
    const int test_csz = test_constraints.Size();
    auto test_idx = test_constraints.Read();
@@ -707,8 +778,8 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
    }
 }
 
-double PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
-                                              int numSteps, double tolerance, int seed)
+real_t PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
+                                              int numSteps, real_t tolerance, int seed)
 {
    v1.SetSize(v0.Size());
    if (seed != 0)
@@ -716,11 +787,11 @@ double PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
       v0.Randomize(seed);
    }
 
-   double eigenvalue = 1.0;
+   real_t eigenvalue = 1.0;
 
    for (int iter = 0; iter < numSteps; ++iter)
    {
-      double normV0;
+      real_t normV0;
 
 #ifdef MFEM_USE_MPI
       if (comm != MPI_COMM_NULL)
@@ -738,7 +809,7 @@ double PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
       v0 /= sqrt(normV0);
       opr.Mult(v0, v1);
 
-      double eigenvalueNew;
+      real_t eigenvalueNew;
 #ifdef MFEM_USE_MPI
       if (comm != MPI_COMM_NULL)
       {
@@ -751,7 +822,7 @@ double PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
 #else
       eigenvalueNew = InnerProduct(v0, v1);
 #endif
-      double diff = std::abs((eigenvalueNew - eigenvalue) / eigenvalue);
+      real_t diff = std::abs((eigenvalueNew - eigenvalue) / eigenvalue);
 
       eigenvalue = eigenvalueNew;
       std::swap(v0, v1);

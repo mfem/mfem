@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,17 +12,18 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/examples/sundials/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES = ex9 ex10 ex16
 PAR_EXAMPLES = ex9p ex10p ex16p
+SEQ_DEVICE_EXAMPLES = ex9
+PAR_DEVICE_EXAMPLES = ex9p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -54,10 +55,22 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 SERIAL_NAME := Serial SUNDIALS example
 PARALLEL_NAME := Parallel SUNDIALS example
+SERIAL_CUDA_NAME := Serial SUNDIALS CUDA example
+PARALLEL_CUDA_NAME := Parallel SUNDIALS CUDA example
+SERIAL_HIP_NAME := Serial SUNDIALS HIP example
+PARALLEL_HIP_NAME := Parallel SUNDIALS HIP example
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME))
 %-test-seq: %
 	@$(call mfem-test,$<,, $(SERIAL_NAME))
+%-test-par-cuda: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_CUDA_NAME),-d cuda)
+%-test-seq-cuda: %
+	@$(call mfem-test,$<,, $(SERIAL_CUDA_NAME),-d cuda)
+%-test-par-hip: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_HIP_NAME),-d hip)
+%-test-seq-hip: %
+	@$(call mfem-test,$<,, $(SERIAL_HIP_NAME),-d hip)
 
 # Testing: Specific execution options:
 # Example 9: test CVODE with CV_ADAMS (non-stiff implicit) time stepping
@@ -68,6 +81,16 @@ ex9-test-seq: ex9
 	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX9_ARGS))
 ex9p-test-par: ex9p
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EX9P_ARGS))
+ex9-test-seq-cuda: ex9
+	@$(call mfem-test,$<,, $(SERIAL_CUDA_NAME),-d cuda $(EX9_ARGS))
+ex9p-test-par-cuda: ex9p
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_CUDA_NAME),-d cuda \
+	   $(EX9P_ARGS))
+ex9-test-seq-hip: ex9
+	@$(call mfem-test,$<,, $(SERIAL_HIP_NAME),-d hip $(EX9_ARGS))
+ex9p-test-par-hip: ex9p
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_HIP_NAME),-d hip \
+	   $(EX9P_ARGS))
 # Example 10: test CVODE with CV_BDF (stiff implicit) time stepping
 EX10_COMMON_ARGS := -m ../../data/beam-quad.mesh -o 2 -s 5 -dt 0.15 -tf 6 -vs 10
 EX10_ARGS  := $(EX10_COMMON_ARGS) -r  2
@@ -76,6 +99,12 @@ ex10-test-seq: ex10
 	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX10_ARGS))
 ex10p-test-par: ex10p
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EX10P_ARGS))
+# Example 16: test ARKODE with implicit time stepping using mass form
+EX16_COMMON_ARGS := -s 15
+ex16-test-seq: ex16
+	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_COMMON_ARGS))
+ex16p-test-par: ex16p
+	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EX16_COMMON_ARGS))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

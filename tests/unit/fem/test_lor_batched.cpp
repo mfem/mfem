@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,13 +34,13 @@ void TestSameMatrices(SparseMatrix &A1, const SparseMatrix &A2,
 
    const int *I1 = A1.HostReadI();
    const int *J1 = A1.HostReadJ();
-   const double *V1 = A1.HostReadData();
+   const real_t *V1 = A1.HostReadData();
 
    A2.HostReadI();
    A2.HostReadJ();
    A2.HostReadData();
 
-   double error = 0.0;
+   real_t error = 0.0;
 
    for (int i=0; i<n; ++i)
    {
@@ -91,6 +91,7 @@ void TestBatchedLOR()
 {
    const int order = 5;
    const auto mesh_fname = GENERATE(
+                              "../../data/star-surf.mesh",
                               "../../data/star-q3.mesh",
                               "../../data/fichera-q3.mesh"
                            );
@@ -124,8 +125,11 @@ void TestBatchedLOR()
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
    const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
    const GeometricFactors::FactorFlags dets = GeometricFactors::DETERMINANTS;
-   REQUIRE(lor.GetFESpace().GetMesh()->GetGeometricFactors(ir, dets)->detJ.Min()
-           > 0.0);
+   if (mesh.Dimension() == mesh.SpaceDimension())
+   {
+      REQUIRE(
+         lor.GetFESpace().GetMesh()->GetGeometricFactors(ir, dets)->detJ.Min() > 0.0);
+   }
 
    lor.LegacyAssembleSystem(a, ess_dofs);
    SparseMatrix A1 = lor.GetAssembledMatrix(); // deep copy
@@ -183,6 +187,7 @@ void ParTestBatchedLOR()
    const bool all_tests = launch_all_non_regression_tests;
    const int order = !all_tests ? 5 : GENERATE(1,3,5);
    const auto mesh_fname = GENERATE(
+                              "../../data/star-surf.mesh",
                               "../../data/star-q3.mesh",
                               "../../data/fichera-q3.mesh"
                            );
@@ -241,6 +246,7 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    enum SpaceType { ND, RT };
    auto space_type = GENERATE(ND, RT);
    auto mesh_fname = GENERATE(
+                        "../../data/star-surf.mesh",
                         "../../data/star-q3.mesh",
                         "../../data/fichera-q3.mesh"
                      );
@@ -251,6 +257,7 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    serial_mesh.Clear();
 
    const int dim = mesh.Dimension();
+   const int sdim = mesh.SpaceDimension();
 
    // Only test RT spaces in 2D
    if (space_type == RT && dim == 3) { return; }
@@ -285,21 +292,21 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][CUDA]")
    ParGridFunction z_coord(&vert_fespace);
    for (int i = 0; i < edge_fespace.GetMesh()->GetNV(); i++)
    {
-      const double *coord = edge_fespace.GetMesh()->GetVertex(i);
+      const real_t *coord = edge_fespace.GetMesh()->GetVertex(i);
       x_coord(i) = coord[0];
       y_coord(i) = coord[1];
-      if (dim == 3) { z_coord(i) = coord[2]; }
+      if (sdim == 3) { z_coord(i) = coord[2]; }
    }
    std::unique_ptr<HypreParVector> x(x_coord.ParallelProject());
    std::unique_ptr<HypreParVector> y(y_coord.ParallelProject());
    std::unique_ptr<HypreParVector> z;
-   if (dim == 3) { z.reset(z_coord.ParallelProject()); }
+   if (sdim == 3) { z.reset(z_coord.ParallelProject()); }
 
    *x -= *batched_lor.GetXCoordinate();
    REQUIRE(x->Normlinf() == MFEM_Approx(0.0));
    *y -= *batched_lor.GetYCoordinate();
    REQUIRE(y->Normlinf() == MFEM_Approx(0.0));
-   if (dim == 3)
+   if (sdim == 3)
    {
       *z -= *batched_lor.GetZCoordinate();
       REQUIRE(z->Normlinf() == MFEM_Approx(0.0));

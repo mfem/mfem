@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,13 +34,13 @@ TEST_CASE("MemoryManager/Scopes",
       // Accessible Memory<double> to get the flags
       struct MemoryDouble
       {
-         double *h_ptr;
+         real_t *h_ptr;
          int capacity; ///< Size of the allocated memory
          MemoryType h_mt; ///< Host memory type
          mutable unsigned flags;
       };
       const MemoryDouble *mem = (MemoryDouble*) &x.GetMemory();
-      const double *h_x = mem->h_ptr;
+      const real_t *h_x = mem->h_ptr;
       REQUIRE(h_x == x.GetData());
       REQUIRE(mem->capacity == x.Size());
       REQUIRE(mem->h_mt == Device::GetHostMemoryType());
@@ -54,7 +54,7 @@ TEST_CASE("MemoryManager/Scopes",
    {
       Vector x(1);
       x.UseDevice(true);
-      const double *x_data = x.GetData();
+      const real_t *x_data = x.GetData();
       {
          Vector X;
          // from Operator::InitTVectors

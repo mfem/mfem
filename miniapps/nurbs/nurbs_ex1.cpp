@@ -6,10 +6,17 @@
 //               nurbs_ex1 -m ../../data/square-nurbs.mesh -o 2 --weak-bc
 //               nurbs_ex1 -m ../../data/cube-nurbs.mesh -o 2 -no-ibp
 //               nurbs_ex1 -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m ../../data/pipe-nurbs-2d.mesh -o 2 -r 2 --neu "3"
 //               nurbs_ex1 -m ../../data/square-disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+//               nurbs_ex1 -m meshes/two-squares-nurbs.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs-rot.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
@@ -39,12 +46,12 @@ using namespace mfem;
 class Data
 {
 public:
-   double x,val;
-   Data(double x_, double val_) {x=x_; val=val_;};
+   real_t x,val;
+   Data(real_t x_, real_t val_) {x=x_; val=val_;};
 };
 
-inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); };
-inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); };
+inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }
+inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); }
 
 /** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
     can be a scalar coefficient. */
@@ -65,13 +72,13 @@ public:
 
    /** Given a particular Finite Element
        computes the element stiffness matrix elmat. */
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat)
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override
    {
       int nd = el.GetDof();
       int dim = el.GetDim();
-      double w;
+      real_t w;
 
 #ifdef MFEM_THREAD_SAFE
       Vector shape(nd);
@@ -137,16 +144,19 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    const char *per_file  = "none";
+   const char *ref_file  = "";
    int ref_levels = -1;
    Array<int> master(0);
    Array<int> slave(0);
+   Array<int> neu(0);
    bool static_cond = false;
    bool visualization = 1;
    int lod = 0;
    bool ibp = 1;
    bool strongBC = 1;
-   double kappa = -1;
+   real_t kappa = -1;
    Array<int> order(1);
+   int visport = 19916;
    order[0] = 1;
 
    OptionsParser args(argc, argv);
@@ -156,10 +166,14 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&per_file, "-p", "--per",
                   "Periodic BCS file.");
+   args.AddOption(&ref_file, "-rf", "--ref-file",
+                  "File with refinement data");
    args.AddOption(&master, "-pm", "--master",
                   "Master boundaries for periodic BCs");
    args.AddOption(&slave, "-ps", "--slave",
                   "Slave boundaries for periodic BCs");
+   args.AddOption(&neu, "-n", "--neu",
+                  "Boundaries with Neumann BCs");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -179,6 +193,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&lod, "-lod", "--level-of-detail",
                   "Refinement level for 1D solution output (0 means no output).");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -198,10 +213,16 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 50,000
-   //    elements.
+   //    'ref_levels' of uniform refinement and knot insertion of knots defined
+   //    in a refinement file. We choose 'ref_levels' to be the largest number
+   //    that gives a final mesh with no more than 50,000 elements.
    {
+      // Mesh refinement as defined in refinement file
+      if (mesh->NURBSext && (strlen(ref_file) != 0))
+      {
+         mesh->RefineNURBSFromFile(ref_file);
+      }
+
       if (ref_levels < 0)
       {
          ref_levels =
@@ -251,8 +272,6 @@ int main(int argc, char *argv[])
          slave.Load(in, psize);
          in.close();
       }
-      master.Print();
-      slave.Print();
       NURBSext->ConnectBoundaries(master,slave);
    }
    else if (order[0] == -1) // Isoparametric
@@ -308,39 +327,84 @@ int main(int argc, char *argv[])
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
-   Array<int> ess_tdof_list;
+   Array<int> ess_bdr(0);
+   Array<int> neu_bdr(0);
+   Array<int> per_bdr(0);
    if (mesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      if (strongBC)
+      ess_bdr.SetSize(mesh->bdr_attributes.Max());
+      neu_bdr.SetSize(mesh->bdr_attributes.Max());
+      per_bdr.SetSize(mesh->bdr_attributes.Max());
+
+      ess_bdr = 1;
+      neu_bdr = 0;
+      per_bdr = 0;
+
+      // Apply Neumann BCs
+      for (int i = 0; i < neu.Size(); i++)
       {
-         ess_bdr = 1;
-      }
-      else
-      {
-         ess_bdr = 0;
+         if ( neu[i]-1 >= 0 &&
+              neu[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[neu[i]-1] = 0;
+            neu_bdr[neu[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Neumann boundary "<<neu[i]<<" out of range -- discarded"<< endl;
+         }
       }
 
-      // Remove periodic BCs
+      // Correct for periodic BCs
       for (int i = 0; i < master.Size(); i++)
       {
-         ess_bdr[master[i]-1] = 0;
-         ess_bdr[slave[i]-1] = 0;
+         if ( master[i]-1 >= 0 &&
+              master[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[master[i]-1] = 0;
+            neu_bdr[master[i]-1] = 0;
+            per_bdr[master[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Master boundary "<<master[i]<<" out of range -- discarded"<< endl;
+         }
       }
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      for (int i = 0; i < slave.Size(); i++)
+      {
+         if ( slave[i]-1 >= 0 &&
+              slave[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[slave[i]-1] = 0;
+            neu_bdr[slave[i]-1] = 0;
+            per_bdr[slave[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Slave boundary "<<slave[i]<<" out of range -- discarded"<< endl;
+         }
+      }
    }
+   cout <<"Boundary conditions:"<< endl;
+   cout <<" - Periodic  : "; per_bdr.Print();
+   cout <<" - Essential : "; ess_bdr.Print();
+   cout <<" - Neumann   : "; neu_bdr.Print();
+
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    ConstantCoefficient one(1.0);
+   ConstantCoefficient mone(-1.0);
    ConstantCoefficient zero(0.0);
 
    LinearForm *b = new LinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   b->AddBoundaryIntegrator( new BoundaryLFIntegrator(one),neu_bdr);
    if (!strongBC)
       b->AddBdrFaceIntegrator(
-         new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
+         new DGDirichletLFIntegrator(zero, one, -1.0, kappa), ess_bdr);
+
    b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
@@ -360,11 +424,12 @@ int main(int argc, char *argv[])
    else
    {
       a->AddDomainIntegrator(new Diffusion2Integrator(one));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(mone, 0.0, 0.0), neu_bdr);
    }
 
    if (!strongBC)
    {
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa), ess_bdr);
    }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
@@ -376,6 +441,11 @@ int main(int argc, char *argv[])
 
    SparseMatrix A;
    Vector B, X;
+   Array<int> ess_tdof_list(0);
+   if (strongBC)
+   {
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A.Height() << endl;
@@ -398,19 +468,20 @@ int main(int argc, char *argv[])
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh->Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
-   sol_ofs.close();
+   {
+      ofstream mesh_ofs("refined.mesh");
+      mesh_ofs.precision(8);
+      mesh->Print(mesh_ofs);
+      ofstream sol_ofs("sol.gf");
+      sol_ofs.precision(8);
+      x.Save(sol_ofs);
+      sol_ofs.close();
+   }
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x << flush;

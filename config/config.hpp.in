@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,10 +30,10 @@
 #define MFEM_VERSION_MINOR (((MFEM_VERSION)/100)%100)
 #define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
 
-// The absolute path of the MFEM source prefix
+// The absolute path of the MFEM source prefix.
 // #define MFEM_SOURCE_DIR "@MFEM_SOURCE_DIR@"
 
-// The absolute path of the MFEM installation prefix
+// The absolute path of the MFEM installation prefix.
 // #define MFEM_INSTALL_DIR "@MFEM_INSTALL_DIR@"
 
 // Description of the git commit used to build MFEM.
@@ -45,6 +45,12 @@
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 // #define MFEM_USE_MPI
+
+// Use double-precision floating point type
+// #define MFEM_USE_DOUBLE
+
+// Use single-precision floating point type
+// #define MFEM_USE_SINGLE
 
 // Enable debug checks in MFEM.
 // #define MFEM_DEBUG
@@ -91,7 +97,7 @@
 // Enable MFEM functionality based on the SuiteSparse library.
 // #define MFEM_USE_SUITESPARSE
 
-// Enable MFEM functionality based on the SuperLU library.
+// Enable MFEM functionality based on the SuperLU_DIST library.
 // #define MFEM_USE_SUPERLU
 // #define MFEM_USE_SUPERLU5
 
@@ -102,40 +108,43 @@
 // Enable MFEM functionality based on the STRUMPACK library.
 // #define MFEM_USE_STRUMPACK
 
-// Enable MFEM features based on the Ginkgo library
+// Enable MFEM features based on the Ginkgo library.
 // #define MFEM_USE_GINKGO
 
 // Enable MFEM functionality based on the AmgX library.
 // #define MFEM_USE_AMGX
 
-// Enable secure socket streams based on the GNUTLS library
+// Enable MFEM functionality based on the MAGMA library.
+// #define MFEM_USE_MAGMA
+
+// Enable secure socket streams based on the GNUTLS library.
 // #define MFEM_USE_GNUTLS
 
-// Enable Sidre support
+// Enable Sidre support.
 // #define MFEM_USE_SIDRE
 
-// Enable the use of SIMD in the high performance templated classes
+// Enable the use of SIMD in the high performance templated classes.
 // #define MFEM_USE_SIMD
 
-// Enable FMS support
+// Enable FMS support.
 // #define MFEM_USE_FMS
 
-// Enable Conduit support
+// Enable Conduit support.
 // #define MFEM_USE_CONDUIT
 
-// Enable functionality based on the NetCDF library (reading CUBIT files)
+// Enable functionality based on the NetCDF library (reading CUBIT files).
 // #define MFEM_USE_NETCDF
 
-// Enable functionality based on the PETSc library
+// Enable functionality based on the PETSc library.
 // #define MFEM_USE_PETSC
 
-// Enable functionality based on the SLEPc library
+// Enable functionality based on the SLEPc library.
 // #define MFEM_USE_SLEPC
 
 // Enable functionality based on the MPFR library.
 // #define MFEM_USE_MPFR
 
-// Enable MFEM functionality based on the PUMI library
+// Enable MFEM functionality based on the PUMI library.
 // #define MFEM_USE_PUMI
 
 // Enable Moonolith-based general interpolation between finite element spaces.
@@ -144,7 +153,7 @@
 // Enable MFEM functionality based on the HIOP library.
 // #define MFEM_USE_HIOP
 
-// Enable MFEM functionality based on the GSLIB library
+// Enable MFEM functionality based on the GSLIB library.
 // #define MFEM_USE_GSLIB
 
 // Build the NVIDIA GPU/CUDA-enabled version of the MFEM library.
@@ -186,10 +195,13 @@
 // Enable interface to the MKL CPardiso library.
 // #define MFEM_USE_MKL_CPARDISO
 
-// Use forward mode for automatic differentiation
+// Enable interface to the MKL Pardiso library.
+// #define MFEM_USE_MKL_PARDISO
+
+// Use forward mode for automatic differentiation.
 // #define MFEM_USE_ADFORWARD
 
-// Enable the use of the CoDiPack library for AD
+// Enable the use of the CoDiPack library for AD.
 // #define MFEM_USE_CODIPACK
 
 // Enable functionality based on the Google Benchmark library.

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,7 +27,7 @@
 // Compile with: make findpts
 //
 // Sample runs:
-//    findpts -m ../../data/rt-2d-p4-tri.mesh -o 4
+//    findpts -m ../../data/rt-2d-p4-tri.mesh -o 8 -mo 4
 //    findpts -m ../../data/inline-tri.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3
 //    findpts -m ../../data/inline-quad.mesh -o 3 -po 1
@@ -38,7 +38,7 @@
 //    findpts -m ../../data/inline-hex.mesh -o 3
 //    findpts -m ../../data/inline-wedge.mesh -o 3
 //    findpts -m ../../data/amr-quad.mesh -o 2
-//    findpts -m ../../data/rt-2d-q3.mesh -o 3 -mo 4 -ft 2
+//    findpts -m ../../data/rt-2d-q3.mesh -o 8 -mo 4 -ft 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 2 -hr -pr -mpr
 //    findpts -m ../../data/square-mixed.mesh -o 2 -mo 3 -ft 2
@@ -347,8 +347,7 @@ int main (int argc, char *argv[])
       {
          if ((double) rand() / RAND_MAX < 0.5)
          {
-            int element_order = sc_fes.GetElementOrder(e);
-            sc_fes.SetElementOrder(e, element_order + 1);
+            sc_fes.SetElementOrder(e, order + 1);
          }
       }
       sc_fes.Update(false);
@@ -448,9 +447,8 @@ int main (int argc, char *argv[])
    Vector dist_p_out = finder.GetDist();
 
    int face_pts = 0, not_found = 0, found = 0;
-   double err = 0.0, max_err = 0.0, max_dist = 0.0;
+   double error = 0.0, max_err = 0.0, max_dist = 0.0;
    Vector pos(dim);
-   int npt = 0;
    for (int j = 0; j < vec_dim; j++)
    {
       for (int i = 0; i < pts_cnt; i++)
@@ -466,15 +464,14 @@ int main (int argc, char *argv[])
             }
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
-            err = gf_ordering == Ordering::byNODES ?
-                  fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
-                  fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
-            max_err  = std::max(max_err, err);
+            error = gf_ordering == Ordering::byNODES ?
+                    fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                    fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
+            max_err  = std::max(max_err, error);
             max_dist = std::max(max_dist, dist_p_out(i));
             if (code_out[i] == 1 && j == 0) { face_pts++; }
          }
          else { if (j == 0) { not_found++; } }
-         npt++;
       }
    }
 

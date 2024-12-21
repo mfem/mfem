@@ -75,6 +75,8 @@ and miniapps. See https://glvis.org and https://mfem.org/building.
 
 Quick start with GNU make
 =========================
+See also: https://mfem.org/building
+
 Serial build:
    make serial -j 4
 
@@ -83,6 +85,7 @@ Parallel build:
    (build METIS 4 in ../metis-4.0 relative to mfem/)
    (build hypre in ../hypre relative to mfem/)
    make parallel -j 4
+(For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
 CUDA build:
    make cuda -j 4
@@ -116,6 +119,7 @@ Parallel build:
    mkdir <mfem-build-dir> ; cd <mfem-build-dir>
    cmake <mfem-source-dir> -DMFEM_USE_MPI=YES
    make -j 4
+(For METIS 5, see https://mfem.org/building/#parallel-build-using-metis-5)
 
 CUDA build:
    (this build requires CMake 3.8 or newer)
@@ -216,9 +220,10 @@ An optional installation of the library and the headers can be performed with
 
    make install [PREFIX=<dir>]
 
-The library will be installed in $(PREFIX)/lib, the headers in
-$(PREFIX)/include, and the configuration makefile (config.mk) in
-$(PREFIX)/share/mfem. The PREFIX option can also be set during configuration.
+The library will be installed in ${PREFIX}/lib, the headers in
+${PREFIX}/include, and the configuration and testing makefiles (config.mk and
+test.mk) in ${PREFIX}/share/mfem. The PREFIX option can also be set during
+configuration.
 
 Information about the current build configuration can be viewed using
 
@@ -267,9 +272,16 @@ Build options:
 
 Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
-             installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
-             the configuration makefile (config.mk) in $(PREFIX)/share/mfem.
-   INSTALL - Specify the install program, e.g /usr/bin/install
+             installed in ${PREFIX}/lib, the headers in ${PREFIX}/include, and
+             the configuration and testing makefiles (config.mk and test.mk) in
+             ${PREFIX}/share/mfem.
+   INSTALL - Specify the install program, default = /usr/bin/install
+   INSTALL_DEF_PERM - Specify the default install permissions. This affects
+                      headers and configuration makefiles, default = 644
+   INSTALL_BIN_PERM - Specify the install permissions for binaries. This only
+                      affects the shared version of the library, default = 755
+   INSTALL_DIR_PERM - Specify the install permissions for directories and,
+                      on macOS/BSD, for symlinks as well, default = 755
 
 MFEM library features/options (GNU make)
 ----------------------------------------
@@ -283,6 +295,15 @@ MFEM_USE_METIS = YES/NO
    parallel build, then the only parallel partitioning (domain decomposition)
    option in the library will be Cartesian partitioning with box meshes, and
    thus most of the parallel examples and miniapps will fail.
+
+MFEM_PRECISION = double/Double/DOUBLE/single/Single/SINGLE
+   Use single (float type) or double floating-point precision. In the
+   configuration header 'config/_config.hpp' this option is represented by
+   defining exactly one of the macros: MFEM_USE_DOUBLE, or MFEM_USE_SINGLE.
+   In the exported config files 'config.mk' and 'MFEMConfig.cmake', the option
+   is represented by the variables MFEM_USE_DOUBLE and MFEM_USE_SINGLE defined
+   as YES/NO (make) or ON/OFF (cmake). For more details see
+   https://github.com/orgs/mfem/discussions/4207
 
 MFEM_DEBUG = YES/NO
    Choose debug/optimized build. The debug build enables a number of messages
@@ -374,6 +395,11 @@ MFEM_USE_AMGX = YES/NO
    Enable MFEM functionality based on the AmgX multigrid library from NVIDIA.
    Allows the user to use SparseMatrices and HypreParMatrices to solve linear
    systems with the routines from the AmgX library.
+
+MFEM_USE_MAGMA = YES/NO
+   Enable MFEM functionality based on the MAGMA high-performance linear algebra
+   library. The MAGMA library provides a BLAS/LAPACK interface, with
+   implementations that have been optimized for Nvidia and AMD GPUs.
 
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
@@ -478,10 +504,14 @@ MFEM_USE_CODIPACK = YES/NO
 MFEM_USE_ALGOIM = YES/NO
   Enable the usage of Algoim - a collection of high-order accurate numerical
   methods and C++ algorithms for working with implicitly-defined geometry and
-  level set methods. The Algoim library requires the Blitz++ library. The MFEM
-  provides interface to Algoim v1. Thus, to check out the specific state use:
+  level set methods, see https://algoim.github.io. MFEM provides interface to
+  Algoim v1. To check out the specific Algoim state use:
+  https://github.com/algoim/algoim
   git checkout 9c9ca0ef094d8ab0390ed36367a1151b459bbe0a
-  https://algoim.github.io
+  The Algoim library requires the Blitz++ library. To use the latest state of
+  Blitz++ that has been tested with MFEM, use:
+  https://github.com/blitzpp/blitz
+  git checkout f24a250a43dff88c31ad92916da828b7ea9a98b7
 
 MFEM_USE_ADFORWARD = YES/NO
   Enable forward mode for AD packages. This option is valid
@@ -562,6 +592,11 @@ MFEM_USE_PARELAG = YES/NO
    use ParELAG. In fact, ParELAG is dependent on MFEM. Therefore, this option
    currently only concerns the miniapps.
 
+MFEM_USE_TRIBOL = YES/NO
+   Enables the miniapps that use the Tribol library. MFEM does not currently
+   use Tribol. In fact, Tribol is dependent on MFEM. Therefore, this option
+   currently only concerns the miniapps.
+
 MFEM_USE_ENZYME = YES/NO
    Enables automatic differentiation support through the LLVM plugin Enzyme.
    This requires the compiler to be set to clang (>=14.0.0). We also advise to
@@ -598,9 +633,13 @@ The specific libraries and their options are:
             HYPRE >= 2.20.0   (HYPRE built with '--enable-mixedint')
             HYPRE >= 2.22.1   (HYPRE built with CUDA)
             HYPRE >= 2.23.0   (HYPRE built with HIP)
+            HYPRE >= 2.31.0   (runtime selectable HYPRE execution on CPU/GPU)
 
 - METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
-  MFEM_USE_METIS_5 = YES (default is to use METIS 4).
+  MFEM_USE_METIS_5 = YES (default is to use METIS 4). For building instructions,
+  see the following:
+    - METIS 4.0.3: https://mfem.org/building/#parallel-mpi-version-of-mfem
+    - METIS 5.1.0: https://mfem.org/building/#parallel-build-using-metis-5
   URL: https://github.com/mfem/tpls (MFEM mirror, see above)
   Options: METIS_OPT, METIS_LIB.
   Versions: METIS 4.0.3 or 5.1.0.
@@ -628,9 +667,13 @@ The specific libraries and their options are:
   both MPI and hypre.
   If MFEM_USE_CUDA is enabled, we expect that SUNDIALS is built with support
   for CUDA.
-  URL: http://computation.llnl.gov/projects/sundials/sundials-software
+  If MFEM_USE_HIP is enabled, we expect that SUNDIALS is built with support
+  for HIP.
+  URL: http://computing.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
-  Versions: SUNDIALS >= 5.0.0, SUNDIALS >= 5.4.0 for CUDA support.
+  Versions: SUNDIALS >= 5.0.0,
+            SUNDIALS >= 5.4.0 for CUDA support, and
+            SUNDIALS >= 5.7.0 for HIP support.
 
 - SuiteSparse (optional), used when MFEM_USE_SUITESPARSE = YES.
   URL: http://faculty.cse.tamu.edu/davis/suitesparse.html
@@ -655,8 +698,7 @@ The specific libraries and their options are:
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
   includes METIS 5 in its distribution. Starting with STRUMPACK v2.2.0, ParMETIS
   and PT-Scotch are optional dependencies.
-  The support for STRUMPACK was added in MFEM v3.3.2 and it requires STRUMPACK
-  2.0.0 or later.
+  The support for STRUMPACK was added in MFEM v3.3.2.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
   Versions: STRUMPACK >= 3.0.0.
@@ -674,6 +716,11 @@ The specific libraries and their options are:
   Options: AMGX_OPT, AMGX_LIB.
   Versions: AmgX >= 2.1, older versions may work too.
 
+- MAGMA (optional), used with MFEM_USE_MAGMA = YES.
+  URL: https://icl.utk.edu/magma/
+  Options: MAGMA_OPT, MAGMA_LIB
+  Versions: MAGMA >= 2.8.0
+
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
   one can get the library through the Homebrew package manager (http://brew.sh).
@@ -689,18 +736,20 @@ The specific libraries and their options are:
   Options: NETCDF_OPT, NETCDF_LIB.
   Versions: NetCDF >= 4.4.0.
 
-- PETSc (optional), used when MFEM_USE_PETSC = YES. Version 3.8 or higher of
-  the PETSC dev branch is required. The MFEM and PETSc builds can share common
-  libraries, e.g., hypre and SUNDIALS. Here's an example configuration, assuming
+- PETSc (optional), used when MFEM_USE_PETSC = YES. Version 3.21 or higher of
+  the PETSC dev branch is required, though depending on the functionality older
+  versions may work too. The MFEM and PETSc builds can share common libraries,
+  e.g., hypre and SUNDIALS. Here's an example configuration, assuming
   PETSc has been cloned on the same level as mfem and hypre:
     ./configure --download-fblaslapack=yes --download-scalapack=yes \
                 --download-mumps=yes --download-suitesparse=yes \
-                --with-hypre-dir=../hypre-2.10.0b/src/hypre \
+                --with-hypre-dir=../hypre/src/hypre \
                 --with-shared-libraries=0
+  When building PETSc with HIP, one may need to add a flag like -std=c2x to
+  CFLAGS to allow proper parsing of the hipsparse header under C.
   URL: https://www.mcs.anl.gov/petsc
   Options: PETSC_OPT, PETSC_LIB.
-  Versions: PETSc >= 3.8.0   (PETSc build without CUDA)
-            PETSc >= 3.15.0  (PETSc built with CUDA)
+  Versions: PETSc >= 3.21.0, older versions may work too.
 
 - SLEPc (optional), used when MFEM_USE_SLEPC = YES. SLEPc depends on PETSc and
   uses some of the PETSc options when compiled.
@@ -744,14 +793,14 @@ The specific libraries and their options are:
   Versions: 1.9.3
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
-  built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
-  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.7 gslib".
+  built prior to the MFEM build, as follows: download gslib-1.0.9, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.9 gslib".
   Build gslib in parallel or in serial based on the desired MFEM build: "make
   clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
   MFEM_USE_GSLIB=YES.
-  URL: https://github.com/gslib/gslib/archive/v1.0.7.tar.gz
+  URL: https://github.com/gslib/gslib/archive/v1.0.9.tar.gz
   Options: GSLIB_OPT, GSLIB_LIB.
-  Versions: GSLIB >= 1.0.7.
+  Versions: GSLIB >= 1.0.9.
 
 - ALGOIM (optional), used when MFEM_USE_ALGOIM=YES. The library provides only
   headers so it just needs to be downloaded at the same level as MFEM. Download
@@ -790,7 +839,7 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.10.
+  Versions: libCEED >= 0.12.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.5.1, only RAJA v2022.10.3+ is supported.
@@ -842,6 +891,10 @@ The specific libraries and their options are:
 - ParELAG, used when MFEM_USE_PARELAG = YES.
   URL: https://github.com/LLNL/parelag
   Options: PARELAG_DIR, PARELAG_OPT, PARELAG_LIB.
+
+- Tribol, used when MFEM_USE_TRIBOL = YES.
+  URL: https://github.com/LLNL/Tribol
+  Options: TRIBOL_DIR, TRIBOL_OPT, TRIBOL_LIB.
 
 - Enzyme, used when MFEM_USE_ENZYME = YES. Requires LLVM/Clang >= 14.0.0.
   URL: https://github.com/EnzymeAD/Enzyme
@@ -929,8 +982,20 @@ or
    cmake --build . --config Release --target install  [Xcode]
    cmake --build . --config Release --target INSTALL  [Visual Studio]
 
-The library will be installed in <PREFIX>/lib, the headers in <PREFIX>/include,
-and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
+By default, the library will be installed in ${CMAKE_INSTALL_PREFIX}/lib, the
+headers in ${CMAKE_INSTALL_PREFIX}/include, the configuration CMake files in
+${CMAKE_INSTALL_PREFIX}/lib/cmake/mfem, and the configuration and testing GNU
+make files in ${CMAKE_INSTALL_PREFIX}/share/mfem. For fine-tuning the
+installation directories the following variables can be used:
+INSTALL_INCLUDE_DIR, INSTALL_LIB_DIR, INSTALL_BIN_DIR (e.g. for dll files on
+Windows), INSTALL_SHARE_DIR, and INSTALL_CMAKE_DIR; alternatively, with lower
+precedence, the CMake GNUInstallDirs variables can also be used:
+CMAKE_INSTALL_INCLUDEDIR, CMAKE_INSTALL_LIBDIR, CMAKE_INSTALL_BINDIR and
+CMAKE_INSTALL_DATAROOTDIR. Note that the default for INSTALL_LIB_DIR and
+CMAKE_INSTALL_LIBDIR is lib. This is in contrast to the default behavior for
+GNUInstallDirs, which defines a platform-dependent default value for
+CMAKE_INSTALL_LIBDIR (lib or lib64 or lib/<multiarch-tuple> on Debian). To
+restore this behavior, the user can set MFEM_USE_GNUINSTALLDIRS=YES.
 
 
 Configuration variables (CMake)
@@ -953,6 +1018,7 @@ The following options are equivalent to the GNU make options with the same name:
 
 MFEM_USE_MPI
 MFEM_USE_METIS - Set to ${MFEM_USE_MPI}, can be overwritten.
+MFEM_PRECISION
 MFEM_USE_LIBUNWIND
 MFEM_USE_LAPACK
 MFEM_THREAD_SAFE
@@ -986,6 +1052,7 @@ MFEM_USE_CALIPER
 MFEM_USE_FMS
 MFEM_USE_BENCHMARK
 MFEM_USE_PARELAG
+MFEM_USE_TRIBOL
 MFEM_USE_ENZYME
 
 The following options are CMake specific:

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,16 +16,20 @@
 #include "mesh_headers.hpp"
 #include "pncmesh.hpp"
 #include "../general/binaryio.hpp"
+#include "../general/communication.hpp"
 
+#include <numeric> // std::accumulate
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
+#include <array>
 
 namespace mfem
 {
 
 using namespace bin_io;
 
-ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
+ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh,
+                     const int *partitioning)
    : NCMesh(ncmesh)
 {
    MyComm = comm;
@@ -36,7 +40,8 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh, int *part)
    // sequence of leaf elements into 'NRanks' parts
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
-      elements[leaf_elements[i]].rank = part ? part[i] : InitialPartition(i);
+      elements[leaf_elements[i]].rank =
+         partitioning ? partitioning[i] : InitialPartition(i);
    }
 
    Update();
@@ -50,6 +55,9 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
                      int &curved, int &is_nc)
    : NCMesh(input, version, curved, is_nc)
 {
+   MFEM_VERIFY(version != 11, "Nonconforming mesh format \"MFEM NC mesh v1.1\""
+               " is supported only in serial.");
+
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
 
@@ -104,6 +112,8 @@ void ParNCMesh::Update()
       entity_owner[i].DeleteAll();
       entity_pmat_group[i].DeleteAll();
       entity_index_rank[i].DeleteAll();
+      entity_conf_group[i].DeleteAll();
+      entity_elem_local[i].DeleteAll();
    }
 
    shared_vertices.Clear();
@@ -434,25 +444,21 @@ void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
    entity_group = 0;
 
    CommGroup group;
-   group.reserve(128);
 
-   int begin = 0, end = 0;
-   while (begin < index_rank.Size())
+   for (auto begin = index_rank.begin(); begin != index_rank.end(); /* nothing */)
    {
-      int index = index_rank[begin].from;
-      if (index >= nentities)
-      {
-         break; // probably creating entity_conf_group (no ghosts)
-      }
-      while (end < index_rank.Size() && index_rank[end].from == index)
-      {
-         end++;
-      }
-      group.resize(end - begin);
-      for (int i = begin; i < end; i++)
-      {
-         group[i - begin] = index_rank[i].to;
-      }
+      const auto &index = begin->from;
+      if (index >= nentities) { break; }
+
+      // Locate the next connection that is not from this index
+      const auto end = std::find_if(begin, index_rank.end(),
+      [&index](const mfem::Connection &c) { return c.from != index;});
+
+      // For each connection from this index, collect the ranks connected.
+      group.resize(std::distance(begin, end));
+      std::transform(begin, end, group.begin(), [](const mfem::Connection &c) { return c.to; });
+
+      // assign this entity's group and advance the search start
       entity_group[index] = GetGroupId(group);
       begin = end;
    }
@@ -460,9 +466,9 @@ void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
 
 void ParNCMesh::AddConnections(int entity, int index, const Array<int> &ranks)
 {
-   for (int i = 0; i < ranks.Size(); i++)
+   for (auto rank : ranks)
    {
-      entity_index_rank[entity].Append(Connection(index, ranks[i]));
+      entity_index_rank[entity].Append(Connection(index, rank));
    }
 }
 
@@ -479,9 +485,8 @@ void ParNCMesh::CalculatePMatrixGroups()
    ranks.Reserve(256);
 
    // connect slave edges to master edges and their vertices
-   for (int i = 0; i < shared_edges.masters.Size(); i++)
+   for (const auto &master_edge : shared_edges.masters)
    {
-      const Master &master_edge = shared_edges.masters[i];
       ranks.SetSize(0);
       for (int j = master_edge.slaves_begin; j < master_edge.slaves_end; j++)
       {
@@ -501,9 +506,8 @@ void ParNCMesh::CalculatePMatrixGroups()
    }
 
    // connect slave faces to master faces and their edges and vertices
-   for (int i = 0; i < shared_faces.masters.Size(); i++)
+   for (const auto &master_face : shared_faces.masters)
    {
-      const Master &master_face = shared_faces.masters[i];
       ranks.SetSize(0);
       for (int j = master_face.slaves_begin; j < master_face.slaves_end; j++)
       {
@@ -540,12 +544,13 @@ void ParNCMesh::CalculatePMatrixGroups()
    }
 }
 
-int ParNCMesh::get_face_orientation(Face &face, Element &e1, Element &e2,
+int ParNCMesh::get_face_orientation(const Face &face, const Element &e1,
+                                    const Element &e2,
                                     int local[2])
 {
    // Return face orientation in e2, assuming the face has orientation 0 in e1.
    int ids[2][4];
-   Element* e[2] = { &e1, &e2 };
+   const Element * const e[2] = { &e1, &e2 };
    for (int i = 0; i < 2; i++)
    {
       // get local face number (remember that p1, p2, p3 are not in order, and
@@ -580,41 +585,81 @@ void ParNCMesh::CalcFaceOrientations()
    face_orient.SetSize(NFaces);
    face_orient = 0;
 
-   for (auto face = faces.begin(); face != faces.end(); ++face)
+   for (const auto &face : faces)
    {
-      if (face->elem[0] >= 0 && face->elem[1] >= 0 && face->index < NFaces)
+      if (face.elem[0] >= 0 && face.elem[1] >= 0 && face.index < NFaces)
       {
-         Element *e1 = &elements[face->elem[0]];
-         Element *e2 = &elements[face->elem[1]];
+         Element *e1 = &elements[face.elem[0]];
+         Element *e2 = &elements[face.elem[1]];
 
          if (e1->rank == e2->rank) { continue; }
          if (e1->rank > e2->rank) { std::swap(e1, e2); }
 
-         face_orient[face->index] = get_face_orientation(*face, *e1, *e2);
+         face_orient[face.index] = get_face_orientation(face, *e1, *e2);
       }
    }
 }
 
 void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                                    Array<int> &bdr_vertices,
-                                   Array<int> &bdr_edges)
+                                   Array<int> &bdr_edges, Array<int> &bdr_faces)
 {
-   NCMesh::GetBoundaryClosure(bdr_attr_is_ess, bdr_vertices, bdr_edges);
+   NCMesh::GetBoundaryClosure(bdr_attr_is_ess, bdr_vertices, bdr_edges, bdr_faces);
 
-   int i, j;
-   // filter out ghost vertices
-   for (i = j = 0; i < bdr_vertices.Size(); i++)
+   if (Dim == 3)
    {
-      if (bdr_vertices[i] < NVertices) { bdr_vertices[j++] = bdr_vertices[i]; }
+      // Mark masters of shared slave boundary faces as essential boundary
+      // faces. Some master faces may only have slave children.
+      for (const auto &mf : shared_faces.masters)
+      {
+         if (elements[mf.element].rank != MyRank) { continue; }
+         for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
+         {
+            const auto &sf = GetFaceList().slaves[j];
+            if (sf.index < 0)
+            {
+               // Edge-face constraint. Skip this edge.
+               continue;
+            }
+            const Face &face = *GetFace(elements[sf.element], sf.local);
+            if (face.Boundary() && bdr_attr_is_ess[face.attribute - 1])
+            {
+               bdr_faces.Append(mf.index);
+            }
+         }
+      }
    }
-   bdr_vertices.SetSize(j);
+   else if (Dim == 2)
+   {
+      // Mark masters of shared slave boundary edges as essential boundary
+      // edges. Some master edges may only have slave children.
+      for (const auto &me : shared_edges.masters)
+      {
+         if (elements[me.element].rank != MyRank) { continue; }
+         for (int j = me.slaves_begin; j < me.slaves_end; j++)
+         {
+            const auto &se = GetEdgeList().slaves[j];
+            Face *face = GetFace(elements[se.element], se.local);
+            if (face && face->Boundary() && bdr_attr_is_ess[face->attribute - 1])
+            {
+               bdr_edges.Append(me.index);
+            }
+         }
+      }
+   }
 
-   // filter out ghost edges
-   for (i = j = 0; i < bdr_edges.Size(); i++)
+   // Filter, sort and unique an array, so it contains only local unique values.
+   auto FilterSortUnique = [](Array<int> &v, int N)
    {
-      if (bdr_edges[i] < NEdges) { bdr_edges[j++] = bdr_edges[i]; }
-   }
-   bdr_edges.SetSize(j);
+      // Perform the O(N) filter before the O(NlogN) sort.
+      auto local = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
+      std::sort(v.begin(), local);
+      v.SetSize(std::distance(v.begin(), std::unique(v.begin(), local)));
+   };
+
+   FilterSortUnique(bdr_vertices, NVertices);
+   FilterSortUnique(bdr_edges, NEdges);
+   FilterSortUnique(bdr_faces, NFaces);
 }
 
 
@@ -699,11 +744,11 @@ void ParNCMesh::ElementNeighborProcessors(int elem, Array<int> &ranks)
 template<class T>
 static void set_to_array(const std::set<T> &set, Array<T> &array)
 {
-   array.Reserve(set.size());
+   array.Reserve(static_cast<int>(set.size()));
    array.SetSize(0);
-   for (std::set<int>::iterator it = set.begin(); it != set.end(); ++it)
+   for (auto x : set)
    {
-      array.Append(*it);
+      array.Append(x);
    }
 }
 
@@ -792,13 +837,15 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
       for (int ent = 0; ent < Dim; ent++)
       {
          GetSharedList(ent);
-         MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
-         MFEM_VERIFY(entity_elem_local[ent].Size(), "internal error");
+         MFEM_VERIFY(entity_conf_group[ent].Size() ||
+                     pmesh.GetNE() == 0, "Non empty partitions must be connected");
+         MFEM_VERIFY(entity_elem_local[ent].Size() ||
+                     pmesh.GetNE() == 0, "Non empty partitions must be connected");
       }
    }
 
    // create ParMesh groups, and the map (ncmesh_group -> pmesh_group)
-   Array<int> group_map(groups.size());
+   Array<int> group_map(static_cast<int>(groups.size()));
    {
       group_map = 0;
       IntegerSet iset;
@@ -807,7 +854,7 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
       {
          if (groups[i].size() > 1 || !i) // skip singleton groups
          {
-            iset.Recreate(groups[i].size(), groups[i].data());
+            iset.Recreate(static_cast<int>(groups[i].size()), groups[i].data());
             group_map[i] = int_groups.Insert(iset);
          }
       }
@@ -892,11 +939,25 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
    Array<Element*> fnbr;
    Array<Connection> send_elems;
+   std::map<int, std::vector<int>> recv_elems;
 
-   int bound = shared.conforming.Size() + shared.slaves.Size();
+   // Counts the number of slave faces of a master. This may be larger than the
+   // number of shared slaves if there exist degenerate slave-faces from face-edge constraints.
+   auto count_slaves = [&](int i, const Master& x)
+   {
+      return i + (x.slaves_end - x.slaves_begin);
+   };
+
+   const int bound = shared.conforming.Size() + std::accumulate(
+                        shared.masters.begin(), shared.masters.end(), 0, count_slaves);
 
    fnbr.Reserve(bound);
    send_elems.Reserve(bound);
+
+   // If there are face neighbor elements with triangular faces, the
+   // `face_nbr_el_ori` structure will need to be built. This requires
+   // communication so we attempt to avoid it by checking first.
+   bool face_nbr_w_tri_faces = false;
 
    // go over all shared faces and collect face neighbor elements
    for (int i = 0; i < shared.conforming.Size(); i++)
@@ -911,8 +972,12 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       if (e[0]->rank == MyRank) { std::swap(e[0], e[1]); }
       MFEM_ASSERT(e[0]->rank != MyRank && e[1]->rank == MyRank, "");
 
+      face_nbr_w_tri_faces |= !Geometry::IsTensorProduct(Geometry::Type(e[0]->geom));
+      face_nbr_w_tri_faces |= !Geometry::IsTensorProduct(Geometry::Type(e[1]->geom));
+
       fnbr.Append(e[0]);
       send_elems.Append(Connection(e[0]->rank, e[1]->index));
+      recv_elems[e[0]->rank].push_back(e[0]->index);
    }
 
    for (int i = 0; i < shared.masters.Size(); i++)
@@ -921,22 +986,31 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
       {
          const Slave &sf = full_list.slaves[j];
-         if (sf.element < 0) { continue; }
+         if (sf.element < 0 || sf.index < 0) { continue; }
 
          MFEM_ASSERT(mf.element >= 0, "");
          Element* e[2] = { &elements[mf.element], &elements[sf.element] };
 
          bool loc0 = (e[0]->rank == MyRank);
          bool loc1 = (e[1]->rank == MyRank);
-         if (loc0 == loc1) { continue; }
+         if (loc0 == loc1)
+         {
+            // neither or both of these elements are on this rank.
+            continue;
+         }
          if (loc0) { std::swap(e[0], e[1]); }
+
+         face_nbr_w_tri_faces |= !Geometry::IsTensorProduct(Geometry::Type(e[0]->geom));
+         face_nbr_w_tri_faces |= !Geometry::IsTensorProduct(Geometry::Type(e[1]->geom));
 
          fnbr.Append(e[0]);
          send_elems.Append(Connection(e[0]->rank, e[1]->index));
+         recv_elems[e[0]->rank].push_back(e[0]->index);
       }
    }
 
-   MFEM_ASSERT(fnbr.Size() <= bound, "oops, bad upper bound");
+   MFEM_ASSERT(fnbr.Size() <= bound,
+               "oops, bad upper bound. fnbr.Size(): " << fnbr.Size() << ", bound: " << bound);
 
    // remove duplicate face neighbor elements and sort them by rank & index
    // (note that the send table is sorted the same way and the order is also the
@@ -957,7 +1031,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          pmesh.face_nbr_group.Append(fnbr[i]->rank);
       }
    }
-   int nranks = pmesh.face_nbr_group.Size();
+   const int nranks = pmesh.face_nbr_group.Size();
 
    // create a new mfem::Element for each face neighbor element
    pmesh.face_nbr_elements.SetSize(0);
@@ -972,7 +1046,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    std::map<int, int> vert_map;
    for (int i = 0; i < fnbr.Size(); i++)
    {
-      Element* elem = fnbr[i];
+      NCMesh::Element* elem = fnbr[i];
       mfem::Element* fne = NewMeshElement(elem->geom);
       fne->SetAttribute(elem->attribute);
       pmesh.face_nbr_elements.Append(fne);
@@ -981,7 +1055,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       for (int k = 0; k < gi.nv; k++)
       {
          int &v = vert_map[elem->node[k]];
-         if (!v) { v = vert_map.size(); }
+         if (!v) { v = static_cast<int>(vert_map.size()); }
          fne->GetVertices()[k] = v-1;
       }
 
@@ -997,14 +1071,14 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
    // create vertices in 'face_nbr_vertices'
    {
-      pmesh.face_nbr_vertices.SetSize(vert_map.size());
+      pmesh.face_nbr_vertices.SetSize(static_cast<int>(vert_map.size()));
       if (coordinates.Size())
       {
          tmp_vertex = new TmpVertex[nodes.NumIds()]; // TODO: something cheaper?
-         for (auto it = vert_map.begin(); it != vert_map.end(); ++it)
+         for (const auto &v : vert_map)
          {
-            pmesh.face_nbr_vertices[it->second-1].SetCoords(
-               spaceDim, CalcVertexPos(it->first));
+            pmesh.face_nbr_vertices[v.second-1].SetCoords(
+               spaceDim, CalcVertexPos(v.first));
          }
          delete [] tmp_vertex;
       }
@@ -1013,6 +1087,13 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    // make the 'send_face_nbr_elements' table
    send_elems.Sort();
    send_elems.Unique();
+
+   for (auto &kv : recv_elems)
+   {
+      std::sort(kv.second.begin(), kv.second.end());
+      kv.second.erase(std::unique(kv.second.begin(), kv.second.end()),
+                      kv.second.end());
+   }
 
    for (int i = 0, last_rank = -1; i < send_elems.Size(); i++)
    {
@@ -1031,11 +1112,9 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    pmesh.send_face_nbr_elements.MakeFromList(nranks, send_elems);
 
    // go over the shared faces again and modify their Mesh::FaceInfo
-   for (int i = 0; i < shared.conforming.Size(); i++)
+   for (const auto& cf : shared.conforming)
    {
-      const MeshId &cf = shared.conforming[i];
       Face* face = GetFace(elements[cf.element], cf.local);
-
       Element* e[2] = { &elements[face->elem[0]], &elements[face->elem[1]] };
       if (e[0]->rank == MyRank) { std::swap(e[0], e[1]); }
 
@@ -1054,6 +1133,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
+   // If there are shared slaves, they will also need to be updated.
    if (shared.slaves.Size())
    {
       int nfaces = NFaces, nghosts = NGhostFaces;
@@ -1088,8 +1168,14 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
             bool sloc = (sfe.rank == MyRank);
             bool mloc = (mfe.rank == MyRank);
-            if (sloc == mloc) { continue; }
+            if (sloc == mloc // both or neither face is owned by this processor
+                || sf.index < 0) // the face is degenerate (i.e. a edge-face constraint)
+            {
+               continue;
+            }
 
+            // This is a genuine slave face, the info associated with it must
+            // be updated.
             Mesh::FaceInfo &fi = pmesh.faces_info[sf.index];
             fi.Elem1No = sfe.index;
             fi.Elem2No = mfe.index;
@@ -1119,12 +1205,18 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
             if (!sloc && Dim == 3)
             {
-               // TODO: does this handle triangle faces correctly?
-
                // ghost slave in 3D needs flipping orientation
                DenseMatrix* pm2 = new DenseMatrix(*pm);
-               std::swap((*pm2)(0,1), (*pm2)(0,3));
-               std::swap((*pm2)(1,1), (*pm2)(1,3));
+               if (sf.geom == Geometry::Type::SQUARE)
+               {
+                  std::swap((*pm2)(0, 1), (*pm2)(0, 3));
+                  std::swap((*pm2)(1, 1), (*pm2)(1, 3));
+               }
+               else if (sf.geom == Geometry::Type::TRIANGLE)
+               {
+                  std::swap((*pm2)(0, 0), (*pm2)(0, 1));
+                  std::swap((*pm2)(1, 0), (*pm2)(1, 1));
+               }
                aux_pm_store.Append(pm2);
 
                fi.Elem2Inf ^= 1;
@@ -1149,13 +1241,122 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                // Mesh::ApplyLocalSlaveTransformation.
             }
 
-            MFEM_ASSERT(fi.NCFace < 0, "");
+            MFEM_ASSERT(fi.NCFace < 0, "fi.NCFace = " << fi.NCFace);
             fi.NCFace = pmesh.nc_faces_info.Size();
             pmesh.nc_faces_info.Append(Mesh::NCFaceInfo(true, sf.master, pm));
          }
       }
    }
 
+
+   // In 3D some extra orientation data structures can be needed.
+   if (Dim == 3)
+   {
+      // Populates face_nbr_el_to_face, always needed.
+      pmesh.BuildFaceNbrElementToFaceTable();
+
+      if (face_nbr_w_tri_faces)
+      {
+         // There are face neighbor elements with triangular faces, need to
+         // perform communication to ensure the orientation is valid.
+         using RankToOrientation = std::map<int, std::vector<std::array<int, 6>>>;
+         constexpr std::array<int, 6> unset_ori{{-1,-1,-1,-1,-1,-1}};
+         const int rank = pmesh.GetMyRank();
+
+         // Loop over send elems, compute the orientation and place in the
+         // buffer to send to each processor. Note elements are
+         // lexicographically sorted with rank and element number, and this
+         // ordering holds across processors.
+         RankToOrientation send_rank_to_face_neighbor_orientations;
+         Array<int> orientations, faces;
+
+         // send_elems goes from rank of the receiving processor, to the index
+         // of the face neighbor element on this processor.
+         for (const auto &se : send_elems)
+         {
+            const auto &true_rank = pmesh.face_nbr_group[se.from];
+            pmesh.GetElementFaces(se.to, faces, orientations);
+
+            // Place a new entry of unset orientations
+            send_rank_to_face_neighbor_orientations[true_rank].emplace_back(unset_ori);
+
+            // Copy the entries, any unset faces will remain -1.
+            std::copy(orientations.begin(), orientations.end(),
+                      send_rank_to_face_neighbor_orientations[true_rank].back().begin());
+         }
+
+         // Initialize the receive buffers and resize to match the expected
+         // number of elements coming in. The copy ensures the appropriate rank
+         // pairings are in place, and for a purely conformal interface, the
+         // resize is a no-op.
+         auto recv_rank_to_face_neighbor_orientations =
+            send_rank_to_face_neighbor_orientations;
+         for (auto &kv : recv_rank_to_face_neighbor_orientations)
+         {
+            kv.second.resize(recv_elems[kv.first].size());
+         }
+
+         // For asynchronous send/recv, will use arrays of requests to monitor the
+         // status of the connections.
+         std::vector<MPI_Request> send_requests, recv_requests;
+         std::vector<MPI_Status> status(nranks);
+
+         // NOTE: This is CRITICAL, to ensure the addresses of these requests
+         // do not change between the send/recv and the wait.
+         send_requests.reserve(nranks);
+         recv_requests.reserve(nranks);
+
+         // Shared face communication is bidirectional -> any rank to whom
+         // orientations must be sent, will need to send orientations back. The
+         // orientation data is contiguous because std::array<int,6> is an
+         // aggregate. Loop over each communication pairing, and dispatch the
+         // buffer loaded with  all the orientation data.
+         for (const auto &kv : send_rank_to_face_neighbor_orientations)
+         {
+            send_requests.emplace_back(); // instantiate a request for tracking.
+
+            // low rank sends on low, high rank sends on high.
+            const int send_tag = (rank < kv.first)
+                                 ? std::min(rank, kv.first)
+                                 : std::max(rank, kv.first);
+            MPI_Isend(&kv.second[0][0], int(kv.second.size() * 6),
+                      MPI_INT, kv.first, send_tag, pmesh.MyComm, &send_requests.back());
+         }
+
+         // Loop over the communication pairing again, and receive the
+         // symmetric buffer from the other processor.
+         for (auto &kv : recv_rank_to_face_neighbor_orientations)
+         {
+            recv_requests.emplace_back(); // instantiate a request for tracking
+
+            // low rank receives on high, high rank receives on low.
+            const int recv_tag = (rank < kv.first)
+                                 ? std::max(rank, kv.first)
+                                 : std::min(rank, kv.first);
+            MPI_Irecv(&kv.second[0][0], int(kv.second.size() * 6),
+                      MPI_INT, kv.first, recv_tag, pmesh.MyComm, &recv_requests.back());
+         }
+
+         // Wait until all receive buffers are full before beginning to process.
+         MPI_Waitall(int(recv_requests.size()), recv_requests.data(), status.data());
+
+         pmesh.face_nbr_el_ori.reset(new Table(pmesh.face_nbr_elements.Size(), 6));
+         int elem = 0;
+         for (const auto &kv : recv_rank_to_face_neighbor_orientations)
+         {
+            // All elements associated to this face-neighbor rank
+            for (const auto &eo : kv.second)
+            {
+               std::copy(eo.begin(), eo.end(), pmesh.face_nbr_el_ori->GetRow(elem));
+               ++elem;
+            }
+         }
+         pmesh.face_nbr_el_ori->Finalize();
+
+         // Must wait for all send buffers to be released before the scope closes.
+         MPI_Waitall(int(send_requests.size()), send_requests.data(), status.data());
+      }
+   }
    // NOTE: this function skips ParMesh::send_face_nbr_vertices and
    // ParMesh::face_nbr_vertices_offset, these are not used outside of ParMesh
 }
@@ -1168,7 +1369,6 @@ void ParNCMesh::ClearAuxPM()
    }
    aux_pm_store.DeleteAll();
 }
-
 
 //// Prune, Refine, Derefine ///////////////////////////////////////////////////
 
@@ -1254,7 +1454,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
-      MFEM_VERIFY(ref.ref_type == 7 || Dim < 3,
+      MFEM_VERIFY(ref.GetType() == 7 || Dim < 3,
                   "anisotropic parallel refinement not supported yet in 3D.");
    }
    MFEM_VERIFY(Iso || Dim < 3,
@@ -1283,7 +1483,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       ElementNeighborProcessors(elem, ranks);
       for (int j = 0; j < ranks.Size(); j++)
       {
-         send_ref[ranks[j]].AddRefinement(elem, ref.ref_type);
+         send_ref[ranks[j]].AddRefinement(elem, ref.GetType());
       }
    }
 
@@ -1294,7 +1494,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
-      NCMesh::RefineElement(leaf_elements[ref.index], ref.ref_type);
+      NCMesh::RefineElement(leaf_elements[ref.index], ref.GetType());
    }
 
    // receive (ghost layer) refinements from all neighbors
@@ -1615,11 +1815,13 @@ void ParNCMesh::SynchronizeDerefinementData(Array<Type> &elem_data,
    }
 }
 
-// instantiate SynchronizeDerefinementData for int and double
+// instantiate SynchronizeDerefinementData for int, double, and float
 template void
 ParNCMesh::SynchronizeDerefinementData<int>(Array<int> &, const Table &);
 template void
 ParNCMesh::SynchronizeDerefinementData<double>(Array<double> &, const Table &);
+template void
+ParNCMesh::SynchronizeDerefinementData<float>(Array<float> &, const Table &);
 
 
 void ParNCMesh::CheckDerefinementNCLevel(const Table &deref_table,
@@ -1800,10 +2002,9 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
    NeighborElementRankMessage::RecvAll(recv_ghost_ranks, MyComm);
 
    // read new ranks for the ghost layer from messages received
-   NeighborElementRankMessage::Map::iterator it;
-   for (it = recv_ghost_ranks.begin(); it != recv_ghost_ranks.end(); ++it)
+   for (auto &kv : recv_ghost_ranks)
    {
-      NeighborElementRankMessage &msg = it->second;
+      NeighborElementRankMessage &msg = kv.second;
       for (int i = 0; i < msg.Size(); i++)
       {
          int ghost_index = elements[msg.elements[i]].index;
@@ -2033,7 +2234,7 @@ void ParNCMesh::SendRebalanceDofs(int old_ndofs,
    {
       RebalanceDofMessage &msg = it->second;
       msg.dofs.clear();
-      int ne = msg.elem_ids.size();
+      int ne = static_cast<int>(msg.elem_ids.size());
       if (ne)
       {
          msg.dofs.reserve(old_element_dofs.RowSize(msg.elem_ids[0]) * ne * vdim);
@@ -2063,8 +2264,8 @@ void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs)
    for (it = recv_rebalance_dofs.begin(); it != recv_rebalance_dofs.end(); ++it)
    {
       RebalanceDofMessage &msg = it->second;
-      ne += msg.elem_ids.size();
-      nd += msg.dofs.size();
+      ne += static_cast<int>(msg.elem_ids.size());
+      nd += static_cast<int>(msg.dofs.size());
    }
 
    elements.SetSize(ne);
@@ -2282,7 +2483,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
    if (!shared_edges.masters.Size() &&
        !shared_faces.masters.Size()) { return; }
 
-   Array<bool> contains_rank(groups.size());
+   Array<bool> contains_rank(static_cast<int>(groups.size()));
    for (unsigned i = 0; i < groups.size(); i++)
    {
       contains_rank[i] = GroupContains(i, rank);
@@ -2330,9 +2531,8 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
 
    // find vertices/edges of master faces shared with 'rank', and modify their
    // MeshIds so their element/local matches the element of the master face
-   for (int i = 0; i < shared_faces.masters.Size(); i++)
+   for (const MeshId &face_id : shared_faces.masters)
    {
-      const MeshId &face_id = shared_faces.masters[i];
       if (contains_rank[entity_pmat_group[2][face_id.index]])
       {
          int v[4], e[4], eo[4], pos, k;
@@ -2598,7 +2798,7 @@ void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode(int)
    std::ostringstream ostream;
 
    Array<int> tmp_elements;
-   tmp_elements.MakeRef(elements.data(), elements.size());
+   tmp_elements.MakeRef(elements.data(), static_cast<int>(elements.size()));
 
    ElementSet eset(pncmesh, RefTypes);
    eset.Encode(tmp_elements);
@@ -2615,7 +2815,7 @@ void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode(int)
       element_index[decoded[i]] = i;
    }
 
-   write<int>(ostream, values.size());
+   write<int>(ostream, static_cast<int>(values.size()));
    MFEM_ASSERT(elements.size() == values.size(), "");
 
    for (unsigned i = 0; i < values.size(); i++)
@@ -2673,7 +2873,7 @@ void ParNCMesh::RebalanceDofMessage::SetElements(const Array<int> &elems,
 
 static void write_dofs(std::ostream &os, const std::vector<int> &dofs)
 {
-   write<int>(os, dofs.size());
+   write<int>(os, static_cast<int>(dofs.size()));
    // TODO: we should compress the ints, mostly they are contiguous ranges
    os.write((const char*) dofs.data(), dofs.size() * sizeof(int));
 }

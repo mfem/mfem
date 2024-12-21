@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,13 +39,10 @@ public:
    Triangle(int ind1, int ind2, int ind3, int attr = 1);
 
    /// Return element's type.
-   virtual Type GetType() const { return Element::TRIANGLE; }
+   Type GetType() const override { return Element::TRIANGLE; }
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const;
-
-   /// Set the vertices according to the given input.
-   virtual void SetVertices(const int *ind);
+   int NeedRefinement(HashTable<Hashed2> &v_to_v) const override;
 
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
@@ -55,46 +52,54 @@ public:
    static void MarkEdge(int *indices, const DSTable &v_to_v, const int *length);
 
    /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(const DSTable &v_to_v, const int *length)
+   void MarkEdge(const DSTable &v_to_v, const int *length) override
    { MarkEdge(indices, v_to_v, length); }
 
-   virtual void ResetTransform(int tr) { transform = tr; }
-   virtual unsigned GetTransform() const { return transform; }
+   void ResetTransform(int tr) override { transform = tr; }
+   unsigned GetTransform() const override { return transform; }
 
    /// Add 'tr' to the current chain of coarse-fine transformations.
-   virtual void PushTransform(int tr)
+   void PushTransform(int tr) override
    { transform = (transform << 3) | (tr + 1); }
 
    /// Calculate point matrix corresponding to a chain of transformations.
    static void GetPointMatrix(unsigned transform, DenseMatrix &pm);
 
-   /// Returns the indices of the element's  vertices.
-   virtual void GetVertices(Array<int> &v) const;
+   /// Get the indices defining the vertices.
+   void GetVertices(Array<int> &v) const override;
 
-   virtual int *GetVertices() { return indices; }
+   /// Set the indices defining the vertices.
+   void SetVertices(const Array<int> &v) override;
 
-   virtual int GetNVertices() const { return 3; }
+   /// @note The returned array should NOT be deleted by the caller.
+   int * GetVertices () override { return indices; }
 
-   virtual int GetNEdges() const { return (3); }
+   /// Set the indices defining the vertices.
+   void SetVertices(const int *ind) override;
 
-   virtual const int *GetEdgeVertices(int ei) const
+
+   int GetNVertices() const override { return 3; }
+
+   int GetNEdges() const override { return (3); }
+
+   const int *GetEdgeVertices(int ei) const override
    { return geom_t::Edges[ei]; }
 
    /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const
+   MFEM_DEPRECATED int GetNFaces(int &nFaceVertices) const override
    { nFaceVertices = 0; return 0; }
 
-   virtual int GetNFaces() const { return 0; }
+   int GetNFaces() const override { return 0; }
 
-   virtual int GetNFaceVertices(int) const { return 0; }
+   int GetNFaceVertices(int) const override { return 0; }
 
-   virtual const int *GetFaceVertices(int fi) const
+   const int *GetFaceVertices(int fi) const override
    { MFEM_ABORT("not implemented"); return NULL; }
 
-   virtual Element *Duplicate(Mesh *m) const
+   Element *Duplicate(Mesh *m) const override
    { return new Triangle(indices, attribute); }
 
-   virtual ~Triangle() { }
+   virtual ~Triangle() = default;
 };
 
 // Defined in fe.cpp to ensure construction before 'mfem::Geometries'.

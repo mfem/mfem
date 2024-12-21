@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,11 +13,11 @@
 //
 // Compile with: make seq_example
 //
-// Sample runs:  seq_example -m ../data/beam-quad.mesh -pp 3.5
-//               seq_example -m ../data/beam-tri.mesh  -pp 4.6
-//               seq_example -m ../data/beam-hex.mesh
-//               seq_example -m ../data/beam-tet.mesh
-//               seq_example -m ../data/beam-wedge.mesh
+// Sample runs:  seq_example -m ../../data/beam-quad.mesh -pp 3.5
+//               seq_example -m ../../data/beam-tri.mesh  -pp 4.6
+//               seq_example -m ../../data/beam-hex.mesh
+//               seq_example -m ../../data/beam-tet.mesh
+//               seq_example -m ../../data/beam-wedge.mesh
 //
 // Description:  This examples solves a quasi-static nonlinear p-Laplacian
 //               problem with zero Dirichlet boundary conditions applied on all
@@ -50,9 +50,9 @@ public:
    /// Constructor Input: imesh - FE mesh, finite element space, power for the
    /// p-Laplacian, external load (source, input), regularization parameter
    NLSolverPLaplacian(Mesh& imesh, FiniteElementSpace& ifespace,
-                      double powerp=2,
+                      real_t powerp=2,
                       Coefficient* load=nullptr,
-                      double regularizationp=1e-7)
+                      real_t regularizationp=1e-7)
    {
       // default parameters for the Newton solver
       newton_rtol = 1e-4;
@@ -117,13 +117,13 @@ public:
 
 
    // set relative tolerance for the Newton solver
-   void SetNRRTol(double rtol)
+   void SetNRRTol(real_t rtol)
    {
       newton_rtol=rtol;
    }
 
    // set absolute tolerance for the Newton solver
-   void SetNRATol(double atol)
+   void SetNRATol(real_t atol)
    {
       newton_atol=atol;
    }
@@ -134,12 +134,12 @@ public:
       newton_iter=miter;
    }
 
-   void SetLSRTol(double rtol)
+   void SetLSRTol(real_t rtol)
    {
       linear_rtol=rtol;
    }
 
-   void SetLSATol(double atol)
+   void SetLSATol(real_t atol)
    {
       linear_atol=atol;
    }
@@ -169,7 +169,7 @@ public:
    }
 
    /// Compute the energy
-   double GetEnergy(Vector& statev)
+   real_t GetEnergy(Vector& statev)
    {
       if (nlform==nullptr)
       {
@@ -256,12 +256,12 @@ private:
       nsolver->SetMaxIter(newton_iter);
    }
 
-   double newton_rtol;
-   double newton_atol;
+   real_t newton_rtol;
+   real_t newton_atol;
    int newton_iter;
 
-   double linear_rtol;
-   double linear_atol;
+   real_t linear_rtol;
+   real_t linear_atol;
    int linear_iter;
 
    int print_level;
@@ -295,12 +295,12 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 3;
    int order = 1;
    bool visualization = true;
-   double newton_rel_tol = 1e-4;
-   double newton_abs_tol = 1e-6;
+   real_t newton_rel_tol = 1e-4;
+   real_t newton_abs_tol = 1e-6;
    int newton_iter = 10;
    int print_level = 0;
 
-   double pp = 2.0; // p-Laplacian power
+   real_t pp = 2.0; // p-Laplacian power
 
    IntegratorType integrator = IntegratorType::ADHessianIntegrator;
    int int_integrator = integrator;
@@ -405,7 +405,7 @@ int main(int argc, char *argv[])
    std::cout << "[pp=2] The solution time is: " << timer->RealTime()
              << std::endl;
    // Compute the energy
-   double energy = nr->GetEnergy(sv);
+   real_t energy = nr->GetEnergy(sv);
    std::cout << "[pp=2] The total energy of the system is E=" << energy
              << std::endl;
    delete nr;
@@ -418,7 +418,7 @@ int main(int argc, char *argv[])
    // 11. Continue with powers higher than 2
    for (int i = 3; i < pp; i++)
    {
-      nr=new NLSolverPLaplacian(*mesh, fespace, (double)i, &load);
+      nr=new NLSolverPLaplacian(*mesh, fespace, (real_t)i, &load);
       nr->SetIntegrator(integrator);
       nr->SetMaxNRIter(newton_iter);
       nr->SetNRATol(newton_abs_tol);
@@ -440,7 +440,7 @@ int main(int argc, char *argv[])
    }
 
    // 12. Continue with the final power
-   if (std::abs(pp - 2.0) > std::numeric_limits<double>::epsilon())
+   if (std::abs(pp - 2.0) > std::numeric_limits<real_t>::epsilon())
    {
       nr=new NLSolverPLaplacian(*mesh, fespace, pp, &load);
       nr->SetIntegrator(integrator);

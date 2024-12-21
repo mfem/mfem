@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -294,14 +294,14 @@ public:
                                 nelem, nqpts, ncomp, strides,
                                 &quadCoeff->restr);
          CeedOperatorSetField(build_oper, "coeff", quadCoeff->restr,
-                              CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
+                              CEED_BASIS_NONE, quadCoeff->coeffVector);
       }
       CeedOperatorSetField(build_oper, "dx", mesh_restr,
                            mesh_basis, CEED_VECTOR_ACTIVE);
       CeedOperatorSetField(build_oper, "weights", CEED_ELEMRESTRICTION_NONE,
                            mesh_basis, CEED_VECTOR_NONE);
       CeedOperatorSetField(build_oper, "qdata", restr_i,
-                           CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+                           CEED_BASIS_NONE, CEED_VECTOR_ACTIVE);
 
       // Compute the quadrature data for the operator.
       CeedOperatorApply(build_oper, node_coords, qdata, CEED_REQUEST_IMMEDIATE);
@@ -355,7 +355,7 @@ public:
       {
          case EvalMode::None:
             CeedOperatorSetField(oper, "u", trial_restr,
-                                 CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+                                 CEED_BASIS_NONE, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
             CeedOperatorSetField(oper, "u", trial_restr, trial_basis, CEED_VECTOR_ACTIVE);
@@ -369,14 +369,14 @@ public:
             break;
       }
       // qdata
-      CeedOperatorSetField(oper, "qdata", restr_i, CEED_BASIS_COLLOCATED,
+      CeedOperatorSetField(oper, "qdata", restr_i, CEED_BASIS_NONE,
                            qdata);
       // output
       switch (op.test_op)
       {
          case EvalMode::None:
             CeedOperatorSetField(oper, "v", test_restr,
-                                 CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+                                 CEED_BASIS_NONE, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
             CeedOperatorSetField(oper, "v", test_restr, test_basis, CEED_VECTOR_ACTIVE);
@@ -685,14 +685,14 @@ public:
                                 nelem, nqpts, ncomp, strides,
                                 &quadCoeff->restr);
          CeedOperatorSetField(oper, "coeff", quadCoeff->restr,
-                              CEED_BASIS_COLLOCATED, quadCoeff->coeffVector);
+                              CEED_BASIS_NONE, quadCoeff->coeffVector);
       }
       // input
       switch (op.trial_op)
       {
          case EvalMode::None:
             CeedOperatorSetField(oper, "u", trial_restr,
-                                 CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+                                 CEED_BASIS_NONE, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
             CeedOperatorSetField(oper, "u", trial_restr, trial_basis,
@@ -718,7 +718,7 @@ public:
       {
          case EvalMode::None:
             CeedOperatorSetField(oper, "v", test_restr,
-                                 CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+                                 CEED_BASIS_NONE, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
             CeedOperatorSetField(oper, "v", test_restr, test_basis,

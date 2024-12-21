@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -130,7 +130,7 @@ public:
    // compute the Nedelec DoFs of the irrotational portion, 'y', of
    // this vector field.  The resulting GridFunction will satisfy Curl y = 0
    // to machine precision.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    void Update();
 
@@ -179,7 +179,7 @@ public:
    // compute the Nedelec DoFs of the divergence free portion, 'y', of
    // this vector field.  The resulting vector will satisfy Div y = 0
    // in a weak sense.
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    void Update();
 };

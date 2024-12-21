@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,9 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-using namespace mfem;
-
 #include "unit_tests.hpp"
+
+using namespace mfem;
 
 #ifdef MFEM_USE_FMS
 TEST_CASE("Load FMS datacollection", "[FMS]")

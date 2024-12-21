@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,7 +22,7 @@ TEST_CASE("Tetrahedron Reordering")
    typedef Geometry::Constants<Geometry::TETRAHEDRON> g_const;
 
    int p = 7;
-   double tol = 1e-6;
+   real_t tol = 1e-6;
 
    SECTION("Geometry order " + std::to_string(p))
    {
@@ -37,7 +37,7 @@ TEST_CASE("Tetrahedron Reordering")
             {
                Mesh mesh(3, 4, 1);
 
-               double c[3];
+               real_t c[3];
                c[0] = 0.0; c[1] = 0.0; c[2] = 3.0;
                mesh.AddVertex(c);
                c[0] = 0.0; c[1] = 2.0; c[2] = 0.0;
@@ -52,11 +52,11 @@ TEST_CASE("Tetrahedron Reordering")
                mesh.FinalizeMesh(0, false);
 
                mesh.SetCurvature(p, nd, 3, no);
-               double vol0 = mesh.GetElementVolume(0);
+               real_t vol0 = mesh.GetElementVolume(0);
                REQUIRE(fabs(vol0 - 1.0 + 2.0 * (o % 2)) < tol);
 
                mesh.Finalize(true, true);
-               double vol1 = mesh.GetElementVolume(0);
+               real_t vol1 = mesh.GetElementVolume(0);
                REQUIRE(fabs(vol1 - 1.0) < tol);
             }
          }

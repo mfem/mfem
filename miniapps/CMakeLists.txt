@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -26,11 +26,14 @@ add_subdirectory(tools)
 add_subdirectory(toys)
 add_subdirectory(nurbs)
 add_subdirectory(gslib)
+add_subdirectory(spde)
 add_subdirectory(solvers)
 add_subdirectory(shifted)
 add_subdirectory(mtop)
 add_subdirectory(multidomain)
 add_subdirectory(autodiff)
 add_subdirectory(parelag)
+add_subdirectory(tribol)
 add_subdirectory(hooke)
 add_subdirectory(dpg)
+add_subdirectory(hdiv-linear-solver)

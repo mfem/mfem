@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,152 +16,282 @@
 
 #ifdef MFEM_USE_SUPERLU
 #ifdef MFEM_USE_MPI
+
 #include "operator.hpp"
 #include "hypre.hpp"
-
 #include <mpi.h>
 
 namespace mfem
 {
 
-namespace superlu_internal
-{
-unsigned int sqrti(const unsigned int & a);
-}
-
 namespace superlu
 {
-// Copy selected enumerations from SuperLU
+
+// Copy selected enumerations from SuperLU (from superlu_enum_consts.h)
 #ifdef MFEM_USE_SUPERLU5
-typedef enum {NOROWPERM, LargeDiag, MY_PERMR}                       RowPerm;
+typedef enum
+{
+   NOROWPERM,
+   LargeDiag,
+   MY_PERMR
+} RowPerm;
 #else
-typedef enum {NOROWPERM, LargeDiag_MC64, LargeDiag_HWPM, MY_PERMR}  RowPerm;
+/// Define the type of row permutation
+typedef enum
+{
+   /// No row permutation
+   NOROWPERM,
+   /** @brief Duff/Koster algorithm to make the diagonals large compared to the
+       off-diagonals. Use LargeDiag for SuperLU version 5 and below. */
+   LargeDiag_MC64,
+   /** @brief Parallel approximate weight perfect matching to make the diagonals
+       large compared to the off-diagonals.  Option doesn't exist in SuperLU
+       version 5 and below. */
+   LargeDiag_HWPM,
+   /// User defined row permutation
+   MY_PERMR
+} RowPerm;
 #endif
-typedef enum {NATURAL, MMD_ATA, MMD_AT_PLUS_A, COLAMD,
-              METIS_AT_PLUS_A, PARMETIS, ZOLTAN, MY_PERMC
-             }          ColPerm;
-typedef enum {NOTRANS, TRANS, CONJ}                                 Trans;
-typedef enum {NOREFINE, SLU_SINGLE=1, SLU_DOUBLE, SLU_EXTRA}        IterRefine;
-}
+
+/// Define the type of column permutation
+typedef enum
+{
+   /// Natural ordering
+   NATURAL,
+   /// Minimum degree ordering on structure of $ A^T*A $
+   MMD_ATA,
+   /// Minimum degree ordering on structure of $ A^T+A $
+   MMD_AT_PLUS_A,
+   /// Approximate minimum degree column ordering
+   COLAMD,
+   /// Sequential ordering on structure of $ A^T+A $ using the METIS package
+   METIS_AT_PLUS_A,
+   /** @brief Sequential ordering on structure of $ A^T+A $ using the
+       PARMETIS package */
+   PARMETIS,
+   /// Use the Zoltan library from Sandia to define the column ordering
+   ZOLTAN,
+   /// User defined column permutation
+   MY_PERMC
+} ColPerm;
+
+/// Define how to do iterative refinement
+typedef enum
+{
+   /// No interative refinement
+   NOREFINE,
+   /// Iterative refinement accumulating residuals in a float.
+   SLU_SINGLE=1,
+   /// Iterative refinement accumulating residuals in a double.
+   SLU_DOUBLE,
+   /// Iterative refinement accumulating residuals in a higher precision variable.
+   SLU_EXTRA
+} IterRefine;
+
+/** @brief Define the information that is provided about the matrix
+    factorization ahead of time. */
+typedef enum
+{
+   /// No information is provided, do the full factorization.
+   DOFACT,
+   /** @brief Matrix A will be factored assuming the sparsity is the same as a
+       previous factorization.  Column permutations will be reused. */
+   SamePattern,
+   /** @brief Matrix A will be factored assuming the sparsity is the same and
+       the matrix as a previous are similar as a previous factorization.  Column
+       permutations and row permutations will be reused. */
+   SamePattern_SameRowPerm,
+   /** @brief The matrix A was provided in fully factored form and no
+       factorization is needed. */
+   FACTORED
+} Fact;
+
+} // namespace superlu
 
 class SuperLURowLocMatrix : public Operator
 {
 public:
-   /** Creates a general parallel matrix from a local CSR matrix on each
+   /** @brief Creates a general parallel matrix from a local CSR matrix on each
        processor described by the I, J and data arrays. The local matrix should
        be of size (local) nrows by (global) glob_ncols. The new parallel matrix
        contains copies of all input arrays (so they can be deleted). */
    SuperLURowLocMatrix(MPI_Comm comm,
-                       int num_loc_rows, int first_loc_row,
-                       int glob_nrows, int glob_ncols,
-                       int *I, int *J, double *data);
+                       int num_loc_rows, HYPRE_BigInt first_loc_row,
+                       HYPRE_BigInt glob_nrows, HYPRE_BigInt glob_ncols,
+                       int *I, HYPRE_BigInt *J, double *data);
 
-   /** Creates a copy of the parallel matrix hypParMat in SuperLU's RowLoc
-       format. All data is copied so the original matrix may be deleted. */
-   SuperLURowLocMatrix(const HypreParMatrix & hypParMat);
+   /** @brief Creates a copy of the parallel matrix hypParMat in SuperLU's
+       RowLoc format. All data is copied so the original matrix may be
+       deleted. */
+   SuperLURowLocMatrix(const Operator &op);
 
    ~SuperLURowLocMatrix();
 
+   /// Matrix Vector products are not supported for this type of matrix
    void Mult(const Vector &x, Vector &y) const
    {
-      mfem_error("SuperLURowLocMatrix::Mult(...)\n"
-                 "  matrix vector products are not supported.");
+      MFEM_ABORT("SuperLURowLocMatrix::Mult: Matrix vector products are not "
+                 "supported!");
    }
 
+   void *InternalData() const { return rowLocPtr_; }
+
+   /// Get the MPI communicator for this matrix
    MPI_Comm GetComm() const { return comm_; }
 
-   void * InternalData() const { return rowLocPtr_; }
+   /// Get the number of global rows in this matrix
+   HYPRE_BigInt GetGlobalNumRows() const { return num_global_rows_; }
 
-   HYPRE_BigInt GetGlobalNumColumns() const { return num_global_cols; }
+   /// Get the number of global columns in this matrix
+   HYPRE_BigInt GetGlobalNumColumns() const { return num_global_cols_; }
 
 private:
-   MPI_Comm   comm_;
-   void     * rowLocPtr_;
-   HYPRE_BigInt num_global_cols;
+   MPI_Comm     comm_;
+   void        *rowLocPtr_;
+   HYPRE_BigInt num_global_rows_, num_global_cols_;
+};
 
-}; // mfem::SuperLURowLocMatrix
-
-/** The MFEM SuperLU Direct Solver class.
+/** The MFEM wrapper around the SuperLU Direct Solver class.
 
     The mfem::SuperLUSolver class uses the SuperLU_DIST library to perform LU
     factorization of a parallel sparse matrix. The solver is capable of handling
     double precision types. It is currently maintained by Xiaoye Sherry Li at
     NERSC, see http://crd-legacy.lbl.gov/~xiaoye/SuperLU/.
 */
-class SuperLUSolver : public mfem::Solver
+class SuperLUSolver : public Solver
 {
 public:
-   // Constructor with MPI_Comm parameter.
-   SuperLUSolver( MPI_Comm comm );
+   /** @brief Constructor with MPI_Comm parameter.
 
-   // Constructor with SuperLU Matrix Object.
-   SuperLUSolver( SuperLURowLocMatrix & A);
+       @a npdep is the replication factor for the matrix
+       data and must be a power of 2 and divide evenly
+       into the number of processors. */
+   SuperLUSolver(MPI_Comm comm, int npdep = 1);
 
-   // Default destructor.
-   ~SuperLUSolver( void );
+   /** @brief Constructor with SuperLU matrix object.
 
-   // Allocate and deallocate the MPI communicators. This routine is called
-   // internally by SetOperator().
-   void SetupGrid();
-   // This routing must be called after the solve, but before destruction.
-   void DismantleGrid();
+       @a npdep is the replication factor for the matrix
+       data and must be a power of 2 and divide evenly
+       into the number of processors. */
+   SuperLUSolver(SuperLURowLocMatrix &A, int npdep = 1);
 
-   // Factor and solve the linear system y = Op^{-1} x.
-   void Mult( const Vector & x, Vector & y ) const;
+   /// Default destructor.
+   ~SuperLUSolver();
 
-   // Set the operator.
-   void SetOperator( const Operator & op );
+   /** @brief Set the operator/matrix.
+       @note  @a A must be a SuperLURowLocMatrix. */
+   void SetOperator(const Operator &op);
 
-   // Set various solver options. Refer to SuperLU documentation for details.
-   void SetPrintStatistics  ( bool              print_stat );
-   void SetEquilibriate     ( bool                   equil );
-   void SetColumnPermutation( superlu::ColPerm    col_perm );
-   void SetRowPermutation   ( superlu::RowPerm    row_perm,
-                              Array<int> *     perm = NULL );
-   void SetTranspose        ( superlu::Trans         trans );
-   void SetIterativeRefine  ( superlu::IterRefine iter_ref );
-   void SetReplaceTinyPivot ( bool                     rtp );
-   void SetNumLookAheads    ( int           num_lookaheads );
-   void SetLookAheadElimTree( bool                   etree );
-   void SetSymmetricPattern ( bool                     sym );
-   void SetParSymbFact      ( bool                     par );
+   /** @brief Factor and solve the linear system $ y = Op^{-1} x $
+       @note Factorization modifies the operator matrix. */
+   void Mult(const Vector &x, Vector &y) const;
+
+   /** @brief Factor and solve the linear systems $ y_i = Op^{-1} x_i $
+       for all i in the @a X and @a Y arrays.
+       @note Factorization modifies the operator matrix. */
+   void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
+
+   /** @brief Factor and solve the transposed linear system
+       $ y = Op^{-T} x $
+       @note Factorization modifies the operator matrix. */
+   void MultTranspose(const Vector &x, Vector &y) const;
+
+   /** @brief Factor and solve the transposed linear systems
+       $ y_i = Op^{-T} x_i $ for all i in the @a X and @a Y arrays.
+       @note Factorization modifies the operator matrix. */
+   void ArrayMultTranspose(const Array<const Vector *> &X,
+                           Array<Vector *> &Y) const;
+
+   /// Specify whether to print the solver statistics (default true)
+   void SetPrintStatistics(bool print_stat);
+
+   /** @brief Specify whether to equibrate the system scaling to make
+      the rows and columns have unit norms.  (default true) */
+   void SetEquilibriate(bool equil);
+
+   /** @brief Specify how to permute the columns of the matrix.
+
+      Supported options are:
+      superlu::NATURAL, superlu::MMD_ATA, superlu::MMD_AT_PLUS_A,
+      superlu::COLAMD, superlu::METIS_AT_PLUS_A (default),
+      superlu::PARMETIS, superlu::ZOLTAN, superlu::MY_PERMC */
+   void SetColumnPermutation(superlu::ColPerm col_perm);
+
+   /** @brief Specify how to permute the rows of the matrix.
+
+      Supported options are:
+      superlu::NOROWPERM, superlu::LargeDiag (default), superlu::MY_PERMR for
+      SuperLU version 5.  For later versions the supported options are:
+      superlu::NOROWPERM, superlu::LargeDiag_MC64 (default),
+      superlu::LargeDiag_HWPM, superlu::MY_PERMR */
+   void SetRowPermutation(superlu::RowPerm row_perm);
+
+   /** @brief Specify how to handle iterative refinement
+
+      Supported options are:
+      superlu::NOREFINE, superlu::SLU_SINGLE,
+      superlu::SLU_DOUBLE (default), superlu::SLU_EXTRA */
+   void SetIterativeRefine(superlu::IterRefine iter_ref);
+
+   /** @brief Specify whether to replace tiny diagonals encountered
+       during pivot with $ \sqrt{\epsilon} \lVert A \rVert $
+       (default false) */
+   void SetReplaceTinyPivot(bool rtp);
+
+   /// Specify the number of levels in the look-ahead factorization (default 10)
+   void SetNumLookAheads(int num_lookaheads);
+
+   /** @brief Specifies whether to use the elimination tree computed from the
+       serial symbolic factorization to perform static scheduling
+       (default false) */
+   void SetLookAheadElimTree(bool etree);
+
+   /** @brief Specify whether the matrix has a symmetric pattern to avoid extra
+       work (default false) */
+   void SetSymmetricPattern(bool sym);
+
+   /** @brief Specify whether to perform parallel symbolic factorization.
+       @note If true SuperLU will use superlu::PARMETIS for the Column
+       Permutation regardless of the setting */
+   void SetParSymbFact(bool par);
+
+   /** @brief Specify what information has been provided ahead of time about the
+       factorization of A.
+
+       Supported options are:
+       superlu::DOFACT, superlu::SamePattern, superlu::SamePattern_SameRowPerm,
+       superlu::FACTORED*/
+   void SetFact(superlu::Fact fact);
+
+   // Processor grid for SuperLU_DIST.
+   const int nprow_, npcol_, npdep_;
 
 private:
-   void Init();
+   // Initialize the solver.
+   void Init(MPI_Comm comm);
+
+   // Handle error message from call to SuperLU solver.
+   void HandleError(int info) const;
 
 protected:
+   const SuperLURowLocMatrix *APtr_;
+   mutable Vector             sol_;
+   mutable int                nrhs_;
 
-   MPI_Comm      comm_;
-   int           numProcs_;
-   int           myid_;
+   /** The actual types of the following pointers are hidden to avoid exposing
+       the SuperLU header files to the entire library. Their types are given in
+       the trailing comments. The reason that this is necessary is that SuperLU
+       defines these structs differently for use with its real and complex
+       solvers. If we want to add support for SuperLU's complex solvers one day
+       we will need to hide these types to avoid name conflicts. */
+   void *optionsPtr_;          // superlu_options_t *
+   void *ScalePermstructPtr_;  //  ScalePermsruct_t *
+   void *LUstructPtr_;         //        LUstruct_t *
+   void *SOLVEstructPtr_;      //     SOLVEstruct_t *
+   void *gridPtr_;             //        gridinfo_t * or gridinfo3d_t *
+};
 
-   const SuperLURowLocMatrix * APtr_;
-
-   // The actual types of the following pointers are hidden to avoid exposing
-   // the SuperLU header files to the entire library. Their types are given in
-   // the trailing comments. The reason that this is necessary is that SuperLU
-   // defines these structs differently for use with its real and complex
-   // solvers. If we want to add support for SuperLU's complex solvers one day
-   // we will need to hide these types to avoid name conflicts.
-   void*         optionsPtr_;         // superlu_options_t *
-   void*         statPtr_;            //     SuperLUStat_t *
-   void*         ScalePermstructPtr_; //  ScalePermsruct_t *
-   void*         LUstructPtr_;        //        LUstruct_t *
-   void*         SOLVEstructPtr_;     //     SOLVEstruct_t *
-   void*         gridPtr_;            //        gridinfo_t *
-
-   double*       berr_;
-   mutable int*  perm_r_;
-   int           nrhs_;
-   int           nprow_;
-   int           npcol_;
-   mutable bool  firstSolveWithThisA_;
-   bool          gridInitialized_;
-   mutable bool  LUStructInitialized_;
-
-}; // mfem::SuperLUSolver class
-
-} // mfem namespace
+} // namespace mfem
 
 #endif // MFEM_USE_MPI
 #endif // MFEM_USE_SUPERLU
