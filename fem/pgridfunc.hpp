@@ -302,10 +302,11 @@ public:
    {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-      real_t err = GlobalLpNorm(1.0, GridFunction::ComputeL1Error(exsol, irs),
-                                pfes->GetComm());
+      real_t glb_err = GlobalLpNorm(1.0,
+                                    GridFunction::ComputeL1Error(exsol, irs),
+                                    pfes->GetComm());
 #pragma GCC diagnostic pop
-      return err;
+      return glb_err;
    }
 
    /// @brief Returns ||u_ex - u_h||_L1 in parallel for scalar fields
