@@ -977,7 +977,7 @@ public:
    /// Compute the Lp error in each element of the mesh and store the results in
    /// the Vector @a error. The result should be of length number of elements,
    /// for example an L2 GridFunction of order zero using map type @ref
-   /// FiniteElement::MapType::VALUE "VALUE".
+   /// mfem::FiniteElement::MapType::VALUE "VALUE".
    ///
    /// Computes:
    ///    $$(\int_{elem} w \, |u_{ex} - u_h|^p)^{1/p}$$
