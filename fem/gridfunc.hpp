@@ -502,7 +502,7 @@ public:
 
    /// @brief Returns ||exsol - u_h||_L2 for scalar or vector H1 or L2 elements
    ///
-   /// @param [in] exsol  Pointer to an array of scalar Coefficient objects,
+   /// @param[in] exsol   Pointer to an array of scalar Coefficient objects,
    ///                    one for each component of the vector field.
    /// @param[in] irs     Optional pointer to a custom integration rule
    ///                    e.g. higher order than the default rule.
@@ -642,7 +642,7 @@ public:
    /// @brief Returns the Face Jumps error for L2 elements.
    ///
    /// Computes:
-   ///   $$\sqrt{\sum_{faces}\int_f js[f] ell[f]
+   ///   $$\sqrt{\sum_{f\in faces}\int_f js(f) ell(f)
    ///                                   (2 u_{ex} - u_1 - u_2)^2}$$
    ///
    /// Where js[f] is the jump_scaling evaluated on the face f and ell is the
@@ -677,6 +677,12 @@ public:
    ///       function uses the absolute values of the element-wise integrals.
    ///       This may lead to results which are not entirely consistent with
    ///       such integration rules.
+   ///
+   /// @deprecated See @ref ComputeDGFaceJumpError(Coefficient *exsol,
+   ///                                      Coefficient *ell_coeff,
+   ///                                      class JumpScaling jump_scaling,
+   ///                                      const IntegrationRule *irs[]) const
+   ///             for the preferred implementation.
    MFEM_DEPRECATED
    real_t ComputeDGFaceJumpError(Coefficient *exsol,
                                  Coefficient *ell_coeff,
@@ -693,48 +699,244 @@ public:
                                  Coefficient *ell_coef, real_t Nu,
                                  int norm_type) const;
 
-   /// Returns the error measured in H1-norm for H1 elements or in "broken"
-   /// H1-norm for L2 elements
+   /// @brief Returns the error measured in H1-norm for H1 or L2 elements
+   ///
+   /// Computes the norm using the $L^2$ norms of the function and its gradient
+   ///    $$\sqrt{norm\_u^2 + norm\_du^2}$$
+   /// Where
+   ///    $$norm\_u = \|u_{ex} - u_h\|_{L^2}$$
+   /// and
+   ///    $$norm\_du = \|du_{ex} - \nabla u_h\|_{L^2}$$
+   ///
+   /// @param[in] exsol   Coefficient object reproducing the anticipated values
+   ///                    of the scalar field, u_ex.
+   /// @param[in] exgrad  VectorCoefficient object reproducing the anticipated
+   ///                    values of the gradient of the scalar field, du_ex.
+   /// @param[in] irs     Optional pointer to a custom integration rule
+   ///                    e.g. higher order than the default rule.
+   ///
+   /// @note For L2 elements this returns what could be called a "broken"
+   ///       H1-norm.
    virtual real_t ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns the error measured in H(div)-norm for RT elements
+   /// @brief Returns the error measured in H(div)-norm for RT elements
+   ///
+   /// Computes the norm using the $L^2$ norms of the function and its
+   /// divergence
+   ///    $$\sqrt{norm\_u^2 + norm\_du^2}$$
+   /// Where
+   ///    $$norm\_u = \|u_{ex} - u_h\|_{L^2}$$
+   /// and
+   ///    $$norm\_du = \|du_{ex} - \nabla\cdot u_h\|_{L^2}$$
+   ///
+   /// @param[in] exsol  VectorCoefficient object reproducing the anticipated
+   ///                   values of the vector field, u_ex.
+   /// @param[in] exdiv  VectorCoefficient object reproducing the anticipated
+   ///                   values of the divergence of the vector field, du_ex.
+   /// @param[in] irs    Optional pointer to a custom integration rule
+   ///                   e.g. higher order than the default rule.
    virtual real_t ComputeHDivError(VectorCoefficient *exsol,
                                    Coefficient *exdiv,
                                    const IntegrationRule *irs[] = NULL) const;
 
-   /// Returns the error measured in H(curl)-norm for ND elements
+   /// @brief Returns the error measured in H(curl)-norm for ND elements
+   ///
+   /// Computes the norm using the $L^2$ norms of the function and its curl
+   ///    $$\sqrt{norm\_u^2 + norm\_du^2}$$
+   /// Where
+   ///    $$norm\_u = \|u_{ex} - u_h\|_{L^2}$$
+   /// and
+   ///    $$norm\_du = \|du_{ex} - \nabla\times u_h\|_{L^2}$$
+   ///
+   /// @param[in] exsol   VectorCoefficient object reproducing the anticipated
+   ///                    values of the vector field, u_ex.
+   /// @param[in] excurl  VectorCoefficient object reproducing the anticipated
+   ///                    values of the curl of the vector field, du_ex.
+   /// @param[in] irs     Optional pointer to a custom integration rule
+   ///                    e.g. higher order than the default rule.
    virtual real_t ComputeHCurlError(VectorCoefficient *exsol,
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const;
 
+   /// @brief Returns Max|u_ex - u_h| error for H1 or L2 elements
+   ///
+   /// Compute the $L^\infty$ error across the entire domain.
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
    virtual real_t ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
+   /// @brief Returns Max|u_ex - u_h| error for scalar or vector fields
+   ///
+   /// Compute the $L^\infty$ error across the entire domain.
+   ///
+   /// Computes:
+   ///    $$max_{elems} (max_{elem} |scalar\_error|)$$
+   ///
+   /// Where
+   ///    $$scalar\_error = max_{d=0\ldots vdim}|u_{ex}[d] - u_h[d]|$$
+   ///
+   /// @param[in] exsol  Pointer to an array of scalar Coefficient objects,
+   ///                   one for each component of the vector field.
+   /// @param[in] irs    Optional pointer to a custom integration rule
+   ///                   e.g. higher order than the default rule.
+   ///
+   /// @note This implementation of the max error of a vector field computes
+   ///       the max norm over vector components rather than the magnitude of
+   ///       the vector.
    virtual real_t ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const;
 
+   /// @brief Returns Max|u_ex - u_h| error for vector fields
+   ///
+   /// Compute the $L^\infty$ error across the entire domain.
+   ///
+   /// Computes:
+   ///    $$max_{elems} (max_{elem} |scalar\_error|)$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
+   ///
+   /// @note Computes the maximum magnitude of the difference vector not the
+   ///       component-wise maximum difference of the vector fields.
    virtual real_t ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
-   virtual real_t ComputeL1Error(Coefficient *exsol[],
-                                 const IntegrationRule *irs[] = NULL) const
-   { return ComputeW11Error(*exsol, NULL, 1, NULL, irs); }
-
+   /// @brief Returns ||u_ex - u_h||_L1 for H1 or L2 elements
+   ///
+   /// Computes:
+   ///    $$\sum_{elems} \int_{elem} |u_{ex} - u_h|$$
+   ///
+   /// @param[in] exsol   Coefficient object reproducing the anticipated values
+   ///                    of the scalar field, u_ex.
+   /// @param[in] irs     Optional pointer to a custom integration rule
+   ///                    e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
    virtual real_t ComputeL1Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
+   /// @brief Returns ||u_ex - u_h||_L1 for H1 or L2 elements
+   ///
+   /// Computes:
+   ///    $$\sum_{elems} \int_{elem} |u_{ex} - u_h|$$
+   ///
+   /// @param[in] exsol   Coefficient object reproducing the anticipated values
+   ///                    of the scalar field, u_ex.
+   /// @param[in] irs     Optional pointer to a custom integration rule
+   ///                    e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeW11Error internally. See the ComputeW11Error
+   ///       documentation for generalizations of this error computation.
+   ///
+   /// @warning While this function is nominally equivalent to ComputeLpError,
+   ///          with appropriate arguments, the returned errors may differ
+   ///          noticeably because ComputeLpError uses a higher order
+   ///          integration rule by default.
+   ///
+   /// @deprecated See @ref ComputeL1Error(Coefficient &exsol,
+   ///                              const IntegrationRule *irs[]) const
+   ///             for the preferred implementation.
+   MFEM_DEPRECATED
+   virtual real_t ComputeL1Error(Coefficient *exsol[],
+                                 const IntegrationRule *irs[] = NULL) const
+   { return ComputeW11Error(*exsol, NULL, 1, NULL, irs); }
+
+   /// @brief Returns $W^1_1$ norm (or portions thereof) for H1 or L2 elements
+   ///
+   /// Computes for norm_type == 1 the $L^1$ norm of $u$:
+   ///    $$(\sum_{elems} \int_{elem} |u_{ex} - u_h|$$
+   ///
+   /// Computes for norm_type == 2 the $L^1$ semi-norm of $\nabla u$:
+   ///    $$(\sum_{elems} \int_{elem} |du_{ex} - \nabla u_h|$$
+   ///
+   /// Computes for norm_type == 3 the $W^1_1$ norm of $u$:
+   ///    $$(\sum_{elems} \int_{elem} |u_{ex} - u_h| + |du_{ex} - \nabla u_h|$$
+   ///
+   /// @param[in] exsol     Coefficient object reproducing the anticipated
+   ///                      values of the scalar field, u_ex.
+   /// @param[in] exgrad    VectorCoefficient object reproducing the anticipated
+   ///                      values of the gradient of the scalar field, du_ex.
+   /// @param[in] norm_type Integer value of 1, 2, or 3 indicating the type of
+   ///                      norm to compute (see above).
+   /// @param[in] elems     Optional pointer to a marker array, with a length
+   ///                      equal to the number of local elements, indicating
+   ///                      which elements to integrate over. Only those
+   ///                      elements corresponding to non-zero entries in
+   ///                      @a elems will contribute to the computed $W^1_1$
+   ///                      error.
+   /// @param[in] irs       Optional pointer to a custom integration rule
+   ///                      e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
    virtual real_t ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                   int norm_type, const Array<int> *elems = NULL,
                                   const IntegrationRule *irs[] = NULL) const;
 
+   /// @brief Returns ||u_ex - u_h||_L1 for vector fields
+   ///
+   /// Computes:
+   ///    $$\sum_{elems} \int_{elem} |scalar\_error|$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol     VectorCoefficient object reproducing the anticipated
+   ///                      values of the vector field, u_ex.
+   /// @param[in] irs       Optional pointer to a custom integration rule
+   ///                      e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
    virtual real_t ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
@@ -742,7 +944,7 @@ public:
    /// @brief Returns ||u_ex - u_h||_Lp for H1 or L2 elements
    ///
    /// Computes:
-   ///    $$(\sum_{elems} \int_{elem} w |u_{ex} - u_h|^p)^{1/p}$$
+   ///    $$(\sum_{elems} \int_{elem} w \, |u_{ex} - u_h|^p)^{1/p}$$
    ///
    /// @param[in] p       Real value indicating the exponent of the $L^p$ norm.
    ///                    To avoid domain errors p should have a positive value,
@@ -774,7 +976,11 @@ public:
    ///
    /// Compute the Lp error in each element of the mesh and store the results in
    /// the Vector @a error. The result should be of length number of elements,
-   /// for example an L2 GridFunction of order zero using map type VALUE.
+   /// for example an L2 GridFunction of order zero using map type @ref
+   /// map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} w \, |u_{ex} - u_h|^p)^{1/p}$$
    ///
    /// @param[in] p          Real value indicating the exponent of the $L^p$
    ///                       norm. To avoid domain errors p should have a
@@ -799,18 +1005,84 @@ public:
                                        const IntegrationRule *irs[] = NULL
                                       ) const;
 
+   /// @brief Returns ||u_ex - u_h||_L1 elementwise for H1 or L2 elements
+   ///
+   /// Compute the $L^1$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^1$ errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL1Errors(Coefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(1.0, exsol, error, NULL, irs); }
 
+   /// @brief Returns ||u_ex - u_h||_L2 elementwise for H1 or L2 elements
+   ///
+   /// Compute the $L^2$ error in each element of the mesh and store the results
+   /// in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} |u_{ex} - u_h|^2)^{1/2}$$
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^2$ errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL2Errors(Coefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(2.0, exsol, error, NULL, irs); }
 
+   /// @brief Returns Max|u_ex - u_h| elementwise for H1 or L2 elements
+   ///
+   /// Compute the $L^\infty$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// @param[in] exsol      Coefficient object reproducing the anticipated
+   ///                       values of the scalar field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^\infty$
+   ///                       errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementMaxErrors(Coefficient &exsol,
                                         Vector &error,
                                         const IntegrationRule *irs[] = NULL
@@ -824,7 +1096,7 @@ public:
    /// scalar error is the l_2 norm of the vector error.
    ///
    /// Computes:
-   ///    $$(\sum_{elems} \int_{elem} w |scalar\_error|^p)^{1/p}$$
+   ///    $$(\sum_{elems} \int_{elem} w \, |scalar\_error|^p)^{1/p}$$
    ///
    /// Where
    ///    $$scalar\_error = |v\_weight \cdot (u_{ex} - u_h)|$$
@@ -834,8 +1106,8 @@ public:
    /// @param[in] p         Real value indicating the exponent of the $L^p$
    ///                      norm. To avoid domain errors p should have a
    ///                      positive value, either finite or infinite.
-   /// @param[in] exsol     Coefficient object reproducing the anticipated
-   ///                      values of the scalar field, u_ex.
+   /// @param[in] exsol     VectorCoefficient object reproducing the anticipated
+   ///                      values of the vector field, u_ex.
    /// @param[in] weight    Optional pointer to a Coefficient object reproducing
    ///                      a weighting function, w.
    /// @param[in] v_weight  Optional pointer to a VectorCoefficient object
@@ -849,6 +1121,8 @@ public:
    ///       function uses the absolute values of the element-wise integrals.
    ///       This may lead to results which are not entirely consistent with
    ///       such integration rules.
+   ///
+   /// @anchor CmpVecLpErr
    virtual real_t ComputeLpError(const real_t p, VectorCoefficient &exsol,
                                  Coefficient *weight = NULL,
                                  VectorCoefficient *v_weight = NULL,
@@ -856,15 +1130,24 @@ public:
 
    /// @brief Returns ||u_ex - u_h||_Lp elementwise for vector fields
    ///
-   /// Compute the Lp error in each element of the mesh and store the results in
-   /// the Vector @ error. The result should be of length number of elements,
-   /// for example an L2 GridFunction of order zero using map type VALUE.
+   /// Compute the $L^p$ error in each element of the mesh and store the results
+   /// in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} w \, |scalar\_error|^p)^{1/p}$$
+   ///
+   /// Where
+   ///    $$scalar\_error = |v\_weight \cdot (u_{ex} - u_h)|$$
+   /// or
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
    ///
    /// @param[in] p          Real value indicating the exponent of the $L^p$
    ///                       norm. To avoid domain errors p should have a
    ///                       positive value, either finite or infinite.
-   /// @param[in] exsol      Coefficient object reproducing the anticipated
-   ///                       values of the scalar field, u_ex.
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
    /// @param[in,out] error  Vector to contain the element-wise $L^p$ errors
    /// @param[in] weight     Optional pointer to a Coefficient object
    ///                       reproducing a weighting function, w.
@@ -886,18 +1169,102 @@ public:
                                        const IntegrationRule *irs[] = NULL
                                       ) const;
 
+   /// @brief Returns ||u_ex - u_h||_L1 elementwise for vector fields
+   ///
+   /// Compute the $L^1$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$\int_{elem} |scalar\_error|$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^1$ errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL1Errors(VectorCoefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(1.0, exsol, error, NULL, NULL, irs); }
 
+   /// @brief Returns ||u_ex - u_h||_L2 elementwise for vector fields
+   ///
+   /// Compute the $L^2$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$(\int_{elem} |scalar\_error|^2)^{1/2}$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^2$ errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
    virtual void ComputeElementL2Errors(VectorCoefficient &exsol,
                                        Vector &error,
                                        const IntegrationRule *irs[] = NULL
                                       ) const
    { ComputeElementLpErrors(2.0, exsol, error, NULL, NULL, irs); }
 
+   /// @brief Returns Max|u_ex - u_h| elementwise for vector fields
+   ///
+   /// Compute the $L^\infty$ error in each element of the mesh and store the
+   /// results in the Vector @a error. The result should be of length number of
+   /// elements, for example an L2 GridFunction of order zero using map type
+   /// @ref map_type_value "VALUE".
+   ///
+   /// Computes:
+   ///    $$max_{elem} |scalar\_error|$$
+   ///
+   /// Where
+   ///    $$scalar\_error = \sqrt{(u_{ex} - u_h) \cdot (u_{ex} - u_h)}$$
+   ///
+   /// @param[in] exsol      VectorCoefficient object reproducing the
+   ///                       anticipated values of the vector field, u_ex.
+   /// @param[in,out] error  Vector to contain the element-wise $L^\infty$
+   ///                       errors
+   /// @param[in] irs        Optional pointer to a custom integration rule
+   ///                       e.g. higher order than the default rule.
+   ///
+   /// @note Uses ComputeElementLpError internally. See the
+   ///       ComputeElementLpError documentation for generalizations of this
+   ///       error computation.
+   ///
+   /// @note Computes the maximum magnitude of the difference vector not the
+   ///       component-wise maximum difference of the vector fields.
    virtual void ComputeElementMaxErrors(VectorCoefficient &exsol,
                                         Vector &error,
                                         const IntegrationRule *irs[] = NULL
