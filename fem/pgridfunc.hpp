@@ -298,11 +298,7 @@ public:
    ///             for the preferred implementation.
    MFEM_DEPRECATED
    real_t ComputeL1Error(Coefficient *exsol[],
-                         const IntegrationRule *irs[] = NULL) const override
-   {
-      return GlobalLpNorm(1.0, GridFunction::ComputeL1Error(exsol, irs),
-                          pfes->GetComm());
-   }
+                         const IntegrationRule *irs[] = NULL) const override;
 
    /// @brief Returns ||u_ex - u_h||_L1 in parallel for scalar fields
    ///
