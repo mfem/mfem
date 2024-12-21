@@ -301,7 +301,7 @@ public:
                          const IntegrationRule *irs[] = NULL) const override
    {
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignore "-Wdeprecated"
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       real_t err = GlobalLpNorm(1.0, GridFunction::ComputeL1Error(exsol, irs),
                                 pfes->GetComm());
 #pragma GCC diagnostic pop
