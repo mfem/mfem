@@ -1280,8 +1280,6 @@ public:
    ///       function uses the absolute values of the element-wise integrals.
    ///       This may lead to results which are not entirely consistent with
    ///       such integration rules.
-   ///
-   /// @anchor CmpVecLpErr
    virtual real_t ComputeLpError(const real_t p, VectorCoefficient &exsol,
                                  Coefficient *weight = NULL,
                                  VectorCoefficient *v_weight = NULL,
