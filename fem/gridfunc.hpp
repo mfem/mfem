@@ -504,13 +504,18 @@ public:
    ///
    /// @param[in] exsol   Pointer to an array of scalar Coefficient objects,
    ///                    one for each component of the vector field.
-   /// @param[in] irs     Optional pointer to a custom integration rule
-   ///                    e.g. higher order than the default rule.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
    /// @param[in] elems   Optional pointer to a marker array, with a length
    ///                    equal to the number of local elements, indicating
    ///                    which elements to integrate over. Only those elements
    ///                    corresponding to non-zero entries in @a elems will
    ///                    contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -528,8 +533,13 @@ public:
    /// @param[in] ielem   Index of the element in which to compute the L2 error.
    /// @param[in] exgrad  Pointer to a VectorCoefficient object reproducing the
    ///                    expected gradient of the scalar field, grad u_ex.
-   /// @param[in] irs     Optional pointer to a custom integration rule
-   ///                    e.g. higher order than the default rule.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -544,13 +554,18 @@ public:
    ///
    /// @param[in] exsol  Coefficient object reproducing the anticipated values
    ///                   of the scalar field, u_ex.
-   /// @param[in] irs    Optional pointer to a custom integration rule
-   ///                   e.g. higher order than the default rule.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
    /// @param[in] elems  Optional pointer to a marker array, with a length
    ///                   equal to the number of local elements, indicating
    ///                   which elements to integrate over. Only those elements
    ///                   corresponding to non-zero entries in @a elems will
    ///                   contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -567,13 +582,18 @@ public:
    ///
    /// @param[in] exsol  VectorCoefficient object reproducing the anticipated
    ///                   values of the vector field, u_ex.
-   /// @param[in] irs    Optional pointer to a custom integration rule
-   ///                   e.g. higher order than the default rule.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
    /// @param[in] elems  Optional pointer to a marker array, with a length
    ///                   equal to the number of local elements, indicating
    ///                   which elements to integrate over. Only those elements
    ///                   corresponding to non-zero entries in @a elems will
    ///                   contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -589,14 +609,19 @@ public:
    ///
    /// @param[in] exgrad  Pointer to a VectorCoefficient object reproducing the
    ///                    expected gradient of the scalar field, grad u_ex.
-   /// @param[in] irs     Optional pointer to a custom integration rule
-   ///                    e.g. higher order than the default rule.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
    ///
    /// @note This function only computes the error of the gradient in the
    ///       interior of the elements. In the context of discontinuous
    ///       Galerkin (DG) methods it may also be desirable to compute the
    ///       error in the jumps across element interfaces using
    ///       ComputeDGFaceJumpError().
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -611,8 +636,13 @@ public:
    ///
    /// @param[in] excurl  Pointer to a VectorCoefficient object reproducing the
    ///                    expected curl of the vector field, curl u_ex.
-   /// @param[in] irs     Optional pointer to a custom integration rule
-   ///                    e.g. higher order than the default rule.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -627,8 +657,13 @@ public:
    ///
    /// @param[in] exdiv  Pointer to a Coefficient object reproducing the
    ///                   expected divergence of the vector field, div u_ex.
-   /// @param[in] irs    Optional pointer to a custom integration rule
-   ///                   e.g. higher order than the default rule.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -654,8 +689,14 @@ public:
    ///                          the averaged value ell in the above integral.
    /// @param[in] jump_scaling  Can be configured to provide scaling by
    ///                          nu, nu/h, or nu*p^2/h
-   /// @param[in] irs           Optional pointer to a custom integration rule
-   ///                          e.g. higher order than the default rule.
+   /// @param[in] irs           Optional pointer to an array of custom
+   ///                          integration rules e.g. higher order than the
+   ///                          default rules. If present the array will be
+   ///                          indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of faces.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -712,8 +753,13 @@ public:
    ///                    of the scalar field, u_ex.
    /// @param[in] exgrad  VectorCoefficient object reproducing the anticipated
    ///                    values of the gradient of the scalar field, du_ex.
-   /// @param[in] irs     Optional pointer to a custom integration rule
-   ///                    e.g. higher order than the default rule.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -741,8 +787,13 @@ public:
    ///                   values of the vector field, u_ex.
    /// @param[in] exdiv  VectorCoefficient object reproducing the anticipated
    ///                   values of the divergence of the vector field, du_ex.
-   /// @param[in] irs    Optional pointer to a custom integration rule
-   ///                   e.g. higher order than the default rule.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -767,8 +818,13 @@ public:
    ///                    values of the vector field, u_ex.
    /// @param[in] excurl  VectorCoefficient object reproducing the anticipated
    ///                    values of the curl of the vector field, du_ex.
-   /// @param[in] irs     Optional pointer to a custom integration rule
-   ///                    e.g. higher order than the default rule.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -786,11 +842,18 @@ public:
    ///
    /// @param[in] exsol      Coefficient object reproducing the anticipated
    ///                       values of the scalar field, u_ex.
-   /// @param[in] irs        Optional pointer to a custom integration rule
-   ///                       e.g. higher order than the default rule.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
    ///
    /// @note Uses ComputeLpError internally. See the ComputeLpError
    ///       documentation for generalizations of this error computation.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
    virtual real_t ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
@@ -809,12 +872,18 @@ public:
    ///
    /// @param[in] exsol  Pointer to an array of scalar Coefficient objects,
    ///                   one for each component of the vector field.
-   /// @param[in] irs    Optional pointer to a custom integration rule
-   ///                   e.g. higher order than the default rule.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
    ///
    /// @note This implementation of the max error of a vector field computes
    ///       the max norm over vector components rather than the magnitude of
    ///       the vector.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
    virtual real_t ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const;
 
@@ -830,14 +899,21 @@ public:
    ///
    /// @param[in] exsol      VectorCoefficient object reproducing the
    ///                       anticipated values of the vector field, u_ex.
-   /// @param[in] irs        Optional pointer to a custom integration rule
-   ///                       e.g. higher order than the default rule.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
    ///
    /// @note Uses ComputeLpError internally. See the ComputeLpError
    ///       documentation for generalizations of this error computation.
    ///
    /// @note Computes the maximum magnitude of the difference vector not the
    ///       component-wise maximum difference of the vector fields.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
    virtual real_t ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
@@ -851,8 +927,9 @@ public:
    ///
    /// @param[in] exsol   Coefficient object reproducing the anticipated values
    ///                    of the scalar field, u_ex.
-   /// @param[in] irs     Optional pointer to a custom integration rule
-   ///                    e.g. higher order than the default rule.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -863,6 +940,11 @@ public:
    ///
    /// @note Uses ComputeLpError internally. See the ComputeLpError
    ///       documentation for generalizations of this error computation.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
    virtual real_t ComputeL1Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, irs); }
@@ -874,8 +956,13 @@ public:
    ///
    /// @param[in] exsol   Coefficient object reproducing the anticipated values
    ///                    of the scalar field, u_ex.
-   /// @param[in] irs     Optional pointer to a custom integration rule
-   ///                    e.g. higher order than the default rule.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -923,8 +1010,13 @@ public:
    ///                      elements corresponding to non-zero entries in
    ///                      @a elems will contribute to the computed $W^1_1$
    ///                      error.
-   /// @param[in] irs       Optional pointer to a custom integration rule
-   ///                      e.g. higher order than the default rule.
+   /// @param[in] irs       Optional pointer to an array of custom integration
+   ///                      rules e.g. higher order than the default rules. If
+   ///                      present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -946,8 +1038,13 @@ public:
    ///
    /// @param[in] exsol     VectorCoefficient object reproducing the anticipated
    ///                      values of the vector field, u_ex.
-   /// @param[in] irs       Optional pointer to a custom integration rule
-   ///                      e.g. higher order than the default rule.
+   /// @param[in] irs       Optional pointer to an array of custom integration
+   ///                      rules e.g. higher order than the default rules. If
+   ///                      present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -974,13 +1071,18 @@ public:
    ///                    of the scalar field, u_ex.
    /// @param[in] weight  Optional pointer to a Coefficient object reproducing
    ///                    a weighting function, w.
-   /// @param[in] irs     Optional pointer to a custom integration rule
-   ///                    e.g. higher order than the default rule.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
    /// @param[in] elems   Optional pointer to a marker array, with a length
    ///                    equal to the number of local elements, indicating
    ///                    which elements to integrate over. Only those elements
    ///                    corresponding to non-zero entries in @a elems will
    ///                    contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -1011,8 +1113,14 @@ public:
    /// @param[in,out] error  Vector to contain the element-wise $L^p$ errors
    /// @param[in] weight     Optional pointer to a Coefficient object
    ///                       reproducing a weighting function, w.
-   /// @param[in] irs        Optional pointer to a custom integration rule
-   ///                       e.g. higher order than the default rule.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -1036,8 +1144,14 @@ public:
    /// @param[in] exsol      Coefficient object reproducing the anticipated
    ///                       values of the scalar field, u_ex.
    /// @param[in,out] error  Vector to contain the element-wise $L^1$ errors
-   /// @param[in] irs        Optional pointer to a custom integration rule
-   ///                       e.g. higher order than the default rule.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -1068,8 +1182,14 @@ public:
    /// @param[in] exsol      Coefficient object reproducing the anticipated
    ///                       values of the scalar field, u_ex.
    /// @param[in,out] error  Vector to contain the element-wise $L^2$ errors
-   /// @param[in] irs        Optional pointer to a custom integration rule
-   ///                       e.g. higher order than the default rule.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -1098,8 +1218,14 @@ public:
    ///                       values of the scalar field, u_ex.
    /// @param[in,out] error  Vector to contain the element-wise $L^\infty$
    ///                       errors
-   /// @param[in] irs        Optional pointer to a custom integration rule
-   ///                       e.g. higher order than the default rule.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Uses ComputeElementLpError internally. See the
    ///       ComputeElementLpError documentation for generalizations of this
@@ -1133,8 +1259,13 @@ public:
    ///                      a weighting function, w.
    /// @param[in] v_weight  Optional pointer to a VectorCoefficient object
    ///                      reproducing a weighting vector as shown above.
-   /// @param[in] irs       Optional pointer to a custom integration rule
-   ///                      e.g. higher order than the default rule.
+   /// @param[in] irs       Optional pointer to an array of custom integration
+   ///                      rules e.g. higher order than the default rules. If
+   ///                      present the array will be indexed by Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -1174,8 +1305,14 @@ public:
    ///                       reproducing a weighting function, w.
    /// @param[in] v_weight   Optional pointer to a VectorCoefficient object
    ///                       reproducing a weighting vector as shown above.
-   /// @param[in] irs        Optional pointer to a custom integration rule
-   ///                       e.g. higher order than the default rule.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -1206,8 +1343,14 @@ public:
    /// @param[in] exsol      VectorCoefficient object reproducing the
    ///                       anticipated values of the vector field, u_ex.
    /// @param[in,out] error  Vector to contain the element-wise $L^1$ errors
-   /// @param[in] irs        Optional pointer to a custom integration rule
-   ///                       e.g. higher order than the default rule.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -1241,8 +1384,14 @@ public:
    /// @param[in] exsol      VectorCoefficient object reproducing the
    ///                       anticipated values of the vector field, u_ex.
    /// @param[in,out] error  Vector to contain the element-wise $L^2$ errors
-   /// @param[in] irs        Optional pointer to a custom integration rule
-   ///                       e.g. higher order than the default rule.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Quadratures with negative weights (as in some simplex integration
    ///       rules in MFEM) can produce negative integrals even with
@@ -1277,8 +1426,14 @@ public:
    ///                       anticipated values of the vector field, u_ex.
    /// @param[in,out] error  Vector to contain the element-wise $L^\infty$
    ///                       errors
-   /// @param[in] irs        Optional pointer to a custom integration rule
-   ///                       e.g. higher order than the default rule.
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
    ///
    /// @note Uses ComputeElementLpError internally. See the
    ///       ComputeElementLpError documentation for generalizations of this
