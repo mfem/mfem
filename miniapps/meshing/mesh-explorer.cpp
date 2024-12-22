@@ -919,8 +919,8 @@ int main (int argc, char *argv[])
             cout << "GLVis keystrokes for mesh element visualization:\n"
                  << "- F3/F4      - Shrink/Zoom the elements\n"
                  << "- Ctrl+F3/F4 - 3D: cut holes in element faces \n"
-                 << "- F8         - 3D: toggle visible elements)\n"
-                 << "- F9/F10     - 3D: cycle through visible elements)\n";
+                 << "- F8         - 3D: toggle visible elements\n"
+                 << "- F9/F10     - 3D: cycle through visible elements\n";
          }
 
          if (mk == 'h')
