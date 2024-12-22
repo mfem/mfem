@@ -197,7 +197,7 @@ protected:
    /** The type of the pointer is given by the field #h_mt; it can be any type
        from MemoryClass::HOST. */
    T *h_ptr;
-   int capacity; ///< Size of the allocated memory
+   bigint capacity; ///< Size of the allocated memory
    MemoryType h_mt; ///< Host memory type
    mutable unsigned flags; ///< Bit flags defined from the #FlagMask enum
    // 'flags' is mutable so that it can be modified in Set{Host,Device}PtrOwner,
@@ -308,7 +308,7 @@ public:
    { flags = use_dev ? (flags | USE_DEVICE) : (flags & ~USE_DEVICE); }
 
    /// Return the size of the allocated memory.
-   int Capacity() const { return capacity; }
+   bigint Capacity() const { return capacity; }
 
    /// Reset the memory to be empty, ensuring that Delete() will be a no-op.
    /** This is the Memory class equivalent to setting a pointer to NULL, see
@@ -328,7 +328,7 @@ public:
    /** @brief Allocate host memory for @a size entries with the current host
        memory type returned by MemoryManager::GetHostMemoryType(). */
    /** @note The current memory is NOT deleted by this method. */
-   inline void New(int size);
+   inline void New(bigint size);
 
    /// Allocate memory for @a size entries with the given MemoryType.
    /** The newly allocated memory is not initialized, however the given
@@ -342,7 +342,7 @@ public:
        to be the dual of @a mt, see MemoryManager::GetDualMemoryType().
 
        @note The current memory is NOT deleted by this method. */
-   inline void New(int size, MemoryType mt);
+   inline void New(bigint size, MemoryType mt);
 
    /** @brief Allocate memory for @a size entries with the given host MemoryType
        @a h_mt and device MemoryType @a d_mt. */
@@ -350,7 +350,7 @@ public:
        valid.
 
        @note The current memory is NOT deleted by this method. */
-   inline void New(int size, MemoryType h_mt, MemoryType d_mt);
+   inline void New(bigint size, MemoryType h_mt, MemoryType d_mt);
 
    /** @brief Wrap an externally allocated host pointer, @a ptr with the current
        host memory type returned by MemoryManager::GetHostMemoryType(). */
@@ -358,7 +358,7 @@ public:
        method Delete() is called.
 
        @note The current memory is NOT deleted by this method. */
-   inline void Wrap(T *ptr, int size, bool own);
+   inline void Wrap(T *ptr, bigint size, bool own);
 
    /// Wrap an externally allocated pointer, @a ptr, of the given MemoryType.
    /** The new memory object will have the given MemoryType set as valid.
@@ -370,7 +370,7 @@ public:
        method Delete() is called.
 
        @note The current memory is NOT deleted by this method. */
-   inline void Wrap(T *ptr, int size, MemoryType mt, bool own);
+   inline void Wrap(T *ptr, bigint size, MemoryType mt, bool own);
 
    /** Wrap an externally pair of allocated pointers, @a h_ptr and @a d_ptr,
        of the given host MemoryType @a h_mt. */
@@ -394,14 +394,14 @@ public:
          - SetDevicePtrOwner.
 
        @note The current memory is NOT deleted by this method. */
-   inline void Wrap(T *h_ptr, T *d_ptr, int size, MemoryType h_mt, bool own,
+   inline void Wrap(T *h_ptr, T *d_ptr, bigint size, MemoryType h_mt, bool own,
                     bool valid_host = false, bool valid_device = true);
 
    /// Create a memory object that points inside the memory object @a base.
    /** The new Memory object uses the same MemoryType(s) as @a base.
 
        @note The current memory is NOT deleted by this method. */
-   inline void MakeAlias(const Memory &base, int offset, int size);
+   inline void MakeAlias(const Memory &base, bigint offset, bigint size);
 
    /// Set the device MemoryType to be used by the Memory object.
    /** If the specified @a d_mt is not a device MemoryType, i.e. not one of the
@@ -426,10 +426,10 @@ public:
    inline void DeleteDevice(bool copy_to_host = true);
 
    /// Array subscript operator for host memory.
-   inline T &operator[](int idx);
+   inline T &operator[](bigint idx);
 
    /// Array subscript operator for host memory, const version.
-   inline const T &operator[](int idx) const;
+   inline const T &operator[](bigint idx) const;
 
    /// Direct access to the host memory as T* (implicit conversion).
    /** When the type T is const-qualified, this method can be used only if the
@@ -481,11 +481,11 @@ public:
        Read() or Write() should be used instead of this method.
 
        The parameter @a size must not exceed the Capacity(). */
-   inline T *ReadWrite(MemoryClass mc, int size);
+   inline T *ReadWrite(MemoryClass mc, bigint size);
 
    /// Get read-only access to the memory with the given MemoryClass.
    /** The parameter @a size must not exceed the Capacity(). */
-   inline const T *Read(MemoryClass mc, int size) const;
+   inline const T *Read(MemoryClass mc, bigint size) const;
 
    /// Get write-only access to the memory with the given MemoryClass.
    /** The parameter @a size must not exceed the Capacity().
@@ -493,7 +493,7 @@ public:
        The contents of the returned pointer is undefined, unless it was
        validated by a previous call to Read() or ReadWrite() with
        the same MemoryClass. */
-   inline T *Write(MemoryClass mc, int size);
+   inline T *Write(MemoryClass mc, bigint size);
 
    /// Copy the host/device pointer validity flags from @a other to @a *this.
    /** This method synchronizes the pointer validity flags of two Memory objects
@@ -510,7 +510,7 @@ public:
        of the base incorrect. Calling this method will ensure that @a base is
        up-to-date. Note that this is achieved by moving/copying @a *this (if
        necessary), and not @a base. */
-   inline void SyncAlias(const Memory &base, int alias_size) const;
+   inline void SyncAlias(const Memory &base, bigint alias_size) const;
 
    /** @brief Return a MemoryType that is currently valid. If both the host and
        the device pointers are currently valid, then the device memory type is
@@ -533,20 +533,20 @@ public:
    /// Copy @a size entries from @a src to @a *this.
    /** The given @a size should not exceed the Capacity() of the source @a src
        and the destination, @a *this. */
-   inline void CopyFrom(const Memory &src, int size);
+   inline void CopyFrom(const Memory &src, bigint size);
 
    /// Copy @a size entries from the host pointer @a src to @a *this.
    /** The given @a size should not exceed the Capacity() of @a *this. */
-   inline void CopyFromHost(const T *src, int size);
+   inline void CopyFromHost(const T *src, bigint size);
 
    /// Copy @a size entries from @a *this to @a dest.
    /** The given @a size should not exceed the Capacity() of @a *this and the
        destination, @a dest. */
-   inline void CopyTo(Memory &dest, int size) const;
+   inline void CopyTo(Memory &dest, bigint size) const;
 
    /// Copy @a size entries from @a *this to the host pointer @a dest.
    /** The given @a size should not exceed the Capacity() of @a *this. */
-   inline void CopyToHost(T *dest, int size) const;
+   inline void CopyToHost(T *dest, bigint size) const;
 
    /// Print the internal flags.
    /** This method can be useful for debugging. It is explicitly instantiated
@@ -556,7 +556,7 @@ public:
    /// If both the host and the device data are valid, compare their contents.
    /** This method can be useful for debugging. It is explicitly instantiated
        for Memory<T> with T = int and T = real_t. */
-   inline int CompareHostAndDevice(int size) const;
+   inline int CompareHostAndDevice(bigint size) const;
 
 private:
    // GCC 4.8 workaround: max_align_t is not in std.
@@ -935,7 +935,7 @@ inline void Memory<T>::Reset(MemoryType host_mt)
 }
 
 template <typename T>
-inline void Memory<T>::New(int size)
+inline void Memory<T>::New(bigint size)
 {
    capacity = size;
    flags = OWNS_HOST | VALID_HOST;
@@ -945,7 +945,7 @@ inline void Memory<T>::New(int size)
 }
 
 template <typename T>
-inline void Memory<T>::New(int size, MemoryType mt)
+inline void Memory<T>::New(bigint size, MemoryType mt)
 {
    capacity = size;
    const size_t bytes = size*sizeof(T);
@@ -957,7 +957,8 @@ inline void Memory<T>::New(int size, MemoryType mt)
 }
 
 template <typename T>
-inline void Memory<T>::New(int size, MemoryType host_mt, MemoryType device_mt)
+inline void Memory<T>::New(bigint size, MemoryType host_mt,
+                           MemoryType device_mt)
 {
    capacity = size;
    const size_t bytes = size*sizeof(T);
@@ -968,7 +969,7 @@ inline void Memory<T>::New(int size, MemoryType host_mt, MemoryType device_mt)
 }
 
 template <typename T>
-inline void Memory<T>::Wrap(T *ptr, int size, bool own)
+inline void Memory<T>::Wrap(T *ptr, bigint size, bool own)
 {
    h_ptr = ptr;
    capacity = size;
@@ -990,7 +991,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, bool own)
 }
 
 template <typename T>
-inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
+inline void Memory<T>::Wrap(T *ptr, bigint size, MemoryType mt, bool own)
 {
    capacity = size;
    if (IsHostMemory(mt))
@@ -1015,7 +1016,7 @@ inline void Memory<T>::Wrap(T *ptr, int size, MemoryType mt, bool own)
 }
 
 template <typename T>
-inline void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, int size, MemoryType h_mt_,
+inline void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, bigint size, MemoryType h_mt_,
                             bool own, bool valid_host, bool valid_device)
 {
    h_mt = h_mt_;
@@ -1032,7 +1033,7 @@ inline void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, int size, MemoryType h_mt_,
 }
 
 template <typename T>
-inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
+inline void Memory<T>::MakeAlias(const Memory &base, bigint offset, bigint size)
 {
    MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
    MFEM_ASSERT(0 <= size, "invalid size = " << size);
@@ -1118,7 +1119,7 @@ inline void Memory<T>::DeleteDevice(bool copy_to_host)
 }
 
 template <typename T>
-inline T &Memory<T>::operator[](int idx)
+inline T &Memory<T>::operator[](bigint idx)
 {
    MFEM_ASSERT((flags & VALID_HOST) && !(flags & VALID_DEVICE),
                "invalid host pointer access");
@@ -1126,7 +1127,7 @@ inline T &Memory<T>::operator[](int idx)
 }
 
 template <typename T>
-inline const T &Memory<T>::operator[](int idx) const
+inline const T &Memory<T>::operator[](bigint idx) const
 {
    MFEM_ASSERT((flags & VALID_HOST), "invalid host pointer access");
    return h_ptr[idx];
@@ -1167,7 +1168,7 @@ inline Memory<T>::operator const U*() const
 }
 
 template <typename T>
-inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
+inline T *Memory<T>::ReadWrite(MemoryClass mc, bigint size)
 {
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
@@ -1180,7 +1181,7 @@ inline T *Memory<T>::ReadWrite(MemoryClass mc, int size)
 }
 
 template <typename T>
-inline const T *Memory<T>::Read(MemoryClass mc, int size) const
+inline const T *Memory<T>::Read(MemoryClass mc, bigint size) const
 {
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
@@ -1193,7 +1194,7 @@ inline const T *Memory<T>::Read(MemoryClass mc, int size) const
 }
 
 template <typename T>
-inline T *Memory<T>::Write(MemoryClass mc, int size)
+inline T *Memory<T>::Write(MemoryClass mc, bigint size)
 {
    const size_t bytes = size * sizeof(T);
    if (!(flags & Registered))
@@ -1220,7 +1221,7 @@ inline void Memory<T>::Sync(const Memory &other) const
 }
 
 template <typename T>
-inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
+inline void Memory<T>::SyncAlias(const Memory &base, bigint alias_size) const
 {
    // Assuming that if *this is registered then base is also registered.
    MFEM_ASSERT(!(flags & Registered) || (base.flags & Registered),
@@ -1257,7 +1258,7 @@ inline bool Memory<T>::DeviceIsValid() const
 }
 
 template <typename T>
-inline void Memory<T>::CopyFrom(const Memory &src, int size)
+inline void Memory<T>::CopyFrom(const Memory &src, bigint size)
 {
    MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
@@ -1278,7 +1279,7 @@ inline void Memory<T>::CopyFrom(const Memory &src, int size)
 }
 
 template <typename T>
-inline void Memory<T>::CopyFromHost(const T *src, int size)
+inline void Memory<T>::CopyFromHost(const T *src, bigint size)
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
@@ -1299,13 +1300,13 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 }
 
 template <typename T>
-inline void Memory<T>::CopyTo(Memory &dest, int size) const
+inline void Memory<T>::CopyTo(Memory &dest, bigint size) const
 {
    dest.CopyFrom(*this, size);
 }
 
 template <typename T>
-inline void Memory<T>::CopyToHost(T *dest, int size) const
+inline void Memory<T>::CopyToHost(T *dest, bigint size) const
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
    if (size <= 0) { return; }
@@ -1337,7 +1338,7 @@ inline void Memory<T>::PrintFlags() const
 }
 
 template <typename T>
-inline int Memory<T>::CompareHostAndDevice(int size) const
+inline int Memory<T>::CompareHostAndDevice(bigint size) const
 {
    if (!(flags & VALID_HOST) || !(flags & VALID_DEVICE)) { return 0; }
    return MemoryManager::CompareHostAndDevice_(h_ptr, size*sizeof(T), flags);

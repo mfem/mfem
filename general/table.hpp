@@ -49,6 +49,7 @@ protected:
    /** Arrays for the connectivity information in the CSR storage.
        I is of size "size+1", J is of size the number of connections
        between TYPE I to TYPE II elements (actually stored I[size]). */
+   Memory<bigint> bigI;
    Memory<int> I, J;
 
 public:
@@ -82,19 +83,23 @@ public:
 
    /// Next 7 methods are used together with the default constructor
    void MakeI (int nrows);
-   void AddAColumnInRow (int r) { I[r]++; }
-   void AddColumnsInRow (int r, int ncol) { I[r] += ncol; }
+   void AddAColumnInRow (int r) { UsingBigI() ? bigI[r]++ : I[r]++; }
+   void AddColumnsInRow (int r, int ncol)
+   { UsingBigI() ? bigI[r]++ : I[r] += ncol; }
    void MakeJ();
-   void AddConnection (int r, int c) { J[I[r]++] = c; }
+   void AddConnection (int r, int c)
+   { UsingBigI() ? J[bigI[r]++] = c : J[I[r]++] = c; }
    void AddConnections (int r, const int *c, int nc);
    void ShiftUpI();
+
+   bool UsingBigI() const { return !bigI.Empty(); }
 
    /// Set the size and the number of connections for the table.
    void SetSize(int dim, int connections_per_row);
 
    /** Set the rows and the number of all connections for the table.
        Does NOT initialize the whole array I ! (I[0]=0 and I[rows]=nnz only) */
-   void SetDims(int rows, int nnz);
+   void SetDims(int rows, bigint nnz);
 
    /// Returns the number of TYPE I elements.
    inline int Size() const { return size; }
@@ -103,7 +108,14 @@ public:
        not called, it returns the number of possible connections established
        by the used constructor. Otherwise, it is exactly the number of
        established connections before calling Finalize(). */
-   inline int Size_of_connections() const { HostReadI(); return I[size]; }
+   inline int Size_of_connections() const
+   {
+      if (!UsingBigI()) { HostReadI(); return I[size]; }
+      HostReadBigI();
+      const int int_nnz = int(bigI[size]);
+      MFEM_VERIFY(int_nnz == bigI[size], "");
+      return int_nnz;
+   }
 
    /** Returns index of the connection between element i of TYPE I and
        element j of TYPE II. If there is no connection between element i
@@ -113,33 +125,63 @@ public:
    /// Return row i in array row (the Table must be finalized)
    void GetRow(int i, Array<int> &row) const;
 
-   int RowSize(int i) const { return I[i+1]-I[i]; }
+   int RowSize(int i) const
+   { return UsingBigI() ? int(bigI[i+1]-bigI[i]): I[i+1]-I[i]; }
 
-   const int *GetRow(int i) const { return J+I[i]; }
-   int *GetRow(int i) { return J+I[i]; }
+   const int *GetRow(int i) const { return UsingBigI() ? J+bigI[i] : J+I[i]; }
+   int *GetRow(int i) { return UsingBigI() ? J+bigI[i] : J+I[i]; }
 
-   int *GetI() { return I; }
+   int *GetI() { MFEM_VERIFY(!UsingBigI(), ""); return I; }
    int *GetJ() { return J; }
-   const int *GetI() const { return I; }
+   const int *GetI() const { MFEM_VERIFY(!UsingBigI(), ""); return I; }
    const int *GetJ() const { return J; }
 
-   Memory<int> &GetIMemory() { return I; }
+   Memory<int> &GetIMemory() { MFEM_VERIFY(!UsingBigI(), ""); return I; }
    Memory<int> &GetJMemory() { return J; }
-   const Memory<int> &GetIMemory() const { return I; }
+   const Memory<int> &GetIMemory() const
+   { MFEM_VERIFY(!UsingBigI(), ""); return I; }
    const Memory<int> &GetJMemory() const { return J; }
 
    const int *ReadI(bool on_dev = true) const
-   { return mfem::Read(I, I.Capacity(), on_dev); }
+   {
+      MFEM_VERIFY(!UsingBigI(), "");
+      return mfem::Read(I, I.Capacity(), on_dev);
+   }
    int *WriteI(bool on_dev = true)
-   { return mfem::Write(I, I.Capacity(), on_dev); }
+   {
+      MFEM_VERIFY(!UsingBigI(), "");
+      return mfem::Write(I, I.Capacity(), on_dev);
+   }
    int *ReadWriteI(bool on_dev = true)
-   { return mfem::ReadWrite(I, I.Capacity(), on_dev); }
+   {
+      MFEM_VERIFY(!UsingBigI(), "");
+      return mfem::ReadWrite(I, I.Capacity(), on_dev);
+   }
    const int *HostReadI() const
-   { return mfem::Read(I, I.Capacity(), false); }
+   {
+      MFEM_VERIFY(!UsingBigI(), "");
+      return mfem::Read(I, I.Capacity(), false);
+   }
+   const bigint *HostReadBigI() const
+   {
+      MFEM_VERIFY(UsingBigI(), "");
+      return mfem::Read(bigI, bigI.Capacity(), false);
+   }
    int *HostWriteI()
-   { return mfem::Write(I, I.Capacity(), false); }
+   {
+      MFEM_VERIFY(!UsingBigI(), "");
+      return mfem::Write(I, I.Capacity(), false);
+   }
+   bigint *HostWriteBigI()
+   {
+      MFEM_VERIFY(UsingBigI(), "");
+      return mfem::Write(bigI, bigI.Capacity(), false);
+   }
    int *HostReadWriteI()
-   { return mfem::ReadWrite(I, I.Capacity(), false); }
+   {
+      MFEM_VERIFY(!UsingBigI(), "");
+      return mfem::ReadWrite(I, I.Capacity(), false);
+   }
 
    const int *ReadJ(bool on_dev = true) const
    { return mfem::Read(J, J.Capacity(), on_dev); }
@@ -185,7 +227,7 @@ public:
    int Width() const;
 
    /// Call this if data has been stolen.
-   void LoseData() { size = -1; I.Reset(); J.Reset(); }
+   void LoseData() { size = -1; bigI.Reset(); I.Reset(); J.Reset(); }
 
    /// Prints the table to stream out.
    void Print(std::ostream & out = mfem::out, int width = 4) const;

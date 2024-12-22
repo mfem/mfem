@@ -59,6 +59,11 @@ constexpr real_t operator""_r(unsigned long long v)
    return static_cast<real_t>(v);
 }
 
+// MFEM bigint type
+
+/// MFEM's "big" integer type.
+typedef long long int bigint;
+
 } // namespace mfem
 
 // Return value for main function in examples that should be skipped by testing

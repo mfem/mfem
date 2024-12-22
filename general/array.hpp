@@ -709,7 +709,7 @@ inline Array<T>::Array(const CT (&values)[N]) : Array(N)
 template <class T>
 inline void Array<T>::GrowSize(int minsize)
 {
-   const int nsize = std::max(minsize, 2 * data.Capacity());
+   const bigint nsize = std::max(bigint(minsize), 2 * data.Capacity());
    Memory<T> p(nsize, data.GetMemoryType());
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
