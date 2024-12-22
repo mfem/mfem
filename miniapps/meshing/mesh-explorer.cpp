@@ -914,7 +914,7 @@ int main (int argc, char *argv[])
             cout << "Number of colors: " << attr.Max() + 1 << endl;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               attr(i) = i; // coloring by element number
+               attr(i) = partitioning[i] = i; // coloring by element number
             }
          }
 
