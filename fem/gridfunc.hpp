@@ -503,7 +503,9 @@ public:
    /// @brief Returns ||exsol - u_h||_L2 for scalar or vector H1 or L2 elements
    ///
    /// @param[in] exsol   Pointer to an array of scalar Coefficient objects,
-   ///                    one for each component of the vector field.
+   ///                    one for each component of the vector field. The
+   ///                    length of the array should be at least equal to
+   ///                    FiniteElementSpace::GetVDim().
    /// @param[in] irs     Optional pointer to an array of custom integration
    ///                    rules e.g. higher order than the default rules. If
    ///                    present the array will be indexed by Geometry::Type.
@@ -871,7 +873,9 @@ public:
    ///    $$scalar\_error = max_{d=0\ldots vdim}|u_{ex}[d] - u_h[d]|$$
    ///
    /// @param[in] exsol  Pointer to an array of scalar Coefficient objects,
-   ///                   one for each component of the vector field.
+   ///                   one for each component of the vector field. The
+   ///                   length of the array should be at least equal to
+   ///                   FiniteElementSpace::GetVDim().
    /// @param[in] irs    Optional pointer to an array of custom integration
    ///                   rules e.g. higher order than the default rules. If
    ///                   present the array will be indexed by Geometry::Type.
@@ -954,8 +958,10 @@ public:
    /// Computes:
    ///    $$\sum_{elems} \int_{elem} |u_{ex} - u_h|$$
    ///
-   /// @param[in] exsol   Coefficient object reproducing the anticipated values
-   ///                    of the scalar field, u_ex.
+   /// @param[in] exsol   Pointer to an array of Coefficient objects
+   ///                    reproducing the anticipated values of the scalar
+   ///                    field, u_ex. Only the first entry of this array will
+   ///                    be accessed.
    /// @param[in] irs     Optional pointer to an array of custom integration
    ///                    rules e.g. higher order than the default rules. If
    ///                    present the array will be indexed by Geometry::Type.
@@ -998,10 +1004,11 @@ public:
    /// Computes for norm_type == 3 the $W^1_1$ norm of $u$:
    ///    $$(\sum_{elems} \int_{elem} |u_{ex} - u_h| + |du_{ex} - \nabla u_h|$$
    ///
-   /// @param[in] exsol     Coefficient object reproducing the anticipated
-   ///                      values of the scalar field, u_ex.
-   /// @param[in] exgrad    VectorCoefficient object reproducing the anticipated
-   ///                      values of the gradient of the scalar field, du_ex.
+   /// @param[in] exsol     Pointer to Coefficient object reproducing the
+   ///                      anticipated values of the scalar field, u_ex.
+   /// @param[in] exgrad    Pointer to VectorCoefficient object reproducing the
+   ///                      anticipated values of the gradient of the scalar
+   ///                      field, du_ex.
    /// @param[in] norm_type Integer value of 1, 2, or 3 indicating the type of
    ///                      norm to compute (see above).
    /// @param[in] elems     Optional pointer to a marker array, with a length
