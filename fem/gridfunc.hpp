@@ -715,6 +715,13 @@ public:
    /// @param[in] irs     Optional pointer to a custom integration rule
    ///                    e.g. higher order than the default rule.
    ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   ///
    /// @note For L2 elements this returns what could be called a "broken"
    ///       H1-norm.
    virtual real_t ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
@@ -736,6 +743,13 @@ public:
    ///                   values of the divergence of the vector field, du_ex.
    /// @param[in] irs    Optional pointer to a custom integration rule
    ///                   e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
    virtual real_t ComputeHDivError(VectorCoefficient *exsol,
                                    Coefficient *exdiv,
                                    const IntegrationRule *irs[] = NULL) const;
@@ -755,6 +769,13 @@ public:
    ///                    values of the curl of the vector field, du_ex.
    /// @param[in] irs     Optional pointer to a custom integration rule
    ///                    e.g. higher order than the default rule.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
    virtual real_t ComputeHCurlError(VectorCoefficient *exsol,
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const;
