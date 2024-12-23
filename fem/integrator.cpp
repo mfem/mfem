@@ -4,9 +4,9 @@
 
 namespace mfem
 {
-const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement*
-                                                      trial_fe, const FiniteElement* test_fe,
-                                                      const ElementTransformation* trans) const
+const IntegrationRule* Integrator::GetIntegrationRule(
+   const FiniteElement* trial_fe, const FiniteElement* test_fe,
+   const ElementTransformation* trans) const
 {
    const NURBSFiniteElement *NURBSFE = dynamic_cast<const NURBSFiniteElement *>
                                        (test_fe);
@@ -16,7 +16,8 @@ const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement*
       const int patch = NURBSFE->GetPatch();
       const int* ijk = NURBSFE->GetIJK();
       Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
-      result = &patchRules->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv);
+      result = &patchRules->GetElementRule(NURBSFE->GetElement(), patch, ijk,
+                                           kv);
    }
    else if (IntRule)
    {
@@ -28,13 +29,14 @@ const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement*
    }
    return result;
 }
-const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement*
-                                                      trial_fe, const FiniteElement* test_fe) const
+const IntegrationRule* Integrator::GetIntegrationRule(
+   const FiniteElement* trial_fe, const FiniteElement* test_fe) const
 {
    return GetIntegrationRule(trial_fe, test_fe, NULL);
 }
-const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement* el,
-                                                      const ElementTransformation* trans) const
+const IntegrationRule* Integrator::GetIntegrationRule(
+   const FiniteElement* el,
+   const ElementTransformation* trans) const
 {
    return GetIntegrationRule(el, el, trans);
 }
