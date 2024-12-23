@@ -1,14 +1,9 @@
+//                   MFEM Ultraweak DPG Maxwell parallel example
+//
+// the "ultraweak" (UW) DPG formulation for the Maxwell problem
 
-// srun -n 256 ./pmaxwell-fem-tokamak -o 3 -sc -rnum
-// srun -n 448 ./pmaxwell-fem-tokamak -o 4 -sc -rnum 11.0 -sigma 2.0 -paraview
-
-// srun -n 448 ./pmaxwell-fem-tokamak -o 4 -paraview
-// Description:
-// This example code demonstrates the use of MFEM to define and solve
-// the standard FEM formulation for the Maxwell problem
-
-//      ∇×(1/μ ∇×E) - (ω^2 ϵ + i ω σ) E = J ,   in Ω
-//                E×n = E_0, on ∂Ω
+//      ∇×(1/μ ∇×E) - ω² ϵ E = Ĵ ,   in Ω
+//                       E×n = E₀ , on ∂Ω
 
 #include "mfem.hpp"
 #include "util/pcomplexweakform.hpp"
@@ -19,20 +14,47 @@
 using namespace std;
 using namespace mfem;
 
+class AzimuthalECoefficient : public Coefficient
+{
+private:
+   const GridFunction * vgf;
+public:
+   AzimuthalECoefficient(const GridFunction * vgf_) 
+   : Coefficient(), vgf(vgf_) {}
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      Vector X, E;
+      vgf->GetVectorValue(T,ip,E);
+      T.Transform(ip, X);
+      real_t x = X(0);
+      real_t y = X(1);
+      real_t r = sqrt(x*x + y*y);
+
+      real_t val = -x*E[1] + y*E[0];
+      return val/r;
+   }
+};
+
+
 class EpsilonMatrixCoefficient : public MatrixArrayCoefficient
 {
 private:
    Mesh * mesh = nullptr;
    ParMesh * pmesh = nullptr;
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    Array<ParGridFunction * > pgfs;
    Array<GridFunctionCoefficient * > gf_cfs;
    GridFunction * vgf = nullptr;
    int dim;
+   int sdim;
+   bool vis=false;
 public:
    EpsilonMatrixCoefficient(const char * filename, Mesh * mesh_, ParMesh * pmesh_,
-                            double scale = 1.0)
+                            double scale = 1.0, double vis_=false)
       : MatrixArrayCoefficient(mesh_->Dimension()), mesh(mesh_), pmesh(pmesh_),
-        dim(mesh_->Dimension())
+        dim(mesh->Dimension()), vis(vis_)
    {
       std::filebuf fb;
       fb.open(filename,std::ios::in);
@@ -43,26 +65,59 @@ public:
       int vdim = vfes->GetVDim();
       const FiniteElementCollection * fec = vfes->FEColl();
       FiniteElementSpace * fes = new FiniteElementSpace(mesh, fec);
-      int num_procs = Mpi::WorldSize();
       int * partitioning = mesh->GeneratePartitioning(num_procs);
       double *data = vgf->GetData();
       GridFunction gf;
       pgfs.SetSize(vdim);
       gf_cfs.SetSize(vdim);
-      for (int i = 0; i<dim; i++)
+      sdim = sqrt(vdim);
+      for (int i = 0; i<sdim; i++)
       {
-         for (int j = 0; j<dim; j++)
+         for (int j = 0; j<sdim; j++)
          {
-            int k = i*dim+j;
-            // int k = j*dim+i;
+            int k = i*sdim+j;
             gf.MakeRef(fes,&data[k*fes->GetVSize()]);
             pgfs[k] = new ParGridFunction(pmesh,&gf,partitioning);
             (*pgfs[k])*=scale;
             gf_cfs[k] = new GridFunctionCoefficient(pgfs[k]);
-            Set(i,j,gf_cfs[k], true);
+            // skip if i or j > dim
+            if (i<dim && j<dim)
+            {
+               Set(i,j,gf_cfs[k], true);
+            }
          }
       }
    }
+
+   // Visualize the components of the matrix coefficient
+   // in separate GLVis windows for each component
+   void VisualizeMatrixCoefficient()
+   {
+      Array<socketstream *> sol_sock(pgfs.Size());
+      for (int k = 0; k<pgfs.Size(); k++)
+      {
+         if (Mpi::Root()) mfem::out << "Visualizing component " << k << endl;
+         char vishost[] = "localhost";
+         int visport = 19916;
+         sol_sock[k] = new socketstream(vishost, visport);
+         sol_sock[k]->precision(8);
+         *sol_sock[k] << "parallel " << num_procs << " " << myid << "\n";
+         int i = k/sdim;
+         int j = k%sdim;
+         // plot with the title "Epsilon Matrix Coefficient Component (i,j)"
+         *sol_sock[k] << "solution\n" << *pmesh << *pgfs[k] 
+            << "window_title 'Epsilon Matrix Coefficient Component (" << i << "," << j << ")'" << flush;
+      }
+   }
+   void Update()
+   {
+      pgfs[0]->ParFESpace()->Update();
+      for (int k = 0; k<pgfs.Size(); k++)
+      {
+         pgfs[k]->Update();
+      }
+   }
+
    ~EpsilonMatrixCoefficient()
    {
       for (int i = 0; i<pgfs.Size(); i++)
@@ -71,6 +126,7 @@ public:
       }
       pgfs.DeleteAll();
    }
+
 };
 
 
@@ -80,35 +136,35 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   const char *mesh_file = "data/mesh_330k.mesh";
-   const char * eps_r_file = "data/eps_r_330k.gf";
-   const char * eps_i_file = "data/eps_i_330k.gf";
+   const char *mesh_file = "data/mesh2D.mesh";
+   const char * eps_r_file = "data/eps2D_r.gf";
+   const char * eps_i_file = "data/eps2D_i.gf";
 
-   int order = 1;
+   int order = 2;
+   int par_ref_levels = 0;
    bool visualization = false;
-   double rnum=50.0e6;
-   int sr = 0;
-   int pr = 0;
+   double rnum=4.6e9;
    bool paraview = false;
-   double mu = 1.257e-6;
-   double epsilon = 1.0;
-   double epsilon_scale = 8.8541878128e-12;
+   double factor = 1.0;
+   double mu = 1.257e-6/factor;
+   double epsilon_scale = 8.8541878128e-12*factor;
+   bool mumps_solver = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
+   args.AddOption(&par_ref_levels, "-pr", "--parallel-refinement_levels",
+                  "Number of parallel refinement levels.");                  
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");
    args.AddOption(&mu, "-mu", "--permeability",
                   "Permeability of free space (or 1/(spring constant)).");
-   args.AddOption(&epsilon, "-eps", "--permittivity",
-                  "Permittivity of free space (or mass constant).");
-   args.AddOption(&sr, "-sref", "--serial_ref",
-                  "Number of serial refinements.");
-   args.AddOption(&pr, "-pref", "--parallel_ref",
-                  "Number of parallel refinements.");
+#ifdef MFEM_USE_MUMPS
+   args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
+                  "--no-mumps-solver", "Use the MUMPS Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -129,26 +185,22 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   socketstream E_out_r;
-
-
    double omega = 2.*M_PI*rnum;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-
-   for (int i = 0; i<sr; i++)
-   {
-      mesh.UniformRefinement();
-   }
-
+   mesh.RemoveInternalBoundaries();
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
-
 
    EpsilonMatrixCoefficient eps_r_cf(eps_r_file,&mesh,&pmesh, epsilon_scale);
    EpsilonMatrixCoefficient eps_i_cf(eps_i_file,&mesh,&pmesh, epsilon_scale);
 
-   mesh.Clear();
+   for (int i = 0; i<par_ref_levels; i++)
+   {
+      pmesh.UniformRefinement();
+      eps_r_cf.Update();
+      eps_i_cf.Update();
+   }
 
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *E_fes = new ParFiniteElementSpace(&pmesh, fec);
@@ -156,11 +208,6 @@ int main(int argc, char *argv[])
    // Bilinear form coefficients
    ConstantCoefficient one(1.0);
    ConstantCoefficient muinv(1./mu);
-
-   if (myid == 0)
-   {
-      std::cout << "Assembling matrix" << endl;
-   }
 
    ScalarMatrixProductCoefficient m_cf_r(-omega*omega, eps_r_cf);
    ScalarMatrixProductCoefficient m_cf_i(-omega*omega, eps_i_cf);
@@ -173,6 +220,10 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new VectorFEMassIntegrator(m_cf_r),
                           new VectorFEMassIntegrator(m_cf_i));
 
+   socketstream E_out_r;
+   socketstream E_theta_out_r;
+   socketstream E_theta_out_i;
+
    ParComplexGridFunction E_gf(E_fes);
    E_gf.real() = 0.0;
    E_gf.imag() = 0.0;
@@ -182,7 +233,7 @@ int main(int argc, char *argv[])
    if (paraview)
    {
       paraview_dc = new ParaViewDataCollection(mesh_file, &pmesh);
-      paraview_dc->SetPrefixPath("ParaView");
+      paraview_dc->SetPrefixPath("ParaViewFEM2D");
       paraview_dc->SetLevelsOfDetail(order);
       paraview_dc->SetCycle(0);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
@@ -192,73 +243,53 @@ int main(int argc, char *argv[])
       paraview_dc->RegisterField("E_i",&E_gf.imag());
    }
 
-   // internal bdr attributes
-   Array<int> internal_bdr({1, 3, 6, 9, 17, 157, 185, 75, 210, 211,
-                            212, 213, 214, 215, 216, 217, 218, 219,
-                            220, 221, 222, 223, 224, 225, 226, 227,
-                            228, 229, 230, 231, 232, 233, 234, 125});
-
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
-   Array<int> one_bdr;
-   Array<int> negone_bdr;
-
-   if (myid == 0)
-   {
-      std::cout << "Attributes" << endl;
-   }
+   Array<int> one_r_bdr;
+   Array<int> one_i_bdr;
+   Array<int> negone_r_bdr;
+   Array<int> negone_i_bdr;
 
    if (pmesh.bdr_attributes.Size())
    {
       ess_bdr.SetSize(pmesh.bdr_attributes.Max());
-      one_bdr.SetSize(pmesh.bdr_attributes.Max());
-      negone_bdr.SetSize(pmesh.bdr_attributes.Max());
+      one_r_bdr.SetSize(pmesh.bdr_attributes.Max());
+      one_i_bdr.SetSize(pmesh.bdr_attributes.Max());
+      negone_r_bdr.SetSize(pmesh.bdr_attributes.Max());
+      negone_i_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
-      // need to exclude these attributes
-      for (int i = 0; i<internal_bdr.Size(); i++)
-      {
-         ess_bdr[internal_bdr[i]-1] = 0;
-      }
       E_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      one_bdr = 0;
-      negone_bdr = 0;
-      one_bdr[234] = 1;
-      negone_bdr[235] = 1;
+      one_r_bdr = 0;  one_i_bdr = 0; 
+      negone_r_bdr = 0;  negone_i_bdr = 0; 
+
+      // attr = 30,2 (real) 
+      one_r_bdr[30-1] = 1;  one_r_bdr[2-1] = 1;
+      // attr = 26,6 (imag) 
+      one_i_bdr[26-1] = 1;  one_i_bdr[6-1] = 1;
+      // attr = 22,10 (real)  
+      negone_r_bdr[22-1] = 1; negone_r_bdr[10-1] = 1;  
+      // attr = 18,14 (imag) 
+      negone_i_bdr[18-1] = 1; negone_i_bdr[14-1] = 1;  
    }
 
-   if (myid == 0)
-   {
-      std::cout << "Attributes 2" << endl;
-   }
-
-   Vector z_one(3); z_one = 0.0; z_one(2) = 1.0;
-   Vector zero(3); zero = 0.0;
-   Vector z_negone(3); z_negone = 0.0; z_negone(2) = -1.0;
-   VectorConstantCoefficient z_one_cf(z_one);
-   VectorConstantCoefficient z_negone_cf(z_negone);
+   Vector zero(dim); zero = 0.0;
+   Vector one_x(dim); one_x = 0.0; one_x(0) = 1.0;
+   Vector negone_x(dim); negone_x = 0.0; negone_x(0) = -1.0;
    VectorConstantCoefficient zero_cf(zero);
+   VectorConstantCoefficient one_x_cf(one_x);
+   VectorConstantCoefficient negone_x_cf(negone_x);
 
-
-   E_gf.real() = 0.0;
-   E_gf.imag() = 0.0;
-   E_gf.ProjectBdrCoefficientTangent(z_one_cf,zero_cf, one_bdr);
-   E_gf.ProjectBdrCoefficientTangent(z_negone_cf,zero_cf, negone_bdr);
-
-   if (myid == 0)
-   {
-      std::cout << "Assembly started" << endl;
-   }
+   E_gf.ProjectBdrCoefficientTangent(one_x_cf,zero_cf, one_r_bdr);
+   E_gf.ProjectBdrCoefficientTangent(negone_x_cf,zero_cf, negone_r_bdr);
+   E_gf.ProjectBdrCoefficientTangent(zero_cf,one_x_cf, one_i_bdr);
+   E_gf.ProjectBdrCoefficientTangent(zero_cf,negone_x_cf, negone_i_bdr);
+   
    b->Assemble();
    a->Assemble();
 
    OperatorPtr Ah;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, E_gf, *b, Ah, X, B);
-
-   if (myid == 0)
-   {
-      std::cout << "Assembly finished" << endl;
-   }
 
 #ifdef MFEM_USE_MUMPS
    HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
@@ -276,6 +307,19 @@ int main(int argc, char *argv[])
 
    a->RecoverFEMSolution(X, *b, E_gf);
 
+   AzimuthalECoefficient az_e_r(&E_gf.real());
+   AzimuthalECoefficient az_e_i(&E_gf.imag());
+
+
+   L2_FECollection L2fec(order, dim);
+   ParFiniteElementSpace L2_fes(&pmesh, &L2fec);
+
+   ParGridFunction E_theta_r(&L2_fes);
+   ParGridFunction E_theta_i(&L2_fes);
+
+   E_theta_r.ProjectCoefficient(az_e_r);
+   E_theta_i.ProjectCoefficient(az_e_i);
+
    if (visualization)
    {
       const char * keys = nullptr;
@@ -283,6 +327,8 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       common::VisualizeField(E_out_r,vishost, visport, E_gf.real(),
                              "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
+      common::VisualizeField(E_theta_out_r,vishost, visport, E_theta_r,
+                             "Numerical Electric field (azimuthal)", 0, 0, 500, 500, keys);
    }
 
    if (paraview)
@@ -303,5 +349,5 @@ int main(int argc, char *argv[])
    delete fec;
 
    return 0;
-}
 
+}

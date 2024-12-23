@@ -345,7 +345,7 @@ int main(int argc, char *argv[])
       F_space = 0,
       G_space = 1
    };
-   // L2 space for E
+   // Vector L2 L2 space for E
    FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *E_fes = new ParFiniteElementSpace(&pmesh,E_fec,dim);
 

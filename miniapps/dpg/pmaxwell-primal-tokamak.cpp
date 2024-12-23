@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
 
          HypreParMatrix * A = Acomplex.GetSystemMatrix();
 
-         MUMPSSolver mumps;
+         MUMPSSolver mumps(MPI_COMM_WORLD);
          mumps.SetPrintLevel(0);
          mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
          mumps.SetOperator(*A);

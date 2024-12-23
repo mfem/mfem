@@ -199,11 +199,11 @@ int main(int argc, char *argv[])
 
       // HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
       // amg0->SetSystemsOptions(dim);
-      MUMPSSolver * amg0 = new MUMPSSolver();
+      MUMPSSolver * amg0 = new MUMPSSolver(MPI_COMM_WORLD);
       amg0->SetOperator((HypreParMatrix &)A->GetBlock(0,0));
 
 
-      MUMPSSolver * prec = new MUMPSSolver();
+      MUMPSSolver * prec = new MUMPSSolver(MPI_COMM_WORLD);
       prec->SetOperator((HypreParMatrix&)A->GetBlock(1,1));
       M.SetDiagonalBlock(1,prec);
 
@@ -231,9 +231,9 @@ int main(int argc, char *argv[])
 
       // HypreParMatrix * S1 = GetSubHypreParMatrix(tdofs1,A11);
       // HypreParMatrix * S2 = GetSubHypreParMatrix(tdofs2,A11);
-      // MUMPSSolver * prec1 = new MUMPSSolver();
+      // MUMPSSolver * prec1 = new MUMPSSolver(MPI_COMM_WORLD);
       // prec1->SetOperator(*S1);
-      // MUMPSSolver * prec2 = new MUMPSSolver();
+      // MUMPSSolver * prec2 = new MUMPSSolver(MPI_COMM_WORLD);
       // prec2->SetOperator(*S2);
       // HypreSolver * prec1;
       // HypreSolver * prec2;

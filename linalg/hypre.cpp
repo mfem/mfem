@@ -5074,7 +5074,7 @@ void HypreBoomerAMG::SetDefaultOptions()
       Pmax         = 4;    // max number of elements per row in P
 
       // AMG relaxation options:
-      relax_type   = 8;    // 8 = l1-GS, 6 = symm. GS, 3 = GS, 18 = l1-Jacobi
+      relax_type   = 88;    // 8 = l1-GS, 6 = symm. GS, 3 = GS, 18 = l1-Jacobi
       relax_sweeps = 1;    // relaxation sweeps on each level
 
       // Additional options:
@@ -5584,7 +5584,7 @@ void HypreAMS::MakeSolver(int sdim, int cycle_type)
    const bool hypre_gpu = HypreUsingGPU();
    int amg_coarsen_type = hypre_gpu ? 8 : 10;
    int amg_agg_levels   = hypre_gpu ? 0 : 1;
-   int amg_rlx_type     = hypre_gpu ? 18 : 8;
+   int amg_rlx_type     = hypre_gpu ? 18 : 88;
    int rlx_type         = hypre_gpu ? 1: 2;
    real_t theta         = 0.25;
    int amg_interp_type  = 6;

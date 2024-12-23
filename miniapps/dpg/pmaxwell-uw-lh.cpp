@@ -1,44 +1,61 @@
+//                   MFEM Ultraweak DPG Maxwell parallel example
+//
+// Compile with: make pmaxwell
+//
+// sample run
+// mpirun -np 4 pmaxwell -m ../../data/star.mesh -o 2 -sref 0 -pref 3 -rnum 0.5 -prob 0
+// mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 0 -pref 3 -rnum 4.8 -sc -prob 0
+// mpirun -np 4 pmaxwell -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -rnum 0.8 -sc -prob 0
+// mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -rnum 4.8 -sc -prob 2
+// mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 11.8 -sc -prob 3
+// mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
 
-// srun -n 256 ./pmaxwell-tokamak -o 3 -sc -rnum
-// srun -n 448 ./pmaxwell-tokamak -o 4 -sc -rnum 11.0 -sigma 2.0 -paraview
+// AMR run. Note that this is a computationally intensive sample run.
+// We recommend trying it on a large machine with more mpi ranks
+// mpirun -np 4 pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
 
-// srun -n 448 ./pmaxwell-tokamak -o 4 -do 0 -sc -paraview (with the new epsilon GridFunction coefficients)
-// TODO do > 0 fails with non SPD G matrix
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
 // the "ultraweak" (UW) DPG formulation for the Maxwell problem
 
-//      ∇×(1/μ ∇×E) - ω^2 ϵ E = Ĵ ,   in Ω
-//                        E×n = E_0, on ∂Ω
+//      ∇×(1/μ ∇×E) - ω² ϵ E = Ĵ ,   in Ω
+//                       E×n = E₀ , on ∂Ω
+
+// It solves the following kinds of problems
+// 1) Known exact solutions with error convergence rates
+//    a) A manufactured solution problem where E is a plane beam
+// 2) Fichera "microwave" problem
+// 3) PML problems
+//    a) Generic PML problem with point source given by the load
+//    b) Plane wave scattering from a square
+//    c) PML problem with a point source prescribed on the boundary
 
 // The DPG UW deals with the First Order System
-//        i ω μ H + ∇ × E = 0,   in Ω (Faraday's law)
-//            M E + ∇ × H = J,   in Ω (Ampere's law)
+//  i ω μ H + ∇ × E = 0,   in Ω
+// -i ω ϵ E + ∇ × H = 0,   in Ω
 //            E × n = E_0, on ∂Ω
-// Note: Ĵ = -iωJ
-// where M = -iωϵ
 
 // The ultraweak-DPG formulation is obtained by integration by parts of both
 // equations and the introduction of trace unknowns on the mesh skeleton
 
-// in 3D
-// E,H ∈ (L^2(Ω))^3
-// Ê ∈ H_0^1/2(Ω)(curl, Γ_h), Ĥ ∈ H^-1/2(curl, Γ_h)
-//  i ω μ (H,F) + (E,∇ × F) + < Ê, F × n > = 0,      ∀ F ∈ H(curl,Ω)
-//      M (E,G) + (H,∇ × G) + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
-//                                   Ê × n = E_0     on ∂Ω
+// in 2D
+// E is vector valued and H is scalar.
+//    (∇ × E, F) = (E, ∇ × F) + < n × E , F>
+// or (∇ ⋅ AE , F) = (AE, ∇ F) + < AE ⋅ n, F>
+// where A = [0 1; -1 0];
+
+// E ∈ (L²(Ω))² , H ∈ L²(Ω)
+// Ê ∈ H^-1/2(Γₕ), Ĥ ∈ H^1/2(Γₕ)
+//  i ω μ (H,F) + (E, ∇ × F) + < AÊ, F > = 0,      ∀ F ∈ H¹
+// -i ω ϵ (E,G) + (H,∇ × G)  + < Ĥ, G × n > = (J,G)   ∀ G ∈ H(curl,Ω)
+//                                        Ê = E₀      on ∂Ω
 // -------------------------------------------------------------------------
 // |   |       E      |      H      |      Ê       |       Ĥ      |  RHS    |
 // -------------------------------------------------------------------------
-// | F |  (E,∇ × F)   | i ω μ (H,F) | < n × Ê, F > |              |         |
+// | F |  (E,∇ × F)   | i ω μ (H,F) |   < Ê, F >   |              |         |
 // |   |              |             |              |              |         |
-// | G |    (ME,G)    |  (H,∇ × G)  |              | < n × Ĥ, G > |  (J,G)  |
-// where (F,G) ∈  H(curl,Ω) × H(curl,Ω)
-
-// Here we use the "Adjoint Graph" norm on the test space i.e.,
-// ||(F,G)||^2_V = ||A^*(F,G)||^2 + ||(F,G)||^2 where A is the
-// maxwell operator defined by (1)
-
+// | G | -i ω ϵ (E,G) |  (H,∇ × G)  |              | < Ĥ, G × n > |  (J,G)  |
+// where (F,G) ∈  H¹ × H(curl,Ω)
 
 #include "mfem.hpp"
 #include "util/pcomplexweakform.hpp"
@@ -49,20 +66,46 @@
 using namespace std;
 using namespace mfem;
 
+class AzimuthalECoefficient : public Coefficient
+{
+private:
+   const GridFunction * vgf;
+public:
+   AzimuthalECoefficient(const GridFunction * vgf_) 
+   : Coefficient(), vgf(vgf_) {}
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      Vector X, E;
+      vgf->GetVectorValue(T,ip,E);
+      T.Transform(ip, X);
+      real_t x = X(0);
+      real_t y = X(1);
+      real_t r = sqrt(x*x + y*y);
+
+      real_t val = -x*E[1] + y*E[0];
+      return val/r;
+   }
+};
+
 class EpsilonMatrixCoefficient : public MatrixArrayCoefficient
 {
 private:
    Mesh * mesh = nullptr;
    ParMesh * pmesh = nullptr;
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    Array<ParGridFunction * > pgfs;
    Array<GridFunctionCoefficient * > gf_cfs;
    GridFunction * vgf = nullptr;
    int dim;
+   int sdim;
+   bool vis=false;
 public:
    EpsilonMatrixCoefficient(const char * filename, Mesh * mesh_, ParMesh * pmesh_,
-                            double scale = 1.0)
+                            double scale = 1.0, double vis_=false)
       : MatrixArrayCoefficient(mesh_->Dimension()), mesh(mesh_), pmesh(pmesh_),
-        dim(mesh_->Dimension())
+        dim(mesh->Dimension()), vis(vis_)
    {
       std::filebuf fb;
       fb.open(filename,std::ios::in);
@@ -73,26 +116,59 @@ public:
       int vdim = vfes->GetVDim();
       const FiniteElementCollection * fec = vfes->FEColl();
       FiniteElementSpace * fes = new FiniteElementSpace(mesh, fec);
-      int num_procs = Mpi::WorldSize();
       int * partitioning = mesh->GeneratePartitioning(num_procs);
       double *data = vgf->GetData();
       GridFunction gf;
       pgfs.SetSize(vdim);
       gf_cfs.SetSize(vdim);
-      for (int i = 0; i<dim; i++)
+      sdim = sqrt(vdim);
+      for (int i = 0; i<sdim; i++)
       {
-         for (int j = 0; j<dim; j++)
+         for (int j = 0; j<sdim; j++)
          {
-            int k = i*dim+j;
-            // int k = j*dim+i;
+            int k = i*sdim+j;
             gf.MakeRef(fes,&data[k*fes->GetVSize()]);
             pgfs[k] = new ParGridFunction(pmesh,&gf,partitioning);
             (*pgfs[k])*=scale;
             gf_cfs[k] = new GridFunctionCoefficient(pgfs[k]);
-            Set(i,j,gf_cfs[k], true);
+            // skip if i or j > dim
+            if (i<dim && j<dim)
+            {
+               Set(i,j,gf_cfs[k], true);
+            }
          }
       }
    }
+
+   // Visualize the components of the matrix coefficient
+   // in separate GLVis windows for each component
+   void VisualizeMatrixCoefficient()
+   {
+      Array<socketstream *> sol_sock(pgfs.Size());
+      for (int k = 0; k<pgfs.Size(); k++)
+      {
+         if (Mpi::Root()) mfem::out << "Visualizing component " << k << endl;
+         char vishost[] = "localhost";
+         int visport = 19916;
+         sol_sock[k] = new socketstream(vishost, visport);
+         sol_sock[k]->precision(8);
+         *sol_sock[k] << "parallel " << num_procs << " " << myid << "\n";
+         int i = k/sdim;
+         int j = k%sdim;
+         // plot with the title "Epsilon Matrix Coefficient Component (i,j)"
+         *sol_sock[k] << "solution\n" << *pmesh << *pgfs[k] 
+            << "window_title 'Epsilon Matrix Coefficient Component (" << i << "," << j << ")'" << flush;
+      }
+   }
+   void Update()
+   {
+      pgfs[0]->ParFESpace()->Update();
+      for (int k = 0; k<pgfs.Size(); k++)
+      {
+         pgfs[k]->Update();
+      }
+   }
+
    ~EpsilonMatrixCoefficient()
    {
       for (int i = 0; i<pgfs.Size(); i++)
@@ -111,14 +187,15 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   const char *mesh_file = "data/mesh_330k.mesh";
-   const char * eps_r_file = "data/eps_r_330k.gf";
-   const char * eps_i_file = "data/eps_i_330k.gf";
+   const char *mesh_file = "data/mesh2D.mesh";
+   const char * eps_r_file = "data/eps2D_r.gf";
+   const char * eps_i_file = "data/eps2D_i.gf";
 
-   int order = 1;
+   int order = 2;
    int delta_order = 1;
+   int par_ref_levels = 0;
    bool visualization = false;
-   double rnum=50.0e6;
+   double rnum=4.6e9;
    bool static_cond = false;
    bool paraview = false;
    double factor = 1.0;
@@ -132,6 +209,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
+   args.AddOption(&par_ref_levels, "-pr", "--parallel-refinement_levels",
+                  "Number of parallel refinement levels.");                  
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");
    args.AddOption(&mu, "-mu", "--permeability",
@@ -170,13 +249,22 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+   mesh.RemoveInternalBoundaries();
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
    EpsilonMatrixCoefficient eps_r_cf(eps_r_file,&mesh,&pmesh, epsilon_scale);
    EpsilonMatrixCoefficient eps_i_cf(eps_i_file,&mesh,&pmesh, epsilon_scale);
 
-   mesh.Clear();
+   for (int i = 0; i<par_ref_levels; i++)
+   {
+      pmesh.UniformRefinement();
+      eps_r_cf.Update();
+      eps_i_cf.Update();
+   }
+
+   // eps_r_cf.VisualizeMatrixCoefficient();
+   // eps_i_cf.VisualizeMatrixCoefficient();
 
    // Matrix Coefficient (M = -i\omega \epsilon);
    // M = -i * omega * (eps_r + i eps_i)
@@ -184,23 +272,59 @@ int main(int argc, char *argv[])
    ScalarMatrixProductCoefficient Mr_cf(omega,eps_i_cf);
    ScalarMatrixProductCoefficient Mi_cf(-omega,eps_r_cf);
 
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient muomeg(mu*omega);
+   ConstantCoefficient mu2omeg2(mu*mu*omega*omega);
+   ConstantCoefficient negmuomeg(-mu*omega);
+   DenseMatrix rot_mat(2);
+   rot_mat(0,0) = 0.; rot_mat(0,1) = 1.;
+   rot_mat(1,0) = -1.; rot_mat(1,1) = 0.;
+   MatrixConstantCoefficient rot(rot_mat);
+   MatrixProductCoefficient Mrot_r(Mr_cf,rot);
+   MatrixProductCoefficient Mrot_i(Mi_cf,rot);
+   ScalarMatrixProductCoefficient negMrot_i(-1.0,Mrot_i);
+
+   TransposeMatrixCoefficient Mrt_cf(Mr_cf);
+   TransposeMatrixCoefficient Mit_cf(Mi_cf);
+   MatrixProductCoefficient MrMrt_cf(Mr_cf,Mrt_cf);
+   MatrixProductCoefficient MiMit_cf(Mi_cf,Mit_cf);
+   MatrixProductCoefficient MiMrt_cf(Mi_cf,Mrt_cf);
+   MatrixProductCoefficient MrMit_cf(Mr_cf,Mit_cf);
+
+   MatrixSumCoefficient MMr_cf(MrMrt_cf,MiMit_cf);
+   MatrixSumCoefficient MMi_cf(MiMrt_cf,MrMit_cf,1.0,-1.0);
+
+   mesh.Clear();
+
    // Define spaces
-   // L2 space for E
+   enum TrialSpace
+   {
+      E_space     = 0,
+      H_space     = 1,
+      hatE_space  = 2,
+      hatH_space  = 3
+   };
+   enum TestSpace
+   {
+      F_space = 0,
+      G_space = 1
+   };
+
+   int dimc = (dim == 3) ? 3 : 1;
+   int test_order = order+delta_order;
+
+   // Vector L2 L2 space for E
    FiniteElementCollection *E_fec = new L2_FECollection(order-1,dim);
    ParFiniteElementSpace *E_fes = new ParFiniteElementSpace(&pmesh,E_fec,dim);
 
    // Vector L2 space for H
    FiniteElementCollection *H_fec = new L2_FECollection(order-1,dim);
-   ParFiniteElementSpace *H_fes = new ParFiniteElementSpace(&pmesh,H_fec, dim);
+   ParFiniteElementSpace *H_fes = new ParFiniteElementSpace(&pmesh,H_fec, dimc);
 
    // H^-1/2 (curl) space for Ê
-   FiniteElementCollection * hatE_fec = nullptr;
-   FiniteElementCollection * hatH_fec = nullptr;
-   FiniteElementCollection * F_fec = nullptr;
-   int test_order = order+delta_order;
-   hatE_fec = new ND_Trace_FECollection(order,dim);
-   hatH_fec = new ND_Trace_FECollection(order,dim);
-   F_fec = new ND_FECollection(test_order, dim);
+   FiniteElementCollection * hatE_fec = new RT_Trace_FECollection(order-1,dim);
+   FiniteElementCollection * hatH_fec = new H1_Trace_FECollection(order,dim);
+   FiniteElementCollection * F_fec = new H1_FECollection(test_order, dim);
 
    ParFiniteElementSpace *hatE_fes = new ParFiniteElementSpace(&pmesh,hatE_fec);
    ParFiniteElementSpace *hatH_fes = new ParFiniteElementSpace(&pmesh,hatH_fec);
@@ -221,121 +345,91 @@ int main(int argc, char *argv[])
       gdofs += trial_fes[i]->GlobalTrueVSize();
    }
 
-   if (myid == 0)
+   if (Mpi::Root())
    {
       mfem::out << "Global number of dofs = " << gdofs << endl;
-   }
-
-   // Bilinear form coefficients
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient mu2omeg2(mu*mu*omega*omega);
-   ConstantCoefficient muomeg(mu*omega);
-   ConstantCoefficient negmuomeg(-mu*omega);
-
-   Vector z_one(3); z_one = 0.0; z_one(2) = 1.0;
-   Vector zero(3); zero = 0.0;
-   Vector z_negone(3); z_negone = 0.0; z_negone(2) = -1.0;
-   VectorConstantCoefficient z_one_cf(z_one);
-   VectorConstantCoefficient z_negone_cf(z_negone);
-   VectorConstantCoefficient zero_cf(zero);
-
-   if (myid == 0)
-   {
-      std::cout << "Assembling matrix" << endl;
    }
 
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
 
    // (E,∇ × F)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
-                         nullptr,0,0);
+                         nullptr,
+                         TrialSpace::E_space, 
+                         TestSpace::F_space);
 
    //  (M E , G) = (M_r E, G) + i (M_i E, G)
    a->AddTrialIntegrator(
       new TransposeIntegrator(new VectorFEMassIntegrator(Mr_cf)),
-      new TransposeIntegrator(new VectorFEMassIntegrator(Mi_cf)),0,1);
+      new TransposeIntegrator(new VectorFEMassIntegrator(Mi_cf)),
+                              TrialSpace::E_space, TestSpace::G_space);
 
    //  (H,∇ × G)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
-                         nullptr,1,1);
+                         nullptr,
+                         TrialSpace::H_space, TestSpace::G_space);
+
    // < n×Ĥ ,G>
-   a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,3,1);
+   a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,
+                         TrialSpace::hatH_space, TestSpace::G_space);
+
+   // i ω μ (H, F)
+   a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(muomeg),
+                           TrialSpace::H_space, TestSpace::F_space);                                                  
+
+   // < n×Ê,F>
+   a->AddTrialIntegrator(new TraceIntegrator,nullptr,
+                           TrialSpace::hatE_space, TestSpace::F_space);
 
    // test integrators
    // (∇×G ,∇× δG)
-   a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,1,1);
-
-   ConstantCoefficient l2weight(1.0);
-
+   a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,
+                        TestSpace::G_space,TestSpace::G_space);
    // (G,δG)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(l2weight),nullptr,1,1);
-
-   // i ω μ (H, F)
-   a->AddTrialIntegrator(nullptr,
-                         new TransposeIntegrator(new VectorFEMassIntegrator(muomeg)),1,0);
-   // < n×Ê,F>
-   a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,2,0);
-   // test integrators
-   // (∇×F,∇×δF)
-   a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,0,0);
+   a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,
+                        TestSpace::G_space,TestSpace::G_space);
+   // (∇F,∇δF)
+   a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,
+                        TestSpace::F_space, TestSpace::F_space);
    // (F,δF)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(l2weight),nullptr,0,0);
+   a->AddTestIntegrator(new MassIntegrator(one),nullptr,
+                        TestSpace::F_space, TestSpace::F_space);
 
    if (graph_norm)
    {
       // μ^2 ω^2 (F,δF)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(mu2omeg2),nullptr,0,0);
+      a->AddTestIntegrator(new MassIntegrator(mu2omeg2),nullptr,
+                           TestSpace::F_space, TestSpace::F_space);
+
       // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
-      a->AddTestIntegrator(nullptr,new MixedVectorWeakCurlIntegrator(negmuomeg),0,1);
+      a->AddTestIntegrator(nullptr,
+                           new TransposeIntegrator(new MixedCurlIntegrator(negmuomeg)),
+                           TestSpace::F_space, TestSpace::G_space);
+   
+      // (M ∇ × F, δG) = (M_r ∇ × F, δG) + i (M_i ∇ × F, δG)
+      //               = (M_r A ∇ F, δG) + i (M_i A ∇ F, δG), A = [0 1; -1; 0]
+      a->AddTestIntegrator(new MixedVectorGradientIntegrator(Mrot_r),
+                           new MixedVectorGradientIntegrator(Mrot_i),
+                           TestSpace::F_space, TestSpace::G_space);
+   
+      // i ω μ (∇ × G,δF) = i (ω μ ∇ × G, δF )
+      a->AddTestIntegrator(nullptr,new MixedCurlIntegrator(muomeg),
+                           TestSpace::G_space, TestSpace::F_space);
 
-      // (M ∇ × F, δG) = (M_r  ∇ × F, δG) + i (M_i  ∇ × F, δG)
-      a->AddTestIntegrator(new MixedVectorCurlIntegrator(Mr_cf),
-                           new MixedVectorCurlIntegrator(Mi_cf),0,1);
-
-      // i ω μ (∇ × G,δF)
-      a->AddTestIntegrator(nullptr,new MixedVectorCurlIntegrator(muomeg),1,0);
-   }
-
-   // (M^* G, ∇ × δF ) = (Mr^T G,  ∇ × δF) - i (Mi^T G,  ∇ × δF)
-   TransposeMatrixCoefficient Mrt_cf(Mr_cf);
-   TransposeMatrixCoefficient Mit_cf(Mi_cf);
-   ScalarMatrixProductCoefficient negMit_cf(-1.0,Mit_cf);
-   if (graph_norm)
-   {
-      a->AddTestIntegrator(new MixedVectorWeakCurlIntegrator(Mrt_cf),
-                           new MixedVectorWeakCurlIntegrator(negMit_cf),1,0);
-   }
-
-   // M*M^*(G,δG) = (MrMr^t + MiMi^t) + i (MiMr^t - MrMi^t)
-   MatrixProductCoefficient MrMrt_cf(Mr_cf,Mrt_cf);
-   MatrixProductCoefficient MiMit_cf(Mi_cf,Mit_cf);
-   MatrixProductCoefficient MiMrt_cf(Mi_cf,Mrt_cf);
-   MatrixProductCoefficient MrMit_cf(Mr_cf,Mit_cf);
-
-   MatrixSumCoefficient MMr_cf(MrMrt_cf,MiMit_cf);
-   MatrixSumCoefficient MMi_cf(MiMrt_cf,MrMit_cf,1.0,-1.0);
-
-   const IntegrationRule *irs[Geometry::NumGeom];
-   int order_quad = 2*order + 2;
-   for (int i = 0; i < Geometry::NumGeom; ++i)
-   {
-      irs[i] = &(IntRules.Get(i, order_quad));
-   }
-   const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0),
-                                            2*test_order + 2);
-
-   VectorFEMassIntegrator * integ_r = new VectorFEMassIntegrator(MMr_cf);
-   integ_r->SetIntegrationRule(ir);
-   VectorFEMassIntegrator * integ_i = new VectorFEMassIntegrator(MMi_cf);
-   integ_i->SetIntegrationRule(ir);
-
-   if (graph_norm)
-   {
-      a->AddTestIntegrator(integ_r,integ_i,1,1);
+      // (M^* G, ∇ × δF ) = (G, Mr A ∇ δF) - i (G, Mi A ∇ δF)
+      a->AddTestIntegrator(new TransposeIntegrator(new MixedVectorGradientIntegrator(Mrot_r)),
+                           new TransposeIntegrator(new MixedVectorGradientIntegrator(negMrot_i)),
+                           TestSpace::G_space, TestSpace::F_space);                           
+      
+      // M*M^*(G,δG) = (MrMr^t + MiMi^t) + i (MiMr^t - MrMi^t)
+      a->AddTestIntegrator(new VectorFEMassIntegrator(MMr_cf),
+                           new VectorFEMassIntegrator(MMi_cf),
+                         TestSpace::G_space, TestSpace::G_space);
    }
 
    socketstream E_out_r;
    socketstream H_out_r;
+   socketstream E_theta_out_r;
 
    ParComplexGridFunction E(E_fes);
    ParComplexGridFunction H(H_fes);
@@ -344,12 +438,18 @@ int main(int argc, char *argv[])
    H.real() = 0.0;
    H.imag() = 0.0;
 
+   L2_FECollection L2fec(order, dim);
+   ParFiniteElementSpace L2_fes(&pmesh, &L2fec);
+
+   ParGridFunction E_theta_r(&L2_fes);
+   ParGridFunction E_theta_i(&L2_fes);
+
    ParaViewDataCollection * paraview_dc = nullptr;
 
    if (paraview)
    {
       paraview_dc = new ParaViewDataCollection(mesh_file, &pmesh);
-      paraview_dc->SetPrefixPath("ParaViewUWDPG");
+      paraview_dc->SetPrefixPath("ParaViewUWDPG2D");
       paraview_dc->SetLevelsOfDetail(order);
       paraview_dc->SetCycle(0);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
@@ -359,45 +459,37 @@ int main(int argc, char *argv[])
       paraview_dc->RegisterField("E_i",&E.imag());
       paraview_dc->RegisterField("H_r",&H.real());
       paraview_dc->RegisterField("H_i",&H.imag());
+      paraview_dc->RegisterField("E_theta_r",&E_theta_r);
+      paraview_dc->RegisterField("H_theta_i",&E_theta_i);
    }
-
-   // internal bdr attributes
-   Array<int> internal_bdr({1, 3, 6, 9, 17, 157, 185, 75, 210, 211,
-                            212, 213, 214, 215, 216, 217, 218, 219,
-                            220, 221, 222, 223, 224, 225, 226, 227,
-                            228, 229, 230, 231, 232, 233, 234, 125});
 
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
-   Array<int> one_bdr;
-   Array<int> negone_bdr;
-
-   if (myid == 0)
-   {
-      std::cout << "Attributes" << endl;
-   }
+   Array<int> one_r_bdr;
+   Array<int> one_i_bdr;
+   Array<int> negone_r_bdr;
+   Array<int> negone_i_bdr;
 
    if (pmesh.bdr_attributes.Size())
    {
       ess_bdr.SetSize(pmesh.bdr_attributes.Max());
-      one_bdr.SetSize(pmesh.bdr_attributes.Max());
-      negone_bdr.SetSize(pmesh.bdr_attributes.Max());
+      one_r_bdr.SetSize(pmesh.bdr_attributes.Max());
+      one_i_bdr.SetSize(pmesh.bdr_attributes.Max());
+      negone_r_bdr.SetSize(pmesh.bdr_attributes.Max());
+      negone_i_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
-      // need to exclude these attributes
-      for (int i = 0; i<internal_bdr.Size(); i++)
-      {
-         ess_bdr[internal_bdr[i]-1] = 0;
-      }
       hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      one_bdr = 0;
-      negone_bdr = 0;
-      one_bdr[234] = 1;
-      negone_bdr[235] = 1;
-   }
+      one_r_bdr = 0;  one_i_bdr = 0; 
+      negone_r_bdr = 0;  negone_i_bdr = 0; 
 
-   if (myid == 0)
-   {
-      std::cout << "Attributes 2" << endl;
+      // attr = 30,2 (real) 
+      one_r_bdr[30-1] = 1;  one_r_bdr[2-1] = 1;
+      // attr = 26,6 (imag) 
+      one_i_bdr[26-1] = 1;  one_i_bdr[6-1] = 1;
+      // attr = 22,10 (real)  
+      negone_r_bdr[22-1] = 1; negone_r_bdr[10-1] = 1;  
+      // attr = 18,14 (imag) 
+      negone_i_bdr[18-1] = 1; negone_i_bdr[14-1] = 1;  
    }
 
    // Set up bdr conditions
@@ -423,21 +515,28 @@ int main(int argc, char *argv[])
    hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
    hatE_gf.imag().MakeRef(hatE_fes,&xdata[offsets.Last()+ offsets[2]]);
 
-   hatE_gf.ProjectBdrCoefficientTangent(z_one_cf,zero_cf, one_bdr);
-   hatE_gf.ProjectBdrCoefficientTangent(z_negone_cf,zero_cf, negone_bdr);
 
-   if (myid == 0)
-   {
-      std::cout << "Assembly started" << endl;
-   }
+   Vector zero(dim); zero = 0.0;
+   // Vector one_x(dim); one_x = 0.0; one_x(0) = 1.0;
+   // Vector negone_x(dim); negone_x = 0.0; negone_x(0) = -1.0;
+   VectorConstantCoefficient zero_cf(zero);
+   // VectorConstantCoefficient one_x_cf(one_x);
+   // VectorConstantCoefficient negone_x_cf(negone_x);
 
+   // rotate the vector
+   // (x,y) -> (y,-x)
+   Vector rot_one_x(dim); rot_one_x = 0.0; rot_one_x(1) = -1.0;
+   Vector rot_negone_x(dim); rot_negone_x = 0.0; rot_negone_x(1) = 1.0;
+   VectorConstantCoefficient rot_one_x_cf(rot_one_x);
+   VectorConstantCoefficient rot_negone_x_cf(rot_negone_x);
+
+   hatE_gf.ProjectBdrCoefficientNormal(rot_one_x_cf,zero_cf, one_r_bdr);
+   hatE_gf.ProjectBdrCoefficientNormal(rot_negone_x_cf,zero_cf, negone_r_bdr);
+   hatE_gf.ProjectBdrCoefficientNormal(zero_cf,rot_one_x_cf, one_i_bdr);
+   hatE_gf.ProjectBdrCoefficientNormal(zero_cf,rot_negone_x_cf, negone_i_bdr);
+   
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
-
-   if (myid == 0)
-   {
-      std::cout << "Assembly finished" << endl;
-   }
 
    OperatorPtr Ah;
    Vector X,B;
@@ -532,10 +631,12 @@ int main(int argc, char *argv[])
       }
       HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,
                                                                                  skip), hatE_fes);
-      HypreAMS * solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(
-                                               skip+1,skip+1), hatH_fes);
+      HypreBoomerAMG * solver_hatH = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(
+                                               skip+1,skip+1));
       solver_hatE->SetPrintLevel(0);
       solver_hatH->SetPrintLevel(0);
+      solver_hatH->SetRelaxType(88);
+      
 
       M.SetDiagonalBlock(skip,solver_hatE);
       M.SetDiagonalBlock(skip+1,solver_hatH);
@@ -547,9 +648,8 @@ int main(int argc, char *argv[])
          std::cout << "PCG iterations" << endl;
       }
       CGSolver cg(MPI_COMM_WORLD);
-      // GMRESSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-10);
-      cg.SetMaxIter(500);
+      cg.SetMaxIter(2000);
       cg.SetPrintLevel(1);
       cg.SetPreconditioner(M);
       cg.SetOperator(blockA);
@@ -576,6 +676,12 @@ int main(int argc, char *argv[])
       dofs += trial_fes[i]->GlobalTrueVSize();
    }
 
+   AzimuthalECoefficient az_e_r(&E.real());
+   AzimuthalECoefficient az_e_i(&E.imag());
+
+   E_theta_r.ProjectCoefficient(az_e_r);
+   E_theta_i.ProjectCoefficient(az_e_i);
+
    if (visualization)
    {
       const char * keys = nullptr;
@@ -585,6 +691,8 @@ int main(int argc, char *argv[])
                              "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
       common::VisualizeField(H_out_r,vishost, visport, H.real(),
                              "Numerical Magnetic field (real part)", 501, 0, 500, 500, keys);
+      common::VisualizeField(E_theta_out_r,vishost, visport, E_theta_r,
+                             "Numerical Electric field (Azimuthal-real)", 501, 0, 500, 500, keys);                             
    }
 
    if (paraview)
@@ -608,5 +716,5 @@ int main(int argc, char *argv[])
    delete E_fes;
 
    return 0;
-}
 
+}
