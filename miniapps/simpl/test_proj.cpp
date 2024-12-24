@@ -85,7 +85,7 @@ class HellingerDerivativeMatrixCoefficient : public MatrixCoefficient
    // attributes
 private:
    GridFunction * latent_gf;
-   Coefficient *r_min;
+   Coefficient *norm_max;
    bool own_rmin;
    Vector latent_val;
 protected:
@@ -97,13 +97,14 @@ public:
    HellingerDerivativeMatrixCoefficient(GridFunction * latent_gf,
                                         const real_t r_min)
       :MatrixCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf),
-       r_min(new ConstantCoefficient(r_min)), own_rmin(true),
+       norm_max(new ConstantCoefficient(r_min)), own_rmin(true),
        latent_val(latent_gf->VectorDim()) { }
    HellingerDerivativeMatrixCoefficient(GridFunction * latent_gf,
                                         Coefficient &r_min)
-      :MatrixCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf), r_min(&r_min),
+      :MatrixCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf),
+       norm_max(&r_min),
        own_rmin(false), latent_val(latent_gf->VectorDim()) { }
-   ~HellingerDerivativeMatrixCoefficient() {if (own_rmin) {delete r_min;}}
+   ~HellingerDerivativeMatrixCoefficient() {if (own_rmin) {delete norm_max;}}
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip) override
@@ -111,9 +112,9 @@ public:
       latent_gf->GetVectorValue(T.ElementNo, T.GetIntPoint(), latent_val);
       const real_t norm2 = latent_val*latent_val;
       const real_t g = std::pow(norm2 + 1.0, -3.0/2.0);
-      K.Diag(norm2 + 1, latent_val.Size());
-      AddMult_a_VVt(-1.0, latent_val, K);
-      K *= g / r_min->Eval(T, ip);
+      K.Diag(1.0/std::sqrt(norm2 + 1), latent_val.Size());
+      AddMult_a_VVt(-1.0*g, latent_val, K);
+      K *= norm_max->Eval(T, ip);
    }
 };
 
@@ -142,7 +143,6 @@ public:
       r_min = new ConstantCoefficient(new_rmin);
       own_rmin = true;
    }
-
    void SetLengthScale(Coefficient &new_rmin)
    {
       if (own_rmin) {delete r_min;}
@@ -154,7 +154,7 @@ public:
              const IntegrationPoint &ip) override
    {
       latent_gf->GetVectorValue(T.ElementNo, T.GetIntPoint(), V);
-      V /= std::sqrt(V*V + 1.0)*r_min->Eval(T, ip);
+      V *= r_min->Eval(T,ip) / std::sqrt(V*V + 1.0);
    }
 };
 
@@ -346,9 +346,9 @@ int main(int argc, char *argv[])
    ParGridFunction Psi_k(&RT_fes);
    ParGridFunction psi_k(&DG_fes);
 
-   HellingerDerivativeMatrixCoefficient DSigma(&Psi, length_scale);
-   HellingerLatent2PrimalCoefficient grad_rho_cf(&Psi, length_scale);
-   HellingerLatent2PrimalCoefficient grad_rho_k_cf(&Psi_k, length_scale);
+   HellingerDerivativeMatrixCoefficient DSigma(&Psi, 1.0/length_scale);
+   HellingerLatent2PrimalCoefficient grad_rho_cf(&Psi, 1.0/length_scale);
+   HellingerLatent2PrimalCoefficient grad_rho_k_cf(&Psi_k, 1.0/length_scale);
    FermiDiracDerivativeVectorCoefficient dsigma(&psi, rho_min, 1.0);
    FermiDiracLatent2PrimalCoefficient rho_cf(&psi, rho_min, 1.0);
    FermiDiracLatent2PrimalCoefficient rho_k_cf(&psi_k, rho_min, 1.0);
