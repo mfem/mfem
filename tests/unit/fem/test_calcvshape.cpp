@@ -138,6 +138,25 @@ void GetReferenceTransformation(const Element::Type ElemType,
          T.GetPointMat()(2, 5) = 1.0;
          T.SetFE(&WedgeFE);
          break;
+      case Element::PYRAMID :
+         T.GetPointMat().SetSize(3, 5);
+         T.GetPointMat()(0, 0) = 0.0;
+         T.GetPointMat()(1, 0) = 0.0;
+         T.GetPointMat()(2, 0) = 0.0;
+         T.GetPointMat()(0, 1) = 1.0;
+         T.GetPointMat()(1, 1) = 0.0;
+         T.GetPointMat()(2, 1) = 0.0;
+         T.GetPointMat()(0, 2) = 1.0;
+         T.GetPointMat()(1, 2) = 1.0;
+         T.GetPointMat()(2, 2) = 0.0;
+         T.GetPointMat()(0, 3) = 0.0;
+         T.GetPointMat()(1, 3) = 1.0;
+         T.GetPointMat()(2, 3) = 0.0;
+         T.GetPointMat()(0, 4) = 0.0;
+         T.GetPointMat()(1, 4) = 0.0;
+         T.GetPointMat()(2, 4) = 1.0;
+         T.SetFE(&PyramidFE);
+         break;
       default:
          MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
          break;

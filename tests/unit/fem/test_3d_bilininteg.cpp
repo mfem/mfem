@@ -17,6 +17,9 @@ using namespace mfem;
 namespace bilininteg_3d
 {
 
+static int first_3D_et = (int)Element::TETRAHEDRON;
+static int  last_3D_et = (int)Element::PYRAMID;
+
 double zero3(const Vector & x) { return 0.0; }
 void Zero3(const Vector & x, Vector & v) { v.SetSize(3); v = 0.0; }
 
@@ -531,8 +534,7 @@ TEST_CASE("3D Bilinear Mass Integrators",
    FunctionCoefficient q3_coef(q3);
    FunctionCoefficient qf3_coef(qf3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -807,8 +809,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
    VectorFunctionCoefficient DF3_coef(dim, DF3);
    VectorFunctionCoefficient MF3_coef(dim, MF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -1891,8 +1892,7 @@ TEST_CASE("3D Bilinear Gradient Integrator",
    VectorFunctionCoefficient Ddf3_coef(dim, DGrad_f3);
    VectorFunctionCoefficient Mdf3_coef(dim, MGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2054,8 +2054,7 @@ TEST_CASE("3D Bilinear Curl Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2276,8 +2275,7 @@ TEST_CASE("3D Bilinear Cross Product Gradient Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2363,8 +2361,7 @@ TEST_CASE("3D Bilinear Cross Product Curl Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2447,8 +2444,7 @@ TEST_CASE("3D Bilinear Divergence Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2566,8 +2562,7 @@ TEST_CASE("3D Bilinear Vector Divergence Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2654,8 +2649,7 @@ TEST_CASE("3D Bilinear Vector Product Integrators",
    VectorFunctionCoefficient  V3_coef(dim, V3);
    VectorFunctionCoefficient Vf3_coef(dim, Vf3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2880,8 +2874,7 @@ TEST_CASE("3D Bilinear Vector Cross Product Integrators",
    VectorFunctionCoefficient   V3_coef(dim, V3);
    VectorFunctionCoefficient VxF3_coef(dim, VcrossF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3097,8 +3090,7 @@ TEST_CASE("3D Bilinear Vector Dot Product Integrators",
    VectorFunctionCoefficient  V3_coef(dim, V3);
    FunctionCoefficient       VF3_coef(VdotF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3262,8 +3254,7 @@ TEST_CASE("3D Bilinear Directional Derivative Integrator",
    VectorFunctionCoefficient   V3_coef(dim, V3);
    FunctionCoefficient       Vdf3_coef(VdotGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3357,8 +3348,7 @@ TEST_CASE("3D Bilinear Weak Gradient Integrators",
    VectorFunctionCoefficient  df3_coef(dim, Grad_f3);
    VectorFunctionCoefficient dqf3_coef(dim, Grad_qf3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3565,8 +3555,7 @@ TEST_CASE("3D Bilinear Scalar Weak Divergence Integrators",
    VectorFunctionCoefficient  Vf3_coef(dim, Vf3);
    FunctionCoefficient       dVf3_coef(Div_Vf3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3719,8 +3708,7 @@ TEST_CASE("3D Bilinear Weak Divergence Integrators",
    FunctionCoefficient      dDF3_coef(Div_DF3);
    FunctionCoefficient      dMF3_coef(Div_MF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4055,8 +4043,7 @@ TEST_CASE("3D Bilinear Weak Curl Integrators",
    VectorFunctionCoefficient dDF3_coef(dim, Curl_DF3);
    VectorFunctionCoefficient dMF3_coef(dim, Curl_MF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4378,8 +4365,7 @@ TEST_CASE("3D Bilinear Weak Div Cross Integrators",
    VectorFunctionCoefficient  VF3_coef(dim, VcrossF3);
    FunctionCoefficient       dVF3_coef(Div_VcrossF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4514,8 +4500,7 @@ TEST_CASE("3D Bilinear Weak Curl Cross Integrators",
    VectorFunctionCoefficient  VxF3_coef(dim, VcrossF3);
    VectorFunctionCoefficient dVxF3_coef(dim, Curl_VcrossF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4647,8 +4632,7 @@ TEST_CASE("3D Bilinear Weak Grad Dot Product Integrators",
    FunctionCoefficient       VdotF3_coef(VdotF3);
    VectorFunctionCoefficient   dVF3_coef(dim, GradVdotF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4785,8 +4769,7 @@ TEST_CASE("3D Bilinear Grad Div Integrators",
    VectorFunctionCoefficient dVdf3_coef(dim, GradVdotGrad_f3);
    FunctionCoefficient       dVdF3_coef(DivVDivF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4912,8 +4895,7 @@ TEST_CASE("3D Bilinear Grad Grad Integrators",
    FunctionCoefficient      dqdf3_coef(Div_qGrad_f3);
    FunctionCoefficient      dMdf3_coef(Div_MGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5049,8 +5031,7 @@ TEST_CASE("3D Bilinear Mixed Grad Grad Integrators",
    FunctionCoefficient      dDdf3_coef(Div_DGrad_f3);
    FunctionCoefficient      dMdf3_coef(Div_MGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5208,8 +5189,7 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Grad Integrators",
    VectorFunctionCoefficient Vxdf3_coef(dim, VcrossGrad_f3);
    FunctionCoefficient      dVxdf3_coef(Div_VcrossGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5281,8 +5261,7 @@ TEST_CASE("3D Bilinear Mixed Cross Curl Grad Integrators",
    VectorFunctionCoefficient VxdF3_coef(dim, VcrossCurlF3);
    FunctionCoefficient      dVxdF3_coef(DivVcrossCurlF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5365,8 +5344,7 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
    VectorFunctionCoefficient  qdF3_coef(dim, qCurlF3);
    VectorFunctionCoefficient dqdF3_coef(dim, Curl_qCurlF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5511,8 +5489,7 @@ TEST_CASE("3D Bilinear Mixed Curl Curl Integrators",
    VectorFunctionCoefficient dDdF3_coef(dim, Curl_DCurlF3);
    VectorFunctionCoefficient dMdF3_coef(dim, Curl_MCurlF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5668,8 +5645,7 @@ TEST_CASE("3D Bilinear Mixed Cross Curl Curl Integrators",
    VectorFunctionCoefficient  VdF3_coef(dim, VcrossCurlF3);
    VectorFunctionCoefficient dVdF3_coef(dim, Curl_VcrossCurlF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5740,8 +5716,7 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Curl Integrators",
    VectorFunctionCoefficient  Vdf3_coef(dim, VcrossGrad_f3);
    VectorFunctionCoefficient dVdf3_coef(dim, Curl_VcrossGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5826,8 +5801,7 @@ TEST_CASE("3D Bilinear Div Div Integrators",
    FunctionCoefficient         qdF3_coef(qDivF3);
    VectorFunctionCoefficient  dqdF3_coef(dim, Grad_qDivF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et-2; type++) // MLS: Fix this
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);

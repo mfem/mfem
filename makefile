@@ -377,6 +377,7 @@ MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS) $(LDFLAGS_INTERNAL)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
    @MFEM_EXT_LIBS@
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
+MFEM_LIBE_FILE ?= @MFEM_LIB_DIR@/libmfem-extras.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
 MFEM_INC_DIR   ?= $(if $(CONFIG_FILE_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
@@ -410,6 +411,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
       @MFEM_EXT_LIBS@
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
+   MFEM_LIBE_FILE = @MFEM_LIB_DIR@/libmfem-extras.$(if $(shared),$(SO_VER),a)
    ifeq ($(MFEM_USE_OCCA),YES)
       ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX)))
          $(error OCCA is enabled: PREFIX must be set during configuration!)
@@ -443,9 +445,14 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 OKL_DIRS = fem
 
-.PHONY: lib all clean distclean install config status info deps serial parallel	\
-	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test unittest \
-	deprecation-warnings
+EXTRA_DIRS = miniapps/common
+EXTRA_SOURCE_FILES = $(foreach dir,$(EXTRA_DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
+EXTRA_RELSRC_FILES = $(patsubst $(SRC)%,%,$(EXTRA_SOURCE_FILES))
+EXTRA_OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(EXTRA_SOURCE_FILES:.cpp=.o))
+
+.PHONY: lib all clean distclean install config status info deps serial parallel\
+	debug pdebug cuda hip pcuda cudebug pcudebug hpc style check test\
+	unittest deprecation-warnings
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -456,6 +463,8 @@ OKL_DIRS = fem
 
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+lib-extras: $(if $(static),$(BLD)libmfem-extras.a) \
+        $(if $(shared),$(BLD)libmfem-extras.$(SO_EXT))
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -464,6 +473,9 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+
+$(EXTRA_OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -488,11 +500,22 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
 	@$(MAKE) deprecation-warnings
 
+$(BLD)libmfem-extras.a: $(EXTRA_OBJECT_FILES)
+	$(AR) $(ARFLAGS) $(@) $(EXTRA_OBJECT_FILES)
+	$(RANLIB) $(@)
+
+$(BLD)libmfem-extras.$(SO_EXT): $(BLD)libmfem-extras.$(SO_VER)
+	cd $(@D) && ln -sf $(<F) $(@F)
+
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
+	   $(EXT_LIBS) -o $(@)
+
+$(BLD)libmfem-extras.$(SO_VER): $(EXTRA_OBJECT_FILES)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(EXTRA_OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
 # Shortcut targets options
