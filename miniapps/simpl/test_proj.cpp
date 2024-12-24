@@ -67,7 +67,6 @@ HypreParMatrix * LinearFormToSparseMatrix(ParLinearForm &lf)
       MPI_Allreduce(MPI_IN_PLACE, cols.GetData(), Mpi::WorldSize() + 1, MPI_INT,
                     MPI_SUM, pfes->GetComm());
       cols.PartialSum();
-
    }
    d.SetSize(local_siz);
 
@@ -95,26 +94,26 @@ private:
 protected:
 public:
    HellingerDerivativeMatrixCoefficient(GridFunction * latent_gf,
-                                        const real_t r_min)
+                                        const real_t norm_max)
       :MatrixCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf),
-       norm_max(new ConstantCoefficient(r_min)), own_rmin(true),
+       norm_max(new ConstantCoefficient(norm_max)), own_rmin(true),
        latent_val(latent_gf->VectorDim()) { }
    HellingerDerivativeMatrixCoefficient(GridFunction * latent_gf,
-                                        Coefficient &r_min)
+                                        Coefficient &norm_max)
       :MatrixCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf),
-       norm_max(&r_min),
+       norm_max(&norm_max),
        own_rmin(false), latent_val(latent_gf->VectorDim()) { }
    ~HellingerDerivativeMatrixCoefficient() {if (own_rmin) {delete norm_max;}}
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip) override
    {
-      latent_gf->GetVectorValue(T.ElementNo, T.GetIntPoint(), latent_val);
+      latent_gf->GetVectorValue(T.ElementNo, ip, latent_val);
       const real_t norm2 = latent_val*latent_val;
-      const real_t g = std::pow(norm2 + 1.0, -3.0/2.0);
-      K.Diag(1.0/std::sqrt(norm2 + 1), latent_val.Size());
-      AddMult_a_VVt(-1.0*g, latent_val, K);
-      K *= norm_max->Eval(T, ip);
+      const real_t scale = std::sqrt(1.0+norm2);
+      K.Diag(1.0, latent_val.Size());
+      AddMult_a_VVt(-1.0 / (1+norm2), latent_val, K);
+      K *= norm_max->Eval(T, ip) / scale;
    }
 };
 
@@ -232,36 +231,36 @@ public:
 };
 
 
-class VolumeConstraintOperator : public Operator
-{
-   // attributes
-private:
-   Coefficient &rho_cf;
-   const real_t vol_frac;
-   std::unique_ptr<ParLinearForm> b;
-protected:
-public:
-   // methods
-private:
-protected:
-public:
-   VolumeConstraintOperator(const int n, Coefficient &rho_cf,
-                            ParFiniteElementSpace &pfes, const real_t vol_frac)
-      :Operator(1,n), rho_cf(rho_cf), vol_frac(vol_frac)
-   {
-      b.reset(new ParLinearForm(&pfes));
-      b->AddDomainIntegrator(new DomainLFIntegrator(rho_cf));
-   }
-   void Mult(const Vector &x, Vector &y) const override
-   {
-      b->Assemble();
-      y.SetSize(1);
-      real_t vol = b->Sum();
-      MPI_Allreduce(MPI_IN_PLACE, &vol, 1, MFEM_MPI_REAL_T, MPI_SUM,
-                    b->ParFESpace()->GetComm());
-      y = vol - vol_frac;
-   }
-};
+// class VolumeConstraintOperator : public Operator
+// {
+//    // attributes
+// private:
+//    Coefficient &rho_cf;
+//    const real_t vol_frac;
+//    std::unique_ptr<ParLinearForm> b;
+// protected:
+// public:
+//    // methods
+// private:
+// protected:
+// public:
+//    VolumeConstraintOperator(const int n, Coefficient &rho_cf,
+//                             ParFiniteElementSpace &pfes, const real_t vol_frac)
+//       :Operator(1,n), rho_cf(rho_cf), vol_frac(vol_frac)
+//    {
+//       b.reset(new ParLinearForm(&pfes));
+//       b->AddDomainIntegrator(new DomainLFIntegrator(rho_cf));
+//    }
+//    void Mult(const Vector &x, Vector &y) const override
+//    {
+//       b->Assemble();
+//       y.SetSize(1);
+//       real_t vol = b->Sum();
+//       MPI_Allreduce(MPI_IN_PLACE, &vol, 1, MFEM_MPI_REAL_T, MPI_SUM,
+//                     b->ParFESpace()->GetComm());
+//       y = vol - vol_frac;
+//    }
+// };
 
 
 int main(int argc, char *argv[])
@@ -296,7 +295,7 @@ int main(int argc, char *argv[])
       mesh.Clear();
       for (int i=0; i<ref_parallel; i++) {pmesh->UniformRefinement();}
    }
-   FunctionCoefficient rho_targ([](const Vector &x) { return (real_t)((x[0] > 0.5) | (x[1]<0.5)); });
+   FunctionCoefficient rho_targ([](const Vector &x) { return (real_t)((x[0] - 0.5) * (x[1] - 0.5) < 0); });
 
    RT_FECollection RT_fec(order, dim);
    DG_FECollection DG_fec(order, dim);
@@ -304,14 +303,16 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace RT_fes(pmesh.get(), &RT_fec);
    ParFiniteElementSpace DG_fes(pmesh.get(), &DG_fec);
 
+   HYPRE_BigInt global_NE = pmesh->GetGlobalNE();
    HYPRE_BigInt global_RT_dof = RT_fes.GlobalTrueVSize();
    HYPRE_BigInt global_DG_dof = DG_fes.GlobalTrueVSize();
-   MPISequential([global_DG_dof, global_RT_dof, &RT_fes, &DG_fes](int i)
+   if (Mpi::Root())
    {
-      out << "Processor " << i << ": "
-          << RT_fes.TrueVSize() << " / " << global_RT_dof << ", "
-          << DG_fes.TrueVSize() << " / " << global_DG_dof << std::endl;
-   });
+      out << "Num Elements: " << global_NE << std::endl;
+      out << "RT space dof: " << global_RT_dof << std::endl;
+      out << "DG space dof: " << global_DG_dof << std::endl;
+      out << "Total    dof: " << global_RT_dof + global_DG_dof * 2 + 1 << std::endl;
+   }
 
    Array<int> offsets(5);
    offsets[0] = 0;
@@ -343,29 +344,52 @@ int main(int argc, char *argv[])
    Psi.Distribute(&(x_tv.GetBlock(0)));
    rho.Distribute(&(x_tv.GetBlock(1)));
    psi.Distribute(&(x_tv.GetBlock(2)));
-   ParGridFunction Psi_k(&RT_fes);
-   ParGridFunction psi_k(&DG_fes);
+   ParGridFunction Psi_k(&RT_fes), Psi_old(&RT_fes);
+   ParGridFunction psi_k(&DG_fes), psi_old(&DG_fes);
+   ParGridFunction rho_k(&DG_fes), rho_old(&DG_fes);
 
-   HellingerDerivativeMatrixCoefficient DSigma(&Psi, 1.0/length_scale);
-   HellingerLatent2PrimalCoefficient grad_rho_cf(&Psi, 1.0/length_scale);
-   HellingerLatent2PrimalCoefficient grad_rho_k_cf(&Psi_k, 1.0/length_scale);
-   FermiDiracDerivativeVectorCoefficient dsigma(&psi, rho_min, 1.0);
-   FermiDiracLatent2PrimalCoefficient rho_cf(&psi, rho_min, 1.0);
-   FermiDiracLatent2PrimalCoefficient rho_k_cf(&psi_k, rho_min, 1.0);
+   ConstantCoefficient alpha_cf(1.0);
+   ConstantCoefficient one_cf(1.0);
+   ConstantCoefficient neg_one_cf(-1.0);
+
+   VectorGridFunctionCoefficient Psi_cf(&Psi);
+   VectorGridFunctionCoefficient Psi_k_cf(&Psi_k);
+   VectorGridFunctionCoefficient Psi_old_cf(&Psi_old);
+   HellingerLatent2PrimalCoefficient mapped_grad_rho_cf(&Psi, 1.0/length_scale);
+   HellingerLatent2PrimalCoefficient mapped_grad_rho_k_cf(&Psi_k,
+                                                          1.0/length_scale);
+   HellingerDerivativeMatrixCoefficient DSigma_cf(&Psi, 1.0 / length_scale);
+   MatrixVectorProductCoefficient DSigma_Psi_cf(DSigma_cf, Psi_cf);
+   DivergenceGridFunctionCoefficient divPsi_k_cf(&Psi_k);
+   ScalarVectorProductCoefficient neg_mapped_grad_rho_cf(-1.0, mapped_grad_rho_cf);
+
+   GridFunctionCoefficient psi_cf(&psi);
+   GridFunctionCoefficient psi_k_cf(&psi_k);
+   GridFunctionCoefficient psi_old_cf(&psi_old);
+   FermiDiracLatent2PrimalCoefficient mapped_rho_cf(&psi, rho_min, 1.0);
+   FermiDiracLatent2PrimalCoefficient mapped_rho_k_cf(&psi_k, rho_min, 1.0);
+   FermiDiracDerivativeVectorCoefficient dsigma_cf(&psi, rho_min, 1.0);
+   ProductCoefficient dsigma_psi_cf(dsigma_cf, psi_cf);
+   ProductCoefficient neg_mapped_rho_cf(-1.0, mapped_rho_cf);
+   ProductCoefficient neg_psi_k_cf(-1.0, psi_k_cf);
+
+   GridFunctionCoefficient rho_cf(&rho);
+   GridFunctionCoefficient rho_old_cf(&rho_old);
+
 
    // Global block operator, matrices are not owned.
    Array2D<HypreParMatrix*> blockOp(4,4);
    std::unique_ptr<HypreParMatrix> glbMat;
 
-   // <Sigma(Psi), Xi>
+   // <Sigma'(Psi), Xi>
    std::unique_ptr<HypreParMatrix> DSigmaM;
    ParBilinearForm DSigmaOp(&RT_fes);
-   DSigmaOp.AddDomainIntegrator(new VectorFEMassIntegrator(DSigma));
+   DSigmaOp.AddDomainIntegrator(new VectorFEMassIntegrator(DSigma_cf));
 
-   // <sigma(psi), xi>
+   // <sigma'(psi), xi>
    std::unique_ptr<HypreParMatrix> dsigmaM;
    ParBilinearForm dsigmaOp(&DG_fes);
-   dsigmaOp.AddDomainIntegrator(new MassIntegrator(dsigma));
+   dsigmaOp.AddDomainIntegrator(new MassIntegrator(dsigma_cf));
 
    // <div Psi, q>
    ParMixedBilinearForm divOp(&RT_fes, &DG_fes);
@@ -378,61 +402,61 @@ int main(int argc, char *argv[])
    blockOp(0, 1) = G.get();
 
    // -<rho, xi>
-   ParBilinearForm neg_Mass(&DG_fes);
-   ConstantCoefficient neg_one(-1.0);
-   neg_Mass.AddDomainIntegrator(new MassIntegrator(neg_one));
-   neg_Mass.Assemble();
-   neg_Mass.Finalize();
-   std::unique_ptr<HypreParMatrix> neg_M(neg_Mass.ParallelAssemble());
+   ParBilinearForm neg_MassOp(&DG_fes);
+   neg_MassOp.AddDomainIntegrator(new MassIntegrator(neg_one_cf));
+   neg_MassOp.Assemble();
+   neg_MassOp.Finalize();
+   std::unique_ptr<HypreParMatrix> neg_M(neg_MassOp.ParallelAssemble());
    blockOp(2, 1) = neg_M.get();
    blockOp(1, 2) = neg_M.get();
 
    // <rho, 1>
-   std::unique_ptr<HypreParMatrix> M1;
    ParLinearForm volform(&DG_fes);
-   ConstantCoefficient one_cf(1.0);
    volform.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
-   M1.reset(LinearFormToSparseMatrix(volform));
+   std::unique_ptr<HypreParMatrix> M1(LinearFormToSparseMatrix(volform));
    std::unique_ptr<HypreParMatrix> M1T(M1->Transpose());
    M1T->Mult(x_tv.GetBlock(1), b_tv.GetBlock(3)); // compute current volume!
    blockOp(1,3) = M1.get();
    blockOp(3,1) = M1T.get();
 
    ParLinearForm first_order_optimality(&DG_fes, b.GetBlock(1).GetData());
-   ProductCoefficient alpha_rho_k(1.0, rho_k_cf);
+   ProductCoefficient alpha_rho_k(alpha_cf, mapped_rho_k_cf);
+   ProductCoefficient alpha_rho_targ(alpha_cf, rho_targ);
+   ProductCoefficient neg_alpha_rho_targ(-1.0, alpha_rho_targ);
    first_order_optimality.AddDomainIntegrator(new DomainLFIntegrator(alpha_rho_k));
-   DivergenceGridFunctionCoefficient divPsi_k(&Psi_k);
+   first_order_optimality.AddDomainIntegrator(new DomainLFIntegrator(
+                                                 neg_alpha_rho_targ));
+   first_order_optimality.AddDomainIntegrator(new DomainLFIntegrator(divPsi_k_cf));
+   first_order_optimality.AddDomainIntegrator(
+      new DomainLFIntegrator(neg_psi_k_cf));
    ParLinearForm int_rho_targ(&DG_fes, b.GetBlock(1).GetData());
    int_rho_targ.AddDomainIntegrator(new DomainLFIntegrator(rho_targ));
    int_rho_targ.Assemble();
 
    ParLinearForm GradNewtResidual(&RT_fes, b.GetBlock(0).GetData());
-   ScalarVectorProductCoefficient neg_grad_rho(-1.0, grad_rho_cf);
    GradNewtResidual.AddDomainIntegrator(new VectorFEDomainLFIntegrator(
-                                           neg_grad_rho));
-   MatrixVectorProductCoefficient DSigmaGrad(DSigma, grad_rho_cf);
+                                           neg_mapped_grad_rho_cf));
    GradNewtResidual.AddDomainIntegrator(new VectorFEDomainLFIntegrator(
-                                           DSigmaGrad));
+                                           DSigma_Psi_cf));
 
    ParLinearForm RhoNewtResidual(&DG_fes, b.GetBlock(2).GetData());
-   ProductCoefficient neg_rho_cf(-1.0, rho_cf);
-   RhoNewtResidual.AddDomainIntegrator(new DomainLFIntegrator(neg_rho_cf));
-   ProductCoefficient dsigma_rho_cf(dsigma, rho_cf);
-   RhoNewtResidual.AddDomainIntegrator(new DomainLFIntegrator(dsigma_rho_cf));
-
+   RhoNewtResidual.AddDomainIntegrator(new DomainLFIntegrator(neg_mapped_rho_cf));
+   RhoNewtResidual.AddDomainIntegrator(new DomainLFIntegrator(dsigma_psi_cf));
 
    real_t alpha = 1.0;
-   int it_md(0), it_newt(0);
-   real_t res_md,res_newt, res_linsolver;
+   int it_md(1), it_newt(0);
+   real_t res_md,res_newt, res_l2_linsolver;
    real_t curr_vol;
+   real_t obj(0);
    TableLogger logger;
    logger.SaveWhenPrint("grad_proj_md.csv");
    logger.Append("it_md", it_md);
+   logger.Append("obj", obj);
    logger.Append("res_md", res_md);
    logger.Append("it_newt", it_newt);
    logger.Append("res_newt", res_newt);
    logger.Append("volume", curr_vol);
-   logger.Append("solver_res", res_linsolver);
+   logger.Append("solver_res", res_l2_linsolver);
    std::unique_ptr<ParaViewDataCollection> paraview_dc;
    if (use_paraview)
    {
@@ -445,37 +469,36 @@ int main(int argc, char *argv[])
          paraview_dc->SetLevelsOfDetail(order);
          paraview_dc->SetDataFormat(VTKFormat::BINARY);
          paraview_dc->SetHighOrderOutput(true);
-         // paraview_dc->RegisterField("displacement", &state_gf);
          paraview_dc->RegisterField("density", &rho);
+         paraview_dc->RegisterField("psi", &psi);
+         paraview_dc->RegisterField("Psi", &Psi);
       }
    }
 
-   int ctr=0;
 
    Vector con_vec(Mpi::Root() ? 1 : 0);
    for (; it_md<max_md_it; it_md++)
    {
       // TODO: Custom update rule for alpha
-      alpha = it_md; // update alpha
+      alpha = std::sqrt((real_t)it_md); // update alpha
+      // alpha = 2; // update alpha
+      alpha_cf.constant = alpha;
 
       // Store the previous
       // We do not store rho_k as it is replaced by sigma(psi_k).
       Psi_k = Psi;
       psi_k = psi;
 
-
-      // Update RHS of first-order optimality condition
-      // without the int_rho_targ which is pre-assembled
-      first_order_optimality.Assemble();
-      // Add preassembled int_rho_targ with alpha
-      first_order_optimality.Add(-alpha, int_rho_targ);
-      first_order_optimality.SyncAliasMemory(b);
-      first_order_optimality.ParallelAssemble(b_tv.GetBlock(1));
-      b_tv.GetBlock(1).SyncAliasMemory(b_tv);
+      // // Update RHS of first-order optimality condition
+      reassemble(first_order_optimality, b, b_tv, 1);
 
       it_newt = 0;
       for (; it_newt < max_newton_it; it_newt++)
       {
+         Psi_old = Psi;
+         psi_old = psi;
+         rho_old = rho;
+
          DSigmaM.reset(reassemble(DSigmaOp));
          dsigmaM.reset(reassemble(dsigmaOp));
          blockOp(0,0) = DSigmaM.get();
@@ -492,25 +515,29 @@ int main(int argc, char *argv[])
          mumps.SetOperator(*glbMat);
          mumps.Mult(b_tv, x_tv);
          glbMat->Mult(x_tv, dummy);
-         res_linsolver = b_tv.DistanceTo(dummy);
-         M1T->Mult(x_tv.GetBlock(1), con_vec);
+         dummy -= b_tv;
+         res_l2_linsolver = std::sqrt(InnerProduct(MPI_COMM_WORLD, dummy, dummy));
+         // res_linsolver = b_tv.DistanceTo(dummy);
+         // M1T->Mult(x_tv.GetBlock(1), con_vec);
+         curr_vol = InnerProduct(MPI_COMM_WORLD, rho, volform);
 
          Psi.Distribute(&(x_tv.GetBlock(0)));
          rho.Distribute(&(x_tv.GetBlock(1)));
          psi.Distribute(&(x_tv.GetBlock(2)));
-         if (Mpi::Root()) { curr_vol = con_vec[0]; }
+         // if (Mpi::Root()) { curr_vol = con_vec[0]; }
          // MPISequential([con_vec](int i) {con_vec.Print();});
 
-         res_newt = rho.ComputeH1Error(&rho_cf, &grad_rho_cf);
-         logger.Print();
-         paraview_dc->SetTime(ctr);
-         paraview_dc->SetCycle(ctr++);
-         paraview_dc->Save();
+         res_newt = psi_old.ComputeL1Error(psi_cf) + rho_old.ComputeL2Error(
+                       rho_cf) + Psi_old.ComputeL1Error(Psi_cf);
          if (res_newt < tol_newt) { break; }
       }
-      res_md = rho.ComputeH1Error(&rho_k_cf, &grad_rho_k_cf);
-      ctr+=10;
-      paraview_dc->SetCycle(ctr);
+      res_md = psi_k.ComputeL1Error(psi_cf)/alpha + rho_k.ComputeL2Error(
+                  rho_cf) + Psi_k.ComputeL1Error(Psi_cf)/alpha;
+      obj = rho.ComputeL2Error(rho_targ);
+      // res_newt = rho.ComputeH1Error(&mapped_rho_cf, &mapped_grad_rho_cf);
+      logger.Print();
+      paraview_dc->SetTime(it_md);
+      paraview_dc->SetCycle(it_md);
       paraview_dc->Save();
       if (it_md >= 1 && res_md < tol_md) { break; }
    }
