@@ -18,6 +18,7 @@
 #include "../general/mem_manager.hpp"
 #include <iostream>
 #include <iomanip>
+#include <limits>
 
 namespace mfem
 {
@@ -876,6 +877,8 @@ int DSTable::Push_(int r, int c)
    n->Index  = NumEntries;
    n->Prev   = Rows[r];
    Rows[r]   = n;
+   MFEM_VERIFY(NumEntries != std::numeric_limits<int>::max(),
+               "integer overflow error");
    return (NumEntries++);
 }
 

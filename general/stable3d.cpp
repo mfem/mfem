@@ -12,6 +12,7 @@
 
 #include "error.hpp"
 #include "stable3d.hpp"
+#include <limits>
 
 using namespace std;
 
@@ -90,6 +91,8 @@ int STable3D::Push (int r, int c, int f)
    node->Prev   = Rows[r];
    Rows[r] = node;
 
+   MFEM_VERIFY(NElem != std::numeric_limits<int>::max(),
+               "integer overflow error");
    NElem++;
    return (NElem-1);
 }
