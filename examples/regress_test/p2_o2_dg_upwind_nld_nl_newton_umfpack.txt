@@ -1,0 +1,46 @@
+Options used:
+   --mesh 
+   --ncells-x 10
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --order 2
+   --discontinuous
+   --upwinded
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --no-hybridization
+   --nonlinear
+   --no-nonlinear-convection
+   --nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 3
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+***********************************************************
+dim(V) = 1800
+dim(W) = 900
+dim(V+W) = 2700
+***********************************************************
+Assembly took 0.072835s.
+Preconditioner took 2.3816e-05s.
+Newton iteration  0 : ||r|| = 0.0568908
+Newton iteration  1 : ||r|| = 6.39153e-09, ||r||/||r_0|| = 1.12347e-07
+Newton+GMRES+UMFPack converged in 1 iterations with a residual norm of 6.39153e-09.
+solver took 0.309547s.
+|| q_h - q_ex || / || q_ex || = 8.81777e-05
+|| t_h - t_ex || / || t_ex || = 8.83948e-05
