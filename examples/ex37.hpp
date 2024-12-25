@@ -402,9 +402,9 @@ real_t newton_proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
 {
    MappedGridFunctionCoefficient sigmoid_psi(&psi, sigmoid);
    MappedGridFunctionCoefficient der_sigmoid_psi(&psi, der_sigmoid);
-   ParGridFunction *par_psi = dynamic_cast<ParGridFunction*>(&psi);
    std::unique_ptr<LinearForm> int_sigmoid_psi, int_der_sigmoid_psi;
 #ifdef MFEM_USE_MPI
+   ParGridFunction *par_psi = dynamic_cast<ParGridFunction*>(&psi);
    if (par_psi)
    {
       int_sigmoid_psi.reset(new ParLinearForm(par_psi->ParFESpace()));
@@ -485,9 +485,9 @@ std::pair<real_t, real_t> bisec_proj(GridFunction &psi,
 
    MappedGridFunctionCoefficient sigmoid_psi(
    &psi, [&y](const real_t x) { return sigmoid(x + y); });
-   ParGridFunction *par_psi = dynamic_cast<ParGridFunction *>(&psi);
    std::unique_ptr<LinearForm> int_sigmoid_psi;
 #ifdef MFEM_USE_MPI
+   ParGridFunction *par_psi = dynamic_cast<ParGridFunction *>(&psi);
    if (par_psi)
    {
       int_sigmoid_psi.reset(new ParLinearForm(par_psi->ParFESpace()));
