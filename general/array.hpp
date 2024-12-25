@@ -59,18 +59,18 @@ public:
    friend void Swap<T>(Array<T> &, Array<T> &);
 
    /// Creates an empty array
-   inline Array() : size(0) { data.Reset(); }
+   inline Array() : size(0) { }
 
    /// Creates an empty array with a given MemoryType
-   inline Array(MemoryType mt) : size(0) { data.Reset(mt); }
+   inline Array(MemoryType mt) : data(mt), size(0) { }
 
    /// Creates array of @a asize elements
    explicit inline Array(int asize)
-      : size(asize) { asize > 0 ? data.New(asize) : data.Reset(); }
+      : size(asize) { if (asize > 0) { data.New(asize); } }
 
    /// Creates array of @a asize elements with a given MemoryType
    inline Array(int asize, MemoryType mt)
-      : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
+      : data(mt), size(asize) { if (asize > 0) { data.New(asize, mt); } }
 
    /** @brief Creates array using an externally allocated host pointer @a data_
        to @a asize elements. If @a own_data is true, the array takes ownership
