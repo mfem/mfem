@@ -72,8 +72,6 @@ void DarcyHybridization::SetConstraintIntegrators(
    c_nlfi_p = NULL;
    delete c_nlfi;
    c_nlfi = NULL;
-
-   bnl = false;
 }
 
 void DarcyHybridization::SetConstraintIntegrators(
@@ -87,8 +85,6 @@ void DarcyHybridization::SetConstraintIntegrators(
    c_nlfi_p = c_pot_integ;
    delete c_nlfi;
    c_nlfi = NULL;
-
-   bnl = true;
 }
 
 void DarcyHybridization::SetConstraintIntegrators(
@@ -102,8 +98,6 @@ void DarcyHybridization::SetConstraintIntegrators(
    c_nlfi_p = NULL;
    delete c_nlfi;
    c_nlfi = c_integ;
-
-   bnl = true;
 }
 
 void DarcyHybridization::SetFluxMassNonlinearIntegrator(
@@ -112,8 +106,6 @@ void DarcyHybridization::SetFluxMassNonlinearIntegrator(
    if (own_m_nlfi_u) { delete m_nlfi_u; }
    own_m_nlfi_u = own;
    m_nlfi_u = flux_integ;
-
-   bnl = true;
 }
 
 void DarcyHybridization::SetPotMassNonlinearIntegrator(NonlinearFormIntegrator
@@ -124,8 +116,6 @@ void DarcyHybridization::SetPotMassNonlinearIntegrator(NonlinearFormIntegrator
    if (own_m_nlfi_p) { delete m_nlfi_p; }
    own_m_nlfi_p = own;
    m_nlfi_p = pot_integ;
-
-   bnl = true;
 }
 
 void DarcyHybridization::SetBlockNonlinearIntegrator(
@@ -134,8 +124,6 @@ void DarcyHybridization::SetBlockNonlinearIntegrator(
    if (own_m_nlfi) { delete m_nlfi; }
    own_m_nlfi = own;
    m_nlfi = block_integ;
-
-   bnl = true;
 }
 
 void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
@@ -304,7 +292,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    if (c_bfi_p)
    {
       AllocEG();
-      if (bnl)
+      if (IsNonlinear())
       {
          AllocH();
       }
@@ -451,7 +439,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    G_f.CopyMN(elmat, c_dof, ndof1+ndof2, ndof1+ndof2, 0);
 
    // assemble H matrix
-   if (bnl)
+   if (IsNonlinear())
    {
       DenseMatrix H_f(H_data + H_offsets[face], c_dof, c_dof);
       H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
@@ -519,7 +507,7 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    G_f.CopyMN(elmat, c_dof, ndof, ndof, 0);
 
    // assemble H matrix
-   if (bnl)
+   if (IsNonlinear())
    {
       DenseMatrix H_f(H_data + H_offsets[face], c_dof, c_dof);
       H_f.CopyMN(elmat, c_dof, c_dof, ndof, ndof);
@@ -839,7 +827,8 @@ void DarcyHybridization::InvertD()
 
 void DarcyHybridization::ComputeH()
 {
-   MFEM_ASSERT(!bnl, "Cannot assemble H matrix in the non-linear regime");
+   MFEM_ASSERT(!IsNonlinear(),
+               "Cannot assemble H matrix in the non-linear regime");
 
    const int skip_zeros = 1;
    const int NE = fes->GetNE();
@@ -1498,7 +1487,7 @@ void DarcyHybridization::Finalize()
 {
    if (bfin) { return; }
 
-   if (!bnl)
+   if (!IsNonlinear())
    {
       ComputeH();
    }
@@ -1543,7 +1532,7 @@ void DarcyHybridization::Finalize()
 void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                                              const BlockVector &x, BlockVector &b)
 {
-   if (bnl)
+   if (IsNonlinear())
    {
       //save the rhs for initial guess in the iterative local solve
       darcy_u = x.GetBlock(0);
@@ -2044,7 +2033,7 @@ void DarcyHybridization::AssembleHDGGrad(
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 {
-   if (bnl)
+   if (IsNonlinear())
    {
       //store RHS for Mult
       if (!darcy_offsets.Size())
@@ -2164,7 +2153,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 void DarcyHybridization::ComputeSolution(const BlockVector &b,
                                          const Vector &sol_r, BlockVector &sol) const
 {
-   if (bnl)
+   if (IsNonlinear())
    {
       MultNL(MultNlMode::Sol, b, sol_r, sol);
       return;

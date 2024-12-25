@@ -56,7 +56,7 @@ private:
    /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
    int extern_bdr_constr_pot_integs{};
 
-   bool bsym{}, bnl{}, bfin{};
+   bool bsym{}, bfin{};
    DiagonalPolicy diag_policy{DIAG_ONE};
 
    struct
@@ -191,6 +191,8 @@ private:
       void Mult(const Vector &x, Vector &y) const override;
       Operator &GetGradient(const Vector &x) const override;
    };
+
+   bool IsNonlinear() const { return c_nlfi || c_nlfi_p || m_nlfi || m_nlfi_u || m_nlfi_p; }
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
