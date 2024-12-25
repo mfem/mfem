@@ -866,7 +866,7 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
       if (B)
       {
          block_grad->SetBlock(0, 1, pBt.Ptr(), (bsym)?(-1.):(+1.));
-         block_grad->SetBlock(1, 0, B);
+         block_grad->SetBlock(1, 0, B, (bsym)?(-1.):(+1.));
       }
 
       if (!Mnl) { return *block_grad; }
