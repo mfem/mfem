@@ -400,6 +400,10 @@ public:
 real_t newton_proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
                    int max_its=10)
 {
+   FiniteElementSpace *fes = psi.FESpace();
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+#endif
    MappedGridFunctionCoefficient sigmoid_psi(&psi, sigmoid);
    MappedGridFunctionCoefficient der_sigmoid_psi(&psi, der_sigmoid);
    std::unique_ptr<LinearForm> int_sigmoid_psi, int_der_sigmoid_psi;
@@ -428,15 +432,21 @@ real_t newton_proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
       int_sigmoid_psi->Assemble(); // Recompute f(c) with updated ψ
       real_t f = int_sigmoid_psi->Sum();
 #ifdef MFEM_USE_MPI
-      MPI_Allreduce(MPI_IN_PLACE, &f, 1, MPITypeMap<real_t>::mpi_type,
-                    MPI_SUM, MPI_COMM_WORLD);
+      if (pfes)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &f, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_SUM, MPI_COMM_WORLD);
+      }
 #endif
       f -= target_volume;
       int_der_sigmoid_psi->Assemble(); // Recompute df(c) with updated ψ
       real_t df = int_der_sigmoid_psi->Sum();
 #ifdef MFEM_USE_MPI
-      MPI_Allreduce(MPI_IN_PLACE, &df, 1, MPITypeMap<real_t>::mpi_type,
-                    MPI_SUM, MPI_COMM_WORLD);
+      if (pfes)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &df, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_SUM, MPI_COMM_WORLD);
+      }
 #endif
       const real_t dc = -f/df;
       psi += dc;
@@ -450,8 +460,11 @@ real_t newton_proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
    int_sigmoid_psi->Assemble();
    real_t material_volume = int_sigmoid_psi->Sum();
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(MPI_IN_PLACE, &material_volume, 1,
-                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   if (pfes)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &material_volume, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   }
 #endif
    return material_volume;
 }
