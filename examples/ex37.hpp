@@ -400,8 +400,8 @@ public:
 real_t newton_proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
                    int max_its=10)
 {
-   FiniteElementSpace *fes = psi.FESpace();
 #ifdef MFEM_USE_MPI
+   FiniteElementSpace *fes = psi.FESpace();
    ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
 #endif
    MappedGridFunctionCoefficient sigmoid_psi(&psi, sigmoid);
