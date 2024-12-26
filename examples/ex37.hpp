@@ -754,6 +754,7 @@ DiffusionSolver::~DiffusionSolver()
 #endif
    delete fec; fec = nullptr;
    delete b;
+   delete a;
 }
 
 
