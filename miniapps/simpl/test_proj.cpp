@@ -437,6 +437,7 @@ int main(int argc, char *argv[])
    blockOp(1,3) = M1.get();
    blockOp(3,1) = M1T.get();
 
+   // Right hand side
    ParLinearForm first_order_optimality(&DG_fes, b.GetBlock(1).GetData());
    ProductCoefficient alpha_rho_k(alpha_cf, mapped_rho_k_cf);
    ProductCoefficient alpha_rho_targ(alpha_cf, rho_targ);
@@ -461,6 +462,8 @@ int main(int argc, char *argv[])
    RhoNewtResidual.AddDomainIntegrator(new DomainLFIntegrator(neg_mapped_rho_cf));
    RhoNewtResidual.AddDomainIntegrator(new DomainLFIntegrator(dsigma_psi_cf));
 
+
+   // Visualization
    real_t alpha = 1.0;
    int it_md(1), it_newt(0);
    real_t res_md,res_newt, res_l2_linsolver;
@@ -519,58 +522,69 @@ int main(int argc, char *argv[])
       it_newt = 0;
       for (; it_newt < max_newton_it; it_newt++)
       {
+         // Previous newton iteration
          Psi_old = Psi;
          psi_old = psi;
          rho_old = rho;
 
+         // Update nonlinear operators
          DSigmaM.reset(reassemble(DSigmaOp));
          dsigmaM.reset(reassemble(dsigmaOp));
          blockOp(0,0) = DSigmaM.get();
          blockOp(2,2) = dsigmaM.get();
 
+         // Update Newton residual
          reassemble(GradNewtResidual, b, b_tv, 0);
          reassemble(RhoNewtResidual, b, b_tv, 2);
          b_tv.SetSubVector(ess_neumann_bc_tdofs, 0.0);
-         MPI_Barrier(MPI_COMM_WORLD);
 
+         // Global matrix
          glbMat.reset(HypreParMatrixFromBlocks(blockOp));
-         Operator *A;
-         glbMat->FormLinearSystem(ess_neumann_bc_tdofs, x_tv, b_tv, A, x_tv_reduced,
-                                  b_tv_reduced);
+         // Boundary condition, ess_bdr for RT space, grad rho dot n = 0
          glbMat->EliminateBC(ess_neumann_bc_tdofs, Operator::DIAG_ONE);
+
+         // MUMPS solver
          MUMPSSolver mumps(MPI_COMM_WORLD);
          mumps.SetPrintLevel(0);
          mumps.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
          mumps.SetOperator(*glbMat);
          mumps.Mult(b_tv, x_tv);
+         // Compute residual
          glbMat->Mult(x_tv, dummy);
          dummy -= b_tv;
          res_l2_linsolver = std::sqrt(InnerProduct(MPI_COMM_WORLD, dummy, dummy));
-         // res_linsolver = b_tv.DistanceTo(dummy);
-         // M1T->Mult(x_tv.GetBlock(1), con_vec);
+
+         // Update current volume
          curr_vol = InnerProduct(MPI_COMM_WORLD, rho, volform);
 
+         // Update gridfunctions from true vector
          Psi.Distribute(&(x_tv.GetBlock(0)));
          rho.Distribute(&(x_tv.GetBlock(1)));
          psi.Distribute(&(x_tv.GetBlock(2)));
-         // if (Mpi::Root()) { curr_vol = con_vec[0]; }
-         // MPISequential([con_vec](int i) {con_vec.Print();});
 
-         res_newt = psi_old.ComputeL1Error(psi_cf) + rho_old.ComputeL2Error(
-                       rho_cf) + Psi_old.ComputeL1Error(Psi_cf);
+         // Newton residual
+         res_newt = psi_old.ComputeL1Error(psi_cf)
+                    + rho_old.ComputeL2Error(rho_cf)
+                    + Psi_old.ComputeL1Error(Psi_cf);
          if (res_newt < tol_newt) { break; }
       }
-      res_md = psi_k.ComputeL1Error(psi_cf)/alpha + rho_k.ComputeL2Error(
-                  rho_cf) + Psi_k.ComputeL1Error(Psi_cf)/alpha;
-      obj = rho.ComputeL2Error(rho_targ);
+
+      // Objective, L2 diff
+      obj = std::pow(rho.ComputeL2Error(rho_targ),2.0)/2.0;
+
+      // Residual and useful info
       max_Psi = Psi.ComputeMaxError(zero_vec_cf);
       max_psi = psi.ComputeMaxError(zero_cf);
-      // res_newt = rho.ComputeH1Error(&mapped_rho_cf, &mapped_grad_rho_cf);
+      res_md = psi_k.ComputeL1Error(psi_cf)/alpha + rho_k.ComputeL2Error(
+                  rho_cf) + Psi_k.ComputeL1Error(Psi_cf)/alpha;
+
+      // Visualization
       logger.Print();
       mapped_rho_gf.ProjectCoefficient(mapped_rho_cf);
       paraview_dc->SetTime(it_md);
       paraview_dc->SetCycle(it_md);
       paraview_dc->Save();
+
       if (it_md >= 1 && res_md < tol_md) { break; }
    }
    return 0;
