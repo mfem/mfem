@@ -276,12 +276,14 @@ int main(int argc, char *argv[])
    real_t rho_min = 1e-08;
    real_t vol_frac = 0.5;
 
-   int max_md_it = 1e04;
+   int max_md_it = 300;
    int max_newton_it = 30;
    real_t tol_md = 1e-04;
    real_t tol_newt = 1e-08;
 
    bool use_paraview = true;
+
+   Array<int> materialBC; // 0: flat; 1: solid; -1: void
 
    std::unique_ptr<ParMesh> pmesh;
    {
@@ -296,6 +298,10 @@ int main(int argc, char *argv[])
       for (int i=0; i<ref_parallel; i++) {pmesh->UniformRefinement();}
    }
    FunctionCoefficient rho_targ([](const Vector &x) { return (real_t)((x[0] - 0.5) * (x[1] - 0.5) < 0); });
+   materialBC.SetSize(pmesh->bdr_attributes.Max());
+   materialBC=0;
+   Array<int> ess_neumann_bc(materialBC);
+   for (int &bdr : ess_neumann_bc) { bdr = (bdr == 0); }
 
    RT_FECollection RT_fec(order, dim);
    DG_FECollection DG_fec(order, dim);
@@ -313,6 +319,10 @@ int main(int argc, char *argv[])
       out << "DG space dof: " << global_DG_dof << std::endl;
       out << "Total    dof: " << global_RT_dof + global_DG_dof * 2 + 1 << std::endl;
    }
+
+   Array<int> ess_neumann_bc_tdofs;
+   RT_fes.GetEssentialTrueDofs(ess_neumann_bc, ess_neumann_bc_tdofs);
+   ess_neumann_bc_tdofs.Sort();
 
    Array<int> offsets(5);
    offsets[0] = 0;
@@ -337,6 +347,9 @@ int main(int argc, char *argv[])
    x_tv.GetBlock(2) = invsigmoid(vol_frac);  // initial latent
    b_tv = 0.0;
 
+   Vector b_tv_reduced(b_tv.Size() - ess_neumann_bc_tdofs.Size());
+   Vector x_tv_reduced(x_tv.Size() - ess_neumann_bc_tdofs.Size());
+
    ParGridFunction Psi, rho, psi;
    Psi.MakeRef(&RT_fes, x.GetBlock(0), 0);
    rho.MakeRef(&DG_fes, x.GetBlock(1), 0);
@@ -350,6 +363,10 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient alpha_cf(1.0);
    ConstantCoefficient one_cf(1.0);
+   ConstantCoefficient zero_cf(0.0);
+   Vector zero_vec_d(dim);
+   zero_vec_d=0.0;
+   VectorConstantCoefficient zero_vec_cf(zero_vec_d);
    ConstantCoefficient neg_one_cf(-1.0);
 
    VectorGridFunctionCoefficient Psi_cf(&Psi);
@@ -372,6 +389,7 @@ int main(int argc, char *argv[])
    ProductCoefficient dsigma_psi_cf(dsigma_cf, psi_cf);
    ProductCoefficient neg_mapped_rho_cf(-1.0, mapped_rho_cf);
    ProductCoefficient neg_psi_k_cf(-1.0, psi_k_cf);
+   ParGridFunction mapped_rho_gf(rho);
 
    GridFunctionCoefficient rho_cf(&rho);
    GridFunctionCoefficient rho_old_cf(&rho_old);
@@ -448,14 +466,18 @@ int main(int argc, char *argv[])
    real_t res_md,res_newt, res_l2_linsolver;
    real_t curr_vol;
    real_t obj(0);
+   real_t max_psi(0), max_Psi(0);
    TableLogger logger;
    logger.SaveWhenPrint("grad_proj_md.csv");
    logger.Append("it_md", it_md);
+   logger.Append("alpha", alpha);
    logger.Append("obj", obj);
    logger.Append("res_md", res_md);
    logger.Append("it_newt", it_newt);
    logger.Append("res_newt", res_newt);
    logger.Append("volume", curr_vol);
+   logger.Append("max_psi", max_psi);
+   logger.Append("max_Psi", max_Psi);
    logger.Append("solver_res", res_l2_linsolver);
    std::unique_ptr<ParaViewDataCollection> paraview_dc;
    if (use_paraview)
@@ -466,12 +488,13 @@ int main(int argc, char *argv[])
       else
       {
          paraview_dc->SetPrefixPath("ParaView");
-         paraview_dc->SetLevelsOfDetail(order);
+         paraview_dc->SetLevelsOfDetail(order + 3);
          paraview_dc->SetDataFormat(VTKFormat::BINARY);
          paraview_dc->SetHighOrderOutput(true);
          paraview_dc->RegisterField("density", &rho);
          paraview_dc->RegisterField("psi", &psi);
          paraview_dc->RegisterField("Psi", &Psi);
+         paraview_dc->RegisterField("mapped_density", &mapped_rho_gf);
       }
    }
 
@@ -480,7 +503,8 @@ int main(int argc, char *argv[])
    for (; it_md<max_md_it; it_md++)
    {
       // TODO: Custom update rule for alpha
-      alpha = std::sqrt((real_t)it_md); // update alpha
+      // alpha = std::sqrt((real_t)it_md); // update alpha
+      alpha = (real_t)it_md; // update alpha
       // alpha = 2; // update alpha
       alpha_cf.constant = alpha;
 
@@ -506,9 +530,14 @@ int main(int argc, char *argv[])
 
          reassemble(GradNewtResidual, b, b_tv, 0);
          reassemble(RhoNewtResidual, b, b_tv, 2);
+         b_tv.SetSubVector(ess_neumann_bc_tdofs, 0.0);
          MPI_Barrier(MPI_COMM_WORLD);
 
          glbMat.reset(HypreParMatrixFromBlocks(blockOp));
+         Operator *A;
+         glbMat->FormLinearSystem(ess_neumann_bc_tdofs, x_tv, b_tv, A, x_tv_reduced,
+                                  b_tv_reduced);
+         glbMat->EliminateBC(ess_neumann_bc_tdofs, Operator::DIAG_ONE);
          MUMPSSolver mumps(MPI_COMM_WORLD);
          mumps.SetPrintLevel(0);
          mumps.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
@@ -534,8 +563,11 @@ int main(int argc, char *argv[])
       res_md = psi_k.ComputeL1Error(psi_cf)/alpha + rho_k.ComputeL2Error(
                   rho_cf) + Psi_k.ComputeL1Error(Psi_cf)/alpha;
       obj = rho.ComputeL2Error(rho_targ);
+      max_Psi = Psi.ComputeMaxError(zero_vec_cf);
+      max_psi = psi.ComputeMaxError(zero_cf);
       // res_newt = rho.ComputeH1Error(&mapped_rho_cf, &mapped_grad_rho_cf);
       logger.Print();
+      mapped_rho_gf.ProjectCoefficient(mapped_rho_cf);
       paraview_dc->SetTime(it_md);
       paraview_dc->SetCycle(it_md);
       paraview_dc->Save();
