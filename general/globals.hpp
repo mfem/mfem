@@ -107,7 +107,7 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 
 #endif
 
-const char* getenv(const char* name);
+const char* GetEnv(const char* name);
 
 } // namespace mfem
 

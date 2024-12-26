@@ -76,8 +76,9 @@ void SetGlobalMPI_Comm(MPI_Comm comm)
 
 #endif
 
-const char* getenv(const char* name)
+const char *GetEnv(const char* name)
 {
-   return ::getenv(name);
+   return getenv(name);
 }
+
 }
