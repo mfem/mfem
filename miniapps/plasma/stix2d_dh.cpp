@@ -1899,7 +1899,7 @@ int main(int argc, char *argv[])
    TransposeMatrixCoefficient suscept_realT(suscept_real);
    TransposeMatrixCoefficient suscept_imagT(suscept_imag);
    MatrixSumCoefficient suscept_real_diss(suscept_real, suscept_realT);
-   MatrixSumCoefficient suscept_imag_diss(suscept_imag, suscept_imagT);
+   MatrixSumCoefficient suscept_imag_diss(suscept_imag, suscept_imagT,1.0,-1.0);
    SPDDielectricTensor epsilon_abs(BField, k_gf, nue_gf, nui_gf, density,
                                    temperature,
                                    iontemp_gf, L2FESpace, H1FESpace,
