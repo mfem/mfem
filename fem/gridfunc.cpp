@@ -2822,6 +2822,7 @@ real_t GridFunction::ComputeL2Error(
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
       fes->GetElementVDofs(i, vdofs);
+      real_t elem_error = 0.0;
       for (j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
@@ -2840,12 +2841,14 @@ real_t GridFunction::ComputeL2Error(
                   a -= (*this)(-1-vdofs[fdof*d+k]) * shape(k);
                }
             a -= exsol[d]->Eval(*transf, ip);
-            error += ip.weight * transf->Weight() * a * a;
+            elem_error += ip.weight * transf->Weight() * a * a;
          }
       }
+      // negative quadrature weights may cause the error to be negative
+      error += fabs(elem_error);
    }
 
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return sqrt(error);
 }
 
 real_t GridFunction::ComputeL2Error(
@@ -2872,6 +2875,7 @@ real_t GridFunction::ComputeL2Error(
       {
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
+      real_t elem_error = 0.0;
       T = fes->GetElementTransformation(i);
       GetVectorValues(*T, *ir, vals);
       exsol.Eval(exact_vals, *T, *ir);
@@ -2882,11 +2886,12 @@ real_t GridFunction::ComputeL2Error(
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         error += ip.weight * T->Weight() * (loc_errs(j) * loc_errs(j));
+         elem_error += ip.weight * T->Weight() * (loc_errs(j) * loc_errs(j));
       }
+      // negative quadrature weights may cause the error to be negative
+      error += fabs(elem_error);
    }
-
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return sqrt(error);
 }
 
 real_t GridFunction::ComputeElementGradError(int ielem,
@@ -2924,7 +2929,7 @@ real_t GridFunction::ComputeElementGradError(int ielem,
       vec-=grad;
       error += ip.weight * Tr->Weight() * (vec * vec);
    }
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return sqrt(fabs(error));
 }
 
 real_t GridFunction::ComputeGradError(VectorCoefficient *exgrad,
@@ -2954,6 +2959,7 @@ real_t GridFunction::ComputeGradError(VectorCoefficient *exgrad,
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
       fes->GetElementDofs(i, dofs);
+      real_t elem_error = 0.0;
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
@@ -2961,10 +2967,12 @@ real_t GridFunction::ComputeGradError(VectorCoefficient *exgrad,
          GetGradient(*Tr,grad);
          exgrad->Eval(vec,*Tr,ip);
          vec-=grad;
-         error += ip.weight * Tr->Weight() * (vec * vec);
+         elem_error += ip.weight * Tr->Weight() * (vec * vec);
       }
+      // negative quadrature weights may cause the error to be negative
+      error += fabs(elem_error);
    }
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return sqrt(error);
 }
 
 real_t GridFunction::ComputeCurlError(VectorCoefficient *excurl,
@@ -2994,6 +3002,7 @@ real_t GridFunction::ComputeCurlError(VectorCoefficient *excurl,
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
       fes->GetElementDofs(i, dofs);
+      real_t elem_error = 0.0;
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
@@ -3001,11 +3010,13 @@ real_t GridFunction::ComputeCurlError(VectorCoefficient *excurl,
          GetCurl(*Tr,curl);
          excurl->Eval(vec,*Tr,ip);
          vec-=curl;
-         error += ip.weight * Tr->Weight() * ( vec * vec );
+         elem_error += ip.weight * Tr->Weight() * ( vec * vec );
       }
+      // negative quadrature weights may cause the error to be negative
+      error += fabs(elem_error);
    }
 
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return sqrt(error);
 }
 
 real_t GridFunction::ComputeDivError(
@@ -3032,16 +3043,19 @@ real_t GridFunction::ComputeDivError(
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
       fes->GetElementDofs(i, dofs);
+      real_t elem_error = 0.0;
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          Tr->SetIntPoint (&ip);
          a = GetDivergence(*Tr) - exdiv->Eval(*Tr, ip);
-         error += ip.weight * Tr->Weight() * a * a;
+         elem_error += ip.weight * Tr->Weight() * a * a;
       }
+      // negative quadrature weights may cause the error to be negative
+      error += fabs(elem_error);
    }
 
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return sqrt(error);
 }
 
 real_t GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
@@ -3142,6 +3156,7 @@ real_t GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
             err_val(j) -= (exsol->Eval(*transf, eip) - (shape * el_dofs));
          }
       }
+      real_t face_error = 0.0;
       face_elem_transf = mesh->GetFaceElementTransformations(i, 16);
       transf = face_elem_transf;
       for (int j = 0; j < ir->GetNPoints(); j++)
@@ -3149,13 +3164,15 @@ real_t GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
          real_t nu = jump_scaling.Eval(h, p);
-         error += (ip.weight * nu * ell_coeff_val(j) *
-                   transf->Weight() *
-                   err_val(j) * err_val(j));
+         face_error += (ip.weight * nu * ell_coeff_val(j) *
+                        transf->Weight() *
+                        err_val(j) * err_val(j));
       }
+      // negative quadrature weights may cause the error to be negative
+      error += fabs(face_error);
    }
 
-   return (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   return sqrt(error);
 }
 
 real_t GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
@@ -3306,6 +3323,7 @@ real_t GridFunction::ComputeW11Error(
          {
             ir = &(IntRules.Get(fe->GetGeomType(), intorder));
          }
+         real_t elem_error = 0.0;
          fes->GetElementVDofs(i, vdofs);
          for (k = 0; k < fdof; k++)
             if (vdofs[k] >= 0)
@@ -3322,8 +3340,9 @@ real_t GridFunction::ComputeW11Error(
             fe->CalcShape(ip, shape);
             transf->SetIntPoint(&ip);
             a = (el_dofs * shape) - (exsol->Eval(*transf, ip));
-            error += ip.weight * transf->Weight() * fabs(a);
+            elem_error += ip.weight * transf->Weight() * fabs(a);
          }
+         error += fabs(elem_error);
       }
 
    if (norm_type & 2) // W^1_1 seminorm
@@ -3346,6 +3365,7 @@ real_t GridFunction::ComputeW11Error(
          {
             ir = &(IntRules.Get(fe->GetGeomType(), intorder));
          }
+         real_t elem_error = 0.0;
          fes->GetElementVDofs(i, vdofs);
          for (k = 0; k < fdof; k++)
             if (vdofs[k] >= 0)
@@ -3366,8 +3386,9 @@ real_t GridFunction::ComputeW11Error(
             Mult(dshape, Jinv, dshapet);
             dshapet.MultTranspose(el_dofs, a_grad);
             e_grad -= a_grad;
-            error += ip.weight * transf->Weight() * e_grad.Norml1();
+            elem_error += ip.weight * transf->Weight() * e_grad.Norml1();
          }
+         error += fabs(elem_error);
       }
 
    return error;
@@ -3397,6 +3418,7 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
          int intorder = 2*fe->GetOrder() + 3; // <----------
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
+      real_t elem_error = 0.0;
       GetValues(i, *ir, vals);
       T = fes->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
@@ -3411,7 +3433,7 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
             {
                diff *= weight->Eval(*T, ip);
             }
-            error += ip.weight * T->Weight() * diff;
+            elem_error += ip.weight * T->Weight() * diff;
          }
          else
          {
@@ -3422,19 +3444,16 @@ real_t GridFunction::ComputeLpError(const real_t p, Coefficient &exsol,
             error = std::max(error, diff);
          }
       }
+      if (p < infinity())
+      {
+         // negative quadrature weights may cause the error to be negative
+         error += fabs(elem_error);
+      }
    }
 
    if (p < infinity())
    {
-      // negative quadrature weights may cause the error to be negative
-      if (error < 0.)
-      {
-         error = -pow(-error, 1./p);
-      }
-      else
-      {
-         error = pow(error, 1./p);
-      }
+      error = pow(error, 1./p);
    }
 
    return error;
@@ -3494,14 +3513,7 @@ void GridFunction::ComputeElementLpErrors(const real_t p, Coefficient &exsol,
       if (p < infinity())
       {
          // negative quadrature weights may cause the error to be negative
-         if (error[i] < 0.)
-         {
-            error[i] = -pow(-error[i], 1./p);
-         }
-         else
-         {
-            error[i] = pow(error[i], 1./p);
-         }
+         error[i] = pow(fabs(error[i]), 1./p);
       }
    }
 }
@@ -3530,6 +3542,7 @@ real_t GridFunction::ComputeLpError(const real_t p, VectorCoefficient &exsol,
          int intorder = 2*fe->GetOrder() + 3; // <----------
          ir = &(IntRules.Get(fe->GetGeomType(), intorder));
       }
+      real_t elem_error = 0.0;
       T = fes->GetElementTransformation(i);
       GetVectorValues(*T, *ir, vals);
       exsol.Eval(exact_vals, *T, *ir);
@@ -3568,7 +3581,7 @@ real_t GridFunction::ComputeLpError(const real_t p, VectorCoefficient &exsol,
             {
                errj *= weight->Eval(*T, ip);
             }
-            error += ip.weight * T->Weight() * errj;
+            elem_error += ip.weight * T->Weight() * errj;
          }
          else
          {
@@ -3579,19 +3592,16 @@ real_t GridFunction::ComputeLpError(const real_t p, VectorCoefficient &exsol,
             error = std::max(error, errj);
          }
       }
+      if (p < infinity())
+      {
+         // negative quadrature weights may cause the error to be negative
+         error += fabs(elem_error);
+      }
    }
 
    if (p < infinity())
    {
-      // negative quadrature weights may cause the error to be negative
-      if (error < 0.)
-      {
-         error = -pow(-error, 1./p);
-      }
-      else
-      {
-         error = pow(error, 1./p);
-      }
+      error = pow(error, 1./p);
    }
 
    return error;
@@ -3678,14 +3688,7 @@ void GridFunction::ComputeElementLpErrors(const real_t p,
       if (p < infinity())
       {
          // negative quadrature weights may cause the error to be negative
-         if (error[i] < 0.)
-         {
-            error[i] = -pow(-error[i], 1./p);
-         }
-         else
-         {
-            error[i] = pow(error[i], 1./p);
-         }
+         error[i] = pow(fabs(error[i]), 1./p);
       }
    }
 }
@@ -4487,7 +4490,6 @@ real_t ComputeElementLpDistance(real_t p, int i,
    int nip = ir->GetNPoints();
    Vector val1, val2;
 
-
    ElementTransformation *T = fes1->GetElementTransformation(i);
    for (int j = 0; j < nip; j++)
    {
@@ -4513,14 +4515,7 @@ real_t ComputeElementLpDistance(real_t p, int i,
    if (p < infinity())
    {
       // Negative quadrature weights may cause the norm to be negative
-      if (norm < 0.)
-      {
-         norm = -pow(-norm, 1./p);
-      }
-      else
-      {
-         norm = pow(norm, 1./p);
-      }
+      norm = pow(fabs(norm), 1./p);
    }
 
    return norm;
