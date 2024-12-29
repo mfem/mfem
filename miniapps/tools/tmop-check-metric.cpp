@@ -29,12 +29,15 @@ using namespace std;
 int main(int argc, char *argv[])
 {
    int metric_id = 2;
+   bool a_metric_version = false;
    int convergence_iter = 10;
    bool verbose = false;
 
    // Choose metric.
    OptionsParser args(argc, argv);
    args.AddOption(&metric_id, "-mid", "--metric-id", "Metric id");
+   args.AddOption(&a_metric_version, "-A", "-Ametric", "-no-A", "--no-Ametric",
+                  "Use the A-version of the metric, if available.");
    args.AddOption(&verbose, "-v", "-verbose", "-no-v", "--no-verbose",
                   "Enable extra screen output.");
    args.AddOption(&convergence_iter, "-i", "--iterations",
@@ -58,9 +61,11 @@ int main(int argc, char *argv[])
       case 2: metric = new TMOP_Metric_002; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
-      case 14: metric = new TMOP_Metric_014; break;
+      case 14: if (a_metric_version) { metric = new TMOP_Metric_014; }
+               else                  { metric = new TMOP_AMetric_014; }break;
       case 22: metric = new TMOP_Metric_022(tauval); break;
-      case 50: metric = new TMOP_Metric_050; break;
+      case 50: if (a_metric_version) { metric = new TMOP_Metric_050; }
+               else                  { metric = new TMOP_AMetric_050; }break;
       case 55: metric = new TMOP_Metric_055; break;
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
@@ -95,7 +100,8 @@ int main(int argc, char *argv[])
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
-      case 107: metric = new TMOP_AMetric_107a; break;
+      case 51: metric = new TMOP_AMetric_051; break;
+      case 107: metric = new TMOP_AMetric_107; break;
       case 126: metric = new TMOP_AMetric_126(0.9); break;
       default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
    }
@@ -125,9 +131,8 @@ int main(int argc, char *argv[])
       T(0, 0) += T_vec.Max();
       if (T.Det() <= 0.0) { continue; }
 
-      const DenseMatrix &Wideal = Geometries.GetGeomToPerfGeomJac(fespace.GetFE(
-                                                                     0)->GetGeomType());
-      metric->SetTargetJacobian(Wideal);
+      auto W = Geometries.GetGeomToPerfGeomJac(fespace.GetFE(0)->GetGeomType());
+      metric->SetTargetJacobian(W);
 
       const real_t i_form = metric->EvalW(T),
                    m_form = metric->EvalWMatrixForm(T);
