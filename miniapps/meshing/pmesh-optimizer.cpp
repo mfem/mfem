@@ -504,7 +504,7 @@ int main (int argc, char *argv[])
       case 36: metric = new TMOP_AMetric_036; break;
       case 49: metric = new TMOP_AMetric_049(0.9); break;
       case 51: metric = new TMOP_AMetric_051; break;
-      case 107: metric = new TMOP_AMetric_107a; break;
+      case 107: metric = new TMOP_AMetric_107; break;
       case 126: metric = new TMOP_AMetric_126(0.9); break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
