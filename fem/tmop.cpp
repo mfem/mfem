@@ -169,8 +169,6 @@ auto mu98_ad( const DenseMatrix *W,  std::vector<type> &T) -> type
    return fnorm2_2D(Mat)/W->Det();
 };
 
-
-
 // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
 template <typename type>
 auto nu011( const DenseMatrix *W,  std::vector<type> &T) -> type
@@ -1250,7 +1248,7 @@ real_t TMOP_Metric_098::EvalW(const DenseMatrix &Jpt) const
 
 void TMOP_Metric_098::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ADGrad(mu98_ad<ADFType>, P, Jpt);
+   ADGrad(mu98_ad<ADFType>, P, Jpt, Jtr);
    return;
 }
 
@@ -1962,7 +1960,7 @@ void TMOP_AMetric_011::AssembleH(const DenseMatrix &Jpt,
 }
 
 
-real_t TMOP_AMetric_014a::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_AMetric_014::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
                "Requires a target Jacobian, use SetTargetJacobian().");
@@ -1978,16 +1976,16 @@ real_t TMOP_AMetric_014a::EvalW(const DenseMatrix &Jpt) const
    return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.);
 }
 
-void TMOP_AMetric_014a::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+void TMOP_AMetric_014::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
    ADGrad(nu014a<ADFType>, P, Jpt, Jtr);
    return;
 }
 
-void TMOP_AMetric_014a::AssembleH(const DenseMatrix &Jpt,
-                                  const DenseMatrix &DS,
-                                  const real_t weight,
-                                  DenseMatrix &A) const
+void TMOP_AMetric_014::AssembleH(const DenseMatrix &Jpt,
+                                 const DenseMatrix &DS,
+                                 const real_t weight,
+                                 DenseMatrix &A) const
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
@@ -2138,7 +2136,7 @@ void TMOP_AMetric_051::AssembleH(const DenseMatrix &Jpt,
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
-real_t TMOP_AMetric_107a::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_AMetric_107::EvalW(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
                "Requires a target Jacobian, use SetTargetJacobian().");
@@ -2158,13 +2156,13 @@ real_t TMOP_AMetric_107a::EvalW(const DenseMatrix &Jpt) const
    return (0.5/alpha)*Jpr.FNorm2();
 }
 
-void TMOP_AMetric_107a::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+void TMOP_AMetric_107::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
    ADGrad(nu107a<ADFType>, P, Jpt, Jtr);
    return;
 }
 
-void TMOP_AMetric_107a::AssembleH(const DenseMatrix &Jpt,
+void TMOP_AMetric_107::AssembleH(const DenseMatrix &Jpt,
                                   const DenseMatrix &DS,
                                   const real_t weight,
                                   DenseMatrix &A) const

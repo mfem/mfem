@@ -1107,7 +1107,7 @@ public:
 };
 
 /// 2D barrier Size (V) metric (polyconvex).
-class TMOP_AMetric_014a : public TMOP_QualityMetric
+class TMOP_AMetric_014 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<real_t> ie;
@@ -1177,7 +1177,7 @@ public:
 };
 
 /// 2D barrier Shape+Orientation (OS) metric (polyconvex).
-class TMOP_AMetric_107a : public TMOP_QualityMetric
+class TMOP_AMetric_107 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<real_t> ie;
@@ -1201,7 +1201,7 @@ protected:
 
 public:
    TMOP_AMetric_126(real_t gamma)
-      : sh_metric(new TMOP_AMetric_011), sz_metric(new TMOP_AMetric_014a)
+      : sh_metric(new TMOP_AMetric_011), sz_metric(new TMOP_AMetric_014)
    {
       // (1-gamma) nu_11 + gamma nu_14
       AddQualityMetric(sh_metric, 1.-gamma);
