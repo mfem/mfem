@@ -2163,9 +2163,9 @@ void TMOP_AMetric_107::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 }
 
 void TMOP_AMetric_107::AssembleH(const DenseMatrix &Jpt,
-                                  const DenseMatrix &DS,
-                                  const real_t weight,
-                                  DenseMatrix &A) const
+                                 const DenseMatrix &DS,
+                                 const real_t weight,
+                                 DenseMatrix &A) const
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;

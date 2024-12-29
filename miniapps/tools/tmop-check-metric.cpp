@@ -61,11 +61,13 @@ int main(int argc, char *argv[])
       case 2: metric = new TMOP_Metric_002; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
-      case 14: if (a_metric_version) { metric = new TMOP_Metric_014; }
-               else                  { metric = new TMOP_AMetric_014; }break;
+      case 14:
+         if (a_metric_version) { metric = new TMOP_Metric_014; }
+         else                  { metric = new TMOP_AMetric_014; } break;
       case 22: metric = new TMOP_Metric_022(tauval); break;
-      case 50: if (a_metric_version) { metric = new TMOP_Metric_050; }
-               else                  { metric = new TMOP_AMetric_050; }break;
+      case 50:
+         if (a_metric_version) { metric = new TMOP_Metric_050; }
+         else                  { metric = new TMOP_AMetric_050; } break;
       case 55: metric = new TMOP_Metric_055; break;
       case 56: metric = new TMOP_Metric_056; break;
       case 58: metric = new TMOP_Metric_058; break;
