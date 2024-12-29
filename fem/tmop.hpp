@@ -30,16 +30,9 @@ protected:
        for TMOP_QualityMetric%s, because it is not used. */
    void SetTransformation(ElementTransformation &) { }
 
-   /** @brief Default function for assembling the AD computed derivatives into the local gradient matrix 'A'.
-    *
-       @param[in] H       Dense tensor holding the AD computed local gradients.
-       @param[in] DS      Gradient of the basis matrix (dof x dim).
-       @param[in] weight  Quadrature weight coefficient for the point.
-       @param[in,out]  A  Local gradient matrix where the contribution from this
-                          point will be added.
-
-       Computes weight * d(dW_dxi)_d(xj) computed by AD at the current point,
-       for all i and j, where x1 ... xn are the FE dofs. . */
+   /** @brief See AssembleH(). This is a default implementation for the case
+       when the 2nd derivatives of the metric are pre-computed and stored into
+       @a H. This function is used in combination with AD-based computations. */
    void DefaultAssembleH(const DenseTensor &H, const DenseMatrix &DS,
                          const real_t weight, DenseMatrix &A) const;
 
