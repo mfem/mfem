@@ -39,8 +39,8 @@ public:
 
   virtual ~QoIBaseCoefficient() {};
 
-  virtual const mfem::DenseMatrix &explicitSolutionDerivative(mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip)
-    = 0;
+  virtual const mfem::DenseMatrix &explicitSolutionDerivative
+      (mfem::ElementTransformation &T, const mfem::IntegrationPoint &ip) = 0;
 
   virtual const mfem::DenseMatrix &explicitSolutionGradientDerivative(mfem::ElementTransformation &T,
       const mfem::IntegrationPoint &ip)

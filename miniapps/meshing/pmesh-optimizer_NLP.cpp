@@ -196,12 +196,12 @@ int main (int argc, char *argv[])
   int qoitype = static_cast<int>(QoIType::H1_ERROR);
   bool perturbMesh = false;
   double epsilon_pert =  0.006;
-  int ser_refinement_ = 2;
+  int ref_ser = 2;
   int mesh_node_ordering = 0;
   int max_it = 100;
   double max_ch=0.002; //max design change
   double weight_1 = 1e4; //1e7; // 5e2;
-  double weight_2 = 1e-2;
+  double weight_tmop = 1e-2;
   int metric_id   = 2;
   int target_id   = 1;
   int quad_type         = 1;
@@ -211,6 +211,8 @@ int main (int argc, char *argv[])
   int method = 0;
 
   OptionsParser args(argc, argv);
+  args.AddOption(&ref_ser, "-rs", "--refine-serial",
+                 "Number of times to refine the mesh uniformly in serial.");
   args.AddOption(&metric_id, "-mid", "--metric-id",
                 "Mesh optimization metric:\n\t"
                 "T-metrics\n\t"
@@ -245,7 +247,7 @@ int main (int argc, char *argv[])
                   "Quantity of interest type");
    args.AddOption(&weight_1, "-w1", "--weight1",
                   "Quantity of interest weight");
-   args.AddOption(&weight_2, "-w2", "--weight2",
+   args.AddOption(&weight_tmop, "-w2", "--weight2",
                   "Mesh quality weight type");
    args.Parse();
    if (!args.Good())
@@ -260,33 +262,27 @@ int main (int argc, char *argv[])
   bool dQdxFD =false;
   bool BreakAfterFirstIt = false;
 
-  ParMesh *PMesh = nullptr;
 
+  // Create mesh
+  Mesh des_mesh = Mesh::MakeCartesian2D(20, 20, Element::QUADRILATERAL,
+                                        true, 1.0, 1.0);
+
+  if(perturbMesh)
   {
-    // Create mesh
-    double Lx = 1.0;    double Ly = 1.0;
-    int NX = 20;         int NY = 20;
-    Mesh des_mesh = Mesh::MakeCartesian2D(NX, NY, Element::QUADRILATERAL, true, Lx, Ly);
-
-    if(perturbMesh)
-    {
-      int tNumVertices  = des_mesh.GetNV();
-      for (int i = 0; i < tNumVertices; ++i) {
+     int tNumVertices  = des_mesh.GetNV();
+     for (int i = 0; i < tNumVertices; ++i) {
         double * Coords = des_mesh.GetVertex(i);
         if (Coords[ 0 ] != 0.0 && Coords[ 0 ] != 1.0 && Coords[ 1 ] != 0.0 && Coords[ 1 ] != 1.0) {
-          Coords[ 0 ] = Coords[ 0 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
-          Coords[ 1 ] = Coords[ 1 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
+           Coords[ 0 ] = Coords[ 0 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
+           Coords[ 1 ] = Coords[ 1 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
         }
-      }
-    }
-
-    // Refine mesh in serial
-    for (int lev = 0; lev < ser_refinement_; lev++) {
-      des_mesh.UniformRefinement();
-    }
-    // Create Parallel Mesh
-    PMesh = new ParMesh(MPI_COMM_WORLD, des_mesh);
+     }
   }
+
+  // Refine mesh in serial
+  for (int lev = 0; lev < ref_ser; lev++) { des_mesh.UniformRefinement(); }
+
+  auto PMesh = new ParMesh(MPI_COMM_WORLD, des_mesh);
 
   int spatialDimension = PMesh->SpaceDimension();
 
@@ -303,7 +299,7 @@ int main (int argc, char *argv[])
 
   // Create finite Element Spaces for analysis mesh
   if ( spatialDimension != 2 ) {
-    ::mfem_error("... This example only supports 2D meshes");
+    mfem_error("... This example only supports 2D meshes");
   }
 
   // 4. Define a finite element space on the mesh. Here we use vector finite
@@ -319,8 +315,7 @@ int main (int argc, char *argv[])
   else { fec = new H1_FECollection(mesh_poly_deg, spatialDimension); }
   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(PMesh, fec, spatialDimension,
                                                                mesh_node_ordering);
-  ParFiniteElementSpace * fespace_scalar = new ParFiniteElementSpace(PMesh, fec, 1,
-                                                               mesh_node_ordering);
+  auto fespace_scalar = new ParFiniteElementSpace(PMesh, fec, 1);
   ParFiniteElementSpace pfespace_gf(PMesh, fec);
   ParGridFunction x_gf(&pfespace_gf);
 
@@ -362,6 +357,8 @@ int main (int argc, char *argv[])
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
    }
+   TargetConstructor *target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+   target_c->SetNodes(x);
 
    IntegrationRules *irules = NULL;
    switch (quad_type)
@@ -374,14 +371,11 @@ int main (int argc, char *argv[])
          return 3;
    }
 
-    TargetConstructor *target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
-   target_c->SetNodes(x);
-
    auto tmop_integ = new TMOP_Integrator(metric, target_c);
    tmop_integ->SetIntegrationRules(*irules, quad_order);
 
-    ConstantCoefficient *metric_coeff1 = new ConstantCoefficient(weight_2);
-    tmop_integ->SetCoefficient(*metric_coeff1);
+   ConstantCoefficient metric_w(weight_tmop);
+   tmop_integ->SetCoefficient(metric_w);
 
   // set esing variable bounds
   Vector objgrad(numOptVars); objgrad=0.0;
@@ -389,7 +383,8 @@ int main (int argc, char *argv[])
   Vector xxmax(numOptVars);   xxmax=  0.001;
   Vector xxmin(numOptVars);   xxmin= -0.001;
 
-  ParGridFunction gridfuncOptVar(pfespace);   gridfuncOptVar = 0.0;
+  ParGridFunction gridfuncOptVar(pfespace);
+  gridfuncOptVar = 0.0;
   ParGridFunction gridfuncLSBoundIndicator(pfespace);
   gridfuncLSBoundIndicator = 0.0;
 
@@ -493,8 +488,8 @@ if (myid == 0) {
    if (visualization)
    {
       socketstream vis;
-      common::VisualizeField(vis, "localhost", 19916, x0,
-                             "Initial", 00, 400, 300, 300, "jRmclA");
+      common::VisualizeMesh(vis, "localhost", 19916, *PMesh, "Initial Mesh",
+                            0, 0, 300, 300, "m");
    }
 
 
@@ -576,7 +571,7 @@ if (myid == 0) {
       double ObjVal = QoIEvaluator.EvalQoI();
       double meshQualityVal = MeshQualityEvaluator.EvalQoI();
 
-      double val = weight_1 * ObjVal+ weight_2 * meshQualityVal;
+      double val = weight_1 * ObjVal+ weight_tmop * meshQualityVal;
 
       QoIEvaluator.EvalQoIGrad();
       MeshQualityEvaluator.EvalQoIGrad();
@@ -592,7 +587,7 @@ if (myid == 0) {
       ParLinearForm dQdx(pfespace); dQdx = 0.0;
       dQdx.Add(weight_1, *dQdxExpl);
       dQdx.Add(weight_1, *dQdxImpl);
-      dQdx.Add(weight_2, *dMeshQdxExpl);
+      dQdx.Add(weight_tmop, *dMeshQdxExpl);
 
       HypreParVector *truedQdx = dQdx.ParallelAssemble();
 
@@ -771,6 +766,8 @@ if (myid == 0) {
         PMesh->PrintAsOne(mesh_ofs);
     }
   }
+
+  delete PMesh;
 
   return 0;
 }
