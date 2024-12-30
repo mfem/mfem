@@ -14,6 +14,15 @@ HypreParMatrix *reassemble(ParBilinearForm &op)
    return op.ParallelAssemble();
 }
 
+void reassemble(ParLinearForm &b, BlockVector &b_v, BlockVector &b_tv,
+                const int block_id)
+{
+   b.Assemble();
+   b.SyncAliasMemory(b_v);
+   b.ParallelAssemble(b_tv.GetBlock(block_id));
+   b_tv.GetBlock(block_id).SyncAliasMemory(b_tv);
+}
+
 void MPISequential(std::function<void(int)> f)
 {
    for (int i=0; i<Mpi::WorldSize(); i++)
@@ -26,14 +35,6 @@ void MPISequential(std::function<void(int)> f)
    }
 }
 
-void reassemble(ParLinearForm &b, BlockVector &b_v, BlockVector &b_tv,
-                const int block_id)
-{
-   b.Assemble();
-   b.SyncAliasMemory(b_v);
-   b.ParallelAssemble(b_tv.GetBlock(block_id));
-   b_tv.GetBlock(block_id).SyncAliasMemory(b_tv);
-}
 
 HypreParMatrix * LinearFormToSparseMatrix(ParLinearForm &lf)
 {
@@ -343,7 +344,7 @@ int main(int argc, char *argv[])
    true_offsets.PartialSum();
    BlockVector x_tv(true_offsets), b_tv(true_offsets), dummy(true_offsets);
    x_tv.GetBlock(0) = 0.0;                   // Constant solution -> Psi=0
-   x_tv.GetBlock(1) = vol_frac;              // Initial Design
+   x_tv.GetBlock(1) = vol_frac;              // Initial design
    x_tv.GetBlock(2) = invsigmoid(vol_frac);  // initial latent
    b_tv = 0.0;
 
