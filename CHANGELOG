@@ -12,6 +12,8 @@ Version 4.7.1 (development)
 ===========================
 - Refactored ALGOIM cut integration rules. The interface is unified with
   the interface for moment based cut integration rules.
+- Altered (Par)GridFunction::Compute*Error functions to ensure they return
+  non-negative values and therefore behave as "norms".
 
 Discretization improvements
 ---------------------------
