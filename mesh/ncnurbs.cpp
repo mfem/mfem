@@ -2128,31 +2128,41 @@ void NURBSExtension::ProcessVertexToKnot3D(Array2D<int> const& v2k,
             }
             else
             {
-               hasAuxFace = true;
-               // Check whether childPair is in auxFaces.
-               if (auxv2f.count(childPair) == 0)
+               // Check whether the parent faces is on the boundary.
+               const Mesh::FaceInformation faceInfo = patchTopo->GetFaceInformation(
+                                                         parentFace);
+               const bool bdryParentFace = faceInfo.IsBoundary();
+
+               if (!allset && !bdryParentFace)
                {
-                  MFEM_ABORT("TODO: set facePairs?");
-
-                  // Create a new auxiliary face
-                  auxv2f[childPair] = auxFaces.size();
-
-                  AuxiliaryFace auxFace;
-                  for (int k=0; k<4; ++k)
+                  hasAuxFace = true;
+                  // Check whether childPair is in auxFaces.
+                  if (auxv2f.count(childPair) == 0)
                   {
-                     auxFace.v[k] = cv[k];
+                     // Create a new auxiliary face
+                     auxv2f[childPair] = auxFaces.size();
+
+                     AuxiliaryFace auxFace;
+                     for (int k=0; k<4; ++k)
+                     {
+                        auxFace.v[k] = cv[k];
+                     }
+
+                     auxFace.parent = parentFace;
+                     // Orientation is 0 for a new auxiliary face, by construction.
+                     auxFace.ori = 0;
+
+                     auxFace.ki0[0] = i;
+                     auxFace.ki0[1] = j;
+                     auxFace.ki1[0] = i + d0;
+                     auxFace.ki1[1] = j + d1;
+
+                     auxFaces.push_back(auxFace);
+
+                     // Orientation is 0 for a new auxiliary face, by construction.
+                     facePairs.emplace_back(FacePairInfo{cv[0], -1 - auxv2f[childPair], parentFace, 0,
+                        {i, j}, {d0, d1}});
                   }
-
-                  auxFace.parent = parentFace;
-                  // Orientation is 0 for a new auxiliary face, by construction.
-                  auxFace.ori = 0;
-
-                  auxFace.ki0[0] = i;
-                  auxFace.ki0[1] = j;
-                  auxFace.ki1[0] = i + d0;
-                  auxFace.ki1[1] = j + d1;
-
-                  auxFaces.push_back(auxFace);
                }
             }
          }

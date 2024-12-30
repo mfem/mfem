@@ -522,7 +522,7 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
    xi.SetSize(GetNCP());
    u.SetSize(GetNCP());
    ks.SetSize(GetNCP());
-   for (int j = 0; j <GetNCP(); j++)
+   for (int j = 0; j < GetNCP(); j++)
    {
       maxima[j] = 0;
       for (int d = 0; d < Order+1; d++)
@@ -582,7 +582,7 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
    // Find interpolation points
    Vector xi_args, u_args;
    Array<int> i_args;
-   FindMaxima(i_args,xi_args, u_args);
+   FindMaxima(i_args, xi_args, u_args);
 
    // Assemble collocation matrix
    Vector shape(order+1);
@@ -5013,7 +5013,18 @@ void NURBSExtension::RefineKnotIndices(Array<int> const& rf)
 
 void NURBSExtension::UniformRefinement(Array<int> const& rf)
 {
-   ref_factors = rf;
+   if (ref_factors.Size())
+   {
+      MFEM_VERIFY(ref_factors.Size() == rf.Size(), "");
+      for (int i=0; i<rf.Size(); ++i)
+      {
+         ref_factors[i] *= rf[i];
+      }
+   }
+   else
+   {
+      ref_factors = rf;
+   }
 
    const int maxOrder = mOrders.Max();
 
