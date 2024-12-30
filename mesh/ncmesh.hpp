@@ -173,6 +173,11 @@ public:
    int GetNFaces() const { return NFaces; }
    virtual int GetNGhostElements() const { return 0; }
 
+   /** NCMesh can change the vertex ordering after refinement, coarsening, or on creation
+    *  of the NCMesh object.  After update operation the Vertex ID Map contains the remapping
+    *  information. */
+   const Array<int> &GetVertexIDMap() {return vertex_nodeId;}
+
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep the
        mesh consistent. However, the function always performs at least the
@@ -347,7 +352,6 @@ public:
          default: return GetFaceList();
       }
    }
-
 
    // coarse/fine transforms
 
@@ -940,6 +944,9 @@ protected:
 
    void CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
                         const Refinement *refs, int nref);
+
+   void CheckAnisoPyramid(int vn1, int vn2, int vn3, int vn4,
+                          const Refinement *refs, int nref);
 
    void CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
                        int mid12, int mid34, int level = 0);
