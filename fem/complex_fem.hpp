@@ -120,6 +120,10 @@ public:
 
    virtual ~ComplexLinearForm();
 
+   /// Assign constant values to the ComplexLinearForm data.
+   ComplexLinearForm &operator=(const std::complex<real_t> & value)
+   { *lfr = value.real(); *lfi = value.imag(); return *this; }
+
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
@@ -465,6 +469,10 @@ public:
                         convention = ComplexOperator::HERMITIAN);
 
    virtual ~ParComplexLinearForm();
+
+   /// Assign constant values to the ParComplexLinearForm data.
+   ParComplexLinearForm &operator=(const std::complex<real_t> & value)
+   { *plfr = value.real(); *plfi = value.imag(); return *this; }
 
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
