@@ -2300,6 +2300,13 @@ public:
    bool Conforming() const;
    bool Nonconforming() const { return !Conforming(); }
 
+   /** Designate this mesh for output as "NC mesh v1.1", meaning it is
+       nonconforming with nonuniform refinement spacings. */
+   void SetScaledNCMesh()
+   {
+      ncmesh->using_scaling = true;
+   }
+
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
    const CoarseFineTransformations &GetRefinementTransforms() const;
