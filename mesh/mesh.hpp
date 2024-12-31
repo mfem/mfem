@@ -2938,8 +2938,8 @@ public:
    Vector X;
 
    /// Jacobians of the element transformations at all quadrature points.
-   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
-       NF) where
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x
+       (DIM-1) x NF) where
        - NQ = number of quadrature points per face,
        - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
        - DIM = dimension of the mesh = mesh.Dimension(), and

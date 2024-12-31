@@ -119,7 +119,9 @@ void FaceQuadratureInterpolator::Eval2D(
    auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), NQ1D, VDIM, NF):
               Reshape(q_val.Write(), VDIM, NQ1D, NF);
-   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, NF); // only tangential der
+   auto der = q_layout == QVectorLayout::byNODES ? // only tangential der
+              Reshape(q_der.Write(), NQ1D, VDIM, NF):
+              Reshape(q_der.Write(), VDIM, NQ1D, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NF);
    auto n   = q_layout == QVectorLayout::byNODES ?
               Reshape(q_nor.Write(), NQ1D, 2, NF):
@@ -172,6 +174,20 @@ void FaceQuadratureInterpolator::Eval2D(
                {
                   real_t s_e = r_F[d][c];
                   D[c] += s_e * w;
+               }
+            }
+            if (eval_flags & DERIVATIVES)
+            {
+               for (int c = 0; c < VDIM; c++)
+               {
+                  if (q_layout == QVectorLayout::byVDIM)
+                  {
+                     der(c,q,f) =  D[c];
+                  }
+                  else // q_layout == QVectorLayout::byNODES
+                  {
+                     der(q,c,f) =  D[c];
+                  }
                }
             }
             if (VDIM == 2 &&
@@ -232,7 +248,9 @@ void FaceQuadratureInterpolator::Eval3D(
    auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF):
               Reshape(q_val.Write(), VDIM, NQ1D, NQ1D, NF);
-   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
+   auto der = q_layout == QVectorLayout::byNODES ?
+              Reshape(q_der.Write(), NQ1D, NQ1D, VDIM, 2, NF):
+              Reshape(q_der.Write(), VDIM, 2, NQ1D, NQ1D, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
    auto nor = q_layout == QVectorLayout::byNODES ?
               Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF):
@@ -348,6 +366,28 @@ void FaceQuadratureInterpolator::Eval3D(
                }
             }
          }
+         if (eval_flags & DERIVATIVES)
+         {
+            for (int c = 0; c < VDIM; c++)
+            {
+               for (int q2 = 0; q2 < NQ1D; ++q2)
+               {
+                  for (int q1 = 0; q1 < NQ1D; ++q1)
+                  {
+                     if (q_layout == QVectorLayout::byVDIM)
+                     {
+                        der(c,0,q1,q2,f) = BGu[q2][q1][c];
+                        der(c,1,q1,q2,f) = GBu[q2][q1][c];
+                     }
+                     else // q_layout == QVectorLayout::byNODES
+                     {
+                        der(q1,q2,c,0,f) = BGu[q2][q1][c];
+                        der(q1,q2,c,1,f) = GBu[q2][q1][c];
+                     }
+                  }
+               }
+            }
+         }
          if (VDIM == 3 && ((eval_flags & NORMALS) ||
                            (eval_flags & DETERMINANTS)))
          {
@@ -417,7 +457,9 @@ void FaceQuadratureInterpolator::SmemEval3D(
    auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF):
               Reshape(q_val.Write(), VDIM, NQ1D, NQ1D, NF);
-   // auto der = Reshape(q_der.Write(), NQ1D, VDIM, 3, NF);
+   auto der = q_layout == QVectorLayout::byNODES ?
+              Reshape(q_der.Write(), NQ1D, NQ1D, VDIM, 2, NF):
+              Reshape(q_der.Write(), VDIM, 2, NQ1D, NQ1D, NF);
    auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
    auto nor = q_layout == QVectorLayout::byNODES ?
               Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF):
@@ -534,6 +576,29 @@ void FaceQuadratureInterpolator::SmemEval3D(
             }
          }
          MFEM_SYNC_THREAD;
+
+         if (eval_flags & DERIVATIVES)
+         {
+            MFEM_FOREACH_THREAD(q2,x,NQ1D)
+            {
+               MFEM_FOREACH_THREAD(q1,y,NQ1D)
+               {
+                  MFEM_FOREACH_THREAD(c,z,VDIM)
+                  {
+                     if (q_layout == QVectorLayout::byVDIM)
+                     {
+                        der(c,0,q1,q2,f) = BGu[q2][q1][c];
+                        der(c,1,q1,q2,f) = GBu[q2][q1][c];
+                     }
+                     else // q_layout == QVectorLayout::byNODES
+                     {
+                        der(q1,q2,c,0,f) = BGu[q2][q1][c];
+                        der(q1,q2,c,1,f) = GBu[q2][q1][c];
+                     }
+                  }
+               }
+            }
+         }
 
          if (VDIM == 3 && ((eval_flags & NORMALS) ||
                            (eval_flags & DETERMINANTS)))
