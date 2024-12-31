@@ -65,6 +65,17 @@ public:
        order @a order and number of control points @a NCP. */
    KnotVector(int order, int NCP);
 
+   /** @brief Create a KnotVector by passing in a degree, a Vector of interval
+       lengths of length n, and a list of continuity of length n + 1.
+
+       The intervals refer to spans between unique knot values (not counting
+       zero-size intervals at repeated knots), and the continuity values should
+       be >= -1 (discontinuous) and <= order-1 (maximally-smooth for the given
+       polynomial degree). Periodicity is not supported.
+   */
+   KnotVector(int order, const Vector& intervals,
+              const Array<int>& continuity );
+
    /// Copy constructor.
    KnotVector(const KnotVector &kv) { (*this) = kv; }
 
@@ -261,6 +272,22 @@ public:
    /// Constructor for a 3D patch.
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
               const KnotVector *kv2, int dim);
+
+   /** Create a bivariate NURBS patch with given control points. See n-variate
+       overload for additional notes. */
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_,
+              const real_t* control_points);
+   /** Create a trivariate NURBS patch with given control points. See n-variate
+       overload for additional notes. */
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
+              const KnotVector *kv2, int dim_, const real_t* control_points);
+   /** Create an n-variate NURBS patch with given control points of dimension
+       dim_, where n is the length of the array of knot vectors and dim_
+       includes the weight. The array of control point coordinates stores each
+       point's coordinates contiguously, and points are ordered in a standard
+       ijk grid ordering. */
+   NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
+              const real_t* control_points);
 
    /// Constructor for a patch of dimension equal to the size of @a kv.
    NURBSPatch(Array<const KnotVector *> &kv, int dim);
@@ -647,7 +674,7 @@ protected:
    void SetPatchToBdrElements();
 
    /// To be used by ParNURBSExtension constructor(s)
-   NURBSExtension() { }
+   NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
 
 public:
    /// Copy constructor: deep copy
@@ -670,6 +697,8 @@ public:
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh.
 
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
+
+   NURBSExtension(const Mesh *patch_topology, const Array<const NURBSPatch*> p);
 
    /// Copy assignment not supported.
    NURBSExtension& operator=(const NURBSExtension&) = delete;
