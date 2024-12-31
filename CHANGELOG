@@ -12,6 +12,8 @@ Version 4.7.1 (development)
 ===========================
 - Refactored ALGOIM cut integration rules. The interface is unified with
   the interface for moment based cut integration rules.
+- Altered (Par)GridFunction::Compute*Error functions to ensure they return
+  non-negative values and therefore behave as "norms".
 
 Discretization improvements
 ---------------------------
@@ -26,6 +28,11 @@ Meshing improvements
 --------------------
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
   are also supported.
+
+- Added support for nonuniform anisotropic (nonconforming) mesh refinement with
+  arbitrary spacing in each direction, for quadrilateral (2D) and hexahedral
+  (3D) meshes. This enables in particular 3:1 refinement, as demonstrated in the
+  new meshing miniapp ref321.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -57,6 +64,9 @@ GPU computing
 - Element assembly kernels have been added for low-order refined to
   high-order transfer operators. New kernels can be offloaded as device
   kernels. Example usage may be found in lor-transfer.cpp under miniapps/tools.
+
+- Added support for GPU accelerated FindPointsGSLIB. Note that this will require
+  the users to switch from gslib v1.0.7 to v1.0.9.
 
 Miscellaneous
 -------------
