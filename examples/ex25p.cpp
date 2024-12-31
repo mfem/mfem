@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
    {
       b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(f));
    }
-   b.Vector::operator=(0.0);
+   b = 0.0;
    b.Assemble();
 
    // 13. Define the solution vector x as a parallel complex finite element grid
