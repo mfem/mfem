@@ -84,8 +84,8 @@ class HellingerDerivativeMatrixCoefficient : public MatrixCoefficient
 {
    // attributes
 private:
-   GridFunction * latent_gf;
-   Coefficient *norm_max;
+   VectorGridFunctionCoefficient latent_gf;
+   Coefficient *r_min;
    bool own_rmin;
    Vector latent_val;
 protected:
@@ -94,52 +94,32 @@ public:
 private:
 protected:
 public:
-   HellingerDerivativeMatrixCoefficient(GridFunction * latent_gf,
-                                        const real_t norm_max)
+   HellingerDerivativeMatrixCoefficient(const GridFunction * latent_gf,
+                                        const real_t r_min)
       :MatrixCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf),
-       norm_max(new ConstantCoefficient(norm_max)), own_rmin(true),
+       r_min(new ConstantCoefficient(r_min)), own_rmin(true),
        latent_val(latent_gf->VectorDim()) { }
-   HellingerDerivativeMatrixCoefficient(GridFunction * latent_gf,
-                                        Coefficient &norm_max)
+   HellingerDerivativeMatrixCoefficient(const GridFunction * latent_gf,
+                                        Coefficient &r_min)
       :MatrixCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf),
-       norm_max(&norm_max),
+       r_min(&r_min),
        own_rmin(false), latent_val(latent_gf->VectorDim()) { }
-   ~HellingerDerivativeMatrixCoefficient() {if (own_rmin) {delete norm_max;}}
-
-   void Eval(DenseMatrix &K, ElementTransformation &T,
-             const IntegrationPoint &ip) override
-   {
-      latent_gf->GetVectorValue(T.ElementNo, ip, latent_val);
-      const real_t norm2 = latent_val*latent_val;
-      const real_t scale = std::sqrt(1.0+norm2);
-      K.Diag(1.0, latent_val.Size());
-      AddMult_a_VVt(-1.0 / (1+norm2), latent_val, K);
-      K *= norm_max->Eval(T, ip) / scale;
-   }
-};
-
-class HellingerLatent2PrimalCoefficient : public VectorCoefficient
-{
-   // attributes
-private:
-   GridFunction * latent_gf;
-   Coefficient *r_min;
-   bool own_rmin;
-protected:
-public:
-   // methods
-private:
-protected:
-public:
-   HellingerLatent2PrimalCoefficient(GridFunction *latent_gf, const real_t r_min)
-      :VectorCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf),
-       r_min(new ConstantCoefficient(r_min)), own_rmin(true) {}
-   HellingerLatent2PrimalCoefficient(GridFunction *latent_gf, Coefficient &r_min)
-      :VectorCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf),
-       r_min(&r_min), own_rmin(false) {}
+   ~HellingerDerivativeMatrixCoefficient() {if (own_rmin) {delete r_min;}}
    void SetLengthScale(const real_t new_rmin)
    {
-      if (own_rmin) {delete r_min;}
+      if (own_rmin)
+      {
+         auto *r_min_const = dynamic_cast<ConstantCoefficient*>(r_min);
+         if (r_min_const)
+         {
+            r_min_const->constant = new_rmin;
+            return;
+         }
+         else
+         {
+            delete r_min;
+         }
+      }
       r_min = new ConstantCoefficient(new_rmin);
       own_rmin = true;
    }
@@ -150,11 +130,96 @@ public:
       own_rmin = false;
    }
 
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      latent_gf.Eval(latent_val, T, ip);
+      const real_t rmin = r_min->Eval(T, ip);
+      const real_t rmin2 = std::pow(rmin, 2.0);
+      const real_t norm2 = latent_val*latent_val;
+      K.Diag(1.0 / std::sqrt(norm2+rmin2), latent_val.Size());
+      AddMult_a_VVt(-std::pow(norm2 + rmin2, -1.5), latent_val, K);
+      K *= 1.0 / rmin;
+   }
+};
+
+class HellingerLatent2PrimalCoefficient : public VectorCoefficient
+{
+   // attributes
+private:
+   VectorGridFunctionCoefficient latent_gf;
+   Coefficient *r_min;
+   bool own_rmin;
+   std::unique_ptr<HellingerDerivativeMatrixCoefficient> der;
+protected:
+public:
+   // methods
+private:
+protected:
+public:
+   HellingerLatent2PrimalCoefficient(const GridFunction *latent_gf,
+                                     const real_t r_min)
+      :VectorCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf),
+       r_min(new ConstantCoefficient(r_min)), own_rmin(true) {}
+   HellingerLatent2PrimalCoefficient(const GridFunction *latent_gf,
+                                     Coefficient &r_min)
+      :VectorCoefficient(latent_gf->VectorDim()), latent_gf(latent_gf),
+       r_min(&r_min), own_rmin(false) {}
+   ~HellingerLatent2PrimalCoefficient()
+   {
+      if (own_rmin) {delete r_min;}
+   }
+   void SetLengthScale(const real_t new_rmin)
+   {
+      if (own_rmin)
+      {
+         auto *r_min_const = dynamic_cast<ConstantCoefficient*>(r_min);
+         if (r_min_const)
+         {
+            r_min_const->constant = new_rmin;
+            return;
+         }
+         else
+         {
+            delete r_min;
+         }
+      }
+      r_min = new ConstantCoefficient(new_rmin);
+      own_rmin = true;
+      if (der)
+      {
+         der->SetLengthScale(*r_min);
+      }
+   }
+   void SetLengthScale(Coefficient &new_rmin)
+   {
+      if (own_rmin) {delete r_min;}
+      r_min = &new_rmin;
+      own_rmin = false;
+      if (der)
+      {
+         der->SetLengthScale(*r_min);
+      }
+   }
+
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override
    {
-      latent_gf->GetVectorValue(T.ElementNo, T.GetIntPoint(), V);
-      V *= r_min->Eval(T,ip) / std::sqrt(V*V + 1.0);
+      V.SetSize(vdim);
+      latent_gf.Eval(V, T, ip);
+      const real_t rmin = r_min->Eval(T, ip);
+      const real_t norm2 = V*V;
+      V *= 1.0 / (rmin*std::sqrt((norm2+rmin*rmin)));
+   }
+
+   HellingerDerivativeMatrixCoefficient &GetDerivative()
+   {
+      if (!der)
+      {
+         der.reset(new HellingerDerivativeMatrixCoefficient(
+                      latent_gf.GetGridFunction(), *r_min));
+      }
+      return *der;
    }
 };
 
@@ -162,7 +227,7 @@ class FermiDiracDerivativeVectorCoefficient : public Coefficient
 {
    // attributes
 private:
-   GridFunction *latent_gf;
+   GridFunctionCoefficient latent_gf;
    Coefficient *minval;
    Coefficient *maxval;
    bool own_minmax;
@@ -172,13 +237,13 @@ public:
 private:
 protected:
 public:
-   FermiDiracDerivativeVectorCoefficient(GridFunction *latent_gf,
+   FermiDiracDerivativeVectorCoefficient(const GridFunction *latent_gf,
                                          const real_t minval=0,
-                                         const real_t maxval=0)
+                                         const real_t maxval=1)
       :Coefficient(), latent_gf(latent_gf),
        minval(new ConstantCoefficient(minval)),
        maxval(new ConstantCoefficient(maxval)), own_minmax(true) {}
-   FermiDiracDerivativeVectorCoefficient(GridFunction *latent_gf,
+   FermiDiracDerivativeVectorCoefficient(const GridFunction *latent_gf,
                                          Coefficient &minval,
                                          Coefficient &maxval)
       :Coefficient(), latent_gf(latent_gf),
@@ -191,7 +256,7 @@ public:
    {
       const real_t m = minval->Eval(T, T.GetIntPoint());
       const real_t M = maxval->Eval(T, T.GetIntPoint());
-      const real_t val = sigmoid(latent_gf->GetValue(T.ElementNo, T.GetIntPoint()));
+      const real_t val = sigmoid(latent_gf.Eval(T, ip));
       return (M - m)*(val*(1.0-val));
    }
 };
@@ -201,33 +266,49 @@ class FermiDiracLatent2PrimalCoefficient : public Coefficient
 {
    // attributes
 private:
-   GridFunction *latent_gf;
+   GridFunctionCoefficient latent_gf;
    Coefficient *minval;
    Coefficient *maxval;
    bool own_minmax;
+   std::unique_ptr<FermiDiracDerivativeVectorCoefficient> der;
 protected:
 public:
    // methods
 private:
 protected:
 public:
-   FermiDiracLatent2PrimalCoefficient(GridFunction *gf, const real_t minval=0,
-                                      const real_t maxval=0)
+   FermiDiracLatent2PrimalCoefficient(const GridFunction *gf,
+                                      const real_t minval=0,
+                                      const real_t maxval=1)
       :Coefficient(), latent_gf(gf),
        minval(new ConstantCoefficient(minval)),
        maxval(new ConstantCoefficient(maxval)), own_minmax(true) {}
-   FermiDiracLatent2PrimalCoefficient(GridFunction *gf, Coefficient &minval,
+   FermiDiracLatent2PrimalCoefficient(const GridFunction *gf, Coefficient &minval,
                                       Coefficient &maxval)
       :Coefficient(), latent_gf(gf),
        minval(&minval), maxval(&maxval), own_minmax(false) {}
-   ~FermiDiracLatent2PrimalCoefficient() { if (own_minmax) {delete minval; delete maxval;} }
+   ~FermiDiracLatent2PrimalCoefficient()
+   {
+      if (own_minmax) {delete minval; delete maxval;}
+   }
    void SetGridFunction(GridFunction *new_gf) { latent_gf = new_gf; }
+
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       const real_t m = minval->Eval(T, T.GetIntPoint());
       const real_t M = maxval->Eval(T, T.GetIntPoint());
-      const real_t val = sigmoid(latent_gf->GetValue(T.ElementNo, T.GetIntPoint()));
+      const real_t val = sigmoid(latent_gf.Eval(T, ip));
       return (M - m)*val + m;
+   }
+
+   FermiDiracDerivativeVectorCoefficient &GetDerivative()
+   {
+      if (!der)
+      {
+         der.reset(new FermiDiracDerivativeVectorCoefficient(
+                      latent_gf.GetGridFunction(), *minval, *maxval));
+      }
+      return *der;
    }
 };
 
@@ -270,11 +351,11 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    Hypre::Init();
 
-   int ref_levels = 5;
-   int order = 2;
+   int ref_levels = 7;
+   int order = 1;
    int dim = 2;
-   real_t length_scale = 0.1;
-   real_t rho_min = 1e-08;
+   real_t r_min = 0.1;
+   real_t rho_min = 0.0;
    real_t vol_frac = 0.5;
 
    int max_md_it = 300;
@@ -282,9 +363,45 @@ int main(int argc, char *argv[])
    real_t tol_md = 1e-04;
    real_t tol_newt = 1e-08;
 
+   real_t entropy_reg = 0.0;
+   real_t h1_reg = 0.0;
+
    bool use_paraview = true;
 
-   Array<int> materialBC; // 0: flat; 1: solid; -1: void
+   OptionsParser args(argc, argv);
+   // FE-related options
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "The number of uniform mesh refinement");
+   args.AddOption(&order, "-o", "--order",
+                  "Finite element order (polynomial degree).");
+   // problem dependent options
+   args.AddOption(&r_min, "-l", "--length-scale",
+                  "r_min for length scale");
+   args.AddOption(&rho_min, "-rho0", "--rho-min",
+                  "minimum density");
+   args.AddOption(&vol_frac, "-theta", "--vol-frac",
+                  "volume fraction");
+
+   args.AddOption(&max_md_it, "-mi", "--max-it",
+                  "Maximum mirror descent iteration");
+   args.AddOption(&max_md_it, "-mi-newt", "--max-it-newton",
+                  "Maximum Newton iteration");
+
+   // visualization related options
+   args.AddOption(&use_paraview, "-pv", "--paraview", "-no-pv",
+                  "--no-paraview",
+                  "Enable or disable paraview export.");
+   args.Parse();
+   if (!args.Good())
+   {
+      if (Mpi::Root())
+      {
+         args.PrintUsage(out);
+      }
+      return 1;
+   }
+
+   Array<int> densityBC; // 0: flat; 1: solid; -1: void
 
    std::unique_ptr<ParMesh> pmesh;
    {
@@ -292,17 +409,23 @@ int main(int argc, char *argv[])
       while (std::pow(2.0, ref_serial*dim) < Mpi::WorldSize()) { ref_serial++; }
       ref_serial = std::min(ref_serial, ref_levels);
       int ref_parallel = ref_levels - ref_serial;
-      Mesh mesh = Mesh::MakeCartesian2D(std::pow(2, ref_serial),
-                                        std::pow(2, ref_serial), Element::QUADRILATERAL);
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     std::pow(2, ref_serial), std::pow(2, ref_serial),
+                     Element::QUADRILATERAL, true, 1.0, 1.0);
       pmesh.reset(new ParMesh(MPI_COMM_WORLD, mesh));
       mesh.Clear();
       for (int i=0; i<ref_parallel; i++) {pmesh->UniformRefinement();}
    }
    FunctionCoefficient rho_targ([](const Vector &x) { return (real_t)((x[0] - 0.5) * (x[1] - 0.5) < 0); });
-   materialBC.SetSize(pmesh->bdr_attributes.Max());
-   materialBC=0;
-   Array<int> ess_neumann_bc(materialBC);
+   densityBC.SetSize(pmesh->bdr_attributes.Max());
+   densityBC=0;
+
+   Array<int> ess_neumann_bc(densityBC);
    for (int &bdr : ess_neumann_bc) { bdr = (bdr == 0); }
+   Array<int> voidBC(densityBC);
+   for (int &bdr : voidBC) { bdr = (bdr == -1); }
+   Array<int> materialBC(densityBC);
+   for (int &bdr : materialBC) { bdr = (bdr == 1); }
 
    RT_FECollection RT_fec(order, dim);
    DG_FECollection DG_fec(order, dim);
@@ -318,7 +441,7 @@ int main(int argc, char *argv[])
       out << "Num Elements: " << global_NE << std::endl;
       out << "RT space dof: " << global_RT_dof << std::endl;
       out << "DG space dof: " << global_DG_dof << std::endl;
-      out << "Total    dof: " << global_RT_dof + global_DG_dof * 2 + 1 << std::endl;
+      out << "   Total dof: " << global_RT_dof + global_DG_dof * 2 + 1 << std::endl;
    }
 
    Array<int> ess_neumann_bc_tdofs;
@@ -359,24 +482,23 @@ int main(int argc, char *argv[])
    rho.Distribute(&(x_tv.GetBlock(1)));
    psi.Distribute(&(x_tv.GetBlock(2)));
    ParGridFunction Psi_k(&RT_fes), Psi_old(&RT_fes);
-   ParGridFunction psi_k(&DG_fes), psi_old(&DG_fes);
    ParGridFunction rho_k(&DG_fes), rho_old(&DG_fes);
+   ParGridFunction psi_k(&DG_fes), psi_old(&DG_fes);
 
    ConstantCoefficient alpha_cf(1.0);
    ConstantCoefficient one_cf(1.0);
-   ConstantCoefficient zero_cf(0.0);
-   Vector zero_vec_d(dim);
-   zero_vec_d=0.0;
-   VectorConstantCoefficient zero_vec_cf(zero_vec_d);
    ConstantCoefficient neg_one_cf(-1.0);
+   ConstantCoefficient zero_cf(0.0);
+   Vector zero_vec_d(dim); zero_vec_d=0.0;
+   VectorConstantCoefficient zero_vec_cf(zero_vec_d);
 
    VectorGridFunctionCoefficient Psi_cf(&Psi);
    VectorGridFunctionCoefficient Psi_k_cf(&Psi_k);
    VectorGridFunctionCoefficient Psi_old_cf(&Psi_old);
-   HellingerLatent2PrimalCoefficient mapped_grad_rho_cf(&Psi, 1.0/length_scale);
-   HellingerLatent2PrimalCoefficient mapped_grad_rho_k_cf(&Psi_k,
-                                                          1.0/length_scale);
-   HellingerDerivativeMatrixCoefficient DSigma_cf(&Psi, 1.0 / length_scale);
+   HellingerLatent2PrimalCoefficient mapped_grad_rho_cf(&Psi, r_min);
+   HellingerLatent2PrimalCoefficient mapped_grad_rho_k_cf(&Psi_k, r_min);
+   HellingerDerivativeMatrixCoefficient &DSigma_cf =
+      mapped_grad_rho_cf.GetDerivative();
    MatrixVectorProductCoefficient DSigma_Psi_cf(DSigma_cf, Psi_cf);
    DivergenceGridFunctionCoefficient divPsi_k_cf(&Psi_k);
    ScalarVectorProductCoefficient neg_mapped_grad_rho_cf(-1.0, mapped_grad_rho_cf);
@@ -386,11 +508,14 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient psi_old_cf(&psi_old);
    FermiDiracLatent2PrimalCoefficient mapped_rho_cf(&psi, rho_min, 1.0);
    FermiDiracLatent2PrimalCoefficient mapped_rho_k_cf(&psi_k, rho_min, 1.0);
-   FermiDiracDerivativeVectorCoefficient dsigma_cf(&psi, rho_min, 1.0);
+   FermiDiracDerivativeVectorCoefficient &dsigma_cf =
+      mapped_rho_cf.GetDerivative();
    ProductCoefficient dsigma_psi_cf(dsigma_cf, psi_cf);
    ProductCoefficient neg_mapped_rho_cf(-1.0, mapped_rho_cf);
    ProductCoefficient neg_psi_k_cf(-1.0, psi_k_cf);
    ParGridFunction mapped_rho_gf(rho);
+   ParGridFunction rmin_gf(&DG_fes);
+   rmin_gf = r_min;
 
    GridFunctionCoefficient rho_cf(&rho);
    GridFunctionCoefficient rho_old_cf(&rho_old);
@@ -398,6 +523,7 @@ int main(int argc, char *argv[])
 
    // Global block operator, matrices are not owned.
    Array2D<HypreParMatrix*> blockOp(4,4);
+   blockOp = nullptr;
    std::unique_ptr<HypreParMatrix> glbMat;
 
    // <Sigma'(Psi), Xi>
@@ -410,24 +536,32 @@ int main(int argc, char *argv[])
    ParBilinearForm dsigmaOp(&DG_fes);
    dsigmaOp.AddDomainIntegrator(new MassIntegrator(dsigma_cf));
 
+   ConstantCoefficient h1_reg_cf(h1_reg);
+   if (h1_reg)
+   {
+      dsigmaOp.AddDomainIntegrator(new DiffusionIntegrator(h1_reg_cf));
+      dsigmaOp.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(h1_reg_cf, -1.0,
+                                                                   (order+1)*(order+1)));
+   }
+
    // <div Psi, q>
    ParMixedBilinearForm divOp(&RT_fes, &DG_fes);
    divOp.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
    divOp.Assemble();
    divOp.Finalize();
    std::unique_ptr<HypreParMatrix> D(divOp.ParallelAssemble());
-   std::unique_ptr<HypreParMatrix> G(D->Transpose());
+   std::unique_ptr<HypreParMatrix> negG(D->Transpose());
    blockOp(1, 0) = D.get();
-   blockOp(0, 1) = G.get();
+   blockOp(0, 1) = negG.get();
 
    // -<rho, xi>
    ParBilinearForm neg_MassOp(&DG_fes);
    neg_MassOp.AddDomainIntegrator(new MassIntegrator(neg_one_cf));
    neg_MassOp.Assemble();
    neg_MassOp.Finalize();
-   std::unique_ptr<HypreParMatrix> neg_M(neg_MassOp.ParallelAssemble());
-   blockOp(2, 1) = neg_M.get();
-   blockOp(1, 2) = neg_M.get();
+   std::unique_ptr<HypreParMatrix> negM(neg_MassOp.ParallelAssemble());
+   blockOp(2, 1) = negM.get();
+   blockOp(1, 2) = negM.get();
 
    // <rho, 1>
    ParLinearForm volform(&DG_fes);
@@ -458,6 +592,9 @@ int main(int argc, char *argv[])
                                            neg_mapped_grad_rho_cf));
    GradNewtResidual.AddDomainIntegrator(new VectorFEDomainLFIntegrator(
                                            DSigma_Psi_cf));
+   GradNewtResidual.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(
+                                             one_cf), materialBC);
+   // voidBC -> not necessary because it is 0!
 
    ParLinearForm RhoNewtResidual(&DG_fes, b.GetBlock(2).GetData());
    RhoNewtResidual.AddDomainIntegrator(new DomainLFIntegrator(neg_mapped_rho_cf));
@@ -472,7 +609,7 @@ int main(int argc, char *argv[])
    real_t obj(0);
    real_t max_psi(0), max_Psi(0);
    TableLogger logger;
-   logger.SaveWhenPrint("grad_proj_md.csv");
+   logger.SaveWhenPrint("grad_proj_md");
    logger.Append("it_md", it_md);
    logger.Append("alpha", alpha);
    logger.Append("obj", obj);
@@ -499,6 +636,10 @@ int main(int argc, char *argv[])
          paraview_dc->RegisterField("psi", &psi);
          paraview_dc->RegisterField("Psi", &Psi);
          paraview_dc->RegisterField("mapped_density", &mapped_rho_gf);
+         paraview_dc->RegisterField("rmin", &rmin_gf);
+         paraview_dc->SetTime(0);
+         paraview_dc->SetCycle(0);
+         paraview_dc->Save();
       }
    }
 
@@ -507,18 +648,21 @@ int main(int argc, char *argv[])
    for (; it_md<max_md_it; it_md++)
    {
       // TODO: Custom update rule for alpha
-      // alpha = std::sqrt((real_t)it_md); // update alpha
-      alpha = (real_t)it_md; // update alpha
+      alpha = std::pow((real_t)it_md, 1.0); // update alpha
       // alpha = 2; // update alpha
       alpha_cf.constant = alpha;
 
       // Store the previous
-      // We do not store rho_k as it is replaced by sigma(psi_k).
       Psi_k = Psi;
+      rho_k = rho;
       psi_k = psi;
 
       // // Update RHS of first-order optimality condition
       reassemble(first_order_optimality, b, b_tv, 1);
+      if (entropy_reg)
+      {
+         b_tv.GetBlock(1) *= 1.0 / (1.0 + entropy_reg); // entropy regularization
+      }
 
       it_newt = 0;
       for (; it_newt < max_newton_it; it_newt++)

@@ -39,6 +39,7 @@ public:
    // Print a row of currently monitored data. If it is called
    void Print(bool print_valname=false);
    // Save data to a file whenever Print is called.
+   // Default file extension is csv.
    void SaveWhenPrint(std::string filename,
                       std::ios::openmode mode = std::ios::out);
    // Close file manually.
