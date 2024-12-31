@@ -1,6 +1,7 @@
 #include "mfem.hpp"
 #include "logger.hpp"
 #include "funs.hpp"
+#include "linear_solver.hpp"
 
 
 using namespace mfem;
@@ -354,9 +355,10 @@ int main(int argc, char *argv[])
    int ref_levels = 7;
    int order = 1;
    int dim = 2;
-   real_t r_min = 0.1;
+   real_t r_min = std::pow(2.0, -5.0);
    real_t rho_min = 0.0;
    real_t vol_frac = 0.5;
+   real_t exponent = 3.0;
 
    int max_md_it = 300;
    int max_newton_it = 30;
@@ -424,32 +426,41 @@ int main(int argc, char *argv[])
    densityBC.SetSize(pmesh->bdr_attributes.Max());
    densityBC=0;
 
-   Array<int> ess_neumann_bc(densityBC);
-   for (int &bdr : ess_neumann_bc) { bdr = (bdr == 0); }
+   Array<int> essNeumannBC(densityBC);
+   for (int &bdr : essNeumannBC) { bdr = (bdr == 0); }
    Array<int> voidBC(densityBC);
    for (int &bdr : voidBC) { bdr = (bdr == -1); }
    Array<int> materialBC(densityBC);
    for (int &bdr : materialBC) { bdr = (bdr == 1); }
+   Array2D<int> essDispDiriBC(dim+1, densityBC.Size());
+   essDispDiriBC = 0;
+   std::fill(essDispDiriBC.GetRow(0),
+             essDispDiriBC.GetRow(0) + essDispDiriBC.NumCols(), 1);
 
-   RT_FECollection RT_fec(order, dim);
+
+   RT_FECollection RT_fec(order+1, dim);
    DG_FECollection DG_fec(order, dim);
+   H1_FECollection CG_fec(order+1, dim);
 
    ParFiniteElementSpace RT_fes(pmesh.get(), &RT_fec);
    ParFiniteElementSpace DG_fes(pmesh.get(), &DG_fec);
+   ParFiniteElementSpace CG_fes(pmesh.get(), &CG_fec, dim);
 
    HYPRE_BigInt global_NE = pmesh->GetGlobalNE();
    HYPRE_BigInt global_RT_dof = RT_fes.GlobalTrueVSize();
    HYPRE_BigInt global_DG_dof = DG_fes.GlobalTrueVSize();
+   HYPRE_BigInt global_CG_dof = CG_fes.GlobalTrueVSize();
    if (Mpi::Root())
    {
       out << "Num Elements: " << global_NE << std::endl;
+      out << "CG space dof: " << global_CG_dof << std::endl << std::endl;
       out << "RT space dof: " << global_RT_dof << std::endl;
       out << "DG space dof: " << global_DG_dof << std::endl;
       out << "   Total dof: " << global_RT_dof + global_DG_dof * 2 + 1 << std::endl;
    }
 
    Array<int> ess_neumann_bc_tdofs;
-   RT_fes.GetEssentialTrueDofs(ess_neumann_bc, ess_neumann_bc_tdofs);
+   RT_fes.GetEssentialTrueDofs(essNeumannBC, ess_neumann_bc_tdofs);
    ess_neumann_bc_tdofs.Sort();
 
    Array<int> offsets(5);
@@ -488,6 +499,18 @@ int main(int argc, char *argv[])
    ParGridFunction Psi_k(&RT_fes), Psi_old(&RT_fes);
    ParGridFunction rho_k(&DG_fes), rho_old(&DG_fes);
    ParGridFunction psi_k(&DG_fes), psi_old(&DG_fes);
+   ParGridFunction u(&CG_fes);
+   u = 0.0;
+   const real_t E = 1.0;
+   const real_t nu = 0.3;
+   const real_t lambda = E*nu/((1+nu)*(1-2*nu));
+   const real_t mu = E/(2*(1+nu));
+   MappedGFCoefficient mu_simp_cf(psi,
+   [mu, exponent, rho_min](const real_t x) {return (rho_min + (1.0 - rho_min)*std::pow(sigmoid(x),exponent))*mu;});
+   MappedGFCoefficient lambda_simp_cf(psi,
+   [lambda, exponent, rho_min](const real_t x) {return (rho_min + (1.0 - rho_min)*std::pow(sigmoid(x),exponent))*lambda;});
+   ElasticityProblem elasticity(CG_fes, essDispDiriBC, lambda_simp_cf, mu_simp_cf,
+                                false);
 
    ConstantCoefficient alpha_cf(1.0);
    ConstantCoefficient one_cf(1.0);
