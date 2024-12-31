@@ -2,6 +2,7 @@
 #include "logger.hpp"
 #include "funs.hpp"
 #include "linear_solver.hpp"
+#include "topopt.hpp"
 
 
 using namespace mfem;
@@ -355,8 +356,8 @@ int main(int argc, char *argv[])
    int ref_levels = 7;
    int order = 1;
    int dim = 2;
-   real_t r_min = std::pow(2.0, -5.0);
-   real_t rho_min = 0.0;
+   real_t r_min = 0.05;
+   real_t rho_min = 1e-06;
    real_t vol_frac = 0.5;
    real_t exponent = 3.0;
 
@@ -416,13 +417,13 @@ int main(int argc, char *argv[])
       ref_serial = std::min(ref_serial, ref_levels);
       int ref_parallel = ref_levels - ref_serial;
       Mesh mesh = Mesh::MakeCartesian2D(
-                     std::pow(2, ref_serial), std::pow(2, ref_serial),
-                     Element::QUADRILATERAL, true, 1.0, 1.0);
+                     std::pow(2, ref_serial)*3, std::pow(2, ref_serial),
+                     Element::QUADRILATERAL, true, 3.0, 1.0);
       pmesh.reset(new ParMesh(MPI_COMM_WORLD, mesh));
       mesh.Clear();
       for (int i=0; i<ref_parallel; i++) {pmesh->UniformRefinement();}
    }
-   FunctionCoefficient rho_targ([](const Vector &x) { return (real_t)((x[0] - 0.5) * (x[1] - 0.5) < 0); });
+   // FunctionCoefficient rho_targ([](const Vector &x) { return (real_t)((x[0] - 0.5) * (x[1] - 0.5) < 0); });
    densityBC.SetSize(pmesh->bdr_attributes.Max());
    densityBC=0;
 
@@ -433,23 +434,24 @@ int main(int argc, char *argv[])
    Array<int> materialBC(densityBC);
    for (int &bdr : materialBC) { bdr = (bdr == 1); }
    Array2D<int> essDispDiriBC(dim+1, densityBC.Size());
+   int num_bdr_attr = 4;
+   essDispDiriBC.SetSize(3, num_bdr_attr);
    essDispDiriBC = 0;
-   std::fill(essDispDiriBC.GetRow(0),
-             essDispDiriBC.GetRow(0) + essDispDiriBC.NumCols(), 1);
+   essDispDiriBC(0,3) = 1;
 
 
-   RT_FECollection RT_fec(order+1, dim);
+   RT_FECollection RT_fec(order, dim);
    DG_FECollection DG_fec(order, dim);
    H1_FECollection CG_fec(order+1, dim);
 
    ParFiniteElementSpace RT_fes(pmesh.get(), &RT_fec);
    ParFiniteElementSpace DG_fes(pmesh.get(), &DG_fec);
-   ParFiniteElementSpace CG_fes(pmesh.get(), &CG_fec, dim);
+   ParFiniteElementSpace CG_fes_vec(pmesh.get(), &CG_fec, dim);
 
    HYPRE_BigInt global_NE = pmesh->GetGlobalNE();
    HYPRE_BigInt global_RT_dof = RT_fes.GlobalTrueVSize();
    HYPRE_BigInt global_DG_dof = DG_fes.GlobalTrueVSize();
-   HYPRE_BigInt global_CG_dof = CG_fes.GlobalTrueVSize();
+   HYPRE_BigInt global_CG_dof = CG_fes_vec.GlobalTrueVSize();
    if (Mpi::Root())
    {
       out << "Num Elements: " << global_NE << std::endl;
@@ -489,35 +491,45 @@ int main(int argc, char *argv[])
    Vector b_tv_reduced(b_tv.Size() - ess_neumann_bc_tdofs.Size());
    Vector x_tv_reduced(x_tv.Size() - ess_neumann_bc_tdofs.Size());
 
-   ParGridFunction Psi, rho, psi;
+   ParGridFunction Psi, rho, psi, u(&CG_fes_vec);
    Psi.MakeRef(&RT_fes, x.GetBlock(0), 0);
    rho.MakeRef(&DG_fes, x.GetBlock(1), 0);
    psi.MakeRef(&DG_fes, x.GetBlock(2), 0);
    Psi.Distribute(&(x_tv.GetBlock(0)));
    rho.Distribute(&(x_tv.GetBlock(1)));
    psi.Distribute(&(x_tv.GetBlock(2)));
+   u = 0.0;
    ParGridFunction Psi_k(&RT_fes), Psi_old(&RT_fes);
    ParGridFunction rho_k(&DG_fes), rho_old(&DG_fes);
    ParGridFunction psi_k(&DG_fes), psi_old(&DG_fes);
-   ParGridFunction u(&CG_fes);
-   u = 0.0;
    const real_t E = 1.0;
    const real_t nu = 0.3;
    const real_t lambda = E*nu/((1+nu)*(1-2*nu));
    const real_t mu = E/(2*(1+nu));
-   MappedGFCoefficient mu_simp_cf(psi,
-   [mu, exponent, rho_min](const real_t x) {return (rho_min + (1.0 - rho_min)*std::pow(sigmoid(x),exponent))*mu;});
-   MappedGFCoefficient lambda_simp_cf(psi,
-   [lambda, exponent, rho_min](const real_t x) {return (rho_min + (1.0 - rho_min)*std::pow(sigmoid(x),exponent))*lambda;});
-   ElasticityProblem elasticity(CG_fes, essDispDiriBC, lambda_simp_cf, mu_simp_cf,
-                                false);
+   ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
+
+   MappedGFCoefficient simp_cf(
+      psi, [exponent, rho_min](const real_t x)
+   {
+      return simp(sigmoid(x), exponent, rho_min);
+   });
+   MappedGFCoefficient der_simp_cf(
+      psi, [exponent, rho_min](const real_t x)
+   {
+      return der_simp(sigmoid(x), exponent, rho_min);
+   });
+   ProductCoefficient lambda_simp_cf(lambda_cf, simp_cf);
+   ProductCoefficient mu_simp_cf(mu_cf, simp_cf);
+   StrainEnergyDensityCoefficient grad_cf(lambda_cf, mu_cf, der_simp_cf, u);
 
    ConstantCoefficient alpha_cf(1.0);
+   // ProductCoefficient neg_alpha_cf(-1.0, alpha_cf);
    ConstantCoefficient one_cf(1.0);
    ConstantCoefficient neg_one_cf(-1.0);
    ConstantCoefficient zero_cf(0.0);
    Vector zero_vec_d(dim); zero_vec_d=0.0;
    VectorConstantCoefficient zero_vec_cf(zero_vec_d);
+   ProductCoefficient alpha_grad_cf(alpha_cf, grad_cf);
 
    VectorGridFunctionCoefficient Psi_cf(&Psi);
    VectorGridFunctionCoefficient Psi_k_cf(&Psi_k);
@@ -533,8 +545,8 @@ int main(int argc, char *argv[])
    GridFunctionCoefficient psi_cf(&psi);
    GridFunctionCoefficient psi_k_cf(&psi_k);
    GridFunctionCoefficient psi_old_cf(&psi_old);
-   FermiDiracLatent2PrimalCoefficient mapped_rho_cf(&psi, rho_min, 1.0);
-   FermiDiracLatent2PrimalCoefficient mapped_rho_k_cf(&psi_k, rho_min, 1.0);
+   FermiDiracLatent2PrimalCoefficient mapped_rho_cf(&psi, 0.0, 1.0);
+   FermiDiracLatent2PrimalCoefficient mapped_rho_k_cf(&psi_k, 0.0, 1.0);
    FermiDiracDerivativeVectorCoefficient &dsigma_cf =
       mapped_rho_cf.GetDerivative();
    ProductCoefficient dsigma_psi_cf(dsigma_cf, psi_cf);
@@ -599,20 +611,32 @@ int main(int argc, char *argv[])
    blockOp(1,3) = M1.get();
    blockOp(3,1) = M1T.get();
 
+   // Elasticity
+   ElasticityProblem elasticity(CG_fes_vec, essDispDiriBC, lambda_simp_cf,
+                                mu_simp_cf,
+                                false);
+   std::unique_ptr<VectorFunctionCoefficient> load(new VectorFunctionCoefficient(
+                                                      2, [](const Vector &x, Vector &f)
+   {
+      f = 0.0;
+      if (std::pow(x[0]-2.9, 2.0) + std::pow(x[1] - 0.5, 2.0) < 0.05*0.05)
+      {
+         f[1] = -1.0;
+      }
+   }));
+   elasticity.GetParLinearForm()->AddDomainIntegrator(
+      new VectorDomainLFIntegrator(*load));
+   elasticity.SetAStationary(false);
+   elasticity.SetBStationary(false);
+
    // Right hand side
    ParLinearForm first_order_optimality(&DG_fes, b.GetBlock(1).GetData());
-   ProductCoefficient alpha_rho_k(alpha_cf, mapped_rho_k_cf);
-   ProductCoefficient alpha_rho_targ(alpha_cf, rho_targ);
-   ProductCoefficient neg_alpha_rho_targ(-1.0, alpha_rho_targ);
-   first_order_optimality.AddDomainIntegrator(new DomainLFIntegrator(alpha_rho_k));
-   first_order_optimality.AddDomainIntegrator(new DomainLFIntegrator(
-                                                 neg_alpha_rho_targ));
-   first_order_optimality.AddDomainIntegrator(new DomainLFIntegrator(divPsi_k_cf));
+   first_order_optimality.AddDomainIntegrator(
+      new DomainLFIntegrator(divPsi_k_cf));
    first_order_optimality.AddDomainIntegrator(
       new DomainLFIntegrator(neg_psi_k_cf));
-   ParLinearForm int_rho_targ(&DG_fes, b.GetBlock(1).GetData());
-   int_rho_targ.AddDomainIntegrator(new DomainLFIntegrator(rho_targ));
-   int_rho_targ.Assemble();
+   first_order_optimality.AddDomainIntegrator(
+      new DomainLFIntegrator(alpha_grad_cf));
 
    ParLinearForm GradNewtResidual(&RT_fes, b.GetBlock(0).GetData());
    GradNewtResidual.AddDomainIntegrator(new VectorFEDomainLFIntegrator(
@@ -664,6 +688,7 @@ int main(int argc, char *argv[])
          paraview_dc->RegisterField("Psi", &Psi);
          paraview_dc->RegisterField("mapped_density", &mapped_rho_gf);
          paraview_dc->RegisterField("rmin", &rmin_gf);
+         paraview_dc->RegisterField("u", &u);
          paraview_dc->SetTime(0);
          paraview_dc->SetCycle(0);
          paraview_dc->Save();
@@ -683,6 +708,8 @@ int main(int argc, char *argv[])
       Psi_k = Psi;
       rho_k = rho;
       psi_k = psi;
+
+      elasticity.Solve(u);
 
       // // Update RHS of first-order optimality condition
       reassemble(first_order_optimality, b, b_tv, 1);
@@ -720,6 +747,7 @@ int main(int argc, char *argv[])
          mumps.SetPrintLevel(0);
          mumps.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_INDEFINITE);
          mumps.SetOperator(*glbMat);
+         mumps.iterative_mode=true;
          mumps.Mult(b_tv, x_tv);
          // Compute residual
          glbMat->Mult(x_tv, dummy);
@@ -742,7 +770,7 @@ int main(int argc, char *argv[])
       }
 
       // Objective, L2 diff
-      obj = std::pow(rho.ComputeL2Error(rho_targ),2.0)/2.0;
+      obj = elasticity.GetParLinearForm()->operator()(u);
 
       // Residual and useful info
       max_Psi = Psi.ComputeMaxError(zero_vec_cf);
