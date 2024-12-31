@@ -914,19 +914,22 @@ real_t ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
             err_val(j) -= (exsol->Eval(*transf, eip) - (shape * el_dofs));
          }
       }
+      real_t face_error = 0.0;
       transf = face_elem_transf;
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
          real_t nu = jump_scaling.Eval(h, p);
-         error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
-                                      transf->Weight() *
-                                      err_val(j) * err_val(j));
+         face_error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
+                                           transf->Weight() *
+                                           err_val(j) * err_val(j));
       }
+      // negative quadrature weights may cause the error to be negative
+      error += fabs(face_error);
    }
 
-   error = (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   error = sqrt(error);
    return GlobalLpNorm(2.0, error, pfes->GetComm());
 }
 
@@ -982,70 +985,65 @@ void ParGridFunction::SaveAsSerial(const char *fname, int precision,
    MPI_Barrier(pmesh->GetComm());
 }
 
-GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
-                                                    Mesh &serial_mesh) const
+GridFunction ParGridFunction::GetSerialGridFunction(
+   int save_rank, FiniteElementSpace &serial_fes) const
 {
    ParFiniteElementSpace *pfespace = ParFESpace();
    ParMesh *pmesh = pfespace->GetParMesh();
 
-   int vdim = pfespace->GetVDim();
-   auto *fec_serial = FiniteElementCollection::New(pfespace->FEColl()->Name());
-   auto *fespace_serial = new FiniteElementSpace(&serial_mesh,
-                                                 fec_serial,
-                                                 vdim,
-                                                 pfespace->GetOrdering());
+   GridFunction serial_gf(&serial_fes);
 
-   GridFunction gf_serial(fespace_serial);
-   gf_serial.MakeOwner(fec_serial);
    Array<real_t> vals;
    Array<int> dofs;
    MPI_Status status;
-   int n_send_recv;
 
-   int my_rank = pmesh->GetMyRank(),
-       nranks = pmesh->GetNRanks();
-   MPI_Comm my_comm = pmesh->GetComm();
+   const int vdim = pfespace->GetVDim();
 
-   int elem_count = 0; // To keep track of element count in serial mesh
+   const int my_rank = pmesh->GetMyRank();
+   const int nranks = pmesh->GetNRanks();
+   MPI_Comm comm = pmesh->GetComm();
 
    if (my_rank == save_rank)
    {
+      int elem_count = 0; // To keep track of element count in serial mesh
+
       Vector nodeval;
       for (int e = 0; e < pmesh->GetNE(); e++)
       {
          GetElementDofValues(e, nodeval);
-         fespace_serial->GetElementVDofs(elem_count++, dofs);
-         gf_serial.SetSubVector(dofs, nodeval);
+         serial_fes.GetElementVDofs(elem_count++, dofs);
+         serial_gf.SetSubVector(dofs, nodeval);
       }
 
       for (int p = 0; p < nranks; p++)
       {
          if (p == save_rank) { continue; }
-         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, my_comm, &status);
+         int n_send_recv;
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, comm, &status);
          vals.SetSize(n_send_recv);
          if (n_send_recv)
          {
-            MPI_Recv(&vals[0], n_send_recv, MPITypeMap<real_t>::mpi_type, p, 449, my_comm,
+            MPI_Recv(&vals[0], n_send_recv, MPITypeMap<real_t>::mpi_type, p, 449, comm,
                      &status);
          }
          for (int i = 0; i < n_send_recv; )
          {
-            fespace_serial->GetElementVDofs(elem_count++, dofs);
-            gf_serial.SetSubVector(dofs, &vals[i]);
+            serial_fes.GetElementVDofs(elem_count++, dofs);
+            serial_gf.SetSubVector(dofs, &vals[i]);
             i += dofs.Size();
          }
       }
    } // my_rank == save_rank
    else
    {
-      n_send_recv = 0;
+      int n_send_recv = 0;
       Vector nodeval;
       for (int e = 0; e < pmesh->GetNE(); e++)
       {
          const FiniteElement *fe = pfespace->GetFE(e);
          n_send_recv += vdim*fe->GetDof();
       }
-      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, my_comm);
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, comm);
       vals.Reserve(n_send_recv);
       vals.SetSize(0);
       for (int e = 0; e < pmesh->GetNE(); e++)
@@ -1059,12 +1057,24 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
       if (n_send_recv)
       {
          MPI_Send(&vals[0], n_send_recv, MPITypeMap<real_t>::mpi_type, save_rank, 449,
-                  my_comm);
+                  comm);
       }
    }
 
-   MPI_Barrier(my_comm);
-   return gf_serial;
+   return serial_gf;
+}
+
+GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
+                                                    Mesh &serial_mesh) const
+{
+   auto *serial_fec = pfes->FEColl()->Clone(pfes->FEColl()->GetOrder());
+   auto *serial_fes = new FiniteElementSpace(&serial_mesh,
+                                             serial_fec,
+                                             pfes->GetVDim(),
+                                             pfes->GetOrdering());
+   GridFunction serial_gf = GetSerialGridFunction(save_rank, *serial_fes);
+   serial_gf.MakeOwner(serial_fec); // Also assumes ownership of serial_fes
+   return serial_gf;
 }
 
 #ifdef MFEM_USE_ADIOS2
@@ -1226,34 +1236,22 @@ real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm)
 {
    real_t glob_norm;
 
+   // negative quadrature weights may cause the local norm to be negative
+   loc_norm = fabs(loc_norm);
+
    if (p < infinity())
    {
-      // negative quadrature weights may cause the error to be negative
-      if (loc_norm < 0.0)
-      {
-         loc_norm = -pow(-loc_norm, p);
-      }
-      else
-      {
-         loc_norm = pow(loc_norm, p);
-      }
+      loc_norm = pow(loc_norm, p);
 
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                    comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, comm);
 
-      if (glob_norm < 0.0)
-      {
-         glob_norm = -pow(-glob_norm, 1.0/p);
-      }
-      else
-      {
-         glob_norm = pow(glob_norm, 1.0/p);
-      }
+      glob_norm = pow(fabs(glob_norm), 1.0/p);
    }
    else
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
-                    comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX, comm);
    }
 
    return glob_norm;
