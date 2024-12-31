@@ -3667,9 +3667,16 @@ void NetCDFReader::BuildBlockIDToNameMap(const vector<int> & blk_ids,
    // Find the variable ID for "eb_names" which stores element block names
    _netcdf_status = nc_inq_varid(_netcdf_descriptor, "eb_names",
                                  &varid_block_names);
-   CheckForNetCDFError();
-   MFEM_ASSERT(_netcdf_status != NC_ENOTVAR,
-               "The 'eb_names' variable was not found!");
+   // It's possible the netcdf file doesn't contain the variable, in which case
+   // there's nothing to do
+   if (_netcdf_status == NC_ENOTVAR)
+   {
+      return;
+   }
+   else
+   {
+      CheckForNetCDFError();
+   }
 
    // Get type of eb_names
    nc_type var_type;
