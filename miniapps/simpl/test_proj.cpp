@@ -381,6 +381,10 @@ int main(int argc, char *argv[])
                   "minimum density");
    args.AddOption(&vol_frac, "-theta", "--vol-frac",
                   "volume fraction");
+   args.AddOption(&h1_reg, "-h1", "--h1-reg",
+                  "H1 regularization constant");
+   args.AddOption(&entropy_reg, "-ent", "--entropy-reg",
+                  "Entropy regularization constant");
 
    args.AddOption(&max_md_it, "-mi", "--max-it",
                   "Maximum mirror descent iteration");
