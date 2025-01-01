@@ -54,7 +54,7 @@ jobs:
           build-system: make
           library-only: false
           config-options:
-            CXX="clang++-14"
+            CXX="clang++"
             CXXFLAGS="-g -O1 -std=c++11
                       -fsanitize=address
                       -fno-omit-frame-pointer
