@@ -238,6 +238,9 @@ public:
        MemoryManager::GetHostMemoryType(). */
    explicit Memory(int size) { New(size); }
 
+   /// Creates a new empty Memory object with host MemoryType @a mt.
+   explicit Memory(MemoryType mt) { Reset(mt); }
+
    /** @brief Allocate memory for @a size entries with the given MemoryType
        @a mt. */
    /** The newly allocated memory is not initialized, however the given
