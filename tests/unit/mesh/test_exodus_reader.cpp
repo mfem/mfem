@@ -170,3 +170,25 @@ TEST_CASE("Exodus Mixed Mesh Order 2", "[MFEMData][Mesh][ExodusII]")
    REQUIRE(mesh.HasGeometry(Geometry::TETRAHEDRON));
 #endif
 }
+
+TEST_CASE("Exodus Block Names", "[MFEMData][Mesh][ExodusII]")
+{
+#ifdef MFEM_USE_NETCDF
+   const std::string fname = "block-names.e";
+
+   const std::string & fpath = (mfem_data_dir + "/exodusii/" + fname);
+
+   Mesh mesh(fpath);
+
+   REQUIRE(mesh.Dimension() == 3);
+   REQUIRE(mesh.GetNE() == 8);
+   REQUIRE(mesh.GetNV() == 27);
+
+   // Hex only.
+   REQUIRE(mesh.HasGeometry(Geometry::CUBE));
+   REQUIRE(mesh.attribute_sets.AttributeSetExists("domain"));
+   const auto & domain_attr_set = mesh.attribute_sets.GetAttributeSet("domain");
+   REQUIRE(domain_attr_set.Size() == 1);
+   REQUIRE(domain_attr_set[0] == 1);
+#endif
+}
