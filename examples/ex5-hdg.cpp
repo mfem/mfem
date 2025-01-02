@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
    int ny = 0;
    int order = 1;
    bool dg = false;
+   real_t td = 0.5;
    bool hybridization = false;
    bool reduction = false;
    bool pa = false;
@@ -80,6 +81,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&dg, "-dg", "--discontinuous", "-no-dg",
                   "--no-discontinuous", "Enable DG elements for fluxes.");
+   args.AddOption(&td, "-td", "--stab_diff",
+                  "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
@@ -230,7 +233,7 @@ int main(int argc, char *argv[])
       bVarf->AddDomainIntegrator(new VectorDivergenceIntegrator());
       bVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                           new DGNormalTraceIntegrator(-1.)));
-      mtVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ikcoeff));
+      mtVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ikcoeff, td));
    }
    else
    {
