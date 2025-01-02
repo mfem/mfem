@@ -123,7 +123,10 @@ public:
 
    FiniteElementCollection *OwnFEC() { return fec_owned; }
 
+   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the underlying #fes
    int VectorDim() const;
+
+   /// Shortcut for calling FiniteElementSpace::GetCurlDim() on the underlying #fes
    int CurlDim() const;
 
    /// Read only access to the (optional) internal true-dof Vector.
