@@ -234,14 +234,14 @@ class TMOP_Metric_000 : public TMOP_QualityMetric
 {
 public:
    // W = 0.
-   real_t EvalW(const DenseMatrix &Jpt) const {return 0.0;}
+   real_t EvalW(const DenseMatrix &Jpt) const override {return 0.0;}
 
-   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const {P = 0.0;}
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override {P=0.0;}
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                  const real_t weight, DenseMatrix &A) const {A = 0.0;}
+                  const real_t weight, DenseMatrix &A) const override {A=0.0;}
 
-   int Id() const { return 0; }
+   int Id() const override { return 0; }
 };
 
 /// 2D non-barrier metric without a type.
@@ -1180,6 +1180,8 @@ public:
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;

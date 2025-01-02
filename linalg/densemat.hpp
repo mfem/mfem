@@ -99,7 +99,7 @@ public:
    { if (OwnsData()) { data.Delete(); } ClearExternalData(); }
 
    /// For backward compatibility define Size to be synonym of Width()
-   int Size() const { return width; }
+   int Size() const { return Width(); }
 
    // Total size = width*height
    int TotalSize() const { return width*height; }
