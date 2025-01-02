@@ -39,11 +39,6 @@ public:
     objects, see FiniteElementSpace::GetElementRestriction(). */
 class ElementRestriction : public ElementRestrictionOperator
 {
-private:
-   /** This number defines the maximum number of elements any dof can belong to
-       for the FillSparseMatrix method. */
-   static const int MaxNbNbr = 16;
-
 protected:
    const FiniteElementSpace &fes;
    const int ne;
@@ -55,6 +50,7 @@ protected:
    Array<int> offsets;
    Array<int> indices;
    Array<int> gather_map;
+   int max_connectivity;
 
 public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
