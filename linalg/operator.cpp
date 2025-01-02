@@ -183,8 +183,8 @@ Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
    {
       if (!IsIdentityProlongation(Po))
       {
-         TransposeOperator * PoT = new TransposeOperator(Po);
-         rap = new ProductOperator(PoT, this, true,false);
+         rap = new ProductOperator(Owning(new TransposeOperator(Po)),
+                                   NonOwning(this));
       }
       else
       {
@@ -365,11 +365,10 @@ void SecondOrderTimeDependentOperator::ImplicitSolve(const real_t dt0,
    mfem_error("SecondOrderTimeDependentOperator::ImplicitSolve() is not overridden!");
 }
 
-SumOperator::SumOperator(const Operator *A, const real_t alpha,
-                         const Operator *B, const real_t beta,
-                         bool ownA, bool ownB)
-   : Operator(A->Height(), A->Width()),
-     A(A), B(B), alpha(alpha), beta(beta), ownA(ownA), ownB(ownB),
+SumOperator::SumOperator(Handle<const Operator> A_, const real_t alpha,
+                         Handle<const Operator> B_, const real_t beta)
+   : Operator(A_->Height(), A_->Width()),
+     A(A_), B(B_), alpha(alpha), beta(beta),
      z(A->Height())
 {
    MFEM_VERIFY(A->Width() == B->Width(),
@@ -381,53 +380,43 @@ SumOperator::SumOperator(const Operator *A, const real_t alpha,
                << "A->Height() = " << A->Height()
                << ", B->Height() = " << B->Height() );
 
+   if (auto SolverA = dynamic_cast<const Solver*>(A.Get()))
    {
-      const Solver* SolverA = dynamic_cast<const Solver*>(A);
-      const Solver* SolverB = dynamic_cast<const Solver*>(B);
-      if (SolverA)
-      {
-         MFEM_VERIFY(!(SolverA->iterative_mode),
-                     "Operator A of a SumOperator should not be in iterative mode");
-      }
-      if (SolverB)
-      {
-         MFEM_VERIFY(!(SolverB->iterative_mode),
-                     "Operator B of a SumOperator should not be in iterative mode");
-      }
+      MFEM_VERIFY(!(SolverA->iterative_mode),
+                  "Operator A of a SumOperator should not be in iterative mode");
    }
-
+   if (auto SolverB = dynamic_cast<const Solver*>(B.Get()))
+   {
+      MFEM_VERIFY(!(SolverB->iterative_mode),
+                  "Operator B of a SumOperator should not be in iterative mode");
+   }
 }
 
-SumOperator::~SumOperator()
-{
-   if (ownA) { delete A; }
-   if (ownB) { delete B; }
-}
+SumOperator::SumOperator(const Operator *A_, const real_t alpha,
+                         const Operator *B_, const real_t beta,
+                         bool own_A, bool own_B)
+   : SumOperator({A_, own_A}, alpha, {B_, own_B}, beta) { }
 
-ProductOperator::ProductOperator(const Operator *A, const Operator *B,
-                                 bool ownA, bool ownB)
-   : Operator(A->Height(), B->Width()),
-     A(A), B(B), ownA(ownA), ownB(ownB), z(A->Width())
+
+ProductOperator::ProductOperator(Handle<const Operator> A_,
+                                 Handle<const Operator> B_)
+   : Operator(A_->Height(), B_->Width()),
+     A(A_), B(B_), z(A->Width())
 {
    MFEM_VERIFY(A->Width() == B->Height(),
                "incompatible Operators: A->Width() = " << A->Width()
                << ", B->Height() = " << B->Height());
 
+   if (auto SolverB = dynamic_cast<const Solver*>(B.Get()))
    {
-      const Solver* SolverB = dynamic_cast<const Solver*>(B);
-      if (SolverB)
-      {
-         MFEM_VERIFY(!(SolverB->iterative_mode),
-                     "Operator B of a ProductOperator should not be in iterative mode");
-      }
+      MFEM_VERIFY(!(SolverB->iterative_mode),
+                  "Operator B of a ProductOperator should not be in iterative mode");
    }
 }
 
-ProductOperator::~ProductOperator()
-{
-   if (ownA) { delete A; }
-   if (ownB) { delete B; }
-}
+ProductOperator::ProductOperator(const Operator *A_, const Operator *B_,
+                                 bool own_A, bool own_B)
+   : ProductOperator({A_, own_A}, {B_, own_B}) { }
 
 
 RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
@@ -465,11 +454,9 @@ RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
 
 
 TripleProductOperator::TripleProductOperator(
-   const Operator *A, const Operator *B, const Operator *C,
-   bool ownA, bool ownB, bool ownC)
-   : Operator(A->Height(), C->Width())
-   , A(A), B(B), C(C)
-   , ownA(ownA), ownB(ownB), ownC(ownC)
+   Handle<const Operator> A_, Handle<const Operator> B_, Handle<const Operator> C_)
+   : Operator(A_->Height(), C_->Width()),
+     A(A_), B(B_), C(C_)
 {
    MFEM_VERIFY(A->Width() == B->Height(),
                "incompatible Operators: A->Width() = " << A->Width()
@@ -478,20 +465,16 @@ TripleProductOperator::TripleProductOperator(
                "incompatible Operators: B->Width() = " << B->Width()
                << ", C->Height() = " << C->Height());
 
+   if (auto SolverB = dynamic_cast<const Solver*>(B.Get()))
    {
-      const Solver* SolverB = dynamic_cast<const Solver*>(B);
-      if (SolverB)
-      {
-         MFEM_VERIFY(!(SolverB->iterative_mode),
-                     "Operator B of a TripleProductOperator should not be in iterative mode");
-      }
+      MFEM_VERIFY(!(SolverB->iterative_mode),
+                  "Operator B of a TripleProductOperator should not be in iterative mode");
+   }
 
-      const Solver* SolverC = dynamic_cast<const Solver*>(C);
-      if (SolverC)
-      {
-         MFEM_VERIFY(!(SolverC->iterative_mode),
-                     "Operator C of a TripleProductOperator should not be in iterative mode");
-      }
+   if (auto SolverC = dynamic_cast<const Solver*>(C.Get()))
+   {
+      MFEM_VERIFY(!(SolverC->iterative_mode),
+                  "Operator C of a TripleProductOperator should not be in iterative mode");
    }
 
    mem_class = A->GetMemoryClass()*C->GetMemoryClass();
@@ -500,12 +483,10 @@ TripleProductOperator::TripleProductOperator(
    t2.SetSize(B->Height(), mem_type);
 }
 
-TripleProductOperator::~TripleProductOperator()
-{
-   if (ownA) { delete A; }
-   if (ownB) { delete B; }
-   if (ownC) { delete C; }
-}
+TripleProductOperator::TripleProductOperator(
+   const Operator *A_, const Operator *B_, const Operator *C_,
+   bool own_A, bool own_B, bool own_C)
+   : TripleProductOperator({A_, own_A}, {B_, own_B}, {C_, own_C}) { }
 
 
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,

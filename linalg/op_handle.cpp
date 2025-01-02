@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "handle.hpp"
+#include "op_handle.hpp"
 #include "sparsemat.hpp"
 #ifdef MFEM_USE_MPI
 #include "petsc.hpp"

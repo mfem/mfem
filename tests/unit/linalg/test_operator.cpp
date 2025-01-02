@@ -104,3 +104,30 @@ TEST_CASE("ConstrainedOperator", "[ConstrainedOperator][Operator]")
    REQUIRE(constrained_mult_application(A, list, x, y_true_zero_transpose, true,
                                         Operator::DiagonalPolicy::DIAG_ZERO) == MFEM_Approx(0.0));
 }
+
+TEST_CASE("Sum and product operators", "[Operator]")
+{
+   const int n = 1;
+   IdentityOperator op_1(n);
+   auto op_2 = MakeOwning<IdentityOperator>(n);
+
+   // op_1 will not be owned, op_2 will be owned
+   SumOperator sum(NonOwning(&op_1), 1.0, op_2, 1.0);
+   ProductOperator product(NonOwning(&op_1), op_2);
+   // Note: it is not a problem for triple to own op_2 'twice'
+   TripleProductOperator triple(NonOwning(&op_1), op_2, op_2);
+
+   // Even though op_2 is reset here, it remains valid in each of the operators
+   op_2.Reset();
+
+   Vector x(n), y(n);
+   x = 1.0;
+   sum.Mult(x, y);
+   REQUIRE(y[0] == 2.0);
+
+   product.Mult(x, y);
+   REQUIRE(y[0] == 1.0);
+
+   triple.Mult(x, y);
+   REQUIRE(y[0] == 1.0);
+}
