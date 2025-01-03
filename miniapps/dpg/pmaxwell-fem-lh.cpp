@@ -291,7 +291,6 @@ int main(int argc, char *argv[])
       negone_r_bdr.SetSize(pmesh.bdr_attributes.Max());
       negone_i_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
-      int_bdr_attr.Print();
       // remove internal boundaries
       for (int i = 0; i<int_bdr_attr.Size(); i++)
       {
