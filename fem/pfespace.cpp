@@ -1984,7 +1984,7 @@ struct PMatrixRow
 
    void write(std::ostream &os, real_t sign) const
    {
-      bin_io::write<int>(os, elems.size());
+      bin_io::write<int>(os, static_cast<int>(elems.size()));
       for (unsigned i = 0; i < elems.size(); i++)
       {
          const PMatrixElement &e = elems[i];
@@ -2074,7 +2074,7 @@ void NeighborRowMessage::Encode(int rank)
    }
 
    Array<GroupId> all_group_ids;
-   all_group_ids.Reserve(rows.size());
+   all_group_ids.Reserve(static_cast<int>(rows.size()));
    for (int i = 0; i < 3; i++)
    {
       all_group_ids.Append(group_ids[i]);
@@ -2833,7 +2833,7 @@ HypreParMatrix* ParFiniteElementSpace
    }
 
    // create offd column mapping
-   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(col_map.size());
+   HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(static_cast<int>(col_map.size()));
    int offd_col = 0;
    for (auto it = col_map.begin(); it != col_map.end(); ++it)
    {
@@ -2893,7 +2893,7 @@ HypreParMatrix* ParFiniteElementSpace
                              row_starts.GetData(), col_starts.GetData(),
                              I_diag, J_diag, A_diag,
                              I_offd, J_offd, A_offd,
-                             col_map.size(), cmap);
+                             static_cast<HYPRE_Int>(col_map.size()), cmap);
 }
 
 template <typename int_type>
@@ -3119,7 +3119,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
             msg.dofs[i] = old_offset + dofs[i];
          }
 
-         MPI_Isend(&msg.dofs[0], msg.dofs.size(), HYPRE_MPI_BIG_INT,
+         MPI_Isend(&msg.dofs[0], static_cast<int>(msg.dofs.size()), HYPRE_MPI_BIG_INT,
                    coarse_rank, 291, MyComm, &msg.request);
       }
       else if (coarse_rank == MyRank && fine_rank != MyRank)
@@ -3240,7 +3240,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
                   {
                      if (row[j] == 0.0) { continue; } // NOTE: lR thresholded
                      int &lcol = col_map[remote_dofs[j]];
-                     if (!lcol) { lcol = col_map.size(); }
+                     if (!lcol) { lcol = static_cast<int>(col_map.size()); }
                      offd->_Set_(m, lcol-1, row[j]);
                   }
                   mark[m] = 1;
@@ -3252,7 +3252,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
    messages.clear();
    offd->Finalize(0);
-   offd->SetWidth(col_map.size());
+   offd->SetWidth(static_cast<int>(col_map.size()));
 
    // create offd column mapping for use by hypre
    HYPRE_BigInt *cmap = Memory<HYPRE_BigInt>(offd->Width());

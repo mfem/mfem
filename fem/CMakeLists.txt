@@ -148,6 +148,10 @@ set(SRCS
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
+  gslib/findpts_local_2.cpp
+  gslib/findpts_local_3.cpp
+  gslib/interpolate_local_2.cpp
+  gslib/interpolate_local_3.cpp
   transfer.cpp
   hyperbolic.cpp
   )

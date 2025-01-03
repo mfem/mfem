@@ -41,8 +41,8 @@ void FillFaceMap(const int n_face_dofs_per_component,
                  const std::vector<int> &n_dofs_per_dim,
                  Array<int> &face_map)
 {
-   const int n_components = offsets.size();
-   const int face_dim = strides.size() / n_components;
+   const int n_components = static_cast<int>(offsets.size());
+   const int face_dim = static_cast<int>(strides.size()) / n_components;
    for (int comp = 0; comp < n_components; ++comp)
    {
       const int offset = offsets[comp];

@@ -48,6 +48,14 @@ public:
       /// Counter for the number of backends.
       NUM_BACKENDS
    };
+
+   /// Operation type (transposed or not transposed)
+   enum Op
+   {
+      N, ///< Not transposed.
+      T  ///< Transposed.
+   };
+
 private:
    /// All available backends. Unavailble backends will be nullptr.
    std::array<std::unique_ptr<class BatchedLinAlgBase>,
@@ -58,15 +66,19 @@ private:
    /// Return the singleton instance.
    static BatchedLinAlg &Instance();
 public:
-   /// @brief Computes $y = \alpha A x + \beta y$.
+   /// @brief Computes $y = \alpha A^{op} x + \beta y$.
    ///
+   /// $A^{op}$ is either $A$ or $A^T$ depending on the value of @a op.
    /// $A$ is a block diagonal matrix, represented by the DenseTensor @a A with
-   /// shape (m, n, n_mat). $x$ has shape (n, k, n_mat), and $y$ has shape
-   /// (m, k, n_mat).
+   /// shape (m, n, n_mat). $x$ has shape (tr?m:n, k, n_mat), and $y$ has shape
+   /// (tr?n:m, k, n_mat), where 'tr' is true in the transposed case.
    static void AddMult(const DenseTensor &A, const Vector &x, Vector &y,
-                       real_t alpha = 1.0, real_t beta = 1.0);
-   /// Computes $y = A x$ (e.g. by calling @ref AddMult "AddMult(A,x,y,1,0)").
+                       real_t alpha = 1.0, real_t beta = 1.0,
+                       Op op = Op::N);
+   /// Computes $y = A x$ (e.g. by calling @ref AddMult "AddMult(A,x,y,1,0,Op::N)").
    static void Mult(const DenseTensor &A, const Vector &x, Vector &y);
+   /// Computes $y = A^T x$ (e.g. by calling @ref AddMult "AddMult(A,x,y,1,0,Op::T)").
+   static void MultTranspose(const DenseTensor &A, const Vector &x, Vector &y);
    /// @brief Replaces the block diagonal matrix $A$ with its inverse $A^{-1}$.
    ///
    /// $A$ is represented by the DenseTensor @a A with shape (m, m, n_mat).
@@ -109,11 +121,16 @@ public:
 class BatchedLinAlgBase
 {
 public:
+   using Op = BatchedLinAlg::Op;
    /// See BatchedLinAlg::AddMult.
    virtual void AddMult(const DenseTensor &A, const Vector &x, Vector &y,
-                        real_t alpha = 1.0, real_t beta = 1.0) const = 0;
+                        real_t alpha = 1.0, real_t beta = 1.0,
+                        Op op = Op::N) const = 0;
    /// See BatchedLinAlg::Mult.
    virtual void Mult(const DenseTensor &A, const Vector &x, Vector &y) const;
+   /// See BatchedLinAlg::MultTranspose.
+   virtual void MultTranspose(const DenseTensor &A, const Vector &x,
+                              Vector &y) const;
    /// See BatchedLinAlg::Invert.
    virtual void Invert(DenseTensor &A) const = 0;
    /// See BatchedLinAlg::LUFactor.

@@ -1908,7 +1908,7 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
          }
       }
 
-      npd[d] = el[d].size() / 2;
+      npd[d] = static_cast<int>(el[d].size() / 2);
       np *= npd[d];
    }
 

@@ -1245,7 +1245,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          hypre_ParCSRMatrix *Aih = *Ah;
          Ah->HypreReadWrite();
          const int *d_ess_tdof_list =
-            ess_tdof_list.GetMemory().Read(GetHypreMemoryClass(), n);
+            ess_tdof_list.GetMemory().Read(GetHypreForallMemoryClass(), n);
          HYPRE_Int *d_diag_i = Aih->diag->i;
          real_t *d_diag_data = Aih->diag->data;
          mfem::hypre_forall(n, [=] MFEM_HOST_DEVICE (int k)

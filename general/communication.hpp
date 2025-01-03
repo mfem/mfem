@@ -431,8 +431,8 @@ struct VarMessage
    void Isend(int rank, MPI_Comm comm)
    {
       Encode(rank);
-      MPI_Isend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
-                &send_request);
+      MPI_Isend((void*) data.data(), static_cast<int>(data.length()), MPI_BYTE, rank,
+                Tag, comm, &send_request);
    }
 
    /** @brief Non-blocking synchronous send to processor 'rank'.
@@ -441,8 +441,8 @@ struct VarMessage
    void Issend(int rank, MPI_Comm comm)
    {
       Encode(rank);
-      MPI_Issend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
-                 &send_request);
+      MPI_Issend((void*) data.data(), static_cast<int>(data.length()), MPI_BYTE, rank,
+                 Tag, comm, &send_request);
    }
 
    /// Helper to send all messages in a rank-to-message map container.
@@ -538,7 +538,7 @@ struct VarMessage
    template<typename MapT>
    static void RecvAll(MapT& rank_msg, MPI_Comm comm)
    {
-      int recv_left = rank_msg.size();
+      int recv_left = static_cast<int>(rank_msg.size());
       while (recv_left > 0)
       {
          int rank, size;

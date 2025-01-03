@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #ifdef _WIN32
-// Turn off CRT deprecation warnings for strerror (VS 2013)
+// Turn off CRT deprecation warnings for strerror
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
@@ -30,13 +30,13 @@
 #include <ws2tcpip.h>
 #ifdef _MSC_VER
 typedef int ssize_t;
+typedef int socklen_t;
 // Link with ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")
 #endif
 #endif
 
 #ifdef MFEM_USE_GNUTLS
-#include <cstdlib>  // getenv
 #ifndef MFEM_USE_GNUTLS_X509
 #include <gnutls/openpgp.h>
 #endif
@@ -146,7 +146,8 @@ int socketbuf::open(const char hostname[], int port)
       }
 #endif
 
-      if (connect(socket_descriptor, rp->ai_addr, rp->ai_addrlen) < 0)
+      if (connect(socket_descriptor, rp->ai_addr,
+                  static_cast<socklen_t>(rp->ai_addrlen)) < 0)
       {
          closesocket(socket_descriptor);
          socket_descriptor = -2;

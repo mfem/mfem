@@ -50,15 +50,16 @@
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
 //   Adapted discrete size NC mesh;
 //     mpirun -np 4 pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
+//   Adapted discrete size NC mesh (GPU+GSLIB);
+//   * mpirun -np 4 pmesh-optimizer -m ../../data/amr-hex.mesh -o 2 -rs 1 -mid 321 -tid 5 -fix-bnd -ni 50 -qo 6 -nor -vl 2 -ae 1 -d debug
 //   Adapted discrete size 3D with PA:
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
+//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
 //   Adapted discrete size 3D with PA on device (requires CUDA):
 //   * mpirun -n 4 pmesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
 //   Adapted discrete size+orientation:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
 //   Adapted discrete aspect ratio (3D):
@@ -67,7 +68,7 @@
 //   Adaptive limiting:
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
+//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
 //   Adaptive limiting through FD (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
@@ -583,7 +584,9 @@ int main (int argc, char *argv[])
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    HRHessianCoefficient *hr_adapt_coeff = NULL;
-   H1_FECollection ind_fec(mesh_poly_deg, dim);
+   int ind_fec_order = (target_id >= 5 && target_id <= 8 && !fdscheme) ?
+                       1 : mesh_poly_deg;
+   H1_FECollection ind_fec(ind_fec_order, dim);
    ParFiniteElementSpace ind_fes(pmesh, &ind_fec);
    ParFiniteElementSpace ind_fesv(pmesh, &ind_fec, dim);
    ParGridFunction size(&ind_fes), aspr(&ind_fes), ori(&ind_fes);
@@ -624,6 +627,7 @@ int main (int argc, char *argv[])
          }
          ConstructSizeGF(size);
          tc->SetParDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          target_c = tc;
          break;
       }
@@ -726,6 +730,7 @@ int main (int argc, char *argv[])
          DiffuseField(aspr, 2);
 
          tc->SetParDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          tc->SetParDiscreteTargetAspectRatio(aspr);
          target_c = tc;
          break;
@@ -772,6 +777,7 @@ int main (int argc, char *argv[])
          ConstantCoefficient size_coeff(0.1*0.1);
          size.ProjectCoefficient(size_coeff);
          tc->SetParDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
@@ -1154,8 +1160,8 @@ int main (int argc, char *argv[])
    }
    // Level of output.
    IterativeSolver::PrintLevel newton_print;
-   if (verbosity_level > 0)
-   { newton_print.Errors().Warnings().Iterations(); }
+   if (verbosity_level > 0) { newton_print.Errors().Warnings().Iterations(); }
+   else { newton_print.Errors().Warnings(); }
    solver.SetPrintLevel(newton_print);
    // hr-adaptivity solver.
    // If hr-adaptivity is disabled, r-adaptivity is done once using the

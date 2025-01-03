@@ -43,3 +43,12 @@ set(MINIAPPS_COMMON_HEADERS ${MINIAPPS_COMMON_HEADERS} ${HDRS} PARENT_SCOPE)
 
 mfem_add_library(mfem-common ${SRCS} ${HDRS})
 target_link_libraries(mfem-common mfem)
+set_target_properties(mfem-common PROPERTIES VERSION "${mfem_VERSION}")
+set_target_properties(mfem-common PROPERTIES SOVERSION "${mfem_VERSION}")
+install(TARGETS mfem-common
+  ARCHIVE DESTINATION ${INSTALL_LIB_DIR}
+  LIBRARY DESTINATION ${INSTALL_LIB_DIR}
+  RUNTIME DESTINATION ${INSTALL_BIN_DIR})
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/miniapps/common
+  DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/miniapps
+  FILES_MATCHING PATTERN "*.hpp")

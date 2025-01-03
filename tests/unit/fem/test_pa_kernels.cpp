@@ -830,3 +830,33 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
 #endif
 
 } // namespace pa_kernels
+
+TEST_CASE("Dispatch Map Specializations")
+{
+   // The kernel specializations are registered the first time the associated
+   // object is created (in the constructor of a static local variable in the
+   // object's constructor). We create a dummy objects here to ensure that the
+   // kernels are registered before testing.
+
+   MassIntegrator{};
+   REQUIRE_FALSE(MassIntegrator::ApplyPAKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(MassIntegrator::DiagonalPAKernels::GetDispatchTable().empty());
+
+   DiffusionIntegrator{};
+   REQUIRE_FALSE(
+      DiffusionIntegrator::ApplyPAKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(
+      DiffusionIntegrator::DiagonalPAKernels::GetDispatchTable().empty());
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   fes.GetQuadratureInterpolator(IntRules.Get(mesh.GetElementGeometry(0), 1));
+
+   using QI = QuadratureInterpolator;
+   REQUIRE_FALSE(QI::TensorEvalKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::GradKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::DetKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::EvalKernels::GetDispatchTable().empty());
+   REQUIRE_FALSE(QI::CollocatedGradKernels::GetDispatchTable().empty());
+}

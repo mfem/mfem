@@ -70,7 +70,7 @@
 #include <fstream>
 #include <iostream>
 
-using namespace std;
+
 using namespace mfem;
 using namespace mfem::common;
 
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
    {
       if (myid == 0)
       {
-         args.PrintUsage(cout);
+         args.PrintUsage(std::cout);
       }
       return 1;
    }
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      args.PrintOptions(cout);
+      args.PrintOptions(std::cout);
    }
 
    mesh.EnsureNCMesh(true);
@@ -353,14 +353,14 @@ int main(int argc, char *argv[])
                 << "    Dofs    |" ;
       if (exact_known)
       {
-         mfem::out << "  L2 Error  |"
+         std::cout << "  L2 Error  |"
                    << "  Rate  |";
       }
       std::cout << "  Residual  |"
                 << "  Rate  |"
-                << " CG it  |" << endl;
+                << " CG it  |" << std::endl;
       std::cout << std::string((exact_known) ? 72 : 50,'-')
-                << endl;
+                << std::endl;
    }
 
    if (static_cond) { a->EnableStaticCondensation(); }
@@ -858,8 +858,8 @@ void setup_test_norm_coeffs(ParGridFunction & c1_gf, ParGridFunction & c2_gf)
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
       real_t volume = pmesh->GetElementVolume(i);
-      real_t c1 = min(epsilon/volume, (real_t) 1.);
-      real_t c2 = min(1./epsilon, 1./volume);
+      real_t c1 = std::min(epsilon/volume, (real_t) 1.);
+      real_t c2 = std::min(1./epsilon, 1./volume);
       fes->GetElementDofs(i,vdofs);
       c1_gf.SetSubVector(vdofs,c1);
       c2_gf.SetSubVector(vdofs,c2);

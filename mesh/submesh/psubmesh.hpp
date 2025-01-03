@@ -24,6 +24,8 @@
 namespace mfem
 {
 
+class ParNCSubMesh;
+
 /**
  * @brief Subdomain representation of a topological parent in another ParMesh.
  *
@@ -50,11 +52,13 @@ namespace mfem
 
 class ParSubMesh : public ParMesh
 {
+   friend class ParNCSubMesh;
 public:
+   using From = SubMesh::From; ///< Convenience type-alias.
    ParSubMesh() = delete;
 
    /**
-    * @brief Create a domain ParSubMesh from it's parent.
+    * @brief Create a domain ParSubMesh from its parent.
     *
     * The ParSubMesh object expects the parent ParMesh object to be valid for
     * the entire object lifetime. The @a domain_attributes have to mark exactly
@@ -64,10 +68,10 @@ public:
     * @param[in] domain_attributes Domain attributes to extract
     */
    static ParSubMesh CreateFromDomain(const ParMesh &parent,
-                                      Array<int> &domain_attributes);
+                                      const Array<int> &domain_attributes);
 
    /**
-   * @brief Create a surface ParSubMesh from it's parent.
+   * @brief Create a surface ParSubMesh from its parent.
    *
    * The ParSubMesh object expects the parent ParMesh object to be valid for the
    * entire object lifetime. The @a boundary_attributes have to mark exactly one
@@ -77,7 +81,7 @@ public:
    * @param[in] boundary_attributes Boundary attributes to extract
    */
    static ParSubMesh CreateFromBoundary(const ParMesh &parent,
-                                        Array<int> &boundary_attributes);
+                                        const Array<int> &boundary_attributes);
 
    /**
     * @brief Get the parent ParMesh object
@@ -119,6 +123,16 @@ public:
    }
 
    /**
+    * @brief Get the parent edge id map
+    *
+    * Submesh edge id (array index) to parent Mesh edge id.
+    */
+   const Array<int>& GetParentEdgeIDMap() const
+   {
+      return parent_edge_ids_;
+   }
+
+   /**
     * @brief Get the parent face id map.
     *
     * ParSubMesh face id (array index) to parent ParMesh face id.
@@ -139,13 +153,51 @@ public:
    }
 
    /**
-    * @brief Get the ParSubMesh face id map.
-    *
-    * ParMesh face id (array index) to ParSubMesh face id.
+    * @brief Get the submesh element corresponding to a parent element. -1 ==
+    * not present.
+    * @param pe The parent element id.
+    * @return int
     */
-   const Array<int>& GetParentToSubMeshFaceIDMap() const
+   int GetSubMeshElementFromParent(int pe) const
    {
-      return parent_to_submesh_face_ids_;
+      return (pe == -1 || pe >= parent_to_submesh_element_ids_.Size())
+             ? -1 : parent_to_submesh_element_ids_[pe];
+   }
+
+   /**
+    * @brief Get the submesh vertex corresponding to a parent element. -1 == not
+    * present.
+    * @param pv The parent vertex id.
+    * @return int
+    */
+   int GetSubMeshVertexFromParent(int pv) const
+   {
+      return (pv == -1 || pv >= parent_to_submesh_vertex_ids_.Size())
+             ? -1 : parent_to_submesh_vertex_ids_[pv];
+   }
+
+   /**
+    * @brief Get the submesh edge corresponding to a parent element. -1 == not
+    * present.
+    * @param pe The parent edge id.
+    * @return int
+    */
+   int GetSubMeshEdgeFromParent(int pe) const
+   {
+      return (pe == -1 || pe >= parent_to_submesh_edge_ids_.Size())
+             ? pe : parent_to_submesh_edge_ids_[pe];
+   }
+
+   /**
+    * @brief Get the submesh face corresponding to a parent element. -1 == not
+    * present.
+    * @param pf The parent face id.
+    * @return int
+    */
+   int GetSubMeshFaceFromParent(int pf) const
+   {
+      return (pf == -1 || pf >= parent_to_submesh_face_ids_.Size())
+             ? pf : parent_to_submesh_face_ids_[pf];
    }
 
    /**
@@ -183,7 +235,8 @@ public:
    }
 
 private:
-   ParSubMesh(const ParMesh &parent, SubMesh::From from, Array<int> &attributes);
+   ParSubMesh(const ParMesh &parent, SubMesh::From from,
+              const Array<int> &attributes);
 
    /**
     * @brief Find shared vertices on the ParSubMesh.
@@ -223,14 +276,15 @@ private:
    /**
     * @brief Find shared edges on the ParSubMesh.
     *
-    * Uses the parent GroupCommunicator to determine shared edges.
-    * Collective. Limited to 32 ranks.
+    * Uses the parent GroupCommunicator to determine shared edges. Collective.
+    * Limited to groups containing less than 32 ranks.
     *
     * See FindSharedVerticesRanks for the encoding for @a rhe.
     *
     * @param[out] rhe Encoding of which rank contains which edge.
     */
    void FindSharedEdgesRanks(Array<int> &rhe);
+
 
    /**
     * @brief Find shared faces on the ParSubMesh.
@@ -275,10 +329,10 @@ private:
     * @param[in,out] groups
     * @param[in,out] rht Encoding of which rank contains which face triangle.
     * The output is reused s.t. the array index i (the face triangle id) is the
-    * associated group.
+    * associated group. "Rank Has Triangle"
     * @param[in,out] rhq Encoding of which rank contains which face
     * quadrilateral. The output is reused s.t. the array index i (the face
-    * quadrilateral id) is the associated group.
+    * quadrilateral id) is the associated group. "Rank Has Quad"
     */
    void AppendSharedFacesGroups(ListOfIntegerSets &groups, Array<int>& rht,
                                 Array<int> &rhq);
@@ -342,15 +396,22 @@ private:
    void BuildSharedFacesMapping(const int nstrias, const Array<int>& rht,
                                 const int nsquads, const Array<int>& rhq);
 
+
+   std::unordered_map<int, int>
+   FindGhostBoundaryElementAttributes() const;
+
    /// The parent Mesh
    const ParMesh &parent_;
 
-   /// Indicator from which part of the parent ParMesh the ParSubMesh is going to
-   /// be created.
+   /// Optional nonconformal submesh. Managed via pncmesh pointer in base class.
+   ParNCSubMesh *pncsubmesh_;
+
+   /// Indicator from which part of the parent ParMesh the ParSubMesh is going
+   /// to be created.
    SubMesh::From from_;
 
-   /// Attributes on the parent ParMesh on which the ParSubMesh is created. Could
-   /// either be domain or boundary attributes (determined by from_).
+   /// Attributes on the parent ParMesh on which the ParSubMesh is created.
+   /// Could either be domain or boundary attributes (determined by from_).
    Array<int> attributes_;
 
    /// Mapping from ParSubMesh element ids (index of the array), to the parent
@@ -369,9 +430,13 @@ private:
    /// ParMesh face ids.
    Array<int> parent_face_ids_;
 
-   /// Mapping from SubMesh face ids (index of the array), to the orientation
-   /// of the face relative to the parent face.
+   /// Mapping from SubMesh face ids (index of the array), to the orientation of
+   /// the face relative to the parent face.
    Array<int> parent_face_ori_;
+
+   /// Mapping from parent ParMesh element ids (index of the array), to the
+   /// ParSubMesh element ids. Inverse map of parent_element_ids_.
+   Array<int> parent_to_submesh_element_ids_;
 
    /// Mapping from parent ParMesh vertex ids (index of the array), to the
    /// ParSubMesh vertex ids. Inverse map of parent_vertex_ids_.

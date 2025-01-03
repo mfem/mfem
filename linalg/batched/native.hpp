@@ -21,7 +21,7 @@ class NativeBatchedLinAlg : public BatchedLinAlgBase
 {
 public:
    void AddMult(const DenseTensor &A, const Vector &x, Vector &y,
-                real_t alpha, real_t beta) const override;
+                real_t alpha, real_t beta, Op op) const override;
    void Invert(DenseTensor &A) const override;
    void LUFactor(DenseTensor &A, Array<int> &P) const override;
    void LUSolve(const DenseTensor &LU, const Array<int> &P,

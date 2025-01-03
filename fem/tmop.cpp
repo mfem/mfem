@@ -1926,7 +1926,6 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
-
    ncomp += vdim;
 
    // need to append data to tspec
@@ -1950,7 +1949,7 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
-   MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTargetSpec.");
+   MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTspecAtIndex.");
 
    const auto tspec__d = tspec_.Read();
    auto tspec_d = tspec.ReadWrite();
@@ -2698,15 +2697,17 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
    Jtrcomp.Clear();
 }
 
-void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
-                                                         const real_t dx,
-                                                         bool reuse_flag,
-                                                         int x_ordering)
+void DiscreteAdaptTC::
+UpdateGradientTargetSpecification(const Vector &x, real_t dx,
+                                  bool reuse_flag, int x_ordering)
 {
    if (reuse_flag && good_tspec_grad) { return; }
 
    const int dim = tspec_fesv->GetFE(0)->GetDim(),
              cnt = x.Size()/dim;
+
+   MFEM_VERIFY(tspec_fesv->GetVSize() / ncomp == cnt,
+               "FD with discrete adaptivity assume mesh_order = field_order.");
 
    tspec_pert1h.SetSize(x.Size()*ncomp);
 
@@ -2734,15 +2735,17 @@ void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
 }
 
 void DiscreteAdaptTC::
-UpdateHessianTargetSpecification(const Vector &x,real_t dx,
+UpdateHessianTargetSpecification(const Vector &x, real_t dx,
                                  bool reuse_flag, int x_ordering)
 {
-
    if (reuse_flag && good_tspec_hess) { return; }
 
    const int dim    = tspec_fesv->GetFE(0)->GetDim(),
              cnt    = x.Size()/dim,
              totmix = 1+2*(dim-2);
+
+   MFEM_VERIFY(tspec_fesv->GetVSize() / ncomp == cnt,
+               "FD with discrete adaptivity assume mesh_order = field_order.");
 
    tspec_pert2h.SetSize(cnt*dim*ncomp);
    tspec_pertmix.SetSize(cnt*totmix*ncomp);
@@ -2909,6 +2912,11 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
 {
+   const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
+   const char* mesh_fe_name =
+      z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
+   MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
+               "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
    delete adapt_lim_gf;
    adapt_lim_gf   = new GridFunction(z0);
@@ -2926,6 +2934,11 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
 {
+   const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
+   const char* mesh_fe_name =
+      z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
+   MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
+               "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
    adapt_lim_pgf0 = &z0;
    delete adapt_lim_gf;

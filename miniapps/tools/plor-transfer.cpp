@@ -73,13 +73,15 @@ int main(int argc, char *argv[])
 
    // Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
-   int order = 3;
+   int order = 2;
    int lref = order+1;
    int lorder = 0;
    bool vis = true;
    bool useH1 = false;
    int visport = 19916;
    bool use_pointwise_transfer = false;
+   const char *device_config = "cpu";
+   bool use_ea       = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -100,13 +102,27 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
+                  "--no-ea-version", "Use element assembly version.");
    args.ParseCheck();
+
+   // Configure device
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
 
    // Read the mesh from the given mesh file.
    Mesh serial_mesh(mesh_file, 1, 1);
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
    int dim = mesh.Dimension();
+
+   // Make initial refinement on serial mesh.
+   for (int l = 0; l < 4; l++)
+   {
+      mesh.UniformRefinement();
+   }
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
@@ -179,6 +195,10 @@ int main(int argc, char *argv[])
    {
       gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
    }
+
+   // Configure element assembly for device acceleration
+   gt->UseEA(use_ea);
+
    const Operator &R = gt->ForwardOperator();
 
    // HO->LOR restriction
@@ -284,11 +304,10 @@ int main(int argc, char *argv[])
       real_t ho_dual_mass = global_sum(M_rho);
       real_t lor_dual_mass = global_sum(M_rho_lor);
 
-      cout << lor_dual_mass << '\n';
-      cout << ho_dual_mass << '\n';
-
       if (Mpi::Root())
       {
+         cout << "lor dual mass = " << lor_dual_mass << '\n';
+         cout << "ho dual mass = " << ho_dual_mass << '\n';
          cout << "LOR -> HO dual field: " << abs(ho_dual_mass - lor_dual_mass) << '\n';
       }
    }

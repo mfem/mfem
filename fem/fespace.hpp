@@ -587,6 +587,14 @@ public:
    bool Conforming() const { return mesh->Conforming() && cP == NULL; }
    bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
 
+   /** Set the prolongation operator of the space to an arbitrary sparse matrix,
+       creating a copy of the argument. */
+   void SetProlongation(const SparseMatrix& p);
+
+   /** Set the restriction operator of the space to an arbitrary sparse matrix,
+       creating a copy of the argument. */
+   void SetRestriction(const SparseMatrix& r);
+
    /// Sets the order of the i'th finite element.
    /** By default, all elements are assumed to be of fec->GetOrder(). Once
        SetElementOrder is called, the space becomes a variable order space. */

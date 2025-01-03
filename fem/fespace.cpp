@@ -146,6 +146,43 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
    delete perm_mat_tr;
 }
 
+void FiniteElementSpace::SetProlongation(const SparseMatrix& p)
+{
+#ifdef MFEM_USE_MPI
+   MFEM_VERIFY(dynamic_cast<const ParFiniteElementSpace*>(this) == NULL,
+               "Attempting to set serial prolongation operator for "
+               "parallel finite element space.");
+#endif
+
+   if (!cP)
+   {
+      cP = std::unique_ptr<SparseMatrix>(new SparseMatrix(p));
+   }
+   else
+   {
+      *cP = p;
+   }
+   cP_is_set = true;
+}
+
+void FiniteElementSpace::SetRestriction(const SparseMatrix& r)
+{
+#ifdef MFEM_USE_MPI
+   MFEM_VERIFY(dynamic_cast<const ParFiniteElementSpace*>(this) == NULL,
+               "Attempting to set serial restriction operator for "
+               "parallel finite element space.");
+#endif
+
+   if (!cR)
+   {
+      cR = std::unique_ptr<SparseMatrix>(new SparseMatrix(r));
+   }
+   else
+   {
+      *cR = r;
+   }
+}
+
 void FiniteElementSpace::SetElementOrder(int i, int p)
 {
    MFEM_VERIFY(mesh_sequence == mesh->GetSequence(),

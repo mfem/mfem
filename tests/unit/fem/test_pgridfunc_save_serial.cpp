@@ -14,79 +14,73 @@
 
 using namespace mfem;
 
-namespace pgridfunc_save_in_serial
-{
-
-double squared(const Vector &x)
-{
-   double sum = 0.0;
-   for (int d = 0; d < x.Size(); d++)
-   {
-      sum += std::pow(x(d), 2.0);
-   }
-   return sum;
-}
-
-
 #ifdef MFEM_USE_MPI
-#
-TEST_CASE("ParGridFunction in Serial",
-          "[ParGridFunction]"
-          "[Parallel]")
+
+TEST_CASE("ParGridFunction in Serial", "[ParGridFunction][Parallel]")
 {
-   int num_procs;
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   const int num_procs = Mpi::WorldSize();
+   const int my_rank = Mpi::WorldRank();
 
-   int my_rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+   const int order = 1;
+   const int save_rank = 0;
 
-   int order = 1;
-   int save_rank = 0;
-   int n = 2 * num_procs;
-
-   FunctionCoefficient squaredFC(squared);
+   const int n = 2 * num_procs;
    Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
    mesh.SetCurvature(2);
-   H1_FECollection fec(order, mesh.Dimension());
-
-   double ser_l2_err = 0.0;
-   FiniteElementSpace fespace(&mesh, &fec);
-   GridFunction x(&fespace);
-   x.ProjectCoefficient(squaredFC);
-   ser_l2_err = x.ComputeL2Error(squaredFC);
 
    // Define a parallel mesh by a partitioning of the serial mesh.
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   H1_FECollection fec(order, mesh.Dimension());
    ParFiniteElementSpace pfespace(&pmesh, &fec);
    ParGridFunction px(&pfespace);
-   px.ProjectCoefficient(squaredFC);
+   px.Randomize(1);
+   // Ensure that the L-DOFs are set consistently on all ranks
+   px.SetTrueVector();
+   px.SetFromTrueVector();
+
+   ConstantCoefficient zero(0.0);
+   const double l2_norm = px.ComputeL2Error(zero);
 
    // Get the ParMesh and ParGridFunction on 1 of the mpi ranks. Check the
    // L2 error on that rank and save gridfunction.
    Mesh par_to_ser_mesh = pmesh.GetSerialMesh(save_rank);
-   GridFunction x_par_to_ser = px.GetSerialGridFunction(save_rank,
-                                                        par_to_ser_mesh);
-   double par_to_ser_l2_err = 0.0;
+   GridFunction x_par_to_ser = px.GetSerialGridFunction(
+                                  save_rank, par_to_ser_mesh);
    if (my_rank == save_rank)
    {
-      par_to_ser_l2_err = x_par_to_ser.ComputeL2Error(squaredFC);
-      REQUIRE(std::fabs(par_to_ser_l2_err-ser_l2_err) == MFEM_Approx(0.0));
-
-      // Save
+      const double par_to_ser_l2_norm = x_par_to_ser.ComputeL2Error(zero);
+      REQUIRE(par_to_ser_l2_norm == MFEM_Approx(l2_norm));
+      // Save to disk
       par_to_ser_mesh.Save("parallel_in_serial.mesh");
    }
-   MPI_Barrier(MPI_COMM_WORLD);
+
+   {
+      FiniteElementSpace &fes = *x_par_to_ser.FESpace();
+      GridFunction x_par_to_ser_2 = px.GetSerialGridFunction(save_rank, fes);
+      x_par_to_ser_2 -= x_par_to_ser;
+      REQUIRE(x_par_to_ser_2.Normlinf() == MFEM_Approx(0.0));
+   }
 
    // Save the mesh and then load the saved mesh and gridfunction, and check
    // the L2 error on all ranks.
    px.SaveAsSerial("parallel_in_serial.gf", 16, save_rank);
-   Mesh par_to_ser_mesh_read = Mesh("parallel_in_serial.mesh");
-   named_ifgzstream gfstream("parallel_in_serial.gf");
-   GridFunction x_par_to_ser_read = GridFunction(&par_to_ser_mesh_read,
-                                                 gfstream);
-   double par_to_ser_l2_read_err = x_par_to_ser_read.ComputeL2Error(squaredFC);
-   REQUIRE(std::fabs(par_to_ser_l2_read_err-ser_l2_err) == MFEM_Approx(0.0));
-}
-#endif // MFEM_USE_MPI
 
-} // namespace pgridfunc_save_in_serial
+   if (my_rank == save_rank)
+   {
+      Mesh par_to_ser_mesh_read = Mesh("parallel_in_serial.mesh");
+      named_ifgzstream gfstream("parallel_in_serial.gf");
+      GridFunction x_par_to_ser_read(&par_to_ser_mesh_read, gfstream);
+      const double par_to_ser_l2_read_norm = x_par_to_ser_read.ComputeL2Error(zero);
+
+      REQUIRE(par_to_ser_l2_read_norm == MFEM_Approx(l2_norm));
+   }
+
+   if (my_rank == save_rank)
+   {
+      // Clean up
+      REQUIRE(std::remove("parallel_in_serial.mesh") == 0);
+      REQUIRE(std::remove("parallel_in_serial.gf") == 0);
+   }
+}
+
+#endif // MFEM_USE_MPI

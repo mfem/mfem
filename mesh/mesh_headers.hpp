@@ -25,6 +25,7 @@
 #include "ncmesh.hpp"
 #include "mesh.hpp"
 #include "mesh_operators.hpp"
+#include "submesh/ncsubmesh.hpp"
 #include "submesh/submesh.hpp"
 #include "submesh/submesh_utils.hpp"
 #include "submesh/transfermap.hpp"
@@ -36,6 +37,7 @@
 #ifdef MFEM_USE_MPI
 #include "pncmesh.hpp"
 #include "pmesh.hpp"
+#include "submesh/pncsubmesh.hpp"
 #include "submesh/psubmesh.hpp"
 #include "submesh/ptransfermap.hpp"
 #endif
