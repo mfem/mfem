@@ -227,7 +227,17 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-   mesh.RemoveInternalBoundaries();
+
+   Array<int> int_bdr_attr;
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      if (mesh.FaceIsInterior(mesh.GetBdrElementFaceIndex(i)))
+      {
+         int_bdr_attr.Append(mesh.GetBdrAttribute(i));
+      }
+   }
+
+   // mesh.RemoveInternalBoundaries();
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
@@ -482,6 +492,13 @@ int main(int argc, char *argv[])
       negone_r_bdr.SetSize(pmesh.bdr_attributes.Max());
       negone_i_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
+
+      // remove internal boundaries
+      for (int i = 0; i<int_bdr_attr.Size(); i++)
+      {
+         ess_bdr[int_bdr_attr[i]-1] = 0;
+      }
+
       hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       one_r_bdr = 0;  one_i_bdr = 0;
       negone_r_bdr = 0;  negone_i_bdr = 0;

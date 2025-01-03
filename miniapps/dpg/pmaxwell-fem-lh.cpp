@@ -190,7 +190,22 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-   mesh.RemoveInternalBoundaries();
+
+   Array<int> int_bdr_attr;
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      if (mesh.FaceIsInterior(mesh.GetBdrElementFaceIndex(i)))
+      {
+         int_bdr_attr.Append(mesh.GetBdrAttribute(i));
+      }
+   }
+   int_bdr_attr.Sort();
+   int_bdr_attr.Unique();
+
+   int_bdr_attr.Print();
+
+
+   // mesh.RemoveInternalBoundaries();
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
    EpsilonMatrixCoefficient eps_r_cf(eps_r_file,&mesh,&pmesh, epsilon_scale);
@@ -231,6 +246,34 @@ int main(int argc, char *argv[])
 
    L2_FECollection L2fec(order, dim);
    ParFiniteElementSpace L2_fes(&pmesh, &L2fec);
+
+
+   H1_FECollection H1fec(order, dim);
+   ParFiniteElementSpace H1_fes(&pmesh, &H1fec);
+
+   ParGridFunction vis_gf(&H1_fes);
+
+   Array<int> bdr_attrs(mesh.bdr_attributes.Max());
+   bdr_attrs = 0;
+   for (int i = 0; i<int_bdr_attr.Size(); i++)
+   {
+      ConstantCoefficient c(int_bdr_attr[i]);
+      bdr_attrs[int_bdr_attr[i]-1] = 1;
+      vis_gf.ProjectBdrCoefficient(c, bdr_attrs);
+      bdr_attrs[int_bdr_attr[i]-1] = 0;
+   }
+
+
+   socketstream attr_out;
+   {
+      const char * keys = nullptr;
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      common::VisualizeField(attr_out,vishost, visport,vis_gf,
+                             "Internal Bdr Attributes", 0, 0, 500, 500, keys);
+   }
+
+   return 0;
 
    ParGridFunction E_theta_r(&L2_fes);
    ParGridFunction E_theta_i(&L2_fes);
@@ -279,6 +322,13 @@ int main(int argc, char *argv[])
       negone_r_bdr.SetSize(pmesh.bdr_attributes.Max());
       negone_i_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
+      int_bdr_attr.Print();
+      // remove internal boundaries
+      for (int i = 0; i<int_bdr_attr.Size(); i++)
+      {
+         ess_bdr[int_bdr_attr[i]-1] = 0;
+      }
+
       E_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       one_r_bdr = 0;  one_i_bdr = 0;
       negone_r_bdr = 0;  negone_i_bdr = 0;
