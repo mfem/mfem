@@ -1314,8 +1314,8 @@ public:
    }
    virtual ~AdaptivityEvaluator();
 
-   /** Specifies the Mesh and FiniteElementSpace of the solution that will
-       be evaluated. The given mesh will be copied into the internal object. */
+   /// Specifies the Mesh and FiniteElementSpace of the solution that will
+   /// be evaluated. The given mesh will be copied into the internal object.
    void SetSerialMetaInfo(const Mesh &m,
                           const FiniteElementSpace &f);
 
@@ -1325,13 +1325,35 @@ public:
                        const ParFiniteElementSpace &f);
 #endif
 
-   // TODO use GridFunctions to make clear it's on the ldofs?
+   // TODO use GridFunctions to make clear it's on the ldofs? Then do we
+   // need the SetMetaInfo at all -- the space and mesh can be extracted?
    virtual void SetInitialField(const Vector &init_nodes,
                                 const Vector &init_field) = 0;
 
-   virtual void ComputeAtNewPosition(const Vector &new_nodes,
+   /// Called when the FE space of the final field is different than
+   /// the FE space of the initial field.
+   virtual void SetNewFieldFESpace(const FiniteElementSpace &fes) = 0;
+
+   /** @brief Perform field transfer between the original and a new mesh. The
+              source mesh and field are given by SetInitialField().
+
+       @param[in]  new_mesh_nodes  Mesh node positions of the new mesh (ldofs).
+                                   It is assumed that this is the field's mesh.
+       @param[out] new_field       Result of the transfer (ldofs).
+       @param[in]  nodes_ordering  Ordering of new_mesh_nodes.      */
+   virtual void ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                      Vector &new_field,
-                                     int new_nodes_ordering = Ordering::byNODES) = 0;
+                                     int nodes_ordering = Ordering::byNODES) = 0;
+
+   /** @brief Using the source mesh and field given by SetInitialField(),
+              compute corresponding values at specified physical positions.
+
+       @param[in]  positions   Physical positions to compute values.
+       @param[out] values      Computed field values.
+       @param[in]  p_ordering  Ordering of the positions Vector.     */
+   virtual void ComputeAtGivenPositions(const Vector &positions,
+                                        Vector &values,
+                                        int p_ordering = Ordering::byNODES) = 0;
 
    void ClearGeometricFactors();
 };
