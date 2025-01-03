@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #ifndef MFEM_INTEGRATOR
 #define MFEM_INTEGRATOR
 
@@ -33,18 +44,28 @@ public:
        for NURBS patch rules or falling back on a default. */
    const IntegrationRule *GetIntegrationRule() const { return IntRule; }
 
+  /** Equivalent to GetIntegrationRule, but retained for backward
+      compatibility with applications. */
+  const IntegrationRule *GetIntRule() const { return IntRule; }
+
 protected:
    const IntegrationRule *IntRule;
    NURBSMeshRules *patchRules = nullptr;
 
-   /** This method selects an integration rule in a way that depends on the
-       integrator's attributes. Attributes can specify an existing
-       IntegrationRule, and/or a NURBSMeshRules object.  This method will
-       pick the NURBSMeshRules' restriction to the element if given and
-       applicable, and IntRule otherwise, prioritizing the NURBS rule if
-       available. If neither is valid, the integrator will fall back on the
-       virtual method GetDefaultIntegrationRule to choose a default integration
-       rule, where subclasses can override this in a problem-specific way. */
+   /** @brief Selects an integration rule based on the the arguments and
+              internal state of the Integrator object.
+
+       @details This method selects an integration rule in a way that depends
+                on the integrator's attributes. Attributes can specify an
+                existing IntegrationRule, and/or a NURBSMeshRules object.
+                This method will pick the NURBSMeshRules' restriction to the
+                element if given and applicable, and IntRule otherwise,
+                prioritizing the NURBS rule if available. If neither is
+                valid, the integrator will fall back on the virtual method
+                GetDefaultIntegrationRule to choose a default integration
+                rule, where subclasses can override this in a problem-specific
+                way.
+   */
    const IntegrationRule* GetIntegrationRule(
       const FiniteElement* trial_fe, const FiniteElement* test_fe,
       const ElementTransformation* trans) const;
@@ -63,16 +84,20 @@ protected:
        default behavior. */
    const IntegrationRule* GetIntegrationRule(const FiniteElement* el) const;
 
-   /** This method is intended to be overriden by subclasses to choose an
-       appropriate integration rule based on the finite element spaces and/or
-       element transformation. The trial_fe and test_fe should be equal for
-       linear forms. The default base-class implementation returns null, which
-       assumes that an appropriate rule is provided by another means, or that
-       null integration rules are handled appropriately by the caller. */
+   /** @brief Subclasses should override to choose a default integration rule.
+
+       @details This method is intended to be overriden by subclasses to
+                choose an appropriate integration rule based on the finite
+                element spaces and/or element transformation. The trial_fe
+                and test_fe should be equal for linear forms. The default
+                base-class implementation returns null, which assumes that
+                an appropriate rule is provided by another means, or that null
+                integration rules are handled appropriately by the caller.
+   */
    virtual const IntegrationRule* GetDefaultIntegrationRule(
       const FiniteElement* trial_fe, const FiniteElement* test_fe,
       const ElementTransformation* trans) const
-   {return NULL;}
+   { return NULL; }
 };
 }
 
