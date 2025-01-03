@@ -2824,8 +2824,8 @@ public:
 };
 
 /** Integrator for $(Q u, v)$, where $Q$ is an optional coefficient (of type scalar,
-    vector (diagonal matrix), or matrix), trial function $u$ is in $H(curl$ or
-    $H(div)$, and test function $v$ is in $H(curl$, $H(div)$, or $v=(v_1,\dots,v_n)$, where
+    vector (diagonal matrix), or matrix), trial function $u$ is in $H(curl)$ or
+    $H(div)$, and test function $v$ is in $H(curl)$, $H(div)$, or $v=(v_1,\dots,v_n)$, where
     $v_i$ are in $H^1$. */
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
@@ -3619,7 +3619,7 @@ public:
 /** Integrator for the form: $\langle v, w \times n \rangle$ over a face (the interface)
  *  In 3D the trial variable $v$ is defined on the interface ($H^{-1/2}$(curl), trace of $H(curl$)
  *  In 2D it's defined on the interface ($H^{1/2}$, trace of $H^1$)
- *  The test variable $w$ is in an $H(curl$-conforming space. */
+ *  The test variable $w$ is in an $H(curl)$-conforming space. */
 class TangentTraceIntegrator : public BilinearFormIntegrator
 {
 private:
