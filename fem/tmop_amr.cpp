@@ -322,8 +322,8 @@ IntegrationRule* TMOPRefinerEstimator::SetIntRulesFromMesh(Mesh &meshsplit)
    meshsplit.SetNodalFESpace(&nodal_fes);
 
    const int NEsplit = meshsplit.GetNE();
-   const int dof_cnt = nodal_fes.GetFE(0)->GetDof(),
-             pts_cnt = NEsplit * dof_cnt;
+   const int dof_cnt = nodal_fes.GetTypicalFE()->GetDof();
+   const int pts_cnt = NEsplit * dof_cnt;
 
    DenseMatrix pos(dof_cnt, dim);
    Vector posV(pos.Data(), dof_cnt * dim);
@@ -841,7 +841,7 @@ void TMOPHRSolver::UpdateNonlinearFormAndBC(Mesh *mesh_, NonlinearForm *nlf_)
 
    // Update Nonlinear form and Set Essential BC
    nlf_->Update();
-   const int dim = fes.GetFE(0)->GetDim();
+   const int dim = fes.GetTypicalFE()->GetDim();
    if (move_bnd == false)
    {
       Array<int> ess_bdr(mesh_->bdr_attributes.Max());
