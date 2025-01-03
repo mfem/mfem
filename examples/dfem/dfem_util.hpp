@@ -1790,23 +1790,23 @@ void copy(std::array<DeviceTensor<n>, m> &u,
    }
 }
 
-template<size_t num_fields, size_t... i>
-std::array<DeviceTensor<2>, num_fields> wrap_fields_impl(
-   std::vector<Vector> &fields,
-   std::array<int, num_fields> &field_sizes,
-   int num_entities,
-   std::index_sequence<i...>)
-{
-   return std::array<DeviceTensor<2>, num_fields>
-   {
-      {
-         DeviceTensor<2>(
-            fields[i].ReadWrite(),
-            field_sizes[i],
-            num_entities)...
-      }
-   };
-}
+// template<size_t num_fields, size_t... i>
+// std::array<DeviceTensor<2>, num_fields> wrap_fields_impl(
+//    std::vector<Vector> &fields,
+//    std::array<int, num_fields> &field_sizes,
+//    int num_entities,
+//    std::index_sequence<i...>)
+// {
+//    return std::array<DeviceTensor<2>, num_fields>
+//    {
+//       {
+//          DeviceTensor<2>(
+//             fields[i].ReadWrite(),
+//             field_sizes[i],
+//             num_entities)...
+//       }
+//    };
+// }
 
 template <size_t num_fields>
 std::array<DeviceTensor<2>, num_fields> wrap_fields(
@@ -1814,8 +1814,14 @@ std::array<DeviceTensor<2>, num_fields> wrap_fields(
    std::array<int, num_fields> &field_sizes,
    const int &num_entities)
 {
-   return wrap_fields_impl(fields, field_sizes, num_entities,
-                           std::make_index_sequence<num_fields> {});
+   std::array<DeviceTensor<2>, num_fields> f;
+
+   for_constexpr<num_fields>([&](auto i)
+   {
+      f[i] = DeviceTensor<2>(fields[i].ReadWrite(), field_sizes[i], num_entities);
+   });
+
+   return f;
 }
 
 template <typename input_t, size_t num_fields, std::size_t... i>

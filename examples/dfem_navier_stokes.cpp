@@ -3,6 +3,8 @@
 #include "fem/intrules.hpp"
 #include "fem/pbilinearform.hpp"
 #include "linalg/hypre.hpp"
+#include "linalg/operator.hpp"
+#include "linalg/tensor.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -12,8 +14,10 @@ template <int dim = 2>
 class MomentumQFunction
 {
 public:
-   MomentumQFunction(const double &reynolds) :
-      reynolds(reynolds) {}
+   MomentumQFunction(const double &kinematic_viscosity,
+                     const bool &formulation) :
+      kinematic_viscosity(kinematic_viscosity),
+      formulation(formulation) {}
 
    MFEM_HOST_DEVICE inline
    auto operator()(const tensor<double, dim> &u,
@@ -25,11 +29,65 @@ public:
       static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       auto invJ = inv(J);
       auto dudx = dudxi * invJ;
-      return mfem::tuple{(outer(u, u) - 1.0 / reynolds * dudx + p * I) * det(J) * w * transpose(invJ)};
+      auto viscous_stress = -p * I + 2.0 * kinematic_viscosity * sym(dudx);
+      auto JxW = det(J) * w * transpose(invJ);
+      if (formulation == 0)
+      {
+         return mfem::tuple{(-outer(u, u) + viscous_stress) * JxW};
+      }
+      else
+      {
+         return mfem::tuple{viscous_stress * JxW};
+      }
    }
 
    // TODO: this might not be ok on GPU
-   const double reynolds;
+   const double kinematic_viscosity;
+   const bool formulation;
+};
+
+template <int dim = 2>
+class ContinuityQFunction
+{
+public:
+   ContinuityQFunction(const int &formulation) :
+      formulation(formulation) {}
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(const tensor<double, dim> &u,
+                   const tensor<double, dim, dim> &dudxi,
+                   const tensor<double, dim, dim> &J,
+                   const double &w) const
+   {
+      auto invJ = inv(J);
+      auto dudx = dudxi * invJ;
+      auto JxW = det(J) * w;
+      auto convective = dot(dudx, u);
+      if (formulation == 1)
+      {
+         return mfem::tuple{convective * JxW};
+      }
+      else if (formulation == 2)
+      {
+         return mfem::tuple{(convective + 0.5 * tr(dudx) * u) * JxW};
+      }
+      else if (formulation == 3)
+      {
+         // ONLY VALID FOR dim == 2
+         real_t curl_u = dudx(1, 0) - dudx(0, 1);
+         // cross product u x curl(u)
+         tensor<real_t, dim> u_cross_curl_u;
+         u_cross_curl_u(0) = u(1) * curl_u;
+         u_cross_curl_u(1) = -u(0) * curl_u;
+         return mfem::tuple{-u_cross_curl_u * JxW};
+      }
+      else if (formulation == 4)
+      {
+         return mfem::tuple{(2.0 * sym(dudx) * u + 0.5 * tr(dudx) * u) * JxW};
+      }
+   }
+
+   const int formulation;
 };
 
 class NavierStokesOperator : public Operator
@@ -60,11 +118,22 @@ class NavierStokesOperator : public Operator
          auto mesh_nodes = static_cast<ParGridFunction*>
                            (ns->velocity_fes.GetParMesh()->GetNodes());
 
-         dRdu = ns->momentum->GetDerivative(Velocity, {&u, &p}, {mesh_nodes});
+         momentum_du = ns->momentum->GetDerivative(Velocity, {&u, &p}, {mesh_nodes});
          dRdp = ns->mass_conservation;
          dRdpT = std::make_shared<TransposeOperator>(*dRdp);
 
-         block_op.SetBlock(0, 0, dRdu.get());
+         if (ns->formulation == 0)
+         {
+            block_op.SetBlock(0, 0, momentum_du.get());
+         }
+         else
+         {
+            convective_du = ns->continuity->GetDerivative(Velocity, {&u, &p}, {mesh_nodes});
+            dRdu = std::make_shared<SumOperator>(momentum_du.get(), 1.0,
+                                                 convective_du.get(), 1.0, false, false);
+            block_op.SetBlock(0, 0, dRdu.get());
+         }
+
          block_op.SetBlock(0, 1, dRdpT.get());
          block_op.SetBlock(1, 0, dRdp.get());
       }
@@ -88,6 +157,9 @@ class NavierStokesOperator : public Operator
       }
 
       const NavierStokesOperator *ns;
+      std::shared_ptr<Operator> momentum_du;
+      std::shared_ptr<Operator> convective_du;
+
       std::shared_ptr<Operator> dRdu;
       std::shared_ptr<Operator> dRdp;
       std::shared_ptr<TransposeOperator> dRdpT;
@@ -101,15 +173,17 @@ public:
                         ParFiniteElementSpace &pressure_fes,
                         Array<int> &offsets,
                         Array<int> &vel_ess_tdofs,
-                        const double &reynolds,
+                        const double &kinematic_viscosity,
                         const IntegrationRule &velocity_ir,
-                        const IntegrationRule &pressure_ir) :
+                        const IntegrationRule &pressure_ir,
+                        const int &formulation) :
       Operator(offsets.Last()),
       block_offsets(offsets),
       vel_ess_tdofs(vel_ess_tdofs),
       velocity_fes(velocity_fes),
       pressure_fes(pressure_fes),
-      mass_conservation_form(&velocity_fes, &pressure_fes)
+      mass_conservation_form(&velocity_fes, &pressure_fes),
+      formulation(formulation)
    {
       auto mesh = velocity_fes.GetParMesh();
       auto mesh_nodes = static_cast<ParGridFunction*>(mesh->GetNodes());
@@ -133,9 +207,9 @@ public:
          momentum =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
 
-         auto derivatives = std::integer_sequence<size_t, Velocity, Pressure> {};
+         auto derivatives = std::integer_sequence<size_t, Velocity> {};
 
-         MomentumQFunction<2> momentum_qf{reynolds};
+         MomentumQFunction<2> momentum_qf(kinematic_viscosity, formulation);
          momentum->AddDomainIntegrator(
             momentum_qf, input_operators, output_operators, velocity_ir,
             derivatives);
@@ -149,6 +223,24 @@ public:
       mass_conservation_form.Assemble();
       mass_conservation_form.Finalize();
       mass_conservation.reset(mass_conservation_form.ParallelAssemble());
+
+      {
+         mfem::tuple input_operators{Value<Velocity>{}, Gradient<Velocity>{}, Gradient<Coordinates>{}, Weight{}};
+         mfem::tuple output_operators{Value<Velocity>{}};
+
+         continuity =
+            std::make_shared<DifferentiableOperator>(
+               std::vector{FieldDescriptor{Velocity, &velocity_fes}}, parameters, *mesh);
+
+         auto derivatives = std::integer_sequence<size_t, Velocity> {};
+
+         ContinuityQFunction<2> convective_qf(formulation);
+         continuity->AddDomainIntegrator(
+            convective_qf, input_operators, output_operators, velocity_ir,
+            derivatives);
+
+         continuity->SetParameters({mesh_nodes});
+      }
    }
 
    void Mult(const Vector &x, Vector &r) const override
@@ -162,6 +254,11 @@ public:
 
       momentum->Mult(x, ru);
 
+      if (formulation != 0)
+      {
+         continuity->AddMult(xu, ru);
+      }
+
       mass_conservation->Mult(xu, rp);
 
       ru.SetSubVector(vel_ess_tdofs, 0.0);
@@ -169,11 +266,15 @@ public:
 
    Operator &GetGradient(const Vector &x) const override
    {
-      jacobian_operator = std::make_shared<NavierStokesJacobianOperator>(this, x);
-      return *jacobian_operator;
+      // jacobian_operator = std::make_shared<NavierStokesJacobianOperator>(this, x);
+      // return *jacobian_operator;
+
+      fd_jacobian = std::make_shared<FDJacobian>(*this, x);
+      return *fd_jacobian;
    }
 
    std::shared_ptr<DifferentiableOperator> momentum;
+   std::shared_ptr<DifferentiableOperator> continuity;
 
    ParMixedBilinearForm mass_conservation_form;
    std::shared_ptr<Operator> mass_conservation;
@@ -185,6 +286,8 @@ public:
 
    mutable std::shared_ptr<NavierStokesJacobianOperator> jacobian_operator;
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
+
+   const bool formulation;
 };
 
 int main(int argc, char* argv[])
@@ -198,7 +301,8 @@ int main(int argc, char* argv[])
    int polynomial_order = 2;
    int ir_order = 2;
    int refinements = 0;
-   double reynolds = 1.0;
+   double kinematic_viscosity = 1.0;
+   int formulation = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -207,7 +311,12 @@ int main(int argc, char* argv[])
    args.AddOption(&ir_order, "-iro", "--iro", "");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.AddOption(&reynolds, "-re", "--re", "");
+   args.AddOption(&kinematic_viscosity, "-kv", "--kv", "");
+   args.AddOption(&formulation, "-f", "--f",
+                  "Formulation:"
+                  "0 - conservative form"
+                  "1 - convective form"
+                  "2 - convective skew-symmetric form");
    args.ParseCheck();
 
    Device device(device_config);
@@ -283,14 +392,15 @@ int main(int argc, char* argv[])
    block_offsets.PartialSum();
 
    NavierStokesOperator navierstokes(velocity_fes, pressure_fes, block_offsets,
-                                     vel_ess_tdofs, reynolds, velocity_ir, pressure_ir);
+                                     vel_ess_tdofs, kinematic_viscosity, velocity_ir, pressure_ir,
+                                     formulation);
 
    BlockVector x(block_offsets), y(block_offsets);
    u.ParallelProject(x.GetBlock(0));
 
    GMRESSolver solver(MPI_COMM_WORLD);
    solver.SetAbsTol(0.0);
-   solver.SetRelTol(1e-8);
+   solver.SetRelTol(1e-4);
    solver.SetKDim(100);
    solver.SetMaxIter(500);
    solver.SetPrintLevel(2);
@@ -310,6 +420,7 @@ int main(int argc, char* argv[])
    p.SetFromTrueDofs(x.GetBlock(1));
 
    ParaViewDataCollection dc("dfem_navier_stokes", &mesh);
+   dc.SetHighOrderOutput(true);
    dc.RegisterField("velocity", &u);
    dc.RegisterField("pressure", &p);
    dc.Save();

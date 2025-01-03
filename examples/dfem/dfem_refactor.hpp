@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mfem.hpp>
+#include <type_traits>
 #include <utility>
 #include "dfem_interpolate.hpp"
 #include "dfem_integrate.hpp"
@@ -323,6 +324,11 @@ void DifferentiableOperator::AddDomainIntegrator(
                     "more than one output per quadrature functions is not supported right now");
    }
 
+   if constexpr (std::is_same_v<qf_output_t, void>)
+   {
+      static_assert(always_false<qfunc_t>, "quadrature function has no return value");
+   }
+
    constexpr size_t num_qfinputs = mfem::tuple_size<qf_param_ts>::value;
    static_assert(num_qfinputs == num_inputs,
                  "quadrature function inputs and descriptor inputs have to match");
@@ -335,6 +341,11 @@ void DifferentiableOperator::AddDomainIntegrator(
                                                std::tuple<output_ts...> {});
    constexpr auto filtered_field_tuple = filter_fields(field_tuple);
    constexpr size_t num_fields = count_unique_field_ids(filtered_field_tuple);
+
+   MFEM_ASSERT(num_fields == solutions.size() + parameters.size(),
+               "Total number of fields doesn't match sum of solutions and parameters."
+               " This indicates that some fields are not used in the integrator,"
+               " which is currently not supported.");
 
    constexpr auto dependency_map = make_dependency_map(mfem::tuple<input_ts...> {});
 
@@ -350,8 +361,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
    bool use_sum_factorization = false;
    auto entity_element_type =  mesh.GetElement(0)->GetType();
-   if (entity_element_type == Element::SEGMENT ||
-       entity_element_type == Element::QUADRILATERAL ||
+   if (entity_element_type == Element::QUADRILATERAL ||
        entity_element_type == Element::HEXAHEDRON)
    {
       use_sum_factorization = true;

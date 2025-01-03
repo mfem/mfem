@@ -75,6 +75,7 @@ if (MFEM_USE_MPI)
     dfem_test_objective.cpp
     dfem_nonlinear_advdiff.cpp
     dfem_navier_stokes.cpp
+    dfem_navier_stokes_edac.cpp
     ex0p.cpp
     ex1p.cpp
     ex2p.cpp
@@ -147,6 +148,7 @@ target_link_libraries(dfem_test_nonlinear_elasticity_3d ClangEnzymeFlags)
 target_link_libraries(dfem_test_objective ClangEnzymeFlags)
 target_link_libraries(dfem_nonlinear_advdiff ClangEnzymeFlags)
 target_link_libraries(dfem_navier_stokes ClangEnzymeFlags)
+target_link_libraries(dfem_navier_stokes_edac ClangEnzymeFlags)
 
 # Add a test for each example
 if (MFEM_ENABLE_TESTING)
