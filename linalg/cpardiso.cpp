@@ -127,7 +127,14 @@ void CPardisoSolver::SetOperator(const Operator &op)
 
    // The number of row in global matrix, rhs element and solution vector that
    // ends the input domain belonging to this MPI process
-   iparm[41] = first_row + m_loc - 1;
+   if (m_loc == 0)
+   {
+      iparm[41] = first_row;
+   }
+   else
+   {
+      iparm[41] = first_row + m_loc - 1;
+   }
 
    // Analyze inputs
    phase = 11;
