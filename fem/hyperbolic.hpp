@@ -29,7 +29,7 @@ namespace mfem
 // Here, K is an element, f is a face, n normal and [⋅] is jump. This form
 // integrator is coupled with NumericalFlux that implements the numerical flux
 // F̂. For NumericalFlux, the Rusanov flux, also known as local Lax-Friedrichs
-// flux, or Godunov flux for scalar conservation laws are provided.
+// flux, or component-wise upwinded flux are provided.
 //
 // To implement a specific hyperbolic conservation laws, users can create
 // derived classes from FluxFunction with overloaded ComputeFlux. One can
@@ -527,23 +527,23 @@ protected:
 };
 
 /**
- * @brief Godunov flux for scalar equations
+ * @brief Component-wise upwinded flux
  *
- * Godunov flux for scalar equations, a special case of Engquist-Osher flux,
- * is defined as follows:
- *    F̂ n = min F(u)n    for u⁻ ≤ u⁺, u ∈ [u⁻,u⁺]
- *    F̂ n = max F(u)n    for u⁻ > u⁺, u ∈ [u⁺,u⁻]
- * @note The implementation assumes monotonous F(u,x) in u
+ * Upwinded flux for scalar equations, a special case of Godunov or
+ * Engquist-Osher flux, is defined as follows:
+ *    F̂ n = F(u⁺)n    for dF(u)/du < 0 on [u⁻,u⁺]
+ *    F̂ n = F(u⁻)n    for dF(u)/du > 0 on [u⁻,u⁺]
+ * @note This construction assumes monotonous F(u,x) in u
  * @note Systems of equations are treated component-wise
  */
-class ScalarGodunovFlux : public NumericalFlux
+class ComponentwiseUpwindFlux : public NumericalFlux
 {
 public:
    /**
     * @brief Constructor for a flux function
     * @param fluxFunction flux function F(u,x)
     */
-   ScalarGodunovFlux(const FluxFunction &fluxFunction);
+   ComponentwiseUpwindFlux(const FluxFunction &fluxFunction);
 
    /**
     * @brief  Normal numerical flux F̂(u⁻,u⁺,x) n
@@ -554,8 +554,8 @@ public:
     * (num_equations)
     * @param[in] nor normal vector (not a unit vector) (dim)
     * @param[in] Tr face element transformation
-    * @param[out] flux F̂ n = min(F(u⁻)n, F(u⁺,x)n)    for u⁻ ≤ u⁺
-    *               or F̂ n = max(F(u⁻)n, F(u⁺,x)n)    for u⁻ > u⁺
+    * @param[out] flux F̂ n = min(F(u⁻,x)n, F(u⁺,x)n)    for u⁻ ≤ u⁺
+    *               or F̂ n = max(F(u⁻,x)n, F(u⁺,x)n)    for u⁻ > u⁺
     * @return max(|dF(u⁺,x)/du⁺⋅n|, |dF(u⁻,x)/du⁻⋅n|)
     */
    real_t Eval(const Vector &state1, const Vector &state2,
