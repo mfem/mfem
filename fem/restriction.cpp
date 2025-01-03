@@ -1625,7 +1625,7 @@ void InterpolationManager::LinearizeInterpolatorMapIntoVector()
    // Assumes all trace elements are the same.
    const FiniteElement *trace_fe = fes.GetTypicalTraceElement();
    const int face_dofs = trace_fe->GetDof();
-   const int nc_size = interp_map.size();
+   const int nc_size = static_cast<int>(interp_map.size());
    MFEM_VERIFY(nc_cpt==nc_size, "Unexpected number of interpolators.");
    interpolators.SetSize(face_dofs*face_dofs*nc_size);
    auto d_interp = Reshape(interpolators.HostWrite(),face_dofs,face_dofs,nc_size);
