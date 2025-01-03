@@ -19,8 +19,8 @@ class AzimuthalECoefficient : public Coefficient
 private:
    const GridFunction * vgf;
 public:
-   AzimuthalECoefficient(const GridFunction * vgf_) 
-   : Coefficient(), vgf(vgf_) {}
+   AzimuthalECoefficient(const GridFunction * vgf_)
+      : Coefficient(), vgf(vgf_) {}
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
@@ -96,7 +96,7 @@ public:
       Array<socketstream *> sol_sock(pgfs.Size());
       for (int k = 0; k<pgfs.Size(); k++)
       {
-         if (Mpi::Root()) mfem::out << "Visualizing component " << k << endl;
+         if (Mpi::Root()) { mfem::out << "Visualizing component " << k << endl; }
          char vishost[] = "localhost";
          int visport = 19916;
          sol_sock[k] = new socketstream(vishost, visport);
@@ -105,8 +105,9 @@ public:
          int i = k/sdim;
          int j = k%sdim;
          // plot with the title "Epsilon Matrix Coefficient Component (i,j)"
-         *sol_sock[k] << "solution\n" << *pmesh << *pgfs[k] 
-            << "window_title 'Epsilon Matrix Coefficient Component (" << i << "," << j << ")'" << flush;
+         *sol_sock[k] << "solution\n" << *pmesh << *pgfs[k]
+                      << "window_title 'Epsilon Matrix Coefficient Component (" << i << "," << j <<
+                      ")'" << flush;
       }
    }
    void Update()
@@ -156,7 +157,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
    args.AddOption(&par_ref_levels, "-pr", "--parallel-refinement_levels",
-                  "Number of parallel refinement levels.");                  
+                  "Number of parallel refinement levels.");
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");
    args.AddOption(&mu, "-mu", "--permeability",
@@ -228,7 +229,16 @@ int main(int argc, char *argv[])
    E_gf.real() = 0.0;
    E_gf.imag() = 0.0;
 
+   L2_FECollection L2fec(order, dim);
+   ParFiniteElementSpace L2_fes(&pmesh, &L2fec);
+
+   ParGridFunction E_theta_r(&L2_fes);
+   ParGridFunction E_theta_i(&L2_fes);
+   ParGridFunction E_theta(&L2_fes);
+   E_theta = 0.0;
+
    ParaViewDataCollection * paraview_dc = nullptr;
+   ParaViewDataCollection * paraview_tdc = nullptr;
 
    if (paraview)
    {
@@ -241,6 +251,17 @@ int main(int argc, char *argv[])
       paraview_dc->SetTime(0.0); // set the time
       paraview_dc->RegisterField("E_r",&E_gf.real());
       paraview_dc->RegisterField("E_i",&E_gf.imag());
+      paraview_dc->RegisterField("E_theta_r",&E_theta_r);
+      paraview_dc->RegisterField("E_theta_i",&E_theta_i);
+
+      paraview_tdc = new ParaViewDataCollection(mesh_file, &pmesh);
+      paraview_tdc->SetPrefixPath("ParaViewFEM2D/TimeHarmonic");
+      paraview_tdc->SetLevelsOfDetail(order);
+      paraview_tdc->SetCycle(0);
+      paraview_tdc->SetDataFormat(VTKFormat::BINARY);
+      paraview_tdc->SetHighOrderOutput(true);
+      paraview_tdc->SetTime(0.0); // set the time
+      paraview_tdc->RegisterField("E_theta_t",&E_theta);
    }
 
    Array<int> ess_tdof_list;
@@ -259,17 +280,17 @@ int main(int argc, char *argv[])
       negone_i_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
       E_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      one_r_bdr = 0;  one_i_bdr = 0; 
-      negone_r_bdr = 0;  negone_i_bdr = 0; 
+      one_r_bdr = 0;  one_i_bdr = 0;
+      negone_r_bdr = 0;  negone_i_bdr = 0;
 
-      // attr = 30,2 (real) 
+      // attr = 30,2 (real)
       one_r_bdr[30-1] = 1;  one_r_bdr[2-1] = 1;
-      // attr = 26,6 (imag) 
+      // attr = 26,6 (imag)
       one_i_bdr[26-1] = 1;  one_i_bdr[6-1] = 1;
-      // attr = 22,10 (real)  
-      negone_r_bdr[22-1] = 1; negone_r_bdr[10-1] = 1;  
-      // attr = 18,14 (imag) 
-      negone_i_bdr[18-1] = 1; negone_i_bdr[14-1] = 1;  
+      // attr = 22,10 (real)
+      negone_r_bdr[22-1] = 1; negone_r_bdr[10-1] = 1;
+      // attr = 18,14 (imag)
+      negone_i_bdr[18-1] = 1; negone_i_bdr[14-1] = 1;
    }
 
    Vector zero(dim); zero = 0.0;
@@ -283,7 +304,7 @@ int main(int argc, char *argv[])
    E_gf.ProjectBdrCoefficientTangent(negone_x_cf,zero_cf, negone_r_bdr);
    E_gf.ProjectBdrCoefficientTangent(zero_cf,one_x_cf, one_i_bdr);
    E_gf.ProjectBdrCoefficientTangent(zero_cf,negone_x_cf, negone_i_bdr);
-   
+
    b->Assemble();
    a->Assemble();
 
@@ -310,13 +331,6 @@ int main(int argc, char *argv[])
    AzimuthalECoefficient az_e_r(&E_gf.real());
    AzimuthalECoefficient az_e_i(&E_gf.imag());
 
-
-   L2_FECollection L2fec(order, dim);
-   ParFiniteElementSpace L2_fes(&pmesh, &L2fec);
-
-   ParGridFunction E_theta_r(&L2_fes);
-   ParGridFunction E_theta_i(&L2_fes);
-
    E_theta_r.ProjectCoefficient(az_e_r);
    E_theta_i.ProjectCoefficient(az_e_i);
 
@@ -336,12 +350,21 @@ int main(int argc, char *argv[])
       paraview_dc->SetCycle(0);
       paraview_dc->SetTime((double)0);
       paraview_dc->Save();
+      delete paraview_dc;
+
+      int num_frames = 32;
+      for (int i = 0; i<num_frames; i++)
+      {
+         real_t t = (real_t)(i % num_frames) / num_frames;
+         add(cos(real_t(2.0*M_PI)*t), E_theta_r,
+             sin(real_t(2.0*M_PI)*t), E_theta_i, E_theta);
+         paraview_tdc->SetCycle(i);
+         paraview_tdc->SetTime(t);
+         paraview_tdc->Save();
+      }
+      delete paraview_tdc;
    }
 
-   if (paraview)
-   {
-      delete paraview_dc;
-   }
 
    delete a;
    delete b;

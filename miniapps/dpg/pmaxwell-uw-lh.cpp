@@ -1,34 +1,11 @@
 //                   MFEM Ultraweak DPG Maxwell parallel example
 //
-// Compile with: make pmaxwell
-//
-// sample run
-// mpirun -np 4 pmaxwell -m ../../data/star.mesh -o 2 -sref 0 -pref 3 -rnum 0.5 -prob 0
-// mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 0 -pref 3 -rnum 4.8 -sc -prob 0
-// mpirun -np 4 pmaxwell -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -rnum 0.8 -sc -prob 0
-// mpirun -np 4 pmaxwell -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 3 -rnum 4.8 -sc -prob 2
-// mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 11.8 -sc -prob 3
-// mpirun -np 4 pmaxwell -o 3 -sref 1 -pref 2 -rnum 9.8 -sc -prob 4
-
-// AMR run. Note that this is a computationally intensive sample run.
-// We recommend trying it on a large machine with more mpi ranks
-// mpirun -np 4 pmaxwell -o 3 -sref 0 -pref 15 -prob 1 -theta 0.7 -sc
-
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
 // the "ultraweak" (UW) DPG formulation for the Maxwell problem
 
 //      ∇×(1/μ ∇×E) - ω² ϵ E = Ĵ ,   in Ω
 //                       E×n = E₀ , on ∂Ω
-
-// It solves the following kinds of problems
-// 1) Known exact solutions with error convergence rates
-//    a) A manufactured solution problem where E is a plane beam
-// 2) Fichera "microwave" problem
-// 3) PML problems
-//    a) Generic PML problem with point source given by the load
-//    b) Plane wave scattering from a square
-//    c) PML problem with a point source prescribed on the boundary
 
 // The DPG UW deals with the First Order System
 //  i ω μ H + ∇ × E = 0,   in Ω
@@ -71,8 +48,8 @@ class AzimuthalECoefficient : public Coefficient
 private:
    const GridFunction * vgf;
 public:
-   AzimuthalECoefficient(const GridFunction * vgf_) 
-   : Coefficient(), vgf(vgf_) {}
+   AzimuthalECoefficient(const GridFunction * vgf_)
+      : Coefficient(), vgf(vgf_) {}
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    {
@@ -147,7 +124,7 @@ public:
       Array<socketstream *> sol_sock(pgfs.Size());
       for (int k = 0; k<pgfs.Size(); k++)
       {
-         if (Mpi::Root()) mfem::out << "Visualizing component " << k << endl;
+         if (Mpi::Root()) { mfem::out << "Visualizing component " << k << endl; }
          char vishost[] = "localhost";
          int visport = 19916;
          sol_sock[k] = new socketstream(vishost, visport);
@@ -156,8 +133,9 @@ public:
          int i = k/sdim;
          int j = k%sdim;
          // plot with the title "Epsilon Matrix Coefficient Component (i,j)"
-         *sol_sock[k] << "solution\n" << *pmesh << *pgfs[k] 
-            << "window_title 'Epsilon Matrix Coefficient Component (" << i << "," << j << ")'" << flush;
+         *sol_sock[k] << "solution\n" << *pmesh << *pgfs[k]
+                      << "window_title 'Epsilon Matrix Coefficient Component (" << i << "," << j <<
+                      ")'" << flush;
       }
    }
    void Update()
@@ -210,7 +188,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree)");
    args.AddOption(&par_ref_levels, "-pr", "--parallel-refinement_levels",
-                  "Number of parallel refinement levels.");                  
+                  "Number of parallel refinement levels.");
    args.AddOption(&rnum, "-rnum", "--number_of_wavelenths",
                   "Number of wavelengths");
    args.AddOption(&mu, "-mu", "--permeability",
@@ -355,14 +333,14 @@ int main(int argc, char *argv[])
    // (E,∇ × F)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
                          nullptr,
-                         TrialSpace::E_space, 
+                         TrialSpace::E_space,
                          TestSpace::F_space);
 
    //  (M E , G) = (M_r E, G) + i (M_i E, G)
    a->AddTrialIntegrator(
       new TransposeIntegrator(new VectorFEMassIntegrator(Mr_cf)),
       new TransposeIntegrator(new VectorFEMassIntegrator(Mi_cf)),
-                              TrialSpace::E_space, TestSpace::G_space);
+      TrialSpace::E_space, TestSpace::G_space);
 
    //  (H,∇ × G)
    a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
@@ -375,11 +353,11 @@ int main(int argc, char *argv[])
 
    // i ω μ (H, F)
    a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(muomeg),
-                           TrialSpace::H_space, TestSpace::F_space);                                                  
+                         TrialSpace::H_space, TestSpace::F_space);
 
    // < n×Ê,F>
    a->AddTrialIntegrator(new TraceIntegrator,nullptr,
-                           TrialSpace::hatE_space, TestSpace::F_space);
+                         TrialSpace::hatE_space, TestSpace::F_space);
 
    // test integrators
    // (∇×G ,∇× δG)
@@ -405,26 +383,40 @@ int main(int argc, char *argv[])
       a->AddTestIntegrator(nullptr,
                            new TransposeIntegrator(new MixedCurlIntegrator(negmuomeg)),
                            TestSpace::F_space, TestSpace::G_space);
-   
+
       // (M ∇ × F, δG) = (M_r ∇ × F, δG) + i (M_i ∇ × F, δG)
       //               = (M_r A ∇ F, δG) + i (M_i A ∇ F, δG), A = [0 1; -1; 0]
       a->AddTestIntegrator(new MixedVectorGradientIntegrator(Mrot_r),
                            new MixedVectorGradientIntegrator(Mrot_i),
                            TestSpace::F_space, TestSpace::G_space);
-   
+
       // i ω μ (∇ × G,δF) = i (ω μ ∇ × G, δF )
       a->AddTestIntegrator(nullptr,new MixedCurlIntegrator(muomeg),
                            TestSpace::G_space, TestSpace::F_space);
 
       // (M^* G, ∇ × δF ) = (G, Mr A ∇ δF) - i (G, Mi A ∇ δF)
-      a->AddTestIntegrator(new TransposeIntegrator(new MixedVectorGradientIntegrator(Mrot_r)),
+      a->AddTestIntegrator(new TransposeIntegrator(new MixedVectorGradientIntegrator(
+                                                      Mrot_r)),
                            new TransposeIntegrator(new MixedVectorGradientIntegrator(negMrot_i)),
-                           TestSpace::G_space, TestSpace::F_space);                           
-      
+                           TestSpace::G_space, TestSpace::F_space);
+
       // M*M^*(G,δG) = (MrMr^t + MiMi^t) + i (MiMr^t - MrMi^t)
-      a->AddTestIntegrator(new VectorFEMassIntegrator(MMr_cf),
-                           new VectorFEMassIntegrator(MMi_cf),
-                         TestSpace::G_space, TestSpace::G_space);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      int order_quad = 2*order + 2;
+      for (int i = 0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(IntRules.Get(i, order_quad));
+      }
+      const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0),
+                                               2*test_order + 2);
+      VectorFEMassIntegrator * integ_r = new VectorFEMassIntegrator(MMr_cf);
+      VectorFEMassIntegrator * integ_i = new VectorFEMassIntegrator(MMi_cf);
+      integ_r->SetIntegrationRule(ir);
+      integ_i->SetIntegrationRule(ir);
+      a->AddTestIntegrator(integ_r,
+                           integ_i,
+                           TestSpace::G_space,
+                           TestSpace::G_space);
    }
 
    socketstream E_out_r;
@@ -443,8 +435,11 @@ int main(int argc, char *argv[])
 
    ParGridFunction E_theta_r(&L2_fes);
    ParGridFunction E_theta_i(&L2_fes);
+   ParGridFunction E_theta(&L2_fes);
+   E_theta = 0.0;
 
    ParaViewDataCollection * paraview_dc = nullptr;
+   ParaViewDataCollection * paraview_tdc = nullptr;
 
    if (paraview)
    {
@@ -460,7 +455,16 @@ int main(int argc, char *argv[])
       paraview_dc->RegisterField("H_r",&H.real());
       paraview_dc->RegisterField("H_i",&H.imag());
       paraview_dc->RegisterField("E_theta_r",&E_theta_r);
-      paraview_dc->RegisterField("H_theta_i",&E_theta_i);
+      paraview_dc->RegisterField("E_theta_i",&E_theta_i);
+
+      paraview_tdc = new ParaViewDataCollection(mesh_file, &pmesh);
+      paraview_tdc->SetPrefixPath("ParaViewUWDPG2D/TimeHarmonic");
+      paraview_tdc->SetLevelsOfDetail(order);
+      paraview_tdc->SetCycle(0);
+      paraview_tdc->SetDataFormat(VTKFormat::BINARY);
+      paraview_tdc->SetHighOrderOutput(true);
+      paraview_tdc->SetTime(0.0); // set the time
+      paraview_tdc->RegisterField("E_theta_t",&E_theta);
    }
 
    Array<int> ess_tdof_list;
@@ -479,17 +483,17 @@ int main(int argc, char *argv[])
       negone_i_bdr.SetSize(pmesh.bdr_attributes.Max());
       ess_bdr = 1;
       hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-      one_r_bdr = 0;  one_i_bdr = 0; 
-      negone_r_bdr = 0;  negone_i_bdr = 0; 
+      one_r_bdr = 0;  one_i_bdr = 0;
+      negone_r_bdr = 0;  negone_i_bdr = 0;
 
-      // attr = 30,2 (real) 
+      // attr = 30,2 (real)
       one_r_bdr[30-1] = 1;  one_r_bdr[2-1] = 1;
-      // attr = 26,6 (imag) 
+      // attr = 26,6 (imag)
       one_i_bdr[26-1] = 1;  one_i_bdr[6-1] = 1;
-      // attr = 22,10 (real)  
-      negone_r_bdr[22-1] = 1; negone_r_bdr[10-1] = 1;  
-      // attr = 18,14 (imag) 
-      negone_i_bdr[18-1] = 1; negone_i_bdr[14-1] = 1;  
+      // attr = 22,10 (real)
+      negone_r_bdr[22-1] = 1; negone_r_bdr[10-1] = 1;
+      // attr = 18,14 (imag)
+      negone_i_bdr[18-1] = 1; negone_i_bdr[14-1] = 1;
    }
 
    // Set up bdr conditions
@@ -534,7 +538,7 @@ int main(int argc, char *argv[])
    hatE_gf.ProjectBdrCoefficientNormal(rot_negone_x_cf,zero_cf, negone_r_bdr);
    hatE_gf.ProjectBdrCoefficientNormal(zero_cf,rot_one_x_cf, one_i_bdr);
    hatE_gf.ProjectBdrCoefficientNormal(zero_cf,rot_negone_x_cf, negone_i_bdr);
-   
+
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
@@ -631,12 +635,13 @@ int main(int argc, char *argv[])
       }
       HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,
                                                                                  skip), hatE_fes);
-      HypreBoomerAMG * solver_hatH = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(
-                                               skip+1,skip+1));
+      HypreBoomerAMG * solver_hatH = new HypreBoomerAMG((HypreParMatrix &)
+                                                        BlockA_r->GetBlock(
+                                                           skip+1,skip+1));
       solver_hatE->SetPrintLevel(0);
       solver_hatH->SetPrintLevel(0);
       solver_hatH->SetRelaxType(88);
-      
+
 
       M.SetDiagonalBlock(skip,solver_hatE);
       M.SetDiagonalBlock(skip+1,solver_hatH);
@@ -649,7 +654,7 @@ int main(int argc, char *argv[])
       }
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-10);
-      cg.SetMaxIter(2000);
+      cg.SetMaxIter(5000);
       cg.SetPrintLevel(1);
       cg.SetPreconditioner(M);
       cg.SetOperator(blockA);
@@ -692,7 +697,7 @@ int main(int argc, char *argv[])
       common::VisualizeField(H_out_r,vishost, visport, H.real(),
                              "Numerical Magnetic field (real part)", 501, 0, 500, 500, keys);
       common::VisualizeField(E_theta_out_r,vishost, visport, E_theta_r,
-                             "Numerical Electric field (Azimuthal-real)", 501, 0, 500, 500, keys);                             
+                             "Numerical Electric field (Azimuthal-real)", 501, 0, 500, 500, keys);
    }
 
    if (paraview)
@@ -701,6 +706,19 @@ int main(int argc, char *argv[])
       paraview_dc->SetTime(0.0);
       paraview_dc->Save();
       delete paraview_dc;
+
+      int num_frames = 32;
+      for (int i = 0; i<num_frames; i++)
+      {
+         real_t t = (real_t)(i % num_frames) / num_frames;
+         add(cos(real_t(2.0*M_PI)*t), E_theta_r,
+             sin(real_t(2.0*M_PI)*t), E_theta_i, E_theta);
+         paraview_tdc->SetCycle(i);
+         paraview_tdc->SetTime(t);
+         paraview_tdc->Save();
+      }
+      delete paraview_tdc;
+
    }
 
    delete a;
