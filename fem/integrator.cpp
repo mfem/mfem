@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "integrator.hpp"
 #include "fem.hpp"
 #include "intrules.hpp"
@@ -29,17 +40,20 @@ const IntegrationRule* Integrator::GetIntegrationRule(
    }
    return result;
 }
+
 const IntegrationRule* Integrator::GetIntegrationRule(
    const FiniteElement* trial_fe, const FiniteElement* test_fe) const
 {
    return GetIntegrationRule(trial_fe, test_fe, NULL);
 }
+
 const IntegrationRule* Integrator::GetIntegrationRule(
    const FiniteElement* el,
    const ElementTransformation* trans) const
 {
    return GetIntegrationRule(el, el, trans);
 }
+
 const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement* el)
 const
 {

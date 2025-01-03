@@ -403,7 +403,7 @@ real_t HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
-   const IntegrationRule* ir = GetIntegrationRule(&el, &Ttr);
+   const IntegrationRule *ir = GetIntegrationRule(&el, &Ttr);
 
    energy = 0.0;
    model->SetTransformation(Ttr);
@@ -437,7 +437,7 @@ void HyperelasticNLFIntegrator::AssembleElementVector(
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
-   const IntegrationRule* ir = GetIntegrationRule(&el, &Ttr);
+   const IntegrationRule *ir = GetIntegrationRule(&el, &Ttr);
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -476,7 +476,7 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
    elmat.SetSize(dof*dim);
 
-   const IntegrationRule* ir = GetIntegrationRule(&el, &Ttr);
+   const IntegrationRule *ir = GetIntegrationRule(&el, &Ttr);
    if (!ir)
    {
       ir = &(IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3)); // <---
@@ -758,7 +758,7 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
    ELV.UseExternalData(elvect.GetData(), nd, dim);
 
    Vector vec1(dim), vec2(dim);
-   const IntegrationRule* ir = GetIntegrationRule(&el, &T);
+   const IntegrationRule *ir = GetIntegrationRule(&el, &T);
    if (!ir) {ir = &GetRule(el, T);}
    ELV = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -799,7 +799,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    real_t w;
    Vector vec1(dim), vec2(dim), vec3(nd);
 
-   const IntegrationRule* ir = GetIntegrationRule(&el, &trans);
+   const IntegrationRule *ir = GetIntegrationRule(&el, &trans);
    if (!ir) {ir = &GetRule(el, trans);}
 
    elmat = 0.0;
@@ -871,7 +871,7 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
 
    Vector vec1(dim), vec2(dim), vec3(nd);
 
-   const IntegrationRule* ir = GetIntegrationRule(&el, &trans);
+   const IntegrationRule *ir = GetIntegrationRule(&el, &trans);
    if (!ir) {ir = &GetRule(el, trans);}
 
    elmat = 0.0;
@@ -923,7 +923,7 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
 
    Vector vec1(dim), vec2(dim), vec3(nd), vec4(dim), vec5(nd);
 
-   const IntegrationRule* ir = GetIntegrationRule(&el, &trans);
+   const IntegrationRule *ir = GetIntegrationRule(&el, &trans);
    if (!ir) {ir = &GetRule(el, trans);}
 
    elmat = 0.0;

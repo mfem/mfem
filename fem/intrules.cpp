@@ -1914,7 +1914,7 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
       np *= npd[d];
    }
 
-   temporaryElementRule = IntegrationRule(np);
+   temporaryElementRule.SetSize(np);
 
    // Set temporaryElementRule[i + j*npd[0] + k*npd[0]*npd[1]] =
    //     (el[0][2*i], el[1][2*j], el[2][2*k])

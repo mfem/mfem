@@ -2324,9 +2324,10 @@ public:
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 protected:
-   const IntegrationRule* GetDefaultIntegrationRule(const FiniteElement* trial_fe,
-                                                    const FiniteElement* test_fe,
-                                                    const ElementTransformation* trans) const override
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement* trial_fe,
+      const FiniteElement* test_fe,
+      const ElementTransformation* trans) const override
    {
       return &GetRule(*trial_fe, *test_fe);
    }
