@@ -1086,7 +1086,6 @@ void DiffusionIntegrator::AssembleElementVector(
 
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &Tr);
-   if (!ir) { ir = &GetRule(el, el); }
 
    elvect = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -1355,7 +1354,6 @@ void MassIntegrator::AssembleElementMatrix
 
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &Trans);
-   if (!ir) { ir = &GetRule(el, el, Trans); }
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -1392,7 +1390,6 @@ void MassIntegrator::AssembleElementMatrix2(
 
 
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
-   if (!ir) { ir = &GetRule(trial_fe, test_fe, Trans); }
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -1416,7 +1413,7 @@ void MassIntegrator::AssembleElementMatrix2(
 
 const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
                                                const FiniteElement &test_fe,
-                                               ElementTransformation &Trans)
+                                               const ElementTransformation &Trans)
 {
    // int order = trial_fe.GetOrder() + test_fe.GetOrder();
    const int order = trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW();
@@ -1577,7 +1574,7 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
 
 const IntegrationRule &ConvectionIntegrator::GetRule(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
-   ElementTransformation &Trans)
+   const ElementTransformation &Trans)
 {
    int order = Trans.OrderGrad(&trial_fe) + Trans.Order() + test_fe.GetOrder();
 
@@ -1585,7 +1582,7 @@ const IntegrationRule &ConvectionIntegrator::GetRule(
 }
 
 const IntegrationRule &ConvectionIntegrator::GetRule(
-   const FiniteElement &el, ElementTransformation &Trans)
+   const FiniteElement &el, const ElementTransformation &Trans)
 {
    return GetRule(el,el,Trans);
 }
@@ -2863,7 +2860,6 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
 
 
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
-   if (!ir) { ir = &GetRule(trial_fe, test_fe, Trans); }
 
    elmat = 0.0;
 
@@ -2896,7 +2892,7 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
 const IntegrationRule &VectorDivergenceIntegrator::GetRule(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
-   ElementTransformation &Trans)
+   const ElementTransformation &Trans)
 {
    int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() + Trans.OrderJ();
    return IntRules.Get(trial_fe.GetGeomType(), order);
