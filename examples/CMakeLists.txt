@@ -50,6 +50,32 @@ list(APPEND ALL_EXE_SRCS
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
+    dfem_poisson.cpp
+    dfem_stokes.cpp
+    enzyme_interface_smoketest.cpp
+    test_dfem_dual.cpp
+    test_dfem.cpp
+    dfem_laghos.cpp
+    dfem_minimal_example.cpp
+    dfem_test_diffusion_2d.cpp
+    dfem_test_diffusion_3d.cpp
+    dfem_test_ordering.cpp
+    dfem_test_vector_diffusion.cpp
+    dfem_test_elasticity.cpp
+    dfem_test_nonlinear_elasticity_3d.cpp
+    dfem_test_nonlinear_diffusion_3d.cpp
+    dfem_test_interpolate_linear_scalar.cpp
+    dfem_test_interpolate_linear_scalar_3d.cpp
+    dfem_test_interpolate_gradient_linear_scalar_3d.cpp
+    dfem_test_interpolate_gradient_linear_scalar.cpp
+    dfem_test_mass_scalar_3d.cpp
+    dfem_test_mass_scalar_2d.cpp
+    dfem_test_interpolate_linear_vector.cpp
+    dfem_test_interpolate_linear_vector_3d.cpp
+    dfem_test_objective.cpp
+    dfem_nonlinear_advdiff.cpp
+    dfem_navier_stokes.cpp
+    dfem_navier_stokes_edac.cpp
     ex0p.cpp
     ex1p.cpp
     ex2p.cpp
@@ -109,6 +135,20 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 # Add one executable per cpp file
 add_mfem_examples(ALL_EXE_SRCS)
+
+target_link_libraries(dfem_poisson ClangEnzymeFlags)
+target_link_libraries(dfem_stokes ClangEnzymeFlags)
+target_link_libraries(enzyme_interface_smoketest ClangEnzymeFlags)
+target_link_libraries(test_dfem ClangEnzymeFlags)
+target_link_libraries(dfem_laghos ClangEnzymeFlags)
+target_link_libraries(dfem_minimal_example ClangEnzymeFlags)
+target_link_libraries(dfem_test_diffusion_3d ClangEnzymeFlags)
+target_link_libraries(dfem_test_nonlinear_diffusion_3d ClangEnzymeFlags)
+target_link_libraries(dfem_test_nonlinear_elasticity_3d ClangEnzymeFlags)
+target_link_libraries(dfem_test_objective ClangEnzymeFlags)
+target_link_libraries(dfem_nonlinear_advdiff ClangEnzymeFlags)
+target_link_libraries(dfem_navier_stokes ClangEnzymeFlags)
+target_link_libraries(dfem_navier_stokes_edac ClangEnzymeFlags)
 
 # Add a test for each example
 if (MFEM_ENABLE_TESTING)
