@@ -44,9 +44,9 @@ public:
        for NURBS patch rules or falling back on a default. */
    const IntegrationRule *GetIntegrationRule() const { return IntRule; }
 
-  /** Equivalent to GetIntegrationRule, but retained for backward
-      compatibility with applications. */
-  const IntegrationRule *GetIntRule() const { return IntRule; }
+   /** Equivalent to GetIntegrationRule, but retained for backward
+       compatibility with applications. */
+   const IntegrationRule *GetIntRule() const { return IntRule; }
 
 protected:
    const IntegrationRule *IntRule;
@@ -95,8 +95,8 @@ protected:
                 integration rules are handled appropriately by the caller.
    */
    virtual const IntegrationRule* GetDefaultIntegrationRule(
-      const FiniteElement* trial_fe, const FiniteElement* test_fe,
-      const ElementTransformation* trans) const
+      FiniteElement const* trial_fe, FiniteElement const* test_fe,
+      ElementTransformation const* trans) const
    { return NULL; }
 };
 }

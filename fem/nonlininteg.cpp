@@ -384,8 +384,8 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
 }
 
 const IntegrationRule* HyperelasticNLFIntegrator::GetDefaultIntegrationRule(
-   const FiniteElement* trial_fe, const FiniteElement* test_fe,
-   const ElementTransformation* trans) const
+   FiniteElement const* trial_fe, FiniteElement const* test_fe,
+   ElementTransformation const* trans) const
 {
    return &(IntRules.Get(test_fe->GetGeomType(), 2*test_fe->GetOrder() + 3));
 }
@@ -734,7 +734,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
 
 const IntegrationRule&
 VectorConvectionNLFIntegrator::GetRule(const FiniteElement &fe,
-                                       ElementTransformation &T)
+                                       const ElementTransformation &T)
 {
    const int order = 2 * fe.GetOrder() + T.OrderGrad(&fe);
    return IntRules.Get(fe.GetGeomType(), order);
@@ -759,7 +759,6 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
 
    Vector vec1(dim), vec2(dim);
    const IntegrationRule *ir = GetIntegrationRule(&el, &T);
-   if (!ir) {ir = &GetRule(el, T);}
    ELV = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -800,7 +799,6 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    Vector vec1(dim), vec2(dim), vec3(nd);
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &trans);
-   if (!ir) {ir = &GetRule(el, trans);}
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -872,7 +870,6 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
    Vector vec1(dim), vec2(dim), vec3(nd);
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &trans);
-   if (!ir) {ir = &GetRule(el, trans);}
 
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -924,7 +921,6 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
    Vector vec1(dim), vec2(dim), vec3(nd), vec4(dim), vec5(nd);
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &trans);
-   if (!ir) {ir = &GetRule(el, trans);}
 
    elmat = 0.0;
    elmat_comp_T = 0.0;

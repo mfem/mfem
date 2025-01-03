@@ -340,9 +340,9 @@ public:
                             const Vector &elfun, DenseMatrix &elmat) override;
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      const FiniteElement* trial_fe,
-      const FiniteElement* test_fe,
-      const ElementTransformation* trans) const override;
+      FiniteElement const* trial_fe,
+      FiniteElement const* test_fe,
+      ElementTransformation const* trans) const override;
 };
 
 /** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress
@@ -395,7 +395,7 @@ public:
    VectorConvectionNLFIntegrator() = default;
 
    static const IntegrationRule &GetRule(const FiniteElement &fe,
-                                         ElementTransformation &T);
+                                         const ElementTransformation &T);
 
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &trans,
@@ -416,6 +416,16 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
 
    void AddMultMF(const Vector &x, Vector &y) const override;
+
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      FiniteElement const* trial_fe,
+      FiniteElement const* test_fe,
+      ElementTransformation const* trans) const override
+   {
+      return &GetRule(*test_fe, *trans);
+   }
 };
 
 
