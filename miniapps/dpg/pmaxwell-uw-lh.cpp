@@ -670,8 +670,8 @@ int main(int argc, char *argv[])
          std::cout << "PCG iterations" << endl;
       }
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-10);
-      cg.SetMaxIter(5000);
+      cg.SetRelTol(1e-6);
+      cg.SetMaxIter(1000);
       cg.SetPrintLevel(1);
       cg.SetPreconditioner(M);
       cg.SetOperator(blockA);
