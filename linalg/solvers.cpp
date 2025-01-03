@@ -2572,7 +2572,7 @@ struct WeightMinHeap
       for (; pos > 0 && w[c[(pos-1)/2]] > val; pos = (pos-1)/2)
       {
          c[pos] = c[(pos-1)/2];
-         loc[c[(pos-1)/2]] = pos;
+         loc[c[(pos-1)/2]] = static_cast<int>(pos);
       }
       return pos;
    }
@@ -2589,7 +2589,7 @@ struct WeightMinHeap
          if (w[c[tgt]] < val)
          {
             c[pos] = c[tgt];
-            loc[c[tgt]] = pos;
+            loc[c[tgt]] = static_cast<int>(pos);
             pos = tgt;
          }
          else
@@ -2607,7 +2607,7 @@ struct WeightMinHeap
       size_t pos = c.size()-1;
       pos = percolate_up(pos, val);
       c[pos] = i;
-      loc[i] = pos;
+      loc[i] = static_cast<int>(pos);
    }
 
    int pop()
@@ -2617,13 +2617,13 @@ struct WeightMinHeap
       c.pop_back();
       // Mark as removed
       loc[i] = -1;
-      if (c.empty()) { return i; }
+      if (c.empty()) { return static_cast<int>(i); }
       real_t val = w[j];
       size_t pos = 0;
       pos = percolate_down(pos, val);
       c[pos] = j;
-      loc[j] = pos;
-      return i;
+      loc[j] = static_cast<int>(pos);
+      return static_cast<int>(i);
    }
 
    void update(size_t i)
@@ -2633,7 +2633,7 @@ struct WeightMinHeap
       pos = percolate_up(pos, val);
       pos = percolate_down(pos, val);
       c[pos] = i;
-      loc[i] = pos;
+      loc[i] = static_cast<int>(pos);
    }
 
    bool picked(size_t i)
@@ -2821,7 +2821,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
             unique_block_cols[iblock].insert(J[k] / block_size);
          }
       }
-      nnz += unique_block_cols[iblock].size();
+      nnz += static_cast<int>(unique_block_cols[iblock].size());
    }
 
    if (reordering != Reordering::NONE)

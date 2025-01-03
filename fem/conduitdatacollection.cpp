@@ -997,8 +997,7 @@ std::string
 ConduitDataCollection::MeshFilePattern(const std::string &relay_protocol)
 {
    std::ostringstream oss;
-   oss << prefix_path
-       << name
+   oss << name
        << "_"
        << to_padded_string(cycle, pad_digits_cycle)
        << "/domain_%0"

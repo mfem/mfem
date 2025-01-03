@@ -895,6 +895,9 @@ public:
 
    ///@}
 
+   /// Construct a Mesh from a NURBSExtension
+   explicit Mesh( const NURBSExtension& ext );
+
    /** @anchor mfem_Mesh_construction
        @name Methods for piecewise Mesh construction.
 
@@ -2308,8 +2311,17 @@ public:
        (default) or nonconforming. */
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
+   /// Return a bool indicating whether this mesh is conforming.
    bool Conforming() const { return ncmesh == NULL; }
+   /// Return a bool indicating whether this mesh is nonconforming.
    bool Nonconforming() const { return ncmesh != NULL; }
+
+   /** Designate this mesh for output as "NC mesh v1.1", meaning it is
+       nonconforming with nonuniform refinement spacings. */
+   void SetScaledNCMesh()
+   {
+      ncmesh->using_scaling = true;
+   }
 
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
