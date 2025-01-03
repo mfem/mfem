@@ -27,7 +27,7 @@ Discretization improvements
 - Added average fluxes to `NumericalFlux` (formerly `RiemannSolver`)
   and `FluxFunction`.
 
-- Added Godunov flux for scalar equations (`ScalarGodunovFlux`).
+- Added component-wise upwinded flux (`ComponentwiseUpwindFlux`).
 
 Meshing improvements
 --------------------
