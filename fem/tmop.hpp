@@ -569,7 +569,9 @@ class TMOP_Metric_085 : public TMOP_QualityMetric
 {
 public:
    // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
-   real_t EvalW(const DenseMatrix &Jpt) const override;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
@@ -624,7 +626,9 @@ class TMOP_Metric_098 : public TMOP_QualityMetric
 {
 public:
    // W = 1/tau |T-I|^2.
-   real_t EvalW(const DenseMatrix &Jpt) const override;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
@@ -1089,7 +1093,9 @@ protected:
 
 public:
    // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
-   real_t EvalW(const DenseMatrix &Jpt) const override;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
@@ -1107,7 +1113,9 @@ protected:
 
 public:
    // 0.5 * ( sqrt(alpha/omega) - sqrt(omega/alpha) )^2
-   real_t EvalW(const DenseMatrix &Jpt) const override;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
@@ -1123,7 +1131,9 @@ protected:
 
 public:
    // (1/alpha) | A - W |^2
-   real_t EvalW(const DenseMatrix &Jpt) const override;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
@@ -1141,7 +1151,9 @@ protected:
 
 public:
    // [ 1.0 - cos( phi_A - phi_W ) ] / (sin phi_A * sin phi_W)
-   real_t EvalW(const DenseMatrix &Jpt) const override;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
@@ -1158,8 +1170,12 @@ protected:
    mutable InvariantsEvaluator3D<real_t> ie;
 
 public:
-   // [ 0.5 * (ups_A / ups_W + ups_W / ups_A) - cos( phi_A - phi_W ) ] / (sin phi_A * sin phi_W), where ups = l_1 l_2 sin(phi)
-   real_t EvalW(const DenseMatrix &Jpt) const override;
+   // [ 0.5 * (ups_A / ups_W + ups_W / ups_A) - cos(phi_A - phi_W) ] /
+   // (sin phi_A * sin phi_W)
+   // where ups = l_1 l_2 sin(phi)
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
@@ -1177,7 +1193,9 @@ protected:
 
 public:
    // (1/2 alpha) | A - (|A|/|W|) W |^2
-   real_t EvalW(const DenseMatrix &Jpt) const override;
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 

@@ -1207,7 +1207,7 @@ void TMOP_Metric_077::AssembleH(const DenseMatrix &Jpt,
 }
 
 // mu_85 = |T-T'|^2, where T'= |T|*I/sqrt(2)
-real_t TMOP_Metric_085::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_Metric_085::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    int matsize = Jpt.TotalSize();
    std::vector<AD1Type> adinp(matsize);
@@ -1233,7 +1233,7 @@ void TMOP_Metric_085::AssembleH(const DenseMatrix &Jpt,
 }
 
 // mu_98 = 1/(tau)|T-I|^2
-real_t TMOP_Metric_098::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_Metric_098::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    int matsize = Jpt.TotalSize();
    std::vector<AD1Type> adinp(matsize);
@@ -1906,7 +1906,7 @@ void TMOP_Metric_360::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
    ie.Assemble_ddI3b(-weight, A.GetData());
 }
 
-real_t TMOP_AMetric_011::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_AMetric_011::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    int matsize = Jpt.TotalSize();
    std::vector<AD1Type> adinp(matsize);
@@ -1938,7 +1938,7 @@ void TMOP_AMetric_011::AssembleH(const DenseMatrix &Jpt,
 }
 
 
-real_t TMOP_AMetric_014::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_AMetric_014::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    int matsize = Jpt.TotalSize();
    std::vector<AD1Type> adinp(matsize);
@@ -1963,7 +1963,7 @@ void TMOP_AMetric_014::AssembleH(const DenseMatrix &Jpt,
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
-real_t TMOP_AMetric_036::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_AMetric_036::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    int matsize = Jpt.TotalSize();
    std::vector<AD1Type> adinp(matsize);
@@ -1994,7 +1994,7 @@ void TMOP_AMetric_036::AssembleH(const DenseMatrix &Jpt,
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
-real_t TMOP_AMetric_050::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_AMetric_050::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    int matsize = Jpt.TotalSize();
    std::vector<AD1Type> adinp(matsize);
@@ -2025,7 +2025,7 @@ void TMOP_AMetric_050::AssembleH(const DenseMatrix &Jpt,
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
-real_t TMOP_AMetric_051::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_AMetric_051::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    int matsize = Jpt.TotalSize();
    std::vector<AD1Type> adinp(matsize);
@@ -2056,7 +2056,7 @@ void TMOP_AMetric_051::AssembleH(const DenseMatrix &Jpt,
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
-real_t TMOP_AMetric_107::EvalW(const DenseMatrix &Jpt) const
+real_t TMOP_AMetric_107::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    int matsize = Jpt.TotalSize();
    std::vector<AD1Type> adinp(matsize);
