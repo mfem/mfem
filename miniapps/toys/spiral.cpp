@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
       real_t frac = ((real_t) d) / steps;
 
       // Angle of rotation as function of frac
-      real_t phi;
+      real_t phi = 0.0;
       if (conf == 1 || conf == 5)
       {
          phi = -(10 * frac + 3.7);
@@ -154,7 +154,10 @@ int main(int argc, char *argv[])
       {
          real_t *v = mesh2.GetVertex(i);
 
-         real_t v0, v1, v2; // temporary variables
+         // Temporary variables
+         real_t v0 = 0.0;
+         real_t v1 = 0.0;
+         real_t v2 = 0.0;
 
          // Move and rotate the outer part
          if (part[i] == 1.0)
