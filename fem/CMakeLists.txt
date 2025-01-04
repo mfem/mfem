@@ -151,6 +151,9 @@ set(SRCS
   gslib.cpp
   transfer.cpp
   hyperbolic.cpp
+  darcy/darcyform.cpp
+  darcy/darcyhybridization.cpp
+  darcy/darcyreduction.cpp
   )
 
 set(HDRS
@@ -250,6 +253,10 @@ set(HDRS
   gslib.hpp
   transfer.hpp
   hyperbolic.hpp
+  darcy/darcy.hpp
+  darcy/darcyform.hpp
+  darcy/darcyhybridization.hpp
+  darcy/darcyreduction.hpp
   )
 
 if (MFEM_USE_SIDRE)

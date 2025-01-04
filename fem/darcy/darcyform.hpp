@@ -12,9 +12,9 @@
 #ifndef MFEM_DARCYFORM
 #define MFEM_DARCYFORM
 
-#include "../config/config.hpp"
-#include "../fem/bilinearform.hpp"
-#include "../fem/nonlinearform.hpp"
+#include "../../config/config.hpp"
+#include "../bilinearform.hpp"
+#include "../nonlinearform.hpp"
 #include "darcyreduction.hpp"
 #include "darcyhybridization.hpp"
 

@@ -37,7 +37,6 @@
 //               We recommend viewing examples 1-4 before viewing this example.
 
 #include "mfem.hpp"
-#include "darcyform.hpp"
 #include <fstream>
 #include <iostream>
 #include <algorithm>

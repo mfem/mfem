@@ -48,7 +48,6 @@
 //               We recommend viewing examples 1-4 before viewing this example.
 
 #include "mfem.hpp"
-#include "darcyform.hpp"
 #include "darcyop.hpp"
 #include <fstream>
 #include <iostream>

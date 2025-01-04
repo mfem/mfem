@@ -12,8 +12,7 @@
 #ifndef MFEM_DARCYOP
 #define MFEM_DARCYOP
 
-#include "../config/config.hpp"
-#include "darcyform.hpp"
+#include "mfem.hpp"
 #include "../general/socketstream.hpp"
 
 namespace mfem

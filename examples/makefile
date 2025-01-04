@@ -98,13 +98,9 @@ $(SUBDIRS_TPRINT):
 	@$(MAKE) -C $(@D) $(@F)
 
 # Additional dependencies
-ex5: darcyform.o darcyhybridization.o darcyreduction.o
-ex5-max: darcyform.o darcyhybridization.o darcyreduction.o
-ex5-hdg: darcyform.o darcyhybridization.o darcyreduction.o
-ex5-heat: darcyform.o darcyhybridization.o darcyreduction.o
-ex5-nguyen: darcyform.o darcyhybridization.o darcyreduction.o darcyop.o
-ex5-plasma: darcyform.o darcyhybridization.o darcyreduction.o darcyop.o
-ex5-aniso: darcyform.o darcyhybridization.o darcyreduction.o darcyop.o
+ex5-nguyen: darcyop.o
+ex5-plasma: darcyop.o
+ex5-aniso: darcyop.o
 ex18: $(SRC)ex18.hpp
 ex33: $(SRC)ex33.hpp
 ex37: $(SRC)ex37.hpp

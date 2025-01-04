@@ -12,9 +12,9 @@
 #ifndef MFEM_DARCYHYBRIDIZATION
 #define MFEM_DARCYHYBRIDIZATION
 
-#include "../config/config.hpp"
-#include "../fem/bilinearform.hpp"
-#include "../fem/nonlinearform.hpp"
+#include "../../config/config.hpp"
+#include "../bilinearform.hpp"
+#include "../nonlinearform.hpp"
 
 #define MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 

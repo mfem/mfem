@@ -12,9 +12,9 @@
 #ifndef MFEM_DARCYREDUCTION
 #define MFEM_DARCYREDUCTION
 
-#include "../config/config.hpp"
-#include "../fem/bilinearform.hpp"
-#include "../fem/nonlinearform.hpp"
+#include "../../config/config.hpp"
+#include "../bilinearform.hpp"
+#include "../nonlinearform.hpp"
 
 #define MFEM_DARCY_REDUCTION_ELIM_BCS
 

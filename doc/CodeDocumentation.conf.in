@@ -956,6 +956,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/fem/moonolith \
                          @MFEM_SOURCE_DIR@/fem/qinterp \
                          @MFEM_SOURCE_DIR@/fem/tmop \
+                         @MFEM_SOURCE_DIR@/fem/darcy \
                          @MFEM_SOURCE_DIR@/examples \
                          @MFEM_SOURCE_DIR@/examples/amgx \
                          @MFEM_SOURCE_DIR@/examples/caliper \
