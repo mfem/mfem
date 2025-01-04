@@ -42,21 +42,9 @@ const IntegrationRule* Integrator::GetIntegrationRule(
 }
 
 const IntegrationRule* Integrator::GetIntegrationRule(
-   const FiniteElement* trial_fe, const FiniteElement* test_fe) const
-{
-   return GetIntegrationRule(trial_fe, test_fe, NULL);
-}
-
-const IntegrationRule* Integrator::GetIntegrationRule(
    const FiniteElement* el,
    const ElementTransformation* trans) const
 {
    return GetIntegrationRule(el, el, trans);
-}
-
-const IntegrationRule* Integrator::GetIntegrationRule(const FiniteElement* el)
-const
-{
-   return GetIntegrationRule(el, el, NULL);
 }
 }

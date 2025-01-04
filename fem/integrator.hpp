@@ -68,21 +68,17 @@ protected:
    */
    const IntegrationRule* GetIntegrationRule(
       const FiniteElement* trial_fe, const FiniteElement* test_fe,
-      const ElementTransformation* trans) const;
-   /** Overload that is equivalent to passing NULL for the
-       ElementTransformation pointer, if it is unavailable or unused in the
-       default behavior. */
-   const IntegrationRule* GetIntegrationRule(
-      const FiniteElement* trial_fe,
-      const FiniteElement* test_fe) const;
-   /** Overload for cases where trial_fe and test_fe are the same. */
+      const ElementTransformation* trans = nullptr) const;
+
+   /** @brief Selects an integration rule based on the arguments and
+              internal state. (Version for identical trial_fe and test_fe)
+
+       @see GetIntegrationRule(const FiniteElement*, const FiniteElement*,
+            const ElementTransformation*)
+   */
    const IntegrationRule* GetIntegrationRule(
       const FiniteElement* el,
-      const ElementTransformation* trans) const;
-   /** Overload that is equivalent to passing NULL for the
-       ElementTransformation pointer, if it is unavailable or unused in the
-       default behavior. */
-   const IntegrationRule* GetIntegrationRule(const FiniteElement* el) const;
+      const ElementTransformation* trans = nullptr) const;
 
    /** @brief Subclasses should override to choose a default integration rule.
 
