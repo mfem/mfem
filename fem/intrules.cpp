@@ -1864,17 +1864,19 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
 
 IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
                                                 const int patch, const int *ijk,
-                                                Array<const KnotVector*> const& kv,
-                                                bool & deleteRule) const
+                                                Array<const KnotVector*> const& kv) const
 {
-   deleteRule = false;
-
    // First check whether a rule has been assigned to element index elem.
    auto search = elementToRule.find(elem);
    if (search != elementToRule.end())
    {
       return *elementRule[search->second];
    }
+
+#ifndef MFEM_THREAD_SAFE
+   // If no prescribed rule is given for the current element, a temporary one is
+   // formed by restricting a tensor-product of 1D rules to the element. The
+   // ownership model for this temporary rule is not thread-safe.
 
    MFEM_VERIFY(patchRules1D.NumRows(),
                "Undefined rule in NURBSMeshRules::GetElementRule");
@@ -1912,10 +1914,9 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
       np *= npd[d];
    }
 
-   IntegrationRule *irp = new IntegrationRule(np);
-   deleteRule = true;
+   temporaryElementRule.SetSize(np);
 
-   // Set (*irp)[i + j*npd[0] + k*npd[0]*npd[1]] =
+   // Set temporaryElementRule[i + j*npd[0] + k*npd[0]*npd[1]] =
    //     (el[0][2*i], el[1][2*j], el[2][2*k])
 
    MFEM_VERIFY(npd[0] > 0 && npd[1] > 0, "Assuming 2D or 3D");
@@ -1927,22 +1928,26 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
          for (int k = 0; k < std::max(npd[2], 1); ++k)
          {
             const int id = i + j*npd[0] + k*npd[0]*npd[1];
-            (*irp)[id].x = el[0][2*i];
-            (*irp)[id].y = el[1][2*j];
+            temporaryElementRule[id].x = el[0][2*i];
+            temporaryElementRule[id].y = el[1][2*j];
 
-            (*irp)[id].weight = el[0][(2*i)+1];
-            (*irp)[id].weight *= el[1][(2*j)+1];
+            temporaryElementRule[id].weight = el[0][(2*i)+1];
+            temporaryElementRule[id].weight *= el[1][(2*j)+1];
 
             if (npd[2] > 0)
             {
-               (*irp)[id].z = el[2][2*k];
-               (*irp)[id].weight *= el[2][(2*k)+1];
+               temporaryElementRule[id].z = el[2][2*k];
+               temporaryElementRule[id].weight *= el[2][(2*k)+1];
             }
          }
       }
    }
 
-   return *irp;
+   return temporaryElementRule;
+#else
+   MFEM_ABORT("Temporary integration rules on NURBS elements "
+              "are not thread-safe.");
+#endif
 }
 
 void NURBSMeshRules::GetIntegrationPointFrom1D(const int patch, int i, int j,
