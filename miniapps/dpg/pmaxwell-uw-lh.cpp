@@ -346,10 +346,11 @@ int main(int argc, char *argv[])
                          TrialSpace::E_space,
                          TestSpace::F_space);
 
-   //  (M E , G) = (M_r E, G) + i (M_i E, G)
+   //  (M E , G) = (M_r E, G) + i (M_i E, G) = (E, M_rt G) + i (E, Mit G)
+   //            = (M_rt G, E)^T + i (Mit G, E)^T
    a->AddTrialIntegrator(
-      new TransposeIntegrator(new VectorFEMassIntegrator(Mr_cf)),
-      new TransposeIntegrator(new VectorFEMassIntegrator(Mi_cf)),
+      new TransposeIntegrator(new VectorFEMassIntegrator(Mrt_cf)),
+      new TransposeIntegrator(new VectorFEMassIntegrator(Mit_cf)),
       TrialSpace::E_space, TestSpace::G_space);
 
    //  (H,∇ × G)
@@ -644,7 +645,7 @@ int main(int argc, char *argv[])
          HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
                                                         BlockA_r->GetBlock(1,1));
          solver_H->SetPrintLevel(0);
-         solver_H->SetSystemsOptions(dim);
+         // solver_H->SetSystemsOptions(dim);
          M.SetDiagonalBlock(0,solver_E);
          M.SetDiagonalBlock(1,solver_H);
          M.SetDiagonalBlock(num_blocks,solver_E);
@@ -670,8 +671,8 @@ int main(int argc, char *argv[])
          std::cout << "PCG iterations" << endl;
       }
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-6);
-      cg.SetMaxIter(1000);
+      cg.SetRelTol(1e-7);
+      cg.SetMaxIter(10000);
       cg.SetPrintLevel(1);
       cg.SetPreconditioner(M);
       cg.SetOperator(blockA);
