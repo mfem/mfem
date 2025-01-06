@@ -93,7 +93,7 @@ public:
          const int first_index = indices[0];
          const mfem::FiniteElement &el = *fes.GetFE(first_index);
          auto &T = *fes.GetMesh()->GetElementTransformation(first_index);
-         MFEM_ASSERT(!integ.GetIntegrationRule(),
+         MFEM_ASSERT(!integ.GetIntRule(),
                      "Mixed mesh integrators should not have an"
                      " IntegrationRule.");
          const IntegrationRule &ir = GetRule(integ, el, el, T);
