@@ -302,12 +302,38 @@ public:
    }
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
-   HypreParMatrix *ParallelAssemble();
+   /** The returned matrix is owned by the form. */
+   HypreParMatrix *ParallelAssembleInternal();
+
+   /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
+   /** The returned matrix has to be deleted by the caller. */
+   HypreParMatrix *ParallelAssemble() { return ParallelAssemble(mat); }
+
+   /** @brief Returns the eliminated matrix assembled on the true dofs, i.e.
+       P_test^t A_local P_trial. */
+   /** The returned matrix has to be deleted by the caller. */
+   HypreParMatrix *ParallelAssembleElim() { return ParallelAssemble(mat_e); }
+
+   /** @brief Return the matrix @a m assembled on the true dofs, i.e. P_test^t
+       A_local P_trial. */
+   /** The returned matrix has to be deleted by the caller. */
+   HypreParMatrix *ParallelAssemble(SparseMatrix *m);
 
    /** @brief Returns the matrix assembled on the true dofs, i.e.
        @a A = P_test^t A_local P_trial, in the format (type id) specified by
        @a A. */
-   void ParallelAssemble(OperatorHandle &A);
+   void ParallelAssemble(OperatorHandle &A) { ParallelAssemble(A, mat); }
+
+   /** Returns the eliminated matrix assembled on the true dofs, i.e.
+       @a A_elim = P^t A_elim_local P in the format (type id) specified by @a A.
+    */
+   void ParallelAssembleElim(OperatorHandle &A_elim)
+   { ParallelAssemble(A_elim, mat_e); }
+
+   /** Returns the matrix @a A_local assembled on the true dofs, i.e.
+       @a A = P_test^t A_local P_trial in the format (type id) specified by
+       @a A. */
+   void ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local);
 
    using MixedBilinearForm::FormRectangularSystemMatrix;
    using MixedBilinearForm::FormRectangularLinearSystem;
