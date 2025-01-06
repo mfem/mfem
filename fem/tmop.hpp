@@ -1119,6 +1119,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
+   void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const override;
+
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                   const real_t weight, DenseMatrix &A) const override;
 };
