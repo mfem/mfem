@@ -42,11 +42,11 @@ public:
 
    /** Directly return the IntRule pointer (possibly null) without checking
        for NURBS patch rules or falling back on a default. */
-   const IntegrationRule *GetIntegrationRule() const { return IntRule; }
+   const IntegrationRule *GetIntRule() const { return IntRule; }
 
-   /** Equivalent to GetIntegrationRule, but retained for backward
+   /** Equivalent to GetIntRule, but retained for backward
        compatibility with applications. */
-   const IntegrationRule *GetIntRule() const { return GetIntegrationRule(); }
+   const IntegrationRule *GetIntegrationRule() const { return GetIntRule(); }
 
 protected:
    const IntegrationRule *IntRule;
