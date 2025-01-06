@@ -596,28 +596,31 @@ void ParBilinearForm::Update(FiniteElementSpace *nfes)
    p_mat_e.Clear();
 }
 
-
-HypreParMatrix *ParMixedBilinearForm::ParallelAssemble()
+HypreParMatrix *ParMixedBilinearForm::ParallelAssembleInternal()
 {
-   // construct the block-diagonal matrix A
-   HypreParMatrix *A =
-      new HypreParMatrix(trial_pfes->GetComm(),
-                         test_pfes->GlobalVSize(),
-                         trial_pfes->GlobalVSize(),
-                         test_pfes->GetDofOffsets(),
-                         trial_pfes->GetDofOffsets(),
-                         mat);
-
-   HypreParMatrix *rap = RAP(test_pfes->Dof_TrueDof_Matrix(), A,
-                             trial_pfes->Dof_TrueDof_Matrix());
-
-   delete A;
-
-   return rap;
+   if (p_mat.Ptr() == NULL)
+   {
+      ParallelAssemble(p_mat, mat);
+   }
+   return p_mat.As<HypreParMatrix>();
 }
 
-void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
+HypreParMatrix *ParMixedBilinearForm::ParallelAssemble(SparseMatrix *m)
 {
+   OperatorHandle Mh(Operator::Hypre_ParCSR);
+   ParallelAssemble(Mh, m);
+   Mh.SetOperatorOwner(false);
+   return Mh.As<HypreParMatrix>();
+}
+
+void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A,
+                                            SparseMatrix *A_local)
+{
+   A.Clear();
+
+   if (A_local == NULL) { return; }
+   MFEM_VERIFY(A_local->Finalized(), "the local matrix must be finalized");
+
    // construct the rectangular block-diagonal matrix dA
    OperatorHandle dA(A.Type());
    dA.MakeRectangularBlockDiag(trial_pfes->GetComm(),
@@ -625,7 +628,7 @@ void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A)
                                trial_pfes->GlobalVSize(),
                                test_pfes->GetDofOffsets(),
                                trial_pfes->GetDofOffsets(),
-                               mat);
+                               A_local);
 
    OperatorHandle P_test(A.Type()), P_trial(A.Type());
 
