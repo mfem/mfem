@@ -600,7 +600,6 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize(test_nd, trial_nd);
 
-
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
    if (ir == NULL)
    {
@@ -810,7 +809,6 @@ void GradientIntegrator::AssembleElementMatrix2(
 
 
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
-
    elmat = 0.0;
    elmat_comp.SetSize(test_dof, trial_dof);
 
@@ -923,9 +921,7 @@ void DiffusionIntegrator::AssembleElementMatrix
 #endif
    elmat.SetSize(nd);
 
-
    const IntegrationRule *ir = GetIntegrationRule(&el, &Trans);
-
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -1005,9 +1001,7 @@ void DiffusionIntegrator::AssembleElementMatrix2(
 #endif
    elmat.SetSize(te_nd, tr_nd);
 
-
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
-
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -1086,7 +1080,6 @@ void DiffusionIntegrator::AssembleElementVector(
 
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &Tr);
-
    elvect = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -1251,7 +1244,6 @@ real_t DiffusionIntegrator::ComputeFluxEnergy
 
    int order = 2 * fluxelem.GetOrder(); // <--
    const IntegrationRule *ir = &IntRules.Get(fluxelem.GetGeomType(), order);
-
    real_t energy = 0.0;
    if (d_energy) { *d_energy = 0.0; }
 
@@ -1354,7 +1346,6 @@ void MassIntegrator::AssembleElementMatrix
 
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &Trans);
-
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -1388,9 +1379,7 @@ void MassIntegrator::AssembleElementMatrix2(
    shape.SetSize(tr_nd);
    te_shape.SetSize(te_nd);
 
-
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
-
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -1530,7 +1519,6 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
    adjJ.SetSize(dim);
    shape.SetSize(nd);
    grad.SetSize(nd,dim);
-
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &Trans);
    if (ir == NULL)
@@ -1771,7 +1759,6 @@ void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize(test_nd, trial_nd);
 
-
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
    if (ir == NULL)
    {
@@ -1822,7 +1809,6 @@ void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
 #endif
 
    elmat.SetSize(test_nd, trial_nd);
-
 
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
    if (ir == NULL)
@@ -1916,7 +1902,6 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
    Vector shapeTest(vshapeTest.GetData(), vec_nd);
 
    elmat.SetSize(test_nd, trial_nd);
-
 
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
    if (ir == NULL)
@@ -2148,7 +2133,6 @@ void CurlCurlIntegrator::AssembleElementMatrix
    elmat.SetSize(nd);
    if (MQ) { M.SetSize(dimc); }
    if (DQ) { D.SetSize(dimc); }
-
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &Trans);
    if (ir == NULL)
@@ -2622,7 +2606,6 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
    elmat.SetSize(dof);
    elmat = 0.0;
 
-
    const IntegrationRule *ir = GetIntegrationRule(&el, &Trans);
    if (ir == NULL)
    {
@@ -2858,7 +2841,6 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize (test_dof, dim*trial_dof);
 
-
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
 
    elmat = 0.0;
@@ -2914,7 +2896,6 @@ void DivDivIntegrator::AssembleElementMatrix(
 #endif
    elmat.SetSize(dof);
 
-
    const IntegrationRule *ir = GetIntegrationRule(&el, &Trans);
    if (ir == NULL)
    {
@@ -2961,7 +2942,6 @@ void DivDivIntegrator::AssembleElementMatrix2(
    te_divshape.SetSize(te_nd);
 #endif
    elmat.SetSize(te_nd,tr_nd);
-
 
    const IntegrationRule *ir = GetIntegrationRule(&trial_fe, &test_fe, &Trans);
    if (ir == NULL)
@@ -3020,7 +3000,6 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
    elmat.SetSize(vdim * dof);
    pelmat.SetSize(dof);
-
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &Trans);
    if (ir == NULL)
@@ -3194,7 +3173,6 @@ void ElasticityIntegrator::AssembleElementMatrix(
 #endif
 
    elmat.SetSize(dof * dim);
-
 
    const IntegrationRule *ir = GetIntegrationRule(&el, &Trans);
    if (ir == NULL)
