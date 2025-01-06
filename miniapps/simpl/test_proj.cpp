@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
    real_t r_min = 0.05;
    real_t rho_min = 1e-06;
    real_t vol_frac = 0.5;
-   real_t exponent = 1.0;
+   real_t exponent = 3.0;
 
    int max_md_it = 300;
    int max_newton_it = 30;
@@ -402,8 +402,8 @@ int main(int argc, char *argv[])
    real_t entropy_reg = 0.0;
    real_t h1_reg = 0.0;
    real_t entropy_penalty = 0.0;
-   PenaltyType penalty_type = PenaltyType::QUADRATIC;
-   ObjectiveType obj_type = ObjectiveType::L2PROJ;
+   PenaltyType penalty_type = PenaltyType::NONE;
+   ObjectiveType obj_type = ObjectiveType::COMPLIANCE;
 
    bool use_paraview = true;
 
@@ -462,6 +462,8 @@ int main(int argc, char *argv[])
    // FunctionCoefficient rho_targ();
    densityBC.SetSize(pmesh->bdr_attributes.Max());
    densityBC=0;
+   densityBC[0] = -1; // bottom
+   densityBC[2] = -1; // top
 
    Array<int> essNeumannBC(densityBC);
    for (int &bdr : essNeumannBC) { bdr = (bdr == 0); }
@@ -809,8 +811,8 @@ int main(int argc, char *argv[])
    for (; it_md<max_md_it; it_md++)
    {
       // TODO: Custom update rule for alpha
-      // alpha = std::pow((real_t)it_md, 1.0); // update alpha
-      alpha = 2; // update alpha
+      alpha = std::pow((real_t)it_md, 1.0); // update alpha
+      // alpha = 2; // update alpha
 
 
       alpha_cf.constant = alpha;
