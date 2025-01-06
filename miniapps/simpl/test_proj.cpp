@@ -4,8 +4,41 @@
 #include "linear_solver.hpp"
 #include "topopt.hpp"
 
-
 using namespace mfem;
+
+enum PenaltyType
+{
+   NONE=0,
+   ENTROPY=1, // -varphi(rho)
+   QUADRATIC=2, // rho(1-rho)
+};
+enum ObjectiveType
+{
+   L2PROJ=0,
+   COMPLIANCE=1,
+};
+
+class ErrorCoefficient : public Coefficient
+{
+   GridFunctionCoefficient gf_cf;
+   std::function<real_t(const Vector &x)> fun;
+   mutable Vector x;
+
+public:
+   ErrorCoefficient(GridFunction &gf,
+                    std::function<real_t(const Vector &x)> fun):
+      gf_cf(&gf), fun(fun)
+   {
+      x.SetSize(gf.FESpace()->GetMesh()->SpaceDimension());
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      T.Transform(ip, x);
+      return sigmoid(gf_cf.Eval(T, ip)) - fun(x);
+   };
+};
 
 HypreParMatrix *reassemble(ParBilinearForm &op)
 {
@@ -359,7 +392,7 @@ int main(int argc, char *argv[])
    real_t r_min = 0.05;
    real_t rho_min = 1e-06;
    real_t vol_frac = 0.5;
-   real_t exponent = 3.0;
+   real_t exponent = 1.0;
 
    int max_md_it = 300;
    int max_newton_it = 30;
@@ -368,6 +401,9 @@ int main(int argc, char *argv[])
 
    real_t entropy_reg = 0.0;
    real_t h1_reg = 0.0;
+   real_t entropy_penalty = 0.0;
+   PenaltyType penalty_type = PenaltyType::QUADRATIC;
+   ObjectiveType obj_type = ObjectiveType::L2PROJ;
 
    bool use_paraview = true;
 
@@ -423,7 +459,7 @@ int main(int argc, char *argv[])
       mesh.Clear();
       for (int i=0; i<ref_parallel; i++) {pmesh->UniformRefinement();}
    }
-   // FunctionCoefficient rho_targ([](const Vector &x) { return (real_t)((x[0] - 0.5) * (x[1] - 0.5) < 0); });
+   // FunctionCoefficient rho_targ();
    densityBC.SetSize(pmesh->bdr_attributes.Max());
    densityBC=0;
 
@@ -502,6 +538,7 @@ int main(int argc, char *argv[])
    ParGridFunction Psi_k(&RT_fes), Psi_old(&RT_fes);
    ParGridFunction rho_k(&DG_fes), rho_old(&DG_fes);
    ParGridFunction psi_k(&DG_fes), psi_old(&DG_fes);
+   ParGridFunction zero_gf(&DG_fes); zero_gf = 0.0;
    const real_t E = 1.0;
    const real_t nu = 0.3;
    const real_t lambda = E*nu/((1+nu)*(1-2*nu));
@@ -518,9 +555,76 @@ int main(int argc, char *argv[])
    {
       return der_simp(sigmoid(x), exponent, rho_min);
    });
+   MappedGFCoefficient penalty_grad_cf;
+   penalty_grad_cf.SetGridFunction(&psi);
+   switch (penalty_type)
+   {
+      case NONE:
+      {
+         break;
+      }
+      case ENTROPY:
+      {
+         penalty_grad_cf.SetFunction([entropy_penalty](const real_t x)
+         {
+            return -entropy_penalty*x;
+         });
+         break;
+      }
+      case QUADRATIC:
+      {
+         penalty_grad_cf.SetFunction([entropy_penalty](const real_t x)
+         {
+            const real_t rho_val = sigmoid(x);
+            return entropy_penalty*(1-2*rho_val);
+         });
+         break;
+      }
+      default:
+         MFEM_ABORT("Undefined penalty type");
+   }
+
    ProductCoefficient lambda_simp_cf(lambda_cf, simp_cf);
    ProductCoefficient mu_simp_cf(mu_cf, simp_cf);
-   StrainEnergyDensityCoefficient grad_cf(lambda_cf, mu_cf, der_simp_cf, u);
+   std::unique_ptr<Coefficient> grad_cf;
+   switch (obj_type)
+   {
+      case L2PROJ:
+      {
+         grad_cf.reset(new ErrorCoefficient(
+                          psi, [](const Vector &x)
+         {
+            real_t val = 0.0;
+            val = val + (std::fabs(x[0] - 0.5) < 0.25 && std::fabs(x[1]-0.5) < 0.25);
+            real_t r2_1 = std::pow(x[0]-1.5, 2.0)+std::pow(x[1]-0.5,2.0);
+            if (r2_1 < std::pow(0.25,2.0))
+            {
+               val += std::sqrt(r2_1)/0.25*0.5 + 0.5;
+            }
+            real_t r2_2 = std::pow(x[0]-2.5, 2.0)+std::pow(x[1]-0.5,2.0);
+            val += r2_2 < std::pow(0.25,2.0);
+            return val;
+         }));
+         vol_frac = std::pow(0.5,2.0);                 // rectangle
+         vol_frac += M_PI*(5.0/6.0)*std::pow(0.25, 2); // cylinder - cone
+         vol_frac += M_PI*std::pow(0.25, 2);           // cylinder
+         vol_frac /= 3.0;                              // divide by the domain size.
+         x_tv.GetBlock(0) = 0.0;                   // Constant solution -> Psi=0
+         x_tv.GetBlock(1) = vol_frac;              // Initial design
+         x_tv.GetBlock(2) = invsigmoid(vol_frac);  // initial latent
+
+         break;
+      }
+      case COMPLIANCE:
+      {
+         grad_cf.reset(new StrainEnergyDensityCoefficient(lambda_cf, mu_cf, der_simp_cf,
+                                                          u));
+         break;
+      }
+      default:
+         MFEM_ABORT("Undefined objective type");
+   }
+   //
 
    ConstantCoefficient alpha_cf(1.0);
    // ProductCoefficient neg_alpha_cf(-1.0, alpha_cf);
@@ -529,7 +633,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero_cf(0.0);
    Vector zero_vec_d(dim); zero_vec_d=0.0;
    VectorConstantCoefficient zero_vec_cf(zero_vec_d);
-   ProductCoefficient alpha_grad_cf(alpha_cf, grad_cf);
+   ProductCoefficient alpha_grad_cf(alpha_cf, *grad_cf);
+   ProductCoefficient alpha_penalty_grad_cf(alpha_cf, penalty_grad_cf);
 
    VectorGridFunctionCoefficient Psi_cf(&Psi);
    VectorGridFunctionCoefficient Psi_k_cf(&Psi_k);
@@ -637,6 +742,11 @@ int main(int argc, char *argv[])
       new DomainLFIntegrator(neg_psi_k_cf));
    first_order_optimality.AddDomainIntegrator(
       new DomainLFIntegrator(alpha_grad_cf));
+   if (entropy_penalty && penalty_type != NONE)
+   {
+      first_order_optimality.AddDomainIntegrator(
+         new DomainLFIntegrator(alpha_penalty_grad_cf));
+   }
 
    ParLinearForm GradNewtResidual(&RT_fes, b.GetBlock(0).GetData());
    GradNewtResidual.AddDomainIntegrator(new VectorFEDomainLFIntegrator(
@@ -696,12 +806,13 @@ int main(int argc, char *argv[])
    }
 
 
-   Vector con_vec(Mpi::Root() ? 1 : 0);
    for (; it_md<max_md_it; it_md++)
    {
       // TODO: Custom update rule for alpha
-      alpha = std::pow((real_t)it_md, 1.0); // update alpha
-      // alpha = 2; // update alpha
+      // alpha = std::pow((real_t)it_md, 1.0); // update alpha
+      alpha = 2; // update alpha
+
+
       alpha_cf.constant = alpha;
 
       // Store the previous
@@ -709,7 +820,10 @@ int main(int argc, char *argv[])
       rho_k = rho;
       psi_k = psi;
 
-      elasticity.Solve(u);
+      if (obj_type == COMPLIANCE)
+      {
+         elasticity.Solve(u);
+      }
 
       // // Update RHS of first-order optimality condition
       reassemble(first_order_optimality, b, b_tv, 1);
@@ -770,7 +884,19 @@ int main(int argc, char *argv[])
       }
 
       // Objective, L2 diff
-      obj = elasticity.GetParLinearForm()->operator()(u);
+      switch (obj_type)
+      {
+         case L2PROJ:
+         {
+            obj = std::pow(zero_gf.ComputeL2Error(*grad_cf), 2.0)/2.0;
+            break;
+         }
+         case COMPLIANCE:
+         {
+            obj = elasticity.GetParLinearForm()->operator()(u);
+            break;
+         }
+      }
 
       // Residual and useful info
       max_Psi = Psi.ComputeMaxError(zero_vec_cf);
