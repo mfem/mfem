@@ -1110,7 +1110,7 @@ void TMOP_Metric_085::AssembleH(const DenseMatrix &Jpt,
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
-   ADHessian(mu85_ad<AD2Type>, H, Jpt, Jtr);
+   ADHessian(mu85_ad<AD2Type>, H, Jpt);
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
@@ -1125,7 +1125,7 @@ real_t TMOP_Metric_098::EvalWMatrixForm(const DenseMatrix &Jpt) const
 
 void TMOP_Metric_098::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
 {
-   ADGrad(mu98_ad<AD1Type>, P, Jpt, Jtr);
+   ADGrad(mu98_ad<AD1Type>, P, Jpt);
    return;
 }
 
@@ -1136,7 +1136,7 @@ void TMOP_Metric_098::AssembleH(const DenseMatrix &Jpt,
 {
    const int dim = Jpt.Height();
    DenseTensor H(dim, dim, dim*dim); H = 0.0;
-   ADHessian(mu98_ad<AD2Type>, H, Jpt, Jtr);
+   ADHessian(mu98_ad<AD2Type>, H, Jpt);
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
