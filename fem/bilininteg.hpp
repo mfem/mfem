@@ -2138,9 +2138,9 @@ public:
                                          const ElementTransformation &Trans);
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      FiniteElement const* trial_fe,
-      FiniteElement const* test_fe,
-      ElementTransformation const* trans) const override
+      const FiniteElement* trial_fe,
+      const FiniteElement* test_fe,
+      const ElementTransformation* trans) const override
    {
       return &GetRule(*trial_fe, *test_fe, *trans);
    }
@@ -2325,9 +2325,9 @@ public:
    }
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      FiniteElement const* trial_fe,
-      FiniteElement const* test_fe,
-      ElementTransformation const* trans) const override
+      const FiniteElement* trial_fe,
+      const FiniteElement* test_fe,
+      const ElementTransformation* trans) const override
    {
       return &GetRule(*trial_fe, *test_fe);
    }
@@ -2417,9 +2417,9 @@ public:
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      FiniteElement const* trial_fe,
-      FiniteElement const* test_fe,
-      ElementTransformation const* trans) const override
+      const FiniteElement* trial_fe,
+      const FiniteElement* test_fe,
+      const ElementTransformation* trans) const override
    {
       return &GetRule(*trial_fe, *test_fe, *trans);
    }
@@ -2493,9 +2493,9 @@ public:
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      FiniteElement const* trial_fe,
-      FiniteElement const* test_fe,
-      ElementTransformation const* trans) const override
+      const FiniteElement* trial_fe,
+      const FiniteElement* test_fe,
+      const ElementTransformation* trans) const override
    {
       return &GetRule(*trial_fe, *test_fe, *trans);
    }
@@ -2967,9 +2967,9 @@ public:
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      FiniteElement const* trial_fe,
-      FiniteElement const* test_fe,
-      ElementTransformation const* trans) const override
+      const FiniteElement* trial_fe,
+      const FiniteElement* test_fe,
+      const ElementTransformation* trans) const override
    {
       return &GetRule(*trial_fe, *test_fe, *trans);
    }
