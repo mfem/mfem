@@ -306,12 +306,13 @@ public:
 
 TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
 {
-   const int order = 5;
+   const int order = 2;
    const auto mesh_fname = GENERATE(
                               //"../../data/star-q3.mesh"
                               //"../../data/star-surf.mesh",
                               // "../../data/fichera-q3.mesh"
                               "../../data/inline-quad.mesh"
+                              //"../../data/ref-square.mesh"
                            );
    // const bool add_diffusion = GENERATE(true, false);
    const bool add_diffusion = true;
@@ -331,10 +332,10 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
 
    ConstantCoefficient one(1.0);
    constexpr int sigma = -1.0;
-   const int eta = 1e4;
+   const int eta = 2;
    const int kappa = eta * (order + 1) * (order + 1);
    BilinearForm a(&fespace);
-   a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
+   //a.AddDomainIntegrator(new MassIntegrator(mass_coeff));
    if (add_diffusion)
    {
       a.AddDomainIntegrator(new DiffusionIntegrator);
@@ -355,8 +356,8 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
       a_lor.AddInteriorFaceIntegrator(new DG_LOR_DiffusionPreconditioner(
                                          mesh_lor, order, eta));
    }
-   a_lor.AddDomainIntegrator(new DG_LOR_MassPreconditioner(
-                                mesh, mesh_lor, order, &mass_coeff));
+   //a_lor.AddDomainIntegrator(new DG_LOR_MassPreconditioner(
+                                //mesh, mesh_lor, order, &mass_coeff));
    a_lor.Assemble();
    a_lor.Finalize();
    SparseMatrix &A2 = a_lor.SpMat();
