@@ -1825,7 +1825,6 @@ void TMOP_AMetric_011::AssembleH(const DenseMatrix &Jpt,
    this->DefaultAssembleH(H,DS,weight,A);
 }
 
-
 real_t TMOP_AMetric_014::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
    MFEM_VERIFY(Jtr != NULL,
