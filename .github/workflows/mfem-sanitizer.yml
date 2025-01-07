@@ -28,15 +28,9 @@ concurrency:
 
 jobs:
   Serial:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - name: Temporary workaround for sanitizer crashes
-        # See https://github.com/actions/runner-images/issues/9491
-        # The issue should be fixed in the next runner image for Ubuntu 22.04,
-        # see https://github.com/actions/runner-images/pull/9513
-        run: sudo sysctl vm.mmap_rnd_bits=28
-
       - name: MFEM Checkout
         uses: actions/checkout@v4
         with:
@@ -54,7 +48,7 @@ jobs:
           build-system: make
           library-only: false
           config-options:
-            CXX="clang++"
+            CXX="clang++-18"
             CXXFLAGS="-g -O1 -std=c++11
                       -fsanitize=address
                       -fno-omit-frame-pointer
