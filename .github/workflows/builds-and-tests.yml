@@ -92,6 +92,7 @@ jobs:
             build-system: cmake
             hypre-target: int32
             precision: fp64
+            config-opts: '-DCMAKE_INSTALL_PREFIX=../cmake-install'
             # This option can be set to pass additional configuration options to
             # the MFEM configuration command.
             # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
@@ -304,6 +305,22 @@ jobs:
           cd ${{ env.MFEM_TOP_DIR }}/build && \
           ctest --output-on-failure -C ${CTEST_CONFIG} || \
           ctest --rerun-failed --output-on-failure -C ${CTEST_CONFIG}
+        shell: bash
+
+      - name: make install
+        if: matrix.build-system == 'make'
+        run: |
+          cd ${{ env.MFEM_TOP_DIR }} && make install
+
+      - name: cmake install
+        if: matrix.build-system == 'cmake'
+        run: |
+          CONFIG="Release"
+          [[ ${{ matrix.target }} == 'dbg' ]] && CONFIG="Debug"
+          TARGET="install"
+          [[ ${{ matrix.os }} == 'windows-latest' ]] && TARGET="INSTALL"
+          cd ${{ env.MFEM_TOP_DIR }} && \
+          cmake --build build --target ${TARGET} --config ${CONFIG}
         shell: bash
 
       # Code coverage (process and upload reports)
