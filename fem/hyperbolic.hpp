@@ -98,7 +98,7 @@ public:
                                   Vector &fluxDotN) const;
 
    /**
-    * @brief Compute average flux for over the given interval of states.
+    * @brief Compute average flux over the given interval of states.
     * Optionally overloaded in a derived class.
     *
     * The average flux is defined as F̄(u1,u2) = ∫ F(u) du / (u2 - u1) for
