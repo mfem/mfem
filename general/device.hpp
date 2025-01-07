@@ -293,7 +293,7 @@ public:
    /** Query the device driver for what memory type a given @a ptr is allocated with. */
    static MemoryType QueryMemoryType(void* ptr);
 
-   /** The number of hardware compute units/streaming multiprocessors available on a given compute device. */
+   /** @brief The number of hardware compute units/streaming multiprocessors available on a given compute device @dev. */
    static int MFEM_HOST_DEVICE NumMultiprocessors(int dev)
    {
 #if defined(MFEM_USE_CUDA)
@@ -321,7 +321,7 @@ public:
       return NumMultiprocessors(dev);
    }
 
-   /** The number of threads in a warp on a given compute device. */
+   /** @brief The number of threads in a warp on a given compute device @a dev. */
    static int MFEM_HOST_DEVICE WarpSize(int dev)
    {
 #if defined(MFEM_USE_CUDA)
@@ -349,7 +349,7 @@ public:
       return WarpSize(dev);
    }
 
-   /** Gets the @a[out] free and @a[out] total memory to the device. */
+   /** @brief Gets the @a free and @a total memory on the device. */
    static void DeviceMem(size_t *free, size_t *total);
 };
 
