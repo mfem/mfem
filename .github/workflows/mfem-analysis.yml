@@ -37,6 +37,7 @@ jobs:
   gitignore:
     runs-on: ubuntu-latest
 
+    steps:
       - name: checkout MFEM
         uses: actions/checkout@v4
         with:
