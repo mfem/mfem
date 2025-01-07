@@ -1791,9 +1791,9 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
 IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
 {
    // This is a simple integration rule adapted from an integration
-   // rule for a cube which seems to be adequate for now. When we
-   // implement high order finite elements for pyramids we should
-   // revisit this and see if we can improve upon it.
+   // rule for a cube which seems to be adequate for now. We should continue
+   // to search for a more appropriate integration rule designed specifically
+   // for pyramid elements.
    const IntegrationRule &irc = Get(Geometry::CUBE, Order + 2);
    int npts = irc.GetNPoints();
    AllocIntRule(PyramidIntRules, Order);
