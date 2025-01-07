@@ -154,6 +154,7 @@ set(SRCS
   darcy/darcyform.cpp
   darcy/darcyhybridization.cpp
   darcy/darcyreduction.cpp
+  darcy/pdarcyform.cpp
   )
 
 set(HDRS
@@ -257,6 +258,7 @@ set(HDRS
   darcy/darcyform.hpp
   darcy/darcyhybridization.hpp
   darcy/darcyreduction.hpp
+  darcy/pdarcyform.hpp
   )
 
 if (MFEM_USE_SIDRE)

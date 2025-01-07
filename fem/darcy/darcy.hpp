@@ -18,4 +18,8 @@
 #include "darcyhybridization.hpp"
 #include "darcyreduction.hpp"
 
+#ifdef MFEM_USE_MPI
+#include "pdarcyform.hpp"
+#endif // MFEM_USE_MPI
+
 #endif

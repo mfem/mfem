@@ -33,21 +33,9 @@ BilinearForm* DarcyForm::GetFluxMassForm()
    return M_u;
 }
 
-const BilinearForm* DarcyForm::GetFluxMassForm() const
-{
-   //MFEM_ASSERT(M_u, "Flux mass form not allocated!");
-   return M_u;
-}
-
 BilinearForm* DarcyForm::GetPotentialMassForm()
 {
    if (!M_p) { M_p = new BilinearForm(fes_p); }
-   return M_p;
-}
-
-const BilinearForm* DarcyForm::GetPotentialMassForm() const
-{
-   //MFEM_ASSERT(M_p, "Potential mass form not allocated!");
    return M_p;
 }
 
@@ -57,33 +45,15 @@ NonlinearForm *DarcyForm::GetFluxMassNonlinearForm()
    return Mnl_u;
 }
 
-const NonlinearForm *DarcyForm::GetFluxMassNonlinearForm() const
-{
-   //MFEM_ASSERT(Mnl_u, "Flux mass nonlinear form not allocated!");
-   return Mnl_u;
-}
-
 NonlinearForm* DarcyForm::GetPotentialMassNonlinearForm()
 {
    if (!Mnl_p) { Mnl_p = new NonlinearForm(fes_p); }
    return Mnl_p;
 }
 
-const NonlinearForm* DarcyForm::GetPotentialMassNonlinearForm() const
-{
-   //MFEM_ASSERT(Mnl_p, "Potential mass nonlinear form not allocated!");
-   return Mnl_p;
-}
-
 MixedBilinearForm* DarcyForm::GetFluxDivForm()
 {
    if (!B) { B = new MixedBilinearForm(fes_u, fes_p); }
-   return B;
-}
-
-const MixedBilinearForm* DarcyForm::GetFluxDivForm() const
-{
-   //MFEM_ASSERT(B, "Flux div form not allocated!");
    return B;
 }
 
@@ -94,12 +64,6 @@ BlockNonlinearForm *DarcyForm::GetBlockNonlinearForm()
       Array<FiniteElementSpace*> fes({fes_u, fes_p});
       Mnl = new BlockNonlinearForm(fes);
    }
-   return Mnl;
-}
-
-const BlockNonlinearForm *DarcyForm::GetBlockNonlinearForm() const
-{
-   //MFEM_ASSERT(Mnl, "Block nonlinear form not allocated!");
    return Mnl;
 }
 
@@ -504,7 +468,7 @@ void DarcyForm::Finalize(int skip_zeros)
       }
       else if (Mnl)
       {
-         pM.Reset(Mnl, false);
+         opM.Reset(Mnl, false);
       }
 
       if (M_p)
@@ -521,9 +485,9 @@ void DarcyForm::Finalize(int skip_zeros)
       {
          B->Finalize(skip_zeros);
 
-         if (!pBt.Ptr()) { ConstructBT(B); }
+         if (!opBt.Ptr()) { ConstructBT(B); }
 
-         block_op->SetBlock(0, 1, pBt.Ptr(), (bsym)?(-1.):(+1.));
+         block_op->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
          block_op->SetBlock(1, 0, B, (bsym)?(-1.):(+1.));
       }
    }
@@ -550,30 +514,31 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 
       if (M_u)
       {
-         M_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0), pM_u,
+         M_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0), opM_u,
                                X_, B_, copy_interior);
-         block_op->SetDiagonalBlock(0, pM_u.Ptr());
+         block_op->SetDiagonalBlock(0, opM_u.Ptr());
       }
       else if (Mnl_u)
       {
-         Operator *opM;
-         Mnl_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0), opM,
-                                 X_, B_, copy_interior);
-         pM_u.Reset(opM);
-         block_op->SetDiagonalBlock(0, pM_u.Ptr());
+         Operator *oper_M;
+         Mnl_u->FormLinearSystem(ess_flux_tdof_list, x.GetBlock(0), b.GetBlock(0),
+                                 oper_M, X_, B_, copy_interior);
+         opM_u.Reset(oper_M);
+         block_op->SetDiagonalBlock(0, opM_u.Ptr());
       }
       else if (Mnl)
       {
-         Operator *opM;
-         Mnl->FormLinearSystem(ess_flux_tdof_list, x, b, opM, X_, B_, copy_interior);
-         pM.Reset(opM);
+         Operator *oper_M;
+         Mnl->FormLinearSystem(ess_flux_tdof_list, x, b, oper_M, X_, B_, copy_interior);
+         opM.Reset(oper_M);
       }
 
       if (M_p)
       {
-         M_p->FormLinearSystem(ess_pot_tdof_list, x.GetBlock(1), b.GetBlock(1), pM_p, X_,
+         M_p->FormLinearSystem(ess_pot_tdof_list, x.GetBlock(1), b.GetBlock(1), opM_p,
+                               X_,
                                B_, copy_interior);
-         block_op->SetDiagonalBlock(1, pM_p.Ptr(), (bsym)?(-1.):(+1.));
+         block_op->SetDiagonalBlock(1, opM_p.Ptr(), (bsym)?(-1.):(+1.));
       }
       else if (Mnl_p)
       {
@@ -588,22 +553,22 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
             Vector b_(fes_p->GetVSize());
             b_ = 0.;
             B->FormRectangularLinearSystem(ess_flux_tdof_list, ess_pot_tdof_list,
-                                           x.GetBlock(0), b_, pB, X_, B_);
+                                           x.GetBlock(0), b_, opB, X_, B_);
             b.GetBlock(1) -= b_;
          }
          else
          {
             B->FormRectangularLinearSystem(ess_flux_tdof_list, ess_pot_tdof_list,
-                                           x.GetBlock(0), b.GetBlock(1), pB, X_, B_);
+                                           x.GetBlock(0), b.GetBlock(1), opB, X_, B_);
          }
 
-         ConstructBT(pB.Ptr());
+         ConstructBT(opB.Ptr());
 
-         block_op->SetBlock(0, 1, pBt.Ptr(), (bsym)?(-1.):(+1.));
-         block_op->SetBlock(1, 0, pB.Ptr(), (bsym)?(-1.):(+1.));
+         block_op->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
+         block_op->SetBlock(1, 0, opB.Ptr(), (bsym)?(-1.):(+1.));
       }
 
-      if (Mnl && pM.Ptr())
+      if (Mnl && opM.Ptr())
       {
          A.Reset(this, false);
       }
@@ -663,27 +628,27 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 
       if (M_u)
       {
-         M_u->FormSystemMatrix(ess_flux_tdof_list, pM_u);
-         block_op->SetDiagonalBlock(0, pM_u.Ptr());
+         M_u->FormSystemMatrix(ess_flux_tdof_list, opM_u);
+         block_op->SetDiagonalBlock(0, opM_u.Ptr());
       }
       else if (Mnl_u)
       {
-         Operator *opM;
-         Mnl_u->FormSystemOperator(ess_flux_tdof_list, opM);
-         pM_u.Reset(opM);
-         block_op->SetDiagonalBlock(0, pM_u.Ptr());
+         Operator *oper_M;
+         Mnl_u->FormSystemOperator(ess_flux_tdof_list, oper_M);
+         opM_u.Reset(oper_M);
+         block_op->SetDiagonalBlock(0, opM_u.Ptr());
       }
       else if (Mnl)
       {
-         Operator *opM;
-         Mnl->FormSystemOperator(ess_flux_tdof_list, opM);
-         pM.Reset(opM);
+         Operator *oper_M;
+         Mnl->FormSystemOperator(ess_flux_tdof_list, oper_M);
+         opM.Reset(oper_M);
       }
 
       if (M_p)
       {
-         M_p->FormSystemMatrix(ess_pot_tdof_list, pM_p);
-         block_op->SetDiagonalBlock(1, pM_p.Ptr(), (bsym)?(-1.):(+1.));
+         M_p->FormSystemMatrix(ess_pot_tdof_list, opM_p);
+         block_op->SetDiagonalBlock(1, opM_p.Ptr(), (bsym)?(-1.):(+1.));
       }
       else if (Mnl_p)
       {
@@ -692,12 +657,12 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 
       if (B)
       {
-         B->FormRectangularSystemMatrix(ess_flux_tdof_list, ess_pot_tdof_list, pB);
+         B->FormRectangularSystemMatrix(ess_flux_tdof_list, ess_pot_tdof_list, opB);
 
-         ConstructBT(pB.Ptr());
+         ConstructBT(opB.Ptr());
 
-         block_op->SetBlock(0, 1, pBt.Ptr(), (bsym)?(-1.):(+1.));
-         block_op->SetBlock(1, 0, pB.Ptr(), (bsym)?(-1.):(+1.));
+         block_op->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
+         block_op->SetBlock(1, 0, opB.Ptr(), (bsym)?(-1.):(+1.));
       }
    }
 
@@ -727,7 +692,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    }
    else
    {
-      if (Mnl && pM.Ptr())
+      if (Mnl && opM.Ptr())
       {
          A.Reset(this, false);
       }
@@ -801,32 +766,31 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    {
       M_u->EliminateVDofsInRHS(vdofs_flux, x.GetBlock(0), b.GetBlock(0));
    }
-   else if (Mnl_u && pM_u.Ptr())
+   else if (Mnl_u && opM_u.Ptr())
    {
-      pM_u.As<ConstrainedOperator>()->EliminateRHS(x.GetBlock(0), b.GetBlock(0));
+      opM_u.As<ConstrainedOperator>()->EliminateRHS(x.GetBlock(0), b.GetBlock(0));
    }
-   else if (Mnl && pM.Ptr())
+   else if (Mnl && opM.Ptr())
    {
-      pM.As<ConstrainedOperator>()->EliminateRHS(x, b);
+      opM.As<ConstrainedOperator>()->EliminateRHS(x, b);
    }
-
 }
 
 void DarcyForm::Mult(const Vector &x, Vector &y) const
 {
    block_op->Mult(x, y);
-   if (pM.Ptr())
+   if (opM.Ptr())
    {
       if (bsym)
       {
          BlockVector ynl(offsets);
-         pM->Mult(x, ynl);
+         opM->Mult(x, ynl);
          ynl.GetBlock(1).Neg();
          y += ynl;
       }
       else
       {
-         pM->AddMult(x, y);
+         opM->AddMult(x, y);
       }
    }
 }
@@ -865,15 +829,15 @@ Operator &DarcyForm::GetGradient(const Vector &x) const
 
       if (B)
       {
-         block_grad->SetBlock(0, 1, pBt.Ptr(), (bsym)?(-1.):(+1.));
+         block_grad->SetBlock(0, 1, opBt.Ptr(), (bsym)?(-1.):(+1.));
          block_grad->SetBlock(1, 0, B, (bsym)?(-1.):(+1.));
       }
 
       if (!Mnl) { return *block_grad; }
    }
 
-   pG.Reset(new Gradient(*this, x));
-   return *pG.Ptr();
+   opG.Reset(new Gradient(*this, x));
+   return *opG.Ptr();
 }
 
 void DarcyForm::Gradient::Mult(const Vector &x, Vector &y) const
@@ -909,7 +873,7 @@ void DarcyForm::Update()
    if (B) { B->Update(); }
    if (Mnl) { Mnl->Update(); }
 
-   pBt.Clear();
+   opBt.Clear();
 
    if (reduction) { reduction->Reset(); }
    if (hybridization) { hybridization->Reset(); }
@@ -1242,14 +1206,14 @@ void DarcyForm::AllocBlockOp()
 
 const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B)
 {
-   pBt.Reset(Transpose(B->SpMat()));
-   return pBt.Ptr();
+   opBt.Reset(Transpose(B->SpMat()));
+   return opBt.Ptr();
 }
 
 const Operator* DarcyForm::ConstructBT(const Operator *opB)
 {
-   pBt.Reset(new TransposeOperator(opB));
-   return pBt.Ptr();
+   opBt.Reset(new TransposeOperator(opB));
+   return opBt.Ptr();
 }
 
 }

@@ -23,6 +23,7 @@ namespace mfem
 
 class DarcyForm : public Operator
 {
+protected:
    Array<int> offsets;
 
    FiniteElementSpace *fes_u, *fes_p;
@@ -34,8 +35,8 @@ class DarcyForm : public Operator
    MixedBilinearForm *B{};
    BlockNonlinearForm *Mnl{};
 
-   OperatorHandle pM_u, pM_p, pB, pBt, pM;
-   mutable OperatorHandle pG;
+   OperatorHandle opM_u, opM_p, opB, opBt, opM;
+   mutable OperatorHandle opG;
 
    /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly{AssemblyLevel::LEGACY};
@@ -76,22 +77,22 @@ public:
    inline const Array<int>& GetOffsets() const { return offsets; }
 
    BilinearForm *GetFluxMassForm();
-   const BilinearForm *GetFluxMassForm() const;
+   const BilinearForm *GetFluxMassForm() const { return M_u; }
 
    BilinearForm *GetPotentialMassForm();
-   const BilinearForm *GetPotentialMassForm() const;
+   const BilinearForm *GetPotentialMassForm() const { return M_p; }
 
    NonlinearForm *GetFluxMassNonlinearForm();
-   const NonlinearForm *GetFluxMassNonlinearForm() const;
+   const NonlinearForm *GetFluxMassNonlinearForm() const { return Mnl_u; }
 
    NonlinearForm *GetPotentialMassNonlinearForm();
-   const NonlinearForm *GetPotentialMassNonlinearForm() const;
+   const NonlinearForm *GetPotentialMassNonlinearForm() const { return Mnl_p; }
 
    MixedBilinearForm *GetFluxDivForm();
-   const MixedBilinearForm *GetFluxDivForm() const;
+   const MixedBilinearForm *GetFluxDivForm() const { return B; }
 
    BlockNonlinearForm *GetBlockNonlinearForm();
-   const BlockNonlinearForm *GetBlockNonlinearForm() const;
+   const BlockNonlinearForm *GetBlockNonlinearForm() const { return Mnl; }
 
    /// Set the desired assembly level.
    /** Valid choices are:
@@ -169,9 +170,9 @@ public:
 
        NOTE: If there are no transformations, @a X simply reuses the data of
              @a x. */
-   void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                         BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X,
-                         Vector &B, int copy_interior = 0);
+   virtual void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
+                                 BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X,
+                                 Vector &B, int copy_interior = 0);
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
