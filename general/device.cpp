@@ -596,4 +596,131 @@ void Device::Setup(const int device_id)
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 
+MemoryType Device::QueryMemoryType(void* ptr)
+{
+   // from HYPRE's hypre_GetPointerLocation
+   MemoryType res = MemoryType::HOST;
+#if defined(MFEM_USE_CUDA)
+   struct cudaPointerAttributes attr;
+
+#if (CUDART_VERSION >= 10000)
+#if (CUDART_VERSION >= 11000)
+   MFEM_GPU_CHECK(cudaPointerGetAttributes(&attr, ptr));
+#else
+   cudaPointerGetAttributes(&attr, ptr);
+   if (err != cudaSuccess)
+   {
+      /* clear the error */
+      cudaGetLastError();
+   }
+#endif
+   switch (attr.type)
+   {
+      case cudaMemoryTypeUnregistered:
+         // host
+         break;
+      case cudaMemoryTypeHost:
+         res = MemoryType::HOST_PINNED;
+         break;
+      case cudaMemoryTypeDevice:
+         res = MemoryType::DEVICE;
+         break;
+      case cudaMemoryTypeManaged:
+         res = MemoryType::MANAGED;
+         break;
+   }
+#else
+   cudaError_t err = cudaPointerGetAttributes(&attr, ptr);
+   if (err != cudaSuccess)
+   {
+      if (err == cudaErrorInvalidValue)
+      {
+         // host
+         /* clear the error */
+         cudaGetLastError();
+      }
+      else
+      {
+         MFEM_GPU_CHECK(err);
+      }
+   }
+   else if (attr.isManaged)
+   {
+      res = MemoryType::MANAGED;
+   }
+   else if (attr.memoryType == cudaMemoryTypeDevice)
+   {
+      res = MemoryType::DEVICE;
+   }
+   else if (attr.memoryType == cudaMemoryTypeHost)
+   {
+      res = MemoryType::HOST_PINNED;
+   }
+#endif // CUDART_VERSION >= 10000
+#elif defined(MFEM_USE_HIP)
+   struct hipPointerAttribute_t attr;
+
+   hipError_t err = hipPointerGetAttributes(&attr, ptr);
+   if (err != hipSuccess)
+   {
+      if (err == hipErrorInvalidValue)
+      {
+         // host memory
+         /* clear the error */
+         hipGetLastError();
+      }
+      else
+      {
+         MFEM_GPU_CHECK(err);
+      }
+   }
+   else if (attr.isManaged)
+   {
+      res = MemoryType::MANAGED;
+   }
+#if (HIP_VERSION_MAJOR >= 6)
+   else if (attr.type == hipMemoryTypeDevice)
+#else  // (HIP_VERSION_MAJOR < 6)
+   else if (attr.memoryType == hipMemoryTypeDevice)
+#endif // (HIP_VERSION_MAJOR >= 6)
+   {
+      res = MemoryType::DEVICE;
+   }
+#if (HIP_VERSION_MAJOR >= 6)
+   else if (attr.type == hipMemoryTypeHost)
+#else  // (HIP_VERSION_MAJOR < 6)
+   else if (attr.memoryType == hipMemoryTypeHost)
+#endif // (HIP_VERSION_MAJOR >= 6)
+   {
+      res = MemoryType::HOST_PINNED;
+   }
+#if (HIP_VERSION_MAJOR >= 6)
+   else if (attr.type == hipMemoryTypeUnregistered)
+   {
+      // host memory
+   }
+#endif
+#endif
+   return res;
+}
+
+void Device::DeviceMem(size_t *free, size_t *total)
+{
+#if defined(MFEM_USE_CUDA)
+   cudaMemGetInfo(free, total);
+#elif defined(MFEM_USE_HIP)
+   hipMemGetInfo(free, total);
+#else
+   // not compiled with GPU support
+   if (free)
+   {
+      *free = 0;
+   }
+   if (*total)
+   {
+      *total = 0;
+   }
+#endif
+}
+
 } // mfem
