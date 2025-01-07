@@ -50,9 +50,6 @@ void BatchedLOR_DG::Assemble2D()
 
    auto geom = fes_ho.GetMesh()->GetGeometricFactors(
                   ir, GeometricFactors::DETERMINANTS);
-
-   //const FiniteElementCollection fes_coll = fes_ho.FEColl();
-
    const auto detJ = Reshape(geom->detJ.Read(), nd1d, nd1d, nel_ho);
 
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iel_ho)
@@ -62,15 +59,19 @@ void BatchedLOR_DG::Assemble2D()
          for (int ix = 0; ix < nd1d; ++ix)
          {
             //std::cout << "element " << iel_ho << std::endl;
-            const real_t A_ref = 0.5*(2*(ir_pp2[ix].x)*(ir_pp2[iy].x) + 2*(ir_pp2[ix+1].x)*(ir_pp2[iy+1].x) - 2*(ir_pp2[ix+1].x)*(ir_pp2[iy].x) - 2*(ir_pp2[ix].x)*(ir_pp2[iy+1].x));
-            const real_t A_el = 0.5*(2*X(0,ix,iy,iel_ho)*X(1,ix,iy,iel_ho) + 2*X(0,ix+1,iy+1,iel_ho)*X(1,ix+1,iy+1,iel_ho) - 2*X(0,ix+1,iy,iel_ho)*X(1,ix+1,iy,iel_ho) - 2*X(0,ix,iy+1,iel_ho)*X(1,ix,iy+1,iel_ho));
+            const real_t A_ref = 0.5*(2*(ir_pp2[ix].x)*(ir_pp2[iy].x) + 2*(ir_pp2[ix+1].x)*
+                                      (ir_pp2[iy+1].x) - 2*(ir_pp2[ix+1].x)*(ir_pp2[iy].x) - 2*(ir_pp2[ix].x)*
+                                      (ir_pp2[iy+1].x));
+            const real_t A_el = 0.5*(2*X(0,ix,iy,iel_ho)*X(1,ix,iy,iel_ho) + 2*X(0,ix+1,
+                                                                                 iy+1,iel_ho)*X(1,ix+1,iy+1,iel_ho) - 2*X(0,ix+1,iy,iel_ho)*X(1,ix+1,iy,
+                                                                                       iel_ho) - 2*X(0,ix,iy+1,iel_ho)*X(1,ix,iy+1,iel_ho));
             const real_t mq = const_mq ? MQ(0,0,0) : MQ(ix, iy, iel_ho);
             const real_t dq = const_dq ? DQ(0,0,0) : DQ(ix, iy, iel_ho);
             for (int n_idx = 0; n_idx < 2; ++n_idx)
             {
                for (int e_i = 0; e_i < 2; ++e_i)
                {
-                  static int lex_map[] = {4, 2, 1, 3};
+                  static const int lex_map[] = {4, 2, 1, 3};
                   const int v_idx_lex = e_i + n_idx*2;
                   const int v_idx = lex_map[v_idx_lex];
 
@@ -86,28 +87,35 @@ void BatchedLOR_DG::Assemble2D()
                   const int int_idx = (n_idx == 0) ? i_0 : j_0;
                   const int el_idx = (n_idx == 0) ? j_0 : i_0;
                   const int xy_idx = (n_idx == 0) ? 1 : 0;
+                  const real_t el_1 = ir_pp2[el_idx+1].x - ir_pp2[el_idx].x;
+                  const real_t el_2 = A_ref / el_1;
+
+                  const real_t x1 = X(0, i_0, j_0, iel_ho);
+                  const real_t y1 = X(1, i_0, j_0, iel_ho);
+                  const real_t x2 = (n_idx == 0) ? x1 : X(0, i_0+1, j_0, iel_ho);
+                  const real_t y2 = (n_idx == 0) ? X(1, i_0, j_0+1, iel_ho) : y1;
+                  const real_t A_face = sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
+
                   if (bdr)
                   {
-                     const real_t el_1 = ir_pp2[el_idx+1].x - ir_pp2[el_idx].x;
-                     const real_t el_2 = A_ref / el_1;
-                     const real_t A_face = (n_idx == 0) ? X(1, i_0, j_0+1, iel_ho) - X(1, i_0, j_0, iel_ho) : X(0, i_0+1, j_0, iel_ho) - X(0, i_0, j_0, iel_ho);
-                     const real_t h_prime = A_el / A_face;
-                     const real_t h = (1/h_prime) * el_2;
-                     //std::cout << "A_ref = " << A_ref << std::endl;
-                     //std::cout << "el_1 = " << el_1 << std::endl;
-                     //std::cout << "el_2 = " << el_2 << std::endl;
-                     //std::cout << "A_el = " << A_el << std::endl;
-                     //std::cout << "A_face = " << A_face << std::endl;
-                     //std::cout << "h_prime = " << h_prime << std::endl;
-                     //std::cout << "h = " << h << std::endl;
-                     //std::cout << "x coord= " << X(0,ix,iy,iel_ho) << std::endl;
-                     //std::cout << "y coord= " << X(1,ix,iy,iel_ho) << std::endl;
-                     V(v_idx, ix, iy, iel_ho) = -dq * kappa * w_1d[w_idx] * detJ(ix, iy,iel_ho)*h;
+                     const real_t h_recip = A_face*A_face/A_el*el_2/el_1;
+                     V(v_idx, ix, iy, iel_ho) = -dq * kappa * w_1d[w_idx] * h_recip;
                   }
                   else
                   {
-                     V(v_idx, ix, iy, iel_ho) = -dq * w_1d[w_idx] / (ir_pp1[int_idx].x -
-                                                                     ir_pp1[int_idx-1].x);
+                     const real_t A_perp_1 = (n_idx == 0) ?
+                                             X(0, i_0+1, j_0, iel_ho) - X(0, i_0, j_0, iel_ho):
+                                             X(1, i_0, j_0+1, iel_ho) - X(1, i_0, j_0, iel_ho);
+                     const real_t A_perp_2 = (n_idx == 0) ?
+                                             X(0, i_0, j_0, iel_ho) - X(0, i_0-1, j_0, iel_ho):
+                                             X(1, i_0, j_0, iel_ho) - X(1, i_0, j_0-1, iel_ho);
+                     const real_t A_ref_1 = (n_idx == 0) ? ir_pp2[i_0+1].x - ir_pp2[i_0].x :
+                                            ir_pp2[j_0+1].x - ir_pp2[j_0].x;
+                     const real_t A_ref_2 = (n_idx == 0) ? ir_pp2[i_0].x - ir_pp2[i_0-1].x :
+                                            ir_pp2[j_0].x - ir_pp2[j_0-1].x;
+                     const real_t h = (A_perp_1 + A_perp_2) / (A_ref_1 + A_ref_2);
+                     V(v_idx, ix, iy, iel_ho) = -dq * A_face * w_1d[w_idx] / h / el_1 /
+                                                (ir_pp1[int_idx].x - ir_pp1[int_idx-1].x);
                   }
                }
             }

@@ -357,7 +357,7 @@ TEST_CASE("LOR Batched DG", "[LOR][BatchedLOR][CUDA]")
                                          mesh_lor, order, eta));
    }
    //a_lor.AddDomainIntegrator(new DG_LOR_MassPreconditioner(
-                                //mesh, mesh_lor, order, &mass_coeff));
+   //mesh, mesh_lor, order, &mass_coeff));
    a_lor.Assemble();
    a_lor.Finalize();
    SparseMatrix &A2 = a_lor.SpMat();
