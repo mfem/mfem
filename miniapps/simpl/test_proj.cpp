@@ -462,8 +462,8 @@ int main(int argc, char *argv[])
    // FunctionCoefficient rho_targ();
    densityBC.SetSize(pmesh->bdr_attributes.Max());
    densityBC=0;
-   densityBC[0] = -1; // bottom
-   densityBC[2] = -1; // top
+   // densityBC[0] = -1; // bottom
+   // densityBC[2] = -1; // top
 
    Array<int> essNeumannBC(densityBC);
    for (int &bdr : essNeumannBC) { bdr = (bdr == 0); }
