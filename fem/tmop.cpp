@@ -36,9 +36,24 @@ type fnorm2_2D(const std::vector<type> &u)
 }
 
 template <typename type>
+type fnorm2_3D(const std::vector<type> &u)
+{
+   return u[0]*u[0] + u[1]*u[1] + u[2]*u[2] + u[3]*u[3] + u[4]*u[4] +
+          u[5]*u[5] + u[6]*u[6] + u[7]*u[7] + u[8]*u[8];
+}
+
+template <typename type>
 type det_2D(const std::vector<type> &u)
 {
    return u[0]*u[3] - u[1]*u[2];
+}
+
+template <typename type>
+type det_3D(const std::vector<type> &u)
+{
+   return u[0]*(u[4]*u[8] - u[5]*u[7]) -
+          u[1]*(u[3]*u[8] - u[5]*u[6]) +
+          u[2]*(u[3]*u[7] - u[4]*u[6]);
 }
 
 template <typename type>
@@ -105,6 +120,24 @@ void transpose_2D(const std::vector<type> &in, std::vector<type> &outm)
    outm[3] = in[3];
 }
 
+template <typename scalartype, typename type>
+void add_3D(const scalartype &scalar, const std::vector<type> &u,
+            const DenseMatrix *M, std::vector<type> &mat)
+{
+   mat.resize(u.size());
+   mat[0] = u[0] + scalar * M->Elem(0,0);
+   mat[1] = u[1] + scalar * M->Elem(1,0);
+   mat[2] = u[2] + scalar * M->Elem(2,0);
+
+   mat[3] = u[3] + scalar * M->Elem(0,1);
+   mat[4] = u[4] + scalar * M->Elem(1,1);
+   mat[5] = u[5] + scalar * M->Elem(2,1);
+
+   mat[6] = u[6] + scalar * M->Elem(0,2);
+   mat[7] = u[7] + scalar * M->Elem(1,2);
+   mat[8] = u[8] + scalar * M->Elem(2,2);
+}
+
 /* Metric definitions */
 
 // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
@@ -128,6 +161,19 @@ type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
    add_2D(-1.0, T, &Id, Mat);
 
    return fnorm2_2D(Mat)/det_2D(T);
+};
+
+// W = 1/(tau^0.5) |T-I|^2.
+template <typename type>
+type mu342_ad(const std::vector<type> &T, const std::vector<type> &W)
+{
+   DenseMatrix Id(3,3); Id = 0.0;
+   Id(0,0) = 1; Id(1,1) = 1; Id(2,2) = 1;
+
+   std::vector<type> Mat;
+   add_3D(-1.0, T, &Id, Mat);
+
+   return fnorm2_3D(Mat)/sqrt(det_3D(T));
 };
 
 // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
@@ -1707,6 +1753,32 @@ void TMOP_Metric_323::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
    ie.Assemble_ddI3b(- weight * 3.0 * sqrt(3.0) / ie.Get_I3b(), A.GetData());
    ie.Assemble_TProd(weight * 3.0 * sqrt(3.0) / ie.Get_I3b() / ie.Get_I3b(),
                      ie.Get_dI3b(), A.GetData());
+}
+
+// mu_342 = 1/(tau^0.5)|T-I|^2
+real_t TMOP_Metric_342::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   int matsize = Jpt.TotalSize();
+   std::vector<AD1Type> T(matsize), W(matsize);
+   for (int i=0; i<matsize; i++) { T[i] = AD1Type{Jpt.GetData()[i], 0.0}; }
+   return mu342_ad(T, W).value;
+}
+
+void TMOP_Metric_342::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   ADGrad(mu342_ad<AD1Type>, P, Jpt);
+   return;
+}
+
+void TMOP_Metric_342::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const real_t weight,
+                                DenseMatrix &A) const
+{
+   const int dim = Jpt.Height();
+   DenseTensor H(dim, dim, dim*dim); H = 0.0;
+   ADHessian(mu342_ad<AD2Type>, H, Jpt);
+   this->DefaultAssembleH(H,DS,weight,A);
 }
 
 real_t TMOP_Metric_352::EvalW(const DenseMatrix &Jpt) const
