@@ -182,7 +182,6 @@ int main(int argc, char *argv[])
                   "94 : balanced combo mu_2 & mu_56    -- 2D shape+size\n\t"
                   "98 : (1/tau)|T-I|^2                 -- 2D shape+size+orientation\n\t"
                   // "211: (tau-1)^2-tau+sqrt(tau^2+eps)  -- 2D untangling\n\t"
-                  // "211: (tau-1)^2-tau+sqrt(tau^2)      -- 2D untangling\n\t"
                   // "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
                   "301: (|T||T^-1|)/3-1              -- 3D shape\n\t"
                   "302: (|T|^2|T^-1|^2)/9-1          -- 3D shape\n\t"
@@ -206,6 +205,8 @@ int main(int argc, char *argv[])
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
+                  "49 : (1-gamma) mu_2 + gamma nu_50          -- 2D shape+skew\n\t"
+                  "51 : see fem/tmop.hpp                      -- 2D size+skew\n\t"
                   "107: (1/2*alpha)|A-|A|/|W|W|^2             -- 2D shape+orientation\n\t"
                   "126: (1-gamma)nu_11 + gamma*nu_14a         -- 2D shape+size\n\t"
                  );
