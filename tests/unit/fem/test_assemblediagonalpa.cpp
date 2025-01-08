@@ -451,9 +451,9 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                      }
                      else
                      {
-                        const FiniteElement *fel = fespace.GetFE(0);
+                        const FiniteElement *fel = fespace.GetTypicalFE();
                         const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
-                                                                                  *mesh.GetElementTransformation(0));
+                                                                                  *mesh.GetTypicalElementTransformation());
 
                         if (spaceType == Hcurl)
                         {

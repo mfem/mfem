@@ -136,7 +136,7 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
                face_info);
 
             const FiniteElement *face_el =
-               parentfes.GetTraceElement(parent_element_ids[i], face_geom);
+               parentfes.GetTraceElement(parent_volel_id, face_geom);
             MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
                         "Nodal Finite Element is required");
 
