@@ -442,7 +442,7 @@ int main(int argc, char *argv[])
 
    // integrators in the PML region
    // Custom integration rule for the test space in the PML region
-   const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0),
+   const IntegrationRule &ir = IntRules.Get(pmesh.GetTypicalElementGeometry(),
                                             2*test_order + 1);
    if (pml)
    {
