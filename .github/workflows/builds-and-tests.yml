@@ -29,6 +29,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
   HYPRE_TOP_DIR: hypre-2.19.0
@@ -115,13 +119,6 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      # This external action allows to interrupt a workflow already running on
-      # the same branch to save resources.
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-
       # Fix 'No space left on device' errors for Ubuntu builds.
       - name: Run Actions Cleaner
         if: matrix.os == 'ubuntu-latest'
