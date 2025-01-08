@@ -2156,7 +2156,7 @@ public:
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
-   static struct Kernels { Kernels(); } kernels;
+   struct Kernels { Kernels(); };
 
 protected:
    Coefficient *Q;
@@ -2234,26 +2234,16 @@ private:
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator(const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(const IntegrationRule *ir = nullptr);
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr);
 
    /// Construct a diffusion integrator with a vector coefficient q
-   DiffusionIntegrator(VectorCoefficient &q,
-                       const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(&q), MQ(NULL), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(VectorCoefficient &q, const IntegrationRule *ir = nullptr);
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator(MatrixCoefficient &q,
-                       const IntegrationRule *ir = nullptr)
-      : BilinearFormIntegrator(ir),
-        Q(NULL), VQ(NULL), MQ(&q), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(MatrixCoefficient &q, const IntegrationRule *ir = nullptr);
 
    /** Given a particular Finite Element computes the element stiffness matrix
        elmat. */
@@ -2356,15 +2346,13 @@ public:
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
-   static struct Kernels { Kernels(); } kernels;
+   struct Kernels { Kernels(); };
 
 public:
-   MassIntegrator(const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(NULL), maps(NULL), geom(NULL) { }
+   MassIntegrator(const IntegrationRule *ir = nullptr);
 
    /// Construct a mass integrator with coefficient q
-   MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
-      : BilinearFormIntegrator(ir), Q(&q), maps(NULL), geom(NULL) { }
+   MassIntegrator(Coefficient &q, const IntegrationRule *ir = NULL);
 
    /** Given a particular Finite Element computes the element mass matrix
        elmat. */
@@ -3292,7 +3280,10 @@ public:
                                 const bool add) override;
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
-                                         FaceElementTransformations &T);
+                                         const FaceElementTransformations &T);
+
+   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
+                                         const ElementTransformation &T);
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
@@ -3380,6 +3371,8 @@ public:
                                        Vector &y, Vector &dydn) const override;
 
    const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
+
+   const IntegrationRule &GetRule(int order, Geometry::Type geom);
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);

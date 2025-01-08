@@ -14,7 +14,7 @@
 #   - SLEPC_INCLUDE_DIRS
 #   - SLEPC_LIBRARIES
 
-set(SLEPc_REQUIRED_PACKAGES "PETSC" CACHE STRING
+set(SLEPc_REQUIRED_PACKAGES "PETSC" "MPI" CACHE STRING
   "Additional packages required by SLEPc")
 
 include(MfemCmakeUtilities)

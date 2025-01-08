@@ -51,14 +51,13 @@
 //   Adapted discrete size NC mesh;
 //     mesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size 3D with PA:
-//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
+//     mesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
 //   Adapted discrete size 3D with PA on device (requires CUDA):
 //   * mesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
 //     mesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
 //   Adapted discrete size+orientation:
 //      mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
 //   Adapted discrete aspect ratio (3D):
@@ -67,7 +66,7 @@
 //   Adaptive limiting:
 //     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
-//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1
+//     mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
 //   Adaptive limiting through FD (requires GSLIB):
 //   * mesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
@@ -558,7 +557,9 @@ int main(int argc, char *argv[])
    TargetConstructor *target_c = NULL;
    HessianCoefficient *adapt_coeff = NULL;
    HRHessianCoefficient *hr_adapt_coeff = NULL;
-   H1_FECollection ind_fec(mesh_poly_deg, dim);
+   int ind_fec_order = (target_id >= 5 && target_id <= 8 && !fdscheme) ?
+                       1 : mesh_poly_deg;
+   H1_FECollection ind_fec(ind_fec_order, dim);
    FiniteElementSpace ind_fes(mesh, &ind_fec);
    FiniteElementSpace ind_fesv(mesh, &ind_fec, dim);
    GridFunction size(&ind_fes), aspr(&ind_fes), ori(&ind_fes);
@@ -599,6 +600,7 @@ int main(int argc, char *argv[])
          }
          ConstructSizeGF(size);
          tc->SetSerialDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          target_c = tc;
          break;
       }
@@ -693,6 +695,7 @@ int main(int argc, char *argv[])
          DiffuseField(aspr, 2);
 
          tc->SetSerialDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
          tc->SetSerialDiscreteTargetAspectRatio(aspr);
          target_c = tc;
          break;
@@ -740,6 +743,7 @@ int main(int argc, char *argv[])
          ConstantCoefficient size_coeff(0.1*0.1);
          size.ProjectCoefficient(size_coeff);
          tc->SetSerialDiscreteTargetSize(size);
+         tc->SetMinSizeForTargets(size.Min());
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
@@ -949,7 +953,7 @@ int main(int argc, char *argv[])
                   "Untangling is supported only for ideal targets.");
 
       const DenseMatrix &Wideal =
-         Geometries.GetGeomToPerfGeomJac(fespace->GetFE(0)->GetGeomType());
+         Geometries.GetGeomToPerfGeomJac(mesh->GetTypicalElementGeometry());
       min_detJ /= Wideal.Det();
 
       // Slightly below minJ0 to avoid div by 0.
@@ -1092,7 +1096,7 @@ int main(int argc, char *argv[])
    // Perform the nonlinear optimization.
    //
    const IntegrationRule &ir =
-      irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(mesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
@@ -1109,8 +1113,8 @@ int main(int argc, char *argv[])
    }
    // Level of output.
    IterativeSolver::PrintLevel newton_print;
-   if (verbosity_level > 0)
-   { newton_print.Errors().Warnings().Iterations(); }
+   if (verbosity_level > 0) { newton_print.Errors().Warnings().Iterations(); }
+   else { newton_print.Errors().Warnings(); }
    solver.SetPrintLevel(newton_print);
    // hr-adaptivity solver.
    // If hr-adaptivity is disabled, r-adaptivity is done once using the
