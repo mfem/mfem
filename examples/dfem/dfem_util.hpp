@@ -57,9 +57,9 @@ namespace detail
 
 template <typename lambda, size_t... i>
 constexpr void for_constexpr(lambda&& f,
-                             std::integral_constant<size_t, i>... args)
+                             std::integral_constant<size_t, i>... Is)
 {
-   f(args...);
+   f(Is...);
 }
 
 
@@ -85,6 +85,31 @@ template <int... n, typename lambda>
 constexpr void for_constexpr(lambda&& f)
 {
    detail::for_constexpr(f, std::make_integer_sequence<size_t, n> {}...);
+}
+
+template <typename lambda, typename arg_t>
+constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
+                                      std::integer_sequence<size_t>)
+{
+   // Base case - do nothing for empty sequence
+}
+
+template <typename lambda, typename arg_t, size_t i, size_t... Is>
+constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
+                                      std::integer_sequence<size_t, i, Is...>)
+{
+   f(std::integral_constant<size_t, i> {}, mfem::get<i>(arg));
+   for_constexpr_with_arg(f, std::forward<arg_t>(arg),
+                          std::integer_sequence<size_t, Is...> {});
+}
+
+template <typename lambda, typename arg_t>
+constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
+{
+   using indices =
+      std::make_index_sequence<mfem::tuple_size<std::remove_reference_t<arg_t>>::value>;
+   for_constexpr_with_arg(std::forward<lambda>(f), std::forward<arg_t>(arg),
+                          indices{});
 }
 
 template <typename T>
@@ -1134,6 +1159,35 @@ create_descriptors_to_fields_map(
    return map;
 }
 
+// template <
+//    typename field_operator_ts,
+//    size_t num_fops = mfem::tuple_size<field_operator_ts>::value>
+// std::array<int, num_fops> get_fop_dims(
+//    field_operator_ts &fops,
+//    const std::vector<FieldDescriptor> &fields,
+//    std::array<int, num_fops> &input_to_field)
+// {
+//    std::array<int, num_fops> fop_dims{};
+//    for_constexpr<num_fops>([&](auto i)
+//    {
+//       out << "i: " << i << std::endl;
+//       if (input_to_field[i] == -1)
+//       {
+//          fop_dims[i] = 1;
+//          return;
+//       }
+
+//       auto fop = mfem::get<i>(fops);
+//       auto field = fields[input_to_field[i]];
+//       if constexpr (is_value_fop<decltype(fop)>::value)
+//       {
+//          fop_dims[i] = 2;
+//       }
+//    });
+
+//    return fop_dims;
+// }
+
 template <typename input_t, std::size_t... i>
 std::array<DeviceTensor<3>, sizeof...(i)> wrap_input_memory(
    std::array<Vector, sizeof...(i)> &input_qp_mem, int num_qp, int num_entities,
@@ -1828,7 +1882,7 @@ template <typename input_t, size_t num_fields, std::size_t... i>
 int accumulate_sizes_on_qp(
    const input_t &inputs,
    std::array<bool, sizeof...(i)> &kinput_is_dependent,
-   const std::array<int, sizeof...(i)> &kinput_to_field,
+   const std::array<int, sizeof...(i)> &input_to_field,
    const std::array<FieldDescriptor, num_fields> &fields,
    std::index_sequence<i...>)
 {
@@ -1842,7 +1896,7 @@ int accumulate_sizes_on_qp(
    }
    (mfem::get<i>(inputs),
     mfem::get<i>(kinput_is_dependent),
-    fields[kinput_to_field[i]]));
+    fields[input_to_field[i]]));
 }
 
 // template <typename entity_t, typename field_operator_ts, size_t N, std::size_t... i>

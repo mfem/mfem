@@ -86,6 +86,7 @@ void process_kf_args(
    for_constexpr<mfem::tuple_size<kf_args>::value>([&](auto i)
    {
       process_kf_arg(u[i], mfem::get<i>(args), qp);
+      // out << mfem::get<i>(args) << ", ";
    });
 }
 
@@ -248,8 +249,11 @@ void apply_kernel_fwddiff_enzyme(
    const std::array<DeviceTensor<2>, num_args> &v,
    int qp_idx)
 {
+   // out << "\nargs: ";
    process_kf_args(u, args, qp_idx);
+   // out << "\nshadow args: ";
    process_kf_args(v, shadow_args, qp_idx);
+   // out << "\n";
    process_kf_result(f_qp,
                      mfem::get<0>(fwddiff_apply_enzyme(qfunc, args, shadow_args, mfem::tuple<> {})));
 }

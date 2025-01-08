@@ -1,4 +1,6 @@
 #include "dfem/dfem_refactor.hpp"
+#include "examples/dfem/dfem_util.hpp"
+#include "linalg/hypre.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -10,22 +12,22 @@ public:
    AdvDiffQFunction() = default;
 
    MFEM_HOST_DEVICE inline
-   auto operator() (const real_t &u,
-                    const tensor<real_t, dim>& dudxi,
+   auto operator() (const tensor<real_t, dim>& dudxi,
                     const tensor<real_t, dim, dim>& J,
                     const real_t& w) const
    {
       auto invJ = inv(J);
 
       // Advection
-      auto b = tensor<real_t, dim> {1.0, 1.0};
-      auto advection = -b * u;
+      // auto b = tensor<real_t, dim> {1.0, 1.0};
+      // auto advection = -b * u;
 
       // Diffusion
-      auto K = 1.0 / (1.0 + u*u);
-      auto diffusion = K * (dudxi * invJ);
+      // auto K = 1.0 / (1.0 + u*u);
+      // auto diffusion = K * (dudxi * invJ);
+      auto diffusion = dudxi * invJ;
 
-      return mfem::tuple{(advection + diffusion) * transpose(invJ) * det(J) * w};
+      return mfem::tuple{(/*advection + */diffusion) * transpose(invJ) * det(J) * w};
    }
 };
 
@@ -76,7 +78,7 @@ class AdvDiffOp : public TimeDependentOperator
          k_elim = k;
          k_elim.SetSubVector(a.ess_tdof_list, 0.0);
 
-         dRdu->Mult(k_elim, y);
+         // dRdu->Mult(k_elim, y);
          y *= h;
          a.M->AddMult(k_elim, y);
 
@@ -90,7 +92,7 @@ class AdvDiffOp : public TimeDependentOperator
       mutable Vector concentration_l;
       mutable Vector k_elim;
       real_t h;
-      std::unique_ptr<Operator> dRdu;
+      std::shared_ptr<DerivativeOperator> dRdu;
    };
 
    class AdvDiffResidualOp : public Operator
@@ -102,7 +104,18 @@ class AdvDiffOp : public TimeDependentOperator
          a(a),
          x(x),
          u(x.Size()),
-         z(x.Size()) {}
+         z(x.Size())
+      {
+         HypreParMatrix A;
+         u = 0.0;
+         a.adv_diff->GetDerivative(Concentration, {&u}, {a.mesh_nodes})->Assemble(A);
+
+         out << "A HypreParMatrix\n";
+         A.PrintMatlab(out);
+
+         out << "FD\n";
+         FDJacobian(*a.adv_diff.get(), x).PrintMatlab(out);
+      }
 
       void Mult(const Vector &k, Vector &R) const override
       {
@@ -144,7 +157,7 @@ class AdvDiffOp : public TimeDependentOperator
 
 public:
    AdvDiffOp(ParFiniteElementSpace &fes, const IntegrationRule &ir,
-             const Array<int> ess_tdof_list) :
+             const Array<int> ess_tdof_list, bool disable_tensor_product_structure = false) :
       TimeDependentOperator(fes.GetTrueVSize()),
       ess_tdof_list(ess_tdof_list),
       fes(fes),
@@ -155,7 +168,7 @@ public:
                    (mesh->GetNodes());
       ParFiniteElementSpace& mesh_fes = *mesh_nodes->ParFESpace();
 
-      auto input_operators = mfem::tuple{Value<Concentration>{}, Gradient<Concentration>{}, Gradient<Coordinates>{}, Weight{}};
+      auto input_operators = mfem::tuple{Gradient<Concentration>{}, Gradient<Coordinates>{}, Weight{}};
       auto output_operator = mfem::tuple{Gradient<Concentration>{}};
 
       auto solutions = std::vector{FieldDescriptor{Concentration, &fes}};
@@ -165,6 +178,7 @@ public:
                                                           *mesh);
       auto derivatives = std::integer_sequence<size_t, Concentration> {};
       AdvDiffQFunction<2> advdiff_qf{};
+      adv_diff->DisableTensorProductStructure(disable_tensor_product_structure);
       adv_diff->AddDomainIntegrator(advdiff_qf, input_operators, output_operator, ir,
                                     derivatives);
 
@@ -227,6 +241,7 @@ int main(int argc, char* argv[])
    real_t dt = 1.0;
    real_t t_final = 1.0;
    int vis_steps = 5;
+   bool disable_tensor_product_structure = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -239,6 +254,8 @@ int main(int argc, char* argv[])
    args.AddOption(&dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&disable_tensor_product_structure, "-disable-tp", "--disable-tp",
+                  "-enable-tp", "--enable-tp", "");
    args.ParseCheck();
 
    Device device(device_config);
@@ -286,7 +303,7 @@ int main(int argc, char* argv[])
    ess_bdr = 1;
    h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   AdvDiffOp advdiff(h1fes, ir, ess_tdof_list);
+   AdvDiffOp advdiff(h1fes, ir, ess_tdof_list, disable_tensor_product_structure);
 
    ODESolver *ode_solver = new SDIRK23Solver;
    ode_solver->Init(advdiff);
