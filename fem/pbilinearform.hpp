@@ -296,8 +296,10 @@ protected:
 
    bool keep_nbr_block;
 
-   // Allocate mat - called when (mat == NULL && fbfi.Size() > 0)
-   void pAllocMat();
+   /// Allocate the local matrix
+   /** Called when it has not been allocated already and interior face
+       or trace face integrators are present. */
+   void pAllocMat(bool trial_faces = true);
 
    void AssembleSharedFaces(int skip_zeros = 1);
 
