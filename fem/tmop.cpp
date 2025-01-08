@@ -321,8 +321,9 @@ void ADGrad(std::function<AD1Type(std::vector<AD1Type>&,
          adX[i] = AD1Type{X.GetData()[i], 0.0};
       }
    }
-   else if (Y)
+   else
    {
+      MFEM_VERIFY(Y, "Y cannot be nullptr when dX = false.");
       for (int i=0; i<matsize; i++)
       {
          adY[i] = AD1Type{Y->GetData()[i], 1.0};
@@ -331,17 +332,14 @@ void ADGrad(std::function<AD1Type(std::vector<AD1Type>&,
          adY[i] = AD1Type{Y->GetData()[i], 0.0};
       }
    }
-   else
-   {
-      MFEM_ABORT("Y cannot be nullptr when dX = false.");
-   }
 }
 
 // Given mu(X,Y), compute d2mu/dX2, where Y is an optional parameter.
-void ADHessian(
-   std::function<AD2Type(std::vector<AD2Type>&, std::vector<AD2Type>&)>
-   mu_ad,
-   DenseTensor &d2mu_dX2, const DenseMatrix &X, const DenseMatrix *Y = nullptr)
+void ADHessian(std::function<AD2Type(std::vector<AD2Type>&,
+                                     std::vector<AD2Type>&)> mu_ad,
+               DenseTensor &d2mu_dX2,
+               const DenseMatrix &X,
+               const DenseMatrix *Y = nullptr)
 {
    const int matsize = X.TotalSize();
 
