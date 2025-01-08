@@ -1382,6 +1382,18 @@ public:
       Update(false);
    }
 
+   /** @brief Compute the space's node positions w.r.t. given mesh positions.
+       The function uses FiniteElement::GetNodes() to obtain the reference DOF
+       positions of each finite element.
+
+       @param[in]  mesh_nodes   Mesh positions. Assumes that it has the same
+                                topology & ordering as the mesh of the FE space,
+                                i.e, same size as this->GetMesh()->GetNodes().
+       @param[out] fes_node_pos Positions of the FE space's nodes.
+       @param[in]  fes_nodes_ordering  Ordering of fes_node_pos.     */
+   void GetNodePositions(const Vector &mesh_nodes, Vector &fes_node_pos,
+                         int fes_nodes_ordering = Ordering::byNODES) const;
+
    /// Save finite element space to output stream @a out.
    void Save(std::ostream &out) const;
 
