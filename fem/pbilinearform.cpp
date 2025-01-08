@@ -619,9 +619,9 @@ void ParBilinearForm::Update(FiniteElementSpace *nfes)
    p_mat_e.Clear();
 }
 
-void ParMixedBilinearForm::pAllocMat()
+void ParMixedBilinearForm::pAllocMat(bool trial_faces)
 {
-   const int trial_nbr_size = trial_pfes->GetFaceNbrVSize();
+   const int trial_nbr_size = (trial_faces)?(trial_pfes->GetFaceNbrVSize()):(0);
    const int test_nbr_size = test_pfes->GetFaceNbrVSize();
 
    if (keep_nbr_block)
@@ -638,6 +638,7 @@ void ParMixedBilinearForm::AssembleSharedFaces(int skip_zeros)
 {
    ParMesh *pmesh = trial_pfes->GetParMesh();
    FaceElementTransformations *T;
+   Array<int> tr_face_vdofs;
    Array<int> tr_vdofs1, tr_vdofs2, tr_vdofs_all;
    Array<int> te_vdofs1, te_vdofs2, te_vdofs_all;
    DenseMatrix elemmat;
@@ -647,24 +648,8 @@ void ParMixedBilinearForm::AssembleSharedFaces(int skip_zeros)
    {
       T = pmesh->GetSharedFaceTransformations(i);
       int Elem2NbrNo = T->Elem2No - pmesh->GetNE();
-      trial_pfes->GetElementVDofs(T->Elem1No, tr_vdofs1);
       test_pfes->GetElementVDofs(T->Elem1No, te_vdofs1);
-      trial_pfes->GetFaceNbrElementVDofs(Elem2NbrNo, tr_vdofs2);
       test_pfes->GetFaceNbrElementVDofs(Elem2NbrNo, te_vdofs2);
-
-      tr_vdofs1.Copy(tr_vdofs_all);
-      for (int j = 0; j < tr_vdofs2.Size(); j++)
-      {
-         if (tr_vdofs2[j] >= 0)
-         {
-            tr_vdofs2[j] += width;
-         }
-         else
-         {
-            tr_vdofs2[j] -= width;
-         }
-      }
-      tr_vdofs_all.Append(tr_vdofs2);
 
       if (keep_nbr_block)
       {
@@ -683,21 +668,63 @@ void ParMixedBilinearForm::AssembleSharedFaces(int skip_zeros)
          te_vdofs_all.Append(te_vdofs2);
       }
 
-      for (int k = 0; k < interior_face_integs.Size(); k++)
+      if (interior_face_integs.Size() > 0)
       {
-         interior_face_integs[k]->
-         AssembleFaceMatrix(*trial_pfes->GetFE(T->Elem1No),
-                            *test_pfes->GetFE(T->Elem1No),
-                            *trial_pfes->GetFaceNbrFE(Elem2NbrNo),
-                            *test_pfes->GetFaceNbrFE(Elem2NbrNo),
-                            *T, elemmat);
-         if (keep_nbr_block)
+         trial_pfes->GetElementVDofs(T->Elem1No, tr_vdofs1);
+         trial_pfes->GetFaceNbrElementVDofs(Elem2NbrNo, tr_vdofs2);
+
+         tr_vdofs1.Copy(tr_vdofs_all);
+         for (int j = 0; j < tr_vdofs2.Size(); j++)
          {
-            mat->AddSubMatrix(te_vdofs_all, tr_vdofs_all, elemmat, skip_zeros);
+            if (tr_vdofs2[j] >= 0)
+            {
+               tr_vdofs2[j] += width;
+            }
+            else
+            {
+               tr_vdofs2[j] -= width;
+            }
          }
-         else
+         tr_vdofs_all.Append(tr_vdofs2);
+
+         for (int k = 0; k < interior_face_integs.Size(); k++)
          {
-            mat->AddSubMatrix(te_vdofs1, tr_vdofs_all, elemmat, skip_zeros);
+            interior_face_integs[k]->
+            AssembleFaceMatrix(*trial_pfes->GetFE(T->Elem1No),
+                               *test_pfes->GetFE(T->Elem1No),
+                               *trial_pfes->GetFaceNbrFE(Elem2NbrNo),
+                               *test_pfes->GetFaceNbrFE(Elem2NbrNo),
+                               *T, elemmat);
+            if (keep_nbr_block)
+            {
+               mat->AddSubMatrix(te_vdofs_all, tr_vdofs_all, elemmat, skip_zeros);
+            }
+            else
+            {
+               mat->AddSubMatrix(te_vdofs1, tr_vdofs_all, elemmat, skip_zeros);
+            }
+         }
+      }
+
+      if (trace_face_integs.Size() > 0)
+      {
+         trial_pfes->GetFaceVDofs(T->ElementNo, tr_face_vdofs);
+
+         for (int k = 0; k < trace_face_integs.Size(); k++)
+         {
+            trace_face_integs[k]->
+            AssembleFaceMatrix(*trial_pfes->GetFaceElement(T->ElementNo),
+                               *test_pfes->GetFE(T->Elem1No),
+                               *test_pfes->GetFaceNbrFE(Elem2NbrNo),
+                               *T, elemmat);
+            if (keep_nbr_block)
+            {
+               mat->AddSubMatrix(te_vdofs_all, tr_face_vdofs, elemmat, skip_zeros);
+            }
+            else
+            {
+               mat->AddSubMatrix(te_vdofs1, tr_face_vdofs, elemmat, skip_zeros);
+            }
          }
       }
    }
@@ -709,15 +736,21 @@ void ParMixedBilinearForm::Assemble(int skip_zeros)
    {
       trial_pfes->ExchangeFaceNbrData();
       test_pfes->ExchangeFaceNbrData();
-      if (!ext && mat == NULL)
-      {
-         pAllocMat();
-      }
+      if (!ext && mat == NULL) { pAllocMat(); }
+   }
+
+   // note: the trace face case must follow the interior face one as the
+   // allocated matrix can be smaller in this case
+   if (trace_face_integs.Size())
+   {
+      test_pfes->ExchangeFaceNbrData();
+      if (!ext && mat == NULL) { pAllocMat(false); }
    }
 
    MixedBilinearForm::Assemble(skip_zeros);
 
-   if (!ext && interior_face_integs.Size() > 0)
+   if (!ext && (interior_face_integs.Size() > 0
+                || trace_face_integs.Size() > 0))
    {
       AssembleSharedFaces(skip_zeros);
    }
@@ -750,7 +783,8 @@ void ParMixedBilinearForm::ParallelAssemble(OperatorHandle &A,
 
    OperatorHandle dA(A.Type()), hdA;
 
-   if (interior_face_integs.Size() == 0)
+   if (interior_face_integs.Size() == 0 && (trace_face_integs.Size() == 0
+                                            || keep_nbr_block == false))
    {
       // construct the rectangular block-diagonal matrix dA
       dA.MakeRectangularBlockDiag(trial_pfes->GetComm(),
