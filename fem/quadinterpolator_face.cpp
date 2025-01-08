@@ -77,7 +77,7 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(
 
    if (fespace->GetNE() == 0) { return; }
    GetSigns(*fespace, type, signs);
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    const ScalarFiniteElement *sfe =
       dynamic_cast<const ScalarFiniteElement*>(fe);
    const TensorBasisElement *tfe =
@@ -587,8 +587,7 @@ void FaceQuadratureInterpolator::Mult(
    if (nf == 0) { return; }
    const int vdim = fespace->GetVDim();
    const int dim = fespace->GetMesh()->Dimension();
-   const FiniteElement *fe =
-      fespace->GetTraceElement(0, fespace->GetMesh()->GetFaceGeometry(0));
+   const FiniteElement *fe = fespace->GetTypicalTraceElement();
    const IntegrationRule *ir = IntRule;
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int nd1d = maps.ndof;

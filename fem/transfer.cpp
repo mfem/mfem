@@ -195,9 +195,9 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
    }
 
    // Construct B, if not set, define a suitable mass_integ
-   if (!mass_integ && ran_fes.GetNE() > 0)
+   if (!mass_integ)
    {
-      const FiniteElement *f_fe_0 = ran_fes.GetFE(0);
+      const FiniteElement *f_fe_0 = ran_fes.GetTypicalFE();
       const int map_type = f_fe_0->GetMapType();
       if (map_type == FiniteElement::VALUE ||
           map_type == FiniteElement::INTEGRAL)
@@ -2062,12 +2062,10 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
       P.SetOperatorOwner(false);
       opr = P.Ptr();
    }
-   else if (lFESpace_.GetMesh()->GetNE() > 0
-            && hFESpace_.GetMesh()->GetNE() > 0
-            && lFESpace_.GetVDim() == 1
+   else if (lFESpace_.GetVDim() == 1
             && hFESpace_.GetVDim() == 1
-            && dynamic_cast<const TensorBasisElement*>(lFESpace_.GetFE(0))
-            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetFE(0))
+            && dynamic_cast<const TensorBasisElement*>(lFESpace_.GetTypicalFE())
+            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetTypicalFE())
             && !isvar_order
             && (hFESpace_.FEColl()->GetContType() ==
                 mfem::FiniteElementCollection::CONTINUOUS ||
@@ -2241,22 +2239,18 @@ TensorProductPRefinementTransferOperator(
    // Assuming the same element type
    Mesh* mesh = lFESpace.GetMesh();
    dim = mesh->Dimension();
-   if (mesh->GetNE() == 0)
-   {
-      return;
-   }
-   const FiniteElement& el = *lFESpace.GetFE(0);
+   const FiniteElement& el = *lFESpace.GetTypicalFE();
 
    const TensorBasisElement* ltel =
       dynamic_cast<const TensorBasisElement*>(&el);
    MFEM_VERIFY(ltel, "Low order FE space must be tensor product space");
 
    const TensorBasisElement* htel =
-      dynamic_cast<const TensorBasisElement*>(hFESpace.GetFE(0));
+      dynamic_cast<const TensorBasisElement*>(hFESpace.GetTypicalFE());
    MFEM_VERIFY(htel, "High order FE space must be tensor product space");
    const Array<int>& hdofmap = htel->GetDofMap();
 
-   const IntegrationRule& ir = hFESpace.GetFE(0)->GetNodes();
+   const IntegrationRule& ir = hFESpace.GetTypicalFE()->GetNodes();
    IntegrationRule irLex = ir;
 
    // The quadrature points, or equivalently, the dofs of the high order space

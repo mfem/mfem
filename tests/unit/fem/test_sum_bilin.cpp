@@ -32,8 +32,8 @@ TEST_CASE("H1 SumIntegrator", "[SumIntegrator][PartialAssembly]")
    integ_sum.AddIntegrator(new MassIntegrator);
    integ_sum.AddIntegrator(new DiffusionIntegrator);
 
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation &T = *mesh.GetElementTransformation(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
+   ElementTransformation &T = *mesh.GetTypicalElementTransformation();
    DenseMatrix m1, m_tmp, m2;
 
    // AssembleElementMatrix
