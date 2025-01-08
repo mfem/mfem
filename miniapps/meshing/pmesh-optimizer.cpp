@@ -219,6 +219,8 @@ int main (int argc, char *argv[])
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
+                  "49 : (1-gamma) mu_2 + gamma nu_50          -- 2D shape+skew\n\t"
+                  "51 : see fem/tmop.hpp                      -- 2D size+skew\n\t"
                   "107: (1/2*alpha)|A-|A|/|W|W|^2             -- 2D shape+orientation\n\t"
                   "126: (1-gamma)nu_11 + gamma*nu_14a         -- 2D shape+size\n\t"
                  );
