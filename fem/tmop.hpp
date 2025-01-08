@@ -1022,6 +1022,24 @@ public:
    virtual ~TMOP_Metric_338() { delete sh_metric; delete sz_metric; }
 };
 
+/// 3D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
+class TMOP_Metric_342 : public TMOP_QualityMetric
+{
+protected:
+   mutable InvariantsEvaluator3D<real_t> ie;
+
+public:
+   // W = 1/(tau^0.5) |T-I|^2.
+   real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
+   real_t EvalW(const DenseMatrix &Jpt) const override
+   { return EvalWMatrixForm(Jpt); }
+
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
+
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
+};
+
 /// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
 class TMOP_Metric_347 : public TMOP_Combo_QualityMetric
 {
@@ -1089,7 +1107,7 @@ public:
 class TMOP_AMetric_011 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<real_t> ie;
+   mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
    // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
@@ -1109,7 +1127,7 @@ public:
 class TMOP_AMetric_014 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<real_t> ie;
+   mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
    // 0.5 * ( sqrt(alpha/omega) - sqrt(omega/alpha) )^2
@@ -1129,7 +1147,7 @@ public:
 class TMOP_AMetric_036 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<real_t> ie;
+   mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
    // (1/alpha) | A - W |^2
@@ -1149,7 +1167,7 @@ public:
 class TMOP_AMetric_050 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<real_t> ie;
+   mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
    // [ 1.0 - cos( phi_A - phi_W ) ] / (sin phi_A * sin phi_W)
@@ -1169,7 +1187,7 @@ public:
 class TMOP_AMetric_051 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<real_t> ie;
+   mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
    // [ 0.5 * (ups_A / ups_W + ups_W / ups_A) - cos(phi_A - phi_W) ] /
@@ -1191,7 +1209,7 @@ public:
 class TMOP_AMetric_107 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<real_t> ie;
+   mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
    // (1/2 alpha) | A - (|A|/|W|) W |^2

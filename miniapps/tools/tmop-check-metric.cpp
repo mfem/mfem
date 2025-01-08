@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
       case 334: metric = new TMOP_Metric_334(0.5); break;
       case 338: metric = new TMOP_Metric_338; break;
       case 347: metric = new TMOP_Metric_347(0.5); break;
+      case 398: metric = new TMOP_Metric_398; break;
       // case 352: metric = new TMOP_Metric_352(tauval); break;
       case 360: metric = new TMOP_Metric_360; break;
       // A-metrics
