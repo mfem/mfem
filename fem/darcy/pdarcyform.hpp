@@ -79,7 +79,7 @@ public:
    //const BlockNonlinearForm *GetBlockNonlinearForm() const;
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
-   //void Assemble(int skip_zeros = 1);
+   void Assemble(int skip_zeros = 1);
 
    /// Finalizes the matrix initialization.
    void Finalize(int skip_zeros = 1);

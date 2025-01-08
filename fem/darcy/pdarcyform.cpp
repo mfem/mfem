@@ -46,9 +46,37 @@ MixedBilinearForm *ParDarcyForm::GetFluxDivForm()
    return pB;
 }
 
-/*void ParDarcyForm::Assemble(int skip_zeros)
+void ParDarcyForm::Assemble(int skip_zeros)
 {
-}*/
+   if (pM_u)
+   {
+      {
+         pM_u->Assemble(skip_zeros);
+      }
+   }
+   /*else if (Mnl_u)
+   {
+      Mnl_u->Setup();
+   }*/
+
+   if (pB)
+   {
+      {
+         pB->Assemble(skip_zeros);
+      }
+   }
+
+   if (pM_p)
+   {
+      {
+         pM_p->Assemble(skip_zeros);
+      }
+   }
+   /*else if (Mnl_p)
+   {
+      Mnl_p->Setup();
+   }*/
+}
 
 void ParDarcyForm::Finalize(int skip_zeros)
 {
