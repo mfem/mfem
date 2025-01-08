@@ -38,7 +38,7 @@ ElasticityOperator::ElasticityOperator(ParMesh &mesh, const int order)
 
    geometric_factors_ = h1_fes_.GetParMesh()->GetGeometricFactors(
                            *ir_, GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS);
-   maps_ = &h1_fes_.GetFE(0)->GetDofToQuad(*ir_, DofToQuad::TENSOR);
+   maps_ = &h1_fes_.GetTypicalFE()->GetDofToQuad(*ir_, DofToQuad::TENSOR);
    d1d_ = maps_->ndof;
    q1d_ = maps_->nqpt;
 
