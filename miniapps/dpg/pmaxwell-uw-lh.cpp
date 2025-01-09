@@ -44,6 +44,7 @@
 #include <ctime>
 #include <string>
 #include <sstream>
+#include <cstring>
 
 using namespace std;
 using namespace mfem;
@@ -55,21 +56,17 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    Hypre::Init();
 
+   // fine mesh (trianles)
+   // default mesh
+   const char *mesh_file = "data/mesh-tri34K.mesh";
+   // coarse mesh (triangles)
+   // const char *mesh_file = "data/mesh-tri11K.mesh";
+   // coarse mesh (quadrilaterals)
+   // const char *mesh_file = "data/mesh-quad5K.mesh";
 
-   // fine mesh
-   const char *mesh_file = "data/mesh2D.mesh";
-   const char * eps_r_file = "data/eps2D_r.gf";
-   const char * eps_i_file = "data/eps2D_i.gf";
-
-   // coarse mesh 1
-   // const char *mesh_file = "data/mesh2Dc.mesh";
-   // const char * eps_r_file = "data/eps_rc.gf";
-   // const char * eps_i_file = "data/eps_ic.gf";
-
-   // coarse mesh 2
-   // const char *mesh_file = "data/mesh2Dcc.mesh";
-   // const char * eps_r_file = "data/eps_rcc.gf";
-   // const char * eps_i_file = "data/eps_icc.gf";
+   // epsilon tensor
+   const char * eps_r_file = nullptr;
+   const char * eps_i_file = nullptr;
 
    int order = 2;
    int delta_order = 1;
@@ -138,6 +135,26 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       args.PrintOptions(cout);
+   }
+
+   if (strcmp(mesh_file, "data/mesh-tri34K.mesh") == 0)
+   {
+      eps_r_file = "data/eps-tri34K_r.gf";
+      eps_i_file = "data/eps-tri34K_i.gf";
+   }
+   else if (strcmp(mesh_file, "data/mesh-tri11K.mesh") == 0)
+   {
+      eps_r_file = "data/eps-tri11K_r.gf";
+      eps_i_file = "data/eps-tri11K_i.gf";
+   }
+   else if (strcmp(mesh_file, "data/mesh-quad5K.mesh") == 0)
+   {
+      eps_r_file = "data/eps-quad5K_r.gf";
+      eps_i_file = "data/eps-quad5K_i.gf";
+   }
+   else
+   {
+      MFEM_ABORT("Unknown mesh file: " + string(mesh_file));
    }
 
    real_t omega = 2.*M_PI*rnum;
@@ -416,7 +433,12 @@ int main(int argc, char *argv[])
 
    if (paraview)
    {
-      paraview_dc = new ParaViewDataCollection(mesh_file, &pmesh);
+      std::ostringstream paraview_file_name;
+      std::string filename = GetFilename(mesh_file);
+      paraview_file_name << filename
+                         << "_par_ref_" << par_ref_levels
+                         << "_order_" << order;
+      paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &pmesh);
       paraview_dc->SetPrefixPath(output_dir);
       paraview_dc->SetLevelsOfDetail(order);
       paraview_dc->SetCycle(0);
@@ -566,9 +588,9 @@ int main(int argc, char *argv[])
       if (mumps_solver)
       {
          // Monolithic real part
-         Array2D <HypreParMatrix * > Ab_r(num_blocks,num_blocks);
+         Array2D<const HypreParMatrix * > Ab_r(num_blocks,num_blocks);
          // Monolithic imag part
-         Array2D <HypreParMatrix * > Ab_i(num_blocks,num_blocks);
+         Array2D<const HypreParMatrix * > Ab_i(num_blocks,num_blocks);
          for (int i = 0; i<num_blocks; i++)
          {
             for (int j = 0; j<num_blocks; j++)

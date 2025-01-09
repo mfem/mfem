@@ -6,11 +6,11 @@ std::string GetTimestamp()
    std::time_t now = std::time(nullptr);
    std::tm* local_time = std::localtime(&now);
    std::ostringstream oss;
-   oss << (local_time->tm_year + 1900) << "-"
-       << (local_time->tm_mon + 1) << "-"
-       << local_time->tm_mday << "_"
-       << local_time->tm_hour << "-"
-       << local_time->tm_min << "-"
+   oss << (local_time->tm_mon + 1) << "-"
+       << local_time->tm_mday << "-"
+       << (local_time->tm_year + 1900) << "_"
+       << local_time->tm_hour << ":"
+       << local_time->tm_min << ":"
        << local_time->tm_sec;
    return oss.str();
 }
@@ -53,6 +53,16 @@ void CreateParaViewPath(const char* mesh_file, std::string& output_dir)
    std::string paraview_file = timestamp;
 
    output_dir = output_dir + paraview_file;
+}
 
+std::string GetFilename(const std::string& filePath)
+{
+   // Step 1: Find the last '/' or '\' to isolate the filename
+   size_t lastSlash = filePath.find_last_of("/\\");
+   std::string filename = (lastSlash == std::string::npos) ? filePath :
+                          filePath.substr(lastSlash + 1);
 
+   // Step 2: Find the last '.' to remove the extension
+   size_t lastDot = filename.find_last_of('.');
+   return (lastDot == std::string::npos) ? filename : filename.substr(0, lastDot);
 }
