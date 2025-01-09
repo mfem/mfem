@@ -26,6 +26,9 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+- Added native AD support for numerous TMOP metrics that didn't have first or
+  second derivative implementations.
+
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
   are also supported.
 
