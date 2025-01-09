@@ -940,201 +940,45 @@ real_t Vector::Normlp(real_t p) const
    return Normlinf(); // else p >= infinity()
 }
 
-real_t Vector::Max() const
-{
-   if (size == 0) { return -infinity(); }
+#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+static Array<real_t> vector_workspace;
 
-   HostRead();
-   real_t max = data[0];
-
-   for (int i = 1; i < size; i++)
-   {
-      if (data[i] > max)
-      {
-         max = data[i];
-      }
-   }
-
-   return max;
+static real_t devVectorMin(int size, const real_t *m_data) {
+   real_t res = 0;
+   reduce(
+       size, res,
+       [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmin(r, m_data[i]); },
+       MinReducer<real_t>{}, true, vector_workspace);
+   return res;
 }
 
-#ifdef MFEM_USE_CUDA
-static __global__ void cuKernelMin(const int N, real_t *gdsr, const real_t *x)
-{
-   __shared__ real_t s_min[MFEM_CUDA_BLOCKS];
-   const int n = blockDim.x*blockIdx.x + threadIdx.x;
-   if (n>=N) { return; }
-   const int bid = blockIdx.x;
-   const int tid = threadIdx.x;
-   const int bbd = bid*blockDim.x;
-   const int rid = bbd+tid;
-   s_min[tid] = x[n];
-   for (int workers=blockDim.x>>1; workers>0; workers>>=1)
-   {
-      __syncthreads();
-      if (tid >= workers) { continue; }
-      if (rid >= N) { continue; }
-      const int dualTid = tid + workers;
-      if (dualTid >= N) { continue; }
-      const int rdd = bbd+dualTid;
-      if (rdd >= N) { continue; }
-      if (dualTid >= blockDim.x) { continue; }
-      s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
-   }
-   if (tid==0) { gdsr[bid] = s_min[0]; }
+static real_t devVectorMax(int size, const real_t *m_data) {
+   real_t res = 0;
+   reduce(
+       size, res,
+       [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, m_data[i]); },
+       MaxReducer<real_t>{}, true, vector_workspace);
+   return res;
 }
 
-static Array<real_t> cuda_reduce_buf;
-
-static real_t cuVectorMin(const int N, const real_t *X)
-{
-   const int tpb = MFEM_CUDA_BLOCKS;
-   const int blockSize = MFEM_CUDA_BLOCKS;
-   const int gridSize = (N+blockSize-1)/blockSize;
-   const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(min_sz);
-   Memory<real_t> &buf = cuda_reduce_buf.GetMemory();
-   real_t *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
-   cuKernelMin<<<gridSize,blockSize>>>(N, d_min, X);
-   MFEM_GPU_CHECK(cudaGetLastError());
-   const real_t *h_min = buf.Read(MemoryClass::HOST, min_sz);
-   real_t min = std::numeric_limits<real_t>::infinity();
-   for (int i = 0; i < min_sz; i++) { min = std::min(min, h_min[i]); }
-   return min;
+static real_t devVectorSum(int size, const real_t *m_data) {
+   real_t res = 0;
+   reduce(
+       size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i]; },
+       SumReducer<real_t>{}, true, vector_workspace);
+   return res;
 }
 
-static __global__ void cuKernelDot(const int N, real_t *gdsr,
-                                   const real_t *x, const real_t *y)
-{
-   __shared__ real_t s_dot[MFEM_CUDA_BLOCKS];
-   const int n = blockDim.x*blockIdx.x + threadIdx.x;
-   if (n>=N) { return; }
-   const int bid = blockIdx.x;
-   const int tid = threadIdx.x;
-   const int bbd = bid*blockDim.x;
-   const int rid = bbd+tid;
-   s_dot[tid] = y ? (x[n] * y[n]) : x[n];
-   for (int workers=blockDim.x>>1; workers>0; workers>>=1)
-   {
-      __syncthreads();
-      if (tid >= workers) { continue; }
-      if (rid >= N) { continue; }
-      const int dualTid = tid + workers;
-      if (dualTid >= N) { continue; }
-      const int rdd = bbd+dualTid;
-      if (rdd >= N) { continue; }
-      if (dualTid >= blockDim.x) { continue; }
-      s_dot[tid] += s_dot[dualTid];
-   }
-   if (tid==0) { gdsr[bid] = s_dot[0]; }
+static real_t devVectorDot(int size, const real_t *m_data,
+                           const real_t *v_data) {
+   real_t res = 0;
+   reduce(
+       size, res,
+       [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i] * v_data[i]; },
+       SumReducer<real_t>{}, true, vector_workspace);
+   return res;
 }
-
-static real_t cuVectorDot(const int N, const real_t *X, const real_t *Y)
-{
-   const int tpb = MFEM_CUDA_BLOCKS;
-   const int blockSize = MFEM_CUDA_BLOCKS;
-   const int gridSize = (N+blockSize-1)/blockSize;
-   const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(dot_sz, Device::GetDeviceMemoryType());
-   Memory<real_t> &buf = cuda_reduce_buf.GetMemory();
-   real_t *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
-   cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);
-   MFEM_GPU_CHECK(cudaGetLastError());
-   const real_t *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
-   real_t dot = 0.0;
-   for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
-   return dot;
-}
-#endif // MFEM_USE_CUDA
-
-#ifdef MFEM_USE_HIP
-static __global__ void hipKernelMin(const int N, real_t *gdsr, const real_t *x)
-{
-   __shared__ real_t s_min[MFEM_HIP_BLOCKS];
-   const int n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
-   if (n>=N) { return; }
-   const int bid = hipBlockIdx_x;
-   const int tid = hipThreadIdx_x;
-   const int bbd = bid*hipBlockDim_x;
-   const int rid = bbd+tid;
-   s_min[tid] = x[n];
-   for (int workers=hipBlockDim_x>>1; workers>0; workers>>=1)
-   {
-      __syncthreads();
-      if (tid >= workers) { continue; }
-      if (rid >= N) { continue; }
-      const int dualTid = tid + workers;
-      if (dualTid >= N) { continue; }
-      const int rdd = bbd+dualTid;
-      if (rdd >= N) { continue; }
-      if (dualTid >= hipBlockDim_x) { continue; }
-      s_min[tid] = std::min(s_min[tid], s_min[dualTid]);
-   }
-   if (tid==0) { gdsr[bid] = s_min[0]; }
-}
-
-static Array<real_t> hip_reduce_buf;
-
-static real_t hipVectorMin(const int N, const real_t *X)
-{
-   const int tpb = MFEM_HIP_BLOCKS;
-   const int blockSize = MFEM_HIP_BLOCKS;
-   const int gridSize = (N+blockSize-1)/blockSize;
-   const int min_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
-   hip_reduce_buf.SetSize(min_sz);
-   Memory<real_t> &buf = hip_reduce_buf.GetMemory();
-   real_t *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
-   hipLaunchKernelGGL(hipKernelMin,gridSize,blockSize,0,0,N,d_min,X);
-   MFEM_GPU_CHECK(hipGetLastError());
-   const real_t *h_min = buf.Read(MemoryClass::HOST, min_sz);
-   real_t min = std::numeric_limits<real_t>::infinity();
-   for (int i = 0; i < min_sz; i++) { min = std::min(min, h_min[i]); }
-   return min;
-}
-
-static __global__ void hipKernelDot(const int N, real_t *gdsr,
-                                    const real_t *x, const real_t *y)
-{
-   __shared__ real_t s_dot[MFEM_HIP_BLOCKS];
-   const int n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
-   if (n>=N) { return; }
-   const int bid = hipBlockIdx_x;
-   const int tid = hipThreadIdx_x;
-   const int bbd = bid*hipBlockDim_x;
-   const int rid = bbd+tid;
-   s_dot[tid] = y ? (x[n] * y[n]) : x[n];
-   for (int workers=hipBlockDim_x>>1; workers>0; workers>>=1)
-   {
-      __syncthreads();
-      if (tid >= workers) { continue; }
-      if (rid >= N) { continue; }
-      const int dualTid = tid + workers;
-      if (dualTid >= N) { continue; }
-      const int rdd = bbd+dualTid;
-      if (rdd >= N) { continue; }
-      if (dualTid >= hipBlockDim_x) { continue; }
-      s_dot[tid] += s_dot[dualTid];
-   }
-   if (tid==0) { gdsr[bid] = s_dot[0]; }
-}
-
-static real_t hipVectorDot(const int N, const real_t *X, const real_t *Y)
-{
-   const int tpb = MFEM_HIP_BLOCKS;
-   const int blockSize = MFEM_HIP_BLOCKS;
-   const int gridSize = (N+blockSize-1)/blockSize;
-   const int dot_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
-   hip_reduce_buf.SetSize(dot_sz);
-   Memory<real_t> &buf = hip_reduce_buf.GetMemory();
-   real_t *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
-   hipLaunchKernelGGL(hipKernelDot,gridSize,blockSize,0,0,N,d_dot,X,Y);
-   MFEM_GPU_CHECK(hipGetLastError());
-   const real_t *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
-   real_t dot = 0.0;
-   for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
-   return dot;
-}
-#endif // MFEM_USE_HIP
+#endif
 
 real_t Vector::operator*(const Vector &v) const
 {
@@ -1162,14 +1006,14 @@ real_t Vector::operator*(const Vector &v) const
 #ifdef MFEM_USE_CUDA
    if (Device::Allows(Backend::CUDA_MASK))
    {
-      return cuVectorDot(size, m_data, v_data);
+      return devVectorDot(size, m_data, v_data);
    }
 #endif
 
 #ifdef MFEM_USE_HIP
    if (Device::Allows(Backend::HIP_MASK))
    {
-      return hipVectorDot(size, m_data, v_data);
+      return devVectorDot(size, m_data, v_data);
    }
 #endif
 
@@ -1249,14 +1093,14 @@ real_t Vector::Min() const
 #ifdef MFEM_USE_CUDA
    if (Device::Allows(Backend::CUDA_MASK))
    {
-      return cuVectorMin(size, m_data);
+      return devVectorMin(size, m_data);
    }
 #endif
 
 #ifdef MFEM_USE_HIP
    if (Device::Allows(Backend::HIP_MASK))
    {
-      return hipVectorMin(size, m_data);
+      return devVectorMin(size, m_data);
    }
 #endif
 
@@ -1301,6 +1145,64 @@ vector_min_cpu:
    return minimum;
 }
 
+real_t Vector::Max() const
+{
+   if (size == 0) { return -infinity(); }
+
+   const bool use_dev = UseDevice();
+   auto m_data = Read(use_dev);
+
+   if (!use_dev) { goto vector_max_cpu; }
+
+#ifdef MFEM_USE_OCCA
+   if (DeviceCanUseOcca())
+   {
+      return occa::linalg::max<real_t,real_t>(OccaMemoryRead(data, size));
+   }
+#endif
+
+#ifdef MFEM_USE_CUDA
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      return devVectorMax(size, m_data);
+   }
+#endif
+
+#ifdef MFEM_USE_HIP
+   if (Device::Allows(Backend::HIP_MASK))
+   {
+      return devVectorMax(size, m_data);
+   }
+#endif
+
+#ifdef MFEM_USE_OPENMP
+   if (Device::Allows(Backend::OMP_MASK))
+   {
+      real_t maximum = m_data[0];
+      #pragma omp parallel for reduction(max:maximum)
+      for (int i = 0; i < size; i++)
+      {
+         maximum = fmax(maximum, m_data[i]);
+      }
+      return maximum;
+   }
+#endif
+
+   if (Device::Allows(Backend::DEBUG_DEVICE))
+   {
+      auto m_data_ = Read();
+      return devVectorMax(size, m_data);
+   }
+
+vector_max_cpu:
+   real_t maximum = data[0];
+   for (int i = 1; i < size; i++)
+   {
+     maximum = fmax(maximum, m_data[i]);
+   }
+   return maximum;
+}
+
 real_t Vector::Sum() const
 {
    if (size == 0) { return 0.0; }
@@ -1310,13 +1212,13 @@ real_t Vector::Sum() const
 #ifdef MFEM_USE_CUDA
       if (Device::Allows(Backend::CUDA_MASK))
       {
-         return cuVectorDot(size, Read(), nullptr);
+         return devVectorSum(size, Read());
       }
 #endif
 #ifdef MFEM_USE_HIP
       if (Device::Allows(Backend::HIP_MASK))
       {
-         return hipVectorDot(size, Read(), nullptr);
+         return devVectorSum(size, Read());
       }
 #endif
       if (Device::Allows(Backend::DEBUG_DEVICE))
