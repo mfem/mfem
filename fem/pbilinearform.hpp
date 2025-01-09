@@ -392,7 +392,7 @@ public:
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
        the essential part of the boundary. This method relies on
        ParallelEliminateTrialTDofs(const Array<int> &), see it for details. */
-   void EliminateTrialEssentialBC(const Array<int> &bdr_attr_is_ess);
+   void ParallelEliminateTrialEssentialBC(const Array<int> &bdr_attr_is_ess);
 
    /// Eliminate essential trial true DOFs from the parallel system matrix.
    /** Given a list of essential trial true dofs, eliminate the trial true dofs
