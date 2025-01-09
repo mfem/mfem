@@ -603,7 +603,6 @@ MemoryType Device::QueryMemoryType(void* ptr)
 #if defined(MFEM_USE_CUDA)
    struct cudaPointerAttributes attr;
 
-#if (CUDART_VERSION >= 10000)
 #if (CUDART_VERSION >= 11000)
    MFEM_GPU_CHECK(cudaPointerGetAttributes(&attr, ptr));
 #else
@@ -629,34 +628,7 @@ MemoryType Device::QueryMemoryType(void* ptr)
          res = MemoryType::MANAGED;
          break;
    }
-#else
-   cudaError_t err = cudaPointerGetAttributes(&attr, ptr);
-   if (err != cudaSuccess)
-   {
-      if (err == cudaErrorInvalidValue)
-      {
-         // host
-         /* clear the error */
-         cudaGetLastError();
-      }
-      else
-      {
-         MFEM_GPU_CHECK(err);
-      }
-   }
-   else if (attr.isManaged)
-   {
-      res = MemoryType::MANAGED;
-   }
-   else if (attr.memoryType == cudaMemoryTypeDevice)
-   {
-      res = MemoryType::DEVICE;
-   }
-   else if (attr.memoryType == cudaMemoryTypeHost)
-   {
-      res = MemoryType::HOST_PINNED;
-   }
-#endif // CUDART_VERSION >= 10000
+
 #elif defined(MFEM_USE_HIP)
    struct hipPointerAttribute_t attr;
 
