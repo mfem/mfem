@@ -860,13 +860,8 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
 #endif
 
 backend_cpu:
-   {
-      // CPU fallback
-      // TODO: replace this with a temporary workspace vector buffer as this is technically
-      // a language extension
-      alignas(T) char buffer[smem_bytes];
-      h_body(reinterpret_cast<T*>(buffer));
-   }
+   // CPU fallback
+   h_body(reinterpret_cast<T *>(get_host_smem(smem_bytes)));
 }
 
 template <class T, class lambda>
@@ -981,42 +976,39 @@ template<class B, class R> struct reduction_kernel {
   return res;
 #endif
   }
-  
-#if 0
-  MFEM_HOST void operator()(value_type *buffer) const {
-    reducer.init_val(work[0]);
-    // serial host
-    for (int i = 0; i < N; ++i) {
-      body(i, work[0]);
-    }
-  }
-#endif
 
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-  MFEM_DEVICE void operator()(value_type* buffer) const {
-    reducer.init_val(buffer[MFEM_THREAD_ID(x)]);
-    // serial part
-    for (int idx = 0; idx < items_per_thread; ++idx) {
-      int i = MFEM_THREAD_ID(x) +
-              (idx + MFEM_BLOCK_ID(x) * items_per_thread) * MFEM_THREAD_SIZE(x);
-      if (i < N) {
-        body(i, buffer[MFEM_THREAD_ID(x)]);
-      } else {
-        break;
-      }
-    }
-    // binary tree reduction
-    for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1) {
-      MFEM_SYNC_THREAD;
-      if (MFEM_THREAD_ID(x) < i) {
-        reducer.join(buffer[MFEM_THREAD_ID(x)], buffer[MFEM_THREAD_ID(x) + i]);
-      }
-    }
-    if (MFEM_THREAD_ID(x) == 0) {
-      work[MFEM_BLOCK_ID(x)] = buffer[0];
+  MFEM_HOST_DEVICE void operator()(value_type *buffer) const {
+#if (defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||                      \
+    (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__))
+  reducer.init_val(buffer[MFEM_THREAD_ID(x)]);
+  // serial part
+  for (int idx = 0; idx < items_per_thread; ++idx) {
+    int i = MFEM_THREAD_ID(x) +
+            (idx + MFEM_BLOCK_ID(x) * items_per_thread) * MFEM_THREAD_SIZE(x);
+    if (i < N) {
+      body(i, buffer[MFEM_THREAD_ID(x)]);
+    } else {
+      break;
     }
   }
+  // binary tree reduction
+  for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1) {
+    MFEM_SYNC_THREAD;
+    if (MFEM_THREAD_ID(x) < i) {
+      reducer.join(buffer[MFEM_THREAD_ID(x)], buffer[MFEM_THREAD_ID(x) + i]);
+    }
+  }
+  if (MFEM_THREAD_ID(x) == 0) {
+    work[MFEM_BLOCK_ID(x)] = buffer[0];
+  }
+#else
+  // serial host
+  reducer.init_val(work[0]);
+  for (int i = 0; i < N; ++i) {
+    body(i, work[0]);
+  }
 #endif
+  }
 };
 }
 
@@ -1044,12 +1036,9 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
     goto backend_cpu;
   }
 #if defined(MFEM_USE_HIP) || defined(MFEM_USE_CUDA)
-#if defined(MFEM_USE_HIP)
-  if (mfem::Device::Allows(mfem::Backend::HIP))
-#elif defined(MFEM_USE_CUDA)
-  if (mfem::Device::Allows(mfem::Backend::CUDA))
-#endif
-  {
+  // TODO: implement OCCA and CEED support
+  if (mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
+                           Backend::RAJA_HIP)) {
     using red_type = internal::reduction_kernel<typename std::decay<B>::type,
                                                 typename std::decay<R>::type>;
     // max block size is 256, but can be smaller
@@ -1060,14 +1049,19 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
 #if defined(MFEM_USE_CUDA)
     cudaDeviceGetAttribute(&num_mp, cudaDevAttrMultiProcessorCount,
                            Device::GetId());
+    // good value of mp_sat found experimentally on Tuolumne/Lassen
+    constexpr int mp_sat = 4;
 #elif defined(MFEM_USE_HIP)
     hipDeviceGetAttribute(&num_mp, hipDeviceAttributeMultiprocessorCount,
                           Device::GetId());
+    // good value of mp_sat found experimentally on Tuolumne/Lassen
+    constexpr int mp_sat = 4;
+#else
+    num_mp = 1;
+    constexpr int mp_sat = 1;
 #endif
     // determine how many items each thread should sum during the serial
     // portion
-    // good value of mp_sat found experimentally on Tuolumne/Lassen
-    constexpr int mp_sat = 4;
     int nblocks = std::min(mp_sat * num_mp, (N + block_size - 1) / block_size);
     int items_per_thread =
         (N + block_size * nblocks - 1) / (block_size * nblocks);
