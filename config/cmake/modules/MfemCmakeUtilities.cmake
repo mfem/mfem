@@ -138,6 +138,8 @@ macro(add_mfem_miniapp MFEM_EXE_NAME)
   # Actually add the executable
   mfem_add_executable(${MFEM_EXE_NAME} ${MAIN_LIST}
       ${EXTRA_SOURCES_LIST} ${EXTRA_HEADERS_LIST})
+  install(TARGETS ${MFEM_EXE_NAME}
+          RUNTIME DESTINATION miniapps)
   add_dependencies(${MFEM_ALL_MINIAPPS_TARGET_NAME} ${MFEM_EXE_NAME})
   add_dependencies(${MFEM_EXE_NAME} ${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 
@@ -826,6 +828,20 @@ endfunction(mfem_get_target_options)
 
 
 #
+# If ${Path} is not an absolute path, assign ${Prefix}/${Path} to the variable
+# ${OutVar}. If ${Path} is an absolute path, assign ${Path} to the variable
+# ${OutVar}.
+#
+function(mfem_path_to_fullpath Path Prefix OutVar)
+  if(IS_ABSOLUTE "${Path}")
+    set(${OutVar} "${Path}" PARENT_SCOPE)
+  else()
+    set(${OutVar} "${Prefix}/${Path}" PARENT_SCOPE)
+  endif()
+endfunction()
+
+
+#
 #   Function that creates 'config.mk' from 'config.mk.in' for the both the
 #   build- and the install-locations and define install rules for 'config.mk'
 #   and 'test.mk'.
@@ -991,9 +1007,12 @@ function(mfem_export_mk_files)
     "${PROJECT_BINARY_DIR}/config/test.mk" COPYONLY)
 
   # Update variables for the install-tree version of 'config.mk'
-  set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include")
-  set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
-  set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/share/mfem/test.mk")
+  mfem_path_to_fullpath(
+    "${INSTALL_INCLUDE_DIR}" "${CMAKE_INSTALL_PREFIX}" MFEM_INC_DIR)
+  mfem_path_to_fullpath(
+    "${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}" MFEM_LIB_DIR)
+  mfem_path_to_fullpath(
+    "${INSTALL_SHARE_DIR}/mfem/test.mk" "${CMAKE_INSTALL_PREFIX}" MFEM_TEST_MK)
   set(MFEM_CONFIG_EXTRA "")
 
   # Create the install-tree version of 'config.mk'
@@ -1003,8 +1022,30 @@ function(mfem_export_mk_files)
 
   # Install rules for 'config.mk' and 'test.mk'
   install(FILES ${PROJECT_SOURCE_DIR}/config/test.mk
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/)
+    DESTINATION ${INSTALL_SHARE_DIR}/mfem/)
   install(FILES ${PROJECT_BINARY_DIR}/config/config-install.mk
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/ RENAME config.mk)
+    DESTINATION ${INSTALL_SHARE_DIR}/mfem/
+    RENAME config.mk)
 
+endfunction()
+
+
+#
+# Function similar to the macro _GNUInstallDirs_cache_path from the module
+# GNUInstallDirs. Used to process variables like INSTALL_LIB_DIR if they are
+# set on the cmake command line without specifying type: -DINSTALL_LIB_DIR=lib.
+# Without this special treatment, relative paths are expanded to full paths
+# and we want to avoid that.
+#
+function(mfem_cache_path PathVar DefaultPath HelpStr)
+  if(NOT DEFINED ${PathVar})
+    set(${PathVar} "${DefaultPath}" CACHE PATH "${HelpStr}")
+  endif()
+  get_property(cache_type CACHE ${PathVar} PROPERTY TYPE)
+  if(cache_type STREQUAL "UNINITIALIZED")
+    file(TO_CMAKE_PATH "${${PathVar}}" cmakepath)
+    set_property(CACHE ${PathVar} PROPERTY TYPE PATH)
+    set_property(CACHE ${PathVar} PROPERTY VALUE "${cmakepath}")
+    set_property(CACHE ${PathVar} PROPERTY HELPSTRING "${HelpStr}")
+  endif()
 endfunction()

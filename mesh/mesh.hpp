@@ -1424,10 +1424,24 @@ public:
    /// Return the Geometry::Type associated with face @a i.
    Geometry::Type GetFaceGeometry(int i) const;
 
+   /// @brief If the local mesh is not empty, return GetFaceGeometry(0);
+   /// otherwise return a typical face geometry present in the global mesh.
+   ///
+   /// Note that in mixed meshes or meshes with prism or pyramid elements, there
+   /// will be more than one face geometry.
+   Geometry::Type GetTypicalFaceGeometry() const;
+
    Geometry::Type GetElementGeometry(int i) const
    {
       return elements[i]->GetGeometryType();
    }
+
+   /** @brief If the local mesh is not empty, return GetElementGeometry(0);
+       otherwise, return a typical Geometry present in the global mesh.
+
+       This method can be used to replace calls like GetElementGeometry(0) in
+       order to handle empty local meshes better. */
+   Geometry::Type GetTypicalElementGeometry() const;
 
    Geometry::Type GetBdrElementGeometry(int i) const
    {
@@ -1665,8 +1679,21 @@ public:
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
-   /// Also, this pointer should NOT be deleted by the caller.
+   /// Also, this pointer should @b not be deleted by the caller.
    ElementTransformation *GetElementTransformation(int i);
+
+   /// @brief If the local mesh is not empty return GetElementTransformation(0);
+   /// otherwise, return the identity transformation for a typical geometry in
+   /// the mesh and a typical finite element in the nodal finite element space
+   /// (if present).
+   ///
+   /// This method can be used to replace calls like GetElementTransformation(0)
+   /// in order to handle empty local meshes better.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls. Also,
+   /// this pointer should @b not be deleted by the caller.
+   ElementTransformation *GetTypicalElementTransformation();
 
    /// @brief Builds the transformation defining the i-th element in @a ElTr
    /// assuming position of the vertices/nodes are given by @a nodes.
@@ -2284,8 +2311,17 @@ public:
        (default) or nonconforming. */
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
+   /// Return a bool indicating whether this mesh is conforming.
    bool Conforming() const { return ncmesh == NULL; }
+   /// Return a bool indicating whether this mesh is nonconforming.
    bool Nonconforming() const { return ncmesh != NULL; }
+
+   /** Designate this mesh for output as "NC mesh v1.1", meaning it is
+       nonconforming with nonuniform refinement spacings. */
+   void SetScaledNCMesh()
+   {
+      ncmesh->using_scaling = true;
+   }
 
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
