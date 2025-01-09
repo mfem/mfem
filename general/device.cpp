@@ -723,4 +723,58 @@ void Device::DeviceMem(size_t *free, size_t *total)
 #endif
 }
 
+int Device::NumMultiprocessors(int dev)
+{
+#if defined(MFEM_USE_CUDA)
+   int res;
+   cudaDeviceGetAttribute(&res, cudaDevAttrMultiProcessorCount, dev);
+   return res;
+#elif defined(MFEM_USE_HIP)
+   int res;
+   hipDeviceGetAttribute(&res, hipDeviceAttributeMultiprocessorCount, dev);
+   return res;
+#else
+   // not compiled with GPU support
+   return 0;
+#endif
+}
+
+int Device::NumMultiprocessors()
+{
+   int dev = 0;
+#if defined(MFEM_USE_CUDA)
+   cudaGetDevice(&dev);
+#elif defined(MFEM_USE_HIP)
+   hipGetDevice(&dev);
+#endif
+   return NumMultiprocessors(dev);
+}
+
+int Device::WarpSize(int dev)
+{
+#if defined(MFEM_USE_CUDA)
+   int res;
+   cudaDeviceGetAttribute(&res, cudaDevAttrWarpSize, dev);
+   return res;
+#elif defined(MFEM_USE_HIP)
+   int res;
+   hipDeviceGetAttribute(&res, hipDeviceAttributeWarpSize, dev);
+   return res;
+#else
+   // not compiled with GPU support
+   return 0;
+#endif
+}
+
+int Device::WarpSize()
+{
+   int dev = 0;
+#if defined(MFEM_USE_CUDA)
+   cudaGetDevice(&dev);
+#elif defined(MFEM_USE_HIP)
+   hipGetDevice(&dev);
+#endif
+   return WarpSize(dev);
+}
+
 } // mfem
