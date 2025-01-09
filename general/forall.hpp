@@ -813,7 +813,7 @@ template <class T, class lambda> __global__ void forall_smem_impl(lambda body)
 template <class T, class h_lambda, class d_lambda>
 inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
                         int bz, int smem_bytes, h_lambda &&h_body,
-                        d_lambda &&d_body)
+                        d_lambda &&d_body, const char* label=nullptr)
 {
    MFEM_CONTRACT_VAR(nx);
    MFEM_CONTRACT_VAR(ny);
@@ -832,7 +832,7 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
       RAJA::launch<cuda_launch_policy>(
          RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
                             smem_bytes),
-         "mfem::forall_smem[RAJA.CUDA]",
+         label,
          [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
       {
          double *buffer = (double *)ctx.shared_mem_ptr;
@@ -848,7 +848,7 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
       RAJA::launch<hip_launch_policy>(
          RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
                             smem_bytes),
-         "mfem::forall_smem[RAJA.HIP]",
+         label,
          [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
       {
          double *buffer = (double *)ctx.shared_mem_ptr;
@@ -886,10 +886,11 @@ backend_cpu:
 
 template <class T, class lambda>
 inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
-                        int bz, int smem_bytes, lambda &&body)
+                        int bz, int smem_bytes, lambda &&body,
+                        const char *label = nullptr)
 {
    forall_smem<T>(use_dev, nx, ny, nz, bx, by, bz, smem_bytes,
-                  std::forward<lambda>(body), std::forward<lambda>(body));
+                  std::forward<lambda>(body), std::forward<lambda>(body), label);
 }
 
 #ifdef MFEM_USE_MPI
@@ -1114,7 +1115,7 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       auto work = workspace.Write();
       red.work = work;
       forall_smem<T>(true, nblocks, 1, 1, block_size, 1, 1, smem_bytes,
-                     std::move(red));
+                     std::move(red), "mfem::reduce");
       // wait for results
       MFEM_DEVICE_SYNC;
       for (int i = 0; i < nblocks; ++i)
