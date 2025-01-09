@@ -941,44 +941,49 @@ real_t Vector::Normlp(real_t p) const
 }
 
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-static Array<real_t>& vector_workspace(){
-  static Array<real_t> instance;
-  return instance;
+static Array<real_t>& vector_workspace()
+{
+   static Array<real_t> instance;
+   return instance;
 }
 
-static real_t devVectorMin(int size, const real_t *m_data) {
+static real_t devVectorMin(int size, const real_t *m_data)
+{
    real_t res = 0;
    reduce(
-       size, res,
-       [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmin(r, m_data[i]); },
-       MinReducer<real_t>{}, true, vector_workspace());
+      size, res,
+   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmin(r, m_data[i]); },
+   MinReducer<real_t> {}, true, vector_workspace());
    return res;
 }
 
-static real_t devVectorMax(int size, const real_t *m_data) {
+static real_t devVectorMax(int size, const real_t *m_data)
+{
    real_t res = 0;
    reduce(
-       size, res,
-       [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, m_data[i]); },
-       MaxReducer<real_t>{}, true, vector_workspace());
+      size, res,
+   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, m_data[i]); },
+   MaxReducer<real_t> {}, true, vector_workspace());
    return res;
 }
 
-static real_t devVectorSum(int size, const real_t *m_data) {
+static real_t devVectorSum(int size, const real_t *m_data)
+{
    real_t res = 0;
    reduce(
-       size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i]; },
-       SumReducer<real_t>{}, true, vector_workspace());
+   size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i]; },
+   SumReducer<real_t> {}, true, vector_workspace());
    return res;
 }
 
 static real_t devVectorDot(int size, const real_t *m_data,
-                           const real_t *v_data) {
+                           const real_t *v_data)
+{
    real_t res = 0;
    reduce(
-       size, res,
-       [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i] * v_data[i]; },
-       SumReducer<real_t>{}, true, vector_workspace());
+      size, res,
+   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i] * v_data[i]; },
+   SumReducer<real_t> {}, true, vector_workspace());
    return res;
 }
 #endif
@@ -1201,7 +1206,7 @@ vector_max_cpu:
    real_t maximum = data[0];
    for (int i = 1; i < size; i++)
    {
-     maximum = fmax(maximum, m_data[i]);
+      maximum = fmax(maximum, m_data[i]);
    }
    return maximum;
 }
