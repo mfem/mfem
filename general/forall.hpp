@@ -825,7 +825,13 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    if (Device::Allows(Backend::RAJA_CUDA))
    {
-     // TODO
+     RAJA::launch<cuda_launch_policy>(
+      RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
+                         smem_bytes),
+      "label", [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx) {
+        double *buffer = (double *)ctx.shared_mem_ptr;
+        d_body(buffer);
+      });
      return;
    }
 #endif
@@ -833,7 +839,13 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
    if (Device::Allows(Backend::RAJA_HIP))
    {
-     // TODO
+     RAJA::launch<hip_launch_policy>(
+      RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
+                         smem_bytes),
+      "label", [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx) {
+        double *buffer = (double *)ctx.shared_mem_ptr;
+        d_body(buffer);
+      });
      return;
    }
 #endif
@@ -1036,7 +1048,6 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
     goto backend_cpu;
   }
 #if defined(MFEM_USE_HIP) || defined(MFEM_USE_CUDA)
-  // TODO: implement OCCA and CEED support
   if (mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
                            Backend::RAJA_HIP)) {
     using red_type = internal::reduction_kernel<typename std::decay<B>::type,
