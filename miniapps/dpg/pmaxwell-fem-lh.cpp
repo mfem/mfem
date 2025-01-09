@@ -7,129 +7,14 @@
 
 #include "mfem.hpp"
 #include "util/pcomplexweakform.hpp"
+#include "util/utils.hpp"
+#include "util/maxwell_utils.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
-
-class AzimuthalECoefficient : public Coefficient
-{
-private:
-   const GridFunction * vgf;
-public:
-   AzimuthalECoefficient(const GridFunction * vgf_)
-      : Coefficient(), vgf(vgf_) {}
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
-   {
-      Vector X, E;
-      vgf->GetVectorValue(T,ip,E);
-      T.Transform(ip, X);
-      real_t x = X(0);
-      real_t y = X(1);
-      real_t r = sqrt(x*x + y*y);
-
-      real_t val = -x*E[1] + y*E[0];
-      return val/r;
-   }
-};
-
-
-class EpsilonMatrixCoefficient : public MatrixArrayCoefficient
-{
-private:
-   Mesh * mesh = nullptr;
-   ParMesh * pmesh = nullptr;
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
-   Array<ParGridFunction * > pgfs;
-   Array<GridFunctionCoefficient * > gf_cfs;
-   GridFunction * vgf = nullptr;
-   int dim;
-   int sdim;
-   bool vis=false;
-public:
-   EpsilonMatrixCoefficient(const char * filename, Mesh * mesh_, ParMesh * pmesh_,
-                            double scale = 1.0, double vis_=false)
-      : MatrixArrayCoefficient(mesh_->Dimension()), mesh(mesh_), pmesh(pmesh_),
-        dim(mesh->Dimension()), vis(vis_)
-   {
-      std::filebuf fb;
-      fb.open(filename,std::ios::in);
-      std::istream is(&fb);
-      vgf = new GridFunction(mesh,is);
-      fb.close();
-      FiniteElementSpace * vfes = vgf->FESpace();
-      int vdim = vfes->GetVDim();
-      const FiniteElementCollection * fec = vfes->FEColl();
-      FiniteElementSpace * fes = new FiniteElementSpace(mesh, fec);
-      int * partitioning = mesh->GeneratePartitioning(num_procs);
-      double *data = vgf->GetData();
-      GridFunction gf;
-      pgfs.SetSize(vdim);
-      gf_cfs.SetSize(vdim);
-      sdim = sqrt(vdim);
-      for (int i = 0; i<sdim; i++)
-      {
-         for (int j = 0; j<sdim; j++)
-         {
-            int k = i*sdim+j;
-            gf.MakeRef(fes,&data[k*fes->GetVSize()]);
-            pgfs[k] = new ParGridFunction(pmesh,&gf,partitioning);
-            (*pgfs[k])*=scale;
-            gf_cfs[k] = new GridFunctionCoefficient(pgfs[k]);
-            // skip if i or j > dim
-            if (i<dim && j<dim)
-            {
-               Set(i,j,gf_cfs[k], true);
-            }
-         }
-      }
-   }
-
-   // Visualize the components of the matrix coefficient
-   // in separate GLVis windows for each component
-   void VisualizeMatrixCoefficient()
-   {
-      Array<socketstream *> sol_sock(pgfs.Size());
-      for (int k = 0; k<pgfs.Size(); k++)
-      {
-         if (Mpi::Root()) { mfem::out << "Visualizing component " << k << endl; }
-         char vishost[] = "localhost";
-         int visport = 19916;
-         sol_sock[k] = new socketstream(vishost, visport);
-         sol_sock[k]->precision(8);
-         *sol_sock[k] << "parallel " << num_procs << " " << myid << "\n";
-         int i = k/sdim;
-         int j = k%sdim;
-         // plot with the title "Epsilon Matrix Coefficient Component (i,j)"
-         *sol_sock[k] << "solution\n" << *pmesh << *pgfs[k]
-                      << "window_title 'Epsilon Matrix Coefficient Component (" << i << "," << j <<
-                      ")'" << flush;
-      }
-   }
-   void Update()
-   {
-      pgfs[0]->ParFESpace()->Update();
-      for (int k = 0; k<pgfs.Size(); k++)
-      {
-         pgfs[k]->Update();
-      }
-   }
-
-   ~EpsilonMatrixCoefficient()
-   {
-      for (int i = 0; i<pgfs.Size(); i++)
-      {
-         delete pgfs[i];
-      }
-      pgfs.DeleteAll();
-   }
-
-};
-
 
 int main(int argc, char *argv[])
 {
@@ -141,15 +26,27 @@ int main(int argc, char *argv[])
    const char * eps_r_file = "data/eps2D_r.gf";
    const char * eps_i_file = "data/eps2D_i.gf";
 
+   // coarse mesh 1
+   // const char *mesh_file = "data/mesh2Dc.mesh";
+   // const char * eps_r_file = "data/eps_rc.gf";
+   // const char * eps_i_file = "data/eps_ic.gf";
+
+   // coarse mesh 2
+   // const char *mesh_file = "data/mesh2Dcc.mesh";
+   // const char * eps_r_file = "data/eps_rcc.gf";
+   // const char * eps_i_file = "data/eps_icc.gf";
+
    int order = 2;
    int par_ref_levels = 0;
    bool visualization = false;
-   double rnum=4.6e9;
+   // real_t rnum=4.6e9;
+   // real_t mu = 1.257e-6;
+   // real_t epsilon_scale = 8.8541878128e-12*factor;
+   real_t rnum=4.6;
+   real_t mu = 1.257;
+   real_t epsilon_scale = 8.8541878128;
+
    bool paraview = false;
-   double factor = 1.0;
-   double mu = 1.257e-6/factor;
-   double epsilon_scale = 8.8541878128e-12*factor;
-   bool mumps_solver = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -162,10 +59,6 @@ int main(int argc, char *argv[])
                   "Number of wavelengths");
    args.AddOption(&mu, "-mu", "--permeability",
                   "Permeability of free space (or 1/(spring constant)).");
-#ifdef MFEM_USE_MUMPS
-   args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
-                  "--no-mumps-solver", "Use the MUMPS Solver.");
-#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -186,7 +79,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   double omega = 2.*M_PI*rnum;
+   real_t omega = 2.*M_PI*rnum;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -250,12 +143,19 @@ int main(int argc, char *argv[])
    E_theta = 0.0;
 
    ParaViewDataCollection * paraview_dc = nullptr;
-   ParaViewDataCollection * paraview_tdc = nullptr;
+   // ParaViewDataCollection * paraview_tdc = nullptr;
+
+   std::string output_dir = "ParaView/FEM/" + GetTimestamp();
+   if (Mpi::Root())
+   {
+      WriteParametersToFile(args, output_dir);
+   }
+
 
    if (paraview)
    {
       paraview_dc = new ParaViewDataCollection(mesh_file, &pmesh);
-      paraview_dc->SetPrefixPath("ParaViewFEM2D");
+      paraview_dc->SetPrefixPath(output_dir);
       paraview_dc->SetLevelsOfDetail(order);
       paraview_dc->SetCycle(0);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
@@ -266,14 +166,14 @@ int main(int argc, char *argv[])
       paraview_dc->RegisterField("E_theta_r",&E_theta_r);
       paraview_dc->RegisterField("E_theta_i",&E_theta_i);
 
-      paraview_tdc = new ParaViewDataCollection(mesh_file, &pmesh);
-      paraview_tdc->SetPrefixPath("ParaViewFEM2D/TimeHarmonic");
-      paraview_tdc->SetLevelsOfDetail(order);
-      paraview_tdc->SetCycle(0);
-      paraview_tdc->SetDataFormat(VTKFormat::BINARY);
-      paraview_tdc->SetHighOrderOutput(true);
-      paraview_tdc->SetTime(0.0); // set the time
-      paraview_tdc->RegisterField("E_theta_t",&E_theta);
+      // paraview_tdc = new ParaViewDataCollection(mesh_file, &pmesh);
+      // paraview_tdc->SetPrefixPath("ParaViewFEM2D/TimeHarmonic");
+      // paraview_tdc->SetLevelsOfDetail(order);
+      // paraview_tdc->SetCycle(0);
+      // paraview_tdc->SetDataFormat(VTKFormat::BINARY);
+      // paraview_tdc->SetHighOrderOutput(true);
+      // paraview_tdc->SetTime(0.0); // set the time
+      // paraview_tdc->RegisterField("E_theta_t",&E_theta);
    }
 
    Array<int> ess_tdof_list;
@@ -366,21 +266,21 @@ int main(int argc, char *argv[])
    if (paraview)
    {
       paraview_dc->SetCycle(0);
-      paraview_dc->SetTime((double)0);
+      paraview_dc->SetTime((real_t)0);
       paraview_dc->Save();
       delete paraview_dc;
 
-      int num_frames = 32;
-      for (int i = 0; i<num_frames; i++)
-      {
-         real_t t = (real_t)(i % num_frames) / num_frames;
-         add(cos(real_t(2.0*M_PI)*t), E_theta_r,
-             sin(real_t(2.0*M_PI)*t), E_theta_i, E_theta);
-         paraview_tdc->SetCycle(i);
-         paraview_tdc->SetTime(t);
-         paraview_tdc->Save();
-      }
-      delete paraview_tdc;
+      // int num_frames = 32;
+      // for (int i = 0; i<num_frames; i++)
+      // {
+      //    real_t t = (real_t)(i % num_frames) / num_frames;
+      //    add(cos(real_t(2.0*M_PI)*t), E_theta_r,
+      //        sin(real_t(2.0*M_PI)*t), E_theta_i, E_theta);
+      //    paraview_tdc->SetCycle(i);
+      //    paraview_tdc->SetTime(t);
+      //    paraview_tdc->Save();
+      // }
+      // delete paraview_tdc;
    }
 
 

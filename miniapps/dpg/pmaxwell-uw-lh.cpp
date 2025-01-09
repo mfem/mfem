@@ -36,129 +36,17 @@
 
 #include "mfem.hpp"
 #include "util/pcomplexweakform.hpp"
+#include "util/utils.hpp"
+#include "util/maxwell_utils.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
+#include <ctime>
+#include <string>
+#include <sstream>
 
 using namespace std;
 using namespace mfem;
-
-class AzimuthalECoefficient : public Coefficient
-{
-private:
-   const GridFunction * vgf;
-public:
-   AzimuthalECoefficient(const GridFunction * vgf_)
-      : Coefficient(), vgf(vgf_) {}
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
-   {
-      Vector X, E;
-      vgf->GetVectorValue(T,ip,E);
-      T.Transform(ip, X);
-      real_t x = X(0);
-      real_t y = X(1);
-      real_t r = sqrt(x*x + y*y);
-
-      real_t val = -x*E[1] + y*E[0];
-      return val/r;
-   }
-};
-
-class EpsilonMatrixCoefficient : public MatrixArrayCoefficient
-{
-private:
-   Mesh * mesh = nullptr;
-   ParMesh * pmesh = nullptr;
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
-   Array<ParGridFunction * > pgfs;
-   Array<GridFunctionCoefficient * > gf_cfs;
-   GridFunction * vgf = nullptr;
-   int dim;
-   int sdim;
-   bool vis=false;
-public:
-   EpsilonMatrixCoefficient(const char * filename, Mesh * mesh_, ParMesh * pmesh_,
-                            double scale = 1.0, double vis_=false)
-      : MatrixArrayCoefficient(mesh_->Dimension()), mesh(mesh_), pmesh(pmesh_),
-        dim(mesh->Dimension()), vis(vis_)
-   {
-      std::filebuf fb;
-      fb.open(filename,std::ios::in);
-      std::istream is(&fb);
-      vgf = new GridFunction(mesh,is);
-      fb.close();
-      FiniteElementSpace * vfes = vgf->FESpace();
-      int vdim = vfes->GetVDim();
-      const FiniteElementCollection * fec = vfes->FEColl();
-      FiniteElementSpace * fes = new FiniteElementSpace(mesh, fec);
-      int * partitioning = mesh->GeneratePartitioning(num_procs);
-      double *data = vgf->GetData();
-      GridFunction gf;
-      pgfs.SetSize(vdim);
-      gf_cfs.SetSize(vdim);
-      sdim = sqrt(vdim);
-      for (int i = 0; i<sdim; i++)
-      {
-         for (int j = 0; j<sdim; j++)
-         {
-            int k = i*sdim+j;
-            gf.MakeRef(fes,&data[k*fes->GetVSize()]);
-            pgfs[k] = new ParGridFunction(pmesh,&gf,partitioning);
-            // pgfs[k] = new ParGridFunction(pmesh,&gf);
-            (*pgfs[k])*=scale;
-            gf_cfs[k] = new GridFunctionCoefficient(pgfs[k]);
-            // skip if i or j > dim
-            if (i<dim && j<dim)
-            {
-               Set(i,j,gf_cfs[k], true);
-            }
-         }
-      }
-   }
-
-   // Visualize the components of the matrix coefficient
-   // in separate GLVis windows for each component
-   void VisualizeMatrixCoefficient()
-   {
-      Array<socketstream *> sol_sock(pgfs.Size());
-      for (int k = 0; k<pgfs.Size(); k++)
-      {
-         if (Mpi::Root()) { mfem::out << "Visualizing component " << k << endl; }
-         char vishost[] = "localhost";
-         int visport = 19916;
-         sol_sock[k] = new socketstream(vishost, visport);
-         sol_sock[k]->precision(8);
-         *sol_sock[k] << "parallel " << num_procs << " " << myid << "\n";
-         int i = k/sdim;
-         int j = k%sdim;
-         // plot with the title "Epsilon Matrix Coefficient Component (i,j)"
-         *sol_sock[k] << "solution\n" << *pmesh << *pgfs[k]
-                      << "window_title 'Epsilon Matrix Coefficient Component (" << i << "," << j <<
-                      ")'" << flush;
-      }
-   }
-   void Update()
-   {
-      pgfs[0]->ParFESpace()->Update();
-      for (int k = 0; k<pgfs.Size(); k++)
-      {
-         pgfs[k]->Update();
-      }
-   }
-
-   ~EpsilonMatrixCoefficient()
-   {
-      for (int i = 0; i<pgfs.Size(); i++)
-      {
-         delete pgfs[i];
-      }
-      pgfs.DeleteAll();
-   }
-
-};
-
 
 int main(int argc, char *argv[])
 {
@@ -167,24 +55,45 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    Hypre::Init();
 
+
+   // fine mesh
    const char *mesh_file = "data/mesh2D.mesh";
    const char * eps_r_file = "data/eps2D_r.gf";
    const char * eps_i_file = "data/eps2D_i.gf";
+
+   // coarse mesh 1
+   // const char *mesh_file = "data/mesh2Dc.mesh";
+   // const char * eps_r_file = "data/eps_rc.gf";
+   // const char * eps_i_file = "data/eps_ic.gf";
+
+   // coarse mesh 2
+   // const char *mesh_file = "data/mesh2Dcc.mesh";
+   // const char * eps_r_file = "data/eps_rcc.gf";
+   // const char * eps_i_file = "data/eps_icc.gf";
 
    int order = 2;
    int delta_order = 1;
    int par_ref_levels = 0;
    int amr_ref_levels = 0;
+   // real_t rnum=4.6e9;
+   // real_t mu = 1.257e-6/factor;
+   // real_t epsilon_scale = 8.8541878128e-12*factor;
+   real_t rnum=4.6;
+   real_t mu = 1.257;
+   real_t epsilon_scale = 8.8541878128;
+
+   //  ∇×(1/μ ∇×E) - ω² ϵ E = Ĵ ,   in Ω
+   //  1/1.257e-6 - 2π*2π*4.6*4.6e18*8.8541878128e-12
+   // 1/1.257e-6 - 2π*2π*4.6*4.6*8.8541878128e6
+   // 1e6/1.257 - 2π*2π*4.6*4.6*8.8541878128e6
+   // 1/1.257 - 2π*2π*4.6*4.6*8.8541878128
+
    bool visualization = false;
-   double rnum=4.6e9;
    bool static_cond = false;
-   bool paraview = false;
-   double factor = 1.0;
-   double mu = 1.257e-6/factor;
-   double epsilon_scale = 8.8541878128e-12*factor;
    bool graph_norm = true;
    bool mumps_solver = false;
    real_t theta = 0.0;
+   bool paraview = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -231,7 +140,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   double omega = 2.*M_PI*rnum;
+   real_t omega = 2.*M_PI*rnum;
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
@@ -253,6 +162,7 @@ int main(int argc, char *argv[])
 
    EpsilonMatrixCoefficient eps_r_cf(eps_r_file,&mesh,&pmesh, epsilon_scale);
    EpsilonMatrixCoefficient eps_i_cf(eps_i_file,&mesh,&pmesh, epsilon_scale);
+   mesh.Clear();
 
    for (int i = 0; i<par_ref_levels; i++)
    {
@@ -263,6 +173,8 @@ int main(int argc, char *argv[])
 
    // eps_r_cf.VisualizeMatrixCoefficient();
    // eps_i_cf.VisualizeMatrixCoefficient();
+
+   // return 0;
 
    // Matrix Coefficient (M = -i\omega \epsilon);
    // M = -i * omega * (eps_r + i eps_i)
@@ -351,22 +263,37 @@ int main(int argc, char *argv[])
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
    a->StoreMatrices(); // needed for AMR
 
+   const IntegrationRule *irs[Geometry::NumGeom];
+   int order_quad = 2*order + 2;
+   for (int i = 0; i < Geometry::NumGeom; ++i)
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
+   const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0),
+                                            2*test_order + 2);
+
    // (E,∇ × F)
-   a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
-                         nullptr,
+   MixedCurlIntegrator * curl_integ = new MixedCurlIntegrator(one);
+   curl_integ->SetIntRule(&ir);
+   a->AddTrialIntegrator(new TransposeIntegrator(curl_integ), nullptr,
                          TrialSpace::E_space,
                          TestSpace::F_space);
 
    //  (M E , G) = (M_r E, G) + i (M_i E, G) = (E, M_rt G) + i (E, Mit G)
    //            = (M_rt G, E)^T + i (Mit G, E)^T
+   VectorFEMassIntegrator * Mrt_cf_integ = new VectorFEMassIntegrator(Mrt_cf);
+   VectorFEMassIntegrator * Mit_cf_integ = new VectorFEMassIntegrator(Mit_cf);
+   Mrt_cf_integ->SetIntegrationRule(ir);
+   Mit_cf_integ->SetIntegrationRule(ir);
    a->AddTrialIntegrator(
-      new TransposeIntegrator(new VectorFEMassIntegrator(Mrt_cf)),
-      new TransposeIntegrator(new VectorFEMassIntegrator(Mit_cf)),
+      new TransposeIntegrator(Mrt_cf_integ),
+      new TransposeIntegrator(Mit_cf_integ),
       TrialSpace::E_space, TestSpace::G_space);
 
    //  (H,∇ × G)
-   a->AddTrialIntegrator(new TransposeIntegrator(new MixedCurlIntegrator(one)),
-                         nullptr,
+   MixedCurlIntegrator * curl_integ_H = new MixedCurlIntegrator(one);
+   curl_integ_H->SetIntRule(&ir);
+   a->AddTrialIntegrator(new TransposeIntegrator(curl_integ_H), nullptr,
                          TrialSpace::H_space, TestSpace::G_space);
 
    // < n×Ĥ ,G>
@@ -374,7 +301,10 @@ int main(int argc, char *argv[])
                          TrialSpace::hatH_space, TestSpace::G_space);
 
    // i ω μ (H, F)
-   a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(muomeg),
+   MixedScalarMassIntegrator * muomeg_integ = new MixedScalarMassIntegrator(
+      muomeg);
+   muomeg_integ->SetIntRule(&ir);
+   a->AddTrialIntegrator(nullptr,muomeg_integ,
                          TrialSpace::H_space, TestSpace::F_space);
 
    // < n×Ê,F>
@@ -383,60 +313,74 @@ int main(int argc, char *argv[])
 
    // test integrators
    // (∇×G ,∇× δG)
-   a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,
+   CurlCurlIntegrator * curlcurl_integ = new CurlCurlIntegrator(one);
+   curlcurl_integ->SetIntRule(&ir);
+   a->AddTestIntegrator(curlcurl_integ,nullptr,
                         TestSpace::G_space,TestSpace::G_space);
    // (G,δG)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,
+   VectorFEMassIntegrator * vfemass_integ = new VectorFEMassIntegrator(one);
+   vfemass_integ->SetIntegrationRule(ir);
+   a->AddTestIntegrator(vfemass_integ,nullptr,
                         TestSpace::G_space,TestSpace::G_space);
    // (∇F,∇δF)
-   a->AddTestIntegrator(new DiffusionIntegrator(one),nullptr,
+   DiffusionIntegrator * diff_integ = new DiffusionIntegrator(one);
+   diff_integ->SetIntRule(&ir);
+   a->AddTestIntegrator(diff_integ,nullptr,
                         TestSpace::F_space, TestSpace::F_space);
    // (F,δF)
-   a->AddTestIntegrator(new MassIntegrator(one),nullptr,
+   MassIntegrator * mass_integ = new MassIntegrator(one);
+   mass_integ->SetIntRule(&ir);
+   a->AddTestIntegrator(mass_integ,nullptr,
                         TestSpace::F_space, TestSpace::F_space);
 
    if (graph_norm)
    {
       // μ^2 ω^2 (F,δF)
-      a->AddTestIntegrator(new MassIntegrator(mu2omeg2),nullptr,
+      MassIntegrator * mu2omeg2_integ = new MassIntegrator(mu2omeg2);
+      mu2omeg2_integ->SetIntRule(&ir);
+      a->AddTestIntegrator(mu2omeg2_integ,nullptr,
                            TestSpace::F_space, TestSpace::F_space);
 
       // -i ω μ (F,∇ × δG) = i (F, -ω μ ∇ × δ G)
-      a->AddTestIntegrator(nullptr,
-                           new TransposeIntegrator(new MixedCurlIntegrator(negmuomeg)),
+      MixedCurlIntegrator * negmuomeg_integ = new MixedCurlIntegrator(negmuomeg);
+      negmuomeg_integ->SetIntRule(&ir);
+      a->AddTestIntegrator(nullptr, new TransposeIntegrator(negmuomeg_integ),
                            TestSpace::F_space, TestSpace::G_space);
 
       // (M ∇ × F, δG) = (M_r ∇ × F, δG) + i (M_i ∇ × F, δG)
       //               = (M_r A ∇ F, δG) + i (M_i A ∇ F, δG), A = [0 1; -1; 0]
-      a->AddTestIntegrator(new MixedVectorGradientIntegrator(Mrot_r),
-                           new MixedVectorGradientIntegrator(Mrot_i),
+      MixedVectorGradientIntegrator * Mrot_r_integ = new
+      MixedVectorGradientIntegrator(Mrot_r);
+      MixedVectorGradientIntegrator * Mrot_i_integ = new
+      MixedVectorGradientIntegrator(Mrot_i);
+      Mrot_r_integ->SetIntRule(&ir);
+      Mrot_i_integ->SetIntRule(&ir);
+      a->AddTestIntegrator(Mrot_r_integ, Mrot_i_integ,
                            TestSpace::F_space, TestSpace::G_space);
 
       // i ω μ (∇ × G,δF) = i (ω μ ∇ × G, δF )
-      a->AddTestIntegrator(nullptr,new MixedCurlIntegrator(muomeg),
+      MixedCurlIntegrator * muomeg_integ = new MixedCurlIntegrator(muomeg);
+      muomeg_integ->SetIntRule(&ir);
+      a->AddTestIntegrator(nullptr,muomeg_integ,
                            TestSpace::G_space, TestSpace::F_space);
 
       // (M^* G, ∇ × δF ) = (G, Mr A ∇ δF) - i (G, Mi A ∇ δF)
-      a->AddTestIntegrator(new TransposeIntegrator(new MixedVectorGradientIntegrator(
-                                                      Mrot_r)),
-                           new TransposeIntegrator(new MixedVectorGradientIntegrator(negMrot_i)),
+      MixedVectorGradientIntegrator * Mrot_r_integ2 = new
+      MixedVectorGradientIntegrator(Mrot_r);
+      MixedVectorGradientIntegrator * negMrot_i_integ = new
+      MixedVectorGradientIntegrator(negMrot_i);
+      Mrot_r_integ2->SetIntRule(&ir);
+      negMrot_i_integ->SetIntRule(&ir);
+      a->AddTestIntegrator(new TransposeIntegrator(Mrot_r_integ2),
+                           new TransposeIntegrator(negMrot_i_integ),
                            TestSpace::G_space, TestSpace::F_space);
 
       // M*M^*(G,δG) = (MrMr^t + MiMi^t) + i (MiMr^t - MrMi^t)
-      const IntegrationRule *irs[Geometry::NumGeom];
-      int order_quad = 2*order + 2;
-      for (int i = 0; i < Geometry::NumGeom; ++i)
-      {
-         irs[i] = &(IntRules.Get(i, order_quad));
-      }
-      const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0),
-                                               2*test_order + 2);
-      VectorFEMassIntegrator * integ_r = new VectorFEMassIntegrator(MMr_cf);
-      VectorFEMassIntegrator * integ_i = new VectorFEMassIntegrator(MMi_cf);
-      integ_r->SetIntegrationRule(ir);
-      integ_i->SetIntegrationRule(ir);
-      a->AddTestIntegrator(integ_r,
-                           integ_i,
+      VectorFEMassIntegrator * MMr_integ = new VectorFEMassIntegrator(MMr_cf);
+      VectorFEMassIntegrator * MMi_integ = new VectorFEMassIntegrator(MMi_cf);
+      MMr_integ->SetIntegrationRule(ir);
+      MMi_integ->SetIntegrationRule(ir);
+      a->AddTestIntegrator(MMr_integ, MMi_integ,
                            TestSpace::G_space,
                            TestSpace::G_space);
    }
@@ -463,10 +407,17 @@ int main(int argc, char *argv[])
    ParaViewDataCollection * paraview_dc = nullptr;
    // ParaViewDataCollection * paraview_tdc = nullptr;
 
+   // Create ParaView directory and file
+   std::string output_dir = "ParaView/UWDPG/" + GetTimestamp();
+   if (Mpi::Root())
+   {
+      WriteParametersToFile(args, output_dir);
+   }
+
    if (paraview)
    {
       paraview_dc = new ParaViewDataCollection(mesh_file, &pmesh);
-      paraview_dc->SetPrefixPath("ParaViewUWDPG2D");
+      paraview_dc->SetPrefixPath(output_dir);
       paraview_dc->SetLevelsOfDetail(order);
       paraview_dc->SetCycle(0);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
@@ -553,7 +504,7 @@ int main(int argc, char *argv[])
 
       Vector x(2*offsets.Last());
       x = 0.;
-      double * xdata = x.GetData();
+      real_t * xdata = x.GetData();
 
       ParComplexGridFunction hatE_gf(hatE_fes);
       hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
@@ -687,7 +638,7 @@ int main(int argc, char *argv[])
          }
          CGSolver cg(MPI_COMM_WORLD);
          cg.SetRelTol(1e-7);
-         cg.SetMaxIter(10000);
+         cg.SetMaxIter(1000);
          cg.SetPrintLevel(1);
          cg.SetPreconditioner(M);
          cg.SetOperator(blockA);

@@ -277,7 +277,7 @@ int main(int argc, char *argv[])
       tdof_offsets[0] = 0;
       for (int i=0; i<num_blocks; i++)
       {
-         int h = BlockA_r->GetBlock(i,i).Height();
+         const int h = BlockA_r->GetBlock(i,i).Height();
          tdof_offsets[i+1] = h;
          tdof_offsets[num_blocks+i+1] = h;
       }
