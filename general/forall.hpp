@@ -609,7 +609,7 @@ void HipWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
-   hipLaunchKernelGGL(HipKernel1D,GRID,BLCK,0,0,N,d_body);
+   hipLaunchKernelGGL(HipKernel1D,GRID,BLCK,0,nullptr,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -620,7 +620,7 @@ void HipWrap2D(const int N, DBODY &&d_body,
    if (N==0) { return; }
    const int GRID = (N+BZ-1)/BZ;
    const dim3 BLCK(X,Y,BZ);
-   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,0,N,d_body);
+   hipLaunchKernelGGL(HipKernel2D,GRID,BLCK,0,nullptr,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -631,7 +631,7 @@ void HipWrap3D(const int N, DBODY &&d_body,
    if (N==0) { return; }
    const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
-   hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,0,N,d_body);
+   hipLaunchKernelGGL(HipKernel3D,GRID,BLCK,0,nullptr,N,d_body);
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -826,6 +826,7 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
    if (Device::Allows(Backend::RAJA_CUDA))
    {
      // TODO
+     return;
    }
 #endif
    
@@ -833,6 +834,7 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
    if (Device::Allows(Backend::RAJA_HIP))
    {
      // TODO
+     return;
    }
 #endif
 
@@ -842,6 +844,7 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
       internal::forall_smem_impl<T>
           <<<dim3(nx, ny, nz), dim3(bx, by, bz), smem_bytes>>>(
               std::forward<d_lambda>(d_body));
+      return;
    }
 #endif
 
@@ -851,7 +854,8 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
       auto launcher =
           internal::forall_smem_impl<T, typename std::decay<d_lambda>::type>;
       hipLaunchKernelGGL(launcher, dim3(nx, ny, nz), dim3(bx, by, bz),
-                         smem_bytes, 0, std::forward<d_lambda>(d_body));
+                         smem_bytes, nullptr, std::forward<d_lambda>(d_body));
+      return;
    }
 #endif
 
@@ -977,7 +981,8 @@ template<class B, class R> struct reduction_kernel {
   return res;
 #endif
   }
-
+  
+#if 0
   MFEM_HOST void operator()(value_type *buffer) const {
     reducer.init_val(work[0]);
     // serial host
@@ -985,7 +990,8 @@ template<class B, class R> struct reduction_kernel {
       body(i, work[0]);
     }
   }
-  
+#endif
+
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
   MFEM_DEVICE void operator()(value_type* buffer) const {
     reducer.init_val(buffer[MFEM_THREAD_ID(x)]);
