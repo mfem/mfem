@@ -852,7 +852,7 @@ void ParMixedBilinearForm::TrueAddMult(const Vector &x, Vector &y,
    test_pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Yaux, 1.0, y);
 }
 
-void ParMixedBilinearForm::EliminateTrialEssentialBC(
+void ParMixedBilinearForm::ParallelEliminateTrialEssentialBC(
    const Array<int> &bdr_attr_is_ess)
 {
    Array<int> trial_tdof_list;
