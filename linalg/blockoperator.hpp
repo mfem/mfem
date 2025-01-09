@@ -288,6 +288,79 @@ private:
    mutable Vector tmp2;
 };
 
+class BlockTriangularSymmetricPreconditioner : public Solver
+{
+private:
+   const Operator * Op;
+public:
+   //! Constructor for BlockTriangularSymmetricPreconditioners with the same
+   //! block-structure for rows and columns.
+   /**
+    *  @param offsets  Offsets that mark the start of each row/column block
+    *                  (size nBlocks+1).
+    *
+    *  @note BlockTriangularSymmetricPreconditioner will not own/copy the data
+    *  contained in @a offsets.
+    */
+   BlockTriangularSymmetricPreconditioner(const Array<int> & offsets);
+
+   //! Add block op in the block-entry (iblock, iblock).
+   /**
+    * @param iblock  The block will be inserted in location (iblock, iblock).
+    * @param op      The Operator to be inserted.
+    */
+   void SetDiagonalBlock(int iblock, Operator *op);
+   //! Add a block opt in the block-entry (iblock, jblock).
+   /**
+    * @param iRow, iCol  The block will be inserted in location (iRow, iCol).
+    * @param op          The Operator to be inserted.
+    */
+   void SetBlock(int iRow, int iCol, Operator *op);
+   //! This method is present since required by the abstract base class Solver
+   virtual void SetOperator(const Operator &op) {Op = &op;}
+
+   //! Return the number of blocks
+   int NumBlocks() const { return nBlocks; }
+
+   //! Return a reference to block i,j.
+   Operator & GetBlock(int iblock, int jblock)
+   { MFEM_VERIFY(ops(iblock,jblock), ""); return *ops(iblock,jblock); }
+
+   Operator & GetDiagonalBlock(int iblock)
+   { MFEM_VERIFY(ops(iblock,iblock), ""); return *ops(iblock,iblock); }
+
+   //! Return the offsets for block starts
+   Array<int> & Offsets() { return offsets; }
+
+   /// Operator application
+   virtual void Mult (const Vector & x, Vector & y) const;
+
+   ~BlockTriangularSymmetricPreconditioner();
+
+   //! Controls the ownership of the blocks: if nonzero,
+   //! BlockTriangularSymmetricPreconditioner will delete all blocks that are set
+   //! (non-NULL); the default value is zero.
+   int owns_blocks;
+
+private:
+   //! Number of block rows/columns
+   int nBlocks;
+   //! Offsets for the starting position of each block
+   Array<int> offsets;
+   //! 2D array that stores each block of the operator.
+   Array2D<Operator *> ops;
+
+   //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
+   //! methods.
+   mutable BlockVector xblock;
+   mutable BlockVector yblock;
+   mutable Vector tmp;
+   mutable Vector tmp2;
+   mutable Vector r;
+   void ForwardPass(const Vector & x, Vector & y) const;
+   void BackwardPass(const Vector & x, Vector & y) const;
+};
+
 }
 
 #endif /* MFEM_BLOCKOPERATOR */

@@ -601,7 +601,21 @@ int main(int argc, char *argv[])
       int num_iter = -1;
       if (!mumps_solver)
       {
-         BlockDiagonalPreconditioner M(tdof_offsets);
+         // BlockDiagonalPreconditioner M(tdof_offsets);
+         BlockTriangularSymmetricPreconditioner M(tdof_offsets);
+         M.SetOperator(blockA);
+         int nblocks = blockA.NumRowBlocks();
+         for (int i = 0; i<nblocks; i++)
+         {
+            for (int j = 0; j<nblocks; j++)
+            {
+               if (i != j)
+               {
+                  M.SetBlock(i,j,&blockA.GetBlock(i,j));
+               }
+            }
+         }
+
 
          if (!static_cond)
          {

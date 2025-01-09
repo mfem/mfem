@@ -357,4 +357,152 @@ BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
    }
 }
 
+BlockTriangularSymmetricPreconditioner::BlockTriangularSymmetricPreconditioner(
+   const Array<int> & offsets_)
+   : Solver(offsets_.Last()),
+     owns_blocks(0),
+     nBlocks(offsets_.Size() - 1),
+     offsets(0),
+     ops(nBlocks, nBlocks)
+{
+   ops = static_cast<Operator *>(NULL);
+   offsets.MakeRef(offsets_);
+}
+
+void BlockTriangularSymmetricPreconditioner::SetDiagonalBlock(int iblock,
+                                                              Operator *op)
+{
+   MFEM_VERIFY(offsets[iblock+1] - offsets[iblock] == op->Height() &&
+               offsets[iblock+1] - offsets[iblock] == op->Width(),
+               "incompatible Operator dimensions");
+
+   SetBlock(iblock, iblock, op);
+}
+
+void BlockTriangularSymmetricPreconditioner::SetBlock(int iRow, int iCol,
+                                                      Operator *op)
+{
+   MFEM_VERIFY(offsets[iRow+1] - offsets[iRow] == op->NumRows() &&
+               offsets[iCol+1] - offsets[iCol] == op->NumCols(),
+               "incompatible Operator dimensions");
+
+   ops(iRow, iCol) = op;
+}
+
+// Operator application
+
+void BlockTriangularSymmetricPreconditioner::ForwardPass(const Vector & x,
+                                                         Vector & y) const
+{
+   // Forward sweep: Solve for y1, then y2
+   for (int iRow = 0; iRow < nBlocks; ++iRow)
+   {
+      tmp.SetSize(offsets[iRow + 1] - offsets[iRow]);
+      tmp2.SetSize(offsets[iRow + 1] - offsets[iRow]);
+      tmp2 = 0.0;
+      tmp2 += xblock.GetBlock(iRow);  // tmp2 = xblock(iRow)
+
+      // Process the lower triangular part (jCol < iRow)
+      for (int jCol = 0; jCol < iRow; ++jCol)
+      {
+         if (ops(iRow, jCol))
+         {
+            ops(iRow, jCol)->Mult(yblock.GetBlock(jCol),
+                                  tmp);  // tmp = A(iRow,jCol) * yblock(jCol)
+            tmp2 -= tmp;  // tmp2 -= A(iRow, jCol) * yblock(jCol)
+         }
+      }
+
+      // Apply the diagonal block
+      if (ops(iRow, iRow))
+      {
+         ops(iRow, iRow)->Mult(tmp2,
+                               yblock.GetBlock(iRow));  // yblock(iRow) = A(iRow,iRow)^-1 * tmp2
+      }
+      else
+      {
+         yblock.GetBlock(iRow) = tmp2;  // If no diagonal operator, set yblock directly
+      }
+   }
+}
+
+void BlockTriangularSymmetricPreconditioner::BackwardPass(const Vector & x,
+                                                          Vector & y) const
+{
+   // Backward sweep: Adjust y1 based on y2
+   for (int iRow = nBlocks - 1; iRow >= 0; --iRow)
+   {
+      tmp.SetSize(offsets[iRow + 1] - offsets[iRow]);
+      tmp2.SetSize(offsets[iRow + 1] - offsets[iRow]);
+      tmp2 = 0.0;
+      tmp2 += xblock.GetBlock(iRow);  // tmp2 = yblock(iRow) from forward sweep
+
+      // Process the upper triangular part (jCol > iRow)
+      for (int jCol = iRow + 1; jCol < nBlocks; ++jCol)
+      {
+         if (ops(iRow, jCol))
+         {
+            ops(iRow, jCol)->Mult(yblock.GetBlock(jCol),
+                                  tmp);  // tmp = A(iRow,jCol) * yblock(jCol)
+            tmp2 -= tmp;  // tmp2 -= A(iRow,jCol) * yblock(jCol)
+         }
+      }
+
+      // Reapply diagonal block to correct y1
+      if (ops(iRow, iRow))
+      {
+         ops(iRow, iRow)->Mult(tmp2,
+                               yblock.GetBlock(iRow));  // Final correction for yblock(iRow)
+      }
+      else
+      {
+         yblock.GetBlock(iRow) = tmp2;  // If no diagonal operator, set yblock directly
+      }
+   }
+}
+
+
+
+void BlockTriangularSymmetricPreconditioner::Mult(const Vector & x,
+                                                  Vector & y) const
+{
+   MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
+   MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
+
+   // Update block views of the vectors y and x using offsets
+   yblock.Update(y.GetData(), offsets);
+   xblock.Update(x.GetData(), offsets);
+
+   // Initialize y to zero
+   y = 0.0;
+   ForwardPass(x,y);
+
+   // Update Residual
+   r.SetSize(x.Size());
+   r = 0.0; r+=x;
+   Op->AddMult(y,r,-1.0);
+
+   Vector y1(y);
+   yblock.Update(y1.GetData(), offsets);
+   xblock.Update(r.GetData(), offsets);
+   BackwardPass(r,y1);
+   y+=y1;
+}
+
+BlockTriangularSymmetricPreconditioner::~BlockTriangularSymmetricPreconditioner()
+{
+   if (owns_blocks)
+   {
+      for (int iRow=0; iRow < nBlocks; ++iRow)
+      {
+         for (int jCol=0; jCol < nBlocks; ++jCol)
+         {
+            delete ops(jCol,iRow);
+         }
+      }
+   }
+}
+
+
+
 }
