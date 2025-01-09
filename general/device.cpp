@@ -72,9 +72,9 @@ bool Device::mem_types_set = false;
 
 Device::Device()
 {
-   if (getenv("MFEM_MEMORY") && !mem_host_env && !mem_device_env)
+   if (GetEnv("MFEM_MEMORY") && !mem_host_env && !mem_device_env)
    {
-      std::string mem_backend(getenv("MFEM_MEMORY"));
+      std::string mem_backend(GetEnv("MFEM_MEMORY"));
       if (mem_backend == "host")
       {
          mem_host_env = true;
@@ -139,9 +139,9 @@ Device::Device()
       mm.Configure(host_mem_type, device_mem_type);
    }
 
-   if (getenv("MFEM_DEVICE"))
+   if (GetEnv("MFEM_DEVICE"))
    {
-      std::string device(getenv("MFEM_DEVICE"));
+      std::string device(GetEnv("MFEM_DEVICE"));
       Configure(device);
       device_env = true;
    }
@@ -150,6 +150,9 @@ Device::Device()
 
 Device::~Device()
 {
+#ifdef MFEM_USE_MPI
+   Hypre::Finalize();
+#endif
    if ( device_env && !destroy_mm) { return; }
    if (!device_env &&  destroy_mm && !mem_host_env)
    {
@@ -255,7 +258,15 @@ void Device::Configure(const std::string &device, const int device_id)
    destroy_mm = true;
 
 #ifdef MFEM_USE_MPI
-   Hypre::InitDevice();
+#if defined(HYPRE_USING_GPU) && (MFEM_HYPRE_VERSION >= 23100)
+   // Skip the call to Hypre::InitDevice() if HYPRE is not initialized, e.g.
+   // * if running a serial code
+   // * if running with the environment variable MFEM_DEVICE set.
+   if (HYPRE_Initialized())
+   {
+      Hypre::InitDevice();
+   }
+#endif
 #endif
 }
 

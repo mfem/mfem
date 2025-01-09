@@ -953,7 +953,7 @@ int main(int argc, char *argv[])
                   "Untangling is supported only for ideal targets.");
 
       const DenseMatrix &Wideal =
-         Geometries.GetGeomToPerfGeomJac(fespace->GetFE(0)->GetGeomType());
+         Geometries.GetGeomToPerfGeomJac(mesh->GetTypicalElementGeometry());
       min_detJ /= Wideal.Det();
 
       // Slightly below minJ0 to avoid div by 0.
@@ -1096,7 +1096,7 @@ int main(int argc, char *argv[])
    // Perform the nonlinear optimization.
    //
    const IntegrationRule &ir =
-      irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(mesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
