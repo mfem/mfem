@@ -832,7 +832,8 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
       RAJA::launch<cuda_launch_policy>(
          RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
                             smem_bytes),
-         "label", [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
+         "mfem::forall_smem[RAJA.CUDA]",
+         [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
       {
          double *buffer = (double *)ctx.shared_mem_ptr;
          d_body(buffer);
@@ -847,7 +848,8 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
       RAJA::launch<hip_launch_policy>(
          RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
                             smem_bytes),
-         "label", [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
+         "mfem::forall_smem[RAJA.HIP]",
+         [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
       {
          double *buffer = (double *)ctx.shared_mem_ptr;
          d_body(buffer);
