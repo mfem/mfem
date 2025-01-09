@@ -1880,7 +1880,7 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       {
          if (uni_fdof >= 0) // uniform faces
          {
-            int nf = fec->DofForGeometry(pncmesh->GetFaceGeometry(0));
+            int nf = fec->DofForGeometry(pmesh->GetTypicalFaceGeometry());
             index = dof / nf, edof = dof % nf;
          }
          else // mixed faces or var-order space
