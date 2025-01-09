@@ -787,8 +787,10 @@ inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 }
 
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
-namespace internal {
-template <class T, class lambda> __global__ void forall_smem_impl(lambda body) {
+namespace internal
+{
+template <class T, class lambda> __global__ void forall_smem_impl(lambda body)
+{
    extern MFEM_SHARED T buffer[];
    body(buffer);
 }
@@ -811,7 +813,8 @@ template <class T, class lambda> __global__ void forall_smem_impl(lambda body) {
 template <class T, class h_lambda, class d_lambda>
 inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
                         int bz, int smem_bytes, h_lambda &&h_body,
-                        d_lambda &&d_body) {
+                        d_lambda &&d_body)
+{
    MFEM_CONTRACT_VAR(nx);
    MFEM_CONTRACT_VAR(ny);
    MFEM_CONTRACT_VAR(nz);
@@ -819,34 +822,37 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
    MFEM_CONTRACT_VAR(by);
    MFEM_CONTRACT_VAR(bz);
    MFEM_CONTRACT_VAR(d_body);
-   if (!use_dev) {
+   if (!use_dev)
+   {
       goto backend_cpu;
    }
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    if (Device::Allows(Backend::RAJA_CUDA))
    {
-     RAJA::launch<cuda_launch_policy>(
-      RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
-                         smem_bytes),
-      "label", [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx) {
-        double *buffer = (double *)ctx.shared_mem_ptr;
-        d_body(buffer);
+      RAJA::launch<cuda_launch_policy>(
+         RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
+                            smem_bytes),
+         "label", [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
+      {
+         double *buffer = (double *)ctx.shared_mem_ptr;
+         d_body(buffer);
       });
-     return;
+      return;
    }
 #endif
-   
+
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP)
    if (Device::Allows(Backend::RAJA_HIP))
    {
-     RAJA::launch<hip_launch_policy>(
-      RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
-                         smem_bytes),
-      "label", [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx) {
-        double *buffer = (double *)ctx.shared_mem_ptr;
-        d_body(buffer);
+      RAJA::launch<hip_launch_policy>(
+         RAJA::LaunchParams(RAJA::Teams(nx, ny, nz), RAJA::Threads(bx, by, bz),
+                            smem_bytes),
+         "label", [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
+      {
+         double *buffer = (double *)ctx.shared_mem_ptr;
+         d_body(buffer);
       });
-     return;
+      return;
    }
 #endif
 
@@ -854,8 +860,8 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
    if (Device::Allows(Backend::CUDA))
    {
       internal::forall_smem_impl<T>
-          <<<dim3(nx, ny, nz), dim3(bx, by, bz), smem_bytes>>>(
-              std::forward<d_lambda>(d_body));
+      <<<dim3(nx, ny, nz), dim3(bx, by, bz), smem_bytes>>>(
+         std::forward<d_lambda>(d_body));
       return;
    }
 #endif
@@ -864,7 +870,7 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
    if (Device::Allows(Backend::HIP))
    {
       auto launcher =
-          internal::forall_smem_impl<T, typename std::decay<d_lambda>::type>;
+         internal::forall_smem_impl<T, typename std::decay<d_lambda>::type>;
       hipLaunchKernelGGL(launcher, dim3(nx, ny, nz), dim3(bx, by, bz),
                          smem_bytes, nullptr, std::forward<d_lambda>(d_body));
       return;
@@ -878,9 +884,10 @@ backend_cpu:
 
 template <class T, class lambda>
 inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
-                        int bz, int smem_bytes, lambda &&body) {
-  forall_smem<T>(use_dev, nx, ny, nz, bx, by, bz, smem_bytes,
-               std::forward<lambda>(body), std::forward<lambda>(body));
+                        int bz, int smem_bytes, lambda &&body)
+{
+   forall_smem<T>(use_dev, nx, ny, nz, bx, by, bz, smem_bytes,
+                  std::forward<lambda>(body), std::forward<lambda>(body));
 }
 
 #ifdef MFEM_USE_MPI
@@ -959,68 +966,80 @@ namespace internal
  @tparam R Reducer capable of combining values of type value_type. See reducers.hpp for
  pre-defined reducers.
  */
-template<class B, class R> struct reduction_kernel {
-  /** @brief value type body and reducer operate on. */
-  using value_type = typename R::value_type;
-  /** @brief workspace for the intermediate reduction results */
-  mutable value_type *work;
-  B body;
-  R reducer;
-  /** @brief Length of sequence to reduce over. */
-  int N;
-  /** @brief How many items is each thread responsible for during the serial phase */
-  int items_per_thread;
+template<class B, class R> struct reduction_kernel
+{
+   /** @brief value type body and reducer operate on. */
+   using value_type = typename R::value_type;
+   /** @brief workspace for the intermediate reduction results */
+   mutable value_type *work;
+   B body;
+   R reducer;
+   /** @brief Length of sequence to reduce over. */
+   int N;
+   /** @brief How many items is each thread responsible for during the serial phase */
+   int items_per_thread;
 
-  constexpr static MFEM_HOST_DEVICE int max_blocksize() { return 256; }
+   constexpr static MFEM_HOST_DEVICE int max_blocksize() { return 256; }
 
-  /** helper for computing the reduction block size */
-  static int block_log2(unsigned N) {
+   /** helper for computing the reduction block size */
+   static int block_log2(unsigned N)
+   {
 #if defined(__GNUC__) or defined(__clang__)
-  return N ? (sizeof(unsigned) * 8 - __builtin_clz(N)) : 0;
+      return N ? (sizeof(unsigned) * 8 - __builtin_clz(N)) : 0;
 #elif defined(_MSC_VER)
-  return sizeof(unsigned) * 8 - __lzclz(N);
+      return sizeof(unsigned) * 8 - __lzclz(N);
 #else
-  int res = 0;
-  while (N) {
-    N >>= 1;
-    ++res;
-  }
-  return res;
+      int res = 0;
+      while (N)
+      {
+         N >>= 1;
+         ++res;
+      }
+      return res;
 #endif
-  }
+   }
 
-  MFEM_HOST_DEVICE void operator()(value_type *buffer) const {
+   MFEM_HOST_DEVICE void operator()(value_type *buffer) const
+   {
 #if (defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||                      \
     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__))
-  reducer.init_val(buffer[MFEM_THREAD_ID(x)]);
-  // serial part
-  for (int idx = 0; idx < items_per_thread; ++idx) {
-    int i = MFEM_THREAD_ID(x) +
-            (idx + MFEM_BLOCK_ID(x) * items_per_thread) * MFEM_THREAD_SIZE(x);
-    if (i < N) {
-      body(i, buffer[MFEM_THREAD_ID(x)]);
-    } else {
-      break;
-    }
-  }
-  // binary tree reduction
-  for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1) {
-    MFEM_SYNC_THREAD;
-    if (MFEM_THREAD_ID(x) < i) {
-      reducer.join(buffer[MFEM_THREAD_ID(x)], buffer[MFEM_THREAD_ID(x) + i]);
-    }
-  }
-  if (MFEM_THREAD_ID(x) == 0) {
-    work[MFEM_BLOCK_ID(x)] = buffer[0];
-  }
+      reducer.init_val(buffer[MFEM_THREAD_ID(x)]);
+      // serial part
+      for (int idx = 0; idx < items_per_thread; ++idx)
+      {
+         int i = MFEM_THREAD_ID(x) +
+                 (idx + MFEM_BLOCK_ID(x) * items_per_thread) * MFEM_THREAD_SIZE(x);
+         if (i < N)
+         {
+            body(i, buffer[MFEM_THREAD_ID(x)]);
+         }
+         else
+         {
+            break;
+         }
+      }
+      // binary tree reduction
+      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      {
+         MFEM_SYNC_THREAD;
+         if (MFEM_THREAD_ID(x) < i)
+         {
+            reducer.join(buffer[MFEM_THREAD_ID(x)], buffer[MFEM_THREAD_ID(x) + i]);
+         }
+      }
+      if (MFEM_THREAD_ID(x) == 0)
+      {
+         work[MFEM_BLOCK_ID(x)] = buffer[0];
+      }
 #else
-  // serial host
-  reducer.init_val(work[0]);
-  for (int i = 0; i < N; ++i) {
-    body(i, work[0]);
-  }
+      // serial host
+      reducer.init_val(work[0]);
+      for (int i = 0; i < N; ++i)
+      {
+         body(i, work[0]);
+      }
 #endif
-  }
+   }
 };
 }
 
@@ -1040,69 +1059,75 @@ template <class T, class B, class R>
 void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
             Array<T> &workspace)
 {
-  if (N == 0) {
-    return;
-  }
+   if (N == 0)
+   {
+      return;
+   }
 
-  if (!use_dev) {
-    goto backend_cpu;
-  }
+   if (!use_dev)
+   {
+      goto backend_cpu;
+   }
 #if defined(MFEM_USE_HIP) || defined(MFEM_USE_CUDA)
-  if (mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
-                           Backend::RAJA_HIP)) {
-    using red_type = internal::reduction_kernel<typename std::decay<B>::type,
-                                                typename std::decay<R>::type>;
-    // max block size is 256, but can be smaller
-    int block_size = std::min<int>(red_type::max_blocksize(),
-                                   1ll << red_type::block_log2(N));
+   if (mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
+                            Backend::RAJA_HIP))
+   {
+      using red_type = internal::reduction_kernel<typename std::decay<B>::type,
+            typename std::decay<R>::type>;
+      // max block size is 256, but can be smaller
+      int block_size = std::min<int>(red_type::max_blocksize(),
+                                     1ll << red_type::block_log2(N));
 
-    int num_mp;
+      int num_mp;
 #if defined(MFEM_USE_CUDA)
-    cudaDeviceGetAttribute(&num_mp, cudaDevAttrMultiProcessorCount,
-                           Device::GetId());
-    // good value of mp_sat found experimentally on Tuolumne/Lassen
-    constexpr int mp_sat = 4;
+      cudaDeviceGetAttribute(&num_mp, cudaDevAttrMultiProcessorCount,
+                             Device::GetId());
+      // good value of mp_sat found experimentally on Tuolumne/Lassen
+      constexpr int mp_sat = 4;
 #elif defined(MFEM_USE_HIP)
-    hipDeviceGetAttribute(&num_mp, hipDeviceAttributeMultiprocessorCount,
-                          Device::GetId());
-    // good value of mp_sat found experimentally on Tuolumne/Lassen
-    constexpr int mp_sat = 4;
+      hipDeviceGetAttribute(&num_mp, hipDeviceAttributeMultiprocessorCount,
+                            Device::GetId());
+      // good value of mp_sat found experimentally on Tuolumne/Lassen
+      constexpr int mp_sat = 4;
 #else
-    num_mp = 1;
-    constexpr int mp_sat = 1;
+      num_mp = 1;
+      constexpr int mp_sat = 1;
 #endif
-    // determine how many items each thread should sum during the serial
-    // portion
-    int nblocks = std::min(mp_sat * num_mp, (N + block_size - 1) / block_size);
-    int items_per_thread =
-        (N + block_size * nblocks - 1) / (block_size * nblocks);
+      // determine how many items each thread should sum during the serial
+      // portion
+      int nblocks = std::min(mp_sat * num_mp, (N + block_size - 1) / block_size);
+      int items_per_thread =
+         (N + block_size * nblocks - 1) / (block_size * nblocks);
 
-    int smem_bytes = sizeof(T) * block_size;
+      int smem_bytes = sizeof(T) * block_size;
 
-    red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
-    // allocate res to fit block_size entries
-    auto mt = workspace.GetMemory().GetMemoryType();
-    if (mt != MemoryType::HOST_PINNED && mt != MemoryType::MANAGED) {
-      mt = MemoryType::MANAGED;
-    }
-    workspace.SetSize(nblocks, mt);
-    auto work = workspace.Write();
-    red.work = work;
-    forall_smem<T>(true, nblocks, 1, 1, block_size, 1, 1, smem_bytes,
-                   std::move(red));
-    // wait for results
-    MFEM_DEVICE_SYNC;
-    for (int i = 0; i < nblocks; ++i) {
-      reducer.join(res, work[i]);
-    }
-    return;
-  }
+      red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
+      // allocate res to fit block_size entries
+      auto mt = workspace.GetMemory().GetMemoryType();
+      if (mt != MemoryType::HOST_PINNED && mt != MemoryType::MANAGED)
+      {
+         mt = MemoryType::MANAGED;
+      }
+      workspace.SetSize(nblocks, mt);
+      auto work = workspace.Write();
+      red.work = work;
+      forall_smem<T>(true, nblocks, 1, 1, block_size, 1, 1, smem_bytes,
+                     std::move(red));
+      // wait for results
+      MFEM_DEVICE_SYNC;
+      for (int i = 0; i < nblocks; ++i)
+      {
+         reducer.join(res, work[i]);
+      }
+      return;
+   }
 #endif
 
 backend_cpu:
-  for (int i = 0; i < N; ++i) {
-    body(i, res);
-  }
+   for (int i = 0; i < N; ++i)
+   {
+      body(i, res);
+   }
 }
 
 } // namespace mfem

@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <algorithm> // std::max
 #include <cstdint>
+#include <memory>
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
@@ -1826,19 +1827,21 @@ const char *MemoryTypeName[MemoryTypeSize] =
 
 void *get_host_smem(size_t bytes)
 {
-  constexpr size_t alignment = 256;
-  static std::unique_ptr<char[]> buffer;
-  static size_t capacity = 0;
-  if (capacity < bytes) {
+   constexpr size_t alignment = 256;
+   static std::unique_ptr<char[]> buffer;
+   static size_t capacity = 0;
+   if (capacity < bytes)
+   {
       buffer.reset(new char[bytes + alignment - 1]);
       capacity = bytes;
-  }
+   }
 
-  auto offset = reinterpret_cast<uintptr_t>(buffer.get()) % alignment;
-  if (offset) {
-    return buffer.get() + alignment - offset;
-  }
-  return buffer.get();
+   auto offset = reinterpret_cast<uintptr_t>(buffer.get()) % alignment;
+   if (offset)
+   {
+      return buffer.get() + alignment - offset;
+   }
+   return buffer.get();
 }
 
 } // namespace mfem
