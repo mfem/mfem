@@ -1346,6 +1346,11 @@ inline int Memory<T>::CompareHostAndDevice(int size) const
    return MemoryManager::CompareHostAndDevice_(h_ptr, size*sizeof(T), flags);
 }
 
+/** Gets a buffer to be used for shared space. Not thread safe to use the
+ * returned buffer from multiple threads at the same time. */
+extern void *get_host_smem(size_t bytes);
+
+
 
 /// The (single) global memory manager object
 extern MFEM_EXPORT MemoryManager mm;
