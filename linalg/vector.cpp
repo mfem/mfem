@@ -1135,7 +1135,7 @@ real_t Vector::Min() const
       auto d_min = min.ReadWrite();
       mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
       {
-         d_min[0] = (d_min[0]<m_data_[i])?d_min[0]:m_data_[i];
+         d_min[0] = fmin(d_min[0], m_data_[i]);
       });
       min.HostReadWrite();
       return min[0];
@@ -1145,10 +1145,7 @@ vector_min_cpu:
    real_t minimum = data[0];
    for (int i = 1; i < size; i++)
    {
-      if (m_data[i] < minimum)
-      {
-         minimum = m_data[i];
-      }
+      minimum = fmin(minimum, m_data[i]);
    }
    return minimum;
 }
@@ -1198,8 +1195,18 @@ real_t Vector::Max() const
 
    if (Device::Allows(Backend::DEBUG_DEVICE))
    {
+      const int N = size;
       auto m_data_ = Read();
-      return devVectorMax(size, m_data);
+      Vector max(1);
+      max = -infinity();
+      max.UseDevice(true);
+      auto d_max = max.ReadWrite();
+      mfem::forall(N, [=] MFEM_HOST_DEVICE(int i)
+      {
+         d_max[0] = fmax(d_max[0], m_data_[i]);
+      });
+      max.HostReadWrite();
+      return max[0];
    }
 
 vector_max_cpu:
