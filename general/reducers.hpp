@@ -14,6 +14,8 @@
 
 #include "forall.hpp"
 
+#include <cstdint>
+#include <cmath>
 #include <type_traits>
 
 namespace mfem
