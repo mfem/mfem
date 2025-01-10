@@ -789,9 +789,9 @@ inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
 namespace internal
 {
-template <class T, class lambda> __global__ void forall_smem_impl(lambda body)
+template <class lambda> __global__ void forall_smem_impl(lambda body)
 {
-   extern MFEM_SHARED T buffer[];
+   extern MFEM_SHARED void* buffer[];
    body(buffer);
 }
 }
@@ -810,7 +810,7 @@ template <class T, class lambda> __global__ void forall_smem_impl(lambda body)
  * @a d_body device body
  * @tparam T pointer type for dynamic shared memory buffer
  */
-template <class T, class h_lambda, class d_lambda>
+template <class h_lambda, class d_lambda>
 inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
                         int bz, int smem_bytes, h_lambda &&h_body,
                         d_lambda &&d_body, const char* label=nullptr)
@@ -835,8 +835,7 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
          label,
          [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
       {
-         double *buffer = (double *)ctx.shared_mem_ptr;
-         d_body(buffer);
+         d_body(ctx.shared_mem_ptr);
       });
       return;
    }
@@ -851,8 +850,7 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
          label,
          [=] MFEM_HOST_DEVICE(RAJA::LaunchContext ctx)
       {
-         double *buffer = (double *)ctx.shared_mem_ptr;
-         d_body(buffer);
+         d_body(ctx.shared_mem_ptr);
       });
       return;
    }
@@ -861,8 +859,8 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
 #ifdef MFEM_USE_CUDA
    if (Device::Allows(Backend::CUDA))
    {
-      internal::forall_smem_impl<T>
-      <<<dim3(nx, ny, nz), dim3(bx, by, bz), smem_bytes>>>(
+      internal::
+      forall_smem_impl<<<dim3(nx, ny, nz), dim3(bx, by, bz), smem_bytes>>>(
          std::forward<d_lambda>(d_body));
       return;
    }
@@ -872,7 +870,7 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
    if (Device::Allows(Backend::HIP))
    {
       auto launcher =
-         internal::forall_smem_impl<T, typename std::decay<d_lambda>::type>;
+         internal::forall_smem_impl<typename std::decay<d_lambda>::type>;
       hipLaunchKernelGGL(launcher, dim3(nx, ny, nz), dim3(bx, by, bz),
                          smem_bytes, nullptr, std::forward<d_lambda>(d_body));
       return;
@@ -881,16 +879,16 @@ inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
 
 backend_cpu:
    // CPU fallback
-   h_body(reinterpret_cast<T *>(get_host_smem(smem_bytes)));
+   h_body(get_host_smem(smem_bytes));
 }
 
-template <class T, class lambda>
+template <class lambda>
 inline void forall_smem(bool use_dev, int nx, int ny, int nz, int bx, int by,
                         int bz, int smem_bytes, lambda &&body,
                         const char *label = nullptr)
 {
-   forall_smem<T>(use_dev, nx, ny, nz, bx, by, bz, smem_bytes,
-                  std::forward<lambda>(body), std::forward<lambda>(body), label);
+   forall_smem(use_dev, nx, ny, nz, bx, by, bz, smem_bytes,
+               std::forward<lambda>(body), std::forward<lambda>(body), label);
 }
 
 #ifdef MFEM_USE_MPI
@@ -1002,8 +1000,9 @@ template<class B, class R> struct reduction_kernel
 #endif
    }
 
-   MFEM_HOST_DEVICE void operator()(value_type *buffer) const
+   MFEM_HOST_DEVICE void operator()(void *b_) const
    {
+      value_type *buffer = reinterpret_cast<value_type *>(b_);
 #if (defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||                      \
     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__))
       reducer.init_val(buffer[MFEM_THREAD_ID(x)]);
@@ -1114,8 +1113,8 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       workspace.SetSize(nblocks, mt);
       auto work = workspace.Write();
       red.work = work;
-      forall_smem<T>(true, nblocks, 1, 1, block_size, 1, 1, smem_bytes,
-                     std::move(red), "mfem::reduce");
+      forall_smem(true, nblocks, 1, 1, block_size, 1, 1, smem_bytes,
+                  std::move(red), "mfem::reduce");
       // wait for results
       MFEM_DEVICE_SYNC;
       for (int i = 0; i < nblocks; ++i)

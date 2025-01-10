@@ -29,9 +29,66 @@ namespace mfem
 {
 
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+/**
+ * Reducer for helping to compute L2-norms
+ */
+struct L2Reducer
+{
+   using value_type = DevicePair<real_t, real_t>;
+   MFEM_HOST_DEVICE void join(value_type& a, const value_type &b) const
+   {
+      real_t scale = fmax(a.second, b.second);
+      if (scale > 0)
+      {
+         real_t s = a.second / scale;
+         a.first *= s * s;
+         s = b.second / scale;
+         a.first += b.first * s * s;
+         a.second = scale;
+      }
+   }
+
+   MFEM_HOST_DEVICE void init_val(value_type &a) const
+   {
+      a.first = 0;
+      a.second = 0;
+   }
+};
+
+/**
+ * Reducer for helping to compute Lp-norms
+ */
+struct LpReducer
+{
+   real_t p;
+   using value_type = DevicePair<real_t, real_t>;
+   MFEM_HOST_DEVICE void join(value_type& a, const value_type &b) const
+   {
+      real_t scale = fmax(a.second, b.second);
+      if (scale > 0)
+      {
+         a.first = a.first * pow(a.second / scale, p) +
+                   b.first * pow(b.second / scale, p);
+         a.second = scale;
+      }
+   }
+
+   MFEM_HOST_DEVICE void init_val(value_type &a) const
+   {
+      a.first = 0;
+      a.second = 0;
+   }
+};
+
 static Array<real_t>& vector_workspace()
 {
    static Array<real_t> instance;
+   return instance;
+}
+
+static Array<DevicePair<real_t, real_t>> &Lpvector_workspace()
+{
+   static Array<DevicePair<real_t, real_t>> instance;
    return instance;
 }
 
@@ -60,7 +117,7 @@ static real_t devVectorLinf(int size, const real_t *m_data)
    real_t res = 0;
    reduce(
       size, res,
-      [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, fabs(m_data[i])); },
+   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r = fmax(r, fabs(m_data[i])); },
    MaxReducer<real_t> {}, true, vector_workspace());
    return res;
 }
@@ -70,9 +127,73 @@ static real_t devVectorL1(int size, const real_t *m_data)
    real_t res = 0;
    reduce(
       size, res,
-      [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += fabs(m_data[i]); },
+   [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += fabs(m_data[i]); },
    SumReducer<real_t> {}, true, vector_workspace());
    return res;
+}
+
+static real_t devVectorL2(int size, const real_t *m_data)
+{
+   using value_type = DevicePair<real_t, real_t>;
+   value_type res;
+   res.first = 0;
+   res.second = 0;
+   // first compute sum (m_data/scale)^p
+   reduce(
+      size, res,
+      [=] MFEM_HOST_DEVICE(int i, value_type &r)
+   {
+      real_t n = fabs(m_data[i]);
+      if (n > 0)
+      {
+         if (r.second <= n)
+         {
+            real_t arg = r.second / n;
+            r.first = r.first * (arg * arg) + 1;
+            r.second = n;
+         }
+         else
+         {
+            real_t arg = n / r.second;
+            r.first += arg * arg;
+         }
+      }
+   },
+   L2Reducer{}, true, Lpvector_workspace());
+   // final answer
+   return res.second * sqrt(res.first);
+}
+
+static real_t devVectorLp(int size, real_t p, const real_t *m_data)
+{
+   using value_type = DevicePair<real_t, real_t>;
+   value_type res;
+   res.first = 0;
+   res.second = 0;
+   // first compute sum (m_data/scale)^p
+   reduce(
+      size, res,
+      [=] MFEM_HOST_DEVICE(int i, value_type &r)
+   {
+      real_t n = fabs(m_data[i]);
+      if (n > 0)
+      {
+         if (r.second <= n)
+         {
+            real_t arg = r.second / n;
+            r.first = r.first * pow(arg, p) + 1;
+            r.second = n;
+         }
+         else
+         {
+            real_t arg = n / r.second;
+            r.first += pow(arg, p);
+         }
+      }
+   },
+   LpReducer{p}, true, Lpvector_workspace());
+   // final answer
+   return res.second * pow(res.first, 1.0 / p);
 }
 
 static real_t devVectorSum(int size, const real_t *m_data)
@@ -923,17 +1044,33 @@ real_t Vector::Norml2() const
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
    // argument of each call to std::pow is <= 1 to avoid overflow.
-   if (0 == size)
+   if (size == 0)
    {
       return 0.0;
-   } // end if 0 == size
+   }
 
-   data.Read(MemoryClass::HOST, size);
+   if (UseDevice())
+   {
+#ifdef MFEM_USE_CUDA
+      if (Device::Allows(Backend::CUDA_MASK))
+      {
+         return devVectorL2(size, Read());
+      }
+#endif
+#ifdef MFEM_USE_HIP
+      if (Device::Allows(Backend::HIP_MASK))
+      {
+         return devVectorL2(size, Read());
+      }
+#endif
+   }
+
+   auto ptr = data.Read(MemoryClass::HOST, size);
    if (1 == size)
    {
-      return std::abs(data[0]);
+      return std::abs(ptr[0]);
    } // end if 1 == size
-   return kernels::Norml2(size, (const real_t*) data);
+   return kernels::Norml2(size, ptr);
 }
 
 real_t Vector::Normlinf() const
@@ -1046,14 +1183,31 @@ real_t Vector::Normlp(real_t p) const
       // Scale entries of Vector on the fly, using algorithms from
       // std::hypot() and LAPACK's drm2. This scaling ensures that the
       // argument of each call to std::pow is <= 1 to avoid overflow.
-      if (0 == size)
+      if (size == 0)
       {
          return 0.0;
-      } // end if 0 == size
+      }
 
+      if (UseDevice())
+      {
+#ifdef MFEM_USE_CUDA
+         if (Device::Allows(Backend::CUDA_MASK))
+         {
+            return devVectorLp(size, p, Read());
+         }
+#endif
+#ifdef MFEM_USE_HIP
+         if (Device::Allows(Backend::HIP_MASK))
+         {
+            return devVectorLp(size, p, Read());
+         }
+#endif
+      }
+
+      auto ptr = data.Read(MemoryClass::HOST, size);
       if (1 == size)
       {
-         return std::abs(data[0]);
+         return std::abs(ptr[0]);
       } // end if 1 == size
 
       real_t scale = 0.0;
@@ -1061,9 +1215,9 @@ real_t Vector::Normlp(real_t p) const
 
       for (int i = 0; i < size; i++)
       {
-         if (data[i] != 0.0)
+         if (ptr[i] != 0.0)
          {
-            const real_t absdata = std::abs(data[i]);
+            const real_t absdata = std::abs(ptr[i]);
             if (scale <= absdata)
             {
                sum = 1.0 + sum * std::pow(scale / absdata, p);
@@ -1071,7 +1225,7 @@ real_t Vector::Normlp(real_t p) const
                continue;
             } // end if scale <= absdata
             sum += std::pow(absdata / scale, p); // else scale > absdata
-         } // end if data[i] != 0
+         } // end if ptr[i] != 0
       }
       return scale * std::pow(sum, 1.0/p);
    } // end if p < infinity()
