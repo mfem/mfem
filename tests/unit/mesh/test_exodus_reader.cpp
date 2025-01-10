@@ -190,5 +190,18 @@ TEST_CASE("Exodus Block Names", "[MFEMData][Mesh][ExodusII]")
    const auto & domain_attr_set = mesh.attribute_sets.GetAttributeSet("domain");
    REQUIRE(domain_attr_set.Size() == 1);
    REQUIRE(domain_attr_set[0] == 1);
+   auto check_bdr_set = [&mesh](const std::string & bnd_name,
+                                const int expected_bnd_id)
+   {
+      const auto & bnd_attr_set = mesh.bdr_attribute_sets.GetAttributeSet(bnd_name);
+      REQUIRE(bnd_attr_set.Size() == 1);
+      REQUIRE(bnd_attr_set[0] == expected_bnd_id);
+   };
+   check_bdr_set("back", 0);
+   check_bdr_set("bottom", 1);
+   check_bdr_set("right", 2);
+   check_bdr_set("top", 3);
+   check_bdr_set("left", 4);
+   check_bdr_set("front", 5);
 #endif
 }

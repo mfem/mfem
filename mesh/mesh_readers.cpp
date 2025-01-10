@@ -3517,9 +3517,10 @@ public:
    /// Read dimension info from file.
    void ReadDimension(const char * name, size_t *dimension);
 
-   /// Build the map from block ID to block name
-   void BuildBlockIDToNameMap(const vector<int> & blk_ids,
-                              unordered_map<int, string> & ids_to_names);
+   /// Build the map from quantity ID to name, e.g. block ID to block name or boundary ID to boundary name
+   void BuildIDToNameMap(const vector<int> & ids,
+                         unordered_map<int, string> & ids_to_names,
+                         const string & quantity_name);
 
 protected:
    /// Called internally. Calls HandleNetCDFError if _netcdf_status is not "NC_NOERR".
@@ -3659,14 +3660,15 @@ void NetCDFReader::ReadVariable(const char * name, double * data)
 }
 
 
-void NetCDFReader::BuildBlockIDToNameMap(const vector<int> & blk_ids,
-                                         unordered_map<int, string> & ids_to_names)
+void NetCDFReader::BuildIDToNameMap(const vector<int> & ids,
+                                    unordered_map<int, string> & ids_to_names,
+                                    const string & quantity_name)
 {
-   int varid_block_names;
+   int varid_names;
 
-   // Find the variable ID for "eb_names" which stores element block names
-   _netcdf_status = nc_inq_varid(_netcdf_descriptor, "eb_names",
-                                 &varid_block_names);
+   // Find the variable ID for the given quantity_name (e.g. eb_names, ss_names)
+   _netcdf_status = nc_inq_varid(_netcdf_descriptor, quantity_name.c_str(),
+                                 &varid_names);
    // It's possible the netcdf file doesn't contain the variable, in which case
    // there's nothing to do
    if (_netcdf_status == NC_ENOTVAR)
@@ -3678,9 +3680,9 @@ void NetCDFReader::BuildBlockIDToNameMap(const vector<int> & blk_ids,
       CheckForNetCDFError();
    }
 
-   // Get type of eb_names
+   // Get type of quantity_name
    nc_type var_type;
-   _netcdf_status = nc_inq_vartype(_netcdf_descriptor, varid_block_names,
+   _netcdf_status = nc_inq_vartype(_netcdf_descriptor, varid_names,
                                    &var_type);
    CheckForNetCDFError();
 
@@ -3689,40 +3691,40 @@ void NetCDFReader::BuildBlockIDToNameMap(const vector<int> & blk_ids,
       int dimids_names[2], names_ndim;
       size_t num_names, name_len;
 
-      _netcdf_status = nc_inq_varndims(_netcdf_descriptor, varid_block_names,
+      _netcdf_status = nc_inq_varndims(_netcdf_descriptor, varid_names,
                                        &names_ndim);
       CheckForNetCDFError();
       MFEM_ASSERT(names_ndim == 2, "This variable should have two dimensions");
 
-      _netcdf_status = nc_inq_vardimid(_netcdf_descriptor, varid_block_names,
+      _netcdf_status = nc_inq_vardimid(_netcdf_descriptor, varid_names,
                                        dimids_names);
       CheckForNetCDFError();
 
       _netcdf_status = nc_inq_dimlen(_netcdf_descriptor, dimids_names[0], &num_names);
       CheckForNetCDFError();
-      MFEM_ASSERT(num_names == blk_ids.size(),
+      MFEM_ASSERT(num_names == ids.size(),
                   "The block id and block name lengths don't match");
       // Check the maximum string length
       _netcdf_status = nc_inq_dimlen(_netcdf_descriptor, dimids_names[1], &name_len);
       CheckForNetCDFError();
 
       // Read the block names
-      vector<char> block_names(blk_ids.size() * name_len);
-      _netcdf_status = nc_get_var_text(_netcdf_descriptor, varid_block_names,
-                                       block_names.data());
+      vector<char> names(ids.size() * name_len);
+      _netcdf_status = nc_get_var_text(_netcdf_descriptor, varid_names,
+                                       names.data());
       CheckForNetCDFError();
 
-      for (size_t i = 0; i < blk_ids.size(); ++i)
+      for (size_t i = 0; i < ids.size(); ++i)
       {
-         string name(&block_names[i * name_len], name_len);
+         string name(&names[i * name_len], name_len);
          // shorten string
          name.resize(name.find('\0'));
-         ids_to_names[blk_ids[i]] = name;
+         ids_to_names[ids[i]] = name;
       }
    }
    else
    {
-      mfem_error("Unexpected element block names type");
+      mfem_error("Unexpected netcdf variable type");
    }
 }
 
@@ -4331,8 +4333,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    vector<int> block_ids;
    BuildCubitBlockIDs(cubit_reader, num_element_blocks, block_ids);
    unordered_map<int, string> blk_ids_to_names;
-   cubit_reader.BuildBlockIDToNameMap(block_ids, blk_ids_to_names);
-
+   cubit_reader.BuildIDToNameMap(block_ids, blk_ids_to_names, "eb_names");
    for (const auto & pr : blk_ids_to_names)
    {
       const auto blk_id = pr.first;
@@ -4375,6 +4376,22 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    //
    vector<int> boundary_ids;
    ReadCubitBoundaryIDs(cubit_reader, num_boundaries, boundary_ids);
+   unordered_map<int, string> bnd_ids_to_names;
+   cubit_reader.BuildIDToNameMap(boundary_ids, bnd_ids_to_names, "ss_names");
+   for (const auto & pr : bnd_ids_to_names)
+   {
+      const auto bnd_id = pr.first;
+      const auto & bnd_name = pr.second;
+      if (!bnd_name.empty())
+      {
+         if (!bdr_attribute_sets.AttributeSetExists(bnd_name))
+         {
+            bdr_attribute_sets.CreateAttributeSet(bnd_name);
+         }
+         bdr_attribute_sets.AddToAttributeSet(bnd_name, bnd_id);
+      }
+   }
+
 
    //
    // Read the (element, corresponding side) on each of the boundaries.
