@@ -291,8 +291,8 @@ int main(int argc, char *argv[])
    }
    else if (testNo == 6 || testNo == 61 || testNo == 62)
    {
-      E = 1e3;
-      nu = 0.3;
+      E = 1.e3;
+      nu = 0.4;//nu = 0.3;
    }
    else
    {
@@ -439,7 +439,8 @@ int main(int argc, char *argv[])
 
 
 
-   double p = 20.0;
+   //double p = 20.0;
+   double p = 40.0;
    ConstantCoefficient f(p);
    std::vector<Array<int>> CGiter;
    int total_steps = nsteps + msteps;
@@ -529,13 +530,14 @@ int main(int argc, char *argv[])
       xBCtrue.GetSubVector(ess_tdof_list, DCvals);
       xrefbc.SetSubVector(ess_tdof_list, DCvals);
    
-      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc,qp);
+      OptContactProblem contact(&prob, mortar_attr, nonmortar_attr, &new_coords, doublepass, xref,xrefbc,qp, bound_constraints);
       
-      if( i > int(total_steps / 2) && bound_constraints)
+      if( i > int(total_steps / 4) && bound_constraints)
       {
          eps_min = max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), MPI_COMM_WORLD));  
          // update eps and set parameters
-         for (int j = 0; j < eps.Size(); j++)
+         // could we do something more conservative here...
+	 for (int j = 0; j < eps.Size(); j++)
          {
             eps(j) = max(eps_min, eps(j));
          }
@@ -589,9 +591,9 @@ int main(int argc, char *argv[])
       dx.Add(-1.0, x0);
 
 
-
-      double Einitial = contact.E(x0);
-      double Efinal = contact.E(xf);
+      int eval_err;
+      double Einitial = contact.E(x0, eval_err);
+      double Efinal = contact.E(xf, eval_err);
       Array<int> & CGiterations = optimizer.GetCGIterNumbers();
       Array<double> & DMaxMinRatios  = optimizer.GetDMaxMinRatios();
       CGiter.push_back(CGiterations);
@@ -629,12 +631,14 @@ int main(int argc, char *argv[])
          if (outputfiles)
          {
             ostringstream file_name;
-            file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/solver-"<<linsolver<<"-dynamic-"<<(int)dynamicsolver<<"-nsteps-" << nsteps << "-step-" << i; 
+            file_name << "output/testNo" << testNo << "_ref" << sref+pref << "nsteps" << nsteps << "-step-" << i;
+	    //file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/solver-"<<linsolver<<"-dynamic-"<<(int)dynamicsolver<<"-nsteps-" << nsteps << "-step-" << i; 
             OutputData(file_name, Einitial, Efinal, gndofs,numconstr, optimizer.GetNumIterations(), CGiterations);
             if (i == nsteps-1)
             {
                ostringstream final_file_name;
-               final_file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/solver-"<<linsolver<<"-dynamic-"<<(int)dynamicsolver<<"-nsteps-" << nsteps << "-final"; 
+               final_file_name << "output/testNo" << testNo << "_ref" << sref+pref << "nsteps" << nsteps << "-step-" << i << "-final";
+               //final_file_name << "output/test"<<testNo<<"/ref"<<sref+pref <<"/solver-"<<linsolver<<"-dynamic-"<<(int)dynamicsolver<<"-nsteps-" << nsteps << "-final"; 
                OutputFinalData(final_file_name, Einitial, Efinal, gndofs, numconstr, CGiter);
             }
          }

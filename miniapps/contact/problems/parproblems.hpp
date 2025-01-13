@@ -122,7 +122,7 @@ private:
    Vector dl;
    Vector eps;
    Array<int> block_offsetsg;
-
+   bool bound_constraints;
 public:
    OptContactProblem(ElasticityOperator * problem_, 
                      const std::set<int> & mortar_attrs_, 
@@ -130,14 +130,24 @@ public:
                      ParGridFunction * coords_, bool doublepass_,
                      const Vector & xref_, 
                      const Vector & xrefbc_, 
-                     bool qp = true);
+                     bool qp_ = true,
+		     bool bound_constraints_=true);
    int GetDimU() {return dimU;}
    int GetDimM() {return dimM;}
    int GetDimC() {return dimC;}
    Vector & Getml() {return ml;}
    MPI_Comm GetComm() {return comm ;}
    HYPRE_BigInt * GetConstraintsStarts() {return constraints_starts.GetData();} 
-   HYPRE_BigInt GetGlobalNumConstraints() {return J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();}
+   HYPRE_BigInt GetGlobalNumConstraints() {
+	   if (bound_constraints)
+	   {	   
+	      return J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();
+	   }
+	   else
+	   {
+	      return J->GetGlobalNumRows();
+	   }
+   }
 
    HYPRE_BigInt * GetDofStarts() {return dof_starts.GetData();}
    HYPRE_BigInt GetGlobalNumDofs() {return J->GetGlobalNumCols(); }
@@ -156,10 +166,11 @@ public:
 
    void c(const BlockVector &, Vector &);
    void g(const Vector &, Vector &);
-   double CalcObjective(const BlockVector &);
+   double CalcObjective(const BlockVector &, int &);
    void CalcObjectiveGrad(const BlockVector &, BlockVector &);
 
-   double E(const Vector & d);
+   //double E(const Vector & d);
+   double E(const Vector & d, int & eval_err);
    void DdE(const Vector & d, Vector & gradE);
    HypreParMatrix * DddE(const Vector & d);
    

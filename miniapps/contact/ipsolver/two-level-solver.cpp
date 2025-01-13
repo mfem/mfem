@@ -91,7 +91,6 @@ void TwoLevelAMGSolver::InitCoarseSolver()
 void TwoLevelAMGSolver::Mult(const Vector & b, Vector & x) const
 {
     MFEM_VERIFY(b.Size() == x.Size(), "Inconsistent x and y size");
-    
 
     x = 0.0;
     Vector z(x);

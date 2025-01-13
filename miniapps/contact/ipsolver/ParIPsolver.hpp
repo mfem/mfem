@@ -107,6 +107,7 @@ public:
     int GetNumIterations() {return iter;}
     double theta(const BlockVector &);
     double phi(const BlockVector &, double);
+    double phi(const BlockVector &, double, int &);
     void Dxphi(const BlockVector &, double, BlockVector &);
     double L(const BlockVector &, const Vector &, const Vector &);
     void DxL(const BlockVector &, const Vector &, const Vector &, BlockVector &);

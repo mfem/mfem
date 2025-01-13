@@ -436,7 +436,14 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       HypreStealOwnership(*Wuu, *DuuS);
       delete DuuS;
    }
-   
+  
+   bool generateHuudata = false;
+   if (generateHuudata)
+   {
+      std::ostringstream Huu_file_name;
+      Huu_file_name << "data/Huu" << jOpt;
+      Huu->Print(Huu_file_name.str());
+   } 
    
    
 
@@ -647,7 +654,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          }
          AreducedSolver->SetRelTol(linSolveRelTol);
          AreducedSolver->SetMaxIter(50000);
-         AreducedSolver->SetPrintLevel(3);
+         AreducedSolver->SetPrintLevel(1);
          AreducedSolver->SetOperator(*Areduced);
          GeneralSolutionMonitor * sol_monitor = nullptr;
          if (monitor)
@@ -722,28 +729,29 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          prec.SetAMGRelaxType(relax_type);
          CGSolver AreducedSolver(MPI_COMM_WORLD);
          // SLISolver AreducedSolver(MPI_COMM_WORLD);
-         GeneralSolutionMonitor * sol_monitor = nullptr;
-         if (monitor)
-         {
-            sol_monitor = new GeneralSolutionMonitor(problem->GetElasticityOperator()->GetFESpace(),  Areduced, breduced,1);
-            AreducedSolver.SetMonitor(*sol_monitor);
-         }    
+         ///GeneralSolutionMonitor * sol_monitor = nullptr;
+         ///if (monitor)
+         ///{
+         ///   sol_monitor = new GeneralSolutionMonitor(problem->GetElasticityOperator()->GetFESpace(),  Areduced, breduced,1);
+         ///   AreducedSolver.SetMonitor(*sol_monitor);
+         ///}    
          AreducedSolver.SetRelTol(linSolveRelTol);
          AreducedSolver.SetMaxIter(500);
-         AreducedSolver.SetPrintLevel(3);
+         AreducedSolver.SetPrintLevel(1);
          AreducedSolver.SetOperator(*Areduced);
          AreducedSolver.SetPreconditioner(prec);
          chrono.Clear();
          chrono.Start();
-         Xhat.GetBlock(0).Randomize();
-         AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+         //Xhat.GetBlock(0).Randomize();
+         Xhat.GetBlock(0) = 0.;
+	 AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          chrono.Stop();
-         if (monitor) 
-         {  
-            delete sol_monitor;
-            mfem::out << "Program paused. Press enter to continue...\n"; 
-            cin.get();
-         }
+         //if (monitor) 
+         //{  
+         //   delete sol_monitor;
+         //   mfem::out << "Program paused. Press enter to continue...\n"; 
+         //   cin.get();
+         //}
          int n = AreducedSolver.GetNumIterations();
          if (iAmRoot)
          {
@@ -941,6 +949,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double mu)
 {
    // double tau  = max(tauMin, 1.0 - mu);
+   int eval_err = 0;
    double tau  = tauMin;
    Vector u0   = X0.GetBlock(0);
    Vector m0   = X0.GetBlock(1);
@@ -1008,7 +1017,16 @@ void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, doub
 
       // ------ A-5.3. if not in filter region go to A.5.4 otherwise go to A-5.5.
       thxtrial = theta(xtrial);
-      phxtrial = phi(xtrial, mu);
+      phxtrial = phi(xtrial, mu, eval_err);
+      if (eval_err == 1)
+      {
+         if(iAmRoot)
+	 {
+	    cout << "bad step\n";
+	 }
+	 alpha *= 0.5;
+	 continue;
+      }
       filterCheck(thxtrial, phxtrial);    
       if(!inFilterRegion)
       {
@@ -1215,9 +1233,9 @@ double ParInteriorPointSolver::theta(const BlockVector &x)
 }
 
 // log-barrier objective
-double ParInteriorPointSolver::phi(const BlockVector &x, double mu)
+double ParInteriorPointSolver::phi(const BlockVector &x, double mu, int & eval_err)
 {
-   double fx = problem->CalcObjective(x); 
+   double fx = problem->CalcObjective(x, eval_err); 
    double logBarrierLoc = 0.0;
    for(int i = 0; i < dimM; i++) 
    { 
@@ -1227,6 +1245,13 @@ double ParInteriorPointSolver::phi(const BlockVector &x, double mu)
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
    return fx - mu * logBarrierGlb;
 }
+
+double ParInteriorPointSolver::phi(const BlockVector & x, double mu)
+{
+   int eval_err = 0;
+   return phi(x, mu, eval_err);
+}
+
 
 // gradient of log-barrier objective with respect to x = (u, m)
 void ParInteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector &y)
@@ -1243,7 +1268,8 @@ void ParInteriorPointSolver::Dxphi(const BlockVector &x, double mu, BlockVector 
 // L(x, l, zl) = f(x) + l^T c(x) - zl^T m
 double ParInteriorPointSolver::L(const BlockVector &x, const Vector &l, const Vector &zl)
 {
-   double fx = problem->CalcObjective(x);
+   int eval_err = 0;
+   double fx = problem->CalcObjective(x, eval_err);
    Vector cx(dimC); problem->c(x, cx);
    return (fx + InnerProduct(MPI_COMM_WORLD,cx, l) - InnerProduct(MPI_COMM_WORLD, x.GetBlock(1), zl));
 }

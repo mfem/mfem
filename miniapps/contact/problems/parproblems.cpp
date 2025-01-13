@@ -206,9 +206,11 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                      ParGridFunction * coords_, bool doublepass_,
                      const Vector & xref_, 
                      const Vector & xrefbc_, 
-                     bool qp_)
+                     bool qp_,
+		     bool bound_constraints_)
 : problem(problem_), mortar_attrs(mortar_attrs_), nonmortar_attrs(nonmortar_attrs_),
-  coords(coords_), doublepass(doublepass_), xref(xref_), xrefbc(xrefbc_), qp(qp_), block_offsetsg(4)
+  coords(coords_), doublepass(doublepass_), xref(xref_), xrefbc(xrefbc_), qp(qp_), 
+	bound_constraints(bound_constraints_), block_offsetsg(4)
 {
    comm = problem->GetComm(); 
    pmesh = problem->GetMesh();
@@ -249,10 +251,18 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    dl.SetSize(dimU); dl = 0.0;
    eps.SetSize(dimU); eps = 1.e6;
 
-   dimM = dimG + 2 * dimU;
+   if (bound_constraints)
+   {
+      dimM = dimG + 2 * dimU;
+   }
+   else
+   {
+      dimM = dimG;
+   }
    dimC = dimM;
 
    ml.SetSize(dimM); ml = 0.0;
+
 }
 
 
@@ -292,8 +302,16 @@ void OptContactProblem::ComputeGapJacobian()
    dof_starts[1] = J->ColPart()[1];
    
    constraints_starts.SetSize(2);
-   constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
-   constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
+   if (bound_constraints)
+   {
+      constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
+      constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
+   }
+   else
+   {
+      constraints_starts[0] = J->RowPart()[0];
+      constraints_starts[1] = J->RowPart()[1];
+   }
 }
 
 
@@ -319,16 +337,23 @@ HypreParMatrix * OptContactProblem::Dmmf(const BlockVector & x)
 
 HypreParMatrix * OptContactProblem::Duc(const BlockVector & x)
 {
-   Array2D<const HypreParMatrix *> dcduBlockMatrix(3, 1);
-   dcduBlockMatrix(0, 0) = J;
-   dcduBlockMatrix(1, 0) = Iu;
-   dcduBlockMatrix(2, 0) = negIu;
-   if(dcdu)
+   if (bound_constraints)
    {
-      delete dcdu;
+      Array2D<const HypreParMatrix *> dcduBlockMatrix(3, 1);
+      dcduBlockMatrix(0, 0) = J;
+      dcduBlockMatrix(1, 0) = Iu;
+      dcduBlockMatrix(2, 0) = negIu;
+      if(dcdu)
+      {
+         delete dcdu;
+      }
+      dcdu = HypreParMatrixFromBlocks(dcduBlockMatrix);
+      return dcdu;
    }
-   dcdu = HypreParMatrixFromBlocks(dcduBlockMatrix);
-   return dcdu;
+   else
+   {
+      return J;
+   }
 }
 
 HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
@@ -337,7 +362,7 @@ HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
    {
       Vector negone(dimM); negone = -1.0;
       SparseMatrix diag(negone);
-      NegId = new HypreParMatrix(comm, J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols(),  constraints_starts.GetData(), &diag);
+      NegId = new HypreParMatrix(comm, GetGlobalNumConstraints(), GetConstraintsStarts(), &diag);
       HypreStealOwnership(*NegId, diag);
    }
    return NegId;
@@ -486,24 +511,30 @@ void OptContactProblem::c(const BlockVector & x, Vector & y)
 {
    const Vector disp  = x.GetBlock(0);
    const Vector slack = x.GetBlock(1); 
-	
    
-   BlockVector yblock(block_offsetsg); yblock = 0.0;
-   
-   
-   g(disp, yblock.GetBlock(0));
-   yblock.GetBlock(1).Set( 1.0, disp );
-   yblock.GetBlock(1).Add(-1.0, dl);
-   yblock.GetBlock(2).Set(-1.0, yblock.GetBlock(1));
-   yblock.GetBlock(1).Add(1.0, eps);
-   yblock.GetBlock(2).Add(1.0, eps);
-   y.Set(1.0, yblock);
-   y.Add(-1.0, slack);
+   if (bound_constraints)
+   {
+      BlockVector yblock(block_offsetsg); yblock = 0.0;
+      
+      g(disp, yblock.GetBlock(0));
+      yblock.GetBlock(1).Set( 1.0, disp );
+      yblock.GetBlock(1).Add(-1.0, dl);
+      yblock.GetBlock(2).Set(-1.0, yblock.GetBlock(1));
+      yblock.GetBlock(1).Add(1.0, eps);
+      yblock.GetBlock(2).Add(1.0, eps);
+      y.Set(1.0, yblock);
+      y.Add(-1.0, slack);
+   }
+   else
+   {
+      g(disp, y);
+      y.Add(-1., slack);
+   }
 }
 
-real_t OptContactProblem::CalcObjective(const BlockVector & x)
+real_t OptContactProblem::CalcObjective(const BlockVector & x, int & eval_err)
 {
-   return E(x.GetBlock(0));
+   return E(x.GetBlock(0), eval_err);
 }
 
 void OptContactProblem::CalcObjectiveGrad(const BlockVector & x, BlockVector & y)
@@ -512,7 +543,7 @@ void OptContactProblem::CalcObjectiveGrad(const BlockVector & x, BlockVector & y
    y.GetBlock(1) = 0.0;
 }
 
-real_t OptContactProblem::E(const Vector & d)
+real_t OptContactProblem::E(const Vector & d, int & eval_err)
 {
    if (problem->IsNonlinear() && qp)
    {
@@ -527,13 +558,31 @@ real_t OptContactProblem::E(const Vector & d)
       temp.Add(1.0, grad_ref);
       energy = InnerProduct(comm, dx, temp);
       energy += energy_ref;
+      eval_err = 0;
       return energy;
    }
    else
    {
-      return problem->GetEnergy(d);
+      double energy = problem->GetEnergy(d);
+      if (IsFinite(energy))
+      {
+         eval_err = 0;
+      }
+      else
+      {
+         eval_err = 1;
+      }
+      if (Mpi::Root() && eval_err == 1)
+      {
+         cout << "energy = " << energy << endl;
+	 cout << "eval_err = " << eval_err << endl;
+      }
+      return energy;
    }
 }
+
+
+
 
 void OptContactProblem::DdE(const Vector & d, Vector & gradE)
 {
