@@ -281,7 +281,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    const IntegrationRule *ir = nullptr;
    IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
    IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
-   const int geom_type = fes.GetFE(0)->GetGeomType();
+   const int geom_type = pmesh->GetTypicalElementGeometry();
    switch (quad_type)
    {
       case 1: ir = &IntRulesLo.Get(geom_type, quad_order); break;
