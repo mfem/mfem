@@ -21,7 +21,7 @@ template <int ORDER, int SDIM>
 void BatchedLOR_DG::Assemble2D()
 {
    const int nel_ho = fes_ho.GetNE();
-   const int p = ORDER;
+   //const int p = ORDER;
    const int pp1 = ORDER + 1;
    const int pp2 = ORDER + 2;
 
@@ -58,13 +58,13 @@ void BatchedLOR_DG::Assemble2D()
       {
          for (int ix = 0; ix < nd1d; ++ix)
          {
-            //std::cout << "element " << iel_ho << std::endl;
-            const real_t A_ref = 0.5*(2*(ir_pp2[ix].x)*(ir_pp2[iy].x) + 2*(ir_pp2[ix+1].x)*
+            const real_t A_ref = fabs(0.5*(2*(ir_pp2[ix].x)*(ir_pp2[iy].x) + 2*(ir_pp2[ix+1].x)*
                                       (ir_pp2[iy+1].x) - 2*(ir_pp2[ix+1].x)*(ir_pp2[iy].x) - 2*(ir_pp2[ix].x)*
-                                      (ir_pp2[iy+1].x));
-            const real_t A_el = 0.5*(2*X(0,ix,iy,iel_ho)*X(1,ix,iy,iel_ho) + 2*X(0,ix+1,
-                                                                                 iy+1,iel_ho)*X(1,ix+1,iy+1,iel_ho) - 2*X(0,ix+1,iy,iel_ho)*X(1,ix+1,iy,
-                                                                                       iel_ho) - 2*X(0,ix,iy+1,iel_ho)*X(1,ix,iy+1,iel_ho));
+                                      (ir_pp2[iy+1].x)));
+            const real_t A_el = fabs(0.5*(X(0, ix, iy, iel_ho)*X(1, ix+1, iy, iel_ho) - X(0, ix+1, iy, iel_ho)*X(1, ix, iy, iel_ho)
+                                 + X(0, ix+1, iy, iel_ho)*X(1, ix+1, iy+1, iel_ho) - X(0, ix+1, iy+1, iel_ho)*X(1, ix+1, iy, iel_ho)
+                                 + X(0, ix+1, iy+1, iel_ho)*X(1, ix, iy+1, iel_ho) - X(0, ix, iy+1, iel_ho)*X(1, ix+1, iy+1, iel_ho)
+                                 + X(0, ix, iy+1, iel_ho)*X(1, ix, iy, iel_ho) - X(0, ix, iy, iel_ho)*X(1, ix, iy+1, iel_ho)));
             const real_t mq = const_mq ? MQ(0,0,0) : MQ(ix, iy, iel_ho);
             const real_t dq = const_dq ? DQ(0,0,0) : DQ(ix, iy, iel_ho);
             for (int n_idx = 0; n_idx < 2; ++n_idx)
@@ -86,34 +86,35 @@ void BatchedLOR_DG::Assemble2D()
                   const int w_idx = (n_idx == 0) ? iy : ix;
                   const int int_idx = (n_idx == 0) ? i_0 : j_0;
                   const int el_idx = (n_idx == 0) ? j_0 : i_0;
-                  const int xy_idx = (n_idx == 0) ? 1 : 0;
                   const real_t el_1 = ir_pp2[el_idx+1].x - ir_pp2[el_idx].x;
                   const real_t el_2 = A_ref / el_1;
 
                   const real_t x1 = X(0, i_0, j_0, iel_ho);
                   const real_t y1 = X(1, i_0, j_0, iel_ho);
-                  const real_t x2 = (n_idx == 0) ? x1 : X(0, i_0+1, j_0, iel_ho);
-                  const real_t y2 = (n_idx == 0) ? X(1, i_0, j_0+1, iel_ho) : y1;
+                  const real_t x2 = X(0, i_1, j_1, iel_ho);
+                  const real_t y2 = X(1, i_1, j_1, iel_ho);
+                  //const real_t x2 = (n_idx == 0) ? X(0, i_0, j_0+1, iel_ho) : X(0, i_0+1, j_0, iel_ho);
+                  //const real_t y2 = (n_idx == 0) ? X(1, i_0, j_0+1, iel_ho) : X(1, i_0+1, j_0, iel_ho);
                   const real_t A_face = sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
 
                   if (bdr)
                   {
-                     const real_t h_recip = A_face*A_face/A_el*el_2/el_1;
+                     const real_t h_recip = A_face*A_face/A_el*el_2/el_1; 
                      V(v_idx, ix, iy, iel_ho) = -dq * kappa * w_1d[w_idx] * h_recip;
                   }
                   else
                   {
                      const real_t A_perp_1 = (n_idx == 0) ?
-                                             X(0, i_0+1, j_0, iel_ho) - X(0, i_0, j_0, iel_ho):
-                                             X(1, i_0, j_0+1, iel_ho) - X(1, i_0, j_0, iel_ho);
+                                             sqrt((X(0, i_0+1, j_0, iel_ho) - X(0, i_0, j_0, iel_ho))*(X(0, i_0+1, j_0, iel_ho) - X(0, i_0, j_0, iel_ho)) + (X(1, i_0+1, j_0, iel_ho) - X(1, i_0, j_0, iel_ho))*(X(1, i_0+1, j_0, iel_ho) - X(1, i_0, j_0, iel_ho))):
+                                             sqrt((X(1, i_0, j_0+1, iel_ho) - X(1, i_0, j_0, iel_ho))*(X(1, i_0, j_0+1, iel_ho) - X(1, i_0, j_0, iel_ho)) + (X(0, i_0, j_0+1, iel_ho) - X(0, i_0, j_0, iel_ho))*(X(0, i_0, j_0+1, iel_ho) - X(0, i_0, j_0, iel_ho)));
                      const real_t A_perp_2 = (n_idx == 0) ?
-                                             X(0, i_0, j_0, iel_ho) - X(0, i_0-1, j_0, iel_ho):
-                                             X(1, i_0, j_0, iel_ho) - X(1, i_0, j_0-1, iel_ho);
+                                             sqrt((X(0, i_0, j_0, iel_ho) - X(0, i_0-1, j_0, iel_ho))*(X(0, i_0, j_0, iel_ho) - X(0, i_0-1, j_0, iel_ho)) + (X(1, i_0, j_0, iel_ho) - X(1, i_0-1, j_0, iel_ho))*(X(1, i_0, j_0, iel_ho) - X(1, i_0-1, j_0, iel_ho))):
+                                             sqrt((X(1, i_0, j_0, iel_ho) - X(1, i_0, j_0-1, iel_ho))*(X(1, i_0, j_0, iel_ho) - X(1, i_0, j_0-1, iel_ho)) + (X(0, i_0, j_0, iel_ho) - X(0, i_0, j_0-1, iel_ho))*(X(0, i_0, j_0, iel_ho) - X(0, i_0, j_0-1, iel_ho)));
                      const real_t A_ref_1 = (n_idx == 0) ? ir_pp2[i_0+1].x - ir_pp2[i_0].x :
                                             ir_pp2[j_0+1].x - ir_pp2[j_0].x;
                      const real_t A_ref_2 = (n_idx == 0) ? ir_pp2[i_0].x - ir_pp2[i_0-1].x :
                                             ir_pp2[j_0].x - ir_pp2[j_0-1].x;
-                     const real_t h = (A_perp_1 + A_perp_2) / (A_ref_1 + A_ref_2);
+                     const real_t h = (0.5)*(A_perp_1/A_ref_1 + A_perp_2 / A_ref_2);
                      V(v_idx, ix, iy, iel_ho) = -dq * A_face * w_1d[w_idx] / h / el_1 /
                                                 (ir_pp1[int_idx].x - ir_pp1[int_idx-1].x);
                   }
