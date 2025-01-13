@@ -1084,12 +1084,12 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
 #if defined(MFEM_USE_CUDA)
       cudaDeviceGetAttribute(&num_mp, cudaDevAttrMultiProcessorCount,
                              Device::GetId());
-      // good value of mp_sat found experimentally on Tuolumne/Lassen
-      constexpr int mp_sat = 4;
+      // good value of mp_sat found experimentally on Lassen
+      constexpr int mp_sat = 8;
 #elif defined(MFEM_USE_HIP)
       hipDeviceGetAttribute(&num_mp, hipDeviceAttributeMultiprocessorCount,
                             Device::GetId());
-      // good value of mp_sat found experimentally on Tuolumne/Lassen
+      // good value of mp_sat found experimentally on Tuolumne
       constexpr int mp_sat = 4;
 #else
       num_mp = 1;
@@ -1108,10 +1108,10 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       auto mt = workspace.GetMemory().GetMemoryType();
       if (mt != MemoryType::HOST_PINNED && mt != MemoryType::MANAGED)
       {
-         mt = MemoryType::MANAGED;
+         mt = MemoryType::HOST_PINNED;
       }
       workspace.SetSize(nblocks, mt);
-      auto work = workspace.Write();
+      auto work = workspace.HostWrite();
       red.work = work;
       forall_smem(true, nblocks, 1, 1, block_size, 1, 1, smem_bytes,
                   std::move(red), "mfem::reduce");
