@@ -298,6 +298,7 @@ public:
     * available on a given compute device @a dev. */
    static int NumMultiprocessors(int dev);
 
+   /// Same as NumMultiprocessors(int), for the currently active device.
    static int NumMultiprocessors();
 
    /** @brief The number of threads in a warp on a given compute device @a dev.
