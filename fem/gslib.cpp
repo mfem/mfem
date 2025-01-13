@@ -1387,12 +1387,12 @@ void FindPointsGSLIB::SetupIntegrationRuleForSplitMesh(Mesh *meshin,
    meshin->SetNodalFESpace(&nodal_fes);
    const int NEsplit = meshin->GetNE();
 
-   const int dof_cnt = nodal_fes.GetFE(0)->GetDof(),
+   const int dof_cnt = nodal_fes.GetTypicalFE()->GetDof(),
              pts_cnt = NEsplit * dof_cnt;
    Vector irlist(dim * pts_cnt);
 
    const TensorBasisElement *tbe =
-      dynamic_cast<const TensorBasisElement *>(nodal_fes.GetFE(0));
+      dynamic_cast<const TensorBasisElement *>(nodal_fes.GetTypicalFE());
    MFEM_VERIFY(tbe != NULL, "TensorBasis FiniteElement expected.");
    const Array<int> &dof_map = tbe->GetDofMap();
 
@@ -2381,7 +2381,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
 
    mesh = &m;
    dim  = mesh->Dimension();
-   const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(0);
+   const FiniteElement *fe = mesh->GetNodalFESpace()->GetTypicalFE();
    unsigned dof1D = fe->GetOrder() + 1;
 
    SetupSplitMeshes();
