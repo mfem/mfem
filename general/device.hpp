@@ -305,6 +305,7 @@ public:
     */
    static int WarpSize(int dev);
 
+   /// Same as WarpSize(int), for the currently active device.
    static int WarpSize();
 
    /** @brief Gets the @a free and @a total memory on the device. */
