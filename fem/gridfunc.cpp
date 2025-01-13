@@ -324,18 +324,7 @@ void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
 
 int GridFunction::VectorDim() const
 {
-   const FiniteElement *fe;
-   if (!fes->GetNE())
-   {
-      static const Geometry::Type geoms[3] =
-      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fes->FEColl()->
-           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
-   }
-   else
-   {
-      fe = fes->GetFE(0);
-   }
+   const FiniteElement *fe = fes->GetTypicalFE();
    if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return fes->GetVDim();
@@ -346,18 +335,7 @@ int GridFunction::VectorDim() const
 
 int GridFunction::CurlDim() const
 {
-   const FiniteElement *fe;
-   if (!fes->GetNE())
-   {
-      static const Geometry::Type geoms[3] =
-      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = fes->FEColl()->
-           FiniteElementForGeometry(geoms[fes->GetMesh()->Dimension()-1]);
-   }
-   else
-   {
-      fe = fes->GetFE(0);
-   }
+   const FiniteElement *fe = fes->GetTypicalFE();
    if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return 2 * fes->GetMesh()->SpaceDimension() - 3;
@@ -1793,8 +1771,8 @@ void GridFunction::ProjectGridFunction(const GridFunction &src)
    {
       // Assuming that the projection matrix is the same for all elements
       sameP = true;
-      fes->GetFE(0)->Project(*src.fes->GetFE(0),
-                             *mesh->GetElementTransformation(0), P);
+      fes->GetTypicalFE()->Project(*src.fes->GetTypicalFE(),
+                                   *mesh->GetTypicalElementTransformation(), P);
    }
    const int vdim = fes->GetVDim();
    MFEM_VERIFY(vdim == src.fes->GetVDim(), "incompatible vector dimensions!");

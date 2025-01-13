@@ -199,7 +199,7 @@ int main (int argc, char *argv[])
    a.SetEssentialVDofs(ess_vdofs);
    a.AddDomainIntegrator(integ);
    const IntegrationRule &ir =
-      IntRules.Get(pfes_mesh.GetFE(0)->GetGeomType(), quad_order);
+      IntRules.Get(pmesh.GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfes_mesh.GetComm(), ir, 0);
    solver.SetOperator(a);
    solver.SetPreconditioner(minres);
