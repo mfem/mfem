@@ -30,7 +30,14 @@ namespace mfem
 
 #if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
 /**
- * Reducer for helping to compute L2-norms
+ * Reducer for helping to compute L2-norms. Given two partial results:
+ * a0 = sum_i (|v_i|/a1)^2
+ * b0 = sum_j (|v_j|/b1)^2 (j disjoint from i for vector v)
+ * computes:
+ * a1 = max(a1, b1)
+ * a0 = (a1 == 0 ? 0 : sum_{k in union(i,j)} (|v_k|/a1)^2)
+ *
+ * This form is resiliant against overflow/underflow, similar to std::hypot
  */
 struct L2Reducer
 {
@@ -56,7 +63,14 @@ struct L2Reducer
 };
 
 /**
- * Reducer for helping to compute Lp-norms
+ * Reducer for helping to compute Lp-norms. Given two partial results:
+ * a0 = sum_i (|v_i|/a1)^p
+ * b0 = sum_j (|v_j|/b1)^p (j disjoint from i for vector v)
+ * computes:
+ * a1 = max(a1, b1)
+ * a0 = (a1 == 0 ? 0 : sum_{k in union(i,j)} (|v_k|/a1)^p)
+ *
+ * This form is resiliant against overflow/underflow, similar to std::hypot
  */
 struct LpReducer
 {
@@ -138,7 +152,7 @@ static real_t devVectorL2(int size, const real_t *m_data)
    value_type res;
    res.first = 0;
    res.second = 0;
-   // first compute sum (m_data/scale)^p
+   // first compute sum (|m_data|/scale)^2
    reduce(
       size, res,
       [=] MFEM_HOST_DEVICE(int i, value_type &r)
@@ -170,7 +184,7 @@ static real_t devVectorLp(int size, real_t p, const real_t *m_data)
    value_type res;
    res.first = 0;
    res.second = 0;
-   // first compute sum (m_data/scale)^p
+   // first compute sum (|m_data|/scale)^p
    reduce(
       size, res,
       [=] MFEM_HOST_DEVICE(int i, value_type &r)
