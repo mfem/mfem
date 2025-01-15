@@ -242,6 +242,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
                      MatrixCoefficient & epsReCoef,
                      MatrixCoefficient & epsImCoef,
                      MatrixCoefficient & epsAbsCoef,
+                     MatrixCoefficient & susceptReCoef,
+                     MatrixCoefficient & susceptImCoef,
                      Coefficient & muInvCoef,
                      Coefficient * etaInvCoef,
                      VectorCoefficient * kReCoef,
@@ -284,6 +286,34 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      m0_(NULL),
      n20ZRe_(NULL),
      n20ZIm_(NULL),
+     m4r_(NULL),
+     m4i_(NULL),
+     m4cr_(NULL),
+     m4ci_(NULL),
+     m4solr_(NULL),
+     m4soli_(NULL),
+     M4r_(NULL),
+     M4i_(NULL),
+     M4cr_(NULL),
+     M4ci_(NULL),
+     M4solr_(NULL),
+     M4soli_(NULL),
+     RHSr1_(NULL),
+     RHSi1_(NULL),
+     RHSr2_(NULL),
+     RHSi2_(NULL),
+     RHSr3_(NULL),
+     RHSi3_(NULL),
+     RHSr4_(NULL),
+     RHSi4_(NULL),
+     TMPr2_(NULL),
+     TMPi2_(NULL),
+     TMPr3_(NULL),
+     TMPi3_(NULL),
+     TMPr4_(NULL),
+     TMPi4_(NULL),
+     Er_(NULL),
+     Ei_(NULL),
      e_(NULL),
      e_tmp_(NULL),
      d_(NULL),
@@ -300,9 +330,12 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      rhs_(NULL),
      e_t_(NULL),
      e_b_(NULL),
-     e_perp_(NULL),
+     //e_perp_(NULL),
+     e_plus_(NULL),
+     e_min_(NULL),
      e_v_(NULL),
      d_v_(NULL),
+     power_absorp_(NULL),
      phi_v_(NULL),
      j_v_(NULL),
      b_hat_(NULL),
@@ -318,6 +351,8 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      epsReCoef_(&epsReCoef),
      epsImCoef_(&epsImCoef),
      epsAbsCoef_(&epsAbsCoef),
+     susceptReCoef_(&susceptReCoef),
+     susceptImCoef_(&susceptImCoef),
      muInvCoef_(&muInvCoef),
      etaInvCoef_(etaInvCoef),
      kReCoef_(kReCoef),
@@ -397,9 +432,16 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       *e_b_ = 0.0;
       //e_perp_ = new ParComplexGridFunction(L2VFESpace_);
       //*e_perp_ = 0.0;
+      e_plus_ = new ParComplexGridFunction(L2FESpace_);
+      *e_plus_ = 0.0;
+      e_min_ = new ParComplexGridFunction(L2FESpace_);
+      *e_min_ = 0.0;
       b_hat_ = new ParGridFunction(HDivFESpace_);
       //EpsPara_ = new ParComplexGridFunction(L2FESpace_);
    }
+
+   power_absorp_ = new ParGridFunction(H1FESpace_);
+   *power_absorp_ = 0.0;
 
    if (kReCoef_ || kImCoef_)
    {
@@ -698,6 +740,50 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    m12EpsIm_ = new ParMixedBilinearForm(HCurlFESpace_, HDivFESpace_);
    m12EpsRe_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsReCoef_));
    m12EpsIm_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsImCoef_));
+
+   // For global power dissipation
+   m4r_ = new ParBilinearForm(HCurlFESpace_);
+   m4r_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_));
+   m4i_ = new ParBilinearForm(HCurlFESpace_);
+   m4i_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_));
+
+   // For Core power dissipation
+   core_attr_marker_.SetSize(pmesh.attributes.Max());
+   core_attr_marker_ = 0;
+   core_attr_marker_[3] = 1;
+
+   sol_attr_marker_.SetSize(pmesh.attributes.Max());
+   sol_attr_marker_ = 0;
+   sol_attr_marker_[2] = 1;
+
+   // Core power dissipation
+   m4cr_ = new ParBilinearForm(HCurlFESpace_);
+   m4cr_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_),core_attr_marker_);
+   m4ci_ = new ParBilinearForm(HCurlFESpace_);
+   m4ci_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_),core_attr_marker_);
+
+   // SOL power dissipation
+   m4solr_ = new ParBilinearForm(HCurlFESpace_);
+   m4solr_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_),sol_attr_marker_);
+   m4soli_ = new ParBilinearForm(HCurlFESpace_);
+   m4soli_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_),sol_attr_marker_);
+
+   RHSr2_ = new HypreParVector(HCurlFESpace_);
+   RHSi2_ = new HypreParVector(HCurlFESpace_);
+   RHSr3_ = new HypreParVector(HCurlFESpace_);
+   RHSi3_ = new HypreParVector(HCurlFESpace_);
+   RHSr4_ = new HypreParVector(HCurlFESpace_);
+   RHSi4_ = new HypreParVector(HCurlFESpace_);
+   TMPr2_ = new HypreParVector(HCurlFESpace_);
+   TMPi2_ = new HypreParVector(HCurlFESpace_);
+   TMPr3_ = new HypreParVector(HCurlFESpace_);
+   TMPi3_ = new HypreParVector(HCurlFESpace_);
+   TMPr4_ = new HypreParVector(HCurlFESpace_);
+   TMPi4_ = new HypreParVector(HCurlFESpace_);
+
+   Er_ = new HypreParVector(HCurlFESpace_);
+   Ei_ = new HypreParVector(HCurlFESpace_);
+
    if (pa_)
    {
       // TODO: PA
@@ -897,7 +983,10 @@ CPDSolver::~CPDSolver()
    delete e_;
    delete d_;
    delete b_;
+   delete power_absorp_;
    delete temp_;
+   delete e_plus_;
+   delete e_min_;
    delete phi_;
    delete prev_phi_;
    delete next_phi_;
@@ -931,6 +1020,30 @@ CPDSolver::~CPDSolver()
    delete m2_;
    delete m12EpsRe_;
    delete m12EpsIm_;
+
+   delete m4r_;
+   delete m4i_;
+   delete m4cr_;
+   delete m4ci_;
+   delete m4solr_;
+   delete m4soli_;
+
+   delete RHSr1_;
+   delete RHSi1_;
+   delete RHSr2_;
+   delete RHSi2_;
+   delete RHSr3_;
+   delete RHSi3_;
+   delete RHSr4_;
+   delete RHSi4_;
+   delete TMPr2_;
+   delete TMPi2_;
+   delete TMPr3_;
+   delete TMPi3_;
+   delete TMPr4_;
+   delete TMPi4_;
+   delete Er_;
+   delete Ei_;
 
    delete m0_;
    delete n20ZRe_;
@@ -1039,6 +1152,21 @@ CPDSolver::Assemble()
    m12EpsIm_->Assemble();
    m12EpsIm_->Finalize();
    //if (!pa_) m12EpsIm_->Finalize();
+
+   m4r_->Assemble();
+   m4r_->Finalize();
+   m4i_->Assemble();
+   m4i_->Finalize();
+
+   m4cr_->Assemble();
+   m4cr_->Finalize();
+   m4ci_->Assemble();
+   m4ci_->Finalize();
+
+   m4solr_->Assemble();
+   m4solr_->Finalize();
+   m4soli_->Assemble();
+   m4soli_->Finalize();
 
    if (m0_)
    {
@@ -1183,10 +1311,13 @@ CPDSolver::Update()
    if (e_t_) { e_t_->Update(); }
    if (e_b_) { e_b_->Update(); }
    //if (e_perp_) { e_perp_->Update(); }
+   if (e_plus_) { e_plus_->Update(); }
+   if (e_min_) { e_min_->Update(); }
    if (e_v_) { e_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
    if (j_v_) { j_v_->Update(); }
    if (b_hat_) { b_hat_->Update(); }
+   if (power_absorp_) { power_absorp_->Update(); }
    if (phi_) {phi_->Update(); }
    if (phi_v_) {phi_v_->Update(); }
    if (rectPot_) { rectPot_ ->Update();}
@@ -1211,6 +1342,12 @@ CPDSolver::Update()
    m2_->Update();
    m12EpsRe_->Update();
    m12EpsIm_->Update();
+   m4r_->Update();
+   m4i_->Update();
+   m4cr_->Update();
+   m4ci_->Update();
+   m4solr_->Update();
+   m4soli_->Update();
    if (m0_)
    {
       m0_->Update();
@@ -1893,10 +2030,34 @@ CPDSolver::Solve()
       if (sbcs_->Size() <= 0) {break;}
       if (E_iter > 5){break;}
    }
+
+
+   Er_ = e_->real().ParallelProject();
+   Ei_ = e_->imag().ParallelProject();
+
+   M4r_ = m4r_->ParallelAssemble();
+   M4i_ = m4i_->ParallelAssemble();
+   M4cr_ = m4cr_->ParallelAssemble();
+   M4ci_ = m4ci_->ParallelAssemble();
+   M4solr_ = m4solr_->ParallelAssemble();
+   M4soli_ = m4soli_->ParallelAssemble();
+
    if (myid_ == 0)
    {
       cout << " Outer E field calculation done in " << E_iter
            << " iteration(s)." << endl;
+   }
+
+   double global_diss = GetGlobalDissipation();
+   double core_diss = GetCoreDissipation();
+   double sol_diss = GetSOLDissipation();
+
+   if (myid_ == 0)
+   {
+      cout << "Global Dissipation: " << global_diss << " W" << endl; 
+      cout << "Core Dissipation: " << core_diss << " W" << endl; 
+      cout << "SOL Dissipation: " << sol_diss << " W" << endl; 
+      cout << " Solve done." << endl;
    }
 }
 
@@ -1939,6 +2100,66 @@ CPDSolver::GetErrorEstimates(Vector & errors)
    if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
 }
 
+double
+CPDSolver::GetGlobalDissipation() const
+{
+   double global_diss = 0.0;
+
+   // Real suscept*E :
+   M4r_->Mult(*Er_,*RHSr2_);
+   M4i_->Mult(*Ei_,*TMPr2_);
+   *RHSr2_ -= *TMPr2_;
+
+   // Image suscept*E :
+   M4r_->Mult(*Ei_,*RHSi2_);
+   M4i_->Mult(*Er_,*TMPi2_);
+   *RHSi2_ += *TMPi2_;
+
+   global_diss = InnerProduct(*Er_,*RHSr2_) + InnerProduct(*Ei_,*RHSi2_);
+
+   return 0.5*global_diss;
+}
+
+double
+CPDSolver::GetCoreDissipation() const
+{
+   double core_diss = 0.0;
+
+   // Real suscept*E :
+   M4cr_->Mult(*Er_,*RHSr3_);
+   M4ci_->Mult(*Ei_,*TMPr3_);
+   *RHSr3_ -= *TMPr3_;
+
+   // Image suscept*E :
+   M4cr_->Mult(*Ei_,*RHSi3_);
+   M4ci_->Mult(*Er_,*TMPi3_);
+   *RHSi3_ += *TMPi3_;
+
+   core_diss = InnerProduct(*Er_,*RHSr3_) + InnerProduct(*Ei_,*RHSi3_);
+
+   return 0.5*core_diss;
+}
+
+double
+CPDSolver::GetSOLDissipation() const
+{
+   double sol_diss = 0.0;
+
+   // Real suscept*E :
+   M4solr_->Mult(*Er_,*RHSr4_);
+   M4soli_->Mult(*Ei_,*TMPr4_);
+   *RHSr4_ -= *TMPr4_;
+
+   // Image suscept*E :
+   M4solr_->Mult(*Ei_,*RHSi4_);
+   M4soli_->Mult(*Er_,*TMPi4_);
+   *RHSi4_ += *TMPi4_;
+
+   sol_diss = InnerProduct(*Er_,*RHSr4_) + InnerProduct(*Ei_,*RHSi4_);
+
+   return 0.5*sol_diss;
+}
+
 void
 CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
@@ -1962,6 +2183,8 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Im_z", &z_->imag());
    }
 
+   visit_dc.RegisterField("Power_Absorp", power_absorp_);
+
    if ( rectPot_ )
    {
       visit_dc.RegisterField("Rec_Phi", rectPot_);
@@ -1972,6 +2195,10 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("B_hat", b_hat_);
       visit_dc.RegisterField("Re_EB", &e_b_->real());
       visit_dc.RegisterField("Im_EB", &e_b_->imag());
+      visit_dc.RegisterField("Re_Emin", &e_min_->real());
+      visit_dc.RegisterField("Im_Emin", &e_min_->imag());
+      visit_dc.RegisterField("Re_Eplus", &e_plus_->real());
+      visit_dc.RegisterField("Im_Eplus", &e_plus_->imag());
       //visit_dc.RegisterField("Re_EPerp", &e_perp_->real());
       //visit_dc.RegisterField("Im_EPerp", &e_perp_->imag());
       //visit_dc.RegisterField("Re_EpsPara", &EpsPara_->real());
@@ -2114,7 +2341,40 @@ CPDSolver::WriteVisItFields(int it)
          EpsPara_->ProjectCoefficient(ReEpsParaCoef, ImEpsParaCoef);
          *EpsPara_ *= 1.0 / epsilon0_;
          */
+
+         StixFrame xStix(*b_hat_,true);
+         StixFrame yStix(*b_hat_,false);
+
+         InnerProductCoefficient ReExStix(xStix, e_r);
+         InnerProductCoefficient ReEyStix(yStix, e_r);
+         InnerProductCoefficient ImExStix(xStix, e_i);
+         InnerProductCoefficient ImEyStix(yStix, e_i);
+
+         SumCoefficient emin_r(ReExStix,ImEyStix,1.0,-1.0);
+         SumCoefficient emin_i(ImExStix,ReEyStix);
+         SumCoefficient eplus_r(ReExStix,ImEyStix);
+         SumCoefficient eplus_i(ImExStix,ReEyStix,1.0,-1.0);
+
+         e_plus_->ProjectCoefficient(eplus_r,eplus_i);
+         e_min_->ProjectCoefficient(emin_r,emin_i);
       }
+
+      VectorGridFunctionCoefficient e_r(&e_->real());
+      VectorGridFunctionCoefficient e_i(&e_->imag());
+      
+      MatrixVectorProductCoefficient SrEr(*susceptReCoef_, e_r);
+      MatrixVectorProductCoefficient SiEi(*susceptImCoef_, e_i);
+      MatrixVectorProductCoefficient SiEr(*susceptImCoef_, e_r);
+      MatrixVectorProductCoefficient SrEi(*susceptReCoef_, e_i);
+
+      VectorSumCoefficient ReSE(SrEr,SiEi,1.0,-1.0);
+      VectorSumCoefficient ImSE(SrEi,SiEr);
+
+      InnerProductCoefficient ESE1(e_r,ReSE);
+      InnerProductCoefficient ESE2(e_i,ImSE);
+
+      SumCoefficient PowerAbsorp(ESE1,ESE2,0.5,0.5);
+      power_absorp_->ProjectCoefficient(PowerAbsorp);
 
       //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
       //SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);

@@ -692,6 +692,7 @@ private:
    ParComplexGridFunction * e_perp_; // Complex perpendicular electric field (L2)
    ParComplexGridFunction * e_plus_; // Complex + polarized electric field (L2)
    ParComplexGridFunction * e_min_; // Complex - polarized electric field (L2)
+   ParGridFunction        * power_absorp_; // Real valued power absorption (H1)
    ParComplexGridFunction * h_v_; // Complex magnetic field (L2^d)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)

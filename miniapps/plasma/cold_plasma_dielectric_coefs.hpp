@@ -838,7 +838,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[16] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 10, 8, 8, 6, 2, 5};
+   const int np_[16] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 11, 8, 8, 6, 2, 5};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section

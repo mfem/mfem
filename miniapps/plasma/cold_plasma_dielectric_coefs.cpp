@@ -317,10 +317,11 @@ complex<double> S_cold_plasma(double omega,
    complex<double> collision_correction(1.0, nuei/omega);
    double nparallel = (3e8*kparallel)/(omega);
    complex<double> comp_val(0.0,1.0);
-   double FWcutoff1 = (-1.0*fabs(pow(nparallel,2.0)-Rval))/(0.1*pow(nparallel,2.0));
-   double FWcutoff2 = (-1.0*fabs(pow(nparallel,2.0)-Lval))/(0.1*pow(nparallel,2.0));
+   double width_coll = 0.1;
+   double FWcutoff1 = (-1.0*fabs(1.0 - pow(nparallel,2.0)/Rval) ) / width_coll;
+   double FWcutoff2 = (-1.0*fabs(1.0 - pow(nparallel,2.0)/Lval) ) / width_coll;
    double LHres = -1.0*(0.5*fabs(Rval+Lval))/0.2;
-   double FWres = (-1.0*fabs(pow(nparallel,2.0) - 0.5*(Rval+Lval)))/(0.5*pow(nparallel,2.0));
+   double FWres = (-1.0*fabs(1.0 - pow(nparallel,2.0)/(0.5*Rval+0.5*Lval) ) ) / width_coll;
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -338,17 +339,10 @@ complex<double> S_cold_plasma(double omega,
 
       if (i == 0)
       {
-         if (n > 2.5e20)
-         {
-            suscept_particle = (-1.0 * w_p * w_p) / ((omega + w_c)*(omega - w_c));
-         }
-         else
-         {
-         double scale = 1.0;
-         suscept_particle = (-1.0 * w_p * w_p) / ((omega + w_c)*(omega - w_c)) 
-            +scale*10.0*comp_val*exp(FWcutoff1)+scale*10.0*comp_val*exp(FWcutoff2)
-            +scale*10.0*comp_val*exp(LHres)+scale*40.0*comp_val*exp(FWres);
-         }
+         double scale = 0.0;
+         suscept_particle = (-1.0 * w_p * w_p) / ((omega + w_c)*(omega - w_c))
+         +scale*10.0*comp_val*exp(FWcutoff1)+scale*10.0*comp_val*exp(FWcutoff2)
+         +scale*10.0*comp_val*exp(LHres)+scale*40.0*comp_val*exp(FWres);
       }
       else
       {
@@ -365,6 +359,7 @@ complex<double> S_cold_plasma(double omega,
 }
 
 /*
+
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -448,8 +443,9 @@ complex<double> D_cold_plasma(double omega,
    complex<double> collision_correction(1.0, nuei/omega);
    double nparallel = (3e8*kparallel)/(omega);
    complex<double> comp_val(0.0,1.0);
-   double FWcutoff1 = (-1.0*fabs(pow(nparallel,2.0)-Rval))/(0.1*pow(nparallel,2.0));
-   double FWcutoff2 = (-1.0*fabs(pow(nparallel,2.0)-Lval))/(0.1*pow(nparallel,2.0));
+   double width_coll = 0.1;
+   double FWcutoff1 = (-1.0*fabs(1.0 - pow(nparallel,2.0)/Rval) ) / width_coll;
+   double FWcutoff2 = (-1.0*fabs(1.0 - pow(nparallel,2.0)/Lval) ) / width_coll;
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -467,16 +463,9 @@ complex<double> D_cold_plasma(double omega,
 
       if (i == 0)
       {
-         if (n > 2.5e20)
-         {
-            suscept_particle = ((w_p*w_p) / ((omega+w_c) * (omega-w_c)))*(w_c/omega); 
-         }
-         else
-         {
-            double scale = 1.0;
+            double scale = 0.0;
             suscept_particle = ((w_p*w_p) / ((omega+w_c) * (omega-w_c)))*(w_c/omega)
-            -scale*10.0*comp_val*exp(FWcutoff1)-scale*10.0*comp_val*exp(FWcutoff2);            
-         }
+            -scale*10.0*comp_val*exp(FWcutoff1)-scale*10.0*comp_val*exp(FWcutoff2);   
       }
       else
       {
@@ -1705,9 +1694,12 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
    // Initialize suspetibility tensor to appropriate size
    suscept.SetSize(3); suscept = 0.0;
 
+   
    // Collect density, temperature, and magnetic field values
+
    double Bmag = this->getBMagnitude(T, ip);
    BVec_ /= Bmag;
+
    double kparallel = this->getKvecMagnitude(T, ip);
    nue_vals_ = nue_.GetValue(T, ip);
    nui_vals_ = nui_.GetValue(T, ip);
@@ -1717,6 +1709,7 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate the Stix Coefficients
+
    complex<double> R = R_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_);
@@ -1737,16 +1730,21 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
    //this->addPerpDiagComp(realPart_ ?  S.real() : S.imag(), epsilon);
    //this->addPerpSkewComp(realPart_ ? -D.imag() : D.real(), epsilon);
 
-   this->addParallelComp(realPart_ ?  P.imag(): -P.real() + 1.0, suscept);
-   this->addPerpDiagComp(realPart_ ?  S.imag(): -S.real() + 1.0, suscept);
-   this->addPerpSkewComp(realPart_ ?  D.real(): D.imag(), suscept);
+   this->addParallelComp(realPart_ ?  P.imag() : 1.0 - P.real(), suscept);
+   this->addPerpDiagComp(realPart_ ?  S.imag() : 1.0 - S.real(), suscept);
+   this->addPerpSkewComp(realPart_ ?  D.real() : D.imag(), suscept);
 
    /*
-   //old code:
-   this->addParallelComp(realPart_ ?  P.real() - 1.0: P.imag(), suscept);
-   this->addPerpDiagComp(realPart_ ?  S.real() - 1.0: S.imag(), suscept);
-   this->addPerpSkewComp(realPart_ ? -D.imag()      : D.real(), suscept);
+   this->addParallelComp(realPart_ ?  17.0 : 1.0 - 5.0, suscept);
+   this->addPerpDiagComp(realPart_ ?  7.0 : 1.0 - 3.0, suscept);
+   this->addPerpSkewComp(realPart_ ?  11.0 : 13.0, suscept);
    */
+
+   //old code:
+   //this->addParallelComp(realPart_ ?  P.real() - 1.0: P.imag(), suscept);
+   //this->addPerpDiagComp(realPart_ ?  S.real() - 1.0: S.imag(), suscept);
+   //this->addPerpSkewComp(realPart_ ? -D.imag()      : D.real(), suscept);
+
    suscept *= omega_*epsilon0_;
 }
 
@@ -2217,6 +2215,7 @@ double PlasmaProfile::EvalByType(Type type,
          double sl2 = 0.006;
          double sl3 = 0.006;
          double case_type = params[9];
+         double scale = params[10];
 
          // Original PRD: (case_type will be taken as 0)
          double psi_Olim = 1.0178;
@@ -2240,6 +2239,7 @@ double PlasmaProfile::EvalByType(Type type,
          // SOL:
          else
          {
+            /*
             if (val > 1.0 && sqrt(val) <= psi_Olim)
             {
                pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
@@ -2250,9 +2250,11 @@ double PlasmaProfile::EvalByType(Type type,
                pval = (LCFS_den*exp(-(psi_Olim - 1.0)/sl1))*exp(-(sqrt(val) - psi_Olim)/sl2);
                if (pval < 1e12){pval = 1e12;}
             }
+            */
+            pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
          }
 
-         return pval;
+         return pval*scale;
       }
       break;
       case POLOIDAL_H_MODE_TEMP:
@@ -2501,15 +2503,16 @@ double PlasmaProfile::EvalByType(Type type,
          if (case_type == 2){psi_Olim = 1.1088;}
          // L12:
          if (case_type == 3){psi_Olim = 1.0979;}
+
          if (val > 1.0 && sqrt(val) <= psi_Olim)
          {
             pval = pmax*exp(-(sqrt(val) - 1.0)/sl1);
-            if (pval < 1e12){pval = 1e12;}
+            if (pval < 8e17){pval = 1e12;}
          }
          else 
          {
             pval = (pmax*exp(-(psi_Olim - 1.0)/sl1))*exp(-(sqrt(val) - psi_Olim)/sl2);
-            if (pval < 1e12){pval = 1e12;}
+            if (pval < 8e17){pval = 1e12;}
          }
 
          }
@@ -2567,10 +2570,34 @@ double PlasmaProfile::EvalByType(Type type,
          double nuee = params[3];
          double LCFS_den = params[4];
          double pval = LCFS_den;
+         double psi_Olim = 1.0979;
+         double sl1 = 0.015;
+         double sl2 = 0.006;
+
+
          if (val < 1.0 && bool_limits == 1)
          {
             pval = (pmax - pmin)*pow(1 - pow(sqrt(val), nuei), nuee) + pmin;
             if (pval < LCFS_den){pval = LCFS_den;}
+         }
+         else
+         {
+            if (val > 1.0 && sqrt(val) <= psi_Olim)
+            {
+               pval = LCFS_den*exp(-(sqrt(val) - 1.0)/sl1);
+               if (pval < 5e17){pval = 1e12;}
+            }
+            else 
+            {
+               pval = 1e12;
+               if (bool_limits == 1)
+               {
+                  pval = (LCFS_den*exp(-(psi_Olim - 1.0)/sl1))*exp(-(sqrt(val) - psi_Olim)/sl2);
+                  if (pval < 5e17){pval = 1e12;}
+               }
+            }
+
+            pval = LCFS_den;
          }
          return pval;
       }

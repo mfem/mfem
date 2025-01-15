@@ -557,6 +557,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      e_perp_(NULL),
      e_plus_(NULL),
      e_min_(NULL),
+     power_absorp_(NULL),
      h_v_(NULL),
      e_v_(NULL),
      d_v_(NULL),
@@ -673,6 +674,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       b_hat_ = new ParGridFunction(HDivFESpace_);
       EpsPara_ = new ParComplexGridFunction(L2FESpace_);
    }
+   power_absorp_ = new ParGridFunction(H1FESpace_);
+   *power_absorp_ = 0.0;
+
    if (kReCoef_ || kImCoef_)
    {
       e_t_ = new ParGridFunction(L2VFESpace_);
@@ -1261,6 +1265,7 @@ CPDSolverDH::~CPDSolverDH()
    delete e_perp_;
    delete e_plus_;
    delete e_min_;
+   delete power_absorp_;
    delete b_hat_;
    // delete e_r_;
    // delete e_i_;
@@ -1678,6 +1683,7 @@ CPDSolverDH::Update()
    if (e_perp_) { e_perp_->Update(); }
    if (e_plus_) { e_plus_->Update(); }
    if (e_min_) { e_min_->Update(); }
+   if (power_absorp_) { power_absorp_->Update(); }
    if (h_v_) { h_v_->Update(); }
    if (e_v_) { e_v_->Update(); }
    if (d_v_) { d_v_->Update(); }
@@ -2360,7 +2366,7 @@ CPDSolverDH::GetGlobalDissipation() const
 
    global_diss = InnerProduct(*Er_,*RHSr2_) + InnerProduct(*Ei_,*RHSi2_);
 
-   return 0.25*global_diss;
+   return 0.5*global_diss;
 }
 
 double
@@ -2380,7 +2386,7 @@ CPDSolverDH::GetCoreDissipation() const
 
    core_diss = InnerProduct(*Er_,*RHSr3_) + InnerProduct(*Ei_,*RHSi3_);
 
-   return 0.25*core_diss;
+   return 0.5*core_diss;
 }
 
 double
@@ -2400,9 +2406,8 @@ CPDSolverDH::GetSOLDissipation() const
 
    sol_diss = InnerProduct(*Er_,*RHSr4_) + InnerProduct(*Ei_,*RHSi4_);
 
-   return 0.25*sol_diss;
+   return 0.5*sol_diss;
 }
-
 
 
 double
@@ -2470,6 +2475,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
       // visit_dc.RegisterField("Re_EpsPara", &EpsPara_->real());
       // visit_dc.RegisterField("Im_EpsPara", &EpsPara_->imag());
    }
+   visit_dc.RegisterField("Power_Absorp", power_absorp_);
 
    // visit_dc.RegisterField("Er", e_r_);
    // visit_dc.RegisterField("Ei", e_i_);
@@ -2626,10 +2632,10 @@ CPDSolverDH::WriteVisItFields(int it)
          InnerProductCoefficient ImExStix(xStix, e_i);
          InnerProductCoefficient ImEyStix(yStix, e_i);
 
-         SumCoefficient eplus_r(ReExStix,ImEyStix,1.0,-1.0);
-         SumCoefficient eplus_i(ImExStix,ReEyStix);
-         SumCoefficient emin_r(ReExStix,ImEyStix);
-         SumCoefficient emin_i(ImExStix,ReEyStix,1.0,-1.0);
+         SumCoefficient emin_r(ReExStix,ImEyStix,1.0,-1.0);
+         SumCoefficient emin_i(ImExStix,ReEyStix);
+         SumCoefficient eplus_r(ReExStix,ImEyStix);
+         SumCoefficient eplus_i(ImExStix,ReEyStix,1.0,-1.0);
 
          e_plus_->ProjectCoefficient(eplus_r,eplus_i);
          e_min_->ProjectCoefficient(emin_r,emin_i);
@@ -2644,6 +2650,24 @@ CPDSolverDH::WriteVisItFields(int it)
               *EpsPara_ *= 1.0 / epsilon0_;
          */
       }
+
+      VectorGridFunctionCoefficient e_r(&e_->real());
+      VectorGridFunctionCoefficient e_i(&e_->imag());
+
+      MatrixVectorProductCoefficient SrEr(*susceptReCoef_, e_r);
+      MatrixVectorProductCoefficient SiEi(*susceptImCoef_, e_i);
+      MatrixVectorProductCoefficient SiEr(*susceptImCoef_, e_r);
+      MatrixVectorProductCoefficient SrEi(*susceptReCoef_, e_i);
+
+      VectorSumCoefficient ReSE(SrEr,SiEi,1.0,-1.0);
+      VectorSumCoefficient ImSE(SrEi,SiEr);
+
+      InnerProductCoefficient ESE1(e_r,ReSE);
+      InnerProductCoefficient ESE2(e_i,ImSE);
+
+      SumCoefficient PowerAbsorp(ESE1,ESE2,0.5,0.5);
+      power_absorp_->ProjectCoefficient(PowerAbsorp);
+
 
       //ComplexCoefficientByAttr & sbc = (*sbcs_)[0];
       //SheathBase * sb = dynamic_cast<SheathBase*>(sbc.real);

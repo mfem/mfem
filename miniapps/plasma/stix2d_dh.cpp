@@ -339,12 +339,15 @@ public:
                         const Vector & charge,
                         const Vector & mass,
                         const Vector & temp,
+                        double nue,
                         int nuprof,
                         double res_lim,
                         bool realPart);
 
    void SetCurrentSlab(double Jy, double xJ, double delta, double Lx)
    { Jy_ = Jy; xJ_ = xJ; dx_ = delta, Lx_ = Lx; }
+
+   void setNue(double nue){nue_ = nue;}
 
    void SetPhaseShift(const Vector & beta)
    { beta_r_ = beta; beta_i_ = 0.0; }
@@ -365,6 +368,7 @@ private:
    double res_lim_;
    double omega_;
    double Bmag_;
+   double nue_;
    double Jy_;
    double xJ_;
    double dx_;
@@ -1705,13 +1709,16 @@ int main(int argc, char *argv[])
    ColdPlasmaPlaneWaveH HImCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps,
                                 nuprof, res_lim, false);
-
+   if (nept == 0)
+   {
+      nue = nepp[0];
+   }
    ColdPlasmaPlaneWaveE EReCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps,
-                                nuprof, res_lim, true);
+                                nue, nuprof, res_lim, true);
    ColdPlasmaPlaneWaveE EImCoef(wave_type[0], omega, BVec,
                                 numbers, charges, masses, temps,
-                                nuprof, res_lim, false);
+                                nue, nuprof, res_lim, false);
 
    if (wave_type[0] != ' ')
    {
@@ -1899,7 +1906,23 @@ int main(int argc, char *argv[])
    TransposeMatrixCoefficient suscept_realT(suscept_real);
    TransposeMatrixCoefficient suscept_imagT(suscept_imag);
    MatrixSumCoefficient suscept_real_diss(suscept_real, suscept_realT);
+   //MatrixSumCoefficient suscept_imag_diss(suscept_imag, suscept_imagT);
    MatrixSumCoefficient suscept_imag_diss(suscept_imag, suscept_imagT,1.0,-1.0);
+
+   
+   DenseMatrix test(3,3);
+   for (int i=0; i<pmesh.GetNE(); i++)
+   {
+      ElementTransformation *T = pmesh.GetElementTransformation(i);
+      Geometry::Type g = pmesh.GetElementBaseGeometry(i);
+      const IntegrationPoint &ip = Geometries.GetCenter(g);
+
+      suscept_imag.Eval(test, *T, ip);
+
+      //test.Print(cout);
+   }
+   
+
    SPDDielectricTensor epsilon_abs(BField, k_gf, nue_gf, nui_gf, density,
                                    temperature,
                                    iontemp_gf, L2FESpace, H1FESpace,
@@ -2265,8 +2288,8 @@ int main(int argc, char *argv[])
                    (CPDSolverDH::PrecondType)prec,
                    conv, BUnitCoef,
                    epsilonInv_real, epsilonInv_imag, 
-                   suscept_real_diss, suscept_imag_diss,
                    epsilon_abs,
+                   suscept_real, suscept_imag,
                    muCoef, etaCoef,
                    (phase_shift) ? &kReCoef : NULL,
                    (phase_shift) ? &kImCoef : NULL,
@@ -2354,15 +2377,16 @@ int main(int argc, char *argv[])
       {
          // Compute error
          double glb_error_H = CPD.GetHFieldError(HReCoef, HImCoef);
+         /*
          if (Mpi::Root())
          {
             cout << "Global L2 Error in H field " << glb_error_H << endl;
          }
-
+         */
          double glb_error_E = CPD.GetEFieldError(EReCoef, EImCoef);
          if (Mpi::Root())
          {
-            cout << "Global L2 Error in E field " << glb_error_E << endl;
+            cout << "Global Relative L2 Error in E field: " << glb_error_E << endl;
          }
       }
 
@@ -3456,6 +3480,8 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
    double b = 0.415;
    double c = 0.15;
 
+   double tilt = atan2(curve_params_(6),curve_params_(5));
+
    if (curve_params_(0) == 1)
    {
       if (r >= xmin && r <= xmax &&
@@ -3465,18 +3491,18 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
                                                                                        4.0) + 1);
          if (!j_cyl_)
          {
-            j(0) = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            j(1) = curve_params_(1)/mag;
-            j(2) = curve_params_(2);
+            j(0) = (curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            j(1) = (curve_params_(1)*cos(tilt))/mag;
+            j(2) = curve_params_(2)*sin(tilt);
          }
          else
          {
             double cosphi = x[0] / r;
             double sinphi = x[1] / r;
 
-            double j_r   = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            double j_phi = curve_params_(2);
-            double j_z   = curve_params_(1)/mag;
+            double j_r   = (curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            double j_phi = curve_params_(2)*sin(tilt);
+            double j_z   = (curve_params_(1)*cos(tilt))/mag;
 
             j(0) = j_r * cosphi - j_phi * sinphi;
             j(1) = j_r * sinphi + j_phi * cosphi;
@@ -3505,18 +3531,18 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
                                                                                        4.0) + 1);
          if (!j_cyl_)
          {
-            j(0) = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            j(1) = curve_params_(1)/mag;
-            j(2) = curve_params_(2);
+            j(0) = (curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            j(1) = (curve_params_(1)*cos(tilt))/mag;
+            j(2) = curve_params_(2)*sin(tilt);
          }
          else
          {
             double cosphi = x[0] / r;
             double sinphi = x[1] / r;
 
-            double j_r   = curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            double j_phi = curve_params_(2);
-            double j_z   = curve_params_(1)/mag;
+            double j_r   = (curve_params_(1)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            double j_phi = curve_params_(2)*sin(tilt);
+            double j_z   = (curve_params_(1)*cos(tilt))/mag;
 
             j(0) = j_r * cosphi - j_phi * sinphi;
             j(1) = j_r * sinphi + j_phi * cosphi;
@@ -3538,18 +3564,18 @@ void curve_current_source_v2_r(const Vector &x, Vector &j)
                                                                                        4.0) + 1);
          if (!j_cyl_)
          {
-            j(0) = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            j(1) = curve_params_(3)/mag;
-            j(2) = curve_params_(4);
+            j(0) = (curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            j(1) = (curve_params_(3)*cos(tilt))/mag;
+            j(2) = curve_params_(4)*sin(tilt);
          }
          else
          {
             double cosphi = x[0] / r;
             double sinphi = x[1] / r;
 
-            double j_r   = curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            double j_phi = curve_params_(4);
-            double j_z   = curve_params_(3)/mag;
+            double j_r   = (curve_params_(3)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            double j_phi = curve_params_(4)*sin(tilt);
+            double j_z   = (curve_params_(3)*cos(tilt))/mag;
 
             j(0) = j_r * cosphi - j_phi * sinphi;
             j(1) = j_r * sinphi + j_phi * cosphi;
@@ -3585,7 +3611,9 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
    double b = 0.415;
    double c = 0.15;
 
-   if (curve_params_.Size() < 7)
+   double tilt = atan2(curve_params_(6),curve_params_(5));
+
+   if (curve_params_.Size() < 9)
    {
       return;
    }
@@ -3595,7 +3623,7 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
       MFEM_VERIFY(curve_params_.Size() > 8, "data missing from curve_params_");
    }
 
-   else if (curve_params_(0) == 1 && curve_params_.Size() < 8)
+   else if (curve_params_(0) == 1 && curve_params_.Size() < 10)
    {
       if (r >= xmin && r <= xmax &&
           z >= zmin1 && z <= zmax1)
@@ -3604,18 +3632,18 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
                                                                                        4.0) + 1);
          if (!j_cyl_)
          {
-            j(0) = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            j(1) = curve_params_(6)/mag;
-            j(2) = curve_params_(5);
+            j(0) = (curve_params_(7)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            j(1) = (curve_params_(8)*cos(tilt))/mag;
+            j(2) = curve_params_(7)*sin(tilt);
          }
          else
          {
             double cosphi = x[0] / r;
             double sinphi = x[1] / r;
 
-            double j_r   = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            double j_phi = curve_params_(5);
-            double j_z   = curve_params_(6)/mag;
+            double j_r   = (curve_params_(7)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            double j_phi = curve_params_(7)*sin(tilt);
+            double j_z   = (curve_params_(8)*cos(tilt))/mag;
 
             j(0) = j_r * cosphi - j_phi * sinphi;
             j(1) = j_r * sinphi + j_phi * cosphi;
@@ -3644,18 +3672,18 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
                                                                                        4.0) + 1);
          if (!j_cyl_)
          {
-            j(0) = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            j(1) = curve_params_(6)/mag;
-            j(2) = curve_params_(5);
+            j(0) = (curve_params_(7)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            j(1) = (curve_params_(8)*cos(tilt))/mag;
+            j(2) = curve_params_(7)*sin(tilt);
          }
          else
          {
             double cosphi = x[0] / r;
             double sinphi = x[1] / r;
 
-            double j_r   = curve_params_(5)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            double j_phi = curve_params_(5);
-            double j_z   = curve_params_(6)/mag;
+            double j_r   = (curve_params_(7)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            double j_phi = curve_params_(7)*sin(tilt);
+            double j_z   = (curve_params_(8)*cos(tilt))/mag;
 
             j(0) = j_r * cosphi - j_phi * sinphi;
             j(1) = j_r * sinphi + j_phi * cosphi;
@@ -3677,18 +3705,18 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
                                                                                        4.0) + 1);
          if (!j_cyl_)
          {
-            j(0) = curve_params_(7)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            j(1) = curve_params_(7)/mag;
-            j(2) = curve_params_(8);
+            j(0) = (curve_params_(9)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            j(1) = (curve_params_(9)*cos(tilt))/mag;
+            j(2) = curve_params_(10)*sin(tilt);
          }
          else
          {
             double cosphi = x[0] / r;
             double sinphi = x[1] / r;
 
-            double j_r   = curve_params_(7)*(-2*b*z - 4*c*pow(z,3.0))/mag;
-            double j_phi = curve_params_(8);
-            double j_z   = curve_params_(7)/mag;
+            double j_r   = (curve_params_(9)*(-2*b*z - 4*c*pow(z,3.0))*cos(tilt))/mag;
+            double j_phi = curve_params_(10)*sin(tilt);
+            double j_z   = (curve_params_(9)*cos(tilt))/mag;
 
             j(0) = j_r * cosphi - j_phi * sinphi;
             j(1) = j_r * sinphi + j_phi * cosphi;
@@ -4001,6 +4029,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
                                            const Vector & charge,
                                            const Vector & mass,
                                            const Vector & temp,
+                                           double nue,
                                            int nuprof,
                                            double res_lim,
                                            bool realPart)
@@ -4010,6 +4039,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
      nuprof_(nuprof),
      res_lim_(res_lim),
      omega_(omega),
+     nue_(nue),
      Bmag_(B.Norml2()),
      Jy_(0.0),
      xJ_(0.5),
@@ -4052,7 +4082,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    beta_r_ = 0.0;
    beta_i_ = 0.0;
 
-   double nue_ = 0;
+   //double nue_ = 0;
    double nui_ = 0;
    double Ti_ = 0;
    double k_ = 18;

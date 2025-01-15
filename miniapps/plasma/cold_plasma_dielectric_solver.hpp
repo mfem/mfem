@@ -231,6 +231,8 @@ public:
              MatrixCoefficient & epsReCoef,
              MatrixCoefficient & epsImCoef,
              MatrixCoefficient & epsAbsCoef,
+             MatrixCoefficient & susceptReCoef,
+             MatrixCoefficient & susceptImCoef,
              Coefficient & muInvCoef,
              Coefficient * etaInvCoef,
              VectorCoefficient * kReCoef,
@@ -259,6 +261,12 @@ public:
                    const VectorCoefficient & EImCoef) const;
 
    void GetErrorEstimates(Vector & errors);
+
+   double GetGlobalDissipation() const;
+
+   double GetCoreDissipation() const;
+
+   double GetSOLDissipation() const;
 
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
@@ -434,6 +442,12 @@ private:
    ParBilinearForm * m0_;
    ParMixedBilinearForm * n20ZRe_;
    ParMixedBilinearForm * n20ZIm_;
+   ParBilinearForm * m4r_;
+   ParBilinearForm * m4i_;
+   ParBilinearForm * m4cr_;
+   ParBilinearForm * m4ci_;
+   ParBilinearForm * m4solr_;
+   ParBilinearForm * m4soli_;
 
    ParComplexGridFunction * e_;   // Complex electric field (HCurl)
    ParComplexGridFunction * e_tmp_; // Temporary complex electric field (HCurl)
@@ -448,13 +462,16 @@ private:
    ParComplexGridFunction * prev_phi_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * next_phi_; // Complex sheath potential temporary (H1)
    ParComplexGridFunction * z_; // Complex sheath potential (H1)
+   ParGridFunction        * power_absorp_; // Real valued power absorption (H1)
 
    ParGridFunction * rectPot_; // Real valued rectified potential (H1)
    ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs_; // Dual of complex current density (HCurl)
    ParGridFunction        * e_t_; // Time dependent Electric field
    ParComplexGridFunction * e_b_; // Complex parallel electric field (L2)
-   ParComplexGridFunction * e_perp_; // Complex perpendicular electric field (L2)
+   //ParComplexGridFunction * e_perp_; // Complex perpendicular electric field (L2)
+   ParComplexGridFunction * e_plus_; // Complex + polarized electric field (L2)
+   ParComplexGridFunction * e_min_; // Complex - polarized electric field (L2)
    ParComplexGridFunction * e_v_; // Complex electric field (L2^d)
    ParComplexGridFunction * d_v_; // Complex electric flux (L2^d)
    ParComplexGridFunction * phi_v_; // Complex sheath potential (L2)
@@ -469,10 +486,35 @@ private:
    ParComplexGridFunction * StixP_; // Stix P Coefficient (L2)
    //ParComplexGridFunction * EpsPara_; // B^T eps B / |B|^2 Coefficient (L2)
 
+   HypreParMatrix * M4r_;
+   HypreParMatrix * M4i_;
+   HypreParMatrix * M4cr_;
+   HypreParMatrix * M4ci_;
+   HypreParMatrix * M4solr_;
+   HypreParMatrix * M4soli_;
+   mutable HypreParVector * RHSr1_;
+   mutable HypreParVector * RHSi1_;
+   mutable HypreParVector * RHSr2_;
+   mutable HypreParVector * RHSi2_;
+   mutable HypreParVector * RHSr3_;
+   mutable HypreParVector * RHSi3_;
+   mutable HypreParVector * RHSr4_;
+   mutable HypreParVector * RHSi4_;
+   mutable HypreParVector * TMPr2_;
+   mutable HypreParVector * TMPi2_;
+   mutable HypreParVector * TMPr3_;
+   mutable HypreParVector * TMPi3_;
+   mutable HypreParVector * TMPr4_;
+   mutable HypreParVector * TMPi4_;
+   HypreParVector * Er_; 
+   HypreParVector * Ei_;  
+
    VectorCoefficient * BCoef_;        // B Field Unit Vector
    MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsImCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
+   MatrixCoefficient * susceptReCoef_;    // Real Susceptibility Coefficient
+   MatrixCoefficient * susceptImCoef_;    // Imag Susceptibility Coefficient
    Coefficient       * muInvCoef_;    // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaInvCoef_;   // Admittance Coefficient
    VectorCoefficient * kReCoef_;        // Wave Vector
@@ -546,6 +588,8 @@ private:
    Array<int> ess_bdr_;
    Array<int> ess_bdr_tdofs_;
    Array<int> non_k_bdr_;
+   Array<int> core_attr_marker_;
+   Array<int> sol_attr_marker_;
 
    Array<ComplexVectorCoefficientByAttr*> * nbcs_; // Surface current BCs
    Array<ComplexVectorCoefficientByAttr*> * nkbcs_; // Neumann BCs (-i*omega*K)
