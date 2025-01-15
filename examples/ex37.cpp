@@ -5,8 +5,8 @@
 // Sample runs:
 //     ex37 -alpha 10
 //     ex37 -alpha 10 -pv
-//     ex37 -lambda 0.1 -mu 0.1
-//     ex37 -o 2 -alpha 5.0 -mi 50 -vf 0.4 -ntol 1e-5
+//     ex37 -lambda 0.1 -mu 0.1 -growth 1
+//     ex37 -o 2 -alpha 10.0 -mi 50 -vf 0.4 -ntol 1e-5 -growth 1.5
 //     ex37 -r 6 -o 1 -alpha 25.0 -epsilon 0.02 -mi 50 -ntol 1e-5
 //
 // Description: This example code demonstrates the use of MFEM to solve a
