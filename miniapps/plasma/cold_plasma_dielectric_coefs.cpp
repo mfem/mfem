@@ -2596,8 +2596,6 @@ double PlasmaProfile::EvalByType(Type type,
                   if (pval < 5e17){pval = 1e12;}
                }
             }
-
-            pval = LCFS_den;
          }
          return pval;
       }
