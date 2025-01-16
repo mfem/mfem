@@ -64,8 +64,8 @@ void BatchedLOR_DG::Assemble2D()
                   ir, GeometricFactors::DETERMINANTS);
    const auto detJ = Reshape(geom->detJ.Read(), nd1d, nd1d, nel_ho);
 
-   const auto d_vec_ir_pp1_x = Reshape(vec_ir_pp1_x.Read(), pp1);
-   const auto d_vec_ir_pp2_x = Reshape(vec_ir_pp2_x.Read(), pp2);
+   const auto *d_vec_ir_pp1_x = vec_ir_pp1_x.Read();
+   const auto *d_vec_ir_pp2_x = vec_ir_pp2_x.Read();
 
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iel_ho)
    {
