@@ -26,10 +26,13 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
    field0 = init_field;
 }
 
-void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
+void AdvectorCG::ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                       Vector &new_field,
-                                      int new_nodes_ordering)
+                                      int nodes_ordering)
 {
+   MFEM_VERIFY(nodes0.Size() == new_mesh_nodes.Size(),
+               "AdvectorCG assumes fixed mesh topology!");
+
    FiniteElementSpace *space = fes;
 #ifdef MFEM_USE_MPI
    if (pfes) { space = pfes; }
@@ -37,8 +40,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    int fes_ordering = space->GetOrdering(),
        ncomp = space->GetVDim();
 
-   // TODO: Implement for AMR meshes.
-   const int pnt_cnt = field0.Size() / ncomp;
+   const int dof_cnt = field0.Size() / ncomp;
 
    new_field = field0;
    Vector new_field_temp;
@@ -46,20 +48,20 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    {
       if (fes_ordering == Ordering::byNODES)
       {
-         new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+         new_field_temp.MakeRef(new_field, i*dof_cnt, dof_cnt);
       }
       else
       {
-         new_field_temp.SetSize(pnt_cnt);
-         for (int j = 0; j < pnt_cnt; j++)
+         new_field_temp.SetSize(dof_cnt);
+         for (int j = 0; j < dof_cnt; j++)
          {
             new_field_temp(j) = new_field(i + j*ncomp);
          }
       }
-      ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+      ComputeAtNewPositionScalar(new_mesh_nodes, new_field_temp);
       if (fes_ordering == Ordering::byVDIM)
       {
-         for (int j = 0; j < pnt_cnt; j++)
+         for (int j = 0; j < dof_cnt; j++)
          {
             new_field(i + j*ncomp) = new_field_temp(j);
          }
@@ -67,10 +69,10 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    }
 
    field0 = new_field;
-   nodes0 = new_nodes;
+   nodes0 = new_mesh_nodes;
 }
 
-void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
+void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_mesh_nodes,
                                             Vector &new_field)
 {
    Mesh *m = mesh;
@@ -87,7 +89,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
    // Velocity of the positions.
    GridFunction u(mesh_nodes->FESpace());
-   subtract(new_nodes, nodes0, u);
+   subtract(new_mesh_nodes, nodes0, u);
 
    // Define a scalar FE space for the solution, and the advection operator.
    TimeDependentOperator *oper = NULL;
@@ -375,75 +377,42 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 
    field0_gf.SetSpace(f);
    field0_gf = init_field;
-
-   // Check if the mesh nodes and the field nodes coincide.
-   const bool nodes_mismatch = init_nodes.Size() / m->Dimension() !=
-                               field0_gf.Size()  / f->GetVDim();
-   if (nodes_mismatch)
-   {
-      delete fes_field_nodes;
-      fes_field_nodes = new FiniteElementSpace(m, f->FEColl(), m->Dimension());
-   }
 }
 
-void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
-                                          Vector &new_field,
-                                          int new_nodes_ordering)
+void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
+                                          Vector &new_field, int nodes_ordering)
 {
-   // Get physical node locations corresponding to field0_gf
-   if (fes_field_nodes)
+   // TODO - this is here only to prevent breaking user codes. To be removed.
+   // If the meshes are different, one has to call SetNewFieldFESpace().
+   // If only some positions are interpolated, use ComputeAtGivenPositions().
+   if (fes_new_field == nullptr && new_mesh_nodes.Size() != nodes0.Size())
    {
+      MFEM_WARNING("Deprecated -- use ComputeAtGivenPositions() instead!");
+      ComputeAtGivenPositions(new_mesh_nodes, new_field, nodes_ordering);
+      return;
+   }
+
+   const FiniteElementSpace *fes_field =
+      (fes_new_field) ? fes_new_field : field0_gf.FESpace();
+   const int dim = fes_field->GetMesh()->Dimension();
+
+   if (new_mesh_nodes.Size() / dim != fes_field->GetNDofs())
+   {
+      // The nodes of the FE space don't coincide with the mesh nodes.
       Vector mapped_nodes;
-      GetFieldNodesPosition(new_nodes, mapped_nodes);
-      finder->Interpolate(mapped_nodes, field0_gf, new_field,
-                          fes_field_nodes->GetOrdering());
+      fes_field->GetNodePositions(new_mesh_nodes, mapped_nodes);
+      finder->Interpolate(mapped_nodes, field0_gf, new_field);
    }
    else
    {
-      finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
+      finder->Interpolate(new_mesh_nodes, field0_gf, new_field, nodes_ordering);
    }
 }
 
-void InterpolatorFP::GetFieldNodesPosition(const Vector &mesh_nodes,
-                                           Vector &nodes_pos) const
+void InterpolatorFP::ComputeAtGivenPositions(const Vector &positions,
+                                             Vector &values, int p_ordering)
 {
-   MFEM_VERIFY(fes_field_nodes, "InterpolatorFP: fes_field_nodes is not set.");
-
-   Mesh *m = fes_field_nodes->GetMesh();
-   const int nelem     = fes_field_nodes->GetNE();
-   const int n_f_nodes = fes_field_nodes->GetNDofs();
-   const int dim       = m->Dimension();
-   if (nelem == 0) { return; }
-   Array<int> dofs;
-   Vector e_xyz;
-   nodes_pos.SetSize(n_f_nodes*dim);
-   nodes_pos.UseDevice(mesh_nodes.UseDevice());
-   const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
-
-   for (int e = 0; e < nelem; e++)
-   {
-      mesh_fes->GetElementVDofs(e, dofs);
-      int n_mdofs = dofs.Size()/dim;
-      mesh_nodes.GetSubVector(dofs, e_xyz); //e_xyz is ordered by nodes here
-      const FiniteElement *mfe = mesh_fes->GetFE(e);
-      Vector shape(n_mdofs);
-
-      auto ir = fes_field_nodes->GetFE(e)->GetNodes();
-      const int n_gf_pts = ir.GetNPoints();
-      Vector gf_xyz(n_gf_pts*dim);
-      for (int q = 0; q < n_gf_pts; q++)
-      {
-         IntegrationPoint ip = ir.IntPoint(q);
-         mfe->CalcShape(ip, shape);
-         for (int d = 0; d < dim; d++)
-         {
-            Vector x(e_xyz.GetData() + d*n_mdofs, n_mdofs);
-            gf_xyz(d*n_gf_pts + q) = x*shape; // order by nodes
-         }
-      }
-      fes_field_nodes->GetElementVDofs(e, dofs);
-      nodes_pos.SetSubVector(dofs, gf_xyz);
-   }
+   finder->Interpolate(positions, field0_gf, values, p_ordering);
 }
 
 #endif
@@ -992,7 +961,7 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    }
 #endif
    const DenseMatrix &Wideal =
-      Geometries.GetGeomToPerfGeomJac(fes.GetFE(0)->GetGeomType());
+      Geometries.GetGeomToPerfGeomJac(fes.GetMesh()->GetTypicalElementGeometry());
    min_detT_all /= Wideal.Det();
 
    return min_detT_all;
