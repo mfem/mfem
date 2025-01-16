@@ -1019,9 +1019,11 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 
 void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_dofs,
-                                              int component) const
+                                              int component,
+                                              bool remove_interior) const
 {
-   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
+   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component,
+                                         remove_interior);
 
    // Make sure that processors without boundary elements mark
    // their boundary dofs (if they have any).
@@ -1031,11 +1033,12 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                                                  &bdr_attr_is_ess,
                                                  Array<int> &ess_tdof_list,
-                                                 int component) const
+                                                 int component,
+                                                 bool remove_interior) const
 {
    Array<int> ess_dofs, true_ess_dofs;
 
-   GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
+   GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component, remove_interior);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
 
 #ifdef MFEM_DEBUG
