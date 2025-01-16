@@ -6743,6 +6743,114 @@ void ParMesh::GetExteriorFaceMarker(Array<int> & face_marker) const
    }
 }
 
+void ParMesh::RemoveInternalBoundaries(Array<int> &bdr_marker, bool excl) const
+{
+   MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<int> ext_face_marker;
+   GetExteriorFaceMarker(ext_face_marker);
+
+   Array<bool> interior_bdr(bdr_attributes.Max()); interior_bdr = false;
+   Array<bool> exterior_bdr(bdr_attributes.Max()); exterior_bdr = false;
+
+   // Identify attributes which contain local interior faces and those which
+   // contain local exterior faces.
+   for (int be = 0; be < boundary.Size(); be++)
+   {
+      const int bea = boundary[be]->GetAttribute();
+
+      if (bdr_marker[bea] != 0)
+      {
+         const int f = be_to_face[be];
+
+         if (ext_face_marker[f] > 0)
+         {
+            exterior_bdr[bea-1] = true;
+         }
+         else
+         {
+            interior_bdr[bea-1] = true;
+         }
+      }
+   }
+
+   Array<bool> glb_interior_bdr(bdr_attributes.Max()); glb_interior_bdr = false;
+   Array<bool> glb_exterior_bdr(bdr_attributes.Max()); glb_exterior_bdr = false;
+
+   MPI_Allreduce(&interior_bdr[0], &glb_interior_bdr[0], bdr_attributes.Max(),
+                 MPI_C_BOOL, MPI_LOR, MyComm);
+   MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
+                 MPI_C_BOOL, MPI_LOR, MyComm);
+
+   // Unmark attributes which are currently marked, contain interior faces,
+   // and satisfy the appropriate exclusivity requirement.
+   for (int b = 0; b < bdr_attributes.Max(); b++)
+   {
+      if (bdr_marker[b] != 0 && glb_interior_bdr[b])
+      {
+         if (!excl || !glb_exterior_bdr[b])
+         {
+            bdr_marker[b] = 0;
+         }
+      }
+   }
+}
+
+void ParMesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
+{
+   if (bdr_marker.Size() < bdr_attributes.Max())
+   {
+      bdr_marker.SetSize(bdr_attributes.Max());
+   }
+   bdr_marker = 0;
+
+   Array<int> ext_face_marker;
+   GetExteriorFaceMarker(ext_face_marker);
+
+   Array<bool> interior_bdr(bdr_attributes.Max()); interior_bdr = false;
+   Array<bool> exterior_bdr(bdr_attributes.Max()); exterior_bdr = false;
+
+   // Identify boundary attributes containing local exterior faces and those
+   // containing local interior faces.
+   for (int be = 0; be < boundary.Size(); be++)
+   {
+      const int bea = boundary[be]->GetAttribute();
+
+      const int f = be_to_face[be];
+
+      if (ext_face_marker[f] > 0)
+      {
+         exterior_bdr[bea-1] = true;
+      }
+      else
+      {
+         interior_bdr[bea-1] = true;
+      }
+   }
+
+   Array<bool> glb_interior_bdr(bdr_attributes.Max()); glb_interior_bdr = false;
+   Array<bool> glb_exterior_bdr(bdr_attributes.Max()); glb_exterior_bdr = false;
+
+   MPI_Allreduce(&interior_bdr[0], &glb_interior_bdr[0], bdr_attributes.Max(),
+                 MPI_C_BOOL, MPI_LOR, MyComm);
+   MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
+                 MPI_C_BOOL, MPI_LOR, MyComm);
+
+   // Mark the attributes containing exterior faces and satisfying the
+   // necessary exclusivity requirements.
+   for (int b = 0; b < bdr_attributes.Max(); b++)
+   {
+      if (exterior_bdr[b])
+      {
+         if (!excl || !interior_bdr[b])
+         {
+            bdr_marker[b] = 1;
+         }
+      }
+   }
+}
+
 void ParMesh::Swap(ParMesh &other)
 {
    Mesh::Swap(other, true);

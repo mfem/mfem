@@ -424,7 +424,34 @@ public:
    void GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const;
 
    /// @brief Populate a marker array identifying exterior faces
+   ///
+   /// @param[in,out] face_marker Resized if necessary to the number of
+   ///                            local faces. The array entries will be
+   ///                            zero for interior faces and 1 for exterior
+   ///                            faces.
    void GetExteriorFaceMarker(Array<int> & face_marker) const override;
+
+   /// @brief Unmark boundary attributes of internal boundaries
+   ///
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with internal boundaries
+   ///                           will be set to zero. Other entries will remain
+   ///                           unchanged.
+   /// @param[in]     excl       Only unmark entries which exclusively contain
+   ///                           internal faces [default: true].
+   void RemoveInternalBoundaries(Array<int> &bdr_marker,
+                                 bool excl = true) const override;
+
+   /// @brief Mark boundary attributes of external boundaries
+   ///
+   /// @param[in,out] bdr_marker Array will be resized to be at least of length
+   ///                           bdr_attributes.Max(). Entries associated with
+   ///                           external boundaries will be set to one. Other
+   ///                           entries will be set to zero.
+   /// @param[in]     excl       Only mark entries which exclusively contain
+   ///                           external faces [default: true].
+   void MarkExternalBoundaries(Array<int> &bdr_marker,
+                               bool excl = true) const override;
 
    GroupTopology gtopo;
 
