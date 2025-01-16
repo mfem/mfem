@@ -29,6 +29,18 @@ void BatchedLOR_DG::Assemble2D()
    QuadratureFunctions1D::GaussLobatto(pp1, &ir_pp1);
    IntegrationRule ir_pp2;
    QuadratureFunctions1D::GaussLobatto(pp2, &ir_pp2);
+   
+   //vectorize integration points
+   Vector vec_ir_pp1_x(pp1);
+   Vector vec_ir_pp2_x(pp2); 
+   for(int i=0; i < pp1; i++){
+      vec_ir_pp1_x[i] = ir_pp1[i].x;
+   }
+   for(int j=0; j < pp2; j++){
+      vec_ir_pp2_x[j] = ir_pp2[j].x;
+   }
+
+
    static constexpr int nd1d = pp1;
    static constexpr int ndof_per_el = nd1d*nd1d;
    static constexpr int nnz_per_row = 5;
@@ -52,14 +64,17 @@ void BatchedLOR_DG::Assemble2D()
                   ir, GeometricFactors::DETERMINANTS);
    const auto detJ = Reshape(geom->detJ.Read(), nd1d, nd1d, nel_ho);
 
+   const auto d_vec_ir_pp1_x = Reshape(vec_ir_pp1_x.Read(), pp1);
+   const auto d_vec_ir_pp2_x = Reshape(vec_ir_pp2_x.Read(), pp2);
+
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iel_ho)
    {
       for (int iy = 0; iy < nd1d; ++iy)
       {
          for (int ix = 0; ix < nd1d; ++ix)
          {
-            const real_t A_ref = (ir_pp2[ix+1].x - ir_pp2[ix].x)
-                                 * (ir_pp2[iy+1].x - ir_pp2[iy].x);
+            const real_t A_ref = (d_vec_ir_pp2_x[ix+1] - d_vec_ir_pp2_x[ix])
+                                 * (d_vec_ir_pp2_x[iy+1] - d_vec_ir_pp2_x[iy]);
             // Shoelace formula for area of a quadrilateral
             const real_t A_el = fabs(0.5*(X(0, ix, iy, iel_ho)*X(1, ix+1, iy, iel_ho)
                                           - X(0, ix+1, iy, iel_ho)*X(1, ix, iy, iel_ho)
@@ -90,7 +105,7 @@ void BatchedLOR_DG::Assemble2D()
                   const int w_idx = (n_idx == 0) ? iy : ix;
                   const int int_idx = (n_idx == 0) ? i_0 : j_0;
                   const int el_idx = (n_idx == 0) ? j_0 : i_0;
-                  const real_t el_1 = ir_pp2[el_idx+1].x - ir_pp2[el_idx].x;
+                  const real_t el_1 = d_vec_ir_pp2_x[el_idx+1] - d_vec_ir_pp2_x[el_idx];
                   const real_t el_2 = A_ref / el_1;
 
                   const real_t x1 = X(0, i_0, j_0, iel_ho);
@@ -117,13 +132,13 @@ void BatchedLOR_DG::Assemble2D()
                                   - X(0, ix2, iy2+1, iel_ho)*X(1, ix2+1, iy2+1, iel_ho)
                                   + X(0, ix2, iy2+1, iel_ho)*X(1, ix2, iy2, iel_ho)
                                   - X(0, ix2, iy2, iel_ho)*X(1, ix2, iy2+1, iel_ho)));
-                     const real_t A_ref_1 = (n_idx == 0) ? ir_pp2[i_0+1].x - ir_pp2[i_0].x :
-                                            ir_pp2[j_0+1].x - ir_pp2[j_0].x;
-                     const real_t A_ref_2 = (n_idx == 0) ? ir_pp2[i_0].x - ir_pp2[i_0-1].x :
-                                            ir_pp2[j_0].x - ir_pp2[j_0-1].x;
+                     const real_t A_ref_1 = (n_idx == 0) ? d_vec_ir_pp2_x[i_0+1] - d_vec_ir_pp2_x[i_0] :
+                                            d_vec_ir_pp2_x[j_0+1] - d_vec_ir_pp2_x[j_0];
+                     const real_t A_ref_2 = (n_idx == 0) ? d_vec_ir_pp2_x[i_0] - d_vec_ir_pp2_x[i_0-1] :
+                                            d_vec_ir_pp2_x[j_0] - d_vec_ir_pp2_x[j_0-1];
                      const real_t h = (0.5*A_el + 0.5*A_el_2) / A_face / (0.5 * (A_ref_1 + A_ref_2));
                      V(v_idx, ix, iy, iel_ho) = -dq * A_face * w_1d[w_idx] / h / el_1 /
-                                                (ir_pp1[int_idx].x - ir_pp1[int_idx-1].x);
+                                                (d_vec_ir_pp1_x[int_idx] - d_vec_ir_pp1_x[int_idx-1]);
                   }
                }
             }
