@@ -1508,6 +1508,95 @@ void Mesh::GetExteriorFaceMarker(Array<int> & face_marker) const
    }
 }
 
+void Mesh::RemoveInternalBoundaries(Array<int> &bdr_marker, bool excl) const
+{
+   MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<bool> interior_bdr(bdr_attributes.Max()); interior_bdr = false;
+   Array<bool> exterior_bdr(bdr_attributes.Max()); exterior_bdr = false;
+
+   // Identify attributes which contain interior faces and those which
+   // contain exterior faces.
+   for (int be = 0; be < boundary.Size(); be++)
+   {
+      const int bea = boundary[be]->GetAttribute();
+
+      if (bdr_marker[bea] != 0)
+      {
+         const int f = be_to_face[be];
+
+         if (faces_info[f].NCFace == -1 &&
+             faces_info[f].Elem2No < 0 &&
+             faces_info[f].Elem2Inf < 0 )
+         {
+            exterior_bdr[bea-1] = true;
+         }
+         else
+         {
+            interior_bdr[bea-1] = true;
+         }
+      }
+   }
+
+   // Unmark attributes which are currently marked, contain interior faces,
+   // and satisfy the appropriate exclusivity requirement.
+   for (int b = 0; b < bdr_attributes.Max(); b++)
+   {
+      if (bdr_marker[b] != 0 && interior_bdr[b])
+      {
+         if (!excl || !exterior_bdr[b])
+         {
+            bdr_marker[b] = 0;
+         }
+      }
+   }
+}
+
+void Mesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
+{
+   if (bdr_marker.Size() < bdr_attributes.Max())
+   {
+      bdr_marker.SetSize(bdr_attributes.Max());
+   }
+   bdr_marker = 0;
+
+   Array<bool> interior_bdr(bdr_attributes.Max()); interior_bdr = false;
+
+   // Mark boundary attributes containing exterior faces while keeping track of
+   // those which also contain interior faces.
+   for (int be = 0; be < boundary.Size(); be++)
+   {
+      const int bea = boundary[be]->GetAttribute();
+
+      const int f = be_to_face[be];
+
+      if (faces_info[f].NCFace == -1 &&
+          faces_info[f].Elem2No < 0 &&
+          faces_info[f].Elem2Inf < 0 )
+      {
+         bdr_marker[bea-1] = 1;
+      }
+      else
+      {
+         interior_bdr[bea-1] = true;
+      }
+   }
+
+   // If necessary, unmark attributes which were found to also contain
+   // interior faces.
+   if (excl)
+   {
+      for (int b = 0; b < bdr_attributes.Max(); b++)
+      {
+         if (bdr_marker[b] > 0 && interior_bdr[b])
+         {
+            bdr_marker[b] = 0;
+         }
+      }
+   }
+}
+
 void Mesh::Init()
 {
    // in order of declaration:
