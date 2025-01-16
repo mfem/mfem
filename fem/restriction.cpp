@@ -74,7 +74,6 @@ ElementRestriction::ElementRestriction(const FiniteElementSpace &f,
          ++offsets[gid + 1];
       }
    }
-   max_connectivity = offsets.Max();
    // Aggregate to find offsets for each global dof
    for (int i = 1; i <= ndofs; ++i)
    {
@@ -329,8 +328,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    auto d_indices = indices.Read();
    auto d_gather_map = gather_map.Read();
 
-   Array<int> ij_elts(max_connectivity * ne*elt_dofs * 2);
-   auto d_ij_elts = Reshape(ij_elts.Write(), max_connectivity, ne*elt_dofs, 2);
+   Array<int> ij_elts(indices.Size() * 2);
+   auto d_ij_elts = Reshape(ij_elts.Write(), indices.Size(), 2);
 
    mfem::forall(vd*all_dofs+1, [=] MFEM_HOST_DEVICE (int i_L)
    {
@@ -347,7 +346,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
       const int i_next_offset = d_offsets[i_L+1];
       const int i_nbElts = i_next_offset - i_offset;
 
-      int *i_elts = &d_ij_elts(0, l_dof, 0);
+      int *i_elts = &d_ij_elts(i_offset, 0);
       for (int e_i = 0; e_i < i_nbElts; ++e_i)
       {
          const int i_E = d_indices[i_offset+e_i];
@@ -366,7 +365,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          }
          else // assembly required
          {
-            int *j_elts = &d_ij_elts(0, l_dof, 1);
+            int *j_elts = &d_ij_elts(j_offset, 1);
             for (int e_j = 0; e_j < j_nbElts; ++e_j)
             {
                const int j_E = d_indices[j_offset+e_j];
@@ -410,8 +409,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    auto d_gather_map = gather_map.Read();
    auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
 
-   Array<int> ij_B_el(max_connectivity * ne*elt_dofs * 4);
-   auto d_ij_B_el = Reshape(ij_B_el.Write(), max_connectivity, ne*elt_dofs, 4);
+   Array<int> ij_B_el(indices.Size() * 4);
+   auto d_ij_B_el = Reshape(ij_B_el.Write(), indices.Size(), 4);
 
    mfem::forall(ne*elt_dofs, [=] MFEM_HOST_DEVICE (int l_dof)
    {
@@ -424,8 +423,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
       const int i_next_offset = d_offsets[i_L+1];
       const int i_nbElts = i_next_offset - i_offset;
 
-      int *i_elts = &d_ij_B_el(0, l_dof, 0);
-      int *i_B = &d_ij_B_el(0, l_dof, 1);
+      int *i_elts = &d_ij_B_el(i_offset, 0);
+      int *i_B = &d_ij_B_el(i_offset, 1);
       for (int e_i = 0; e_i < i_nbElts; ++e_i)
       {
          const int i_E = d_indices[i_offset+e_i];
@@ -447,8 +446,8 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          }
          else // assembly required
          {
-            int *j_elts = &d_ij_B_el(0, l_dof, 2);
-            int *j_B = &d_ij_B_el(0, l_dof, 3);
+            int *j_elts = &d_ij_B_el(j_offset, 2);
+            int *j_B = &d_ij_B_el(j_offset, 3);
             for (int e_j = 0; e_j < j_nbElts; ++e_j)
             {
                const int j_E = d_indices[j_offset+e_j];

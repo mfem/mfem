@@ -50,7 +50,6 @@ protected:
    Array<int> offsets;
    Array<int> indices;
    Array<int> gather_map;
-   int max_connectivity;
 
 public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
