@@ -648,16 +648,11 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    }
    if (remove_interior)
    {
-      Array<int> exterior_vdofs, exterior_marker(ess_vdofs.Size());
-      exterior_marker = 0;
+      Array<int> exterior_vdofs;
       GetExteriorVDofs(exterior_vdofs, component);
-      for (int i = 0; i < exterior_vdofs.Size(); i++)
-      {
-         exterior_marker[exterior_vdofs[i]] = 1;
-      }
       for (int i = 0; i < ess_vdofs.Size(); i++)
       {
-         ess_vdofs[i] = exterior_marker[i] * ess_vdofs[i];
+         ess_vdofs[i] = (exterior_vdofs[i]) ? ess_vdofs[i] : 0;
       }
    }
 }

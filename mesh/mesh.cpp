@@ -1588,7 +1588,7 @@ void Mesh::RemoveInternalBoundaries(Array<int> &bdr_marker, bool excl) const
    {
       const int bea = boundary[be]->GetAttribute();
 
-      if (bdr_marker[bea] != 0)
+      if (bdr_marker[bea-1] != 0)
       {
          const int f = be_to_face[be];
 
