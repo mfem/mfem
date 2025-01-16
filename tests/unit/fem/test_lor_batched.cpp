@@ -123,7 +123,7 @@ void TestBatchedLOR()
 
    // Sanity check that the LOR mesh is valid
    IntegrationRules irs(0, Quadrature1D::GaussLobatto);
-   const IntegrationRule &ir = irs.Get(mesh.GetElementGeometry(0), 1);
+   const IntegrationRule &ir = irs.Get(mesh.GetTypicalElementGeometry(), 1);
    const GeometricFactors::FactorFlags dets = GeometricFactors::DETERMINANTS;
    if (mesh.Dimension() == mesh.SpaceDimension())
    {

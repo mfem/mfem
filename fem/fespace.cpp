@@ -2694,7 +2694,7 @@ void FiniteElementSpace::Construct()
       else
       {
          // the simple case: all faces are of the same geometry and order
-         uni_fdof = fec->GetNumDof(mesh->GetFaceGeometry(0), order);
+         uni_fdof = fec->GetNumDof(mesh->GetTypicalFaceGeometry(), order);
          nfdofs = mesh->GetNFaces() * uni_fdof;
          var_face_dofs.Clear(); // ensure any old var_face_dof table is dumped.
       }
@@ -3374,7 +3374,7 @@ void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
    }
    else
    {
-      auto geom = mesh->GetFaceGeometry(0);
+      auto geom = mesh->GetTypicalFaceGeometry();
       nf = fec->GetNumDof(geom, fec->GetOrder());
       base = i*nf;
    }
@@ -3439,6 +3439,16 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
    }
 
    return FE;
+}
+
+const FiniteElement *FiniteElementSpace::GetTypicalFE() const
+{
+   if (mesh->GetNE() > 0) { return GetFE(0); }
+
+   Geometry::Type geom = mesh->GetTypicalElementGeometry();
+   const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+   MFEM_VERIFY(fe != nullptr, "Could not determine a typical FE!");
+   return fe;
 }
 
 const FiniteElement *FiniteElementSpace::GetBE(int i) const
@@ -3516,7 +3526,12 @@ const FiniteElement *FiniteElementSpace::GetEdgeElement(int i,
 const FiniteElement *FiniteElementSpace::GetTraceElement(
    int i, Geometry::Type geom_type) const
 {
-   return fec->TraceFiniteElementForGeometry(geom_type);
+   return fec->GetTraceFE(geom_type, GetElementOrder(i));
+}
+
+const FiniteElement *FiniteElementSpace::GetTypicalTraceElement() const
+{
+   return fec->TraceFiniteElementForGeometry(mesh->GetTypicalFaceGeometry());
 }
 
 FiniteElementSpace::~FiniteElementSpace()
@@ -3832,6 +3847,47 @@ void FiniteElementSpace::Update(bool want_transform)
 void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
 {
    mesh = new_mesh;
+}
+
+void FiniteElementSpace::GetNodePositions(const Vector &mesh_nodes,
+                                          Vector &fes_node_pos,
+                                          int fes_nodes_ordering) const
+{
+   Mesh *m = GetMesh();
+   const int NE = m->GetNE();
+
+   if (NE == 0) { fes_node_pos.SetSize(0); return; }
+
+   const int dim = m->Dimension();
+   Array<int> dofs;
+   Vector e_xyz;
+   fes_node_pos.SetSize(GetNDofs() * dim);
+   const FiniteElementSpace *mesh_fes = m->GetNodalFESpace();
+   FiniteElementSpace vector_fes(m, FEColl(), dim, fes_nodes_ordering);
+
+   for (int e = 0; e < NE; e++)
+   {
+      mesh_fes->GetElementVDofs(e, dofs);
+      const int mdof_cnt = dofs.Size() / dim;
+      mesh_nodes.GetSubVector(dofs, e_xyz); //e_xyz is ordered by nodes here
+
+      auto ir = GetFE(e)->GetNodes();
+      const int fdof_cnt = ir.GetNPoints();
+      Vector mesh_shape(mdof_cnt), gf_xyz(fdof_cnt * dim);
+      for (int q = 0; q < fdof_cnt; q++)
+      {
+         mesh_fes->GetFE(e)->CalcShape(ir.IntPoint(q), mesh_shape);
+         for (int d = 0; d < dim; d++)
+         {
+            Vector x(e_xyz.GetData() + d*mdof_cnt, mdof_cnt);
+            gf_xyz(d*fdof_cnt + q) = x * mesh_shape; // order by nodes
+         }
+      }
+
+      // reuse/resize dofs.
+      vector_fes.GetElementVDofs(e, dofs);
+      fes_node_pos.SetSubVector(dofs, gf_xyz);
+   }
 }
 
 void FiniteElementSpace::Save(std::ostream &os) const

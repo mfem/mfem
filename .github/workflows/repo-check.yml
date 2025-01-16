@@ -19,6 +19,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # This workflow is run on pushes to any branch in the MFEM repo (with or without
 # PRs), as well as on updates to PRs from forks. In particular, we do not
 # duplicate work by running on both pushes and updates to local PRs. We do that
@@ -33,11 +37,6 @@ jobs:
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
     steps:
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-
       - name: checkout mfem
         uses: actions/checkout@v4
 

@@ -111,6 +111,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       SetAttributes();
    }
 
+   ReduceMeshGen();
    DSTable v2v(parent_.GetNV());
    parent_.GetVertexToVertexTable(v2v);
    for (int i = 0; i < NumOfEdges; i++)

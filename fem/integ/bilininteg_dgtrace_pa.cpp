@@ -143,13 +143,11 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
    if (nf==0) { return; }
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   const FiniteElement &el =
-      *fes.GetTraceElement(0, fes.GetMesh()->GetFaceGeometry(0));
-   FaceElementTransformations &T0 =
-      *fes.GetMesh()->GetFaceElementTransformations(0);
+   const FiniteElement &el = *fes.GetTypicalTraceElement();
    const IntegrationRule *ir = IntRule?
                                IntRule:
-                               &GetRule(el.GetGeomType(), el.GetOrder(), T0);
+                               &GetRule(el.GetGeomType(), el.GetOrder(),
+                                        *mesh->GetTypicalElementTransformation());
    const int symmDims = 4;
    nq = ir->GetNPoints();
    dim = mesh->Dimension();

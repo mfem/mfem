@@ -64,7 +64,7 @@ class KernelReporter
    std::set<std::string> reported_fallbacks;
    KernelReporter()
    {
-      const char *env = getenv("MFEM_REPORT_KERNELS");
+      const char *env = GetEnv("MFEM_REPORT_KERNELS");
       if (env)
       {
          if (std::string(env) != "NO") { enabled = true; }

@@ -22,22 +22,15 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   Serial:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - name: Temporary workaround for sanitizer crashes
-        # See https://github.com/actions/runner-images/issues/9491
-        # The issue should be fixed in the next runner image for Ubuntu 22.04,
-        # see https://github.com/actions/runner-images/pull/9513
-        run: sudo sysctl vm.mmap_rnd_bits=28
-
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-
       - name: MFEM Checkout
         uses: actions/checkout@v4
         with:
@@ -55,7 +48,7 @@ jobs:
           build-system: make
           library-only: false
           config-options:
-            CXX="clang++-14"
+            CXX="clang++-18"
             CXXFLAGS="-g -O1 -std=c++11
                       -fsanitize=address
                       -fno-omit-frame-pointer

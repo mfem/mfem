@@ -359,7 +359,7 @@ inline void MmuDealloc(void *ptr, const size_t bytes)
 /// MMU protection, through ::mprotect with no read/write accesses
 inline void MmuProtect(const void *ptr, const size_t bytes)
 {
-   static const bool mmu_protect_error = getenv("MFEM_MMU_PROTECT_ERROR");
+   static const bool mmu_protect_error = GetEnv("MFEM_MMU_PROTECT_ERROR");
    if (!::mprotect(const_cast<void*>(ptr), bytes, PROT_NONE)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (NONE) error"); }
 }
@@ -368,7 +368,7 @@ inline void MmuProtect(const void *ptr, const size_t bytes)
 inline void MmuAllow(const void *ptr, const size_t bytes)
 {
    const int RW = PROT_READ | PROT_WRITE;
-   static const bool mmu_protect_error = getenv("MFEM_MMU_PROTECT_ERROR");
+   static const bool mmu_protect_error = GetEnv("MFEM_MMU_PROTECT_ERROR");
    if (!::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (R/W) error"); }
 }

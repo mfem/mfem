@@ -31,19 +31,19 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    // Assumes tensor-product elements
    Mesh *mesh = trial_fes.GetMesh();
 
-   const FiniteElement *trial_fel = trial_fes.GetFE(0);
+   const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
    const VectorTensorFiniteElement *trial_el =
       dynamic_cast<const VectorTensorFiniteElement*>(trial_fel);
    MFEM_VERIFY(trial_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
-   const FiniteElement *test_fel = test_fes.GetFE(0);
+   const FiniteElement *test_fel = test_fes.GetTypicalFE();
    const VectorTensorFiniteElement *test_el =
       dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
    MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
-                                                     *mesh->GetElementTransformation(0));
+                                                     *mesh->GetTypicalElementTransformation());
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 

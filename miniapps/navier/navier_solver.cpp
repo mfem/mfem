@@ -120,7 +120,7 @@ void NavierSolver::Setup(real_t dt)
    Array<int> empty;
 
    // GLL integration rule (Numerical Integration)
-   const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
+   const IntegrationRule &ir_ni = gll_rules.Get(pmesh->GetTypicalElementGeometry(),
                                                 2 * order - 1);
 
    nlcoeff.constant = -1.0;
@@ -237,7 +237,7 @@ void NavierSolver::Setup(real_t dt)
    {
       auto *vdlfi = new VectorDomainLFIntegrator(*accel_term.coeff);
       // @TODO: This order should always be the same as the nonlinear forms one!
-      // const IntegrationRule &ir = IntRules.Get(vfes->GetFE(0)->GetGeomType(),
+      // const IntegrationRule &ir = IntRules.Get(pmesh->GetTypicalElementGeometry(),
       //                                          4 * order);
       // vdlfi->SetIntRule(&ir);
       if (numerical_integ)
@@ -646,7 +646,7 @@ void NavierSolver::MeanZero(ParGridFunction &v)
       auto *dlfi = new DomainLFIntegrator(onecoeff);
       if (numerical_integ)
       {
-         const IntegrationRule &ir_ni = gll_rules.Get(vfes->GetFE(0)->GetGeomType(),
+         const IntegrationRule &ir_ni = gll_rules.Get(pmesh->GetTypicalElementGeometry(),
                                                       2 * order - 1);
          dlfi->SetIntRule(&ir_ni);
       }

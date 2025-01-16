@@ -12,6 +12,8 @@ Version 4.7.1 (development)
 ===========================
 - Refactored ALGOIM cut integration rules. The interface is unified with
   the interface for moment based cut integration rules.
+- Altered (Par)GridFunction::Compute*Error functions to ensure they return
+  non-negative values and therefore behave as "norms".
 
 Discretization improvements
 ---------------------------
@@ -21,6 +23,13 @@ Discretization improvements
 - Added support for boundary constraints to the hybridization class.
 
 - Added support for external boundary submeshes with nonconformal mesh adaptation.
+
+- Added assembly of Jacobians to `HyperbolicFormIntegrator`.
+
+- Added average fluxes to `NumericalFlux` (formerly `RiemannSolver`)
+  and `FluxFunction`.
+
+- Added component-wise upwinded flux (`ComponentwiseUpwindFlux`).
 
 Meshing improvements
 --------------------
@@ -91,6 +100,9 @@ Miscellaneous
 API changes
 -----------
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
+
+- API change: `RiemannSolver` was renamed to `NumericalFlux` (the old name has
+  been been depracated through typedef)
 
 - API change: support for SUNDIALS v7:
   * the SUNDIALS types `realtype` and `booleantype` are no longer defined by v7
