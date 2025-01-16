@@ -45,7 +45,7 @@ struct KernelMesh
    Mesh mesh;
 
    KernelMesh(int N, double prob)
-   : N(N), mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON))
+      : N(N), mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON))
    {
       if (prob >= 0.0)
       {
@@ -53,7 +53,7 @@ struct KernelMesh
          if (prob > 0.0)
          {
             mesh.RandomRefinement(prob);
-         }            
+         }
       }
    }
 };
@@ -70,7 +70,7 @@ struct Kernel: public KernelMesh
    VectorFunctionCoefficient velocity;
 
    Kernel(int order, int N, double prob = -1, bool GLL = false)
-   : 
+      :
       KernelMesh(N, prob),
       p(order),
       q(2*p + (GLL?-1:3)),
@@ -152,11 +152,12 @@ static void BK_DG(bm::State &state)
    state.counters["Prob"] = bm::Counter(state.range(2));
 }
 
-BENCHMARK(BK_DG)->ArgsProduct({
-      benchmark::CreateRange(1024, max_dofs, /*step=*/2),
-      benchmark::CreateDenseRange(1, max_order, /*step=*/1),
-      {-1, 0, 1, 10, 30}
-    })->Unit(bm::kMillisecond);
+BENCHMARK(BK_DG)->ArgsProduct(
+{
+   benchmark::CreateRange(1024, max_dofs, /*step=*/2),
+   benchmark::CreateDenseRange(1, max_order, /*step=*/1),
+   {-1, 0, 1, 10, 30}
+})->Unit(bm::kMillisecond);
 
 int main(int argc, char *argv[])
 {

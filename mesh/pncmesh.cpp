@@ -55,6 +55,9 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, std::istream &input, int version,
                      int &curved, int &is_nc)
    : NCMesh(input, version, curved, is_nc)
 {
+   MFEM_VERIFY(version != 11, "Nonconforming mesh format \"MFEM NC mesh v1.1\""
+               " is supported only in serial.");
+
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
 
@@ -1451,7 +1454,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
-      MFEM_VERIFY(ref.ref_type == 7 || Dim < 3,
+      MFEM_VERIFY(ref.GetType() == 7 || Dim < 3,
                   "anisotropic parallel refinement not supported yet in 3D.");
    }
    MFEM_VERIFY(Iso || Dim < 3,
@@ -1480,7 +1483,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       ElementNeighborProcessors(elem, ranks);
       for (int j = 0; j < ranks.Size(); j++)
       {
-         send_ref[ranks[j]].AddRefinement(elem, ref.ref_type);
+         send_ref[ranks[j]].AddRefinement(elem, ref.GetType());
       }
    }
 
@@ -1491,7 +1494,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
-      NCMesh::RefineElement(leaf_elements[ref.index], ref.ref_type);
+      NCMesh::RefineElement(leaf_elements[ref.index], ref.GetType());
    }
 
    // receive (ghost layer) refinements from all neighbors

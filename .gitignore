@@ -227,6 +227,7 @@ miniapps/meshing/extruder
 miniapps/meshing/fit-node-position
 miniapps/meshing/trimmer
 miniapps/meshing/reflector
+miniapps/meshing/ref321
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
 miniapps/meshing/pmesh-fitting
@@ -246,6 +247,8 @@ miniapps/meshing/shaper.mesh
 miniapps/meshing/extruder.mesh
 miniapps/meshing/trimmer.mesh
 miniapps/meshing/reflected.mesh
+miniapps/meshing/ref321.mesh
+miniapps/meshing/sol.gf
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 miniapps/meshing/polar-nc.mesh
@@ -428,3 +431,6 @@ pkg.gitcommit
 
 # Jupyter Notebook Checkpoints
 .ipynb_checkpoints
+
+# emacs tag file
+TAGS
