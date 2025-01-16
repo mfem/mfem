@@ -1578,7 +1578,7 @@ void TargetConstructor::ComputeAllElementTargets_Fallback(
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
                "mixed meshes are not supported");
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    const int sdim = fes.GetVDim();
    const int nvdofs = sdim*fe.GetDof();
    MFEM_VERIFY(!UsesPhysicalCoordinates() ||
@@ -1926,7 +1926,6 @@ void DiscreteAdaptTC::SetDiscreteTargetBase(const GridFunction &tspec_)
 {
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
-
    ncomp += vdim;
 
    // need to append data to tspec
@@ -1950,7 +1949,7 @@ void DiscreteAdaptTC::SetTspecAtIndex(int idx, const GridFunction &tspec_)
 {
    const int vdim = tspec_.FESpace()->GetVDim(),
              ndof = tspec_.FESpace()->GetNDofs();
-   MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTargetSpec.");
+   MFEM_VERIFY(ndof == tspec.Size()/ncomp, "Inconsistency in SetTspecAtIndex.");
 
    const auto tspec__d = tspec_.Read();
    auto tspec_d = tspec.ReadWrite();
@@ -2698,15 +2697,17 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
    Jtrcomp.Clear();
 }
 
-void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
-                                                         const real_t dx,
-                                                         bool reuse_flag,
-                                                         int x_ordering)
+void DiscreteAdaptTC::
+UpdateGradientTargetSpecification(const Vector &x, real_t dx,
+                                  bool reuse_flag, int x_ordering)
 {
    if (reuse_flag && good_tspec_grad) { return; }
 
-   const int dim = tspec_fesv->GetFE(0)->GetDim(),
+   const int dim = tspec_fesv->GetTypicalFE()->GetDim(),
              cnt = x.Size()/dim;
+
+   MFEM_VERIFY(tspec_fesv->GetVSize() / ncomp == cnt,
+               "FD with discrete adaptivity assume mesh_order = field_order.");
 
    tspec_pert1h.SetSize(x.Size()*ncomp);
 
@@ -2734,15 +2735,17 @@ void DiscreteAdaptTC:: UpdateGradientTargetSpecification(const Vector &x,
 }
 
 void DiscreteAdaptTC::
-UpdateHessianTargetSpecification(const Vector &x,real_t dx,
+UpdateHessianTargetSpecification(const Vector &x, real_t dx,
                                  bool reuse_flag, int x_ordering)
 {
-
    if (reuse_flag && good_tspec_hess) { return; }
 
-   const int dim    = tspec_fesv->GetFE(0)->GetDim(),
+   const int dim    = tspec_fesv->GetTypicalFE()->GetDim(),
              cnt    = x.Size()/dim,
              totmix = 1+2*(dim-2);
+
+   MFEM_VERIFY(tspec_fesv->GetVSize() / ncomp == cnt,
+               "FD with discrete adaptivity assume mesh_order = field_order.");
 
    tspec_pert2h.SetSize(cnt*dim*ncomp);
    tspec_pertmix.SetSize(cnt*totmix*ncomp);
@@ -2909,6 +2912,11 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const GridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
 {
+   const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
+   const char* mesh_fe_name =
+      z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
+   MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
+               "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
    delete adapt_lim_gf;
    adapt_lim_gf   = new GridFunction(z0);
@@ -2926,6 +2934,11 @@ void TMOP_Integrator::EnableAdaptiveLimiting(const ParGridFunction &z0,
                                              Coefficient &coeff,
                                              AdaptivityEvaluator &ae)
 {
+   const char* gf_fe_name = z0.FESpace()->FEColl()->Name();
+   const char* mesh_fe_name =
+      z0.FESpace()->GetMesh()->GetNodalFESpace()->FEColl()->Name();
+   MFEM_VERIFY(strcmp(gf_fe_name, mesh_fe_name) == 0,
+               "Incompatible FE spaces for the adaptive limiting field.");
    adapt_lim_gf0 = &z0;
    adapt_lim_pgf0 = &z0;
    delete adapt_lim_gf;
@@ -3115,11 +3128,11 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
    surf_fit_eval = &ae;
-
    surf_fit_eval->SetParMetaInfo(*s_bg.ParFESpace()->GetParMesh(),
                                  *s_bg.ParFESpace());
    surf_fit_eval->SetInitialField
    (*s_bg.FESpace()->GetMesh()->GetNodes(), s_bg);
+   surf_fit_eval->SetNewFieldFESpace(*surf_fit_gf->FESpace());
    GridFunction *nodes = s0.FESpace()->GetMesh()->GetNodes();
    surf_fit_eval->ComputeAtNewPosition(*nodes, *surf_fit_gf,
                                        nodes->FESpace()->GetOrdering());
@@ -3133,11 +3146,11 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    surf_fit_grad = new GridFunction(s0_grad);
    *surf_fit_grad = 0.0;
    surf_fit_eval_grad = &age;
-   surf_fit_eval_hess = &ahe;
    surf_fit_eval_grad->SetParMetaInfo(*s_bg_grad.ParFESpace()->GetParMesh(),
                                       *s_bg_grad.ParFESpace());
    surf_fit_eval_grad->SetInitialField
    (*s_bg_grad.FESpace()->GetMesh()->GetNodes(), s_bg_grad);
+   surf_fit_eval_grad->SetNewFieldFESpace(*surf_fit_grad->FESpace());
 
    // Setup for Hessian on background mesh
    MFEM_VERIFY(s_bg_hess.ParFESpace()->GetOrdering() ==
@@ -3147,10 +3160,12 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    delete surf_fit_hess;
    surf_fit_hess = new GridFunction(s0_hess);
    *surf_fit_hess = 0.0;
+   surf_fit_eval_hess = &ahe;
    surf_fit_eval_hess->SetParMetaInfo(*s_bg_hess.ParFESpace()->GetParMesh(),
                                       *s_bg_hess.ParFESpace());
    surf_fit_eval_hess->SetInitialField
    (*s_bg_hess.FESpace()->GetMesh()->GetNodes(), s_bg_hess);
+   surf_fit_eval_hess->SetNewFieldFESpace(*surf_fit_hess->FESpace());
 
    // Count number of zones that share each of the DOFs
    s0.CountElementsPerVDof(surf_fit_dof_count);
@@ -4436,7 +4451,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 void TMOP_Integrator::ComputeMinJac(const Vector &x,
                                     const FiniteElementSpace &fes)
 {
-   const FiniteElement *fe = fes.GetFE(0);
+   const FiniteElement *fe = fes.GetTypicalFE();
    const IntegrationRule &ir = EnergyIntegrationRule(*fe);
    const int NE = fes.GetMesh()->GetNE(), dim = fe->GetDim(),
              dof = fe->GetDof(), nsp = ir.GetNPoints();
@@ -4504,8 +4519,8 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
 
       // Interpolate values of the LS.
       Vector surf_fit_gf_int, surf_fit_grad_int, surf_fit_hess_int;
-      surf_fit_eval->ComputeAtNewPosition(new_x_sorted, surf_fit_gf_int,
-                                          new_x_ordering);
+      surf_fit_eval->ComputeAtGivenPositions(new_x_sorted, surf_fit_gf_int,
+                                             new_x_ordering);
       for (int i = 0; i < cnt; i++)
       {
          int dof_index = surf_fit_marker_dof_index[i];
@@ -4513,8 +4528,9 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       }
 
       // Interpolate gradients of the LS.
-      surf_fit_eval_grad->ComputeAtNewPosition(new_x_sorted, surf_fit_grad_int,
-                                               new_x_ordering);
+      surf_fit_eval_grad->ComputeAtGivenPositions(new_x_sorted,
+                                                  surf_fit_grad_int,
+                                                  new_x_ordering);
       // Assumes surf_fit_grad and surf_fit_gf share the same space
       const int grad_dim = surf_fit_grad->VectorDim();
       const int grad_cnt = surf_fit_grad->Size()/grad_dim;
@@ -4544,8 +4560,9 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       }
 
       // Interpolate Hessians of the LS.
-      surf_fit_eval_hess->ComputeAtNewPosition(new_x_sorted, surf_fit_hess_int,
-                                               new_x_ordering);
+      surf_fit_eval_hess->ComputeAtGivenPositions(new_x_sorted,
+                                                  surf_fit_hess_int,
+                                                  new_x_ordering);
       // Assumes surf_fit_hess and surf_fit_gf share the same space
       const int hess_dim = surf_fit_hess->VectorDim();
       const int hess_cnt = surf_fit_hess->Size()/hess_dim;
