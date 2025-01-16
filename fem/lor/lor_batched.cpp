@@ -448,18 +448,18 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
          }
       }
       I[i+1] = I[i] + (nnz_per_row - loc_border_counter);
-      mfem::out << "loc_border_counter" << loc_border_counter << std::endl;
+      //mfem::out << "loc_border_counter" << loc_border_counter << std::endl;
 
       actual_nnz_per_row[i] = nnz_per_row - loc_border_counter;
    }
-
+   //const auto *d_actual_nnz_per_row = actual_nnz_per_row.Read();
    mfem::forall(num_rows, [=] MFEM_HOST_DEVICE (int i)
    {
       const int iel_ho = i / ndof_per_el;
       const int iloc = i % ndof_per_el;
       const int local_x = iloc % (p+1);
       const int local_y = iloc/(p+1);
-      int nnz_per_current_row = actual_nnz_per_row[i];
+      //int nnz_per_current_row = d_actual_nnz_per_row[i];
       int nnz_so_far_current = I[i];
       AV[nnz_so_far_current] = V(0, iloc, iel_ho);
       J[nnz_so_far_current] = i;
