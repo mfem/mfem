@@ -30,6 +30,7 @@ void InitEvalKernels();
 void InitDetKernels();
 template <bool P> void InitGradByNodesKernels();
 template <bool P> void InitGradByVDimKernels();
+void InitTensorEvalHDivKernels();
 struct Kernels
 {
    Kernels()
@@ -48,6 +49,8 @@ struct Kernels
       InitDetKernels();
       // Non-tensor
       InitEvalKernels();
+      // Tensor (quad,hex) H(div)
+      InitTensorEvalHDivKernels();
    }
 };
 }
@@ -502,9 +505,16 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
 
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
+
+   if (fe->GetMapType() == FiniteElement::MapType::H_DIV)
+   {
+      // q_der == q_div
+      return MultHDiv(e_vec, eval_flags, q_val, q_der);
+   }
+
    const int vdim = fespace->GetVDim();
    const int sdim = fespace->GetMesh()->SpaceDimension();
-   const FiniteElement *fe = fespace->GetFE(0);
    const bool use_tensor_eval =
       use_tensor_products &&
       dynamic_cast<const TensorBasisElement*>(fe) != nullptr;
@@ -557,6 +567,63 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       EvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne,vdim,q_layout,
                        geom, maps,e_vec, q_val,q_der,q_det,eval_flags);
    }
+}
+
+void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
+                                      unsigned eval_flags,
+                                      Vector &q_val,
+                                      Vector &q_div) const
+{
+   const int ne = fespace->GetNE();
+   if (ne == 0) { return; }
+   MFEM_VERIFY(fespace->IsVariableOrder() == false,
+               "variable order spaces are not supported yet!");
+   const FiniteElement *fe = fespace->GetFE(0);
+   MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::H_DIV,
+               "this method can be used only for H(div) spaces");
+   MFEM_VERIFY((eval_flags & ~(VALUES | PHYSICAL_VALUES)) == 0,
+               "only VALUES and PHYSICAL_VALUES evaluations are implemented!");
+   const int dim = fespace->GetMesh()->Dimension();
+   const int sdim = fespace->GetMesh()->SpaceDimension();
+   MFEM_VERIFY((dim == 2 || dim == 3) && dim == sdim,
+               "dim = " << dim << ", sdim = " << sdim
+               << " is not supported yet!");
+   MFEM_VERIFY(fespace->GetMesh()->GetNumGeometries(dim) <= 1,
+               "mixed meshes are not supported yet!");
+   const int vdim = fespace->GetVDim();
+   MFEM_VERIFY(vdim == 1, "vdim != 1 is not supported yet!");
+   auto tfe = dynamic_cast<const VectorTensorFiniteElement *>(fe);
+   MFEM_VERIFY(tfe != nullptr, "only quad and hex elements are supported!");
+   MFEM_VERIFY(use_tensor_products,
+               "non-tensor-product evaluation are not supported yet!");
+   const bool use_tensor_eval = use_tensor_products && (tfe != nullptr);
+   const IntegrationRule *ir =
+      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const DofToQuad::Mode mode =
+      use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
+   const DofToQuad &maps_c = tfe->GetDofToQuad(*ir, mode);
+   const DofToQuad &maps_o = tfe->GetDofToQuadOpen(*ir, mode);
+   const int nd = maps_c.ndof;
+   const int nq = maps_c.nqpt;
+   const GeometricFactors *geom = nullptr;
+   if (eval_flags & PHYSICAL_VALUES)
+   {
+      const int jacobians = GeometricFactors::JACOBIANS;
+      geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
+   }
+   // Check that at most one of VALUES and PHYSICAL_VALUES is specified:
+   MFEM_VERIFY(!(eval_flags & VALUES) || !(eval_flags & PHYSICAL_VALUES),
+               "VALUES and PHYSICAL_VALUES cannot be used at the same time!");
+   if (eval_flags & (VALUES | PHYSICAL_VALUES))
+   {
+      TensorEvalHDivKernels::Run(
+         // dispatch params: dim + the template params of EvalHDiv2D/3D:
+         dim, q_layout, eval_flags & PHYSICAL_VALUES, nd, nq,
+         // runtime params, see the arguments of EvalHDiv2D/3D:
+         ne, maps_o.B.Read(), maps_c.B.Read(), geom ? geom->J.Read() : nullptr,
+         e_vec.Read(), q_val.Write(), nd, nq);
+   }
+   MFEM_CONTRACT_VAR(q_div);
 }
 
 void QuadratureInterpolator::MultTranspose(unsigned eval_flags,
