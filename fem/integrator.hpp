@@ -67,8 +67,8 @@ protected:
                 way.
    */
    const IntegrationRule* GetIntegrationRule(
-      const FiniteElement* trial_fe, const FiniteElement* test_fe,
-      const ElementTransformation* trans = nullptr) const;
+      const FiniteElement& trial_fe, const FiniteElement& test_fe,
+      const ElementTransformation& trans) const;
 
    /** @brief Selects an integration rule based on the arguments and
               internal state. (Version for identical trial_fe and test_fe)
@@ -77,8 +77,8 @@ protected:
             const ElementTransformation*)
    */
    const IntegrationRule* GetIntegrationRule(
-      const FiniteElement* el,
-      const ElementTransformation* trans = nullptr) const;
+      const FiniteElement& el,
+      const ElementTransformation& trans) const;
 
    /** @brief Subclasses should override to choose a default integration rule.
 
@@ -91,8 +91,8 @@ protected:
                 integration rules are handled appropriately by the caller.
    */
    virtual const IntegrationRule* GetDefaultIntegrationRule(
-      const FiniteElement* trial_fe, const FiniteElement* test_fe,
-      const ElementTransformation* trans) const
+      const FiniteElement& trial_fe, const FiniteElement& test_fe,
+      const ElementTransformation& trans) const
    { return NULL; }
 };
 }

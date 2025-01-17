@@ -340,9 +340,9 @@ public:
                             const Vector &elfun, DenseMatrix &elmat) override;
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      const FiniteElement* trial_fe,
-      const FiniteElement* test_fe,
-      const ElementTransformation* trans) const override;
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override;
 };
 
 /** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress
@@ -420,11 +420,11 @@ public:
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      const FiniteElement* trial_fe,
-      const FiniteElement* test_fe,
-      const ElementTransformation* trans) const override
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
    {
-      return &GetRule(*test_fe, *trans);
+      return &GetRule(test_fe, trans);
    }
 };
 

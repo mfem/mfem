@@ -16,11 +16,11 @@
 namespace mfem
 {
 const IntegrationRule* Integrator::GetIntegrationRule(
-   const FiniteElement* trial_fe, const FiniteElement* test_fe,
-   const ElementTransformation* trans) const
+   const FiniteElement& trial_fe, const FiniteElement& test_fe,
+   const ElementTransformation& trans) const
 {
    const NURBSFiniteElement *NURBSFE = dynamic_cast<const NURBSFiniteElement *>
-                                       (test_fe);
+                                       (&test_fe);
    const IntegrationRule* result;
    if (NURBSFE && patchRules)
    {
@@ -42,8 +42,8 @@ const IntegrationRule* Integrator::GetIntegrationRule(
 }
 
 const IntegrationRule* Integrator::GetIntegrationRule(
-   const FiniteElement* el,
-   const ElementTransformation* trans) const
+   const FiniteElement& el,
+   const ElementTransformation& trans) const
 {
    return GetIntegrationRule(el, el, trans);
 }

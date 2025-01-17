@@ -2138,11 +2138,11 @@ public:
                                          const ElementTransformation &Trans);
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      const FiniteElement* trial_fe,
-      const FiniteElement* test_fe,
-      const ElementTransformation* trans) const override
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
    {
-      return &GetRule(*trial_fe, *test_fe, *trans);
+      return &GetRule(trial_fe, test_fe, trans);
    }
 };
 
@@ -2325,11 +2325,11 @@ public:
    }
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      const FiniteElement* trial_fe,
-      const FiniteElement* test_fe,
-      const ElementTransformation* trans) const override
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
    {
-      return &GetRule(*trial_fe, *test_fe);
+      return &GetRule(trial_fe, test_fe);
    }
 };
 
@@ -2417,11 +2417,11 @@ public:
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      const FiniteElement* trial_fe,
-      const FiniteElement* test_fe,
-      const ElementTransformation* trans) const override
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
    {
-      return &GetRule(*trial_fe, *test_fe, *trans);
+      return &GetRule(trial_fe, test_fe, trans);
    }
 };
 
@@ -2493,11 +2493,11 @@ public:
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      const FiniteElement* trial_fe,
-      const FiniteElement* test_fe,
-      const ElementTransformation* trans) const override
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
    {
-      return &GetRule(*trial_fe, *test_fe, *trans);
+      return &GetRule(trial_fe, test_fe, trans);
    }
 };
 
@@ -2967,11 +2967,11 @@ public:
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
-      const FiniteElement* trial_fe,
-      const FiniteElement* test_fe,
-      const ElementTransformation* trans) const override
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
    {
-      return &GetRule(*trial_fe, *test_fe, *trans);
+      return &GetRule(trial_fe, test_fe, trans);
    }
 };
 
