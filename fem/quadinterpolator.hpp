@@ -40,6 +40,10 @@ protected:
    mutable bool use_tensor_products;   ///< Tensor product evaluation mode
    mutable Vector d_buffer;            ///< Auxiliary device buffer
 
+   /// Auxiliary method called by Mult() when using H(div)-conforming space
+   void MultHDiv(const Vector &e_vec, unsigned eval_flags,
+                 Vector &q_val, Vector &q_div) const;
+
 public:
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
@@ -57,7 +61,12 @@ public:
           this flag can be used to compute and store their determinants. This
           flag can only be used in Mult(). */
       DETERMINANTS = 1 << 2,
-      PHYSICAL_DERIVATIVES = 1 << 3 ///< Evaluate the physical derivatives
+      PHYSICAL_DERIVATIVES = 1 << 3, ///< Evaluate the physical derivatives
+      /** Evaluate the values in physical space; for fields with
+          FiniteElement::MapType other than FiniteElement::MapType::VALUE,
+          such as H(div) and H(curl) elements, the physical values are different
+          from the reference values. */
+      PHYSICAL_VALUES = 1 << 4
    };
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
@@ -105,6 +114,10 @@ public:
        FiniteElementSpace is a vector space) and their determinants are computed
        and stored in @a q_det.
 
+       For H(div)-conforming spaces, the flags VALUES / PHYSICAL_VALUES request
+       the computation of the vector field values in reference or physical
+       space, respectively. The result is stored in @a q_val.
+
        The layout of the input E-vector, @a e_vec, must be consistent with the
        evaluation mode: if tensor-product evaluations are enabled, then
        tensor-product elements, must use the ElementDofOrdering::LEXICOGRAPHIC
@@ -149,6 +162,9 @@ public:
                                   const GeometricFactors *, const DofToQuad &,
                                   const Vector &, Vector &, Vector &, Vector &,
                                   const int);
+   using TensorEvalHDivKernelType =
+      void(*)(const int, const real_t *, const real_t *, const real_t *,
+              const real_t *, real_t *, const int, const int);
 
    MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
                          (int, QVectorLayout, int, int, int), (int));
@@ -158,6 +174,8 @@ public:
    MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType, (int, int, int, int));
    MFEM_REGISTER_KERNELS(CollocatedGradKernels, CollocatedGradKernelType,
                          (int, QVectorLayout, bool, int, int), (int));
+   MFEM_REGISTER_KERNELS(TensorEvalHDivKernels, TensorEvalHDivKernelType,
+                         (int, QVectorLayout, bool, int, int));
 };
 
 }
