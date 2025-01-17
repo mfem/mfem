@@ -45,7 +45,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr);
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
 
    if (ir == NULL)
    {
@@ -87,7 +87,7 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr);
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
@@ -279,7 +279,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof * vdim);
    elvect = 0.0;
 
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr);
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();
@@ -338,7 +338,7 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof*(vdim/sdim));
    elvect = 0.0;
 
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr);
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
@@ -464,7 +464,7 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr);
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
@@ -513,7 +513,7 @@ void VectorFEDomainLFCurlIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr);
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       int intorder = 2*el.GetOrder();
@@ -559,7 +559,7 @@ void VectorFEDomainLFDivIntegrator::AssembleRHSElementVect(
    elvect.SetSize(dof);
    elvect = 0.0;
 
-   const IntegrationRule *ir = GetIntegrationRule(&el, &Tr);
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    if (ir == NULL)
    {
       int intorder = 2 * el.GetOrder();
