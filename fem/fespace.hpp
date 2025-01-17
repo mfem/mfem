@@ -758,12 +758,20 @@ public:
 
    int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
 
-   /// Return the dimension of a vector in the space
-   /** This accounts for cases where the finite elements are vector-valued.
-       If the finite elements are FiniteElement::SCALAR, this equals GetVDim(). */
+   /// Return the total dimension of a vector in the space
+   /** This accounts for the vectorization of elements and cases where the
+       elements themselves are vector-valued; see FiniteElement:GetRangeDim().
+       If the finite elements are FiniteElement::SCALAR, this equals GetVDim().
+
+       Note: For vector-valued elements, the results pads up the range dimension
+       to the spatial dimension. E.g., consider a stack of 5 vector-valued
+       elements each representing 2D vectors, living in a 3 dimensional space.
+       Then this fucntion would give 15, not 10.
+       */
    int GetVectorDim() const;
 
    /// Return the dimension of the curl of a GridFunction defined on this space.
+   /** Note: This assumes a space dimension of 2 or 3 only. */
    int GetCurlDim() const;
 
    /// Return the ordering method.
