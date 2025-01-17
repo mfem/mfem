@@ -1397,17 +1397,7 @@ int FiniteElementSpace::GetNConformingDofs() const
 
 int FiniteElementSpace::GetVectorDim() const
 {
-   const FiniteElement *fe;
-   if (!GetNE())
-   {
-      static const Geometry::Type geoms[3] =
-      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = FEColl()->FiniteElementForGeometry(geoms[GetMesh()->Dimension()-1]);
-   }
-   else
-   {
-      fe = GetFE(0);
-   }
+   const FiniteElement *fe = GetTypicalFE();
    if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return GetVDim();
@@ -1417,17 +1407,7 @@ int FiniteElementSpace::GetVectorDim() const
 
 int FiniteElementSpace::GetCurlDim() const
 {
-   const FiniteElement *fe;
-   if (!GetNE())
-   {
-      static const Geometry::Type geoms[3] =
-      { Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::TETRAHEDRON };
-      fe = FEColl()->FiniteElementForGeometry(geoms[GetMesh()->Dimension()-1]);
-   }
-   else
-   {
-      fe = GetFE(0);
-   }
+   const FiniteElement *fe = GetTypicalFE();
    if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return 2 * GetMesh()->SpaceDimension() - 3;
