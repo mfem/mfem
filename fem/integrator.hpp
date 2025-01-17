@@ -22,29 +22,29 @@ namespace mfem
 class Integrator
 {
 public:
-   /** Create a new Integrator, optionally providing a prescribed quadrature
-       rule to use in assembly. */
+   /** @brief Create a new Integrator, optionally providing a prescribed
+       quadrature rule to use in assembly. */
    Integrator(const IntegrationRule *ir = NULL) : IntRule(ir) {};
 
-   /** Prescribe a fixed IntegrationRule to use, or set to null to let the
-       integrator choose an appropriate rule. */
+   /** @brief Prescribe a fixed IntegrationRule to use, or set to null to let
+       the integrator choose an appropriate rule. */
    virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
-   /** Prescribe a fixed IntegrationRule to use. */
+   /** @brief Prescribe a fixed IntegrationRule to use. */
    void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
 
-   /** For patchwise integration, SetNURBSPatelementchIntRule must be called.
-       This will override IntRule if both are non-null. */
+   /** @brief For patchwise integration, SetNURBSPatelementchIntRule must be
+       called. This will override IntRule if both are non-null. */
    void SetNURBSPatchIntRule(NURBSMeshRules *pr) { patchRules = pr; }
 
-   /** Check if a NURBS patch integration rule has been set. */
+   /** @brief Check if a NURBS patch integration rule has been set. */
    bool HasNURBSPatchIntRule() const { return patchRules != nullptr; }
 
-   /** Directly return the IntRule pointer (possibly null) without checking
-       for NURBS patch rules or falling back on a default. */
+   /** @brief Directly return the IntRule pointer (possibly null) without
+       checking for NURBS patch rules or falling back on a default. */
    const IntegrationRule *GetIntRule() const { return IntRule; }
 
-   /** Equivalent to GetIntRule, but retained for backward
+   /** @brief Equivalent to GetIntRule, but retained for backward
        compatibility with applications. */
    const IntegrationRule *GetIntegrationRule() const { return GetIntRule(); }
 
