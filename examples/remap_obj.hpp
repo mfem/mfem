@@ -43,6 +43,51 @@ private:
 };
 
 
+class QVolFunctional:public mfem::Operator
+{
+public:
+    QVolFunctional(mfem::QuadratureSpace & qes_,mfem::real_t vol_):
+        mfem::Operator(1,qes_.GetSize())
+    {
+
+    }
+
+    ~QVolFunctional()
+    {
+
+    }
+
+    virtual
+        void Mult(const mfem::Vector &x, mfem::Vector& y) const
+    {
+
+    }
+
+private:
+};
+
+class QL2Objective:public mfem::Operator
+{
+public:
+    QL2Objective(mfem::QuadratureSpace & qes_):mfem::Operator(1,qes_.GetSize())
+    {
+
+    }
+
+    ~QL2Objective()
+    {
+
+    }
+
+    virtual
+    void Mult(const mfem::Vector &x, mfem::Vector& y) const
+    {
+
+    }
+private:
+};
+
+
 class VolFunctional:public mfem::Operator
 {
 public:
