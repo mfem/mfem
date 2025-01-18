@@ -67,6 +67,8 @@ void InitTensorEvalHDivKernels()
 } // namespace quadrature_interpolator
 } // namespace internal
 
+/// @cond Suppress_Doxygen_warnings
+
 QuadratureInterpolator::TensorEvalHDivKernelType
 QuadratureInterpolator::TensorEvalHDivKernels::Fallback(
    int DIM, QVectorLayout Q_LAYOUT, unsigned FLAGS, int D1D, int Q1D)
@@ -117,5 +119,7 @@ QuadratureInterpolator::TensorEvalHDivKernels::Fallback(
    }
    MFEM_ABORT("DIM = " << DIM << " is not implemented!");
 }
+
+/// @endcond
 
 } // namespace mfem
