@@ -581,8 +581,10 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
    const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::H_DIV,
                "this method can be used only for H(div) spaces");
-   MFEM_VERIFY((eval_flags & ~(VALUES | PHYSICAL_VALUES)) == 0,
-               "only VALUES and PHYSICAL_VALUES evaluations are implemented!");
+   MFEM_VERIFY((eval_flags &
+                ~(VALUES | PHYSICAL_VALUES | PHYSICAL_MAGNITUDES)) == 0,
+               "only VALUES, PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES"
+               " evaluations are implemented!");
    const int dim = fespace->GetMesh()->Dimension();
    const int sdim = fespace->GetMesh()->SpaceDimension();
    MFEM_VERIFY((dim == 2 || dim == 3) && dim == sdim,
@@ -606,19 +608,28 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
    const int nd = maps_c.ndof;
    const int nq = maps_c.nqpt;
    const GeometricFactors *geom = nullptr;
-   if (eval_flags & PHYSICAL_VALUES)
+   if (eval_flags & (PHYSICAL_VALUES | PHYSICAL_MAGNITUDES))
    {
       const int jacobians = GeometricFactors::JACOBIANS;
       geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
    }
-   // Check that at most one of VALUES and PHYSICAL_VALUES is specified:
-   MFEM_VERIFY(!(eval_flags & VALUES) || !(eval_flags & PHYSICAL_VALUES),
-               "VALUES and PHYSICAL_VALUES cannot be used at the same time!");
-   if (eval_flags & (VALUES | PHYSICAL_VALUES))
+   // Check that at most one of VALUES, PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES
+   // is specified:
+   MFEM_VERIFY(bool(eval_flags & VALUES) + bool(eval_flags & PHYSICAL_VALUES) +
+               bool(eval_flags & PHYSICAL_MAGNITUDES) <= 1,
+               "only one of VALUES, PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES"
+               " can be requested at a time!");
+   const unsigned value_eval_mode =
+      eval_flags & (VALUES | PHYSICAL_VALUES | PHYSICAL_MAGNITUDES);
+   if (value_eval_mode)
    {
+      // For PHYSICAL_MAGNITUDES the QVectorLayouts are the same and we
+      // instantiate only QVectorLayout::byNODES:
+      const auto q_l = (eval_flags & PHYSICAL_MAGNITUDES) ?
+                       QVectorLayout::byNODES : q_layout;
       TensorEvalHDivKernels::Run(
          // dispatch params: dim + the template params of EvalHDiv2D/3D:
-         dim, q_layout, eval_flags & PHYSICAL_VALUES, nd, nq,
+         dim, q_l, value_eval_mode, nd, nq,
          // runtime params, see the arguments of EvalHDiv2D/3D:
          ne, maps_o.B.Read(), maps_c.B.Read(), geom ? geom->J.Read() : nullptr,
          e_vec.Read(), q_val.Write(), nd, nq);

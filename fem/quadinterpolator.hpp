@@ -66,7 +66,10 @@ public:
           FiniteElement::MapType other than FiniteElement::MapType::VALUE,
           such as H(div) and H(curl) elements, the physical values are different
           from the reference values. */
-      PHYSICAL_VALUES = 1 << 4
+      PHYSICAL_VALUES = 1 << 4,
+      /** For vector-valued fields, evaluate the magnitudes of the physical
+          space vector values at quadrature points. */
+      PHYSICAL_MAGNITUDES = 1 << 5
    };
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
@@ -116,7 +119,10 @@ public:
 
        For H(div)-conforming spaces, the flags VALUES / PHYSICAL_VALUES request
        the computation of the vector field values in reference or physical
-       space, respectively. The result is stored in @a q_val.
+       space, respectively. The flag PHYSICAL_MAGNITUDES requests the
+       computation of the physical space magnitudes. In all 3 cases, the result
+       is stored in @a q_val and therefore only one of the 3 cases can be
+       requested in a single call.
 
        The layout of the input E-vector, @a e_vec, must be consistent with the
        evaluation mode: if tensor-product evaluations are enabled, then
@@ -175,7 +181,7 @@ public:
    MFEM_REGISTER_KERNELS(CollocatedGradKernels, CollocatedGradKernelType,
                          (int, QVectorLayout, bool, int, int), (int));
    MFEM_REGISTER_KERNELS(TensorEvalHDivKernels, TensorEvalHDivKernelType,
-                         (int, QVectorLayout, bool, int, int));
+                         (int, QVectorLayout, unsigned, int, int));
 };
 
 }
