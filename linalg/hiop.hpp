@@ -265,7 +265,7 @@ public:
 #endif
    virtual ~HiopNlpOptimizer();
 
-   virtual void SetOptimizationProblem(const OptimizationProblem &prob);
+   void SetOptimizationProblem(const OptimizationProblem &prob) override;
 
    /// Solves the optimization problem with xt as initial guess.
    void Mult(const Vector &xt, Vector &x) const override;
