@@ -30,7 +30,7 @@ namespace quadrature_interpolator
 
 // Evaluate values in H(div) on quads: DIM = SDIM = 2
 // For RT(p): D1D = p + 2
-template<QVectorLayout Q_LAYOUT, bool PHYS, int T_D1D = 0, int T_Q1D = 0>
+template<QVectorLayout Q_LAYOUT, unsigned FLAGS, int T_D1D = 0, int T_Q1D = 0>
 inline void EvalHDiv2D(const int NE,
                        const real_t *Bo_,
                        const real_t *Bc_,
@@ -50,9 +50,12 @@ inline void EvalHDiv2D(const int NE,
    // J is used only when PHYS is true, otherwise J_ can be nullptr.
    const auto J = Reshape(J_, Q1D, Q1D, DIM, DIM, NE);
    const auto x = Reshape(x_, D1D*(D1D-1), DIM, NE);
-   auto y = (Q_LAYOUT == QVectorLayout::byNODES) ?
-            Reshape(y_, Q1D, Q1D, DIM, NE) :
-            Reshape(y_, DIM, Q1D, Q1D, NE);
+   auto y = (FLAGS & (QuadratureInterpolator::VALUES |
+                      QuadratureInterpolator::PHYSICAL_VALUES)) ?
+            ((Q_LAYOUT == QVectorLayout::byNODES) ?
+             Reshape(y_, Q1D, Q1D, DIM, NE) :
+             Reshape(y_, DIM, Q1D, Q1D, NE)) :
+            Reshape(y_, Q1D, Q1D, 1, NE);
 
    mfem::forall_3D(NE, Q1D, Q1D, DIM, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -131,7 +134,8 @@ inline void EvalHDiv2D(const int NE,
                {
                   qq += QD(qx,dy,vd) * By(dy,qy);
                }
-               if (PHYS)
+               if (FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
+                            QuadratureInterpolator::PHYSICAL_MAGNITUDES))
                {
                   QQ(qx,qy,vd) = qq;
                }
@@ -147,7 +151,8 @@ inline void EvalHDiv2D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      if (PHYS)
+      if (FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
+                   QuadratureInterpolator::PHYSICAL_MAGNITUDES))
       {
          if (tidz == 0)
          {
@@ -171,17 +176,24 @@ inline void EvalHDiv2D(const int NE,
                   const real_t detJ = kernels::Det<DIM>(J_loc);
                   kernels::Mult(DIM, DIM, J_loc, u_ref, u_phys);
                   kernels::Set(DIM, 1, 1_r/detJ, u_phys, u_phys);
-                  MFEM_UNROLL(DIM)
-                  for (int sd = 0; sd < DIM; sd++)
+                  if (FLAGS & QuadratureInterpolator::PHYSICAL_VALUES)
                   {
-                     if (Q_LAYOUT == QVectorLayout::byNODES)
+                     MFEM_UNROLL(DIM)
+                     for (int sd = 0; sd < DIM; sd++)
                      {
-                        y(qx,qy,sd,e) = u_phys[sd];
+                        if (Q_LAYOUT == QVectorLayout::byNODES)
+                        {
+                           y(qx,qy,sd,e) = u_phys[sd];
+                        }
+                        else // Q_LAYOUT == QVectorLayout::byVDIM
+                        {
+                           y(sd,qx,qy,e) = u_phys[sd];
+                        }
                      }
-                     else // Q_LAYOUT == QVectorLayout::byVDIM
-                     {
-                        y(sd,qx,qy,e) = u_phys[sd];
-                     }
+                  }
+                  else if (FLAGS & QuadratureInterpolator::PHYSICAL_MAGNITUDES)
+                  {
+                     y(qx,qy,0,e) = kernels::Norml2(DIM, u_phys);
                   }
                }
             }
@@ -193,7 +205,7 @@ inline void EvalHDiv2D(const int NE,
 
 // Evaluate values in H(div) on hexes: DIM = SDIM = 3
 // For RT(p): D1D = p + 2
-template<QVectorLayout Q_LAYOUT, bool PHYS, int T_D1D = 0, int T_Q1D = 0>
+template<QVectorLayout Q_LAYOUT, unsigned FLAGS, int T_D1D = 0, int T_Q1D = 0>
 inline void EvalHDiv3D(const int NE,
                        const real_t *Bo_,
                        const real_t *Bc_,
@@ -213,9 +225,12 @@ inline void EvalHDiv3D(const int NE,
    // J is used only when PHYS is true, otherwise J_ can be nullptr.
    const auto J = Reshape(J_, Q1D, Q1D, Q1D, DIM, DIM, NE);
    const auto x = Reshape(x_, D1D*(D1D-1)*(D1D-1), DIM, NE);
-   auto y = (Q_LAYOUT == QVectorLayout::byNODES) ?
-            Reshape(y_, Q1D, Q1D, Q1D, DIM, NE) :
-            Reshape(y_, DIM, Q1D, Q1D, Q1D, NE);
+   auto y = (FLAGS & (QuadratureInterpolator::VALUES |
+                      QuadratureInterpolator::PHYSICAL_VALUES)) ?
+            ((Q_LAYOUT == QVectorLayout::byNODES) ?
+             Reshape(y_, Q1D, Q1D, Q1D, DIM, NE) :
+             Reshape(y_, DIM, Q1D, Q1D, Q1D, NE)) :
+            Reshape(y_, Q1D, Q1D, Q1D, 1, NE);
 
    mfem::forall_3D(NE, Q1D, Q1D, DIM, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -355,7 +370,8 @@ inline void EvalHDiv3D(const int NE,
                MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  if (PHYS)
+                  if (FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
+                               QuadratureInterpolator::PHYSICAL_MAGNITUDES))
                   {
                      QQQ(qx,qy,qz,vd) = u[qz];
                   }
@@ -372,7 +388,8 @@ inline void EvalHDiv3D(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
-      if (PHYS)
+      if (FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
+                   QuadratureInterpolator::PHYSICAL_MAGNITUDES))
       {
          MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
@@ -396,17 +413,24 @@ inline void EvalHDiv3D(const int NE,
                   const real_t detJ = kernels::Det<DIM>(J_loc);
                   kernels::Mult(DIM, DIM, J_loc, u_ref, u_phys);
                   kernels::Set(DIM, 1, 1_r/detJ, u_phys, u_phys);
-                  MFEM_UNROLL(DIM)
-                  for (int sd = 0; sd < DIM; sd++)
+                  if (FLAGS & QuadratureInterpolator::PHYSICAL_VALUES)
                   {
-                     if (Q_LAYOUT == QVectorLayout::byNODES)
+                     MFEM_UNROLL(DIM)
+                     for (int sd = 0; sd < DIM; sd++)
                      {
-                        y(qx,qy,qz,sd,e) = u_phys[sd];
+                        if (Q_LAYOUT == QVectorLayout::byNODES)
+                        {
+                           y(qx,qy,qz,sd,e) = u_phys[sd];
+                        }
+                        else // Q_LAYOUT == QVectorLayout::byVDIM
+                        {
+                           y(sd,qx,qy,qz,e) = u_phys[sd];
+                        }
                      }
-                     else // Q_LAYOUT == QVectorLayout::byVDIM
-                     {
-                        y(sd,qx,qy,qz,e) = u_phys[sd];
-                     }
+                  }
+                  else if (FLAGS & QuadratureInterpolator::PHYSICAL_MAGNITUDES)
+                  {
+                     y(qx,qy,qz,0,e) = kernels::Norml2(DIM, u_phys);
                   }
                }
             }
@@ -421,14 +445,14 @@ inline void EvalHDiv3D(const int NE,
 
 /// @cond Suppress_Doxygen_warnings
 
-template<int DIM, QVectorLayout Q_LAYOUT, bool PHYS, int D1D, int Q1D>
+template<int DIM, QVectorLayout Q_LAYOUT, unsigned FLAGS, int D1D, int Q1D>
 QuadratureInterpolator::TensorEvalHDivKernelType
 QuadratureInterpolator::TensorEvalHDivKernels::Kernel()
 {
    using namespace internal::quadrature_interpolator;
    static_assert(DIM == 2 || DIM == 3, "only DIM=2 and DIM=3 are implemented!");
-   if (DIM == 2) { return EvalHDiv2D<Q_LAYOUT, PHYS, D1D, Q1D>; }
-   else if (DIM == 3) { return EvalHDiv3D<Q_LAYOUT, PHYS, D1D, Q1D>; }
+   if (DIM == 2) { return EvalHDiv2D<Q_LAYOUT, FLAGS, D1D, Q1D>; }
+   else if (DIM == 3) { return EvalHDiv3D<Q_LAYOUT, FLAGS, D1D, Q1D>; }
 }
 
 /// @endcond
