@@ -2,10 +2,10 @@
 //
 // Compile with: make ex40
 //
-// Sample runs: ex40 -step 5.0 -gr 2.0
-//              ex40 -step 5.0 -gr 2.0 -o 3 -r 1
-//              ex40 -step 5.0 -gr 2.0 -r 4 -m ../data/l-shape.mesh
-//              ex40 -step 5.0 -gr 2.0 -r 2 -m ../data/fichera.mesh
+// Sample runs: ex40 -step 10.0 -gr 2.0
+//              ex40 -step 10.0 -gr 2.0 -o 3 -r 1
+//              ex40 -step 10.0 -gr 2.0 -r 4 -m ../data/l-shape.mesh
+//              ex40 -step 10.0 -gr 2.0 -r 2 -m ../data/fichera.mesh
 //
 // Description: This example code demonstrates how to use MFEM to solve the
 //              eikonal equation,
@@ -20,8 +20,8 @@
 //              which is the foundation for method implemented below.
 //
 //              Following the proximal Galerkin methodology [1,2] (see also Example
-//              36), we construct a Legendre function for the unit ball
-//              𝐵₁ := {𝑥 ∈ Rⁿ | |𝑥| < 1}. Our choice is the Hellinger entropy,
+//              36), we construct a Legendre function for the closed unit ball
+//              𝐵₁ := {𝑥 ∈ Rⁿ | |𝑥| ≤ 1}. Our choice is the Hellinger entropy,
 //
 //                    R(𝑥) = −( 1 − |𝑥|² )^{1/2},
 //
@@ -29,22 +29,22 @@
 //              different algorithm. We then adaptively regularize the optimization
 //              problem (⋆) with the Bregman divergence of the Hellinger entropy,
 //
-//                 maximize  ∫_Ω 𝑢 d𝑥 - αₖ⁻¹ D(∇𝑢,∇𝑢ₖ₋₁)  subject to  𝑢 = g on Ω.
+//                 maximize  ∫_Ω 𝑢 d𝑥 - αₖ⁻¹ D(∇𝑢,∇𝑢ₖ₋₁)  subject to  𝑢 = 0 on Ω.
 //
 //              This results in a sequence of functions ( 𝜓ₖ , 𝑢ₖ ),
 //
-//                      𝑢ₖ → 𝑢,    𝜓ₖ/|𝜓ₖ| → ∇𝑢    as k → \infty,
+//                      𝑢ₖ → 𝑢,    𝜓ₖ/|𝜓ₖ| → ∇𝑢    as k → ∞,
 //
 //              defined by the nonlinear saddle-point problems
 //
 //               Find 𝜓ₖ ∈ H(div,Ω) and 𝑢ₖ ∈ L²(Ω) such that
-//               ( ∇R⁻¹(𝜓ₖ), τ ) + ( 𝑢ₖ , ∇⋅τ ) = 0                     ∀ τ ∈ H(div,Ω)
-//               ( ∇⋅𝜓ₖ , v )                  = ( ∇⋅𝜓ₖ₋₁ - αₖ , v )    ∀ v ∈ L²(Ω)
+//               ( (∇R)⁻¹(𝜓ₖ) , τ ) + ( 𝑢ₖ , ∇⋅τ ) = 0                     ∀ τ ∈ H(div,Ω)
+//               ( ∇⋅𝜓ₖ , v )                     = ( ∇⋅𝜓ₖ₋₁ - αₖ , v )    ∀ v ∈ L²(Ω)
 //
-//              where ∇h⁻¹(𝜓) = 𝜓 / ( 1 + |𝜓|² )^{1/2} and αₖ = α₀rᵏ, where r ≥ 1
-//              is a prescribed growth rate. The saddle-point problems are solved
-//              using a damped quasi-Newton method with a tunable stabilization
-//              parameter 0 ≤ ϵ << 1.
+//              where (∇R)⁻¹(𝜓) = 𝜓 / ( 1 + |𝜓|² )^{1/2} and αₖ = α₀rᵏ, where r ≥ 1
+//              is a prescribed growth rate. (r = 1 is the most stable.) The
+//              saddle-point problems are solved using a damped quasi-Newton method
+//              with a tunable regularization parameter 0 ≤ ϵ << 1.
 //
 //              [1] Keith, B. and Surowiec, T. (2024) Proximal Galerkin: A structure-
 //                  preserving finite element method for pointwise bound constraints.
@@ -98,8 +98,8 @@ int main(int argc, char *argv[])
    int ref_levels = 3;
    real_t alpha = 1.0;
    real_t growth_rate = 1.0;
-   real_t newton_scaling = 0.9;
-   real_t eps = 1e-4;
+   real_t newton_scaling = 0.8;
+   real_t eps = 1e-6;
    real_t tol = 1e-4;
    bool visualization = true;
 
@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
 
    // 9. Coefficients to be used later.
    ConstantCoefficient neg_alpha_cf((real_t) -1.0*alpha);
-   ConstantCoefficient zero(0.0);
+   ConstantCoefficient zero_cf(0.0);
    IsomorphismCoefficient Z(sdim, psi_gf);
    DIsomorphismCoefficient DZ(sdim, psi_gf, eps);
    ScalarVectorProductCoefficient neg_Z(-1.0, Z);
@@ -279,11 +279,11 @@ int main(int argc, char *argv[])
          A.SetBlock(0,1,A01);
          A.SetBlock(1,1,&A11);
 
-         GMRES(A,prec,rhs,x,0,2000,500,1e-12,0.0);
+         MINRES(A,prec,rhs,x,0,2000,1e-12);
          delete S;
 
          u_tmp -= u_gf;
-         real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
+         real_t Newton_update_size = u_tmp.ComputeL2Error(zero_cf);
          u_tmp = u_gf;
 
          // Damped Newton update
@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
 
       u_tmp = u_gf;
       u_tmp -= u_old_gf;
-      increment_u = u_tmp.ComputeL2Error(zero);
+      increment_u = u_tmp.ComputeL2Error(zero_cf);
 
       mfem::out << "Number of Newton iterations = " << j+1 << endl;
       mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_u << endl;
