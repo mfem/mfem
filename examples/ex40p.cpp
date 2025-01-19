@@ -2,10 +2,10 @@
 //
 // Compile with: make ex40p
 //
-// Sample runs: mpirun -np 4 ex40p -step 5.0 -gr 2.0
-//              mpirun -np 4 ex40p -step 5.0 -gr 2.0 -o 3 -r 1
-//              mpirun -np 4 ex40p -step 5.0 -gr 2.0 -r 4 -m ../data/l-shape.mesh
-//              mpirun -np 4 ex40p -step 5.0 -gr 2.0 -r 2 -m ../data/fichera.mesh
+// Sample runs: mpirun -np 4 ex40p -step 10.0 -gr 2.0
+//              mpirun -np 4 ex40p -step 10.0 -gr 2.0 -o 3 -r 1
+//              mpirun -np 4 ex40p -step 10.0 -gr 2.0 -r 4 -m ../data/l-shape.mesh
+//              mpirun -np 4 ex40p -step 10.0 -gr 2.0 -r 2 -m ../data/fichera.mesh
 //
 // Description: This example code demonstrates how to use MFEM to solve the
 //              eikonal equation,
@@ -20,8 +20,8 @@
 //              which is the foundation for method implemented below.
 //
 //              Following the proximal Galerkin methodology [1,2] (see also Example
-//              36), we construct a Legendre function for the unit ball
-//              𝐵₁ := {𝑥 ∈ Rⁿ | |𝑥| < 1}. Our choice is the Hellinger entropy,
+//              36), we construct a Legendre function for the closed unit ball
+//              𝐵₁ := {𝑥 ∈ Rⁿ | |𝑥| ≤ 1}. Our choice is the Hellinger entropy,
 //
 //                    R(𝑥) = −( 1 − |𝑥|² )^{1/2},
 //
@@ -29,22 +29,23 @@
 //              different algorithm. We then adaptively regularize the optimization
 //              problem (⋆) with the Bregman divergence of the Hellinger entropy,
 //
-//                 maximize  ∫_Ω 𝑢 d𝑥 - αₖ⁻¹ D(∇𝑢,∇𝑢ₖ₋₁)  subject to  𝑢 = g on Ω.
+//                 maximize  ∫_Ω 𝑢 d𝑥 - αₖ⁻¹ D(∇𝑢,∇𝑢ₖ₋₁)  subject to  𝑢 = 0 on Ω.
 //
 //              This results in a sequence of functions ( 𝜓ₖ , 𝑢ₖ ),
 //
-//                      𝑢ₖ → 𝑢,    𝜓ₖ/|𝜓ₖ| → ∇𝑢    as k → \infty,
+//                      𝑢ₖ → 𝑢,    𝜓ₖ/|𝜓ₖ| → ∇𝑢    as k → ∞,
 //
 //              defined by the nonlinear saddle-point problems
 //
 //               Find 𝜓ₖ ∈ H(div,Ω) and 𝑢ₖ ∈ L²(Ω) such that
-//               ( ∇R⁻¹(𝜓ₖ), τ ) + ( 𝑢ₖ , ∇⋅τ ) = 0                     ∀ τ ∈ H(div,Ω)
-//               ( ∇⋅𝜓ₖ , v )                  = ( ∇⋅𝜓ₖ₋₁ - αₖ , v )    ∀ v ∈ L²(Ω)
+//               ( (∇R)⁻¹(𝜓ₖ) , τ ) + ( 𝑢ₖ , ∇⋅τ ) = 0                     ∀ τ ∈ H(div,Ω)
+//               ( ∇⋅𝜓ₖ , v )                     = ( ∇⋅𝜓ₖ₋₁ - αₖ , v )    ∀ v ∈ L²(Ω)
 //
-//              where ∇h⁻¹(𝜓) = 𝜓 / ( 1 + |𝜓|² )^{1/2} and αₖ = α₀rᵏ, where r ≥ 1
-//              is a prescribed growth rate. The saddle-point problems are solved
-//              using a damped quasi-Newton method with a tunable stabilization
-//              parameter 0 ≤ ϵ << 1.
+//              where (∇R)⁻¹(𝜓) = 𝜓 / ( 1 + |𝜓|² )^{1/2} and αₖ = α₀rᵏ, where r ≥ 1
+//              is a prescribed growth rate. (r = 1 is the most stable.) The
+//              saddle-point problems are solved using a damped quasi-Newton method
+//              with a tunable regularization parameter 0 ≤ ϵ << 1. The solver is
+//              also made more robust by additional safeguards described in the code.
 //
 //              [1] Keith, B. and Surowiec, T. (2024) Proximal Galerkin: A structure-
 //                  preserving finite element method for pointwise bound constraints.
@@ -82,7 +83,7 @@ protected:
    real_t eps;
 
 public:
-   DIsomorphismCoefficient(int height, ParGridFunction &psi_, real_t eps_ = 1.0)
+   DIsomorphismCoefficient(int height, ParGridFunction &psi_, real_t eps_ = 0.0)
       : MatrixCoefficient(height),  psi(&psi_), eps(eps_) { }
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
@@ -104,9 +105,12 @@ int main(int argc, char *argv[])
    int ref_levels = 3;
    real_t alpha = 1.0;
    real_t growth_rate = 1.0;
-   real_t newton_scaling = 0.9;
-   real_t eps = 1e-4;
+   real_t newton_scaling = 0.8;
+   real_t eps = 1e-6;
    real_t tol = 1e-4;
+   real_t max_alpha = 1e2;
+   real_t max_psi = 1e2;
+   real_t eps2 = 1e-1;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -163,6 +167,13 @@ int main(int argc, char *argv[])
    // NOTE: Minimum second-order interpolation is used to improve the accuracy.
    int curvature_order = max(order,2);
    mesh.SetCurvature(curvature_order);
+
+   // 3C. Compute the maximum mesh size.
+   real_t hmax = 0.0;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      hmax = max(mesh.GetElementSize(i, 1), hmax);
+   }
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
@@ -231,8 +242,11 @@ int main(int argc, char *argv[])
    }
 
    // 9. Coefficients to be used later.
+   ConstantCoefficient one_cf(1.0);
+   ConstantCoefficient zero_cf(0.0);
+   Vector zero_vec(sdim); zero_vec = 0.0;
+   VectorConstantCoefficient zero_vec_cf(zero_vec);
    ConstantCoefficient neg_alpha_cf((real_t) -1.0*alpha);
-   ConstantCoefficient zero(0.0);
    IsomorphismCoefficient Z(sdim, psi_gf);
    DIsomorphismCoefficient DZ(sdim, psi_gf, eps);
    ScalarVectorProductCoefficient neg_Z(-1.0, Z);
@@ -264,6 +278,13 @@ int main(int argc, char *argv[])
    a11.Assemble();
    a11.Finalize();
    HypreParMatrix *A11 = a11.ParallelAssemble();
+
+   ParLinearForm vol_form(&L2fes);
+   ParGridFunction one_gf(&L2fes);
+   one_gf = 1.0;
+   vol_form.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
+   vol_form.Assemble();
+   real_t domain_volume = vol_form(one_gf);
 
    // 11. Iterate.
    int k;
@@ -316,14 +337,13 @@ int main(int argc, char *argv[])
          A.SetBlock(0,1,A01);
          A.SetBlock(1,1,A11);
 
-         GMRESSolver gmres(MPI_COMM_WORLD);
-         gmres.SetPrintLevel(-1);
-         gmres.SetRelTol(1e-8);
-         gmres.SetMaxIter(2000);
-         gmres.SetKDim(500);
-         gmres.SetOperator(A);
-         gmres.SetPreconditioner(prec);
-         gmres.Mult(trhs,tx);
+         MINRESSolver minres(MPI_COMM_WORLD);
+         minres.SetPrintLevel(-1);
+         minres.SetRelTol(1e-12);
+         minres.SetMaxIter(10000);
+         minres.SetOperator(A);
+         minres.SetPreconditioner(prec);
+         minres.Mult(trhs,tx);
          delete S;
          delete A00;
 
@@ -331,7 +351,7 @@ int main(int argc, char *argv[])
          u_gf.SetFromTrueDofs(tx.GetBlock(1));
 
          u_tmp -= u_gf;
-         real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
+         real_t Newton_update_size = u_tmp.ComputeL2Error(zero_cf);
          u_tmp = u_gf;
 
          // Damped Newton update
@@ -350,7 +370,7 @@ int main(int argc, char *argv[])
             mfem::out << "Newton_update_size = " << Newton_update_size << endl;
          }
 
-         if (Newton_update_size < increment_u)
+         if (newton_scaling*Newton_update_size < increment_u)
          {
             break;
          }
@@ -358,7 +378,7 @@ int main(int argc, char *argv[])
 
       u_tmp = u_gf;
       u_tmp -= u_old_gf;
-      increment_u = u_tmp.ComputeL2Error(zero);
+      increment_u = u_tmp.ComputeL2Error(zero_cf);
 
       if (myid == 0)
       {
@@ -368,14 +388,28 @@ int main(int argc, char *argv[])
 
       u_old_gf = u_gf;
       psi_old_gf = psi_gf;
+      alpha *= max(growth_rate, 1_r);
+
+      // Safeguard 1: Stop alpha from growing too large
+      alpha = min(alpha, max_alpha);
+
+      // Safeguard 2: Stop |ψ| from growing too large
+      real_t norm_psi = psi_old_gf.ComputeL1Error(zero_vec_cf)/domain_volume;
+      if (norm_psi > max_psi)
+      {
+         // Additional entropy regularization
+         neg_alpha_cf.constant = -alpha/(1.0 + eps2 * alpha * hmax);
+         psi_old_minus_psi.SetAlpha(1.0/(1.0 + eps2 * alpha * hmax));
+      }
+      else
+      {
+         neg_alpha_cf.constant = -alpha;
+      }
 
       if (increment_u < tol || k == max_it-1)
       {
          break;
       }
-
-      alpha *= max(growth_rate, 1_r);
-      neg_alpha_cf.constant = -alpha;
 
    }
 
