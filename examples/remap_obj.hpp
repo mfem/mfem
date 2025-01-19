@@ -47,23 +47,94 @@ class QVolFunctional:public mfem::Operator
 {
 public:
     QVolFunctional(mfem::QuadratureSpace & qes_,mfem::real_t vol_):
-        mfem::Operator(1,qes_.GetSize())
+        mfem::Operator(1,qes_.GetSize()), qspace(qes_), vol_bound(vol_)
     {
 
+        gr.SetSize(qes_.GetSize());//set the size of the gradient vector
+        const int NE  = qes_.GetMesh()->GetNE();
+        for (int e = 0; e < NE; e++)
+        {
+            const mfem::IntegrationRule &ir = qes_.GetElementIntRule(e);
+            const int nip = ir.GetNPoints();
+
+            // Transformation of the element with the pos_mesh coordinates.
+            mfem::IsoparametricTransformation Tr;
+            //check out if the mesh is set up with the correct nodal values
+            //qspace.GetMesh()->GetElementTransformation(e, pos_mesh, &Tr);
+            qes_.GetMesh()->GetElementTransformation(e,&Tr);
+
+            for (int q = 0; q < nip; q++)
+            {
+                const mfem::IntegrationPoint &ip = ir.IntPoint(q);
+                Tr.SetIntPoint(&ip);
+                mfem::real_t w=Tr.Weight();
+                gr[e*nip+q]=w;
+            }
+        }
+
+        grad=new locGrad(gr);
     }
 
     ~QVolFunctional()
     {
-
+        delete grad;
     }
 
     virtual
-        void Mult(const mfem::Vector &x, mfem::Vector& y) const
+    void Mult(const mfem::Vector &x, mfem::Vector& y) const
     {
+        //x is assumed to be a quadrature function
 
+        mfem::real_t loc_vol=mfem::real_t(0.0);
+
+        for(int i=0;i<gr.Size();i++)
+        {
+            loc_vol=loc_vol+x[i]*gr[i];
+        }
+
+        auto pmesh = dynamic_cast<mfem::ParMesh*>(qspace.GetMesh());
+        MFEM_VERIFY(pmesh, "Broken QuadratureSpace.");
+
+        double dloc_vol=loc_vol;
+        double dglb_vol=0.0;
+        MPI_Allreduce(&dloc_vol,&dglb_vol,1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
+
+        y[0]=mfem::real_t(dglb_vol)-vol_bound;
     }
 
+
+    //evaluate the gradient of the functional
+    virtual
+    mfem::Operator& GetGradient(const mfem::Vector& x) const
+    {
+        return *grad;
+    }
+
+
 private:
+    mfem::QuadratureSpace& qspace;
+    mfem::real_t vol_bound;
+    mfem::Vector gr; //the gradient is constant vector
+
+    class locGrad:public mfem::Operator
+    {
+    public:
+        locGrad(mfem::Vector& gr_)
+            :mfem::Operator(gr_.Size(),gr_.Size()), lgr(gr_)
+        {
+        }
+
+        virtual
+        void Mult(const mfem::Vector &x, mfem::Vector& y) const
+        {
+            y=lgr;
+        }
+
+    private:
+        mfem::Vector& lgr;
+    };
+
+    locGrad* grad;
 };
 
 class QL2Objective:public mfem::Operator
