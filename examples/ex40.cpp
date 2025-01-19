@@ -334,7 +334,7 @@ int main(int argc, char *argv[])
 }
 
 void IsomorphismCoefficient::Eval(Vector &V, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+                                  const IntegrationPoint &ip)
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
 
@@ -348,7 +348,7 @@ void IsomorphismCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 void DIsomorphismCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                         const IntegrationPoint &ip)
+                                   const IntegrationPoint &ip)
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
    MFEM_ASSERT(eps >= 0, "eps is negative");
