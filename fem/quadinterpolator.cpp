@@ -70,8 +70,9 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetTypicalFE();
-   MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
-               "Only scalar finite elements are supported");
+   MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::VALUE ||
+               fe->GetMapType() == FiniteElement::MapType::H_DIV,
+               "Only elements with MapType VALUE and H_DIV are supported!");
 }
 
 QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
@@ -86,8 +87,9 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
    const FiniteElement *fe = fespace->GetTypicalFE();
-   MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
-               "Only scalar finite elements are supported");
+   MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::VALUE ||
+               fe->GetMapType() == FiniteElement::MapType::H_DIV,
+               "Only elements with MapType VALUE and H_DIV are supported!");
 }
 
 namespace internal
