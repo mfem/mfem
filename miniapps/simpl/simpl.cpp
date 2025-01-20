@@ -1,8 +1,6 @@
 #include "mfem.hpp"
 #include "topopt_problems.hpp"
 #include "logger.hpp"
-// #include <chrono>
-// #include <thread>
 
 using namespace mfem;
 
