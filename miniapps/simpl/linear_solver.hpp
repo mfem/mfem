@@ -53,19 +53,19 @@ private:
    Array<Array<int>*> owned_intArrays;
 protected:
    std::unique_ptr<BilinearForm> a;
-   std::unique_ptr<LinearForm> b;
-   std::unique_ptr<LinearForm> adjb;
+   std::vector<std::unique_ptr<LinearForm>> b;
+   std::vector<std::unique_ptr<LinearForm>> adjb;
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *par_fes;
    MPI_Comm comm;
    ParBilinearForm *par_a;
-   ParLinearForm *par_b;
-   ParLinearForm *par_adjb;
+   std::vector<ParLinearForm*>par_b;
+   std::vector<ParLinearForm*>par_adjb;
 #endif
 
    void BuildTDofList(Array<int> &ess_bdr);
    void BuildTDofList(Array2D<int> &ess_bdr);
-   void InitializeForms();
+   void InitializeForms(int nRHS=1);
 
 public:
    EllipticProblem(FiniteElementSpace &fes, Array<int> &ess_bdr,
@@ -115,16 +115,16 @@ public:
    void UseElasticityOption(bool flag=true) {elast = flag;}
 
    BilinearForm *GetBilinearForm() {return a.get();}
-   LinearForm *GetLinearForm() {return b.get();}
-   LinearForm *GetAdjLinearForm() {return adjb.get();}
+   std::vector<std::unique_ptr<LinearForm>> &GetLinearForm() {return b;}
+   std::vector<std::unique_ptr<LinearForm>> &GetAdjLinearForm() {return adjb;}
 #ifdef MFEM_USE_MPI
    ParBilinearForm *GetParBilinearForm() {return par_a;}
-   ParLinearForm *GetParLinearForm() {return par_b;}
-   ParLinearForm *GetAdjParLinearForm() {return par_adjb;}
+   std::vector<ParLinearForm*> &GetParLinearForm() {return par_b;}
+   std::vector<ParLinearForm*> &GetAdjParLinearForm() {return par_adjb;}
 #endif
 
-   void Solve(GridFunction &x);
-   void SolveAdjoint(GridFunction &x, bool reuse_solver=false);
+   void Solve(GridFunction &x, bool reuse_solver=false, int i=0);
+   void SolveAdjoint(GridFunction &x, bool reuse_solver=false, int i=0);
    bool HasAdjoint() {return hasAdjoint;}
    bool IsParallel() { return parallel; }
 #ifdef MFEM_USE_MPI

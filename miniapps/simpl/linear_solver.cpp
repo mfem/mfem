@@ -74,8 +74,11 @@ void EllipticProblem::BuildTDofList(Array2D<int> &ess_bdr)
    }
 }
 
-void EllipticProblem::InitializeForms()
+void EllipticProblem::InitializeForms(int nRHS)
 {
+   b.resize(nRHS);
+   if (hasAdjoint) { adjb.resize(nRHS); }
+
 #ifdef MFEM_USE_MPI
    par_fes = dynamic_cast<ParFiniteElementSpace*>(&fes);
    if (par_fes)
@@ -83,22 +86,25 @@ void EllipticProblem::InitializeForms()
       parallel = true;
       comm = par_fes->GetComm();
       par_a = new ParBilinearForm(par_fes);
-      par_b = new ParLinearForm(par_fes);
       a.reset(par_a);
-      b.reset(par_b);
-      if (hasAdjoint)
+      for (int i=0; i<nRHS; i++)
       {
-         par_adjb = new ParLinearForm(par_fes);
-         adjb.reset(par_adjb);
+         par_b.push_back(new ParLinearForm(par_fes));
+         b[i].reset(par_b[i]);
+         if (hasAdjoint)
+         {
+            par_adjb.push_back(new ParLinearForm(par_fes));
+            adjb[i].reset(par_adjb[i]);
+         }
       }
    }
    else
    {
       a.reset(new BilinearForm(&fes));
-      b.reset(new LinearForm(&fes));
-      if (hasAdjoint)
+      for (int i=0; i<nRHS; i++)
       {
-         adjb.reset(new LinearForm(&fes));
+         b[i].reset(new LinearForm(&fes));
+         if (hasAdjoint) { adjb[i].reset(new LinearForm(&fes)); }
       }
    }
 #else
@@ -111,18 +117,21 @@ void EllipticProblem::InitializeForms()
 #endif
 }
 
-void EllipticProblem::Solve(GridFunction &x)
+void EllipticProblem::Solve(GridFunction &x, bool reuse_solver, int i)
 {
-   if (!isAStationary) {a->Update(); a->Assemble();}
-   if (!isBStationary) {b->Assemble();}
-   if (!solver || !isAStationary)
+   if (!reuse_solver)
    {
-      ResetSolver();
+      if (!isAStationary) {a->Update(); a->Assemble();}
+      if (!solver || !isAStationary)
+      {
+         ResetSolver();
+      }
    }
-   solver->Solve(*b, x);
+   if (!isBStationary) {b[i]->Assemble();}
+   solver->Solve(*b[i], x);
 }
 
-void EllipticProblem::SolveAdjoint(GridFunction &x, bool reuse_solver)
+void EllipticProblem::SolveAdjoint(GridFunction &x, bool reuse_solver, int i)
 {
    MFEM_ASSERT(hasAdjoint,
                "SolveAdjoint(GridFunction &) is called without setting hasAdjoint=true.");
@@ -134,8 +143,8 @@ void EllipticProblem::SolveAdjoint(GridFunction &x, bool reuse_solver)
          ResetSolver();
       }
    }
-   if (!isAdjBStationary) {adjb->Assemble();}
-   solver->Solve(*adjb, x);
+   if (!isAdjBStationary) {adjb[i]->Assemble();}
+   solver->Solve(*adjb[i], x);
 }
 
 void EllipticSolver::UseElasticityOption()

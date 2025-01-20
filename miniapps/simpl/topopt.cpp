@@ -390,27 +390,65 @@ DensityBasedTopOpt::DensityBasedTopOpt(
    EllipticProblem &state_eq, GridFunction &state_gf)
    :density(density), control_gf(control_gf), grad_control(grad_control),
     filter(filter), filter_gf(filter_gf), grad_filter(grad_filter),
-    elasticity(state_eq), state_gf(state_gf),
-    obj(state_eq.HasAdjoint() ? *state_eq.GetAdjLinearForm():
-        *state_eq.GetLinearForm())
+    elasticity(state_eq), state_gf({&state_gf}),
+obj(state_eq.HasAdjoint() ? state_eq.GetAdjLinearForm():
+    state_eq.GetLinearForm())
 {
    Array<int> empty(control_gf.FESpace()->GetMesh()->bdr_attributes.Max());
    empty = 0;
    L2projector.reset(new L2Projection(*control_gf.FESpace(), empty));
    grad_filter_cf.SetGridFunction(&grad_filter);
-   L2projector->GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(
-                                                        grad_filter_cf));
+   L2projector->GetLinearForm()[0]->AddDomainIntegrator(new DomainLFIntegrator(
+                                                           grad_filter_cf));
    if (state_eq.HasAdjoint())
    {
 #ifdef MFEM_USE_MPI
       ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>
                                     (state_gf.FESpace());
-      if (pfes) {adj_state_gf.reset(new ParGridFunction(pfes));}
-      else {adj_state_gf.reset(new GridFunction(state_gf.FESpace()));}
+      if (pfes) {adj_state_gf.emplace_back(new ParGridFunction(pfes));}
+      else {adj_state_gf.emplace_back(new GridFunction(state_gf.FESpace()));}
+      *adj_state_gf[0] = 0.0;
 #else
-      adj_state_gf.reset(new GridFunction(state_gf.FESpace()));
+      adj_state_gf.emplace_back(new GridFunction(state_gf.FESpace()));
+      *adj_state_gf[0] = 0.0;
 #endif
-      *adj_state_gf = 0.0;
+   }
+}
+
+DensityBasedTopOpt::DensityBasedTopOpt(
+   DesignDensity &density, GridFunction &control_gf, GridFunction &grad_control,
+   HelmholtzFilter &filter, GridFunction &filter_gf, GridFunction &grad_filter,
+   EllipticProblem &state_eq, std::vector<GridFunction*> &state_gf)
+   :density(density), control_gf(control_gf), grad_control(grad_control),
+    filter(filter), filter_gf(filter_gf), grad_filter(grad_filter),
+    elasticity(state_eq), state_gf(state_gf),
+    obj(state_eq.HasAdjoint() ? state_eq.GetAdjLinearForm():
+        state_eq.GetLinearForm())
+{
+   Array<int> empty(control_gf.FESpace()->GetMesh()->bdr_attributes.Max());
+   empty = 0;
+   L2projector.reset(new L2Projection(*control_gf.FESpace(), empty));
+   grad_filter_cf.SetGridFunction(&grad_filter);
+   L2projector->GetLinearForm()[0]->AddDomainIntegrator(new DomainLFIntegrator(
+                                                           grad_filter_cf));
+   if (state_eq.HasAdjoint())
+   {
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>
+                                    (state_gf[0]->FESpace());
+      for (int i=0; i<state_gf.size(); i++)
+      {
+         if (pfes) {adj_state_gf.emplace_back(new ParGridFunction(pfes));}
+         else {adj_state_gf.emplace_back(new GridFunction(state_gf[i]->FESpace()));}
+         *adj_state_gf[i] = 0.0;
+      }
+#else
+      for (int i=0; i<state_gf.size(); i++)
+      {
+         adj_state_gf.emplace_back(new GridFunction(state_gf[i]->FESpace()));
+         *adj_state_gf[i] = 0.0;
+      }
+#endif
    }
 }
 
@@ -418,17 +456,30 @@ real_t DensityBasedTopOpt::Eval()
 {
    current_volume = density.ComputeVolume(control_gf);
    filter.Solve(filter_gf);
-   elasticity.Solve(state_gf);
-   obj.Assemble();
+   for (int i=0; i<state_gf.size(); i++)
+   {
+      elasticity.Solve(*state_gf[i], i==0, i);
+   }
+   for (auto &lf : obj)
+   {
+      lf->Assemble();
+   }
+   objval = 0.0;
    if (elasticity.IsParallel())
    {
 #ifdef MFEM_USE_MPI
-      objval = InnerProduct(elasticity.GetComm(), obj, state_gf);
+      for (int i=0; i<obj.size(); i++)
+      {
+         objval += InnerProduct(elasticity.GetComm(), *obj[i], *state_gf[i]);
+      }
 #endif
    }
    else
    {
-      objval = InnerProduct(obj, state_gf);
+      for (int i=0; i<obj.size(); i++)
+      {
+         objval += InnerProduct(*obj[i], *state_gf[i]);
+      }
    }
    return objval;
 }
@@ -438,9 +489,11 @@ void DensityBasedTopOpt::UpdateGradient()
    if (elasticity.HasAdjoint())
    {
       // Since the elasticity coefficient is the same, reuse the solver
-      elasticity.SolveAdjoint(*adj_state_gf, true);
+      for (int i=0; i<adj_state_gf.size(); i++)
+      {
+         elasticity.SolveAdjoint(*adj_state_gf[i], true, i);
+      }
    }
-
    filter.SolveAdjoint(grad_filter);
    L2projector->Solve(grad_control);
 }

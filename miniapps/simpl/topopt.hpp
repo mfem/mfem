@@ -212,9 +212,9 @@ private:
    GridFunction &grad_filter;
    GridFunctionCoefficient grad_filter_cf;
    EllipticProblem &elasticity;
-   GridFunction &state_gf;
-   std::unique_ptr<GridFunction> adj_state_gf;
-   LinearForm &obj;
+   std::vector<GridFunction*> state_gf;
+   std::vector<std::unique_ptr<GridFunction>> adj_state_gf;
+   std::vector<std::unique_ptr<LinearForm>> &obj;
 
    std::unique_ptr<L2Projection> L2projector;
    real_t objval;
@@ -225,6 +225,10 @@ public:
                       GridFunction &grad_control, HelmholtzFilter &filter,
                       GridFunction &gf_filter, GridFunction &grad_filter,
                       EllipticProblem &state_eq, GridFunction &gf_state);
+   DensityBasedTopOpt(DesignDensity &density, GridFunction &gf_control,
+                      GridFunction &grad_control, HelmholtzFilter &filter,
+                      GridFunction &gf_filter, GridFunction &grad_filter,
+                      EllipticProblem &state_eq, std::vector<GridFunction*> &gf_state);
 
    real_t GetCurrentVolume()
    {
@@ -234,9 +238,9 @@ public:
    {
       return objval;
    }
-   GridFunction &GetAdjState()
+   std::vector<std::unique_ptr<GridFunction>> &GetAdjState()
    {
-      return *adj_state_gf;
+      return adj_state_gf;
    }
 
    real_t Eval();
