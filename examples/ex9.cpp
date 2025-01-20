@@ -9,7 +9,7 @@
 //    ex9 -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9
-//    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 23 -tf 9
+//    ex9 -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.02 -s 13 -tf 9
 //    ex9 -m ../data/star-q3.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/star-mixed.mesh -p 1 -r 2 -dt 0.005 -tf 9
 //    ex9 -m ../data/disc-nurbs.mesh -p 1 -r 3 -dt 0.005 -tf 9
@@ -57,9 +57,10 @@
 //               of GLVis for persistent visualization of a time-evolving
 //               solution. The saving of time-dependent data files for external
 //               visualization with VisIt (visit.llnl.gov) and ParaView
-//               (paraview.org) is also illustrated. Additionally, the example showcases
-//               the implementation of an element-based Clip & Scale limiter for
-//               continuous finite elements, which is designed to be bound-preserving.
+//               (paraview.org) is also illustrated.
+//               Additionally, the example showcases the implementation of an
+//               element-based Clip & Scale limiter for continuous finite
+//               elements, which is designed to be bound-preserving.
 //               For more detail, see https://doi.org/10.1142/13466.
 
 #include "mfem.hpp"
@@ -85,8 +86,6 @@ real_t inflow_function(const Vector &x);
 
 // Function f = 1 for lumped boundary operator
 real_t one(const Vector &x) {return 1.0;}
-
-real_t zero = 0.0;
 
 // Mesh bounding box
 Vector bb_min, bb_max;
@@ -129,12 +128,12 @@ public:
       }
    }
 
-   void SetOperator(const Operator &op) override
+   void SetOperator(const Operator &op)
    {
       linear_solver.SetOperator(op);
    }
 
-   void Mult(const Vector &x, Vector &y) const override
+   virtual void Mult(const Vector &x, Vector &y) const
    {
       linear_solver.Mult(x, y);
    }
@@ -159,35 +158,40 @@ private:
 public:
    DG_FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
 
-   void Mult(const Vector &x, Vector &y) const override;
-   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
-   ~DG_FE_Evolution() override;
+   virtual ~DG_FE_Evolution();
 };
 
-/** Abstract base class for evaluating the time-dependent operator in the ODE formulation.
-    The continuous Galerkin (CG) strong form of the advection equation du/dt = -v.grad(u)
-    is given by M du/dt = -K u + b, where M and K are the mass and advection matrices,
-    respectively, and b represents the boundary flow contribution.
+/** Abstract base class for evaluating the time-dependent operator in the ODE
+    formulation. The continuous Galerkin (CG) strong form of the advection
+    equation du/dt = -v.grad(u) is given by M du/dt = -K u + b, where M and K
+    are the mass and advection matrices, respectively, and b represents the
+    boundary flow contribution.
 
     The ODE can be reformulated as:
     du/dt = M_L^{-1}((-K + D) u + F^*(u) + b),
-    where M_L is the lumped mass matrix, D is a low-order stabilization term, and F^*(u)
-    represents the limited anti-diffusive fluxes. Here, F^* is a limited version of F,
-    which recovers the high-order target scheme. The limited anti-diffusive fluxes F^*
-    are the sum of the limited element contributions of the original flux F to enforce
-    local bounds.
+    where M_L is the lumped mass matrix, D is a low-order stabilization term,
+    and F^*(u) represents the limited anti-diffusive fluxes.
+    Here, F^* is a limited version of F, which recover the high-order target
+    scheme. The limited anti-diffusive fluxes F^* are the sum of the limited
+    element contributions of the original flux F to enforce local bounds.
 
-    Additional to the limiter we implement the low-order scheme and high-order target
-    scheme by chosing:
+    Additional to the limiter we implement the low-order scheme and
+    high-order target scheme by chosing:
     - F^* = 0 for the bound-preserving low-order scheme.
     - F^* = F for the high-order target scheme which is not bound-preserving.
 
-    This abstract class provides a framework for evaluating the right-hand side of the ODE
-    and is intended to be inherited by classes that implement the three schemes:
-    - The ClipAndScale class, which employes the limiter to enforces local bounds
-    - The HighOrderTargetScheme class, which employs the raw anti-diffusive fluxes F
-    - The LowOrderScheme class, which employs F = 0 and has low accuracy, but is bound-preserving */
+    This abstract class provides a framework for evaluating the right-hand side
+    of the ODE and is intended to be inherited by classes that implement
+    the three schemes:
+    - The ClipAndScale class, which employes the limiter to enforces local
+      bounds
+    - The HighOrderTargetScheme class, which employs the raw anti-diffusive
+      fluxes F
+    - The LowOrderScheme class, which employs F = 0 and has low accuracy, but
+      is bound-preserving */
 class CG_FE_Evolution : public TimeDependentOperator
 {
 protected:
@@ -244,7 +248,8 @@ private:
 
 public:
    HighOrderTargetScheme(FiniteElementSpace &fes_,
-                         const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
+                         const Vector &lumpedmassmatrix_,
+                         FunctionCoefficient &inflow,
                          VectorFunctionCoefficient &velocity, BilinearForm &M);
 
    virtual void Mult(const Vector &x, Vector &y) const override;
@@ -307,12 +312,17 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  ODESolver::Types.c_str());
+                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6,\n\t"
+                  "            11 - Backward Euler,\n\t"
+                  "            12 - SDIRK23 (L-stable), 13 - SDIRK33,\n\t"
+                  "            22 - Implicit Midpoint Method,\n\t"
+                  "            23 - SDIRK23 (A-stable), 24 - SDIRK34");
    args.AddOption(&scheme, "-sc", "--scheme",
-                  "Finite Element scheme: 1 - Standard Discontinuous Galerkin method,\n\t"
-                  "                       11 - Clip and Scale Limiter for continuous Galerkin discretization,\n\t"
-                  "                       12 - High-order target schme for continuous Galerkin discretization,\n\t"
-                  "                       13 - Low-order schme for continuous Galerkin discretization");
+                  "FE scheme: 1 - Standard DG,\n\t"
+                  "           11 - Clip and Scale Limiter for CG,\n\t"
+                  "           12 - High-order target schme for CG,\n\t"
+                  "           13 - Low-order schme for CG.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -362,22 +372,44 @@ int main(int argc, char *argv[])
       return 3;
    }
 
+   // 3. Define the ODE solver used for time integration. Several explicit
+   //    Runge-Kutta methods are available.
    //    The CG Limiter is only implemented for explicit time-stepping methods.
    if (!DG && ode_solver_type > 10)
    {
-      cout << "The stabilized CG method is only implemented for explicit Runge-Kutta methods."
+      cout << "The stabilized CG method is only implemented ";
+      cout << "for explicit Runge-Kutta methods."
            << endl;
       return 4;
    }
-   // Limiter and low order scheme are only provably bound preserving when employing SSP-RK time-stepping methods
+   // Limiter and low order scheme are only provably bound preserving
+   // when employing SSP-RK time-stepping methods
    else if ((scheme == 11 || scheme == 13) && ode_solver_type > 3)
    {
-      MFEM_WARNING("Using non-stability preserving Runge-Kutta method with limiter. Bounds might be violated.");
+      MFEM_WARNING("Non-SSP-RK mehod! Bounds might be violated.");
    }
+   ODESolver *ode_solver = NULL;
+   switch (ode_solver_type)
+   {
+      // Explicit methods
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
+      // Implicit (L-stable) methods
+      case 11: ode_solver = new BackwardEulerSolver; break;
+      case 12: ode_solver = new SDIRK23Solver(2); break;
+      case 13: ode_solver = new SDIRK33Solver; break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver = new ImplicitMidpointSolver; break;
+      case 23: ode_solver = new SDIRK23Solver; break;
+      case 24: ode_solver = new SDIRK34Solver; break;
 
-   // 3. Define the ODE solver used for time integration. Several explicit
-   //    Runge-Kutta methods are available.
-   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
+      default:
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         return 5;
+   }
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -445,8 +477,9 @@ int main(int argc, char *argv[])
    }
    else if (scheme == 11 && (pa || ea))
    {
-      cout << "The CG Limiter needs full assembly of the mass matrix to obtain the local stencil via its sparsity pattern. "
-           << endl;
+      cout << "The CG Limiter needs full assembly of the ";
+      cout << "mass matrix to obtain the local stencil via ";
+      cout << "its sparsity pattern. " << endl;
       delete fes;
       return 7;
    }
@@ -571,12 +604,12 @@ int main(int argc, char *argv[])
    switch (scheme)
    {
       case 1: adv = new DG_FE_Evolution(m, k, b); break;
-      case 11: adv = new ClipAndScale(*fes, lumpedmassmatrix, inflow, velocity, m);
-         break;
+      case 11: adv = new ClipAndScale(*fes, lumpedmassmatrix, inflow,
+                                         velocity, m); break;
       case 12: adv = new HighOrderTargetScheme(*fes, lumpedmassmatrix, inflow,
                                                   velocity, m); break;
-      case 13: adv = new LowOrderScheme(*fes, lumpedmassmatrix, inflow, velocity, m);
-         break;
+      case 13: adv = new LowOrderScheme(*fes, lumpedmassmatrix, inflow,
+                                           velocity, m); break;
    }
 
    real_t t = 0.0;
@@ -626,6 +659,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Free the used memory.
+   delete ode_solver;
    delete pd;
    delete dc;
    delete fes;
@@ -688,8 +722,10 @@ DG_FE_Evolution::~DG_FE_Evolution()
 
 // Implementation of class CG_FE_Evolution
 CG_FE_Evolution::CG_FE_Evolution(FiniteElementSpace &fes_,
-                                 const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
-                                 VectorFunctionCoefficient &velocity, BilinearForm &M) :
+                                 const Vector &lumpedmassmatrix_,
+                                 FunctionCoefficient &inflow,
+                                 VectorFunctionCoefficient &velocity,
+                                 BilinearForm &M) :
    TimeDependentOperator(lumpedmassmatrix_.Size()),
    lumpedmassmatrix(lumpedmassmatrix_), fes(fes_),
    I(M.SpMat().GetI()), J(M.SpMat().GetJ()), b_lumped(&fes), u_inflow(&fes),
@@ -698,8 +734,8 @@ CG_FE_Evolution::CG_FE_Evolution(FiniteElementSpace &fes_,
    u_inflow.ProjectCoefficient(inflow);
 
    // For bound preservation the boundary condition \hat{u} is enforced
-   // via a lumped approximation to < (u_h - u_inflow) * min(v * n, 0 ), w >, i.e.,
-   // (u_i - (u_inflow)_i) * \int_F \varphi_i * min(v * n, 0).
+   // via a lumped approximation to < (u_h - u_inflow) * min(v * n, 0 ), w >,
+   // i.e., (u_i - (u_inflow)_i) * \int_F \varphi_i * min(v * n, 0).
    // The integral can be implemented as follows:
    FunctionCoefficient one_coeff(one);
    b_lumped.AddBdrFaceIntegrator(
@@ -735,7 +771,7 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u,
          for (int j = 0; j < i; j++)
          {
             // add low-order stabilization with discrete upwinding
-            real_t dije = max(max(Ke(i,j), Ke(j,i)), zero);
+            real_t dije = max(max(Ke(i,j), Ke(j,i)), real_t(0.0));
             real_t diffusion = dije * (ue(j) - ue(i));
 
             re(i) += diffusion;
@@ -748,7 +784,8 @@ void CG_FE_Evolution::ComputeLOTimeDerivatives(const Vector &u,
       udot.AddElementVector(dofs, re);
    }
 
-   // add boundary condition (u - u_inflow) * b. This is under the assumption that b_lumped has been updated
+   // add boundary condition (u - u_inflow) * b.
+   // This is under the assumption that b_lumped has been updated
    subtract(u, u_inflow, z);
    z *= b_lumped;
    udot += z;
@@ -762,8 +799,10 @@ CG_FE_Evolution::~CG_FE_Evolution()
 
 // Implementation of class ClipAndScale
 ClipAndScale::ClipAndScale(FiniteElementSpace &fes_,
-                           const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
-                           VectorFunctionCoefficient &velocity, BilinearForm &M):
+                           const Vector &lumpedmassmatrix_,
+                           FunctionCoefficient &inflow,
+                           VectorFunctionCoefficient &velocity,
+                           BilinearForm &M):
    CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
 {
    umin.SetSize(lumpedmassmatrix.Size());
@@ -774,7 +813,8 @@ ClipAndScale::ClipAndScale(FiniteElementSpace &fes_,
 void ClipAndScale::ComputeBounds(const Vector &u, Array<real_t> &u_min,
                                  Array<real_t> &u_max) const
 {
-   // iterate over local number of dofs on this processor and compute maximum and minimum over local stencil
+   // iterate over local number of dofs on this processor
+   // and compute maximum and minimum over local stencil
    for (int i = 0; i < fes.GetVSize(); i++)
    {
       umin[i] = u(i);
@@ -793,7 +833,8 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
 {
    y = 0.0;
 
-   // compute low-order time derivative for high-order stabilization and local bounds
+   // compute low-order time derivative for high-order
+   // stabilization and local bounds
    ComputeLOTimeDerivatives(x, udot);
    ComputeBounds(x, umin, umax);
 
@@ -826,7 +867,7 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
          for (int j = 0; j < i; j++)
          {
             // add low-order diffusion
-            real_t dije = max(max(Ke(i,j), Ke(j,i)), zero);
+            real_t dije = max(max(Ke(i,j), Ke(j,i)), real_t(0.0));
             real_t diffusion = dije * (ue(j) - ue(i));
 
             re(i) += diffusion;
@@ -836,7 +877,8 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
             gammae(i) += dije;
             gammae(j) += dije;
 
-            // assemble raw antidifussive fluxes f_{i,e} = sum_j m_{ij,e} (udot_i - udot_j) - d_{ij,e} (u_i - u_j)
+            // assemble raw antidifussive fluxes
+            // note that fije = - fjie
             real_t fije = Me(i,j) * (udote(i) - udote(j)) - diffusion;
             fe(i) += fije;
             fe(j) -= fije;
@@ -854,15 +896,16 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
       //Clip
       for (int i = 0; i < dofs.Size(); i++)
       {
-         // bounding fluxes to enforce u_i = u_i_min implies du/dt >= 0 and u_i = u_i_max implies du/dt <= 0
+         // bounding fluxes to enforce u_i = u_i_min implies du/dt >= 0
+         // and u_i = u_i_max implies du/dt <= 0
          real_t fie_max = gammae(i) * (umax[dofs[i]] - ue(i));
          real_t fie_min = gammae(i) * (umin[dofs[i]] - ue(i));
 
          fe_star(i) = min(max(fie_min, fe(i)), fie_max);
 
          // track positive and negative contributions s
-         P_plus += max(fe_star(i), zero);
-         P_minus += min(fe_star(i), zero);
+         P_plus += max(fe_star(i), real_t(0.0));
+         P_minus += min(fe_star(i), real_t(0.0));
       }
       const real_t P = P_minus + P_plus;
 
@@ -878,7 +921,8 @@ void ClipAndScale::Mult(const Vector &x, Vector &y) const
             fe_star(i) *= - P_plus / P_minus;
          }
       }
-      // add limited antidiffusive fluxes to element contribution and add to global vector
+      // add limited antidiffusive fluxes to element contribution
+      // and add to global vector
       re += fe_star;
       y.AddElementVector(dofs, re);
    }
@@ -898,8 +942,10 @@ ClipAndScale::~ClipAndScale()
 
 // Implementation of class HighOrderTargetScheme
 HighOrderTargetScheme::HighOrderTargetScheme(FiniteElementSpace &fes_,
-                                             const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
-                                             VectorFunctionCoefficient &velocity, BilinearForm &M):
+                                             const Vector &lumpedmassmatrix_,
+                                             FunctionCoefficient &inflow,
+                                             VectorFunctionCoefficient &velocity,
+                                             BilinearForm &M):
    CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
 {
    udot.SetSize(lumpedmassmatrix.Size());
@@ -935,7 +981,8 @@ void HighOrderTargetScheme::Mult(const Vector &x, Vector &y) const
       {
          for (int j = 0; j < i; j++)
          {
-            // add high-order stabilization without correction for low-order stabilization
+            // add high-order stabilization without correction for low-order
+            // stabilization
             real_t fije = Me(i,j) * (udote(i) - udote(j));
             re(i) += fije;
             re(j) -= fije;
@@ -961,8 +1008,10 @@ HighOrderTargetScheme::~HighOrderTargetScheme()
 
 // Implementation of Class LowOrderScheme
 LowOrderScheme::LowOrderScheme(FiniteElementSpace &fes_,
-                               const Vector &lumpedmassmatrix_, FunctionCoefficient &inflow,
-                               VectorFunctionCoefficient &velocity, BilinearForm &M):
+                               const Vector &lumpedmassmatrix_,
+                               FunctionCoefficient &inflow,
+                               VectorFunctionCoefficient &velocity,
+                               BilinearForm &M):
    CG_FE_Evolution(fes_, lumpedmassmatrix_, inflow, velocity, M)
 { }
 
