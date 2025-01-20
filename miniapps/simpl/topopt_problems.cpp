@@ -605,7 +605,7 @@ Mesh * GetThermalTopoptMesh(ThermalTopoptProblem prob,
 
 void SetupTopoptProblem(TopoptProblem prob,
                         HelmholtzFilter &filter, ElasticityProblem &elasticity,
-                        GridFunction &filter_gf, GridFunction &state_gf)
+                        GridFunction &filter_gf, std::vector<std::unique_ptr<GridFunction>> &state_gf)
 {
 
    switch (prob)
@@ -622,7 +622,7 @@ void SetupTopoptProblem(TopoptProblem prob,
             }
          });
          elasticity.MakeCoefficientOwner(load);
-         elasticity.GetLinearForm()->AddDomainIntegrator(
+         elasticity.GetLinearForm()[0]->AddDomainIntegrator(
             new VectorDomainLFIntegrator(*load));
          break;
       }
@@ -640,7 +640,7 @@ void SetupTopoptProblem(TopoptProblem prob,
             }
          });
          elasticity.MakeCoefficientOwner(load);
-         elasticity.GetLinearForm()->AddDomainIntegrator(
+         elasticity.GetLinearForm()[0]->AddDomainIntegrator(
             new VectorDomainLFIntegrator(*load));
          break;
       }
@@ -650,12 +650,12 @@ void SetupTopoptProblem(TopoptProblem prob,
          auto g = new Vector({0.0, -9.8});
          auto gravity_cf = new VectorConstantCoefficient(*g);
          auto filter_cf = new GridFunctionCoefficient(&filter_gf);
-         auto state_cf = new VectorGridFunctionCoefficient(&state_gf);
+         auto state_cf = new VectorGridFunctionCoefficient(state_gf[0].get());
 
          auto weight_cf = new ScalarVectorProductCoefficient(*filter_cf, *gravity_cf);
          auto gu = new InnerProductCoefficient(*gravity_cf, *state_cf);
 
-         elasticity.GetLinearForm()->AddDomainIntegrator(
+         elasticity.GetLinearForm()[0]->AddDomainIntegrator(
             new VectorDomainLFIntegrator(*weight_cf)
          );
          elasticity.MakeCoefficientOwner(gravity_cf);
@@ -663,7 +663,7 @@ void SetupTopoptProblem(TopoptProblem prob,
          elasticity.MakeCoefficientOwner(weight_cf);
          elasticity.MakeVectorOwner(g);
 
-         filter.GetAdjLinearForm()->AddDomainIntegrator(
+         filter.GetAdjLinearForm()[0]->AddDomainIntegrator(
             new DomainLFIntegrator(*gu)
          );
          filter.MakeCoefficientOwner(state_cf);
@@ -676,7 +676,7 @@ void SetupTopoptProblem(TopoptProblem prob,
          auto g = new Vector({0.0, -9.8});
          auto gravity_cf = new VectorConstantCoefficient(*g);
          auto filter_cf = new GridFunctionCoefficient(&filter_gf);
-         auto state_cf = new VectorGridFunctionCoefficient(&state_gf);
+         auto state_cf = new VectorGridFunctionCoefficient(state_gf[0].get());
 
          auto load = new VectorFunctionCoefficient(
             2, [](const Vector &x, Vector &f)
@@ -692,7 +692,7 @@ void SetupTopoptProblem(TopoptProblem prob,
          auto total_load_cf = new VectorSumCoefficient(*weight_cf, *load);
          auto gu = new InnerProductCoefficient(*gravity_cf, *state_cf);
 
-         elasticity.GetLinearForm()->AddDomainIntegrator(
+         elasticity.GetLinearForm()[0]->AddDomainIntegrator(
             new VectorDomainLFIntegrator(*total_load_cf)
          );
          elasticity.MakeCoefficientOwner(gravity_cf);
@@ -701,7 +701,7 @@ void SetupTopoptProblem(TopoptProblem prob,
          elasticity.MakeCoefficientOwner(total_load_cf);
          elasticity.MakeVectorOwner(g);
 
-         filter.GetAdjLinearForm()->AddDomainIntegrator(
+         filter.GetAdjLinearForm()[0]->AddDomainIntegrator(
             new DomainLFIntegrator(*gu)
          );
          filter.MakeCoefficientOwner(state_cf);
@@ -721,7 +721,7 @@ void SetupTopoptProblem(TopoptProblem prob,
             }
          });
          elasticity.MakeCoefficientOwner(load);
-         elasticity.GetLinearForm()->AddDomainIntegrator(
+         elasticity.GetLinearForm()[0]->AddDomainIntegrator(
             new VectorDomainLFIntegrator(*load));
          break;
       }
@@ -746,7 +746,7 @@ void SetupTopoptProblem(TopoptProblem prob,
             }
          });
          elasticity.MakeCoefficientOwner(load);
-         elasticity.GetLinearForm()->AddDomainIntegrator(
+         elasticity.GetLinearForm()[0]->AddDomainIntegrator(
             new VectorDomainLFIntegrator(*load)
          );
          break;
@@ -773,9 +773,9 @@ void SetupTopoptProblem(TopoptProblem prob,
             new DirectionalHookesLawBdrIntegrator(k_in, d_in_cf), *input_bdr);
          elasticity.GetBilinearForm()->AddBdrFaceIntegrator(
             new DirectionalHookesLawBdrIntegrator(k_out, d_out_cf), *output_bdr);
-         elasticity.GetLinearForm()->AddBdrFaceIntegrator(
+         elasticity.GetLinearForm()[0]->AddBdrFaceIntegrator(
             new VectorBoundaryLFIntegrator(*load), *input_bdr);
-         elasticity.GetAdjLinearForm()->AddBdrFaceIntegrator(
+         elasticity.GetAdjLinearForm()[0]->AddBdrFaceIntegrator(
             new VectorBoundaryLFIntegrator(*obj), *output_bdr);
 
          elasticity.MakeVectorOwner(d_in);
@@ -810,9 +810,9 @@ void SetupTopoptProblem(TopoptProblem prob,
             new DirectionalHookesLawBdrIntegrator(k_in, d_in_cf), *input_bdr);
          elasticity.GetBilinearForm()->AddBdrFaceIntegrator(
             new DirectionalHookesLawBdrIntegrator(k_out, d_out_cf), *output_bdr);
-         elasticity.GetLinearForm()->AddBdrFaceIntegrator(
+         elasticity.GetLinearForm()[0]->AddBdrFaceIntegrator(
             new VectorBoundaryLFIntegrator(*load), *input_bdr);
-         elasticity.GetAdjLinearForm()->AddBdrFaceIntegrator(
+         elasticity.GetAdjLinearForm()[0]->AddBdrFaceIntegrator(
             new VectorBoundaryLFIntegrator(*obj), *output_bdr);
 
          elasticity.MakeVectorOwner(d_in);
@@ -840,7 +840,7 @@ void SetupThermalTopoptProblem(ThermalTopoptProblem prob,
       {
          auto load = new ConstantCoefficient(1.0);
          diffusion.MakeCoefficientOwner(load);
-         diffusion.GetLinearForm()->AddDomainIntegrator(
+         diffusion.GetLinearForm()[0]->AddDomainIntegrator(
             new DomainLFIntegrator(*load));
          diffusion.MakeCoefficientOwner(load);
          break;

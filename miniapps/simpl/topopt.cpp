@@ -387,38 +387,7 @@ real_t DesignDensity::ComputeVolume(const GridFunction &x)
 DensityBasedTopOpt::DensityBasedTopOpt(
    DesignDensity &density, GridFunction &control_gf, GridFunction &grad_control,
    HelmholtzFilter &filter, GridFunction &filter_gf, GridFunction &grad_filter,
-   EllipticProblem &state_eq, GridFunction &state_gf)
-   :density(density), control_gf(control_gf), grad_control(grad_control),
-    filter(filter), filter_gf(filter_gf), grad_filter(grad_filter),
-    elasticity(state_eq), state_gf({&state_gf}),
-obj(state_eq.HasAdjoint() ? state_eq.GetAdjLinearForm():
-    state_eq.GetLinearForm())
-{
-   Array<int> empty(control_gf.FESpace()->GetMesh()->bdr_attributes.Max());
-   empty = 0;
-   L2projector.reset(new L2Projection(*control_gf.FESpace(), empty));
-   grad_filter_cf.SetGridFunction(&grad_filter);
-   L2projector->GetLinearForm()[0]->AddDomainIntegrator(new DomainLFIntegrator(
-                                                           grad_filter_cf));
-   if (state_eq.HasAdjoint())
-   {
-#ifdef MFEM_USE_MPI
-      ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>
-                                    (state_gf.FESpace());
-      if (pfes) {adj_state_gf.emplace_back(new ParGridFunction(pfes));}
-      else {adj_state_gf.emplace_back(new GridFunction(state_gf.FESpace()));}
-      *adj_state_gf[0] = 0.0;
-#else
-      adj_state_gf.emplace_back(new GridFunction(state_gf.FESpace()));
-      *adj_state_gf[0] = 0.0;
-#endif
-   }
-}
-
-DensityBasedTopOpt::DensityBasedTopOpt(
-   DesignDensity &density, GridFunction &control_gf, GridFunction &grad_control,
-   HelmholtzFilter &filter, GridFunction &filter_gf, GridFunction &grad_filter,
-   EllipticProblem &state_eq, std::vector<GridFunction*> &state_gf)
+   EllipticProblem &state_eq, std::vector<std::unique_ptr<GridFunction>> &state_gf)
    :density(density), control_gf(control_gf), grad_control(grad_control),
     filter(filter), filter_gf(filter_gf), grad_filter(grad_filter),
     elasticity(state_eq), state_gf(state_gf),
@@ -433,19 +402,20 @@ DensityBasedTopOpt::DensityBasedTopOpt(
                                                            grad_filter_cf));
    if (state_eq.HasAdjoint())
    {
+      adj_state_gf.resize(state_gf.size());
 #ifdef MFEM_USE_MPI
-      ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>
-                                    (state_gf[0]->FESpace());
       for (int i=0; i<state_gf.size(); i++)
       {
-         if (pfes) {adj_state_gf.emplace_back(new ParGridFunction(pfes));}
-         else {adj_state_gf.emplace_back(new GridFunction(state_gf[i]->FESpace()));}
+         ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>
+                                       (state_gf[i]->FESpace());
+         if (pfes) {adj_state_gf[i].reset(new ParGridFunction(pfes));}
+         else {adj_state_gf[i].reset(new GridFunction(state_gf[i]->FESpace()));}
          *adj_state_gf[i] = 0.0;
       }
 #else
       for (int i=0; i<state_gf.size(); i++)
       {
-         adj_state_gf.emplace_back(new GridFunction(state_gf[i]->FESpace()));
+         adj_state_gf[i].reset(new GridFunction(state_gf[i]->FESpace()));
          *adj_state_gf[i] = 0.0;
       }
 #endif
@@ -458,7 +428,7 @@ real_t DensityBasedTopOpt::Eval()
    filter.Solve(filter_gf);
    for (int i=0; i<state_gf.size(); i++)
    {
-      elasticity.Solve(*state_gf[i], i==0, i);
+      elasticity.Solve(*state_gf[i], i!=0, i);
    }
    for (auto &lf : obj)
    {

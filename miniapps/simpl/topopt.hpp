@@ -212,7 +212,7 @@ private:
    GridFunction &grad_filter;
    GridFunctionCoefficient grad_filter_cf;
    EllipticProblem &elasticity;
-   std::vector<GridFunction*> state_gf;
+   std::vector<std::unique_ptr<GridFunction>> &state_gf;
    std::vector<std::unique_ptr<GridFunction>> adj_state_gf;
    std::vector<std::unique_ptr<LinearForm>> &obj;
 
@@ -224,11 +224,7 @@ public:
    DensityBasedTopOpt(DesignDensity &density, GridFunction &gf_control,
                       GridFunction &grad_control, HelmholtzFilter &filter,
                       GridFunction &gf_filter, GridFunction &grad_filter,
-                      EllipticProblem &state_eq, GridFunction &gf_state);
-   DensityBasedTopOpt(DesignDensity &density, GridFunction &gf_control,
-                      GridFunction &grad_control, HelmholtzFilter &filter,
-                      GridFunction &gf_filter, GridFunction &grad_filter,
-                      EllipticProblem &state_eq, std::vector<GridFunction*> &gf_state);
+                      EllipticProblem &state_eq, std::vector<std::unique_ptr<GridFunction>> &gf_state);
 
    real_t GetCurrentVolume()
    {

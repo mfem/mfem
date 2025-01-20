@@ -69,24 +69,24 @@ protected:
 
 public:
    EllipticProblem(FiniteElementSpace &fes, Array<int> &ess_bdr,
-                   bool hasAdjoint=false)
+                   bool hasAdjoint=false, int nrRHS=1)
       :fes(fes),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
        parallel(false), hasAdjoint(hasAdjoint), elast(false),
        owned_coeffs(0), owned_vcoeffs(0), owned_vectors(0), owned_intArrays(0)
    {
-      InitializeForms();
+      InitializeForms(nrRHS);
       BuildTDofList(ess_bdr);
    }
 
    EllipticProblem(FiniteElementSpace &fes, Array2D<int> &ess_bdr,
-                   bool hasAdjoint=false)
+                   bool hasAdjoint=false, int nrRHS=1)
       :fes(fes),
        isAStationary(false), isBStationary(false), isAdjBStationary(false),
        parallel(false), hasAdjoint(hasAdjoint), elast(false),
        owned_coeffs(0), owned_vcoeffs(0), owned_vectors(0), owned_intArrays(0)
    {
-      InitializeForms();
+      InitializeForms(nrRHS);
       BuildTDofList(ess_bdr);
    }
 
@@ -166,8 +166,8 @@ class ElasticityProblem: public EllipticProblem
 private:
 public:
    ElasticityProblem(FiniteElementSpace &fes, Array2D<int> &ess_bdr,
-                     Coefficient &lambda, Coefficient &mu, bool hasAdjoint)
-      :EllipticProblem(fes, ess_bdr, hasAdjoint)
+                     Coefficient &lambda, Coefficient &mu, bool hasAdjoint, int nrRHS=1)
+      :EllipticProblem(fes, ess_bdr, hasAdjoint, nrRHS)
    {
       a->AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
       a->Assemble();

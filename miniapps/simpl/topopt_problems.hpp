@@ -27,6 +27,15 @@ enum TopoptProblem
 
    // 3D Compliant mechanism
    ForceInverter3=-31,
+
+   // Multi-objective. 3 Digits
+   // 1st digit: the number of objectives
+   // 2nd digit: spatial dimension
+   // 3rd digit: problem type
+   // sign: need to solve adjoint (negative) or not (positive)
+
+   // 2D
+   MultiCantilever2=221,
 };
 
 enum ThermalTopoptProblem
@@ -58,7 +67,7 @@ Mesh * GetThermalTopoptMesh(ThermalTopoptProblem prob, std::stringstream &filena
 // Right hand side. Force or adjoint problems
 void SetupTopoptProblem(TopoptProblem prob,
                         HelmholtzFilter &filter, ElasticityProblem &elasticity,
-                        GridFunction &gf_filter, GridFunction &gf_state);
+                        GridFunction &gf_filter, std::vector<std::unique_ptr<GridFunction>> &gf_state);
 void SetupThermalTopoptProblem(ThermalTopoptProblem prob,
                                HelmholtzFilter &filter, DiffusionProblem &diffusion,
                                GridFunction &filter_gf, GridFunction &state_gf);

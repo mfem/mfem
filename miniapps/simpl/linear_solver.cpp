@@ -76,6 +76,7 @@ void EllipticProblem::BuildTDofList(Array2D<int> &ess_bdr)
 
 void EllipticProblem::InitializeForms(int nRHS)
 {
+   parallel = false;
    b.resize(nRHS);
    if (hasAdjoint) { adjb.resize(nRHS); }
 
@@ -85,6 +86,12 @@ void EllipticProblem::InitializeForms(int nRHS)
    {
       parallel = true;
       comm = par_fes->GetComm();
+   }
+#endif
+
+   if (par_fes)
+   {
+#ifdef MFEM_USE_MPI
       par_a = new ParBilinearForm(par_fes);
       a.reset(par_a);
       for (int i=0; i<nRHS; i++)
@@ -97,6 +104,7 @@ void EllipticProblem::InitializeForms(int nRHS)
             adjb[i].reset(par_adjb[i]);
          }
       }
+#endif
    }
    else
    {
@@ -107,14 +115,6 @@ void EllipticProblem::InitializeForms(int nRHS)
          if (hasAdjoint) { adjb[i].reset(new LinearForm(&fes)); }
       }
    }
-#else
-   a.reset(new BilinearForm(&fes));
-   b.reset(new LinearForm(&fes));
-   if (hasAdjoint)
-   {
-      adjb.reset(new LinearForm(&fes));
-   }
-#endif
 }
 
 void EllipticProblem::Solve(GridFunction &x, bool reuse_solver, int i)

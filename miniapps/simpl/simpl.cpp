@@ -1,4 +1,5 @@
 #include "mfem.hpp"
+#include "miniapps/simpl/topopt.hpp"
 #include "topopt_problems.hpp"
 #include "logger.hpp"
 
@@ -160,6 +161,8 @@ int main(int argc, char *argv[])
       out << "   --mu " << mu << std::endl;
    }
 
+   const int nrObj = std::max(1, prob / 100);
+
    // Finite Element
    L2_FECollection fec_control(order_control, dim);
    H1_FECollection fec_filter(order_filter, dim);
@@ -178,13 +181,15 @@ int main(int argc, char *argv[])
       std::cout << "\tThe number of elements: " << num_elem << std::endl
                 << "\tThe number of control unknowns: " << control_ndof << std::endl
                 << "\tThe number of filter  unknowns: " << filter_ndof << std::endl
-                << "\tThe number of state   unknowns: " << state_ndof << std::endl;
+                << "\tThe number of state   unknowns: " << state_ndof << std::endl
+                << "\tThe number of objectives      : " << nrObj << std::endl;
    }
 
    if (Mpi::Root()) { out << "Creating gridfunctions ... " << std::flush; }
    ParGridFunction control_gf(&fes_control); control_gf = 0.0;
    ParGridFunction filter_gf(&fes_filter); filter_gf = 0.0;
-   ParGridFunction state_gf(&fes_state); state_gf = 0.0;
+   std::vector<std::unique_ptr<GridFunction>> state_gf(nrObj);
+   for (int i=0; i<nrObj; i++) { state_gf[i].reset(new ParGridFunction(&fes_state)); *state_gf[i] = 0.0; }
    ParGridFunction grad_gf(&fes_control); grad_gf = 0.0;
    ParGridFunction grad_filter_gf(&fes_filter); grad_filter_gf = 0.0;
 
@@ -231,11 +236,17 @@ int main(int argc, char *argv[])
    density.SetSolidAttr(solid_attr);
    // Filter
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);
-   filter.GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(density_cf));
+   filter.GetLinearForm()[0]->AddDomainIntegrator(new DomainLFIntegrator(
+                                                     density_cf));
    filter.SetBStationary(false);
-   StrainEnergyDensityCoefficient energy(lambda_cf, mu_cf, der_simp_cf, state_gf,
-                                         nullptr);
-   filter.GetAdjLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(energy));
+   std::vector<std::unique_ptr<StrainEnergyDensityCoefficient>> energy(nrObj);
+   for (int i=0; i<state_gf.size(); i++)
+   {
+      energy[i].reset(new StrainEnergyDensityCoefficient(
+                         lambda_cf, mu_cf, der_simp_cf, *state_gf[i], nullptr));
+      filter.GetAdjLinearForm()[0]->AddDomainIntegrator(new DomainLFIntegrator(
+                                                           *energy[i]));
+   }
    if (prob == mfem::ForceInverter2)
    {
       ForceInverterInitialDesign(control_gf, &entropy);
@@ -247,13 +258,19 @@ int main(int argc, char *argv[])
 
    // elasticity
    ElasticityProblem elasticity(fes_state, ess_bdr_state, lambda_simp_cf,
-                                mu_simp_cf, prob < 0);
+                                mu_simp_cf, prob < 0, nrObj);
    elasticity.SetAStationary(false);
    SetupTopoptProblem(prob, filter, elasticity, filter_gf, state_gf);
    DensityBasedTopOpt optproblem(density, control_gf, grad_gf,
                                  filter, filter_gf, grad_filter_gf,
                                  elasticity, state_gf);
-   if (elasticity.HasAdjoint()) {energy.SetAdjState(optproblem.GetAdjState());}
+   if (elasticity.HasAdjoint())
+   {
+      for (int i=0; i<state_gf.size(); i++)
+      {
+         energy[i]->SetAdjState(*optproblem.GetAdjState()[i]);
+      }
+   }
    if (Mpi::Root()) { out << "done" << std::endl; }
 
    // Backtracking related stuffs
