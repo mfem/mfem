@@ -193,43 +193,18 @@ int main(int argc, char *argv[])
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (false)
+   if (pmesh.bdr_attributes.Size())
    {
-      // Initial proposal in this PR
-      fespace.GetExteriorTrueDofs(ess_tdof_list);
-   }
-   else
-   {
-      // Three options described by v-dobrev
-      const int opt = 3;
-      switch (opt)
-      {
-         case 1:
-            if (pmesh.bdr_attributes.Size())
-            {
-               Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-               ess_bdr = 1;
-               pmesh.RemoveInternalBoundaries(ess_bdr);
-               fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-            }
-            break;
-         case 2:
-            if (pmesh.bdr_attributes.Size())
-            {
-               Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-               pmesh.MarkExternalBoundaries(ess_bdr);
-               fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-            }
-            break;
-         case 3:
-            if (pmesh.bdr_attributes.Size())
-            {
-               Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-               ess_bdr = 1;
-               fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list, -1, true);
-            }
-            break;
-      }
+      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+      ess_bdr = 0;
+      pmesh.MarkExternalBoundaries(ess_bdr);
+
+      // Optionally the boundary conditions could be applied according to a
+      // named set of boundary attributes as in ex39p.cpp or using the
+      // following shortcut:
+      // pmesh.MarkNamedBoundaries(set_name, ess_bdr)
+
+      fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
