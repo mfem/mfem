@@ -1473,12 +1473,18 @@ void FindPointsGSLIB::GetNodalValues(const GridFunction *gf_in,
       else if (gt == Geometry::SQUARE)
       {
          ir_split_temp = ir_split[1];
-         el_to_split = gf_in->FESpace()->IsVariableOrder();
+         // "split" if input mesh is not a tensor basis or has mixed order
+         el_to_split =
+             gf_in->FESpace()->IsVariableOrder() ||
+             dynamic_cast<const TensorBasisElement *>(fes->GetFE(e)) == nullptr;
       }
       else if (gt == Geometry::CUBE)
       {
          ir_split_temp = ir_split[0];
-         el_to_split = gf_in->FESpace()->IsVariableOrder();
+         // "split" if input mesh is not a tensor basis or has mixed order
+         el_to_split =
+             gf_in->FESpace()->IsVariableOrder() ||
+             dynamic_cast<const TensorBasisElement *>(fes->GetFE(e)) == nullptr;
       }
       else
       {
