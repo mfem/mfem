@@ -73,8 +73,9 @@ template <class T> struct BAndReducer
 
    MFEM_HOST_DEVICE void init_val(value_type &a) const
    {
-      // hopefully this will set all bits in a
-      a = T(-1);
+      // sets all bits, does not work for floating point types
+      // bitwise operators are not defined for floating point types anyways
+      a = ~T(0);
    }
 };
 
