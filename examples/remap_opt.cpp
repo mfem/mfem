@@ -98,16 +98,26 @@ int main(int argc, char *argv[])
    const int btype = mfem::BasisType::Positive;
    mfem::DG_FECollection fec(order, dim, btype);
    mfem::ParFiniteElementSpace pfes(&pmesh, &fec);
+   mfem::QuadratureSpace qfes(&pmesh,order);
 
    mfem::ParGridFunction tgf(&pfes);
+   mfem::QuadratureFunction tqf(&qfes);
    SphCoefficient sph;
    tgf.ProjectCoefficient(sph);
+   tqf.ProjectGridFunction(tgf);
 
    {
       L2Objective* obj=new L2Objective(pfes,tgf);
       std::cout<<obj->Eval(tgf.GetTrueVector())<<" "<<std::endl;
       obj->Test();
       delete obj;
+   }
+
+   {
+       QL2Objective* obj=new QL2Objective(qfes,tqf);
+       std::cout<<obj->Eval(tqf)<<" "<<std::endl;
+       obj->Test();
+       delete obj;
    }
 
    double tvol=0.0;
@@ -120,6 +130,15 @@ int main(int argc, char *argv[])
       delete g;
    }
 
+   {
+      QVolConstr* g=new QVolConstr(qfes,0.0);
+      tvol=g->Eval(tqf);
+      std::cout<<tvol<<" "<<std::endl;
+      g->Test();
+      delete g;
+   }
+
+
    mfem::Vector u_max; u_max.SetSize(tgf.Size()); u_max=1.0;
    mfem::Vector u_min; u_min.SetSize(tgf.Size()); u_min=0.0;
    tvol=M_PI*0.30*0.30;
@@ -128,7 +147,7 @@ int main(int argc, char *argv[])
    MDSolver* md=new MDSolver(pfes,tvol,tgf,u_min,u_max);
 
 
-   md->Optimize(1000,100.0);
+   md->Optimize(1000,100.0,10);
 
    {
       mfem::ParaViewDataCollection paraview_dc("TopOpt", &pmesh);
@@ -147,6 +166,15 @@ int main(int argc, char *argv[])
    }
 
    delete md;
+
+   u_max.SetSize(tqf.Size()); u_max=1.0;
+   u_min.SetSize(tqf.Size()); u_min=0.0;
+
+
+   std::cout<<std::endl<<std::endl;
+   QDSolver* qd=new QDSolver(qfes,tvol,tqf,u_min,u_max);
+   qd->Optimize(1000,100.0,100);
+   delete qd;
 
 
    return 0;

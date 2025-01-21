@@ -43,6 +43,135 @@ private:
 };
 
 
+class QL2Objective:public mfem::Operator
+{
+public:
+    QL2Objective(mfem::QuadratureSpace& qes_, mfem::QuadratureFunction& tgf_):
+        tgf(tgf_)
+
+    {
+        qw.SetSize(qes_.GetSize());
+        const int NE  = qes_.GetMesh()->GetNE();
+        for (int e = 0; e < NE; e++)
+        {
+            const mfem::IntegrationRule &ir = qes_.GetElementIntRule(e);
+            const int nip = ir.GetNPoints();
+            // Transformation of the element with the pos_mesh coordinates.
+            mfem::IsoparametricTransformation Tr;
+            qes_.GetMesh()->GetElementTransformation(e,&Tr);
+            for (int q = 0; q < nip; q++)
+            {
+                const mfem::IntegrationPoint &ip = ir.IntPoint(q);
+                Tr.SetIntPoint(&ip);
+                mfem::real_t w=Tr.Weight();
+                qw[e*nip+q]=w*ip.weight;
+            }
+        }
+    }
+
+    virtual
+    ~QL2Objective()
+    {
+
+    }
+
+    mfem::real_t Eval(mfem::Vector& x)
+    {
+        mfem::real_t rez=mfem::real_t(0.0);
+        for(int i=0;i<tgf.Size();i++){
+            rez=rez+qw[i]*(x[i]-tgf[i])*(x[i]-tgf[i]);
+        }
+
+        auto qspace= tgf.GetSpace();
+        auto pmesh = dynamic_cast<mfem::ParMesh*>(qspace->GetMesh());
+        MFEM_VERIFY(pmesh, "Broken QuadratureSpace.");
+
+        double dloc_val=rez;
+        double dglb_val=0.0;
+        MPI_Allreduce(&dloc_val,&dglb_val,1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
+
+        return 0.5*dglb_val;
+    }
+
+    virtual
+    void Mult(const mfem::Vector &x, mfem::Vector &y) const
+    {
+        for(int i=0;i<tgf.Size();i++){
+            y[i]=qw[i]*(x[i]-tgf[i]);
+        }
+    }
+
+    void Test()
+    {
+        mfem::ConstantCoefficient cc(0.5);
+        mfem::QuadratureFunction lqf(tgf);
+
+        auto qes_ = dynamic_cast<mfem::QuadratureSpace *>(tgf.GetSpace());
+        MFEM_VERIFY(qes_, "Broken QuadratureSpace.");
+
+        const int NE  = qes_->GetMesh()->GetNE();
+        for (int e = 0; e < NE; e++)
+        {
+            const mfem::IntegrationRule &ir = qes_->GetElementIntRule(e);
+            const int nip = ir.GetNPoints();
+            // Transformation of the element with the pos_mesh coordinates.
+            mfem::IsoparametricTransformation Tr;
+            qes_->GetMesh()->GetElementTransformation(e,&Tr);
+            for (int q = 0; q < nip; q++)
+            {
+                const mfem::IntegrationPoint &ip = ir.IntPoint(q);
+                lqf[e*nip+q]=cc.Eval(Tr,ip);
+            }
+        }
+
+        mfem::Vector x=lqf;
+        mfem::Vector p; p.SetSize(x.Size()); p.Randomize();
+        mfem::Vector g; g.SetSize(x.Size());
+        mfem::Vector tmpv; tmpv.SetSize(x.Size());
+
+        double lo=this->Eval(x);
+        this->Mult(x,g);
+
+        auto qspace= tgf.GetSpace();
+        auto pmesh = dynamic_cast<mfem::ParMesh*>(qspace->GetMesh());
+        MFEM_VERIFY(pmesh, "Broken QuadratureSpace.");
+
+
+        mfem::real_t nd=mfem::InnerProduct(pmesh->GetComm(),p,p);
+        mfem::real_t td=mfem::InnerProduct(pmesh->GetComm(),p,g);
+
+        td=td/nd;
+
+        double lsc=1.0;
+        double lqoi;
+
+        for (int l=0; l<10; l++)
+        {
+           lsc/=10.0;
+           p/=10.0;
+
+           add(p,x,tmpv);
+           lqoi=this->Eval(tmpv);
+           mfem::real_t ld=(lqoi-lo)/lsc;
+           if (pmesh->GetMyRank()==0)
+           {
+              std::cout << "dx=" << lsc <<" FD approximation=" << ld/nd
+                        << " gradient=" << td
+                        << " err=" << std::fabs(ld/nd-td) << std::endl;
+           }
+        }
+    }
+
+
+private:
+    mfem::ConstantCoefficient one;
+    mfem::QuadratureFunction& tgf;
+    mfem::Vector tgv;
+    mfem::Vector qw;//total weights at integration points = integration weight*|J|
+
+};
+
+
 class L2Objective:public mfem::Operator
 {
 public:
@@ -127,6 +256,128 @@ private:
 
    mfem::Vector tgv;
 
+};
+
+
+class QVolConstr:public mfem::Operator
+{
+public:
+    QVolConstr(mfem::QuadratureSpace& qes_, //fes of the density field
+              mfem::real_t vol_):qes(qes_),vol(vol_)//target volume
+
+    {
+        qw.SetSize(qes_.GetSize());
+        const int NE  = qes_.GetMesh()->GetNE();
+        for (int e = 0; e < NE; e++)
+        {
+            const mfem::IntegrationRule &ir = qes_.GetElementIntRule(e);
+            const int nip = ir.GetNPoints();
+            // Transformation of the element with the pos_mesh coordinates.
+            mfem::IsoparametricTransformation Tr;
+            qes_.GetMesh()->GetElementTransformation(e,&Tr);
+            for (int q = 0; q < nip; q++)
+            {
+                const mfem::IntegrationPoint &ip = ir.IntPoint(q);
+                Tr.SetIntPoint(&ip);
+                mfem::real_t w=Tr.Weight();
+                qw[e*nip+q]=w*ip.weight;
+            }
+        }
+    }
+
+    virtual
+    ~QVolConstr()
+    {
+
+    }
+
+    mfem::real_t Eval(mfem::Vector& x)
+    {
+        mfem::real_t rez=mfem::real_t(0.0);
+        for(int i=0;i<qw.Size();i++){
+            rez=rez+qw[i]*x[i];
+        }
+
+        auto pmesh = dynamic_cast<mfem::ParMesh*>(qes.GetMesh());
+        MFEM_VERIFY(pmesh, "Broken QuadratureSpace.");
+
+        double dloc_val=rez;
+        double dglb_val=0.0;
+        MPI_Allreduce(&dloc_val,&dglb_val,1, MPI_DOUBLE, MPI_SUM, pmesh->GetComm());
+
+        return dglb_val-vol;
+    }
+
+    virtual
+    void Mult(const mfem::Vector &x, mfem::Vector &y) const
+    {
+        y=qw;
+    }
+
+    void Test()
+    {
+        mfem::ConstantCoefficient cc(0.5);
+        mfem::QuadratureFunction lqf(qes);
+
+
+        const int NE  = qes.GetMesh()->GetNE();
+        for (int e = 0; e < NE; e++)
+        {
+            const mfem::IntegrationRule &ir = qes.GetElementIntRule(e);
+            const int nip = ir.GetNPoints();
+            // Transformation of the element with the pos_mesh coordinates.
+            mfem::IsoparametricTransformation Tr;
+            qes.GetMesh()->GetElementTransformation(e,&Tr);
+            for (int q = 0; q < nip; q++)
+            {
+                const mfem::IntegrationPoint &ip = ir.IntPoint(q);
+                lqf[e*nip+q]=cc.Eval(Tr,ip);
+            }
+        }
+
+        mfem::Vector x=lqf;
+        mfem::Vector p; p.SetSize(x.Size()); p.Randomize();
+        mfem::Vector g; g.SetSize(x.Size());
+        mfem::Vector tmpv; tmpv.SetSize(x.Size());
+
+        double lo=this->Eval(x);
+        this->Mult(x,g);
+
+        auto pmesh = dynamic_cast<mfem::ParMesh*>(qes.GetMesh());
+        MFEM_VERIFY(pmesh, "Broken QuadratureSpace.");
+
+
+        mfem::real_t nd=mfem::InnerProduct(pmesh->GetComm(),p,p);
+        mfem::real_t td=mfem::InnerProduct(pmesh->GetComm(),p,g);
+
+        td=td/nd;
+
+        double lsc=1.0;
+        double lqoi;
+
+        for (int l=0; l<10; l++)
+        {
+           lsc/=10.0;
+           p/=10.0;
+
+           add(p,x,tmpv);
+           lqoi=this->Eval(tmpv);
+           mfem::real_t ld=(lqoi-lo)/lsc;
+           if (pmesh->GetMyRank()==0)
+           {
+              std::cout << "dx=" << lsc <<" FD approximation=" << ld/nd
+                        << " gradient=" << td
+                        << " err=" << std::fabs(ld/nd-td) << std::endl;
+           }
+        }
+
+    }
+
+
+private:
+    mfem::QuadratureSpace& qes;
+    mfem::real_t vol;
+    mfem::Vector qw;//total weights at integration points = integration weight*|J|
 };
 
 class VolConstr:public mfem::Operator
@@ -216,6 +467,139 @@ private:
    mfem::ParLinearForm* l;
    mfem::ParGridFunction* gf;
 
+};
+
+
+class QDSolver
+{
+public:
+    QDSolver(mfem::QuadratureSpace& qes, mfem::real_t vol_,
+             mfem::QuadratureFunction& trg,
+             mfem::Vector& u_min_,
+             mfem::Vector& u_max_):cqg(qes),tqg(qes)
+    {
+        tqg=u_max_;
+        vol=vol_;
+        obj=new QL2Objective(qes,trg);
+
+        con=new QVolConstr(qes,vol);
+
+        //initialize the current solution
+        for (int i=0; i<cqg.Size(); i++)
+        {
+           cqg[i]=0.5*(u_min_[i]+u_max_[i]);
+        }
+
+        u_min=u_min_;
+        u_max=u_max_;
+
+    }
+
+    ~QDSolver()
+    {
+       delete obj;
+       delete con;
+    }
+
+    mfem::QuadratureFunction& GetTQG() {return tqg;}
+    mfem::QuadratureFunction& GetCQG() {return cqg;}
+
+    void SetFinal(mfem::QuadratureFunction& gq)
+    {
+       gq=cqg;
+    }
+
+    void Optimize(double alpha, double rho,int max_iter=100)
+    {
+         mfem::Vector x; x=cqg;
+         mfem::Vector p; p.SetSize(x.Size()); p=0.0;
+         //initialize the current solution
+         for (int i=0; i<x.Size(); i++)
+         {
+            x[i]=(u_min[i]+u_max[i]*std::exp(p[i]))/(1.0+std::exp(p[i]));
+         }
+
+         mfem::real_t epsp=obj->Eval(x);
+         mfem::real_t epsc=con->Eval(x);
+         mfem::real_t opsc=epsc;
+         mfem::real_t epso; epso=epsp;
+
+         auto qspace= tqg.GetSpace();
+         auto pmesh = dynamic_cast<mfem::ParMesh*>(qspace->GetMesh());
+         MFEM_VERIFY(pmesh, "Broken QuadratureSpace.");
+
+
+         if (pmesh->GetMyRank()==0)
+         {
+            std::cout<<" epsp="<<epsp<<" epsc="<<epsc<<std::endl;
+         }
+
+         mfem::real_t lambda=0.0;
+
+         mfem::Vector go,gp;
+         go.SetSize(x.Size());
+         gp.SetSize(x.Size());
+
+         bool flag=true;
+
+         int it=0;
+         while (flag)
+         {
+            //evaluate the gradients
+            obj->Mult(x,go);
+
+
+            con->Mult(x,gp);
+            go.Add(lambda,gp);
+            go.Add(rho*epsc,gp);
+
+            //update p
+            p.Add(-alpha,go);
+            //update x
+            for (int i=0; i<x.Size(); i++)
+            {
+               x[i]=(u_min[i]+u_max[i]*std::exp(p[i]))/(1.0+std::exp(p[i]));
+            }
+            //evaluate the objective and the contraint
+            epsp=obj->Eval(x);
+            epsc=con->Eval(x);
+            opsc=epsc;
+
+            //update lambda
+            lambda=lambda+rho*epsc;
+
+            if (pmesh->GetMyRank()==0)
+            {
+               std::cout<<" epsp="<<epsp<<" epsc="<<epsc<<" lambda="<<lambda<<std::endl;
+            }
+
+            if (fabs(epsc)<1e-10)
+            {
+               if (fabs(epsp-epso)<1e-10)
+               {
+                  flag=false;
+               }
+            }
+            epso=epsp;
+            it++;
+            if (it>max_iter) { flag=false;}
+         }
+
+         cqg=x;
+         tqg=p;
+    }
+
+
+
+
+private:
+    mfem::QuadratureFunction cqg;
+    mfem::QuadratureFunction tqg;
+    mfem::Vector u_max;
+    mfem::Vector u_min;
+    mfem::real_t vol;
+    QL2Objective* obj;
+    QVolConstr* con;
 };
 
 class MDSolver
