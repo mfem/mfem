@@ -106,7 +106,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
    // Limiting distances: lim_dist -> PA.LD (E-vector)
    // TODO: remove the hack for the case lim_dist == NULL.
    const FiniteElementSpace *limfes = (lim_dist) ? lim_dist->FESpace() : fes;
-   const FiniteElement &lim_fe = *limfes->GetFE(0);
+   const FiniteElement &lim_fe = *limfes->GetTypicalFE();
    PA.maps_lim = &lim_fe.GetDofToQuad(ir, DofToQuad::TENSOR);
    PA.LD.SetSize(NE*lim_fe.GetDof(), Device::GetMemoryType());
    PA.LD.UseDevice(true);
@@ -220,13 +220,12 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
    const int ne = PA.ne = mesh->GetNE();
-   if (ne == 0) { return; }  // Quick return for empty processors
    const int dim = PA.dim = mesh->Dimension();
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "Not yet implemented!");
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
                "mixed meshes are not supported");
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
-   const FiniteElement &fe = *fes.GetFE(0);
+   const FiniteElement &fe = *fes.GetTypicalFE();
    PA.ir = &EnergyIntegrationRule(fe);
    const IntegrationRule &ir = *PA.ir;
    MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
