@@ -112,8 +112,6 @@ set(SRCS
   qinterp/eval_by_vdim.cpp
   qinterp/grad_by_nodes.cpp
   qinterp/grad_by_vdim.cpp
-  qinterp/grad_phys_by_nodes.cpp
-  qinterp/grad_phys_by_vdim.cpp
   qspace.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
@@ -150,6 +148,10 @@ set(SRCS
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
+  gslib/findpts_local_2.cpp
+  gslib/findpts_local_3.cpp
+  gslib/interpolate_local_2.cpp
+  gslib/interpolate_local_3.cpp
   transfer.cpp
   hyperbolic.cpp
   )
@@ -192,6 +194,9 @@ set(HDRS
   hybridization.hpp
   intrules.hpp
   intrules_cut.hpp
+  kernel_dispatch.hpp
+  kernel_reporter.hpp
+  kernels.hpp
   ceed/interface/basis.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp
@@ -223,7 +228,6 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   qfunction.hpp
-  qinterp/dispatch.hpp
   qinterp/eval.hpp
   qinterp/grad.hpp
   qspace.hpp
