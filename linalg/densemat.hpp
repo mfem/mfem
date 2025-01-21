@@ -101,6 +101,9 @@ public:
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
 
+   // Total size = width*height
+   int TotalSize() const { return width*height; }
+
    /// Change the size of the DenseMatrix to s x s.
    void SetSize(int s) { SetSize(s, s); }
 
@@ -1172,6 +1175,31 @@ public:
       Mk.UseExternalData(NULL, i, j);
       nk = k;
       tdata.Wrap(ext_data, i*j*k, false);
+   }
+
+   /// @brief Reset the DenseTensor to use the given external Memory @a mem and
+   /// dimensions @a i, @a j, and @a k.
+   ///
+   /// If @a own_mem is false, the DenseTensor will not own any of the pointers
+   /// of @a mem.
+   ///
+   /// Note that when @a own_mem is true, the @a mem object can be destroyed
+   /// immediately by the caller but `mem.Delete()` should NOT be called since
+   /// the DenseTensor object takes ownership of all pointers owned by @a mem.
+   void NewMemoryAndSize(const Memory<real_t> &mem, int i, int j, int k,
+                         bool own_mem)
+   {
+      tdata.Delete();
+      Mk.UseExternalData(NULL, i, j);
+      nk = k;
+      if (own_mem)
+      {
+         tdata = mem;
+      }
+      else
+      {
+         tdata.MakeAlias(mem, 0, i*j*k);
+      }
    }
 
    /// Sets the tensor elements equal to constant c

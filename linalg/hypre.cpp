@@ -28,16 +28,23 @@ namespace mfem
 {
 
 bool Hypre::configure_runtime_policy_from_mfem = true;
+Hypre::State Hypre::state = Hypre::State::UNINITIALIZED;
 
-Hypre::Hypre()
+void Hypre::Init()
 {
+   if (state != State::INITIALIZED)
+   {
 #if MFEM_HYPRE_VERSION >= 21900
-   // Initializing hypre
-   HYPRE_Init();
+      HYPRE_Init();
 #endif
-
-   // Global hypre options that we set by default
-   SetDefaultOptions();
+      SetDefaultOptions();
+      // Apply the setting of 'configure_runtime_policy_from_mfem' according to
+      // the current configuration of the mfem::Device (HYPRE >= 2.31.0):
+      InitDevice();
+      // Create the singleton Hypre object AFTER initializing HYPRE:
+      Instance();
+   }
+   state = State::INITIALIZED;
 }
 
 void Hypre::InitDevice()
@@ -48,6 +55,8 @@ void Hypre::InitDevice()
 #if defined(HYPRE_USING_GPU) && (MFEM_HYPRE_VERSION >= 23100)
    if (configure_runtime_policy_from_mfem)
    {
+      MFEM_VERIFY(HYPRE_Initialized(), "HYPRE must be initialized before"
+                  " calling Hypre::InitDevice()");
       if (Device::Allows(Backend::DEVICE_MASK & ~Backend::DEBUG_DEVICE))
       {
          HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
@@ -65,14 +74,13 @@ void Hypre::InitDevice()
 
 void Hypre::Finalize()
 {
-   Hypre &hypre = Instance();
-   if (!hypre.finalized)
+   if (state != State::UNINITIALIZED)
    {
 #if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Finalize();
 #endif
-      hypre.finalized = true;
    }
+   state = State::UNINITIALIZED;
 }
 
 void Hypre::SetDefaultOptions()
@@ -2793,6 +2801,33 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
    os << "col map offd hash : " << hf.GetHash() << '\n';
 }
 
+real_t HypreParMatrix::FNorm() const
+{
+   real_t norm_fro = 0.0;
+   if (A != NULL)
+#if MFEM_HYPRE_VERSION >= 21900
+   {
+      const int ierr = hypre_ParCSRMatrixNormFro(A, &norm_fro);
+      MFEM_VERIFY(ierr == 0, "");
+   }
+#else
+   {
+      // HYPRE_USING_GPU is not defined for
+      // MFEM_HYPRE_VERSION < 22100 and so here it is
+      // guaranteed that the matrix is in "host" memory
+      Vector Avec_diag(A->diag->data, A->diag->num_nonzeros);
+      real_t normsqr_fro = InnerProduct(Avec_diag, Avec_diag);
+      Vector Avec_offd(A->offd->data, A->offd->num_nonzeros);
+      normsqr_fro += InnerProduct(Avec_offd, Avec_offd);
+      MPI_Allreduce(MPI_IN_PLACE, &normsqr_fro, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, hypre_ParCSRMatrixComm(A));
+      norm_fro = sqrt(normsqr_fro);
+   }
+#endif
+   return norm_fro;
+}
+
+
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
 {
    HYPRE_BigInt  *A_col_map_offd = hypre_ParCSRMatrixColMapOffd(A);
@@ -5328,8 +5363,8 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
    int ns_down = 0, ns_up = 0, ns_coarse; // init to suppress gcc warnings
    if (distanceR > 0)
    {
-      ns_down = prerelax.length();
-      ns_up = postrelax.length();
+      ns_down = static_cast<int>(prerelax.length());
+      ns_up = static_cast<int>(postrelax.length());
       ns_coarse = 1;
 
       // Array to store relaxation scheme and pass to Hypre
