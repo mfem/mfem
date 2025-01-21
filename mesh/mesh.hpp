@@ -2115,16 +2115,36 @@ public:
    virtual void RemoveInternalBoundaries(Array<int> &bdr_marker,
                                          bool excl = true) const;
 
+   /// @brief Unmark boundary attributes in the named set
+   ///
+   /// @param[in]     set_name   Name of a named boundary attribute set.
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with the named set will be
+   ///                           set to zero. Other entries will remain
+   ///                           unchanged.
+   virtual void RemoveNamedBoundaries(const std::string &set_name,
+                                      Array<int> &bdr_marker) const;
+
    /// @brief Mark boundary attributes of external boundaries
    ///
-   /// @param[in,out] bdr_marker Array will be resized to be at least of length
-   ///                           bdr_attributes.Max(). Entries associated with
-   ///                           external boundaries will be set to one. Other
-   ///                           entries will be set to zero.
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with external boundaries
+   ///                           will be set to one. Other entries will remain
+   ///                           unchanged.
    /// @param[in]     excl       Only mark entries which exclusively contain
    ///                           external faces [default: true].
    virtual void MarkExternalBoundaries(Array<int> &bdr_marker,
                                        bool excl = true) const;
+
+   /// @brief Mark boundary attributes in the named set
+   ///
+   /// @param[in]     set_name   Name of a named boundary attribute set.
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with the named set will be
+   ///                           set to one. Other entries will remain
+   ///                           unchanged.
+   virtual void MarkNamedBoundaries(const std::string &set_name,
+                                    Array<int> &bdr_marker) const;
 
    /// @}
 

@@ -6799,11 +6799,8 @@ void ParMesh::RemoveInternalBoundaries(Array<int> &bdr_marker, bool excl) const
 
 void ParMesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
 {
-   if (bdr_marker.Size() < bdr_attributes.Max())
-   {
-      bdr_marker.SetSize(bdr_attributes.Max());
-   }
-   bdr_marker = 0;
+   MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
 
    Array<int> ext_face_marker;
    GetExteriorFaceMarker(ext_face_marker);
@@ -6837,13 +6834,13 @@ void ParMesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
    MPI_Allreduce(&exterior_bdr[0], &glb_exterior_bdr[0], bdr_attributes.Max(),
                  MPI_C_BOOL, MPI_LOR, MyComm);
 
-   // Mark the attributes containing exterior faces and satisfying the
-   // necessary exclusivity requirements.
+   // Mark the attributes which are currently unmarked, containing exterior
+   // faces, and satisfying the necessary exclusivity requirements.
    for (int b = 0; b < bdr_attributes.Max(); b++)
    {
-      if (exterior_bdr[b])
+      if (bdr_marker[b] == 0 && glb_exterior_bdr[b])
       {
-         if (!excl || !interior_bdr[b])
+         if (!excl || !glb_interior_bdr[b])
          {
             bdr_marker[b] = 1;
          }
