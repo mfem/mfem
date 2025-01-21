@@ -1398,7 +1398,7 @@ int FiniteElementSpace::GetNConformingDofs() const
 int FiniteElementSpace::GetVectorDim() const
 {
    const FiniteElement *fe = GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return GetVDim();
    }
@@ -1408,7 +1408,7 @@ int FiniteElementSpace::GetVectorDim() const
 int FiniteElementSpace::GetCurlDim() const
 {
    const FiniteElement *fe = GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return 2 * GetMesh()->SpaceDimension() - 3;
    }
