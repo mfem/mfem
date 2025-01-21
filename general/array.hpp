@@ -56,6 +56,10 @@ protected:
    static_assert(std::is_trivial<T>::value, "type T must be trivial");
 
 public:
+   using value_type = T; ///< Type alias for stl.
+   using reference = T&; ///< Type alias for stl.
+   using const_reference = const T&; ///< Type alias for stl.
+
    friend void Swap<T>(Array<T> &, Array<T> &);
 
    /// Creates an empty array
@@ -96,7 +100,7 @@ public:
    /// Construct an Array from a braced initializer list of convertible type
    template <typename CT, typename std::enable_if<
                 std::is_convertible<CT,T>::value,bool>::type = true>
-   explicit inline Array(std::initializer_list<CT> values);
+   inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
    inline Array(Array<T> &&src) : Array() { Swap(src, *this); }
@@ -173,6 +177,9 @@ public:
 
    /// Append element 'el' to array, resize if necessary.
    inline int Append(const T & el);
+
+   /// STL-like push_back. Append element 'el' to array, resize if necessary.
+   void push_back(const T &el) { static_cast<void>(Append(el)); }
 
    /// Append another array to this array, resize if necessary.
    inline int Append(const T *els, int nels);
