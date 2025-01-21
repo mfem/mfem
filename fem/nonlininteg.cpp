@@ -419,6 +419,7 @@ real_t HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
 
       energy += ip.weight * Ttr.Weight() * model->EvalW(Jpt);
    }
+
    return energy;
 }
 

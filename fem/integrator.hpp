@@ -24,7 +24,7 @@ class Integrator
 public:
    /** @brief Create a new Integrator, optionally providing a prescribed
        quadrature rule to use in assembly. */
-   Integrator(const IntegrationRule *ir = NULL) : IntRule(ir) {};
+   Integrator(const IntegrationRule *ir = NULL) : IntRule(ir) {}
 
    /** @brief Prescribe a fixed IntegrationRule to use, or set to null to let
        the integrator choose an appropriate rule. */
@@ -52,10 +52,10 @@ protected:
    const IntegrationRule *IntRule;
    NURBSMeshRules *patchRules = nullptr;
 
-   /** @brief Selects an integration rule based on the the arguments and
+   /** @brief Returns an integration rule based on the the arguments and
               internal state of the Integrator object.
 
-       @details This method selects an integration rule in a way that depends
+       @details This method returns an integration rule in a way that depends
                 on the integrator's attributes. Attributes can specify an
                 existing IntegrationRule, and/or a NURBSMeshRules object.
                 This method will pick the NURBSMeshRules' restriction to the
@@ -70,7 +70,7 @@ protected:
       const FiniteElement& trial_fe, const FiniteElement& test_fe,
       const ElementTransformation& trans) const;
 
-   /** @brief Selects an integration rule based on the arguments and
+   /** @brief Returns an integration rule based on the arguments and
               internal state. (Version for identical trial_fe and test_fe)
 
        @see GetIntegrationRule(const FiniteElement*, const FiniteElement*,
