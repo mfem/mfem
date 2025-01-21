@@ -444,10 +444,10 @@ public:
 
    /// @brief Mark boundary attributes of external boundaries
    ///
-   /// @param[in,out] bdr_marker Array will be resized to be at least of length
-   ///                           bdr_attributes.Max(). Entries associated with
-   ///                           external boundaries will be set to one. Other
-   ///                           entries will be set to zero.
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with external boundaries
+   ///                           will be set to one. Other entries will remain
+   ///                           unchanged.
    /// @param[in]     excl       Only mark entries which exclusively contain
    ///                           external faces [default: true].
    void MarkExternalBoundaries(Array<int> &bdr_marker,

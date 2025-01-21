@@ -1619,15 +1619,32 @@ void Mesh::RemoveInternalBoundaries(Array<int> &bdr_marker, bool excl) const
    }
 }
 
+void Mesh::RemoveNamedBoundaries(const std::string &set_name,
+                                 Array<int> &bdr_marker) const
+{
+   MFEM_VERIFY(bdr_attribute_sets.AttributeSetExists(set_name),
+               "Named set is not defined in this mesh!");
+   MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<int> set_marker = bdr_attribute_sets.GetAttributeSetMarker(set_name);
+
+   for (int b = 0; b < bdr_attributes.Max(); b++)
+   {
+      if (set_marker[b])
+      {
+         bdr_marker[b] = 0;
+      }
+   }
+}
+
 void Mesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
 {
-   if (bdr_marker.Size() < bdr_attributes.Max())
-   {
-      bdr_marker.SetSize(bdr_attributes.Max());
-   }
-   bdr_marker = 0;
+   MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
 
    Array<bool> interior_bdr(bdr_attributes.Max()); interior_bdr = false;
+   Array<bool> exterior_bdr(bdr_attributes.Max()); exterior_bdr = false;
 
    // Mark boundary attributes containing exterior faces while keeping track of
    // those which also contain interior faces.
@@ -1641,7 +1658,7 @@ void Mesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
           faces_info[f].Elem2No < 0 &&
           faces_info[f].Elem2Inf < 0 )
       {
-         bdr_marker[bea-1] = 1;
+         exterior_bdr[bea-1] = true;
       }
       else
       {
@@ -1649,16 +1666,35 @@ void Mesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
       }
    }
 
-   // If necessary, unmark attributes which were found to also contain
-   // interior faces.
-   if (excl)
+   // Mark attributes which were found to contain exterior faces and satisfy
+   // the appropriate exclusivity requirement.
+   for (int b = 0; b < bdr_attributes.Max(); b++)
    {
-      for (int b = 0; b < bdr_attributes.Max(); b++)
+      if (bdr_marker[b] == 0 && exterior_bdr[b])
       {
-         if (bdr_marker[b] > 0 && interior_bdr[b])
+         if (!excl || !interior_bdr[b])
          {
-            bdr_marker[b] = 0;
+            bdr_marker[b] = 1;
          }
+      }
+   }
+}
+
+void Mesh::MarkNamedBoundaries(const std::string &set_name,
+                               Array<int> &bdr_marker) const
+{
+   MFEM_VERIFY(bdr_attribute_sets.AttributeSetExists(set_name),
+               "Named set is not defined in this mesh!");
+   MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
+               "bdr_marker must be at least bdr_attriburtes.Max() in length");
+
+   Array<int> set_marker = bdr_attribute_sets.GetAttributeSetMarker(set_name);
+
+   for (int b = 0; b < bdr_attributes.Max(); b++)
+   {
+      if (set_marker[b])
+      {
+         bdr_marker[b] = 1;
       }
    }
 }
