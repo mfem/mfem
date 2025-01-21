@@ -40,7 +40,9 @@ if (FETCH_TPLS)
   OVERRIDE_FIND_PACKAGE
   GIT_PROGESS TRUE
   )
+  # obtain source (library target is created by HYPRE CMake configuration)
   FetchContent_MakeAvailable(HYPRE)
+  # set cache variables that would otherwise be set after mfem_find_package call
   set(HYPRE_VERSION "23200" CACHE STRING "HYPRE version." FORCE)
   return()
 endif()
