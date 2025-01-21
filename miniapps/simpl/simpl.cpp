@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
    ParGridFunction control_gf(&fes_control); control_gf = 0.0;
    ParGridFunction filter_gf(&fes_filter); filter_gf = 0.0;
    std::vector<std::unique_ptr<GridFunction>> state_gf(nrObj);
-   for (int i=0; i<nrObj; i++) { state_gf[i].reset(new ParGridFunction(&fes_state)); *state_gf[i] = 0.0; }
+   for (auto &curr_state:state_gf) { curr_state.reset(new ParGridFunction(&fes_state)); *curr_state = 0.0; }
    ParGridFunction grad_gf(&fes_control); grad_gf = 0.0;
    ParGridFunction grad_filter_gf(&fes_filter); grad_filter_gf = 0.0;
 

@@ -45,8 +45,10 @@ if (MFEM_USE_MPI)
     EXTRA_SOURCES linear_solver.cpp
     EXTRA_HEADERS linear_solver.hpp
     LIBRARIES mfem)
-
   # Add the corresponding tests to the "test" target
+  add_mfem_miniapp(temp_test
+    MAIN temp_test.cpp
+    LIBRARIES mfem)
   if (MFEM_ENABLE_TESTING)
     add_test(NAME simpl_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}

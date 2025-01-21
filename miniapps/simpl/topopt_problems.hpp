@@ -35,7 +35,8 @@ enum TopoptProblem
    // sign: need to solve adjoint (negative) or not (positive)
 
    // 2D
-   MultiCantilever2=221,
+   MultiFrame2=221,
+   MultiBridge2=222,
 };
 
 enum ThermalTopoptProblem
