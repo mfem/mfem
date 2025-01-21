@@ -126,8 +126,6 @@ void FaceQuadratureInterpolator::Eval2D(
    auto n   = q_layout == QVectorLayout::byNODES ?
               Reshape(q_nor.Write(), NQ1D, 2, NF):
               Reshape(q_nor.Write(), 2, NQ1D, NF);
-   MFEM_VERIFY(eval_flags | DERIVATIVES,
-               "Derivatives on the faces are not yet supported.");
    // If Gauss-Lobatto
    mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
@@ -255,8 +253,6 @@ void FaceQuadratureInterpolator::Eval3D(
    auto nor = q_layout == QVectorLayout::byNODES ?
               Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF):
               Reshape(q_nor.Write(), 3, NQ1D, NQ1D, NF);
-   MFEM_VERIFY(eval_flags | DERIVATIVES,
-               "Derivatives on the faces are not yet supported.");
    mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
    {
       constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
@@ -464,8 +460,6 @@ void FaceQuadratureInterpolator::SmemEval3D(
    auto nor = q_layout == QVectorLayout::byNODES ?
               Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF):
               Reshape(q_nor.Write(), 3, NQ1D, NQ1D, NF);
-   MFEM_VERIFY(eval_flags | DERIVATIVES,
-               "Derivatives on the faces are not yet supported.");
 
    mfem::forall_3D(NF, NQ1D, NQ1D, VDIM, [=] MFEM_HOST_DEVICE (int f)
    {
