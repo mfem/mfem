@@ -220,9 +220,10 @@ An optional installation of the library and the headers can be performed with
 
    make install [PREFIX=<dir>]
 
-The library will be installed in $(PREFIX)/lib, the headers in
-$(PREFIX)/include, and the configuration makefile (config.mk) in
-$(PREFIX)/share/mfem. The PREFIX option can also be set during configuration.
+The library will be installed in ${PREFIX}/lib, the headers in
+${PREFIX}/include, and the configuration and testing makefiles (config.mk and
+test.mk) in ${PREFIX}/share/mfem. The PREFIX option can also be set during
+configuration.
 
 Information about the current build configuration can be viewed using
 
@@ -271,8 +272,9 @@ Build options:
 
 Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
-             installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
-             the configuration makefile (config.mk) in $(PREFIX)/share/mfem.
+             installed in ${PREFIX}/lib, the headers in ${PREFIX}/include, and
+             the configuration and testing makefiles (config.mk and test.mk) in
+             ${PREFIX}/share/mfem.
    INSTALL - Specify the install program, default = /usr/bin/install
    INSTALL_DEF_PERM - Specify the default install permissions. This affects
                       headers and configuration makefiles, default = 644
@@ -791,14 +793,14 @@ The specific libraries and their options are:
   Versions: 1.9.3
 
 - GSLIB (optional), used when MFEM_USE_GSLIB = YES. The gslib library must be
-  built prior to the MFEM build, as follows: download gslib-1.0.7, untar it at
-  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.7 gslib".
+  built prior to the MFEM build, as follows: download gslib-1.0.9, untar it at
+  the same level as MFEM and create a symbolic link: "ln -s gslib-1.0.9 gslib".
   Build gslib in parallel or in serial based on the desired MFEM build: "make
   clean; make CC=mpicc" or "make clean; make CC=gcc MPI=0". Build MFEM with
   MFEM_USE_GSLIB=YES.
-  URL: https://github.com/gslib/gslib/archive/v1.0.7.tar.gz
+  URL: https://github.com/gslib/gslib/archive/v1.0.9.tar.gz
   Options: GSLIB_OPT, GSLIB_LIB.
-  Versions: GSLIB >= 1.0.7.
+  Versions: GSLIB >= 1.0.9.
 
 - ALGOIM (optional), used when MFEM_USE_ALGOIM=YES. The library provides only
   headers so it just needs to be downloaded at the same level as MFEM. Download
@@ -980,8 +982,20 @@ or
    cmake --build . --config Release --target install  [Xcode]
    cmake --build . --config Release --target INSTALL  [Visual Studio]
 
-The library will be installed in <PREFIX>/lib, the headers in <PREFIX>/include,
-and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
+By default, the library will be installed in ${CMAKE_INSTALL_PREFIX}/lib, the
+headers in ${CMAKE_INSTALL_PREFIX}/include, the configuration CMake files in
+${CMAKE_INSTALL_PREFIX}/lib/cmake/mfem, and the configuration and testing GNU
+make files in ${CMAKE_INSTALL_PREFIX}/share/mfem. For fine-tuning the
+installation directories the following variables can be used:
+INSTALL_INCLUDE_DIR, INSTALL_LIB_DIR, INSTALL_BIN_DIR (e.g. for dll files on
+Windows), INSTALL_SHARE_DIR, and INSTALL_CMAKE_DIR; alternatively, with lower
+precedence, the CMake GNUInstallDirs variables can also be used:
+CMAKE_INSTALL_INCLUDEDIR, CMAKE_INSTALL_LIBDIR, CMAKE_INSTALL_BINDIR and
+CMAKE_INSTALL_DATAROOTDIR. Note that the default for INSTALL_LIB_DIR and
+CMAKE_INSTALL_LIBDIR is lib. This is in contrast to the default behavior for
+GNUInstallDirs, which defines a platform-dependent default value for
+CMAKE_INSTALL_LIBDIR (lib or lib64 or lib/<multiarch-tuple> on Debian). To
+restore this behavior, the user can set MFEM_USE_GNUINSTALLDIRS=YES.
 
 
 Configuration variables (CMake)

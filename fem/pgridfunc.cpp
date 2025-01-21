@@ -914,19 +914,22 @@ real_t ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
             err_val(j) -= (exsol->Eval(*transf, eip) - (shape * el_dofs));
          }
       }
+      real_t face_error = 0.0;
       transf = face_elem_transf;
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
          real_t nu = jump_scaling.Eval(h, p);
-         error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
-                                      transf->Weight() *
-                                      err_val(j) * err_val(j));
+         face_error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
+                                           transf->Weight() *
+                                           err_val(j) * err_val(j));
       }
+      // negative quadrature weights may cause the error to be negative
+      error += fabs(face_error);
    }
 
-   error = (error < 0.0) ? -sqrt(-error) : sqrt(error);
+   error = sqrt(error);
    return GlobalLpNorm(2.0, error, pfes->GetComm());
 }
 
@@ -1233,34 +1236,22 @@ real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm)
 {
    real_t glob_norm;
 
+   // negative quadrature weights may cause the local norm to be negative
+   loc_norm = fabs(loc_norm);
+
    if (p < infinity())
    {
-      // negative quadrature weights may cause the error to be negative
-      if (loc_norm < 0.0)
-      {
-         loc_norm = -pow(-loc_norm, p);
-      }
-      else
-      {
-         loc_norm = pow(loc_norm, p);
-      }
+      loc_norm = pow(loc_norm, p);
 
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                    comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, comm);
 
-      if (glob_norm < 0.0)
-      {
-         glob_norm = -pow(-glob_norm, 1.0/p);
-      }
-      else
-      {
-         glob_norm = pow(glob_norm, 1.0/p);
-      }
+      glob_norm = pow(fabs(glob_norm), 1.0/p);
    }
    else
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
-                    comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MAX, comm);
    }
 
    return glob_norm;
@@ -1344,23 +1335,19 @@ real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    ParLinearForm *b = new ParLinearForm(&smooth_flux_fes);
    VectorGridFunctionCoefficient f(&flux);
 
-   if (xfes->GetNE())
-   {
-      MFEM_VERIFY(smooth_flux_fes.GetFE(0) != NULL,
-                  "Could not obtain FE of smooth flux space.");
+   const FiniteElement *smooth_flux_fe = smooth_flux_fes.GetTypicalFE();
 
-      if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
-      {
-         VectorMassIntegrator *vmass = new VectorMassIntegrator;
-         vmass->SetVDim(smooth_flux_fes.GetVDim());
-         a->AddDomainIntegrator(vmass);
-         b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
-      }
-      else
-      {
-         a->AddDomainIntegrator(new VectorFEMassIntegrator);
-         b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
-      }
+   if (smooth_flux_fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      VectorMassIntegrator *vmass = new VectorMassIntegrator;
+      vmass->SetVDim(smooth_flux_fes.GetVDim());
+      a->AddDomainIntegrator(vmass);
+      b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
+   }
+   else
+   {
+      a->AddDomainIntegrator(new VectorFEMassIntegrator);
+      b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
    }
 
    b->Assemble();
