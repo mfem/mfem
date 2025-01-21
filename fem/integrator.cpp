@@ -19,10 +19,10 @@ const IntegrationRule* Integrator::GetIntegrationRule(
    const FiniteElement& trial_fe, const FiniteElement& test_fe,
    const ElementTransformation& trans) const
 {
-   const NURBSFiniteElement *NURBSFE = dynamic_cast<const NURBSFiniteElement *>
-                                       (&test_fe);
    const IntegrationRule* result;
-   if (NURBSFE && patchRules)
+   const NURBSFiniteElement *NURBSFE;
+   if (patchRules &&
+       (NURBSFE = dynamic_cast<const NURBSFiniteElement *>(&test_fe)))
    {
       const int patch = NURBSFE->GetPatch();
       const int* ijk = NURBSFE->GetIJK();
