@@ -1,23 +1,6 @@
+#include "dfem/dfem_refactor.hpp"
 #include <limits>
 #include <memory>
-#include <mfem.hpp>
-#include "config/config.hpp"
-#include "dfem/dfem.hpp"
-#include "examples/dfem/dfem_parametricspace.hpp"
-#include "fem/bilininteg.hpp"
-#include "fem/coefficient.hpp"
-#include "fem/intrules.hpp"
-#include "fem/lor/lor.hpp"
-#include "fem/pfespace.hpp"
-#include "fem/pgridfunc.hpp"
-#include "general/device.hpp"
-#include "linalg/auxiliary.hpp"
-#include "linalg/hypre.hpp"
-#include "linalg/ode.hpp"
-#include "linalg/operator.hpp"
-#include "linalg/solvers.hpp"
-#include "linalg/tensor.hpp"
-#include "mpi.h"
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -63,11 +46,10 @@ void ComputeMaterialProperties(const real_t &gamma, const real_t &rho,
 }
 
 using vecd = tensor<real_t, 2>;
-using vecaux = tensor<real_t, 3>;
 using matd = tensor<real_t, 2, 2>;
 
 template <bool compute_dtest = false>
-MFEM_HOST_DEVICE
+MFEM_HOST_DEVICE inline
 mfem::tuple<matd, real_t> qdata_setup(
    const matd &dvdxi,
    const real_t &rho0,
@@ -140,6 +122,124 @@ mfem::tuple<matd, real_t> qdata_setup(
    return mfem::tuple{stressJiT, dt_est};
 }
 
+struct TimeStepEstimateQFunction
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      const matd &dvdxi,
+      const real_t &rho0,
+      const matd &J0,
+      const matd &J,
+      const real_t &gamma,
+      const real_t &E,
+      const real_t &h0,
+      const real_t &order_v,
+      const real_t &w) const
+   {
+      real_t dt_est = mfem::get<1>(
+                         qdata_setup<true>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+      return mfem::tuple{dt_est};
+   }
+};
+
+class MomentumQFunction
+{
+public:
+   MomentumQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      const matd &dvdxi,
+      const real_t &rho0,
+      const matd &J0,
+      const matd &J,
+      const real_t &gamma,
+      const real_t &E,
+      const real_t &h0,
+      const real_t &order_v,
+      const real_t &w) const
+   {
+      auto stressJiT = mfem::get<0>(
+                          qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+
+      // out << gamma << " " << rho << " " << Ez << " " << p << " " << cs << "\n";
+      // out << stressJiT << "\n";
+      // TODO-bug: investigate transpose of matrices in return types
+      // return mfem::tuple{transpose(stressJiT)};
+      return mfem::tuple{stressJiT};
+   }
+};
+
+class EnergyConservationQFunction
+{
+public:
+   EnergyConservationQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      const matd &dvdxi,
+      const real_t &rho0,
+      const matd &J0,
+      const matd &J,
+      const real_t &gamma,
+      const real_t &E,
+      const real_t &h0,
+      const real_t &order_v,
+      const real_t &w) const
+   {
+      auto stressJiT = mfem::get<0>(
+                          qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+      return mfem::tuple{ddot(stressJiT, dvdxi)};
+   }
+};
+
+class TotalInternalEnergyQFunction
+{
+public:
+   TotalInternalEnergyQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator() (
+      const real_t &E,
+      const real_t &rho0,
+      const matd &J0,
+      const real_t &w) const
+   {
+      return mfem::tuple{rho0 * E * det(J0) * w};
+   }
+};
+
+class TotalKineticEnergyQFunction
+{
+public:
+   TotalKineticEnergyQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator() (
+      const vecd &v,
+      const real_t &rho0,
+      const matd &J0,
+      const real_t &w) const
+   {
+      return mfem::tuple{rho0 * 0.5 * v * v * det(J0) * w};
+   }
+};
+
+class DensityQFunction
+{
+public:
+   DensityQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator() (
+      const real_t &rho0,
+      const matd &J0,
+      const real_t &w) const
+   {
+      return mfem::tuple{rho0 * det(J0) * w};
+   }
+};
+
 struct QuadratureData
 {
    static constexpr int aux_dim = 1;
@@ -167,60 +267,6 @@ struct QuadratureData
 
    ParametricSpace R;
    ParametricFunction h0, order_v, dt_est;
-};
-
-class FDJacobian : public Operator
-{
-public:
-   FDJacobian(const Operator &op, const Vector &x) :
-      Operator(op.Height()),
-      op(op),
-      x(x)
-   {
-      f.SetSize(Height());
-      xpev.SetSize(Height());
-      op.Mult(x, f);
-      xnorm = x.Norml2();
-   }
-
-   void Mult(const Vector &v, Vector &y) const override
-   {
-      x.HostRead();
-
-      // See [1] for choice of eps.
-      //
-      // [1] Woodward, C.S., Gardner, D.J. and Evans, K.J., 2015. On the use of
-      // finite difference matrix-vector products in Newton-Krylov solvers for
-      // implicit climate dynamics with spectral elements. Procedia Computer
-      // Science, 51, pp.2036-2045.
-      real_t eps = lambda * (lambda + xnorm / v.Norml2());
-
-      for (int i = 0; i < x.Size(); i++)
-      {
-         xpev(i) = x(i) + eps * v(i);
-      }
-
-      // y = f(x + eps * v)
-      op.Mult(xpev, y);
-
-      // y = (f(x + eps * v) - f(x)) / eps
-      for (int i = 0; i < x.Size(); i++)
-      {
-         y(i) = (y(i) - f(i)) / eps;
-      }
-   }
-
-   virtual MemoryClass GetMemoryClass() const override
-   {
-      return Device::GetDeviceMemoryClass();
-   }
-
-private:
-   const Operator &op;
-   Vector x, f;
-   mutable Vector xpev;
-   real_t lambda = 1.0e-6;
-   real_t xnorm;
 };
 
 class MassPAOperator : public Operator
@@ -295,21 +341,14 @@ public:
       jvp(k, y);
    }
 
-   template <
-      typename hydro_t,
-      typename dRvdx_t,
-      typename dRvdv_t,
-      typename dRvde_t,
-      typename dRedx_t,
-      typename dRedv_t,
-      typename dRede_t>
+   template <typename hydro_t>
    void Setup(hydro_t &hydro,
-              std::shared_ptr<dRvdx_t> dRvdx,
-              std::shared_ptr<dRvdv_t> dRvdv,
-              std::shared_ptr<dRvde_t> dRvde,
-              std::shared_ptr<dRedx_t> dRedx,
-              std::shared_ptr<dRedv_t> dRedv,
-              std::shared_ptr<dRede_t> dRede)
+              std::shared_ptr<DerivativeOperator> dRvdx,
+              std::shared_ptr<DerivativeOperator> dRvdv,
+              std::shared_ptr<DerivativeOperator> dRvde,
+              std::shared_ptr<DerivativeOperator> dRedx,
+              std::shared_ptr<DerivativeOperator> dRedv,
+              std::shared_ptr<DerivativeOperator> dRede)
    {
       w.SetSize(this->height);
       z.SetSize(this->height);
@@ -520,22 +559,28 @@ public:
       }
       else
       {
-         auto dRvdx = hydro.momentum_mf->template GetDerivativeWrt<3>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
-         auto dRvdv = hydro.momentum_mf->template GetDerivativeWrt<0>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
-         auto dRvde = hydro.momentum_mf->template GetDerivativeWrt<5>( { &uv }, { &hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v });
-         auto dRedx = hydro.energy_conservation_mf->template GetDerivativeWrt<4>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
-         auto dRedv = hydro.energy_conservation_mf->template GetDerivativeWrt<1>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
-         auto dRede = hydro.energy_conservation_mf->template GetDerivativeWrt<0>( { &ue }, { &uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v });
+         auto dRvdx = hydro.momentum_mf->GetDerivative(3, {&uv},
+         {&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
+
+         auto dRvdv = hydro.momentum_mf->GetDerivative(0, {&uv},
+         {&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
+
+         auto dRvde = hydro.momentum_mf->GetDerivative(5, {&uv},
+         {&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
+
+         auto dRedx = hydro.energy_conservation_mf->GetDerivative(4, {&ue},
+         {&uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
+
+         auto dRedv = hydro.energy_conservation_mf->GetDerivative(1, {&ue},
+         {&uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
+
+         auto dRede = hydro.energy_conservation_mf->GetDerivative(0, {&ue},
+         {&uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
 
          jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede);
          return *jacobian;
       }
    }
-
-   // virtual MemoryClass GetMemoryClass() const override
-   // {
-   //    return Device::GetDeviceMemoryClass();
-   // }
 
    hydro_t &hydro;
    const real_t dt;
@@ -548,13 +593,6 @@ public:
    bool fd_gradient;
 };
 
-template <
-   typename dtest_mf_t,
-   typename momentum_mf_t,
-   typename energy_conservation_mf_t,
-   typename total_internal_energy_mf_t,
-   typename total_kinetic_energy_mf_t,
-   typename density_mf_t>
 class LagrangianHydroOperator : public TimeDependentOperator
 {
 public:
@@ -567,12 +605,12 @@ public:
       ParGridFunction &x0_gf,
       ParGridFunction &rho0_gf,
       ParGridFunction &material_gf,
-      std::shared_ptr<dtest_mf_t> dtest_mf,
-      std::shared_ptr<momentum_mf_t> momentum_mf,
-      std::shared_ptr<energy_conservation_mf_t> energy_conservation_mf,
-      std::shared_ptr<total_internal_energy_mf_t> total_internal_energy_mf,
-      std::shared_ptr<total_kinetic_energy_mf_t> total_kinetic_energy_mf,
-      std::shared_ptr<density_mf_t>(density_mf),
+      std::shared_ptr<DifferentiableOperator> dtest_mf,
+      std::shared_ptr<DifferentiableOperator> momentum_mf,
+      std::shared_ptr<DifferentiableOperator> energy_conservation_mf,
+      std::shared_ptr<DifferentiableOperator> total_internal_energy_mf,
+      std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf,
+      std::shared_ptr<DifferentiableOperator> density_mf,
       std::shared_ptr<QuadratureData> qdata,
       bool fd_gradient) :
       TimeDependentOperator(2*H1.GetVSize()+L2.GetVSize()),
@@ -879,12 +917,12 @@ public:
    ParGridFunction &x0;
    ParGridFunction &rho0;
    ParGridFunction &material;
-   std::shared_ptr<dtest_mf_t> dtest_mf;
-   std::shared_ptr<momentum_mf_t> momentum_mf;
-   std::shared_ptr<energy_conservation_mf_t> energy_conservation_mf;
-   std::shared_ptr<total_internal_energy_mf_t> total_internal_energy_mf;
-   std::shared_ptr<total_kinetic_energy_mf_t> total_kinetic_energy_mf;
-   std::shared_ptr<density_mf_t> density_mf;
+   std::shared_ptr<DifferentiableOperator> dtest_mf;
+   std::shared_ptr<DifferentiableOperator> momentum_mf;
+   std::shared_ptr<DifferentiableOperator> energy_conservation_mf;
+   std::shared_ptr<DifferentiableOperator> total_internal_energy_mf;
+   std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf;
+   std::shared_ptr<DifferentiableOperator> density_mf;
    std::shared_ptr<QuadratureData> qdata;
    mutable ParGridFunction mesh_nodes, rhsvc, dvc;
    mutable MassPAOperator *Mv = nullptr, *Me = nullptr;
@@ -926,314 +964,282 @@ static auto CreateLagrangianHydroOperator(
    qdata->order_v = order_v;
    qdata->dt_est = std::numeric_limits<real_t>::infinity();
 
-   auto dt_est_kernel =
-      [] MFEM_HOST_DEVICE (
-         const matd &dvdxi,
-         const real_t &rho0,
-         const matd &J0,
-         const matd &J,
-         const real_t &gamma,
-         const real_t &E,
-         const real_t &h0,
-         const real_t &order_v,
-         const real_t &w)
+   std::shared_ptr<DifferentiableOperator> dt_est;
    {
-      real_t dt_est = mfem::get<1>(
-                         qdata_setup<true>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
-      return mfem::tuple{dt_est};
-   };
+      constexpr int VELOCITY = 0;
+      constexpr int DENSITY0 = 1;
+      constexpr int COORDINATES0 = 2;
+      constexpr int COORDINATES = 3;
+      constexpr int MATERIAL = 4;
+      constexpr int SPECIFIC_INTERNAL_ENERGY = 5;
+      constexpr int ELEMENT_SIZE0 = 6;
+      constexpr int ORDER_VEL = 7;
+      constexpr int DT_EST = 8;
 
-   mfem::tuple dt_est_kernel_ao =
+      mfem::tuple dt_est_kernel_ao =
+      {
+         Gradient<VELOCITY>{},
+         Value<DENSITY0>{},
+         Gradient<COORDINATES0>{},
+         Gradient<COORDINATES>{},
+         Value<MATERIAL>{},
+         Value<SPECIFIC_INTERNAL_ENERGY>{},
+         None<ELEMENT_SIZE0>{},
+         None<ORDER_VEL>{},
+         Weight{}
+      };
+
+      mfem::tuple dt_est_kernel_oo = {None<DT_EST>{}};
+
+      std::vector dt_est_solutions =
+      {
+         FieldDescriptor{DT_EST, &qdata->R}
+      };
+
+      std::vector dt_est_parameters =
+      {
+         FieldDescriptor{VELOCITY, &H1},
+         FieldDescriptor{DENSITY0, &L2},
+         FieldDescriptor{COORDINATES0, &H1},
+         FieldDescriptor{COORDINATES, &H1},
+         FieldDescriptor{MATERIAL, material_gf.ParFESpace()},
+         FieldDescriptor{SPECIFIC_INTERNAL_ENERGY, &L2},
+         FieldDescriptor{ELEMENT_SIZE0, &qdata->R},
+         FieldDescriptor{ORDER_VEL, &qdata->R}
+      };
+
+      dt_est = std::make_shared<DifferentiableOperator>(
+                  dt_est_solutions, dt_est_parameters, mesh);
+      TimeStepEstimateQFunction dt_est_qf;
+      dt_est->AddDomainIntegrator(dt_est_qf, dt_est_kernel_ao,
+                                  dt_est_kernel_oo,
+                                  ir);
+   }
+
+   // Create momentum operator
+   std::shared_ptr<DifferentiableOperator> momentum_mf;
    {
-      Gradient{"velocity"},
-      Value{"density0"},
-      Gradient{"coordinates0"},
-      Gradient{"coordinates"},
-      Value{"material"},
-      Value{"specific_internal_energy"},
-      None{"element_size0"},
-      None{"order_v"},
-      Weight{}
-   };
+      constexpr int VELOCITY = 0;
+      constexpr int DENSITY0 = 1;
+      constexpr int COORDINATES0 = 2;
+      constexpr int COORDINATES = 3;
+      constexpr int MATERIAL = 4;
+      constexpr int SPECIFIC_INTERNAL_ENERGY = 5;
+      constexpr int ELEMENT_SIZE0 = 6;
+      constexpr int ORDER_VEL = 7;
 
-   mfem::tuple dt_est_kernel_oo = {None{"dt_est"}};
+      mfem::tuple momentum_mf_kernel_ao =
+      {
+         Gradient<VELOCITY>{},
+         Value<DENSITY0>{},
+         Gradient<COORDINATES0>{},
+         Gradient<COORDINATES>{},
+         Value<MATERIAL>{},
+         Value<SPECIFIC_INTERNAL_ENERGY>{},
+         None<ELEMENT_SIZE0>{},
+         None<ORDER_VEL>{},
+         Weight{}
+      };
 
-   ElementOperator dt_est_eop{dt_est_kernel, dt_est_kernel_ao, dt_est_kernel_oo};
-   auto dt_est_ops = mfem::tuple{dt_est_eop};
+      mfem::tuple momentum_mf_kernel_oo = {Gradient<VELOCITY>{}};
 
-   std::array dt_est_solutions =
+      // <sigma, grad(w) * J^-T> * det(J) * weights
+      // <sigma(J^-T det(J) weights), grad(w)>
+
+      std::vector momentum_mf_solutions =
+      {
+         FieldDescriptor{VELOCITY, &H1}
+      };
+
+      std::vector momentum_mf_parameters =
+      {
+         FieldDescriptor{DENSITY0, &L2},
+         FieldDescriptor{COORDINATES0, &H1},
+         FieldDescriptor{COORDINATES, &H1},
+         FieldDescriptor{MATERIAL, material_gf.ParFESpace()},
+         FieldDescriptor{SPECIFIC_INTERNAL_ENERGY, &L2},
+         FieldDescriptor{ELEMENT_SIZE0, &qdata->R},
+         FieldDescriptor{ORDER_VEL, &qdata->R}
+      };
+
+      momentum_mf = std::make_shared<DifferentiableOperator>(
+                       momentum_mf_solutions, momentum_mf_parameters, mesh);
+
+      MomentumQFunction momentum_qf;
+      auto derivatives =
+         std::integer_sequence<size_t, VELOCITY, COORDINATES, SPECIFIC_INTERNAL_ENERGY> {};
+      momentum_mf->AddDomainIntegrator(momentum_qf, momentum_mf_kernel_ao,
+                                       momentum_mf_kernel_oo, ir, derivatives);
+   }
+
+   // Create energy conservation operator
+   std::shared_ptr<DifferentiableOperator> energy_conservation_mf;
    {
-      FieldDescriptor{&qdata->R, "dt_est"}
-   };
+      constexpr int SPECIFIC_INTERNAL_ENERGY = 0;
+      constexpr int VELOCITY = 1;
+      constexpr int DENSITY0 = 2;
+      constexpr int COORDINATES0 = 3;
+      constexpr int COORDINATES = 4;
+      constexpr int MATERIAL = 5;
+      constexpr int ELEMENT_SIZE0 = 6;
+      constexpr int ORDER_VEL = 7;
 
-   std::array dt_est_parameters =
+      mfem::tuple energy_conservation_mf_kernel_ao =
+      {
+         Gradient<VELOCITY>{},
+         Value<DENSITY0>{},
+         Gradient<COORDINATES0>{},
+         Gradient<COORDINATES>{},
+         Value<MATERIAL>{},
+         Value<SPECIFIC_INTERNAL_ENERGY>{},
+         None<ELEMENT_SIZE0>{},
+         None<ORDER_VEL>{},
+         Weight{}
+      };
+
+      mfem::tuple energy_conservation_mf_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
+
+      // <sigma, grad(v) * inv(J) * phi> * det(J) * w
+      // <sigma(J^-T det(J) w), grad(v) * inv(J)>
+
+      std::vector energy_conservation_mf_solutions =
+      {
+         FieldDescriptor{SPECIFIC_INTERNAL_ENERGY, &L2}
+      };
+
+      std::vector energy_conservation_mf_parameters =
+      {
+         FieldDescriptor{VELOCITY, &H1},
+         FieldDescriptor{DENSITY0, &L2},
+         FieldDescriptor{COORDINATES0, &H1},
+         FieldDescriptor{COORDINATES, &H1},
+         FieldDescriptor{MATERIAL, material_gf.ParFESpace()},
+         FieldDescriptor{ELEMENT_SIZE0, &qdata->R},
+         FieldDescriptor{ORDER_VEL, &qdata->R}
+      };
+
+      energy_conservation_mf =
+         std::make_shared<DifferentiableOperator>(
+            energy_conservation_mf_solutions, energy_conservation_mf_parameters, mesh);
+
+      EnergyConservationQFunction energy_conservation_qf;
+      auto derivatives =
+         std::integer_sequence<size_t, VELOCITY, COORDINATES, SPECIFIC_INTERNAL_ENERGY> {};
+      energy_conservation_mf->AddDomainIntegrator(
+         energy_conservation_qf, energy_conservation_mf_kernel_ao,
+         energy_conservation_mf_kernel_oo, ir, derivatives);
+   }
+
+   // Create total internal energy operator
+   std::shared_ptr<DifferentiableOperator> total_internal_energy_mf;
    {
-      FieldDescriptor{&H1, "velocity"},
-      FieldDescriptor{&L2, "density0"},
-      FieldDescriptor{&H1, "coordinates0"},
-      FieldDescriptor{&H1, "coordinates"},
-      FieldDescriptor{material_gf.ParFESpace(), "material"},
-      FieldDescriptor{&L2, "specific_internal_energy"},
-      FieldDescriptor{&qdata->R, "element_size0"},
-      FieldDescriptor{&qdata->R, "order_v"}
-   };
+      constexpr int SPECIFIC_INTERNAL_ENERGY = 0;
+      constexpr int DENSITY0 = 2;
+      constexpr int COORDINATES0 = 3;
 
-   auto dt_est = new DifferentiableOperator(dt_est_solutions,
-                                            dt_est_parameters,
-                                            dt_est_ops,
-                                            mesh, ir);
-   using dt_est_t = typename std::remove_pointer<decltype(dt_est)>::type;
+      mfem::tuple total_internal_energy_kernel_ao =
+      {
+         Value<SPECIFIC_INTERNAL_ENERGY>{},
+         Value<DENSITY0>{},
+         Gradient<COORDINATES0>{},
+         Weight{}
+      };
 
-   auto momentum_mf_kernel =
-      [] MFEM_HOST_DEVICE (
-         const matd &dvdxi,
-         const real_t &rho0,
-         const matd &J0,
-         const matd &J,
-         const real_t &gamma,
-         const real_t &E,
-         const real_t &h0,
-         const real_t &order_v,
-         const real_t &w)
+      mfem::tuple total_internal_energy_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
+
+      std::vector total_internal_energy_solutions =
+      {
+         FieldDescriptor{SPECIFIC_INTERNAL_ENERGY, &L2}
+      };
+
+      std::vector total_internal_energy_parameters =
+      {
+         FieldDescriptor{DENSITY0, &L2},
+         FieldDescriptor{COORDINATES0, &H1}
+      };
+
+      total_internal_energy_mf =
+         std::make_shared<DifferentiableOperator>(
+            total_internal_energy_solutions,
+            total_internal_energy_parameters,
+            mesh);
+
+      TotalInternalEnergyQFunction total_internal_energy_qf;
+      total_internal_energy_mf->AddDomainIntegrator(
+         total_internal_energy_qf, total_internal_energy_kernel_ao,
+         total_internal_energy_kernel_oo, ir);
+   }
+
+   // Create total kinetic energy operator
+   std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf;
    {
-      auto stressJiT = mfem::get<0>(
-                          qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+      constexpr int VELOCITY = 0;
+      constexpr int DENSITY0 = 1;
+      constexpr int COORDINATES0 = 2;
 
-      // out << gamma << " " << rho << " " << Ez << " " << p << " " << cs << "\n";
-      // out << stressJiT << "\n";
-      // TODO-bug: investigate transpose of matrices in return types
-      // return mfem::tuple{transpose(stressJiT)};
-      return mfem::tuple{stressJiT};
-   };
+      mfem::tuple total_kinetic_energy_kernel_ao =
+      {
+         Value<VELOCITY>{},
+         Value<DENSITY0>{},
+         Gradient<COORDINATES0>{},
+         Weight{}
+      };
 
-   mfem::tuple momentum_mf_kernel_ao =
+      mfem::tuple total_kinetic_energy_kernel_oo = {Value<DENSITY0>{}};
+
+      std::vector total_kinetic_energy_solutions =
+      {
+         FieldDescriptor{VELOCITY, &H1}
+      };
+
+      std::vector total_kinetic_energy_parameters =
+      {
+         FieldDescriptor{DENSITY0, &L2},
+         FieldDescriptor{COORDINATES0, &H1}
+      };
+
+      total_kinetic_energy_mf =
+         std::make_shared<DifferentiableOperator>(
+            total_kinetic_energy_solutions,
+            total_kinetic_energy_parameters, mesh);
+      TotalKineticEnergyQFunction total_kinetic_energy_qf;
+      total_kinetic_energy_mf->AddDomainIntegrator(
+         total_kinetic_energy_qf, total_kinetic_energy_kernel_ao,
+         total_kinetic_energy_kernel_oo, ir);
+   }
+
+   // Create density operator
+   std::shared_ptr<DifferentiableOperator> density_mf;
    {
-      Gradient{"velocity"},
-      Value{"density0"},
-      Gradient{"coordinates0"},
-      Gradient{"coordinates"},
-      Value{"material"},
-      Value{"specific_internal_energy"},
-      None{"element_size0"},
-      None{"order_v"},
-      Weight{}
-   };
+      constexpr int DENSITY0 = 0;
+      constexpr int COORDINATES0 = 1;
 
-   mfem::tuple momentum_mf_kernel_oo = {Gradient{"velocity"}};
+      mfem::tuple density_kernel_ao =
+      {
+         Value<DENSITY0>{},
+         Gradient<COORDINATES0>{},
+         Weight{}
+      };
 
-   // <sigma, grad(w) * J^-T> * det(J) * weights
-   // <sigma(J^-T det(J) weights), grad(w)>
-   ElementOperator momentum_mf_eop{momentum_mf_kernel, momentum_mf_kernel_ao, momentum_mf_kernel_oo};
-   auto momentum_mf_ops = mfem::tuple{momentum_mf_eop};
+      mfem::tuple density_kernel_oo = {Value<DENSITY0>{}};
 
-   std::array momentum_mf_solutions =
-   {
-      FieldDescriptor{&H1, "velocity"}
-   };
+      std::vector density_solutions =
+      {
+         FieldDescriptor{DENSITY0, &L2}
+      };
 
-   std::array momentum_mf_parameters =
-   {
-      FieldDescriptor{&L2, "density0"},
-      FieldDescriptor{&H1, "coordinates0"},
-      FieldDescriptor{&H1, "coordinates"},
-      FieldDescriptor{material_gf.ParFESpace(), "material"},
-      FieldDescriptor{&L2, "specific_internal_energy"},
-      FieldDescriptor{&qdata->R, "element_size0"},
-      FieldDescriptor{&qdata->R, "order_v"}
-   };
+      std::vector density_parameters =
+      {
+         FieldDescriptor{COORDINATES0, &H1}
+      };
 
-   auto momentum_mf = new DifferentiableOperator(momentum_mf_solutions,
-                                                 momentum_mf_parameters,
-                                                 momentum_mf_ops,
-                                                 mesh, ir);
-   using momentum_mf_t = typename
-                         std::remove_pointer<decltype(momentum_mf)>::type;
+      density_mf = std::make_shared<DifferentiableOperator>(
+                      density_solutions, density_parameters, mesh);
 
-   auto energy_conservation_mf_kernel =
-      [] MFEM_HOST_DEVICE (
-         const matd &dvdxi,
-         const real_t &rho0,
-         const matd &J0,
-         const matd &J,
-         const real_t &gamma,
-         const real_t &E,
-         const real_t &h0,
-         const real_t &order_v,
-         const real_t &w)
-   {
-      auto stressJiT = mfem::get<0>(
-                          qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
-      return mfem::tuple{ddot(stressJiT, dvdxi)};
-   };
-
-   mfem::tuple energy_conservation_mf_kernel_ao =
-   {
-      Gradient{"velocity"},
-      Value{"density0"},
-      Gradient{"coordinates0"},
-      Gradient{"coordinates"},
-      Value{"material"},
-      Value{"specific_internal_energy"},
-      None{"element_size0"},
-      None{"order_v"},
-      Weight{}
-   };
-
-   mfem::tuple energy_conservation_mf_kernel_oo = {Value{"specific_internal_energy"}};
-
-   // <sigma, grad(v) * inv(J) * phi> * det(J) * w
-   // <sigma(J^-T det(J) w), grad(v) * inv(J)>
-   ElementOperator energy_conservation_mf_eop{energy_conservation_mf_kernel, energy_conservation_mf_kernel_ao, energy_conservation_mf_kernel_oo};
-   auto energy_conservation_mf_ops = mfem::tuple{energy_conservation_mf_eop};
-
-   std::array energy_conservation_mf_solutions =
-   {
-      FieldDescriptor{&L2, "specific_internal_energy"}
-   };
-
-   std::array energy_conservation_mf_parameters =
-   {
-      FieldDescriptor{&H1, "velocity"},
-      FieldDescriptor{&L2, "density0"},
-      FieldDescriptor{&H1, "coordinates0"},
-      FieldDescriptor{&H1, "coordinates"},
-      FieldDescriptor{material_gf.ParFESpace(), "material"},
-      FieldDescriptor{&qdata->R, "element_size0"},
-      FieldDescriptor{&qdata->R, "order_v"}
-   };
-
-   auto energy_conservation_mf = new DifferentiableOperator(
-      energy_conservation_mf_solutions,
-      energy_conservation_mf_parameters,
-      energy_conservation_mf_ops,
-      mesh, ir);
-   using energy_conservation_mf_t = typename
-                                    std::remove_pointer<decltype(energy_conservation_mf)>::type;
-
-   auto total_internal_energy_kernel =
-      [] MFEM_HOST_DEVICE (
-         const real_t &E,
-         const real_t &rho0,
-         const matd &J0,
-         const real_t &w)
-   {
-      return mfem::tuple{rho0 * E * det(J0) * w};
-   };
-
-   mfem::tuple total_internal_energy_kernel_ao =
-   {
-      Value{"specific_internal_energy"},
-      Value{"density0"},
-      Gradient{"coordinates0"},
-      Weight{}
-   };
-
-   mfem::tuple total_internal_energy_kernel_oo = {Value{"specific_internal_energy"}};
-
-   ElementOperator total_internal_energy_eop{total_internal_energy_kernel, total_internal_energy_kernel_ao, total_internal_energy_kernel_oo};
-   auto total_internal_energy_ops = mfem::tuple{total_internal_energy_eop};
-
-   std::array total_internal_energy_solutions =
-   {
-      FieldDescriptor{&L2, "specific_internal_energy"}
-   };
-
-   std::array total_internal_energy_parameters =
-   {
-      FieldDescriptor{&L2, "density0"},
-      FieldDescriptor{&H1, "coordinates0"}
-   };
-
-   auto total_internal_energy_mf = new DifferentiableOperator(
-      total_internal_energy_solutions,
-      total_internal_energy_parameters,
-      total_internal_energy_ops,
-      mesh, ir);
-
-   using total_internal_energy_mf_t = typename
-                                      std::remove_pointer<decltype(total_internal_energy_mf)>::type;
-
-   auto total_kinetic_energy_kernel =
-      [] MFEM_HOST_DEVICE (
-         const vecd &v,
-         const real_t &rho0,
-         const matd &J0,
-         const real_t &w)
-   {
-      return mfem::tuple{rho0 * 0.5 * v * v * det(J0) * w};
-   };
-
-   mfem::tuple total_kinetic_energy_kernel_ao =
-   {
-      Value{"velocity"},
-      Value{"density0"},
-      Gradient{"coordinates0"},
-      Weight{}
-   };
-
-   mfem::tuple total_kinetic_energy_kernel_oo = {Value{"density0"}};
-
-   ElementOperator total_kinetic_energy_eop{total_kinetic_energy_kernel, total_kinetic_energy_kernel_ao, total_kinetic_energy_kernel_oo};
-   auto total_kinetic_energy_ops = mfem::tuple{total_kinetic_energy_eop};
-
-   std::array total_kinetic_energy_solutions =
-   {
-      FieldDescriptor{&H1, "velocity"}
-   };
-
-   std::array total_kinetic_energy_parameters =
-   {
-      FieldDescriptor{&L2, "density0"},
-      FieldDescriptor{&H1, "coordinates0"}
-   };
-
-   auto total_kinetic_energy_mf = new DifferentiableOperator(
-      total_kinetic_energy_solutions,
-      total_kinetic_energy_parameters,
-      total_kinetic_energy_ops,
-      mesh, ir);
-
-   using total_kinetic_energy_mf_t = typename
-                                     std::remove_pointer<decltype(total_kinetic_energy_mf)>::type;
-
-   auto density_kernel =
-      [] MFEM_HOST_DEVICE (
-         const real_t &rho0,
-         const matd &J0,
-         const real_t &w)
-   {
-      return mfem::tuple{rho0 * det(J0) * w};
-   };
-
-   mfem::tuple density_kernel_ao =
-   {
-      Value{"density0"},
-      Gradient{"coordinates0"},
-      Weight{}
-   };
-
-   mfem::tuple density_kernel_oo = {Value{"density0"}};
-
-   ElementOperator density_eop{density_kernel, density_kernel_ao, density_kernel_oo};
-   auto density_ops = mfem::tuple{density_eop};
-
-   std::array density_solutions =
-   {
-      FieldDescriptor{&L2, "density0"}
-   };
-
-   std::array density_parameters =
-   {
-      FieldDescriptor{&H1, "coordinates0"}
-   };
-
-   auto density_mf = new DifferentiableOperator(
-      density_solutions,
-      density_parameters,
-      density_ops,
-      mesh, ir);
-
-   using density_mf_t = typename std::remove_pointer<decltype(density_mf)>::type;
+      DensityQFunction density_qf;
+      density_mf->AddDomainIntegrator(density_qf, density_kernel_ao,
+                                      density_kernel_oo, ir);
+   }
 
    return LagrangianHydroOperator(
              H1,
@@ -1244,12 +1250,12 @@ static auto CreateLagrangianHydroOperator(
              x0_gf,
              rho0_gf,
              material_gf,
-             std::shared_ptr<dt_est_t>(dt_est),
-             std::shared_ptr<momentum_mf_t>(momentum_mf),
-             std::shared_ptr<energy_conservation_mf_t>(energy_conservation_mf),
-             std::shared_ptr<total_internal_energy_mf_t>(total_internal_energy_mf),
-             std::shared_ptr<total_kinetic_energy_mf_t>(total_kinetic_energy_mf),
-             std::shared_ptr<density_mf_t>(density_mf),
+             dt_est,
+             momentum_mf,
+             energy_conservation_mf,
+             total_internal_energy_mf,
+             total_kinetic_energy_mf,
+             density_mf,
              qdata,
              fd_gradient);
 }

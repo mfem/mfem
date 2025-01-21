@@ -1,6 +1,4 @@
 #include "dfem/dfem_refactor.hpp"
-#include "examples/dfem/dfem_util.hpp"
-#include "linalg/hypre.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
@@ -12,22 +10,24 @@ public:
    AdvDiffQFunction() = default;
 
    MFEM_HOST_DEVICE inline
-   auto operator() (const tensor<real_t, dim>& dudxi,
-                    const tensor<real_t, dim, dim>& J,
-                    const real_t& w) const
+   auto operator() (
+      const double &u,
+      const tensor<real_t, dim>& dudxi,
+      const tensor<real_t, dim, dim>& J,
+      const real_t& w) const
    {
       auto invJ = inv(J);
 
       // Advection
-      // auto b = tensor<real_t, dim> {1.0, 1.0};
-      // auto advection = -b * u;
+      auto b = tensor<real_t, dim> {1.0, 1.0};
+      auto advection = -b * u;
 
       // Diffusion
-      // auto K = 1.0 / (1.0 + u*u);
-      // auto diffusion = K * (dudxi * invJ);
-      auto diffusion = dudxi * invJ;
+      auto K = 1.0 / (1.0 + u*u);
+      auto diffusion = K * (dudxi * invJ);
+      // auto diffusion = dudxi * invJ;
 
-      return mfem::tuple{(/*advection + */diffusion) * transpose(invJ) * det(J) * w};
+      return mfem::tuple{(advection + diffusion) * transpose(invJ) * det(J) * w};
    }
 };
 
@@ -78,7 +78,7 @@ class AdvDiffOp : public TimeDependentOperator
          k_elim = k;
          k_elim.SetSubVector(a.ess_tdof_list, 0.0);
 
-         // dRdu->Mult(k_elim, y);
+         dRdu->Mult(k_elim, y);
          y *= h;
          a.M->AddMult(k_elim, y);
 
@@ -108,13 +108,6 @@ class AdvDiffOp : public TimeDependentOperator
       {
          HypreParMatrix A;
          u = 0.0;
-         a.adv_diff->GetDerivative(Concentration, {&u}, {a.mesh_nodes})->Assemble(A);
-
-         out << "A HypreParMatrix\n";
-         A.PrintMatlab(out);
-
-         out << "FD\n";
-         FDJacobian(*a.adv_diff.get(), x).PrintMatlab(out);
       }
 
       void Mult(const Vector &k, Vector &R) const override
@@ -168,7 +161,7 @@ public:
                    (mesh->GetNodes());
       ParFiniteElementSpace& mesh_fes = *mesh_nodes->ParFESpace();
 
-      auto input_operators = mfem::tuple{Gradient<Concentration>{}, Gradient<Coordinates>{}, Weight{}};
+      auto input_operators = mfem::tuple{Value<Concentration>{}, Gradient<Concentration>{}, Gradient<Coordinates>{}, Weight{}};
       auto output_operator = mfem::tuple{Gradient<Concentration>{}};
 
       auto solutions = std::vector{FieldDescriptor{Concentration, &fes}};

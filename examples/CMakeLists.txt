@@ -74,6 +74,7 @@ if (MFEM_USE_MPI)
     dfem_test_interpolate_linear_vector_3d.cpp
     dfem_test_objective.cpp
     dfem_nonlinear_advdiff.cpp
+    dfem_advection_supg.cpp
     dfem_navier_stokes.cpp
     dfem_navier_stokes_edac.cpp
     ex0p.cpp
@@ -149,6 +150,7 @@ target_link_libraries(dfem_test_objective ClangEnzymeFlags)
 target_link_libraries(dfem_nonlinear_advdiff ClangEnzymeFlags)
 target_link_libraries(dfem_navier_stokes ClangEnzymeFlags)
 target_link_libraries(dfem_navier_stokes_edac ClangEnzymeFlags)
+target_link_libraries(dfem_advection_supg ClangEnzymeFlags)
 
 # Add a test for each example
 if (MFEM_ENABLE_TESTING)

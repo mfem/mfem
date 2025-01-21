@@ -9,8 +9,6 @@
 #include "dfem_qfunction_dual.hpp"
 #include "examples/dfem/dfem_fieldoperator.hpp"
 #include "examples/dfem/dfem_util.hpp"
-#include "general/error.hpp"
-#include "linalg/hypre.hpp"
 
 namespace mfem
 {
@@ -44,6 +42,7 @@ public:
       const FieldDescriptor &direction,
       const std::vector<Vector *> &solutions_l,
       const std::vector<Vector *> &parameters_l,
+      const int &derivative_action_l_size,
       const restriction_callback_t &restriction_callback,
       const std::function<void(Vector &, Vector &)> &prolongation_transpose,
       const std::vector<assemble_derivative_vector_callback_t>
@@ -55,7 +54,7 @@ public:
       derivative_actions(derivative_actions),
       derivative_actions_transpose(derivative_actions_transpose),
       direction(direction),
-      derivative_action_l(GetVSize(direction)),
+      derivative_action_l(derivative_action_l_size),
       prolongation_transpose(prolongation_transpose),
       assemble_derivative_vector_callbacks(assemble_derivative_vector_callbacks),
       assembled_vector_size(assembled_vector_size),
@@ -219,6 +218,7 @@ public:
                 fields[derivative_idx],
                 solutions_l,
                 parameters_l,
+                residual_l.Size(),
                 restriction_callback,
                 prolongation_transpose,
                 assemble_derivative_vector_callbacks[derivative_idx],
@@ -369,9 +369,8 @@ void DifferentiableOperator::AddDomainIntegrator(
    auto entity_element_type =  mesh.GetElement(0)->GetType();
    if ((entity_element_type == Element::QUADRILATERAL ||
         entity_element_type == Element::HEXAHEDRON) &&
-       use_tensor_product_structure == false)
+       use_tensor_product_structure == true)
    {
-      MFEM_WARNING("using tensor product structure");
       use_sum_factorization = true;
    }
 
@@ -583,7 +582,7 @@ void DifferentiableOperator::AddDomainIntegrator(
    for_constexpr([&](auto derivative_idx)
    {
       const auto direction = fields[derivative_idx];
-      const size_t derivative_action_l_size = GetVSize(direction);
+      // const size_t derivative_action_l_size = GetVSize(fields[test_space_field_idx]);
       const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
                                                       fields[test_space_field_idx]);
 
@@ -980,7 +979,6 @@ void DifferentiableOperator::AddDomainIntegrator(
 
             for (int e = 0; e < num_elements; e++)
             {
-               out << "element >>> " << e << std::endl;
                auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, direction_shmem,
                                       input_shmem, shadow_shmem, residual_shmem, scratch_shmem] =
                unpack_shmem(shmem, shmem_info, input_dtq_maps,
@@ -1041,30 +1039,30 @@ void DifferentiableOperator::AddDomainIntegrator(
                auto fhat = Reshape(fhat_mem.ReadWrite(), test_vdim, test_op_dim, num_qp);
                if (use_sum_factorization)
                {
-                  for (int Jx = 0; Jx < num_trial_dof_1d; Jx++)
+                  if (dimension == 2)
                   {
-                     for (int Jy = 0; Jy < num_trial_dof_1d; Jy++)
+                     for (int Jx = 0; Jx < num_trial_dof_1d; Jx++)
                      {
-                        const int J = Jy + Jx * num_trial_dof_1d;
-
-                        for (int j = 0; j < trial_vdim; j++)
+                        for (int Jy = 0; Jy < num_trial_dof_1d; Jy++)
                         {
-                           fhat_mem = 0.0;
-                           size_t m_offset = 0;
-                           for_constexpr_with_arg([&](auto s, auto&& input_fop)
+                           const int J = Jy + Jx * num_trial_dof_1d;
+
+                           for (int j = 0; j < trial_vdim; j++)
                            {
-                              if (!input_is_dependent[s])
+                              fhat_mem = 0.0;
+                              size_t m_offset = 0;
+                              for_constexpr_with_arg([&](auto s, auto&& input_fop)
                               {
-                                 return;
-                              }
+                                 if (!input_is_dependent[s])
+                                 {
+                                    return;
+                                 }
 
-                              int trial_op_dim = input_size_on_qp[s] / mfem::get<s>(inputs).vdim;
+                                 int trial_op_dim = input_size_on_qp[s] / mfem::get<s>(inputs).vdim;
 
-                              auto &B = input_dtq_maps[s].B;
-                              auto &G = input_dtq_maps[s].G;
+                                 auto &B = input_dtq_maps[s].B;
+                                 auto &G = input_dtq_maps[s].G;
 
-                              if (dimension == 2)
-                              {
                                  if constexpr (is_gradient_fop<std::decay_t<decltype(input_fop)>>::value)
                                  {
                                     for (int qx = 0; qx < q1d; qx++)
@@ -1093,13 +1091,13 @@ void DifferentiableOperator::AddDomainIntegrator(
                                        }
                                     }
                                  }
-                              }
-                              m_offset += trial_op_dim;
-                           }, inputs);
-                           auto bvtfhat = Reshape(&A_e(0, 0, J, j, e), num_test_dof, test_vdim);
-                           map_quadrature_data_to_fields(
-                              bvtfhat, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
-                              scratch_shmem, dimension, use_sum_factorization);
+                                 m_offset += trial_op_dim;
+                              }, inputs);
+                              auto bvtfhat = Reshape(&A_e(0, 0, J, j, e), num_test_dof, test_vdim);
+                              map_quadrature_data_to_fields(
+                                 bvtfhat, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
+                                 scratch_shmem, dimension, use_sum_factorization);
+                           }
                         }
                      }
                   }
@@ -1176,51 +1174,61 @@ void DifferentiableOperator::AddDomainIntegrator(
             auto test_fes = *std::get_if<const ParFiniteElementSpace *>
                             (&fields[output_to_field[0]].data);
 
-            SparseMatrix mat(test_fes->GlobalVSize(), trial_fes->GlobalVSize());
+            SparseMatrix mat(test_fes->GetVSize(), trial_fes->GetVSize());
 
             if (test_fes == nullptr)
             {
                MFEM_ABORT("internal error");
             }
 
-            for (int e = 0; e < num_elements; e++)
+            if (same_test_and_trial && use_sum_factorization)
             {
-               auto tmp = Reshape(Ae_mem.ReadWrite(), num_test_dof * test_vdim,
-                                  num_trial_dof * trial_vdim, num_elements);
-               DenseMatrix A_e(&tmp(0, 0, e), num_test_dof * test_vdim,
-                               num_trial_dof * trial_vdim);
-
-               Array<int> test_vdofs, trial_vdofs;
-               test_fes->GetElementVDofs(e, test_vdofs);
-               GetElementVDofs(*trial_field, e, trial_vdofs);
-
-               if (use_sum_factorization)
+               const ElementRestriction &rest =
+                  static_cast<const ElementRestriction&>(
+                     *test_fes->GetElementRestriction(element_dof_ordering));
+               rest.FillSparseMatrix(Ae_mem, mat);
+            }
+            else
+            {
+               for (int e = 0; e < num_elements; e++)
                {
-                  Array<int> test_vdofs_mapped(test_vdofs.Size()),
-                        trial_vdofs_mapped(trial_vdofs.Size());
+                  auto tmp = Reshape(Ae_mem.ReadWrite(), num_test_dof * test_vdim,
+                                     num_trial_dof * trial_vdim, num_elements);
+                  DenseMatrix A_e(&tmp(0, 0, e), num_test_dof * test_vdim,
+                                  num_trial_dof * trial_vdim);
 
-                  const Array<int> &test_dofmap =
-                     dynamic_cast<const TensorBasisElement&>(*test_fes->GetFE(0)).GetDofMap();
-                  test_vdofs.Print();
-                  test_dofmap.Print();
+                  Array<int> test_vdofs, trial_vdofs;
+                  test_fes->GetElementVDofs(e, test_vdofs);
+                  GetElementVDofs(*trial_field, e, trial_vdofs);
 
-                  for (int i = 0; i < test_vdofs.Size(); i++)
+                  if (use_sum_factorization)
                   {
-                     test_vdofs_mapped[i] = test_vdofs[test_dofmap[i]];
-                  }
+                     Array<int> test_vdofs_mapped(test_vdofs.Size()),
+                           trial_vdofs_mapped(trial_vdofs.Size());
 
-                  const Array<int> &trial_dofmap =
-                     dynamic_cast<const TensorBasisElement&>(*trial_fes->GetFE(0)).GetDofMap();
-                  for (int i = 0; i < trial_vdofs.Size(); i++)
+                     const Array<int> &test_dofmap =
+                        dynamic_cast<const TensorBasisElement&>(*test_fes->GetFE(0)).GetDofMap();
+                     test_vdofs.Print();
+                     test_dofmap.Print();
+
+                     for (int i = 0; i < test_vdofs.Size(); i++)
+                     {
+                        test_vdofs_mapped[i] = test_vdofs[test_dofmap[i]];
+                     }
+
+                     const Array<int> &trial_dofmap =
+                        dynamic_cast<const TensorBasisElement&>(*trial_fes->GetFE(0)).GetDofMap();
+                     for (int i = 0; i < trial_vdofs.Size(); i++)
+                     {
+                        trial_vdofs_mapped[i] = trial_vdofs[trial_dofmap[i]];
+                     }
+
+                     mat.AddSubMatrix(test_vdofs_mapped, trial_vdofs_mapped, A_e, 1);
+                  }
+                  else
                   {
-                     trial_vdofs_mapped[i] = trial_vdofs[trial_dofmap[i]];
+                     mat.AddSubMatrix(test_vdofs, trial_vdofs, A_e, 1);
                   }
-
-                  mat.AddSubMatrix(test_vdofs_mapped, trial_vdofs_mapped, A_e, 1);
-               }
-               else
-               {
-                  mat.AddSubMatrix(test_vdofs, trial_vdofs, A_e, 1);
                }
             }
             mat.Finalize();

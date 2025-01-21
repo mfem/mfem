@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
    newton.SetOperator(navierstokes);
    newton.SetSolver(solver);
    newton.SetRelTol(1e-8);
-   newton.SetMaxIter(50);
+   newton.SetMaxIter(500);
    newton.SetPrintLevel(1);
 
    Vector zero;

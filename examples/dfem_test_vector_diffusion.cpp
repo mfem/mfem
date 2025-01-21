@@ -1,8 +1,23 @@
-#include "dfem/dfem.hpp"
 #include "dfem/dfem_test_macro.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
+
+template <int dim = 2>
+class VectorDiffusionQFunction
+{
+public:
+   VectorDiffusionQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator() (const tensor<real_t, dim, dim>& dudxi,
+                    const tensor<real_t, dim, dim>& J,
+                    const real_t& w) const
+   {
+      auto invJ = inv(J);
+      return mfem::tuple{dudxi * invJ * det(J) * w * transpose(invJ)};
+   }
+};
 
 int test_vector_diffusion(std::string mesh_file,
                           int refinements,
@@ -32,14 +47,14 @@ int test_vector_diffusion(std::string mesh_file,
    h1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof);
 
    const IntegrationRule &ir =
-      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder() - 1);
+      IntRules.Get(h1fes.GetFE(0)->GetGeomType(), 2 * h1fec.GetOrder() + 1);
 
    ParGridFunction u(&h1fes);
 
    auto f1 = [](const Vector& coords, Vector &u)
    {
-      const double x = coords(0);
-      const double y = coords(1);
+      const real_t x = coords(0);
+      const real_t y = coords(1);
       u(0) = 2.345 + 0.25 * x * x * y + y * y * x;
       u(1) = 2.345 - 0.25 * x * y * y + y * x * x;
    };
@@ -47,29 +62,21 @@ int test_vector_diffusion(std::string mesh_file,
    VectorFunctionCoefficient u_c(dim, f1);
    u.ProjectCoefficient(u_c);
 
-   auto vector_diffusion_kernel = [](const tensor<double, 2> &xi,
-                                     const tensor<double, 2, 2> &dudxi,
-                                     const tensor<double, 2, 2> &J,
-                                     const double &w)
-   {
-      out << "xi: " << xi << "\n";
-      out << "dudxi: " << dudxi << "\n";
-      return mfem::tuple{dudxi * inv(J) * det(J) * w * transpose(inv(J))};
-      // return mfem::tuple{dudxi};
-   };
+   constexpr int Potential = 0;
+   constexpr int Coordinates = 1;
 
-   mfem::tuple argument_operators{Value{"coordinates"}, Gradient{"potential"}, Gradient{"coordinates"}, Weight{}};
-   mfem::tuple output_operator{Gradient{"potential"}};
+   std::vector solutions{FieldDescriptor{Potential, &h1fes}};
+   std::vector parameters{FieldDescriptor{Coordinates, &mesh_fes}};
+   DifferentiableOperator dop{solutions, parameters, mesh};
 
-   ElementOperator op{vector_diffusion_kernel, argument_operators, output_operator};
+   VectorDiffusionQFunction vector_diffusion_kernel;
+   mfem::tuple input_operators{Gradient<Potential>{}, Gradient<Coordinates>{}, Weight{}};
+   mfem::tuple output_operator{Gradient<Potential>{}};
+   auto derivatives = std::integer_sequence<size_t, Potential> {};
+   dop.AddDomainIntegrator(vector_diffusion_kernel, input_operators,
+                           output_operator, ir, derivatives);
 
-   std::array solutions{FieldDescriptor{&h1fes, "potential"}};
-   std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
-
-   DifferentiableOperator dop{solutions, parameters, mfem::tuple{op}, mesh, ir};
-
-   Vector x(u), y1(h1fes.GetTrueVSize()),
-          y2(h1fes.GetTrueVSize());
+   Vector x(u), y1(h1fes.GetTrueVSize()), y2(h1fes.GetTrueVSize());
 
    ParBilinearForm A_form(&h1fes);
    auto A_integ = new VectorDiffusionIntegrator(vdim);
@@ -78,9 +85,17 @@ int test_vector_diffusion(std::string mesh_file,
    A_form.Assemble();
    A_form.Finalize();
 
+   HypreParMatrix *A_mfem = A_form.ParallelAssemble();
+   A_mfem->PrintMatlab(out);
+   out << "\n";
+
    dop.SetParameters({mesh_nodes});
    dop.Mult(x, y1);
    y1.HostRead();
+
+   HypreParMatrix A_dfem;
+   dop.GetDerivative(Potential, {&u}, {mesh_nodes})->Assemble(A_dfem);
+   A_dfem.PrintMatlab(out);
 
    A_form.Mult(x, y2);
    y2.HostRead();
