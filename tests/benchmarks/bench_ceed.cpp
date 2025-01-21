@@ -44,7 +44,7 @@ struct BakeOff
       mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
       fec(p, dim, BasisType::GaussLobatto),
       fes(&mesh, &fec, vdim),
-      geom_type(fes.GetFE(0)->GetGeomType()),
+      geom_type(mesh.GetTypicalElementGeometry()),
       IntRulesGLL(0, Quadrature1D::GaussLobatto),
       irGLL(&IntRulesGLL.Get(geom_type, q)),
       ir(&IntRules.Get(geom_type, q)),
