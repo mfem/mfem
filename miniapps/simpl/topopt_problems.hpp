@@ -37,6 +37,7 @@ enum TopoptProblem
    // 2D
    MultiFrame2=221,
    MultiBridge2=222,
+   MultiTopBottom2=223,
 };
 
 enum ThermalTopoptProblem

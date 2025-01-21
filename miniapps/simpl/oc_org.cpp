@@ -24,7 +24,8 @@ int main(int argc, char *argv[])
    int vis_steps = 10;
    bool use_paraview = true;
    bool overwrite_paraview = false;
-   real_t step_size = 1.0;
+   real_t step_size = 0.5;
+   real_t max_ch=0.1;
 
    real_t exponent = 3.0;
    real_t rho0 = 1e-06;
@@ -107,6 +108,8 @@ int main(int argc, char *argv[])
                   "Tolerance for absolute successive objective difference");
    args.AddOption(&step_size, "-a0", "--init-step",
                   "Initial step size");
+   args.AddOption(&max_ch, "-ch", "--max-change",
+                  "Maximum change in control variable");
    args.AddOption(&use_bregman_backtrack, "-bb", "--bregman-backtrack", "-ab",
                   "--armijo-backtrack",
                   "Option to choose Bregman backtracking algorithm or Armijo backtracking algorithm");
@@ -136,7 +139,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    std::stringstream filename;
-   filename << "OC-";
+   filename << "OC-" << max_ch << "-";
 
    Array2D<int> ess_bdr_state;
    Array<int> ess_bdr_filter;
@@ -165,6 +168,8 @@ int main(int argc, char *argv[])
       out << "   --mu " << mu << std::endl;
    }
 
+   const int nrObj = std::max(1, prob / 100);
+
    // Finite Element
    L2_FECollection fec_control(order_control, dim);
    H1_FECollection fec_filter(order_filter, dim);
@@ -189,7 +194,8 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) { out << "Creating gridfunctions ... " << std::flush; }
    ParGridFunction control_gf(&fes_control); control_gf = 0.0;
    ParGridFunction filter_gf(&fes_filter); filter_gf = 0.0;
-   ParGridFunction state_gf(&fes_state); state_gf = 0.0;
+   std::vector<std::unique_ptr<GridFunction>> state_gf(nrObj);
+   for (auto &curr_state:state_gf) { curr_state.reset(new ParGridFunction(&fes_state)); *curr_state = 0.0; }
    ParGridFunction grad_gf(&fes_control); grad_gf = 0.0;
    ParGridFunction grad_filter_gf(&fes_filter); grad_filter_gf = 0.0;
 
@@ -233,27 +239,40 @@ int main(int argc, char *argv[])
    density.SetSolidAttr(solid_attr);
    // Filter
    HelmholtzFilter filter(fes_filter, ess_bdr_filter, r_min, true);
-   filter.GetLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(density_cf));
+   filter.GetLinearForm()[0]->AddDomainIntegrator(new DomainLFIntegrator(
+                                                     density_cf));
+   filter.SetAStationary(false);
    filter.SetBStationary(false);
-   StrainEnergyDensityCoefficient energy(lambda_cf, mu_cf, der_simp_cf, state_gf,
-                                         nullptr);
-   filter.GetAdjLinearForm()->AddDomainIntegrator(new DomainLFIntegrator(energy));
+   std::vector<std::unique_ptr<StrainEnergyDensityCoefficient>> energy(nrObj);
+   for (int i=0; i<state_gf.size(); i++)
+   {
+      energy[i].reset(new StrainEnergyDensityCoefficient(
+                         lambda_cf, mu_cf, der_simp_cf, *state_gf[i], nullptr));
+      filter.GetAdjLinearForm()[0]->AddDomainIntegrator(new DomainLFIntegrator(
+                                                           *energy[i]));
+   }
    filter.SetAdjBStationary(false);
    if (prob == mfem::ForceInverter2)
    {
       ForceInverterInitialDesign(control_gf, &entropy);
    }
-   filter.Solve(filter_gf);
+   filter.Solve(filter_gf, false, 0);
 
    // elasticity
    ElasticityProblem elasticity(fes_state, ess_bdr_state, lambda_simp_cf,
-                                mu_simp_cf, prob < 0);
+                                mu_simp_cf, prob < 0, nrObj);
    elasticity.SetAStationary(false);
    SetupTopoptProblem(prob, filter, elasticity, filter_gf, state_gf);
    DensityBasedTopOpt optproblem(density, control_gf, grad_gf,
                                  filter, filter_gf, grad_filter_gf,
                                  elasticity, state_gf);
-   if (elasticity.HasAdjoint()) {energy.SetAdjState(optproblem.GetAdjState());}
+   if (elasticity.HasAdjoint())
+   {
+      for (int i=0; i<state_gf.size(); i++)
+      {
+         energy[i]->SetAdjState(*optproblem.GetAdjState()[i]);
+      }
+   }
    if (Mpi::Root()) { out << "done" << std::endl; }
 
    // Backtracking related stuffs
@@ -296,7 +315,8 @@ int main(int argc, char *argv[])
       // glvis->Append(density_gf, "design density", keys);
       glvis->Append(filter_gf, "filtered density", keys);
       // glvis->Append(state_gf, "displacement magnitude", keys);
-      if (elasticity.HasAdjoint()) {glvis->Append(optproblem.GetAdjState(), "adjoint displacement", keys);}
+      // glvis->Append(kkt_gf, "KKT", keys);
+      // if (elasticity.HasAdjoint()) {glvis->Append(optproblem.GetAdjState(), "adjoint displacement", keys);}
    }
 
    real_t stationarity0, obj0,
@@ -334,8 +354,6 @@ int main(int argc, char *argv[])
    real_t volume_correction;
    ParGridFunction dual_B(&fes_control);
    real_t dual_V;
-   ParGridFunction lower(&fes_control), upper(&fes_control);
-   real_t max_ch=0.1;
    grad_gf = 0.0;
    curr_vol = density.ComputeVolume(control_gf);
    for (it_oc = 0; it_oc<max_it; it_oc++)
@@ -353,10 +371,14 @@ int main(int argc, char *argv[])
             const real_t lmid = (l1+l2)*0.5;
             for (int i=0; i<control_gf.Size(); i++)
             {
-               control_gf[i] = std::max(0.0, std::max(control_old_gf[i]-max_ch, std::min(1.0,
-                                                                                         std::min(control_old_gf[i]+max_ch, control_old_gf[i]*std::sqrt(std::max(0.0,
-                                                                                               -grad_gf[i])/lmid)))));
-               // control_gf[i] = std::max(0.0, std::min(1.0, control_old_gf[i]*std::sqrt(std::max(0.0,-grad_gf[i])/lmid)));
+               real_t lower = std::max(0.0, control_old_gf[i]-max_ch);
+               real_t upper = std::min(1.0, control_old_gf[i]+max_ch);
+               control_gf[i] =
+                  std::min(
+                     std::max(
+                        control_old_gf[i]*std::pow(std::max(0.0, -grad_gf[i])/lmid, step_size),
+                        lower),
+                     upper);
             }
             curr_vol = density.ComputeVolume(control_gf);
             if (curr_vol > max_vol)

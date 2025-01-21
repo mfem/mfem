@@ -247,6 +247,7 @@ int main(int argc, char *argv[])
       filter.GetAdjLinearForm()[0]->AddDomainIntegrator(new DomainLFIntegrator(
                                                            *energy[i]));
    }
+   filter.SetAdjBStationary(false);
    if (prob == mfem::ForceInverter2)
    {
       ForceInverterInitialDesign(control_gf, &entropy);

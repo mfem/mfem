@@ -547,9 +547,9 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          if (r_min < 0) { r_min = 0.05; }
          if (E < 0) { E = 1.0; }
          if (nu < 0) { nu = 0.3; }
-         /*mesh = new Mesh(Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,*/
-         /*                                      3.0, 1.0));*/
-         mesh = new Mesh("./inner_vertical.mesh");
+         mesh = new Mesh(Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
+                                               3.0, 1.0));
+         /*mesh = new Mesh("./inner_vertical.mesh");*/
          tot_vol = 0.0;
          for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
          if (min_vol < 0) { min_vol = 0.0; }
@@ -573,7 +573,7 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
             MFEM_ABORT("MFEM is built without MPI but tried to use parallel refinement");
 #endif
          }
-         int num_bdr_attr = 5;
+         int num_bdr_attr = 4;
          MarkBoundaries(*mesh, ++num_bdr_attr,
                         [](const Vector &x)
          {
@@ -582,13 +582,53 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          MarkBoundaries(*mesh, ++num_bdr_attr,
                         [](const Vector &x)
          {
-            return x[0] > 4.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
+            return x[0] > 3.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
          });
          ess_bdr_displacement.SetSize(3, num_bdr_attr);
          ess_bdr_displacement = 0;
+         ess_bdr_displacement(0,4) = 1;
          ess_bdr_displacement(0,5) = 1;
-         ess_bdr_displacement(2,6) = 1;
-         ess_bdr_displacement(1,4) = 1;
+
+         ess_bdr_filter.SetSize(num_bdr_attr);
+         ess_bdr_filter = 0;
+         break;
+      }
+      case MultiTopBottom2:
+      {
+         filename << "MultiTopBottm2";
+         if (r_min < 0) { r_min = 0.05; }
+         if (E < 0) { E = 1.0; }
+         if (nu < 0) { nu = 0.3; }
+         mesh = new Mesh(Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL, false,
+                                               1.0, 1.0));
+         /*mesh = new Mesh("./inner_vertical.mesh");*/
+         tot_vol = 0.0;
+         for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
+         if (min_vol < 0) { min_vol = 0.0; }
+         if (max_vol < 0) { max_vol = tot_vol*0.2; }
+         for (int i=0; i<ser_ref_levels; i++)
+         {
+            mesh->UniformRefinement();
+         }
+         if (par_ref_levels > -1)
+         {
+#ifdef MFEM_USE_MPI
+            Mesh * ser_mesh = mesh;
+            mesh = new ParMesh(MPI_COMM_WORLD, *ser_mesh);
+            ser_mesh->Clear();
+            delete ser_mesh;
+            for (int i=0; i<par_ref_levels; i++)
+            {
+               mesh->UniformRefinement();
+            }
+#else
+            MFEM_ABORT("MFEM is built without MPI but tried to use parallel refinement");
+#endif
+         }
+         int num_bdr_attr = 4;
+         ess_bdr_displacement.SetSize(3, num_bdr_attr);
+         ess_bdr_displacement = 0;
+         ess_bdr_displacement(0,3) = 1;
 
          ess_bdr_filter.SetSize(num_bdr_attr);
          ess_bdr_filter = 0;
@@ -928,6 +968,7 @@ void SetupTopoptProblem(TopoptProblem prob,
       }
       case MultiFrame2:
       {
+         int nrLoads=0;
          {
             auto load = new VectorFunctionCoefficient(
                2, [](const Vector &x, Vector &f)
@@ -935,11 +976,11 @@ void SetupTopoptProblem(TopoptProblem prob,
                f = 0.0;
                if (std::pow(x[0]-1.0, 2.0) + std::pow(x[1] - 0.9, 2.0) < 0.05*0.05)
                {
-                  f[0] = -1.0 / (0.05*0.05);
+                  f[1] = -1.0 / (0.05*0.05);
                }
             });
             elasticity.MakeCoefficientOwner(load);
-            elasticity.GetLinearForm()[0]->AddDomainIntegrator(
+            elasticity.GetLinearForm()[nrLoads++]->AddDomainIntegrator(
                new VectorDomainLFIntegrator(*load));
          }
          {
@@ -947,19 +988,53 @@ void SetupTopoptProblem(TopoptProblem prob,
                2, [](const Vector &x, Vector &f)
             {
                f = 0.0;
-               if (std::pow(x[0]-3.0, 2.0) + std::pow(x[1] - 0.9, 2.0) < 0.05*0.05)
+               if (std::pow(x[0]-2.0, 2.0) + std::pow(x[1] - 0.9, 2.0) < 0.05*0.05)
                {
-                  f[0] = -1.0 / (0.05*0.05);
+                  f[1] = -1.0 / (0.05*0.05);
                }
             });
             elasticity.MakeCoefficientOwner(load);
-            elasticity.GetLinearForm()[0]->AddDomainIntegrator(
+            elasticity.GetLinearForm()[nrLoads++]->AddDomainIntegrator(
+               new VectorDomainLFIntegrator(*load));
+         }
+         break;
+      }
+      case MultiTopBottom2:
+      {
+         int nrLoads = 0;
+         {
+            auto load = new VectorFunctionCoefficient(
+               2, [](const Vector &x, Vector &f)
+            {
+               f = 0.0;
+               if (std::pow(x[0]-1.0, 2.0) + std::pow(x[1] - 1.0, 2.0) < 0.05*0.05)
+               {
+                  f[1] = 1.0;
+               }
+            });
+            elasticity.MakeCoefficientOwner(load);
+            elasticity.GetLinearForm()[nrLoads++]->AddDomainIntegrator(
+               new VectorDomainLFIntegrator(*load));
+         }
+         {
+            auto load = new VectorFunctionCoefficient(
+               2, [](const Vector &x, Vector &f)
+            {
+               f = 0.0;
+               if (std::pow(x[0]-1.0, 2.0) + std::pow(x[1] - 0.0, 2.0) < 0.05*0.05)
+               {
+                  f[1] = -1.0;
+               }
+            });
+            elasticity.MakeCoefficientOwner(load);
+            elasticity.GetLinearForm()[nrLoads++]->AddDomainIntegrator(
                new VectorDomainLFIntegrator(*load));
          }
          break;
       }
       case MultiBridge2:
       {
+         int nrLoads = 0;
          {
             auto load = new VectorFunctionCoefficient(
                2, [](const Vector &x, Vector &f)
@@ -971,7 +1046,7 @@ void SetupTopoptProblem(TopoptProblem prob,
                }
             });
             elasticity.MakeCoefficientOwner(load);
-            elasticity.GetLinearForm()[0]->AddDomainIntegrator(
+            elasticity.GetLinearForm()[nrLoads++]->AddDomainIntegrator(
                new VectorDomainLFIntegrator(*load));
          }
          {
@@ -985,7 +1060,7 @@ void SetupTopoptProblem(TopoptProblem prob,
                }
             });
             elasticity.MakeCoefficientOwner(load);
-            elasticity.GetLinearForm()[0]->AddDomainIntegrator(
+            elasticity.GetLinearForm()[nrLoads++]->AddDomainIntegrator(
                new VectorDomainLFIntegrator(*load));
          }
          break;
