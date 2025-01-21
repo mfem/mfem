@@ -11,11 +11,13 @@
 
 list(APPEND SEQMTOP_COMMON_SOURCES
 	paramnonlinearform.cpp
-        mtop_integrators.cpp)
+        mtop_integrators.cpp
+	rand_eigensolver.cpp)
 
 list(APPEND SEQMTOP_COMMON_HEADERS
 	paramnonlinearform.hpp
-        mtop_integrators.hpp)
+        mtop_integrators.hpp
+	rand_eigensolver.hpp)
 
 convert_filenames_to_full_paths(SEQMTOP_COMMON_SOURCES)
 convert_filenames_to_full_paths(SEQMTOP_COMMON_HEADERS)
