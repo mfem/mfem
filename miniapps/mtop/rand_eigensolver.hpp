@@ -7,12 +7,12 @@
 
 namespace mfem{
 
-class RandEigenSolver{
+class RandomizedEigenSolver{
 public:
 
-    RandEigenSolver(MPI_Comm comm);
+    RandomizedEigenSolver(MPI_Comm comm);
 
-    ~RandEigenSolver();
+    ~RandomizedEigenSolver();
 
     void SetNumModes(int num_);
 
