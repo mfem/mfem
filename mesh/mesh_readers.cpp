@@ -746,7 +746,7 @@ struct BufferReader : BufferReaderBase
    /// header_type) pointed to by @a header_buf.
    int NumHeaderBytes(const char *header_buf) const
    {
-      if (!compressed) { return HeaderEntrySize(); }
+      if (!compressed) { return static_cast<int>(HeaderEntrySize()); }
       return (3 + ReadHeaderEntry(header_buf))*HeaderEntrySize();
    }
 
@@ -856,12 +856,13 @@ struct BufferReader : BufferReaderBase
          // Decode the first entry of the header, which we need to determine
          // how long the rest of the header is.
          std::vector<char> nblocks_buf;
-         int nblocks_b64 = bin_io::NumBase64Chars(HeaderEntrySize());
+         int nblocks_b64 = static_cast<int>(bin_io::NumBase64Chars(HeaderEntrySize()));
          bin_io::DecodeBase64(txt, nblocks_b64, nblocks_buf);
          std::vector<char> data, header;
          // Compute number of characters needed to encode header in base 64,
          // then round to nearest multiple of 4 to take padding into account.
-         int header_b64 = bin_io::NumBase64Chars(NumHeaderBytes(nblocks_buf.data()));
+         int header_b64 = static_cast<int>(bin_io::NumBase64Chars(NumHeaderBytes(
+                                                                     nblocks_buf.data())));
          // If data is compressed, header is encoded separately
          bin_io::DecodeBase64(txt, header_b64, header);
          bin_io::DecodeBase64(txt + header_b64, strlen(txt)-header_b64, data);
@@ -2434,13 +2435,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          if (!elements_3D.empty())
          {
             Dim = 3;
-            NumOfElements = elements_3D.size();
+            NumOfElements = static_cast<int>(elements_3D.size());
             elements.SetSize(NumOfElements);
             for (int el = 0; el < NumOfElements; ++el)
             {
                elements[el] = elements_3D[el];
             }
-            NumOfBdrElements = elements_2D.size();
+            NumOfBdrElements = static_cast<int>(elements_2D.size());
             boundary.SetSize(NumOfBdrElements);
             for (int el = 0; el < NumOfBdrElements; ++el)
             {
@@ -2463,13 +2464,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          else if (!elements_2D.empty())
          {
             Dim = 2;
-            NumOfElements = elements_2D.size();
+            NumOfElements = static_cast<int>(elements_2D.size());
             elements.SetSize(NumOfElements);
             for (int el = 0; el < NumOfElements; ++el)
             {
                elements[el] = elements_2D[el];
             }
-            NumOfBdrElements = elements_1D.size();
+            NumOfBdrElements = static_cast<int>(elements_1D.size());
             boundary.SetSize(NumOfBdrElements);
             for (int el = 0; el < NumOfBdrElements; ++el)
             {
@@ -2488,13 +2489,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          else if (!elements_1D.empty())
          {
             Dim = 1;
-            NumOfElements = elements_1D.size();
+            NumOfElements = static_cast<int>(elements_1D.size());
             elements.SetSize(NumOfElements);
             for (int el = 0; el < NumOfElements; ++el)
             {
                elements[el] = elements_1D[el];
             }
-            NumOfBdrElements = elements_0D.size();
+            NumOfBdrElements = static_cast<int>(elements_0D.size());
             boundary.SetSize(NumOfBdrElements);
             for (int el = 0; el < NumOfBdrElements; ++el)
             {
