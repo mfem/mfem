@@ -905,14 +905,14 @@ public:
       l2restrict(l2f.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
       integ_rule(ir),
       ir1D(IntRules.Get(Geometry::SEGMENT, integ_rule.GetOrder())),
-      D1D(h1fes.GetFE(0)->GetOrder()+1),
+      D1D(h1fes.GetTypicalFE()->GetOrder()+1),
       Q1D(ir1D.GetNPoints()),
-      L1D(l2fes.GetFE(0)->GetOrder()+1),
-      H1D(h1fes.GetFE(0)->GetOrder()+1),
-      h1sz(h1fes.GetVDim() * h1fes.GetFE(0)->GetDof() * nzones),
-      l2sz(l2fes.GetFE(0)->GetDof() * nzones),
-      l2D2Q(&l2fes.GetFE(0)->GetDofToQuad(integ_rule, DofToQuad::TENSOR)),
-      h1D2Q(&h1fes.GetFE(0)->GetDofToQuad(integ_rule, DofToQuad::TENSOR)),
+      L1D(l2fes.GetTypicalFE()->GetOrder()+1),
+      H1D(h1fes.GetTypicalFE()->GetOrder()+1),
+      h1sz(h1fes.GetVDim() * h1fes.GetTypicalFE()->GetDof() * nzones),
+      l2sz(l2fes.GetTypicalFE()->GetDof() * nzones),
+      l2D2Q(&l2fes.GetTypicalFE()->GetDofToQuad(integ_rule, DofToQuad::TENSOR)),
+      h1D2Q(&h1fes.GetTypicalFE()->GetDofToQuad(integ_rule, DofToQuad::TENSOR)),
       gVecL2(l2sz),
       gVecH1(h1sz)
    {
@@ -922,7 +922,7 @@ public:
       gVecH1.SetSize(h1sz);
    }
 
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
 
       l2restrict->Mult(x, gVecL2);
@@ -932,7 +932,7 @@ public:
       h1restrict->MultTranspose(gVecH1, y);
    }
 
-   void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    {
       h1restrict->Mult(x, gVecH1);
       kForceMultTranspose(dim, D1D, Q1D, L1D, H1D, nzones,
@@ -950,7 +950,7 @@ static void ComputeDiagonal2D(const int height, const int nzones,
                               Vector &diag)
 {
    const TensorBasisElement *fe_H1 =
-      dynamic_cast<const TensorBasisElement *>(FESpace.GetFE(0));
+      dynamic_cast<const TensorBasisElement *>(FESpace.GetTypicalFE());
    const Array<int> &dof_map = fe_H1->GetDofMap();
    const DenseMatrix &HQs = tensors1D->HQshape1D;
    const int ndof1D = HQs.Height(), nqp1D = HQs.Width(), nqp = nqp1D * nqp1D;
@@ -985,7 +985,7 @@ static void ComputeDiagonal3D(const int height, const int nzones,
                               Vector &diag)
 {
    const TensorBasisElement *fe_H1 =
-      dynamic_cast<const TensorBasisElement *>(FESpace.GetFE(0));
+      dynamic_cast<const TensorBasisElement *>(FESpace.GetTypicalFE());
    const Array<int> &dof_map = fe_H1->GetDofMap();
    const DenseMatrix &HQs = tensors1D->HQshape1D;
    const int ndof1D = HQs.Height(), nqp1D = HQs.Width(),
@@ -1071,7 +1071,7 @@ public:
       pabf.FormSystemMatrix(mfem::Array<int>(), massOperator);
    }
 
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       // FIXME: why is 'x' being modified here (through 'X')?
       Vector X;
@@ -1094,10 +1094,10 @@ public:
                                               diag);
    }
 
-   const Operator *GetProlongation() const
+   const Operator *GetProlongation() const override
    { return FESpace.GetProlongationMatrix(); }
 
-   const Operator *GetRestriction() const
+   const Operator *GetRestriction() const override
    { return FESpace.GetRestrictionMatrix(); }
 
    void SetEssentialTrueDofs(Array<int> &dofs)
@@ -1142,7 +1142,7 @@ public:
       diag.SetSize(P->Width());
       P->MultTranspose(d, diag);
    }
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       const int N = x.Size();
       auto d_diag = diag.Read();
@@ -1150,7 +1150,7 @@ public:
       auto d_y = y.Write();
       mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { d_y[i] = d_x[i] / d_diag[i]; });
    }
-   void SetOperator(const Operator&) { }
+   void SetOperator(const Operator&) override { }
 };
 
 struct TimingData
@@ -1294,8 +1294,8 @@ void ComputeRho0DetJ0AndVolume(const int dim,
 
 class TaylorCoefficient : public Coefficient
 {
-   virtual real_t Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
    {
       Vector x(2);
       T.Transform(ip, x);
@@ -1638,8 +1638,8 @@ public:
       ess_tdofs(essential_tdofs),
       dim(h1_fes.GetMesh()->Dimension()),
       nzones(h1_fes.GetMesh()->GetNE()),
-      l2dofs_cnt(l2_fes.GetFE(0)->GetDof()),
-      h1dofs_cnt(h1_fes.GetFE(0)->GetDof()),
+      l2dofs_cnt(l2_fes.GetTypicalFE()->GetDof()),
+      h1dofs_cnt(h1_fes.GetTypicalFE()->GetDof()),
       source_type(source_type_), cfl(cfl_),
       use_viscosity(visc),
       cg_rel_tol(cgt), cg_max_iter(cgiter),ftz_tol(ftz),
@@ -1647,13 +1647,13 @@ public:
       Mv(&h1_fes), Mv_spmat_copy(),
       Me(l2dofs_cnt, l2dofs_cnt, nzones),
       Me_inv(l2dofs_cnt, l2dofs_cnt, nzones),
-      integ_rule(IntRules.Get(h1_fes.GetMesh()->GetElementBaseGeometry(0),
+      integ_rule(IntRules.Get(h1_fes.GetMesh()->GetTypicalElementGeometry(),
                               (order_q > 0) ? order_q :
                               3*h1_fes.GetElementOrder(0)
                               + l2_fes.GetElementOrder(0) - 1)),
       quad_data(dim, nzones, integ_rule.GetNPoints()),
       quad_data_is_current(false), forcemat_is_assembled(false),
-      T1D(H1FESpace.GetFE(0)->GetOrder(), L2FESpace.GetFE(0)->GetOrder(),
+      T1D(H1FESpace.GetTypicalFE()->GetOrder(), L2FESpace.GetTypicalFE()->GetOrder(),
           int(floor(0.7 + pow(integ_rule.GetNPoints(), 1.0 / dim))),
           h1_basis_type == BasisType::Positive),
       Force(&l2_fes, &h1_fes),
@@ -1707,7 +1707,7 @@ public:
       MPI_Allreduce(&loc_area, &glob_area, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     pm->GetComm());
       MPI_Allreduce(&loc_z_cnt, &glob_z_cnt, 1, MPI_INT, MPI_SUM, pm->GetComm());
-      switch (pm->GetElementBaseGeometry(0))
+      switch (pm->GetTypicalElementGeometry())
       {
          case Geometry::SQUARE:
             quad_data.h0 = sqrt(glob_area / glob_z_cnt); break;
@@ -1736,14 +1736,14 @@ public:
       CG_EMass.SetPrintLevel(-1);
    }
 
-   ~LagrangianHydroOperator()
+   ~LagrangianHydroOperator() override
    {
       delete EMassPA;
       delete VMassPA;
       delete ForcePA;
    }
 
-   virtual void Mult(const Vector &S, Vector &dS_dt) const
+   void Mult(const Vector &S, Vector &dS_dt) const override
    {
       UpdateMesh(S);
       Vector* sptr = const_cast<Vector*>(&S);
@@ -1758,7 +1758,7 @@ public:
       quad_data_is_current = false;
    }
 
-   MemoryClass GetMemoryClass() const  { return Device::GetDeviceMemoryClass(); }
+   MemoryClass GetMemoryClass() const override  { return Device::GetDeviceMemoryClass(); }
 
    void SolveVelocity(const Vector &S, Vector &dS_dt) const
    {

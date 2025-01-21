@@ -12,7 +12,7 @@
 if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
 
   add_mfem_miniapp(ContactPatchTest
-    MAIN ContactPatchTest.cpp
+    MAIN contact-patch-test.cpp
     LIBRARIES mfem)
 
 # The way the libraries are included, by default, in the command line is based

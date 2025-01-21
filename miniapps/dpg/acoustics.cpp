@@ -15,11 +15,11 @@
 //
 // Sample runs
 //
-// acoustics -ref 4 -o 1 -rnum 1.0
-// acoustics -m ../../data/inline-tri.mesh -ref 4 -o 2 -sc -rnum 3.0
-// acoustics -m ../../data/amr-quad.mesh -ref 3 -o 3 -sc -rnum 4.5 -prob 1
-// acoustics -m ../../data/inline-quad.mesh -ref 2 -o 4 -sc -rnum 11.5 -prob 1
-// acoustics -m ../../data/inline-hex.mesh -ref 1 -o 2 -sc -rnum 1.0
+//  acoustics -ref 4 -o 1 -rnum 1.0
+//  acoustics -m ../../data/inline-tri.mesh -ref 4 -o 2 -sc -rnum 3.0
+//  acoustics -m ../../data/amr-quad.mesh -ref 3 -o 3 -sc -rnum 4.5 -prob 1
+//  acoustics -m ../../data/inline-quad.mesh -ref 2 -o 4 -sc -rnum 11.5 -prob 1
+//  acoustics -m ../../data/inline-hex.mesh -ref 1 -o 2 -sc -rnum 1.0
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -117,6 +117,7 @@ int main(int argc, char *argv[])
    real_t rnum=1.0;
    int ref = 0;
    bool static_cond = false;
+   int visport = 19916;
    int iprob = 0;
 
    OptionsParser args(argc, argv);
@@ -137,6 +138,7 @@ int main(int argc, char *argv[])
                   "Number of serial refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -430,7 +432,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
          VisualizeField(p_out_r,vishost, visport, p_r,
                         "Numerical presure (real part)", 0, 0, 500, 500, keys);
          VisualizeField(p_out_i,vishost, visport, p_i,

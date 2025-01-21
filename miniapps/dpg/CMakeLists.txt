@@ -42,42 +42,42 @@ set(DPG_COMMON_FILES
 add_mfem_miniapp(diffusion-dpg
   MAIN diffusion.cpp
   ${DPG_COMMON_FILES}
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem-common)
 
 add_mfem_miniapp(convection-diffusion-dpg
 MAIN convection-diffusion.cpp
 ${DPG_COMMON_FILES}
-LIBRARIES mfem mfem-common )
+LIBRARIES mfem-common)
 
 add_mfem_miniapp(acoustics-dpg
 MAIN acoustics.cpp
 ${DPG_COMMON_FILES}
-LIBRARIES mfem mfem-common)
+LIBRARIES mfem-common)
 
 add_mfem_miniapp(maxwell-dpg
 MAIN maxwell.cpp
 ${DPG_COMMON_FILES}
-LIBRARIES mfem mfem-common)
+LIBRARIES mfem-common)
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(pdiffusion-dpg
     MAIN pdiffusion.cpp
     ${DPG_COMMON_FILES}
-    LIBRARIES mfem mfem-common)
+    LIBRARIES mfem-common)
 
   add_mfem_miniapp(pconvection-diffusion-dpg
   MAIN pconvection-diffusion.cpp
   ${DPG_COMMON_FILES}
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem-common)
 
   add_mfem_miniapp(pacoustics-dpg
   MAIN pacoustics.cpp
   ${DPG_COMMON_FILES}
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem-common)
 
   add_mfem_miniapp(pmaxwell-dpg
   MAIN pmaxwell.cpp
   ${DPG_COMMON_FILES}
-  LIBRARIES mfem mfem-common)
+  LIBRARIES mfem-common)
 endif ()
 

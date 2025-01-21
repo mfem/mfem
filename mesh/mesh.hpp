@@ -30,6 +30,7 @@
 #include <iostream>
 #include <array>
 #include <map>
+#include <vector>
 #include <memory>
 
 namespace mfem
@@ -49,6 +50,13 @@ enum class FaceType : bool {Interior, Boundary};
 #ifdef MFEM_USE_MPI
 class ParMesh;
 class ParNCMesh;
+#endif
+
+#ifdef MFEM_USE_NETCDF
+namespace cubit
+{
+class CubitBlock;
+}
 #endif
 
 /// Mesh data type
@@ -341,6 +349,29 @@ protected:
 #ifdef MFEM_USE_NETCDF
    /// @brief Load a mesh from a Genesis file.
    void ReadCubit(const std::string &filename, int &curved, int &read_gf);
+
+   /// @brief Called internally in ReadCubit. This method creates the vertices.
+   void BuildCubitVertices(const std::vector<int> & unique_vertex_ids,
+                           const std::vector<double> & coordx, const std::vector<double> & coordy,
+                           const std::vector<double> & coordz);
+
+   /// @brief Called internally in ReadCubit. This method builds the mesh elements.
+   void BuildCubitElements(const int num_elements,
+                           const cubit::CubitBlock * blocks,
+                           const std::vector<int> & block_ids,
+                           const std::map<int, std::vector<int>> & element_ids_for_block_id,
+                           const std::map<int, std::vector<int>> & node_ids_for_element_id,
+                           const std::map<int, int> & cubit_to_mfem_vertex_map);
+
+   /// @brief Called internally in ReadCubit. This method adds the mesh boundary elements.
+   void BuildCubitBoundaries(
+      const cubit::CubitBlock * blocks,
+      const std::vector<int> & boundary_ids,
+      const std::map<int, std::vector<int>> & element_ids_for_boundary_id,
+      const std::map<int, std::vector<std::vector<int>>> & node_ids_for_boundary_id,
+      const std::map<int, std::vector<int>> & side_ids_for_boundary_id,
+      const std::map<int, int> & block_id_for_element_id,
+      const std::map<int, int> & cubit_to_mfem_vertex_map);
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
@@ -857,10 +888,15 @@ public:
        vectors using Mesh::CreatePeriodicVertexMapping.
        @note MFEM requires that each edge of the resulting mesh be uniquely
        identifiable by a pair of distinct vertices. As a consequence, periodic
-       boundaries must be connected by at least three edges. */
+       boundaries must be separated by at least two interior vertices.
+       @note The resulting mesh uses a discontinuous nodal function, see
+       SetCurvature() for further details. */
    static Mesh MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v);
 
    ///@}
+
+   /// Construct a Mesh from a NURBSExtension
+   explicit Mesh( const NURBSExtension& ext );
 
    /** @anchor mfem_Mesh_construction
        @name Methods for piecewise Mesh construction.
@@ -959,6 +995,17 @@ public:
    /// The parameter @a elem should be allocated using the NewElement() method
    /// @note Ownership of @a elem will pass to the Mesh object
    int AddBdrElement(Element *elem);
+
+   /**
+    * @brief Add an array of boundary elements to the mesh, along with map from
+    * the elements to their faces
+    * @param[in] bdr_elems The set of boundary element pointers, ownership of
+    * the pointers will be transferred to the Mesh object
+    * @param[in] be_to_face The map from the boundary element index to the face
+    * index
+    */
+   void AddBdrElements(Array<Element *> &bdr_elems,
+                       const Array<int> &be_to_face);
 
    int AddBdrSegment(int v1, int v2, int attr = 1);
    int AddBdrSegment(const int *vi, int attr = 1);
@@ -1068,6 +1115,15 @@ public:
    /** Remove boundary elements that lie in the interior of the mesh, i.e. that
        have two adjacent faces in 3D, or edges in 2D. */
    void RemoveInternalBoundaries();
+
+   /**
+    * @brief Clear the boundary element to edge map.
+    */
+   void DeleteBoundaryElementToEdge()
+   {
+      delete bel_to_edge;
+      bel_to_edge = nullptr;
+   }
 
    /// @}
 
@@ -1333,7 +1389,7 @@ public:
    int GetAttribute(int i) const { return elements[i]->GetAttribute(); }
 
    /// Set the attribute of element i.
-   void SetAttribute(int i, int attr) { elements[i]->SetAttribute(attr); }
+   void SetAttribute(int i, int attr);
 
    /// Return the attribute of boundary element i.
    int GetBdrAttribute(int i) const { return boundary[i]->GetAttribute(); }
@@ -1368,10 +1424,24 @@ public:
    /// Return the Geometry::Type associated with face @a i.
    Geometry::Type GetFaceGeometry(int i) const;
 
+   /// @brief If the local mesh is not empty, return GetFaceGeometry(0);
+   /// otherwise return a typical face geometry present in the global mesh.
+   ///
+   /// Note that in mixed meshes or meshes with prism or pyramid elements, there
+   /// will be more than one face geometry.
+   Geometry::Type GetTypicalFaceGeometry() const;
+
    Geometry::Type GetElementGeometry(int i) const
    {
       return elements[i]->GetGeometryType();
    }
+
+   /** @brief If the local mesh is not empty, return GetElementGeometry(0);
+       otherwise, return a typical Geometry present in the global mesh.
+
+       This method can be used to replace calls like GetElementGeometry(0) in
+       order to handle empty local meshes better. */
+   Geometry::Type GetTypicalElementGeometry() const;
 
    Geometry::Type GetBdrElementGeometry(int i) const
    {
@@ -1535,6 +1605,9 @@ public:
    /// @note The returned Table should be deleted by the caller
    Table *GetVertexToElementTable();
 
+   /// @note The returned Table should be deleted by the caller
+   Table *GetVertexToBdrElementTable();
+
    /// Return the "face"-element Table. Here "face" refers to face (3D),
    /// edge (2D), or vertex (1D).
    ///
@@ -1606,8 +1679,21 @@ public:
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
-   /// Also, this pointer should NOT be deleted by the caller.
+   /// Also, this pointer should @b not be deleted by the caller.
    ElementTransformation *GetElementTransformation(int i);
+
+   /// @brief If the local mesh is not empty return GetElementTransformation(0);
+   /// otherwise, return the identity transformation for a typical geometry in
+   /// the mesh and a typical finite element in the nodal finite element space
+   /// (if present).
+   ///
+   /// This method can be used to replace calls like GetElementTransformation(0)
+   /// in order to handle empty local meshes better.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls. Also,
+   /// this pointer should @b not be deleted by the caller.
+   ElementTransformation *GetTypicalElementTransformation();
 
    /// @brief Builds the transformation defining the i-th element in @a ElTr
    /// assuming position of the vertices/nodes are given by @a nodes.
@@ -2225,8 +2311,17 @@ public:
        (default) or nonconforming. */
    void EnsureNCMesh(bool simplices_nonconforming = false);
 
+   /// Return a bool indicating whether this mesh is conforming.
    bool Conforming() const { return ncmesh == NULL; }
+   /// Return a bool indicating whether this mesh is nonconforming.
    bool Nonconforming() const { return ncmesh != NULL; }
+
+   /** Designate this mesh for output as "NC mesh v1.1", meaning it is
+       nonconforming with nonuniform refinement spacings. */
+   void SetScaledNCMesh()
+   {
+      ncmesh->using_scaling = true;
+   }
 
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
@@ -2328,6 +2423,11 @@ public:
                     VTKFormat format=VTKFormat::ASCII,
                     bool high_order_output=false,
                     int compression_level=0);
+
+#ifdef MFEM_USE_NETCDF
+   /// @brief Export a mesh to an Exodus II file.
+   void PrintExodusII(const std::string fpath);
+#endif
 
    /** @brief Prints the mesh with boundary elements given by the boundary of
        the subdomains, so that the boundary of subdomain i has boundary
@@ -2440,9 +2540,6 @@ public:
 
    /// @todo This method needs a proper description
    void GetElementColoring(Array<int> &colors, int el0 = 0);
-
-   /// @todo This method needs a proper description
-   void MesquiteSmooth(const int mesquite_option = 0);
 
    /// @todo This method needs a proper description
    void CheckDisplacements(const Vector &displacements, real_t &tmax);
@@ -2726,8 +2823,8 @@ public:
                                 Mesh::GeneratePartitioning() when the provided
                                 input partitioning is NULL.
    */
-   MeshPartitioner(Mesh &mesh_, int num_parts_, int *partitioning_ = NULL,
-                   int part_method = 1);
+   MeshPartitioner(Mesh &mesh_, int num_parts_,
+                   const int *partitioning_ = nullptr, int part_method = 1);
 
    /** @brief Construct a MeshPart corresponding to the given @a part_id.
 
@@ -2902,8 +2999,8 @@ public:
    NodeExtrudeCoefficient(const int dim, const int n_, const real_t s_);
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    virtual ~NodeExtrudeCoefficient() { }
 };
 

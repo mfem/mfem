@@ -238,6 +238,9 @@ public:
        MemoryManager::GetHostMemoryType(). */
    explicit Memory(int size) { New(size); }
 
+   /// Creates a new empty Memory object with host MemoryType @a mt.
+   explicit Memory(MemoryType mt) { Reset(mt); }
+
    /** @brief Allocate memory for @a size entries with the given MemoryType
        @a mt. */
    /** The newly allocated memory is not initialized, however the given
@@ -1260,9 +1263,10 @@ template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
    MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
+   if (size <= 0) { return; }
    if (!(flags & Registered) && !(src.flags & Registered))
    {
-      if (h_ptr != src.h_ptr && size != 0)
+      if (h_ptr != src.h_ptr)
       {
          MFEM_ASSERT(h_ptr + size <= src.h_ptr || src.h_ptr + size <= h_ptr,
                      "data overlaps!");
@@ -1280,9 +1284,10 @@ template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
+   if (size <= 0) { return; }
    if (!(flags & Registered))
    {
-      if (h_ptr != src && size != 0)
+      if (h_ptr != src)
       {
          MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
                      "data overlaps!");
@@ -1299,7 +1304,6 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 template <typename T>
 inline void Memory<T>::CopyTo(Memory &dest, int size) const
 {
-   MFEM_VERIFY(capacity>=size, "Incorrect size");
    dest.CopyFrom(*this, size);
 }
 
@@ -1307,9 +1311,10 @@ template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
+   if (size <= 0) { return; }
    if (!(flags & Registered))
    {
-      if (h_ptr != dest && size != 0)
+      if (h_ptr != dest)
       {
          MFEM_ASSERT(h_ptr + size <= dest || dest + size <= h_ptr,
                      "data overlaps!");

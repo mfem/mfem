@@ -28,16 +28,23 @@ namespace mfem
 {
 
 bool Hypre::configure_runtime_policy_from_mfem = true;
+Hypre::State Hypre::state = Hypre::State::UNINITIALIZED;
 
-Hypre::Hypre()
+void Hypre::Init()
 {
+   if (state != State::INITIALIZED)
+   {
 #if MFEM_HYPRE_VERSION >= 21900
-   // Initializing hypre
-   HYPRE_Init();
+      HYPRE_Init();
 #endif
-
-   // Global hypre options that we set by default
-   SetDefaultOptions();
+      SetDefaultOptions();
+      // Apply the setting of 'configure_runtime_policy_from_mfem' according to
+      // the current configuration of the mfem::Device (HYPRE >= 2.31.0):
+      InitDevice();
+      // Create the singleton Hypre object AFTER initializing HYPRE:
+      Instance();
+   }
+   state = State::INITIALIZED;
 }
 
 void Hypre::InitDevice()
@@ -48,6 +55,8 @@ void Hypre::InitDevice()
 #if defined(HYPRE_USING_GPU) && (MFEM_HYPRE_VERSION >= 23100)
    if (configure_runtime_policy_from_mfem)
    {
+      MFEM_VERIFY(HYPRE_Initialized(), "HYPRE must be initialized before"
+                  " calling Hypre::InitDevice()");
       if (Device::Allows(Backend::DEVICE_MASK & ~Backend::DEBUG_DEVICE))
       {
          HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
@@ -65,14 +74,13 @@ void Hypre::InitDevice()
 
 void Hypre::Finalize()
 {
-   Hypre &hypre = Instance();
-   if (!hypre.finalized)
+   if (state != State::UNINITIALIZED)
    {
 #if MFEM_HYPRE_VERSION >= 21900
       HYPRE_Finalize();
 #endif
-      hypre.finalized = true;
    }
+   state = State::UNINITIALIZED;
 }
 
 void Hypre::SetDefaultOptions()
@@ -87,6 +95,9 @@ void Hypre::SetDefaultOptions()
 #elif defined(HYPRE_USING_HIP)
    // Use rocSPARSE instead of hypre's SpGEMM for performance reasons (default)
    // HYPRE_SetSpGemmUseCusparse(1);
+
+   // Use hypre's SpMV instead of rocSPARSE for performance reasons.
+   HYPRE_SetSpMVUseVendor(0);
 #endif
 #endif
 
@@ -206,6 +217,24 @@ HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
    hypre_VectorData(x_loc) = data_;
    _SetDataAndSize_();
    own_ParVector = 1;
+}
+
+HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
+                               Vector &base, int offset, HYPRE_BigInt *col)
+   : HypreParVector(comm, glob_size, nullptr, col, false)
+{
+   MFEM_ASSERT(CanShallowCopy(base.GetMemory(), GetHypreMemoryClass()),
+               "the MemoryTypes of 'base' are incompatible with Hypre!");
+   MFEM_ASSERT(offset + size <= base.Size(),
+               "the size of 'base' is too small!");
+
+   data.Delete();
+   data.MakeAlias(base.GetMemory(), offset, size);
+   hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
+   hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
+#ifdef HYPRE_USING_GPU
+   hypre_VectorMemoryLocation(x_loc) = GetHypreMemoryLocation();
+#endif
 }
 
 // Call the move constructor on the "compatible" temp vector
@@ -410,19 +439,19 @@ HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
    return hypre_ParVectorSetRandomValues(x,seed);
 }
 
-void HypreParVector::Print(const char *fname) const
+void HypreParVector::Print(const std::string &fname) const
 {
-   hypre_ParVectorPrint(x,fname);
+   hypre_ParVectorPrint(x, fname.c_str());
 }
 
-void HypreParVector::Read(MPI_Comm comm, const char *fname)
+void HypreParVector::Read(MPI_Comm comm, const std::string &fname)
 {
    if (own_ParVector)
    {
       hypre_ParVectorDestroy(x);
    }
    data.Delete();
-   x = hypre_ParVectorRead(comm, fname);
+   x = hypre_ParVectorRead(comm, fname.c_str());
    own_ParVector = true;
    _SetDataAndSize_();
 }
@@ -792,6 +821,44 @@ static void SyncBackBoolCSR(Table *bool_csr, MemoryIJData &mem_csr)
    }
 }
 
+/// @brief Return the size of the partitioning arrays, see @ref
+/// hypre_partitioning_descr.
+static int GetPartitioningArraySize(MPI_Comm comm)
+{
+   if (HYPRE_AssumedPartitionCheck())
+   {
+      return 2;
+   }
+   else
+   {
+      int comm_size;
+      MPI_Comm_size(comm, &comm_size);
+      return comm_size + 1;
+   }
+}
+
+/// @brief Returns true if the row and col arrays are equal (across all MPI
+/// ranks).
+///
+/// Both @a row and @a col are partitioning arrays, whose length is returned by
+/// GetPartitioningArraySize(), see @ref hypre_partitioning_descr.
+static bool RowAndColStartsAreEqual(MPI_Comm comm, HYPRE_BigInt *rows,
+                                    HYPRE_BigInt *cols)
+{
+   const int part_size = GetPartitioningArraySize(comm);
+   bool are_equal = true;
+   for (int i = 0; i < part_size; ++i)
+   {
+      if (rows[i] != cols[i])
+      {
+         are_equal = false;
+         break;
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &are_equal, 1,  MPI_C_BOOL, MPI_LAND, comm);
+   return are_equal;
+}
+
 // static method
 signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
                                           MemoryType h_mat_mt,
@@ -924,7 +991,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
@@ -974,11 +1041,12 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      SyncBackCSR(diag, mem_diag); // update diag, if needed
+      // update diag, if needed
+      if (!own_diag_offd) { SyncBackCSR(diag, mem_diag); }
    }
 
    hypre_MatvecCommPkgCreate(A);
@@ -1031,7 +1099,7 @@ HypreParMatrix::HypreParMatrix(
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
@@ -1093,7 +1161,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_CSRMatrixDestroy(csr_a);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(new_A));
    }
@@ -1132,7 +1200,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
    /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
@@ -1247,11 +1315,10 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    Init();
 
    // Determine partitioning size, and my column start and end
-   int part_size;
+   const int part_size = GetPartitioningArraySize(comm);
    HYPRE_BigInt my_col_start, my_col_end; // my range: [my_col_start, my_col_end)
    if (HYPRE_AssumedPartitionCheck())
    {
-      part_size = 2;
       my_col_start = cols[0];
       my_col_end = cols[1];
    }
@@ -1259,15 +1326,14 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    {
       int myid;
       MPI_Comm_rank(comm, &myid);
-      MPI_Comm_size(comm, &part_size);
-      part_size++;
       my_col_start = cols[myid];
       my_col_end = cols[myid+1];
    }
 
    // Copy in the row and column partitionings
+   const bool rows_eq_cols = RowAndColStartsAreEqual(comm, rows, cols);
    HYPRE_BigInt *row_starts, *col_starts;
-   if (rows == cols)
+   if (rows_eq_cols)
    {
       row_starts = col_starts = mfem_hypre_TAlloc_host(HYPRE_BigInt, part_size);
       for (int i = 0; i < part_size; i++)
@@ -1360,14 +1426,14 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-   /* Make sure that the first entry in each row is the diagonal one. */
-   if (row_starts == col_starts)
+   // Make sure that the first entry in each row is the diagonal one.
+   if (rows_eq_cols)
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
 #if MFEM_HYPRE_VERSION > 22200
    mfem_hypre_TFree_host(row_starts);
-   if (rows != cols)
+   if (!rows_eq_cols)
    {
       mfem_hypre_TFree_host(col_starts);
    }
@@ -1480,16 +1546,7 @@ void HypreParMatrix::CopyRowStarts()
       return;
    }
 
-   int row_starts_size;
-   if (HYPRE_AssumedPartitionCheck())
-   {
-      row_starts_size = 2;
-   }
-   else
-   {
-      MPI_Comm_size(hypre_ParCSRMatrixComm(A), &row_starts_size);
-      row_starts_size++; // num_proc + 1
-   }
+   const int row_starts_size = GetPartitioningArraySize(hypre_ParCSRMatrixComm(A));
 
    HYPRE_BigInt *old_row_starts = hypre_ParCSRMatrixRowStarts(A);
    HYPRE_BigInt *new_row_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
@@ -1520,16 +1577,7 @@ void HypreParMatrix::CopyColStarts()
       return;
    }
 
-   int col_starts_size;
-   if (HYPRE_AssumedPartitionCheck())
-   {
-      col_starts_size = 2;
-   }
-   else
-   {
-      MPI_Comm_size(hypre_ParCSRMatrixComm(A), &col_starts_size);
-      col_starts_size++; // num_proc + 1
-   }
+   const int col_starts_size = GetPartitioningArraySize(hypre_ParCSRMatrixComm(A));
 
    HYPRE_BigInt *old_col_starts = hypre_ParCSRMatrixColStarts(A);
    HYPRE_BigInt *new_col_starts = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
@@ -1558,14 +1606,12 @@ void HypreParMatrix::GetDiag(Vector &diag) const
 {
    const int size = Height();
    diag.SetSize(size);
-   auto hypre_ml = GetHypreMemoryLocation();
    // Avoid using GetHypreMemoryClass() since it may be MemoryClass::MANAGED and
    // that may not play well with the memory types used by 'diag'.
-   MemoryClass hypre_mc = (hypre_ml == HYPRE_MEMORY_HOST) ?
-                          MemoryClass::HOST : MemoryClass::DEVICE;
+   MemoryClass hypre_mc = GetHypreForallMemoryClass();
    real_t *diag_hd = diag.GetMemory().Write(hypre_mc, size);
 #if MFEM_HYPRE_VERSION >= 21800
-   MFEM_VERIFY(A->diag->memory_location == hypre_ml,
+   MFEM_VERIFY(A->diag->memory_location == GetHypreMemoryLocation(),
                "unexpected HypreParMatrix memory location!");
 #endif
    const HYPRE_Int *A_diag_i = A->diag->i;
@@ -2291,13 +2337,8 @@ void HypreParMatrix::Threshold(real_t threshold)
    A = parcsr_A_ptr;
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-   /* Make sure that the first entry in each row is the diagonal one. */
-#if MFEM_HYPRE_VERSION <= 22200
-   if (row_starts == col_starts)
-#else
-   if ((row_starts[0] == col_starts[0]) &&
-       (row_starts[1] == col_starts[1]))
-#endif
+   // Make sure that the first entry in each row is the diagonal one.
+   if (RowAndColStartsAreEqual(comm, row_starts, col_starts))
    {
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
    }
@@ -2477,7 +2518,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
 
    const int n_ess_dofs = ess_dofs.Size();
    const auto ess_dofs_d = ess_dofs.GetMemory().Read(
-                              GetHypreMemoryClass(), n_ess_dofs);
+                              GetHypreForallMemoryClass(), n_ess_dofs);
 
    // Start communication to figure out which columns need to be eliminated in
    // the off-diagonal block
@@ -2623,48 +2664,38 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
    mfem_hypre_TFree(eliminate_col);
 }
 
-void HypreParMatrix::Print(const char *fname, HYPRE_Int offi,
+void HypreParMatrix::Print(const std::string &fname, HYPRE_Int offi,
                            HYPRE_Int offj) const
 {
    HostRead();
-   hypre_ParCSRMatrixPrintIJ(A,offi,offj,fname);
+   hypre_ParCSRMatrixPrintIJ(A, offi, offj, fname.c_str());
    HypreRead();
 }
 
-void HypreParMatrix::Read(MPI_Comm comm, const char *fname)
+void HypreParMatrix::Read(MPI_Comm comm, const std::string &fname)
 {
-   Destroy();
-   Init();
-
+   HYPRE_ParCSRMatrix A_parcsr;
    HYPRE_Int base_i, base_j;
-   hypre_ParCSRMatrixReadIJ(comm, fname, &base_i, &base_j, &A);
+   hypre_ParCSRMatrixReadIJ(comm, fname.c_str(), &base_i, &base_j, &A_parcsr);
+
+   WrapHypreParCSRMatrix(A_parcsr, true);
+
    hypre_ParCSRMatrixSetNumNonzeros(A);
-
    if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
-
-   height = GetNumRows();
-   width = GetNumCols();
 }
 
-void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const char *fname)
+void HypreParMatrix::Read_IJMatrix(MPI_Comm comm, const std::string &fname)
 {
-   Destroy();
-   Init();
-
    HYPRE_IJMatrix A_ij;
-   HYPRE_IJMatrixRead(fname, comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
+   HYPRE_IJMatrixRead(fname.c_str(), comm, 5555, &A_ij); // HYPRE_PARCSR = 5555
 
    HYPRE_ParCSRMatrix A_parcsr;
    HYPRE_IJMatrixGetObject(A_ij, (void**) &A_parcsr);
 
-   A = (hypre_ParCSRMatrix*)A_parcsr;
+   WrapHypreParCSRMatrix(A_parcsr, true);
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
-
    if (!hypre_ParCSRMatrixCommPkg(A)) { hypre_MatvecCommPkgCreate(A); }
-
-   height = GetNumRows();
-   width = GetNumCols();
 }
 
 void HypreParMatrix::PrintCommPkg(std::ostream &os) const
@@ -2769,6 +2800,33 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
    hf.AppendInts(A->col_map_offd, A->offd->num_cols);
    os << "col map offd hash : " << hf.GetHash() << '\n';
 }
+
+real_t HypreParMatrix::FNorm() const
+{
+   real_t norm_fro = 0.0;
+   if (A != NULL)
+#if MFEM_HYPRE_VERSION >= 21900
+   {
+      const int ierr = hypre_ParCSRMatrixNormFro(A, &norm_fro);
+      MFEM_VERIFY(ierr == 0, "");
+   }
+#else
+   {
+      // HYPRE_USING_GPU is not defined for
+      // MFEM_HYPRE_VERSION < 22100 and so here it is
+      // guaranteed that the matrix is in "host" memory
+      Vector Avec_diag(A->diag->data, A->diag->num_nonzeros);
+      real_t normsqr_fro = InnerProduct(Avec_diag, Avec_diag);
+      Vector Avec_offd(A->offd->data, A->offd->num_nonzeros);
+      normsqr_fro += InnerProduct(Avec_offd, Avec_offd);
+      MPI_Allreduce(MPI_IN_PLACE, &normsqr_fro, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, hypre_ParCSRMatrixComm(A));
+      norm_fro = sqrt(normsqr_fro);
+   }
+#endif
+   return norm_fro;
+}
+
 
 inline void delete_hypre_ParCSRMatrixColMapOffd(hypre_ParCSRMatrix *A)
 {
@@ -5305,8 +5363,8 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
    int ns_down = 0, ns_up = 0, ns_coarse; // init to suppress gcc warnings
    if (distanceR > 0)
    {
-      ns_down = prerelax.length();
-      ns_up = postrelax.length();
+      ns_down = static_cast<int>(prerelax.length());
+      ns_up = static_cast<int>(postrelax.length());
       ns_coarse = 1;
 
       // Array to store relaxation scheme and pass to Hypre

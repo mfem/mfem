@@ -12,37 +12,37 @@
 //     ---------------------------------------------------------------------
 //     Miniapp: Integral of implicit domains defined by a level set function
 //     ---------------------------------------------------------------------
+//
 //  The miniapp demonstrates an interface to the Algoim library for computing
-//  volumetric and surface integrals over domains and surfaces defined implicitly
-//  by a level set function. The miniapp requires MFEM to be built with
-//  Blitz and Algoim libraries (see INSTALL).
+//  volumetric and surface integrals over domains and surfaces defined
+//  implicitly by a level set function. The miniapp requires MFEM to be built
+//  with Blitz and Algoim libraries (see INSTALL).
 //
 //  Compile with: make lsf_integral
 //
 //  Sample runs:
 //
 //  Evaluates surface and volumetric integral for a circle with radius 1
-//  lsf_integral -m ../../data/star-q3.mesh
+//    lsf_integral -m ../../data/star-q3.mesh
 //
 //  Evaluates surface and volumetric integral for a level set defined
 //  by y=0.5-(0.1*sin(3*pi*x+pi/2))
-//  lsf_integral -ls 2 -m ../../data/inline-quad.mesh -rs 2 -o 3 -ao 3
+//    lsf_integral -ls 2 -m ../../data/inline-quad.mesh -rs 2 -o 3 -ao 3
 
 #include "mfem.hpp"
-#include "integ_algoim.hpp"
 
 using namespace mfem;
 using namespace std;
 
-//Level set function for sphere in 3D and circle in 2D
+// Level set function for sphere in 3D and circle in 2D
 real_t sphere_ls(const Vector &x)
 {
    real_t r2= x*x;
    return -sqrt(r2)+1.0;//the radius is 1.0
 }
 
-//Level set function for a sinusoidal wave.
-//Resulting zero isocontour is at y=0.5-(0.1*sin(3*pi*x+pi/2))
+// Level set function for a sinusoidal wave.
+// Resulting zero isocontour is at y=0.5-(0.1*sin(3*pi*x+pi/2))
 real_t sinusoidal_ls(const Vector &x)
 {
    real_t a1 = 20., a2 = 2., a3 = 3.;
@@ -51,12 +51,12 @@ real_t sinusoidal_ls(const Vector &x)
 
 int main(int argc, char *argv[])
 {
-   //   Parse command-line options
+   // Parse command-line options
    const char *mesh_file = "../../data/star-q3.mesh";
    int ser_ref_levels = 1;
    int order = 2;
-   int iorder = 2; //MFEM integration integration points
-   int aorder = 2; //Algoim integration integration points
+   int iorder = 2; // MFEM integration points
+   int aorder = 2; // Algoim integration points
    bool visualization = true;
    int print_level = 0;
    int ls_type = 1;
@@ -98,12 +98,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(std::cout);
 
-   //   Read the (serial) mesh from the given mesh file.
+   // Read the (serial) mesh from the given mesh file.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-   //    Refine the mesh in serial to increase the resolution. In this example
-   //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
-   //    a command-line parameter.
+   // Refine the mesh in serial to increase the resolution. In this example
+   // we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
+   // a command-line parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
@@ -177,62 +177,42 @@ int main(int argc, char *argv[])
    ElementTransformation *trans;
    const IntegrationRule* ir=nullptr;
 
-   // Integration with algoim
+   // Integration with Algoim
    real_t vol=0.0;
 
 #ifdef MFEM_USE_ALGOIM
    real_t area=0.0;
-   DenseMatrix bmat; //gradients of the shape functions in isoparametric space
-   DenseMatrix pmat; //gradients of the shape functions in physical space
-   Vector inormal; //normal to the level set in isoparametric space
-   Vector tnormal; //normal to the level set in physical space
-   Vector lsfun; //level set function restricted to an element
-   DofTransformation *doftrans;
-   Array<int> vdofs;
+
+   AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,*ls_coeff,order);
+
+   IntegrationRule eir;
+   Vector sweights;
+
    for (int i=0; i<fespace.GetNE(); i++)
    {
-      const FiniteElement* el=fespace.GetFE(i);
-
-      //get the element transformation
+      // get the element transformation
       trans = fespace.GetElementTransformation(i);
 
-      //extract the element vector from the level-set
-      doftrans = fespace.GetElementVDofs(i,vdofs);
-      x.GetSubVector(vdofs, lsfun);
-
-      //construct Algoim integration object
-      AlgoimIntegrationRule air(aorder, *el, *trans, lsfun);
-
-      //compute the volume contribution from the element
-      ir = air.GetVolumeIntegrationRule();
-      for (int j = 0; j < ir->GetNPoints(); j++)
+      air->GetVolumeIntegrationRule(*trans,eir);
+      for (int j = 0; j < eir.GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(j);
+         const IntegrationPoint &ip = eir.IntPoint(j);
          trans->SetIntPoint(&ip);
          vol += ip.weight * trans->Weight();
       }
 
-      //compute the perimeter/area contribution from the element
-      bmat.SetSize(el->GetDof(),el->GetDim());
-      pmat.SetSize(el->GetDof(),el->GetDim());
-      inormal.SetSize(el->GetDim());
-      tnormal.SetSize(el->GetDim());
-
-      ir = air.GetSurfaceIntegrationRule();
-      for (int j = 0; j < ir->GetNPoints(); j++)
+      // compute the perimeter/area contribution from the element
+      air->GetSurfaceIntegrationRule(*trans,eir);
+      air->GetSurfaceWeights(*trans,eir,sweights);
+      for (int j = 0; j < eir.GetNPoints(); j++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(j);
+         const IntegrationPoint &ip = eir.IntPoint(j);
          trans->SetIntPoint(&ip);
-
-         el->CalcDShape(ip,bmat);
-         Mult(bmat, trans->AdjugateJacobian(), pmat);
-         //compute the normal to the LS in isoparametric space
-         bmat.MultTranspose(lsfun,inormal);
-         //compute the normal to the LS in physical space
-         pmat.MultTranspose(lsfun,tnormal);
-         area += ip.weight * tnormal.Norml2() / inormal.Norml2();
+         area += ip.weight * sweights(j) * trans->Weight();
       }
    }
+
+   delete air;
 
    if (exact_volume > 0)
    {
@@ -246,15 +226,15 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   //Perform standard MFEM integration
+   // Perform standard MFEM integration
    vol=0.0;
    for (int i=0; i<fespace.GetNE(); i++)
    {
       const FiniteElement* el=fespace.GetFE(i);
-      //get the element transformation
+      // get the element transformation
       trans = fespace.GetElementTransformation(i);
 
-      //compute the volume contribution from the element
+      // compute the volume contribution from the element
       ir=&IntRules.Get(el->GetGeomType(), iorder);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {

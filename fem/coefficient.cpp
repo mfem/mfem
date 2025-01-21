@@ -807,6 +807,7 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
+   qf.HostWrite();
    DenseMatrix values;
    DenseSymmetricMatrix matrix;
    for (int iel = 0; iel < ne; ++iel)
@@ -818,7 +819,7 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
       {
          const IntegrationPoint &ip = ir[iq];
          T.SetIntPoint(&ip);
-         matrix.UseExternalData(&values(0, iq), vdim);
+         matrix.UseExternalData(&values(0, iq), height);
          Eval(matrix, T, ip);
       }
    }
@@ -828,13 +829,12 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
-   mat.SetSize(height);
-   Eval(mat, T, ip);
+   Eval(mat_aux, T, ip);
    for (int j = 0; j < width; ++j)
    {
       for (int i = 0; i < height; ++ i)
       {
-         K(i, j) = mat(i, j);
+         K(i, j) = mat_aux(i, j);
       }
    }
 }
@@ -921,6 +921,75 @@ void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
       {
          K(i,j) = this->Eval(i, j, T, ip);
       }
+   }
+}
+
+MatrixArrayVectorCoefficient::MatrixArrayVectorCoefficient (int dim)
+   : MatrixCoefficient (dim)
+{
+   Coeff.SetSize(height);
+   ownCoeff.SetSize(height);
+   for (int i = 0; i < height; i++)
+   {
+      Coeff[i] = NULL;
+      ownCoeff[i] = true;
+   }
+}
+
+void MatrixArrayVectorCoefficient::SetTime(real_t t)
+{
+   for (int i=0; i < height; i++)
+   {
+      if (Coeff[i]) { Coeff[i]->SetTime(t); }
+   }
+   this->MatrixCoefficient::SetTime(t);
+}
+
+void MatrixArrayVectorCoefficient::Set(int i, VectorCoefficient * c, bool own)
+{
+   MFEM_ASSERT(i < height && i >= 0, "Row "
+               << i << " does not exist. " <<
+               "Matrix height = " << height << ".");
+   if (ownCoeff[i]) { delete Coeff[i]; }
+   Coeff[i] = c;
+   ownCoeff[i] = own;
+}
+
+MatrixArrayVectorCoefficient::~MatrixArrayVectorCoefficient ()
+{
+   for (int i=0; i < height; i++)
+   {
+      if (ownCoeff[i]) { delete Coeff[i]; }
+   }
+}
+
+void MatrixArrayVectorCoefficient::Eval(int i, Vector &V,
+                                        ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   MFEM_ASSERT(i < height && i >= 0, "Row "
+               << i << " does not exist. " <<
+               "Matrix height = " << height << ".");
+   if (Coeff[i])
+   {
+      Coeff[i] -> Eval(V, T, ip);
+   }
+   else
+   {
+      V = 0.0;
+   }
+}
+
+void MatrixArrayVectorCoefficient::Eval(DenseMatrix &K,
+                                        ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   K.SetSize(height, width);
+   Vector V(width);
+   for (int i = 0; i < height; i++)
+   {
+      this->Eval(i, V, T, ip);
+      K.SetRow(i, V);
    }
 }
 
@@ -1039,6 +1108,27 @@ real_t DeterminantCoefficient::Eval(ElementTransformation &T,
 {
    a->Eval(ma, T, ip);
    return ma.Det();
+}
+
+TraceCoefficient::TraceCoefficient(MatrixCoefficient &A)
+   : a(&A), ma(A.GetHeight(), A.GetWidth())
+{
+   MFEM_ASSERT(A.GetHeight() == A.GetWidth(),
+               "TraceCoefficient:  "
+               "Argument must be a square matrix.");
+}
+
+void TraceCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t TraceCoefficient::Eval(ElementTransformation &T,
+                              const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   return ma.Trace();
 }
 
 VectorSumCoefficient::VectorSumCoefficient(int dim)
@@ -1324,6 +1414,30 @@ void InverseMatrixCoefficient::Eval(DenseMatrix &M,
 {
    a->Eval(M, T, ip);
    M.Invert();
+}
+
+ExponentialMatrixCoefficient::ExponentialMatrixCoefficient(MatrixCoefficient &A)
+   : MatrixCoefficient(A.GetHeight(), A.GetWidth()), a(&A)
+{
+   MFEM_ASSERT(A.GetHeight() == A.GetWidth() && A.GetHeight() == 2,
+               "ExponentialMatrixCoefficient:  "
+               << "Argument must be a square 2x2 matrix."
+               << "  Height = " << A.GetHeight()
+               << ", Width = " << A.GetWidth());
+}
+
+void ExponentialMatrixCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->MatrixCoefficient::SetTime(t);
+}
+
+void ExponentialMatrixCoefficient::Eval(DenseMatrix &M,
+                                        ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   a->Eval(M, T, ip);
+   M.Exponential();
 }
 
 OuterProductCoefficient::OuterProductCoefficient(VectorCoefficient &A,

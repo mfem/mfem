@@ -14,14 +14,14 @@
 // Compile with: make convection-diffusion
 //
 // sample runs
-// convection-diffusion -m ../../data/star.mesh -o 2 -ref 2 -theta 0.0 -eps 1e-1 -beta '2 3'
-// convection-diffusion -m ../../data/beam-hex.mesh -o 2 -ref 2 -theta 0.0 -eps 1e0 -beta '1 0 2'
-// convection-diffusion -m ../../data/inline-tri.mesh -o 3 -ref 2 -theta 0.0 -eps 1e-2 -beta '4 2' -sc
+//  convection-diffusion -m ../../data/star.mesh -o 2 -ref 2 -theta 0.0 -eps 1e-1 -beta '2 3'
+//  convection-diffusion -m ../../data/beam-hex.mesh -o 2 -ref 2 -theta 0.0 -eps 1e0 -beta '1 0 2'
+//  convection-diffusion -m ../../data/inline-tri.mesh -o 3 -ref 2 -theta 0.0 -eps 1e-2 -beta '4 2' -sc
 
 // AMR runs
-// convection-diffusion  -o 3 -ref 5 -prob 1 -eps 1e-1 -theta 0.75
-// convection-diffusion  -o 2 -ref 9 -prob 1 -eps 1e-2 -theta 0.75
-// convection-diffusion  -o 3 -ref 9 -prob 1 -eps 1e-3 -theta 0.75 -sc
+//  convection-diffusion -o 3 -ref 5 -prob 1 -eps 1e-1 -theta 0.75
+//  convection-diffusion -o 2 -ref 9 -prob 1 -eps 1e-2 -theta 0.75
+//  convection-diffusion -o 3 -ref 9 -prob 1 -eps 1e-3 -theta 0.75 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -68,7 +68,7 @@
 #include <fstream>
 #include <iostream>
 
-using namespace std;
+
 using namespace mfem;
 using namespace mfem::common;
 
@@ -102,6 +102,7 @@ int main(int argc, char *argv[])
    int iprob = 0;
    real_t theta = 0.0;
    bool static_cond = false;
+   int visport = 19916;
    epsilon = 1e0;
 
    OptionsParser args(argc, argv);
@@ -126,10 +127,11 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(std::cout);
       return 1;
    }
 
@@ -152,7 +154,7 @@ int main(int argc, char *argv[])
       beta[0] = 1.;
    }
 
-   args.PrintOptions(cout);
+   args.PrintOptions(std::cout);
 
    // Define spaces
    enum TrialSpace
@@ -290,8 +292,8 @@ int main(int argc, char *argv[])
              << "  L2 Error  |"
              << "  Rate  |"
              << "  Residual  |"
-             << "  Rate  |" << endl;
-   std::cout << std::string(64,'-') << endl;
+             << "  Rate  |" << std::endl;
+   std::cout << std::string(64,'-') << std::endl;
 
    if (static_cond) { a->EnableStaticCondensation(); }
    for (int it = 0; it<=ref; it++)
@@ -412,7 +414,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
          VisualizeField(u_out,vishost, visport, u_gf,
                         "Numerical u", 0,0, 500, 500, keys);
          VisualizeField(sigma_out,vishost, visport, sigma_gf,
@@ -624,8 +625,8 @@ void setup_test_norm_coeffs(GridFunction & c1_gf, GridFunction & c2_gf)
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       real_t volume = mesh->GetElementVolume(i);
-      real_t c1 = min(epsilon/volume, (real_t) 1.);
-      real_t c2 = min(1./epsilon, 1./volume);
+      real_t c1 = std::min(epsilon/volume, (real_t) 1.);
+      real_t c2 = std::min(1./epsilon, 1./volume);
       fes->GetElementDofs(i,vdofs);
       c1_gf.SetSubVector(vdofs,c1);
       c2_gf.SetSubVector(vdofs,c2);

@@ -100,13 +100,13 @@ instructions above.
 ## Usage
 
 The miniapp can be run by invoking e.g. `mpirun -n 2
-<MFEM_BUILD>/miniapps/tribol/ContactPatchTest`. Note the mesh file
+<MFEM_BUILD>/miniapps/tribol/contact-patch-test`. Note the mesh file
 `mfem/miniapps/tribol/two-hex.mesh` must be in your path for the miniapp to
 execute correctly. This mesh file contains two cubes occupying $[0,1]^3$ and
 $[0,1] \times [0,1] \times [0.99,1.99]$. By default, the miniapp will uniformly
 refine the mesh twice, then split it across MPI ranks. Additional command line
 options can be viewed in the source file,
-`mfem/miniapps/tribol/ContactPatchTest.cpp`. An elasticity bilinear form will be
+`mfem/miniapps/tribol/contact-patch-test.cpp`. An elasticity bilinear form will be
 created over the volume mesh and mortar contact constraints will be formed along
 the $z=1$ and $z=0.99$ surfaces of the blocks.
 

@@ -64,6 +64,12 @@ protected:
    FiniteElementSpace *fes, *c_fes;
    BilinearFormIntegrator *c_bfi;
 
+   /// Set of constraint boundary face integrators to be applied.
+   Array<BilinearFormIntegrator*> boundary_constraint_integs;
+   Array<Array<int>*>             boundary_constraint_integs_marker;
+   /// Indicates if the boundary_constraint_integs integrators are owned externally
+   bool extern_bdr_constr_integs;
+
    SparseMatrix *Ct, *H;
 
    Array<int> hat_offsets, hat_dofs_marker;
@@ -105,6 +111,33 @@ public:
        will delete the integrator when destroyed. */
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ)
    { delete c_bfi; c_bfi = c_integ; }
+
+   /** Add the boundary face integrator that will be used to construct the
+       constraint matrix C. The Hybridization object assumes ownership of the
+       integrator, i.e. it will delete the integrator when destroyed. */
+   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ)
+   {
+      boundary_constraint_integs.Append(c_integ);
+      boundary_constraint_integs_marker.Append(
+         NULL); // NULL marker means apply everywhere
+   }
+   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
+                                   Array<int> &bdr_marker)
+   {
+      boundary_constraint_integs.Append(c_integ);
+      boundary_constraint_integs_marker.Append(&bdr_marker);
+   }
+
+   /// Access all integrators added with AddBdrConstraintIntegrator().
+   Array<BilinearFormIntegrator*> *GetBCBFI() { return &boundary_constraint_integs; }
+
+   /// Access all boundary markers added with AddBdrConstraintIntegrator().
+   /** If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBCBFI_Marker() { return &boundary_constraint_integs_marker; }
+
+   /// Indicate that boundary constraint integrators are not owned
+   void UseExternalBdrConstraintIntegrators() { extern_bdr_constr_integs = true; }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_tdof_list);

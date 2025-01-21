@@ -11,8 +11,10 @@
 
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/tests/unit/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -178,6 +180,15 @@ $(eval $(call psedov_tests,cpu,CPU,cpu))
 $(eval $(call psedov_tests,debug,DEBUG,debug))
 $(eval $(call psedov_tests,cuda,CUDA,cuda))
 $(eval $(call psedov_tests,cuda_uvm,CUDA_UVM,cuda:uvm))
+
+# For out-of-source builds, copy the meshes in ../../miniapps/multidomain from
+# the source location; these are used by 'punit_tests'.
+ifneq ($(SRC),)
+.PHONY: copy-miniapps-multidomain-data
+copy-miniapps-multidomain-data:
+	$(MAKE) -C ../../miniapps/multidomain copy-data
+punit_tests: | copy-miniapps-multidomain-data
+endif
 
 # For out-of-source builds, copy the meshes in ../../miniapps/meshing from the
 # source location; these are used by the TMOP tests.

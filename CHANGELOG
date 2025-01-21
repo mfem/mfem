@@ -8,93 +8,226 @@
                                https://mfem.org
 
 
-Version 4.6.1 (development)
+Version 4.7.1 (development)
 ===========================
+- Refactored ALGOIM cut integration rules. The interface is unified with
+  the interface for moment based cut integration rules.
+- Altered (Par)GridFunction::Compute*Error functions to ensure they return
+  non-negative values and therefore behave as "norms".
+
+Discretization improvements
+---------------------------
+- Added NURBS-based H(div) and H(curl) elements in 2D and 3D. Only on single
+  patch meshes. Only implemented for serial computations.
+
+- Added support for boundary constraints to the hybridization class.
+
+- Added support for external boundary submeshes with nonconformal mesh adaptation.
+
+- Added assembly of Jacobians to `HyperbolicFormIntegrator`.
+
+- Added average fluxes to `NumericalFlux` (formerly `RiemannSolver`)
+  and `FluxFunction`.
+
+- Added component-wise upwinded flux (`ComponentwiseUpwindFlux`).
 
 Meshing improvements
 --------------------
-- Introduced formulas for refinement of patches in NURBS meshes. Refinement by
-  arbitrary integer factors is also enabled, e.g. in the mesh-explorer miniapp.
-  NURBS coarsening and knot removal are also introduced.
+- Added native AD support for numerous TMOP metrics that didn't have first or
+  second derivative implementations.
 
+- The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
+  are also supported.
+
+- Added support for nonuniform anisotropic (nonconforming) mesh refinement with
+  arbitrary spacing in each direction, for quadrilateral (2D) and hexahedral
+  (3D) meshes. This enables in particular 3:1 refinement, as demonstrated in the
+  new meshing miniapp ref321.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added miniapps to demonstrate the H(div) and H(curl) NURBS elements.
+
+- Added an MFEM example for the eikonal equation. This new solver is based on
+  the proximal Galerkin method introduced by Keith and Surowiec.
+
+- Added a command line option to all miniapps (`-p` or `--send-port`) for
+  specifying the GLVis server socket port (19916 by default).
+
+GPU computing
+-------------
+- Added support for GPU-accelerated batched linear algebra (using cuBLAS,
+  hipBLAS, MAGMA, or native MFEM functionality) through the BatchedLinAlg class.
+
+- A new GPU kernel dispatch mechanism was introduced. Users can instantiate
+  specialized kernels for specific combinations of (for example) polynomial
+  degree and number of quadrature points using
+  `DiffusionIntegrator::AddSpecialization` and
+  `MassIntegrator::AddSpecialization` (this functionality may be added to more
+  integrators in the future).
+
+- Calls to slower fallback kernels can be reported to `mfem::err` by setting
+  the environment variable `MFEM_REPORT_KERNELS` to any value other than `NO`
+  or by explicitly calling `KernelReporter::Enable`. Users can then add
+  specializations for these kernels to achieve higher performance.
+
+- Element assembly kernels have been added for low-order refined to
+  high-order transfer operators. New kernels can be offloaded as device
+  kernels. Example usage may be found in lor-transfer.cpp under miniapps/tools.
+
+- Added support for GPU accelerated FindPointsGSLIB. Note that this will require
+  the users to switch from gslib v1.0.7 to v1.0.9.
+
+Miscellaneous
+-------------
+- Added support for SUNDIALS v7. See the section "API changes" for some small
+  changes related to this new version.
+
+- Refactored the `ARKStepSolver` class (ARKODE interface) to use
+  `TimeDependentOperator::Mult` only when the associated ODE operator is
+  expressed in explicit form (i.e., `TimeDependentOperator::isExplicit()`),
+  otherwise `TimeDependentOperator::ExplicitMult` is used. A check has been
+  added to `ARKStepSolver` to verify that the associated ODE operator is not in
+  explicit form when a mass matrix solver is enabled via a call to either the
+  `UseMFEMMassLinearSolver` or `UseSundialsMassLinearSolver` methods. This is
+  because enabling a mass matrix solver assumes that F(u,k,t) = M k in the
+  associated ODE operator.
+
+- Added support for custom interpolation procedure in FindPointsGSLIB.
+
+- `FiniteElementSpace` has new methods to directly set prolongation and
+  restriction operators to arbitrary sparse matrices.
+
+- There are new convenience constructors for NURBS patches and knot vectors.
+
+API changes
+-----------
+- API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
+
+- API change: `RiemannSolver` was renamed to `NumericalFlux` (the old name has
+  been been depracated through typedef)
+
+- API change: support for SUNDIALS v7:
+  * the SUNDIALS types `realtype` and `booleantype` are no longer defined by v7
+    and therefore MFEM now uses the new type names `sunrealtype` and
+    `sunbooleantype`, respectively, which MFEM defines when using SUNDIALS < v6
+    where these types were not defined.
+  * The SUNDIALS macro `SUNLS_SUCCESS` and some other `*_SUCCESS` macros were
+    removed and replaced by `SUN_SUCCESS` in v7, so to avoid tedious checks for
+    SUNDIALS versions, MFEM now defines and uses the constant `SUN_SUCCESS` when
+    using SUNDIALS < v7.
+  * The constants `SUN_PREC_*`, introduced by SUNDIALS v6 are now introduced by
+    MFEM when using SUNDIALS < v6 to avoid tedious version checks.
+
+
+Version 4.7, released on May 7, 2024
+====================================
+
+- Added support for single precision (with corresponding hypre build). The MFEM
+  floating point type was generalized from `double` to `real_t`. For details see
+  https://github.com/orgs/mfem/discussions/4207.
+
+Meshing improvements
+--------------------
 - Added the capability to partition (big) serial meshes in serial code, see the
   new classes MeshPartitioner and MeshPart. This capability is also exposed as a
   menu option in the mesh-explorer miniapp in miniapps/meshing.
 
-Discretization improvements
----------------------------
-- Introduced support for higher order non conformal Nedelec elements on
-  simplices in ParMesh.
+- Added named attribute sets and basic supporting methods to the Mesh class as a
+  convenient means of referring to sets of domain or boundary attribute numbers.
+  See the new Example 39/39p and data/compass.mesh.
 
-- Introduced support for internal boundary elements in nonconformal adapted
-  meshes.
+- Introduced formulas for refinement of patches in NURBS meshes. Refinement by
+  arbitrary integer factors is also enabled, e.g. in the mesh-explorer miniapp.
+  NURBS coarsening and knot removal are also introduced.
 
-- Added functionality for construction of cut-surface and cut-volume
-  IntegrationRules through a moment-fitting approach. The cut is specified by
-  the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
+- Added support for internal boundary elements in nonconforming meshes.
 
-- Added a new nonlinear integrator, `HyperbolicFormIntegrator`. This implements
-  both element-wise weak divergence and face-wise numerical flux for a general
-  system of hyperbolic conservation laws. To use this integrator for a specific
-  flux function, users can define a derived class of `FluxFunction`. Currently,
-  advection, Burgers', shallow-water, Euler equations (see, Example 18) are
-  available.
-
-GPU support
-----------------------------
-- Added support for full assembly on simplices.
-
-- Added functionality for BilinearFormIntegrators to use kernels that work for both
-  tensor and unstructured elements.
-
-- Added partial assembly for linear elasticity. Does not use sum factorization for now.
-- Added functionality to automatically configure HYPRE's compute policy to match
-  MFEM's compute policy when HYPRE is built with GPU support and HYPRE's version
-  is >= 2.31.0.
-
-- Added partial assembly and GPU support for the DG diffusion integrator.
-
-New and updated examples and miniapps
--------------------------------------
-- Added a new block solver in miniapp/solvers for the Darcy problem.
-  The new solver is based on a Bramble-Pasciak preconditioning. User can
-  use and implement their own preconditioner for the mass matrix.
-
-- Added miniapp to demonstrate new elasticity integrator and unstructured element GPU support,
-  and a block diagonal preconditioner using low order refinement. Allows comparison with
-  currently existing legacy mode integrator. See miniapps/solvers/lor_elast.
-
-- Added a new mortar contact patch test miniapp using the Tribol interface
-  physics library (see https://github.com/LLNL/Tribol).  See miniapps/tribol.
-
-Miscellaneous
--------------
-- Added support for single and double precision, with corresponding hypre build.
-  Generalized the floating point type from `double` to `real_t`. For more
-  details see https://github.com/orgs/mfem/discussions/4207.
+- Added ExodusII output capability. The writer can handle first-order (Pyramid5,
+  Wedge6, Hex8, Tet4) and second-order FE types (Pyramid14, Wedge18, Hex27, Tet10).
 
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
 
-- Updated the Doxygen documentation style, which now requires Doxygen version
-  1.9.8 or later. See the doc/ directory.
+Discretization improvements
+---------------------------
+- Added a new nonlinear integrator, `HyperbolicFormIntegrator` that implements
+  both element-wise weak divergence and face-wise numerical flux for a general
+  system of hyperbolic conservation laws. To use the integrator for a specific
+  flux function, users can define a derived class of `FluxFunction`. Currently,
+  advection, Burgers, shallow-water and Euler equations (see Example 18/18p) are
+  available.
 
-- Improved thread safety for global variables in the library, for example
-  IntegrationRules IntRules, RefinedIntRules, GeometryRefiner
-  GlobGeometryRefiner, and FiniteElement::dof2quad_array.
+- Added a capability to construct cut-surface and cut-volume IntegrationRules
+  through a moment-fitting approach. The cut is specified by the zero level set
+  of a Coefficient. See fem/intrules_cut.hpp and the new Example 38.
 
-- PETSc integration now generally requires PETSc version 3.21 or later, though
-  depending on the functionality older versions may still work.
+- Introduced support for high-order nonconforming Nedelec elements on simplices.
 
-- RAJA backend will use seq_exec for serial loop execution when RAJA
-  v2023.06.00 and beyond is detected as loop_exec is deprecated.
+GPU computing
+-------------
+- Added partial assembly and GPU support for the DG diffusion integrator.
+
+- Efficient GPU-accelerated LOR assembly is now supported on surface meshes.
+
+- Added functionality to automatically configure hypre's compute policy to match
+  MFEM's compute policy when hypre is built with GPU support. Requires version
+  hypre-2.31.0 or later.
+
+- Added support for full assembly on simplices.
+
+- Added partial assembly for linear elasticity (no sum factorization for now).
+
+- Added functionality for BilinearFormIntegrators to use kernels that work for
+  both tensor and unstructured elements.
+
+- The RAJA backend will use `seq_exec` for serial loop execution when RAJA
+  v2023.06.00 and beyond is detected as `loop_exec` is deprecated.
 
 - API change: The macro MFEM_HYPRE_FORALL (from hypre.hpp) which was intended
   for internal use, has been removed and replaced by the function template
   mfem::hypre_forall in general/forall.hpp.
 
-- Adding named attribute sets and basic supporting methods to the Mesh class as
-  a convenient means of referring to sets of domain or boundary attribute
-  numbers. Also adding related serial and parallel examples which illustrate.
+New and updated examples and miniapps
+-------------------------------------
+- Added a new miniapp illustrating elastic contact based on the Tribol library,
+  (https://github.com/LLNL/Tribol). See miniapps/tribol.
+
+- Added a miniapp to demonstrate low order refined (LOR) block preconditioning
+  for linear elasticity on GPUs. See miniapps/solvers/lor_elast.
+
+- Added a new block solver in miniapp/solvers for the Darcy problem. The new
+  solver is based on a Bramble-Pasciak preconditioning. User can use and
+  implement their own preconditioner for the mass matrix.
+
+- Added a small miniapp for printing the shape functions of a KnotVector. See
+  miniapps/nurbs/nurbs_printfunc.cpp.
+
+- Added two new example codes: 38 and 39/39p described above. Substantially
+  updated Example 18/18p.
+
+- Added ODE solvers selection routines. This creates a uniformity across examples,
+  miniapps and other executables in regard to ODE(time-integrator) selection.
+
+- Added new mechanism for retrieving and setting state vectors in ODE solvers.
+  This is relevant for AB/AM and gen-alpha solvers.
+
+- Added ODEsolver/ODEsolver2 unit tests to verify order of convergence and
+  read/write functionality.
+
+Miscellaneous
+-------------
+- Updated the Doxygen documentation style, which now requires Doxygen version
+  1.9.8 or later. See the doc/ directory.
+
+- Improved thread safety for global variables in the library, e.g. for IntRules,
+  RefinedIntRules, GlobGeometryRefiner, and FiniteElement::dof2quad_array.
+
+- PETSc integration now generally requires PETSc version 3.21 or later, though
+  depending on the functionality older versions may still work.
+
+- Various other simplifications, extensions, and bugfixes in the code.
+
+- Added GSLIB-based gather-scatter operator.
 
 
 Version 4.6, released on September 27, 2023
@@ -116,7 +249,6 @@ Meshing improvements
   * The edge to knot map for NURBS meshes can be determined automatically. It is
     no longer needed to specify this in the NURBS mesh.
   * Added curve interpolation method for NURBS.
-  * Added new small miniapp for printing of shape functions of a KnotVector
   * See miniapps/nurbs for example meshes and miniapps.
 
 Discretization improvements
@@ -162,8 +294,6 @@ Linear and nonlinear solvers
   memory) version already available through the CPardiso MFEM integration.
 
 - Added HIP support to the PETSc and SUNDIALS interfaces.
-
-- Efficient GPU-accelerated LOR assembly now supports surface meshes.
 
 New and updated examples and miniapps
 -------------------------------------

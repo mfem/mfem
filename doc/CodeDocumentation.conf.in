@@ -48,7 +48,7 @@ PROJECT_NAME           = MFEM
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = v4.6.1
+PROJECT_NUMBER         = v4.7.1
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewer a
@@ -938,6 +938,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/config \
                          @MFEM_SOURCE_DIR@/general \
                          @MFEM_SOURCE_DIR@/linalg \
+                         @MFEM_SOURCE_DIR@/linalg/batched \
                          @MFEM_SOURCE_DIR@/linalg/simd \
                          @MFEM_SOURCE_DIR@/mesh \
                          @MFEM_SOURCE_DIR@/mesh/submesh \
@@ -1049,7 +1050,8 @@ RECURSIVE              = NO
 EXCLUDE                = @MFEM_SOURCE_DIR@/config/_config.hpp \
                          @MFEM_SOURCE_DIR@/config/get_hypre_version.cpp \
                          @MFEM_SOURCE_DIR@/general/tinyxml2.h \
-                         @MFEM_SOURCE_DIR@/general/tinyxml2.cpp
+                         @MFEM_SOURCE_DIR@/general/tinyxml2.cpp \
+                         @MFEM_SOURCE_DIR@/linalg/lapack.hpp
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded

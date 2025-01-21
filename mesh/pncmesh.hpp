@@ -63,11 +63,14 @@ class FiniteElementSpace;
  */
 class ParNCMesh : public NCMesh
 {
+protected:
+   ParNCMesh() = default;
 public:
    /// Construct by partitioning a serial NCMesh.
    /** SFC partitioning is used by default. A user-specified partition can be
        passed in 'part', where part[i] is the desired MPI rank for element i. */
-   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh, int* part = NULL);
+   ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh,
+             const int *partitioning = nullptr);
 
    /** Load from a stream, parallel version. See the serial NCMesh::NCMesh
        counterpart for a description of the parameters. */
@@ -81,7 +84,8 @@ public:
 
    /** An override of NCMesh::Refine, which is called eventually, after making
        sure that refinements that occur on the processor boundary are sent to
-       the neighbor processors so they can keep their ghost layers up to date.*/
+       the neighbor processors so they can keep their ghost layers up to
+       date. */
    void Refine(const Array<Refinement> &refinements) override;
 
    /// Parallel version of NCMesh::LimitNCLevel.
@@ -229,8 +233,8 @@ public:
                                     const Table &deref_table);
 
    /** Extension of NCMesh::GetBoundaryClosure. Filters out ghost vertices and
-       ghost edges from 'bdr_vertices' and 'bdr_edges', and uncovers hidden internal
-       boundary faces. */
+       ghost edges from 'bdr_vertices' and 'bdr_edges', and uncovers hidden
+       internal boundary faces. */
    void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                            Array<int> &bdr_vertices,
                            Array<int> &bdr_edges, Array<int> &bdr_faces) override;
@@ -250,10 +254,12 @@ public:
 protected: // interface for ParMesh
 
    friend class ParMesh;
+   friend class ParSubMesh;
 
    /** For compatibility with conforming code in ParMesh and ParFESpace.
-       Initializes shared structures in ParMesh: gtopo, shared_*, group_s*, s*_l*.
-       The ParMesh then acts as a parallel mesh cut along the NC interfaces. */
+       Initializes shared structures in ParMesh: gtopo, shared_*, group_s*,
+       s*_l*. The ParMesh then acts as a parallel mesh cut along the NC
+       interfaces. */
    void GetConformingSharedStructures(class ParMesh &pmesh);
 
    /** Populate face neighbor members of ParMesh from the ghost layer, without
@@ -435,7 +441,7 @@ protected: // implementation
       std::vector<int> elements;
       std::vector<ValueType> values;
 
-      int Size() const { return elements.size(); }
+      int Size() const { return static_cast<int>(elements.size()); }
       void Reserve(int size) { elements.reserve(size); values.reserve(size); }
 
       void Add(int elem, ValueType val)
@@ -519,8 +525,9 @@ protected: // implementation
        owners, keeping the ghost layer up to date. Used by Rebalance() and
        Derefine(). 'target_elements' is the number of elements this rank
        is supposed to own after the exchange. If this number is not known
-       a priori, the parameter can be set to -1, but more expensive communication
-       (synchronous sends and a barrier) will be used in that case. */
+       a priori, the parameter can be set to -1, but more expensive
+       communication (synchronous sends and a barrier) will be used in that
+       case. */
    void RedistributeElements(Array<int> &new_ranks, int target_elements,
                              bool record_comm);
 

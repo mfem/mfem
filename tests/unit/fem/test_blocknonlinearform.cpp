@@ -51,11 +51,11 @@ class CExample : public BlockNonlinearFormIntegrator
 private:
 public:
    CExample() {}
-   virtual ~CExample() {}
+   ~CExample() override {}
 
-   virtual real_t GetElementEnergy(const Array<const FiniteElement *> &el,
-                                   ElementTransformation &trans,
-                                   const Array<const Vector *> &elfun)
+   real_t GetElementEnergy(const Array<const FiniteElement *> &el,
+                           ElementTransformation &trans,
+                           const Array<const Vector *> &elfun) override
    {
       real_t energy = 0;
       int dof_u = el[0]->GetDof();

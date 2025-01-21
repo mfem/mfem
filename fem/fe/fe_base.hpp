@@ -276,7 +276,7 @@ public:
       UNKNOWN_MAP_TYPE = -1, /**< Used to distinguish an unset MapType variable
                                   from the known values below. */
       VALUE,     /**< For scalar fields; preserves point values
-                          $ u(x) = \hat u(\hat x) $ */
+                          $ u(x) = \hat u(\hat x) $ @anchor map_type_value */
       INTEGRAL,  /**< For scalar fields; preserves volume integrals
                           $ u(x) = (1/w) \hat u(\hat x) $ */
       H_DIV,     /**< For vector fields; preserves surface integrals of the
@@ -316,7 +316,7 @@ public:
    int GetDim() const { return dim; }
 
    /** @brief Returns the vector dimension for vector-valued finite elements,
-       which is also the dimension of the interpolation operatrion. */
+       which is also the dimension of the interpolation operation. */
    int GetRangeDim() const { return vdim; }
 
    /// Returns the dimension of the curl for vector-valued finite elements.
@@ -394,7 +394,32 @@ public:
    /// Get a const reference to the nodes of the element
    const IntegrationRule & GetNodes() const { return Nodes; }
 
-   // virtual functions for finite elements on vector spaces
+   /** @brief Evaluate the Hessians of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** Each row of the result DenseMatrix @a Hessian contains upper triangular
+       part of the Hessian of one shape function.
+       The order in 2D is {u_xx, u_xy, u_yy}.
+       The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
+
+   /** @brief Evaluate the Hessian of all shape functions of a scalar finite
+       element in physical space at the given point @a ip. */
+   /** The size (#dof, #dim*(#dim+1)/2) of @a Hessian must be set in advance. */
+   void CalcPhysHessian(ElementTransformation &Trans,
+                        DenseMatrix& Hessian) const;
+
+   /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
+       element in physical space at the given point @a ip. */
+   /** The size (#dof) of @a Laplacian must be set in advance. */
+   void CalcPhysLaplacian(ElementTransformation &Trans,
+                          Vector& Laplacian) const;
+
+   /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
+       element in physical space at the given point @a ip. */
+   /** The size (#dof) of @a Laplacian must be set in advance. */
+   void CalcPhysLinLaplacian(ElementTransformation &Trans,
+                             Vector& Laplacian) const;
 
    /** @brief Evaluate the values of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
@@ -453,30 +478,6 @@ public:
        face, while *ndofs is set to the number of dofs on that face.
    */
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
-
-   /** @brief Evaluate the Hessians of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** Each row of the result DenseMatrix @a Hessian contains upper triangular
-       part of the Hessian of one shape function.
-       The order in 2D is {u_xx, u_xy, u_yy}.
-       The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
-   virtual void CalcHessian(const IntegrationPoint &ip,
-                            DenseMatrix &Hessian) const;
-
-   /** @brief Evaluate the Hessian of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** The size (#dof, #dim*(#dim+1)/2) of @a Hessian must be set in advance. */
-   virtual void CalcPhysHessian(ElementTransformation &Trans,
-                                DenseMatrix& Hessian) const;
-
-   /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** The size (#dof) of @a Laplacian must be set in advance. */
-   virtual void CalcPhysLaplacian(ElementTransformation &Trans,
-                                  Vector& Laplacian) const;
-
-   virtual void CalcPhysLinLaplacian(ElementTransformation &Trans,
-                                     Vector& Laplacian) const;
 
    /** @brief Return the local interpolation matrix @a I (Dof x Dof) where the
        fine element is the image of the base geometry under the given

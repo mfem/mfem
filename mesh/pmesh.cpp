@@ -103,29 +103,32 @@ ParMesh& ParMesh::operator=(ParMesh &&mesh)
    return *this;
 }
 
-ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
+ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
                  int part_method)
    : glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
 {
-   int *partitioning = NULL;
-   Array<bool> activeBdrElem;
-
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
+   Array<int> partitioning;
+   Array<bool> activeBdrElem;
+
+   if (partitioning_)
+   {
+      partitioning.MakeRef(const_cast<int *>(partitioning_), mesh.GetNE(),
+                           false);
+   }
+
    if (mesh.Nonconforming())
    {
-      if (partitioning_)
+      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning_);
+
+      if (!partitioning_)
       {
-         partitioning = partitioning_;
-      }
-      ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh, partitioning);
-      if (!partitioning)
-      {
-         partitioning = new int[mesh.GetNE()];
+         partitioning.SetSize(mesh.GetNE());
          for (int i = 0; i < mesh.GetNE(); i++)
          {
             partitioning[i] = pncmesh->InitialPartition(i);
@@ -158,13 +161,14 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       ncmesh = pncmesh = NULL;
 
-      if (partitioning_)
+      if (!partitioning_)
       {
-         partitioning = partitioning_;
-      }
-      else
-      {
-         partitioning = mesh.GeneratePartitioning(NRanks, part_method);
+         // Mesh::GeneratePartitioning always uses new[] to allocate the,
+         // partitioning, so we need to tell the memory manager to free it with
+         // delete[] (even if a different host memory type has been selected).
+         constexpr MemoryType mt = MemoryType::HOST;
+         partitioning.MakeRef(mesh.GeneratePartitioning(NRanks, part_method),
+                              mesh.GetNE(), mt, true);
       }
 
       // re-enumerate the partitions to better map to actual processor
@@ -304,11 +308,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // set meaningful values to 'vertices' even though we have Nodes,
       // for compatibility (e.g., Mesh::GetVertex())
       SetVerticesFromNodes(Nodes);
-   }
-
-   if (partitioning != partitioning_)
-   {
-      delete [] partitioning;
    }
 
    have_face_nbr_data = false;
@@ -730,7 +729,7 @@ void ParMesh::BuildVertexGroup(int ngroups, const Table &vert_element)
 }
 
 void ParMesh::BuildSharedFaceElems(int ntri_faces, int nquad_faces,
-                                   const Mesh& mesh, int *partitioning,
+                                   const Mesh& mesh, const int *partitioning,
                                    const STable3D *faces_tbl,
                                    const Array<int> &face_group,
                                    const Array<int> &vert_global_local)
@@ -3764,7 +3763,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 #endif
                         need_refinement = 1;
                         middle[ii] = NumOfVertices++;
-                        for (int c = 0; c < 2; c++)
+                        for (int c = 0; c < spaceDim; c++)
                         {
                            V(c) = 0.5 * (vertices[v[0]](c) + vertices[v[1]](c));
                         }

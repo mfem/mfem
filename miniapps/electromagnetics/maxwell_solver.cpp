@@ -603,13 +603,12 @@ MaxwellSolver::InitializeGLVis()
 }
 
 void
-MaxwellSolver::DisplayToGLVis()
+MaxwellSolver::DisplayToGLVis(int visport)
 {
    if ( myid_ == 0 && logging_ > 1 )
    { cout << "Sending data to GLVis ..." << flush; }
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    int Wx = 0, Wy = 0; // window position
    int Ww = 350, Wh = 350; // window size

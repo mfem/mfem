@@ -15,19 +15,19 @@
 //
 // sample runs
 
-// mpirun -np 4 pacoustics -o 3 -m ../../data/star.mesh -sref 1 -pref 2 -rnum 1.9 -sc -prob 0
-// mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 1 -pref 2  -rnum 5.2 -sc -prob 1
-// mpirun -np 4 pacoustics -o 4 -m ../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
-// mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1 -rnum 1.9 -sc -prob 0
-// mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 1 -rnum 7.1 -sc -prob 2
-// mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
-// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 7.1 -sc -prob 3
-// mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 10.1 -sc -prob 4
-// mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 12.1 -sc -prob 5
+//  mpirun -np 4 pacoustics -o 3 -m ../../data/star.mesh -sref 1 -pref 2 -rnum 1.9 -sc -prob 0
+//  mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 1 -pref 2  -rnum 5.2 -sc -prob 1
+//  mpirun -np 4 pacoustics -o 4 -m ../../data/inline-tri.mesh -sref 1 -pref 2  -rnum 7.1 -sc -prob 1
+//  mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1 -rnum 1.9 -sc -prob 0
+//  mpirun -np 4 pacoustics -o 3 -m ../../data/inline-quad.mesh -sref 2 -pref 1 -rnum 7.1 -sc -prob 2
+//  mpirun -np 4 pacoustics -o 2 -m ../../data/inline-hex.mesh -sref 0 -pref 1  -rnum 4.1 -sc -prob 2
+//  mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 7.1 -sc -prob 3
+//  mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 10.1 -sc -prob 4
+//  mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 12.1 -sc -prob 5
 
 // AMR runs
-// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 7 -theta 0.75 -rnum 10.1 -sc -prob 3
-// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 12 -theta 0.75 -rnum 20.1 -sc -prob 3
+//  mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 7 -theta 0.75 -rnum 10.1 -sc -prob 3
+//  mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 12 -theta 0.75 -rnum 20.1 -sc -prob 3
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -192,6 +192,7 @@ int main(int argc, char *argv[])
    int iprob = 0;
    int sr = 0;
    int pr = 0;
+   int visport = 19916;
    bool exact_known = false;
    bool with_pml = false;
    bool paraview = false;
@@ -223,6 +224,7 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -440,7 +442,7 @@ int main(int argc, char *argv[])
 
    // integrators in the PML region
    // Custom integration rule for the test space in the PML region
-   const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0),
+   const IntegrationRule &ir = IntRules.Get(pmesh.GetTypicalElementGeometry(),
                                             2*test_order + 1);
    if (pml)
    {
@@ -787,7 +789,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
          VisualizeField(p_out_r,vishost, visport, p_r,
                         "Numerical presure (real part)", 0, 0, 500, 500, keys);
          VisualizeField(p_out_i,vishost, visport, p_i,

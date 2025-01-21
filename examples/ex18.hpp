@@ -39,8 +39,8 @@ private:
    // Base Nonlinear Form
    std::unique_ptr<NonlinearForm> nonlinearForm;
    // element-wise inverse mass matrix
-   std::vector<DenseMatrix> invmass; // local scalar inverse mass.
-   std::vector<DenseMatrix> weakdiv; // local weakdivergence. Trial space is ByDim.
+   std::vector<DenseMatrix> invmass; // local scalar inverse mass
+   std::vector<DenseMatrix> weakdiv; // local weak divergence (trial space ByDim)
    // global maximum characteristic speed. Updated by form integrators
    mutable real_t max_char_speed;
    // auxiliary variable used in Mult
@@ -169,9 +169,9 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
 {
    // 0. Reset wavespeed computation before operator application.
    formIntegrator->ResetMaxCharSpeed();
-   // 1. Apply Nonlinear form to obtain an axiliary result
+   // 1. Apply Nonlinear form to obtain an auxiliary result
    //         z = - <F̂(u_h,n), [[v]]>_e
-   //    If weak-divergencee is not preassembled, we also have weak-divergence
+   //    If weak-divergence is not preassembled, we also have weak-divergence
    //         z = - <F̂(u_h,n), [[v]]>_e + (F(u_h), ∇v)
    nonlinearForm->Mult(x, z);
    if (!weakdiv.empty()) // if weak divergence is pre-assembled

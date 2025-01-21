@@ -116,10 +116,10 @@ public:
    ConductionOperator(ParFiniteElementSpace &f, real_t alpha, real_t kappa,
                       VectorGridFunctionCoefficient adv_gf_c);
 
-   virtual void Mult(const Vector &u, Vector &du_dt) const;
+   void Mult(const Vector &u, Vector &du_dt) const override;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const real_t dt, const Vector &u, Vector &k);
+   void ImplicitSolve(const real_t dt, const Vector &u, Vector &k) override;
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(VectorGridFunctionCoefficient adv_gf_c);
@@ -146,6 +146,7 @@ int main(int argc, char *argv[])
          rs_levels(lim_meshes);
    rs_levels                 = 0;
    np_list                   = 1;
+   int visport               = 19916;
    bool visualization        = true;
 
    OptionsParser args(argc, argv);
@@ -160,7 +161,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -323,7 +324,6 @@ int main(int argc, char *argv[])
 
    // Visualize the solution.
    char vishost[] = "localhost";
-   int visport = 19916;
    socketstream vis_sol;
    int Ww = 350, Wh = 350; // window size
    int Wx = color*Ww+10, Wy = 0; // window position
