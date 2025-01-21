@@ -13,11 +13,8 @@
 #define MFEM_MEM_INTERNAL_HPP
 
 #include "mem_manager.hpp"
-#include "forall.hpp"
+#include "forall.hpp"  // for CUDA and HIP memory functions
 #include <unordered_map>
-
-#include <vector> //delme
-#include <forward_list> //delme
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
@@ -160,8 +157,12 @@ public:
 };
 
 #ifndef _WIN32
-static uintptr_t pagesize = 0;
-static uintptr_t pagemask = 0;
+
+extern uintptr_t pagesize;
+extern uintptr_t pagemask;
+
+/// MMU initialization, setting SIGBUS & SIGSEGV signals to MmuError
+extern void MmuInit();
 
 /// Returns the restricted base address of the DEBUG segment
 inline const void *MmuAddrR(const void *ptr)
@@ -208,33 +209,6 @@ inline uintptr_t MmuLengthP(const void *ptr, const size_t bytes)
    return length;
 }
 
-/// The protected access error, used for the host
-static void MmuError(int, siginfo_t *si, void*)
-{
-   constexpr size_t buf_size = 64;
-   fflush(0);
-   char str[buf_size];
-   const void *ptr = si->si_addr;
-   snprintf(str, buf_size, "Error while accessing address %p!", ptr);
-   mfem::out << std::endl << "An illegal memory access was made!";
-   MFEM_ABORT(str);
-}
-
-/// MMU initialization, setting SIGBUS & SIGSEGV signals to MmuError
-static void MmuInit()
-{
-   if (pagesize > 0) { return; }
-   struct sigaction sa;
-   sa.sa_flags = SA_SIGINFO;
-   sigemptyset(&sa.sa_mask);
-   sa.sa_sigaction = MmuError;
-   if (sigaction(SIGBUS, &sa, NULL) == -1) { mfem_error("SIGBUS"); }
-   if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
-   pagesize = (uintptr_t) sysconf(_SC_PAGE_SIZE);
-   MFEM_ASSERT(pagesize > 0, "pagesize must not be less than 1");
-   pagemask = pagesize - 1;
-}
-
 /// MMU allocation, through ::mmap
 inline void MmuAlloc(void **ptr, const size_t bytes)
 {
@@ -268,7 +242,9 @@ inline void MmuAllow(const void *ptr, const size_t bytes)
    if (!::mprotect(const_cast<void*>(ptr), bytes, RW)) { return; }
    if (mmu_protect_error) { mfem_error("MMU protection (R/W) error"); }
 }
-#else
+
+#else // #ifndef _WIN32
+
 inline void MmuInit() { }
 inline void MmuAlloc(void **ptr, const size_t bytes) { *ptr = std::malloc(bytes); }
 inline void MmuDealloc(void *ptr, const size_t) { std::free(ptr); }
@@ -278,7 +254,8 @@ inline const void *MmuAddrR(const void *a) { return a; }
 inline const void *MmuAddrP(const void *a) { return a; }
 inline uintptr_t MmuLengthR(const void*, const size_t) { return 0; }
 inline uintptr_t MmuLengthP(const void*, const size_t) { return 0; }
-#endif
+
+#endif // #ifndef _WIN32
 
 /// The MMU host memory space
 class MmuHostMemorySpace : public HostMemorySpace
@@ -529,10 +506,10 @@ public:
 #endif // MFEM_USE_CUDA || MFEM_USE_HIP
 #endif // MFEM_USE_UMPIRE
 
-} // namespace internal
+extern Maps *maps;
+extern Ctrl *ctrl;
 
-extern internal::Maps *maps;
-extern internal::Ctrl *ctrl;
+} // namespace internal
 
 } // namespace mfem
 

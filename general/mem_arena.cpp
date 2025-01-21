@@ -19,21 +19,20 @@ namespace internal
 
 struct ArenaControlBlock
 {
-   class ArenaChunk &chunk;
+   ArenaChunk &chunk;
    size_t bytes;
    bool deallocated;
-   ArenaControlBlock(class ArenaChunk &chunk_, size_t bytes_)
+   ArenaControlBlock(ArenaChunk &chunk_, size_t bytes_)
       : chunk(chunk_), bytes(bytes_), deallocated(false)
    { }
 };
 
-static std::unordered_map<void*,ArenaControlBlock> *arena_map;
+static std::unordered_map<void*,ArenaControlBlock> *arena_map = nullptr;
 
 static Memory NewMemory(size_t nbytes)
 {
    const MemoryType h_mt = MemoryManager::GetHostMemoryType();
-   const MemoryType d_mt = MemoryManager::GetDualMemoryType(
-                              MemoryManager::GetHostMemoryType());
+   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
    void *h_ptr;
    ctrl->Host(h_mt)->Alloc(&h_ptr, nbytes);
    return Memory(h_ptr, nbytes, h_mt, d_mt);
@@ -155,6 +154,7 @@ void ArenaChunk::ReleaseDevice()
 
 ArenaHostMemorySpace::ArenaHostMemorySpace()
 {
+   MFEM_ASSERT(arena_map == nullptr, "internal error");
    arena_map = new std::unordered_map<void*,ArenaControlBlock>;
 }
 
@@ -164,6 +164,8 @@ ArenaHostMemorySpace::~ArenaHostMemorySpace()
    arena_map = nullptr;
    if (!Device::IsConfigured())
    {
+      // For an explanation why we do this, see the documentation of
+      // ArenaChunk::ReleaseDevice().
       for (auto &chunk : chunks) { chunk.ReleaseDevice(); }
    }
 }
@@ -219,6 +221,7 @@ void ArenaHostMemorySpace::Alloc(void **ptr, size_t nbytes)
    const size_t nbytes_aligned = r ? (nbytes + alignment - r) : nbytes;
 
    ConsolidateAndEnsureAvailable(nbytes_aligned);
+   // FIXME: this does not ensure the pointer is aligned at 256 bytes !!!
    *ptr = chunks.front().NewPointer(nbytes_aligned);
    arena_map->emplace(*ptr, ArenaControlBlock(chunks.front(), nbytes_aligned));
 
@@ -245,12 +248,14 @@ void ArenaHostMemorySpace::Alloc(void **ptr, size_t nbytes)
 
 void ArenaHostMemorySpace::Dealloc(Memory &mem)
 {
+   MFEM_ASSERT(arena_map != nullptr, "internal error");
    ArenaControlBlock &control = arena_map->at(mem.h_ptr);
    control.chunk.Dealloc(control);
 }
 
 void ArenaDeviceMemorySpace::Alloc(Memory &base)
 {
+   MFEM_ASSERT(arena_map != nullptr, "internal error");
    auto &chunk = arena_map->at(base.h_ptr).chunk;
    base.d_ptr = chunk.GetDevicePointer(base.h_ptr);
 }
@@ -259,22 +264,19 @@ void ArenaDeviceMemorySpace::Dealloc(Memory &base) { /* no-op */ }
 
 void *ArenaDeviceMemorySpace::HtoD(void *dst, const void *src, size_t bytes)
 {
-   const MemoryType d_mt = MemoryManager::GetDualMemoryType(
-                              MemoryManager::GetHostMemoryType());
+   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
    return ctrl->Device(d_mt)->HtoD(dst, src, bytes);
 }
 
 void *ArenaDeviceMemorySpace::DtoD(void* dst, const void* src, size_t bytes)
 {
-   const MemoryType d_mt = MemoryManager::GetDualMemoryType(
-                              MemoryManager::GetHostMemoryType());
+   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
    return ctrl->Device(d_mt)->DtoD(dst, src, bytes);
 }
 
 void *ArenaDeviceMemorySpace::DtoH(void *dst, const void *src, size_t bytes)
 {
-   const MemoryType d_mt = MemoryManager::GetDualMemoryType(
-                              MemoryManager::GetHostMemoryType());
+   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
    return ctrl->Device(d_mt)->DtoH(dst, src, bytes);
 }
 

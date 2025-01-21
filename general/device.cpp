@@ -136,7 +136,9 @@ Device::Device()
       {
          MFEM_ABORT("Unknown memory backend!");
       }
-      mm.Configure(host_mem_type, device_mem_type);
+      SetTempMemoryTypes(MemoryType::DEFAULT, MemoryType::DEFAULT);
+      mm.Configure(host_mem_type, device_mem_type,
+                   host_temp_mem_type, device_temp_mem_type);
    }
 
    if (getenv("MFEM_DEVICE"))
@@ -260,7 +262,93 @@ void Device::Configure(const std::string &device, const int device_id)
 }
 
 // static method
-void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
+void Device::SetTempMemoryTypes(MemoryType ht_mt, MemoryType dt_mt)
+{
+   MFEM_VERIFY(IsHostMemory(ht_mt) || ht_mt == MemoryType::DEFAULT,
+               "invalid host temporary MemoryType, ht_mt = " << (int)ht_mt);
+   MFEM_VERIFY(IsDeviceMemory(dt_mt) || dt_mt == ht_mt ||
+               dt_mt == MemoryType::DEFAULT,
+               "invalid device MemoryType, dt_mt = " << (int)dt_mt
+               << " (ht_mt = " << (int)ht_mt << ')');
+
+   const MemoryType h_mt = Get().host_mem_type;
+   const MemoryType d_mt = Get().device_mem_type;
+
+   if (ht_mt == MemoryType::DEFAULT)
+   {
+      switch (h_mt)
+      {
+         case MemoryType::HOST:
+            Get().host_temp_mem_type = MemoryType::HOST;
+            break;
+         case MemoryType::HOST_32:
+         case MemoryType::HOST_64:
+            // HOST_ARENA uses the configured host memory type for chunk
+            // allocations
+            Get().host_temp_mem_type = MemoryType::HOST_ARENA;
+            break;
+         case MemoryType::HOST_DEBUG:
+            Get().host_temp_mem_type = MemoryType::HOST_DEBUG;
+            break;
+         case MemoryType::HOST_UMPIRE:
+         case MemoryType::HOST_PINNED:
+            Get().host_temp_mem_type = MemoryType::HOST;
+            break;
+         case MemoryType::HOST_ARENA:
+            Get().host_temp_mem_type = MemoryType::HOST_ARENA;
+            break;
+         case MemoryType::MANAGED:
+            Get().host_temp_mem_type = MemoryType::HOST_ARENA;
+            break;
+         default:
+            MFEM_ABORT("host memory type not handled: h_mt = " << (int)h_mt);
+      }
+   }
+   else
+   {
+      // FIXME: forbit HOST_ARENA on top of HOST_DEBUG?
+      Get().host_temp_mem_type = ht_mt;
+   }
+   if (dt_mt == MemoryType::DEFAULT)
+   {
+      if (d_mt == h_mt)
+      {
+         Get().device_temp_mem_type = Get().host_temp_mem_type;
+      }
+      else
+      {
+         switch (d_mt)
+         {
+            case MemoryType::MANAGED:
+            case MemoryType::DEVICE:
+               Get().device_temp_mem_type = MemoryType::DEVICE_ARENA;
+               break;
+            case MemoryType::DEVICE_DEBUG:
+               Get().device_temp_mem_type = MemoryType::DEVICE_DEBUG;
+               break;
+            case MemoryType::DEVICE_UMPIRE:
+            case MemoryType::DEVICE_UMPIRE_2:
+               Get().device_temp_mem_type = MemoryType::DEVICE_ARENA;
+               break;
+            case MemoryType::DEVICE_ARENA:
+               Get().device_temp_mem_type = MemoryType::DEVICE_ARENA;
+               break;
+            default:
+               MFEM_ABORT("device memory type not handled: d_mt = "
+                          << (int)d_mt);
+         }
+      }
+   }
+   else
+   {
+      // FIXME: forbit DEVICE_ARENA on top of DEVICE_DEBUG?
+      Get().device_temp_mem_type = dt_mt;
+   }
+}
+
+// static method
+void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt,
+                            MemoryType ht_mt, MemoryType dt_mt)
 {
    // If the device and/or the MemoryTypes are configured through the
    // environment (variables 'MFEM_DEVICE', 'MFEM_MEMORY'), ignore calls to this
@@ -271,12 +359,19 @@ void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
                " Device construction and configuration");
    MFEM_VERIFY(IsHostMemory(h_mt),
                "invalid host MemoryType, h_mt = " << (int)h_mt);
+   // FIXME: lift this restriction
+   MFEM_VERIFY(h_mt != MemoryType::HOST_ARENA, "MemoryType::HOST_ARENA cannot"
+               " be used as host memory type!");
    MFEM_VERIFY(IsDeviceMemory(d_mt) || d_mt == h_mt,
                "invalid device MemoryType, d_mt = " << (int)d_mt
                << " (h_mt = " << (int)h_mt << ')');
+   // FIXME: lift this restriction
+   MFEM_VERIFY(d_mt != MemoryType::DEVICE_ARENA, "MemoryType::DEVICE_ARENA"
+               " cannot be used as device memory type!");
 
    Get().host_mem_type = h_mt;
    Get().device_mem_type = d_mt;
+   SetTempMemoryTypes(ht_mt, dt_mt);
    mem_types_set = true;
 
    // h_mt and d_mt will be set as dual to each other during configuration by
@@ -316,6 +411,9 @@ void Device::Print(std::ostream &os)
 
 void Device::UpdateMemoryTypeAndClass()
 {
+   // This method is called by Device::Enable() which in turn is called by
+   // Device::Configure() after a call to Device::Setup().
+
    const bool debug = Device::Allows(Backend::DEBUG_DEVICE);
 
    const bool device = Device::Allows(Backend::DEVICE_MASK);
@@ -380,8 +478,14 @@ void Device::UpdateMemoryTypeAndClass()
    MFEM_VERIFY(!device || IsDeviceMemory(device_mem_type),
                "invalid device memory configuration!");
 
+   if (!mem_types_set)
+   {
+      SetTempMemoryTypes(MemoryType::DEFAULT, MemoryType::DEFAULT);
+   }
+
    // Update the memory manager with the new settings
-   mm.Configure(host_mem_type, device_mem_type);
+   mm.Configure(host_mem_type, device_mem_type,
+                host_temp_mem_type, device_temp_mem_type);
 }
 
 void Device::Enable()

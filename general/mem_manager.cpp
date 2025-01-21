@@ -38,6 +38,9 @@
 // Internal debug option, useful for tracking some memory manager operations.
 // #define MFEM_TRACK_MEM_MANAGER
 
+using mfem::internal::ctrl;
+using mfem::internal::maps;
+
 namespace mfem
 {
 
@@ -971,10 +974,25 @@ void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
 }
 
 void MemoryManager::Configure(const MemoryType host_mt,
-                              const MemoryType device_mt)
+                              const MemoryType device_mt,
+                              const MemoryType host_temp_mt,
+                              const MemoryType device_temp_mt)
 {
    MemoryManager::UpdateDualMemoryType(host_mt, device_mt);
    MemoryManager::UpdateDualMemoryType(device_mt, host_mt);
+   // FIXME: this is not good: for example, we want to be able to use
+   //        MemoryType::HOST as the host temporary type and have its dual be,
+   //        e.g. MemoryType::DEVICE_ARENA which is not possible right now, if
+   //        the non-temporary host MemoryType is also MemoryType::HOST.
+   //        Updte the docs for Device::SetMemoryTypes() if this is changed.
+   if (host_temp_mt != host_mt)
+   {
+      MemoryManager::UpdateDualMemoryType(host_temp_mt, device_temp_mt);
+   }
+   if (device_temp_mt != device_mt)
+   {
+      MemoryManager::UpdateDualMemoryType(device_temp_mt, host_temp_mt);
+   }
    if (device_mt == MemoryType::DEVICE_DEBUG)
    {
       for (int mt = (int)MemoryType::HOST; mt < (int)MemoryType::MANAGED; mt++)
@@ -986,6 +1004,8 @@ void MemoryManager::Configure(const MemoryType host_mt,
    Init();
    host_mem_type = host_mt;
    device_mem_type = device_mt;
+   host_temp_mem_type = host_temp_mt;
+   device_temp_mem_type = device_temp_mt;
    configured = true;
 }
 
@@ -1128,6 +1148,8 @@ bool MemoryManager::configured = false;
 
 MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
 MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
+MemoryType MemoryManager::host_temp_mem_type = MemoryType::HOST;
+MemoryType MemoryManager::device_temp_mem_type = MemoryType::HOST;
 
 MemoryType MemoryManager::dual_map[MemoryTypeSize] =
 {
@@ -1137,13 +1159,13 @@ MemoryType MemoryManager::dual_map[MemoryTypeSize] =
    /* HOST_DEBUG       */  MemoryType::DEVICE_DEBUG,
    /* HOST_UMPIRE      */  MemoryType::DEVICE_UMPIRE,
    /* HOST_PINNED      */  MemoryType::DEVICE,
-   /* HOST_ARENA   */  MemoryType::DEVICE_ARENA,
+   /* HOST_ARENA       */  MemoryType::DEVICE_ARENA,
    /* MANAGED          */  MemoryType::MANAGED,
    /* DEVICE           */  MemoryType::HOST,
    /* DEVICE_DEBUG     */  MemoryType::HOST_DEBUG,
    /* DEVICE_UMPIRE    */  MemoryType::HOST_UMPIRE,
    /* DEVICE_UMPIRE_2  */  MemoryType::HOST_UMPIRE,
-   /* DEVICE_ARENA */  MemoryType::HOST_ARENA
+   /* DEVICE_ARENA     */  MemoryType::HOST_ARENA
 };
 
 #ifdef MFEM_USE_UMPIRE

@@ -28,7 +28,7 @@ namespace internal
 class ArenaChunk
 {
    /// The data used as a base pointer.
-   Memory data;
+   internal::Memory data;
    /// The offset (in bytes) of the next available memory in this chunk.
    size_t offset = 0;
    /// How many pointers have been allocated in this chunk.

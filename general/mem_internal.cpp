@@ -15,11 +15,11 @@
 namespace mfem
 {
 
-internal::Maps *maps;
-internal::Ctrl *ctrl;
-
 namespace internal
 {
+
+Maps *maps = nullptr;
+Ctrl *ctrl = nullptr;
 
 void Ctrl::Configure()
 {
@@ -48,6 +48,7 @@ void Ctrl::Configure()
    device[static_cast<int>(MT::DEVICE_DEBUG)-shift] = nullptr;
    device[static_cast<int>(MT::DEVICE_UMPIRE)-shift] = nullptr;
    device[static_cast<int>(MT::DEVICE_UMPIRE_2)-shift] = nullptr;
+   device[static_cast<int>(MT::DEVICE_ARENA)-shift] = nullptr;
 }
 
 HostMemorySpace* Ctrl::Host(const MemoryType mt)
@@ -136,6 +137,39 @@ DeviceMemorySpace* Ctrl::NewDeviceCtrl(const MemoryType mt)
    return nullptr;
 }
 
+#ifndef _WIN32
+
+uintptr_t pagesize = 0;
+uintptr_t pagemask = 0;
+
+/// The protected access error, used for the host
+static void MmuError(int, siginfo_t *si, void*)
+{
+   constexpr size_t buf_size = 64;
+   fflush(0);
+   char str[buf_size];
+   const void *ptr = si->si_addr;
+   snprintf(str, buf_size, "Error while accessing address %p!", ptr);
+   mfem::out << std::endl << "An illegal memory access was made!";
+   MFEM_ABORT(str);
 }
 
+void MmuInit()
+{
+   if (pagesize > 0) { return; }
+   struct sigaction sa;
+   sa.sa_flags = SA_SIGINFO;
+   sigemptyset(&sa.sa_mask);
+   sa.sa_sigaction = MmuError;
+   if (sigaction(SIGBUS, &sa, NULL) == -1) { mfem_error("SIGBUS"); }
+   if (sigaction(SIGSEGV, &sa, NULL) == -1) { mfem_error("SIGSEGV"); }
+   pagesize = (uintptr_t) sysconf(_SC_PAGE_SIZE);
+   MFEM_ASSERT(pagesize > 0, "pagesize must not be less than 1");
+   pagemask = pagesize - 1;
 }
+
+#endif // #ifndef _WIN32
+
+} // namespace internal
+
+} // namespace mfem

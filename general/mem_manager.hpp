@@ -38,6 +38,8 @@ namespace mfem
 enum class MemoryType
 {
    HOST,           ///< Host memory; using new[] and delete[]
+   // FIXME: add HOST_32_ARENA and HOST_64_ARENA types that will be in the
+   //        MemoryClasses HOST_32 and HOST_64, respectively.
    HOST_32,        ///< Host memory; aligned at 32 bytes
    HOST_64,        ///< Host memory; aligned at 64 bytes
    HOST_DEBUG,     ///< Host memory; allocated from a "host-debug" pool
@@ -47,6 +49,7 @@ enum class MemoryType
    HOST_ARENA,     ///< Host memory: using fast arena allocator
    MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
                         and *Free */
+   // FIXME: add MANAGED_ARENA type that will be in the MemoryClass::MANAGED.
    DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
    DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
                         "device-debug" pool */
@@ -620,6 +623,14 @@ private:
    /// Device memory type set during the Setup.
    MFEM_ENZYME_INACTIVE static MemoryType device_mem_type;
 
+   /** @brief Host temporary memory type set during the Setup.
+       See Device::SetMemoryTypes() for details. */
+   MFEM_ENZYME_INACTIVE static MemoryType host_temp_mem_type;
+
+   /** @brief Device temporary memory type set during the Setup.
+       See Device::SetMemoryTypes() for details. */
+   MFEM_ENZYME_INACTIVE static MemoryType device_temp_mem_type;
+
    /// Allow to detect if a global memory manager instance exists.
    MFEM_ENZYME_INACTIVE static bool exists;
 
@@ -826,7 +837,8 @@ public:
 
        The host and device MemoryType%s, @a h_mt and @a d_mt, are set to be dual
        to each other. */
-   void Configure(const MemoryType h_mt, const MemoryType d_mt);
+   void Configure(const MemoryType h_mt, const MemoryType d_mt,
+                  const MemoryType ht_mt, const MemoryType dt_mt);
 
 #ifdef MFEM_USE_UMPIRE
    /// Set the host Umpire allocator name used with MemoryType::HOST_UMPIRE
@@ -872,6 +884,12 @@ public:
 
    static MemoryType GetHostMemoryType() { return host_mem_type; }
    static MemoryType GetDeviceMemoryType() { return device_mem_type; }
+   /** @brief Get the host temporary memory type set during the Setup.
+       See Device::SetMemoryTypes() for details. */
+   static MemoryType GetHostTempMemoryType() { return host_temp_mem_type; }
+   /** @brief Get the device temporary memory type set during the Setup.
+       See Device::SetMemoryTypes() for details. */
+   static MemoryType GetDeviceTempMemoryType() { return device_temp_mem_type; }
 
 #ifdef MFEM_USE_ENZYME
    static void myfree(void* mem, MemoryType MT, unsigned &flags)

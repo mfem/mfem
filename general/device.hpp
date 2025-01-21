@@ -139,11 +139,15 @@ private:
 
    MemoryType host_mem_type = MemoryType::HOST;    ///< Current Host MemoryType
    MemoryClass host_mem_class = MemoryClass::HOST; ///< Current Host MemoryClass
+   /// Current host temporary MemoryType
+   MemoryType host_temp_mem_type = MemoryType::HOST;
 
    /// Current Device MemoryType
    MemoryType device_mem_type = MemoryType::HOST;
    /// Current Device MemoryClass
    MemoryClass device_mem_class = MemoryClass::HOST;
+   /// Current Device temporary MemoryType
+   MemoryType device_temp_mem_type = MemoryType::HOST;
 
    char *device_option = NULL;
    Device(Device const&);
@@ -167,6 +171,8 @@ private:
        If the device is actually enabled, this method will also update the
        current host/device MemoryType and MemoryClass. */
    static void Enable();
+
+   static void SetTempMemoryTypes(MemoryType ht_mt, MemoryType dt_mt);
 
 public:
    /** @brief Default constructor. Unless Configure() is called later, the
@@ -223,16 +229,25 @@ public:
    */
    void Configure(const std::string &device, const int dev = 0);
 
-   /// Set the default host and device MemoryTypes, @a h_mt and @a d_mt.
+   /** @brief Set the default host and device MemoryTypes, @a h_mt and @a d_mt
+       and, optionally, the host and device temporary MemoryTypes, @a ht_mt and
+       @a dt_mt. */
    /** The host and device MemoryTypes are also set to be dual to each other.
+       The host and device temporary MemoryTypes are also set to be dual to each
+       other unless one of them is the same as its non-temporary MemoryType.
 
-       These two MemoryType%s are used by most MFEM classes when allocating
-       memory used on host and device, respectively.
+       The host and device MemoryType%s, @a h_mt and @a d_mt are used by most
+       MFEM classes when allocating memory used on host and device,
+       respectively. The temporary MemoryTypes, @a ht_mt and @a dt_mt are used
+       by MFEM when a short-lived allocation, typically allocated and freed in
+       the same scope, is needed.
 
        This method can only be called before Device construction and
        configuration, and the specified memory types must be compatible with
        the subsequent Device configuration. */
-   static void SetMemoryTypes(MemoryType h_mt, MemoryType d_mt);
+   static void SetMemoryTypes(MemoryType h_mt, MemoryType d_mt,
+                              MemoryType ht_mt = MemoryType::DEFAULT,
+                              MemoryType dt_mt = MemoryType::DEFAULT);
 
    /// Print the configuration of the MFEM virtual device object.
    void Print(std::ostream &out = mfem::out);
