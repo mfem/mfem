@@ -571,30 +571,26 @@ set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     BENCHMARK PARELAG TRIBOL MPI::MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
     ALGOIM ENZYME)
 
-# Add all found libraries in the variable TPL_TARGETS.
-set(TPL_TARGETS "")
+# Add all created targets and *_FOUND libraries in the variables TPL_TARGETS and
+# TPL_LIBRARIES, respectively.
+set(TPL_TARGETS)
+set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
 foreach(TPL IN LISTS MFEM_TPLS)
   if (${TPL}_FOUND OR TARGET ${TPL})
-    # create interface target for any library without an existing target
-    if (NOT TARGET ${TPL})
-      add_library(${TPL} INTERFACE IMPORTED)
-      target_link_libraries(${TPL} INTERFACE ${${TPL}_LIBRARIES})
-      target_include_directories(${TPL} INTERFACE ${${TPL}_INCLUDE_DIRS})
-    endif()
     message(STATUS "MFEM: using package ${TPL}")
-    list(APPEND TPL_TARGETS ${TPL})
-    # collect any include directories
-    get_target_property(INCLUDE_DIRS ${TPL} INTERFACE_INCLUDE_DIRECTORIES)
-    if (NOT (INCLUDE_DIRS STREQUAL "INCLUDE_DIRS-NOTFOUND"))
-      list(APPEND TPL_INCLUDE_DIRS ${INCLUDE_DIRS})
+    if (TARGET ${TPL})
+      list(APPEND TPL_TARGETS ${TPL})
+    else()
+      list(APPEND TPL_LIBRARIES ${${TPL}_LIBRARIES})
+      list(APPEND TPL_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
     endif()
-    # clear temporary variable
-    set(INCLUDE_DIRS)
   endif()
 endforeach(TPL)
-list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
-# message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
+list(REVERSE TPL_LIBRARIES)
+list(REMOVE_DUPLICATES TPL_LIBRARIES)
+list(REVERSE TPL_LIBRARIES)
+message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 
 message(STATUS "MFEM shared library: BUILD_SHARED_LIBS = ${BUILD_SHARED_LIBS}")
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
@@ -639,8 +635,12 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
-# message(STATUS "TPL_LIBRARIES = ${TPL_TARGETS}")
-target_link_libraries(mfem PUBLIC ${TPL_TARGETS})
+# message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
+target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
+message(STATUS "TPL_TARGETS = ${TPL_TARGETS}")
+if (TPL_TARGETS)
+  add_dependencies(mfem ${TPL_TARGETS})
+endif()
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
@@ -650,9 +650,10 @@ endif()
 message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 target_include_directories(mfem
   PUBLIC
-    # The INSTALL_INTERFACE is handled below
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    # The INSTALL_INTERFACE is handled below
+    ${TPL_INCLUDE_DIRS})
 if (MFEM_USE_MPI)
   if (MPI_CXX_COMPILE_FLAGS)
     separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND

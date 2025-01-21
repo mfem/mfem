@@ -14,6 +14,35 @@
 #   - METIS_LIBRARIES
 #   - METIS_INCLUDE_DIRS
 
+if (FETCH_TPLS)
+  message(STATUS "Fetching metis from GitHub ...")
+  include(FetchContent)
+  FetchContent_Declare(METIS
+    GIT_REPOSITORY https://github.com/mfem/tpls
+    GIT_TAG b60352fbe9675d374b00828055e55be4584c7995 # tag from 1/16/25
+    GIT_SHALLOW TRUE
+    BINARY_DIR fetch/metis
+    OVERRIDE_FIND_PACKAGE
+  )
+  FetchContent_MakeAvailable(METIS)
+  add_custom_command(OUTPUT ${metis_BINARY_DIR}/lib/libmetis.a
+    COMMAND cd ${metis_SOURCE_DIR} && tar -xzf metis-4.0.3.tar.gz
+    COMMAND cd ${metis_SOURCE_DIR}/metis-4.0.3 && make -j
+    COMMAND mkdir ${metis_BINARY_DIR}/include
+    COMMAND cp ${metis_SOURCE_DIR}/metis-4.0.3/Lib/*.h ${metis_BINARY_DIR}/include/
+    COMMAND mkdir ${metis_BINARY_DIR}/lib
+    COMMAND cp ${metis_SOURCE_DIR}/metis-4.0.3/libmetis.a ${metis_BINARY_DIR}/lib/
+    COMMENT "Building metis ..."
+  )
+  add_custom_target(METIS_LIBRARY DEPENDS ${metis_BINARY_DIR}/lib/libmetis.a)
+  add_library(METIS INTERFACE IMPORTED)
+  add_dependencies(METIS METIS_LIBRARY)
+  target_link_libraries(METIS INTERFACE ${metis_BINARY_DIR}/lib/libmetis.a)
+  target_include_directories(METIS INTERFACE ${metis_BINARY_DIR}/include)
+  set(METIS_VERSION_5 FALSE CACHE BOOL "Is METIS version 5?")
+  return()
+endif()
+
 include(MfemCmakeUtilities)
 mfem_find_package(METIS METIS METIS_DIR "include;Lib" "metis.h"
   "lib" "metis;metis4;metis5"

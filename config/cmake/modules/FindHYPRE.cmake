@@ -28,6 +28,23 @@ if (HYPRE_FOUND)
   return()
 endif()
 
+if (FETCH_TPLS)
+  message(STATUS "Fetching hypre 2.32.0 from GitHub ...")
+  include(FetchContent)
+  FetchContent_Declare(HYPRE
+  GIT_REPOSITORY https://github.com/hypre-space/hypre.git
+  GIT_TAG cb7597ffd998dc5270c2e32025e799e68048b1cd # Release 2.32.0
+  GIT_SHALLOW TRUE
+  SOURCE_SUBDIR src
+  BINARY_DIR fetch/hypre
+  OVERRIDE_FIND_PACKAGE
+  GIT_PROGESS TRUE
+  )
+  FetchContent_MakeAvailable(HYPRE)
+  set(HYPRE_VERSION "23200" CACHE STRING "HYPRE version." FORCE)
+  return()
+endif()
+
 include(MfemCmakeUtilities)
 mfem_find_package(HYPRE HYPRE HYPRE_DIR "include" "HYPRE.h" "lib" "HYPRE"
   "Paths to headers required by HYPRE." "Libraries required by HYPRE."
