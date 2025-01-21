@@ -169,7 +169,14 @@ int main(int argc, char *argv[])
    if (mesh.bdr_attributes.Size())
    {
       Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 0;
       mesh.MarkExternalBoundaries(ess_bdr);
+
+      // Optionally the boundary conditions could be applied according to a
+      // named set of boundary attributes as in ex39.cpp or using the
+      // following shortcut:
+      // mesh.MarkNamedBoundaries(set_name, ess_bdr)
+
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 

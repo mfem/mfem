@@ -192,7 +192,13 @@ int main(int argc, char *argv[])
    if (pmesh->bdr_attributes.Size())
    {
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = 0;
+      pmesh->MarkExternalBoundaries(ess_bdr);
+
+      // Optionally the boundary conditions could be applied according to a
+      // named set of boundary attributes as in ex39p.cpp or using the
+      // following shortcut:
+      // pmesh->MarkNamedBoundaries(set_name, ess_bdr)
    }
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
