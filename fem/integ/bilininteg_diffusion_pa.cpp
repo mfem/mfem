@@ -182,10 +182,10 @@ void DiffusionIntegrator::AddMultPatchPA(const int patch, const Vector &x,
    const IntArrayVar2D& minQ = pminQ[patch];
    const IntArrayVar2D& maxQ = pmaxQ[patch];
 
-   auto X = Reshape(x.Read(), D1D[0], D1D[1], D1D[2]);
-   auto Y = Reshape(y.ReadWrite(), D1D[0], D1D[1], D1D[2]);
+   auto X = Reshape(x.HostRead(), D1D[0], D1D[1], D1D[2]);
+   auto Y = Reshape(y.HostReadWrite(), D1D[0], D1D[1], D1D[2]);
 
-   const auto qd = Reshape(pa_data.Read(), Q1D[0]*Q1D[1]*Q1D[2],
+   const auto qd = Reshape(pa_data.HostRead(), Q1D[0]*Q1D[1]*Q1D[2],
                            (symmetric ? 6 : 9));
 
    // NOTE: the following is adapted from AssemblePatchMatrix_fullQuadrature
