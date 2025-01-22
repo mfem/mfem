@@ -33,8 +33,10 @@ template <class A, class B> struct DevicePair
 /** @brief two pairs for the min/max values and their location indices */
 template <class A, class B> struct MinMaxLocScalar
 {
-   A min_val, max_val;
-   B min_loc, max_loc;
+   A min_val;
+   A max_val;
+   B min_loc;
+   B max_loc;
 };
 
 /** @brief a += b */
@@ -170,7 +172,7 @@ MFEM_STAMP_MIN_REDUCER(unsigned long long, ULLONG_MAX);
    template <class I> struct ArgMinReducer<type, I> {                          \
       using value_type = DevicePair<type, I>;                                  \
       MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const {   \
-        if (b.first <= a.second) {                                             \
+        if (b.first <= a.first) {                                              \
           a = b;                                                               \
         }                                                                      \
       }                                                                        \
@@ -257,7 +259,7 @@ MFEM_STAMP_MAX_REDUCER(unsigned long long, 0);
    template <class I> struct ArgMaxReducer<type, I> {                          \
       using value_type = DevicePair<type, I>;                                  \
       MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const {   \
-        if (a.first <= b.second) {                                             \
+        if (a.first <= b.first) {                                              \
           a = b;                                                               \
         }                                                                      \
       }                                                                        \
@@ -359,7 +361,7 @@ MFEM_STAMP_MINMAX_REDUCER(unsigned long long, 0, ULLONG_MAX);
       MFEM_HOST_DEVICE void join(value_type &a, const value_type &b) const {   \
         if (b.min_val <= a.min_val) {                                          \
           a.min_val = b.min_val;                                               \
-          a.min_loc = a.min_loc;                                               \
+          a.min_loc = b.min_loc;                                               \
         }                                                                      \
         if (b.max_val >= a.max_val) {                                          \
           a.max_val = b.max_val;                                               \
@@ -388,6 +390,8 @@ MFEM_STAMP_ARGMINMAX_REDUCER(long, LONG_MIN, LONG_MAX);
 MFEM_STAMP_ARGMINMAX_REDUCER(unsigned long, 0, ULONG_MAX);
 MFEM_STAMP_ARGMINMAX_REDUCER(long long, LLONG_MIN, LLONG_MAX);
 MFEM_STAMP_ARGMINMAX_REDUCER(unsigned long long, 0, ULLONG_MAX);
+MFEM_STAMP_ARGMINMAX_REDUCER(float, -HUGE_VALF, HUGE_VALF);
+MFEM_STAMP_ARGMINMAX_REDUCER(double, -HUGE_VAL, HUGE_VAL);
 
 #undef MFEM_STAMP_ARGMINMAX_REDUCER
 
