@@ -439,7 +439,7 @@ public:
    ///                           unchanged.
    /// @param[in]     excl       Only unmark entries which exclusively contain
    ///                           internal faces [default: true].
-   void RemoveInternalBoundaries(Array<int> &bdr_marker,
+   void UnmarkInternalBoundaries(Array<int> &bdr_marker,
                                  bool excl = true) const override;
 
    /// @brief Mark boundary attributes of external boundaries

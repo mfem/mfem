@@ -6743,7 +6743,7 @@ void ParMesh::GetExteriorFaceMarker(Array<int> & face_marker) const
    }
 }
 
-void ParMesh::RemoveInternalBoundaries(Array<int> &bdr_marker, bool excl) const
+void ParMesh::UnmarkInternalBoundaries(Array<int> &bdr_marker, bool excl) const
 {
    MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
                "bdr_marker must be at least bdr_attriburtes.Max() in length");

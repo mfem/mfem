@@ -2112,7 +2112,7 @@ public:
    ///                           unchanged.
    /// @param[in]     excl       Only unmark entries which exclusively contain
    ///                           internal faces [default: true].
-   virtual void RemoveInternalBoundaries(Array<int> &bdr_marker,
+   virtual void UnmarkInternalBoundaries(Array<int> &bdr_marker,
                                          bool excl = true) const;
 
    /// @brief Unmark boundary attributes in the named set
@@ -2122,7 +2122,7 @@ public:
    ///                           Entries associated with the named set will be
    ///                           set to zero. Other entries will remain
    ///                           unchanged.
-   virtual void RemoveNamedBoundaries(const std::string &set_name,
+   virtual void UnmarkNamedBoundaries(const std::string &set_name,
                                       Array<int> &bdr_marker) const;
 
    /// @brief Mark boundary attributes of external boundaries
