@@ -1574,7 +1574,7 @@ void Mesh::GetExteriorFaceMarker(Array<int> & face_marker) const
    }
 }
 
-void Mesh::RemoveInternalBoundaries(Array<int> &bdr_marker, bool excl) const
+void Mesh::UnmarkInternalBoundaries(Array<int> &bdr_marker, bool excl) const
 {
    MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
                "bdr_marker must be at least bdr_attriburtes.Max() in length");
@@ -1619,7 +1619,7 @@ void Mesh::RemoveInternalBoundaries(Array<int> &bdr_marker, bool excl) const
    }
 }
 
-void Mesh::RemoveNamedBoundaries(const std::string &set_name,
+void Mesh::UnmarkNamedBoundaries(const std::string &set_name,
                                  Array<int> &bdr_marker) const
 {
    MFEM_VERIFY(bdr_attribute_sets.AttributeSetExists(set_name),
