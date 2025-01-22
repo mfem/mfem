@@ -3093,6 +3093,7 @@ private:
 #endif
 
    // PA extension
+   void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
 
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
@@ -3119,6 +3120,10 @@ public:
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Tr,
                               DenseMatrix &elmat) override;
+
+   void AssembleNURBSPA(const FiniteElementSpace &fes) override;
+
+   void AssemblePatchPA(const int patch, const FiniteElementSpace &fes);
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;

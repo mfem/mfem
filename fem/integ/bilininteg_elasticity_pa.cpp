@@ -115,4 +115,23 @@ void ElasticityComponentIntegrator::AddMultTransposePA(const Vector &x,
       *geom, *maps, x, *parent.q_vec, y, j_block, i_block);
 }
 
+void ElasticityIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
+{
+   // TODO
+   // numPatches = mesh->NURBSext->GetNP();
+   // for (int p=0; p<numPatches; ++p)
+   // {
+   //    AssemblePatchPA(p, fes);
+   // }
+   ;
+}
+
+void ElasticityIntegrator::AssemblePatchPA(const int patch,
+                                           const FiniteElementSpace &fes)
+{
+   // TODO
+   // SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
+   ;
+}
+
 } // namespace mfem
