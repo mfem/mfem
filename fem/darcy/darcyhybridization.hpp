@@ -209,9 +209,9 @@ private:
    void InvertA();
    void InvertD();
    void ComputeH();
-   void GetCtFaceMatrix(int f, DenseMatrix & Ct_1, DenseMatrix & Ct_2) const;
-   void GetEFaceMatrix(int f, DenseMatrix &E_1, DenseMatrix &E_2) const;
-   void GetGFaceMatrix(int f, DenseMatrix &Gt_1, DenseMatrix &Gt_2) const;
+   void GetCtFaceMatrix(int f, int side, DenseMatrix & Ct) const;
+   void GetEFaceMatrix(int f, int side, DenseMatrix &E) const;
+   void GetGFaceMatrix(int f, int side, DenseMatrix &G) const;
    void GetHFaceMatrix(int f, DenseMatrix &H) const;
    void GetCtSubMatrix(int el, const Array<int> &c_dofs, DenseMatrix &Ct) const;
    void MultInvNL(int el, const Vector &bu_l, const Vector &bp_l,
