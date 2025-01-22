@@ -102,26 +102,26 @@ void DarcyReduction::InitBD()
 
 void DarcyReduction::InitBFaces()
 {
-   FaceElementTransformations *FTr;
    Mesh *mesh = fes_u->GetMesh();
-   int num_faces = mesh->GetNumFaces();
+   const int num_faces = mesh->GetNumFaces();
 
    // Define Bf_face_offsets and allocate Bf_face_data
    Bf_face_offsets.SetSize(num_faces+1);
    Bf_face_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
    {
-      FTr = mesh->GetInteriorFaceTransformations(f, 0);
-      if (!FTr)
+      int el1, el2;
+      mesh->GetFaceElements(f, &el1, &el2);
+      if (el2 < 0)
       {
          Bf_face_offsets[f+1] = Bf_face_offsets[f];
          continue;
       }
 
-      int a_size_1 = Af_f_offsets[FTr->Elem1No+1] - Af_f_offsets[FTr->Elem1No];
-      int a_size_2 = Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
-      int d_size_1 = D_f_offsets[FTr->Elem1No+1] - D_f_offsets[FTr->Elem1No];
-      int d_size_2 = D_f_offsets[FTr->Elem2No+1] - D_f_offsets[FTr->Elem2No];
+      int a_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
+      int a_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
+      int d_size_1 = D_f_offsets[el1+1] - D_f_offsets[el1];
+      int d_size_2 = D_f_offsets[el2+1] - D_f_offsets[el2];
 
       Bf_face_offsets[f+1] = Bf_face_offsets[f] + a_size_1 * d_size_2 + a_size_2 *
                              d_size_1;
@@ -132,7 +132,6 @@ void DarcyReduction::InitBFaces()
 
 void DarcyReduction::InitDFaces()
 {
-   FaceElementTransformations *FTr;
    Mesh *mesh = fes_u->GetMesh();
    int num_faces = mesh->GetNumFaces();
 
@@ -141,15 +140,16 @@ void DarcyReduction::InitDFaces()
    D_face_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
    {
-      FTr = mesh->GetInteriorFaceTransformations(f, 0);
-      if (!FTr)
+      int el1, el2;
+      mesh->GetFaceElements(f, &el1, &el2);
+      if (el2 < 0)
       {
          D_face_offsets[f+1] = D_face_offsets[f];
          continue;
       }
 
-      int d_size_1 = D_f_offsets[FTr->Elem1No+1] - D_f_offsets[FTr->Elem1No];
-      int d_size_2 = D_f_offsets[FTr->Elem2No+1] - D_f_offsets[FTr->Elem2No];
+      int d_size_1 = D_f_offsets[el1+1] - D_f_offsets[el1];
+      int d_size_2 = D_f_offsets[el2+1] - D_f_offsets[el2];
 
       D_face_offsets[f+1] = D_face_offsets[f] + d_size_1 * d_size_2 * 2;
    }
@@ -195,27 +195,26 @@ void DarcyReduction::AssembleDivFaceMatrix(int face, const DenseMatrix &elmat)
 {
    if (!Bf_face_data) { InitBFaces(); }
 
-   FaceElementTransformations *Tr =
-      fes_p->GetMesh()->GetFaceElementTransformations(face, 0);
-   const int a_dofs_size_1 = Af_f_offsets[Tr->Elem1No+1] -
-                             Af_f_offsets[Tr->Elem1No];
-   const int d_dofs_size_1 = D_f_offsets[Tr->Elem1No+1] - D_f_offsets[Tr->Elem1No];
+   int el1, el2;
+   fes_p->GetMesh()->GetFaceElements(face, &el1, &el2);
+
+   const int a_dofs_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
+   const int d_dofs_size_1 = D_f_offsets[el1+1] - D_f_offsets[el1];
 
    //B_11
    DenseMatrix B_1(d_dofs_size_1, a_dofs_size_1);
    B_1.CopyMN(elmat, d_dofs_size_1, a_dofs_size_1, 0, 0);
-   AssembleDivMatrix(Tr->Elem1No, B_1);
+   AssembleDivMatrix(el1, B_1);
 
-   if (Tr->Elem2No >= 0)
+   if (el2 >= 0)
    {
-      const int a_dofs_size_2 = Af_f_offsets[Tr->Elem2No+1] -
-                                Af_f_offsets[Tr->Elem2No];
-      const int d_dofs_size_2 = D_f_offsets[Tr->Elem2No+1] - D_f_offsets[Tr->Elem2No];
+      const int a_dofs_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
+      const int d_dofs_size_2 = D_f_offsets[el2+1] - D_f_offsets[el2];
 
       //B_22
       DenseMatrix B_2(d_dofs_size_2, a_dofs_size_2);
       B_2.CopyMN(elmat, d_dofs_size_2, a_dofs_size_2, d_dofs_size_1, a_dofs_size_1);
-      AssembleDivMatrix(Tr->Elem2No, B_2);
+      AssembleDivMatrix(el2, B_2);
 
       //B_12
       DenseMatrix B_12(d_dofs_size_1, a_dofs_size_2);
@@ -237,23 +236,24 @@ void DarcyReduction::AssemblePotFaceMatrix(int face, const DenseMatrix &elmat)
 {
    if (!D_face_data) { InitDFaces(); }
 
-   FaceElementTransformations *Tr =
-      fes_p->GetMesh()->GetFaceElementTransformations(face, 0);
-   const int ndof1 = fes_p->GetFE(Tr->Elem1No)->GetDof();
+   int el1, el2;
+   fes_p->GetMesh()->GetFaceElements(face, &el1, &el2);
+
+   const int ndof1 = fes_p->GetFE(el1)->GetDof();
 
    //D_11
    DenseMatrix D_1(ndof1);
    D_1.CopyMN(elmat, ndof1, ndof1, 0, 0);
-   AssemblePotMassMatrix(Tr->Elem1No, D_1);
+   AssemblePotMassMatrix(el1, D_1);
 
-   if (Tr->Elem2No >= 0)
+   if (el2 >= 0)
    {
-      const int ndof2 = fes_p->GetFE(Tr->Elem2No)->GetDof();
+      const int ndof2 = fes_p->GetFE(el2)->GetDof();
 
       //D_22
       DenseMatrix D_2(ndof2);
       D_2.CopyMN(elmat, ndof2, ndof2, ndof1, ndof1);
-      AssemblePotMassMatrix(Tr->Elem2No, D_2);
+      AssemblePotMassMatrix(el2, D_2);
 
       //D_12
       DenseMatrix D_12(ndof1, ndof2);
@@ -381,16 +381,16 @@ void DarcyFluxReduction::ComputeS()
 
          for (int f1 : faces)
          {
-            FaceElementTransformations *FTr =
-               mesh->GetInteriorFaceTransformations(f1, 0);
-            if (!FTr) { continue; }
+            int el1_1, el1_2;
+            mesh->GetFaceElements(f1, &el1_1, &el1_2);
+            if (el1_2 < 0) { continue; }
 
-            const int el1 = (FTr->Elem1No == el)?(FTr->Elem2No):(FTr->Elem1No);
+            const int el1 = (el1_1 == el)?(el1_2):(el1_1);
             fes_p->GetElementDofs(el1, p_dofs_1);
             const int d_dofs_size_1 = p_dofs_1.Size();
 
             const int a_dofs_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
-            const int B1_off = (FTr->Elem1No == el)?(a_dofs_size_1 * d_dofs_size):(0);
+            const int B1_off = (el1_1 == el)?(a_dofs_size_1 * d_dofs_size):(0);
             DenseMatrix B1(Bf_face_data + Bf_face_offsets[f1] + B1_off,
                            d_dofs_size_1, a_dofs_size);
 
@@ -420,16 +420,16 @@ void DarcyFluxReduction::ComputeS()
             {
                if (f1 == f2) { continue; }
 
-               FaceElementTransformations *FTr =
-                  mesh->GetInteriorFaceTransformations(f2, 0);
-               if (!FTr) { continue; }
+               int el2_1, el2_2;
+               mesh->GetFaceElements(f2, &el2_1, &el2_2);
+               if (el2_2 < 0) { continue; }
 
-               const int el2 = (FTr->Elem1No == el)?(FTr->Elem2No):(FTr->Elem1No);
+               const int el2 = (el2_1 == el)?(el2_2):(el2_1);
                fes_p->GetElementDofs(el2, p_dofs_2);
                const int d_dofs_size_2 = p_dofs_2.Size();
 
                const int a_dofs_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
-               const int B2_off = (FTr->Elem1No == el)?(a_dofs_size_2 * d_dofs_size):(0);
+               const int B2_off = (el2_1 == el)?(a_dofs_size_2 * d_dofs_size):(0);
                DenseMatrix B2(Bf_face_data + Bf_face_offsets[f2] + B2_off,
                               d_dofs_size_2, a_dofs_size);
 
@@ -452,11 +452,12 @@ void DarcyFluxReduction::ComputeS()
 
       for (int f = 0; f < nfaces; f++)
       {
-         FaceElementTransformations *Tr = mesh->GetInteriorFaceTransformations(f, 0);
-         if (!Tr) { continue; }
+         int el1, el2;
+         mesh->GetFaceElements(f, &el1, &el2);
+         if (el2 < 0) { continue; }
 
-         fes_p->GetElementDofs(Tr->Elem1No, p_dofs_1);
-         fes_p->GetElementDofs(Tr->Elem2No, p_dofs_2);
+         fes_p->GetElementDofs(el1, p_dofs_1);
+         fes_p->GetElementDofs(el2, p_dofs_2);
          const int d_dofs_size_1 = p_dofs_1.Size();
          const int d_dofs_size_2 = p_dofs_2.Size();
 
@@ -537,16 +538,16 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
          for (int f : faces)
          {
-            FaceElementTransformations *FTr =
-               mesh->GetInteriorFaceTransformations(f, 0);
-            if (!FTr) { continue; }
+            int el1, el2;
+            mesh->GetFaceElements(f, &el1, &el2);
+            if (el2 < 0) { continue; }
 
-            const int el_f = (FTr->Elem1No == el)?(FTr->Elem2No):(FTr->Elem1No);
+            const int el_f = (el1 == el)?(el2):(el1);
             fes_p->GetElementDofs(el_f, p_dofs_f);
             const int d_dofs_size_f = p_dofs_f.Size();
 
             const int a_dofs_size_f = Af_f_offsets[el_f+1] - Af_f_offsets[el_f];
-            const int B_off = (FTr->Elem1No == el)?(a_dofs_size_f * d_dofs_size):(0);
+            const int B_off = (el1 == el)?(a_dofs_size_f * d_dofs_size):(0);
             DenseMatrix B_f(Bf_face_data + Bf_face_offsets[f] + B_off,
                             d_dofs_size_f, a_dofs_size);
 
@@ -617,16 +618,16 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
 
          for (int f : faces)
          {
-            FaceElementTransformations *FTr =
-               mesh->GetInteriorFaceTransformations(f, 0);
-            if (!FTr) { continue; }
+            int el1, el2;
+            mesh->GetFaceElements(f, &el1, &el2);
+            if (el2 < 0) { continue; }
 
-            const int el_f = (FTr->Elem1No == el)?(FTr->Elem2No):(FTr->Elem1No);
+            const int el_f = (el1 == el)?(el2):(el1);
             fes_p->GetElementDofs(el_f, p_dofs_f);
             const int d_dofs_size_f = p_dofs_f.Size();
 
             const int a_dofs_size_f = Af_f_offsets[el_f+1] - Af_f_offsets[el_f];
-            const int B_off = (FTr->Elem1No == el)?(a_dofs_size_f * d_dofs_size):(0);
+            const int B_off = (el1 == el)?(a_dofs_size_f * d_dofs_size):(0);
             DenseMatrix B_f(Bf_face_data + Bf_face_offsets[f] + B_off,
                             d_dofs_size_f, a_dofs_size);
 

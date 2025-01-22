@@ -614,7 +614,6 @@ void DarcyHybridization::ConstructC()
    return;
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
 
-   FaceElementTransformations *FTr;
    Mesh *mesh = fes->GetMesh();
    int num_faces = mesh->GetNumFaces();
 
@@ -632,12 +631,13 @@ void DarcyHybridization::ConstructC()
    Ct_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
    {
-      FTr = mesh->GetFaceElementTransformations(f, 0);
+      int el1, el2;
+      mesh->GetFaceElements(f, &el1, &el2);
 
-      int f_size = Af_f_offsets[FTr->Elem1No+1] - Af_f_offsets[FTr->Elem1No];
-      if (FTr->Elem2No >= 0)
+      int f_size = Af_f_offsets[el1+1] - Af_f_offsets[el1];
+      if (el2 >= 0)
       {
-         f_size += Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
+         f_size += Af_f_offsets[el2+1] - Af_f_offsets[el2];
       }
       const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
       Ct_offsets[f+1] = Ct_offsets[f] + c_size * f_size;
@@ -652,7 +652,7 @@ void DarcyHybridization::ConstructC()
 
       for (int f = 0; f < num_faces; f++)
       {
-         FTr = mesh->GetInteriorFaceTransformations(f);
+         FaceElementTransformations *FTr = mesh->GetInteriorFaceTransformations(f);
          if (!FTr) { continue; }
 
          const FiniteElement *fe1 = fes->GetFE(FTr->Elem1No);
@@ -698,7 +698,7 @@ void DarcyHybridization::ConstructC()
             const int bdr_attr = mesh->GetBdrAttribute(i);
             if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-            FTr = mesh->GetBdrFaceTransformations(i);
+            FaceElementTransformations *FTr = mesh->GetBdrFaceTransformations(i);
             if (!FTr) { continue; }
 
             int iface = mesh->GetBdrElementFaceIndex(i);
@@ -739,7 +739,6 @@ void DarcyHybridization::AllocD() const
 
 void DarcyHybridization::AllocEG() const
 {
-   FaceElementTransformations *FTr;
    Mesh *mesh = fes->GetMesh();
    int num_faces = mesh->GetNumFaces();
 
@@ -748,12 +747,13 @@ void DarcyHybridization::AllocEG() const
    E_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
    {
-      FTr = mesh->GetFaceElementTransformations(f, 0);
+      int el1, el2;
+      mesh->GetFaceElements(f, &el1, &el2);
 
-      int d_size = Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No];
-      if (FTr->Elem2No >= 0)
+      int d_size = Df_f_offsets[el1+1] - Df_f_offsets[el1];
+      if (el2 >= 0)
       {
-         d_size += Df_f_offsets[FTr->Elem2No+1] - Df_f_offsets[FTr->Elem2No];
+         d_size += Df_f_offsets[el2+1] - Df_f_offsets[el2];
       }
       const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
       E_offsets[f+1] = E_offsets[f] + c_size * d_size;
@@ -890,11 +890,11 @@ void DarcyHybridization::ComputeH()
       // Mult C^T
       for (int f1 = 0; f1 < faces.Size(); f1++)
       {
-         FaceElementTransformations *FTr = GetCtFaceMatrix(faces[f1], Ct_1_el_1,
-                                                           Ct_1_el_2);
-         if (!FTr) { continue; }
+         GetCtFaceMatrix(faces[f1], Ct_1_el_1, Ct_1_el_2);
 
-         DenseMatrix &Ct_1 = (FTr->Elem1No == el)?(Ct_1_el_1):(Ct_1_el_2);
+         int el1_1, el1_2;
+         fes->GetMesh()->GetFaceElements(faces[f1], &el1_1, &el1_2);
+         DenseMatrix &Ct_1 = (el1_1 == el)?(Ct_1_el_1):(Ct_1_el_2);
 
          //A^-1 C^T
          AiCt.SetSize(Ct_1.Height(), Ct_1.Width());
@@ -907,22 +907,21 @@ void DarcyHybridization::ComputeH()
 
          if (c_bfi_p)
          {
-            if (GetEFaceMatrix(faces[f1], E_el_1, E_el_2))
-            {
-               DenseMatrix &E = (FTr->Elem1No == el)?(E_el_1):(E_el_2);
-               BAiCt -= E;
-            }
+            GetEFaceMatrix(faces[f1], E_el_1, E_el_2);
+
+            DenseMatrix &E = (el1_1 == el)?(E_el_1):(E_el_2);
+            BAiCt -= E;
          }
 
          LU_S.Solve(BAiCt.Height(), BAiCt.Width(), BAiCt.GetData());
 
          for (int f2 = 0; f2 < faces.Size(); f2++)
          {
-            FaceElementTransformations *FTr = GetCtFaceMatrix(faces[f2], Ct_2_el_1,
-                                                              Ct_2_el_2);
-            if (!FTr) { continue; }
+            GetCtFaceMatrix(faces[f2], Ct_2_el_1, Ct_2_el_2);
 
-            DenseMatrix &Ct_2 = (FTr->Elem1No == el)?(Ct_2_el_1):(Ct_2_el_2);
+            int el2_1, el2_2;
+            fes->GetMesh()->GetFaceElements(faces[f2], &el2_1, &el2_2);
+            DenseMatrix &Ct_2 = (el2_1 == el)?(Ct_2_el_1):(Ct_2_el_2);
 
             //- C A^-1 C^T
             H_l.SetSize(Ct_2.Width(), Ct_1.Width());
@@ -935,11 +934,10 @@ void DarcyHybridization::ComputeH()
 
             if (c_bfi_p)
             {
-               if (GetGFaceMatrix(faces[f2], Gt_el_1, Gt_el_2))
-               {
-                  DenseMatrix &G = (FTr->Elem1No == el)?(Gt_el_1):(Gt_el_2);
-                  CAiBt += G;
-               }
+               GetGFaceMatrix(faces[f2], Gt_el_1, Gt_el_2);
+
+               DenseMatrix &G = (el2_1 == el)?(Gt_el_1):(Gt_el_2);
+               CAiBt += G;
             }
 
             mfem::AddMult(CAiBt, BAiCt, H_l);
@@ -1012,69 +1010,66 @@ void DarcyHybridization::ComputeH()
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 }
 
-FaceElementTransformations *DarcyHybridization::GetCtFaceMatrix(
+void DarcyHybridization::GetCtFaceMatrix(
    int f, DenseMatrix &Ct_1, DenseMatrix &Ct_2) const
 {
-   FaceElementTransformations *FTr =
-      fes->GetMesh()->GetFaceElementTransformations(f, 0);
+   int el1, el2;
+   fes->GetMesh()->GetFaceElements(f, &el1, &el2);
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
    const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
 
-   const int f_size_1 = Af_f_offsets[FTr->Elem1No+1] - Af_f_offsets[FTr->Elem1No];
+   const int f_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
    Ct_1.Reset(Ct_data + Ct_offsets[f], f_size_1, c_size);
-   if (FTr->Elem2No >= 0)
+   if (el2 >= 0)
    {
-      const int f_size_2 = Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
+      const int f_size_2 = Af_f_offsets[el2+1] - Af_f_offsets[el2];
       Ct_2.Reset(Ct_data + Ct_offsets[f] + f_size_1*c_size,
                  f_size_2, c_size);
    }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
    Array<int> c_dofs;
    c_fes->GetFaceVDofs(f, c_dofs);
-   GetCtSubMatrix(FTr->Elem1No, c_dofs, Ct_1);
-   if (FTr->Elem2No >= 0)
+   GetCtSubMatrix(el1, c_dofs, Ct_1);
+   if (el2 >= 0)
    {
-      GetCtSubMatrix(FTr->Elem2No, c_dofs, Ct_2);
+      GetCtSubMatrix(el2, c_dofs, Ct_2);
    }
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
-   return FTr;
 }
 
-FaceElementTransformations *DarcyHybridization::GetEFaceMatrix(
+void DarcyHybridization::GetEFaceMatrix(
    int f, DenseMatrix &E_1, DenseMatrix &E_2) const
 {
-   FaceElementTransformations *FTr =
-      fes->GetMesh()->GetFaceElementTransformations(f, 3);
+   int el1, el2;
+   fes->GetMesh()->GetFaceElements(f, &el1, &el2);
 
    const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
 
-   const int d_size_1 = Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No];
+   const int d_size_1 = Df_f_offsets[el1+1] - Df_f_offsets[el1];
    E_1.Reset(E_data + E_offsets[f], d_size_1, c_size);
-   if (FTr->Elem2No >= 0)
+   if (el2 >= 0)
    {
-      const int d_size_2 = Df_f_offsets[FTr->Elem2No+1] - Df_f_offsets[FTr->Elem2No];
+      const int d_size_2 = Df_f_offsets[el2+1] - Df_f_offsets[el2];
       E_2.Reset(E_data + E_offsets[f] + d_size_1*c_size, d_size_2, c_size);
    }
-   return FTr;
 }
 
-FaceElementTransformations *DarcyHybridization::GetGFaceMatrix(
+void DarcyHybridization::GetGFaceMatrix(
    int f, DenseMatrix &G_1, DenseMatrix &G_2) const
 {
-   FaceElementTransformations *FTr =
-      fes->GetMesh()->GetFaceElementTransformations(f, 0);
+   int el1, el2;
+   fes->GetMesh()->GetFaceElements(f, &el1, &el2);
 
    const int c_size = c_fes->GetFaceElement(f)->GetDof() * c_fes->GetVDim();
 
-   const int d_size_1 = Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No];
+   const int d_size_1 = Df_f_offsets[el1+1] - Df_f_offsets[el1];
    G_1.Reset(G_data + G_offsets[f], c_size, d_size_1);
-   if (FTr->Elem2No >= 0)
+   if (el2 >= 0)
    {
-      const int d_size_2 = Df_f_offsets[FTr->Elem2No+1] - Df_f_offsets[FTr->Elem2No];
+      const int d_size_2 = Df_f_offsets[el2+1] - Df_f_offsets[el2];
       G_2.Reset(G_data + G_offsets[f] + d_size_1*c_size, c_size, d_size_2);
    }
-   return FTr;
 }
 
 void DarcyHybridization::GetHFaceMatrix(int f, DenseMatrix &H) const
@@ -1258,21 +1253,22 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
       // bu - C^T x
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = GetCtFaceMatrix(faces[f], Ct_1, Ct_2);
-         if (!FTr) { continue; }
+         GetCtFaceMatrix(faces[f], Ct_1, Ct_2);
 
          const Vector &x_f = x_l.GetBlock(f);
-         DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
+
+         int el1, el2;
+         fes->GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+         DenseMatrix &Ct = (el1 == el)?(Ct_1):(Ct_2);
          Ct.AddMult_a(-1., x_f, bu_l);
 
          //bp - E x
          if (c_bfi_p || mode == MultNlMode::GradMult)
          {
-            if (GetEFaceMatrix(faces[f], E_1, E_2))
-            {
-               DenseMatrix &E = (FTr->Elem1No == el)?(E_1):(E_2);
-               E.AddMult_a(-1., x_f, bp_l);
-            }
+            GetEFaceMatrix(faces[f], E_1, E_2);
+
+            DenseMatrix &E = (el1 == el)?(E_1):(E_2);
+            E.AddMult_a(-1., x_f, bp_l);
          }
       }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
@@ -1336,12 +1332,13 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
       // C u_l
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = GetCtFaceMatrix(faces[f], Ct_1, Ct_2);
-         if (!FTr) { continue; }
+         GetCtFaceMatrix(faces[f], Ct_1, Ct_2);
 
          const Vector &x_f = x_l.GetBlock(f);
 
-         DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
+         int el1, el2;
+         fes->GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+         DenseMatrix &Ct = (el1 == el)?(Ct_1):(Ct_2);
          y_l.SetSize(x_f.Size());
          Ct.MultTranspose(u_l, y_l);
 
@@ -1349,14 +1346,13 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
          if (c_bfi_p || mode == MultNlMode::GradMult)
          {
             //linear
-            if (GetGFaceMatrix(faces[f], G_1, G_2))
-            {
-               DenseMatrix &G = (FTr->Elem1No == el)?(G_1):(G_2);
-               G.AddMult(p_l, y_l);
-            }
+            GetGFaceMatrix(faces[f], G_1, G_2);
+
+            DenseMatrix &G = (el1 == el)?(G_1):(G_2);
+            G.AddMult(p_l, y_l);
 
             //integrate the face contrbution only on one (first) side
-            if (FTr->Elem1No == el)
+            if (el1 == el)
             {
                GetHFaceMatrix(faces[f], H);
                H.AddMult(x_f, y_l);
@@ -1371,10 +1367,8 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
                int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
                           | NonlinearFormIntegrator::HDGFaceType::FACE;
 
-               if (!(FTr->GetConfigurationMask() & FaceElementTransformations::HAVE_ELEM1))
-               {
-                  FTr = fes->GetMesh()->GetFaceElementTransformations(faces[f]);
-               }
+               FaceElementTransformations *FTr = fes->GetMesh()->GetFaceElementTransformations(
+                                                    faces[f]);
 
                if (FTr->Elem2No >= 0)
                {
@@ -1422,10 +1416,8 @@ void DarcyHybridization::MultNL(MultNlMode mode, const BlockVector &b,
                int type = BlockNonlinearFormIntegrator::HDGFaceType::CONSTR
                           | BlockNonlinearFormIntegrator::HDGFaceType::FACE;
 
-               if (!(FTr->GetConfigurationMask() & FaceElementTransformations::HAVE_ELEM1))
-               {
-                  FTr = fes->GetMesh()->GetFaceElementTransformations(faces[f]);
-               }
+               FaceElementTransformations *FTr = fes->GetMesh()->GetFaceElementTransformations(
+                                                    faces[f]);
 
                if (FTr->Elem2No >= 0)
                {
@@ -1848,12 +1840,12 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       //bp += E x
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = fes->GetMesh()->GetFaceElementTransformations(
-                                              faces[f], 0);
+         int el1, el2;
+         fes->GetMesh()->GetFaceElements(faces[f], &el1, &el2);
 
          const Vector &x_f = x_l.GetBlock(f);
 
-         if (FTr->Elem2No >= 0)
+         if (el2 >= 0)
          {
             //interior
             AssembleHDGGrad(el, faces[f], *c_nlfi_p, x_f, p_l);
@@ -1880,12 +1872,12 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       //bp += E x
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = fes->GetMesh()->GetFaceElementTransformations(
-                                              faces[f], 0);
+         int el1, el2;
+         fes->GetMesh()->GetFaceElements(faces[f], &el1, &el2);
 
          const Vector &x_f = x_l.GetBlock(f);
 
-         if (FTr->Elem2No >= 0)
+         if (el2 >= 0)
          {
             //interior
             AssembleHDGGrad(el, faces[f], *c_nlfi, x_f, u_l, p_l);
@@ -2116,20 +2108,20 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
       // Mult C u + G p
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = GetCtFaceMatrix(faces[f], Ct_1, Ct_2);
-         if (!FTr) { continue; }
+         GetCtFaceMatrix(faces[f], Ct_1, Ct_2);
 
-         DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
+         int el1, el2;
+         fes->GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+         DenseMatrix &Ct = (el1 == el)?(Ct_1):(Ct_2);
          b_rl.SetSize(Ct.Width());
          Ct.MultTranspose(u_l, b_rl);
 
          if (c_bfi_p)
          {
-            if (GetGFaceMatrix(faces[f], G_1, G_2))
-            {
-               DenseMatrix &G = (FTr->Elem1No == el)?(G_1):(G_2);
-               G.AddMult(p_l, b_rl);
-            }
+            GetGFaceMatrix(faces[f], G_1, G_2);
+
+            DenseMatrix &G = (el1 == el)?(G_1):(G_2);
+            G.AddMult(p_l, b_rl);
          }
 
          c_fes->GetFaceVDofs(faces[f], c_dofs);
@@ -2215,22 +2207,23 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
       // bu - C^T sol
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = GetCtFaceMatrix(faces[f], Ct_1, Ct_2);
-         if (!FTr) { continue; }
+         GetCtFaceMatrix(faces[f], Ct_1, Ct_2);
 
          c_fes->GetFaceVDofs(faces[f], c_dofs);
          sol_r.GetSubVector(c_dofs, sol_rl);
-         DenseMatrix &Ct = (FTr->Elem1No == el)?(Ct_1):(Ct_2);
+
+         int el1, el2;
+         fes->GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+         DenseMatrix &Ct = (el1 == el)?(Ct_1):(Ct_2);
          Ct.AddMult_a(-1., sol_rl, bu_l);
 
          //bp - E sol
          if (c_bfi_p)
          {
-            if (GetEFaceMatrix(faces[f], E_1, E_2))
-            {
-               DenseMatrix &E = (FTr->Elem1No == el)?(E_1):(E_2);
-               E.AddMult_a(-1., sol_rl, bp_l);
-            }
+            GetEFaceMatrix(faces[f], E_1, E_2);
+
+            DenseMatrix &E = (el1 == el)?(E_1):(E_2);
+            E.AddMult_a(-1., sol_rl, bp_l);
          }
       }
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
