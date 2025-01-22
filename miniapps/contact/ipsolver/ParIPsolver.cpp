@@ -234,7 +234,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCTest, mu_k, false); 
       if (!passedCTest)
       {
-         cout << "curvature test failed\n";
+         if (iAmRoot) {	 cout << "curvature test failed\n"; }
          double deltaReg = 0.0;
 	 int maxCTests = 30;
 
@@ -542,6 +542,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 #endif
       ASolver->SetOperator(*Ah);
       ASolver->Mult(b, Xhat);
+
       delete ASolver;
       delete Ah;
    }
