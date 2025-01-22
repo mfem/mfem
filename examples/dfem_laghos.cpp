@@ -5,6 +5,24 @@
 using namespace mfem;
 using mfem::internal::tensor;
 
+// Mixing Hydro with Heat conduction
+
+// constexpr int HYDRO_PREFIX = 55;
+// constexpr int VELOCITY = HYDRO_PREFIX + 0;
+
+// constexpr int HEAT_PREFIX = 88;
+// constexpr int TEMP = HEAT_PREFIX + 0;
+
+constexpr int VELOCITY = 0;
+constexpr int DENSITY0 = 1;
+constexpr int COORDINATES0 = 2;
+constexpr int COORDINATES = 3;
+constexpr int MATERIAL = 4;
+constexpr int SPECIFIC_INTERNAL_ENERGY = 5;
+constexpr int ELEMENT_SIZE0 = 6;
+constexpr int ORDER_VEL = 7;
+constexpr int DT_EST = 8;
+
 int problem = 0;
 real_t cfl = 0.5;
 bool use_viscosity = false;
@@ -559,22 +577,23 @@ public:
       }
       else
       {
-         auto dRvdx = hydro.momentum_mf->GetDerivative(3, {&uv},
+         auto dRvdx = hydro.momentum_mf->GetDerivative(COORDINATES, {&uv},
          {&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
 
-         auto dRvdv = hydro.momentum_mf->GetDerivative(0, {&uv},
+         auto dRvdv = hydro.momentum_mf->GetDerivative(VELOCITY, {&uv},
          {&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
 
-         auto dRvde = hydro.momentum_mf->GetDerivative(5, {&uv},
+         auto dRvde = hydro.momentum_mf->GetDerivative(SPECIFIC_INTERNAL_ENERGY, {&uv},
          {&hydro.rho0, &hydro.x0, &ux, &hydro.material, &ue, &hydro.qdata->h0, &hydro.qdata->order_v});
 
-         auto dRedx = hydro.energy_conservation_mf->GetDerivative(4, {&ue},
+         auto dRedx = hydro.energy_conservation_mf->GetDerivative(COORDINATES, {&ue},
          {&uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
 
-         auto dRedv = hydro.energy_conservation_mf->GetDerivative(1, {&ue},
+         auto dRedv = hydro.energy_conservation_mf->GetDerivative(VELOCITY, {&ue},
          {&uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
 
-         auto dRede = hydro.energy_conservation_mf->GetDerivative(0, {&ue},
+         auto dRede = hydro.energy_conservation_mf->GetDerivative(
+         SPECIFIC_INTERNAL_ENERGY, {&ue},
          {&uv, &hydro.rho0, &hydro.x0, &ux, &hydro.material, &hydro.qdata->h0, &hydro.qdata->order_v});
 
          jacobian->Setup(hydro, dRvdx, dRvdv, dRvde, dRedx, dRedv, dRede);
@@ -966,15 +985,7 @@ static auto CreateLagrangianHydroOperator(
 
    std::shared_ptr<DifferentiableOperator> dt_est;
    {
-      constexpr int VELOCITY = 0;
-      constexpr int DENSITY0 = 1;
-      constexpr int COORDINATES0 = 2;
-      constexpr int COORDINATES = 3;
-      constexpr int MATERIAL = 4;
-      constexpr int SPECIFIC_INTERNAL_ENERGY = 5;
-      constexpr int ELEMENT_SIZE0 = 6;
-      constexpr int ORDER_VEL = 7;
-      constexpr int DT_EST = 8;
+
 
       mfem::tuple dt_est_kernel_ao =
       {
@@ -1019,14 +1030,7 @@ static auto CreateLagrangianHydroOperator(
    // Create momentum operator
    std::shared_ptr<DifferentiableOperator> momentum_mf;
    {
-      constexpr int VELOCITY = 0;
-      constexpr int DENSITY0 = 1;
-      constexpr int COORDINATES0 = 2;
-      constexpr int COORDINATES = 3;
-      constexpr int MATERIAL = 4;
-      constexpr int SPECIFIC_INTERNAL_ENERGY = 5;
-      constexpr int ELEMENT_SIZE0 = 6;
-      constexpr int ORDER_VEL = 7;
+
 
       mfem::tuple momentum_mf_kernel_ao =
       {
@@ -1075,14 +1079,7 @@ static auto CreateLagrangianHydroOperator(
    // Create energy conservation operator
    std::shared_ptr<DifferentiableOperator> energy_conservation_mf;
    {
-      constexpr int SPECIFIC_INTERNAL_ENERGY = 0;
-      constexpr int VELOCITY = 1;
-      constexpr int DENSITY0 = 2;
-      constexpr int COORDINATES0 = 3;
-      constexpr int COORDINATES = 4;
-      constexpr int MATERIAL = 5;
-      constexpr int ELEMENT_SIZE0 = 6;
-      constexpr int ORDER_VEL = 7;
+
 
       mfem::tuple energy_conservation_mf_kernel_ao =
       {
@@ -1133,9 +1130,7 @@ static auto CreateLagrangianHydroOperator(
    // Create total internal energy operator
    std::shared_ptr<DifferentiableOperator> total_internal_energy_mf;
    {
-      constexpr int SPECIFIC_INTERNAL_ENERGY = 0;
-      constexpr int DENSITY0 = 2;
-      constexpr int COORDINATES0 = 3;
+
 
       mfem::tuple total_internal_energy_kernel_ao =
       {
@@ -1173,9 +1168,7 @@ static auto CreateLagrangianHydroOperator(
    // Create total kinetic energy operator
    std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf;
    {
-      constexpr int VELOCITY = 0;
-      constexpr int DENSITY0 = 1;
-      constexpr int COORDINATES0 = 2;
+
 
       mfem::tuple total_kinetic_energy_kernel_ao =
       {
@@ -1211,8 +1204,7 @@ static auto CreateLagrangianHydroOperator(
    // Create density operator
    std::shared_ptr<DifferentiableOperator> density_mf;
    {
-      constexpr int DENSITY0 = 0;
-      constexpr int COORDINATES0 = 1;
+
 
       mfem::tuple density_kernel_ao =
       {

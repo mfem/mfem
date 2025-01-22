@@ -58,7 +58,7 @@ if (MFEM_USE_MPI)
     dfem_laghos.cpp
     dfem_minimal_example.cpp
     dfem_test_diffusion_2d.cpp
-    dfem_test_diffusion_3d.cpp
+    dfem_test_diffusion.cpp
     dfem_test_ordering.cpp
     dfem_test_vector_diffusion.cpp
     dfem_test_elasticity.cpp
@@ -143,7 +143,7 @@ target_link_libraries(enzyme_interface_smoketest ClangEnzymeFlags)
 target_link_libraries(test_dfem ClangEnzymeFlags)
 target_link_libraries(dfem_laghos ClangEnzymeFlags)
 target_link_libraries(dfem_minimal_example ClangEnzymeFlags)
-target_link_libraries(dfem_test_diffusion_3d ClangEnzymeFlags)
+target_link_libraries(dfem_test_diffusion ClangEnzymeFlags)
 target_link_libraries(dfem_test_nonlinear_diffusion_3d ClangEnzymeFlags)
 target_link_libraries(dfem_test_nonlinear_elasticity_3d ClangEnzymeFlags)
 target_link_libraries(dfem_test_objective ClangEnzymeFlags)

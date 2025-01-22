@@ -473,6 +473,20 @@ private:
    real_t xnorm;
 };
 
+
+inline
+int FindIdx(const int& id, const std::vector<FieldDescriptor>& fields)
+{
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      if (fields[i].id == id)
+      {
+         return i;
+      }
+   }
+   return -1;
+}
+
 template <typename entity_t>
 GeometricFactorMaps GetGeometricFactorMaps(Mesh &mesh,
                                            const IntegrationRule &ir)

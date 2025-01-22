@@ -202,28 +202,30 @@ public:
    }
 
    std::shared_ptr<DerivativeOperator> GetDerivative(
-      size_t derivative_idx,
+      size_t derivative_id,
       std::vector<Vector *> solutions_l,
       std::vector<Vector *> parameters_l)
    {
-      MFEM_ASSERT(derivative_action_callbacks.find(derivative_idx) !=
+      MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
                   derivative_action_callbacks.end(),
-                  "no derivative action has been found for index " << derivative_idx);
+                  "no derivative action has been found for ID " << derivative_id);
+
+      const int derivative_idx = FindIdx(derivative_id, fields);
 
       return std::make_shared<DerivativeOperator>(
                 GetTrueVSize(fields[derivative_idx]),
                 width,
-                derivative_action_callbacks[derivative_idx],
-                derivative_action_transpose_callbacks[derivative_idx],
+                derivative_action_callbacks[derivative_id],
+                derivative_action_transpose_callbacks[derivative_id],
                 fields[derivative_idx],
                 solutions_l,
                 parameters_l,
                 residual_l.Size(),
                 restriction_callback,
                 prolongation_transpose,
-                assemble_derivative_vector_callbacks[derivative_idx],
-                assembled_vector_sizes[derivative_idx],
-                assemble_derivative_hypreparmatrix_callbacks[derivative_idx]);
+                assemble_derivative_vector_callbacks[derivative_id],
+                assembled_vector_sizes[derivative_id],
+                assemble_derivative_hypreparmatrix_callbacks[derivative_id]);
    }
 
 private:
@@ -303,13 +305,13 @@ template <
    typename qfunc_t,
    typename... input_ts,
    typename... output_ts,
-   typename derivative_indices_t = std::make_index_sequence<0>>
+   typename derivative_ids_t = std::make_index_sequence<0>>
 void DifferentiableOperator::AddDomainIntegrator(
    qfunc_t &qfunc,
    mfem::tuple<input_ts...> inputs,
    mfem::tuple<output_ts...> outputs,
    const IntegrationRule &integration_rule,
-   derivative_indices_t derivative_indices)
+   derivative_ids_t derivative_ids)
 {
    using entity_t = Entity::Element;
 
@@ -361,9 +363,8 @@ void DifferentiableOperator::AddDomainIntegrator(
    auto output_to_field =
       create_descriptors_to_fields_map<entity_t>(fields, outputs);
 
-   constexpr int hardcoded_zero_idx = 0;
-   const int test_space_field_idx = output_to_field[hardcoded_zero_idx];
-   auto output_fop = mfem::get<hardcoded_zero_idx>(outputs);
+   const auto output_fop = mfem::get<0>(outputs);
+   const int test_space_field_idx = FindIdx(output_fop.GetFieldId(), fields);
 
    bool use_sum_factorization = false;
    auto entity_element_type =  mesh.GetElement(0)->GetType();
@@ -572,15 +573,16 @@ void DifferentiableOperator::AddDomainIntegrator(
          auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
          auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
          map_quadrature_data_to_fields(
-            y, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
+            y, fhat, output_fop, output_dtq_shmem[0],
             scratch_shmem, dimension, use_sum_factorization);
       }, num_entities, block_x, block_y, block_z, action_shmem_info.total_size, shmem_cache.ReadWrite());
       output_restriction_transpose(residual_e, residual_l);
    });
 
    // Create the action of the derivatives
-   for_constexpr([&](auto derivative_idx)
+   for_constexpr([&](auto derivative_id)
    {
+      const size_t derivative_idx = FindIdx(derivative_id, fields);
       const auto direction = fields[derivative_idx];
       // const size_t derivative_action_l_size = GetVSize(fields[test_space_field_idx]);
       const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop,
@@ -599,9 +601,9 @@ void DifferentiableOperator::AddDomainIntegrator(
       Vector derivative_action_e(output_e_size);
       derivative_action_e = 0.0;
 
-      auto input_is_dependent = to_array(std::get<derivative_idx>(dependency_map));
+      auto input_is_dependent = to_array(std::get<derivative_id>(dependency_map));
 
-      derivative_action_callbacks[derivative_idx].push_back(
+      derivative_action_callbacks[derivative_id].push_back(
          [=, output_restriction_transpose = this->output_restriction_transpose](
             std::vector<Vector> &fields_e, const Vector &direction_l,
             Vector &derivative_action_l) mutable
@@ -637,19 +639,19 @@ void DifferentiableOperator::AddDomainIntegrator(
             auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
             auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
             map_quadrature_data_to_fields(
-               y, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
+               y, fhat, output_fop, output_dtq_shmem[0],
                scratch_shmem, dimension, use_sum_factorization);
          }, num_entities, block_x, block_y, block_z, shmem_info.total_size, shmem_cache.ReadWrite());
          output_restriction_transpose(derivative_action_e, derivative_action_l);
       });
-   }, derivative_indices);
+   }, derivative_ids);
 
    // Create the transpose action of the derivatives
    if (!use_sum_factorization)
    {
       for_constexpr([&](auto derivative_idx)
       {
-         const auto direction = fields[hardcoded_zero_idx];
+         const auto direction = fields[0];
          const size_t derivative_action_l_size = GetVSize(direction);
          const int da_size_on_qp = GetSizeOnQP<entity_t>(output_fop, direction);
 
@@ -666,7 +668,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
          auto input_is_dependent = to_array(std::get<derivative_idx>(dependency_map));
 
-         const int trial_vdim = GetVDim(fields[hardcoded_zero_idx]);
+         const int trial_vdim = GetVDim(fields[0]);
 
          int total_trial_op_dim = 0;
          for_constexpr<num_inputs>([&](auto s)
@@ -785,23 +787,24 @@ void DifferentiableOperator::AddDomainIntegrator(
                auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
                auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
                map_quadrature_data_to_fields(
-                  y, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
+                  y, fhat, output_fop, output_dtq_shmem[0],
                   scratch_shmem, dimension, use_sum_factorization);
             }
             output_restriction_transpose(derivative_action_e, derivative_action_l);
          });
-      }, derivative_indices);
+      }, derivative_ids);
    }
 
    // Create assembly callbacks for derivatives
    // TODO: Host only for now
-   for_constexpr([&](auto derivative_idx)
+   for_constexpr([&](auto derivative_id)
    {
       // if (use_sum_factorization)
       // {
       //    MFEM_WARNING("assembling derivatives is not implemented with tensor product elements right now");
       //    return;
       // }
+      const size_t derivative_idx = FindIdx(derivative_id, fields);
 
       auto shmem_info =
          get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
@@ -810,7 +813,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       Vector shmem_cache(shmem_info.total_size);
 
-      auto input_is_dependent = to_array(std::get<derivative_idx>(dependency_map));
+      auto input_is_dependent = to_array(std::get<derivative_id>(dependency_map));
 
       auto dependent_input_dtq_maps =
          get_marked_entries(input_dtq_maps, input_is_dependent);
@@ -822,7 +825,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
       const int num_trial_dof = get_restriction<entity_t>
                                 (fields[input_to_field[derivative_idx]],
-                                 element_dof_ordering)->Height() / mfem::get<derivative_idx>(inputs).vdim /
+                                 element_dof_ordering)->Height() / mfem::get<derivative_id>(inputs).vdim /
                                 num_entities;
 
       int total_trial_op_dim = 0;
@@ -1095,7 +1098,7 @@ void DifferentiableOperator::AddDomainIntegrator(
                               }, inputs);
                               auto bvtfhat = Reshape(&A_e(0, 0, J, j, e), num_test_dof, test_vdim);
                               map_quadrature_data_to_fields(
-                                 bvtfhat, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
+                                 bvtfhat, fhat, output_fop, output_dtq_shmem[0],
                                  scratch_shmem, dimension, use_sum_factorization);
                            }
                         }
@@ -1140,7 +1143,7 @@ void DifferentiableOperator::AddDomainIntegrator(
 
                         auto bvtfhat = Reshape(&A_e(0, 0, J, j, e), num_test_dof, test_vdim);
                         map_quadrature_data_to_fields(
-                           bvtfhat, fhat, output_fop, output_dtq_shmem[hardcoded_zero_idx],
+                           bvtfhat, fhat, output_fop, output_dtq_shmem[0],
                            scratch_shmem, dimension, use_sum_factorization);
                      }
                   }
@@ -1253,7 +1256,7 @@ void DifferentiableOperator::AddDomainIntegrator(
             }
          });
       }
-   }, derivative_indices);
+   }, derivative_ids);
 }
 
 
