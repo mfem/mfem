@@ -375,7 +375,7 @@ TEST_CASE("Reduce GPU Sum", "[Reduction],[CUDA]")
 {
    Array<int> workspace;
    Array<int> a(1000);
-   auto ptr = a.HostReadWrite();
+   a.HostReadWrite();
    for (int i = 0; i < a.Size(); ++i)
    {
       a[i] = i;
@@ -397,7 +397,7 @@ TEST_CASE("Reduce GPU Mult", "[Reduction],[CUDA]")
 {
    Array<long long> workspace;
    Array<long long> a(100);
-   auto ptr = a.HostReadWrite();
+   a.HostReadWrite();
    for (long long i = 0; i < a.Size(); ++i)
    {
       a[i] = i % 3 + 1;
