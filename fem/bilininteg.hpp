@@ -2972,19 +2972,17 @@ public:
    const Coefficient *GetCoefficient() const { return Q; }
 };
 
-/** Integrator for
-    $$
-      (Q \nabla u, \nabla v) = \sum_i (Q \nabla u_i, \nabla v_i) e_i e_i^{\mathrm{T}}
-    $$
-    for vector FE spaces, where $e_i$ is the unit vector in the $i$-th direction.
-    The resulting local element matrix is square, of size <tt> vdim*dof </tt>,
+/** Class for integrating the bilinear form $a(u,v) := (Q \nabla u, \nabla v)$,
+    where $u=(u_1,\dots,u_n)$ and $v=(v_1,\dots,v_n)$, $u_i$ and $v_i$ are
+    defined by scalar FE through standard transformation.
+    See the constructors' documentation for all Coefficient options.
+    The computed local element matrix is square, of size <tt> vdim*dof </tt>,
     where \c vdim is the vector dimension space and \c dof is the local degrees
     of freedom. The integrator is not aware of the true vector dimension and
     must use \c VectorCoefficient, \c MatrixCoefficient, or a caller-specified
     value to determine the vector space. For a scalar coefficient, the caller
     may manually specify the vector dimension or the vector dimension is assumed
-    to be the spatial dimension (i.e. 2-dimension or 3-dimension).
-*/
+    to be the spatial dimension (i.e. 2-dimension or 3-dimension). */
 class VectorDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -3280,7 +3278,10 @@ public:
                                 const bool add) override;
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
-                                         FaceElementTransformations &T);
+                                         const FaceElementTransformations &T);
+
+   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
+                                         const ElementTransformation &T);
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
@@ -3368,6 +3369,8 @@ public:
                                        Vector &y, Vector &dydn) const override;
 
    const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
+
+   const IntegrationRule &GetRule(int order, Geometry::Type geom);
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
