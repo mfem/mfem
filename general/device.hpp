@@ -289,6 +289,27 @@ public:
    { Get().mpi_gpu_aware = force; }
 
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
+
+   /** Query the device driver for what memory type a given @a ptr is allocated
+    * with. */
+   static MemoryType QueryMemoryType(void* ptr);
+
+   /** @brief The number of hardware compute units/streaming multiprocessors
+    * available on a given compute device @a dev. */
+   static int NumMultiprocessors(int dev);
+
+   /// Same as NumMultiprocessors(int), for the currently active device.
+   static int NumMultiprocessors();
+
+   /** @brief The number of threads in a warp on a given compute device @a dev.
+    */
+   static int WarpSize(int dev);
+
+   /// Same as WarpSize(int), for the currently active device.
+   static int WarpSize();
+
+   /** @brief Gets the @a free and @a total memory on the device. */
+   static void DeviceMem(size_t *free, size_t *total);
 };
 
 

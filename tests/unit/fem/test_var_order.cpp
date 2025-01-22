@@ -208,7 +208,7 @@ TEST_CASE("Variable Order FiniteElementSpace",
       REQUIRE(fespace.GetNConformingDofs() == 87);
 
       // refine one of the small elements into four
-      refs[0].ref_type = 3;
+      refs[0].SetType(3);
       mesh.GeneralRefinement(refs);
       fespace.Update();
 
@@ -254,7 +254,7 @@ TEST_CASE("Variable Order FiniteElementSpace",
       mesh.GeneralRefinement(refs);
       fespace.Update(false);
 
-      refs[0].ref_type = 4;
+      refs[0].SetType(4);
       refs.Append(Refinement(2, 4));
       mesh.GeneralRefinement(refs);
       fespace.Update(false);

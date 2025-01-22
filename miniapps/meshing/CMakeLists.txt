@@ -73,6 +73,10 @@ add_mfem_miniapp(reflector
   MAIN reflector.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(ref321
+  MAIN ref321.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(toroid
   MAIN toroid.cpp
   LIBRARIES mfem)
@@ -106,6 +110,7 @@ if (MFEM_ENABLE_TESTING)
     minimal-surface
     polar-nc
     reflector
+    ref321
     mesh-quality
     hpref_serial
   )

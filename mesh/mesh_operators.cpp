@@ -126,7 +126,7 @@ int ThresholdRefiner::MarkWithoutRefining(Mesh & mesh,
          for (int i = 0; i < refinements.Size(); i++)
          {
             Refinement &ref = refinements[i];
-            ref.ref_type = aniso_flags[ref.index];
+            ref.SetType(aniso_flags[ref.index]);
          }
       }
    }
