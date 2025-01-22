@@ -51,7 +51,6 @@ list(APPEND ALL_EXE_SRCS
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
     dfem_poisson.cpp
-    dfem_stokes.cpp
     enzyme_interface_smoketest.cpp
     test_dfem_dual.cpp
     test_dfem.cpp
@@ -76,6 +75,7 @@ if (MFEM_USE_MPI)
     dfem_nonlinear_advdiff.cpp
     dfem_advection_supg.cpp
     dfem_navier_stokes.cpp
+    dfem_stokes.cpp
     dfem_navier_stokes_edac.cpp
     ex0p.cpp
     ex1p.cpp

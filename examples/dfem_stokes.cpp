@@ -1,157 +1,300 @@
-#include "dfem/dfem.hpp"
+#include "dfem/dfem_refactor.hpp"
+#include "fem/pgridfunc.hpp"
+#include "linalg/hypre.hpp"
+#include "linalg/solvers.hpp"
 
 using namespace mfem;
 using mfem::internal::tensor;
 
-template <typename momentum_t, typename mass_conservation_t>
-class NavierStokesOperator : public Operator
+template <int dim = 2>
+struct StokesMomentumQFunction
 {
-   template <typename momentum_du_t, typename momentum_dp_t>
-   class NavierStokesJacobianOperator : public Operator
+   StokesMomentumQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      // velocity gradient in reference space
+      const tensor<double, dim, dim> &dudxi,
+      const double &p,
+      const tensor<double, dim, dim> &J,
+      const double &w) const
+   {
+      constexpr real_t kinematic_viscosity = 1.0;
+      auto I = mfem::internal::IsotropicIdentity<dim>();
+      auto invJ = inv(J);
+      auto dudx = dudxi * invJ;
+      auto viscous_stress = -p * I + 2.0 * kinematic_viscosity * sym(dudx);
+      auto JxW = det(J) * w * transpose(invJ);
+      return mfem::tuple{-viscous_stress * JxW};
+   }
+};
+
+template <int dim = 2>
+struct StokesMassConservationQFunction
+{
+   StokesMassConservationQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      // velocity gradient in reference space
+      const tensor<double, dim, dim> &dudxi,
+      const tensor<double, dim, dim> &J,
+      const double &w) const
+   {
+      return mfem::tuple{tr(dudxi * inv(J)) * det(J) * w};
+   }
+};
+
+class StokesOperator : public Operator
+{
+   static constexpr int Velocity = 0;
+   static constexpr int Pressure = 1;
+   static constexpr int Coordinates = 2;
+
+   class StokesJacobianOperator : public Operator
    {
    public:
-      NavierStokesJacobianOperator(const NavierStokesOperator *ns,
-                                   std::shared_ptr<momentum_du_t> mom_du,
-                                   std::shared_ptr<momentum_dp_t> mom_dp) :
-         Operator(ns->Height()), ns(ns), block_op(ns->block_offsets)
+      StokesJacobianOperator(const StokesOperator *ns, const Vector &x) :
+         Operator(ns->Height()),
+         ns(ns),
+         block_op(ns->block_offsets)
       {
-         mom_du->Assemble(A);
-         A.EliminateBC(ns->vel_ess_tdofs, Operator::DiagonalPolicy::DIAG_ONE);
+         xtmp = x;
+         BlockVector xb(xtmp.ReadWrite(), ns->block_offsets);
 
-         mom_dp->Assemble(D);
-         D.EliminateRows(ns->vel_ess_tdofs);
+         ParGridFunction u(&ns->velocity_fes);
+         ParGridFunction p(&ns->pressure_fes);
 
-         Dt = new TransposeOperator(D);
+         u.SetFromTrueDofs(xb.GetBlock(0));
+         p.SetFromTrueDofs(xb.GetBlock(1));
 
-         block_op.SetBlock(0, 0, &A);
-         block_op.SetBlock(0, 1, &D);
-         block_op.SetBlock(1, 0, Dt);
-         // std::ofstream amatofs("dfem_mat.dat");
-         // block_op.PrintMatlab(amatofs);
-         // amatofs.close();
+         auto mesh_nodes = static_cast<ParGridFunction*>
+                           (ns->velocity_fes.GetParMesh()->GetNodes());
+         momentum_du = ns->momentum->GetDerivative(Velocity, {&u}, {&p, mesh_nodes});
+
+         // Get a HypreParMatrix
+         //
+         // HypreParMatrix A;
+         // static_cast<DerivativeOperator *>(momentum_du.get())->Assemble(A);
+         //
+         // or directly
+         //
+         // HypreParMatrix A;
+         // ns->momentum->GetDerivative(Velocity, {&u,}, {&p, mesh_nodes})->Assemble(A);
+
+         dRdp = ns->mass_conservation;
+         dRdpT = std::make_shared<TransposeOperator>(*dRdp);
+
+         block_op.SetBlock(0, 0, momentum_du.get());
+         block_op.SetBlock(0, 1, dRdpT.get());
+         block_op.SetBlock(1, 0, dRdp.get());
       }
 
       void Mult(const Vector &x, Vector &y) const override
       {
-         block_op.Mult(x, y);
+         BlockVector xb(const_cast<double*>(x.Read()), ns->block_offsets);
+         // column elimination for essential dofs
+         xtmp = x;
+
+         BlockVector xtmpb(xtmp.ReadWrite(), ns->block_offsets);
+         xtmpb.GetBlock(0).SetSubVector(ns->vel_ess_tdofs, 0.0);
+
+         block_op.Mult(xtmpb, y);
+
+         BlockVector yb(y.ReadWrite(), ns->block_offsets);
+         for (int i = 0; i < ns->vel_ess_tdofs.Size(); i++)
+         {
+            yb.GetBlock(0)[ns->vel_ess_tdofs[i]] = xb.GetBlock(0)[ns->vel_ess_tdofs[i]];
+         }
       }
 
-      ~NavierStokesJacobianOperator()
-      {
-         delete Dt;
-      }
+      const StokesOperator *ns;
+      std::shared_ptr<Operator> momentum_du;
+      std::shared_ptr<Operator> convective_du;
 
-      const NavierStokesOperator *ns = nullptr;
-      HypreParMatrix A, D;
-      TransposeOperator *Dt = nullptr;
+      std::shared_ptr<Operator> dRdu;
+      std::shared_ptr<Operator> dRdp;
+      std::shared_ptr<TransposeOperator> dRdpT;
       BlockOperator block_op;
+
+      mutable Vector xtmp;
    };
 
 public:
-   NavierStokesOperator(momentum_t &momentum,
-                        mass_conservation_t &mass_conservation,
-                        Array<int> &offsets, Array<int> &vel_ess_tdofs) :
-      Operator(offsets.Last()), momentum(momentum),
-      mass_conservation(mass_conservation),
-      block_offsets(offsets), vel_ess_tdofs(vel_ess_tdofs) {}
-
-   void SetParameters(ParGridFunction &mesh_nodes)
+   StokesOperator(ParFiniteElementSpace &velocity_fes,
+                  ParFiniteElementSpace &pressure_fes,
+                  Array<int> &offsets,
+                  Array<int> &vel_ess_tdofs,
+                  const IntegrationRule &velocity_ir,
+                  const IntegrationRule &pressure_ir) :
+      Operator(offsets.Last()),
+      block_offsets(offsets),
+      vel_ess_tdofs(vel_ess_tdofs),
+      velocity_fes(velocity_fes),
+      pressure_fes(pressure_fes),
+      mass_conservation_form(&velocity_fes, &pressure_fes)
    {
-      momentum.SetParameters({&mesh_nodes});
-      mass_conservation.SetParameters({&mesh_nodes});
-      this->mesh_nodes.SetSpace(mesh_nodes.ParFESpace());
-      this->mesh_nodes = mesh_nodes;
+      auto mesh = velocity_fes.GetParMesh();
+      mesh_nodes = static_cast<ParGridFunction*>(mesh->GetNodes());
+      ParFiniteElementSpace& mesh_fes = *mesh_nodes->ParFESpace();
+
+      {
+         auto solutions = std::vector
+         {
+            FieldDescriptor{Velocity, &velocity_fes},
+         };
+
+         auto parameters = std::vector
+         {
+            FieldDescriptor{Pressure, &pressure_fes},
+            FieldDescriptor{Coordinates, &mesh_fes}
+         };
+
+         momentum =
+            std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+
+         mfem::tuple inputs{Gradient<Velocity>{}, Value<Pressure>{}, Gradient<Coordinates>{}, Weight{}};
+         mfem::tuple outputs{Gradient<Velocity>{}};
+
+         auto stokes_momemtum_qf = StokesMomentumQFunction{};
+         auto derivatives = std::integer_sequence<size_t, Velocity> {};
+         momentum->AddDomainIntegrator(stokes_momemtum_qf, inputs, outputs, velocity_ir,
+                                       derivatives);
+      }
+
+      // Standard MFEM integrator
+      auto vdfi = new VectorDivergenceIntegrator;
+      vdfi->SetIntegrationRule(pressure_ir);
+      mass_conservation_form.AddDomainIntegrator(vdfi);
+      mass_conservation_form.Assemble();
+      mass_conservation_form.Finalize();
+      mass_conservation.reset(mass_conservation_form.ParallelAssemble());
+
+      // dFEM
+      // {
+      //    auto solutions = std::vector
+      //    {
+      //       FieldDescriptor{Pressure, &pressure_fes},
+      //    };
+
+      //    auto parameters = std::vector
+      //    {
+      //       FieldDescriptor{Velocity, &velocity_fes},
+      //       FieldDescriptor{Coordinates, &mesh_fes}
+      //    };
+
+      //    mass_conservation = std::make_shared<DifferentiableOperator>(solutions,
+      //                                                                 parameters,
+      //                                                                 mesh);
+
+      //    mfem::tuple inputs{Gradient<Velocity>{}, Gradient<Coordinates>{}, Weight{}};
+      //    mfem::tuple outputs{Value<Pressure>{}};
+
+      //    auto stokes_mass_conservation_qf = StokesMassConservationQFunction{};
+      //    mass_conservation->AddDomainIntegrator(stokes_mass_conservation_qf, inputs,
+      //                                           outputs,
+      //                                           pressure_ir);
+      // }
    }
 
    void Mult(const Vector &x, Vector &r) const override
    {
+      Vector xu(const_cast<double *>(x.Read()) + block_offsets[0],
+                block_offsets[1] - block_offsets[0]);
+      Vector xp(const_cast<double *>(x.Read()) + block_offsets[1],
+                block_offsets[2] - block_offsets[1]);
       Vector ru(r.ReadWrite() + block_offsets[0],
                 block_offsets[1] - block_offsets[0]);
       Vector rp(r.ReadWrite() + block_offsets[1],
                 block_offsets[2] - block_offsets[1]);
 
-      momentum.Mult(x, ru);
+      ParGridFunction p(&pressure_fes);
+      p.SetFromTrueDofs(xp);
+      momentum->SetParameters({&p, mesh_nodes});
 
-      mass_conservation.Mult(x, rp);
+      momentum->Mult(xu, ru);
+      mass_conservation->Mult(xu, rp);
 
       ru.SetSubVector(vel_ess_tdofs, 0.0);
    }
 
    Operator &GetGradient(const Vector &x) const override
    {
-      xtmp = x;
-      BlockVector xb(xtmp.ReadWrite(), block_offsets);
-
-      ParGridFunction u(const_cast<ParFiniteElementSpace *>
-                        (*std::get_if<const ParFiniteElementSpace *>
-                         (&momentum.solutions[0].data)));
-      ParGridFunction p(const_cast<ParFiniteElementSpace *>
-                        (*std::get_if<const ParFiniteElementSpace *>
-                         (&momentum.solutions[1].data)));
-      u.SetFromTrueDofs(xb.GetBlock(0));
-      p.SetFromTrueDofs(xb.GetBlock(1));
-      auto mom_du = momentum.template GetDerivativeWrt<0>({&u, &p}, {&mesh_nodes});
-      auto mom_dp = momentum.template GetDerivativeWrt<1>({&u, &p}, {&mesh_nodes});
-      delete jacobian_operator;
-      jacobian_operator = new NavierStokesJacobianOperator<
-      typename std::remove_pointer<decltype(mom_du.get())>::type,
-      typename std::remove_pointer<decltype(mom_dp.get())>::type>(this, mom_du,
-                                                                  mom_dp);
+      jacobian_operator = std::make_shared<StokesJacobianOperator>(this, x);
       return *jacobian_operator;
+
+      // fd_jacobian = std::make_shared<FDJacobian>(*this, x);
+      // return *fd_jacobian;
    }
 
-   momentum_t &momentum;
-   mass_conservation_t &mass_conservation;
+   std::shared_ptr<DifferentiableOperator> momentum;
+   std::shared_ptr<DifferentiableOperator> continuity;
 
+   ParGridFunction *mesh_nodes;
+
+   ParMixedBilinearForm mass_conservation_form;
+   std::shared_ptr<Operator> mass_conservation;
    const Array<int> block_offsets;
    const Array<int> vel_ess_tdofs;
-   mutable Vector xtmp;
 
-   mutable ParGridFunction mesh_nodes;
+   ParFiniteElementSpace &velocity_fes;
+   ParFiniteElementSpace &pressure_fes;
 
-   mutable Operator *jacobian_operator = nullptr;
+   mutable std::shared_ptr<StokesJacobianOperator> jacobian_operator;
+   mutable std::shared_ptr<FDJacobian> fd_jacobian;
 };
 
-double reynolds = 10.0;
-
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
-   constexpr int dim = 3;
-   constexpr int vdim = dim;
+   constexpr int dim = 2;
 
    Mpi::Init();
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
-   Hypre::Init();
 
-   const char *mesh_file = "../data/ref-cube.mesh";
+   const char* device_config = "cpu";
+   const char* mesh_file = "../data/inline-quad.mesh";
    int polynomial_order = 2;
    int ir_order = 2;
-   int refinements = 2;
+   int refinements = 0;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&refinements, "-r", "--refinements", "");
-   args.AddOption(&reynolds, "-rey", "--reynolds", "");
+   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&polynomial_order, "-o", "--order", "");
+   args.AddOption(&refinements, "-r", "--r", "");
+   args.AddOption(&ir_order, "-iro", "--iro", "");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.ParseCheck();
 
+   Device device(device_config);
+   if (Mpi::Root() == 0)
+   {
+      device.Print();
+   }
+
+   out << std::setprecision(8);
+
    Mesh mesh_serial = Mesh(mesh_file);
+   MFEM_ASSERT(mesh_serial.Dimension() == dim, "incorrect mesh dimension");
+
    for (int i = 0; i < refinements; i++)
    {
       mesh_serial.UniformRefinement();
    }
    ParMesh mesh(MPI_COMM_WORLD, mesh_serial);
 
-   mesh.SetCurvature(1);
+   mesh.EnsureNodes();
    mesh_serial.Clear();
 
-   ParGridFunction* mesh_nodes = static_cast<ParGridFunction *>(mesh.GetNodes());
-   ParFiniteElementSpace &mesh_fes = *mesh_nodes->ParFESpace();
+   out << "#el: " << mesh.GetNE() << "\n";
 
    H1_FECollection velocity_fec(polynomial_order, dim);
    ParFiniteElementSpace velocity_fes(&mesh, &velocity_fec, dim);
 
    H1_FECollection pressure_fec(polynomial_order - 1, dim);
    ParFiniteElementSpace pressure_fes(&mesh, &pressure_fec);
+
+   out << velocity_fes.GetTrueVSize() << "\n";
+   out << pressure_fes.GetTrueVSize() << "\n";
 
    const IntegrationRule &velocity_ir =
       IntRules.Get(velocity_fes.GetFE(0)->GetGeomType(),
@@ -172,8 +315,8 @@ int main(int argc, char *argv[])
    auto u_f = [](const Vector &coords, Vector &u)
    {
       const double x = coords(0);
-      const double z = coords(2);
-      if (z >= 1.0)
+      const double y = coords(1);
+      if (y >= 1.0)
       {
          u(0) = 1.0;
       }
@@ -182,63 +325,11 @@ int main(int argc, char *argv[])
          u(0) = 0.0;
       }
       u(1) = 0.0;
-      u(2) = 0.0;
    };
    auto u_coef = VectorFunctionCoefficient(dim, u_f);
 
    u.ProjectCoefficient(u_coef);
    p = 0.0;
-
-   // -\nabla \cdot (\nabla u + p * I) -> (\nabla u + p * I, \nabla v)
-   auto momentum_kernel = [](const tensor<double, dim> &u,
-                             const tensor<double, dim, dim> &dudxi,
-                             const double &p,
-                             const tensor<double, dim, dim> &J,
-                             const double &w)
-   {
-      static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
-      auto invJ = inv(J);
-      auto dudx = dudxi * invJ;
-      double Re = reynolds;
-      return mfem::tuple{(outer(u, u) - 1.0 / Re * dudx + p * I) * det(J) * w * transpose(invJ)};
-   };
-
-   mfem::tuple argument_operators_0{Value{"velocity"}, Gradient{"velocity"}, Value{"pressure"}, Gradient{"coordinates"}, Weight{}};
-   mfem::tuple output_operator_0{Gradient{"velocity"}};
-   ElementOperator op_0{momentum_kernel, argument_operators_0, output_operator_0};
-
-   // (\nabla \cdot u, q)
-   auto mass_conservation_kernel = [](const tensor<double, dim, dim> &dudxi,
-                                      const tensor<double, dim, dim> &J,
-                                      const double &w)
-   {
-      return mfem::tuple{tr(dudxi * inv(J)) * det(J) * w};
-   };
-
-   mfem::tuple argument_operators_1{Gradient{"velocity"}, Gradient{"coordinates"}, Weight{}};
-   mfem::tuple output_operator_1{Value{"pressure"}};
-   ElementOperator op_1{mass_conservation_kernel, argument_operators_1, output_operator_1};
-
-   std::array solutions{FieldDescriptor{&velocity_fes, "velocity"}, FieldDescriptor{&pressure_fes, "pressure"}};
-   std::array parameters{FieldDescriptor{&mesh_fes, "coordinates"}};
-
-   DifferentiableOperator momentum_op{solutions, parameters, mfem::tuple{op_0}, mesh, velocity_ir};
-   DifferentiableOperator mass_conservation_op{solutions, parameters, mfem::tuple{op_1}, mesh, pressure_ir};
-
-   // Preconditioner form
-   auto pressure_mass_kernel = [](const double &p,
-                                  const tensor<double, dim, dim> &J,
-                                  const double &w)
-   {
-      return mfem::tuple{p * det(J) * w};
-   };
-
-   mfem::tuple pms_args{Value{"pressure"}, Gradient{"coordinates"}, Weight{}};
-   mfem::tuple pms_outs{Value{"pressure"}};
-   ElementOperator pressure_mass{pressure_mass_kernel, pms_args, pms_outs};
-   std::array pms_sols{FieldDescriptor{&pressure_fes, "pressure"}};
-   std::array pms_params{FieldDescriptor{&mesh_fes, "coordinates"}};
-   DifferentiableOperator pressure_mass_op{pms_sols, pms_params, mfem::tuple{pressure_mass}, mesh, pressure_ir};
 
    Array<int> block_offsets(3);
    block_offsets[0] = 0;
@@ -246,57 +337,38 @@ int main(int argc, char *argv[])
    block_offsets[2] = pressure_fes.GetTrueVSize();
    block_offsets.PartialSum();
 
-   NavierStokesOperator navierstokes(momentum_op, mass_conservation_op,
-                                     block_offsets,
-                                     vel_ess_tdofs);
+   StokesOperator stokes(velocity_fes, pressure_fes, block_offsets,
+                         vel_ess_tdofs, velocity_ir, pressure_ir);
 
    BlockVector x(block_offsets), y(block_offsets);
    u.ParallelProject(x.GetBlock(0));
-   // p.ParallelProject(x.GetBlock(1));
-   navierstokes.SetParameters(*mesh_nodes);
-
-   HypreParMatrix A;
-   momentum_op.template GetDerivativeWrt<0>({&u, &p}, {mesh_nodes})->Assemble(A);
-   A.EliminateBC(vel_ess_tdofs, Operator::DiagonalPolicy::DIAG_ONE);
-   HypreBoomerAMG amg(A);
-   amg.SetMaxLevels(50);
-   amg.SetPrintLevel(0);
-
-   HypreParMatrix Mp;
-   pressure_mass_op.template GetDerivativeWrt<0>({&p}, {mesh_nodes})->Assemble(Mp);
-
-   HypreDiagScale Mp_inv(Mp);
-
-   BlockDiagonalPreconditioner prec(block_offsets);
-   prec.SetDiagonalBlock(0, &amg);
-   prec.SetDiagonalBlock(1, &Mp_inv);
 
    GMRESSolver solver(MPI_COMM_WORLD);
    solver.SetAbsTol(0.0);
    solver.SetRelTol(1e-8);
-   solver.SetKDim(100);
+   // solver.SetKDim(100);
    solver.SetMaxIter(500);
    solver.SetPrintLevel(2);
-   solver.SetPreconditioner(prec);
+   // solver.SetPreconditioner(prec);
 
    NewtonSolver newton(MPI_COMM_WORLD);
-   newton.SetOperator(navierstokes);
+   newton.SetOperator(stokes);
    newton.SetSolver(solver);
-   newton.SetRelTol(1e-8);
-   newton.SetMaxIter(500);
+   newton.SetRelTol(1e-6);
+   newton.SetMaxIter(50);
    newton.SetPrintLevel(1);
 
    Vector zero;
    newton.Mult(zero, x);
 
    u.SetFromTrueDofs(x.GetBlock(0));
+   p.SetFromTrueDofs(x.GetBlock(1));
 
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   sol_sock.precision(8);
-   sol_sock << "solution\n" << mesh << u << std::flush;
+   ParaViewDataCollection dc("dfem_stokes", &mesh);
+   dc.SetHighOrderOutput(true);
+   dc.RegisterField("velocity", &u);
+   dc.RegisterField("pressure", &p);
+   dc.Save();
 
    return 0;
 }
