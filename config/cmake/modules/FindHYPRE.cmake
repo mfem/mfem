@@ -29,19 +29,26 @@ if (HYPRE_FOUND)
 endif()
 
 if (FETCH_TPLS)
-  message(STATUS "Fetching hypre 2.32.0 from GitHub ...")
-  include(FetchContent)
-  FetchContent_Declare(HYPRE
-  GIT_REPOSITORY https://github.com/hypre-space/hypre.git
-  GIT_TAG cb7597ffd998dc5270c2e32025e799e68048b1cd # Release 2.32.0
-  GIT_SHALLOW TRUE
-  SOURCE_SUBDIR src
-  BINARY_DIR fetch/hypre
-  OVERRIDE_FIND_PACKAGE
-  GIT_PROGESS TRUE
-  )
-  # obtain source (library target is created by HYPRE CMake configuration)
-  FetchContent_MakeAvailable(HYPRE)
+  # define external project and create future include directory so it is present
+  # to pass CMake checks at end of MFEM configuration step
+  include(ExternalProject)
+  set(PREFIX ${CMAKE_BINARY_DIR}/external/hypre)
+  ExternalProject_Add(hypre
+    GIT_REPOSITORY https://github.com/hypre-space/hypre.git
+    GIT_TAG cb7597ffd998dc5270c2e32025e799e68048b1cd # Release 2.32.0
+    GIT_SHALLOW TRUE
+    SOURCE_SUBDIR src
+    PREFIX ${PREFIX}
+    CMAKE_CACHE_ARGS
+      -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+      -DCMAKE_INSTALL_PREFIX:STRING=${PREFIX})
+  file(MAKE_DIRECTORY ${PREFIX}/include)
+  # create interface library target for linking
+  add_library(HYPRE STATIC IMPORTED)
+  add_dependencies(HYPRE hypre hypre-install)
+  set_target_properties(HYPRE PROPERTIES
+    IMPORTED_LOCATION ${PREFIX}/lib/libhypre.a
+    INTERFACE_INCLUDE_DIRECTORIES ${PREFIX}/include)
   # set cache variables that would otherwise be set after mfem_find_package call
   set(HYPRE_VERSION "23200" CACHE STRING "HYPRE version." FORCE)
   return()
