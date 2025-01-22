@@ -197,11 +197,9 @@ int main(int argc, char *argv[])
    {
       Array<int> ess_bdr(pmesh.bdr_attributes.Max());
       ess_bdr = 0;
+      // Apply boundary conditions on all external boundaries:
       pmesh.MarkExternalBoundaries(ess_bdr);
-
-      // Optionally the boundary conditions could be applied according to a
-      // named set of boundary attributes as in ex39p.cpp or using the
-      // following shortcut:
+      // Boundary conditions can also be applied based on named attributes:
       // pmesh.MarkNamedBoundaries(set_name, ess_bdr)
 
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
