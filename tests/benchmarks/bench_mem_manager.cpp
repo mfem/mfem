@@ -15,34 +15,45 @@
 using namespace std;
 using namespace mfem;
 
+constexpr int stack_size = 3;
+int size = 3;
+double val = 0_r;
+
+inline void vec_op(Vector &v)
+{
+   // v = val;
+   // std::fill(v.begin(), v.end(), 0_r); // can be slower for small 'size'!
+   std::fill(v.begin(), v.end(), val);
+}
+
 void mem_stack()
 {
-   real_t v_data[Geometry::MaxDim];
-   Vector v(v_data, 3);
+   real_t v_data[stack_size];
+   Vector v(v_data, size);
 
-   // ...
+   vec_op(v);
 }
 
 void mem_host()
 {
-   // Vector v(3, MemoryType::HOST); // everything is optimized out!
-   Vector v(3);
+   // Vector v(size, MemoryType::HOST); // everything may be optimized out!
+   Vector v(size);
 
-   // ...
+   vec_op(v);
 }
 
 void mem_host_64()
 {
-   Vector v(3, MemoryType::HOST_64);
+   Vector v(size, MemoryType::HOST_64);
 
-   // ...
+   vec_op(v);
 }
 
 void mem_host_arena()
 {
-   Vector v(3, MemoryType::HOST_ARENA);
+   Vector v(size, MemoryType::HOST_ARENA);
 
-   // ...
+   vec_op(v);
 }
 
 void bench(void (*f)(), const char *name)
@@ -62,9 +73,9 @@ void bench(void (*f)(), const char *name)
 
 int main()
 {
+   bench(mem_host_64,    "mem_host_64");
    bench(mem_stack,      "mem_stack");
    bench(mem_host,       "mem_host");
-   bench(mem_host_64,    "mem_host_64");
    bench(mem_host_arena, "mem_host_arena");
 
    return 0;
