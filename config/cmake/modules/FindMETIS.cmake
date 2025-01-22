@@ -28,20 +28,20 @@ if (FETCH_TPLS)
   # present to pass MFEM checks at end of configuation step
   FetchContent_MakeAvailable(METIS)
   execute_process(COMMAND mkdir ${metis_BINARY_DIR}/include)
-  execute_process(COMMAND mkdir ${metis_BINARY_DIR}/lib)
+  execute_process(COMMAND mkdir ${metis_BINARY_DIR}/Lib)
   # create custom command and target for building
-  add_custom_command(OUTPUT ${metis_BINARY_DIR}/lib/libmetis.a
+  add_custom_command(OUTPUT ${metis_BINARY_DIR}/Lib/libmetis.a
     COMMAND cd ${metis_SOURCE_DIR} && tar -xzf metis-4.0.3.tar.gz
     COMMAND cd ${metis_SOURCE_DIR}/metis-4.0.3 && make -j
     COMMAND cp ${metis_SOURCE_DIR}/metis-4.0.3/Lib/*.h ${metis_BINARY_DIR}/include/
-    COMMAND cp ${metis_SOURCE_DIR}/metis-4.0.3/libmetis.a ${metis_BINARY_DIR}/lib/
+    COMMAND cp ${metis_SOURCE_DIR}/metis-4.0.3/libmetis.a ${metis_BINARY_DIR}/Lib/
     COMMENT "Building metis ..."
   )
-  add_custom_target(METIS_LIBRARY DEPENDS ${metis_BINARY_DIR}/lib/libmetis.a)
+  add_custom_target(METIS_LIBRARY DEPENDS ${metis_BINARY_DIR}/Lib/libmetis.a)
   # create interface library target for linking
   add_library(METIS INTERFACE IMPORTED)
   add_dependencies(METIS METIS_LIBRARY)
-  target_link_libraries(METIS INTERFACE ${metis_BINARY_DIR}/lib/libmetis.a)
+  target_link_libraries(METIS INTERFACE ${metis_BINARY_DIR}/Lib/libmetis.a)
   target_include_directories(METIS INTERFACE ${metis_BINARY_DIR}/include)
   # set cache variables that would otherwise be set after mfem_find_package call
   set(METIS_VERSION_5 FALSE CACHE BOOL "Is METIS version 5?")
