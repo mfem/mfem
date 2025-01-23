@@ -3,48 +3,89 @@
 
 #include "mfem.hpp"
 
-#include "../config/config.hpp"
 
 namespace mfem{
 
-class RandomizedEigenSolver{
+class RandomizedSubspaceIteration
+{
 public:
 
-    RandomizedEigenSolver(MPI_Comm comm);
+    RandomizedSubspaceIteration()
+    {
+#ifdef MFEM_USE_MPI
+        comm=MPI_COMM_WORLD;
+#endif
+        num_modes=1;
+        A=nullptr;
+        modes.resize(num_modes);
+        symmetric=false;
+    }
 
-    ~RandomizedEigenSolver();
+#ifdef MFEM_USE_MPI
+    RandomizedSubspaceIteration(MPI_Comm comm_, bool symm=false)
+    {
+        comm=comm_;
+        num_modes=1;
+        A=nullptr;
+        modes.resize(num_modes);
+        symmetric=symm;
+    }
+#endif
 
-    void SetNumModes(int num_);
+    void SetNumModes(int num_)
+    {
+        num_modes=num_;
+        modes.resize(num_modes);
+        if(A!=nullptr)
+        {
+            for(int i=0;i<num_modes;i++){
+                modes[i].SetSize(A->NumRows());
+            }
+        }
+    }
 
-    void SetMaxIter(int max_it_);
+    void SetNumIter(int it_){
+        iter=it_;
+    }
 
-    void SetTol(real_t tol_);
-
-    void SetShift(real_t shift_);
-
-    void SetOperator(const Operator& A_);
-
-    void SetOperators(const Operator& A_, const Operator& B_);
+    void SetOperator(const Operator& A_, bool symm=false)
+    {
+        A=&A_;
+        for(int i=0;i<num_modes;i++){
+            modes[i].SetSize(A->NumRows());
+        }
+        symmetric=symm;
+    }
 
     void Solve();
 
-    int GetNumConverged();
+    void GetMode(int i, Vector& q){
+        if((i<num_modes)&&(A!=nullptr))
+        {
+            q=modes[i];
+        }
+    }
 
-    void GetEigenvalue(unsigned int i, real_t & lr) const;
-
-    void GetEigenvalue(unsigned int i, real_t & lr, real_t & lc) const;
-
-    void GetEigenvector(unsigned int i, Vector & vr) const;
-
-    void GetEigenvector(unsigned int i, Vector & vr, Vector & vc) const;
+    std::vector<Vector>& GetModes()
+    {
+        return modes;
+    }
 
 private:
+#ifdef MFEM_USE_MPI
+    MPI_Comm comm;
+#endif
 
-    Operator* A;
-    Operator* B;
+    int num_modes;
+    int iter;
+    const Operator* A;
+    std::vector<Vector> modes;
+
+    bool symmetric;
 
 };
 
 
-}
+
+};
 #endif // RAND_EIGENSOLVER_HPP
