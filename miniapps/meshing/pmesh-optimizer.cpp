@@ -36,8 +36,8 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
-//   Adapted analytic shape+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
+//   Adapted analytic shape+orientation (AD):
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
 //
 //   Adapted analytic shape and/or size with hr-adaptivity:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 9  -ni 50 -li 20 -hmid 55 -mid 7 -hr
@@ -60,8 +60,8 @@
 //     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
 //   Adapted discrete size+aspect_ratio:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
-//   Adapted discrete size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
+//   Adapted discrete size+orientation (AD):
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -nor -rtol 1e-6
 //   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
 //
@@ -69,15 +69,13 @@
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5
 //   Adaptive limiting through the L-BFGS solver:
 //     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 0.5 -st 1 -rtol 1e-8
-//   Adaptive limiting through FD (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//   Blade shape (AD):
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
 //   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
-//   Blade shape with FD-based solver:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 4 -bnd -qt 1 -qo 8 -fd
 //   Blade limited shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
@@ -221,6 +219,8 @@ int main (int argc, char *argv[])
                   "A-metrics\n\t"
                   "11 : (1/4*alpha)|A-(adjA)^T(W^TW)/omega|^2 -- 2D shape\n\t"
                   "36 : (1/alpha)|A-W|^2                      -- 2D shape+size+orientation\n\t"
+                  "49 : (1-gamma) mu_2 + gamma nu_50          -- 2D shape+skew\n\t"
+                  "51 : see fem/tmop.hpp                      -- 2D size+skew\n\t"
                   "107: (1/2*alpha)|A-|A|/|W|W|^2             -- 2D shape+orientation\n\t"
                   "126: (1-gamma)nu_11 + gamma*nu_14a         -- 2D shape+size\n\t"
                  );
@@ -500,7 +500,9 @@ int main (int argc, char *argv[])
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
-      case 107: metric = new TMOP_AMetric_107a; break;
+      case 49: metric = new TMOP_AMetric_049(0.9); break;
+      case 51: metric = new TMOP_AMetric_051; break;
+      case 107: metric = new TMOP_AMetric_107; break;
       case 126: metric = new TMOP_AMetric_126(0.9); break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
