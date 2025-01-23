@@ -32,7 +32,7 @@ if (FETCH_TPLS)
   # define external project and create future include directory so it is present
   # to pass CMake checks at end of MFEM configuration step
   include(ExternalProject)
-  set(PREFIX ${CMAKE_BINARY_DIR}/external/hypre)
+  set(PREFIX ${CMAKE_BINARY_DIR}/fetch/hypre)
   ExternalProject_Add(hypre
     GIT_REPOSITORY https://github.com/hypre-space/hypre.git
     GIT_TAG cb7597ffd998dc5270c2e32025e799e68048b1cd # Release 2.32.0
@@ -41,13 +41,13 @@ if (FETCH_TPLS)
     PREFIX ${PREFIX}
     CMAKE_CACHE_ARGS
       -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
-      -DCMAKE_INSTALL_PREFIX:STRING=${PREFIX})
+      -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX})
   file(MAKE_DIRECTORY ${PREFIX}/include)
   # create interface library target for linking
   add_library(HYPRE STATIC IMPORTED)
   add_dependencies(HYPRE hypre hypre-install)
   set_target_properties(HYPRE PROPERTIES
-    IMPORTED_LOCATION ${PREFIX}/lib/libhypre.a
+    IMPORTED_LOCATION ${PREFIX}/lib/libHYPRE.a
     INTERFACE_INCLUDE_DIRECTORIES ${PREFIX}/include)
   # set cache variables that would otherwise be set after mfem_find_package call
   set(HYPRE_VERSION "23200" CACHE STRING "HYPRE version." FORCE)
