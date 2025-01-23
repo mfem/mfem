@@ -47,7 +47,7 @@ TEST_CASE("Reduce CPU Mult", "[Reduction]")
    Array<long long> workspace;
    Array<long long> a(100);
    auto ptr = a.HostReadWrite();
-   for (long long i = 0; i < a.Size(); ++i)
+   for (int i = 0; i < a.Size(); ++i)
    {
       a[i] = i % 3 + 1;
    }
@@ -56,7 +56,7 @@ TEST_CASE("Reduce CPU Mult", "[Reduction]")
       long long res = 0;
       mfem::reduce(
          a.Size(), res,
-      [=] MFEM_HOST_DEVICE(long long i, long long &r) { r *= ptr[i]; },
+      [=] MFEM_HOST_DEVICE(int i, long long &r) { r *= ptr[i]; },
       MultReducer<long long> {}, false, workspace);
       long long expected = 0;
       REQUIRE(res == expected);
@@ -66,7 +66,7 @@ TEST_CASE("Reduce CPU Mult", "[Reduction]")
       long long res = 1;
       mfem::reduce(
          a.Size(), res,
-      [=] MFEM_HOST_DEVICE(long long i, long long &r) { r *= ptr[i]; },
+      [=] MFEM_HOST_DEVICE(int i, long long &r) { r *= ptr[i]; },
       MultReducer<long long> {}, false, workspace);
       long long expected = 5527454985320660992;
       REQUIRE(res == expected);
@@ -93,7 +93,7 @@ TEST_CASE("Reduce CPU BAnd", "[Reduction]")
          unsigned res = ~1u;
          mfem::reduce(
             a.Size(), res,
-         [=] MFEM_HOST_DEVICE(unsigned i, unsigned &r) { r &= ptr[i]; },
+         [=] MFEM_HOST_DEVICE(int i, unsigned &r) { r &= ptr[i]; },
          BAndReducer<unsigned> {}, false, workspace);
          REQUIRE(res == ((~1u) & ~(1u << unset_bit)));
          REQUIRE((res & (1u << unset_bit)) == 0);
@@ -113,7 +113,7 @@ TEST_CASE("Reduce CPU BAnd", "[Reduction]")
          unsigned res = ~1u;
          mfem::reduce(
             a.Size(), res,
-         [=] MFEM_HOST_DEVICE(unsigned i, unsigned &r) { r &= ptr[i]; },
+         [=] MFEM_HOST_DEVICE(int i, unsigned &r) { r &= ptr[i]; },
          BAndReducer<unsigned> {}, false, workspace);
          REQUIRE(res == (1u << set_bit));
       }
@@ -135,7 +135,7 @@ TEST_CASE("Reduce CPU BOr", "[Reduction]")
          unsigned res = 0u;
          mfem::reduce(
             a.Size(), res,
-         [=] MFEM_HOST_DEVICE(unsigned i, unsigned &r) { r |= ptr[i]; },
+         [=] MFEM_HOST_DEVICE(int i, unsigned &r) { r |= ptr[i]; },
          BOrReducer<unsigned> {}, false, workspace);
          REQUIRE(res == 0xfu);
       }
@@ -398,7 +398,7 @@ TEST_CASE("Reduce GPU Mult", "[Reduction],[CUDA]")
    Array<long long> workspace;
    Array<long long> a(100);
    a.HostReadWrite();
-   for (long long i = 0; i < a.Size(); ++i)
+   for (int i = 0; i < a.Size(); ++i)
    {
       a[i] = i % 3 + 1;
    }
@@ -409,7 +409,7 @@ TEST_CASE("Reduce GPU Mult", "[Reduction],[CUDA]")
       long long res = 0;
       mfem::reduce(
          a.Size(), res,
-      [=] MFEM_HOST_DEVICE(long long i, long long &r) { r *= dptr[i]; },
+      [=] MFEM_HOST_DEVICE(int i, long long &r) { r *= dptr[i]; },
       MultReducer<long long> {}, true, workspace);
       long long expected = 0;
       REQUIRE(res == expected);
@@ -420,7 +420,7 @@ TEST_CASE("Reduce GPU Mult", "[Reduction],[CUDA]")
       long long res = 1;
       mfem::reduce(
          a.Size(), res,
-      [=] MFEM_HOST_DEVICE(long long i, long long &r) { r *= dptr[i]; },
+      [=] MFEM_HOST_DEVICE(int i, long long &r) { r *= dptr[i]; },
       MultReducer<long long> {}, true, workspace);
       long long expected = 5527454985320660992;
       REQUIRE(res == expected);
@@ -448,7 +448,7 @@ TEST_CASE("Reduce GPU BAnd", "[Reduction],[CUDA]")
          unsigned res = ~1u;
          mfem::reduce(
             a.Size(), res,
-         [=] MFEM_HOST_DEVICE(unsigned i, unsigned &r) { r &= dptr[i]; },
+         [=] MFEM_HOST_DEVICE(int i, unsigned &r) { r &= dptr[i]; },
          BAndReducer<unsigned> {}, true, workspace);
          REQUIRE(res == ((~1u) & ~(1u << unset_bit)));
          REQUIRE((res & (1u << unset_bit)) == 0);
@@ -469,7 +469,7 @@ TEST_CASE("Reduce GPU BAnd", "[Reduction],[CUDA]")
          unsigned res = ~1u;
          mfem::reduce(
             a.Size(), res,
-         [=] MFEM_HOST_DEVICE(unsigned i, unsigned &r) { r &= dptr[i]; },
+         [=] MFEM_HOST_DEVICE(int i, unsigned &r) { r &= dptr[i]; },
          BAndReducer<unsigned> {}, true, workspace);
          REQUIRE(res == (1u << set_bit));
       }
@@ -493,7 +493,7 @@ TEST_CASE("Reduce GPU BOr", "[Reduction],[CUDA]")
          unsigned res = 0u;
          mfem::reduce(
             a.Size(), res,
-         [=] MFEM_HOST_DEVICE(unsigned i, unsigned &r) { r |= dptr[i]; },
+         [=] MFEM_HOST_DEVICE(int i, unsigned &r) { r |= dptr[i]; },
          BOrReducer<unsigned> {}, true, workspace);
          REQUIRE(res == 0x3ffu);
       }
