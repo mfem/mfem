@@ -33,7 +33,7 @@ public:
    /** @brief Prescribe a fixed IntegrationRule to use. */
    void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
 
-   /** @brief For patchwise integration, SetNURBSPatelementchIntRule must be
+   /** @brief For patchwise integration, SetNURBSPatchIntRule must be
        called. This will override IntRule if both are non-null. */
    void SetNURBSPatchIntRule(NURBSMeshRules *pr) { patchRules = pr; }
 
