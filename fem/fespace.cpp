@@ -2926,11 +2926,11 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
    edge_elem_orders = 0;
    face_elem_orders = 0;
 
-   edge_max_order.SetSize(mesh->ncmesh->GetNEdges());
-   face_max_order.SetSize(mesh->ncmesh->GetNFaces());
+   edge_min_nghb_order.SetSize(mesh->ncmesh->GetNEdges());
+   face_min_nghb_order.SetSize(mesh->ncmesh->GetNFaces());
 
-   edge_max_order = -1;
-   face_max_order = -1;
+   edge_min_nghb_order = MaxVarOrder + 1;
+   face_min_nghb_order = MaxVarOrder + 1;
 
    // Calculate initial edge/face orders, as required by incident elements.
    // For each edge/face we accumulate in a bit-mask the orders of elements
@@ -2948,9 +2948,9 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
          edge_orders[E[j]] |= mask;
          edge_elem_orders[E[j]] |= mask;
 
-         if (order > edge_max_order[E[j]])
+         if (order < edge_min_nghb_order[E[j]])
          {
-            edge_max_order[E[j]] = order;
+            edge_min_nghb_order[E[j]] = order;
          }
       }
 
@@ -2962,9 +2962,9 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             face_orders[F[j]] |= mask;
             face_elem_orders[F[j]] |= mask;
 
-            if (order > face_max_order[F[j]])
+            if (order < face_min_nghb_order[F[j]])
             {
-               face_max_order[F[j]] = order;
+               face_min_nghb_order[F[j]] = order;
             }
          }
       }

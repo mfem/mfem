@@ -290,7 +290,8 @@ protected:
    Array<char> loc_var_edge_orders, loc_var_face_orders;
    Array<char> ghost_edge_orders, ghost_face_orders;
 
-   mutable Array<int> edge_max_order, face_max_order;
+   /// Minimum order among neighboring elements.
+   mutable Array<int> edge_min_nghb_order, face_min_nghb_order;
 
    /// Marker arrays for ghost master entities to be skipped in conforming
    /// interpolation constraints.
