@@ -16,7 +16,7 @@
 #   - METIS_VERSION_5
 # otherwise, the following are defined:
 #   - METIS (imported library target)
-#   - METIS_VERSION_5
+#   - METIS_VERSION_5 (cache variable)
 
 if (FETCH_TPLS)
   # define external project
