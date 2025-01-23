@@ -1395,6 +1395,26 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
+int FiniteElementSpace::GetVectorDim() const
+{
+   const FiniteElement *fe = GetTypicalFE();
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return GetVDim();
+   }
+   return GetVDim()*std::max(GetMesh()->SpaceDimension(), fe->GetRangeDim());
+}
+
+int FiniteElementSpace::GetCurlDim() const
+{
+   const FiniteElement *fe = GetTypicalFE();
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return 2 * GetMesh()->SpaceDimension() - 3;
+   }
+   return GetVDim()*fe->GetCurlDim();
+}
+
 const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {
