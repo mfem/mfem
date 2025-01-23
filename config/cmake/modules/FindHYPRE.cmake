@@ -18,7 +18,7 @@
 #   - HYPRE_USING_HIP (internal)
 # otherwise, the following are defined:
 #   - HYPRE (imported library target)
-#   - HYPRE_VERSION (variable)
+#   - HYPRE_VERSION (cache variable)
 
 if (HYPRE_FOUND)
   if (HYPRE_USING_CUDA)
