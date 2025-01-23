@@ -83,7 +83,7 @@ TEST_CASE("Reduce CPU BAnd", "[Reduction]")
 
       auto ptr = a.HostReadWrite();
       a[0] = ~(1u << unset_bit);
-      for (unsigned i = 1; i < a.Size(); ++i)
+      for (int i = 1; i < a.Size(); ++i)
       {
          a[i] = (~1u) & a[0];
       }
@@ -104,7 +104,7 @@ TEST_CASE("Reduce CPU BAnd", "[Reduction]")
       constexpr unsigned set_bit = 17;
 
       auto ptr = a.HostReadWrite();
-      for (unsigned i = 0; i < a.Size(); ++i)
+      for (int i = 0; i < a.Size(); ++i)
       {
          a[i] = i | (1u << set_bit);
       }
@@ -126,7 +126,7 @@ TEST_CASE("Reduce CPU BOr", "[Reduction]")
    Array<unsigned> a(10);
    {
       auto ptr = a.HostReadWrite();
-      for (unsigned i = 0; i < a.Size(); ++i)
+      for (int i = 0; i < a.Size(); ++i)
       {
          a[i] = i;
       }
@@ -436,7 +436,7 @@ TEST_CASE("Reduce GPU BAnd", "[Reduction],[CUDA]")
       a.HostReadWrite();
       constexpr unsigned unset_bit = 17;
       a[0] = ~(1u << unset_bit);
-      for (unsigned i = 1; i < a.Size(); ++i)
+      for (int i = 1; i < a.Size(); ++i)
       {
          a[i] = (~1u) & a[0];
       }
@@ -458,7 +458,7 @@ TEST_CASE("Reduce GPU BAnd", "[Reduction],[CUDA]")
       // ensure one bit is set
       a.HostReadWrite();
       constexpr unsigned set_bit = 17;
-      for (unsigned i = 0; i < a.Size(); ++i)
+      for (int i = 0; i < a.Size(); ++i)
       {
          a[i] = i | (1u << set_bit);
       }
@@ -482,7 +482,7 @@ TEST_CASE("Reduce GPU BOr", "[Reduction],[CUDA]")
    Array<unsigned> a(0x210);
    {
       a.HostReadWrite();
-      for (unsigned i = 0; i < a.Size(); ++i)
+      for (int i = 0; i < a.Size(); ++i)
       {
          a[i] = i;
       }
