@@ -32,6 +32,24 @@ if (HYPRE_FOUND)
 endif()
 
 if (FETCH_TPLS)
+  add_library(HYPRE STATIC IMPORTED)
+  # set options and associated dependencies
+  set(CMAKE_OPTIONS)
+  list(APPEND CMAKE_OPTIONS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE})
+  if (MFEM_USE_CUDA)
+    list(APPEND CMAKE_OPTIONS -DHYPRE_WITH_CUDA:BOOL=ON)
+    find_package(CUDAToolkit REQUIRED)
+    target_link_libraries(HYPRE INTERFACE CUDA::cusparse CUDA::curand CUDA::cublas)
+  elseif (MFEM_USE_HIP)
+    list(APPEND CMAKE_OPTIONS -DHYPRE_WITH_HIP:BOOL=ON)
+    find_package(rocsparse REQUIRED)
+    find_package(rocrand REQUIRED)
+    target_link_libraries(HYPRE INTERFACE rocsparse rocrand)
+  endif()
+  if (MFEM_USE_SINGLE)
+    list(APPEND CMAKE_OPTIONS -DHYPRE_ENABLE_SINGLE:BOOL=ON)
+  endif()
+  message(STATUS "Fetched hypre will be built with ${CMAKE_OPTIONS}")
   # define external project and create future include directory so it is present
   # to pass CMake checks at end of MFEM configuration step
   set(PREFIX ${CMAKE_BINARY_DIR}/fetch/hypre)
@@ -42,12 +60,9 @@ if (FETCH_TPLS)
     GIT_SHALLOW TRUE
     SOURCE_SUBDIR src
     PREFIX ${PREFIX}
-    CMAKE_CACHE_ARGS
-      -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
-      -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX})
+    CMAKE_CACHE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX} ${CMAKE_OPTIONS})
   file(MAKE_DIRECTORY ${PREFIX}/include)
-  # create imported library target for linking
-  add_library(HYPRE STATIC IMPORTED)
+  # set imported library target properties
   add_dependencies(HYPRE hypre hypre-install)
   set_target_properties(HYPRE PROPERTIES
     IMPORTED_LOCATION ${PREFIX}/lib/libHYPRE.a
