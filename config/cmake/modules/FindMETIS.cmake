@@ -9,10 +9,14 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Defines the following variables:
+# Defines the following variables if fetching of TPLs is disabled (default):
 #   - METIS_FOUND
 #   - METIS_LIBRARIES
 #   - METIS_INCLUDE_DIRS
+#   - METIS_VERSION_5
+# otherwise, the following are defined:
+#   - METIS (imported library target)
+#   - METIS_VERSION_5
 
 if (FETCH_TPLS)
   # define external project
@@ -24,9 +28,9 @@ if (FETCH_TPLS)
     GIT_SHALLOW TRUE
     PREFIX ${PREFIX}
     CONFIGURE_COMMAND tar -xzf ../metis/metis-4.0.3.tar.gz
-    BUILD_COMMAND cd metis-4.0.3 && make OPTFLAGS="-Wno-error=implicit-function-declaration"
-    INSTALL_COMMAND mkdir ${PREFIX}/Lib && cp metis-4.0.3/libmetis.a ${PREFIX}/Lib/)
-  # create interface library target for linking
+    BUILD_COMMAND cd metis-4.0.3 && make
+    INSTALL_COMMAND mkdir -p ${PREFIX}/Lib && cp metis-4.0.3/libmetis.a ${PREFIX}/Lib/)
+  # create imported library target for linking
   add_library(METIS STATIC IMPORTED)
   add_dependencies(METIS metis metis-install)
   set_target_properties(METIS PROPERTIES
