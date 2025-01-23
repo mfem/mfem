@@ -9,13 +9,16 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Defines the following variables:
+# Defines the following variables if fetching of TPLs is disabled (default):
 #   - HYPRE_FOUND
 #   - HYPRE_LIBRARIES
 #   - HYPRE_INCLUDE_DIRS
 #   - HYPRE_VERSION
 #   - HYPRE_USING_CUDA (internal)
 #   - HYPRE_USING_HIP (internal)
+# otherwise, the following are defined:
+#   - HYPRE (target)
+#   - HYPRE_VERSION (variable)
 
 if (HYPRE_FOUND)
   if (HYPRE_USING_CUDA)
@@ -31,8 +34,8 @@ endif()
 if (FETCH_TPLS)
   # define external project and create future include directory so it is present
   # to pass CMake checks at end of MFEM configuration step
-  include(ExternalProject)
   set(PREFIX ${CMAKE_BINARY_DIR}/fetch/hypre)
+  include(ExternalProject)
   ExternalProject_Add(hypre
     GIT_REPOSITORY https://github.com/hypre-space/hypre.git
     GIT_TAG cb7597ffd998dc5270c2e32025e799e68048b1cd # Release 2.32.0
@@ -43,7 +46,7 @@ if (FETCH_TPLS)
       -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
       -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX})
   file(MAKE_DIRECTORY ${PREFIX}/include)
-  # create interface library target for linking
+  # create imported library target for linking
   add_library(HYPRE STATIC IMPORTED)
   add_dependencies(HYPRE hypre hypre-install)
   set_target_properties(HYPRE PROPERTIES
