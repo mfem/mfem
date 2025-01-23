@@ -575,8 +575,7 @@ void MarkDofs(const Array<int> &dofs, Array<int> &mark_array)
 
 void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                            Array<int> &ess_vdofs,
-                                           int component,
-                                           bool remove_interior) const
+                                           int component) const
 {
    Array<int> dofs;
    ess_vdofs.SetSize(GetVSize());
@@ -646,24 +645,14 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
          MarkDofs(dofs, ess_vdofs);
       }
    }
-   if (remove_interior)
-   {
-      Array<int> exterior_vdofs;
-      GetExteriorVDofs(exterior_vdofs, component);
-      for (int i = 0; i < ess_vdofs.Size(); i++)
-      {
-         ess_vdofs[i] = (exterior_vdofs[i]) ? ess_vdofs[i] : 0;
-      }
-   }
 }
 
 void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_tdof_list,
-                                              int component,
-                                              bool remove_interior) const
+                                              int component) const
 {
    Array<int> ess_vdofs, ess_tdofs;
-   GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, component, remove_interior);
+   GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, component);
    const SparseMatrix *R = GetConformingRestriction();
    if (!R)
    {
