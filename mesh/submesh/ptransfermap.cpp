@@ -101,7 +101,7 @@ ParTransferMap::ParTransferMap(const ParFiniteElementSpace &src,
       dst_to_parent.reset(new ParTransferMap(dst, *root_fes_));
       parent_to_dst.reset(new ParTransferMap(*root_fes_, dst));
 
-      z_.SetSize(root_fes_->GetVSize());
+      z_.SetSpace(root_fes_.get());
    }
    else if (ParSubMesh::IsParSubMesh(src.GetParMesh()))
    {
@@ -139,8 +139,8 @@ ParTransferMap::ParTransferMap(const ParGridFunction &src,
    : ParTransferMap(*src.ParFESpace(), *dst.ParFESpace())
 { }
 
-void ParTransferMap::Transfer(const Vector &src,
-                              Vector &dst) const
+void ParTransferMap::Transfer(const ParGridFunction &src,
+                              ParGridFunction &dst) const
 {
    if (category_ == TransferCategory::ParentToSubMesh)
    {

@@ -39,8 +39,7 @@ public:
     * @param src The source FiniteElementSpace
     * @param dst The destination FiniteElementSpace
     */
-   TransferMap(const FiniteElementSpace &src,
-               const FiniteElementSpace &dst);
+   TransferMap(const FiniteElementSpace &src, const FiniteElementSpace &dst);
 
    /**
     * @brief Construct a new TransferMap object which transfers degrees of
@@ -52,19 +51,17 @@ public:
     * @param src The source GridFunction
     * @param dst The destination GridFunction
     */
-   TransferMap(const GridFunction &src,
-               const GridFunction &dst);
+   TransferMap(const GridFunction &src, const GridFunction &dst);
 
    /**
-    * @brief Transfer the source Vector to the destination Vector.
+    * @brief Transfer the source GridFunction to the destination GridFunction.
     *
-    * Uses the precomputed maps for the transfer. The source and destination
-    * should be L-vectors (e.g. GridFunction%s).
+    * Uses the precomputed maps for the transfer.
     *
-    * @param src The source Vector
-    * @param dst The destination Vector
+    * @param src The source GridFunction
+    * @param dst The destination GridFunction
     */
-   void Transfer(const Vector &src, Vector &dst) const;
+   void Transfer(const GridFunction &src, GridFunction &dst) const;
 
 private:
 
@@ -113,7 +110,7 @@ private:
    ///@}
 
    /// Temporary vector
-   mutable Vector z_;
+   mutable GridFunction z_;
 };
 
 } // namespace mfem

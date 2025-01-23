@@ -100,7 +100,7 @@ TransferMap::TransferMap(const FiniteElementSpace &src,
       dst_to_parent.reset(new TransferMap(dst, *root_fes_));
       parent_to_dst.reset(new TransferMap(*root_fes_, dst));
 
-      z_.SetSize(root_fes_->GetVSize());
+      z_.SetSpace(root_fes_.get());
    }
    else if (SubMesh::IsSubMesh(src.GetMesh()))
    {
@@ -135,7 +135,7 @@ TransferMap::TransferMap(const GridFunction &src,
    : TransferMap(*src.FESpace(), *dst.FESpace())
 { }
 
-void TransferMap::Transfer(const Vector &src, Vector &dst) const
+void TransferMap::Transfer(const GridFunction &src, GridFunction &dst) const
 {
    if (category_ == TransferCategory::ParentToSubMesh)
    {

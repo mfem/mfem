@@ -53,19 +53,18 @@ public:
     * @param src The source ParGridFunction
     * @param dst The destination ParGridFunction
     */
-   ParTransferMap(const ParGridFunction &src,
-                  const ParGridFunction &dst);
+   ParTransferMap(const ParGridFunction &src, const ParGridFunction &dst);
 
    /**
-    * @brief Transfer the source Vector to the destination Vector.
+    * @brief Transfer the source ParGridFunction to the destination
+    * ParGridFunction.
     *
-    * Uses the precomputed maps for the transfer. The input and output should
-    * both be L-vectors, e.g. ParGridFunction%s.
+    * Uses the precomputed maps for the transfer.
     *
-    * @param src The source Vector
-    * @param dst The destination Vector
+    * @param src The source ParGridFunction
+    * @param dst The destination ParGridFunction
     */
-   void Transfer(const Vector &src, Vector &dst) const;
+   void Transfer(const ParGridFunction &src, ParGridFunction &dst) const;
 
 private:
    /**
@@ -143,7 +142,7 @@ private:
    ///@}
 
    /// Temporary vector
-   mutable Vector z_;
+   mutable ParGridFunction z_;
 };
 
 } // namespace mfem
