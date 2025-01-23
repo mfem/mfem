@@ -6680,79 +6680,23 @@ void ParMesh::GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const
 
 void ParMesh::GetExteriorFaceMarker(Array<int> & face_marker) const
 {
-   Array<int> nc_shared_faces;
-   const Array<int>* s2l_face;
-   if (!pncmesh)
-   {
-      s2l_face = ((Dim == 1) ? &svert_lvert :
-                  ((Dim == 2) ? &sedge_ledge : &sface_lface));
-   }
-   else
-   {
-      s2l_face = &nc_shared_faces;
-      if (Dim >= 2)
-      {
-         // get a list of all shared non-ghost faces
-         const NCMesh::NCList& sfaces =
-            (Dim == 3) ? pncmesh->GetSharedFaces() : pncmesh->GetSharedEdges();
-         const int nfaces = GetNumFaces();
-         for (int i = 0; i < sfaces.conforming.Size(); i++)
-         {
-            int index = sfaces.conforming[i].index;
-            if (index < nfaces) { nc_shared_faces.Append(index); }
-         }
-         for (int i = 0; i < sfaces.masters.Size(); i++)
-         {
-            if (Dim == 2 && WantSkipSharedMaster(sfaces.masters[i])) { continue; }
-            int index = sfaces.masters[i].index;
-            if (index < nfaces) { nc_shared_faces.Append(index); }
-         }
-         for (int i = 0; i < sfaces.slaves.Size(); i++)
-         {
-            int index = sfaces.slaves[i].index;
-            if (index < nfaces) { nc_shared_faces.Append(index); }
-         }
-      }
-   }
+   const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
 
-   Array<bool> shared_face_marker(faces_info.Size());
-   shared_face_marker = false;
-   for (auto sf : *s2l_face)
-   {
-      shared_face_marker[sf] = true;
-   }
-
-   if (face_marker.Size() < faces_info.Size())
-   {
-      face_marker.SetSize(faces_info.Size());
-   }
-
-   for (int f = 0; f < faces_info.Size(); f++)
-   {
-      if (faces_info[f].NCFace == -1 &&
-          faces_info[f].Elem2No < 0 &&
-          faces_info[f].Elem2Inf < 0 &&
-          !shared_face_marker[f])
-      {
-         face_marker[f] = 1;
-      }
-      else
-      {
-         face_marker[f] = 0;
-      }
-   }
+   Mesh::GetExteriorFaceMarker(face_marker);
 }
 
 void ParMesh::UnmarkInternalBoundaries(Array<int> &bdr_marker, bool excl) const
 {
-   MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
+   const int max_bdr_attr = bdr_attributes.Max();
+
+   MFEM_VERIFY(bdr_marker.Size() >= max_bdr_attr,
                "bdr_marker must be at least bdr_attriburtes.Max() in length");
 
    Array<int> ext_face_marker;
    GetExteriorFaceMarker(ext_face_marker);
 
-   Array<bool> interior_bdr(bdr_attributes.Max()); interior_bdr = false;
-   Array<bool> exterior_bdr(bdr_attributes.Max()); exterior_bdr = false;
+   Array<bool> interior_bdr(max_bdr_attr); interior_bdr = false;
+   Array<bool> exterior_bdr(max_bdr_attr); exterior_bdr = false;
 
    // Identify attributes which contain local interior faces and those which
    // contain local exterior faces.
@@ -6785,7 +6729,7 @@ void ParMesh::UnmarkInternalBoundaries(Array<int> &bdr_marker, bool excl) const
 
    // Unmark attributes which are currently marked, contain interior faces,
    // and satisfy the appropriate exclusivity requirement.
-   for (int b = 0; b < bdr_attributes.Max(); b++)
+   for (int b = 0; b < max_bdr_attr; b++)
    {
       if (bdr_marker[b] != 0 && glb_interior_bdr[b])
       {
@@ -6799,14 +6743,16 @@ void ParMesh::UnmarkInternalBoundaries(Array<int> &bdr_marker, bool excl) const
 
 void ParMesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
 {
-   MFEM_VERIFY(bdr_marker.Size() >= bdr_attributes.Max(),
+   const int max_bdr_attr = bdr_attributes.Max();
+
+   MFEM_VERIFY(bdr_marker.Size() >= max_bdr_attr,
                "bdr_marker must be at least bdr_attriburtes.Max() in length");
 
    Array<int> ext_face_marker;
    GetExteriorFaceMarker(ext_face_marker);
 
-   Array<bool> interior_bdr(bdr_attributes.Max()); interior_bdr = false;
-   Array<bool> exterior_bdr(bdr_attributes.Max()); exterior_bdr = false;
+   Array<bool> interior_bdr(max_bdr_attr); interior_bdr = false;
+   Array<bool> exterior_bdr(max_bdr_attr); exterior_bdr = false;
 
    // Identify boundary attributes containing local exterior faces and those
    // containing local interior faces.
@@ -6836,7 +6782,7 @@ void ParMesh::MarkExternalBoundaries(Array<int> &bdr_marker, bool excl) const
 
    // Mark the attributes which are currently unmarked, containing exterior
    // faces, and satisfying the necessary exclusivity requirements.
-   for (int b = 0; b < bdr_attributes.Max(); b++)
+   for (int b = 0; b < max_bdr_attr; b++)
    {
       if (bdr_marker[b] == 0 && glb_exterior_bdr[b])
       {
