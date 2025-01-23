@@ -19,6 +19,7 @@
 #   - METIS_VERSION_5 (cache variable)
 
 if (FETCH_TPLS)
+  add_library(METIS STATIC IMPORTED)
   # define external project
   set(PREFIX ${CMAKE_BINARY_DIR}/fetch/metis)
   include(ExternalProject)
@@ -30,8 +31,7 @@ if (FETCH_TPLS)
     CONFIGURE_COMMAND tar -xzf ../metis/metis-4.0.3.tar.gz
     BUILD_COMMAND cd metis-4.0.3 && make
     INSTALL_COMMAND mkdir -p ${PREFIX}/Lib && cp metis-4.0.3/libmetis.a ${PREFIX}/Lib/)
-  # create imported library target for linking
-  add_library(METIS STATIC IMPORTED)
+  # set imported library target properties
   add_dependencies(METIS metis metis-install)
   set_target_properties(METIS PROPERTIES
     IMPORTED_LOCATION ${PREFIX}/Lib/libmetis.a)
