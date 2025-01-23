@@ -216,7 +216,7 @@ class PRefinementTransferOperator;
     @par
     %Vector dofs do not represent a specific index space the way the three
     previous types of dofs do. Rather they are related to modifications of
-    these other index spaces to accomodate multiple copies of the underlying
+    these other index spaces to accommodate multiple copies of the underlying
     function spaces.
     @par
     When using @b vdofs, i.e. when @b vdim != 1, the FiniteElementSpace only
@@ -816,7 +816,9 @@ public:
    /// Returns the polynomial degree of the i'th face finite element
    int GetFaceOrder(int face, int variant = 0) const;
 
-   /// Returns vector dimension.
+   /// Returns the vector dimension of the finite element space.
+   /** Since the finite elements could be vector-valued, this may not be the
+       dimension of an actual vector in the space; see GetVectorDim(). */
    inline int GetVDim() const { return vdim; }
 
    /// @brief Returns number of degrees of freedom.
@@ -834,6 +836,22 @@ public:
    int GetNConformingDofs() const;
 
    int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
+
+   /// Return the total dimension of a vector in the space
+   /** This accounts for the vectorization of elements and cases where the
+       elements themselves are vector-valued; see FiniteElement:GetRangeDim().
+       If the finite elements are FiniteElement::SCALAR, this equals GetVDim().
+
+       Note: For vector-valued elements, the results pads up the range dimension
+       to the spatial dimension. E.g., consider a stack of 5 vector-valued
+       elements each representing 2D vectors, living in a 3 dimensional space.
+       Then this fucntion would give 15, not 10.
+       */
+   int GetVectorDim() const;
+
+   /// Return the dimension of the curl of a GridFunction defined on this space.
+   /** Note: This assumes a space dimension of 2 or 3 only. */
+   int GetCurlDim() const;
 
    /// Return the ordering method.
    inline Ordering::Type GetOrdering() const { return ordering; }
