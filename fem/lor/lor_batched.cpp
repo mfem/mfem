@@ -373,16 +373,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    const int num_rows = nel_ho*ndof_per_el;
    const int p = fes_ho.GetMaxElementOrder();
    const int nnz = num_rows*nnz_per_row;
-   auto I = A.WriteI();
-
-   //mfem::out << "nnz per row " << nnz_per_row << std::endl;
-
-   //mfem::forall(num_rows+ 1, [=] MFEM_HOST_DEVICE (int i)
-   //{
-   //   I[i] = nnz_per_row*i;
-   //});
-
-   //const int nnz = num_rows*nnz_per_row;
+   auto I = A.HostWriteI();
 
    EnsureCapacity(A.GetMemoryJ(), nnz);
    EnsureCapacity(A.GetMemoryData(), nnz);
@@ -392,40 +383,34 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
    auto J = A.WriteJ();
    auto AV = A.WriteData();
 
-
-   Vector neighbor_info_init(nel_ho*4*3);
-   auto neighbor_info_arr = Reshape(neighbor_info_init.Write(),nel_ho, 4, 3);
-
-   int num_faces = fes_ho.GetMesh()->GetNumFaces();
+   Array<int> neighbor_info_arr(nel_ho*3*4);
+   auto h_neighbor_info_arr = Reshape(neighbor_info_arr.HostWrite(), nel_ho, 4, 3);
    int global_border_counter = 0;
-   for (int f = 0; f<num_faces; ++f)
+   int num_faces = fes_ho.GetMesh()->GetNumFaces();
+   for (int f = 0; f< num_faces; f++)
    {
       Mesh::FaceInformation face = fes_ho.GetMesh()->GetFaceInformation(f);
       int i = face.element[0].index;
       int k = face.element[0].local_face_id;
       if (face.IsBoundary())
       {
-         neighbor_info_arr(i,k,0) = -1;
-         neighbor_info_arr(i,k,1)= -1;
-         neighbor_info_arr(i,k,2)= -1;
+         h_neighbor_info_arr(i,k,0) = -1;
+         h_neighbor_info_arr(i,k,1)= -1;
+         h_neighbor_info_arr(i,k,2)= -1;
          global_border_counter = global_border_counter + (p+1);
       }
       else
       {
          int j = face.element[1].index;
          int l = face.element[1].local_face_id;
-         neighbor_info_arr(i,k,0) = j;
-         neighbor_info_arr(i,k,1)= face.element[1].orientation;
-         neighbor_info_arr(i,k,2)= l;
-         neighbor_info_arr(j,l,0) = i;
-         neighbor_info_arr(j,l,1) = face.element[0].orientation;
-         neighbor_info_arr(j,l,2) = k;
+         h_neighbor_info_arr(i,k,0) = j;
+         h_neighbor_info_arr(i,k,1)= face.element[1].orientation;
+         h_neighbor_info_arr(i,k,2)= l;
+         h_neighbor_info_arr(j,l,0) = i;
+         h_neighbor_info_arr(j,l,1) = face.element[0].orientation;
+         h_neighbor_info_arr(j,l,2) = k;
       }
-   }
-   Vector actual_nnz_per_row(num_rows);
-   //auto actual_nnz_per_row =  actual_nnz_per_row_init.Write();
-   //Vector I(num_rows+1);
-   //auto nnz_so_far =  nnz_so_far_init.Write();
+   };
    I[0] = 0;
    for (int i=0; i<num_rows; ++i)
    {
@@ -440,7 +425,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
                          (local_y == 0 && j == 1) || (local_y == p && j == 3);
          if (boundary)
          {
-            int neighbor_idx = neighbor_info_arr(iel_ho, j-1, 0);
+            int neighbor_idx = h_neighbor_info_arr(iel_ho, j-1, 0);
             if (neighbor_idx == -1)
             {
                loc_border_counter = loc_border_counter + 1;
@@ -450,17 +435,19 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
       I[i+1] = I[i] + (nnz_per_row - loc_border_counter);
       //mfem::out << "loc_border_counter" << loc_border_counter << std::endl;
 
-      actual_nnz_per_row[i] = nnz_per_row - loc_border_counter;
+      //actual_nnz_per_row[i] = nnz_per_row - loc_border_counter;
    }
-   //const auto *d_actual_nnz_per_row = actual_nnz_per_row.Read();
+
+   auto I_d = A.ReadI();
+   auto d_neighbor_info_arr = Reshape(neighbor_info_arr.Read(), nel_ho, 4, 3);
+   
    mfem::forall(num_rows, [=] MFEM_HOST_DEVICE (int i)
    {
       const int iel_ho = i / ndof_per_el;
       const int iloc = i % ndof_per_el;
       const int local_x = iloc % (p+1);
       const int local_y = iloc/(p+1);
-      //int nnz_per_current_row = d_actual_nnz_per_row[i];
-      int nnz_so_far_current = I[i];
+      const int nnz_so_far_current = I_d[i];
       AV[nnz_so_far_current] = V(0, iloc, iel_ho);
       J[nnz_so_far_current] = i;
       int k = 1;
@@ -470,9 +457,9 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
                          (local_y == 0 && j == 1) || (local_y == p && j == 3);
          if (boundary)
          {
-            int neighbor_idx = neighbor_info_arr(iel_ho, j-1, 0);
-            int neighbor_face = neighbor_info_arr(iel_ho, j-1, 2);
-            int neighbor_orientation = neighbor_info_arr(iel_ho, j-1, 1);
+            int neighbor_idx = d_neighbor_info_arr(iel_ho, j-1, 0);
+            int neighbor_face = d_neighbor_info_arr(iel_ho, j-1, 2);
+            int neighbor_orientation = d_neighbor_info_arr(iel_ho, j-1, 1);
             if (neighbor_idx != -1)
             {
                int x_n; int y_n;
@@ -502,7 +489,6 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
          }
       }
    });
-   I[num_rows] = nnz - global_border_counter;
 }
 
 void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
