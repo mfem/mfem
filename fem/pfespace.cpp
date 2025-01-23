@@ -3413,7 +3413,8 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
    for (int entity = 1; entity < pmesh->Dimension(); entity++)
    {
       const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
-      const int num_ent = (entity == 1) ? pmesh->GetNEdges() : pmesh->GetNFaces();
+      const int num_ent = (entity == 1) ? pmesh->GetNEdges() :
+                          pmesh->GetNFaces();
       MFEM_ASSERT(ent_dofs.Size() >= num_ent+1, "");
 
       for (int idx = 0; idx < num_ent; idx++)
@@ -3441,8 +3442,8 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
 
          // Interior DOFs start at index idof0
          const int idof0 = GetNumBorderDofs(geom, order0);
-         const int maxOrder = entity == 1 ? edge_max_order[idx] :
-                              face_max_order[idx];
+         const int minOrder = entity == 1 ? edge_min_nghb_order[idx] :
+                              face_min_nghb_order[idx];
 
          constexpr int vd = 0;  // First vector dimension only
          for (int i=idof0; i<dofs.Size(); ++i)
@@ -3455,7 +3456,7 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
             MFEM_ASSERT(!tdof2ldof[tdof].set, "");
 
             tdof2ldof[tdof].set = true;
-            tdof2ldof[tdof].maxOrder = maxOrder;
+            tdof2ldof[tdof].minOrder = minOrder;
             tdof2ldof[tdof].isEdge = (entity == 1);
             tdof2ldof[tdof].idx = idx;
          }
@@ -3486,7 +3487,7 @@ void ParFiniteElementSpace
    {
       if (!tdof2ldof[tdof].set) { continue; } // Skip vertex and element T-dofs
 
-      const int maxOrder = tdof2ldof[tdof].maxOrder;
+      const int minOrder = tdof2ldof[tdof].minOrder;
       const bool edge = tdof2ldof[tdof].isEdge;
       const int index = tdof2ldof[tdof].idx;
       const int entity = edge ? 1 : 2;
@@ -3521,7 +3522,7 @@ void ParFiniteElementSpace
             for (int var=0; ; ++var)
             {
                const int order_var = GetEdgeOrder(index, var);
-               if (order_var == maxOrder)
+               if (order_var == minOrder)
                {
                   GetEdgeDofs(index, ldofs, var);
                   break;
@@ -3535,7 +3536,7 @@ void ParFiniteElementSpace
             for (int var=0; ; ++var)
             {
                const int order_var = GetFaceOrder(index, var);
-               if (order_var == maxOrder)
+               if (order_var == minOrder)
                {
                   GetFaceDofs(index, ldofs, var);
                   break;
@@ -3549,7 +3550,7 @@ void ParFiniteElementSpace
          idof0 = GetNumBorderDofs(geom, tdofOrder);
 
          feT = fec->GetFE(geom, tdofOrder);
-         feL = fec->GetFE(geom, maxOrder);
+         feL = fec->GetFE(geom, minOrder);
 
          MFEM_VERIFY(feT && feL, "");
 
@@ -3562,7 +3563,7 @@ void ParFiniteElementSpace
             default: MFEM_ABORT("unsupported geometry");
          }
 
-         // Interpolate T-dofs of order tdofOrder from L-dofs of order maxOrder
+         // Interpolate T-dofs of order tdofOrder from L-dofs of order minOrder
          T.SetIdentityTransformation(geom);
          feT->GetTransferMatrix(*feL, T, I);
       }

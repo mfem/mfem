@@ -58,7 +58,7 @@ private:
    struct TdofLdofInfo
    {
       bool set;
-      int maxOrder;
+      int minOrder;
       bool isEdge;
       int idx;
    };
