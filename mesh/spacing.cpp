@@ -90,7 +90,7 @@ void GeometricSpacingFunction::CalculateSpacing()
    // Find the root of g(r) = s * (r^n - 1) - r + 1 by Newton's method.
 
    constexpr real_t convTol = 1.0e-8;
-   constexpr int maxIter = 20;
+   constexpr int maxIter = 100;
 
    const real_t s_unif = 1.0 / ((real_t) n);
 
