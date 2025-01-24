@@ -140,16 +140,19 @@ public:
     void GetAdj(mfem::ParGridFunction& agf){
         agf.SetSpace(vfes); agf.SetFromTrueDofs(adj);}
 
-    /// Forward solve with given RHS. x is the RHS vector.
+    /// Sets BC dofs, bilinear form, preconditioner and solver.
+    /// Should be called before calling Mult of MultTranspose
+    virtual void Assemble();
+
+    /// Forward solve with given RHS. x is the RHS vector. The BC are set to zero.
     virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
 
-    /// Adjoint solve with given RHS. x is the RHS vector.
+    /// Adjoint solve with given RHS. x is the RHS vector. The BC are set to zero.
     virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const override;
 
     /// Set material
     void SetMaterial(Coefficient& E_, Coefficient& nu_)
     {
-
         E=&E_;
         nu=&nu_;
 
@@ -158,13 +161,19 @@ public:
 
         lambda=new IsoElasticyLambdaCoeff(E,nu);
         mu=new IsoElasticySchearCoeff(E,nu);
+
+        if(bf==nullptr)
+        {
+            bf=new ParBilinearForm(vfes);
+            bf->AddDomainIntegrator(new ElasticityIntegrator(*lambda,*mu));
+        }
     }
 
 private:
     mfem::ParMesh* pmesh;
 
     //solution true vector
-    mfem::Vector sol;
+    mutable mfem::Vector sol;
     //adjoint true vector
     mfem::Vector adj;
     //RHS
@@ -222,6 +231,10 @@ private:
 
     mfem::Coefficient* lambda;
     mfem::Coefficient* mu;
+
+    mfem::ParBilinearForm* bf;
+    mfem::HypreParMatrix* K;
+    mfem::HypreParMatrix* Ke;
 
 
 };

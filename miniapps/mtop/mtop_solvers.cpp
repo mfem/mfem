@@ -32,6 +32,9 @@ LElasticOperator::LElasticOperator(mfem::ParMesh* mesh_, int vorder)
     lambda=nullptr;
     mu=nullptr;
 
+    K=nullptr;
+    Ke=nullptr;
+
 }
 
 LElasticOperator::~LElasticOperator()
@@ -53,6 +56,9 @@ LElasticOperator::~LElasticOperator()
 
     delete E;
     delete nu;
+
+    delete K;
+    delete Ke;
 }
 
 void LElasticOperator::SetLinearSolver(mfem::real_t rtol, mfem::real_t atol, int miter)
@@ -218,10 +224,44 @@ void LElasticOperator::SetEssTDofs(mfem::Vector& bsol, mfem::Array<int>& ess_dof
 
 void LElasticOperator::Mult(const mfem::Vector &x, mfem::Vector &y) const
 {
-
+    K->Mult(x,y);
 }
 
 void LElasticOperator::MultTranspose(const mfem::Vector &x, mfem::Vector &y) const
 {
+    K->MultTranspose(x,y);
+}
+
+void LElasticOperator::Assemble()
+{
+
+    if(K!=nullptr){
+        delete K;
+    }
+
+    if(Ke!=nullptr){
+        delete Ke;
+    }
+
+    //set BC
+    SetEssTDofs(sol,ess_tdofv);
+    bf->Assemble();
+    K=bf->ParallelAssemble();
+
+    //Eliminate rows and cols
+    Ke=K->EliminateRowsCols(ess_tdofv);
+}
+
+void LElasticOperator::FSolve()
+{
+    //set BC
+    SetEssTDofs(sol,ess_tdofv);
+
+    bf->Assemble();
+
+
+
+
+
 
 }
