@@ -357,4 +357,133 @@ BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
    }
 }
 
+SchurComplimentOperator::SchurComplimentOperator(Solver & AInv, Operator * B,
+                                                 Operator * C, Operator & D)
+   : Operator(),
+     APtr(NULL), BPtr(B), CPtr(C), DPtr(&D), AInvPtr(&AInv), DInvPtr(NULL),
+     sizeA(AInv.Height()), sizeD(D.Height())
+{
+   height = sizeD;
+   width  = height;
+
+   rhs.SetSize(sizeD);
+
+   y2.SetSize(sizeD);
+   x1.SetSize(sizeA);
+   rhs1.SetSize(sizeA);
+}
+
+SchurComplimentOperator::SchurComplimentOperator(Operator & A, Operator * B,
+                                                 Operator * C, Solver & DInv)
+   : APtr(&A), BPtr(B), CPtr(C), DPtr(NULL), AInvPtr(NULL), DInvPtr(&DInv),
+     sizeA(A.Height()), sizeD(DInv.Height())
+{
+   height = sizeA;
+   width  = height;
+
+   rhs.SetSize(sizeA);
+
+   y1.SetSize(sizeA);
+   x2.SetSize(sizeD);
+   rhs2.SetSize(sizeD);
+}
+
+const Vector & SchurComplimentOperator::GetRHSVector(const Vector & a,
+                                                     const Vector & b)
+{
+   if (DInvPtr)
+   {
+      if (BPtr)
+      {
+         DInvPtr->Mult(b, x2);
+         BPtr->Mult(x2, rhs);
+         rhs *= -1.0;
+         rhs.Add(1.0, a);
+      }
+      else
+      {
+         rhs.Set(1.0, a);
+      }
+   }
+   else
+   {
+      if (CPtr)
+      {
+         AInvPtr->Mult(a, x1);
+         CPtr->Mult(x1, rhs);
+         rhs *= -1.0;
+         rhs.Add(1.0, b);
+      }
+      else
+      {
+         rhs.Set(1.0, b);
+      }
+   }
+
+   return rhs;
+}
+
+void SchurComplimentOperator::Mult(const Vector & x, Vector & y) const
+{
+   if (DInvPtr)
+   {
+      APtr->Mult(x, y);
+
+      if (BPtr && CPtr)
+      {
+         CPtr->Mult(x, rhs2);
+         DInvPtr->Mult(rhs2, x2);
+         BPtr->Mult(x2, y1);
+
+         y.Add(-1.0, y1);
+      }
+   }
+   else
+   {
+      DPtr->Mult(x, y);
+
+      if (BPtr && CPtr)
+      {
+         BPtr->Mult(x, rhs1);
+         AInvPtr->Mult(rhs1, x1);
+         CPtr->Mult(x1, y2);
+
+         y.Add(-1.0, y2);
+      }
+   }
+}
+
+void SchurComplimentOperator::Solve(const Vector & b, const Vector & x,
+                                    Vector & y)
+{
+   if (DInvPtr)
+   {
+      if (CPtr)
+      {
+         CPtr->Mult(x, rhs2);
+         rhs2 *= -1.0;
+         rhs2.Add(1.0, b);
+      }
+      else
+      {
+         rhs2.Set(1.0, b);
+      }
+      DInvPtr->Mult(rhs2, y);
+   }
+   else
+   {
+      if (BPtr)
+      {
+         BPtr->Mult(x, rhs1);
+         rhs1 *= -1.0;
+         rhs1.Add(1.0, b);
+      }
+      else
+      {
+         rhs1.Set(1.0, b);
+      }
+      AInvPtr->Mult(rhs1, y);
+   }
+}
+
 }

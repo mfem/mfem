@@ -496,9 +496,8 @@ public:
    { Project_ND(tk, dof2tk, vc, Trans, dofs); }
 
    void ProjectMatrixCoefficient(MatrixCoefficient &mc,
-                                 ElementTransformation &T,
-                                 Vector &dofs) const override
-   { ProjectMatrixCoefficient_ND(tk, dof2tk, mc, T, dofs); }
+				 ElementTransformation &T,
+				 Vector &dofs) const override;
 
    void Project(const FiniteElement &fe,
                 ElementTransformation &Trans,
@@ -550,6 +549,9 @@ public:
 
    void CalcCurlShape(const IntegrationPoint &ip,
                       DenseMatrix &curl_shape) const override;
+
+   void CalcPhysCurlShape(ElementTransformation &Trans,
+                                  DenseMatrix &curl_shape) const override;
 
    void GetLocalInterpolation(ElementTransformation &Trans,
                               DenseMatrix &I) const override
@@ -609,6 +611,10 @@ public:
 
    void Project(VectorCoefficient &vc,
                 ElementTransformation &Trans, Vector &dofs) const override;
+
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+				 ElementTransformation &Trans,
+				 Vector &dofs) const override;
 
    void Project(const FiniteElement &fe, ElementTransformation &Trans,
                 DenseMatrix &I) const override;
