@@ -4,7 +4,7 @@
 LElasticOperator::LElasticOperator(mfem::ParMesh* mesh_, int vorder)
 {
     pmesh=mesh_;
-    int dim=pmesh->Dimension();
+    const int dim=pmesh->Dimension();
     vfec=new mfem::H1_FECollection(vorder,dim);
     vfes=new mfem::ParFiniteElementSpace(pmesh,vfec,dim, mfem::Ordering::byVDIM);
 
@@ -26,6 +26,12 @@ LElasticOperator::LElasticOperator(mfem::ParMesh* mesh_, int vorder)
     lvforce=nullptr;
     volforce=nullptr;
 
+    E=nullptr;
+    nu=nullptr;
+
+    lambda=nullptr;
+    mu=nullptr;
+
 }
 
 LElasticOperator::~LElasticOperator()
@@ -41,16 +47,22 @@ LElasticOperator::~LElasticOperator()
     for(auto it=load_coeff.begin();it!=load_coeff.end();it++){
         delete it->second;
     }
+
+    delete lambda;
+    delete mu;
+
+    delete E;
+    delete nu;
 }
 
-void LElasticOperator::SetLinearSolver(double rtol, double atol, int miter)
+void LElasticOperator::SetLinearSolver(mfem::real_t rtol, mfem::real_t atol, int miter)
 {
     linear_rtol=rtol;
     linear_atol=atol;
     linear_iter=miter;
 }
 
-void LElasticOperator::AddDispBC(int id, int dir, double val)
+void LElasticOperator::AddDispBC(int id, int dir, mfem::real_t val)
 {
     if(dir==0){
         bcx[id]=mfem::ConstantCoefficient(val);
@@ -100,7 +112,7 @@ void LElasticOperator::AddDispBC(int id, int dir, mfem::Coefficient &val)
     }
 }
 
-void LElasticOperator::SetVolForce(double fx, double fy, double fz)
+void LElasticOperator::SetVolForce(mfem::real_t fx, double fy, double fz)
 {
     delete lvforce;
     int dim=pmesh->Dimension();
@@ -201,5 +213,15 @@ void LElasticOperator::SetEssTDofs(mfem::Vector& bsol, mfem::Array<int>& ess_dof
             ess_dofs.Append(ess_tdofz); ess_tdofz.DeleteAll();
         }
     }
+
+}
+
+void LElasticOperator::Mult(const mfem::Vector &x, mfem::Vector &y) const
+{
+
+}
+
+void LElasticOperator::MultTranspose(const mfem::Vector &x, mfem::Vector &y) const
+{
 
 }

@@ -3,6 +3,61 @@
 
 #include "mfem.hpp"
 
+using namespace mfem;
+
+class IsoElasticyLambdaCoeff: public mfem::Coefficient
+{
+public:
+    IsoElasticyLambdaCoeff(mfem::Coefficient* E_, mfem::Coefficient* nu_):E(E_),nu(nu_)
+    {
+
+    }
+
+
+    virtual double Eval(mfem::ElementTransformation &T,
+                        const mfem::IntegrationPoint &ip)
+    {
+        double rez=double(0.0);
+
+        double EE=E->Eval(T,ip);
+        double nn=nu->Eval(T,ip);
+
+        rez=EE*nn/(1.0+nn);
+        rez=rez/(1.0-2.0*nn);
+
+        return rez;
+    }
+
+private:
+    mfem::Coefficient* E;
+    mfem::Coefficient* nu;
+};
+
+class IsoElasticySchearCoeff: public Coefficient
+{
+public:
+    IsoElasticySchearCoeff(mfem::Coefficient* E_, mfem::Coefficient* nu_):E(E_),nu(nu_)
+    {}
+
+    virtual double Eval(mfem::ElementTransformation &T,
+                        const mfem::IntegrationPoint &ip)
+    {
+        double rez=double(0.0);
+
+        double EE=E->Eval(T,ip);
+        double nn=nu->Eval(T,ip);
+
+        rez=EE/(1.0+nn); rez=rez/2.0;
+
+        return rez;
+    }
+
+private:
+    mfem::Coefficient* E;
+    mfem::Coefficient* nu;
+};
+
+
 class LElasticOperator:public mfem::Operator
 {
 public:
@@ -86,10 +141,24 @@ public:
         agf.SetSpace(vfes); agf.SetFromTrueDofs(adj);}
 
     /// Forward solve with given RHS. x is the RHS vector.
-    virtual void Mult (const mfem::Vector &x, mfem::Vector &y) const;
+    virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const override;
 
     /// Adjoint solve with given RHS. x is the RHS vector.
-    virtual void MultTranspose (const mfem::Vector &x, mfem::Vector &y) const;
+    virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const override;
+
+    /// Set material
+    void SetMaterial(Coefficient& E_, Coefficient& nu_)
+    {
+
+        E=&E_;
+        nu=&nu_;
+
+        delete lambda;
+        delete mu;
+
+        lambda=new IsoElasticyLambdaCoeff(E,nu);
+        mu=new IsoElasticySchearCoeff(E,nu);
+    }
 
 private:
     mfem::ParMesh* pmesh;
@@ -147,6 +216,14 @@ private:
     //sets the values in the bsol vector
     //the list is written in ess_dofs
     void SetEssTDofs(mfem::Vector& bsol, mfem::Array<int>& ess_dofs);
+
+    mfem::Coefficient* E;
+    mfem::Coefficient* nu;
+
+    mfem::Coefficient* lambda;
+    mfem::Coefficient* mu;
+
+
 };
 
 #endif // MTOP_SOLVERS_HPP
