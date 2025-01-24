@@ -27,15 +27,30 @@ public:
    Integrator(const IntegrationRule *ir = NULL) : IntRule(ir) {}
 
    /** @brief Prescribe a fixed IntegrationRule to use, or set to null to let
-       the integrator choose an appropriate rule. */
-   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+              the integrator choose an appropriate rule.
 
-   /** @brief Prescribe a fixed IntegrationRule to use. */
+       @details This method allows setting a custom integration rule to use
+                on each element during assembly, overriding the default
+                choice if it is non-null. Passing a non-null value will
+                set the Integrator's NURBS patch integration rule to null
+                to avoid ambiguity in GetIntegrationRule.
+   */
+   virtual void SetIntRule(const IntegrationRule *ir)
+   { if (IntRule = ir) patchRules = nullptr; }
+
+   /** @brief Prescribe a fixed IntegrationRule to use. Sets the NURBS patch
+       integration rule to null. */
    void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
 
-   /** @brief For patchwise integration, SetNURBSPatchIntRule must be
-       called. This will override IntRule if both are non-null. */
-   void SetNURBSPatchIntRule(NURBSMeshRules *pr) { patchRules = pr; }
+   /** @brief Sets an integration rule for use on NURBS patches.
+
+       @details For patchwise integration, SetNURBSPatchIntRule
+                must be called. Passing a non-null value will set the
+                Integrator's standard element IntegrationRule to null
+                to avoid ambiguity in GetIntegrationRule.
+   */
+   void SetNURBSPatchIntRule(NURBSMeshRules *pr)
+   { if (patchRules = pr) IntRule = nullptr; }
 
    /** @brief Check if a NURBS patch integration rule has been set. */
    bool HasNURBSPatchIntRule() const { return patchRules != nullptr; }
