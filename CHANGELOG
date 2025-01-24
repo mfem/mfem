@@ -24,8 +24,18 @@ Discretization improvements
 
 - Added support for external boundary submeshes with nonconformal mesh adaptation.
 
+- Added assembly of Jacobians to `HyperbolicFormIntegrator`.
+
+- Added average fluxes to `NumericalFlux` (formerly `RiemannSolver`)
+  and `FluxFunction`.
+
+- Added component-wise upwinded flux (`ComponentwiseUpwindFlux`).
+
 Meshing improvements
 --------------------
+- Added native AD support for numerous TMOP metrics that didn't have first or
+  second derivative implementations.
+
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
   are also supported.
 
@@ -93,6 +103,9 @@ Miscellaneous
 API changes
 -----------
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
+
+- API change: `RiemannSolver` was renamed to `NumericalFlux` (the old name has
+  been been depracated through typedef)
 
 - API change: support for SUNDIALS v7:
   * the SUNDIALS types `realtype` and `booleantype` are no longer defined by v7
