@@ -36,7 +36,7 @@ public:
                 to avoid ambiguity in GetIntegrationRule.
    */
    virtual void SetIntRule(const IntegrationRule *ir)
-   { if (IntRule = ir) patchRules = nullptr; }
+   { IntRule = ir; if (ir) { patchRules = nullptr; } }
 
    /** @brief Prescribe a fixed IntegrationRule to use. Sets the NURBS patch
        integration rule to null. */
@@ -50,7 +50,7 @@ public:
                 to avoid ambiguity in GetIntegrationRule.
    */
    void SetNURBSPatchIntRule(NURBSMeshRules *pr)
-   { if (patchRules = pr) IntRule = nullptr; }
+   { patchRules = pr; if (pr) { IntRule = nullptr; } }
 
    /** @brief Check if a NURBS patch integration rule has been set. */
    bool HasNURBSPatchIntRule() const { return patchRules != nullptr; }
