@@ -3129,10 +3129,9 @@ void VectorDiffusionIntegrator::AssembleElementVector(
          VQ->Eval(vcoeff, Tr, ip);
          for (int k = 0; k < vdim; ++k)
          {
-            pelmat *= w*vcoeff(k);
             const Vector vec_in(mat_in.GetColumn(k), dof);
             Vector vec_out(mat_out.GetColumn(k), dof);
-            pelmat.AddMult(vec_in, vec_out);
+            pelmat.AddMult_a(w*vcoeff(k), vec_in, vec_out);
          }
       }
       else if (MQ)
@@ -3143,9 +3142,8 @@ void VectorDiffusionIntegrator::AssembleElementVector(
             Vector vec_out(mat_out.GetColumn(ii), dof);
             for (int jj = 0; jj < vdim; ++jj)
             {
-               pelmat *= w*mcoeff(ii,jj);
                const Vector vec_in(mat_in.GetColumn(jj), dof);
-               pelmat.Mult(vec_in, vec_out);
+               pelmat.AddMult_a(w*mcoeff(ii,jj), vec_in, vec_out);
             }
          }
       }
