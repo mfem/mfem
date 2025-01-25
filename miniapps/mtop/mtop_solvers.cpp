@@ -1,4 +1,6 @@
+#include "mfem.hpp"
 #include "mtop_solvers.hpp"
+#include "general/forall.hpp"
 
 
 LElasticOperator::LElasticOperator(mfem::ParMesh* mesh_, int vorder)
@@ -35,6 +37,9 @@ LElasticOperator::LElasticOperator(mfem::ParMesh* mesh_, int vorder)
     K=nullptr;
     Ke=nullptr;
 
+    bf=nullptr;
+    lf=nullptr;
+
 }
 
 LElasticOperator::~LElasticOperator()
@@ -54,11 +59,11 @@ LElasticOperator::~LElasticOperator()
     delete lambda;
     delete mu;
 
-    delete E;
-    delete nu;
-
     delete K;
     delete Ke;
+
+    delete bf;
+    delete lf;
 }
 
 void LElasticOperator::SetLinearSolver(mfem::real_t rtol, mfem::real_t atol, int miter)
@@ -224,44 +229,88 @@ void LElasticOperator::SetEssTDofs(mfem::Vector& bsol, mfem::Array<int>& ess_dof
 
 void LElasticOperator::Mult(const mfem::Vector &x, mfem::Vector &y) const
 {
-    K->Mult(x,y);
+    //the rhs x is assumed to have the contribution of the BC
+    ls->Mult(x,y);
+
+    int N=ess_tdofv.Size();
+    mfem::real_t *yp = y.ReadWrite();
+    const mfem::real_t *sp = sol.Read();
+    const int *ep = ess_tdofv.Read();
+    mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+    {
+        yp[ep[i]]=sp[ep[i]];
+    });
 }
 
 void LElasticOperator::MultTranspose(const mfem::Vector &x, mfem::Vector &y) const
 {
-    K->MultTranspose(x,y);
+    //the adjoint rhs is assumed to be corrected for the BC
+    //K is symmetric
+    ls->Mult(x,y);
+
+    int N=ess_tdofv.Size();
+    ess_tdofv.Read();
+
+    mfem::real_t *yp = y.ReadWrite();
+    const int *ep = ess_tdofv.Read();
+
+    mfem::forall(N,[=] MFEM_HOST_DEVICE (int i)
+    {
+        yp[ep[i]]=mfem::real_t(0.0);
+    });
 }
 
 void LElasticOperator::Assemble()
 {
-
-    if(K!=nullptr){
-        delete K;
-    }
-
-    if(Ke!=nullptr){
-        delete Ke;
-    }
+    if(bf==nullptr){return;}
 
     //set BC
+    sol=mfem::real_t(0.0);
     SetEssTDofs(sol,ess_tdofv);
-    bf->Assemble();
-    K=bf->ParallelAssemble();
 
-    //Eliminate rows and cols
-    Ke=K->EliminateRowsCols(ess_tdofv);
+    if(K!=nullptr){ delete K;}
+    if(Ke!=nullptr){delete Ke;}
+
+    bf->Assemble();
+    bf->Finalize();
+    K=bf->ParallelAssemble();
+    Ke=bf->ParallelEliminateTDofs(ess_tdofv,*K);
+
+    if(ls==nullptr){
+        ls=new CGSolver(pmesh->GetComm());
+        ls->SetAbsTol(linear_atol);
+        ls->SetRelTol(linear_rtol);
+        ls->SetMaxIter(linear_iter);
+        prec=new mfem::HypreBoomerAMG();
+        prec->SetElasticityOptions(vfes);
+        prec->SetPrintLevel(1);
+        ls->SetPreconditioner(*prec);
+        //set the rigid body modes
+        ls->SetOperator(*K);
+        ls->SetPrintLevel(1);
+    }else{
+        ls->SetOperator(*K);
+    }
 }
 
 void LElasticOperator::FSolve()
 {
+    if(lf==nullptr){
+        lf=new ParLinearForm(vfes);
+        if(volforce!=nullptr){
+            lf->AddDomainIntegrator(new VectorDomainLFIntegrator(*volforce));
+        }
+        //add surface loads
+
+    }
+
+    (*lf)=mfem::real_t(0.0);
+
+    lf->Assemble();
+    lf->ParallelAssemble(rhs);
+
     //set BC
-    SetEssTDofs(sol,ess_tdofv);
+    mfem::EliminateBC(*K,*Ke,ess_tdofv,sol,rhs);
 
-    bf->Assemble();
-
-
-
-
-
-
+    ls->Mult(rhs,sol);
 }

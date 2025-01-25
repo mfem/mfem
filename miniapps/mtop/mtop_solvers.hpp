@@ -90,7 +90,7 @@ public:
     void DelDispBC();
 
     /// Set the values of the volumetric force.
-    void SetVolForce(double fx,double fy, double fz);
+    void SetVolForce(double fx,double fy, double fz=0.0);
 
     /// Add surface load
     void AddSurfLoad(int id, double fx,double fy, double fz=0.0)
@@ -235,6 +235,9 @@ private:
     mfem::ParBilinearForm* bf;
     mfem::HypreParMatrix* K;
     mfem::HypreParMatrix* Ke;
+
+    mfem::ParLinearForm* lf;
+
 
 
 };

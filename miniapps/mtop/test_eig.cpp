@@ -1,6 +1,7 @@
 
 #include "mfem.hpp"
 #include "rand_eigensolver.hpp"
+#include "mtop_solvers.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -17,7 +18,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/star.mesh";
    int order = 1;
    bool static_cond = false;
    bool pa = false;
@@ -92,13 +93,30 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 1;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
       }
    }
+   if(Mpi::WorldRank()==0){
+       std::cout<<pmesh.GetNE()<<std::endl;
+   }
+   LElasticOperator* le=new LElasticOperator(&pmesh,1);
 
+   mfem::ConstantCoefficient E(1.0);
+   mfem::ConstantCoefficient nu(0.2);
+
+
+   le->AddDispBC(1,4,0.0);
+   le->SetMaterial(E,nu);
+   le->SetVolForce(1.0,1.0);
+   le->Assemble();
+   le->FSolve();
+
+
+
+   delete le;
 
 
    Mpi::Finalize();
