@@ -366,7 +366,6 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
 
 void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
 {
-   const int nvdof = fes_ho.GetVSize();
    const int ndof_per_el = fes_ho.GetFE(0)->GetDof();
    const int nel_ho = fes_ho.GetNE();
    const int nnz_per_row = sparse_ij.Size()/ndof_per_el/nel_ho;
@@ -433,9 +432,6 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
          }
       }
       I[i+1] = I[i] + (nnz_per_row - loc_border_counter);
-      //mfem::out << "loc_border_counter" << loc_border_counter << std::endl;
-
-      //actual_nnz_per_row[i] = nnz_per_row - loc_border_counter;
    }
 
    auto I_d = A.ReadI();
@@ -459,7 +455,6 @@ void BatchedLORAssembly::SparseIJToCSR_DG(SparseMatrix &A) const
          {
             int neighbor_idx = d_neighbor_info_arr(iel_ho, j-1, 0);
             int neighbor_face = d_neighbor_info_arr(iel_ho, j-1, 2);
-            int neighbor_orientation = d_neighbor_info_arr(iel_ho, j-1, 1);
             if (neighbor_idx != -1)
             {
                int x_n; int y_n;
