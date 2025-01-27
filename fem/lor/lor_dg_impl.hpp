@@ -39,31 +39,28 @@ void BatchedLOR_DG::Assemble2D()
    for(int j=0; j < pp2; j++){
       vec_ir_pp2_x[j] = ir_pp2[j].x;
    }
-
-   auto s = vec_ir_pp2_x[0];
    
-   static constexpr int nd1d = pp1;
-   static constexpr int ndof_per_el = nd1d*nd1d;
+   static constexpr int ndof_per_el = pp1*pp1;
    static constexpr int nnz_per_row = 5;
    const bool const_mq = c1.Size() == 1;
    const auto MQ = const_mq
                    ? Reshape(c1.Read(), 1, 1, 1)
-                   : Reshape(c1.Read(), nd1d, nd1d, nel_ho);
+                   : Reshape(c1.Read(), pp1, pp1, nel_ho);
    const bool const_dq = c2.Size() == 1;
    const auto DQ = const_dq
                    ? Reshape(c2.Read(), 1, 1, 1)
-                   : Reshape(c2.Read(), nd1d, nd1d, nel_ho);
+                   : Reshape(c2.Read(), pp1, pp1, nel_ho);
 
    const auto w_1d = ir_pp1.GetWeights().Read();
-   const auto W = Reshape(ir.GetWeights().Read(), nd1d, nd1d);
+   const auto W = Reshape(ir.GetWeights().Read(), pp1, pp1);
    const auto X = Reshape(X_vert.Read(), 2, pp2, pp2, nel_ho);
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
-   auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nel_ho);
+   auto V = Reshape(sparse_ij.Write(), nnz_per_row, pp1, pp1, nel_ho);
 
    auto geom = fes_ho.GetMesh()->GetGeometricFactors(
                   ir, GeometricFactors::DETERMINANTS);
-   const auto detJ = Reshape(geom->detJ.Read(), nd1d, nd1d, nel_ho);
+   const auto detJ = Reshape(geom->detJ.Read(), pp1, pp1, nel_ho);
 
    const auto *d_vec_ir_pp1_x = vec_ir_pp1_x.Read();
    const auto *d_vec_ir_pp2_x = vec_ir_pp2_x.Read();
@@ -71,9 +68,9 @@ void BatchedLOR_DG::Assemble2D()
 
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iel_ho)
    {
-      for (int iy = 0; iy < nd1d; ++iy)
+      for (int iy = 0; iy < pp1; ++iy)
       {
-         for (int ix = 0; ix < nd1d; ++ix)
+         for (int ix = 0; ix < pp1; ++ix)
          {
             const real_t A_ref = (d_vec_ir_pp2_x[ix+1] - d_vec_ir_pp2_x[ix])
                                  * (d_vec_ir_pp2_x[iy+1] - d_vec_ir_pp2_x[iy]);
