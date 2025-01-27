@@ -13,6 +13,8 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 
+#include <climits>
+
 #ifdef MFEM_USE_GSLIB
 
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
@@ -70,6 +72,24 @@ struct findptsLocalHashData_t
    unsigned int *offset;
    int max;
 };
+
+// Eval the ith Lagrange interpolant.
+// Note: lCoeff stores pre-computed coefficients for fast evaluation.
+static MFEM_HOST_DEVICE inline void lag_eval(double &p0, double x, int i,
+                                             const double *z,
+                                             const double *lCoeff, int pN)
+{
+   double u0 = 1;
+   for (int j = 0; j < pN; ++j)
+   {
+      if (i != j)
+      {
+         double d_j = 2 * (x - z[j]);
+         u0 = d_j * u0;
+      }
+   }
+   p0 = lCoeff[i] * u0;
+}
 
 // Eval the ith Lagrange interpolant and its first derivative at x.
 // Note: lCoeff stores pre-computed coefficients for fast evaluation.
@@ -388,7 +408,7 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *res,
          res->r[d] = p->oldr[d];
       }
       res->flags = p->flags >> 5;
-      res->dist2p = -std::numeric_limits<double>::max();
+      res->dist2p = -HUGE_VAL;
       if (pred < dist2 * tol)
       {
          res->flags |= CONVERGED_FLAG;
@@ -636,33 +656,95 @@ newton_edge_fin:
    res->flags = flags | new_flags | (p->flags << 5);
 }
 
-// Find closest mesh node to the sought point.
-static MFEM_HOST_DEVICE void seed_j(const double *elx[2],
-                                    const double x[2],
-                                    const double *z, //GLL point locations [-1, 1]
-                                    double *dist2,
-                                    double *r[2],
-                                    const int j,
-                                    const int pN)
-{
-   dist2[j] = std::numeric_limits<double>::max();
-
-   double zr = z[j];
-   for (int k = 0; k < pN; ++k)
-   {
-      double zs = z[k];
-      const int jk = j + k * pN;
-      double dx[2];
-      for (int d = 0; d < 2; ++d)
-      {
-         dx[d] = x[d] - elx[d][jk];
+// interpolate along a line where zr = z[px]
+static MFEM_HOST_DEVICE void interp_point_edge_y(const double *elx[2], int px,
+                                                 const double *basis1d,
+                                                 double *res, int pN) {
+   constexpr int refine = 2;
+   for (int py = 0; py < pN; ++py) {
+      for (int d = 0; d < 2; ++d) {
+         res[d] += basis1d[py * pN * refine] * elx[d][px + py * pN];
       }
-      const double dist2_jkl = l2norm2(dx);
-      if (dist2[j] > dist2_jkl)
-      {
-         dist2[j] = dist2_jkl;
-         r[0][j] = zr;
-         r[1][j] = zs;
+   }
+}
+
+// interpolate along a line where zs = z[py]
+static MFEM_HOST_DEVICE void interp_point_edge_x(const double *elx[2], int py,
+                                                 const double *basis1d,
+                                                 double *res, int pN) {
+   constexpr int refine = 2;
+   for (int px = 0; px < pN; ++px) {
+      for (int d = 0; d < 2; ++d) {
+         res[d] += basis1d[px * pN * refine] * elx[d][px + py * pN];
+      }
+   }
+}
+
+// Pick initial guess
+static MFEM_HOST_DEVICE void
+seed_j(const double *elx[2], const double x[2],
+       const double *z, // GLL point locations [-1, 1]
+       const double *basis1d_z, const double *basis1d, double *dist2,
+       double *r[2], const int pN) {
+   constexpr int refine = 2;
+   MFEM_FOREACH_THREAD(i, x, pN) {
+      dist2[i] = HUGE_VAL;
+      for (int idx = 0; idx < refine; ++idx) {
+         int j = idx * pN + i;
+         // use equally spaced points in reference space for initial guesses,
+         // only
+         // guess on boundary bottom
+         double zr = basis1d_z[j];
+         double zs = -1;
+         double dx[2] = {-x[0], -x[1]};
+         interp_point_edge_x(elx, 0, basis1d + j, dx, pN);
+
+         double dist2_jkl = l2norm2(dx);
+         if (dist2[i] > dist2_jkl) {
+               dist2[i] = dist2_jkl;
+               r[0][i] = zr;
+               r[1][i] = zs;
+         }
+
+         // top
+         zs = 1;
+         dx[0] = -x[0];
+         dx[1] = -x[1];
+         interp_point_edge_x(elx, pN - 1, basis1d + j, dx, pN);
+
+         dist2_jkl = l2norm2(dx);
+         if (dist2[i] > dist2_jkl) {
+               dist2[i] = dist2_jkl;
+               r[0][i] = zr;
+               r[1][i] = zs;
+         }
+
+         // left
+         zr = -1;
+         zs = basis1d_z[j];
+         dx[0] = -x[0];
+         dx[1] = -x[1];
+         interp_point_edge_y(elx, 0, basis1d + j, dx, pN);
+
+         dist2_jkl = l2norm2(dx);
+         if (dist2[i] > dist2_jkl) {
+               dist2[i] = dist2_jkl;
+               r[0][i] = zr;
+               r[1][i] = zs;
+         }
+
+         // right
+         zr = 1;
+         dx[0] = -x[0];
+         dx[1] = -x[1];
+         interp_point_edge_y(elx, pN - 1, basis1d + j, dx, pN);
+
+         dist2_jkl = l2norm2(dx);
+         if (dist2[i] > dist2_jkl) {
+               dist2[i] = dist2_jkl;
+               r[0][i] = zr;
+               r[1][i] = zs;
+         }
       }
    }
 }
@@ -737,15 +819,29 @@ static void FindPointsLocal2D_Kernel(const int npt,
 
       MFEM_SHARED double elem_coords[MD1 <= 6 ? size3 : 1];
 
+      // for seed_j
+      constexpr int refine = 2;
+      MFEM_SHARED double basis1d_z[MD1 * refine];
+      MFEM_SHARED double basis1d[MD1 * MD1 * refine];
+      MFEM_FOREACH_THREAD(j, x, D1D * refine) {
+        // exclude corners
+        basis1d_z[j] = 2 * static_cast<double>(j + 1) / (D1D * refine + 1) - 1;
+        for (int k = 0; k < D1D; ++k) {
+          lag_eval(basis1d[k * D1D * refine + j], basis1d_z[j], k, gll1D,
+                   lagcoeff, D1D);
+        }
+      }
+      MFEM_SYNC_THREAD;
+
       double *r_workspace_ptr;
       findptsElementPoint_t *fpt, *tmp;
-      MFEM_FOREACH_THREAD(j,x,nThreads)
+      // MFEM_FOREACH_THREAD(j,x,nThreads)
       {
          r_workspace_ptr = r_workspace;
          fpt = el_pts + 0;
          tmp = el_pts + 1;
       }
-      MFEM_SYNC_THREAD;
+      // MFEM_SYNC_THREAD;
 
       int id_x = point_pos_ordering == 0 ? i : i*DIM;
       int id_y = point_pos_ordering == 0 ? i+npt : i*DIM+1;
@@ -757,8 +853,10 @@ static void FindPointsLocal2D_Kernel(const int npt,
       double *dist2_i = dist2_base + i;
 
       // Initialize the code and dist
-      *code_i = CODE_NOT_FOUND;
-      *dist2_i = std::numeric_limits<double>::max();
+      if (MFEM_THREAD_ID(x) == 0) {
+         *code_i = CODE_NOT_FOUND;
+         *dist2_i = HUGE_VAL;
+      }
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
@@ -826,7 +924,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
             {
                MFEM_FOREACH_THREAD(j,x,1)
                {
-                  fpt->dist2 = std::numeric_limits<double>::max();
+                  fpt->dist2 = HUGE_VAL;
                   fpt->dist2p = 0;
                   fpt->tr = 1;
                   edge_init = 0;
@@ -846,15 +944,12 @@ static void FindPointsLocal2D_Kernel(const int npt,
                      r_temp[d] = dist2_temp + (1 + d) * D1D;
                   }
 
-                  MFEM_FOREACH_THREAD(j,x,D1D)
-                  {
-                     seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
-                  }
+                  seed_j(elx, x_i, gll1D, basis1d_z, basis1d, dist2_temp, r_temp, D1D);
                   MFEM_SYNC_THREAD;
 
                   MFEM_FOREACH_THREAD(j,x,1)
                   {
-                     fpt->dist2 = std::numeric_limits<double>::max();
+                     fpt->dist2 = HUGE_VAL;
                      for (int jj = 0; jj < D1D; ++jj)
                      {
                         if (dist2_temp[jj] < fpt->dist2)
@@ -872,7 +967,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
 
                MFEM_FOREACH_THREAD(j,x,1)
                {
-                  tmp->dist2 = std::numeric_limits<double>::max();
+                  tmp->dist2 = HUGE_VAL;
                   tmp->dist2p = 0;
                   tmp->tr = 1;
                   tmp->flags = 0;
