@@ -1,0 +1,11 @@
+.vscode
+*.npy
+*.png
+*.gf
+*.vtu
+*.vtk
+*.mesh
+*.pyc
+*.dat
+mesh_loader
+mesh_maker
