@@ -39,7 +39,10 @@ public:
    { IntRule = ir; if (ir) { patchRules = nullptr; } }
 
    /** @brief Prescribe a fixed IntegrationRule to use. Sets the NURBS patch
-       integration rule to null. */
+              integration rule to null.
+
+       @see SetIntRule(const IntegrationRule*)
+   */
    void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
 
    /** @brief Sets an integration rule for use on NURBS patches.
