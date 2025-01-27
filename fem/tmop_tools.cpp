@@ -977,7 +977,7 @@ void TMOP_MMA::Mult(Vector &x)
 {
    int it;
    real_t norm0, norm, norm_goal;
-   Vector conDummy(1);  conDummy= -0.1; 
+   Vector conDummy(1);  conDummy= -0.1;
    Vector  congradDummy(x.Size());
    congradDummy = 1.0;
    MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
@@ -1008,15 +1008,6 @@ void TMOP_MMA::Mult(Vector &x)
    ParLinearForm * dQdxImpl = NULL;
    ParFiniteElementSpace *pfespace = NULL;
    Vector ldx;
-   // Update(0, r, &conDummy, congradDummy.GetData(), xxmin, xxmax, dx);
-   // TMOPNewtonSolver::c = dx;
-   // norm0 = norm = initial_norm = Norm(r);
-   // if (print_options.first_and_last && !print_options.iterations)
-   // {
-      // out << "TMOP-MMA iteration " << std::setw(2) << 0
-               //  << " : ||r|| = " << norm << "...\n";
-   // }
-   // norm_goal = std::max(rel_tol*norm, abs_tol);
 
    for (it = 0; it < max_iter; it++)
    {
@@ -1063,12 +1054,13 @@ void TMOP_MMA::Mult(Vector &x)
       {
          xxmin=dx; xxmin-=dlower;
          xxmax=dx; xxmax+=dupper;
-         for(int li=0;li<true_dofs.Size();li++){
-         if( true_dofs[li] ==1.0)
+         for(int li=0;li<true_dofs.Size();li++)
          {
-            xxmin[li] = -deps;
-            xxmax[li] = deps;
-         }
+            if( true_dofs[li] ==1.0)
+            {
+               xxmin[li] = -deps;
+               xxmax[li] = deps;
+            }
          }
       }
       Vector dx_old = dx;
@@ -1085,22 +1077,9 @@ void TMOP_MMA::Mult(Vector &x)
          break;
       }
       add(x, c_scale, TMOPNewtonSolver::c, x);
-      // x_new = x_current + c_scale*dx_{current}
-      // dx = xorig; // x at 0th iteration
-      // dx -= x;    // dx = x_0 - x_current
 
       ProcessNewState(x);
 
-      // oper->Mult(x, r); // gradient of TMOP objective
-
-      // r1 Thing 1, r += weight_1*r1
-      // r2 Thing 2, r += weight_1*r2
-
-      // Vector dx_old = dx;
-      // Update(it, r, &conDummy, congradDummy.GetData(), xxmin, xxmax, dx);
-      // TMOPNewtonSolver::c = dx;
-      // TMOPNewtonSolver::c -= dx_old;
-      // c = dx_{current} = dx_{cumulative} - dx_{cumulative_old}
       norm = Norm(r);
    }
 

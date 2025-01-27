@@ -111,6 +111,14 @@
 
 //    AD-based runs
 //    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8
+
+
+// Blade with Newton
+// mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -st 0
+// Blade with LBFGS
+// mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -st 1
+// Blade with MMA
+// mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -mma -ch 1e-3
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -168,6 +176,8 @@ int main (int argc, char *argv[])
    int mesh_node_ordering = 0;
    int barrier_type       = 0;
    int worst_case_type    = 0;
+   bool mma               = false;
+  double max_ch=0.0001; //max design change
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -324,6 +334,11 @@ int main (int argc, char *argv[])
                   "0 - None,"
                   "1 - Beta,"
                   "2 - PMean.");
+   args.AddOption(&mma, "-mma", "--mma", "-no-mma",
+                  "--no-mma",
+                  "Enable or disable mma solver.");
+   args.AddOption(&max_ch, "-ch", "--max-ch",
+                  "max node movement");
 
    args.Parse();
    if (!args.Good())
@@ -382,6 +397,10 @@ int main (int argc, char *argv[])
    //    changing x automatically changes the shapes of the mesh elements.
    ParGridFunction x(pfespace);
    pmesh->SetNodalGridFunction(&x);
+  ParGridFunction gridfuncLSBoundIndicator(pfespace);
+  gridfuncLSBoundIndicator = 0.0;
+  ParGridFunction gridfuncOptVar(pfespace);
+  gridfuncOptVar = 0.0;
 
    // 8. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
@@ -1060,12 +1079,18 @@ int main (int argc, char *argv[])
          if (attr == 1) // Fix x components.
          {
             for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j]; }
+            {
+               ess_vdofs[n++] = vdofs[j];
+               if (mma) { gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0; }
+            }
          }
          else if (attr == 2) // Fix y components.
          {
             for (int j = 0; j < nd; j++)
-            { ess_vdofs[n++] = vdofs[j+nd]; }
+            {
+               ess_vdofs[n++] = vdofs[j+nd];
+               if (mma) { gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0; }
+            }
          }
          else if (attr == 3) // Fix z components.
          {
@@ -1080,6 +1105,9 @@ int main (int argc, char *argv[])
       }
       a.SetEssentialVDofs(ess_vdofs);
    }
+  gridfuncLSBoundIndicator.SetTrueVector();
+  gridfuncOptVar.SetTrueVector();
+  Vector & trueOptvar = gridfuncOptVar.GetTrueVector();
 
    // As we use the inexact Newton method to solve the resulting nonlinear
    // system, here we setup the linear solver for the system's Jacobian.
@@ -1142,43 +1170,85 @@ int main (int argc, char *argv[])
    //
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
-   TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
-   // Provide all integration rules in case of a mixed mesh.
-   solver.SetIntegrationRules(*irules, quad_order);
-   // Specify linear solver when we use a Newton-based solver.
-   if (solver_type == 0) { solver.SetPreconditioner(*S); }
-   // For untangling, the solver will update the min det(T) values.
-   solver.SetMinDetPtr(&min_detJ);
-   solver.SetMaxIter(solver_iter);
-   solver.SetRelTol(solver_rtol);
-   solver.SetAbsTol(0.0);
-   if (solver_art_type > 0)
+   if (mma)
    {
-      solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+      TMOP_MMA *tmma = new TMOP_MMA(MPI_COMM_WORLD, trueOptvar.Size(), 0,
+                                    trueOptvar, ir);
+      x.SetTrueVector();
+      double init_energy = a.GetParGridFunctionEnergy(x);
+      IterativeSolver::PrintLevel newton_print;
+      newton_print.Errors().Warnings().Iterations();
+      // set the TMOP Integrator
+      tmma->SetOperator(a);
+      // Set change limits on dx
+      tmma->SetUpperBound(max_ch);
+      tmma->SetLowerBound(max_ch);
+      // Set true vector so that it can be zeroed out
+      {
+         Vector & trueBounds = gridfuncLSBoundIndicator.GetTrueVector();
+         tmma->SetTrueDofs(trueBounds);
+      }
+      // Set QoI and Solver and weight
+      // tmma->SetQuantityOfInterest(&QoIEvaluator);
+      // tmma->SetDiffusionSolver(&solver);
+      // tmma->SetQoIWeight(weight_1);
+
+      // Set max # iterations
+      tmma->SetMaxIter(solver_iter);
+      tmma->SetPrintLevel(newton_print);
+
+      tmma->Mult(x.GetTrueVector());
+      x.SetFromTrueVector();
+
+      // Visualize the mesh displacement.
+      if (visualization)
+      {
+         x0 -= x;
+         socketstream vis;
+         common::VisualizeField(vis, "localhost", 19916, x0,
+                                 "Displacements", 600, 000, 500, 500, "jRmclAppppppppppppp");
+      }
    }
-   // Level of output.
-   IterativeSolver::PrintLevel newton_print;
-   if (verbosity_level > 0)
-   { newton_print.Errors().Warnings().Iterations(); }
-   solver.SetPrintLevel(newton_print);
-   // hr-adaptivity solver.
-   // If hr-adaptivity is disabled, r-adaptivity is done once using the
-   // TMOPNewtonSolver.
-   // Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
-   // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
-   // The solver terminates if an h-adaptivity iteration does not modify
-   // any element in the mesh.
-   TMOPHRSolver hr_solver(*pmesh, a, solver,
-                          x, move_bnd, hradaptivity,
-                          mesh_poly_deg, h_metric_id,
-                          n_hr_iter, n_h_iter);
-   hr_solver.AddGridFunctionForUpdate(&x0);
-   if (adapt_lim_const > 0.)
+   else
    {
-      hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
-      hr_solver.AddFESpaceForUpdate(&ind_fes);
+      TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
+      // Provide all integration rules in case of a mixed mesh.
+      solver.SetIntegrationRules(*irules, quad_order);
+      // Specify linear solver when we use a Newton-based solver.
+      if (solver_type == 0) { solver.SetPreconditioner(*S); }
+      // For untangling, the solver will update the min det(T) values.
+      solver.SetMinDetPtr(&min_detJ);
+      solver.SetMaxIter(solver_iter);
+      solver.SetRelTol(solver_rtol);
+      solver.SetAbsTol(0.0);
+      if (solver_art_type > 0)
+      {
+         solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+      }
+      // Level of output.
+      IterativeSolver::PrintLevel newton_print;
+      if (verbosity_level > 0)
+      { newton_print.Errors().Warnings().Iterations(); }
+      solver.SetPrintLevel(newton_print);
+      // hr-adaptivity solver.
+      // If hr-adaptivity is disabled, r-adaptivity is done once using the
+      // TMOPNewtonSolver.
+      // Otherwise, "hr_iter" iterations of r-adaptivity are done followed by
+      // "h_per_r_iter" iterations of h-adaptivity after each r-adaptivity.
+      // The solver terminates if an h-adaptivity iteration does not modify
+      // any element in the mesh.
+      TMOPHRSolver hr_solver(*pmesh, a, solver,
+                           x, move_bnd, hradaptivity,
+                           mesh_poly_deg, h_metric_id,
+                           n_hr_iter, n_h_iter);
+      hr_solver.AddGridFunctionForUpdate(&x0);
+      if (adapt_lim_const > 0.)
+      {
+         hr_solver.AddGridFunctionForUpdate(&adapt_lim_gf0);
+         hr_solver.AddFESpaceForUpdate(&ind_fes);
+      }
+      hr_solver.Mult();
    }
-   hr_solver.Mult();
 
    // 16. Save the optimized mesh to a file. This output can be viewed later
    //     using GLVis: "glvis -m optimized -np num_mpi_tasks".

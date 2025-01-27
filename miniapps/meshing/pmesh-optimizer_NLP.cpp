@@ -23,6 +23,10 @@
 // WIP mpirun -np 10 pmesh-optimizer_NLP -met 1 -ch 2e-3 -ni 200 -ft 2 --qtype 4 -w1 1e-4 -w2 1e-2
 
 
+// K10 -  TMOP solver based run
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m square01.mesh -rs 4
+
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -209,6 +213,9 @@ int main (int argc, char *argv[])
   srand(9898975);
   bool visualization = true;
   int method = 0;
+  int mesh_poly_deg     = 1;
+  int nx                = 20;
+  const char *mesh_file = "null.mesh";
 
   OptionsParser args(argc, argv);
   args.AddOption(&ref_ser, "-rs", "--refine-serial",
@@ -249,6 +256,10 @@ int main (int argc, char *argv[])
                   "Quantity of interest weight");
    args.AddOption(&weight_tmop, "-w2", "--weight2",
                   "Mesh quality weight type");
+   args.AddOption(&mesh_poly_deg, "-o", "--order",
+                  "Polynomial degree of mesh finite element space.");
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.Parse();
    if (!args.Good())
    {
@@ -264,14 +275,22 @@ int main (int argc, char *argv[])
 
 
   // Create mesh
-  Mesh des_mesh = Mesh::MakeCartesian2D(20, 20, Element::QUADRILATERAL,
-                                        true, 1.0, 1.0);
+  Mesh *des_mesh = nullptr;
+  if (strcmp(mesh_file, "null.mesh") == 0)
+  {
+     des_mesh = new Mesh(Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL,
+                                        true, 1.0, 1.0));
+  }
+  else
+  {
+    des_mesh = new Mesh(mesh_file, 1, 1, false);
+  }
 
   if(perturbMesh)
   {
-     int tNumVertices  = des_mesh.GetNV();
+     int tNumVertices  = des_mesh->GetNV();
      for (int i = 0; i < tNumVertices; ++i) {
-        double * Coords = des_mesh.GetVertex(i);
+        double * Coords = des_mesh->GetVertex(i);
         if (Coords[ 0 ] != 0.0 && Coords[ 0 ] != 1.0 && Coords[ 1 ] != 0.0 && Coords[ 1 ] != 1.0) {
            Coords[ 0 ] = Coords[ 0 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
            Coords[ 1 ] = Coords[ 1 ] + ((rand() / double(RAND_MAX)* 2.0 - 1.0)* epsilon_pert);
@@ -280,9 +299,9 @@ int main (int argc, char *argv[])
   }
 
   // Refine mesh in serial
-  for (int lev = 0; lev < ref_ser; lev++) { des_mesh.UniformRefinement(); }
+  for (int lev = 0; lev < ref_ser; lev++) { des_mesh->UniformRefinement(); }
 
-  auto PMesh = new ParMesh(MPI_COMM_WORLD, des_mesh);
+  auto PMesh = new ParMesh(MPI_COMM_WORLD, *des_mesh);
 
   int spatialDimension = PMesh->SpaceDimension();
 
@@ -293,9 +312,12 @@ int main (int argc, char *argv[])
   // Nodes are only active for higher order meshes, and share locations with
   // the vertices, plus all the higher- order control points within  the
   // element and along the edges and on the faces.
-  if (nullptr == PMesh->GetNodes()) {  PMesh->SetCurvature(1, false, -1, 0); }
+  if (nullptr == PMesh->GetNodes())
+  {
+    PMesh->SetCurvature(mesh_poly_deg, false, -1, 0);
+  }
 
-  int mesh_poly_deg = PMesh->GetNodes()->FESpace()->GetElementOrder(0);
+  // int mesh_poly_deg = PMesh->GetNodes()->FESpace()->GetElementOrder(0);
 
   // Create finite Element Spaces for analysis mesh
   if ( spatialDimension != 2 ) {
@@ -387,27 +409,55 @@ int main (int argc, char *argv[])
   gridfuncOptVar = 0.0;
   ParGridFunction gridfuncLSBoundIndicator(pfespace);
   gridfuncLSBoundIndicator = 0.0;
+  Array<int> vdofs;
 
   // Identify coordinate dofs perpendicular to BE
-  for (int i = 0; i < PMesh->GetNBE(); i++) {
-    Element * tEle = PMesh->GetBdrElement(i);
-    int attribute = tEle->GetAttribute();
+  if (strcmp(mesh_file, "null.mesh") == 0)
+  {
+    for (int i = 0; i < PMesh->GetNBE(); i++)
+    {
+      Element * tEle = PMesh->GetBdrElement(i);
+      int attribute = tEle->GetAttribute();
+      pfespace->GetBdrElementVDofs(i, vdofs);
+      const int nd = pfespace->GetBE(i)->GetDof();
 
-    int NumVert = tEle->GetNVertices();
-    ::Array<int> tVerts;
-    tEle->GetVertices( tVerts );
-
-    for ( int Ii= 0; Ii < NumVert; Ii++) {
-      ::Array<int> tVDofs(spatialDimension);
-
-      pfespace->GetVertexVDofs(tVerts[Ii],tVDofs);
-
-      for ( int Ij= 0; Ij < spatialDimension; Ij++) {
-        if ((attribute == 1 || attribute == 3) && Ij == 1) {
-          gridfuncLSBoundIndicator[ tVDofs[Ij] ] = 1.0;
+      if (attribute == 1 || attribute == 3) // zero out motion in y
+      {
+        for (int j = 0; j < nd; j++)
+        {
+          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
         }
-        if ( (attribute == 2 || attribute == 4) && Ij == 0) {
-          gridfuncLSBoundIndicator[ tVDofs[Ij] ] = 1.0;
+      }
+      else if (attribute == 2 || attribute == 4) // zero out in x
+      {
+        for (int j = 0; j < nd; j++)
+        {
+          gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
+        }
+      }
+    }
+  }
+  else
+  {
+    for (int i = 0; i < PMesh->GetNBE(); i++)
+    {
+      Element * tEle = PMesh->GetBdrElement(i);
+      int attribute = tEle->GetAttribute();
+      pfespace->GetBdrElementVDofs(i, vdofs);
+      const int nd = pfespace->GetBE(i)->GetDof();
+
+      if (attribute == 2) // zero out motion in y
+      {
+        for (int j = 0; j < nd; j++)
+        {
+          gridfuncLSBoundIndicator[ vdofs[j+nd] ] = 1.0;
+        }
+      }
+      else if (attribute == 1) // zero out in x
+      {
+        for (int j = 0; j < nd; j++)
+        {
+          gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
         }
       }
     }
@@ -421,8 +471,11 @@ int main (int argc, char *argv[])
   std::vector<std::pair<int, double>> essentialBC(4);
   essentialBC[0] = {1, 0};
   essentialBC[1] = {2, 0};
-  essentialBC[2] = {3, 0};
-  essentialBC[3] = {4, 0};
+  // if (strcmp(mesh_file, "null.mesh") == 0)
+  // {
+    essentialBC[2] = {3, 0};
+    essentialBC[3] = {4, 0};
+  // }
 
   const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
@@ -489,7 +542,7 @@ if (myid == 0) {
    {
       socketstream vis;
       common::VisualizeMesh(vis, "localhost", 19916, *PMesh, "Initial Mesh",
-                            0, 0, 300, 300, "m");
+                            0, 0, 500, 500, "m");
    }
 
 
@@ -534,7 +587,7 @@ if (myid == 0) {
       x0 -= x;
       socketstream vis;
       common::VisualizeField(vis, "localhost", 19916, x0,
-                              "Displacements", 400, 400, 300, 300, "jRmclA");
+                              "Displacements", 600, 000, 500, 500, "jRmclAppppppppppppp");
 
       ParaViewDataCollection paraview_dc("NativeMeshOptimizer", PMesh);
       paraview_dc.SetLevelsOfDetail(1);
@@ -737,7 +790,7 @@ if (myid == 0) {
       double  conDummy = -0.1;
       mmaPetsc->Update(trueOptvar,objgrad,&conDummy,&volgrad,xxmin,xxmax);
   #else
-      mfem:Vector conDummy(1);  conDummy= -0.1; 
+      mfem:Vector conDummy(1);  conDummy= -0.1;
       mma->Update(i, objgrad, conDummy, volgrad, xxmin,xxmax, trueOptvar);
   #endif
 
