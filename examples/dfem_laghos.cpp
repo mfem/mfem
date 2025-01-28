@@ -1,17 +1,15 @@
 #include "dfem/dfem_refactor.hpp"
+#include "examples/dfem/dfem_util.hpp"
+#include "fem/bilininteg.hpp"
+#include "fem/pbilinearform.hpp"
+#include "fem/pgridfunc.hpp"
+#include "linalg/handle.hpp"
+#include "linalg/solvers.hpp"
 #include <limits>
 #include <memory>
 
 using namespace mfem;
 using mfem::internal::tensor;
-
-// Mixing Hydro with Heat conduction
-
-// constexpr int HYDRO_PREFIX = 55;
-// constexpr int VELOCITY = HYDRO_PREFIX + 0;
-
-// constexpr int HEAT_PREFIX = 88;
-// constexpr int TEMP = HEAT_PREFIX + 0;
 
 constexpr int VELOCITY = 0;
 constexpr int DENSITY0 = 1;
@@ -22,6 +20,9 @@ constexpr int SPECIFIC_INTERNAL_ENERGY = 5;
 constexpr int ELEMENT_SIZE0 = 6;
 constexpr int ORDER_VEL = 7;
 constexpr int DT_EST = 8;
+constexpr int STRESS_TENSOR = 9;
+
+constexpr int DIMENSION = 1;
 
 int problem = 0;
 real_t cfl = 0.5;
@@ -63,8 +64,8 @@ void ComputeMaterialProperties(const real_t &gamma, const real_t &rho,
    cs = sqrt(gamma * (gamma - 1.0) * E);
 }
 
-using vecd = tensor<real_t, 2>;
-using matd = tensor<real_t, 2, 2>;
+using vecd = tensor<real_t, DIMENSION>;
+using matd = tensor<real_t, DIMENSION, DIMENSION>;
 
 template <bool compute_dtest = false>
 MFEM_HOST_DEVICE inline
@@ -79,7 +80,6 @@ mfem::tuple<matd, real_t> qdata_setup(
    const real_t &order_v,
    const real_t &w)
 {
-   constexpr int dim = 2;
    constexpr real_t eps = 1e-12;
    constexpr real_t vorticity_coeff = 1.0;
    real_t p, cs;
@@ -93,7 +93,7 @@ mfem::tuple<matd, real_t> qdata_setup(
 
    ComputeMaterialProperties(gamma, rho, Ez, p, cs);
 
-   for (int d = 0; d < dim; d++)
+   for (int d = 0; d < DIMENSION; d++)
    {
       stress(d, d) = -p;
    }
@@ -122,7 +122,7 @@ mfem::tuple<matd, real_t> qdata_setup(
       }
       else
       {
-         const real_t h_min = calcsv(J, dim-1) / static_cast<real_t>(order_v);
+         const real_t h_min = calcsv(J, DIMENSION-1) / static_cast<real_t>(order_v);
          const real_t idt = cs / h_min + 2.5 * visc_coeff / rho / h_min / h_min;
 
          if (idt > 0.0)
@@ -160,6 +160,26 @@ struct TimeStepEstimateQFunction
    }
 };
 
+struct UpdateQuadratureDataQFunction
+{
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      const matd &dvdxi,
+      const real_t &rho0,
+      const matd &J0,
+      const matd &J,
+      const real_t &gamma,
+      const real_t &E,
+      const real_t &h0,
+      const real_t &order_v,
+      const real_t &w) const
+   {
+      matd stressJiT = mfem::get<0>(
+                          qdata_setup<false>(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+      return mfem::tuple{stressJiT};
+   }
+};
+
 class MomentumQFunction
 {
 public:
@@ -188,6 +208,19 @@ public:
    }
 };
 
+class MomentumPAQFunction
+{
+public:
+   MomentumPAQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      const matd &stressJiT) const
+   {
+      return mfem::tuple{stressJiT};
+   }
+};
+
 class EnergyConservationQFunction
 {
 public:
@@ -207,6 +240,20 @@ public:
    {
       auto stressJiT = mfem::get<0>(
                           qdata_setup(dvdxi, rho0, J0, J, gamma, E, h0, order_v, w));
+      return mfem::tuple{ddot(stressJiT, dvdxi)};
+   }
+};
+
+class EnergyConservationPAQFunction
+{
+public:
+   EnergyConservationPAQFunction() = default;
+
+   MFEM_HOST_DEVICE inline
+   auto operator()(
+      const matd &dvdxi,
+      const matd &stressJiT) const
+   {
       return mfem::tuple{ddot(stressJiT, dvdxi)};
    }
 };
@@ -302,7 +349,10 @@ public:
       ess_tdofs_count(0),
       ess_tdofs(0)
    {
-      pabf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      if (dim > 1)
+      {
+         pabf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      }
       pabf.AddDomainIntegrator(new mfem::MassIntegrator(Q, &ir));
       pabf.Assemble();
       pabf.FormSystemMatrix(mfem::Array<int>(), mass);
@@ -624,9 +674,12 @@ public:
       ParGridFunction &x0_gf,
       ParGridFunction &rho0_gf,
       ParGridFunction &material_gf,
+      std::shared_ptr<DifferentiableOperator> update_qdata,
       std::shared_ptr<DifferentiableOperator> dtest_mf,
       std::shared_ptr<DifferentiableOperator> momentum_mf,
+      std::shared_ptr<DifferentiableOperator> momentum_pa,
       std::shared_ptr<DifferentiableOperator> energy_conservation_mf,
+      std::shared_ptr<DifferentiableOperator> energy_conservation_pa,
       std::shared_ptr<DifferentiableOperator> total_internal_energy_mf,
       std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf,
       std::shared_ptr<DifferentiableOperator> density_mf,
@@ -642,9 +695,12 @@ public:
       x0(x0_gf),
       rho0(rho0_gf),
       material(material_gf),
+      update_qdata(update_qdata),
       dtest_mf(dtest_mf),
       momentum_mf(momentum_mf),
+      momentum_pa(momentum_pa),
       energy_conservation_mf(energy_conservation_mf),
+      energy_conservation_pa(energy_conservation_pa),
       total_internal_energy_mf(total_internal_energy_mf),
       total_kinetic_energy_mf(total_kinetic_energy_mf),
       density_mf(density_mf),
@@ -692,6 +748,7 @@ public:
    void Mult(const Vector &S, Vector &dSdt) const override
    {
       UpdateMesh(S);
+      UpdateQuadratureData(S);
 
       auto sptr = const_cast<Vector*>(&S);
       const int H1vsize = H1.GetVSize();
@@ -713,9 +770,11 @@ public:
       {
          dv = 0.0;
 
-         momentum_mf->SetParameters({&rho0, &x0, &x, &material, &e, &qdata->h0, &qdata->order_v});
+         // momentum_mf->SetParameters({&rho0, &x0, &x, &material, &e, &qdata->h0, &qdata->order_v});
+         momentum_pa->SetParameters({&qdata->stressp});
          H1.GetRestrictionMatrix()->Mult(v, Xv);
-         momentum_mf->Mult(Xv, RHSv);
+         // momentum_mf->Mult(Xv, RHSv);
+         momentum_pa->Mult(Xv, RHSv);
          RHSv.Neg();
          H1.GetRestrictionMatrix()->MultTranspose(RHSv, rhsv);
 
@@ -763,9 +822,11 @@ public:
       {
          de = 0.0;
 
-         energy_conservation_mf->SetParameters({&v, &rho0, &x0, &x, &material, &qdata->h0, &qdata->order_v});
+         // energy_conservation_mf->SetParameters({&v, &rho0, &x0, &x, &material, &qdata->h0, &qdata->order_v});
+         energy_conservation_pa->SetParameters({&v, &qdata->stressp});
          L2.GetRestrictionMatrix()->Mult(e, Xe);
-         energy_conservation_mf->Mult(Xe, RHSe);
+         // energy_conservation_mf->Mult(Xe, RHSe);
+         energy_conservation_pa->Mult(Xe, RHSe);
          L2.GetRestrictionMatrix()->MultTranspose(RHSe, rhse);
 
          if (problem == 0)
@@ -920,7 +981,52 @@ public:
       return ke_global;
    }
 
-   void ComputeDensity(ParGridFunction &rho) { }
+   void ComputeDensity(ParGridFunction &rho)
+   {
+      rho.SetSpace(&L2);
+
+      ParGridFunction rhs_l(&L2);
+
+      Vector rho0_t(L2.GetTrueVSize()),
+             rho_t(L2.GetTrueVSize()),
+             rhs(L2.GetTrueVSize());
+
+      const int l2dofs_cnt = L2.GetFE(0)->GetDof();
+      DenseMatrix Mrho(l2dofs_cnt);
+      DenseMatrixInverse inv(&Mrho);
+      Vector rhs_e(l2dofs_cnt), rho_z(l2dofs_cnt);
+      Array<int> dofs(l2dofs_cnt);
+      MassIntegrator mi(&ir);
+
+      density_mf->SetParameters({&x0});
+      L2.GetProlongationMatrix()->MultTranspose(rho0, rho0_t);
+      density_mf->Mult(rho0_t, rhs);
+      L2.GetProlongationMatrix()->Mult(rhs, rhs_l);
+
+      for (int e = 0; e < L2.GetParMesh()->GetNE(); e++)
+      {
+         const FiniteElement &fe = *L2.GetFE(e);
+         ElementTransformation &eltr = *L2.GetElementTransformation(e);
+         L2.GetElementDofs(e, dofs);
+         mi.AssembleElementMatrix(fe, eltr, Mrho);
+         inv.Factor();
+         rhs_l.GetElementDofValues(e, rhs_e);
+         inv.Mult(rhs_e, rho_z);
+         rho.SetSubVector(dofs, rho_z);
+      }
+   }
+
+   void UpdateQuadratureData(const Vector &S) const
+   {
+      auto sptr = const_cast<Vector*>(&S);
+      const int H1vsize = H1.GetVSize();
+      ParGridFunction x, v, e;
+      x.MakeRef(&H1, *sptr, 0);
+      v.MakeRef(&H1, *sptr, H1vsize);
+      e.MakeRef(&L2, *sptr, 2*H1vsize);
+      update_qdata->SetParameters({&v, &rho0, &x0, &x, &material, &e, &qdata->h0, &qdata->order_v});
+      update_qdata->Mult(qdata->stressp, qdata->stressp);
+   }
 
    virtual MemoryClass GetMemoryClass() const override
    {
@@ -936,9 +1042,12 @@ public:
    ParGridFunction &x0;
    ParGridFunction &rho0;
    ParGridFunction &material;
+   std::shared_ptr<DifferentiableOperator> update_qdata;
    std::shared_ptr<DifferentiableOperator> dtest_mf;
    std::shared_ptr<DifferentiableOperator> momentum_mf;
+   std::shared_ptr<DifferentiableOperator> momentum_pa;
    std::shared_ptr<DifferentiableOperator> energy_conservation_mf;
+   std::shared_ptr<DifferentiableOperator> energy_conservation_pa;
    std::shared_ptr<DifferentiableOperator> total_internal_energy_mf;
    std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf;
    std::shared_ptr<DifferentiableOperator> density_mf;
@@ -976,17 +1085,27 @@ static auto CreateLagrangianHydroOperator(
    }
    MPI_Allreduce(&vol_loc, &vol_global, 1, MPI_DOUBLE, MPI_SUM, mesh.GetComm());
    MPI_Allreduce(&ne_loc, &ne_global, 1, MPI_INT, MPI_SUM, mesh.GetComm());
-   const real_t h0 = sqrt(vol_global / ne_global) /
-                     static_cast<real_t>(H1.GetOrder(0));
 
-   qdata->h0 = h0;
+   switch (mesh.GetElementBaseGeometry(0))
+   {
+      case Geometry::SEGMENT: qdata->h0 = vol_global / ne_global; break;
+      case Geometry::SQUARE: qdata->h0 = sqrt(vol_global / ne_global); break;
+      case Geometry::TRIANGLE: qdata->h0 = sqrt(2.0 * vol_global / ne_global); break;
+      case Geometry::CUBE: qdata->h0 = pow(vol_global / ne_global, 1./3.); break;
+      case Geometry::TETRAHEDRON: qdata->h0 = pow(6.0 * vol_global / ne_global,
+                                                     1./3.); break;
+      default: MFEM_ABORT("Unknown zone type!");
+   }
+   qdata->h0 /= (double) H1.GetOrder(0);
+
+   // const real_t h0 = sqrt(vol_global / ne_global) /
+   //                   static_cast<real_t>(H1.GetOrder(0));
+
    qdata->order_v = order_v;
    qdata->dt_est = std::numeric_limits<real_t>::infinity();
 
    std::shared_ptr<DifferentiableOperator> dt_est;
    {
-
-
       mfem::tuple dt_est_kernel_ao =
       {
          Gradient<VELOCITY>{},
@@ -1027,11 +1146,51 @@ static auto CreateLagrangianHydroOperator(
                                   ir);
    }
 
+   std::shared_ptr<DifferentiableOperator> update_qdata;
+   {
+      mfem::tuple update_qdata_kernel_ao =
+      {
+         Gradient<VELOCITY>{},
+         Value<DENSITY0>{},
+         Gradient<COORDINATES0>{},
+         Gradient<COORDINATES>{},
+         Value<MATERIAL>{},
+         Value<SPECIFIC_INTERNAL_ENERGY>{},
+         None<ELEMENT_SIZE0>{},
+         None<ORDER_VEL>{},
+         Weight{}
+      };
+
+      mfem::tuple update_qdata_kernel_oo = {None<STRESS_TENSOR>{}};
+
+      std::vector<FieldDescriptor> update_qdata_solutions =
+      {
+         {STRESS_TENSOR, &qdata->StressSpace}
+      };
+
+      std::vector<FieldDescriptor> update_qdata_parameters =
+      {
+         {VELOCITY, &H1},
+         {DENSITY0, &L2},
+         {COORDINATES0, &H1},
+         {COORDINATES, &H1},
+         {MATERIAL, material_gf.ParFESpace()},
+         {SPECIFIC_INTERNAL_ENERGY, &L2},
+         {ELEMENT_SIZE0, &qdata->R},
+         {ORDER_VEL, &qdata->R}
+      };
+
+      update_qdata = std::make_shared<DifferentiableOperator>(
+                        update_qdata_solutions, update_qdata_parameters, mesh);
+      UpdateQuadratureDataQFunction update_qdata_qf;
+      update_qdata->AddDomainIntegrator(update_qdata_qf, update_qdata_kernel_ao,
+                                        update_qdata_kernel_oo,
+                                        ir);
+   }
+
    // Create momentum operator
    std::shared_ptr<DifferentiableOperator> momentum_mf;
    {
-
-
       mfem::tuple momentum_mf_kernel_ao =
       {
          Gradient<VELOCITY>{},
@@ -1076,11 +1235,25 @@ static auto CreateLagrangianHydroOperator(
                                        momentum_mf_kernel_oo, ir, derivatives);
    }
 
+   std::shared_ptr<DifferentiableOperator> momentum_pa;
+   {
+      mfem::tuple momentum_pa_kernel_ao = {None<STRESS_TENSOR>{}};
+      mfem::tuple momentum_pa_kernel_oo = {Gradient<VELOCITY>{}};
+
+      std::vector<FieldDescriptor> momentum_pa_solutions = {{VELOCITY, &H1}};
+      std::vector<FieldDescriptor> momentum_pa_parameters = {{STRESS_TENSOR, &qdata->StressSpace}};
+
+      momentum_pa = std::make_shared<DifferentiableOperator>(
+                       momentum_pa_solutions, momentum_pa_parameters, mesh);
+
+      MomentumPAQFunction momentum_pa_qf;
+      momentum_pa->AddDomainIntegrator(momentum_pa_qf, momentum_pa_kernel_ao,
+                                       momentum_pa_kernel_oo, ir);
+   }
+
    // Create energy conservation operator
    std::shared_ptr<DifferentiableOperator> energy_conservation_mf;
    {
-
-
       mfem::tuple energy_conservation_mf_kernel_ao =
       {
          Gradient<VELOCITY>{},
@@ -1127,11 +1300,35 @@ static auto CreateLagrangianHydroOperator(
          energy_conservation_mf_kernel_oo, ir, derivatives);
    }
 
+   std::shared_ptr<DifferentiableOperator> energy_conservation_pa;
+   {
+      mfem::tuple energy_conservation_pa_kernel_ao = {Gradient<VELOCITY>{}, None<STRESS_TENSOR>{}};
+      mfem::tuple energy_conservation_pa_kernel_oo = {Value<SPECIFIC_INTERNAL_ENERGY>{}};
+
+      std::vector<FieldDescriptor> energy_conservation_pa_solutions =
+      {
+         {SPECIFIC_INTERNAL_ENERGY, &L2}
+      };
+
+      std::vector<FieldDescriptor> energy_conservation_pa_parameters =
+      {
+         {VELOCITY, &H1},
+         {STRESS_TENSOR, &qdata->StressSpace}
+      };
+
+      energy_conservation_pa =
+         std::make_shared<DifferentiableOperator>(
+            energy_conservation_pa_solutions, energy_conservation_pa_parameters, mesh);
+
+      EnergyConservationPAQFunction energy_conservation_qf;
+      energy_conservation_pa->AddDomainIntegrator(
+         energy_conservation_qf, energy_conservation_pa_kernel_ao,
+         energy_conservation_pa_kernel_oo, ir);
+   }
+
    // Create total internal energy operator
    std::shared_ptr<DifferentiableOperator> total_internal_energy_mf;
    {
-
-
       mfem::tuple total_internal_energy_kernel_ao =
       {
          Value<SPECIFIC_INTERNAL_ENERGY>{},
@@ -1168,8 +1365,6 @@ static auto CreateLagrangianHydroOperator(
    // Create total kinetic energy operator
    std::shared_ptr<DifferentiableOperator> total_kinetic_energy_mf;
    {
-
-
       mfem::tuple total_kinetic_energy_kernel_ao =
       {
          Value<VELOCITY>{},
@@ -1204,8 +1399,6 @@ static auto CreateLagrangianHydroOperator(
    // Create density operator
    std::shared_ptr<DifferentiableOperator> density_mf;
    {
-
-
       mfem::tuple density_kernel_ao =
       {
          Value<DENSITY0>{},
@@ -1242,9 +1435,12 @@ static auto CreateLagrangianHydroOperator(
              x0_gf,
              rho0_gf,
              material_gf,
+             update_qdata,
              dt_est,
              momentum_mf,
+             momentum_pa,
              energy_conservation_mf,
+             energy_conservation_pa,
              total_internal_energy_mf,
              total_kinetic_energy_mf,
              density_mf,
@@ -1314,6 +1510,13 @@ int main(int argc, char *argv[])
       }
    }
 
+   if (problem == 2)
+   {
+      serial_mesh = Mesh(Mesh::MakeCartesian1D(2));
+      serial_mesh.GetBdrElement(0)->SetAttribute(1);
+      serial_mesh.GetBdrElement(1)->SetAttribute(1);
+   }
+
    for (int i = 0; i < refinements; i++)
    {
       serial_mesh.UniformRefinement();
@@ -1339,9 +1542,9 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      out << "el: " << global_ne << "\n";
-      out << "kinematic dofs: " << global_h1tsize << "\n";
-      out << "thermodynamic dofs: " << global_l2tsize << "\n";
+      out << "num el: " << global_ne << "\n";
+      out << "num kinematic dofs: " << global_h1tsize << "\n";
+      out << "num thermodynamic dofs: " << global_l2tsize << "\n";
    }
 
    Array<int> ess_tdof, ess_vdofs;
@@ -1398,6 +1601,7 @@ int main(int argc, char *argv[])
             }
             break;
          case 1: v = 0.0; break;
+         case 2: v = 0.0; break;
          case 3: v = 0.0; break;
          default: MFEM_ABORT("error");
       }
@@ -1417,6 +1621,7 @@ int main(int argc, char *argv[])
       {
          case 0: return 1.0;
          case 1: return 1.0;
+         case 2: return (x(0) < 0.5) ? 1.0 : 0.1;
          case 3: return (dim == 2) ? (x(0) > 1.0 && x(1) > 1.5) ? 0.125 : 1.0
                            : x(0) > 1.0 && ((x(1) < 1.5 && x(2) < 1.5) ||
                                             (x(1) > 1.5 && x(2) > 1.5)) ? 0.125 : 1.0;
@@ -1438,9 +1643,9 @@ int main(int argc, char *argv[])
       {
          case 0: return 5.0 / 3.0;
          case 1: return 1.4;
+         case 2: return 1.4;
          case 3: return (x(0) > 1.0 && x(1) <= 1.5) ? 1.4 : 1.5;
          default: MFEM_ABORT("error");
-
       }
    };
 
@@ -1497,6 +1702,11 @@ int main(int argc, char *argv[])
 
    IntegrationRule ir = IntRules.Get(mesh.GetElementBaseGeometry(0),
                                      3 * H1FESpace.GetOrder(0) + L2FESpace.GetOrder(0) - 1);
+
+   if (Mpi::Root())
+   {
+      out << "num qp: " << ir.GetNPoints() << "\n";
+   }
 
    auto hydro = CreateLagrangianHydroOperator(H1FESpace,
                                               L2FESpace,
@@ -1563,7 +1773,7 @@ int main(int argc, char *argv[])
    paraview_dc.SetCycle(0);
    paraview_dc.SetTime(0.0);
    paraview_dc.RegisterField("velocity", &v_gf);
-   // paraview_dc.RegisterField("density", &rho_gf);
+   paraview_dc.RegisterField("density", &rho_gf);
    paraview_dc.RegisterField("specific_internal_energy", &e_gf);
    paraview_dc.RegisterField("material", &material_gf);
    // paraview_dc.RegisterField("velocity_error", &verr_gf);
@@ -1629,7 +1839,7 @@ int main(int argc, char *argv[])
       //    verr_gf(i) = abs(verr_gf(i) - v_gf(i));
       // }
 
-      // hydro.ComputeDensity(rho_gf);
+      hydro.ComputeDensity(rho_gf);
 
       paraview_dc.SetCycle(ti);
       paraview_dc.SetTime(t);
