@@ -32,11 +32,11 @@ namespace mfem
 
 class BilinearForm;
 
-/// Abstract base class for an iterative solver monitor
-class IterativeSolverMonitor
+/// Abstract base class for an iterative solver controller
+class IterativeSolverController
 {
 protected:
-   /// The last IterativeSolver to which this monitor was attached.
+   /// The last IterativeSolver to which this controller was attached.
    const class IterativeSolver *iter_solver;
 
    /// In MonitorResidual or MonitorSolution, this member variable can be set
@@ -44,15 +44,21 @@ protected:
    bool converged = false;
 
 public:
-   IterativeSolverMonitor() : iter_solver(nullptr) {}
+   IterativeSolverController() : iter_solver(nullptr) {}
 
-   virtual ~IterativeSolverMonitor() {}
+   virtual ~IterativeSolverController() {}
 
    /// Has the solver converged?
    ///
-   /// Can be used if convergence is detected in the monitor (before reaching
+   /// Can be used if convergence is detected in the controller (before reaching
    /// the relative or absolute tolerance of the IterativeSolver).
    bool HasConverged() { return converged; }
+
+   /// Reset the controller to its initial state.
+   ///
+   /// This function is called by the IterativeSolver::Mult()
+   /// method on the first iteration.
+   virtual void Reset() { converged = false; }
 
    /// Monitor the solution vector r
    virtual void MonitorResidual(int it, real_t norm, const Vector &r,
@@ -71,6 +77,9 @@ public:
    void SetIterativeSolver(const IterativeSolver &solver)
    { iter_solver = &solver; }
 };
+
+/// Keeping the alias for backward compatibility
+using IterativeSolverMonitor = IterativeSolverController;
 
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
