@@ -1556,10 +1556,7 @@ void Mesh::GetExteriorFaceMarker(Array<int> & face_marker) const
 {
    const int num_faces = GetNumFaces();
 
-   if (face_marker.Size() < num_faces)
-   {
-      face_marker.SetSize(num_faces);
-   }
+   face_marker.SetSize(num_faces);
 
    for (int f = 0; f < num_faces; f++)
    {
