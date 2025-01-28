@@ -51,6 +51,9 @@ New and updated examples and miniapps
 - Added an MFEM example for the eikonal equation. This new solver is based on
   the proximal Galerkin method introduced by Keith and Surowiec.
 
+- Added a new toy miniapp that animates an interesting fidget spiral cone toy.
+  See miniapps/toys/spiral.cpp.
+
 - Added a command line option to all miniapps (`-p` or `--send-port`) for
   specifying the GLVis server socket port (19916 by default).
 
