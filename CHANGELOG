@@ -100,6 +100,19 @@ Miscellaneous
 
 - There are new convenience constructors for NURBS patches and knot vectors.
 
+- Added convenience methods for manipulating boundary attribute marker arrays;
+  `(Par)Mesh::MarkExternalBoundaries`, `(Par)Mesh::UnmarkInternalBoundaries`,
+  `(Par)Mesh::MarkNamedBoundaries`, and `(Par)Mesh::UnmarkNamedBoundaries`.
+  See examples `ex1.cpp`, `ex1p.cpp`, and `ex11p.cpp` for basic usage.
+
+- Added `(Par)Mesh::GetExteriorFaceMarker` for identifying faces on the
+  exterior of the mesh irrespective of their presence in the list of "boundary
+  elements".
+
+- Added methods to `(Par)FiniteElementSpace` to identify all degrees of freedom
+  located on the exterior of the domain without reference to the list of
+  "boundary elements"; `GetExteriorVDofs` and `GetExteriorTrueDofs`.
+
 API changes
 -----------
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
