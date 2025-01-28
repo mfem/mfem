@@ -438,13 +438,21 @@ tensor<decltype(f(n1, n2, n3, n4)), n1, n2, n3, n4>
    return A;
 }
 
-template <typename T, int n1, int n2> MFEM_HOST_DEVICE
-tensor<T, n2> get_col(tensor<T, n1, n2> A, int j)
+// needs to be generalized
+template <typename T, int m, int n> MFEM_HOST_DEVICE
+tensor<T, n> get_col(tensor<T, m, n> A, int j)
 {
-   tensor<T, n2> c{};
-   c(0) = A(0, j);
-   c(1) = A(1, j);
+   tensor<T, n> c{};
+   c(0) = A[0][j];
+   c(1) = A[1][j];
    return c;
+}
+
+/// @overload
+template <typename T> MFEM_HOST_DEVICE
+tensor<T, 1> get_col(tensor<T, 1, 1> A, int j)
+{
+   return tensor<T, 1> {A[0][0]};
 }
 
 /**
@@ -1358,6 +1366,12 @@ tensor<T, n, m> transpose(const tensor<T, m, n>& A)
  * @param[in] A The matrix to obtain the determinant of
  */
 template <typename T> MFEM_HOST_DEVICE
+T det(const tensor<T, 1, 1>& A)
+{
+   return A[0][0];
+}
+/// @overload
+template <typename T> MFEM_HOST_DEVICE
 T det(const tensor<T, 2, 2>& A)
 {
    return A[0][0] * A[1][1] - A[0][1] * A[1][0];
@@ -1370,6 +1384,12 @@ T det(const tensor<T, 3, 3>& A)
           A[1][0] * A[2][1] -
           A[0][0] * A[1][2] * A[2][1] - A[0][1] * A[1][0] * A[2][2] - A[0][2] * A[1][1] *
           A[2][0];
+}
+
+template <typename T> MFEM_HOST_DEVICE
+std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig(tensor<T, 1, 1> &A)
+{
+   return {tensor<T, 1>{A[0][0]}, tensor<T, 1, 1>{{1.0}}};
 }
 
 template <typename T> MFEM_HOST_DEVICE
@@ -1447,6 +1467,12 @@ void GetScalingFactor(const T &d_max, T &mult)
    {
       mult = 1.;
    }
+}
+
+template <typename T> MFEM_HOST_DEVICE
+T calcsv(const tensor<T, 1, 1> A, const int i)
+{
+   return A[0][0];
 }
 
 /**
@@ -1638,13 +1664,20 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
 /**
  * @brief Inverts a matrix
  * @param[in] A The matrix to invert
- * @note Uses a shortcut for inverting a 2-by-2 matrix
+ * @note Uses a shortcut for inverting a 1x1, 2x2 and 3x3 matrix
  */
-inline MFEM_HOST_DEVICE tensor<real_t, 2, 2> inv(const tensor<real_t, 2, 2>& A)
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 1, 1> inv(const tensor<T, 1, 1>& A)
 {
-   real_t inv_detA(1.0 / det(A));
+   return tensor<T, 1, 1> {T{1.0} / A[0][0]};
+}
 
-   tensor<real_t, 2, 2> invA{};
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
+{
+   T inv_detA(1.0 / det(A));
+
+   tensor<T, 2, 2> invA{};
 
    invA[0][0] = A[1][1] * inv_detA;
    invA[0][1] = -A[0][1] * inv_detA;
@@ -1658,11 +1691,12 @@ inline MFEM_HOST_DEVICE tensor<real_t, 2, 2> inv(const tensor<real_t, 2, 2>& A)
  * @overload
  * @note Uses a shortcut for inverting a 3-by-3 matrix
  */
-inline MFEM_HOST_DEVICE tensor<real_t, 3, 3> inv(const tensor<real_t, 3, 3>& A)
+template <typename T>
+inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
 {
-   real_t inv_detA(1.0 / det(A));
+   T inv_detA(1.0 / det(A));
 
-   tensor<real_t, 3, 3> invA{};
+   tensor<T, 3, 3> invA{};
 
    invA[0][0] = (A[1][1] * A[2][2] - A[1][2] * A[2][1]) * inv_detA;
    invA[0][1] = (A[0][2] * A[2][1] - A[0][1] * A[2][2]) * inv_detA;
@@ -1684,7 +1718,7 @@ inline MFEM_HOST_DEVICE tensor<real_t, 3, 3> inv(const tensor<real_t, 3, 3>& A)
 template <typename T, int n> MFEM_HOST_DEVICE
 tensor<T, n, n> inv(const tensor<T, n, n>& A)
 {
-   auto abs  = [](real_t x) { return (x < 0) ? -x : x; };
+   auto abs  = [](T x) { return (x < 0) ? -x : x; };
    auto swap = [](tensor<T, n>& x, tensor<T, n>& y)
    {
       auto tmp = x;
@@ -1692,12 +1726,12 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
       y        = tmp;
    };
 
-   tensor<real_t, n, n> B = Identity<n>();
+   tensor<T, n, n> B = Identity<n>();
 
    for (int i = 0; i < n; i++)
    {
       // Search for maximum in this column
-      real_t max_val = abs(A[i][i]);
+      T max_val = abs(A[i][i]);
 
       int max_row = i;
       for (int j = i + 1; j < n; j++)
@@ -1717,7 +1751,7 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
       {
          if (A[j][i] != 0.0)
          {
-            real_t c = -A[j][i] / A[i][i];
+            T c = -A[j][i] / A[i][i];
             A[j] += c * A[i];
             B[j] += c * B[i];
             A[j][i] = 0;
