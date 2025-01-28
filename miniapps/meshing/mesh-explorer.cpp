@@ -303,6 +303,7 @@ int main (int argc, char *argv[])
    // Helper for visualizing the partitioning.
    Array<int> partitioning;
    Array<int> bdr_partitioning;
+   Array<int> elem_partitioning;
    if (!use_par_mesh)
    {
       mesh = new Mesh(mesh_file, 1, refine);
@@ -310,6 +311,8 @@ int main (int argc, char *argv[])
       partitioning = 0;
       bdr_partitioning.SetSize(mesh->GetNBE());
       bdr_partitioning = 0;
+      elem_partitioning.SetSize(mesh->GetNE());
+      elem_partitioning = 0;
       np = 1;
    }
    else
@@ -914,7 +917,7 @@ int main (int argc, char *argv[])
             cout << "Number of colors: " << attr.Max() + 1 << endl;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               attr(i) = partitioning[i] = i; // coloring by element number
+               attr(i) = elem_partitioning[i] = i; // coloring by element number
             }
             cout << "GLVis keystrokes for mesh element visualization:\n"
                  << "- F3/F4      - Shrink/Zoom the elements\n"
@@ -1145,7 +1148,14 @@ int main (int argc, char *argv[])
                   }
                   else
                   {
-                     mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
+                     if (mk == 'e')
+                     {
+                        mesh->PrintWithPartitioning(elem_partitioning, sol_sock, 1);
+                     }
+                     else
+                     {
+                        mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
+                     }
                   }
                }
                attr.Save(sol_sock);
@@ -1187,7 +1197,14 @@ int main (int argc, char *argv[])
                   }
                   else
                   {
-                     mesh->PrintWithPartitioning(partitioning, sol_sock);
+                     if (mk == 'e')
+                     {
+                        mesh->PrintWithPartitioning(elem_partitioning, sol_sock, 1);
+                     }
+                     else
+                     {
+                        mesh->PrintWithPartitioning(partitioning, sol_sock, 1);
+                     }
                   }
                }
                if (mk != 'b' && mk != 'B')
