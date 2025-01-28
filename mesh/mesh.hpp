@@ -1233,7 +1233,7 @@ public:
        present.
 
        @return A bitmask:
-       - bit 0 - simplices are present in the mesh (triangles, tets),
+       - bit 0 - simplices are present in the mesh (segments, triangles, tets),
        - bit 1 - tensor product elements are present in the mesh (quads, hexes),
        - bit 2 - the mesh has wedge elements.
        - bit 3 - the mesh has pyramid elements.

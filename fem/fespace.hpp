@@ -51,8 +51,17 @@ public:
 /// @sa QuadratureInterpolator and FaceQuadratureInterpolator.
 enum class QVectorLayout
 {
-   byNODES,  ///< NQPT x VDIM x NE (values) / NQPT x VDIM x DIM x NE (grads)
-   byVDIM    ///< VDIM x NQPT x NE (values) / VDIM x DIM x NQPT x NE (grads)
+   /** Layout depending on the input space and the computed quantity:
+       - scalar H1/L2 spaces, values: NQPT x VDIM x NE,
+       - scalar H1/L2 spaces, gradients: NQPT x VDIM x DIM x NE,
+       - vector RT/ND spaces, values: NQPT x SDIM x NE (vdim = 1). */
+   byNODES,
+
+   /** Layout depending on the input space and the computed quantity:
+       - scalar H1/L2 spaces, values: VDIM x NQPT x NE,
+       - scalar H1/L2 spaces, gradients: VDIM x DIM x NQPT x NE,
+       - vector RT/ND spaces, values: SDIM x NQPT x NE (vdim = 1). */
+   byVDIM
 };
 
 template <> inline int
