@@ -47,7 +47,9 @@ def main():
                 dataf2 = dataf[dataf[:, 2] == 5]
                 plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'bo--', label='Optimal Chebyshev')
                 dataf2 = dataf[dataf[:, 2] == 6]
-                plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'ko--', label='Optimal')
+                plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'co--', label='Optimal Uniform')
+                # dataf2 = dataf[dataf[:, 2] == 7]
+                # plt.plot(dataf2[:, xc], dataf2[:, 3+et], 'ko--', label='Optimal')
 
                 dataf2 = dataf[dataf[:, 2] == 0]
                 x1 = dataf2[1, xc]

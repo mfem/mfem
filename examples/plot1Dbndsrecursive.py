@@ -102,6 +102,7 @@ def main():
         nplots = int(len(pos_indices)/2)
         plt.figure(plotindex)
         plt.plot(sample_locs, upoly, 'k-', label='Solution')
+        plt.plot(gllG, solG, 'ko',markersize=ms*3)
 
         plt.plot(sample_locs, upoly*0, 'k--', linewidth=1)
         deb_indices = np.reshape((np.argwhere(np.abs(depth) == d)), -1)

@@ -5,6 +5,10 @@ from scipy.special import legendre
 import argparse
 from matplotlib.backends.backend_pdf import PdfPages
 
+#run this using par_get_optimal_bounding_box_for_basis.py
+#then run: make getminmr -j && ./getminmr -nrmax 7 -nrmin 3 in ../examples
+#then run: python3 plotminmrbndscomp.py in ../examples
+
 def lobatto_nodes(N):
 	roots = legendre(N-1).deriv().roots
 	x = np.concatenate(([-1], roots, [1]))
@@ -158,6 +162,8 @@ def main():
 	# optimize_and_write(xs, xb, 'legendre', 'chebyshev', nsamp)
 	# xb = legendre_nodes_with_endpoints(M)
 	# optimize_and_write(xs, xb, 'legendre', 'legendre', nsamp)
+	# xb = np.linspace(-1, 1, M)
+	# optimize_and_write(xs, xb, 'legendre', 'equispaced', nsamp)
 
 # Entry point of the script
 if __name__ == "__main__":

@@ -62,6 +62,7 @@ bool ArePLBoundsGood(int nbrute, int nr, int mr, int nodetype, int intptype, boo
    }
    // intp = 0,1,2 - we use default bounds
    // 3,4,5 we use optimized bounds
+   // std::cout << intptype << " " << fname << std::endl;
    double read_eps = 0.0;
    if (intptype == 3)
    {
@@ -79,6 +80,11 @@ bool ArePLBoundsGood(int nbrute, int nr, int mr, int nodetype, int intptype, boo
       plb.Setup(fname, read_eps);
    }
    else if (intptype == 6)
+   {
+      fname += "_bpts_equispaced_" + std::to_string(mr)+ ".txt";
+      plb.Setup(fname, read_eps);
+   }
+   else if (intptype == 7)
    {
       fname += "_bpts_opt_" + std::to_string(mr)+ ".txt";
       plb.Setup(fname, read_eps);
@@ -289,7 +295,8 @@ int main(int argc, char *argv[])
       std::string nt = nodetype == 0 ? "N_{GL}" : "N_{GLL}";
       std::string itp = (inttype == 2 || inttype == 5)  ? "M_{Cheb}" :
                         (inttype == 0 || inttype == 3) ? "M_{GL+End}" :
-                        (inttype == 1 || inttype == 4)  ? "M_{GLL}" : "M_{opt}";
+                        (inttype == 1 || inttype == 4)  ? "M_{GLL}" :
+                        (inttype == 6)  ? "M_{Uniform}" : "M_{opt}";
       std::cout << std::setw(15) << std::left << nt
                      << std::setw(15) << std::left << std::fixed << std::setprecision(2) << itp << std::endl;
 
@@ -309,6 +316,7 @@ int main(int argc, char *argv[])
                   << std::setw(15) << std::left << std::fixed << "M_{OPT,GL+End}"
                   << std::setw(15) << std::left << std::fixed << "M_{OPT,GLL}"
                   << std::setw(15) << std::left << std::fixed << "M_{OPT,Cheb}"
+                  << std::setw(15) << std::left << std::fixed << "M_{OPT,Uniform}"
                   << std::setw(15) << std::left << std::fixed << "M_{OPT}"
                   << std::endl;
    for (int i = 0; i < nrva.Size() ;i++)
@@ -340,7 +348,7 @@ int main(int argc, char *argv[])
       mra[1] = (*minmra[1])[i];
       mra[2] = (*minmra[2])[i];
       int mrmax = mra.Max();
-      for (int kk = 0; kk < 7; kk++)
+      for (int kk = 0; kk < minmra.Size(); kk++)
       {
          int inttype = kk;
          int mrme = (*minmra[kk])[i];
