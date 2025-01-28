@@ -23,7 +23,7 @@ def expand_z(z):
 		return np.array(list(zz) + [0] + list(-zz[::-1]))
 
 
-def optimize_bbox_all(xs, xb_initial, nsamp=1000, tol=1e-6):
+def optimize_bbox_all(xs, xb_initial, nsamp=1000, tol=1e-6, return_initial_cost=False):
 	global N, M, p
 
 	# Generate basis polynomials
@@ -47,23 +47,32 @@ def optimize_bbox_all(xs, xb_initial, nsamp=1000, tol=1e-6):
 		xib = xb_from_xi(xi)
 
 		totalfun = 0
-		for i in range(N):
+		Neff = N//2 if N % 2 == 0 else N//2 + 1
+		for i in range(Neff):
 			# Optimize upper bound
 			[_, fun] = optimize_bbox_onebasis_upper(ups[i], xib, nsamp=nsamp)
-			totalfun += fun
+			if N % 2 == 1 and i == Neff:
+				totalfun += fun
+			else:
+				totalfun += 2*fun
 
 			# Optimize lower bound
 			[_, fun] = optimize_bbox_onebasis_upper(-ups[i], xib, nsamp=nsamp)
-			totalfun += fun
+			if N % 2 == 1 and i == Neff:
+				totalfun += fun
+			else:
+				totalfun += 2*fun
 
 		return totalfun
+	if return_initial_cost:
+		return [expand_z(z0), obj(z0)]
 
 	# Constrain so nodal points are increasing
 	def con(z):
 		return 1 - np.max(expand_z(z))
 	cons = {'type': 'ineq', 'fun': con}
 
-	result = optimize.minimize(obj, z0, method='SLSQP', constraints=cons, tol=1e-15)
+	result = optimize.minimize(obj, z0, method='SLSQP', constraints=cons, tol=1e-8)
 	z = expand_z(result.x)
 
 	return [z, result.fun]
@@ -85,7 +94,19 @@ def main():
 	p = N-1
 
 	xs = lobatto_nodes(N)
-	xb = legendre_nodes_with_endpoints(M)
+
+	# Find best initial guess
+	xbs = [legendre_nodes_with_endpoints(M),
+			lobatto_nodes(M),
+			chebyshev_nodes(M),
+			np.linspace(-1, 1, M)]
+	funs = np.zeros(len(xbs))
+	for i in range(len(xbs)):
+		[_, f] = optimize_bbox_all(xs, xbs[i], nsamp=nsamp, return_initial_cost=True)
+		funs[i] = f
+	xb = xbs[np.argmin(funs)]
+
+	# Run optimizer
 	[xi, fun] = optimize_bbox_all(xs, xb, nsamp=nsamp)
 	xb = xb_from_xi(xi)
 	optimize_and_write(xs, xb, 'lobatto', 'opt', nsamp)

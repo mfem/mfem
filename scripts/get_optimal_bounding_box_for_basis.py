@@ -15,7 +15,7 @@ def lobatto_nodes(N):
 	return np.sort(x)
 
 def chebyshev_nodes(N):
-	return [-np.cos(np.pi*i/(N-1)) for i in range(N)]
+	return np.array([-np.cos(np.pi*i/(N-1)) for i in range(N)])
 
 def legendre_nodes(N):
 	[x, _] = np.polynomial.legendre.leggauss(N)
@@ -48,7 +48,7 @@ def optimize_bbox_onebasis_upper(up, xb, nsamp=1000, tol=1e-6):
 	cons = []
 	cons.append({'type': 'ineq', 'fun': con})
 
-	result = optimize.minimize(obj, z0, method='SLSQP', constraints=cons, tol=1e-15)
+	result = optimize.minimize(obj, z0, method='SLSQP', constraints=cons, tol=1e-8)
 	z = result.x
 
 	# Take discrete bounding box and offset it by -min(f(x) - u(x)) to ensure continuous bounds preservation
@@ -99,14 +99,20 @@ def optimize_and_write(xs, xb, sname, bname, nsamp=1000, plot=False):
 	pdf_pages = PdfPages(f"bnddata_spts_{sname}_{N}_bpts_{bname}_{M}.pdf")
 
 	funtotal = 0
+	Neff = N//2 if N % 2 == 0 else N//2 + 1
 	for i in range(N):
-		[z, fun] = optimize_bbox_onebasis_upper(ups[i], xb, nsamp=nsamp)
-		funtotal += fun
-		bhigh[i,:] = z
+		if i < Neff:
+			[z, fun] = optimize_bbox_onebasis_upper(ups[i], xb, nsamp=nsamp)
+			funtotal += fun
+			bhigh[i,:] = z
 
-		[z, fun] = optimize_bbox_onebasis_upper(-ups[i], xb, nsamp=nsamp)
-		funtotal += fun
-		blow[i,:] = -z
+			[z, fun] = optimize_bbox_onebasis_upper(-ups[i], xb, nsamp=nsamp)
+			funtotal += fun
+			blow[i,:] = -z
+		else:
+			bhigh[i,:] = bhigh[N-i-1, ::-1]
+			blow[i,:] = blow[N-i-1, ::-1]
+
 
 		plt.figure()
 		plt.plot(xx, upx[i,:], 'k-')
