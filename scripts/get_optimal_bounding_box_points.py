@@ -8,13 +8,19 @@ from get_optimal_bounding_box_for_basis import *
 def xb_from_xi(xi):
 	return np.array([-1] + list(xi) + [1])
 
-def expand_z(z, z0len):
-	if z0len == 1:
-		return z
-	elif z0len % 2 == 0:
-		return np.array(list(z) + list(-z[::-1]))
+def expand_z(z):
+	zz = np.zeros_like(z)
+	for i in range(len(z)):
+		if i == 0:
+			zz[i] = -1 + np.exp(z[0])
+		else:
+			zz[i] = zz[i-1] + np.exp(z[i])
+	if (M-2) == 1:
+		return zz
+	elif (M-2) % 2 == 0:
+		return np.array(list(zz) + list(-zz[::-1]))
 	else:
-		return np.array(list(z) + [0] + list(-z[::-1]))
+		return np.array(list(zz) + [0] + list(-zz[::-1]))
 
 
 def optimize_bbox_all(xs, xb_initial, nsamp=1000, tol=1e-6):
@@ -29,15 +35,15 @@ def optimize_bbox_all(xs, xb_initial, nsamp=1000, tol=1e-6):
 	    ups.append(np.poly1d(np.polyfit(xs, u, p)))
 
 	# Make sure control nodes are symmetric in [-1, 1]
-	z0 = xb_initial[1:-1]
-	z0len = len(z0)
-	if z0len == 1:
+	z0 = np.log(xb_initial[1:] - xb_initial[:-1])[:-1]
+	if M == 1:
 		pass
 	else:
-		z0 = z0[:z0len//2]
+		z0 = z0[:(M-2)//2]
+
 
 	def obj(z):
-		xi = expand_z(z, z0len)
+		xi = expand_z(z)
 		xib = xb_from_xi(xi)
 
 		totalfun = 0
@@ -53,22 +59,12 @@ def optimize_bbox_all(xs, xb_initial, nsamp=1000, tol=1e-6):
 		return totalfun
 
 	# Constrain so nodal points are increasing
-	cons = []
-	for i in range(M-2):
-		def con(z, i=i):
-			xi = expand_z(z, z0len)
-			if i == 0:
-				val = xi[i] + 1
-			elif i == M-3:
-				val = 1 - xi[i]
-			else:
-				val = xi[i] - xi[i-1]
+	def con(z):
+		return 1 - np.max(expand_z(z))
+	cons = {'type': 'ineq', 'fun': con}
 
-			return val
-		cons.append({'type': 'ineq', 'fun': con})
-
-	result = optimize.minimize(obj, z0, constraints=cons, tol=1e-8)
-	z = expand_z(result.x, z0len)
+	result = optimize.minimize(obj, z0, method='SLSQP', constraints=cons, tol=1e-15)
+	z = expand_z(result.x)
 
 	return [z, result.fun]
 
