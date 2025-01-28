@@ -75,6 +75,10 @@ add_mfem_miniapp(lor_solvers
   EXTRA_HEADERS lor_mms.hpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(bltp
+  MAIN bltp.cpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME lor_solvers_ser COMMAND lor_solvers -fe n -no-vis)
 endif()
