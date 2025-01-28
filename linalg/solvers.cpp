@@ -193,6 +193,10 @@ bool IterativeSolver::Monitor(int it, real_t norm, const Vector& r,
 {
    if (monitor != nullptr)
    {
+      if (it == 0 && !final)
+      {
+         monitor->Reset();
+      }
       monitor->MonitorResidual(it, norm, r, final);
       monitor->MonitorSolution(it, norm, x, final);
       return monitor->HasConverged();
@@ -760,6 +764,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
                    << nom << '\n';
       }
+      Monitor(0, nom, r, x);
       converged = false;
       final_iter = 0;
       initial_norm = nom;
@@ -1328,6 +1333,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "FGMRES: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 
@@ -1556,6 +1563,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "BiCGStab: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
@@ -1911,6 +1920,8 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "Newton: No convergence!\n";
    }
+
+   Monitor(final_iter, final_norm, r, x, true);
 }
 
 void NewtonSolver::SetAdaptiveLinRtol(const int type,
