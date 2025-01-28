@@ -39,13 +39,18 @@ LElasticOperator::LElasticOperator(mfem::ParMesh* mesh_, int vorder)
 
     bf=nullptr;
     lf=nullptr;
-
 }
 
 LElasticOperator::~LElasticOperator()
 {
     delete prec;
     delete ls;
+
+    delete K;
+    delete Ke;
+
+    delete bf;
+    delete lf;
 
     delete vfes;
     delete vfec;
@@ -58,12 +63,6 @@ LElasticOperator::~LElasticOperator()
 
     delete lambda;
     delete mu;
-
-    delete K;
-    delete Ke;
-
-    delete bf;
-    delete lf;
 }
 
 void LElasticOperator::SetLinearSolver(mfem::real_t rtol, mfem::real_t atol, int miter)
@@ -282,10 +281,10 @@ void LElasticOperator::Assemble()
         ls->SetRelTol(linear_rtol);
         ls->SetMaxIter(linear_iter);
         prec=new mfem::HypreBoomerAMG();
+        //set the rigid body modes
         prec->SetElasticityOptions(vfes);
         prec->SetPrintLevel(1);
         ls->SetPreconditioner(*prec);
-        //set the rigid body modes
         ls->SetOperator(*K);
         ls->SetPrintLevel(1);
     }else{

@@ -63,7 +63,7 @@ class LElasticOperator:public mfem::Operator
 public:
     LElasticOperator(mfem::ParMesh* mesh_, int vorder=1);
 
-    ~LElasticOperator();
+    virtual ~LElasticOperator();
 
     /// Set the Linear Solver
     void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=1000);
@@ -158,15 +158,13 @@ public:
 
         delete lambda;
         delete mu;
+        delete bf;
 
         lambda=new IsoElasticyLambdaCoeff(E,nu);
         mu=new IsoElasticySchearCoeff(E,nu);
 
-        if(bf==nullptr)
-        {
-            bf=new ParBilinearForm(vfes);
-            bf->AddDomainIntegrator(new ElasticityIntegrator(*lambda,*mu));
-        }
+        bf=new ParBilinearForm(vfes);
+        bf->AddDomainIntegrator(new ElasticityIntegrator(*lambda,*mu));
     }
 
 private:
@@ -231,15 +229,90 @@ private:
 
     mfem::Coefficient* lambda;
     mfem::Coefficient* mu;
+    mfem::Coefficient* rho; //density
 
     mfem::ParBilinearForm* bf;
     mfem::HypreParMatrix* K;
     mfem::HypreParMatrix* Ke;
 
     mfem::ParLinearForm* lf;
-
-
-
 };
 
+class FRElasticOperator:public mfem::Operator
+{
+public:
+    FRElasticOperator(mfem::ParMesh* mesh_, int vorder=1, mfem::real_t freq_=0.0);
+
+    virtual ~FRElasticOperator();
+
+    void SetFreq(mfem::real_t freq_){
+        freq=freq_;
+    }
+
+    /// Set material
+    void SetMaterial(Coefficient& E_, Coefficient& nu_)
+    {
+        E=&E_;
+        nu=&nu_;
+
+        delete lambda;
+        delete mu;
+        delete bf;
+
+        lambda=new IsoElasticyLambdaCoeff(E,nu);
+        mu=new IsoElasticySchearCoeff(E,nu);
+
+        bf=new ParBilinearForm(vfes);
+        bf->AddDomainIntegrator(new ElasticityIntegrator(*lambda,*mu));
+    }
+
+    void SetDensity(Coefficient& rho_)
+    {
+        rho=&rho_;
+        delete mf;
+        mf=new ParBilinearForm(vfes);
+        mf->AddDomainIntegrator(new MassIntegrator(*rho));
+    }
+
+    void SetDamping(mfem::real_t alpha_, mfem::real_t beta_)
+    {
+        alpha=alpha_;
+        beta=beta_;
+    }
+
+    void SetDamping(Coefficient& damp_)
+    {
+        damp=&damp_;
+        delete cf;
+        cf=new ParBilinearForm(vfes);
+        cf->AddDomainIntegrator(new MassIntegrator(*damp));
+    }
+
+
+private:
+
+    //finite element space for linear elasticity
+    mfem::ParFiniteElementSpace* vfes;
+    //finite element collection for linear elasticity
+    mfem::FiniteElementCollection* vfec;
+
+    mfem::real_t freq;
+    mfem::real_t alpha;
+    mfem::real_t beta;
+
+    mfem::Coefficient* E;
+    mfem::Coefficient* nu;
+
+    mfem::Coefficient* lambda;
+    mfem::Coefficient* mu;
+    mfem::Coefficient* rho; //density
+    mfem::Coefficient* damp; //viscous damping
+
+    mfem::ParBilinearForm* bf; //stiffness bilinear form
+    mfem::ParBilinearForm* mf; //mass bilinear form
+    mfem::ParBilinearForm* cf; //damping bilinear form
+
+    mfem::ParLinearForm* lrf; //real RHS
+    mfem::ParLinearForm* lif; //imag RHS
+};
 #endif // MTOP_SOLVERS_HPP

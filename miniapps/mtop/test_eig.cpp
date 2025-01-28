@@ -102,6 +102,7 @@ int main(int argc, char *argv[])
    if(Mpi::WorldRank()==0){
        std::cout<<pmesh.GetNE()<<std::endl;
    }
+
    LElasticOperator* le=new LElasticOperator(&pmesh,1);
 
    mfem::ConstantCoefficient E(1.0);
@@ -114,11 +115,20 @@ int main(int argc, char *argv[])
    le->Assemble();
    le->FSolve();
 
+   mfem::ParGridFunction disp;
+   le->GetSol(disp);
 
+   ParaViewDataCollection paraview_dc("eigp", &pmesh);
+   paraview_dc.SetPrefixPath("ParaView");
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+   paraview_dc.SetCycle(0);
+   paraview_dc.SetTime(0.0);
+   paraview_dc.RegisterField("disp",&disp);
+   paraview_dc.Save();
 
    delete le;
-
-
    Mpi::Finalize();
    return 0;
 }
