@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
    }
 
    Array<Array<int>*> minmra;
-   minmra.SetSize(7);
+   minmra.SetSize(8); //set to 7 if you want to exclude optimal point location set, 8 if you want to include.
    Array<int> nrva;
    double area;
    Vector errors;
