@@ -147,6 +147,8 @@ def main():
 	optimize_and_write(xs, xb, 'lobatto', 'chebyshev', nsamp)
 	xb = legendre_nodes_with_endpoints(M)
 	optimize_and_write(xs, xb, 'lobatto', 'legendre', nsamp)
+	xb = np.linspace(-1, 1, M)
+	optimize_and_write(xs, xb, 'lobatto', 'equispaced', nsamp)
 
 
 	# xs = legendre_nodes(N)
