@@ -506,7 +506,10 @@ public:
 
     void SetFinal(mfem::QuadratureFunction& gq)
     {
-       gq=cqg;
+       for (int q = 0; q < cqg.Size(); q++)
+       {
+          gq(q) = cqg(q);
+       }
     }
 
     void Optimize(double alpha, double rho,int max_iter=100)
@@ -841,6 +844,7 @@ public:
       {
          return InConstr[i];
       }
+
    }
 
    virtual
