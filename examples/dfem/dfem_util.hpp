@@ -2133,6 +2133,10 @@ void call_qfunction(
             }
          }
       }
+      else
+      {
+         MFEM_ABORT("unsupported dimension for sum factorization");
+      }
       MFEM_SYNC_THREAD;
    }
    else

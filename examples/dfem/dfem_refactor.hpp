@@ -7,8 +7,6 @@
 #include "dfem_integrate.hpp"
 #include "dfem_qfunction.hpp"
 #include "dfem_qfunction_dual.hpp"
-#include "examples/dfem/dfem_fieldoperator.hpp"
-#include "examples/dfem/dfem_util.hpp"
 
 namespace mfem
 {
@@ -1184,14 +1182,14 @@ void DifferentiableOperator::AddDomainIntegrator(
                MFEM_ABORT("internal error");
             }
 
-            if (same_test_and_trial && use_sum_factorization)
-            {
-               const ElementRestriction &rest =
-                  static_cast<const ElementRestriction&>(
-                     *test_fes->GetElementRestriction(element_dof_ordering));
-               rest.FillSparseMatrix(Ae_mem, mat);
-            }
-            else
+            // if (same_test_and_trial && use_sum_factorization)
+            // {
+            //    const ElementRestriction &rest =
+            //       static_cast<const ElementRestriction&>(
+            //          *test_fes->GetElementRestriction(element_dof_ordering));
+            //    rest.FillSparseMatrix(Ae_mem, mat);
+            // }
+            // else
             {
                for (int e = 0; e < num_elements; e++)
                {
@@ -1207,23 +1205,28 @@ void DifferentiableOperator::AddDomainIntegrator(
                   if (use_sum_factorization)
                   {
                      Array<int> test_vdofs_mapped(test_vdofs.Size()),
-                           trial_vdofs_mapped(trial_vdofs.Size());
+                     trial_vdofs_mapped(trial_vdofs.Size());
 
                      const Array<int> &test_dofmap =
-                        dynamic_cast<const TensorBasisElement&>(*test_fes->GetFE(0)).GetDofMap();
-                     test_vdofs.Print();
-                     test_dofmap.Print();
-
-                     for (int i = 0; i < test_vdofs.Size(); i++)
+                     dynamic_cast<const TensorBasisElement&>(*test_fes->GetFE(0)).GetDofMap();
+                     for (int vd = 0; vd < test_vdim; vd++)
                      {
-                        test_vdofs_mapped[i] = test_vdofs[test_dofmap[i]];
+                        for (int i = 0; i < num_test_dof; i++)
+                        {
+                           test_vdofs_mapped[i + vd * num_test_dof] =
+                           test_vdofs[test_dofmap[i] + vd * num_test_dof];
+                        }
                      }
 
                      const Array<int> &trial_dofmap =
                         dynamic_cast<const TensorBasisElement&>(*trial_fes->GetFE(0)).GetDofMap();
-                     for (int i = 0; i < trial_vdofs.Size(); i++)
+                     for (int vd = 0; vd < trial_vdim; vd++)
                      {
-                        trial_vdofs_mapped[i] = trial_vdofs[trial_dofmap[i]];
+                        for (int i = 0; i < num_trial_dof; i++)
+                        {
+                           trial_vdofs_mapped[i + vd * num_trial_dof] =
+                              trial_vdofs[trial_dofmap[i] + vd * num_trial_dof];
+                        }
                      }
 
                      mat.AddSubMatrix(test_vdofs_mapped, trial_vdofs_mapped, A_e, 1);
