@@ -49,17 +49,11 @@ Ordering: 0
         f.write(header+"\n")  # Write the header
         np.savetxt(f, entries, fmt='%f', delimiter='\n')
 
-# output rz_coords to a txt file with each entry a line
 output_to_mfem('r.gf', data[0])
 output_to_mfem('z.gf', data[1])
-# output psi to a gf file with each entry a line
 output_to_mfem('psi.gf', data[2])
-# output gg to a txt file with each entry a line
 output_to_mfem('gg.gf', data[3])
-# output rz_coords to a txt file with each entry a line
 output_to_mfem_3d('r_3d.gf', data[0])
 output_to_mfem_3d('z_3d.gf', data[1])
-# output psi to a gf file with each entry a line
 output_to_mfem_3d('psi_3d.gf', data[2])
-# output gg to a txt file with each entry a line
 output_to_mfem_3d('gg_3d.gf', data[3])
