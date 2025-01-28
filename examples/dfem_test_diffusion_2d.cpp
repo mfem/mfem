@@ -1,4 +1,3 @@
-#include "dfem/dfem.hpp"
 #include "dfem/dfem_test_macro.hpp"
 
 using namespace mfem;
@@ -38,8 +37,12 @@ int test_diffusion(
    ParGridFunction f1_g(&h1fes);
    ParGridFunction rho_g(&h1fes);
 
-   auto kernel = [] MFEM_HOST_DEVICE(const tensor<double, 2, 2>& J,
-                                     const double& w, const tensor<double, 2>& dudxi)
+   constexpr int Potential = 0;
+   constexpr int Coordinates = 1;
+
+   auto kernel = [] MFEM_HOST_DEVICE(
+                    const tensor<double, 2, 2>& J,
+                    const double& w, const tensor<double, 2>& dudxi)
    {
       auto invJ = inv(J);
       return mfem::tuple{dudxi * invJ * transpose(invJ) * det(J) * w};
@@ -47,17 +50,14 @@ int test_diffusion(
 
    mfem::tuple argument_operators =
    {
-      Gradient{"coordinates"}, Weight{}, Gradient{"potential"}
+      Gradient<Coordinates>{}, Weight{}, Gradient<Potential>{}
    };
-   mfem::tuple output_operator = {Gradient{"potential"}};
+   mfem::tuple output_operator = {Gradient<Potential>{}};
 
-   ElementOperator eop = {kernel, argument_operators, output_operator};
-   auto ops = mfem::tuple{eop};
+   auto solutions = std::vector{FieldDescriptor{Potential, &h1fes}};
+   auto parameters = std::vector{FieldDescriptor{Coordinates, &mesh_fes}};
 
-   auto solutions = std::array{FieldDescriptor{&h1fes, "potential"}};
-   auto parameters = std::array{FieldDescriptor{&mesh_fes, "coordinates"}};
-
-   DifferentiableOperator dop(solutions, parameters, ops, mesh, ir);
+   DifferentiableOperator dop(solutions, parameters, mesh);
 
    auto f1 = [](const Vector& coords)
    {

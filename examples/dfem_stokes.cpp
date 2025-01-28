@@ -14,9 +14,9 @@ struct StokesMomentumQFunction
    MFEM_HOST_DEVICE inline
    auto operator()(
       // velocity gradient in reference space
-      const tensor<double, dim, dim> &dudxi,
-      const double &p,
-      const tensor<double, dim, dim> &J,
+      const tensor<real_t, dim, dim> &dudxi, // internal::dual<real_t, real_t>
+      const real_t &p, // internal::dual<real_t, real_t>
+      const tensor<real_t, dim, dim> &J,
       const double &w) const
    {
       constexpr real_t kinematic_viscosity = 1.0;
@@ -29,7 +29,7 @@ struct StokesMomentumQFunction
    }
 };
 
-template <int dim = 2>
+template <int dim = 2, int sdim = 2>
 struct StokesMassConservationQFunction
 {
    StokesMassConservationQFunction() = default;
@@ -38,7 +38,7 @@ struct StokesMassConservationQFunction
    auto operator()(
       // velocity gradient in reference space
       const tensor<double, dim, dim> &dudxi,
-      const tensor<double, dim, dim> &J,
+      const tensor<double, sdim, dim> &J,
       const double &w) const
    {
       return mfem::tuple{tr(dudxi * inv(J)) * det(J) * w};
@@ -342,6 +342,7 @@ int main(int argc, char* argv[])
 
    BlockVector x(block_offsets), y(block_offsets);
    u.ParallelProject(x.GetBlock(0));
+   x.GetBlock(1) = 0.0;
 
    GMRESSolver solver(MPI_COMM_WORLD);
    solver.SetAbsTol(0.0);

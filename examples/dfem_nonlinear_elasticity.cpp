@@ -1,13 +1,4 @@
-#include "HYPRE_utilities.h"
 #include "dfem/dfem_refactor.hpp"
-#include "fem/coefficient.hpp"
-#include "fem/lininteg.hpp"
-#include "fem/plinearform.hpp"
-#include "linalg/hypre.hpp"
-#include "linalg/solvers.hpp"
-#include "mesh/submesh/psubmesh.hpp"
-#include <fstream>
-#include <memory>
 
 using namespace mfem;
 using mfem::internal::tensor;
