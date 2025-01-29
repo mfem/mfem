@@ -984,6 +984,7 @@ void TMOP_MMA::Mult(Vector &x)
    MFEM_VERIFY(true_dofs.Size(), "Set TMOP_MMA true dofs to limit displacement");
    MFEM_VERIFY((qoi && ds) || (!ds && !qoi), "Either set both QoI and DS or neither");
    ProcessNewState(x);
+   Vector x_orig = x;
    Vector dx(x.Size());
    dx = 0.0;
    double deps = 1e-6;
@@ -1064,6 +1065,7 @@ void TMOP_MMA::Mult(Vector &x)
          }
       }
       Vector dx_old = dx;
+      // Vector x_old = x;
       Update(it, r, conDummy, congradDummy, xxmin,xxmax, dx);
       TMOPNewtonSolver::c = dx;
       TMOPNewtonSolver::c -= dx_old;
@@ -1077,6 +1079,8 @@ void TMOP_MMA::Mult(Vector &x)
          break;
       }
       add(x, c_scale, TMOPNewtonSolver::c, x);
+      dx = x;
+      dx -= x_orig;;
 
       ProcessNewState(x);
 
