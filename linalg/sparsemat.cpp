@@ -666,6 +666,7 @@ const real_t &SparseMatrix::operator()(int i, int j) const
 
    if (Finalized())
    {
+      HostReadI(), HostReadJ(), HostReadData();
       for (int k = I[i], end = I[i+1]; k < end; k++)
       {
          if (J[k] == j)
@@ -4120,10 +4121,12 @@ SparseMatrix * Add(real_t a, const SparseMatrix & A, real_t b,
    int * C_j;
    real_t * C_data;
 
+   A.HostReadI(), A.HostReadJ(), A.HostReadData();
    const int *A_i = A.GetI();
    const int *A_j = A.GetJ();
    const real_t *A_data = A.GetData();
 
+   B.HostReadI(), B.HostReadJ(), B.HostReadData();
    const int *B_i = B.GetI();
    const int *B_j = B.GetJ();
    const real_t *B_data = B.GetData();
