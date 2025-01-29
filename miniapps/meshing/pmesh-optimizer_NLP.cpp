@@ -25,6 +25,7 @@
 
 // K10 -  TMOP solver based run
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m square01.mesh -rs 4
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 100 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m cube.mesh -o 1 -rs 4 -mid 303
 
 
 #include "mfem.hpp"
@@ -63,11 +64,18 @@ double trueSolFunc(const Vector & x)
   {
     double xc = -0.05,
            yc = -0.05,
+           zc = -0.05,
            rc = 0.7,
            alpha = alphaw;
     double dx = (x[0]-xc),
-           dy = x[1]-yc;
+           dy = x[1]-yc,
+           dz = 0.0;
     double val = dx*dx + dy*dy;
+    if (x.Size() == 3)
+    {
+      dz = x[2]-zc;
+      val += dz*dz;
+    }
     if (val > 0.0) { val = std::sqrt(val); }
     val -= rc;
     val *= alpha;
@@ -109,11 +117,18 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
   {
     double xc = -0.05,
         yc = -0.05,
+        zc = -0.05,
         rc = 0.7,
         alpha = alphaw;
     double dx = (x[0]-xc),
-           dy = x[1]-yc;
+           dy = x[1]-yc,
+           dz = 0.0;
     double val = dx*dx + dy*dy;
+    if (x.Size() == 3)
+    {
+      dz = x[2]-zc;
+      val += dz*dz;
+    }
     if (val > 0.0) { val = std::sqrt(val); }
     double valo = val;
     val -= rc;
@@ -123,6 +138,10 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
     double den1 = (1.0+val*val)*(valo);
     grad[0] = alpha*dx/den1;
     grad[1] = alpha*dy/den1;
+    if (x.Size() == 3)
+    {
+      grad[2] = alpha*dz/den1;
+    }
     // mfem_error("ftype 2 not implemented");
   }
 };
@@ -155,32 +174,49 @@ double loadFunc(const Vector & x)
   {
     double xc = -0.05,
            yc = -0.05,
-           r = 0.7,
+           zc = -0.05,
+           rc = 0.7,
            alpha = alphaw;
     double dx = (x[0]-xc),
-           dy = x[1]-yc;
+           dy = x[1]-yc,
+           dz = 0.0;
     double val = dx*dx + dy*dy;
+    if (x.Size() == 3)
+    {
+      dz = x[2]-zc;
+      val += dz*dz;
+    }
     if (val > 0.0) { val = std::sqrt(val); }
-    double lambda = val;
-    double numerator = alpha - std::pow(alpha, 3) * (std::pow(lambda, 2) - std::pow(r, 2));
+    double num1 = 2.0*alpha*alpha*alpha*(val-rc);
+    double den1 = std::pow((1.0 + alpha*alpha*(val-rc)*(val-rc)),2.0);
 
-    // Denominator components
-    double term1 = std::pow(alpha, 2) * std::pow(xc, 2);
-    double term2 = -2 * std::pow(alpha, 2) * r * lambda;
-    double term3 = -2 * xc * alpha * alpha * x[0];
-    double term4 = std::pow(alpha, 2) * std::pow(yc, 2);
-    double term5 = -2 * yc * alpha * alpha * x[1];
-    double term6 = std::pow(alpha, 2) * std::pow(r, 2);
-    double term7 = std::pow(alpha, 2) * std::pow(x[0], 2);
-    double term8 = std::pow(alpha, 2) * std::pow(x[1], 2);
+    double num2 = 2.0*alpha;
+    double den2 = val*((1.0 + alpha*alpha*(val-rc)*(val-rc)));
 
-    // Denominator
-    double denominator = lambda * std::pow(
-        term1 + term2 + term3 + term4 + term5 + term6 + term7 + term8 + 1, 2);
-
-    // Compute f
-    double f = numerator / denominator;
+    double f = num1/den1 - num2/den2;
     return f;
+
+
+    // double lambda = val;
+    // double numerator = alpha - std::pow(alpha, 3) * (std::pow(lambda, 2) - std::pow(r, 2));
+
+    // // Denominator components
+    // double term1 = std::pow(alpha, 2) * std::pow(xc, 2);
+    // double term2 = -2 * std::pow(alpha, 2) * r * lambda;
+    // double term3 = -2 * xc * alpha * alpha * x[0];
+    // double term4 = std::pow(alpha, 2) * std::pow(yc, 2);
+    // double term5 = -2 * yc * alpha * alpha * x[1];
+    // double term6 = std::pow(alpha, 2) * std::pow(r, 2);
+    // double term7 = std::pow(alpha, 2) * std::pow(x[0], 2);
+    // double term8 = std::pow(alpha, 2) * std::pow(x[1], 2);
+
+    // // Denominator
+    // double denominator = lambda * std::pow(
+    //     term1 + term2 + term3 + term4 + term5 + term6 + term7 + term8 + 1, 2);
+
+    // // Compute f
+    // double f = numerator / denominator;
+    // return f;
   }
   return 0.0;
 };
@@ -320,9 +356,9 @@ int main (int argc, char *argv[])
   // int mesh_poly_deg = PMesh->GetNodes()->FESpace()->GetElementOrder(0);
 
   // Create finite Element Spaces for analysis mesh
-  if ( spatialDimension != 2 ) {
-    mfem_error("... This example only supports 2D meshes");
-  }
+  // if ( spatialDimension != 2 ) {
+  //   mfem_error("... This example only supports 2D meshes");
+  // }
 
   // 4. Define a finite element space on the mesh. Here we use vector finite
   //    elements which are tensor products of quadratic finite elements. The
@@ -364,6 +400,7 @@ int main (int argc, char *argv[])
       case 4: metric = new TMOP_Metric_004; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
+      case 303: metric = new TMOP_Metric_303; break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
          return 3;
@@ -460,6 +497,13 @@ int main (int argc, char *argv[])
           gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
         }
       }
+      else if (attribute == 3) // zero out in z
+      {
+        for (int j = 0; j < nd; j++)
+        {
+          gridfuncLSBoundIndicator[ vdofs[j+2*nd] ] = 1.0;
+        }
+      }
     }
   }
 
@@ -468,13 +512,18 @@ int main (int argc, char *argv[])
 
   Vector & trueOptvar = gridfuncOptVar.GetTrueVector();
 
-  std::vector<std::pair<int, double>> essentialBC(4);
-  essentialBC[0] = {1, 0};
-  essentialBC[1] = {2, 0};
+  const int nbattr = PMesh->bdr_attributes.Max();
+  std::vector<std::pair<int, double>> essentialBC(nbattr);
+  for (int i = 0; i < nbattr; i++)
+  {
+    essentialBC[i] = {i+1, 0};
+  }
+  // essentialBC[0] = {1, 0};
+  // essentialBC[1] = {2, 0};
   // if (strcmp(mesh_file, "null.mesh") == 0)
   // {
-    essentialBC[2] = {3, 0};
-    essentialBC[3] = {4, 0};
+    // essentialBC[2] = {3, 0};
+    // essentialBC[3] = {4, 0};
   // }
 
   const IntegrationRule &ir =
@@ -509,7 +558,7 @@ if (myid == 0) {
   std::cout<<" ZZ Error"<<std::endl;
     break;
   case 3:
-  std::cout<<" Evg Error"<<std::endl;;
+  std::cout<<" Avg Error"<<std::endl;;
     break;
   case 4:
   std::cout<<" Energy"<<std::endl;;

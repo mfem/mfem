@@ -174,7 +174,7 @@ void LFAvgErrorNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const
       // evaluate gaussian integration weight
       double w = ip.weight * T.Weight();
       mfem::Mult(B, I, IxB);
-      Vectorize(IxB, IxBTvec);      
+      Vectorize(IxB, IxBTvec);
       shapeSum.Add( w * solVal / (vol*vol), IxBTvec);
   }
 
@@ -374,10 +374,10 @@ void LFErrorDerivativeIntegrator_2::AssembleRHSElementVect(const FiniteElement &
       Mult(dshape, invdfdx, B);
       //invdfdx.MultTranspose(vec, vecdxt);
 
-      std::cout<<"dshape H | W: "<<dshape.Height()<<" | "<<dshape.Width()<<std::endl;
-      std::cout<<"B H | W: "<<B.Height()<<" | "<<B.Width()<<std::endl;
-      std::cout<<"shape S: "<<shape.Size()<< std::endl;
-      std::cout<<"count: "<<count_[fdofs[i]]<< std::endl;
+      // std::cout<<"dshape H | W: "<<dshape.Height()<<" | "<<dshape.Width()<<std::endl;
+      // std::cout<<"B H | W: "<<B.Height()<<" | "<<B.Width()<<std::endl;
+      // std::cout<<"shape S: "<<shape.Size()<< std::endl;
+      // std::cout<<"count: "<<count_[fdofs[i]]<< std::endl;
 
     //  B.Print();
     //  SumdNdxatNodes.Print();
