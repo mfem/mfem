@@ -15,15 +15,23 @@
 
 using namespace mfem;
 
-TEST_CASE("Vector init-list construction", "[Vector]")
+TEST_CASE("Vector init-list and C-style array constructors", "[Vector]")
 {
    real_t ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+   // Point and size constructor
    Vector a(ContigData, 6);
+   // Braced-list constructor
    Vector b({6.0, 5.0, 4.0, 3.0, 2.0, 1.0});
+   // Statically sized C-style array constructor
+   Vector c(ContigData);
+   // Convertible type constructor
+   Vector d({6, 5, 4, 3, 2, 1});
 
    for (int i = 0; i < a.Size(); i++)
    {
-      REQUIRE(a(i) == b(i));
+      REQUIRE(a[i] == b[i]);
+      REQUIRE(a[i] == c[i]);
+      REQUIRE(a[i] == d[i]);
    }
 }
 
