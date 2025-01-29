@@ -67,6 +67,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
       REQUIRE( gf.FESpace()->GetVDim() == 1 );
       REQUIRE( gf.Size() == expScalarDofs );
       gf = 0.;
+      gf.HostRead();
 
       // Set the values of the dofs to non-zero values
       mfem::Array<int> dofs;
@@ -94,6 +95,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
       REQUIRE( gf.FESpace()->GetVDim() == vdim );
       REQUIRE( gf.Size() == expScalarDofs * vdim );
       gf = 0.;
+      gf.HostRead();
 
       // Test setting some vector values
       mfem::Array<int> vdofs;
