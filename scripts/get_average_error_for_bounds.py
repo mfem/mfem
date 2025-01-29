@@ -75,7 +75,7 @@ for i, N in enumerate(Ns):
 			linferrs[j] = linferr
 		except:
 			pass
-	plt.semilogy(Ms, l2errs, 'ro-')
+	plt.semilogy(Ms, l2errs, 'ro-',linewidth=1)
 
 	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
@@ -87,7 +87,7 @@ for i, N in enumerate(Ns):
 			linferrs[j] = linferr
 		except:
 			pass
-	plt.semilogy(Ms, l2errs, 'go-')
+	plt.semilogy(Ms, l2errs, 'go-',linewidth=1)
 
 	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
@@ -99,7 +99,7 @@ for i, N in enumerate(Ns):
 			linferrs[j] = linferr
 		except:
 			pass
-	plt.semilogy(Ms, l2errs, 'bo-')
+	plt.semilogy(Ms, l2errs, 'bo-',linewidth=1)
 
 	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
@@ -111,7 +111,7 @@ for i, N in enumerate(Ns):
 			linferrs[j] = linferr
 		except:
 			pass
-	plt.semilogy(Ms, l2errs, 'co-')
+	plt.semilogy(Ms, l2errs, 'co-',linewidth=1)
 
 	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
@@ -128,11 +128,27 @@ for i, N in enumerate(Ns):
 			linferrs[j] = linferr
 		except:
 			pass
-	plt.semilogy(Ms, l2errs, 'ko-')
+	plt.semilogy(Ms, l2errs, 'ko-',linewidth=1)
 	plt.xlabel('M')
 	plt.ylabel('L2 err')
 	plt.title(f'N = {N}')
+
+	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
+	for j, M in enumerate(Ms):
+		try:
+			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt')
+			[l1err, l2err, linferr] = get_errors(xs, xb, blow, bhigh)
+			l1errs[j] = l1err
+			l2errs[j] = l2err
+			linferrs[j] = linferr
+		except:
+			pass
+	plt.semilogy(Ms, l2errs, 'mo-',linewidth=1)
+	plt.xlabel('M')
+	plt.ylabel('L2 err')
+	plt.title(f'N = {N}')
+
 	if i == 0:
-		plt.legend(['GL + endpoints', 'Chebyshev', 'GLL', 'Equispaced', 'Opt'])
+		plt.legend(['GL + endpoints', 'Chebyshev', 'GLL', 'Equispaced', 'Opt-ip','Opt'])
 
 plt.show()

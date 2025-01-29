@@ -265,7 +265,9 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
     # We sample each subinterval [x[i], x[i+1]] at K_sub interior fractions
     # e.g. if K_sub=2, sample_fractions=[0.25, 0.75], etc.
     # Or you can pick any distribution in [0,1].
-    sample_fractions = np.linspace(0, 1, K_sub+2)[1:-1]  # skip endpoints if you like
+    sample_fractions = np.linspace(0, 1, K_sub)  # skip endpoints if you like
+    # print(sample_fractions)
+    # input(' ')
 
     for i in range(M-1):
         for frac in sample_fractions:
@@ -300,8 +302,8 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
                 # Add squared gaps to objective: (u_j-L_j)^2 + (L_j-l_j)^2
                 gap_above = u_ik_expr(j) - L_j_ik
                 gap_below = L_j_ik - l_ik_expr(j)
-                gap_exprs.append(gap_above**2)
-                gap_exprs.append(gap_below**2)
+                gap_exprs.append(gap_above**2/K_sub)
+                gap_exprs.append(gap_below**2/K_sub)
 
     # ----------------------
     # 4) Define Objective
@@ -314,8 +316,12 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
     # Solve
     solver = pyo.SolverFactory('ipopt')
     solver.options['halt_on_ampl_error'] = 'yes'
-    solver.options['max_iter'] = 100
-    solver.options['mu_init'] = 1e-2
+    solver.options['max_iter'] = 1000
+    solver.options['mu_init'] = 1e-1
+    solver.options['tol'] = 1e-15
+    solver.options['linear_solver'] = 'mumps'  # or 'ma57' if available
+    solver.options['mu_strategy'] = 'adaptive'
+    solver.options['nlp_scaling_method'] = 'gradient-based'
     obj_init = model.obj()
     solver.solve(model, tee=True)
 
@@ -393,7 +399,7 @@ if __name__ == '__main__':
 
     # x_sol, u_sol, l_sol, model, obj_init, blowt, bhight = build_and_solve_model(N, M, gll_nodes, 100)
 
-    x_sol, u_sol, l_sol, model, obj_init, xsolt, blowt, bhight = build_and_solve_model_L2_bounds(N, M, gll_nodes, 100)
+    x_sol, u_sol, l_sol, model, obj_init, xsolt, blowt, bhight = build_and_solve_model_L2_bounds(N, M, gll_nodes, 1000)
 
     # print("Breakpoints:", x_sol)
     # print("Upper-bound values:", u_sol)
