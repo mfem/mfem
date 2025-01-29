@@ -24,7 +24,11 @@
 
 
 // K10 -  TMOP solver based run
+// order 1, shock wave around origin
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m square01.mesh -rs 4
+// order 2
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-4 -ni 200 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m square01.mesh -rs 4 -o 2
+// order 1, cube mesh
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 100 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m cube.mesh -o 1 -rs 4 -mid 303
 
 
@@ -569,9 +573,9 @@ if (myid == 0) {
 }
 
 
-  Diffusion_Solver solver(PMesh, essentialBC, 1);
-  QuantityOfInterest QoIEvaluator(PMesh, qoiType, 1);
-  NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, 1);
+  Diffusion_Solver solver(PMesh, essentialBC, mesh_poly_deg);
+  QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg);
+  NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
 
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
   solver.SetManufacturedSolution(QCoef);
@@ -626,6 +630,9 @@ if (myid == 0) {
     // Set max # iterations
     tmma->SetMaxIter(max_it);
     tmma->SetPrintLevel(newton_print);
+
+    // Set min jac
+    tmma->SetMinimumDeterminantThreshold(1e-6);
 
     tmma->Mult(x.GetTrueVector());
     x.SetFromTrueVector();

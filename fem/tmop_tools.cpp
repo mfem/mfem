@@ -1165,7 +1165,7 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
       dQdx.Add(weight, *dQdxExpl);
       dQdx.Add(weight, *dQdxImpl);
       HypreParVector *truedQdx = dQdx.ParallelAssemble();
-      r += *truedQdx;
+      // r += *truedQdx;
    }
    const real_t norm_in = Norm(r);
 
@@ -1268,7 +1268,14 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
          }
          scale *= 0.5; continue;
       }
-      else { x_out_ok = true; break; }
+      else {
+               // if (print_options.iterations)
+               // {
+               //    out << "Scale = " << scale << " Norm decreased: "
+               //             << norm_in << " --> " << norm_out << '\n';
+               // }
+               x_out_ok = true; break;
+         }
    } // end line search
 
 
