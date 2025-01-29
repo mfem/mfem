@@ -387,6 +387,29 @@ void Mesh::GetElementTransformation(int i,
    }
 }
 
+ElementTransformation *Mesh::GetTypicalElementTransformation()
+{
+   if (GetNE() > 0) { return GetElementTransformation(0); }
+
+   Transformation.Attribute = -1;
+   Transformation.ElementNo = -1;
+   Transformation.ElementType = ElementTransformation::ELEMENT;
+   Transformation.mesh = this;
+   Transformation.Reset();
+   const Geometry::Type geom = GetTypicalElementGeometry();
+   if (Nodes == NULL)
+   {
+      Element::Type el_type = Element::TypeFromGeometry(geom);
+      Transformation.SetFE(GetTransformationFEforElementType(el_type));
+   }
+   else
+   {
+      Transformation.SetFE(GetNodalFESpace()->GetTypicalFE());
+   }
+   Transformation.SetIdentityTransformation(geom);
+   return &Transformation;
+}
+
 ElementTransformation *Mesh::GetElementTransformation(int i)
 {
    GetElementTransformation(i, &Transformation);
@@ -1470,6 +1493,22 @@ Geometry::Type Mesh::GetFaceGeometry(int Face) const
    return Geometry::INVALID;
 }
 
+Geometry::Type Mesh::GetTypicalFaceGeometry() const
+{
+   Geometry::Type elem_geom = GetTypicalElementGeometry();
+   switch (elem_geom)
+   {
+      case Geometry::SEGMENT: return Geometry::POINT;
+      case Geometry::TRIANGLE: return Geometry::SEGMENT;
+      case Geometry::SQUARE: return Geometry::SEGMENT;
+      case Geometry::TETRAHEDRON: return Geometry::TRIANGLE;
+      case Geometry::CUBE: return Geometry::SQUARE;
+      case Geometry::PRISM: return Geometry::TRIANGLE;
+      case Geometry::PYRAMID: return Geometry::TRIANGLE;
+      default: return Geometry::INVALID;
+   }
+}
+
 Element::Type Mesh::GetFaceElementType(int Face) const
 {
    return (Dim == 1) ? Element::POINT : faces[Face]->GetType();
@@ -1484,6 +1523,33 @@ Array<int> Mesh::GetFaceToBdrElMap() const
       face_to_be[GetBdrElementFaceIndex(i)] = i;
    }
    return face_to_be;
+}
+
+Geometry::Type Mesh::GetTypicalElementGeometry() const
+{
+   if (GetNE() > 0) { return GetElementGeometry(0); }
+
+   const int dim = Dimension();
+   if (dim == 1)
+   {
+      return Geometry::SEGMENT;
+   }
+   Geometry::Type geom = Geometry::INVALID;
+   if (dim == 2)
+   {
+      geom = ((meshgen & 1) ? Geometry::TRIANGLE :
+              ((meshgen & 2) ? Geometry::SQUARE : Geometry::INVALID));
+   }
+   else if (dim == 3)
+   {
+      geom = ((meshgen & 1) ? Geometry::TETRAHEDRON :
+              ((meshgen & 2) ? Geometry::CUBE :
+               ((meshgen & 4) ? Geometry::PRISM :
+                ((meshgen & 8) ? Geometry::PYRAMID : Geometry::INVALID))));
+   }
+   MFEM_VERIFY(geom != Geometry::INVALID,
+               "Could not determine a typical element Geometry!");
+   return geom;
 }
 
 void Mesh::Init()
@@ -2033,6 +2099,18 @@ int Mesh::AddBdrElement(Element *elem)
    return NumOfBdrElements++;
 }
 
+void Mesh::AddBdrElements(Array<Element *> &bdr_elems,
+                          const Array<int> &new_be_to_face)
+{
+   boundary.Reserve(boundary.Size() + bdr_elems.Size());
+   MFEM_ASSERT(bdr_elems.Size() == new_be_to_face.Size(), "wrong size");
+   for (int i = 0; i < bdr_elems.Size(); i++)
+   {
+      AddBdrElement(bdr_elems[i]);
+   }
+   be_to_face.Append(new_be_to_face);
+}
+
 int Mesh::AddBdrSegment(int v1, int v2, int attr)
 {
    CheckEnlarge(boundary, NumOfBdrElements);
@@ -2210,7 +2288,7 @@ class GeckoProgress : public Gecko::Progress
    mutable StopWatch sw;
 public:
    GeckoProgress(real_t limit) : limit(limit) { sw.Start(); }
-   virtual bool quit() const { return limit > 0 && sw.UserTime() > limit; }
+   bool quit() const override { return limit > 0 && sw.UserTime() > limit; }
 };
 
 class GeckoVerboseProgress : public GeckoProgress
@@ -2221,18 +2299,18 @@ class GeckoVerboseProgress : public GeckoProgress
 public:
    GeckoVerboseProgress(real_t limit) : GeckoProgress(limit) {}
 
-   virtual void beginorder(const Graph* graph, Float cost) const
+   void beginorder(const Graph* graph, Float cost) const override
    { mfem::out << "Begin Gecko ordering, cost = " << cost << std::endl; }
-   virtual void endorder(const Graph* graph, Float cost) const
+   void endorder(const Graph* graph, Float cost) const override
    { mfem::out << "End ordering, cost = " << cost << std::endl; }
 
-   virtual void beginiter(const Graph* graph,
-                          uint iter, uint maxiter, uint window) const
+   void beginiter(const Graph* graph,
+                  uint iter, uint maxiter, uint window) const override
    {
       mfem::out << "Iteration " << iter << "/" << maxiter << ", window "
                 << window << std::flush;
    }
-   virtual void enditer(const Graph* graph, Float mincost, Float cost) const
+   void enditer(const Graph* graph, Float mincost, Float cost) const override
    { mfem::out << ", cost = " << cost << endl; }
 };
 
@@ -4399,6 +4477,49 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    FinalizeTopology();
 }
 
+Mesh::Mesh( const NURBSExtension& ext )
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
+{
+   SetEmpty();
+   /// make an internal copy of the NURBSExtension
+   NURBSext = new NURBSExtension( ext );
+
+   Dim              = NURBSext->Dimension();
+   NumOfVertices    = NURBSext->GetNV();
+   NumOfElements    = NURBSext->GetNE();
+   NumOfBdrElements = NURBSext->GetNBE();
+
+   NURBSext->GetElementTopo(elements);
+   NURBSext->GetBdrElementTopo(boundary);
+
+   vertices.SetSize(NumOfVertices);
+   if (NURBSext->HavePatches())
+   {
+      NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
+      FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
+                                                       Ordering::byVDIM);
+      Nodes = new GridFunction(fes);
+      Nodes->MakeOwner(fec);
+      NURBSext->SetCoordsFromPatches(*Nodes);
+      own_nodes = 1;
+      spaceDim = Nodes->VectorDim();
+      for (int i = 0; i < spaceDim; i++)
+      {
+         Vector vert_val;
+         Nodes->GetNodalValues(vert_val, i+1);
+         for (int j = 0; j < NumOfVertices; j++)
+         {
+            vertices[j](i) = vert_val(j);
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("NURBS mesh has no patches.");
+   }
+   FinalizeMesh();
+}
+
 Element *Mesh::NewElement(int geom)
 {
    switch (geom)
@@ -4552,6 +4673,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    // (NOTE: previous v1.1 is now under this branch for backward compatibility)
    int mfem_nc_version = 0;
    if (mesh_type == "MFEM NC mesh v1.0") { mfem_nc_version = 10; }
+   else if (mesh_type == "MFEM NC mesh v1.1") { mfem_nc_version = 11; }
    else if (mesh_type == "MFEM mesh v1.1") { mfem_nc_version = 1 /*legacy*/; }
 
    if (mfem_version)
@@ -5617,7 +5739,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    std::vector<int> v2v(GetNV());
    for (size_t i = 0; i < v2v.size(); i++)
    {
-      v2v[i] = i;
+      v2v[i] = static_cast<int>(i);
    }
    for (const auto &r2p : replica2primary)
    {
@@ -6170,7 +6292,7 @@ void Mesh::EnsureNodes()
       }
       else // Mesh using a legacy FE_Collection
       {
-         const int order = GetNodalFESpace()->GetElementOrder(0);
+         const int order = GetNodalFESpace()->GetMaxElementOrder();
          if (NURBSext)
          {
 #ifndef MFEM_USE_MPI
@@ -7346,6 +7468,12 @@ void Mesh::GetBdrElementAdjacentElement2(
    info = fi.Elem1Inf + ori;
 }
 
+void Mesh::SetAttribute(int i, int attr)
+{
+  elements[i]->SetAttribute(attr);
+  if (ncmesh) ncmesh->SetAttribute(i, attr);
+}
+
 Element::Type Mesh::GetElementType(int i) const
 {
    return elements[i]->GetType();
@@ -7672,7 +7800,6 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
 void Mesh::GenerateFaces()
 {
    int nfaces = GetNumFaces();
-
    for (auto &f : faces)
    {
       FreeElement(f);
@@ -10629,7 +10756,7 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
       }
 
       // infer 'type' of local refinement from first element's 'ref_type'
-      int type, rt = (refinements.Size() ? refinements[0].ref_type : 7);
+      int type, rt = (refinements.Size() ? refinements[0].GetType() : 7);
       if (rt == 1 || rt == 2 || rt == 4)
       {
          type = 1; // bisection
@@ -11144,14 +11271,14 @@ const CoarseFineTransformations &Mesh::GetRefinementTransforms() const
             if (code)
             {
                int &matrix = mat_no[code];
-               if (!matrix) { matrix = mat_no.size(); }
+               if (!matrix) { matrix = static_cast<int>(mat_no.size()); }
                index = matrix-1;
             }
             CoarseFineTr.embeddings[j].matrix = index;
          }
 
          DenseTensor &pmats = CoarseFineTr.point_matrices[geom];
-         pmats.SetSize(Dim, Dim+1, mat_no.size());
+         pmats.SetSize(Dim, Dim+1, static_cast<int>((mat_no.size())));
 
          // calculate the point matrices used
          std::map<unsigned, int>::iterator it;
@@ -13871,7 +13998,7 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
          const int *v = elem->GetVertices();
          vertex_set.insert(v, v + nv);
       }
-      vertex_loc_to_glob.SetSize(vertex_set.size());
+      vertex_loc_to_glob.SetSize(static_cast<int>(vertex_set.size()));
       std::copy(vertex_set.begin(), vertex_set.end(), // src
                 vertex_loc_to_glob.begin());          // dest
    }
@@ -14247,7 +14374,7 @@ void GeometricFactors::Compute(const GridFunction &nodes,
 {
 
    const FiniteElementSpace *fespace = nodes.FESpace();
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    const int dim  = fe->GetDim();
    const int vdim = fespace->GetVDim();
    const int NE   = fespace->GetNE();
@@ -14334,7 +14461,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    }
    if (flags & FaceGeometricFactors::JACOBIANS)
    {
-      J.SetSize(vdim*vdim*NQ*NF, my_d_mt);
+      J.SetSize(vdim*(mesh->Dimension() - 1)*NQ*NF, my_d_mt);
       eval_flags |= FaceQuadratureInterpolator::DERIVATIVES;
    }
    if (flags & FaceGeometricFactors::DETERMINANTS)
