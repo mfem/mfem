@@ -72,10 +72,36 @@ def optimize_bbox_all(xs, xb_initial, nsamp=1000, tol=1e-6, return_initial_cost=
 		return 1 - np.max(expand_z(z))
 	cons = {'type': 'ineq', 'fun': con}
 
-	result = optimize.minimize(obj, z0, method='SLSQP', constraints=cons, tol=1e-8)
+	result = optimize.minimize(obj, z0, method='SLSQP', constraints=cons, tol=1e-8,options={'disp': True} )
 	z = expand_z(result.x)
 
 	return [z, result.fun]
+
+def plot_solution_and_bases(x_sol, l_sol, u_sol, gll_nodes):
+    """
+    x_sol, l_sol, u_sol: piecewise bounds from the Pyomo solution
+    gll_nodes: the GLL nodes used to define Lagrange basis polynomials
+    """
+    # 1) Plot the piecewise-linear bounds
+    #    (Just connect the breakpoints with lines)
+    plt.plot(x_sol, l_sol, 'o--', color='black', label='Lower Bound')
+    plt.plot(x_sol, u_sol, 'o--', color='red',   label='Upper Bound')
+
+    # 2) Plot each Lagrange basis polynomial on a dense grid
+    x_dense = np.linspace(-1, 1, 400)
+    N = len(gll_nodes)
+    for j in range(N):
+        # Evaluate L_j at all points in x_dense
+        L_vals = [lagrange_basis_polynomial(j, xd, gll_nodes) for xd in x_dense]
+        plt.plot(x_dense, L_vals, label=f'Lagrange basis L_{j}')
+
+    # 3) Make it look nice
+    plt.title('Piecewise-Linear Bounds and Lagrange Basis Polynomials')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.grid(True)
+    plt.legend(loc='best')
+    plt.show()
 
 def main():
 	global N, M, p
@@ -110,6 +136,9 @@ def main():
 	[xi, fun] = optimize_bbox_all(xs, xb, nsamp=nsamp)
 	xb = xb_from_xi(xi)
 	optimize_and_write(xs, xb, 'lobatto', 'opt', nsamp)
+	print(N,M,fun)
+
+	# plot_solution_and_bases(x_sol, l_sol, u_sol, gll_nodes)
 
 	# xs = legendre_nodes(N)
 	# xb = legendre_nodes_with_endpoints(M)

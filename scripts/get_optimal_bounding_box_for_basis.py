@@ -135,6 +135,8 @@ def optimize_and_write(xs, xb, sname, bname, nsamp=1000, plot=False):
 			np.savetxt(f, blow[i,:], fmt="%.15f", newline="\n")
 			np.savetxt(f, bhigh[i,:], fmt="%.15f", newline="\n")
 
+	return (blow, bhigh)
+
 def main():
 	# Initialize the parser
 	parser = argparse.ArgumentParser(description="A script that processes some arguments")

@@ -1,6 +1,7 @@
 import numpy as np
-import csv 
+import csv
 import matplotlib.pyplot as plt
+import os
 
 def read(file):
 	with open(file) as f:
@@ -86,7 +87,7 @@ for i, N in enumerate(Ns):
 			linferrs[j] = linferr
 		except:
 			pass
-	plt.semilogy(Ms, l1errs, 'go-')
+	plt.semilogy(Ms, l2errs, 'go-')
 
 	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
@@ -115,7 +116,12 @@ for i, N in enumerate(Ns):
 	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
 		try:
-			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt')
+			fname = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}.txt"
+			if os.path.exists(fname):
+				print(fname)
+				[xs, xb, blow, bhigh] = read(fname)
+			else:
+				[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt')
 			[l1err, l2err, linferr] = get_errors(xs, xb, blow, bhigh)
 			l1errs[j] = l1err
 			l2errs[j] = l2err

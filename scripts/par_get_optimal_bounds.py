@@ -2,14 +2,14 @@ import concurrent.futures
 import subprocess
 
 def run_dum(N, M):
-    command = f"python3 get_optimal_bounding_box_points.py --N {N} --M {M}"
+    command = f"python3 get_optimal_bounds.py --N {N} --M {M}"
     print(f"Running command: {command}")
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
     return result.stdout
 
 def main():
     # Define the range of values for N and M
-    N_values = range(7, 8)
+    N_values = range(6, 7)
 
     # Create a list of tasks
     tasks = []
