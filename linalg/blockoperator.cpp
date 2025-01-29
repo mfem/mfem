@@ -9,7 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-
 #include "../general/array.hpp"
 #include "operator.hpp"
 #include "blockvector.hpp"
@@ -18,7 +17,7 @@
 namespace mfem
 {
 
-BlockOperator::BlockOperator(const Array<int> & offsets)
+BlockOperator::BlockOperator(const Array<int> &offsets)
    : Operator(offsets.Last()),
      owns_blocks(0),
      nRowBlocks(offsets.Size() - 1),
@@ -28,11 +27,11 @@ BlockOperator::BlockOperator(const Array<int> & offsets)
      op(nRowBlocks, nRowBlocks),
      coef(nRowBlocks, nColBlocks)
 {
-   op = static_cast<Operator *>(NULL);
+   op = static_cast<Operator *>(nullptr);
 }
 
-BlockOperator::BlockOperator(const Array<int> & row_offsets_,
-                             const Array<int> & col_offsets_)
+BlockOperator::BlockOperator(const Array<int> &row_offsets_,
+                             const Array<int> &col_offsets_)
    : Operator(row_offsets_.Last(), col_offsets_.Last()),
      owns_blocks(0),
      nRowBlocks(row_offsets_.Size()-1),
@@ -42,7 +41,7 @@ BlockOperator::BlockOperator(const Array<int> & row_offsets_,
      op(nRowBlocks, nColBlocks),
      coef(nRowBlocks, nColBlocks)
 {
-   op = static_cast<Operator *>(NULL);
+   op = static_cast<Operator *>(nullptr);
 }
 
 void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, real_t c)
@@ -65,7 +64,7 @@ void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
 }
 
 // Operator application
-void BlockOperator::Mult (const Vector & x, Vector & y) const
+void BlockOperator::Mult(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
@@ -73,8 +72,8 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
    x.Read();
    y.Write(); y = 0.0;
 
-   xblock.Update(const_cast<Vector&>(x),col_offsets);
-   yblock.Update(y,row_offsets);
+   xblock.Update(const_cast<Vector&>(x), col_offsets);
+   yblock.Update(y, row_offsets);
 
    for (int iRow=0; iRow < nRowBlocks; ++iRow)
    {
@@ -96,7 +95,7 @@ void BlockOperator::Mult (const Vector & x, Vector & y) const
 }
 
 // Action of the transpose operator
-void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
+void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
@@ -104,8 +103,8 @@ void BlockOperator::MultTranspose (const Vector & x, Vector & y) const
    x.Read();
    y.Write(); y = 0.0;
 
-   xblock.Update(const_cast<Vector&>(x),row_offsets);
-   yblock.Update(y,col_offsets);
+   xblock.Update(const_cast<Vector&>(x), row_offsets);
+   yblock.Update(y, col_offsets);
 
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
@@ -134,7 +133,7 @@ BlockOperator::~BlockOperator()
       {
          for (int jCol=0; jCol < nColBlocks; ++jCol)
          {
-            delete op(iRow,jCol);
+            delete op(iRow, jCol);
          }
       }
    }
@@ -149,7 +148,7 @@ BlockDiagonalPreconditioner::BlockDiagonalPreconditioner(
    offsets(0),
    ops(nBlocks)
 {
-   ops = static_cast<Operator *>(NULL);
+   ops = static_cast<Operator *>(nullptr);
    offsets.MakeRef(offsets_);
 }
 
@@ -167,7 +166,7 @@ void BlockDiagonalPreconditioner::SetDiagonalBlock(int iblock, Operator *op)
 }
 
 // Operator application
-void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
+void BlockDiagonalPreconditioner::Mult(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
@@ -175,8 +174,8 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
    x.Read();
    y.Write(); y = 0.0;
 
-   xblock.Update(const_cast<Vector&>(x),offsets);
-   yblock.Update(y,offsets);
+   xblock.Update(const_cast<Vector&>(x), offsets);
+   yblock.Update(y, offsets);
 
    for (int i=0; i<nBlocks; ++i)
    {
@@ -197,8 +196,8 @@ void BlockDiagonalPreconditioner::Mult (const Vector & x, Vector & y) const
 }
 
 // Action of the transpose operator
-void BlockDiagonalPreconditioner::MultTranspose (const Vector & x,
-                                                 Vector & y) const
+void BlockDiagonalPreconditioner::MultTranspose(const Vector & x,
+                                                Vector & y) const
 {
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
@@ -238,6 +237,7 @@ BlockDiagonalPreconditioner::~BlockDiagonalPreconditioner()
    }
 }
 
+//-----------------------------------------------------------------------
 BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(
    const Array<int> & offsets_)
    : Solver(offsets_.Last()),
@@ -246,7 +246,7 @@ BlockLowerTriangularPreconditioner::BlockLowerTriangularPreconditioner(
      offsets(0),
      ops(nBlocks, nBlocks)
 {
-   ops = static_cast<Operator *>(NULL);
+   ops = static_cast<Operator *>(nullptr);
    offsets.MakeRef(offsets_);
 }
 
@@ -272,16 +272,18 @@ void BlockLowerTriangularPreconditioner::SetBlock(int iRow, int iCol,
 }
 
 // Operator application
-void BlockLowerTriangularPreconditioner::Mult (const Vector & x,
-                                               Vector & y) const
+void BlockLowerTriangularPreconditioner::Mult(const Vector &x,
+                                              Vector &y) const
 {
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(),offsets);
-   xblock.Update(x.GetData(),offsets);
+   x.Read();
+   y.Write(); y = 0.0;
 
-   y = 0.0;
+   xblock.Update(const_cast<Vector&>(x),offsets);
+   yblock.Update(y,offsets);
+
    for (int iRow=0; iRow < nBlocks; ++iRow)
    {
       tmp.SetSize(offsets[iRow+1] - offsets[iRow]);
@@ -305,19 +307,26 @@ void BlockLowerTriangularPreconditioner::Mult (const Vector & x,
          yblock.GetBlock(iRow) = tmp2;
       }
    }
+
+   for (int iRow=0; iRow < nBlocks; ++iRow)
+   {
+      yblock.GetBlock(iRow).SyncAliasMemory(y);
+   }
 }
 
 // Action of the transpose operator
-void BlockLowerTriangularPreconditioner::MultTranspose (const Vector & x,
-                                                        Vector & y) const
+void BlockLowerTriangularPreconditioner::MultTranspose(const Vector &x,
+                                                       Vector &y) const
 {
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
-   yblock.Update(y.GetData(),offsets);
-   xblock.Update(x.GetData(),offsets);
+   x.Read();
+   y.Write(); y = 0.0;
 
-   y = 0.0;
+   xblock.Update(const_cast<Vector&>(x), offsets);
+   yblock.Update(y, offsets);
+
    for (int iRow=nBlocks-1; iRow >=0; --iRow)
    {
       tmp.SetSize(offsets[iRow+1] - offsets[iRow]);
@@ -341,6 +350,11 @@ void BlockLowerTriangularPreconditioner::MultTranspose (const Vector & x,
          yblock.GetBlock(iRow) = tmp2;
       }
    }
+
+   for (int iRow=nBlocks-1; iRow >=0; --iRow)
+   {
+      yblock.GetBlock(iRow).SyncAliasMemory(y);
+   }
 }
 
 BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
@@ -357,4 +371,4 @@ BlockLowerTriangularPreconditioner::~BlockLowerTriangularPreconditioner()
    }
 }
 
-}
+} // namespace mfem
