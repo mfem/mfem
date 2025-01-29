@@ -20,6 +20,6 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
                                         bool unitWeights)
 {
    // TODO
-   ;
+   MFEM_ABORT("Not implemented yet.");
 }
 }

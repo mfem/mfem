@@ -123,7 +123,7 @@ void ElasticityIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
    // {
    //    AssemblePatchPA(p, fes);
    // }
-   ;
+   MFEM_ABORT("Not implemented yet.");
 }
 
 void ElasticityIntegrator::AssemblePatchPA(const int patch,
@@ -131,7 +131,7 @@ void ElasticityIntegrator::AssemblePatchPA(const int patch,
 {
    // TODO
    // SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
-   ;
+   MFEM_ABORT("Not implemented yet.");
 }
 
 } // namespace mfem
