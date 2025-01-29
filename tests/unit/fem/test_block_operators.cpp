@@ -12,8 +12,6 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
-#include <iostream>
-
 using namespace mfem;
 
 TEST_CASE("BlockOperators", "[BlockOperators], [CUDA]")
