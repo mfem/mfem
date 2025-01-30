@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import optimize
+from scipy.optimize import basinhopping
 import argparse
 from get_optimal_bounding_box_for_basis import *
 
@@ -9,18 +10,22 @@ def xb_from_xi(xi):
 	return np.array([-1] + list(xi) + [1])
 
 def expand_z(z):
-	zz = np.zeros_like(z)
-	for i in range(len(z)):
+	zz = np.zeros_like(z)[:-1]
+	zfac = np.sum(np.exp(z))
+	for i in range(len(z)-1):
 		if i == 0:
-			zz[i] = -1 + np.exp(z[0])
+			zz[i] = -1 + np.exp(z[0])/zfac
 		else:
-			zz[i] = zz[i-1] + np.exp(z[i])
+			zz[i] = zz[i-1] + np.exp(z[i])/zfac
+
 	if (M-2) == 1:
-		return zz
+		pass
 	elif (M-2) % 2 == 0:
-		return np.array(list(zz) + list(-zz[::-1]))
+		zz = np.array(list(zz) + list(-zz[::-1]))
 	else:
-		return np.array(list(zz) + [0] + list(-zz[::-1]))
+		zz = np.array(list(zz) + [0] + list(-zz[::-1]))
+
+	return zz
 
 
 def optimize_bbox_all(xs, xb_initial, nsamp=1000, tol=1e-6, return_initial_cost=False):
@@ -35,12 +40,13 @@ def optimize_bbox_all(xs, xb_initial, nsamp=1000, tol=1e-6, return_initial_cost=
 	    ups.append(np.poly1d(np.polyfit(xs, u, p)))
 
 	# Make sure control nodes are symmetric in [-1, 1]
-	z0 = np.log(xb_initial[1:] - xb_initial[:-1])[:-1]
+	z0 = np.log(xb_initial[1:] - xb_initial[:-1])
 	if M == 1:
 		pass
 	else:
 		z0 = z0[:(M-2)//2]
-
+	zn = np.log(-xb_initial[(M-2)//2])
+	z0 = np.concatenate((z0, [zn]))
 
 	def obj(z):
 		xi = expand_z(z)
@@ -62,17 +68,12 @@ def optimize_bbox_all(xs, xb_initial, nsamp=1000, tol=1e-6, return_initial_cost=
 				totalfun += fun
 			else:
 				totalfun += 2*fun
-
 		return totalfun
 	if return_initial_cost:
 		return [expand_z(z0), obj(z0)]
 
-	# Constrain so nodal points are increasing
-	def con(z):
-		return 1 - np.max(expand_z(z))
-	cons = {'type': 'ineq', 'fun': con}
-
-	result = optimize.minimize(obj, z0, method='SLSQP', constraints=cons, tol=1e-8,options={'disp': True} )
+	minimizer_kwargs = {"method": "BFGS"}
+	result = basinhopping(obj, z0, minimizer_kwargs=minimizer_kwargs, niter=40)
 	z = expand_z(result.x)
 
 	return [z, result.fun]
