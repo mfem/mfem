@@ -28,7 +28,8 @@
 namespace mfem
 {
 
-Vector::Vector(const Vector &v)
+template <class T>
+VectorMP<T>::VectorMP(const VectorMP<T> &v)
 {
    const int s = v.Size();
    size = s;
@@ -41,12 +42,14 @@ Vector::Vector(const Vector &v)
    UseDevice(v.UseDevice());
 }
 
-Vector::Vector(Vector &&v)
+template <class T>
+VectorMP<T>::VectorMP(VectorMP<T> &&v)
 {
    *this = std::move(v);
 }
 
-void Vector::Load(std::istream **in, int np, int *dim)
+template <class T>
+void VectorMP<T>::Load(std::istream **in, int np, int *dim)
 {
    int i, j, s;
 
@@ -75,7 +78,8 @@ void Vector::Load(std::istream **in, int np, int *dim)
    }
 }
 
-void Vector::Load(std::istream &in, int Size)
+template <class T>
+void VectorMP<T>::Load(std::istream &in, int Size)
 {
    SetSize(Size);
    HostWrite();
@@ -92,19 +96,22 @@ void Vector::Load(std::istream &in, int Size)
    }
 }
 
-real_t &Vector::Elem(int i)
+template <class T>
+T &VectorMP<T>::Elem(int i)
 {
    return operator()(i);
 }
 
-const real_t &Vector::Elem(int i) const
+template <class T>
+const T &VectorMP<T>::Elem(int i) const
 {
    return operator()(i);
 }
 
-real_t Vector::operator*(const real_t *v) const
+template <class T>
+T VectorMP<T>::operator*(const T *v) const
 {
-   real_t dot = 0.0;
+   T dot = 0.0;
 #ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for reduction(+:dot)
 #endif
@@ -115,13 +122,15 @@ real_t Vector::operator*(const real_t *v) const
    return dot;
 }
 
-Vector &Vector::operator=(const real_t *v)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator=(const T *v)
 {
    data.CopyFromHost(v, size);
    return *this;
 }
 
-Vector &Vector::operator=(const Vector &v)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator=(const VectorMP<T> &v)
 {
 #if 0
    SetSize(v.Size(), v.data.GetMemoryType());
@@ -140,14 +149,16 @@ Vector &Vector::operator=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::operator=(Vector &&v)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator=(VectorMP<T> &&v)
 {
    v.Swap(*this);
    if (this != &v) { v.Destroy(); }
    return *this;
 }
 
-Vector &Vector::operator=(real_t value)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator=(T value)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -156,7 +167,8 @@ Vector &Vector::operator=(real_t value)
    return *this;
 }
 
-Vector &Vector::operator*=(real_t c)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator*=(T c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -165,7 +177,8 @@ Vector &Vector::operator*=(real_t c)
    return *this;
 }
 
-Vector &Vector::operator*=(const Vector &v)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator*=(const VectorMP<T> &v)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
@@ -177,17 +190,19 @@ Vector &Vector::operator*=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::operator/=(real_t c)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator/=(T c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
-   const real_t m = 1.0/c;
+   const T m = 1.0/c;
    auto y = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= m; });
    return *this;
 }
 
-Vector &Vector::operator/=(const Vector &v)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator/=(const VectorMP<T> &v)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
@@ -199,7 +214,8 @@ Vector &Vector::operator/=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::operator-=(real_t c)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator-=(T c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -208,7 +224,8 @@ Vector &Vector::operator-=(real_t c)
    return *this;
 }
 
-Vector &Vector::operator-=(const Vector &v)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator-=(const VectorMP<T> &v)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
@@ -220,16 +237,19 @@ Vector &Vector::operator-=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::operator+=(real_t c)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator+=(T c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
+
    auto y = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] += c; });
    return *this;
 }
 
-Vector &Vector::operator+=(const Vector &v)
+template <class T>
+VectorMP<T> &VectorMP<T>::operator+=(const VectorMP<T> &v)
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
 
@@ -241,7 +261,8 @@ Vector &Vector::operator+=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::Add(const real_t a, const Vector &Va)
+template <class T>
+VectorMP<T> &VectorMP<T>::Add(const T a, const VectorMP<T> &Va)
 {
    MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
 
@@ -256,7 +277,8 @@ Vector &Vector::Add(const real_t a, const Vector &Va)
    return *this;
 }
 
-Vector &Vector::Set(const real_t a, const Vector &Va)
+template <class T>
+VectorMP<T> &VectorMP<T>::Set(const T a, const VectorMP<T> &Va)
 {
    MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
 
@@ -268,33 +290,36 @@ Vector &Vector::Set(const real_t a, const Vector &Va)
    return *this;
 }
 
-void Vector::SetVector(const Vector &v, int offset)
+template <class T>
+void VectorMP<T>::SetVector(const VectorMP<T> &v, int offset)
 {
    MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
 
    const int vs = v.Size();
-   const real_t *vp = v.data;
-   real_t *p = data + offset;
+   const T *vp = v.data;
+   T *p = data + offset;
    for (int i = 0; i < vs; i++)
    {
       p[i] = vp[i];
    }
 }
 
-void Vector::AddSubVector(const Vector &v, int offset)
+template <class T>
+void VectorMP<T>::AddSubVector(const VectorMP<T> &v, int offset)
 {
    MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
 
    const int vs = v.Size();
-   const real_t *vp = v.data;
-   real_t *p = data + offset;
+   const T *vp = v.data;
+   T *p = data + offset;
    for (int i = 0; i < vs; i++)
    {
       p[i] += vp[i];
    }
 }
 
-void Vector::Neg()
+template <class T>
+void VectorMP<T>::Neg()
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -302,7 +327,8 @@ void Vector::Neg()
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = -y[i]; });
 }
 
-void Vector::Reciprocal()
+template <class T>
+void VectorMP<T>::Reciprocal()
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -310,7 +336,8 @@ void Vector::Reciprocal()
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = 1.0/y[i]; });
 }
 
-void add(const Vector &v1, const Vector &v2, Vector &v)
+template <class T>
+void add(const VectorMP<T> &v1, const VectorMP<T> &v2, VectorMP<T> &v)
 {
    MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
                "incompatible Vectors!");
@@ -332,7 +359,8 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
 #endif
 }
 
-void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v)
+template <class T>
+void add(const VectorMP<T> &v1, T alpha, const VectorMP<T> &v2, VectorMP<T> &v)
 {
    MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
                "incompatible Vectors!");
@@ -359,8 +387,8 @@ void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v)
          d_z[i] = d_x[i] + alpha * d_y[i];
       });
 #else
-      const real_t *v1p = v1.data, *v2p = v2.data;
-      real_t *vp = v.data;
+      const T *v1p = v1.data, *v2p = v2.data;
+      T *vp = v.data;
       const int s = v.size;
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
@@ -371,7 +399,8 @@ void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v)
    }
 }
 
-void add(const real_t a, const Vector &x, const Vector &y, Vector &z)
+template <class T>
+void add(const T a, const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z)
 {
    MFEM_ASSERT(x.size == y.size && x.size == z.size,
                "incompatible Vectors!");
@@ -398,9 +427,9 @@ void add(const real_t a, const Vector &x, const Vector &y, Vector &z)
          zd[i] = a * (xd[i] + yd[i]);
       });
 #else
-      const real_t *xp = x.data;
-      const real_t *yp = y.data;
-      real_t       *zp = z.data;
+      const T *xp = x.data;
+      const T *yp = y.data;
+      T       *zp = z.data;
       const int      s = x.size;
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
@@ -411,8 +440,9 @@ void add(const real_t a, const Vector &x, const Vector &y, Vector &z)
    }
 }
 
-void add(const real_t a, const Vector &x,
-         const real_t b, const Vector &y, Vector &z)
+template <class T>
+void add(const T a, const VectorMP<T> &x,
+         const T b, const VectorMP<T> &y, VectorMP<T> &z)
 {
    MFEM_ASSERT(x.size == y.size && x.size == z.size,
                "incompatible Vectors!");
@@ -453,9 +483,9 @@ void add(const real_t a, const Vector &x,
          zd[i] = a * xd[i] + b * yd[i];
       });
 #else
-      const real_t *xp = x.data;
-      const real_t *yp = y.data;
-      real_t       *zp = z.data;
+      const T *xp = x.data;
+      const T *yp = y.data;
+      T       *zp = z.data;
       const int      s = x.size;
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
@@ -466,7 +496,8 @@ void add(const real_t a, const Vector &x,
    }
 }
 
-void subtract(const Vector &x, const Vector &y, Vector &z)
+template <class T>
+void subtract(const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z)
 {
    MFEM_ASSERT(x.size == y.size && x.size == z.size,
                "incompatible Vectors!");
@@ -483,9 +514,9 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
       zd[i] = xd[i] - yd[i];
    });
 #else
-   const real_t *xp = x.data;
-   const real_t *yp = y.data;
-   real_t       *zp = z.data;
+   const T *xp = x.data;
+   const T *yp = y.data;
+   T       *zp = z.data;
    const int     s = x.size;
    #pragma omp parallel for
    for (int i = 0; i < s; i++)
@@ -495,7 +526,9 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
 #endif
 }
 
-void subtract(const real_t a, const Vector &x, const Vector &y, Vector &z)
+template <class T>
+void subtract(const T a, const VectorMP<T> &x, const VectorMP<T> &y,
+              VectorMP<T> &z)
 {
    MFEM_ASSERT(x.size == y.size && x.size == z.size,
                "incompatible Vectors!");
@@ -522,9 +555,9 @@ void subtract(const real_t a, const Vector &x, const Vector &y, Vector &z)
          zd[i] = a * (xd[i] - yd[i]);
       });
 #else
-      const real_t *xp = x.data;
-      const real_t *yp = y.data;
-      real_t       *zp = z.data;
+      const T *xp = x.data;
+      const T *yp = y.data;
+      T       *zp = z.data;
       const int      s = x.size;
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
@@ -535,7 +568,8 @@ void subtract(const real_t a, const Vector &x, const Vector &y, Vector &z)
    }
 }
 
-void Vector::cross3D(const Vector &vin, Vector &vout) const
+template <class T>
+void VectorMP<T>::cross3D(const VectorMP<T> &vin, VectorMP<T> &vout) const
 {
    HostRead();
    vin.HostRead();
@@ -548,7 +582,8 @@ void Vector::cross3D(const Vector &vin, Vector &vout) const
    vout(2) = data[0]*vin(1)-data[1]*vin(0);
 }
 
-void Vector::median(const Vector &lo, const Vector &hi)
+template <class T>
+void VectorMP<T>::median(const VectorMP<T> &lo, const VectorMP<T> &hi)
 {
    MFEM_ASSERT(size == lo.size && size == hi.size,
                "incompatible Vectors!");
@@ -572,7 +607,9 @@ void Vector::median(const Vector &lo, const Vector &hi)
    });
 }
 
-void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
+template <class T>
+void VectorMP<T>::GetSubVector(const Array<int> &dofs,
+                               VectorMP<T> &elemvect) const
 {
    const int n = dofs.Size();
    elemvect.SetSize(n);
@@ -587,7 +624,8 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
    });
 }
 
-void Vector::GetSubVector(const Array<int> &dofs, real_t *elem_data) const
+template <class T>
+void VectorMP<T>::GetSubVector(const Array<int> &dofs, T *elem_data) const
 {
    data.Read(MemoryClass::HOST, size);
    const int n = dofs.Size();
@@ -598,7 +636,8 @@ void Vector::GetSubVector(const Array<int> &dofs, real_t *elem_data) const
    }
 }
 
-void Vector::SetSubVector(const Array<int> &dofs, const real_t value)
+template <class T>
+void VectorMP<T>::SetSubVector(const Array<int> &dofs, const T value)
 {
    const bool use_dev = dofs.UseDevice();
    const int n = dofs.Size();
@@ -619,7 +658,9 @@ void Vector::SetSubVector(const Array<int> &dofs, const real_t value)
    });
 }
 
-void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
+template <class T>
+void VectorMP<T>::SetSubVector(const Array<int> &dofs,
+                               const VectorMP<T> &elemvect)
 {
    MFEM_ASSERT(dofs.Size() <= elemvect.Size(),
                "Size mismatch: length of dofs is " << dofs.Size()
@@ -645,7 +686,8 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
    });
 }
 
-void Vector::SetSubVector(const Array<int> &dofs, real_t *elem_data)
+template <class T>
+void VectorMP<T>::SetSubVector(const Array<int> &dofs, T *elem_data)
 {
    // Use read+write access because we overwrite only part of the data.
    data.ReadWrite(MemoryClass::HOST, size);
@@ -664,7 +706,9 @@ void Vector::SetSubVector(const Array<int> &dofs, real_t *elem_data)
    }
 }
 
-void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
+template <class T>
+void VectorMP<T>::AddElementVector(const Array<int> &dofs,
+                                   const VectorMP<T> &elemvect)
 {
    MFEM_ASSERT(dofs.Size() <= elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
@@ -689,7 +733,8 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
    });
 }
 
-void Vector::AddElementVector(const Array<int> &dofs, real_t *elem_data)
+template <class T>
+void VectorMP<T>::AddElementVector(const Array<int> &dofs, T *elem_data)
 {
    data.ReadWrite(MemoryClass::HOST, size);
    const int n = dofs.Size();
@@ -707,8 +752,9 @@ void Vector::AddElementVector(const Array<int> &dofs, real_t *elem_data)
    }
 }
 
-void Vector::AddElementVector(const Array<int> &dofs, const real_t a,
-                              const Vector &elemvect)
+template <class T>
+void VectorMP<T>::AddElementVector(const Array<int> &dofs, const T a,
+                                   const VectorMP<T> &elemvect)
 {
    MFEM_ASSERT(dofs.Size() <= elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
@@ -733,14 +779,15 @@ void Vector::AddElementVector(const Array<int> &dofs, const real_t a,
    });
 }
 
-void Vector::SetSubVectorComplement(const Array<int> &dofs, const real_t val)
+template <class T>
+void VectorMP<T>::SetSubVectorComplement(const Array<int> &dofs, const T val)
 {
    const bool use_dev = UseDevice() || dofs.UseDevice();
    const int n = dofs.Size();
    const int N = size;
-   Vector dofs_vals(n, use_dev ?
-                    Device::GetDeviceMemoryType() :
-                    Device::GetHostMemoryType());
+   VectorMP<T> dofs_vals(n, use_dev ?
+                         Device::GetDeviceMemoryType() :
+                         Device::GetHostMemoryType());
    auto d_data = ReadWrite(use_dev);
    auto d_dofs_vals = dofs_vals.Write(use_dev);
    auto d_dofs = dofs.Read(use_dev);
@@ -749,7 +796,8 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const real_t val)
    mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { d_data[d_dofs[i]] = d_dofs_vals[i]; });
 }
 
-void Vector::Print(std::ostream &os, int width) const
+template <class T>
+void VectorMP<T>::Print(std::ostream &os, int width) const
 {
    if (!size) { return; }
    data.Read(MemoryClass::HOST, size);
@@ -774,8 +822,9 @@ void Vector::Print(std::ostream &os, int width) const
 }
 
 #ifdef MFEM_USE_ADIOS2
-void Vector::Print(adios2stream &os,
-                   const std::string& variable_name) const
+template <class T>
+void VectorMP<T>::Print(adios2stream &os,
+                        const std::string& variable_name) const
 {
    if (!size) { return; }
    data.Read(MemoryClass::HOST, size);
@@ -783,7 +832,8 @@ void Vector::Print(adios2stream &os,
 }
 #endif
 
-void Vector::Print_HYPRE(std::ostream &os) const
+template <class T>
+void VectorMP<T>::Print_HYPRE(std::ostream &os) const
 {
    int i;
    std::ios::fmtflags old_fmt = os.flags();
@@ -802,7 +852,8 @@ void Vector::Print_HYPRE(std::ostream &os) const
    os.flags(old_fmt);
 }
 
-void Vector::PrintMathematica(std::ostream & os) const
+template <class T>
+void VectorMP<T>::PrintMathematica(std::ostream & os) const
 {
    std::ios::fmtflags old_fmt = os.flags();
    os.setf(std::ios::scientific);
@@ -826,15 +877,24 @@ void Vector::PrintMathematica(std::ostream & os) const
    os.flags(old_fmt);
 }
 
-void Vector::PrintHash(std::ostream &os) const
+template <class T>
+void VectorMP<T>::PrintHash(std::ostream &os) const
 {
    os << "size: " << size << '\n';
    HashFunction hf;
-   hf.AppendDoubles(HostRead(), size);
+   // TODO: eliminate this hack by generalizing HashFunction.
+   Vector d(this->Size());
+   for (int i=0; i<this->Size(); ++i)
+   {
+      d[i] = (*this)[i];
+   }
+
+   hf.AppendDoubles(d.HostRead(), size);
    os << "hash: " << hf.GetHash() << '\n';
 }
 
-void Vector::Randomize(int seed)
+template <class T>
+void VectorMP<T>::Randomize(int seed)
 {
    if (seed == 0)
    {
@@ -850,7 +910,8 @@ void Vector::Randomize(int seed)
    }
 }
 
-real_t Vector::Norml2() const
+template <class T>
+T VectorMP<T>::Norml2() const
 {
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
@@ -865,13 +926,14 @@ real_t Vector::Norml2() const
    {
       return std::abs(data[0]);
    } // end if 1 == size
-   return kernels::Norml2(size, (const real_t*) data);
+   return kernels::Norml2(size, (const T*) data);
 }
 
-real_t Vector::Normlinf() const
+template <class T>
+T VectorMP<T>::Normlinf() const
 {
    HostRead();
-   real_t max = 0.0;
+   T max = 0.0;
    for (int i = 0; i < size; i++)
    {
       max = std::max(std::abs(data[i]), max);
@@ -879,10 +941,11 @@ real_t Vector::Normlinf() const
    return max;
 }
 
-real_t Vector::Norml1() const
+template <class T>
+T VectorMP<T>::Norml1() const
 {
    HostRead();
-   real_t sum = 0.0;
+   T sum = 0.0;
    for (int i = 0; i < size; i++)
    {
       sum += std::abs(data[i]);
@@ -890,7 +953,8 @@ real_t Vector::Norml1() const
    return sum;
 }
 
-real_t Vector::Normlp(real_t p) const
+template <class T>
+T VectorMP<T>::Normlp(T p) const
 {
    MFEM_ASSERT(p > 0.0, "Vector::Normlp");
 
@@ -917,14 +981,14 @@ real_t Vector::Normlp(real_t p) const
          return std::abs(data[0]);
       } // end if 1 == size
 
-      real_t scale = 0.0;
-      real_t sum = 0.0;
+      T scale = 0.0;
+      T sum = 0.0;
 
       for (int i = 0; i < size; i++)
       {
          if (data[i] != 0.0)
          {
-            const real_t absdata = std::abs(data[i]);
+            const T absdata = std::abs(data[i]);
             if (scale <= absdata)
             {
                sum = 1.0 + sum * std::pow(scale / absdata, p);
@@ -940,12 +1004,13 @@ real_t Vector::Normlp(real_t p) const
    return Normlinf(); // else p >= infinity()
 }
 
-real_t Vector::Max() const
+template <class T>
+T VectorMP<T>::Max() const
 {
    if (size == 0) { return -infinity(); }
 
    HostRead();
-   real_t max = data[0];
+   T max = data[0];
 
    for (int i = 1; i < size; i++)
    {
@@ -1136,7 +1201,8 @@ static real_t hipVectorDot(const int N, const real_t *X, const real_t *Y)
 }
 #endif // MFEM_USE_HIP
 
-real_t Vector::operator*(const Vector &v) const
+template <class T>
+T VectorMP<T>::operator*(const VectorMP<T> &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
    if (size == 0) { return 0.0; }
@@ -1215,7 +1281,7 @@ real_t Vector::operator*(const Vector &v) const
       const int N = size;
       auto v_data_ = v.Read();
       auto m_data_ = Read();
-      Vector dot(1);
+      VectorMP<T> dot(1);
       dot.UseDevice(true);
       auto d_dot = dot.Write();
       dot = 0.0;
@@ -1230,7 +1296,8 @@ vector_dot_cpu:
    return operator*(v_data);
 }
 
-real_t Vector::Min() const
+template <class T>
+T VectorMP<T>::Min() const
 {
    if (size == 0) { return infinity(); }
 
@@ -1277,7 +1344,7 @@ real_t Vector::Min() const
    {
       const int N = size;
       auto m_data_ = Read();
-      Vector min(1);
+      VectorMP<T> min(1);
       min = infinity();
       min.UseDevice(true);
       auto d_min = min.ReadWrite();
@@ -1301,7 +1368,8 @@ vector_min_cpu:
    return minimum;
 }
 
-real_t Vector::Sum() const
+template <class T>
+T VectorMP<T>::Sum() const
 {
    if (size == 0) { return 0.0; }
 
@@ -1323,7 +1391,7 @@ real_t Vector::Sum() const
       {
          const int N = size;
          auto d_data = Read();
-         Vector sum(1);
+         VectorMP<T> sum(1);
          sum.UseDevice(true);
          auto d_sum = sum.Write();
          d_sum[0] = 0.0;
@@ -1337,8 +1405,8 @@ real_t Vector::Sum() const
    }
 
    // CPU fallback
-   const real_t *h_data = HostRead();
-   real_t sum = 0.0;
+   const T *h_data = HostRead();
+   T sum = 0.0;
    for (int i = 0; i < size; i++)
    {
       sum += h_data[i];
@@ -1346,4 +1414,32 @@ real_t Vector::Sum() const
    return sum;
 }
 
-}
+template class VectorMP<float>;
+template class VectorMP<double>;
+
+template
+void add<real_t>(const VectorMP<real_t> &v1, const VectorMP<real_t> &v2,
+                 VectorMP<real_t> &v);
+
+template
+void add<real_t>(const VectorMP<real_t> &v1, real_t alpha,
+                 const VectorMP<real_t> &v2, VectorMP<real_t> &v);
+
+template
+void add<real_t>(const real_t a, const VectorMP<real_t> &x,
+                 const VectorMP<real_t> &y, VectorMP<real_t> &z);
+
+template
+void add<real_t>(const real_t a, const VectorMP<real_t> &x,
+                 const real_t b, const VectorMP<real_t> &y, VectorMP<real_t> &z);
+
+template
+void subtract<real_t>(const VectorMP<real_t> &x, const VectorMP<real_t> &y,
+                      VectorMP<real_t> &z);
+
+template
+void subtract<real_t>(const real_t a, const VectorMP<real_t> &x,
+                      const VectorMP<real_t> &y,
+                      VectorMP<real_t> &z);
+
+} // namespace mfem

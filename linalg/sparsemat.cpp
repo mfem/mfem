@@ -1731,7 +1731,7 @@ int SparseMatrix::CheckFinite() const
    }
    else if (Finalized())
    {
-      return mfem::CheckFinite(A, I[height]);
+      return mfem::CheckFinite<real_t>(A, I[height]);
    }
    else
    {

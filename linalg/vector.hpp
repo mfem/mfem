@@ -40,7 +40,8 @@ namespace mfem
 
 /** Count the number of entries in an array of doubles for which isfinite
     is false, i.e. the entry is a NaN or +/-Inf. */
-inline int CheckFinite(const real_t *v, const int n);
+template <class T>
+inline int CheckFinite(const T *v, const int n);
 
 /// Define a shortcut for std::numeric_limits<double>::infinity()
 #ifndef __CYGWIN__
@@ -77,59 +78,83 @@ inline real_t rand_real()
 #endif
 }
 
+template <class T>
+class VectorMP;
+
+template <class T>
+void add(const VectorMP<T> &v1, const VectorMP<T> &v2, VectorMP<T> &v);
+
+template <class T>
+void add(const VectorMP<T> &v1, T alpha, const VectorMP<T> &v2, VectorMP<T> &v);
+
+template <class T>
+void add(const T a, const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z);
+
+template <class T>
+void add(const T a, const VectorMP<T> &x,
+         const T b, const VectorMP<T> &y, VectorMP<T> &z);
+
+template <class T>
+void subtract(const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z);
+
+template <class T>
+void subtract(const T a, const VectorMP<T> &x, const VectorMP<T> &y,
+              VectorMP<T> &z);
+
 /// Vector data type.
-class Vector
+template <class T>
+class VectorMP
 {
 protected:
 
-   Memory<real_t> data;
+   Memory<T> data;
    int size;
 
 public:
 
    /** Default constructor for Vector. Sets size = 0, and calls Memory::Reset on
        data through Memory<double>'s default constructor. */
-   Vector(): size(0) { }
+   VectorMP(): size(0) { }
 
    /// Copy constructor. Allocates a new data array and copies the data.
-   Vector(const Vector &);
+   VectorMP(const VectorMP<T> &);
 
    /// Move constructor. "Steals" data from its argument.
-   Vector(Vector&& v);
+   VectorMP(VectorMP<T>&& v);
 
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
-   explicit Vector(int s);
+   explicit VectorMP(int s);
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector(real_t *data_, int size_)
+   VectorMP(T *data_, int size_)
    { data.Wrap(data_, size_, false); size = size_; }
 
    /** @brief Create a Vector referencing a sub-vector of the Vector @a base
        starting at the given offset, @a base_offset, and size @a size_. */
-   Vector(Vector &base, int base_offset, int size_)
+   VectorMP(VectorMP<T> &base, int base_offset, int size_)
       : data(base.data, base_offset, size_), size(size_) { }
 
    /// Create a Vector of size @a size_ using MemoryType @a mt.
-   Vector(int size_, MemoryType mt)
+   VectorMP(int size_, MemoryType mt)
       : data(size_, mt), size(size_) { }
 
    /** @brief Create a Vector of size @a size_ using host MemoryType @a h_mt and
        device MemoryType @a d_mt. */
-   Vector(int size_, MemoryType h_mt, MemoryType d_mt)
+   VectorMP(int size_, MemoryType h_mt, MemoryType d_mt)
       : data(size_, h_mt, d_mt), size(size_) { }
 
    /// Create a vector from a statically sized C-style array of convertible type
    template <typename CT, int N>
-   explicit Vector(const CT (&values)[N]) : Vector(N)
+   explicit VectorMP(const CT (&values)[N]) : VectorMP(N)
    { std::copy(values, values + N, begin()); }
 
    /// Create a vector using a braced initializer list
    template <typename CT, typename std::enable_if<
-                std::is_convertible<CT,real_t>::value,bool>::type = true>
-   explicit Vector(std::initializer_list<CT> values) : Vector(values.size())
+                std::is_convertible<CT,T>::value,bool>::type = true>
+   explicit VectorMP(std::initializer_list<CT> values) : VectorMP(values.size())
    { std::copy(values.begin(), values.end(), begin()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
@@ -169,24 +194,24 @@ public:
    void SetSize(int s, MemoryType mt);
 
    /// Resize the vector to size @a s using the MemoryType of @a v.
-   void SetSize(int s, const Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
+   void SetSize(int s, const VectorMP<T> &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
-   void SetData(real_t *d) { data.Wrap(d, data.Capacity(), false); }
+   void SetData(T *d) { data.Wrap(d, data.Capacity(), false); }
 
    /// Set the Vector data and size.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
-   void SetDataAndSize(real_t *d, int s) { data.Wrap(d, s, false); size = s; }
+   void SetDataAndSize(T *d, int s) { data.Wrap(d, s, false); size = s; }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @sa SetDataAndSize(). */
-   void NewDataAndSize(real_t *d, int s)
+   void NewDataAndSize(T *d, int s)
    {
       data.Delete();
       SetDataAndSize(d, s);
@@ -201,14 +226,14 @@ public:
        the Vector object takes ownership of all pointers owned by @a mem.
 
        @sa NewDataAndSize(). */
-   inline void NewMemoryAndSize(const Memory<real_t> &mem, int s, bool own_mem);
+   inline void NewMemoryAndSize(const Memory<T> &mem, int s, bool own_mem);
 
    /// Reset the Vector to be a reference to a sub-vector of @a base.
-   inline void MakeRef(Vector &base, int offset, int size);
+   inline void MakeRef(VectorMP<T> &base, int offset, int size);
 
    /** @brief Reset the Vector to be a reference to a sub-vector of @a base
        without changing its current size. */
-   inline void MakeRef(Vector &base, int offset);
+   inline void MakeRef(VectorMP<T> &base, int offset);
 
    /// Set the Vector data (host pointer) ownership flag.
    void MakeDataOwner() const { data.SetHostPtrOwner(true); }
@@ -232,120 +257,120 @@ public:
    /// Return a pointer to the beginning of the Vector data.
    /** @warning This method should be used with caution as it gives write access
        to the data of const-qualified Vector%s. */
-   inline real_t *GetData() const
-   { return const_cast<real_t*>((const real_t*)data); }
+   inline T *GetData() const
+   { return const_cast<T*>((const T*)data); }
 
    /// Conversion to `double *`. Deprecated.
-   MFEM_DEPRECATED inline operator real_t *() { return data; }
+   MFEM_DEPRECATED inline operator T *() { return data; }
 
    /// Conversion to `const double *`. Deprecated.
-   MFEM_DEPRECATED inline operator const real_t *() const { return data; }
+   MFEM_DEPRECATED inline operator const T *() const { return data; }
 
    /// STL-like begin.
-   inline real_t *begin() { return data; }
+   inline T *begin() { return data; }
 
    /// STL-like end.
-   inline real_t *end() { return data + size; }
+   inline T *end() { return data + size; }
 
    /// STL-like begin (const version).
-   inline const real_t *begin() const { return data; }
+   inline const T *begin() const { return data; }
 
    /// STL-like end (const version).
-   inline const real_t *end() const { return data + size; }
+   inline const T *end() const { return data + size; }
 
    /// Return a reference to the Memory object used by the Vector.
-   Memory<real_t> &GetMemory() { return data; }
+   Memory<T> &GetMemory() { return data; }
 
    /** @brief Return a reference to the Memory object used by the Vector, const
        version. */
-   const Memory<real_t> &GetMemory() const { return data; }
+   const Memory<T> &GetMemory() const { return data; }
 
    /// Update the memory location of the vector to match @a v.
-   void SyncMemory(const Vector &v) const { GetMemory().Sync(v.GetMemory()); }
+   void SyncMemory(const VectorMP<T> &v) const { GetMemory().Sync(v.GetMemory()); }
 
    /// Update the alias memory location of the vector to match @a v.
-   void SyncAliasMemory(const Vector &v) const
+   void SyncAliasMemory(const VectorMP<T> &v) const
    { GetMemory().SyncAlias(v.GetMemory(),Size()); }
 
    /// Read the Vector data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   inline void StealData(real_t **p)
+   inline void StealData(T **p)
    { *p = data; data.Reset(); size = 0; }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   inline real_t *StealData() { real_t *p; StealData(&p); return p; }
+   inline T *StealData() { T *p; StealData(&p); return p; }
 
    /// Access Vector entries. Index i = 0 .. size-1.
-   real_t &Elem(int i);
+   T &Elem(int i);
 
    /// Read only access to Vector entries. Index i = 0 .. size-1.
-   const real_t &Elem(int i) const;
+   const T &Elem(int i) const;
 
    /// Access Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline real_t &operator()(int i);
+   inline T &operator()(int i);
 
    /// Read only access to Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline const real_t &operator()(int i) const;
+   inline const T &operator()(int i) const;
 
    /// Access Vector entries using [] for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline real_t &operator[](int i) { return (*this)(i); }
+   inline T &operator[](int i) { return (*this)(i); }
 
    /// Read only access to Vector entries using [] for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline const real_t &operator[](int i) const { return (*this)(i); }
+   inline const T &operator[](int i) const { return (*this)(i); }
 
    /// Dot product with a `double *` array.
-   real_t operator*(const real_t *) const;
+   T operator*(const T *) const;
 
    /// Return the inner-product.
-   real_t operator*(const Vector &v) const;
+   T operator*(const VectorMP<T> &v) const;
 
    /// Copy Size() entries from @a v.
-   Vector &operator=(const real_t *v);
+   VectorMP &operator=(const T *v);
 
    /// Copy assignment.
    /** @note Defining this method overwrites the implicitly defined copy
        assignment operator. */
-   Vector &operator=(const Vector &v);
+   VectorMP &operator=(const VectorMP<T> &v);
 
    /// Move assignment
-   Vector &operator=(Vector&& v);
+   VectorMP &operator=(VectorMP<T>&& v);
 
    /// Redefine '=' for vector = constant.
-   Vector &operator=(real_t value);
+   VectorMP &operator=(T value);
 
-   Vector &operator*=(real_t c);
+   VectorMP &operator*=(T c);
 
    /// Component-wise scaling: (*this)(i) *= v(i)
-   Vector &operator*=(const Vector &v);
+   VectorMP &operator*=(const VectorMP<T> &v);
 
-   Vector &operator/=(real_t c);
+   VectorMP &operator/=(T c);
 
    /// Component-wise division: (*this)(i) /= v(i)
-   Vector &operator/=(const Vector &v);
+   VectorMP &operator/=(const VectorMP<T> &v);
 
-   Vector &operator-=(real_t c);
+   VectorMP &operator-=(T c);
 
-   Vector &operator-=(const Vector &v);
+   VectorMP &operator-=(const VectorMP<T> &v);
 
-   Vector &operator+=(real_t c);
+   VectorMP &operator+=(T c);
 
-   Vector &operator+=(const Vector &v);
+   VectorMP &operator+=(const VectorMP<T> &v);
 
    /// (*this) += a * Va
-   Vector &Add(const real_t a, const Vector &Va);
+   VectorMP &Add(const T a, const VectorMP<T> &Va);
 
    /// (*this) = a * x
-   Vector &Set(const real_t a, const Vector &x);
+   VectorMP &Set(const T a, const VectorMP<T> &x);
 
-   void SetVector(const Vector &v, int offset);
+   void SetVector(const VectorMP<T> &v, int offset);
 
-   void AddSubVector(const Vector &v, int offset);
+   void AddSubVector(const VectorMP<T> &v, int offset);
 
    /// (*this) = -(*this)
    void Neg();
@@ -354,78 +379,82 @@ public:
    void Reciprocal();
 
    /// Swap the contents of two Vectors
-   inline void Swap(Vector &other);
+   inline void Swap(VectorMP<T> &other);
 
    /// Set v = v1 + v2.
-   friend void add(const Vector &v1, const Vector &v2, Vector &v);
+   friend void add<T>(const VectorMP<T> &v1, const VectorMP<T> &v2,
+                      VectorMP<T> &v);
 
    /// Set v = v1 + alpha * v2.
-   friend void add(const Vector &v1, real_t alpha, const Vector &v2, Vector &v);
+   friend void add<T>(const VectorMP<T> &v1, T alpha, const VectorMP<T> &v2,
+                      VectorMP<T> &v);
 
    /// z = a * (x + y)
-   friend void add(const real_t a, const Vector &x, const Vector &y, Vector &z);
+   friend void add<T>(const T a, const VectorMP<T> &x, const VectorMP<T> &y,
+                      VectorMP<T> &z);
 
    /// z = a * x + b * y
-   friend void add(const real_t a, const Vector &x,
-                   const real_t b, const Vector &y, Vector &z);
+   friend void add<T>(const T a, const VectorMP<T> &x,
+                      const T b, const VectorMP<T> &y, VectorMP<T> &z);
 
    /// Set v = v1 - v2.
-   friend void subtract(const Vector &v1, const Vector &v2, Vector &v);
+   friend void subtract<T>(const VectorMP<T> &v1, const VectorMP<T> &v2,
+                           VectorMP<T> &v);
 
    /// z = a * (x - y)
-   friend void subtract(const real_t a, const Vector &x,
-                        const Vector &y, Vector &z);
+   friend void subtract<T>(const T a, const VectorMP<T> &x,
+                           const VectorMP<T> &y, VectorMP<T> &z);
 
    /// Computes cross product of this vector with another 3D vector.
    /// vout = this x vin.
-   void cross3D(const Vector &vin, Vector &vout) const;
+   void cross3D(const VectorMP<T> &vin, VectorMP<T> &vout) const;
 
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
-   void median(const Vector &lo, const Vector &hi);
+   void median(const VectorMP<T> &lo, const VectorMP<T> &hi);
 
    /// Extract entries listed in @a dofs to the output Vector @a elemvect.
    /** Negative dof values cause the -dof-1 position in @a elemvect to receive
        the -val in from this Vector. */
-   void GetSubVector(const Array<int> &dofs, Vector &elemvect) const;
+   void GetSubVector(const Array<int> &dofs, VectorMP<T> &elemvect) const;
 
    /// Extract entries listed in @a dofs to the output array @a elem_data.
    /** Negative dof values cause the -dof-1 position in @a elem_data to receive
        the -val in from this Vector. */
-   void GetSubVector(const Array<int> &dofs, real_t *elem_data) const;
+   void GetSubVector(const Array<int> &dofs, T *elem_data) const;
 
    /// Set the entries listed in @a dofs to the given @a value.
    /** Negative dof values cause the -dof-1 position in this Vector to receive
        the -value. */
-   void SetSubVector(const Array<int> &dofs, const real_t value);
+   void SetSubVector(const Array<int> &dofs, const T value);
 
    /** @brief Set the entries listed in @a dofs to the values given in the @a
        elemvect Vector. Negative dof values cause the -dof-1 position in this
        Vector to receive the -val from @a elemvect. */
-   void SetSubVector(const Array<int> &dofs, const Vector &elemvect);
+   void SetSubVector(const Array<int> &dofs, const VectorMP<T> &elemvect);
 
    /** @brief Set the entries listed in @a dofs to the values given the @a ,
        elem_data array. Negative dof values cause the -dof-1 position in this
        Vector to receive the -val from @a elem_data. */
-   void SetSubVector(const Array<int> &dofs, real_t *elem_data);
+   void SetSubVector(const Array<int> &dofs, T *elem_data);
 
    /** @brief Add elements of the @a elemvect Vector to the entries listed in @a
        dofs. Negative dof values cause the -dof-1 position in this Vector to add
        the -val from @a elemvect. */
-   void AddElementVector(const Array<int> & dofs, const Vector & elemvect);
+   void AddElementVector(const Array<int> & dofs, const VectorMP<T> & elemvect);
 
    /** @brief Add elements of the @a elem_data array to the entries listed in @a
        dofs. Negative dof values cause the -dof-1 position in this Vector to add
        the -val from @a elem_data. */
-   void AddElementVector(const Array<int> & dofs, real_t *elem_data);
+   void AddElementVector(const Array<int> & dofs, T *elem_data);
 
    /** @brief Add @a times the elements of the @a elemvect Vector to the entries
        listed in @a dofs. Negative dof values cause the -dof-1 position in this
        Vector to add the -a*val from @a elemvect. */
-   void AddElementVector(const Array<int> & dofs, const real_t a,
-                         const Vector & elemvect);
+   void AddElementVector(const Array<int> & dofs, const T a,
+                         const VectorMP<T> & elemvect);
 
    /// Set all vector entries NOT in the @a dofs Array to the given @a val.
-   void SetSubVectorComplement(const Array<int> &dofs, const real_t val);
+   void SetSubVectorComplement(const Array<int> &dofs, const T val);
 
    /// Prints vector to stream out.
    void Print(std::ostream &out = mfem::out, int width = 8) const;
@@ -456,60 +485,62 @@ public:
    /// Set random values in the vector.
    void Randomize(int seed = 0);
    /// Returns the l2 norm of the vector.
-   real_t Norml2() const;
+   T Norml2() const;
    /// Returns the l_infinity norm of the vector.
-   real_t Normlinf() const;
+   T Normlinf() const;
    /// Returns the l_1 norm of the vector.
-   real_t Norml1() const;
+   T Norml1() const;
    /// Returns the l_p norm of the vector.
-   real_t Normlp(real_t p) const;
+   T Normlp(T p) const;
    /// Returns the maximal element of the vector.
-   real_t Max() const;
+   T Max() const;
    /// Returns the minimal element of the vector.
-   real_t Min() const;
+   T Min() const;
    /// Return the sum of the vector entries
-   real_t Sum() const;
+   T Sum() const;
    /// Compute the square of the Euclidean distance to another vector.
-   inline real_t DistanceSquaredTo(const real_t *p) const;
+   inline T DistanceSquaredTo(const T *p) const;
    /// Compute the square of the Euclidean distance to another vector.
-   inline real_t DistanceSquaredTo(const Vector &p) const;
+   inline T DistanceSquaredTo(const VectorMP<T> &p) const;
    /// Compute the Euclidean distance to another vector.
-   inline real_t DistanceTo(const real_t *p) const;
+   inline T DistanceTo(const T *p) const;
    /// Compute the Euclidean distance to another vector.
-   inline real_t DistanceTo(const Vector &p) const;
+   inline T DistanceTo(const VectorMP<T> &p) const;
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
    int CheckFinite() const { return mfem::CheckFinite(HostRead(), size); }
 
    /// Destroys vector.
-   virtual ~Vector();
+   virtual ~VectorMP<T>();
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), on_dev).
-   virtual const real_t *Read(bool on_dev = true) const
+   virtual const T *Read(bool on_dev = true) const
    { return mfem::Read(data, size, on_dev); }
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), false).
-   virtual const real_t *HostRead() const
+   virtual const T *HostRead() const
    { return mfem::Read(data, size, false); }
 
    /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), on_dev).
-   virtual real_t *Write(bool on_dev = true)
+   virtual T *Write(bool on_dev = true)
    { return mfem::Write(data, size, on_dev); }
 
    /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), false).
-   virtual real_t *HostWrite()
+   virtual T *HostWrite()
    { return mfem::Write(data, size, false); }
 
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), on_dev).
-   virtual real_t *ReadWrite(bool on_dev = true)
+   virtual T *ReadWrite(bool on_dev = true)
    { return mfem::ReadWrite(data, size, on_dev); }
 
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), false).
-   virtual real_t *HostReadWrite()
+   virtual T *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
 };
+
+using Vector = VectorMP<real_t>;
 
 // Inline methods
 
@@ -519,7 +550,8 @@ inline T ZeroSubnormal(T val)
    return (std::fpclassify(val) == FP_SUBNORMAL) ? 0.0 : val;
 }
 
-inline bool IsFinite(const real_t &val)
+template <class T>
+inline bool IsFinite(const T &val)
 {
    // isfinite didn't appear in a standard until C99, and later C++11. It wasn't
    // standard in C89 or C++98. PGI as of 14.7 still defines it as a macro.
@@ -530,7 +562,8 @@ inline bool IsFinite(const real_t &val)
 #endif
 }
 
-inline int CheckFinite(const real_t *v, const int n)
+template <class T>
+inline int CheckFinite(const T *v, const int n)
 {
    int bad = 0;
    for (int i = 0; i < n; i++)
@@ -540,7 +573,8 @@ inline int CheckFinite(const real_t *v, const int n)
    return bad;
 }
 
-inline Vector::Vector(int s)
+template <class T>
+inline VectorMP<T>::VectorMP(int s)
 {
    MFEM_ASSERT(s>=0,"Unexpected negative size.");
    size = s;
@@ -550,7 +584,8 @@ inline Vector::Vector(int s)
    }
 }
 
-inline void Vector::SetSize(int s)
+template <class T>
+inline void VectorMP<T>::SetSize(int s)
 {
    if (s == size)
    {
@@ -570,7 +605,8 @@ inline void Vector::SetSize(int s)
    data.UseDevice(use_dev);
 }
 
-inline void Vector::SetSize(int s, MemoryType mt)
+template <class T>
+inline void VectorMP<T>::SetSize(int s, MemoryType mt)
 {
    if (mt == data.GetMemoryType())
    {
@@ -599,8 +635,9 @@ inline void Vector::SetSize(int s, MemoryType mt)
    data.UseDevice(use_dev);
 }
 
-inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, int s,
-                                     bool own_mem)
+template <class T>
+inline void VectorMP<T>::NewMemoryAndSize(const Memory<T> &mem, int s,
+                                          bool own_mem)
 {
    data.Delete();
    size = s;
@@ -614,20 +651,23 @@ inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, int s,
    }
 }
 
-inline void Vector::MakeRef(Vector &base, int offset, int s)
+template <class T>
+inline void VectorMP<T>::MakeRef(VectorMP<T> &base, int offset, int s)
 {
    data.Delete();
    size = s;
    data.MakeAlias(base.GetMemory(), offset, s);
 }
 
-inline void Vector::MakeRef(Vector &base, int offset)
+template <class T>
+inline void VectorMP<T>::MakeRef(VectorMP<T> &base, int offset)
 {
    data.Delete();
    data.MakeAlias(base.GetMemory(), offset, size);
 }
 
-inline void Vector::Destroy()
+template <class T>
+inline void VectorMP<T>::Destroy()
 {
    const bool use_dev = data.UseDevice();
    data.Delete();
@@ -636,7 +676,8 @@ inline void Vector::Destroy()
    data.UseDevice(use_dev);
 }
 
-inline real_t &Vector::operator()(int i)
+template <class T>
+inline T &VectorMP<T>::operator()(int i)
 {
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
@@ -644,7 +685,8 @@ inline real_t &Vector::operator()(int i)
    return data[i];
 }
 
-inline const real_t &Vector::operator()(int i) const
+template <class T>
+inline const T &VectorMP<T>::operator()(int i) const
 {
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
@@ -652,26 +694,30 @@ inline const real_t &Vector::operator()(int i) const
    return data[i];
 }
 
-inline void Vector::Swap(Vector &other)
+template <class T>
+inline void VectorMP<T>::Swap(VectorMP<T> &other)
 {
    mfem::Swap(data, other.data);
    mfem::Swap(size, other.size);
 }
 
 /// Specialization of the template function Swap<> for class Vector
-template<> inline void Swap<Vector>(Vector &a, Vector &b)
+template <class T>
+inline void Swap(VectorMP<T> &a, VectorMP<T> &b)
 {
    a.Swap(b);
 }
 
-inline Vector::~Vector()
+template <class T>
+inline VectorMP<T>::~VectorMP()
 {
    data.Delete();
 }
 
-inline real_t DistanceSquared(const real_t *x, const real_t *y, const int n)
+template <class T>
+inline T DistanceSquared(const T *x, const T *y, const int n)
 {
-   real_t d = 0.0;
+   T d = 0.0;
 
    for (int i = 0; i < n; i++)
    {
@@ -681,43 +727,50 @@ inline real_t DistanceSquared(const real_t *x, const real_t *y, const int n)
    return d;
 }
 
-inline real_t Distance(const real_t *x, const real_t *y, const int n)
+template <class T>
+inline T Distance(const T *x, const T *y, const int n)
 {
    return std::sqrt(DistanceSquared(x, y, n));
 }
 
-inline real_t Distance(const Vector &x, const Vector &y)
+template <class T>
+inline T Distance(const VectorMP<T> &x, const VectorMP<T> &y)
 {
    return x.DistanceTo(y);
 }
 
-inline real_t Vector::DistanceSquaredTo(const real_t *p) const
+template <class T>
+inline T VectorMP<T>::DistanceSquaredTo(const T *p) const
 {
-   return DistanceSquared(data, p, size);
+   return DistanceSquared<T>(data, p, size);
 }
 
-inline real_t Vector::DistanceSquaredTo(const Vector &p) const
+template <class T>
+inline T VectorMP<T>::DistanceSquaredTo(const VectorMP<T> &p) const
 {
    MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
-   return DistanceSquared(data, p.data, size);
+   return DistanceSquared<T>(data, p.data, size);
 }
 
-inline real_t Vector::DistanceTo(const real_t *p) const
+template <class T>
+inline T VectorMP<T>::DistanceTo(const T *p) const
 {
-   return Distance(data, p, size);
+   return Distance<T>(data, p, size);
 }
 
-inline real_t Vector::DistanceTo(const Vector &p) const
+template <class T>
+inline T VectorMP<T>::DistanceTo(const VectorMP<T> &p) const
 {
    MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
-   return Distance(data, p.data, size);
+   return Distance<T>(data, p.data, size);
 }
 
 /// Returns the inner product of x and y
 /** In parallel this computes the inner product of the local vectors,
     producing different results on each MPI rank.
 */
-inline real_t InnerProduct(const Vector &x, const Vector &y)
+template <class T>
+inline T InnerProduct(const VectorMP<T> &x, const VectorMP<T> &y)
 {
    return x * y;
 }
@@ -727,11 +780,25 @@ inline real_t InnerProduct(const Vector &x, const Vector &y)
 /** In parallel this computes the inner product of the global vectors,
     producing identical results on each MPI rank.
 */
-inline real_t InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
+template <class T>
+inline T InnerProduct(MPI_Comm comm, const VectorMP<T> &x, const VectorMP<T> &y)
 {
-   real_t loc_prod = x * y;
-   real_t glb_prod;
-   MPI_Allreduce(&loc_prod, &glb_prod, 1, MFEM_MPI_REAL_T, MPI_SUM, comm);
+   T loc_prod = x * y;
+   T glb_prod;
+
+   if (std::is_same<T, double>::value)
+   {
+      MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);
+   }
+   else if (std::is_same<T, float>::value)
+   {
+      MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_FLOAT, MPI_SUM, comm);
+   }
+   else
+   {
+      MFEM_ABORT("Floating point type not supported");
+   }
+
    return glb_prod;
 }
 #endif
