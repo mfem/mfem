@@ -62,7 +62,7 @@ lib-common:
 # building out-of-source:
 ifneq ($(SRC),)
 MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh icf.mesh\
-jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh 
+jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 mesh-optimizer pmesh-optimizer pmesh-fitting fit-node-position: | $(MESH_FILES)
