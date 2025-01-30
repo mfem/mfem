@@ -107,6 +107,12 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 
 #endif
 
+/// @brief Wrapper for std::getenv.
+///
+/// @note Directly calling getenv causes a warning with MSVC. Use this wrapper
+/// to suppress the warning.
+const char* GetEnv(const char* name);
+
 } // namespace mfem
 
 #endif

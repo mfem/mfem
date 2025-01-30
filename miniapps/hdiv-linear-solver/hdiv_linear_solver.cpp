@@ -58,8 +58,9 @@ HypreParMatrix *MakeDiagonalMatrix(Vector &diag,
 const IntegrationRule &GetMassIntRule(FiniteElementSpace &fes_l2)
 {
    Mesh *mesh = fes_l2.GetMesh();
-   const FiniteElement *fe = fes_l2.GetFE(0);
-   return MassIntegrator::GetRule(*fe, *fe, *mesh->GetElementTransformation(0));
+   const FiniteElement *fe = fes_l2.GetTypicalFE();
+   return MassIntegrator::GetRule(
+             *fe, *fe, *mesh->GetTypicalElementTransformation());
 }
 
 HdivSaddlePointSolver::HdivSaddlePointSolver(
@@ -75,7 +76,7 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
      ess_rt_dofs(ess_rt_dofs_),
      basis_l2(fes_l2_),
      basis_rt(fes_rt_),
-     convert_map_type(fes_l2_.GetFE(0)->GetMapType() == FiniteElement::VALUE),
+     convert_map_type(fes_l2_.GetTypicalFE()->GetMapType() == FiniteElement::VALUE),
      mass_l2(&fes_l2),
      mass_rt(&fes_rt),
      L_coeff(L_coeff_),
