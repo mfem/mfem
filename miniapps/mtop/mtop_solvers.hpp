@@ -2,6 +2,7 @@
 #define MTOP_SOLVERS_HPP
 
 #include "mfem.hpp"
+#include "rand_eigensolver.hpp"
 
 using namespace mfem;
 
@@ -164,10 +165,11 @@ public:
         mu=new IsoElasticySchearCoeff(E,nu);
 
         bf=new ParBilinearForm(vfes);
+        bf->SetDiagonalPolicy(DIAG_ONE);
         bf->AddDomainIntegrator(new ElasticityIntegrator(*lambda,*mu));
     }
 
-private:
+protected:
     mfem::ParMesh* pmesh;
 
     //solution true vector
@@ -232,38 +234,20 @@ private:
     mfem::Coefficient* rho; //density
 
     mfem::ParBilinearForm* bf;
-    mfem::HypreParMatrix* K;
-    mfem::HypreParMatrix* Ke;
+    mfem::HypreParMatrix K;
 
     mfem::ParLinearForm* lf;
 };
 
-class FRElasticOperator:public mfem::Operator
+class FRElasticSolver:public LElasticOperator
 {
 public:
-    FRElasticOperator(mfem::ParMesh* mesh_, int vorder=1, mfem::real_t freq_=0.0);
+    FRElasticSolver(mfem::ParMesh* mesh_, int vorder=1, mfem::real_t freq_=0.0);
 
-    virtual ~FRElasticOperator();
+    virtual ~FRElasticSolver();
 
     void SetFreq(mfem::real_t freq_){
         freq=freq_;
-    }
-
-    /// Set material
-    void SetMaterial(Coefficient& E_, Coefficient& nu_)
-    {
-        E=&E_;
-        nu=&nu_;
-
-        delete lambda;
-        delete mu;
-        delete bf;
-
-        lambda=new IsoElasticyLambdaCoeff(E,nu);
-        mu=new IsoElasticySchearCoeff(E,nu);
-
-        bf=new ParBilinearForm(vfes);
-        bf->AddDomainIntegrator(new ElasticityIntegrator(*lambda,*mu));
     }
 
     void SetDensity(Coefficient& rho_)
@@ -271,6 +255,8 @@ public:
         rho=&rho_;
         delete mf;
         mf=new ParBilinearForm(vfes);
+        mf->SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL);
+        mf->SetDiagonalPolicy(DIAG_ZERO);
         mf->AddDomainIntegrator(new MassIntegrator(*rho));
     }
 
@@ -288,31 +274,36 @@ public:
         cf->AddDomainIntegrator(new MassIntegrator(*damp));
     }
 
+    /// Sets BC dofs, bilinear form, preconditioner and solver.
+    /// Should be called before calling Mult of MultTranspose
+    virtual void Assemble() override;
 
-private:
+    void AssembleSVD();
 
-    //finite element space for linear elasticity
-    mfem::ParFiniteElementSpace* vfes;
-    //finite element collection for linear elasticity
-    mfem::FiniteElementCollection* vfec;
+
+protected:
 
     mfem::real_t freq;
     mfem::real_t alpha;
     mfem::real_t beta;
 
-    mfem::Coefficient* E;
-    mfem::Coefficient* nu;
-
-    mfem::Coefficient* lambda;
-    mfem::Coefficient* mu;
     mfem::Coefficient* rho; //density
     mfem::Coefficient* damp; //viscous damping
 
-    mfem::ParBilinearForm* bf; //stiffness bilinear form
     mfem::ParBilinearForm* mf; //mass bilinear form
+    mfem::OperatorHandle hmf;
     mfem::ParBilinearForm* cf; //damping bilinear form
+    mfem::OperatorHandle hcf;
 
     mfem::ParLinearForm* lrf; //real RHS
     mfem::ParLinearForm* lif; //imag RHS
+
+
+    int num_svd_modes;
+    int num_svd_iter;
+    mfem::ProductOperator* pop;
+    RandomizedSubspaceIteration* ss_solver; //subspace iteration solver
+
+
 };
 #endif // MTOP_SOLVERS_HPP

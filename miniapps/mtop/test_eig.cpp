@@ -107,6 +107,7 @@ int main(int argc, char *argv[])
 
    mfem::ConstantCoefficient E(1.0);
    mfem::ConstantCoefficient nu(0.2);
+   mfem::ConstantCoefficient rho(1.0);
 
 
    le->AddDispBC(1,4,0.0);
@@ -129,6 +130,16 @@ int main(int argc, char *argv[])
    paraview_dc.Save();
 
    delete le;
+
+   FRElasticSolver* fr=new FRElasticSolver(&pmesh,2,0.0);
+   fr->AddDispBC(1,4,0.0);
+   fr->SetMaterial(E,nu);
+   fr->SetDensity(rho);
+   fr->Assemble();
+   fr->AssembleSVD();
+
+
+   delete fr;
    Mpi::Finalize();
    return 0;
 }

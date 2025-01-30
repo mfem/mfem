@@ -34,9 +34,6 @@ LElasticOperator::LElasticOperator(mfem::ParMesh* mesh_, int vorder)
     lambda=nullptr;
     mu=nullptr;
 
-    K=nullptr;
-    Ke=nullptr;
-
     bf=nullptr;
     lf=nullptr;
 }
@@ -45,9 +42,6 @@ LElasticOperator::~LElasticOperator()
 {
     delete prec;
     delete ls;
-
-    delete K;
-    delete Ke;
 
     delete bf;
     delete lf;
@@ -267,13 +261,8 @@ void LElasticOperator::Assemble()
     sol=mfem::real_t(0.0);
     SetEssTDofs(sol,ess_tdofv);
 
-    if(K!=nullptr){ delete K;}
-    if(Ke!=nullptr){delete Ke;}
-
-    bf->Assemble();
-    bf->Finalize();
-    K=bf->ParallelAssemble();
-    Ke=bf->ParallelEliminateTDofs(ess_tdofv,*K);
+    bf->Assemble(0);
+    bf->FormSystemMatrix(ess_tdofv,K);
 
     if(ls==nullptr){
         ls=new CGSolver(pmesh->GetComm());
@@ -285,11 +274,14 @@ void LElasticOperator::Assemble()
         prec->SetElasticityOptions(vfes);
         prec->SetPrintLevel(1);
         ls->SetPreconditioner(*prec);
-        ls->SetOperator(*K);
+        ls->SetOperator(K);
         ls->SetPrintLevel(1);
     }else{
-        ls->SetOperator(*K);
+        ls->SetOperator(K);
     }
+
+    std::cout<<pmesh->GetMyRank()<<" LSW="<<ls->Width()<<" LSH="<<ls->Height()
+                                 <<" KFW="<<K.Width()<<" KFH="<<K.Height()<<std::endl;
 }
 
 void LElasticOperator::FSolve()
@@ -308,8 +300,79 @@ void LElasticOperator::FSolve()
     lf->Assemble();
     lf->ParallelAssemble(rhs);
 
-    //set BC
-    mfem::EliminateBC(*K,*Ke,ess_tdofv,sol,rhs);
+    for(int i=0;i<ess_tdofv.Size();i++){
+        rhs[ess_tdofv[i]]=sol[ess_tdofv[i]];
+    }
 
     ls->Mult(rhs,sol);
+
+}
+
+FRElasticSolver::FRElasticSolver(mfem::ParMesh* mesh_, int vorder, mfem::real_t freq_):
+                    LElasticOperator(mesh_,vorder)
+{
+
+    freq=freq_;
+    alpha=0.0;
+    beta=0.0;
+
+    mf=nullptr;
+    cf=nullptr;
+
+    lrf=nullptr;
+    lif=nullptr;
+
+    num_svd_modes=3;
+    num_svd_iter=2;
+    pop=nullptr;
+    ss_solver=nullptr;
+}
+
+FRElasticSolver::~FRElasticSolver()
+{
+
+    delete ss_solver;
+    delete pop;
+
+    delete mf;
+    delete cf;
+
+    delete lrf;
+    delete lif;
+
+}
+
+void FRElasticSolver::Assemble()
+{
+    LElasticOperator::Assemble();
+
+    if(mf==nullptr){
+        MFEM_WARNING("FRElasticSolver::Mass bilinear form is not defined!");
+        return;
+    }
+    mf->Assemble();
+    mf->FormSystemMatrix(LElasticOperator::ess_tdofv,hmf);
+
+    if(cf==nullptr){
+        MFEM_WARNING("FRElasticSolver::Damping bilinear form is not defined!");
+        return;
+    }
+    cf->Assemble();
+    cf->FormSystemMatrix(LElasticOperator::ess_tdofv,hcf);
+}
+
+void FRElasticSolver::AssembleSVD()
+{
+    delete ss_solver;
+    delete pop;
+    ss_solver=new RandomizedSubspaceIteration(LElasticOperator::pmesh->GetComm());
+
+    std::cout<<LElasticOperator::pmesh->GetMyRank()<<"CW="<<hmf->Width()<<" CH="<<hmf->Height()<<std::endl;
+
+    pop=new mfem::ProductOperator(LElasticOperator::ls,hmf.Ptr(),false,false);
+    ss_solver->SetOperator(*pop);
+    ss_solver->SetNumModes(num_svd_modes);
+    ss_solver->SetNumIter(num_svd_iter);
+    ss_solver->Solve();
+
 }
