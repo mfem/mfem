@@ -136,7 +136,7 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
                face_info);
 
             const FiniteElement *face_el =
-               parentfes.GetTraceElement(parent_element_ids[i], face_geom);
+               parentfes.GetTraceElement(parent_volel_id, face_geom);
             MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
                         "Nodal Finite Element is required");
 
@@ -611,7 +611,8 @@ void ConstructFaceTree(NCSubMeshT &submesh, const Array<int> &attributes)
          stable across processors.
    */
    // Build an inverse (and consecutive) map.
-   Array<FaceNodes> new_elem_to_parent_face_nodes(pnodes_new_elem.size());
+   Array<FaceNodes> new_elem_to_parent_face_nodes(static_cast<int>
+                                                  (pnodes_new_elem.size()));
    for (const auto &kv : pnodes_new_elem)
    {
       new_elem_to_parent_face_nodes[kv.second] = kv.first;
