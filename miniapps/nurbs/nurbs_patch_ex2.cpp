@@ -35,20 +35,24 @@
 using namespace std;
 using namespace mfem;
 
-void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
-                      Array<int> const& ess_tdof_list, const bool pa,
-                      const bool algebraic_ceed, GridFunction & x);
 
 int main(int argc, char *argv[])
 {
+   // 0. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
+
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
+   // const char *mesh_file = "../../data/beam-hex-nurbs.mesh";
+   const char *mesh_file = "../../data/beam-hex.mesh";
    bool pa = false;
-   bool algebraic_ceed = false;
    bool patchAssembly = false;
    int ref_levels = 0;
    int nurbs_degree_increase = 0;  // Elevate the NURBS mesh degree by this
    int ir_order = -1;
+   bool reorder_space = false;
    int visport = 19916;
    bool visualization = 1;
 
@@ -57,12 +61,6 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   // args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-   //                "--no-static-condensation", "Enable static condensation.");
-#ifdef MFEM_USE_CEED
-   args.AddOption(&algebraic_ceed, "-a", "--algebraic", "-no-a", "--no-algebraic",
-                  "Use algebraic Ceed solver");
-#endif
    args.AddOption(&patchAssembly, "-patcha", "--patch-assembly", "-no-patcha",
                   "--no-patch-assembly", "Enable patch-wise assembly.");
    args.AddOption(&ref_levels, "-ref", "--refine",
@@ -71,27 +69,28 @@ int main(int argc, char *argv[])
                   "Elevate NURBS mesh degree by this amount.");
    args.AddOption(&ir_order, "-iro", "--integration-order",
                   "Order of integration rule.");
+   args.AddOption(&reorder_space, "-nodes", "--by-nodes", "-vdim", "--by-vdim",
+                  "Use byNODES ordering of vector space instead of byVDIM");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
-   if (!args.Good())
+
+   // Print & verify options
+   if (Mpi::Root())
    {
-      args.PrintUsage(cout);
-      return 1;
+      args.PrintOptions(cout);
    }
-   args.PrintOptions(cout);
+   MFEM_VERIFY(!(patchAssembly && !pa), "Patch assembly must be used with -pa");
 
-   MFEM_VERIFY(!(pa && !patchAssembly), "Patch assembly must be used with -pa");
+   // 2. Read the serial mesh from the given mesh file.
+   Mesh serial_mesh(mesh_file, 1, 1);
+   int dim = serial_mesh.Dimension();
+   bool isNURBS = serial_mesh.NURBSext;
 
-   // 2. Read the mesh from the given mesh file.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
-
-   MFEM_VERIFY(mesh->NURBSext, "Mesh must be a NURBS mesh");
-   MFEM_VERIFY(mesh->GetNodes(), "Mesh must have nodes");
-
-   if (mesh->attributes.Max() < 2 || mesh->bdr_attributes.Max() < 2)
+   // Verify mesh is valid for this problem
+   MFEM_VERIFY(!(isNURBS && !serial_mesh.GetNodes()), "NURBS mesh must have nodes");
+   if (serial_mesh.attributes.Max() < 2 || serial_mesh.bdr_attributes.Max() < 2)
    {
       cerr << "\nInput mesh should have at least two materials and "
            << "two boundary attributes! (See schematic in ex2.cpp)\n"
@@ -100,60 +99,77 @@ int main(int argc, char *argv[])
    }
 
    // 3. Optionally, increase the NURBS degree.
-   if (nurbs_degree_increase > 0) { mesh->DegreeElevate(nurbs_degree_increase); }
-
-   // 4. Refine the mesh to increase the resolution.
-   for (int l = 0; l < ref_levels; l++)
+   if (isNURBS && nurbs_degree_increase>0)
    {
-      mesh->UniformRefinement();
+      serial_mesh.DegreeElevate(nurbs_degree_increase);
    }
 
-   // 5. Define an isogeometric finite element space on the mesh.
-   FiniteElementCollection *fec = mesh->GetNodes()->OwnFEC();
-   cout << "Using isoparametric FEs: " << fec->Name() << endl;
+   // 4. Refine the serial mesh to increase the resolution.
+   for (int l = 0; l < ref_levels; l++)
+   {
+      serial_mesh.UniformRefinement();
+   }
+   // 5. Define a parallel mesh by a partitioning of the serial mesh.
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear(); // the serial mesh is no longer needed
 
-   FiniteElementSpace *fespace = mesh->GetNodes()->FESpace();
-   cout << "Number of finite element unknowns: "
-        << fespace->GetTrueVSize() << endl;
+   // 5. Define a finite element space on the mesh.
+   // Node ordering is important
+   const Ordering::Type fes_ordering =
+      reorder_space ? Ordering::byNODES : Ordering::byVDIM;
+
+   FiniteElementCollection * fec = nullptr;
+   if (isNURBS)
+   {
+      fec = mesh.GetNodes()->OwnFEC();
+   }
+   else
+   {
+      fec = new H1_FECollection(1, dim);
+   }
+
+   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(&mesh, fec, dim, fes_ordering);
+   if (Mpi::Root())
+   {
+      cout << "Finite Element Collection: " << fec->Name() << endl;
+      cout << "Number of finite element unknowns: " << fespace->GetTrueVSize() << endl;
+   }
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
-   //    In this example, the boundary conditions are defined by marking only
-   //    boundary attribute 1 from the mesh as essential and converting it to a
-   //    list of true dofs.
-   Array<int> ess_tdof_list, ess_bdr(mesh->bdr_attributes.Max());
+   Array<int> ess_tdof_list, ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[0] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
-   //    the FEM linear system. In this case, b_i equals the boundary integral
-   //    of f*phi_i where f represents a "pull down" force on the Neumann part
-   //    of the boundary and phi_i are the basis functions in the finite element
-   //    fespace. The force is defined by the VectorArrayCoefficient object f,
-   //    which is a vector of Coefficient objects. The fact that f is non-zero
-   //    on boundary attribute 2 is indicated by the use of piece-wise constants
-   //    coefficient for its last component.
+   // 7. Set up the linear form b(.)
    VectorArrayCoefficient f(dim);
    for (int i = 0; i < dim-1; i++)
    {
       f.Set(i, new ConstantCoefficient(0.0));
    }
    {
-      Vector pull_force(mesh->bdr_attributes.Max());
+      Vector pull_force(mesh.bdr_attributes.Max());
       pull_force = 0.0;
       pull_force(1) = -1.0e-2;
       f.Set(dim-1, new PWConstCoefficient(pull_force));
    }
 
-   LinearForm *b = new LinearForm(fespace);
-   b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
-   cout << "r.h.s. ... " << flush;
-   b->Assemble();
+   ParLinearForm b(fespace);
+   b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
+   if (Mpi::Root())
+   {
+      cout << "RHS ..." << flush;
+   }
+   b.Assemble();
+   if (Mpi::Root())
+   {
+      cout << "done." << endl;
+   }
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   GridFunction x(fespace);
+   ParGridFunction x(fespace);
    x = 0.0;
 
    // 9. Set up the bilinear form a(.,.) on the finite element space
@@ -161,11 +177,11 @@ int main(int argc, char *argv[])
    //    constants coefficient lambda and mu.
 
    // Lame parameters
-   Vector lambda(mesh->attributes.Max());
+   Vector lambda(mesh.attributes.Max());
    lambda = 1.0;
    lambda(0) = lambda(1)*50;
    PWConstCoefficient lambda_func(lambda);
-   Vector mu(mesh->attributes.Max());
+   Vector mu(mesh.attributes.Max());
    mu = 1.0;
    mu(0) = mu(1)*50;
    PWConstCoefficient mu_func(mu);
@@ -177,119 +193,151 @@ int main(int argc, char *argv[])
       ei->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE);
    }
 
-
+   // Patch rule
    NURBSMeshRules *patchRule = nullptr;
-   if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
-   cout << "Using ir_order " << ir_order << endl;
-
-   patchRule = new NURBSMeshRules(mesh->NURBSext->GetNP(), dim);
-   // Loop over patches and set a different rule for each patch.
-   for (int p=0; p<mesh->NURBSext->GetNP(); ++p)
+   if (isNURBS)
    {
-      Array<const KnotVector*> kv(dim);
-      mesh->NURBSext->GetPatchKnotVectors(p, kv);
-
-      std::vector<const IntegrationRule*> ir1D(dim);
-      const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
-
-      // Construct 1D integration rules by applying the rule ir to each
-      // knot span.
-      for (int i=0; i<dim; ++i)
+      if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
+      if (Mpi::Root())
       {
-         ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
+         cout << "Using ir_order " << ir_order << endl;
       }
 
-      patchRule->SetPatchRules1D(p, ir1D);
-   }  // loop (p) over patches
+      patchRule = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
+      // Loop over patches and set a different rule for each patch.
+      for (int p=0; p < mesh.NURBSext->GetNP(); ++p)
+      {
+         Array<const KnotVector*> kv(dim);
+         mesh.NURBSext->GetPatchKnotVectors(p, kv);
 
-   patchRule->Finalize(*mesh);
-   ei->SetNURBSPatchIntRule(patchRule);
+         std::vector<const IntegrationRule*> ir1D(dim);
+         const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);
+
+         // Construct 1D integration rules by applying the rule ir to each knot span.
+         for (int i=0; i<dim; ++i)
+         {
+            ir1D[i] = ir->ApplyToKnotIntervals(*kv[i]);
+         }
+
+         patchRule->SetPatchRules1D(p, ir1D);
+      }  // loop (p) over patches
+
+      patchRule->Finalize(mesh);
+      ei->SetNURBSPatchIntRule(patchRule);
+   }
 
 
    // 10. Assemble and solve the linear system
-   cout << "Assembling system and solving" << endl;
-   AssembleAndSolve(*b, ei, ess_tdof_list, pa, algebraic_ceed, x);
-   delete patchRule;
-
-   // 14. Save the displaced mesh and the inverted solution (which gives the
-   //     backward displacements to the original grid). This output can be
-   //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
+   if (Mpi::Root())
    {
-      GridFunction *nodes = mesh->GetNodes();
-      *nodes += x;
-      x *= -1;
-      ofstream mesh_ofs("displaced.mesh");
-      mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
-      ofstream sol_ofs("sol.gf");
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
+      cout << "Assembling system and solving" << endl;
    }
 
-   // 15. Send the above data by socket to a GLVis server. Use the "n" and "b"
-   //     keys in GLVis to visualize the displacements.
-   if (visualization)
+   // Define and assemble bilinear form
+   if (Mpi::Root())
    {
-      char vishost[] = "localhost";
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
+      cout << "Assemble a ... " << flush;
    }
-
-   // 16. Free the used memory.
-   delete b;
-   delete mesh;
-
-   return 0;
-}
-
-// This function deletes bfi when the BilinearForm goes out of scope.
-void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
-                      Array<int> const& ess_tdof_list, const bool pa,
-                      const bool algebraic_ceed, GridFunction & x)
-{
-   FiniteElementSpace *fespace = b.FESpace();
-   BilinearForm a(fespace);
+   ParBilinearForm a(fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-
-   a.AddDomainIntegrator(bfi);  // Takes ownership of bfi
-
-   // if (static_cond) { a->EnableStaticCondensation(); }
-   // Assemble the bilinear form
+   a.AddDomainIntegrator(ei);
+   a.UseExternalIntegrators();
    a.Assemble();
+   if (Mpi::Root())
+   {
+      cout << "done." << endl;
+   }
 
+   // Define linear system
+   if (Mpi::Root())
+   {
+      cout << "Matrix ... " << flush;
+   }
    OperatorPtr A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   if (Mpi::Root())
+   {
+      cout << "done. " << "(size = " << fespace->GlobalTrueVSize() << ")" << endl;
+   }
 
    // Solve the linear system A X = B.
+   if (Mpi::Root())
+   {
+      cout << "Solving linear system ... " << flush;
+   }
    if (!pa)
    {
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 500, 1e-8, 0.0);
+      // GSSmoother M((SparseMatrix&)(*A));
+      HypreBoomerAMG *amg = new HypreBoomerAMG(*A.As<HypreParMatrix>());
+      amg->SetSystemsOptions(dim, reorder_space);
+      // PCG(*A, *amg, B, X, 1, 500, 1e-8, 0.0);
+
+      CGSolver solver(MPI_COMM_WORLD);
+      solver.SetRelTol(1e-12);
+      solver.SetAbsTol(1e-12);
+      solver.SetMaxIter(200);
+      solver.SetPrintLevel(1);
+      solver.SetPreconditioner(*amg);
+      solver.SetOperator(*A);
+      solver.Mult(B, X);
    }
    else
    {
       if (UsesTensorBasis(*fespace))
       {
-         if (algebraic_ceed)
-         {
-            ceed::AlgebraicSolver M(a, ess_tdof_list);
-            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-         }
-         else
-         {
-            OperatorJacobiSmoother M(a, ess_tdof_list);
-            PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-         }
+         MFEM_VERIFY(false, "Not implemented yet")
+         // OperatorJacobiSmoother M(a, ess_tdof_list);
+         // PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
       }
       else
       {
-         CG(*A, B, X, 1, 400, 1e-20, 0.0);
+         MFEM_VERIFY(false, "Not implemented yet")
+         // CG(*A, B, X, 1, 400, 1e-20, 0.0);
       }
+   }
+   if (Mpi::Root())
+   {
+      cout << "Done solving system." << endl;
    }
 
    // Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
+
+
+   // 11. For non-NURBS meshes, make the mesh curved based on the finite element
+   //     space. This means that we define the mesh elements through a fespace
+   //     based transformation of the reference element.
+   if (!isNURBS)
+   {
+      mesh.SetNodalFESpace(fespace);
+   }
+   // 12. Save the displaced mesh and the inverted solution
+   {
+      GridFunction *nodes = mesh.GetNodes();
+      *nodes += x;
+      x *= -1;
+   }
+
+   // 13. Send the above data by socket to a GLVis server.
+   if (visualization)
+   {
+      // send to socket
+      char vishost[] = "localhost";
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x;
+      sol_sock << "window_geometry " << 0 << " " << 0 << " "
+               << 800 << " " << 800 << "\n"
+               << "keys agc\n" << std::flush;
+   }
+
+   // 14. Free the used memory.
+   // delete *mesh;
+   delete fespace;
+   // delete patchRule;
+
+   return 0;
 }
