@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
    b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
    if (Mpi::Root())
    {
-      cout << "RHS ..." << flush;
+      cout << "RHS ... " << flush;
    }
    b.Assemble();
    if (Mpi::Root())
@@ -228,11 +228,6 @@ int main(int argc, char *argv[])
 
 
    // 10. Assemble and solve the linear system
-   if (Mpi::Root())
-   {
-      cout << "Assembling system and solving" << endl;
-   }
-
    // Define and assemble bilinear form
    if (Mpi::Root())
    {
@@ -264,16 +259,15 @@ int main(int argc, char *argv[])
    // Solve the linear system A X = B.
    if (Mpi::Root())
    {
-      cout << "Solving linear system ... " << flush;
+      cout << "Solving linear system ... " << endl;
    }
    if (!pa)
    {
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      // GSSmoother M((SparseMatrix&)(*A));
+      // preconditioner
       HypreBoomerAMG *amg = new HypreBoomerAMG(*A.As<HypreParMatrix>());
       amg->SetSystemsOptions(dim, reorder_space);
-      // PCG(*A, *amg, B, X, 1, 500, 1e-8, 0.0);
 
+      // solver
       CGSolver solver(MPI_COMM_WORLD);
       solver.SetRelTol(1e-12);
       solver.SetAbsTol(1e-12);
@@ -285,17 +279,36 @@ int main(int argc, char *argv[])
    }
    else
    {
-      if (UsesTensorBasis(*fespace))
+      if (Mpi::Root())
       {
-         MFEM_VERIFY(false, "Not implemented yet")
-         // OperatorJacobiSmoother M(a, ess_tdof_list);
-         // PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+         cout << "AssemblePA()... " << flush;
       }
-      else
-      {
-         MFEM_VERIFY(false, "Not implemented yet")
-         // CG(*A, B, X, 1, 400, 1e-20, 0.0);
-      }
+      ei->AssemblePA(*fespace);
+      // preconditioner
+      HypreBoomerAMG *amg = new HypreBoomerAMG(*A.As<HypreParMatrix>());
+      amg->SetSystemsOptions(dim, reorder_space);
+
+      // solver
+      CGSolver solver(MPI_COMM_WORLD);
+      solver.SetRelTol(1e-12);
+      solver.SetAbsTol(1e-12);
+      solver.SetMaxIter(200);
+      solver.SetPrintLevel(1);
+      solver.SetPreconditioner(*amg);
+      solver.SetOperator(*A);
+      solver.Mult(B, X);
+      // ei->AssemblePA(fespace);
+      // if (UsesTensorBasis(*fespace))
+      // {
+      //    MFEM_VERIFY(false, "Not implemented yet")
+      //    // OperatorJacobiSmoother M(a, ess_tdof_list);
+      //    // PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
+      // }
+      // else
+      // {
+      //    MFEM_VERIFY(false, "Not implemented yet")
+      //    // CG(*A, B, X, 1, 400, 1e-20, 0.0);
+      // }
    }
    if (Mpi::Root())
    {
