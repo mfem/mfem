@@ -1,15 +1,18 @@
-#include "mfem.hpp"
-
-using namespace mfem;
 #ifndef UTILITY_FUNCTIONS
 #define UTILITY_FUNCTIONS
+
+#include "mfem.hpp"
+
+// using namespace mfem;
+
+namespace mfem {
 
 void HypreToMfemOffsets(HYPRE_BigInt * offsets);
 
 HypreParMatrix * GenerateHypreParMatrixFromSparseMatrix(HYPRE_BigInt * colOffsetsloc, HYPRE_BigInt * rowOffsetsloc, SparseMatrix * Asparse);
 
 HypreParMatrix * GenerateHypreParMatrixFromDiagonal(HYPRE_BigInt * offsetsloc, 
-		Vector & diag);
+		mfem::Vector & diag);
 
 
 HypreParMatrix * GenerateProjector(HYPRE_BigInt * offsets, HYPRE_BigInt * reduced_offsets, HYPRE_Int * mask);
@@ -18,6 +21,8 @@ HypreParMatrix * GenerateProjector(HYPRE_BigInt * offsets, HYPRE_BigInt * reduce
 
 
 HYPRE_BigInt * offsetsFromLocalSizes(int n);
+
+}
 
 
 #endif

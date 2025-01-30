@@ -1,14 +1,15 @@
+#ifndef PARIPSOLVER 
+#define PARIPSOLVER
+
 #include "mfem.hpp"
 #include "Problem.hpp"
 #include <fstream>
 #include <iostream>
 
-using namespace std;
-using namespace mfem;
+// using namespace std;
+// using namespace mfem;
 
-
-#ifndef PARIPSOLVER 
-#define PARIPSOLVER
+namespace mfem {
 
 class ParInteriorPointSolver
 {
@@ -79,5 +80,7 @@ public:
     void FeasibilityRestoration(const BlockVector &, const Vector &, const Vector &, BlockVector &, double); 
     virtual ~ParInteriorPointSolver();
 };
+
+}
 
 #endif

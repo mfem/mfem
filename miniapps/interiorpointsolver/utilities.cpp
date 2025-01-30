@@ -41,7 +41,7 @@ HypreParMatrix * GenerateHypreParMatrixFromDiagonal(HYPRE_BigInt * offsetsloc,
    }   
    Dsparse->Finalize();
    HypreParMatrix * Dhypre = nullptr;
-   Dhypre = GenerateHypreParMatrixFromSparseMatrix(offsetsloc, offsetsloc, Dsparse);
+   Dhypre = mfem::GenerateHypreParMatrixFromSparseMatrix(offsetsloc, offsetsloc, Dsparse);
    delete Dsparse;
    return Dhypre;   
 }
@@ -73,7 +73,7 @@ HypreParMatrix * GenerateProjector(HYPRE_BigInt * offsets, HYPRE_BigInt * reduce
   }
   Psparse->Finalize();
   HypreParMatrix * Phypre = nullptr;
-  Phypre = GenerateHypreParMatrixFromSparseMatrix(offsets, reduced_offsets, Psparse);
+  Phypre = mfem::GenerateHypreParMatrixFromSparseMatrix(offsets, reduced_offsets, Psparse);
   delete Psparse;
   return Phypre;
 }
@@ -105,7 +105,7 @@ HypreParMatrix * GenerateProjector(HYPRE_BigInt * offsets, HYPRE_BigInt * reduce
   }
   Psparse->Finalize();
   HypreParMatrix * Phypre = nullptr;
-  Phypre = GenerateHypreParMatrixFromSparseMatrix(offsets, reduced_offsets, Psparse);
+  Phypre = mfem::GenerateHypreParMatrixFromSparseMatrix(offsets, reduced_offsets, Psparse);
   delete Psparse;
   return Phypre;
 }

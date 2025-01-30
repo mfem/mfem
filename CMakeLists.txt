@@ -605,6 +605,7 @@ endif()
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
   add_subdirectory(${DIR})
 endforeach()
+add_subdirectory(miniapps/interiorpointsolver)
 
 if (MFEM_USE_CUDA)
   set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CUDA)

@@ -1,13 +1,15 @@
+#ifndef PARPROBLEM_DEFS
+#define PARPROBLEM_DEFS
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include "utilities.hpp"
 
-using namespace std;
-using namespace mfem;
+// using namespace std;
+// using namespace mfem;
 
-#ifndef PARPROBLEM_DEFS
-#define PARPROBLEM_DEFS
+namespace mfem {
 
 // abstract ParGeneralOptProblem class
 // of the form
@@ -153,6 +155,6 @@ public:
 };
 
 
-
+}
 
 #endif
