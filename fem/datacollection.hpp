@@ -454,28 +454,28 @@ public:
 #endif
 
    /// Set/change the mesh associated with the collection
-   virtual void SetMesh(Mesh *new_mesh) override;
+   void SetMesh(Mesh *new_mesh) override;
 
 #ifdef MFEM_USE_MPI
    /// Set/change the mesh associated with the collection.
-   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh) override;
+   void SetMesh(MPI_Comm comm, Mesh *new_mesh) override;
 #endif
 
    /// Add a grid function to the collection and update the root file
-   virtual void RegisterField(const std::string& field_name,
-                              GridFunction *gf) override;
+   void RegisterField(const std::string& field_name,
+                      GridFunction *gf) override;
 
    /// Add a quadrature function to the collection and update the root file.
    /** Visualization of quadrature function is not supported in VisIt(3.12).
        A patch has been sent to VisIt developers in June 2020. */
-   virtual void RegisterQField(const std::string& q_field_name,
-                               QuadratureFunction *qf) override;
+   void RegisterQField(const std::string& q_field_name,
+                       QuadratureFunction *qf) override;
 
    /// Set the number of digits used for both the cycle and the MPI rank
    /// @note VisIt seems to require 6 pad digits for the MPI rank. Therefore,
    /// this function uses this default value. This behavior can be overridden
    /// by calling SetPadDigitsCycle() and SetPadDigitsRank() instead.
-   virtual void SetPadDigits(int digits) override
+   void SetPadDigits(int digits) override
    { pad_digits_cycle=digits; pad_digits_rank=6; }
 
    /// Set VisIt parameter: default levels of detail for the MultiresControl
@@ -489,13 +489,13 @@ public:
    void DeleteAll();
 
    /// Save the collection and a VisIt root file
-   virtual void Save() override;
+   void Save() override;
 
    /// Save a VisIt root file for the collection
    void SaveRootFile();
 
    /// Load the collection based on its VisIt data (described in its root file)
-   virtual void Load(int cycle_ = 0) override;
+   void Load(int cycle_ = 0) override;
 
    /// We will delete the mesh and fields if we own them
    virtual ~VisItDataCollection() {}
@@ -546,7 +546,7 @@ public:
 
    /// Save the collection - the directory name is constructed based on the
    /// cycle value
-   virtual void Save() override;
+   void Save() override;
 
    /// Set the data format for the ParaView output files. Possible options are
    /// VTKFormat::ASCII, VTKFormat::BINARY, and VTKFormat::BINARY32.
@@ -590,7 +590,7 @@ public:
    void UseRestartMode(bool restart_mode_);
 
    /// Load the collection - not implemented in the ParaView writer
-   virtual void Load(int cycle_ = 0) override;
+   void Load(int cycle_ = 0) override;
 };
 
 }

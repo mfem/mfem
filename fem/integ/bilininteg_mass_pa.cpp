@@ -19,6 +19,8 @@
 namespace mfem
 {
 
+// PA Mass Integrator
+
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
@@ -27,9 +29,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation *T0 = mesh->GetElementTransformation(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
+   ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
    if (DeviceCanUseCeed())
    {
@@ -195,8 +196,8 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
-      internal::PAMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data,
-                                       diag);
+      DiagonalPAKernels::Run(dim, dofs1D, quad1D, ne, maps->B, pa_data,
+                             diag, dofs1D, quad1D);
    }
 }
 
@@ -208,8 +209,26 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
    else
    {
-      internal::PAMassApply(dim, dofs1D, quad1D, ne, maps->B, maps->Bt, pa_data, x,
-                            y);
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &Bt = maps->Bt;
+      const Vector &D = pa_data;
+#ifdef MFEM_USE_OCCA
+      if (DeviceCanUseOcca())
+      {
+         if (dim == 2)
+         {
+            return internal::OccaPAMassApply2D(D1D,Q1D,ne,B,Bt,D,x,y);
+         }
+         if (dim == 3)
+         {
+            return internal::OccaPAMassApply3D(D1D,Q1D,ne,B,Bt,D,x,y);
+         }
+         MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
+      }
+#endif // MFEM_USE_OCCA
+      ApplyPAKernels::Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
    }
 }
 
@@ -230,8 +249,8 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
       absB.Apply(abs_val);
       absBt.Apply(abs_val);
 
-      internal::PAMassApply(dim, dofs1D, quad1D, ne,
-                            absB, absBt, abs_pa_data, x, y);
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, absB, absBt, abs_pa_data,
+                          x, y, dofs1D, quad1D);
    }
 }
 
