@@ -65,7 +65,6 @@ linferrs = np.zeros((len(Ms)))
 for i, N in enumerate(Ns):
 	plt.subplot(2,3,i+1)
 
-	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
 		try:
 			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_legendre_{M}.txt')
@@ -77,7 +76,6 @@ for i, N in enumerate(Ns):
 			pass
 	plt.semilogy(Ms, l2errs, 'ro-',linewidth=1)
 
-	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
 		try:
 			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_lobatto_{M}.txt')
@@ -89,7 +87,6 @@ for i, N in enumerate(Ns):
 			pass
 	plt.semilogy(Ms, l2errs, 'go-',linewidth=1)
 
-	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
 		try:
 			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_chebyshev_{M}.txt')
@@ -101,7 +98,6 @@ for i, N in enumerate(Ns):
 			pass
 	plt.semilogy(Ms, l2errs, 'bo-',linewidth=1)
 
-	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
 		try:
 			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_equispaced_{M}.txt')
@@ -113,7 +109,6 @@ for i, N in enumerate(Ns):
 			pass
 	plt.semilogy(Ms, l2errs, 'co-',linewidth=1)
 
-	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
 		try:
 			fname = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}.txt"
@@ -133,7 +128,6 @@ for i, N in enumerate(Ns):
 	plt.ylabel('L2 err')
 	plt.title(f'N = {N}')
 
-	l1errs = l2errs = linferrs = np.zeros((len(Ms)))
 	for j, M in enumerate(Ms):
 		try:
 			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt')
