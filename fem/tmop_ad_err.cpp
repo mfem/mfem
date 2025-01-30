@@ -42,6 +42,115 @@ void ConjugationProduct(const DenseMatrix &A, const DenseMatrix &B, const DenseM
   Mult(A, CBt, D);
 }
 
+void KroneckerProduct(const mfem::DenseMatrix &A, const mfem::DenseMatrix &B, mfem::DenseMatrix &C)
+{
+    int m = A.NumRows(), n = A.NumCols();
+    int p = B.NumRows(), q = B.NumCols();
+    C.SetSize(m*p, n*q);
+    for (int row=0; row<C.NumRows(); row++)
+        for (int col=0; col<C.NumCols(); col++)
+        {
+            C(row, col) = A(row/p, col/q) * B(row%p, col%q);
+        }
+}
+
+void IsotropicStiffnessMatrix(int dim, double mu, double lambda, mfem::DenseMatrix &C)
+{
+    // set C = 2*mu*P_sym
+    FourthOrderSymmetrizer(dim, C);
+    C *= 2*mu;
+
+    // compute lambda*dyadic(I, I)
+    mfem::DenseMatrix I, IxI;
+    mfem::Vector vecI;
+    IdentityMatrix(dim, I);
+    Vectorize(I, vecI);
+    VectorOuterProduct(vecI, vecI, IxI);
+    IxI *= lambda;
+
+    // set C = 2*mu*P_sym + lamba*dyadic(I, I)
+    C += IxI;
+}
+
+void IsotropicStiffnessMatrix3D(double E, double v, mfem::DenseMatrix &C)
+{
+    double     mu = E   / (2*(1+v));
+    double lambda = E*v / ((1+v)*(1-2*v));
+    IsotropicStiffnessMatrix(3, mu, lambda, C);
+}
+
+void VectorOuterProduct(const mfem::Vector &a, const mfem::Vector &b, mfem::DenseMatrix &C)
+{
+    int m = a.Size();
+    int n = b.Size();
+    C.SetSize(m, n);
+    C = 0.0;
+    for (int i=0; i<C.NumRows(); i++)
+        for (int j=0; j<C.NumCols(); j++)
+        {
+            C(i,j) = a(i)*b(j);
+        }
+}
+
+void FourthOrderSymmetrizer(int dim, mfem::DenseMatrix &S)
+{
+    mfem::DenseMatrix I, T;
+    FourthOrderIdentity(dim, I);
+    FourthOrderTranspose(dim, T);
+    S  = I;
+    S += T;
+    S *= 0.5;
+}
+
+void FourthOrderIdentity(int dim, mfem::DenseMatrix &I4)
+{
+    mfem::DenseMatrix I2;
+    IdentityMatrix(dim, I2);
+    MatrixConjugationProduct(I2, I2, I4);
+}
+
+void FourthOrderTranspose(int dim, mfem::DenseMatrix &T)
+{
+    T.SetSize(dim*dim, dim*dim);
+    T = 0.0;
+    mfem::Vector Eij, Eji;
+    mfem::DenseMatrix temp;
+    for (int i=0; i<dim; i++)
+    {
+        for (int j=0; j<dim; j++)
+        {
+            UnitStrain(dim, i, j, Eij);
+            UnitStrain(dim, j, i, Eji);
+            VectorOuterProduct(Eij, Eji, temp);
+            T += temp;
+        }
+    }
+}
+
+void UnitStrain(int dim, int i, int j, mfem::DenseMatrix &E)
+{
+    E.SetSize(dim, dim);
+    E       = 0.0;
+    E(i, j) = 1.0;
+}
+
+// E_ij = outer(e_i, e_j)
+void UnitStrain(int dim, int i, int j, mfem::Vector &E)
+{
+    E.SetSize(dim*dim);
+    E          = 0.0;
+    E(j*dim+i) = 1.0;
+}
+
+void MatrixConjugationProduct(const mfem::DenseMatrix &A, const mfem::DenseMatrix &B, mfem::DenseMatrix &C)
+{
+    KroneckerProduct(B, A, C);
+}
+
+
+
+
+
 LFNodeCoordinateSensitivityIntegrator::LFNodeCoordinateSensitivityIntegrator( int IntegrationOrder)
   : IntegrationOrder_(IntegrationOrder)
 {}
@@ -690,6 +799,115 @@ void ThermalHeatSourceShapeSensitivityIntegrator::AssembleRHSElementVect(const F
   }
 }
 
+ElasticityStiffnessShapeSensitivityIntegrator::ElasticityStiffnessShapeSensitivityIntegrator(
+    mfem::Coefficient &lambda, mfem::Coefficient &mu,
+    const mfem::ParGridFunction &u_primal, const mfem::ParGridFunction &u_adjoint)
+    : lambda_(&lambda), mu_(&mu), u_primal_(&u_primal), u_adjoint_(&u_adjoint)
+{
+    MFEM_ASSERT(u_primal.VectorDim() == u_adjoint.VectorDim(), "Primal and adjoint solutions are not compatible");
+}
+
+void ElasticityStiffnessShapeSensitivityIntegrator::AssembleRHSElementVect(const mfem::FiniteElement &el,
+        mfem::ElementTransformation &T,
+        mfem::Vector &elvect)
+{
+    // grab sizes
+    int dof = el.GetDof();
+    int dim = el.GetDim();
+
+    // intialize intermediate matrices
+    mfem::DenseMatrix                  dN(dof, dim);
+    mfem::DenseMatrix                   B(dof, dim);
+    mfem::DenseMatrix               Kr_IB(dim*dof, dim*dim);
+    mfem::DenseMatrix                matC(dim*dim);
+    mfem::DenseMatrix           KrIB_matC(dim*dof, dim*dim);
+
+    mfem::DenseMatrix              dX_dXk(dim, dof);
+    mfem::DenseMatrix              dJ_dXk(dim, dim);
+    mfem::DenseMatrix           dJinv_dXk(dim, dim);
+    mfem::DenseMatrix              dB_dXk(dof, dim);
+    mfem::DenseMatrix              Kr_IdB(dim*dof, dim*dim);
+    mfem::DenseMatrix          KrIdB_matC(dim*dof, dim*dim);
+    mfem::DenseMatrix     KrIdB_matC_KrIB(dim*dof, dim*dof);
+    mfem::DenseMatrix     KrIB_matC_KrIdB(dim*dof, dim*dof);
+    mfem::DenseMatrix      KrIB_matC_KrIB(dim*dof, dim*dof);
+
+    mfem::DenseMatrix              dK_dXk(dim*dof, dim*dof);
+
+    mfem::Vector                ue_primal(dim*dof);
+    mfem::Vector               ue_adjoint(dim*dof);
+
+    mfem::Array<int> vdofs;
+    u_primal_->ParFESpace()->GetElementVDofs(T.ElementNo, vdofs);
+    u_primal_->GetSubVector(vdofs, ue_primal);
+
+    u_adjoint_->ParFESpace()->GetElementVDofs(T.ElementNo, vdofs);
+    u_adjoint_->GetSubVector(vdofs, ue_adjoint);
+
+    // identity tensort
+    mfem::DenseMatrix I;
+    IdentityMatrix(dim, I);
+
+    // output vector
+    elvect.SetSize(dof*dim);
+    elvect = 0.0;
+
+    // set integration rule
+    const mfem::IntegrationRule *ir = &mfem::IntRules.Get(el.GetGeomType(), 2*T.OrderGrad(&el));
+
+    // loop over nodal coordinates (X_k)
+    for (int m=0; m<dim; m++)
+    {
+        for (int n=0; n<dof; n++)
+        {
+            dX_dXk = 0.0;
+            dX_dXk(m, n) = 1.0;
+
+            dK_dXk = 0.0;
+            // loop over integration points
+            for (int i=0; i < ir->GetNPoints(); i++)
+            {
+                const ::mfem::IntegrationPoint &ip = ir->IntPoint(i);
+                T.SetIntPoint(&ip);                       // set current integration point
+                double w = ip.weight * T.Weight();        // evaluate gaussian integration weight
+                el.CalcDShape(ip, dN);                    // evaluate shape function derivative
+                mfem::Mult(dN, T.InverseJacobian(), B);   // map to iso-parametric element
+                KroneckerProduct(I, B, Kr_IB);  // compute Kron(B.T, I)
+                IsotropicStiffnessMatrix(dim, mu_->Eval(T, ip), lambda_->Eval(T, ip), matC);
+
+                // compute derivative of Jacobian w.r.t. nodal coordinate
+                mfem::Mult(dX_dXk, dN, dJ_dXk);
+
+                // compute derivative of J^(-1)
+                mfem::DenseMatrix JinvT = T.InverseJacobian();
+                JinvT.Transpose();
+                ConjugationProduct(T.InverseJacobian(), JinvT, dJ_dXk, dJinv_dXk);
+                dJinv_dXk *= -1.0;
+
+                // compute derivative of B w.r.t. nodal coordinate
+                mfem::Mult(dN, dJinv_dXk, dB_dXk);
+                KroneckerProduct(I, dB_dXk, Kr_IdB);
+
+                // compute derivative of stiffness matrix w.r.t. X_k
+                mfem::Mult(Kr_IdB, matC, KrIdB_matC);
+                mfem::Mult(Kr_IB, matC, KrIB_matC);
+                mfem::MultABt(KrIdB_matC, Kr_IB, KrIdB_matC_KrIB);
+                mfem::MultABt(KrIB_matC, Kr_IdB, KrIB_matC_KrIdB);
+                mfem::MultABt(KrIB_matC, Kr_IB, KrIB_matC_KrIB);
+
+                // compute derivative of integration weight w.r.t. X_k
+                double dw_dXk = w * MatrixInnerProduct(JinvT, dJ_dXk);
+
+                // put together all terms of product rule
+                dK_dXk.Add(w, KrIdB_matC_KrIB);
+                dK_dXk.Add(w, KrIB_matC_KrIdB);
+                dK_dXk.Add(dw_dXk, KrIB_matC_KrIB);
+            }
+            elvect(n+m*dof) += dK_dXk.InnerProduct(ue_primal, ue_adjoint);
+        }
+    }
+}
+
 void QuantityOfInterest::UpdateMesh(Vector const &U)
 {
   Vector Xi = X0_;
@@ -700,6 +918,15 @@ void QuantityOfInterest::UpdateMesh(Vector const &U)
 }
 
 void Diffusion_Solver::UpdateMesh(Vector const &U)
+{
+  Vector Xi = X0_;
+  Xi += U;
+  coord_fes_->GetParMesh()->SetNodes(Xi);
+
+  coord_fes_->GetParMesh()->DeleteGeometricFactors();
+}
+
+void Elasticity_Solver::UpdateMesh(Vector const &U)
 {
   Vector Xi = X0_;
   Xi += U;
@@ -940,6 +1167,99 @@ void QuantityOfInterest::EvalQoIGrad()
       dQdx_->Add(1.0, ud_gradForm);
     }
   }
+}
+
+void Elasticity_Solver::FSolve()
+{
+  this->UpdateMesh(designVar);
+
+  Array<int> ess_tdof_list(ess_tdof_list_);
+
+  // make coefficients of the linear elastic properties
+  ::mfem::ConstantCoefficient firstLameCoef(1.0);
+  ::mfem::ConstantCoefficient secondLameCoef(0.0);
+
+  ParBilinearForm a(u_fes_);
+  ParLinearForm b(u_fes_);
+  a.AddDomainIntegrator(new ElasticityIntegrator(firstLameCoef, secondLameCoef));
+
+
+  //b.AddBoundaryIntegrator(new ElasticityTractionIntegrator(*f_));
+
+  a.Assemble();
+  b.Assemble();
+
+  // solve for temperature
+  ParGridFunction &u = solgf;
+
+  u = 0.0;
+  HypreParMatrix A;
+  Vector X, B;
+  a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
+
+  HypreBoomerAMG amg(A);
+  amg.SetPrintLevel(0);
+
+  CGSolver cg(u_fes_->GetParMesh()->GetComm());
+  cg.SetRelTol(1e-10);
+  cg.SetMaxIter(500);
+  cg.SetPreconditioner(amg);
+  cg.SetOperator(A);
+  cg.Mult(B, X);
+
+  a.RecoverFEMSolution(X, b, u);
+}
+
+void Elasticity_Solver::ASolve( Vector & rhs )
+{
+    // the nodal coordinates will default to the initial mesh
+    this->UpdateMesh(designVar);
+
+    Array<int> ess_tdof_list(ess_tdof_list_);
+
+    // make coefficients of the linear elastic properties
+    ::mfem::ConstantCoefficient firstLameCoef(1.0);
+    ::mfem::ConstantCoefficient secondLameCoef(0.0);
+
+    ParBilinearForm a(u_fes_);
+    a.AddDomainIntegrator(new ElasticityIntegrator(firstLameCoef, secondLameCoef));
+    a.Assemble();
+
+    // solve adjoint problem
+    ParGridFunction adj_sol(u_fes_);
+    adj_sol = 0.0;
+
+    HypreParMatrix A;
+    Vector X, B;
+    a.FormLinearSystem(ess_tdof_list, adj_sol, rhs, A, X, B);
+
+    HypreBoomerAMG amg(A);
+    amg.SetPrintLevel(0);
+
+    CGSolver cg(u_fes_->GetParMesh()->GetComm());
+    cg.SetRelTol(1e-10);
+    cg.SetMaxIter(500);
+    cg.SetPreconditioner(amg);
+    cg.SetOperator(A);
+    cg.Mult(B, X);
+
+    a.RecoverFEMSolution(X, rhs, adj_sol);
+
+
+
+    // make a Parlinear form to compute sensivity w.r.t. nodal coordinates
+    // here we can use sensitivity w.r.t coordinate since d/dU = d/dX * dX/dU = d/dX * 1
+    ::mfem::ParLinearForm LHS_sensitivity(coord_fes_);
+    LHS_sensitivity.AddDomainIntegrator(new ElasticityStiffnessShapeSensitivityIntegrator(
+                                            firstLameCoef, secondLameCoef, solgf, adj_sol));
+    LHS_sensitivity.Assemble();
+
+    ::mfem::ParLinearForm RHS_sensitivity(coord_fes_);
+    RHS_sensitivity.Assemble();
+
+    *dQdx_ = 0.0;
+    dQdx_->Add(-1.0, LHS_sensitivity);
+    dQdx_->Add( 1.0, RHS_sensitivity);
 }
 
 void Diffusion_Solver::FSolve()
