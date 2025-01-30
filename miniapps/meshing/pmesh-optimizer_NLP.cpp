@@ -33,6 +33,9 @@
 // order 1, cube mesh
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 100 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m cube.mesh -o 1 -rs 4 -mid 303
 
+// sinusoidal wave for orientation and sharp inclined wave for solution
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-4 -ni 200 -ft 3 --qtype 3 -w1 1e2 -w2 1e-2 -m square01.mesh -rs 2 -o 2 -tid 4 -mid 107 -alpha 35
+
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -48,6 +51,40 @@ using namespace std;
 int ftype = 1;
 double kw = 10.0;
 double alphaw = 50;
+
+class OSCoefficient : public TMOPMatrixCoefficient
+{
+private:
+   int metric, dd;
+
+public:
+   OSCoefficient(int dim, int metric_id)
+      : TMOPMatrixCoefficient(dim), dd(dim), metric(metric_id) { }
+
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override
+   {
+      Vector pos(dd);
+      T.Transform(ip, pos);
+      MFEM_VERIFY(dd == 2,"OSCoefficient does not support 3D\n");
+      const real_t xc = pos(0), yc = pos(1);
+      real_t theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
+      // real_t alpha_bar = 0.1;
+      K(0, 0) =  cos(theta);
+      K(1, 0) =  sin(theta);
+      K(0, 1) = -sin(theta);
+      K(1, 1) =  cos(theta);
+      // K *= alpha_bar;
+   }
+
+    void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                 const IntegrationPoint &ip, int comp) override
+   {
+      Vector pos(dd);
+      T.Transform(ip, pos);
+      K = 0.;
+   }
+};
 
 double trueSolFunc(const Vector & x)
 {
@@ -86,6 +123,14 @@ double trueSolFunc(const Vector & x)
     val -= rc;
     val *= alpha;
     return std::atan(val);
+  }
+  else if (ftype == 3)
+  {
+    double xv = x[0];
+    double yv = x[1];
+    double alpha = alphaw;
+    double dx = xv - 0.5-0.2*(yv-0.5);
+    return std::atan(alpha*dx);
   }
   return 0.0;
   //--------------------------------------------------------------
@@ -149,6 +194,15 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
       grad[2] = alpha*dz/den1;
     }
     // mfem_error("ftype 2 not implemented");
+  }
+  else if (ftype == 3)
+  {
+    double xv = x[0];
+    double yv = x[1];
+    double alpha = alphaw;
+    double dx = xv - 0.5-0.2*(yv-0.5);
+    grad[0] = alpha/(1.0+std::pow(dx*alpha,2.0));
+    grad[1] = -0.2*grad[0];
   }
 };
 
@@ -224,6 +278,16 @@ double loadFunc(const Vector & x)
     // double f = numerator / denominator;
     // return f;
   }
+  else if (ftype == 3)
+  {
+    double xv = x[0];
+    double yv = x[1];
+    double alpha = alphaw;
+    double dx = xv - 0.5-0.2*(yv-0.5);
+    double num1 = std::pow(alpha,3.0)*dx;
+    double den1 = std::pow((1.0+std::pow(dx*alpha,2.0)),2.0);
+    return 2.08*num1/den1;
+  }
   return 0.0;
 };
 
@@ -258,6 +322,7 @@ int main (int argc, char *argv[])
   int mesh_poly_deg     = 1;
   int nx                = 20;
   const char *mesh_file = "null.mesh";
+   bool exactaction      = false;
 
   OptionsParser args(argc, argv);
   args.AddOption(&ref_ser, "-rs", "--refine-serial",
@@ -292,6 +357,8 @@ int main (int argc, char *argv[])
                   "number of iters");
    args.AddOption(&ftype, "-ft", "--ftype",
                   "function type");
+   args.AddOption(&alphaw, "-alpha", "--alpha",
+                  "alpha weight for functions");
    args.AddOption(&qoitype, "-qoit", "--qtype",
                   "Quantity of interest type");
    args.AddOption(&weight_1, "-w1", "--weight1",
@@ -302,6 +369,10 @@ int main (int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+    args.AddOption(&exactaction, "-ex", "--exact_action",
+                  "-no-ex", "--no-exact-action",
+                  "Enable exact action of TMOP_Integrator.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -346,6 +417,7 @@ int main (int argc, char *argv[])
   auto PMesh = new ParMesh(MPI_COMM_WORLD, *des_mesh);
 
   int spatialDimension = PMesh->SpaceDimension();
+  int dim = spatialDimension;
 
   // -----------------------
   // Remaining mesh settings
@@ -406,6 +478,10 @@ int main (int argc, char *argv[])
       case 4: metric = new TMOP_Metric_004; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
+      case 36: metric = new TMOP_AMetric_036; break;
+      case 85: metric = new TMOP_Metric_085; break;
+      case 98: metric = new TMOP_Metric_098; break;
+      case 107: metric = new TMOP_AMetric_107a; break;
       case 303: metric = new TMOP_Metric_303; break;
       default:
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
@@ -413,16 +489,30 @@ int main (int argc, char *argv[])
    }
 
    TargetConstructor::TargetType target_t;
+   TargetConstructor *target_c = NULL;
+   OSCoefficient *adapt_coeff = NULL;
    switch (target_id)
    {
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+      case 4:
+      {
+         target_t = TargetConstructor::GIVEN_FULL;
+         AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
+         adapt_coeff = new OSCoefficient(dim, metric_id);
+         tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
+         target_c = tc;
+         break;
+      }
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
    }
-   TargetConstructor *target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+   if (target_c == NULL)
+   {
+    target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
+   }
    target_c->SetNodes(x);
 
    IntegrationRules *irules = NULL;
@@ -441,6 +531,7 @@ int main (int argc, char *argv[])
 
    ConstantCoefficient metric_w(weight_tmop);
    tmop_integ->SetCoefficient(metric_w);
+   tmop_integ->SetExactActionFlag(exactaction);
 
   // set esing variable bounds
   Vector objgrad(numOptVars); objgrad=0.0;
@@ -522,15 +613,9 @@ int main (int argc, char *argv[])
   std::vector<std::pair<int, double>> essentialBC(nbattr);
   for (int i = 0; i < nbattr; i++)
   {
+    // std::cout << i << " "  << " k101\n";
     essentialBC[i] = {i+1, 0};
   }
-  // essentialBC[0] = {1, 0};
-  // essentialBC[1] = {2, 0};
-  // if (strcmp(mesh_file, "null.mesh") == 0)
-  // {
-    // essentialBC[2] = {3, 0};
-    // essentialBC[3] = {4, 0};
-  // }
 
   const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
@@ -574,14 +659,13 @@ if (myid == 0) {
   }
 }
 
-
-  Diffusion_Solver solver(PMesh, essentialBC, mesh_poly_deg);
+  Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
+  Diffusion_Solver solver(PMesh, essentialBC, mesh_poly_deg, trueSolution);
   QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg);
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
 
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
   solver.SetManufacturedSolution(QCoef);
-  Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
   VectorCoefficient *trueSolutionGrad = new VectorFunctionCoefficient(spatialDimension,trueSolGradFunc);
   QoIEvaluator.setTrueSolCoeff( trueSolution );
   if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
@@ -599,7 +683,6 @@ if (myid == 0) {
       common::VisualizeMesh(vis, "localhost", 19916, *PMesh, "Initial Mesh",
                             0, 0, 500, 500, "m");
    }
-
 
   x.SetTrueVector();
   if (method == 0)
@@ -625,9 +708,12 @@ if (myid == 0) {
       tmma->SetTrueDofs(trueBounds);
     }
     // Set QoI and Solver and weight
-    tmma->SetQuantityOfInterest(&QoIEvaluator);
-    tmma->SetDiffusionSolver(&solver);
-    tmma->SetQoIWeight(weight_1);
+    if (weight_1 > 0.0)
+    {
+      tmma->SetQuantityOfInterest(&QoIEvaluator);
+      tmma->SetDiffusionSolver(&solver);
+      tmma->SetQoIWeight(weight_1);
+    }
 
     // Set max # iterations
     tmma->SetMaxIter(max_it);
@@ -645,7 +731,7 @@ if (myid == 0) {
       x0 -= x;
       socketstream vis;
       common::VisualizeField(vis, "localhost", 19916, x0,
-                              "Displacements", 600, 000, 500, 500, "jRmclAppppppppppppp");
+                              "Displacements", 500, 000, 500, 500, "jRmclAppppppppppppp");
 
       ParaViewDataCollection paraview_dc("NativeMeshOptimizer", PMesh);
       paraview_dc.SetLevelsOfDetail(1);
@@ -663,6 +749,14 @@ if (myid == 0) {
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
       PMesh->PrintAsOne(mesh_ofs);
+    }
+
+    ParGridFunction & discretSol = solver.GetSolution();
+    if (visualization)
+    {
+        socketstream vis;
+        common::VisualizeField(vis, "localhost", 19916, discretSol,
+                              "Solution", 1000, 000, 500, 500, "jRmclA");
     }
   }
   else

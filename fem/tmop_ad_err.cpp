@@ -962,6 +962,10 @@ void Diffusion_Solver::FSolve()
 
   // solve for temperature
   ParGridFunction &T = solgf;
+  if (trueSolCoeff)
+  {
+    T.ProjectBdrCoefficient(*trueSolCoeff, ess_bdr_attr);
+  }
 
   HypreParMatrix A;
   Vector X, B;

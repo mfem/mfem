@@ -646,7 +646,7 @@ private:
 class Diffusion_Solver
 {
 public:
-    Diffusion_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_=2)
+    Diffusion_Solver(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_=2, Coefficient *truesolfunc = nullptr)
     {
         pmesh=mesh_;
         int dim=pmesh->Dimension();
@@ -696,6 +696,23 @@ public:
         }
         bcGridFunc_.SetSpace(temp_fes_);
         bcGridFunc_.SetFromTrueDofs(ess_bc);
+
+        ess_bdr_attr.SetSize(maxAttribute);
+        ess_bdr_attr = 0;
+        for (const auto &bc: ess_bdr)
+        {
+          int attribute = bc.first;
+          ess_bdr_attr[attribute-1] = 1;
+        }
+        if (truesolfunc)
+        {
+          bcGridFunc_ = 0.0;
+          GridFunction bdrsol(temp_fes_);
+          bdrsol.ProjectBdrCoefficient(*truesolfunc, ess_bdr_attr);
+          solgf.ProjectBdrCoefficient(*truesolfunc, ess_bdr_attr);
+          bcGridFunc_ = bdrsol;
+          trueSolCoeff = truesolfunc;
+        }
     }
 
     ~Diffusion_Solver(){
@@ -773,6 +790,9 @@ private:
     mfem::FiniteElementCollection *fec;
     mfem::ParFiniteElementSpace	  *temp_fes_;
     mfem::ParFiniteElementSpace	  *coord_fes_;
+
+    mfem::Coefficient *trueSolCoeff = nullptr;
+    Array<int> ess_bdr_attr;
 
     //Linear solver parameters
     double linear_rtol;

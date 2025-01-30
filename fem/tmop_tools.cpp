@@ -1085,6 +1085,7 @@ void TMOP_MMA::Mult(Vector &x)
       ProcessNewState(x);
 
       norm = Norm(r);
+      // if (norm < 0.1) { weight *= 2.0; }
    }
 
    final_iter = it;
@@ -1263,7 +1264,7 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
       }
       real_t norm_out = Norm(r);
 
-      if (norm_out > 1.2*norm_in)
+      if (norm_out > 1.0*norm_in)
       {
          if (print_options.iterations)
          {
