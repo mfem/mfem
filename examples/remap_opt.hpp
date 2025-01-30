@@ -833,18 +833,11 @@ public:
       }
    }
 
-   virtual
-   std::shared_ptr<Functional> GetConstr(int i, ConstrType ctyp=EQUALITY)
+   virtual std::shared_ptr<Functional> GetConstr(int i, ConstrType c = EQUALITY)
    {
-      if (ctyp==EQUALITY)
-      {
-         return EqConstr[i];
-      }
-      else if (ctyp==INEQUALITY)
-      {
-         return InConstr[i];
-      }
-
+      if (c == EQUALITY)        { return EqConstr[i]; }
+      else if (c == INEQUALITY) { return InConstr[i]; }
+      return nullptr;
    }
 
    virtual
