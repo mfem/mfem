@@ -28,144 +28,6 @@ def lagrange_basis_polynomial(j, x, gll_nodes):
             L *= (x - xm) / (x_j - xm)
     return L
 
-def build_and_solve_model(N, M, gll_nodes, num_samples_per_interval=2):
-    """
-    N: number of Lagrange basis polynomials (e.g., length of gll_nodes).
-    M: total number of interval points (breakpoints). -> (M-1) subintervals.
-
-    Returns (x_sol, u_sol, l_sol) where:
-      - x_sol is length M, the shared interval points in [-1,1].
-      - u_sol, l_sol are each N x M arrays, storing the piecewise
-        linear bounds for each Lagrange polynomial.
-    """
-    model = pyo.ConcreteModel()
-
-    # Indices
-    model.Ix = pyo.RangeSet(0, M-1)     # for x-coordinates (0..M-1)
-    model.Ij = pyo.RangeSet(0, N-1)     # for each polynomial j
-
-    # x[i]: the shared breakpoints in [-1,1]
-    model.x = pyo.Var(model.Ix, bounds=(-1,1))
-    model.x[0].fix(-1)       # left endpoint
-    model.x[M-1].fix(1)      # right endpoint
-
-    xinit = lobatto_nodes(M)
-    for i in range(1,M-1):
-        model.x[i].value = xinit[i]
-
-    blow = np.zeros((N,M))
-    bhigh = np.zeros((N,M))
-
-    #read initial condition from Tarik's output if it exists
-    filename = f"bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt"
-    data = None
-    ids = 0
-    ide = 0
-    if os.path.exists(filename):
-        data = np.loadtxt(filename)
-        ids = 0
-        ide = 1+N
-        datagll = data[ids:ide]
-        ids = ide+1
-        ide = 1+N+M+1
-        dataint = data[ids:ide]
-        for i in range(1,M-1):
-            model.x[i].value = dataint[i]
-
-    # for i in range(M):
-        # print(model.x[i].value)
-
-
-    # Force ordering x[i+1] >= x[i]
-    def _order_rule(m, i):
-        if i < M-1:
-            return m.x[i+1] >= m.x[i] + 1e-2
-        return pyo.Constraint.Skip
-    model.order = pyo.Constraint(model.Ix, rule=_order_rule)
-
-    # For each j, we have separate piecewise-linear "nodal" values:
-    #    u[j,i], l[j,i], for i=0..M-1
-    model.u = pyo.Var(model.Ij, model.Ix)
-    model.l = pyo.Var(model.Ij, model.Ix)
-
-    if data is not None:
-        for i in range(N):
-            for j in range(M):
-                ids = ide
-                ide = ids+1
-                model.l[i,j].value = data[ids]-0
-                blow[i,j] = model.l[i,j].value
-                # print(j,i,data[ids],'k10l')
-            for j in range(M):
-                ids = ide
-                ide = ids+1
-                model.u[i,j].value = data[ids]+0
-                bhigh[i,j] = model.u[i,j].value
-                # print(j,i,data[ids],'k10u')
-
-    # Constraint list to ensure l_j(x) <= L_j(x) <= u_j(x)
-    model.bound_constraints = pyo.ConstraintList()
-
-    # For each sub-interval i = 0..M-2, we sample points inside [x[i], x[i+1]].
-    for i in range(M-1):
-        # We'll pick some sample points via fractions in [0,1]
-        sample_fractions = np.linspace(0, 1, num_samples_per_interval+2)[1:-1]
-        for frac in sample_fractions:
-            # Expression for x_{i,k}
-            x_ik = model.x[i] + frac * (model.x[i+1] - model.x[i])
-
-            # For each j, define piecewise-linear interpolation:
-            #   u_j(x_ik) = u[j,i] + slope*(x_ik - x[i])
-            # where slope = (u[j,i+1] - u[j,i]) / (x[i+1] - x[i])
-            def u_ik_expr(j):
-                return ( model.u[j,i] +
-                         (model.u[j,i+1]-model.u[j,i])*
-                         ( (x_ik - model.x[i]) / (model.x[i+1]-model.x[i]) ) )
-
-            def l_ik_expr(j):
-                return ( model.l[j,i] +
-                         (model.l[j,i+1]-model.l[j,i])*
-                         ( (x_ik - model.x[i]) / (model.x[i+1]-model.x[i]) ) )
-
-            # Impose bounds for each Lagrange polynomial L_j
-            for j in range(N):
-                # Evaluate L_j at x_ik
-                L_j_val = lagrange_basis_polynomial(j, x_ik, gll_nodes)
-                model.bound_constraints.add(l_ik_expr(j) <= L_j_val)
-                model.bound_constraints.add(L_j_val <= u_ik_expr(j))
-
-    # Objective: Sum of integrals of (u_j - l_j) across x in [-1,1], for all j
-    # For each j, the area is sum_{i=0..M-2} 0.5*(x[i+1]-x[i]) * [ (u_j[i]-l_j[i]) + (u_j[i+1]-l_j[i+1]) ]
-    def _area_rule(m):
-        total_area = 0
-        for j in range(N):
-            for i in range(M-1):
-                length = (m.x[i+1] - m.x[i])
-                avg_height = 0.5 * ((m.u[j,i] - m.l[j,i]) + (m.u[j,i+1] - m.l[j,i+1]))
-                total_area += length * avg_height
-        return total_area
-
-    model.obj = pyo.Objective(rule=_area_rule, sense=pyo.minimize)
-
-    # Solve
-    solver = pyo.SolverFactory('ipopt')
-    solver.options['halt_on_ampl_error'] = 'yes'
-    solver.options['max_iter'] = 5000
-    solver.options['mu_init'] = 1e-3
-    obj_init = model.obj()
-    solver.solve(model, tee=True)
-
-    # Extract the solution
-    x_sol = np.array([pyo.value(model.x[i]) for i in model.Ix])
-    u_sol = np.zeros((N, M))
-    l_sol = np.zeros((N, M))
-    for j in range(N):
-        for i in range(M):
-            u_sol[j, i] = pyo.value(model.u[j,i])
-            l_sol[j, i] = pyo.value(model.l[j,i])
-
-    return x_sol, u_sol, l_sol, model, obj_init, blowt, bhight
-
 def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
     """
     N: number of GLL nodes => defines N Lagrange polynomials L_0..L_{N-1}.
@@ -203,28 +65,18 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
     for i in range(1,M-1):
         model.x[i].value = xinit[i]
 
+    # For each polynomial j, define nodal values l[j,i] and u[j,i]
+    model.l = pyo.Var(model.j_set, model.i_set)
+    model.u = pyo.Var(model.j_set, model.i_set)
+
+    for i in range(N):
+            for j in range(M):
+                model.l[i,j].value = -1.0
+                model.u[i,j].value = 1.0
+
     blow = np.zeros((N,M))
     bhigh = np.zeros((N,M))
     xt = np.zeros(M)
-    xt[0] = -1.0
-    xt[-1] = 1.0
-
-    #read initial condition from Tarik's output if it exists
-    filename = f"bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt"
-    data = None
-    ids = 0
-    ide = 0
-    if os.path.exists(filename):
-        data = np.loadtxt(filename)
-        ids = 0
-        ide = 1+N
-        datagll = data[ids:ide]
-        ids = ide+1
-        ide = 1+N+M+1
-        dataint = data[ids:ide]
-        for i in range(1,M-1):
-            model.x[i].value = dataint[i]
-            xt[i] = model.x[i].value
 
     # Force ordering: x[i+1] >= x[i] + a small gap
     def _order_rule(m, i):
@@ -232,28 +84,6 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
             return m.x[i+1] >= m.x[i] + 1e-2
         return pyo.Constraint.Skip
     model.order_c = pyo.Constraint(model.i_set, rule=_order_rule)
-
-    # For each polynomial j, define nodal values l[j,i] and u[j,i]
-    model.l = pyo.Var(model.j_set, model.i_set)
-    model.u = pyo.Var(model.j_set, model.i_set)
-
-    # for i in range(M):
-            # print(i,model.x[i].value,'k10x')
-
-    if data is not None:
-        for i in range(N):
-            for j in range(M):
-                ids = ide
-                ide = ids+1
-                model.l[i,j].value = data[ids]
-                blow[i,j] = model.l[i,j].value
-                # print(j,i,model.l[i,j].value,'k10l')
-            for j in range(M):
-                ids = ide
-                ide = ids+1
-                model.u[i,j].value = data[ids]
-                bhigh[i,j] = model.u[i,j].value
-                # print(j,i,model.u[i,j].value,'k10u')
 
     # input(' ')
     # -------------------------------------------
@@ -265,15 +95,15 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
     # We sample each subinterval [x[i], x[i+1]] at K_sub interior fractions
     # e.g. if K_sub=2, sample_fractions=[0.25, 0.75], etc.
     # Or you can pick any distribution in [0,1].
-    sample_fractions = np.linspace(0, 1, K_sub)  # skip endpoints if you like
+    sample_fractions = np.linspace(0, 1, K_sub) #you like
     # print(sample_fractions)
     # input(' ')
 
     for i in range(M-1):
+        norm_fac = model.x[i+1]-model.x[i]
+        norm_fac *= 1.0/K_sub
         for frac in sample_fractions:
-            # x_{i,k} = x[i] + frac * (x[i+1] - x[i])
             x_ik = model.x[i] + frac*(model.x[i+1] - model.x[i])
-
             # For each polynomial j, build piecewise-linear interpolation
             #   l_j(x_ik) = l[j,i] + slope_l * (x_ik - x[i])
             #   u_j(x_ik) = similarly
@@ -302,15 +132,15 @@ def build_and_solve_model_L2_bounds(N, M, gll_nodes, K_sub=2):
                 # Add squared gaps to objective: (u_j-L_j)^2 + (L_j-l_j)^2
                 gap_above = u_ik_expr(j) - L_j_ik
                 gap_below = L_j_ik - l_ik_expr(j)
-                gap_exprs.append(gap_above**2/K_sub)
-                gap_exprs.append(gap_below**2/K_sub)
+                gap_exprs.append(norm_fac*gap_above**2)
+                gap_exprs.append(norm_fac*gap_below**2)
 
     # ----------------------
     # 4) Define Objective
     # ----------------------
     def _obj_rule(m):
         # sum of the stored squared-gap expressions
-        return sum(gap_exprs)
+        return (sum(gap_exprs))
     model.obj = pyo.Objective(rule=_obj_rule, sense=pyo.minimize)
 
     # Solve
@@ -393,23 +223,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
     N = args.N
     M = args.M
-    # Example GLL nodes for N=4 (in [-1,1]) -- placeholder values:
-    # (In practice, compute them with a GLL routine.)
     gll_nodes = lobatto_nodes(N)
 
-    # x_sol, u_sol, l_sol, model, obj_init, blowt, bhight = build_and_solve_model(N, M, gll_nodes, 100)
+    nsamples = 20 #samples per sub-interval
 
-    x_sol, u_sol, l_sol, model, obj_init, xsolt, blowt, bhight = build_and_solve_model_L2_bounds(N, M, gll_nodes, 1000)
-
-    # print("Breakpoints:", x_sol)
-    # print("Upper-bound values:", u_sol)
-    # print("Lower-bound values:", l_sol)
-    print(N,M,obj_init,pyo.value(model.obj))
+    x_sol, u_sol, l_sol, model, obj_init, xt, blow, bhigh = build_and_solve_model_L2_bounds(N, M, gll_nodes, nsamples)
 
     filename = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}.pdf"
 
     plot_bounds_for_each_basis_in_pdf(x_sol, u_sol, l_sol, gll_nodes,
-                                      xsolt, blowt, bhight, pdf_filename=filename)
+                                      xt, blow, bhigh, pdf_filename=filename)
 
     filename = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}.txt"
     np.savetxt(filename, [N], fmt="%d", newline="\n")

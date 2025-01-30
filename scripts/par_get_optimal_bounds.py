@@ -9,7 +9,7 @@ def run_dum(N, M):
 
 def main():
     # Define the range of values for N and M
-    N_values = range(6, 7)
+    N_values = range(3, 9)
 
     # Create a list of tasks
     tasks = []
