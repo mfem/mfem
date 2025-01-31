@@ -28,7 +28,7 @@ protected:
 
    /** @brief The method HyperelasticModel::SetTransformation() is hidden
        for TMOP_QualityMetric%s, because it is not used. */
-   void SetTransformation(ElementTransformation &) {}
+   void SetTransformation(ElementTransformation &) { }
 
    /** @brief See AssembleH(). This is a default implementation for the case
        when the 2nd derivatives of the metric are pre-computed and stored into
@@ -37,8 +37,8 @@ protected:
                          const real_t weight, DenseMatrix &A) const;
 
 public:
-   TMOP_QualityMetric(): Jtr(nullptr) {}
-   virtual ~TMOP_QualityMetric() {}
+   TMOP_QualityMetric() : Jtr(NULL) { }
+   virtual ~TMOP_QualityMetric() { }
 
    /** @brief Specify the reference-element -> target-element Jacobian matrix
        for the point of interest.
@@ -51,15 +51,13 @@ public:
    /** @brief Evaluates the metric in matrix form (opposed to invariant form).
        Used for validating the invariant evaluations. */
    virtual real_t EvalWMatrixForm(const DenseMatrix &Jpt) const
-   {
-      return -1.0; /* not implemented -> checks would fail. */
-   }
+   { return -1.0; /* not implemented -> checks would fail. */ }
 
    /** @brief Evaluate the strain energy density function, W = W(Jpt), by using
        the 2D or 3D matrix invariants, see linalg/invariants.hpp.
        @param[in] Jpt  Represents the target->physical transformation
                        Jacobian matrix. */
-   real_t EvalW(const DenseMatrix &Jpt) const override = 0;
+   virtual real_t EvalW(const DenseMatrix &Jpt) const = 0;
 
    /** @brief Evaluate the 1st Piola-Kirchhoff stress tensor, P = P(Jpt).
        @param[in] Jpt  Represents the target->physical transformation
@@ -83,10 +81,8 @@ public:
        Computes weight * d(dW_dxi)_d(xj) at the current point, for all i and j,
        where x1 ... xn are the FE dofs. This function is usually defined using
        the matrix invariants and their derivatives. */
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override = 0;
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const real_t weight, DenseMatrix &A) const = 0;
 
    /** @brief Return the metric ID. */
    virtual int Id() const { return 0; }
@@ -99,7 +95,7 @@ class TargetConstructor;
 class TMOP_Combo_QualityMetric : public TMOP_QualityMetric
 {
 protected:
-   Array<TMOP_QualityMetric *> tmop_q_arr; // the metrics are not owned
+   Array<TMOP_QualityMetric *> tmop_q_arr; //the metrics are not owned
    Array<real_t> wt_arr;
 
 public:
@@ -125,10 +121,8 @@ public:
 
    void EvalPW(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    /// Computes the averages of all metrics (integral of metric / volume).
    /// Works in parallel when called with a ParGridFunction.
@@ -159,11 +153,9 @@ public:
 ///          = mu_hat^p,               when WorstCaseType = PMean,
 /// where beta = max(mu_hat) + muT_ep,
 /// and mu_hat = (mu/2phi(tau,ep)) where
-/// 2phi(tau,ep) = 1, when                                 when BarrierType =
-/// None,
-///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType =
-///             Shifted = tau^2 + sqrt(tau^2 + ep^2),              when
-///             BarrierType = Pseudo
+/// 2phi(tau,ep) = 1, when                                 when BarrierType = None,
+///             = 2*(tau - min(alpha*min(tau)-detT_ep,0)), when BarrierType = Shifted
+///             = tau^2 + sqrt(tau^2 + ep^2),              when BarrierType = Pseudo
 /// where tau = det(T), and max(mu_hat) and min(tau) are computed over the
 /// entire mesh.
 /// Ultimately, this metric can be used for mesh untangling with the BarrierType
@@ -196,21 +188,15 @@ protected:
    WorstCaseType wctype;
 
 public:
-   TMOP_WorstCaseUntangleOptimizer_Metric(
-      TMOP_QualityMetric &tmop_metric_,
-      int exponent_ = 1,
-      real_t alpha_ = 1.5,
-      real_t detT_ep_ = 0.0001,
-      real_t muT_ep_ = 0.0001,
-      BarrierType btype_ = BarrierType::None,
-      WorstCaseType wctype_ = WorstCaseType::None):
-      tmop_metric(tmop_metric_),
-      exponent(exponent_),
-      alpha(alpha_),
-      detT_ep(detT_ep_),
-      muT_ep(muT_ep_),
-      btype(btype_),
-      wctype(wctype_)
+   TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric &tmop_metric_,
+                                          int exponent_ = 1,
+                                          real_t alpha_ = 1.5,
+                                          real_t detT_ep_ = 0.0001,
+                                          real_t muT_ep_ = 0.0001,
+                                          BarrierType btype_ = BarrierType::None,
+                                          WorstCaseType wctype_ = WorstCaseType::None) :
+      tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
+      detT_ep(detT_ep_), muT_ep(muT_ep_), btype(btype_), wctype(wctype_)
    {
       MFEM_VERIFY(wctype == WorstCaseType::None,
                   "Worst-case optimization has not been fully developed!");
@@ -225,17 +211,11 @@ public:
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   {
-      MFEM_ABORT("Not implemented");
-   }
+   { MFEM_ABORT("Not implemented"); }
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override
-   {
-      MFEM_ABORT("Not implemented");
-   }
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override
+   { MFEM_ABORT("Not implemented"); }
 
    // Compute mu_hat.
    real_t EvalWBarrier(const DenseMatrix &Jpt) const;
@@ -276,10 +256,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 1; }
 };
@@ -292,17 +270,11 @@ public:
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   {
-      MFEM_ABORT("Not implemented");
-   }
+   { MFEM_ABORT("Not implemented"); }
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override
-   {
-      MFEM_ABORT("Not implemented");
-   }
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override
+   { MFEM_ABORT("Not implemented"); }
 };
 
 /// 2D non-barrier Aspect ratio metric.
@@ -313,17 +285,11 @@ public:
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   {
-      MFEM_ABORT("Not implemented");
-   }
+   { MFEM_ABORT("Not implemented"); }
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override
-   {
-      MFEM_ABORT("Not implemented");
-   }
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override
+   { MFEM_ABORT("Not implemented"); }
 };
 
 /// 3D non-barrier Aspect ratio metric.
@@ -334,17 +300,11 @@ public:
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   {
-      MFEM_ABORT("Not implemented");
-   }
+   { MFEM_ABORT("Not implemented"); }
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override
-   {
-      MFEM_ABORT("Not implemented");
-   }
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override
+   { MFEM_ABORT("Not implemented"); }
 };
 
 /// 2D barrier shape (S) metric (polyconvex).
@@ -363,10 +323,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 2; }
 };
@@ -384,10 +342,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 4; }
 };
@@ -404,10 +360,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 7; }
 };
@@ -424,10 +378,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D non-barrier Shape+Size+Orientation (VOS) metric (polyconvex).
@@ -445,10 +397,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).
@@ -466,10 +416,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D barrier shape metric (polyconvex).
@@ -488,10 +436,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D non-barrier size (V) metric (not polyconvex).
@@ -507,10 +453,9 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
+
 };
 
 /// 2D barrier size (V) metric (polyconvex).
@@ -529,10 +474,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D barrier shape (S) metric (not polyconvex).
@@ -550,10 +493,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D non-barrier Shape+Size (VS) metric.
@@ -565,22 +506,17 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_066(real_t gamma):
-      sh_metric(new TMOP_Metric_004),
-      sz_metric(new TMOP_Metric_055)
+   TMOP_Metric_066(real_t gamma)
+      : sh_metric(new TMOP_Metric_004), sz_metric(new TMOP_Metric_055)
    {
       // (1-gamma) mu_4 + gamma mu_55
-      AddQualityMetric(sh_metric, 1. - gamma);
+      AddQualityMetric(sh_metric, 1.-gamma);
       AddQualityMetric(sz_metric, gamma);
    }
    int Id() const override { return 66; }
    real_t GetGamma() const { return wt_arr[1]; }
 
-   virtual ~TMOP_Metric_066()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_Metric_066() { delete sh_metric; delete sz_metric; }
 };
 
 /// 2D barrier size (V) metric (polyconvex).
@@ -599,10 +535,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 77; }
 };
@@ -616,9 +550,8 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_080(real_t gamma):
-      sh_metric(new TMOP_Metric_002),
-      sz_metric(new TMOP_Metric_077)
+   TMOP_Metric_080(real_t gamma)
+      : sh_metric(new TMOP_Metric_002), sz_metric(new TMOP_Metric_077)
    {
       // (1-gamma) mu_2 + gamma mu_77
       AddQualityMetric(sh_metric, 1.0 - gamma);
@@ -628,11 +561,7 @@ public:
    int Id() const override { return 80; }
    real_t GetGamma() const { return wt_arr[1]; }
 
-   virtual ~TMOP_Metric_080()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
 };
 
 /// 2D barrier Shape+Orientation (OS) metric (polyconvex).
@@ -658,9 +587,8 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_090():
-      sh_metric(new TMOP_Metric_050),
-      sz_metric(new TMOP_Metric_077)
+   TMOP_Metric_090()
+      : sh_metric(new TMOP_Metric_050), sz_metric(new TMOP_Metric_077)
    {
       // mu_50 + lambda mu_77.
       // 1 <= lambda <= 4 should produce best asymptotic balance.
@@ -669,11 +597,7 @@ public:
    }
 
    int Id() const override { return 90; }
-   virtual ~TMOP_Metric_090()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_Metric_090() { delete sh_metric; delete sz_metric; }
 };
 
 /// 2D compound barrier Shape+Size (VS) metric (balanced).
@@ -684,9 +608,8 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_094():
-      sh_metric(new TMOP_Metric_002),
-      sz_metric(new TMOP_Metric_056)
+   TMOP_Metric_094()
+      : sh_metric(new TMOP_Metric_002), sz_metric(new TMOP_Metric_056)
    {
       // mu_2 + lambda mu_56.
       // 1 <= lambda <= 2 should produce best asymptotic balance.
@@ -695,11 +618,7 @@ public:
    }
 
    int Id() const override { return 94; }
-   virtual ~TMOP_Metric_094()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_Metric_094() { delete sh_metric; delete sz_metric; }
 };
 
 /// 2D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
@@ -725,17 +644,15 @@ protected:
    mutable InvariantsEvaluator2D<real_t> ie;
 
 public:
-   TMOP_Metric_211(real_t epsilon = 1e-4): eps(epsilon) {}
+   TMOP_Metric_211(real_t epsilon = 1e-4) : eps(epsilon) { }
 
    // W = (det(J) - 1)^2 - det(J) + sqrt(det(J)^2 + eps).
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// Shifted barrier form of metric 56 (area, ideal barrier metric), 2D
@@ -754,10 +671,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
@@ -775,10 +690,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
@@ -796,10 +709,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 302; }
 };
@@ -819,10 +730,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 303; }
 };
@@ -842,10 +751,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 304; }
 };
@@ -858,17 +765,15 @@ protected:
    mutable InvariantsEvaluator3D<real_t> ie;
 
 public:
-   TMOP_Metric_311(real_t epsilon = 1e-4): eps(epsilon) {}
+   TMOP_Metric_311(real_t epsilon = 1e-4) : eps(epsilon) { }
 
    // W = (det(J) - 1)^2 - det(J)  + (det(J)^2 + eps)^(1/2).
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D Shape (S) metric, untangling version of 303.
@@ -879,17 +784,15 @@ protected:
    mutable InvariantsEvaluator3D<real_t> ie;
 
 public:
-   TMOP_Metric_313(real_t &mindet): min_detT(mindet) {}
+   TMOP_Metric_313(real_t &mindet) : min_detT(mindet) { }
 
    // W = 1/3 |J|^2 / [det(J)-tau0]^(-2/3).
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 313; }
 };
@@ -906,10 +809,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 315; }
 };
@@ -929,10 +830,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D Size (V) metric.
@@ -950,10 +849,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 318; }
 };
@@ -973,10 +870,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 321; }
 };
@@ -996,10 +891,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 322; }
 };
@@ -1019,10 +912,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 323; }
 };
@@ -1035,9 +926,8 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_328():
-      sh_metric(new TMOP_Metric_301),
-      sz_metric(new TMOP_Metric_316)
+   TMOP_Metric_328()
+      : sh_metric(new TMOP_Metric_301), sz_metric(new TMOP_Metric_316)
    {
       // lambda mu_301 + mu_316.
       // 3/8 <= lambda <= 9/8 should produce best asymptotic balance.
@@ -1046,11 +936,7 @@ public:
    }
 
    int Id() const override { return 328; }
-   virtual ~TMOP_Metric_328()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_Metric_328() { delete sh_metric; delete sz_metric; }
 };
 
 /// 3D compound barrier Shape+Size (VS) metric (polyconvex).
@@ -1060,23 +946,18 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_332(real_t gamma):
-      sh_metric(new TMOP_Metric_302),
-      sz_metric(new TMOP_Metric_315)
+   TMOP_Metric_332(real_t gamma)
+      : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_315)
    {
       // (1-gamma) mu_302 + gamma mu_315
-      AddQualityMetric(sh_metric, 1. - gamma);
+      AddQualityMetric(sh_metric, 1.-gamma);
       AddQualityMetric(sz_metric, gamma);
    }
 
    int Id() const override { return 332; }
    real_t GetGamma() const { return wt_arr[1]; }
 
-   virtual ~TMOP_Metric_332()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
 };
 
 /// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
@@ -1087,20 +968,15 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_333(real_t gamma):
-      sh_metric(new TMOP_Metric_302),
-      sz_metric(new TMOP_Metric_316)
+   TMOP_Metric_333(real_t gamma)
+      : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_316)
    {
       // (1-gamma) mu_302 + gamma mu_316
-      AddQualityMetric(sh_metric, 1. - gamma);
+      AddQualityMetric(sh_metric, 1.-gamma);
       AddQualityMetric(sz_metric, gamma);
    }
 
-   virtual ~TMOP_Metric_333()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_Metric_333() { delete sh_metric; delete sz_metric; }
 };
 
 /// 3D barrier Shape+Size (VS) metric, well-posed (polyconvex).
@@ -1111,23 +987,18 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_334(real_t gamma):
-      sh_metric(new TMOP_Metric_303),
-      sz_metric(new TMOP_Metric_316)
+   TMOP_Metric_334(real_t gamma)
+      : sh_metric(new TMOP_Metric_303), sz_metric(new TMOP_Metric_316)
    {
       // (1-gamma) mu_303 + gamma mu_316
-      AddQualityMetric(sh_metric, 1. - gamma);
+      AddQualityMetric(sh_metric, 1.-gamma);
       AddQualityMetric(sz_metric, gamma);
    }
 
    int Id() const override { return 334; }
    real_t GetGamma() const { return wt_arr[1]; }
 
-   virtual ~TMOP_Metric_334()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
 };
 
 /// 3D compound barrier Shape+Size (VS) metric (polyconvex, balanced).
@@ -1138,22 +1009,17 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_338():
-      sh_metric(new TMOP_Metric_302),
-      sz_metric(new TMOP_Metric_318)
+   TMOP_Metric_338()
+      : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_318)
    {
       // mu_302 + lambda mu_318.
       // 4/9 <= lambda <= 3 should produce best asymptotic balance.
       AddQualityMetric(sh_metric, 1.0);
-      AddQualityMetric(sz_metric, 0.5 * (4.0 / 9.0 + 3.0));
+      AddQualityMetric(sz_metric, 0.5 * (4.0/9.0 + 3.0));
    }
 
    int Id() const override { return 338; }
-   virtual ~TMOP_Metric_338()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_Metric_338() { delete sh_metric; delete sz_metric; }
 };
 
 /// 3D barrier Shape+Size+Orientation (VOS) metric (polyconvex).
@@ -1182,23 +1048,18 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_347(real_t gamma):
-      sh_metric(new TMOP_Metric_304),
-      sz_metric(new TMOP_Metric_316)
+   TMOP_Metric_347(real_t gamma)
+      : sh_metric(new TMOP_Metric_304), sz_metric(new TMOP_Metric_316)
    {
       // (1-gamma) mu_304 + gamma mu_316
-      AddQualityMetric(sh_metric, 1. - gamma);
+      AddQualityMetric(sh_metric, 1.-gamma);
       AddQualityMetric(sz_metric, gamma);
    }
 
    int Id() const override { return 347; }
    real_t GetGamma() const { return wt_arr[1]; }
 
-   virtual ~TMOP_Metric_347()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_Metric_347() { delete sh_metric; delete sz_metric; }
 };
 
 /// 3D shifted barrier form of metric 316 (not typed).
@@ -1216,10 +1077,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 3D non-barrier Shape (S) metric.
@@ -1237,10 +1096,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 
    int Id() const override { return 360; }
 };
@@ -1380,15 +1237,11 @@ public:
       : sh_metric(new TMOP_AMetric_011), sz_metric(new TMOP_AMetric_014)
    {
       // (1-gamma) nu_11 + gamma nu_14
-      AddQualityMetric(sh_metric, 1. - gamma);
+      AddQualityMetric(sh_metric, 1.-gamma);
       AddQualityMetric(sz_metric, gamma);
    }
 
-   virtual ~TMOP_AMetric_126()
-   {
-      delete sh_metric;
-      delete sz_metric;
-   }
+   virtual ~TMOP_AMetric_126() { delete sh_metric; delete sz_metric; }
 };
 
 /// 2D barrier Shape+Skew (SQ) metric.
@@ -1427,20 +1280,16 @@ public:
 
    /** @brief Returns the gradient of the limiting function f(x, x0, d) with
        respect to x. */
-   virtual void Eval_d1(const Vector &x,
-                        const Vector &x0,
-                        real_t dist,
+   virtual void Eval_d1(const Vector &x, const Vector &x0, real_t dist,
                         Vector &d1) const = 0;
 
    /** @brief Returns the Hessian of the limiting function f(x, x0, d) with
        respect to x. */
-   virtual void Eval_d2(const Vector &x,
-                        const Vector &x0,
-                        real_t dist,
+   virtual void Eval_d2(const Vector &x, const Vector &x0, real_t dist,
                         DenseMatrix &d2) const = 0;
 
    /// Virtual destructor.
-   virtual ~TMOP_LimiterFunction() {}
+   virtual ~TMOP_LimiterFunction() { }
 };
 
 /// Default limiter function in TMOP_Integrator.
@@ -1454,9 +1303,7 @@ public:
       return 0.5 * x.DistanceSquaredTo(x0) / (dist * dist);
    }
 
-   void Eval_d1(const Vector &x,
-                const Vector &x0,
-                real_t dist,
+   void Eval_d1(const Vector &x, const Vector &x0, real_t dist,
                 Vector &d1) const override
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
@@ -1465,9 +1312,7 @@ public:
       subtract(1.0 / (dist * dist), x, x0, d1);
    }
 
-   void Eval_d2(const Vector &x,
-                const Vector &x0,
-                real_t dist,
+   void Eval_d2(const Vector &x, const Vector &x0, real_t dist,
                 DenseMatrix &d2) const override
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
@@ -1475,7 +1320,7 @@ public:
       d2.Diag(1.0 / (dist * dist), x.Size());
    }
 
-   virtual ~TMOP_QuadraticLimiter() {}
+   virtual ~TMOP_QuadraticLimiter() { }
 };
 
 /// Exponential limiter function in TMOP_Integrator.
@@ -1486,57 +1331,49 @@ public:
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
-      return exp(10.0 * ((x.DistanceSquaredTo(x0) / (dist * dist)) - 1.0));
+      return  exp(10.0*((x.DistanceSquaredTo(x0) / (dist * dist))-1.0));
    }
 
-   void Eval_d1(const Vector &x,
-                const Vector &x0,
-                real_t dist,
+   void Eval_d1(const Vector &x, const Vector &x0, real_t dist,
                 Vector &d1) const override
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
       d1.SetSize(x.Size());
-      real_t dist_squared = dist * dist;
-      subtract(20.0 *
-               exp(10.0 * ((x.DistanceSquaredTo(x0) / dist_squared) - 1.0)) /
-               dist_squared,
-               x, x0, d1);
+      real_t dist_squared = dist*dist;
+      subtract(20.0*exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared) - 1.0)) /
+               dist_squared, x, x0, d1);
    }
 
-   void Eval_d2(const Vector &x,
-                const Vector &x0,
-                real_t dist,
+   void Eval_d2(const Vector &x, const Vector &x0, real_t dist,
                 DenseMatrix &d2) const override
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
       Vector tmp;
       tmp.SetSize(x.Size());
-      real_t dist_squared = dist * dist;
-      real_t dist_squared_squared = dist_squared * dist_squared;
-      real_t f = exp(10.0 * ((x.DistanceSquaredTo(x0) / dist_squared) - 1.0));
+      real_t dist_squared = dist*dist;
+      real_t dist_squared_squared = dist_squared*dist_squared;
+      real_t f = exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared)-1.0));
 
-      subtract(x, x0, tmp);
+      subtract(x,x0,tmp);
       d2.SetSize(x.Size());
-      d2(0, 0) = ((400.0 * tmp(0) * tmp(0) * f) / dist_squared_squared) +
-                 (20.0 * f / dist_squared);
-      d2(1, 1) = ((400.0 * tmp(1) * tmp(1) * f) / dist_squared_squared) +
-                 (20.0 * f / dist_squared);
-      d2(0, 1) = (400.0 * tmp(0) * tmp(1) * f) / dist_squared_squared;
-      d2(1, 0) = d2(0, 1);
+      d2(0,0) = ((400.0*tmp(0)*tmp(0)*f)/dist_squared_squared)+(20.0*f/dist_squared);
+      d2(1,1) = ((400.0*tmp(1)*tmp(1)*f)/dist_squared_squared)+(20.0*f/dist_squared);
+      d2(0,1) = (400.0*tmp(0)*tmp(1)*f)/dist_squared_squared;
+      d2(1,0) = d2(0,1);
 
       if (x.Size() == 3)
       {
-         d2(0, 2) = (400.0 * tmp(0) * tmp(2) * f) / dist_squared_squared;
-         d2(1, 2) = (400.0 * tmp(1) * tmp(2) * f) / dist_squared_squared;
-         d2(2, 0) = d2(0, 2);
-         d2(2, 1) = d2(1, 2);
-         d2(2, 2) = ((400.0 * tmp(2) * tmp(2) * f) / dist_squared_squared) +
-                    (20.0 * f / dist_squared);
+         d2(0,2) = (400.0*tmp(0)*tmp(2)*f)/dist_squared_squared;
+         d2(1,2) = (400.0*tmp(1)*tmp(2)*f)/dist_squared_squared;
+         d2(2,0) = d2(0,2);
+         d2(2,1) = d2(1,2);
+         d2(2,2) = ((400.0*tmp(2)*tmp(2)*f)/dist_squared_squared)+(20.0*f/dist_squared);
       }
+
    }
 
-   virtual ~TMOP_ExponentialLimiter() {}
+   virtual ~TMOP_ExponentialLimiter() { }
 };
 
 class FiniteElementCollection;
@@ -1557,7 +1394,7 @@ protected:
 #endif
 
 public:
-   AdaptivityEvaluator(): mesh(NULL), fes(NULL)
+   AdaptivityEvaluator() : mesh(NULL), fes(NULL)
    {
 #ifdef MFEM_USE_MPI
       pmesh = NULL;
@@ -1573,7 +1410,8 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// Parallel version of SetSerialMetaInfo.
-   void SetParMetaInfo(const ParMesh &m, const ParFiniteElementSpace &f);
+   void SetParMetaInfo(const ParMesh &m,
+                       const ParFiniteElementSpace &f);
 #endif
 
    // TODO use GridFunctions to make clear it's on the ldofs? Then do we
@@ -1624,8 +1462,8 @@ public:
    /// Target-matrix construction algorithms supported by this class.
    enum TargetType
    {
-      IDEAL_SHAPE_UNIT_SIZE,  /**<
-          Ideal shape, unit size; the nodes are not used. */
+      IDEAL_SHAPE_UNIT_SIZE, /**<
+         Ideal shape, unit size; the nodes are not used. */
       IDEAL_SHAPE_EQUAL_SIZE, /**<
          Ideal shape, equal size/volume; the given nodes define the total target
          volume; for each mesh element, the target volume is the average volume
@@ -1633,11 +1471,11 @@ public:
       IDEAL_SHAPE_GIVEN_SIZE, /**<
          Ideal shape, given size/volume; the given nodes define the target
          volume at all quadrature points. */
-      GIVEN_SHAPE_AND_SIZE,   /**<
-           Given shape, given size/volume; the given nodes define the exact target
-           Jacobian matrix at all quadrature points. */
-      GIVEN_FULL              /**<
-                      Full target tensor is specified at every quadrature point. */
+      GIVEN_SHAPE_AND_SIZE, /**<
+         Given shape, given size/volume; the given nodes define the exact target
+         Jacobian matrix at all quadrature points. */
+      GIVEN_FULL /**<
+         Full target tensor is specified at every quadrature point. */
    };
 
 protected:
@@ -1656,7 +1494,7 @@ protected:
    // computed yet
    void ComputeAvgVolume() const;
 
-   template <int DIM>
+   template<int DIM>
    bool ComputeAllElementTargets(const FiniteElementSpace &fes,
                                  const IntegrationRule &ir,
                                  const Vector &xe,
@@ -1670,12 +1508,9 @@ protected:
 
 public:
    /// Constructor for use in serial
-   TargetConstructor(TargetType ttype):
-      nodes(NULL),
-      avg_volume(),
-      volume_scale(1.0),
-      target_type(ttype),
-      uses_phys_coords(false)
+   TargetConstructor(TargetType ttype)
+      : nodes(NULL), avg_volume(), volume_scale(1.0), target_type(ttype),
+        uses_phys_coords(false)
    {
 #ifdef MFEM_USE_MPI
       comm = MPI_COMM_NULL;
@@ -1683,17 +1518,11 @@ public:
    }
 #ifdef MFEM_USE_MPI
    /// Constructor for use in parallel
-   TargetConstructor(TargetType ttype, MPI_Comm mpicomm):
-      nodes(NULL),
-      avg_volume(),
-      volume_scale(1.0),
-      target_type(ttype),
-      uses_phys_coords(false),
-      comm(mpicomm)
-   {
-   }
+   TargetConstructor(TargetType ttype, MPI_Comm mpicomm)
+      : nodes(NULL), avg_volume(), volume_scale(1.0), target_type(ttype),
+        uses_phys_coords(false), comm(mpicomm) { }
 #endif
-   virtual ~TargetConstructor() {}
+   virtual ~TargetConstructor() { }
 
 #ifdef MFEM_USE_MPI
    bool Parallel() const { return (comm != MPI_COMM_NULL); }
@@ -1707,17 +1536,12 @@ public:
        This method should be called every time the target nodes are updated
        externally and recomputation of the target average volume is needed. The
        nodes are used by all target types except IDEAL_SHAPE_UNIT_SIZE. */
-   void SetNodes(const GridFunction &n)
-   {
-      nodes = &n;
-      avg_volume = 0.0;
-   }
+   void SetNodes(const GridFunction &n) { nodes = &n; avg_volume = 0.0; }
 
    /** @brief Get the nodes to be used in the target-matrix construction. */
    const GridFunction *GetNodes() const { return nodes; }
 
-   /// Used by target type IDEAL_SHAPE_EQUAL_SIZE. The default volume scale
-   /// is 1.
+   /// Used by target type IDEAL_SHAPE_EQUAL_SIZE. The default volume scale is 1.
    void SetVolumeScale(real_t vol_scale) { volume_scale = vol_scale; }
 
    TargetType GetTargetType() const { return target_type; }
@@ -1733,8 +1557,7 @@ public:
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
        The physical positions of the element's nodes are given by @a elfun. */
-   virtual void ComputeElementTargets(int e_id,
-                                      const FiniteElement &fe,
+   virtual void ComputeElementTargets(int e_id, const FiniteElement &fe,
                                       const IntegrationRule &ir,
                                       const Vector &elfun,
                                       DenseTensor &Jtr) const;
@@ -1762,17 +1585,15 @@ public:
 class TMOPMatrixCoefficient : public MatrixCoefficient
 {
 public:
-   explicit TMOPMatrixCoefficient(int dim): MatrixCoefficient(dim, dim) {}
+   explicit TMOPMatrixCoefficient(int dim) : MatrixCoefficient(dim, dim) { }
 
    /** @brief Evaluate the derivative of the matrix coefficient with respect to
        @a comp in the element described by @a T at the point @a ip, storing the
        result in @a K. */
-   virtual void EvalGrad(DenseMatrix &K,
-                         ElementTransformation &T,
-                         const IntegrationPoint &ip,
-                         int comp) = 0;
+   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                         const IntegrationPoint &ip, int comp) = 0;
 
-   virtual ~TMOPMatrixCoefficient() {}
+   virtual ~TMOPMatrixCoefficient() { }
 };
 
 class AnalyticAdaptTC : public TargetConstructor
@@ -1784,14 +1605,10 @@ protected:
    TMOPMatrixCoefficient *matrix_tspec;
 
 public:
-   AnalyticAdaptTC(TargetType ttype):
-      TargetConstructor(ttype),
-      scalar_tspec(NULL),
-      vector_tspec(NULL),
-      matrix_tspec(NULL)
-   {
-      uses_phys_coords = true;
-   }
+   AnalyticAdaptTC(TargetType ttype)
+      : TargetConstructor(ttype),
+        scalar_tspec(NULL), vector_tspec(NULL), matrix_tspec(NULL)
+   { uses_phys_coords = true; }
 
    virtual void SetAnalyticTargetSpec(Coefficient *sspec,
                                       VectorCoefficient *vspec,
@@ -1800,8 +1617,7 @@ public:
    /** @brief Given an element and quadrature rule, computes ref->target
        transformation Jacobians for each quadrature point in the element.
        The physical positions of the element's nodes are given by @a elfun. */
-   void ComputeElementTargets(int e_id,
-                              const FiniteElement &fe,
+   void ComputeElementTargets(int e_id, const FiniteElement &fe,
                               const IntegrationRule &ir,
                               const Vector &elfun,
                               DenseTensor &Jtr) const override;
@@ -1827,11 +1643,11 @@ protected:
    // Discrete target specification.
    // Data is owned, updated by UpdateTargetSpecification.
    int ncomp, sizeidx, skewidx, aspectratioidx, orientationidx;
-   Vector tspec; // eta(x) - we enforce Ordering::byNODES
+   Vector tspec;             //eta(x) - we enforce Ordering::byNODES
    Vector tspec_sav;
-   Vector tspec_pert1h;  // eta(x+h)
-   Vector tspec_pert2h;  // eta(x+2*h)
-   Vector tspec_pertmix; // eta(x+h,y+h)
+   Vector tspec_pert1h;      //eta(x+h)
+   Vector tspec_pert2h;      //eta(x+2*h)
+   Vector tspec_pertmix;     //eta(x+h,y+h)
    // The order inside these perturbation vectors (e.g. in 2D) is
    // eta1(x+h,y), eta2(x+h,y) ... etan(x+h,y), eta1(x,y+h), eta2(x,y+h) ...
    // same for tspec_pert2h and tspec_pertmix.
@@ -1849,14 +1665,14 @@ protected:
 
    // Note: do not use the Nodes of this space as they may not be on the
    // positions corresponding to the values of tspec.
-   FiniteElementSpace *tspec_fesv;        // owned
-   FiniteElementSpace *coarse_tspec_fesv; // not owned, derefinement FESpace
-   GridFunction *tspec_gf;                // owned, uses tspec and tspec_fes
+   FiniteElementSpace *tspec_fesv;         //owned
+   FiniteElementSpace *coarse_tspec_fesv;  //not owned, derefinement FESpace
+   GridFunction *tspec_gf;                 //owned, uses tspec and tspec_fes
    // discrete adaptivity
 #ifdef MFEM_USE_MPI
-   ParFiniteElementSpace *ptspec_fesv; // owned, needed for derefinement to
+   ParFiniteElementSpace *ptspec_fesv;     //owned, needed for derefinement to
    // get update operator.
-   ParGridFunction *tspec_pgf; // similar to tspec_gf
+   ParGridFunction *tspec_pgf;             // similar to tspec_gf
 #endif
 
    int amr_el;
@@ -1879,35 +1695,19 @@ protected:
 #endif
 
 public:
-   DiscreteAdaptTC(TargetType ttype):
-      TargetConstructor(ttype),
-      ncomp(0),
-      sizeidx(-1),
-      skewidx(-1),
-      aspectratioidx(-1),
-      orientationidx(-1),
-      tspec(),
-      tspec_sav(),
-      tspec_pert1h(),
-      tspec_pert2h(),
-      tspec_pertmix(),
-      tspec_refine(),
-      tspec_derefine(),
-      tspec_fesv(NULL),
-      coarse_tspec_fesv(NULL),
-      tspec_gf(NULL),
+   DiscreteAdaptTC(TargetType ttype)
+      : TargetConstructor(ttype),
+        ncomp(0),
+        sizeidx(-1), skewidx(-1), aspectratioidx(-1), orientationidx(-1),
+        tspec(), tspec_sav(), tspec_pert1h(), tspec_pert2h(), tspec_pertmix(),
+        tspec_refine(), tspec_derefine(),
+        tspec_fesv(NULL), coarse_tspec_fesv(NULL), tspec_gf(NULL),
 #ifdef MFEM_USE_MPI
-      ptspec_fesv(NULL),
-      tspec_pgf(NULL),
+        ptspec_fesv(NULL), tspec_pgf(NULL),
 #endif
-      amr_el(-1),
-      lim_min_size(-0.1),
-      good_tspec(false),
-      good_tspec_grad(false),
-      good_tspec_hess(false),
-      adapt_eval(NULL)
-   {
-   }
+        amr_el(-1), lim_min_size(-0.1),
+        good_tspec(false), good_tspec_grad(false), good_tspec_hess(false),
+        adapt_eval(NULL) { }
 
    virtual ~DiscreteAdaptTC();
 
@@ -1938,9 +1738,7 @@ public:
 
    /// Used in combination with the Update methods to avoid extra computations.
    void ResetUpdateFlags()
-   {
-      good_tspec = good_tspec_grad = good_tspec_hess = false;
-   }
+   { good_tspec = good_tspec_grad = good_tspec_hess = false; }
 
    /// Get one of the discrete fields from tspec.
    void GetDiscreteTargetSpec(GridFunction &tspec_, int idx);
@@ -1959,18 +1757,15 @@ public:
    /** Used to update the target specification after the mesh has changed. The
        new mesh positions are given by new_x. If @a reuse_flag is true,
        repeated calls won't do anything until ResetUpdateFlags() is called. */
-   void UpdateTargetSpecification(const Vector &new_x,
-                                  bool reuse_flag = false,
-                                  int new_x_ordering = Ordering::byNODES);
+   void UpdateTargetSpecification(const Vector &new_x, bool reuse_flag = false,
+                                  int new_x_ordering=Ordering::byNODES);
 
-   void UpdateTargetSpecification(Vector &new_x,
-                                  Vector &IntData,
-                                  int new_x_ordering = Ordering::byNODES);
+   void UpdateTargetSpecification(Vector &new_x, Vector &IntData,
+                                  int new_x_ordering=Ordering::byNODES);
 
    void UpdateTargetSpecificationAtNode(const FiniteElement &el,
                                         ElementTransformation &T,
-                                        int nodenum,
-                                        int idir,
+                                        int nodenum, int idir,
                                         const Vector &IntData);
 
    void RestoreTargetSpecificationAtNode(ElementTransformation &T, int nodenum);
@@ -1979,16 +1774,14 @@ public:
        specifications after a mesh perturbation in x or y direction.
        If @a reuse_flag is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
-   void UpdateGradientTargetSpecification(const Vector &x,
-                                          real_t dx,
+   void UpdateGradientTargetSpecification(const Vector &x, real_t dx,
                                           bool reuse_flag = false,
                                           int x_ordering = Ordering::byNODES);
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction.
        If @a reuse_flag is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
-   void UpdateHessianTargetSpecification(const Vector &x,
-                                         real_t dx,
+   void UpdateHessianTargetSpecification(const Vector &x, real_t dx,
                                          bool reuse_flag = false,
                                          int x_ordering = Ordering::byNODES);
 
@@ -2003,8 +1796,8 @@ public:
       return adapt_eval;
    }
 
-   const Vector &GetTspecPert1H() { return tspec_pert1h; }
-   const Vector &GetTspecPert2H() { return tspec_pert2h; }
+   const Vector &GetTspecPert1H()   { return tspec_pert1h; }
+   const Vector &GetTspecPert2H()   { return tspec_pert2h; }
    const Vector &GetTspecPertMixH() { return tspec_pertmix; }
 
    /** @brief Given an element and quadrature rule, computes ref->target
@@ -2012,8 +1805,7 @@ public:
        The physical positions of the element's nodes are given by @a elfun.
        Note that this function assumes that UpdateTargetSpecification() has
        been called with the position vector corresponding to @a elfun. */
-   void ComputeElementTargets(int e_id,
-                              const FiniteElement &fe,
+   void ComputeElementTargets(int e_id, const FiniteElement &fe,
                               const IntegrationRule &ir,
                               const Vector &elfun,
                               DenseTensor &Jtr) const override;
@@ -2073,14 +1865,10 @@ class TMOP_Integrator : public NonlinearFormIntegrator
 protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
-   friend class TMOPAddMultPA2D;
-   friend class TMOPAddMultPA3D;
-   friend class TMOPSetup2D;
-   friend class TMOPSetupGradPA3D;
 
    TMOP_QualityMetric *h_metric;
-   TMOP_QualityMetric *metric;       // not owned
-   const TargetConstructor *targetC; // not owned
+   TMOP_QualityMetric *metric;        // not owned
+   const TargetConstructor *targetC;  // not owned
 
    // Custom integration rules.
    IntegrationRules *IntegRules;
@@ -2105,28 +1893,28 @@ protected:
    real_t lim_normal;
 
    // Adaptive limiting.
-   const GridFunction *adapt_lim_gf0; // Not owned.
+   const GridFunction *adapt_lim_gf0;    // Not owned.
 #ifdef MFEM_USE_MPI
    const ParGridFunction *adapt_lim_pgf0;
 #endif
-   GridFunction *adapt_lim_gf;          // Owned. Updated by adapt_lim_eval.
-   Coefficient *adapt_lim_coeff;        // Not owned.
-   AdaptivityEvaluator *adapt_lim_eval; // Not owned.
+   GridFunction *adapt_lim_gf;           // Owned. Updated by adapt_lim_eval.
+   Coefficient *adapt_lim_coeff;         // Not owned.
+   AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
 
    // Surface fitting.
-   const Array<bool> *surf_fit_marker; // Not owned. Nodes to fit.
-   Coefficient *surf_fit_coeff;        // Not owned. Fitting term scaling.
+   const Array<bool> *surf_fit_marker;      // Not owned. Nodes to fit.
+   Coefficient *surf_fit_coeff;             // Not owned. Fitting term scaling.
    // Fitting to a discrete level set.
-   GridFunction *surf_fit_gf;          // Owned. Updated by surf_fit_eval.
-   AdaptivityEvaluator *surf_fit_eval; // Not owned.
+   GridFunction *surf_fit_gf;               // Owned. Updated by surf_fit_eval.
+   AdaptivityEvaluator *surf_fit_eval;      // Not owned.
    // Fitting to given physical positions.
-   TMOP_QuadraticLimiter *surf_fit_limiter;     // Owned. Created internally.
-   const GridFunction *surf_fit_pos;            // Not owned. Positions to fit.
-   real_t surf_fit_normal;                      // Normalization factor.
+   TMOP_QuadraticLimiter *surf_fit_limiter; // Owned. Created internally.
+   const GridFunction *surf_fit_pos;        // Not owned. Positions to fit.
+   real_t surf_fit_normal;                  // Normalization factor.
    GridFunction *surf_fit_grad, *surf_fit_hess; // Owned. Created internally.
    AdaptivityEvaluator *surf_fit_eval_grad, *surf_fit_eval_hess; // Not owned.
-   Array<int> surf_fit_dof_count;        // Number of dofs per node.
-   Array<int> surf_fit_marker_dof_index; // Indices of nodes to fit.
+   Array<int> surf_fit_dof_count;            // Number of dofs per node.
+   Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
    DiscreteAdaptTC *discr_tc;
 
@@ -2141,8 +1929,8 @@ protected:
    // target with respect to spatial position)
    bool exact_action;
 
-   Array<Vector *> ElemDer;        // f'(x)
-   Array<Vector *> ElemPertEnergy; // f(x+h)
+   Array <Vector *> ElemDer;        //f'(x)
+   Array <Vector *> ElemPertEnergy; //f(x+h)
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
@@ -2204,45 +1992,36 @@ protected:
       const FiniteElementSpace *fes;
       const IntegrationRule *ir;
    } PA;
-   int Ndof() const { return PA.maps->ndof; }
-   int Nqpt() const { return PA.maps->nqpt; }
 
    void ComputeNormalizationEnergies(const GridFunction &x,
-                                     real_t &metric_energy,
-                                     real_t &lim_energy,
+                                     real_t &metric_energy, real_t &lim_energy,
                                      real_t &surf_fit_gf_energy);
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
-                                   const Vector &elfun,
-                                   Vector &elvect);
+                                   const Vector &elfun, Vector &elvect);
 
    void AssembleElementGradExact(const FiniteElement &el,
                                  ElementTransformation &T,
-                                 const Vector &elfun,
-                                 DenseMatrix &elmat);
+                                 const Vector &elfun, DenseMatrix &elmat);
 
    void AssembleElementVectorFD(const FiniteElement &el,
                                 ElementTransformation &T,
-                                const Vector &elfun,
-                                Vector &elvect);
+                                const Vector &elfun, Vector &elvect);
 
    // Assumes that AssembleElementVectorFD has been called.
    void AssembleElementGradFD(const FiniteElement &el,
                               ElementTransformation &T,
-                              const Vector &elfun,
-                              DenseMatrix &elmat);
+                              const Vector &elfun, DenseMatrix &elmat);
 
    void AssembleElemVecAdaptLim(const FiniteElement &el,
                                 IsoparametricTransformation &Tpr,
                                 const IntegrationRule &ir,
-                                const Vector &weights,
-                                DenseMatrix &mat);
+                                const Vector &weights, DenseMatrix &mat);
    void AssembleElemGradAdaptLim(const FiniteElement &el,
                                  IsoparametricTransformation &Tpr,
                                  const IntegrationRule &ir,
-                                 const Vector &weights,
-                                 DenseMatrix &m);
+                                 const Vector &weights, DenseMatrix &m);
 
    // First derivative of the surface fitting term.
    void AssembleElemVecSurfFit(const FiniteElement &el_x,
@@ -2256,11 +2035,8 @@ protected:
 
    real_t GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
-                          Vector &elfun,
-                          const int nodenum,
-                          const int idir,
-                          const real_t baseenergy,
-                          bool update_stored);
+                          Vector &elfun, const int nodenum,const int idir,
+                          const real_t baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
@@ -2271,19 +2047,18 @@ protected:
 
    void DisableLimiting()
    {
-      lim_nodes0 = NULL;
-      lim_coeff = NULL;
-      lim_dist = NULL;
-      delete lim_func;
-      lim_func = NULL;
+      lim_nodes0 = NULL; lim_coeff = NULL; lim_dist = NULL;
+      delete lim_func; lim_func = NULL;
    }
 
    const IntegrationRule &EnergyIntegrationRule(const FiniteElement &el) const
    {
-      if (IntegRules) { return IntegRules->Get(el.GetGeomType(), integ_order); }
+      if (IntegRules)
+      {
+         return IntegRules->Get(el.GetGeomType(), integ_order);
+      }
       return (IntRule) ? *IntRule
-             /*     */
-             : IntRules.Get(el.GetGeomType(), 2 * el.GetOrder() + 3);
+             /*     */ : IntRules.Get(el.GetGeomType(), 2*el.GetOrder() + 3);
    }
    const IntegrationRule &ActionIntegrationRule(const FiniteElement &el) const
    {
@@ -2297,30 +2072,30 @@ protected:
    }
 
    // Auxiliary PA methods
-   void AssembleGradPA_2D(const Vector &) const;
-   void AssembleGradPA_3D(const Vector &) const;
-   void AssembleGradPA_C0_2D(const Vector &) const;
-   void AssembleGradPA_C0_3D(const Vector &) const;
+   void AssembleGradPA_2D(const Vector&) const;
+   void AssembleGradPA_3D(const Vector&) const;
+   void AssembleGradPA_C0_2D(const Vector&) const;
+   void AssembleGradPA_C0_3D(const Vector&) const;
 
-   real_t GetLocalStateEnergyPA_2D(const Vector &) const;
-   real_t GetLocalStateEnergyPA_C0_2D(const Vector &) const;
-   real_t GetLocalStateEnergyPA_3D(const Vector &) const;
-   real_t GetLocalStateEnergyPA_C0_3D(const Vector &) const;
+   real_t GetLocalStateEnergyPA_2D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_C0_2D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_3D(const Vector&) const;
+   real_t GetLocalStateEnergyPA_C0_3D(const Vector&) const;
 
-   void AddMultPA_2D(const Vector &, Vector &) const;
-   void AddMultPA_3D(const Vector &, Vector &) const;
-   void AddMultPA_C0_2D(const Vector &, Vector &) const;
-   void AddMultPA_C0_3D(const Vector &, Vector &) const;
+   void AddMultPA_2D(const Vector&, Vector&) const;
+   void AddMultPA_3D(const Vector&, Vector&) const;
+   void AddMultPA_C0_2D(const Vector&, Vector&) const;
+   void AddMultPA_C0_3D(const Vector&, Vector&) const;
 
-   void AddMultGradPA_2D(const Vector &, Vector &) const;
-   void AddMultGradPA_3D(const Vector &, Vector &) const;
-   void AddMultGradPA_C0_2D(const Vector &, Vector &) const;
-   void AddMultGradPA_C0_3D(const Vector &, Vector &) const;
+   void AddMultGradPA_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_3D(const Vector&, Vector&) const;
+   void AddMultGradPA_C0_2D(const Vector&, Vector&) const;
+   void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
 
-   void AssembleDiagonalPA_2D(Vector &) const;
-   void AssembleDiagonalPA_3D(Vector &) const;
-   void AssembleDiagonalPA_C0_2D(Vector &) const;
-   void AssembleDiagonalPA_C0_3D(Vector &) const;
+   void AssembleDiagonalPA_2D(Vector&) const;
+   void AssembleDiagonalPA_3D(Vector&) const;
+   void AssembleDiagonalPA_C0_2D(Vector&) const;
+   void AssembleDiagonalPA_C0_3D(Vector&) const;
 
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
@@ -2339,54 +2114,29 @@ protected:
    // locations.
    void RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                            int new_x_ordering);
-
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
        @param[in] tc   Target-matrix construction algorithm to use (not owned).
        @param[in] hm   TMOP_QualityMetric for h-adaptivity (not owned). */
-   TMOP_Integrator(TMOP_QualityMetric *m,
-                   TargetConstructor *tc,
-                   TMOP_QualityMetric *hm):
-      h_metric(hm),
-      metric(m),
-      targetC(tc),
-      IntegRules(NULL),
-      integ_order(-1),
-      metric_coeff(NULL),
-      metric_normal(1.0),
-      lim_nodes0(NULL),
-      lim_coeff(NULL),
-      lim_dist(NULL),
-      lim_func(NULL),
-      lim_normal(1.0),
-      adapt_lim_gf0(NULL),
-      adapt_lim_gf(NULL),
-      adapt_lim_coeff(NULL),
-      adapt_lim_eval(NULL),
-      surf_fit_marker(NULL),
-      surf_fit_coeff(NULL),
-      surf_fit_gf(NULL),
-      surf_fit_eval(NULL),
-      surf_fit_limiter(NULL),
-      surf_fit_pos(NULL),
-      surf_fit_normal(1.0),
-      surf_fit_grad(NULL),
-      surf_fit_hess(NULL),
-      surf_fit_eval_grad(NULL),
-      surf_fit_eval_hess(NULL),
-      discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
-      fdflag(false),
-      dxscale(1.0e3),
-      fd_call_flag(false),
-      exact_action(false)
-   {
-      PA.enabled = false;
-   }
+   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
+                   TMOP_QualityMetric *hm)
+      : h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
+        integ_order(-1), metric_coeff(NULL), metric_normal(1.0),
+        lim_nodes0(NULL), lim_coeff(NULL),
+        lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
+        adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
+        adapt_lim_eval(NULL),
+        surf_fit_marker(NULL), surf_fit_coeff(NULL),
+        surf_fit_gf(NULL), surf_fit_eval(NULL),
+        surf_fit_limiter(NULL), surf_fit_pos(NULL),
+        surf_fit_normal(1.0), surf_fit_grad(NULL), surf_fit_hess(NULL),
+        surf_fit_eval_grad(NULL), surf_fit_eval_hess(NULL),
+        discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
+        fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
+   { PA.enabled = false; }
 
-   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc):
-      TMOP_Integrator(m, tc, m)
-   {
-   }
+   TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
+      : TMOP_Integrator(m, tc, m) { }
 
    ~TMOP_Integrator();
 
@@ -2433,15 +2183,12 @@ public:
        @param[in] lfunc  TMOP_LimiterFunction defining the function f. If
                          NULL, a TMOP_QuadraticLimiter will be used. The
                          TMOP_Integrator assumes ownership of this pointer. */
-   void EnableLimiting(const GridFunction &n0,
-                       const GridFunction &dist,
-                       Coefficient &w0,
-                       TMOP_LimiterFunction *lfunc = NULL);
+   void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
+                       Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
    /** @brief Adds a limiting term to the integrator with limiting distance
        function (@a dist in the general version of the method) equal to 1. */
-   void EnableLimiting(const GridFunction &n0,
-                       Coefficient &w0,
+   void EnableLimiting(const GridFunction &n0, Coefficient &w0,
                        TMOP_LimiterFunction *lfunc = NULL);
 
    /** @brief Restriction of the node positions to certain regions.
@@ -2455,13 +2202,11 @@ public:
        @param[in] z0     Function z0 that controls the adaptive limiting.
        @param[in] coeff  Coefficient c for the above integral.
        @param[in] ae     AdaptivityEvaluator to compute z(x) from z0(x0). */
-   void EnableAdaptiveLimiting(const GridFunction &z0,
-                               Coefficient &coeff,
+   void EnableAdaptiveLimiting(const GridFunction &z0, Coefficient &coeff,
                                AdaptivityEvaluator &ae);
 #ifdef MFEM_USE_MPI
    /// Parallel support for adaptive limiting.
-   void EnableAdaptiveLimiting(const ParGridFunction &z0,
-                               Coefficient &coeff,
+   void EnableAdaptiveLimiting(const ParGridFunction &z0, Coefficient &coeff,
                                AdaptivityEvaluator &ae);
 #endif
 
@@ -2481,8 +2226,7 @@ public:
        @param[in] coeff   Coefficient c for the above integral.
        @param[in] ae      AdaptivityEvaluator to compute s(x) from s0(x0). */
    void EnableSurfaceFitting(const GridFunction &s0,
-                             const Array<bool> &smarker,
-                             Coefficient &coeff,
+                             const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
 
 #ifdef MFEM_USE_MPI
@@ -2492,8 +2236,7 @@ public:
    /// the initial mesh, and @a aegrad and @a aehess are used to remap grad_s(x)
    /// from grad_s0(x0) and hess_s(x) from hess_s0(x0), respectively.
    void EnableSurfaceFitting(const ParGridFunction &s0,
-                             const Array<bool> &smarker,
-                             Coefficient &coeff,
+                             const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae,
                              AdaptivityEvaluator *aegrad = NULL,
                              AdaptivityEvaluator *aehess = NULL);
@@ -2545,10 +2288,9 @@ public:
        @param[in] smarker Indicates which DOFs will be aligned.
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
-                             const Array<bool> &smarker,
-                             Coefficient &coeff);
-   void
-   GetSurfaceFittingErrors(const Vector &pos, real_t &err_avg, real_t &err_max);
+                             const Array<bool> &smarker, Coefficient &coeff);
+   void GetSurfaceFittingErrors(const Vector &pos,
+                                real_t &err_avg, real_t &err_max);
    bool IsSurfaceFittingEnabled()
    {
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
@@ -2583,13 +2325,11 @@ public:
 
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &T,
-                              const Vector &elfun,
-                              Vector &elvect) override;
+                              const Vector &elfun, Vector &elvect) override;
 
    void AssembleElementGrad(const FiniteElement &el,
                             ElementTransformation &T,
-                            const Vector &elfun,
-                            DenseMatrix &elmat) override;
+                            const Vector &elfun, DenseMatrix &elmat) override;
 
    TMOP_QualityMetric &GetAMRQualityMetric() { return *h_metric; }
 
@@ -2600,17 +2340,17 @@ public:
 
    // PA extension
    using NonlinearFormIntegrator::AssemblePA;
-   void AssemblePA(const FiniteElementSpace &) override;
+   void AssemblePA(const FiniteElementSpace&) override;
 
-   void AssembleGradPA(const Vector &, const FiniteElementSpace &) override;
+   void AssembleGradPA(const Vector&, const FiniteElementSpace&) override;
 
-   real_t GetLocalStateEnergyPA(const Vector &) const override;
+   real_t GetLocalStateEnergyPA(const Vector&) const override;
 
-   void AddMultPA(const Vector &, Vector &) const override;
+   void AddMultPA(const Vector&, Vector&) const override;
 
-   void AddMultGradPA(const Vector &, Vector &) const override;
+   void AddMultGradPA(const Vector&, Vector&) const override;
 
-   void AssembleGradDiagonalPA(Vector &) const override;
+   void AssembleGradDiagonalPA(Vector&) const override;
 
    DiscreteAdaptTC *GetDiscreteAdaptTC() const { return discr_tc; }
 
@@ -2627,9 +2367,9 @@ public:
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
-   void SetFDhScale(real_t dxscale_) { dxscale = dxscale_; }
-   bool GetFDFlag() const { return fdflag; }
-   real_t GetFDh() const { return dx; }
+   void   SetFDhScale(real_t dxscale_) { dxscale = dxscale_; }
+   bool   GetFDFlag() const { return fdflag; }
+   real_t GetFDh()    const { return dx; }
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
@@ -2654,7 +2394,7 @@ protected:
    Array<TMOP_Integrator *> tmopi;
 
 public:
-   TMOPComboIntegrator(): tmopi(0) {}
+   TMOPComboIntegrator() : tmopi(0) { }
 
    ~TMOPComboIntegrator()
    {
@@ -2667,15 +2407,12 @@ public:
    const Array<TMOP_Integrator *> &GetTMOPIntegrators() const { return tmopi; }
 
    /// Adds the limiting term to the first integrator. Disables it for the rest.
-   void EnableLimiting(const GridFunction &n0,
-                       const GridFunction &dist,
-                       Coefficient &w0,
-                       TMOP_LimiterFunction *lfunc = NULL);
+   void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
+                       Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
    /** @brief Adds the limiting term to the first integrator. Disables it for
        the rest (@a dist in the general version of the method) equal to 1. */
-   void EnableLimiting(const GridFunction &n0,
-                       Coefficient &w0,
+   void EnableLimiting(const GridFunction &n0, Coefficient &w0,
                        TMOP_LimiterFunction *lfunc = NULL);
 
    /// Update the original/reference nodes used for limiting.
@@ -2686,12 +2423,10 @@ public:
                            const Vector &elfun) override;
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &T,
-                              const Vector &elfun,
-                              Vector &elvect) override;
+                              const Vector &elfun, Vector &elvect) override;
    void AssembleElementGrad(const FiniteElement &el,
                             ElementTransformation &T,
-                            const Vector &elfun,
-                            DenseMatrix &elmat) override;
+                            const Vector &elfun, DenseMatrix &elmat) override;
 
    virtual real_t GetRefinementElementEnergy(const FiniteElement &el,
                                              ElementTransformation &T,
@@ -2710,20 +2445,19 @@ public:
 
    // PA extension
    using NonlinearFormIntegrator::AssemblePA;
-   void AssemblePA(const FiniteElementSpace &) override;
-   void AssembleGradPA(const Vector &, const FiniteElementSpace &) override;
-   real_t GetLocalStateEnergyPA(const Vector &) const override;
-   void AddMultPA(const Vector &, Vector &) const override;
-   void AddMultGradPA(const Vector &, Vector &) const override;
-   void AssembleGradDiagonalPA(Vector &) const override;
+   void AssemblePA(const FiniteElementSpace&) override;
+   void AssembleGradPA(const Vector&, const FiniteElementSpace&) override;
+   real_t GetLocalStateEnergyPA(const Vector&) const override;
+   void AddMultPA(const Vector&, Vector&) const override;
+   void AddMultGradPA(const Vector&, Vector&) const override;
+   void AssembleGradDiagonalPA(Vector&) const override;
 };
 
 /// Interpolates the @a metric's values at the nodes of @a metric_gf.
 /** Assumes that @a metric_gf's FiniteElementSpace is initialized. */
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
                                    const TargetConstructor &tc,
-                                   const Mesh &mesh,
-                                   GridFunction &metric_gf);
-} // namespace mfem
+                                   const Mesh &mesh, GridFunction &metric_gf);
+}
 
 #endif

@@ -1860,7 +1860,7 @@ void TMOP_Metric_360::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
 
 real_t TMOP_AMetric_011::EvalWMatrixForm(const DenseMatrix &Jpt) const
 {
-   MFEM_VERIFY(Jtr != nullptr,
+   MFEM_VERIFY(Jtr != NULL,
                "Requires a target Jacobian, use SetTargetJacobian().");
    int matsize = Jpt.TotalSize();
    std::vector<AD1Type> T(matsize), W(matsize);
@@ -5340,7 +5340,8 @@ real_t TMOP_Integrator::ComputeUntanglerMaxMuBarrier(const Vector &x,
    Jpt.SetSize(dim);
    Jrt.SetSize(dim);
 
-   auto *wcuo = dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
+   TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
+      dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
 
    if (!wcuo || wcuo->GetWorstCaseType() !=
        TMOP_WorstCaseUntangleOptimizer_Metric::WorstCaseType::Beta)
