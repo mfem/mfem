@@ -103,7 +103,6 @@ void TMOP_Integrator::AssemblePA_Limiting()
    // TODO: remove the hack for the case lim_dist == NULL.
    const FiniteElementSpace *limfes = (lim_dist) ? lim_dist->FESpace() : fes;
    const FiniteElement &lim_fe = *limfes->GetTypicalFE();
-   const FiniteElement &lim_fe = *limfes->GetTypicalFE();
    PA.maps_lim = &lim_fe.GetDofToQuad(ir, DofToQuad::TENSOR);
    PA.LD.SetSize(NE * lim_fe.GetDof(), Device::GetMemoryType());
    PA.LD.UseDevice(true);
