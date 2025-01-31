@@ -55,7 +55,7 @@ def get_errors(xs, xb, blow, bhigh, nsamp=10000):
 
 	return [l1err, l2err, linferr]
 
-Ns = range(3, 8)
+Ns = range(3, 9)
 Ms = range(4, 20)
 
 l1errs = np.zeros((len(Ms)))
@@ -65,84 +65,105 @@ linferrs = np.zeros((len(Ms)))
 for i, N in enumerate(Ns):
 	plt.subplot(2,3,i+1)
 
+	writeerrs = np.zeros((6, len(Ms)))
+	writeerrs[0,:] = Ms
+
 	for j, M in enumerate(Ms):
 		try:
-			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_legendre_{M}.txt')
+			[xs, xb, blow, bhigh] = read(f'bounds/bnddata_spts_lobatto_{N}_bpts_legendre_{M}.txt')
 			[l1err, l2err, linferr] = get_errors(xs, xb, blow, bhigh)
 			l1errs[j] = l1err
 			l2errs[j] = l2err
 			linferrs[j] = linferr
 		except:
-			pass
+			l1errs[j] = np.nan
+			l2errs[j] = np.nan
+			linferrs[j] = np.nan
 	plt.semilogy(Ms, l2errs, 'ro-',linewidth=1)
+	writeerrs[1,:] = l2errs
 
 	for j, M in enumerate(Ms):
 		try:
-			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_lobatto_{M}.txt')
+			[xs, xb, blow, bhigh] = read(f'bounds/bnddata_spts_lobatto_{N}_bpts_lobatto_{M}.txt')
 			[l1err, l2err, linferr] = get_errors(xs, xb, blow, bhigh)
 			l1errs[j] = l1err
 			l2errs[j] = l2err
 			linferrs[j] = linferr
 		except:
-			pass
+			l1errs[j] = np.nan
+			l2errs[j] = np.nan
+			linferrs[j] = np.nan
 	plt.semilogy(Ms, l2errs, 'go-',linewidth=1)
+	writeerrs[2,:] = l2errs
 
 	for j, M in enumerate(Ms):
 		try:
-			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_chebyshev_{M}.txt')
+			[xs, xb, blow, bhigh] = read(f'bounds/bnddata_spts_lobatto_{N}_bpts_chebyshev_{M}.txt')
 			[l1err, l2err, linferr] = get_errors(xs, xb, blow, bhigh)
 			l1errs[j] = l1err
 			l2errs[j] = l2err
 			linferrs[j] = linferr
 		except:
-			pass
+			l1errs[j] = np.nan
+			l2errs[j] = np.nan
+			linferrs[j] = np.nan
 	plt.semilogy(Ms, l2errs, 'bo-',linewidth=1)
+	writeerrs[3,:] = l2errs
 
 	for j, M in enumerate(Ms):
 		try:
-			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_equispaced_{M}.txt')
+			[xs, xb, blow, bhigh] = read(f'bounds/bnddata_spts_lobatto_{N}_bpts_equispaced_{M}.txt')
 			[l1err, l2err, linferr] = get_errors(xs, xb, blow, bhigh)
 			l1errs[j] = l1err
 			l2errs[j] = l2err
 			linferrs[j] = linferr
 		except:
-			pass
+			l1errs[j] = np.nan
+			l2errs[j] = np.nan
+			linferrs[j] = np.nan
 	plt.semilogy(Ms, l2errs, 'co-',linewidth=1)
+	writeerrs[4,:] = l2errs
+
+	# for j, M in enumerate(Ms):
+	# 	try:
+	# 		fname = f"bounds/bnddata_spts_lobatto_{N}_bpts_optip_{M}.txt"
+	# 		if os.path.exists(fname):
+	# 			print(fname)
+	# 			[xs, xb, blow, bhigh] = read(fname)
+	# 		else:
+	# 			[xs, xb, blow, bhigh] = read(f'bounds/bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt')
+	# 		[l1err, l2err, linferr] = get_errors(xs, xb, blow, bhigh)
+	# 		l1errs[j] = l1err
+	# 		l2errs[j] = l2err
+	# 		linferrs[j] = linferr
+	# 	except:
+	# 		pass
+	# plt.semilogy(Ms, l2errs, 'ko-',linewidth=1)
+	# plt.xlabel('M')
+	# plt.ylabel('L2 err')
+	# plt.title(f'N = {N}')
 
 	for j, M in enumerate(Ms):
 		try:
-			fname = f"bnddata_spts_lobatto_{N}_bpts_optip_{M}.txt"
-			if os.path.exists(fname):
-				print(fname)
-				[xs, xb, blow, bhigh] = read(fname)
-			else:
-				[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt')
+			[xs, xb, blow, bhigh] = read(f'bounds/bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt')
 			[l1err, l2err, linferr] = get_errors(xs, xb, blow, bhigh)
 			l1errs[j] = l1err
 			l2errs[j] = l2err
 			linferrs[j] = linferr
 		except:
-			pass
+			l1errs[j] = np.nan
+			l2errs[j] = np.nan
+			linferrs[j] = np.nan
 	plt.semilogy(Ms, l2errs, 'ko-',linewidth=1)
-	plt.xlabel('M')
-	plt.ylabel('L2 err')
-	plt.title(f'N = {N}')
+	writeerrs[5,:] = l2errs
 
-	for j, M in enumerate(Ms):
-		try:
-			[xs, xb, blow, bhigh] = read(f'bnddata_spts_lobatto_{N}_bpts_opt_{M}.txt')
-			[l1err, l2err, linferr] = get_errors(xs, xb, blow, bhigh)
-			l1errs[j] = l1err
-			l2errs[j] = l2err
-			linferrs[j] = linferr
-		except:
-			pass
-	plt.semilogy(Ms, l2errs, 'mo-',linewidth=1)
 	plt.xlabel('M')
 	plt.ylabel('L2 err')
 	plt.title(f'N = {N}')
 
 	if i == 0:
-		plt.legend(['GL + endpoints', 'Chebyshev', 'GLL', 'Equispaced', 'Opt-ip','Opt'])
+		plt.legend(['GL + endpoints', 'Chebyshev', 'GLL', 'Equispaced', 'Opt'])
+
+	np.savetxt(f'basis_l2errs_N{N}.csv', writeerrs.T, header='gl, gll, cheb, eq, opt', delimiter=',', comments='')
 
 plt.show()
