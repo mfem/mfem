@@ -445,7 +445,7 @@ int IsoparametricTransformation::OrderJ() const
       case FunctionSpace::Qk:
          return (FElem->GetOrder());
       case FunctionSpace::Uk:
-         return (FElem->GetOrder()); // Experimental
+         return (FElem->GetOrder());
       default:
          MFEM_ABORT("unsupported finite element");
    }
@@ -461,7 +461,7 @@ int IsoparametricTransformation::OrderW() const
       case FunctionSpace::Qk:
          return (FElem->GetOrder() * FElem->GetDim() - 1);
       case FunctionSpace::Uk:
-         return (FElem->GetOrder() * FElem->GetDim()); // Experimental
+         return (FElem->GetOrder() * FElem->GetDim());
       default:
          MFEM_ABORT("unsupported finite element");
    }
@@ -482,7 +482,7 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe) const
          case FunctionSpace::Qk:
             return (k*(d-1)+(l-1));
          case FunctionSpace::Uk:
-            return (k*(d-1)+(l-1)); // Experimental
+            return (k*(d-1)+(l-1));
          default:
             MFEM_ABORT("unsupported finite element");
       }
