@@ -2267,9 +2267,9 @@ void Poly_1D::CalcChebyshev(const int p, const real_t x, real_t *u, real_t *d,
    }
 }
 
-const real_t *Poly_1D::GetPoints(const int p, const int btype)
+const real_t *Poly_1D::GetPoints(const int p, const int btype, bool on_device)
 {
-   Array<real_t*> *pts;
+   Array<real_t> *val;
    BasisType::Check(btype);
    const int qtype = BasisType::GetQuadrature1D(btype);
    if (qtype == Quadrature1D::Invalid) { return NULL; }
@@ -2278,27 +2278,21 @@ const real_t *Poly_1D::GetPoints(const int p, const int btype)
    #pragma omp critical (Poly1DGetPoints)
 #endif
    {
-      auto it = points_container.find(btype);
-      if (it != points_container.end())
+      std::pair<int, int> key(btype, p);
+      auto it = points_container.find(key);
+      if (it == points_container.end())
       {
-         pts = it->second;
+         it = points_container.emplace(key, new Array<real_t>(p + 1, h_mt)).first;
+         val = it->second.get();
+         real_t* hptr = val->HostWrite();
+         quad_func.GivePolyPoints(p+1, hptr, qtype);
       }
       else
       {
-         pts = new Array<real_t*>(h_mt);
-         points_container[btype] = pts;
-      }
-      if (pts->Size() <= p)
-      {
-         pts->SetSize(p + 1, NULL);
-      }
-      if ((*pts)[p] == NULL)
-      {
-         (*pts)[p] = new real_t[p + 1];
-         quad_func.GivePolyPoints(p + 1, (*pts)[p], qtype);
+         val = it->second.get();
       }
    }
-   return (*pts)[p];
+   return val->Read(on_device);
 }
 
 Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
@@ -2339,17 +2333,6 @@ Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
 
 Poly_1D::~Poly_1D()
 {
-   for (PointsMap::iterator it = points_container.begin();
-        it != points_container.end() ; ++it)
-   {
-      Array<real_t*>& pts = *it->second;
-      for (int i = 0; i < pts.Size(); ++i)
-      {
-         delete [] pts[i];
-      }
-      delete it->second;
-   }
-
    for (BasisMap::iterator it = bases_container.begin();
         it != bases_container.end() ; ++it)
    {
