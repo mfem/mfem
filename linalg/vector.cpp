@@ -1422,8 +1422,12 @@ void add<real_t>(const VectorMP<real_t> &v1, const VectorMP<real_t> &v2,
                  VectorMP<real_t> &v);
 
 template
-void add<real_t>(const VectorMP<real_t> &v1, real_t alpha,
-                 const VectorMP<real_t> &v2, VectorMP<real_t> &v);
+void add<float>(const VectorMP<float> &v1, float alpha,
+                const VectorMP<float> &v2, VectorMP<float> &v);
+
+template
+void add<double>(const VectorMP<double> &v1, double alpha,
+                 const VectorMP<double> &v2, VectorMP<double> &v);
 
 template
 void add<real_t>(const real_t a, const VectorMP<real_t> &x,
@@ -1434,8 +1438,12 @@ void add<real_t>(const real_t a, const VectorMP<real_t> &x,
                  const real_t b, const VectorMP<real_t> &y, VectorMP<real_t> &z);
 
 template
-void subtract<real_t>(const VectorMP<real_t> &x, const VectorMP<real_t> &y,
-                      VectorMP<real_t> &z);
+void subtract<float>(const VectorMP<float> &x, const VectorMP<float> &y,
+                     VectorMP<float> &z);
+
+template
+void subtract<double>(const VectorMP<double> &x, const VectorMP<double> &y,
+                      VectorMP<double> &z);
 
 template
 void subtract<real_t>(const real_t a, const VectorMP<real_t> &x,

@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "densemat.hpp"
+#include "sparsemat.hpp"
 #include "handle.hpp"
 #include <memory>
 
@@ -32,38 +33,45 @@ namespace mfem
 
 class BilinearForm;
 
+template <class T>
+class IterativeSolverMP;
+
 /// Abstract base class for an iterative solver monitor
-class IterativeSolverMonitor
+template <class T>
+class IterativeSolverMonitorMP
 {
 protected:
    /// The last IterativeSolver to which this monitor was attached.
-   const class IterativeSolver *iter_solver;
+   const class IterativeSolverMP<T> *iter_solver;
 
 public:
-   IterativeSolverMonitor() : iter_solver(nullptr) {}
+   IterativeSolverMonitorMP() : iter_solver(nullptr) {}
 
-   virtual ~IterativeSolverMonitor() {}
+   virtual ~IterativeSolverMonitorMP() {}
 
    /// Monitor the residual vector r
-   virtual void MonitorResidual(int it, real_t norm, const Vector &r,
+   virtual void MonitorResidual(int it, T norm, const VectorMP<T> &r,
                                 bool final)
    {
    }
 
    /// Monitor the solution vector x
-   virtual void MonitorSolution(int it, real_t norm, const Vector &x,
+   virtual void MonitorSolution(int it, T norm, const VectorMP<T> &x,
                                 bool final)
    {
    }
 
    /** @brief This method is invoked by IterativeSolver::SetMonitor, informing
        the monitor which IterativeSolver is using it. */
-   void SetIterativeSolver(const IterativeSolver &solver)
+   void SetIterativeSolver(const IterativeSolverMP<T> &solver)
    { iter_solver = &solver; }
 };
 
+using IterativeSolverMonitor = IterativeSolverMonitorMP<real_t>;
+
 /// Abstract base class for iterative solver
-class IterativeSolver : public Solver
+template <class T>
+class IterativeSolverMP : public SolverMP<T>
 {
 public:
    /** @brief Settings for the output behavior of the IterativeSolver.
@@ -118,9 +126,9 @@ private:
 #endif
 
 protected:
-   const Operator *oper;
-   Solver *prec;
-   IterativeSolverMonitor *monitor = nullptr;
+   const OperatorMP<T> *oper;
+   SolverMP<T> *prec;
+   IterativeSolverMonitorMP<T> *monitor = nullptr;
 
    /// @name Reporting (protected attributes and member functions)
    ///@{
@@ -152,10 +160,10 @@ protected:
    int max_iter;
 
    /// Relative tolerance.
-   real_t rel_tol;
+   T rel_tol;
 
    /// Absolute tolerance.
-   real_t abs_tol;
+   T abs_tol;
 
    ///@}
 
@@ -165,7 +173,7 @@ protected:
 
    mutable int final_iter = -1;
    mutable bool converged = false;
-   mutable real_t initial_norm = -1.0, final_norm = -1.0;
+   mutable T initial_norm = -1.0, final_norm = -1.0;
 
    ///@}
 
@@ -174,20 +182,20 @@ protected:
        @details Overriding this method in a derived class enables a
        custom inner product.
       */
-   virtual real_t Dot(const Vector &x, const Vector &y) const;
+   virtual T Dot(const VectorMP<T> &x, const VectorMP<T> &y) const;
 
    /// Return the inner product norm of @a x, using the inner product defined by Dot()
-   real_t Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+   T Norm(const VectorMP<T> &x) const { return sqrt(Dot(x, x)); }
 
    /// Monitor both the residual @a r and the solution @a x
-   void Monitor(int it, real_t norm, const Vector& r, const Vector& x,
+   void Monitor(int it, T norm, const VectorMP<T>& r, const VectorMP<T>& x,
                 bool final=false) const;
 
 public:
-   IterativeSolver();
+   IterativeSolverMP();
 
 #ifdef MFEM_USE_MPI
-   IterativeSolver(MPI_Comm comm_);
+   IterativeSolverMP(MPI_Comm comm_);
 #endif
 
    /** @name Convergence
@@ -206,8 +214,8 @@ public:
        X depends on the specific iterative solver.
       */
    ///@{
-   void SetRelTol(real_t rtol) { rel_tol = rtol; }
-   void SetAbsTol(real_t atol) { abs_tol = atol; }
+   void SetRelTol(T rtol) { rel_tol = rtol; }
+   void SetAbsTol(T atol) { abs_tol = atol; }
    void SetMaxIter(int max_it) { max_iter = max_it; }
    ///@}
 
@@ -265,20 +273,20 @@ public:
    /// This function returns the norm of the residual (or preconditioned
    /// residual, depending on the solver), computed before the start of the
    /// iteration.
-   real_t GetInitialNorm() const { return initial_norm; }
+   T GetInitialNorm() const { return initial_norm; }
    /// @brief Returns the final residual norm after termination of the solver
    /// during the last call to Mult().
    ///
    /// This function returns the norm of the residual (or preconditioned
    /// residual, depending on the solver), corresponding to the returned
    /// solution.
-   real_t GetFinalNorm() const { return final_norm; }
+   T GetFinalNorm() const { return final_norm; }
    /// @brief Returns the final residual norm after termination of the solver
    /// during the last call to Mult(), divided by the initial residual norm.
    /// Returns -1 if one of these norms is left undefined by the solver.
    ///
    /// @sa GetFinalNorm(), GetInitialNorm()
-   real_t GetFinalRelNorm() const
+   T GetFinalRelNorm() const
    {
       if (final_norm < 0.0 || initial_norm < 0.0) { return -1.0; }
       return final_norm / initial_norm;
@@ -287,13 +295,13 @@ public:
    ///@}
 
    /// This should be called before SetOperator
-   virtual void SetPreconditioner(Solver &pr);
+   virtual void SetPreconditioner(SolverMP<T> &pr);
 
    /// Also calls SetOperator for the preconditioner if there is one
-   void SetOperator(const Operator &op) override;
+   void SetOperator(const OperatorMP<T> &op) override;
 
    /// Set the iterative solver monitor
-   void SetMonitor(IterativeSolverMonitor &m)
+   void SetMonitor(IterativeSolverMonitorMP<T> &m)
    { monitor = &m; m.SetIterativeSolver(*this); }
 
 #ifdef MFEM_USE_MPI
@@ -304,6 +312,7 @@ public:
 #endif
 };
 
+using IterativeSolver = IterativeSolverMP<real_t>;
 
 /// Jacobi smoothing for a given bilinear form (no matrix necessary).
 /** Useful with tensorized, partially assembled operators. Can also be defined
@@ -509,27 +518,38 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
 
 
 /// Conjugate gradient method
-class CGSolver : public IterativeSolver
+template <class T>
+class CGSolverMP : public IterativeSolverMP<T>
 {
 protected:
-   mutable Vector r, d, z;
+   mutable VectorMP<T> r, d, z;
 
    void UpdateVectors();
 
+   using IterativeSolverMP<T>::converged;
+   using IterativeSolverMP<T>::final_iter;
+   using IterativeSolverMP<T>::final_norm;
+   using IterativeSolverMP<T>::oper;
+   using IterativeSolverMP<T>::print_options;
+   using IterativeSolverMP<T>::max_iter;
+   using IterativeSolverMP<T>::prec;
+
 public:
-   CGSolver() { }
+   CGSolverMP() { }
 
 #ifdef MFEM_USE_MPI
-   CGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
+   CGSolverMP(MPI_Comm comm_) : IterativeSolverMP<T>(comm_) { }
 #endif
 
-   void SetOperator(const Operator &op) override
-   { IterativeSolver::SetOperator(op); UpdateVectors(); }
+   void SetOperator(const OperatorMP<T> &op) override
+   { IterativeSolverMP<T>::SetOperator(op); UpdateVectors(); }
 
    /** @brief Iterative solution of the linear system using the Conjugate
        Gradient method. */
-   void Mult(const Vector &b, Vector &x) const override;
+   void Mult(const VectorMP<T> &b, VectorMP<T> &x) const override;
 };
+
+using CGSolver = CGSolverMP<real_t>;
 
 /// Conjugate gradient method. (tolerances are squared)
 void CG(const Operator &A, const Vector &b, Vector &x,
@@ -537,9 +557,11 @@ void CG(const Operator &A, const Vector &b, Vector &x,
         real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24);
 
 /// Preconditioned conjugate gradient method. (tolerances are squared)
-void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
+template <class T>
+void PCG(const OperatorMP<T> &A, SolverMP<T> &B, const VectorMP<T> &b,
+         VectorMP<T> &x,
          int print_iter = 0, int max_num_iter = 1000,
-         real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24);
+         T RTOLERANCE = 1e-12, T ATOLERANCE = 1e-24);
 
 
 /// GMRES method
@@ -1038,7 +1060,7 @@ public:
 
 private:
    /// Set up the block CSR structure corresponding to a sparse matrix @a A
-   void CreateBlockPattern(const class SparseMatrix &A);
+   void CreateBlockPattern(const class SparseMatrixMP<real_t> &A);
 
    /// Perform the block ILU factorization
    void Factorize();

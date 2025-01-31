@@ -19,10 +19,12 @@
 namespace mfem
 {
 
-void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
-                            const Operator *Pi,
-                            Vector &x, Vector &b,
-                            Vector &X, Vector &B) const
+template <class T>
+void OperatorMP<T>::InitTVectors(const OperatorMP<T> *Po,
+                                 const OperatorMP<T> *Ri,
+                                 const OperatorMP<T> *Pi,
+                                 VectorMP<T> &x, VectorMP<T> &b,
+                                 VectorMP<T> &X, VectorMP<T> &B) const
 {
    if (!IsIdentityProlongation(Po))
    {
@@ -48,23 +50,27 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    }
 }
 
-void Operator::AddMult(const Vector &x, Vector &y, const real_t a) const
+template <class T>
+void OperatorMP<T>::AddMult(const VectorMP<T> &x, VectorMP<T> &y,
+                            const T a) const
 {
-   mfem::Vector z(y.Size());
+   mfem::VectorMP<T> z(y.Size());
    Mult(x, z);
    y.Add(a, z);
 }
 
-void Operator::AddMultTranspose(const Vector &x, Vector &y,
-                                const real_t a) const
+template <class T>
+void OperatorMP<T>::AddMultTranspose(const VectorMP<T> &x, VectorMP<T> &y,
+                                     const T a) const
 {
-   mfem::Vector z(y.Size());
+   mfem::VectorMP<T> z(y.Size());
    MultTranspose(x, z);
    y.Add(a, z);
 }
 
-void Operator::ArrayMult(const Array<const Vector *> &X,
-                         Array<Vector *> &Y) const
+template <class T>
+void OperatorMP<T>::ArrayMult(const Array<const VectorMP<T> *> &X,
+                              Array<VectorMP<T> *> &Y) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::Mult!");
@@ -75,8 +81,9 @@ void Operator::ArrayMult(const Array<const Vector *> &X,
    }
 }
 
-void Operator::ArrayMultTranspose(const Array<const Vector *> &X,
-                                  Array<Vector *> &Y) const
+template <class T>
+void OperatorMP<T>::ArrayMultTranspose(const Array<const VectorMP<T> *> &X,
+                                       Array<VectorMP<T> *> &Y) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::MultTranspose!");
@@ -87,8 +94,10 @@ void Operator::ArrayMultTranspose(const Array<const Vector *> &X,
    }
 }
 
-void Operator::ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
-                            const real_t a) const
+template <class T>
+void OperatorMP<T>::ArrayAddMult(const Array<const VectorMP<T> *> &X,
+                                 Array<VectorMP<T> *> &Y,
+                                 const T a) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::AddMult!");
@@ -99,8 +108,9 @@ void Operator::ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
    }
 }
 
-void Operator::ArrayAddMultTranspose(const Array<const Vector *> &X,
-                                     Array<Vector *> &Y, const real_t a) const
+template <class T>
+void OperatorMP<T>::ArrayAddMultTranspose(const Array<const VectorMP<T> *> &X,
+                                          Array<VectorMP<T> *> &Y, const T a) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::AddMultTranspose!");
@@ -111,44 +121,48 @@ void Operator::ArrayAddMultTranspose(const Array<const Vector *> &X,
    }
 }
 
-void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                Vector &x, Vector &b,
-                                Operator* &Aout, Vector &X, Vector &B,
-                                int copy_interior)
+template <class T>
+void OperatorMP<T>::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                     VectorMP<T> &x, VectorMP<T> &b,
+                                     OperatorMP<T>* &Aout, VectorMP<T> &X, VectorMP<T> &B,
+                                     int copy_interior)
 {
-   const Operator *P = this->GetProlongation();
-   const Operator *R = this->GetRestriction();
+   const OperatorMP<T> *P = this->GetProlongation();
+   const OperatorMP<T> *R = this->GetRestriction();
    InitTVectors(P, R, P, x, b, X, B);
 
    if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
 
-   ConstrainedOperator *constrainedA;
+   ConstrainedOperatorMP<T> *constrainedA;
    FormConstrainedSystemOperator(ess_tdof_list, constrainedA);
    constrainedA->EliminateRHS(X, B);
    Aout = constrainedA;
 }
 
-void Operator::FormRectangularLinearSystem(
+template <class T>
+void OperatorMP<T>::FormRectangularLinearSystem(
    const Array<int> &trial_tdof_list,
-   const Array<int> &test_tdof_list, Vector &x, Vector &b,
-   Operator* &Aout, Vector &X, Vector &B)
+   const Array<int> &test_tdof_list, VectorMP<T> &x, VectorMP<T> &b,
+   OperatorMP<T>* &Aout, VectorMP<T> &X, VectorMP<T> &B)
 {
-   const Operator *Pi = this->GetProlongation();
-   const Operator *Po = this->GetOutputProlongation();
-   const Operator *Ri = this->GetRestriction();
+   const OperatorMP<T> *Pi = this->GetProlongation();
+   const OperatorMP<T> *Po = this->GetOutputProlongation();
+   const OperatorMP<T> *Ri = this->GetRestriction();
    InitTVectors(Po, Ri, Pi, x, b, X, B);
 
-   RectangularConstrainedOperator *constrainedA;
+   RectangularConstrainedOperatorMP<T> *constrainedA;
    FormRectangularConstrainedSystemOperator(trial_tdof_list, test_tdof_list,
                                             constrainedA);
    constrainedA->EliminateRHS(X, B);
    Aout = constrainedA;
 }
 
-void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
+template <class T>
+void OperatorMP<T>::RecoverFEMSolution(const VectorMP<T> &X,
+                                       const VectorMP<T> &b, VectorMP<T> &x)
 {
    // Same for Rectangular and Square operators
-   const Operator *P = this->GetProlongation();
+   const OperatorMP<T> *P = this->GetProlongation();
    if (!IsIdentityProlongation(P))
    {
       // Apply conforming prolongation
@@ -165,26 +179,28 @@ void Operator::RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x)
    }
 }
 
-Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
+template <class T>
+OperatorMP<T> * OperatorMP<T>::SetupRAP(const OperatorMP<T> *Pi,
+                                        const OperatorMP<T> *Po)
 {
-   Operator *rap;
+   OperatorMP<T> *rap;
    if (!IsIdentityProlongation(Pi))
    {
       if (!IsIdentityProlongation(Po))
       {
-         rap = new RAPOperator(*Po, *this, *Pi);
+         rap = new RAPOperatorMP<T>(*Po, *this, *Pi);
       }
       else
       {
-         rap = new ProductOperator(this, Pi, false,false);
+         rap = new ProductOperatorMP<T>(this, Pi, false, false);
       }
    }
    else
    {
       if (!IsIdentityProlongation(Po))
       {
-         TransposeOperator * PoT = new TransposeOperator(Po);
-         rap = new ProductOperator(PoT, this, true,false);
+         TransposeOperatorMP<T> * PoT = new TransposeOperatorMP<T>(Po);
+         rap = new ProductOperatorMP<T>(PoT, this, true, false);
       }
       else
       {
@@ -194,67 +210,74 @@ Operator * Operator::SetupRAP(const Operator *Pi, const Operator *Po)
    return rap;
 }
 
-void Operator::FormConstrainedSystemOperator(
-   const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout)
+template <class T>
+void OperatorMP<T>::FormConstrainedSystemOperator(
+   const Array<int> &ess_tdof_list, ConstrainedOperatorMP<T>* &Aout)
 {
-   const Operator *P = this->GetProlongation();
-   Operator *rap = SetupRAP(P, P);
+   const OperatorMP<T> *P = this->GetProlongation();
+   OperatorMP<T> *rap = SetupRAP(P, P);
 
    // Impose the boundary conditions through a ConstrainedOperator, which owns
    // the rap operator when P and R are non-trivial
-   ConstrainedOperator *A = new ConstrainedOperator(rap, ess_tdof_list,
-                                                    rap != this);
+   ConstrainedOperatorMP<T> *A = new ConstrainedOperatorMP<T>(rap, ess_tdof_list,
+                                                              rap != this);
    Aout = A;
 }
 
-void Operator::FormRectangularConstrainedSystemOperator(
+template <class T>
+void OperatorMP<T>::FormRectangularConstrainedSystemOperator(
    const Array<int> &trial_tdof_list, const Array<int> &test_tdof_list,
-   RectangularConstrainedOperator* &Aout)
+   RectangularConstrainedOperatorMP<T>* &Aout)
 {
-   const Operator *Pi = this->GetProlongation();
-   const Operator *Po = this->GetOutputProlongation();
-   Operator *rap = SetupRAP(Pi, Po);
+   const OperatorMP<T> *Pi = this->GetProlongation();
+   const OperatorMP<T> *Po = this->GetOutputProlongation();
+   OperatorMP<T> *rap = SetupRAP(Pi, Po);
 
    // Impose the boundary conditions through a RectangularConstrainedOperator,
    // which owns the rap operator when P and R are non-trivial
-   RectangularConstrainedOperator *A
-      = new RectangularConstrainedOperator(rap,
-                                           trial_tdof_list, test_tdof_list,
-                                           rap != this);
+   RectangularConstrainedOperatorMP<T> *A
+      = new RectangularConstrainedOperatorMP<T>(rap,
+                                                trial_tdof_list, test_tdof_list,
+                                                rap != this);
    Aout = A;
 }
 
-void Operator::FormSystemOperator(const Array<int> &ess_tdof_list,
-                                  Operator* &Aout)
+template <class T>
+void OperatorMP<T>::FormSystemOperator(const Array<int> &ess_tdof_list,
+                                       OperatorMP<T>* &Aout)
 {
-   ConstrainedOperator *A;
+   ConstrainedOperatorMP<T> *A;
    FormConstrainedSystemOperator(ess_tdof_list, A);
    Aout = A;
 }
 
-void Operator::FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
-                                             const Array<int> &test_tdof_list,
-                                             Operator* &Aout)
+template <class T>
+void OperatorMP<T>::FormRectangularSystemOperator(const Array<int>
+                                                  &trial_tdof_list,
+                                                  const Array<int> &test_tdof_list,
+                                                  OperatorMP<T>* &Aout)
 {
-   RectangularConstrainedOperator *A;
+   RectangularConstrainedOperatorMP<T> *A;
    FormRectangularConstrainedSystemOperator(trial_tdof_list, test_tdof_list, A);
    Aout = A;
 }
 
-void Operator::FormDiscreteOperator(Operator* &Aout)
+template <class T>
+void OperatorMP<T>::FormDiscreteOperator(OperatorMP<T>* &Aout)
 {
-   const Operator *Pin  = this->GetProlongation();
-   const Operator *Rout = this->GetOutputRestriction();
-   Aout = new TripleProductOperator(Rout, this, Pin,false, false, false);
+   const OperatorMP<T> *Pin  = this->GetProlongation();
+   const OperatorMP<T> *Rout = this->GetOutputRestriction();
+   Aout = new TripleProductOperatorMP<T>(Rout, this, Pin, false, false, false);
 }
 
-void Operator::PrintMatlab(std::ostream & os, int n, int m) const
+template <class T>
+void OperatorMP<T>::PrintMatlab(std::ostream & os, int n, int m) const
 {
    using namespace std;
    if (n == 0) { n = width; }
    if (m == 0) { m = height; }
 
-   Vector x(n), y(m);
+   VectorMP<T> x(n), y(m);
    x = 0.0;
 
    os << setiosflags(ios::scientific | ios::showpos);
@@ -273,7 +296,8 @@ void Operator::PrintMatlab(std::ostream & os, int n, int m) const
    }
 }
 
-void Operator::PrintMatlab(std::ostream &os) const
+template <class T>
+void OperatorMP<T>::PrintMatlab(std::ostream &os) const
 {
    PrintMatlab(os, width, height);
 }
@@ -404,9 +428,11 @@ SumOperator::~SumOperator()
    if (ownB) { delete B; }
 }
 
-ProductOperator::ProductOperator(const Operator *A, const Operator *B,
-                                 bool ownA, bool ownB)
-   : Operator(A->Height(), B->Width()),
+template <class T>
+ProductOperatorMP<T>::ProductOperatorMP(const OperatorMP<T> *A,
+                                        const OperatorMP<T> *B,
+                                        bool ownA, bool ownB)
+   : OperatorMP<T>(A->Height(), B->Width()),
      A(A), B(B), ownA(ownA), ownB(ownB), z(A->Width())
 {
    MFEM_VERIFY(A->Width() == B->Height(),
@@ -423,16 +449,18 @@ ProductOperator::ProductOperator(const Operator *A, const Operator *B,
    }
 }
 
-ProductOperator::~ProductOperator()
+template <class T>
+ProductOperatorMP<T>::~ProductOperatorMP()
 {
    if (ownA) { delete A; }
    if (ownB) { delete B; }
 }
 
-
-RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
-                         const Operator &P_)
-   : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_)
+template <class T>
+RAPOperatorMP<T>::RAPOperatorMP(const OperatorMP<T> &Rt_,
+                                const OperatorMP<T> &A_,
+                                const OperatorMP<T> &P_)
+   : OperatorMP<T>(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_)
 {
    MFEM_VERIFY(Rt.Height() == A.Height(),
                "incompatible Operators: Rt.Height() = " << Rt.Height()
@@ -463,11 +491,11 @@ RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
    APx.SetSize(A.Height(), mem_type);
 }
 
-
-TripleProductOperator::TripleProductOperator(
-   const Operator *A, const Operator *B, const Operator *C,
+template <class T>
+TripleProductOperatorMP<T>::TripleProductOperatorMP(
+   const OperatorMP<T> *A, const OperatorMP<T> *B, const OperatorMP<T> *C,
    bool ownA, bool ownB, bool ownC)
-   : Operator(A->Height(), C->Width())
+   : OperatorMP<T>(A->Height(), C->Width())
    , A(A), B(B), C(C)
    , ownA(ownA), ownB(ownB), ownC(ownC)
 {
@@ -500,18 +528,20 @@ TripleProductOperator::TripleProductOperator(
    t2.SetSize(B->Height(), mem_type);
 }
 
-TripleProductOperator::~TripleProductOperator()
+template <class T>
+TripleProductOperatorMP<T>::~TripleProductOperatorMP()
 {
    if (ownA) { delete A; }
    if (ownB) { delete B; }
    if (ownC) { delete C; }
 }
 
-
-ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
-                                         bool own_A_,
-                                         DiagonalPolicy diag_policy_)
-   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_),
+template <class T>
+ConstrainedOperatorMP<T>::ConstrainedOperatorMP(OperatorMP<T> *A,
+                                                const Array<int> &list,
+                                                bool own_A_,
+                                                DiagonalPolicy diag_policy_)
+   : OperatorMP<T>(A->Height(), A->Width()), A(A), own_A(own_A_),
      diag_policy(diag_policy_)
 {
    // 'mem_class' should work with A->Mult() and mfem::forall():
@@ -521,11 +551,12 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    constraint_list.MakeRef(list);
    // typically z and w are large vectors, so use the device (GPU) to perform
    // operations on them
-   z.SetSize(height, mem_type); z.UseDevice(true);
-   w.SetSize(height, mem_type); w.UseDevice(true);
+   z.SetSize(this->height, mem_type); z.UseDevice(true);
+   w.SetSize(this->height, mem_type); w.UseDevice(true);
 }
 
-void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
+template <class T>
+void ConstrainedOperatorMP<T>::AssembleDiagonal(VectorMP<T> &diag) const
 {
    A->AssembleDiagonal(diag);
 
@@ -556,7 +587,9 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
    }
 }
 
-void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
+template <class T>
+void ConstrainedOperatorMP<T>::EliminateRHS(const VectorMP<T> &x,
+                                            VectorMP<T> &b) const
 {
    w = 0.0;
    const int csz = constraint_list.Size();
@@ -583,8 +616,10 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 }
 
-void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
-                                          const bool transpose) const
+template <class T>
+void ConstrainedOperatorMP<T>::ConstrainedMult(const VectorMP<T> &x,
+                                               VectorMP<T> &y,
+                                               const bool transpose) const
 {
    const int csz = constraint_list.Size();
    if (csz == 0)
@@ -645,31 +680,36 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
    }
 }
 
-void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
+template <class T>
+void ConstrainedOperatorMP<T>::Mult(const VectorMP<T> &x, VectorMP<T> &y) const
 {
    constexpr bool transpose = false;
    ConstrainedMult(x, y, transpose);
 }
 
-void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
+template <class T>
+void ConstrainedOperatorMP<T>::MultTranspose(const VectorMP<T> &x,
+                                             VectorMP<T> &y) const
 {
    constexpr bool transpose = true;
    ConstrainedMult(x, y, transpose);
 }
 
-void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
-                                  const real_t a) const
+template <class T>
+void ConstrainedOperatorMP<T>::AddMult(const VectorMP<T> &x, VectorMP<T> &y,
+                                       const T a) const
 {
    Mult(x, w);
    y.Add(a, w);
 }
 
-RectangularConstrainedOperator::RectangularConstrainedOperator(
-   Operator *A,
+template <class T>
+RectangularConstrainedOperatorMP<T>::RectangularConstrainedOperatorMP(
+   OperatorMP<T> *A,
    const Array<int> &trial_list,
    const Array<int> &test_list,
    bool own_A_)
-   : Operator(A->Height(), A->Width()), A(A), own_A(own_A_)
+   : OperatorMP<T>(A->Height(), A->Width()), A(A), own_A(own_A_)
 {
    // 'mem_class' should work with A->Mult() and mfem::forall():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
@@ -679,12 +719,13 @@ RectangularConstrainedOperator::RectangularConstrainedOperator(
    trial_constraints.MakeRef(trial_list);
    test_constraints.MakeRef(test_list);
    // typically z and w are large vectors, so store them on the device
-   z.SetSize(height, mem_type); z.UseDevice(true);
-   w.SetSize(width, mem_type); w.UseDevice(true);
+   z.SetSize(this->height, mem_type); z.UseDevice(true);
+   w.SetSize(this->width, mem_type); w.UseDevice(true);
 }
 
-void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
-                                                  Vector &b) const
+template <class T>
+void RectangularConstrainedOperatorMP<T>::EliminateRHS(const VectorMP<T> &x,
+                                                       VectorMP<T> &b) const
 {
    w = 0.0;
    const int trial_csz = trial_constraints.Size();
@@ -709,7 +750,9 @@ void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
    });
 }
 
-void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
+template <class T>
+void RectangularConstrainedOperatorMP<T>::Mult(const VectorMP<T> &x,
+                                               VectorMP<T> &y) const
 {
    const int trial_csz = trial_constraints.Size();
    const int test_csz = test_constraints.Size();
@@ -743,8 +786,9 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void RectangularConstrainedOperator::MultTranspose(const Vector &x,
-                                                   Vector &y) const
+template <class T>
+void RectangularConstrainedOperatorMP<T>::MultTranspose(const VectorMP<T> &x,
+                                                        VectorMP<T> &y) const
 {
    const int trial_csz = trial_constraints.Size();
    const int test_csz = test_constraints.Size();
@@ -835,5 +879,14 @@ real_t PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
 
    return eigenvalue;
 }
+
+template class OperatorMP<float>;
+template class OperatorMP<double>;
+
+template class ConstrainedOperatorMP<float>;
+template class ConstrainedOperatorMP<double>;
+
+template class TripleProductOperatorMP<float>;
+template class TripleProductOperatorMP<double>;
 
 }

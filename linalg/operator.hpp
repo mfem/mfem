@@ -17,32 +17,44 @@
 namespace mfem
 {
 
-class ConstrainedOperator;
-class RectangularConstrainedOperator;
+template <class T>
+class ConstrainedOperatorMP;
 
-/// Abstract operator
-class Operator
+template <class T>
+class RectangularConstrainedOperatorMP;
+
+class OperatorBase
 {
 protected:
    int height; ///< Dimension of the output / number of rows in the matrix.
    int width;  ///< Dimension of the input / number of columns in the matrix.
 
-   /// see FormSystemOperator()
-   /** @note Uses DiagonalPolicy::DIAG_ONE. */
-   void FormConstrainedSystemOperator(
-      const Array<int> &ess_tdof_list, ConstrainedOperator* &Aout);
-
-   /// see FormRectangularSystemOperator()
-   void FormRectangularConstrainedSystemOperator(
-      const Array<int> &trial_tdof_list,
-      const Array<int> &test_tdof_list,
-      RectangularConstrainedOperator* &Aout);
-
-   /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
-       @a Pi corresponds to "P", @a Po corresponds to "Rt" */
-   Operator *SetupRAP(const Operator *Pi, const Operator *Po);
-
 public:
+   /// Get the height (size of output) of the Operator. Synonym with NumRows().
+   inline int Height() const { return height; }
+
+   /// Get the width (size of input) of the Operator. Synonym with NumCols().
+   inline int Width() const { return width; }
+
+   enum Type
+   {
+      ANY_TYPE,         ///< ID for the base class Operator, i.e. any type.
+      MFEM_SPARSEMAT,   ///< ID for class SparseMatrix.
+      Hypre_ParCSR,     ///< ID for class HypreParMatrix.
+      PETSC_MATAIJ,     ///< ID for class PetscParMatrix, MATAIJ format.
+      PETSC_MATIS,      ///< ID for class PetscParMatrix, MATIS format.
+      PETSC_MATSHELL,   ///< ID for class PetscParMatrix, MATSHELL format.
+      PETSC_MATNEST,    ///< ID for class PetscParMatrix, MATNEST format.
+      PETSC_MATHYPRE,   ///< ID for class PetscParMatrix, MATHYPRE format.
+      PETSC_MATGENERIC, ///< ID for class PetscParMatrix, unspecified format.
+      Complex_Operator, ///< ID for class ComplexOperator.
+      MFEM_ComplexSparseMat, ///< ID for class ComplexSparseMatrix.
+      Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.
+      Complex_DenseMat,  ///< ID for class ComplexDenseMatrix
+      MFEM_Block_Matrix,     ///< ID for class BlockMatrix.
+      MFEM_Block_Operator   ///< ID for the base class BlockOperator.
+   };
+
    /// Defines operator diagonal policy upon elimination of rows and/or columns.
    enum DiagonalPolicy
    {
@@ -50,26 +62,45 @@ public:
       DIAG_ONE,  ///< Set the diagonal value to one
       DIAG_KEEP  ///< Keep the diagonal value
    };
+};
 
+/// Abstract operator
+template <class T>
+class OperatorMP : public OperatorBase
+{
+protected:
+   /// see FormSystemOperator()
+   /** @note Uses DiagonalPolicy::DIAG_ONE. */
+   void FormConstrainedSystemOperator(
+      const Array<int> &ess_tdof_list, ConstrainedOperatorMP<T>* &Aout);
+
+   /// see FormRectangularSystemOperator()
+   void FormRectangularConstrainedSystemOperator(
+      const Array<int> &trial_tdof_list,
+      const Array<int> &test_tdof_list,
+      RectangularConstrainedOperatorMP<T>* &Aout);
+
+   /** @brief Returns RAP Operator of this, using input/output Prolongation matrices
+       @a Pi corresponds to "P", @a Po corresponds to "Rt" */
+   OperatorMP *SetupRAP(const OperatorMP<T> *Pi, const OperatorMP<T> *Po);
+
+public:
    /// Initializes memory for true vectors of linear system
-   void InitTVectors(const Operator *Po, const Operator *Ri, const Operator *Pi,
-                     Vector &x, Vector &b, Vector &X, Vector &B) const;
+   void InitTVectors(const OperatorMP<T> *Po, const OperatorMP<T> *Ri,
+                     const OperatorMP<T> *Pi,
+                     VectorMP<T> &x, VectorMP<T> &b, VectorMP<T> &X, VectorMP<T> &B) const;
 
    /// Construct a square Operator with given size s (default 0).
-   explicit Operator(int s = 0) { height = width = s; }
+   explicit OperatorMP(int s = 0) { height = width = s; }
 
    /** @brief Construct an Operator with the given height (output size) and
        width (input size). */
-   Operator(int h, int w) { height = h; width = w; }
+   OperatorMP(int h, int w) { height = h; width = w; }
 
-   /// Get the height (size of output) of the Operator. Synonym with NumRows().
-   inline int Height() const { return height; }
    /** @brief Get the number of rows (size of output) of the Operator. Synonym
        with Height(). */
    inline int NumRows() const { return height; }
 
-   /// Get the width (size of input) of the Operator. Synonym with NumCols().
-   inline int Width() const { return width; }
    /** @brief Get the number of columns (size of input) of the Operator. Synonym
        with Width(). */
    inline int NumCols() const { return width; }
@@ -86,49 +117,51 @@ public:
    virtual MemoryClass GetMemoryClass() const { return MemoryClass::HOST; }
 
    /// Operator application: `y=A(x)`.
-   virtual void Mult(const Vector &x, Vector &y) const = 0;
+   virtual void Mult(const VectorMP<T> &x, VectorMP<T> &y) const = 0;
 
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   virtual void MultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const
    { mfem_error("Operator::MultTranspose() is not overridden!"); }
 
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
-   virtual void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
+   virtual void AddMult(const VectorMP<T> &x, VectorMP<T> &y,
+                        const T a = 1.0) const;
 
    /// Operator transpose application: `y+=A^t(x)` (default) or `y+=a*A^t(x)`.
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const real_t a = 1.0) const;
+   virtual void AddMultTranspose(const VectorMP<T> &x, VectorMP<T> &y,
+                                 const T a = 1.0) const;
 
    /// Operator application on a matrix: `Y=A(X)`.
-   virtual void ArrayMult(const Array<const Vector *> &X,
-                          Array<Vector *> &Y) const;
+   virtual void ArrayMult(const Array<const VectorMP<T> *> &X,
+                          Array<VectorMP<T> *> &Y) const;
 
    /// Action of the transpose operator on a matrix: `Y=A^t(X)`.
-   virtual void ArrayMultTranspose(const Array<const Vector *> &X,
-                                   Array<Vector *> &Y) const;
+   virtual void ArrayMultTranspose(const Array<const VectorMP<T> *> &X,
+                                   Array<VectorMP<T> *> &Y) const;
 
    /// Operator application on a matrix: `Y+=A(X)` (default) or `Y+=a*A(X)`.
-   virtual void ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
-                             const real_t a = 1.0) const;
+   virtual void ArrayAddMult(const Array<const VectorMP<T> *> &X,
+                             Array<VectorMP<T> *> &Y,
+                             const T a = 1.0) const;
 
    /** @brief Operator transpose application on a matrix: `Y+=A^t(X)` (default)
        or `Y+=a*A^t(X)`. */
-   virtual void ArrayAddMultTranspose(const Array<const Vector *> &X,
-                                      Array<Vector *> &Y, const real_t a = 1.0) const;
+   virtual void ArrayAddMultTranspose(const Array<const VectorMP<T> *> &X,
+                                      Array<VectorMP<T> *> &Y, const T a = 1.0) const;
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
-   virtual Operator &GetGradient(const Vector &x) const
+   virtual OperatorMP<T> &GetGradient(const VectorMP<T> &x) const
    {
       mfem_error("Operator::GetGradient() is not overridden!");
-      return const_cast<Operator &>(*this);
+      return const_cast<OperatorMP<T> &>(*this);
    }
 
    /** @brief Computes the diagonal entries into @a diag. Typically, this
        operation only makes sense for linear Operator%s. In some cases, only an
        approximation of the diagonal is computed. */
-   virtual void AssembleDiagonal(Vector &diag) const
+   virtual void AssembleDiagonal(VectorMP<T> &diag) const
    {
       MFEM_CONTRACT_VAR(diag);
       MFEM_ABORT("Not relevant or not implemented for this Operator.");
@@ -136,15 +169,15 @@ public:
 
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
-   virtual const Operator *GetProlongation() const { return NULL; }
+   virtual const OperatorMP<T> *GetProlongation() const { return NULL; }
 
    /** @brief Restriction operator from input vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
-   virtual const Operator *GetRestriction() const  { return NULL; }
+   virtual const OperatorMP<T> *GetRestriction() const  { return NULL; }
 
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to output vectors for the operator. `NULL` means identity. */
-   virtual const Operator *GetOutputProlongation() const
+   virtual const OperatorMP<T> *GetOutputProlongation() const
    {
       return GetProlongation(); // Assume square unless specialized
    }
@@ -153,11 +186,11 @@ public:
        form to facilitate matrix-free RAP-type operators.
 
        `NULL` means identity. */
-   virtual const Operator *GetOutputRestrictionTranspose() const { return NULL; }
+   virtual const OperatorMP<T> *GetOutputRestrictionTranspose() const { return NULL; }
 
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
-   virtual const Operator *GetOutputRestriction() const
+   virtual const OperatorMP<T> *GetOutputRestriction() const
    {
       return GetRestriction(); // Assume square unless specialized
    }
@@ -193,8 +226,8 @@ public:
        @note If there are no transformations, @a X simply reuses the data of @a
        x. */
    void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         Operator* &A, Vector &X, Vector &B,
+                         VectorMP<T> &x, VectorMP<T> &b,
+                         OperatorMP<T>* &A, VectorMP<T> &X, VectorMP<T> &B,
                          int copy_interior = 0);
 
    /** @brief Form a column-constrained linear system using a matrix-free approach.
@@ -225,8 +258,8 @@ public:
        x. */
    void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
                                     const Array<int> &test_tdof_list,
-                                    Vector &x, Vector &b,
-                                    Operator* &A, Vector &X, Vector &B);
+                                    VectorMP<T> &x, VectorMP<T> &b,
+                                    OperatorMP<T>* &A, VectorMP<T> &X, VectorMP<T> &B);
 
    /** @brief Reconstruct a solution vector @a x (e.g. a GridFunction) from the
        solution @a X of a constrained linear system obtained from
@@ -237,7 +270,8 @@ public:
        @a x, for this Operator (presumably a finite element grid function). This
        method has identical signature to the analogous method for bilinear
        forms, though currently @a b is not used in the implementation. */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   virtual void RecoverFEMSolution(const VectorMP<T> &X, const VectorMP<T> &b,
+                                   VectorMP<T> &x);
 
    /** @brief Return in @a A a parallel (on truedofs) version of this square
        operator.
@@ -245,7 +279,7 @@ public:
        This returns the same operator as FormLinearSystem(), but does without
        the transformations of the right-hand side and initial guess. */
    void FormSystemOperator(const Array<int> &ess_tdof_list,
-                           Operator* &A);
+                           OperatorMP<T>* &A);
 
    /** @brief Return in @a A a parallel (on truedofs) version of this
        rectangular operator (including constraints).
@@ -254,7 +288,7 @@ public:
        without the transformations of the right-hand side. */
    void FormRectangularSystemOperator(const Array<int> &trial_tdof_list,
                                       const Array<int> &test_tdof_list,
-                                      Operator* &A);
+                                      OperatorMP<T>* &A);
 
    /** @brief Return in @a A a parallel (on truedofs) version of this
        rectangular operator.
@@ -267,7 +301,7 @@ public:
        Operator maps between. These are e.g. available through the (parallel)
        finite element space of any (parallel) bilinear form operator. We have:
        `A(X)=[Rout (*this) Pin](X)`. */
-   void FormDiscreteOperator(Operator* &A);
+   void FormDiscreteOperator(OperatorMP<T>* &A);
 
    /// Prints operator with input size n and output size m in Matlab format.
    void PrintMatlab(std::ostream & out, int n, int m = 0) const;
@@ -276,28 +310,7 @@ public:
    virtual void PrintMatlab(std::ostream & out) const;
 
    /// Virtual destructor.
-   virtual ~Operator() { }
-
-   /// Enumeration defining IDs for some classes derived from Operator.
-   /** This enumeration is primarily used with class OperatorHandle. */
-   enum Type
-   {
-      ANY_TYPE,         ///< ID for the base class Operator, i.e. any type.
-      MFEM_SPARSEMAT,   ///< ID for class SparseMatrix.
-      Hypre_ParCSR,     ///< ID for class HypreParMatrix.
-      PETSC_MATAIJ,     ///< ID for class PetscParMatrix, MATAIJ format.
-      PETSC_MATIS,      ///< ID for class PetscParMatrix, MATIS format.
-      PETSC_MATSHELL,   ///< ID for class PetscParMatrix, MATSHELL format.
-      PETSC_MATNEST,    ///< ID for class PetscParMatrix, MATNEST format.
-      PETSC_MATHYPRE,   ///< ID for class PetscParMatrix, MATHYPRE format.
-      PETSC_MATGENERIC, ///< ID for class PetscParMatrix, unspecified format.
-      Complex_Operator, ///< ID for class ComplexOperator.
-      MFEM_ComplexSparseMat, ///< ID for class ComplexSparseMatrix.
-      Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.
-      Complex_DenseMat,  ///< ID for class ComplexDenseMatrix
-      MFEM_Block_Matrix,     ///< ID for class BlockMatrix.
-      MFEM_Block_Operator   ///< ID for the base class BlockOperator.
-   };
+   virtual ~OperatorMP() { }
 
    /// Return the type ID of the Operator class.
    /** This method is intentionally non-virtual, so that it returns the ID of
@@ -307,6 +320,7 @@ public:
    Type GetType() const { return ANY_TYPE; }
 };
 
+using Operator = OperatorMP<real_t>;
 
 /// Base abstract class for first order time dependent operators.
 /** Operator of the form: (u,t) -> k(u,t), where k generally solves the
@@ -776,7 +790,8 @@ public:
 
 
 /// Base class for solvers
-class Solver : public Operator
+template <class T>
+class SolverMP : public OperatorMP<T>
 {
 public:
    /// If true, use the second argument of Mult() as an initial guess.
@@ -786,37 +801,42 @@ public:
 
        @warning Use a Boolean expression for the second parameter (not an int)
        to distinguish this call from the general rectangular constructor. */
-   explicit Solver(int s = 0, bool iter_mode = false)
-      : Operator(s) { iterative_mode = iter_mode; }
+   explicit SolverMP(int s = 0, bool iter_mode = false)
+      : OperatorMP<T>(s) { iterative_mode = iter_mode; }
 
    /// Initialize a Solver with height @a h and width @a w.
-   Solver(int h, int w, bool iter_mode = false)
-      : Operator(h, w) { iterative_mode = iter_mode; }
+   SolverMP(int h, int w, bool iter_mode = false)
+      : OperatorMP<T>(h, w) { iterative_mode = iter_mode; }
 
    /// Set/update the solver for the given operator.
-   virtual void SetOperator(const Operator &op) = 0;
+   virtual void SetOperator(const OperatorMP<T> &op) = 0;
 };
 
+using Solver = SolverMP<real_t>;
 
 /// Identity Operator I: x -> x.
-class IdentityOperator : public Operator
+template <class T>
+class IdentityOperatorMP : public OperatorMP<T>
 {
 public:
    /// Create an identity operator of size @a n.
-   explicit IdentityOperator(int n) : Operator(n) { }
+   explicit IdentityOperatorMP(int n) : OperatorMP<T>(n) { }
 
    /// Operator application
-   void Mult(const Vector &x, Vector &y) const override { y = x; }
+   void Mult(const VectorMP<T> &x, VectorMP<T> &y) const override { y = x; }
 
    /// Application of the transpose
-   void MultTranspose(const Vector &x, Vector &y) const override { y = x; }
+   void MultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const override { y = x; }
 };
+
+using IdentityOperator = IdentityOperatorMP<real_t>;
 
 /// Returns true if P is the identity prolongation, i.e. if it is either NULL or
 /// an IdentityOperator.
-inline bool IsIdentityProlongation(const Operator *P)
+template <class T>
+inline bool IsIdentityProlongation(const OperatorMP<T> *P)
 {
-   return !P || dynamic_cast<const IdentityOperator*>(P);
+   return !P || dynamic_cast<const IdentityOperatorMP<T>*>(P);
 }
 
 /// Scaled Operator B: x -> a A(x).
@@ -843,28 +863,31 @@ public:
 
 /** @brief The transpose of a given operator. Switches the roles of the methods
     Mult() and MultTranspose(). */
-class TransposeOperator : public Operator
+template <class T>
+class TransposeOperatorMP : public OperatorMP<T>
 {
 private:
-   const Operator &A;
+   const OperatorMP<T> &A;
 
 public:
    /// Construct the transpose of a given operator @a *a.
-   TransposeOperator(const Operator *a)
-      : Operator(a->Width(), a->Height()), A(*a) { }
+   TransposeOperatorMP(const OperatorMP<T> *a)
+      : OperatorMP<T>(a->Width(), a->Height()), A(*a) { }
 
    /// Construct the transpose of a given operator @a a.
-   TransposeOperator(const Operator &a)
-      : Operator(a.Width(), a.Height()), A(a) { }
+   TransposeOperatorMP(const OperatorMP<T> &a)
+      : OperatorMP<T>(a.Width(), a.Height()), A(a) { }
 
    /// Operator application. Apply the transpose of the original Operator.
-   void Mult(const Vector &x, Vector &y) const override
+   void Mult(const VectorMP<T> &x, VectorMP<T> &y) const override
    { A.MultTranspose(x, y); }
 
    /// Application of the transpose. Apply the original Operator.
-   void MultTranspose(const Vector &x, Vector &y) const override
+   void MultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const override
    { A.Mult(x, y); }
 };
+
+using TransposeOperator = TransposeOperatorMP<real_t>;
 
 /// General linear combination operator: x -> a A(x) + b B(x).
 class SumOperator : public Operator
@@ -890,44 +913,49 @@ public:
 };
 
 /// General product operator: x -> (A*B)(x) = A(B(x)).
-class ProductOperator : public Operator
+template <class T>
+class ProductOperatorMP : public OperatorMP<T>
 {
-   const Operator *A, *B;
+   const OperatorMP<T> *A, *B;
    bool ownA, ownB;
-   mutable Vector z;
+   mutable VectorMP<T> z;
 
 public:
-   ProductOperator(const Operator *A, const Operator *B, bool ownA, bool ownB);
+   ProductOperatorMP(const OperatorMP<T> *A, const OperatorMP<T> *B, bool ownA,
+                     bool ownB);
 
-   void Mult(const Vector &x, Vector &y) const override
+   void Mult(const VectorMP<T> &x, VectorMP<T> &y) const override
    { B->Mult(x, z); A->Mult(z, y); }
 
-   void MultTranspose(const Vector &x, Vector &y) const override
+   void MultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const override
    { A->MultTranspose(x, z); B->MultTranspose(z, y); }
 
-   virtual ~ProductOperator();
+   virtual ~ProductOperatorMP<T>();
 };
 
+using ProductOperator = ProductOperatorMP<real_t>;
 
 /// The operator x -> R*A*P*x constructed through the actions of R^T, A and P
-class RAPOperator : public Operator
+template <class T>
+class RAPOperatorMP : public OperatorMP<T>
 {
 private:
-   const Operator & Rt;
-   const Operator & A;
-   const Operator & P;
-   mutable Vector Px;
-   mutable Vector APx;
+   const OperatorMP<T> & Rt;
+   const OperatorMP<T> & A;
+   const OperatorMP<T> & P;
+   mutable VectorMP<T> Px;
+   mutable VectorMP<T> APx;
    MemoryClass mem_class;
 
 public:
    /// Construct the RAP operator given R^T, A and P.
-   RAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_);
+   RAPOperatorMP<T>(const OperatorMP<T> &Rt_, const OperatorMP<T> &A_,
+                    const OperatorMP<T> &P_);
 
    MemoryClass GetMemoryClass() const override { return mem_class; }
 
    /// Operator application.
-   void Mult(const Vector & x, Vector & y) const override
+   void Mult(const VectorMP<T> & x, VectorMP<T> & y) const override
    { P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y); }
 
    /// Approximate diagonal of the RAP Operator.
@@ -937,7 +965,7 @@ public:
        When P is the FE space prolongation operator on a mesh without hanging
        nodes and Rt = P, the returned diagonal is exact, as long as the diagonal
        of A is also exact. */
-   void AssembleDiagonal(Vector &diag) const override
+   void AssembleDiagonal(VectorMP<T> &diag) const override
    {
       A.AssembleDiagonal(APx);
       P.MultTranspose(APx, diag);
@@ -948,36 +976,39 @@ public:
    }
 
    /// Application of the transpose.
-   void MultTranspose(const Vector & x, Vector & y) const override
+   void MultTranspose(const VectorMP<T> & x, VectorMP<T> & y) const override
    { Rt.Mult(x, APx); A.MultTranspose(APx, Px); P.MultTranspose(Px, y); }
 };
 
+using RAPOperator = RAPOperatorMP<real_t>;
 
 /// General triple product operator x -> A*B*C*x, with ownership of the factors.
-class TripleProductOperator : public Operator
+template <class T>
+class TripleProductOperatorMP : public OperatorMP<T>
 {
-   const Operator *A;
-   const Operator *B;
-   const Operator *C;
+   const OperatorMP<T> *A;
+   const OperatorMP<T> *B;
+   const OperatorMP<T> *C;
    bool ownA, ownB, ownC;
-   mutable Vector t1, t2;
+   mutable VectorMP<T> t1, t2;
    MemoryClass mem_class;
 
 public:
-   TripleProductOperator(const Operator *A, const Operator *B,
-                         const Operator *C, bool ownA, bool ownB, bool ownC);
+   TripleProductOperatorMP(const OperatorMP<T> *A, const OperatorMP<T> *B,
+                           const OperatorMP<T> *C, bool ownA, bool ownB, bool ownC);
 
    MemoryClass GetMemoryClass() const override { return mem_class; }
 
-   void Mult(const Vector &x, Vector &y) const override
+   void Mult(const VectorMP<T> &x, VectorMP<T> &y) const override
    { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); }
 
-   void MultTranspose(const Vector &x, Vector &y) const override
+   void MultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const override
    { A->MultTranspose(x, t2); B->MultTranspose(t2, t1); C->MultTranspose(t1, y); }
 
-   virtual ~TripleProductOperator();
+   virtual ~TripleProductOperatorMP<T>();
 };
 
+using TripleProductOperator = TripleProductOperatorMP<real_t>;
 
 /** @brief Square Operator for imposing essential boundary conditions using only
     the action, Mult(), of a given unconstrained Operator.
@@ -988,13 +1019,19 @@ public:
 
     Do not confuse with ConstrainedSolver, which despite the name has very
     different functionality. */
-class ConstrainedOperator : public Operator
+template <class T>
+class ConstrainedOperatorMP : public OperatorMP<T>
 {
+   using OperatorBase::DiagonalPolicy;
+   using OperatorBase::DIAG_ONE;
+   using OperatorBase::DIAG_KEEP;
+   using OperatorBase::DIAG_ZERO;
+
 protected:
    Array<int> constraint_list;  ///< List of constrained indices/dofs.
-   Operator *A;                 ///< The unconstrained Operator.
+   OperatorMP<T> *A;                 ///< The unconstrained Operator.
    bool own_A;                  ///< Ownership flag for A.
-   mutable Vector z, w;         ///< Auxiliary vectors.
+   mutable VectorMP<T> z, w;         ///< Auxiliary vectors.
    MemoryClass mem_class;
    DiagonalPolicy diag_policy;  ///< Diagonal policy for constrained dofs
 
@@ -1007,8 +1044,9 @@ public:
        ownership flag @a own_A is true, the operator @a *A will be destroyed
        when this object is destroyed. The @a diag_policy determines how the
        operator sets entries corresponding to essential dofs. */
-   ConstrainedOperator(Operator *A, const Array<int> &list, bool own_A = false,
-                       DiagonalPolicy diag_policy = DIAG_ONE);
+   ConstrainedOperatorMP(OperatorMP<T> *A, const Array<int> &list,
+                         bool own_A = false,
+                         DiagonalPolicy diag_policy = DIAG_ONE);
 
    /// Returns the type of memory in which the solution and temporaries are stored.
    MemoryClass GetMemoryClass() const override { return mem_class; }
@@ -1018,7 +1056,7 @@ public:
    { diag_policy = diag_policy_; }
 
    /// Diagonal of A, modified according to the used DiagonalPolicy.
-   void AssembleDiagonal(Vector &diag) const override;
+   void AssembleDiagonal(VectorMP<T> &diag) const override;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -1031,7 +1069,7 @@ public:
        the vectors, and "_i" -- the rest of the entries.
 
        @note This method is consistent with `DiagonalPolicy::DIAG_ONE`. */
-   void EliminateRHS(const Vector &x, Vector &b) const;
+   void EliminateRHS(const VectorMP<T> &x, VectorMP<T> &b) const;
 
    /** @brief Constrained operator action.
 
@@ -1041,20 +1079,24 @@ public:
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
-   void Mult(const Vector &x, Vector &y) const override;
+   void Mult(const VectorMP<T> &x, VectorMP<T> &y) const override;
 
-   void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override;
+   void AddMult(const VectorMP<T> &x, VectorMP<T> &y,
+                const T a = 1.0) const override;
 
-   void MultTranspose(const Vector &x, Vector &y) const override;
+   void MultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const override;
 
    /** @brief Implementation of Mult or MultTranspose.
     *  TODO - Generalize to allow constraining rows and columns differently.
    */
-   void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
+   void ConstrainedMult(const VectorMP<T> &x, VectorMP<T> &y,
+                        const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
-   ~ConstrainedOperator() override { if (own_A) { delete A; } }
+   ~ConstrainedOperatorMP<T>() override { if (own_A) { delete A; } }
 };
+
+using ConstrainedOperator = ConstrainedOperatorMP<real_t>;
 
 /** @brief Rectangular Operator for imposing essential boundary conditions on
     the input space using only the action, Mult(), of a given unconstrained
@@ -1063,13 +1105,14 @@ public:
     Rectangular operator constrained by fixing certain entries in the solution
     to given "essential boundary condition" values. This class is used by the
     general matrix-free formulation of Operator::FormRectangularLinearSystem. */
-class RectangularConstrainedOperator : public Operator
+template <class T>
+class RectangularConstrainedOperatorMP : public OperatorMP<T>
 {
 protected:
    Array<int> trial_constraints, test_constraints;
-   Operator *A;
+   OperatorMP<T> *A;
    bool own_A;
-   mutable Vector z, w;
+   mutable VectorMP<T> z, w;
    MemoryClass mem_class;
 
 public:
@@ -1080,8 +1123,8 @@ public:
        constrain, i.e. each entry @a trial_list[i] represents an essential trial
        dof. If the ownership flag @a own_A is true, the operator @a *A will be
        destroyed when this object is destroyed. */
-   RectangularConstrainedOperator(Operator *A, const Array<int> &trial_list,
-                                  const Array<int> &test_list, bool own_A = false);
+   RectangularConstrainedOperatorMP(OperatorMP<T> *A, const Array<int> &trial_list,
+                                    const Array<int> &test_list, bool own_A = false);
    /// Returns the type of memory in which the solution and temporaries are stored.
    MemoryClass GetMemoryClass() const override { return mem_class; }
    /** @brief Eliminate columns corresponding to "essential boundary condition"
@@ -1094,7 +1137,7 @@ public:
 
        where the "_b" subscripts denote the essential (boundary) indices and the
        "_j" subscript denotes the essential test indices */
-   void EliminateRHS(const Vector &x, Vector &b) const;
+   void EliminateRHS(const VectorMP<T> &x, VectorMP<T> &b) const;
    /** @brief Rectangular-constrained operator action.
 
        Performs the following steps:
@@ -1104,10 +1147,12 @@ public:
 
        where the "_i" subscripts denote all the nonessential (boundary) trial
        indices and the "_j" subscript denotes the essential test indices */
-   void Mult(const Vector &x, Vector &y) const override;
-   void MultTranspose(const Vector &x, Vector &y) const override;
-   virtual ~RectangularConstrainedOperator() { if (own_A) { delete A; } }
+   void Mult(const VectorMP<T> &x, VectorMP<T> &y) const override;
+   void MultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const override;
+   virtual ~RectangularConstrainedOperatorMP<T>() { if (own_A) { delete A; } }
 };
+
+using RectangularConstrainedOperator = RectangularConstrainedOperatorMP<real_t>;
 
 /** @brief PowerMethod helper class to estimate the largest eigenvalue of an
            operator using the iterative power method. */

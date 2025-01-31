@@ -56,6 +56,51 @@ void f_exact(const Vector &, Vector &);
 real_t freq = 1.0, kappa;
 int dim;
 
+void SolveSingle(SparseMatrix &A, const Vector &B, Vector &X)
+{
+   VectorMP<float> Bs, Xs;
+   const real_t *data = A.GetData();
+
+   const int n = A.GetI()[A.NumRows()];
+   int *Icopy = new int[A.NumRows() + 1];
+   int *Jcopy = new int[n];
+
+   float *sdata = new float[n];
+   for (int i=0; i<n; ++i)
+   {
+      sdata[i] = data[i];
+      Jcopy[i] = A.GetJ()[i];
+   }
+
+   for (int i=0; i<A.NumRows() + 1; ++i)
+   {
+      Icopy[i] = A.GetI()[i];
+   }
+
+   SparseMatrixMP<float> As(Icopy, Jcopy, sdata, A.NumRows(), A.NumCols());
+
+   Bs.SetSize(B.Size());
+   Xs.SetSize(X.Size());
+
+   for (int i=0; i<B.Size(); ++i)
+   {
+      Bs[i] = B[i];
+   }
+
+   for (int i=0; i<X.Size(); ++i)
+   {
+      Xs[i] = X[i];
+   }
+
+   GSSmootherMP<float> Ms(As);
+   PCG<float>(As, Ms, Bs, Xs, 1, 500, 1e-12, 0.0);
+
+   for (int i=0; i<X.Size(); ++i)
+   {
+      X[i] = Xs[i];
+   }
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -185,6 +230,7 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
+   /*
    // 11. Solve the linear system A X = B.
    if (pa) // Jacobi preconditioning in partial assembly mode
    {
@@ -193,20 +239,23 @@ int main(int argc, char *argv[])
    }
    else
    {
-#ifndef MFEM_USE_SUITESPARSE
+   #ifndef MFEM_USE_SUITESPARSE
       // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
       //     solve the system Ax=b with PCG.
       GSSmoother M((SparseMatrix&)(*A));
       PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
-#else
+   #else
       // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
       //     system.
       UMFPackSolver umf_solver;
       umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
       umf_solver.SetOperator(*A);
       umf_solver.Mult(B, X);
-#endif
+   #endif
    }
+   */
+
+   SolveSingle((SparseMatrix&)(*A), B, X);
 
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);

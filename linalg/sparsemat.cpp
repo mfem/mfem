@@ -61,7 +61,8 @@ size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
 #endif // MFEM_USE_CUDA_OR_HIP
 
-void SparseMatrix::InitGPUSparse()
+template <class T>
+void SparseMatrixMP<T>::InitGPUSparse()
 {
    // Initialize cuSPARSE/hipSPARSE library
 #ifdef MFEM_USE_CUDA_OR_HIP
@@ -78,7 +79,8 @@ void SparseMatrix::InitGPUSparse()
 #endif // MFEM_USE_CUDA_OR_HIP
 }
 
-void SparseMatrix::ClearGPUSparse()
+template <class T>
+void SparseMatrixMP<T>::ClearGPUSparse()
 {
 #ifdef MFEM_USE_CUDA_OR_HIP
    if (initBuffers)
@@ -95,9 +97,10 @@ void SparseMatrix::ClearGPUSparse()
 #endif // MFEM_USE_CUDA_OR_HIP
 }
 
-SparseMatrix::SparseMatrix(int nrows, int ncols)
-   : AbstractSparseMatrix(nrows, (ncols >= 0) ? ncols : nrows),
-     Rows(new RowNode *[nrows]),
+template <class T>
+SparseMatrixMP<T>::SparseMatrixMP(int nrows, int ncols)
+   : AbstractSparseMatrixMP<T>(nrows, (ncols >= 0) ? ncols : nrows),
+     Rows(new RowNode<T> *[nrows]),
      current_row(-1),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
@@ -121,8 +124,9 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
    InitGPUSparse();
 }
 
-SparseMatrix::SparseMatrix(int *i, int *j, real_t *data, int m, int n)
-   : AbstractSparseMatrix(m, n),
+template <class T>
+SparseMatrixMP<T>::SparseMatrixMP(int *i, int *j, T *data, int m, int n)
+   : AbstractSparseMatrixMP<T>(m, n),
      Rows(NULL),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
@@ -140,9 +144,10 @@ SparseMatrix::SparseMatrix(int *i, int *j, real_t *data, int m, int n)
    InitGPUSparse();
 }
 
-SparseMatrix::SparseMatrix(int *i, int *j, real_t *data, int m, int n,
-                           bool ownij, bool owna, bool issorted)
-   : AbstractSparseMatrix(m, n),
+template <class T>
+SparseMatrixMP<T>::SparseMatrixMP(int *i, int *j, T *data, int m, int n,
+                                  bool ownij, bool owna, bool issorted)
+   : AbstractSparseMatrixMP<T>(m, n),
      Rows(NULL),
      ColPtrJ(NULL),
      ColPtrNode(NULL),
@@ -173,8 +178,9 @@ SparseMatrix::SparseMatrix(int *i, int *j, real_t *data, int m, int n,
    InitGPUSparse();
 }
 
-SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
-   : AbstractSparseMatrix(nrows, ncols)
+template <class T>
+SparseMatrixMP<T>::SparseMatrixMP(int nrows, int ncols, int rowsize)
+   : AbstractSparseMatrixMP<T>(nrows, ncols)
    , Rows(NULL)
    , ColPtrJ(NULL)
    , ColPtrNode(NULL)
@@ -196,9 +202,10 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    InitGPUSparse();
 }
 
-SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
-                           MemoryType mt)
-   : AbstractSparseMatrix(mat.Height(), mat.Width())
+template <class T>
+SparseMatrixMP<T>::SparseMatrixMP(const SparseMatrixMP<T> &mat, bool copy_graph,
+                                  MemoryType mt)
+   : AbstractSparseMatrixMP<T>(mat.Height(), mat.Width())
 {
    if (mat.Finalized())
    {
@@ -231,16 +238,16 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
 #ifdef MFEM_USE_MEMALLOC
       NodesMem = new RowNodeAlloc;
 #endif
-      Rows = new RowNode *[height];
+      Rows = new RowNode<T> *[height];
       for (int i = 0; i < height; i++)
       {
-         RowNode **node_pp = &Rows[i];
-         for (RowNode *node_p = mat.Rows[i]; node_p; node_p = node_p->Prev)
+         RowNode<T> **node_pp = &Rows[i];
+         for (RowNode<T> *node_p = mat.Rows[i]; node_p; node_p = node_p->Prev)
          {
 #ifdef MFEM_USE_MEMALLOC
-            RowNode *new_node_p = NodesMem->Alloc();
+            RowNode<T> *new_node_p = NodesMem->Alloc();
 #else
-            RowNode *new_node_p = new RowNode;
+            RowNode<T> *new_node_p = new RowNode<T>;
 #endif
             new_node_p->Value = node_p->Value;
             new_node_p->Column = node_p->Column;
@@ -265,8 +272,9 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
    InitGPUSparse();
 }
 
-SparseMatrix::SparseMatrix(const Vector &v)
-   : AbstractSparseMatrix(v.Size(), v.Size())
+template <class T>
+SparseMatrixMP<T>::SparseMatrixMP(const VectorMP<T> &v)
+   : AbstractSparseMatrixMP<T>(v.Size(), v.Size())
    , Rows(NULL)
    , ColPtrJ(NULL)
    , ColPtrNode(NULL)
@@ -294,23 +302,26 @@ SparseMatrix::SparseMatrix(const Vector &v)
    InitGPUSparse();
 }
 
-void SparseMatrix::OverrideSize(int height_, int width_)
+template <class T>
+void SparseMatrixMP<T>::OverrideSize(int height_, int width_)
 {
    height = height_;
    width = width_;
 }
 
-SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
+template <class T>
+SparseMatrixMP<T>& SparseMatrixMP<T>::operator=(const SparseMatrixMP<T> &rhs)
 {
    Clear();
 
-   SparseMatrix copy(rhs);
+   SparseMatrixMP<T> copy(rhs);
    Swap(copy);
 
    return *this;
 }
 
-void SparseMatrix::MakeRef(const SparseMatrix &master)
+template <class T>
+void SparseMatrixMP<T>::MakeRef(const SparseMatrixMP<T> &master)
 {
    MFEM_ASSERT(master.Finalized(), "'master' must be finalized");
    Clear();
@@ -322,7 +333,8 @@ void SparseMatrix::MakeRef(const SparseMatrix &master)
    isSorted = master.isSorted;
 }
 
-void SparseMatrix::SetEmpty()
+template <class T>
+void SparseMatrixMP<T>::SetEmpty()
 {
    height = width = 0;
    I.Reset();
@@ -341,7 +353,8 @@ void SparseMatrix::SetEmpty()
    ClearGPUSparse();
 }
 
-int SparseMatrix::RowSize(const int i) const
+template <class T>
+int SparseMatrixMP<T>::RowSize(const int i) const
 {
    int gi = i;
    if (gi < 0)
@@ -355,7 +368,7 @@ int SparseMatrix::RowSize(const int i) const
    }
 
    int s = 0;
-   RowNode *row = Rows[gi];
+   RowNode<T> *row = Rows[gi];
    for ( ; row != NULL; row = row->Prev)
       if (row->Value != 0.0)
       {
@@ -364,7 +377,8 @@ int SparseMatrix::RowSize(const int i) const
    return s;
 }
 
-int SparseMatrix::MaxRowSize() const
+template <class T>
+int SparseMatrixMP<T>::MaxRowSize() const
 {
    int max_row_size=0;
    int rowSize=0;
@@ -388,35 +402,40 @@ int SparseMatrix::MaxRowSize() const
    return max_row_size;
 }
 
-int *SparseMatrix::GetRowColumns(const int row)
+template <class T>
+int *SparseMatrixMP<T>::GetRowColumns(const int row)
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    return J + I[row];
 }
 
-const int *SparseMatrix::GetRowColumns(const int row) const
+template <class T>
+const int *SparseMatrixMP<T>::GetRowColumns(const int row) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    return J + I[row];
 }
 
-real_t *SparseMatrix::GetRowEntries(const int row)
+template <class T>
+T *SparseMatrixMP<T>::GetRowEntries(const int row)
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    return A + I[row];
 }
 
-const real_t *SparseMatrix::GetRowEntries(const int row) const
+template <class T>
+const T *SparseMatrixMP<T>::GetRowEntries(const int row) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    return A + I[row];
 }
 
-void SparseMatrix::SetWidth(int newWidth)
+template <class T>
+void SparseMatrixMP<T>::SetWidth(int newWidth)
 {
    if (newWidth == width)
    {
@@ -435,7 +454,7 @@ void SparseMatrix::SetWidth(int newWidth)
       if (Rows != NULL)
       {
          delete [] ColPtrNode;
-         ColPtrNode = static_cast<RowNode **>(NULL);
+         ColPtrNode = static_cast<RowNode<T> **>(NULL);
       }
       else
       {
@@ -454,7 +473,8 @@ void SparseMatrix::SetWidth(int newWidth)
 }
 
 
-void SparseMatrix::SortColumnIndices()
+template <class T>
+void SparseMatrixMP<T>::SortColumnIndices()
 {
    MFEM_VERIFY(Finalized(), "Matrix is not Finalized!");
 
@@ -575,7 +595,7 @@ void SparseMatrix::SortColumnIndices()
       HostReadWriteJ();
       HostReadWriteData();
 
-      Array<Pair<int,real_t> > row;
+      Array<Pair<int,T> > row;
       for (int j = 0, i = 0; i < height; i++)
       {
          int end = Ip[i+1];
@@ -596,7 +616,8 @@ void SparseMatrix::SortColumnIndices()
    isSorted = true;
 }
 
-void SparseMatrix::MoveDiagonalFirst()
+template <class T>
+void SparseMatrixMP<T>::MoveDiagonalFirst()
 {
    MFEM_VERIFY(Finalized(), "Matrix is not Finalized!");
 
@@ -609,7 +630,7 @@ void SparseMatrix::MoveDiagonalFirst()
          MFEM_VERIFY(j < end, "diagonal entry not found in row = " << row);
          if (J[j] == row) { break; }
       }
-      const real_t diag = A[j];
+      const T diag = A[j];
       for ( ; j > start; j--)
       {
          J[j] = J[j-1];
@@ -620,17 +641,20 @@ void SparseMatrix::MoveDiagonalFirst()
    }
 }
 
-real_t &SparseMatrix::Elem(int i, int j)
+template <class T>
+T &SparseMatrixMP<T>::Elem(int i, int j)
 {
    return operator()(i,j);
 }
 
-const real_t &SparseMatrix::Elem(int i, int j) const
+template <class T>
+const T &SparseMatrixMP<T>::Elem(int i, int j) const
 {
    return operator()(i,j);
 }
 
-real_t &SparseMatrix::operator()(int i, int j)
+template <class T>
+T &SparseMatrixMP<T>::operator()(int i, int j)
 {
    MFEM_ASSERT(i < height && i >= 0 && j < width && j >= 0,
                "Trying to access element outside of the matrix.  "
@@ -653,9 +677,10 @@ real_t &SparseMatrix::operator()(int i, int j)
    return A[0];
 }
 
-const real_t &SparseMatrix::operator()(int i, int j) const
+template <class T>
+const T &SparseMatrixMP<T>::operator()(int i, int j) const
 {
-   static const real_t zero = 0.0;
+   static const T zero = 0.0;
 
    MFEM_ASSERT(i < height && i >= 0 && j < width && j >= 0,
                "Trying to access element outside of the matrix.  "
@@ -676,7 +701,7 @@ const real_t &SparseMatrix::operator()(int i, int j) const
    }
    else
    {
-      for (RowNode *node_p = Rows[i]; node_p != NULL; node_p = node_p->Prev)
+      for (RowNode<T> *node_p = Rows[i]; node_p != NULL; node_p = node_p->Prev)
       {
          if (node_p->Column == j)
          {
@@ -688,7 +713,8 @@ const real_t &SparseMatrix::operator()(int i, int j) const
    return zero;
 }
 
-void SparseMatrix::GetDiag(Vector & d) const
+template <class T>
+void SparseMatrixMP<T>::GetDiag(Vector & d) const
 {
    MFEM_VERIFY(height == width, "Matrix must be square, not height = "
                << height << ", width = " << width);
@@ -722,7 +748,8 @@ void SparseMatrix::GetDiag(Vector & d) const
 }
 
 /// Produces a DenseMatrix from a SparseMatrix
-DenseMatrix *SparseMatrix::ToDenseMatrix() const
+template <class T>
+DenseMatrix *SparseMatrixMP<T>::ToDenseMatrix() const
 {
    int num_rows = this->Height();
    int num_cols = this->Width();
@@ -735,7 +762,8 @@ DenseMatrix *SparseMatrix::ToDenseMatrix() const
 }
 
 /// Produces a DenseMatrix from a SparseMatrix
-void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
+template <class T>
+void SparseMatrixMP<T>::ToDenseMatrix(DenseMatrix & B) const
 {
    B.SetSize(height, width);
    B = 0.0;
@@ -743,7 +771,7 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
    for (int r=0; r<height; r++)
    {
       const int    * col = this->GetRowColumns(r);
-      const real_t * val = this->GetRowEntries(r);
+      const T * val = this->GetRowEntries(r);
 
       for (int cj=0; cj<this->RowSize(r); cj++)
       {
@@ -752,14 +780,17 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
    }
 }
 
-void SparseMatrix::Mult(const Vector &x, Vector &y) const
+template <class T>
+void SparseMatrixMP<T>::Mult(const VectorMP<T> &x, VectorMP<T> &y) const
 {
    if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
    AddMult(x, y);
 }
 
-void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
+template <class T>
+void SparseMatrixMP<T>::AddMult(const VectorMP<T> &x, VectorMP<T> &y,
+                                const T a) const
 {
    MFEM_ASSERT(width == x.Size(), "Input vector size (" << x.Size()
                << ") must match matrix width (" << width << ")");
@@ -768,14 +799,14 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
 
    if (!Finalized())
    {
-      const real_t *xp = x.HostRead();
-      real_t *yp = y.HostReadWrite();
+      const T *xp = x.HostRead();
+      T *yp = y.HostReadWrite();
 
       // The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
       {
-         RowNode *row = Rows[i];
-         real_t b = 0.0;
+         RowNode<T> *row = Rows[i];
+         T b = 0.0;
          for ( ; row != NULL; row = row->Prev)
          {
             b += row->Value * xp[row->Column];
@@ -921,7 +952,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
       // Native version
       mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
       {
-         real_t d = 0.0;
+         T d = 0.0;
          const int end = d_I[i+1];
          for (int j = d_I[i]; j < end; j++)
          {
@@ -951,15 +982,18 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
 #endif // MFEM_USE_LEGACY_OPENMP
 }
 
-void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const
+template <class T>
+void SparseMatrixMP<T>::MultTranspose(const VectorMP<T> &x,
+                                      VectorMP<T> &y) const
 {
    if (Finalized()) { y.UseDevice(true); }
    y = 0.0;
    AddMultTranspose(x, y);
 }
 
-void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
-                                    const real_t a) const
+template <class T>
+void SparseMatrixMP<T>::AddMultTranspose(const VectorMP<T> &x, VectorMP<T> &y,
+                                         const T a) const
 {
    MFEM_ASSERT(height == x.Size(), "Input vector size (" << x.Size()
                << ") must match matrix height (" << height << ")");
@@ -968,13 +1002,13 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
 
    if (!Finalized())
    {
-      real_t *yp = y.HostReadWrite();
-      const real_t *xp = x.HostRead();
+      T *yp = y.HostReadWrite();
+      const T *xp = x.HostRead();
       // The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
       {
-         RowNode *row = Rows[i];
-         real_t b = a * xp[i];
+         RowNode<T> *row = Rows[i];
+         T b = a * xp[i];
          for ( ; row != NULL; row = row->Prev)
          {
             yp[row->Column] += row->Value * b;
@@ -990,17 +1024,17 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    }
    else
    {
-      real_t *yp = y.HostReadWrite();
-      const real_t *xp = x.HostRead();
+      T *yp = y.HostReadWrite();
+      const T *xp = x.HostRead();
 
       const int *Ip = HostRead(I, height+1);
       const int nnz = Ip[height];
       const int *Jp = HostRead(J, nnz);
-      const real_t *Ap = HostRead(A, nnz);
+      const T *Ap = HostRead(A, nnz);
 
       for (int i = 0; i < height; i++)
       {
-         const real_t xi = a * xp[i];
+         const T xi = a * xp[i];
          const int end = Ip[i+1];
          for (int j = Ip[i]; j < end; j++)
          {
@@ -1011,7 +1045,8 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    }
 }
 
-void SparseMatrix::BuildTranspose() const
+template <class T>
+void SparseMatrixMP<T>::BuildTranspose() const
 {
    if (At == NULL)
    {
@@ -1019,13 +1054,15 @@ void SparseMatrix::BuildTranspose() const
    }
 }
 
-void SparseMatrix::ResetTranspose() const
+template <class T>
+void SparseMatrixMP<T>::ResetTranspose() const
 {
    delete At;
    At = NULL;
 }
 
-void SparseMatrix::EnsureMultTranspose() const
+template <class T>
+void SparseMatrixMP<T>::EnsureMultTranspose() const
 {
    if (Device::Allows(~Backend::CPU_MASK))
    {
@@ -1033,7 +1070,8 @@ void SparseMatrix::EnsureMultTranspose() const
    }
 }
 
-void SparseMatrix::PartMult(
+template <class T>
+void SparseMatrixMP<T>::PartMult(
    const Array<int> &rows, const Vector &x, Vector &y) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
@@ -1050,7 +1088,7 @@ void SparseMatrix::PartMult(
    {
       const int r = d_rows[i];
       const int end = d_I[r + 1];
-      real_t a = 0.0;
+      T a = 0.0;
       for (int j = d_I[r]; j < end; j++)
       {
          a += d_A[j] * d_x[d_J[j]];
@@ -1059,8 +1097,9 @@ void SparseMatrix::PartMult(
    });
 }
 
-void SparseMatrix::PartAddMult(
-   const Array<int> &rows, const Vector &x, Vector &y, const real_t a) const
+template <class T>
+void SparseMatrixMP<T>::PartAddMult(
+   const Array<int> &rows, const Vector &x, Vector &y, const T a) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
@@ -1068,7 +1107,7 @@ void SparseMatrix::PartAddMult(
    {
       int r = rows[i];
       int end = I[r + 1];
-      real_t val = 0.0;
+      T val = 0.0;
       for (int j = I[r]; j < end; j++)
       {
          val += A[j] * x(J[j]);
@@ -1077,15 +1116,16 @@ void SparseMatrix::PartAddMult(
    }
 }
 
-void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
+template <class T>
+void SparseMatrixMP<T>::BooleanMult(const Array<int> &x, Array<int> &y) const
 {
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
-   MFEM_ASSERT(x.Size() == Width(), "Input vector size (" << x.Size()
-               << ") must match matrix width (" << Width() << ")");
+   MFEM_ASSERT(x.Size() == this->Width(), "Input vector size (" << x.Size()
+               << ") must match matrix width (" << this->Width() << ")");
 
-   y.SetSize(Height(), Device::GetDeviceMemoryType());
+   y.SetSize(this->Height(), Device::GetDeviceMemoryType());
 
-   const int height = Height();
+   const int height = this->Height();
    const int nnz = J.Capacity();
    auto d_I = Read(I, height+1);
    auto d_J = Read(J, nnz);
@@ -1107,17 +1147,18 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    });
 }
 
-void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
-                                        Array<int> &y) const
+template <class T>
+void SparseMatrixMP<T>::BooleanMultTranspose(const Array<int> &x,
+                                             Array<int> &y) const
 {
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
-   MFEM_ASSERT(x.Size() == Height(), "Input vector size (" << x.Size()
-               << ") must match matrix height (" << Height() << ")");
+   MFEM_ASSERT(x.Size() == this->Height(), "Input vector size (" << x.Size()
+               << ") must match matrix height (" << this->Height() << ")");
 
-   y.SetSize(Width());
+   y.SetSize(this->Width());
    y = 0;
 
-   for (int i = 0; i < Height(); i++)
+   for (int i = 0; i < this->Height(); i++)
    {
       if (x[i])
       {
@@ -1130,7 +1171,8 @@ void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
    }
 }
 
-void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
+template <class T>
+void SparseMatrixMP<T>::AbsMult(const VectorMP<T> &x, VectorMP<T> &y) const
 {
    MFEM_ASSERT(width == x.Size(), "Input vector size (" << x.Size()
                << ") must match matrix width (" << width << ")");
@@ -1142,14 +1184,14 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
 
    if (!Finalized())
    {
-      const real_t *xp = x.HostRead();
-      real_t *yp = y.HostReadWrite();
+      const T *xp = x.HostRead();
+      T *yp = y.HostReadWrite();
 
       // The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
       {
-         RowNode *row = Rows[i];
-         real_t b = 0.0;
+         RowNode<T> *row = Rows[i];
+         T b = 0.0;
          for ( ; row != NULL; row = row->Prev)
          {
             b += std::abs(row->Value) * xp[row->Column];
@@ -1169,7 +1211,7 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
    auto d_y = y.ReadWrite();
    mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
-      real_t d = 0.0;
+      T d = 0.0;
       const int end = d_I[i+1];
       for (int j = d_I[i]; j < end; j++)
       {
@@ -1179,7 +1221,9 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
    });
 }
 
-void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
+template <class T>
+void SparseMatrixMP<T>::AbsMultTranspose(const VectorMP<T> &x,
+                                         VectorMP<T> &y) const
 {
    MFEM_ASSERT(height == x.Size(), "Input vector size (" << x.Size()
                << ") must match matrix height (" << height << ")");
@@ -1190,12 +1234,12 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
 
    if (!Finalized())
    {
-      real_t *yp = y.GetData();
+      T *yp = y.GetData();
       // The matrix is not finalized, but multiplication is still possible
       for (int i = 0; i < height; i++)
       {
-         RowNode *row = Rows[i];
-         real_t b = x(i);
+         RowNode<T> *row = Rows[i];
+         T b = x(i);
          for ( ; row != NULL; row = row->Prev)
          {
             yp[row->Column] += fabs(row->Value) * b;
@@ -1213,7 +1257,7 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
    {
       for (int i = 0; i < height; i++)
       {
-         const real_t xi = x[i];
+         const T xi = x[i];
          const int end = I[i+1];
          for (int j = I[i]; j < end; j++)
          {
@@ -1224,12 +1268,14 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
    }
 }
 
-real_t SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
+template <class T>
+T SparseMatrixMP<T>::InnerProduct(const VectorMP<T> &x,
+                                  const VectorMP<T> &y) const
 {
-   MFEM_ASSERT(x.Size() == Width(), "x.Size() = " << x.Size()
-               << " must be equal to Width() = " << Width());
-   MFEM_ASSERT(y.Size() == Height(), "y.Size() = " << y.Size()
-               << " must be equal to Height() = " << Height());
+   MFEM_ASSERT(x.Size() == this->Width(), "x.Size() = " << x.Size()
+               << " must be equal to Width() = " << this->Width());
+   MFEM_ASSERT(y.Size() == this->Height(), "y.Size() = " << y.Size()
+               << " must be equal to Height() = " << this->Height());
 
    x.HostRead();
    y.HostRead();
@@ -1241,10 +1287,10 @@ real_t SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
       HostRead(A, nnz);
    }
 
-   real_t prod = 0.0;
+   T prod = 0.0;
    for (int i = 0; i < height; i++)
    {
-      real_t a = 0.0;
+      T a = 0.0;
       if (A)
       {
          for (int j = I[i], end = I[i+1]; j < end; j++)
@@ -1254,7 +1300,7 @@ real_t SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
       }
       else
       {
-         for (RowNode *np = Rows[i]; np != NULL; np = np->Prev)
+         for (RowNode<T> *np = Rows[i]; np != NULL; np = np->Prev)
          {
             a += np->Value * x(np->Column);
          }
@@ -1265,7 +1311,8 @@ real_t SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
    return prod;
 }
 
-void SparseMatrix::GetRowSums(Vector &x) const
+template <class T>
+void SparseMatrixMP<T>::GetRowSums(VectorMP<T> &x) const
 {
    if (Finalized())
    {
@@ -1274,7 +1321,7 @@ void SparseMatrix::GetRowSums(Vector &x) const
       auto d_x = x.Write();
       mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
       {
-         real_t sum = 0.0;
+         T sum = 0.0;
          for (int j = d_I[i], end = d_I[i+1]; j < end; j++)
          {
             sum += d_A[j];
@@ -1286,8 +1333,8 @@ void SparseMatrix::GetRowSums(Vector &x) const
    {
       for (int i = 0; i < height; i++)
       {
-         real_t a = 0.0;
-         for (RowNode *np = Rows[i]; np != NULL; np = np->Prev)
+         T a = 0.0;
+         for (RowNode<T> *np = Rows[i]; np != NULL; np = np->Prev)
          {
             a += np->Value;
          }
@@ -1296,12 +1343,13 @@ void SparseMatrix::GetRowSums(Vector &x) const
    }
 }
 
-real_t SparseMatrix::GetRowNorml1(int irow) const
+template <class T>
+T SparseMatrixMP<T>::GetRowNorml1(int irow) const
 {
    MFEM_VERIFY(irow < height,
                "row " << irow << " not in matrix with height " << height);
 
-   real_t a = 0.0;
+   T a = 0.0;
    if (A)
    {
       for (int j = I[irow], end = I[irow+1]; j < end; j++)
@@ -1311,7 +1359,7 @@ real_t SparseMatrix::GetRowNorml1(int irow) const
    }
    else
    {
-      for (RowNode *np = Rows[irow]; np != NULL; np = np->Prev)
+      for (RowNode<T> *np = Rows[irow]; np != NULL; np = np->Prev)
       {
          a += fabs(np->Value);
       }
@@ -1320,15 +1368,16 @@ real_t SparseMatrix::GetRowNorml1(int irow) const
    return a;
 }
 
-void SparseMatrix::Threshold(real_t tol, bool fix_empty_rows)
+template <class T>
+void SparseMatrixMP<T>::Threshold(T tol, bool fix_empty_rows)
 {
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
-   real_t atol;
+   T atol;
    atol = std::abs(tol);
 
    fix_empty_rows = height == width ? fix_empty_rows : false;
 
-   real_t *newA;
+   T *newA;
    int *newI, *newJ;
    int i, j, nz;
 
@@ -1348,7 +1397,7 @@ void SparseMatrix::Threshold(real_t tol, bool fix_empty_rows)
    }
 
    newJ = Memory<int>(nz);
-   newA = Memory<real_t>(nz);
+   newA = Memory<T>(nz);
    // Assume we're sorted until we find out otherwise
    isSorted = true;
    for (i = 0, nz = 0; i < height; i++)
@@ -1381,10 +1430,11 @@ void SparseMatrix::Threshold(real_t tol, bool fix_empty_rows)
    A.Wrap(newA, I[height], true);
 }
 
-void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
+template <class T>
+void SparseMatrixMP<T>::Finalize(int skip_zeros, bool fix_empty_rows)
 {
    int i, j, nr, nz;
-   RowNode *aux;
+   RowNode<T> *aux;
 
    if (Finalized())
    {
@@ -1407,8 +1457,8 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
             if ((i-1) != aux->Column) { continue; }
 
             bool found = false;
-            real_t found_val = 0.0; // init to suppress gcc warning
-            for (RowNode *other = Rows[aux->Column]; other != NULL; other = other->Prev)
+            T found_val = 0.0; // init to suppress gcc warning
+            for (RowNode<T> *other = Rows[aux->Column]; other != NULL; other = other->Prev)
             {
                if (other->Column == (i-1))
                {
@@ -1443,8 +1493,8 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
             if (i != aux->Column) { continue; }
 
             bool found = false;
-            real_t found_val = 0.0; // init to suppress gcc warning
-            for (RowNode *other = Rows[aux->Column]; other != NULL; other = other->Prev)
+            T found_val = 0.0; // init to suppress gcc warning
+            for (RowNode<T> *other = Rows[aux->Column]; other != NULL; other = other->Prev)
             {
                if (other->Column == i)
                {
@@ -1482,7 +1532,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 #else
    for (i = 0; i < height; i++)
    {
-      RowNode *node_p = Rows[i];
+      RowNode<T> *node_p = Rows[i];
       while (node_p != NULL)
       {
          aux = node_p;
@@ -1496,7 +1546,8 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    Rows = NULL;
 }
 
-void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
+template <class T>
+void SparseMatrixMP<T>::GetBlocks(Array2D<SparseMatrixMP<T> *> &blocks) const
 {
    int br = blocks.NumRows(), bc = blocks.NumCols();
    int nr = (height + br - 1)/br, nc = (width + bc - 1)/bc;
@@ -1510,7 +1561,7 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
          {
             bI[k] = 0;
          }
-         blocks(i,j) = new SparseMatrix(bI, NULL, NULL, nr, nc);
+         blocks(i,j) = new SparseMatrixMP<T>(bI, NULL, NULL, nr, nc);
       }
    }
 
@@ -1529,7 +1580,7 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
       }
       else
       {
-         for (RowNode *n_p = Rows[gr]; n_p != NULL; n_p = n_p->Prev)
+         for (RowNode<T> *n_p = Rows[gr]; n_p != NULL; n_p = n_p->Prev)
          {
             if (n_p->Value != 0.0)
             {
@@ -1543,7 +1594,7 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
    {
       for (int i = 0; i < br; i++)
       {
-         SparseMatrix &b = *blocks(i,j);
+         SparseMatrixMP<T> &b = *blocks(i,j);
          int nnz = 0, rs;
          for (int k = 1; k <= nr; k++)
          {
@@ -1563,7 +1614,7 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
          {
             if (A[j] != 0.0)
             {
-               SparseMatrix &b = *blocks(bi, J[j]/nc);
+               SparseMatrixMP<T> &b = *blocks(bi, J[j]/nc);
                b.J[b.I[i]] = J[j] % nc;
                b.A[b.I[i]] = A[j];
                b.I[i]++;
@@ -1572,11 +1623,11 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
       }
       else
       {
-         for (RowNode *n_p = Rows[gr]; n_p != NULL; n_p = n_p->Prev)
+         for (RowNode<T> *n_p = Rows[gr]; n_p != NULL; n_p = n_p->Prev)
          {
             if (n_p->Value != 0.0)
             {
-               SparseMatrix &b = *blocks(bi, n_p->Column/nc);
+               SparseMatrixMP<T> &b = *blocks(bi, n_p->Column/nc);
                b.J[b.I[i]] = n_p->Column % nc;
                b.A[b.I[i]] = n_p->Value;
                b.I[i]++;
@@ -1586,14 +1637,15 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
    }
 }
 
-real_t SparseMatrix::IsSymmetric() const
+template <class T>
+T SparseMatrixMP<T>::IsSymmetric() const
 {
    if (height != width)
    {
       return infinity();
    }
 
-   real_t symm = 0.0;
+   T symm = 0.0;
    if (Empty())
    {
       // return 0.0;
@@ -1615,7 +1667,7 @@ real_t SparseMatrix::IsSymmetric() const
    {
       for (int i = 0; i < height; i++)
       {
-         for (RowNode *node_p = Rows[i]; node_p != NULL; node_p = node_p->Prev)
+         for (RowNode<T> *node_p = Rows[i]; node_p != NULL; node_p = node_p->Prev)
          {
             int col = node_p->Column;
             if (col < i)
@@ -1628,7 +1680,8 @@ real_t SparseMatrix::IsSymmetric() const
    return symm;
 }
 
-void SparseMatrix::Symmetrize()
+template <class T>
+void SparseMatrixMP<T>::Symmetrize()
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
@@ -1647,7 +1700,8 @@ void SparseMatrix::Symmetrize()
    }
 }
 
-int SparseMatrix::NumNonZeroElems() const
+template <class T>
+int SparseMatrixMP<T>::NumNonZeroElems() const
 {
    if (Finalized())
    {
@@ -1660,7 +1714,7 @@ int SparseMatrix::NumNonZeroElems() const
 
       for (int i = 0; i < height; i++)
       {
-         for (RowNode *node_p = Rows[i]; node_p != NULL; node_p = node_p->Prev)
+         for (RowNode<T> *node_p = Rows[i]; node_p != NULL; node_p = node_p->Prev)
          {
             nnz++;
          }
@@ -1670,9 +1724,10 @@ int SparseMatrix::NumNonZeroElems() const
    }
 }
 
-real_t SparseMatrix::MaxNorm() const
+template <class T>
+T SparseMatrixMP<T>::MaxNorm() const
 {
-   real_t m = 0.0;
+   T m = 0.0;
 
    if (A)
    {
@@ -1686,7 +1741,7 @@ real_t SparseMatrix::MaxNorm() const
    {
       for (int i = 0; i < height; i++)
       {
-         for (RowNode *n_p = Rows[i]; n_p != NULL; n_p = n_p->Prev)
+         for (RowNode<T> *n_p = Rows[i]; n_p != NULL; n_p = n_p->Prev)
          {
             m = std::max(m, std::abs(n_p->Value));
          }
@@ -1695,14 +1750,15 @@ real_t SparseMatrix::MaxNorm() const
    return m;
 }
 
-int SparseMatrix::CountSmallElems(real_t tol) const
+template <class T>
+int SparseMatrixMP<T>::CountSmallElems(T tol) const
 {
    int counter = 0;
 
    if (A)
    {
       const int nz = I[height];
-      const real_t *Ap = A;
+      const T *Ap = A;
 
       for (int i = 0; i < nz; i++)
       {
@@ -1713,7 +1769,7 @@ int SparseMatrix::CountSmallElems(real_t tol) const
    {
       for (int i = 0; i < height; i++)
       {
-         for (RowNode *aux = Rows[i]; aux != NULL; aux = aux->Prev)
+         for (RowNode<T> *aux = Rows[i]; aux != NULL; aux = aux->Prev)
          {
             counter += (std::abs(aux->Value) <= tol);
          }
@@ -1723,7 +1779,8 @@ int SparseMatrix::CountSmallElems(real_t tol) const
    return counter;
 }
 
-int SparseMatrix::CheckFinite() const
+template <class T>
+int SparseMatrixMP<T>::CheckFinite() const
 {
    if (Empty())
    {
@@ -1731,14 +1788,14 @@ int SparseMatrix::CheckFinite() const
    }
    else if (Finalized())
    {
-      return mfem::CheckFinite<real_t>(A, I[height]);
+      return mfem::CheckFinite<T>(A, I[height]);
    }
    else
    {
       int counter = 0;
       for (int i = 0; i < height; i++)
       {
-         for (RowNode *aux = Rows[i]; aux != NULL; aux = aux->Prev)
+         for (RowNode<T> *aux = Rows[i]; aux != NULL; aux = aux->Prev)
          {
             counter += !IsFinite(aux->Value);
          }
@@ -1747,14 +1804,16 @@ int SparseMatrix::CheckFinite() const
    }
 }
 
-MatrixInverse *SparseMatrix::Inverse() const
+template <class T>
+MatrixInverseMP<T> *SparseMatrixMP<T>::Inverse() const
 {
    return NULL;
 }
 
-void SparseMatrix::EliminateRow(int row, const real_t sol, Vector &rhs)
+template <class T>
+void SparseMatrixMP<T>::EliminateRow(int row, const T sol, Vector &rhs)
 {
-   RowNode *aux;
+   RowNode<T> *aux;
 
    MFEM_ASSERT(row < height && row >= 0,
                "Row " << row << " not in matrix of height " << height);
@@ -1768,9 +1827,10 @@ void SparseMatrix::EliminateRow(int row, const real_t sol, Vector &rhs)
    }
 }
 
-void SparseMatrix::EliminateRow(int row, DiagonalPolicy dpolicy)
+template <class T>
+void SparseMatrixMP<T>::EliminateRow(int row, DiagonalPolicy dpolicy)
 {
-   RowNode *aux;
+   RowNode<T> *aux;
 
    MFEM_ASSERT(row < height && row >= 0,
                "Row " << row << " not in matrix of height " << height);
@@ -1800,7 +1860,8 @@ void SparseMatrix::EliminateRow(int row, DiagonalPolicy dpolicy)
    }
 }
 
-void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
+template <class T>
+void SparseMatrixMP<T>::EliminateCol(int col, DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(col < width && col >= 0,
                "Col " << col << " not in matrix of width " << width);
@@ -1824,7 +1885,7 @@ void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
    {
       for (int i = 0; i < height; i++)
       {
-         for (RowNode *aux = Rows[i]; aux != NULL; aux = aux->Prev)
+         for (RowNode<T> *aux = Rows[i]; aux != NULL; aux = aux->Prev)
          {
             if (aux->Column == col)
             {
@@ -1841,8 +1902,9 @@ void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
    }
 }
 
-void SparseMatrix::EliminateCols(const Array<int> &cols, const Vector *x,
-                                 Vector *b)
+template <class T>
+void SparseMatrixMP<T>::EliminateCols(const Array<int> &cols, const Vector *x,
+                                      Vector *b)
 {
    if (Rows == NULL)
    {
@@ -1865,7 +1927,7 @@ void SparseMatrix::EliminateCols(const Array<int> &cols, const Vector *x,
    {
       for (int i = 0; i < height; i++)
       {
-         for (RowNode *aux = Rows[i]; aux != NULL; aux = aux->Prev)
+         for (RowNode<T> *aux = Rows[i]; aux != NULL; aux = aux->Prev)
          {
             if (cols[aux -> Column])
             {
@@ -1880,11 +1942,13 @@ void SparseMatrix::EliminateCols(const Array<int> &cols, const Vector *x,
    }
 }
 
-void SparseMatrix::EliminateCols(const Array<int> &col_marker, SparseMatrix &Ae)
+template <class T>
+void SparseMatrixMP<T>::EliminateCols(const Array<int> &col_marker,
+                                      SparseMatrixMP<T> &Ae)
 {
    if (Rows)
    {
-      RowNode *nd;
+      RowNode<T> *nd;
       for (int row = 0; row < height; row++)
       {
          for (nd = Rows[row]; nd != NULL; nd = nd->Prev)
@@ -1914,8 +1978,9 @@ void SparseMatrix::EliminateCols(const Array<int> &col_marker, SparseMatrix &Ae)
 }
 
 
-void SparseMatrix::EliminateRowCol(int rc, const real_t sol, Vector &rhs,
-                                   DiagonalPolicy dpolicy)
+template <class T>
+void SparseMatrixMP<T>::EliminateRowCol(int rc, const T sol, Vector &rhs,
+                                        DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(rc < height && rc >= 0,
                "Row " << rc << " not in matrix of height " << height);
@@ -1969,7 +2034,7 @@ void SparseMatrix::EliminateRowCol(int rc, const real_t sol, Vector &rhs,
    }
    else
    {
-      for (RowNode *aux = Rows[rc]; aux != NULL; aux = aux->Prev)
+      for (RowNode<T> *aux = Rows[rc]; aux != NULL; aux = aux->Prev)
       {
          const int col = aux->Column;
          if (col == rc)
@@ -1995,7 +2060,7 @@ void SparseMatrix::EliminateRowCol(int rc, const real_t sol, Vector &rhs,
          else
          {
             aux->Value = 0.0;
-            for (RowNode *node = Rows[col]; 1; node = node->Prev)
+            for (RowNode<T> *node = Rows[col]; 1; node = node->Prev)
             {
                if (node == NULL)
                {
@@ -2013,9 +2078,10 @@ void SparseMatrix::EliminateRowCol(int rc, const real_t sol, Vector &rhs,
    }
 }
 
-void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
-                                              DenseMatrix &rhs,
-                                              DiagonalPolicy dpolicy)
+template <class T>
+void SparseMatrixMP<T>::EliminateRowColMultipleRHS(int rc, const Vector &sol,
+                                                   DenseMatrix &rhs,
+                                                   DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(rc < height && rc >= 0,
                "Row " << rc << " not in matrix of height " << height);
@@ -2081,7 +2147,7 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
    }
    else
    {
-      for (RowNode *aux = Rows[rc]; aux != NULL; aux = aux->Prev)
+      for (RowNode<T> *aux = Rows[rc]; aux != NULL; aux = aux->Prev)
       {
          const int col = aux->Column;
          if (col == rc)
@@ -2116,7 +2182,7 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
          else
          {
             aux->Value = 0.0;
-            for (RowNode *node = Rows[col]; 1; node = node->Prev)
+            for (RowNode<T> *node = Rows[col]; 1; node = node->Prev)
             {
                if (node == NULL)
                {
@@ -2137,7 +2203,8 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
    }
 }
 
-void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
+template <class T>
+void SparseMatrixMP<T>::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(rc < height && rc >= 0,
                "Row " << rc << " not in matrix of height " << height);
@@ -2180,7 +2247,7 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
    }
    else
    {
-      RowNode *aux, *node;
+      RowNode<T> *aux, *node;
 
       for (aux = Rows[rc]; aux != NULL; aux = aux->Prev)
       {
@@ -2218,7 +2285,8 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 
 // This is almost identical to EliminateRowCol(int, int), except for
 // the A[j] = value; and aux->Value = value; lines.
-void SparseMatrix::EliminateRowColDiag(int rc, real_t value)
+template <class T>
+void SparseMatrixMP<T>::EliminateRowColDiag(int rc, T value)
 {
    MFEM_ASSERT(rc < height && rc >= 0,
                "Row " << rc << " not in matrix of height " << height);
@@ -2252,7 +2320,7 @@ void SparseMatrix::EliminateRowColDiag(int rc, real_t value)
    }
    else
    {
-      RowNode *aux, *node;
+      RowNode<T> *aux, *node;
 
       for (aux = Rows[rc]; aux != NULL; aux = aux->Prev)
       {
@@ -2281,12 +2349,13 @@ void SparseMatrix::EliminateRowColDiag(int rc, real_t value)
    }
 }
 
-void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
-                                   DiagonalPolicy dpolicy)
+template <class T>
+void SparseMatrixMP<T>::EliminateRowCol(int rc, SparseMatrixMP<T> &Ae,
+                                        DiagonalPolicy dpolicy)
 {
    if (Rows)
    {
-      RowNode *nd, *nd2;
+      RowNode<T> *nd, *nd2;
       for (nd = Rows[rc]; nd != NULL; nd = nd->Prev)
       {
          const int col = nd->Column;
@@ -2375,8 +2444,9 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
    }
 }
 
-void SparseMatrix::EliminateBC(const Array<int> &ess_dofs,
-                               DiagonalPolicy diag_policy)
+template <class T>
+void SparseMatrixMP<T>::EliminateBC(const Array<int> &ess_dofs,
+                                    DiagonalPolicy diag_policy)
 {
    const int n_ess_dofs = ess_dofs.Size();
    const auto ess_dofs_d = ess_dofs.Read();
@@ -2418,7 +2488,8 @@ void SparseMatrix::EliminateBC(const Array<int> &ess_dofs,
    });
 }
 
-void SparseMatrix::SetDiagIdentity()
+template <class T>
+void SparseMatrixMP<T>::SetDiagIdentity()
 {
    for (int i = 0; i < height; i++)
    {
@@ -2429,11 +2500,12 @@ void SparseMatrix::SetDiagIdentity()
    }
 }
 
-void SparseMatrix::EliminateZeroRows(const real_t threshold)
+template <class T>
+void SparseMatrixMP<T>::EliminateZeroRows(const T threshold)
 {
    for (int i = 0; i < height; i++)
    {
-      real_t zero = 0.0;
+      T zero = 0.0;
       for (int j = I[i]; j < I[i+1]; j++)
       {
          zero += fabs(A[j]);
@@ -2448,18 +2520,20 @@ void SparseMatrix::EliminateZeroRows(const real_t threshold)
    }
 }
 
-void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
+template <class T>
+void SparseMatrixMP<T>::Gauss_Seidel_forw(const VectorMP<T> &x,
+                                          VectorMP<T> &y) const
 {
    if (!Finalized())
    {
-      real_t *yp = y.GetData();
-      const real_t *xp = x.GetData();
-      RowNode *diag_p, *n_p, **R = Rows;
+      T *yp = y.GetData();
+      const T *xp = x.GetData();
+      RowNode<T> *diag_p, *n_p, **R = Rows;
 
       const int s = height;
       for (int i = 0; i < s; i++)
       {
-         real_t sum = 0.0;
+         T sum = 0.0;
          diag_p = NULL;
          for (n_p = R[i]; n_p != NULL; n_p = n_p->Prev)
          {
@@ -2494,14 +2568,14 @@ void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
       const int nnz = J.Capacity();
       const int *Ip = HostRead(I, s+1);
       const int *Jp = HostRead(J, nnz);
-      const real_t *Ap = HostRead(A, nnz);
-      real_t *yp = y.HostReadWrite();
-      const real_t *xp = x.HostRead();
+      const T *Ap = HostRead(A, nnz);
+      T *yp = y.HostReadWrite();
+      const T *xp = x.HostRead();
 
       for (int i = 0, j = Ip[0]; i < s; i++)
       {
          const int end = Ip[i+1];
-         real_t sum = 0.0;
+         T sum = 0.0;
          int d = -1;
          for ( ; j < end; j++)
          {
@@ -2532,17 +2606,19 @@ void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
    }
 }
 
-void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
+template <class T>
+void SparseMatrixMP<T>::Gauss_Seidel_back(const VectorMP<T> &x,
+                                          VectorMP<T> &y) const
 {
    if (!Finalized())
    {
-      real_t *yp = y.GetData();
-      const real_t *xp = x.GetData();
-      RowNode *diag_p, *n_p, **R = Rows;
+      T *yp = y.GetData();
+      const T *xp = x.GetData();
+      RowNode<T> *diag_p, *n_p, **R = Rows;
 
       for (int i = height-1; i >= 0; i--)
       {
-         real_t sum = 0.;
+         T sum = 0.;
          diag_p = NULL;
          for (n_p = R[i]; n_p != NULL; n_p = n_p->Prev)
          {
@@ -2577,14 +2653,14 @@ void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
       const int nnz = J.Capacity();
       const int *Ip = HostRead(I, s+1);
       const int *Jp = HostRead(J, nnz);
-      const real_t *Ap = HostRead(A, nnz);
-      real_t *yp = y.HostReadWrite();
-      const real_t *xp = x.HostRead();
+      const T *Ap = HostRead(A, nnz);
+      T *yp = y.HostReadWrite();
+      const T *xp = x.HostRead();
 
       for (int i = s-1, j = Ip[s]-1; i >= 0; i--)
       {
          const int beg = Ip[i];
-         real_t sum = 0.;
+         T sum = 0.;
          int d = -1;
          for ( ; j >= beg; j--)
          {
@@ -2615,15 +2691,16 @@ void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
    }
 }
 
-real_t SparseMatrix::GetJacobiScaling() const
+template <class T>
+T SparseMatrixMP<T>::GetJacobiScaling() const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
-   real_t sc = 1.0;
+   T sc = 1.0;
    for (int i = 0; i < height; i++)
    {
       int d = -1;
-      real_t norm = 0.0;
+      T norm = 0.0;
       for (int j = I[i]; j < I[i+1]; j++)
       {
          if (J[j] == i)
@@ -2634,7 +2711,7 @@ real_t SparseMatrix::GetJacobiScaling() const
       }
       if (d >= 0 && A[d] != 0.0)
       {
-         real_t a = 1.8 * fabs(A[d]) / norm;
+         T a = 1.8 * fabs(A[d]) / norm;
          if (a < sc)
          {
             sc = a;
@@ -2648,15 +2725,16 @@ real_t SparseMatrix::GetJacobiScaling() const
    return sc;
 }
 
-void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
-                          real_t sc, bool use_abs_diag) const
+template <class T>
+void SparseMatrixMP<T>::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
+                               T sc, bool use_abs_diag) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < height; i++)
    {
       int d = -1;
-      real_t sum = b(i);
+      T sum = b(i);
       for (int j = I[i]; j < I[i+1]; j++)
       {
          if (J[j] == i)
@@ -2670,7 +2748,7 @@ void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
       }
       if (d >= 0 && A[d] != 0.0)
       {
-         const real_t diag = (use_abs_diag) ? fabs(A[d]) : A[d];
+         const T diag = (use_abs_diag) ? fabs(A[d]) : A[d];
          x1(i) = sc * (sum / diag) + (1.0 - sc) * x0(i);
       }
       else
@@ -2680,8 +2758,9 @@ void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
    }
 }
 
-void SparseMatrix::DiagScale(const Vector &b, Vector &x,
-                             real_t sc, bool use_abs_diag) const
+template <class T>
+void SparseMatrixMP<T>::DiagScale(const Vector &b, Vector &x,
+                                  T sc, bool use_abs_diag) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
@@ -2707,7 +2786,7 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x,
          }
          if (Jp[j] == i)
          {
-            const real_t diag = (use_abs_diag) ? fabs(Ap[j]) : Ap[j];
+            const T diag = (use_abs_diag) ? fabs(Ap[j]) : Ap[j];
             if (diag == 0.0)
             {
                MFEM_ABORT_KERNEL("Zero diagonal in SparseMatrix::DiagScale");
@@ -2719,11 +2798,11 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x,
    });
 }
 
-template <bool useFabs>
+template <class T, bool useFabs>
 static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
                            const Memory<int> &I, const Memory<int> &J,
-                           const Memory<real_t> &A, const int height,
-                           const real_t sc)
+                           const Memory<T> &A, const int height,
+                           const T sc)
 {
    const bool useDevice = b.UseDevice() || x0.UseDevice() || x1.UseDevice();
 
@@ -2737,7 +2816,7 @@ static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
 
    mfem::forall_switch(useDevice, height, [=] MFEM_HOST_DEVICE (int i)
    {
-      real_t resi = bp[i], norm = 0.0;
+      T resi = bp[i], norm = 0.0;
       for (int j = Ip[i]; j < Ip[i+1]; j++)
       {
          resi -= Ap[j] * x0p[Jp[j]];
@@ -2768,25 +2847,29 @@ static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
    });
 }
 
-void SparseMatrix::Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
-                           real_t sc) const
+template <class T>
+void SparseMatrixMP<T>::Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
+                                T sc) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
-   JacobiDispatch<true>(b,x0,x1,I,J,A,height,sc);
+   JacobiDispatch<T,true>(b,x0,x1,I,J,A,height,sc);
 }
 
-void SparseMatrix::Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
-                           real_t sc) const
+template <class T>
+void SparseMatrixMP<T>::Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
+                                T sc) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
-   JacobiDispatch<false>(b,x0,x1,I,J,A,height,sc);
+   JacobiDispatch<T,false>(b,x0,x1,I,J,A,height,sc);
 }
 
-void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                                const DenseMatrix &subm, int skip_zeros)
+template <class T>
+void SparseMatrixMP<T>::AddSubMatrix(const Array<int> &rows,
+                                     const Array<int> &cols,
+                                     const DenseMatrix &subm, int skip_zeros)
 {
    int i, j, gi, gj, s, t;
-   real_t a;
+   T a;
 
    if (Finalized())
    {
@@ -2828,9 +2911,10 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
    }
 }
 
-void SparseMatrix::Set(const int i, const int j, const real_t val)
+template <class T>
+void SparseMatrixMP<T>::Set(const int i, const int j, const T val)
 {
-   real_t a = val;
+   T a = val;
    int gi, gj, s, t;
 
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
@@ -2847,10 +2931,11 @@ void SparseMatrix::Set(const int i, const int j, const real_t val)
    _Set_(gi, gj, a);
 }
 
-void SparseMatrix::Add(const int i, const int j, const real_t val)
+template <class T>
+void SparseMatrixMP<T>::Add(const int i, const int j, const T val)
 {
    int gi, gj, s, t;
-   real_t a = val;
+   T a = val;
 
    if ((gi=i) < 0) { gi = -1-gi, s = -1; }
    else { s = 1; }
@@ -2866,11 +2951,13 @@ void SparseMatrix::Add(const int i, const int j, const real_t val)
    _Add_(gi, gj, a);
 }
 
-void SparseMatrix::SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                                const DenseMatrix &subm, int skip_zeros)
+template <class T>
+void SparseMatrixMP<T>::SetSubMatrix(const Array<int> &rows,
+                                     const Array<int> &cols,
+                                     const DenseMatrix &subm, int skip_zeros)
 {
    int i, j, gi, gj, s, t;
-   real_t a;
+   T a;
 
    for (i = 0; i < rows.Size(); i++)
    {
@@ -2905,13 +2992,14 @@ void SparseMatrix::SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
    }
 }
 
-void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
-                                         const Array<int> &cols,
-                                         const DenseMatrix &subm,
-                                         int skip_zeros)
+template <class T>
+void SparseMatrixMP<T>::SetSubMatrixTranspose(const Array<int> &rows,
+                                              const Array<int> &cols,
+                                              const DenseMatrix &subm,
+                                              int skip_zeros)
 {
    int i, j, gi, gj, s, t;
-   real_t a;
+   T a;
 
    for (i = 0; i < rows.Size(); i++)
    {
@@ -2946,11 +3034,13 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
    }
 }
 
-void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                                DenseMatrix &subm) const
+template <class T>
+void SparseMatrixMP<T>::GetSubMatrix(const Array<int> &rows,
+                                     const Array<int> &cols,
+                                     DenseMatrix &subm) const
 {
    int i, j, gi, gj, s, t;
-   real_t a;
+   T a;
 
    for (i = 0; i < rows.Size(); i++)
    {
@@ -2974,7 +3064,8 @@ void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
    }
 }
 
-bool SparseMatrix::RowIsEmpty(const int row) const
+template <class T>
+bool SparseMatrixMP<T>::RowIsEmpty(const int row) const
 {
    int gi;
 
@@ -2995,9 +3086,11 @@ bool SparseMatrix::RowIsEmpty(const int row) const
    }
 }
 
-int SparseMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
+template <class T>
+int SparseMatrixMP<T>::GetRow(const int row, Array<int> &cols,
+                              VectorMP<T> &srow) const
 {
-   RowNode *n;
+   RowNode<T> *n;
    int j, gi;
 
    if ((gi=row) < 0) { gi = -1-gi; }
@@ -3029,17 +3122,18 @@ int SparseMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
       j = I[gi];
       cols.MakeRef(const_cast<int*>((const int*)J) + j, I[gi+1]-j);
       srow.NewDataAndSize(
-         const_cast<real_t*>((const real_t*)A) + j, cols.Size());
+         const_cast<T*>((const T*)A) + j, cols.Size());
       MFEM_ASSERT(row >= 0, "Row not valid: " << row << ", height: " << height);
       return 1;
    }
 }
 
-void SparseMatrix::SetRow(const int row, const Array<int> &cols,
-                          const Vector &srow)
+template <class T>
+void SparseMatrixMP<T>::SetRow(const int row, const Array<int> &cols,
+                               const Vector &srow)
 {
    int gi, gj, s, t;
-   real_t a;
+   T a;
 
    if ((gi=row) < 0) { gi = -1-gi, s = -1; }
    else { s = 1; }
@@ -3082,11 +3176,12 @@ void SparseMatrix::SetRow(const int row, const Array<int> &cols,
    }
 }
 
-void SparseMatrix::AddRow(const int row, const Array<int> &cols,
-                          const Vector &srow)
+template <class T>
+void SparseMatrixMP<T>::AddRow(const int row, const Array<int> &cols,
+                               const Vector &srow)
 {
    int j, gi, gj, s, t;
-   real_t a;
+   T a;
 
    MFEM_VERIFY(!Finalized(), "Matrix must NOT be finalized.");
 
@@ -3114,7 +3209,8 @@ void SparseMatrix::AddRow(const int row, const Array<int> &cols,
    ClearColPtr();
 }
 
-void SparseMatrix::ScaleRow(const int row, const real_t scale)
+template <class T>
+void SparseMatrixMP<T>::ScaleRow(const int row, const T scale)
 {
    int i;
 
@@ -3124,7 +3220,7 @@ void SparseMatrix::ScaleRow(const int row, const real_t scale)
    }
    if (Rows != NULL)
    {
-      RowNode *aux;
+      RowNode<T> *aux;
 
       for (aux = Rows[i]; aux != NULL; aux = aux -> Prev)
       {
@@ -3142,12 +3238,13 @@ void SparseMatrix::ScaleRow(const int row, const real_t scale)
    }
 }
 
-void SparseMatrix::ScaleRows(const Vector & sl)
+template <class T>
+void SparseMatrixMP<T>::ScaleRows(const Vector & sl)
 {
-   real_t scale;
+   T scale;
    if (Rows != NULL)
    {
-      RowNode *aux;
+      RowNode<T> *aux;
       for (int i=0; i < height; ++i)
       {
          scale = sl(i);
@@ -3173,11 +3270,12 @@ void SparseMatrix::ScaleRows(const Vector & sl)
    }
 }
 
-void SparseMatrix::ScaleColumns(const Vector & sr)
+template <class T>
+void SparseMatrixMP<T>::ScaleColumns(const Vector & sr)
 {
    if (Rows != NULL)
    {
-      RowNode *aux;
+      RowNode<T> *aux;
       for (int i=0; i < height; ++i)
       {
          for (aux = Rows[i]; aux != NULL; aux = aux -> Prev)
@@ -3201,7 +3299,8 @@ void SparseMatrix::ScaleColumns(const Vector & sr)
    }
 }
 
-SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
+template <class T>
+SparseMatrixMP<T> &SparseMatrixMP<T>::operator+=(const SparseMatrixMP<T> &B)
 {
    MFEM_ASSERT(height == B.height && width == B.width,
                "Mismatch of this matrix size and rhs.  This height = "
@@ -3213,7 +3312,7 @@ SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
       SetColPtr(i);
       if (B.Rows)
       {
-         for (RowNode *aux = B.Rows[i]; aux != NULL; aux = aux->Prev)
+         for (RowNode<T> *aux = B.Rows[i]; aux != NULL; aux = aux->Prev)
          {
             _Add_(aux->Column, aux->Value);
          }
@@ -3231,14 +3330,15 @@ SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
    return (*this);
 }
 
-void SparseMatrix::Add(const real_t a, const SparseMatrix &B)
+template <class T>
+void SparseMatrixMP<T>::Add(const T a, const SparseMatrixMP<T> &B)
 {
    for (int i = 0; i < height; i++)
    {
       B.SetColPtr(i);
       if (Rows)
       {
-         for (RowNode *np = Rows[i]; np != NULL; np = np->Prev)
+         for (RowNode<T> *np = Rows[i]; np != NULL; np = np->Prev)
          {
             np->Value += a * B._Get_(np->Column);
          }
@@ -3254,12 +3354,13 @@ void SparseMatrix::Add(const real_t a, const SparseMatrix &B)
    }
 }
 
-SparseMatrix &SparseMatrix::operator=(real_t a)
+template <class T>
+SparseMatrixMP<T> &SparseMatrixMP<T>::operator=(T a)
 {
    if (Rows == NULL)
    {
       const int nnz = J.Capacity();
-      real_t *h_A = HostWrite(A, nnz);
+      T *h_A = HostWrite(A, nnz);
       for (int i = 0; i < nnz; i++)
       {
          h_A[i] = a;
@@ -3269,7 +3370,7 @@ SparseMatrix &SparseMatrix::operator=(real_t a)
    {
       for (int i = 0; i < height; i++)
       {
-         for (RowNode *node_p = Rows[i]; node_p != NULL;
+         for (RowNode<T> *node_p = Rows[i]; node_p != NULL;
               node_p = node_p -> Prev)
          {
             node_p -> Value = a;
@@ -3280,7 +3381,8 @@ SparseMatrix &SparseMatrix::operator=(real_t a)
    return (*this);
 }
 
-SparseMatrix &SparseMatrix::operator*=(real_t a)
+template <class T>
+SparseMatrixMP<T> &SparseMatrixMP<T>::operator*=(T a)
 {
    if (Rows == NULL)
    {
@@ -3293,7 +3395,7 @@ SparseMatrix &SparseMatrix::operator*=(real_t a)
    {
       for (int i = 0; i < height; i++)
       {
-         for (RowNode *node_p = Rows[i]; node_p != NULL;
+         for (RowNode<T> *node_p = Rows[i]; node_p != NULL;
               node_p = node_p -> Prev)
          {
             node_p -> Value *= a;
@@ -3304,13 +3406,14 @@ SparseMatrix &SparseMatrix::operator*=(real_t a)
    return (*this);
 }
 
-void SparseMatrix::Print(std::ostream & os, int width_) const
+template <class T>
+void SparseMatrixMP<T>::Print(std::ostream & os, int width_) const
 {
    int i, j;
 
    if (A.Empty())
    {
-      RowNode *nd;
+      RowNode<T> *nd;
       for (i = 0; i < height; i++)
       {
          os << "[row " << i << "]\n";
@@ -3352,7 +3455,8 @@ void SparseMatrix::Print(std::ostream & os, int width_) const
    }
 }
 
-void SparseMatrix::PrintMatlab(std::ostream & os) const
+template <class T>
+void SparseMatrixMP<T>::PrintMatlab(std::ostream & os) const
 {
    os << "% size " << height << " " << width << "\n";
    os << "% Non Zeros " << NumNonZeroElems() << "\n";
@@ -3364,7 +3468,7 @@ void SparseMatrix::PrintMatlab(std::ostream & os) const
 
    if (A.Empty())
    {
-      RowNode *nd;
+      RowNode<T> *nd;
       for (i = 0; i < height; i++)
       {
          for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
@@ -3393,7 +3497,8 @@ void SparseMatrix::PrintMatlab(std::ostream & os) const
    os.flags(old_fmt);
 }
 
-void SparseMatrix::PrintMathematica(std::ostream & os) const
+template <class T>
+void SparseMatrixMP<T>::PrintMathematica(std::ostream & os) const
 {
    int i, j;
    ios::fmtflags old_fmt = os.flags();
@@ -3406,7 +3511,7 @@ void SparseMatrix::PrintMathematica(std::ostream & os) const
 
    if (A == NULL)
    {
-      RowNode *nd;
+      RowNode<T> *nd;
       int c = 0;
       os << "{\n";
       for (i = 0; i < height; i++)
@@ -3448,7 +3553,8 @@ void SparseMatrix::PrintMathematica(std::ostream & os) const
    os.flags(old_fmt);
 }
 
-void SparseMatrix::PrintMM(std::ostream & os) const
+template <class T>
+void SparseMatrixMP<T>::PrintMM(std::ostream & os) const
 {
    int i, j;
    ios::fmtflags old_fmt = os.flags();
@@ -3462,7 +3568,7 @@ void SparseMatrix::PrintMM(std::ostream & os) const
 
    if (A.Empty())
    {
-      RowNode *nd;
+      RowNode<T> *nd;
       for (i = 0; i < height; i++)
       {
          for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
@@ -3489,7 +3595,8 @@ void SparseMatrix::PrintMM(std::ostream & os) const
    os.flags(old_fmt);
 }
 
-void SparseMatrix::PrintCSR(std::ostream & os) const
+template <class T>
+void SparseMatrixMP<T>::PrintCSR(std::ostream & os) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
@@ -3517,7 +3624,8 @@ void SparseMatrix::PrintCSR(std::ostream & os) const
    }
 }
 
-void SparseMatrix::PrintCSR2(std::ostream & os) const
+template <class T>
+void SparseMatrixMP<T>::PrintCSR2(std::ostream & os) const
 {
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
@@ -3546,14 +3654,15 @@ void SparseMatrix::PrintCSR2(std::ostream & os) const
    }
 }
 
-void SparseMatrix::PrintInfo(std::ostream &os) const
+template <class T>
+void SparseMatrixMP<T>::PrintInfo(std::ostream &os) const
 {
-   const real_t MiB = 1024.*1024;
+   const T MiB = 1024.*1024;
    int nnz = NumNonZeroElems();
-   real_t pz = 100./nnz;
+   T pz = 100./nnz;
    int nz = CountSmallElems(0.0);
-   real_t max_norm = MaxNorm();
-   real_t symm = IsSymmetric();
+   T max_norm = MaxNorm();
+   T symm = IsSymmetric();
    int nnf = CheckFinite();
    int ns12 = CountSmallElems(1e-12*max_norm);
    int ns15 = CountSmallElems(1e-15*max_norm);
@@ -3565,7 +3674,7 @@ void SparseMatrix::PrintInfo(std::ostream &os) const
       (Empty() ? "(empty)" : (Finalized() ? "CSR" : "LIL")) << "\n"
       "  Dimensions                  : " << height << " x " << width << "\n"
       "  Number of entries (total)   : " << nnz << "\n"
-      "  Number of entries (per row) : " << 1.*nnz/Height() << "\n"
+      "  Number of entries (per row) : " << 1.*nnz/this->Height() << "\n"
       "  Number of stored zeros      : " << nz*pz << "% (" << nz << ")\n"
       "  Number of Inf/Nan entries   : " << nnf*pz << "% ("<< nnf << ")\n"
       "  Norm, max |a_ij|            : " << max_norm << "\n"
@@ -3577,19 +3686,19 @@ void SparseMatrix::PrintInfo(std::ostream &os) const
    if (Finalized())
    {
       os << "  Memory used by CSR          : " <<
-         (sizeof(int)*(height+1+nnz)+sizeof(real_t)*nnz)/MiB << " MiB\n";
+         (sizeof(int)*(height+1+nnz)+sizeof(T)*nnz)/MiB << " MiB\n";
    }
    if (Rows != NULL)
    {
-      size_t used_mem = sizeof(RowNode*)*height;
+      size_t used_mem = sizeof(RowNode<T>*)*height;
 #ifdef MFEM_USE_MEMALLOC
       used_mem += NodesMem->MemoryUsage();
 #else
       for (int i = 0; i < height; i++)
       {
-         for (RowNode *aux = Rows[i]; aux != NULL; aux = aux->Prev)
+         for (RowNode<T> *aux = Rows[i]; aux != NULL; aux = aux->Prev)
          {
-            used_mem += sizeof(RowNode);
+            used_mem += sizeof(RowNode<T>);
          }
       }
 #endif
@@ -3597,7 +3706,8 @@ void SparseMatrix::PrintInfo(std::ostream &os) const
    }
 }
 
-void SparseMatrix::Destroy()
+template <class T>
+void SparseMatrixMP<T>::Destroy()
 {
    I.Delete();
    J.Delete();
@@ -3608,7 +3718,7 @@ void SparseMatrix::Destroy()
 #if !defined(MFEM_USE_MEMALLOC)
       for (int i = 0; i < height; i++)
       {
-         RowNode *aux, *node_p = Rows[i];
+         RowNode<T> *aux, *node_p = Rows[i];
          while (node_p != NULL)
          {
             aux = node_p;
@@ -3630,7 +3740,8 @@ void SparseMatrix::Destroy()
    ClearGPUSparse();
 }
 
-int SparseMatrix::ActualWidth() const
+template <class T>
+int SparseMatrixMP<T>::ActualWidth() const
 {
    int awidth = 0;
    if (A)
@@ -3644,7 +3755,7 @@ int SparseMatrix::ActualWidth() const
    }
    else
    {
-      RowNode *aux;
+      RowNode<T> *aux;
       for (int i = 0; i < height; i++)
       {
          for (aux = Rows[i]; aux != NULL; aux = aux->Prev)
@@ -3656,10 +3767,11 @@ int SparseMatrix::ActualWidth() const
    return awidth;
 }
 
-void SparseMatrixFunction (SparseMatrix & S, real_t (*f)(real_t))
+template <class T>
+void SparseMatrixFunction(SparseMatrixMP<T> & S, T (*f)(T))
 {
    int n = S.NumNonZeroElems();
-   real_t * s = S.GetData();
+   T * s = S.GetData();
 
    for (int i = 0; i < n; i++)
    {
@@ -3667,7 +3779,8 @@ void SparseMatrixFunction (SparseMatrix & S, real_t (*f)(real_t))
    }
 }
 
-SparseMatrix *Transpose (const SparseMatrix &A)
+template <class T>
+SparseMatrixMP<T> *Transpose(const SparseMatrixMP<T> &A)
 {
    MFEM_VERIFY(
       A.Finalized(),
@@ -3676,8 +3789,8 @@ SparseMatrix *Transpose (const SparseMatrix &A)
    int i, j, end;
    const int *A_i, *A_j;
    int m, n, nnz, *At_i, *At_j;
-   const real_t *A_data;
-   real_t *At_data;
+   const T *A_data;
+   T *At_data;
 
    m      = A.Height(); // number of rows of A
    n      = A.Width();  // number of columns of A
@@ -3688,7 +3801,7 @@ SparseMatrix *Transpose (const SparseMatrix &A)
 
    At_i = Memory<int>(n+1);
    At_j = Memory<int>(nnz);
-   At_data = Memory<real_t>(nnz);
+   At_data = Memory<T>(nnz);
 
    for (i = 0; i <= n; i++)
    {
@@ -3720,15 +3833,16 @@ SparseMatrix *Transpose (const SparseMatrix &A)
    }
    At_i[0] = 0;
 
-   return  new SparseMatrix(At_i, At_j, At_data, n, m);
+   return new SparseMatrixMP<T>(At_i, At_j, At_data, n, m);
 }
 
-SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
-                                             int useActualWidth)
+template <class T>
+SparseMatrixMP<T> *TransposeAbstractSparseMatrix(const AbstractSparseMatrix &A,
+                                                 int useActualWidth)
 {
    int i, j;
    int m, n, nnz, *At_i, *At_j;
-   real_t *At_data;
+   T *At_data;
    Array<int> Acols;
    Vector Avals;
 
@@ -3759,7 +3873,7 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
 
    At_i = Memory<int>(n+1);
    At_j = Memory<int>(nnz);
-   At_data = Memory<real_t>(nnz);
+   At_data = Memory<T>(nnz);
 
    for (i = 0; i <= n; i++)
    {
@@ -3796,22 +3910,23 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
    }
    At_i[0] = 0;
 
-   return new SparseMatrix(At_i, At_j, At_data, n, m);
+   return new SparseMatrixMP<T>(At_i, At_j, At_data, n, m);
 }
 
 
-SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
-                    SparseMatrix *OAB)
+template <class T>
+SparseMatrixMP<T> *Mult(const SparseMatrixMP<T> &A, const SparseMatrixMP<T> &B,
+                        SparseMatrixMP<T> *OAB)
 {
    int nrowsA, ncolsA, nrowsB, ncolsB;
    const int *A_i, *A_j, *B_i, *B_j;
    int *C_i, *C_j, *B_marker;
-   const real_t *A_data, *B_data;
-   real_t *C_data;
+   const T *A_data, *B_data;
+   T *C_data;
    int ia, ib, ic, ja, jb, num_nonzeros;
    int row_start, counter;
-   real_t a_entry, b_entry;
-   SparseMatrix *C;
+   T a_entry, b_entry;
+   SparseMatrixMP<T> *C;
 
    nrowsA = A.Height();
    ncolsA = A.Width();
@@ -3860,9 +3975,9 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
       }
 
       C_j    = Memory<int>(num_nonzeros);
-      C_data = Memory<real_t>(num_nonzeros);
+      C_data = Memory<T>(num_nonzeros);
 
-      C = new SparseMatrix(C_i, C_j, C_data, nrowsA, ncolsB);
+      C = new SparseMatrixMP<T>(C_i, C_j, C_data, nrowsA, ncolsB);
 
       for (ib = 0; ib < ncolsB; ib++)
       {
@@ -3928,24 +4043,27 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    return C;
 }
 
-SparseMatrix * TransposeMult(const SparseMatrix &A, const SparseMatrix &B)
+template <class T>
+SparseMatrixMP<T> * TransposeMult(const SparseMatrixMP<T> &A,
+                                  const SparseMatrixMP<T> &B)
 {
-   SparseMatrix *At  = Transpose(A);
-   SparseMatrix *AtB = Mult(*At, B);
+   SparseMatrixMP<T> *At  = Transpose(A);
+   SparseMatrixMP<T> *AtB = Mult(*At, B);
    delete At;
    return AtB;
 }
 
-SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
-                                        const AbstractSparseMatrix &B)
+template <class T>
+SparseMatrixMP<T> *MultAbstractSparseMatrix(const AbstractSparseMatrix &A,
+                                            const AbstractSparseMatrix &B)
 {
    int nrowsA, ncolsA, nrowsB, ncolsB;
    int *C_i, *C_j, *B_marker;
-   real_t *C_data;
+   T *C_data;
    int ia, ib, ic, ja, jb, num_nonzeros;
    int row_start, counter;
-   real_t a_entry, b_entry;
-   SparseMatrix *C;
+   T a_entry, b_entry;
+   SparseMatrixMP<T> *C;
 
    nrowsA = A.Height();
    ncolsA = A.Width();
@@ -3990,9 +4108,9 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
    }
 
    C_j    = Memory<int>(num_nonzeros);
-   C_data = Memory<real_t>(num_nonzeros);
+   C_data = Memory<T>(num_nonzeros);
 
-   C = new SparseMatrix(C_i, C_j, C_data, nrowsA, ncolsB);
+   C = new SparseMatrixMP<T>(C_i, C_j, C_data, nrowsA, ncolsB);
 
    for (ib = 0; ib < ncolsB; ib++)
    {
@@ -4033,7 +4151,8 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
    return C;
 }
 
-DenseMatrix *Mult (const SparseMatrix &A, DenseMatrix &B)
+template <class T>
+DenseMatrix *Mult(const SparseMatrixMP<T> &A, DenseMatrix &B)
 {
    DenseMatrix *C = new DenseMatrix(A.Height(), B.Width());
    Vector columnB, columnC;
@@ -4046,7 +4165,8 @@ DenseMatrix *Mult (const SparseMatrix &A, DenseMatrix &B)
    return C;
 }
 
-DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
+template <class T>
+DenseMatrix *RAP(const SparseMatrixMP<T> &A, DenseMatrix &P)
 {
    DenseMatrix R (P, 't'); // R = P^T
    DenseMatrix *AP   = Mult (A, P);
@@ -4056,9 +4176,10 @@ DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
    return RAP_;
 }
 
-DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
+template <class T>
+DenseMatrix *RAP(DenseMatrix &A, const SparseMatrixMP<T> &P)
 {
-   SparseMatrix *R  = Transpose(P);
+   SparseMatrixMP<T> *R  = Transpose(P);
    DenseMatrix  *RA = Mult(*R, A);
    DenseMatrix   AtP(*RA, 't');
    delete RA;
@@ -4069,35 +4190,38 @@ DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
    return RAP_;
 }
 
-SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
-                   SparseMatrix *ORAP)
+template <class T>
+SparseMatrixMP<T> *RAP(const SparseMatrixMP<T> &A, const SparseMatrixMP<T> &R,
+                       SparseMatrixMP<T> *ORAP)
 {
-   SparseMatrix *P  = Transpose (R);
-   SparseMatrix *AP = Mult (A, *P);
+   SparseMatrixMP<T> *P  = Transpose (R);
+   SparseMatrixMP<T> *AP = Mult (A, *P);
    delete P;
-   SparseMatrix *RAP_ = Mult (R, *AP, ORAP);
+   SparseMatrixMP<T> *RAP_ = Mult (R, *AP, ORAP);
    delete AP;
    return RAP_;
 }
 
-SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
-                  const SparseMatrix &P)
+template <class T>
+SparseMatrixMP<T> *RAP(const SparseMatrixMP<T> &Rt, const SparseMatrixMP<T> &A,
+                       const SparseMatrixMP<T> &P)
 {
-   SparseMatrix * R = Transpose(Rt);
-   SparseMatrix * RA = Mult(*R,A);
+   SparseMatrixMP<T> * R = Transpose(Rt);
+   SparseMatrixMP<T> * RA = Mult(*R,A);
    delete R;
-   SparseMatrix * RAP_ = Mult(*RA, P);
+   SparseMatrixMP<T> * RAP_ = Mult(*RA, P);
    delete RA;
    return RAP_;
 }
 
-SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
-                         SparseMatrix *OAtDA)
+template <class T>
+SparseMatrixMP<T> *Mult_AtDA(const SparseMatrixMP<T> &A, const Vector &D,
+                             SparseMatrixMP<T> *OAtDA)
 {
    int i, At_nnz, *At_j;
-   real_t *At_data;
+   T *At_data;
 
-   SparseMatrix *At = Transpose (A);
+   SparseMatrixMP<T> *At = Transpose (A);
    At_nnz  = At -> NumNonZeroElems();
    At_j    = At -> GetJ();
    At_data = At -> GetData();
@@ -4105,28 +4229,29 @@ SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
    {
       At_data[i] *= D(At_j[i]);
    }
-   SparseMatrix *AtDA = Mult (*At, A, OAtDA);
+   SparseMatrixMP<T> *AtDA = Mult (*At, A, OAtDA);
    delete At;
    return AtDA;
 }
 
-SparseMatrix * Add(real_t a, const SparseMatrix & A, real_t b,
-                   const SparseMatrix & B)
+template <class T>
+SparseMatrixMP<T> * Add(T a, const SparseMatrixMP<T> & A, T b,
+                        const SparseMatrixMP<T> & B)
 {
    int nrows = A.Height();
    int ncols = A.Width();
 
    int * C_i = Memory<int>(nrows+1);
    int * C_j;
-   real_t * C_data;
+   T * C_data;
 
    const int *A_i = A.GetI();
    const int *A_j = A.GetJ();
-   const real_t *A_data = A.GetData();
+   const T *A_data = A.GetData();
 
    const int *B_i = B.GetI();
    const int *B_j = B.GetJ();
-   const real_t *B_data = B.GetData();
+   const T *B_data = B.GetData();
 
    int * marker = new int[ncols];
    std::fill(marker, marker+ncols, -1);
@@ -4154,7 +4279,7 @@ SparseMatrix * Add(real_t a, const SparseMatrix & A, real_t b,
    }
 
    C_j = Memory<int>(num_nonzeros);
-   C_data = Memory<real_t>(num_nonzeros);
+   C_data = Memory<T>(num_nonzeros);
 
    for (int ia = 0; ia < ncols; ia++)
    {
@@ -4190,20 +4315,23 @@ SparseMatrix * Add(real_t a, const SparseMatrix & A, real_t b,
    }
 
    delete[] marker;
-   return new SparseMatrix(C_i, C_j, C_data, nrows, ncols);
+   return new SparseMatrixMP<T>(C_i, C_j, C_data, nrows, ncols);
 }
 
-SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B)
+template <class T>
+SparseMatrixMP<T> * Add(const SparseMatrixMP<T> & A,
+                        const SparseMatrixMP<T> & B)
 {
    return Add(1.,A,1.,B);
 }
 
-SparseMatrix * Add(Array<SparseMatrix *> & Ai)
+template <class T>
+SparseMatrixMP<T> * Add(Array<SparseMatrixMP<T> *> & Ai)
 {
    MFEM_ASSERT(Ai.Size() > 0, "invalid size Ai.Size() = " << Ai.Size());
 
-   SparseMatrix * accumulate = Ai[0];
-   SparseMatrix * result = accumulate;
+   SparseMatrixMP<T> * accumulate = Ai[0];
+   SparseMatrixMP<T> * result = accumulate;
 
    for (int i=1; i < Ai.Size(); ++i)
    {
@@ -4220,13 +4348,14 @@ SparseMatrix * Add(Array<SparseMatrix *> & Ai)
 }
 
 /// B += alpha * A
-void Add(const SparseMatrix &A,
-         real_t alpha, DenseMatrix &B)
+template <class T>
+void Add(const SparseMatrixMP<T> &A,
+         T alpha, DenseMatrix &B)
 {
    for (int r = 0; r < B.Height(); r++)
    {
       const int    * colA = A.GetRowColumns(r);
-      const real_t * valA = A.GetRowEntries(r);
+      const T * valA = A.GetRowEntries(r);
       for (int i=0; i<A.RowSize(r); i++)
       {
          B(r, colA[i]) += alpha * valA[i];
@@ -4253,12 +4382,14 @@ DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B)
 }
 
 /// Produces a block matrix with blocks A_{ij}*B
-SparseMatrix *OuterProduct(const DenseMatrix &A, const SparseMatrix &B)
+template <class T>
+SparseMatrixMP<T> *OuterProduct(const DenseMatrix &A,
+                                const SparseMatrixMP<T> &B)
 {
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
-   SparseMatrix *C = new SparseMatrix(mA * mB, nA * nB);
+   SparseMatrixMP<T> *C = new SparseMatrixMP<T>(mA * mB, nA * nB);
 
    for (int i=0; i<mA; i++)
    {
@@ -4267,7 +4398,7 @@ SparseMatrix *OuterProduct(const DenseMatrix &A, const SparseMatrix &B)
          for (int r=0; r<mB; r++)
          {
             const int    * colB = B.GetRowColumns(r);
-            const real_t * valB = B.GetRowEntries(r);
+            const T * valB = B.GetRowEntries(r);
 
             for (int cj=0; cj<B.RowSize(r); cj++)
             {
@@ -4282,17 +4413,19 @@ SparseMatrix *OuterProduct(const DenseMatrix &A, const SparseMatrix &B)
 }
 
 /// Produces a block matrix with blocks A_{ij}*B
-SparseMatrix *OuterProduct(const SparseMatrix &A, const DenseMatrix &B)
+template <class T>
+SparseMatrixMP<T> *OuterProduct(const SparseMatrixMP<T> &A,
+                                const DenseMatrix &B)
 {
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
-   SparseMatrix *C = new SparseMatrix(mA * mB, nA * nB);
+   SparseMatrixMP<T> *C = new SparseMatrixMP<T>(mA * mB, nA * nB);
 
    for (int r=0; r<mA; r++)
    {
       const int    * colA = A.GetRowColumns(r);
-      const real_t * valA = A.GetRowEntries(r);
+      const T * valA = A.GetRowEntries(r);
 
       for (int aj=0; aj<A.RowSize(r); aj++)
       {
@@ -4311,24 +4444,26 @@ SparseMatrix *OuterProduct(const SparseMatrix &A, const DenseMatrix &B)
 }
 
 /// Produces a block matrix with blocks A_{ij}*B
-SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B)
+template <class T>
+SparseMatrixMP<T> *OuterProduct(const SparseMatrixMP<T> &A,
+                                const SparseMatrixMP<T> &B)
 {
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
-   SparseMatrix *C = new SparseMatrix(mA * mB, nA * nB);
+   SparseMatrixMP<T> *C = new SparseMatrixMP<T>(mA * mB, nA * nB);
 
    for (int ar=0; ar<mA; ar++)
    {
-      const int    * colA = A.GetRowColumns(ar);
-      const real_t * valA = A.GetRowEntries(ar);
+      const int * colA = A.GetRowColumns(ar);
+      const T * valA = A.GetRowEntries(ar);
 
       for (int aj=0; aj<A.RowSize(ar); aj++)
       {
          for (int br=0; br<mB; br++)
          {
-            const int    * colB = B.GetRowColumns(br);
-            const real_t * valB = B.GetRowEntries(br);
+            const int * colB = B.GetRowColumns(br);
+            const T * valB = B.GetRowEntries(br);
 
             for (int bj=0; bj<B.RowSize(br); bj++)
             {
@@ -4343,7 +4478,8 @@ SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B)
    return C;
 }
 
-void SparseMatrix::Swap(SparseMatrix &other)
+template <class T>
+void SparseMatrixMP<T>::Swap(SparseMatrixMP<T> &other)
 {
    mfem::Swap(width, other.width);
    mfem::Swap(height, other.height);
@@ -4363,7 +4499,8 @@ void SparseMatrix::Swap(SparseMatrix &other)
    mfem::Swap(isSorted, other.isSorted);
 }
 
-SparseMatrix::~SparseMatrix()
+template <class T>
+SparseMatrixMP<T>::~SparseMatrixMP()
 {
    Destroy();
 #ifdef MFEM_USE_CUDA_OR_HIP
@@ -4387,5 +4524,54 @@ SparseMatrix::~SparseMatrix()
    }
 #endif // MFEM_USE_CUDA_OR_HIP
 }
+
+template class SparseMatrixMP<float>;
+template class SparseMatrixMP<double>;
+
+template
+SparseMatrixMP<real_t> *Transpose(const SparseMatrixMP<real_t> &A);
+
+template
+SparseMatrixMP<real_t> *TransposeMult(const SparseMatrixMP<real_t> &A,
+                                      const SparseMatrixMP<real_t> &B);
+
+template
+SparseMatrixMP<real_t> * Add(const SparseMatrixMP<real_t> & A,
+                             const SparseMatrixMP<real_t> & B);
+
+template
+SparseMatrixMP<real_t> * Add(real_t a, const SparseMatrixMP<real_t> & A,
+                             real_t b,
+                             const SparseMatrixMP<real_t> & B);
+
+template
+SparseMatrixMP<real_t> * Add(Array<SparseMatrixMP<real_t> *> & Ai);
+
+template
+void Add(const SparseMatrixMP<real_t> &A, real_t alpha, DenseMatrix &B);
+
+template
+DenseMatrix *Mult(const SparseMatrixMP<real_t> &A, DenseMatrix &B);
+
+template
+DenseMatrix *RAP(const SparseMatrixMP<real_t> &A, DenseMatrix &P);
+
+template
+DenseMatrix *RAP(DenseMatrix &A, const SparseMatrixMP<real_t> &P);
+
+template
+SparseMatrixMP<real_t> *RAP(const SparseMatrixMP<real_t> &A,
+                            const SparseMatrixMP<real_t> &R,
+                            SparseMatrixMP<real_t> *ORAP);
+
+template
+SparseMatrixMP<real_t> *RAP(const SparseMatrixMP<real_t> &Rt,
+                            const SparseMatrixMP<real_t> &A,
+                            const SparseMatrixMP<real_t> &P);
+
+template
+SparseMatrixMP<real_t> *Mult_AtDA(const SparseMatrixMP<real_t> &A,
+                                  const Vector &D,
+                                  SparseMatrixMP<real_t> *OAtDA);
 
 }
