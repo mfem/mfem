@@ -178,7 +178,7 @@ public:
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrixMP(const VectorMP<T> & v);
 
-   using OperatorBase::DiagonalPolicy;
+   using DiagonalPolicy = OperatorBase::DiagonalPolicy;
    using OperatorBase::DIAG_ZERO;
    using OperatorBase::DIAG_ONE;
    using OperatorBase::DIAG_KEEP;
@@ -734,7 +734,7 @@ public:
    /// Destroys sparse matrix.
    virtual ~SparseMatrixMP();
 
-   using OperatorBase::Type;
+   using Type = OperatorBase::Type;
 
    Type GetType() const { return OperatorBase::MFEM_SPARSEMAT; }
 };

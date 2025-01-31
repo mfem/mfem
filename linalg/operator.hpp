@@ -1022,7 +1022,7 @@ using TripleProductOperator = TripleProductOperatorMP<real_t>;
 template <class T>
 class ConstrainedOperatorMP : public OperatorMP<T>
 {
-   using OperatorBase::DiagonalPolicy;
+   using DiagonalPolicy = OperatorBase::DiagonalPolicy;
    using OperatorBase::DIAG_ONE;
    using OperatorBase::DIAG_KEEP;
    using OperatorBase::DIAG_ZERO;
