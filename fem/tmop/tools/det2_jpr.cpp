@@ -63,7 +63,8 @@ void TMOP_MinDetJpr_2D(const int NE,
    });
 }
 
-TMOP_REGISTER_KERNELS(TMOPMinDetJpr2D, TMOP_MinDetJpr_2D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPMinDetJpr2D, TMOP_MinDetJpr_2D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPMinDetJpr2D);
 
 real_t TMOPNewtonSolver::MinDetJpr_2D(const FiniteElementSpace *fes,
                                       const Vector &x) const
@@ -86,9 +87,6 @@ real_t TMOPNewtonSolver::MinDetJpr_2D(const FiniteElementSpace *fes,
    Vector e(NE * NQ);
    e.UseDevice(true);
    auto E = Reshape(e.Write(), q, q, NE);
-
-   const static auto specialized_kernels = []
-   { return tmop::KernelSpecializations<TMOPMinDetJpr2D>(); }();
 
    TMOPMinDetJpr2D::Run(d, q, NE, B, G, XE, E, d, q, 4);
    return e.Min();

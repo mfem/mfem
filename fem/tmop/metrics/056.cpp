@@ -71,8 +71,8 @@ using setup = tmop::func_t<setup_t>;
 using mult = tmop::func_t<mult_t>;
 
 // TMOP PA Setup, metric: 056
-
 MFEM_REGISTER_KERNELS(S056, setup, (int, int));
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(S056);
 
 template <int D, int Q>
 setup S056::Kernel()
@@ -85,14 +85,12 @@ setup S056::Fallback(int, int) { return setup_t::Mult<metric_t>; }
 template <>
 void tmop::Kernel<56>(setup_t &ker)
 {
-   const static auto setup_kernels = []
-   { return KernelSpecializations<S056>(); }();
    S056::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 
 // TMOP PA Mult, metric: 056
-
 MFEM_REGISTER_KERNELS(K056, mult, (int, int));
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(K056);
 
 template <int D, int Q>
 mult K056::Kernel()
@@ -105,8 +103,6 @@ mult K056::Fallback(int, int) { return mult_t::Mult<metric_t>; }
 template <>
 void tmop::Kernel<56>(mult_t &ker)
 {
-   const static auto mult_kernels = []
-   { return KernelSpecializations<K056>(); }();
    K056::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 

@@ -11,7 +11,6 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-// #include "../../kernel_dispatch.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -33,7 +32,7 @@ void TMOP_AssembleDiagonalPA_3D(const int NE,
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
-   // This kernel uses its own CUDA/ROCM limits: compile time values:
+      // This kernel uses its own CUDA/ROCM limits: compile time values:
 #if defined(__CUDA_ARCH__)
       constexpr int MAX_D1D = 6;
       constexpr int MAX_Q1D = 7;
@@ -225,7 +224,8 @@ void TMOP_AssembleDiagonalPA_3D(const int NE,
    });
 }
 
-TMOP_REGISTER_KERNELS(TMOPAssembleDiag3D, TMOP_AssembleDiagonalPA_3D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiag3D, TMOP_AssembleDiagonalPA_3D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiag3D);
 
 void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
 {
@@ -237,9 +237,6 @@ void TMOP_Integrator::AssembleDiagonalPA_3D(Vector &diagonal) const
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
    const auto H = Reshape(PA.H.Read(), DIM, DIM, DIM, DIM, q, q, q, NE);
    auto D = Reshape(diagonal.ReadWrite(), d, d, d, DIM, NE);
-
-   const static auto specialized_kernels = []
-   { return tmop::KernelSpecializations<TMOPAssembleDiag3D>(); }();
 
    TMOPAssembleDiag3D::Run(d, q, NE, B, G, J, H, D, d, q, 4);
 }

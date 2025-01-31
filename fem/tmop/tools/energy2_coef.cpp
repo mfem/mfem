@@ -111,7 +111,8 @@ void TMOP_EnergyPA_C0_2D(const real_t lim_normal,
    });
 }
 
-TMOP_REGISTER_KERNELS(TMOPEnergyCoef2D, TMOP_EnergyPA_C0_2D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPEnergyCoef2D, TMOP_EnergyPA_C0_2D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPEnergyCoef2D);
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
 {
@@ -136,9 +137,6 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
-
-   const static auto specialized_kernels = []
-   { return tmop::KernelSpecializations<TMOPEnergyCoef2D>(); }();
 
    TMOPEnergyCoef2D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X, E,
                          exp_lim, d, q, 4);

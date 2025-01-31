@@ -131,7 +131,8 @@ void TMOP_EnergyPA_2D(const real_t metric_normal,
    });
 }
 
-TMOP_REGISTER_KERNELS(TMOPEnergyPA2D, TMOP_EnergyPA_2D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPEnergyPA2D, TMOP_EnergyPA_2D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPEnergyPA2D);
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
 {
@@ -162,9 +163,6 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
    const auto X = Reshape(x.Read(), d, d, DIM, NE);
 
    auto E = Reshape(PA.E.Write(), q, q, NE);
-
-   const static auto specialized_kernels = []
-   { return tmop::KernelSpecializations<TMOPEnergyPA2D>(); }();
 
    TMOPEnergyPA2D::Run(d, q, mn, w, const_m0, MC, mp, MId, NE, J, W, B, G, X, E,
                        d, q, 4);

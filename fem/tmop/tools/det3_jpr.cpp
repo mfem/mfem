@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../tmop_tools.hpp"
 #include "../../kernels.hpp"
@@ -65,6 +66,9 @@ void TMOP_MinDetJpr_3D(const int NE,
    });
 }
 
+MFEM_TMOP_REGISTER_KERNELS(TMOPMinDetJpr3D, TMOP_MinDetJpr_3D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPMinDetJpr3D);
+
 real_t TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
                                       const Vector &x) const
 {
@@ -88,27 +92,8 @@ real_t TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    e.UseDevice(true);
    auto E = Reshape(e.Write(), q, q, q, NE);
 
-   decltype(&TMOP_MinDetJpr_3D<>) ker = TMOP_MinDetJpr_3D;
+   TMOPMinDetJpr3D::Run(d,q, NE, B, G, XE, E, d, q, 4);
 
-   if (d == 2 && q == 2) { ker = TMOP_MinDetJpr_3D<2, 2>; }
-   if (d == 2 && q == 3) { ker = TMOP_MinDetJpr_3D<2, 3>; }
-   if (d == 2 && q == 4) { ker = TMOP_MinDetJpr_3D<2, 4>; }
-   if (d == 2 && q == 5) { ker = TMOP_MinDetJpr_3D<2, 5>; }
-   if (d == 2 && q == 6) { ker = TMOP_MinDetJpr_3D<2, 6>; }
-
-   if (d == 3 && q == 3) { ker = TMOP_MinDetJpr_3D<3, 3>; }
-   if (d == 3 && q == 4) { ker = TMOP_MinDetJpr_3D<3, 4>; }
-   if (d == 3 && q == 5) { ker = TMOP_MinDetJpr_3D<3, 5>; }
-   if (d == 3 && q == 6) { ker = TMOP_MinDetJpr_3D<3, 6>; }
-
-   if (d == 4 && q == 4) { ker = TMOP_MinDetJpr_3D<4, 4>; }
-   if (d == 4 && q == 5) { ker = TMOP_MinDetJpr_3D<4, 5>; }
-   if (d == 4 && q == 6) { ker = TMOP_MinDetJpr_3D<4, 6>; }
-
-   if (d == 5 && q == 5) { ker = TMOP_MinDetJpr_3D<5, 5>; }
-   if (d == 5 && q == 6) { ker = TMOP_MinDetJpr_3D<5, 6>; }
-
-   ker(NE, B, G, XE, E, d, q, 4);
    return e.Min();
 }
 

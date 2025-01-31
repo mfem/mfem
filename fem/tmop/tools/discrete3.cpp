@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
@@ -17,18 +18,18 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
-void DatcSize(const int NE,
-              const int ncomp,
-              const int sizeidx,
-              const real_t input_min_size,
-              const real_t *nc_red,
-              const ConstDeviceMatrix &W,
-              const ConstDeviceMatrix &B,
-              const DeviceTensor<5, const real_t> &X,
-              DeviceTensor<6> &J,
-              const int d1d = 0,
-              const int q1d = 0,
-              const int max = 4)
+void TMOP_DatcSize_3D(const int NE,
+                      const int ncomp,
+                      const int sizeidx,
+                      const real_t input_min_size,
+                      const real_t *nc_red,
+                      const ConstDeviceMatrix &W,
+                      const ConstDeviceMatrix &B,
+                      const DeviceTensor<5, const real_t> &X,
+                      DeviceTensor<6> &J,
+                      const int d1d = 0,
+                      const int q1d = 0,
+                      const int max = 4)
 {
    MFEM_VERIFY(ncomp == 1, "");
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -117,6 +118,9 @@ void DatcSize(const int NE,
    });
 }
 
+MFEM_TMOP_REGISTER_KERNELS(TMOPDatcSize, TMOP_DatcSize_3D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPDatcSize);
+
 // PA.Jtr Size = (dim, dim, PA.ne*PA.nq);
 void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
                                                const IntegrationRule &ir,
@@ -150,7 +154,7 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
    const int d = maps.ndof, q = maps.nqpt;
-   const real_t input_min_size = lim_min_size;
+   const real_t min_size = lim_min_size;
 
    Vector nc_size_red(NE, Device::GetDeviceMemoryType());
    nc_size_red.HostWrite();
@@ -177,27 +181,9 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const auto X = Reshape(tspec_e.Read(), d, d, d, ncomp, NE);
    auto J = Reshape(Jtr.Write(), DIM, DIM, q, q, q, NE);
 
-   decltype(&DatcSize<>) ker = DatcSize;
+   TMOPDatcSize::Run(d, q,
+                     NE, ncomp, sizeidx, min_size, nc_red, W, B, X, J, d, q, 4);
 
-   if (d == 2 && q == 2) { ker = DatcSize<2, 2>; }
-   if (d == 2 && q == 3) { ker = DatcSize<2, 3>; }
-   if (d == 2 && q == 4) { ker = DatcSize<2, 4>; }
-   if (d == 2 && q == 5) { ker = DatcSize<2, 5>; }
-   if (d == 2 && q == 6) { ker = DatcSize<2, 6>; }
-
-   if (d == 3 && q == 3) { ker = DatcSize<3, 3>; }
-   if (d == 3 && q == 4) { ker = DatcSize<4, 4>; }
-   if (d == 3 && q == 5) { ker = DatcSize<5, 5>; }
-   if (d == 3 && q == 6) { ker = DatcSize<6, 6>; }
-
-   if (d == 4 && q == 4) { ker = DatcSize<4, 4>; }
-   if (d == 4 && q == 5) { ker = DatcSize<4, 5>; }
-   if (d == 4 && q == 6) { ker = DatcSize<4, 6>; }
-
-   if (d == 5 && q == 5) { ker = DatcSize<5, 5>; }
-   if (d == 5 && q == 6) { ker = DatcSize<5, 6>; }
-
-   ker(NE, ncomp, sizeidx, input_min_size, nc_red, W, B, X, J, d, q, 4);
 }
 
 } // namespace mfem

@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../../general/forall.hpp"
@@ -124,6 +125,9 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
    });
 }
 
+MFEM_TMOP_REGISTER_KERNELS(TMOPEnergyPAC03D, TMOP_EnergyPA_C0_3D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPEnergyPAC03D);
+
 real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
 {
    constexpr int DIM = 3;
@@ -148,27 +152,10 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   decltype(&TMOP_EnergyPA_C0_3D<>) ker = TMOP_EnergyPA_C0_3D;
+   TMOPEnergyPAC03D::Run(d, q,
+                         ln, LD, const_c0, C0, NE, J, W,
+                         B, BLD, X0, X1, E, exp_lim, d, q, 4);
 
-   if (d == 2 && q == 2) { ker = TMOP_EnergyPA_C0_3D<2, 2>; }
-   if (d == 2 && q == 3) { ker = TMOP_EnergyPA_C0_3D<2, 3>; }
-   if (d == 2 && q == 4) { ker = TMOP_EnergyPA_C0_3D<2, 4>; }
-   if (d == 2 && q == 5) { ker = TMOP_EnergyPA_C0_3D<2, 5>; }
-   if (d == 2 && q == 6) { ker = TMOP_EnergyPA_C0_3D<2, 6>; }
-
-   if (d == 3 && q == 3) { ker = TMOP_EnergyPA_C0_3D<3, 3>; }
-   if (d == 3 && q == 4) { ker = TMOP_EnergyPA_C0_3D<3, 4>; }
-   if (d == 3 && q == 5) { ker = TMOP_EnergyPA_C0_3D<3, 5>; }
-   if (d == 3 && q == 6) { ker = TMOP_EnergyPA_C0_3D<3, 6>; }
-
-   if (d == 4 && q == 4) { ker = TMOP_EnergyPA_C0_3D<4, 4>; }
-   if (d == 4 && q == 5) { ker = TMOP_EnergyPA_C0_3D<4, 5>; }
-   if (d == 4 && q == 6) { ker = TMOP_EnergyPA_C0_3D<4, 6>; }
-
-   if (d == 5 && q == 5) { ker = TMOP_EnergyPA_C0_3D<5, 5>; }
-   if (d == 5 && q == 6) { ker = TMOP_EnergyPA_C0_3D<5, 6>; }
-
-   ker(ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X1, E, exp_lim, d, q, 4);
    return PA.E * PA.O;
 }
 

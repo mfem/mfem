@@ -70,17 +70,23 @@ using func_t = void (*)(T &);
 template <int Metric, typename Ker>
 void Kernel(Ker &);
 
-#define TMOP_REGISTER_KERNELS(Name, Ker)                                \
+#define MFEM_TMOP_REGISTER_KERNELS(Name, Ker)                           \
    using Ker##_t = decltype(&Ker<>);                                    \
    MFEM_REGISTER_KERNELS(Name, Ker##_t, (int, int));                    \
    template <int D, int Q> Ker##_t Name::Kernel() { return Ker<D, Q>; } \
    Ker##_t Name::Fallback(int, int) { return Ker<>; }
 
-#define TMOP_REGISTER_KERNELS_1(Name, Ker)                    \
+#define MFEM_TMOP_REGISTER_KERNELS_1(Name, Ker)               \
    using Ker##_t = decltype(&Ker<>);                          \
    MFEM_REGISTER_KERNELS(Name, Ker##_t, (int));               \
    template <int Q> Ker##_t Name::Kernel() { return Ker<Q>; } \
    Ker##_t Name::Fallback(int) { return Ker<>; }
+
+#define MFEM_TMOP_ADD_SPECIALIZED_KERNELS(Name) \
+namespace { static bool k##Name { (tmop::KernelSpecializations<Name>(), true)}; }
+
+#define MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(Name) \
+namespace { static bool k##Name { (tmop::KernelSpecializations1<Name>(), true)}; }
 
 template <typename Kernel>
 int KernelSpecializations()
