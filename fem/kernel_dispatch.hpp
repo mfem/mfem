@@ -44,9 +44,9 @@ namespace mfem
 
 #define MFEM_EXPAND(X) X // Workaround needed for MSVC compiler
 
-#define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...)                \
-   MFEM_EXPAND(MFEM_EXPAND(MFEM_REGISTER_KERNELS_N(__VA_ARGS__, 2, 1, ))( \
-      KernelName, KernelType, __VA_ARGS__))
+#define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...)                     \
+   MFEM_EXPAND(MFEM_EXPAND(MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1,))          \
+      (KernelName,KernelType,__VA_ARGS__))
 
 #define MFEM_REGISTER_KERNELS_N(_1, _2, N, ...) MFEM_REGISTER_KERNELS_##N
 
@@ -56,7 +56,7 @@ namespace mfem
 
 // Version of MFEM_REGISTER_KERNELS without any "optional" (non-dispatch)
 // parameters.
-#define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, Params)       \
+#define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, Params)                \
    MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, (), Params)
 
 // Version of MFEM_REGISTER_KERNELS without any optional (non-dispatch)
@@ -68,70 +68,54 @@ namespace mfem
 // P1 are the parameters, P2 are the optional (non-dispatch parameters), and P3
 // is the concatenation of P1 and P2. We need to pass it as a separate argument
 // to avoid a trailing comma in the case that P2 is empty.
-#define MFEM_REGISTER_KERNELS_(KernelName, KernelType, P1, P2, P3)     \
-   class KernelName : public KernelDispatchTable<                      \
-                         KernelName, KernelType,                       \
-                         internal::KernelTypeList<MFEM_PARAM_LIST P1>, \
-                         internal::KernelTypeList<MFEM_PARAM_LIST P2>> \
-   {                                                                   \
-   public:                                                             \
-      const char *kernel_name = MFEM_KERNEL_NAME(KernelName);          \
-      using KernelSignature = KernelType;                              \
-      template <MFEM_PARAM_LIST P3>                                    \
-      static MFEM_EXPORT KernelSignature Kernel();                     \
-      static MFEM_EXPORT KernelSignature Fallback(MFEM_PARAM_LIST P1); \
-      static MFEM_EXPORT KernelName &Get()                             \
-      {                                                                \
-         static KernelName table;                                      \
-         return table;                                                 \
-      }                                                                \
+#define MFEM_REGISTER_KERNELS_(KernelName, KernelType, P1, P2, P3)             \
+   class KernelName : public                                                   \
+   KernelDispatchTable<KernelName, KernelType,                                 \
+      internal::KernelTypeList<MFEM_PARAM_LIST P1>,                            \
+      internal::KernelTypeList<MFEM_PARAM_LIST P2>>                            \
+   {                                                                           \
+   public:                                                                     \
+      const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                  \
+      using KernelSignature = KernelType;                                      \
+      template <MFEM_PARAM_LIST P3>                                            \
+      static MFEM_EXPORT KernelSignature Kernel();                             \
+      static MFEM_EXPORT KernelSignature Fallback(MFEM_PARAM_LIST P1);         \
+      static MFEM_EXPORT KernelName &Get()                                     \
+      { static KernelName table; return table;}                                \
    }
 
 /// @brief Hashes variadic packs for which each type contained in the variadic
 /// pack has a specialization of `std::hash` available.
 ///
 /// For example, packs containing int, bool, enum values, etc.
-template <typename... KernelParameters>
+template<typename ...KernelParameters>
 struct KernelDispatchKeyHash
 {
 private:
-   template <int N>
-   size_t operator()(std::tuple<KernelParameters...> value) const
-   {
-      return 0;
-   }
+   template<int N>
+   size_t operator()(std::tuple<KernelParameters...> value) const { return 0; }
 
    // The hashing formula here is taken directly from the Boost library, with
    // the magic number 0x9e3779b9 chosen to minimize hashing collisions.
-   template <std::size_t N, typename THead, typename... TTail>
+   template<std::size_t N, typename THead, typename... TTail>
    size_t operator()(std::tuple<KernelParameters...> value) const
    {
       constexpr int Index = N - sizeof...(TTail) - 1;
       auto lhs_hash = std::hash<THead>()(std::get<Index>(value));
       auto rhs_hash = operator()<N, TTail...>(value);
-      return lhs_hash ^
-             (rhs_hash + 0x9e3779b9 + (lhs_hash << 6) + (lhs_hash >> 2));
+      return lhs_hash^(rhs_hash + 0x9e3779b9 + (lhs_hash<<6) + (lhs_hash>>2));
    }
-
 public:
    /// Returns the hash of the given @a value.
    size_t operator()(std::tuple<KernelParameters...> value) const
    {
-      return operator()<sizeof...(KernelParameters), KernelParameters...>(
-                value);
+      return operator()<sizeof...(KernelParameters),KernelParameters...>(value);
    }
 };
 
-namespace internal
-{
-template <typename... Types> struct KernelTypeList
-{
-};
-} // namespace internal
+namespace internal { template<typename... Types> struct KernelTypeList { }; }
 
-template <typename... T> class KernelDispatchTable
-{
-};
+template<typename... T> class KernelDispatchTable { };
 
 template <typename Kernels,
           typename Signature,
@@ -143,8 +127,7 @@ class KernelDispatchTable<Kernels,
          internal::KernelTypeList<OptParams...>>
 {
    using TableType = std::unordered_map<std::tuple<Params...>,
-         Signature,
-         KernelDispatchKeyHash<Params...>>;
+         Signature, KernelDispatchKeyHash<Params...>>;
    TableType table;
 
 public:
@@ -153,13 +136,16 @@ public:
    /// If a compile-time specialized version of the kernel with the given
    /// parameters has been registered, it will be called. Otherwise, the
    /// fallback kernel will be called.
-   template <typename... Args>
-   static void Run(Params... params, Args &&...args)
+   template<typename... Args>
+   static void Run(Params... params, Args&&... args)
    {
       const auto &table = Kernels::Get().table;
       const std::tuple<Params...> key = std::make_tuple(params...);
       const auto it = table.find(key);
-      if (it != table.end()) { it->second(std::forward<Args>(args)...); }
+      if (it != table.end())
+      {
+         it->second(std::forward<Args>(args)...);
+      }
       else
       {
          KernelReporter::ReportFallback(Kernels::Get().kernel_name, params...);
@@ -176,7 +162,7 @@ public:
       {
          std::tuple<Params...> param_tuple(PARAMS...);
          Kernels::Get().table[param_tuple] =
-            Kernels::template Kernel<PARAMS..., OptParams{}...>();
+            Kernels:: template Kernel<PARAMS..., OptParams{}...>();
       };
       // Version with optional parameters
       template <OptParams... OPT_PARAMS>
@@ -186,15 +172,18 @@ public:
          {
             std::tuple<Params...> param_tuple(PARAMS...);
             Kernels::Get().table[param_tuple] =
-               Kernels::template Kernel<PARAMS..., OPT_PARAMS...>();
+               Kernels:: template Kernel<PARAMS..., OPT_PARAMS...>();
          }
       };
    };
 
    /// Return the dispatch map table
-   static const TableType &GetDispatchTable() { return Kernels::Get().table; }
+   static const TableType &GetDispatchTable()
+   {
+      return Kernels::Get().table;
+   }
 };
 
-} // namespace mfem
+}
 
 #endif

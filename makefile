@@ -792,8 +792,7 @@ FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
 FORMAT_LIST = $(filter-out $(FORMAT_EXCLUDE),$(wildcard $(FORMAT_FILES)))
 
 COUT_CERR_FILES = $(foreach dir,$(DIRS),$(dir)/*.[ch]pp)
-COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp' \
-'^general/debug\.hpp' '^fem/kernel_dispatchT\.hpp'
+COUT_CERR_EXCLUDE = '^general/error\.cpp' '^general/globals\.[ch]pp'
 
 DEPRECATION_WARNING := \
 "This feature is planned for removal in the next release."\
