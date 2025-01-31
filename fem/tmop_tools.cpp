@@ -1264,7 +1264,7 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
       }
       real_t norm_out = Norm(r);
 
-      if (norm_out > 1.0*norm_in)
+      if (norm_out > 1.2*norm_in)
       {
          if (print_options.iterations)
          {

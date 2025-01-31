@@ -35,6 +35,8 @@
 
 // sinusoidal wave for orientation and sharp inclined wave for solution
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-4 -ni 200 -ft 3 --qtype 3 -w1 1e2 -w2 1e-2 -m square01.mesh -rs 2 -o 2 -tid 4 -mid 107 -alpha 35
+// working with energy
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 3 --qtype 4 -w1 1e-3 -w2 2e-2 -m square01.mesh -rs 2 -alpha 20 -o 2 -mid 107 -tid 4
 
 
 #include "mfem.hpp"
@@ -255,28 +257,6 @@ double loadFunc(const Vector & x)
 
     double f = num1/den1 - num2/den2;
     return f;
-
-
-    // double lambda = val;
-    // double numerator = alpha - std::pow(alpha, 3) * (std::pow(lambda, 2) - std::pow(r, 2));
-
-    // // Denominator components
-    // double term1 = std::pow(alpha, 2) * std::pow(xc, 2);
-    // double term2 = -2 * std::pow(alpha, 2) * r * lambda;
-    // double term3 = -2 * xc * alpha * alpha * x[0];
-    // double term4 = std::pow(alpha, 2) * std::pow(yc, 2);
-    // double term5 = -2 * yc * alpha * alpha * x[1];
-    // double term6 = std::pow(alpha, 2) * std::pow(r, 2);
-    // double term7 = std::pow(alpha, 2) * std::pow(x[0], 2);
-    // double term8 = std::pow(alpha, 2) * std::pow(x[1], 2);
-
-    // // Denominator
-    // double denominator = lambda * std::pow(
-    //     term1 + term2 + term3 + term4 + term5 + term6 + term7 + term8 + 1, 2);
-
-    // // Compute f
-    // double f = numerator / denominator;
-    // return f;
   }
   else if (ftype == 3)
   {
@@ -314,7 +294,6 @@ int main (int argc, char *argv[])
   double weight_tmop = 1e-2;
   int metric_id   = 2;
   int target_id   = 1;
-  int quad_type         = 1;
   int quad_order        = 8;
   srand(9898975);
   bool visualization = true;
@@ -342,11 +321,6 @@ int main (int argc, char *argv[])
                 "3: Ideal shape, initial size\n\t"
                 "4: Given full analytic Jacobian (in physical space)\n\t"
                 "5: Ideal shape, given size (in physical space)");
-   args.AddOption(&quad_type, "-qt", "--quad-type",
-                  "Quadrature rule type:\n\t"
-                  "1: Gauss-Lobatto\n\t"
-                  "2: Gauss-Legendre\n\t"
-                  "3: Closed uniform points");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Order of the quadrature rule.");
    args.AddOption(&method, "-met", "--method",
@@ -416,8 +390,7 @@ int main (int argc, char *argv[])
 
   auto PMesh = new ParMesh(MPI_COMM_WORLD, *des_mesh);
 
-  int spatialDimension = PMesh->SpaceDimension();
-  int dim = spatialDimension;
+  int dim = PMesh->SpaceDimension();
 
   // -----------------------
   // Remaining mesh settings
@@ -434,7 +407,7 @@ int main (int argc, char *argv[])
   // int mesh_poly_deg = PMesh->GetNodes()->FESpace()->GetElementOrder(0);
 
   // Create finite Element Spaces for analysis mesh
-  // if ( spatialDimension != 2 ) {
+  // if ( dim != 2 ) {
   //   mfem_error("... This example only supports 2D meshes");
   // }
 
@@ -448,8 +421,8 @@ int main (int argc, char *argv[])
     fec = new QuadraticPosFECollection;
     mesh_poly_deg = 2;
   }
-  else { fec = new H1_FECollection(mesh_poly_deg, spatialDimension); }
-  ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(PMesh, fec, spatialDimension,
+  else { fec = new H1_FECollection(mesh_poly_deg, dim); }
+  ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(PMesh, fec, dim,
                                                                mesh_node_ordering);
   auto fespace_scalar = new ParFiniteElementSpace(PMesh, fec, 1);
   ParFiniteElementSpace pfespace_gf(PMesh, fec);
@@ -515,17 +488,7 @@ int main (int argc, char *argv[])
    }
    target_c->SetNodes(x);
 
-   IntegrationRules *irules = NULL;
-   switch (quad_type)
-   {
-      case 1: irules = &IntRulesLo; break;
-      case 2: irules = &IntRules; break;
-      case 3: irules = &IntRulesCU; break;
-      default:
-         if (myid == 0) { cout << "Unknown quad_type: " << quad_type << endl; }
-         return 3;
-   }
-
+   IntegrationRules *irules = &IntRulesLo;
    auto tmop_integ = new TMOP_Integrator(metric, target_c);
    tmop_integ->SetIntegrationRules(*irules, quad_order);
 
@@ -640,19 +603,19 @@ int main (int argc, char *argv[])
 if (myid == 0) {
   switch (qoiType) {
   case 0:
-     std::cout<<" L2 Error"<<std::endl;
-     break;
+    std::cout<<" L2 Error"<<std::endl;
+    break;
   case 1:
-  std::cout<<" H1 Error"<<std::endl;
+    std::cout<<" H1 Error"<<std::endl;
     break;
   case 2:
-  std::cout<<" ZZ Error"<<std::endl;
+    std::cout<<" ZZ Error"<<std::endl;
     break;
   case 3:
-  std::cout<<" Avg Error"<<std::endl;;
+    std::cout<<" Avg Error"<<std::endl;;
     break;
   case 4:
-  std::cout<<" Energy"<<std::endl;;
+    std::cout<<" Energy"<<std::endl;;
     break;
   default:
     std::cout << "Unknown Error Coeff: " << qoiType << std::endl;
@@ -666,7 +629,8 @@ if (myid == 0) {
 
   Coefficient *QCoef = new FunctionCoefficient(loadFunc);
   solver.SetManufacturedSolution(QCoef);
-  VectorCoefficient *trueSolutionGrad = new VectorFunctionCoefficient(spatialDimension,trueSolGradFunc);
+  VectorCoefficient *trueSolutionGrad = new VectorFunctionCoefficient(dim,
+                                                              trueSolGradFunc);
   QoIEvaluator.setTrueSolCoeff( trueSolution );
   if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
   QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
@@ -677,12 +641,16 @@ if (myid == 0) {
   paraview_dc.SetDataFormat(VTKFormat::BINARY);
   paraview_dc.SetHighOrderOutput(true);
 
-   if (visualization)
-   {
-      socketstream vis;
-      common::VisualizeMesh(vis, "localhost", 19916, *PMesh, "Initial Mesh",
-                            0, 0, 500, 500, "m");
-   }
+  //
+
+    ParGridFunction & discretSol = solver.GetSolution();
+    discretSol.ProjectCoefficient(*trueSolution);
+    if (visualization)
+    {
+        socketstream vis;
+        common::VisualizeField(vis, "localhost", 19916, discretSol,
+                              "Initial Solution", 0, 0, 500, 500, "jRmclA");
+    }
 
   x.SetTrueVector();
   if (method == 0)
