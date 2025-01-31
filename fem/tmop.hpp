@@ -65,7 +65,7 @@ public:
        @param[in] Jpt  Represents the target->physical transformation
                        Jacobian matrix.
        @param[out]  P  The evaluated 1st Piola-Kirchhoff stress tensor. */
-   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override = 0;
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const = 0;
 
    /** Compute dmu/dW */
    virtual void EvalPW(const DenseMatrix &Jpt, DenseMatrix &PW) const
@@ -254,12 +254,12 @@ class TMOP_Metric_000 : public TMOP_QualityMetric
 {
 public:
    // W = 0.
-   real_t EvalW(const DenseMatrix &Jpt) const override { return 0.0; }
+   real_t EvalW(const DenseMatrix &Jpt) const override {return 0.0;}
 
-   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override { P = 0.0; }
+   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override {P=0.0;}
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                  const real_t weight, DenseMatrix &A) const override { A = 0.0; }
+                  const real_t weight, DenseMatrix &A) const override {A=0.0;}
 
    int Id() const override { return 0; }
 };
@@ -282,24 +282,6 @@ public:
                   DenseMatrix &A) const override;
 
    int Id() const override { return 1; }
-};
-
-/// 2D non-barrier Skew metric.
-class TMOP_Metric_skew2D : public TMOP_QualityMetric
-{
-public:
-   // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
-   real_t EvalW(const DenseMatrix &Jpt) const override;
-
-   void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override
-   {
-      MFEM_ABORT("Not implemented");
-   }
-
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
 };
 
 /// 3D non-barrier Skew metric.
@@ -664,10 +646,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D compound barrier Shape+Size (VS) metric (balanced).
@@ -733,10 +713,8 @@ public:
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
 
-   void AssembleH(const DenseMatrix &Jpt,
-                  const DenseMatrix &DS,
-                  const real_t weight,
-                  DenseMatrix &A) const override;
+   void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 /// 2D untangling metric.
