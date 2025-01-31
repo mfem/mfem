@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
 #include "../../gridfunc.hpp"
@@ -44,6 +45,10 @@ void TMOP_TcIdealShapeUnitSize_3D(const int NE,
       }
    });
 }
+
+MFEM_TMOP_REGISTER_KERNELS_1(TMOPTcIdealShapeUnitSize3D,
+                             TMOP_TcIdealShapeUnitSize_3D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(TMOPTcIdealShapeUnitSize3D);
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_TcIdealShapeGivenSize_3D(const int NE,
@@ -99,6 +104,10 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
    });
 }
 
+MFEM_TMOP_REGISTER_KERNELS(TMOPTcIdealShapeGivenSize3D,
+                           TMOP_TcIdealShapeGivenSize_3D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPTcIdealShapeGivenSize3D);
+
 template <>
 bool TargetConstructor::ComputeAllElementTargets<3>(
    const FiniteElementSpace &fes,
@@ -133,16 +142,7 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
    {
       case IDEAL_SHAPE_UNIT_SIZE: // Jtr(i) = Wideal;
       {
-         decltype(&TMOP_TcIdealShapeUnitSize_3D<>) ker =
-            TMOP_TcIdealShapeUnitSize_3D;
-
-         if (q == 2) { ker = TMOP_TcIdealShapeUnitSize_3D<2>; }
-         if (q == 3) { ker = TMOP_TcIdealShapeUnitSize_3D<3>; }
-         if (q == 4) { ker = TMOP_TcIdealShapeUnitSize_3D<4>; }
-         if (q == 5) { ker = TMOP_TcIdealShapeUnitSize_3D<5>; }
-         if (q == 6) { ker = TMOP_TcIdealShapeUnitSize_3D<6>; }
-
-         ker(NE, W, J, q);
+         TMOPTcIdealShapeUnitSize3D::Run(q, NE, W, J, q);
          return true;
       }
       case IDEAL_SHAPE_EQUAL_SIZE: return false;
@@ -156,28 +156,8 @@ bool TargetConstructor::ComputeAllElementTargets<3>(
          R->Mult(*nodes, x);
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 3, "");
          const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
-         decltype(&TMOP_TcIdealShapeGivenSize_3D<>) ker =
-            TMOP_TcIdealShapeGivenSize_3D;
 
-         if (d == 2 && q == 2) { ker = TMOP_TcIdealShapeGivenSize_3D<2, 2>; }
-         if (d == 2 && q == 3) { ker = TMOP_TcIdealShapeGivenSize_3D<2, 3>; }
-         if (d == 2 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_3D<2, 4>; }
-         if (d == 2 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_3D<2, 5>; }
-         if (d == 2 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_3D<2, 6>; }
-
-         if (d == 3 && q == 3) { ker = TMOP_TcIdealShapeGivenSize_3D<3, 3>; }
-         if (d == 3 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_3D<3, 4>; }
-         if (d == 3 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_3D<3, 5>; }
-         if (d == 3 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_3D<3, 6>; }
-
-         if (d == 4 && q == 4) { ker = TMOP_TcIdealShapeGivenSize_3D<4, 4>; }
-         if (d == 4 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_3D<4, 5>; }
-         if (d == 4 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_3D<4, 6>; }
-
-         if (d == 5 && q == 5) { ker = TMOP_TcIdealShapeGivenSize_3D<5, 5>; }
-         if (d == 5 && q == 6) { ker = TMOP_TcIdealShapeGivenSize_3D<5, 6>; }
-
-         ker(NE, detW, B, G, W, X, J, d, q, 4);
+         TMOPTcIdealShapeGivenSize3D::Run(d, q, NE, detW, B, G, W, X, J, d, q, 4);
          return true;
       }
       case GIVEN_SHAPE_AND_SIZE: return false;

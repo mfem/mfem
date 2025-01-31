@@ -127,7 +127,8 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
    });
 }
 
-TMOP_REGISTER_KERNELS(TMOPMultCoefKernels, TMOP_AddMultPA_C0_2D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPMultCoefKernels, TMOP_AddMultPA_C0_2D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPMultCoefKernels);
 
 void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
 {
@@ -152,9 +153,6 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
-
-   const static auto specialized_kernels = []
-   { return tmop::KernelSpecializations<TMOPMultCoefKernels>(); }();
 
    TMOPMultCoefKernels::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0, X,
                             Y, exp_lim, d, q, 4);

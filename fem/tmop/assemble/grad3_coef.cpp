@@ -159,7 +159,8 @@ void TMOP_SetupGradPA_C0_3D(const real_t lim_normal,
    });
 }
 
-TMOP_REGISTER_KERNELS(TMOPAssembleGradCoef3D, TMOP_SetupGradPA_C0_3D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleGradCoef3D, TMOP_SetupGradPA_C0_3D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleGradCoef3D);
 
 void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 {
@@ -169,7 +170,7 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
    const int NE = PA.ne, d = PA.maps_lim->ndof, q = PA.maps_lim->nqpt;
 
    const auto C0 = const_c0 ? Reshape(PA.C0.Read(), 1, 1, 1, 1)
-                            : Reshape(PA.C0.Read(), q, q, q, NE);
+                   : Reshape(PA.C0.Read(), q, q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
    const auto B = Reshape(PA.maps->B.Read(), q, d);
@@ -181,9 +182,6 @@ void TMOP_Integrator::AssembleGradPA_C0_3D(const Vector &x) const
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
-
-   const static auto specialized_kernels = []
-   { return tmop::KernelSpecializations<TMOPAssembleGradCoef3D>(); }();
 
    TMOPAssembleGradCoef3D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0,
                                X, H0, exp_lim, d, q, 4);

@@ -11,7 +11,6 @@
 
 #include "../pa.hpp"
 #include "../../tmop.hpp"
-// #include "../../kernel_dispatch.hpp"
 #include "../../../general/forall.hpp"
 
 namespace mfem
@@ -102,7 +101,9 @@ void TMOP_AssembleDiagonalPA_C0_3D(const int NE,
    });
 }
 
-TMOP_REGISTER_KERNELS(TMOPAssembleDiagCoef3D, TMOP_AssembleDiagonalPA_C0_3D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiagCoef3D,
+                           TMOP_AssembleDiagonalPA_C0_3D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiagCoef3D);
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &diagonal) const
 {
@@ -112,9 +113,6 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &diagonal) const
    const auto B = Reshape(PA.maps->B.Read(), q, d);
    const auto H0 = Reshape(PA.H0.Read(), DIM, DIM, q, q, q, NE);
    auto D = Reshape(diagonal.ReadWrite(), d, d, d, DIM, NE);
-
-   const static auto specialized_kernels = []
-   { return tmop::KernelSpecializations<TMOPAssembleDiagCoef3D>(); }();
 
    TMOPAssembleDiagCoef3D::Run(d, q, NE, B, H0, D, d, q, 4);
 }

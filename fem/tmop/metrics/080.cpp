@@ -9,8 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../kernel_dispatch.hpp"
-
 #include "../pa.hpp"
 #include "../mult/mult2.hpp"
 #include "../assemble/grad2.hpp"
@@ -79,6 +77,7 @@ using mult = tmop::func_t<mult_t>;
 
 // TMOP PA Setup, metric: 080
 MFEM_REGISTER_KERNELS(S080, setup, (int, int));
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(S080);
 
 template <int D, int Q>
 setup S080::Kernel()
@@ -91,14 +90,12 @@ setup S080::Fallback(int, int) { return setup_t::Mult<metric_t>; }
 template <>
 void tmop::Kernel<80>(setup_t &ker)
 {
-   const static auto setup_kernels = []
-   { return KernelSpecializations<S080>(); }();
    S080::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 
 // TMOP PA Mult, metric: 080
-
 MFEM_REGISTER_KERNELS(K080, mult, (int, int));
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(K080);
 
 template <int D, int Q>
 mult K080::Kernel()
@@ -111,8 +108,6 @@ mult K080::Fallback(int, int) { return mult_t::Mult<metric_t>; }
 template <>
 void tmop::Kernel<80>(mult_t &ker)
 {
-   const static auto mult_kernels = []
-   { return KernelSpecializations<K080>(); }();
    K080::Run(ker.Ndof(), ker.Nqpt(), ker);
 }
 

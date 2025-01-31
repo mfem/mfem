@@ -12,7 +12,6 @@
 #include "../pa.hpp"
 #include "../../tmop.hpp"
 #include "../../kernels.hpp"
-// #include "../../kernel_dispatch.hpp"
 #include "../../../general/forall.hpp"
 #include "../../../linalg/kernels.hpp"
 
@@ -138,7 +137,8 @@ void TMOP_SetupGradPA_C0_2D(const real_t lim_normal,
    });
 }
 
-TMOP_REGISTER_KERNELS(TMOPAssembleGradCoef2D, TMOP_SetupGradPA_C0_2D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleGradCoef2D, TMOP_SetupGradPA_C0_2D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleGradCoef2D);
 
 void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
 {
@@ -148,7 +148,7 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
    const bool const_c0 = PA.C0.Size() == 1;
 
    const auto C0 = PA.C0.Size() == 1 ? Reshape(PA.C0.Read(), 1, 1, 1)
-                                     : Reshape(PA.C0.Read(), q, q, NE);
+                   : Reshape(PA.C0.Read(), q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
    const auto B = Reshape(PA.maps->B.Read(), q, d);
@@ -160,9 +160,6 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
 
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
-
-   const static auto specialized_kernels = []
-   { return tmop::KernelSpecializations<TMOPAssembleGradCoef2D>(); }();
 
    TMOPAssembleGradCoef2D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, B, BLD, X0,
                                X, H0, exp_lim, d, q, 4);

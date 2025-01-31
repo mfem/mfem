@@ -87,7 +87,8 @@ void TMOP_AddMultGradPA_C0_3D(const int NE,
    });
 }
 
-TMOP_REGISTER_KERNELS(TMOPMultGradCoefKernels3D, TMOP_AddMultGradPA_C0_3D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPMultGradCoefKernels3D, TMOP_AddMultGradPA_C0_3D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPMultGradCoefKernels3D);
 
 void TMOP_Integrator::AddMultGradPA_C0_3D(const Vector &R, Vector &C) const
 {
@@ -98,9 +99,6 @@ void TMOP_Integrator::AddMultGradPA_C0_3D(const Vector &R, Vector &C) const
    const auto B = Reshape(PA.maps->B.Read(), q, d);
    const auto X = Reshape(R.Read(), d, d, d, DIM, NE);
    auto Y = Reshape(C.ReadWrite(), d, d, d, DIM, NE);
-
-   const static auto specialized_kernels = []
-   { return tmop::KernelSpecializations<TMOPMultGradCoefKernels3D>(); }();
 
    TMOPMultGradCoefKernels3D::Run(d, q, NE, B, H0, X, Y, d, q, 4);
 }

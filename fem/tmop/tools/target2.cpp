@@ -95,11 +95,13 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
    });
 }
 
-TMOP_REGISTER_KERNELS_1(TMOPTcIdealShapeUnitSize2D,
-                        TMOP_TcIdealShapeUnitSize_2D);
+MFEM_TMOP_REGISTER_KERNELS_1(TMOPTcIdealShapeUnitSize2D,
+                             TMOP_TcIdealShapeUnitSize_2D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(TMOPTcIdealShapeUnitSize2D);
 
-TMOP_REGISTER_KERNELS(TMOPTcIdealShapeGivenSize2D,
-                      TMOP_TcIdealShapeGivenSize_2D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPTcIdealShapeGivenSize2D,
+                           TMOP_TcIdealShapeGivenSize_2D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPTcIdealShapeGivenSize2D);
 
 template <>
 bool TargetConstructor::ComputeAllElementTargets<2>(
@@ -135,8 +137,6 @@ bool TargetConstructor::ComputeAllElementTargets<2>(
    {
       case IDEAL_SHAPE_UNIT_SIZE: // Jtr(i) = Wideal;
       {
-         const static auto specialized_kernels = []
-         { return tmop::KernelSpecializations1<TMOPTcIdealShapeUnitSize2D>(); }();
          TMOPTcIdealShapeUnitSize2D::Run(q, NE, W, J, q);
          return true;
       }
@@ -151,8 +151,6 @@ bool TargetConstructor::ComputeAllElementTargets<2>(
          R->Mult(*nodes, x);
          MFEM_ASSERT(nodes->FESpace()->GetVDim() == 2, "");
          const auto X = Reshape(x.Read(), d, d, DIM, NE);
-         const static auto specialized_kernels = []
-         { return tmop::KernelSpecializations<TMOPTcIdealShapeGivenSize2D>(); }();
 
          TMOPTcIdealShapeGivenSize2D::Run(d, q, NE, detW, B, G, W, X, J, d, q, 4);
          return true;

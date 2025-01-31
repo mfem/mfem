@@ -168,7 +168,8 @@ void TMOP_AssembleDiagonalPA_2D(const int NE,
    });
 }
 
-TMOP_REGISTER_KERNELS(TMOPAssembleDiag2D, TMOP_AssembleDiagonalPA_2D);
+MFEM_TMOP_REGISTER_KERNELS(TMOPAssembleDiag2D, TMOP_AssembleDiagonalPA_2D);
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS(TMOPAssembleDiag2D);
 
 void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
 {
@@ -186,9 +187,6 @@ void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
    const auto J = Reshape(j.Read(), DIM, DIM, q, q, NE);
    const auto H = Reshape(h.Read(), DIM, DIM, DIM, DIM, q, q, NE);
    auto D = Reshape(diagonal.ReadWrite(), d, d, DIM, NE);
-
-   const static auto specialized_kernels = []
-   { return tmop::KernelSpecializations<TMOPAssembleDiag2D>(); }();
 
    TMOPAssembleDiag2D::Run(d, q, NE, B, G, J, H, D, d, q, 4);
 }
