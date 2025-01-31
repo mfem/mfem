@@ -118,7 +118,8 @@ void IterativeSolverMP<T>::SetPrintLevel(PrintLevel options)
 }
 
 template <class T>
-IterativeSolverMP<T>::PrintLevel IterativeSolverMP<T>::FromLegacyPrintLevel(
+typename IterativeSolverMP<T>::PrintLevel
+IterativeSolverMP<T>::FromLegacyPrintLevel(
    int print_level_)
 {
 #ifdef MFEM_USE_MPI
@@ -753,7 +754,7 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
    {
       d = r;
    }
-   nom0 = nom = Dot(d, r);
+   nom0 = nom = this->Dot(d, r);
    if (nom0 >= 0.0) { this->initial_norm = sqrt(nom0); }
    MFEM_VERIFY(IsFinite(nom), "nom = " << nom);
    if (this->print_options.iterations || this->print_options.first_and_last)
@@ -761,7 +762,7 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
       mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
                 << nom << (this->print_options.first_and_last ? " ...\n" : "\n");
    }
-   Monitor(0, nom, r, x);
+   this->Monitor(0, nom, r, x);
 
    if (nom < 0.0)
    {
@@ -786,11 +787,11 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
    }
 
    oper->Mult(d, z);  // z = A d
-   den = Dot(z, d);
+   den = this->Dot(z, d);
    MFEM_VERIFY(IsFinite(den), "den = " << den);
    if (den <= 0.0)
    {
-      if (Dot(d, d) > 0.0 && print_options.warnings)
+      if (this->Dot(d, d) > 0.0 && print_options.warnings)
       {
          mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                    << den << '\n';
@@ -816,11 +817,11 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
       if (prec)
       {
          prec->Mult(r, z);      //  z = B r
-         betanom = Dot(r, z);
+         betanom = this->Dot(r, z);
       }
       else
       {
-         betanom = Dot(r, r);
+         betanom = this->Dot(r, r);
       }
       MFEM_VERIFY(IsFinite(betanom), "betanom = " << betanom);
       if (betanom < 0.0)
@@ -841,7 +842,7 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
                    << betanom << std::endl;
       }
 
-      Monitor(i, betanom, r, x);
+      this->Monitor(i, betanom, r, x);
 
       if (betanom <= r0)
       {
@@ -865,11 +866,11 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
          add(r, beta, d, d);
       }
       oper->Mult(d, z);       //  z = A d
-      den = Dot(d, z);
+      den = this->Dot(d, z);
       MFEM_VERIFY(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {
-         if (Dot(d, d) > 0.0 && print_options.warnings)
+         if (this->Dot(d, d) > 0.0 && print_options.warnings)
          {
             mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
                       << den << '\n';
@@ -904,7 +905,7 @@ void CGSolverMP<T>::Mult(const VectorMP<T> &b, VectorMP<T> &x) const
 
    final_norm = sqrt(betanom);
 
-   Monitor(final_iter, final_norm, r, x, true);
+   this->Monitor(final_iter, final_norm, r, x, true);
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,
