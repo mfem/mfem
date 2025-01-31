@@ -127,6 +127,21 @@ public:
     */
    Array<int> & GetAttributeSet(const std::string & set_name);
 
+   /// @brief Access a constant reference to a named attribute set
+   /**
+       @param[in] set_name The name of the set being accessed
+
+       @note If the named set does not exist an error message will be printed
+       and execution will halt. `AttributeSetExists()` may be used to verify
+       existence of a named set.
+
+       @note The reference returned by this method can be invalidated by
+       subsequent calls to SetAttributeSet, ClearAttributeSet, or
+       RemoveFromAttributeSet. AddToAttributeSet should not invalidate this
+       reference.
+    */
+   const Array<int> & GetAttributeSet(const std::string & set_name) const;
+
    /// @brief Return a marker array corresponding to a named attribute set
    /**
        @param[in] set_name The name of the set being accessed
@@ -135,7 +150,7 @@ public:
        and execution will halt. `AttributeSetExists()` may be used to verify
        existence of a named set.
     */
-   Array<int> GetAttributeSetMarker(const std::string & set_name);
+   Array<int> GetAttributeSetMarker(const std::string & set_name) const;
 
    /// @brief Prepares a marker array corresponding to an array of element
    /// attributes
