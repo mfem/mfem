@@ -19,7 +19,7 @@ CMakeFiles/
 # Clangd server cache
 *.cache*
 
-#vscode  settings
+#vscode settings
 /.vscode/
 
 # Backup files
@@ -39,7 +39,7 @@ CMakeFiles/
 config/_config.hpp
 config/config.mk
 config/sample-runs-build.log
-# config/user.cmake
+config/user.cmake
 config/user.mk
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
