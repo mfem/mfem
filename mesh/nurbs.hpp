@@ -975,7 +975,6 @@ public:
                      Array<NURBSExtension *> VNURBSExt,
                      const ParNURBSExtension *par_parent);
 
-   Array<int> GetPartitioning() {return partitioning;}
 };
 #endif
 
