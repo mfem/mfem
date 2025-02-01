@@ -5240,6 +5240,10 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
                                   *VNURBSExt[1]->GetGlobalElementDofTable(),offset1,
                                   *VNURBSExt[2]->GetGlobalElementDofTable(),offset2);
    }
+   else
+   {
+      MFEM_ABORT("The size of VNURBSExt must be 2 or 3");
+   }
 
    Table dof_proc;
    Array<int> partition = par_parent->partitioning;
