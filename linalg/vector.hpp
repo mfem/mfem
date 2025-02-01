@@ -84,21 +84,21 @@ class VectorMP;
 template <class T>
 void add(const VectorMP<T> &v1, const VectorMP<T> &v2, VectorMP<T> &v);
 
-template <class T>
-void add(const VectorMP<T> &v1, T alpha, const VectorMP<T> &v2, VectorMP<T> &v);
+template <class T, class U>
+void add(const VectorMP<T> &v1, U alpha, const VectorMP<T> &v2, VectorMP<T> &v);
 
-template <class T>
-void add(const T a, const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z);
+template <class T, class U>
+void add(const U a, const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z);
 
-template <class T>
-void add(const T a, const VectorMP<T> &x,
-         const T b, const VectorMP<T> &y, VectorMP<T> &z);
+template <class T, class U>
+void add(const U a, const VectorMP<T> &x,
+         const U b, const VectorMP<T> &y, VectorMP<T> &z);
 
 template <class T>
 void subtract(const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z);
 
-template <class T>
-void subtract(const T a, const VectorMP<T> &x, const VectorMP<T> &y,
+template <class T, class U>
+void subtract(const U a, const VectorMP<T> &x, const VectorMP<T> &y,
               VectorMP<T> &z);
 
 /// Vector data type.

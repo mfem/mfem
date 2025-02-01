@@ -339,7 +339,7 @@ void VectorMP<T>::Reciprocal()
 template <class T>
 void add(const VectorMP<T> &v1, const VectorMP<T> &v2, VectorMP<T> &v)
 {
-   MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
+   MFEM_ASSERT(v.Size() == v1.Size() && v.Size() == v2.Size(),
                "incompatible Vectors!");
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
@@ -352,17 +352,17 @@ void add(const VectorMP<T> &v1, const VectorMP<T> &v2, VectorMP<T> &v)
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = x1[i] + x2[i]; });
 #else
    #pragma omp parallel for
-   for (int i = 0; i < v.size; i++)
+   for (int i = 0; i < v.Size(); i++)
    {
       v.data[i] = v1.data[i] + v2.data[i];
    }
 #endif
 }
 
-template <class T>
-void add(const VectorMP<T> &v1, T alpha, const VectorMP<T> &v2, VectorMP<T> &v)
+template <class T, class U>
+void add(const VectorMP<T> &v1, U alpha, const VectorMP<T> &v2, VectorMP<T> &v)
 {
-   MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
+   MFEM_ASSERT(v.Size() == v1.Size() && v.Size() == v2.Size(),
                "incompatible Vectors!");
 
    if (alpha == 0.0)
@@ -377,7 +377,7 @@ void add(const VectorMP<T> &v1, T alpha, const VectorMP<T> &v2, VectorMP<T> &v)
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
       const bool use_dev = v1.UseDevice() || v2.UseDevice() || v.UseDevice();
-      const int N = v.size;
+      const int N = v.Size();
       // Note: get read access first, in case v is the same as v1/v2.
       auto d_x = v1.Read(use_dev);
       auto d_y = v2.Read(use_dev);
@@ -389,7 +389,7 @@ void add(const VectorMP<T> &v1, T alpha, const VectorMP<T> &v2, VectorMP<T> &v)
 #else
       const T *v1p = v1.data, *v2p = v2.data;
       T *vp = v.data;
-      const int s = v.size;
+      const int s = v.Size();
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -399,10 +399,10 @@ void add(const VectorMP<T> &v1, T alpha, const VectorMP<T> &v2, VectorMP<T> &v)
    }
 }
 
-template <class T>
-void add(const T a, const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z)
+template <class T, class U>
+void add(const U a, const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z)
 {
-   MFEM_ASSERT(x.size == y.size && x.size == z.size,
+   MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                "incompatible Vectors!");
 
    if (a == 0.0)
@@ -417,7 +417,7 @@ void add(const T a, const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z)
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
-      const int N = x.size;
+      const int N = x.Size();
       // Note: get read access first, in case z is the same as x/y.
       auto xd = x.Read(use_dev);
       auto yd = y.Read(use_dev);
@@ -430,7 +430,7 @@ void add(const T a, const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z)
       const T *xp = x.data;
       const T *yp = y.data;
       T       *zp = z.data;
-      const int      s = x.size;
+      const int      s = x.Size();
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -440,11 +440,11 @@ void add(const T a, const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z)
    }
 }
 
-template <class T>
-void add(const T a, const VectorMP<T> &x,
-         const T b, const VectorMP<T> &y, VectorMP<T> &z)
+template <class T, class U>
+void add(const U a, const VectorMP<T> &x,
+         const U b, const VectorMP<T> &y, VectorMP<T> &z)
 {
-   MFEM_ASSERT(x.size == y.size && x.size == z.size,
+   MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                "incompatible Vectors!");
 
    if (a == 0.0)
@@ -473,7 +473,7 @@ void add(const T a, const VectorMP<T> &x,
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
-      const int N = x.size;
+      const int N = x.Size();
       // Note: get read access first, in case z is the same as x/y.
       auto xd = x.Read(use_dev);
       auto yd = y.Read(use_dev);
@@ -486,7 +486,7 @@ void add(const T a, const VectorMP<T> &x,
       const T *xp = x.data;
       const T *yp = y.data;
       T       *zp = z.data;
-      const int      s = x.size;
+      const int      s = x.Size();
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -499,12 +499,12 @@ void add(const T a, const VectorMP<T> &x,
 template <class T>
 void subtract(const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z)
 {
-   MFEM_ASSERT(x.size == y.size && x.size == z.size,
+   MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                "incompatible Vectors!");
 
 #if !defined(MFEM_USE_LEGACY_OPENMP)
    const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
-   const int N = x.size;
+   const int N = x.Size();
    // Note: get read access first, in case z is the same as x/y.
    auto xd = x.Read(use_dev);
    auto yd = y.Read(use_dev);
@@ -517,7 +517,7 @@ void subtract(const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z)
    const T *xp = x.data;
    const T *yp = y.data;
    T       *zp = z.data;
-   const int     s = x.size;
+   const int     s = x.Size();
    #pragma omp parallel for
    for (int i = 0; i < s; i++)
    {
@@ -526,11 +526,11 @@ void subtract(const VectorMP<T> &x, const VectorMP<T> &y, VectorMP<T> &z)
 #endif
 }
 
-template <class T>
-void subtract(const T a, const VectorMP<T> &x, const VectorMP<T> &y,
+template <class T, class U>
+void subtract(const U a, const VectorMP<T> &x, const VectorMP<T> &y,
               VectorMP<T> &z)
 {
-   MFEM_ASSERT(x.size == y.size && x.size == z.size,
+   MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
                "incompatible Vectors!");
 
    if (a == 0.)
@@ -545,7 +545,7 @@ void subtract(const T a, const VectorMP<T> &x, const VectorMP<T> &y,
    {
 #if !defined(MFEM_USE_LEGACY_OPENMP)
       const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
-      const int N = x.size;
+      const int N = x.Size();
       // Note: get read access first, in case z is the same as x/y.
       auto xd = x.Read(use_dev);
       auto yd = y.Read(use_dev);
@@ -558,7 +558,7 @@ void subtract(const T a, const VectorMP<T> &x, const VectorMP<T> &y,
       const T *xp = x.data;
       const T *yp = y.data;
       T       *zp = z.data;
-      const int      s = x.size;
+      const int      s = x.Size();
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
       {
@@ -1422,20 +1422,52 @@ void add<real_t>(const VectorMP<real_t> &v1, const VectorMP<real_t> &v2,
                  VectorMP<real_t> &v);
 
 template
-void add<float>(const VectorMP<float> &v1, float alpha,
-                const VectorMP<float> &v2, VectorMP<float> &v);
+void add<float,float>(const VectorMP<float> &v1, float alpha,
+                      const VectorMP<float> &v2, VectorMP<float> &v);
 
 template
-void add<double>(const VectorMP<double> &v1, double alpha,
-                 const VectorMP<double> &v2, VectorMP<double> &v);
+void add<float,double>(const VectorMP<float> &v1, double alpha,
+                       const VectorMP<float> &v2, VectorMP<float> &v);
 
 template
-void add<real_t>(const real_t a, const VectorMP<real_t> &x,
-                 const VectorMP<real_t> &y, VectorMP<real_t> &z);
+void add<double,double>(const VectorMP<double> &v1, double alpha,
+                        const VectorMP<double> &v2, VectorMP<double> &v);
 
 template
-void add<real_t>(const real_t a, const VectorMP<real_t> &x,
-                 const real_t b, const VectorMP<real_t> &y, VectorMP<real_t> &z);
+void add<double,float>(const VectorMP<double> &v1, float alpha,
+                       const VectorMP<double> &v2, VectorMP<double> &v);
+
+template
+void add<float,float>(const float a, const VectorMP<float> &x,
+                      const VectorMP<float> &y, VectorMP<float> &z);
+
+template
+void add<float,double>(const double a, const VectorMP<float> &x,
+                       const VectorMP<float> &y, VectorMP<float> &z);
+
+template
+void add<double,double>(const double a, const VectorMP<double> &x,
+                        const VectorMP<double> &y, VectorMP<double> &z);
+
+template
+void add<double,float>(const float a, const VectorMP<double> &x,
+                       const VectorMP<double> &y, VectorMP<double> &z);
+
+template
+void add<float,float>(const float a, const VectorMP<float> &x,
+                      const float b, const VectorMP<float> &y, VectorMP<float> &z);
+
+template
+void add<float,double>(const double a, const VectorMP<float> &x,
+                       const double b, const VectorMP<float> &y, VectorMP<float> &z);
+
+template
+void add<double,double>(const double a, const VectorMP<double> &x,
+                        const double b, const VectorMP<double> &y, VectorMP<double> &z);
+
+template
+void add<double,float>(const float a, const VectorMP<double> &x,
+                       const float b, const VectorMP<double> &y, VectorMP<double> &z);
 
 template
 void subtract<float>(const VectorMP<float> &x, const VectorMP<float> &y,
@@ -1446,8 +1478,23 @@ void subtract<double>(const VectorMP<double> &x, const VectorMP<double> &y,
                       VectorMP<double> &z);
 
 template
-void subtract<real_t>(const real_t a, const VectorMP<real_t> &x,
-                      const VectorMP<real_t> &y,
-                      VectorMP<real_t> &z);
+void subtract<float,float>(const float a, const VectorMP<float> &x,
+                           const VectorMP<float> &y,
+                           VectorMP<float> &z);
+
+template
+void subtract<float,double>(const double a, const VectorMP<float> &x,
+                            const VectorMP<float> &y,
+                            VectorMP<float> &z);
+
+template
+void subtract<double,double>(const double a, const VectorMP<double> &x,
+                             const VectorMP<double> &y,
+                             VectorMP<double> &z);
+
+template
+void subtract<double,float>(const float a, const VectorMP<double> &x,
+                            const VectorMP<double> &y,
+                            VectorMP<double> &z);
 
 } // namespace mfem

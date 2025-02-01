@@ -4319,7 +4319,7 @@ template <class T>
 SparseMatrixMP<T> * Add(const SparseMatrixMP<T> & A,
                         const SparseMatrixMP<T> & B)
 {
-   return Add(1.,A,1.,B);
+   return Add((T)1.,A,(T)1.,B);
 }
 
 template <class T>

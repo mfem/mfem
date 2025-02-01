@@ -288,7 +288,7 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> sqrt(dual<value_type, gradient_type> x)
 {
    using std::sqrt;
-   return {sqrt(x.value), x.gradient / (2.0 * sqrt(x.value))};
+   return {sqrt(x.value), x.gradient / ((real_t) 2.0 * sqrt(x.value))};
 }
 
 /** @brief implementation of cosine for dual numbers */

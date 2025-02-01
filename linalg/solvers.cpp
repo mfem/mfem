@@ -1728,7 +1728,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
       }
       else if (it == 2)
       {
-         add(1./rho1, *z, -rho2/rho1, w1, w0);   // (w0 == 0)
+         add((real_t) 1./rho1, *z, -rho2/rho1, w1, w0);   // (w0 == 0)
       }
       else
       {
