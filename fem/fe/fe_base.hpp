@@ -1045,8 +1045,8 @@ private:
    typedef std::map<int, Array<Basis*>*> BasisMap;
    /// key: (btype, p), value: underlying storage Array
    typedef std::unordered_map<std::pair<int, int>,
-                              std::unique_ptr<Array<real_t>>, PairHasher>
-       PointsMap;
+           std::unique_ptr<Array<real_t>>, PairHasher>
+           PointsMap;
 
    MemoryType h_mt;
    PointsMap points_container;
@@ -1086,14 +1086,15 @@ public:
    /// Get coordinates of an open (GaussLegendre) set of points if degree @a p
    const real_t *OpenPoints(const int p,
                             const int btype = BasisType::GaussLegendre
-                            , bool on_device=false)
+                                              , bool on_device=false)
    { return GetPoints(p, btype, on_device); }
 
    /// Get coordinates of a closed (GaussLegendre) set of points if degree @a p
    const real_t *ClosedPoints(const int p,
                               const int btype = BasisType::GaussLobatto,
-                              bool on_device = false) {
-     return GetPoints(p, btype, on_device);
+                              bool on_device = false)
+   {
+      return GetPoints(p, btype, on_device);
    }
 
    /** @brief Get a Poly_1D::Basis object of the given degree and BasisType,
