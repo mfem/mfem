@@ -358,49 +358,109 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
    REQUIRE(C.MaxMaxNorm() < tol);
 }
 
-TEST_CASE("DenseTensor LinearSolve methods",
-          "[DenseMatrix]")
+TEST_CASE("Batched Linear Algebra",
+          "[DenseMatrix][CUDA]")
 {
+   auto backend = GENERATE(BatchedLinAlg::NATIVE,
+                           BatchedLinAlg::GPU_BLAS,
+                           BatchedLinAlg::MAGMA);
+   // Skip unavailable backends
+   if (!BatchedLinAlg::IsAvailable(backend)) { return; }
+   CAPTURE(backend);
 
-   int N = 3;
-   DenseMatrix A(N);
-   A(0,0) = 4; A(0,1) =  5; A(0,2) = -2;
-   A(1,0) = 7; A(1,1) = -1; A(1,2) =  2;
-   A(2,0) = 3; A(2,1) =  1; A(2,2) =  4;
+   const int n = 3;
+   const int n_mat = 4;
+   const int n_rhs = 2;
 
-   real_t X[3] = { -14, 42, 28 };
+   DenseTensor A_batch(n, n, n_mat);
+   Vector x_batch(n * n_rhs * n_mat), y_batch(n * n_rhs * n_mat);
+   std::vector<DenseMatrix> As;
+   std::vector<DenseMatrix> xs, ys;
+   As.reserve(n_mat);
 
-   int NE = 10;
-   Vector X_batch(N*NE);
-   DenseTensor A_batch(N,N,NE);
-
-   auto a_batch = mfem::Reshape(A_batch.HostWrite(),N,N,NE);
-   auto x_batch = mfem::Reshape(X_batch.HostWrite(),N,NE);
-   // Column major
-   for (int e=0; e<NE; ++e)
+   int seed = 1;
+   for (int i = 0; i < n_mat; ++i)
    {
-
-      for (int r=0; r<N; ++r)
+      As.emplace_back(n, n);
+      xs.emplace_back(n, n_rhs);
+      for (int j = 0; j < n_rhs; ++j)
       {
-         for (int c=0; c<N; ++c)
+         Vector col;
+         xs.back().GetColumnReference(j, col);
+         col.Randomize(seed++);
+         for (int k = 0; k < n; ++k)
          {
-            a_batch(c, r, e) = A.GetData()[c+r*N];
+            x_batch[k + j*n + i*n*n_rhs] = xs.back()(k, j);
          }
-         x_batch(r,e) = X[r];
+      }
+      for (int j = 0; j < n; ++j)
+      {
+         Vector col;
+         As.back().GetColumnReference(j, col);
+         col.Randomize(seed++);
+         As.back()(j, j) += n + 1; // Ensure invertible
+      }
+      ys.emplace_back(n, n_rhs);
+      ys.back() = 0.0;
+      AddMult_a(1.5, As.back(), xs.back(), ys.back());
+      A_batch(i) = As.back();
+   }
+
+   // Test batched matrix-vector products
+   y_batch = 0.0;
+   BatchedLinAlg::Get(backend).AddMult(A_batch, x_batch, y_batch, 1.5, 1.0);
+   y_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
+   {
+      for (int j = 0; j < n_rhs; ++j)
+      {
+         for (int k = 0; k < n; ++k)
+         {
+            REQUIRE(y_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(ys[i](k, j)));
+         }
       }
    }
 
-   Array<int> P;
-   BatchLUFactor(A_batch, P);
-   BatchLUSolve(A_batch, P, X_batch);
-
-   auto xans_batch = mfem::Reshape(X_batch.HostRead(),N,NE);
-   REQUIRE(LinearSolve(A,X));
-   for (int e=0; e<NE; ++e)
+   // Test batched transposed matrix-vector products
+   for (int i = 0; i < n_mat; ++i)
    {
-      for (int r=0; r<N; ++r)
+      ys[i] = 0.0;
+      // AddMult_a_AtB(1.5, As[i], xs[i], ys[i]);
+      AddMult_a_AtB(1.5, As[i], xs[i], ys[i]);
+   }
+   const BatchedLinAlg::Op op = BatchedLinAlg::Op::T;
+   y_batch = 0.0;
+   BatchedLinAlg::Get(backend).AddMult(A_batch, x_batch, y_batch, 1.5, 1.0, op);
+   y_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
+   {
+      for (int j = 0; j < n_rhs; ++j)
       {
-         REQUIRE(xans_batch(r,e) == MFEM_Approx(X[r]));
+         for (int k = 0; k < n; ++k)
+         {
+            REQUIRE(y_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(ys[i](k, j)));
+         }
+      }
+   }
+
+   // Test batched LU factorization and solve
+   Array<int> P;
+   BatchedLinAlg::Get(backend).LUFactor(A_batch, P);
+   BatchedLinAlg::Get(backend).LUSolve(A_batch, P, x_batch);
+   for (int i = 0; i < n_mat; ++i)
+   {
+      DenseMatrixInverse Ai_inv(As[i]);
+      Ai_inv.Mult(xs[i]);
+   }
+   x_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
+   {
+      for (int j = 0; j < n_rhs; ++j)
+      {
+         for (int k = 0; k < n; ++k)
+         {
+            REQUIRE(x_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(xs[i](k, j), 1e-10));
+         }
       }
    }
 }

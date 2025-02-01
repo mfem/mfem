@@ -99,7 +99,14 @@ Array<int> & AttributeSets::GetAttributeSet(const std::string & set_name)
    return attr_sets[set_name];
 }
 
-Array<int> AttributeSets::GetAttributeSetMarker(const std::string & set_name)
+const Array<int> &
+AttributeSets::GetAttributeSet(const std::string & set_name) const
+{
+   return attr_sets[set_name];
+}
+
+Array<int>
+AttributeSets::GetAttributeSetMarker(const std::string & set_name) const
 {
    return AttrToMarker(attributes.Max(), GetAttributeSet(set_name));
 }

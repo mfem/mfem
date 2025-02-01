@@ -143,6 +143,7 @@ MFEM_USE_MUMPS         = NO
 MFEM_USE_STRUMPACK     = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
+MFEM_USE_MAGMA         = NO
 MFEM_USE_GNUTLS        = NO
 MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
@@ -288,6 +289,13 @@ endif
 ifeq ($(MFEM_USE_HIP),YES)
    SUNDIALS_LIB += -lsundials_nvechip
 endif
+SUNDIALS_CORE_PAT = $(subst\
+ @MFEM_DIR@,$(MFEM_DIR),$(SUNDIALS_DIR))/lib*/libsundials_core.*
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   ifneq ($(wildcard $(SUNDIALS_CORE_PAT)),)
+      SUNDIALS_LIB += -lsundials_core
+   endif
+endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
 
@@ -393,6 +401,11 @@ GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
 AMGX_DIR = @MFEM_DIR@/../amgx
 AMGX_OPT = -I$(AMGX_DIR)/include
 AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
+
+# MAGMA library configuration
+MAGMA_DIR = @MFEM_DIR@/../magma
+MAGMA_OPT = -I$(MAGMA_DIR)/include
+MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a -lcublas -lcusparse $(LAPACK_LIB)
 
 # GnuTLS library configuration
 GNUTLS_OPT =
@@ -501,11 +514,11 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 
 # CUDA library configuration
 CUDA_OPT =
-CUDA_LIB = -lcusparse
+CUDA_LIB = -lcusparse -lcublas
 
 # HIP library configuration
 HIP_OPT =
-HIP_LIB = -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib -lhipsparse
+HIP_LIB = -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib -lhipsparse -lhipblas
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa
@@ -527,8 +540,10 @@ ifdef GOTCHA_DIR
 endif
 
 # BLITZ library configuration
-BLITZ_DIR = @MFEM_DIR@/../blitz
+# BLITZ_DIR must be the custom installation folder (-DCMAKE_INSTALL_PREFIX).
+BLITZ_DIR = @MFEM_DIR@/../blitz/install
 BLITZ_OPT = -I$(BLITZ_DIR)/include
+# On intel machines, use /lib64 instead of /lib.
 BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
 
 # ALGOIM library configuration

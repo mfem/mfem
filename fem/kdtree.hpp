@@ -109,8 +109,8 @@ public:
          }
 
          // intialize the bounding box
-         const FiniteElement* el=space->GetFE(0);
-         trans = space->GetElementTransformation(0);
+         const FiniteElement* el = space->GetTypicalFE();
+         trans = mesh->GetTypicalElementTransformation();
          ir=&(el->GetNodes());
          space->GetElementVDofs(0,vdofs);
          elco.SetSize(dim,ir->GetNPoints());
@@ -160,16 +160,14 @@ public:
    /// bigger value. A node in the target grid function is matching
    /// a point with coordinates specified in the vector coords if the
    /// distance between them is smaller than lerr.
-   virtual
    void Project(const Vector& coords,const Vector& src,
-                int ordering=Ordering::byNODES, real_t lerr=1e-8);
+                int ordering=Ordering::byNODES, real_t lerr=1e-8) override;
 
    /// The project method can be called as many times as necessary with
    /// different grid functions gf. A node in the target grid function is
    /// matching a node from the source grid function if the distance
    /// between them is smaller than lerr.
-   virtual
-   void Project(const GridFunction& gf, real_t lerr=1e-8);
+   void Project(const GridFunction& gf, real_t lerr=1e-8) override;
 };
 
 } // namespace mfem

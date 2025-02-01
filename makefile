@@ -287,8 +287,8 @@ endif
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = ENZYME SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
  SUITESPARSE STRUMPACK GINKGO GNUTLS NETCDF SLEPC PETSC MPFR PUMI HIOP\
- GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX CALIPER PARELAG TRIBOL\
- BENCHMARK MOONOLITH ALGOIM
+ GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX MAGMA CALIPER PARELAG\
+ TRIBOL BENCHMARK MOONOLITH ALGOIM
 
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
@@ -355,7 +355,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_PUMI MFEM_USE_HIOP MFEM_USE_GSLIB MFEM_USE_CUDA MFEM_USE_HIP\
  MFEM_USE_OCCA MFEM_USE_MOONOLITH MFEM_USE_CEED MFEM_USE_RAJA MFEM_USE_UMPIRE\
  MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO MFEM_USE_AMGX\
- MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
+ MFEM_USE_MAGMA MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
  MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_TRIBOL MFEM_USE_ALGOIM MFEM_USE_ENZYME\
  MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE
 
@@ -391,7 +391,7 @@ MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
-   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT
+   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT GSLIB_OPT
 endif
 
 # If we have 'install' target, export variables used by config/makefile
@@ -425,10 +425,11 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg linalg/simd mesh mesh/submesh fem fem/ceed/interface \
-       fem/ceed/integrators/mass fem/ceed/integrators/convection \
-       fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
-       fem/ceed/solvers fem/fe fem/lor fem/qinterp fem/integ fem/tmop
+DIRS = general linalg linalg/simd linalg/batched mesh mesh/submesh fem \
+       fem/ceed/interface fem/ceed/integrators/mass \
+       fem/ceed/integrators/convection fem/ceed/integrators/diffusion \
+       fem/ceed/integrators/nlconvection fem/ceed/solvers fem/fe fem/lor \
+       fem/qinterp fem/integ fem/tmop fem/gslib
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -625,8 +626,10 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	$(INSTALLDEF) $(SRC)config/tconfig.hpp $(PREFIX_INC)/mfem/config
 # install remaining includes in each subdirectory
 	for dir in $(DIRS); do \
-	   ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
-	   $(INSTALLDEF) $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	   if ls $(SRC)$$dir/*.hpp > /dev/null 2>&1; then \
+	      ( $(MKINSTALLDIR) $(PREFIX_INC)/mfem/$$dir ) && \
+	      $(INSTALLDEF) $(SRC)$$dir/*.hpp $(PREFIX_INC)/mfem/$$dir; \
+	   fi; \
 	done
 # install *.okl files
 	for dir in $(OKL_DIRS); do \
@@ -720,6 +723,7 @@ status info:
 	$(info MFEM_USE_STRUMPACK     = $(MFEM_USE_STRUMPACK))
 	$(info MFEM_USE_GINKGO        = $(MFEM_USE_GINKGO))
 	$(info MFEM_USE_AMGX          = $(MFEM_USE_AMGX))
+	$(info MFEM_USE_MAGMA         = $(MFEM_USE_MAGMA))
 	$(info MFEM_USE_GNUTLS        = $(MFEM_USE_GNUTLS))
 	$(info MFEM_USE_NETCDF        = $(MFEM_USE_NETCDF))
 	$(info MFEM_USE_PETSC         = $(MFEM_USE_PETSC))
@@ -777,9 +781,10 @@ ASTYLE_BIN = astyle
 ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 3.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,$(dir)/*.?pp)
-FORMAT_FILES += tests/unit/*.?pp
-UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed
+TESTS_SUBDIRS = unit benchmarks convergence mem_manager par-mesh-format
+UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed enzyme
 MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners hooke/materials hooke/kernels
+FORMAT_FILES += $(foreach dir,$(TESTS_SUBDIRS),tests/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(MINIAPPS_SUBDIRS),miniapps/$(dir)/*.?pp)
 FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp

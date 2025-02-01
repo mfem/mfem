@@ -338,7 +338,7 @@ public:
       }
    }
 
-   void Mult(const Vector& x, Vector& y) const
+   void Mult(const Vector& x, Vector& y) const override
    {
       amg_->Mult(x, y);
 
@@ -349,9 +349,9 @@ public:
       }
    }
 
-   void SetOperator(const Operator&) { }
+   void SetOperator(const Operator&) override { }
 
-   ~ZeroWrapAMG()
+   ~ZeroWrapAMG() override
    {
       delete amg_;
    }
@@ -433,7 +433,7 @@ MatrixFreeAMS::MatrixFreeAMS(
    int inner_pi_iterations, int inner_g_iterations, Solver * nd_smoother) :
    Solver(oper.Height())
 {
-   int order = nd_fespace.GetFE(0)->GetOrder();
+   int order = nd_fespace.GetTypicalFE()->GetOrder();
    ParMesh *mesh = nd_fespace.GetParMesh();
    int dim = mesh->Dimension();
 

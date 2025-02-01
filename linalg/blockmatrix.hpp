@@ -88,24 +88,24 @@ public:
    void EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol, Vector & rhs);
 
    ///  Finalize all the submatrices
-   virtual void Finalize(int skip_zeros = 1) { Finalize(skip_zeros, false); }
+   void Finalize(int skip_zeros = 1) override { Finalize(skip_zeros, false); }
    /// A slightly more general version of the Finalize(int) method.
    void Finalize(int skip_zeros, bool fix_empty_rows);
 
    //! Returns a monolithic CSR matrix that represents this operator.
    SparseMatrix * CreateMonolithic() const;
    //! Export the monolithic matrix to file.
-   virtual void PrintMatlab(std::ostream & os = mfem::out) const;
+   void PrintMatlab(std::ostream & os = mfem::out) const override;
 
    /// @name Matrix interface
    ///@{
 
    /// Returns reference to a_{ij}.
-   virtual real_t& Elem (int i, int j);
+   real_t& Elem (int i, int j) override;
    /// Returns constant reference to a_{ij}.
-   virtual const real_t& Elem (int i, int j) const;
+   const real_t& Elem (int i, int j) const override;
    /// Returns a pointer to (approximation) of the matrix inverse.
-   virtual MatrixInverse * Inverse() const
+   MatrixInverse * Inverse() const override
    {
       mfem_error("BlockMatrix::Inverse not implemented \n");
       return static_cast<MatrixInverse*>(NULL);
@@ -116,27 +116,28 @@ public:
    ///@{
 
    //! Returns the total number of non zeros in the matrix.
-   virtual int NumNonZeroElems() const;
+   int NumNonZeroElems() const override;
    /// Gets the columns indexes and values for row *row*.
    /** The return value is always 0 since @a cols and @a srow are copies of the
        values in the matrix. */
-   virtual int GetRow(const int row, Array<int> &cols, Vector &srow) const;
+   int GetRow(const int row, Array<int> &cols, Vector &srow) const override;
    /** @brief If the matrix is square, this method will place 1 on the diagonal
        (i,i) if row i has "almost" zero l1-norm.
 
        If entry (i,i) does not belong to the sparsity pattern of A, then a error
        will occur. */
-   virtual void EliminateZeroRows(const real_t threshold = 1e-12);
+   void EliminateZeroRows(const real_t threshold = 1e-12) override;
 
    /// Matrix-Vector Multiplication y = A*x
-   virtual void Mult(const Vector & x, Vector & y) const;
+   void Mult(const Vector & x, Vector & y) const override;
    /// Matrix-Vector Multiplication y = y + val*A*x
-   virtual void AddMult(const Vector & x, Vector & y, const real_t val = 1.) const;
+   void AddMult(const Vector & x, Vector & y,
+                const real_t val = 1.) const override;
    /// MatrixTranspose-Vector Multiplication y = A'*x
-   virtual void MultTranspose(const Vector & x, Vector & y) const;
+   void MultTranspose(const Vector & x, Vector & y) const override;
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
-   virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const real_t val = 1.) const;
+   void AddMultTranspose(const Vector & x, Vector & y,
+                         const real_t val = 1.) const override;
    ///@}
 
    /** @brief Partial matrix vector multiplication of (*this) with @a x
