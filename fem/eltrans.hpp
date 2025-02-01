@@ -192,6 +192,8 @@ public:
 
 
 /// The inverse transformation of a given ElementTransformation.
+/// Can query a batch of points at once for elements which have the same basis
+/// and geometry.
 class InverseElementTransformation
 {
 public:
@@ -207,7 +209,12 @@ public:
          Use the point returned by FindClosestRefPoint() from a reference-space
          grid of type and size controlled by SetInitGuessPointsType() and
          SetInitGuessRelOrder(), respectively. */
-      GivenPoint = 3 ///< Use a specific point, set with SetInitialGuess().
+      GivenPoint = 3, ///< Use a specific point, set with SetInitialGuess().
+      FastScan = 4, /**< Use the point returned by FindClosestPhysPoint()
+          from a reference-space scan of type and size controlled by
+          SetInitGuessPointsType() and SetInitGuessRelOrder(), respectively.
+          The points chosen for the scan depends on the element type.
+          @see GeometryRefiner::Scan */
    };
 
    /// Solution strategy.
@@ -221,11 +228,14 @@ public:
          reference element by scaling back the Newton increments, i.e.
          projecting new iterates, x_new, lying outside the element, to the
          intersection of the line segment [x_old, x_new] with the boundary. */
-      NewtonElementProject = 2 /**<
+      NewtonElementProject = 2, /**<
          Use Newton's algorithm, restricting the reference-space points to the
          reference element by projecting new iterates, x_new, lying outside the
          element, to the point on the boundary closest (in reference-space) to
          x_new. */
+      NewtonTrustRegion = 3, /**<
+         Uses a hybrid Newton algorithm with trust regions as described by
+         https://arxiv.org/pdf/2501.12349 Sec. 3.2.1 */
    };
 
    /// Values returned by Transform().
@@ -371,6 +381,23 @@ public:
 
        @returns A value of type #TransformResult. */
    virtual int Transform(const Vector &pt, IntegrationPoint &ip);
+
+   /** @brief Performs a batch request of a set of points belonging to the given
+      elements.
+       @a pts is a list of physical point coordinates ordered by
+      Ordering::Type::byNODES.
+       @a elems is a list of local element indices for the mesh that the
+      provided base ElementTransformation belongs to.
+       @a types is where the output search classification is stored.
+       @a refs is a list of reference point coordinates ordered by
+      Ordering::Type::byNODES.
+       @a use_dev is a hint for if device acceleration should be used.
+      Device acceleration is currently only implemented for
+      SolverType::NewtonTrustRegion and tensor product basis elements.
+    */
+   void BatchTransform(const Vector &pts, const Array<int> &elems,
+                       Array<TransformResult> &types, Vector &refs,
+                       bool use_dev = true);
 };
 
 /// A standard isoparametric element transformation
