@@ -886,6 +886,15 @@ template class OperatorMP<double>;
 template class ConstrainedOperatorMP<float>;
 template class ConstrainedOperatorMP<double>;
 
+template class RectangularConstrainedOperatorMP<float>;
+template class RectangularConstrainedOperatorMP<double>;
+
+template class RAPOperatorMP<float>;
+template class RAPOperatorMP<double>;
+
+template class ProductOperatorMP<float>;
+template class ProductOperatorMP<double>;
+
 template class TripleProductOperatorMP<float>;
 template class TripleProductOperatorMP<double>;
 
