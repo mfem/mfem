@@ -21,10 +21,9 @@ namespace mfem
 
 template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_EnergyPA_2D(const real_t metric_normal,
-                      const real_t *w,
                       const bool const_m0,
-                      const real_t *mc,
-                      const real_t *metric_param,
+                      const ConstDeviceCube &MC,
+                      const real_t *metric_data,
                       const int mid,
                       const int NE,
                       const DeviceTensor<5, const real_t> &J,
@@ -39,14 +38,11 @@ void TMOP_EnergyPA_2D(const real_t metric_normal,
 {
    using Args = kernels::InvariantsEvaluator2D::Buffers;
    MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 56 || mid == 77 ||
-               mid == 80 || mid == 94,
-               "2D metric not yet implemented!");
+               mid == 80 || mid == 94, "2D metric " << mid << " not yet implemented!");
 
    constexpr int NBZ = 1;
 
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   const auto MC = const_m0 ? Reshape(mc, 1, 1, 1) : Reshape(mc, Q1D, Q1D, NE);
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -110,10 +106,10 @@ void TMOP_EnergyPA_2D(const real_t metric_normal,
                return 0.5 * (I2b * I2b + 1. / (I2b * I2b) - 2.);
             };
 
-            auto EvalW_80 = [&]()
+            auto EvalW_80 = [&](const real_t *w)
             { return w[0] * EvalW_02() + w[1] * EvalW_77(); };
 
-            auto EvalW_94 = [&]()
+            auto EvalW_94 = [&](const real_t *w)
             { return w[0] * EvalW_02() + w[1] * EvalW_56(); };
 
             const real_t EvalW = mid == 1  ? EvalW_01()
@@ -121,8 +117,8 @@ void TMOP_EnergyPA_2D(const real_t metric_normal,
                                  : mid == 7  ? EvalW_07()
                                  : mid == 56 ? EvalW_56()
                                  : mid == 77 ? EvalW_77()
-                                 : mid == 80 ? EvalW_80()
-                                 : mid == 94 ? EvalW_94()
+                                 : mid == 80 ? EvalW_80(metric_data)
+                                 : mid == 94 ? EvalW_94(metric_data)
                                  : 0.0;
 
             E(qx, qy, e) = weight * EvalW;
@@ -146,25 +142,22 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &x) const
    {
       m->GetWeights(mp);
    }
+   const auto *metric_data = mp.Read();
 
    const Vector &mc = PA.MC;
-
    const bool const_m0 = mc.Size() == 1;
-
    const auto MC =
       const_m0 ? Reshape(mc.Read(), 1, 1, 1) : Reshape(mc.Read(), q, q, NE);
-
-   const real_t *w = mp.Read();
 
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, NE);
    const auto B = Reshape(PA.maps->B.Read(), q, d);
    const auto G = Reshape(PA.maps->G.Read(), q, d);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
    const auto X = Reshape(x.Read(), d, d, DIM, NE);
-
    auto E = Reshape(PA.E.Write(), q, q, NE);
 
-   TMOPEnergyPA2D::Run(d, q, mn, w, const_m0, MC, mp, MId, NE, J, W, B, G, X, E,
+   TMOPEnergyPA2D::Run(d, q, //
+                       mn, const_m0, MC, metric_data, MId, NE, J, W, B, G, X, E,
                        d, q, 4);
    return PA.E * PA.O;
 }

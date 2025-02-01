@@ -425,7 +425,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    }
    else if (lin_solver == 1)
    {
-      auto *cg = new CGSolver(PFesGetParMeshGetComm(fes));
+      auto cg = new CGSolver(PFesGetParMeshGetComm(fes));
       cg->SetMaxIter(max_lin_iter);
       cg->SetRelTol(linsol_rtol);
       cg->SetAbsTol(0.0);
@@ -434,7 +434,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    }
    else
    {
-      MINRESSolver *minres = new MINRESSolver(PFesGetParMeshGetComm(fes));
+      auto minres = new MINRESSolver(PFesGetParMeshGetComm(fes));
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
@@ -449,7 +449,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
 #if defined(MFEM_USE_MPI) && defined(MFEM_TMOP_MPI)
          else
          {
-            HypreSmoother *hs = new HypreSmoother;
+            auto hs = new HypreSmoother;
             hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
                         : HypreSmoother::l1Jacobi,
                         1);
@@ -471,7 +471,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    const int NE = pmesh->GetNE();
    for (int i = 0; i < NE; i++)
    {
-      ElementTransformation *transf = pmesh->GetElementTransformation(i);
+      auto transf = pmesh->GetElementTransformation(i);
       for (int j = 0; j < ir->GetNPoints(); j++)
       {
          transf->SetIntPoint(&ir->IntPoint(j));
@@ -512,7 +512,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
       x = x_init;
       x.SetTrueVector();
 
-      DiscreteAdaptTC *datc = dynamic_cast<DiscreteAdaptTC *>(target_c.get());
+      auto datc = dynamic_cast<DiscreteAdaptTC *>(target_c.get());
       if (datc && target_id == 5) { datc->SetDiscreteTargetSize(size); }
       if (datc && target_id == 7)
       {

@@ -23,7 +23,7 @@ template <int T_D1D = 0, int T_Q1D = 0, int T_MAX = 4>
 void TMOP_EnergyPA_3D(const real_t metric_normal,
                       const real_t *w,
                       const bool const_m0,
-                      const real_t *mc,
+                      const DeviceTensor<4, const real_t> &MC,
                       const int mid,
                       const int NE,
                       const DeviceTensor<6, const real_t> &J,
@@ -42,9 +42,6 @@ void TMOP_EnergyPA_3D(const real_t metric_normal,
                "3D metric not yet implemented!");
 
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   const auto MC =
-      const_m0 ? Reshape(mc, 1, 1, 1, 1) : Reshape(mc, Q1D, Q1D, Q1D, NE);
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
@@ -153,15 +150,12 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &x) const
    {
       m->GetWeights(mp);
    }
+   const auto *w = mp.Read();
 
    const Vector &mc = PA.MC;
-
    const bool const_m0 = mc.Size() == 1;
-
    const auto MC =
-      const_m0 ? Reshape(mc.Read(), 1, 1, 1) : Reshape(mc.Read(), q, q, NE);
-
-   const real_t *w = mp.Read();
+      const_m0 ? Reshape(mc.Read(), 1, 1, 1, 1) : Reshape(mc.Read(), q, q, q, NE);
 
    const auto J = Reshape(PA.Jtr.Read(), DIM, DIM, q, q, q, NE);
    const auto B = Reshape(PA.maps->B.Read(), q, d);
@@ -170,7 +164,7 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &x) const
    const auto X = Reshape(x.Read(), d, d, d, DIM, NE);
    auto E = Reshape(PA.E.Write(), q, q, q, NE);
 
-   TMOPEnergyPA3D::Run(d, q,
+   TMOPEnergyPA3D::Run(d, q, //
                        mn, w, const_m0, MC, M, NE, J, W, B, G, X, E, d, q, 4);
 
    return PA.E * PA.O;
