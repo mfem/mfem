@@ -5242,7 +5242,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    }
 
    Table dof_proc;
-   mfem::Array<int> partition = par_parent->partitioning;
+   Array<int> partition = par_parent->partitioning;
    ListOfIntegerSets  groups;
    IntegerSet         group;
    Array<int>  vnurbsactiveDof;
