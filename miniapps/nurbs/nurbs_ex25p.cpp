@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
    prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
 
-   // Gauss-Seidel Smoother
+   // diagonal AMG preconditioner
    pc_r.reset(new HypreBoomerAMG(*PCOpAh.As<HypreParMatrix>()));
    pc_i.reset(new ScaledOperator(pc_r.get(), s));
 
