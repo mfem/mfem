@@ -256,7 +256,6 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient E_Re(dim, E_bdr_data_Re);
    VectorFunctionCoefficient E_Im(dim, E_bdr_data_Im);
 
-   mfem::out<<"main.cpp: test row 282"<<std::endl;
    // 9. Set up the bilinear form corresponding to the EM diffusion operator
    //    curl muinv curl + sigma I, by adding the curl-curl and the mass domain
    //    integrators.
