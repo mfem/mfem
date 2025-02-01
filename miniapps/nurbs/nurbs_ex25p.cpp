@@ -376,13 +376,17 @@ int main(int argc, char *argv[])
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
-   ofstream mesh_ofs("nurbs_ex25p.mesh");
+   ostringstream mesh_name, sol_name_r, sol_name_i;
+   mesh_name << "nurbs_ex25p.mesh" << setfill('0') << setw(6) << myid;
+   sol_name_r << "nurbs_ex25p-sol_r.gf" << setfill('0') << setw(6) << myid;
+   sol_name_i << "nurbs_ex25p-sol_i.gf" << setfill('0') << setw(6) << myid;
+   
+   ofstream mesh_ofs(mesh_name.str().c_str());
    mesh_ofs.precision(8);
-
    pmesh->Print(mesh_ofs);
 
-   ofstream sol_r_ofs("nurbs_ex25p-sol_r.gf");
-   ofstream sol_i_ofs("nurbs_ex25p-sol_i.gf");
+   ofstream sol_r_ofs(sol_name_r.str().c_str());
+   ofstream sol_i_ofs(sol_name_i.str().c_str());
    sol_r_ofs.precision(8);
    sol_i_ofs.precision(8);
    x.real().Save(sol_r_ofs);
