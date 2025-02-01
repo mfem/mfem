@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, NURBSext,
                                                               fec);
-   cout << "Number of finite element unknowns: "
+   cout <<"Number of finite element unknowns in rank "<<myid<<": "
         << fespace->GetTrueVSize() << endl;
 
 
