@@ -408,11 +408,7 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-   // NURBSext have been destoryed when construct the ParNURBSext!!!
-   if (myid == 0)
-   {
-      mfem::out<<"****** FINISH ******"<<std::endl;
-   }
+   // fespace owns and destroys NURBSext
    return 0;
 }
 
