@@ -5213,7 +5213,7 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
 
    // Only Support for the case when 'parent' is a local NURBSExtension.
    // Construct the gtopo and ldof_group
-   MFEM_ASSERT(VNURBSExt.Size()!=0,"No VNURBSext !!! from pfespace.cpp row 5069");
+   MFEM_ASSERT(VNURBSExt.Size()!=0,"No VNURBSext !!!");
    Table *global_elem_dof = nullptr;
 
    int offset1 = 0;
