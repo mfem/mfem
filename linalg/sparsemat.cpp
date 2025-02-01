@@ -52,13 +52,16 @@ namespace mfem
 using namespace std;
 
 #ifdef MFEM_USE_CUDA_OR_HIP
-int SparseMatrix::SparseMatrixCount = 0;
+int SparseMatrixMP<float>::SparseMatrixCount = 0;
+int SparseMatrixMP<double>::SparseMatrixCount = 0;
 // doxygen doesn't like the macro-assisted typename so let's skip parsing it:
 // \cond false
 MFEM_cu_or_hip(sparseHandle_t) SparseMatrix::handle = nullptr;
 // \endcond
-size_t SparseMatrix::bufferSize = 0;
-void * SparseMatrix::dBuffer = nullptr;
+size_t SparseMatrixMP<float>::bufferSize = 0;
+size_t SparseMatrixMP<double>::bufferSize = 0;
+void * SparseMatrixMP<float>::dBuffer = nullptr;
+void * SparseMatrixMP<double>::dBuffer = nullptr;
 #endif // MFEM_USE_CUDA_OR_HIP
 
 template <class T>
@@ -4231,8 +4234,8 @@ SparseMatrixMP<T> *Mult_AtDA(const SparseMatrixMP<T> &A, const Vector &D,
    return AtDA;
 }
 
-template <class T>
-SparseMatrixMP<T> * Add(T a, const SparseMatrixMP<T> & A, T b,
+template <class T, class U>
+SparseMatrixMP<T> * Add(U a, const SparseMatrixMP<T> & A, U b,
                         const SparseMatrixMP<T> & B)
 {
    int nrows = A.Height();
@@ -4345,9 +4348,9 @@ SparseMatrixMP<T> * Add(Array<SparseMatrixMP<T> *> & Ai)
 }
 
 /// B += alpha * A
-template <class T>
+template <class T, class U>
 void Add(const SparseMatrixMP<T> &A,
-         T alpha, DenseMatrix &B)
+         U alpha, DenseMatrix &B)
 {
    for (int r = 0; r < B.Height(); r++)
    {
@@ -4537,15 +4540,23 @@ SparseMatrixMP<real_t> * Add(const SparseMatrixMP<real_t> & A,
                              const SparseMatrixMP<real_t> & B);
 
 template
-SparseMatrixMP<real_t> * Add(real_t a, const SparseMatrixMP<real_t> & A,
-                             real_t b,
+SparseMatrixMP<real_t> * Add(float a, const SparseMatrixMP<real_t> & A,
+                             float b,
+                             const SparseMatrixMP<real_t> & B);
+
+template
+SparseMatrixMP<real_t> * Add(double a, const SparseMatrixMP<real_t> & A,
+                             double b,
                              const SparseMatrixMP<real_t> & B);
 
 template
 SparseMatrixMP<real_t> * Add(Array<SparseMatrixMP<real_t> *> & Ai);
 
 template
-void Add(const SparseMatrixMP<real_t> &A, real_t alpha, DenseMatrix &B);
+void Add(const SparseMatrixMP<real_t> &A, float alpha, DenseMatrix &B);
+
+template
+void Add(const SparseMatrixMP<real_t> &A, double alpha, DenseMatrix &B);
 
 template
 DenseMatrix *Mult(const SparseMatrixMP<real_t> &A, DenseMatrix &B);

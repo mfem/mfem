@@ -814,16 +814,16 @@ template <class T>
 SparseMatrixMP<T> * Add(const SparseMatrixMP<T> & A,
                         const SparseMatrixMP<T> & B);
 /// Matrix addition result = a*A + b*B
-template <class T>
-SparseMatrixMP<T> * Add(T a, const SparseMatrixMP<T> & A, T b,
+template <class T, class U>
+SparseMatrixMP<T> * Add(U a, const SparseMatrixMP<T> & A, U b,
                         const SparseMatrixMP<T> & B);
 /// Matrix addition result = sum_i A_i
 template <class T>
 SparseMatrixMP<T> * Add(Array<SparseMatrixMP<T> *> & Ai);
 
 /// B += alpha * A
-template <class T>
-void Add(const SparseMatrixMP<T> &A, T alpha, DenseMatrix &B);
+template <class T, class U>
+void Add(const SparseMatrixMP<T> &A, U alpha, DenseMatrix &B);
 
 /// Produces a block matrix with blocks A_{ij}*B
 DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B);

@@ -927,15 +927,15 @@ template <class T>
 void PCG(const OperatorMP<T> &A, SolverMP<T> &B, const VectorMP<T> &b,
          VectorMP<T> &x,
          int print_iter, int max_num_iter,
-         T RTOLERANCE, T ATOLERANCE)
+         double RTOLERANCE, double ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
    CGSolverMP<T> pcg;
    pcg.SetPrintLevel(print_iter);
    pcg.SetMaxIter(max_num_iter);
-   pcg.SetRelTol(sqrt(RTOLERANCE));
-   pcg.SetAbsTol(sqrt(ATOLERANCE));
+   pcg.SetRelTol(sqrt((T)RTOLERANCE));
+   pcg.SetAbsTol(sqrt((T)ATOLERANCE));
    pcg.SetOperator(A);
    pcg.SetPreconditioner(B);
    pcg.Mult(b, x);
@@ -945,7 +945,7 @@ template
 void PCG<float>(const OperatorMP<float> &A, SolverMP<float> &B,
                 const VectorMP<float> &b, VectorMP<float> &x,
                 int print_iter, int max_num_iter,
-                float RTOLERANCE, float ATOLERANCE);
+                double RTOLERANCE, double ATOLERANCE);
 
 template
 void PCG<double>(const OperatorMP<double> &A, SolverMP<double> &B,

@@ -561,7 +561,7 @@ template <class T>
 void PCG(const OperatorMP<T> &A, SolverMP<T> &B, const VectorMP<T> &b,
          VectorMP<T> &x,
          int print_iter = 0, int max_num_iter = 1000,
-         T RTOLERANCE = 1e-12, T ATOLERANCE = 1e-24);
+         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
 
 
 /// GMRES method
