@@ -171,7 +171,9 @@ int CeedOperatorGetActiveField(CeedOperator oper, CeedOperatorField *field)
    for (int i = 0; i < numinputfields; ++i)
    {
       ierr = CeedOperatorFieldGetVector(inputfields[i], &if_vector); PCeedChk(ierr);
-      if (if_vector == CEED_VECTOR_ACTIVE)
+      bool is_active = if_vector == CEED_VECTOR_ACTIVE;
+      ierr = CeedVectorDestroy(&if_vector); PCeedChk(ierr);
+      if (is_active)
       {
          if (found)
          {
