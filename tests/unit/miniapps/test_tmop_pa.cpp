@@ -20,8 +20,8 @@
 
 #include <iostream>
 #include <list>
+using list_t = std::list<int>;
 #include <memory>
-
 #include "miniapps/meshing/mesh-optimizer.hpp"
 
 #if defined(MFEM_TMOP_MPI) && !defined(MFEM_USE_MPI)
@@ -453,7 +453,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
             hs->SetType((lin_solver == 3) ? HypreSmoother::Jacobi
                         : HypreSmoother::l1Jacobi,
                         1);
-            S_prec.reset(hs);
+            S_prec = hs;
          }
 #else
          else
@@ -554,6 +554,12 @@ int tmop(int id, Req &res, int argc, char *argv[])
                  pmesh->GetComm());
    res.dot = dot;
 
+   delete S;
+   delete S_prec;
+   delete coeff1;
+   delete metric2;
+   delete target_c2;
+
    return 0;
 }
 
@@ -636,23 +642,26 @@ static void tmop_require(int id, const char *args[])
    REQUIRE(res[0].diag == MFEM_Approx(res[1].diag));
 }
 
-static constexpr size_t sz = 16;
+static constexpr int SZ = 32;
 
 static inline const char *itoa(const int i, char *buf)
 {
-   std::snprintf(buf, sz, "%d", i);
+   const int rtn = std::snprintf(buf, SZ, "%d", i);
+   if (rtn < 0) { MFEM_ABORT("snprintf error!"); }
+   MFEM_ASSERT(rtn < SZ, "snprintf overflow!");
    return buf;
 }
 
 static inline const char *dtoa(const real_t d, char *buf)
 {
-   if (std::snprintf(buf, sz, "%g", d) < 0) { MFEM_ABORT("snprintf error!"); }
+   const int rtn = std::snprintf(buf, SZ, "%g", d);
+   if (rtn < 0) { MFEM_ABORT("snprintf error!"); }
+   MFEM_ASSERT(rtn < SZ, "snprintf overflow!");
    return buf;
 }
 
 class Launch
 {
-   typedef std::list<int> set;
 
 public:
    class Args
@@ -671,12 +680,12 @@ public:
       real_t lim_const = 0.0;
       int lim_type = 0;
       real_t jitter = 0.0;
-      set order = { 1, 2, 3, 4 };
-      set target_id = { 1, 2, 3 };
-      set metric_id = { 1, 2 };
-      set quad_order = { 2, 4, 8 };
-      set lin_solver = { 3, 2, 1 };
-      set newton_loop = { 1, 3 };
+      list_t order = { 1, 2, 3, 4 };
+      list_t target_id = { 1, 2, 3 };
+      list_t metric_id = { 1, 2 };
+      list_t quad_order = { 2, 4, 8 };
+      list_t lin_solver = { 3, 2, 1 };
+      list_t newton_loop = { 1, 3 };
 
    public:
       Args(const char *name = nullptr): name(name) {}
@@ -731,32 +740,32 @@ public:
          return *this;
       }
 
-      Args &POR(set arg)
+      Args &POR(list_t arg)
       {
          order = arg;
          return *this;
       }
-      Args &TID(set arg)
+      Args &TID(list_t arg)
       {
          target_id = arg;
          return *this;
       }
-      Args &MID(set arg)
+      Args &MID(list_t arg)
       {
          metric_id = arg;
          return *this;
       }
-      Args &QOR(set arg)
+      Args &QOR(list_t arg)
       {
          quad_order = arg;
          return *this;
       }
-      Args &LS(set arg)
+      Args &LS(list_t arg)
       {
          lin_solver = arg;
          return *this;
       }
-      Args &NL(set arg)
+      Args &NL(list_t arg)
       {
          newton_loop = arg;
          return *this;
@@ -766,7 +775,7 @@ public:
    int NEWTON_ITERATIONS, REFINE, LINEAR_ITERATIONS, COMBO, LIMIT_TYPE;
    bool NORMALIZATION;
    double NEWTON_RTOLERANCE, LIMITING, JITTER;
-   set P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
+   list_t P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
 
 public:
    Launch(Args a = Args()):
@@ -782,8 +791,8 @@ public:
    {
       if ((id == 0) && name) { mfem::out << "[" << name << "]" << std::endl; }
       DEFAULT_ARGS;
-      char ni[sz] {}, nt[sz] {}, rs[sz] {}, li[sz] {}, lc[sz] {}, ji[sz] {},
-           cmb[sz] {}, lt[sz] {};
+      char ni[SZ] {}, nt[SZ] {}, rs[SZ] {}, li[SZ] {}, lc[SZ] {}, ji[SZ] {},
+           cmb[SZ] {}, lt[SZ] {};
       args[MSH] = mesh;
       args[NI] = itoa(NEWTON_ITERATIONS, ni);
       args[RS] = itoa(REFINE, rs);
@@ -796,31 +805,31 @@ public:
       args[JI] = dtoa(JITTER, ji);
       for (int p : P_ORDERS)
       {
-         char por[sz] {};
+         char por[SZ] {};
          args[POR] = itoa(p, por);
          for (int t : TARGET_IDS)
          {
-            char tid[sz] {};
+            char tid[SZ] {};
             args[TID] = itoa(t, tid);
             for (int m : METRIC_IDS)
             {
-               char mid[sz] {};
+               char mid[SZ] {};
                args[MID] = itoa(m, mid);
                for (int q : Q_ORDERS)
                {
                   if (q <= p) { continue; }
-                  char qor[sz] {};
+                  char qor[SZ] {};
                   args[QOR] = itoa(q, qor);
                   for (int ls : LINEAR_SOLVERS)
                   {
                      // skip some linear solver & metric combinations
                      // that lead to non positive definite operators
                      if (ls == 1 && m != 1) { continue; }
-                     char lsb[sz] {};
+                     char lsb[SZ] {};
                      args[LS] = itoa(ls, lsb);
                      for (int n : NEWTON_LOOPS)
                      {
-                        char nl[sz] {};
+                        char nl[SZ] {};
                         args[NL] = itoa(n, nl);
                         tmop_require(id, args);
                         if (!all) { break; }
