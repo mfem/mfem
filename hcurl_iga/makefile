@@ -12,10 +12,11 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/nurbs/,)
-CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
-   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
+CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
+# Use the MFEM install directory
+# MFEM_INSTALL_DIR = ../../mfem
+# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -166,8 +167,18 @@ EX11P_ARGS_1 :=
 nurbs_ex11p-test-par: nurbs_ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX11P_ARGS_1))
 
-# Testing: "test" target and mfem-test* variables are defined in config/test.mk
+EX25P_ARGS_1 :=
 
+nurbs_ex25p-test-par: nurbs_ex25p
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX11P_ARGS_1))
+
+# Additional dependencies
+QAAQmode: $(SRC)IGAopt.hpp
+waveguide2Dmode: $(SRC)IGAopt.hpp
+waveguide2Dmodeadjoint: $(SRC)IGAopt.hpp
+IGAopt: $(SRC)IGAopt.hpp
+igaopt_wg: $(SRC)IGAopt.hpp
+igaopt_wg_mf: $(SRC)IGAopt.hpp
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
