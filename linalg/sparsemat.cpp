@@ -818,7 +818,6 @@ void SparseMatrixMP<T>::AddMult(const VectorMP<T> &x, VectorMP<T> &y,
    }
 
 #ifndef MFEM_USE_LEGACY_OPENMP
-   const int height = this->height;
    const int nnz = J.Capacity();
    auto d_I = Read(I, height+1);
    auto d_J = Read(J, nnz);
@@ -1125,7 +1124,6 @@ void SparseMatrixMP<T>::BooleanMult(const Array<int> &x, Array<int> &y) const
 
    y.SetSize(this->Height(), Device::GetDeviceMemoryType());
 
-   const int height = this->Height();
    const int nnz = J.Capacity();
    auto d_I = Read(I, height+1);
    auto d_J = Read(J, nnz);
@@ -1202,7 +1200,6 @@ void SparseMatrixMP<T>::AbsMult(const VectorMP<T> &x, VectorMP<T> &y) const
       return;
    }
 
-   const int height = this->height;
    const int nnz = J.Capacity();
    auto d_I = Read(I, height+1);
    auto d_J = Read(J, nnz);
