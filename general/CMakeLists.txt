@@ -45,6 +45,7 @@ list(APPEND HDRS
   gecko.hpp
   globals.hpp
   zstr.hpp
+  handle.hpp
   hash.hpp
   isockstream.hpp
   kdtree.hpp

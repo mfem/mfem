@@ -28,7 +28,7 @@
 #include "symmat.hpp"
 #include "ode.hpp"
 #include "solvers.hpp"
-#include "handle.hpp"
+#include "op_handle.hpp"
 #include "invariants.hpp"
 #include "constraints.hpp"
 #include "auxiliary.hpp"

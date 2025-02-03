@@ -16,7 +16,7 @@
 #include "bilinearform.hpp"
 
 #include "../linalg/operator.hpp"
-#include "../linalg/handle.hpp"
+#include "../linalg/op_handle.hpp"
 
 namespace mfem
 {
