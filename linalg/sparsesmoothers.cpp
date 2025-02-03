@@ -20,21 +20,23 @@
 namespace mfem
 {
 
-void SparseSmoother::SetOperator(const Operator &a)
+template <class T>
+void SparseSmootherMP<T>::SetOperator(const OperatorMP<T> &a)
 {
-   oper = dynamic_cast<const SparseMatrix*>(&a);
+   oper = dynamic_cast<const SparseMatrixMP<T>*>(&a);
    if (oper == NULL)
    {
       mfem_error("SparseSmoother::SetOperator : not a SparseMatrix!");
    }
-   height = oper->Height();
-   width = oper->Width();
+   this->height = oper->Height();
+   this->width = oper->Width();
 }
 
 /// Matrix vector multiplication with GS Smoother.
-void GSSmoother::Mult(const Vector &x, Vector &y) const
+template <class T>
+void GSSmootherMP<T>::Mult(const VectorMP<T> &x, VectorMP<T> &y) const
 {
-   if (!iterative_mode)
+   if (!this->iterative_mode)
    {
       y = 0.0;
    }
@@ -42,11 +44,11 @@ void GSSmoother::Mult(const Vector &x, Vector &y) const
    {
       if (type != 2)
       {
-         oper->Gauss_Seidel_forw(x, y);
+         this->oper->Gauss_Seidel_forw(x, y);
       }
       if (type != 1)
       {
-         oper->Gauss_Seidel_back(x, y);
+         this->oper->Gauss_Seidel_back(x, y);
       }
    }
 }
@@ -107,5 +109,8 @@ void DSmoother::Mult(const Vector &x, Vector &y) const
       Swap<Vector*>(r, p);
    }
 }
+
+template class GSSmootherMP<float>;
+template class GSSmootherMP<double>;
 
 }

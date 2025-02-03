@@ -18,22 +18,26 @@
 namespace mfem
 {
 
-class SparseSmoother : public MatrixInverse
+template <class T>
+class SparseSmootherMP : public MatrixInverseMP<T>
 {
 protected:
-   const SparseMatrix *oper;
+   const SparseMatrixMP<T> *oper;
 
 public:
-   SparseSmoother() { oper = NULL; }
+   SparseSmootherMP() { oper = NULL; }
 
-   SparseSmoother(const SparseMatrix &a)
-      : MatrixInverse(a) { oper = &a; }
+   SparseSmootherMP(const SparseMatrixMP<T> &a)
+      : MatrixInverseMP<T>(a) { oper = &a; }
 
-   void SetOperator(const Operator &a) override;
+   void SetOperator(const OperatorMP<T> &a) override;
 };
 
+using SparseSmoother = SparseSmootherMP<real_t>;
+
 /// Data type for Gauss-Seidel smoother of sparse matrix
-class GSSmoother : public SparseSmoother
+template <class T>
+class GSSmootherMP : public SparseSmootherMP<T>
 {
 protected:
    int type; // 0, 1, 2 - symmetric, forward, backward
@@ -41,15 +45,18 @@ protected:
 
 public:
    /// Create GSSmoother.
-   GSSmoother(int t = 0, int it = 1) { type = t; iterations = it; }
+   GSSmootherMP(int t = 0, int it = 1) { type = t; iterations = it; }
 
    /// Create GSSmoother.
-   GSSmoother(const SparseMatrix &a, int t = 0, int it = 1)
-      : SparseSmoother(a) { type = t; iterations = it; }
+   GSSmootherMP(const SparseMatrixMP<T> &a, int t = 0, int it = 1)
+      : SparseSmootherMP<T>(a) { type = t; iterations = it; }
 
    /// Matrix vector multiplication with GS Smoother.
-   void Mult(const Vector &x, Vector &y) const override;
+   void Mult(const VectorMP<T> &x, VectorMP<T> &y) const override;
 };
+
+using GSSmoother = GSSmootherMP<real_t>;
+
 
 /// Data type for scaled Jacobi-type smoother of sparse matrix
 class DSmoother : public SparseSmoother
