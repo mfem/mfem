@@ -117,6 +117,14 @@ Miscellaneous
   UseSundialsMassLinearSolver methods. This is because enabling a mass matrix
   solver assumes that F(u,k,t) = M k in the associated ODE operator.
 
+- `LinearFormIntegrator` and `NonlinearFormIntegrator` (including
+  `BilinearFormIntegrator`) now all inherit from a base class `Integrator`
+  that combines some logic related to selecting quadrature rules. This includes
+  a virtual method `Integrator::GetDefaultIntegrationRule`, which should be
+  favored over directly defining a default integration rule in the element-level
+  assembly routines (although the latter is still possible, by leaving the new
+  virtual method as its default base implementation of returning `NULL`).
+
 API changes
 -----------
 - In class GridFunction, fec was renamed to fec_owned.
