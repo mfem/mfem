@@ -17,7 +17,7 @@
 #ifdef MFEM_USE_CONDUIT
 
 #include "datacollection.hpp"
-#include <conduit.hpp>
+#include <conduit/conduit.hpp>
 
 namespace mfem
 {
