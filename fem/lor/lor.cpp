@@ -29,7 +29,7 @@ void LORBase::AddIntegrators(BilinearForm &a_from,
    {
       BilinearFormIntegrator *integrator = (*integrators)[i];
       (a_to.*add_integrator)(integrator);
-      ir_map[integrator] = integrator->GetIntegrationRule();
+      ir_map[integrator] = integrator->GetIntRule();
       if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
@@ -56,7 +56,7 @@ void LORBase::AddIntegratorsAndMarkers(BilinearForm &a_from,
       {
          (a_to.*add_integrator)(integrator);
       }
-      ir_map[integrator] = integrator->GetIntegrationRule();
+      ir_map[integrator] = integrator->GetIntRule();
       if (ir) { integrator->SetIntegrationRule(*ir); }
    }
 }
