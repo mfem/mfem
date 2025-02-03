@@ -8,8 +8,8 @@
                                https://mfem.org
 
 
-Version 4.7.1 (development)
-===========================
+Version 4.8, released on Mar XX, 2025
+=====================================
 - Refactored ALGOIM cut integration rules. The interface is unified with
   the interface for moment based cut integration rules.
 - Altered (Par)GridFunction::Compute*Error functions to ensure they return
