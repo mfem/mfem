@@ -27,6 +27,13 @@ Discretization improvements
 
 - Added support for custom interpolation procedure in FindPointsGSLIB.
 
+- LinearFormIntegrator, BilinearFormIntegrator and NonlinearFormIntegrator now
+  inherit from a base class Integrator that centralizes the logic for selecting
+  quadrature rules. This includes a virtual method GetDefaultIntegrationRule,
+  which should be favored over directly defining a default integration rule in
+  the element-level assembly routines. The latter is still possible, by leaving
+  the new virtual method as its default base implementation of returning NULL.
+
 - Refactored ALGOIM cut integration rules. The interface is unified with the
   interface for moment based cut integration rules.
 
@@ -88,8 +95,8 @@ GPU computing
   classes DiffusionIntegrator and MassIntegrator (this functionality may be
   added to more integrators in the future).
 
-- Added support for GPU accelerated version FindPointsGSLIB. (Note that this
-  requires that users switch from gslib v1.0.7 to v1.0.9.)
+- Added support for GPU accelerated version FindPointsGSLIB. Note that this
+  requires that users switch from gslib v1.0.7 to v1.0.9.
 
 - Calls to slower fallback kernels can be reported to mfem::err by setting the
   environment variable MFEM_REPORT_KERNELS to any value other than NO or by
@@ -116,14 +123,6 @@ Miscellaneous
   matrix solver is enabled via a call to either the UseMFEMMassLinearSolver or
   UseSundialsMassLinearSolver methods. This is because enabling a mass matrix
   solver assumes that F(u,k,t) = M k in the associated ODE operator.
-
-- `LinearFormIntegrator` and `NonlinearFormIntegrator` (including
-  `BilinearFormIntegrator`) now all inherit from a base class `Integrator`
-  that combines some logic related to selecting quadrature rules. This includes
-  a virtual method `Integrator::GetDefaultIntegrationRule`, which should be
-  favored over directly defining a default integration rule in the element-level
-  assembly routines (although the latter is still possible, by leaving the new
-  virtual method as its default base implementation of returning `NULL`).
 
 API changes
 -----------
