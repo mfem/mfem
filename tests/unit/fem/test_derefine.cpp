@@ -222,6 +222,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
          fespace.Update();
          x.Update();
          x = coarse_soln_v;
+         x.HostRead();
          x(i) += f*eps;
 
          mesh.GeneralRefinement(refinements);

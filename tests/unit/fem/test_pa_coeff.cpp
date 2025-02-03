@@ -263,7 +263,7 @@ TEST_CASE("H1 PA Coefficient", "[PartialAssembly][Coefficient]")
 }
 
 TEST_CASE("Hcurl/Hdiv PA Coefficient",
-          "[CUDA][PartialAssembly][Coefficient]")
+          "[CUDA][PartialAssembly][Coefficient][GPUOnly]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    enum MixedSpaces {Hcurl, Hdiv, HcurlHdiv, HdivHcurl, NumSpaceTypes};
@@ -510,7 +510,7 @@ TEST_CASE("Hcurl/Hdiv PA Coefficient",
 }
 
 TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
-          "[CUDA][PartialAssembly][Coefficient]")
+          "[CUDA][PartialAssembly][Coefficient][GPUOnly]")
 {
    const real_t tol = 4e-12;
 
