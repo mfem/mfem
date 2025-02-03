@@ -21,7 +21,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex24 nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh
-PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
+PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p nurbs_ex25p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
