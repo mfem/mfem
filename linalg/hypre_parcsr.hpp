@@ -169,6 +169,38 @@ void hypre_ParCSRMatrixAbsMatvecT(hypre_ParCSRMatrix *A,
                                   HYPRE_Real beta,
                                   HYPRE_Real *y);
 
+/// Computes y = alpha * |A|**p * x + beta * y, using entry-wise absolute values of matrix A
+void hypre_CSRMatrixPowAbsMatvec(hypre_CSRMatrix *A,
+                                 HYPRE_Real p,
+                                 HYPRE_Real alpha,
+                                 HYPRE_Real *x,
+                                 HYPRE_Real beta,
+                                 HYPRE_Real *y);
+
+/// Computes y = alpha * |At|**p * x + beta * y, using entry-wise absolute values of the transpose of matrix A
+void hypre_CSRMatrixPowAbsMatvecT(hypre_CSRMatrix *A,
+                                  HYPRE_Real p,
+                                  HYPRE_Real alpha,
+                                  HYPRE_Real *x,
+                                  HYPRE_Real beta,
+                                  HYPRE_Real *y);
+
+/// Computes y = alpha * |A|**p * x + beta * y, using entry-wise absolute values of matrix A
+void hypre_ParCSRMatrixPowAbsMatvec(hypre_ParCSRMatrix *A,
+                                    HYPRE_Real p,
+                                    HYPRE_Real alpha,
+                                    HYPRE_Real *x,
+                                    HYPRE_Real beta,
+                                    HYPRE_Real *y);
+
+/// Computes y = alpha * |At|**p * x + beta * y, using entry-wise absolute values of the transpose of matrix A
+void hypre_ParCSRMatrixPowAbsMatvecT(hypre_ParCSRMatrix *A,
+                                     HYPRE_Real p,
+                                     HYPRE_Real alpha,
+                                     HYPRE_Real *x,
+                                     HYPRE_Real beta,
+                                     HYPRE_Real *y);
+
 /** The "Boolean" analog of y = alpha * A * x + beta * y, where elements in the
     sparsity pattern of the CSR matrix A are treated as "true". */
 void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,

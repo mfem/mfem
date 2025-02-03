@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
+#include <functional>
 #include <type_traits>
 #include <initializer_list>
 
@@ -103,6 +104,9 @@ public:
 
    /// Destructor
    inline ~Array() { data.Delete(); }
+
+   /// Apply function
+   void Apply(std::function<T(T)> function);
 
    /// Assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
