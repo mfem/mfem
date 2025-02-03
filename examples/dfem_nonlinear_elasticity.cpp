@@ -18,17 +18,21 @@ struct MomentumRefStateQFunction
    {
       constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
       constexpr real_t nu = 0.4;
-      constexpr real_t mu = 2.0 * 10e6;
-      constexpr real_t lambda = -((2.0 * mu * nu) / (-1.0 + 2.0 * nu));
+      constexpr real_t mu = 0.5 * 10e6;
+      constexpr real_t lambda = -((mu * nu) / (-1.0 + 2.0 * nu));
 
       auto invJ = inv(J);
       auto dudx = dudxi * invJ;
       auto F = I + dudx;
+      auto detF = det(F);
       // St. Venant-Kirchhoff model
       auto E = 0.5 * (transpose(F) * F - I);
       auto PK2 = lambda * tr(E) * I + 2.0 * mu * E;
       auto JxW = det(J) * w * transpose(invJ);
       return mfem::tuple{F * PK2 * JxW};
+      // auto invJ = inv(J);
+      // auto eps = sym(dudxi * invJ);
+      // return mfem::tuple{transpose(lambda * tr(eps) * I + 2.0 * mu * eps) * det(J) * w * transpose(invJ)};
    }
 };
 
@@ -36,6 +40,43 @@ class ElasticityOperator : public Operator
 {
    static constexpr int Displacement = 0;
    static constexpr int Coordinates = 1;
+
+public:
+   class ElasticityJacobianPreconditioner : public Solver
+   {
+   public:
+      ElasticityJacobianPreconditioner() : Solver() {}
+
+      void SetOperator(const Operator &op) override
+      {
+         this->height = op.Height();
+         this->width = op.Width();
+
+         auto elasticity_jacobian = dynamic_cast<const ElasticityJacobianOperator*>(&op);
+         MFEM_VERIFY(elasticity_jacobian != nullptr, "invalid operator");
+
+         A = std::make_shared<HypreParMatrix>();
+         elasticity_jacobian->momentum_du->Assemble(*A);
+         auto Ae = A->EliminateRowsCols(
+                      elasticity_jacobian->elasticity->displacement_ess_tdof);
+         delete Ae;
+
+         amg = std::make_shared<HypreBoomerAMG>();
+         amg->SetOperator(*A);
+         amg->SetPrintLevel(0);
+         amg->SetSystemsOptions(
+            elasticity_jacobian->elasticity->mesh_nodes->ParFESpace()->GetMesh()->Dimension(),
+            true);
+      }
+
+      void Mult(const Vector &x, Vector &y) const override
+      {
+         amg->Mult(x, y);
+      }
+
+      std::shared_ptr<HypreParMatrix> A;
+      std::shared_ptr<HypreBoomerAMG> amg;
+   };
 
    class ElasticityJacobianOperator : public Operator
    {
@@ -61,7 +102,6 @@ class ElasticityOperator : public Operator
 
          momentum_du->Mult(z, y);
 
-         // BlockVector yb(y.ReadWrite(), ns->block_offsets);
          for (int i = 0; i < elasticity->displacement_ess_tdof.Size(); i++)
          {
             y[elasticity->displacement_ess_tdof[i]] =
@@ -70,18 +110,18 @@ class ElasticityOperator : public Operator
       }
 
       const ElasticityOperator *elasticity;
-      std::shared_ptr<Operator> momentum_du;
+      std::shared_ptr<DerivativeOperator> momentum_du;
       mutable Vector z;
    };
 
-public:
    ElasticityOperator(ParFiniteElementSpace &displacement_fes,
                       Array<int> &vel_ess_tdofs,
                       const IntegrationRule &displacement_ir) :
       Operator(displacement_fes.GetTrueVSize()),
-      density(1e3),
+      density(1.0e3),
       displacement_ess_tdof(vel_ess_tdofs),
       displacement_fes(displacement_fes),
+      displacement_ir(displacement_ir),
       body_force(displacement_fes.GetTrueVSize())
    {
       auto mesh = displacement_fes.GetParMesh();
@@ -101,6 +141,7 @@ public:
 
          momentum =
             std::make_shared<DifferentiableOperator>(solutions, parameters, *mesh);
+         // momentum->DisableTensorProductStructure();
 
          mfem::tuple inputs{Gradient<Displacement>{}, Gradient<Coordinates>{}, Weight{}};
          mfem::tuple outputs{Gradient<Displacement>{}};
@@ -136,25 +177,8 @@ public:
 
    Operator &GetGradient(const Vector &x) const override
    {
-      ParGridFunction u(&displacement_fes);
-      u.SetFromTrueDofs(x);
-
-      auto momentum_du = momentum->GetDerivative(Displacement, {&u}, {mesh_nodes});
-
-      A = std::make_shared<HypreParMatrix>();
-      momentum_du->Assemble(*A);
-
-      auto Ae = A->EliminateRowsCols(displacement_ess_tdof);
-      delete Ae;
-
-      // std::ofstream out("A.dat");
-      // A->PrintMatlab(out);
-      // out.close();
-
-      return *A;
-
-      // jacobian_operator = std::make_shared<ElasticityJacobianOperator>(this, x);
-      // return *jacobian_operator;
+      jacobian_operator = std::make_shared<ElasticityJacobianOperator>(this, x);
+      return *jacobian_operator;
 
       // fd_jacobian = std::make_shared<FDJacobian>(*this, x);
       // return *fd_jacobian;
@@ -171,6 +195,7 @@ public:
    const Array<int> displacement_ess_tdof;
 
    ParFiniteElementSpace &displacement_fes;
+   IntegrationRule displacement_ir;
 
    mutable std::shared_ptr<ElasticityJacobianOperator> jacobian_operator;
    mutable std::shared_ptr<FDJacobian> fd_jacobian;
@@ -188,6 +213,7 @@ int main(int argc, char* argv[])
    int polynomial_order = 2;
    int ir_order = 2;
    int refinements = 0;
+   int nonlinear_solver_type = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -196,6 +222,7 @@ int main(int argc, char* argv[])
    args.AddOption(&ir_order, "-iro", "--iro", "");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
+   args.AddOption(&nonlinear_solver_type, "-nls", "--nonlinear-solver", "");
    args.ParseCheck();
 
    Device device(device_config);
@@ -235,47 +262,89 @@ int main(int argc, char* argv[])
 
    const IntegrationRule &displacement_ir =
       IntRules.Get(displacement_fes.GetFE(0)->GetGeomType(),
-                   ir_order * displacement_fec.GetOrder());
+                   2 * ir_order + displacement_fes.GetFE(0)->GetOrder());
 
    Array<int> bdr_attr_is_ess(mesh_beam.bdr_attributes.Max());
    out << bdr_attr_is_ess.Size() << "\n";
    bdr_attr_is_ess = 0;
    bdr_attr_is_ess[6] = 1;
-   Array<int> displacement_ess_tdofs;
-   displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, displacement_ess_tdofs);
+   Array<int> displacement_ess_tdof;
+   displacement_fes.GetEssentialTrueDofs(bdr_attr_is_ess, displacement_ess_tdof);
 
    ParGridFunction u(&displacement_fes);
    // u.Randomize(1234);
-   // u *= 1e-5;
    // u.SetSubVector(displacement_ess_tdofs, 0.0);
    u = 0.0;
 
-   ElasticityOperator elasticity(displacement_fes, displacement_ess_tdofs,
+   ElasticityOperator elasticity(displacement_fes, displacement_ess_tdof,
                                  displacement_ir);
 
-   GMRESSolver solver(MPI_COMM_WORLD);
+   ElasticityOperator::ElasticityJacobianPreconditioner prec;
+
+   CGSolver solver(MPI_COMM_WORLD);
    solver.SetAbsTol(0.0);
    solver.SetRelTol(1e-4);
-   solver.SetKDim(500);
+   // solver.SetKDim(500);
    solver.SetMaxIter(500);
    solver.SetPrintLevel(2);
+   solver.SetPreconditioner(prec);
 
-   HypreBoomerAMG amg;
-   amg.SetPrintLevel(0);
-   solver.SetPreconditioner(amg);
+   // NewtonSolver newton(MPI_COMM_WORLD);
+   // newton.SetOperator(elasticity);
+   // newton.SetSolver(solver);
+   // newton.SetRelTol(1e-12);
+   // newton.SetMaxIter(50);
+   // newton.SetPrintLevel(1);
 
-   NewtonSolver newton(MPI_COMM_WORLD);
-   newton.SetOperator(elasticity);
-   newton.SetSolver(solver);
-   newton.SetRelTol(1e-8);
-   newton.SetMaxIter(50);
-   newton.SetPrintLevel(1);
+   std::shared_ptr<NewtonSolver> nonlinear_solver;
+   if (nonlinear_solver_type == 0)
+   {
+      nonlinear_solver = std::make_shared<NewtonSolver>(MPI_COMM_WORLD);
+   }
+   // else if (nonlinear_solver_type == 1)
+   // {
+   //    nonlinear_solver = std::make_shared<KINSolver>(MPI_COMM_WORLD, KIN_LINESEARCH);
+   // }
+   else
+   {
+      MFEM_ABORT("invalid nonlinear solver type");
+   }
+   nonlinear_solver->SetOperator(elasticity);
+   nonlinear_solver->SetRelTol(1e-6);
+   nonlinear_solver->SetMaxIter(50);
+   nonlinear_solver->SetSolver(solver);
+   nonlinear_solver->SetPrintLevel(1);
 
    Vector zero, x(displacement_fes.GetTrueVSize());
    u.GetTrueDofs(x);
-   newton.Mult(zero, x);
+
+   nonlinear_solver->Mult(zero, x);
 
    u.SetFromTrueDofs(x);
+
+   // Compute Newton residual
+   Vector r(displacement_fes.GetTrueVSize());
+   elasticity.Mult(x, r);
+   r.SetSubVector(displacement_ess_tdof, 0.0);
+   double rnorm = r.Norml2();
+   out << "||F(x) - b||_2 = " << rnorm << "\n";
+
+   // Compute CG residual
+   Vector z(displacement_fes.GetTrueVSize());
+   z = x;
+   z.SetSubVector(displacement_ess_tdof, 0.0);
+   elasticity.GetGradient(x).Mult(z, r);
+   r.Neg();
+   r += elasticity.body_force;
+   for (int i = 0; i < displacement_ess_tdof.Size(); i++)
+   {
+      r[displacement_ess_tdof[i]] = x[displacement_ess_tdof[i]];
+   }
+   double cg_rnorm = r.Norml2();
+   out << "||b - Ax||_2 = " << cg_rnorm << "\n";
+   out << "||b||_2 = " << elasticity.body_force.Norml2() << "\n";
+   out << "||b - Ax||_2 / ||b||_2 = " << cg_rnorm / elasticity.body_force.Norml2()
+       << "\n";
 
    ParaViewDataCollection dc("dfem_elasticity", &mesh_beam);
    dc.SetHighOrderOutput(true);

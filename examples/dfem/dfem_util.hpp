@@ -26,17 +26,42 @@ using std::size_t;
 namespace mfem
 {
 
-template <typename... input_ts, size_t... Is>
-constexpr auto make_dependency_map_impl(mfem::tuple<input_ts...> inputs,
-                                        std::index_sequence<Is...>)
-{
-   auto make_dependency_tuple = [&](auto i)
-   {
-      return std::make_tuple((mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>
-                              (inputs).GetFieldId())...);
-   };
+// template <typename... input_ts, size_t... Is>
+// constexpr auto make_dependency_map_impl(mfem::tuple<input_ts...> inputs,
+//                                         std::index_sequence<Is...>)
+// {
+//    auto make_dependency_tuple = [&](auto i)
+//    {
+//       return std::make_tuple((mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>
+//                               (inputs).GetFieldId())...);
+//    };
 
-   return std::make_tuple(make_dependency_tuple(std::integral_constant<size_t, Is> {})...);
+//    return std::make_tuple(make_dependency_tuple(std::integral_constant<size_t, Is> {})...);
+// }
+
+// template <typename... input_ts>
+// constexpr auto make_dependency_map(mfem::tuple<input_ts...> inputs)
+// {
+//    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
+// }
+
+template <typename... input_ts, size_t... Is>
+constexpr auto make_dependency_map_impl(
+   mfem::tuple<input_ts...> inputs,
+   std::index_sequence<Is...>)
+{
+   constexpr size_t N = sizeof...(input_ts);
+   auto make_dependency_array = [&](auto i)
+   {
+      return std::array<bool, N>
+      {
+         (mfem::get<i>(inputs).GetFieldId() == mfem::get<Is>(inputs).GetFieldId())...
+      };
+   };
+   return std::array<std::array<bool, N>, N>
+   {
+      make_dependency_array(std::integral_constant<size_t, Is>{})...
+   };
 }
 
 template <typename... input_ts>
