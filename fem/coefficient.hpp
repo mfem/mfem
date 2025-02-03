@@ -562,6 +562,91 @@ public:
    { return active_attr[T.Attribute-1] ? c->Eval(T, ip, GetTime()) : 0.0; }
 };
 
+/** @brief Coefficient that evaluates a user specified scalar function of the
+    Jacobian of the mapping from the reference element (or the perfect element,
+    see Geometry::JacToPerfJac()) to the element described by the
+    ElementTransformation given to the Eval() method as input. */
+class JacobianFunctionCoefficient : public Coefficient
+{
+protected:
+   std::function<real_t(const DenseMatrix &)> JFunction;
+   bool use_perf_J;
+
+public:
+   /** @brief Construct a JacobianFunctionCoefficient that uses the perfect
+      Jacobian, when @a use_perf_J = true (default), or the reference Jacobian,
+      otherwise. */
+   JacobianFunctionCoefficient(std::function<real_t(const DenseMatrix &)> JF,
+                               bool use_perf_J = true)
+      : JFunction(std::move(JF)), use_perf_J(use_perf_J) { }
+
+   /// Evaluate the coefficient at the given point @a ip.
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
+/** @brief Coefficient that evaluates a user specified scalar function of the
+    mesh position and the Jacobian of the mapping from the reference element (or
+    the perfect element, see Geometry::JacToPerfJac()) to the element described
+    by the ElementTransformation given to the Eval() method as input. */
+class MeshFunctionCoefficient : public Coefficient
+{
+protected:
+   std::function<real_t(const Vector &, const DenseMatrix &)> XJFunction;
+   bool use_perf_J;
+
+public:
+   /** @brief Construct a MeshFunctionCoefficient that uses the perfect
+      Jacobian, when @a use_perf_J = true (default), or the reference Jacobian,
+      otherwise. */
+   MeshFunctionCoefficient(
+      std::function<real_t(const Vector &, const DenseMatrix &)> XJF,
+      bool use_perf_J = true)
+      : XJFunction(std::move(XJF)), use_perf_J(use_perf_J) { }
+
+   /// Evaluate the coefficient at the given point @a ip.
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
+/** @brief Coefficient that returns the Jacobian determinant (or integration
+    weight if the Jacobian is not square) of the mapping from the reference
+    element (or the perfect element, see Geometry::JacToPerfJac()) to the
+    element described by the ElementTransformation given to the Eval() method
+    as input. */
+class JacobianDeterminantCoefficient : public Coefficient
+{
+protected:
+   bool use_perf_J;
+
+public:
+   /** @brief Construct a JacobianDeterminantCoefficient that uses the perfect
+      Jacobian, when @a use_perf_J = true (default), or the reference Jacobian,
+      otherwise. */
+   JacobianDeterminantCoefficient(bool use_perf_J = true)
+      : use_perf_J(use_perf_J) { }
+
+   /// Evaluate the coefficient at the given point @a ip.
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
+/** @brief Coefficient that evaluates the pointwise mesh size as a function of
+    the Jacobian of the transformation from the perfect (unit) element. */
+class MeshSizeCoefficient : public Coefficient
+{
+protected:
+   int type;
+
+public:
+   /** @brief Construct a MeshSizeCoefficient of the given @a type. */
+   /** @param[in] type is one of:
+           - 0 - Jacobian determinant to the power 1/dim,
+           - 1 - h_min = minimal singular value of the Jacobian,
+           - 2 - h_max = maximal singular value of the Jacobian. */
+   MeshSizeCoefficient(int type = 0) : type(type) { }
+
+   /// Evaluate the coefficient at the given point @a ip.
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
 /// Base class for vector Coefficients that optionally depend on time and space.
 class VectorCoefficient
 {

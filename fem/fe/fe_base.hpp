@@ -268,8 +268,8 @@ public:
       $ u(x) $ on a general physical element in following ways:
        - $ x = T(\hat x) $ is the image of the reference point $ \hat x $
        - $ J = J(\hat x) $ is the Jacobian matrix of the transformation T
-       - $ w = w(\hat x) = det(J) $ is the transformation weight factor for square J
-       - $ w = w(\hat x) = det(J^t J)^{1/2} $ is the transformation weight factor in general
+       - $ w = w(\hat x) = \det(J) $ is the transformation weight factor for square J
+       - $ w = w(\hat x) = \det(J^t J)^{1/2} $ is the transformation weight factor in general
    */
    enum MapType
    {

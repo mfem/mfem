@@ -75,17 +75,18 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    fes_sequence = fes->GetSequence();
 }
 
-GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
+GridFunction::GridFunction(Mesh *m, const GridFunction * const gf_array[],
+                           int num_pieces)
 {
    UseDevice(true);
 
    // all GridFunctions must have the same FE collection, vdim, ordering
    int vdim, ordering;
 
-   fes = gf_array[0]->FESpace();
-   fec_owned = FiniteElementCollection::New(fes->FEColl()->Name());
-   vdim = fes->GetVDim();
-   ordering = fes->GetOrdering();
+   const FiniteElementSpace *base_fes = gf_array[0]->FESpace();
+   fec_owned = FiniteElementCollection::New(base_fes->FEColl()->Name());
+   vdim = base_fes->GetVDim();
+   ordering = base_fes->GetOrdering();
    fes = new FiniteElementSpace(m, fec_owned, vdim, ordering);
    SetSize(fes->GetVSize());
 
@@ -104,7 +105,7 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
    vi = ei = fi = di = 0;
    for (int i = 0; i < num_pieces; i++)
    {
-      FiniteElementSpace *l_fes = gf_array[i]->FESpace();
+      const FiniteElementSpace *l_fes = gf_array[i]->FESpace();
       int l_ndofs  = l_fes->GetNDofs();
       int l_nvdofs = l_fes->GetNVDofs();
       int l_nedofs = l_fes->GetNEDofs();

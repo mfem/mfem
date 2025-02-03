@@ -105,7 +105,7 @@ public:
        are owned by the GridFunction. */
    GridFunction(Mesh *m, std::istream &input);
 
-   GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
+   GridFunction(Mesh *m, const GridFunction * const gf_array[], int num_pieces);
 
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
