@@ -21,16 +21,16 @@
  * documentation (https://enzyme.mit.edu) for more information.
  */
 
-extern int enzyme_dup;
-extern int enzyme_dupnoneed;
-extern int enzyme_out;
-extern int enzyme_const;
+// extern int enzyme_dup;
+// extern int enzyme_dupnoneed;
+// extern int enzyme_out;
+// extern int enzyme_const;
 
-template <typename return_type, typename... Args>
-return_type __enzyme_autodiff(Args...);
+// template <typename return_type, typename... Args>
+// return_type __enzyme_autodiff(Args...);
 
-template <typename return_type, typename... Args>
-return_type __enzyme_fwddiff(Args...);
+// template <typename return_type, typename... Args>
+// return_type __enzyme_fwddiff(Args...);
 
 #define MFEM_ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))
 #define MFEM_ENZYME_INACTIVE   __attribute__((enzyme_inactive))

@@ -1,0 +1,233 @@
+template <
+   typename kernels_tuple,
+   size_t num_solutions,
+   size_t num_parameters,
+   size_t num_fields,
+   size_t num_kernels
+   >
+template <
+   size_t derivative_idx
+   >
+template <
+   typename kernel_t
+   >
+void DifferentiableOperator<kernels_tuple,
+     num_solutions,
+     num_parameters,
+     num_fields,
+     num_kernels>::Derivative<derivative_idx>::assemble_vector_impl(
+        kernel_t kernel, Vector &v)
+{
+   using entity_t = typename kernel_t::entity_t;
+
+   auto kinput_to_field = create_descriptors_to_fields_map<entity_t>(op.fields,
+                                                                     kernel.inputs,
+                                                                     std::make_index_sequence<kernel.num_kinputs> {});
+
+   auto koutput_to_field = create_descriptors_to_fields_map<entity_t>(op.fields,
+                                                                      kernel.outputs,
+                                                                      std::make_index_sequence<kernel.num_koutputs> {});
+
+   auto output_fop = std::get<0>(kernel.outputs);
+
+   constexpr int hardcoded_output_idx = 0;
+
+   int num_qp = op.integration_rule.GetNPoints();;
+   int num_el = 0;
+   int dimension = 0;
+   if constexpr (std::is_same_v<entity_t, Entity::Element>)
+   {
+      num_el = op.mesh.GetNE();
+      dimension = op.dim;
+   }
+   else if (std::is_same_v<entity_t, Entity::Face>)
+   {
+      num_el = op.mesh.GetNumFacesWithGhost();
+      dimension = op.dim - 1;
+   }
+   else
+   {
+      static_assert(always_false<entity_t>, "not implemented");
+   }
+
+   std::vector<const DofToQuad*> dtqmaps;
+   for (const auto &field : op.fields)
+   {
+      dtqmaps.emplace_back(GetDofToQuad<entity_t>(field, op.integration_rule,
+                                                  doftoquad_mode));
+   }
+
+   // Allocate memory for fields on quadrature points
+   auto input_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
+                                              std::make_index_sequence<kernel.num_kinputs> {});
+
+   auto directions_qp_mem = create_input_qp_memory(num_qp, kernel.inputs,
+                                                   std::make_index_sequence<kernel.num_kinputs> {});
+
+   for (auto &d_qp_mem : directions_qp_mem)
+   {
+      d_qp_mem = 0.0;
+   }
+
+   std::array<bool, kernel.num_kinputs> kinput_is_dependent;
+   bool no_kinput_is_dependent = true;
+   for (int i = 0; i < kinput_is_dependent.size(); i++)
+   {
+      if (kinput_to_field[i] == derivative_idx)
+      {
+         no_kinput_is_dependent = false;
+         kinput_is_dependent[i] = true;
+         // out << "function input " << i << " is dependent on "
+         //     << op.fields[kinput_to_field[i]].field_label << "\n";
+      }
+      else
+      {
+         kinput_is_dependent[i] = false;
+      }
+   }
+
+   if (no_kinput_is_dependent)
+   {
+      return;
+   }
+
+   auto kernel_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+   auto kernel_shadow_args = decay_tuple<typename kernel_t::kf_param_ts> {};
+
+   DeviceTensor<1, const double> integration_weights(
+      this->op.integration_rule.GetWeights().Read(), num_qp);
+
+   Vector zero;
+   GeometricFactorMaps geometric_factors
+   {
+      DeviceTensor<3, const double>(zero.Read(), 0, 0, 0)
+   };
+
+   // fields interpolated to the quadrature points in the order of
+   // kernel function arguments
+   auto input_qp = map_inputs_to_memory(input_qp_mem, num_qp,
+                                        kernel.inputs,
+                                        std::make_index_sequence<kernel.num_kinputs> {});
+
+   auto directions_qp = map_inputs_to_memory(directions_qp_mem, num_qp,
+                                             kernel.inputs,
+                                             std::make_index_sequence<kernel.num_kinputs> {});
+
+   auto input_dtq_ops = create_dtq_operators<entity_t>(kernel.inputs, dtqmaps,
+                                                       kinput_to_field);
+   auto dependent_input_dtq_ops = create_dtq_operators_conditional<entity_t>(
+                                     kernel.inputs,
+                                     dtqmaps,
+                                     kinput_to_field,
+                                     kinput_is_dependent, std::make_index_sequence<kernel.num_kinputs> {});
+
+   auto output_dtq_ops = create_dtq_operators<entity_t>(kernel.outputs, dtqmaps,
+                                                        koutput_to_field);
+
+   constexpr int fixed_output_idx = 0;
+   auto Bv = output_dtq_ops[fixed_output_idx];
+   auto [num_test_qp, test_op_dim, num_test_dof] = Bv.GetShape();
+   const int test_vdim = std::get<0>(kernel.outputs).vdim;
+
+   const int num_trial_dof = dependent_input_dtq_ops[0].GetShape()[2];
+   int trial_vdim = 0;
+   int dependent_field_idx = -1;
+   for (int i = 0; i < kinput_is_dependent.size(); i++)
+   {
+      if (kinput_is_dependent[i])
+      {
+         dependent_field_idx = kinput_to_field[i];
+         break;
+      }
+   }
+
+   trial_vdim = GetVDim(op.fields[dependent_field_idx]);
+
+   // All trial operators dimensions accumulated
+   int total_trial_op_dim = 0;
+   for (int s = 0; s < dependent_input_dtq_ops.size(); s++)
+   {
+      total_trial_op_dim += dependent_input_dtq_ops[s].GetShape()[1];
+   }
+
+   Vector a_qp_mem(trial_vdim * total_trial_op_dim * num_qp * num_el);
+   const auto a_qp = Reshape(a_qp_mem.ReadWrite(), trial_vdim,
+                             total_trial_op_dim, num_qp, num_el);
+   Vector ve_mem(num_trial_dof * trial_vdim * num_el);
+   ve_mem = 0.0;
+
+   for (int e = 0; e < num_el; e++)
+   {
+      map_fields_to_quadrature_data(
+         input_qp, e, this->fields_e,
+         kinput_to_field, input_dtq_ops,
+         integration_weights, geometric_factors, kernel.inputs,
+         std::make_index_sequence<kernel.num_kinputs> {});
+
+      for (int q = 0; q < num_qp; q++)
+      {
+         for (int j = 0; j < trial_vdim; j++)
+         {
+            size_t m_offset = 0;
+            for (int s = 0; s < dependent_input_dtq_ops.size(); s++)
+            {
+               auto Bu = dependent_input_dtq_ops[s];
+               auto [unused1, trial_op_dim, unused2] = Bu.GetShape();
+               auto d_qp = Reshape(&(directions_qp[Bu.which_input])[0], trial_vdim,
+                                   trial_op_dim, num_qp);
+               for (int m = 0; m < trial_op_dim; m++)
+               {
+                  d_qp(j, m, q) = 1.0;
+                  // Vector f_qp = apply_kernel_fwddiff_dual(
+                  //                  kernel.func,
+                  //                  kernel_args,
+                  //                  input_qp,
+                  //                  directions_qp,
+                  //                  q);
+                  Vector f_qp = apply_kernel_fwddiff_enzyme(
+                                   kernel.func,
+                                   kernel_args,
+                                   input_qp,
+                                   kernel_shadow_args,
+                                   directions_qp,
+                                   q);
+                  d_qp(j, m, q) = 0.0;
+
+                  auto f = Reshape(f_qp.Read(), test_vdim);
+                  a_qp(j, m + m_offset, q, e) = f(0);
+               }
+               m_offset += trial_op_dim;
+            }
+         }
+      }
+
+      auto shat = Reshape(ve_mem.ReadWrite(), num_trial_dof, trial_vdim, num_el);
+      for (int J = 0; J < num_trial_dof; J++)
+      {
+         for (int j = 0; j < trial_vdim; j++)
+         {
+            size_t m_offset = 0;
+            for (int s = 0; s < dependent_input_dtq_ops.size(); s++)
+            {
+               auto Bu = dependent_input_dtq_ops[s];
+               int trial_op_dim = dependent_input_dtq_ops[s].GetShape()[1];
+               for (int q = 0; q < num_qp; q++)
+               {
+                  for (int m = 0; m < trial_op_dim; m++)
+                  {
+                     shat(J, j, e) += a_qp(j, m + m_offset, q, e) * Bu(q, m, J);
+                  }
+               }
+               m_offset += trial_op_dim;
+            }
+         }
+      }
+   }
+
+   auto R = get_element_restriction(op.fields[dependent_field_idx],
+                                    element_dof_ordering);
+   Vector ve(R->Width());
+   R->MultTranspose(ve_mem, ve);
+
+   get_prolongation(op.fields[dependent_field_idx])->MultTranspose(ve, v);
+}
