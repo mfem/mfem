@@ -32,19 +32,35 @@ namespace mfem
 
 class BilinearForm;
 
-/// Abstract base class for an iterative solver monitor
-class IterativeSolverMonitor
+/// Abstract base class for an iterative solver controller
+class IterativeSolverController
 {
 protected:
-   /// The last IterativeSolver to which this monitor was attached.
+   /// The last IterativeSolver to which this controller was attached.
    const class IterativeSolver *iter_solver;
 
+   /// In MonitorResidual or MonitorSolution, this member variable can be set
+   /// to true to indicate early convergence.
+   bool converged = false;
+
 public:
-   IterativeSolverMonitor() : iter_solver(nullptr) {}
+   IterativeSolverController() : iter_solver(nullptr) {}
 
-   virtual ~IterativeSolverMonitor() {}
+   virtual ~IterativeSolverController() {}
 
-   /// Monitor the residual vector r
+   /// Has the solver converged?
+   ///
+   /// Can be used if convergence is detected in the controller (before reaching
+   /// the relative or absolute tolerance of the IterativeSolver).
+   bool HasConverged() { return converged; }
+
+   /// Reset the controller to its initial state.
+   ///
+   /// This function is called by the IterativeSolver::Mult()
+   /// method on the first iteration.
+   virtual void Reset() { converged = false; }
+
+   /// Monitor the solution vector r
    virtual void MonitorResidual(int it, real_t norm, const Vector &r,
                                 bool final)
    {
@@ -61,6 +77,9 @@ public:
    void SetIterativeSolver(const IterativeSolver &solver)
    { iter_solver = &solver; }
 };
+
+/// Keeping the alias for backward compatibility
+using IterativeSolverMonitor = IterativeSolverController;
 
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
@@ -169,6 +188,7 @@ protected:
 
    ///@}
 
+
    /** @brief Return the standard (l2, i.e., Euclidean) inner product of
        @a x and @a y
        @details Overriding this method in a derived class enables a
@@ -180,7 +200,7 @@ protected:
    real_t Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
 
    /// Monitor both the residual @a r and the solution @a x
-   void Monitor(int it, real_t norm, const Vector& r, const Vector& x,
+   bool Monitor(int it, real_t norm, const Vector& r, const Vector& x,
                 bool final=false) const;
 
 public:
