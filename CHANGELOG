@@ -80,6 +80,14 @@ Miscellaneous
 
 - There are new convenience constructors for NURBS patches and knot vectors.
 
+- `LinearFormIntegrator` and `NonlinearFormIntegrator` (including
+  `BilinearFormIntegrator`) now all inherit from a base class `Integrator`
+  that combines some logic related to selecting quadrature rules. This includes
+  a virtual method `Integrator::GetDefaultIntegrationRule`, which should be
+  favored over directly defining a default integration rule in the element-level
+  assembly routines (although the latter is still possible, by leaving the new
+  virtual method as its default base implementation of returning `NULL`).
+
 API changes
 -----------
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
