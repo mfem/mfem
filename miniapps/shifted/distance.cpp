@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -138,7 +138,7 @@ public:
    ExactDistSphereLoc(ParGridFunction &d)
       : dist(d), dx(dist.ParFESpace()->GetParMesh()->GetElementSize(0)) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       Vector pos(T.GetDimension());
       T.Transform(ip, pos);

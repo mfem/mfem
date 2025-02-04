@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -140,8 +140,8 @@ public:
    HessianCoefficient(int dim, int metric_id)
       : TMOPMatrixCoefficient(dim), metric(metric_id) { }
 
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       Vector pos(3);
       T.Transform(ip, pos);
@@ -207,8 +207,8 @@ public:
       }
    }
 
-   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
-                         const IntegrationPoint &ip, int comp)
+   void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                 const IntegrationPoint &ip, int comp) override
    {
       Vector pos(3);
       T.Transform(ip, pos);
@@ -251,8 +251,8 @@ public:
       : TMOPMatrixCoefficient(dim_), dim(dim_),
         hr_target_type(hr_target_type_) { }
 
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       Vector pos(3);
       T.Transform(ip, pos);
@@ -364,8 +364,8 @@ public:
       else { MFEM_ABORT("Unsupported option / wrong input."); }
    }
 
-   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
-                         const IntegrationPoint &ip, int comp)
+   void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                 const IntegrationPoint &ip, int comp) override
    {
       K = 0.;
    }
