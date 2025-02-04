@@ -363,7 +363,17 @@ int InverseElementTransformation::Transform(const Vector &pt,
          }
          break;
       }
-
+      case EdgeScan: {
+        const int order = std::max(T->Order() + rel_qpts_order, 0);
+        if (order == 0) {
+          ip0 = &Geometries.GetCenter(T->GetGeometryType());
+        } else {
+          auto &ir = *refiner.EdgeScan(T->GetGeometryType(), order + 1);
+          int closest_idx = FindClosestPhysPoint(pt, ir);
+          ip0 = &ir.IntPoint(closest_idx);
+        }
+        break;
+      }
       case GivenPoint:
          break;
 
