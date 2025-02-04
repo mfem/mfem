@@ -1042,7 +1042,10 @@ public:
    };
 
 private:
-   typedef std::map<int, Array<Basis*>*> BasisMap;
+   /// key: (btype, p), value: underlying storage Array
+   typedef std::unordered_map<std::pair<int, int>,
+           std::unique_ptr<Basis>, PairHasher>
+           BasisMap;
    /// key: (btype, p), value: underlying storage Array
    typedef std::unordered_map<std::pair<int, int>,
            std::unique_ptr<Array<real_t>>, PairHasher>
@@ -1198,7 +1201,7 @@ public:
    static void CalcLegendre(const int p, const real_t x, real_t *u);
    static void CalcLegendre(const int p, const real_t x, real_t *u, real_t *d);
 
-   ~Poly_1D();
+   ~Poly_1D() = default;
 };
 
 extern MFEM_EXPORT Poly_1D poly1d;

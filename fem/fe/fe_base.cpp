@@ -2297,52 +2297,28 @@ const real_t *Poly_1D::GetPoints(const int p, const int btype, bool on_device)
 
 Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
 {
-   Array<Basis*> *bases;
    BasisType::Check(btype);
+   Basis* val;
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (Poly1DGetBasis)
 #endif
    {
-      auto it = bases_container.find(btype);
-      if (it != bases_container.end())
-      {
-         bases = it->second;
-      }
-      else
-      {
-         // we haven't been asked for basis or points of this type yet
-         bases = new Array<Basis*>(h_mt);
-         bases_container[btype] = bases;
-      }
-      if (bases->Size() <= p)
-      {
-         bases->SetSize(p + 1, NULL);
-      }
-      if ((*bases)[p] == NULL)
+      std::pair<int, int> key(btype, p);
+      auto it = bases_container.find(key);
+      if (it == bases_container.end())
       {
          EvalType etype;
          if (btype == BasisType::Positive) { etype = Positive; }
          else if (btype == BasisType::IntegratedGLL) { etype = Integrated; }
          else { etype = Barycentric; }
-         (*bases)[p] = new Basis(p, GetPoints(p, btype), etype);
+         it = bases_container
+              .emplace(key, new Basis(p, GetPoints(p, btype), etype))
+              .first;
       }
+      val = it->second.get();
    }
-   return *(*bases)[p];
-}
-
-Poly_1D::~Poly_1D()
-{
-   for (BasisMap::iterator it = bases_container.begin();
-        it != bases_container.end() ; ++it)
-   {
-      Array<Basis*>& bases = *it->second;
-      for (int i = 0; i < bases.Size(); ++i)
-      {
-         delete bases[i];
-      }
-      delete it->second;
-   }
+   return *val;
 }
 
 
