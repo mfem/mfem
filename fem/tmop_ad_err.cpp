@@ -207,17 +207,17 @@ void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const FiniteE
     DenseMatrix Jinv = T.InverseJacobian();
     Mult(dN, Jinv, B);
 
-    // term 1
+    // term 1 - e.g. (\grad u - \grad u*)
     Mult(B, QoI_->gradTimesexplicitSolutionGradientDerivative(T, ip), graduDerivxB);
     Vectorize(graduDerivxB, graduDerivxBvec);
     elvect.Add( -1.0 * w , graduDerivxBvec);
 
-    // term 2
+    // term 2 - 2(u-*)^2 d(detJ)/dx - k10-todo check
     Mult(B, I, IxB);
     Vectorize(IxB, IxBTvec);
     elvect.Add( w * QoI_->Eval(T, ip), IxBTvec);
 
-    // term 3
+    // term 3 - this is for when QoI has x inside e.g. (u * x - u* * x)^2
     Mult(matN, QoI_->explicitShapeDerivative(T, ip), NxPhix);
     Vectorize(NxPhix, IxN_vec);
     elvect.Add(w , IxN_vec);
@@ -1282,6 +1282,10 @@ void Diffusion_Solver::FSolve()
 
   // solve for temperature
   ParGridFunction &T = solgf;
+  if (trueSolCoeff)
+  {
+    T.ProjectBdrCoefficient(*trueSolCoeff, ess_bdr_attr);
+  }
 
   HypreParMatrix A;
   Vector X, B;

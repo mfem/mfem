@@ -1085,6 +1085,7 @@ void TMOP_MMA::Mult(Vector &x)
       ProcessNewState(x);
 
       norm = Norm(r);
+      // if (norm < 0.1) { weight *= 2.0; }
    }
 
    final_iter = it;
