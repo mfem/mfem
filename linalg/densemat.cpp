@@ -149,7 +149,8 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   x.HostRead(), y.HostReadWrite();
+   x.HostRead();
+   y.HostReadWrite();
    Mult(x.GetData(), y.GetData());
 }
 
@@ -205,7 +206,8 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   x.HostRead(), y.HostReadWrite();
+   x.HostRead();
+   y.HostReadWrite();
    MultTranspose(x.GetData(), y.GetData());
 }
 
@@ -261,7 +263,9 @@ void DenseMatrix::AddMult_a(real_t a, const Vector &x, Vector &y) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   HostRead(), x.HostRead(), y.HostReadWrite();
+   HostRead();
+   x.HostRead();
+   y.HostReadWrite();
    const real_t *xp = x.GetData(), *d_col = data;
    real_t *yp = y.GetData();
    for (int col = 0; col < width; col++)
