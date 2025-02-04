@@ -106,7 +106,6 @@ void Hasher::add_block(uint64_t k1, uint64_t k2)
    data[0] += data[1];
    data[0] = data[0] * 5 + 0x52dce729ull;
 
-   // TODO: how to reduce this to 64-bit?
    k2 *= c2;
    k2 = rotl64(k2, 33);
    k2 *= c1;
@@ -194,7 +193,18 @@ void Hasher::finalize(uint64_t k1, int num)
    k1 = rotl64(k1, 31);
    k1 *= c2;
    data[0] ^= k1;
-   finalize();
+
+   data[0] ^= nbytes;
+   data[1] ^= nbytes;
+
+   data[0] += data[1];
+   data[1] += data[0];
+
+   data[0] = fmix64(data[0]);
+   data[1] = fmix64(data[1]);
+
+   data[0] += data[1];
+   data[1] += data[0];
 }
 
 void Hasher::finalize(uint64_t k1, uint64_t k2, int num)
@@ -211,7 +221,18 @@ void Hasher::finalize(uint64_t k1, uint64_t k2, int num)
    k1 = rotl64(k1, 31);
    k1 *= c2;
    data[0] ^= k1;
-   finalize();
+
+   data[0] ^= nbytes;
+   data[1] ^= nbytes;
+
+   data[0] += data[1];
+   data[1] += data[0];
+
+   data[0] = fmix64(data[0]);
+   data[1] = fmix64(data[1]);
+
+   data[0] += data[1];
+   data[1] += data[0];
 }
 
 } // namespace mfem

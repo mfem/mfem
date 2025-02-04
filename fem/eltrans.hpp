@@ -210,11 +210,14 @@ public:
          grid of type and size controlled by SetInitGuessPointsType() and
          SetInitGuessRelOrder(), respectively. */
       GivenPoint = 3, ///< Use a specific point, set with SetInitialGuess().
-      FastScan = 4, /**< Use the point returned by FindClosestPhysPoint()
+      EdgeScan = 4, /**< Use the point returned by FindClosestPhysPoint()
           from a reference-space scan of type and size controlled by
           SetInitGuessPointsType() and SetInitGuessRelOrder(), respectively.
-          The points chosen for the scan depends on the element type.
-          @see GeometryRefiner::Scan */
+          The points chosen lie somewhere along the boundary of the element.
+          For example, in triangle and square elements points (x,0) and (0,x)
+          are tested, while in tets and cubes points (x,0,0), (0,x,0), and (0,0,x)
+          are tested, where x are given by GeometryRefiner::EdgeScan.
+          @see GeometryRefiner::EdgeScan */
    };
 
    /// Solution strategy.
