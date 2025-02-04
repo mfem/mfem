@@ -154,6 +154,7 @@ set(SRCS
   gslib/interpolate_local_3.cpp
   transfer.cpp
   hyperbolic.cpp
+  integrator.cpp
   )
 
 set(HDRS
@@ -252,6 +253,7 @@ set(HDRS
   gslib.hpp
   transfer.hpp
   hyperbolic.hpp
+  integrator.hpp
   )
 
 if (MFEM_USE_SIDRE)
