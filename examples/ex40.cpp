@@ -230,11 +230,6 @@ int main(int argc, char *argv[])
    SparseMatrix &A10 = a10.SpMat();
    SparseMatrix *A01 = Transpose(A10);
 
-   BilinearForm a11(&L2fes);
-   a11.Assemble();
-   a11.Finalize();
-   SparseMatrix &A11 = a11.SpMat();
-
    // 11. Iterate.
    int k;
    int total_iterations = 0;
@@ -277,7 +272,6 @@ int main(int argc, char *argv[])
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,&A10);
          A.SetBlock(0,1,A01);
-         A.SetBlock(1,1,&A11);
 
          MINRES(A,prec,rhs,x,0,2000,1e-12);
          delete S;
