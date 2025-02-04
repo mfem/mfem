@@ -49,6 +49,11 @@
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
 #define MFEM_FOREACH_THREAD(i,k,N) \
     for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
+#define MFEM_FOREACH_THREAD_DIRECT(i,k,N) \
+    if(const int i=hipThreadIdx_ ##k; i<N)
+// this does not work well because it defines i in the upper scope
+#define MFEM_FOREACH_THREAD_DIRECT_UNCHECKED(i,k,N) \
+    const int i=hipThreadIdx_ ##k;
 #endif
 
 namespace mfem
