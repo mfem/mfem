@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -746,7 +746,7 @@ struct BufferReader : BufferReaderBase
    /// header_type) pointed to by @a header_buf.
    int NumHeaderBytes(const char *header_buf) const
    {
-      if (!compressed) { return HeaderEntrySize(); }
+      if (!compressed) { return static_cast<int>(HeaderEntrySize()); }
       return (3 + ReadHeaderEntry(header_buf))*HeaderEntrySize();
    }
 
@@ -856,12 +856,13 @@ struct BufferReader : BufferReaderBase
          // Decode the first entry of the header, which we need to determine
          // how long the rest of the header is.
          std::vector<char> nblocks_buf;
-         int nblocks_b64 = bin_io::NumBase64Chars(HeaderEntrySize());
+         int nblocks_b64 = static_cast<int>(bin_io::NumBase64Chars(HeaderEntrySize()));
          bin_io::DecodeBase64(txt, nblocks_b64, nblocks_buf);
          std::vector<char> data, header;
          // Compute number of characters needed to encode header in base 64,
          // then round to nearest multiple of 4 to take padding into account.
-         int header_b64 = bin_io::NumBase64Chars(NumHeaderBytes(nblocks_buf.data()));
+         int header_b64 = static_cast<int>(bin_io::NumBase64Chars(NumHeaderBytes(
+                                                                     nblocks_buf.data())));
          // If data is compressed, header is encoded separately
          bin_io::DecodeBase64(txt, header_b64, header);
          bin_io::DecodeBase64(txt + header_b64, strlen(txt)-header_b64, data);
@@ -2434,13 +2435,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          if (!elements_3D.empty())
          {
             Dim = 3;
-            NumOfElements = elements_3D.size();
+            NumOfElements = static_cast<int>(elements_3D.size());
             elements.SetSize(NumOfElements);
             for (int el = 0; el < NumOfElements; ++el)
             {
                elements[el] = elements_3D[el];
             }
-            NumOfBdrElements = elements_2D.size();
+            NumOfBdrElements = static_cast<int>(elements_2D.size());
             boundary.SetSize(NumOfBdrElements);
             for (int el = 0; el < NumOfBdrElements; ++el)
             {
@@ -2463,13 +2464,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          else if (!elements_2D.empty())
          {
             Dim = 2;
-            NumOfElements = elements_2D.size();
+            NumOfElements = static_cast<int>(elements_2D.size());
             elements.SetSize(NumOfElements);
             for (int el = 0; el < NumOfElements; ++el)
             {
                elements[el] = elements_2D[el];
             }
-            NumOfBdrElements = elements_1D.size();
+            NumOfBdrElements = static_cast<int>(elements_1D.size());
             boundary.SetSize(NumOfBdrElements);
             for (int el = 0; el < NumOfBdrElements; ++el)
             {
@@ -2488,13 +2489,13 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          else if (!elements_1D.empty())
          {
             Dim = 1;
-            NumOfElements = elements_1D.size();
+            NumOfElements = static_cast<int>(elements_1D.size());
             elements.SetSize(NumOfElements);
             for (int el = 0; el < NumOfElements; ++el)
             {
                elements[el] = elements_1D[el];
             }
-            NumOfBdrElements = elements_0D.size();
+            NumOfBdrElements = static_cast<int>(elements_0D.size());
             boundary.SetSize(NumOfBdrElements);
             for (int el = 0; el < NumOfBdrElements; ++el)
             {
@@ -2836,10 +2837,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    }
 
    this->RemoveUnusedVertices();
-   if (periodic)
-   {
-      this->RemoveInternalBoundaries();
-   }
    this->FinalizeTopology();
 
    // If a high order coordinate field was created project it onto the mesh
@@ -3516,6 +3513,11 @@ public:
    /// Read dimension info from file.
    void ReadDimension(const char * name, size_t *dimension);
 
+   /// Build the map from quantity ID to name, e.g. block ID to block name or boundary ID to boundary name
+   void BuildIDToNameMap(const vector<int> & ids,
+                         unordered_map<int, string> & ids_to_names,
+                         const string & quantity_name);
+
 protected:
    /// Called internally. Calls HandleNetCDFError if _netcdf_status is not "NC_NOERR".
    void CheckForNetCDFError();
@@ -3654,6 +3656,75 @@ void NetCDFReader::ReadVariable(const char * name, double * data)
 }
 
 
+void NetCDFReader::BuildIDToNameMap(const vector<int> & ids,
+                                    unordered_map<int, string> & ids_to_names,
+                                    const string & quantity_name)
+{
+   int varid_names;
+
+   // Find the variable ID for the given quantity_name (e.g. eb_names, ss_names)
+   _netcdf_status = nc_inq_varid(_netcdf_descriptor, quantity_name.c_str(),
+                                 &varid_names);
+   // It's possible the netcdf file doesn't contain the variable, in which case
+   // there's nothing to do
+   if (_netcdf_status == NC_ENOTVAR)
+   {
+      return;
+   }
+   else
+   {
+      CheckForNetCDFError();
+   }
+
+   // Get type of quantity_name
+   nc_type var_type;
+   _netcdf_status = nc_inq_vartype(_netcdf_descriptor, varid_names,
+                                   &var_type);
+   CheckForNetCDFError();
+
+   if (var_type == NC_CHAR)
+   {
+      int dimids_names[2], names_ndim;
+      size_t num_names, name_len;
+
+      _netcdf_status = nc_inq_varndims(_netcdf_descriptor, varid_names,
+                                       &names_ndim);
+      CheckForNetCDFError();
+      MFEM_ASSERT(names_ndim == 2, "This variable should have two dimensions");
+
+      _netcdf_status = nc_inq_vardimid(_netcdf_descriptor, varid_names,
+                                       dimids_names);
+      CheckForNetCDFError();
+
+      _netcdf_status = nc_inq_dimlen(_netcdf_descriptor, dimids_names[0], &num_names);
+      CheckForNetCDFError();
+      MFEM_ASSERT(num_names == ids.size(),
+                  "The block id and block name lengths don't match");
+      // Check the maximum string length
+      _netcdf_status = nc_inq_dimlen(_netcdf_descriptor, dimids_names[1], &name_len);
+      CheckForNetCDFError();
+
+      // Read the block names
+      vector<char> names(ids.size() * name_len);
+      _netcdf_status = nc_get_var_text(_netcdf_descriptor, varid_names,
+                                       names.data());
+      CheckForNetCDFError();
+
+      for (size_t i = 0; i < ids.size(); ++i)
+      {
+         string name(&names[i * name_len], name_len);
+         // shorten string
+         name.resize(name.find('\0'));
+         ids_to_names[ids[i]] = name;
+      }
+   }
+   else
+   {
+      mfem_error("Unexpected netcdf variable type");
+   }
+}
+
+
 /// @brief Reads the coordinate data from the Genesis file.
 static void ReadCubitNodeCoordinates(NetCDFReader & cubit_reader,
                                      double *coordx,
@@ -3734,10 +3805,11 @@ static void ReadCubitBlocks(NetCDFReader & cubit_reader,
 
    size_t num_nodes_per_element;
 
+   int iblock = 1;
    for (int block_id : block_ids)
    {
       // Write variable name to buffer.
-      snprintf(string_buffer, buffer_size, "num_nod_per_el%d", block_id);
+      snprintf(string_buffer, buffer_size, "num_nod_per_el%d", iblock++);
 
       cubit_reader.ReadDimension(string_buffer, &num_nodes_per_element);
 
@@ -3783,12 +3855,13 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
    const int buffer_size = NC_MAX_NAME + 1;
    char string_buffer[buffer_size];
 
+   int ibdr = 1;
    for (int boundary_id : boundary_ids)
    {
       // 1. Extract number of elements/sides for boundary.
       size_t num_sides = 0;
 
-      snprintf(string_buffer, buffer_size, "num_side_ss%d", boundary_id);
+      snprintf(string_buffer, buffer_size, "num_side_ss%d", ibdr);
       cubit_reader.ReadDimension(string_buffer, &num_sides);
 
       // 2. Extract elements and sides on each boundary (1-indexed!)
@@ -3796,11 +3869,11 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
       vector<int> boundary_side_ids(num_sides);
 
       //
-      snprintf(string_buffer, buffer_size, "elem_ss%d", boundary_id);
+      snprintf(string_buffer, buffer_size, "elem_ss%d", ibdr);
       cubit_reader.ReadVariable(string_buffer, boundary_element_ids.data());
 
       //
-      snprintf(string_buffer, buffer_size,"side_ss%d", boundary_id);
+      snprintf(string_buffer, buffer_size,"side_ss%d", ibdr++);
       cubit_reader.ReadVariable(string_buffer, boundary_side_ids.data());
 
       // 3. Add to maps.
@@ -3840,6 +3913,7 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
    const int buffer_size = NC_MAX_NAME + 1;
    char string_buffer[buffer_size];
 
+   int iblock = 1;
    for (const int block_id : block_ids)
    {
       const CubitElement & block_element = cubit_blocks.GetBlockElement(block_id);
@@ -3852,7 +3926,7 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
       vector<int> node_ids_for_block(num_nodes_for_block);
 
       // Write variable name to buffer.
-      snprintf(string_buffer, buffer_size, "connect%d", block_id);
+      snprintf(string_buffer, buffer_size, "connect%d", iblock++);
 
       cubit_reader.ReadVariable(string_buffer, node_ids_for_block.data());
 
@@ -4254,6 +4328,21 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    //
    vector<int> block_ids;
    BuildCubitBlockIDs(cubit_reader, num_element_blocks, block_ids);
+   unordered_map<int, string> blk_ids_to_names;
+   cubit_reader.BuildIDToNameMap(block_ids, blk_ids_to_names, "eb_names");
+   for (const auto & pr : blk_ids_to_names)
+   {
+      const auto blk_id = pr.first;
+      const auto & blk_name = pr.second;
+      if (!blk_name.empty())
+      {
+         if (!attribute_sets.AttributeSetExists(blk_name))
+         {
+            attribute_sets.CreateAttributeSet(blk_name);
+         }
+         attribute_sets.AddToAttributeSet(blk_name, blk_id);
+      }
+   }
 
    map<int, size_t> num_elements_for_block_id;
    ReadCubitNumElementsInBlock(cubit_reader, block_ids,
@@ -4283,6 +4372,22 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    //
    vector<int> boundary_ids;
    ReadCubitBoundaryIDs(cubit_reader, num_boundaries, boundary_ids);
+   unordered_map<int, string> bnd_ids_to_names;
+   cubit_reader.BuildIDToNameMap(boundary_ids, bnd_ids_to_names, "ss_names");
+   for (const auto & pr : bnd_ids_to_names)
+   {
+      const auto bnd_id = pr.first;
+      const auto & bnd_name = pr.second;
+      if (!bnd_name.empty())
+      {
+         if (!bdr_attribute_sets.AttributeSetExists(bnd_name))
+         {
+            bdr_attribute_sets.CreateAttributeSet(bnd_name);
+         }
+         bdr_attribute_sets.AddToAttributeSet(bnd_name, bnd_id);
+      }
+   }
+
 
    //
    // Read the (element, corresponding side) on each of the boundaries.

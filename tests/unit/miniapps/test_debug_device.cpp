@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,7 @@ using namespace mfem;
 #ifndef _WIN32
 #include <unistd.h>
 
-struct NullBuf: public std::streambuf { int overflow(int c) { return c; }};
+struct NullBuf: public std::streambuf { int overflow(int c) override { return c; }};
 
 static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 {

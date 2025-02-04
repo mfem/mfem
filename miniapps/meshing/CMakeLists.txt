@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -73,6 +73,10 @@ add_mfem_miniapp(reflector
   MAIN reflector.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(ref321
+  MAIN ref321.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(toroid
   MAIN toroid.cpp
   LIBRARIES mfem)
@@ -102,6 +106,7 @@ if (MFEM_ENABLE_TESTING)
     minimal-surface
     polar-nc
     reflector
+    ref321
     mesh-quality
   )
   foreach(test ${SERIAL_TESTS})
@@ -143,6 +148,9 @@ if (MFEM_USE_MPI)
     )
     # Meshing miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)
+    if (HYPRE_USING_CUDA OR HYPRE_USING_HIP)
+      list(APPEND SKIP_TESTS pmesh-fitting)
+    endif()
 
     foreach(test ${PARALLEL_TESTS})
       if (test IN_LIST SKIP_TESTS)
