@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2096,6 +2096,56 @@ public:
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
 
+   /// @brief Populate a marker array identifying exterior faces
+   ///
+   /// @param[in,out] face_marker Resized if necessary to the number of
+   ///                            local faces. The array entries will be
+   ///                            zero for interior faces and 1 for exterior
+   ///                            faces.
+   virtual void GetExteriorFaceMarker(Array<int> &face_marker) const;
+
+   /// @brief Unmark boundary attributes of internal boundaries
+   ///
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with internal boundaries
+   ///                           will be set to zero. Other entries will remain
+   ///                           unchanged.
+   /// @param[in]     excl       Only unmark entries which exclusively contain
+   ///                           internal faces [default: true].
+   virtual void UnmarkInternalBoundaries(Array<int> &bdr_marker,
+                                         bool excl = true) const;
+
+   /// @brief Unmark boundary attributes in the named set
+   ///
+   /// @param[in]     set_name   Name of a named boundary attribute set.
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with the named set will be
+   ///                           set to zero. Other entries will remain
+   ///                           unchanged.
+   virtual void UnmarkNamedBoundaries(const std::string &set_name,
+                                      Array<int> &bdr_marker) const;
+
+   /// @brief Mark boundary attributes of external boundaries
+   ///
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with external boundaries
+   ///                           will be set to one. Other entries will remain
+   ///                           unchanged.
+   /// @param[in]     excl       Only mark entries which exclusively contain
+   ///                           external faces [default: true].
+   virtual void MarkExternalBoundaries(Array<int> &bdr_marker,
+                                       bool excl = true) const;
+
+   /// @brief Mark boundary attributes in the named set
+   ///
+   /// @param[in]     set_name   Name of a named boundary attribute set.
+   /// @param[in,out] bdr_marker Array of length bdr_attributes.Max().
+   ///                           Entries associated with the named set will be
+   ///                           set to one. Other entries will remain
+   ///                           unchanged.
+   virtual void MarkNamedBoundaries(const std::string &set_name,
+                                    Array<int> &bdr_marker) const;
+
    /// @}
 
    /// @name Methods related to mesh partitioning
@@ -2965,8 +3015,8 @@ public:
    Vector X;
 
    /// Jacobians of the element transformations at all quadrature points.
-   /** This array uses a column-major layout with dimensions (NQ x SDIM x DIM x
-       NF) where
+   /** This array uses a column-major layout with dimensions (NQ x SDIM x
+       (DIM-1) x NF) where
        - NQ = number of quadrature points per face,
        - SDIM = space dimension of the mesh = mesh.SpaceDimension(),
        - DIM = dimension of the mesh = mesh.Dimension(), and
