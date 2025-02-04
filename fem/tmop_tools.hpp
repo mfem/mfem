@@ -376,6 +376,8 @@ protected:
    QuantityOfInterest *qoi = nullptr;
    Diffusion_Solver *ds = nullptr;
    double weight = 1.0;
+   real_t ls_norm_fac = 1.2;
+   real_t ls_energy_fac = 1.1;
 
 public:
    TMOP_MMA(int nVar, int nCon, Vector xval, const IntegrationRule &irule) :
@@ -405,6 +407,9 @@ public:
    void SetQuantityOfInterest(QuantityOfInterest *qoi_) { qoi = qoi_; }
    void SetDiffusionSolver(Diffusion_Solver *ds_) { ds = ds_; }
    void SetQoIWeight(double w) { weight = w; }
+   void SetLineSearchEnergyFactor(double ls_energy_fac_) { ls_energy_fac = ls_energy_fac_;}
+   void SetLineSearchNormFactor(double ls_norm_fac_) { ls_norm_fac = ls_norm_fac_; }
+   real_t GetEnergy(const Vector &x, bool include_qoi = true);
 };
 
 }

@@ -24,19 +24,18 @@
 
 
 // K10 -  TMOP solver based run
-// order 1, shock wave around origin
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m square01.mesh -rs 4
-// order 2
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-4 -ni 200 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m square01.mesh -rs 4 -o 2
-// order 3
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-4 -ni 500 -ft 2 --qtype 3 -w1 1e0 -w2 1e-3 -m square01.mesh -rs 2 -o 3
+// order 2, shock wave around origin
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -ft 2 --qtype 4 -w1 5e-2 -w2 5e-2 -m square01.mesh -rs 2 -o 2 -lsn 1.05 -lse 1.05
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -ft 2 --qtype 4 -w1 1e-1 -w2 5 -m square01-tri.mesh -rs 1 -alpha 20 -o 2 -mid 2 -tid 4
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 400 -ft 2 --qtype 3 -w1 1e3 -w2 30 -m square01-tri.mesh -rs 1 -alpha 20 -o 2 -mid 2 -tid 4
+
 // order 1, cube mesh
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 100 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m cube.mesh -o 1 -rs 4 -mid 303
 
 // sinusoidal wave for orientation and sharp inclined wave for solution
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-4 -ni 200 -ft 3 --qtype 3 -w1 1e2 -w2 1e-2 -m square01.mesh -rs 2 -o 2 -tid 4 -mid 107 -alpha 35
 // working with energy
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 3 --qtype 4 -w1 1e-3 -w2 2e-2 -m square01.mesh -rs 2 -alpha 20 -o 2 -mid 107 -tid 4
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 3 --qtype 4 -w1 1e-1 -w2 2e-2 -m square01.mesh -rs 2 -alpha 20 -o 2 -mid 107 -tid 5
 
 
 #include "mfem.hpp"
@@ -271,6 +270,36 @@ double loadFunc(const Vector & x)
   return 0.0;
 };
 
+void VisVectorField(OSCoefficient *adapt_coeff, ParMesh *pmesh, ParGridFunction *orifield)
+{
+  ParFiniteElementSpace *pfespace = orifield->ParFESpace();
+  int dim = pfespace->GetMesh()->Dimension();
+
+    DenseMatrix mat(dim);
+    Vector vec(dim);
+    Array<int> dofs;
+  // Loop over the elements and project the adapt_coeff to vector field
+  for (int e = 0; e < pmesh->GetNE(); e++)
+  {
+    const FiniteElement *fe = pfespace->GetFE(e);
+    const IntegrationRule ir = fe->GetNodes();
+    const int dof = fe->GetDof();
+    ElementTransformation *trans = pmesh->GetElementTransformation(e);
+    Vector nodevals(dof*dim);
+    for (int q = 0; q < ir.GetNPoints(); q++)
+    {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      trans->SetIntPoint(&ip);
+      adapt_coeff->Eval(mat, *trans, ip);
+      mat.GetColumn(0, vec);
+      nodevals[q + dof*0] = vec[0];
+      nodevals[q + dof*1] = vec[1];
+    }
+    pfespace->GetElementVDofs(e, dofs);
+    orifield->SetSubVector(dofs, nodevals);
+  }
+}
+
 int main (int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
@@ -301,7 +330,9 @@ int main (int argc, char *argv[])
   int mesh_poly_deg     = 1;
   int nx                = 20;
   const char *mesh_file = "null.mesh";
-   bool exactaction      = false;
+  bool exactaction      = false;
+  double ls_norm_fac    = 1.2;
+  double ls_energy_fac  = 1.1;
 
   OptionsParser args(argc, argv);
   args.AddOption(&ref_ser, "-rs", "--refine-serial",
@@ -346,6 +377,10 @@ int main (int argc, char *argv[])
     args.AddOption(&exactaction, "-ex", "--exact_action",
                   "-no-ex", "--no-exact-action",
                   "Enable exact action of TMOP_Integrator.");
+   args.AddOption(&ls_norm_fac, "-lsn", "--ls-norm-fac",
+                  "line-search norm factor");
+   args.AddOption(&ls_energy_fac, "-lse", "--ls-energy-fac",
+                  "line-search energy factor");
 
    args.Parse();
    if (!args.Good())
@@ -438,7 +473,9 @@ int main (int argc, char *argv[])
   //    changing x automatically changes the shapes of the mesh elements.
   ParGridFunction x(pfespace);
   PMesh->SetNodalGridFunction(&x);
-  ParGridFunction x0 = x;
+  ParGridFunction x0(pfespace);
+  x0 = x;
+  ParGridFunction orifield(pfespace);
   int numOptVars = pfespace->GetTrueVSize();
 
   // TMOP Integrator setup
@@ -452,6 +489,7 @@ int main (int argc, char *argv[])
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
       case 36: metric = new TMOP_AMetric_036; break;
+      case 80: metric = new TMOP_Metric_080(0.8); break;
       case 85: metric = new TMOP_Metric_085; break;
       case 98: metric = new TMOP_Metric_098; break;
       case 107: metric = new TMOP_AMetric_107a; break;
@@ -469,13 +507,15 @@ int main (int argc, char *argv[])
       case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
       case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
       case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
-      case 4:
+      case 4: target_t = TargetConstructor::GIVEN_SHAPE_AND_SIZE; break;
+      case 5:
       {
          target_t = TargetConstructor::GIVEN_FULL;
          AnalyticAdaptTC *tc = new AnalyticAdaptTC(target_t);
          adapt_coeff = new OSCoefficient(dim, metric_id);
          tc->SetAnalyticTargetSpec(NULL, NULL, adapt_coeff);
          target_c = tc;
+         VisVectorField(adapt_coeff, PMesh, &orifield);
          break;
       }
       default:
@@ -486,7 +526,8 @@ int main (int argc, char *argv[])
    {
     target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
-   target_c->SetNodes(x);
+   target_c->SetNodes(x0);
+
 
    IntegrationRules *irules = &IntRulesLo;
    auto tmop_integ = new TMOP_Integrator(metric, target_c);
@@ -557,7 +598,7 @@ int main (int argc, char *argv[])
           gridfuncLSBoundIndicator[ vdofs[j] ] = 1.0;
         }
       }
-      else if (attribute == 3) // zero out in z
+      else if (dim == 3 && attribute == 3) // zero out in z
       {
         for (int j = 0; j < nd; j++)
         {
@@ -649,10 +690,26 @@ if (myid == 0) {
     {
         socketstream vis;
         common::VisualizeField(vis, "localhost", 19916, discretSol,
-                              "Initial Solution", 0, 0, 500, 500, "jRmclA");
+                              "Initial Projected Solution", 0, 0, 500, 500, "jRmclAppppppppppppp");
+    }
+    {
+      solver.SetDesignVarFromUpdatedLocations(x);
+      solver.FSolve();
+    ParGridFunction & discretSol = solver.GetSolution();
+      if (visualization)
+      {
+          socketstream vis;
+          common::VisualizeField(vis, "localhost", 19916, discretSol,
+                                "Initial Solver Solution", 0, 500, 500, 500, "jRmclAppppppppppppp");
+      }
     }
 
+    auto init_l2_error = discretSol.ComputeL2Error(*trueSolution);
+    auto init_grad_error = discretSol.ComputeGradError(trueSolutionGrad);
+    auto init_h1_error = discretSol.ComputeH1Error(trueSolution, trueSolutionGrad);
+
   x.SetTrueVector();
+
   if (method == 0)
   {
     ParNonlinearForm a(pfespace);
@@ -662,7 +719,6 @@ if (myid == 0) {
       ess_bdr = 1;
       //a.SetEssentialBC(ess_bdr);
     }
-    double init_energy = a.GetParGridFunctionEnergy(x);
     IterativeSolver::PrintLevel newton_print;
     newton_print.Errors().Warnings().Iterations();
     // set the TMOP Integrator
@@ -690,6 +746,15 @@ if (myid == 0) {
     // Set min jac
     tmma->SetMinimumDeterminantThreshold(1e-6);
 
+    // Set line search factors
+    tmma->SetLineSearchNormFactor(ls_norm_fac);
+    tmma->SetLineSearchEnergyFactor(ls_energy_fac);
+
+
+    const real_t init_energy = tmma->GetEnergy(x.GetTrueVector(), true);
+    const real_t init_metric_energy = tmma->GetEnergy(x.GetTrueVector(), false);
+    const real_t init_qoi_energy = init_energy - init_metric_energy;
+
     tmma->Mult(x.GetTrueVector());
     x.SetFromTrueVector();
 
@@ -699,7 +764,7 @@ if (myid == 0) {
       x0 -= x;
       socketstream vis;
       common::VisualizeField(vis, "localhost", 19916, x0,
-                              "Displacements", 500, 000, 500, 500, "jRmclAppppppppppppp");
+                              "Displacements", 1000, 000, 500, 500, "jRmclAppppppppppppp");
 
       ParaViewDataCollection paraview_dc("NativeMeshOptimizer", PMesh);
       paraview_dc.SetLevelsOfDetail(1);
@@ -719,12 +784,54 @@ if (myid == 0) {
       PMesh->PrintAsOne(mesh_ofs);
     }
 
+
+    solver.SetDesignVarFromUpdatedLocations(x);
+    solver.FSolve();
     ParGridFunction & discretSol = solver.GetSolution();
     if (visualization)
     {
         socketstream vis;
         common::VisualizeField(vis, "localhost", 19916, discretSol,
-                              "Solution", 1000, 000, 500, 500, "jRmclA");
+                              "Final Solver Solution", 500, 500, 500, 500, "jRmclAppppppppppppp");
+    }
+
+    auto final_l2_error = discretSol.ComputeL2Error(*trueSolution);
+    auto final_grad_error = discretSol.ComputeGradError(trueSolutionGrad);
+    auto final_h1_error = discretSol.ComputeH1Error(trueSolution, trueSolutionGrad);
+
+    const real_t final_energy = tmma->GetEnergy(x.GetTrueVector(), true);
+    const real_t final_metric_energy = tmma->GetEnergy(x.GetTrueVector(), false);
+    const real_t final_qoi_energy = final_energy - final_metric_energy;
+
+    discretSol.ProjectCoefficient(*trueSolution);
+    if (visualization)
+    {
+        socketstream vis;
+        common::VisualizeField(vis, "localhost", 19916, discretSol,
+                              "Final Projected Solution", 500, 000, 500, 500, "jRmclAppppppppppppp");
+    }
+    if (myid == 0)
+    {
+      std::cout << "Initial L2 error: " << " " << init_l2_error << " " << std::endl;
+      std::cout << "Final   L2 error: " << " " << final_l2_error << " " << std::endl;
+
+      std::cout << "Initial Grad error: " << " " << init_grad_error << " " << std::endl;
+      std::cout << "Final   Grad error: " << " " << final_grad_error << " " << std::endl;
+
+      std::cout << "Initial H1 error: " << " " << init_h1_error << " " << std::endl;
+      std::cout << "Final   H1 error: " << " " << final_h1_error << " " << std::endl;
+
+      std::cout << "Initial Total/Metric/QOI Energy: " << init_energy << " " << init_metric_energy << " " << init_qoi_energy << std::endl;
+      std::cout << "Final   Total/Metric/QOI Energy: " << final_energy << " " << final_metric_energy << " " << final_qoi_energy << std::endl;
+    }
+
+    if (visualization && adapt_coeff)
+    {
+
+         VisVectorField(adapt_coeff, PMesh, &orifield);
+        socketstream vis;
+        common::VisualizeField(vis, "localhost", 19916, orifield,
+                              "Orientation", 1000, 500, 500, 500, "jRmclAevvppp");
     }
   }
   else

@@ -119,6 +119,9 @@
 // mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -st 1
 // Blade with MMA
 // mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -mma -ch 1e-3
+
+// grep -i "Energy decrease:" comp_newton.out | awk '{print $2}'
+
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -1177,7 +1180,10 @@ int main (int argc, char *argv[])
       x.SetTrueVector();
       double init_energy = a.GetParGridFunctionEnergy(x);
       IterativeSolver::PrintLevel newton_print;
-      newton_print.Errors().Warnings().Iterations();
+      if (verbosity_level > 0)
+      { newton_print.Errors().Warnings().Iterations(); }
+      tmma->SetPrintLevel(newton_print);
+      // newton_print.Errors().Warnings().Iterations();
       // set the TMOP Integrator
       tmma->SetOperator(a);
       // Set change limits on dx
@@ -1195,7 +1201,6 @@ int main (int argc, char *argv[])
 
       // Set max # iterations
       tmma->SetMaxIter(solver_iter);
-      tmma->SetPrintLevel(newton_print);
 
       tmma->Mult(x.GetTrueVector());
       x.SetFromTrueVector();

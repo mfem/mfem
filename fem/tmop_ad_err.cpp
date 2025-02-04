@@ -177,7 +177,7 @@ void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const FiniteE
   elvect.SetSize(dim * dof);
   elvect = 0.0;
 
-  int integrationOrder = 2 * el.GetOrder() + 2;
+  int integrationOrder = 2 * el.GetOrder() + 3;
   if (IntegrationOrder_ != INT_MAX) {
     integrationOrder = IntegrationOrder_;
   }
@@ -212,10 +212,12 @@ void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const FiniteE
     Vectorize(graduDerivxB, graduDerivxBvec);
     elvect.Add( -1.0 * w , graduDerivxBvec);
 
-    // term 2 - 2(u-*)^2 d(detJ)/dx - k10-todo check
+    // term 2 - (u-u*)^2 d(detJ)/dx
     Mult(B, I, IxB);
     Vectorize(IxB, IxBTvec);
     elvect.Add( w * QoI_->Eval(T, ip), IxBTvec);
+    // Vector Bvec(B.GetData(), dof*dim);
+    // elvect.Add( w * QoI_->Eval(T, ip), Bvec);
 
     // term 3 - this is for when QoI has x inside e.g. (u * x - u* * x)^2
     Mult(matN, QoI_->explicitShapeDerivative(T, ip), NxPhix);
@@ -252,7 +254,7 @@ void LFAvgErrorNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const
   elvect.SetSize(dim * dof);
   elvect = 0.0;
 
-  int integrationOrder = 2 * el.GetOrder() + 2;
+  int integrationOrder = 2 * el.GetOrder() + 3;
   if (IntegrationOrder_ != INT_MAX) {
     integrationOrder = IntegrationOrder_;
   }
@@ -343,7 +345,7 @@ void LFErrorIntegrator::AssembleRHSElementVect(const FiniteElement &el, ElementT
   elvect.SetSize( dof);
   elvect = 0.0;
 
-  int integrationOrder = 2 * el.GetOrder() + 2;
+  int integrationOrder = 2 * el.GetOrder() + 3;
   if (IntegrationOrder_ != INT_MAX) {
     integrationOrder = IntegrationOrder_;
   }
@@ -388,7 +390,7 @@ void LFErrorDerivativeIntegrator::AssembleRHSElementVect(const FiniteElement &el
   elvect.SetSize( dof);
   elvect = 0.0;
 
-  int integrationOrder = 2 * el.GetOrder() + 2;
+  int integrationOrder = 2 * el.GetOrder() + 3;
   if (IntegrationOrder_ != INT_MAX) {
     integrationOrder = IntegrationOrder_;
   }
@@ -439,7 +441,7 @@ void LFErrorDerivativeIntegrator_2::AssembleRHSElementVect(const FiniteElement &
   int dof = el.GetDof();
   int dim = el.GetDim();
 
-  int integrationOrder = 2 * el.GetOrder() + 2;
+  int integrationOrder = 2 * el.GetOrder() + 3;
   if (IntegrationOrder_ != INT_MAX) {
     integrationOrder = IntegrationOrder_;
   }
@@ -586,7 +588,7 @@ void LFAverageErrorDerivativeIntegrator::AssembleRHSElementVect(const mfem::Fini
   int dof = el.GetDof();
   int dim = el.GetDim();
 
-  int integrationOrder = 2 * el.GetOrder() + 2;
+  int integrationOrder = 2 * el.GetOrder() + 3;
   if (IntegrationOrder_ != INT_MAX) {
     integrationOrder = IntegrationOrder_;
   }
@@ -1151,7 +1153,7 @@ void QuantityOfInterest::EvalQoIGrad()
       T_gradForm.AddDomainIntegrator(lfi);
       T_gradForm.Assemble();
       *dQdu_ = 0.0;
-      dQdu_->Add( 1.0, T_gradForm);
+      dQdu_->Add(1.0, T_gradForm);
     }
 
     // evaluate grad wrt coord

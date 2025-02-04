@@ -1103,6 +1103,34 @@ void TMOP_MMA::Mult(Vector &x)
    }
 }
 
+real_t TMOP_MMA::GetEnergy(const Vector &x, bool include_qoi)
+{
+   const FiniteElementSpace *fes = NULL;
+   double energy_in = 0.0;
+   Vector x_out_loc = x;
+#ifdef MFEM_USE_MPI
+   const ParNonlinearForm *p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
+   MFEM_VERIFY(!(parallel && p_nlf == NULL), "Invalid Operator subclass.");
+   if (parallel)
+   {
+      fes = p_nlf->FESpace();
+      energy_in = p_nlf->GetEnergy(x);
+   }
+#endif
+   x_out_loc = GetProlongedVector(x);
+   if (include_qoi && qoi)
+   {
+      ds->SetDesignVarFromUpdatedLocations(x_out_loc);
+      ds->FSolve();
+      ParGridFunction & discretSol = ds->GetSolution();
+      qoi->SetDesignVarFromUpdatedLocations(x_out_loc);
+      qoi->SetDiscreteSol( discretSol );
+      energy_in += weight*qoi->EvalQoI();
+   }
+   return energy_in;
+}
+
+
 real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
                                        const Vector &b) const
 {
@@ -1242,7 +1270,7 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
          }
       }
 #endif
-      if (energy_out > energy_in + 0.1*fabs(energy_in) ||
+      if (energy_out > energy_in + (ls_energy_fac-1.0)*fabs(energy_in) ||
           std::isnan(energy_out) != 0)
       {
          if (print_options.iterations)
@@ -1264,7 +1292,7 @@ real_t TMOP_MMA::ComputeScalingFactor2(const Vector &x,
       }
       real_t norm_out = Norm(r);
 
-      if (norm_out > 1.2*norm_in)
+      if (norm_out > ls_norm_fac*norm_in)
       {
          if (print_options.iterations)
          {
