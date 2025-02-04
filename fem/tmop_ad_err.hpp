@@ -424,7 +424,7 @@ public:
     double fieldVal = solutionField_->GetValue( T, ip );
     double Val = force_->Eval( T, ip );
 
-    double energy = - fieldVal*Val;
+    double energy = fieldVal*Val;
     return energy;
   };
 
@@ -434,7 +434,7 @@ public:
 
     double Val = force_->Eval( T, ip );
     double & matVal = dtheta_dU.Elem(0,0);
-    matVal = -Val;
+    matVal = Val;
     return dtheta_dU;
   };
 
