@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -66,7 +66,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
@@ -82,7 +82,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 {
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }

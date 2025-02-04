@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -148,8 +148,13 @@ set(SRCS
   tmop_tools.cpp
   tmop_amr.cpp
   gslib.cpp
+  gslib/findpts_local_2.cpp
+  gslib/findpts_local_3.cpp
+  gslib/interpolate_local_2.cpp
+  gslib/interpolate_local_3.cpp
   transfer.cpp
   hyperbolic.cpp
+  integrator.cpp
   )
 
 set(HDRS
@@ -248,6 +253,7 @@ set(HDRS
   gslib.hpp
   transfer.hpp
   hyperbolic.hpp
+  integrator.hpp
   )
 
 if (MFEM_USE_SIDRE)
