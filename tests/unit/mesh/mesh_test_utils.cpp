@@ -88,7 +88,8 @@ int CheckPoisson(Mesh &mesh, int order, int disabled_boundary_attribute)
    bool satisfy_bc = true;
    Vector tvec;
    sol.GetTrueDofs(tvec);
-   ess_tdof_list.HostRead(), tvec.HostRead();
+   ess_tdof_list.HostRead();
+   tvec.HostRead();
    for (auto dof : ess_tdof_list)
    {
       if (tvec[dof] != 0.0)

@@ -497,7 +497,8 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
    }
 
    residual = x;
-   helperVector.SetSize(x.Size()), helperVector.UseDevice(true);
+   helperVector.SetSize(x.Size());
+   helperVector.UseDevice(true);
 
    y.UseDevice(true);
    y = 0.0;
@@ -526,8 +527,11 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
 
 void SLISolver::UpdateVectors()
 {
-   r.SetSize(width), r.UseDevice(true);
-   z.SetSize(width), z.UseDevice(true);
+   r.SetSize(width);
+   r.UseDevice(true);
+
+   z.SetSize(width);
+   z.UseDevice(true);
 }
 
 void SLISolver::Mult(const Vector &b, Vector &x) const
@@ -712,9 +716,14 @@ void CGSolver::UpdateVectors()
 {
    MemoryType mt = GetMemoryType(oper->GetMemoryClass());
 
-   r.SetSize(width, mt); r.UseDevice(true);
-   d.SetSize(width, mt); d.UseDevice(true);
-   z.SetSize(width, mt); z.UseDevice(true);
+   r.SetSize(width, mt);
+   r.UseDevice(true);
+
+   d.SetSize(width, mt);
+   d.UseDevice(true);
+
+   z.SetSize(width, mt);
+   z.UseDevice(true);
 }
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
@@ -991,8 +1000,10 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    Vector r(n), w(n);
    Array<Vector *> v;
 
-   b.UseDevice(true), x.UseDevice(true);
-   r.UseDevice(true), w.UseDevice(true);
+   b.UseDevice(true);
+   x.UseDevice(true);
+   r.UseDevice(true);
+   w.UseDevice(true);
 
    int i, j, k;
 
@@ -1056,7 +1067,11 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
    for (j = 1; j <= max_iter; )
    {
-      if (v[0] == NULL) { v[0] = new Vector(n); v[0]->UseDevice(true); }
+      if (v[0] == NULL)
+      {
+         v[0] = new Vector(n);
+         v[0]->UseDevice(true);
+      }
       v[0]->Set(1.0/beta, r);
       s = 0.0; s(0) = beta;
 
@@ -1176,7 +1191,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector r(b.Size());
 
-   b.UseDevice(true), x.UseDevice(true);
+   b.UseDevice(true);
+   x.UseDevice(true);
    r.UseDevice(true);
 
    int i, j, k;
@@ -1227,7 +1243,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    j = 1;
    while (j <= max_iter)
    {
-      if (v[0] == NULL) { v[0] = new Vector(b.Size()); v[0]->UseDevice(true); }
+      if (v[0] == NULL)
+      {
+         v[0] = new Vector(b.Size());
+         v[0]->UseDevice(true);
+      }
       (*v[0]) = 0.0;
       v[0] -> Add (1.0/beta, r);   // v[0] = r / ||r||
       s = 0.0; s(0) = beta;
@@ -1235,7 +1255,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       for (i = 0; i < m && j <= max_iter; i++, j++)
       {
 
-         if (z[i] == NULL) { z[i] = new Vector(b.Size()); z[i]->UseDevice(true); }
+         if (z[i] == NULL)
+         {
+            z[i] = new Vector(b.Size());
+            z[i]->UseDevice(true);
+         }
          (*z[i]) = 0.0;
 
          if (prec)
@@ -1255,7 +1279,11 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          }
 
          H(i+1,i)  = Norm(r);       // H(i+1,i) = ||r||
-         if (v[i+1] == NULL) { v[i+1] = new Vector(b.Size()); v[i+1]->UseDevice(true); }
+         if (v[i+1] == NULL)
+         {
+            v[i+1] = new Vector(b.Size());
+            v[i+1]->UseDevice(true);
+         }
          (*v[i+1]) = 0.0;
          v[i+1] -> Add (1.0/H(i+1,i), r); // v[i+1] = r / H(i+1,i)
 
@@ -1375,14 +1403,29 @@ void GMRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
 
 void BiCGSTABSolver::UpdateVectors()
 {
-   p.SetSize(width), p.UseDevice(true);
-   phat.SetSize(width), phat.UseDevice(true);
-   s.SetSize(width), s.UseDevice(true);
-   shat.SetSize(width), shat.UseDevice(true);
-   t.SetSize(width), t.UseDevice(true);
-   v.SetSize(width), v.UseDevice(true);
-   r.SetSize(width), r.UseDevice(true);
-   rtilde.SetSize(width), rtilde.UseDevice(true);
+   p.SetSize(width);
+   p.UseDevice(true);
+
+   phat.SetSize(width);
+   phat.UseDevice(true);
+
+   s.SetSize(width);
+   s.UseDevice(true);
+
+   shat.SetSize(width);
+   shat.UseDevice(true);
+
+   t.SetSize(width);
+   t.UseDevice(true);
+
+   v.SetSize(width);
+   v.UseDevice(true);
+
+   r.SetSize(width);
+   r.UseDevice(true);
+
+   rtilde.SetSize(width);
+   rtilde.UseDevice(true);
 }
 
 void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
@@ -1394,7 +1437,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    real_t resid, tol_goal;
    real_t rho_1, rho_2=1.0, alpha=1.0, beta, omega=1.0;
 
-   b.UseDevice(true), x.UseDevice(true);
+   b.UseDevice(true);
+   x.UseDevice(true);
 
    if (iterative_mode)
    {
@@ -1605,12 +1649,26 @@ void BiCGSTAB(const Operator &A, Solver &B, const Vector &b, Vector &x,
 void MINRESSolver::SetOperator(const Operator &op)
 {
    IterativeSolver::SetOperator(op);
-   v0.SetSize(width), v0.UseDevice(true);
-   v1.SetSize(width), v1.UseDevice(true);
-   w0.SetSize(width), w0.UseDevice(true);
-   w1.SetSize(width), w1.UseDevice(true);
-   q.SetSize(width), q.UseDevice(true);
-   if (prec) { u1.SetSize(width), u1.UseDevice(true); }
+   v0.SetSize(width);
+   v0.UseDevice(true);
+
+   v1.SetSize(width);
+   v1.UseDevice(true);
+
+   w0.SetSize(width);
+   w0.UseDevice(true);
+
+   w1.SetSize(width);
+   w1.UseDevice(true);
+
+   q.SetSize(width);
+   q.UseDevice(true);
+
+   if (prec)
+   {
+      u1.SetSize(width);
+      u1.UseDevice(true);
+   }
 }
 
 void MINRESSolver::Mult(const Vector &b, Vector &x) const
@@ -1620,7 +1678,8 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    // by Henk A. van der Vorst, 2003.
    // Extended to support an SPD preconditioner.
 
-   b.UseDevice(true), x.UseDevice(true);
+   b.UseDevice(true);
+   x.UseDevice(true);
 
    int it;
    real_t beta, eta, gamma0, gamma1, sigma0, sigma1;
@@ -1813,8 +1872,11 @@ void NewtonSolver::SetOperator(const Operator &op)
    width = op.Width();
    MFEM_VERIFY(height == width, "square Operator is required.");
 
-   r.SetSize(width), r.UseDevice(true);
-   c.SetSize(width), c.UseDevice(true);
+   r.SetSize(width);
+   r.UseDevice(true);
+
+   c.SetSize(width);
+   c.UseDevice(true);
 }
 
 void NewtonSolver::Mult(const Vector &b, Vector &x) const
@@ -2011,17 +2073,28 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_VERIFY(oper != NULL, "the Operator is not set (use SetOperator).");
 
-   b.UseDevice(true), x.UseDevice(true);
+   b.UseDevice(true);
+   x.UseDevice(true);
 
    // Quadrature points that are checked for negative Jacobians etc.
    Vector sk, rk, yk, rho, alpha;
 
    // r - r_{k+1}, c - descent direction
-   sk.SetSize(width), sk.UseDevice(true);    // x_{k+1}-x_k
-   rk.SetSize(width), rk.UseDevice(true);    // nabla(f(x_{k}))
-   yk.SetSize(width), yk.UseDevice(true);    // r_{k+1}-r_{k}
-   rho.SetSize(m), rho.UseDevice(true);      // 1/(dot(yk,sk)
-   alpha.SetSize(m), alpha.UseDevice(true);  // rhok*sk'*c
+   sk.SetSize(width); // x_{k+1}-x_k
+   sk.UseDevice(true);
+
+   rk.SetSize(width); // nabla(f(x_{k}))
+   rk.UseDevice(true);
+
+   yk.SetSize(width); // r_{k+1}-r_{k}
+   yk.UseDevice(true);
+
+   rho.SetSize(m); // 1/(dot(yk,sk)
+   rho.UseDevice(true);
+
+   alpha.SetSize(m); // rhok*sk'*c
+   alpha.UseDevice(true);
+
    int last_saved_id = -1;
 
    int it;
@@ -2165,8 +2238,10 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector w(n), av(n);
 
-   b.UseDevice(true), x.UseDevice(true);
-   w.UseDevice(true), av.UseDevice(true);
+   b.UseDevice(true);
+   x.UseDevice(true);
+   w.UseDevice(true);
+   av.UseDevice(true);
 
    real_t r1, resid;
    int i, j, k;
@@ -2656,7 +2731,9 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    C.GetDiag(D);
    D.HostRead();
 
-   C.HostReadI(), C.HostReadJ(), C.HostReadWriteData();
+   C.HostReadI();
+   C.HostReadJ();
+   C.HostReadWriteData();
    const int *I = C.GetI(), *J = C.GetJ();
    real_t *V = C.GetData();
    for (int i=0; i<n; ++i)
@@ -2811,7 +2888,9 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
    }
 
    int nrows = A.Height();
-   A.HostReadI(), A.HostReadJ(), A.HostReadData();
+   A.HostReadI();
+   A.HostReadJ();
+   A.HostReadData();
    const int *I = A.GetI();
    const int *J = A.GetJ();
    const real_t *V = A.GetData();
@@ -3512,7 +3591,8 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 #endif
 
    real_t ratio = global_sum / static_cast<real_t>(global_size);
-   v_ortho.SetSize(v.Size()), v_ortho.UseDevice(true);
+   v_ortho.SetSize(v.Size());
+   v_ortho.UseDevice(true);
    v.HostRead();
    v_ortho.HostWrite();
    for (int i = 0; i < v_ortho.Size(); ++i)
@@ -3573,7 +3653,8 @@ void NNLSSolver::SetOperator(const Operator &op)
    height = op.Width();
    width = op.Height();
 
-   row_scaling_.SetSize(mat->NumRows()), row_scaling_.UseDevice(true);
+   row_scaling_.SetSize(mat->NumRows());
+   row_scaling_.UseDevice(true);
    row_scaling_ = 1.0;
 }
 
@@ -3606,7 +3687,8 @@ void NNLSSolver::NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const
    Vector halfgap_target(m);
    halfgap_target = 1.0e3 * const_tol_;
 
-   row_scaling_.SetSize(m), row_scaling_.UseDevice(true);
+   row_scaling_.SetSize(m);
+   row_scaling_.UseDevice(true);
 
    for (int i=0; i<m; ++i)
    {

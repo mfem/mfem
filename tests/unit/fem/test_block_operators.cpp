@@ -81,39 +81,38 @@ TEST_CASE("BlockOperators", "[BlockOperators], [CUDA]")
    blockOp.SetBlock(1, 0, &vdiv, -1.0);
 
    Vector Md(vmass.Height());
+   vmass.AssembleDiagonal(Md);
    BlockDiagonalPreconditioner darcyDiagonalPrec(block_offsets);
    BlockLowerTriangularPreconditioner darcyLowerTriangularPrec(block_offsets);
 
-   vmass.AssembleDiagonal(Md);
-   auto Md_host = Md.HostRead();
-   Vector invMd(vmass.Height());
-   for (int i = 0; i < vmass.Height(); ++i) { invMd(i) = 1.0 / Md_host[i]; }
+   Vector invMd(Md);
+   invMd.Reciprocal();
+
    Vector BMBt_diag(vdiv.Height());
    vdiv.AssembleDiagonal_ADAt(invMd, BMBt_diag);
    OperatorJacobiSmoother invM(Md, {}), invS(BMBt_diag, {});
-   invM.iterative_mode = invS.iterative_mode = false;
 
    darcyDiagonalPrec.SetDiagonalBlock(0, &invM);
    darcyDiagonalPrec.SetDiagonalBlock(1, &invS);
    darcyLowerTriangularPrec.SetDiagonalBlock(0, &invM);
    darcyLowerTriangularPrec.SetDiagonalBlock(1, &invS);
 
-   MINRESSolver dsolver, lsolver;
+   MINRESSolver solver;
    const auto rtol = 1e-6, atol = 1e-8;
    const auto print_lvl = 3, max_it = 100;
-   dsolver.SetAbsTol(atol), lsolver.SetAbsTol(atol);
-   dsolver.SetRelTol(rtol), lsolver.SetRelTol(rtol);
-   dsolver.SetPrintLevel(print_lvl), lsolver.SetPrintLevel(print_lvl);
-   dsolver.SetMaxIter(max_it), lsolver.SetMaxIter(max_it);
-   dsolver.SetOperator(blockOp), lsolver.SetOperator(blockOp);
-   dsolver.SetPreconditioner(darcyDiagonalPrec);
-   lsolver.SetPreconditioner(darcyLowerTriangularPrec);
+   solver.SetAbsTol(atol);
+   solver.SetRelTol(rtol);
+   solver.SetPrintLevel(print_lvl);
+   solver.SetMaxIter(max_it);
+   solver.SetOperator(blockOp);
 
-   x = 0.0, dsolver.Mult(rhs, x);
-   y = 0.0, lsolver.Mult(rhs, y);
+   solver.SetPreconditioner(darcyDiagonalPrec);
+   x = 0.0, solver.Mult(rhs, x);
+   REQUIRE(solver.GetConverged());
 
-   REQUIRE(dsolver.GetConverged());
-   REQUIRE(lsolver.GetConverged());
+   solver.SetPreconditioner(darcyLowerTriangularPrec);
+   y = 0.0, solver.Mult(rhs, y);
+   REQUIRE(solver.GetConverged());
 
    x -= y;
    REQUIRE(x.Normlinf() == MFEM_Approx(0.0));

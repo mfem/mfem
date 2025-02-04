@@ -422,7 +422,8 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    {
       if (cP) { cP->MultTranspose(py, y); }
 
-      y.HostReadWrite(), ess_tdof_list.HostRead();
+      y.HostReadWrite();
+      ess_tdof_list.HostRead();
       for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
          y(ess_tdof_list[i]) = 0.0;
