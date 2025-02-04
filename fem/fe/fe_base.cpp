@@ -2267,12 +2267,12 @@ void Poly_1D::CalcChebyshev(const int p, const real_t x, real_t *u, real_t *d,
    }
 }
 
-const real_t *Poly_1D::GetPoints(const int p, const int btype, bool on_device)
+const Array<real_t>* Poly_1D::GetPointsArray(const int p, const int btype)
 {
    Array<real_t> *val;
    BasisType::Check(btype);
    const int qtype = BasisType::GetQuadrature1D(btype);
-   if (qtype == Quadrature1D::Invalid) { return NULL; }
+   if (qtype == Quadrature1D::Invalid) { return nullptr; }
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (Poly1DGetPoints)
@@ -2292,7 +2292,7 @@ const real_t *Poly_1D::GetPoints(const int p, const int btype, bool on_device)
          val = it->second.get();
       }
    }
-   return val->Read(on_device);
+   return val;
 }
 
 Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
