@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -67,7 +67,7 @@ struct ElasticityBench
       geometric_factors(fes.GetMesh()->
                         GetGeometricFactors(ir, GeometricFactors::JACOBIANS |
                                             GeometricFactors::DETERMINANTS)),
-      maps(&fes.GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR)),
+      maps(&fes.GetTypicalFE()->GetDofToQuad(ir, DofToQuad::TENSOR)),
       d1d(maps->ndof),
       q1d(maps->nqpt),
       R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,10 +26,13 @@ void AdvectorCG::SetInitialField(const Vector &init_nodes,
    field0 = init_field;
 }
 
-void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
+void AdvectorCG::ComputeAtNewPosition(const Vector &new_mesh_nodes,
                                       Vector &new_field,
-                                      int new_nodes_ordering)
+                                      int nodes_ordering)
 {
+   MFEM_VERIFY(nodes0.Size() == new_mesh_nodes.Size(),
+               "AdvectorCG assumes fixed mesh topology!");
+
    FiniteElementSpace *space = fes;
 #ifdef MFEM_USE_MPI
    if (pfes) { space = pfes; }
@@ -37,8 +40,7 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    int fes_ordering = space->GetOrdering(),
        ncomp = space->GetVDim();
 
-   // TODO: Implement for AMR meshes.
-   const int pnt_cnt = field0.Size() / ncomp;
+   const int dof_cnt = field0.Size() / ncomp;
 
    new_field = field0;
    Vector new_field_temp;
@@ -46,20 +48,20 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    {
       if (fes_ordering == Ordering::byNODES)
       {
-         new_field_temp.MakeRef(new_field, i*pnt_cnt, pnt_cnt);
+         new_field_temp.MakeRef(new_field, i*dof_cnt, dof_cnt);
       }
       else
       {
-         new_field_temp.SetSize(pnt_cnt);
-         for (int j = 0; j < pnt_cnt; j++)
+         new_field_temp.SetSize(dof_cnt);
+         for (int j = 0; j < dof_cnt; j++)
          {
             new_field_temp(j) = new_field(i + j*ncomp);
          }
       }
-      ComputeAtNewPositionScalar(new_nodes, new_field_temp);
+      ComputeAtNewPositionScalar(new_mesh_nodes, new_field_temp);
       if (fes_ordering == Ordering::byVDIM)
       {
-         for (int j = 0; j < pnt_cnt; j++)
+         for (int j = 0; j < dof_cnt; j++)
          {
             new_field(i + j*ncomp) = new_field_temp(j);
          }
@@ -67,10 +69,10 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_nodes,
    }
 
    field0 = new_field;
-   nodes0 = new_nodes;
+   nodes0 = new_mesh_nodes;
 }
 
-void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
+void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_mesh_nodes,
                                             Vector &new_field)
 {
    Mesh *m = mesh;
@@ -87,7 +89,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
    // Velocity of the positions.
    GridFunction u(mesh_nodes->FESpace());
-   subtract(new_nodes, nodes0, u);
+   subtract(new_mesh_nodes, nodes0, u);
 
    // Define a scalar FE space for the solution, and the advection operator.
    TimeDependentOperator *oper = NULL;
@@ -118,7 +120,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
       h_min = std::min(h_min, m->GetElementSize(i));
    }
    real_t v_max = 0.0;
-   const int s = new_field.Size();
+   const int s  = u.Size()/m->Dimension();
 
    u.HostReadWrite();
    for (int i = 0; i < s; i++)
@@ -181,7 +183,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
    // Trim the overshoots and undershoots.
    new_field.HostReadWrite();
-   for (int i = 0; i < s; i++)
+   for (int i = 0; i < new_field.Size(); i++)
    {
       if (new_field(i) < glob_minv) { new_field(i) = glob_minv; }
       if (new_field(i) > glob_maxv) { new_field(i) = glob_maxv; }
@@ -348,8 +350,10 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
 {
    nodes0 = init_nodes;
    Mesh *m = mesh;
+   FiniteElementSpace *f = fes;
 #ifdef MFEM_USE_MPI
    if (pmesh) { m = pmesh; }
+   if (pfes)  { f = pfes; }
 #endif
    m->SetNodes(nodes0);
 
@@ -363,14 +367,9 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
       delete finder;
    }
 
-   FiniteElementSpace *f = fes;
 #ifdef MFEM_USE_MPI
-   if (pfes)
-   {
-      f = pfes;
-      finder = new FindPointsGSLIB(pfes->GetComm());
-   }
-   else { finder = new FindPointsGSLIB(); }
+   if (pfes) { finder = new FindPointsGSLIB(pfes->GetComm()); }
+   else      { finder = new FindPointsGSLIB(); }
 #else
    finder = new FindPointsGSLIB();
 #endif
@@ -380,11 +379,40 @@ void InterpolatorFP::SetInitialField(const Vector &init_nodes,
    field0_gf = init_field;
 }
 
-void InterpolatorFP::ComputeAtNewPosition(const Vector &new_nodes,
-                                          Vector &new_field,
-                                          int new_nodes_ordering)
+void InterpolatorFP::ComputeAtNewPosition(const Vector &new_mesh_nodes,
+                                          Vector &new_field, int nodes_ordering)
 {
-   finder->Interpolate(new_nodes, field0_gf, new_field, new_nodes_ordering);
+   // TODO - this is here only to prevent breaking user codes. To be removed.
+   // If the meshes are different, one has to call SetNewFieldFESpace().
+   // If only some positions are interpolated, use ComputeAtGivenPositions().
+   if (fes_new_field == nullptr && new_mesh_nodes.Size() != nodes0.Size())
+   {
+      MFEM_WARNING("Deprecated -- use ComputeAtGivenPositions() instead!");
+      ComputeAtGivenPositions(new_mesh_nodes, new_field, nodes_ordering);
+      return;
+   }
+
+   const FiniteElementSpace *fes_field =
+      (fes_new_field) ? fes_new_field : field0_gf.FESpace();
+   const int dim = fes_field->GetMesh()->Dimension();
+
+   if (new_mesh_nodes.Size() / dim != fes_field->GetNDofs())
+   {
+      // The nodes of the FE space don't coincide with the mesh nodes.
+      Vector mapped_nodes;
+      fes_field->GetNodePositions(new_mesh_nodes, mapped_nodes);
+      finder->Interpolate(mapped_nodes, field0_gf, new_field);
+   }
+   else
+   {
+      finder->Interpolate(new_mesh_nodes, field0_gf, new_field, nodes_ordering);
+   }
+}
+
+void InterpolatorFP::ComputeAtGivenPositions(const Vector &positions,
+                                             Vector &values, int p_ordering)
+{
+   finder->Interpolate(positions, field0_gf, values, p_ordering);
 }
 
 #endif
@@ -933,7 +961,7 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    }
 #endif
    const DenseMatrix &Wideal =
-      Geometries.GetGeomToPerfGeomJac(fes.GetFE(0)->GetGeomType());
+      Geometries.GetGeomToPerfGeomJac(fes.GetMesh()->GetTypicalElementGeometry());
    min_detT_all /= Wideal.Det();
 
    return min_detT_all;
