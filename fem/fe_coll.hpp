@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -193,6 +193,17 @@ public:
       if (p == base_p) { return FiniteElementForGeometry(geom); }
       if (p >= var_orders.Size() || !var_orders[p]) { InitVarOrder(p); }
       return var_orders[p]->FiniteElementForGeometry(geom);
+   }
+
+   /// Variable order version of TraceFiniteElementForGeometry().
+   /** The order parameter @a p represents the order of the highest-dimensional
+       FiniteElement%s the fixed-order collection we want to query. In general,
+       this order is different from the order of the returned FiniteElement. */
+   const FiniteElement *GetTraceFE(Geometry::Type geom, int p) const
+   {
+      if (p == base_p) { return TraceFiniteElementForGeometry(geom); }
+      if (p >= var_orders.Size() || !var_orders[p]) { InitVarOrder(p); }
+      return var_orders[p]->TraceFiniteElementForGeometry(geom);
    }
 
    /// Variable order version of DofForGeometry().

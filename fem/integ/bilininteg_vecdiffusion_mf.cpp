@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,8 +20,7 @@ void VectorDiffusionIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
    const IntegrationRule *ir
       = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
    if (DeviceCanUseCeed())

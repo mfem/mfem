@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,7 +53,6 @@ KnotVector::KnotVector(int order, const Vector& intervals,
    MFEM_ASSERT(continuity.Size() == (intervals.Size() + 1),
                "Incompatible sizes of continuity and intervals.");
    Order = order;
-   NumOfElements = intervals.Size();
    const int num_knots = Order * continuity.Size() - continuity.Sum();
    // Some continuities may still be invalid; this assert only avoids
    // passing a negative num_knots to Vector::SetSize().
@@ -65,7 +64,7 @@ KnotVector::KnotVector(int order, const Vector& intervals,
    for (int i = 0; i < continuity.Size(); ++i)
    {
       const int multiplicity = Order - continuity[i];
-      MFEM_ASSERT(multiplicity >= 1 && multiplicity <= Order + 1,
+      MFEM_ASSERT(multiplicity >= 1 && multiplicity <= Order+1,
                   "Invalid knot multiplicity for order.");
       for (int j = 0; j < multiplicity; ++j)
       {
@@ -73,6 +72,19 @@ KnotVector::KnotVector(int order, const Vector& intervals,
          ++iknot;
       }
       if (i < intervals.Size()) { accum += intervals[i]; }
+   }
+   // Assert that there are enough knots to provide a complete basis over all
+   // the elements in the knot vector.
+   MFEM_ASSERT(knot.Size() >= (2*(Order+1)),
+               "Insufficient number of knots to define NURBS.");
+   // Calculate the number of elements provided by the knot vector
+   NumOfElements = 0;
+   for (int i = 0; i < GetNKS(); ++i)
+   {
+      if (isElement(i))
+      {
+         ++NumOfElements;
+      }
    }
 }
 

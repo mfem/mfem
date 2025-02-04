@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -276,7 +276,7 @@ public:
       UNKNOWN_MAP_TYPE = -1, /**< Used to distinguish an unset MapType variable
                                   from the known values below. */
       VALUE,     /**< For scalar fields; preserves point values
-                          $ u(x) = \hat u(\hat x) $ */
+                          $ u(x) = \hat u(\hat x) $ @anchor map_type_value */
       INTEGRAL,  /**< For scalar fields; preserves volume integrals
                           $ u(x) = (1/w) \hat u(\hat x) $ */
       H_DIV,     /**< For vector fields; preserves surface integrals of the
