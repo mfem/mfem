@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -47,7 +47,7 @@ public:
 
    ~AdvectionOper();
 
-   virtual void Mult(const Vector &x, Vector &dx) const;
+   void Mult(const Vector &x, Vector &dx) const override;
 };
 
 // Extrapolates through DG advection based on:
@@ -92,8 +92,8 @@ public:
 
    using VectorCoefficient::Eval;
 
-   virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override
    {
       Vector grad_ls(vdim), n(vdim);
       ls_gf.GetGradient(T, grad_ls);
@@ -116,7 +116,7 @@ private:
 public:
    GradComponentCoeff(const ParGridFunction &u, int c) : u_gf(u), comp(c) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       Vector grad_u(T.GetDimension());
       u_gf.GetGradient(T, grad_u);
@@ -134,7 +134,7 @@ public:
    NormalGradCoeff(const ParGridFunction &u, VectorCoefficient &n)
       : u_gf(u), n_coeff(n) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       const int dim = T.GetDimension();
       Vector n(dim), grad_u(dim);
@@ -155,7 +155,7 @@ public:
                             const ParGridFunction &dy, VectorCoefficient &n)
       : du_dx(dx), du_dy(dy), n_coeff(n) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       const int dim = T.GetDimension();
       Vector n(dim), grad_u(dim);

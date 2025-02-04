@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -87,7 +87,7 @@ int isockstream::establish()
 #if defined(__APPLE__)
       if (bind(sfd, (const struct sockaddr *)rp->ai_addr, rp->ai_addrlen) < 0)
 #else
-      if (bind(sfd, rp->ai_addr, rp->ai_addrlen) < 0)
+      if (bind(sfd, rp->ai_addr, static_cast<socklen_t>(rp->ai_addrlen)) < 0)
 #endif
       {
          mfem::err << "isockstream::establish(): bind() failed!" << std::endl;

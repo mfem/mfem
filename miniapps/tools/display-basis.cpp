@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -79,7 +79,8 @@ public:
    Deformation(int dim, DefType dType, const DeformationData & data)
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
-   void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
+   void Eval(Vector &v, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
    using VectorCoefficient::Eval;
 private:
    void Def1D(const Vector & u, Vector & v);
