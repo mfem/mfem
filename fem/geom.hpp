@@ -334,7 +334,7 @@ private:
    Array<RefinedGeometry *> RGeom[Geometry::NumGeom];
    // key: (type, geom, times)
    std::unordered_map<std::array<int, 3>, std::unique_ptr<IntegrationRule>,
-                      ArrayHasher>
+       ArrayHasher>
        SGeom;
    Array<IntegrationRule *> IntPts[Geometry::NumGeom];
 

@@ -515,8 +515,9 @@ struct ArrayHasher
       Hasher hash;
       // chosen randomly with a 2^64-sided dice
       hash.init(0xfebd1fe69813c14full);
-      for (size_t i = 0; i < N; ++i) {
-        hash.append(reinterpret_cast<const uint8_t *>(&v[i]), sizeof(T));
+      for (size_t i = 0; i < N; ++i)
+      {
+         hash.append(reinterpret_cast<const uint8_t *>(&v[i]), sizeof(T));
       }
       hash.finalize();
       return hash.data[1];

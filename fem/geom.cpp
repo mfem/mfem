@@ -1667,100 +1667,121 @@ RefinedGeometry *GeometryRefiner::Refine(Geometry::Type Geom, int Times,
    return RG;
 }
 
-const IntegrationRule *GeometryRefiner::EdgeScan(Geometry::Type Geom, int NPts1d)
+const IntegrationRule *GeometryRefiner::EdgeScan(Geometry::Type Geom,
+                                                 int NPts1d)
 {
    IntegrationRule *res = nullptr;
    NPts1d = std::max(NPts1d, 1);
    std::array<int, 3> key = {Type, static_cast<int>(Geom), NPts1d};
    auto iter = SGeom.find(key);
-   if (iter == SGeom.end()) {
-     // create new scan geometry
-     switch (Geom) {
-     case Geometry::POINT:
-     case Geometry::SEGMENT: {
-       iter = SGeom.emplace(key, new IntegrationRule(1)).first;
-       res = iter->second.get();
-       res->IntPoint(0).x = 0;
-     } break;
-     case Geometry::TRIANGLE:
-     case Geometry::SQUARE:
-     {
-       const real_t *cp =
-           poly1d.GetPoints(NPts1d - 1, BasisType::GetNodalBasis(Type));
-       if (cp[0] == 0) {
-         // don't repeat origin
-         iter = SGeom.emplace(key, new IntegrationRule(2 * NPts1d - 1)).first;
-         res = iter->second.get();
-         for (int i = 0; i < NPts1d; ++i) {
-           res->IntPoint(i).x = cp[i];
-           res->IntPoint(i).y = 0;
-         }
-         for (int i = 1; i < NPts1d; ++i) {
-           res->IntPoint(i - 1 + NPts1d).x = 0;
-           res->IntPoint(i - 1 + NPts1d).y = cp[i];
-         }
-       } else {
-         iter = SGeom.emplace(key, new IntegrationRule(2 * NPts1d)).first;
-         res = iter->second.get();
-         for (int i = 0; i < NPts1d; ++i) {
-           res->IntPoint(i).x = cp[i];
-           res->IntPoint(i).y = 0;
-         }
-         for (int i = 0; i < NPts1d; ++i) {
-           res->IntPoint(1 + NPts1d).x = 0;
-           res->IntPoint(1 + NPts1d).y = cp[i];
-         }
-       }
-     } break;
-     case Geometry::CUBE:
-     case Geometry::TETRAHEDRON:
-     case Geometry::PYRAMID:
-     case Geometry::PRISM: {
-       const real_t *cp =
-           poly1d.GetPoints(NPts1d - 1, BasisType::GetNodalBasis(Type));
-       if (cp[0] == 0) {
-         // don't repeat origin
-         iter = SGeom.emplace(key, new IntegrationRule(3 * NPts1d - 2)).first;
-         res = iter->second.get();
-         for (int i = 0; i < NPts1d; ++i) {
-           res->IntPoint(i).x = cp[i];
-           res->IntPoint(i).y = 0;
-           res->IntPoint(i).z = 0;
-         }
-         for (int i = 1; i < NPts1d; ++i) {
-           res->IntPoint(i + NPts1d - 1).x = 0;
-           res->IntPoint(i + NPts1d - 1).y = cp[i];
-           res->IntPoint(i + NPts1d - 1).z = 0;
-         }
-         for (int i = 1; i < NPts1d; ++i) {
-           res->IntPoint(i + 2 * NPts1d - 2).x = 0;
-           res->IntPoint(i + 2 * NPts1d - 2).y = 0;
-           res->IntPoint(i + 2 * NPts1d - 2).z = cp[i];
-         }
-       } else {
-         iter = SGeom.emplace(key, new IntegrationRule(3 * NPts1d)).first;
-         res = iter->second.get();
-         for (int i = 0; i < NPts1d; ++i) {
-           res->IntPoint(i).x = cp[i];
-           res->IntPoint(i).y = 0;
-           res->IntPoint(i).z = 0;
-         }
-         for (int i = 0; i < NPts1d; ++i) {
-           res->IntPoint(i + NPts1d).x = 0;
-           res->IntPoint(i + NPts1d).y = cp[i];
-           res->IntPoint(i + NPts1d).z = 0;
-         }
-         for (int i = 0; i < NPts1d; ++i) {
-           res->IntPoint(i + 2 * NPts1d).x = 0;
-           res->IntPoint(i + 2 * NPts1d).y = 0;
-           res->IntPoint(i + 2 * NPts1d).z = cp[i];
-         }
-       }
-     } break;
-     case Geometry::INVALID:
-     case Geometry::NUM_GEOMETRIES:
-       MFEM_ABORT("Unknown type of reference element!");
-     }
+   if (iter == SGeom.end())
+   {
+      // create new scan geometry
+      switch (Geom)
+      {
+         case Geometry::POINT:
+         case Geometry::SEGMENT:
+         {
+            iter = SGeom.emplace(key, new IntegrationRule(1)).first;
+            res = iter->second.get();
+            res->IntPoint(0).x = 0;
+         } break;
+         case Geometry::TRIANGLE:
+         case Geometry::SQUARE:
+         {
+            const real_t *cp =
+               poly1d.GetPoints(NPts1d - 1, BasisType::GetNodalBasis(Type));
+            if (cp[0] == 0)
+            {
+               // don't repeat origin
+               iter = SGeom.emplace(key, new IntegrationRule(2 * NPts1d - 1)).first;
+               res = iter->second.get();
+               for (int i = 0; i < NPts1d; ++i)
+               {
+                  res->IntPoint(i).x = cp[i];
+                  res->IntPoint(i).y = 0;
+               }
+               for (int i = 1; i < NPts1d; ++i)
+               {
+                  res->IntPoint(i - 1 + NPts1d).x = 0;
+                  res->IntPoint(i - 1 + NPts1d).y = cp[i];
+               }
+            }
+            else
+            {
+               iter = SGeom.emplace(key, new IntegrationRule(2 * NPts1d)).first;
+               res = iter->second.get();
+               for (int i = 0; i < NPts1d; ++i)
+               {
+                  res->IntPoint(i).x = cp[i];
+                  res->IntPoint(i).y = 0;
+               }
+               for (int i = 0; i < NPts1d; ++i)
+               {
+                  res->IntPoint(1 + NPts1d).x = 0;
+                  res->IntPoint(1 + NPts1d).y = cp[i];
+               }
+            }
+         } break;
+         case Geometry::CUBE:
+         case Geometry::TETRAHEDRON:
+         case Geometry::PYRAMID:
+         case Geometry::PRISM:
+         {
+            const real_t *cp =
+               poly1d.GetPoints(NPts1d - 1, BasisType::GetNodalBasis(Type));
+            if (cp[0] == 0)
+            {
+               // don't repeat origin
+               iter = SGeom.emplace(key, new IntegrationRule(3 * NPts1d - 2)).first;
+               res = iter->second.get();
+               for (int i = 0; i < NPts1d; ++i)
+               {
+                  res->IntPoint(i).x = cp[i];
+                  res->IntPoint(i).y = 0;
+                  res->IntPoint(i).z = 0;
+               }
+               for (int i = 1; i < NPts1d; ++i)
+               {
+                  res->IntPoint(i + NPts1d - 1).x = 0;
+                  res->IntPoint(i + NPts1d - 1).y = cp[i];
+                  res->IntPoint(i + NPts1d - 1).z = 0;
+               }
+               for (int i = 1; i < NPts1d; ++i)
+               {
+                  res->IntPoint(i + 2 * NPts1d - 2).x = 0;
+                  res->IntPoint(i + 2 * NPts1d - 2).y = 0;
+                  res->IntPoint(i + 2 * NPts1d - 2).z = cp[i];
+               }
+            }
+            else
+            {
+               iter = SGeom.emplace(key, new IntegrationRule(3 * NPts1d)).first;
+               res = iter->second.get();
+               for (int i = 0; i < NPts1d; ++i)
+               {
+                  res->IntPoint(i).x = cp[i];
+                  res->IntPoint(i).y = 0;
+                  res->IntPoint(i).z = 0;
+               }
+               for (int i = 0; i < NPts1d; ++i)
+               {
+                  res->IntPoint(i + NPts1d).x = 0;
+                  res->IntPoint(i + NPts1d).y = cp[i];
+                  res->IntPoint(i + NPts1d).z = 0;
+               }
+               for (int i = 0; i < NPts1d; ++i)
+               {
+                  res->IntPoint(i + 2 * NPts1d).x = 0;
+                  res->IntPoint(i + 2 * NPts1d).y = 0;
+                  res->IntPoint(i + 2 * NPts1d).z = cp[i];
+               }
+            }
+         } break;
+         case Geometry::INVALID:
+         case Geometry::NUM_GEOMETRIES:
+            MFEM_ABORT("Unknown type of reference element!");
+      }
    }
    return res;
 }
