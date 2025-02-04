@@ -643,7 +643,7 @@ public:
       gf.SetFromTrueDofs(cfg.GetTrueVector());
    }
 
-   void Optimize(double alpha, double rho,int max_iter=100)
+   void Optimize(double alpha, double rho, int max_iter=100)
    {
 
       mfem::Vector x; x.SetSize(u_max.Size()); cfg.GetTrueDofs(x);
@@ -661,7 +661,7 @@ public:
 
       if (cfg.ParFESpace()->GetMyRank()==0)
       {
-         std::cout<<" epsp="<<epsp<<" epsc="<<epsc<<std::endl;
+         std::cout<<"0. epsp = " << epsp << " epsc = " << epsc << std::endl;
       }
 
       mfem::real_t lambda=0.0;
@@ -678,7 +678,6 @@ public:
          //evaluate the gradients
          obj->Mult(x,go);
 
-
          con->Mult(x,gp);
          go.Add(lambda,gp);
          go.Add(rho*epsc,gp);
@@ -690,27 +689,22 @@ public:
          {
             x[i]=(u_min[i]+u_max[i]*std::exp(p[i]))/(1.0+std::exp(p[i]));
          }
-         //evaluate the objective and the contraint
+         // Evaluate the objective and the contraint and update lambda.
          epsp=obj->Eval(x);
          epsc=con->Eval(x);
-         //update lambda
-         lambda=lambda+rho*epsc;
+         lambda = lambda + rho*epsc;
 
          if (cfg.ParFESpace()->GetMyRank()==0)
          {
-            std::cout<<" epsp="<<epsp<<" epsc="<<epsc<<" lambda="<<lambda<<std::endl;
+            std::cout << it << ". epsp = " << epsp << " epsc = " << epsc
+                            << " lambda = " << lambda << std::endl;
          }
 
-         if (fabs(epsc)<1e-10)
-         {
-            if (fabs(epsp-epso)<1e-10)
-            {
-               flag=false;
-            }
-         }
-         epso=epsp;
+         if (fabs(epsc) < 1e-10 && fabs(epsp-epso) < 1e-10) { flag = false; }
+
+         epso = epsp;
          it++;
-         if (it>max_iter) { flag=false;}
+         if (it > max_iter) { flag=false; }
       }
 
       cfg.SetFromTrueDofs(x);
