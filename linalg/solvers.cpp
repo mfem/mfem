@@ -1464,7 +1464,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
       add(r, -alpha, v, s); //  s = r - alpha * v
       resid = Norm(s);
       MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
-      if (resid < tol_goal)
+      if (Monitor(i, resid, r, x) || resid < tol_goal)
       {
          x.Add(alpha, phat);  //  x = x + alpha * phat
          if (print_options.iterations || print_options.first_and_last)
@@ -1486,7 +1486,6 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
          mfem::out << "   Iteration : " << setw(3) << i
                    << "   ||s|| = " << resid;
       }
-      Monitor(i, resid, r, x);
       if (prec)
       {
          prec->Mult(s, shat);  //  shat = M^{-1} * s
