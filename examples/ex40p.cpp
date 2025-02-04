@@ -274,11 +274,6 @@ int main(int argc, char *argv[])
 
    HypreParMatrix *A01 = A10->Transpose();
 
-   ParBilinearForm a11(&L2fes);
-   a11.Assemble();
-   a11.Finalize();
-   HypreParMatrix *A11 = a11.ParallelAssemble();
-
    ParLinearForm vol_form(&L2fes);
    ParGridFunction one_gf(&L2fes);
    one_gf = 1.0;
@@ -335,7 +330,6 @@ int main(int argc, char *argv[])
          A.SetBlock(0,0,A00);
          A.SetBlock(1,0,A10);
          A.SetBlock(0,1,A01);
-         A.SetBlock(1,1,A11);
 
          MINRESSolver minres(MPI_COMM_WORLD);
          minres.SetPrintLevel(-1);
@@ -425,7 +419,6 @@ int main(int argc, char *argv[])
    // 13. Free the used memory.
    delete A01;
    delete A10;
-   delete A11;
    return 0;
 }
 
