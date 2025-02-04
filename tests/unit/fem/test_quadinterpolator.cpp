@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -83,15 +83,15 @@ static bool testQuadratureInterpolator(const int dim,
       nodes -= rdm;
    }
 
-   const Geometry::Type GeomType = mesh.GetElementBaseGeometry(0);
+   const Geometry::Type GeomType = mesh.GetTypicalElementGeometry();
    const IntegrationRule &ir = IntRules.Get(GeomType, 2*qpts-1);
    const QuadratureInterpolator *sqi(sfes.GetQuadratureInterpolator(ir));
    const QuadratureInterpolator *vqi(vfes.GetQuadratureInterpolator(ir));
 
    const int NE(mesh.GetNE());
    const int NQ(ir.GetNPoints());
-   const int ND(sfes.GetFE(0)->GetDof());
-   REQUIRE(ND == vfes.GetFE(0)->GetDof());
+   const int ND(sfes.GetTypicalFE()->GetDof());
+   REQUIRE(ND == vfes.GetTypicalFE()->GetDof());
 
    const ElementDofOrdering nat_ordering = ElementDofOrdering::NATIVE;
    const ElementDofOrdering lex_ordering = ElementDofOrdering::LEXICOGRAPHIC;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -83,7 +83,8 @@ real_t TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    XE.UseDevice(true);
    R->Mult(X, XE);
 
-   const DofToQuad &maps = fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+   const DofToQuad &maps = fes->GetTypicalFE()->GetDofToQuad(ir,
+                                                             DofToQuad::TENSOR);
    const int NE = fes->GetMesh()->GetNE();
    const int NQ = ir.GetNPoints();
    const int D1D = maps.ndof;
