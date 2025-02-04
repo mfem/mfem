@@ -16,6 +16,7 @@
 #include "array.hpp"
 #include "globals.hpp"
 
+#include <array>
 #include <cstdint>
 #include <type_traits>
 #include <utility>
@@ -496,9 +497,27 @@ struct PairHasher
    size_t operator()(const std::pair<T, V> &v) const noexcept
    {
       Hasher hash;
-      hash.init(123456789ull);
+      // chosen randomly with a 2^64-sided dice
+      hash.init(0xfebd1fe69813c14full);
       hash.append(reinterpret_cast<const uint8_t *>(&v.first), sizeof(T));
       hash.append(reinterpret_cast<const uint8_t *>(&v.second), sizeof(V));
+      hash.finalize();
+      return hash.data[1];
+   }
+};
+
+/// Helper class for hashing std::array. Usable in place of std::hash<std::array<T,N>>
+struct ArrayHasher
+{
+   template <class T, size_t N>
+   size_t operator()(const std::array<T, N> &v) const noexcept
+   {
+      Hasher hash;
+      // chosen randomly with a 2^64-sided dice
+      hash.init(0xfebd1fe69813c14full);
+      for (size_t i = 0; i < N; ++i) {
+        hash.append(reinterpret_cast<const uint8_t *>(&v[i]), sizeof(T));
+      }
       hash.finalize();
       return hash.data[1];
    }

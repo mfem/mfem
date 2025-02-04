@@ -2285,7 +2285,7 @@ const Array<real_t>* Poly_1D::GetPointsArray(const int p, const int btype)
          it = points_container.emplace(key, new Array<real_t>(p + 1, h_mt)).first;
          val = it->second.get();
          real_t* hptr = val->HostWrite();
-         quad_func.GivePolyPoints(p+1, hptr, qtype);
+         quad_func.GivePolyPoints(p + 1, hptr, qtype);
       }
       else
       {
