@@ -1866,6 +1866,11 @@ protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
 
+   // Initial positions of the mesh nodes. This is an ldof Vector. It is set by
+   // the TMOPNewtonSolver at the start of the optimization.
+   Vector x_0;
+   //void SetInitialMeshPos(const Vector &x0) { x_0 = x0; }
+
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
    const TargetConstructor *targetC;  // not owned
@@ -2120,7 +2125,7 @@ public:
        @param[in] hm   TMOP_QualityMetric for h-adaptivity (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
                    TMOP_QualityMetric *hm)
-      : h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
+      : x_0(0), h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
         integ_order(-1), metric_coeff(NULL), metric_normal(1.0),
         lim_nodes0(NULL), lim_coeff(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
