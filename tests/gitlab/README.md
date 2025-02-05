@@ -7,6 +7,8 @@
 
                                https://mfem.org
 
+FIXME: this file needs to be updated
+
 This directory contains utility scripts related to GitLab testing at LLNL.
 
 * `build_and_test` is used in CI to build TPLs (dependencies) and MFEM and to

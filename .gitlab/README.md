@@ -8,6 +8,8 @@
                                https://mfem.org
 
 
+FIXME: this file needs to be updated
+
 This directory contains most of the GitLab CI configuration. MFEM runs both PR
 and nightly testing on GitLab.
 

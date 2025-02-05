@@ -17,30 +17,35 @@ include:
 variables:
 # Set the build-and-test command.
 # Nested variables are allowed and useful to customize the job command. We
-# protect variables with quotes sothat there value may remain a string even if
+# protect variables with quotes so that their value may remain a string even if
 # they contain whitespaces.
   JOB_CMD:
     value: tests/gitlab/build_and_test --spec "${SPEC}" --data-dir "${MFEM_DATA_DIR}" --data
-# The path to the shared resource between all jobs. For example, external
-# repositories like 'tests' and 'tpls' are cloned here. Also, 'tpls' is built
-# once for all targets, so that build happen here. The BUILD_ROOT is unique to
-# the pipeline, preventing any form of concurrency with other pipelines. This
-# also means that the BUILD_ROOT directory will never be cleaned.
-# TODO: add a clean-up mechanism
+# The path to the shared resource between all jobs in the 'ruby-baseline'
+# pipeline. For example, external repositories like 'tests' and 'tpls' are
+# cloned here. Also, 'tpls' is built once for all targets, so that build happens
+# here. The BUILD_ROOT is unique to the pipeline, preventing any form of
+# concurrency with other pipelines. This directory is removed by the 'cleanup'
+# stage in the 'ruby-baseline' pipeline.
   BUILD_ROOT: ${USER_CI_TOP_DIR}/${CI_PROJECT_NAME}-${CI_MACHINE}-pipeline-${CI_PIPELINE_ID}
 
-# On LLNL's ruby, this pipeline creates only one allocation shared among jobs
-# in order to save time and resources. This allocation has to be uniquely named
-# so that we are sure to retrieve it and avoid collisions.
+# On LLNL's ruby and tioga, the 'build-and-test' pipelines creates only one
+# allocation shared among jobs in the pipeline in order to save time and
+# resources. This allocation has to be uniquely named so that we are sure to
+# retrieve it and avoid collisions.
   ALLOC_NAME: ${CI_PROJECT_NAME}_ci_${CI_PIPELINE_ID}
 
-# Git repositories used in the pipeline
+# Git repositories used in the pipelines:
+# - TPLS_REPO and TESTS_REPO are used only by the 'ruby-baseline' pipeline
+# - AUTOTEST_REPO is used by all pipelines
+# - MFEM_DATA_REPO is used only by the 'build-and-test' pipelines
   TPLS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tpls.git
   TESTS_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/tests.git
   AUTOTEST_REPO: ssh://git@mybitbucket.llnl.gov:7999/mfem/autotest.git
   MFEM_DATA_REPO: https://github.com/mfem/data.git
 
-# Directory used to place artifacts.
+# Directory used to place artifacts:
+# - ARTIFACTS_DIR is only used by the 'ruby-baseline' pipeline
   ARTIFACTS_DIR: artifacts
   SLURM_OVERLAP: 1
 
@@ -50,49 +55,17 @@ variables:
 # Arguments for job level allocation
 # Note: We repeat the reservation, necessary when jobs are manually re-triggered.
   RUBY_JOB_ALLOC: "--reservation=ci --overlap --nodes=1"
-# Project specific variants for ruby
-  PROJECT_RUBY_VARIANTS: ""
-# Project specific deps for ruby
-  PROJECT_RUBY_DEPS: ""
-
-## Poodle
-## Arguments for top level allocation
-#  POODLE_SHARED_ALLOC: ""
-## Arguments for job level allocation
-#  POODLE_JOB_ALLOC: ""
-## Project specific variants for poodle
-#  PROJECT_POODLE_VARIANTS: ""
-## Project specific deps for poodle
-#  PROJECT_POODLE_DEPS: ""
-
-## Corona
-## Arguments for top level allocation
-#  CORONA_SHARED_ALLOC: ""
-## Arguments for job level allocation
-#  CORONA_JOB_ALLOC: ""
-## Project specific variants for corona
-#  PROJECT_CORONA_VARIANTS: ""
-## Project specific deps for corona
-#  PROJECT_CORONA_DEPS: ""
 
 # Tioga
 # Arguments for top level allocation
   TIOGA_SHARED_ALLOC: "--queue=pci --exclusive --time-limit=45m --nodes=1"
 # Arguments for job level allocation
   TIOGA_JOB_ALLOC: "--nodes=1 --begin-time=+5s"
-# Project specific variants for tioga
-  PROJECT_TIOGA_VARIANTS: ""
-# Project specific deps for tioga
-  PROJECT_TIOGA_DEPS: ""
 
 # Lassen and Butte use a different job scheduler (spectrum lsf) that does not
 # allow pre-allocation the same way slurm does.
 # Arguments for job level allocation
   LASSEN_JOB_ALLOC: "1 -W 45 -q pci --atsdisable"
-# Project specific variants for lassen
-  PROJECT_LASSEN_VARIANTS: ""
-# Project specific deps for lassen
-  PROJECT_LASSEN_DEPS: ""
 
 # Configuration shared by build and test jobs specific to this project.
 # Not all configuration can be shared. Here projects can fine tune the
@@ -101,8 +74,10 @@ variables:
 .custom_job:
   artifacts:
     reports:
-      junit: junit.xml
 
+# Note: this part is not used by the 'ruby-baseline' pipeline.
+# FIXME: BUILD_ROOT, TPLS_REPO, TESTS_REPO are not needed here.
+#        Also, the definition of SHARED_REPOS_DIR is wrong.
 .reproducer_vars:
   script:
     - |

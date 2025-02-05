@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 
-# Initialize modules for users not using bash as a default shell
-if test -e /usr/share/lmod/lmod/init/bash
-then
-  . /usr/share/lmod/lmod/init/bash
-fi
-
 # Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
@@ -16,6 +10,12 @@ fi
 # MFEM is free software; you can redistribute it and/or modify it under the
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
+
+# Initialize modules for users not using bash as a default shell
+if test -e /usr/share/lmod/lmod/init/bash
+then
+  . /usr/share/lmod/lmod/init/bash
+fi
 
 set -o errexit
 set -o nounset
@@ -81,11 +81,18 @@ use_dev_shm=${USE_DEV_SHM:-true}
 spack_debug=${SPACK_DEBUG:-false}
 debug_mode=${DEBUG_MODE:-false}
 
+# FIXME: since CI_JOB_TOKEN is always defined, REGISTRY_TOKEN will never be
+#        used?
 # REGISTRY_TOKEN allows you to provide your own personal access token to the CI
 # registry. Be sure to set the token with at least read access to the registry.
+#
+# CI_REGISTRY_USER, CI_REGISTRY_IMAGE, and CI_JOB_TOKEN are automatically set by
+# Gitlab, see https://docs.gitlab.com/ee/ci/variables/predefined_variables.html.
+# The Spack build cache files can be viewed from the Gitlab web interface under
+# "Deploy" -> "Container Registry".
 registry_token=${REGISTRY_TOKEN:-""}
 ci_registry_user=${CI_REGISTRY_USER:-"${USER}"}
-ci_registry_image=${CI_REGISTRY_IMAGE:-"czregistry.llnl.gov:5050/radiuss/umpire"}
+ci_registry_image=${CI_REGISTRY_IMAGE:-"czregistry.llnl.gov:5050/mfem/mfem-autotest"}
 ci_registry_token=${CI_JOB_TOKEN:-"${registry_token}"}
 
 # Options
@@ -130,6 +137,19 @@ timed_message ()
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 }
 
+at_exit()
+{
+  if [[ "${#exit_rm_list[@]}" != 0 ]]; then
+    echo ${script_name}:at_exit: rm -rf "${exit_rm_list[@]}"
+    rm -rf "${exit_rm_list[@]}"
+  fi
+  if [[ "${exit_distclean}" == 1 ]]; then
+    echo ${script_name}:at_exit: \
+      make -C "${project_dir}" distclean "> /dev/null 2>&1"
+    make -C "${project_dir}" distclean > /dev/null 2>&1
+  fi
+}
+
 if [[ ${debug_mode} == true ]]
 then
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -163,7 +183,8 @@ then
 
     prefix="${prefix}-${job_unique_id}"
 else
-    # We set the prefix in the parent directory so that spack dependencies are not installed inside the source tree.
+    # We set the prefix in the parent directory so that spack dependencies are
+    # not installed inside the source tree.
     prefix="${project_dir}/../spack-and-build-root"
 fi
 
@@ -171,6 +192,18 @@ echo "Creating directory ${prefix}"
 echo "project_dir: ${project_dir}"
 
 mkdir -p ${prefix}
+
+# List of files/directories to remove at exit; more entries are added below.
+# This list will be removed even if there's an error.
+exit_rm_list=("${prefix}")
+exit_distclean=
+trap 'at_exit' EXIT HUP INT QUIT ABRT KILL PIPE TERM XCPU
+
+# Prefix tree:
+#   <prefix>
+#    ├── spack
+#    ├── spack_env
+#    └── spack-user-cache
 
 spack_cmd="${prefix}/spack/bin/spack"
 spack_env_path="${prefix}/spack_env"
@@ -205,8 +238,13 @@ then
     export SPACK_USER_CACHE_PATH="${spack_user_cache}"
     mkdir -p ${spack_user_cache}
 
-    echo "Fetching uberenv."
+    echo "Fetching uberenv ..."
+    # FIXME: the messages from the next clone appear out-of-place, at the end of
+    #        the logs on Gitlab. (On Lassen the messages are where expected.)
     tests/gitlab/get_mfem_uberenv || { echo "Error fetching Uberenv"; exit 1; }
+
+    # Remove "${project_dir}/tests/uberenv" at exit (even if there's an error)
+    exit_rm_list=("${exit_rm_list[@]}" "${project_dir}/tests/uberenv")
 
     echo "Removing existing configuration"
     make distclean
@@ -223,16 +261,28 @@ then
     if [[ -n ${ci_registry_token} ]]
     then
         timed_message "GitLab registry as Spack Buildcache"
-        ${spack_cmd} -D ${spack_env_path} mirror add --unsigned --oci-username ${ci_registry_user} --oci-password ${ci_registry_token} gitlab_ci oci://${ci_registry_image}
+        ${spack_cmd} -D ${spack_env_path} mirror add --unsigned \
+          --oci-username ${ci_registry_user} \
+          --oci-password ${ci_registry_token} \
+          gitlab_ci oci://${ci_registry_image}
     fi
 
     timed_message "Spack build of dependencies"
-    ${uberenv_cmd} --skip-setup-and-env --spec="${spec}" ${prefix_opt}
+    ${uberenv_cmd} --skip-setup-and-env --spec="${spec}" ${prefix_opt} || \
+    {
+      # Save Spack logs
+      cd ${SPACK_USER_CACHE_PATH}
+      log_archive="${project_dir}/spack-logs-${hostname}-${CI_JOB_ID}.tgz"
+      tar zvcf "${log_archive}" stage/*/*/spack*.txt
+      timed_message "Spack build failed! See log archive: ${log_archive}"
+      exit 1
+    }
 
     if [[ -n ${ci_registry_token} && ${debug_mode} == false ]]
     then
         timed_message "Push dependencies to buildcache"
-        ${spack_cmd} -D ${spack_env_path} buildcache push --only dependencies gitlab_ci
+        ${spack_cmd} -D ${spack_env_path} buildcache push \
+          --only dependencies gitlab_ci
     fi
 
     timed_message "Dependencies built"
@@ -307,13 +357,21 @@ then
 
     timed_message "Building MFEM"
 
+    # If the build is terminated, e.g. job timeout, run 'make distclean'
+    exit_distclean=1
+
     make all -j ${threads}
+
+    exit_distclean=
 fi
 
 # Test
 if [[ "${mode}" != "--deps-only" && "${mode}" != "--build-only" ]]
 then
     timed_message "Testing MFEM"
+
+    # If the build is terminated, e.g. job timeout, run 'make distclean'
+    exit_distclean=1
 
     make test
     test_status=$?
@@ -328,6 +386,8 @@ then
       echo "[Information]: make distclean FAILED (see above)"
     fi
     rm -f distclean.log
+
+    exit_distclean=
 
     exit $test_status
 fi

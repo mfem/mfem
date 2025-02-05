@@ -58,7 +58,6 @@ function locked_clone ()
 }
 
 # Setup MFEM_DATA_DIR=${SHARED_REPOS_DIR}/mfem-data, see '.gitlab-ci.yml'
-# and '.gitlab/configs/<machine>-config.yml'
 info_msg "MFEM_DATA_REPO is ${MFEM_DATA_REPO}"
 info_msg "SHARED_REPOS_DIR is ${SHARED_REPOS_DIR}"
 

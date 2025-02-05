@@ -43,16 +43,27 @@ setup:
 
 # Build and test jobs, simply provide a spec
 
-#rocm_5_7_1:
-#  extends: .job_on_tioga
-#  stage: jobs-stage-2
-#  variables:
-#    SPEC: "+rocm amdgpu_target=gfx90a %rocmcc@=5.7.1 ^hip@5.7.1"
-#    THREADS: 12
+.tioga_job_command:
+  script:
+    - echo PROXY="${PROXY}"
+    - echo TIOGA_JOB_ALLOC="${TIOGA_JOB_ALLOC}"
+    - "printf '#!/bin/bash\n%s\n' \"${JOB_CMD}\" > flux_script.sh"
+    - cat flux_script.sh
+    - ${PROXY} flux watch $( ${PROXY} flux batch -o output.stdout.type=kvs ${TIOGA_JOB_ALLOC} flux_script.sh )
+    - rm -f flux_script.sh
 
-cce_16_0_1:
+.mfem_job_on_tioga:
   extends: .job_on_tioga
   stage: jobs-stage-2
   variables:
-    SPEC: "%cce@=16.0.1"
     THREADS: 12
+
+opt_mpi_rocm_hypre_rocm:
+  extends: .mfem_job_on_tioga
+  variables:
+    SPEC: "%rocmcc@=6.3.1 +rocm amdgpu_target=gfx90a ^hypre+rocm"
+
+# cce_16_0_1:
+#   extends: .mfem_job_on_tioga
+#   variables:
+#     SPEC: "%cce@=16.0.1"

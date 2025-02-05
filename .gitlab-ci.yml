@@ -28,6 +28,451 @@
 # - .gitlab/jobs/${CI_MACHINE}.yml
 # or generated (see LLNL/Umpire for an example).
 ###############################################################################
+#   MAP OF GITLAB CI
+#######################
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# File dependencies: direct, through jobs, through variables
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# .gitlab-ci.yml
+#  ├── .build-and-test  [job]
+#  │    ├── .gitlab/custom-jobs-and-variables.yml
+#  │    │    ├── .custom_job          [job]
+#  │    │    ├── .reproducer_vars     [job]
+#  │    │    ├── .report_job_success  [job]
+#  │    │    │    └── .gitlab/scripts/report_build_and_test    [script]
+#  │    │    │         ├── .gitlab/scripts/safe_create_rundir  [script]
+#  │    │    │         └── .gitlab/scripts/git_try_to_push     [script]
+#  │    │    ├── .report_job_failure  [job]
+#  │    │    │    └── .gitlab/scripts/report_build_and_test    [script]
+#  │    │    │         ├── .gitlab/scripts/safe_create_rundir  [script]
+#  │    │    │         └── .gitlab/scripts/git_try_to_push     [script]
+#  │    │    └── JOB_CMD              [var]
+#  │    │         └── tests/gitlab/build_and_test            [script]
+#  │    │              └── tests/gitlab/get_mfem_uberenv     [script]
+#  │    ├── <radiuss-shared-ci>/pipelines/lassen.yml  [conditional]
+#  │    │    ├── .on_lassen               [job]
+#  │    │    ├── .lassen_reproducer_init  [job]
+#  │    │    ├── .lassen_reproducer_vars  [job]
+#  │    │    ├── .lassen_reproducer_job   [job]
+#  │    │    ├── .lassen_job_command      [job]
+#  │    │    └── .job_on_lassen           [job]
+#  │    ├── <radiuss-shared-ci>/pipelines/ruby.yml  [conditional]
+#  │    │    ├── .on_ruby               [job]
+#  │    │    ├── .ruby_reproducer_init  [job]
+#  │    │    ├── .ruby_reproducer_vars  [job]
+#  │    │    ├── .ruby_reproducer_job   [job]
+#  │    │    ├── .ruby_job_command      [job]
+#  │    │    ├── .job_on_ruby           [job]
+#  │    │    ├── allocate_resources     [job]
+#  │    │    └── release_resources      [job]
+#  │    ├── <radiuss-shared-ci>/pipelines/tioga.yml  [conditional]
+#  │    │    ├── .on_tioga               [job]
+#  │    │    ├── .tioga_reproducer_init  [job]
+#  │    │    ├── .tioga_reproducer_vars  [job]
+#  │    │    ├── .tioga_reproducer_job   [job]
+#  │    │    ├── .tioga_job_command      [job]
+#  │    │    ├── .job_on_tioga           [job]
+#  │    │    ├── allocate_resources      [job]
+#  │    │    └── release_resources       [job]
+#  │    ├── <artifact>/lassen-jobs.yml  [conditional, from 'generate-job-lists']
+#  │    │    ├── .gitlab/jobs/lassen.yml
+#  │    │    │    ├── .lassen_reproducer_vars      [job]
+#  │    │    │    ├── setup                        [job]
+#  │    │    │    │    └── ./tests/gitlab/build_and_test_setup  [script]
+#  │    │    │    ├── opt_mpi_cuda_gcc             [job]
+#  │    │    │    └── opt_mpi_cuda_hypre_cuda_gcc  [job]
+#  │    │    └── .gitlab/jobs/lassen-reports.yml  [used conditionally]
+#  │    │         ├── report_job_success
+#  │    │         └── report_job_failure
+#  │    ├── <artifact>/ruby-jobs.yml    [conditional, from 'generate-job-lists']
+#  │    │    ├── .gitlab/jobs/ruby.yml
+#  │    │    │    ├── .ruby_reproducer_vars    [job]
+#  │    │    │    ├── setup                    [job]
+#  │    │    │    │    └── ./tests/gitlab/build_and_test_setup  [script]
+#  │    │    │    ├── debug_ser_gcc_10         [job]
+#  │    │    │    ├── debug_par_gcc_10         [job]
+#  │    │    │    ├── opt_ser_gcc_10           [job]
+#  │    │    │    ├── opt_par_gcc_10           [job]
+#  │    │    │    ├── opt_par_gcc_10_sundials  [job]
+#  │    │    │    ├── opt_par_gcc_10_petsc     [job]
+#  │    │    │    └── opt_par_gcc_10_pumi      [job]
+#  │    │    └── .gitlab/jobs/ruby-reports.yml    [used conditionally]
+#  │    │         ├── report_job_success
+#  │    │         └── report_job_failure
+#  │    └── <artifact>/tioga-jobs.yml   [conditional, from 'generate-job-lists']
+#  │         ├── .gitlab/jobs/tioga.yml
+#  │         │    ├── .tioga_reproducer_vars  [job]
+#  │         │    ├── setup                   [job]
+#  │         │    │    └── ./tests/gitlab/build_and_test_setup  [script]
+#  │         │    └── cce_16_0_1              [job]
+#  │         └── .gitlab/jobs/tioga-reports.yml   [used conditionally]
+#  │              ├── report_job_success
+#  │              └── report_job_failure
+#  └── .gitlab/subscribed-pipelines.yml
+#       ├── .machine-check         [job]
+#       ├── generate-job-lists     [job]
+#       ├── ruby-up-check          [job]
+#       ├── ruby-build-and-test    [job]
+#       ├── ruby-baseline          [job]
+#       │    └── .gitlab/ruby-baseline.yml
+#       │         ├── .on_ruby                       [job]
+#       │         ├── baselinecheck_mfem_intel_ruby  [job]
+#       │         │    └── .gitlab/scripts/baseline            [script]
+#       │         ├── cleanup                        [job]
+#       │         ├── report_baseline                [job]
+#       │         │    ├── .gitlab/scripts/safe_create_rundir  [script]
+#       │         │    └── .gitlab/scripts/git_try_to_push     [script]
+#       │         ├── baselinepublish_mfem_ruby      [job]
+#       │         │    └── .gitlab/scripts/rebaseline          [script]
+#       │         ├── .gitlab/custom-jobs-and-variables.yml
+#       │         │    └── <same as above: see .gitlab-ci.yml/.build-and-test>
+#       │         └── .gitlab/configs/setup-baseline.yml
+#       │              └── setup_baseline            [job]
+#       ├── tioga-up-check         [job]
+#       ├── tioga-build-and-test   [job]
+#       ├── lassen-up-check        [job]
+#       └── lassen-build-and-test  [job]
+#
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# File tree hierarchy with file contents highlights
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# In addition to the files in the MFEM repo, the Gitlab CI uses files from the
+# radiuss/radiuss-shared-ci project, see below, after the <mfem-root> tree.
+#
+# <mfem root>
+#  ├── .gitlab-ci.yml  [this file]
+#  │    ├── <jobs>
+#  │    │    └── .build-and-test
+#  │    ├── <included files>
+#  │    │    ├── .gitlab/subscribed-pipelines.yml
+#  │    │    ├── .gitlab/custom-jobs-and-variables.yml  [by ".build-and-test"]
+#  │    │    ├── <artifact>  [by ".build-and-test"]
+#  │    │    │    ├── artifact: '${CI_MACHINE}-jobs.yml'
+#  │    │    │    └── job:      'generate-job-lists'
+#  │    │    └── <external>  [by ".build-and-test"]
+#  │    │         ├── project: 'radiuss/radiuss-shared-ci'
+#  │    │         ├── ref:     'woptim/improve-job-cmd-handling'
+#  │    │         └── file:    'pipelines/${CI_MACHINE}.yml'
+#  │    └── <defined variables>
+#  │         ├── CUSTOM_CI_BUILDS_DIR
+#  │         ├── USER_CI_TOP_DIR
+#  │         ├── SHARED_REPOS_DIR
+#  │         ├── AUTOTEST_ROOT
+#  │         ├── MFEM_DATA_DIR
+#  │         ├── REBASELINE
+#  │         ├── AUTOTEST
+#  │         ├── AUTOTEST_COMMIT
+#  │         ├── GITHUB_PROJECT_NAME
+#  │         └── GITHUB_PROJECT_ORG
+#  ├── .gitlab
+#  │    ├── configs
+#  │    │    └── setup-baseline.yml
+#  │    │         ├── <jobs>
+#  │    │         │    └── setup_baseline
+#  │    │         └── <used variables>
+#  │    │              ├── MACHINE_NAME
+#  │    │              ├── REBASELINE
+#  │    │              ├── AUTOTEST
+#  │    │              ├── AUTOTEST_COMMIT
+#  │    │              ├── BUILD_ROOT
+#  │    │              ├── TPLS_REPO
+#  │    │              ├── TESTS_REPO
+#  │    │              ├── AUTOTEST_ROOT
+#  │    │              └── AUTOTEST_REPO
+#  │    ├── jobs
+#  │    │    ├── lassen-reports.yml
+#  │    │    │    ├── <jobs>
+#  │    │    │    │    ├── report_job_success
+#  │    │    │    │    └── report_job_failure
+#  │    │    │    └── <used jobs>
+#  │    │    │         ├── .on_lassen
+#  │    │    │         ├── .report_job_success
+#  │    │    │         └── .report_job_failure
+#  │    │    ├── lassen.yml
+#  │    │    │    ├── <jobs>
+#  │    │    │    │    ├── .lassen_reproducer_vars
+#  │    │    │    │    ├── setup
+#  │    │    │    │    ├── opt_mpi_cuda_gcc
+#  │    │    │    │    └── opt_mpi_cuda_hypre_cuda_gcc
+#  │    │    │    ├── <used jobs>
+#  │    │    │    │    ├── .reproducer_vars
+#  │    │    │    │    ├── .on_lassen
+#  │    │    │    │    └── .job_on_lassen
+#  │    │    │    ├── <included and used files>
+#  │    │    │    │    └── tests/gitlab/build_and_test_setup  [by "setup"]
+#  │    │    │    └── <defined variables>
+#  │    │    │         └── SPEC
+#  │    │    ├── ruby-reports.yml
+#  │    │    │    ├── <jobs>
+#  │    │    │    │    ├── report_job_success
+#  │    │    │    │    └── report_job_failure
+#  │    │    │    └── <used jobs>
+#  │    │    │         ├── .on_ruby
+#  │    │    │         ├── .report_job_success
+#  │    │    │         └── .report_job_failure
+#  │    │    ├── ruby.yml
+#  │    │    │    ├── <jobs>
+#  │    │    │    │    ├── .ruby_reproducer_vars
+#  │    │    │    │    ├── setup
+#  │    │    │    │    ├── debug_ser_gcc_10
+#  │    │    │    │    ├── debug_par_gcc_10
+#  │    │    │    │    ├── opt_ser_gcc_10
+#  │    │    │    │    ├── opt_par_gcc_10
+#  │    │    │    │    ├── opt_par_gcc_10_sundials
+#  │    │    │    │    ├── opt_par_gcc_10_petsc
+#  │    │    │    │    └── opt_par_gcc_10_pumi
+#  │    │    │    ├── <used jobs>
+#  │    │    │    │    ├── .reproducer_vars
+#  │    │    │    │    ├── .on_ruby
+#  │    │    │    │    └── .job_on_ruby
+#  │    │    │    ├── <included and used files>
+#  │    │    │    │    └── tests/gitlab/build_and_test_setup  [by "setup"]
+#  │    │    │    └── <defined variables>
+#  │    │    │         ├── SPEC
+#  │    │    │         └── THREADS
+#  │    │    ├── tioga-reports.yml
+#  │    │    │    ├── <jobs>
+#  │    │    │    │    ├── report_job_success
+#  │    │    │    │    └── report_job_failure
+#  │    │    │    └── <used jobs>
+#  │    │    │         ├── .on_tioga
+#  │    │    │         ├── .report_job_success
+#  │    │    │         └── .report_job_failure
+#  │    │    └── tioga.yml
+#  │    │         ├── <jobs>
+#  │    │         │    ├── .tioga_reproducer_vars
+#  │    │         │    ├── setup
+#  │    │         │    └── opt_mpi_rocm_hypre_rocm
+#  │    │         ├── <used jobs>
+#  │    │         │    ├── .reproducer_vars
+#  │    │         │    ├── .on_tioga
+#  │    │         │    └── .job_on_tioga
+#  │    │         ├── <included and used files>
+#  │    │         │    └── tests/gitlab/build_and_test_setup  [by "setup"]
+#  │    │         └── <defined variables>
+#  │    │              ├── SPEC
+#  │    │              └── THREADS
+#  │    ├── scripts
+#  │    │    ├── baseline
+#  │    │    │    └── <used variables>
+#  │    │    │         ├── BASELINE_TEST
+#  │    │    │         ├── SYS_TYPE
+#  │    │    │         ├── MACHINE_NAME
+#  │    │    │         ├── CI_PROJECT_DIR
+#  │    │    │         ├── ARTIFACTS_DIR
+#  │    │    │         ├── BUILD_ROOT
+#  │    │    │         └── TPLS_DIR
+#  │    │    ├── git_try_to_push
+#  │    │    ├── rebaseline
+#  │    │    │    └── <used variables>
+#  │    │    │         ├── CI_PROJECT_DIR
+#  │    │    │         ├── ARTIFACTS_DIR
+#  │    │    │         ├── SYS_TYPE
+#  │    │    │         ├── BUILD_ROOT
+#  │    │    │         ├── MACHINE_NAME
+#  │    │    │         └── CI_PIPELINE_ID
+#  │    │    ├── report_build_and_test
+#  │    │    │    ├── <used files>
+#  │    │    │    │    ├── .gitlab/scripts/safe_create_rundir
+#  │    │    │    │    └── .gitlab/scripts/git_try_to_push
+#  │    │    │    └── <used variables>
+#  │    │    │         ├── AUTOTEST_ROOT
+#  │    │    │         ├── CI_COMMIT_REF_SLUG
+#  │    │    │         ├── CI_PROJECT_DIR
+#  │    │    │         ├── CI_PIPELINE_URL
+#  │    │    │         ├── AUTOTEST_COMMIT
+#  │    │    │         └── CI_MACHINE
+#  │    │    └── safe_create_rundir
+#  │    ├── custom-jobs-and-variables.yml
+#  │    │    ├── <jobs>
+#  │    │    │    ├── .custom_job
+#  │    │    │    ├── .reproducer_vars
+#  │    │    │    ├── .report_job_success
+#  │    │    │    └── .report_job_failure
+#  │    │    ├── <used files>
+#  │    │    │    ├── tests/gitlab/build_and_test  [in JOB_CMD]
+#  │    │    │    └── .gitlab/scripts/report_build_and_test [by .report_job_*]
+#  │    │    ├── <defined variables>
+#  │    │    │    ├── JOB_CMD
+#  │    │    │    ├── BUILD_ROOT
+#  │    │    │    ├── ALLOC_NAME
+#  │    │    │    ├── TPLS_REPO
+#  │    │    │    ├── TESTS_REPO
+#  │    │    │    ├── AUTOTEST_REPO
+#  │    │    │    ├── MFEM_DATA_REPO
+#  │    │    │    ├── ARTIFACTS_DIR: artifacts
+#  │    │    │    ├── SLURM_OVERLAP: 1
+#  │    │    │    ├── RUBY_SHARED_ALLOC
+#  │    │    │    ├── RUBY_JOB_ALLOC
+#  │    │    │    ├── TIOGA_SHARED_ALLOC
+#  │    │    │    ├── TIOGA_JOB_ALLOC
+#  │    │    │    └── LASSEN_JOB_ALLOC
+#  │    │    └── <used variables>
+#  │    │         ├── SPEC
+#  │    │         ├── BUILD_ROOT
+#  │    │         └── ...
+#  │    ├── ruby-baseline.yml
+#  │    │    ├── <jobs>
+#  │    │    │    ├── .on_ruby
+#  │    │    │    ├── baselinecheck_mfem_intel_ruby
+#  │    │    │    ├── cleanup
+#  │    │    │    ├── report_baseline
+#  │    │    │    └── baselinepublish_mfem_ruby
+#  │    │    ├── <included and used files>
+#  │    │    │    ├── .gitlab/custom-jobs-and-variables.yml
+#  │    │    │    ├── .gitlab/configs/setup-baseline.yml
+#  │    │    │    ├── .gitlab/scripts/rebaseline
+#  │    │    │    ├── .gitlab/scripts/baseline
+#  │    │    │    └── .gitlab/scripts/git_try_to_push
+#  │    │    ├── <defined variables>
+#  │    │    │    ├── BASELINE_TEST: baseline
+#  │    │    │    ├── MACHINE_NAME: ruby
+#  │    │    │    ├── TPLS_DIR
+#  │    │    │    └── export MFEM_TEST_NP
+#  │    │    └── <used variables>
+#  │    │         ├── ON_RUBY
+#  │    │         ├── AUTOTEST       [defined by .gitlab-ci.yml]
+#  │    │         ├── BUILD_ROOT     [defined by custom-jobs-and-variables.yml]
+#  │    │         ├── TPLS_DIR       [defined by this file]
+#  │    │         ├── ARTIFACTS_DIR  [defined by custom-jobs-and-variables.yml]
+#  │    │         ├── MACHINE_NAME   [defined by this file]
+#  │    │         ├── AUTOTEST_COMMIT  [defined by .gitlab-ci.yml]
+#  │    │         ├── AUTOTEST_ROOT  [defined by .gitlab-ci.yml]
+#  │    │         ├── BASELINE_TEST  [defined by this file]
+#  │    │         └── REBASELINE     [defined by .gitlab-ci.yml]
+#  │    └── subscribed-pipelines.yml
+#  │         ├── <jobs>
+#  │         │    ├── .machine-check
+#  │         │    ├── generate-job-lists
+#  │         │    ├── ruby-up-check
+#  │         │    ├── ruby-build-and-test
+#  │         │    ├── ruby-baseline
+#  │         │    ├── tioga-up-check
+#  │         │    ├── tioga-build-and-test
+#  │         │    ├── lassen-up-check
+#  │         │    └── lassen-build-and-test
+#  │         ├── <used jobs>
+#  │         │    └── .build-and-test  [from ".gitlab-ci.yml"]
+#  │         ├── <included files>
+#  │         │    └── .gitlab/ruby-baseline.yml  [by "ruby-baseline"]
+#  │         └── <used variables>
+#  │              ├── GITHUB_PROJECT_ORG
+#  │              ├── GITHUB_PROJECT_NAME
+#  │              ├── AUTOTEST
+#  │              ├── AUTOTEST_COMMIT
+#  │              └── REBASELINE
+#  └── tests
+#       ├── gitlab
+#       │    ├── build_and_test
+#       │    │    ├── <builds and tests a given MFEM spec with uberenv>
+#       │    │    ├── <used files>
+#       │    │    │    ├── tests/uberenv/uberenv.py        [deps mode, cloned]
+#       │    │    │    └── tests/gitlab/get_mfem_uberenv   [deps mode]
+#       │    │    └── <used variables>
+#       │    │         ├── SYS_TYPE
+#       │    │         ├── THREADS      [num. parallel jobs to build MFEM]
+#       │    │         ├── MODULE_LIST  [modules to load]
+#       │    │         ├── CI_JOB_ID
+#       │    │         ├── USE_DEV_SHM
+#       │    │         ├── SPACK_DEBUG
+#       │    │         ├── DEBUG_MODE
+#       │    │         ├── REGISTRY_TOKEN
+#       │    │         ├── CI_REGISTRY_USER  (defined by Gitlab)
+#       │    │         ├── USER
+#       │    │         ├── CI_REGISTRY_IMAGE (defined by Gitlab)
+#       │    │         └── CI_JOB_TOKEN      (defined by Gitlab)
+#       │    ├── build_and_test_setup
+#       │    │    ├── <updates MFEM_DATA_REPO and AUTOTEST_REPO using locks>
+#       │    │    └── <used variables>
+#       │    │         ├── MFEM_DATA_REPO
+#       │    │         ├── SHARED_REPOS_DIR
+#       │    │         ├── AUTOTEST_REPO
+#       │    │         └── AUTOTEST_ROOT
+#       │    └── get_mfem_uberenv
+#       │         ├── <github.com/mfem/mfem-uberenv.git -> tests/uberenv>
+#       │         └── <defines the uberenv hash to use>
+#       └── uberenv  [cloned by tests/gitlab/get_mfem_uberenv]
+#            └── uberenv.py
+#
+# <root of radiuss/radiuss-shared-ci, ref: 'woptim/improve-job-cmd-handling'>
+#  └── pipelines
+#       ├── lassen.yml
+#       │    ├── <jobs>
+#       │    │    ├── .on_lassen
+#       │    │    ├── .lassen_reproducer_init
+#       │    │    ├── .lassen_reproducer_vars
+#       │    │    ├── .lassen_reproducer_job
+#       │    │    ├── .lassen_job_command
+#       │    │    └── .job_on_lassen
+#       │    ├── <used jobs>
+#       │    │    └── .custom_job  [from .gitlab/custom-jobs-and-variables.yml]
+#       │    └── <used variables>
+#       │         ├── ON_LASSEN
+#       │         ├── ADVANCED_JOB
+#       │         ├── ALL_TARGETS
+#       │         ├── SYS_TYPE
+#       │         ├── LLNL_SERVICE_USER
+#       │         ├── USER
+#       │         ├── GITHUB_PROJECT_NAME
+#       │         ├── GITHUB_PROJECT_ORG
+#       │         ├── LASSEN_JOB_ALLOC
+#       │         └── JOB_CMD
+#       ├── ruby.yml
+#       │    ├── <jobs>
+#       │    │    ├── .on_ruby
+#       │    │    ├── .ruby_reproducer_init
+#       │    │    ├── .ruby_reproducer_vars
+#       │    │    ├── .ruby_reproducer_job
+#       │    │    ├── .ruby_job_command
+#       │    │    ├── .job_on_ruby
+#       │    │    ├── allocate_resources
+#       │    │    └── release_resources
+#       │    ├── <used jobs>
+#       │    │    └── .custom_job  [from .gitlab/custom-jobs-and-variables.yml]
+#       │    ├── <defined variables>
+#       │    │    └── export JOBID
+#       │    └── <used variables>
+#       │         ├── ON_RUBY
+#       │         ├── ADVANCED_JOB
+#       │         ├── ALL_TARGETS
+#       │         ├── SYS_TYPE
+#       │         ├── LLNL_SERVICE_USER
+#       │         ├── USER
+#       │         ├── GITHUB_PROJECT_NAME
+#       │         ├── GITHUB_PROJECT_ORG
+#       │         ├── RUBY_JOB_ALLOC
+#       │         ├── JOB_CMD
+#       │         ├── JOBID
+#       │         ├── ALLOC_NAME
+#       │         └── RUBY_SHARED_ALLOC
+#       └── tioga.yml
+#            ├── <jobs>
+#            │    ├── .on_tioga
+#            │    ├── .tioga_reproducer_init
+#            │    ├── .tioga_reproducer_vars
+#            │    ├── .tioga_reproducer_job
+#            │    ├── .tioga_job_command
+#            │    ├── .job_on_tioga
+#            │    ├── allocate_resources
+#            │    └── release_resources
+#            ├── <used jobs>
+#            │    └── .custom_job  [from .gitlab/custom-jobs-and-variables.yml]
+#            ├── <defined variables>
+#            │    └── PROXY
+#            └── <used variables>
+#                 ├── ON_TIOGA
+#                 ├── ADVANCED_JOB
+#                 ├── ALL_TARGETS
+#                 ├── SYS_TYPE
+#                 ├── LLNL_SERVICE_USER
+#                 ├── USER
+#                 ├── GITHUB_PROJECT_NAME
+#                 ├── GITHUB_PROJECT_ORG
+#                 ├── TIOGA_JOB_ALLOC
+#                 ├── JOB_CMD
+#                 ├── PROXY
+#                 ├── ALLOC_NAME
+#                 └── TIOGA_SHARED_ALLOC
 
 ###############################################################################
 # We define the following GitLab pipeline variables:
@@ -39,8 +484,6 @@ variables:
   USER_CI_TOP_DIR: "${CUSTOM_CI_BUILDS_DIR}/${GITLAB_USER_LOGIN}"
   SHARED_REPOS_DIR: "${USER_CI_TOP_DIR}/repos"
   AUTOTEST_ROOT: "${SHARED_REPOS_DIR}"
-# MFEM_DATA_DIR is setup in '.gitlab/configs/setup-build-and-test.yml' and
-# used in '.gitlab/configs/<machine>-config.yml':
   MFEM_DATA_DIR: "${SHARED_REPOS_DIR}/mfem-data"
 # Defines the default choice for updating the saved baseline results. By default
 # the baseline can only be updated from the master branch. This variable offers
@@ -66,17 +509,16 @@ variables:
 
 ###############################################################################
 ##### High level stages
-# We organize the build-and-test stage with sub-pipelines. Each sub-pipeline
+# We organize the test-pipelines stage with sub-pipelines. Each sub-pipeline
 # corresponds to a test batch on a given machine.
 stages:
   - prerequisites
-  - build-and-test
-  - baseline #MFEM specific
+  - test-pipelines
 
 ###############################################################################
 # Template for jobs triggering a build-and-test sub-pipeline:
 .build-and-test:
-  stage: build-and-test
+  stage: test-pipelines
   trigger:
     include:
       - local: '.gitlab/custom-jobs-and-variables.yml'

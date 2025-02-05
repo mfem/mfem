@@ -16,6 +16,8 @@
 # Spack instance that can be used as an upstream.
 # Note: needs mfem-uberenv in MFEM repo (run tests/gitlab/get_mfem_uberenv)
 
+# FIXME: this file needs to be updated or removed.
+
 # This patch applies shared permissions to Spack installations.
 cd tests/uberenv
 git apply upstream-permission.patch
