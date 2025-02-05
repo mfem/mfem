@@ -47,6 +47,8 @@ public:
    /// Sets the property that determines whether the spacing is reversed.
    void SetReverse(bool r) { reverse = r; }
 
+   void Flip() { reverse = !reverse; }
+
    /// Returns the width of interval @a p (between 0 and @a Size() - 1).
    virtual real_t Eval(int p) const = 0;
 
