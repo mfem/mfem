@@ -153,6 +153,7 @@ void mfem_backtrace(int mode, int depth)
 
 void mfem_error(const char *msg)
 {
+   std::abort();
    std::ostream &merr = internal::mfem_err_initialized ? mfem::err : std::cerr;
    if (msg)
    {

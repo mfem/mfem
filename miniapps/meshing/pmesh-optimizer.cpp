@@ -339,21 +339,14 @@ int main (int argc, char *argv[])
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
-   // 3. Initialize and refine the starting mesh.
+   // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++)
-   {
-      mesh->UniformRefinement();
-   }
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
-
    if (hradaptivity) { mesh->EnsureNCMesh(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   for (int lev = 0; lev < rp_levels; lev++)
-   {
-      pmesh->UniformRefinement();
-   }
+   for (int lev = 0; lev < rp_levels; lev++) { pmesh->UniformRefinement(); }
 
    // 4. Define a finite element space on the mesh. Here we use vector finite
    //    elements which are tensor products of quadratic finite elements. The
@@ -366,8 +359,9 @@ int main (int argc, char *argv[])
       mesh_poly_deg = 2;
    }
    else { fec = new H1_FECollection(mesh_poly_deg, dim); }
-   ParFiniteElementSpace *pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
-                                                               mesh_node_ordering);
+   //else { fec = new L2_FECollection(mesh_poly_deg, dim); }
+   auto pfespace = new ParFiniteElementSpace(pmesh, fec, dim,
+                                             mesh_node_ordering);
 
    // 5. Make the mesh curved based on the above finite element space. This
    //    means that we define the mesh elements through a fespace-based
@@ -411,31 +405,61 @@ int main (int argc, char *argv[])
    //    zero on the boundary and its values are locally of the order of h0.
    //    The latter is based on the DofToVDof() method which maps the scalar to
    //    the vector degrees of freedom in pfespace.
-   ParGridFunction rdm(pfespace);
-   rdm.Randomize();
-   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
-   rdm *= jitter;
-   rdm.HostReadWrite();
-   // Scale the random values to be of order of the local mesh size.
-   for (int i = 0; i < pfespace->GetNDofs(); i++)
+   if (jitter > 0.0)
    {
-      for (int d = 0; d < dim; d++)
+      H1_FECollection fec_h1(mesh_poly_deg, dim);
+      ParFiniteElementSpace pfes_h1(pmesh, &fec_h1, dim);
+      ParGridFunction rdm_h1(&pfes_h1);
+      rdm_h1.Randomize();
+      rdm_h1 -= 0.25; // Shift to random values in [-0.5,0.5].
+      rdm_h1 *= jitter;
+      rdm_h1.HostReadWrite();
+      // Scale the random values to be of order of the local mesh size.
+      for (int i = 0; i < pfes_h1.GetNDofs(); i++)
       {
-         rdm(pfespace->DofToVDof(i,d)) *= h0(i);
+         for (int d = 0; d < dim; d++)
+         {
+            rdm_h1(pfes_h1.DofToVDof(i,d)) *= h0(i);
+         }
       }
+      Array<int> vdofs;
+      for (int i = 0; i < pfes_h1.GetNBE(); i++)
+      {
+         // Get the vector degrees of freedom in the boundary element.
+         pfes_h1.GetBdrElementVDofs(i, vdofs);
+         // Set the boundary values to zero.
+         for (int j = 0; j < vdofs.Size(); j++) { rdm_h1(vdofs[j]) = 0.0; }
+      }
+
+      rdm_h1.SetTrueVector();
+      rdm_h1.SetFromTrueVector();
+
+      ParGridFunction rdm_l2(pfespace);
+      rdm_l2.ProjectGridFunction(rdm_h1);
+
+      if (visualization)
+      {
+         socketstream vis1, vis2;
+         common::VisualizeField(vis2, "localhost", 19916, rdm_h1, "H1 rdm",
+                                400, 500, 400, 400, "c", true);
+         common::VisualizeField(vis1, "localhost", 19916, rdm_l2, "L2 rdm",
+                                800, 500, 400, 400, "c", true);
+      }
+
+      x -= rdm_l2;
+      // Set the perturbation of all nodes from the true nodes.
    }
-   Array<int> vdofs;
-   for (int i = 0; i < pfespace->GetNBE(); i++)
-   {
-      // Get the vector degrees of freedom in the boundary element.
-      pfespace->GetBdrElementVDofs(i, vdofs);
-      // Set the boundary values to zero.
-      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
-   }
-   x -= rdm;
-   // Set the perturbation of all nodes from the true nodes.
+
    x.SetTrueVector();
    x.SetFromTrueVector();
+
+   // Visualize the starting mesh.
+   if (visualization)
+   {
+      socketstream vis;
+      common::VisualizeMesh(vis, "localhost", 19916, *pmesh, "Initial mesh",
+                            400, 0, 400, 400);
+   }
 
    // 10. Save the starting (prior to the optimization) mesh to a file. This
    //     output can be viewed later using GLVis: "glvis -m perturbed -np
@@ -448,9 +472,8 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   // 11. Store the starting (prior to the optimization) positions.
-   ParGridFunction x0(pfespace);
-   x0 = x;
+   // Store the starting (prior to the optimization) positions.
+   ParGridFunction x0(x);
 
    // 12. Form the integrator that uses the chosen metric and target.
    real_t min_detJ = -0.1;
@@ -1054,7 +1077,7 @@ int main (int argc, char *argv[])
          if (attr == 1 || attr == 2 || attr == 3) { n += nd; }
          if (attr == 4) { n += nd * dim; }
       }
-      Array<int> ess_vdofs(n);
+      Array<int> vdofs, ess_vdofs(n);
       n = 0;
       for (int i = 0; i < pmesh->GetNBE(); i++)
       {

@@ -656,6 +656,35 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    return scale;
 }
 
+void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
+{
+   x_0 = x;
+
+   // // // Pass down the initial position to the integrators.
+   // const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   // const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   // TMOP_Integrator *ti  = nullptr;
+   // TMOPComboIntegrator *co = nullptr;
+   // for (int i = 0; i < integs.Size(); i++)
+   // {
+   //    ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+   //    ti->SetInitialMeshPos(x_0);
+   //    co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+   //    if (co)
+   //    {
+
+   //    }
+   // }
+
+   // We solve for this displacement vector.
+   Vector d(x.Size());
+   d = 0.0;
+
+   if (solver_type == 0)      { NewtonSolver::Mult(b, x); }
+   else if (solver_type == 1) { LBFGSSolver::Mult(b, x); }
+   else { MFEM_ABORT("Invalid solver_type"); }
+}
+
 void TMOPNewtonSolver::UpdateSurfaceFittingWeight(real_t factor) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
@@ -819,30 +848,15 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    }
 
    Vector x_loc;
-   const FiniteElementSpace *x_fes = nullptr;
-   if (parallel)
+   const Operator *P = nlf->GetProlongation();
+   if (P)
    {
-#ifdef MFEM_USE_MPI
-      const ParNonlinearForm *pnlf =
-         dynamic_cast<const ParNonlinearForm *>(oper);
-
-      x_fes = pnlf->ParFESpace();
-      x_loc.SetSize(x_fes->GetVSize());
-      x_fes->GetProlongationMatrix()->Mult(x, x_loc);
-#endif
+      x_loc.SetSize(P->Height());
+      P->Mult(x, x_loc);
    }
-   else
-   {
-      x_fes = nlf->FESpace();
-      const Operator *P = nlf->GetProlongation();
-      if (P)
-      {
-         x_loc.SetSize(P->Height());
-         P->Mult(x,x_loc);
-      }
-      else { x_loc = x; }
-   }
+   else { x_loc = x; }
 
+   const FiniteElementSpace *x_fes = nlf->FESpace();
    for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
