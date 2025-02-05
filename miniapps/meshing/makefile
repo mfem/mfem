@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -62,7 +62,7 @@ lib-common:
 # building out-of-source:
 ifneq ($(SRC),)
 MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh icf.mesh\
-jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh 
+jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 mesh-optimizer pmesh-optimizer pmesh-fitting fit-node-position: | $(MESH_FILES)

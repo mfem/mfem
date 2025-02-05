@@ -350,6 +350,7 @@ miniapps/toys/rubik
 miniapps/toys/snake
 miniapps/toys/lissajous
 miniapps/toys/mondrian
+miniapps/toys/spiral
 miniapps/toys/snake-init.mesh
 miniapps/toys/snake-user.mesh
 miniapps/toys/snake-joined.mesh
@@ -441,3 +442,6 @@ pkg.gitcommit
 
 # emacs tag file
 TAGS
+
+# vs code
+.vscode
