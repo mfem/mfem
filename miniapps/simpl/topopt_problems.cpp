@@ -547,8 +547,11 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
          if (r_min < 0) { r_min = 0.05; }
          if (E < 0) { E = 1.0; }
          if (nu < 0) { nu = 0.3; }
-         mesh = new Mesh(Mesh::MakeCartesian2D(3, 1, Element::Type::QUADRILATERAL, false,
-                                               3.0, 1.0));
+         real_t xr = 2.0;
+         int nx = std::round(xr);
+         mesh = new Mesh(Mesh::MakeCartesian2D(nx, 1, Element::Type::QUADRILATERAL,
+                                               false,
+                                               xr, 1.0));
          /*mesh = new Mesh("./inner_vertical.mesh");*/
          tot_vol = 0.0;
          for (int i=0; i<mesh->GetNE(); i++) { tot_vol += mesh->GetElementVolume(i); }
@@ -580,9 +583,9 @@ Mesh * GetTopoptMesh(TopoptProblem prob, std::stringstream &filename,
             return x[0] < 0.0 + std::pow(2.0, -5.0) && x[1] < 1e-09;
          });
          MarkBoundaries(*mesh, ++num_bdr_attr,
-                        [](const Vector &x)
+                        [xr](const Vector &x)
          {
-            return x[0] > 3.0 - std::pow(2.0, -5.0) && x[1] < 1e-09;
+            return x[0] > xr - std::pow(2.0, -5.0) && x[1] < 1e-09;
          });
          ess_bdr_displacement.SetSize(3, num_bdr_attr);
          ess_bdr_displacement = 0;
@@ -974,9 +977,9 @@ void SetupTopoptProblem(TopoptProblem prob,
                2, [](const Vector &x, Vector &f)
             {
                f = 0.0;
-               if (std::pow(x[0]-1.0, 2.0) + std::pow(x[1] - 0.9, 2.0) < 0.05*0.05)
+               if (std::pow(x[0]-(2.0/3.0), 2.0) + std::pow(x[1] - 0.9, 2.0) < 0.05*0.05)
                {
-                  f[1] = -1.0 / (0.05*0.05);
+                  f[1] = -1.0;
                }
             });
             elasticity.MakeCoefficientOwner(load);
@@ -988,9 +991,9 @@ void SetupTopoptProblem(TopoptProblem prob,
                2, [](const Vector &x, Vector &f)
             {
                f = 0.0;
-               if (std::pow(x[0]-2.0, 2.0) + std::pow(x[1] - 0.9, 2.0) < 0.05*0.05)
+               if (std::pow(x[0]-(4.0/3.0), 2.0) + std::pow(x[1] - 0.9, 2.0) < 0.05*0.05)
                {
-                  f[1] = -1.0 / (0.05*0.05);
+                  f[1] = -1.0;
                }
             });
             elasticity.MakeCoefficientOwner(load);
