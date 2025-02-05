@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1219,6 +1219,107 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
          {
             const int Jj = J[j];
             y[Jj] += std::abs(A[j]) * xi;
+         }
+      }
+   }
+}
+
+void SparseMatrix::PowAbsMult(real_t p, const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(width == x.Size(), "Input vector size (" << x.Size()
+               << ") must match matrix width (" << width << ")");
+   MFEM_ASSERT(height == y.Size(), "Output vector size (" << y.Size()
+               << ") must match matrix height (" << height << ")");
+   MFEM_ASSERT(p > 0.0, "Non-positive powers not implemented!");
+
+   if (p == 1.0) { AbsMult(x,y); return; }
+
+   if (Finalized()) { y.UseDevice(true); }
+   y = 0.0;
+
+   if (!Finalized())
+   {
+      const real_t *xp = x.HostRead();
+      real_t *yp = y.HostReadWrite();
+
+      // The matrix is not finalized, but multiplication is still possible
+      for (int i = 0; i < height; i++)
+      {
+         RowNode *row = Rows[i];
+         real_t b = 0.0;
+         for ( ; row != NULL; row = row->Prev)
+         {
+            b += std::pow(std::abs(row->Value), p) * xp[row->Column];
+         }
+         *yp += b;
+         yp++;
+      }
+      return;
+   }
+
+   const int height = this->height;
+   const int nnz = J.Capacity();
+   auto d_I = Read(I, height+1);
+   auto d_J = Read(J, nnz);
+   auto d_A = Read(A, nnz);
+   auto d_x = x.Read();
+   auto d_y = y.ReadWrite();
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
+   {
+      real_t d = 0.0;
+      const int end = d_I[i+1];
+      for (int j = d_I[i]; j < end; j++)
+      {
+         d += std::pow(std::abs(d_A[j]), p) * d_x[d_J[j]];
+      }
+      d_y[i] += d;
+   });
+}
+
+void SparseMatrix::PowAbsMultTranspose(real_t p, const Vector &x,
+                                       Vector &y) const
+{
+   MFEM_ASSERT(height == x.Size(), "Input vector size (" << x.Size()
+               << ") must match matrix height (" << height << ")");
+   MFEM_ASSERT(width == y.Size(), "Output vector size (" << y.Size()
+               << ") must match matrix width (" << width << ")");
+   MFEM_ASSERT(p > 0.0, "Non-positive powers not implemented!");
+
+   if (p == 1.0) { AbsMultTranspose(x,y); return; }
+
+   y = 0.0;
+
+   if (!Finalized())
+   {
+      real_t *yp = y.GetData();
+      // The matrix is not finalized, but multiplication is still possible
+      for (int i = 0; i < height; i++)
+      {
+         RowNode *row = Rows[i];
+         real_t b = x(i);
+         for ( ; row != NULL; row = row->Prev)
+         {
+            yp[row->Column] += std::pow(std::abs(row->Value), p) * b;
+         }
+      }
+      return;
+   }
+
+   EnsureMultTranspose();
+   if (At)
+   {
+      At->PowAbsMult(p, x, y);
+   }
+   else
+   {
+      for (int i = 0; i < height; i++)
+      {
+         const real_t xi = x[i];
+         const int end = I[i+1];
+         for (int j = I[i]; j < end; j++)
+         {
+            const int Jj = J[j];
+            y[Jj] += std::pow(std::abs(A[j]), p) * xi;
          }
       }
    }

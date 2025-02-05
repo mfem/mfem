@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -82,6 +82,26 @@ void ElasticityAddMultPA(const int dim, const int nDofs,
          break;
       case 3:
          ElasticityAddMultPA_<3>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
+         break;
+      default:
+         MFEM_ABORT("Only dimensions 2 and 3 supported.");
+   }
+}
+
+void ElasticityAddAbsMultPA(const int dim, const int nDofs,
+                            const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                            const CoefficientVector &mu, const GeometricFactors &geom,
+                            const DofToQuad &maps, const Vector &x, QuadratureFunction &QVec, Vector &y)
+{
+   switch (dim)
+   {
+      case 2:
+         ElasticityAddMultPA_<2>(nDofs, fespace, lambda, mu, geom, maps, x,
+                                 QVec, y, true);
+         break;
+      case 3:
+         ElasticityAddMultPA_<3>(nDofs, fespace, lambda, mu, geom, maps, x,
+                                 QVec, y, true);
          break;
       default:
          MFEM_ABORT("Only dimensions 2 and 3 supported.");

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -147,6 +147,13 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
                "incompatible dimensions");
 
    Mult(x.GetData(), y.GetData());
+}
+
+void DenseMatrix::PowAbsMult(const real_t p, const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(height == y.Size() && width == x.Size(),
+               "incompatible dimensions");
+   kernels::PowAbsMult(height, width, p, Data(), x.GetData(), y.GetData());
 }
 
 real_t DenseMatrix::operator *(const DenseMatrix &m) const

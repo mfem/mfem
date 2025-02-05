@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -662,7 +662,8 @@ void PACurlCurlApply2D(const int D1D,
                        const Array<real_t> &gct,
                        const Vector &pa_data,
                        const Vector &x,
-                       Vector &y)
+                       Vector &y,
+                       bool useAbs)
 {
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
@@ -717,7 +718,8 @@ void PACurlCurlApply2D(const int D1D,
 
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const real_t wy = (c == 0) ? -Gc(qy,dy) : Bo(qy,dy);
+               const int sign = useAbs ? 1 : -1;
+               const real_t wy = (c == 0) ? (sign*Gc(qy,dy)) : Bo(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   curl[qy][qx] += gradX[qx] * wy;
@@ -760,7 +762,8 @@ void PACurlCurlApply2D(const int D1D,
             }
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               const real_t wy = (c == 0) ? -Gct(dy,qy) : Bot(dy,qy);
+               const int sign = useAbs ? 1 : -1;
+               const real_t wy = (c == 0) ? sign*Gct(dy,qy) : Bot(dy,qy);
 
                for (int dx = 0; dx < D1Dx; ++dx)
                {

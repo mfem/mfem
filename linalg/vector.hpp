@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -352,6 +352,9 @@ public:
 
    /// (*this)(i) = 1.0 / (*this)(i)
    void Reciprocal();
+
+   /// (*this)(i) = abs((*this)(i))^p
+   void PowerAbs(const real_t p);
 
    /// Swap the contents of two Vectors
    inline void Swap(Vector &other);

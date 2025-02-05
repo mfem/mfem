@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -422,13 +422,22 @@ public:
    void BooleanMultTranspose(const Array<int> &x, Array<int> &y) const;
 
    /// y = |A| * x, using entry-wise absolute values of matrix A
-   void AbsMult(const Vector &x, Vector &y) const;
+   void AbsMult(const Vector &x, Vector &y) const override;
 
    /// y = |At| * x, using entry-wise absolute values of the transpose of matrix A
    /** If the matrix is modified, call ResetTranspose() and optionally
        EnsureMultTranspose() to make sure this method uses the correct updated
        transpose. */
-   void AbsMultTranspose(const Vector &x, Vector &y) const;
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
+
+   /// y = |A|**p * x, using entry-wise absolute values of matrix A
+   void PowAbsMult(real_t p, const Vector &x, Vector &y) const;
+
+   /// y = |At|**p * x, using entry-wise absolute values of the transpose of matrix A
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   void PowAbsMultTranspose(real_t p, const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
    real_t InnerProduct(const Vector &x, const Vector &y) const;

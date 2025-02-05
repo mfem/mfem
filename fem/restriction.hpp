@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -65,8 +65,13 @@ public:
 
    /// Compute Mult without applying signs based on DOF orientations.
    void MultUnsigned(const Vector &x, Vector &y) const;
+
+   void AbsMult(const Vector &x, Vector &y) const override { MultUnsigned(x,y); };
+
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void MultTransposeUnsigned(const Vector &x, Vector &y) const;
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override { MultTransposeUnsigned(x,y); };
 
    /// Compute MultTranspose by setting (rather than adding) element
    /// contributions; this is a left inverse of the Mult() operation
@@ -176,6 +181,13 @@ public:
    */
    void Mult(const Vector &x, Vector &y) const override = 0;
 
+   virtual void MultUnsigned(const Vector &x, Vector &y) const
+   {
+      MFEM_ABORT("MultUnsigned not implemented yet...");
+   }
+
+   void AbsMult(const Vector &x, Vector &y) const override { MultUnsigned(x,y); }
+
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y.
 
@@ -222,6 +234,12 @@ public:
    {
       y = 0.0;
       AddMultTranspose(x, y);
+   }
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   {
+      y = 0.0;
+      AddMultTransposeUnsigned(x,y);
    }
 
    /** @brief For each face, sets @a y to the partial derivative of @a x with
@@ -326,6 +344,8 @@ public:
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
 
+   void MultUnsigned(const Vector &x, Vector &y) const override;
+
    using FaceRestriction::AddMultTransposeInPlace;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
@@ -348,6 +368,19 @@ public:
        @sa AddMultTranspose(). */
    void AddMultTransposeUnsigned(const Vector &x, Vector &y,
                                  const real_t a = 1.0) const override;
+
+   using Operator::AddAbsMultTranspose;
+
+   void AddAbsMultTranspose(const Vector &x, Vector &y) const
+   {
+      AddMultTransposeUnsigned(x,y);
+   }
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   {
+      y = 0.0;
+      AddMultTransposeUnsigned(x,y);
+   }
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets

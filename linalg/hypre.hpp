@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -767,6 +767,7 @@ public:
 
    void AddMult(const Vector &x, Vector &y, const real_t a = 1.0) const override
    { Mult(a, x, 1.0, y); }
+
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override
    { MultTranspose(a, x, 1.0, y); }
@@ -778,9 +779,31 @@ public:
        of the matrix A. */
    void AbsMult(real_t a, const Vector &x, real_t b, Vector &y) const;
 
+   void AbsMult(const Vector &x, Vector &y) const override
+   { AbsMult(1.0, x, 0.0, y); }
+
+   void AddAbsMult(const Vector &x, Vector &y, const real_t a = 1.0) const override
+   { AbsMult(a, x, 1.0, y); }
+
    /** @brief Computes y = a * |At| * x + b * y, using entry-wise absolute
        values of the transpose of the matrix A. */
    void AbsMultTranspose(real_t a, const Vector &x, real_t b, Vector &y) const;
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { AbsMultTranspose(1.0, x, 0.0, y); }
+
+   void AddAbsMultTranspose(const Vector &x, Vector &y,
+                            const real_t a) const override
+   { AbsMultTranspose(a, x, 1.0, y); }
+
+   /** @brief Computes y = a * |A|**p * x + b * y, using entry-wise absolute values
+       of the matrix A. */
+   void PowAbsMult(real_t p, real_t a, const Vector &x, real_t b, Vector &y) const;
+
+   /** @brief Computes y = a * |At|**p * x + b * y, using entry-wise absolute
+       values of the transpose of the matrix A. */
+   void PowAbsMultTranspose(real_t p, real_t a, const Vector &x, real_t b,
+                            Vector &y) const;
 
    /** @brief The "Boolean" analog of y = alpha * A * x + beta * y, where
        elements in the sparsity pattern of the matrix are treated as "true". */

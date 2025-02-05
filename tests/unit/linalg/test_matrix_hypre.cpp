@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -237,6 +237,93 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
 
       delete A;
       delete Aabs;
+      delete hdiv_coll;
+      delete l2_coll;
+      delete pmesh;
+   }
+}
+
+TEST_CASE("HypreParMatrixPowAbsMult",  "[Parallel], [HypreParMatrixPowAbsMult]")
+{
+   int rank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   int dim = 2;
+   int ne = 4;
+   double power = 2.0;
+   for (int order = 1; order <= 3; ++order)
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(
+                     ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
+      FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
+      FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
+      ParFiniteElementSpace R_space(pmesh, hdiv_coll);
+      ParFiniteElementSpace W_space(pmesh, l2_coll);
+
+      int n = R_space.GetTrueVSize();
+      int m = W_space.GetTrueVSize();
+      ParMixedBilinearForm a(&R_space, &W_space);
+      a.AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+      a.Assemble();
+      a.Finalize();
+
+      HypreParMatrix *A = a.ParallelAssemble();
+      HypreParMatrix *A_pow_abs = new HypreParMatrix(*A);
+
+      hypre_ParCSRMatrix * AparCSR = *A_pow_abs;
+      A_pow_abs->HypreReadWrite();
+
+      int nnzd = AparCSR->diag->num_nonzeros;
+      real_t *d_diag_data = AparCSR->diag->data;
+      mfem::hypre_forall(nnzd, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_diag_data[i] = std::pow(fabs(d_diag_data[i]), power);
+      });
+
+      int nnzoffd = AparCSR->offd->num_nonzeros;
+      real_t *d_offd_data = AparCSR->offd->data;
+      mfem::hypre_forall(nnzoffd, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_offd_data[i] = std::pow(fabs(d_offd_data[i]), power);
+      });
+
+      Vector X0(n), X1(n);
+      Vector Y0(m), Y1(m);
+
+      X0.Randomize();
+      Y0.Randomize(1);
+      Y1.Randomize(1);
+      A->PowAbsMult(power,3.4,X0,-2.3,Y0);
+      A_pow_abs->Mult(3.4,X0,-2.3,Y1);
+
+      Y1 -= Y0;
+      double error = Y1.Norml2();
+
+      mfem::out << "Testing PowAbsMult:   order: " << order
+                << ", error norm on rank "
+                << rank << ": " << error << std::endl;
+
+      REQUIRE(error == MFEM_Approx(0.0));
+
+      MPI_Barrier(MPI_COMM_WORLD);
+
+      Y0.Randomize();
+      X0.Randomize(1);
+      X1.Randomize(1);
+      A->PowAbsMultTranspose(power,3.4,Y0,-2.3,X0);
+      A_pow_abs->MultTranspose(3.4,Y0,-2.3,X1);
+      X1 -= X0;
+
+      error = X1.Norml1();
+      mfem::out << "Testing PowAbsMultT:  order: " << order
+                << ", error norm on rank "
+                << rank << ": " << error << std::endl;
+
+      REQUIRE(error == MFEM_Approx(0.0));
+
+      delete A;
+      delete A_pow_abs;
       delete hdiv_coll;
       delete l2_coll;
       delete pmesh;

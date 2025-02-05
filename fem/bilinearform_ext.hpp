@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,6 +54,11 @@ public:
       MFEM_ABORT("AssembleDiagonal not implemented for this assembly level!");
    }
 
+   void AbsMult(const Vector &x, Vector &y) const override
+   {
+      MFEM_ABORT("AbsMult not implemented for this assembly level!");
+   }
+
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -91,12 +96,15 @@ public:
                          Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0) override;
-   void Mult(const Vector &x, Vector &y) const override;
+   void Mult(const Vector &x, Vector &y) const override { MultInternal(x,y); }
+   void AbsMult(const Vector &x, Vector &y) const override
+   { MultInternal(x,y,true); }
    void MultTranspose(const Vector &x, Vector &y) const override;
    void Update() override;
 
 protected:
    void SetupRestrictionOperators(const L2FaceValues m);
+   void MultInternal(const Vector &x, Vector &y, bool useAbs = false) const;
 
    /// @brief Accumulate the action (or transpose) of the integrator on @a x
    /// into @a y, taking into account the (possibly null) @a markers array.
@@ -110,12 +118,14 @@ protected:
    /// @param attributes Array of element or boundary element attributes.
    /// @param transpose Compute the action or transpose of the integrator .
    /// @param y Output E-vector
+   /// @param useAbs Apply absolute-value operator
    void AddMultWithMarkers(const BilinearFormIntegrator &integ,
                            const Vector &x,
                            const Array<int> *markers,
                            const Array<int> &attributes,
                            const bool transpose,
-                           Vector &y) const;
+                           Vector &y,
+                           bool useAbs = false) const;
 
    /// @brief Performs the same function as AddMultWithMarkers, but takes as
    /// input and output face normal derivatives.
@@ -148,12 +158,21 @@ protected:
    Vector ea_data_int, ea_data_ext, ea_data_bdr;
    bool factorize_face_terms;
 
+   void MultInternal(const Vector &x, Vector &y, bool useTranspose,
+                     bool useAbs = false) const;
+
 public:
    EABilinearFormExtension(BilinearForm *form);
 
    void Assemble() override;
-   void Mult(const Vector &x, Vector &y) const override;
-   void MultTranspose(const Vector &x, Vector &y) const override;
+   void Mult(const Vector &x, Vector &y) const override
+   { MultInternal(x,y,false); }
+   void AbsMult(const Vector &x, Vector &y) const override
+   { MultInternal(x,y, false, true); }
+   void MultTranspose(const Vector &x, Vector &y) const override
+   { MultInternal(x,y,true); }
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { MultInternal(x,y,true, true); }
 
    /// @brief Populates @a element_matrices with the element matrices.
    ///

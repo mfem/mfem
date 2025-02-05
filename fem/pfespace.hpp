@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -367,6 +367,15 @@ public:
                              Array<int> &ess_tdof_list,
                              int component = -1) const override;
 
+   /// Determine the external degrees of freedom
+   void GetExteriorVDofs(Array<int> &ext_dofs,
+                         int component = -1) const override;
+
+   /** Get a list of external true dofs, ext_tdof_list, corresponding to the
+       face on the exterior of the mesh. */
+   void GetExteriorTrueDofs(Array<int> &ext_tdof_list,
+                            int component = -1) const override;
+
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */
    int GetLocalTDofNumber(int ldof) const;
@@ -456,7 +465,11 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override;
 
+   void AbsMult(const Vector &x, Vector &y) const override { Mult(x,y); }
+
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override { MultTranspose(x,y); }
 };
 
 /// Auxiliary device class used by ParFiniteElementSpace.
@@ -507,7 +520,11 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override;
 
+   void AbsMult(const Vector &x, Vector &y) const override { Mult(x,y); }
+
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   void AbsMultTranspose(const Vector &x, Vector &y) const override { MultTranspose(x,y); }
 };
 
 }

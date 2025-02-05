@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -141,7 +141,7 @@ void test_assembly_level(const char *meshname,
    // Don't use a special integration rule if q_order_inc == 0
    const bool use_ir = q_order_inc > 0;
    const IntegrationRule *ir =
-      use_ir ? &IntRules.Get(mesh.GetElementGeometry(0), q_order) : nullptr;
+      use_ir ? &IntRules.Get(mesh.GetTypicalElementGeometry(), q_order) : nullptr;
    const IntegrationRule &ir_face =
       IntRules.Get(mesh.GetFaceGeometry(0), q_order);
 

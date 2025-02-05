@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -140,6 +140,15 @@ int Array<T>::IsSorted() const
    return 1;
 }
 
+template <class T>
+void Array<T>::Apply(std::function<T(T)> function)
+{
+   static_assert(std::is_arithmetic<T>::value, "Apply to arithmetric types!");
+   const bool use_device = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_device);
+   mfem::forall_switch(use_device, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = function(y[i]); });
+}
 
 template <class T>
 void Array2D<T>::Load(const char *filename, int fmt)
@@ -174,6 +183,7 @@ void Array2D<T>::Print(std::ostream &os, int width_)
       }
    }
 }
+
 
 template class Array<char>;
 template class Array<int>;

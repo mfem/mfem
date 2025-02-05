@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -481,19 +481,6 @@ inline void SmemPADiffusionDiagonal3D(const int NE,
       }
    });
 }
-
-void PADiffusionApply(const int dim,
-                      const int D1D,
-                      const int Q1D,
-                      const int NE,
-                      const bool symm,
-                      const Array<real_t> &B,
-                      const Array<real_t> &G,
-                      const Array<real_t> &Bt,
-                      const Array<real_t> &Gt,
-                      const Vector &D,
-                      const Vector &X,
-                      Vector &Y);
 
 #ifdef MFEM_USE_OCCA
 // OCCA PA Diffusion Apply 2D kernel

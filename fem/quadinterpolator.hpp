@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -113,6 +113,13 @@ public:
    void Mult(const Vector &e_vec, unsigned eval_flags,
              Vector &q_val, Vector &q_der, Vector &q_det) const;
 
+   void AbsMult(const Vector &e_vec, unsigned eval_flags,
+                Vector &q_val, Vector &q_der, Vector &q_det) const;
+
+   void MultInternal(const Vector &e_vec, unsigned eval_flags,
+                     Vector &q_val, Vector &q_der, Vector &q_det,
+                     bool ABS = false) const;
+
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
    void Values(const Vector &e_vec, Vector &q_val) const;
 
@@ -123,6 +130,8 @@ public:
    /** @brief Interpolate the derivatives in physical space of the E-vector
        @a e_vec at quadrature points. */
    void PhysDerivatives(const Vector &e_vec, Vector &q_der) const;
+
+   void AbsPhysDerivatives(const Vector &e_vec, Vector &q_der) const;
 
    /** @brief Compute the determinants of the derivatives (with respect to
        reference coordinates) of the E-vector @a e_vec at quadrature points. */

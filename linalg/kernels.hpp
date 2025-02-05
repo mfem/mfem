@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -188,6 +188,54 @@ void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
    }
 }
 
+/** @brief Power absolute-value Matrix vector multiplication: y = |A|^p x,
+    where the matrix A is of size @a height x @a width with given @a data,
+    while @a x and @a y specify the data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void PowAbsMult(const int height, const int width, const real_t p,
+                const TA *data, const TX *x, TY *y)
+{
+   if (width == 0)
+   {
+      for (int row = 0; row < height; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   const TA *d_col = data;
+   TX x_col = x[0];
+   for (int row = 0; row < height; row++)
+   {
+      if (p == 1.0)
+      {
+         y[row] = x_col*std::abs(d_col[row]);
+      }
+      else
+      {
+         y[row] = x_col*std::pow(std::abs(d_col[row]),p);
+      }
+   }
+   d_col += height;
+   for (int col = 1; col < width; col++)
+   {
+      x_col = x[col];
+      for (int row = 0; row < height; row++)
+      {
+         if (p == 1.0)
+         {
+            y[row] += x_col*std::abs(d_col[row]);
+         }
+         else
+         {
+            y[row] += x_col*std::pow(std::abs(d_col[row]),p);
+         }
+      }
+      d_col += height;
+   }
+}
+
 /** @brief Matrix transpose vector multiplication: y = At x, where the matrix A
     is of size @a height x @a width with given @a data, while @a x and @a y
     specify the data of the input and output vectors. */
@@ -211,6 +259,42 @@ void MultTranspose(const int height, const int width, const TA *data,
       for (int j = 0; j < height; ++j)
       {
          val += x[j] * data[i * height + j];
+      }
+      *y_off = val;
+      y_off++;
+   }
+}
+
+/** @brief Power absolute-value matrix transpose vector multiplication: y = |At|^p x,
+    where the matrix A is of size @a height x @a width with given @a data, while @a x
+    and @a y specify the data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void PowAbsMultTranspose(const int height, const int width, const real_t p,
+                         const TA *data, const TX *x, TY *y)
+{
+   if (height == 0)
+   {
+      for (int row = 0; row < width; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   TY *y_off = y;
+   for (int i = 0; i < width; ++i)
+   {
+      TY val = 0.0;
+      for (int j = 0; j < height; ++j)
+      {
+         if (p == 1.0)
+         {
+            val += x[j] * std::abs(data[i * height + j]);
+         }
+         else
+         {
+            val += x[j] * std::pow(std::abs(data[i * height + j],p));
+         }
       }
       *y_off = val;
       y_off++;

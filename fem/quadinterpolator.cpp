@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -66,7 +66,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
@@ -82,7 +82,7 @@ QuadratureInterpolator::QuadratureInterpolator(const FiniteElementSpace &fes,
 {
    d_buffer.UseDevice(true);
    if (fespace->GetNE() == 0) { return; }
-   const FiniteElement *fe = fespace->GetFE(0);
+   const FiniteElement *fe = fespace->GetTypicalFE();
    MFEM_VERIFY(dynamic_cast<const ScalarFiniteElement*>(fe) != NULL,
                "Only scalar finite elements are supported");
 }
@@ -498,6 +498,25 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
                                   Vector &q_der,
                                   Vector &q_det) const
 {
+   MultInternal(e_vec, eval_flags, q_val, q_der, q_det);
+}
+
+void QuadratureInterpolator::AbsMult(const Vector &e_vec,
+                                     unsigned eval_flags,
+                                     Vector &q_val,
+                                     Vector &q_der,
+                                     Vector &q_det) const
+{
+   MultInternal(e_vec, eval_flags, q_val, q_der, q_det, true);
+}
+
+void QuadratureInterpolator::MultInternal(const Vector &e_vec,
+                                          unsigned eval_flags,
+                                          Vector &q_val,
+                                          Vector &q_der,
+                                          Vector &q_det,
+                                          bool ABS) const
+{
    using namespace internal::quadrature_interpolator;
 
    const int ne = fespace->GetNE();
@@ -528,12 +547,36 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    MFEM_ASSERT(fespace->GetMesh()->GetNumGeometries(
                   fespace->GetMesh()->Dimension()) == 1,
                "mixed meshes are not supported");
+   MFEM_ASSERT(ABS?use_tensor_eval:true,
+               "AbsMult only implemented for tensor elements!");
+
+   // Create abs_maps, make B, Bt, G, Gt positive
+   DofToQuad abs_maps;
+   if (ABS)
+   {
+      abs_maps.FE = maps.FE;
+      abs_maps.IntRule = maps.IntRule;
+      abs_maps.mode = maps.mode;
+      abs_maps.ndof = maps.ndof;
+      abs_maps.nqpt = maps.nqpt;
+
+      abs_maps.B = maps.B;
+      abs_maps.Bt = maps.Bt;
+      abs_maps.G = maps.G;
+      abs_maps.Gt = maps.Gt;
+      auto abs_val = static_cast<real_t(*)(real_t)>(std::abs);
+      abs_maps.B.Apply(abs_val);
+      abs_maps.G.Apply(abs_val);
+      abs_maps.Bt.Apply(abs_val);
+      abs_maps.Gt.Apply(abs_val);
+   }
+   const DofToQuad &maps_ = ABS ? abs_maps : maps;
 
    if (use_tensor_eval)
    {
       if (eval_flags & VALUES)
       {
-         TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne, maps.B.Read(),
+         TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne, maps_.B.Read(),
                                 e_vec.Read(), q_val.Write(), vdim, nd, nq);
       }
       if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
@@ -542,20 +585,20 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
          const real_t *J = phys ? geom->J.Read() : nullptr;
          const int s_dim = phys ? sdim : dim;
          GradKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
-                          maps.B.Read(), maps.G.Read(), J, e_vec.Read(),
+                          maps_.B.Read(), maps_.G.Read(), J, e_vec.Read(),
                           q_der.Write(), s_dim, vdim, nd, nq);
       }
       if (eval_flags & DETERMINANTS)
       {
-         DetKernels::Run(dim, vdim, nd, nq, ne, maps.B.Read(),
-                         maps.G.Read(), e_vec.Read(), q_det.Write(), nd,
+         DetKernels::Run(dim, vdim, nd, nq, ne, maps_.B.Read(),
+                         maps_.G.Read(), e_vec.Read(), q_det.Write(), nd,
                          nq, &d_buffer);
       }
    }
    else // use_tensor_eval == false
    {
       EvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne,vdim,q_layout,
-                       geom, maps,e_vec, q_val,q_der,q_det,eval_flags);
+                       geom, maps_,e_vec, q_val,q_der,q_det,eval_flags);
    }
 }
 
@@ -590,6 +633,13 @@ void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
 {
    Vector empty;
    Mult(e_vec, PHYSICAL_DERIVATIVES, empty, q_der, empty);
+}
+
+void QuadratureInterpolator::AbsPhysDerivatives(const Vector &e_vec,
+                                                Vector &q_der) const
+{
+   Vector empty;
+   AbsMult(e_vec, PHYSICAL_DERIVATIVES, empty, q_der, empty);
 }
 
 void QuadratureInterpolator::Determinants(const Vector &e_vec,

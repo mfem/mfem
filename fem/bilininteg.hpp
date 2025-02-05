@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -78,8 +78,12 @@ public:
        called. */
    void AddMultPA(const Vector &x, Vector &y) const override;
 
+   virtual void AddAbsMultPA(const Vector &x, Vector &y) const;
+
    /// Method for partially assembled action on NURBS patches.
    virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
+
+   virtual void AddAbsMultNURBSPA(const Vector&x, Vector&y) const;
 
    /// Method for partially assembled transposed action.
    /** Perform the transpose action of integrator on the input @a x and add the
@@ -89,6 +93,8 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   virtual void AddAbsMultTransposePA(const Vector &x, Vector &y) const;
 
    /// Method defining element assembly.
    /** The result of the element assembly is added to the @a emat Vector if
@@ -113,6 +119,8 @@ public:
        called. */
    void AddMultMF(const Vector &x, Vector &y) const override;
 
+   virtual void AddAbsMultMF(const Vector &x, Vector &y) const;
+
    /** Perform the transpose action of integrator on the input @a x and add the
        result to the output @a y. Both @a x and @a y are E-vectors, i.e. they
        represent the element-wise discontinuous version of the FE space.
@@ -120,6 +128,8 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultTransposeMF(const Vector &x, Vector &y) const;
+
+   virtual void AddAbsMultTransposeMF(const Vector &x, Vector &y) const;
 
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalMF(Vector &diag);
@@ -496,7 +506,11 @@ public:
 
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
+   void AddAbsMultTransposePA(const Vector &x, Vector &y) const override;
+
    void AddMultPA(const Vector& x, Vector& y) const override;
+
+   void AddAbsMultPA(const Vector& x, Vector& y) const override;
 
    void AssembleMF(const FiniteElementSpace &fes) override;
 
@@ -2151,7 +2165,15 @@ public:
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
+   }
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \nabla u, \nabla v)$ where $Q$
@@ -2312,7 +2334,11 @@ public:
 
    void AddMultPA(const Vector&, Vector&) const override;
 
+   void AddAbsMultPA(const Vector&, Vector&) const override;
+
    void AddMultTransposePA(const Vector&, Vector&) const override;
+
+   void AddAbsMultTransposePA(const Vector&, Vector&) const override;
 
    void AddMultNURBSPA(const Vector&, Vector&) const override;
 
@@ -2330,6 +2356,14 @@ public:
    {
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+   }
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe);
    }
 };
 
@@ -2403,11 +2437,15 @@ public:
 
    void AddMultPA(const Vector&, Vector&) const override;
 
+   void AddAbsMultPA(const Vector&, Vector&) const override;
+
    void AddMultTransposePA(const Vector&, Vector&) const override;
+
+   void AddAbsMultTransposePA(const Vector&, Vector&) const override;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
@@ -2418,6 +2456,15 @@ public:
    {
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+   }
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
    }
 };
 
@@ -2479,13 +2526,22 @@ public:
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
    static const IntegrationRule &GetRule(const FiniteElement &el,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
+   }
 };
 
 // Alias for @ConvectionIntegrator.
@@ -2782,6 +2838,7 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
@@ -2895,14 +2952,15 @@ public:
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override;
 
-   virtual void AssemblePA(const FiniteElementSpace &fes) override;
-   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
-                           const FiniteElementSpace &test_fes) override;
-   virtual void AddMultPA(const Vector &x, Vector &y) const override;
-   virtual void AddMultTransposePA(const Vector &x, Vector &y) const override;
-   virtual void AssembleDiagonalPA(Vector& diag) override;
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add) override;
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddAbsMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
+   void AssembleDiagonalPA(Vector& diag) override;
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
@@ -2952,7 +3010,16 @@ public:
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         ElementTransformation &Trans);
+                                         const ElementTransformation &Trans);
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(trial_fe, test_fe, trans);
+   }
 };
 
 /// $(Q \nabla \cdot u, \nabla \cdot v)$ for Raviart-Thomas elements
@@ -2997,19 +3064,17 @@ public:
    const Coefficient *GetCoefficient() const { return Q; }
 };
 
-/** Integrator for
-    $$
-      (Q \nabla u, \nabla v) = \sum_i (Q \nabla u_i, \nabla v_i) e_i e_i^{\mathrm{T}}
-    $$
-    for vector FE spaces, where $e_i$ is the unit vector in the $i$-th direction.
-    The resulting local element matrix is square, of size <tt> vdim*dof </tt>,
+/** Class for integrating the bilinear form $a(u,v) := (Q \nabla u, \nabla v)$,
+    where $u=(u_1,\dots,u_n)$ and $v=(v_1,\dots,v_n)$, $u_i$ and $v_i$ are
+    defined by scalar FE through standard transformation.
+    See the constructors' documentation for all Coefficient options.
+    The computed local element matrix is square, of size <tt> vdim*dof </tt>,
     where \c vdim is the vector dimension space and \c dof is the local degrees
     of freedom. The integrator is not aware of the true vector dimension and
     must use \c VectorCoefficient, \c MatrixCoefficient, or a caller-specified
     value to determine the vector space. For a scalar coefficient, the caller
     may manually specify the vector dimension or the vector dimension is assumed
-    to be the spatial dimension (i.e. 2-dimension or 3-dimension).
-*/
+    to be the spatial dimension (i.e. 2-dimension or 3-dimension). */
 class VectorDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -3154,7 +3219,11 @@ public:
 
    void AddMultPA(const Vector &x, Vector &y) const override;
 
+   void AddAbsMultPA(const Vector &x, Vector &y) const override;
+
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
+   void AddAbsMultTransposePA(const Vector &x, Vector &y) const override;
 
    /** Compute the stress corresponding to the local displacement @a $u$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric
@@ -3306,7 +3375,10 @@ public:
                                 const bool add) override;
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
-                                         FaceElementTransformations &T);
+                                         const FaceElementTransformations &T);
+
+   static const IntegrationRule &GetRule(Geometry::Type geom, int order,
+                                         const ElementTransformation &T);
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
@@ -3394,6 +3466,8 @@ public:
                                        Vector &y, Vector &dydn) const override;
 
    const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
+
+   const IntegrationRule &GetRule(int order, Geometry::Type geom);
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);

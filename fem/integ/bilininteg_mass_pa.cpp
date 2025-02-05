@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,10 +29,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
-   ne = fes.GetMesh()->GetNE();
-   if (ne == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   ElementTransformation *T0 = mesh->GetElementTransformation(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
+   ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
    if (DeviceCanUseCeed())
    {
@@ -51,7 +49,9 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    int map_type = el.GetMapType();
    dim = mesh->Dimension();
+   ne = fes.GetMesh()->GetNE();
    nq = ir->GetNPoints();
+   ne = fes.GetMesh()->GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
@@ -233,10 +233,38 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 }
 
+void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      MFEM_ABORT("AddAbsMultPA not implemented with CEED!");
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      Vector abs_pa_data(pa_data);
+      abs_pa_data.PowerAbs(1.0);
+      Array<real_t> absB(maps->B);
+      Array<real_t> absBt(maps->Bt);
+      auto abs_val = static_cast<real_t(*)(real_t)>(std::abs);
+      absB.Apply(abs_val);
+      absBt.Apply(abs_val);
+
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, absB, absBt, abs_pa_data,
+                          x, y, dofs1D, quad1D);
+   }
+}
+
 void MassIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    // Mass integrator is symmetric
    AddMultPA(x, y);
+}
+
+void MassIntegrator::AddAbsMultTransposePA(const Vector &x, Vector &y) const
+{
+   // Mass integrator is symmetric
+   AddAbsMultPA(x, y);
 }
 
 } // namespace mfem

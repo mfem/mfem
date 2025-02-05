@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,8 +23,8 @@ void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
    if (IntRule == nullptr)
    {
       // This is where it's assumed that all elements are the same.
-      const auto &T = *fes.GetElementTransformation(0);
-      int quad_order = 2 * T.OrderGrad(fes.GetFE(0));
+      const auto &T = *fes.GetMesh()->GetTypicalElementTransformation();
+      int quad_order = 2 * T.OrderGrad(fes.GetTypicalFE());
       IntRule = &IntRules.Get(T.GetGeometryType(), quad_order);
    }
 
@@ -46,14 +46,14 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh &mesh = *fespace->GetMesh();
    MFEM_VERIFY(fespace->GetVDim() == mesh.Dimension(), "");
    vdim = fespace->GetVDim();
-   ndofs = fespace->GetFE(0)->GetDof();
+   ndofs = fespace->GetTypicalFE()->GetDof();
 
    SetUpQuadratureSpaceAndCoefficients(fes);
 
    auto ordering = GetEVectorOrdering(*fespace);
    auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
                DofToQuad::LEXICOGRAPHIC_FULL;
-   maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, mode);
+   maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
    geom = mesh.GetGeometricFactors(*IntRule, GeometricFactors::JACOBIANS);
 }
 
@@ -73,6 +73,36 @@ void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
 void ElasticityIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    AddMultPA(x, y); // Operator is symmetric
+}
+
+void ElasticityIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
+{
+   DofToQuad abs_maps;
+
+   abs_maps.FE = maps->FE;
+   abs_maps.IntRule = maps->IntRule;
+   abs_maps.mode = maps->mode;
+   abs_maps.ndof = maps->ndof;
+   abs_maps.nqpt = maps->nqpt;
+
+   abs_maps.B = maps->B;
+   abs_maps.Bt = maps->Bt;
+   abs_maps.G = maps->G;
+   abs_maps.Gt = maps->Gt;
+   auto abs_val = static_cast<real_t(*)(real_t)>(std::abs);
+   abs_maps.B.Apply(abs_val);
+   abs_maps.G.Apply(abs_val);
+   abs_maps.Bt.Apply(abs_val);
+   abs_maps.Gt.Apply(abs_val);
+
+   internal::ElasticityAddAbsMultPA(vdim, ndofs, *fespace, *lambda_quad, *mu_quad,
+                                    *geom, abs_maps, x, *q_vec, y);
+}
+
+void ElasticityIntegrator::AddAbsMultTransposePA(const Vector &x,
+                                                 Vector &y) const
+{
+   AddAbsMultPA(x, y); // Operator is symmetric
 }
 
 void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
@@ -95,7 +125,7 @@ void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
                DofToQuad::LEXICOGRAPHIC_FULL;
    geom = fes.GetMesh()->GetGeometricFactors(*IntRule,
                                              GeometricFactors::JACOBIANS);
-   maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, mode);
+   maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
 }
 
 void ElasticityComponentIntegrator::AddMultPA(const Vector &x, Vector &y) const

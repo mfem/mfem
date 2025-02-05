@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,19 +31,19 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    // Assumes tensor-product elements
    Mesh *mesh = trial_fes.GetMesh();
 
-   const FiniteElement *trial_fel = trial_fes.GetFE(0);
+   const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
    const VectorTensorFiniteElement *trial_el =
       dynamic_cast<const VectorTensorFiniteElement*>(trial_fel);
    MFEM_VERIFY(trial_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
-   const FiniteElement *test_fel = test_fes.GetFE(0);
+   const FiniteElement *test_fel = test_fes.GetTypicalFE();
    const VectorTensorFiniteElement *test_el =
       dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
    MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
    const IntegrationRule *ir
       = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
-                                                     *mesh->GetElementTransformation(0));
+                                                     *mesh->GetTypicalElementTransformation());
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
@@ -305,6 +305,127 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          internal::PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
                                           trial_curl, false, mapsO->B, mapsC->B,
                                           mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unknown kernel.");
+      }
+   }
+}
+
+void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
+{
+   const bool trial_curl = (trial_fetype == mfem::FiniteElement::CURL);
+   const bool trial_div = (trial_fetype == mfem::FiniteElement::DIV);
+   const bool test_curl = (test_fetype == mfem::FiniteElement::CURL);
+   const bool test_div = (test_fetype == mfem::FiniteElement::DIV);
+
+   Vector abs_pa_data(pa_data);
+   abs_pa_data.PowerAbs(1.0);
+
+   Array<real_t> absBo(mapsO->B);
+   Array<real_t> absBc(mapsC->B);
+   Array<real_t> absBto(mapsO->Bt);
+   Array<real_t> absBtc(mapsC->Bt);
+   Array<real_t> absBto_t(mapsOtest->Bt);
+   Array<real_t> absBtc_t(mapsCtest->Bt);
+   auto abs_val = static_cast<real_t(*)(real_t)>(std::abs);
+   absBo.Apply(abs_val);
+   absBc.Apply(abs_val);
+   absBto.Apply(abs_val);
+   absBtc.Apply(abs_val);
+   absBto_t.Apply(abs_val);
+   absBtc_t.Apply(abs_val);
+
+   if (dim == 3)
+   {
+      if (trial_curl && test_curl)
+      {
+         if (Device::Allows(Backend::DEVICE_MASK))
+         {
+            const int ID = (dofs1D << 4) | quad1D;
+            switch (ID)
+            {
+               case 0x23:
+                  return internal::SmemPAHcurlMassApply3D<2,3>(
+                            dofs1D, quad1D, ne, symmetric,
+                            absBo, absBc, absBto, absBtc,
+                            abs_pa_data, x, y);
+               case 0x34:
+                  return internal::SmemPAHcurlMassApply3D<3,4>(
+                            dofs1D, quad1D, ne, symmetric,
+                            absBo, absBc, absBto, absBtc,
+                            abs_pa_data, x, y);
+               case 0x45:
+                  return internal::SmemPAHcurlMassApply3D<4,5>(
+                            dofs1D, quad1D, ne, symmetric,
+                            absBo, absBc, absBto, absBtc,
+                            abs_pa_data, x, y);
+               case 0x56:
+                  return internal::SmemPAHcurlMassApply3D<5,6>(
+                            dofs1D, quad1D, ne, symmetric,
+                            absBo, absBc, absBto, absBtc,
+                            abs_pa_data, x, y);
+               default:
+                  return internal::SmemPAHcurlMassApply3D(
+                            dofs1D, quad1D, ne, symmetric,
+                            absBo, absBc, absBto, absBtc,
+                            abs_pa_data, x, y);
+            }
+         }
+         else
+         {
+            internal::PAHcurlMassApply3D(dofs1D, quad1D, ne, symmetric,
+                                         absBo, absBc, absBto, absBtc,
+                                         abs_pa_data, x, y);
+         }
+      }
+      else if (trial_div && test_div)
+      {
+         internal::PAHdivMassApply(3, dofs1D, quad1D, ne, symmetric,
+                                   absBo, absBc, absBto, absBtc,
+                                   abs_pa_data, x, y);
+      }
+      else if (trial_curl && test_div)
+      {
+         const bool scalarCoeff = !(DQ || MQ);
+         internal::PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
+                                          true, false, absBo, absBc, absBto_t,
+                                          absBtc_t, abs_pa_data, x, y);
+      }
+      else if (trial_div && test_curl)
+      {
+         const bool scalarCoeff = !(DQ || MQ);
+         internal::PAHcurlHdivMassApply3D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
+                                          false, false, absBo, absBc, absBto_t,
+                                          absBtc_t, abs_pa_data, x, y);
+      }
+      else
+      {
+         MFEM_ABORT("Unknown kernel.");
+      }
+   }
+   else // 2D
+   {
+      if (trial_curl && test_curl)
+      {
+         internal::PAHcurlMassApply2D(dofs1D, quad1D, ne, symmetric,
+                                      absBo, absBc, absBto, absBtc,
+                                      abs_pa_data, x, y);
+      }
+      else if (trial_div && test_div)
+      {
+         internal::PAHdivMassApply(2, dofs1D, quad1D, ne, symmetric,
+                                   absBo, absBc, absBto, absBtc,
+                                   abs_pa_data, x, y);
+      }
+      else if ((trial_curl && test_div) || (trial_div && test_curl))
+      {
+         const bool scalarCoeff = !(DQ || MQ);
+         internal::PAHcurlHdivMassApply2D(dofs1D, dofs1Dtest, quad1D, ne, scalarCoeff,
+                                          trial_curl, false,
+                                          absBo, absBc, absBto_t, absBtc_t,
+                                          abs_pa_data, x, y);
       }
       else
       {
