@@ -36,6 +36,9 @@ protected:
 
    void AllocBlockOp();
 
+   void AssembleDivLDGSharedFaces(int skip_zeros);
+   void AssemblePotLDGSharedFaces(int skip_zeros);
+
    using DarcyForm::ConstructBT;
    const Operator* ConstructBT(const HypreParMatrix *opB);
 

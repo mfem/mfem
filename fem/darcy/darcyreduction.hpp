@@ -41,11 +41,20 @@ protected:
 
    SparseMatrix *S{};
 
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes_u, *pfes_p;
+   OperatorHandle pS;
+#endif
+
    void InitA();
    void InitBD();
    void InitBFaces();
    void InitDFaces();
    virtual void ComputeS() = 0;
+#ifdef MFEM_USE_MPI
+   virtual void CountBSharedFaces(Array<int> &face_offs) const = 0;
+   virtual void CountDSharedFaces(Array<int> &face_offs) const = 0;
+#endif
 
 public:
    /// Constructor
@@ -77,6 +86,12 @@ public:
 
    virtual void AssemblePotFaceMatrix(int face, const DenseMatrix &);
 
+#ifdef MFEM_USE_MPI
+   virtual void AssembleDivSharedFaceMatrix(int sface, const DenseMatrix &) = 0;
+
+   virtual void AssemblePotSharedFaceMatrix(int sface, const DenseMatrix &) = 0;
+#endif
+
    /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
        @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
    virtual void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
@@ -92,6 +107,25 @@ public:
    /// Return the serial reduced matrix.
    SparseMatrix &GetMatrix() { return *S; }
 
+#ifdef MFEM_USE_MPI
+   /// Return the parallel reduced matrix.
+   HypreParMatrix &GetParallelMatrix() { return *pS.Is<HypreParMatrix>(); }
+
+   /** @brief Return the parallel reduced matrix in the format specified by
+       SetOperatorType(). */
+   void GetParallelMatrix(OperatorHandle &H_h) const { H_h = pS; }
+
+   /// Set the operator type id for the parallel reduced matrix/operator.
+   void SetOperatorType(Operator::Type tid) { pS.SetType(tid); }
+
+   /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
+       @a b; @a tdofs_flux is a list of true DOFs (non-directional, i.e. >= 0).
+       */
+   virtual void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
+                                            const BlockVector &X, BlockVector &B)
+   { MFEM_ABORT("Not implemented"); }
+#endif
+
    virtual void ReduceRHS(const BlockVector &b, Vector &b_r) const = 0;
 
    virtual void ComputeSolution(const BlockVector &b, const Vector &sol_r,
@@ -104,6 +138,19 @@ class DarcyFluxReduction : public DarcyReduction
 {
    int *Af_ipiv{};
 
+#ifdef MFEM_USE_MPI
+   HypreParMatrix *hB {};
+
+   void InitDNbr();
+   void CountBSharedFaces(Array<int> &face_offs) const override;
+   void CountDSharedFaces(Array<int> &face_offs) const override;
+   bool Parallel() const { return (pfes_p != NULL); }
+#else
+   bool Parallel() const { return false; }
+#endif
+   int GetFaceNbrVDofs(int el, Array<int> &vdofs, bool adjust_vdofs = true) const;
+   int GetInteriorFaceNbr(int f, int el, int &ori, Array<int> &vdofs,
+                          bool adjust_vdofs = true) const;
    void ComputeS() override;
 
 public:
@@ -114,9 +161,21 @@ public:
 
    void Init(const Array<int> &ess_flux_tdof_list) override;
 
+#ifdef MFEM_USE_MPI
+   void AssembleDivSharedFaceMatrix(int sface, const DenseMatrix &) override;
+
+   void AssemblePotSharedFaceMatrix(int sface, const DenseMatrix &) override;
+#endif
+
    void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                             const BlockVector &x, BlockVector &b) override
    { MFEM_ASSERT(vdofs_flux.Size() == 0, "Essential VDOFs are not supported"); }
+
+#ifdef MFEM_USE_MPI
+   void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
+                                    const BlockVector &x, BlockVector &b) override
+   { MFEM_ASSERT(tdofs_flux.Size() == 0, "Essential TDOFs are not supported"); }
+#endif
 
    void ReduceRHS(const BlockVector &b, Vector &b_r) const override;
 
