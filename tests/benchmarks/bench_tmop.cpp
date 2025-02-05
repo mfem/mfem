@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,7 +44,7 @@ struct TMOP
       fec(p, dim),
       fes(&mesh, &fec, dim),
       R(fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC)),
-      ir(&IntRules.Get(fes.GetFE(0)->GetGeomType(), q)),
+      ir(&IntRules.Get(mesh.GetTypicalElementGeometry(), q)),
       nlfi(&metric, &target_c),
       dofs(fes.GetVSize()),
       x(&fes),
