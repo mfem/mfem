@@ -1,5 +1,5 @@
 // Sample runs:
-
+// make getdetformesh -j && ./getdetformesh
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -203,13 +203,8 @@ int main(int argc, char *argv[])
       double maxv = detvals.Max();
       bernboundmin(e) = minv;
       bernboundmax(e) = maxv;
-      bernerrormin(e) = std::fabs(minv-bruteboundmin(e));
-      bernerrormax(e) = std::fabs(maxv-bruteboundmax(e));
-   }
-
-   // Do error plots
-   {
-
+      bernerrmin(e) = std::fabs(minv-bruteboundmin(e));
+      bernerrmax(e) = std::fabs(maxv-bruteboundmax(e));
    }
 
    ParaViewDataCollection *pdber = NULL;
@@ -222,6 +217,10 @@ int main(int argc, char *argv[])
       pdber->RegisterField("bernboundmax", &bernboundmax);
       pdber->RegisterField("bruteboundmin", &bruteboundmin);
       pdber->RegisterField("bruteboundmax", &bruteboundmax);
+      pdber->RegisterField("cuserrmin", &cuserrmin);
+      pdber->RegisterField("cuserrmax", &cuserrmax);
+      pdber->RegisterField("bernerrmin", &bernerrmin);
+      pdber->RegisterField("bernerrmax", &bernerrmax);
       pdber->SetLevelsOfDetail(det_order);
       pdber->SetDataFormat(VTKFormat::BINARY);
       pdber->SetHighOrderOutput(true);
