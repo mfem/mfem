@@ -1,5 +1,6 @@
 // Sample runs:
 // make getdetformesh -j && ./getdetformesh
+// Plot in paraview using detmeshcomparison.py
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
