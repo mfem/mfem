@@ -2168,6 +2168,64 @@ void Poly_1D::CalcDBinomTerms(const int p, const real_t x, const real_t y,
    }
 }
 
+void Poly_1D::CalcDxBinomTerms(const int p, const real_t x, const real_t y,
+                               real_t *u)
+{
+   if (p == 0)
+   {
+      u[0] = 0.;
+   }
+   else
+   {
+      int i;
+      const int *b = Binom(p);
+      real_t z = 1.;
+
+      for (i = 1; i < p; i++)
+      {
+         u[i] = i * b[i]*z;
+         z *= x;
+      }
+      u[p] = i * z;
+      z = y;
+      for (i--; i > 0; i--)
+      {
+         u[i] *= z;
+         z *= y;
+      }
+      u[0] = 0;
+   }
+}
+
+void Poly_1D::CalcDyBinomTerms(const int p, const real_t x, const real_t y,
+                               real_t *u)
+{
+   if (p == 0)
+   {
+      u[0] = 0.;
+   }
+   else
+   {
+      int i;
+      const int *b = Binom(p);
+      real_t z = x;
+
+      for (i = 1; i < p; i++)
+      {
+         u[i] = b[i]*z;
+         z *= x;
+      }
+      u[p] = 0.;
+      z = 1.;
+      for (i--; i > 0; i--)
+      {
+         u[i] *= (p - i) * z;
+         z *= y;
+      }
+      u[0] = p * z;
+   }
+}
+
 void Poly_1D::CalcLegendre(const int p, const real_t x, real_t *u)
 {
    // use the recursive definition for [-1,1]:
