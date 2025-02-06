@@ -31,9 +31,11 @@ GridFunction *GetDetJacobian(Mesh *mesh)
    GridFunction *detgf = new GridFunction(fespace);
    detgf->MakeOwner(fec);
    Array<int> dofs;
+   mesh->DeleteGeometricFactors();
 
    for (int e = 0; e < mesh->GetNE(); e++)
    {
+      // std::cout << e << " k10e\n";
       const FiniteElement *fe = fespace->GetFE(e);
       const IntegrationRule ir = fe->GetNodes();
       ElementTransformation *transf = mesh->GetElementTransformation(e);
@@ -389,43 +391,85 @@ int main(int argc, char *argv[])
                                   intdepth);
          }
       }
+
+      mesh.EnsureNCMesh(true);
       // Bernstein based bounds
-         DG_FECollection fec_bern(det_order, dim, BasisType::Positive);
-         FiniteElementSpace fes_bern(&mesh, &fec_bern);
-         GridFunction detgf_pos(&fes_bern);
-         detgf_pos.ProjectGridFunction(detgf);
-         std::cout << "The determinant bounds using Bernstein is: " << detgf_pos.Min() << " " << detgf_pos.Max() << std::endl;
-         int rec_level = 0;
-         while (detgf_pos.Min() < 0 && detgf_pos.Max() > 0 && rec_level < 6)
+      DG_FECollection fec_bern(det_order, dim, BasisType::Positive);
+      FiniteElementSpace fes_bern(&mesh, &fec_bern);
+      GridFunction detgf_pos(&fes_bern);
+      detgf_pos.ProjectGridFunction(detgf);
+      std::cout << "The determinant bounds using Bernstein is: " << detgf_pos.Min() << " " << detgf_pos.Max() << std::endl;
+      int rec_level = 0;
+      while (detgf_pos.Min() < 0 && detgf_pos.Max() > 0 && rec_level < 8)
+      {
+         Array<int> refs, dofs;
+         Vector detvals;
+         for (int e = 0; e < mesh.GetNE(); e++)
          {
-            Array<int> refs, dofs;
-            Vector detvals;
-            for (int e = 0; e < mesh.GetNE(); e++)
+            fes_bern.GetElementDofs(e, dofs);
+            detgf_pos.GetSubVector(dofs, detvals);
+            double minv = detvals.Min();
+            double maxv = detvals.Max();
+            if (minv < 0 && maxv > 0)
             {
-               fes_bern.GetElementDofs(e, dofs);
-               detgf_pos.GetSubVector(dofs, detvals);
-               double minv = detvals.Min();
-               double maxv = detvals.Max();
-               if (minv < 0 && maxv > 0)
-               {
-                  refs.Append(e);
-               }
+               refs.Append(e);
             }
+            else
+            {
+               // refs.Append(e);
+            }
+         }
+         if (rec_level > 0)
+         {
             mesh.GeneralRefinement(refs);
             fes_bern.Update();
             detgf_pos.Update();
-            // std::cout << mesh.GetNE() << " " << detgf_pos.Size() <<  "k101\n";
-
-            // construct  the detgf gridfunction again
-            GridFunction *detgf_new = GetDetJacobian(&mesh);
-            // std::cout << detgf_new->Size() <<  "k102\n";
-            detgf_pos.ProjectGridFunction(*detgf_new);
-            // std::cout << detgf_new->Size() <<  "k103\n";
-            delete detgf_new;
-            std::cout << rec_level++ << " " << mesh.GetNE() << " " <<
-            detgf_pos.Min() << " " << detgf_pos.Max() << " k10-bernstein-bounds-recurse\n";
          }
 
+         // construct  the detgf gridfunction again
+         GridFunction *detgf_new = GetDetJacobian(&mesh);
+         // rescale element based on refinement
+         NCMesh *ncmesh = mesh.ncmesh;
+         int max_depth = 0;
+         for (int e = 0; e < mesh.GetNE(); e++)
+         {
+            detgf_new->FESpace()->GetElementDofs(e, dofs);
+            detgf_new->GetSubVector(dofs, detvals);
+            double size_fac = ncmesh->GetElementSizeReduction(e);
+            detvals *= size_fac;
+            detgf_new->SetSubVector(dofs, detvals);
+            max_depth = std::max(max_depth, ncmesh->GetElementDepth(e));
+         }
+         detgf_pos.ProjectGridFunction(*detgf_new);
+         double min_detgf = detgf_pos.Min();
+         double min_max_detgf = std::numeric_limits<double>::infinity();
+         for (int e = 0; e < mesh.GetNE(); e++)
+         {
+            detgf_pos.FESpace()->GetElementDofs(e, dofs);
+            detgf_pos.GetSubVector(dofs, detvals);
+            double min_el_value = detvals.Min();
+            if (std::fabs(min_el_value - min_detgf) < 1e-12)
+            {
+               min_max_detgf = detvals.Max();
+            }
+         }
+
+         std::cout << rec_level++ << " " << mesh.GetNE() << " " <<
+         detgf_pos.Min() << " " << detgf_pos.Max() << " k10-bernstein-bounds-recurse\n";
+         if (true)
+         {
+            osockstream sock(19916, "localhost");
+            sock << "solution\n";
+            mesh.Print(sock);
+            detgf_pos.Save(sock);
+            sock.send();
+            sock << "window_title 'Displacements'\n"
+               << "window_geometry "
+               << rec_level*200 << " " << 0 << " " << 300 << " " << 300 << "\n"
+               << "keys jRmclA" << endl;
+         }
+         delete detgf_new;
+      }
 
       {
          ofstream myfile;
@@ -437,6 +481,35 @@ int main(int argc, char *argv[])
          }
          myfile.close();
       }
+
+      double dmin = intdepth.Min();
+      double dmax = intdepth.Max();
+      for (int d = 1; d < dmax+1; d++)
+      {
+         double depthmin = std::numeric_limits<double>::infinity();
+         double depthmax = -std::numeric_limits<double>::infinity();
+         int minindex = -1;
+         for (int i = 0; i < intptsx.Size(); i++)
+         {
+            double intminv = intmin[i];
+            double intmaxv = intmax[i];
+            if (intdepth[i] == d || intdepth[i] == -d)
+            {
+               if (intminv < depthmin)
+               {
+                  depthmin = intminv;
+                  minindex = i;
+               }
+               if (intmaxv > depthmax)
+               {
+                  depthmax = intmaxv;
+               }
+            }
+         }
+         std::cout << d << " " <<
+         depthmin << " " << intmax[minindex] << " " << depthmax << " k10-custom-bounds-recurse\n";
+      }
+      // std::cout << dmin << " "<< dmax << " k101\n";
 
       // GridFunction detgforig = detgf;
       // for (int i = 1; i < det_order+1; i++)
