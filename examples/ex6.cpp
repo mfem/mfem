@@ -58,6 +58,9 @@ int main(int argc, char *argv[])
    bool LSZZ = false;
    bool visualization = true;
 
+   int which_refiner = 0;
+   double refinement_parameter = -1.0;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -72,6 +75,11 @@ int main(int argc, char *argv[])
    args.AddOption(&LSZZ, "-ls", "--ls-zz", "-no-ls",
                   "--no-ls-zz",
                   "Switch to least-squares ZZ estimator.");
+   args.AddOption(&which_refiner, "-ref", "--refiner",
+                  "Switch refiner marking scheme, 0 - Threshold [default], 1 - Dörfler, 2 - Maximum Marking" );
+   args.AddOption(&refinement_parameter, "-rp", "--refinement-parameter",
+                  "Refinement parameter: fraction of the total error for ThresholdRefiner, the gamma parameter for Dörfler marking, or the fraction of the maximum error for Maximum marking.");
+
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -82,6 +90,26 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+
+   // Use default if not provided on command line
+   if ( refinement_parameter == -1 )
+   {
+      switch ( which_refiner )
+      {
+         case 1:
+            refinement_parameter = 0.6;
+            break;
+         case 2:
+            refinement_parameter = 0.8;
+            break;
+         default:
+            refinement_parameter = 0.7;
+            break;
+      }
+   }
+
+
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -177,8 +205,26 @@ int main(int argc, char *argv[])
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
-   ThresholdRefiner refiner(*estimator);
-   refiner.SetTotalErrorFraction(0.7);
+
+   MeshOperator *refiner = nullptr;
+   switch ( which_refiner )
+   {
+      case 1:
+         refiner = new DoerflerMarkingRefiner( *estimator );
+         dynamic_cast<DoerflerMarkingRefiner *>( refiner )->SetGamma(
+            refinement_parameter );
+         break;
+      case 2:
+         refiner = new MaximumMarkingRefiner( *estimator );
+         dynamic_cast<MaximumMarkingRefiner *>( refiner )->SetGamma(
+            refinement_parameter );
+         break;
+      default:
+         refiner = new ThresholdRefiner( *estimator );
+         dynamic_cast<ThresholdRefiner*>( refiner )->SetTotalErrorFraction(
+            refinement_parameter );
+         break;
+   }
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
@@ -252,8 +298,8 @@ int main(int argc, char *argv[])
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
-      refiner.Apply(mesh);
-      if (refiner.Stop())
+      refiner->Apply(mesh);
+      if (refiner->Stop())
       {
          cout << "Stopping criterion satisfied. Stop." << endl;
          break;
@@ -275,5 +321,6 @@ int main(int argc, char *argv[])
    }
 
    delete estimator;
+   delete refiner;
    return 0;
 }
