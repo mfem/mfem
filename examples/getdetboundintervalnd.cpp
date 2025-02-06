@@ -119,8 +119,9 @@ int main(int argc, char *argv[])
    int mesh_order = x->FESpace()->GetOrder(0);
    std::cout << "The mesh order is: " << mesh_order << std::endl;
 
-   int det_order = 2*mesh_order;
    const int dim = mesh.Dimension();
+   int det_order = dim*mesh_order - 1;
+   // int det_order = 2*mesh_order;
    std::cout << "The determinant order is: "  << det_order << std::endl;
 
    int n1D = det_order + 1;
@@ -153,8 +154,7 @@ int main(int argc, char *argv[])
    if (dim == 1)
    {
       // Read custom bounds
-      std::string filename = "bnddata_" + std::to_string(n1D) + "_" + std::to_string(
-                                mr) + "_chebyshev.txt";
+      std::string filename = "../scripts/bnddata_spts_lobatto_" + std::to_string(n1D) + "_bpts_opt_" + std::to_string(mr) + ".txt";
 
       DenseMatrix lboundT, uboundT;
       Vector gllT, intT;
@@ -215,8 +215,7 @@ int main(int argc, char *argv[])
                             intptsO, intminO, intmaxO, intdepthO);
 
       {
-         myfile.open ("recursive_bnd_"+ std::to_string(n1D) + "_" + std::to_string(
-                         mr) + "_out=" + std::to_string(outsuffix) + ".txt");
+         myfile.open("recursive_bnd_"+ std::to_string(n1D) + "_" + std::to_string(mr) + "_out=" + std::to_string(outsuffix) + ".txt");
          myfile << n1D << std::endl;
          gllX.Print(myfile,1);
          randomsol.Print(myfile,1);
@@ -232,15 +231,10 @@ int main(int argc, char *argv[])
    }
    else if (dim == 2)
    {
-      std::string filename = "bnddata_" + std::to_string(n1D) + "_" + std::to_string(
-                                mr) + "_opt.txt";
 
-      // PLBound plb = PLBound(filename);
-      // double minmindet, minmaxdet;
-      // int converged, depthmax, nrec;
-      // plb.GetMeshValidity(&mesh, minmindet, minmaxdet, converged, depthmax, nrec);
-      // std::cout << minmindet << " " << minmaxdet << " " << converged << " k10info\n";
-      // MFEM_ABORT(" ");
+      std::string filename = "../scripts/bnddata_spts_lobatto_" + std::to_string(n1D) + "_bpts_opt_" + std::to_string(mr) + ".txt";
+      // std::string filename = "bnddata_" + std::to_string(n1D) + "_" + std::to_string(mr) + "_opt.txt";
+
 
       L2_FECollection fec(det_order, dim, BasisType::GaussLobatto);
       FiniteElementSpace fespace(&mesh, &fec);
@@ -291,20 +285,23 @@ int main(int argc, char *argv[])
             detgf.SetSubVector(dofs, detvals);
          }
 
-         // GSLIBBound detb(n1D, mr/n1D);
-         // Vector qpmin;
-         // Vector qpmax;
-         // detb.GetBounds(detvals, qpmin, qpmax, dim);
-         // std::cout << "Element: " << e << " ,the minimum determinant using GSLIB is between: " << qpmin.Min() << " " << qpmax.Min() << std::endl;
-
          Vector qpminCus, qpmaxCus;
-         Get2DBounds(gllX, intT, gllW, lboundT, uboundT, detvals, qpminCus, qpmaxCus,
-                     true);
-         // my implementation of gslib
-         // Get2DBounds(gllX, chebX, gllW, lbound, ubound, randomsol, qpminCus, qpmaxCus, true);
+         if (intT.Size() > 0)
+         {
+            Get2DBounds(gllX, intT, gllW, lboundT, uboundT, detvals, qpminCus, qpmaxCus, true);
+         }
+         else
+         {
+            // my implementation of gslib
+            // Get2DBounds(gllX, chebX, gllW, lbound, ubound, detvals, qpminCus, qpmaxCus, true);
+         }
          std::cout << "Element " << e <<
                    ": the minimum determinant using custom bounds is between: " << qpminCus.Min()
                    << " " << qpmaxCus.Min() << std::endl;
+
+         std::cout << "Element " << e <<
+                   ": determinant overall min and max bound is: " << qpminCus.Min()
+                   << " " << qpmaxCus.Max() << std::endl;
 
 
          // Brute force also
@@ -329,7 +326,16 @@ int main(int argc, char *argv[])
          brute_max_det = std::max(brute_el_max, brute_max_det);
 
          std::cout << "Element " << e <<
-                   ": the minimum determinant using brute force is: " << brute_el_min << std::endl;
+                   ": the min and max determinant using brute force is: " << brute_el_min << " " << brute_el_max << std::endl;
+
+
+         // Bernstein based boundings
+         DG_FECollection fec_bern(det_order, dim, BasisType::Positive);
+         FiniteElementSpace fes_bern(&mesh, &fec_bern);
+         GridFunction detgf_pos(&fes_bern);
+         detgf_pos.ProjectGridFunction(detgf);
+         std::cout << "Element " << e <<
+                   ": the determinant bounds using Bernstein is: " << detgf_pos.Min() << " " << detgf_pos.Max() << std::endl;
 
          // Recursion
          int maxdepth = 5;
@@ -351,6 +357,43 @@ int main(int argc, char *argv[])
          }
          myfile.close();
       }
+
+      // GridFunction detgforig = detgf;
+      // for (int i = 1; i < det_order+1; i++)
+      // {
+      //    L2_FECollection fect(i, dim, BasisType::GaussLobatto);
+      //    FiniteElementSpace fespacet(&mesh, &fect);
+      //    GridFunction detgft(&fespacet);
+      //    detgft.ProjectGridFunction(detgforig);
+      //    detgf.ProjectGridFunction(detgft);
+      //    Vector diff = detgforig;
+      //    diff -= detgf;
+      //    std::cout << i << " " << diff.Norml2() << " k10-order-diffnorm\n";
+      //    if (true)
+      //       {
+      //          osockstream sock(19916, "localhost");
+      //          sock << "solution\n";
+      //          mesh.Print(sock);
+      //          detgft.Save(sock);
+      //          sock.send();
+      //          sock << "window_title 'Displacements'\n"
+      //             << "window_geometry "
+      //             << i*200 << " " << 0 << " " << 300 << " " << 300 << "\n"
+      //             << "keys jRmclA" << endl;
+      //       }
+      // }
+      // if (true)
+      // {
+      //    osockstream sock(19916, "localhost");
+      //    sock << "solution\n";
+      //    mesh.Print(sock);
+      //    detgforig.Save(sock);
+      //    sock.send();
+      //    sock << "window_title 'Displacements'\n"
+      //       << "window_geometry "
+      //       << 200 << " " << 400 << " " << 300 << " " << 300 << "\n"
+      //       << "keys jRmclA" << endl;
+      // }
    }
 
    return 0;

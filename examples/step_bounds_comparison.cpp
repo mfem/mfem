@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace fes_pos(&mesh, &fec_pos);
    const FiniteElement * fe = fes.GetFE(0);
 
-   
+
    GridFunction u(&fes);
    Vector u_elem(order+1);
    for (int i = 0; i < order+1; i++) {
@@ -139,7 +139,7 @@ int main(int argc, char *argv[])
       x(0) = j/(npts - 1.0);
       ip.Set(x, dim);
       fe->CalcShape(ip, shape);
-      
+
       ux = u_elem*shape;
       umin = min(umin, ux);
       umax = max(umax, ux);
@@ -170,10 +170,10 @@ int main(int argc, char *argv[])
       gllW(i) = irule.IntPoint(i).weight;
       gllX(i) = irule.IntPoint(i).x;
    }
-   
+
    Vector qpminCus, qpmaxCus;
    Get1DBounds(gllX, intT, gllW, lboundT, uboundT, u_elem, qpminCus, qpmaxCus, true);
-   
+
    std::cout << "PLB M" << mr << " min/max        : " << qpminCus.Min() << ", " << qpmaxCus.Max() << std::endl;
    std::cout << "Error reduction " << 100*(1 - (qpmaxCus.Max() - umax)/(pmax - umax)) << endl;
    // }

@@ -6,8 +6,8 @@ import copy
 use_ho_quads = True # Use high-order (P1) VTU quads (to prevent triangular subdivison)
 zscale = 0.4 # Scale z-coordinates (for easier visualization)
 ref_levels = 3 # Shows up to this refinement level, 1 for base-level, 2 for base + next refinement level, etc.
-M = 6
-boundtxtpath = f'2DcustomboundinfoM{M}.txt'
+M = 4
+boundtxtpath = f'../examples/2DcustomboundinfoM{M}.txt'
 soltxtpath = '2Dsolutioninfo_coarse.txt'
 minvtupath = f'bounds_min_M{M}_r{ref_levels}.vtu'
 maxvtupath = f'bounds_max_M{M}_r{ref_levels}.vtu'
@@ -28,7 +28,7 @@ def filter(data):
 
 def expand_quad(pts):
 	'''
-	Quad:            	   Quad8: 
+	Quad:            	   Quad8:
 	3-----------2          3-----6-----2
 	|           |          |           |
 	|           |          |           |
