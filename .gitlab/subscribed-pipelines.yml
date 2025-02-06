@@ -21,6 +21,7 @@
       if [[ $(jq '.[env.CI_MACHINE].total_nodes_up' /usr/global/tools/lorenz/data/loginnodeStatus) == 0 ]]
       then
         echo -e "\e[31mNo node available on ${CI_MACHINE}\e[0m"
+        false && \
         curl --url "https://api.github.com/repos/${GITHUB_PROJECT_ORG}/${GITHUB_PROJECT_NAME}/statuses/${CI_COMMIT_SHA}" \
              --header 'Content-Type: application/json' \
              --header "authorization: Bearer ${GITHUB_TOKEN}" \
@@ -38,14 +39,8 @@ generate-job-lists:
   stage: prerequisites
   tags: [shell, oslic]
   variables:
-    RADIUSS_JOBS_PATH: "scripts/radiuss-spack-configs/gitlab/radiuss-jobs"
     LOCAL_JOBS_PATH: ".gitlab/jobs"
   script:
-#    - cat ${RADIUSS_JOBS_PATH}/ruby.yml ${LOCAL_JOBS_PATH}/ruby.yml > ruby-jobs.yml
-#    - cat ${RADIUSS_JOBS_PATH}/poodle.yml ${LOCAL_JOBS_PATH}/poodle.yml > poodle-jobs.yml
-#    - cat ${RADIUSS_JOBS_PATH}/lassen.yml ${LOCAL_JOBS_PATH}/lassen.yml > lassen-jobs.yml
-#    - cat ${RADIUSS_JOBS_PATH}/corona.yml ${LOCAL_JOBS_PATH}/corona.yml > corona-jobs.yml
-#    - cat ${RADIUSS_JOBS_PATH}/tioga.yml ${LOCAL_JOBS_PATH}/tioga.yml > tioga-jobs.yml
     - |
       cat ${LOCAL_JOBS_PATH}/ruby.yml > ruby-jobs.yml
       if [[ ${AUTOTEST} == "ON" ]]
@@ -67,9 +62,7 @@ generate-job-lists:
   artifacts:
     paths:
       - ruby-jobs.yml
-#      - poodle-jobs.yml
       - lassen-jobs.yml
-#      - corona-jobs.yml
       - tioga-jobs.yml
 
 
@@ -89,9 +82,9 @@ ruby-build-and-test:
   needs: [ruby-up-check, generate-job-lists]
   extends: [.build-and-test]
 
-# MFEM Specific
+# RUBY, MFEM Specific
 ruby-baseline:
-  stage: baseline
+  stage: test-pipelines
   variables:
     # Explicitly pass down values that we want to be able to set when triggering
     # pipelines manually or using scheduling
@@ -102,39 +95,6 @@ ruby-baseline:
     include: .gitlab/ruby-baseline.yml
     strategy: depend
   needs: [ruby-up-check]
-
-## POODLE
-#poodle-up-check:
-#  variables:
-#    CI_MACHINE: "poodle"
-#  extends: [.machine-check]
-#
-#poodle-build-and-test:
-#  variables:
-#    CI_MACHINE: "poodle"
-#    # Explicitly pass down values that we want to be able to set when triggering
-#    # pipelines manually or using scheduling
-#    AUTOTEST: "${AUTOTEST}"
-#    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-#  needs: [poodle-up-check, generate-job-lists]
-#  extends: [.build-and-test]
-
-
-## CORONA
-#corona-up-check:
-#  variables:
-#    CI_MACHINE: "corona"
-#  extends: [.machine-check]
-#
-#corona-build-and-test:
-#  variables:
-#    CI_MACHINE: "corona"
-#    # Explicitly pass down values that we want to be able to set when triggering
-#    # pipelines manually or using scheduling
-#    AUTOTEST: "${AUTOTEST}"
-#    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-#  needs: [corona-up-check, generate-job-lists]
-#  extends: [.build-and-test]
 
 
 # TIOGA
