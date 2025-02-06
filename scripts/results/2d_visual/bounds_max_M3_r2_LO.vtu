@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian" compressor="vtkZLibDataCompressor">
+<!--This file was created by meshio v5.3.4-->
+<UnstructuredGrid>
+<Piece NumberOfPoints="64" NumberOfCells="16">
+<Points>
+<DataArray type="Float64" Name="Points" NumberOfComponents="3" format="binary">
+AQAAAACAAAAABgAAwAEAAA==eJxjYEAFW9NK9wj/PW8P4V2wh4lfW33iRYPKFntU1RfsW/L0M3uu3UVTf8E+JG1KRVfaRQLmPICLF3xWZL6if4GAOQ/g4lkfi3sfTLhKpntg4IH97bsrdr2puYam/oF9mPnZjwe2XSHTPbjMeQCnV6R4mf5VvokRDgk/Z2zxYzwL5b+Ai8fP7p06I/0uhr2ykgEivVFX0NRfsF+yXuFshMldAuZ8gIuzp3/43n3zHQFzPsDFF310EXj+8BWZ7kGEw9TwHy4vNl5HU//A3uaEW7W4100y3YPLnA9w8eUOaekXre/C/Q8Tl3TS3FrUdRkjHj98O+pV+As9vb3Aof6FvYiq4sRtH29jmIMqjggHIf8y48XyNwmY8wDhv5DCx2Kf72O45/B+DinjzicEzIGBDzjUf7B/PuGK08knLzDMQRXH5R5c5jyAiwuUbFmlKvsaIxzKO+pvXFqMnm4f2BcZ32k4z38fw15vxQneMpWP0NS/sL/hZnPzbM89AuYg0sNbj69z46cQMucDXHyK9IL+3tlnyXQPIhwaPix08ZZ7j6b+g31orvlBc9+XZLoHlzkf4PSDLa09b95ftQcArLWEiw==
+</DataArray>
+</Points>
+<Cells>
+<DataArray type="Int32" Name="connectivity" format="binary">
+AQAAAACAAAAAAQAAaQAAAA==eJwNwwVSAkAAAMADpaQ7pEGluyT//yt2ZzaEECJ+GPXTmAnjJk2Z9suMWfPmLFi0bMmKVevWbNj025ZtO/bs2nfgyKFjf/zz14lT585cuHTtyo1b9+48ePTsyYv/3rx69+HLp2+r3gfh
+</DataArray>
+<DataArray type="Int32" Name="offsets" format="binary">
+AQAAAACAAABAAAAAMQAAAA==eJxjYWBg4ABiHiAWAGIRIJYAYhkgVgBiFSDWAGIdIDYAYhMgtgBiGyB2AGIAM0ACIQ==
+</DataArray>
+<DataArray type="Int32" Name="types" format="binary">
+AQAAAACAAABAAAAADwAAAA==eJzjZGBg4KQAAwATYACR
+</DataArray>
+</Cells>
+</Piece>
+</UnstructuredGrid>
+</VTKFile>
