@@ -8,8 +8,10 @@
 // 2D
 ///// Run this file to get data for determinant of a single element mesh that is inverted somewhere between the mesh nodes.
 // make getdetboundintervalnd -j && ./getdetboundintervalnd -o 2 -mr 6 -m semi-invert.mesh
-// Now plot it in Python (todo: Tarik to provide the script)
-//
+// Now plot it in Python. run python export_vtu.py in ../scripts
+// Then use plotit.py in PAraview.
+// also use python compare_bernstein_quad.py for comparison of custom bounds
+// with bernstein.
 
 
 #include "mfem.hpp"
@@ -393,6 +395,8 @@ int main(int argc, char *argv[])
       }
 
       mesh.EnsureNCMesh(true);
+
+
       // Bernstein based bounds
       DG_FECollection fec_bern(det_order, dim, BasisType::Positive);
       FiniteElementSpace fes_bern(&mesh, &fec_bern);
@@ -400,6 +404,22 @@ int main(int argc, char *argv[])
       detgf_pos.ProjectGridFunction(detgf);
       std::cout << "The determinant bounds using Bernstein is: " << detgf_pos.Min() << " " << detgf_pos.Max() << std::endl;
       int rec_level = 0;
+
+      ofstream berfile;
+      berfile.open ("single_quad_bernstein_bounds.txt");
+      ParaViewDataCollection *pdber = NULL;
+      {
+         pdber = new ParaViewDataCollection("single_quad_bernstein", &mesh);
+         pdber->SetPrefixPath("ParaView");
+         pdber->RegisterField("solution", &detgf_pos);
+         pdber->SetLevelsOfDetail(det_order);
+         pdber->SetDataFormat(VTKFormat::BINARY);
+         pdber->SetHighOrderOutput(true);
+         pdber->SetCycle(0);
+         pdber->SetTime(0.0);
+         pdber->Save();
+      }
+
       while (detgf_pos.Min() < 0 && detgf_pos.Max() > 0 && rec_level < 8)
       {
          Array<int> refs, dofs;
@@ -454,9 +474,10 @@ int main(int argc, char *argv[])
             }
          }
 
-         std::cout << rec_level++ << " " << mesh.GetNE() << " " <<
+         std::cout << rec_level << " " << mesh.GetNE() << " " <<
          detgf_pos.Min() << " " << detgf_pos.Max() << " k10-bernstein-bounds-recurse\n";
-         if (true)
+         berfile << rec_level << " " << mesh.GetNE() << " " << detgf_pos.Min() <<  " " << detgf_pos.Max() << std::endl;
+         if (false)
          {
             osockstream sock(19916, "localhost");
             sock << "solution\n";
@@ -468,8 +489,15 @@ int main(int argc, char *argv[])
                << rec_level*200 << " " << 0 << " " << 300 << " " << 300 << "\n"
                << "keys jRmclA" << endl;
          }
+         {
+            pdber->SetCycle(rec_level);
+            pdber->SetTime(rec_level);
+            pdber->Save();
+         }
+         rec_level++;
          delete detgf_new;
       }
+      berfile.close();
 
       {
          ofstream myfile;
@@ -481,6 +509,9 @@ int main(int argc, char *argv[])
          }
          myfile.close();
       }
+
+      ofstream cusfile;
+      cusfile.open ("single_quad_custom_bounds" + std::to_string(mr) + ".txt");
 
       double dmin = intdepth.Min();
       double dmax = intdepth.Max();
@@ -508,7 +539,11 @@ int main(int argc, char *argv[])
          }
          std::cout << d << " " <<
          depthmin << " " << intmax[minindex] << " " << depthmax << " k10-custom-bounds-recurse\n";
+         cusfile << d << " " <<
+         depthmin << " " << intmax[minindex] << " " << depthmax << std::endl;
       }
+      cusfile.close();
+
       // std::cout << dmin << " "<< dmax << " k101\n";
 
       // GridFunction detgforig = detgf;
