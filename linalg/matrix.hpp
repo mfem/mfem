@@ -21,31 +21,39 @@ namespace mfem
 
 // Abstract data types matrix, inverse matrix
 
-class MatrixInverse;
+template <class T>
+class MatrixInverseMP;
 
 /// Abstract data type matrix
-class Matrix : public Operator
+
+template <class T>
+class MatrixMP : public OperatorMP<T>
 {
-   friend class MatrixInverse;
+   friend class MatrixInverseMP<T>;
+
+protected:
+   using OperatorBase::height;
+   using OperatorBase::width;
+
 public:
 
    /// Creates a square matrix of size s.
-   explicit Matrix(int s) : Operator(s) { }
+   explicit MatrixMP(int s) : OperatorMP<T>(s) { }
 
    /// Creates a matrix of the given height and width.
-   explicit Matrix(int h, int w) : Operator(h, w) { }
+   explicit MatrixMP(int h, int w) : OperatorMP<T>(h, w) { }
 
    /// Returns whether the matrix is a square matrix.
    bool IsSquare() const { return (height == width); }
 
    /// Returns reference to a_{ij}.
-   virtual real_t &Elem(int i, int j) = 0;
+   virtual T &Elem(int i, int j) = 0;
 
    /// Returns constant reference to a_{ij}.
-   virtual const real_t &Elem(int i, int j) const = 0;
+   virtual const T &Elem(int i, int j) const = 0;
 
    /// Returns a pointer to (an approximation) of the matrix inverse.
-   virtual MatrixInverse *Inverse() const = 0;
+   virtual MatrixInverseMP<T> *Inverse() const = 0;
 
    /// Finalizes the matrix initialization.
    virtual void Finalize(int) { }
@@ -54,30 +62,35 @@ public:
    virtual void Print(std::ostream & out = mfem::out, int width_ = 4) const;
 
    /// Destroys matrix.
-   virtual ~Matrix() { }
+   virtual ~MatrixMP() { }
 };
 
+using Matrix = MatrixMP<real_t>;
 
 /// Abstract data type for matrix inverse
-class MatrixInverse : public Solver
+template <class T>
+class MatrixInverseMP : public SolverMP<T>
 {
 public:
-   MatrixInverse() { }
+   MatrixInverseMP() { }
 
    /// Creates approximation of the inverse of square matrix
-   MatrixInverse(const Matrix &mat)
-      : Solver(mat.height, mat.width) { }
+   MatrixInverseMP(const MatrixMP<T> &mat)
+      : SolverMP<T>(mat.height, mat.width) { }
 };
 
+using MatrixInverse = MatrixInverseMP<real_t>;
+
 /// Abstract data type for sparse matrices
-class AbstractSparseMatrix : public Matrix
+template <class T>
+class AbstractSparseMatrixMP : public MatrixMP<T>
 {
 public:
    /// Creates a square matrix of the given size.
-   explicit AbstractSparseMatrix(int s = 0) : Matrix(s) { }
+   explicit AbstractSparseMatrixMP(int s = 0) : MatrixMP<T>(s) { }
 
    /// Creates a matrix of the given height and width.
-   explicit AbstractSparseMatrix(int h, int w) : Matrix(h, w) { }
+   explicit AbstractSparseMatrixMP(int h, int w) : MatrixMP<T>(h, w) { }
 
    /// Returns the number of non-zeros in a matrix
    virtual int NumNonZeroElems() const = 0;
@@ -86,29 +99,32 @@ public:
    /** Returns:
        - 0 if @a cols and @a srow are copies of the values in the matrix.
        - 1 if @a cols and @a srow are views of the values in the matrix. */
-   virtual int GetRow(const int row, Array<int> &cols, Vector &srow) const = 0;
+   virtual int GetRow(const int row, Array<int> &cols,
+                      VectorMP<T> &srow) const = 0;
 
    /** @brief If the matrix is square, this method will place 1 on the diagonal
        (i,i) if row i has "almost" zero l1-norm.
 
        If entry (i,i) does not belong to the sparsity pattern of A, then an
        error will occur. */
-   virtual void EliminateZeroRows(const real_t threshold = 1e-12) = 0;
+   virtual void EliminateZeroRows(const T threshold = 1e-12) = 0;
 
    /// Matrix-Vector Multiplication y = A*x
-   void Mult(const Vector &x, Vector &y) const override = 0;
+   void Mult(const VectorMP<T> &x, VectorMP<T> &y) const override = 0;
    /// Matrix-Vector Multiplication y = y + val*A*x
-   void AddMult(const Vector &x, Vector &y,
-                const real_t val = 1.) const override = 0;
+   void AddMult(const VectorMP<T> &x, VectorMP<T> &y,
+                const T val = 1.) const override = 0;
    /// MatrixTranspose-Vector Multiplication y = A'*x
-   void MultTranspose(const Vector &x, Vector &y) const override = 0;
+   void MultTranspose(const VectorMP<T> &x, VectorMP<T> &y) const override = 0;
    /// MatrixTranspose-Vector Multiplication y = y + val*A'*x
-   void AddMultTranspose(const Vector &x, Vector &y,
-                         const real_t val = 1.) const override = 0;
+   void AddMultTranspose(const VectorMP<T> &x, VectorMP<T> &y,
+                         const T val = 1.) const override = 0;
 
    /// Destroys AbstractSparseMatrix.
-   virtual ~AbstractSparseMatrix() { }
+   virtual ~AbstractSparseMatrixMP() { }
 };
+
+using AbstractSparseMatrix = AbstractSparseMatrixMP<real_t>;
 
 }
 

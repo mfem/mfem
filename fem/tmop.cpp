@@ -158,7 +158,7 @@ type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
    Id(0,0) = 1; Id(1,1) = 1;
 
    std::vector<type> Mat;
-   add_2D(-1.0, T, &Id, Mat);
+   add_2D((real_t)-1.0, T, &Id, Mat);
 
    return fnorm2_2D(Mat)/det_2D(T);
 };
@@ -171,7 +171,7 @@ type mu342_ad(const std::vector<type> &T, const std::vector<type> &W)
    Id(0,0) = 1; Id(1,1) = 1; Id(2,2) = 1;
 
    std::vector<type> Mat;
-   add_3D(-1.0, T, &Id, Mat);
+   add_3D((real_t)-1.0, T, &Id, Mat);
 
    return fnorm2_3D(Mat)/sqrt(det_3D(T));
 };

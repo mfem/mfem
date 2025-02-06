@@ -14,11 +14,10 @@
 
 #include "../config/config.hpp"
 #include "array.hpp"
+#include "../linalg/vector.hpp"
 
 namespace mfem
 {
-
-class Vector;
 
 /** Class for parsing command-line options.
 

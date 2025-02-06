@@ -397,7 +397,7 @@ public:
             add(*nodes, delta, *nodes);
          }
          // x = lambda*nodes + (1-lambda)*x
-         add(lambda, *nodes, (1.0-lambda), x, x);
+         add(lambda, *nodes, (real_t)(1.0-lambda), x, x);
          return Converged(rnorm);
       }
 
