@@ -353,7 +353,7 @@ template <typename HBODY>
 void RajaSeqWrap(const int N, HBODY &&h_body)
 {
 #ifdef MFEM_USE_RAJA
-   RAJA::forall<RAJA::loop_exec>(RAJA::RangeSegment(0,N), h_body);
+   RAJA::forall<RAJA::seq_exec>(RAJA::RangeSegment(0,N), h_body);
 #else
    MFEM_CONTRACT_VAR(N);
    MFEM_CONTRACT_VAR(h_body);
