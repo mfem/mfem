@@ -139,14 +139,16 @@ timed_message ()
 
 at_exit()
 {
-  if [[ "${#exit_rm_list[@]}" != 0 ]]; then
-    echo ${script_name}:at_exit: rm -rf "${exit_rm_list[@]}"
-    rm -rf "${exit_rm_list[@]}"
-  fi
-  if [[ "${exit_distclean}" == 1 ]]; then
-    echo ${script_name}:at_exit: \
-      make -C "${project_dir}" distclean "> /dev/null 2>&1"
-    make -C "${project_dir}" distclean > /dev/null 2>&1
+  if [[ "${debug_mode}" != "true" ]]; then
+    if [[ "${#exit_rm_list[@]}" != 0 ]]; then
+      echo ${script_name}:at_exit: rm -rf "${exit_rm_list[@]}"
+      rm -rf "${exit_rm_list[@]}"
+    fi
+    if [[ "${exit_distclean}" == 1 ]]; then
+      echo ${script_name}:at_exit: \
+        make -C "${project_dir}" distclean "> /dev/null 2>&1"
+      make -C "${project_dir}" distclean > /dev/null 2>&1
+    fi
   fi
 }
 
@@ -194,7 +196,8 @@ echo "project_dir: ${project_dir}"
 mkdir -p ${prefix}
 
 # List of files/directories to remove at exit; more entries are added below.
-# This list will be removed even if there's an error.
+# This list will be removed even if there's an error. In debug mode, this
+# cleanup is not performed.
 exit_rm_list=("${prefix}")
 exit_distclean=
 trap 'at_exit' EXIT HUP INT QUIT ABRT KILL PIPE TERM XCPU
