@@ -915,6 +915,12 @@ public:
    const Array<int>& GetPatchElements(int patch);
    /// Return the array of indices of all boundary elements in patch @a patch.
    const Array<int>& GetPatchBdrElements(int patch);
+
+   /// Construct and return a table of DOFs for each global element.
+   Table *GetGlobalElementDofTable();
+   Table *Get1DGlobalElementDofTable();
+   Table *Get2DGlobalElementDofTable();
+   Table *Get3DGlobalElementDofTable();
 };
 
 
@@ -961,6 +967,14 @@ public:
        The @a parent can be either a local NURBSExtension or a global one. */
    ParNURBSExtension(NURBSExtension *parent,
                      const ParNURBSExtension *par_parent);
+
+   /** @brief Create a parallel version of @a parent with partitioning as in
+       @a par_parent based on @a VNURBSExt in Hcurl space; the @a parent object is destroyed.
+       The @a parent can be either a local NURBSExtension or a global one. */
+   ParNURBSExtension(NURBSExtension *parent,
+                     Array<NURBSExtension *> VNURBSExt,
+                     const ParNURBSExtension *par_parent);
+
 };
 #endif
 
