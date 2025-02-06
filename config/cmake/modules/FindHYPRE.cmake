@@ -9,13 +9,16 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Defines the following variables:
+# Defines the following variables if fetching of TPLs is disabled (default):
 #   - HYPRE_FOUND
 #   - HYPRE_LIBRARIES
 #   - HYPRE_INCLUDE_DIRS
 #   - HYPRE_VERSION
 #   - HYPRE_USING_CUDA (internal)
 #   - HYPRE_USING_HIP (internal)
+# otherwise, the following are defined:
+#   - HYPRE (imported library target)
+#   - HYPRE_VERSION (cache variable)
 
 if (HYPRE_FOUND)
   if (HYPRE_USING_CUDA)
@@ -25,6 +28,47 @@ if (HYPRE_FOUND)
     find_package(rocsparse REQUIRED)
     find_package(rocrand REQUIRED)
   endif()
+  return()
+endif()
+
+if (FETCH_TPLS)
+  add_library(HYPRE STATIC IMPORTED)
+  # set options and associated dependencies
+  set(CMAKE_OPTIONS)
+  list(APPEND CMAKE_OPTIONS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE})
+  if (MFEM_USE_CUDA)
+    list(APPEND CMAKE_OPTIONS -DHYPRE_WITH_CUDA:BOOL=ON)
+    find_package(CUDAToolkit REQUIRED)
+    target_link_libraries(HYPRE INTERFACE CUDA::cusparse CUDA::curand CUDA::cublas)
+  elseif (MFEM_USE_HIP)
+    list(APPEND CMAKE_OPTIONS -DHYPRE_WITH_HIP:BOOL=ON)
+    find_package(rocsparse REQUIRED)
+    find_package(rocrand REQUIRED)
+    target_link_libraries(HYPRE INTERFACE rocsparse rocrand)
+  endif()
+  if (MFEM_USE_SINGLE)
+    list(APPEND CMAKE_OPTIONS -DHYPRE_ENABLE_SINGLE:BOOL=ON)
+  endif()
+  message(STATUS "Fetched hypre will be built with ${CMAKE_OPTIONS}")
+  # define external project and create future include directory so it is present
+  # to pass CMake checks at end of MFEM configuration step
+  set(PREFIX ${CMAKE_BINARY_DIR}/fetch/hypre)
+  include(ExternalProject)
+  ExternalProject_Add(hypre
+    GIT_REPOSITORY https://github.com/hypre-space/hypre.git
+    GIT_TAG cb7597ffd998dc5270c2e32025e799e68048b1cd # Release 2.32.0
+    GIT_SHALLOW TRUE
+    SOURCE_SUBDIR src
+    PREFIX ${PREFIX}
+    CMAKE_CACHE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX} ${CMAKE_OPTIONS})
+  file(MAKE_DIRECTORY ${PREFIX}/include)
+  # set imported library target properties
+  add_dependencies(HYPRE hypre hypre-install)
+  set_target_properties(HYPRE PROPERTIES
+    IMPORTED_LOCATION ${PREFIX}/lib/libHYPRE.a
+    INTERFACE_INCLUDE_DIRECTORIES ${PREFIX}/include)
+  # set cache variables that would otherwise be set after mfem_find_package call
+  set(HYPRE_VERSION "23200" CACHE STRING "HYPRE version." FORCE)
   return()
 endif()
 
