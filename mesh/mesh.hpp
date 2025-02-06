@@ -2442,9 +2442,6 @@ public:
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
    /// @todo This method needs a proper description
-   void MesquiteSmooth(const int mesquite_option = 0);
-
-   /// @todo This method needs a proper description
    void CheckDisplacements(const Vector &displacements, real_t &tmax);
 
    /// @}
