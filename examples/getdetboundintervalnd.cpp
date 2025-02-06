@@ -21,6 +21,57 @@
 using namespace std;
 using namespace mfem;
 
+GridFunction *GetDetJacobian(Mesh *mesh)
+{
+   int mesh_order = mesh->GetNodalFESpace()->GetMaxElementOrder();
+   int det_order = 2*mesh_order-1;
+   int dim = mesh->Dimension();
+   L2_FECollection *fec = new L2_FECollection(det_order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   GridFunction *detgf = new GridFunction(fespace);
+   detgf->MakeOwner(fec);
+   Array<int> dofs;
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe = fespace->GetFE(e);
+      const IntegrationRule ir = fe->GetNodes();
+      ElementTransformation *transf = mesh->GetElementTransformation(e);
+      DenseMatrix Jac(fe->GetDim());
+      const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
+                                      (fe);
+      const Array<int> &irordering = nfe->GetLexicographicOrdering();
+      IntegrationRule ir2 = irordering.Size() ?
+                            ir.Permute(irordering) :
+                            ir;
+
+      Vector detvals(ir2.GetNPoints());
+      Vector loc(dim);
+      for (int q = 0; q < ir2.GetNPoints(); q++)
+      {
+         IntegrationPoint ip = ir2.IntPoint(q);
+         transf->SetIntPoint(&ip);
+         transf->Transform(ip, loc);
+         Jac = transf->Jacobian();
+         detvals(q) = Jac.Det();
+      }
+
+      fespace->GetElementDofs(e, dofs);
+      if (irordering.Size())
+      {
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            (*detgf)(dofs[i]) = detvals(irordering[i]);
+         }
+      }
+      else
+      {
+         detgf->SetSubVector(dofs, detvals);
+      }
+   }
+   return detgf;
+}
+
 double GenerateRandomized1D(int n1D, Poly_1D::Basis &basis1d,
                             Vector &solcoeff, int seed = 0, int nbrute = 1000)
 {
@@ -329,14 +380,6 @@ int main(int argc, char *argv[])
                    ": the min and max determinant using brute force is: " << brute_el_min << " " << brute_el_max << std::endl;
 
 
-         // Bernstein based boundings
-         DG_FECollection fec_bern(det_order, dim, BasisType::Positive);
-         FiniteElementSpace fes_bern(&mesh, &fec_bern);
-         GridFunction detgf_pos(&fes_bern);
-         detgf_pos.ProjectGridFunction(detgf);
-         std::cout << "Element " << e <<
-                   ": the determinant bounds using Bernstein is: " << detgf_pos.Min() << " " << detgf_pos.Max() << std::endl;
-
          // Recursion
          int maxdepth = 5;
          if (qpminCus.Min() < 0 && qpmaxCus.Min() > 0)
@@ -346,6 +389,43 @@ int main(int argc, char *argv[])
                                   intdepth);
          }
       }
+      // Bernstein based bounds
+         DG_FECollection fec_bern(det_order, dim, BasisType::Positive);
+         FiniteElementSpace fes_bern(&mesh, &fec_bern);
+         GridFunction detgf_pos(&fes_bern);
+         detgf_pos.ProjectGridFunction(detgf);
+         std::cout << "The determinant bounds using Bernstein is: " << detgf_pos.Min() << " " << detgf_pos.Max() << std::endl;
+         int rec_level = 0;
+         while (detgf_pos.Min() < 0 && detgf_pos.Max() > 0 && rec_level < 6)
+         {
+            Array<int> refs, dofs;
+            Vector detvals;
+            for (int e = 0; e < mesh.GetNE(); e++)
+            {
+               fes_bern.GetElementDofs(e, dofs);
+               detgf_pos.GetSubVector(dofs, detvals);
+               double minv = detvals.Min();
+               double maxv = detvals.Max();
+               if (minv < 0 && maxv > 0)
+               {
+                  refs.Append(e);
+               }
+            }
+            mesh.GeneralRefinement(refs);
+            fes_bern.Update();
+            detgf_pos.Update();
+            // std::cout << mesh.GetNE() << " " << detgf_pos.Size() <<  "k101\n";
+
+            // construct  the detgf gridfunction again
+            GridFunction *detgf_new = GetDetJacobian(&mesh);
+            // std::cout << detgf_new->Size() <<  "k102\n";
+            detgf_pos.ProjectGridFunction(*detgf_new);
+            // std::cout << detgf_new->Size() <<  "k103\n";
+            delete detgf_new;
+            std::cout << rec_level++ << " " << mesh.GetNE() << " " <<
+            detgf_pos.Min() << " " << detgf_pos.Max() << " k10-bernstein-bounds-recurse\n";
+         }
+
 
       {
          ofstream myfile;

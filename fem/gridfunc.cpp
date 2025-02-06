@@ -4711,7 +4711,7 @@ void PLBound::GetMeshValidity(Mesh *mesh, double &minmindet, double &minmaxdet,
                               int &convergedg, int &depthmax, int &tot_recursion, int maxdepth)
 {
    int mesh_order = mesh->GetNodalFESpace()->GetMaxElementOrder();
-   int det_order = 2*mesh_order;
+   int det_order = 2*mesh_order-1;
    int dim = mesh->Dimension();
    L2_FECollection fec(det_order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fespace(mesh, &fec);
