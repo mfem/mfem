@@ -210,7 +210,7 @@ public:
          grid of type and size controlled by SetInitGuessPointsType() and
          SetInitGuessRelOrder(), respectively. */
       GivenPoint = 3, ///< Use a specific point, set with SetInitialGuess().
-      EdgeScan = 4, /**< Use the point returned by FindClosestPhysPoint()
+      EdgeScan = 4, /**< Use the point returned by FindClosestInsidePhysPoint()
           from a reference-space scan of type and size controlled by
           SetInitGuessPointsType() and SetInitGuessRelOrder(), respectively.
           The points chosen lie somewhere along the boundary of the element.
@@ -236,9 +236,6 @@ public:
          reference element by projecting new iterates, x_new, lying outside the
          element, to the point on the boundary closest (in reference-space) to
          x_new. */
-      NewtonTrustRegion = 3, /**<
-         Uses a hybrid Newton algorithm with trust regions as described by
-         https://arxiv.org/pdf/2501.12349 Sec. 3.2.1 */
    };
 
    /// Values returned by Transform().
@@ -254,7 +251,7 @@ protected:
    ElementTransformation *T;
 
    // Parameters of the inversion algorithms:
-   const IntegrationPoint *ip0;
+   IntegrationPoint ip0;
    int init_guess_type; // algorithm to use
    GeometryRefiner refiner; // geometry refiner for initial guess
    int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
@@ -297,19 +294,18 @@ public:
        tolerances. */
    InverseElementTransformation(ElementTransformation *Trans = NULL)
       : T(Trans),
-        ip0(NULL),
         init_guess_type(Center),
         refiner(Quadrature1D::OpenHalfUniform),
         rel_qpts_order(-1),
         solver_type(NewtonElementProject),
         max_iter(16),
 #ifdef MFEM_USE_DOUBLE
-        ref_tol(1e-15),
-        phys_rtol(1e-15),
+        ref_tol(2e-15),
+        phys_rtol(2e-15),
         ip_tol(1e-8),
 #elif defined(MFEM_USE_SINGLE)
-        ref_tol(1e-7),
-        phys_rtol(1e-7),
+        ref_tol(1e-6),
+        phys_rtol(1e-6),
         ip_tol(1e-4),
 #endif
         print_level(-1)
@@ -327,7 +323,7 @@ public:
    /** @brief Set the initial guess for subsequent calls to Transform(),
        switching to the #GivenPoint #InitGuessType at the same time. */
    void SetInitialGuess(const IntegrationPoint &init_ip)
-   { ip0 = &init_ip; SetInitialGuessType(GivenPoint); }
+   { ip0 = init_ip; SetInitialGuessType(GivenPoint); }
 
    /// Set the Quadrature1D type used for the `Closest*` initial guess types.
    void SetInitGuessPointsType(int q_type) { refiner.SetType(q_type); }
@@ -361,6 +357,22 @@ public:
        1 - print the first and last iterations; 2 - print every iteration;
        and 3 - print every iteration including point coordinates. */
    void SetPrintLevel(int pr_level) { print_level = pr_level; }
+
+   /** @brief Find an IntegrationPoint which likely can make meaningful progress
+    * to @a pt. */
+   /** This function uses the given IntegrationRule, @a ir, maps its points to
+       physical space and finds the one can make meaningful progress towards @a
+       pt and is relatively nearby in physical space.
+       Meaningful progress is checked by examining how well the first Newton
+       iteration performs. It is recommended to use only with points on the
+       element boundary.
+
+       @param pt  The query point.
+       @param ir  The IntegrationRule, i.e. the set of reference points to map
+                  to physical space and check.
+       @see FindClosestPhysPoint(). */
+   IntegrationPoint FindClosestInsidePhysPoint(const Vector &pt,
+                                               const IntegrationRule &ir);
 
    /** @brief Find the IntegrationPoint mapped closest to @a pt. */
    /** This function uses the given IntegrationRule, @a ir, maps its points to
@@ -399,7 +411,7 @@ public:
       SolverType::NewtonTrustRegion and tensor product basis elements.
     */
    void BatchTransform(const Vector &pts, const Array<int> &elems,
-                       Array<TransformResult> &types, Vector &refs,
+                       Array<int> &types, Vector &refs,
                        bool use_dev = true);
 };
 

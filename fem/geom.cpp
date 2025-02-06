@@ -1718,8 +1718,8 @@ const IntegrationRule *GeometryRefiner::EdgeScan(Geometry::Type Geom,
                }
                for (int i = 0; i < NPts1d; ++i)
                {
-                  res->IntPoint(1 + NPts1d).x = 0;
-                  res->IntPoint(1 + NPts1d).y = cp[i];
+                  res->IntPoint(i + NPts1d).x = 0;
+                  res->IntPoint(i + NPts1d).y = cp[i];
                }
             }
          } break;
@@ -1782,6 +1782,10 @@ const IntegrationRule *GeometryRefiner::EdgeScan(Geometry::Type Geom,
          case Geometry::NUM_GEOMETRIES:
             MFEM_ABORT("Unknown type of reference element!");
       }
+   }
+   else
+   {
+     res = iter->second.get();
    }
    return res;
 }

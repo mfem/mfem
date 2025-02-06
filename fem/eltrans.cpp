@@ -67,6 +67,39 @@ const DenseMatrix &ElementTransformation::EvalInverseJ()
 }
 
 
+IntegrationPoint InverseElementTransformation::FindClosestInsidePhysPoint(
+   const Vector& pt, const IntegrationRule &ir)
+{
+   MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
+   MFEM_VERIFY(pt.Size() == T->GetSpaceDim(), "invalid point");
+   IntegrationPoint res;
+   IntegrationPoint test;
+
+   DenseMatrix physPts;
+   T->Transform(ir, physPts);
+
+   // Initialize distance and index of closest point
+   // measure of how much progress a single step would take
+   // anything above a certain amount caps at zero
+   real_t min_dir = -std::numeric_limits<real_t>::infinity();
+   real_t minDist = std::numeric_limits<real_t>::infinity();
+
+   // Check all integration points in ir
+   const int npts = ir.GetNPoints();
+   for (int i = 0; i < npts; ++i)
+   {
+      // TODO: check progress amount
+      real_t dist = pt.DistanceTo(physPts.GetColumn(i));
+      if (dist < minDist)
+      {
+         minDist = dist;
+         res = ir.IntPoint(i);
+      }
+   }
+   return res;
+}  
+
+
 int InverseElementTransformation::FindClosestPhysPoint(
    const Vector& pt, const IntegrationRule &ir)
 {
@@ -180,12 +213,13 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
    const int dim = T->GetDimension();
    const int sdim = T->GetSpaceDim();
    IntegrationPoint xip, prev_xip;
-   real_t xd[3], yd[3], dxd[3], dx_norm = -1.0, err_phys, real_dx_norm = -1.0;
-   Vector x(xd, dim), y(yd, sdim), dx(dxd, dim);
+   real_t xd[3], yd[3], dxd[3], dxpd[3], dx_norm = -1.0, err_phys,
+                                         real_dx_norm = -1.0;
+   Vector x(xd, dim), y(yd, sdim), dx(dxd, dim), dx_prev(dxpd, dim);
    bool hit_bdr = false, prev_hit_bdr = false;
 
    // Use ip0 as initial guess:
-   xip = *ip0;
+   xip = ip0;
    xip.Get(xd, dim); // xip -> x
    if (print_level >= 3)
    {
@@ -333,6 +367,48 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
    return Unknown;
 }
 
+void InverseElementTransformation::BatchTransform(const Vector &pts,
+                                                  const Array<int> &elems,
+                                                  Array<int> &types,
+                                                  Vector &refs,
+                                                  bool use_dev) {
+  MFEM_VERIFY(T != nullptr, "invalid ElementTransformation");
+  if (T->mesh->GetNodes()) {
+    // can get the FE space
+    const TensorBasisElement *tbe = dynamic_cast<const TensorBasisElement *>(
+        T->mesh->GetNodes()->FESpace()->GetFE(T->ElementNo));
+    if (tbe != nullptr) {
+      // use batch algorithm
+      // return;
+    }
+  }
+
+  // serial backup for general non-tensor product case
+  {
+    IntegrationPoint res;
+    int ndims = T->GetDimension();
+    mfem::Vector pt(T->GetDimension());
+    auto npts = elems.Size();
+    for (int i = 0; i < npts; ++i) {
+      for (int d = 0; d < ndims; ++d) {
+        pt(d) = pts(i + d * npts);
+      }
+      types[i] = Transform(pt, res);
+      switch (ndims) {
+      case 3:
+        refs(i+2*npts) = res.z;
+      case 2:
+        refs(i+npts) = res.y;
+      case 1:
+        refs(i) = res.x;
+        break;
+      default:
+        MFEM_ABORT("invalid ndims");
+      }
+    }
+  }
+}
+
 int InverseElementTransformation::Transform(const Vector &pt,
                                             IntegrationPoint &ip)
 {
@@ -342,7 +418,7 @@ int InverseElementTransformation::Transform(const Vector &pt,
    switch (init_guess_type)
    {
       case Center:
-         ip0 = &Geometries.GetCenter(T->GetGeometryType());
+         ip0 = Geometries.GetCenter(T->GetGeometryType());
          break;
 
       case ClosestPhysNode:
@@ -351,7 +427,7 @@ int InverseElementTransformation::Transform(const Vector &pt,
          const int order = std::max(T->Order()+rel_qpts_order, 0);
          if (order == 0)
          {
-            ip0 = &Geometries.GetCenter(T->GetGeometryType());
+            ip0 = Geometries.GetCenter(T->GetGeometryType());
          }
          else
          {
@@ -359,7 +435,7 @@ int InverseElementTransformation::Transform(const Vector &pt,
             int closest_idx = (init_guess_type == ClosestPhysNode) ?
                               FindClosestPhysPoint(pt, RefG.RefPts) :
                               FindClosestRefPoint(pt, RefG.RefPts);
-            ip0 = &RefG.RefPts.IntPoint(closest_idx);
+            ip0 = RefG.RefPts.IntPoint(closest_idx);
          }
          break;
       }
@@ -368,13 +444,12 @@ int InverseElementTransformation::Transform(const Vector &pt,
          const int order = std::max(T->Order() + rel_qpts_order, 0);
          if (order == 0)
          {
-            ip0 = &Geometries.GetCenter(T->GetGeometryType());
+            ip0 = Geometries.GetCenter(T->GetGeometryType());
          }
          else
          {
             auto &ir = *refiner.EdgeScan(T->GetGeometryType(), order + 1);
-            int closest_idx = FindClosestPhysPoint(pt, ir);
-            ip0 = &ir.IntPoint(closest_idx);
+            ip0 = FindClosestInsidePhysPoint(pt, ir);
          }
          break;
       }
