@@ -9,9 +9,9 @@
 ///// Run this file to get data for determinant of a single element mesh that is inverted somewhere between the mesh nodes.
 // make getdetboundintervalnd -j && ./getdetboundintervalnd -o 2 -mr 6 -m semi-invert.mesh
 // Now plot it in Python. run python export_vtu.py in ../scripts
-// Then use plotit.py in PAraview.
-// also use python compare_bernstein_quad.py for comparison of custom bounds
-// with bernstein.
+// Then use plotit.py in Paraview.
+// also go to ../scripts/results/single_quad/ to run
+// python plot_single_quad_bernstein_and_qps.py to get Bernstein recursion and quadrature points set.
 
 
 #include "mfem.hpp"
@@ -394,8 +394,86 @@ int main(int argc, char *argv[])
          }
       }
 
-      mesh.EnsureNCMesh(true);
+      // Get node coordinates and integration point coordinates for visualization
+      Array<double> xlocs, ylocs;
+      Array<int> color;
+      {
+         int el = 0;
+         const FiniteElement *fe = fespace.GetFE(el);
+         const IntegrationRule ir = fe->GetNodes();
+         ElementTransformation *transf = mesh.GetElementTransformation(el);
+         DenseMatrix Jac(fe->GetDim());
+         const NodalFiniteElement *nfe = dynamic_cast<const NodalFiniteElement*>
+                                         (fe);
+         const Array<int> &irordering = nfe->GetLexicographicOrdering();
+         IntegrationRule ir2 = irordering.Size() ?
+                               PermuteIR(&ir, irordering) :
+                               ir;
 
+         Vector detvals(ir2.GetNPoints());
+         Vector loc(dim);
+         for (int q = 0; q < ir2.GetNPoints(); q++)
+         {
+            IntegrationPoint ip = ir2.IntPoint(q);
+            transf->SetIntPoint(&ip);
+            transf->Transform(ip, loc);
+            xlocs.Append(loc(0));
+            ylocs.Append(loc(1));
+            color.Append(0);
+         }
+
+         {
+            ofstream xyzfile;
+            xyzfile.open ("single_quad_nodes.txt");
+            xyzfile << "x,y,color" << std::endl;
+            for (int i = 0; i < xlocs.Size(); i++)
+            {
+               xyzfile << xlocs[i] << "," << ylocs[i] << "," << color[i] << std::endl;
+            }
+            xyzfile.close();
+         }
+
+         // now test out some integration rules
+         IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
+         for (int qo = order; qo < 20; qo++)
+         {
+            IntegrationRule ir3 = IntRulesLo.Get(Geometry::SQUARE, qo);
+            Array<double> xlocst, ylocst;
+            Array<int> colort;
+            double detmin = std::numeric_limits<double>::infinity();
+            for (int q = 0; q < ir3.GetNPoints(); q++)
+            {
+               IntegrationPoint ip = ir3.IntPoint(q);
+               transf->SetIntPoint(&ip);
+               transf->Transform(ip, loc);
+               Jac = transf->Jacobian();
+               double detj = Jac.Det();
+               detmin = std::min(detmin, detj);
+               xlocst.Append(loc(0));
+               ylocst.Append(loc(1));
+               colort.Append(qo);
+            }
+            if (detmin > 0)
+            {
+               {
+                  ofstream xyzfile;
+                  xyzfile.open ("single_quad_qps_" + std::to_string(qo) + ".txt");
+                  xyzfile << "x,y,color" << std::endl;
+                  for (int i = 0; i < xlocst.Size(); i++)
+                  {
+                     xyzfile << xlocst[i] << "," << ylocst[i] << "," << colort[i] << std::endl;
+                  }
+                  xyzfile.close();
+               }
+            }
+            else
+            {
+               std::cout << qo << " " << ir3.GetNPoints() << " Found neg detj\n";
+            }
+         }
+      }
+
+      mesh.EnsureNCMesh(true);
 
       // Bernstein based bounds
       DG_FECollection fec_bern(det_order, dim, BasisType::Positive);
