@@ -660,21 +660,29 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
 {
    x_0 = x;
 
-   // // // Pass down the initial position to the integrators.
-   // const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   // const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
-   // TMOP_Integrator *ti  = nullptr;
-   // TMOPComboIntegrator *co = nullptr;
-   // for (int i = 0; i < integs.Size(); i++)
-   // {
-   //    ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-   //    ti->SetInitialMeshPos(x_0);
-   //    co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-   //    if (co)
-   //    {
-
-   //    }
-   // }
+   //
+   // Pass down the initial position to the integrators.
+   //
+   // Prolongate x to ldofs.
+   Vector x_0_loc;
+   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
+   const Operator *P = nlf->GetProlongation();
+   // if (periodic) { x_0_loc = x }
+   if (P)
+   {
+      x_0_loc.SetSize(P->Height());
+      P->Mult(x, x_0_loc);
+   }
+   else { x_0_loc = x; }
+   // Pass the positions to the integrators.
+   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      auto ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti) { ti->SetInitialMeshPos(x_0_loc); }
+      auto co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co) { co->SetInitialMeshPos(x_0_loc); }
+   }
 
    // We solve for this displacement vector.
    Vector d(x.Size());
