@@ -1869,7 +1869,7 @@ protected:
    // Initial positions of the mesh nodes. This is an ldof Vector. It is set by
    // the TMOPNewtonSolver at the start of the optimization.
    Vector x_0;
-   //void SetInitialMeshPos(const Vector &x0) { x_0 = x0; }
+   void SetInitialMeshPos(const Vector &x0) { x_0 = x0; }
 
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
@@ -2395,8 +2395,16 @@ public:
 class TMOPComboIntegrator : public NonlinearFormIntegrator
 {
 protected:
+   friend class TMOPNewtonSolver;
+
    // Integrators in the combination. Owned.
    Array<TMOP_Integrator *> tmopi;
+
+   void SetInitialMeshPos(const Vector &x0)
+   {
+      for (int i = 0; i < tmopi.Size(); i++)
+      { tmopi[i]->SetInitialMeshPos(x0); }
+   }
 
 public:
    TMOPComboIntegrator() : tmopi(0) { }
