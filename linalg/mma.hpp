@@ -15,6 +15,8 @@
 #include <iostream>
 #include "../config/config.hpp"
 #include "vector.hpp"
+#include "../general/communication.hpp"
+#include "solvers.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -209,13 +211,13 @@ class MMAOpt
 {
 public:
    /// Default constructor
-   MMAOpt(int nVar, int nCon, mfem::Vector& xval)
+   MMAOpt(int nVar, int nCon, Vector& xval)
    {
-      opt=new mfem::MMA(nVar,nCon, xval.GetData());
+      opt=new MMA(nVar,nCon, xval.GetData());
    }
 
 #ifdef MFEM_USE_MPI
-   MMAOpt(MPI_Comm comm_, int nVar, int nCon, mfem::Vector& xval)
+   MMAOpt(MPI_Comm comm_, int nVar, int nCon, Vector& xval)
    {
       int rank = 0;
       MPI_Comm_rank(comm_, &rank);
@@ -235,7 +237,7 @@ public:
       // Split the global communicator
       MPI_Comm_split(comm_, colour, rank, &new_comm);
 
-      opt=new mfem::MMA(new_comm, nVar,nCon, xval.GetData());
+      opt=new MMA(new_comm, nVar,nCon, xval.GetData());
    }
 #endif
 
@@ -246,10 +248,10 @@ public:
    }
 
    /// Design update
-   void Update(int iter, const mfem::Vector& dfdx,
-               const mfem::Vector& gx, const mfem::Vector& dgdx,
-               const mfem::Vector& xmin, const mfem::Vector& xmax,
-               mfem::Vector& xval)
+   void Update(int iter, const Vector& dfdx,
+               const Vector& gx, const Vector& dgdx,
+               const Vector& xmin, const Vector& xmax,
+               Vector& xval)
    {
       opt->Update(iter, dfdx.GetData(),
                   gx.GetData(),dgdx.GetData(),
@@ -258,13 +260,89 @@ public:
    }
 
 private:
-   mfem::MMA* opt;// the actual mma optimizer
+   MMA* opt;// the actual mma optimizer
 
 #ifdef MFEM_USE_MPI
    MPI_Comm new_comm;
 #endif
 
 };
+
+
+class MMAOptimizer:public OptimizationSolver
+{
+public:
+    MMAOptimizer()
+    {
+#ifdef MFEM_USE_MPI
+        comm=MPI_COMM_SELF;
+#endif
+    }
+
+#ifdef MFEM_USE_MPI
+    MMAOptimizer(MPI_Comm comm_)
+    {
+        comm=comm_;
+    }
+#endif
+
+    virtual ~MMAOptimizer()
+    {
+    }
+
+    virtual
+    void SetOptimizationProblem (const OptimizationProblem &prob)
+    {
+        problem=&prob;
+        height = width = problem->input_size;
+        dfdx.SetSize(height);
+        xmin=problem->GetInequalityVec_Lo();
+        xmax=problem->GetInequalityVec_Hi();
+
+        gx.SetSize(problem->GetNumConstraints());
+        dgdx.SetSize((problem->GetNumConstraints())*height);
+    }
+
+    virtual
+    void Mult (const Vector &xt, Vector &x) const
+    {
+
+        // we do not use the values of the assumptotes from the previous iterations
+        MMAOpt* mma;
+        x=xt;
+        //allocate the solver
+#ifdef MFEM_USE_MPI
+        mma=new MMAOpt(comm,height,problem->GetNumConstraints(),x);
+#else
+        mma=new MMAOpt(height,problem->GetNumConstraints(),x);
+#endif
+
+        for(int i=0;i<mfem::IterativeSolver::max_iter;i++)
+        {
+
+
+            mma->Update(i,dfdx,gx,dgdx,xmin,xmax,x);
+        }
+
+        delete mma;
+    }
+
+
+private:
+#ifdef MFEM_USE_MPI
+    MPI_Comm comm;
+#endif
+    Vector gx;
+    Vector dfdx;
+    Vector dgdx;
+    Vector xmin;
+    Vector xmax;
+
+    const OptimizationProblem* problem;
+
+};
+
+
 
 } // mfem namespace
 
