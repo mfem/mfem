@@ -11,6 +11,8 @@
 
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
+#include "eltrans/eltrans_basis.hpp"
+
 #include <cmath>
 
 namespace mfem
