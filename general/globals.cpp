@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -76,8 +76,9 @@ void SetGlobalMPI_Comm(MPI_Comm comm)
 
 #endif
 
-const char* getenv(const char* name)
+const char *GetEnv(const char* name)
 {
-   return ::getenv(name);
+   return getenv(name);
 }
+
 }

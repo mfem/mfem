@@ -12,6 +12,8 @@ Version 4.7.1 (development)
 ===========================
 - Refactored ALGOIM cut integration rules. The interface is unified with
   the interface for moment based cut integration rules.
+- Altered (Par)GridFunction::Compute*Error functions to ensure they return
+  non-negative values and therefore behave as "norms".
 
 Discretization improvements
 ---------------------------
@@ -22,8 +24,18 @@ Discretization improvements
 
 - Added support for external boundary submeshes with nonconformal mesh adaptation.
 
+- Added assembly of Jacobians to `HyperbolicFormIntegrator`.
+
+- Added average fluxes to `NumericalFlux` (formerly `RiemannSolver`)
+  and `FluxFunction`.
+
+- Added component-wise upwinded flux (`ComponentwiseUpwindFlux`).
+
 Meshing improvements
 --------------------
+- Added native AD support for numerous TMOP metrics that didn't have first or
+  second derivative implementations.
+
 - The ExodusII reader now handles pyramid and wedge element types. Mixed meshes
   are also supported.
 
@@ -38,6 +50,9 @@ New and updated examples and miniapps
 
 - Added an MFEM example for the eikonal equation. This new solver is based on
   the proximal Galerkin method introduced by Keith and Surowiec.
+
+- Added a new toy miniapp that animates an interesting fidget spiral cone toy.
+  See miniapps/toys/spiral.cpp.
 
 - Added a command line option to all miniapps (`-p` or `--send-port`) for
   specifying the GLVis server socket port (19916 by default).
@@ -88,9 +103,33 @@ Miscellaneous
 
 - There are new convenience constructors for NURBS patches and knot vectors.
 
+- Added convenience methods for manipulating boundary attribute marker arrays;
+  `(Par)Mesh::MarkExternalBoundaries`, `(Par)Mesh::UnmarkInternalBoundaries`,
+  `(Par)Mesh::MarkNamedBoundaries`, and `(Par)Mesh::UnmarkNamedBoundaries`.
+  See examples `ex1.cpp`, `ex1p.cpp`, and `ex11p.cpp` for basic usage.
+
+- Added `(Par)Mesh::GetExteriorFaceMarker` for identifying faces on the
+  exterior of the mesh irrespective of their presence in the list of "boundary
+  elements".
+
+- Added methods to `(Par)FiniteElementSpace` to identify all degrees of freedom
+  located on the exterior of the domain without reference to the list of
+  "boundary elements"; `GetExteriorVDofs` and `GetExteriorTrueDofs`.
+
+- `LinearFormIntegrator` and `NonlinearFormIntegrator` (including
+  `BilinearFormIntegrator`) now all inherit from a base class `Integrator`
+  that combines some logic related to selecting quadrature rules. This includes
+  a virtual method `Integrator::GetDefaultIntegrationRule`, which should be
+  favored over directly defining a default integration rule in the element-level
+  assembly routines (although the latter is still possible, by leaving the new
+  virtual method as its default base implementation of returning `NULL`).
+
 API changes
 -----------
 - API change: in class GridFunction, 'fec' was renamed to 'fec_owned'.
+
+- API change: `RiemannSolver` was renamed to `NumericalFlux` (the old name has
+  been been depracated through typedef)
 
 - API change: support for SUNDIALS v7:
   * the SUNDIALS types `realtype` and `booleantype` are no longer defined by v7

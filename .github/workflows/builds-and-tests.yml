@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -28,6 +28,10 @@ on:
       - next
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   HYPRE_ARCHIVE: v2.19.0.tar.gz
@@ -115,13 +119,6 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      # This external action allows to interrupt a workflow already running on
-      # the same branch to save resources.
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-
       # Fix 'No space left on device' errors for Ubuntu builds.
       - name: Run Actions Cleaner
         if: matrix.os == 'ubuntu-latest'
