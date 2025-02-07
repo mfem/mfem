@@ -51,7 +51,20 @@ LUTColorBar.Title = 'min det(J)'
 # LUT.RescaleTransferFunction(-0.0002, 2.1)
 solutionDisplay.SetScalarBarVisibility(renderView1, False)
 outpath = path.replace('.pvd', f'_detj.jpg')
-SaveScreenshot(outpath, renderView1, ImageResolution=[600, 600])
+
+renderView1.CameraPosition = [0.4693038985133171, 0.47868532687425613, 3.5841201523072455]
+renderView1.CameraFocalPoint = [0.4693038985133171, 0.47868532687425613, 0.0]
+renderView1.CameraParallelScale = 0.75
+
+# contour1 = Contour(Input=solution)
+# contour1.Isosurfaces = [-7.60548e-05, 0.08307875068, 0.16623355616, 0.24938836164, 0.33254316712,
+#                         0.41569797259999997, 0.49885277808, 0.58200758356, 0.66516238904, 0.74831719452, 0.831472]
+# contour1Display = Show(contour1, renderView1, 'GeometryRepresentation')
+# ColorBy(contour1Display, None)
+# contour1Display.LineWidth = 2.0
+
+
+SaveScreenshot(outpath, renderView1, ImageResolution=[1600, 1600])
 
 
 csv_file = CSVReader(FileName=['/Users/mittal3/LLNL/mfem-detJ/mfem/examples/single_quad_nodes.txt'])
@@ -66,7 +79,7 @@ pointDisplay.PointSize = 10
 pointDisplay.RenderPointsAsSpheres = 1
 ColorBy(pointDisplay, ("POINTS", "color"))
 outpath = path.replace('.pvd', f'_nodes.jpg')
-SaveScreenshot(outpath, renderView1, ImageResolution=[600, 600])
+SaveScreenshot(outpath, renderView1, ImageResolution=[1600, 1600])
 Hide(tableToPoints, renderView1)
 
 
@@ -84,7 +97,7 @@ for qo in range(2,20):
     pointDisplay2.RenderPointsAsSpheres = 1
     ColorBy(pointDisplay2, ("POINTS", "color"))
     outpath = path.replace('.pvd', f'_qp_{qo}.jpg')
-    SaveScreenshot(outpath, renderView1, ImageResolution=[600, 600])
+    SaveScreenshot(outpath, renderView1, ImageResolution=[1600, 1600])
     Hide(tableToPoints2, renderView1)
 
 
@@ -93,4 +106,4 @@ for t in range(1,4):
     animationScene1.GoToNext()
     LUT.RescaleTransferFunctionToDataRange()
     outpath = path.replace('.pvd', f'_detj_time_{t}.jpg')
-    SaveScreenshot(outpath, renderView1, ImageResolution=[600, 600])
+    SaveScreenshot(outpath, renderView1, ImageResolution=[1600, 1600])

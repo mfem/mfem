@@ -21,7 +21,7 @@ solvtuDisplay.SetScalarBarVisibility(renderView1, False)
 
 ColorBy(solvtuDisplay, ('POINTS', 'u'))
 uLUT = GetColorTransferFunction('u')
-uLUT.ApplyPreset('Rainbow Desaturated', True)
+uLUT.ApplyPreset('Rainbow Uniform', True)
 uLUT.NumberOfTableValues = 10
 
 # create a new 'Contour'
@@ -78,6 +78,7 @@ lbounds_3Display.PointSize = 4
 renderView1.CameraParallelScale = 0.8
 renderView1.CameraPosition = [0.5, 0.5, 3.2037576157783714]
 renderView1.CameraFocalPoint = [0.5, 0.5, 0.47777678503189236]
+renderView1.CameraViewUp = [0,1,0]
 renderView1.CameraParallelScale = 0.8536982642537119
 
 outpath = boundpath.replace('.vtu', f'_bound_recursion.jpg')
