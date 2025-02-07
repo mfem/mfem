@@ -2731,11 +2731,8 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    C.GetDiag(D);
    D.HostRead();
 
-   C.HostReadI();
-   C.HostReadJ();
-   C.HostReadWriteData();
-   const int *I = C.GetI(), *J = C.GetJ();
-   real_t *V = C.GetData();
+   const int *I = C.HostReadI(), *J = C.HostReadJ();
+   real_t *V = C.HostReadWriteData();
    for (int i=0; i<n; ++i)
    {
       for (int j=I[i]; j<I[i+1]; ++j)
@@ -2888,12 +2885,9 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
    }
 
    int nrows = A.Height();
-   A.HostReadI();
-   A.HostReadJ();
-   A.HostReadData();
-   const int *I = A.GetI();
-   const int *J = A.GetJ();
-   const real_t *V = A.GetData();
+   const int *I = A.HostReadI();
+   const int *J = A.HostReadJ();
+   const real_t *V = A.HostReadData();
    int nnz = 0;
    int nblockrows = nrows / block_size;
 
