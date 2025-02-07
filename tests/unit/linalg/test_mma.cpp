@@ -25,7 +25,7 @@ real_t obj0(mfem::Vector& x)
 
 #ifdef MFEM_USE_MPI
    real_t grez;
-   MPI_Allreduce(&rez, &grez, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
    rez = grez;
 #endif
 
@@ -43,7 +43,7 @@ real_t dobj0(mfem::Vector& x, mfem::Vector& dx)
    }
 #ifdef MFEM_USE_MPI
    real_t grez;
-   MPI_Allreduce(&rez, &grez, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
    rez = grez;
 #endif
 
@@ -63,7 +63,7 @@ real_t g0(mfem::Vector& x)
 #ifdef MFEM_USE_MPI
    real_t grez;
    MPI_Allreduce(&n, &gn, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&rez, &grez, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
    rez = grez;
 #endif
 
@@ -89,7 +89,7 @@ real_t dg0(mfem::Vector& x, mfem::Vector& dx)
 
 #ifdef MFEM_USE_MPI
    real_t grez;
-   MPI_Allreduce(&rez, &grez, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
    rez = grez;
 #endif
 

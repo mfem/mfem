@@ -15,9 +15,13 @@
 #include <math.h>
 
 #ifdef MFEM_USE_LAPACK
-extern "C" void dgesv_(int* nLAP, int* nrhs, mfem::real_t* AA, int* lda,
+extern "C" void dgesv_(int* nLAP, int* nrhs, double* AA, int* lda,
                        int* ipiv,
-                       mfem::real_t* bb, int* ldb, int* info);
+                       double* bb, int* ldb, int* info);
+
+extern "C" void sgesv_(int* nLAP, int* nrhs, float* AA, int* lda,
+                       int* ipiv,
+                       float* bb, int* ldb, int* info);
 #endif
 
 namespace mfem
@@ -375,7 +379,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
    std::copy(b_local, b_local + ncon, b);
 
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(b_local, b, ncon, MPI_DOUBLE, MPI_SUM, mma->comm);
+   MPI_Allreduce(b_local, b, ncon, MPITypeMap<real_t>::mpi_type, MPI_SUM, mma->comm);
 #endif
 
    for (int i = 0; i < ncon; i++)
@@ -460,7 +464,7 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
       std::copy(gvec_local, gvec_local + ncon, gvec);
 
 #ifdef MFEM_USE_MPI
-      MPI_Allreduce(gvec_local, gvec, ncon, MPI_DOUBLE, MPI_SUM, mma->comm);
+      MPI_Allreduce(gvec_local, gvec, ncon, MPITypeMap<real_t>::mpi_type, MPI_SUM, mma->comm);
 #endif
 
       if ( rank == 0)
@@ -492,8 +496,10 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
       global_max = residumax;
 
 #ifdef MFEM_USE_MPI
-      MPI_Allreduce(&residunorm, &global_norm, 1, MPI_DOUBLE, MPI_SUM, mma->comm);
-      MPI_Allreduce(&residumax, &global_max, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
+      MPI_Allreduce(&residunorm, &global_norm, 1
+                    , MPITypeMap<real_t>::mpi_type, MPI_SUM, mma->comm);
+      MPI_Allreduce(&residumax, &global_max, 1
+                    , MPITypeMap<real_t>::mpi_type, MPI_MAX, mma->comm);
 #endif
       // Norm of the residual
       residunorm = std::sqrt(global_norm);
@@ -577,7 +583,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
 
          std::copy(gvec_local, gvec_local + ncon, gvec);
 #ifdef MFEM_USE_MPI
-         MPI_Allreduce(gvec_local, gvec, ncon, MPI_DOUBLE, MPI_SUM, mma->comm);
+         MPI_Allreduce(gvec_local, gvec, ncon,
+                       MPITypeMap<real_t>::mpi_type, MPI_SUM, mma->comm);
 #endif
 
          delz = mma->a0 - epsi / mma->z;
@@ -607,7 +614,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             std::copy(sum_local, sum_local + ncon, sum_global);
 
 #ifdef MFEM_USE_MPI
-            MPI_Allreduce(sum_local, sum_global, ncon, MPI_DOUBLE, MPI_SUM, mma->comm);
+            MPI_Allreduce(sum_local, sum_global, ncon,
+                          MPITypeMap<real_t>::mpi_type, MPI_SUM, mma->comm);
 #endif
 
             for (int j = 0; j < ncon; j++)
@@ -640,7 +648,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
 
             std::copy(Alam_local, Alam_local + ncon * ncon, Alam);
 #ifdef MFEM_USE_MPI
-            MPI_Reduce(Alam_local, Alam, ncon * ncon, MPI_DOUBLE, MPI_SUM, 0, mma->comm);
+            MPI_Reduce(Alam_local, Alam, ncon * ncon,
+                       MPITypeMap<real_t>::mpi_type, MPI_SUM, 0, mma->comm);
 #endif
 
             if (0 == rank)
@@ -679,25 +688,32 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
                int lda = nLAP;
                int ldb = nLAP;
                int* ipiv = new int[nLAP];
+#if defined(MFEM_USE_DOUBLE)
                dgesv_(&nLAP, &nrhs, AA1, &lda, ipiv, bb1, &ldb, &info);
+#elif defined(MFEM_USE_SINGLE)
+               sgesv_(&nLAP, &nrhs, AA1, &lda, ipiv, bb1, &ldb, &info);
+#else
+#error "Only single and double precision are supported!"
+#endif
                if (info == 0)
                {
                   delete[] ipiv;
                }
                else if (info > 0)
                {
-                  mfem::err << "Error: matrix is singular." << std::endl;
+                  err << "Error: matrix is singular." << std::endl;
                }
                else
                {
-                  mfem::err << "Error: Argument " << info << " has illegal value." << std::endl;
+                  err << "Error: Argument " << info << " has illegal value." << std::endl;
                }
 #else
                solveLU(ncon, AA1, bb1);
 #endif
             }
 #ifdef MFEM_USE_MPI
-            MPI_Bcast(bb1, ncon + 1, MPI_DOUBLE, 0, mma->comm);
+            MPI_Bcast(bb1, ncon + 1,
+                      MPITypeMap<real_t>::mpi_type, 0, mma->comm);
 #endif
             // Reassign results
             for (int i = 0; i < ncon; i++)
@@ -793,7 +809,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          }
          stmxx_global = stmxx;
 #ifdef MFEM_USE_MPI
-         MPI_Allreduce(&stmxx, &stmxx_global, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
+         MPI_Allreduce(&stmxx, &stmxx_global, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MAX, mma->comm);
 #endif
 
          stmalfa = 0.0;
@@ -824,8 +841,10 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          stmalfa_global = stmalfa;
          stmbeta_global = stmbeta;
 #ifdef MFEM_USE_MPI
-         MPI_Allreduce(&stmalfa, &stmalfa_global, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
-         MPI_Allreduce(&stmbeta, &stmbeta_global, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
+         MPI_Allreduce(&stmalfa, &stmalfa_global, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MAX, mma->comm);
+         MPI_Allreduce(&stmbeta, &stmbeta_global, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MAX, mma->comm);
 #endif
          stminv = std::max(std::max(std::max(stmalfa_global, stmbeta_global),
                                     stmxx_global), static_cast<real_t>(1.0));
@@ -936,7 +955,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
             std::copy(gvec_local, gvec_local + ncon, gvec);
 
 #ifdef MFEM_USE_MPI
-            MPI_Allreduce(gvec_local, gvec, ncon, MPI_DOUBLE, MPI_SUM, mma->comm);
+            MPI_Allreduce(gvec_local, gvec, ncon,
+                          MPITypeMap<real_t>::mpi_type, MPI_SUM, mma->comm);
 #endif
             if (rank == 0)
             {
@@ -964,7 +984,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
 
             global_norm = resinew;
 #ifdef MFEM_USE_MPI
-            MPI_Allreduce(&resinew, &global_norm, 1, MPI_DOUBLE, MPI_SUM, mma->comm);
+            MPI_Allreduce(&resinew, &global_norm, 1,
+                          MPITypeMap<real_t>::mpi_type, MPI_SUM, mma->comm);
 #endif
 
             // Norm of the residual
@@ -981,7 +1002,8 @@ void MMA::MMASubParallel::Update(const real_t* dfdx,
          }
          global_max = residumax;
 #ifdef MFEM_USE_MPI
-         MPI_Allreduce(&residumax, &global_max, 1, MPI_DOUBLE, MPI_MAX, mma->comm);
+         MPI_Allreduce(&residumax, &global_max, 1,
+                        MPITypeMap<real_t>::mpi_type, MPI_MAX, mma->comm);
 #endif
          residumax = global_max;
          steg = steg * 2.0;
@@ -1167,17 +1189,6 @@ void MMA::Update(int iter, const real_t* dfdx,
          upp[i] = std::min(upp[i], uppmax);
       }
    }
-
-   for (int i=0; i<nVar; i++)
-   {
-      mfem::out<<" "<<low[i];
-   }
-   mfem::out<<std::endl;
-   for (int i=0; i<nVar; i++)
-   {
-      mfem::out<<" "<<upp[i];
-   }
-   mfem::out<<std::endl;
 
    mSubProblem->Update(dfdx,gx,dgdx,xmin,xmax,xval);
    // Update design variables
