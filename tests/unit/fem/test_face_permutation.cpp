@@ -195,6 +195,7 @@ real_t TestFaceRestriction(Mesh &mesh, int order)
       FunctionCoefficient coeff(fn);
       gf.ProjectCoefficient(coeff);
       restr.Mult(gf, face_values);
+      face_values.HostReadWrite();
 
       for (int i=0; i<ndof_face; ++i)
       {
