@@ -66,40 +66,6 @@ const DenseMatrix &ElementTransformation::EvalInverseJ()
    return invJ;
 }
 
-
-IntegrationPoint InverseElementTransformation::FindClosestInsidePhysPoint(
-   const Vector& pt, const IntegrationRule &ir)
-{
-   MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
-   MFEM_VERIFY(pt.Size() == T->GetSpaceDim(), "invalid point");
-   IntegrationPoint res;
-   IntegrationPoint test;
-
-   DenseMatrix physPts;
-   T->Transform(ir, physPts);
-
-   // Initialize distance and index of closest point
-   // measure of how much progress a single step would take
-   // anything above a certain amount caps at zero
-   real_t min_dir = -std::numeric_limits<real_t>::infinity();
-   real_t minDist = std::numeric_limits<real_t>::infinity();
-
-   // Check all integration points in ir
-   const int npts = ir.GetNPoints();
-   for (int i = 0; i < npts; ++i)
-   {
-      // TODO: check progress amount
-      real_t dist = pt.DistanceTo(physPts.GetColumn(i));
-      if (dist < minDist)
-      {
-         minDist = dist;
-         res = ir.IntPoint(i);
-      }
-   }
-   return res;
-}  
-
-
 int InverseElementTransformation::FindClosestPhysPoint(
    const Vector& pt, const IntegrationRule &ir)
 {
@@ -371,42 +337,48 @@ void InverseElementTransformation::BatchTransform(const Vector &pts,
                                                   const Array<int> &elems,
                                                   Array<int> &types,
                                                   Vector &refs,
-                                                  bool use_dev) {
-  MFEM_VERIFY(T != nullptr, "invalid ElementTransformation");
-  if (T->mesh->GetNodes()) {
-    // can get the FE space
-    const TensorBasisElement *tbe = dynamic_cast<const TensorBasisElement *>(
-        T->mesh->GetNodes()->FESpace()->GetFE(T->ElementNo));
-    if (tbe != nullptr) {
-      // use batch algorithm
-      // return;
-    }
-  }
+                                                  bool use_dev)
+{
+   MFEM_VERIFY(T != nullptr, "invalid ElementTransformation");
+   if (T->mesh->GetNodes())
+   {
+      // can get the FE space
+      const TensorBasisElement *tbe = dynamic_cast<const TensorBasisElement *>(
+                                         T->mesh->GetNodes()->FESpace()->GetFE(T->ElementNo));
+      if (tbe != nullptr)
+      {
+         // use batch algorithm
+         // return;
+      }
+   }
 
-  // serial backup for general non-tensor product case
-  {
-    IntegrationPoint res;
-    int ndims = T->GetDimension();
-    mfem::Vector pt(T->GetDimension());
-    auto npts = elems.Size();
-    for (int i = 0; i < npts; ++i) {
-      for (int d = 0; d < ndims; ++d) {
-        pt(d) = pts(i + d * npts);
+   // serial backup for general non-tensor product case
+   {
+      IntegrationPoint res;
+      int ndims = T->GetDimension();
+      mfem::Vector pt(T->GetDimension());
+      auto npts = elems.Size();
+      for (int i = 0; i < npts; ++i)
+      {
+         for (int d = 0; d < ndims; ++d)
+         {
+            pt(d) = pts(i + d * npts);
+         }
+         types[i] = Transform(pt, res);
+         switch (ndims)
+         {
+            case 3:
+               refs(i+2*npts) = res.z;
+            case 2:
+               refs(i+npts) = res.y;
+            case 1:
+               refs(i) = res.x;
+               break;
+            default:
+               MFEM_ABORT("invalid ndims");
+         }
       }
-      types[i] = Transform(pt, res);
-      switch (ndims) {
-      case 3:
-        refs(i+2*npts) = res.z;
-      case 2:
-        refs(i+npts) = res.y;
-      case 1:
-        refs(i) = res.x;
-        break;
-      default:
-        MFEM_ABORT("invalid ndims");
-      }
-    }
-  }
+   }
 }
 
 int InverseElementTransformation::Transform(const Vector &pt,
@@ -449,7 +421,25 @@ int InverseElementTransformation::Transform(const Vector &pt,
          else
          {
             auto &ir = *refiner.EdgeScan(T->GetGeometryType(), order + 1);
-            ip0 = FindClosestInsidePhysPoint(pt, ir);
+            int res = Outside;
+            int npts = ir.GetNPoints();
+            // will only return Outside if all test points report Outside
+            for (int i = 0; i < npts; ++i)
+            {
+               ip0 = ir.IntPoint(i);
+               int tmp_res = NewtonSolve(pt, ip);
+               switch (tmp_res)
+               {
+                  case Inside:
+                     return Inside;
+                  case Outside:
+                     break;
+                  case Unknown:
+                     res = Unknown;
+                     break;
+               }
+            }
+            return res;
          }
          break;
       }

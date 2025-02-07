@@ -1785,7 +1785,7 @@ const IntegrationRule *GeometryRefiner::EdgeScan(Geometry::Type Geom,
    }
    else
    {
-     res = iter->second.get();
+      res = iter->second.get();
    }
    return res;
 }

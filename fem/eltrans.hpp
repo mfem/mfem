@@ -210,13 +210,10 @@ public:
          grid of type and size controlled by SetInitGuessPointsType() and
          SetInitGuessRelOrder(), respectively. */
       GivenPoint = 3, ///< Use a specific point, set with SetInitialGuess().
-      EdgeScan = 4, /**< Use the point returned by FindClosestInsidePhysPoint()
-          from a reference-space scan of type and size controlled by
-          SetInitGuessPointsType() and SetInitGuessRelOrder(), respectively.
-          The points chosen lie somewhere along the boundary of the element.
-          For example, in triangle and square elements points (x,0) and (0,x)
-          are tested, while in tets and cubes points (x,0,0), (0,x,0), and (0,0,x)
-          are tested, where x are given by GeometryRefiner::EdgeScan.
+      EdgeScan = 4, /**< Performs full solves on multiple points along the edges
+          of the element. It is recommended that SetInitGuessRelOrder() is chosen
+          such that max(trans_order+order,0)+1 <= 4 with SetInitGuessPointsType()
+          as Quadrature1D::ClosedUniform.
           @see GeometryRefiner::EdgeScan */
    };
 
@@ -300,8 +297,8 @@ public:
         solver_type(NewtonElementProject),
         max_iter(16),
 #ifdef MFEM_USE_DOUBLE
-        ref_tol(2e-15),
-        phys_rtol(2e-15),
+        ref_tol(4e-15),
+        phys_rtol(4e-15),
         ip_tol(1e-8),
 #elif defined(MFEM_USE_SINGLE)
         ref_tol(1e-6),
@@ -357,22 +354,6 @@ public:
        1 - print the first and last iterations; 2 - print every iteration;
        and 3 - print every iteration including point coordinates. */
    void SetPrintLevel(int pr_level) { print_level = pr_level; }
-
-   /** @brief Find an IntegrationPoint which likely can make meaningful progress
-    * to @a pt. */
-   /** This function uses the given IntegrationRule, @a ir, maps its points to
-       physical space and finds the one can make meaningful progress towards @a
-       pt and is relatively nearby in physical space.
-       Meaningful progress is checked by examining how well the first Newton
-       iteration performs. It is recommended to use only with points on the
-       element boundary.
-
-       @param pt  The query point.
-       @param ir  The IntegrationRule, i.e. the set of reference points to map
-                  to physical space and check.
-       @see FindClosestPhysPoint(). */
-   IntegrationPoint FindClosestInsidePhysPoint(const Vector &pt,
-                                               const IntegrationRule &ir);
 
    /** @brief Find the IntegrationPoint mapped closest to @a pt. */
    /** This function uses the given IntegrationRule, @a ir, maps its points to
