@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1034,7 +1034,7 @@ void BilinearForm::ComputeElementMatrices()
    }
 
    int num_elements = fes->GetNE();
-   int num_dofs_per_el = fes->GetFE(0)->GetDof() * fes->GetVDim();
+   int num_dofs_per_el = fes->GetTypicalFE()->GetDof() * fes->GetVDim();
 
    element_matrices.reset(new DenseTensor(num_dofs_per_el, num_dofs_per_el,
                                           num_elements));

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -782,7 +782,7 @@ int main (int argc, char *argv[])
 
    // Perform the nonlinear optimization.
    const IntegrationRule &ir =
-      irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
+      irules->Get(pmesh->GetTypicalElementGeometry(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
    if (surface_fit_adapt > 0.0)
    {

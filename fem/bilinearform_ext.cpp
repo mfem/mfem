@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -863,7 +863,7 @@ void EABilinearFormExtension::Assemble()
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
    ne = trial_fes->GetMesh()->GetNE();
-   elemDofs = trial_fes->GetFE(0)->GetDof();
+   elemDofs = trial_fes->GetTypicalFE()->GetDof();
 
    Vector ea_data_tmp;
 
@@ -920,9 +920,7 @@ void EABilinearFormExtension::Assemble()
       }
    }
 
-   faceDofs = trial_fes ->
-              GetTraceElement(0, trial_fes->GetMesh()->GetFaceGeometry(0)) ->
-              GetDof();
+   faceDofs = trial_fes->GetTypicalTraceElement()->GetDof();
 
    {
       Array<BilinearFormIntegrator*> &bdr_integs = *a->GetBBFI();
