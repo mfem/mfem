@@ -241,7 +241,18 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh.Print(mesh_ofs);
+      if (dim < 3 && pmesh.SpaceDimension() < 3)
+      {
+         //When using ND_R1D or ND_R2D elements, embed the 1D/2D mesh in 3D
+         //space using SetCurvature.
+         mfem::ParMesh mesh_3d(pmesh);
+         mesh_3d.SetCurvature(order,false,3);
+         mesh_3d.Print(mesh_ofs);
+      }
+      else
+      {
+         pmesh.Print(mesh_ofs);
+      }
 
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
