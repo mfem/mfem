@@ -245,6 +245,10 @@ protected:
    mutable Table *face_to_elem;  // Used by FindFaceNeighbors, not returned.
    mutable Table *face_edge;     // Returned by GetFaceEdgeTable().
    mutable Table *edge_vertex;   // Returned by GetEdgeVertexTable().
+   mutable Table *vertex_to_el;
+   mutable Table *vertex_to_face;
+   mutable Table *face_to_vertex;
+   mutable Table *vertex_to_edge;
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
@@ -1553,6 +1557,30 @@ public:
        GetElementEdges/GetBdrElementEdges. */
    void GetBdrElementFace(int i, int *f, int *o) const;
 
+   /// Return the indices of the faces connected to vertex vi.
+   void FacesWithVert(Array<int> &faces, int vi);
+
+   /// Return the indices of the elements connected to vertex vi.
+   void ElemsWithVert(Array<int> &elems, int vi);
+
+   /// Return the indices of the edges conected to vertex vi.
+   void EdgesWithVert(Array<int> &edges, int vi);
+
+   /** @brief Return the indices of the elements with all of their vertices
+       covered in the @a verts array. */
+   void ElemsWithAllVerts(Array<int> &elems, const Array<int> &verts);
+
+   /** @brief Return the indices of the faces with all of their vertices
+       covered in the @a verts array. */   
+   void FacesWithAllVerts(Array<int> &faces, const Array<int> &verts);
+
+   /** @brief Return the indices of the edges with all of their vertices
+       covered in the @a verts array. */   
+   void EdgesWithAllVerts(Array<int> &edges, const Array<int> &verts);
+
+   /// Return the edges found in the list of boundary elements
+   void EdgesInBdrElems(Array<int> &edges, const Array<int> &belems);
+
    /** @brief For the given boundary element, bdr_el, return its adjacent
        element and its info, i.e. 64*local_bdr_index+bdr_orientation.
 
@@ -1603,10 +1631,19 @@ public:
    /// @{
 
    /// @note The returned Table should be deleted by the caller
-   Table *GetVertexToElementTable();
+   Table *GetVertexToElementTable() const;
 
    /// @note The returned Table should be deleted by the caller
    Table *GetVertexToBdrElementTable();
+
+   /// Returns the vertex-to-edge Table (3D)
+   Table *GetVertexToEdgeTable() const;
+
+   /// Returns the vertex-to-face Table (3D)
+   Table *GetVertexToFaceTable() const;
+
+   /// Returns the face_to_vertex Table (3D)
+   Table *GetFaceToVertexTable() const;
 
    /// Return the "face"-element Table. Here "face" refers to face (3D),
    /// edge (2D), or vertex (1D).
