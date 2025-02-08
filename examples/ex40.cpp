@@ -2,53 +2,56 @@
 //
 // Compile with: make ex40
 //
-// Sample runs: ex40 -step 10 -gr 2.0
-//              ex40 -step 10 -gr 2.0 -o 3 -r 1
-//              ex40 -step 10 -gr 2.0 -r 4 -m ../data/l-shape.mesh
-//              ex40 -step 10 -gr 2.0 -r 2 -m ../data/fichera.mesh
+// Sample runs: ex40 -step 10.0 -gr 2.0
+//              ex40 -step 10.0 -gr 2.0 -o 3 -r 1
+//              ex40 -step 10.0 -gr 2.0 -r 4 -m ../data/l-shape.mesh
+//              ex40 -step 10.0 -gr 2.0 -r 2 -m ../data/fichera.mesh
 //
 // Description: This example code demonstrates how to use MFEM to solve the
 //              eikonal equation,
 //
-//                      |∇𝑢| = 1 in Ω,  𝑢 = g on ∂Ω.
+//                      |∇𝑢| = 1 in Ω,  𝑢 = 0 on ∂Ω.
 //
-//              The solution of this problem coincides with the unique optimum of
-//              the nonlinear program
+//              The viscosity solution of this problem coincides with the unique optimum
+//              of the nonlinear program
 //
-//                   maximize ∫_Ω 𝑢 d𝑥 subject to |∇𝑢| ≤ 1,   𝑢 = g on Ω,      (⋆)
+//                   maximize ∫_Ω 𝑢 d𝑥 subject to |∇𝑢| ≤ 1 in Ω, 𝑢 = 0 on ∂Ω,    (⋆)
 //
 //              which is the foundation for method implemented below.
 //
-//              Following the proximal Galerkin methodology [1] (see also Example
-//              36), we construct a Legendre function for the unit ball
-//              𝐵₁ := {𝑥 ∈ Rⁿ | |𝑥| < 1}. Our choice is the Hellinger entropy,
+//              Following the proximal Galerkin methodology [1,2] (see also Example
+//              36), we construct a Legendre function for the closed unit ball
+//              𝐵₁ := {𝑥 ∈ Rⁿ | |𝑥| ≤ 1}. Our choice is the Hellinger entropy,
 //
-//                    h(𝑥) = −( 1 − |𝑥|² )^{1/2},
+//                    R(𝑥) = −( 1 − |𝑥|² )^{1/2},
 //
 //              although other choices are possible, each leading to a slightly
 //              different algorithm. We then adaptively regularize the optimization
 //              problem (⋆) with the Bregman divergence of the Hellinger entropy,
 //
-//                 maximize  ∫_Ω 𝑢 d𝑥 - αₖ⁻¹ Dₕ(∇𝑢,∇𝑢ₖ₋₁)  subject to  𝑢 = g on Ω.
+//                 maximize  ∫_Ω 𝑢 d𝑥 - αₖ⁻¹ D(∇𝑢,∇𝑢ₖ₋₁)  subject to  𝑢 = 0 on Ω.
 //
 //              This results in a sequence of functions ( 𝜓ₖ , 𝑢ₖ ),
 //
-//                      𝑢ₖ → 𝑢,    𝜓ₖ/|𝜓ₖ| → ∇𝑢    as k → \infty,
+//                      𝑢ₖ → 𝑢,    𝜓ₖ/|𝜓ₖ| → ∇𝑢    as k → ∞,
 //
 //              defined by the nonlinear saddle-point problems
 //
 //               Find 𝜓ₖ ∈ H(div,Ω) and 𝑢ₖ ∈ L²(Ω) such that
-//               ( Zₖ(𝜓ₖ) , τ ) + ( 𝑢ₖ , ∇⋅τ ) = ⟨ g , τ⋅n ⟩         ∀ τ ∈ H(div,Ω)
-//               ( ∇⋅𝜓ₖ , v )                 = ( ∇⋅𝜓ₖ₋₁ - 1 , v )   ∀ v ∈ L²(Ω)
+//               ( (∇R)⁻¹(𝜓ₖ) , τ ) + ( 𝑢ₖ , ∇⋅τ ) = 0                     ∀ τ ∈ H(div,Ω)
+//               ( ∇⋅𝜓ₖ , v )                     = ( ∇⋅𝜓ₖ₋₁ - αₖ , v )    ∀ v ∈ L²(Ω)
 //
-//              where Zₖ(𝜓) := ∇h⁻¹(αₖ 𝜓) = 𝜓 / ( αₖ⁻² + |𝜓|² )^{1/2} and step size
-//              αₖ > 0. These saddle-point problems are solved using a damped Newton's
-//              method. This example assumes that g = 0 and allows the step size to
-//              grow geometrically, αₖ = α₀rᵏ, where r ≥ 1 is the growth rate.
+//              where (∇R)⁻¹(𝜓) = 𝜓 / ( 1 + |𝜓|² )^{1/2} and αₖ = α₀rᵏ, where r ≥ 1
+//              is a prescribed growth rate. (r = 1 is the most stable.) The
+//              saddle-point problems are solved using a damped quasi-Newton method
+//              with a tunable regularization parameter 0 ≤ ϵ << 1.
 //
-//              [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
+//              [1] Keith, B. and Surowiec, T. (2024) Proximal Galerkin: A structure-
 //                  preserving finite element method for pointwise bound constraints.
-//                  arXiv:2307.12444 [math.NA]
+//                  Foundations of Computational Mathematics, 1–97.
+//              [2] Dokken, J., Farrell, P., Keith, B., Papadopoulos, I., and
+//                  Surowiec, T. (2025) The latent variable proximal point algorithm
+//                  for variational problems with inequality constraints. (To appear.)
 
 #include "mfem.hpp"
 #include <fstream>
@@ -57,36 +60,33 @@
 using namespace std;
 using namespace mfem;
 
-class ZCoefficient : public VectorCoefficient
+class IsomorphismCoefficient : public VectorCoefficient
 {
 protected:
    GridFunction *psi;
-   real_t alpha;
 
 public:
-   ZCoefficient(int vdim, GridFunction &psi_, real_t alpha_ = 1.0)
-      : VectorCoefficient(vdim), psi(&psi_), alpha(alpha_) { }
+   IsomorphismCoefficient(int vdim, GridFunction &psi_)
+      : VectorCoefficient(vdim), psi(&psi_) { }
 
    using VectorCoefficient::Eval;
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override;
-   void SetAlpha(real_t alpha_) { alpha = alpha_; }
 };
 
-class DZCoefficient : public MatrixCoefficient
+class DIsomorphismCoefficient : public MatrixCoefficient
 {
 protected:
    GridFunction *psi;
-   real_t alpha;
+   real_t eps;
 
 public:
-   DZCoefficient(int height, GridFunction &psi_, real_t alpha_ = 1.0)
-      : MatrixCoefficient(height),  psi(&psi_), alpha(alpha_) { }
+   DIsomorphismCoefficient(int height, GridFunction &psi_, real_t eps_ = 0.0)
+      : MatrixCoefficient(height),  psi(&psi_), eps(eps_) { }
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip) override;
-   void SetAlpha(real_t alpha_) { alpha = alpha_; }
 };
 
 int main(int argc, char *argv[])
@@ -98,8 +98,8 @@ int main(int argc, char *argv[])
    int ref_levels = 3;
    real_t alpha = 1.0;
    real_t growth_rate = 1.0;
-   real_t newton_scaling = 0.9;
-   real_t tichonov = 1e-1;
+   real_t newton_scaling = 0.8;
+   real_t eps = 1e-6;
    real_t tol = 1e-4;
    bool visualization = true;
 
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
    int sdim = mesh.SpaceDimension();
 
    MFEM_ASSERT(mesh.bdr_attributes.Size(),
-               "This example does not currently support meshes"
+               "This example does not support meshes"
                " without boundary attributes."
               )
 
@@ -202,12 +202,10 @@ int main(int argc, char *argv[])
    }
 
    // 9. Coefficients to be used later.
-   ConstantCoefficient neg_one(-1.0);
-   ConstantCoefficient zero(0.0);
-   ConstantCoefficient tichonov_cf(tichonov);
-   ConstantCoefficient neg_tichonov_cf(-1.0*tichonov);
-   ZCoefficient Z(sdim, psi_gf, alpha);
-   DZCoefficient DZ(sdim, psi_gf, alpha);
+   ConstantCoefficient neg_alpha_cf((real_t) -1.0*alpha);
+   ConstantCoefficient zero_cf(0.0);
+   IsomorphismCoefficient Z(sdim, psi_gf);
+   DIsomorphismCoefficient DZ(sdim, psi_gf, eps);
    ScalarVectorProductCoefficient neg_Z(-1.0, Z);
    DivergenceGridFunctionCoefficient div_psi_cf(&psi_gf);
    DivergenceGridFunctionCoefficient div_psi_old_cf(&psi_old_gf);
@@ -219,12 +217,11 @@ int main(int argc, char *argv[])
    b1.MakeRef(&L2fes,rhs.GetBlock(1),0);
 
    b0.AddDomainIntegrator(new VectorFEDomainLFIntegrator(neg_Z));
-   b1.AddDomainIntegrator(new DomainLFIntegrator(neg_one));
+   b1.AddDomainIntegrator(new DomainLFIntegrator(neg_alpha_cf));
    b1.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
 
    BilinearForm a00(&RTfes);
    a00.AddDomainIntegrator(new VectorFEMassIntegrator(DZ));
-   a00.AddDomainIntegrator(new VectorFEMassIntegrator(tichonov_cf));
 
    MixedBilinearForm a10(&RTfes,&L2fes);
    a10.AddDomainIntegrator(new VectorFEDivergenceIntegrator());
@@ -232,12 +229,6 @@ int main(int argc, char *argv[])
    a10.Finalize();
    SparseMatrix &A10 = a10.SpMat();
    SparseMatrix *A01 = Transpose(A10);
-
-   BilinearForm a11(&L2fes);
-   a11.AddDomainIntegrator(new MassIntegrator(neg_tichonov_cf));
-   a11.Assemble();
-   a11.Finalize();
-   SparseMatrix &A11 = a11.SpMat();
 
    // 11. Iterate.
    int k;
@@ -247,8 +238,6 @@ int main(int argc, char *argv[])
    for (k = 0; k < max_it; k++)
    {
       u_tmp = u_old_gf;
-      Z.SetAlpha(alpha);
-      DZ.SetAlpha(alpha);
 
       mfem::out << "\nOUTER ITERATION " << k+1 << endl;
 
@@ -283,13 +272,12 @@ int main(int argc, char *argv[])
          A.SetBlock(0,0,&A00);
          A.SetBlock(1,0,&A10);
          A.SetBlock(0,1,A01);
-         A.SetBlock(1,1,&A11);
 
-         GMRES(A,prec,rhs,x,0,2000,500,1e-12,0.0);
+         MINRES(A,prec,rhs,x,0,2000,1e-12);
          delete S;
 
          u_tmp -= u_gf;
-         real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
+         real_t Newton_update_size = u_tmp.ComputeL2Error(zero_cf);
          u_tmp = u_gf;
 
          // Damped Newton update
@@ -312,7 +300,7 @@ int main(int argc, char *argv[])
 
       u_tmp = u_gf;
       u_tmp -= u_old_gf;
-      increment_u = u_tmp.ComputeL2Error(zero);
+      increment_u = u_tmp.ComputeL2Error(zero_cf);
 
       mfem::out << "Number of Newton iterations = " << j+1 << endl;
       mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_u << endl;
@@ -326,6 +314,7 @@ int main(int argc, char *argv[])
       }
 
       alpha *= max(growth_rate, 1_r);
+      neg_alpha_cf.constant = -alpha;
 
    }
 
@@ -338,36 +327,35 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void ZCoefficient::Eval(Vector &V, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+void IsomorphismCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                  const IntegrationPoint &ip)
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
-   MFEM_ASSERT(alpha > 0, "alpha is not positive");
 
    Vector psi_vals(vdim);
    psi->GetVectorValue(T, ip, psi_vals);
    real_t norm = psi_vals.Norml2();
-   real_t phi = 1.0 / sqrt(1.0/(alpha*alpha) + norm*norm);
+   real_t phi = 1.0 / sqrt(1.0 + norm*norm);
 
    V = psi_vals;
    V *= phi;
 }
 
-void DZCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                         const IntegrationPoint &ip)
+void DIsomorphismCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
+                                   const IntegrationPoint &ip)
 {
    MFEM_ASSERT(psi != NULL, "grid function is not set");
-   MFEM_ASSERT(alpha > 0, "alpha is not positive");
+   MFEM_ASSERT(eps >= 0, "eps is negative");
 
    Vector psi_vals(height);
    psi->GetVectorValue(T, ip, psi_vals);
    real_t norm = psi_vals.Norml2();
-   real_t phi = 1.0 / sqrt(1.0/(alpha*alpha) + norm*norm);
+   real_t phi = 1.0 / sqrt(1.0 + norm*norm);
 
    K = 0.0;
    for (int i = 0; i < height; i++)
    {
-      K(i,i) = phi;
+      K(i,i) = phi + eps;
       for (int j = 0; j < height; j++)
       {
          K(i,j) -= psi_vals(i) * psi_vals(j) * pow(phi, 3);
