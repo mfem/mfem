@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -25,8 +25,11 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer
-PAR_MINIAPPS =
+SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
+	tmop-check-metric tmop-metric-magnitude
+
+PAR_MINIAPPS = nodal-transfer plor-transfer
+
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -60,6 +63,10 @@ display-basis: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
 
+tmop-metric-magnitude: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
+
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
@@ -75,8 +82,9 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test,$<,, Tools miniapp)
 
 # Testing: Specific execution options
-# Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer
-NO_TEST_APPS = display-basis load-dc convert-dc get-values lor-transfer
+# Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer, plor-transfer
+NO_TEST_APPS = display-basis load-dc convert-dc get-values lor-transfer \
+	plor-transfer tmop-check-metric tmop-metric-magnitude
 $(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 
@@ -93,4 +101,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
+	@rm -rf mesh_* gridfunc_*
 	@true

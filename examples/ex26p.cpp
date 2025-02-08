@@ -40,7 +40,7 @@ using namespace mfem;
 class DiffusionMultigrid : public GeometricMultigrid
 {
 private:
-   ConstantCoefficient one;
+   ConstantCoefficient coeff;
    HypreBoomerAMG* amg;
 
 public:
@@ -48,13 +48,13 @@ public:
    // and the array of essential boundaries
    DiffusionMultigrid(ParFiniteElementSpaceHierarchy& fespaces,
                       Array<int>& ess_bdr)
-      : GeometricMultigrid(fespaces), one(1.0)
+      : GeometricMultigrid(fespaces, ess_bdr), coeff(1.0)
    {
-      ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0), ess_bdr);
+      ConstructCoarseOperatorAndSolver(fespaces.GetFESpaceAtLevel(0));
 
       for (int level = 1; level < fespaces.GetNumLevels(); ++level)
       {
-         ConstructOperatorAndSmoother(fespaces.GetFESpaceAtLevel(level), ess_bdr);
+         ConstructOperatorAndSmoother(fespaces.GetFESpaceAtLevel(level), level);
       }
    }
 
@@ -64,7 +64,7 @@ public:
    }
 
 private:
-   void ConstructBilinearForm(ParFiniteElementSpace& fespace, Array<int>& ess_bdr,
+   void ConstructBilinearForm(ParFiniteElementSpace& fespace,
                               bool partial_assembly)
    {
       ParBilinearForm* form = new ParBilinearForm(&fespace);
@@ -72,21 +72,17 @@ private:
       {
          form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       }
-      form->AddDomainIntegrator(new DiffusionIntegrator(one));
+      form->AddDomainIntegrator(new DiffusionIntegrator(coeff));
       form->Assemble();
       bfs.Append(form);
-
-      essentialTrueDofs.Append(new Array<int>());
-      fespace.GetEssentialTrueDofs(ess_bdr, *essentialTrueDofs.Last());
    }
 
-   void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace,
-                                         Array<int>& ess_bdr)
+   void ConstructCoarseOperatorAndSolver(ParFiniteElementSpace& coarse_fespace)
    {
-      ConstructBilinearForm(coarse_fespace, ess_bdr, false);
+      ConstructBilinearForm(coarse_fespace, false);
 
       HypreParMatrix* hypreCoarseMat = new HypreParMatrix();
-      bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), *hypreCoarseMat);
+      bfs[0]->FormSystemMatrix(*essentialTrueDofs[0], *hypreCoarseMat);
 
       amg = new HypreBoomerAMG(*hypreCoarseMat);
       amg->SetPrintLevel(-1);
@@ -102,21 +98,21 @@ private:
       AddLevel(hypreCoarseMat, pcg, true, true);
    }
 
-   void ConstructOperatorAndSmoother(ParFiniteElementSpace& fespace,
-                                     Array<int>& ess_bdr)
+   void ConstructOperatorAndSmoother(ParFiniteElementSpace& fespace, int level)
    {
-      ConstructBilinearForm(fespace, ess_bdr, true);
+      const Array<int> &ess_tdof_list = *essentialTrueDofs[level];
+      ConstructBilinearForm(fespace, true);
 
       OperatorPtr opr;
       opr.SetType(Operator::ANY_TYPE);
-      bfs.Last()->FormSystemMatrix(*essentialTrueDofs.Last(), opr);
+      bfs.Last()->FormSystemMatrix(ess_tdof_list, opr);
       opr.SetOperatorOwner(false);
 
       Vector diag(fespace.GetTrueVSize());
       bfs.Last()->AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag,
-                                                       *essentialTrueDofs.Last(), 2, fespace.GetParMesh()->GetComm());
+      Solver* smoother = new OperatorChebyshevSmoother(
+         *opr, diag, ess_tdof_list, 2, fespace.GetParMesh()->GetComm());
 
       AddLevel(opr.Ptr(), smoother, true, true);
    }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,12 +30,11 @@
 //
 // Compile with: make convert-dc
 //
-// Serial sample runs:
-//    convert-dc -s ../../examples/Example5 -st visit -o Example5_Conduit -ot json
+// Serial sample run (requires MFEM_USE_CONDUIT=YES):
+//  > convert-dc -s ../../examples/Example5 -st visit -o Example5_Conduit -ot json
 //
-// Parallel sample runs:
-//    mpirun -np 4 convert-dc -s ../../examples/Example5-Parallel -st visit
-//                            -o Example5-Parallel_Conduit -ot json
+// Parallel sample run (requires MFEM_USE_CONDUIT=YES):
+//  > mpirun -np 4 convert-dc -s ../../examples/Example5-Parallel -st visit -o Example5-Parallel_Conduit -ot json
 
 #include "mfem.hpp"
 
@@ -190,7 +189,7 @@ int main(int argc, char *argv[])
    src_dc->SetPadDigitsRank(src_pad_digits_rank);
    src_dc->Load(src_cycle);
 
-   if (src_dc->Error() != DataCollection::NO_ERROR)
+   if (src_dc->Error() != DataCollection::No_Error)
    {
       mfem::out << "Error loading data collection: "
                 << src_coll_name
@@ -227,7 +226,7 @@ int main(int argc, char *argv[])
 
    out_dc->Save();
 
-   if (out_dc->Error() != DataCollection::NO_ERROR)
+   if (out_dc->Error() != DataCollection::No_Error)
    {
       mfem::out << "Error saving data collection: "
                 << out_coll_name

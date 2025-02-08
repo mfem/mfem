@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "../intrules.hpp"
 #include "../geom.hpp"
+#include "../doftrans.hpp"
 
 #include <map>
 
@@ -127,11 +128,10 @@ public:
    }
 };
 
-
 /** @brief Structure representing the matrices/tensors needed to evaluate (in
     reference space) the values, gradients, divergences, or curls of a
-    FiniteElement at a the quadrature points of a given IntegrationRule. */
-/** Object of this type are typically created and owned by the respective
+    FiniteElement at the quadrature points of a given IntegrationRule. */
+/** Objects of this type are typically created and owned by the respective
     FiniteElement object. */
 class DofToQuad
 {
@@ -157,9 +157,13 @@ public:
           dimensions using 1D number of quadrature points and degrees of
           freedom. */
       /** When representing a vector-valued FiniteElement, two DofToQuad objects
-          are used to describe the "closed" and "open" 1D basis functions
-          (TODO). */
-      TENSOR
+          are used to describe the "closed" and "open" 1D basis functions. */
+      TENSOR,
+
+      /** @brief Full multidimensional representation which does not use tensor
+          product structure. The ordering of the degrees of freedom is the
+          same as TENSOR, but the sizes of B and G are the same as FULL.*/
+      LEXICOGRAPHIC_FULL
    };
 
    /// Describes the contents of the #B, #Bt, #G, and #Gt arrays, see #Mode.
@@ -176,26 +180,26 @@ public:
    /// Basis functions evaluated at quadrature points.
    /** The storage layout is column-major with dimensions:
        - #nqpt x #ndof, for scalar elements, or
-       - #nqpt x dim x #ndof, for vector elements, (TODO)
+       - #nqpt x dim x #ndof, for vector elements,
 
        where
 
        - dim = dimension of the finite element reference space when #mode is
          FULL, and dim = 1 when #mode is TENSOR. */
-   Array<double> B;
+   Array<real_t> B;
 
    /// Transpose of #B.
    /** The storage layout is column-major with dimensions:
        - #ndof x #nqpt, for scalar elements, or
-       - #ndof x #nqpt x dim, for vector elements (TODO). */
-   Array<double> Bt;
+       - #ndof x #nqpt x dim, for vector elements. */
+   Array<real_t> Bt;
 
    /** @brief Gradients/divergences/curls of basis functions evaluated at
        quadrature points. */
    /** The storage layout is column-major with dimensions:
        - #nqpt x dim x #ndof, for scalar elements, or
-       - #nqpt x #ndof, for H(div) vector elements (TODO), or
-       - #nqpt x cdim x #ndof, for H(curl) vector elements (TODO),
+       - #nqpt x #ndof, for H(div) vector elements, or
+       - #nqpt x cdim x #ndof, for H(curl) vector elements,
 
        where
 
@@ -203,16 +207,15 @@ public:
          FULL, and 1 when #mode is TENSOR,
        - cdim = 1/1/3 in 1D/2D/3D, respectively, when #mode is FULL, and cdim =
          1 when #mode is TENSOR. */
-   Array<double> G;
+   Array<real_t> G;
 
    /// Transpose of #G.
    /** The storage layout is column-major with dimensions:
        - #ndof x #nqpt x dim, for scalar elements, or
-       - #ndof x #nqpt, for H(div) vector elements (TODO), or
-       - #ndof x #nqpt x cdim, for H(curl) vector elements (TODO). */
-   Array<double> Gt;
+       - #ndof x #nqpt, for H(div) vector elements, or
+       - #ndof x #nqpt x cdim, for H(curl) vector elements. */
+   Array<real_t> Gt;
 };
-
 
 /// Describes the function space on each element
 class FunctionSpace
@@ -247,12 +250,12 @@ protected:
    mutable int orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
-   mutable DenseMatrix vshape; // Dof x VDim
+   mutable DenseMatrix vshape; // Dof x Dim
 #endif
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
        or different DofToQuad::Mode are used. */
-   mutable Array<DofToQuad*> dof2quad_array;
+   mutable Array<DofToQuad *> dof2quad_array;
 
 public:
    /// Enumeration for range_type and deriv_range_type
@@ -261,27 +264,27 @@ public:
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
 
-       A reference function \f$ \hat u(\hat x) \f$ can be mapped to a function
-      \f$ u(x) \f$ on a general physical element in following ways:
-       - \f$ x = T(\hat x) \f$ is the image of the reference point \f$ \hat x \f$
-       - \f$ J = J(\hat x) \f$ is the Jacobian matrix of the transformation T
-       - \f$ w = w(\hat x) = det(J) \f$ is the transformation weight factor for square J
-       - \f$ w = w(\hat x) = det(J^t J)^{1/2} \f$ is the transformation weight factor in general
+       A reference function $ \hat u(\hat x) $ can be mapped to a function
+      $ u(x) $ on a general physical element in following ways:
+       - $ x = T(\hat x) $ is the image of the reference point $ \hat x $
+       - $ J = J(\hat x) $ is the Jacobian matrix of the transformation T
+       - $ w = w(\hat x) = det(J) $ is the transformation weight factor for square J
+       - $ w = w(\hat x) = det(J^t J)^{1/2} $ is the transformation weight factor in general
    */
    enum MapType
    {
       UNKNOWN_MAP_TYPE = -1, /**< Used to distinguish an unset MapType variable
                                   from the known values below. */
       VALUE,     /**< For scalar fields; preserves point values
-                          \f$ u(x) = \hat u(\hat x) \f$ */
+                          $ u(x) = \hat u(\hat x) $ */
       INTEGRAL,  /**< For scalar fields; preserves volume integrals
-                          \f$ u(x) = (1/w) \hat u(\hat x) \f$ */
+                          $ u(x) = (1/w) \hat u(\hat x) $ */
       H_DIV,     /**< For vector fields; preserves surface integrals of the
-                          normal component \f$ u(x) = (J/w) \hat u(\hat x) \f$ */
+                          normal component $ u(x) = (J/w) \hat u(\hat x) $ */
       H_CURL     /**< For vector fields; preserves line integrals of the
                           tangential component
-                          \f$ u(x) = J^{-t} \hat u(\hat x) \f$ (square J),
-                          \f$ u(x) = J(J^t J)^{-1} \hat u(\hat x) \f$ (general J) */
+                          $ u(x) = J^{-t} \hat u(\hat x) $ (square J),
+                          $ u(x) = J(J^t J)^{-1} \hat u(\hat x) $ (general J) */
    };
 
    /** @brief Enumeration for DerivType: defines which derivative method
@@ -309,19 +312,20 @@ public:
    FiniteElement(int D, Geometry::Type G, int Do, int O,
                  int F = FunctionSpace::Pk);
 
-   /// Returns the reference space dimension for the finite element
+   /// Returns the reference space dimension for the finite element.
    int GetDim() const { return dim; }
 
-   /// Returns the vector dimension for vector-valued finite elements
-   int GetVDim() const { return vdim; }
+   /** @brief Returns the vector dimension for vector-valued finite elements,
+       which is also the dimension of the interpolation operation. */
+   int GetRangeDim() const { return vdim; }
 
-   /// Returns the dimension of the curl for vector-valued finite elements
+   /// Returns the dimension of the curl for vector-valued finite elements.
    int GetCurlDim() const { return cdim; }
 
-   /// Returns the Geometry::Type of the reference element
+   /// Returns the Geometry::Type of the reference element.
    Geometry::Type GetGeomType() const { return geom_type; }
 
-   /// Returns the number of degrees of freedom in the finite element
+   /// Returns the number of degrees of freedom in the finite element.
    int GetDof() const { return dof; }
 
    /** @brief Returns the order of the finite element. In the case of
@@ -349,7 +353,6 @@ public:
        functions are mapped to physical space, one of {VALUE, INTEGRAL
        H_DIV, H_CURL}. */
    int GetMapType() const { return map_type; }
-
 
    /** @brief Returns the FiniteElement::DerivType of the element describing the
        spatial derivative method implemented, one of {NONE, GRAD,
@@ -457,8 +460,8 @@ public:
        part of the Hessian of one shape function.
        The order in 2D is {u_xx, u_xy, u_yy}.
        The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
-   virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &Hessian) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &Hessian) const;
 
    /** @brief Evaluate the Hessian of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -579,6 +582,28 @@ public:
    /** See the documentation for DofToQuad for more details. */
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
+
+
+   /** @brief Return the mapping from lexicographic face DOFs to lexicographic
+       element DOFs for the given local face @a face_id. */
+   /** Given the @a ith DOF (lexicographically ordered) on the face referenced
+       by @a face_id, face_map[i] gives the corresponding index of the DOF in
+       the element (also lexicographically ordered).
+
+       @note For L2 spaces, this is only well-defined for "closed" bases such as
+       the Gauss-Lobatto or Bernstein (positive) bases.
+
+       @warning GetFaceMap() is currently only implemented for tensor-product
+       (quadrilateral and hexahedral) elements. Its functionality may change
+       when simplex elements are supported in the future. */
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+
+   /** @brief Return a DoF transformation object for this particular type of
+       basis.
+   */
+   virtual const StatelessDofTransformation *GetDofTransformation() const
+   { return NULL; }
+
    /// Deconstruct the FiniteElement
    virtual ~FiniteElement();
 
@@ -625,26 +650,17 @@ public:
    }
 };
 
-
 /** @brief Class for finite elements with basis functions
     that return scalar values. */
 class ScalarFiniteElement : public FiniteElement
 {
 protected:
-#ifndef MFEM_THREAD_SAFE
-   mutable Vector c_shape;
-#endif
-
    static const ScalarFiniteElement &CheckScalarFE(const FiniteElement &fe)
    {
       MFEM_VERIFY(fe.GetRangeType() == SCALAR,
                   "'fe' must be a ScalarFiniteElement");
       return static_cast<const ScalarFiniteElement &>(fe);
    }
-
-   const DofToQuad &GetTensorDofToQuad(const class TensorBasisElement &tb,
-                                       const IntegrationRule &ir,
-                                       DofToQuad::Mode mode) const;
 
 public:
    /** @brief Construct ScalarFiniteElement with given
@@ -656,13 +672,8 @@ public:
     */
    ScalarFiniteElement(int D, Geometry::Type G, int Do, int O,
                        int F = FunctionSpace::Pk)
-#ifdef MFEM_THREAD_SAFE
       : FiniteElement(D, G, Do, O, F)
    { deriv_type = GRAD; deriv_range_type = VECTOR; deriv_map_type = H_CURL; }
-#else
-      : FiniteElement(D, G, Do, O, F), c_shape(dof)
-   { deriv_type = GRAD; deriv_range_type = VECTOR; deriv_map_type = H_CURL; }
-#endif
 
    /** @brief Set the FiniteElement::MapType of the element to either VALUE or
        INTEGRAL. Also sets the FiniteElement::DerivType to GRAD if the
@@ -673,7 +684,6 @@ public:
       map_type = M;
       deriv_type = (M == VALUE) ? GRAD : NONE;
    }
-
 
    /** @brief Get the matrix @a I that defines nodal interpolation
        @a between this element and the refined element @a fine_fe. */
@@ -695,18 +705,17 @@ public:
    /** If the "fine" elements cannot represent all basis functions of the
        "coarse" element, then boundary values from different sub-elements are
        generally different. */
-   void ScalarLocalRestriction(ElementTransformation &Trans,
-                               DenseMatrix &R,
-                               const ScalarFiniteElement &coarse_fe) const;
-
-   virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                         DofToQuad::Mode mode) const;
+   void ScalarLocalL2Restriction(ElementTransformation &Trans,
+                                 DenseMatrix &R,
+                                 const ScalarFiniteElement &coarse_fe) const;
 };
-
 
 /// Class for standard nodal finite elements.
 class NodalFiniteElement : public ScalarFiniteElement
 {
+private:
+   /// Create and cache the LEXICOGRAPHIC_FULL DofToQuad maps.
+   void CreateLexicographicFullMap(const IntegrationRule &ir) const;
 protected:
    Array<int> lex_ordering;
    void ProjectCurl_2D(const FiniteElement &fe,
@@ -725,38 +734,41 @@ public:
                       int F = FunctionSpace::Pk)
       : ScalarFiniteElement(D, G, Do, O, F) { }
 
-   virtual void GetLocalInterpolation(ElementTransformation &Trans,
-                                      DenseMatrix &I) const
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const override;
+
+   void GetLocalInterpolation(ElementTransformation &Trans,
+                              DenseMatrix &I) const override
    { NodalLocalInterpolation(Trans, I, *this); }
 
-   virtual void GetLocalRestriction(ElementTransformation &Trans,
-                                    DenseMatrix &R) const;
+   void GetLocalRestriction(ElementTransformation &Trans,
+                            DenseMatrix &R) const override;
 
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    { CheckScalarFE(fe).NodalLocalInterpolation(Trans, I, *this); }
 
-   virtual void Project (Coefficient &coeff,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    // (mc.height x mc.width) @ DOFs -> (Dof x mc.width x mc.height) in dofs
-   virtual void ProjectMatrixCoefficient(
-      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
+   void ProjectMatrixCoefficient(
+      MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const override;
 
-   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const;
+   void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                DenseMatrix &I) const override;
 
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
 
-   virtual void ProjectDiv(const FiniteElement &fe,
-                           ElementTransformation &Trans,
-                           DenseMatrix &div) const;
+   void ProjectDiv(const FiniteElement &fe,
+                   ElementTransformation &Trans,
+                   DenseMatrix &div) const override;
 
    /** @brief Get an Array<int> that maps lexicographically ordered indices to
        the indices of the respective nodes/dofs/basis functions.
@@ -790,12 +802,12 @@ class VectorFiniteElement : public FiniteElement
    // Hide the scalar functions CalcShape and CalcDShape.
 private:
    /// Overrides the scalar CalcShape function to print an error.
-   virtual void CalcShape(const IntegrationPoint &ip,
-                          Vector &shape) const;
+   void CalcShape(const IntegrationPoint &ip,
+                  Vector &shape) const override;
 
    /// Overrides the scalar CalcDShape function to print an error.
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
 
 protected:
    bool is_nodal;
@@ -818,7 +830,7 @@ protected:
        @param Trans Transformation from reference to physical coordinates
        @param dofs  Expansion coefficients for the approximation of vc
    */
-   void Project_RT(const double *nk, const Array<int> &d2n,
+   void Project_RT(const real_t *nk, const Array<int> &d2n,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
@@ -830,13 +842,13 @@ protected:
        @param Trans Transformation from reference to physical coordinates
        @param dofs  Expansion coefficients for the approximation of vc
    */
-   void Project_RT(const double *nk, const Array<int> &d2n,
+   void Project_RT(const real_t *nk, const Array<int> &d2n,
                    Vector &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
    /// Project the rows of the matrix coefficient in an RT space
    void ProjectMatrixCoefficient_RT(
-      const double *nk, const Array<int> &d2n,
+      const real_t *nk, const Array<int> &d2n,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
    /** @brief Project vector-valued basis functions onto the RT basis functions
@@ -852,22 +864,22 @@ protected:
              field using the scalar basis functions for each component of the
              vector field.
    */
-   void Project_RT(const double *nk, const Array<int> &d2n,
+   void Project_RT(const real_t *nk, const Array<int> &d2n,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
 
    // rotated gradient in 2D
-   void ProjectGrad_RT(const double *nk, const Array<int> &d2n,
+   void ProjectGrad_RT(const real_t *nk, const Array<int> &d2n,
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &grad) const;
 
    // Compute the curl as a discrete operator from ND FE (fe) to ND FE (this).
    // The natural FE for the range is RT, so this is an approximation.
-   void ProjectCurl_ND(const double *tk, const Array<int> &d2t,
+   void ProjectCurl_ND(const real_t *tk, const Array<int> &d2t,
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
-   void ProjectCurl_RT(const double *nk, const Array<int> &d2n,
+   void ProjectCurl_RT(const real_t *nk, const Array<int> &d2n,
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
@@ -878,7 +890,7 @@ protected:
        @param Trans Transformation from reference to physical coordinates
        @param dofs  Expansion coefficients for the approximation of vc
    */
-   void Project_ND(const double *tk, const Array<int> &d2t,
+   void Project_ND(const real_t *tk, const Array<int> &d2t,
                    VectorCoefficient &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
@@ -890,13 +902,13 @@ protected:
        @param Trans Transformation from reference to physical coordinates
        @param dofs  Expansion coefficients for the approximation of vc
    */
-   void Project_ND(const double *tk, const Array<int> &d2t,
+   void Project_ND(const real_t *tk, const Array<int> &d2t,
                    Vector &vc, ElementTransformation &Trans,
                    Vector &dofs) const;
 
    /// Project the rows of the matrix coefficient in an ND space
    void ProjectMatrixCoefficient_ND(
-      const double *tk, const Array<int> &d2t,
+      const real_t *tk, const Array<int> &d2t,
       MatrixCoefficient &mc, ElementTransformation &T, Vector &dofs) const;
 
    /** @brief Project vector-valued basis functions onto the ND basis functions
@@ -912,11 +924,11 @@ protected:
              field using the scalar basis functions for each component of the
              vector field.
    */
-   void Project_ND(const double *tk, const Array<int> &d2t,
+   void Project_ND(const real_t *tk, const Array<int> &d2t,
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
 
-   void ProjectGrad_ND(const double *tk, const Array<int> &d2t,
+   void ProjectGrad_ND(const real_t *tk, const Array<int> &d2t,
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &grad) const;
 
@@ -925,7 +937,7 @@ protected:
                              DenseMatrix &I) const;
 
    void LocalInterpolation_RT(const VectorFiniteElement &cfe,
-                              const double *nk, const Array<int> &d2n,
+                              const real_t *nk, const Array<int> &d2n,
                               ElementTransformation &Trans,
                               DenseMatrix &I) const;
 
@@ -934,15 +946,15 @@ protected:
                              DenseMatrix &I) const;
 
    void LocalInterpolation_ND(const VectorFiniteElement &cfe,
-                              const double *tk, const Array<int> &d2t,
+                              const real_t *tk, const Array<int> &d2t,
                               ElementTransformation &Trans,
                               DenseMatrix &I) const;
 
-   void LocalRestriction_RT(const double *nk, const Array<int> &d2n,
+   void LocalRestriction_RT(const real_t *nk, const Array<int> &d2n,
                             ElementTransformation &Trans,
                             DenseMatrix &R) const;
 
-   void LocalRestriction_ND(const double *tk, const Array<int> &d2t,
+   void LocalRestriction_ND(const real_t *tk, const Array<int> &d2t,
                             ElementTransformation &Trans,
                             DenseMatrix &R) const;
 
@@ -954,10 +966,9 @@ protected:
    }
 
 public:
-   VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
-                        int F = FunctionSpace::Pk);
+   VectorFiniteElement(int D, Geometry::Type G, int Do, int O, int M,
+                       int F = FunctionSpace::Pk);
 };
-
 
 /// @brief Class for computing 1D special polynomials and their associated basis
 /// functions
@@ -995,15 +1006,15 @@ public:
 
    public:
       /// Create a nodal or positive (Bernstein) basis of degree @a p
-      Basis(const int p, const double *nodes, EvalType etype = Barycentric);
+      Basis(const int p, const real_t *nodes, EvalType etype = Barycentric);
       /// Evaluate the basis functions at point @a x in [0,1]
-      void Eval(const double x, Vector &u) const;
+      void Eval(const real_t x, Vector &u) const;
       /// @brief Evaluate the basis functions and their derivatives at point @a
       /// x in [0,1]
-      void Eval(const double x, Vector &u, Vector &d) const;
+      void Eval(const real_t x, Vector &u, Vector &d) const;
       /// @brief Evaluate the basis functions and their first two derivatives at
       /// point @a x in [0,1]
-      void Eval(const double x, Vector &u, Vector &d, Vector &d2) const;
+      void Eval(const real_t x, Vector &u, Vector &d, Vector &d2) const;
       /// @brief Evaluate the "integrated" basis type using pre-computed closed
       /// basis derivatives.
       ///
@@ -1026,8 +1037,8 @@ public:
    };
 
 private:
-   typedef std::map< int, Array<double*>* > PointsMap;
-   typedef std::map< int, Array<Basis*>* > BasisMap;
+   typedef std::map<int, Array<real_t*>*> PointsMap;
+   typedef std::map<int, Array<Basis*>*> BasisMap;
 
    MemoryType h_mt;
    PointsMap points_container;
@@ -1035,13 +1046,13 @@ private:
 
    static Array2D<int> binom;
 
-   static void CalcMono(const int p, const double x, double *u);
-   static void CalcMono(const int p, const double x, double *u, double *d);
+   static void CalcMono(const int p, const real_t x, real_t *u);
+   static void CalcMono(const int p, const real_t x, real_t *u, real_t *d);
 
-   static void CalcChebyshev(const int p, const double x, double *u);
-   static void CalcChebyshev(const int p, const double x, double *u, double *d);
-   static void CalcChebyshev(const int p, const double x, double *u, double *d,
-                             double *dd);
+   static void CalcChebyshev(const int p, const real_t x, real_t *u);
+   static void CalcChebyshev(const int p, const real_t x, real_t *u, real_t *d);
+   static void CalcChebyshev(const int p, const real_t x, real_t *u, real_t *d,
+                             real_t *dd);
 
    QuadratureFunctions1D quad_func;
 
@@ -1061,15 +1072,15 @@ public:
        @return A pointer to an array containing the `p+1` coordinates of the
                points. Returns NULL if the BasisType has no associated set of
                points. */
-   const double *GetPoints(const int p, const int btype);
+   const real_t *GetPoints(const int p, const int btype);
 
    /// Get coordinates of an open (GaussLegendre) set of points if degree @a p
-   const double *OpenPoints(const int p,
+   const real_t *OpenPoints(const int p,
                             const int btype = BasisType::GaussLegendre)
    { return GetPoints(p, btype); }
 
    /// Get coordinates of a closed (GaussLegendre) set of points if degree @a p
-   const double *ClosedPoints(const int p,
+   const real_t *ClosedPoints(const int p,
                               const int btype = BasisType::GaussLobatto)
    { return GetPoints(p, btype); }
 
@@ -1085,7 +1096,7 @@ public:
 
    /** @brief Evaluate the values of a hierarchical 1D basis at point x
        hierarchical = k-th basis function is degree k polynomial */
-   static void CalcBasis(const int p, const double x, double *u)
+   static void CalcBasis(const int p, const real_t x, real_t *u)
    // { CalcMono(p, x, u); }
    // Bernstein basis is not hierarchical --> does not work for triangles
    //  and tetrahedra
@@ -1095,11 +1106,11 @@ public:
 
    /** @brief Evaluate the values of a hierarchical 1D basis at point x
        hierarchical = k-th basis function is degree k polynomial */
-   static void CalcBasis(const int p, const double x, Vector &u)
+   static void CalcBasis(const int p, const real_t x, Vector &u)
    { CalcBasis(p, x, u.GetData()); }
 
    /// Evaluate the values and derivatives of a hierarchical 1D basis at point @a x
-   static void CalcBasis(const int p, const double x, double *u, double *d)
+   static void CalcBasis(const int p, const real_t x, real_t *u, real_t *d)
    // { CalcMono(p, x, u, d); }
    // { CalcBernstein(p, x, u, d); }
    // { CalcLegendre(p, x, u, d); }
@@ -1107,12 +1118,12 @@ public:
 
    /** @brief Evaluate the values and derivatives of a hierarchical 1D basis at
        point @a x. */
-   static void CalcBasis(const int p, const double x, Vector &u, Vector &d)
+   static void CalcBasis(const int p, const real_t x, Vector &u, Vector &d)
    { CalcBasis(p, x, u.GetData(), d.GetData()); }
 
    /// Evaluate the values, derivatives and second derivatives of a hierarchical 1D basis at point x
-   static void CalcBasis(const int p, const double x, double *u, double *d,
-                         double *dd)
+   static void CalcBasis(const int p, const real_t x, real_t *u, real_t *d,
+                         real_t *dd)
    // { CalcMono(p, x, u, d); }
    // { CalcBernstein(p, x, u, d); }
    // { CalcLegendre(p, x, u, d); }
@@ -1120,65 +1131,64 @@ public:
 
    /** @brief Evaluate the values, derivatives and second derivatives of a
        hierarchical 1D basis at point @a x. */
-   static void CalcBasis(const int p, const double x, Vector &u, Vector &d,
+   static void CalcBasis(const int p, const real_t x, Vector &u, Vector &d,
                          Vector &dd)
    { CalcBasis(p, x, u.GetData(), d.GetData(), dd.GetData()); }
 
    /// Evaluate a representation of a Delta function at point x
-   static double CalcDelta(const int p, const double x)
-   { return pow(x, (double) p); }
+   static real_t CalcDelta(const int p, const real_t x)
+   { return pow(x, (real_t) p); }
 
    /** @brief Compute the points for the Chebyshev polynomials of order @a p
        and place them in the already allocated @a x array. */
-   static void ChebyshevPoints(const int p, double *x);
+   static void ChebyshevPoints(const int p, real_t *x);
 
    /** @brief Compute the @a p terms in the expansion of the binomial (x + y)^p
        and store them in the already allocated @a u array. */
-   static void CalcBinomTerms(const int p, const double x, const double y,
-                              double *u);
+   static void CalcBinomTerms(const int p, const real_t x, const real_t y,
+                              real_t *u);
    /** @brief Compute the terms in the expansion of the binomial (x + y)^p and
        their derivatives with respect to x assuming that dy/dx = -1.  Store the
        results in the already allocated @a u and @a d arrays.*/
-   static void CalcBinomTerms(const int p, const double x, const double y,
-                              double *u, double *d);
+   static void CalcBinomTerms(const int p, const real_t x, const real_t y,
+                              real_t *u, real_t *d);
    /** @brief Compute the derivatives (w.r.t. x) of the terms in the expansion
        of the binomial (x + y)^p assuming that dy/dx = -1.  Store the results
        in the already allocated @a d array.*/
-   static void CalcDBinomTerms(const int p, const double x, const double y,
-                               double *d);
+   static void CalcDBinomTerms(const int p, const real_t x, const real_t y,
+                               real_t *d);
 
    /** @brief Compute the values of the Bernstein basis functions of order
        @a p at coordinate @a x and store the results in the already allocated
        @a u array. */
-   static void CalcBernstein(const int p, const double x, double *u)
+   static void CalcBernstein(const int p, const real_t x, real_t *u)
    { CalcBinomTerms(p, x, 1. - x, u); }
 
    /** @brief Compute the values of the Bernstein basis functions of order
        @a p at coordinate @a x and store the results in the already allocated
        @a u array. */
-   static void CalcBernstein(const int p, const double x, Vector &u)
+   static void CalcBernstein(const int p, const real_t x, Vector &u)
    { CalcBernstein(p, x, u.GetData()); }
 
    /** @brief Compute the values and derivatives of the Bernstein basis functions
        of order @a p at coordinate @a x and store the results in the already allocated
        @a u and @a d arrays. */
-   static void CalcBernstein(const int p, const double x, double *u, double *d)
+   static void CalcBernstein(const int p, const real_t x, real_t *u, real_t *d)
    { CalcBinomTerms(p, x, 1. - x, u, d); }
 
    /** @brief Compute the values and derivatives of the Bernstein basis
        functions of order @a p at coordinate @a x and store the results in the
        already allocated @a u and @a d arrays. */
-   static void CalcBernstein(const int p, const double x, Vector &u, Vector &d)
+   static void CalcBernstein(const int p, const real_t x, Vector &u, Vector &d)
    { CalcBernstein(p, x, u.GetData(), d.GetData()); }
 
-   static void CalcLegendre(const int p, const double x, double *u);
-   static void CalcLegendre(const int p, const double x, double *u, double *d);
+   static void CalcLegendre(const int p, const real_t x, real_t *u);
+   static void CalcLegendre(const int p, const real_t x, real_t *u, real_t *d);
 
    ~Poly_1D();
 };
 
-extern Poly_1D poly1d;
-
+extern MFEM_EXPORT Poly_1D poly1d;
 
 /// An element defined as an ND tensor product of 1D elements on a segment,
 /// square, or cube
@@ -1203,7 +1213,7 @@ public:
 
    int GetBasisType() const { return b_type; }
 
-   const Poly_1D::Basis& GetBasis1D() const { return basis1d; }
+   const Poly_1D::Basis &GetBasis1D() const { return basis1d; }
 
    /** @brief Get an Array<int> that maps lexicographically ordered indices to
        the indices of the respective nodes/dofs/basis functions. If the dofs are
@@ -1235,6 +1245,11 @@ public:
          default: MFEM_ABORT("invalid dimension: " << dim); return -1;
       }
    }
+
+   static const DofToQuad &GetTensorDofToQuad(
+      const FiniteElement &fe, const IntegrationRule &ir,
+      DofToQuad::Mode mode, const Poly_1D::Basis &basis, bool closed,
+      Array<DofToQuad*> &dof2quad_array);
 };
 
 class NodalTensorFiniteElement : public NodalFiniteElement,
@@ -1245,18 +1260,13 @@ public:
                             const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const
-   {
-      return (mode == DofToQuad::FULL) ?
-             ScalarFiniteElement::GetDofToQuad(ir, mode) :
-             ScalarFiniteElement::GetTensorDofToQuad(*this, ir, mode);
-   }
+                                 DofToQuad::Mode mode) const override;
 
-   virtual void SetMapType(const int map_type_);
+   void SetMapType(const int map_type_) override;
 
-   virtual void GetTransferMatrix(const FiniteElement &fe,
-                                  ElementTransformation &Trans,
-                                  DenseMatrix &I) const
+   void GetTransferMatrix(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const override
    {
       if (basis1d.IsIntegratedType())
       {
@@ -1267,6 +1277,8 @@ public:
          NodalFiniteElement::GetTransferMatrix(fe, Trans, I);
       }
    }
+
+   void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 };
 
 class VectorTensorFiniteElement : public VectorFiniteElement,
@@ -1276,7 +1288,7 @@ private:
    mutable Array<DofToQuad*> dof2quad_array_open;
 
 protected:
-   Poly_1D::Basis &cbasis1d, &obasis1d;
+   Poly_1D::Basis &obasis1d;
 
 public:
    VectorTensorFiniteElement(const int dims, const int d, const int p,
@@ -1289,16 +1301,22 @@ public:
                              const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const;
+                                 DofToQuad::Mode mode) const override
+   {
+      return (mode == DofToQuad::TENSOR) ?
+             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array) :
+             FiniteElement::GetDofToQuad(ir, mode);
+   }
 
    const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
-                                     DofToQuad::Mode mode) const;
+                                     DofToQuad::Mode mode) const
+   {
+      MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
+      return GetTensorDofToQuad(*this, ir, mode, obasis1d, false,
+                                dof2quad_array_open);
+   }
 
-   const DofToQuad &GetTensorDofToQuad(const IntegrationRule &ir,
-                                       DofToQuad::Mode mode,
-                                       const bool closed) const;
-
-   ~VectorTensorFiniteElement();
+   virtual ~VectorTensorFiniteElement();
 };
 
 void InvertLinearTrans(ElementTransformation &trans,

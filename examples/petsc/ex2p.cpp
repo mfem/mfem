@@ -58,6 +58,8 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-tri.mesh";
+   int ser_ref_levels = -1;
+   int par_ref_levels = 1;
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -65,7 +67,6 @@ int main(int argc, char *argv[])
    bool use_petsc = true;
    const char *petscrc_file = "";
    bool use_nonoverlapping = false;
-   int ser_ref_levels = -1, par_ref_levels = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",

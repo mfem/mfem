@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -121,6 +121,16 @@ public:
    }
 
    /**
+    * @brief Get the relative face orientations
+    *
+    * SubMesh element id (array index) to parent Mesh face orientation.
+    */
+   const Array<int>& GetParentFaceOrientations() const
+   {
+      return parent_face_ori_;
+   }
+
+   /**
     * @brief Get the parent vertex id map.
     *
     * SubMesh vertex id (array index) to parent Mesh vertex id.
@@ -189,9 +199,17 @@ private:
    /// vertex ids.
    Array<int> parent_vertex_ids_;
 
+   /// Mapping from SubMesh edge ids (index of the array), to the parent Mesh
+   /// face ids.
+   Array<int> parent_edge_ids_;
+
    /// Mapping from SubMesh face ids (index of the array), to the parent Mesh
    /// face ids.
    Array<int> parent_face_ids_;
+
+   /// Mapping from SubMesh face ids (index of the array), to the orientation
+   /// of the face relative to the parent face.
+   Array<int> parent_face_ori_;
 
    Array<int> face_to_be;
 };

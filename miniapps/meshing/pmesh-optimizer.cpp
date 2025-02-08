@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -35,7 +35,7 @@
 //   Adapted analytic shape:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -fd
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic shape+orientation:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -fd
 //
@@ -45,9 +45,11 @@
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 11 -ni 50 -li 20 -hmid 58 -mid 7 -hr
 //
 //   Adapted discrete size:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //     (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
+//   Adapted discrete size NC mesh;
+//     mpirun -np 4 pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
 //   Adapted discrete size 3D with PA:
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa
 //   Adapted discrete size 3D with PA on device (requires CUDA):
@@ -57,10 +59,8 @@
 //   Adapted discrete size+aspect_ratio:
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
 //     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -qo 6 -ex -st 1 -nor
-//   Adapted discrete size+orientation (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -ae 1 -nor
-//   Adapted discrete aspect-ratio+orientation (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 8 -ni 10 -bnd -qt 1 -qo 8 -fd -ae 1
+//   Adapted discrete size+orientation:
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -fd -nor
 //   Adapted discrete aspect ratio (3D):
 //     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
 //
@@ -71,12 +71,6 @@
 //   Adaptive limiting through FD (requires GSLIB):
 //   * mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 0.5 -fd -ae 1
 //
-//  Adaptive surface fitting:
-//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 1 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
-//    mpirun -np 4 pmesh-optimizer -m square01-tri.mesh -o 3 -rs 0 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 1e4 -rtol 1e-5
-//  Surface fitting with weight adaptation and termination based on fitting error
-//    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 1 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa -sft 1e-5
-//
 //   Blade shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
 //     (requires CUDA):
@@ -86,7 +80,7 @@
 //   Blade limited shape:
 //     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
 //   ICF shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 2 -ni 25 -ls 3 -art 2 -qo 5
+//     mpirun -np 4 pmesh-optimizer -o 3 -mid 80 -bec -tid 2 -ni 25 -ls 3 -art 2 -qo 5
 //   ICF shape and initial size:
 //     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
 //   ICF shape:
@@ -134,22 +128,26 @@ int main (int argc, char *argv[])
    int mesh_poly_deg     = 1;
    int rs_levels         = 0;
    int rp_levels         = 0;
-   double jitter         = 0.0;
+   real_t jitter         = 0.0;
    int metric_id         = 1;
    int target_id         = 1;
-   double lim_const      = 0.0;
-   double adapt_lim_const   = 0.0;
-   double surface_fit_const = 0.0;
+   real_t lim_const      = 0.0;
+   real_t adapt_lim_const   = 0.0;
    int quad_type         = 1;
    int quad_order        = 8;
    int solver_type       = 0;
    int solver_iter       = 20;
-   double solver_rtol    = 1e-10;
+#ifdef MFEM_USE_SINGLE
+   real_t solver_rtol    = 1e-4;
+#else
+   real_t solver_rtol    = 1e-10;
+#endif
    int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    int combomet          = 0;
+   bool bal_expl_combo   = false;
    bool hradaptivity     = false;
    int h_metric_id       = -1;
    bool normalization    = false;
@@ -158,12 +156,11 @@ int main (int argc, char *argv[])
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;
+   bool integ_over_targ  = true;
    const char *devopt    = "cpu";
    bool pa               = false;
    int n_hr_iter         = 5;
    int n_h_iter          = 1;
-   bool surface_fit_adapt = false;
-   double surface_fit_threshold = -10;
    int mesh_node_ordering = 0;
    int barrier_type       = 0;
    int worst_case_type    = 0;
@@ -196,6 +193,8 @@ int main (int argc, char *argv[])
                   "77 : 0.5(tau-1/tau)^2               -- 2D size\n\t"
                   "80 : (1-gamma)mu_2 + gamma mu_77    -- 2D shape+size\n\t"
                   "85 : |T-|T|/sqrt(2)I|^2             -- 2D shape+orientation\n\t"
+                  "90 : balanced combo mu_50 & mu_77   -- 2D shape+size\n\t"
+                  "94 : balanced combo mu_2 & mu_56    -- 2D shape+size\n\t"
                   "98 : (1/tau)|T-I|^2                 -- 2D shape+size+orientation\n\t"
                   // "211: (tau-1)^2-tau+sqrt(tau^2+eps)  -- 2D untangling\n\t"
                   // "252: 0.5(tau-1)^2/(tau-tau_0)       -- 2D untangling\n\t"
@@ -210,10 +209,11 @@ int main (int argc, char *argv[])
                   "321: |T-T^-t|^2                   -- 3D shape+size\n\t"
                   "322: |T-adjT^-t|^2                -- 3D shape+size\n\t"
                   "323: |J|^3-3sqrt(3)ln(det(J))-3sqrt(3)  -- 3D shape+size\n\t"
-                  "328: (1-gamma) mu_301 + gamma mu_316  -- 3D shape+size\n\t"
+                  "328: balanced combo mu_301 & mu_316   -- 3D shape+size\n\t"
                   "332: (1-gamma) mu_302 + gamma mu_315  -- 3D shape+size\n\t"
                   "333: (1-gamma) mu_302 + gamma mu_316  -- 3D shape+size\n\t"
                   "334: (1-gamma) mu_303 + gamma mu_316  -- 3D shape+size\n\t"
+                  "328: balanced combo mu_302 & mu_318   -- 3D shape+size\n\t"
                   "347: (1-gamma) mu_304 + gamma mu_316  -- 3D shape+size\n\t"
                   // "352: 0.5(tau-1)^2/(tau-tau_0)     -- 3D untangling\n\t"
                   "360: (|T|^3)/3^{3/2}-tau              -- 3D shape\n\t"
@@ -233,8 +233,6 @@ int main (int argc, char *argv[])
    args.AddOption(&lim_const, "-lc", "--limit-const", "Limiting constant.");
    args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const",
                   "Adaptive limiting coefficient constant.");
-   args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
-                  "Surface preservation constant.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
                   "Quadrature rule type:\n\t"
                   "1: Gauss-Lobatto\n\t"
@@ -270,6 +268,9 @@ int main (int argc, char *argv[])
                   "0: Use single metric\n\t"
                   "1: Shape + space-dependent size given analytically\n\t"
                   "2: Shape + adapted size given discretely; shared target");
+   args.AddOption(&bal_expl_combo, "-bec", "--balance-explicit-combo",
+                  "-no-bec", "--balance-explicit-combo",
+                  "Automatic balancing of explicit combo metrics.");
    args.AddOption(&hradaptivity, "-hr", "--hr-adaptivity", "-no-hr",
                   "--no-hr-adaptivity",
                   "Enable hr-adaptivity.");
@@ -285,11 +286,18 @@ int main (int argc, char *argv[])
    args.AddOption(&exactaction, "-ex", "--exact_action",
                   "-no-ex", "--no-exact-action",
                   "Enable exact action of TMOP_Integrator.");
+   args.AddOption(&integ_over_targ, "-it", "--integrate-target",
+                  "-ir", "--integrate-reference",
+                  "Integrate over target (-it) or reference (-ir) element.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
-                  "Set the verbosity level - 0, 1, or 2.");
+                  "Verbosity level for the involved iterative solvers:\n\t"
+                  "0: no output\n\t"
+                  "1: Newton iterations\n\t"
+                  "2: Newton iterations + linear solver summaries\n\t"
+                  "3: newton iterations + linear solver iterations");
    args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.AddOption(&devopt, "-d", "--device",
@@ -301,12 +309,6 @@ int main (int argc, char *argv[])
    args.AddOption(&n_h_iter, "-nh", "--n_h_iter",
                   "Number of h-adaptivity iterations per r-adaptivity"
                   "iteration.");
-   args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit", "-no-sfa",
-                  "--no-adaptive-surface-fit",
-                  "Enable or disable adaptive surface fitting.");
-   args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
-                  "Set threshold for surface fitting. TMOP solver will"
-                  "terminate when max surface fitting error is below this limit");
    args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
                   "Ordering of mesh nodes."
                   "0 (default): byNodes, 1: byVDIM");
@@ -346,7 +348,6 @@ int main (int argc, char *argv[])
 
    if (hradaptivity) { mesh->EnsureNCMesh(); }
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-
    delete mesh;
    for (int lev = 0; lev < rp_levels; lev++)
    {
@@ -372,9 +373,6 @@ int main (int argc, char *argv[])
    //    transformation of the reference element.
    pmesh->SetNodalFESpace(pfespace);
 
-   // 6. Set up an empty right-hand side vector b, which is equivalent to b=0.
-   Vector b(0);
-
    // 7. Get the mesh nodes (vertices and other degrees of freedom in the finite
    //    element space) as a finite element grid function in fespace. Note that
    //    changing x automatically changes the shapes of the mesh elements.
@@ -388,23 +386,24 @@ int main (int argc, char *argv[])
    //    In addition, compute average mesh size and total volume.
    Vector h0(pfespace->GetNDofs());
    h0 = infinity();
-   double vol_loc = 0.0;
+   real_t vol_loc = 0.0;
    Array<int> dofs;
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
       pfespace->GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
-      const double hi = pmesh->GetElementSize(i);
+      const real_t hi = pmesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
       {
          h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
       vol_loc += pmesh->GetElementVolume(i);
    }
-   double vol_glb;
-   MPI_Allreduce(&vol_loc, &vol_glb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   const double small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
+   real_t vol_glb;
+   MPI_Allreduce(&vol_loc, &vol_glb, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, MPI_COMM_WORLD);
+   const real_t small_phys_size = pow(vol_glb, 1.0 / dim) / 100.0;
 
    // 9. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -453,7 +452,7 @@ int main (int argc, char *argv[])
    x0 = x;
 
    // 12. Form the integrator that uses the chosen metric and target.
-   double min_detJ = -0.1;
+   real_t min_detJ = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -473,6 +472,8 @@ int main (int argc, char *argv[])
       case 77: metric = new TMOP_Metric_077; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
+      case 90: metric = new TMOP_Metric_090; break;
+      case 94: metric = new TMOP_Metric_094; break;
       case 98: metric = new TMOP_Metric_098; break;
       // case 211: metric = new TMOP_Metric_211; break;
       // case 252: metric = new TMOP_Metric_252(min_detJ); break;
@@ -487,10 +488,11 @@ int main (int argc, char *argv[])
       case 321: metric = new TMOP_Metric_321; break;
       case 322: metric = new TMOP_Metric_322; break;
       case 323: metric = new TMOP_Metric_323; break;
-      case 328: metric = new TMOP_Metric_328(0.5); break;
+      case 328: metric = new TMOP_Metric_328; break;
       case 332: metric = new TMOP_Metric_332(0.5); break;
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
+      case 338: metric = new TMOP_Metric_338; break;
       case 347: metric = new TMOP_Metric_347(0.5); break;
       // case 352: metric = new TMOP_Metric_352(min_detJ); break;
       case 360: metric = new TMOP_Metric_360; break;
@@ -620,16 +622,7 @@ int main (int argc, char *argv[])
             MFEM_ABORT("MFEM is not built with GSLIB.");
 #endif
          }
-         if (dim == 2)
-         {
-            FunctionCoefficient size_coeff(discrete_size_2d);
-            size.ProjectCoefficient(size_coeff);
-         }
-         else if (dim == 3)
-         {
-            FunctionCoefficient size_coeff(discrete_size_3d);
-            size.ProjectCoefficient(size_coeff);
-         }
+         ConstructSizeGF(size);
          tc->SetParDiscreteTargetSize(size);
          target_c = tc;
          break;
@@ -666,18 +659,19 @@ int main (int argc, char *argv[])
          {
             size(i) = std::pow(d_x(i),2)+std::pow(d_y(i),2);
          }
-         const double max = size.Max();
-         double max_all;
-         MPI_Allreduce(&max, &max_all, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+         const real_t max = size.Max();
+         real_t max_all;
+         MPI_Allreduce(&max, &max_all, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_MAX, MPI_COMM_WORLD);
 
          for (int i = 0; i < d_x.Size(); i++)
          {
             d_x(i) = std::abs(d_x(i));
             d_y(i) = std::abs(d_y(i));
          }
-         const double eps = 0.01;
-         const double aspr_ratio = 20.0;
-         const double size_ratio = 40.0;
+         const real_t eps = 0.01;
+         const real_t aspr_ratio = 20.0;
+         const real_t size_ratio = 40.0;
 
          for (int i = 0; i < size.Size(); i++)
          {
@@ -689,7 +683,7 @@ int main (int argc, char *argv[])
          }
          Vector vals;
          const int NE = pmesh->GetNE();
-         double volume = 0.0, volume_ind = 0.0;
+         real_t volume = 0.0, volume_ind = 0.0;
 
          for (int i = 0; i < NE; i++)
          {
@@ -705,25 +699,26 @@ int main (int argc, char *argv[])
                volume_ind += vals(j) * ip.weight * Tr->Weight();
             }
          }
-         double volume_all, volume_ind_all;
-         MPI_Allreduce(&volume, &volume_all, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-         MPI_Allreduce(&volume_ind, &volume_ind_all, 1, MPI_DOUBLE, MPI_SUM,
-                       MPI_COMM_WORLD);
+         real_t volume_all, volume_ind_all;
+         MPI_Allreduce(&volume, &volume_all, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(&volume_ind, &volume_ind_all, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
          const int NE_ALL = pmesh->GetGlobalNE();
 
-         const double avg_zone_size = volume_all / NE_ALL;
+         const real_t avg_zone_size = volume_all / NE_ALL;
 
-         const double small_avg_ratio =
+         const real_t small_avg_ratio =
             (volume_ind_all + (volume_all - volume_ind_all) / size_ratio)
             / volume_all;
 
-         const double small_zone_size = small_avg_ratio * avg_zone_size;
-         const double big_zone_size   = size_ratio * small_zone_size;
+         const real_t small_zone_size = small_avg_ratio * avg_zone_size;
+         const real_t big_zone_size   = size_ratio * small_zone_size;
 
          for (int i = 0; i < size.Size(); i++)
          {
-            const double val = size(i);
-            const double a = (big_zone_size - small_zone_size) / small_zone_size;
+            const real_t val = size(i);
+            const real_t a = (big_zone_size - small_zone_size) / small_zone_size;
             size(i) = big_zone_size / (1.0+a*val);
          }
 
@@ -774,20 +769,9 @@ int main (int argc, char *argv[])
 #endif
          }
 
-         if (metric_id == 14 || metric_id == 36)
-         {
-            ConstantCoefficient size_coeff(0.1*0.1);
-            size.ProjectCoefficient(size_coeff);
-            tc->SetParDiscreteTargetSize(size);
-         }
-
-         if (metric_id == 85)
-         {
-            FunctionCoefficient aspr_coeff(discrete_aspr_2d);
-            aspr.ProjectCoefficient(aspr_coeff);
-            DiffuseField(aspr,2);
-            tc->SetParDiscreteTargetAspectRatio(aspr);
-         }
+         ConstantCoefficient size_coeff(0.1*0.1);
+         size.ProjectCoefficient(size_coeff);
+         tc->SetParDiscreteTargetSize(size);
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);
@@ -811,22 +795,30 @@ int main (int argc, char *argv[])
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
    }
-
    if (target_c == NULL)
    {
       target_c = new TargetConstructor(target_t, MPI_COMM_WORLD);
    }
    target_c->SetNodes(x0);
+
+   // Automatically balanced gamma in composite metrics.
+   auto metric_combo = dynamic_cast<TMOP_Combo_QualityMetric *>(metric);
+   if (metric_combo && bal_expl_combo)
+   {
+      Vector bal_weights;
+      metric_combo->ComputeBalancedWeights(x, *target_c, bal_weights);
+      metric_combo->SetWeights(bal_weights);
+   }
+
    TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
                                        ? untangler_metric
                                        : metric;
-   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
-                                                     h_metric);
+   auto tmop_integ = new TMOP_Integrator(metric_to_use, target_c, h_metric);
+   tmop_integ->IntegrateOverTarget(integ_over_targ);
    if (barrier_type > 0 || worst_case_type > 0)
    {
       tmop_integ->ComputeUntangleMetricQuantiles(x, *pfespace);
    }
-
 
    // Finite differences for computations of derivatives.
    if (fdscheme)
@@ -907,75 +899,6 @@ int main (int argc, char *argv[])
       }
    }
 
-   // Surface fitting.
-   L2_FECollection mat_coll(0, dim);
-   H1_FECollection surf_fit_fec(mesh_poly_deg, dim);
-   ParFiniteElementSpace surf_fit_fes(pmesh, &surf_fit_fec);
-   ParFiniteElementSpace mat_fes(pmesh, &mat_coll);
-   ParGridFunction mat(&mat_fes);
-   ParGridFunction surf_fit_mat_gf(&surf_fit_fes);
-   ParGridFunction surf_fit_gf0(&surf_fit_fes);
-   Array<bool> surf_fit_marker(surf_fit_gf0.Size());
-   ConstantCoefficient surf_fit_coeff(surface_fit_const);
-   AdaptivityEvaluator *adapt_surface = NULL;
-   if (surface_fit_const > 0.0)
-   {
-      MFEM_VERIFY(hradaptivity == false,
-                  "Surface fitting with HR is not implemented yet.");
-      MFEM_VERIFY(pa == false,
-                  "Surface fitting with PA is not implemented yet.");
-
-      FunctionCoefficient ls_coeff(surface_level_set);
-      surf_fit_gf0.ProjectCoefficient(ls_coeff);
-
-      for (int i = 0; i < pmesh->GetNE(); i++)
-      {
-         mat(i) = material_id(i, surf_fit_gf0);
-         pmesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
-      }
-
-      GridFunctionCoefficient coeff_mat(&mat);
-      surf_fit_mat_gf.ProjectDiscCoefficient(coeff_mat, GridFunction::ARITHMETIC);
-      for (int j = 0; j < surf_fit_marker.Size(); j++)
-      {
-         if (surf_fit_mat_gf(j) > 0.1 && surf_fit_mat_gf(j) < 0.9)
-         {
-            surf_fit_marker[j] = true;
-            surf_fit_mat_gf(j) = 1.0;
-         }
-         else
-         {
-            surf_fit_marker[j] = false;
-            surf_fit_mat_gf(j) = 0.0;
-         }
-      }
-
-      if (adapt_eval == 0) { adapt_surface = new AdvectorCG; }
-      else if (adapt_eval == 1)
-      {
-#ifdef MFEM_USE_GSLIB
-         adapt_surface = new InterpolatorFP;
-#else
-         MFEM_ABORT("MFEM is not built with GSLIB support!");
-#endif
-      }
-      else { MFEM_ABORT("Bad interpolation option."); }
-
-      tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker, surf_fit_coeff,
-                                       *adapt_surface);
-      if (visualization)
-      {
-         socketstream vis1, vis2, vis3;
-         common::VisualizeField(vis1, "localhost", 19916, surf_fit_gf0, "Level Set 0",
-                                300, 600, 300, 300);
-         common::VisualizeField(vis2, "localhost", 19916, mat, "Materials",
-                                600, 600, 300, 300);
-         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
-                                "Dofs to Move",
-                                900, 600, 300, 300);
-      }
-   }
-
    // Has to be after the enabling of the limiting / alignment, as it computes
    // normalization factors for these terms as well.
    if (normalization) { tmop_integ->ParEnableNormalization(x0); }
@@ -1014,6 +937,7 @@ int main (int argc, char *argv[])
          tmop_integ2->SetCoefficient(metric_coeff2);
       }
       else { tmop_integ2 = new TMOP_Integrator(metric2, target_c, h_metric); }
+      tmop_integ2->IntegrateOverTarget(integ_over_targ);
       tmop_integ2->SetIntegrationRules(*irules, quad_order);
       if (fdscheme) { tmop_integ2->EnableFiniteDifferences(x); }
       tmop_integ2->SetExactActionFlag(exactaction);
@@ -1047,8 +971,9 @@ int main (int argc, char *argv[])
          min_detJ = min(min_detJ, transf->Jacobian().Det());
       }
    }
-   double minJ0;
-   MPI_Allreduce(&min_detJ, &minJ0, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+   real_t minJ0;
+   MPI_Allreduce(&min_detJ, &minJ0, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_MIN, MPI_COMM_WORLD);
    min_detJ = minJ0;
    if (myid == 0)
    { cout << "Minimum det(J) of the original mesh is " << min_detJ << endl; }
@@ -1068,26 +993,25 @@ int main (int argc, char *argv[])
          Geometries.GetGeomToPerfGeomJac(pfespace->GetFE(0)->GetGeomType());
       min_detJ /= Wideal.Det();
 
-      double h0min = h0.Min(), h0min_all;
-      MPI_Allreduce(&h0min, &h0min_all, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+      real_t h0min = h0.Min(), h0min_all;
+      MPI_Allreduce(&h0min, &h0min_all, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_MIN, MPI_COMM_WORLD);
       // Slightly below minJ0 to avoid div by 0.
       min_detJ -= 0.01 * h0min_all;
    }
 
    // For HR tests, the energy is normalized by the number of elements.
-   const double init_energy = a.GetParGridFunctionEnergy(x) /
+   const real_t init_energy = a.GetParGridFunctionEnergy(x) /
                               (hradaptivity ? pmesh->GetGlobalNE() : 1);
-   double init_metric_energy = init_energy;
-   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
+   real_t init_metric_energy = init_energy;
+   if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      surf_fit_coeff.constant   = 0.0;
       init_metric_energy = a.GetParGridFunctionEnergy(x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
-      surf_fit_coeff.constant  = surface_fit_const;
    }
 
    // Visualize the starting mesh and metric values.
@@ -1153,10 +1077,20 @@ int main (int argc, char *argv[])
       a.SetEssentialVDofs(ess_vdofs);
    }
 
-   // 15. As we use the Newton method to solve the resulting nonlinear system,
-   //     here we setup the linear solver for the system's Jacobian.
+   // As we use the inexact Newton method to solve the resulting nonlinear
+   // system, here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL, *S_prec = NULL;
-   const double linsol_rtol = 1e-12;
+#ifdef MFEM_USE_SINGLE
+   const real_t linsol_rtol = 1e-5;
+#else
+   const real_t linsol_rtol = 1e-12;
+#endif
+   // Level of output.
+   IterativeSolver::PrintLevel linsolver_print;
+   if (verbosity_level == 2)
+   { linsolver_print.Errors().Warnings().FirstAndLast(); }
+   if (verbosity_level > 2)
+   { linsolver_print.Errors().Warnings().Iterations(); }
    if (lin_solver == 0)
    {
       S = new DSmoother(1, 1.0, max_lin_iter);
@@ -1167,7 +1101,7 @@ int main (int argc, char *argv[])
       cg->SetMaxIter(max_lin_iter);
       cg->SetRelTol(linsol_rtol);
       cg->SetAbsTol(0.0);
-      cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      cg->SetPrintLevel(linsolver_print);
       S = cg;
    }
    else
@@ -1176,8 +1110,7 @@ int main (int argc, char *argv[])
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
-      if (verbosity_level > 2) { minres->SetPrintLevel(1); }
-      else { minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1); }
+      minres->SetPrintLevel(linsolver_print);
       if (lin_solver == 3 || lin_solver == 4)
       {
          if (pa)
@@ -1200,22 +1133,16 @@ int main (int argc, char *argv[])
       S = minres;
    }
 
+   //
    // Perform the nonlinear optimization.
+   //
    const IntegrationRule &ir =
       irules->Get(pfespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfespace->GetComm(), ir, solver_type);
-   if (surface_fit_adapt) { solver.EnableAdaptiveSurfaceFitting(); }
-   if (surface_fit_threshold > 0)
-   {
-      solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
-   }
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
-   if (solver_type == 0)
-   {
-      // Specify linear solver when we use a Newton-based solver.
-      solver.SetPreconditioner(*S);
-   }
+   // Specify linear solver when we use a Newton-based solver.
+   if (solver_type == 0) { solver.SetPreconditioner(*S); }
    // For untangling, the solver will update the min det(T) values.
    solver.SetMinDetPtr(&min_detJ);
    solver.SetMaxIter(solver_iter);
@@ -1225,8 +1152,11 @@ int main (int argc, char *argv[])
    {
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
    }
-   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-
+   // Level of output.
+   IterativeSolver::PrintLevel newton_print;
+   if (verbosity_level > 0)
+   { newton_print.Errors().Warnings().Iterations(); }
+   solver.SetPrintLevel(newton_print);
    // hr-adaptivity solver.
    // If hr-adaptivity is disabled, r-adaptivity is done once using the
    // TMOPNewtonSolver.
@@ -1256,20 +1186,18 @@ int main (int argc, char *argv[])
       pmesh->PrintAsOne(mesh_ofs);
    }
 
-   // Compute the final energy of the functional.
-   const double fin_energy = a.GetParGridFunctionEnergy(x) /
+   // Report the final energy of the functional.
+   const real_t fin_energy = a.GetParGridFunctionEnergy(x) /
                              (hradaptivity ? pmesh->GetGlobalNE() : 1);
-   double fin_metric_energy = fin_energy;
-   if (lim_const > 0.0 || adapt_lim_const > 0.0 || surface_fit_const > 0.0)
+   real_t fin_metric_energy = fin_energy;
+   if (lim_const > 0.0 || adapt_lim_const > 0.0)
    {
       lim_coeff.constant = 0.0;
       adapt_lim_coeff.constant = 0.0;
-      surf_fit_coeff.constant  = 0.0;
       fin_metric_energy  = a.GetParGridFunctionEnergy(x) /
                            (hradaptivity ? pmesh->GetGlobalNE() : 1);
       lim_coeff.constant = lim_const;
       adapt_lim_coeff.constant = adapt_lim_const;
-      surf_fit_coeff.constant  = surface_fit_const;
    }
    if (myid == 0)
    {
@@ -1284,7 +1212,7 @@ int main (int argc, char *argv[])
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
-   // 18. Visualize the final mesh and metric values.
+   // Visualize the final mesh and metric values.
    if (visualization)
    {
       char title[] = "Final metric values";
@@ -1298,26 +1226,7 @@ int main (int argc, char *argv[])
                              600, 600, 300, 300);
    }
 
-   if (surface_fit_const > 0.0)
-   {
-      if (visualization)
-      {
-         socketstream vis2, vis3;
-         common::VisualizeField(vis2, "localhost", 19916, mat,
-                                "Materials", 600, 900, 300, 300);
-         common::VisualizeField(vis3, "localhost", 19916, surf_fit_mat_gf,
-                                "Surface dof", 900, 900, 300, 300);
-      }
-      double err_avg, err_max;
-      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
-      if (myid == 0)
-      {
-         std::cout << "Avg fitting error: " << err_avg << std::endl
-                   << "Max fitting error: " << err_max << std::endl;
-      }
-   }
-
-   // 19. Visualize the mesh displacement.
+   // Visualize the mesh displacement.
    if (visualization)
    {
       x0 -= x;
@@ -1338,14 +1247,12 @@ int main (int argc, char *argv[])
       }
    }
 
-   // 20. Free the used memory.
    delete S;
    delete S_prec;
    delete target_c2;
    delete metric2;
    delete metric_coeff1;
    delete adapt_lim_eval;
-   delete adapt_surface;
    delete target_c;
    delete hr_adapt_coeff;
    delete adapt_coeff;

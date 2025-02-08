@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -26,8 +26,9 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
-	shaper extruder mesh-optimizer minimal-surface polar-nc
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface
+	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
+	mesh-quality
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -61,11 +62,11 @@ lib-common:
 # Rules to copy the *.mesh files - needed for running the sample runs when
 # building out-of-source:
 ifneq ($(SRC),)
-MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh icf.mesh jagged.mesh\
- square01.mesh stretched2D.mesh
+MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh icf.mesh\
+jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh 
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
-mesh-optimizer pmesh-optimizer: | $(MESH_FILES)
+mesh-optimizer pmesh-optimizer pmesh-fitting fit-node-position: | $(MESH_FILES)
 .PHONY: copy-data
 copy-data: | $(MESH_FILES)
 endif
@@ -87,10 +88,18 @@ mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
+mesh-quality-test-seq: mesh-quality
+	@$(call mfem-test,$<,, Mesh quality miniapp)
+pmesh-fitting-test-par: pmesh-fitting
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel mesh fitting miniapp)
+fit-node-position-test-par: fit-node-position
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel position fitting miniapp)
 minimal-surface-test-seq: minimal-surface
 	@$(call mfem-test,$<,, Meshing miniapp)
 pminimal-surface-test-par: pminimal-surface
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
+reflector-test-seq: reflector
+	@$(call mfem-test-file,$<,, Meshing miniapp,reflected.mesh)
 
 # Testing: Specific execution options
 mesh-explorer-test-seq:
@@ -108,13 +117,14 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
-	rm -f mesh-explorer shaper extruder trimmer
-	rm -f mesh-optimizer pmesh-optimizer polar-nc
-	rm -f minimal-surface pminimal-surface
+	rm -f mesh-explorer shaper extruder trimmer reflector
+	rm -f mesh-optimizer pmesh-optimizer pmesh-fitting polar-nc
+	rm -f minimal-surface pminimal-surface mesh-quality fit-node-position
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
-	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh
+	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh*
+	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh reflected.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh
 	@rm -f optimized* perturbed* polar-nc.mesh
+	@rm -rf mesh-explorer-{visit,paraview}*

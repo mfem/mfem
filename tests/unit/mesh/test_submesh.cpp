@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,7 @@ using namespace mfem;
 enum FECType
 {
    H1,
+   ND,
    L2
 };
 enum FieldType
@@ -39,6 +40,9 @@ FiniteElementCollection *create_fec(FECType fec_type, int p, int dim)
       case H1:
          return new H1_FECollection(p, dim);
          break;
+      case ND:
+         return new ND_FECollection(p, dim);
+         break;
       case L2:
          return new L2_FECollection(p, dim, BasisType::GaussLobatto);
          break;
@@ -56,8 +60,9 @@ void test_2d(Element::Type element_type,
              SubMesh::From from)
 {
    constexpr int dim = 2;
-   const int vdim = (field_type == FieldType::SCALAR) ? 1 : dim;
-   double Hy = 1.0;
+   const int vdim = (field_type == FieldType::SCALAR ||
+                     fec_type == ND) ? 1 : dim;
+   real_t Hy = 1.0;
    Mesh mesh = Mesh::MakeCartesian2D(5, 5, element_type, true, 1.0, Hy, false);
 
    if (from == SubMesh::From::Boundary)
@@ -96,7 +101,7 @@ void test_2d(Element::Type element_type,
 
          for (int j = 0; j < vertices.Size(); j++)
          {
-            double *coords = mesh.GetVertex(vertices[j]);
+            real_t *coords = mesh.GetVertex(vertices[j]);
 
             if (coords[0] >= 0.25 &&
                 coords[0] <= 0.75 &&
@@ -117,8 +122,8 @@ void test_2d(Element::Type element_type,
    auto node_movement_coeff = VectorFunctionCoefficient(mesh.Dimension(),
                                                         [](const Vector &coords, Vector &u)
    {
-      double x = coords(0);
-      double y = coords(1);
+      real_t x = coords(0);
+      real_t y = coords(1);
 
       u(0) = x;
       u(1) = y + 0.05 * sin(x * 2.0 * M_PI);
@@ -134,8 +139,8 @@ void test_2d(Element::Type element_type,
 
    auto coeff = FunctionCoefficient([](const Vector &coords)
    {
-      double x = coords(0);
-      double y = coords(1);
+      real_t x = coords(0);
+      real_t y = coords(1);
       return y + 0.05 * sin(x * 2.0 * M_PI);
    });
 
@@ -143,8 +148,8 @@ void test_2d(Element::Type element_type,
                                                    Vector &V)
    {
       V.SetSize(2);
-      double x = coords(0);
-      double y = coords(1);
+      real_t x = coords(0);
+      real_t y = coords(1);
 
       V(0) = y + 0.05 * sin(x * 2.0 * M_PI);
       V(1) = x + 0.05 * sin(y * 2.0 * M_PI);
@@ -176,7 +181,7 @@ void test_2d(Element::Type element_type,
    {
       GridFunction sub_ex_gf(&sub_fes);
 
-      if (vdim == 1)
+      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_ex_gf.ProjectCoefficient(coeff);
@@ -188,6 +193,8 @@ void test_2d(Element::Type element_type,
       }
       SubMesh::Transfer(parent_gf, sub_gf);
 
+      REQUIRE(sub_gf.Norml2() != 0.0);
+
       sub_gf -= sub_ex_gf;
       REQUIRE(sub_gf.Norml2() < 1e-10);
    }
@@ -195,7 +202,7 @@ void test_2d(Element::Type element_type,
    {
       GridFunction parent_ex_gf(&parent_fes);
 
-      if (vdim == 1)
+      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_gf.ProjectCoefficient(coeff);
@@ -210,9 +217,14 @@ void test_2d(Element::Type element_type,
 
       SubMesh::Transfer(sub_gf, parent_gf);
 
+      REQUIRE(parent_gf.Norml2() != 0.0);
+
       parent_gf -= parent_ex_gf;
       REQUIRE(parent_gf.Norml2() < 1e-10);
    }
+   delete submesh;
+   delete sub_fec;
+   delete fec;
 }
 
 void test_3d(Element::Type element_type,
@@ -224,8 +236,9 @@ void test_3d(Element::Type element_type,
              SubMesh::From from)
 {
    constexpr int dim = 3;
-   const int vdim = (field_type == FieldType::SCALAR) ? 1 : dim;
-   double Hy = 1.0;
+   const int vdim = (field_type == FieldType::SCALAR ||
+                     fec_type == ND) ? 1 : dim;
+   real_t Hy = 1.0;
    Mesh mesh = Mesh::MakeCartesian3D(5, 5, 5, element_type, 1.0, Hy, 1.0, false);
 
    if (from == SubMesh::From::Boundary)
@@ -285,9 +298,9 @@ void test_3d(Element::Type element_type,
    auto node_movement_coeff = VectorFunctionCoefficient(mesh.Dimension(),
                                                         [](const Vector &coords, Vector &u)
    {
-      double x = coords(0);
-      double y = coords(1);
-      double z = coords(2);
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
 
       u(0) = x;
       u(1) = y + 0.05 * sin(x * 2.0 * M_PI);
@@ -303,9 +316,9 @@ void test_3d(Element::Type element_type,
 
    auto coeff = FunctionCoefficient([](const Vector &coords)
    {
-      double x = coords(0);
-      double y = coords(1);
-      double z = coords(2);
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
       return y + 0.05 * sin(x * 2.0 * M_PI) + z;
    });
 
@@ -313,9 +326,9 @@ void test_3d(Element::Type element_type,
                                                    Vector &V)
    {
       V.SetSize(3);
-      double x = coords(0);
-      double y = coords(1);
-      double z = coords(2);
+      real_t x = coords(0);
+      real_t y = coords(1);
+      real_t z = coords(2);
 
       V(0) = y + 0.05 * sin(x * 2.0 * M_PI) + z;
       V(1) = z + 0.05 * sin(y * 2.0 * M_PI) + x;
@@ -348,7 +361,7 @@ void test_3d(Element::Type element_type,
    {
       GridFunction sub_ex_gf(&sub_fes);
 
-      if (vdim == 1)
+      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_ex_gf.ProjectCoefficient(coeff);
@@ -369,7 +382,7 @@ void test_3d(Element::Type element_type,
    {
       GridFunction parent_ex_gf(&parent_fes);
 
-      if (vdim == 1)
+      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_gf.ProjectCoefficient(coeff);
@@ -389,19 +402,26 @@ void test_3d(Element::Type element_type,
       parent_gf -= parent_ex_gf;
       REQUIRE(parent_gf.Norml2() < 1e-10);
    }
+   delete submesh;
+   delete sub_fec;
+   delete fec;
 }
 
 TEST_CASE("SubMesh", "[SubMesh]")
 {
    int polynomial_order = 4;
    int mesh_polynomial_order = 2;
-   auto fec_type = GENERATE(FECType::H1, FECType::L2);
+   auto fec_type = GENERATE(FECType::H1, FECType::ND, FECType::L2);
    auto field_type = GENERATE(FieldType::SCALAR, FieldType::VECTOR);
    auto transfer_type = GENERATE(TransferType::ParentToSub,
                                  TransferType::SubToParent);
    auto from = GENERATE(SubMesh::From::Domain,
                         SubMesh::From::Boundary);
 
+   if (fec_type == FECType::ND && field_type == FieldType::VECTOR)
+   {
+      return;
+   }
    SECTION("2D")
    {
       auto element = GENERATE(Element::QUADRILATERAL, Element::TRIANGLE);
@@ -415,7 +435,8 @@ TEST_CASE("SubMesh", "[SubMesh]")
 
    SECTION("3D")
    {
-      auto element = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
+      auto element = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON,
+                              Element::WEDGE);
       if (fec_type == FECType::L2 &&
           from == SubMesh::From::Boundary && false)
       {

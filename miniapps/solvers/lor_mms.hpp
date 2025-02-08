@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,45 +12,45 @@
 #ifndef MFEM_LOR_MMS_HPP
 #define MFEM_LOR_MMS_HPP
 
-extern bool grad_div_problem;
-
 namespace mfem
 {
 
-static constexpr double pi = M_PI, pi2 = M_PI*M_PI;
+static constexpr real_t pi = M_PI, pi2 = M_PI*M_PI;
 
 // Exact solution for definite Helmholtz problem with RHS corresponding to f
 // defined below.
-double u(const Vector &xvec)
+real_t u(const Vector &xvec)
 {
-   int dim = xvec.Size();
-   double x = pi*xvec[0], y = pi*xvec[1];
+   const int dim = xvec.Size();
+   const real_t x = pi*xvec[0], y = pi*xvec[1];
    if (dim == 2) { return sin(x)*sin(y); }
-   else { double z = pi*xvec[2]; return sin(x)*sin(y)*sin(z); }
+   else { const real_t z = pi*xvec[2]; return sin(x)*sin(y)*sin(z); }
 }
 
-double f(const Vector &xvec)
+std::function<real_t(const Vector &)> f(real_t mass_coeff)
 {
-   int dim = xvec.Size();
-   double x = pi*xvec[0], y = pi*xvec[1];
-
-   if (dim == 2)
+   return [mass_coeff](const Vector &xvec)
    {
-      return sin(x)*sin(y) + 2*pi2*sin(x)*sin(y);
-   }
-   else // dim == 3
-   {
-      double z = pi*xvec[2];
-      return sin(x)*sin(y)*sin(z) + 3*pi2*sin(x)*sin(y)*sin(z);
-   }
+      const int dim = xvec.Size();
+      const real_t x = pi*xvec[0], y = pi*xvec[1];
+      if (dim == 2)
+      {
+         return mass_coeff*sin(x)*sin(y) + 2*pi2*sin(x)*sin(y);
+      }
+      else // dim == 3
+      {
+         const real_t z = pi*xvec[2];
+         return mass_coeff*sin(x)*sin(y)*sin(z) + 3*pi2*sin(x)*sin(y)*sin(z);
+      }
+   };
 }
 
 // Exact solution for definite Maxwell and grad-div problems with RHS
 // corresponding to f_vec below.
 void u_vec(const Vector &xvec, Vector &u)
 {
-   int dim = xvec.Size();
-   double x = pi*xvec[0], y = pi*xvec[1];
+   const int dim = xvec.Size();
+   const real_t x = pi*xvec[0], y = pi*xvec[1];
    if (dim == 2)
    {
       u[0] = cos(x)*sin(y);
@@ -58,47 +58,50 @@ void u_vec(const Vector &xvec, Vector &u)
    }
    else // dim == 3
    {
-      double z = pi*xvec[2];
+      const real_t z = pi*xvec[2];
       u[0] = cos(x)*sin(y)*sin(z);
       u[1] = sin(x)*cos(y)*sin(z);
       u[2] = sin(x)*sin(y)*cos(z);
    }
 }
 
-void f_vec(const Vector &xvec, Vector &f)
+std::function<void(const Vector &, Vector &)> f_vec(bool grad_div_problem)
 {
-   int dim = xvec.Size();
-   double x = pi*xvec[0], y = pi*xvec[1];
-   if (grad_div_problem)
+   return [grad_div_problem](const Vector &xvec, Vector &f)
    {
-      if (dim == 2)
+      const int dim = xvec.Size();
+      const real_t x = pi*xvec[0], y = pi*xvec[1];
+      if (grad_div_problem)
       {
-         f[0] = (1 + 2*pi2)*cos(x)*sin(y);
-         f[1] = (1 + 2*pi2)*cos(y)*sin(x);
+         if (dim == 2)
+         {
+            f[0] = (1 + 2*pi2)*cos(x)*sin(y);
+            f[1] = (1 + 2*pi2)*cos(y)*sin(x);
+         }
+         else // dim == 3
+         {
+            const real_t z = pi*xvec[2];
+            f[0] = (1 + 3*pi2)*cos(x)*sin(y)*sin(z);
+            f[1] = (1 + 3*pi2)*cos(y)*sin(x)*sin(z);
+            f[2] = (1 + 3*pi2)*cos(z)*sin(x)*sin(y);
+         }
       }
-      else // dim == 3
+      else
       {
-         double z = pi*xvec[2];
-         f[0] = (1 + 3*pi2)*cos(x)*sin(y)*sin(z);
-         f[1] = (1 + 3*pi2)*cos(y)*sin(x)*sin(z);
-         f[2] = (1 + 3*pi2)*cos(z)*sin(x)*sin(y);
+         if (dim == 2)
+         {
+            f[0] = cos(x)*sin(y);
+            f[1] = sin(x)*cos(y);
+         }
+         else // dim == 3
+         {
+            const real_t z = pi*xvec[2];
+            f[0] = cos(x)*sin(y)*sin(z);
+            f[1] = sin(x)*cos(y)*sin(z);
+            f[2] = sin(x)*sin(y)*cos(z);
+         }
       }
-   }
-   else
-   {
-      if (dim == 2)
-      {
-         f[0] = cos(x)*sin(y);
-         f[1] = sin(x)*cos(y);
-      }
-      else // dim == 3
-      {
-         double z = pi*xvec[2];
-         f[0] = cos(x)*sin(y)*sin(z);
-         f[1] = sin(x)*cos(y)*sin(z);
-         f[2] = sin(x)*sin(y)*cos(z);
-      }
-   }
+   };
 }
 
 } // namespace mfem

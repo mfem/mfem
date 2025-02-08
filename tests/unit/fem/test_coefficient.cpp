@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,8 +14,7 @@
 
 using namespace mfem;
 
-TEST_CASE("Piecewise Coefficient",
-          "[PWCoefficient]")
+TEST_CASE("Piecewise Coefficient", "[Coefficient]")
 {
    ConstantCoefficient oneCoef(1.0);
    ConstantCoefficient twoCoef(2.0);
@@ -95,8 +94,7 @@ TEST_CASE("Piecewise Coefficient",
    }
 }
 
-TEST_CASE("Piecewise Vector Coefficient",
-          "[PWVectorCoefficient]")
+TEST_CASE("Piecewise Vector Coefficient", "[Coefficient]")
 {
    int d = 3;
 
@@ -201,8 +199,7 @@ TEST_CASE("Piecewise Vector Coefficient",
    }
 }
 
-TEST_CASE("Piecewise Matrix Coefficient",
-          "[PWMatrixCoefficient]")
+TEST_CASE("Piecewise Matrix Coefficient", "[Coefficient]")
 {
    int d = 3;
 

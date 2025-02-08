@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -68,11 +68,43 @@ if (MFEM_ENABLE_TESTING)
       add_test(NAME ${TEST_NAME}_ser
         COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
     else()
-      add_test(NAME ${TEST_NAME}_np=4
+      add_test(NAME ${TEST_NAME}_np=${MFEM_MPI_NP}
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS}
         $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
         ${MPIEXEC_POSTFLAGS})
     endif()
   endforeach()
-endif()
+
+  # Add CUDA/HIP tests.
+  set(DEVICE_EXAMPLES
+      # serial examples with device support:
+      ex9
+      # parallel examples with device support:
+      ex9p)
+  set(MFEM_TEST_DEVICE)
+  if (MFEM_USE_CUDA)
+    set(MFEM_TEST_DEVICE "cuda")
+  elseif (MFEM_USE_HIP)
+    set(MFEM_TEST_DEVICE "hip")
+  endif()
+  if (MFEM_TEST_DEVICE)
+    foreach(TEST_NAME ${DEVICE_EXAMPLES})
+      string(TOUPPER ${TEST_NAME} UP_TEST_NAME)
+
+      set(THIS_TEST_OPTIONS "-no-vis" "-d" "${MFEM_TEST_DEVICE}")
+      list(APPEND THIS_TEST_OPTIONS ${${UP_TEST_NAME}_TEST_OPTS})
+
+      if (NOT (${TEST_NAME} MATCHES ".*p$"))
+        add_test(NAME ${PFX}${TEST_NAME}_${MFEM_TEST_DEVICE}_ser
+          COMMAND ${PFX}${TEST_NAME} ${THIS_TEST_OPTIONS})
+      else()
+        add_test(NAME ${PFX}${TEST_NAME}_${MFEM_TEST_DEVICE}_np=${MFEM_MPI_NP}
+          COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+          ${MPIEXEC_PREFLAGS}
+          $<TARGET_FILE:${PFX}${TEST_NAME}> ${THIS_TEST_OPTIONS}
+          ${MPIEXEC_POSTFLAGS})
+      endif()
+    endforeach()
+  endif(MFEM_TEST_DEVICE)
+endif(MFEM_ENABLE_TESTING)

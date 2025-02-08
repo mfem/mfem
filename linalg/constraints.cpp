@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -264,7 +264,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
    {
       int * I = B.GetI();
       int * J = B.GetJ();
-      double * data = B.GetData();
+      real_t * data = B.GetData();
 
       for (int k = 0; k < constraint_rowstarts.Size() - 1; ++k)
       {
@@ -281,7 +281,7 @@ EliminationSolver::EliminationSolver(HypreParMatrix& A, SparseMatrix& B,
             for (int jptr = I[i]; jptr < I[i + 1]; ++jptr)
             {
                int j = J[jptr];
-               double val = data[jptr];
+               real_t val = data[jptr];
                if (std::abs(val) > 1.e-12 && secondary_dofs.Find(j) == -1)
                {
                   secondary_dofs[i - constraint_rowstarts[k]] = j;
@@ -352,6 +352,7 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    reducedsol = 0.0;
    krylov->Mult(reducedrhs, reducedsol);
    final_iter = krylov->GetNumIterations();
+   initial_norm = krylov->GetInitialNorm();
    final_norm = krylov->GetFinalNorm();
    converged = krylov->GetConverged();
 
@@ -371,7 +372,7 @@ void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B,
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
-   HypreParMatrix& A, SparseMatrix& B, double penalty_)
+   HypreParMatrix& A, SparseMatrix& B, real_t penalty_)
    :
    ConstrainedSolver(A.GetComm(), A, B),
    penalty(B.Height()),
@@ -410,7 +411,7 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
-   HypreParMatrix& A, HypreParMatrix& B, double penalty_)
+   HypreParMatrix& A, HypreParMatrix& B, real_t penalty_)
    :
    ConstrainedSolver(A.GetComm(), A, B),
    penalty(B.Height()),
@@ -485,6 +486,7 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    krylov->SetPrintLevel(print_options);
    krylov->Mult(penalized_rhs, x);
    final_iter = krylov->GetNumIterations();
+   initial_norm = krylov->GetInitialNorm();
    final_norm = krylov->GetFinalNorm();
    converged = krylov->GetConverged();
 
@@ -616,6 +618,7 @@ void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
    gmres->Mult(x, y);
    final_iter = gmres->GetNumIterations();
    converged = gmres->GetConverged();
+   initial_norm = gmres->GetInitialNorm();
    final_norm = gmres->GetFinalNorm();
    delete gmres;
 }
@@ -921,9 +924,9 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
                   else
                   {
                      mout->SetColPtr(row);
-                     const double pv = mout->SearchRow(inner_truek);
-                     const double scaling = ((double) (visits - 1)) /
-                                            ((double) visits);
+                     const real_t pv = mout->SearchRow(inner_truek);
+                     const real_t scaling = ((real_t) (visits - 1)) /
+                                            ((real_t) visits);
                      // incremental average, based on how many times
                      // this node has been visited
                      mout->Set(row, inner_truek,

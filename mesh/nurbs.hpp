@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,10 +17,12 @@
 #include "../linalg/vector.hpp"
 #include "element.hpp"
 #include "mesh.hpp"
+#include "spacing.hpp"
 #ifdef MFEM_USE_MPI
 #include "../general/communication.hpp"
 #endif
 #include <iostream>
+#include <set>
 
 namespace mfem
 {
@@ -33,7 +35,7 @@ class KnotVector
 protected:
    static const int MaxOrder;
 
-   Vector knot;
+   Vector knot; // Values of knots
    int Order, NumOfControlPoints, NumOfElements;
 
 public:
@@ -56,34 +58,71 @@ public:
 
    bool isElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
 
-   double getKnotLocation(double xi, int ni) const
+   real_t getKnotLocation(real_t xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
-   int findKnotSpan(double u) const;
+   int findKnotSpan(real_t u) const;
 
-   void CalcShape  (Vector &shape, int i, double xi) const;
-   void CalcDShape (Vector &grad,  int i, double xi) const;
-   void CalcDnShape(Vector &gradn, int n, int i, double xi) const;
-   void CalcD2Shape(Vector &grad2, int i, double xi) const
+   void CalcShape  (Vector &shape, int i, real_t xi) const;
+   void CalcDShape (Vector &grad,  int i, real_t xi) const;
+   void CalcDnShape(Vector &gradn, int n, int i, real_t xi) const;
+   void CalcD2Shape(Vector &grad2, int i, real_t xi) const
    { CalcDnShape(grad2, 2, i, xi); }
 
+   /** Gives the locations of the maxima of the knotvector in reference space.
+       The function gives the knotspan @a ks, the coordinate in the knotspan
+       @a xi and the coordinate of the maximum in parameter space @a u */
+   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
+   /** Global curve interpolation through the points @a x. @a x is an array with
+       the length of the spatial dimension containing vectors with spatial
+       coordinates. The control points of the interpolated curve are given in
+       @a x in the same form.*/
+   void FindInterpolant(Array<Vector*> &x);
+
+   /// Finds the knots in the larger of this and kv, not contained in the other.
    void Difference(const KnotVector &kv, Vector &diff) const;
-   void UniformRefinement(Vector &newknots) const;
+
+   /// Refine uniformly with refinement factor @a rf.
+   void UniformRefinement(Vector &newknots, int rf) const;
+   /// Refine with refinement factor @a rf.
+   void Refinement(Vector &newknots, int rf) const;
+
+   /** Returns the coarsening factor needed for non-nested nonuniform spacing
+       functions, to result in a single element from which refinement can be
+       done. The return value is 1 if uniform or nested spacing is used. */
+   int GetCoarseningFactor() const;
+
+   /** For a given coarsening factor @a cf, find the fine knots between the
+       coarse knots. */
+   Vector GetFineKnots(const int cf) const;
+
    /** Return a new KnotVector with elevated degree by repeating the endpoints
        of the knot vector. */
+   /// @note The returned object should be deleted by the caller.
    KnotVector *DegreeElevate(int t) const;
 
    void Flip();
 
-   void Print(std::ostream &out) const;
+   void Print(std::ostream &os) const;
 
-   void PrintFunctions(std::ostream &out, int samples=11) const;
+   /** Prints the non-zero shape functions and their first and second
+       derivatives associated with the KnotVector per element. Use GetElements()
+       to count the elements before using this function. @a samples is the
+       number of samples of the shape functions per element.*/
+   void PrintFunctions(std::ostream &os, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
 
-   double &operator[](int i) { return knot(i); }
-   const double &operator[](int i) const { return knot(i); }
+   real_t &operator[](int i) { return knot(i); }
+   const real_t &operator[](int i) const { return knot(i); }
+
+   /// Function to define the distribution of knots for any number of knot spans.
+   std::shared_ptr<SpacingFunction> spacing;
+
+   /** Flag to indicate whether the KnotVector has been coarsened, which means
+       it is ready for non-nested refinement. */
+   bool coarse;
 };
 
 
@@ -91,22 +130,32 @@ class NURBSPatch
 {
 protected:
    int     ni, nj, nk, Dim;
-   double *data; // the layout of data is: (Dim x ni x nj x nk)
+   real_t *data; // the layout of data is: (Dim x ni x nj x nk)
+   // Note that Dim is the spatial dimension plus 1 (homogeneous coordinates).
 
    Array<KnotVector *> kv;
 
-   int sd, nd;
-
-   void swap(NURBSPatch *np);
-
    // Special B-NET access functions
+   //  - SetLoopDirection(int dir) flattens the multi-dimensional B-NET in the
+   //    requested direction. It effectively creates a 1D net in homogeneous
+   //    coordinates.
+   //  - The slice(int, int) operator is the access function in that flattened
+   //    structure. The first int gives the slice and the second int the element
+   //    in that slice.
+   //  - Both routines are used in 'KnotInsert', `KnotRemove`, 'DegreeElevate',
+   //    and 'UniformRefinement'.
+   //  - In older implementations, slice(int, int) was implemented as
+   //    operator()(int, int).
+   int nd; // Number of control points in flattened structure
+   int ls; // Number of variables per control point in flattened structure
+   int sd; // Stride for data access
    int SetLoopDirection(int dir);
-   inline       double &operator()(int i, int j);
-   inline const double &operator()(int i, int j) const;
-
-   void init(int dim_);
+   inline       real_t &slice(int i, int j);
+   inline const real_t &slice(int i, int j) const;
 
    NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP);
+   void swap(NURBSPatch *np);
+   void init(int dim_);
 
 public:
    NURBSPatch(const NURBSPatch &orig);
@@ -120,38 +169,100 @@ public:
 
    ~NURBSPatch();
 
-   void Print(std::ostream &out) const;
+   void Print(std::ostream &os) const;
 
    void DegreeElevate(int dir, int t);
-   void KnotInsert   (int dir, const KnotVector &knot);
-   void KnotInsert   (int dir, const Vector     &knot);
 
+   /// Insert knots from @a knot determined by @a Difference, in direction @a dir.
+   void KnotInsert(int dir, const KnotVector &knot);
+   /// Insert knots from @a knot, in direction @a dir.
+   void KnotInsert(int dir, const Vector     &knot);
+
+   /// Insert knots from @a knot, in each direction.
    void KnotInsert(Array<Vector *> &knot);
+   /// Insert knots from @a knot determined by @a Difference, in each direction.
    void KnotInsert(Array<KnotVector *> &knot);
 
+   /** @brief Remove knot with value @a knot from direction @a dir.
+
+       The optional input parameter @a ntimes specifies the number of times the
+       knot should be removed, default 1. The knot is removed only if the new
+       curve (in direction @a dir) deviates from the old curve by less than
+       @a tol.
+
+       @returns The number of times the knot was successfully removed. */
+   int KnotRemove(int dir, real_t knot, int ntimes=1, real_t tol = 1.0e-12);
+
+   /// Remove all knots in @a knot once.
+   void KnotRemove(int dir, Vector const& knot, real_t tol = 1.0e-12);
+   /// Remove all knots in @a knot once, for each direction.
+   void KnotRemove(Array<Vector *> &knot, real_t tol = 1.0e-12);
+
    void DegreeElevate(int t);
-   void UniformRefinement();
+
+   /** @brief Refine with optional refinement factor @a rf. Uniform means
+       refinement is done everywhere by the same factor, although nonuniform
+       spacing functions may be used.
+
+       @param[in] rf Optional refinement factor. If scalar, the factor is used
+                     for all dimensions. If an array, factors can be specified
+                     for each dimension. */
+   void UniformRefinement(int rf = 2);
+   void UniformRefinement(Array<int> const& rf);
+
+   /** @brief Coarsen with optional coarsening factor @a cf which divides the
+       number of elements in each dimension. Nonuniform spacing functions may be
+       used in each direction.
+
+       @param[in] cf  Optional coarsening factor. If scalar, the factor is used
+                      for all dimensions. If an array, factors can be specified
+                      for each dimension.
+       @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
+       "The NURBS Book", 2nd ed, Piegl and Tiller. */
+   void Coarsen(int cf = 2, real_t tol = 1.0e-12);
+   void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
+
+   /// Calls KnotVector::GetCoarseningFactor for each direction.
+   void GetCoarseningFactors(Array<int> & f) const;
+
+   /// Marks the KnotVector in each dimension as coarse.
+   void SetKnotVectorsCoarse(bool c);
 
    // Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
    int GetNKV() const { return kv.Size(); }
+   /// @note The returned object should NOT be deleted by the caller.
    KnotVector *GetKV(int i) { return kv[i]; }
 
    // Standard B-NET access functions
-   inline       double &operator()(int i, int j, int l);
-   inline const double &operator()(int i, int j, int l) const;
+   inline       real_t &operator()(int i, int j);
+   inline const real_t &operator()(int i, int j) const;
 
-   inline       double &operator()(int i, int j, int k, int l);
-   inline const double &operator()(int i, int j, int k, int l) const;
+   inline       real_t &operator()(int i, int j, int l);
+   inline const real_t &operator()(int i, int j, int l) const;
 
-   static void Get3DRotationMatrix(double n[], double angle, double r,
+   inline       real_t &operator()(int i, int j, int k, int l);
+   inline const real_t &operator()(int i, int j, int k, int l) const;
+
+   static void Get2DRotationMatrix(real_t angle,
+                                   DenseMatrix &T);
+   static void Get3DRotationMatrix(real_t n[], real_t angle, real_t r,
                                    DenseMatrix &T);
    void FlipDirection(int dir);
    void SwapDirections(int dir1, int dir2);
-   void Rotate3D(double normal[], double angle);
+
+   /// Rotate the NURBSPatch.
+   /** A rotation of a 2D NURBS-patch requires an angle only. Rotating
+       a 3D NURBS-patch requires a normal as well.*/
+   void Rotate(real_t angle, real_t normal[]= NULL);
+   void Rotate2D(real_t angle);
+   void Rotate3D(real_t normal[], real_t angle);
+
    int MakeUniformDegree(int degree = -1);
+   /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2);
-   friend NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang,
+   /// @note The returned object should be deleted by the caller.
+   friend NURBSPatch *Revolve3D(NURBSPatch &patch, real_t n[], real_t ang,
                                 int times);
 };
 
@@ -188,7 +299,11 @@ protected:
    Mesh *patchTopo;
    int own_topo;
    Array<int> edge_to_knot;
+   /** Set of knotvectors containing unique KnotVectors only */
    Array<KnotVector *> knotVectors;
+   /** Comprehensive set of knotvectors. This set contains a KnotVector for
+       every edge.*/
+   Array<KnotVector *> knotVectorsCompr;
    Vector weights;
 
    // periodic BC info:
@@ -217,9 +332,13 @@ protected:
    Array2D<int> el_to_IJK;  // IJK are "knot-span" indices!
    Array2D<int> bel_to_IJK; // they are NOT element indices!
 
+   std::vector<Array<int>> patch_to_el;
+   std::vector<Array<int>> patch_to_bel;
+
    Array<NURBSPatch *> patches;
 
    inline int         KnotInd(int edge) const;
+   /// @note The returned object should NOT be deleted by the caller.
    inline KnotVector *KnotVec(int edge);
    inline const KnotVector *KnotVec(int edge) const;
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
@@ -227,10 +346,22 @@ protected:
    void CheckPatches();
    void CheckBdrPatches();
 
+   /** Checks the direction of the knotvectors in the patch based on
+       the patch orientation for patch @a p returns the direction of
+       the Knotvectors in @a kvdir.*/
+   void CheckKVDirection(int p, Array <int> &kvdir);
+   /**  Creates the comprehensive set of KnotVectors. They are the same for 1D. */
+   void CreateComprehensiveKV();
+   /**  Updates the unique set of KnotVectors */
+   void UpdateUniqueKV();
+
+   /** Checks if the comprehensive array of KnotVectors agrees with
+       the reduced set of KnotVectors. Returns false if it finds
+       a difference. */
+   bool ConsistentKVSets();
+
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
-   void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;
    void GetBdrPatchKnotVectors(int p, Array<KnotVector *> &kv);
-   void GetBdrPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
 
    void SetOrderFromOrders();
    void SetOrdersFromKnotVectors();
@@ -238,12 +369,9 @@ protected:
    // periodic BC helper functions
    void InitDofMap();
    void ConnectBoundaries();
+   void ConnectBoundaries1D(int bnd0, int bnd1);
    void ConnectBoundaries2D(int bnd0, int bnd1);
    void ConnectBoundaries3D(int bnd0, int bnd1);
-   int DofMap(int dof) const
-   {
-      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
-   };
 
    // also count the global NumOfVertices and the global NumOfDofs
    void GenerateOffsets();
@@ -253,13 +381,14 @@ protected:
    void CountBdrElements();
 
    // generate the mesh elements
+   void Get1DElementTopo(Array<Element *> &elements) const;
    void Get2DElementTopo(Array<Element *> &elements) const;
    void Get3DElementTopo(Array<Element *> &elements) const;
 
    // generate the boundary mesh elements
+   void Get1DBdrElementTopo(Array<Element *> &boundary) const;
    void Get2DBdrElementTopo(Array<Element *> &boundary) const;
    void Get3DBdrElementTopo(Array<Element *> &boundary) const;
-
 
    // FE space generation functions
 
@@ -269,6 +398,7 @@ protected:
 
    // generate elem_to_global-dof table for the active elements
    // define el_to_patch, el_to_IJK, activeDof (as bool)
+   void Generate1DElementDofTable();
    void Generate2DElementDofTable();
    void Generate3DElementDofTable();
 
@@ -277,17 +407,20 @@ protected:
 
    // generate the bdr-elem_to_global-dof table for the active bdr. elements
    // define bel_to_patch, bel_to_IJK
+   void Generate1DBdrElementDofTable();
    void Generate2DBdrElementDofTable();
    void Generate3DBdrElementDofTable();
 
    // FE --> Patch translation functions
    void GetPatchNets  (const Vector &Nodes, int vdim);
+   void Get1DPatchNets(const Vector &Nodes, int vdim);
    void Get2DPatchNets(const Vector &Nodes, int vdim);
    void Get3DPatchNets(const Vector &Nodes, int vdim);
 
    // Patch --> FE translation functions
    // Side effects: delete the patches, update the weights from the patches
    void SetSolutionVector  (Vector &Nodes, int vdim);
+   void Set1DSolutionVector(Vector &Nodes, int vdim);
    void Set2DSolutionVector(Vector &Nodes, int vdim);
    void Set3DSolutionVector(Vector &Nodes, int vdim);
 
@@ -299,6 +432,9 @@ protected:
 
    void MergeWeights(Mesh *mesh_array[], int num_pieces);
 
+   void SetPatchToElements();
+   void SetPatchToBdrElements();
+
    // to be used by ParNURBSExtension constructor(s)
    NURBSExtension() { }
 
@@ -306,7 +442,7 @@ public:
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
    /// Read-in a NURBSExtension
-   NURBSExtension(std::istream &input);
+   NURBSExtension(std::istream &input, bool spacing=false);
    /** @brief Create a NURBSExtension with elevated order by repeating the
        endpoints of the knot vectors and using uniform weights of 1. */
    /** If a knot vector in @a parent already has order greater than or equal to
@@ -337,8 +473,8 @@ public:
    virtual ~NURBSExtension();
 
    // Print functions
-   void Print(std::ostream &out) const;
-   void PrintCharacteristics(std::ostream &out) const;
+   void Print(std::ostream &os, const std::string &comments = "") const;
+   void PrintCharacteristics(std::ostream &os) const;
    void PrintFunctions(const char *filename, int samples=11) const;
 
    // Meta data functions
@@ -364,6 +500,20 @@ public:
    int GetNTotalDof() const { return NumOfDofs; }
    int GetNDof()      const { return NumOfActiveDofs; }
 
+   /// Returns the local dof number
+   int GetActiveDof(int glob) const { return activeDof[glob]; };
+
+   /// Returns the dof index whilst accounting for periodic boundaries
+   int DofMap(int dof) const
+   {
+      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
+   };
+
+   /// Returns knotvectors in each dimension for patch @a p.
+   void GetPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
+
+   void GetBdrPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
+
    // Knotvector read-only access function
    const KnotVector *GetKnotVector(int i) const { return knotVectors[i]; }
 
@@ -373,11 +523,30 @@ public:
 
    bool HavePatches() const { return (patches.Size() != 0); }
 
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetElementDofTable() { return el_dof; }
+   /// @note The returned object should NOT be deleted by the caller.
    Table *GetBdrElementDofTable() { return bel_dof; }
 
    void GetVertexLocalToGlobal(Array<int> &lvert_vert);
    void GetElementLocalToGlobal(Array<int> &lelem_elem);
+
+   // Set the attribute for patch @a i, which is set to all elements in the
+   // patch.
+   void SetPatchAttribute(int i, int attr) { patchTopo->SetAttribute(i, attr); }
+
+   // Get the attribute for patch @a i, which is set to all elements in the
+   // patch.
+   int GetPatchAttribute(int i) const { return patchTopo->GetAttribute(i); }
+
+   // Set the attribute for patch boundary element @a i, which is set to all
+   // boundary elements in the patch.
+   void SetPatchBdrAttribute(int i, int attr)
+   { patchTopo->SetBdrAttribute(i, attr); }
+   // Get the attribute for patch boundary element @a i, which is set to all
+   // boundary elements in the patch.
+   int GetPatchBdrAttribute(int i) const
+   { return patchTopo->GetBdrAttribute(i); }
 
    // Load functions
    void LoadFE(int i, const FiniteElement *FE) const;
@@ -395,14 +564,42 @@ public:
    // Read a GridFunction written patch-by-patch, e.g. with PrintSolution().
    void LoadSolution(std::istream &input, GridFunction &sol) const;
    // Write a GridFunction patch-by-patch.
-   void PrintSolution(const GridFunction &sol, std::ostream &out) const;
+   void PrintSolution(const GridFunction &sol, std::ostream &os) const;
 
    // Refinement methods
    // new_degree = max(old_degree, min(old_degree + rel_degree, degree))
    void DegreeElevate(int rel_degree, int degree = 16);
-   void UniformRefinement();
+
+   /** @brief Refine with optional refinement factor @a rf. Uniform means
+   refinement is done everywhere by the same factor, although nonuniform
+   spacing functions may be used.
+   */
+   void UniformRefinement(int rf = 2);
+   void UniformRefinement(Array<int> const& rf);
+   void Coarsen(int cf = 2, real_t tol = 1.0e-12);
+   void Coarsen(Array<int> const& cf, real_t tol = 1.0e-12);
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
+
+   void KnotRemove(Array<Vector *> &kv, real_t tol = 1.0e-12);
+
+   /** Calls GetCoarseningFactors for each patch and finds the minimum factor
+       for each direction that ensures refinement will work in the case of
+       non-nested spacing functions. */
+   void GetCoarseningFactors(Array<int> & f) const;
+
+   /// Returns the index of the patch containing element @a elem.
+   int GetElementPatch(int elem) const { return el_to_patch[elem]; }
+
+   /** Returns the Cartesian indices (i,j) in 2D or (i,j,k) in 3D of element
+       @a elem, in the knot-span tensor product ordering for its patch. */
+   void GetElementIJK(int elem, Array<int> & ijk);
+
+   // Returns the degrees of freedom on the patch, in Cartesian order.
+   void GetPatchDofs(const int patch, Array<int> &dofs);
+
+   const Array<int>& GetPatchElements(int patch);
+   const Array<int>& GetPatchBdrElements(int patch);
 };
 
 
@@ -413,6 +610,7 @@ private:
    int *partitioning;
 
    Table *GetGlobalElementDofTable();
+   Table *Get1DGlobalElementDofTable();
    Table *Get2DGlobalElementDofTable();
    Table *Get3DGlobalElementDofTable();
 
@@ -485,17 +683,56 @@ public:
 
 // Inline function implementations
 
-inline double &NURBSPatch::operator()(int i, int j)
+inline real_t &NURBSPatch::slice(int i, int j)
 {
+#ifdef MFEM_DEBUG
+   if (data == 0 || i < 0 || i >= nd || j < 0 || j > ls)
+   {
+      mfem_error("NURBSPatch::slice()");
+   }
+#endif
    return data[j%sd + sd*(i + (j/sd)*nd)];
 }
 
-inline const double &NURBSPatch::operator()(int i, int j) const
+inline const real_t &NURBSPatch::slice(int i, int j) const
 {
+#ifdef MFEM_DEBUG
+   if (data == 0 || i < 0 || i >= nd || j < 0 || j > ls)
+   {
+      mfem_error("NURBSPatch::slice()");
+   }
+#endif
    return data[j%sd + sd*(i + (j/sd)*nd)];
 }
 
-inline double &NURBSPatch::operator()(int i, int j, int l)
+
+inline real_t &NURBSPatch::operator()(int i, int l)
+{
+#ifdef MFEM_DEBUG
+   if (data == 0 || i < 0 || i >= ni || nj > 0 || nk > 0 ||
+       l < 0 || l >= Dim)
+   {
+      mfem_error("NURBSPatch::operator() 1D");
+   }
+#endif
+
+   return data[i*Dim+l];
+}
+
+inline const real_t &NURBSPatch::operator()(int i, int l) const
+{
+#ifdef MFEM_DEBUG
+   if (data == 0 || i < 0 || i >= ni ||  nj > 0 || nk > 0 ||
+       l < 0 || l >= Dim)
+   {
+      mfem_error("NURBSPatch::operator() const 1D");
+   }
+#endif
+
+   return data[i*Dim+l];
+}
+
+inline real_t &NURBSPatch::operator()(int i, int j, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || nk > 0 ||
@@ -508,7 +745,7 @@ inline double &NURBSPatch::operator()(int i, int j, int l)
    return data[(i+j*ni)*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int j, int l) const
+inline const real_t &NURBSPatch::operator()(int i, int j, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || nk > 0 ||
@@ -521,7 +758,7 @@ inline const double &NURBSPatch::operator()(int i, int j, int l) const
    return data[(i+j*ni)*Dim+l];
 }
 
-inline double &NURBSPatch::operator()(int i, int j, int k, int l)
+inline real_t &NURBSPatch::operator()(int i, int j, int k, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || k < 0 ||
@@ -534,7 +771,7 @@ inline double &NURBSPatch::operator()(int i, int j, int k, int l)
    return data[(i+(j+k*nj)*ni)*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int j, int k, int l) const
+inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || k < 0 ||

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "../../fem/gridfunc.hpp"
 #include "transfer_category.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -35,7 +36,7 @@ public:
     * freedom from the source GridFunction to the destination GridFunction.
     *
     * @param src The source GridFunction
-    * @param dst The destination Gridfunction
+    * @param dst The destination GridFunction
     */
    TransferMap(const GridFunction &src,
                const GridFunction &dst);
@@ -46,16 +47,20 @@ public:
     * Uses the precomputed maps for the transfer.
     *
     * @param src The source GridFunction
-    * @param dst The destination Gridfunction
+    * @param dst The destination GridFunction
     */
    void Transfer(const GridFunction &src, GridFunction &dst) const;
 
-   ~TransferMap();
-
 private:
+
+   static void CorrectFaceOrientations(const FiniteElementSpace &fes,
+                                       const Vector &src,
+                                       Vector &dst,
+                                       const Array<int> *s2p_map = NULL);
+
    TransferCategory category_;
 
-   /// Mapping of the GridFunction defined on the SubMesh to the Gridfunction
+   /// Mapping of the GridFunction defined on the SubMesh to the GridFunction
    /// of its parent Mesh.
    Array<int> sub1_to_parent_map_;
 
@@ -67,7 +72,14 @@ private:
    /// Pointer to the supplemental FiniteElementSpace on the common root parent
    /// Mesh. This is only used if this TransferMap represents a SubMesh to
    /// SubMesh transfer.
-   const FiniteElementSpace *root_fes_ = nullptr;
+   std::unique_ptr<const FiniteElementSpace> root_fes_;
+
+   /// Pointer to the supplemental FiniteElementCollection used with root_fes_.
+   /// This is only used if this TransferMap represents a SubMesh to
+   /// SubMesh transfer where the root requires a different type of collection
+   /// than the SubMesh objects. For example, when the subpaces are L2 on
+   /// boundaries of the parent mesh and the root space can be RT.
+   std::unique_ptr<const FiniteElementCollection> root_fec_;
 
    /// Temporary vector
    mutable Vector z_;

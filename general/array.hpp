@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,11 +74,14 @@ public:
    inline Array(int asize, MemoryType mt)
       : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
 
-   /** @brief Creates array using an existing c-array of asize elements;
-       allocsize is set to -asize to indicate that the data will not
-       be deleted. */
-   inline Array(T *data_, int asize)
-   { data.Wrap(data_, asize, false); size = asize; }
+   /** @brief Creates array using an externally allocated host pointer @a data_
+       to @a asize elements. If @a own_data is true, the array takes ownership
+       of the pointer.
+
+       When @a own_data is true, the pointer @a data_ must be allocated with
+       MemoryType given by MemoryManager::GetHostMemoryType(). */
+   inline Array(T *data_, int asize, bool own_data = false)
+   { data.Wrap(data_, asize, own_data); size = asize; }
 
    /// Copy constructor: deep copy from @a src
    /** This method supports source arrays using any MemoryType. */
@@ -91,6 +94,9 @@ public:
    /// Deep copy from a braced init-list of convertible type
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
+
+   /// Move constructor ("steals" data from 'src')
+   inline Array(Array<T> &&src) { Swap(src, *this); }
 
    /// Destructor
    inline ~Array() { TypeAssert(); data.Delete(); }
@@ -122,7 +128,7 @@ public:
    /// Return the device flag of the Memory object used by the Array
    bool UseDevice() const { return data.UseDevice(); }
 
-   /// Return true if the data will be deleted by the array
+   /// Return true if the data will be deleted by the Array
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Changes the ownership of the data
@@ -203,7 +209,14 @@ public:
    inline void Copy(Array &copy) const;
 
    /// Make this Array a reference to a pointer.
-   inline void MakeRef(T *, int);
+   /** When @a own_data is true, the pointer @a data_ must be allocated with
+       MemoryType given by MemoryManager::GetHostMemoryType(). */
+   inline void MakeRef(T *data_, int size_, bool own_data = false);
+
+   /// Make this Array a reference to a pointer.
+   /** When @a own_data is true, the pointer @a data_ must be allocated with
+       MemoryType given by @a mt. */
+   inline void MakeRef(T *data_, int size, MemoryType mt, bool own_data);
 
    /// Make this Array a reference to 'master'.
    inline void MakeRef(const Array &master);
@@ -260,7 +273,7 @@ public:
    }
 
    /// Return 1 if the array is sorted from lowest to highest.  Otherwise return 0.
-   int IsSorted();
+   int IsSorted() const;
 
    /// Fill the entries of the array with the cumulative sum of the entries.
    void PartialSum();
@@ -344,7 +357,7 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
 
 
 /// Utility function similar to std::as_const in c++17.
-template <typename T> const T &AsConst(T &a) { return a; }
+template <typename T> const T &AsConst(const T &a) { return a; }
 
 
 template <class T>
@@ -366,6 +379,8 @@ private:
 public:
    Array2D() { M = N = 0; }
    Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
+
+   Array2D(const Array2D &) = default;
 
    void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
 
@@ -460,6 +475,9 @@ public:
 
    inline const T &operator()(int i, int j, int k) const;
    inline       T &operator()(int i, int j, int k);
+
+   inline void operator=(const T &a)
+   { array1d = a; }
 };
 
 
@@ -861,20 +879,27 @@ inline void Array<T>::Copy(Array &copy) const
 }
 
 template <class T>
-inline void Array<T>::MakeRef(T *p, int s)
+inline void Array<T>::MakeRef(T *data_, int size_, bool own_data)
 {
    data.Delete();
-   data.Wrap(p, s, false);
-   size = s;
+   data.Wrap(data_, size_, own_data);
+   size = size_;
+}
+
+template <class T>
+inline void Array<T>::MakeRef(T *data_, int size_, MemoryType mt, bool own_data)
+{
+   data.Delete();
+   data.Wrap(data_, size_, mt, own_data);
+   size = size_;
 }
 
 template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
    data.Delete();
-   data = master.data; // note: copies the device flag
    size = master.size;
-   data.ClearOwnerFlags();
+   data.MakeAlias(master.GetMemory(), 0, size);
 }
 
 template <class T>

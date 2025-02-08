@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -70,10 +70,13 @@ public:
     * integers (length nBlocks+1) that tells the offsets of each block start.
     * nBlocks is the number of blocks.
     */
-   BlockVector(double *data, const Array<int> & bOffsets);
+   BlockVector(real_t *data, const Array<int> & bOffsets);
 
    /// Wrap a Vector as a BlockVector
    BlockVector(Vector &v, const Array<int> &bOffsets);
+
+   /// Wrap a Vector as a BlockVector with offset
+   BlockVector(Vector &v, int offset,  const Array<int> &bOffsets);
 
    //! Return the number of blocks
    int NumBlocks() const { return numBlocks; }
@@ -81,7 +84,7 @@ public:
    //! Assignment operator. this and original must have the same block structure.
    BlockVector & operator=(const BlockVector & original);
    //! Set each entry of this equal to val
-   BlockVector & operator=(double val);
+   BlockVector & operator=(real_t val);
 
    //! Destructor
    ~BlockVector();
@@ -103,7 +106,7 @@ public:
     * integers (length nBlocks+1) that tells the offsets of each block start.
     * nBlocks is the number of blocks.
     */
-   void Update(double *data, const Array<int> & bOffsets);
+   void Update(real_t *data, const Array<int> & bOffsets);
 
    void Update(Vector & data, const Array<int> & bOffsets);
 

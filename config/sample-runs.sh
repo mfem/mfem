@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -138,7 +138,7 @@ groups_parallel=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "pmesh-optimizer.cpp pminimal-surface.cpp"'
+   "pmesh-optimizer.cpp pmesh-fitting.cpp pminimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -227,7 +227,7 @@ groups_all=(
    "Meshing miniapps:"
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
-    {,p}mesh-optimizer.cpp {,p}minimal-surface.cpp"'
+    {,p}mesh-optimizer.cpp pmesh-fitting.cpp {,p}minimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -315,7 +315,7 @@ function extract_sample_runs()
    sruns=`grep -v "^//.*  mpirun .* ${app}" "${src}" |
           grep "^//.*  ${app}" |
           sed -e "s/.*  ${app}/${vg_app}/g"`
-   runs="${sruns}${pruns}"
+   runs="${sruns}"$'\n'"${pruns}"
    if [ "$skip_gen_meshes" == "yes" ]; then
       runs=`printf "%s" "$runs" | grep -v ".* -m .*\.gen"`
    fi

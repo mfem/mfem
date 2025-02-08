@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,7 +48,7 @@ void DenseSymmetricMatrix::SetSize(int s)
    }
 }
 
-DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(double c)
+DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(real_t c)
 {
    const int s = (Height()*(Height()+1))/2;
    for (int i = 0; i < s; i++)
@@ -58,17 +58,17 @@ DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(double c)
    return *this;
 }
 
-double &DenseSymmetricMatrix::Elem(int i, int j)
+real_t &DenseSymmetricMatrix::Elem(int i, int j)
 {
    return (*this)(i,j);
 }
 
-const double &DenseSymmetricMatrix::Elem(int i, int j) const
+const real_t &DenseSymmetricMatrix::Elem(int i, int j) const
 {
    return (*this)(i,j);
 }
 
-DenseSymmetricMatrix &DenseSymmetricMatrix::operator*=(double c)
+DenseSymmetricMatrix &DenseSymmetricMatrix::operator*=(real_t c)
 {
    int s = GetStoredSize();
    for (int i = 0; i < s; i++)

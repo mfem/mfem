@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
    dc.SetPadDigitsRank(pad_digits_rank);
    dc.Load(cycle);
 
-   if (dc.Error() != DataCollection::NO_ERROR)
+   if (dc.Error() != DataCollection::No_Error)
    {
       mfem::out << "Error loading VisIt data collection: " << coll_name << endl;
       return 1;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,7 +46,7 @@
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
-#define MFEM_HOST_DEVICE
+// #define MFEM_HOST_DEVICE // defined in config/config.hpp
 // MFEM_DEVICE_SYNC is made available for debugging purposes
 #define MFEM_DEVICE_SYNC
 // MFEM_STREAM_SYNC is used for UVM and MPI GPU-Aware kernels
@@ -65,7 +65,7 @@
 
 // 'double' atomicAdd implementation for previous versions of CUDA
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
-MFEM_DEVICE double atomicAdd(double *add, double val)
+MFEM_DEVICE inline real_t atomicAdd(real_t *add, real_t val)
 {
    unsigned long long int *ptr = (unsigned long long int *) add;
    unsigned long long int old = *ptr, reg;
@@ -73,10 +73,18 @@ MFEM_DEVICE double atomicAdd(double *add, double val)
    {
       reg = old;
       old = atomicCAS(ptr, reg,
+#ifdef MFEM_USE_SINGLE
+                      __float_as_int(val + __int_as_float(reg)));
+#else
                       __double_as_longlong(val + __longlong_as_double(reg)));
+#endif
    }
    while (reg != old);
+#ifdef MFEM_USE_SINGLE
+   return __int_as_float(old);
+#else
    return __longlong_as_double(old);
+#endif
 }
 #endif
 

@@ -62,7 +62,7 @@ protected:
 
    BilinearForm M, S;
    NonlinearForm H;
-   double viscosity;
+   real_t viscosity;
    HyperelasticModel *model;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
@@ -84,16 +84,16 @@ protected:
 
 public:
    HyperelasticOperator(FiniteElementSpace &f, Array<int> &ess_bdr,
-                        double visc, double mu, double K);
+                        real_t visc, real_t mu, real_t K);
 
    /// Compute the right-hand side of the ODE system.
    virtual void Mult(const Vector &vx, Vector &dvx_dt) const;
    /** Solve the Backward-Euler equation: k = f(x + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   virtual void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
-   double ElasticEnergy(const Vector &x) const;
-   double KineticEnergy(const Vector &v) const;
+   real_t ElasticEnergy(const Vector &x) const;
+   real_t KineticEnergy(const Vector &v) const;
    void GetElasticEnergyDensity(const GridFunction &x, GridFunction &w) const;
 
    virtual ~HyperelasticOperator();
@@ -109,7 +109,7 @@ private:
    BilinearForm *M, *S;
    NonlinearForm *H;
    mutable SparseMatrix *Jacobian;
-   double dt;
+   real_t dt;
    const Vector *v, *x;
    mutable Vector w, z;
 
@@ -117,7 +117,7 @@ public:
    ReducedSystemOperator(BilinearForm *M_, BilinearForm *S_, NonlinearForm *H_);
 
    /// Set current dt, v, x values - needed to compute action and Jacobian.
-   void SetParameters(double dt_, const Vector *v_, const Vector *x_);
+   void SetParameters(real_t dt_, const Vector *v_, const Vector *x_);
 
    /// Compute y = H(x + dt (v + dt k)) + M k + S (v + dt k).
    virtual void Mult(const Vector &k, Vector &y) const;
@@ -141,7 +141,7 @@ private:
 public:
    ElasticEnergyCoefficient(HyperelasticModel &m, const GridFunction &x_)
       : model(m), x(x_) { }
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
    virtual ~ElasticEnergyCoefficient() { }
 };
 
@@ -161,11 +161,11 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    int ode_solver_type = 3;
-   double t_final = 300.0;
-   double dt = 3.0;
-   double visc = 1e-2;
-   double mu = 0.25;
-   double K = 5.0;
+   real_t t_final = 300.0;
+   real_t dt = 3.0;
+   real_t visc = 1e-2;
+   real_t mu = 0.25;
+   real_t K = 5.0;
    bool visualization = true;
    int vis_steps = 1;
 
@@ -309,13 +309,13 @@ int main(int argc, char *argv[])
            << " Press space (in the GLVis window) to resume it.\n";
    }
 
-   double ee0 = oper.ElasticEnergy(x.GetTrueVector());
-   double ke0 = oper.KineticEnergy(v.GetTrueVector());
+   real_t ee0 = oper.ElasticEnergy(x.GetTrueVector());
+   real_t ke0 = oper.KineticEnergy(v.GetTrueVector());
    cout << "initial elastic energy (EE) = " << ee0 << endl;
    cout << "initial kinetic energy (KE) = " << ke0 << endl;
    cout << "initial   total energy (TE) = " << (ee0 + ke0) << endl;
 
-   double t = 0.0;
+   real_t t = 0.0;
    oper.SetTime(t);
    ode_solver->Init(oper);
 
@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
-      double dt_real = min(dt, t_final - t);
+      real_t dt_real = min(dt, t_final - t);
 
       ode_solver->Step(vx, t, dt_real);
 
@@ -332,8 +332,8 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         double ee = oper.ElasticEnergy(x.GetTrueVector());
-         double ke = oper.KineticEnergy(v.GetTrueVector());
+         real_t ee = oper.ElasticEnergy(x.GetTrueVector());
+         real_t ke = oper.KineticEnergy(v.GetTrueVector());
 
          cout << "step " << ti << ", t = " << t << ", EE = " << ee << ", KE = "
               << ke << ", ΔTE = " << (ee+ke)-(ee0+ke0) << endl;
@@ -419,7 +419,7 @@ ReducedSystemOperator::ReducedSystemOperator(
      dt(0.0), v(NULL), x(NULL), w(height), z(height)
 { }
 
-void ReducedSystemOperator::SetParameters(double dt_, const Vector *v_,
+void ReducedSystemOperator::SetParameters(real_t dt_, const Vector *v_,
                                           const Vector *x_)
 {
    dt = dt_;  v = v_;  x = x_;
@@ -453,16 +453,26 @@ ReducedSystemOperator::~ReducedSystemOperator()
 
 
 HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
-                                           Array<int> &ess_bdr, double visc,
-                                           double mu, double K)
-   : TimeDependentOperator(2*f.GetTrueVSize(), 0.0), fespace(f),
+                                           Array<int> &ess_bdr, real_t visc,
+                                           real_t mu, real_t K)
+   : TimeDependentOperator(2*f.GetTrueVSize(), (real_t) 0.0), fespace(f),
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), z(height/2)
 {
-   const double rel_tol = 1e-8;
+#if defined(MFEM_USE_DOUBLE)
+   const real_t rel_tol = 1e-8;
+   const real_t newton_abs_tol = 0.0;
+#elif defined(MFEM_USE_SINGLE)
+   const real_t rel_tol = 1e-3;
+   const real_t newton_abs_tol = 1e-4;
+#else
+#error "Only single and double precision are supported!"
+   const real_t rel_tol = real_t(1);
+   const real_t newton_abs_tol = real_t(0);
+#endif
    const int skip_zero_entries = 0;
 
-   const double ref_density = 1.0; // density in the reference configuration
+   const real_t ref_density = 1.0; // density in the reference configuration
    ConstantCoefficient rho0(ref_density);
    M.AddDomainIntegrator(new VectorMassIntegrator(rho0));
    M.Assemble(skip_zero_entries);
@@ -509,7 +519,7 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
    newton_solver.SetOperator(*reduced_oper);
    newton_solver.SetPrintLevel(1); // print Newton iterations
    newton_solver.SetRelTol(rel_tol);
-   newton_solver.SetAbsTol(0.0);
+   newton_solver.SetAbsTol(newton_abs_tol);
    newton_solver.SetMaxIter(10);
 }
 
@@ -533,7 +543,7 @@ void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    dx_dt = v;
 }
 
-void HyperelasticOperator::ImplicitSolve(const double dt,
+void HyperelasticOperator::ImplicitSolve(const real_t dt,
                                          const Vector &vx, Vector &dvx_dt)
 {
    int sc = height/2;
@@ -555,12 +565,12 @@ void HyperelasticOperator::ImplicitSolve(const double dt,
    add(v, dt, dv_dt, dx_dt);
 }
 
-double HyperelasticOperator::ElasticEnergy(const Vector &x) const
+real_t HyperelasticOperator::ElasticEnergy(const Vector &x) const
 {
    return H.GetEnergy(x);
 }
 
-double HyperelasticOperator::KineticEnergy(const Vector &v) const
+real_t HyperelasticOperator::KineticEnergy(const Vector &v) const
 {
    return 0.5*M.InnerProduct(v, v);
 }
@@ -581,7 +591,7 @@ HyperelasticOperator::~HyperelasticOperator()
 }
 
 
-double ElasticEnergyCoefficient::Eval(ElementTransformation &T,
+real_t ElasticEnergyCoefficient::Eval(ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
    model.SetTransformation(T);
@@ -601,7 +611,7 @@ void InitialDeformation(const Vector &x, Vector &y)
 void InitialVelocity(const Vector &x, Vector &v)
 {
    const int dim = x.Size();
-   const double s = 0.1/64.;
+   const real_t s = 0.1/64.;
 
    v = 0.0;
    v(dim-1) = s*x(0)*x(0)*(8.0-x(0));

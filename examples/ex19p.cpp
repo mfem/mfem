@@ -62,15 +62,15 @@ public:
 #endif
    }
 
-   virtual void MonitorResidual(int it, double norm, const Vector &r, bool final);
+   virtual void MonitorResidual(int it, real_t norm, const Vector &r, bool final);
 
 private:
    const std::string prefix;
    int print_level;
-   mutable double norm0;
+   mutable real_t norm0;
 };
 
-void GeneralResidualMonitor::MonitorResidual(int it, double norm,
+void GeneralResidualMonitor::MonitorResidual(int it, real_t norm,
                                              const Vector &r, bool final)
 {
    if (print_level == 1 || (print_level == 3 && (final || it == 0)))
@@ -117,7 +117,7 @@ protected:
    BlockOperator *jacobian;
 
    // Scaling factor for the pressure mass matrix in the block preconditioner
-   double gamma;
+   real_t gamma;
 
    // Objects for the block preconditioner application
    Operator *pressure_mass;
@@ -171,7 +171,7 @@ protected:
 
 public:
    RubberOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, double rel_tol, double abs_tol,
+                  Array<int> &block_trueOffsets, real_t rel_tol, real_t abs_tol,
                   int iter, Coefficient &mu);
 
    // Required to use the native newton solver
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
 #ifdef HYPRE_USING_GPU
    cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this example\n"
         << "is NOT supported with the GPU version of hypre.\n\n";
-   return 242;
+   return MFEM_SKIP_RETURN_VALUE;
 #endif
 
    // 1. Initialize MPI and HYPRE.
@@ -214,10 +214,10 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 2;
    bool visualization = true;
-   double newton_rel_tol = 1e-4;
-   double newton_abs_tol = 1e-6;
+   real_t newton_rel_tol = 1e-4;
+   real_t newton_abs_tol = 1e-6;
    int newton_iter = 500;
-   double mu = 1.0;
+   real_t mu = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -524,8 +524,8 @@ JacobianPreconditioner::~JacobianPreconditioner()
 RubberOperator::RubberOperator(Array<ParFiniteElementSpace *> &fes,
                                Array<Array<int> *> &ess_bdr,
                                Array<int> &trueOffsets,
-                               double rel_tol,
-                               double abs_tol,
+                               real_t rel_tol,
+                               real_t abs_tol,
                                int iter,
                                Coefficient &c_mu)
    : Operator(fes[0]->TrueVSize() + fes[1]->TrueVSize()),

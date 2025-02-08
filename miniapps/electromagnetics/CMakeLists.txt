@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -55,11 +55,13 @@ if (MFEM_USE_MPI)
       -no-vis -p rod -tf 3 -m ${CMAKE_CURRENT_SOURCE_DIR}/cylinder-hex.mesh
       ${MPIEXEC_POSTFLAGS})
 
-    add_test(NAME maxwell_np=4
-      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-      ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:maxwell>
-      -no-vis -abcs "-1" -dp "-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5"
-      ${MPIEXEC_POSTFLAGS})
+    if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+      add_test(NAME maxwell_np=4
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:maxwell>
+        -no-vis -abcs "-1" -dp "-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5"
+        ${MPIEXEC_POSTFLAGS})
+    endif()
   endif()
 endif()

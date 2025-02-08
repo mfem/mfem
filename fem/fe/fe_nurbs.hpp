@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,6 +56,10 @@ public:
    Vector              &Weights    ()         const { return weights; }
    /// Update the NURBSFiniteElement according to the currently set knot vectors
    virtual void         SetOrder   ()         const { }
+
+   /// Returns the indices (i,j) in 2D or (i,j,k) in 3D of this element in the
+   /// tensor product ordering of the patch.
+   const int* GetIJK() const { return ijk; }
 };
 
 

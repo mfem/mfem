@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -11,18 +11,16 @@
 
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
-        dist_solver.cpp
         sbm_solver.cpp
         marking.cpp
         extrapolator.cpp
-	integ_algoim.cpp)
+        integ_algoim.cpp)
   list(APPEND DIST_COMMON_HEADERS
-        dist_solver.hpp
         sbm_solver.hpp
         sbm_aux.hpp
         marking.hpp
         extrapolator.hpp
-	integ_algoim.hpp)
+        integ_algoim.hpp)
 
   convert_filenames_to_full_paths(DIST_COMMON_SOURCES)
   convert_filenames_to_full_paths(DIST_COMMON_HEADERS)
@@ -52,16 +50,27 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem mfem-common)
 
   if (MFEM_ENABLE_TESTING)
-    add_test(NAME shifted_distance_np${MFEM_MPI_NP}
-      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-      ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:distance> -no-vis
-      ${MPIEXEC_POSTFLAGS})
+    set(PARALLEL_TESTS
+      distance
+      diffusion
+      extrapolate
+      lsf_integral
+    )
+    # Shifted miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
+    set(SKIP_TESTS)
+    if (HYPRE_USING_CUDA OR HYPRE_USING_HIP)
+      list(APPEND SKIP_TESTS diffusion)
+    endif()
 
-    add_test(NAME shifted_diffusion_np${MFEM_MPI_NP}
-      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-      ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:diffusion> -no-vis
-      ${MPIEXEC_POSTFLAGS})
+    foreach(test ${PARALLEL_TESTS})
+      if (test IN_LIST SKIP_TESTS)
+        continue()
+      endif()
+      add_test(NAME shifted_${test}_np${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:${test}> -no-vis
+        ${MPIEXEC_POSTFLAGS})
+    endforeach()
   endif()
 endif ()
