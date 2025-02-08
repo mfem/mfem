@@ -1352,4 +1352,99 @@ void Diffusion_Solver::ASolve( Vector & rhs )
     dQdx_->Add(-1.0, LHS_sensitivity);
     dQdx_->Add( 1.0, RHS_sensitivity);
 }
+
+void VectorHelmholtz::FSolve( mfem::Vector & rhs )
+{
+  Vector Xi = X0_;
+  coord_fes_->GetParMesh()->SetNodes(Xi);
+  coord_fes_->GetParMesh()->DeleteGeometricFactors();
+
+  Array<int> ess_tdof_list(ess_tdof_list_);
+
+  // make coefficients of the linear elastic properties
+  ::mfem::ConstantCoefficient radius(1.0);
+  mfem::ParGridFunction loadGF(coord_fes_);
+  loadGF.SetFromTrueDofs(rhs);
+  ::mfem::GridFunctionCoefficient QF(&loadGF);
+
+  ParBilinearForm a(u_fes_);
+  ParLinearForm b(u_fes_);
+  a.AddDomainIntegrator(new VectorMassIntegrator);
+  a.AddDomainIntegrator(new VectorMassIntegrator(radius));
+
+  b.AddDomainIntegrator(new DomainLFIntegrator(QF));
+
+  a.Assemble();
+  b.Assemble();
+
+  // solve for temperature
+  ParGridFunction &u = solgf;
+
+  u = 0.0;
+  HypreParMatrix A;
+  Vector X, B;
+  a.FormLinearSystem(ess_tdof_list, u, b, A, X, B);
+
+  HypreBoomerAMG amg(A);
+  amg.SetPrintLevel(0);
+
+  CGSolver cg(u_fes_->GetParMesh()->GetComm());
+  cg.SetRelTol(1e-10);
+  cg.SetMaxIter(500);
+  cg.SetPreconditioner(amg);
+  cg.SetOperator(A);
+  cg.Mult(B, X);
+
+  a.RecoverFEMSolution(X, b, u);
+}
+
+void VectorHelmholtz::ASolve( Vector & rhs )
+{
+    Vector Xi = X0_;
+    coord_fes_->GetParMesh()->SetNodes(Xi);
+    coord_fes_->GetParMesh()->DeleteGeometricFactors();
+
+    Array<int> ess_tdof_list(ess_tdof_list_);
+
+    // make coefficients of the linear elastic properties
+    ::mfem::ConstantCoefficient radius(1.0);
+
+    ParBilinearForm a(u_fes_);
+    a.AddDomainIntegrator(new VectorMassIntegrator);
+    a.AddDomainIntegrator(new VectorMassIntegrator(radius));
+    a.Assemble();
+
+    // solve adjoint problem
+    ParGridFunction adj_sol(u_fes_);
+    adj_sol = 0.0;
+
+    HypreParMatrix A;
+    Vector X, B;
+    a.FormLinearSystem(ess_tdof_list, adj_sol, rhs, A, X, B);
+
+    HypreBoomerAMG amg(A);
+    amg.SetPrintLevel(0);
+
+    CGSolver cg(u_fes_->GetParMesh()->GetComm());
+    cg.SetRelTol(1e-10);
+    cg.SetMaxIter(500);
+    cg.SetPreconditioner(amg);
+    cg.SetOperator(A);
+    cg.Mult(B, X);
+
+    a.RecoverFEMSolution(X, rhs, adj_sol);
+
+    // make a Parlinear form to compute sensivity w.r.t. nodal coordinates
+    // here we can use sensitivity w.r.t coordinate since d/dU = d/dX * dX/dU = d/dX * 1
+    ::mfem::ParLinearForm LHS_sensitivity(coord_fes_);
+    LHS_sensitivity.Assemble();
+
+    ::mfem::ParLinearForm RHS_sensitivity(coord_fes_);
+    RHS_sensitivity.Assemble();
+
+    *dQdx_ = 0.0;
+    dQdx_->Add(-1.0, LHS_sensitivity);
+    dQdx_->Add( 1.0, RHS_sensitivity);
+}
+
 }
