@@ -263,11 +263,11 @@ public:
    /// Compute scaling factor for the node movement direction using line-search.
    /// We impose constraints on TMOP energy, gradient, minimum Jacobian of
    /// the mesh, and (optionally) on the surface fitting error.
-   real_t ComputeScalingFactor(const Vector &x, const Vector &b) const override;
+   real_t ComputeScalingFactor(const Vector &d, const Vector &b) const override;
 
    /// Update (i) discrete functions at new nodal positions, and
    /// (ii) surface fitting weight.
-   void ProcessNewState(const Vector &x) const override;
+   void ProcessNewState(const Vector &d) const override;
 
    /** @name Methods for adaptive surface fitting.
        \brief These methods control the behavior of the weight and the
