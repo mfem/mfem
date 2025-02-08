@@ -846,6 +846,7 @@ int main (int argc, char *argv[])
                                        : metric;
    auto tmop_integ = new TMOP_Integrator(metric_to_use, target_c, h_metric);
    tmop_integ->IntegrateOverTarget(integ_over_targ);
+   tmop_integ->SetInitialMeshPos(x0);
    if (barrier_type > 0 || worst_case_type > 0)
    {
       tmop_integ->ComputeUntangleMetricQuantiles(x, *pfespace);
@@ -972,6 +973,7 @@ int main (int argc, char *argv[])
       tmop_integ2->SetIntegrationRules(*irules, quad_order);
       if (fdscheme) { tmop_integ2->EnableFiniteDifferences(x); }
       tmop_integ2->SetExactActionFlag(exactaction);
+      tmop_integ2->SetInitialMeshPos(x0);
 
       TMOPComboIntegrator *combo = new TMOPComboIntegrator;
       combo->AddTMOPIntegrator(tmop_integ);

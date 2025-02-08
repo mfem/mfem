@@ -3838,8 +3838,14 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
 
 real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
-                                         const Vector &elfun)
+                                         const Vector &d_el)
 {
+   // Form the Vector of node positions.
+   MFEM_VERIFY(x_0, "Initial mesh nodes are not set!");
+   Vector elfun;
+   x_0->GetElementDofValues(T.ElementNo, elfun);
+   elfun += d_el;
+
    const int dof = el.GetDof(), dim = el.GetDim();
    const int el_id = T.ElementNo;
    real_t energy;
@@ -4136,8 +4142,13 @@ real_t TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
-                                            const Vector &elfun, Vector &elvect)
+                                            const Vector &d_el, Vector &elvect)
 {
+   // Form the Vector of node positions.
+   Vector elfun;
+   x_0->GetElementDofValues(T.ElementNo, elfun);
+   elfun += d_el;
+
    if (!fdflag)
    {
       AssembleElementVectorExact(el, T, elfun, elvect);
@@ -4150,9 +4161,14 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
 
 void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           ElementTransformation &T,
-                                          const Vector &elfun,
+                                          const Vector &d_el,
                                           DenseMatrix &elmat)
 {
+   // Form the Vector of node positions.
+   Vector elfun;
+   x_0->GetElementDofValues(T.ElementNo, elfun);
+   elfun += d_el;
+
    if (!fdflag)
    {
       AssembleElementGradExact(el, T, elfun, elmat);

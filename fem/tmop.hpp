@@ -1859,17 +1859,23 @@ class TMOPNewtonSolver;
     Represents $ \int W(Jpt) dx $ over a target zone, where W is the
     metric's strain energy density function, and Jpt is the Jacobian of the
     target->physical coordinates transformation. The virtual target zone is
-    defined by the TargetConstructor. */
+    defined by the TargetConstructor.
+
+    One assumption is that the integrator is defined w.r.t. displacements, i.e.,
+    the major functions GetElementEnergy(), AssembleElementVector(),
+    AssembleElementGrad() take local displacement Vectors d_e; then the local
+    mesh coordinates are constructed as x_e = x_0_e + d_e.
+    The GridFunction x_0 of initial positions is set by SetInitialMeshPos().
+    This structure is motivated by the need to optimize periodic meshes. */
 class TMOP_Integrator : public NonlinearFormIntegrator
 {
 protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
 
-   // Initial positions of the mesh nodes. This is an ldof Vector. It is set by
-   // the TMOPNewtonSolver at the start of the optimization.
-   Vector x_0;
-   void SetInitialMeshPos(const Vector &x0) { x_0 = x0; }
+   // Initial positions of the mesh nodes. Set by the TMOPNewtonSolver at the
+   // start of the optimization.
+   const GridFunction *x_0;
 
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
@@ -2125,7 +2131,7 @@ public:
        @param[in] hm   TMOP_QualityMetric for h-adaptivity (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc,
                    TMOP_QualityMetric *hm)
-      : x_0(0), h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
+      : x_0(nullptr), h_metric(hm), metric(m), targetC(tc), IntegRules(NULL),
         integ_order(-1), metric_coeff(NULL), metric_normal(1.0),
         lim_nodes0(NULL), lim_coeff(NULL),
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
@@ -2144,6 +2150,10 @@ public:
       : TMOP_Integrator(m, tc, m) { }
 
    ~TMOP_Integrator();
+
+   /// Since the TMOPIntegrator is defined w.r.t. displacements, this specifies
+   /// the starting mesh positions that are displaced.
+   void SetInitialMeshPos(const GridFunction &x0) { x_0 = &x0; }
 
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.
@@ -2307,10 +2317,10 @@ public:
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
        @param[in] el     Type of FiniteElement.
        @param[in] T      Mesh element transformation.
-       @param[in] elfun  Physical coordinates of the zone. */
+       @param[in] d_el   Physical displacement of the zone w.r.t. x_0. */
    real_t GetElementEnergy(const FiniteElement &el,
                            ElementTransformation &T,
-                           const Vector &elfun) override;
+                           const Vector &d_el) override;
 
    /** @brief Computes the mean of the energies of the given element's children.
 
@@ -2330,11 +2340,11 @@ public:
 
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &T,
-                              const Vector &elfun, Vector &elvect) override;
+                              const Vector &d_el, Vector &elvect) override;
 
    void AssembleElementGrad(const FiniteElement &el,
                             ElementTransformation &T,
-                            const Vector &elfun, DenseMatrix &elmat) override;
+                            const Vector &d_el, DenseMatrix &elmat) override;
 
    TMOP_QualityMetric &GetAMRQualityMetric() { return *h_metric; }
 
@@ -2400,7 +2410,7 @@ protected:
    // Integrators in the combination. Owned.
    Array<TMOP_Integrator *> tmopi;
 
-   void SetInitialMeshPos(const Vector &x0)
+   void SetInitialMeshPos(const GridFunction &x0)
    {
       for (int i = 0; i < tmopi.Size(); i++)
       { tmopi[i]->SetInitialMeshPos(x0); }
