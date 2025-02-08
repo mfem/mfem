@@ -1571,11 +1571,11 @@ public:
    void ElemsWithAllVerts(Array<int> &elems, const Array<int> &verts);
 
    /** @brief Return the indices of the faces with all of their vertices
-       covered in the @a verts array. */   
+       covered in the @a verts array. */
    void FacesWithAllVerts(Array<int> &faces, const Array<int> &verts);
 
    /** @brief Return the indices of the edges with all of their vertices
-       covered in the @a verts array. */   
+       covered in the @a verts array. */
    void EdgesWithAllVerts(Array<int> &edges, const Array<int> &verts);
 
    /// Return the edges found in the list of boundary elements
