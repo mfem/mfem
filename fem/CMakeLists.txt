@@ -63,6 +63,7 @@ set(SRCS
   dgmassinv.cpp
   doftrans.cpp
   eltrans.cpp
+  batchitrans.cpp
   estimators.cpp
   fe.cpp
   fe/face_map_utils.cpp
