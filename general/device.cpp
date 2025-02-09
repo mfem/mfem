@@ -258,6 +258,9 @@ void Device::Configure(const std::string &device, const int device_id)
    destroy_mm = true;
 
 #ifdef MFEM_USE_MPI
+#if (MFEM_HYPRE_VERSION >= 21900)
+   Hypre::Init();
+#endif
 #if defined(HYPRE_USING_GPU) && (MFEM_HYPRE_VERSION >= 23100)
    // Skip the call to Hypre::InitDevice() if HYPRE is not initialized, e.g.
    // * if running a serial code
@@ -266,7 +269,8 @@ void Device::Configure(const std::string &device, const int device_id)
    {
       Hypre::InitDevice();
    }
-#endif#endif
+#endif
+#endif
 }
 
 // static method
