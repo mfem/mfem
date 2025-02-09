@@ -335,54 +335,6 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
    return Unknown;
 }
 
-void InverseElementTransformation::BatchTransform(const Vector &pts,
-                                                  const Array<int> &elems,
-                                                  Array<int> &types,
-                                                  Vector &refs,
-                                                  bool use_dev)
-{
-   MFEM_VERIFY(T != nullptr, "invalid ElementTransformation");
-   if (T->mesh->GetNodes())
-   {
-      // can get the FE space
-      const TensorBasisElement *tbe = dynamic_cast<const TensorBasisElement *>(
-                                         T->mesh->GetNodes()->FESpace()->GetFE(T->ElementNo));
-      if (tbe != nullptr)
-      {
-         // use batch algorithm
-         // return;
-      }
-   }
-
-   // serial backup for general non-tensor product case
-   {
-      IntegrationPoint res;
-      int ndims = T->GetDimension();
-      mfem::Vector pt(T->GetDimension());
-      auto npts = elems.Size();
-      for (int i = 0; i < npts; ++i)
-      {
-         for (int d = 0; d < ndims; ++d)
-         {
-            pt(d) = pts(i + d * npts);
-         }
-         types[i] = Transform(pt, res);
-         switch (ndims)
-         {
-            case 3:
-               refs(i+2*npts) = res.z;
-            case 2:
-               refs(i+npts) = res.y;
-            case 1:
-               refs(i) = res.x;
-               break;
-            default:
-               MFEM_ABORT("invalid ndims");
-         }
-      }
-   }
-}
-
 int InverseElementTransformation::Transform(const Vector &pt,
                                             IntegrationPoint &ip)
 {
@@ -793,5 +745,4 @@ real_t FaceElementTransformations::CheckConsistency(int print_level,
 
    return max_dist;
 }
-
 }
