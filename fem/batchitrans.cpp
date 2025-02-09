@@ -65,10 +65,25 @@ template <int Dim, int SDim> struct PhysNodeFinder {
 };
 
 template <int Dim, int SDim>
+static void ClosestPhysNodeImpl(int npts, int ndof1d, int nq1d,
+                                const real_t *pptr, const int *eptr,
+                                const real_t *nptr, const real_t *qptr,
+                                real_t *xptr) {
+  // TODO
+}
+
+template <int Dim, int SDim>
+static void ClosestRefNodeImpl(int npts, int ndof1d, int nq1d,
+                               const real_t *pptr, const int *eptr,
+                               const real_t *nptr, const real_t *qptr,
+                               real_t *xptr) {
+  // TODO
+}
+
+template <int Dim, int SDim>
 BatchInverseElementTransformation::ClosestPhysPointKernelType
 BatchInverseElementTransformation::FindClosestPhysPoint::Kernel() {
-  // TODO
-  MFEM_ABORT("");
+  return ClosestPhysNodeImpl<Dim, SDim>;
 }
 
 BatchInverseElementTransformation::ClosestPhysPointKernelType
@@ -79,8 +94,7 @@ BatchInverseElementTransformation::FindClosestPhysPoint::Fallback(int, int) {
 template <int Dim, int SDim>
 BatchInverseElementTransformation::ClosestRefPointKernelType
 BatchInverseElementTransformation::FindClosestRefPoint::Kernel() {
-  // TODO
-  MFEM_ABORT("");
+  return ClosestRefNodeImpl<Dim, SDim>;
 }
 
 BatchInverseElementTransformation::ClosestRefPointKernelType
@@ -98,6 +112,7 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
   const int vdim = fespace->GetVDim();
   const int NE = fespace->GetNE();
   const int ND = fe->GetDof();
+  const int order = fe->GetOrder();
   int npts = elems.Size();
   auto geom = fe->GetGeomType();
 
@@ -109,6 +124,7 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
   auto tptr = types.Write(use_dev);
   auto xptr = refs.ReadWrite(use_dev);
   auto nptr = points1d->Read(use_dev);
+  int ndof1d = points1d->Size();
 
   switch (init_guess_type) {
   case InverseElementTransformation::Center: {
@@ -139,12 +155,13 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
   } break;
   case InverseElementTransformation::ClosestRefNode:
   case InverseElementTransformation::ClosestPhysNode: {
-    // TODO: get 1D geometry refine points
-    auto qptr = nptr;
+    int nq1d = std::max(order + rel_qpts_order, 0) + 1;
+    auto qpoints = poly1d.GetPointsArray(guess_points_type, nq1d - 1);
+    auto qptr = qpoints->Read(use_dev);
     if (init_guess_type == InverseElementTransformation::ClosestPhysNode) {
-      FindClosestPhysPoint::Run(dim, vdim, npts, pptr, eptr, nptr, qptr, xptr);
+      FindClosestPhysPoint::Run(dim, vdim, npts, ndof1d, nq1d, pptr, eptr, nptr, qptr, xptr);
     } else {
-      FindClosestRefPoint::Run(dim, vdim, npts, pptr, eptr, nptr, qptr, xptr);
+      FindClosestRefPoint::Run(dim, vdim, npts, ndof1d, nq1d, pptr, eptr, nptr, qptr, xptr);
     }
   } break;
   case InverseElementTransformation::GivenPoint:

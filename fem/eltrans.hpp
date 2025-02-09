@@ -461,16 +461,16 @@ public:
   void Transform(const Vector &pts, const Array<int> &elems, Array<int> &types,
                  Vector &refs, bool use_dev = true);
 
-  using ClosestPhysPointKernelType = void (*)(int, const real_t *, const int *,
-                                              const real_t *, const real_t *,
-                                              real_t *);
+  using ClosestPhysPointKernelType = void (*)(int, int, int, const real_t *,
+                                              const int *, const real_t *,
+                                              const real_t *, real_t *);
 
   MFEM_REGISTER_KERNELS(FindClosestPhysPoint, ClosestPhysPointKernelType,
                         (int, int));
 
-  using ClosestRefPointKernelType = void (*)(int, const real_t *, const int *,
-                                             const real_t *, const real_t *,
-                                             real_t *);
+  using ClosestRefPointKernelType = void (*)(int, int, int, const real_t *,
+                                             const int *, const real_t *,
+                                             const real_t *, real_t *);
 
   MFEM_REGISTER_KERNELS(FindClosestRefPoint, ClosestRefPointKernelType,
                         (int, int));
