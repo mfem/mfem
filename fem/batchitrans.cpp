@@ -21,7 +21,7 @@ BatchInverseElementTransformation::~BatchInverseElementTransformation() {}
 
 void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt) {
   static Kernels kernels;
-  
+
   mesh = &m;
   MFEM_VERIFY(mesh->GetNodes(), "the provided mesh must have valid nodes.");
   const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
@@ -64,7 +64,7 @@ template <int Dim, int SDim> struct PhysNodeFinder {
   }
 };
 
-template <int Dim, int SDim>
+template <int Dim, int SDim, bool use_dev>
 static void ClosestPhysNodeImpl(int npts, int ndof1d, int nq1d,
                                 const real_t *pptr, const int *eptr,
                                 const real_t *nptr, const real_t *qptr,
@@ -72,7 +72,7 @@ static void ClosestPhysNodeImpl(int npts, int ndof1d, int nq1d,
   // TODO
 }
 
-template <int Dim, int SDim>
+template <int Dim, int SDim, bool use_dev>
 static void ClosestRefNodeImpl(int npts, int ndof1d, int nq1d,
                                const real_t *pptr, const int *eptr,
                                const real_t *nptr, const real_t *qptr,
@@ -80,25 +80,27 @@ static void ClosestRefNodeImpl(int npts, int ndof1d, int nq1d,
   // TODO
 }
 
-template <int Dim, int SDim>
+template <int Dim, int SDim, bool use_dev>
 BatchInverseElementTransformation::ClosestPhysPointKernelType
 BatchInverseElementTransformation::FindClosestPhysPoint::Kernel() {
-  return ClosestPhysNodeImpl<Dim, SDim>;
+  return ClosestPhysNodeImpl<Dim, SDim, use_dev>;
 }
 
 BatchInverseElementTransformation::ClosestPhysPointKernelType
-BatchInverseElementTransformation::FindClosestPhysPoint::Fallback(int, int) {
+BatchInverseElementTransformation::FindClosestPhysPoint::Fallback(int, int,
+                                                                  bool) {
   MFEM_ABORT("Invalid Dim/SDim combination");
 }
 
-template <int Dim, int SDim>
+template <int Dim, int SDim, bool use_dev>
 BatchInverseElementTransformation::ClosestRefPointKernelType
 BatchInverseElementTransformation::FindClosestRefPoint::Kernel() {
-  return ClosestRefNodeImpl<Dim, SDim>;
+  return ClosestRefNodeImpl<Dim, SDim, use_dev>;
 }
 
 BatchInverseElementTransformation::ClosestRefPointKernelType
-BatchInverseElementTransformation::FindClosestRefPoint::Fallback(int, int) {
+BatchInverseElementTransformation::FindClosestRefPoint::Fallback(int, int,
+                                                                 bool) {
   MFEM_ABORT("Invalid Dim/SDim combination");
 }
 
@@ -159,9 +161,11 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
     auto qpoints = poly1d.GetPointsArray(guess_points_type, nq1d - 1);
     auto qptr = qpoints->Read(use_dev);
     if (init_guess_type == InverseElementTransformation::ClosestPhysNode) {
-      FindClosestPhysPoint::Run(dim, vdim, npts, ndof1d, nq1d, pptr, eptr, nptr, qptr, xptr);
+      FindClosestPhysPoint::Run(dim, vdim, use_dev, npts, ndof1d, nq1d, pptr,
+                                eptr, nptr, qptr, xptr);
     } else {
-      FindClosestRefPoint::Run(dim, vdim, npts, ndof1d, nq1d, pptr, eptr, nptr, qptr, xptr);
+      FindClosestRefPoint::Run(dim, vdim, use_dev, npts, ndof1d, nq1d, pptr,
+                               eptr, nptr, qptr, xptr);
     }
   } break;
   case InverseElementTransformation::GivenPoint:
@@ -176,13 +180,22 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
 }
 
 BatchInverseElementTransformation::Kernels::Kernels() {
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 1>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 2>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 3>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 1, true>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 2, true>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 3, true>();
 
-  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 2>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 3>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 2, true>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 3, true>();
 
-  BatchInverseElementTransformation::AddFindClosestSpecialization<3, 3>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<3, 3, true>();
+
+  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 1, false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 2, false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 3, false>();
+
+  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 2, false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 3, false>();
+
+  BatchInverseElementTransformation::AddFindClosestSpecialization<3, 3, false>();
 }
 } // namespace mfem
