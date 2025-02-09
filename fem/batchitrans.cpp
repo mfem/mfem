@@ -20,6 +20,8 @@ namespace mfem {
 BatchInverseElementTransformation::~BatchInverseElementTransformation() {}
 
 void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt) {
+  static Kernels kernels;
+  
   mesh = &m;
   MFEM_VERIFY(mesh->GetNodes(), "the provided mesh must have valid nodes.");
   const FiniteElementSpace *fespace = mesh->GetNodalFESpace();
