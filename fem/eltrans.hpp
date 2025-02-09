@@ -466,21 +466,21 @@ public:
                                               const real_t *, real_t *);
 
   MFEM_REGISTER_KERNELS(FindClosestPhysPoint, ClosestPhysPointKernelType,
-                        (int, int));
+                        (int, int, bool));
 
   using ClosestRefPointKernelType = void (*)(int, int, int, const real_t *,
                                              const int *, const real_t *,
                                              const real_t *, real_t *);
 
   MFEM_REGISTER_KERNELS(FindClosestRefPoint, ClosestRefPointKernelType,
-                        (int, int));
+                        (int, int, bool));
 
   struct Kernels { Kernels(); };
 
-  template <int Dim, int SDim>
+  template <int Dim, int SDim, bool use_dev>
   static void AddFindClosestSpecialization() {
-    FindClosestPhysPoint::Specialization<Dim, SDim>::Add();
-    FindClosestRefPoint::Specialization<Dim, SDim>::Add();
+    FindClosestPhysPoint::Specialization<Dim, SDim, use_dev>::Add();
+    FindClosestRefPoint::Specialization<Dim, SDim, use_dev>::Add();
   }
 };
 
