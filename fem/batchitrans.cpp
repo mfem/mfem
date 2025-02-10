@@ -94,7 +94,6 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
     // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
     MFEM_SHARED real_t ref_buf[Dim * max_team_x];
-    // MFEM_SHARED real_t phys_buf[SDim * max_team_x];
     MFEM_FOREACH_THREAD(i, x, n) {
 #ifdef MFEM_USE_DOUBLE
       dists[i] = HUGE_VAL;
@@ -118,10 +117,10 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
         real_t tmp = phys_coord[d] - pptr[idx + SDim * npts];
         dist += tmp * tmp;
       }
-      if (dist < dists[i]) {
+      if (dist < dists[MFEM_THREAD_ID(x)]) {
         // closer guess in physical space
-        dists[i] = dist;
-        ref_buf[i] = qptr[i];
+        dists[MFEM_THREAD_ID(x)] = dist;
+        ref_buf[MFEM_THREAD_ID(x)] = qptr[MFEM_THREAD_ID(x)];
       }
     }
     // now do tree reduce
@@ -159,7 +158,6 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
     // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
     MFEM_SHARED real_t ref_buf[Dim * max_team_x];
-    // MFEM_SHARED real_t phys_buf[SDim * max_team_x];
     MFEM_FOREACH_THREAD(i, x, n) {
 #ifdef MFEM_USE_DOUBLE
       dists[i] = HUGE_VAL;
@@ -191,10 +189,10 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
         real_t tmp = phys_coord[d] - pptr[idx + SDim * npts];
         dist += tmp * tmp;
       }
-      if (dist < dists[i]) {
+      if (dist < dists[MFEM_THREAD_ID(x)]) {
         // closer guess in physical space
-        dists[i] = dist;
-        ref_buf[i] = qptr[i];
+        dists[MFEM_THREAD_ID(x)] = dist;
+        ref_buf[MFEM_THREAD_ID(x)] = qptr[MFEM_THREAD_ID(x)];
       }
     }
     // now do tree reduce
@@ -233,7 +231,6 @@ struct PhysNodeFinder<Geometry::CUBE, 3, use_dev> : public NodeFinderBase {
     // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
     MFEM_SHARED real_t ref_buf[Dim * max_team_x];
-    // MFEM_SHARED real_t phys_buf[SDim * max_team_x];
     MFEM_FOREACH_THREAD(i, x, n) {
 #ifdef MFEM_USE_DOUBLE
       dists[i] = HUGE_VAL;
@@ -273,10 +270,10 @@ struct PhysNodeFinder<Geometry::CUBE, 3, use_dev> : public NodeFinderBase {
         real_t tmp = phys_coord[d] - pptr[idx + SDim * npts];
         dist += tmp * tmp;
       }
-      if (dist < dists[i]) {
+      if (dist < dists[MFEM_THREAD_ID(x)]) {
         // closer guess in physical space
-        dists[i] = dist;
-        ref_buf[i] = qptr[i];
+        dists[MFEM_THREAD_ID(x)] = dist;
+        ref_buf[MFEM_THREAD_ID(x)] = qptr[MFEM_THREAD_ID(x)];
       }
     }
     // now do tree reduce
@@ -316,7 +313,6 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
   func.nq1d = nq1d;
   func.nq = func.compute_nq(nq1d);
   func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
-  // MFEM_ASSERT(nq1d <= max_team_x, "requested nq1d must be <= 128");
   // TODO: any batching of npts?
   int team_x = std::min<int>(max_team_x, func.nq);
   forall_2D(npts, team_x, 1, func);
