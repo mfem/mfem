@@ -123,7 +123,7 @@ class Lagrange
 {
 public:
    /// interpolant node locations, in reference space
-   real_t *z;
+   const real_t *z;
 
    /// number of points
    int pN;

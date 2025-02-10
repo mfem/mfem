@@ -13,6 +13,8 @@
 #include "eltrans/eltrans_basis.hpp"
 #include "fem.hpp"
 
+#include "general/forall.hpp"
+
 #include <cmath>
 
 namespace mfem {
@@ -49,15 +51,98 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt) {
   points1d = poly1d.GetPointsArray(tfe->GetBasisType(), order);
 }
 
-// helper for finding the batch transform ClosestPhysNode initial guess
-template <int Dim, int SDim> struct PhysNodeFinder {
+// helper for finding the batch transform initial guess
+struct NodeFinderBase {
+  // physical space coordinates of mesh element nodes
+  const real_t *mptr;
   // physical space point coordinates to find
   const real_t *pptr;
   // element indices
   const int *eptr;
+  // reference space nodes to test
+  const real_t *qptr;
   // initial guess results
   real_t *xptr;
   eltrans::Lagrange poly1d;
+
+  // number of points in pptr
+  int npts;
+  // number of points per element along each dimension to test
+  int nq1d;
+  // total number of points to test
+  int nq;
+};
+
+template <int Dim, int SDim, bool use_dev> struct PhysNodeFinder;
+
+template <int SDim, bool use_dev>
+struct PhysNodeFinder<1, SDim, use_dev> : public NodeFinderBase {
+
+  void MFEM_HOST_DEVICE operator()(int idx) const {
+    constexpr int Dim = 1;
+    constexpr int max_team_x = use_dev ? 128 : 1;
+    int n = (nq < max_team_x) ? nq : max_team_x;
+    MFEM_SHARED real_t dists[max_team_x];
+    MFEM_SHARED real_t ref_buf[Dim * max_team_x];
+    // MFEM_SHARED real_t phys_buf[SDim * max_team_x];
+    MFEM_FOREACH_THREAD(i, x, n) {
+#ifdef MFEM_USE_DOUBLE
+      dists[i] = HUGE_VAL;
+#else
+      dists[i] = HUGE_VALF;
+#endif
+    }
+    MFEM_SYNC_THREAD;
+    // team serial portion
+    MFEM_FOREACH_THREAD(i, x, nq) {
+      real_t phys_coord[SDim] = {0};
+      // TODO: evaluate basis at q point i
+      real_t b = 0;
+      for (int d = 0; d < SDim; ++d) {
+        // TODO: correct index into mptr for element eptr[idx] and node
+        // corresponding to basis b
+        phys_coord[d] = mptr[eptr[idx]] * b;
+      }
+    }
+    // now do tree reduce
+    for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1) {
+      MFEM_SYNC_THREAD;
+      if (MFEM_THREAD_ID(x) < i) {
+        if (dists[MFEM_THREAD_ID(x) + i] < dists[MFEM_THREAD_ID(x)]) {
+          dists[MFEM_THREAD_ID(x)] = dists[MFEM_THREAD_ID(x) + i];
+          for (int d = 0; d < Dim; ++d) {
+            ref_buf[MFEM_THREAD_ID(x) + d * n] =
+                ref_buf[MFEM_THREAD_ID(x) + i + d * n];
+          }
+        }
+      }
+    }
+    // write results out
+    MFEM_SYNC_THREAD;
+    MFEM_FOREACH_THREAD(d, x, Dim) {
+      xptr[idx + d * npts] = ref_buf[d * n];
+    }
+  }
+};
+
+template <bool use_dev>
+struct PhysNodeFinder<2, 2, use_dev> : public NodeFinderBase {
+
+  void MFEM_HOST_DEVICE operator()(int idx) const {
+    // TODO
+  }
+};
+
+template <bool use_dev>
+struct PhysNodeFinder<3, 3, use_dev> : public NodeFinderBase {
+
+  void MFEM_HOST_DEVICE operator()(int idx) const {
+    // TODO
+  }
+};
+
+template <bool use_dev>
+struct PhysNodeFinder<2, 3, use_dev> : public NodeFinderBase {
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     // TODO
@@ -66,18 +151,37 @@ template <int Dim, int SDim> struct PhysNodeFinder {
 
 template <int Dim, int SDim, bool use_dev>
 static void ClosestPhysNodeImpl(int npts, int ndof1d, int nq1d,
-                                const real_t *pptr, const int *eptr,
-                                const real_t *nptr, const real_t *qptr,
-                                real_t *xptr) {
-  // TODO
+                                const real_t *mptr, const real_t *pptr,
+                                const int *eptr, const real_t *nptr,
+                                const real_t *qptr, real_t *xptr) {
+  PhysNodeFinder<Dim, SDim, use_dev> func;
+  constexpr int max_team_x = use_dev ? 128 : 1;
+  func.poly1d.z = nptr;
+  func.poly1d.pN = ndof1d;
+  func.mptr = mptr;
+  func.pptr = pptr;
+  func.eptr = eptr;
+  func.qptr = qptr;
+  func.xptr = xptr;
+  func.npts = npts;
+  func.nq1d = nq1d;
+  func.nq = nq1d;
+  // MFEM_ASSERT(nq1d <= max_team_x, "requested nq1d must be <= 128");
+  for (int d = 0; d < Dim; ++d) {
+    func.nq *= nq1d;
+  }
+  // TODO: any batching of npts?
+  int team_x = std::min<int>(max_team_x, func.nq);
+  forall_2D(npts, team_x, 1, func);
 }
 
 template <int Dim, int SDim, bool use_dev>
 static void ClosestRefNodeImpl(int npts, int ndof1d, int nq1d,
-                               const real_t *pptr, const int *eptr,
-                               const real_t *nptr, const real_t *qptr,
-                               real_t *xptr) {
+                               const real_t *mptr, const real_t *pptr,
+                               const int *eptr, const real_t *nptr,
+                               const real_t *qptr, real_t *xptr) {
   // TODO
+  MFEM_ABORT("ClostestRefNodeImpl not implemented yet");
 }
 
 template <int Dim, int SDim, bool use_dev>
@@ -123,6 +227,7 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
 
   auto pptr = pts.Read(use_dev);
   auto eptr = elems.Read(use_dev);
+  auto mptr = node_pos.Read(use_dev);
   auto tptr = types.Write(use_dev);
   auto xptr = refs.ReadWrite(use_dev);
   auto nptr = points1d->Read(use_dev);
@@ -161,11 +266,11 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
     auto qpoints = poly1d.GetPointsArray(guess_points_type, nq1d - 1);
     auto qptr = qpoints->Read(use_dev);
     if (init_guess_type == InverseElementTransformation::ClosestPhysNode) {
-      FindClosestPhysPoint::Run(dim, vdim, use_dev, npts, ndof1d, nq1d, pptr,
-                                eptr, nptr, qptr, xptr);
+      FindClosestPhysPoint::Run(dim, vdim, use_dev, npts, ndof1d, nq1d, mptr,
+                                pptr, eptr, nptr, qptr, xptr);
     } else {
-      FindClosestRefPoint::Run(dim, vdim, use_dev, npts, ndof1d, nq1d, pptr,
-                               eptr, nptr, qptr, xptr);
+      FindClosestRefPoint::Run(dim, vdim, use_dev, npts, ndof1d, nq1d, mptr,
+                               pptr, eptr, nptr, qptr, xptr);
     }
   } break;
   case InverseElementTransformation::GivenPoint:
@@ -189,13 +294,19 @@ BatchInverseElementTransformation::Kernels::Kernels() {
 
   BatchInverseElementTransformation::AddFindClosestSpecialization<3, 3, true>();
 
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 1, false>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 2, false>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 3, false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 1,
+                                                                  false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 2,
+                                                                  false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 3,
+                                                                  false>();
 
-  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 2, false>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 3, false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 2,
+                                                                  false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 3,
+                                                                  false>();
 
-  BatchInverseElementTransformation::AddFindClosestSpecialization<3, 3, false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<3, 3,
+                                                                  false>();
 }
 } // namespace mfem
