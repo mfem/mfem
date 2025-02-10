@@ -986,6 +986,129 @@ private:
     mfem::VectorCoefficient * QCoef_ = nullptr;
 };
 
+class VectorHelmholtz
+{
+public:
+    VectorHelmholtz(mfem::ParMesh* mesh_, std::vector<std::pair<int, double>> ess_bdr, int order_=2)
+    {
+        pmesh=mesh_;
+        int dim=pmesh->Dimension();
+
+        pmesh->GetNodes(X0_);
+
+        fec = new H1_FECollection(order_,dim);
+        u_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
+        coord_fes_ = new ParFiniteElementSpace(pmesh,fec,dim);
+
+        sol.SetSize(u_fes_->GetTrueVSize()); sol=0.0;
+        rhs.SetSize(u_fes_->GetTrueVSize()); rhs=0.0;
+        adj.SetSize(u_fes_->GetTrueVSize()); adj=0.0;
+
+        solgf.SetSpace(u_fes_);
+        adjgf.SetSpace(u_fes_);
+
+        dQdu_ = new mfem::ParLinearForm(u_fes_);
+        dQdx_ = new mfem::ParLinearForm(coord_fes_);
+
+        SetLinearSolver();
+
+        // store list of essential dofs
+        int maxAttribute = pmesh->bdr_attributes.Max();
+        ::mfem::Array<int> bdr_attr_is_ess(maxAttribute);
+        ess_tdof_list_.DeleteAll();
+        ::mfem::Vector ess_bc(u_fes_->GetTrueVSize());
+        ess_bc = 0.0;
+
+        // loop over input attribute, value pairs
+        for (const auto &bc: ess_bdr)
+        {
+            int attribute = bc.first;
+
+            // get dofs associated with this attribute, component pair
+            bdr_attr_is_ess = 0;
+            bdr_attr_is_ess[attribute - 1] = 1; // mfem attributes 1-indexed, arrays 0-indexed
+            ::mfem::Array<int> u_tdofs;
+            u_fes_->GetEssentialTrueDofs(bdr_attr_is_ess, u_tdofs);
+
+            // append to global dof list
+            ess_tdof_list_.Append(u_tdofs);
+
+            // set value in grid function
+            double value = bc.second;
+            ess_bc.SetSubVector(u_tdofs, value);
+        }
+        bcGridFunc_.SetSpace(u_fes_);
+        bcGridFunc_.SetFromTrueDofs(ess_bc);
+    }
+
+    ~VectorHelmholtz(){
+        delete u_fes_;
+        delete coord_fes_;
+        delete fec;
+
+        delete dQdu_;
+        delete dQdx_;
+    }
+
+    /// Set the Linear Solver
+    void SetLinearSolver(double rtol=1e-8, double atol=1e-12, int miter=2000)
+    {
+        linear_rtol=rtol;
+        linear_atol=atol;
+        linear_iter=miter;
+    }
+
+    /// Solves the forward problem.
+    void FSolve( mfem::Vector & rhs );
+
+    void ASolve( mfem::Vector & rhs );
+
+    /// Returns the solution
+    mfem::ParGridFunction& GetSolution(){return solgf;}
+
+    /// Returns the solution vector.
+    mfem::Vector& GetSol(){return sol;}
+
+    /// Returns the adjoint solution vector.
+    mfem::Vector& GetAdj(){return adj;}
+
+    mfem::ParLinearForm * GetImplicitDqDx(){ return dQdx_; };
+
+private:
+    mfem::ParMesh* pmesh;
+
+    mfem::Vector X0_;
+
+    //solution true vector
+    mfem::Vector sol;
+    mfem::Vector adj;
+    mfem::Vector rhs;
+    mfem::ParGridFunction solgf;
+    mfem::ParGridFunction adjgf;
+    mfem::ParGridFunction bcGridFunc_;
+
+    mfem::ParLinearForm * dQdu_;
+    mfem::ParLinearForm * dQdx_;
+
+    mfem::FiniteElementCollection *fec;
+    mfem::ParFiniteElementSpace	  *u_fes_;
+    mfem::ParFiniteElementSpace	  *coord_fes_;
+
+    //Linear solver parameters
+    double linear_rtol;
+    double linear_atol;
+    int linear_iter;
+
+    int print_level = 1;
+
+    // holds NBC in coefficient form
+    std::map<int, mfem::Coefficient*> ncc;
+
+    mfem::Array<int> ess_tdof_list_;
+
+    mfem::VectorCoefficient * QCoef_ = nullptr;
+};
+
 }
 
 #endif

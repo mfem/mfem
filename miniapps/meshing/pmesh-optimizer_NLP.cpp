@@ -972,11 +972,19 @@ if (myid == 0) {
       ParLinearForm * dQdxImpl = solver.GetImplicitDqDx();
 
       ParLinearForm dQdx(pfespace); dQdx = 0.0;
+      ParLinearForm dQdx_physics(pfespace); dQdx_physics = 0.0;
+      dQdx_physics.Add(weight_1, *dQdxExpl);
+      dQdx_physics.Add(weight_1, *dQdxImpl);
       dQdx.Add(weight_1, *dQdxExpl);
       dQdx.Add(weight_1, *dQdxImpl);
       dQdx.Add(weight_tmop, *dMeshQdxExpl);
 
       HypreParVector *truedQdx = dQdx.ParallelAssemble();
+      HypreParVector *truedQdx_physics = dQdx_physics.ParallelAssemble();
+
+    // Construct grid function from hypre vector
+    mfem::ParGridFunction dQdx_physicsGF(pfespace, truedQdx_physics);
+
 
       objgrad = *truedQdx;
 
@@ -1105,7 +1113,9 @@ if (myid == 0) {
       paraview_dc.SetCycle(i);
       paraview_dc.SetTime(i*1.0);
       //paraview_dc.RegisterField("ObjGrad",&objGradGF);
+      paraview_dc.RegisterField("SolutionD",&discretSol   );
       paraview_dc.RegisterField("Solution",&x_gf);
+      paraview_dc.RegisterField("Sensitivity",&dQdx_physicsGF);
       paraview_dc.Save();
 
       double localGradNormSquared = std::pow(objgrad.Norml2(), 2);
