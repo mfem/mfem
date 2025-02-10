@@ -65,6 +65,8 @@ struct NodeFinderBase {
   real_t *xptr;
   eltrans::Lagrange poly1d;
 
+  // poly1d.pN * nelems
+  int stride_sdim;
   // number of points in pptr
   int npts;
   // number of points per element along each dimension to test
@@ -84,6 +86,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev> : public NodeFinderBase 
     constexpr int Dim = 1;
     constexpr int max_team_x = use_dev ? 128 : 1;
     int n = (nq < max_team_x) ? nq : max_team_x;
+    // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
     MFEM_SHARED real_t ref_buf[Dim * max_team_x];
     // MFEM_SHARED real_t phys_buf[SDim * max_team_x];
@@ -98,12 +101,22 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev> : public NodeFinderBase 
     // team serial portion
     MFEM_FOREACH_THREAD(i, x, nq) {
       real_t phys_coord[SDim] = {0};
-      // TODO: evaluate basis at q point i
-      real_t b = 0;
+      for (int j = 0; j < poly1d.pN; ++j) {
+        real_t b = poly1d.eval(qptr[i], j);
+        for (int d = 0; d < SDim; ++d) {
+          phys_coord[d] = mptr[j + eptr[idx] * poly1d.pN + d * stride_sdim] * b;
+        }
+      }
+      real_t dist = 0;
+      // L-2 norm squared
       for (int d = 0; d < SDim; ++d) {
-        // TODO: correct index into mptr for element eptr[idx] and node
-        // corresponding to basis b
-        phys_coord[d] = mptr[eptr[idx]] * b;
+        real_t tmp = phys_coord[d] - pptr[idx + SDim * npts];
+        dist += tmp * tmp;
+      }
+      if (dist < dists[i]) {
+        // closer guess in physical space
+        dists[i] = dist;
+        ref_buf[i] = qptr[i];
       }
     }
     // now do tree reduce
@@ -148,7 +161,7 @@ struct PhysNodeFinder<Geometry::CUBE, 3, use_dev> : public NodeFinderBase {
 };
 
 template <int Geom, int SDim, bool use_dev>
-static void ClosestPhysNodeImpl(int npts, int ndof1d, int nq1d,
+static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
                                 const real_t *mptr, const real_t *pptr,
                                 const int *eptr, const real_t *nptr,
                                 const real_t *qptr, real_t *xptr) {
@@ -164,6 +177,7 @@ static void ClosestPhysNodeImpl(int npts, int ndof1d, int nq1d,
   func.npts = npts;
   func.nq1d = nq1d;
   func.nq = func.compute_nq(nq1d);
+  func.stride_sdim = ndof1d * nelems;
   // MFEM_ASSERT(nq1d <= max_team_x, "requested nq1d must be <= 128");
   // TODO: any batching of npts?
   int team_x = std::min<int>(max_team_x, func.nq);
@@ -171,7 +185,7 @@ static void ClosestPhysNodeImpl(int npts, int ndof1d, int nq1d,
 }
 
 template <int Geom, int SDim, bool use_dev>
-static void ClosestRefNodeImpl(int npts, int ndof1d, int nq1d,
+static void ClosestRefNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
                                const real_t *mptr, const real_t *pptr,
                                const int *eptr, const real_t *nptr,
                                const real_t *qptr, real_t *xptr) {
@@ -261,11 +275,11 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
     auto qpoints = poly1d.GetPointsArray(guess_points_type, nq1d - 1);
     auto qptr = qpoints->Read(use_dev);
     if (init_guess_type == InverseElementTransformation::ClosestPhysNode) {
-      FindClosestPhysPoint::Run(geom, vdim, use_dev, npts, ndof1d, nq1d, mptr,
-                                pptr, eptr, nptr, qptr, xptr);
+      FindClosestPhysPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d, nq1d,
+                                mptr, pptr, eptr, nptr, qptr, xptr);
     } else {
-      FindClosestRefPoint::Run(geom, vdim, use_dev, npts, ndof1d, nq1d, mptr,
-                               pptr, eptr, nptr, qptr, xptr);
+      FindClosestRefPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d, nq1d,
+                               mptr, pptr, eptr, nptr, qptr, xptr);
     }
   } break;
   case InverseElementTransformation::GivenPoint:
