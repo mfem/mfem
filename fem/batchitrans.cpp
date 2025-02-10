@@ -78,7 +78,8 @@ struct NodeFinderBase {
 template <int Geom, int SDim, bool use_dev> struct PhysNodeFinder;
 
 template <int SDim, bool use_dev>
-struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev> : public NodeFinderBase {
+struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
+    : public NodeFinderBase {
 
   static int compute_nq(int nq1d) { return nq1d; }
 
@@ -138,9 +139,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev> : public NodeFinderBase 
     }
     // write results out
     MFEM_SYNC_THREAD;
-    MFEM_FOREACH_THREAD(d, x, Dim) {
-      xptr[idx + d * npts] = ref_buf[d * n];
-    }
+    MFEM_FOREACH_THREAD(d, x, Dim) { xptr[idx + d * npts] = ref_buf[d * n]; }
   }
 };
 
@@ -154,7 +153,66 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
   }
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
-    // TODO
+    constexpr int Dim = 2;
+    constexpr int max_team_x = use_dev ? 128 : 1;
+    int n = (nq < max_team_x) ? nq : max_team_x;
+    // L-2 norm squared
+    MFEM_SHARED real_t dists[max_team_x];
+    MFEM_SHARED real_t ref_buf[Dim * max_team_x];
+    // MFEM_SHARED real_t phys_buf[SDim * max_team_x];
+    MFEM_FOREACH_THREAD(i, x, n) {
+#ifdef MFEM_USE_DOUBLE
+      dists[i] = HUGE_VAL;
+#else
+      dists[i] = HUGE_VALF;
+#endif
+    }
+    MFEM_SYNC_THREAD;
+    // team serial portion
+    MFEM_FOREACH_THREAD(i, x, nq) {
+      real_t phys_coord[SDim] = {0};
+      int idcs[Dim];
+      idcs[0] = i % nq1d;
+      idcs[1] = i / nq1d;
+      for (int j0 = 0; j0 < poly1d.pN; ++j0) {
+        real_t b0 = poly1d.eval(qptr[idcs[0]], j0);
+        for (int j1 = 0; j1 < poly1d.pN; ++j1) {
+          real_t b = b0 * poly1d.eval(qptr[idcs[1]], j1);
+          for (int d = 0; d < SDim; ++d) {
+            phys_coord[d] = mptr[j0 + (j1 + eptr[idx] * poly1d.pN) * poly1d.pN +
+                                 d * stride_sdim] *
+                            b;
+          }
+        }
+      }
+      real_t dist = 0;
+      // L-2 norm squared
+      for (int d = 0; d < SDim; ++d) {
+        real_t tmp = phys_coord[d] - pptr[idx + SDim * npts];
+        dist += tmp * tmp;
+      }
+      if (dist < dists[i]) {
+        // closer guess in physical space
+        dists[i] = dist;
+        ref_buf[i] = qptr[i];
+      }
+    }
+    // now do tree reduce
+    for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1) {
+      MFEM_SYNC_THREAD;
+      if (MFEM_THREAD_ID(x) < i) {
+        if (dists[MFEM_THREAD_ID(x) + i] < dists[MFEM_THREAD_ID(x)]) {
+          dists[MFEM_THREAD_ID(x)] = dists[MFEM_THREAD_ID(x) + i];
+          for (int d = 0; d < Dim; ++d) {
+            ref_buf[MFEM_THREAD_ID(x) + d * n] =
+                ref_buf[MFEM_THREAD_ID(x) + i + d * n];
+          }
+        }
+      }
+    }
+    // write results out
+    MFEM_SYNC_THREAD;
+    MFEM_FOREACH_THREAD(d, x, Dim) { xptr[idx + d * npts] = ref_buf[d * n]; }
   }
 };
 
@@ -168,7 +226,75 @@ struct PhysNodeFinder<Geometry::CUBE, 3, use_dev> : public NodeFinderBase {
   }
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
-    // TODO
+    constexpr int Dim = 3;
+    constexpr int SDim = 3;
+    constexpr int max_team_x = use_dev ? 128 : 1;
+    int n = (nq < max_team_x) ? nq : max_team_x;
+    // L-2 norm squared
+    MFEM_SHARED real_t dists[max_team_x];
+    MFEM_SHARED real_t ref_buf[Dim * max_team_x];
+    // MFEM_SHARED real_t phys_buf[SDim * max_team_x];
+    MFEM_FOREACH_THREAD(i, x, n) {
+#ifdef MFEM_USE_DOUBLE
+      dists[i] = HUGE_VAL;
+#else
+      dists[i] = HUGE_VALF;
+#endif
+    }
+    MFEM_SYNC_THREAD;
+    // team serial portion
+    MFEM_FOREACH_THREAD(i, x, nq) {
+      real_t phys_coord[SDim] = {0};
+      int idcs[Dim];
+      idcs[0] = i % nq1d;
+      idcs[1] = i / nq1d;
+      idcs[2] = idcs[1] / nq1d;
+      idcs[1] %= nq1d;
+      for (int j0 = 0; j0 < poly1d.pN; ++j0) {
+        real_t b0 = poly1d.eval(qptr[idcs[0]], j0);
+        for (int j1 = 0; j1 < poly1d.pN; ++j1) {
+          real_t b1 = b0 * poly1d.eval(qptr[idcs[1]], j1);
+          for (int j2 = 0; j2 < poly1d.pN; ++j2) {
+            real_t b = b1 * poly1d.eval(qptr[idcs[2]], j2);
+            for (int d = 0; d < SDim; ++d) {
+              phys_coord[d] =
+                  mptr[j0 +
+                       (j1 + (j2 + eptr[idx] * poly1d.pN) * poly1d.pN) *
+                           poly1d.pN +
+                       d * stride_sdim] *
+                  b;
+            }
+          }
+        }
+      }
+      real_t dist = 0;
+      // L-2 norm squared
+      for (int d = 0; d < SDim; ++d) {
+        real_t tmp = phys_coord[d] - pptr[idx + SDim * npts];
+        dist += tmp * tmp;
+      }
+      if (dist < dists[i]) {
+        // closer guess in physical space
+        dists[i] = dist;
+        ref_buf[i] = qptr[i];
+      }
+    }
+    // now do tree reduce
+    for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1) {
+      MFEM_SYNC_THREAD;
+      if (MFEM_THREAD_ID(x) < i) {
+        if (dists[MFEM_THREAD_ID(x) + i] < dists[MFEM_THREAD_ID(x)]) {
+          dists[MFEM_THREAD_ID(x)] = dists[MFEM_THREAD_ID(x) + i];
+          for (int d = 0; d < Dim; ++d) {
+            ref_buf[MFEM_THREAD_ID(x) + d * n] =
+                ref_buf[MFEM_THREAD_ID(x) + i + d * n];
+          }
+        }
+      }
+    }
+    // write results out
+    MFEM_SYNC_THREAD;
+    MFEM_FOREACH_THREAD(d, x, Dim) { xptr[idx + d * npts] = ref_buf[d * n]; }
   }
 };
 
