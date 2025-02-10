@@ -462,16 +462,20 @@ public:
                  Vector &refs, bool use_dev = true);
 
   using ClosestPhysPointKernelType = void (*)(int, int, int, const real_t *,
-                                              const int *, const real_t *,
-                                              const real_t *, real_t *);
+                                              const real_t *, const int *,
+                                              const real_t *, const real_t *,
+                                              real_t *);
 
+  // specialization params: Dim, SDim, use_dev
   MFEM_REGISTER_KERNELS(FindClosestPhysPoint, ClosestPhysPointKernelType,
                         (int, int, bool));
 
   using ClosestRefPointKernelType = void (*)(int, int, int, const real_t *,
-                                             const int *, const real_t *,
-                                             const real_t *, real_t *);
+                                             const real_t *, const int *,
+                                             const real_t *, const real_t *,
+                                             real_t *);
 
+  // specialization params: Dim, SDim, use_dev
   MFEM_REGISTER_KERNELS(FindClosestRefPoint, ClosestRefPointKernelType,
                         (int, int, bool));
 
