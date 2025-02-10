@@ -112,14 +112,14 @@
 //    AD-based runs
 //    mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8
 
-
+// COMPARISON WITH MMA
+/////// BLADE
 // Blade with Newton
 // mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -st 0
 // Blade with LBFGS
 // mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -st 1
 // Blade with MMA
 // mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 1000 -ls 3 -bnd -qt 1 -qo 8 -vl 2 -mma -ch 1e-3
-
 // grep -i "Energy decrease:" comp_newton.out | awk '{print $2}'
 
 #include "mfem.hpp"

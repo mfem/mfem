@@ -20,6 +20,7 @@
 #include "gslib.hpp"
 #include "../linalg/mma.hpp"
 #include "tmop_ad_err.hpp"
+#include "datacollection.hpp"
 
 namespace mfem
 {
@@ -378,6 +379,9 @@ protected:
    double weight = 1.0;
    real_t ls_norm_fac = 1.2;
    real_t ls_energy_fac = 1.1;
+   VisItDataCollection *dc = nullptr;
+   ParMesh *pmesh = nullptr;
+   int ofq = 1;
 
 public:
    TMOP_MMA(int nVar, int nCon, Vector xval, const IntegrationRule &irule) :
@@ -410,6 +414,12 @@ public:
    void SetLineSearchEnergyFactor(double ls_energy_fac_) { ls_energy_fac = ls_energy_fac_;}
    void SetLineSearchNormFactor(double ls_norm_fac_) { ls_norm_fac = ls_norm_fac_; }
    real_t GetEnergy(const Vector &x, bool include_qoi = true);
+   void SetDataCollectionObjectandMesh(VisItDataCollection *vdc, ParMesh *pm, int output_freq=1)
+   {
+      dc = vdc;
+      pmesh = pm;
+      ofq = output_freq;
+   }
 };
 
 }

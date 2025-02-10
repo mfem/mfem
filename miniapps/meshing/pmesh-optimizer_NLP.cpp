@@ -27,17 +27,22 @@
 // order 2, shock wave around origin
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -ft 2 --qtype 4 -w1 5e-2 -w2 5e-2 -m square01.mesh -rs 2 -o 2 -lsn 1.05 -lse 1.05
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 500 -ft 2 --qtype 4 -w1 1e-1 -w2 5 -m square01-tri.mesh -rs 1 -alpha 20 -o 2 -mid 2 -tid 4
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 400 -ft 2 --qtype 3 -w1 1e3 -w2 30 -m square01-tri.mesh -rs 1 -alpha 20 -o 2 -mid 2 -tid 4
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 400 -ft 2 --qtype 3 -w1 2e3 -w2 30 -m square01-tri.mesh -rs 1 -alpha 20 -o 2 -mid 2 -tid 4
 // make pmesh-optimizer_NLP -j4 && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 1e-4 -ni 200 -ft 2 -w1 1e1 -w2 0.5 -qoit 1 -rs 3 -m square01.mesh -lsn 1.01 -o 1
-
 
 // order 1, cube mesh
 // make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 100 -ft 2 --qtype 3 -w1 5e3 -w2 1e-2 -m cube.mesh -o 1 -rs 4 -mid 303
 
 // sinusoidal wave for orientation and sharp inclined wave for solution
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 5e-4 -ni 200 -ft 3 --qtype 3 -w1 1e2 -w2 1e-2 -m square01.mesh -rs 2 -o 2 -tid 4 -mid 107 -alpha 35
 // working with energy
-// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 3 --qtype 4 -w1 1e-1 -w2 2e-2 -m square01.mesh -rs 2 -alpha 20 -o 2 -mid 107 -tid 5
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 3 --qtype 4 -w1 5e-2 -w2 2e-2 -m square01.mesh -rs 2 -alpha 20 -o 2 -mid 107 -tid 5
+
+// sinusoidal wave for orientation and gradient in solution
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 200 -ft 4 --qtype 4 -w1 1e-2 -w2 2e-2 -m square01.mesh -rs 2 -alpha 50 -o 2 -mid 107 -tid 5
+// Long run (3rd order):
+// make pmesh-optimizer_NLP -j && mpirun -np 10 pmesh-optimizer_NLP -met 0 -ch 2e-3 -ni 2000 -ft 4 --qtype 4 -w1 8e-3 -w2 2e-2 -m square01.mesh -rs 2 -alpha 50 -o 3 -mid 107 -tid 5
+
+// L-shaped domain.
 
 
 #include "mfem.hpp"
@@ -127,12 +132,37 @@ double trueSolFunc(const Vector & x)
     val *= alpha;
     return std::atan(val);
   }
-  else if (ftype == 3)
+  else if (ftype == 3) // incline shock
   {
     double xv = x[0];
     double yv = x[1];
     double alpha = alphaw;
     double dx = xv - 0.5-0.2*(yv-0.5);
+    return std::atan(alpha*dx);
+  }
+  else if (ftype == 4)
+  {
+    double xv = x[0], yv = x[1];
+    double yc = yv-0.5;
+    double delta = 0.1;
+    return std::atan(alphaw*(yv - 0.5 - delta*sin(2*M_PI*xv)));
+  }
+  else if (ftype == 5)
+  {
+    real_t xv = x[0];
+    real_t yv = x[1];
+    real_t r = sqrt(xv*xv + yv*yv);
+    real_t alpha = 2./3.;
+    real_t phi = atan2(yv,xv);
+    if (phi < 0) { phi += 2*M_PI; }
+    return pow(r,alpha) * sin(alpha * phi);
+  }
+  else if (ftype == 6)
+  {
+    double xv = x[0];
+    double yv = x[1];
+    double alpha = alphaw;
+    double dx = xv - 0.48;
     return std::atan(alpha*dx);
   }
   return 0.0;
@@ -207,6 +237,41 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
     grad[0] = alpha/(1.0+std::pow(dx*alpha,2.0));
     grad[1] = -0.2*grad[0];
   }
+  else if (ftype == 4)
+  {
+    double xv = x[0], yv = x[1];
+    double delta = 0.1;
+    double phi = alphaw*(yv-0.5-delta*std::sin(2*M_PI*xv));
+    double den = 1.0 + phi*phi;
+    grad[0] = -2.0*M_PI*alphaw*delta*std::cos(2*M_PI*xv)/den;
+    grad[1] = alphaw/den;
+  }
+  else if (ftype == 5)
+  {
+    real_t xv = x[0];
+    real_t yv = x[1];
+    real_t r = sqrt(xv*xv + yv*yv);
+    real_t alpha = 2./3.;
+    real_t phi = atan2(yv,xv);
+    if (phi < 0) { phi += 2*M_PI; }
+
+    real_t r_x = xv/r;
+    real_t r_y = yv/r;
+    real_t phi_x = - yv / (r*r);
+    real_t phi_y = xv / (r*r);
+    real_t beta = alpha * pow(r,alpha - 1.);
+    grad[0] = beta*(r_x * sin(alpha*phi) + r * phi_x * cos(alpha*phi));
+    grad[1] = beta*(r_y * sin(alpha*phi) + r * phi_y * cos(alpha*phi));
+  }
+  else if (ftype == 6)
+  {
+    double xv = x[0];
+    double yv = x[1];
+    double alpha = alphaw;
+    double dx = xv - 0.48;
+    grad[0] = alpha/(1.0+std::pow(dx*alpha,2.0));
+    grad[1] = 0.0;
+  }
 };
 
 double loadFunc(const Vector & x)
@@ -268,6 +333,31 @@ double loadFunc(const Vector & x)
     double num1 = std::pow(alpha,3.0)*dx;
     double den1 = std::pow((1.0+std::pow(dx*alpha,2.0)),2.0);
     return 2.08*num1/den1;
+  }
+  else if (ftype == 4)
+  {
+    double xv = x[0], yv = x[1];
+    double delta = 0.1;
+    double phi = alphaw*(yv-0.5-delta*std::sin(2*M_PI*xv));
+    double den = 1.0 + phi*phi;
+    double phi_x = -2.0*M_PI*alphaw*delta*std::cos(2*M_PI*xv);
+    double term1 = (2*phi/(den*den))*(phi_x*phi_x+alphaw*alphaw);
+    double term2 = 4*M_PI*M_PI*alphaw*delta*std::sin(2*M_PI*xv)/den;
+    return term1-term2;
+  }
+  else if (ftype == 5)
+  {
+    return 0.0;
+  }
+  else if (ftype == 6)
+  {
+    double xv = x[0];
+    double yv = x[1];
+    double alpha = alphaw;
+    double dx = xv - 0.48;
+    double num1 = std::pow(alpha,3.0)*dx;
+    double den1 = std::pow((1.0+std::pow(dx*alpha,2.0)),2.0);
+    return 2.0*num1/den1;
   }
   return 0.0;
 };
@@ -685,30 +775,29 @@ if (myid == 0) {
   paraview_dc.SetHighOrderOutput(true);
 
   //
-
-    ParGridFunction & discretSol = solver.GetSolution();
-    discretSol.ProjectCoefficient(*trueSolution);
+  ParGridFunction & discretSol = solver.GetSolution();
+  discretSol.ProjectCoefficient(*trueSolution);
+  if (visualization)
+  {
+      socketstream vis;
+      common::VisualizeField(vis, "localhost", 19916, discretSol,
+                            "Initial Projected Solution", 0, 0, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
+  }
+  {
+    solver.SetDesignVarFromUpdatedLocations(x);
+    solver.FSolve();
+  ParGridFunction & discretSol = solver.GetSolution();
     if (visualization)
     {
         socketstream vis;
         common::VisualizeField(vis, "localhost", 19916, discretSol,
-                              "Initial Projected Solution", 0, 0, 500, 500, "jRmclAppppppppppppp");
+                              "Initial Solver Solution", 0, 480, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
     }
-    {
-      solver.SetDesignVarFromUpdatedLocations(x);
-      solver.FSolve();
-    ParGridFunction & discretSol = solver.GetSolution();
-      if (visualization)
-      {
-          socketstream vis;
-          common::VisualizeField(vis, "localhost", 19916, discretSol,
-                                "Initial Solver Solution", 0, 500, 500, 500, "jRmclAppppppppppppp");
-      }
-    }
+  }
 
-    auto init_l2_error = discretSol.ComputeL2Error(*trueSolution);
-    auto init_grad_error = discretSol.ComputeGradError(trueSolutionGrad);
-    auto init_h1_error = discretSol.ComputeH1Error(trueSolution, trueSolutionGrad);
+  auto init_l2_error = discretSol.ComputeL2Error(*trueSolution);
+  auto init_grad_error = discretSol.ComputeGradError(trueSolutionGrad);
+  auto init_h1_error = discretSol.ComputeH1Error(trueSolution, trueSolutionGrad);
 
   x.SetTrueVector();
 
@@ -741,24 +830,40 @@ if (myid == 0) {
       tmma->SetQoIWeight(weight_1);
     }
 
-    // Set max # iterations
-    tmma->SetMaxIter(max_it);
-    tmma->SetPrintLevel(newton_print);
-
     // Set min jac
-    tmma->SetMinimumDeterminantThreshold(1e-6);
+    tmma->SetMinimumDeterminantThreshold(1e-5);
 
     // Set line search factors
     tmma->SetLineSearchNormFactor(ls_norm_fac);
     tmma->SetLineSearchEnergyFactor(ls_energy_fac);
 
+    tmma->SetPrintLevel(newton_print);
 
     const real_t init_energy = tmma->GetEnergy(x.GetTrueVector(), true);
     const real_t init_metric_energy = tmma->GetEnergy(x.GetTrueVector(), false);
     const real_t init_qoi_energy = init_energy - init_metric_energy;
 
+    // Set max # iterations
+    bool save_after_every_iteration = true;
+    VisItDataCollection *visdc = new VisItDataCollection("tmop-pde", PMesh);
+    visdc->RegisterField("solution", &(solver.GetSolution()));
+    visdc->SetCycle(0);
+    visdc->SetTime(0.0);
+    visdc->Save();
+    if (save_after_every_iteration)
+    {
+      tmma->SetDataCollectionObjectandMesh(visdc, PMesh, 10);
+    }
+    tmma->SetMaxIter(max_it);
     tmma->Mult(x.GetTrueVector());
     x.SetFromTrueVector();
+    if (!save_after_every_iteration)
+    {
+      visdc->SetCycle(1);
+      visdc->SetTime(1.0);
+      visdc->Save();
+    }
+
 
     // Visualize the mesh displacement.
     if (visualization)
@@ -766,7 +871,7 @@ if (myid == 0) {
       x0 -= x;
       socketstream vis;
       common::VisualizeField(vis, "localhost", 19916, x0,
-                              "Displacements", 1000, 000, 500, 500, "jRmclAppppppppppppp");
+                              "Displacements", 800, 000, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
 
       ParaViewDataCollection paraview_dc("NativeMeshOptimizer", PMesh);
       paraview_dc.SetLevelsOfDetail(1);
@@ -783,7 +888,7 @@ if (myid == 0) {
       mesh_name << "optimized.mesh";
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      PMesh->PrintAsOne(mesh_ofs);
+      PMesh->PrintAsSerial(mesh_ofs);
     }
 
 
@@ -794,7 +899,7 @@ if (myid == 0) {
     {
         socketstream vis;
         common::VisualizeField(vis, "localhost", 19916, discretSol,
-                              "Final Solver Solution", 500, 500, 500, 500, "jRmclAppppppppppppp");
+                              "Final Solver Solution", 400, 480, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
     }
 
     auto final_l2_error = discretSol.ComputeL2Error(*trueSolution);
@@ -810,7 +915,7 @@ if (myid == 0) {
     {
         socketstream vis;
         common::VisualizeField(vis, "localhost", 19916, discretSol,
-                              "Final Projected Solution", 500, 000, 500, 500, "jRmclAppppppppppppp");
+                              "Final Projected Solution", 400, 000, 400, 400, "jRmclAppppppppppppp]]]]]]]]]]]]]]]");
     }
     if (myid == 0)
     {
@@ -833,7 +938,7 @@ if (myid == 0) {
          VisVectorField(adapt_coeff, PMesh, &orifield);
         socketstream vis;
         common::VisualizeField(vis, "localhost", 19916, orifield,
-                              "Orientation", 1000, 500, 500, 500, "jRmclAevvppp");
+                              "Orientation", 800, 480, 400, 400, "jRmclAevvppp]]]]]]]]]]]]]]]");
     }
   }
   else
@@ -1045,7 +1150,7 @@ if (myid == 0) {
         mesh_name << "optimized.mesh";
         ofstream mesh_ofs(mesh_name.str().c_str());
         mesh_ofs.precision(8);
-        PMesh->PrintAsOne(mesh_ofs);
+        PMesh->PrintAsSerial(mesh_ofs);
     }
   }
 

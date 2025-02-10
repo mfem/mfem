@@ -1009,7 +1009,7 @@ void TMOP_MMA::Mult(Vector &x)
    ParLinearForm * dQdxImpl = NULL;
    ParFiniteElementSpace *pfespace = NULL;
    Vector ldx;
-
+   int cycle_count = 1;
    for (it = 0; it < max_iter; it++)
    {
       oper->Mult(x, r);
@@ -1053,8 +1053,18 @@ void TMOP_MMA::Mult(Vector &x)
       }
 
       {
-         xxmin=dx; xxmin-=dlower;
-         xxmax=dx; xxmax+=dupper;
+         xxmin=dx;
+         xxmax=dx;
+         if (it < 3)
+         {
+          xxmin-=1.0*dlower;
+          xxmax+=1.0*dupper;
+         }
+         else
+         {
+          xxmin-=dlower;
+          xxmax+=dupper;
+         }
          for(int li=0;li<true_dofs.Size();li++)
          {
             if( true_dofs[li] ==1.0)
@@ -1083,6 +1093,14 @@ void TMOP_MMA::Mult(Vector &x)
       dx -= x_orig;;
 
       ProcessNewState(x);
+      if (dc && pmesh && it % ofq == 0)
+      {
+         pmesh->GetNodes()->SetFromTrueDofs(x);
+         pmesh->GetNodes()->SetFromTrueVector();
+         dc->SetCycle(cycle_count++);
+         dc->SetTime(cycle_count*1.0);
+         dc->Save();
+      }
 
       norm = Norm(r);
       // if (norm < 0.1) { weight *= 2.0; }
