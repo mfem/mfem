@@ -73,10 +73,12 @@ struct NodeFinderBase {
   int nq;
 };
 
-template <int Dim, int SDim, bool use_dev> struct PhysNodeFinder;
+template <int Geom, int SDim, bool use_dev> struct PhysNodeFinder;
 
 template <int SDim, bool use_dev>
-struct PhysNodeFinder<1, SDim, use_dev> : public NodeFinderBase {
+struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev> : public NodeFinderBase {
+
+  static int compute_nq(int nq1d) { return nq1d; }
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     constexpr int Dim = 1;
@@ -125,8 +127,10 @@ struct PhysNodeFinder<1, SDim, use_dev> : public NodeFinderBase {
   }
 };
 
-template <bool use_dev>
-struct PhysNodeFinder<2, 2, use_dev> : public NodeFinderBase {
+template <int SDim, bool use_dev>
+struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
+
+  static int compute_nq(int nq1d) { return nq1d * nq1d; }
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     // TODO
@@ -134,27 +138,21 @@ struct PhysNodeFinder<2, 2, use_dev> : public NodeFinderBase {
 };
 
 template <bool use_dev>
-struct PhysNodeFinder<3, 3, use_dev> : public NodeFinderBase {
+struct PhysNodeFinder<Geometry::CUBE, 3, use_dev> : public NodeFinderBase {
+
+  static int compute_nq(int nq1d) { return nq1d * nq1d * nq1d; }
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     // TODO
   }
 };
 
-template <bool use_dev>
-struct PhysNodeFinder<2, 3, use_dev> : public NodeFinderBase {
-
-  void MFEM_HOST_DEVICE operator()(int idx) const {
-    // TODO
-  }
-};
-
-template <int Dim, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_dev>
 static void ClosestPhysNodeImpl(int npts, int ndof1d, int nq1d,
                                 const real_t *mptr, const real_t *pptr,
                                 const int *eptr, const real_t *nptr,
                                 const real_t *qptr, real_t *xptr) {
-  PhysNodeFinder<Dim, SDim, use_dev> func;
+  PhysNodeFinder<Geom, SDim, use_dev> func;
   constexpr int max_team_x = use_dev ? 128 : 1;
   func.poly1d.z = nptr;
   func.poly1d.pN = ndof1d;
@@ -165,17 +163,14 @@ static void ClosestPhysNodeImpl(int npts, int ndof1d, int nq1d,
   func.xptr = xptr;
   func.npts = npts;
   func.nq1d = nq1d;
-  func.nq = nq1d;
+  func.nq = func.compute_nq(nq1d);
   // MFEM_ASSERT(nq1d <= max_team_x, "requested nq1d must be <= 128");
-  for (int d = 0; d < Dim; ++d) {
-    func.nq *= nq1d;
-  }
   // TODO: any batching of npts?
   int team_x = std::min<int>(max_team_x, func.nq);
   forall_2D(npts, team_x, 1, func);
 }
 
-template <int Dim, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_dev>
 static void ClosestRefNodeImpl(int npts, int ndof1d, int nq1d,
                                const real_t *mptr, const real_t *pptr,
                                const int *eptr, const real_t *nptr,
@@ -184,28 +179,28 @@ static void ClosestRefNodeImpl(int npts, int ndof1d, int nq1d,
   MFEM_ABORT("ClostestRefNodeImpl not implemented yet");
 }
 
-template <int Dim, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_dev>
 BatchInverseElementTransformation::ClosestPhysPointKernelType
 BatchInverseElementTransformation::FindClosestPhysPoint::Kernel() {
-  return ClosestPhysNodeImpl<Dim, SDim, use_dev>;
+  return ClosestPhysNodeImpl<Geom, SDim, use_dev>;
 }
 
 BatchInverseElementTransformation::ClosestPhysPointKernelType
 BatchInverseElementTransformation::FindClosestPhysPoint::Fallback(int, int,
                                                                   bool) {
-  MFEM_ABORT("Invalid Dim/SDim combination");
+  MFEM_ABORT("Invalid Geom/SDim combination");
 }
 
-template <int Dim, int SDim, bool use_dev>
+template <int Geom, int SDim, bool use_dev>
 BatchInverseElementTransformation::ClosestRefPointKernelType
 BatchInverseElementTransformation::FindClosestRefPoint::Kernel() {
-  return ClosestRefNodeImpl<Dim, SDim, use_dev>;
+  return ClosestRefNodeImpl<Geom, SDim, use_dev>;
 }
 
 BatchInverseElementTransformation::ClosestRefPointKernelType
 BatchInverseElementTransformation::FindClosestRefPoint::Fallback(int, int,
                                                                  bool) {
-  MFEM_ABORT("Invalid Dim/SDim combination");
+  MFEM_ABORT("Invalid Geom/SDim combination");
 }
 
 void BatchInverseElementTransformation::Transform(const Vector &pts,
@@ -266,10 +261,10 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
     auto qpoints = poly1d.GetPointsArray(guess_points_type, nq1d - 1);
     auto qptr = qpoints->Read(use_dev);
     if (init_guess_type == InverseElementTransformation::ClosestPhysNode) {
-      FindClosestPhysPoint::Run(dim, vdim, use_dev, npts, ndof1d, nq1d, mptr,
+      FindClosestPhysPoint::Run(geom, vdim, use_dev, npts, ndof1d, nq1d, mptr,
                                 pptr, eptr, nptr, qptr, xptr);
     } else {
-      FindClosestRefPoint::Run(dim, vdim, use_dev, npts, ndof1d, nq1d, mptr,
+      FindClosestRefPoint::Run(geom, vdim, use_dev, npts, ndof1d, nq1d, mptr,
                                pptr, eptr, nptr, qptr, xptr);
     }
   } break;
@@ -285,28 +280,34 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
 }
 
 BatchInverseElementTransformation::Kernels::Kernels() {
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 1, true>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 2, true>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 3, true>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::SEGMENT, 1, true>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::SEGMENT, 2, true>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::SEGMENT, 3, true>();
 
-  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 2, true>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 3, true>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::SQUARE, 2, true>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::SQUARE, 3, true>();
 
-  BatchInverseElementTransformation::AddFindClosestSpecialization<3, 3, true>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::CUBE, 3, true>();
 
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 1,
-                                                                  false>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 2,
-                                                                  false>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<1, 3,
-                                                                  false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::SEGMENT, 1, false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::SEGMENT, 2, false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::SEGMENT, 3, false>();
 
-  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 2,
-                                                                  false>();
-  BatchInverseElementTransformation::AddFindClosestSpecialization<2, 3,
-                                                                  false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::SQUARE, 2, false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::SQUARE, 3, false>();
 
-  BatchInverseElementTransformation::AddFindClosestSpecialization<3, 3,
-                                                                  false>();
+  BatchInverseElementTransformation::AddFindClosestSpecialization<
+      Geometry::CUBE, 3, false>();
 }
 } // namespace mfem

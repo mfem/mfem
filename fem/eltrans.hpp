@@ -466,7 +466,7 @@ public:
                                               const real_t *, const real_t *,
                                               real_t *);
 
-  // specialization params: Dim, SDim, use_dev
+  // specialization params: Geom, SDim, use_dev
   MFEM_REGISTER_KERNELS(FindClosestPhysPoint, ClosestPhysPointKernelType,
                         (int, int, bool));
 
@@ -475,7 +475,7 @@ public:
                                              const real_t *, const real_t *,
                                              real_t *);
 
-  // specialization params: Dim, SDim, use_dev
+  // specialization params: Geom, SDim, use_dev
   MFEM_REGISTER_KERNELS(FindClosestRefPoint, ClosestRefPointKernelType,
                         (int, int, bool));
 
