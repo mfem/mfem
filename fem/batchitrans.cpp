@@ -65,7 +65,7 @@ struct NodeFinderBase {
   real_t *xptr;
   eltrans::Lagrange poly1d;
 
-  // poly1d.pN * nelems
+  // ndof * nelems
   int stride_sdim;
   // number of points in pptr
   int npts;
@@ -81,6 +81,10 @@ template <int SDim, bool use_dev>
 struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev> : public NodeFinderBase {
 
   static int compute_nq(int nq1d) { return nq1d; }
+
+  static int compute_stride_sdim(int ndof1d, int nelems) {
+    return ndof1d * nelems;
+  }
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     constexpr int Dim = 1;
@@ -145,6 +149,10 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
 
   static int compute_nq(int nq1d) { return nq1d * nq1d; }
 
+  static int compute_stride_sdim(int ndof1d, int nelems) {
+    return ndof1d * ndof1d * nelems;
+  }
+
   void MFEM_HOST_DEVICE operator()(int idx) const {
     // TODO
   }
@@ -154,6 +162,10 @@ template <bool use_dev>
 struct PhysNodeFinder<Geometry::CUBE, 3, use_dev> : public NodeFinderBase {
 
   static int compute_nq(int nq1d) { return nq1d * nq1d * nq1d; }
+
+  static int compute_stride_sdim(int ndof1d, int nelems) {
+    return ndof1d * ndof1d * ndof1d * nelems;
+  }
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     // TODO
@@ -177,7 +189,7 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
   func.npts = npts;
   func.nq1d = nq1d;
   func.nq = func.compute_nq(nq1d);
-  func.stride_sdim = ndof1d * nelems;
+  func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
   // MFEM_ASSERT(nq1d <= max_team_x, "requested nq1d must be <= 128");
   // TODO: any batching of npts?
   int team_x = std::min<int>(max_team_x, func.nq);
