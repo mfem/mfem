@@ -3085,8 +3085,6 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    // NOTE: DenseMatrix is in column-major order. This is consistent with
    // vectors ordered byNODES. In the resulting DenseMatrix, each column
    // corresponds to a particular vdim.
-   elfun.HostRead();
-   elvect.HostReadWrite();
    DenseMatrix mat_in(elfun.GetData(), dof, vdim);
    DenseMatrix mat_out(elvect.GetData(), dof, vdim);
 
