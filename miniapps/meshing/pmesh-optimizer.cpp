@@ -407,49 +407,31 @@ int main (int argc, char *argv[])
    //    the vector degrees of freedom in pfespace.
    if (jitter > 0.0)
    {
-      H1_FECollection fec_h1(mesh_poly_deg, dim);
-      ParFiniteElementSpace pfes_h1(pmesh, &fec_h1, dim);
-      ParGridFunction rdm_h1(&pfes_h1);
-      rdm_h1.Randomize();
-      rdm_h1 -= 0.25; // Shift to random values in [-0.5,0.5].
-      rdm_h1 *= jitter;
-      rdm_h1.HostReadWrite();
+      ParGridFunction rdm(pfespace);
+      rdm.Randomize();
+      rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+      rdm *= jitter;
+      rdm.HostReadWrite();
       // Scale the random values to be of order of the local mesh size.
-      for (int i = 0; i < pfes_h1.GetNDofs(); i++)
+      for (int i = 0; i < pfespace->GetNDofs(); i++)
       {
          for (int d = 0; d < dim; d++)
          {
-            rdm_h1(pfes_h1.DofToVDof(i,d)) *= h0(i);
+            rdm(pfespace->DofToVDof(i,d)) *= h0(i);
          }
       }
       Array<int> vdofs;
-      for (int i = 0; i < pfes_h1.GetNBE(); i++)
+      for (int i = 0; i < pfespace->GetNBE(); i++)
       {
          // Get the vector degrees of freedom in the boundary element.
-         pfes_h1.GetBdrElementVDofs(i, vdofs);
+         pfespace->GetBdrElementVDofs(i, vdofs);
          // Set the boundary values to zero.
-         for (int j = 0; j < vdofs.Size(); j++) { rdm_h1(vdofs[j]) = 0.0; }
+         for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
       }
-
-      rdm_h1.SetTrueVector();
-      rdm_h1.SetFromTrueVector();
-
-      ParGridFunction rdm_l2(pfespace);
-      rdm_l2.ProjectGridFunction(rdm_h1);
-
-      if (visualization)
-      {
-         socketstream vis1, vis2;
-         common::VisualizeField(vis2, "localhost", 19916, rdm_h1, "H1 rdm",
-                                400, 500, 400, 400, "c", true);
-         common::VisualizeField(vis1, "localhost", 19916, rdm_l2, "L2 rdm",
-                                800, 500, 400, 400, "c", true);
-      }
-
-      x -= rdm_l2;
-      // Set the perturbation of all nodes from the true nodes.
+      x -= rdm;
    }
 
+   // Set the perturbation of all nodes from the true nodes.
    x.SetTrueVector();
    x.SetFromTrueVector();
 
