@@ -94,7 +94,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
     // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
     MFEM_SHARED real_t ref_buf[Dim * max_team_x];
-    MFEM_FOREACH_THREAD(i, x, n) {
+    MFEM_FOREACH_THREAD(i, x, max_team_x) {
 #ifdef MFEM_USE_DOUBLE
       dists[i] = HUGE_VAL;
 #else
@@ -108,7 +108,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
       for (int j0 = 0; j0 < basis1d.pN; ++j0) {
         real_t b = basis1d.eval(qptr[i], j0);
         for (int d = 0; d < SDim; ++d) {
-          phys_coord[d] =
+          phys_coord[d] +=
               mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * b;
         }
       }
@@ -161,7 +161,7 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
     MFEM_SHARED real_t dists[max_team_x];
     MFEM_SHARED real_t ref_buf[Dim * max_team_x];
     MFEM_SHARED real_t basis_buf[max_dof1d * max_team_x];
-    MFEM_FOREACH_THREAD(i, x, n) {
+    MFEM_FOREACH_THREAD(i, x, max_team_x) {
 #ifdef MFEM_USE_DOUBLE
       dists[i] = HUGE_VAL;
 #else
@@ -184,7 +184,7 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
         for (int j1 = 0; j1 < basis1d.pN; ++j1) {
           real_t b = b0 * basis_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
           for (int d = 0; d < SDim; ++d) {
-            phys_coord[d] = mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
+            phys_coord[d] += mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
                                  d * stride_sdim] *
                             b;
           }
@@ -242,7 +242,7 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, use_dev> : public NodeFinderBase {
     MFEM_SHARED real_t ref_buf[Dim * max_team_x];
     MFEM_SHARED real_t basis1_buf[max_dof1d * max_team_x];
     MFEM_SHARED real_t basis2_buf[max_dof1d * max_team_x];
-    MFEM_FOREACH_THREAD(i, x, n) {
+    MFEM_FOREACH_THREAD(i, x, max_team_x) {
 #ifdef MFEM_USE_DOUBLE
       dists[i] = HUGE_VAL;
 #else
@@ -273,7 +273,7 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, use_dev> : public NodeFinderBase {
             real_t b =
                 b1 * basis2_buf[MFEM_THREAD_ID(x) + j2 * MFEM_THREAD_SIZE(x)];
             for (int d = 0; d < SDim; ++d) {
-              phys_coord[d] =
+              phys_coord[d] +=
                   mptr[j0 +
                        (j1 + (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
                            basis1d.pN +
@@ -433,7 +433,8 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
   case InverseElementTransformation::ClosestRefNode:
   case InverseElementTransformation::ClosestPhysNode: {
     int nq1d = std::max(order + rel_qpts_order, 0) + 1;
-    auto qpoints = poly1d.GetPointsArray(nq1d - 1, guess_points_type);
+    int btype = BasisType::GetNodalBasis(guess_points_type);
+    auto qpoints = poly1d.GetPointsArray(nq1d - 1, btype);
     auto qptr = qpoints->Read(use_dev);
     if (init_guess_type == InverseElementTransformation::ClosestPhysNode) {
       FindClosestPhysPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d, nq1d,
