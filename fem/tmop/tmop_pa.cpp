@@ -20,7 +20,7 @@
 namespace mfem
 {
 
-void TMOP_Integrator::AssembleGradPA(const Vector &xe,
+void TMOP_Integrator::AssembleGradPA(const Vector &de,
                                      const FiniteElementSpace &fes)
 {
    MFEM_VERIFY(PA.enabled, "PA extension setup has not been done!");
@@ -28,6 +28,15 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
    // TODO: we need a more robust way to check that the 'fes' used when
    // AssemblePA() was called has not been modified or completely destroyed and
    // a new object created at the same address.
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector xe(de.Size());
+   if (x_0)
+   {
+      // The input is the displacement.
+      add(PA.X0, de, xe);
+   }
+   else { xe = de; }
 
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {
@@ -115,10 +124,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
       const Operator *ld_R = limfes->GetElementRestriction(ordering);
       ld_R->Mult(*lim_dist, PA.LD);
    }
-   else
-   {
-      PA.LD = 1.0;
-   }
+   else { PA.LD = 1.0; }
 }
 
 void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
@@ -234,6 +240,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const int nq = PA.nq = ir.GetNPoints();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    PA.maps = &fe.GetDofToQuad(ir, mode);
+   // Note - initial mesh. TODO delete this?
    PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
 
    // Energy vector, scalar Q-vector
@@ -265,6 +272,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
             ElementTransformation& T = *PA.fes->GetElementTransformation(e);
             for (int q = 0; q < ir.GetNPoints(); ++q)
             {
+               // Note that this is always on the initial mesh.
                M0(q,e) = metric_coeff->Eval(T, ir.IntPoint(q));
             }
          }
@@ -311,9 +319,18 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
    }
 }
 
-void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
+void TMOP_Integrator::AddMultPA(const Vector &de, Vector &ye) const
 {
    // This method must be called after AssemblePA().
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector xe(de.Size());
+   if (x_0)
+   {
+      // The input is the displacement.
+      add(PA.X0, de, xe);
+   }
+   else { xe = de; }
 
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {
@@ -358,9 +375,18 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    }
 }
 
-real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &de) const
 {
    // This method must be called after AssemblePA().
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector xe(de.Size());
+   if (x_0)
+   {
+      // The input is the displacement.
+      add(PA.X0, de, xe);
+   }
+   else { xe = de; }
 
    real_t energy = 0.0;
 

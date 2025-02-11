@@ -683,9 +683,9 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    for (int i = 0; i < integs.Size(); i++)
    {
       auto ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti) { ti->SetInitialMeshPos(x_0_loc); }
+      if (ti) { ti->SetInitialMeshPos(&x_0_loc); }
       auto co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-      if (co) { co->SetInitialMeshPos(x_0_loc); }
+      if (co) { co->SetInitialMeshPos(&x_0_loc); }
    }
 
    // We solve for the displacement, which is always starts from zero.
@@ -693,6 +693,18 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    if (solver_type == 0)      { NewtonSolver::Mult(b, d); }
    else if (solver_type == 1) { LBFGSSolver::Mult(b, d); }
    else { MFEM_ABORT("Invalid solver_type"); }
+
+   // Form the final mesh using the computed displacement.
+   x += d;
+
+   // Make sure the pointers don't use invalid memory (x_0_loc is gone).
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      auto ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti) { ti->SetInitialMeshPos(nullptr); }
+      auto co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co) { co->SetInitialMeshPos(nullptr); }
+   }
 }
 
 void TMOPNewtonSolver::UpdateSurfaceFittingWeight(real_t factor) const
