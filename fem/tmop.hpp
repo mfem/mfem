@@ -1968,7 +1968,9 @@ protected:
    //  E: Q-vector for TMOP-energy
    //     Used as temporary storage when the total energy is computed.
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
-   // X0: E-vector for initial nodal coordinates used for limiting.
+   // X0: E-vector for initial nodal coordinates.
+   //     Does not change during the TMOP iteration.
+   // XL: E-vector for nodal coordinates used for limiting.
    //     Does not change during the TMOP iteration.
    //  H: Q-Vector for Hessian associated with the metric term.
    //     Updated by every call to PANonlinearFormExtension::GetGradient().
@@ -2001,7 +2003,7 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0, MC;
+      mutable Vector E, O, X0, XL, H, C0, LD, H0, MC;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
