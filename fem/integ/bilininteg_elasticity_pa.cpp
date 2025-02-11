@@ -12,6 +12,7 @@
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
+#include "../../mesh/nurbs.hpp"
 #include "bilininteg_elasticity_kernels.hpp"
 
 namespace mfem
@@ -44,8 +45,8 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    fespace = &fes;
    Mesh &mesh = *fespace->GetMesh();
-   MFEM_VERIFY(fespace->GetVDim() == mesh.Dimension(), "");
    vdim = fespace->GetVDim();
+   MFEM_VERIFY(vdim == mesh.Dimension(), "Vector dimension and geometric dimension must match.");
    ndofs = fespace->GetTypicalFE()->GetDof();
 
    SetUpQuadratureSpaceAndCoefficients(fes);
@@ -117,13 +118,19 @@ void ElasticityComponentIntegrator::AddMultTransposePA(const Vector &x,
 
 void ElasticityIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
 {
-   // TODO
-   // numPatches = mesh->NURBSext->GetNP();
-   // for (int p=0; p<numPatches; ++p)
-   // {
-   //    AssemblePatchPA(p, fes);
-   // }
-   MFEM_ABORT("Not implemented yet.");
+
+   fespace = &fes;
+   Mesh &mesh = *fespace->GetMesh();
+   vdim = fespace->GetVDim();
+   MFEM_VERIFY(vdim == mesh.Dimension(), "Vector dimension and geometric dimension must match.");
+   ndofs = fespace->GetTypicalFE()->GetDof();
+
+   numPatches = mesh.NURBSext->GetNP();
+   for (int p=0; p<numPatches; ++p)
+   {
+      mfem::out << "assembling patch " << p << std::endl;
+      AssemblePatchPA(p, fes);
+   }
 }
 
 void ElasticityIntegrator::AssemblePatchPA(const int patch,
