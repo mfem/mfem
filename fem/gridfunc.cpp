@@ -178,6 +178,12 @@ void GridFunction::Update()
    }*/
    fes_sequence = fes->GetSequence();
 
+   if (fes->LastUpdatePRef())
+   {
+      UpdatePRef();
+      return;
+   }
+
    const Operator *T = fes->GetUpdateOperator();
    if (T)
    {
@@ -4012,32 +4018,9 @@ std::unique_ptr<GridFunction> GridFunction::ProlongateToMaxOrder() const
 
    GridFunction *xMax = new GridFunction(fesMax);
 
-   // Interpolate solution vector in the larger space
-   IsoparametricTransformation T;
-   DenseMatrix I;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      Geometry::Type geom = mesh->GetElementGeometry(i);
-      T.SetIdentityTransformation(geom);
-
-      Array<int> dofs;
-      fes->GetElementVDofs(i, dofs);
-      Vector elemvect(0), vectInt(0);
-      GetSubVector(dofs, elemvect);
-      DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size() / vdim, vdim);
-
-      const auto *fe = fesc->GetFE(geom, fes->GetElementOrder(i));
-      const auto *feInt = fecMax->GetFE(geom, maxOrder);
-
-      feInt->GetTransferMatrix(*fe, T, I);
-
-      fesMax->GetElementVDofs(i, dofs);
-      vectInt.SetSize(dofs.Size());
-      DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size() / vdim, vdim);
-
-      Mult(I, elemvecMat, vectIntMat);
-      xMax->SetSubVector(dofs, vectInt);
-   }
+   // Interpolate in the maximum-order space
+   PRefinementTransferOperator P(*fes, *fesMax);
+   P.Mult(*this, *xMax);
 
    xMax->MakeOwner(fecMax);
    return std::unique_ptr<GridFunction>(xMax);

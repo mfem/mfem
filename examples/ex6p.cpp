@@ -406,14 +406,14 @@ int main(int argc, char *argv[])
       //     still represent the same function as before refinement.
       if (pRefine)
       {
-         fespace.UpdatePRef(prefinements, true);
-         x.UpdatePRef();
+         fespace.PRefineAndUpdate(prefinements, true);
       }
       else
       {
          fespace.Update();
-         x.Update();
       }
+
+      x.Update();
 
       // 25. Load balance the mesh, and update the space and solution. Currently
       //     available only for nonconforming meshes.

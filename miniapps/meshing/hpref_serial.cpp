@@ -39,9 +39,6 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    int order = 1;
-   bool static_cond = false;
-   bool pa = false;
-   bool fa = false;
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
@@ -54,12 +51,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
-                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
 #ifdef MFEM_USE_CEED
@@ -151,7 +142,7 @@ int main(int argc, char *argv[])
          // p-ref
          Array<pRefinement> refs;
          refs.Append(pRefinement(elem, 1));  // Increase the element order by 1
-         fespace.UpdatePRef(refs);
+         fespace.PRefineAndUpdate(refs);
          numP++;
       }
       else
@@ -221,22 +212,12 @@ int main(int argc, char *argv[])
       //    corresponding to the Laplacian operator -Delta, by adding the diffusion
       //    domain integrator.
       BilinearForm a(&fespace);
-      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-      if (fa)
-      {
-         a.SetAssemblyLevel(AssemblyLevel::FULL);
-         // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
-         // when Device::IsEnabled() returns true). This makes the results
-         // bit-for-bit deterministic at the cost of somewhat longer run time.
-         a.EnableSparseMatrixSorting(Device::IsEnabled());
-      }
       a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
       // 10. Assemble the bilinear form and the corresponding linear system,
       //     applying any necessary transformations such as: assembly, eliminating
       //     boundary conditions, applying conforming constraints for non-conforming
       //     AMR, static condensation, etc.
-      if (static_cond) { a.EnableStaticCondensation(); }
       a.Assemble();
 
       OperatorPtr A;
@@ -244,7 +225,6 @@ int main(int argc, char *argv[])
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
       // 11. Solve the linear system A X = B.
-      if (!pa)
       {
 #ifndef MFEM_USE_SUITESPARSE
          // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
@@ -257,26 +237,6 @@ int main(int argc, char *argv[])
          umf_solver.SetOperator(*A);
          umf_solver.Mult(B, X);
 #endif
-      }
-      else
-      {
-         if (UsesTensorBasis(fespace))
-         {
-            if (algebraic_ceed)
-            {
-               ceed::AlgebraicSolver M(a, ess_tdof_list);
-               PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-            }
-            else
-            {
-               OperatorJacobiSmoother M(a, ess_tdof_list);
-               PCG(*A, M, B, X, 1, 400, 1e-12, 0.0);
-            }
-         }
-         else
-         {
-            CG(*A, B, X, 1, 400, 1e-12, 0.0);
-         }
       }
 
       // 12. Recover the grid function corresponding to X.

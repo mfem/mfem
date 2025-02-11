@@ -45,9 +45,6 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    int order = 1;
-   bool static_cond = false;
-   bool pa = false;
-   bool fa = false;
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
@@ -60,12 +57,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
-                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
 #ifdef MFEM_USE_CEED
@@ -183,7 +174,7 @@ int main(int argc, char *argv[])
          // p-ref
          Array<pRefinement> refs;
          refs.Append(pRefinement(elem, 1));  // Increase the element order by 1
-         fespace.UpdatePRef(refs);
+         fespace.PRefineAndUpdate(refs);
          numP++;
       }
       else
@@ -258,22 +249,12 @@ int main(int argc, char *argv[])
       //     corresponding to the Laplacian operator -Delta, by adding the
       //     diffusion domain integrator.
       ParBilinearForm a(&fespace);
-      if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-      if (fa)
-      {
-         a.SetAssemblyLevel(AssemblyLevel::FULL);
-         // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
-         // when Device::IsEnabled() returns true). This makes the results
-         // bit-for-bit deterministic at the cost of somewhat longer run time.
-         a.EnableSparseMatrixSorting(Device::IsEnabled());
-      }
       a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
       // 12. Assemble the parallel bilinear form and the corresponding linear
       //     system, applying any necessary transformations such as: parallel
       //     assembly, eliminating boundary conditions, applying conforming
       //     constraints for non-conforming AMR, static condensation, etc.
-      if (static_cond) { a.EnableStaticCondensation(); }
       a.Assemble();
 
       OperatorPtr A;
@@ -283,25 +264,7 @@ int main(int argc, char *argv[])
       // 13. Solve the linear system A X = B.
       //     * With full assembly, use the BoomerAMG preconditioner from hypre.
       //     * With partial assembly, use Jacobi smoothing, for now.
-      Solver *prec = NULL;
-      if (pa)
-      {
-         if (UsesTensorBasis(fespace))
-         {
-            if (algebraic_ceed)
-            {
-               prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
-            }
-            else
-            {
-               prec = new OperatorJacobiSmoother(a, ess_tdof_list);
-            }
-         }
-      }
-      else
-      {
-         prec = new HypreBoomerAMG;
-      }
+      Solver *prec = new HypreBoomerAMG;
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);

@@ -1313,32 +1313,9 @@ std::unique_ptr<ParGridFunction> ParGridFunction::ProlongateToMaxOrder() const
 
    ParGridFunction *xMax = new ParGridFunction(pfesMax);
 
-   // Interpolate solution vector in the larger space
-   IsoparametricTransformation T;
-   DenseMatrix I;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      Geometry::Type geom = mesh->GetElementGeometry(i);
-      T.SetIdentityTransformation(geom);
-
-      Array<int> dofs;
-      pfes->GetElementVDofs(i, dofs);
-      Vector elemvect(0), vectInt(0);
-      GetSubVector(dofs, elemvect);
-      DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
-
-      const auto *fe = pfesc->GetFE(geom, pfes->GetElementOrder(i));
-      const auto *feInt = fecMax->GetFE(geom, maxOrder);
-
-      feInt->GetTransferMatrix(*fe, T, I);
-
-      pfesMax->GetElementVDofs(i, dofs);
-      vectInt.SetSize(dofs.Size());
-      DenseMatrix vectIntMat(vectInt.GetData(), dofs.Size()/vdim, vdim);
-
-      Mult(I, elemvecMat, vectIntMat);
-      xMax->SetSubVector(dofs, vectInt);
-   }
+   // Interpolate in the maximum-order space
+   PRefinementTransferOperator P(*pfes, *pfesMax);
+   P.Mult(*this, *xMax);
 
    xMax->MakeOwner(fecMax);
    return std::unique_ptr<ParGridFunction>(xMax);

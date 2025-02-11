@@ -136,10 +136,10 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 void ParFiniteElementSpace::CommunicateGhostOrder(
    Array<VarOrderElemInfo> & pref_data)
 {
-   // Variable order space needs a nontrivial P matrix + also ghost elements
+   // Variable-order space needs a nontrivial P matrix + also ghost elements
    // in parallel, we thus require the mesh to be NC.
    MFEM_VERIFY(variableOrder && Nonconforming(),
-               "Variable order space requires a nonconforming mesh.");
+               "Variable-order space requires a nonconforming mesh.");
 
    // Check whether h-refinement was done.
    const bool href = mesh->GetLastOperation() == Mesh::REFINE &&
@@ -267,7 +267,11 @@ void ParFiniteElementSpace::Construct()
       // included.
       ngdofs = ngvdofs + ngedofs + ngfdofs;
 
-      if (IsVariableOrder()) { SetVarDofMaps(); }
+      if (IsVariableOrder())
+      {
+         SetVarDofMap(var_edge_dofs, var_edge_dofmap);
+         SetVarDofMap(var_face_dofs, var_face_dofmap);
+      }
 
       // get P and R matrices, initialize DOF offsets, etc. NOTE: in the NC
       // case this needs to be done here to get the number of true DOFs
@@ -2842,7 +2846,7 @@ void NeighborRowMessage::Encode(int rank)
             const int eo = pncmesh->GetEdgeNCOrientation(id);
 
             const int *ind = nullptr;
-            int osvar = 0;  // Offset for DOFs in the variable order case
+            int osvar = 0;  // Offset for DOFs in the variable-order case
             if (varOrder)
             {
                order_i = fes->GetEdgeOrder(ri.index, ri.var);
@@ -3436,12 +3440,6 @@ void ParFiniteElementSpace::SetVarDofMap(const Table & dofs,
          dmap[d].edof = d - row[0];  // entity index
       }
    }
-}
-
-void ParFiniteElementSpace::SetVarDofMaps()
-{
-   SetVarDofMap(var_edge_dofs, var_edge_dofmap);
-   SetVarDofMap(var_face_dofs, var_face_dofmap);
 }
 
 void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
@@ -4854,6 +4852,8 @@ void ParFiniteElementSpace::GetTrueTransferOperator(
 
 void ParFiniteElementSpace::Update(bool want_transform)
 {
+   lastUpdatePRef = false;
+
    {
       int int_orders_changed = (int) orders_changed;
       MPI_Allreduce(MPI_IN_PLACE, &int_orders_changed, 1, MPI_INT,
@@ -4906,7 +4906,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
    Destroy();  // Does not clear elem_order
    FiniteElementSpace::Destroy(); // calls Th.Clear()
 
-   // In the variable order case, we call CommunicateGhostOrder whether h-
+   // In the variable-order case, we call CommunicateGhostOrder whether h-
    // or p-refinement is done.
    Array<VarOrderElemInfo> pref_data;
    if (variableOrder) { CommunicateGhostOrder(pref_data); }
@@ -4968,8 +4968,8 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 }
 
-void ParFiniteElementSpace::UpdatePRef(const Array<pRefinement> & refs,
-                                       bool want_transfer)
+void ParFiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
+                                             bool want_transfer)
 {
    if (want_transfer)
    {
@@ -4992,6 +4992,8 @@ void ParFiniteElementSpace::UpdatePRef(const Array<pRefinement> & refs,
    {
       PTh.reset(new PRefinementTransferOperator(*pfesPrev, *this));
    }
+
+   lastUpdatePRef = true;
 }
 
 void ParFiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)
@@ -5055,11 +5057,11 @@ void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    }
 }
 
-void ParFiniteElementSpace::GhostMasterFaceOrderToEdges(
+void ParFiniteElementSpace::GhostFaceOrderToEdges(
    const Array<VarOrderBits> &face_orders,
    Array<VarOrderBits> &edge_orders) const
 {
-   // Apply ghost face lowest order (first variant) to their edges
+   // Apply the lowest order (first variant) on each ghost face to its edges
    for (int i=0; i<pncmesh->GetNGhostFaces(); ++i)
    {
       const int face = pncmesh->GetNFaces() + i;
@@ -5067,7 +5069,7 @@ void ParFiniteElementSpace::GhostMasterFaceOrderToEdges(
 
       if (orders == 0) { continue; }
 
-      // Find the lowest order and just use that.
+      // Find the lowest order and use that.
       int orderV0 = -1;
       for (int order = 0; orders != 0; order++, orders >>= 1)
       {
