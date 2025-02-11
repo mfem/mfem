@@ -231,7 +231,7 @@ endif
 ifeq (YES,$(MFEM_USE_HIP))
    # This is only necessary when hypre is built with hip:
    HYPRE_LIB += -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib\
- -lrocsparse -lrocrand
+ -lrocsparse -lrocrand -lrocblas -lrocsolver
 endif
 
 # METIS library configuration
