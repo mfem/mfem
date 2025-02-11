@@ -1315,6 +1315,7 @@ int main(int argc, char *argv[])
 
    // Mesh * mesh = new Mesh(num_elements, 3, 3, Element::HEXAHEDRON, 1,
    //                      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+   /*
    Mesh * mesh2d = new Mesh(mesh_file, 1, 1);
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
@@ -1322,6 +1323,9 @@ int main(int argc, char *argv[])
    }
    Mesh * mesh = Extrude2D(mesh2d, num_elements, hz);
    delete mesh2d;
+   */
+   Mesh * mesh = new Mesh(mesh_file, 1, 1);
+   /*
    if (cyl)
    {
       mesh->SetCurvature(mesh_order);
@@ -1329,6 +1333,7 @@ int main(int argc, char *argv[])
       MeshTransformCoefficient mtc(hphi);
       mesh->Transform(mtc);
    }
+   */
    /*
    {
       Array<int> v2v(mesh->GetNV());
@@ -3575,8 +3580,12 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    j.SetSize(x.Size());
    j = 0.0;
 
-   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
-   double z = (j_cyl_) ? x[2] : x[1];
+   //double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   //double z = (j_cyl_) ? x[2] : x[1];
+
+   double r = x[0]; //sqrt(x[0] * x[0] + x[1] * x[1]);
+   double z = x[1];
+   double phi = x[2];
 
    double xmin = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195;
    double xmax = 2.44-0.415*pow(z,2.0)-0.150*pow(z,4.0)+0.0195 + 0.02;
@@ -3584,7 +3593,7 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double b = 0.415;
    double c = 0.15;
 
-   double ant_shift = 1.7;
+   double ant_shift = -0.37;
 
    // Configurations:
    double A = curve_params_(5); // Standard dipole: 0/pi/0/pi
@@ -3592,11 +3601,11 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
 
    // Top Strap 1:
    double mmax1 = (0.42984 - 0.4433) / ( -0.20004 + 0.257712);
-   double bmax1 = 0.4433 - mmax1*(-0.257712);
+   double bmax1 = 0.4433 - mmax1*(-0.257712+ant_shift);
    double mmin1 = (0.12209 - 0.13554) / ( -0.28256 + 0.34023);
-   double bmin1 = 0.13554 - mmin1*(-0.34023);
-   double zmin1 = mmin1*x[1]+bmin1;
-   double zmax1 = mmax1*x[1]+bmax1;
+   double bmin1 = 0.13554 - mmin1*(-0.34023+ant_shift);
+   double zmin1 = mmin1*phi+bmin1;
+   double zmax1 = mmax1*phi+bmax1;
 
    double nmax1 = (0.141755 - 0.3978) / (-0.264109 + 0.1953);
    double cmax1 = 0.141755 - nmax1*(-0.264109);
@@ -3606,7 +3615,7 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double phi1max = (z - cmax1)/nmax1 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin1 && z <= zmax1 &&
-      x[1] >= phi1min && x[1] <= phi1max)
+      phi >= phi1min && phi <= phi1max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3639,11 +3648,11 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
       }
    // Bottom Strap 5:
    double mmax5 = (0.0206 - 0.0047) / ( -0.257 + 0.2);
-   double bmax5 = 0.0206 - mmax5*(-0.257);
+   double bmax5 = 0.0206 - mmax5*(-0.257+ant_shift);
    double mmin5 = (-0.29051 + 0.306439) / ( -0.3402 + 0.28253);
-   double bmin5 = -0.29051 - mmin5*(-0.3402);
-   double zmin5 = mmin5*x[1]+bmin5;
-   double zmax5 = mmax5*x[1]+bmax5;
+   double bmin5 = -0.29051 - mmin5*(-0.3402+ant_shift);
+   double zmin5 = mmin5*phi+bmin5;
+   double zmax5 = mmax5*phi+bmax5;
 
    double nmax5 = (-0.281149 + 0.021702) / (-0.264077 + 0.1953579);
    double cmax5 = -0.281149 - nmax5*(-0.264077);
@@ -3653,7 +3662,7 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double phi5max = (z - cmax5)/nmax5 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin5 && z <= zmax5 &&
-       x[1] >= phi5min && x[1] <= phi5max)
+       phi >= phi5min && phi <= phi5max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3685,11 +3694,11 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
       }
    // Top Strap 2:
    double mmax2 = (0.4 - 0.38539) / ( -0.080414 + 0.021405);
-   double bmax2 = 0.4 - mmax2*(-0.080414);
+   double bmax2 = 0.4 - mmax2*(-0.080414+ant_shift);
    double mmin2 = (0.09264 - 0.07803) / ( -0.16142 + 0.1024);
-   double bmin2 = 0.09264 - mmin2*(-0.16142);
-   double zmin2 = mmin2*x[1]+bmin2;
-   double zmax2 = mmax2*x[1]+bmax2;
+   double bmin2 = 0.09264 - mmin2*(-0.16142+ant_shift);
+   double zmin2 = mmin2*phi+bmin2;
+   double zmax2 = mmax2*phi+bmax2;
 
    double nmax2 = (0.097177 - 0.3531825) / (-0.08289 + 0.01541);
    double cmax2 = 0.097177 - nmax2*(-0.08289);
@@ -3699,7 +3708,7 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double phi2max = (z - cmax2)/nmax2 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin2 && z <= zmax2 &&
-      x[1] >= phi2min && x[1] <= phi2max)
+      phi >= phi2min && phi <= phi2max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3732,11 +3741,11 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
       }
    // Bottom Strap 6:
    double mmax6 = (-0.02973 + 0.04518) / ( -0.08045 + 0.021445);
-   double bmax6 = -0.02973 - mmax6*(-0.08045);
+   double bmax6 = -0.02973 - mmax6*(-0.08045+ant_shift);
    double mmin6 = (-0.33823 + 0.35369) / ( -0.16143 + 0.102426);
-   double bmin6 = -0.33823 - mmin6*(-0.16143);
-   double zmin6 = mmin6*x[1]+bmin6;
-   double zmax6 = mmax6*x[1]+bmax6;
+   double bmin6 = -0.33823 - mmin6*(-0.16143+ant_shift);
+   double zmin6 = mmin6*phi+bmin6;
+   double zmax6 = mmax6*phi+bmax6;
 
    double nmax6 = (-0.328264 + 0.071308) / (-0.0828886 + 0.0154384);
    double cmax6 = -0.328264 - nmax6*(-0.0828886);
@@ -3746,7 +3755,7 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double phi6max = (z - cmax6)/nmax6 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin6 && z <= zmax6 &&
-       x[1] >= phi6min && x[1] <= phi6max)
+       phi >= phi6min && phi <= phi6max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3778,11 +3787,11 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
       }
    // Top Strap 3:
    double mmax3 = (0.35369 - 0.33823) / ( 0.10242 - 0.161434);
-   double bmax3 = 0.35369 - mmax3*(0.10242);
+   double bmax3 = 0.35369 - mmax3*(0.10242+ant_shift);
    double mmin3 = (0.045188 - 0.02973) / ( 0.021445 - 0.08045);
-   double bmin3 = 0.045188 - mmin3*(0.021445);
-   double zmin3 = mmin3*x[1]+bmin3;
-   double zmax3 = mmax3*x[1]+bmax3;
+   double bmin3 = 0.045188 - mmin3*(0.021445+ant_shift);
+   double zmin3 = mmin3*phi+bmin3;
+   double zmax3 = mmax3*phi+bmax3;
 
    double nmax3 = (0.049515 - 0.30647) / (0.09863 - 0.16608);
    double cmax3 = 0.049515 - nmax3*(0.09863);
@@ -3792,7 +3801,7 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double phi3max = (z - cmax3)/nmax3 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin3 && z <= zmax3 &&
-      x[1] >= phi3min && x[1] <= phi3max)
+      phi >= phi3min && phi <= phi3max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3825,11 +3834,11 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
       }
    // Bottom Strap 7:
    double mmax7 = (-0.078038 + 0.0926469) / ( 0.102418 - 0.161427);
-   double bmax7 = -0.078038 - mmax7*(0.102418);
+   double bmax7 = -0.078038 - mmax7*(0.102418+ant_shift);
    double mmin7 = (-0.38539 + 0.4) / ( 0.0214 - 0.080414);
-   double bmin7 = -0.38539 - mmin7*(0.0214);
-   double zmin7 = mmin7*x[1]+bmin7;
-   double zmax7 = mmax7*x[1]+bmax7;
+   double bmin7 = -0.38539 - mmin7*(0.0214+ant_shift);
+   double zmin7 = mmin7*phi+bmin7;
+   double zmax7 = mmax7*phi+bmax7;
 
    double nmax7 = (-0.3737786 + 0.11777) / (0.0986063 - 0.166083);
    double cmax7 = -0.3737786 - nmax7*(0.0986063);
@@ -3839,7 +3848,7 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double phi7max = (z - cmax7)/nmax7 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin7 && z <= zmax7 &&
-       x[1] >= phi7min && x[1] <= phi7max)
+       phi >= phi7min && phi <= phi7max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3871,11 +3880,11 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
       }
    // Top Strap 4:
    double mmax4 = (0.30643 - 0.290512) / ( 0.282533 - 0.3402);
-   double bmax4 = 0.30643 - mmax4*(0.282533);
+   double bmax4 = 0.30643 - mmax4*(0.282533+ant_shift);
    double mmin4 = (-0.0047 + 0.0206) / ( 0.2 - 0.25779);
-   double bmin4 = -0.0047 - mmin4*(0.2);
-   double zmin4 = mmin4*x[1]+bmin4;
-   double zmax4 = mmax4*x[1]+bmax4;
+   double bmin4 = -0.0047 - mmin4*(0.2+ant_shift);
+   double zmin4 = mmin4*phi+bmin4;
+   double zmax4 = mmax4*phi+bmax4;
 
    double nmax4 = (0.00046630 - 0.25991) / (0.2722536 - 0.34097);
    double cmax4 = 0.00046630 - nmax4*(0.2722536);
@@ -3885,7 +3894,7 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double phi4max = (z - cmax4)/nmax4 + ant_shift;
    if (r >= xmin && r <= xmax &&
       z >= zmin4 && z <= zmax4 &&
-      x[1] >= phi4min && x[1] <= phi4max)
+      phi >= phi4min && phi <= phi4max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
@@ -3918,11 +3927,11 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
       }
    // Bottom Strap 8:
    double mmax8 = (-0.122085 + 0.13554) / ( 0.28256 - 0.34023);
-   double bmax8 = -0.122085 - mmax8*(0.28256);
+   double bmax8 = -0.122085 - mmax8*(0.28256+ant_shift);
    double mmin8 = (-0.42984 + 0.4433) / ( 0.2 - 0.257712);
-   double bmin8 = -0.42984 - mmin8*(0.2);
-   double zmin8 = mmin8*x[1]+bmin8;
-   double zmax8 = mmax8*x[1]+bmax8;
+   double bmin8 = -0.42984 - mmin8*(0.2+ant_shift);
+   double zmin8 = mmin8*phi+bmin8;
+   double zmax8 = mmax8*phi+bmax8;
 
    double nmax8 = (-0.415745 + 0.15912) / (0.2721959 - 0.34100496);
    double cmax8 = -0.415745 - nmax8*(0.2721959);
@@ -3932,7 +3941,7 @@ void curve_current_source_v3_r(const Vector &x, Vector &j)
    double phi8max = (z - cmax8)/nmax8 + ant_shift;
    if (r >= xmin && r <= xmax &&
        z >= zmin8 && z <= zmax8 &&
-       x[1] >= phi8min && x[1] <= phi8max)
+       phi >= phi8min && phi <= phi8max)
       {
          double mag = sqrt(4*pow(b,2.0)*pow(z,2.0)+16*pow(c,2.0)*pow(z,6.0)-16*b*c*pow(z,4.0) + 1);
          if (!j_cyl_)
