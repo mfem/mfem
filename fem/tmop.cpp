@@ -3840,11 +3840,15 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
                                          const Vector &d_el)
 {
-   // Form the Vector of node positions.
-   MFEM_VERIFY(x_0, "Initial mesh nodes are not set!");
+   // Form the Vector of node positions, depending on what's the input.
    Vector elfun;
-   x_0->GetElementDofValues(T.ElementNo, elfun);
-   elfun += d_el;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(T.ElementNo, elfun);
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
 
    const int dof = el.GetDof(), dim = el.GetDim();
    const int el_id = T.ElementNo;
@@ -4144,10 +4148,15 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
                                             const Vector &d_el, Vector &elvect)
 {
-   // Form the Vector of node positions.
+   // Form the Vector of node positions, depending on what's the input.
    Vector elfun;
-   x_0->GetElementDofValues(T.ElementNo, elfun);
-   elfun += d_el;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(T.ElementNo, elfun);
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
 
    if (!fdflag)
    {
@@ -4164,10 +4173,15 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           const Vector &d_el,
                                           DenseMatrix &elmat)
 {
-   // Form the Vector of node positions.
+   // Form the Vector of node positions, depending on what's the input.
    Vector elfun;
-   x_0->GetElementDofValues(T.ElementNo, elfun);
-   elfun += d_el;
+   if (x_0)
+   {
+      // The input is the displacement.
+      x_0->GetElementDofValues(T.ElementNo, elfun);
+      elfun += d_el;
+   }
+   else { elfun = d_el; }
 
    if (!fdflag)
    {
@@ -4970,6 +4984,21 @@ void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
    if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 #endif
+
+void TMOP_Integrator::SetInitialMeshPos(const GridFunction *x0)
+{
+   x_0 = x0;
+
+   // Compute PA.X0 when we're setting x_0 to something.
+   if (x_0 != nullptr)
+   {
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      const Operator *n0_R = x0->FESpace()->GetElementRestriction(ord);
+      PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
+      PA.X0.UseDevice(true);
+      n0_R->Mult(*x_0, PA.X0);
+   }
+}
 
 void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
                                                    real_t &metric_energy,

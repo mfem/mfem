@@ -1873,9 +1873,14 @@ protected:
    friend class TMOPNewtonSolver;
    friend class TMOPComboIntegrator;
 
-   // Initial positions of the mesh nodes. Set by the TMOPNewtonSolver at the
-   // start of the optimization.
+   // Initial positions of the mesh nodes. Not owned. The pointer is set at the
+   // start of the solve by TMOPNewtonSolver::Mult(), and unset at the end.
+   // When x_0 == nullptr, the integrator works on the whole positions.
+   // When x_0 != nullptr, the integrator works w.r.t. displacements.
+   // TODO in MFEM-5.0 make it always work with displacements.
    const GridFunction *x_0;
+   // Called with nullptr to unset the x_0 after the problem is solved.
+   void SetInitialMeshPos(const GridFunction *x0);
 
    TMOP_QualityMetric *h_metric;
    TMOP_QualityMetric *metric;        // not owned
@@ -2151,10 +2156,6 @@ public:
 
    ~TMOP_Integrator();
 
-   /// Since the TMOPIntegrator is defined w.r.t. displacements, this specifies
-   /// the starting mesh positions that are displaced.
-   void SetInitialMeshPos(const GridFunction &x0) { x_0 = &x0; }
-
    /// Release the device memory of large PA allocations. This will copy device
    /// memory back to the host before releasing.
    void ReleasePADeviceMemory(bool copy_to_host = true);
@@ -2317,7 +2318,7 @@ public:
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
        @param[in] el     Type of FiniteElement.
        @param[in] T      Mesh element transformation.
-       @param[in] d_el   Physical displacement of the zone w.r.t. x_0. */
+       @param[in] elfun   Physical displacement of the zone w.r.t. x_0. */
    real_t GetElementEnergy(const FiniteElement &el,
                            ElementTransformation &T,
                            const Vector &d_el) override;
@@ -2357,7 +2358,7 @@ public:
    using NonlinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace&) override;
 
-   void AssembleGradPA(const Vector&, const FiniteElementSpace&) override;
+   void AssembleGradPA(const Vector &, const FiniteElementSpace &) override;
 
    real_t GetLocalStateEnergyPA(const Vector&) const override;
 
@@ -2410,7 +2411,7 @@ protected:
    // Integrators in the combination. Owned.
    Array<TMOP_Integrator *> tmopi;
 
-   void SetInitialMeshPos(const GridFunction &x0)
+   void SetInitialMeshPos(const GridFunction *x0)
    {
       for (int i = 0; i < tmopi.Size(); i++)
       { tmopi[i]->SetInitialMeshPos(x0); }
