@@ -386,7 +386,7 @@ public:
 class BatchInverseElementTransformation {
   Mesh* mesh = nullptr;
   InverseElementTransformation::InitGuessType init_guess_type =
-      InverseElementTransformation::EdgeScan;
+      InverseElementTransformation::Center;
   int rel_qpts_order = -1;
   InverseElementTransformation::SolverType solver_type =
       InverseElementTransformation::NewtonElementProject;

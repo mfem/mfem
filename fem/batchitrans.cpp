@@ -48,7 +48,7 @@ void BatchInverseElementTransformation::Setup(Mesh &m, MemoryType d_mt) {
       (d_mt != MemoryType::DEFAULT) ? d_mt : Device::GetDeviceMemoryType();
   node_pos.SetSize(vdim * ND * NE, my_d_mt);
   elem_restr->Mult(*mesh->GetNodes(), node_pos);
-  points1d = poly1d.GetPointsArray(tfe->GetBasisType(), order);
+  points1d = poly1d.GetPointsArray(order ,tfe->GetBasisType());
 }
 
 // helper for finding the batch transform initial guess
@@ -63,7 +63,7 @@ struct NodeFinderBase {
   const real_t *qptr;
   // initial guess results
   real_t *xptr;
-  eltrans::Lagrange poly1d;
+  eltrans::Lagrange basis1d;
 
   // ndof * nelems
   int stride_sdim;
@@ -89,7 +89,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     constexpr int Dim = 1;
-    constexpr int max_team_x = use_dev ? 128 : 1;
+    constexpr int max_team_x = use_dev ? 64 : 1;
     int n = (nq < max_team_x) ? nq : max_team_x;
     // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
@@ -105,22 +105,97 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
     // team serial portion
     MFEM_FOREACH_THREAD(i, x, nq) {
       real_t phys_coord[SDim] = {0};
-      for (int j = 0; j < poly1d.pN; ++j) {
-        real_t b = poly1d.eval(qptr[i], j);
+      for (int j0 = 0; j0 < basis1d.pN; ++j0) {
+        real_t b = basis1d.eval(qptr[i], j0);
         for (int d = 0; d < SDim; ++d) {
-          phys_coord[d] = mptr[j + eptr[idx] * poly1d.pN + d * stride_sdim] * b;
+          phys_coord[d] =
+              mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * b;
         }
       }
       real_t dist = 0;
       // L-2 norm squared
       for (int d = 0; d < SDim; ++d) {
-        real_t tmp = phys_coord[d] - pptr[idx + SDim * npts];
+        real_t tmp = phys_coord[d] - pptr[idx + d * npts];
         dist += tmp * tmp;
       }
       if (dist < dists[MFEM_THREAD_ID(x)]) {
         // closer guess in physical space
         dists[MFEM_THREAD_ID(x)] = dist;
-        ref_buf[MFEM_THREAD_ID(x)] = qptr[MFEM_THREAD_ID(x)];
+        ref_buf[MFEM_THREAD_ID(x)] = qptr[i];
+      }
+    }
+    // now do tree reduce
+    for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1) {
+      MFEM_SYNC_THREAD;
+      if (MFEM_THREAD_ID(x) < i) {
+        if (dists[MFEM_THREAD_ID(x) + i] < dists[MFEM_THREAD_ID(x)]) {
+          dists[MFEM_THREAD_ID(x)] = dists[MFEM_THREAD_ID(x) + i];
+          ref_buf[MFEM_THREAD_ID(x)] = ref_buf[MFEM_THREAD_ID(x) + i];
+        }
+      }
+    }
+    // write results out
+    // not needed in 1D
+    // MFEM_SYNC_THREAD;
+    if (MFEM_THREAD_ID(x) == 0) {
+      xptr[idx] = ref_buf[0];
+    }
+  }
+};
+
+template <int SDim, bool use_dev>
+struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
+
+  static int compute_nq(int nq1d) { return nq1d * nq1d; }
+
+  static int compute_stride_sdim(int ndof1d, int nelems) {
+    return ndof1d * ndof1d * nelems;
+  }
+
+  void MFEM_HOST_DEVICE operator()(int idx) const {
+    constexpr int Dim = 2;
+    constexpr int max_team_x = use_dev ? 64 : 1;
+    int n = (nq < max_team_x) ? nq : max_team_x;
+    // L-2 norm squared
+    MFEM_SHARED real_t dists[max_team_x];
+    MFEM_SHARED real_t ref_buf[Dim * max_team_x];
+    MFEM_FOREACH_THREAD(i, x, n) {
+#ifdef MFEM_USE_DOUBLE
+      dists[i] = HUGE_VAL;
+#else
+      dists[i] = HUGE_VALF;
+#endif
+    }
+    MFEM_SYNC_THREAD;
+    // team serial portion
+    MFEM_FOREACH_THREAD(i, x, nq) {
+      real_t phys_coord[SDim] = {0};
+      int idcs[Dim];
+      idcs[0] = i % nq1d;
+      idcs[1] = i / nq1d;
+      for (int j0 = 0; j0 < basis1d.pN; ++j0) {
+        real_t b0 = basis1d.eval(qptr[idcs[0]], j0);
+        for (int j1 = 0; j1 < basis1d.pN; ++j1) {
+          real_t b = b0 * basis1d.eval(qptr[idcs[1]], j1);
+          for (int d = 0; d < SDim; ++d) {
+            phys_coord[d] = mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
+                                 d * stride_sdim] *
+                            b;
+          }
+        }
+      }
+      real_t dist = 0;
+      // L-2 norm squared
+      for (int d = 0; d < SDim; ++d) {
+        real_t tmp = phys_coord[d] - pptr[idx + d * npts];
+        dist += tmp * tmp;
+      }
+      if (dist < dists[MFEM_THREAD_ID(x)]) {
+        // closer guess in physical space
+        dists[MFEM_THREAD_ID(x)] = dist;
+        for (int d = 0; d < Dim; ++d) {
+          ref_buf[MFEM_THREAD_ID(x) + d * n] = qptr[idcs[d]];
+        }
       }
     }
     // now do tree reduce
@@ -143,79 +218,7 @@ struct PhysNodeFinder<Geometry::SEGMENT, SDim, use_dev>
 };
 
 template <int SDim, bool use_dev>
-struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
-
-  static int compute_nq(int nq1d) { return nq1d * nq1d; }
-
-  static int compute_stride_sdim(int ndof1d, int nelems) {
-    return ndof1d * ndof1d * nelems;
-  }
-
-  void MFEM_HOST_DEVICE operator()(int idx) const {
-    constexpr int Dim = 2;
-    constexpr int max_team_x = use_dev ? 128 : 1;
-    int n = (nq < max_team_x) ? nq : max_team_x;
-    // L-2 norm squared
-    MFEM_SHARED real_t dists[max_team_x];
-    MFEM_SHARED real_t ref_buf[Dim * max_team_x];
-    MFEM_FOREACH_THREAD(i, x, n) {
-#ifdef MFEM_USE_DOUBLE
-      dists[i] = HUGE_VAL;
-#else
-      dists[i] = HUGE_VALF;
-#endif
-    }
-    MFEM_SYNC_THREAD;
-    // team serial portion
-    MFEM_FOREACH_THREAD(i, x, nq) {
-      real_t phys_coord[SDim] = {0};
-      int idcs[Dim];
-      idcs[0] = i % nq1d;
-      idcs[1] = i / nq1d;
-      for (int j0 = 0; j0 < poly1d.pN; ++j0) {
-        real_t b0 = poly1d.eval(qptr[idcs[0]], j0);
-        for (int j1 = 0; j1 < poly1d.pN; ++j1) {
-          real_t b = b0 * poly1d.eval(qptr[idcs[1]], j1);
-          for (int d = 0; d < SDim; ++d) {
-            phys_coord[d] = mptr[j0 + (j1 + eptr[idx] * poly1d.pN) * poly1d.pN +
-                                 d * stride_sdim] *
-                            b;
-          }
-        }
-      }
-      real_t dist = 0;
-      // L-2 norm squared
-      for (int d = 0; d < SDim; ++d) {
-        real_t tmp = phys_coord[d] - pptr[idx + SDim * npts];
-        dist += tmp * tmp;
-      }
-      if (dist < dists[MFEM_THREAD_ID(x)]) {
-        // closer guess in physical space
-        dists[MFEM_THREAD_ID(x)] = dist;
-        ref_buf[MFEM_THREAD_ID(x)] = qptr[MFEM_THREAD_ID(x)];
-      }
-    }
-    // now do tree reduce
-    for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1) {
-      MFEM_SYNC_THREAD;
-      if (MFEM_THREAD_ID(x) < i) {
-        if (dists[MFEM_THREAD_ID(x) + i] < dists[MFEM_THREAD_ID(x)]) {
-          dists[MFEM_THREAD_ID(x)] = dists[MFEM_THREAD_ID(x) + i];
-          for (int d = 0; d < Dim; ++d) {
-            ref_buf[MFEM_THREAD_ID(x) + d * n] =
-                ref_buf[MFEM_THREAD_ID(x) + i + d * n];
-          }
-        }
-      }
-    }
-    // write results out
-    MFEM_SYNC_THREAD;
-    MFEM_FOREACH_THREAD(d, x, Dim) { xptr[idx + d * npts] = ref_buf[d * n]; }
-  }
-};
-
-template <bool use_dev>
-struct PhysNodeFinder<Geometry::CUBE, 3, use_dev> : public NodeFinderBase {
+struct PhysNodeFinder<Geometry::CUBE, SDim, use_dev> : public NodeFinderBase {
 
   static int compute_nq(int nq1d) { return nq1d * nq1d * nq1d; }
 
@@ -225,8 +228,7 @@ struct PhysNodeFinder<Geometry::CUBE, 3, use_dev> : public NodeFinderBase {
 
   void MFEM_HOST_DEVICE operator()(int idx) const {
     constexpr int Dim = 3;
-    constexpr int SDim = 3;
-    constexpr int max_team_x = use_dev ? 128 : 1;
+    constexpr int max_team_x = use_dev ? 64 : 1;
     int n = (nq < max_team_x) ? nq : max_team_x;
     // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
@@ -246,18 +248,18 @@ struct PhysNodeFinder<Geometry::CUBE, 3, use_dev> : public NodeFinderBase {
       idcs[0] = i % nq1d;
       idcs[1] = i / nq1d;
       idcs[2] = idcs[1] / nq1d;
-      idcs[1] %= nq1d;
-      for (int j0 = 0; j0 < poly1d.pN; ++j0) {
-        real_t b0 = poly1d.eval(qptr[idcs[0]], j0);
-        for (int j1 = 0; j1 < poly1d.pN; ++j1) {
-          real_t b1 = b0 * poly1d.eval(qptr[idcs[1]], j1);
-          for (int j2 = 0; j2 < poly1d.pN; ++j2) {
-            real_t b = b1 * poly1d.eval(qptr[idcs[2]], j2);
+      idcs[1] = idcs[1] % nq1d;
+      for (int j0 = 0; j0 < basis1d.pN; ++j0) {
+        real_t b0 = basis1d.eval(qptr[idcs[0]], j0);
+        for (int j1 = 0; j1 < basis1d.pN; ++j1) {
+          real_t b1 = b0 * basis1d.eval(qptr[idcs[1]], j1);
+          for (int j2 = 0; j2 < basis1d.pN; ++j2) {
+            real_t b = b1 * basis1d.eval(qptr[idcs[2]], j2);
             for (int d = 0; d < SDim; ++d) {
               phys_coord[d] =
                   mptr[j0 +
-                       (j1 + (j2 + eptr[idx] * poly1d.pN) * poly1d.pN) *
-                           poly1d.pN +
+                       (j1 + (j2 + eptr[idx] * basis1d.pN) * basis1d.pN) *
+                           basis1d.pN +
                        d * stride_sdim] *
                   b;
             }
@@ -267,13 +269,15 @@ struct PhysNodeFinder<Geometry::CUBE, 3, use_dev> : public NodeFinderBase {
       real_t dist = 0;
       // L-2 norm squared
       for (int d = 0; d < SDim; ++d) {
-        real_t tmp = phys_coord[d] - pptr[idx + SDim * npts];
+        real_t tmp = phys_coord[d] - pptr[idx + d * npts];
         dist += tmp * tmp;
       }
       if (dist < dists[MFEM_THREAD_ID(x)]) {
         // closer guess in physical space
         dists[MFEM_THREAD_ID(x)] = dist;
-        ref_buf[MFEM_THREAD_ID(x)] = qptr[MFEM_THREAD_ID(x)];
+        for (int d = 0; d < Dim; ++d) {
+          ref_buf[MFEM_THREAD_ID(x) + d * n] = qptr[idcs[d]];
+        }
       }
     }
     // now do tree reduce
@@ -301,9 +305,9 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
                                 const int *eptr, const real_t *nptr,
                                 const real_t *qptr, real_t *xptr) {
   PhysNodeFinder<Geom, SDim, use_dev> func;
-  constexpr int max_team_x = use_dev ? 128 : 1;
-  func.poly1d.z = nptr;
-  func.poly1d.pN = ndof1d;
+  constexpr int max_team_x = use_dev ? 64 : 1;
+  func.basis1d.z = nptr;
+  func.basis1d.pN = ndof1d;
   func.mptr = mptr;
   func.pptr = pptr;
   func.eptr = eptr;
@@ -314,8 +318,12 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
   func.nq = func.compute_nq(nq1d);
   func.stride_sdim = func.compute_stride_sdim(ndof1d, nelems);
   // TODO: any batching of npts?
-  int team_x = std::min<int>(max_team_x, func.nq);
-  forall_2D(npts, team_x, 1, func);
+  if (use_dev) {
+    int team_x = std::min<int>(max_team_x, func.nq);
+    forall_2D(npts, team_x, 1, func);
+  } else {
+    forall_switch(use_dev, npts, func);
+  }
 }
 
 template <int Geom, int SDim, bool use_dev>
@@ -406,7 +414,7 @@ void BatchInverseElementTransformation::Transform(const Vector &pts,
   case InverseElementTransformation::ClosestRefNode:
   case InverseElementTransformation::ClosestPhysNode: {
     int nq1d = std::max(order + rel_qpts_order, 0) + 1;
-    auto qpoints = poly1d.GetPointsArray(guess_points_type, nq1d - 1);
+    auto qpoints = poly1d.GetPointsArray(nq1d - 1, guess_points_type);
     auto qptr = qpoints->Read(use_dev);
     if (init_guess_type == InverseElementTransformation::ClosestPhysNode) {
       FindClosestPhysPoint::Run(geom, vdim, use_dev, npts, NE, ndof1d, nq1d,
