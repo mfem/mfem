@@ -1124,7 +1124,7 @@ int FiniteElementSpace::GetEntityVDofs(int entity, int index, Array<int> &dofs,
    return n;
 }
 
-// Variable order spaces: enforce minimum rule on conforming edges/faces
+// Variable-order spaces: enforce minimum rule on conforming edges/faces
 void FiniteElementSpace::VariableOrderMinimumRule(SparseMatrix & deps) const
 {
    if (!IsVariableOrder()) { return; }
@@ -1204,7 +1204,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // DOFs. Rows of independent DOFs will remain empty.
    SparseMatrix deps(ndofs);
 
-   // Inverse dependencies for the cR_hp matrix in variable order spaces:
+   // Inverse dependencies for the cR_hp matrix in variable-order spaces:
    // For each master edge/face with more DOF sets, the inverse dependency
    // matrix contains a row that expresses the master true DOF (lowest order)
    // as a linear combination of the highest order set of DOFs.
@@ -1249,7 +1249,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             list.OrientedPointMatrix(slave, T.GetPointMat());
             slave_fe->GetTransferMatrix(*master_fe, T, I);
 
-            // variable order spaces: face edges need to be handled separately
+            // variable-order spaces: face edges need to be handled separately
             int skipfirst = 0;
             if (IsVariableOrder() && entity == 2 && slave.index >= 0)
             {
@@ -2406,7 +2406,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
    int num_marked = 0;
    const FiniteElement *fe = nullptr;
-   DenseMatrix localRVO; //for variable order only
+   DenseMatrix localRVO; //for variable-order only
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
@@ -2728,10 +2728,10 @@ void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
    // This method should be used only for non-NURBS spaces.
    MFEM_VERIFY(!NURBSext, "internal error");
 
-   // Variable order space needs a nontrivial P matrix + also ghost elements
+   // Variable-order space needs a nontrivial P matrix + also ghost elements
    // in parallel, we thus require the mesh to be NC.
    MFEM_VERIFY(!IsVariableOrder() || Nonconforming(),
-               "Variable order space requires a nonconforming mesh.");
+               "Variable-order space requires a nonconforming mesh.");
 
    elem_dof = NULL;
    elem_fos = NULL;
@@ -2764,7 +2764,7 @@ void FiniteElementSpace::Construct(const Array<VarOrderElemInfo> * pref_data)
 
    if (IsVariableOrder())
    {
-      // for variable order spaces, calculate orders of edges and faces
+      // for variable-order spaces, calculate orders of edges and faces
       CalcEdgeFaceVarOrders(edge_orders, face_orders, edge_elem_orders,
                             face_elem_orders, skip_edge, skip_face, pref_data);
    }
@@ -3216,7 +3216,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
    }
    while (!done);
 
-   GhostMasterFaceOrderToEdges(face_orders, edge_orders);
+   GhostFaceOrderToEdges(face_orders, edge_orders);
 
    // Some ghost edges and faces (3D) may not have any orders applied, since we
    // only communicate orders of neighboring ghost elements. Such ghost entities
@@ -3252,12 +3252,12 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
                                      Array<char> *var_ent_order)
 {
    // The tables var_edge_dofs and var_face_dofs hold DOF assignments for edges
-   // and faces of a variable order space, in which each edge/face may host
+   // and faces of a variable-order space, in which each edge/face may host
    // several DOF sets, called DOF set variants. Example: an edge 'i' shared by
    // 4 hexes of orders 2, 3, 4, 5 will hold four DOF sets, each starting at
    // indices e.g. 100, 101, 103, 106, respectively. These numbers are stored
    // in row 'i' of var_edge_dofs. Variant zero is always the lowest order DOF
-   // set, followed by consecutive ranges of higher order DOFs. Variable order
+   // set, followed by consecutive ranges of higher order DOFs. Variable-order
    // faces are handled similarly by var_face_dofs. The tables are empty for
    // constant-order spaces.
 
@@ -4136,6 +4136,8 @@ void FiniteElementSpace::UpdateElementOrders()
 
 void FiniteElementSpace::Update(bool want_transform)
 {
+   lastUpdatePRef = false;
+
    if (!orders_changed)
    {
       if (mesh->GetSequence() == mesh_sequence)
@@ -4251,8 +4253,8 @@ void FiniteElementSpace::Update(bool want_transform)
    }
 }
 
-void FiniteElementSpace::UpdatePRef(const Array<pRefinement> & refs,
-                                    bool want_transfer)
+void FiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
+                                          bool want_transfer)
 {
    if (want_transfer)
    {
@@ -4275,6 +4277,8 @@ void FiniteElementSpace::UpdatePRef(const Array<pRefinement> & refs,
    {
       PTh.reset(new PRefinementTransferOperator(*fesPrev, *this));
    }
+
+   lastUpdatePRef = true;
 }
 
 void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)

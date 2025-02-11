@@ -104,6 +104,8 @@ private:
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
 
+   /** Stores the previous ParFiniteElementSpace, before p-refinement, in the
+       case that @a PTh is constructed by PRefineAndUpdate(). */
    std::unique_ptr<ParFiniteElementSpace> pfesPrev;
 
    /// Resets nd_strias flag at construction or after rebalancing
@@ -131,7 +133,7 @@ private:
                                        const Array<int> &dof_tdof,
                                        const Array<HYPRE_BigInt> &dof_offs);
 
-   void SetVarDofMaps();
+   /// Helper function to set var_edge_dofmap or var_face_dofmap
    void SetVarDofMap(const Table & dofs, Array<VarOrderDofInfo> & dmap);
 
    void Construct();
@@ -172,9 +174,9 @@ private:
    /// Inverse of function @a PackDof, setting order instead of variant.
    void UnpackDof(int dof, int &entity, int &index, int &edof, int &order) const;
 
-   /// Implementation of function @a PackDof for the variable order case.
+   /// Implementation of function @a PackDof for the variable-order case.
    int  PackDofVar(int entity, int index, int edof, int var = 0) const;
-   /// Implementation of function @a UnpackDof for the variable order case.
+   /// Implementation of function @a UnpackDof for the variable-order case.
    void UnpackDofVar(int dof, int &entity, int &index, int &edof,
                      int &order) const;
 
@@ -461,7 +463,7 @@ public:
                                DofTransformation &doftrans) const;
    DofTransformation *GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
-   /** In the variable order case with @a ndofs > 0, the order is taken such
+   /** In the variable-order case with @a ndofs > 0, the order is taken such
        that the number of DOFs is @a ndofs. */
    const FiniteElement *GetFaceNbrFE(int i, int ndofs = 0) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
@@ -490,8 +492,8 @@ public:
 
    /** P-refine and update the space. If @a want_transfer, also maintain the old
        space and a transfer operator accessible by GetPrefUpdateOperator(). */
-   void UpdatePRef(const Array<pRefinement> & refs,
-                   bool want_transfer = false) override;
+   void PRefineAndUpdate(const Array<pRefinement> & refs,
+                         bool want_transfer = false) override;
 
    /// Free ParGridFunction transformation matrix (if any), to save memory.
    void UpdatesFinished() override
@@ -513,21 +515,30 @@ public:
 protected:
    void MarkIntermediateEntityDofs(int entity, Array<bool> & intermediate) const;
 
+   /** Helper function for variable-order spaces, to apply the order on each
+       ghost element to its edges and faces. */
    void ApplyGhostElementOrdersToEdgesAndFaces(
       Array<VarOrderBits> &edge_orders,
       Array<VarOrderBits> &face_orders,
       const Array<VarOrderElemInfo> * pref_data=nullptr) const override;
 
-   void GhostMasterFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
-                                    Array<VarOrderBits> &edge_orders)
+   /** Helper function for variable-order spaces, to apply the lowest order on
+       each ghost face to its edges. */
+   void GhostFaceOrderToEdges(const Array<VarOrderBits> &face_orders,
+                              Array<VarOrderBits> &edge_orders)
    const override;
 
+   /** Performs parallel order propagation, for variable-order spaces. Returns
+       true if order propagation is done. */
    bool OrderPropagation(const std::set<int> &edges,
                          const std::set<int> &faces,
                          Array<VarOrderBits> &edge_orders,
                          Array<VarOrderBits> &face_orders) const override;
 
+   /// Returns the number of ghost edges.
    int NumGhostEdges() const override { return pncmesh->GetNGhostEdges(); }
+
+   /// Returns the number of ghost faces.
    int NumGhostFaces() const override { return pncmesh->GetNGhostFaces(); }
 };
 
