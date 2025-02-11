@@ -662,6 +662,7 @@ public:
     mfem::ParLinearForm * GetDQDx(){ return dQdx_; };
     void SetGLLVec(Array<double> &gllvec) { gllvec_ = gllvec;}
     void SetNqptsPerEl(int nqp) { nqptsperel = nqp; }
+    void SetIntegrationRules(IntegrationRules *irule_, int quad_order_) { irules = irule_; quad_order = quad_order_; }
 
 private:
     mfem::Coefficient * trueSolution_ = nullptr;
@@ -685,6 +686,9 @@ private:
     std::shared_ptr<QoIBaseCoefficient> ErrorCoefficient_ = nullptr;
     Array<double> gllvec_;
     int nqptsperel;
+
+    IntegrationRules *irules;
+    int quad_order;
 };
 
 class Diffusion_Solver

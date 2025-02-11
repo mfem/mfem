@@ -167,8 +167,11 @@ double trueSolFunc(const Vector & x)
   }
   else if (ftype == 7) // circular wave centered in domain
   {
-    // double k_w = 5.0;
     return x[0]*x[0];
+  }
+  else if (ftype == 8) // circular wave centered in domain
+  {
+    return x[0]*x[0]*x[0]*x[0];
   }
   return 0.0;
   //--------------------------------------------------------------
@@ -282,6 +285,11 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
     grad[0] = 2.0*x[0];
     grad[1] = 0.0;
   }
+  else if (ftype == 8)
+  {
+    grad[0] = 4.0*x[0]*x[0]*x[0];
+    grad[1] = 0.0;
+  }
 };
 
 double loadFunc(const Vector & x)
@@ -372,6 +380,10 @@ double loadFunc(const Vector & x)
   else if (ftype == 7)
   {
     return -2.0;
+  }
+  else if (ftype == 8)
+  {
+    return -12.0*x[0]*x[0];
   }
   return 0.0;
 };
@@ -782,6 +794,7 @@ if (myid == 0) {
   QoIEvaluator.setTrueSolCoeff( trueSolution );
   if(qoiType == QoIType::ENERGY){QoIEvaluator.setTrueSolCoeff( QCoef );}
   QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
+  QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
   x_gf.ProjectCoefficient(*trueSolution);
 
   ParaViewDataCollection paraview_dc("MeshOptimizer", PMesh);
