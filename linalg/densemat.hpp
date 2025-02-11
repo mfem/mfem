@@ -153,6 +153,9 @@ public:
    /// Matrix vector multiplication.
    void Mult(const Vector &x, Vector &y) const override;
 
+   /// Power absolute-value matrix vector multiplication.
+   virtual void PowAbsMult(const real_t p, const Vector &x, Vector &y) const;
+
    /// Multiply a vector with the transpose matrix.
    void MultTranspose(const real_t *x, real_t *y) const;
 

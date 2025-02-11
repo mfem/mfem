@@ -678,6 +678,29 @@ void ConformingFaceRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
+void ConformingFaceRestriction::MultUnsigned(const Vector& x, Vector& y) const
+{
+   if (nf==0) { return; }
+   // Assumes all elements have the same number of dofs
+   const int nface_dofs = face_dofs;
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_indices = scatter_indices.Read();
+   auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
+   auto d_y = Reshape(y.Write(), nface_dofs, vd, nf);
+   mfem::forall(nfdofs, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int s_idx = d_indices[i];
+      const int idx = (s_idx >= 0) ? s_idx : -1 - s_idx;
+      const int dof = i % nface_dofs;
+      const int face = i / nface_dofs;
+      for (int c = 0; c < vd; ++c)
+      {
+         d_y(dof, c, face) = d_x(t?c:idx, t?idx:c);
+      }
+   });
+}
+
 static void ConformingFaceRestriction_AddMultTranspose(
    const int ndofs,
    const int face_dofs,
