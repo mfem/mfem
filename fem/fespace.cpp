@@ -4298,8 +4298,8 @@ bool FiniteElementSpace::PRefinementSupported()
    Array<Geometry::Type> geoms;
    mesh->GetGeometries(dim, geoms);
    if (geoms.Size() != 1) { return false; }
-   if (dim == 2 && geoms[0] != Element::Type::QUADRILATERAL) { return false; }
-   else if (geoms[0] != Element::Type::HEXAHEDRON) { return false; }
+   if (dim == 2 && geoms[0] != Geometry::Type::SQUARE) { return false; }
+   else if (geoms[0] != Geometry::Type::CUBE) { return false; }
 
    return true;
 }
