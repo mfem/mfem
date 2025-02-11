@@ -4256,6 +4256,9 @@ void FiniteElementSpace::Update(bool want_transform)
 void FiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
                                           bool want_transfer)
 {
+   MFEM_VERIFY(PRefinementSupported(),
+               "p-refinement is not supported in this space");
+
    if (want_transfer)
    {
       fesPrev.reset(new FiniteElementSpace(mesh, fec));
@@ -4279,6 +4282,26 @@ void FiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
    }
 
    lastUpdatePRef = true;
+}
+
+bool FiniteElementSpace::PRefinementSupported()
+{
+   // Check whether the space type is L2 or H1
+   if (!dynamic_cast<const L2_FECollection*>(fec) &&
+       !dynamic_cast<const H1_FECollection*>(fec))
+   {
+      return false;
+   }
+
+   // Check whether the mesh is purely quadrilateral or hexahedral.
+   const int dim = mesh->Dimension();
+   Array<Geometry::Type> geoms;
+   mesh->GetGeometries(dim, geoms);
+   if (geoms.Size() != 1) { return false; }
+   if (dim == 2 && geoms[0] != Element::Type::QUADRILATERAL) { return false; }
+   else if (geoms[0] != Element::Type::HEXAHEDRON) { return false; }
+
+   return true;
 }
 
 void FiniteElementSpace::UpdateMeshPointer(Mesh *new_mesh)

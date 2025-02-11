@@ -4971,6 +4971,9 @@ void ParFiniteElementSpace::Update(bool want_transform)
 void ParFiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
                                              bool want_transfer)
 {
+   MFEM_VERIFY(PRefinementSupported(),
+               "p-refinement is not supported in this space");
+
    if (want_transfer)
    {
       pfesPrev.reset(new ParFiniteElementSpace(pmesh, fec));

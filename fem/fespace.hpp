@@ -1454,6 +1454,9 @@ public:
    virtual void PRefineAndUpdate(const Array<pRefinement> & refs,
                                  bool want_transfer = false);
 
+   /// Return true iff p-refinement is supported in this space.
+   bool PRefinementSupported();
+
    /// Get the GridFunction update operator.
    const Operator* GetUpdateOperator() { Update(); return Th.Ptr(); }
 
