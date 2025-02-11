@@ -1859,14 +1859,7 @@ class TMOPNewtonSolver;
     Represents $ \int W(Jpt) dx $ over a target zone, where W is the
     metric's strain energy density function, and Jpt is the Jacobian of the
     target->physical coordinates transformation. The virtual target zone is
-    defined by the TargetConstructor.
-
-    One assumption is that the integrator is defined w.r.t. displacements, i.e.,
-    the major functions GetElementEnergy(), AssembleElementVector(),
-    AssembleElementGrad() take local displacement Vectors d_e; then the local
-    mesh coordinates are constructed as x_e = x_0_e + d_e.
-    The GridFunction x_0 of initial positions is set by SetInitialMeshPos().
-    This structure is motivated by the need to optimize periodic meshes. */
+    defined by the TargetConstructor. */
 class TMOP_Integrator : public NonlinearFormIntegrator
 {
 protected:
@@ -1875,8 +1868,8 @@ protected:
 
    // Initial positions of the mesh nodes. Not owned. The pointer is set at the
    // start of the solve by TMOPNewtonSolver::Mult(), and unset at the end.
-   // When x_0 == nullptr, the integrator works on the whole positions.
-   // When x_0 != nullptr, the integrator works w.r.t. displacements.
+   // When x_0 == nullptr, the integrator works on the mesh positions.
+   // When x_0 != nullptr, the integrator works on the displacements.
    // TODO in MFEM-5.0 make it always work with displacements.
    const GridFunction *x_0;
    // Called with nullptr to unset the x_0 after the problem is solved.

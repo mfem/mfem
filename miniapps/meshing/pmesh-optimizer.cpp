@@ -435,14 +435,6 @@ int main (int argc, char *argv[])
    x.SetTrueVector();
    x.SetFromTrueVector();
 
-   // Visualize the starting mesh.
-   if (visualization)
-   {
-      socketstream vis;
-      common::VisualizeMesh(vis, "localhost", 19916, *pmesh, "Initial mesh",
-                            400, 0, 400, 400);
-   }
-
    // 10. Save the starting (prior to the optimization) mesh to a file. This
    //     output can be viewed later using GLVis: "glvis -m perturbed -np
    //     num_mpi_tasks".
