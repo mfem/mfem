@@ -688,7 +688,7 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
       if (co) { co->SetInitialMeshPos(&x_0_loc); }
    }
 
-   // We solve for the displacement, which is always starts from zero.
+   // We solve for the displacement, which always starts from zero.
    Vector d(x.Size()); d = 0.0;
    if (solver_type == 0)      { NewtonSolver::Mult(b, d); }
    else if (solver_type == 1) { LBFGSSolver::Mult(b, d); }
