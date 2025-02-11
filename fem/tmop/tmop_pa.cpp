@@ -108,9 +108,9 @@ void TMOP_Integrator::AssemblePA_Limiting()
    // lim_nodes0 -> PA.X0 (E-vector)
    MFEM_VERIFY(lim_nodes0->FESpace() == fes, "");
    const Operator *n0_R = fes->GetElementRestriction(ordering);
-   PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
-   PA.X0.UseDevice(true);
-   n0_R->Mult(*lim_nodes0, PA.X0);
+   PA.XL.SetSize(n0_R->Height(), Device::GetMemoryType());
+   PA.XL.UseDevice(true);
+   n0_R->Mult(*lim_nodes0, PA.XL);
 
    // Limiting distances: lim_dist -> PA.LD (E-vector)
    // TODO: remove the hack for the case lim_dist == NULL.
