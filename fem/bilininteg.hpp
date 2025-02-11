@@ -3138,16 +3138,21 @@ private:
    // PA extension
    void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
 
+   void SetupPatchBasisData(Mesh *mesh, unsigned int patch);
+
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int vdim, ndofs;
    const FiniteElementSpace *fespace;   ///< Not owned.
+   Vector pa_data;
+   // int dim, ne, dofs1D, quad1D;
 
    std::unique_ptr<QuadratureSpace> q_space;
    /// Coefficients projected onto q_space
    std::unique_ptr<CoefficientVector> lambda_quad, mu_quad;
    /// Workspace vector
    std::unique_ptr<QuadratureFunction> q_vec;
+
 
    /// Set up the quadrature space and project lambda and mu coefficients
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
@@ -3156,9 +3161,19 @@ private:
 
    // Type for a variable-row-length 2D array, used for data related to 1D
    // quadrature rules in each dimension.
-   // typedef std::vector<std::vector<int>> IntArrayVar2D;
+   typedef std::vector<std::vector<int>> IntArrayVar2D;
 
    int numPatches = 0;
+   static constexpr int numTypes = 2;  // Number of rule types
+
+   // TODO: maybe move these into a base class?
+   std::vector<std::vector<Vector>> reducedWeights;
+   std::vector<IntArrayVar2D> reducedIDs;
+   std::vector<Array<int>> pQ1D, pD1D;
+   std::vector<std::vector<Array2D<real_t>>> pB, pG;
+   std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
+
+   std::vector<Array<const IntegrationRule*>> pir1d;
 
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)

@@ -137,8 +137,11 @@ void ElasticityIntegrator::AssemblePatchPA(const int patch,
                                            const FiniteElementSpace &fes)
 {
    // TODO
-   // SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
-   MFEM_ABORT("Not implemented yet.");
+   Mesh *mesh = fes.GetMesh();
+   mfem::out << "AssemblePatchPA() " << patch << std::endl;
+   SetupPatchBasisData(mesh, patch);
+
+   SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
 }
 
 } // namespace mfem
