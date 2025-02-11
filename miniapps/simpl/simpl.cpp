@@ -420,13 +420,12 @@ int main(int argc, char *argv[])
          real_t psi_diffrho = -InnerProduct(MPI_COMM_WORLD,
                                             diff_density_form, control_old_gf);
          step_size = std::fabs(psi_diffrho / grad_diffrho);
-         // step_size = std::sqrt(step_size*step_size_old);
+         step_size = std::sqrt(step_size*step_size_old);
          if (Mpi::Root())
          {
             out << "   Step size = " << step_size
                 << " = | " << psi_diffrho << " / " << grad_diffrho << " |" << std::endl;
          }
-         step_size = std::sqrt(step_size * step_size_old);
          if (!isfinite(step_size))
          {
             break;
