@@ -155,10 +155,12 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
   void MFEM_HOST_DEVICE operator()(int idx) const {
     constexpr int Dim = 2;
     constexpr int max_team_x = use_dev ? 64 : 1;
+    constexpr int max_dof1d = 32;
     int n = (nq < max_team_x) ? nq : max_team_x;
     // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
     MFEM_SHARED real_t ref_buf[Dim * max_team_x];
+    MFEM_SHARED real_t basis_buf[max_dof1d * max_team_x];
     MFEM_FOREACH_THREAD(i, x, n) {
 #ifdef MFEM_USE_DOUBLE
       dists[i] = HUGE_VAL;
@@ -173,10 +175,14 @@ struct PhysNodeFinder<Geometry::SQUARE, SDim, use_dev> : public NodeFinderBase {
       int idcs[Dim];
       idcs[0] = i % nq1d;
       idcs[1] = i / nq1d;
+      for (int j1 = 0; j1 < basis1d.pN; ++j1) {
+        basis_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)] =
+            basis1d.eval(qptr[idcs[1]], j1);
+      }
       for (int j0 = 0; j0 < basis1d.pN; ++j0) {
         real_t b0 = basis1d.eval(qptr[idcs[0]], j0);
         for (int j1 = 0; j1 < basis1d.pN; ++j1) {
-          real_t b = b0 * basis1d.eval(qptr[idcs[1]], j1);
+          real_t b = b0 * basis_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
           for (int d = 0; d < SDim; ++d) {
             phys_coord[d] = mptr[j0 + (j1 + eptr[idx] * basis1d.pN) * basis1d.pN +
                                  d * stride_sdim] *
@@ -229,10 +235,13 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, use_dev> : public NodeFinderBase {
   void MFEM_HOST_DEVICE operator()(int idx) const {
     constexpr int Dim = 3;
     constexpr int max_team_x = use_dev ? 64 : 1;
+    constexpr int max_dof1d = 32;
     int n = (nq < max_team_x) ? nq : max_team_x;
     // L-2 norm squared
     MFEM_SHARED real_t dists[max_team_x];
     MFEM_SHARED real_t ref_buf[Dim * max_team_x];
+    MFEM_SHARED real_t basis1_buf[max_dof1d * max_team_x];
+    MFEM_SHARED real_t basis2_buf[max_dof1d * max_team_x];
     MFEM_FOREACH_THREAD(i, x, n) {
 #ifdef MFEM_USE_DOUBLE
       dists[i] = HUGE_VAL;
@@ -249,12 +258,20 @@ struct PhysNodeFinder<Geometry::CUBE, SDim, use_dev> : public NodeFinderBase {
       idcs[1] = i / nq1d;
       idcs[2] = idcs[1] / nq1d;
       idcs[1] = idcs[1] % nq1d;
+      for (int j1 = 0; j1 < basis1d.pN; ++j1) {
+        basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)] =
+            basis1d.eval(qptr[idcs[1]], j1);
+        basis2_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)] =
+            basis1d.eval(qptr[idcs[2]], j1);
+      }
       for (int j0 = 0; j0 < basis1d.pN; ++j0) {
         real_t b0 = basis1d.eval(qptr[idcs[0]], j0);
         for (int j1 = 0; j1 < basis1d.pN; ++j1) {
-          real_t b1 = b0 * basis1d.eval(qptr[idcs[1]], j1);
+          real_t b1 =
+              b0 * basis1_buf[MFEM_THREAD_ID(x) + j1 * MFEM_THREAD_SIZE(x)];
           for (int j2 = 0; j2 < basis1d.pN; ++j2) {
-            real_t b = b1 * basis1d.eval(qptr[idcs[2]], j2);
+            real_t b =
+                b1 * basis2_buf[MFEM_THREAD_ID(x) + j2 * MFEM_THREAD_SIZE(x)];
             for (int d = 0; d < SDim; ++d) {
               phys_coord[d] =
                   mptr[j0 +
@@ -306,6 +323,8 @@ static void ClosestPhysNodeImpl(int npts, int nelems, int ndof1d, int nq1d,
                                 const real_t *qptr, real_t *xptr) {
   PhysNodeFinder<Geom, SDim, use_dev> func;
   constexpr int max_team_x = use_dev ? 64 : 1;
+  // constexpr int max_dof1d = 32;
+  MFEM_ASSERT(ndof1d <= 32, "maximum of 32 dofs per dim is allowed");
   func.basis1d.z = nptr;
   func.basis1d.pN = ndof1d;
   func.mptr = mptr;
