@@ -510,7 +510,8 @@ int main (int argc, char *argv[])
 
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
   bool dQduFD =true;
-  bool dQdxFD =false;
+  bool dQdxFD =true;
+  bool dQdxFD_global =true;
   bool BreakAfterFirstIt = true;
 
 
@@ -796,6 +797,11 @@ if (myid == 0) {
   QoIEvaluator.setTrueSolGradCoeff(trueSolutionGrad);
   QoIEvaluator.SetIntegrationRules(&IntRulesLo, quad_order);
   x_gf.ProjectCoefficient(*trueSolution);
+
+  Diffusion_Solver solver_FD1(PMesh, essentialBC, mesh_poly_deg, trueSolution);
+  Diffusion_Solver solver_FD2(PMesh, essentialBC, mesh_poly_deg, trueSolution);
+  solver_FD1.SetManufacturedSolution(QCoef);
+  solver_FD2.SetManufacturedSolution(QCoef);
 
   ParaViewDataCollection paraview_dc("MeshOptimizer", PMesh);
   paraview_dc.SetLevelsOfDetail(1);
@@ -1142,6 +1148,62 @@ if (myid == 0) {
         std::cout<<"  ---------- dQdx Analytic - FD Diff ------------"<<std::endl;
         mfem::ParGridFunction tFD_diff(pfespace); tFD_diff = 0.0;
         tFD_diff = *dQdxExpl;
+        tFD_diff -=tFD_sens;
+        tFD_diff.Print();
+        std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
+      }
+
+      if(dQdxFD_global)
+      {
+        double epsilon = 1e-8;
+        mfem::ParGridFunction tFD_sens(pfespace); tFD_sens = 0.0;
+        for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
+        {
+          std::cout<<"iter: "<< Ia<< " out of: "<<gridfuncOptVar.Size() <<std::endl;
+          gridfuncOptVar[Ia] +=epsilon;
+
+          solver_FD1.SetDesign( gridfuncOptVar );
+          solver_FD1.FSolve();
+          ParGridFunction & discretSol_1 = solver_FD1.GetSolution();
+
+          QuantityOfInterest QoIEvaluator_FD1(PMesh, qoiType, 1);
+          QoIEvaluator_FD1.setTrueSolCoeff(  trueSolution );
+          if(qoiType == QoIType::ENERGY){QoIEvaluator_FD1.setTrueSolCoeff( QCoef );}
+          QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
+          QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
+          QoIEvaluator_FD1.SetDiscreteSol( discretSol_1 );
+          QoIEvaluator_FD1.SetNodes(x0);
+
+          double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
+
+          gridfuncOptVar[Ia] -=2.0*epsilon;
+
+          solver_FD2.SetDesign( gridfuncOptVar );
+          solver_FD2.FSolve();
+          ParGridFunction & discretSol_2 = solver_FD2.GetSolution();
+
+          QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
+          QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
+          if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
+          QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
+          QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
+          QoIEvaluator_FD2.SetDiscreteSol( discretSol_2 );
+          QoIEvaluator_FD2.SetNodes(x0);
+
+          double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
+
+          gridfuncOptVar[Ia] +=epsilon;
+
+          tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
+        }
+
+        dQdx_physics.Print();
+        std::cout<<"  ----------  FD Diff - Global ------------"<<std::endl;
+        tFD_sens.Print();
+
+        std::cout<<"  ---------- dQdx Analytic - FD Diff ------------"<<std::endl;
+        mfem::ParGridFunction tFD_diff(pfespace); tFD_diff = 0.0;
+        tFD_diff = dQdx_physics;
         tFD_diff -=tFD_sens;
         tFD_diff.Print();
         std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
