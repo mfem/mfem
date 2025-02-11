@@ -165,6 +165,11 @@ double trueSolFunc(const Vector & x)
     double dx = xv - 0.48;
     return std::atan(alpha*dx);
   }
+  else if (ftype == 7) // circular wave centered in domain
+  {
+    // double k_w = 5.0;
+    return x[0]*x[0];
+  }
   return 0.0;
   //--------------------------------------------------------------
     // double k_w = kw;
@@ -181,8 +186,8 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
 {
   if (ftype == 0)
   {
-    grad[0] = std::cos( M_PI *x[0] )*std::sin(2.0*M_PI*x[1]);
-    grad[1] = std::sin( M_PI *x[0] )*std::cos(2.0*M_PI*x[1]);
+    grad[0] = M_PI*std::cos( M_PI *x[0] )*std::sin(2.0*M_PI*x[1]);
+    grad[1] = 2.0*M_PI*std::sin( M_PI *x[0] )*std::cos(2.0*M_PI*x[1]);
   }
   else if (ftype == 1) // circular wave centered in domain
   {
@@ -272,6 +277,11 @@ void trueSolGradFunc(const Vector & x,Vector & grad)
     grad[0] = alpha/(1.0+std::pow(dx*alpha,2.0));
     grad[1] = 0.0;
   }
+  else if (ftype == 7)
+  {
+    grad[0] = 2.0*x[0];
+    grad[1] = 0.0;
+  }
 };
 
 double loadFunc(const Vector & x)
@@ -358,6 +368,10 @@ double loadFunc(const Vector & x)
     double num1 = std::pow(alpha,3.0)*dx;
     double den1 = std::pow((1.0+std::pow(dx*alpha,2.0)),2.0);
     return 2.0*num1/den1;
+  }
+  else if (ftype == 7)
+  {
+    return -2.0;
   }
   return 0.0;
 };
@@ -483,9 +497,9 @@ int main (int argc, char *argv[])
    if (myid == 0) { args.PrintOptions(cout); }
 
   enum QoIType qoiType  = static_cast<enum QoIType>(qoitype);
-  bool dQduFD =false;
+  bool dQduFD =true;
   bool dQdxFD =false;
-  bool BreakAfterFirstIt = false;
+  bool BreakAfterFirstIt = true;
 
 
   // Create mesh
@@ -757,6 +771,7 @@ if (myid == 0) {
 
   Coefficient *trueSolution = new FunctionCoefficient(trueSolFunc);
   Diffusion_Solver solver(PMesh, essentialBC, mesh_poly_deg, trueSolution);
+  // Elasticity_Solver solver(PMesh, dirichletBC, tractionBC, mesh_poly_deg);
   QuantityOfInterest QoIEvaluator(PMesh, qoiType, mesh_poly_deg);
   NodeAwareTMOPQuality MeshQualityEvaluator(PMesh, mesh_poly_deg);
 
@@ -1042,8 +1057,33 @@ if (myid == 0) {
 
       if(dQdxFD)
       {
-        double epsilon = 1e-8;
+        // nodes are p
+        // det(J) is order d*p-1
+        double epsilon = 1e-9;
         mfem::ParGridFunction tFD_sens(pfespace); tFD_sens = 0.0;
+        ConstantCoefficient zerocoeff(0.0);
+        Array<double> GLLVec;
+        int nqpts;
+        {
+          const IntegrationRule *ir = &IntRulesLo.Get(Geometry::SQUARE, 8);
+          nqpts = ir->GetNPoints();
+          // std::cout << nqpts << " k10c\n";
+          for (int e = 0; e < PMesh->GetNE(); e++)
+          {
+            ElementTransformation *T = PMesh->GetElementTransformation(e);
+            for (int q = 0; q < ir->GetNPoints(); q++)
+            {
+              const IntegrationPoint &ip = ir->IntPoint(q);
+              T->SetIntPoint(&ip);
+              double disc_val = discretSol.GetValue(e, ip);
+              double exact_val = trueSolution->Eval( *T, ip );
+              GLLVec.Append(disc_val-exact_val);
+            }
+          }
+        }
+        // std::cout << nqpts << " " << GLLVec.Size() << " k10c\n";
+        // MFEM_ABORT(" ");
+
         for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
         {
           std::cout<<"iter: "<< Ia<< " out of: "<<gridfuncOptVar.Size() <<std::endl;
@@ -1056,6 +1096,9 @@ if (myid == 0) {
           QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD1.SetDiscreteSol( discretSol );
           QoIEvaluator_FD1.SetNodes(x0);
+          QoIEvaluator_FD1.SetGLLVec(GLLVec);
+          QoIEvaluator_FD1.SetNqptsPerEl(nqpts);
+
 
           double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
 
@@ -1063,11 +1106,14 @@ if (myid == 0) {
 
           QuantityOfInterest QoIEvaluator_FD2(PMesh, qoiType, 1);
           QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
+          QoIEvaluator_FD2.setTrueSolCoeff(  &zerocoeff );
           if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
           QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
           QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
           QoIEvaluator_FD2.SetDiscreteSol( discretSol );
           QoIEvaluator_FD2.SetNodes(x0);
+          QoIEvaluator_FD2.SetGLLVec(GLLVec);
+          QoIEvaluator_FD2.SetNqptsPerEl(nqpts);
 
           double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
 

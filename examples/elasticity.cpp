@@ -2,9 +2,12 @@
 #include <fstream>
 #include <iostream>
 
-// make elasticity -j && ./elasticity -rs 5 -o 2 -m lshaped.mesh
-// make elasticity -j && ./elasticity -rs 3 -o 2 -m platewhole.mesh
-
+// Problem 1 - L-shaped domain with homogeneous dirichlet and inhomogeneous traction
+// make elasticity -j && ./elasticity -rs 5 -o 2 -m lshaped.mesh -prob 1
+// Problem 2 - Plate with hole domain with homogeneous dirichlet and inhomogeneous traction
+// make elasticity -j && ./elasticity -rs 3 -o 2 -m platewhole.mesh -prob 2
+// Problem 3 - Plate with hole but homogeneous and inhomogeneous dirichlet
+// make elasticity -j && ./elasticity -rs 3 -o 2 -m platewhole.mesh -prob 3
 using namespace mfem;
 using namespace std;
 
@@ -47,6 +50,18 @@ void ConstantTractionNegX(const Vector &x, Vector &g)
    g[0] = -1.0;
 }
 
+// Unit displacement on x=1 smoothly going to zero at y=0 and y=1
+void ConstantDisplacementPlateHoleX1(const Vector &x, Vector &g)
+{
+   g.SetSize(x.Size());
+   g = 0.0;
+   double alpha = 10;
+   double dx1 = std::pow(x[0]-1.0,2.0);
+   double dx2 = std::pow(x[0]-0.0,2.0);
+   g[0] = 5.0*std::exp(-alpha*(x[0]-0.5)*(x[0]-0.5))*x[1]*(1.0-x[1]);
+   g[0] = std::tanh(alpha*(x[0]-0.5))*x[1]*(1.0-x[1]);
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -55,6 +70,7 @@ int main(int argc, char *argv[])
    int order = 2;            // Finite element order
    int ref_levels = 3;       // Number of uniform refinements
    bool visualization = true;
+   int problem = 3;
 
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -62,6 +78,7 @@ int main(int argc, char *argv[])
                   "Polynomial degree of mesh finite element space.");
    args.AddOption(&ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&problem, "-prob", "--problem type"," ");
    args.Parse();
    if (!args.Good())
    {
@@ -89,9 +106,15 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
    // ess_bdr[3] = 1;
-   if (strcmp(mesh_file, "lshaped.mesh") == 0)
+   if (problem == 1)
    {
       ess_bdr[3] = 1;
+   }
+   if (problem == 3)
+   {
+      ess_bdr = 1;
+      ess_bdr[4] = 0.0;
+      // ess_bdr[4] = 1;
    }
    Array<int> ess_tdof_list;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -99,6 +122,11 @@ int main(int argc, char *argv[])
    // 6. Define the GridFunction (solution) and initialize it to zero.
    GridFunction x(fespace);
    x = 0.0;
+   VectorFunctionCoefficient dbc_coeff(dim, ConstantDisplacementPlateHoleX1);
+   if (problem == 3)
+   {
+      x.ProjectBdrCoefficient(dbc_coeff, ess_bdr);
+   }
 
    // 7. Set up the right-hand side linear form.
    LinearForm *b = new LinearForm(fespace);
@@ -110,7 +138,10 @@ int main(int argc, char *argv[])
    // Neumann boundary: apply a nonzero (constant) traction on attribute 2.
    Array<int> neumann_bdr(mesh->bdr_attributes.Max());
    neumann_bdr = 0;
-   neumann_bdr[1] = 1;
+   if (problem == 1 || problem == 2)
+   {
+      neumann_bdr[1] = 1;
+   }
    VectorFunctionCoefficient g_coeff(dim, ConstantTractionX);
    b->AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(g_coeff), neumann_bdr);
 
@@ -118,7 +149,7 @@ int main(int argc, char *argv[])
    neumann_bdr_negx = 0;
    neumann_bdr_negx[3] = 1;
    VectorFunctionCoefficient g_coeff_negx(dim, ConstantTractionNegX);
-   if (strcmp(mesh_file, "platewhole.mesh") == 0)
+   if (problem == 2)
    {
       b->AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(g_coeff_negx), neumann_bdr_negx);
    }

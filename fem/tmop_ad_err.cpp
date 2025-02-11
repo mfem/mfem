@@ -183,7 +183,7 @@ void LFNodeCoordinateSensitivityIntegrator::AssembleRHSElementVect(const FiniteE
   }
 
   // set integration rule
-  const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), integrationOrder);
+  const IntegrationRule *ir = IntRule;
 
   // identity tensor
   DenseMatrix I;
@@ -351,7 +351,8 @@ void LFErrorIntegrator::AssembleRHSElementVect(const FiniteElement &el, ElementT
   }
 
   // set integration rule
-  const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), integrationOrder);
+  const IntegrationRule *ir = IntRule;
+  // const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), integrationOrder);
 
   // loop over integration points
   for (int i = 0; i < ir->GetNPoints(); i++) {
@@ -363,7 +364,15 @@ void LFErrorIntegrator::AssembleRHSElementVect(const FiniteElement &el, ElementT
     double w = ip.weight * T.Weight();
 
     el.CalcShape(ip, N);
-    elvect.Add(w  * QoI_->Eval(T, ip), N);
+
+    if (gllvec_.Size() > 0)
+    {
+      double val = w * std::pow(gllvec_[T.ElementNo*nqptsperel+i], 2.0);
+      elvect.Add(val, N);
+    }
+    else {
+      elvect.Add(w  * QoI_->Eval(T, ip), N);
+    }
   }
 }
 
@@ -396,10 +405,12 @@ void LFErrorDerivativeIntegrator::AssembleRHSElementVect(const FiniteElement &el
   }
 
   // set integration rule
-  const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), integrationOrder);
+  // const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), integrationOrder);
+  const IntegrationRule *ir = IntRule;
 
   // loop over integration points
-  for (int i = 0; i < ir->GetNPoints(); i++) {
+  for (int i = 0; i < ir->GetNPoints(); i++)
+  {
     // set current integration point
     const IntegrationPoint &ip = ir->IntPoint(i);
     T.SetIntPoint(&ip);
@@ -441,13 +452,14 @@ void LFErrorDerivativeIntegrator_2::AssembleRHSElementVect(const FiniteElement &
   int dof = el.GetDof();
   int dim = el.GetDim();
 
-  int integrationOrder = 2 * el.GetOrder() + 3;
+  int integrationOrder = 2 * el.GetOrder() + 6;
   if (IntegrationOrder_ != INT_MAX) {
     integrationOrder = IntegrationOrder_;
   }
 
   // set integration rule
-  const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), integrationOrder);
+  // const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), integrationOrder);
+    const IntegrationRule *ir = IntRule;
 
   // initialize storage
   Vector N(dof);
@@ -1003,7 +1015,14 @@ double QuantityOfInterest::EvalQoI()
   ParLinearForm scalarErrorForm(temp_fes_);
   LFErrorIntegrator *lfi = new LFErrorIntegrator;
   lfi->SetQoI(ErrorCoefficient_);
-  lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+  // lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+  IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+  lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+
+  // std::cout << IntRulesGLL.Get(Geometry::SQUARE, 8).GetNPoints() << " " <<  IntRules.Get(Geometry::SQUARE, 5).GetNPoints() << " k10check\n";
+
+  lfi->SetGLLVec(gllvec_);
+  lfi->SetNqptsPerEl(nqptsperel);
   scalarErrorForm.AddDomainIntegrator(lfi);
   scalarErrorForm.Assemble();
 
@@ -1095,7 +1114,9 @@ void QuantityOfInterest::EvalQoIGrad()
       ParLinearForm T_gradForm(temp_fes_);
       LFErrorDerivativeIntegrator_2 *lfi = new LFErrorDerivativeIntegrator_2(temp_fes_, count);
       lfi->SetQoI(ErrorCoefficient_);
-      lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      // lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
       T_gradForm.AddDomainIntegrator(lfi);
       T_gradForm.Assemble();
       *dQdu_ = 0.0;
@@ -1107,7 +1128,8 @@ void QuantityOfInterest::EvalQoIGrad()
     {
       LFNodeCoordinateSensitivityIntegrator *lfi = new LFNodeCoordinateSensitivityIntegrator;
       lfi->SetQoI(ErrorCoefficient_);
-      lfi->SetIntRule(&IntRules.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      lfi->SetIntRule(&IntRulesGLL.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
 
       ParLinearForm ud_gradForm(coord_fes_);
       ud_gradForm.AddDomainIntegrator(lfi);
@@ -1115,7 +1137,6 @@ void QuantityOfInterest::EvalQoIGrad()
       *dQdx_ = 0.0;
       dQdx_->Add(1.0, ud_gradForm);
     }
-
   }
   else if(qoiType_ == QoIType::AVG_ERROR)
   {
@@ -1123,7 +1144,9 @@ void QuantityOfInterest::EvalQoIGrad()
       ::mfem::ParLinearForm T_gradForm(temp_fes_);
       LFAverageErrorDerivativeIntegrator *lfi = new LFAverageErrorDerivativeIntegrator(temp_fes_, &L2VolField);
       lfi->SetQoI(ErrorCoefficient_);
-      lfi->SetIntRule(&mfem::IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      // lfi->SetIntRule(&mfem::IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
       T_gradForm.AddDomainIntegrator(lfi);
       T_gradForm.Assemble();
       *dQdu_ = 0.0;
@@ -1133,7 +1156,9 @@ void QuantityOfInterest::EvalQoIGrad()
     {
       LFAvgErrorNodeCoordinateSensitivityIntegrator *lfi = new LFAvgErrorNodeCoordinateSensitivityIntegrator(&solgf_, &L2VolField);
       lfi->SetQoI(ErrorCoefficient_);
-      lfi->SetIntRule(&mfem::IntRules.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      // lfi->SetIntRule(&mfem::IntRules.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
 
       ::mfem::ParLinearForm ud_gradForm(coord_fes_);
       ud_gradForm.AddDomainIntegrator(lfi);
@@ -1149,7 +1174,9 @@ void QuantityOfInterest::EvalQoIGrad()
       ParLinearForm T_gradForm(temp_fes_);
       LFErrorDerivativeIntegrator *lfi = new LFErrorDerivativeIntegrator;
       lfi->SetQoI(ErrorCoefficient_);
-      lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      lfi->SetIntRule(&IntRulesGLL.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
+      // lfi->SetIntRule(&IntRules.Get(temp_fes_->GetFE(0)->GetGeomType(), 8));
       T_gradForm.AddDomainIntegrator(lfi);
       T_gradForm.Assemble();
       *dQdu_ = 0.0;
@@ -1160,7 +1187,10 @@ void QuantityOfInterest::EvalQoIGrad()
     {
       LFNodeCoordinateSensitivityIntegrator *lfi = new LFNodeCoordinateSensitivityIntegrator;
       lfi->SetQoI(ErrorCoefficient_);
-      lfi->SetIntRule(&IntRules.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+      IntegrationRules IntRulesGLL(0, Quadrature1D::GaussLobatto);
+      lfi->SetIntRule(&IntRulesGLL.Get(coord_fes_->GetFE(0)->GetGeomType(), 8));
+      lfi->SetGLLVec(gllvec_);
+      lfi->SetNqptsPerEl(nqptsperel);
 
       ParLinearForm ud_gradForm(coord_fes_);
       ud_gradForm.AddDomainIntegrator(lfi);

@@ -13,8 +13,8 @@
 //#include "gslib.hpp"
 #include "../linalg/mma.hpp"
 
-namespace mfem{
 
+namespace mfem{
 void IdentityMatrix(int dim, mfem::DenseMatrix &I);
 
 void Vectorize(const mfem::DenseMatrix &A, mfem::Vector &a);
@@ -484,12 +484,17 @@ public:
   ~LFNodeCoordinateSensitivityIntegrator() {};
   void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
   void SetQoI(std::shared_ptr<QoIBaseCoefficient> QoI) { QoI_ = QoI; };
+  void SetGLLVec(Array<double> &gllvec) { gllvec_ = gllvec;}
+  void SetNqptsPerEl(int nqp) { nqptsperel = nqp; }
 private:
   std::shared_ptr<QoIBaseCoefficient> QoIFactoryFunction(const int dim);
 
   const int IntegrationOrder_;
 
   std::shared_ptr<QoIBaseCoefficient> QoI_ = nullptr;
+
+  Array<double> gllvec_;
+  int nqptsperel;
 };
 
 class LFAvgErrorNodeCoordinateSensitivityIntegrator : public mfem::LinearFormIntegrator {
@@ -516,12 +521,16 @@ public:
   ~LFErrorIntegrator() {};
   void AssembleRHSElementVect(const mfem::FiniteElement &el, mfem::ElementTransformation &T, mfem::Vector &elvect);
   void SetQoI(std::shared_ptr<QoIBaseCoefficient> QoI) { QoI_ = QoI; };
+    void SetGLLVec(Array<double> &gllvec) { gllvec_ = gllvec;}
+    void SetNqptsPerEl(int nqp) { nqptsperel = nqp; }
 private:
   std::shared_ptr<QoIBaseCoefficient> QoIFactoryFunction(const int dim);
 
   const int IntegrationOrder_;
 
   std::shared_ptr<QoIBaseCoefficient> QoI_ = nullptr;
+    Array<double> gllvec_;
+    int nqptsperel;
 };
 
 class LFErrorDerivativeIntegrator : public mfem::LinearFormIntegrator {
@@ -651,6 +660,8 @@ public:
     void EvalQoIGrad();
     mfem::ParLinearForm * GetDQDu(){ return dQdu_; };
     mfem::ParLinearForm * GetDQDx(){ return dQdx_; };
+    void SetGLLVec(Array<double> &gllvec) { gllvec_ = gllvec;}
+    void SetNqptsPerEl(int nqp) { nqptsperel = nqp; }
 
 private:
     mfem::Coefficient * trueSolution_ = nullptr;
@@ -672,6 +683,8 @@ private:
     mfem::ParGridFunction solgf_;
 
     std::shared_ptr<QoIBaseCoefficient> ErrorCoefficient_ = nullptr;
+    Array<double> gllvec_;
+    int nqptsperel;
 };
 
 class Diffusion_Solver
