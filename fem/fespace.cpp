@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -706,6 +706,78 @@ void FiniteElementSpace::GetBoundaryTrueDofs(Array<int> &boundary_dofs,
    }
 }
 
+void FiniteElementSpace::GetExteriorVDofs(Array<int> &ext_vdofs,
+                                          int component) const
+{
+   Array<int> dofs;
+   ext_vdofs.SetSize(GetVSize());
+   ext_vdofs = 0;
+
+   Array<int> ext_face_marker;
+   mesh->GetExteriorFaceMarker(ext_face_marker);
+   for (int i = 0; i < ext_face_marker.Size(); i++)
+   {
+      if (ext_face_marker[i])
+      {
+         if (component < 0)
+         {
+            // Mark all components.
+            GetFaceDofs(i, dofs);
+            DofsToVDofs(dofs);
+         }
+         else
+         {
+            GetFaceDofs(i, dofs);
+            for (auto &d : dofs) { d = DofToVDof(d, component); }
+         }
+         MarkDofs(dofs, ext_vdofs);
+      }
+   }
+}
+
+void FiniteElementSpace::GetExteriorTrueDofs(Array<int> &ext_tdof_list,
+                                             int component) const
+{
+   Array<int> ext_vdofs, ext_tdofs;
+   GetExteriorVDofs(ext_vdofs, component);
+   const SparseMatrix *R = GetConformingRestriction();
+   if (!R)
+   {
+      ext_tdofs.MakeRef(ext_vdofs);
+   }
+   else
+   {
+      R->BooleanMult(ext_vdofs, ext_tdofs);
+#ifdef MFEM_DEBUG
+      // Verify that in boolean arithmetic: P^T ext_dofs = R ext_dofs
+      Array<int> ext_tdofs2(ext_tdofs.Size());
+      GetConformingProlongation()->BooleanMultTranspose(ext_vdofs, ext_tdofs2);
+
+      int counter = 0;
+      std::string error_msg = "failed dof: ";
+      auto ext_tdofs_ = ext_tdofs.HostRead();
+      auto ext_tdofs2_ = ext_tdofs2.HostRead();
+      for (int i = 0; i < ext_tdofs2.Size(); ++i)
+      {
+         if (bool(ext_tdofs_[i]) != bool(ext_tdofs2_[i]))
+         {
+            error_msg += std::to_string(i) += "(R ";
+            error_msg += std::to_string(bool(ext_tdofs_[i])) += " P^T ";
+            error_msg += std::to_string(bool(ext_tdofs2_[i])) += ") ";
+            counter++;
+         }
+      }
+
+      MFEM_ASSERT(R->Height() == GetConformingProlongation()->Width(), "!");
+      MFEM_ASSERT(R->Width() == GetConformingProlongation()->Height(), "!");
+      MFEM_ASSERT(R->Width() == ext_vdofs.Size(), "!");
+      MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
+                  << ' ' << error_msg);
+#endif
+   }
+   MarkerToList(ext_tdofs, ext_tdof_list);
+}
+
 // static method
 void FiniteElementSpace::MarkerToList(const Array<int> &marker,
                                       Array<int> &list)
@@ -1393,6 +1465,26 @@ int FiniteElementSpace::GetNConformingDofs() const
 {
    const SparseMatrix* P = GetConformingProlongation();
    return P ? (P->Width() / vdim) : ndofs;
+}
+
+int FiniteElementSpace::GetVectorDim() const
+{
+   const FiniteElement *fe = GetTypicalFE();
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return GetVDim();
+   }
+   return GetVDim()*std::max(GetMesh()->SpaceDimension(), fe->GetRangeDim());
+}
+
+int FiniteElementSpace::GetCurlDim() const
+{
+   const FiniteElement *fe = GetTypicalFE();
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   {
+      return 2 * GetMesh()->SpaceDimension() - 3;
+   }
+   return GetVDim()*fe->GetCurlDim();
 }
 
 const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(

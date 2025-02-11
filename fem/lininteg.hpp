@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,17 +16,17 @@
 #include "coefficient.hpp"
 #include "bilininteg.hpp"
 #include <random>
+#include "integrator.hpp"
 
 namespace mfem
 {
 
 /// Abstract base class LinearFormIntegrator
-class LinearFormIntegrator
+class LinearFormIntegrator : public Integrator
 {
 protected:
-   const IntegrationRule *IntRule;
 
-   LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
+   LinearFormIntegrator(const IntegrationRule *ir = NULL) : Integrator(ir) {}
 
 public:
 
@@ -50,9 +50,6 @@ public:
                                        const FiniteElement &el2,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
-
-   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
-   const IntegrationRule* GetIntRule() { return IntRule; }
 
    virtual ~LinearFormIntegrator() { }
 };
