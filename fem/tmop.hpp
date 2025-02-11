@@ -2313,7 +2313,7 @@ public:
    /** @brief Computes the integral of W(Jacobian(Trt)) over a target zone.
        @param[in] el     Type of FiniteElement.
        @param[in] T      Mesh element transformation.
-       @param[in] elfun   Physical displacement of the zone w.r.t. x_0. */
+       @param[in] d_el   Physical displacement of the zone w.r.t. x_0. */
    real_t GetElementEnergy(const FiniteElement &el,
                            ElementTransformation &T,
                            const Vector &d_el) override;
