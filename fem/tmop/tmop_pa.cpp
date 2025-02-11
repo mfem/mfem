@@ -105,7 +105,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
       }
    }
 
-   // lim_nodes0 -> PA.X0 (E-vector)
+   // lim_nodes0 -> PA.XL (E-vector)
    MFEM_VERIFY(lim_nodes0->FESpace() == fes, "");
    const Operator *n0_R = fes->GetElementRestriction(ordering);
    PA.XL.SetSize(n0_R->Height(), Device::GetMemoryType());
@@ -227,16 +227,20 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    const int ne = PA.ne = mesh->GetNE();
    const int dim = PA.dim = mesh->Dimension();
+
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "Not yet implemented!");
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
-               "mixed meshes are not supported");
+               "TMOP+PA does not support mixed meshes.");
+   MFEM_VERIFY(mesh->HasGeometry(Geometry::SQUARE) ||
+               mesh->HasGeometry(Geometry::CUBE),
+               "TMOP+PA only supports squares and cubes.");
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
+   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
+               "TMOP+PAP only supports Ordering::byNODES!");
+
    const FiniteElement &fe = *fes.GetTypicalFE();
    PA.ir = &EnergyIntegrationRule(fe);
    const IntegrationRule &ir = *PA.ir;
-   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
-               "PA Only supports Ordering::byNODES!");
-
    const int nq = PA.nq = ir.GetNPoints();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    PA.maps = &fe.GetDofToQuad(ir, mode);
@@ -290,7 +294,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.Jtr_needs_update = true;
    PA.Jtr_debug_grad = false;
 
-   // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.X0, lim_dist -> PA.LD, PA.H0
+   // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.XL, lim_dist -> PA.LD, PA.H0
    if (lim_coeff) { AssemblePA_Limiting(); }
 }
 

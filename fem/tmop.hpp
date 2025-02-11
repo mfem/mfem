@@ -2017,20 +2017,20 @@ protected:
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
-                                   const Vector &elfun, Vector &elvect);
+                                   const Vector &d_el, Vector &elvect);
 
    void AssembleElementGradExact(const FiniteElement &el,
                                  ElementTransformation &T,
-                                 const Vector &elfun, DenseMatrix &elmat);
+                                 const Vector &d_el, DenseMatrix &elmat);
 
    void AssembleElementVectorFD(const FiniteElement &el,
                                 ElementTransformation &T,
-                                const Vector &elfun, Vector &elvect);
+                                const Vector &d_el, Vector &elvect);
 
    // Assumes that AssembleElementVectorFD has been called.
    void AssembleElementGradFD(const FiniteElement &el,
                               ElementTransformation &T,
-                              const Vector &elfun, DenseMatrix &elmat);
+                              const Vector &d_el, DenseMatrix &elmat);
 
    void AssembleElemVecAdaptLim(const FiniteElement &el,
                                 IsoparametricTransformation &Tpr,
@@ -2053,7 +2053,7 @@ protected:
 
    real_t GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
-                          Vector &elfun, const int nodenum,const int idir,
+                          Vector &d_el, const int nodenum, const int idir,
                           const real_t baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
