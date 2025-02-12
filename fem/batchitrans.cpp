@@ -93,37 +93,72 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, max_team_x>
 #else
     real_t min_dist = HUGE_VALF;
 #endif
-    MFEM_SHARED real_t ref_coord[Dim * max_team_x];
-    MFEM_SHARED real_t phys_coord[SDim * max_team_x];
-    MFEM_SHARED real_t jac[SDim * Dim * max_team_x];
-    ref_coord[MFEM_THREAD_ID(x)] = xptr[idx];
+    real_t ref_coord;
+    real_t phys_coord[SDim];
+    real_t jac[SDim * Dim];
+    ref_coord = xptr[idx];
+    real_t phys_tol = 0;
+    for (int d = 0; d < SDim; ++d) {
+      phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
+    }
+    phys_tol = fmax(phys_rtol, phys_tol * phys_rtol);
     while (true) {
-      // compute phys_coord
+      // compute phys_coord and jacobian at the same time
       for (int j0 = 0; j0 < basis1d.pN; ++j0) {
-        real_t b = basis1d.eval(ref_coord[MFEM_THREAD_ID(x)], j0);
+        real_t b, db;
+        basis1d.eval_d1(b, db, ref_coord, j0);
         for (int d = 0; d < SDim; ++d) {
-          phys_coord[d * MFEM_THREAD_ID(x)] =
+          phys_coord[d] =
               mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * b;
+          jac[d] = mptr[j0 + eptr[idx] * basis1d.pN + d * stride_sdim] * db;
         }
       }
       // compute objective function
       // f(x) = 1/2 |pt - F(x)|^2
       real_t dist = 0;
       for (int d = 0; d < SDim; ++d) {
-        real_t tmp = phys_coord[d * MFEM_THREAD_ID(x)] - pptr[idx + d * npts];
+        real_t tmp = pptr[idx + d * npts] - phys_coord[d];
+        phys_coord[d] = tmp;
         dist += tmp * tmp;
       }
+      // phys_coord now contains pt - F(x)
       // check for phys_tol convergence
-      // check for stagnation on boundary using ref_tol
+      if (sqrt(dist) <= phys_tol) {
+        // found solution
+        tptr[idx] = eltrans::GeometryUtils<Geometry::SEGMENT>::inside(ref_coord)
+                        ? InverseElementTransformation::Inside
+                        : InverseElementTransformation::Outside;
+        xptr[idx] = ref_coord;
+        return;
+      }
 
       // compute dx = (pseudo)-inverse jac * [pt - F(x)]
-      // clamp x + dx
-      // check for ref coord convergence
+      real_t invJ_den = 0;
+      for (int d = 0; d < SDim; ++d) {
+        invJ_den += jac[d] * jac[d];
+      }
+      real_t dx = 0;
+      for (int d = 0; d < SDim; ++d) {
+        dx += jac[d] * phys_coord[d];
+      }
+      dx /= invJ_den;
+      ref_coord += dx;
+
+      // check for ref coord convergence or stagnation on boundary
+      if (fabs(dx) <= ref_tol) {
+        tptr[idx] = eltrans::GeometryUtils<Geometry::SEGMENT>::inside(ref_coord)
+                        ? InverseElementTransformation::Inside
+                        : InverseElementTransformation::Outside;
+        xptr[idx] = ref_coord;
+        return;
+      }
 
       ++iter;
       if (iter >= max_iter) {
         // terminate on max iterations
         tptr[idx] = InverseElementTransformation::Unknown;
+        // might as well save where we failed at
+        xptr[idx] = ref_coord;
         return;
       }
     }

@@ -30,6 +30,12 @@ template <int GeomType> struct GeometryUtils;
 
 template <> struct GeometryUtils<Geometry::SEGMENT>
 {
+   /// @b true if the given point x in ref space is inside the element
+   static bool MFEM_HOST_DEVICE inside(real_t x)
+   {
+      return x >= 0 && x <= 1;
+   }
+
    /// @b Bound the reference coordinate @a x to be inside the segment
    static bool MFEM_HOST_DEVICE project(real_t &x)
    {
@@ -49,6 +55,12 @@ template <> struct GeometryUtils<Geometry::SEGMENT>
 
 template <> struct GeometryUtils<Geometry::SQUARE>
 {
+   /// @b true if the given point x in ref space is inside the element
+   static bool MFEM_HOST_DEVICE inside(real_t x, real_t y)
+   {
+      return (x >= 0) && (x <= 1) && (y >= 0) && (y <= 1);
+   }
+
    /// @b Bound the reference coordinate @a x and @a y to be inside the square
    static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y)
    {
@@ -79,6 +91,11 @@ template <> struct GeometryUtils<Geometry::SQUARE>
 
 template <> struct GeometryUtils<Geometry::CUBE>
 {
+   /// @b true if the given point x in ref space is inside the element
+   static bool MFEM_HOST_DEVICE inside(real_t x, real_t y, real_t z)
+   {
+      return (x >= 0) && (x <= 1) && (y >= 0) && (y <= 1) && (z >= 0) && (z <= 1);
+   }
    /// @b Bound the reference coordinate @a x, @a y, and @a z to be inside the
    /// square
    static bool MFEM_HOST_DEVICE project(real_t &x, real_t &y, real_t &z)
