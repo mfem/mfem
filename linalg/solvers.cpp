@@ -1770,7 +1770,7 @@ loop_end:
       mfem::out << "MINRES: Number of iterations: " << setw(3) << final_iter << '\n';
    }
 
-   converged = converged || Monitor(final_iter, final_norm, *z, x, true);
+   converged = Monitor(final_iter, final_norm, *z, x, true) || converged;
 
    // if (print_options.iteration_details || (!converged && print_options.errors))
    // {
