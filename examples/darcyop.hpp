@@ -35,6 +35,10 @@ private:
    const Array<int> &ess_flux_tdofs_list;
    DarcyForm *darcy;
    LinearForm *g, *f, *h;
+#ifdef MFEM_USE_MPI
+   ParDarcyForm *pdarcy;
+   ParLinearForm *pg, *pf, *ph;
+#endif
    const Array<Coefficient*> &coeffs;
    SolverType solver_type;
    bool btime_u, btime_p;
@@ -56,17 +60,29 @@ private:
    class SchurPreconditioner : public Solver
    {
       const DarcyForm *darcy;
+#ifdef MFEM_USE_MPI
+      const ParDarcyForm *pdarcy {};
+#endif
       bool nonlinear;
 
       const char *prec_str;
       mutable BlockDiagonalPreconditioner *darcyPrec{};
       mutable SparseMatrix *S{};
-      mutable bool reconstruct{};
+#ifdef MFEM_USE_MPI
+      mutable HypreParMatrix *hS {};
+#endif
+      mutable bool reconstruct {};
 
       void Construct(const Vector &x) const;
+#ifdef MFEM_USE_MPI
+      void ConstructPar(const Vector &x) const;
+#endif
 
    public:
       SchurPreconditioner(const DarcyForm *darcy, bool nonlinear = false);
+#ifdef MFEM_USE_MPI
+      SchurPreconditioner(const ParDarcyForm *darcy, bool nonlinear = false);
+#endif
       ~SchurPreconditioner();
 
       const char *GetString() const { return prec_str; }
@@ -104,6 +120,14 @@ public:
                  LinearForm *g, LinearForm *f, LinearForm *h, const Array<Coefficient*> &coeffs,
                  SolverType stype = SolverType::LBFGS,  bool bflux_u = true,
                  bool btime_p = true);
+#ifdef MFEM_USE_MPI
+   DarcyOperator(const Array<int> &ess_flux_tdofs_list, ParDarcyForm *darcy,
+                 ParLinearForm *g, ParLinearForm *f, ParLinearForm *h,
+                 const Array<Coefficient*> &coeffs,
+                 SolverType stype = SolverType::LBFGS,  bool bflux_u = true,
+                 bool btime_p = true);
+#endif
+
    ~DarcyOperator();
 
    void EnableIterationsVisualization(int vis_step = 0) { monitor_step = vis_step; }
