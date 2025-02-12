@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
    if (hybridization || (reduction && dg))
    {
       // 12. Construct the preconditioner
-      GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
+      HypreBoomerAMG prec(*pDarcyOp.As<HypreParMatrix>());
 
       // 13. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
