@@ -3200,6 +3200,10 @@ public:
 
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
 
+   void AddMultNURBSPA(const Vector&, Vector&) const override;
+
+   void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
+
    /** Compute the stress corresponding to the local displacement @a $u$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric
        part of the stress is stored, so that the size of @a flux is equal to

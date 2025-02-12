@@ -75,8 +75,8 @@ void PatchElasticitySetup3D(const int Q1Dx,
                D(qx,qy,qz,7) = A23 / detJ;
                D(qx,qy,qz,8) = A33 / detJ;
                // store w_detJ
-               // TODO: Small efficiency to multiply by sqrt(W/detJ)? Might not work for negative weights
-               D(qx,qy,qz,9) = W(qx,qy,qz) / detJ;
+               // TODO: Small efficiency to multiply by sqrt(W*detJ)? Might not work for negative weights
+               D(qx,qy,qz,9) = W(qx,qy,qz) * detJ;
             }
          }
       }
@@ -226,18 +226,6 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
       nq *= Q1D[i];
    }
 
-   // for reduced rules
-   // const Array<int>& D1D = pD1D[patch];
-   // const std::vector<Array2D<real_t>>& B = pB[patch];
-   // const std::vector<Array2D<real_t>>& G = pG[patch];
-   // const IntArrayVar2D& minD = pminD[patch];
-   // const IntArrayVar2D& maxD = pmaxD[patch];
-   // const IntArrayVar2D& minQ = pminQ[patch];
-   // const IntArrayVar2D& maxQ = pmaxQ[patch];
-   // const IntArrayVar2D& minDD = pminDD[patch];
-   // const IntArrayVar2D& maxDD = pmaxDD[patch];
-   // const Array<const IntegrationRule*>& ir1d = pir1d[patch];
-
    Array<real_t> weights(nq);
    IntegrationPoint ip;
 
@@ -294,6 +282,19 @@ void ElasticityIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
 
    // numPatches = mesh->NURBSext->GetNP();
+
+   // for reduced rules
+   // const Array<int>& D1D = pD1D[patch];
+   // const std::vector<Array2D<real_t>>& B = pB[patch];
+   // const std::vector<Array2D<real_t>>& G = pG[patch];
+   // const IntArrayVar2D& minD = pminD[patch];
+   // const IntArrayVar2D& maxD = pmaxD[patch];
+   // const IntArrayVar2D& minQ = pminQ[patch];
+   // const IntArrayVar2D& maxQ = pmaxQ[patch];
+   // const IntArrayVar2D& minDD = pminDD[patch];
+   // const IntArrayVar2D& maxDD = pmaxDD[patch];
+   // const Array<const IntegrationRule*>& ir1d = pir1d[patch];
+
    // // Solve for reduced 1D quadrature rules
    // const int totalDim = numPatches * dim * numTypes;
    // reducedWeights.resize(totalDim);
